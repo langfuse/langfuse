@@ -10,6 +10,10 @@ import {
   eventsTableCachedInputCostSql,
   eventsTableCachedInputTokensSql,
   eventsTableTraceNameSql,
+  eventsTableLoadedSkillNamesSql,
+  eventsTableLoadedSkillVersionsSql,
+  eventsTableAvailableSkillNamesSql,
+  eventsTableAvailableSkillVersionsSql,
 } from "../../eventsTable";
 import { tokenCountFilterClickhouseType } from "./tokenCountFilterType";
 
@@ -374,6 +378,50 @@ export const eventsTableNativeUiColumnDefinitions: UiColumnMappings = [
     uiTableId: "toolCalls",
     clickhouseTableName: "events_proto",
     clickhouseSelect: "length(e.tool_calls)",
+  },
+  {
+    uiTableName: "Loaded Skill Names",
+    uiTableId: "skillsNamesLoaded",
+    clickhouseTableName: "events_proto",
+    clickhouseSelect: eventsTableLoadedSkillNamesSql,
+  },
+  {
+    uiTableName: "Loaded Skill Versions",
+    uiTableId: "skillsVersionsLoaded",
+    clickhouseTableName: "events_proto",
+    clickhouseSelect: eventsTableLoadedSkillVersionsSql,
+  },
+  {
+    uiTableName: "Loaded Skill Files",
+    uiTableId: "skillFilesLoaded",
+    clickhouseTableName: "events_proto",
+    // Pair each path with its immutable skill-version ID to keep matches within one loaded resource.
+    clickhouseSelect:
+      "arrayMap(skill -> concat(skill.langfuseSkillId, '/', skill.filePath), e.skills_resource_loaded)",
+  },
+  {
+    uiTableName: "Available Skill Names",
+    uiTableId: "skillNamesAvailable",
+    clickhouseTableName: "events_proto",
+    clickhouseSelect: eventsTableAvailableSkillNamesSql,
+  },
+  {
+    uiTableName: "Available Skill Versions",
+    uiTableId: "skillVersionsAvailable",
+    clickhouseTableName: "events_proto",
+    clickhouseSelect: eventsTableAvailableSkillVersionsSql,
+  },
+  {
+    uiTableName: "Skill Names",
+    uiTableId: "skillNames",
+    clickhouseTableName: "events_proto",
+    clickhouseSelect: `arrayConcat(${eventsTableLoadedSkillNamesSql}, ${eventsTableAvailableSkillNamesSql})`,
+  },
+  {
+    uiTableName: "Skill Versions",
+    uiTableId: "skillVersions",
+    clickhouseTableName: "events_proto",
+    clickhouseSelect: `arrayConcat(${eventsTableLoadedSkillVersionsSql}, ${eventsTableAvailableSkillVersionsSql})`,
   },
   {
     uiTableName: "Tool Names",

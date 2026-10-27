@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-deprecated, @typescript-eslint/no-use-before-define -- Legacy UI usage retained during migration to design-system components. */
 import { useMemo } from "react";
 import {
   getCoreRowModel,
@@ -8,7 +9,7 @@ import {
   type Table as TanStackTable,
 } from "@tanstack/react-table";
 import { Skeleton } from "@/src/components/ui/skeleton";
-import { DataTablePagination } from "@/src/components/table/data-table-pagination";
+import { DataTablePagination } from "@/src/components/table/DataTablePagination";
 import {
   Tooltip,
   TooltipContent,

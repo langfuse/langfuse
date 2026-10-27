@@ -18,13 +18,12 @@ describe("prepareEvaluatorGallery", () => {
       search: "",
     });
 
-    expect(gallery.navigationItems[0]).toMatchObject({
+    expect(gallery.navigationItems.at(-1)).toMatchObject({
       key: "custom",
       count: 12,
     });
-    expect(gallery.sections[0]?.totalCount).toBe(12);
+    expect(gallery.sections.at(-1)?.totalCount).toBe(12);
     expect(gallery.sections.map(({ key }) => key)).toEqual([
-      "custom",
       "recommended",
       "conversation",
       "quality",
@@ -32,6 +31,7 @@ describe("prepareEvaluatorGallery", () => {
       "retrieval",
       "safety",
       "coding-agents",
+      "custom",
     ]);
 
     const recommendedSection = gallery.sections.find(
@@ -69,13 +69,13 @@ describe("prepareEvaluatorGallery", () => {
     const gallery = prepareEvaluatorGallery({
       customTemplates: [customTemplate],
       customTemplateCount: 0,
+      hasCustomTemplates: true,
       search: "grounded",
     });
 
     expect(
       gallery.navigationItems.map(({ key, count }) => ({ key, count })),
     ).toEqual([
-      { key: "custom", count: 0 },
       { key: "recommended", count: 0 },
       { key: "conversation", count: 0 },
       { key: "quality", count: 0 },
@@ -83,13 +83,18 @@ describe("prepareEvaluatorGallery", () => {
       { key: "retrieval", count: 1 },
       { key: "safety", count: 0 },
       { key: "coding-agents", count: 0 },
+      { key: "custom", count: 0 },
     ]);
-    expect(gallery.sections).toHaveLength(1);
-    expect(gallery.sections[0]?.templates).toEqual([
-      expect.objectContaining({
-        source: "managed",
-        key: "answer-groundedness",
-      }),
+    expect(
+      gallery.sections.map(({ key, templates }) => ({
+        key,
+        templates: templates.map((template) =>
+          template.source === "managed" ? template.key : template.id,
+        ),
+      })),
+    ).toEqual([
+      { key: "retrieval", templates: ["answer-groundedness"] },
+      { key: "custom", templates: [] },
     ]);
   });
 });

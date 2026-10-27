@@ -16,7 +16,6 @@ export type ConfigureTopicsSettingsInput = {
 };
 
 export type TopicSetupNoticeState = {
-  unavailable: boolean;
   status:
     | { kind: "paused"; message: string }
     | { kind: "setup" }
@@ -82,26 +81,27 @@ export function useTopicModelSettings({
         }
       : null;
 
+  const configurationError =
+    settings.error ?? readinessSettings.error ?? connections.error;
+
   return {
     configure: {
       settings: configureSettings,
-      triggerVariant:
-        configureSettings && !configured
-          ? ("primary" as const)
-          : ("secondary" as const),
+      error: configurationError
+        ? `Could not load Topics configuration: ${configurationError.message} Reload the page to retry.`
+        : null,
     },
     automaticProcessing: {
       ...automaticProcessing,
       dialog: {
+        projectId,
         rule,
         stored: settings.data,
-        traceIdleMs: readinessSettings.data?.traceIdleMs ?? null,
         save: automaticProcessing.save,
         saving: automaticProcessing.saving,
       },
     },
     notice: {
-      unavailable: Boolean(settings.data && !settings.data.processingAvailable),
       status,
     } satisfies TopicSetupNoticeState,
   };

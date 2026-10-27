@@ -16,6 +16,7 @@ import {
   parseClickhouseUTCDateTimeFormat,
   scoreBooleansAggregation,
   StringFilter,
+  shouldSkipScoresDedup,
 } from "@langfuse/shared/src/server";
 import { Readable } from "stream";
 import { env } from "../../env";
@@ -149,7 +150,7 @@ export const getTraceStream = async (props: {
           data_type,
           string_value,
           avg(value) as avg_value
-        FROM scores FINAL
+        FROM scores ${shouldSkipScoresDedup(projectId) ? "" : "FINAL"}
         WHERE ${appliedScoresFilter.query}
         GROUP BY
           project_id,

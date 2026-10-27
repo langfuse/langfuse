@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { Prisma } from "@prisma/client";
 
 import { prisma } from "../../db";
@@ -135,8 +136,7 @@ export async function markDatasetMediaUploadComplete(props: {
     data: {
       uploadedAt: props.uploadedAt,
       uploadHttpStatus: props.uploadHttpStatus,
-      uploadHttpError:
-        props.uploadHttpStatus === 200 ? null : props.uploadHttpError,
+      uploadHttpError: isCompletingUpload ? null : props.uploadHttpError,
     },
   });
 

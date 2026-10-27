@@ -1,4 +1,4 @@
-/* eslint-disable boundaries/dependencies */
+/* eslint-disable boundaries/dependencies, react/no-unstable-nested-components */
 import { type OrderByState } from "@langfuse/shared";
 import {
   type ColumnDef,
@@ -9,7 +9,7 @@ import {
   getCoreRowModel,
   useReactTable,
 } from "@tanstack/react-table";
-import { ArrowDown, ArrowUp, ArrowUpDown, MoreVertical } from "lucide-react";
+import { ArrowDown, ArrowUp, ArrowUpDown, MoreVertical } from "@langfuse/icons";
 import { type ComponentProps, useMemo } from "react";
 
 import { DropdownMenu } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
@@ -20,7 +20,7 @@ import { Skeleton } from "@/src/components/ui/skeleton";
 import { cn } from "@/src/utils/tailwind";
 
 const INTERACTIVE_ROW_CLICK_SELECTOR =
-  "a, button, input, select, textarea, summary, [role='button'], [role='link']";
+  "a, button, input, select, textarea, summary, [role='button'], [role='link'], [data-row-click-ignore]";
 
 function shouldIgnoreRowClickTarget(target: EventTarget | null) {
   if (!(target instanceof Element)) return false;
@@ -43,6 +43,8 @@ export interface TableProps<TData> {
   loadingRowCount?: number;
   noResultsMessage?: React.ReactNode;
   onRowClick?: (row: TData, event?: React.MouseEvent) => void;
+  getRowLabel?: (row: TData) => string;
+  selectedRowId?: string | null;
   columnVisibility?: VisibilityState;
   onColumnVisibilityChange?: OnChangeFn<VisibilityState>;
   columnOrder?: ColumnOrderState;
@@ -63,6 +65,8 @@ export function Table<TData extends object>({
   loadingRowCount = 8,
   noResultsMessage = "No results",
   onRowClick,
+  getRowLabel,
+  selectedRowId,
   columnVisibility,
   onColumnVisibilityChange,
   columnOrder,
@@ -127,7 +131,8 @@ export function Table<TData extends object>({
         loadingCell: (
           <div className="ml-auto flex h-4 w-6 items-center justify-center">
             <MoreVertical
-              className="text-muted-foreground/30 icon-base animate-pulse"
+              size="base"
+              __rawClassName="text-muted-foreground/30 animate-pulse"
               aria-hidden="true"
             />
           </div>
@@ -139,6 +144,8 @@ export function Table<TData extends object>({
     data: data.status === "success" ? data.data : [],
     columns: tableColumns,
     getCoreRowModel: getCoreRowModel(),
+    getRowId: (row, index) =>
+      "id" in row && typeof row.id === "string" ? row.id : String(index),
     columnResizeMode: "onChange",
     state: { columnVisibility, columnOrder },
     onColumnVisibilityChange,
@@ -232,19 +239,22 @@ export function Table<TData extends object>({
                             </span>
                             {!isSorted && (
                               <ArrowUpDown
-                                className="icon-sm ml-1.5 shrink-0 opacity-40 transition-opacity group-hover/sort:opacity-70"
+                                size="sm"
+                                __rawClassName="ml-1.5 opacity-40 transition-opacity group-hover/sort:opacity-70"
                                 aria-hidden="true"
                               />
                             )}
                             {isSorted && orderBy.order === "ASC" && (
                               <ArrowUp
-                                className="icon-sm ml-1.5 shrink-0"
+                                size="sm"
+                                __rawClassName="ml-1.5"
                                 aria-hidden="true"
                               />
                             )}
                             {isSorted && orderBy.order === "DESC" && (
                               <ArrowDown
-                                className="icon-sm ml-1.5 shrink-0"
+                                size="sm"
+                                __rawClassName="ml-1.5"
                                 aria-hidden="true"
                               />
                             )}
@@ -352,15 +362,29 @@ export function Table<TData extends object>({
                     rowHeight === "m" && "h-24",
                     rowHeight === "l" && "h-64",
                     onRowClick ? "cursor-pointer" : "cursor-default",
+                    onRowClick &&
+                      "focus-visible:outline-primary focus-visible:outline-2 focus-visible:outline-offset-[-2px]",
+                    selectedRowId === row.id && "bg-muted",
                   )}
                   tabIndex={onRowClick ? 0 : undefined}
+                  aria-label={getRowLabel?.(row.original)}
+                  aria-keyshortcuts={onRowClick ? "Enter Space" : undefined}
+                  aria-selected={
+                    selectedRowId === undefined
+                      ? undefined
+                      : selectedRowId === row.id
+                  }
                   onClick={(event) => {
                     if (shouldIgnoreRowClickTarget(event.target)) return;
                     onRowClick?.(row.original, event);
                   }}
                   onKeyDown={(event) => {
-                    if (event.key !== "Enter") return;
+                    if (event.key !== "Enter" && event.key !== " ") return;
+                    if (!event.currentTarget.contains(event.target as Node))
+                      return;
                     if (shouldIgnoreRowClickTarget(event.target)) return;
+                    if (!onRowClick) return;
+                    event.preventDefault();
                     onRowClick?.(row.original);
                   }}
                 >

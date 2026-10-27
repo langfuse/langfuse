@@ -1065,6 +1065,8 @@ describe("BlobStorageIntegrationProcessingJob", () => {
         expect(content).toContain(scoreId);
         expect(content).toContain("Test Score");
         expect(content).toContain("0.95");
+        // Score metadata is opt-in; the column-default field groups omit it
+        expect(content.split("\n")[0]).not.toContain("metadata");
         // Verify session_id is exported for session-scoped scores
         expect(content).toContain(sessionScoreId);
         expect(content).toContain(sessionId);
@@ -1202,6 +1204,114 @@ describe("BlobStorageIntegrationProcessingJob", () => {
         expect(row).not.toHaveProperty("usage_details");
       }
     });
+
+    it.each([
+      // observation metadata must not switch on score metadata
+      [["core", "metadata"], false, true, false],
+      [["core", "score_metadata"], true, false, false],
+      [["core", "metadata", "score_metadata"], true, true, false],
+      [["core", "score_provenance"], false, false, true],
+    ])(
+      "should apply field groups %j per table (score metadata: %s, observation metadata: %s, score provenance: %s)",
+      async (
+        exportFieldGroups,
+        expectScoreMetadata,
+        expectEventMetadata,
+        expectScoreProvenance,
+      ) => {
+        const { projectId } = await createOrgProjectAndApiKey();
+        s3Prefix = projectId;
+        const now = new Date();
+        const twoHoursAgo = new Date(now.getTime() - 2 * 60 * 60 * 1000);
+        const dataTime = now.getTime() - 90 * 60 * 1000;
+
+        await prisma.blobStorageIntegration.create({
+          data: {
+            projectId,
+            type: BlobStorageIntegrationType.S3,
+            bucketName,
+            prefix: s3Prefix,
+            accessKeyId: minioAccessKeyId,
+            secretAccessKey: encrypt(minioAccessKeySecret),
+            region: region ? region : "auto",
+            endpoint: minioEndpoint,
+            forcePathStyle:
+              env.LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE === "true",
+            enabled: true,
+            exportFrequency: "hourly",
+            exportSource: "EVENTS",
+            exportFieldGroups,
+            nextSyncAt: twoHoursAgo,
+            lastSyncAt: twoHoursAgo,
+            compressed: false,
+            fileType: BlobStorageIntegrationFileType.JSONL,
+          },
+        });
+
+        const traceId = randomUUID();
+        await Promise.all([
+          createEventsCh([
+            createEvent({
+              project_id: projectId,
+              trace_id: traceId,
+              start_time: dataTime * 1000,
+              end_time: (dataTime + 5000) * 1000,
+              metadata: { source: "observation" },
+              metadata_names: ["source"],
+              metadata_values: ["observation"],
+            }),
+          ]),
+          createScoresCh([
+            createTraceScore({
+              trace_id: traceId,
+              project_id: projectId,
+              timestamp: dataTime,
+              metadata: { source: "score" },
+              author_user_id: "author-1",
+              config_id: "config-1",
+              queue_id: "queue-1",
+            }),
+          ]),
+        ]);
+
+        await handleBlobStorageIntegrationProjectJob({
+          data: { payload: { projectId } },
+        } as Job);
+
+        const files = await s3StorageService.listFiles(s3Prefix);
+        const readFirstRow = async (table: string) => {
+          const file = files.find((f) => f.file.includes(`/${table}/`));
+          expect(file).toBeDefined();
+          const content = await s3StorageService.download(file!.file);
+          return JSON.parse(content.trim().split("\n")[0]);
+        };
+
+        const scoreRow = await readFirstRow("scores");
+        expect(scoreRow).toHaveProperty("value");
+        if (expectScoreMetadata) {
+          expect(scoreRow.metadata).toEqual({ source: "score" });
+        } else {
+          expect(scoreRow).not.toHaveProperty("metadata");
+        }
+        if (expectScoreProvenance) {
+          expect(scoreRow).toMatchObject({
+            author_user_id: "author-1",
+            config_id: "config-1",
+            queue_id: "queue-1",
+          });
+          expect(scoreRow).toHaveProperty("execution_trace_id");
+        } else {
+          expect(scoreRow).not.toHaveProperty("author_user_id");
+        }
+
+        const eventRow = await readFirstRow("observations_v2");
+        if (expectEventMetadata) {
+          expect(eventRow.metadata).toEqual({ source: "observation" });
+        } else {
+          expect(eventRow).not.toHaveProperty("metadata");
+        }
+      },
+    );
 
     it("should respect export frequency when setting nextSyncAt", async () => {
       const { projectId } = await createOrgProjectAndApiKey();

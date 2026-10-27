@@ -1,10 +1,10 @@
-import { Globe, Link, Share2 } from "lucide-react";
+import { Globe, Link, Share2 } from "@langfuse/icons";
 
 import { type DropdownMenuItemDefinition } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
 import {
   getShareUrl,
   usePublishObject,
-} from "@/src/components/publish-object-switch";
+} from "@/src/components/PublishSessionSwitch";
 import { showSuccessToast } from "@/src/features/notifications";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
 

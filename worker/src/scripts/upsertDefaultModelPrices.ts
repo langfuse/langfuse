@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { z } from "zod";
 import { prisma, PrismaClient } from "@langfuse/shared/src/db";
 import defaultModelPrices from "../constants/default-model-prices.json";

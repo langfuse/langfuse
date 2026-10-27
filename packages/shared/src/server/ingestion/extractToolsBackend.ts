@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { z } from "zod";
 
 type IngestionJsonValue = string | object | number | boolean | null | undefined;

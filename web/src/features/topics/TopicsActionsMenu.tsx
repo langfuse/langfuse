@@ -1,59 +1,32 @@
-import { type ReactNode } from "react";
-import { History, Play, RefreshCw } from "lucide-react";
 import { HeaderActionMenuRow } from "@/src/components/HeaderActionMenuRow";
+import { Badge } from "@/src/components/design-system/Badge/Badge";
+import { type TopicsActions } from "./prepare-topics-actions";
 
 export function TopicsActionsMenu({
-  children,
-  triggerAction,
+  actions,
   closeMenu,
-  onOpenHistory,
-  onRefresh,
-}: TopicsActionsMenuProps) {
-  function processTraces() {
-    closeMenu();
-    triggerAction?.onSelect();
-  }
-  function openHistory() {
-    closeMenu({ handoffFocus: true });
-    onOpenHistory();
-  }
-  function refreshResults() {
-    closeMenu();
-    onRefresh();
-  }
-  return (
-    <>
-      {children}
-      {triggerAction && (
-        <HeaderActionMenuRow
-          label={triggerAction.label}
-          icon={<Play className="icon-base text-icon-foreground" />}
-          disabled={triggerAction.disabled}
-          onClick={processTraces}
-        />
-      )}
-      <HeaderActionMenuRow
-        label="History"
-        icon={<History className="icon-base text-icon-foreground" />}
-        onClick={openHistory}
-      />
-      <HeaderActionMenuRow
-        label="Refresh results"
-        icon={<RefreshCw className="icon-base text-icon-foreground" />}
-        onClick={refreshResults}
-      />
-    </>
-  );
-}
-
-type TopicsActionsMenuProps = {
-  children?: ReactNode;
-  triggerAction: {
-    label: string;
-    disabled: boolean;
-    onSelect: () => void;
-  } | null;
+}: {
+  actions: TopicsActions;
   closeMenu: (options?: { handoffFocus?: boolean }) => void;
-  onOpenHistory: () => void;
-  onRefresh: () => void;
-};
+}) {
+  return actions.menu.map((action) => {
+    const Icon = action.icon;
+    function select() {
+      closeMenu({ handoffFocus: action.id === "history" });
+      action.onSelect();
+    }
+    return (
+      <HeaderActionMenuRow
+        key={action.id}
+        label={action.label}
+        icon={<Icon size="base" color="default" />}
+        badge={
+          action.badge ? <Badge text={action.badge} size="sm" /> : undefined
+        }
+        disabled={Boolean(action.disabledReason)}
+        disabledReason={action.disabledReason}
+        onClick={select}
+      />
+    );
+  });
+}

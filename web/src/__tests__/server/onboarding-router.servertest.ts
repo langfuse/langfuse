@@ -486,7 +486,7 @@ describe("onboarding router", () => {
       surveyCreated: true,
     });
   });
-  describe("build intent answers", () => {
+  describe("survey answers", () => {
     const createCallerForNewUser = async () => {
       const userId = randomUUID();
       const email = `build-intent-${userId}@example.com`;
@@ -520,6 +520,77 @@ describe("onboarding router", () => {
         buildIntents: ["rag", "other"],
         buildIntentOther: "voice agent",
         buildIntentPositions: [2, 6],
+      });
+    });
+
+    describe("newsletter result", () => {
+      const originalCloudRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
+
+      afterEach(() => {
+        Object.assign(env, {
+          NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: originalCloudRegion,
+        });
+      });
+
+      const completeAsOrganizationMember = async ({
+        role,
+        cloudRegion,
+        clientLists,
+      }: {
+        role: Role;
+        cloudRegion?: string;
+        clientLists: string[];
+      }) => {
+        Object.assign(env, { NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: cloudRegion });
+        const { caller, userId } = await createCallerForNewUser();
+        const organization = await prisma.organization.create({
+          data: {
+            name: `Newsletter Org ${userId}`,
+            organizationMemberships: { create: { userId, role } },
+          },
+        });
+        createdOrgIds.push(organization.id);
+
+        await caller.onboarding.complete({
+          newsletter: { outcome: "subscribed", lists: clientLists },
+        } as Parameters<typeof caller.onboarding.complete>[0]);
+
+        const survey = await prisma.survey.findFirstOrThrow({
+          where: { userId },
+        });
+        return survey.response;
+      };
+
+      it.each([
+        {
+          role: Role.VIEWER,
+          clientLists: ["product", "oss"],
+          storedLists: ["product"],
+        },
+        {
+          role: Role.OWNER,
+          clientLists: ["product"],
+          storedLists: ["product", "oss"],
+        },
+      ])(
+        "stores the lists offered to a $role on self-hosted, not the client's",
+        async ({ role, clientLists, storedLists }) => {
+          await expect(
+            completeAsOrganizationMember({ role, clientLists }),
+          ).resolves.toEqual({
+            newsletter: { lists: storedLists, outcome: "subscribed" },
+          });
+        },
+      );
+
+      it("stores no newsletter result in Cloud", async () => {
+        await expect(
+          completeAsOrganizationMember({
+            role: Role.OWNER,
+            cloudRegion: "US",
+            clientLists: ["product", "oss"],
+          }),
+        ).resolves.toEqual({});
       });
     });
 
@@ -557,6 +628,10 @@ describe("onboarding router", () => {
       [
         "positions that don't match the picks",
         { buildIntents: ["rag", "other"], buildIntentPositions: [2] },
+      ],
+      [
+        "a newsletter result with an unknown outcome",
+        { newsletter: { outcome: "bounced" } },
       ],
     ])("rejects %s", async (_case, input) => {
       const { caller, userId } = await createCallerForNewUser();

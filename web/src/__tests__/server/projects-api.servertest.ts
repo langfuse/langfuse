@@ -215,7 +215,8 @@ describe("Projects API", () => {
       data: { email: `apikey-creator-${randomUUID()}@example.com` },
     });
     const orgKey = await createApiKey(prisma, {
-      owner: OrganizationId("seed-org-id"),
+      tenant: OrganizationId("seed-org-id"),
+      scope: OrganizationId("seed-org-id"),
       role: SystemRoleId("LEGACY_ORGANIZATION_API_KEY"),
       createdBy: UserId(keyCreator.id),
       predefinedKeys: {
@@ -1063,10 +1064,6 @@ describe("Projects API", () => {
         label: "wrong-scope legacy role",
         body: { role: "LEGACY_ORGANIZATION_API_KEY" },
       },
-      { label: "admin role", body: { role: "ADMIN" } },
-      { label: "viewer role", body: { role: "VIEWER" } },
-      { label: "ingest role", body: { role: "INGEST" } },
-      { label: "scores ingest role", body: { role: "SCORES_INGEST" } },
       { label: "gateway role", body: { role: "AI_GATEWAY" } },
       { label: "role array", body: { role: [] } },
     ])("rejects $label without creating a key", async ({ body }) => {
@@ -1080,6 +1077,26 @@ describe("Projects API", () => {
       expect(result.status).toBe(400);
       expect(result.body.message).toEqual(expect.any(String));
       expect(await prisma.apiKey.count({ where: { projectId } })).toBe(before);
+    });
+
+    it("provisions a key with a selected role under the default env", async () => {
+      const response = await makeAPICall<
+        z.infer<typeof ApiKeyCreationResponseSchema>
+      >(
+        "POST",
+        `/api/public/projects/${projectId}/apiKeys`,
+        { role: "INGEST" },
+        createBasicAuthHeader(orgApiKey, orgSecretKey),
+      );
+      createdApiKeyId = response.body.id;
+      expect(response.status).toBe(201);
+      expect(response.body.role).toBe("INGEST");
+
+      const stored = await prisma.apiKey.findUniqueOrThrow({
+        where: { id: response.body.id },
+        include: { roleAssignments: true },
+      });
+      expect(stored.roleAssignments).toMatchObject([{ systemRole: "INGEST" }]);
     });
 
     it("should create a new API key with valid organization API key", async () => {
@@ -1331,7 +1348,8 @@ describe("Projects API", () => {
         data: { email: `apikey-creator-${randomUUID()}@example.com` },
       });
       const apiKeyMeta = await createApiKey(prisma, {
-        owner: ProjectId(projectId),
+        tenant: OrganizationId("seed-org-id"),
+        scope: ProjectId(projectId),
         role: SystemRoleId("LEGACY_PROJECT_API_KEY"),
         createdBy: UserId(keyCreator.id),
         name: `Delete Test API Key ${randomUUID().substring(0, 8)}`,

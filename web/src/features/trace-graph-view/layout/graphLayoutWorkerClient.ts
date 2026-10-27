@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import ELKConstructor from "elkjs/lib/elk-api";
 import type { ELK } from "elkjs";
 

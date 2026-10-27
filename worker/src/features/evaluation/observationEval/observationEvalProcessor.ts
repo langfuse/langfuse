@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { z } from "zod";
 import {
   DEFAULT_TRACE_ENVIRONMENT,
@@ -24,6 +25,11 @@ import {
 } from "@prisma/client";
 import { prisma, JobExecutionStatus } from "@langfuse/shared/src/db";
 import { UnrecoverableError } from "../../../errors/UnrecoverableError";
+import {
+  EvalFailureError,
+  EvalFailureReason,
+  UnrecoverableEvalFailureError,
+} from "../evalFailureErrors";
 import { buildEvalExecutionData } from "@langfuse/shared/src/server";
 import {
   completeEvalExecution,
@@ -174,8 +180,9 @@ export async function processObservationEval(
     );
   } catch (e) {
     // S3 download failures are retryable (network issues, temporary unavailability)
-    throw new Error(
+    throw new EvalFailureError(
       `Failed to download observation from S3 at ${event.observationS3Path}: ${e}`,
+      EvalFailureReason.ObservationDownload,
     );
   }
 
@@ -185,8 +192,9 @@ export async function processObservationEval(
     observationData = observationForEvalSchema.parse(parsedJson);
   } catch (e) {
     // JSON parse errors are permanent - the data won't change on retry
-    throw new UnrecoverableError(
+    throw new UnrecoverableEvalFailureError(
       `Invalid observation data from S3 at ${event.observationS3Path}: invalid JSON - ${e}`,
+      EvalFailureReason.InvalidObservationData,
     );
   }
 
@@ -260,6 +268,7 @@ export async function processObservationEval(
       targetTraceId: job.jobInputTraceId,
       targetObservationId: job.jobInputObservationId,
       targetDatasetItemId: job.jobInputDatasetItemId,
+      batchActionId: event.batchActionId,
     }),
     deps: deps.evalExecutionDeps,
   };

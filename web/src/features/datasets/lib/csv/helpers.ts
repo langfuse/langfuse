@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { parse } from "csv-parse";
 import {
   isJsonNumberLiteral,

@@ -1,7 +1,11 @@
 import { cva } from "class-variance-authority";
-import { ExternalLink, type LucideIcon } from "lucide-react";
+import { ExternalLink, type IconComponent } from "@langfuse/icons";
 import Link from "next/link";
-import { type MouseEventHandler, type Ref } from "react";
+import {
+  type ButtonHTMLAttributes,
+  type MouseEventHandler,
+  type Ref,
+} from "react";
 
 import { Spinner } from "@/src/components/design-system/Spinner/Spinner";
 import { cn } from "@/src/utils/tailwind";
@@ -14,6 +18,8 @@ const buttonVariants = cva(
         primary: "bg-primary text-primary-foreground hover:bg-primary/90",
         secondary:
           "bg-secondary text-secondary-foreground hover:bg-secondary/80",
+        outline:
+          "border border-border-contrast bg-background hover:bg-accent hover:text-accent-foreground",
         destructive:
           "bg-destructive text-destructive-foreground hover:bg-destructive/90",
         ghost: "hover:bg-accent hover:text-accent-foreground",
@@ -33,24 +39,15 @@ const buttonVariants = cva(
   },
 );
 
-const buttonIconVariants = cva("icon-base shrink-0", {
-  variants: {
-    variant: {
-      primary: "",
-      secondary: "",
-      destructive: "",
-      ghost: "text-icon-foreground",
-      text: "",
-    },
-  },
-  defaultVariants: {
-    variant: "primary",
-  },
-});
-
 type ButtonProps = {
   text: string;
-  variant?: "primary" | "secondary" | "destructive" | "ghost" | "text";
+  variant?:
+    | "primary"
+    | "secondary"
+    | "outline"
+    | "destructive"
+    | "ghost"
+    | "text";
   size?: "default" | "sm";
 } & (
   | {
@@ -58,21 +55,25 @@ type ButtonProps = {
       ref?: Ref<HTMLAnchorElement>;
       disabled?: never;
       loading?: never;
-      icon?: LucideIcon;
+      icon?: IconComponent;
       form?: never;
       onClick?: never;
       type?: never;
     }
-  | {
+  | ({
       href?: never;
       ref?: Ref<HTMLButtonElement>;
       disabled?: boolean;
       form?: string;
-      icon?: LucideIcon;
+      icon?: IconComponent;
       loading?: boolean;
       onClick?: MouseEventHandler<HTMLButtonElement>;
       type?: "button" | "submit";
-    }
+      "data-state"?: string;
+    } & Pick<
+      ButtonHTMLAttributes<HTMLButtonElement>,
+      "id" | "aria-controls" | "aria-expanded" | "aria-haspopup"
+    >)
 );
 
 export function Button(props: ButtonProps) {
@@ -83,7 +84,7 @@ export function Button(props: ButtonProps) {
       size: props.size,
     }),
   );
-  const iconClassName = buttonIconVariants({ variant: props.variant });
+  const iconColor = props.variant === "ghost" ? "default" : "inherit";
 
   if (props.href !== undefined) {
     const Icon = props.icon;
@@ -103,14 +104,14 @@ export function Button(props: ButtonProps) {
           target="_blank"
           rel={isLangfuseDomain ? "noopener" : "noopener noreferrer"}
         >
-          {Icon ? <Icon className={iconClassName} aria-hidden /> : null}
+          {Icon ? <Icon color={iconColor} aria-hidden /> : null}
           {props.text}
+          {/* The glyph reaches the bottom of its box, so centered it dips below the text baseline. */}
           <ExternalLink
-            className={cn(
-              "icon-sm",
-              props.variant === "ghost" && "text-icon-foreground",
-            )}
+            size="sm"
+            color={iconColor}
             aria-hidden
+            __rawClassName="-translate-y-px"
           />
         </a>
       );
@@ -118,7 +119,7 @@ export function Button(props: ButtonProps) {
 
     return (
       <Link className={className} href={props.href} ref={props.ref}>
-        {Icon ? <Icon className={iconClassName} aria-hidden /> : null}
+        {Icon ? <Icon color={iconColor} aria-hidden /> : null}
         {props.text}
       </Link>
     );
@@ -128,7 +129,7 @@ export function Button(props: ButtonProps) {
 
   return (
     <button
-      className={className}
+      className={cn(className, "relative")}
       ref={props.ref}
       type={props.type ?? "button"}
       form={props.form}
@@ -136,16 +137,27 @@ export function Button(props: ButtonProps) {
       onClick={props.loading || props.disabled ? undefined : props.onClick}
       aria-busy={props.loading}
       aria-label={props.text}
+      id={props.id}
+      aria-controls={props["aria-controls"]}
+      aria-expanded={props["aria-expanded"]}
+      aria-haspopup={props["aria-haspopup"]}
+      data-state={props["data-state"]}
     >
-      {props.loading ? (
-        <span className="flex h-1/2 items-center justify-center">
-          <Spinner size="full" />
+      <span
+        className={cn(
+          "inline-flex items-center gap-1.5",
+          props.loading && "invisible",
+        )}
+      >
+        {Icon ? <Icon color={iconColor} aria-hidden /> : null}
+        {props.text}
+      </span>
+      {props.loading && (
+        <span className="absolute inset-0 flex items-center justify-center">
+          <span className="flex h-1/2 items-center justify-center">
+            <Spinner size="full" />
+          </span>
         </span>
-      ) : (
-        <>
-          {Icon ? <Icon className={iconClassName} aria-hidden /> : null}
-          {props.text}
-        </>
       )}
     </button>
   );

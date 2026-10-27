@@ -14,6 +14,13 @@
 ARG BASE_IMAGE=registry.access.redhat.com/ubi9/ubi:9.8
 ARG MICRO_BASE_IMAGE=registry.access.redhat.com/ubi9/ubi-micro:9.8
 
+# TEMPORARY(node-24.22.1-security): Red Hat's nodejs:24 RPMs rebuilt with
+# security fixes from Node 24.22.1 (scripts/docker/nodejs-rpm/). install-nodejs.sh
+# uses them only while they are newer than the repos' nodejs, and the check
+# below fails the build if the installed Node lacks any of the fixes.
+ARG NODEJS_RPM_IMAGE=ghcr.io/langfuse/langfuse-nodejs-rpm:24.21.0-1.lf1@sha256:a64b46f8d92f11dacba52f2d10fc52be62944b5a992d00681a2e9cfa105e9637
+FROM ${NODEJS_RPM_IMAGE} AS nodejs-rpm
+
 FROM --platform=${TARGETPLATFORM:-linux/amd64} ${BASE_IMAGE} AS base
 
 # nodejs:24 and openssl (incl. the FIPS provider) come from the freely
@@ -21,16 +28,19 @@ FROM --platform=${TARGETPLATFORM:-linux/amd64} ${BASE_IMAGE} AS base
 # nodejs-full-i18n is required: the RPM Node is a small-ICU build and V8
 # segfaults in Intl.Segmenter (used e.g. by the prisma CLI's output
 # formatting) without the full ICU data.
-RUN dnf -y upgrade && \
-    dnf -y module enable nodejs:24 && \
-    dnf -y install --setopt=install_weak_deps=0 nodejs npm nodejs-full-i18n && \
-    dnf clean all
+COPY scripts/docker/nodejs-rpm/install-nodejs.sh scripts/docker/nodejs-rpm/test-node-security-fixes.js /opt/nodejs-rpm/
+RUN --mount=type=bind,from=nodejs-rpm,source=/rpms,target=/tmp/nodejs-rpms \
+    dnf -y upgrade && \
+    bash /opt/nodejs-rpm/install-nodejs.sh /tmp/nodejs-rpms \
+    nodejs nodejs-libs npm nodejs-full-i18n openssl-fips-provider openssl-fips-provider-so && \
+    dnf clean all && \
+    node /opt/nodejs-rpm/test-node-security-fixes.js
 
 FROM --platform=${TARGETPLATFORM:-linux/amd64} base AS build-base
 # Pin turbo to avoid nondeterministic prune output from future patch releases.
 # pnpm is installed pinned via npm instead of corepack: the corepack shim would
 # fetch pnpm from an unpinned CDN on first use.
-RUN npm install -g turbo@2.11.7 pnpm@12.8.2
+RUN npm install -g turbo@2.11.9 pnpm@12.8.2
 # Pass --build-arg NODE_USE_ENV_PROXY=1 when building behind a proxy.
 ARG NODE_USE_ENV_PROXY
 
@@ -49,14 +59,14 @@ ARG GID=1001
 # wget keeps exec-style container health checks working (e.g. `wget --spider
 # http://127.0.0.1:<port>/...` in ECS task definitions); it links GnuTLS,
 # which follows the host's FIPS mode like OpenSSL does.
-RUN dnf -y --installroot /mnt/rootfs --releasever 9 --setopt=install_weak_deps=0 \
-    --disableexcludes=all \
-    module enable nodejs:24 && \
-    dnf -y --installroot /mnt/rootfs --releasever 9 \
-    --setopt=install_weak_deps=0 --setopt=tsflags=nodocs \
-    --disableexcludes=all \
-    install nodejs nodejs-full-i18n bash coreutils-single sed \
+# The rpmdb check fails the build if the rootfs resolved a different nodejs
+# than the build stages.
+RUN --mount=type=bind,from=nodejs-rpm,source=/rpms,target=/tmp/nodejs-rpms \
+    NODEJS_INSTALLROOT=/mnt/rootfs bash /opt/nodejs-rpm/install-nodejs.sh /tmp/nodejs-rpms \
+    nodejs nodejs-libs npm nodejs-full-i18n openssl-fips-provider openssl-fips-provider-so \
+    bash coreutils-single sed \
     tzdata ca-certificates crypto-policies wget && \
+    test "$(rpm --root /mnt/rootfs -q nodejs)" = "$(rpm -q nodejs)" && \
     dnf --installroot /mnt/rootfs clean all && \
     rm -rf /mnt/rootfs/var/cache /mnt/rootfs/var/log/dnf*
 
@@ -89,6 +99,14 @@ RUN set -eux; \
     curl -fsSL -o /mnt/rootfs/usr/bin/dumb-init "https://github.com/Yelp/dumb-init/releases/download/v1.2.5/dumb-init_1.2.5_${di_arch}"; \
     echo "${di_sha256}  /mnt/rootfs/usr/bin/dumb-init" | sha256sum -c -; \
     chmod 0755 /mnt/rootfs/usr/bin/dumb-init
+
+# The UBI EULA requires every image derived from UBI to include it unmodified.
+# The magic-byte check rejects an HTML error page served in its place.
+# Keep in sync with worker/Dockerfile and ai-gateway/Dockerfile.
+RUN mkdir -p /mnt/rootfs/usr/share/licenses/redhat-ubi && \
+    curl -fsSL --retry 5 --retry-all-errors -o /mnt/rootfs/usr/share/licenses/redhat-ubi/EULA_Red_Hat_Universal_Base_Image_English_20190422.pdf \
+    https://www.redhat.com/licenses/EULA_Red_Hat_Universal_Base_Image_English_20190422.pdf && \
+    head -c 5 /mnt/rootfs/usr/share/licenses/redhat-ubi/EULA_Red_Hat_Universal_Base_Image_English_20190422.pdf | grep -qx '%PDF-'
 
 # Bake the non-root user into the rootfs (micro has no shadow-utils).
 RUN echo "nodejs:x:${GID}:" >> /mnt/rootfs/etc/group && \

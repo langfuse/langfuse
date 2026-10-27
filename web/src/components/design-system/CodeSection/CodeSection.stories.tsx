@@ -1,5 +1,5 @@
 import React from "react";
-import { ExternalLink, RefreshCw } from "lucide-react";
+import { ExternalLink, RefreshCw } from "@langfuse/icons";
 import { expect, userEvent, within } from "storybook/test";
 
 import preview from "../../../../.storybook/preview";
@@ -22,6 +22,10 @@ const longCode = Array.from(
   (_, index) =>
     `line ${index + 1}: const value${index + 1} = compute(${index + 1});`,
 ).join("\n");
+
+const shellCode = `# List the models the key can reach
+curl -s "$LANGFUSE_GATEWAY_HOST/openai/v1/models" \\
+  -H "Authorization: Bearer $LANGFUSE_GATEWAY_KEY"`;
 
 const longLine =
   "Authorization: Basic cGstbGYtMDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwOnNrLWxmLTAwMDAwMDAwLTAwMDAtMDAwMC0wMDAwLTAwMDAwMDAwMDAwMA==";
@@ -107,6 +111,15 @@ export const LongLineWithoutWrap = meta.story({
     variant: "outline",
     shouldWrapLines: false,
     content: longLine,
+  },
+});
+
+export const WithLanguage = meta.story({
+  args: {
+    variant: "outline",
+    language: "sh",
+    shouldWrapLines: false,
+    content: shellCode,
   },
 });
 

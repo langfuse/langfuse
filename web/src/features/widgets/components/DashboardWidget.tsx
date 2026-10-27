@@ -29,7 +29,7 @@ import {
   FileJsonIcon,
   DownloadIcon,
   TableIcon,
-} from "lucide-react";
+} from "@langfuse/icons";
 import { useRouter } from "next/router";
 import {
   buildTableFilterHref,
@@ -59,10 +59,10 @@ import {
   getChartLoadingStateProps,
 } from "@/src/features/widgets/chart-library/chartLoadingStateUtils";
 import type { ResolvedReadPath } from "@/src/features/events";
-import { useScheduledDashboardExecuteQuery } from "@/src/features/dashboard/hooks/useDashboardQueryScheduler";
+import { useScheduledDashboardExecuteQuery } from "@/src/features/dashboard/hooks/DashboardQuerySchedulerProvider";
 import { CopyWidgetDialog } from "@/src/features/widgets/components/CopyWidgetDialog";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
-import { Badge } from "@/src/components/ui/badge";
+import { Badge } from "@/src/components/design-system/Badge/Badge";
 
 export interface WidgetPlacement {
   id: string;
@@ -639,25 +639,26 @@ export function DashboardWidget({
           </span>
           {dashboardOwner === "PROJECT" && widget.data.owner === "LANGFUSE" && (
             <Badge
-              variant="secondary"
-              className="shrink-0"
+              color="filled"
+              text="Langfuse"
               title="Maintained by Langfuse — editing creates your own copy"
-            >
-              Langfuse
-            </Badge>
+            />
           )}
         </span>
         <div className="flex space-x-2">
           {!readOnly && (hasCUDAccess || isLockedEditable) && (
             <>
-              <GripVerticalIcon className="icon-base drag-handle text-muted-foreground hover:text-foreground hidden cursor-grab active:cursor-grabbing lg:group-hover:block" />
+              <GripVerticalIcon
+                size="base"
+                __rawClassName="drag-handle text-muted-foreground hover:text-foreground hidden cursor-grab active:cursor-grabbing lg:group-hover:block"
+              />
               {isLockedEditable ? (
                 <button
                   onClick={onLockedEditAttempt}
                   className="text-muted-foreground hover:text-foreground hidden group-hover:block"
                   aria-label="Edit widget"
                 >
-                  <PencilIcon className="icon-base" />
+                  <PencilIcon size="base" />
                 </button>
               ) : widget.data.owner === "PROJECT" ? (
                 <button
@@ -665,7 +666,7 @@ export function DashboardWidget({
                   className="text-muted-foreground hover:text-foreground hidden group-hover:block"
                   aria-label="Edit widget"
                 >
-                  <PencilIcon className="icon-base" />
+                  <PencilIcon size="base" />
                 </button>
               ) : widget.data.owner === "LANGFUSE" ? (
                 <button
@@ -679,7 +680,7 @@ export function DashboardWidget({
                   className="text-muted-foreground hover:text-foreground hidden group-hover:block"
                   aria-label="Edit widget"
                 >
-                  <PencilIcon className="icon-base" />
+                  <PencilIcon size="base" />
                 </button>
               ) : null}
             </>
@@ -767,7 +768,7 @@ export function DashboardWidget({
                 aria-label="Widget actions"
                 {...getTriggerProps()}
               >
-                <MoreVerticalIcon className="icon-base" />
+                <MoreVerticalIcon size="base" />
               </button>
             )}
           </DropdownMenu>

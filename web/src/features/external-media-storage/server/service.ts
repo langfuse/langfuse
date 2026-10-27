@@ -10,6 +10,7 @@ import {
 import { decrypt, encrypt } from "@langfuse/shared/encryption";
 import { type PrismaClient } from "@langfuse/shared/src/db";
 import {
+  OutboundUrlValidationError,
   StorageServiceFactory,
   externalMediaStorageEndpointConnectionValidationOptions,
   validateExternalMediaStorageEndpoint,
@@ -59,6 +60,17 @@ function isKeyWithinPrefix(key: string, prefix: string | null) {
   return !normalizedPrefix || isS3KeyWithinPrefix(key, normalizedPrefix);
 }
 
+async function validateEndpoint(endpoint: string) {
+  try {
+    await validateExternalMediaStorageEndpoint(endpoint);
+  } catch (error) {
+    if (error instanceof OutboundUrlValidationError) {
+      throw new InvalidRequestError(error.message);
+    }
+    throw error;
+  }
+}
+
 function createStorageService(integration: ExternalMediaStorageRecord) {
   return StorageServiceFactory.getInstance({
     accessKeyId: integration.accessKeyId ?? undefined,
@@ -77,7 +89,12 @@ function createStorageService(integration: ExternalMediaStorageRecord) {
     awsSseKmsKeyId: undefined,
     externalEndpoint: undefined,
     connectionValidation:
-      externalMediaStorageEndpointConnectionValidationOptions(),
+      externalMediaStorageEndpointConnectionValidationOptions({
+        endpoint: integration.endpoint,
+        bucketName: integration.bucketName,
+        forcePathStyle: integration.forcePathStyle,
+        region: integration.region,
+      }),
   });
 }
 
@@ -133,7 +150,7 @@ export function createExternalMediaStorageService(prisma: PrismaClient) {
         );
       }
       if (endpoint) {
-        await validateExternalMediaStorageEndpoint(endpoint);
+        await validateEndpoint(endpoint);
       }
 
       let region: string;
@@ -212,7 +229,7 @@ export function createExternalMediaStorageService(prisma: PrismaClient) {
       }
 
       if (integration.endpoint) {
-        await validateExternalMediaStorageEndpoint(integration.endpoint);
+        await validateEndpoint(integration.endpoint);
       }
 
       const storageService = createStorageService(integration);
@@ -230,7 +247,7 @@ export function createExternalMediaStorageService(prisma: PrismaClient) {
       return {
         url,
         contentLength,
-        expiresAt: new Date(Date.now() + EXTERNAL_MEDIA_URL_TTL_SECONDS * 1000),
+        urlTtlSeconds: EXTERNAL_MEDIA_URL_TTL_SECONDS,
       };
     },
 
@@ -259,7 +276,7 @@ export function createExternalMediaStorageService(prisma: PrismaClient) {
       }
 
       if (integration.endpoint) {
-        await validateExternalMediaStorageEndpoint(integration.endpoint);
+        await validateEndpoint(integration.endpoint);
       }
 
       const storageService = createStorageService(integration);

@@ -302,6 +302,18 @@ impl ValidatedPayload {
     /// Discover and apply edits only for the accepted payload selected for extraction.
     /// Source-backed candidates keep ranges into the owned source allocation.
     pub fn compact(self) -> Result<EarlyMediaResult, EarlyMediaError> {
+        if super::rules::may_contain_media_candidate(&self.source) {
+            self.compact_media_candidates()
+        } else {
+            Ok(EarlyMediaResult {
+                compact_json: self.source,
+                media: Vec::new(),
+            })
+        }
+    }
+
+    /// Compact a validated document whose media marker check already matched.
+    pub(crate) fn compact_media_candidates(self) -> Result<EarlyMediaResult, EarlyMediaError> {
         let ValidatedPayload { source, .. } = self;
         let manifest = super::scanner::discover(&source)?;
         if manifest.entries.is_empty() {

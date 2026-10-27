@@ -554,12 +554,16 @@ async fn streamed_messages_upload_one_generation_with_native_usage() {
     );
     let forwarded = provider
         .forward_route(
-            provider.try_admit().unwrap(),
+            provider.admit(),
             context,
             &headers,
-            Bytes::from_static(REQUEST),
+            crate::providers::RequestBody {
+                bytes: Bytes::from_static(REQUEST),
+                model_range: crate::providers::model_range(REQUEST).unwrap(),
+                streaming: true,
+                reservation: None,
+            },
             Route::AnthropicMessages,
-            None,
             &mut crate::correlation::RequestCorrelation::default(),
         )
         .await
@@ -589,7 +593,7 @@ async fn streamed_messages_upload_one_generation_with_native_usage() {
         metadata["langfuse.gateway.request.api_format"],
         "anthropic.messages"
     );
-    assert_eq!(metadata["langfuse.gateway.response.id"], "msg_1");
+    assert_eq!(metadata["langfuse.gateway.upstream.response.id"], "msg_1");
     assert_eq!(
         metadata["langfuse.gateway.upstream.request.id"],
         "req_upstream"

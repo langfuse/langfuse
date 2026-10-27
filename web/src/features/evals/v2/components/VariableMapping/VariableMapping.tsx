@@ -1,4 +1,4 @@
-import { Braces } from "lucide-react";
+import { Braces } from "@langfuse/icons";
 
 import { evalVariableColumnLabel } from "@/src/features/evals/v2/fns/variableMapping/evalVariableColumnLabel";
 import type { VariableFieldState } from "@/src/features/evals/v2/types/variableMapping";
@@ -61,7 +61,7 @@ function EmptyVariableMapping({ mode }: Pick<VariableMappingProps, "mode">) {
   return (
     <div className="border-border bg-muted/20 flex flex-col items-center justify-center gap-2 rounded-md border px-6 py-8 text-center">
       <div className="bg-muted text-muted-foreground flex size-9 items-center justify-center rounded-full">
-        <Braces className="icon-base" aria-hidden />
+        <Braces size="base" aria-hidden />
       </div>
       <div className="space-y-1">
         <p className="text-sm font-bold">No variables to map</p>

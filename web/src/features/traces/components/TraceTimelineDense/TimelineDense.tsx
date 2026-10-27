@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 /**
  * The Timeline. `TraceTimelineCompact` measures a box and renders this inside it,
  * and the trace panel's Timeline view IS this — for everyone, on every device,
@@ -58,7 +59,7 @@ import {
 } from "react";
 import { useTheme } from "next-themes";
 import { usePanZoomGestures } from "@/src/hooks/usePanZoomGestures";
-import { Scan, Minus, Plus, UnfoldVertical } from "lucide-react";
+import { Scan, Minus, Plus, UnfoldVertical } from "@langfuse/icons";
 import {
   ItemTypeIcon,
   type LangfuseItemType,
@@ -159,6 +160,8 @@ const RAIL_SQUARE_MAX = 5;
  * clipped to a sliver exactly on the deeply-nested spans.
  */
 const RAIL_WIDTH = RAIL_MAX_DEPTH * RAIL_INDENT + RAIL_SQUARE_MAX + 2;
+/** Left inset of the open gutter, matching the tree rows' `pl-2`. */
+const GUTTER_INSET = 8;
 /** Indent per level once the gutter is open, matching the production gutter. */
 const GUTTER_INDENT = 14;
 /** Type icon size in the gutter, same as the tree rows. */
@@ -170,7 +173,7 @@ const GUTTER_NAME_MIN = 48;
  * the spine reads as descending from the icon that owns it. Hugging the icon's
  * left edge instead left the elbow pointing at nothing in particular.
  */
-const GUTTER_RAIL = GUTTER_ICON / 2;
+const GUTTER_RAIL = GUTTER_INSET + GUTTER_ICON / 2;
 /** Stable empty set, so an absent `collapsed` prop does not break a memo. */
 const EMPTY_COLLAPSED: ReadonlySet<string> = new Set<string>();
 /**
@@ -1348,7 +1351,7 @@ export function TimelineDense({
           label="Zoom out"
           onClick={() => zoomBy(2 ** -BUTTON_ZOOM_LEVELS, 0.5, 0.5)}
         >
-          <Minus className="icon-sm" />
+          <Minus size="sm" />
         </ToolbarButton>
         <ToolbarButton
           label="Zoom in"
@@ -1358,11 +1361,11 @@ export function TimelineDense({
               : zoomBy(2 ** BUTTON_ZOOM_LEVELS, 0.5, 0.5)
           }
         >
-          <Plus className="icon-sm" />
+          <Plus size="sm" />
         </ToolbarButton>
         {offerShowLabels ? (
           <ToolbarButton label="Show labels" onClick={showLabels}>
-            <UnfoldVertical className="icon-sm" />
+            <UnfoldVertical size="sm" />
             <span className="pr-0.5" style={{ fontSize: "10px" }}>
               Show labels
             </span>
@@ -1380,7 +1383,7 @@ export function TimelineDense({
             {/* A viewfinder, not the diagonal arrows this used to wear: those
                 read as "fullscreen", so a control that was merely spent looked
                 broken. */}
-            <Scan className="icon-sm" />
+            <Scan size="sm" />
           </ToolbarButton>
         )}
         {/* What the dimming means, said in words. Without it "nothing lit up"
@@ -1842,7 +1845,10 @@ function GutterContent({
   // is the one the gutter can afford, leaving room for the icon and a name.
   const depthCap = showName
     ? Math.max(
-        Math.floor((width - GUTTER_ICON - GUTTER_NAME_MIN) / GUTTER_INDENT),
+        Math.floor(
+          (width - GUTTER_INSET - GUTTER_ICON - GUTTER_NAME_MIN) /
+            GUTTER_INDENT,
+        ),
         0,
       )
     : RAIL_MAX_DEPTH;
@@ -1855,7 +1861,7 @@ function GutterContent({
     2,
   );
   const indent = showName
-    ? depth * GUTTER_INDENT
+    ? GUTTER_INSET + depth * GUTTER_INDENT
     : Math.min(depth * RAIL_INDENT + 1, Math.max(width - squareSize - 1, 0));
   /** x of this row's own rail, and of its parent's. */
   const railX = depth * GUTTER_INDENT + GUTTER_RAIL;

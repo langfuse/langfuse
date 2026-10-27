@@ -1,4 +1,4 @@
-import type { LucideIcon } from "lucide-react";
+import type { IconComponent } from "@langfuse/icons";
 
 export function LlmConnectionEmptyState({
   description,
@@ -6,13 +6,13 @@ export function LlmConnectionEmptyState({
   title,
 }: {
   description: string;
-  icon: LucideIcon;
+  icon: IconComponent;
   title: string;
 }) {
   return (
     <div className="border-border flex min-h-24 flex-col items-center justify-center gap-2 rounded-md border border-dashed p-4 text-center">
       <span className="flex size-8 items-center justify-center rounded-md border">
-        <Icon className="icon-base text-muted-foreground" aria-hidden="true" />
+        <Icon size="base" color="muted" aria-hidden="true" />
       </span>
       <div className="flex flex-col gap-0.5">
         <p className="text-xs font-bold">{title}</p>

@@ -1,4 +1,4 @@
-/* eslint-disable no-nested-ternary */
+/* eslint-disable no-nested-ternary, react/no-unstable-nested-components */
 import { DataTable } from "@/src/components/table/data-table";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { createLinkTableColumn } from "@/src/components/design-system/table/columns/createLinkTableColumn";
@@ -18,7 +18,7 @@ import {
   isCompactRowHeight,
   useRowHeightLocalStorage,
 } from "@/src/components/table/data-table-row-height-switch";
-import { ListTree } from "lucide-react";
+import { ListTree } from "@langfuse/icons";
 import { scoreFilters, useScoreColumns } from "@/src/features/scores";
 import { createDateTableColumn } from "@/src/components/design-system/table/columns/createDateTableColumn";
 import { createIdTableColumn } from "@/src/components/design-system/table/columns/createIdTableColumn";
@@ -195,7 +195,7 @@ export function DatasetRunItemsByItemTable(props: {
       cell: ({ row }) => {
         const latency: DatasetRunItemByItemRowData["latency"] =
           row.getValue("latency");
-        return <>{!!latency ? formatIntervalSeconds(latency) : null}</>;
+        return !!latency ? formatIntervalSeconds(latency) : null;
       },
     },
     createNumberTableColumn<DatasetRunItemByItemRowData>({

@@ -7,7 +7,7 @@ import { Button } from "@/src/components/ui/button";
 import { LangfuseIcon } from "@/src/components/design-system/LangfuseIcon/LangfuseIcon";
 import Head from "next/head";
 import Link from "next/link";
-import { PlusIcon } from "lucide-react";
+import { PlusIcon } from "@langfuse/icons";
 import { CodeSection } from "@/src/components/design-system/CodeSection/CodeSection";
 
 export type PageProps = {
@@ -24,7 +24,7 @@ export default function HfSpacesPage({ deploymentDomain }: PageProps) {
         <div className="sm:mx-auto sm:w-full sm:max-w-md">
           <div className="flex items-center justify-center gap-2">
             <LangfuseIcon />
-            <PlusIcon className="icon-sm ml-1" />
+            <PlusIcon size="sm" __rawClassName="ml-1" />
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src="/assets/huggingface-logo.svg"

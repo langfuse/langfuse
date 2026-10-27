@@ -1,4 +1,4 @@
-/* eslint-disable @repo/no-style-props */
+/* eslint-disable @repo/no-style-props, @typescript-eslint/no-use-before-define */
 /**
  * SpanContent - Pure span/observation content renderer.
  *
@@ -19,7 +19,7 @@
  */
 
 import { type TreeNode } from "../types/treeNode";
-import { GroupedScoreBadges } from "@/src/components/grouped-score-badge";
+import { GroupedScoreBadges } from "@/src/components/GroupedScoreBadges";
 import { ObservationLevelBadge } from "@/src/features/traces/components/ObservationLevelBadge";
 import { CommentCountIcon } from "@/src/features/comments/CommentCountIcon";
 import { Skeleton } from "@/src/components/ui/skeleton";
@@ -30,8 +30,8 @@ import {
   isEmphasizedShare,
   type MetricEmphasisContext,
 } from "@/src/features/traces/fns/metricEmphasis";
-import { useViewPreferences } from "@/src/features/traces/contexts/ViewPreferencesContext";
-import { useTraceData } from "@/src/features/traces/contexts/TraceDataContext";
+import { useViewPreferences } from "@/src/features/traces/contexts/ViewPreferencesProvider";
+import { useTraceData } from "@/src/features/traces/contexts/TraceDataProvider";
 import { selectNodeScores } from "@/src/features/traces/fns/nodeScores";
 
 interface SpanContentProps {
@@ -40,6 +40,8 @@ interface SpanContentProps {
   commentCount?: number;
   onSelect?: () => void;
   onHover?: () => void;
+  /** The row surface behind the content; chips flip their fill on `muted`. */
+  surface?: "default" | "muted";
   className?: string;
 }
 
@@ -73,9 +75,11 @@ function LoadedSpanContent({
   commentCount,
   onSelect,
   onHover,
+  surface = "default",
   className,
 }: SpanContentProps) {
   const { mergedScores } = useTraceData();
+  const chipColor = surface === "muted" ? "filledOnMuted" : "filled";
   const { showDuration, showCostTokens, showScores, showComments } =
     useViewPreferences();
 
@@ -139,7 +143,9 @@ function LoadedSpanContent({
             {/* Comment count */}
             {showComments &&
               commentCount !== undefined &&
-              commentCount !== 0 && <CommentCountIcon count={commentCount} />}
+              commentCount !== 0 && (
+                <CommentCountIcon count={commentCount} color={chipColor} />
+              )}
 
             {/* Level badge */}
             {node.type !== "TRACE" &&
@@ -198,7 +204,11 @@ function LoadedSpanContent({
                 opens a table of all scores. */}
             {shouldRenderScores && (
               <span className="flex min-w-0 items-center gap-1">
-                <GroupedScoreBadges maxVisible={1} scores={nodeScores} />
+                <GroupedScoreBadges
+                  maxVisible={1}
+                  scores={nodeScores}
+                  color={chipColor}
+                />
               </span>
             )}
           </div>

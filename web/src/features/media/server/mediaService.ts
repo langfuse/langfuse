@@ -80,7 +80,8 @@ export async function createMediaUploadUrl(params: {
 
     if (
       existingMedia &&
-      existingMedia.uploadHttpStatus === 200 &&
+      (existingMedia.uploadHttpStatus === 200 ||
+        existingMedia.uploadHttpStatus === 201) &&
       existingMedia.contentType === contentType
     ) {
       await linkUploadedMedia(mediaId);
@@ -193,7 +194,10 @@ export async function updateMediaUploadStatus(params: {
       data: {
         uploadedAt,
         uploadHttpStatus,
-        uploadHttpError: uploadHttpStatus === 200 ? null : uploadHttpError,
+        uploadHttpError:
+          uploadHttpStatus === 200 || uploadHttpStatus === 201
+            ? null
+            : uploadHttpError,
       },
     });
 

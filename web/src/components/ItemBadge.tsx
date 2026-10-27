@@ -1,6 +1,5 @@
-/* eslint-disable @repo/no-style-props */
+/* eslint-disable @repo/no-style-props, @repo/component-file-structure, @typescript-eslint/no-use-before-define */
 import type React from "react";
-import { Badge } from "@/src/components/ui/badge";
 import {
   CircleDot,
   ClipboardPen,
@@ -21,7 +20,7 @@ import {
   Search,
   Layers3,
   ShieldCheck,
-} from "lucide-react";
+} from "@langfuse/icons";
 import { cva } from "class-variance-authority";
 import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { type ObservationType } from "@langfuse/shared";
@@ -66,7 +65,7 @@ const iconMap = {
   EXPERIMENT: FlaskConical,
 } as const;
 
-const iconVariants = cva("shrink-0", {
+const iconVariants = cva("", {
   variants: {
     type: {
       TRACE: "text-observation-trace-line",
@@ -104,7 +103,7 @@ export function ItemTypeIcon({
 }) {
   const Icon = iconMap[type];
   return (
-    <Icon className={cn("icon-base", iconVariants({ type }), className)} />
+    <Icon size="base" __rawClassName={cn(iconVariants({ type }), className)} />
   );
 }
 
@@ -159,7 +158,7 @@ export function ItemTypeTile({
           )}
           {...getTriggerProps()}
         >
-          <Icon className="icon-base text-white" />
+          <Icon size="base" __rawClassName="text-white" />
         </span>
       )}
     </Tooltip>
@@ -170,7 +169,7 @@ export function renderFilterIcon(value: string): React.ReactNode {
   const type = value as LangfuseItemType;
   const Icon = iconMap[type];
   if (!Icon) return null;
-  return <Icon className={cn("icon-base", iconVariants({ type }))} />;
+  return <Icon size="base" __rawClassName={cn(iconVariants({ type }))} />;
 }
 
 /**
@@ -182,6 +181,10 @@ export function getItemTypeLabels(type: LangfuseItemType) {
     String(type).charAt(0).toUpperCase() + String(type).slice(1).toLowerCase();
   return { label, displayLabel: label.replace(/_/g, " ") };
 }
+
+/** Outline chip chrome for the type badge. */
+const itemBadgeClassName =
+  "inline-flex h-5.5 items-center gap-1.5 rounded-sm border border-border pr-1.5 pl-2 text-xs leading-none font-normal text-foreground-secondary transition-colors focus:outline-hidden focus:ring-2 focus:ring-ring focus:ring-offset-2";
 
 export function ItemBadge({
   type,
@@ -196,19 +199,15 @@ export function ItemBadge({
 }) {
   const Icon = iconMap[type] || ListTree;
 
-  const iconClass = cn(
-    isSmall ? "icon-sm" : "icon-base",
-    iconVariants({ type }),
-    className,
-  );
+  const iconClass = cn(iconVariants({ type }), className);
 
   const { label, displayLabel } = getItemTypeLabels(type);
 
   return (
-    <Badge
-      variant="outline"
+    <div
       title={label}
       className={cn(
+        itemBadgeClassName,
         "flex max-w-fit items-center gap-1 overflow-hidden whitespace-nowrap",
         // Icon-only: square box, `max-w-none` so the width is not capped at the icon.
         showLabel
@@ -220,12 +219,14 @@ export function ItemBadge({
         isSmall && showLabel && "h-4",
       )}
     >
-      {!showLabel && <Icon className={iconClass} />}
+      {!showLabel && (
+        <Icon size={isSmall ? "sm" : "base"} __rawClassName={iconClass} />
+      )}
       {showLabel && (
         <span className="truncate" title={displayLabel}>
           {displayLabel}
         </span>
       )}
-    </Badge>
+    </div>
   );
 }

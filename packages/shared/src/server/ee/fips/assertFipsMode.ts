@@ -1,12 +1,14 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { getFips } from "crypto";
 import { env, type SharedEnv } from "../../../env";
-import { isEnterpriseLicenseAvailable } from "../licenseCheck";
+import { isGovernmentLicenseAvailable } from "../licenseCheck";
 
 /**
- * Enforce FIPS mode (LANGFUSE_REQUIRE_FIPS=true), an enterprise feature.
+ * Enforce FIPS mode (LANGFUSE_REQUIRE_FIPS=true), a government feature.
  *
- * Fails closed: when FIPS mode is requested, startup must stop unless an
- * enterprise license is available and Node's OpenSSL FIPS provider is active.
+ * Fails closed: when FIPS mode is requested, startup must stop unless the
+ * deployment is Langfuse Cloud or holds a government license (an enterprise
+ * license is not enough), and Node's OpenSSL FIPS provider is active.
  * The provider is only active when the host kernel runs in FIPS mode, so a
  * container cannot switch it on by itself.
  *
@@ -20,9 +22,12 @@ export function assertFipsMode(envOverride?: SharedEnv): void {
     return;
   }
 
-  if (!isEnterpriseLicenseAvailable(e)) {
+  if (
+    e.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === undefined &&
+    !isGovernmentLicenseAvailable(e)
+  ) {
     throw new Error(
-      "LANGFUSE_REQUIRE_FIPS=true requires a Langfuse enterprise license (LANGFUSE_EE_LICENSE_KEY).",
+      "LANGFUSE_REQUIRE_FIPS=true requires a Langfuse government license (LANGFUSE_EE_LICENSE_KEY starting with lf_gov_).",
     );
   }
 

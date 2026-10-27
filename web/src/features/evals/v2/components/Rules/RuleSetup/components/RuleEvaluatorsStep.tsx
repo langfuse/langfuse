@@ -1,7 +1,7 @@
 /* eslint-disable no-nested-ternary */
 import { useStore } from "zustand";
 
-import { Stepper } from "@/src/features/evals/v2/components/Stepper/Stepper";
+import { Stepper } from "@/src/components/design-system/Stepper/Stepper";
 import { EvaluatorAssignmentsEditor } from "@/src/features/evals/v2/components/Rules/EvaluatorAssignmentsEditor/EvaluatorAssignmentsEditor";
 import { buildSelectedSampleObject } from "@/src/features/evals/v2/fns/evaluatorTesting/buildSelectedSampleObject";
 import type {

@@ -1,11 +1,11 @@
-/* eslint-disable no-nested-ternary */
+/* eslint-disable no-nested-ternary, @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 import { Button } from "@/src/components/ui/button";
 import {
   MultiSelectKeyValues,
   CompareViewAdapter,
   getScoreDataTypeIcon,
 } from "@/src/features/scores";
-import { FlaskConical, List } from "lucide-react";
+import { FlaskConical, List } from "@langfuse/icons";
 import { useRouter } from "next/router";
 import { useEffect, useState } from "react";
 import { MarkdownJsonView } from "@/src/components/ui/MarkdownJsonView";
@@ -29,7 +29,7 @@ import {
 } from "@/src/features/dashboard";
 import { Chart } from "@/src/features/widgets";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
-import Page from "@/src/components/layouts/page";
+import Page from "@/src/components/layouts/Page";
 import { SubHeaderLabel } from "@/src/components/layouts/header";
 import {
   SidePanel,
@@ -126,7 +126,7 @@ function DatasetCompareChartsLegacy() {
                   disabled={!hasExperimentWriteAccess}
                   onClick={() => capture("dataset_run:new_form_open")}
                 >
-                  <FlaskConical className="icon-base text-icon-foreground" />
+                  <FlaskConical size="base" color="default" />
                   <span className="ml-2 hidden md:block">New experiment</span>
                 </Button>
               </DialogTrigger>
@@ -152,7 +152,7 @@ function DatasetCompareChartsLegacy() {
               variant="outline"
               hideClearButton
               iconLeft={
-                <List className="icon-base text-icon-foreground mr-2" />
+                <List size="base" color="default" __rawClassName="mr-2" />
               }
               options={runs.map((run) => ({
                 key: run.key,

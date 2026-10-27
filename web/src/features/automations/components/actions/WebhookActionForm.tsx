@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-deprecated, @typescript-eslint/no-use-before-define -- Legacy UI usage retained during migration to design-system components. */
 import { Input } from "@/src/components/ui/input";
 import { Button } from "@/src/components/ui/button";
 import {
@@ -8,7 +9,7 @@ import {
   FormLabel,
   FormMessage,
 } from "@/src/components/ui/form";
-import { X, Plus, RefreshCw, Lock, LockOpen } from "lucide-react";
+import { X, Plus, RefreshCw, Lock, LockOpen } from "@langfuse/icons";
 import { useFieldArray, type UseFormReturn } from "react-hook-form";
 import { z } from "zod";
 import {
@@ -37,6 +38,7 @@ import {
 import { WebhookSecretRender } from "../WebhookSecretRender";
 import { CodeSection } from "@/src/components/design-system/CodeSection/CodeSection";
 import { showSuccessToast } from "@/src/features/notifications";
+import { areDestinationUrlsEquivalent } from "@/src/features/automations/destinationUrl";
 import { cn } from "@/src/utils/tailwind";
 
 export const webhookSchema = z.object({
@@ -59,6 +61,7 @@ export const webhookSchema = z.object({
       wasSecret: z.boolean(),
     }),
   ),
+  originalUrl: z.string().optional(),
 });
 
 interface WebhookActionFormProps {
@@ -82,6 +85,12 @@ export const WebhookActionForm: React.FC<WebhookActionFormProps> = ({
     control: form.control,
     name: "webhook.headers",
   });
+
+  const currentUrl = form.watch("webhook.url");
+  const originalUrl = form.watch("webhook.originalUrl");
+  const isUrlChanged =
+    originalUrl !== undefined &&
+    !areDestinationUrlsEquivalent(currentUrl, originalUrl);
 
   // Filter out headers managed by Langfuse from the user-editable headers
   const customHeaderFields = headerFields.filter((field, index) => {
@@ -127,6 +136,9 @@ export const WebhookActionForm: React.FC<WebhookActionFormProps> = ({
             <FormDescription>
               The HTTP URL to call when the trigger fires. We will send a POST
               request to this URL. Only HTTPS URLs are allowed for security.
+              {isUrlChanged
+                ? " Re-enter the values of secret headers when changing the URL."
+                : ""}
             </FormDescription>
             <FormMessage />
           </FormItem>
@@ -183,6 +195,13 @@ export const WebhookActionForm: React.FC<WebhookActionFormProps> = ({
           const displayValue = form.watch(
             `webhook.headers.${originalIndex}.displayValue`,
           );
+          const wasSecret = form.watch(
+            `webhook.headers.${originalIndex}.wasSecret`,
+          );
+          const valuePlaceholder =
+            wasSecret && isUrlChanged
+              ? "Re-enter secret value"
+              : displayValue || "Value";
 
           return (
             <div
@@ -212,11 +231,7 @@ export const WebhookActionForm: React.FC<WebhookActionFormProps> = ({
                   <FormItem>
                     <FormControl>
                       <Input
-                        placeholder={
-                          isSecret && displayValue
-                            ? displayValue
-                            : displayValue || "Value"
-                        }
+                        placeholder={valuePlaceholder}
                         {...field}
                         disabled={disabled}
                         type={isSecret ? "password" : "text"}
@@ -235,9 +250,9 @@ export const WebhookActionForm: React.FC<WebhookActionFormProps> = ({
                 title={isSecret ? "Make header public" : "Make header secret"}
               >
                 {isSecret ? (
-                  <Lock className="icon-base text-orange-500" />
+                  <Lock size="base" __rawClassName="text-orange-500" />
                 ) : (
-                  <LockOpen className="icon-base text-muted-foreground" />
+                  <LockOpen size="base" color="muted" />
                 )}
               </Button>
               <Button
@@ -247,7 +262,7 @@ export const WebhookActionForm: React.FC<WebhookActionFormProps> = ({
                 onClick={() => removeHeader(originalIndex)}
                 disabled={disabled}
               >
-                <X className="icon-base text-icon-foreground" />
+                <X size="base" color="default" />
               </Button>
             </div>
           );
@@ -260,7 +275,7 @@ export const WebhookActionForm: React.FC<WebhookActionFormProps> = ({
           disabled={disabled}
           className="mt-2"
         >
-          <Plus className="icon-base text-icon-foreground mr-1" />
+          <Plus size="base" color="default" __rawClassName="mr-1" />
           Add Custom Header
         </Button>
       </div>
@@ -359,8 +374,10 @@ const RegenerateWebhookSecretButton = ({
             disabled={regenerateSecretMutation.isPending}
           >
             <RefreshCw
-              className={cn(
-                "icon-base text-icon-foreground mr-2",
+              size="base"
+              color="default"
+              __rawClassName={cn(
+                "mr-2",
                 regenerateSecretMutation.isPending && "animate-spin",
               )}
             />

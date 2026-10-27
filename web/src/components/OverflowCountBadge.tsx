@@ -7,17 +7,20 @@ type OverflowCountBadgeProps = Omit<
   "children" | "className" | "type"
 > & {
   count: number;
+  /** `filledOnMuted` on a muted or accent surface such as a selected row. */
+  color?: "filled" | "filledOnMuted";
   ref?: Ref<HTMLButtonElement>;
 };
 
 /** The "+N" control after a row of chips; works as a popover trigger via asChild. */
 export function OverflowCountBadge({
   count,
+  color = "filled",
   ref,
   ...props
 }: OverflowCountBadgeProps) {
   return (
-    <BadgeShell asChild color="filled" font="mono" size="md">
+    <BadgeShell asChild color={color} font="mono" size="md">
       <button
         ref={ref}
         type="button"

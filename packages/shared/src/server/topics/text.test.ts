@@ -4,10 +4,11 @@ import { encrypt } from "../../encryption";
 import { env } from "../../env";
 import { BEDROCK_USE_DEFAULT_CREDENTIALS } from "../../interfaces/customLLMProviderConfigSchemas";
 import { LLMAdapter, type TraceSinkParams } from "../llm/types";
+import { logger } from "../logger";
 import type { ResourceSpan } from "../otel/OtelIngestionProcessor";
 import { generateTopicEmbeddings } from "./embeddings";
 import type { TopicsModel } from "./model-config";
-import { generateTopicText } from "./text";
+import { generateTopicText, getTopicTextResponseMetadata } from "./text";
 
 const { publishToOtelIngestionQueue, processorConstructor } = vi.hoisted(
   () => ({
@@ -24,6 +25,23 @@ vi.mock("../otel/OtelIngestionProcessor", () => ({
     }
     publishToOtelIngestionQueue = publishToOtelIngestionQueue;
   },
+}));
+
+// Request-shape tests use the real SDK and replace the separately tested secure transport.
+vi.mock("../llm/secureLlmFetch", () => ({
+  createSecureLlmFetch: () => globalThis.fetch,
+}));
+
+vi.mock("google-auth-library", () => ({
+  GoogleAuth: class {
+    getClient = async () => ({
+      getAccessToken: async () => ({ token: "fake-gcp-token" }),
+    });
+  },
+}));
+
+vi.mock("../logger", () => ({
+  logger: { error: vi.fn(), warn: vi.fn(), info: vi.fn(), debug: vi.fn() },
 }));
 
 const trace: TraceSinkParams = {
@@ -92,6 +110,210 @@ function bedrockModel(slot: TopicsModel["slot"], model: string): TopicsModel {
 }
 
 describe("generateTopicText", () => {
+  it.each([
+    ["chat", true],
+    ["responses", true],
+    ["chat", false],
+    ["bedrock-cache", true],
+  ] as const)(
+    "classifies only explicit wire refusals (%s, refused: %s)",
+    async (api, refused) => {
+      const message = {
+        role: "assistant",
+        content: null,
+        refusal: "private refusal",
+      };
+      // Application data can resemble a provider response without being a refusal.
+      const invalidOutput = JSON.stringify({ choices: [{ message }] });
+      vi.stubGlobal(
+        "fetch",
+        vi.fn(async () =>
+          Response.json(
+            api === "responses"
+              ? {
+                  output: [
+                    {
+                      id: "msg-refusal",
+                      type: "message",
+                      role: "assistant",
+                      content: [
+                        { type: "refusal", refusal: "private refusal" },
+                      ],
+                    },
+                  ],
+                }
+              : {
+                  choices: [
+                    {
+                      index: 0,
+                      finish_reason: "stop",
+                      message: refused
+                        ? message
+                        : {
+                            role: "assistant",
+                            content: invalidOutput,
+                            refusal: null,
+                          },
+                    },
+                  ],
+                },
+          ),
+        ),
+      );
+      const error = await generateTopicText({
+        model:
+          api === "bedrock-cache"
+            ? bedrockModel("clustering", "us.openai.gpt-6-luna")
+            : {
+                slot: "clustering",
+                provider: "openai-topics",
+                adapter: LLMAdapter.OpenAI,
+                model: "gpt-6-luna",
+                connection: {
+                  secretKey: encrypt("sk-test"),
+                  config: { useResponsesApi: api === "responses" },
+                },
+              },
+        system: [
+          { text: "private system prompt", cache: api === "bedrock-cache" },
+        ],
+        input: "private input",
+        schema: z.object({ name: z.string() }),
+        maxOutputTokens: 256,
+      }).catch((error: unknown) => error);
+
+      expect(error).toBeInstanceOf(Error);
+      const metadata = getTopicTextResponseMetadata(error);
+      expect(metadata).toMatchObject({
+        "langfuse.topics.response.finish_reason": refused
+          ? "content-filter"
+          : "stop",
+      });
+      expect(JSON.stringify(metadata)).not.toContain("private");
+      expect(fetch).toHaveBeenCalledTimes(1);
+    },
+  );
+
+  it.each([
+    ["max_tokens", "length", "", "AI_NoOutputGeneratedError"],
+    ["refusal", "other", "", "AI_NoOutputGeneratedError"],
+    ["guardrail_intervened", "content-filter", "", "AI_NoOutputGeneratedError"],
+    ["end_turn", "stop", "private invalid JSON", "AI_NoObjectGeneratedError"],
+    ["private provider reason", "other", "", "AI_NoOutputGeneratedError"],
+  ])(
+    "retains bounded response metadata before structured output fails: %s",
+    async (stopReason, finishReason, text, errorName) => {
+      vi.stubGlobal(
+        "fetch",
+        vi.fn(async () =>
+          Response.json({
+            output: {
+              message: {
+                role: "assistant",
+                content: [
+                  {
+                    reasoningContent: {
+                      reasoningText: {
+                        text: "private reasoning",
+                        signature: "private signature",
+                      },
+                    },
+                  },
+                  ...(text ? [{ text }] : []),
+                ],
+              },
+            },
+            stopReason,
+            usage: { inputTokens: 12, outputTokens: 4, totalTokens: 16 },
+            metrics: { latencyMs: 1 },
+          }),
+        ),
+      );
+      const error = await generateTopicText({
+        model: bedrockModel("clustering", "eu.anthropic.claude-sonnet-5-5"),
+        system: [{ text: "private system prompt" }],
+        input: "private input",
+        schema: z.object({ name: z.string() }),
+        maxOutputTokens: 256,
+      }).catch((error: unknown) => error);
+
+      expect(error).toMatchObject({ name: errorName });
+      const metadata = getTopicTextResponseMetadata(error);
+      expect(metadata).toEqual({
+        "langfuse.topics.response.finish_reason": finishReason,
+        "langfuse.topics.response.raw_finish_reason": stopReason.startsWith(
+          "private",
+        )
+          ? "other"
+          : stopReason,
+        "langfuse.topics.response.text_characters": 0,
+        "langfuse.topics.response.text_part_count": text ? 1 : 0,
+        "langfuse.topics.response.reasoning_part_count": 1,
+        "langfuse.topics.response.output_tokens": 4,
+        "langfuse.topics.response.max_output_tokens": 256,
+      });
+      expect(JSON.stringify(metadata)).not.toContain("private");
+      expect(publishToOtelIngestionQueue).not.toHaveBeenCalled();
+    },
+  );
+
+  it("clusters with Bedrock Sonnet 5.5 without forcing tool use", async () => {
+    const output = { name: "Account access" };
+    const fetch = vi.fn<typeof globalThis.fetch>(async (...args) => {
+      const body = (await new Request(...args).json()) as {
+        toolConfig?: { toolChoice?: Record<string, unknown> };
+      };
+      if (
+        body.toolConfig?.toolChoice?.any ||
+        body.toolConfig?.toolChoice?.tool
+      ) {
+        return Response.json(
+          {
+            message:
+              'tool_choice: type "tool" and "any" are not supported for this model.',
+          },
+          { status: 400 },
+        );
+      }
+      return Response.json({
+        output: {
+          message: {
+            role: "assistant",
+            content: [{ text: JSON.stringify(output) }],
+          },
+        },
+        stopReason: "end_turn",
+        usage: { inputTokens: 12, outputTokens: 4, totalTokens: 16 },
+        metrics: { latencyMs: 1 },
+      });
+    });
+    vi.stubGlobal("fetch", fetch);
+
+    const result = await generateTopicText({
+      model: bedrockModel("clustering", "us.anthropic.claude-sonnet-5-5"),
+      system: [{ text: "Name the topic." }],
+      input: "Users cannot sign in.",
+      schema: z.object({ name: z.string() }),
+      maxOutputTokens: 256,
+    });
+
+    expect(fetch).toHaveBeenCalledTimes(1);
+    const body = await new Request(...fetch.mock.calls[0]).json();
+    expect(body).not.toHaveProperty("toolConfig");
+    expect(body).not.toHaveProperty(
+      "additionalModelRequestFields.thinking.type",
+      "disabled",
+    );
+    expect(body).toHaveProperty(
+      "system",
+      expect.arrayContaining([
+        expect.objectContaining({ text: expect.stringContaining('"name"') }),
+      ]),
+    );
+    expect(result.output).toEqual(output);
+    expect(result.usage).toMatchObject({ inputTokens: 12, outputTokens: 4 });
+  });
+
   it.each(["us.openai.gpt-6-luna", "openai.gpt-oss-120b"])(
     "sends structured output through the project's Bedrock connection: %s",
     async (modelId) => {
@@ -273,16 +495,24 @@ describe("generateTopicText", () => {
   });
 
   it.each([
-    { model: "gpt-6-luna", baseURL: undefined },
-    { model: "gpt-6-luna", baseURL: "https://eu.api.openai.com/v1" },
-    { model: "gpt-5.6-terra", baseURL: "https://eu.api.openai.com/v1" },
-    { model: "gpt-5-mini", baseURL: "https://eu.api.openai.com/v1" },
-    { model: "gpt-6-luna", baseURL: "https://us.api.openai.com/v1" },
-  ])(
-    "sends the completion token limit, records cache usage, and tolerates tracing failures for $model at $baseURL",
-    async ({ model, baseURL }) => {
+    [undefined, "gpt-6-luna", "none", true],
+    ["https://eu.api.openai.com/v1", "gpt-5-mini", "minimal", true],
+    ["https://EU.API.OPENAI.COM./v1", "gpt-5.6-terra", "none", true],
+    ["https://eu.api.openai.com/v1", "gpt-4o", undefined, false],
+    [
+      "https://eu.api.openai.com.example.com/v1",
+      "gpt-6-luna",
+      undefined,
+      false,
+    ],
+  ] as const)(
+    "generates and traces Topics on %s / %s",
+    async (baseURL, model, reasoning, completionTokens) => {
       publishToOtelIngestionQueue.mockRejectedValueOnce(
-        new Error("queue down"),
+        Object.assign(new Error("queue rejected secret model input/output"), {
+          body: "secret model input/output",
+          cause: new Error("secret model input/output"),
+        }),
       );
       vi.stubGlobal(
         "fetch",
@@ -318,7 +548,11 @@ describe("generateTopicText", () => {
           provider: "openai-topics",
           adapter: LLMAdapter.OpenAI,
           model,
-          connection: { secretKey: encrypt("sk-test"), baseURL },
+          connection: {
+            secretKey: encrypt("sk-test"),
+            baseURL,
+            config: { useResponsesApi: false },
+          },
         },
         system: [{ text: "System prompt and facets.", cache: true }],
         input: "I cannot sign in.",
@@ -327,6 +561,17 @@ describe("generateTopicText", () => {
         trace,
       });
 
+      const request = new Request(...vi.mocked(globalThis.fetch).mock.calls[0]);
+      expect(request.url).toBe(
+        `${new URL(baseURL ?? "https://api.openai.com/v1")}/chat/completions`,
+      );
+      const body = (await request.json()) as Record<string, unknown>;
+      expect(body.max_completion_tokens).toBe(
+        completionTokens ? 256 : undefined,
+      );
+      expect(body.max_tokens).toBe(completionTokens ? undefined : 256);
+      expect(body.reasoning_effort).toBe(reasoning);
+      expect(body.response_format).toMatchObject({ type: "json_schema" });
       expect(tracedGeneration()).toMatchObject({
         "langfuse.observation.output": JSON.stringify({
           summary: "Account access",
@@ -343,14 +588,13 @@ describe("generateTopicText", () => {
         inputTokens: 3000,
         cacheReadTokens: 2560,
       });
-      const fetch = vi.mocked(globalThis.fetch);
-      const request = new Request(...fetch.mock.calls[0]);
-      expect(request.url).toBe(
-        `${baseURL ?? "https://api.openai.com/v1"}/chat/completions`,
+      expect(logger.error).toHaveBeenCalledWith(
+        "Failed to publish Topics model trace",
+        expect.objectContaining({ traceId: trace.traceId }),
       );
-      const body = (await request.json()) as Record<string, unknown>;
-      expect(body.max_tokens).toBeUndefined();
-      expect(body.max_completion_tokens).toBe(256);
+      expect(JSON.stringify(vi.mocked(logger.error).mock.calls)).not.toContain(
+        "secret",
+      );
     },
   );
   it("retains SDK usage when no output is generated", async () => {
@@ -479,6 +723,129 @@ describe("generateTopicText", () => {
 });
 
 describe("generateTopicEmbeddings", () => {
+  it("preserves clustering and dimensions in Google batch embeddings", async () => {
+    const summaries = ["Account access", "Refund request"];
+    const embeddings = summaries.map((_, index) =>
+      Array.from({ length: 768 }, () => index + 1),
+    );
+    const fetch = vi.fn<typeof globalThis.fetch>(async () =>
+      Response.json({ embeddings: embeddings.map((values) => ({ values })) }),
+    );
+    vi.stubGlobal("fetch", fetch);
+
+    const result = await generateTopicEmbeddings({
+      model: {
+        slot: "embedding",
+        provider: "google-topics",
+        adapter: LLMAdapter.GoogleAIStudio,
+        model: "gemini-embedding-001",
+        connection: { secretKey: encrypt("google-key") },
+      },
+      summaries,
+      dimensions: 768,
+    });
+
+    expect(fetch).toHaveBeenCalledTimes(1);
+    const request = new Request(...fetch.mock.calls[0]);
+    expect(request.url).toBe(
+      "https://generativelanguage.googleapis.com/v1beta/models/gemini-embedding-001:batchEmbedContents",
+    );
+    expect(await request.json()).toEqual({
+      requests: summaries.map((text) => ({
+        model: "models/gemini-embedding-001",
+        content: { role: "user", parts: [{ text }] },
+        outputDimensionality: 768,
+        taskType: "CLUSTERING",
+      })),
+    });
+    expect(result.embeddings).toEqual(embeddings);
+  });
+
+  it("preserves clustering and dimensions in Vertex embeddings", async () => {
+    const vector = Array.from({ length: 768 }, () => 0.5);
+    const fetch = vi.fn<typeof globalThis.fetch>(async () =>
+      Response.json({
+        predictions: [
+          { embeddings: { values: vector, statistics: { token_count: 3 } } },
+        ],
+      }),
+    );
+    vi.stubGlobal("fetch", fetch);
+
+    const result = await generateTopicEmbeddings({
+      model: {
+        slot: "embedding",
+        provider: "vertex-topics",
+        adapter: LLMAdapter.VertexAI,
+        model: "text-embedding-005",
+        connection: {
+          secretKey: encrypt(
+            JSON.stringify({
+              type: "service_account",
+              project_id: "topics-project",
+              private_key_id: "fake-key-id",
+              private_key: "fake-private-key",
+              client_email: "topics@topics-project.iam.gserviceaccount.com",
+              client_id: "123456789",
+              auth_uri: "https://accounts.google.com/o/oauth2/auth",
+              token_uri: "https://oauth2.googleapis.com/token",
+              auth_provider_x509_cert_url:
+                "https://www.googleapis.com/oauth2/v1/certs",
+              client_x509_cert_url:
+                "https://www.googleapis.com/robot/v1/metadata/x509/topics",
+            }),
+          ),
+          config: { location: "us-east5" },
+        },
+      },
+      summaries: ["Account access"],
+      dimensions: 768,
+    });
+
+    expect(fetch).toHaveBeenCalledTimes(1);
+    const request = new Request(...fetch.mock.calls[0]);
+    expect(request.url).toBe(
+      "https://us-east5-aiplatform.googleapis.com/v1beta1/projects/topics-project/locations/us-east5/publishers/google/models/text-embedding-005:predict",
+    );
+    expect(await request.json()).toEqual({
+      instances: [{ content: "Account access", task_type: "CLUSTERING" }],
+      parameters: { outputDimensionality: 768 },
+    });
+    expect(result).toEqual({ embeddings: [vector], tokens: 3 });
+  });
+
+  it("preserves clustering and dimensions in Bedrock Nova embeddings", async () => {
+    const vector = Array.from({ length: 384 }, () => 0.5);
+    const fetch = vi.fn<typeof globalThis.fetch>(async () =>
+      Response.json({
+        embeddings: [{ embeddingType: "float", embedding: vector }],
+        inputTokenCount: 3,
+      }),
+    );
+    vi.stubGlobal("fetch", fetch);
+
+    const result = await generateTopicEmbeddings({
+      model: bedrockModel(
+        "embedding",
+        "amazon.nova-2-multimodal-embeddings-v1:0",
+      ),
+      summaries: ["Account access"],
+      dimensions: 384,
+    });
+
+    expect(fetch).toHaveBeenCalledTimes(1);
+    const request = new Request(...fetch.mock.calls[0]);
+    expect(await request.json()).toEqual({
+      taskType: "SINGLE_EMBEDDING",
+      singleEmbeddingParams: {
+        embeddingPurpose: "CLUSTERING",
+        embeddingDimension: 384,
+        text: { truncationMode: "END", value: "Account access" },
+      },
+    });
+    expect(result).toEqual({ embeddings: [vector], tokens: 3 });
+  });
+
   it("embeds every summary in one Cohere request on Bedrock", async () => {
     const vector = Array.from({ length: 512 }, (_, index) => index + 1);
     const other = vector.map((value) => -value);
@@ -546,43 +913,57 @@ describe("generateTopicEmbeddings", () => {
     expect(result.embeddings[0]).toHaveLength(768);
   });
 
-  it("retries without the size option when a fixed-size model rejects it", async () => {
-    const vector = Array.from({ length: 1536 }, () => 0.5);
-    const fetch = vi.fn<typeof globalThis.fetch>(async (_url, init) =>
-      JSON.parse(String(init?.body)).dimensions
-        ? Response.json(
-            {
-              error: {
+  it.each(["OpenAI", "Bedrock Titan v1"])(
+    "retries without the size option when %s rejects it",
+    async (provider) => {
+      const vector = Array.from({ length: 1536 }, () => 0.5);
+      const fetch = vi.fn<typeof globalThis.fetch>(async (url, init) => {
+        const { dimensions } = (await new Request(url, init).json()) as {
+          dimensions?: number;
+        };
+        return dimensions
+          ? Response.json(
+              {
                 message: "This model does not support specifying dimensions.",
+                error: {
+                  message: "This model does not support specifying dimensions.",
+                },
               },
-            },
-            { status: 400 },
-          )
-        : Response.json({
-            data: [{ embedding: vector, index: 0 }],
-            usage: { prompt_tokens: 3 },
-          }),
-    );
-    vi.stubGlobal("fetch", fetch);
+              { status: 400 },
+            )
+          : Response.json(
+              provider === "OpenAI"
+                ? {
+                    data: [{ embedding: vector, index: 0 }],
+                    usage: { prompt_tokens: 3 },
+                  }
+                : { embedding: vector, inputTextTokenCount: 3 },
+            );
+      });
+      vi.stubGlobal("fetch", fetch);
 
-    const result = await generateTopicEmbeddings({
-      model: {
-        slot: "embedding",
-        provider: "openai-topics",
-        adapter: LLMAdapter.OpenAI,
-        model: "text-embedding-ada-002",
-        connection: { secretKey: encrypt("sk-test") },
-      },
-      summaries: ["Account access"],
-      dimensions: 1536,
-    });
+      const result = await generateTopicEmbeddings({
+        model:
+          provider === "Bedrock Titan v1"
+            ? bedrockModel("embedding", "amazon.titan-embed-text-v1")
+            : {
+                slot: "embedding",
+                provider: "openai-topics",
+                adapter: LLMAdapter.OpenAI,
+                model: "text-embedding-ada-002",
+                connection: { secretKey: encrypt("sk-test") },
+              },
+        summaries: ["Account access"],
+        dimensions: 1536,
+      });
 
-    expect(fetch).toHaveBeenCalledTimes(2);
-    expect(await new Request(...fetch.mock.calls[1]).json()).not.toHaveProperty(
-      "dimensions",
-    );
-    expect(result.embeddings[0]).toHaveLength(1536);
-  });
+      expect(fetch).toHaveBeenCalledTimes(2);
+      expect(
+        await new Request(...fetch.mock.calls[1]).json(),
+      ).not.toHaveProperty("dimensions");
+      expect(result.embeddings[0]).toHaveLength(1536);
+    },
+  );
 
   it("falls back when a rate-limit retry precedes the size rejection", async () => {
     const vector = Array.from({ length: 1536 }, () => 0.5);

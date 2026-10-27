@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { randomUUID } from "crypto";
 import { prisma } from "../db";
 import { TraceDeleteQueue } from "./redis/traceDelete";

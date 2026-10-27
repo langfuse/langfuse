@@ -1,5 +1,5 @@
 import { type ReactNode } from "react";
-import { Clock, Coins } from "lucide-react";
+import { Clock, Coins } from "@langfuse/icons";
 
 import { Switch } from "@/src/components/design-system/Switch/Switch";
 import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
@@ -49,7 +49,7 @@ function ResultStat({
       className="text-muted-foreground inline-flex items-baseline gap-1 font-mono text-xs leading-none tabular-nums"
       title={title}
     >
-      <Icon className="icon-sm shrink-0 self-center" />
+      <Icon size="sm" __rawClassName="self-center" />
       <span>{children}</span>
     </span>
   );

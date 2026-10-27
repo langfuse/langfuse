@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { type z, z as zodSchema } from "zod";
 import { TRPCError } from "@trpc/server";
 import { env } from "@/src/env.mjs";
@@ -12,7 +13,10 @@ import {
   protectedGetSessionProcedure,
 } from "@/src/server/api/trpc";
 import {
+  isoDateTime,
   type OrderByState,
+  type SkillsAvailable,
+  type SkillsResourceLoaded,
   normalizeOrderByForTable,
   paginationZod,
   singleFilterList,
@@ -74,6 +78,8 @@ export type EventBatchIOOutput = {
   input: string | null;
   output: string | null;
   metadata: MetadataDomainClient;
+  skillsAvailable?: SkillsAvailable;
+  skillsResourceLoaded?: SkillsResourceLoaded;
 };
 
 export type GetAllEventsInput = z.infer<typeof GetAllEventsInput>;
@@ -123,6 +129,7 @@ const BatchIOInput = zodSchema.object({
   // rendering anyway (IO_TABLE_CHAR_LIMIT).
   ioCharLimit: zodSchema.number().int().positive().max(10_000).optional(),
   includeToolCalls: zodSchema.boolean().optional(), // Defaults to false; tool-call arrays can be large
+  includeSkills: zodSchema.boolean().optional(),
   // Opts into trace-level auth (public traces) in protectedGetEventsTraceProcedure
   traceId: zodSchema.string().optional(),
 });
@@ -349,6 +356,7 @@ export const eventsRouter = createTRPCRouter({
             truncated: input.truncated,
             ioCharLimit: input.ioCharLimit,
             includeToolCallFields: input.includeToolCalls,
+            includeSkillFields: input.includeSkills,
           });
 
           return batchIO.map(toDomainWithStringifiedMetadata);
@@ -374,6 +382,7 @@ export const eventsRouter = createTRPCRouter({
             truncated: input.truncated,
             ioCharLimit: input.ioCharLimit,
             includeToolCallFields: input.includeToolCalls,
+            includeSkillFields: input.includeSkills,
           });
 
           return batchIO.map(toDomainWithStringifiedMetadata);
@@ -398,6 +407,7 @@ export const eventsRouter = createTRPCRouter({
             ioCharLimit: input.ioCharLimit,
             includeExperimentFields: true,
             includeToolCallFields: input.includeToolCalls,
+            includeSkillFields: input.includeSkills,
           });
 
           return batchIO.map(toDomainWithStringifiedMetadata);
@@ -445,6 +455,7 @@ export const eventsRouter = createTRPCRouter({
         traceId: zodSchema.string(),
         timestamp: zodSchema.date().optional(),
         fallbackToRootIO: zodSchema.boolean().default(false),
+        transcriptSource: zodSchema.enum(["generations", "root"]).optional(),
       }),
     )
     .query(async ({ input, ctx }) => {
@@ -493,6 +504,7 @@ export const eventsRouter = createTRPCRouter({
             traceId: input.traceId,
             timestamp,
             fallbackToRootIO: input.fallbackToRootIO,
+            transcriptSource: input.transcriptSource,
           });
         },
       );
@@ -547,8 +559,8 @@ export const eventsRouter = createTRPCRouter({
       zodSchema.object({
         projectId: zodSchema.string(),
         traceId: zodSchema.string(),
-        minStartTime: zodSchema.iso.datetime({ offset: true }),
-        maxStartTime: zodSchema.iso.datetime({ offset: true }),
+        minStartTime: isoDateTime({ offset: true }),
+        maxStartTime: isoDateTime({ offset: true }),
       }),
     )
     .query(async ({ input }): Promise<Required<AgentGraphDataResponse>[]> => {

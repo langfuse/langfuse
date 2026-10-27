@@ -18,8 +18,8 @@ import {
  *
  * Kysely's default {@link OperationNodeTransformer.transformSelectQuery}
  * reconstructs a SelectQueryNode from known slots and drops anything else —
- * so without this override, ARRAY JOIN / LIMIT BY / the tenancy stamp would
- * vanish the moment any plugin walked the tree.
+ * so without this override, ARRAY JOIN / LIMIT BY / the soft-delete
+ * markers would vanish the moment any plugin walked the tree.
  */
 export class ClickHouseOperationNodeTransformer extends OperationNodeTransformer {
   protected override transformNodeImpl<T extends OperationNode>(
@@ -44,6 +44,7 @@ export class ClickHouseOperationNodeTransformer extends OperationNodeTransformer
     return ArrayIndexNode.create(
       this.transformNode(node.array),
       this.transformNode(node.index),
+      node.metadataLookup,
     );
   }
 
@@ -70,6 +71,8 @@ export class ClickHouseOperationNodeTransformer extends OperationNodeTransformer
       ...(extra.limitBy
         ? { limitBy: this.transformLimitBy(extra.limitBy) }
         : {}),
+      ...(extra.includeDeleted ? { includeDeleted: true } : {}),
+      ...(extra.softDeleteAfterLimit ? { softDeleteAfterLimit: true } : {}),
     } as ClickHouseSelectQueryNode;
   }
 
@@ -87,6 +90,25 @@ export class ClickHouseOperationNodeTransformer extends OperationNodeTransformer
     return LimitByNode.create(
       this.transformNode(node.count),
       node.columns.map((column) => this.transformNode(column)),
+    );
+  }
+}
+
+/**
+ * Transformer for passes that rewrite each select after its children:
+ * subclasses rewrite one select at a time in {@link rewriteSelect}.
+ */
+export abstract class SelectRewriteTransformer extends ClickHouseOperationNodeTransformer {
+  protected abstract rewriteSelect(
+    node: ClickHouseSelectQueryNode,
+  ): ClickHouseSelectQueryNode;
+
+  protected override transformSelectQuery(
+    node: SelectQueryNode,
+    queryId?: QueryId,
+  ): SelectQueryNode {
+    return this.rewriteSelect(
+      super.transformSelectQuery(node, queryId) as ClickHouseSelectQueryNode,
     );
   }
 }

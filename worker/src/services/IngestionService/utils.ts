@@ -1,6 +1,9 @@
-/* eslint-disable no-nested-ternary */
+/* eslint-disable no-nested-ternary, @typescript-eslint/no-use-before-define */
 import { JsonNested, Prisma } from "@langfuse/shared";
-import { AI_GATEWAY_INSTRUMENTATION_SCOPE_NAME } from "@langfuse/shared/src/server";
+import {
+  AI_GATEWAY_INSTRUMENTATION_SCOPE_NAME,
+  isAiGatewayIngestionApiKey,
+} from "@langfuse/shared/src/server";
 import { mergeWith, merge } from "lodash";
 
 // Theoretically this returns Record<string, unknown>, but it would be hard to align the typing accordingly.
@@ -73,6 +76,16 @@ export const hasAiGatewayScope = (metadata: unknown): boolean => {
     (scope as { name?: unknown }).name === AI_GATEWAY_INSTRUMENTATION_SCOPE_NAME
   );
 };
+
+// Any OTLP sender can set the instrumentation scope, so the ingestion API key
+// decides. Replayed events carry no key; only those fall back to the scope.
+export const isAiGatewayGenerationEvent = (params: {
+  ingestionApiKey: string | null | undefined;
+  hasGatewayScope: () => boolean;
+}): boolean =>
+  params.ingestionApiKey
+    ? isAiGatewayIngestionApiKey(params.ingestionApiKey)
+    : params.hasGatewayScope();
 
 export function overwriteObject(
   a: {

@@ -1,12 +1,13 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { useState } from "react";
-import { ExternalLink } from "lucide-react";
+import { ExternalLink } from "@langfuse/icons";
 
 import { MediaFileCard } from "@/src/components/MediaFileCard/MediaFileCard";
 import { Button } from "@/src/components/ui/button";
 import {
   COMPACT_IMAGE_MAX_HEIGHT_REM,
   ResizableImage,
-} from "@/src/components/ui/resizable-image";
+} from "@/src/components/ui/ResizableImage";
 import { type MediaContentType } from "@/src/features/media";
 import { cn } from "@/src/utils/tailwind";
 
@@ -89,7 +90,7 @@ export function MediaFileView({
             title={`Open ${fileName} in new tab`}
             className="shrink-0"
           >
-            <ExternalLink className="icon-base text-icon-foreground" />
+            <ExternalLink size="base" color="default" />
           </Button>
         </div>
       ) : (

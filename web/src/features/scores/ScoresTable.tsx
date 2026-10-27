@@ -1,4 +1,4 @@
-/* eslint-disable no-nested-ternary */
+/* eslint-disable no-nested-ternary, react/no-unstable-nested-components, @typescript-eslint/no-use-before-define */
 import { type ViewVersion } from "@langfuse/shared/query";
 import { DataTable } from "@/src/components/table/data-table";
 import {
@@ -16,7 +16,7 @@ import {
   DataTableControls,
 } from "@/src/components/table/data-table-controls";
 import { Skeleton } from "@/src/components/ui/skeleton";
-import { createBadgeTableColumn } from "@/src/components/design-system/table/columns/createBadgeTableColumn";
+import { createTagTableColumn } from "@/src/components/design-system/table/columns/createTagTableColumn";
 import { createDateTableColumn } from "@/src/components/design-system/table/columns/createDateTableColumn";
 import { createLinkTableColumn } from "@/src/components/design-system/table/columns/createLinkTableColumn";
 import { createUserTableColumn } from "@/src/components/design-system/table/columns/createUserTableColumn";
@@ -36,7 +36,7 @@ import {
   sortOptionValues,
 } from "@/src/features/filters";
 
-import { usePeekTableState } from "@/src/components/table/peek/contexts/PeekTableStateContext";
+import { usePeekTableState } from "@/src/components/table/peek/contexts/PeekTableStateProvider";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
 import {
   getScoreFilterConfig,
@@ -68,7 +68,7 @@ import { useOrderByState } from "@/src/features/orderBy";
 import { useTableDateRange } from "@/src/hooks/useTableDateRange";
 import { toAbsoluteTimeRange } from "@/src/utils/date-range-utils";
 import { api } from "@/src/utils/api";
-import { TableHeaderControls } from "@/src/components/table/table-header-controls";
+import { TableHeaderControls } from "@/src/components/table/TableHeaderControls";
 
 import type { RouterOutput } from "@/src/utils/types";
 import { TagList } from "@/src/features/tag";
@@ -100,7 +100,7 @@ import {
   ScoreTag,
   scoreLevelFromScore,
   type ScoreLevel,
-} from "@/src/components/score-tag";
+} from "@/src/components/ScoreTag";
 import { ViewModeToggle } from "@/src/features/chart-view";
 
 export type ScoresTableRow = {
@@ -726,7 +726,7 @@ export default function ScoresTable({
       getCell: (value) => value || undefined,
       singleLine: compactRows,
     }),
-    createBadgeTableColumn<ScoresTableRow>({
+    createTagTableColumn<ScoresTableRow>({
       accessorKey: "environment",
       header: "Environment",
       size: 150,

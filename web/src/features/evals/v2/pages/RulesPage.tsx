@@ -1,7 +1,7 @@
 import { useState } from "react";
-import { Plus } from "lucide-react";
+import { Plus } from "@langfuse/icons";
 import { useRouter } from "next/router";
-import Page from "@/src/components/layouts/page";
+import Page from "@/src/components/layouts/Page";
 import { Button } from "@/src/components/ui/button";
 import { SupportOrUpgradePage } from "@/src/ee/features/billing";
 import { CreateRuleDialog } from "@/src/features/evals/v2/components/Rules/CreateRuleDialog/CreateRuleDialog";
@@ -39,7 +39,7 @@ export function RulesPage() {
             disabled={!hasWriteAccess}
             onClick={() => setCreateOpen(true)}
           >
-            <Plus className="icon-base text-icon-foreground mr-2" /> New rule
+            <Plus size="base" color="default" __rawClassName="mr-2" /> New rule
           </Button>
         ),
         tabsProps: {

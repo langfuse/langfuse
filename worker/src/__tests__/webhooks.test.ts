@@ -9,6 +9,7 @@ import {
   vi,
 } from "vitest";
 import { v4 } from "uuid";
+import dns from "node:dns/promises";
 import { backOff } from "exponential-backoff";
 import {
   ActionExecutionStatus,
@@ -33,6 +34,42 @@ import { generateWebhookSecret } from "@langfuse/shared/encryption";
 import { setupServer } from "msw/node";
 import { http, HttpResponse } from "msw";
 import { executeWebhook } from "../queues/webhooks";
+
+const outboundWhitelistBuilders = vi.hoisted(() => ({
+  webhookWhitelistFromEnv: vi.fn(),
+  whitelistFromEnv: vi.fn(),
+  realWebhookWhitelistFromEnv: (): {
+    hosts: string[];
+    ips: string[];
+    ip_ranges: string[];
+    allowedHosts?: string[];
+  } => ({ hosts: [], ips: [], ip_ranges: [] }),
+  realWhitelistFromEnv: (): {
+    hosts: string[];
+    ips: string[];
+    ip_ranges: string[];
+    allowedHosts?: string[];
+  } => ({ hosts: [], ips: [], ip_ranges: [] }),
+}));
+
+vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import("@langfuse/shared/src/server")>();
+  outboundWhitelistBuilders.realWebhookWhitelistFromEnv =
+    actual.webhookWhitelistFromEnv;
+  outboundWhitelistBuilders.realWhitelistFromEnv = actual.whitelistFromEnv;
+  outboundWhitelistBuilders.webhookWhitelistFromEnv.mockImplementation(
+    actual.webhookWhitelistFromEnv,
+  );
+  outboundWhitelistBuilders.whitelistFromEnv.mockImplementation(
+    actual.whitelistFromEnv,
+  );
+  return {
+    ...actual,
+    webhookWhitelistFromEnv: outboundWhitelistBuilders.webhookWhitelistFromEnv,
+    whitelistFromEnv: outboundWhitelistBuilders.whitelistFromEnv,
+  };
+});
 
 vi.mock("exponential-backoff", async (importOriginal) => {
   const actual = await importOriginal<typeof import("exponential-backoff")>();
@@ -1873,6 +1910,134 @@ describe("Webhook Integration Tests", () => {
       expect(clientPayloadKeys[clientPayloadKeys.length - 1]).toBe("prompt");
     });
 
+    it("applies the webhook host allowlist to webhook delivery and not GitHub dispatch", async () => {
+      const resolve4 = vi
+        .spyOn(dns, "resolve4")
+        .mockResolvedValue(["93.184.216.34"]);
+      const resolve6 = vi
+        .spyOn(dns, "resolve6")
+        .mockRejectedValue(
+          Object.assign(new Error("ENODATA"), { code: "ENODATA" }),
+        );
+      const lookup = vi
+        .spyOn(dns, "lookup")
+        .mockResolvedValue([{ address: "93.184.216.34", family: 4 }] as never);
+      outboundWhitelistBuilders.webhookWhitelistFromEnv.mockReturnValue({
+        hosts: [],
+        ips: [],
+        ip_ranges: [],
+        allowedHosts: ["hooks.example.com"],
+      });
+      outboundWhitelistBuilders.whitelistFromEnv.mockReturnValue({
+        hosts: [],
+        ips: [],
+        ip_ranges: [],
+      });
+
+      try {
+        const fullPrompt = await prisma.prompt.findUnique({
+          where: { id: promptId },
+        });
+        const promptPayload = {
+          prompt: PromptDomainSchema.parse(fullPrompt),
+          action: "created" as const,
+          type: "prompt-version" as const,
+        };
+
+        const webhookInput: WebhookInput = {
+          projectId,
+          automationId,
+          executionId,
+          payload: promptPayload,
+        };
+        await prisma.automationExecution.create({
+          data: {
+            id: executionId,
+            projectId,
+            triggerId,
+            automationId,
+            actionId,
+            status: ActionExecutionStatus.PENDING,
+            sourceId: promptId,
+            input: webhookInput,
+          },
+        });
+
+        await executeWebhook(webhookInput);
+
+        const webhookExecution = await prisma.automationExecution.findUnique({
+          where: { id: executionId },
+        });
+        expect(webhookExecution?.status).toBe(ActionExecutionStatus.ERROR);
+        expect(webhookExecution?.error).toContain(
+          "Host is not in the outbound URL allowlist",
+        );
+        expect(webhookServer.getReceivedRequests()).toHaveLength(0);
+
+        const ghActionId = v4();
+        await prisma.action.create({
+          data: {
+            id: ghActionId,
+            projectId,
+            type: "GITHUB_DISPATCH",
+            config: {
+              type: "GITHUB_DISPATCH",
+              url: "https://webhook.example.com/dispatches",
+              eventType: "prompt-update",
+              githubToken: encrypt("ghp_test_token"),
+              displayGitHubToken: "ghp_...n",
+            },
+          },
+        });
+        const ghAutomationId = v4();
+        await prisma.automation.create({
+          data: {
+            id: ghAutomationId,
+            projectId,
+            triggerId,
+            actionId: ghActionId,
+            name: "GitHub Dispatch Automation",
+          },
+        });
+        const ghExecutionId = v4();
+        await prisma.automationExecution.create({
+          data: {
+            id: ghExecutionId,
+            projectId,
+            triggerId,
+            automationId: ghAutomationId,
+            actionId: ghActionId,
+            status: ActionExecutionStatus.PENDING,
+            sourceId: promptId,
+            input: {},
+          },
+        });
+
+        await executeWebhook({
+          projectId,
+          automationId: ghAutomationId,
+          executionId: ghExecutionId,
+          payload: promptPayload,
+        });
+
+        expect(webhookServer.getReceivedRequests()).toHaveLength(1);
+        const dispatchExecution = await prisma.automationExecution.findUnique({
+          where: { id: ghExecutionId },
+        });
+        expect(dispatchExecution?.status).toBe(ActionExecutionStatus.COMPLETED);
+      } finally {
+        outboundWhitelistBuilders.webhookWhitelistFromEnv.mockImplementation(
+          outboundWhitelistBuilders.realWebhookWhitelistFromEnv,
+        );
+        outboundWhitelistBuilders.whitelistFromEnv.mockImplementation(
+          outboundWhitelistBuilders.realWhitelistFromEnv,
+        );
+        resolve4.mockRestore();
+        resolve6.mockRestore();
+        lookup.mockRestore();
+      }
+    });
+
     it("should truncate oversized GitHub dispatch prompt fields", async () => {
       const fullPrompt = await prisma.prompt.findUnique({
         where: { id: promptId },
@@ -2070,5 +2235,41 @@ describe("Webhook Integration Tests", () => {
         truncatedFields: ["payload.filters", "payload.message.body"],
       });
     });
+  });
+});
+
+describe("getActionByIdWithSecrets legacy headers", () => {
+  it("sends legacy headers as secret and never falls back to a legacy value its requestHeaders entry overrides", async () => {
+    const { projectId } = await createOrgProjectAndApiKey();
+    const action = await prisma.action.create({
+      data: {
+        id: v4(),
+        projectId,
+        type: "WEBHOOK",
+        config: {
+          type: "WEBHOOK",
+          url: "https://example.com/webhook",
+          headers: {
+            "x-api-key": "legacy-api-key",
+            Authorization: "Bearer stale-token",
+          },
+          requestHeaders: {
+            Authorization: { secret: true, value: "not-a-valid-ciphertext" },
+          },
+          apiVersion: { prompt: "v1" },
+          secretKey: encrypt("whsec"),
+          displaySecretKey: "lf-whsec_...",
+        },
+      },
+    });
+
+    const result = await getActionByIdWithSecrets({
+      projectId,
+      actionId: action.id,
+    });
+
+    expect(
+      (result?.config as WebhookActionConfigWithSecrets).requestHeaders,
+    ).toEqual({ "x-api-key": { secret: true, value: "legacy-api-key" } });
   });
 });

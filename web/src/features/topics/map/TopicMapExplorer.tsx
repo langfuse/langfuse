@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import {
   useEffect,
   useMemo,
@@ -9,7 +10,7 @@ import {
   type TransitionEvent as ReactTransitionEvent,
 } from "react";
 import { useStore } from "zustand";
-import { LocateFixed, Maximize2, Minus, Plus, X } from "lucide-react";
+import { LocateFixed, Maximize2, Minus, Plus, X } from "@langfuse/icons";
 import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
 import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { useElementSize } from "@/src/hooks/useElementSize";
@@ -71,8 +72,8 @@ export function TopicMapExplorer({
   onSelectTrace,
   selectedTraceId,
   matchingTraceIds,
-  onOpenTrace,
   fillContainer = false,
+  previewOnSelect = false,
 }: TopicMapExplorerProps) {
   // Projection preparation is independent of the high-frequency camera store.
   const model = useMemo(() => prepareTopicMap(data, topics), [data, topics]);
@@ -217,19 +218,30 @@ export function TopicMapExplorer({
       store.setState({ fullscreenError: true });
     }
   };
-  const openTrace = async (id: string) => {
-    clearTopicMapHover(store);
-    try {
-      if (document.fullscreenElement === sectionRef.current)
-        await document.exitFullscreen();
-      onOpenTrace(id);
-    } catch {
-      store.setState({ fullscreenError: true });
+  const selectTrace = (id: string | null) => {
+    if (id !== null && matchingTraceIds && !matchingTraceIds.has(id)) return;
+    if (previewOnSelect) {
+      const state = store.getState();
+      if (
+        id !== null &&
+        getTopicMapHover(state, state.frame).hoveredId !== id
+      ) {
+        cancelFlight();
+        if (state.frame) {
+          setCamera(state.frame.camera);
+          store.setState({ isMoving: false });
+        }
+        setTopicMapHover(store, id, null);
+        return;
+      }
     }
+    clearTopicMapHover(store);
+    if (previewOnSelect && id === null) return;
+    onSelectTrace(id);
   };
   const handlePointerMove = (event: ReactPointerEvent<HTMLDivElement>) => {
     gestures.pointerHandlers.onPointerMove(event);
-    if (event.pointerType !== "mouse") return;
+    if (previewOnSelect || event.pointerType !== "mouse") return;
     const pointerAt = { x: event.clientX, y: event.clientY };
     if (event.buttons !== 0) {
       clearTopicMapHover(store);
@@ -300,11 +312,10 @@ export function TopicMapExplorer({
             y: event.clientY - rect.top,
           })
         : null;
-    onSelectTrace(point?.traceId ?? null);
-    if (point) openTrace(point.traceId);
+    selectTrace(point?.traceId ?? null);
   };
   const handleStageDoubleClick = (event: ReactMouseEvent<HTMLDivElement>) => {
-    if (event.target !== event.currentTarget) return;
+    if (previewOnSelect || event.target !== event.currentTarget) return;
     const rect = event.currentTarget.getBoundingClientRect();
     cancelFlight();
     zoom(1, {
@@ -313,6 +324,7 @@ export function TopicMapExplorer({
     });
   };
   const handlePointerLeave = () => {
+    if (previewOnSelect) return;
     setTopicMapHover(store, null, null, { x: 0, y: 0 });
   };
   const handleStageKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>) => {
@@ -358,10 +370,6 @@ export function TopicMapExplorer({
   };
   const handleToggleFullscreen = () => {
     toggleFullscreen();
-  };
-  const handleSelectTrace = (id: string) => {
-    onSelectTrace(id);
-    openTrace(id);
   };
   return (
     <section
@@ -446,7 +454,8 @@ export function TopicMapExplorer({
           selectedTopic={selectedTopic}
           selectedTraceId={selectedTraceId}
           matchingTraceIds={matchingTraceIds}
-          onSelectTrace={handleSelectTrace}
+          onSelectTrace={selectTrace}
+          previewOnSelect={previewOnSelect}
         />
         {model.points.length === 0 && (
           <div className="text-muted-foreground pointer-events-none absolute inset-0 flex items-center justify-center p-6 text-center text-sm">
@@ -551,6 +560,7 @@ function MapLabels({
   selectedTraceId,
   matchingTraceIds,
   onSelectTrace,
+  previewOnSelect,
 }: MapLabelsProps) {
   const state = useStore(store);
   const frame = state.frame;
@@ -618,7 +628,8 @@ function MapLabels({
           (label.kind === "trace"
             ? hover.hoveredId === label.id
             : hover.hoveredZoneId === label.id) &&
-          (label.kind !== "trace" ||
+          (previewOnSelect ||
+            label.kind !== "trace" ||
             (frame.nodeById.get(label.id)?.textOpacity ?? 1) < 0.65);
         const source = active ? frame : label.frame;
         if (!source) return null;
@@ -626,6 +637,7 @@ function MapLabels({
           source,
           label.kind === "trace" ? label.id : null,
           label.kind === "zone" ? label.id : null,
+          previewOnSelect,
         );
         const trace = hints.traces[0];
         const zone = hints.zones[0];
@@ -677,6 +689,11 @@ function MapLabels({
                   </span>
                 )}
                 <span className="line-clamp-6">{trace.excerpt}</span>
+                {previewOnSelect && (
+                  <span className="text-muted-foreground mt-2 block text-[10px]">
+                    Tap again to view trace
+                  </span>
+                )}
               </>
             ) : (
               <>
@@ -763,7 +780,6 @@ function mapCoverageLabel(
 }
 
 export type TopicMapExplorerProps = {
-  projectId: string;
   data: MapData;
   topics: MapTopic[];
   selectedTopic: string | null;
@@ -771,8 +787,8 @@ export type TopicMapExplorerProps = {
   onSelectTrace: (traceId: string | null) => void;
   selectedTraceId: string | null;
   matchingTraceIds?: ReadonlySet<string>;
-  onOpenTrace: (traceId: string) => void;
   fillContainer?: boolean;
+  previewOnSelect?: boolean;
 };
 
 type LayoutReadoutProps = {
@@ -792,6 +808,7 @@ type MapLabelsProps = {
   selectedTraceId: string | null;
   matchingTraceIds?: ReadonlySet<string>;
   onSelectTrace: (id: string) => void;
+  previewOnSelect: boolean;
 };
 
 export const __test = { fitMapPoints };

@@ -1,4 +1,5 @@
-import { PlusIcon } from "lucide-react";
+/* eslint-disable @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
+import { PlusIcon } from "@langfuse/icons";
 import {
   Dialog,
   DialogContent,
@@ -33,7 +34,7 @@ export const NewDatasetItemButton = (props: {
           variant="outline"
           hasAccess={hasAccess}
           trackingEventName="dataset_item:new_form_open"
-          icon={<PlusIcon className="icon-base" aria-hidden="true" />}
+          icon={<PlusIcon size="base" aria-hidden="true" />}
         >
           New item
         </ActionButton>

@@ -1,5 +1,5 @@
 import React from "react";
-import { ExternalLinkIcon } from "lucide-react";
+import { ExternalLinkIcon, TriangleAlert } from "@langfuse/icons";
 import { expect } from "storybook/test";
 
 import preview from "../../../../.storybook/preview";
@@ -24,7 +24,9 @@ const allColors = Object.keys({
   teal: true,
   green: true,
   ghost: true,
+  "ghost-warning": true,
   filled: true,
+  filledOnMuted: true,
   violetTint: true,
   skyTint: true,
   emeraldTint: true,
@@ -35,6 +37,9 @@ const allColors = Object.keys({
   orangeTint: true,
   limeTint: true,
   fuchsiaTint: true,
+  violetHighlight: true,
+  blueHighlight: true,
+  amberHighlight: true,
   inverted: true,
 } satisfies Record<Color, true>) as Color[];
 
@@ -86,6 +91,16 @@ export const GhostInteractive = meta.story({
     interactive: true,
     label: "cost",
     text: "$0.0042",
+  },
+});
+
+export const GhostWarning = meta.story({
+  args: {
+    color: "ghost-warning",
+    interactive: true,
+    font: "mono",
+    leadingIcon: TriangleAlert,
+    text: "no cost",
   },
 });
 

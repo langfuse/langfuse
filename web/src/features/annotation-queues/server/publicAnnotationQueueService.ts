@@ -171,6 +171,10 @@ export const createAnnotationQueueForApi = async ({
   plan?: string;
   input: CreateAnnotationQueueInput;
 } & OptionalAuditScope) => {
+  if (new Set(input.scoreConfigIds).size !== input.scoreConfigIds.length) {
+    throw new InvalidRequestError("Score config IDs must be unique.");
+  }
+
   const queue = await prisma
     .$transaction(
       async (tx) => {

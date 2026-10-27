@@ -537,6 +537,7 @@ export function EvaluatorSavedDialogContainer({
       maxItems={backfill.effectiveMaxItems}
       maxAllowedItems={backfill.allowedItems}
       matchingObservations={backfill.matchingObservations}
+      sampling={currentBackfillScope?.sampling ?? 1}
       isEstimating={backfill.isEstimating}
       onEnabledChange={(enabled) => {
         onboardingAnalytics?.track("eval:onboarding_historic_eval_toggled", {

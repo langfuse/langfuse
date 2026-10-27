@@ -26,17 +26,22 @@ export const GATEWAY_RESOLVE_KEY_NON_EXISTENT = "gateway-key-non-existent";
 export const CachedResolveContext = z.object({
   organizationId: z.string(),
   apiKeyId: z.string(),
+  userId: z.string().nullable(),
+  // Defaulted so entries cached before these fields existed still parse.
+  apiKeyName: z.string().nullable().default(null),
+  userName: z.string().nullable().default(null),
   keyMetadata: GatewayMetadataSchema,
   ingestionProjectId: z.string().nullable(),
-  ingestionMode: z.enum(["USAGE", "FULL"]).nullable(),
-  connection: z
-    .object({
+  ingestionMode: z.enum(["NONE", "USAGE", "FULL"]).nullable(),
+  connections: z.array(
+    z.object({
       id: z.string(),
       name: z.string(),
       provider: z.enum(["OPENAI", "ANTHROPIC"]),
       encryptedCredential: z.string(),
-    })
-    .nullable(),
+      allowedModels: z.array(z.string()).nullable(),
+    }),
+  ),
 });
 export type CachedResolveContext = z.infer<typeof CachedResolveContext>;
 
@@ -90,6 +95,11 @@ export class GatewayResolveCache {
         );
         recordIncrement("langfuse.gateway.resolve.cache_miss", 1);
         return null;
+      }
+
+      if (parsed.data === GATEWAY_RESOLVE_KEY_NON_EXISTENT) {
+        recordIncrement("langfuse.gateway.resolve.cache_hit", 1);
+        return parsed.data;
       }
 
       recordIncrement("langfuse.gateway.resolve.cache_hit", 1);
@@ -150,7 +160,7 @@ export class GatewayResolveCache {
   /**
    * Drops every cached resolve context for an organization. Call this after any
    * change that alters what /resolve would answer: connections, credentials,
-   * routing priority, connection status, or the gateway config.
+   * connection status, model access, or the gateway config.
    */
   async invalidateOrganization(organizationId: string) {
     if (!this.enabled) return;

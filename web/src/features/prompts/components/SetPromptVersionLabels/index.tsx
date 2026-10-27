@@ -1,7 +1,7 @@
-/* eslint-disable no-nested-ternary */
+/* eslint-disable no-nested-ternary, @repo/component-file-structure */
 /* eslint-disable @repo/no-abstracted-overlay-trigger */
 import React, { useEffect, useState, useRef } from "react";
-import { Plus } from "lucide-react";
+import { Plus } from "@langfuse/icons";
 import { Button } from "@/src/components/ui/button";
 import { Input } from "@/src/components/ui/input";
 import {
@@ -186,7 +186,7 @@ export function SetPromptVersionLabels({
             disabled={!hasAccess}
             className="gap-1"
           >
-            <Plus className="icon-sm text-icon-foreground" aria-hidden />
+            <Plus size="sm" color="default" aria-hidden />
             Add label
           </Button>
         </PopoverTrigger>

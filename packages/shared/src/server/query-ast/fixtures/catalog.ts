@@ -41,7 +41,7 @@ function environmentsVariant(spec: {
 }): ClickhouseCompilable {
   if (spec.writeMode === "events") {
     return db()
-      .selectFrom("events_core")
+      .selectFrom("events")
       .select("environment")
       .distinct()
       .$if(spec.fromTimestamp !== undefined, (qb) =>
@@ -60,8 +60,9 @@ function environmentsVariant(spec: {
  * Reference SQL is the intended ClickHouse shape, not a dump of Kysely's
  * first draft — `compile(AST) ≡ referenceSQL` after `clickhouse format`.
  *
- * No entry filters `project_id`: the reference SQL shows the `project_id`
- * predicate the mandatory tenancy pass injects, so these also prove injection.
+ * No entry filters `project_id` or `is_deleted`: the reference SQL shows the
+ * `project_id` predicate the mandatory tenancy pass injects and, on events
+ * tables, the soft-delete predicate after it, so these also prove injection.
  */
 export const CATALOG: CatalogEntry[] = [
   {
@@ -69,11 +70,10 @@ export const CATALOG: CatalogEntry[] = [
     tier: 0,
     referenceSql: `
       SELECT DISTINCT environment
-      FROM events_core
-      WHERE project_id = {p1:String}
+      FROM events_core AS events
+      WHERE (events.project_id = {p1:String}) AND (events.is_deleted = 0)
     `,
-    build: () =>
-      db().selectFrom("events_core").select("environment").distinct(),
+    build: () => db().selectFrom("events").select("environment").distinct(),
   },
   {
     id: "environments_legacy_union",
@@ -121,12 +121,12 @@ export const CATALOG: CatalogEntry[] = [
     tier: 1,
     referenceSql: `
       SELECT DISTINCT environment
-      FROM events_core
-      WHERE (project_id = {p1:String}) AND (start_time >= {p2:DateTime64(6)})
+      FROM events_core AS events
+      WHERE (events.project_id = {p1:String}) AND (events.is_deleted = 0) AND (start_time >= {p2:DateTime64(6)})
     `,
     build: () =>
       db()
-        .selectFrom("events_core")
+        .selectFrom("events")
         .select("environment")
         .distinct()
         .where("start_time", ">=", FROM_TS),
@@ -136,13 +136,13 @@ export const CATALOG: CatalogEntry[] = [
     tier: 1,
     referenceSql: `
       SELECT environment, count(*) AS n
-      FROM events_core
-      WHERE project_id = {p1:String}
+      FROM events_core AS events
+      WHERE (events.project_id = {p1:String}) AND (events.is_deleted = 0)
       GROUP BY environment
     `,
     build: () =>
       db()
-        .selectFrom("events_core")
+        .selectFrom("events")
         .select((eb) => ["environment", eb.fn.countAll().as("n")])
         .groupBy("environment"),
   },
@@ -214,8 +214,8 @@ export const CATALOG: CatalogEntry[] = [
     referenceSql: `
       WITH prompt_events AS (
         SELECT trace_id, span_id
-        FROM events_core
-        WHERE project_id = {p1:String}
+        FROM events_core AS events
+        WHERE (events.project_id = {p1:String}) AND (events.is_deleted = 0)
       )
       SELECT s.id
       FROM scores AS s
@@ -227,7 +227,7 @@ export const CATALOG: CatalogEntry[] = [
     build: () =>
       db()
         .with("prompt_events", (qb) =>
-          qb.selectFrom("events_core").select(["trace_id", "span_id"]),
+          qb.selectFrom("events").select(["trace_id", "span_id"]),
         )
         .selectFrom("scores as s")
         .select("s.id")
@@ -255,10 +255,10 @@ export const CATALOG: CatalogEntry[] = [
         .selectFrom("observations")
         .select("environment")
         .$call(
-          arrayJoin({
-            cost_key: mapKeys("cost_details"),
-            cost: mapValues("cost_details"),
-          }),
+          arrayJoin((eb) => ({
+            cost_key: mapKeys(eb.ref("cost_details")),
+            cost: mapValues(eb.ref("cost_details")),
+          })),
         ),
   },
   {
@@ -266,29 +266,34 @@ export const CATALOG: CatalogEntry[] = [
     tier: 3,
     referenceSql: `
       SELECT span_id, project_id
-      FROM events_core
-      WHERE project_id = {p1:String}
+      FROM events_core AS events
+      WHERE (events.project_id = {p1:String}) AND (events.is_deleted = 0)
       ORDER BY event_ts DESC
       LIMIT 1 BY span_id, project_id
     `,
     build: () =>
       db()
-        .selectFrom("events_core")
+        .selectFrom("events")
         .select(["span_id", "project_id"])
         .orderBy("event_ts", "desc")
-        .$call(limitBy({ count: 1, columns: ["span_id", "project_id"] })),
+        .$call(
+          limitBy({
+            count: 1,
+            columns: (eb) => [eb.ref("span_id"), eb.ref("project_id")],
+          }),
+        ),
   },
   {
     id: "window_rank",
     tier: 4,
     referenceSql: `
       SELECT span_id, rank() OVER (PARTITION BY trace_id ORDER BY start_time DESC) AS rk
-      FROM events_core
-      WHERE project_id = {p1:String}
+      FROM events_core AS events
+      WHERE (events.project_id = {p1:String}) AND (events.is_deleted = 0)
     `,
     build: () =>
       db()
-        .selectFrom("events_core")
+        .selectFrom("events")
         .select((eb) => [
           "span_id",
           eb.fn
@@ -310,22 +315,22 @@ export const CATALOG: CatalogEntry[] = [
     referenceSql: `
       SELECT e.span_id
       FROM events_core AS e
-      WHERE (e.project_id = {p1:String}) AND (e.event_ts = (
+      WHERE (e.project_id = {p1:String}) AND (e.is_deleted = 0) AND (e.event_ts = (
         SELECT max(inner.event_ts) AS m
         FROM events_core AS inner
-        WHERE (inner.project_id = {p1:String}) AND (inner.trace_id = e.trace_id)
+        WHERE (inner.project_id = {p1:String}) AND (inner.is_deleted = 0) AND (inner.trace_id = e.trace_id)
       ))
     `,
     build: () =>
       db()
-        .selectFrom("events_core as e")
+        .selectFrom("events as e")
         .select("e.span_id")
         .where((eb) =>
           eb(
             "e.event_ts",
             "=",
             eb
-              .selectFrom("events_core as inner")
+              .selectFrom("events as inner")
               .select((ieb) => ieb.fn.max("inner.event_ts").as("m"))
               .whereRef("inner.trace_id", "=", "e.trace_id"),
           ),
@@ -333,21 +338,25 @@ export const CATALOG: CatalogEntry[] = [
   },
   {
     // Metadata-map access in projection and GROUP BY. `metadata[key]` lowers to
-    // the `metadata_values[indexOf(metadata_names, {key})]` array-pair subscript
-    // (ArrayIndexNode), aliased and then grouped by that alias.
+    // a subscript of the reversed name/value map (ArrayIndexNode), so the last
+    // duplicate key wins, aliased and then grouped by that alias.
     id: "metadata_group_by",
     tier: 6,
     referenceSql: `
-      SELECT e.metadata_values[indexOf(e.metadata_names, {p1:String})] AS model, count(*) AS n
+      SELECT mapFromArrays(arrayReverse(e.metadata_names), arrayReverse(e.metadata_values))[{p1:String}] AS model, count(*) AS n
       FROM events_core AS e
-      WHERE e.project_id = {p2:String}
+      WHERE (e.project_id = {p2:String}) AND (e.is_deleted = 0)
       GROUP BY model
     `,
     build: () =>
       db()
-        .selectFrom("events_core as e")
+        .selectFrom("events_truncated as e")
         .select((eb) => [
-          metadataValue("e", "model").as("model"),
+          metadataValue(
+            eb.ref("e.metadata_names"),
+            eb.ref("e.metadata_values"),
+            "model",
+          ).as("model"),
           eb.fn.countAll().as("n"),
         ])
         .groupBy("model"),
@@ -369,7 +378,7 @@ export const CATALOG: CatalogEntry[] = [
         .select("environment")
         .where((eb) =>
           eb
-            .fn("has", [mapKeys("cost_details"), eb.val("input")])
+            .fn("has", [mapKeys(eb.ref("cost_details")), eb.val("input")])
             .$castTo<SqlBool>(),
         ),
   },
@@ -380,8 +389,8 @@ export const CATALOG: CatalogEntry[] = [
     tier: 7,
     referenceSql: `
       SELECT DISTINCT environment
-      FROM events_core
-      WHERE project_id = {p1:String}
+      FROM events_core AS events
+      WHERE (events.project_id = {p1:String}) AND (events.is_deleted = 0)
     `,
     build: () => environmentsVariant({ writeMode: "events" }),
   },
@@ -391,8 +400,8 @@ export const CATALOG: CatalogEntry[] = [
     tier: 7,
     referenceSql: `
       SELECT DISTINCT environment
-      FROM events_core
-      WHERE (project_id = {p1:String}) AND (start_time >= {p2:DateTime64(6)})
+      FROM events_core AS events
+      WHERE (events.project_id = {p1:String}) AND (events.is_deleted = 0) AND (start_time >= {p2:DateTime64(6)})
     `,
     build: () =>
       environmentsVariant({ writeMode: "events", fromTimestamp: FROM_TS }),

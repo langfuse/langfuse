@@ -1,4 +1,4 @@
-/* eslint-disable no-nested-ternary */
+/* eslint-disable @typescript-eslint/no-deprecated, @typescript-eslint/no-use-before-define -- Legacy UI usage retained during migration to design-system components. */
 import Image from "next/image";
 import { useState } from "react";
 
@@ -53,6 +53,14 @@ export type PreviewState = {
 // Static registry — one entry per preview, in sidebar order.
 // Previews may include separate light/dark illustrations.
 const PREVIEW_REGISTRY: PreviewRegistryItem[] = [
+  {
+    flag: "skillManagement",
+    description:
+      "Create, version, and distribute reusable agent skills from one place.",
+    details:
+      "Import skills, manage their versions and labels, install them with the CLI, and inspect the skills available or loaded in your traces.",
+    feedbackUrl: "https://github.com/orgs/langfuse/discussions",
+  },
   {
     flag: "langfuseTopics",
     description:
@@ -140,11 +148,7 @@ export function FeaturePreviewModal({
                         {featurePreviewLabels[item.flag]}
                       </span>
                       <span className="text-muted-foreground mt-1 line-clamp-2 block text-xs">
-                        {state[item.flag]?.disabled
-                          ? "Unavailable"
-                          : state[item.flag]?.enabled
-                            ? "Enabled"
-                            : "Available"}
+                        {getPreviewStatusLabel(state[item.flag])}
                       </span>
                     </span>
                   </button>
@@ -236,6 +240,12 @@ export function FeaturePreviewModal({
       </DialogContent>
     </Dialog>
   );
+}
+
+function getPreviewStatusLabel(state: PreviewState | undefined) {
+  if (state?.enabled) return "Enabled";
+  if (state?.disabled) return "Unavailable";
+  return "Available";
 }
 
 function PreviewMockupPanel({

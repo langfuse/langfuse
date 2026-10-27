@@ -1,7 +1,6 @@
 import { useMemo } from "react";
-import { MarkdownJsonViewHeader } from "@/src/components/ui/MarkdownJsonView";
+import { IOSection } from "@/src/components/ui/IOSection";
 import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
-import { StatusMessage } from "@/src/components/design-system/StatusMessage/StatusMessage";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
 import {
   getStatusMessagePresentation,
@@ -35,17 +34,12 @@ export function StatusMessageSection({
   }
 
   return (
-    <div className="group/iosection">
-      <MarkdownJsonViewHeader
-        title={presentation.title}
-        handleOnCopy={() => copyTextToClipboard(status.message)}
-        hoverRevealControls
-      />
-      <StatusMessage
-        level={status.level}
-        message={status.message}
-        size="default"
-      />
-    </div>
+    <IOSection
+      title={presentation.title}
+      onCopy={() => copyTextToClipboard(status.message)}
+      tone={presentation.tone}
+    >
+      {status.message}
+    </IOSection>
   );
 }

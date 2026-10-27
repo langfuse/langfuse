@@ -1,4 +1,4 @@
-/* eslint-disable no-nested-ternary */
+/* eslint-disable no-nested-ternary, @repo/component-file-structure, @typescript-eslint/no-use-before-define */
 /* eslint-disable @repo/no-style-props */
 "use client";
 import { type OrderByState } from "@langfuse/shared";
@@ -13,7 +13,7 @@ import React, {
   type UIEventHandler,
 } from "react";
 import DocPopup from "@/src/components/layouts/doc-popup";
-import { DataTablePagination } from "@/src/components/table/data-table-pagination";
+import { DataTablePagination } from "@/src/components/table/DataTablePagination";
 import { shouldIgnoreRowClickTarget } from "@/src/components/table/shouldIgnoreRowClickTarget";
 import { getPlainTextFromReactNode } from "@/src/utils/react-node-plain-text";
 import {
@@ -240,6 +240,8 @@ const getCellPaddingClassName = (padding: DataTableCellPadding) => {
   switch (padding) {
     case "comfortable":
       return "p-1";
+    case "relaxed":
+      return "px-1 py-2";
     case "none":
       return "p-0 first:pl-0";
     case "compact":
@@ -249,7 +251,7 @@ const getCellPaddingClassName = (padding: DataTableCellPadding) => {
 
 const cellBackgroundClassNames = {
   gray: "bg-muted/50 [&_[data-slot=skeleton]]:bg-muted-foreground/20",
-  green: "bg-surface-output [&_[data-slot=skeleton]]:bg-muted-foreground/20",
+  green: "bg-surface-section [&_[data-slot=skeleton]]:bg-muted-foreground/20",
 } satisfies Record<DataTableCellBackground, string>;
 
 const getCellBackgroundClassName = (background?: DataTableCellBackground) =>
@@ -935,6 +937,7 @@ function TableRowComponent<TData>({
   return (
     <TableRow
       data-row-index={row.index}
+      aria-selected={rowIsSelected || shouldHighlightAllRows || undefined}
       onClick={(e) => {
         if (shouldIgnoreRowClickTarget(e.target)) return;
         onRowClick?.(row.original, e);

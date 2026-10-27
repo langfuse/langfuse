@@ -1,4 +1,4 @@
-import { Slider } from "@/src/components/ui/slider";
+import { Slider } from "@/src/components/ui/Slider";
 import { InfoTooltip } from "@/src/components/ui/InfoTooltip/InfoTooltip";
 import {
   SAMPLING_SLIDER_MIN,
