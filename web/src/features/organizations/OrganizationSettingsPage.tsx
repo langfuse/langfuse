@@ -57,21 +57,9 @@ export function useOrganizationSettingsPages(): OrganizationSettingsPage[] {
   });
   const showOrgApiKeySettings = hasAdminApiEntitlement && hasOrgApiKeyAccess;
   const hasAuditLogsEntitlement = useHasEntitlement("audit-logs");
-  const canReadAuditLogs = useHasOrganizationAccess({
-    organizationId: organization?.id,
-    scope: "orgAuditLogs:read",
-  });
   const canReadSettings = useHasOrganizationAccess({
     organizationId: organization?.id,
     scope: "organization:settings:read",
-  });
-  const canReadMembers = useHasOrganizationAccess({
-    organizationId: organization?.id,
-    scope: "organizationMembers:read",
-  });
-  const canManageBilling = useHasOrganizationAccess({
-    organizationId: organization?.id,
-    scope: "langfuseCloudBilling:CRUD",
   });
   const canUpdateOrganization = useHasOrganizationAccess({
     organizationId: organization?.id,
@@ -94,7 +82,7 @@ export function useOrganizationSettingsPages(): OrganizationSettingsPage[] {
   if (!organization) return [];
 
   const showBillingPage =
-    showBillingSettings && isCloudBillingAvailable && canManageBilling;
+    showBillingSettings && isCloudBillingAvailable && canReadSettings;
 
   return getOrganizationSettingsPages({
     organization,
@@ -103,11 +91,11 @@ export function useOrganizationSettingsPages(): OrganizationSettingsPage[] {
     // covers deployments without one (self-hosted).
     showUsageSettings: canReadUsage && !showBillingPage,
     showOrgApiKeySettings,
-    showAuditLogs: hasAuditLogsEntitlement && canReadAuditLogs,
-    showSsoSettings: isLangfuseCloud && canUpdateOrganization,
+    showAuditLogs: hasAuditLogsEntitlement && canReadSettings,
+    showSsoSettings: isLangfuseCloud && canReadSettings,
     showV4Migration: showV4Migration && canReadSettings,
     showGeneralSettings: canReadSettings,
-    showMembers: canReadMembers,
+    showMembers: canReadSettings,
     showProjects: canReadSettings || organization.projects.length > 0,
     showAiGatewayManagement: gatewayAccess.showManagement,
     showAiGatewayModels: gatewayAccess.showModels,

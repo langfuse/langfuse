@@ -372,7 +372,7 @@ describe("useOrganizationSettingsPages", () => {
     vi.mocked(useHasOrganizationAccess).mockImplementation(
       ({ scope }) =>
         scope === "organizationUsage:read" ||
-        scope === "langfuseCloudBilling:CRUD",
+        scope === "organization:settings:read",
     );
     vi.mocked(useHasEntitlement).mockImplementation(
       (entitlement) => entitlement === "cloud-billing",
@@ -434,7 +434,15 @@ describe("useOrganizationSettingsPages", () => {
     it("shows NONE members the organization overview pages", () => {
       grantScopesOf(Role.NONE);
 
-      expect(visibleSlugs()).toEqual(["index", "projects", "v4-migration"]);
+      expect(visibleSlugs()).toEqual([
+        "index",
+        "members",
+        "audit-logs",
+        "billing",
+        "sso",
+        "projects",
+        "v4-migration",
+      ]);
     });
 
     it("shows VIEWER members the organization overview pages and models", () => {
@@ -442,6 +450,10 @@ describe("useOrganizationSettingsPages", () => {
 
       expect(visibleSlugs()).toEqual([
         "index",
+        "members",
+        "audit-logs",
+        "billing",
+        "sso",
         "projects",
         "v4-migration",
         "ai-gateway-models",

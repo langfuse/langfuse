@@ -4,6 +4,7 @@ import { useRouter } from "next/router";
 
 import { OrganizationProjectOverview } from "@/src/features/organizations/components/OrganizationProjectOverview";
 import { createProjectRoute } from "@/src/features/setup";
+import { useIsFeatureEnabled } from "@/src/features/feature-flags";
 
 vi.mock("next-auth/react", () => ({ useSession: vi.fn() }));
 vi.mock("next/router", () => ({ useRouter: vi.fn() }));
@@ -38,6 +39,9 @@ vi.mock("@/src/features/v4-migration/V4MigrationBanner", () => ({
 vi.mock("@/src/features/v4-migration/hooks/useV4MigrationData", () => ({
   useAccountV4MigrationData: () => new Map(),
 }));
+vi.mock("@/src/features/feature-flags", () => ({
+  useIsFeatureEnabled: vi.fn(() => true),
+}));
 vi.mock("@/src/utils/api", () => ({
   api: {
     organizations: {
@@ -48,6 +52,7 @@ vi.mock("@/src/utils/api", () => ({
 
 describe("OrganizationProjectOverview", () => {
   beforeEach(() => {
+    vi.mocked(useIsFeatureEnabled).mockReturnValue(true);
     vi.mocked(useRouter).mockReturnValue({
       query: {},
       replace: vi.fn(),
@@ -125,5 +130,34 @@ describe("OrganizationProjectOverview", () => {
     expect(
       screen.getAllByText("This organization has no projects yet."),
     ).toHaveLength(1);
+  });
+  it("sends gateway-only members to their organization settings", () => {
+    const replace = vi.fn(() => Promise.resolve(true));
+    vi.mocked(useRouter).mockReturnValue({
+      query: { organizationId: "gateway-org" },
+      replace,
+    } as unknown as ReturnType<typeof useRouter>);
+
+    render(<OrganizationProjectOverview />);
+
+    expect(replace).toHaveBeenCalledWith("/organization/gateway-org/settings");
+  });
+
+  it("tells gateway-only members when the AI Gateway is off for their organization", () => {
+    const replace = vi.fn(() => Promise.resolve(true));
+    vi.mocked(useRouter).mockReturnValue({
+      query: { organizationId: "gateway-org" },
+      replace,
+    } as unknown as ReturnType<typeof useRouter>);
+    vi.mocked(useIsFeatureEnabled).mockReturnValue(false);
+
+    render(<OrganizationProjectOverview />);
+
+    expect(
+      screen.getByText(
+        "AI Gateway is not enabled for this organization. Ask an organization admin to change your role.",
+      ),
+    ).toBeInTheDocument();
+    expect(replace).not.toHaveBeenCalled();
   });
 });

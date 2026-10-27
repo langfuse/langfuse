@@ -49,6 +49,7 @@ import { useV4UpgradeUiEnabled } from "@/src/features/v4-migration/useV4UpgradeU
 import { useAccountV4MigrationData } from "@/src/features/v4-migration/hooks/useV4MigrationData";
 import { getProjectMigrationReadiness } from "@/src/features/v4-migration/migrationData";
 import { ErrorPage } from "@/src/components/error-page";
+import { useIsFeatureEnabled } from "@/src/features/feature-flags";
 
 const OrganizationProjectTiles = ({
   org,
@@ -395,12 +396,24 @@ export const OrganizationProjectOverview = () => {
   const organizations = session.data?.user?.organizations;
   const [{ search }, setQueryParams] = useQueryParams({ search: StringParam });
   const v4MigrationBannerState = useV4MigrationBannerState(v4UpgradeUiEnabled);
-  const settingsRedirectOrgId = orgIdWithHiddenProjects({
+  const hiddenProjectsOrgId = orgIdWithHiddenProjects({
     session: session.data,
     queryOrgId,
     organizations,
   });
+  const canUseGateway = useCanUseGateway(hiddenProjectsOrgId);
+  const settingsRedirectOrgId =
+    (canUseGateway && hiddenProjectsOrgId) || undefined;
   useRedirectToOrganizationSettings(settingsRedirectOrgId);
+
+  if (hiddenProjectsOrgId && !canUseGateway) {
+    return (
+      <ErrorPage
+        title="No access to this organization"
+        message="AI Gateway is not enabled for this organization. Ask an organization admin to change your role."
+      />
+    );
+  }
 
   if (organizations === undefined || settingsRedirectOrgId) {
     return "loading...";
@@ -550,6 +563,21 @@ const Onboarding = () => {
     </Card>
   );
 };
+
+/** useCanUseGateway reports whether the user can invoke the AI Gateway in the given org */
+function useCanUseGateway(orgId: string | undefined) {
+  const { data: session } = useSession();
+  const isAiGatewayEnabled = useIsFeatureEnabled("aiGateway", {
+    enableForAdmins: false,
+    organizationId: orgId,
+  });
+  if (!orgId || !isAiGatewayEnabled) return false;
+  return hasOrganizationAccess({
+    session,
+    organizationId: orgId,
+    scope: "gateway:invoke",
+  });
+}
 
 /** useRedirectToOrganizationSettings sends the user to the given org's settings */
 function useRedirectToOrganizationSettings(orgId: string | undefined) {
