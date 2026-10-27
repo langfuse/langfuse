@@ -109,6 +109,7 @@
     "@typescript/typescript6": "^6.0.2",
     "@uiw/codemirror-themes": "^4.23.7",
     "@uiw/react-codemirror": "^4.25.8",
+    "@zumer/snapdom": "3.3.5",
     "bcryptjs": "^2.4.3",
     "bullmq": "^5.76.3",
     "chroma-js": "^3.1.2",
