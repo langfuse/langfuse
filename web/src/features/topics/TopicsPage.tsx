@@ -88,25 +88,25 @@ function TopicsWorkspace({ projectId }: { projectId: string }) {
     facetsReady: facets.isSuccess,
   });
   return (
-    <TopicsWorkspaceGate isLoading={facets.isLoading} fallback={loadingPage}>
-      <TopicSetupFlowController
-        projectId={projectId}
-        canWrite={canWrite}
-        settings={modelSettings.configure.settings}
-        onSaveSampling={modelSettings.automaticProcessing.save}
-      >
-        {({ openSetup }) => (
-          <TopicsWorkspaceView
-            key={(facets.data?.length ?? 0) > 0 ? "configured" : "empty"}
-            projectId={projectId}
-            facets={facets}
-            canWrite={canWrite}
-            modelSettings={modelSettings}
-            openSetup={openSetup}
-          />
-        )}
-      </TopicSetupFlowController>
-    </TopicsWorkspaceGate>
+    <TopicSetupFlowController
+      projectId={projectId}
+      canWrite={canWrite}
+      settings={modelSettings.configure.settings}
+      onSaveSampling={modelSettings.automaticProcessing.save}
+    >
+      {({ openSetup }) => (
+        <TopicsWorkspaceView
+          // Stays "configured" while facets load, so the workspace and its
+          // requests start alongside facets instead of remounting after them.
+          key={facets.data?.length === 0 ? "empty" : "configured"}
+          projectId={projectId}
+          facets={facets}
+          canWrite={canWrite}
+          modelSettings={modelSettings}
+          openSetup={openSetup}
+        />
+      )}
+    </TopicSetupFlowController>
   );
 }
 
@@ -281,6 +281,17 @@ function TopicsWorkspaceContent({
           : [],
     ),
   );
+  // Runs that finished before the run list first loaded are already in the
+  // first results request; only later completions start a new one.
+  const [listedCompletedAt, setListedCompletedAt] = useState<number | null>(
+    null,
+  );
+  if (executions.data && listedCompletedAt === null)
+    setListedCompletedAt(completedAt);
+  const refreshAfter =
+    listedCompletedAt === null || completedAt === listedCompletedAt
+      ? 0
+      : completedAt;
   const running =
     Boolean(executions.data?.some((execution) => busy(execution.status))) ||
     busy(selectedExecution.data?.status ?? "");
@@ -292,7 +303,7 @@ function TopicsWorkspaceContent({
     projectId,
     running,
     pollForSummaries: modelSettings.automaticProcessing.state.status === "on",
-    refreshAfter: completedAt,
+    refreshAfter,
   });
   const traceFilters = useTopicTraceFilters(
     projectId,
@@ -355,7 +366,7 @@ function TopicsWorkspaceContent({
     openAutomaticProcessing(true);
   }
 
-  return (
+  const workspace = (
     <DialogController<TopicOperation>
       renderDialog={({ closeDialog, state }) => (
         <ManualTopicsFormContent
@@ -588,6 +599,11 @@ function TopicsWorkspaceContent({
         );
       }}
     </DialogController>
+  );
+  return (
+    <TopicsWorkspaceGate isLoading={facets.isLoading} fallback={loadingPage}>
+      {workspace}
+    </TopicsWorkspaceGate>
   );
 }
 
