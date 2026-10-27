@@ -1,7 +1,7 @@
 name: Build nodejs RPM
 
-# TEMPORARY(CVE-2026-111497): builds Red Hat's nodejs:24 RPMs with the Brotli
-# fix (scripts/docker/nodejs-rpm/) and publishes them as a multi-arch image for
+# TEMPORARY(node-24.22.1-security): builds Red Hat's nodejs:24 RPMs with fixes
+# from Node 24.22.1 (scripts/docker/nodejs-rpm/) and publishes them as a multi-arch image for
 # web/Dockerfile and worker/Dockerfile. Delete together with that directory.
 #
 # Pull requests build and verify without publishing. Pushes to main and manual
