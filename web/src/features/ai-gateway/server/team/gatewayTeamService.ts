@@ -18,7 +18,7 @@ import {
 } from "@/src/features/rbac/server";
 import type { OrgAuthedContext } from "@/src/server/api/trpc";
 
-const MEMBER_PREVIEW_LIMIT = 4;
+const MEMBER_SUGGESTION_LIMIT = 4;
 const GATEWAY_USER_SCOPE = "gateway:invoke";
 
 type GatewayInvitationEmail = Extract<
@@ -45,6 +45,11 @@ function isEmailConfigured() {
   return Boolean(env.SMTP_CONNECTION_URL && env.EMAIL_FROM_ADDRESS);
 }
 
+/** Addresses are stored lowercase, so lookups and dedupe compare lowercase. */
+function normalizeEmails(emails: string[]) {
+  return [...new Set(emails.map((email) => email.trim().toLowerCase()))];
+}
+
 type GatewayTeamContext = Pick<OrgAuthedContext, "session" | "prisma">;
 
 /**
@@ -63,19 +68,67 @@ export class GatewayTeamService {
     organizationId: string;
     currentUserId: string;
   }) {
-    const query = {
+    const count = await this.members.countMembersWithScope({
       organizationId: params.organizationId,
       scope: GATEWAY_USER_SCOPE,
       excludeUserId: params.currentUserId,
-    } as const;
-    const [count, preview] = await Promise.all([
-      this.members.countMembersWithScope(query),
-      this.members.findMembersWithScope({
-        ...query,
-        limit: MEMBER_PREVIEW_LIMIT,
-      }),
-    ]);
-    return { isEmailConfigured: isEmailConfigured(), count, preview };
+    });
+    return { isEmailConfigured: isEmailConfigured(), count };
+  }
+
+  /**
+   * Members to offer as quick picks: others who can use the gateway, not
+   * already picked, optionally narrowed by name or email.
+   */
+  getMemberSuggestions(params: {
+    organizationId: string;
+    currentUserId: string;
+    search: string;
+    excludeEmails: string[];
+  }) {
+    return this.members.findMembersWithScope({
+      organizationId: params.organizationId,
+      scope: GATEWAY_USER_SCOPE,
+      excludeUserId: params.currentUserId,
+      excludeEmails: normalizeEmails(params.excludeEmails),
+      search: params.search,
+      limit: MEMBER_SUGGESTION_LIMIT,
+    });
+  }
+
+  /**
+   * Pairs each address with its organization member, or null when it would be
+   * invited. Mirrors `inviteTeam`: the sender and members whose role can't use
+   * the gateway are not notified.
+   */
+  async getInviteeMembers(params: {
+    organizationId: string;
+    currentUserId: string;
+    emails: string[];
+  }) {
+    const emails = normalizeEmails(params.emails);
+    const members = new Map(
+      (
+        await this.members.findMembersByEmail({
+          organizationId: params.organizationId,
+          emails,
+          scope: GATEWAY_USER_SCOPE,
+        })
+      ).map((member) => [member.email.toLowerCase(), member]),
+    );
+    return emails.map((email) => {
+      const member = members.get(email);
+      return {
+        email,
+        member: member
+          ? {
+              name: member.name,
+              isSelf: member.id === params.currentUserId,
+              canUseGateway: member.hasScope,
+            }
+          : null,
+      };
+    });
   }
 
   async inviteTeam(params: {
@@ -105,9 +158,7 @@ export class GatewayTeamService {
     } as const;
     const emailJobs: GatewayInvitationEmail[] = [];
 
-    const emails = [
-      ...new Set(params.emails.map((email) => email.trim().toLowerCase())),
-    ];
+    const emails = normalizeEmails(params.emails);
     const existingMembers = new Map(
       (
         await this.members.findMembersByEmail({
