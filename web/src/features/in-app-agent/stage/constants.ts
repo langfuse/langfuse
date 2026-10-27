@@ -14,8 +14,8 @@ export const CAPTURE_EXCLUDED_SELECTORS = [
 ];
 
 export const ASSISTANT_STAGE_TIMINGS = {
-  openMs: 640,
-  closeMs: 520,
+  openMs: 760,
+  closeMs: 580,
   reducedMotionMs: 160,
   /** Cross-fade from the flying texture to the live page or bubble image. */
   handoffMs: 140,

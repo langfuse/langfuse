@@ -61,7 +61,10 @@ export function cubicBezier(x1: number, y1: number, x2: number, y2: number) {
   };
 }
 
-/** Fast lift-off, long gentle landing. */
-export const easeStageOpen = cubicBezier(0.22, 1, 0.36, 1);
+/**
+ * A camera dolly: lifts off gently, so the first frames read as the page
+ * starting to move rather than jumping, then lands slowly into the bubble.
+ */
+export const easeStageOpen = cubicBezier(0.45, 0.05, 0.15, 1);
 /** Gathers speed, then settles exactly onto the page. */
-export const easeStageClose = cubicBezier(0.5, 0, 0.1, 1);
+export const easeStageClose = cubicBezier(0.5, 0, 0.2, 1);
