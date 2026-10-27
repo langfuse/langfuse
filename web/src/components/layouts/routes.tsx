@@ -31,7 +31,7 @@ import { type OrganizationScope } from "@/src/features/rbac";
 import { SupportButton } from "@/src/components/nav/SupportButton";
 import { V4SidebarToggle } from "@/src/features/events";
 import { BookACallButton } from "@/src/components/nav/BookACallButton";
-import { SidebarMenuButton } from "@/src/components/ui/sidebar";
+import { SidebarNavItem } from "@/src/components/nav/SidebarNavItem";
 import { KeyboardShortcut } from "@/src/components/design-system/KeyboardShortcut/KeyboardShortcut";
 import { useCommandMenu } from "@/src/features/command-k-menu/CommandMenuProvider";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
@@ -332,20 +332,20 @@ function CommandMenuTrigger() {
   const capture = usePostHogClientCapture();
 
   return (
-    <SidebarMenuButton
+    <SidebarNavItem.Button
       onClick={() => {
         capture("cmd_k_menu:opened", {
           source: "main_navigation",
         });
         setOpen(true);
       }}
-      className="whitespace-nowrap"
-    >
-      <Search size="base" />
-      Go to...
-      <span className="-mr-px ml-auto hidden md:inline-flex">
-        <KeyboardShortcut keys={["Mod", "K"]} />
-      </span>
-    </SidebarMenuButton>
+      leading={<Search size="base" />}
+      label="Go to..."
+      trailing={
+        <span className="hidden md:inline-flex">
+          <KeyboardShortcut keys={["Mod", "K"]} />
+        </span>
+      }
+    />
   );
 }

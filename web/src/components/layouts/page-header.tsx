@@ -7,9 +7,8 @@ import BreadcrumbComponent from "@/src/components/layouts/breadcrumb";
 import { PageHeaderControlsSlotTarget } from "@/src/components/layouts/page-header-controls-slot";
 import { InAppAiAgentButton } from "@/src/components/nav/InAppAiAgentButton";
 import { TopbarBrand } from "@/src/components/nav/TopbarBrand";
-import { useHasAppSidebar } from "@/src/components/nav/SidebarPresenceProvider";
+import { useAppNavigation } from "@/src/components/nav/AppNavigationProvider";
 import { useIsInAppAgentLauncherVisible } from "@/src/features/in-app-agent";
-import { SidebarTrigger } from "@/src/components/ui/sidebar";
 import {
   PageTabs,
   type PageTabsProps,
@@ -79,14 +78,15 @@ const PageHeader = ({
   titleBadges,
   breadcrumbBadges,
 }: PageHeaderProps) => {
-  const hasAppSidebar = useHasAppSidebar();
+  const appNavigation = useAppNavigation();
   const envLabel = useEnvLabel();
   const isInAppAgentLauncherVisible = useIsInAppAgentLauncherVisible();
-  // The sidebar trigger + brand mark only make sense where a real AppSidebar
+  // The sidebar control + brand mark only make sense where a real sidebar
   // exists to toggle/mirror. On the sidebar-less MinimalLayout (public/shared
   // trace and session views) show the page's own leadingControl instead — no
   // hamburger opening an empty sheet, no orphaned brand mark.
-  const showSidebarChrome = showSidebarTrigger && hasAppSidebar;
+  const SidebarControl =
+    showSidebarTrigger && appNavigation ? appNavigation.SidebarControl : null;
   return (
     <div
       className={cn([
@@ -116,9 +116,9 @@ const PageHeader = ({
             )}
           >
             <div className="flex min-h-[43px] min-w-0 flex-wrap items-center gap-2">
-              {showSidebarChrome ? (
+              {SidebarControl ? (
                 <>
-                  <SidebarTrigger />
+                  <SidebarControl />
                   {/* Brand the app in the top bar while the sidebar (which
                       owns the logo) is off-canvas below `md`. Hidden on
                       desktop where the sidebar logo is visible. */}

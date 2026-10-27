@@ -10,6 +10,7 @@ import {
   useState,
   type ComponentProps,
   type PropsWithChildren,
+  type ReactNode,
 } from "react";
 import Head from "next/head";
 import {
@@ -23,7 +24,10 @@ import {
   useSidebar,
 } from "@/src/components/ui/sidebar";
 import { AppSidebar } from "@/src/components/nav/AppSidebar/AppSidebar";
-import { SidebarPresenceProvider } from "@/src/components/nav/SidebarPresenceProvider";
+import { ClassicNavigationProvider } from "@/src/components/nav/ClassicNavigationProvider";
+import { type UserNavigationItem } from "@/src/components/nav/UserMenuItems";
+import { useSidebarNotificationState } from "@/src/components/nav/useSidebarNotificationState";
+import { useSidebarVersionState } from "@/src/components/nav/useSidebarVersionState";
 import { Toaster } from "@/src/components/ui/Toaster";
 import { Layer } from "@/src/components/design-system/Layer/Layer";
 import {
@@ -50,10 +54,7 @@ import {
 } from "@/src/features/v4-migration/useV4UpgradeUiEnabled";
 import { useUiCustomization } from "@/src/ee/features/ui-customization";
 import { findCurrentInstance } from "@/src/ee/features/ui-customization/instanceLinks";
-import { api } from "@/src/utils/api";
-import { usePlan } from "@/src/features/entitlements";
 import { env } from "@/src/env.mjs";
-import useLocalStorage from "@/src/components/useLocalStorage";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { useSession } from "next-auth/react";
 import { useQueryProjectOrOrganization } from "@/src/features/projects";
@@ -68,8 +69,11 @@ import {
   usePaymentBanner,
 } from "@/src/features/payment-banner";
 import { useTopBannerHeight } from "@/src/features/top-banner";
-
-const DISMISSED_SIDEBAR_NOTIFICATIONS_KEY = "dismissed-sidebar-notifications";
+import {
+  AppShell,
+  AppShellSidebarPanel,
+  useAppShellVariant,
+} from "@/src/features/app-shell";
 
 const CommandMenu = dynamic(
   () =>
@@ -116,7 +120,7 @@ type AuthenticatedLayoutProps = PropsWithChildren<{
 
 /**
  * Full authenticated layout with all features:
- * - AppSidebar with navigation
+ * - App sidebar with navigation (classic or new shell, see useAppShellVariant)
  * - Payment banner (conditional)
  * - Support drawer
  * - Command menu (Cmd/Ctrl+K)
@@ -137,30 +141,12 @@ export function AuthenticatedLayout({
   const router = useRouter();
   useProjectCookie(router);
   const uiCustomization = useUiCustomization();
-  const versionUpdatePrompt = useVersionUpdatePrompt();
-  const paymentBanner = usePaymentBanner();
-  const topBannerRef = useTopBannerHeight();
+  const appShell = useAppShellVariant();
+  const capture = usePostHogClientCapture();
   // Account-level entry: use the raw flag (same as account settings tabs), not
   // project-scoped force-v3 suppression.
   const showV4Migration = useV4UpgradeUiFlag();
-  const { organization: currentOrganization, project: currentProject } =
-    useQueryProjectOrOrganization();
-  const customerDataWarning = getCustomerDataWarning({
-    email: user.email,
-    isAdmin: user.admin === true,
-    isLangfuseCloud,
-    projectId:
-      typeof router.query.projectId === "string"
-        ? router.query.projectId
-        : null,
-    organizationId:
-      typeof router.query.organizationId === "string"
-        ? router.query.organizationId
-        : null,
-    memberships: user.organizations,
-    organizationName: currentOrganization?.name ?? null,
-    projectName: currentProject?.name ?? null,
-  });
+  const { organization: currentOrganization } = useQueryProjectOrOrganization();
 
   const regionMenuItems = getAvailableCloudRegionOptions(currentRegion).map(
     (region) => ({
@@ -201,13 +187,15 @@ export function AuthenticatedLayout({
     isAdmin: user.admin === true,
   });
 
+  const otherShellVariant = appShell.variant === "next" ? "classic" : "next";
+
   // User navigation items for sidebar dropdown
   const sidebarUser = {
     name: user.name ?? "",
     email: user.email ?? "",
     avatar: user.image ?? "",
   };
-  const userMenuItems = [
+  const userMenuItems: UserNavigationItem[] = [
     ...(internalViewMode.available
       ? [
           {
@@ -236,6 +224,17 @@ export function AuthenticatedLayout({
       name: "Theme",
       onClick: () => {},
       content: <ThemeToggle />,
+    },
+    {
+      type: "action" as const,
+      name:
+        otherShellVariant === "classic"
+          ? "Switch to classic navigation"
+          : "Try the new navigation",
+      onClick: () => {
+        capture("app_shell:variant_switched", { variant: otherShellVariant });
+        appShell.setVariant(otherShellVariant);
+      },
     },
     ...(hasFeaturePreviews
       ? [
@@ -283,6 +282,30 @@ export function AuthenticatedLayout({
     { type: "action" as const, name: "Sign out", onClick: onSignOut },
   ];
 
+  const content = (
+    <>
+      <AppContentWithRightDrawer>{children}</AppContentWithRightDrawer>
+      {/* Toasts render in the `toast` overlay layer — the last layer
+            in LAYER_ORDER — so they paint above every overlay (incl. a
+            non-modal peek) by DOM order alone, no z-index. Sonner's
+            Toaster is position:fixed, so nesting it in the fixed
+            full-screen layer container is positionally identical. */}
+      <Layer name="toast">
+        <Toaster visibleToasts={1} />
+      </Layer>
+      <CommandMenu mainNavigation={navigation.navigation} />
+      {/* Assistant window host lives here (not in PageHeader with
+            its launcher button) so the open window and its geometry
+            survive route changes. */}
+      <InAppAgentWindowHost />
+    </>
+  );
+
+  const routerProjectId =
+    typeof router.query.projectId === "string"
+      ? router.query.projectId
+      : undefined;
+
   return (
     <>
       <Head>
@@ -307,47 +330,33 @@ export function AuthenticatedLayout({
         />
       </Head>
 
-      <SidebarPresenceProvider>
-        <SidebarProvider>
-          <div className="flex h-dvh w-full flex-col">
-            <div
-              ref={topBannerRef}
-              className="fixed top-0 z-51 flex w-full flex-col"
-            >
-              {customerDataWarning && (
-                <CustomerDataWarningBannerView {...customerDataWarning} />
-              )}
-              {paymentBanner && (
-                <PaymentBannerView
-                  organizationName={paymentBanner.organizationName}
-                  billingSettingsHref={paymentBanner.billingSettingsHref}
-                  severity={paymentBanner.severity}
-                />
-              )}
-              {env.NEXT_PUBLIC_PREVIEW_PR_URL && (
-                <PreviewDeploymentBanner
-                  prUrl={env.NEXT_PUBLIC_PREVIEW_PR_URL}
-                />
-              )}
-            </div>
-            {versionUpdatePrompt.isVisible && (
-              <VersionUpdateBanner
-                onReload={versionUpdatePrompt.reload}
-                onDismiss={versionUpdatePrompt.dismiss}
+      {appShell.variant === "next" ? (
+        <AppFrame user={user}>
+          <AppShell
+            sidebar={
+              <AppShellSidebarPanel
+                mainNavigation={navigation.mainNavigation}
+                secondaryNavigation={navigation.secondaryNavigation}
+                user={sidebarUser}
+                userMenuItems={userMenuItems}
+                isLangfuseCloud={isLangfuseCloud}
               />
-            )}
-            <div className="pt-banner-offset flex min-h-0 flex-1">
+            }
+          >
+            {content}
+          </AppShell>
+        </AppFrame>
+      ) : (
+        <SidebarProvider>
+          <ClassicNavigationProvider>
+            <AppFrame user={user}>
               <ConnectedAppSidebar
                 navItems={navigation.mainNavigation}
                 secondaryNavItems={navigation.secondaryNavigation}
                 user={sidebarUser}
                 userMenuItems={userMenuItems}
                 isLangfuseCloud={isLangfuseCloud}
-                routerProjectId={
-                  typeof router.query.projectId === "string"
-                    ? router.query.projectId
-                    : undefined
-                }
+                routerProjectId={routerProjectId}
               />
               {/* `min-w-0`, not a `100vw`-derived width: viewport units ignore
                     scrollbars, and a definite width also floors `min-width:
@@ -356,40 +365,85 @@ export function AuthenticatedLayout({
                     scrollbar showed — spawning a horizontal one. Flex already
                     sizes the inset to that space. */}
               <SidebarInset className="h-screen-with-banner max-w-full min-w-0">
-                <AppContentWithRightDrawer>
-                  {children}
-                </AppContentWithRightDrawer>
-                {/* Toasts render in the `toast` overlay layer — the last layer
-                      in LAYER_ORDER — so they paint above every overlay (incl. a
-                      non-modal peek) by DOM order alone, no z-index. Sonner's
-                      Toaster is position:fixed, so nesting it in the fixed
-                      full-screen layer container is positionally identical. */}
-                <Layer name="toast">
-                  <Toaster visibleToasts={1} />
-                </Layer>
-                <CommandMenu mainNavigation={navigation.navigation} />
-                {/* Assistant window host lives here (not in PageHeader with
-                      its launcher button) so the open window and its geometry
-                      survive route changes. */}
-                <InAppAgentWindowHost />
+                {content}
               </SidebarInset>
-            </div>
-            {internalViewMode.available && (
-              <InternalViewModeDialog
-                open={internalViewModeOpen}
-                onOpenChange={setInternalViewModeOpen}
-              />
-            )}
-            {hasFeaturePreviews ? (
-              <ControlledFeaturePreviewModal
-                open={featurePreviewOpen}
-                onOpenChange={setFeaturePreviewOpen}
-              />
-            ) : null}
-          </div>
+            </AppFrame>
+          </ClassicNavigationProvider>
         </SidebarProvider>
-      </SidebarPresenceProvider>
+      )}
+      {internalViewMode.available && (
+        <InternalViewModeDialog
+          open={internalViewModeOpen}
+          onOpenChange={setInternalViewModeOpen}
+        />
+      )}
+      {hasFeaturePreviews ? (
+        <ControlledFeaturePreviewModal
+          open={featurePreviewOpen}
+          onOpenChange={setFeaturePreviewOpen}
+        />
+      ) : null}
     </>
+  );
+}
+
+/** Full-height column shared by both shells: top banners, then the sidebar and the page side by side. */
+function AppFrame({
+  user,
+  children,
+}: {
+  user: NonNullable<Session["user"]>;
+  children: ReactNode;
+}) {
+  const router = useRouter();
+  const { isLangfuseCloud } = useLangfuseCloudRegion();
+  const versionUpdatePrompt = useVersionUpdatePrompt();
+  const paymentBanner = usePaymentBanner();
+  const topBannerRef = useTopBannerHeight();
+  const { organization: currentOrganization, project: currentProject } =
+    useQueryProjectOrOrganization();
+  const customerDataWarning = getCustomerDataWarning({
+    email: user.email,
+    isAdmin: user.admin === true,
+    isLangfuseCloud,
+    projectId:
+      typeof router.query.projectId === "string"
+        ? router.query.projectId
+        : null,
+    organizationId:
+      typeof router.query.organizationId === "string"
+        ? router.query.organizationId
+        : null,
+    memberships: user.organizations,
+    organizationName: currentOrganization?.name ?? null,
+    projectName: currentProject?.name ?? null,
+  });
+
+  return (
+    <div className="flex h-dvh w-full flex-col">
+      <div ref={topBannerRef} className="fixed top-0 z-51 flex w-full flex-col">
+        {customerDataWarning && (
+          <CustomerDataWarningBannerView {...customerDataWarning} />
+        )}
+        {paymentBanner && (
+          <PaymentBannerView
+            organizationName={paymentBanner.organizationName}
+            billingSettingsHref={paymentBanner.billingSettingsHref}
+            severity={paymentBanner.severity}
+          />
+        )}
+        {env.NEXT_PUBLIC_PREVIEW_PR_URL && (
+          <PreviewDeploymentBanner prUrl={env.NEXT_PUBLIC_PREVIEW_PR_URL} />
+        )}
+      </div>
+      {versionUpdatePrompt.isVisible && (
+        <VersionUpdateBanner
+          onReload={versionUpdatePrompt.reload}
+          onDismiss={versionUpdatePrompt.dismiss}
+        />
+      )}
+      <div className="pt-banner-offset flex min-h-0 flex-1">{children}</div>
+    </div>
   );
 }
 
@@ -411,65 +465,14 @@ function ConnectedAppSidebar({
   const { isMobile } = useSidebar();
   const uiCustomization = useUiCustomization();
   const v4UpgradeUiEnabled = useV4UpgradeUiEnabled(routerProjectId);
-  const plan = usePlan();
-  const capture = usePostHogClientCapture();
   const session = useSession();
   const { organization, project } = useQueryProjectOrOrganization();
   const canCreateProjects = useHasOrganizationAccess({
     organizationId: organization?.id,
     scope: "projects:create",
   });
-  const [dismissedNotificationIds, setDismissedNotificationIds] =
-    useLocalStorage<string[]>(DISMISSED_SIDEBAR_NOTIFICATIONS_KEY, []);
-
-  const backgroundMigrationStatus = api.backgroundMigrations.status.useQuery(
-    undefined,
-    {
-      refetchOnMount: false,
-      refetchOnWindowFocus: false,
-      refetchOnReconnect: false,
-      enabled: !isLangfuseCloud,
-      throwOnError: false,
-    },
-  );
-
-  const checkUpdate = api.public.checkUpdate.useQuery(undefined, {
-    refetchOnMount: false,
-    refetchOnWindowFocus: false,
-    refetchOnReconnect: false,
-    enabled: !isLangfuseCloud,
-    throwOnError: false,
-  });
-
-  const selfHostedPlan =
-    plan === "self-hosted:pro" ||
-    plan === "self-hosted:enterprise" ||
-    plan === "self-hosted:gov"
-      ? plan
-      : "oss";
-
-  const versionState: ComponentProps<typeof AppSidebar>["versionState"] =
-    isLangfuseCloud
-      ? { deployment: "cloud" }
-      : {
-          deployment: "self-hosted",
-          plan: selfHostedPlan,
-          release: checkUpdate.data?.updateType
-            ? {
-                status: "update-available",
-                updateType: checkUpdate.data.updateType,
-                latestRelease: checkUpdate.data.latestRelease,
-              }
-            : { status: "current" },
-          migration:
-            backgroundMigrationStatus.data &&
-            backgroundMigrationStatus.data.status !== "FINISHED"
-              ? {
-                  status: "in-progress",
-                  phase: backgroundMigrationStatus.data.status.toLowerCase(),
-                }
-              : { status: "idle" },
-        };
+  const versionState = useSidebarVersionState({ isLangfuseCloud });
+  const notificationState = useSidebarNotificationState();
 
   return (
     <AppSidebar
@@ -484,20 +487,7 @@ function ConnectedAppSidebar({
       }}
       versionState={versionState}
       v4UpgradeUiEnabled={v4UpgradeUiEnabled}
-      notificationState={{
-        dismissedIds: dismissedNotificationIds,
-        onDismiss: (id) => {
-          capture("notification:dismiss_notification", {
-            notification_id: id,
-          });
-          setDismissedNotificationIds((current) => [...current, id]);
-        },
-        onLinkClick: (id) => {
-          capture("notification:click_link", {
-            notification_id: id,
-          });
-        },
-      }}
+      notificationState={notificationState}
       organization={
         organization ? { id: organization.id, name: organization.name } : null
       }
@@ -517,7 +507,7 @@ function ConnectedAppSidebar({
   );
 }
 
-/** useProjectCookie pings the visit beacon so the project sentinel can route the user back here. */
+/** useProjectCookie pings the visit beacon so the project sentinel and `/` can route the user back here. */
 function useProjectCookie(router: NextRouter) {
   const projectId = router.query.projectId;
   useEffect(() => {

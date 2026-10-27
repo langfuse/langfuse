@@ -21,6 +21,8 @@ import Link from "next/link";
 import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { OrganizationDropdownMenu } from "@/src/components/OrganizationDropdownMenu/OrganizationDropdownMenu";
 import { ProjectDropdownMenu } from "@/src/components/ProjectDropdownMenu/ProjectDropdownMenu";
+import { useAppNavigation } from "@/src/components/nav/AppNavigationProvider";
+import { WorkspaceBreadcrumbSwitcher } from "@/src/features/app-shell";
 
 const BreadcrumbComponent = ({
   items,
@@ -30,6 +32,7 @@ const BreadcrumbComponent = ({
   className?: string;
 }) => {
   const session = useSession();
+  const appNavigation = useAppNavigation();
   const { organization, project } = useQueryProjectOrOrganization();
   const { getProjectPath, getOrgPath } = useOrgProjectSwitchPaths();
 
@@ -44,7 +47,12 @@ const BreadcrumbComponent = ({
   return (
     <Breadcrumb className={className}>
       <BreadcrumbList>
-        {organization && (
+        {organization && appNavigation?.shell === "next" && (
+          <BreadcrumbItem>
+            <WorkspaceBreadcrumbSwitcher />
+          </BreadcrumbItem>
+        )}
+        {organization && appNavigation?.shell !== "next" && (
           <OrganizationDropdownMenu
             {...(organizations
               ? { state: "loaded", organizations }
@@ -73,7 +81,7 @@ const BreadcrumbComponent = ({
             )}
           </OrganizationDropdownMenu>
         )}
-        {organization && project && (
+        {organization && project && appNavigation?.shell !== "next" && (
           <>
             <BreadcrumbSeparator className="text-foreground-tertiary">
               /

@@ -1,7 +1,7 @@
 /* eslint-disable @repo/component-file-structure, @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 import { Switch } from "@/src/components/design-system/Switch/Switch";
 import { Label } from "@/src/components/ui/label";
-import { SidebarMenuButton } from "@/src/components/ui/sidebar";
+import { SidebarNavItem } from "@/src/components/nav/SidebarNavItem";
 import {
   Tooltip,
   TooltipContent,
@@ -185,44 +185,39 @@ export function V4SidebarToggle() {
 
   return (
     <>
-      <SidebarMenuButton
-        asChild
-        className="justify-between gap-1.5 group-data-[collapsible=icon]:justify-center"
-      >
-        <div>
-          <div className="flex min-w-0 flex-1 items-center gap-2 group-data-[collapsible=icon]:hidden">
-            <ZapIcon size="base" />
-            <Label
-              htmlFor="v4-beta-toggle"
-              className="block min-w-0 flex-1 cursor-pointer truncate text-sm font-normal"
-              title={label}
-            >
-              {label}
-            </Label>
-          </div>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <div className="flex shrink-0">
-                <Switch
-                  id="v4-beta-toggle"
-                  size="sm"
-                  checked={isChecked}
-                  onCheckedChange={handleSidebarToggle}
-                  disabled={isLoading}
-                  aria-label={canToggleV4 ? "Toggle V4 Preview" : "Enable V4"}
-                  aria-describedby="v4-preview-sidebar-description"
-                />
-              </div>
-            </TooltipTrigger>
-            <TooltipContent side="right" className="max-w-xs text-xs">
-              {description}
-            </TooltipContent>
-          </Tooltip>
-          <span id="v4-preview-sidebar-description" className="sr-only">
-            {description}
-          </span>
+      <SidebarNavItem.Row>
+        <div className="flex min-w-0 flex-1 items-center gap-2 group-data-[collapsible=icon]:hidden">
+          <ZapIcon size="base" />
+          <Label
+            htmlFor="v4-beta-toggle"
+            className="block min-w-0 flex-1 cursor-pointer truncate text-sm font-normal"
+            title={label}
+          >
+            {label}
+          </Label>
         </div>
-      </SidebarMenuButton>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <div className="flex shrink-0">
+              <Switch
+                id="v4-beta-toggle"
+                size="sm"
+                checked={isChecked}
+                onCheckedChange={handleSidebarToggle}
+                disabled={isLoading}
+                aria-label={canToggleV4 ? "Toggle V4 Preview" : "Enable V4"}
+                aria-describedby="v4-preview-sidebar-description"
+              />
+            </div>
+          </TooltipTrigger>
+          <TooltipContent side="right" className="max-w-xs text-xs">
+            {description}
+          </TooltipContent>
+        </Tooltip>
+        <span id="v4-preview-sidebar-description" className="sr-only">
+          {description}
+        </span>
+      </SidebarNavItem.Row>
       <V4IntroDialog
         open={showIntroDialog}
         onConfirm={confirmIntroDialog}
