@@ -38,7 +38,7 @@ export function SetupPage() {
           breadcrumb: [
             {
               name: "Organizations",
-              href: "/",
+              href: "/organizations",
             },
           ],
         }),

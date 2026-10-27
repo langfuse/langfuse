@@ -369,7 +369,7 @@ export const OrganizationProjectOverview = () => {
         breadcrumb: [
           {
             name: "Organizations",
-            href: "/",
+            href: "/organizations",
           },
         ],
         actionButtonsRight: (

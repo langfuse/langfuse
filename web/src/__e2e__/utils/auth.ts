@@ -9,6 +9,9 @@ const DEMO_USER = {
 /** Matched to the `expect` timeout in playwright.config.ts. */
 const SIGN_IN_TIMEOUT_MS = 60_000;
 
+/** `/` redirects a signed-in user straight into a project home. */
+const PROJECT_HOME_URL = /\/project\/[^/?#]+(\?.*)?$/;
+
 /**
  * Signs in through the credentials form and waits for the app to land on
  * `expectedUrl`.
@@ -21,8 +24,8 @@ export async function signIn(
   {
     email = DEMO_USER.email,
     password = DEMO_USER.password,
-    expectedUrl = "/",
-  }: { email?: string; password?: string; expectedUrl?: string } = {},
+    expectedUrl = PROJECT_HOME_URL,
+  }: { email?: string; password?: string; expectedUrl?: string | RegExp } = {},
 ): Promise<void> {
   const submitButton = page.getByTestId("submit-email-password-sign-in-form");
 

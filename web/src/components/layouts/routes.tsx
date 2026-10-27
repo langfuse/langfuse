@@ -99,7 +99,7 @@ export const ROUTES: Route[] = [
   },
   {
     title: "Organizations",
-    href: "/",
+    href: "/organizations",
     icon: Grid2X2,
     show: ({ organization }) => organization === undefined,
     section: RouteSection.Main,

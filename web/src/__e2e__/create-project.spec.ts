@@ -42,6 +42,7 @@ test.describe("Create project", () => {
     // Sign in
     await page.goto("/auth/sign-in");
     await signIn(page);
+    await page.goto("/organizations");
 
     // Start create org flow. `page.isVisible` does not wait and its result
     // was discarded, so the click below carried the whole wait on its 10s

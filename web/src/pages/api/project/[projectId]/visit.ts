@@ -1,12 +1,13 @@
 import { type NextApiRequest, type NextApiResponse } from "next";
 
 import { getServerAuthSession } from "@/src/server/auth";
+import { recordLastVisitedProject } from "@/src/features/projects/server";
 import {
   getRequestOrigin,
   serializeProjectCookie,
 } from "@/src/server/utils/cookies";
 
-/** handler persists the user's current project in the region-unscoped project cookie. */
+/** handler remembers the user's current project in the region-unscoped project cookie and the per-user server record. */
 export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse,
@@ -27,12 +28,16 @@ export default async function handler(
   const isMember = session.user.organizations
     .flatMap((org) => org.projects)
     .some((project) => project.id === projectId);
+  if (!isMember) return res.status(204).end();
 
   const origin = getRequestOrigin(req);
-
-  if (isMember && origin) {
-    res.setHeader("Set-Cookie", serializeProjectCookie({ origin, projectId }));
+  if (origin) {
+    res.setHeader(
+      "Set-Cookie",
+      serializeProjectCookie({ origin, projectId, userId: session.user.id }),
+    );
   }
+  await recordLastVisitedProject({ userId: session.user.id, projectId });
 
   return res.status(204).end();
 }

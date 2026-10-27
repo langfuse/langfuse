@@ -44,6 +44,8 @@ export const getCookieName = (name: string) =>
 export type ProjectCookie = {
   origin: string;
   projectId: string;
+  /** Absent on cookies written before the cookie was scoped to a user. */
+  userId?: string;
 };
 
 /** getRequestOrigin derives the request's own origin from forwarded headers, never from client input. */
@@ -83,8 +85,10 @@ export const readProjectCookie = (
       typeof (parsed as ProjectCookie).origin === "string" &&
       typeof (parsed as ProjectCookie).projectId === "string"
     ) {
-      const { origin, projectId } = parsed as ProjectCookie;
-      return { origin, projectId };
+      const { origin, projectId, userId } = parsed as ProjectCookie;
+      return typeof userId === "string"
+        ? { origin, projectId, userId }
+        : { origin, projectId };
     }
   } catch {
     // malformed cookie -> treat as absent
