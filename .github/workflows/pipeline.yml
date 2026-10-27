@@ -1173,6 +1173,7 @@ jobs:
     needs:
       - pre-job
     if: false
+    # if: ${{ !cancelled() && (github.event_name != 'push' || needs.pre-job.outputs.should_skip != 'true') }}
     name: tests-fips (${{ matrix.suite }})
     env:
       VITEST_MAX_WORKERS: ${{ matrix.max-workers }}
