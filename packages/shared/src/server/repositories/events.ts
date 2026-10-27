@@ -65,7 +65,9 @@ import {
   getLastTraceTimestampsByProjectsFromTracesTable,
   getTraceByIdFromTracesTable,
   getTracesIdentifierForSessionFromTracesTable,
+  getTraceSummariesByIdsFromTracesTable,
   hasAnyTrace,
+  type TraceSummary,
   persistProjectHasTracesFlag,
   readProjectHasTracesFlag,
 } from "./traces";
@@ -3751,6 +3753,65 @@ export const getTraceMetadataByIdsFromEvents = async (props: {
     clickhouseConfigs: props.clickhouseConfigs,
     preferredClickhouseService: "EventsReadOnly",
   });
+};
+
+const TRACE_SUMMARY_FIELDS = ["id", "user_id", "tags", "timestamp"] as const;
+
+/**
+ * Fetch trace-level user id, tags and timestamp for a list of trace IDs from
+ * the events table, without reading input, output or metadata.
+ */
+export const getTraceSummariesByIdsFromEvents = async (props: {
+  projectId: string;
+  traceIds: string[];
+}): Promise<TraceSummary[]> => {
+  if (props.traceIds.length === 0) return [];
+
+  const builder = getClickhouseKysely()
+    .selectFrom("events as e")
+    .select((eb) => traceAggregationSelects(TRACE_SUMMARY_FIELDS)(eb))
+    .where("e.trace_id", "in", props.traceIds)
+    .groupBy(["trace_id", "project_id"]);
+
+  const { sql: query, params } = compileClickhouseQuery(
+    builder,
+    props.projectId,
+  );
+
+  const rows = await queryClickhouse<{
+    id: string;
+    user_id: string | null;
+    tags: string[];
+    timestamp: string;
+  }>({
+    query,
+    params,
+    tags: { projectId: props.projectId },
+    preferredClickhouseService: "EventsReadOnly",
+  });
+
+  return rows.map((row) => ({
+    id: row.id,
+    userId: row.user_id || null,
+    tags: row.tags ?? [],
+    timestamp: parseClickhouseUTCDateTimeFormat(row.timestamp),
+  }));
+};
+
+/**
+ * Routing wrapper for batched trace summary reads (user id, tags, timestamp).
+ *
+ * If data is only written into the events tables, we look there and go to the
+ * legacy traces table otherwise.
+ */
+export const getTraceSummariesByIds = async (props: {
+  projectId: string;
+  traceIds: string[];
+}): Promise<TraceSummary[]> => {
+  if (env.LANGFUSE_MIGRATION_V4_WRITE_MODE !== "events_only") {
+    return getTraceSummariesByIdsFromTracesTable(props);
+  }
+  return getTraceSummariesByIdsFromEvents(props);
 };
 
 const evalExecutionIdentifierColumn = (identifier: "evaluator" | "rule") =>

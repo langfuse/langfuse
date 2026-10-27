@@ -254,6 +254,54 @@ export const getTracesByIds = async (
   );
 };
 
+export type TraceSummary = {
+  id: string;
+  userId: string | null;
+  tags: string[];
+  timestamp: Date;
+};
+
+/**
+ * Fetch trace-level user id, tags and timestamp for a list of trace IDs from
+ * the legacy traces table, without reading input, output or metadata.
+ */
+export const getTraceSummariesByIdsFromTracesTable = async ({
+  projectId,
+  traceIds,
+}: {
+  projectId: string;
+  traceIds: string[];
+}): Promise<TraceSummary[]> => {
+  if (traceIds.length === 0) return [];
+
+  const query = `
+    SELECT id, user_id, tags, timestamp
+    FROM traces
+    WHERE project_id = {projectId: String}
+    AND id IN ({traceIds: Array(String)})
+    ORDER BY event_ts DESC
+    LIMIT 1 BY id, project_id
+  `;
+  const rows = await queryClickhouse<{
+    id: string;
+    user_id: string | null;
+    tags: string[];
+    timestamp: string;
+  }>({
+    query,
+    params: { projectId, traceIds },
+    tags: { projectId },
+    preferredClickhouseService: "ReadOnly",
+  });
+
+  return rows.map((row) => ({
+    id: row.id,
+    userId: row.user_id || null,
+    tags: row.tags ?? [],
+    timestamp: parseClickhouseUTCDateTimeFormat(row.timestamp),
+  }));
+};
+
 export const getTracesBySessionId = async (
   projectId: string,
   sessionIds: string[],

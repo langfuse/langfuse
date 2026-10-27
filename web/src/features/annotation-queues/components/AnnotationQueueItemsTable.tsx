@@ -9,7 +9,7 @@ import {
   useColumnOrder,
   useColumnVisibility,
 } from "@/src/features/column-visibility";
-import { type AnnotationQueueStatus } from "@langfuse/shared";
+import { type AnnotationQueueStatus, type FilterState } from "@langfuse/shared";
 import {
   customRowHeightMenu,
   useRowHeightLocalStorage,
@@ -18,7 +18,7 @@ import { ListTree, Trash } from "@langfuse/icons";
 import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 import { type RouterOutput } from "@/src/utils/types";
 import { type RowSelectionState } from "@tanstack/react-table";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { DropdownMenu } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
 import { Button } from "@/src/components/ui/button";
 import {
@@ -38,6 +38,16 @@ import { type Status } from "@/src/components/ui/StatusBadge/StatusBadge";
 import { createIdTableColumn } from "@/src/components/design-system/table/columns/createIdTableColumn";
 import { createLinkTableColumn } from "@/src/components/design-system/table/columns/createLinkTableColumn";
 import { createUserTableColumn } from "@/src/components/design-system/table/columns/createUserTableColumn";
+import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
+import { createDateTableColumn } from "@/src/components/design-system/table/columns/createDateTableColumn";
+import { createTagsTableColumn } from "@/src/components/design-system/table/columns/createTagsTableColumn";
+import {
+  resolveQueueItemScore,
+  type QueueItemScore,
+} from "@/src/features/annotation-queues/lib/queueItemScores";
+import { buildQueueItemFilterColumns } from "@/src/features/annotation-queues/lib/queueItemFilters";
+import useSessionStorage from "@/src/components/useSessionStorage";
+import { QueueItemScoreCell } from "./QueueItemScoreCell";
 
 const QueueItemTableMultiSelectAction = ({
   selectedItems,
@@ -169,6 +179,10 @@ export type QueueItemRowData = {
   sourceId: string;
   status: AnnotationQueueStatus;
   completedAt: string;
+  scores: QueueItemScore[];
+  traceUserId?: string;
+  traceTimestamp?: Date;
+  traceTags?: string[];
   annotatorUser: {
     userId?: string;
     userName?: string;
@@ -214,9 +228,23 @@ export function AnnotationQueueItemsTable({
     "queueItems",
     "s",
   );
+  const queue = api.annotationQueues.byId.useQuery({ projectId, queueId });
+  const [filterState, setFilterStateRaw] = useSessionStorage<FilterState>(
+    `queueItemsFilterState-${queueId}`,
+    [],
+  );
+  const setFilterState = (filters: FilterState) => {
+    setFilterStateRaw(filters);
+    setPaginationState({ pageIndex: 0 });
+  };
+  const filterColumns = useMemo(
+    () => buildQueueItemFilterColumns(queue.data?.scoreConfigs ?? []),
+    [queue.data?.scoreConfigs],
+  );
   const items = api.annotationQueueItems.itemsByQueueId.useQuery({
     projectId,
     queueId,
+    filter: filterState,
     page: paginationState.pageIndex,
     limit: paginationState.pageSize,
   });
@@ -370,6 +398,48 @@ export function AnnotationQueueItemsTable({
       enableHiding: true,
       size: 60,
     },
+    createTextTableColumn<QueueItemRowData>({
+      accessorKey: "traceUserId",
+      header: "User ID",
+      size: 100,
+      enableHiding: true,
+    }),
+    createDateTableColumn<QueueItemRowData>({
+      accessorKey: "traceTimestamp",
+      header: "Trace Timestamp",
+      size: 140,
+      enableHiding: true,
+    }),
+    createTagsTableColumn<QueueItemRowData>({
+      accessorKey: "traceTags",
+      header: "Tags",
+      size: 120,
+      enableHiding: true,
+      defaultHidden: true,
+      shouldWrap: false,
+    }),
+    ...(queue.data?.scoreConfigs ?? []).map(
+      (config): LangfuseColumnDef<QueueItemRowData> => {
+        const id = `scoreConfig-${config.id}`;
+        return {
+          id,
+          accessorKey: id,
+          accessorFn: (row) => {
+            const score = resolveQueueItemScore(row.scores, config)?.score;
+            return score?.stringValue ?? score?.value ?? null;
+          },
+          header: config.name,
+          headerTooltip: config.description
+            ? { description: config.description }
+            : undefined,
+          size: config.dataType === "TEXT" ? 200 : 100,
+          enableHiding: true,
+          cell: ({ row }) => (
+            <QueueItemScoreCell scores={row.original.scores} config={config} />
+          ),
+        };
+      },
+    ),
     createUserTableColumn<QueueItemRowData, QueueItemRowData["annotatorUser"]>({
       accessorKey: "annotatorUser",
       header: "Completed by",
@@ -402,6 +472,10 @@ export function AnnotationQueueItemsTable({
         image: item.annotatorUserImage ?? undefined,
       },
       sourceId: item.objectId,
+      scores: item.scores,
+      traceUserId: item.trace?.userId ?? undefined,
+      traceTimestamp: item.trace?.timestamp,
+      traceTags: item.trace?.tags,
     };
 
     switch (item.objectType) {
@@ -451,6 +525,9 @@ export function AnnotationQueueItemsTable({
       <DataTableToolbar
         tableName="annotation-queue-items"
         columns={columns}
+        filterColumnDefinition={filterColumns}
+        filterState={filterState}
+        setFilterState={setFilterState}
         columnVisibility={columnVisibility}
         setColumnVisibility={setColumnVisibility}
         columnOrder={columnOrder}

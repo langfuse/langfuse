@@ -68,6 +68,7 @@ vi.mock("@/src/features/scores", () => ({
   isInteractiveTarget: () => false,
   isOpenDialogPresent: () => false,
   isTypingTarget: () => false,
+  useMergedScores: (scores: unknown[]) => scores,
 }));
 vi.mock("@/src/utils/api", async () => {
   const { useQuery } = await import("@tanstack/react-query");
