@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import {
   fireEvent,
   render,
@@ -36,6 +36,7 @@ const state = vi.hoisted(() => ({
   canWrite: true,
   facets: [] as TopicFacet[],
   facetsLoading: false,
+  workspaceMounts: 0,
   executions: [] as unknown[] | undefined,
   executionsError: null as Error | null,
   rulesPending: false,
@@ -171,6 +172,7 @@ vi.mock("./CurrentTopics", () => ({
     refreshAfter: number;
     timeRange: { from: Date; to: Date };
   }) => {
+    useState(() => state.workspaceMounts++);
     state.currentTopics(input);
     return {
       ...input,
@@ -354,6 +356,7 @@ beforeEach(() => {
   state.canWrite = true;
   state.facets = [];
   state.facetsLoading = false;
+  state.workspaceMounts = 0;
   state.executions = [];
   state.executionsError = null;
   state.rulesPending = false;
@@ -489,23 +492,30 @@ function withSummaries() {
   ];
 }
 
-it("requests results alongside facets and keeps that request when the run list loads", () => {
-  state.facets = [facet("intent", [1])];
-  state.facetsLoading = true;
-  state.executions = undefined;
-  const view = render(<TopicsPage />, { wrapper: LayerProvider });
-  expect(screen.queryByTestId("current-topics")).toBeNull();
-  expect(state.currentTopics).toHaveBeenCalled();
-  const { refreshAfter } = state.currentTopics.mock.lastCall![0];
+it.each([
+  ["no facets", () => []],
+  ["facets", () => [facet("intent", [1])]],
+])(
+  "requests results alongside facets and keeps that request when the run list loads, with %s",
+  (_, facets) => {
+    state.facets = facets();
+    state.facetsLoading = true;
+    state.executions = undefined;
+    const view = render(<TopicsPage />, { wrapper: LayerProvider });
+    expect(screen.queryByTestId("current-topics")).toBeNull();
+    expect(state.currentTopics).toHaveBeenCalled();
+    const { refreshAfter } = state.currentTopics.mock.lastCall![0];
 
-  state.facetsLoading = false;
-  state.executions = [execution("completed", "update")];
-  view.rerender(<TopicsPage />);
-  expect(screen.getByTestId("current-topics")).toBeInTheDocument();
-  expect(state.currentTopics).toHaveBeenLastCalledWith(
-    expect.objectContaining({ refreshAfter }),
-  );
-});
+    state.facetsLoading = false;
+    state.executions = [execution("completed", "update")];
+    view.rerender(<TopicsPage />);
+    expect(screen.getByTestId("current-topics")).toBeInTheDocument();
+    expect(state.workspaceMounts).toBe(1);
+    expect(state.currentTopics).toHaveBeenLastCalledWith(
+      expect.objectContaining({ refreshAfter }),
+    );
+  },
+);
 
 it("shows Analyze in the header while auto-analyze is off and keeps Analyze, regenerate, history and settings in the menu", async () => {
   withSummaries();
