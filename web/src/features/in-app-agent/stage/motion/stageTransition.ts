@@ -1,4 +1,4 @@
-export type StageTransitionResult = "finished" | "interrupted";
+type StageTransitionResult = "finished" | "interrupted";
 
 export type StageTransition = {
   /** Current progress, 0 (page) to 1 (bubble). */

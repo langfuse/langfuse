@@ -54,6 +54,11 @@ Closing the drawer detaches observation without cancelling the worker run.
 - `lib/backgroundExecutionSession.ts`: background transcript, cursor, run,
   approval, attachment, cancel, and decision owner.
 
+- `stage/*`: a full-screen presentation behind the `assistantContextZoom`
+  flag, in which the current page becomes the first message. It reuses this
+  provider and sends a structured page snapshot as `page_context` run context.
+  See `stage/README.md`.
+
 The worker entrypoint at `worker/src/features/in-app-agent/executeInAppAgentRun.ts`
 owns runtime credentials, sandbox lifecycle, event persistence, approval
 continuations, and terminal run transitions.

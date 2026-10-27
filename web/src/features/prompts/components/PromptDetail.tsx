@@ -1,6 +1,7 @@
 /* eslint-disable no-nested-ternary, @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 import Link from "next/link";
 import { useRouter } from "next/router";
+import { usePromptPageContext } from "@/src/features/prompts/hooks/usePromptPageContext";
 import {
   NumberParam,
   StringParam,
@@ -286,6 +287,8 @@ export const PromptDetail = ({
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [prompt?.id]);
+
+  usePromptPageContext(prompt, promptHistory.data?.promptVersions.length ?? 0);
 
   if (!promptHistory.data || !prompt) {
     return <div className="p-3">Loading...</div>;

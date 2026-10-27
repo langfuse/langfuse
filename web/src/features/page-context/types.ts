@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-export const PAGE_CONTEXT_KINDS = [
+const PAGE_CONTEXT_KINDS = [
   "trace",
   "observation",
   "session",
@@ -57,7 +57,7 @@ export type PageContextRelatedEntity = z.infer<
   typeof PageContextRelatedEntitySchema
 >;
 
-export const PAGE_CONTEXT_SURFACES = ["page", "peek"] as const;
+const PAGE_CONTEXT_SURFACES = ["page", "peek"] as const;
 
 export type PageContextSurface = (typeof PAGE_CONTEXT_SURFACES)[number];
 

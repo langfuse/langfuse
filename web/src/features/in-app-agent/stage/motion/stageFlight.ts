@@ -19,7 +19,7 @@ import {
 } from "@/src/features/in-app-agent/stage/render/createStageRenderer";
 import type { StageRenderer } from "@/src/features/in-app-agent/stage/render/stageRenderer";
 
-export const STAGE_SLOT_SELECTOR = "[data-stage-slot='true']";
+const STAGE_SLOT_SELECTOR = "[data-stage-slot='true']";
 
 export type StageFlightElements = {
   backdrop: HTMLElement;

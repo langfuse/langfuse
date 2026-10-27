@@ -7,7 +7,7 @@ export {
 } from "@/src/features/page-context/PageContextProvider";
 export { buildTracePageContext } from "@/src/features/page-context/fns/buildTracePageContext";
 export { buildRoutePageContext } from "@/src/features/page-context/fns/buildRoutePageContext";
-export { formatEntityTypeLabel } from "@/src/features/page-context/fns/pageContextFormatting";
+export { buildPromptPageContext } from "@/src/features/page-context/fns/buildPromptPageContext";
 export type { PageContextStore } from "@/src/features/page-context/pageContextStore";
 export {
   PageContextSnapshotSchema,
