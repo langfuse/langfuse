@@ -478,6 +478,7 @@ export const AutomationForm = ({
           apiVersion: webhookDefaults.webhook.apiVersion || {
             prompt: "v1" as const,
           },
+          originalUrl: webhookDefaults.webhook.originalUrl,
         },
       };
     } else if (actionType === "SLACK") {

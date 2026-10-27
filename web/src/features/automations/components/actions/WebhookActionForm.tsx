@@ -44,6 +44,7 @@ import {
 import { WebhookSecretRender } from "../WebhookSecretRender";
 import { CodeView } from "@/src/components/ui/CodeJsonViewer";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
+import { areDestinationUrlsEquivalent } from "@/src/features/automations/destinationUrl";
 
 export const webhookSchema = z.object({
   url: z.url(),
@@ -67,6 +68,7 @@ export const webhookSchema = z.object({
     }),
   ),
   apiVersion: AvailableWebhookApiSchema,
+  originalUrl: z.string().optional(),
 });
 
 export type WebhookFormValues = z.infer<typeof webhookSchema>;
@@ -92,6 +94,12 @@ export const WebhookActionForm: React.FC<WebhookActionFormProps> = ({
     control: form.control,
     name: "webhook.headers",
   });
+
+  const currentUrl = form.watch("webhook.url");
+  const originalUrl = form.watch("webhook.originalUrl");
+  const isUrlChanged =
+    originalUrl !== undefined &&
+    !areDestinationUrlsEquivalent(currentUrl, originalUrl);
 
   // Get default header keys to filter them out
   const defaultHeaderKeys = Object.keys(WebhookDefaultHeaders);
@@ -140,6 +148,9 @@ export const WebhookActionForm: React.FC<WebhookActionFormProps> = ({
             <FormDescription>
               The HTTP URL to call when the trigger fires. We will send a POST
               request to this URL. Only HTTPS URLs are allowed for security.
+              {isUrlChanged
+                ? " Re-enter the values of secret headers when changing the URL."
+                : ""}
             </FormDescription>
             <FormMessage />
           </FormItem>
@@ -225,6 +236,13 @@ export const WebhookActionForm: React.FC<WebhookActionFormProps> = ({
           const displayValue = form.watch(
             `webhook.headers.${originalIndex}.displayValue`,
           );
+          const wasSecret = form.watch(
+            `webhook.headers.${originalIndex}.wasSecret`,
+          );
+          const valuePlaceholder =
+            wasSecret && isUrlChanged
+              ? "Re-enter secret value"
+              : displayValue || "Value";
 
           return (
             <div
@@ -254,11 +272,7 @@ export const WebhookActionForm: React.FC<WebhookActionFormProps> = ({
                   <FormItem>
                     <FormControl>
                       <Input
-                        placeholder={
-                          isSecret && displayValue
-                            ? displayValue
-                            : displayValue || "Value"
-                        }
+                        placeholder={valuePlaceholder}
                         {...field}
                         disabled={disabled}
                         type={isSecret ? "password" : "text"}
