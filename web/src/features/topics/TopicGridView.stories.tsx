@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-use-before-define */
 import { type ComponentProps } from "react";
-import { fn } from "storybook/test";
+import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import preview from "../../../.storybook/preview";
 import { TopicGridView } from "./TopicGridView";
 
@@ -105,6 +105,57 @@ const meta = preview.meta({
 });
 
 export const Default = meta.story({});
+
+const LONG_DESCRIPTION =
+  "Users could not tell why an invoice total changed from one month to the next. Many asked how prorated seat changes, usage overages, discounts, and tax combine on one invoice, which line items belong to which billing period, and how to download a corrected invoice after a plan change, a refund, or a switch from monthly to annual billing.";
+
+/** The trace list stays mounted across topics, so a tooltip measured for one topic must not carry over. */
+export const TooltipAfterTopicSwitch = meta.story({
+  name: "(Test) Switching topics drops the previous topic's tooltip",
+  args: {
+    facet: {
+      ...facet,
+      topics: facet.topics.map(withDescription),
+      map: { runId: "run", topics: topics.map(withDescription) },
+    },
+  },
+  render: (args) => (
+    <div className="flex flex-col" style={{ width: 720, height: 900 }}>
+      <TopicGridView {...args} />
+    </div>
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const legend = within(canvas.getByRole("list", { name: "Topics" }));
+    await userEvent.click(
+      legend.getByRole("button", { name: /Billing questions/ }),
+    );
+    const list = within(canvas.getByRole("region", { name: "Topic traces" }));
+    const clipped = list.getByText(LONG_DESCRIPTION);
+    await userEvent.hover(clipped);
+    await waitFor(() =>
+      expect(clipped).toHaveAttribute("title", LONG_DESCRIPTION),
+    );
+
+    // Keyboard selection leaves the pointer resting on the description.
+    legend.getByRole("button", { name: /Login and access problems/ }).focus();
+    await userEvent.keyboard("{Enter}");
+    const fitting = await list.findByText(
+      "Requests about login and access problems.",
+    );
+    await expect(fitting).not.toHaveAttribute("title");
+  },
+});
+
+function withDescription<T extends { id: string; name: string }>(topic: T) {
+  return {
+    ...topic,
+    description:
+      topic.id === "billing"
+        ? LONG_DESCRIPTION
+        : `Requests about ${topic.name.toLowerCase()}.`,
+  };
+}
 
 /** Seeded linear congruential generator so the story renders the same grid every time. */
 function mulberry32(seed: number) {

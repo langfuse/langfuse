@@ -22,22 +22,27 @@ const LOAD_MORE_THRESHOLD_PX = 400;
 const FIRST_CELL = "block pr-3 pl-2";
 
 /**
+ * `truncate` ignores height: with tight leading the glyphs overflow vertically
+ * even when the line fits.
+ */
+function clipsText(element: HTMLElement, clip: "truncate" | "line-clamp") {
+  return clip === "truncate"
+    ? element.scrollWidth > element.clientWidth
+    : element.scrollHeight > element.clientHeight;
+}
+
+/**
  * Native tooltip with the full text, only while the element clips it.
- * Measured on hover so it follows panel resizes and topic switches.
- * `truncate` text is measured by width only: with tight leading its glyphs
- * overflow vertically even when the whole line fits.
+ * Measured as the pointer moves, so it follows panel resizes and topic
+ * switches under a resting pointer; a measurement only counts for its text.
  */
 function useTruncatedTitle(text: string, clip: "truncate" | "line-clamp") {
-  const [isTruncated, setIsTruncated] = useState(false);
+  const [clippedText, setClippedText] = useState<string | null>(null);
   return {
-    title: isTruncated ? text : undefined,
-    onPointerEnter: (event: PointerEvent<HTMLElement>) => {
-      const element = event.currentTarget;
-      setIsTruncated(
-        clip === "truncate"
-          ? element.scrollWidth > element.clientWidth
-          : element.scrollHeight > element.clientHeight,
-      );
+    title: clippedText === text ? text : undefined,
+    onPointerMove: (event: PointerEvent<HTMLElement>) => {
+      const next = clipsText(event.currentTarget, clip) ? text : null;
+      if (next !== clippedText) setClippedText(next);
     },
   };
 }
@@ -144,7 +149,7 @@ export function TopicTraceList({
         <h3
           className="truncate text-lg font-bold"
           title={titleTooltip.title}
-          onPointerEnter={titleTooltip.onPointerEnter}
+          onPointerMove={titleTooltip.onPointerMove}
         >
           {title}
         </h3>
@@ -152,7 +157,7 @@ export function TopicTraceList({
           <p
             className="text-muted-foreground line-clamp-2 text-sm"
             title={descriptionTooltip.title}
-            onPointerEnter={descriptionTooltip.onPointerEnter}
+            onPointerMove={descriptionTooltip.onPointerMove}
           >
             {description}
           </p>
