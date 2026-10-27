@@ -1325,6 +1325,15 @@ export const eventsObservationsView: ViewDeclarationType = {
       description: "Identifier of the session triggering the observation.",
       highCardinality: true,
     },
+    aiGatewayKeyId: {
+      sql: "nullIf(events_observations.ai_gateway_key_id, '')",
+      alias: "aiGatewayKeyId",
+      type: "string",
+      description:
+        "Identifier of the AI Gateway API key that produced the observation. Empty for traffic that did not pass through the gateway.",
+      highCardinality: true,
+      uiHidden: true,
+    },
     tags: {
       sql: "events_observations.tags",
       alias: "tags",
