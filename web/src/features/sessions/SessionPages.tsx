@@ -1,5 +1,5 @@
 import { headerActionClassName } from "@/src/features/traces/components/headerActionClassName";
-/* eslint-disable no-nested-ternary, @repo/component-file-structure, react/no-unstable-nested-components, @typescript-eslint/no-use-before-define */
+/* eslint-disable no-nested-ternary, @repo/component-file-structure, react/no-unstable-nested-components */
 /* eslint-disable @repo/no-style-props, @repo/no-null-render */
 import { cn } from "@/src/utils/tailwind";
 import { GroupedScoreBadges } from "@/src/components/GroupedScoreBadges";

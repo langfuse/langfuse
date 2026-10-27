@@ -1,4 +1,4 @@
-/* eslint-disable no-nested-ternary, react/no-unstable-nested-components, @typescript-eslint/no-use-before-define */
+/* eslint-disable no-nested-ternary, react/no-unstable-nested-components */
 import { type ViewVersion } from "@langfuse/shared/query";
 import { DataTable } from "@/src/components/table/data-table";
 import {

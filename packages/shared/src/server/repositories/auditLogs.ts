@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { createHash } from "node:crypto";
 import { v7 as uuidv7 } from "uuid";
 import { prisma, type AuditLogStaging, type Prisma } from "../../db";

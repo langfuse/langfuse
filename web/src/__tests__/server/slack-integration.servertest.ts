@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import type * as SharedServer from "@langfuse/shared/src/server";
 import type { Mock } from "vitest";

@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { EvalTemplateType, EvaluatorBlockReason, Prisma } from "@prisma/client";
 import { prisma } from "../../db";
 import { env } from "../../env";

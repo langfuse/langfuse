@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { partition } from "lodash";
 import type { NormalizedMessage } from "../../utils/normalized-io";
 import { messageKey } from "./comparison";

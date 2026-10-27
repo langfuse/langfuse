@@ -1,4 +1,4 @@
-/* eslint-disable no-nested-ternary, @repo/component-file-structure, @typescript-eslint/no-use-before-define */
+/* eslint-disable no-nested-ternary, @repo/component-file-structure */
 import { GroupedScoreBadges } from "@/src/components/GroupedScoreBadges";
 import { JsonSkeleton } from "@/src/components/ui/CodeJsonViewer";
 import { Card } from "@/src/components/ui/card";

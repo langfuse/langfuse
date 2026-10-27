@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import React, { useState, useMemo, useEffect } from "react";
 import { api, reportNonTrpcError } from "@/src/utils/api";
 import { env } from "@/src/env.mjs";

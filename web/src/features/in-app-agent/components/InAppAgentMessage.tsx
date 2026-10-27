@@ -1,4 +1,4 @@
-/* eslint-disable @repo/no-style-props, @repo/no-abstracted-overlay-trigger, react/no-unstable-nested-components, @typescript-eslint/no-use-before-define */
+/* eslint-disable @repo/no-style-props, @repo/no-abstracted-overlay-trigger, react/no-unstable-nested-components */
 "use client";
 import {
   ArrowRight,

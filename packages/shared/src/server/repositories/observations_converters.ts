@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { parseClickhouseUTCDateTimeFormat } from "./clickhouse";
 import { normalizeEventsTraceName } from "../../eventsTable";
 import {

@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { Prisma } from "@prisma/client";
 import { ColumnDefinition, type TableNames } from "../tableDefinitions";
 import { FilterState } from "../types";

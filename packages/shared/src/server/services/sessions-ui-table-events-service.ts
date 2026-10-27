@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { ClickHouseClientConfigOptions } from "@clickhouse/client";
 import { InvalidRequestError } from "../../errors";
 import { OrderByState } from "../../interfaces/orderBy";

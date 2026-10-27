@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import type { Observation } from "../../domain";
 import type {
   NormalizedMessage,

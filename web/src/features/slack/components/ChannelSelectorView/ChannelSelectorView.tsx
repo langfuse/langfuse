@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import React, { useState, useMemo, useCallback, useEffect } from "react";
 import { RefreshCw, Search, Hash, Lock, AlertTriangle } from "@langfuse/icons";
 import { Button } from "@/src/components/ui/button";

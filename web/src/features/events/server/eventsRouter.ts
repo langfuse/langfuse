@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { type z, z as zodSchema } from "zod";
 import { TRPCError } from "@trpc/server";
 import { env } from "@/src/env.mjs";

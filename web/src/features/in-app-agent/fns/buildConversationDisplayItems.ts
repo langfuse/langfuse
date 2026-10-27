@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import {
   IN_APP_AGENT_QUESTIONNAIRE_TOOL_NAME,
   type InAppAgentQuestionnaireResult,

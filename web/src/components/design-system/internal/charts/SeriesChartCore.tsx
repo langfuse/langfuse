@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 "use client";
 
 import { useId, useMemo, useState, type PointerEvent } from "react";

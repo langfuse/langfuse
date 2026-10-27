@@ -1,4 +1,4 @@
-/* eslint-disable react/no-unstable-nested-components, @typescript-eslint/no-use-before-define */
+/* eslint-disable react/no-unstable-nested-components */
 import { useEffect, useMemo, useState } from "react";
 import { ChevronLeft } from "@langfuse/icons";
 import { type UseQueryResult } from "@tanstack/react-query";

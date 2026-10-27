@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { type ScoreDomain } from "@langfuse/shared";
 import { type buildTraceUiData } from "@/src/features/traces/fns/treeBuilding";
 import { type ObservationReturnTypeWithMetadata } from "@/src/server/api/routers/traces";

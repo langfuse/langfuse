@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 const SAFE_LINK_PROTOCOLS = new Set([
   "http:",
   "https:",

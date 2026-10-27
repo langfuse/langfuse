@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import type * as EventsServiceModule from "@/src/features/events/server/eventsService";
 
 const mocks = vi.hoisted(() => ({

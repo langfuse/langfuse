@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { useMemo } from "react";
 import { type z } from "zod";
 

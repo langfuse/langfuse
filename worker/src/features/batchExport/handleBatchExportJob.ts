@@ -1,4 +1,4 @@
-/* eslint-disable no-nested-ternary, @typescript-eslint/no-use-before-define */
+/* eslint-disable no-nested-ternary */
 import { pipeline, Transform } from "stream";
 import {
   BATCH_EXPORT_ABANDONED_AFTER_MS,

@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 const mocks = vi.hoisted(() => ({
   applyCommentFilters: vi.fn(),
   getObservationsCountFromEventsTable: vi.fn(),

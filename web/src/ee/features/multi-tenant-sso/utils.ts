@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { z } from "zod";
 import { type Provider } from "next-auth/providers/index";
 import GoogleProvider from "next-auth/providers/google";

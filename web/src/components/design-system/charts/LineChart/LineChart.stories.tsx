@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { useMemo } from "react";
 import preview from "../../../../../.storybook/preview";
 import { expect, fireEvent, userEvent, waitFor, within } from "storybook/test";

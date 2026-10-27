@@ -1,4 +1,4 @@
-/* eslint-disable @repo/no-style-props, @typescript-eslint/no-deprecated, @typescript-eslint/no-use-before-define -- Legacy UI usage retained during migration to design-system components. */
+/* eslint-disable @repo/no-style-props, @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 import { useMemo, useCallback, useRef, useState } from "react";
 import {
   Check,

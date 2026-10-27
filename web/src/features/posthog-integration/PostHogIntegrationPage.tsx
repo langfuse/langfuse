@@ -1,4 +1,4 @@
-/* eslint-disable no-nested-ternary, @typescript-eslint/no-use-before-define */
+/* eslint-disable no-nested-ternary */
 import { PostHogLogo } from "@/src/components/PostHogLogo";
 import Header from "@/src/components/layouts/header";
 import ContainerPage from "@/src/components/layouts/ContainerPage";

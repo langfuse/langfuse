@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { useQueryOrganization } from "@/src/features/organizations";
 import { api } from "@/src/utils/api";
 import { useSession } from "next-auth/react";

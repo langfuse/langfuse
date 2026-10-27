@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { useCallback, useMemo, useState } from "react";
 import {
   type FilterState,

@@ -1,4 +1,4 @@
-/* eslint-disable @repo/no-style-props, react/no-unstable-nested-components, @typescript-eslint/no-use-before-define */
+/* eslint-disable @repo/no-style-props, react/no-unstable-nested-components */
 "use client";
 
 import * as React from "react";

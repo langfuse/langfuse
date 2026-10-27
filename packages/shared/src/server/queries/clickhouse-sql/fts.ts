@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import {
   FTS_MATCH_OPERATOR,
   type FtsMatchOperator,

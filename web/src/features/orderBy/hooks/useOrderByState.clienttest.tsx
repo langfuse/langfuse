@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import type { Mock } from "vitest";
 import { cleanup, render } from "@testing-library/react";
 

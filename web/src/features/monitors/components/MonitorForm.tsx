@@ -1,4 +1,4 @@
-/* eslint-disable no-nested-ternary, @typescript-eslint/no-use-before-define */
+/* eslint-disable no-nested-ternary */
 /* eslint-disable @repo/no-style-props */
 import { showSuccessToast, showErrorToast } from "@/src/features/notifications";
 import React, { useMemo, useRef } from "react";

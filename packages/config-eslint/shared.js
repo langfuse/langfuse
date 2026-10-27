@@ -42,7 +42,6 @@ export default [
       "no-else-return": "warn",
       "no-unneeded-ternary": "warn",
       "no-nested-ternary": "error",
-      "no-use-before-define": "warn",
       "@repo/no-exotic-operators": "warn",
       "@repo/no-restricted-prisma-writes": ["error", { models: prismaWriters }],
     },
@@ -55,8 +54,6 @@ export default [
       "@typescript-eslint": tseslint.plugin,
     },
     rules: {
-      "no-use-before-define": "off",
-      "@typescript-eslint/no-use-before-define": "warn",
       "no-unused-vars": "off", // Use @typescript-eslint/no-unused-vars instead
       "@typescript-eslint/no-unused-vars": [
         "warn",

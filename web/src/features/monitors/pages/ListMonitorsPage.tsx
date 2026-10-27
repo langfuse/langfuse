@@ -1,4 +1,4 @@
-/* eslint-disable no-nested-ternary, @typescript-eslint/no-use-before-define */
+/* eslint-disable no-nested-ternary */
 import { PlusIcon } from "@langfuse/icons";
 
 import { ActionButton } from "@/src/components/ActionButton";

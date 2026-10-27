@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import type { ObservationVariableMapping } from "@langfuse/shared";
 import {
   type ObservationForEval,

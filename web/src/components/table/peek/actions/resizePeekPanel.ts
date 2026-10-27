@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { type PointerEvent as ReactPointerEvent } from "react";
 import {
   PEEK_EXPAND_ENTER_FRACTION,

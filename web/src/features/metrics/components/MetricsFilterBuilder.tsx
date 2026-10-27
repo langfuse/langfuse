@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { startCase } from "lodash";
 import { AlertCircle } from "@langfuse/icons";
 

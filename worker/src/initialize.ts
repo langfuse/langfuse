@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { upsertDefaultModelPrices } from "./scripts/upsertDefaultModelPrices";
 import { upsertLangfuseDashboards } from "./scripts/upsertLangfuseDashboards";
 import { hello, initTelemetry } from "@langfuse/native";

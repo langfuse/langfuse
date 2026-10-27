@@ -1,4 +1,4 @@
-/* eslint-disable no-nested-ternary, @typescript-eslint/no-use-before-define */
+/* eslint-disable no-nested-ternary */
 import { type GetServerSidePropsContext } from "next";
 import { isTopicsProjectEnabled } from "@langfuse/shared/topics/server";
 import {

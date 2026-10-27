@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { type IncomingHttpHeaders } from "node:http";
 import { isIP } from "node:net";
 import { type AuditRequestContext } from "@langfuse/shared";

@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 // Must stay the first import: installs a `crypto.randomUUID` fallback for
 // non-secure (plain-HTTP) origins before any other module can call it
 // (LFE-10858).

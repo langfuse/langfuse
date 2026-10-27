@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { useRef, useState } from "react";
 import { api, type RouterOutputs } from "@/src/utils/api";
 import {

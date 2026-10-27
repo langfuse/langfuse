@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Info } from "@langfuse/icons";
 import { type ReactNode, useState } from "react";

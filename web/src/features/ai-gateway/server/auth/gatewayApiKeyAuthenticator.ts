@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import type { GatewayProvider, PrismaClient } from "@langfuse/shared/src/db";
 import { ApiKeyId, OrganizationId } from "@langfuse/shared/rbac";
 

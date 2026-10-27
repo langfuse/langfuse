@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 /**
  * A 2D viewport over the trace, driven like a map.
  *
