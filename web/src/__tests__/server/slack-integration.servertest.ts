@@ -330,46 +330,21 @@ describe("Slack Integration", () => {
       });
 
       it.each(["MEMBER", "VIEWER"] as const)(
-        "should list public channels for %s, who can read automations",
+        "should reject %s, who can read automations but not manage them",
         async (projectRole) => {
-          mockSlackService.getChannels.mockResolvedValue({
-            channels: [
-              { id: "C123", name: "general", isPrivate: false, isMember: true },
-            ],
-            nextCursor: undefined,
-          });
           const { caller, project } = await prepare({
             projectRole,
             admin: false,
           });
-          await createIntegration(project.id, {
-            installerUserId: "another-user",
-            installerSlackUserId: INSTALLER_SLACK_USER_ID,
-          });
+          await createIntegration(project.id, null);
+          mockSlackService.getChannels.mockClear();
 
-          const result = await caller.slack.getChannels({
-            projectId: project.id,
-          });
-
-          expect(result.channels.map((channel) => channel.id)).toEqual([
-            "C123",
-          ]);
+          await expect(
+            caller.slack.getChannels({ projectId: project.id }),
+          ).rejects.toMatchObject({ code: "FORBIDDEN" });
+          expect(mockSlackService.getChannels).not.toHaveBeenCalled();
         },
       );
-
-      it("should reject users without automations:read", async () => {
-        const { caller, project } = await prepare({
-          projectRole: "NONE",
-          admin: false,
-        });
-        await createIntegration(project.id, null);
-        mockSlackService.getChannels.mockClear();
-
-        await expect(
-          caller.slack.getChannels({ projectId: project.id }),
-        ).rejects.toMatchObject({ code: "FORBIDDEN" });
-        expect(mockSlackService.getChannels).not.toHaveBeenCalled();
-      });
 
       it("should throw NOT_FOUND for missing integration", async () => {
         const { caller, project } = await prepare();

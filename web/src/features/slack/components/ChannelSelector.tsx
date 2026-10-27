@@ -35,9 +35,11 @@ export const ChannelSelector: React.FC<ChannelSelectorProps> = ({
   ...viewProps
 }) => {
   const [isRefreshing, setIsRefreshing] = useState(false);
+  // Read-only roles still see the saved channel via `selectedChannel`, but
+  // may not enumerate every channel the bot can see.
   const canListChannels = useHasProjectAccess({
     projectId,
-    scope: "automations:read",
+    scope: "automations:CUD",
   });
   const canManageIntegration = useHasProjectAccess({
     projectId,

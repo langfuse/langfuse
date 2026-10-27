@@ -97,12 +97,10 @@ export const slackRouter = createTRPCRouter({
   getChannels: protectedProjectProcedure
     .input(z.object({ projectId: z.string(), cursor: z.string().optional() }))
     .query(async ({ ctx, input }) => {
-      // Reading channels is part of reading automations; private channels stay
-      // limited to the installer below.
       throwIfNoProjectAccess({
         session: ctx.session,
         projectId: input.projectId,
-        scope: "automations:read",
+        scope: "automations:CUD",
       });
 
       const integration = await ctx.prisma.slackIntegration.findUnique({
