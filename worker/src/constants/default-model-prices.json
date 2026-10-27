@@ -7735,6 +7735,198 @@
     ]
   },
   {
+    "id": "68a7181c-fc61-4bc4-845e-cf5fd6a7a888",
+    "modelName": "gpt-6.1-terra",
+    "matchPattern": "(?i)^(openai/)?(gpt-6.1-terra)$",
+    "createdAt": "2026-10-27T00:00:00.000Z",
+    "updatedAt": "2026-10-27T00:00:00.000Z",
+    "tokenizerConfig": {
+      "tokensPerName": 1,
+      "tokenizerModel": "gpt-4",
+      "tokensPerMessage": 3
+    },
+    "tokenizerId": "openai",
+    "pricingTiers": [
+      {
+        "id": "68a7181c-fc61-4bc4-845e-cf5fd6a7a888_tier_default",
+        "name": "Standard",
+        "isDefault": true,
+        "priority": 0,
+        "conditions": [],
+        "prices": {
+          "input": 1e-6,
+          "input_cached_tokens": 0.05e-6,
+          "input_cache_read": 0.05e-6,
+          "cache_read_input_tokens": 0.05e-6,
+          "input_cache_creation": 1.25e-6,
+          "cache_write_tokens": 1.25e-6,
+          "input_cache_write_tokens": 1.25e-6,
+          "output": 5e-6,
+          "output_reasoning_tokens": 5e-6,
+          "output_reasoning": 5e-6,
+          "reasoning_tokens": 5e-6
+        }
+      },
+      {
+        "id": "d7d210f8-b621-46b2-80c0-04e74dc0c8b3",
+        "name": "Fast mode · Large context (>272K)",
+        "isDefault": false,
+        "priority": 1,
+        "conditions": [
+          {
+            "source": "model_parameters",
+            "key": "service_tier",
+            "operator": "in",
+            "values": [
+              "fast",
+              "priority"
+            ]
+          },
+          {
+            "usageDetailPattern": "(input|cache_write)",
+            "operator": "gt",
+            "value": 272000,
+            "caseSensitive": false
+          }
+        ],
+        "prices": {
+          "input": 4e-6,
+          "input_cached_tokens": 0.2e-6,
+          "input_cache_read": 0.2e-6,
+          "cache_read_input_tokens": 0.2e-6,
+          "input_cache_creation": 5e-6,
+          "cache_write_tokens": 5e-6,
+          "input_cache_write_tokens": 5e-6,
+          "output": 15e-6,
+          "output_reasoning_tokens": 15e-6,
+          "output_reasoning": 15e-6,
+          "reasoning_tokens": 15e-6
+        }
+      },
+      {
+        "id": "bc60fac9-69d6-47ad-b8f2-96ee247bf021",
+        "name": "Flex · Large context (>272K)",
+        "isDefault": false,
+        "priority": 2,
+        "conditions": [
+          {
+            "source": "model_parameters",
+            "key": "service_tier",
+            "operator": "in",
+            "values": [
+              "flex"
+            ]
+          },
+          {
+            "usageDetailPattern": "(input|cache_write)",
+            "operator": "gt",
+            "value": 272000,
+            "caseSensitive": false
+          }
+        ],
+        "prices": {
+          "input": 1e-6,
+          "input_cached_tokens": 0.05e-6,
+          "input_cache_read": 0.05e-6,
+          "cache_read_input_tokens": 0.05e-6,
+          "input_cache_creation": 1.25e-6,
+          "cache_write_tokens": 1.25e-6,
+          "input_cache_write_tokens": 1.25e-6,
+          "output": 3.75e-6,
+          "output_reasoning_tokens": 3.75e-6,
+          "output_reasoning": 3.75e-6,
+          "reasoning_tokens": 3.75e-6
+        }
+      },
+      {
+        "id": "7780ef13-4f4e-4c2f-a6b7-0680519304d0",
+        "name": "Fast mode",
+        "isDefault": false,
+        "priority": 3,
+        "conditions": [
+          {
+            "source": "model_parameters",
+            "key": "service_tier",
+            "operator": "in",
+            "values": [
+              "fast",
+              "priority"
+            ]
+          }
+        ],
+        "prices": {
+          "input": 2e-6,
+          "input_cached_tokens": 0.1e-6,
+          "input_cache_read": 0.1e-6,
+          "cache_read_input_tokens": 0.1e-6,
+          "input_cache_creation": 2.5e-6,
+          "cache_write_tokens": 2.5e-6,
+          "input_cache_write_tokens": 2.5e-6,
+          "output": 10e-6,
+          "output_reasoning_tokens": 10e-6,
+          "output_reasoning": 10e-6,
+          "reasoning_tokens": 10e-6
+        }
+      },
+      {
+        "id": "dffbb946-49f7-48e0-bd0d-9dd7e018d693",
+        "name": "Flex",
+        "isDefault": false,
+        "priority": 4,
+        "conditions": [
+          {
+            "source": "model_parameters",
+            "key": "service_tier",
+            "operator": "in",
+            "values": [
+              "flex"
+            ]
+          }
+        ],
+        "prices": {
+          "input": 0.5e-6,
+          "input_cached_tokens": 0.025e-6,
+          "input_cache_read": 0.025e-6,
+          "cache_read_input_tokens": 0.025e-6,
+          "input_cache_creation": 0.625e-6,
+          "cache_write_tokens": 0.625e-6,
+          "input_cache_write_tokens": 0.625e-6,
+          "output": 2.5e-6,
+          "output_reasoning_tokens": 2.5e-6,
+          "output_reasoning": 2.5e-6,
+          "reasoning_tokens": 2.5e-6
+        }
+      },
+      {
+        "id": "71db9d11-0132-437a-b01d-0eb374e26df2",
+        "name": "Large Context (>272K)",
+        "isDefault": false,
+        "priority": 5,
+        "conditions": [
+          {
+            "usageDetailPattern": "(input|cache_write)",
+            "operator": "gt",
+            "value": 272000,
+            "caseSensitive": false
+          }
+        ],
+        "prices": {
+          "input": 2e-6,
+          "input_cached_tokens": 0.1e-6,
+          "input_cache_read": 0.1e-6,
+          "cache_read_input_tokens": 0.1e-6,
+          "input_cache_creation": 2.5e-6,
+          "cache_write_tokens": 2.5e-6,
+          "input_cache_write_tokens": 2.5e-6,
+          "output": 7.5e-6,
+          "output_reasoning_tokens": 7.5e-6,
+          "output_reasoning": 7.5e-6,
+          "reasoning_tokens": 7.5e-6
+        }
+      }
+    ]
+  },
+  {
     "id": "8edc337e-ba50-4811-bc51-e9ad4253826c",
     "modelName": "gpt-6-luna",
     "matchPattern": "(?i)^(openai/)?(gpt-6-luna)$",

@@ -68,7 +68,7 @@ export function TopicSetupProgressView({
       </div>
       {failed ? (
         <div className="flex items-center gap-2">
-          {canRetry && (
+          {canRetry && onRetry && (
             <Button text="Retry" loading={retrying} onClick={onRetry} />
           )}
           {onViewDetails && (
@@ -135,7 +135,7 @@ function pileFill(slots: number, pileIndex: number, tick: number) {
 }
 
 const NO_RETRY_DETAIL =
-  "Topics could not start. Use Generate topics in the menu.";
+  "Topics could not start. Use Regenerate topics in the menu.";
 
 function progressCopy(failed: boolean, waiting: boolean) {
   if (failed)
@@ -163,7 +163,7 @@ type TopicSetupProgressViewProps = {
   canRetry: boolean;
   /** Opens the failed run in History. */
   onViewDetails?: () => void;
-  onRetry: () => void;
+  onRetry?: () => void;
   /** Automatic processing is on but no trace has been summarized yet. */
   waiting?: boolean;
 };

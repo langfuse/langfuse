@@ -131,6 +131,90 @@ describe("annotation queues trpc", () => {
     });
   });
 
+  describe("annotationQueueItems.createMany", () => {
+    it.each([false, true])(
+      "rejects a queue from another project without writing (isBatchAction: %s)",
+      async (isBatchAction) => {
+        const setup = await createOrgProjectAndApiKey();
+        const otherSetup = await createOrgProjectAndApiKey();
+        orgIds.push(setup.org.id, otherSetup.org.id);
+        const { caller } = createCallerForProjectRole(setup);
+        const otherQueue = await prisma.annotationQueue.create({
+          data: {
+            name: "Other Queue",
+            scoreConfigIds: [],
+            projectId: otherSetup.project.id,
+          },
+        });
+
+        await expect(
+          caller.annotationQueueItems.createMany({
+            projectId: setup.project.id,
+            queueId: otherQueue.id,
+            objectIds: [uuidv4()],
+            objectType: AnnotationQueueObjectType.TRACE,
+            isBatchAction,
+            query: isBatchAction ? { filter: [], orderBy: null } : undefined,
+          }),
+        ).rejects.toMatchObject({ code: "NOT_FOUND" });
+
+        expect(
+          await prisma.annotationQueueItem.count({
+            where: { queueId: otherQueue.id },
+          }),
+        ).toBe(0);
+        expect(
+          await prisma.batchAction.count({
+            where: { projectId: setup.project.id },
+          }),
+        ).toBe(0);
+      },
+    );
+  });
+
+  describe("annotationQueues.byObjectId", () => {
+    it("ignores items whose project differs from the queue's project", async () => {
+      const setup = await createOrgProjectAndApiKey();
+      const otherSetup = await createOrgProjectAndApiKey();
+      orgIds.push(setup.org.id, otherSetup.org.id);
+      const { caller } = createCallerForProjectRole(setup);
+      const queue = await prisma.annotationQueue.create({
+        data: {
+          name: "Test Queue",
+          scoreConfigIds: [],
+          projectId: setup.project.id,
+        },
+      });
+      const objectId = uuidv4();
+      await prisma.annotationQueueItem.create({
+        data: {
+          queueId: queue.id,
+          objectId,
+          objectType: AnnotationQueueObjectType.TRACE,
+          projectId: otherSetup.project.id,
+        },
+      });
+
+      await expect(
+        caller.annotationQueues.byObjectId({
+          projectId: setup.project.id,
+          objectId,
+          objectType: AnnotationQueueObjectType.TRACE,
+        }),
+      ).resolves.toEqual({
+        queues: [
+          {
+            id: queue.id,
+            name: queue.name,
+            itemId: undefined,
+            status: undefined,
+          },
+        ],
+        totalCount: 0,
+      });
+    });
+  });
+
   describe("annotationQueues.create", () => {
     it("rejects a second queue on cloud:hobby", async () => {
       const setup = await createOrgProjectAndApiKey();

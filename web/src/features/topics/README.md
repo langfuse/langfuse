@@ -41,11 +41,7 @@ project permissions. Processing additionally requires the project allowlist.
   Saving it stores the models, creates the four built-in facets as evaluators
   with a first version, and saves one rule for the filter, idle time, and
   sampling rate. A project can have only one Topics rule.
-  Manual processing opens a shared dialog with Summarize traces & embed and
-  Generate topics tabs. `DialogController` owns the overlay above the page and
-  the mobile actions menu. Once models are configured, Configure Topics lives
-  in the overflow menu. `ManualTopicsDialog` is the presentational layout shared
-  by the app and its isolated `ManualTopicsDialog.stories.tsx` stories.
+  The header shows the auto-analyze status (`AnalyzeControl`); clicking it opens the Analyze traces dialog with the auto-analyze toggle and sample rate. The overflow menu holds Regenerate topics, History and Settings, plus a Show unassigned toggle (on by default, kept in project-scoped sessionStorage); turning it off makes `CurrentTopics` drop traces and map points without a topic, removing the Unassigned tile and the Outliers and awaiting-assignment map zones in every view. Regenerate topics opens the shared manual dialog on its Generate topics tab; the Summarize traces & embed tab stays reachable there. `DialogController` owns the overlay above the page and the mobile actions menu. `ManualTopicsDialog` is the presentational layout shared by the app and its isolated `ManualTopicsDialog.stories.tsx` stories.
   `TopicTraceSelectorView` renders the same filters, batch controls and preview
   table in both places; stories supply fixture results without private API calls.
   `ManualTopicsFormContent` owns the draft and uses the real trace selector.
@@ -70,7 +66,7 @@ project permissions. Processing additionally requires the project allowlist.
   limit custom ranges to 90 days, matching the Topics header.
   All steps start expanded; model details and reuse settings live in review.
   Preview trace clicks open a new tab, preserving the run dialog and selection.
-  Without a compatible map, summaries wait for an explicit Update topics run.
+  Without a compatible map, summaries wait for an explicit Regenerate topics run.
   Generate topics defaults to compatible summaries from the past seven days,
   with its picker limited to a maximum thirty-day range. Its own time-range
   picker uses the same frozen range for counts and submission, independently of
