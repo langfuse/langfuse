@@ -97,7 +97,8 @@ export function ProjectOverviewCard({
           </div>
           {isUsageHeavy ? (
             <p className="text-dark-yellow text-xs">
-              Most of the usage while the organization is near its plan limit
+              Drives most of the usage, and the organization is near its plan
+              limit
             </p>
           ) : null}
         </div>
@@ -123,6 +124,7 @@ export function ProjectOverviewCard({
           {canSetUpTracing ? (
             <Link
               href={setupTracingRoute(project.id)}
+              aria-label={`Set up tracing for ${project.name}`}
               className="text-primary hover:bg-accent focus-visible:ring-ring inline-flex h-7 items-center gap-1 rounded-md px-2 text-xs font-bold outline-hidden focus-visible:ring-2"
             >
               Set up tracing
