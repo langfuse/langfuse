@@ -104,7 +104,7 @@ function useStageFlight(params: {
 }
 
 /**
- * Full-screen surface in the `agent` layer: an opaque backdrop, the chat, and
+ * Full-screen surface in the `stage` layer: an opaque backdrop, the chat, and
  * the renderer that draws the captured page above both. The live page stays
  * mounted and untouched underneath, made inert while covered.
  */
@@ -146,10 +146,15 @@ export function AssistantStageOverlay({
   }, [phase]);
 
   return (
-    <Layer name="agent">
+    // The `stage` layer sits above page dialogs and drawers (a phone's trace
+    // peek is one), below the stage's own popovers, tooltips and toasts.
+    <Layer name="stage">
       <div
         ref={setRoot}
         {...{ [ASSISTANT_STAGE_ROOT_ATTRIBUTE]: "" }}
+        // Interacting with the stage must not dismiss overlays of the covered
+        // page, such as a trace peek, which close on outside pointer-downs.
+        data-ignore-outside-interaction
         role="dialog"
         aria-modal="true"
         aria-label="Assistant"

@@ -31,6 +31,7 @@ describe("createPageCaptureCache", () => {
       <div data-overlay-root>
         <div data-layer="tooltip"></div>
         <div data-layer="agent"></div>
+        <div data-layer="stage"></div>
       </div>`;
     page = document.getElementById("page") as HTMLDivElement;
     cache = createPageCaptureCache({ resolveScale: () => 2 });
@@ -146,7 +147,7 @@ describe("createPageCaptureCache", () => {
       "the stage's own layer",
       () => {
         document
-          .querySelector("[data-layer='agent']")
+          .querySelector("[data-layer='stage']")
           ?.append(document.createElement("div"));
       },
     ],

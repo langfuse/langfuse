@@ -25,7 +25,10 @@ assistant receives (see `features/page-context`).
 ## Invariants
 
 - The live page is only covered, never transformed: state such as scroll
-  position and the selected observation survives because nothing moves.
+  position and the selected observation survives because nothing moves. The
+  stage renders in its own `stage` overlay layer, above the page's dialogs and
+  drawers, and is an outside-interaction opt-out region, so covered overlays
+  such as a trace peek neither paint over it nor dismiss themselves.
 - Page texture and chat layer read the same progress inside one rAF callback,
   so they cannot drift. Every effect is zero at both ends of the flight, which
   makes the swaps with the live page and the bubble thumbnail invisible.

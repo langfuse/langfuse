@@ -11,6 +11,7 @@ export const CAPTURE_EXCLUDED_SELECTORS = [
   "[data-overlay-root] > [data-layer='tooltip']",
   "[data-overlay-root] > [data-layer='toast']",
   "[data-overlay-root] > [data-layer='agent']",
+  "[data-overlay-root] > [data-layer='stage']",
 ];
 
 export const ASSISTANT_STAGE_TIMINGS = {

@@ -40,6 +40,7 @@ export function AssistantStageLauncherButton({
   return (
     <Button
       {...{ [ASSISTANT_STAGE_LAUNCHER_ATTRIBUTE]: "" }}
+      data-ignore-outside-interaction
       type="button"
       variant="outline"
       aria-label={`${isOpen ? "Close" : "Open"} the assistant with this page attached`}

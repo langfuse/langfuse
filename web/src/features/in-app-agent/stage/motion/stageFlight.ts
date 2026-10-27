@@ -91,6 +91,7 @@ function setPageInert(isInert: boolean) {
   const targets = [
     document.getElementById("__next"),
     document.querySelector("[data-overlay-root] > [data-layer='panel']"),
+    document.querySelector("[data-overlay-root] > [data-layer='modal']"),
   ];
   for (const target of targets) {
     if (!target) {

@@ -41,6 +41,14 @@ describe("LayerProvider", () => {
     );
     expect(
       [...layers].map((layer) => layer.getAttribute("data-layer")),
-    ).toEqual(["panel", "agent", "modal", "popover", "tooltip", "toast"]);
+    ).toEqual([
+      "panel",
+      "agent",
+      "modal",
+      "stage",
+      "popover",
+      "tooltip",
+      "toast",
+    ]);
   });
 });

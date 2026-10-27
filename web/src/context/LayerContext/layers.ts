@@ -3,6 +3,7 @@ export const LAYER_ORDER = [
   "panel",
   "agent",
   "modal",
+  "stage",
   "popover",
   "tooltip",
   "toast",

@@ -142,7 +142,7 @@ Sentry instrumentation skill first and decide whether it should capture at all
   must be installed, ask the user before doing so.
 - When you surface a score in the UI, always show its level
   (trace/observation/session/experiment) with the `<ScoreTag>` component
-    (`src/components/ScoreTag.tsx`) and its global color coding (see the
+  (`src/components/ScoreTag.tsx`) and its global color coding (see the
   ScoreTag Storybook story).
 - Tailwind is the default styling layer; use the shared palette and globals in
   `src/styles/globals.css`.
@@ -191,10 +191,12 @@ Sentry instrumentation skill first and decide whether it should capture at all
   z-index.** The app renders inside `#__next`, isolated into one stacking
   context (`globals.css`), so its z-indexes can't escape; overlays go in layers
   that sit outside it and always win. `LAYER_ORDER` is
-  `["panel", "agent", "modal", "popover", "tooltip", "toast"]` — containers declared
+  `["panel", "agent", "modal", "stage", "popover", "tooltip", "toast"]` — containers declared
   in `_document.tsx`, ordered by that array (later = on top), carrying NO z-index.
   `panel` is for docked side surfaces like Sheet, Drawer, and the table peek;
-  `modal` is for true blocking Dialog and AlertDialog surfaces.
+  `modal` is for true blocking Dialog and AlertDialog surfaces; `stage` is for
+  full-screen takeovers that cover the page and its dialogs (the assistant
+  stage), below popovers, tooltips and toasts.
   **THE RULE (see `src/context/LayerContext/LayerContext.tsx` JSDoc — source of truth): every
   overlay portals through a layer container; never let a Radix/Vaul `*.Portal`
   fall back to `<body>`.** Radix/Vaul primitives route via their `*.Portal`'s
