@@ -637,27 +637,33 @@ function withSummaries() {
   ];
 }
 
-it("requests results alongside facets and keeps that request when the run list loads", () => {
-  state.facets = [facet("intent", [1])];
-  state.facetsLoading = true;
-  state.executions = undefined;
-  const view = render(<TopicsPage />, { wrapper: LayerProvider });
-  expect(screen.queryByTestId("current-topics")).toBeNull();
-  expect(state.currentTopics).toHaveBeenCalled();
-  const requested = state.currentTopics.mock.lastCall![0];
+it.each([
+  ["no facets", () => []],
+  ["facets", () => [facet("intent", [1])]],
+])(
+  "requests results alongside facets and keeps that request when the run list loads, with %s",
+  (_, facets) => {
+    state.facets = facets();
+    state.facetsLoading = true;
+    state.executions = undefined;
+    const view = render(<TopicsPage />, { wrapper: LayerProvider });
+    expect(screen.queryByTestId("current-topics")).toBeNull();
+    expect(state.currentTopics).toHaveBeenCalled();
+    const requested = state.currentTopics.mock.lastCall![0];
 
-  vi.setSystemTime(new Date("2026-10-09T12:01:00Z"));
-  state.facetsLoading = false;
-  state.executions = [execution("completed", "update")];
-  view.rerender(<TopicsPage />);
-  expect(screen.getByTestId("current-topics")).toBeInTheDocument();
-  expect(state.currentTopics).toHaveBeenLastCalledWith(
-    expect.objectContaining({
-      refreshAfter: requested.refreshAfter,
-      timeRange: requested.timeRange,
-    }),
-  );
-});
+    vi.setSystemTime(new Date("2026-10-09T12:01:00Z"));
+    state.facetsLoading = false;
+    state.executions = [execution("completed", "update")];
+    view.rerender(<TopicsPage />);
+    expect(screen.getByTestId("current-topics")).toBeInTheDocument();
+    expect(state.currentTopics).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        refreshAfter: requested.refreshAfter,
+        timeRange: requested.timeRange,
+      }),
+    );
+  },
+);
 
 it("shows Analyze in the header while auto-analyze is off and keeps Analyze, regenerate, history and settings in the menu", async () => {
   withSummaries();

@@ -104,6 +104,15 @@ function TopicsWorkspace({ projectId }: { projectId: string }) {
     facets: facets.data ?? [],
     facetsReady: facets.isSuccess,
   });
+  // The workspace mounts while facets load so its requests start alongside
+  // them. It remounts when the project later gains or loses its facets, but
+  // not when the first facets response arrives.
+  const hasFacets = facets.data ? facets.data.length > 0 : undefined;
+  const [loadedWithFacets, setLoadedWithFacets] = useState(hasFacets);
+  if (loadedWithFacets === undefined && hasFacets !== undefined)
+    setLoadedWithFacets(hasFacets);
+  const facetsChanged =
+    hasFacets !== undefined && hasFacets !== (loadedWithFacets ?? hasFacets);
   return (
     <TopicSetupFlowController
       projectId={projectId}
@@ -113,9 +122,7 @@ function TopicsWorkspace({ projectId }: { projectId: string }) {
     >
       {({ openSetup }) => (
         <TopicsWorkspaceView
-          // Stays "configured" while facets load, so the workspace and its
-          // requests start alongside facets instead of remounting after them.
-          key={facets.data?.length === 0 ? "empty" : "configured"}
+          key={facetsChanged ? "facets-changed" : "first-load"}
           projectId={projectId}
           facets={facets}
           canWrite={canWrite}
