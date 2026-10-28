@@ -14,6 +14,7 @@ import {
 } from "../../eventsTable";
 import { LISTABLE_SCORE_TYPES } from "../../domain/scores";
 import { EvalExecutionMetadataKey } from "../evals/evalExecutionMetadata";
+import { AI_GATEWAY_SERVICE_NAME } from "../ai-gateway/constants";
 
 // The data model defines all available dimensions, measures, and the timeDimension for a given view.
 // Make sure to update web/src/features/dashboard/lib/dashboardUiTableToViewMapping.ts if you make changes
@@ -1328,7 +1329,7 @@ export const eventsObservationsView: ViewDeclarationType = {
     aiGatewayKeyId: {
       // Ingestion only writes the gateway service name on uploads the gateway
       // authenticated, and then sets ingestion_api_key to the gateway key id.
-      sql: "if(events_observations.service_name = 'langfuse-ai-gateway', nullIf(events_observations.ingestion_api_key, ''), NULL)",
+      sql: `if(events_observations.service_name = '${AI_GATEWAY_SERVICE_NAME}', nullIf(events_observations.ingestion_api_key, ''), NULL)`,
       alias: "aiGatewayKeyId",
       type: "string",
       description:
