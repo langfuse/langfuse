@@ -228,7 +228,7 @@ export const executeWebhook = async (
   }
 };
 
-/** isStaleMonitorAlert reports whether a monitor-alert job is stale, logging and counting each one it drops. */
+/** isStaleMonitorAlert prevents older queued alerts from overwriting newer published alerts by reporting which jobs to drop. */
 async function isStaleMonitorAlert({
   projectId,
   automationId,
