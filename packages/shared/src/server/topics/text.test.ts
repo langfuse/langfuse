@@ -482,7 +482,7 @@ describe("generateTopicText", () => {
   });
 
   it.each([0, 0.012])(
-    "returns successful OpenRouter usage and supplied USD cost: %s",
+    "returns and traces OpenRouter usage and supplied USD cost: %s",
     async (cost) => {
       vi.stubGlobal(
         "fetch",
@@ -527,6 +527,7 @@ describe("generateTopicText", () => {
         input: "I cannot sign in.",
         schema: z.object({ summary: z.string() }),
         maxOutputTokens: 256,
+        trace,
       });
       expect(result.usageDetails).toEqual({
         input: 50,
@@ -537,6 +538,9 @@ describe("generateTopicText", () => {
         output_reasoning_tokens: 5,
       });
       expect(result.providedCostDetails).toEqual({ total: cost });
+      expect(tracedGeneration()).toMatchObject({
+        "langfuse.observation.cost_details": JSON.stringify({ total: cost }),
+      });
     },
   );
 

@@ -152,6 +152,7 @@ async function writeTopicTrace<T>(
           input: JSON.stringify(topicMessages(params)),
           output: JSON.stringify(result?.output),
           providedUsageDetails: topicTraceUsage(result?.usage),
+          providedCostDetails: result?.providedCostDetails,
           metadata: trace.metadata ?? {},
           userId: trace.userId,
           sessionId: trace.sessionId,
