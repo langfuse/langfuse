@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { ChartColumn } from "@langfuse/icons";
 
 import Header from "@/src/components/layouts/header";
