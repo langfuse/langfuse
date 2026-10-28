@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import {
   createTRPCRouter,
   protectedOrganizationProcedure,
@@ -24,11 +25,10 @@ import {
 import { transferRoleAssignments } from "@langfuse/shared/rbac/server";
 import { reconcileTopicsConnectionsForProject } from "@langfuse/shared/topics/server";
 import { randomUUID } from "crypto";
-import { StringNoHTMLNonEmpty } from "@langfuse/shared";
+import { LangfuseConflictError, StringNoHTMLNonEmpty } from "@langfuse/shared";
+import type { PrismaClient } from "@langfuse/shared/src/db";
 import { buildAdminOrgContext } from "@/src/features/organizations/server";
 import { emitChbProjectEvent } from "@/src/ee/features/billing/server";
-import { releaseGatewayIngestionProject } from "@/src/features/ai-gateway/server/config/releaseGatewayIngestionProject";
-import { invalidateGatewayResolveCacheForOrganization } from "@/src/features/ai-gateway/server/resolve/gatewayResolveCache";
 
 export const projectsRouter = createTRPCRouter({
   create: protectedOrganizationProcedure
@@ -184,7 +184,7 @@ export const projectsRouter = createTRPCRouter({
       return true;
     }),
 
-  deletionImpact: protectedProjectProcedure
+  deletionProtection: protectedProjectProcedure
     .input(z.object({ projectId: z.string() }))
     .query(async ({ input, ctx }) => {
       throwIfNoProjectAccess({
@@ -192,14 +192,13 @@ export const projectsRouter = createTRPCRouter({
         projectId: input.projectId,
         scope: "project:delete",
       });
-      const gatewayConfig = await ctx.prisma.gatewayConfig.findFirst({
-        where: {
+      return {
+        isGatewayIngestionProject: await isGatewayIngestionProject({
+          prisma: ctx.prisma,
           organizationId: ctx.session.orgId,
-          defaultIngestionProjectId: input.projectId,
-        },
-        select: { organizationId: true },
-      });
-      return { isGatewayIngestionProject: gatewayConfig !== null };
+          projectId: input.projectId,
+        }),
+      };
     }),
 
   delete: protectedProjectProcedure
@@ -213,6 +212,11 @@ export const projectsRouter = createTRPCRouter({
         session: ctx.session,
         projectId: ctx.session.projectId,
         scope: "project:delete",
+      });
+      await throwIfGatewayIngestionProject({
+        prisma: ctx.prisma,
+        organizationId: ctx.session.orgId,
+        projectId: input.projectId,
       });
 
       // API keys need to be deleted from cache. Otherwise, they will still be valid.
@@ -229,23 +233,15 @@ export const projectsRouter = createTRPCRouter({
         },
       });
 
-      const { project, releasedGatewayConfig } = await ctx.prisma.$transaction(
-        async (tx) => ({
-          releasedGatewayConfig: await releaseGatewayIngestionProject(tx, {
-            organizationId: ctx.session.orgId,
-            projectId: input.projectId,
-          }),
-          project: await tx.project.update({
-            where: {
-              id: input.projectId,
-              orgId: ctx.session.orgId,
-            },
-            data: {
-              deletedAt: new Date(),
-            },
-          }),
-        }),
-      );
+      const project = await ctx.prisma.project.update({
+        where: {
+          id: input.projectId,
+          orgId: ctx.session.orgId,
+        },
+        data: {
+          deletedAt: new Date(),
+        },
+      });
 
       await auditLog({
         session: ctx.session,
@@ -254,17 +250,6 @@ export const projectsRouter = createTRPCRouter({
         before: project,
         action: "delete",
       });
-
-      if (releasedGatewayConfig) {
-        await invalidateGatewayResolveCacheForOrganization(ctx.session.orgId);
-        await auditLog({
-          session: ctx.session,
-          resourceType: "gatewayConfig",
-          resourceId: ctx.session.orgId,
-          action: "update",
-          ...releasedGatewayConfig,
-        });
-      }
 
       // Refresh org-scoped keys' baked projectIds now that a project is gone.
       await invalidateCachedOrgApiKeys(ctx.session.orgId);
@@ -421,3 +406,32 @@ export const projectsRouter = createTRPCRouter({
       return { project, organization };
     }),
 });
+
+async function isGatewayIngestionProject(params: {
+  prisma: PrismaClient;
+  organizationId: string;
+  projectId: string;
+}) {
+  const config = await params.prisma.gatewayConfig.findFirst({
+    where: {
+      organizationId: params.organizationId,
+      defaultIngestionProjectId: params.projectId,
+      // With ingestion NONE the project is only remembered, not written to.
+      ingestionMode: { not: "NONE" },
+    },
+    select: { organizationId: true },
+  });
+  return config !== null;
+}
+
+async function throwIfGatewayIngestionProject(params: {
+  prisma: PrismaClient;
+  organizationId: string;
+  projectId: string;
+}) {
+  if (await isGatewayIngestionProject(params)) {
+    throw new LangfuseConflictError(
+      "This project is used as the AI Gateway ingestion project. Select another ingestion project or set the ingestion mode to None before deleting it.",
+    );
+  }
+}

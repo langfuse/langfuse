@@ -1,5 +1,5 @@
 import { zodResolver } from "@hookform/resolvers/zod";
-import { type ReactNode, useId } from "react";
+import { useId } from "react";
 import { useForm } from "react-hook-form";
 import * as z from "zod";
 
@@ -21,8 +21,6 @@ export type DeleteProjectDialogProps = {
   confirmMessage: string;
   isPending: boolean;
   onSubmit: () => void;
-  /** Consequences of the deletion, shown above the confirmation. */
-  children?: ReactNode;
 };
 
 export function DeleteProjectDialog(props: DeleteProjectDialogProps) {
@@ -56,7 +54,6 @@ export function DeleteProjectDialog(props: DeleteProjectDialogProps) {
       <Form {...form}>
         <form id={formId} onSubmit={form.handleSubmit(props.onSubmit)}>
           <Dialog.Body>
-            {props.children}
             <p>
               Deletion takes time and scales with project size. For very large
               projects, it can take multiple days. If deletion is slower than

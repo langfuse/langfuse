@@ -2092,7 +2092,7 @@ describe("AI gateway control plane", () => {
     }
   });
 
-  it("sets ingestion to NONE when the default ingestion project is deleted", async () => {
+  it("blocks deletion of the default ingestion project", async () => {
     const { caller, org, project } = await prepare();
     await caller.aiGateway.updateConfig({
       orgId: org.id,
@@ -2101,27 +2101,19 @@ describe("AI gateway control plane", () => {
     });
 
     await expect(
-      caller.projects.deletionImpact({ projectId: project.id }),
+      caller.projects.deletionProtection({ projectId: project.id }),
     ).resolves.toEqual({ isGatewayIngestionProject: true });
     await expect(
       caller.projects.delete({ projectId: project.id }),
-    ).resolves.toBe(true);
-
+    ).rejects.toThrow(
+      "Select another ingestion project or set the ingestion mode to None before deleting it",
+    );
     await expect(
       prisma.project.findUnique({ where: { id: project.id } }),
-    ).resolves.toMatchObject({ deletedAt: expect.any(Date) });
-    await expect(
-      prisma.gatewayConfig.findUnique({ where: { organizationId: org.id } }),
-    ).resolves.toMatchObject({
-      defaultIngestionProjectId: null,
-      ingestionMode: "NONE",
-    });
-    await expect(
-      caller.aiGateway.getSetupStatus({ orgId: org.id }),
-    ).resolves.toEqual({ isConfigured: true });
+    ).resolves.toMatchObject({ deletedAt: null });
   });
 
-  it("deletes a project still linked to the gateway while ingestion is NONE", async () => {
+  it("allows deleting the linked ingestion project while ingestion is NONE", async () => {
     const { caller, org, project } = await prepare();
     await caller.aiGateway.updateConfig({
       orgId: org.id,
@@ -2130,14 +2122,14 @@ describe("AI gateway control plane", () => {
     });
 
     await expect(
+      caller.projects.deletionProtection({ projectId: project.id }),
+    ).resolves.toEqual({ isGatewayIngestionProject: false });
+    await expect(
       caller.projects.delete({ projectId: project.id }),
     ).resolves.toBe(true);
     await expect(
-      prisma.gatewayConfig.findUnique({ where: { organizationId: org.id } }),
-    ).resolves.toMatchObject({
-      defaultIngestionProjectId: null,
-      ingestionMode: "NONE",
-    });
+      prisma.project.findUnique({ where: { id: project.id } }),
+    ).resolves.toMatchObject({ deletedAt: expect.any(Date) });
   });
 
   it("blocks resolve after the default ingestion project is deleted", async () => {

@@ -14,8 +14,6 @@ import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server";
 import { ApiAuthService } from "@/src/features/public-api/server";
 import { auditLog } from "@/src/features/audit-logs/server";
 import { emitChbProjectEvent } from "@/src/ee/features/billing/server";
-import { releaseGatewayIngestionProject } from "@/src/features/ai-gateway/server/config/releaseGatewayIngestionProject";
-import { invalidateGatewayResolveCacheForOrganization } from "@/src/features/ai-gateway/server/resolve/gatewayResolveCache";
 
 export async function handleUpdateProject(
   req: NextApiRequest,
@@ -122,6 +120,22 @@ export async function handleDeleteProject(
   scope: ApiAccessScope,
 ) {
   try {
+    const gatewayConfig = await prisma.gatewayConfig.findFirst({
+      where: {
+        organizationId: scope.orgId,
+        defaultIngestionProjectId: projectId,
+        // With ingestion NONE the project is only remembered, not written to.
+        ingestionMode: { not: "NONE" },
+      },
+      select: { organizationId: true },
+    });
+    if (gatewayConfig) {
+      return res.status(409).json({
+        message:
+          "This project is used as the AI Gateway ingestion project. Select another ingestion project or set the ingestion mode to None before deleting it.",
+      });
+    }
+
     // API keys need to be deleted from cache. Otherwise, they will still be valid.
     await new ApiAuthService(prisma, redis).invalidateCachedProjectApiKeys(
       projectId,
@@ -136,23 +150,15 @@ export async function handleDeleteProject(
     });
 
     // Mark project as deleted
-    const { project, releasedGatewayConfig } = await prisma.$transaction(
-      async (tx) => ({
-        releasedGatewayConfig: await releaseGatewayIngestionProject(tx, {
-          organizationId: scope.orgId,
-          projectId,
-        }),
-        project: await tx.project.update({
-          where: {
-            id: projectId,
-            orgId: scope.orgId,
-          },
-          data: {
-            deletedAt: new Date(),
-          },
-        }),
-      }),
-    );
+    const project = await prisma.project.update({
+      where: {
+        id: projectId,
+        orgId: scope.orgId,
+      },
+      data: {
+        deletedAt: new Date(),
+      },
+    });
 
     // Create audit log entry
     await auditLog({
@@ -164,18 +170,6 @@ export async function handleDeleteProject(
       before: project,
       action: "delete",
     });
-
-    if (releasedGatewayConfig) {
-      await invalidateGatewayResolveCacheForOrganization(scope.orgId);
-      await auditLog({
-        apiKeyId: scope.apiKeyId,
-        orgId: scope.orgId,
-        resourceType: "gatewayConfig",
-        resourceId: scope.orgId,
-        action: "update",
-        ...releasedGatewayConfig,
-      });
-    }
 
     // Refresh org-scoped keys' baked projectIds now that a project is gone.
     await new ApiAuthService(prisma, redis).invalidateCachedOrgApiKeys(
