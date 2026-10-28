@@ -1,15 +1,15 @@
 import { useMemo } from "react";
 
-import { Card } from "@/src/components/ui/card";
 import { buildGatewayAnalyticsQuery } from "@/src/features/ai-gateway/components/GatewayAnalyticsPage/fns/buildGatewayAnalyticsQuery";
 import type { GatewayAnalyticsWidget } from "@/src/features/ai-gateway/components/GatewayAnalyticsPage/types/gatewayAnalyticsWidget";
+import { DashboardCard } from "@/src/features/dashboard/components/cards/DashboardCard";
 import { WidgetContent } from "@/src/features/widgets";
 import { cn } from "@/src/utils/tailwind";
 
 const SIZE_CLASSES: Record<GatewayAnalyticsWidget["size"], string> = {
-  small: "h-32",
-  medium: "h-80 lg:col-span-3",
-  full: "h-80 lg:col-span-6",
+  small: "h-40",
+  medium: "h-96 lg:col-span-3",
+  full: "h-96 lg:col-span-6",
 };
 
 export function GatewayAnalyticsWidgetCard({
@@ -29,24 +29,18 @@ export function GatewayAnalyticsWidgetCard({
   );
 
   return (
-    <Card
+    <DashboardCard
       className={cn(
         // Series labels can be member names, emails and key notes.
-        "ph-no-capture flex min-w-0 flex-col gap-2 p-3 lg:col-span-2",
+        "ph-no-capture min-w-0 lg:col-span-2",
         SIZE_CLASSES[widget.size],
       )}
+      title={widget.name}
+      description={widget.description}
+      // WidgetContent renders its own loading state.
+      isLoading={false}
+      cardContentClassName="min-h-0"
     >
-      <div className="min-w-0">
-        <h3 className="truncate text-sm font-bold" title={widget.name}>
-          {widget.name}
-        </h3>
-        <p
-          className="text-muted-foreground truncate text-xs"
-          title={widget.description}
-        >
-          {widget.description}
-        </p>
-      </div>
       <WidgetContent
         projectId={projectId}
         query={query}
@@ -60,6 +54,6 @@ export function GatewayAnalyticsWidgetCard({
         layoutHint="compact"
         dimensionLabelMap={dimensionLabelMap}
       />
-    </Card>
+    </DashboardCard>
   );
 }
