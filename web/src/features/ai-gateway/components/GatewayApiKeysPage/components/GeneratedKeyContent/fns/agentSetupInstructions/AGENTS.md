@@ -18,7 +18,6 @@ Do not add steps, paths or env vars that the docs do not describe.
 
 - Never put the secret key into a snippet. Use `GATEWAY_KEY_PLACEHOLDER`; the
   key is shown and copied only by the key field above the tabs.
-- Snippets set only `langfuse-user-id` from the recommended headers.
 - Paths differ per tool (`/anthropic` vs `/anthropic/v1`); keep them as the
   docs list them under "Base URLs at a glance".
 - Builders are pure: `(context: AgentSetupContext) => AgentSetupInstructions`.
