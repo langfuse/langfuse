@@ -9,20 +9,30 @@ export const processPostgresTraceDelete = async (
     `Deleting traces ${JSON.stringify(traceIds)} in project ${projectId} from Postgres`,
   );
   try {
-    // Filtering on the project's configuration ids lets Postgres use the
+    // Filtering on the project's rule ids lets Postgres use the
     // (project_id, job_configuration_id, job_input_trace_id) index instead of
-    // scanning every job execution of the project.
-    const jobConfigurations = await prisma.jobConfiguration.findMany({
-      where: { projectId },
-      select: { id: true },
-    });
-    if (jobConfigurations.length === 0) return;
+    // scanning every job execution of the project. job_configuration_id
+    // references both evaluation_rules and legacy job_configurations.
+    const [evaluationRules, jobConfigurations] = await Promise.all([
+      prisma.evaluationRule.findMany({
+        where: { projectId },
+        select: { id: true },
+      }),
+      prisma.jobConfiguration.findMany({
+        where: { projectId },
+        select: { id: true },
+      }),
+    ]);
+    const ruleIds = [
+      ...new Set([...evaluationRules, ...jobConfigurations].map((r) => r.id)),
+    ];
+    if (ruleIds.length === 0) return;
 
     await prisma.jobExecution.deleteMany({
       where: {
         projectId: projectId,
         jobConfigurationId: {
-          in: jobConfigurations.map((config) => config.id),
+          in: ruleIds,
         },
         jobInputTraceId: {
           in: traceIds,
