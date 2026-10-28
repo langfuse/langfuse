@@ -103,18 +103,21 @@ describe("systemRoleAccessRights", () => {
     ]);
   });
 
-  it("grants AI_GATEWAY exactly gateway:invoke at org scope", () => {
+  it("grants AI_GATEWAY exactly gateway:read and gateway:invoke at org scope", () => {
     expect(systemRoleAccessRights.AI_GATEWAY.policies).toEqual([
       {
         resourceKind: "organization",
         effect: "ALLOW",
-        actions: ["gateway:invoke"],
+        actions: ["gateway:read", "gateway:invoke"],
       },
     ]);
   });
 
   it("grants the AI_GATEWAY membership role the AI_GATEWAY system role's access", () => {
-    expect(organizationRoleAccessRights.AI_GATEWAY).toEqual(["gateway:invoke"]);
+    expect(organizationRoleAccessRights.AI_GATEWAY).toEqual([
+      "gateway:read",
+      "gateway:invoke",
+    ]);
     expect(projectRoleAccessRights.AI_GATEWAY).toEqual([]);
   });
 

@@ -71,7 +71,7 @@ export const organizationRoleAccessRights: Record<Role, OrganizationScope[]> = {
   ],
   VIEWER: ["organization:settings:read", "gateway:read"],
   NONE: ["organization:settings:read"],
-  AI_GATEWAY: ["gateway:invoke"],
+  AI_GATEWAY: ["gateway:read", "gateway:invoke"],
 };
 
 export const orgNoneRoleComment =

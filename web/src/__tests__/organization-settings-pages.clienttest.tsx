@@ -421,10 +421,13 @@ describe("useOrganizationSettingsPages", () => {
       vi.mocked(isCloudPlan).mockReturnValue(false);
     });
 
-    it("shows AI_GATEWAY members only their gateway keys", () => {
+    it("shows AI_GATEWAY members only their gateway keys and models", () => {
       grantScopesOf(Role.AI_GATEWAY);
 
-      expect(visibleSlugs()).toEqual(["ai-gateway-api-keys"]);
+      expect(visibleSlugs()).toEqual([
+        "ai-gateway-models",
+        "ai-gateway-api-keys",
+      ]);
     });
 
     it("shows Projects to AI_GATEWAY members with a project", () => {
@@ -437,7 +440,11 @@ describe("useOrganizationSettingsPages", () => {
         project: null,
       } as unknown as ReturnType<typeof useQueryProjectOrOrganization>);
 
-      expect(visibleSlugs()).toEqual(["projects", "ai-gateway-api-keys"]);
+      expect(visibleSlugs()).toEqual([
+        "projects",
+        "ai-gateway-models",
+        "ai-gateway-api-keys",
+      ]);
     });
 
     it("shows NONE members the organization overview pages", () => {
