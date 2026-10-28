@@ -2,6 +2,14 @@ import type { GatewayAnalyticsWidget } from "@/src/features/ai-gateway/component
 
 const BREAKDOWN_ROW_LIMIT = 20;
 
+/** Per-user breakdowns leave out service keys, which have no bound owner. */
+const KEY_OWNER_PRESENT_FILTER: GatewayAnalyticsWidget["filters"][number] = {
+  column: "aiGatewayKeyOwnerUserId",
+  operator: "is not null",
+  value: "",
+  type: "null",
+};
+
 export const GATEWAY_ANALYTICS_WIDGETS: readonly GatewayAnalyticsWidget[] = [
   {
     id: "total-cost",
@@ -58,14 +66,20 @@ export const GATEWAY_ANALYTICS_WIDGETS: readonly GatewayAnalyticsWidget[] = [
     view: "observations",
     dimensions: [{ field: "aiGatewayKeyOwnerUserId" }],
     metrics: [{ measure: "totalCost", agg: "sum" }],
-    filters: [
-      {
-        column: "aiGatewayKeyOwnerUserId",
-        operator: "is not null",
-        value: "",
-        type: "null",
-      },
-    ],
+    filters: [KEY_OWNER_PRESENT_FILTER],
+    chartType: "HORIZONTAL_BAR",
+    chartConfig: { type: "HORIZONTAL_BAR", row_limit: BREAKDOWN_ROW_LIMIT },
+    dimensionLabels: "users",
+    size: "medium",
+  },
+  {
+    id: "requests-per-user",
+    name: "Requests per user",
+    description: `Top ${BREAKDOWN_ROW_LIMIT} users by requests; service keys are excluded`,
+    view: "observations",
+    dimensions: [{ field: "aiGatewayKeyOwnerUserId" }],
+    metrics: [{ measure: "count", agg: "count" }],
+    filters: [KEY_OWNER_PRESENT_FILTER],
     chartType: "HORIZONTAL_BAR",
     chartConfig: { type: "HORIZONTAL_BAR", row_limit: BREAKDOWN_ROW_LIMIT },
     dimensionLabels: "users",
