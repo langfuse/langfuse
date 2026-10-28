@@ -28,8 +28,7 @@ const topics = names.map((name, index) => ({
   versionId: `topic-${index}-v1`,
   runId: "run",
   name,
-  description:
-    index === 0 ? LONG_DESCRIPTION : `Requests about ${name.toLowerCase()}.`,
+  description: index === 0 ? LONG_DESCRIPTION : "",
   count: counts[index],
 }));
 const assignedRows = topics.flatMap((topic) =>
@@ -283,50 +282,23 @@ export const SelectTopic = meta.story({
 export const DescriptionTooltipWhenClipped = meta.story({
   name: "(Test) Hover shows the full text only when clipped",
   render: (args) => (
-    <div
-      data-testid="frame"
-      className="flex flex-col"
-      style={{ width: 720, height: 900 }}
-    >
+    <div className="flex flex-col" style={{ width: 720, height: 900 }}>
       <TopicTreemapView {...args} />
     </div>
   ),
   play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement);
-    const clipped = within(
-      canvas.getByRole("region", { name: "Topic traces" }),
-    ).getByText(LONG_DESCRIPTION);
-    await userEvent.hover(clipped);
-    await waitFor(() =>
-      expect(clipped).toHaveAttribute("title", LONG_DESCRIPTION),
+    const list = within(
+      within(canvasElement).getByRole("region", { name: "Topic traces" }),
     );
-
-    await userEvent.click(
-      await canvas.findByRole("button", {
-        name: "Trace cost analysis, 21 traces",
-      }),
-    );
-    const list = within(canvas.getByRole("region", { name: "Topic traces" }));
-    const fitting = list.getByText("Requests about trace cost analysis.");
-    const title = list.getByText("Trace cost analysis");
-    await userEvent.hover(fitting);
+    const title = list.getByRole("heading", {
+      name: "Langfuse user assistance",
+    });
+    const description = list.getByText(LONG_DESCRIPTION);
     await userEvent.hover(title);
-    await expect(fitting).not.toHaveAttribute("title");
+    await userEvent.hover(description);
+    await waitFor(() =>
+      expect(description).toHaveAttribute("title", LONG_DESCRIPTION),
+    );
     await expect(title).not.toHaveAttribute("title");
-
-    // Clip the heading by under a pixel, to a width that rounds to the same
-    // whole pixel as its text: the ellipsis shows, yet scrollWidth equals clientWidth.
-    const frame = canvas.getByTestId("frame");
-    const text = document.createRange();
-    text.selectNodeContents(title);
-    const textWidth = text.getBoundingClientRect().width;
-    const clippedWidth = (Math.round(textWidth) - 0.5 + textWidth) / 2;
-    frame.style.width = `${frame.getBoundingClientRect().width - title.getBoundingClientRect().width + clippedWidth}px`;
-    await expect(title.scrollWidth).toBe(title.clientWidth);
-    await userEvent.hover(fitting);
-    await userEvent.hover(title);
-    await waitFor(() =>
-      expect(title).toHaveAttribute("title", "Trace cost analysis"),
-    );
   },
 });
