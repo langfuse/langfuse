@@ -29,6 +29,7 @@ import {
   getUsersFromEventsTable,
   getUsersCountFromEventsTable,
   getTracingCountsByProjectInCreationIntervalFromEventsTable,
+  AI_GATEWAY_SERVICE_NAME,
   type EventFilterOptionColumn,
 } from "@langfuse/shared/src/server";
 import {
@@ -6046,21 +6047,21 @@ describe("tracing counts by project on the events table", () => {
       }),
       event({ project_id: projectA, trace_id: randomUUID(), created_at: end }),
       event({ project_id: projectB, trace_id: randomUUID() }),
-      // AI gateway generations carry the key id; outside the window they don't count.
+      // AI gateway generations carry the gateway service; outside the window they don't count.
       event({
         project_id: projectB,
         trace_id: randomUUID(),
-        ai_gateway_key_id: "gateway-key-1",
+        service_name: AI_GATEWAY_SERVICE_NAME,
       }),
       event({
         project_id: projectB,
         trace_id: randomUUID(),
-        ai_gateway_key_id: "gateway-key-2",
+        service_name: AI_GATEWAY_SERVICE_NAME,
       }),
       event({
         project_id: projectB,
         trace_id: randomUUID(),
-        ai_gateway_key_id: "gateway-key-1",
+        service_name: AI_GATEWAY_SERVICE_NAME,
         created_at: end,
       }),
     ]);

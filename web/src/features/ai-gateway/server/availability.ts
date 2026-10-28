@@ -51,8 +51,8 @@ const isEnabledForAllOrganizations = (
     : environment.enabledForAllOrganizations === "true";
 
 /**
- * Gateway generations are only identifiable in the v4 events table (via
- * `ai_gateway_key_id`), which the `legacy` write mode never writes.
+ * Gateway generations are only attributed to their gateway API key and service
+ * in the v4 events table, which the `legacy` write mode never writes.
  */
 export const isGatewayEnabledForOrganization = (
   organizationId: string,
