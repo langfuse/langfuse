@@ -76,11 +76,18 @@ const ensureGatewayKeys = async (params: {
 
   for (let i = keys.length; i < params.keyCount; i++) {
     const userId = members[i % members.length].userId;
-    const publicKey = `pk-lf-gateway-${params.idPrefix}-${i}`;
+    const keyMaterial = `${params.idPrefix}-${params.organizationId}-${i}`;
+    const publicKey = `pk-lf-gateway-${keyMaterial}`;
     const found = await prisma.apiKey.findUnique({
       where: { publicKey },
-      select: { id: true, userId: true },
+      select: { id: true, userId: true, orgId: true },
     });
+    if (found && found.orgId !== params.organizationId) {
+      throw new SeedError(
+        `Seeded gateway key ${publicKey} belongs to another organization`,
+        "pass a different --id-prefix",
+      );
+    }
     const key: { id: string; userId: string | null } = found ?? {
       id: (
         await createApiKey(prisma, {
@@ -91,7 +98,7 @@ const ensureGatewayKeys = async (params: {
           name: `Seeded team key ${i}`,
           predefinedKeys: {
             publicKey,
-            secretKey: `sk-lf-gateway-${params.idPrefix}-${i}`,
+            secretKey: `sk-lf-gateway-${keyMaterial}`,
           },
         })
       ).id,
@@ -290,8 +297,11 @@ const run = async (
   for (let d = 1; d <= days; d++) {
     const dayStart = dayStartToday - d * 86_400_000;
     for (let i = 0; i < requestsPerDay + SDK_EVENTS_PER_DAY; i++) {
-      const g = (d - 1) * (requestsPerDay + SDK_EVENTS_PER_DAY) + i;
       const isGateway = i < requestsPerDay;
+      const row = isGateway ? i : i - requestsPerDay;
+      // Keyed by (day, kind, row) only: start_time is in the events ORDER BY,
+      // so it must not shift when --requests-per-day changes.
+      const g = (d * 2 + (isGateway ? 0 : 1)) * 1_000_000 + row;
       // sqrt of a uniform pick skews toward later keys, so the per-key and
       // per-user bars differ in length.
       const key =
@@ -305,8 +315,8 @@ const run = async (
           projectId: ingestionProjectId,
           environment: ctx.environment,
           id: isGateway
-            ? `${ctx.idPrefix}-d${d}-r${i}`
-            : `${ctx.idPrefix}-d${d}-sdk${i - requestsPerDay}`,
+            ? `${ctx.idPrefix}-d${d}-r${row}`
+            : `${ctx.idPrefix}-d${d}-sdk${row}`,
           name: isGateway ? "chat.completions" : "sdk-generation",
           userId: isGateway ? key.userId : "sdk-user",
           gatewayKeyId: isGateway ? key.id : null,
@@ -336,9 +346,14 @@ const run = async (
       "uniqExact(span_id)",
     ),
   };
-  if (verified.events < counts.events) {
+  // Exact, because rows left by an earlier run with more --days or
+  // --requests-per-day under the same prefix would inflate the analytics.
+  if (verified.events !== counts.events) {
     throw new SeedError(
       `Readback mismatch: expected ${counts.events} events, found ${verified.events}`,
+      verified.events > counts.events
+        ? "an earlier run with larger --days or --requests-per-day left rows under this prefix; pass a fresh --id-prefix"
+        : undefined,
     );
   }
 
