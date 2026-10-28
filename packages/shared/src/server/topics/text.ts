@@ -249,6 +249,19 @@ function nonNegativeNumber(value: unknown): number | undefined {
     : undefined;
 }
 
+function openRouterCost(body: unknown): number | undefined {
+  const usage = responseUsage(body);
+  const cost = nonNegativeNumber(usage.cost);
+  if (cost === undefined || usage.is_byok !== true) return cost;
+  const upstreamCost = isPlainObject(usage.cost_details)
+    ? nonNegativeNumber(usage.cost_details.upstream_inference_cost)
+    : undefined;
+  // BYOK bills the provider separately; an incomplete total uses catalog pricing.
+  return upstreamCost === undefined
+    ? undefined
+    : nonNegativeNumber(cost + upstreamCost);
+}
+
 async function generateWithConnection<T>(
   params: TopicTextParams<T>,
   recordResponse: (
@@ -300,7 +313,7 @@ async function generateWithConnection<T>(
   const cost =
     params.model.adapter === LLMAdapter.OpenAI &&
     isOpenRouterEndpoint(params.model.connection.baseURL)
-      ? nonNegativeNumber(responseUsage(body).cost)
+      ? openRouterCost(body)
       : undefined;
   return {
     output: result.output,

@@ -488,30 +488,13 @@ an old definition may still be in use by the current map. There is no age-based
 expiry. Transcripts stay in memory.
 There are no Topics object-storage manifests, numerical checkpoints or shared-disk files.
 
-Successful summary and embedding results retain the events-style
-`provided_usage_details`, `usage_details`, `provided_cost_details` and `cost_details`
-maps on `topic_facet_summaries`. [models.ts](models.ts) resolves prices with
-`findModel` for the source project and uses `calculateModelUsageCosts`, shared
-with ingestion, to price canonical usage buckets before adding stage prefixes.
-Explicit provider USD costs take precedence; OpenRouter can supply a total,
-while current Bedrock transports supply token usage. Missing usage is never
-estimated from token limits. Pricing failures are logged without retrying inference.
+Successful summary and embedding results retain the events-style `provided_usage_details`, `usage_details`, `provided_cost_details` and `cost_details` maps on `topic_facet_summaries`. [models.ts](models.ts) resolves prices with `findModel` for the source project and uses `calculateModelUsageCosts`, shared with ingestion, to price canonical usage buckets before adding stage prefixes. Explicit provider USD costs take precedence; OpenRouter can supply a total, while current Bedrock transports supply token usage. Missing usage is never estimated from token limits. Pricing failures are logged without retrying inference.
 
-The existing result pipeline splits summary costs across produced facet rows
-and adds each embedding batch's costs once. Reused summaries carry no new model
-cost. Cost maps are written with the completed summaries; no separate cost write
-or cost table is needed.
+The existing result pipeline splits summary costs across produced facet rows and adds each embedding batch's costs once. Reused summaries carry no new model cost. Cost maps are written with the completed summaries; no separate cost write or cost table is needed.
 
-Manual processing summaries carry their execution ID in metadata. History sums
-`cost_details['total']` on current summary rows, deduplicating the table's full
-replacement key before filtering by execution ID. This includes total-only
-provider prices and avoids counting superseded rows. It shows zero for a stored
-zero total and no estimate when no stored total exists.
+Manual processing summaries carry their execution ID in metadata. History sums `cost_details['total']` on current summary rows, deduplicating the table's full replacement key before filtering by execution ID. This includes total-only provider prices and avoids counting superseded rows. It shows zero for a stored zero total and no estimate when no stored total exists.
 
-These are approximate processing costs for retained results. They exclude topic
-naming, failed calls, and results that were not saved. Partial pricing can
-undercount the total, and replacing or deleting summaries can change historical
-estimates. This tradeoff keeps costs in the existing result lifecycle.
+These are approximate processing costs for retained results. They exclude topic naming, failed calls, and results that were not saved. Partial pricing can undercount the total, and replacing or deleting summaries can change historical estimates. This tradeoff keeps costs in the existing result lifecycle.
 
 Token budgets live in [models.ts](models.ts) and the shared Topics contracts.
 Summary input defaults to 120,000 tokens. Oversized naming input is limited to

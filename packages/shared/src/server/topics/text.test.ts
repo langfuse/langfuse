@@ -481,9 +481,19 @@ describe("generateTopicText", () => {
     expect(result.providedCostDetails).toEqual({});
   });
 
-  it.each([0, 0.012])(
-    "returns and traces OpenRouter usage and supplied USD cost: %s",
-    async (cost) => {
+  it.each([
+    { cost: 0, expectedTotal: 0 },
+    { cost: 0.012, expectedTotal: 0.012 },
+    {
+      cost: 0.001,
+      is_byok: true,
+      cost_details: { upstream_inference_cost: 0.02 },
+      expectedTotal: 0.021,
+    },
+    { cost: 0, is_byok: true, expectedTotal: undefined },
+  ])(
+    "returns and traces OpenRouter usage and supplied USD cost: %j",
+    async ({ expectedTotal, ...usageCost }) => {
       vi.stubGlobal(
         "fetch",
         vi.fn(async () =>
@@ -502,7 +512,7 @@ describe("generateTopicText", () => {
               prompt_tokens: 100,
               completion_tokens: 20,
               total_tokens: 120,
-              cost,
+              ...usageCost,
               prompt_tokens_details: {
                 cached_tokens: 10,
                 cache_write_tokens: 40,
@@ -537,9 +547,12 @@ describe("generateTopicText", () => {
         input_cache_creation: 40,
         output_reasoning_tokens: 5,
       });
-      expect(result.providedCostDetails).toEqual({ total: cost });
+      const expectedCostDetails =
+        expectedTotal === undefined ? {} : { total: expectedTotal };
+      expect(result.providedCostDetails).toEqual(expectedCostDetails);
       expect(tracedGeneration()).toMatchObject({
-        "langfuse.observation.cost_details": JSON.stringify({ total: cost }),
+        "langfuse.observation.cost_details":
+          JSON.stringify(expectedCostDetails),
       });
     },
   );

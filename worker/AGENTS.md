@@ -23,9 +23,7 @@
   `topics-embedding` embeds staged results. `LANGFUSE_TOPICS_ENABLED` gates queue
   registration. Processors also enforce `LANGFUSE_TOPICS_ENABLED_PROJECT_IDS`;
   trace and project cleanup run independently of both gates.
-  `models.ts` uses shared model matching and pricing against the source project.
-  Summary and embedding cost maps are saved with `topic_facet_summaries`;
-  processing estimates sum those rows, excluding naming and unsaved results.
+  `models.ts` uses shared model matching and pricing against the source project. Summary and embedding cost maps are saved with `topic_facet_summaries`; processing estimates sum those rows, excluding naming and unsaved results.
   Paid results are staged before retryable
   persistence, and unchanged embedding waits must read only Redis queue state.
   Summary references use source fields; preserve `summaryProcessedAt` checks

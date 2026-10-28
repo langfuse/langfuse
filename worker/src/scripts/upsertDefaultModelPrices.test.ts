@@ -24,6 +24,8 @@ describe("default Bedrock Topics model prices", () => {
     ["eu.cohere.embed-v4:0", 0.12e-6, undefined],
   ])("matches and prices %s", (modelName, input, output) => {
     const matches = defaultModelPrices.filter(({ matchPattern }) =>
+      // Both catalogue patterns and model names are checked-in test fixtures.
+      // nosemgrep: javascript.lang.security.audit.detect-non-literal-regexp.detect-non-literal-regexp
       new RegExp(matchPattern.replace(/^\(\?i\)/, ""), "i").test(
         modelName as string,
       ),
