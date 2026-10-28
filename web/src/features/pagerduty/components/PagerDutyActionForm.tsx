@@ -5,7 +5,7 @@ import { type PagerDutyRegion } from "@langfuse/shared/pagerduty";
 import { Form } from "@/src/components/design-system/Form/Form";
 import { PasswordInput } from "@/src/components/design-system/PasswordInput/PasswordInput";
 import { SelectInput } from "@/src/components/design-system/SelectInput/SelectInput";
-import { PagerDutyTestEventButton } from "./PagerDutyTestEventButton";
+import { PagerDutyTestEventButtons } from "./PagerDutyTestEventButtons";
 
 const regionOptions: { value: PagerDutyRegion; label: string }[] = [
   { value: "US", label: "US (events.pagerduty.com)" },
@@ -74,7 +74,7 @@ export function PagerDutyActionForm({
           </div>
         )}
       </Form.Field>
-      <PagerDutyTestEventButton
+      <PagerDutyTestEventButtons
         projectId={projectId}
         region={region}
         routingKey={routingKey.trim() || undefined}

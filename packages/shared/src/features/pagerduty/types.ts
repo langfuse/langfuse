@@ -16,6 +16,13 @@ export const PagerDutyRoutingKeySchema = z
     "Routing key must be the 32-character integration key from PagerDuty",
   );
 
+/** PagerDutyTestEventStepSchema is a step of the test alert: open it at info severity, escalate it to critical, or resolve it. */
+export const PagerDutyTestEventStepSchema = z.enum([
+  "trigger",
+  "escalate",
+  "resolve",
+]);
+
 /** maskPagerDutyRoutingKey keeps the first and last four characters, e.g. `R0ab...9xYz`. */
 export function maskPagerDutyRoutingKey(routingKey: string): string {
   if (routingKey.length <= 8) return "...";
@@ -23,3 +30,6 @@ export function maskPagerDutyRoutingKey(routingKey: string): string {
 }
 
 export type PagerDutyRegion = z.infer<typeof PagerDutyRegionSchema>;
+export type PagerDutyTestEventStep = z.infer<
+  typeof PagerDutyTestEventStepSchema
+>;

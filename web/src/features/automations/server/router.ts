@@ -16,6 +16,7 @@ import {
 import {
   PagerDutyRegionSchema,
   PagerDutyRoutingKeySchema,
+  PagerDutyTestEventStepSchema,
 } from "@langfuse/shared/pagerduty";
 import { throwIfNoProjectAccess } from "@/src/features/rbac";
 import { v4 } from "uuid";
@@ -680,6 +681,7 @@ export const automationsRouter = createTRPCRouter({
         region: PagerDutyRegionSchema,
         routingKey: PagerDutyRoutingKeySchema.optional(),
         actionId: z.string().optional(),
+        step: PagerDutyTestEventStepSchema,
       }),
     )
     .mutation(async ({ ctx, input }) => {

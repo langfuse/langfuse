@@ -5,35 +5,53 @@ import { ConfirmationDialogController } from "@/src/components/design-system/Con
 import { showSuccessToast } from "@/src/features/notifications";
 import { api } from "@/src/utils/api";
 
-/** PagerDutyTestEventDialogController warns that a test event pages whoever is on call, then sends it. */
+const dialogCopy: Record<
+  PagerDutyTestTriggerStep,
+  { title: string; text: string; toast: string }
+> = {
+  trigger: {
+    title: "Send PagerDuty test event",
+    text: "This opens a real info-severity test alert on the PagerDuty service, which may notify whoever is on call. Resolve it here once it arrives.",
+    toast: "PagerDuty accepted the info test alert.",
+  },
+  escalate: {
+    title: "Escalate PagerDuty test event",
+    text: "This raises the test alert to critical, which pages whoever is on call at high urgency.",
+    toast: "PagerDuty accepted the critical test alert.",
+  },
+};
+
+/** PagerDutyTestEventDialogController warns that a test trigger may page whoever is on call, then sends it. */
 export function PagerDutyTestEventDialogController({
   projectId,
+  onSent,
   children,
 }: {
   projectId: string;
+  onSent: () => void;
   children: (control: {
-    openDialog: (target: PagerDutyTestEventTarget) => void;
+    openDialog: (target: PagerDutyTestTriggerTarget) => void;
   }) => ReactNode;
 }) {
   const sendTestEvent = api.automations.sendPagerDutyTestEvent.useMutation({
     meta: { silentAllErrors: true },
   });
 
-  const handleConfirm = async (target: PagerDutyTestEventTarget) => {
+  const handleConfirm = async (target: PagerDutyTestTriggerTarget) => {
     await sendTestEvent.mutateAsync({ projectId, ...target });
+    onSent();
     showSuccessToast({
       operation: "automations.sendPagerDutyTestEvent",
       title: "Test event sent",
-      description:
-        "PagerDuty accepted the test event. Langfuse resolved it right away.",
+      description: dialogCopy[target.step].toast,
     });
   };
 
   return (
-    <ConfirmationDialogController<PagerDutyTestEventTarget>
-      title="Send PagerDuty test event"
-      text="This triggers a real incident on the PagerDuty service and briefly pages whoever is on call. Langfuse resolves it right after."
-      confirmLabel="Send test event"
+    <ConfirmationDialogController<PagerDutyTestTriggerTarget>
+      title={(target) => dialogCopy[target.step].title}
+      text={(target) => dialogCopy[target.step].text}
+      confirmLabel="Send"
       variant="default"
       loading={sendTestEvent.isPending}
       error={sendTestEvent.error?.message}
@@ -45,8 +63,12 @@ export function PagerDutyTestEventDialogController({
   );
 }
 
-/** PagerDutyTestEventTarget is the key a test event goes to: the typed key, else the action's stored key. */
-type PagerDutyTestEventTarget = {
+/** PagerDutyTestTriggerStep is a test event step that pages and therefore asks for confirmation. */
+type PagerDutyTestTriggerStep = "trigger" | "escalate";
+
+/** PagerDutyTestTriggerTarget is the step and the key it goes to: the typed key, else the action's stored key. */
+export type PagerDutyTestTriggerTarget = {
+  step: PagerDutyTestTriggerStep;
   region: PagerDutyRegion;
   routingKey?: string;
   actionId?: string;

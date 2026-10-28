@@ -3494,6 +3494,7 @@ describe("automations trpc", () => {
           projectId: project.id,
           region: "US",
           routingKey,
+          step: "trigger",
         }),
       ).rejects.toMatchObject({ code: "FORBIDDEN" });
     });
@@ -3611,28 +3612,33 @@ describe("automations trpc", () => {
         }));
       }
 
-      it("sends a trigger and a resolve to the typed key in the chosen region", async () => {
-        const { project, caller } = await prepare();
+      it.each([
+        ["trigger", "trigger", "info"],
+        ["escalate", "trigger", "critical"],
+        ["resolve", "resolve", undefined],
+      ] as const)(
+        "sends the %s step as one %s under the project's test key",
+        async (step, eventAction, severity) => {
+          const { project, caller } = await prepare();
 
-        await caller.automations.sendPagerDutyTestEvent({
-          projectId: project.id,
-          region: "EU",
-          routingKey,
-        });
+          await caller.automations.sendPagerDutyTestEvent({
+            projectId: project.id,
+            region: "EU",
+            routingKey,
+            step,
+          });
 
-        const events = sentEvents();
-        expect(events.map((e) => e.url)).toEqual([
-          "https://events.eu.pagerduty.com/v2/enqueue",
-          "https://events.eu.pagerduty.com/v2/enqueue",
-        ]);
-        expect(events.map((e) => e.body.event_action)).toEqual([
-          "trigger",
-          "resolve",
-        ]);
-        expect(events.every((e) => e.body.routing_key === routingKey)).toBe(
-          true,
-        );
-      });
+          const [event, ...rest] = sentEvents();
+          expect(rest).toEqual([]);
+          expect(event.url).toBe("https://events.eu.pagerduty.com/v2/enqueue");
+          expect(event.body).toMatchObject({
+            routing_key: routingKey,
+            event_action: eventAction,
+            dedup_key: `langfuse-${project.id}-test`,
+          });
+          expect(event.body.payload?.severity).toBe(severity);
+        },
+      );
 
       it("falls back to the stored key of the action", async () => {
         const { project, caller } = await prepare();
@@ -3644,6 +3650,7 @@ describe("automations trpc", () => {
           projectId: project.id,
           region: "US",
           actionId: created.action.id,
+          step: "trigger",
         });
 
         expect(sentEvents()[0]).toMatchObject({
@@ -3664,31 +3671,10 @@ describe("automations trpc", () => {
             projectId: project.id,
             region: "US",
             actionId: otherAction.action.id,
+            step: "trigger",
           }),
         ).rejects.toMatchObject({ code: "BAD_REQUEST" });
         expect(fetchSpy).not.toHaveBeenCalled();
-      });
-
-      it("reports the open incident when the resolve keeps failing", async () => {
-        fetchSpy.mockImplementation(async (_url, init) => {
-          const body = JSON.parse(String(init?.body));
-          if (body.event_action === "trigger") {
-            return new Response("{}", { status: 202 });
-          }
-          return new Response("unavailable", { status: 503 });
-        });
-        const { project, caller } = await prepare();
-
-        await expect(
-          caller.automations.sendPagerDutyTestEvent({
-            projectId: project.id,
-            region: "US",
-            routingKey,
-          }),
-        ).rejects.toThrow(/could not resolve it/);
-        expect(
-          sentEvents().filter((e) => e.body.event_action === "resolve"),
-        ).toHaveLength(4);
       });
 
       it("maps a PagerDuty rejection to BAD_REQUEST", async () => {
@@ -3702,6 +3688,7 @@ describe("automations trpc", () => {
             projectId: project.id,
             region: "US",
             routingKey,
+            step: "trigger",
           }),
         ).rejects.toMatchObject({ code: "BAD_REQUEST" });
       });
@@ -3719,6 +3706,7 @@ describe("automations trpc", () => {
             projectId: project.id,
             region: "US",
             routingKey,
+            step: "trigger",
           }),
         ).rejects.toMatchObject({ code });
         expect(fetchSpy).toHaveBeenCalledTimes(4);

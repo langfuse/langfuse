@@ -1,13 +1,10 @@
 /* eslint-disable @typescript-eslint/no-use-before-define */
-import { randomUUID } from "crypto";
-
 import { type Session } from "next-auth";
 import {
   BaseError,
   ForbiddenError,
   InvalidRequestError,
   isPagerDutyActionConfig,
-  LangfuseConflictError,
   type ActionCreate,
   type PagerDutyActionConfigWithSecrets,
 } from "@langfuse/shared";
@@ -19,9 +16,19 @@ import {
   pagerDutyClient,
   type PagerDutyAlertEvent,
   type PagerDutyRegion,
+  type PagerDutySeverity,
+  type PagerDutyTestEventStep,
 } from "@langfuse/shared/pagerduty/server";
 import { getProductBaseUrl, logger } from "@langfuse/shared/src/server";
 import { env } from "@/src/env.mjs";
+
+const testEventSeverities: Record<
+  Exclude<PagerDutyTestEventStep, "resolve">,
+  PagerDutySeverity
+> = {
+  trigger: "info",
+  escalate: "critical",
+};
 
 /** throwIfPagerDutyUnavailable limits PagerDuty actions to Langfuse Cloud admins. */
 export function throwIfPagerDutyUnavailable(session: Session): void {
@@ -78,46 +85,27 @@ async function getStoredPagerDutyConfig({
   return config;
 }
 
-/** sendPagerDutyTestEvent triggers and then resolves one test alert, so whoever is on call is paged briefly. */
+/** sendPagerDutyTestEvent opens, escalates or resolves the project's test alert, which is keyed by project. */
 export async function sendPagerDutyTestEvent({
   projectId,
   region,
   routingKey,
   actionId,
+  step,
 }: {
   projectId: string;
   region: PagerDutyRegion;
   routingKey?: string;
   actionId?: string;
+  step: PagerDutyTestEventStep;
 }): Promise<void> {
   const key = await resolveTestRoutingKey({ projectId, routingKey, actionId });
-  const project = await prisma.project.findUniqueOrThrow({
-    where: { id: projectId },
-    select: { name: true },
-  });
-  const dedupKey = `langfuse-${projectId}-test-${randomUUID()}`;
-  const projectUrl = new URL(
-    `project/${projectId}`,
-    getProductBaseUrl(),
-  ).toString();
-
+  const event = await buildTestEvent({ projectId, routingKey: key, step });
   try {
-    await pagerDutyClient.alert({
-      region,
-      event: {
-        routing_key: key,
-        event_action: "trigger",
-        dedup_key: dedupKey,
-        client: "Langfuse",
-        client_url: projectUrl,
-        links: [{ href: projectUrl, text: "Open Langfuse project" }],
-        payload: buildTestEventPayload(project.name),
-      },
-    });
+    await pagerDutyClient.alert({ region, event });
   } catch (error) {
     throw toTestEventError(error, projectId);
   }
-  await resolveTestEvent({ region, routingKey: key, dedupKey, projectId });
 }
 
 /** resolveTestRoutingKey prefers the typed key and falls back to the stored key of the action. */
@@ -140,19 +128,50 @@ async function resolveTestRoutingKey({
   return decrypt(existing.routingKey);
 }
 
-/** buildTestEventPayload describes the test alert. */
-function buildTestEventPayload(
-  projectName: string,
-): NonNullable<PagerDutyAlertEvent["payload"]> {
+/** buildTestEvent resolves the test alert, or triggers it at the step's severity. */
+async function buildTestEvent({
+  projectId,
+  routingKey,
+  step,
+}: {
+  projectId: string;
+  routingKey: string;
+  step: PagerDutyTestEventStep;
+}): Promise<PagerDutyAlertEvent> {
+  const dedupKey = `langfuse-${projectId}-test`;
+  if (step === "resolve") {
+    return {
+      routing_key: routingKey,
+      event_action: "resolve",
+      dedup_key: dedupKey,
+    };
+  }
+
+  const project = await prisma.project.findUniqueOrThrow({
+    where: { id: projectId },
+    select: { name: true },
+  });
+  const projectUrl = new URL(
+    `project/${projectId}`,
+    getProductBaseUrl(),
+  ).toString();
   return {
-    summary: `[Langfuse] Test event from project ${projectName}`,
-    source: `langfuse/${projectName}`,
-    severity: "info",
-    timestamp: new Date().toISOString(),
-    class: "test",
-    custom_details: {
-      message:
-        "This is a test event from Langfuse to verify your PagerDuty automation. It is resolved automatically.",
+    routing_key: routingKey,
+    event_action: "trigger",
+    dedup_key: dedupKey,
+    client: "Langfuse",
+    client_url: projectUrl,
+    links: [{ href: projectUrl, text: "Open Langfuse project" }],
+    payload: {
+      summary: `[Langfuse] Test event from project ${project.name}`,
+      source: `langfuse/${project.name}`,
+      severity: testEventSeverities[step],
+      timestamp: new Date().toISOString(),
+      class: "test",
+      custom_details: {
+        message:
+          "This is a test event from Langfuse to verify your PagerDuty automation. Resolve it from the automation form or in PagerDuty.",
+      },
     },
   };
 }
@@ -169,36 +188,4 @@ function toTestEventError(error: unknown, projectId: string): unknown {
   return new InvalidRequestError(
     `PagerDuty did not accept the test event. Check the routing key and region. (${error.message})`,
   );
-}
-
-/** resolveTestEvent resolves the test incident and names its dedup key when that fails. */
-async function resolveTestEvent({
-  region,
-  routingKey,
-  dedupKey,
-  projectId,
-}: {
-  region: PagerDutyRegion;
-  routingKey: string;
-  dedupKey: string;
-  projectId: string;
-}): Promise<void> {
-  try {
-    await pagerDutyClient.alert({
-      region,
-      event: {
-        routing_key: routingKey,
-        event_action: "resolve",
-        dedup_key: dedupKey,
-      },
-    });
-  } catch (error) {
-    logger.warn("Failed to resolve PagerDuty test event", {
-      projectId,
-      error: error instanceof Error ? error.message : String(error),
-    });
-    throw new LangfuseConflictError(
-      `PagerDuty opened the test incident but Langfuse could not resolve it. Resolve it in PagerDuty (dedup key ${dedupKey}).`,
-    );
-  }
 }
