@@ -5,6 +5,7 @@ import { type UseQueryResult } from "@tanstack/react-query";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
 import { TablePeekViewTraceDetail } from "@/src/components/table/peek/TablePeekViewTraceDetail";
 import { useRouter } from "next/router";
+import useSessionStorage from "@/src/components/useSessionStorage";
 import Page from "@/src/components/layouts/Page";
 import { PageHeaderControlsPortal } from "@/src/components/layouts/page-header-controls-slot";
 import { TimeRangePicker } from "@/src/components/date-picker";
@@ -187,6 +188,10 @@ function TopicsWorkspaceContent({
 }: TopicsWorkspaceContentProps) {
   const [historyOpen, setHistoryOpen] = useState(false);
   const [resultsView, setResultsView] = useTopicsResultsView();
+  const [showUnassigned, setShowUnassigned] = useSessionStorage(
+    `topics-show-unassigned:${projectId}`,
+    true,
+  );
   const [generationRange, setGenerationRange] = useState<{
     selection: TimeRange;
     bounds: TopicTimeRange;
@@ -473,6 +478,8 @@ function TopicsWorkspaceContent({
           onConfigure: configured ? openConfigure : openSetup,
           onRegenerate: openTopicGeneration,
           onHistory: openHistory,
+          showUnassigned,
+          onShowUnassignedChange: setShowUnassigned,
         });
         return (
           <Page
@@ -664,6 +671,7 @@ function TopicsWorkspaceContent({
                       tracePanelRef={setTracePanel}
                       onGenerateTopics={openTopicGeneration}
                       canGenerateTopics={canWrite && !running && configured}
+                      showUnassigned={showUnassigned}
                     />
                   </div>
                 )}

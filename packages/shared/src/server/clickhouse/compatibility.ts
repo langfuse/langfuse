@@ -250,6 +250,13 @@ export const getClickHouseCompatibilitySettings = (): ClickHouseSettings =>
   resolveClickHouseCompatibility({ version: detectedClickHouseVersion })
     .settings;
 
+/**
+ * ClickHouse server version detected at startup, or null when detection
+ * failed or has not run.
+ */
+export const getDetectedClickHouseVersion = (): string | null =>
+  detectedClickHouseVersion;
+
 export const initializeClickhouseCompatibility = async (): Promise<void> => {
   if (initializationPromise) return initializationPromise;
 

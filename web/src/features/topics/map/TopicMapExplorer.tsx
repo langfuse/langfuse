@@ -747,7 +747,7 @@ function MapBackgroundLabels({ store }: { store: TopicMapStore }) {
               )}
               style={{
                 fontSize: label.fontSize,
-                color: `color-mix(in srgb, ${label.color} 35%, hsl(var(--muted-foreground)))`,
+                color: `color-mix(in srgb, ${label.color} 35%, hsl(var(--foreground)))`,
               }}
             >
               {label.title}

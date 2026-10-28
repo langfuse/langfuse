@@ -4,9 +4,11 @@ import { Prisma, prisma } from "@langfuse/shared/src/db";
 import { v4 as uuidv4 } from "uuid";
 import {
   getDatasetRunItemCountsByProjectInCreationInterval,
+  getDetectedClickHouseVersion,
   getObservationCountsByProjectInCreationInterval,
   getScoreCountsByProjectInCreationInterval,
   getTraceCountsByProjectInCreationInterval,
+  getTracingCountsByProjectInCreationIntervalFromEventsTable,
   logger,
 } from "@langfuse/shared/src/server";
 import { env } from "@/src/env.mjs";
@@ -158,6 +160,37 @@ async function jobScheduler(): Promise<
   return { shouldRunJob: true, jobStartedAt, lastRun, clientId };
 }
 
+/**
+ * Counts traces and observations created in `[start, end)` from the tables the
+ * worker writes: under `events_only` the legacy traces/observations tables are
+ * empty, so the events table is the only source.
+ */
+async function countTracing({ start, end }: { start: Date; end: Date }) {
+  if (env.LANGFUSE_MIGRATION_V4_WRITE_MODE === "events_only") {
+    const counts =
+      await getTracingCountsByProjectInCreationIntervalFromEventsTable({
+        start,
+        end,
+      });
+    return {
+      countTraces: counts.reduce((acc, curr) => acc + curr.traces, 0),
+      countObservations: counts.reduce(
+        (acc, curr) => acc + curr.observations,
+        0,
+      ),
+    };
+  }
+
+  const [traces, observations] = await Promise.all([
+    getTraceCountsByProjectInCreationInterval({ start, end }),
+    getObservationCountsByProjectInCreationInterval({ start, end }),
+  ]);
+  return {
+    countTraces: traces.reduce((acc, curr) => acc + curr.count, 0),
+    countObservations: observations.reduce((acc, curr) => acc + curr.count, 0),
+  };
+}
+
 async function posthogTelemetry({
   startTimeframe,
   endTimeframe,
@@ -176,16 +209,11 @@ async function posthogTelemetry({
       },
     });
 
-    // Count traces
-    const countTracesClickhouse =
-      await getTraceCountsByProjectInCreationInterval({
-        start: startTimeframe ?? new Date(0),
-        end: endTimeframe,
-      });
-    const countTraces = countTracesClickhouse.reduce(
-      (acc, curr) => acc + curr.count,
-      0,
-    );
+    // Count traces and observations
+    const { countTraces, countObservations } = await countTracing({
+      start: startTimeframe ?? new Date(0),
+      end: endTimeframe,
+    });
 
     // Count scores
     const countScoresClickhouse =
@@ -194,17 +222,6 @@ async function posthogTelemetry({
         end: endTimeframe,
       });
     const countScores = countScoresClickhouse.reduce(
-      (acc, curr) => acc + curr.count,
-      0,
-    );
-
-    // Count observations
-    const countObservationsClickhouse =
-      await getObservationCountsByProjectInCreationInterval({
-        start: startTimeframe ?? new Date(0),
-        end: endTimeframe,
-      });
-    const countObservations = countObservationsClickhouse.reduce(
       (acc, curr) => acc + curr.count,
       0,
     );
@@ -291,11 +308,15 @@ async function posthogTelemetry({
         endTimeframe: endTimeframe.toISOString(),
         eeLicenseKey: env.LANGFUSE_EE_LICENSE_KEY,
         langfuseCloudRegion: env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
+        writeMode: env.LANGFUSE_MIGRATION_V4_WRITE_MODE,
+        clickhouseVersion: getDetectedClickHouseVersion(),
         $set: {
           environment: process.env.NODE_ENV,
           userDomains: domains,
           docker: true,
           langfuseVersion: VERSION,
+          writeMode: env.LANGFUSE_MIGRATION_V4_WRITE_MODE,
+          clickhouseVersion: getDetectedClickHouseVersion(),
         },
       },
     });
