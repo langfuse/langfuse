@@ -22,10 +22,9 @@ const LOAD_MORE_THRESHOLD_PX = 400;
 const FIRST_CELL = "block pr-3 pl-2";
 
 /**
- * `truncate` compares unrounded widths, since whole-pixel `scrollWidth` misses
- * overflows under a pixel that still get an ellipsis. It ignores height: with
- * tight leading the glyphs overflow vertically even when the line fits.
- * Assumes the element has no horizontal padding.
+ * `truncate` compares unrounded widths: whole-pixel `scrollWidth` misses
+ * sub-pixel overflows that still get an ellipsis, and tight leading overflows
+ * the height of text that fits. Assumes no horizontal padding.
  */
 function clipsText(element: HTMLElement, clip: "truncate" | "line-clamp") {
   if (clip === "line-clamp") return element.scrollHeight > element.clientHeight;
@@ -37,18 +36,15 @@ function clipsText(element: HTMLElement, clip: "truncate" | "line-clamp") {
 }
 
 /**
- * Native tooltip with the full text, only while the element clips it.
- * Measured as the pointer moves, so it follows panel resizes and topic
- * switches under a resting pointer; a measurement only counts for its text.
+ * Native tooltip with the full text, only while the element clips it. The list
+ * can stay mounted across topics, so a measurement only counts for its text.
  */
 function useTruncatedTitle(text: string, clip: "truncate" | "line-clamp") {
   const [clippedText, setClippedText] = useState<string | null>(null);
   return {
     title: clippedText === text ? text : undefined,
-    onPointerMove: (event: PointerEvent<HTMLElement>) => {
-      const next = clipsText(event.currentTarget, clip) ? text : null;
-      if (next !== clippedText) setClippedText(next);
-    },
+    onPointerMove: (event: PointerEvent<HTMLElement>) =>
+      setClippedText(clipsText(event.currentTarget, clip) ? text : null),
   };
 }
 
