@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import type { DataPoint } from "@/src/features/widgets";
 import {
   type AggregationFn,

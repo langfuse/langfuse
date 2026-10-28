@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { z } from "zod";
 
 import { throwIfNoProjectAccess } from "@/src/features/rbac";

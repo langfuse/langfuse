@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 // Segment projection — pure mapping from draft text to renderable composer
 // segments.
 //

@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { cn } from "@/src/utils/tailwind";
 import { ArrowUpRight } from "@langfuse/icons";
 import Link from "next/link";
