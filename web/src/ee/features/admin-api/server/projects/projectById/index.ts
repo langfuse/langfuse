@@ -124,13 +124,15 @@ export async function handleDeleteProject(
       where: {
         organizationId: scope.orgId,
         defaultIngestionProjectId: projectId,
+        // With ingestion NONE the project is only remembered, not written to.
+        ingestionMode: { not: "NONE" },
       },
       select: { organizationId: true },
     });
     if (gatewayConfig) {
       return res.status(409).json({
         message:
-          "This project is used as the AI Gateway ingestion project. Select another ingestion project before deleting it.",
+          "This project is used as the AI Gateway ingestion project. Select another ingestion project or set the ingestion mode to None before deleting it.",
       });
     }
 
