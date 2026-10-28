@@ -77,7 +77,7 @@ describe("trace deletion", () => {
     vi.restoreAllMocks();
   });
 
-  it("deletes job executions of deleted traces across evaluation rules and active and inactive configurations", async () => {
+  it("deletes job executions of deleted traces across evaluation rules, rule-less evaluators and active and inactive configurations", async () => {
     const { projectId } = await createOrgProjectAndApiKey();
     const { projectId: otherProjectId } = await createOrgProjectAndApiKey();
     const deletedTraceId = randomUUID();
@@ -110,6 +110,14 @@ describe("trace deletion", () => {
         targetObject: "trace",
       },
     });
+    const ruleLessEvaluator = await prisma.evaluator.create({
+      data: {
+        projectId,
+        name: "standalone",
+        type: "LLM_AS_JUDGE",
+        versions: { create: { version: 1 } },
+      },
+    });
 
     const createExecution = (
       executionProjectId: string,
@@ -127,6 +135,7 @@ describe("trace deletion", () => {
     await createExecution(projectId, activeConfig.id, deletedTraceId);
     await createExecution(projectId, inactiveConfig.id, deletedTraceId);
     await createExecution(projectId, evaluationRule.id, deletedTraceId);
+    await createExecution(projectId, ruleLessEvaluator.id, deletedTraceId);
     const kept = await createExecution(projectId, activeConfig.id, keptTraceId);
     const otherProject = await createExecution(
       otherProjectId,

@@ -12,8 +12,9 @@ export const processPostgresTraceDelete = async (
     // Filtering on the project's rule ids lets Postgres use the
     // (project_id, job_configuration_id, job_input_trace_id) index instead of
     // scanning every job execution of the project. job_configuration_id
-    // references both evaluation_rules and legacy job_configurations.
-    const [evaluationRules, jobConfigurations] = await Promise.all([
+    // references evaluation_rules, legacy job_configurations, or, for batch
+    // runs of evaluators without a rule, evaluators.
+    const [evaluationRules, jobConfigurations, evaluators] = await Promise.all([
       prisma.evaluationRule.findMany({
         where: { projectId },
         select: { id: true },
@@ -22,9 +23,17 @@ export const processPostgresTraceDelete = async (
         where: { projectId },
         select: { id: true },
       }),
+      prisma.evaluator.findMany({
+        where: { projectId },
+        select: { id: true },
+      }),
     ]);
     const ruleIds = [
-      ...new Set([...evaluationRules, ...jobConfigurations].map((r) => r.id)),
+      ...new Set(
+        [...evaluationRules, ...jobConfigurations, ...evaluators].map(
+          (r) => r.id,
+        ),
+      ),
     ];
     if (ruleIds.length === 0) return;
 
