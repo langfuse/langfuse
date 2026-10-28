@@ -537,7 +537,7 @@ export const SelectsHiddenTabFromOverflowMenu = meta.story({
     const messagesItem = await body.findByRole("menuitem", {
       name: /Messages/,
     });
-    await expect(messagesItem).toHaveTextContent("Internal");
+    await expect(messagesItem).toHaveTextContent("INTERNAL");
 
     await userEvent.click(body.getByRole("menuitem", { name: "Attributes" }));
     await waitFor(() => {
