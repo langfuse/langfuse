@@ -218,3 +218,5 @@ minimumReleaseAgeExclude:
   - fast-uri@3.1.9
   # body-parser security fix; eligible after 2026-10-27 11:39 UTC.
   - body-parser@2.4.0
+  # follow-redirects security fix; eligible after 2026-10-30 21:32 UTC.
+  - follow-redirects@1.16.2
