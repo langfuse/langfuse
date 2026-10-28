@@ -171,7 +171,21 @@ function withSerializedEventByteLength(
 const TTL_CACHE_CREATION_USAGE_TYPES = new Set([
   "input_cache_creation_5m",
   "input_cache_creation_1h",
+  "input_ephemeral_5m_input_tokens",
+  "ephemeral_5m_input_tokens",
+  "cache_creation_ephemeral_5m_input_tokens",
+  "input_ephemeral_1h_input_tokens",
+  "ephemeral_1h_input_tokens",
+  "cache_creation_ephemeral_1h_input_tokens",
 ]);
+const TTL_CACHE_CREATION_CANONICAL_MAP: Record<string, string> = {
+  input_ephemeral_5m_input_tokens: "input_cache_creation_5m",
+  ephemeral_5m_input_tokens: "input_cache_creation_5m",
+  cache_creation_ephemeral_5m_input_tokens: "input_cache_creation_5m",
+  input_ephemeral_1h_input_tokens: "input_cache_creation_1h",
+  ephemeral_1h_input_tokens: "input_cache_creation_1h",
+  cache_creation_ephemeral_1h_input_tokens: "input_cache_creation_1h",
+};
 const AGGREGATE_CACHE_CREATION_USAGE_TYPES = [
   "cache_creation_input_tokens",
   "input_cache_creation",
@@ -1830,8 +1844,10 @@ export class IngestionService {
     const finalCostEntries: [string, number][] = [];
 
     for (const [key, units] of Object.entries(usageUnits)) {
+      const canonicalKey = TTL_CACHE_CREATION_CANONICAL_MAP[key] ?? key;
       const price =
         modelPrices?.find((price) => price.usageType === key) ??
+        modelPrices?.find((price) => price.usageType === canonicalKey) ??
         (TTL_CACHE_CREATION_USAGE_TYPES.has(key)
           ? AGGREGATE_CACHE_CREATION_USAGE_TYPES.map((usageType) =>
               modelPrices?.find((price) => price.usageType === usageType),
