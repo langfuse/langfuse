@@ -1,6 +1,6 @@
 import { z } from "zod/v4";
 
-import { Prisma, prisma, Role } from "@langfuse/shared/src/db";
+import { Prisma, prisma } from "@langfuse/shared/src/db";
 
 // users.support_access, e.g.
 // { "<orgId>": { "role": "VIEWER", "expiresAt": "2026-10-27T04:15:37.316Z" } }
@@ -23,13 +23,13 @@ export function parseSupportAccess(value: Prisma.JsonValue): SupportAccess {
   return SupportAccessSchema.safeParse(value ?? {}).data ?? {};
 }
 
-export function getActiveSupportAccessOrgIds(
+export function getActiveSupportAccessGrants(
   supportAccess: SupportAccess,
   now: Date = new Date(),
-): string[] {
+): { orgId: string; role: SupportAccess[string]["role"] }[] {
   return Object.entries(supportAccess)
     .filter(([, entry]) => new Date(entry.expiresAt) > now)
-    .map(([orgId]) => orgId);
+    .map(([orgId, entry]) => ({ orgId, role: entry.role }));
 }
 
 export async function getSupportAccessMemberships(
@@ -42,13 +42,15 @@ export async function getSupportAccessMemberships(
   const memberOrgIds = new Set(
     user.organizationMemberships.map((m) => m.organization.id),
   );
-  const orgIds = getActiveSupportAccessOrgIds(
-    parseSupportAccess(user.supportAccess),
-  ).filter((orgId) => !memberOrgIds.has(orgId));
-  if (orgIds.length === 0) return [];
+  const roleByOrgId = new Map(
+    getActiveSupportAccessGrants(parseSupportAccess(user.supportAccess))
+      .filter((grant) => !memberOrgIds.has(grant.orgId))
+      .map((grant) => [grant.orgId, grant.role]),
+  );
+  if (roleByOrgId.size === 0) return [];
 
   const organizations = await prisma.organization.findMany({
-    where: { id: { in: orgIds } },
+    where: { id: { in: [...roleByOrgId.keys()] } },
     include: {
       projects: {
         where: { deletedAt: null },
@@ -56,12 +58,18 @@ export async function getSupportAccessMemberships(
       },
     },
   });
-  return organizations.map((organization) => ({
-    organization,
-    role: Role.VIEWER,
-    ProjectMemberships: [],
-    supportAccess: true as const,
-  }));
+  return organizations.flatMap((organization) => {
+    const role = roleByOrgId.get(organization.id);
+    if (!role) return [];
+    return [
+      {
+        organization,
+        role,
+        ProjectMemberships: [],
+        supportAccess: true as const,
+      },
+    ];
+  });
 }
 
 export async function grantSupportAccess(

@@ -31,7 +31,7 @@ import {
 } from "@/src/ee/features/support-access/server/conductorOnePayload";
 import { provisionSupportAccess } from "@/src/ee/features/support-access/server/provisionSupportAccess";
 import {
-  getActiveSupportAccessOrgIds,
+  getActiveSupportAccessGrants,
   getSupportAccessMemberships,
   parseSupportAccess,
 } from "@/src/ee/features/support-access/server/supportAccess";
@@ -309,14 +309,14 @@ describe("support access in the session", () => {
 
   it("returns only unexpired grants", () => {
     expect(
-      getActiveSupportAccessOrgIds(
+      getActiveSupportAccessGrants(
         {
           current: entry("2026-10-23T13:00:00.000Z"),
           expired: entry("2026-10-23T11:59:59.000Z"),
         },
         now,
       ),
-    ).toEqual(["current"]);
+    ).toEqual([{ orgId: "current", role: "VIEWER" }]);
   });
 
   it("parses malformed values or other roles to no grants", () => {
