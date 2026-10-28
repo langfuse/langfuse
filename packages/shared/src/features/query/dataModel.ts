@@ -1326,7 +1326,9 @@ export const eventsObservationsView: ViewDeclarationType = {
       highCardinality: true,
     },
     aiGatewayKeyId: {
-      sql: "nullIf(events_observations.ai_gateway_key_id, '')",
+      // Ingestion only writes the gateway service name on uploads the gateway
+      // authenticated, and then sets ingestion_api_key to the gateway key id.
+      sql: "if(events_observations.service_name = 'langfuse-ai-gateway', nullIf(events_observations.ingestion_api_key, ''), NULL)",
       alias: "aiGatewayKeyId",
       type: "string",
       description:

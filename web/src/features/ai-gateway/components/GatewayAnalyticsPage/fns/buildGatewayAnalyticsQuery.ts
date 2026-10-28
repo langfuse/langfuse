@@ -10,7 +10,7 @@ import type { GatewayAnalyticsWidget } from "@/src/features/ai-gateway/component
 
 /**
  * The ingestion project can also receive SDK traffic; only observations
- * stamped with a gateway key at ingestion count as gateway usage.
+ * ingestion attributed to a gateway key count as gateway usage.
  */
 const GATEWAY_TRAFFIC_FILTER: FilterCondition = {
   column: "aiGatewayKeyId",

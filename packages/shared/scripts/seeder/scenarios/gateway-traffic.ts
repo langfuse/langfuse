@@ -10,7 +10,11 @@ import {
   createEventsCh,
   EventRecordInsertType,
 } from "../../../src/server";
-import { AI_GATEWAY_KEY_ID_METADATA_KEY } from "../../../src/server/otel/OtelIngestionProcessor";
+import {
+  AI_GATEWAY_INSTRUMENTATION_SCOPE_NAME,
+  AI_GATEWAY_KEY_ID_METADATA_KEY,
+  AI_GATEWAY_SERVICE_NAME,
+} from "../../../src/server/otel/OtelIngestionProcessor";
 import { GEN_INPUT_PRICE, GEN_OUTPUT_PRICE } from "./payload";
 import { jitter, utcDayStartMs } from "./rng";
 import {
@@ -25,9 +29,9 @@ import { countRows, escapeLike } from "./verify";
 /**
  * AI Gateway traffic in the organization's gateway ingestion project, built
  * for the AI Gateway analytics settings tab. Each request is one root
- * GENERATION event stamped with the trusted `ai_gateway_key_id` and attributed
- * to the key's bound user, the shape gateway ingestion writes. A few SDK
- * events without a key id land in the same project; analytics must ignore
+ * GENERATION event with the gateway service name, the gateway key id as its
+ * ingestion API key, and the key's bound user, the shape gateway ingestion
+ * writes. A few SDK events land in the same project; analytics must ignore
  * them.
  *
  * Writes go to the ingestion project of the --project's organization, not to
@@ -178,7 +182,13 @@ const toGenerationEvent = (params: {
     prompt_version: null,
     metadata_names: metadataNames,
     metadata_values: metadataNames.map((name) => metadata[name]),
-    ai_gateway_key_id: params.gatewayKeyId ?? undefined,
+    ...(params.gatewayKeyId
+      ? {
+          ingestion_api_key: params.gatewayKeyId,
+          service_name: AI_GATEWAY_SERVICE_NAME,
+          scope_name: AI_GATEWAY_INSTRUMENTATION_SCOPE_NAME,
+        }
+      : {}),
     start_time: params.startTime,
     end_time: params.startTime + params.durationMs,
     completion_start_time: null,
@@ -343,7 +353,7 @@ const run = async (
 export const gatewayTrafficScenario: ScenarioDefinition = {
   name: "gateway-traffic",
   description:
-    "AI Gateway requests in the organization's gateway ingestion project: one GENERATION per request with the trusted gateway key id and the key's user, plus a few SDK events without a key. Creates gateway keys up to --keys. Built for the AI Gateway analytics settings tab.",
+    "AI Gateway requests in the organization's gateway ingestion project: one GENERATION per request attributed to the gateway service, its gateway key, and the key's user, plus a few SDK events. Creates gateway keys up to --keys. Built for the AI Gateway analytics settings tab.",
   supportsV4: true,
   flags: [
     {
