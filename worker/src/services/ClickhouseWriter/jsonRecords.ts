@@ -9,7 +9,7 @@ const DECIMAL_64_12_LIMIT = new Decimal("1e6");
 const DECIMAL_64_12_MAX_NUM = 999_999.999_999;
 const DECIMAL_64_12_MIN_NUM = -DECIMAL_64_12_MAX_NUM;
 
-/** Identifies a row in logs and dead-letter reports. Topics rows have no `id` column. */
+/** Identifies a dropped row in logs. Topics rows have no `id` column. */
 export function recordIdentity(record: RecordInsertType<TableName>): {
   project_id: string;
   trace_id: string | null | undefined;
@@ -30,14 +30,31 @@ export function recordIdentity(record: RecordInsertType<TableName>): {
   };
 }
 
+type TopicsTableName =
+  | TableName.TopicFacetSummaries
+  | TableName.TopicAssignments;
+
+const TOPICS_TABLES: ReadonlySet<TableName> = new Set<TopicsTableName>([
+  TableName.TopicFacetSummaries,
+  TableName.TopicAssignments,
+]);
+
+/** Decided by table alone; the row argument only carries the type narrowing. */
+function isTopicsRecord(
+  tableName: TableName,
+  _record: RecordInsertType<TableName>,
+): _record is RecordInsertType<TopicsTableName> {
+  return TOPICS_TABLES.has(tableName);
+}
+
 export function truncateOversizedRecord<
   Row extends RecordInsertType<TableName>,
 >(tableName: TableName, record: Row): Row {
   const maxFieldSize = 1024 * 1024; // 1MB per field as safety margin
   const truncationMessage = "[TRUNCATED: Field exceeded size limit]";
 
-  // Topics rows hold bounded model output; their `metadata` is a JSON string, not a map.
-  if (!("id" in record)) return record;
+  // Topics rows hold bounded model output and store `metadata` as a JSON string, not a map.
+  if (isTopicsRecord(tableName, record)) return record;
 
   // Helper function to safely truncate string fields
   const truncateField = (value: string | null | undefined): string | null => {
