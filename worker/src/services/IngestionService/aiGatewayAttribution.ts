@@ -38,11 +38,12 @@ export const resolveAiGatewayAttribution = (params: {
 };
 
 /**
- * The gateway service name is reserved for gateway uploads. Any other sender,
- * including replays without an ingestion key, can set `service.name` freely,
- * so a claim to be the gateway clears the service name and version.
+ * For uploads that did not come through the gateway. Real gateway spans never
+ * get here, but an SDK sending straight to Langfuse can set `service.name` to
+ * `langfuse-ai-gateway` to pass its spans off as gateway traffic. Such spoofed
+ * spans keep everything else but lose the service name and version.
  */
-export const withoutAiGatewayServiceClaim = (params: {
+export const stripSpoofedAiGatewayService = (params: {
   serviceName: string | null | undefined;
   serviceVersion: string | null | undefined;
 }): Pick<SpanAttribution, "serviceName" | "serviceVersion"> =>

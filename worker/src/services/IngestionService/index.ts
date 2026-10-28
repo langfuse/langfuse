@@ -81,7 +81,7 @@ import {
 } from "./utils";
 import {
   resolveAiGatewayAttribution,
-  withoutAiGatewayServiceClaim,
+  stripSpoofedAiGatewayService,
 } from "./aiGatewayAttribution";
 import { randomUUID } from "crypto";
 import { SpanKind } from "@opentelemetry/api";
@@ -343,7 +343,7 @@ export class IngestionService {
         })
       : {
           ingestionApiKey: eventData.ingestionApiKey ?? "",
-          ...withoutAiGatewayServiceClaim({
+          ...stripSpoofedAiGatewayService({
             serviceName: eventData.serviceName,
             serviceVersion: eventData.serviceVersion,
           }),
