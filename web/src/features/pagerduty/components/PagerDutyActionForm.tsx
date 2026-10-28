@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { type UseFormReturn } from "react-hook-form";
 
 import { type PagerDutyRegion } from "@langfuse/shared/pagerduty";

@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { buildPromptUrl, getProductBaseUrl } from "@langfuse/shared/src/server";
 import {
   truncatePagerDutySummary,

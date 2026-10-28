@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import React from "react";
 import { type UseFormReturn } from "react-hook-form";
 

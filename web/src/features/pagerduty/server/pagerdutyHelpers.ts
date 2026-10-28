@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { type Session } from "next-auth";
 import {
   BaseError,

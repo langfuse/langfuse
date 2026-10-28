@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import Link from "next/link";
 import { Github, Plus, Slack, Webhook } from "@langfuse/icons";
 import { SiPagerduty } from "@langfuse/icons/si";
