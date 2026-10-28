@@ -161,9 +161,12 @@ async function jobScheduler(): Promise<
 }
 
 /**
- * Counts traces and observations created in `[start, end)` from the tables the
- * worker writes: under `events_only` the legacy traces/observations tables are
- * empty, so the events table is the only source.
+ * Counts traces, observations and AI gateway requests created in `[start, end)`
+ * from the tables the worker writes: under `events_only` the legacy
+ * traces/observations tables are empty, so the events table is the only
+ * source. Gateway requests are reported only there: legacy tables do not mark
+ * gateway rows, and in `dual` mode a second full events scan would cost too
+ * much for that one number.
  */
 async function countTracing({ start, end }: { start: Date; end: Date }) {
   if (env.LANGFUSE_MIGRATION_V4_WRITE_MODE === "events_only") {
@@ -178,6 +181,10 @@ async function countTracing({ start, end }: { start: Date; end: Date }) {
         (acc, curr) => acc + curr.observations,
         0,
       ),
+      countGatewayRequests: counts.reduce(
+        (acc, curr) => acc + curr.gatewayRequests,
+        0,
+      ),
     };
   }
 
@@ -188,6 +195,7 @@ async function countTracing({ start, end }: { start: Date; end: Date }) {
   return {
     countTraces: traces.reduce((acc, curr) => acc + curr.count, 0),
     countObservations: observations.reduce((acc, curr) => acc + curr.count, 0),
+    countGatewayRequests: undefined,
   };
 }
 
@@ -209,11 +217,12 @@ async function posthogTelemetry({
       },
     });
 
-    // Count traces and observations
-    const { countTraces, countObservations } = await countTracing({
-      start: startTimeframe ?? new Date(0),
-      end: endTimeframe,
-    });
+    // Count traces, observations and AI gateway requests
+    const { countTraces, countObservations, countGatewayRequests } =
+      await countTracing({
+        start: startTimeframe ?? new Date(0),
+        end: endTimeframe,
+      });
 
     // Count scores
     const countScoresClickhouse =
@@ -304,6 +313,7 @@ async function posthogTelemetry({
         datasetRuns: countDatasetRuns,
         datasetRunItems: countDatasetRunItems,
         assistantRuns: countAssistantRuns,
+        gatewayRequests: countGatewayRequests,
         startTimeframe: startTimeframe?.toISOString(),
         endTimeframe: endTimeframe.toISOString(),
         eeLicenseKey: env.LANGFUSE_EE_LICENSE_KEY,
