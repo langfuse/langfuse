@@ -1,9 +1,6 @@
 /* eslint-disable @typescript-eslint/no-use-before-define */
 import { LLMAdapter, supportedModels } from "@langfuse/shared";
-import {
-  DEFAULT_TOPIC_FACETS,
-  topicsOpenAIReasoningEffort,
-} from "@langfuse/shared/topics";
+import { DEFAULT_TOPIC_FACETS } from "@langfuse/shared/topics";
 import { type JudgeModel } from "@/src/features/evals/v2/judgeModel";
 
 export const TOPIC_SETUP_QUESTIONS = [
@@ -47,8 +44,7 @@ export type TopicSetupDraft = {
   samplePercent: number;
 };
 
-// Best family first. Within a family, models that can run with reasoning off win
-// (naming has a small output budget), then the highest version (6.1 over 6).
+// Best family first; within a family the highest version wins (6.1 over 6).
 const RECOMMENDED_MODELS: Record<
   "summary" | "embedding" | "clustering",
   RegExp[]
@@ -143,20 +139,10 @@ export function pickRecommendedTopicModel(
     );
     if (matches.length > 0)
       return matches.reduce((best, item) =>
-        compareTopicModels(item.model, best.model) > 0 ? item : best,
+        compareModelVersions(item.model, best.model) > 0 ? item : best,
       );
   }
   return null;
-}
-
-function compareTopicModels(a: string, b: string) {
-  const reasoning = Number(needsReasoning(b)) - Number(needsReasoning(a));
-  return reasoning !== 0 ? reasoning : compareModelVersions(a, b);
-}
-
-function needsReasoning(model: string) {
-  const id = model.replace(/^(?:[a-z]+\.)?openai\./, "");
-  return topicsOpenAIReasoningEffort(id) === "low";
 }
 
 function compareModelVersions(a: string, b: string) {

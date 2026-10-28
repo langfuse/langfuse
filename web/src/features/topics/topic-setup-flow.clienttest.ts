@@ -6,7 +6,6 @@ import {
   isRecommendedTopicModel,
   pickRecommendedTopicModel,
   setupWaitMinutes,
-  topicProviderGroups,
   topicSetupRun,
   topicSetupStage,
   topicConnectionCaption,
@@ -57,35 +56,7 @@ it("preselects the highest-ranked recommended model across connections", () => {
     pickRecommendedTopicModel("clustering", [
       ["OpenAI", ["gpt-6-sol", "gpt-6.1-sol", "claude-sonnet-5-5"]],
     ]),
-  ).toEqual({ provider: "OpenAI", model: "gpt-6-sol" });
-  expect(
-    pickRecommendedTopicModel("clustering", [
-      ["OpenAI", ["gpt-6.1-terra", "gpt-6.1-sol"]],
-    ]),
-  ).toEqual({ provider: "OpenAI", model: "gpt-6.1-terra" });
-});
-
-it("preselects OpenAI default models that can run with reasoning off", () => {
-  const groups = topicProviderGroups(
-    [
-      {
-        id: "openai",
-        provider: "OpenAI",
-        adapter: "openai",
-        customModels: [],
-        withDefaultModels: true,
-      },
-    ],
-    "chat",
-  );
-  expect(pickRecommendedTopicModel("summary", groups)).toEqual({
-    provider: "OpenAI",
-    model: "gpt-6-luna",
-  });
-  expect(pickRecommendedTopicModel("clustering", groups)).toEqual({
-    provider: "OpenAI",
-    model: "gpt-5.6-terra",
-  });
+  ).toEqual({ provider: "OpenAI", model: "gpt-6.1-sol" });
 });
 
 it("starts from recommended models and a 5 minute wait when the project has no topics setup", () => {

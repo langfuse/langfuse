@@ -24,7 +24,6 @@ import { LLMAdapter, type TraceSinkParams } from "../llm/types";
 import { logger } from "../logger";
 import { parseOutboundUrl } from "../outbound-url/validation";
 import { writeInternalTraceViaOtelIngestion } from "../otel/internalTraceOtelWriter";
-import { topicsOpenAIReasoningEffort } from "../../topics";
 import type { TopicsModel } from "./model-config";
 
 const TIMEOUT_MS = 60_000;
@@ -324,9 +323,10 @@ function hasOpenAIRefusal(body: unknown): boolean {
   );
 }
 
-function topicReasoning(model: TopicsModel) {
-  if (isFirstPartyOpenAI(model))
-    return topicsOpenAIReasoningEffort(model.model);
+function topicReasoning(
+  model: TopicsModel,
+): "none" | "minimal" | "low" | undefined {
+  if (isFirstPartyOpenAI(model)) return openAIReasoning(model.model);
   /** Compatible endpoints choose their own supported reasoning settings. */
   if (
     model.adapter === LLMAdapter.OpenAI &&
@@ -350,6 +350,23 @@ function isFirstPartyOpenAI(model: TopicsModel): boolean {
   } catch {
     return false;
   }
+}
+
+/** Selects low-latency reasoning only for known models; others use their defaults. */
+function openAIReasoning(
+  model: string,
+): "none" | "minimal" | "low" | undefined {
+  const id = model.replace(/-\d{4}-\d{2}-\d{2}$/, "");
+  if (/^gpt-5(?:-(?:mini|nano))?$/.test(id)) return "minimal";
+  if (
+    /^gpt-5\.[1-6](?:-(?:mini|nano|luna|sol|terra))?$/.test(id) ||
+    id === "gpt-6-luna" ||
+    id === "gpt-6-sol"
+  )
+    return "none";
+  // The API accepts none, but @ai-sdk/openai drops it for other GPT-6 models.
+  if (/^gpt-6(?:\.\d+)?(?:-[a-z]+)?$/.test(id)) return "low";
+  return undefined;
 }
 
 function isBedrockGPT(model: TopicsModel): boolean {
