@@ -3,8 +3,7 @@
  * Handles linked models (with external link) and unlinked models (with create form)
  */
 
-import { Badge } from "@/src/components/design-system/Badge/Badge";
-import { LinkBadge } from "@/src/components/design-system/LinkBadge/LinkBadge";
+import { Metric } from "@/src/components/design-system/Metric/Metric";
 import { UpsertModelFormDialogController } from "@/src/features/models";
 
 export function ModelBadge({
@@ -21,9 +20,9 @@ export function ModelBadge({
   // Linked model - show link to model settings
   if (internalModelId) {
     return (
-      <LinkBadge
+      <Metric
         href={`/project/${projectId}/settings/models/${internalModelId}`}
-        text={model}
+        value={model}
         title="View model details"
       />
     );
@@ -57,7 +56,7 @@ export function ModelBadge({
           className="inline-flex cursor-pointer font-mono"
           onClick={openDialog}
         >
-          <Badge color="ghost" interactive text={model} />
+          <Metric interactive value={model} />
         </button>
       )}
     </UpsertModelFormDialogController>

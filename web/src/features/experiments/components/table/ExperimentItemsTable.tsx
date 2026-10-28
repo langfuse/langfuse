@@ -1140,7 +1140,7 @@ export default function ExperimentItemsTable({
                       </span>
                       {diff && (
                         <DiffLabel
-                          variant="ghost"
+                          plain
                           diff={diff}
                           formatValue={(v) => v.toFixed(2)}
                           title={diffTitle}
@@ -1242,7 +1242,7 @@ export default function ExperimentItemsTable({
     if (!diff) return null;
     return (
       <DiffLabel
-        variant="ghost"
+        plain
         diff={diff}
         formatValue={format}
         title={describeRunComparison({

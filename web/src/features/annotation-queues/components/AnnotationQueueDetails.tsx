@@ -2,6 +2,7 @@ import { type ReactNode, useState } from "react";
 import { SearchInput } from "@/src/components/design-system/SearchInput/SearchInput";
 import { getScoreDataTypeIcon } from "@/src/features/scores";
 import { Badge } from "@/src/components/design-system/Badge/Badge";
+import { Metric } from "@/src/components/design-system/Metric/Metric";
 import { type ScoreConfigDomain } from "@langfuse/shared";
 
 type ScoreField = Pick<
@@ -70,7 +71,7 @@ export function AnnotationQueueDetails({
           <div className="flex items-center justify-between gap-2">
             <div className="flex min-w-0 items-center gap-2">
               <h3 className="text-xs font-bold">Score configs</h3>
-              <Badge text={String(scoreConfigs.length)} color="ghost" />
+              <Metric value={String(scoreConfigs.length)} />
             </div>
           </div>
           {editAction}

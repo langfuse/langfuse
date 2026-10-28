@@ -1,6 +1,6 @@
-import { Badge } from "@/src/components/design-system/Badge/Badge";
+import { Metric } from "@/src/components/design-system/Metric/Metric";
 import { formatIntervalSeconds } from "@/src/utils/dates";
 
 export function LatencyBadge({ latencySeconds }: { latencySeconds: number }) {
-  return <Badge color="ghost" text={formatIntervalSeconds(latencySeconds)} />;
+  return <Metric value={formatIntervalSeconds(latencySeconds)} />;
 }

@@ -1,8 +1,9 @@
 import React from "react";
-import { ArrowUpRight, ExternalLinkIcon, TriangleAlert } from "@langfuse/icons";
+import { ExternalLinkIcon, TriangleAlert } from "@langfuse/icons";
 import { expect } from "storybook/test";
 
 import preview from "../../../../.storybook/preview";
+import { Metric } from "../Metric/Metric";
 import { Badge } from "./Badge";
 
 type ComponentProps = React.ComponentProps<typeof Badge>;
@@ -17,7 +18,6 @@ const meta = preview.meta({
 
 const colorFamily = {
   outline: "Neutral",
-  ghost: "Neutral",
   filled: "Neutral",
   inverted: "Neutral",
   error: "Status",
@@ -50,11 +50,7 @@ export const WithDescenders = meta.story({
   },
   render: () => (
     <div className="flex flex-wrap items-center gap-1.5">
-      <Badge
-        text="gpt-5"
-        trailingIcon={ExternalLinkIcon}
-        trailingIconTone="link"
-      />
+      <Badge text="gpt-5" trailingIcon={ExternalLinkIcon} />
       <Badge
         text="Prompt: langfuse-docs-assistant-chat - v27"
         trailingIcon={ExternalLinkIcon}
@@ -80,25 +76,6 @@ export const Small = meta.story({
 
 export const Large = meta.story({
   args: { text: "# 16", size: "lg", color: "inverted" },
-});
-
-export const GhostInteractive = meta.story({
-  args: {
-    color: "ghost",
-    interactive: true,
-    label: "cost",
-    text: "$0.0042",
-  },
-});
-
-export const GhostWarning = meta.story({
-  args: {
-    color: "ghost",
-    leadingIconTone: "warning",
-    interactive: true,
-    leadingIcon: TriangleAlert,
-    text: "no cost",
-  },
 });
 
 export const VariantMatrix = meta.story({
@@ -133,23 +110,18 @@ export const InContext = meta.story({
   render: () => {
     const rows: { title: string; badges: React.ReactNode }[] = [
       {
-        title: "Header metrics: ghost",
+        title: "Header metrics and links: Metric (not a Badge)",
         badges: (
           <>
-            <Badge color="ghost" label="latency" text="0.71s" />
-            <Badge color="ghost" text="$0.0042" />
-            <Badge
-              color="ghost"
-              leadingIcon={TriangleAlert}
-              leadingIconTone="warning"
-              text="no cost"
+            <Metric label="latency" value="0.71s" />
+            <Metric value="$0.0042" />
+            <Metric
+              icon={TriangleAlert}
+              iconTone="warning"
+              interactive
+              value="no cost"
             />
-            <Badge
-              color="ghost"
-              text="session"
-              trailingIcon={ArrowUpRight}
-              trailingIconTone="link"
-            />
+            <Metric href="#" value="session" />
           </>
         ),
       },

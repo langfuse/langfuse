@@ -24,7 +24,6 @@ const badgeVariants = cva(
        */
       color: {
         outline: "border-border bg-transparent text-foreground-secondary",
-        ghost: "border-0 bg-transparent px-0 text-foreground-secondary",
         /** Translucent, so the chip stays visible on muted, hovered and selected rows. */
         filled:
           "border-transparent bg-foreground/5 text-foreground-secondary dark:bg-foreground/10",
@@ -116,28 +115,16 @@ export function BadgeShell({
   );
 }
 
-type BadgeColor = NonNullable<BadgeShellProps["color"]>;
-
-type BadgeProps = Omit<BadgeShellProps, "asChild" | "children" | "color"> & {
+type BadgeProps = Omit<BadgeShellProps, "asChild" | "children"> & {
   text: string;
-  /** Key shown muted before the value, e.g. `latency` before `0.71s`. */
+  /** Key shown muted before the value, e.g. `env` before `production`. */
   label?: string;
   leadingIcon?: IconComponent;
   trailingIcon?: IconComponent;
-  /** Link badges tint the arrow and underline the text on hover. */
-  trailingIconTone?: "default" | "link";
-} & (
-    | {
-        color: "ghost";
-        /** `warning` tints only the leading icon, e.g. a "no cost" badge. */
-        leadingIconTone?: "default" | "warning";
-      }
-    | { color?: Exclude<BadgeColor, "ghost">; leadingIconTone?: never }
-  );
+};
 
 /**
  * Pick the colour by the badge's job:
- * - `ghost`: scan or follow. Header metrics and links (latency, cost, session, user).
  * - `outline` (default): read. Attributes such as environment, release, version.
  * - `filled`: data chips. Scores, tags, counts.
  * - `inverted`: one strong marker per surface, e.g. a version number next to a title.
@@ -145,7 +132,8 @@ type BadgeProps = Omit<BadgeShellProps, "asChild" | "children" | "color"> & {
  * - Category hues (`violet`, `blue`, `teal`, `green`, `amber`, `pink`): tell
  *   categories apart, e.g. score levels and topics.
  *
- * Links use `LinkBadge`. Full guidance with examples: `Badge.mdx` (Storybook "Guidance").
+ * Header metrics and links use `Metric`, not `Badge`. Full guidance with
+ * examples: `Badge.mdx` (Storybook "Guidance").
  */
 export function Badge({
   color,
@@ -155,22 +143,12 @@ export function Badge({
   interactive,
   shouldWrap,
   leadingIcon: LeadingIcon,
-  leadingIconTone = "default",
   trailingIcon: TrailingIcon,
-  trailingIconTone = "default",
   ...props
 }: BadgeProps) {
-  const warningIcon = leadingIconTone === "warning";
   return (
     <BadgeShell color={color} shouldWrap={shouldWrap} {...props}>
-      {LeadingIcon && (
-        <LeadingIcon
-          aria-hidden
-          size="sm"
-          color={warningIcon ? "inherit" : "tertiary"}
-          __rawClassName={warningIcon ? "text-dark-yellow" : undefined}
-        />
-      )}
+      {LeadingIcon && <LeadingIcon aria-hidden size="sm" color="tertiary" />}
       {label && <span className="shrink-0 py-0.5">{label}:</span>}
       <span
         className={cn(
@@ -181,21 +159,12 @@ export function Badge({
           interactive
             ? "underline-dotted overflow-clip"
             : "overflow-x-clip overflow-y-visible",
-          trailingIconTone === "link" &&
-            "underline-offset-2 group-hover/badge:underline",
         )}
         title={title ?? (interactive ? undefined : text)}
       >
         {text}
       </span>
-      {TrailingIcon && (
-        <TrailingIcon
-          aria-hidden
-          size="sm"
-          color="tertiary"
-          __rawClassName={trailingIconTone === "link" ? "-ml-0.5" : undefined}
-        />
-      )}
+      {TrailingIcon && <TrailingIcon aria-hidden size="sm" color="tertiary" />}
     </BadgeShell>
   );
 }

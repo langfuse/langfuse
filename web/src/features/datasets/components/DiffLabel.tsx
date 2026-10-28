@@ -1,9 +1,9 @@
 import { Badge, BadgeShell } from "@/src/components/design-system/Badge/Badge";
+import { Metric } from "@/src/components/design-system/Metric/Metric";
 import {
   type CategoricalDiff,
   type NumericDiff,
 } from "@/src/features/datasets/lib/calculateBaselineDiff";
-import { type ComponentProps } from "react";
 
 const getColor = (direction: "+" | "-", preferNegativeDirection: boolean) => {
   if (preferNegativeDirection) {
@@ -21,7 +21,7 @@ export function DiffLabel({
   formatValue,
   preferNegativeDiff = false,
   title,
-  variant,
+  plain = false,
 }: {
   diff: NumericDiff | CategoricalDiff;
   formatValue: (value: number) => string;
@@ -32,20 +32,26 @@ export function DiffLabel({
    * (`describeRunComparison`). Falls back to the chip's own text.
    */
   title?: string;
-  variant?: ComponentProps<typeof Badge>["color"];
+  /** Borderless and uncoloured, for dense tables that mark the direction elsewhere. */
+  plain?: boolean;
 }) {
   if (diff.type === "NUMERIC") {
+    const value = `${diff.direction}${formatValue(diff.absoluteDifference)}`;
     // A number never truncates or wraps, so it carries no native tooltip
     // unless the caller names what the chip means.
+    if (plain) {
+      return (
+        <Metric title={title}>
+          <span className="whitespace-nowrap">{value}</span>
+        </Metric>
+      );
+    }
     return (
       <BadgeShell
-        color={variant ?? getColor(diff.direction, preferNegativeDiff)}
+        color={getColor(diff.direction, preferNegativeDiff)}
         title={title}
       >
-        <span className="whitespace-nowrap">
-          {diff.direction}
-          {formatValue(diff.absoluteDifference)}
-        </span>
+        <span className="whitespace-nowrap">{value}</span>
       </BadgeShell>
     );
   }
@@ -55,8 +61,7 @@ export function DiffLabel({
     const move = diff.from && diff.to ? `${diff.from} → ${diff.to}` : "Varies";
     // A named move can be longer than the cell it sits in; the badge
     // truncates it and keeps the full move on hover.
-    return (
-      <Badge color={variant ?? "warning"} text={move} title={title ?? move} />
-    );
+    if (plain) return <Metric value={move} title={title ?? move} />;
+    return <Badge color="warning" text={move} title={title ?? move} />;
   }
 }

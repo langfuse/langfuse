@@ -3,7 +3,7 @@
 
 import { TriangleAlert } from "@langfuse/icons";
 
-import { Badge } from "@/src/components/design-system/Badge/Badge";
+import { Metric } from "@/src/components/design-system/Metric/Metric";
 import { CustomTooltip } from "@/src/components/design-system/CustomTooltip/CustomTooltip";
 import { TextLink } from "@/src/components/design-system/TextLink/TextLink";
 import {
@@ -38,9 +38,8 @@ export function CostBadge(props: CostBadgeProps) {
   const { totalCost, costDetails, priceSource, costSource } = props;
   if (!hasBreakdown(costDetails)) {
     return (
-      <Badge
-        color="ghost"
-        text={formatMetricCost(totalCost)}
+      <Metric
+        value={formatMetricCost(totalCost)}
         title={`exact $${totalCost.toFixed(6)}`}
       />
     );
@@ -52,7 +51,7 @@ export function CostBadge(props: CostBadgeProps) {
       priceSource={priceSource}
       costSource={costSource}
     >
-      <Badge color="ghost" interactive text={formatMetricCost(totalCost)} />
+      <Metric interactive value={formatMetricCost(totalCost)} />
     </BreakdownTooltip>
   );
 }
@@ -83,12 +82,11 @@ function MissingCostBadge({ projectId }: { projectId: string }) {
     >
       {({ getTriggerProps }) => (
         <span {...getTriggerProps()} className="inline-flex" tabIndex={0}>
-          <Badge
-            color="ghost"
+          <Metric
             interactive
-            leadingIcon={TriangleAlert}
-            leadingIconTone="warning"
-            text="no cost"
+            icon={TriangleAlert}
+            iconTone="warning"
+            value="no cost"
           />
         </span>
       )}
@@ -110,12 +108,12 @@ export function UsageBadge({
   const tokenText = formatMetricTokens(totalUsage);
 
   if (!hasBreakdown(usageDetails)) {
-    return <Badge color="ghost" text={tokenText} />;
+    return <Metric value={tokenText} />;
   }
 
   return (
     <BreakdownTooltip details={usageDetails} isCost={false}>
-      <Badge color="ghost" interactive text={tokenText} />
+      <Metric interactive value={tokenText} />
     </BreakdownTooltip>
   );
 }

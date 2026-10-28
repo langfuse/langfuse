@@ -6,6 +6,7 @@ import { EmptyValue } from "@/src/components/design-system/table/components/Empt
 import { EMPTY_VALUE_PLACEHOLDER } from "@/src/components/design-system/table/constants";
 import { ConnectedIOTableCell } from "@/src/components/table/ConnectedIOTableCell";
 import { Badge } from "@/src/components/design-system/Badge/Badge";
+import { Metric } from "@/src/components/design-system/Metric/Metric";
 import {
   type ScoreAggregate,
   type AggregatedScoreData,
@@ -275,7 +276,7 @@ const ScoreItem = ({
             )}
             {diff?.type === "NUMERIC" && (
               <DiffLabel
-                variant="ghost"
+                plain
                 diff={diff}
                 formatValue={(value) => value.toFixed(2)}
               />
@@ -358,7 +359,7 @@ const CellMetadataFooter = ({
               )}
               {data.latencyDiff && (
                 <DiffLabel
-                  variant="ghost"
+                  plain
                   diff={data.latencyDiff}
                   preferNegativeDiff
                   formatValue={formatLatency}
@@ -381,7 +382,7 @@ const CellMetadataFooter = ({
             )}
             {data.totalCostDiff && (
               <DiffLabel
-                variant="ghost"
+                plain
                 diff={data.totalCostDiff}
                 preferNegativeDiff
                 formatValue={formatCost}
@@ -394,7 +395,7 @@ const CellMetadataFooter = ({
         <div className="flex items-center justify-between gap-2">
           <span className="text-muted-foreground">Status</span>
           <div className={valueColumnsClass(data.showBaselineDelta)}>
-            <Badge color="ghost" text={data.level} />
+            <Metric value={data.level} />
           </div>
         </div>
       )}

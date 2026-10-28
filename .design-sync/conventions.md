@@ -20,7 +20,7 @@ Dark mode: pass `theme="dark"` - `<LangfuseProvider theme="dark">` - so the `dar
 - Compound components hang off the parent: `Alert.Title`/`Alert.Description`, `Tabs.List`/`Tabs.Trigger`/`Tabs.Content`.
 - Booleans are `is*`/`should*` or plain (`loading`, `disabled`); components never carry outer margin - spacing is the parent's job.
 - Prefer a library component over hand-rolled markup: `Button`, `IconButton`, `TextLink`, `Input`, `SearchInput`, `SelectInput`, `Checkbox`, `Switch`, `Tabs`, `Dialog` + `DialogController`, `Tooltip`, `Badge`, `Tag`, `Alert`, `Callout`, `StatusMessage`, `Codeblock`, `Table`, charts (`LineChart`, `BarChart`, `AreaChart`, `PieChart`, ...).
-- `Badge` colour = the badge's job: `ghost` header metrics and links, `outline` attributes, `filled` scores/tags/counts, `inverted` one strong marker, `error`/`warning`/`success`/`info` states, `<hue>Tint` categories (score levels, topics). Values in `font="mono"`. Full table: the Badge "Guidance" docs page (`Badge.mdx`).
+- Header metrics and links (latency, cost, session, user) are `Metric`, not `Badge`. `Badge` colour = the badge's job: `outline` attributes, `filled` scores/tags/counts, `inverted` one strong marker, `error`/`warning`/`success`/`info` states, `<hue>Tint` categories (score levels, topics). Values in `font="mono"`. Full table: the Badge "Guidance" docs page (`Badge.mdx`).
 - Icons are typed `@langfuse/icons` wrappers on `window.LangfuseDS.LucideIcons`: `const { Plus, Trash2 } = window.LangfuseDS.LucideIcons;` then `<IconButton icon={Trash2} ... />` / `<Button icon={Plus} ... />`. For standalone icons, use semantic `size` and `color` props, not raw Lucide sizes, colors, `className`, or `style`. Never draw inline SVGs or use emoji.
 
 ## App components (Playground group)

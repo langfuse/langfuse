@@ -1,4 +1,4 @@
-import { Badge } from "@/src/components/design-system/Badge/Badge";
+import { Metric } from "@/src/components/design-system/Metric/Metric";
 import { formatIntervalSeconds } from "@/src/utils/dates";
 
 export function TimeToFirstTokenBadge({
@@ -7,10 +7,6 @@ export function TimeToFirstTokenBadge({
   timeToFirstToken: number;
 }) {
   return (
-    <Badge
-      color="ghost"
-      label="ttft"
-      text={formatIntervalSeconds(timeToFirstToken)}
-    />
+    <Metric label="ttft" value={formatIntervalSeconds(timeToFirstToken)} />
   );
 }
