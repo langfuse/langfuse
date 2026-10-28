@@ -8,6 +8,10 @@ import type {
   DatasetRunItemRecordInsertType,
   EventRecordInsertType,
 } from "@langfuse/shared/src/server";
+import type {
+  TopicAssignmentRecordInsertType,
+  TopicFacetSummaryRecordInsertType,
+} from "@langfuse/shared/topics/server";
 
 export enum TableName {
   Traces = "traces",
@@ -18,6 +22,8 @@ export enum TableName {
   BlobStorageFileLog = "blob_storage_file_log",
   DatasetRunItems = "dataset_run_items_rmt",
   EventsFull = "events_full", // Primary write target - MV auto-populates events_core
+  TopicFacetSummaries = "topic_facet_summaries",
+  TopicAssignments = "topic_assignments",
 }
 
 export type RecordInsertType<T extends TableName> = T extends TableName.Scores
@@ -36,4 +42,8 @@ export type RecordInsertType<T extends TableName> = T extends TableName.Scores
               ? DatasetRunItemRecordInsertType
               : T extends TableName.EventsFull
                 ? EventRecordInsertType
-                : never;
+                : T extends TableName.TopicFacetSummaries
+                  ? TopicFacetSummaryRecordInsertType
+                  : T extends TableName.TopicAssignments
+                    ? TopicAssignmentRecordInsertType
+                    : never;

@@ -9,11 +9,35 @@ const DECIMAL_64_12_LIMIT = new Decimal("1e6");
 const DECIMAL_64_12_MAX_NUM = 999_999.999_999;
 const DECIMAL_64_12_MIN_NUM = -DECIMAL_64_12_MAX_NUM;
 
+/** Identifies a row in logs and dead-letter reports. Topics rows have no `id` column. */
+export function recordIdentity(record: RecordInsertType<TableName>): {
+  project_id: string;
+  trace_id: string | null | undefined;
+  id: string;
+} {
+  if ("id" in record) {
+    return {
+      project_id: record.project_id,
+      trace_id:
+        ("trace_id" in record ? record.trace_id : undefined) ?? record.id,
+      id: record.id,
+    };
+  }
+  return {
+    project_id: record.project_id,
+    trace_id: record.trace_id || null,
+    id: `${record.facet_id}:${record.facet_version}:${record.trace_id || record.session_id}`,
+  };
+}
+
 export function truncateOversizedRecord<
   Row extends RecordInsertType<TableName>,
 >(tableName: TableName, record: Row): Row {
   const maxFieldSize = 1024 * 1024; // 1MB per field as safety margin
   const truncationMessage = "[TRUNCATED: Field exceeded size limit]";
+
+  // Topics rows hold bounded model output; their `metadata` is a JSON string, not a map.
+  if (!("id" in record)) return record;
 
   // Helper function to safely truncate string fields
   const truncateField = (value: string | null | undefined): string | null => {
@@ -127,12 +151,16 @@ export function clampDecimal64Fields<Row extends RecordInsertType<TableName>>(
   tableName: TableName,
   record: Row,
 ): Row {
-  const ctx = { recordId: record.id, projectId: record.project_id };
+  const ctx = {
+    recordId: recordIdentity(record).id,
+    projectId: record.project_id,
+  };
 
   switch (tableName) {
     case TableName.Observations:
     case TableName.ObservationsBatchStaging:
-    case TableName.EventsFull: {
+    case TableName.EventsFull:
+    case TableName.TopicFacetSummaries: {
       if ("provided_cost_details" in record) {
         record.provided_cost_details = clampDecimal64Map(
           record.provided_cost_details,
