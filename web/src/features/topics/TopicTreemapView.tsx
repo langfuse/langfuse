@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { type DataTablePeekViewProps } from "@/src/components/table/peek";
+import { cn } from "@/src/utils/tailwind";
 import { TopicsEmptyState } from "./TopicsEmptyState";
 import { type Facet } from "./facet-topics";
 import {
@@ -15,6 +16,10 @@ type TopicTreemapViewProps = {
   peekView: DataTablePeekViewProps;
   onGenerateTopics: () => void;
   canGenerateTopics: boolean;
+  /** Treemap left, traces right on wide screens. */
+  sideBySide?: boolean;
+  /** Applied to the trace list only when side by side, so the peek matches its width. */
+  tracePanelRef?: (element: HTMLElement | null) => void;
 };
 
 export function TopicTreemapView({
@@ -23,9 +28,22 @@ export function TopicTreemapView({
   peekView,
   onGenerateTopics,
   canGenerateTopics,
+  sideBySide = false,
+  tracePanelRef,
 }: TopicTreemapViewProps) {
   const [selectedTopicId, setSelectedTopicId] = useState<string | null>(null);
-  if (facet.topics.length === 0) {
+  const { topics, total } = prepareTopicDisplay(facet, "treemap");
+  const selected =
+    topics.find((topic) => topic.id === selectedTopicId) ?? topics[0];
+  const selectedRowTopicId =
+    selected && selected.id !== UNASSIGNED_TOPIC_ID ? selected.id : null;
+  // Stable per topic so the list keeps its loaded chunks across re-renders.
+  const rows = useMemo(
+    () =>
+      facet.rows.filter((row) => (row.topicId ?? null) === selectedRowTopicId),
+    [facet.rows, selectedRowTopicId],
+  );
+  if (facet.topics.length === 0 || !selected) {
     return (
       <TopicsEmptyState
         onGenerateTopics={onGenerateTopics}
@@ -33,17 +51,19 @@ export function TopicTreemapView({
       />
     );
   }
-  const { topics, total } = prepareTopicDisplay(facet, "treemap");
-  const selected =
-    topics.find((topic) => topic.id === selectedTopicId) ?? topics[0];
-  const selectedRowTopicId =
-    selected.id === UNASSIGNED_TOPIC_ID ? null : selected.id;
-  const rows = facet.rows.filter(
-    (row) => (row.topicId ?? null) === selectedRowTopicId,
-  );
   return (
-    <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-      <div className="m-4 flex min-h-48 shrink-0 basis-1/2">
+    <div
+      className={cn(
+        "flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden",
+        sideBySide && "lg:flex-row",
+      )}
+    >
+      <div
+        className={cn(
+          "m-4 flex min-h-48 shrink-0 basis-1/2",
+          sideBySide && "lg:shrink lg:basis-3/5",
+        )}
+      >
         <TopicTreemap
           total={total}
           topics={topics}
@@ -61,7 +81,8 @@ export function TopicTreemapView({
         swatchColor={selected.color}
         rows={rows}
         peekView={peekView}
-        divider="top"
+        tracePanelRef={sideBySide ? tracePanelRef : undefined}
+        divider={sideBySide ? "side" : "top"}
       />
     </div>
   );

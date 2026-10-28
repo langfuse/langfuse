@@ -1,8 +1,10 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { type RouterOutputs } from "@/src/utils/api";
 import { useMemo, useState } from "react";
 import { type DataTablePeekViewProps } from "@/src/components/table/peek";
+import { useElementSize } from "@/src/hooks/useElementSize";
 import { TopicsEmptyState } from "./TopicsEmptyState";
-import { type Facet, allTopicsLabel } from "./facet-topics";
+import { type Facet, allTopicsLabel, orderedFacetTopics } from "./facet-topics";
 import { prepareTopicGrid } from "./prepare-topic-grid";
 import { TopicGrid } from "./TopicGrid";
 import { TopicTraceList } from "./TopicTraceList";
@@ -21,6 +23,11 @@ type TopicGridViewProps = {
   canGenerateTopics: boolean;
 };
 
+type TopicGridContentProps = Omit<
+  TopicGridViewProps,
+  "onGenerateTopics" | "canGenerateTopics"
+>;
+
 function gridMessage(mapResult: TopicGridViewProps["mapResult"]) {
   if (mapResult.error) return `Grid could not load: ${mapResult.error.message}`;
   if (!mapResult.data) return "Loading grid…";
@@ -33,23 +40,11 @@ function gridMessage(mapResult: TopicGridViewProps["mapResult"]) {
 }
 
 export function TopicGridView({
-  projectId,
-  facet,
-  mapResult,
-  onOpenTrace,
-  peekView,
-  tracePanelRef,
   onGenerateTopics,
   canGenerateTopics,
+  ...props
 }: TopicGridViewProps) {
-  const [selectedTopicId, setSelectedTopicId] = useState<string | null>(null);
-  const { topics, points, perDot, rowsById } = useMemo(
-    () => prepareTopicGrid(facet, mapResult.data),
-    [facet, mapResult.data],
-  );
-  const selectedTopic =
-    topics.find((topic) => topic.id === selectedTopicId) ?? null;
-  if (topics.length === 0) {
+  if (orderedFacetTopics(props.facet).length === 0) {
     return (
       <TopicsEmptyState
         onGenerateTopics={onGenerateTopics}
@@ -57,15 +52,41 @@ export function TopicGridView({
       />
     );
   }
+  return <TopicGridContent {...props} />;
+}
+
+/** Mounts once topics exist, so the trace list header is there to measure from the first render. */
+function TopicGridContent({
+  projectId,
+  facet,
+  mapResult,
+  onOpenTrace,
+  peekView,
+  tracePanelRef,
+}: TopicGridContentProps) {
+  const [selectedTopicId, setSelectedTopicId] = useState<string | null>(null);
+  const [headerRef, headerSize] = useElementSize<HTMLDivElement>();
+  const { topics, points, perDot, rowsById } = useMemo(
+    () => prepareTopicGrid(facet, mapResult.data),
+    [facet, mapResult.data],
+  );
+  const selectedTopic =
+    topics.find((topic) => topic.id === selectedTopicId) ?? null;
+  const selectedId = selectedTopic?.id ?? null;
+  // Stable per topic so the list keeps its loaded chunks across re-renders.
+  const listRows = useMemo(
+    () =>
+      selectedId
+        ? facet.rows.filter((row) => row.topicId === selectedId)
+        : facet.rows,
+    [facet.rows, selectedId],
+  );
   const selectedIndex = selectedTopic
     ? topics.findIndex((topic) => topic.id === selectedTopic.id)
     : null;
   const message = facet.map
     ? gridMessage(mapResult)
     : "No map published for this facet.";
-  const listRows = selectedTopic
-    ? facet.rows.filter((row) => row.topicId === selectedTopic.id)
-    : facet.rows;
 
   return (
     <div className="flex h-full min-h-0 min-w-0 flex-col lg:flex-row">
@@ -84,6 +105,7 @@ export function TopicGridView({
             selectedIndex={selectedIndex}
             onSelectTopic={setSelectedTopicId}
             onSelectTrace={onOpenTrace}
+            barHeight={headerSize?.height}
           />
         )}
       </section>
@@ -97,6 +119,7 @@ export function TopicGridView({
         rows={listRows}
         peekView={peekView}
         tracePanelRef={tracePanelRef}
+        headerRef={headerRef}
         divider="side"
       />
     </div>

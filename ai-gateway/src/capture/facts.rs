@@ -51,6 +51,10 @@ pub(crate) struct InferenceFacts {
     pub first_byte_ms: Option<u128>,
     pub completion_start_ms: Option<u128>,
     pub http_status: Option<u16>,
+    pub retry_after_ms: Option<u64>,
+    pub upstream_model: Option<String>,
+    pub request_body_bytes: usize,
+    pub response_body_bytes: u64,
     pub metadata: Value,
     pub outcome: RelayOutcome,
     #[serde(flatten)]

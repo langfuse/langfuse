@@ -17,7 +17,8 @@ type PlanWithoutSpendAlerts =
   | "oss"
   | "cloud:hobby"
   | "self-hosted:pro"
-  | "self-hosted:enterprise";
+  | "self-hosted:enterprise"
+  | "self-hosted:gov";
 
 type PlanWithSpendAlerts = Exclude<Plan, PlanWithoutSpendAlerts>;
 

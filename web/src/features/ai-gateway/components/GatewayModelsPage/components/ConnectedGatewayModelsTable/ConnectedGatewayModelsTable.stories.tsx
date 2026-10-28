@@ -1,3 +1,5 @@
+import { fn } from "storybook/test";
+
 import preview from "@/.storybook/preview";
 import { ConnectedGatewayModelsTable } from "./ConnectedGatewayModelsTable";
 
@@ -37,4 +39,17 @@ export const Default = meta.story({
     isLoading: false,
     syncError: false,
   },
+});
+
+export const NoProviders = Default.extend({
+  args: {
+    models: [],
+    providerCount: 0,
+    hasProviders: false,
+    onAddProvider: fn(),
+  },
+});
+
+export const NoEnabledModels = Default.extend({
+  args: { models: [], onAddProvider: fn() },
 });

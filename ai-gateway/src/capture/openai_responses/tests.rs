@@ -765,7 +765,7 @@ async fn client_compression_preferences_do_not_disable_capture() {
         assert!(metadata.get("output_complete").is_none());
         assert!(metadata.get("provider_status").is_none());
         assert!(metadata.get("native_usage").is_none());
-        assert_eq!(metadata["langfuse.gateway.response.id"], "resp-1");
+        assert_eq!(metadata["langfuse.gateway.upstream.response.id"], "resp-1");
         assert!(
             uploaded_attribute(&upload, "langfuse.observation.usage_details")["input_tokens"]
                 .is_number()
@@ -858,7 +858,7 @@ async fn codex_body_metadata_reaches_the_generation_without_agent_headers() {
     assert_eq!(metadata["agent.request_kind"], "turn");
     assert_eq!(metadata["agent.sandbox_mode"], "workspace-write");
     assert!(metadata.get("agent.tool_namespaces_info").is_none());
-    assert_eq!(metadata["langfuse.gateway.response.id"], "resp-1");
+    assert_eq!(metadata["langfuse.gateway.upstream.response.id"], "resp-1");
     assert_eq!(
         uploaded_attribute(&upload, "langfuse.observation.input"),
         json!({"input": "hello"})

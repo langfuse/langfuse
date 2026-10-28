@@ -28,6 +28,7 @@ import {
   createTraceScore,
   getUsersFromEventsTable,
   getUsersCountFromEventsTable,
+  getTracingCountsByProjectInCreationIntervalFromEventsTable,
   type EventFilterOptionColumn,
 } from "@langfuse/shared/src/server";
 import {
@@ -6027,6 +6028,72 @@ describe("Clickhouse Events Repository Test", () => {
       expect(traceScoreCategoryLabels).toContain(traceCategoryName);
       expect(traceScoreCategoryLabels).not.toContain(observationCategoryName);
     });
+  });
+});
+
+describe("tracing counts by project on the events table", () => {
+  it("counts traces and observations created in the interval, excluding synthetic trace rows", async () => {
+    const projectA = randomUUID();
+    const projectB = randomUUID();
+    const legacyTraceId = randomUUID();
+    const otelTraceId = randomUUID();
+    const start = new Date("2026-01-10T00:00:00.000Z");
+    const end = new Date("2026-01-10T12:00:00.000Z");
+    const inWindow = new Date("2026-01-10T06:00:00.000Z");
+
+    const event = (
+      overrides: Partial<Parameters<typeof createEvent>[0]> & {
+        project_id: string;
+        trace_id: string;
+      },
+    ) => {
+      const spanId = overrides.span_id ?? randomUUID();
+      return createEvent({
+        created_at: inWindow,
+        ...overrides,
+        span_id: spanId,
+        id: spanId,
+      });
+    };
+
+    await createEventsCh([
+      // Ingestion-API trace: synthetic `t-` root row plus two observations.
+      event({
+        project_id: projectA,
+        trace_id: legacyTraceId,
+        span_id: `t-${legacyTraceId}`,
+        type: "SPAN",
+      }),
+      event({ project_id: projectA, trace_id: legacyTraceId }),
+      event({ project_id: projectA, trace_id: legacyTraceId }),
+      // OTel-native trace: real root span plus one child, no synthetic row.
+      event({ project_id: projectA, trace_id: otelTraceId }),
+      event({ project_id: projectA, trace_id: otelTraceId }),
+      // Created on the interval bounds: start is inclusive, end is exclusive.
+      event({
+        project_id: projectA,
+        trace_id: randomUUID(),
+        created_at: start,
+      }),
+      event({ project_id: projectA, trace_id: randomUUID(), created_at: end }),
+      event({ project_id: projectB, trace_id: randomUUID() }),
+    ]);
+
+    const counts =
+      await getTracingCountsByProjectInCreationIntervalFromEventsTable({
+        start,
+        end,
+        projectIds: [projectA, projectB],
+      });
+
+    expect(
+      counts.sort((a, b) => a.projectId.localeCompare(b.projectId)),
+    ).toEqual(
+      [
+        { projectId: projectA, traces: 3, observations: 5 },
+        { projectId: projectB, traces: 1, observations: 1 },
+      ].sort((a, b) => a.projectId.localeCompare(b.projectId)),
+    );
   });
 });
 

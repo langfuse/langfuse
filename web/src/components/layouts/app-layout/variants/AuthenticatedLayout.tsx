@@ -442,7 +442,9 @@ function ConnectedAppSidebar({
   });
 
   const selfHostedPlan =
-    plan === "self-hosted:pro" || plan === "self-hosted:enterprise"
+    plan === "self-hosted:pro" ||
+    plan === "self-hosted:enterprise" ||
+    plan === "self-hosted:gov"
       ? plan
       : "oss";
 

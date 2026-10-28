@@ -185,12 +185,12 @@ describe("gateway metadata", () => {
           "langfuse.observation.input": '[{"role":"user","content":"Hi"}]',
           "langfuse.observation.output": '[{"type":"message","content":[]}]',
           "langfuse.observation.metadata": JSON.stringify({
-            "langfuse.gateway.provider.request.id": "req-test",
+            "langfuse.gateway.upstream.response.id": "resp-test",
             "langfuse.gateway.request.id": gatewayRequestIds.request,
             "langfuse.gateway.client.request.id": gatewayRequestIds.client,
             "langfuse.gateway.upstream.request.id": gatewayRequestIds.upstream,
           }),
-          "langfuse.observation.metadata.langfuse.gateway.api-key.id":
+          "langfuse.observation.metadata.langfuse.gateway.api_key.id":
             "key-test",
           "custom.attribute": "keep-custom",
           "langfuse.observation.custom": "keep-unknown",
@@ -235,11 +235,11 @@ describe("gateway metadata", () => {
             }),
       });
       expect(observation?.metadata).toEqual({
-        "langfuse.gateway.provider.request.id": "req-test",
+        "langfuse.gateway.upstream.response.id": "resp-test",
         "langfuse.gateway.request.id": gatewayRequestIds.request,
         "langfuse.gateway.client.request.id": gatewayRequestIds.client,
         "langfuse.gateway.upstream.request.id": gatewayRequestIds.upstream,
-        "langfuse.gateway.api-key.id": "key-test",
+        "langfuse.gateway.api_key.id": "key-test",
         attributes: {
           ...(scope === "langfuse-ai-gateway" ? {} : canonicalAttributes),
           "custom.attribute": "keep-custom",
