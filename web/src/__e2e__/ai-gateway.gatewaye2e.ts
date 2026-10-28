@@ -886,6 +886,7 @@ async function ingestTrace(
   // The payload claims another project everywhere a span can; ingestion must still
   // write only into the project named by the gateway token.
   const spoofedProjectId = `spoofed-${randomBytes(8).toString("hex")}`;
+  const gatewayKeyId = `gateway-key-${randomBytes(8).toString("hex")}`;
   const spoofedProject = {
     key: "langfuse.project.id",
     value: { stringValue: spoofedProjectId },
@@ -923,6 +924,7 @@ async function ingestTrace(
                       value: {
                         stringValue: JSON.stringify({
                           "langfuse.gateway.project.id": spoofedProjectId,
+                          "langfuse.gateway.api_key.id": gatewayKeyId,
                         }),
                       },
                     },
@@ -966,6 +968,20 @@ async function ingestTrace(
       expect(trace?.id).toBe(traceId);
       expect(observation?.id).toBe(observationId);
       await expectStoredInOneProject({ observationId, traceId });
+      const attribution = await queryClickhouse<{
+        ingestion_api_key: string;
+        service_name: string;
+      }>({
+        query: `SELECT ingestion_api_key, service_name FROM events_core
+          WHERE span_id = {observationId: String} AND trace_id = {traceId: String}`,
+        params: { observationId, traceId },
+      });
+      expect(attribution).toEqual([
+        {
+          ingestion_api_key: gatewayKeyId,
+          service_name: "langfuse-ai-gateway",
+        },
+      ]);
     },
     40_000,
     1_000,
