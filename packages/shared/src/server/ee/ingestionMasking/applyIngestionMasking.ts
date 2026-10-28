@@ -49,7 +49,7 @@ export function isIngestionMaskingEnabled(envOverride?: SharedEnv): boolean {
 
   if (!isEnterpriseLicenseAvailable(envOverride)) {
     logger.warn(
-      "Ingestion masking callback URL is configured but enterprise license is not available. Masking will be disabled. Ingestion masking requires Langfuse Cloud or a self-hosted enterprise license (langfuse_ee_*).",
+      "Ingestion masking callback URL is configured but enterprise license is not available. Masking will be disabled. Ingestion masking requires Langfuse Cloud or a self-hosted enterprise or government license (langfuse_ee_* or lf_gov_*).",
     );
     return false;
   }

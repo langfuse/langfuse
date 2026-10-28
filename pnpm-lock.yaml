@@ -57,7 +57,7 @@ overrides:
   '@types/react-dom': 19.2.3
   fast-xml-builder: 1.1.7
   glob: ^10.5.0
-  qs: 6.16.1
+  qs: 6.17.0
   path-to-regexp@0.1.12: 0.1.13
   path-to-regexp@8.3.0: 8.4.0
   '@ai-sdk/provider-utils@<=4.0.32': 4.0.33
@@ -66,6 +66,7 @@ overrides:
   '@scalar/agent-chat@0.12.28>ai': 6.0.230
   '@ai-sdk/vue@3.0.33>ai': 6.0.230
   fflate@0.8.1: 0.8.3
+  '@tailwindcss/typography>postcss-selector-parser': 6.1.5
   '@ai-sdk/ui-utils>@ai-sdk/provider-utils': 2.2.8
   hono: 4.13.11
   axios: 1.20.0
@@ -10686,8 +10687,8 @@ packages:
     peerDependencies:
       postcss: 8.5.25
 
-  postcss-selector-parser@6.0.10:
-    resolution: {integrity: sha512-IQ7TZdoaqbT+LCpShg46jnZVlhWD2w6iQYAcYXfHARZ7X1t/UGhhceQDs5X0cGqKvYlHNOuv7Oa1xmb0oQuA3w==}
+  postcss-selector-parser@6.1.5:
+    resolution: {integrity: sha512-TEHFzb5KRDKaOgJ4TYE+0jyJtFbjLvkdVOu0fZ2b6MTWzoqZd4Le+61aEppWkvTlYePgOX4ATL1wsAIPMLTw6Q==}
     engines: {node: '>=4'}
 
   postcss-selector-parser@7.1.6:
@@ -10879,8 +10880,8 @@ packages:
   pure-rand@6.1.0:
     resolution: {integrity: sha512-bVWawvoZoBYpp6yIoQtQXHZjmz35RSVHnUOTefl8Vcjr8snTPY1wnpSPMWekcFwbxI6gtmT7rSYPFvz71ldiOA==}
 
-  qs@6.16.1:
-    resolution: {integrity: sha512-5Px6J7rfHBAGUhNQ3es4YzcOdBBw0SDcVtThJml4RdnKw4tKs2epA0kPZ+K8X+WiHktT93RHVcQ/3ym5aTCgtg==}
+  qs@6.17.0:
+    resolution: {integrity: sha512-5LK5BZ2XDHMvcUJaf0CQ5HL3aVgKbpklvByC7qLSxYkfE8COEEbJg5xCHWCTqzqi0Gs4Jn5Mv5v3R38W6edscA==}
     engines: {node: '>=0.6'}
 
   quansync@0.2.11:
@@ -17698,7 +17699,7 @@ snapshots:
 
   '@tailwindcss/typography@0.5.19(tailwindcss@4.2.2)':
     dependencies:
-      postcss-selector-parser: 6.0.10
+      postcss-selector-parser: 6.1.5
       tailwindcss: 4.2.2
 
   '@tanstack/query-core@5.85.1': {}
@@ -19044,7 +19045,7 @@ snapshots:
       http-errors: 2.0.1
       iconv-lite: 0.7.3
       on-finished: 2.4.1
-      qs: 6.16.1
+      qs: 6.17.0
       raw-body: 3.0.2
       type-is: 2.1.0
     transitivePeerDependencies:
@@ -20323,7 +20324,7 @@ snapshots:
       once: 1.4.0
       parseurl: 1.3.3
       proxy-addr: 2.0.8
-      qs: 6.16.1
+      qs: 6.17.0
       range-parser: 1.2.1
       router: 2.2.0(supports-color@8.1.1)
       send: 1.2.1(supports-color@8.1.1)
@@ -22915,7 +22916,7 @@ snapshots:
       postcss: 8.5.25
       postcss-selector-parser: 7.1.6
 
-  postcss-selector-parser@6.0.10:
+  postcss-selector-parser@6.1.5:
     dependencies:
       cssesc: 3.0.0
       util-deprecate: 1.0.2
@@ -23087,7 +23088,7 @@ snapshots:
 
   pure-rand@6.1.0: {}
 
-  qs@6.16.1:
+  qs@6.17.0:
     dependencies:
       es-define-property: 1.0.1
       side-channel: 1.1.1
@@ -24058,11 +24059,11 @@ snapshots:
   stripe@17.4.0:
     dependencies:
       '@types/node': 24.3.0
-      qs: 6.16.1
+      qs: 6.17.0
 
   stripe@18.5.0(@types/node@24.3.0):
     dependencies:
-      qs: 6.16.1
+      qs: 6.17.0
     optionalDependencies:
       '@types/node': 24.3.0
 

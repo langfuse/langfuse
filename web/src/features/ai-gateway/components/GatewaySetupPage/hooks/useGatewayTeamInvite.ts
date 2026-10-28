@@ -1,13 +1,12 @@
 import { toTeamInviteSentEvent } from "@/src/features/ai-gateway/fns/toTeamInviteSentEvent";
+import { useTeamRecipients } from "@/src/features/ai-gateway/hooks/useTeamRecipients";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { api, reportNonTrpcError } from "@/src/utils/api";
 
 export function useGatewayTeamInvite(organizationId: string) {
   const utils = api.useUtils();
   const capture = usePostHogClientCapture();
-  const notifiableMembersQuery = api.aiGateway.getNotifiableMembers.useQuery({
-    orgId: organizationId,
-  });
+  const recipients = useTeamRecipients(organizationId);
   const mutation = api.aiGateway.inviteTeam.useMutation();
 
   async function inviteTeam(params: {
@@ -39,7 +38,7 @@ export function useGatewayTeamInvite(organizationId: string) {
   }
 
   return {
-    notifiableMembers: notifiableMembersQuery.data,
+    recipients,
     inviteTeam,
     isInviting: mutation.isPending,
   };
