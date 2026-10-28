@@ -1,4 +1,4 @@
-/* eslint-disable @repo/no-null-render */
+/* eslint-disable @repo/no-null-render, @typescript-eslint/no-use-before-define */
 import {
   CommandDialog,
   CommandEmpty,

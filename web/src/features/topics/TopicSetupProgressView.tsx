@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { useEffect, useState } from "react";
 import { Button } from "@/src/components/design-system/Button/Button";
 import { type TopicSetupStage } from "./topic-setup-flow";

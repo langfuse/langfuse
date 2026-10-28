@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { Model, Prisma } from "../../";
 import {
   instrumentAsync,
