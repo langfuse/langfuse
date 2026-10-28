@@ -1,6 +1,6 @@
+import { AI_GATEWAY_SERVICE_NAME } from "@langfuse/shared";
 import {
   AI_GATEWAY_KEY_ID_METADATA_KEY,
-  AI_GATEWAY_SERVICE_NAME,
   isAiGatewayIngestionApiKey,
 } from "@langfuse/shared/src/server";
 

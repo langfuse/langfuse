@@ -47,9 +47,6 @@ import { defineOwnValue } from "../../utils/objects";
 
 export const AI_GATEWAY_INSTRUMENTATION_SCOPE_NAME = "langfuse-ai-gateway";
 
-/** OTel `service.name` reserved for spans the AI gateway uploads. */
-export const AI_GATEWAY_SERVICE_NAME = "langfuse-ai-gateway";
-
 const AI_GATEWAY_INGESTION_API_KEY_PREFIX = "gateway:";
 
 /** Metadata key under which the AI gateway records the caller's gateway API key id. */
