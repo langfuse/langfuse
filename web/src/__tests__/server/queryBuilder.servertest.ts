@@ -4451,7 +4451,7 @@ describe("queryBuilder", () => {
       env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN === "true" ? it : it.skip;
 
     itWithEventsTable(
-      "attributes user-tied keys to their owner and service keys to the key",
+      "attributes user-tied keys to their owner and leaves service keys out",
       async () => {
         const projectId = randomUUID();
         const gatewayEvent = (params: {
@@ -4491,9 +4491,16 @@ describe("queryBuilder", () => {
           projectId,
           {
             view: "observations",
-            dimensions: [{ field: "aiGatewayAttributedTo" }],
+            dimensions: [{ field: "aiGatewayKeyOwnerUserId" }],
             metrics: [{ measure: "count", aggregation: "count" }],
-            filters: [],
+            filters: [
+              {
+                column: "aiGatewayKeyOwnerUserId",
+                operator: "is not null",
+                value: "",
+                type: "null",
+              },
+            ],
             timeDimension: null,
             fromTimestamp: new Date(Date.now() - 86400000).toISOString(),
             toTimestamp: new Date(Date.now() + 86400000).toISOString(),
@@ -4506,11 +4513,11 @@ describe("queryBuilder", () => {
         expect(
           Object.fromEntries(
             result.map((row) => [
-              String(row["aiGatewayAttributedTo"]),
+              String(row["aiGatewayKeyOwnerUserId"]),
               Number(row["count_count"]),
             ]),
           ),
-        ).toEqual({ "user-a": 2, "service-key": 1, null: 1 });
+        ).toEqual({ "user-a": 2 });
       },
     );
   });

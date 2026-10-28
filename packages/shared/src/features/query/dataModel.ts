@@ -1340,15 +1340,15 @@ export const eventsObservationsView: ViewDeclarationType = {
       highCardinality: true,
       uiHidden: true,
     },
-    aiGatewayAttributedTo: {
+    aiGatewayKeyOwnerUserId: {
       // The span's user_id is not used: a key without an owner lets its caller
       // set any user ID. The owner ID comes from metadata the gateway writes,
       // so it outlives the key's deletion.
-      sql: `if(events_observations.service_name = '${AI_GATEWAY_SERVICE_NAME}', coalesce(nullIf(events_observations.metadata_values[indexOf(events_observations.metadata_names, '${AI_GATEWAY_KEY_OWNER_USER_ID_METADATA_KEY}')], ''), nullIf(events_observations.ingestion_api_key, '')), NULL)`,
-      alias: "aiGatewayAttributedTo",
+      sql: `if(events_observations.service_name = '${AI_GATEWAY_SERVICE_NAME}', nullIf(events_observations.metadata_values[indexOf(events_observations.metadata_names, '${AI_GATEWAY_KEY_OWNER_USER_ID_METADATA_KEY}')], ''), NULL)`,
+      alias: "aiGatewayKeyOwnerUserId",
       type: "string",
       description:
-        "Who AI Gateway usage is attributed to: the bound user of a user-tied key, otherwise the key's identifier. Empty for traffic that did not pass through the gateway.",
+        "Identifier of the user an AI Gateway key is bound to. Empty for service keys and for traffic that did not pass through the gateway.",
       highCardinality: true,
       uiHidden: true,
     },

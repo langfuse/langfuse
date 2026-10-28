@@ -15,10 +15,7 @@ export function useGatewayAnalyticsLabels(
   return useMemo(
     () => ({
       apiKeys: toLabelMap(data?.apiKeys ?? []),
-      attribution: toLabelMap([
-        ...(data?.users ?? []),
-        ...(data?.apiKeys ?? []),
-      ]),
+      users: toLabelMap(data?.users ?? []),
     }),
     [data],
   );

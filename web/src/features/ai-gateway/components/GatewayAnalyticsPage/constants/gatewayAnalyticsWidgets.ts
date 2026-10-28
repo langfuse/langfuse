@@ -54,14 +54,21 @@ export const GATEWAY_ANALYTICS_WIDGETS: readonly GatewayAnalyticsWidget[] = [
   {
     id: "cost-by-user",
     name: "Cost by user",
-    description: `Top ${BREAKDOWN_ROW_LIMIT} by cost; service keys appear as themselves`,
+    description: `Top ${BREAKDOWN_ROW_LIMIT} users by cost; service keys are excluded`,
     view: "observations",
-    dimensions: [{ field: "aiGatewayAttributedTo" }],
+    dimensions: [{ field: "aiGatewayKeyOwnerUserId" }],
     metrics: [{ measure: "totalCost", agg: "sum" }],
-    filters: [],
+    filters: [
+      {
+        column: "aiGatewayKeyOwnerUserId",
+        operator: "is not null",
+        value: "",
+        type: "null",
+      },
+    ],
     chartType: "HORIZONTAL_BAR",
     chartConfig: { type: "HORIZONTAL_BAR", row_limit: BREAKDOWN_ROW_LIMIT },
-    dimensionLabels: "attribution",
+    dimensionLabels: "users",
     size: "medium",
   },
   {
