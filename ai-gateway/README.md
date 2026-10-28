@@ -500,7 +500,7 @@ The gateway sets these generation fields directly:
 | Generation field                                              | OTLP attribute                                                                     | Value                                                                                                                                                                                                                |
 | ------------------------------------------------------------- | ---------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Model (`provided_model_name`)                                 | `langfuse.observation.model.name`                                                  | The first known of `model.response`, `model.upstream` and `model.requested` below                                                                                                                                    |
-| User ID                                                       | `user.id`                                                                          | The caller's `langfuse-user-id` header or `langfuse_user_id` baggage. Otherwise, only when the gateway starts the trace (no valid `traceparent`), the gateway key owner's user ID. The source is in `user_id_source` |
+| User ID                                                       | `user.id`                                                                          | For a gateway key bound to a user, always that user's ID; the caller's user ID is ignored, also with a `traceparent`. Otherwise the caller's `langfuse-user-id` header or `langfuse_user_id` baggage. The source is in `user_id_source` |
 | Session ID, trace name, environment, tags                     | `session.id`, `langfuse.trace.name`, `langfuse.environment`, `langfuse.trace.tags` | Caller headers, baggage or a recognized coding agent; see [Caller tracing context](#caller-tracing-context)                                                                                                          |
 | Level, status message                                         | `langfuse.observation.level`, `langfuse.observation.status_message`                | Derived from the HTTP status, provider status and relay outcome                                                                                                                                                      |
 | Model parameters, usage, input, output, completion start time | `langfuse.observation.*`                                                           | See [Response capture](#response-capture)                                                                                                                                                                            |
@@ -622,7 +622,8 @@ values remain strings. A literal `+` stays `+` in custom headers. Tags are trimm
 and deduplicated. Valid explicit headers override baggage for the same field;
 metadata merges by key with explicit entries winning. Invalid entries are ignored
 independently, and invalid overrides leave valid baggage intact. Caller metadata
-cannot replace protected gateway facts or trusted API-key attribution.
+cannot replace protected gateway facts or trusted API-key attribution. A gateway
+key bound to a user ignores the caller's `langfuse-user-id` and `langfuse_user_id`.
 
 The environment follows the SDK rule: at most 40 lowercase letters, digits, `-`
 or `_`, not starting with the reserved `langfuse` prefix. An invalid value is
