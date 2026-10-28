@@ -3613,8 +3613,7 @@ describe("automations trpc", () => {
       }
 
       it.each([
-        ["trigger", "trigger", "info"],
-        ["escalate", "trigger", "critical"],
+        ["trigger", "trigger", "critical"],
         ["resolve", "resolve", undefined],
       ] as const)(
         "sends the %s step as one %s under the project's test key",

@@ -16,19 +16,10 @@ import {
   pagerDutyClient,
   type PagerDutyAlertEvent,
   type PagerDutyRegion,
-  type PagerDutySeverity,
   type PagerDutyTestEventStep,
 } from "@langfuse/shared/pagerduty/server";
 import { getProductBaseUrl, logger } from "@langfuse/shared/src/server";
 import { env } from "@/src/env.mjs";
-
-const testEventSeverities: Record<
-  Exclude<PagerDutyTestEventStep, "resolve">,
-  PagerDutySeverity
-> = {
-  trigger: "info",
-  escalate: "critical",
-};
 
 /** throwIfPagerDutyUnavailable limits PagerDuty actions to Langfuse Cloud admins. */
 export function throwIfPagerDutyUnavailable(session: Session): void {
@@ -85,7 +76,7 @@ async function getStoredPagerDutyConfig({
   return config;
 }
 
-/** sendPagerDutyTestEvent opens, escalates or resolves the project's test alert, which is keyed by project. */
+/** sendPagerDutyTestEvent triggers or resolves the project's test alert, which is keyed by project. */
 export async function sendPagerDutyTestEvent({
   projectId,
   region,
@@ -128,7 +119,7 @@ async function resolveTestRoutingKey({
   return decrypt(existing.routingKey);
 }
 
-/** buildTestEvent resolves the test alert, or triggers it at the step's severity. */
+/** buildTestEvent resolves the test alert, or triggers it at critical severity. */
 async function buildTestEvent({
   projectId,
   routingKey,
@@ -165,7 +156,7 @@ async function buildTestEvent({
     payload: {
       summary: `[Langfuse] Test event from project ${project.name}`,
       source: `langfuse/${project.name}`,
-      severity: testEventSeverities[step],
+      severity: "critical",
       timestamp: new Date().toISOString(),
       class: "test",
       custom_details: {

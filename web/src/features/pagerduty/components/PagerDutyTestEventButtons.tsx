@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-use-before-define */
 import { useState } from "react";
-import { ArrowUp, CircleCheck, Send } from "@langfuse/icons";
+import { CircleCheck, Send } from "@langfuse/icons";
 
 import { type PagerDutyRegion } from "@langfuse/shared/pagerduty";
 import { Button } from "@/src/components/design-system/Button/Button";
@@ -9,10 +9,10 @@ import { useHasProjectAccess } from "@/src/features/rbac";
 import { api } from "@/src/utils/api";
 import {
   PagerDutyTestEventDialogController,
-  type PagerDutyTestTriggerTarget,
+  type PagerDutyTestEventTarget,
 } from "./PagerDutyTestEventDialogController";
 
-/** PagerDutyTestEventButtons opens an info test alert, then offers to escalate it to critical or resolve it. */
+/** PagerDutyTestEventButtons triggers a critical test alert, then offers to resolve it. */
 export function PagerDutyTestEventButtons({
   projectId,
   region,
@@ -40,74 +40,84 @@ export function PagerDutyTestEventButtons({
       onSent={() => setIsTestAlertOpen(true)}
     >
       {({ openDialog }) => (
-        <TestEventSteps
+        <TestEventButton
           projectId={projectId}
-          isTestAlertOpen={isTestAlertOpen}
-          disabled={isDisabled}
-          onTrigger={(step) => openDialog({ ...target, step })}
-          onResolve={() => setIsTestAlertOpen(false)}
           target={target}
+          disabled={isDisabled}
+          isTestAlertOpen={isTestAlertOpen}
+          onSend={() => openDialog(target)}
+          onResolved={() => setIsTestAlertOpen(false)}
         />
       )}
     </PagerDutyTestEventDialogController>
   );
 }
 
-/** TestEventSteps shows the send button, or the escalate and resolve buttons once the test alert is open. */
-function TestEventSteps({
+/** TestEventButton shows the send button, or the resolve button while the test alert is open. */
+function TestEventButton({
   projectId,
-  isTestAlertOpen,
-  disabled,
-  onTrigger,
-  onResolve,
   target,
+  disabled,
+  isTestAlertOpen,
+  onSend,
+  onResolved,
 }: {
   projectId: string;
-  isTestAlertOpen: boolean;
+  target: PagerDutyTestEventTarget;
   disabled: boolean;
-  onTrigger: (step: PagerDutyTestTriggerTarget["step"]) => void;
-  onResolve: () => void;
-  target: Omit<PagerDutyTestTriggerTarget, "step">;
+  isTestAlertOpen: boolean;
+  onSend: () => void;
+  onResolved: () => void;
 }) {
-  const resolveTestEvent = useResolveTestEvent(onResolve);
-
-  if (!isTestAlertOpen) {
+  if (isTestAlertOpen) {
     return (
-      <Button
-        type="button"
-        text="Send test event"
-        variant="secondary"
-        size="sm"
-        icon={Send}
+      <ResolveTestEventButton
+        projectId={projectId}
+        target={target}
         disabled={disabled}
-        onClick={() => onTrigger("trigger")}
+        onResolved={onResolved}
       />
     );
   }
+  return (
+    <Button
+      type="button"
+      text="Send test event"
+      variant="secondary"
+      size="sm"
+      icon={Send}
+      disabled={disabled}
+      onClick={onSend}
+    />
+  );
+}
+
+/** ResolveTestEventButton resolves the open test alert. */
+function ResolveTestEventButton({
+  projectId,
+  target,
+  disabled,
+  onResolved,
+}: {
+  projectId: string;
+  target: PagerDutyTestEventTarget;
+  disabled: boolean;
+  onResolved: () => void;
+}) {
+  const resolveTestEvent = useResolveTestEvent(onResolved);
 
   return (
-    <div className="flex gap-2">
-      <Button
-        type="button"
-        text="Escalate to critical"
-        variant="secondary"
-        size="sm"
-        icon={ArrowUp}
-        disabled={disabled || resolveTestEvent.isPending}
-        onClick={() => onTrigger("escalate")}
-      />
-      <Button
-        type="button"
-        text="Resolve test event"
-        variant="secondary"
-        size="sm"
-        icon={CircleCheck}
-        disabled={disabled || resolveTestEvent.isPending}
-        onClick={() =>
-          resolveTestEvent.mutate({ projectId, ...target, step: "resolve" })
-        }
-      />
-    </div>
+    <Button
+      type="button"
+      text="Resolve test event"
+      variant="secondary"
+      size="sm"
+      icon={CircleCheck}
+      disabled={disabled || resolveTestEvent.isPending}
+      onClick={() =>
+        resolveTestEvent.mutate({ projectId, ...target, step: "resolve" })
+      }
+    />
   );
 }
 
