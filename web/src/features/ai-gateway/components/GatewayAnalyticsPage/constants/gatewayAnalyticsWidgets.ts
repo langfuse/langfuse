@@ -108,6 +108,6 @@ export const GATEWAY_ANALYTICS_WIDGETS: readonly GatewayAnalyticsWidget[] = [
     filters: [],
     chartType: "HORIZONTAL_BAR",
     chartConfig: { type: "HORIZONTAL_BAR", row_limit: BREAKDOWN_ROW_LIMIT },
-    size: "full",
+    size: "medium",
   },
 ];
