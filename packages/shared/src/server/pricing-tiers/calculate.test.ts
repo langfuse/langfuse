@@ -24,6 +24,19 @@ function modelWithPrices(prices: Record<string, number>): ModelWithPrices {
 }
 
 describe("calculateModelUsageCosts", () => {
+  it("infers costs when provided costs are null", () => {
+    expect(
+      calculateModelUsageCosts({
+        model: modelWithPrices({ input: 0.01, output: 0.02 }),
+        usageDetails: { input: 100, output: 200 },
+        providedCostDetails: null,
+      }),
+    ).toMatchObject({
+      cost_details: { input: 1, output: 4, total: 5 },
+      total_cost: 5,
+    });
+  });
+
   it("treats prototype property names as ordinary usage keys", () => {
     const usageDetails = Object.fromEntries([
       ["toString", 2],

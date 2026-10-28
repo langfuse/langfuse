@@ -129,12 +129,12 @@ function calculateInferredCosts(
 export function calculateModelUsageCosts({
   model,
   usageDetails,
-  providedCostDetails = {},
+  providedCostDetails,
   attributes,
 }: {
   model: ModelWithPrices;
   usageDetails: UsageCostType;
-  providedCostDetails?: UsageCostType;
+  providedCostDetails?: UsageCostType | null;
   attributes?: PricingAttributes;
 }): {
   cost_details: UsageCostType;
@@ -149,7 +149,7 @@ export function calculateModelUsageCosts({
     attributes,
   );
   const { cost_details, total_cost } =
-    calculateProvidedCosts(providedCostDetails) ??
+    calculateProvidedCosts(providedCostDetails ?? {}) ??
     calculateInferredCosts(usageDetails, matchedTier);
   if (
     !Object.prototype.hasOwnProperty.call(cost_details, "total") &&

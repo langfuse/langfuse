@@ -47,9 +47,20 @@ async function priceTopicUsage(
   providedCostDetails: Record<string, number> = {},
 ): Promise<TopicModelUsage> {
   let costDetails = providedCostDetails;
+  let timer: ReturnType<typeof setTimeout> | undefined;
   try {
+    // Shared Redis retries indefinitely; optional pricing must not delay persistence.
+    const pricedModel = await Promise.race([
+      findModel({ projectId, model: model.model }),
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(
+          () => reject(new Error("Topics pricing lookup timed out")),
+          1000,
+        );
+      }),
+    ]);
     costDetails = calculateModelUsageCosts({
-      model: await findModel({ projectId, model: model.model }),
+      model: pricedModel,
       usageDetails,
       providedCostDetails,
     }).cost_details;
@@ -60,6 +71,8 @@ async function priceTopicUsage(
       model: model.model,
       error,
     });
+  } finally {
+    clearTimeout(timer);
   }
   const prefix = (details: Record<string, number>) =>
     Object.fromEntries(

@@ -356,6 +356,39 @@ describe("Topics naming boundary", () => {
     );
   });
 
+  it("returns paid output and supplied costs when pricing stalls", async () => {
+    vi.useFakeTimers();
+    try {
+      state.findModel.mockReturnValue(new Promise(() => {}));
+      const output = keyed({
+        summary: "A billing request.",
+        status: "applicable",
+      });
+      state.call.mockResolvedValue({
+        output,
+        usage: { inputTokens: 100 },
+        usageDetails: { input: 100 },
+        providedCostDetails: { total: 0 },
+      });
+      const resolved = vi.fn();
+      const result = summarizeOne(
+        topicsModels(),
+        "Trace evidence.",
+        topicProcessingConfigSchema.parse({
+          summaryModel: topicsModels().summary.model,
+        }),
+      ).then(resolved);
+      await vi.advanceTimersByTimeAsync(1000);
+      expect(resolved).toHaveBeenCalledWith(
+        expect.objectContaining({ output, costDetails: { total: 0 } }),
+      );
+      await result;
+      expect(state.call).toHaveBeenCalledOnce();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("rejects a request frozen on another summary model before calling the provider", async () => {
     await expect(
       summarizeOne(
