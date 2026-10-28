@@ -3367,6 +3367,21 @@ export class OtelIngestionProcessor {
       rawUsageDetails["details.cache_creation_input_tokens"] ??
       rawUsageDetails["prompt_details.cache_write"] ??
       rawUsageDetails["input_cache_creation"];
+    // TTL breakdown of the cache-write total; only the unattributed remainder
+    // stays in input_cache_creation so each write is counted and priced once.
+    const cacheCreation5mTokens =
+      rawUsageDetails["cache_creation.5m_input_tokens"];
+    const cacheCreation1hTokens =
+      rawUsageDetails["cache_creation.1h_input_tokens"];
+    const hasCacheCreationBreakdown =
+      cacheCreation5mTokens !== undefined ||
+      cacheCreation1hTokens !== undefined;
+    const cacheCreationBreakdownTokens =
+      (cacheCreation5mTokens ?? 0) + (cacheCreation1hTokens ?? 0);
+    const cacheCreationRemainderTokens =
+      cacheCreationTokens !== undefined && hasCacheCreationBreakdown
+        ? Math.max(cacheCreationTokens - cacheCreationBreakdownTokens, 0)
+        : cacheCreationTokens;
     // Reasoning/audio details are included in the emitted output token count
     // and are therefore subtracted from output below to avoid double counting.
     const outputReasoningTokens =
@@ -3401,6 +3416,8 @@ export class OtelIngestionProcessor {
             "details.cache_creation_input_tokens",
             "prompt_details.cache_write",
             "input_cache_creation",
+            "cache_creation.5m_input_tokens",
+            "cache_creation.1h_input_tokens",
             "reasoning.output_tokens",
             "completion_details.reasoning",
             "completion_details.audio",
@@ -3421,7 +3438,10 @@ export class OtelIngestionProcessor {
 
     if (inputTokens !== undefined) {
       normalizedUsageDetails.input = Math.max(
-        inputTokens - (cacheReadTokens ?? 0) - (cacheCreationTokens ?? 0),
+        inputTokens -
+          (cacheReadTokens ?? 0) -
+          (cacheCreationRemainderTokens ?? 0) -
+          cacheCreationBreakdownTokens,
         0,
       );
     }
@@ -3441,8 +3461,17 @@ export class OtelIngestionProcessor {
       normalizedUsageDetails.input_cached_tokens = cacheReadTokens;
     }
 
-    if (cacheCreationTokens !== undefined) {
-      normalizedUsageDetails.input_cache_creation = cacheCreationTokens;
+    if (cacheCreationRemainderTokens !== undefined) {
+      normalizedUsageDetails.input_cache_creation =
+        cacheCreationRemainderTokens;
+    }
+
+    if (cacheCreation5mTokens !== undefined) {
+      normalizedUsageDetails.input_cache_creation_5m = cacheCreation5mTokens;
+    }
+
+    if (cacheCreation1hTokens !== undefined) {
+      normalizedUsageDetails.input_cache_creation_1h = cacheCreation1hTokens;
     }
 
     if (outputReasoningTokens !== undefined) {
