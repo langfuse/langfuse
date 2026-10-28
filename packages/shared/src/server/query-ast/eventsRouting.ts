@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 /**
  * Logical events routing. Runs right after the CTE name check in every
  * compile.

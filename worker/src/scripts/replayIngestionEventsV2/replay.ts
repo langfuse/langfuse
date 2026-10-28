@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-/* eslint-disable turbo/no-undeclared-env-vars, @typescript-eslint/no-use-before-define */
+/* eslint-disable turbo/no-undeclared-env-vars */
 
 /**
  * Standalone replay script for Langfuse ingestion events.

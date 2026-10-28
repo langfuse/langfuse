@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { type ErrorEvent } from "@sentry/nextjs";
 
 /**
