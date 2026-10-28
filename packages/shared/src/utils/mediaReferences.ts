@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { JSONPath } from "jsonpath-plus";
 
 import { MediaReferenceStringSchema } from "./IORepresentation/chatML/types";

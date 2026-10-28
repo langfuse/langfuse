@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { setImmediate as yieldToEventLoop } from "node:timers/promises";
 import {
   getCurrentSpan,

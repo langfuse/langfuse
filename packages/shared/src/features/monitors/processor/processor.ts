@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { randomUUID } from "crypto";
 
 import { JobConfigState, Prisma, type PrismaClient } from "../../../db";

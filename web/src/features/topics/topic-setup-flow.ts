@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { LLMAdapter, supportedModels } from "@langfuse/shared";
 import { DEFAULT_TOPIC_FACETS } from "@langfuse/shared/topics";
 import { type JudgeModel } from "@/src/features/evals/v2/judgeModel";

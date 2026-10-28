@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { BLOB_STORAGE_REGION_REGEX } from "../../utils/stringChecks";
 import {
   isDnsCompatibleBucketName,
