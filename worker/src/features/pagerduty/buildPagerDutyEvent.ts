@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { buildPromptUrl, getProductBaseUrl } from "@langfuse/shared/src/server";
 import {
   truncatePagerDutySummary,
@@ -36,111 +37,42 @@ const modelFilterColumns = new Set([
   "observationModelName",
 ]);
 
-/** safeUrl returns undefined when the Langfuse base URL is not configured. */
-function safeUrl(build: () => string): string | undefined {
-  try {
-    return build();
-  } catch {
-    return undefined;
+/** buildPagerDutyEvents maps a validated webhook envelope to the PagerDuty events to send in order; empty when the alert has nothing to send. */
+export function buildPagerDutyEvents(args: {
+  envelope: PagerDutyEnvelope;
+  projectId: string;
+  projectName: string;
+  routingKey: string;
+}): PagerDutyEvent[] {
+  const context = {
+    projectId: args.projectId,
+    projectName: args.projectName,
+    routingKey: args.routingKey,
+  };
+  switch (args.envelope.type) {
+    case "monitor-alert":
+      return buildMonitorAlertEvents(args.envelope.payload, context);
+    case "project-notification":
+      return [buildProjectNotificationEvent(args.envelope.event, context)];
+    case "prompt-version":
+      return [buildPromptChangeEvent(args.envelope, context)];
   }
 }
 
-/** compactLinks drops links whose URL is unknown. */
-function compactLinks(
-  links: { href: string | undefined; text: string }[],
-): PagerDutyLink[] {
-  return links.flatMap((link) => {
-    if (!link.href) return [];
-    return [{ href: link.href, text: link.text }];
-  });
-}
-
-/** source identifies the Langfuse project as the affected system. */
-function source(projectName: string): string {
-  return `langfuse/${projectName}`;
-}
-
-/** clientFields names Langfuse as the sending client and links the project. */
-function clientFields(
-  projectId: string,
-): Pick<PagerDutyAlertEvent, "client" | "client_url"> {
-  return {
-    client,
-    client_url: safeUrl(() =>
-      new URL(`project/${projectId}`, getProductBaseUrl()).toString(),
-    ),
-  };
-}
-
-/** describeMetric renders a metric as `aggregation(measure)`. */
-function describeMetric(metric: MonitorAlert["metric"]): string | undefined {
-  if (!metric) return undefined;
-  return `${metric.aggregation}(${metric.measure})`;
-}
-
-/** metricDefinition states the metric, its view and the threshold rule. */
-function metricDefinition(
-  metricDescription: string | undefined,
+/** buildMonitorAlertEvents triggers the alert's severity and resolves the monitor's other severities; OK resolves them all. */
+function buildMonitorAlertEvents(
   alert: MonitorAlert,
-): string | undefined {
-  if (!metricDescription) return undefined;
-  const definition = `${metricDescription} over ${alert.view} per ${alert.window}`;
-  if (!alert.thresholdOperator) return definition;
-  return `${definition} ${alert.thresholdOperator} ${alert.alertThreshold}`;
-}
-
-/** breachedThreshold is the warning threshold for a warning and the alert threshold otherwise. */
-function breachedThreshold(alert: MonitorAlert): number | undefined {
-  if (alert.severity === "WARNING") return alert.warningThreshold ?? undefined;
-  return alert.alertThreshold;
-}
-
-/** filteredModelName returns the model a monitor filters on, when it filters on exactly one. */
-function filteredModelName(
-  filters: MonitorAlert["filters"],
-): string | undefined {
-  for (const filter of filters) {
-    if (!modelFilterColumns.has(filter.column)) continue;
-    if (filter.type === "string" && filter.operator === "=")
-      return filter.value;
-    if (
-      filter.type === "stringOptions" &&
-      filter.operator === "any of" &&
-      filter.value.length === 1
-    ) {
-      return filter.value[0];
-    }
-  }
-  return undefined;
-}
-
-/** buildLlmOpsDetails fills PagerDuty's LLMOps fields from the alert. */
-function buildLlmOpsDetails(
-  alert: MonitorAlert,
-  projectName: string,
-): Record<string, unknown> {
-  const metricDescription = describeMetric(alert.metric);
-  return {
-    model_name: filteredModelName(alert.filters),
-    project_name: projectName,
-    monitor_name: alert.monitorName,
-    monitor_id: alert.monitorId,
-    monitor_alert_start: alert.fromTimestamp.toISOString(),
-    monitor_alert_end: alert.toTimestamp.toISOString(),
-    metric_description: metricDescription,
-    metric_definition: metricDefinition(metricDescription, alert),
-    metric_value: alert.metricValue ?? undefined,
-    threshold_value: breachedThreshold(alert),
-  };
-}
-
-/** monitorDedupKey keys alerts by monitor and severity, since PagerDuty keeps an open alert's original severity. */
-function monitorDedupKey(
   context: EventContext,
-  monitorId: string,
-  severity: MonitorAlert["severity"],
-): string {
-  return `langfuse-${context.projectId}-${monitorId}-${severity}`;
+): PagerDutyEvent[] {
+  if (alert.severity === "OK") return resolveOtherSeverities(alert, context);
+
+  const severity = monitorSeverities[alert.severity];
+  if (!severity) return [];
+
+  return [
+    buildMonitorTriggerEvent(alert, severity, context),
+    ...resolveOtherSeverities(alert, context),
+  ];
 }
 
 /** resolveOtherSeverities resolves the monitor's alerts of every paged severity except the alert's own. */
@@ -160,6 +92,15 @@ function resolveOtherSeverities(
         },
       }),
     );
+}
+
+/** monitorDedupKey keys alerts by monitor and severity, since PagerDuty keeps an open alert's original severity. */
+function monitorDedupKey(
+  context: EventContext,
+  monitorId: string,
+  severity: MonitorAlert["severity"],
+): string {
+  return `langfuse-${context.projectId}-${monitorId}-${severity}`;
 }
 
 /** buildMonitorTriggerEvent triggers the monitor's alert for the alert's severity. */
@@ -200,20 +141,102 @@ function buildMonitorTriggerEvent(
   };
 }
 
-/** buildMonitorAlertEvents triggers the alert's severity and resolves the monitor's other severities; OK resolves them all. */
-function buildMonitorAlertEvents(
+/** clientFields names Langfuse as the sending client and links the project. */
+function clientFields(
+  projectId: string,
+): Pick<PagerDutyAlertEvent, "client" | "client_url"> {
+  return {
+    client,
+    client_url: safeUrl(() =>
+      new URL(`project/${projectId}`, getProductBaseUrl()).toString(),
+    ),
+  };
+}
+
+/** safeUrl returns undefined when the Langfuse base URL is not configured. */
+function safeUrl(build: () => string): string | undefined {
+  try {
+    return build();
+  } catch {
+    return undefined;
+  }
+}
+
+/** compactLinks drops links whose URL is unknown. */
+function compactLinks(
+  links: { href: string | undefined; text: string }[],
+): PagerDutyLink[] {
+  return links.flatMap((link) => {
+    if (!link.href) return [];
+    return [{ href: link.href, text: link.text }];
+  });
+}
+
+/** source identifies the Langfuse project as the affected system. */
+function source(projectName: string): string {
+  return `langfuse/${projectName}`;
+}
+
+/** buildLlmOpsDetails fills PagerDuty's LLMOps fields from the alert. */
+function buildLlmOpsDetails(
   alert: MonitorAlert,
-  context: EventContext,
-): PagerDutyEvent[] {
-  if (alert.severity === "OK") return resolveOtherSeverities(alert, context);
+  projectName: string,
+): Record<string, unknown> {
+  const metricDescription = describeMetric(alert.metric);
+  return {
+    model_name: filteredModelName(alert.filters),
+    project_name: projectName,
+    monitor_name: alert.monitorName,
+    monitor_id: alert.monitorId,
+    monitor_alert_start: alert.fromTimestamp.toISOString(),
+    monitor_alert_end: alert.toTimestamp.toISOString(),
+    metric_description: metricDescription,
+    metric_definition: metricDefinition(metricDescription, alert),
+    metric_value: alert.metricValue ?? undefined,
+    threshold_value: breachedThreshold(alert),
+  };
+}
 
-  const severity = monitorSeverities[alert.severity];
-  if (!severity) return [];
+/** describeMetric renders a metric as `aggregation(measure)`. */
+function describeMetric(metric: MonitorAlert["metric"]): string | undefined {
+  if (!metric) return undefined;
+  return `${metric.aggregation}(${metric.measure})`;
+}
 
-  return [
-    buildMonitorTriggerEvent(alert, severity, context),
-    ...resolveOtherSeverities(alert, context),
-  ];
+/** filteredModelName returns the model a monitor filters on, when it filters on exactly one. */
+function filteredModelName(
+  filters: MonitorAlert["filters"],
+): string | undefined {
+  for (const filter of filters) {
+    if (!modelFilterColumns.has(filter.column)) continue;
+    if (filter.type === "string" && filter.operator === "=")
+      return filter.value;
+    if (
+      filter.type === "stringOptions" &&
+      filter.operator === "any of" &&
+      filter.value.length === 1
+    ) {
+      return filter.value[0];
+    }
+  }
+  return undefined;
+}
+
+/** metricDefinition states the metric, its view and the threshold rule. */
+function metricDefinition(
+  metricDescription: string | undefined,
+  alert: MonitorAlert,
+): string | undefined {
+  if (!metricDescription) return undefined;
+  const definition = `${metricDescription} over ${alert.view} per ${alert.window}`;
+  if (!alert.thresholdOperator) return definition;
+  return `${definition} ${alert.thresholdOperator} ${alert.alertThreshold}`;
+}
+
+/** breachedThreshold is the warning threshold for a warning and the alert threshold otherwise. */
+function breachedThreshold(alert: MonitorAlert): number | undefined {
+  if (alert.severity === "WARNING") return alert.warningThreshold ?? undefined;
+  return alert.alertThreshold;
 }
 
 /** buildProjectNotificationEvent always triggers, keyed by event type and resource; these are never resolved automatically. */
@@ -283,28 +306,6 @@ function buildPromptChangeEvent(
       },
     },
   };
-}
-
-/** buildPagerDutyEvents maps a validated webhook envelope to the PagerDuty events to send in order; empty when the alert has nothing to send. */
-export function buildPagerDutyEvents(args: {
-  envelope: PagerDutyEnvelope;
-  projectId: string;
-  projectName: string;
-  routingKey: string;
-}): PagerDutyEvent[] {
-  const context = {
-    projectId: args.projectId,
-    projectName: args.projectName,
-    routingKey: args.routingKey,
-  };
-  switch (args.envelope.type) {
-    case "monitor-alert":
-      return buildMonitorAlertEvents(args.envelope.payload, context);
-    case "project-notification":
-      return [buildProjectNotificationEvent(args.envelope.event, context)];
-    case "prompt-version":
-      return [buildPromptChangeEvent(args.envelope, context)];
-  }
 }
 
 /** PagerDutyEvent is an alert event for `/v2/enqueue` or a change event for `/v2/change/enqueue`. */
