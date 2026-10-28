@@ -8,8 +8,8 @@ import {
   type SafePagerDutyActionConfig,
 } from "@langfuse/shared";
 import { type PagerDutyRegion } from "@langfuse/shared/pagerduty";
+import { PagerDutyActionForm } from "@/src/features/pagerduty";
 import { type BaseActionHandler } from "./BaseActionHandler";
-import { PagerDutyActionForm } from "./PagerDutyActionForm";
 
 /** PagerDutyActionHandler wires the PagerDuty action into the automation form. */
 export class PagerDutyActionHandler implements BaseActionHandler<PagerDutyActionFormData> {

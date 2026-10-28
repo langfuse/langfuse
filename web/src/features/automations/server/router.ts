@@ -35,7 +35,7 @@ import {
   processPagerDutyActionConfig,
   sendPagerDutyTestEvent,
   throwIfPagerDutyUnavailable,
-} from "./pagerdutyHelpers";
+} from "@/src/features/pagerduty/server";
 import { maskActionForViewer, processSlackActionConfig } from "./slackHelpers";
 import { updateTriggerEventActions } from "./automationService";
 import { TRPCError } from "@trpc/server";
