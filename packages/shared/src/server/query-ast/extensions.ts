@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 /**
  * ClickHouse-specific query-builder extensions for the Kysely dialect.
  *

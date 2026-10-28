@@ -1,6 +1,9 @@
 /* eslint-disable @repo/no-null-render */
 import { useMemo, useState, useRef } from "react";
-import { type MediaReturnType } from "@/src/features/media";
+import {
+  mediaUrlQueryOptions,
+  type MediaReturnType,
+} from "@/src/features/media";
 import { File, Image as ImageIcon, Volume2, Video } from "@langfuse/icons";
 import { LangfuseMediaView } from "@/src/components/ui/LangfuseMediaView";
 import {
@@ -90,11 +93,7 @@ function MediaPreview({ mediaItem }: { mediaItem: MediaReturnType }) {
     },
     {
       enabled: Boolean(projectId),
-      meta: { silentHttpCodes: [404] },
-      refetchOnWindowFocus: false,
-      refetchOnMount: false,
-      refetchOnReconnect: false,
-      staleTime: 55 * 60 * 1000, // 55 minutes, s3 links expire after 1 hour
+      ...mediaUrlQueryOptions,
     },
   );
 

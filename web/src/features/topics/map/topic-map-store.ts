@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { createStore } from "zustand/vanilla";
 import type { Camera, TopicMapNodeFrame } from "./prepare-topic-map";
 

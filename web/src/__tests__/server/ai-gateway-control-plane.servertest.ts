@@ -491,7 +491,12 @@ describe("AI gateway control plane", () => {
       emails: [inviteeEmail],
       notifyMembers: true,
     });
-    expect(result).toEqual({ invitedCount: 1, failed: [], notifiedCount: 1 });
+    expect(result).toEqual({
+      invitedCount: 1,
+      existingMemberCount: 0,
+      failed: [],
+      notifiedCount: 1,
+    });
 
     expect(queuedNotifications()).toEqual(
       expect.arrayContaining([
@@ -517,6 +522,77 @@ describe("AI gateway control plane", () => {
     ).resolves.toEqual({ orgRole: Role.MEMBER });
   });
 
+  it("tells which invitee addresses already belong to the organization and get notified", async () => {
+    const owner = await prepare();
+    await createCallerForOrganizationRole(owner, Role.MEMBER);
+    await createCallerForOrganizationRole(owner, Role.VIEWER);
+    const emailOf = async (role: Role) => {
+      const membership = await prisma.organizationMembership.findFirstOrThrow({
+        where: { orgId: owner.org.id, role },
+        select: { user: { select: { email: true } } },
+      });
+      return membership.user.email!.toLowerCase();
+    };
+    const memberEmail = await emailOf(Role.MEMBER);
+    const viewerEmail = await emailOf(Role.VIEWER);
+    const ownerEmail = owner.user.email!.toLowerCase();
+    const outsiderEmail = `gateway-outsider-${randomUUID()}@example.test`;
+
+    const result = await owner.caller.aiGateway.getInviteeMembers({
+      orgId: owner.org.id,
+      emails: [
+        memberEmail,
+        viewerEmail.toUpperCase(),
+        ownerEmail,
+        outsiderEmail,
+      ],
+    });
+
+    expect(result).toEqual([
+      {
+        email: memberEmail,
+        member: { name: "Gateway member", isSelf: false, canUseGateway: true },
+      },
+      {
+        email: viewerEmail,
+        member: { name: "Gateway viewer", isSelf: false, canUseGateway: false },
+      },
+      {
+        email: ownerEmail,
+        member: { name: "Gateway tester", isSelf: true, canUseGateway: true },
+      },
+      { email: outsiderEmail, member: null },
+    ]);
+  });
+
+  it("suggests other gateway members, skipping picked ones and narrowing by search", async () => {
+    const owner = await prepare();
+    for (let i = 0; i < 5; i++) {
+      await createCallerForOrganizationRole(owner, Role.MEMBER);
+    }
+    await createCallerForOrganizationRole(owner, Role.VIEWER);
+    const members = await prisma.organizationMembership.findMany({
+      where: { orgId: owner.org.id, role: Role.MEMBER },
+      orderBy: [{ createdAt: "asc" }, { userId: "asc" }],
+      select: { user: { select: { email: true } } },
+    });
+    const memberEmails = members.map(({ user }) => user.email!);
+    const suggest = (search: string, excludeEmails: string[] = []) =>
+      owner.caller.aiGateway
+        .getMemberSuggestions({ orgId: owner.org.id, search, excludeEmails })
+        .then((suggestions) => suggestions.map(({ email }) => email));
+
+    await expect(suggest("")).resolves.toEqual(memberEmails.slice(0, 4));
+    await expect(
+      suggest("", [memberEmails[0]!.toUpperCase()]),
+    ).resolves.toEqual(memberEmails.slice(1, 5));
+    await expect(suggest(memberEmails[4]!.toUpperCase())).resolves.toEqual([
+      memberEmails[4],
+    ]);
+    await expect(suggest("GATEWAY MEMBER")).resolves.toHaveLength(4);
+    await expect(suggest("gateway_role")).resolves.toEqual([]);
+  });
+
   it.each([false, true])(
     "announces the gateway once to a typed address of a member (notifyMembers: %s)",
     async (notifyMembers) => {
@@ -540,6 +616,7 @@ describe("AI gateway control plane", () => {
 
       expect(result).toEqual({
         invitedCount: 0,
+        existingMemberCount: 1,
         failed: [],
         notifiedCount: 1,
       });
@@ -607,6 +684,7 @@ describe("AI gateway control plane", () => {
 
     expect(result).toEqual({
       invitedCount: 0,
+      existingMemberCount: 1,
       failed: [
         {
           email: viewerEmail,
@@ -2027,10 +2105,31 @@ describe("AI gateway control plane", () => {
     ).resolves.toEqual({ isGatewayIngestionProject: true });
     await expect(
       caller.projects.delete({ projectId: project.id }),
-    ).rejects.toThrow("Select another ingestion project before deleting it");
+    ).rejects.toThrow(
+      "Select another ingestion project or set the ingestion mode to None before deleting it",
+    );
     await expect(
       prisma.project.findUnique({ where: { id: project.id } }),
     ).resolves.toMatchObject({ deletedAt: null });
+  });
+
+  it("allows deleting the linked ingestion project while ingestion is NONE", async () => {
+    const { caller, org, project } = await prepare();
+    await caller.aiGateway.updateConfig({
+      orgId: org.id,
+      defaultIngestionProjectId: project.id,
+      ingestionMode: "NONE",
+    });
+
+    await expect(
+      caller.projects.deletionProtection({ projectId: project.id }),
+    ).resolves.toEqual({ isGatewayIngestionProject: false });
+    await expect(
+      caller.projects.delete({ projectId: project.id }),
+    ).resolves.toBe(true);
+    await expect(
+      prisma.project.findUnique({ where: { id: project.id } }),
+    ).resolves.toMatchObject({ deletedAt: expect.any(Date) });
   });
 
   it("blocks resolve after the default ingestion project is deleted", async () => {

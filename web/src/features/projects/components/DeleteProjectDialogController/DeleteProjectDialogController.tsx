@@ -9,7 +9,7 @@ import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { useQueryProject } from "@/src/features/projects/hooks";
 import { useHasProjectAccess } from "@/src/features/rbac";
 import { api, reportNonTrpcError } from "@/src/utils/api";
-import { DeleteProjectDialog } from "./DeleteProjectDialog";
+import { DeleteProjectDialog } from "@/src/features/projects/components/DeleteProjectDialogController/components/DeleteProjectDialog/DeleteProjectDialog";
 
 type DeleteProjectDialogControllerProps = {
   children: (control: {
@@ -61,7 +61,7 @@ export function DeleteProjectDialogController({
           return (
             <Dialog
               title="Project cannot be deleted"
-              text="This project is used as the AI Gateway ingestion project. Select another ingestion project before deleting it."
+              text="This project is used as the AI Gateway ingestion project. Select another ingestion project or set the ingestion mode to None before deleting it."
               actions={[
                 {
                   label: "Open AI Gateway settings",

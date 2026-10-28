@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { type z } from "zod";
 import {
   type FilterCondition,

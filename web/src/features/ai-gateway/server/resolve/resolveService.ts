@@ -116,6 +116,8 @@ export class GatewayResolveService {
           project_id: ingestionProjectId,
           key_id: context.apiKeyId,
           user_id: context.userId,
+          key_name: context.apiKeyName,
+          user_name: context.userName,
           key_metadata: context.keyMetadata,
           provider_connection_id: context.connection.id,
         },

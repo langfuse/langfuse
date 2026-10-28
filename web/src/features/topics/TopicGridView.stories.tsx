@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { type ComponentProps } from "react";
 import { fn } from "storybook/test";
 import preview from "../../../.storybook/preview";

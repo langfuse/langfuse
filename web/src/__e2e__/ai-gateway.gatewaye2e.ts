@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import { type ChildProcess, spawn } from "node:child_process";
 import { createHash, randomBytes } from "node:crypto";
@@ -608,7 +607,9 @@ describe("AI gateway live end-to-end", () => {
               organization_id: ORGANIZATION_ID,
               project_id: expect.stringMatching(/\S/),
               key_id: keyId,
-              user_id: expect.stringMatching(/\S/),
+              user_id: admin.userId,
+              key_name: `Gateway E2E ${provider} ${apiFormat}`,
+              user_name: admin.userName || null,
               key_metadata: {
                 test: true,
                 provider,
@@ -784,7 +785,11 @@ async function createGatewayAdmin() {
     environment: {} as Session["environment"],
   };
   const context = createInnerTRPCContext({ session, headers: {} });
-  return { caller: appRouter.createCaller({ ...context, prisma }) };
+  return {
+    caller: appRouter.createCaller({ ...context, prisma }),
+    userId: user.id,
+    userName: user.name,
+  };
 }
 
 async function selectOnlyConnection(targetConnectionId: string) {
@@ -880,6 +885,7 @@ async function ingestTrace(
   // The payload claims another project everywhere a span can; ingestion must still
   // write only into the project named by the gateway token.
   const spoofedProjectId = `spoofed-${randomBytes(8).toString("hex")}`;
+  const gatewayKeyId = `gateway-key-${randomBytes(8).toString("hex")}`;
   const spoofedProject = {
     key: "langfuse.project.id",
     value: { stringValue: spoofedProjectId },
@@ -917,6 +923,7 @@ async function ingestTrace(
                       value: {
                         stringValue: JSON.stringify({
                           "langfuse.gateway.project.id": spoofedProjectId,
+                          "langfuse.gateway.api_key.id": gatewayKeyId,
                         }),
                       },
                     },
@@ -960,6 +967,20 @@ async function ingestTrace(
       expect(trace?.id).toBe(traceId);
       expect(observation?.id).toBe(observationId);
       await expectStoredInOneProject({ observationId, traceId });
+      const attribution = await queryClickhouse<{
+        ingestion_api_key: string;
+        service_name: string;
+      }>({
+        query: `SELECT ingestion_api_key, service_name FROM events_core
+          WHERE span_id = {observationId: String} AND trace_id = {traceId: String}`,
+        params: { observationId, traceId },
+      });
+      expect(attribution).toEqual([
+        {
+          ingestion_api_key: gatewayKeyId,
+          service_name: "langfuse-ai-gateway",
+        },
+      ]);
     },
     40_000,
     1_000,
@@ -1199,7 +1220,7 @@ async function startGatewayProcess() {
       LANGFUSE_AI_GATEWAY_SERVICE_KEY: env.LANGFUSE_AI_GATEWAY_SERVICE_KEY,
       LANGFUSE_AI_GATEWAY_LISTEN_ADDRESS: `127.0.0.1:${port}`,
       LANGFUSE_AI_GATEWAY_AUTO_INCREMENT_LISTEN_PORT: "false",
-      LANGFUSE_AI_GATEWAY_SHUTDOWN_TIMEOUT_SECONDS: "5",
+      LANGFUSE_AI_GATEWAY_CONNECTION_DRAIN_TIMEOUT_SECONDS: "5",
       LANGFUSE_LOG_FORMAT: "json",
       LANGFUSE_LOG_LEVEL: "info",
     },
