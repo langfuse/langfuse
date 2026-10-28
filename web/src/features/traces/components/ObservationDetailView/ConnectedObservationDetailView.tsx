@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 /**
  * ConnectedObservationDetailView - Connects observation details to application data.
  *

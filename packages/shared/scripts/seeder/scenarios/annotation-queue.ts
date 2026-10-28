@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { prisma } from "../../../src/db";
 import {
   createObservation,

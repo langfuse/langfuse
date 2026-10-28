@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import type { EarlyOtelBatch, ExtractedOtelMedia } from "@langfuse/native";
 import pLimit from "p-limit";
 import {

@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { randomUUID } from "node:crypto";
 
 import { expect, vi } from "vitest";

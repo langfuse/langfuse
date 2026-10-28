@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 /**
  * TracePanelDetail - Pure content component for detail panel
  *

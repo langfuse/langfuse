@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { createHash } from "crypto";
 import pLimit from "p-limit";
 

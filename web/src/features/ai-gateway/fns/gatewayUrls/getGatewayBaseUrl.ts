@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 const LOCAL_GATEWAY_HOSTS = new Set(["localhost", "127.0.0.1", "[::1]"]);
 
 /** Matches numbered preview hosts that use the certificate-covered gateway hostname. */

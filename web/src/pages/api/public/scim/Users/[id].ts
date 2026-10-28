@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
 import { auditLog } from "@/src/features/audit-logs/server";
 import {
