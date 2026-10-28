@@ -1,4 +1,4 @@
-/* eslint-disable no-nested-ternary, @typescript-eslint/no-use-before-define */
+/* eslint-disable no-nested-ternary */
 import { randomUUID } from "crypto";
 import { z } from "zod";
 
@@ -405,7 +405,7 @@ export const processEventBatch = async (
 /**
  * Sorts a batch of ingestion events. Orders by: updating events last, sorted by timestamp asc.
  */
-const sortBatch = (batch: IngestionEventType[]) => {
+function sortBatch(batch: IngestionEventType[]) {
   const updateEvents: (typeof eventTypes)[keyof typeof eventTypes][] = [
     eventTypes.GENERATION_UPDATE,
     eventTypes.SPAN_UPDATE,
@@ -424,13 +424,13 @@ const sortBatch = (batch: IngestionEventType[]) => {
 
   // Return the array with non-update events first, followed by update events
   return [...others, ...updates];
-};
+}
 
-export const aggregateBatchResult = (
+export function aggregateBatchResult(
   errors: Array<{ id: string; error: unknown }>,
   results: Array<{ id: string; result: unknown }>,
   projectId?: string,
-) => {
+) {
   const returnedErrors: {
     id: string;
     status: number;
@@ -489,4 +489,4 @@ export const aggregateBatchResult = (
   });
 
   return { successes, errors: returnedErrors };
-};
+}

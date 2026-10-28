@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { InAppAgentRateLimitErrorResponseSchema } from "@langfuse/shared/in-app-agent";
 import { logger, recordIncrement } from "@langfuse/shared/src/server";
 
@@ -112,15 +111,15 @@ function sleep(ms: number, signal?: AbortSignal) {
       return;
     }
 
-    const onAbort = () => {
-      clearTimeout(timeout);
-      reject(signal?.reason);
-    };
-
     const timeout = setTimeout(() => {
       signal?.removeEventListener("abort", onAbort);
       resolve();
     }, ms);
+
+    function onAbort() {
+      clearTimeout(timeout);
+      reject(signal?.reason);
+    }
 
     signal?.addEventListener("abort", onAbort, { once: true });
   });

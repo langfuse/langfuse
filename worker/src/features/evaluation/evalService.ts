@@ -1,4 +1,4 @@
-/* eslint-disable no-nested-ternary, @typescript-eslint/no-use-before-define */
+/* eslint-disable no-nested-ternary */
 import { randomUUID } from "crypto";
 import { z } from "zod";
 import {
@@ -1774,16 +1774,17 @@ export async function extractVariablesFromTracingData({
   return results;
 }
 
-const snakeToCamel = (s: string) =>
-  s.replace(/_([a-z])/g, (_, c) => c.toUpperCase());
+function snakeToCamel(s: string) {
+  return s.replace(/_([a-z])/g, (_, c) => c.toUpperCase());
+}
 
 // Returns the typed value extracted from a database row. The shared LLM
 // evaluator runtime stringifies it during prompt substitution; code-based
 // evaluators consume the typed value directly.
-const parseDatabaseRowValue = (
+function parseDatabaseRowValue(
   dbRow: Record<string, unknown>,
   mapping: z.infer<typeof variableMapping>,
-): unknown => {
+): unknown {
   // Prisma returns camelCase keys, but selectedColumnId may be snake_case
   const selectedColumn =
     dbRow[mapping.selectedColumnId] ??
@@ -1809,4 +1810,4 @@ const parseDatabaseRowValue = (
   }
 
   return value;
-};
+}

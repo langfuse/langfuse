@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import {
   FTS_MATCH_OPERATOR,
   type FtsMatchOperator,
@@ -68,15 +67,6 @@ export const isFtsTextField = (field: string): boolean =>
 export const isFtsMetadataField = (field: string): boolean =>
   bareFtsField(field) === FTS_METADATA_FIELD;
 
-export const isFtsTextTarget = (
-  clickhouseTable: string,
-  field: string,
-  operator: FtsStringOperator,
-): boolean =>
-  isFtsEventsTable(clickhouseTable) &&
-  isFtsTextField(field) &&
-  FTS_TEXT_OPERATORS.has(operator);
-
 export const isFtsMetadataTarget = (
   clickhouseTable: string,
   field: string,
@@ -94,9 +84,6 @@ export const isNgramSubstringTarget = (
   clickhouseTable: string,
   field: string,
 ): boolean => isFtsEventsTable(clickhouseTable) && isNgramSubstringField(field);
-
-export const isFtsAcceleratedIoOperator = (operator: string): boolean =>
-  FTS_TEXT_OPERATORS.has(operator as FtsStringOperator);
 
 export const hasFtsSearchToken = (value: string): boolean =>
   /[\p{L}\p{N}]/u.test(value);
@@ -206,6 +193,18 @@ export const FTS_OPERATOR_DESCRIPTORS = {
 export const FTS_TEXT_OPERATORS: ReadonlySet<FtsStringOperator> = new Set(
   Object.keys(FTS_OPERATOR_DESCRIPTORS) as FtsAcceleratedStringOperator[],
 );
+
+export const isFtsTextTarget = (
+  clickhouseTable: string,
+  field: string,
+  operator: FtsStringOperator,
+): boolean =>
+  isFtsEventsTable(clickhouseTable) &&
+  isFtsTextField(field) &&
+  FTS_TEXT_OPERATORS.has(operator);
+
+export const isFtsAcceleratedIoOperator = (operator: string): boolean =>
+  FTS_TEXT_OPERATORS.has(operator as FtsStringOperator);
 
 export const assertValidFtsMatchFilter = (opts: {
   filterType: "string" | "stringObject";

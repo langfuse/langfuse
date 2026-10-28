@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import z from "zod";
 import { MetadataDomain } from "./traces";
 
@@ -21,25 +20,6 @@ export const PublicApiCreateScoreSourceDomain = z.enum([
   ScoreSourceEnum.ANNOTATION,
 ] as const satisfies readonly ScoreSourceType[]);
 
-/**
- * Annotation scores need a matching score config so they can render in the
- * annotation queue UI. CORRECTION scores are the one exception — by design
- * they never carry a configId. This predicate + message are shared by the
- * zod refine on {@link PostScoresBody} (sync 400 on REST) and the check in
- * `validateAndInflateScore` (async drop for ingestion/SDK callers).
- */
-export const ANNOTATION_SCORE_REQUIRES_CONFIG_ID_MESSAGE =
-  "configId is required when source is ANNOTATION (except for CORRECTION scores).";
-
-export const isAnnotationScoreMissingConfigId = (body: {
-  source?: ScoreSourceType | null;
-  configId?: string | null;
-  dataType?: ScoreDataTypeType;
-}): boolean =>
-  body.source === ScoreSourceEnum.ANNOTATION &&
-  !body.configId &&
-  body.dataType !== ScoreDataTypeEnum.CORRECTION;
-
 export const CORRECTION_NAME = "output" as const;
 
 export const TEXT_SCORE_MAX_LENGTH = 500 as const;
@@ -60,6 +40,25 @@ export const ScoreDataTypeEnum = {
 } as const;
 export const ScoreDataTypeDomain = z.enum(ScoreDataTypeArray);
 export type ScoreDataTypeType = z.infer<typeof ScoreDataTypeDomain>;
+
+/**
+ * Annotation scores need a matching score config so they can render in the
+ * annotation queue UI. CORRECTION scores are the one exception — by design
+ * they never carry a configId. This predicate + message are shared by the
+ * zod refine on {@link PostScoresBody} (sync 400 on REST) and the check in
+ * `validateAndInflateScore` (async drop for ingestion/SDK callers).
+ */
+export const ANNOTATION_SCORE_REQUIRES_CONFIG_ID_MESSAGE =
+  "configId is required when source is ANNOTATION (except for CORRECTION scores).";
+
+export const isAnnotationScoreMissingConfigId = (body: {
+  source?: ScoreSourceType | null;
+  configId?: string | null;
+  dataType?: ScoreDataTypeType;
+}): boolean =>
+  body.source === ScoreSourceEnum.ANNOTATION &&
+  !body.configId &&
+  body.dataType !== ScoreDataTypeEnum.CORRECTION;
 
 export const NumericData = z.object({
   stringValue: z.null().optional(),

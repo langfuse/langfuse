@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { shouldSkipScoresDedup } from "../queries/clickhouse-sql/query-options";
 import { ClickHouseClientConfigOptions } from "@clickhouse/client";
 import { OrderByState } from "../../interfaces/orderBy";
@@ -129,7 +128,7 @@ export type FetchSessionsTableProps = {
   preferredClickhouseService?: PreferredClickhouseService;
 };
 
-const getSessionsTableGeneric = async <T>(props: FetchSessionsTableProps) => {
+async function getSessionsTableGeneric<T>(props: FetchSessionsTableProps) {
   const {
     select,
     projectId,
@@ -420,4 +419,4 @@ const getSessionsTableGeneric = async <T>(props: FetchSessionsTableProps) => {
     clickhouseConfigs,
     preferredClickhouseService,
   });
-};
+}

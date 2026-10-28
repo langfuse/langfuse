@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { createClient, type ClickHouseSettings } from "@clickhouse/client";
 import type { NodeClickHouseClientConfigOptions } from "@clickhouse/client/dist/config";
 
@@ -311,7 +310,7 @@ export const initializeClickhouseCompatibility = async (): Promise<void> => {
   return initializationPromise;
 };
 
-const fetchClickHouseVersion = async (): Promise<string> => {
+async function fetchClickHouseVersion(): Promise<string> {
   const client = createClient(getClickHouseVersionClientConfig());
 
   try {
@@ -330,23 +329,22 @@ const fetchClickHouseVersion = async (): Promise<string> => {
   } finally {
     await client.close();
   }
-};
+}
 
-const getClickHouseVersionClientConfig =
-  (): NodeClickHouseClientConfigOptions => {
-    return {
-      url: env.CLICKHOUSE_URL,
-      username: env.CLICKHOUSE_USER,
-      password: env.CLICKHOUSE_PASSWORD,
-      database: env.CLICKHOUSE_DB,
-      application: `langfuse/${VERSION.replace("v", "")}`,
-      request_timeout: 10_000,
-      log: {
-        LoggerClass: ClickHouseLogger,
-        level: mapLogLevel(env.LANGFUSE_LOG_LEVEL ?? "info"),
-      },
-    };
+function getClickHouseVersionClientConfig(): NodeClickHouseClientConfigOptions {
+  return {
+    url: env.CLICKHOUSE_URL,
+    username: env.CLICKHOUSE_USER,
+    password: env.CLICKHOUSE_PASSWORD,
+    database: env.CLICKHOUSE_DB,
+    application: `langfuse/${VERSION.replace("v", "")}`,
+    request_timeout: 10_000,
+    log: {
+      LoggerClass: ClickHouseLogger,
+      level: mapLogLevel(env.LANGFUSE_LOG_LEVEL ?? "info"),
+    },
   };
+}
 
 export const setClickHouseCompatibilityVersionForTests = (
   version: string | null,

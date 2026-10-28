@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { upsertDefaultModelPrices } from "./scripts/upsertDefaultModelPrices";
 import { upsertLangfuseDashboards } from "./scripts/upsertLangfuseDashboards";
 import { hello, initTelemetry } from "@langfuse/native";
@@ -22,7 +21,7 @@ export const initializeWorker = async (): Promise<void> => {
 // not keep the worker from processing jobs, so that failure is reported
 // through the Node side's logger and metrics instead (the addon records its
 // own metrics and logs once initialised; see packages/native/README.md).
-const initializeNativeAddon = (): void => {
+function initializeNativeAddon(): void {
   try {
     initTelemetry();
   } catch (error) {
@@ -32,4 +31,4 @@ const initializeNativeAddon = (): void => {
     recordIncrement("langfuse.native.telemetry_init_failed");
   }
   hello("startup");
-};
+}

@@ -1,4 +1,4 @@
-/* eslint-disable no-nested-ternary, @typescript-eslint/no-use-before-define */
+/* eslint-disable no-nested-ternary */
 import { EXPERIMENT_IO_TRUNCATE_LENGTH } from "../../constants";
 import { matchesUiColumnMapping } from "../../tableDefinitions";
 import { env } from "../../env";
@@ -396,9 +396,9 @@ export type FetchExperimentsFromEventsProps = {
   tags?: Record<string, string>;
 };
 
-const getExperimentsFromEventsGeneric = async <T>(
+async function getExperimentsFromEventsGeneric<T>(
   props: FetchExperimentsFromEventsProps,
-) => {
+) {
   const { select, projectId, filter, orderBy, limit, page } = props;
 
   // Split filters into pre-aggregation and post-aggregation
@@ -539,7 +539,7 @@ const getExperimentsFromEventsGeneric = async <T>(
     tags: { ...(props.tags ?? {}), projectId },
     preferredClickhouseService: "EventsReadOnly",
   });
-};
+}
 
 // ============================================================================
 // Experiment Items Queries
@@ -1144,7 +1144,7 @@ const buildQualificationPlan = (
   };
 };
 
-const getExperimentItemsFromEventsGeneric = (params: {
+function getExperimentItemsFromEventsGeneric(params: {
   select: "count" | "rows";
   projectId: string;
   baseExperimentId?: string;
@@ -1158,7 +1158,7 @@ const getExperimentItemsFromEventsGeneric = (params: {
   };
   limit?: number;
   offset?: number;
-}) => {
+}) {
   const {
     select,
     projectId,
@@ -1268,7 +1268,7 @@ const getExperimentItemsFromEventsGeneric = (params: {
   }
 
   return queryBuilder.buildWithParams();
-};
+}
 
 /**
  * Get experiment items with intersection filtering across experiments.

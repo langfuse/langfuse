@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { Model, parseJsonPrioritised } from "@langfuse/shared";
 import { isChatModel, isTiktokenModel } from "./types";
 import { countTokens } from "@anthropic-ai/tokenizer";
@@ -36,6 +35,8 @@ const OpenAiChatTokenConfig = z.object({
 // worker-thread, not strictly per process — still a collapse from per-event to a
 // handful of lines per pod.
 const warnedInvalidTokenizerConfigModelIds = new Set<string>();
+
+const cachedTokenizerByModel: Tokenizer = {};
 
 export function tokenCount(p: {
   model: Model;
@@ -177,7 +178,7 @@ function openAiChatTokenCount(params: {
   return numTokens;
 }
 
-const getTokensByModel = (model: TiktokenModel, text: string) => {
+function getTokensByModel(model: TiktokenModel, text: string) {
   // encoding should be kept in memory to avoid re-creating it
   let encoding: Tiktoken | undefined;
   try {
@@ -192,13 +193,11 @@ const getTokensByModel = (model: TiktokenModel, text: string) => {
   }
   logger.debug(`Tokenized data for model: ${model}`);
   return encoding?.encode(text, "all").length;
-};
+}
 
 interface Tokenizer {
   [model: string]: Tiktoken;
 }
-const cachedTokenizerByModel: Tokenizer = {};
-
 export function freeAllTokenizers() {
   Object.values(cachedTokenizerByModel).forEach((tokenizer) => {
     tokenizer.free();

@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { type Role, type SystemRole } from "../../db";
 import {
   organizationRoleAccessRights,
@@ -210,11 +209,12 @@ export const apiKeyRolesAcceptedForScope = (
 ];
 
 /** apiKeyRolesForScope lists, in catalog order, the roles offered when creating an api key at the given scope: project-capable roles for a project key, every creatable api-key role for an organization key. */
-export const apiKeyRolesForScope = (
+export function apiKeyRolesForScope(
   scope: "project" | "organization",
-): SystemRole[] =>
-  (Object.keys(systemRoleAccessRights) as SystemRole[]).filter((role) =>
+): SystemRole[] {
+  return (Object.keys(systemRoleAccessRights) as SystemRole[]).filter((role) =>
     scope === "project"
       ? isAssignableAtCreate(role) && roleHasProjectPolicy(role)
       : isAssignableAtCreate(role),
   );
+}

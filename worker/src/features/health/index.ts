@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { prisma } from "@langfuse/shared/src/db";
 import { logger, redis } from "@langfuse/shared/src/server";
 import { Response } from "express";
@@ -228,4 +227,6 @@ export const setSigtermReceived = () => {
   sigtermReceived = true;
 };
 
-export const isSigtermReceived = () => sigtermReceived;
+export function isSigtermReceived() {
+  return sigtermReceived;
+}

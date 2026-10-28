@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { shouldSkipScoresDedup } from "../queries/clickhouse-sql/query-options";
 import {
   parseClickhouseUTCDateTimeFormat,
@@ -285,10 +284,10 @@ export const getObservationUsageByTypeByTime = async (
   });
 };
 
-export const orderByTimeSeries = (
+export function orderByTimeSeries(
   filter: FilterState,
   col: string,
-): [string, { fromTime: number; toTime: number }, number] => {
+): [string, { fromTime: number; toTime: number }, number] {
   const potentialBucketSizesSeconds = [
     5, 10, 30, 60, 300, 600, 1800, 3600, 18000, 36000, 86400, 604800, 2592000,
   ];
@@ -328,17 +327,17 @@ export const orderByTimeSeries = (
     { fromTime: fromDate.getTime(), toTime: toDate.getTime() },
     bucketSizeInSeconds,
   ];
-};
+}
 
-export const selectTimeseriesColumn = (
+export function selectTimeseriesColumn(
   bucketSizeInSeconds: number,
   col: string,
   as: String,
-) => {
+) {
   return `toStartOfInterval(${col}, INTERVAL ${bucketSizeInSeconds} SECOND) as ${as}`;
-};
+}
 
-export const extractFromAndToTimestampsFromFilter = (filter?: FilterState) => {
+export function extractFromAndToTimestampsFromFilter(filter?: FilterState) {
   if (!filter)
     throw new Error("Time Filter is required for time series queries");
 
@@ -351,4 +350,4 @@ export const extractFromAndToTimestampsFromFilter = (filter?: FilterState) => {
   );
 
   return [fromTimestamp[0], toTimestamp[0]];
-};
+}

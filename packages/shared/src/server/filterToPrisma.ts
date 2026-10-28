@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { Prisma } from "@prisma/client";
 import { ColumnDefinition, type TableNames } from "../tableDefinitions";
 import { FilterState } from "../types";
@@ -194,10 +193,7 @@ export function tableColumnsToSqlFilter(
   return Prisma.join(statements, " AND ");
 }
 
-const castValueToPostgresTypes = (
-  column: ColumnDefinition,
-  table: TableNames,
-) => {
+function castValueToPostgresTypes(column: ColumnDefinition, table: TableNames) {
   return column.name === "type" &&
     (table === "observations" ||
       table === "traces_observations" ||
@@ -205,7 +201,7 @@ const castValueToPostgresTypes = (
       table === "traces_parent_observation_scores")
     ? Prisma.sql`::"ObservationType"`
     : Prisma.empty;
-};
+}
 
 const dateOperators = filterOperators["datetime"];
 

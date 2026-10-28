@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { LRUCache } from "lru-cache";
 import { logger } from "../logger";
 import { recordGauge, recordIncrement } from "../instrumentation";
@@ -164,10 +163,10 @@ export class LocalCache<V extends {}> {
   }
 }
 
-const safeSerialize = (value: unknown): string => {
+function safeSerialize(value: unknown): string {
   try {
     return JSON.stringify(value);
   } catch {
     return "[unserializable]";
   }
-};
+}

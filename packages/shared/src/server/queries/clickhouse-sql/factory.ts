@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { FTS_MATCH_OPERATOR } from "../../../interfaces/filters";
 import { type EventsTableFilterState } from "../../../types";
 import { InvalidRequestError } from "../../../errors";
@@ -212,10 +211,10 @@ export const createFilterFromFilterState = (
   });
 };
 
-const validateEventsTableMatchesFilter = (
+function validateEventsTableMatchesFilter(
   filter: EventsTableFilterState[number],
   column: UiColumnMappings[number],
-) => {
+) {
   if (!("operator" in filter) || filter.operator !== FTS_MATCH_OPERATOR) {
     return;
   }
@@ -239,13 +238,13 @@ const validateEventsTableMatchesFilter = (
   }
 
   throw new QueryBuilderError(`Invalid filter type`);
-};
+}
 
-const matchAndVerifyTracesUiColumn = (
+function matchAndVerifyTracesUiColumn(
   filter: EventsTableFilterState[number],
   uiTableDefinitions: UiColumnMappings,
   filterColumn = filter.column,
-) => {
+) {
   // tries to match the column name to the clickhouse table name
   const uiTable = findUiColumnMapping(uiTableDefinitions, filterColumn);
 
@@ -268,7 +267,7 @@ const matchAndVerifyTracesUiColumn = (
   }
 
   return uiTable;
-};
+}
 
 export function getProjectIdDefaultFilter(
   projectId: string,

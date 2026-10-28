@@ -1,4 +1,4 @@
-/* eslint-disable no-nested-ternary, @typescript-eslint/no-use-before-define */
+/* eslint-disable no-nested-ternary */
 import { JsonNested, Prisma } from "@langfuse/shared";
 import {
   AI_GATEWAY_INSTRUMENTATION_SCOPE_NAME,
@@ -51,9 +51,9 @@ export const convertPostgresJsonToMetadataRecord = (
   return {};
 };
 
-export const convertRecordValuesToString = (
+export function convertRecordValuesToString(
   record: Record<string, unknown>,
-): Record<string, string> => {
+): Record<string, string> {
   // Built via Object.fromEntries rather than `result[key] = ...` so a key
   // named `__proto__` becomes an ordinary own property instead of invoking
   // Object.prototype's `__proto__` setter, which would silently drop it.
@@ -63,7 +63,7 @@ export const convertRecordValuesToString = (
       typeof value === "string" ? value : JSON.stringify(value),
     ]),
   );
-};
+}
 
 // OTel-ingested observation events carry the instrumentation scope as
 // `metadata.scope` ({ name, version, attributes }).

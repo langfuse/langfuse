@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { DelayedError, Job, UnrecoverableError } from "bullmq";
 
 import {
@@ -86,22 +85,25 @@ export const batchExportQueueProcessor = async (
 };
 
 /** Searches the whole cause chain, since the handler wraps read-stream failures. */
-const hasQueryBoundResourceErrorCause = (error: unknown): boolean =>
-  findInCauseChain(
-    error,
-    (link) =>
-      ClickHouseResourceError.is(link) &&
-      (QUERY_BOUND_RESOURCE_ERROR_PATTERNS[link.errorType]?.test(
-        link.message,
-      ) ??
-        false),
-  ) !== undefined;
+function hasQueryBoundResourceErrorCause(error: unknown): boolean {
+  return (
+    findInCauseChain(
+      error,
+      (link) =>
+        ClickHouseResourceError.is(link) &&
+        (QUERY_BOUND_RESOURCE_ERROR_PATTERNS[link.errorType]?.test(
+          link.message,
+        ) ??
+          false),
+    ) !== undefined
+  );
+}
 
-const getDisplayError = (
+function getDisplayError(
   e: unknown,
   isQueryBoundResourceError: boolean,
-): string => {
+): string {
   if (isQueryBoundResourceError)
     return ClickHouseResourceError.ERROR_ADVICE_MESSAGE;
   return e instanceof BaseError ? e.message : "An internal error occurred";
-};
+}

@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import {
   Action,
   ActionExecutionStatus,
@@ -148,27 +147,27 @@ export const getTriggerConfigurations = async ({
   return triggerConfigurations;
 };
 
-const convertTriggerToDomain = (trigger: Trigger): TriggerDomain => {
+function convertTriggerToDomain(trigger: Trigger): TriggerDomain {
   return {
     ...trigger,
     eventActions: (trigger.eventActions || []) as TriggerEventAction[],
     filter: (trigger.filter || []) as FilterState,
     eventSource: trigger.eventSource as TriggerEventSource,
   };
-};
+}
 
 /**
  * Display headers are readable by every project role. Legacy plaintext
  * `headers` that `requestHeaders` does not override are always masked, even if
  * a stored `displayHeaders` entry lists them unmasked.
  */
-const getDisplayHeaders = (config: WebhookActionConfigWithSecrets) => {
+function getDisplayHeaders(config: WebhookActionConfigWithSecrets) {
   const legacyHeaders = createDisplayHeaders(getLegacyOnlyHeaders(config));
   if (!config.displayHeaders && Object.keys(legacyHeaders).length === 0) {
     return config.displayHeaders;
   }
   return { ...config.displayHeaders, ...legacyHeaders };
-};
+}
 
 /**
  * Fallback for a stored config that does not parse as its own action type:
@@ -249,10 +248,12 @@ const convertToSafeActionConfig = (action: Action): SafeActionConfig => {
   }
 };
 
-export const convertActionToDomain = (action: Action): ActionDomain => ({
-  ...action,
-  config: convertToSafeActionConfig(action),
-});
+export function convertActionToDomain(action: Action): ActionDomain {
+  return {
+    ...action,
+    config: convertToSafeActionConfig(action),
+  };
+}
 
 export const getAutomationById = async ({
   projectId,

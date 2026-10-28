@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import type { Observation } from "../../domain";
 import type {
   NormalizedMessage,
@@ -132,8 +131,8 @@ export function renderTranscript(
         return json({ [part.kind]: part.value });
     }
   };
-  const toolResultContent = (parts: NormalizedMessagePart[]): string =>
-    parts
+  function toolResultContent(parts: NormalizedMessagePart[]): string {
+    return parts
       .map((part) => {
         if (part.type === "reasoning" && !config.reasoning.include) return "";
         if (part.type === "file" && part.reasoning) return "";
@@ -141,6 +140,7 @@ export function renderTranscript(
       })
       .filter(Boolean)
       .join("\n");
+  }
   const rootContent = (
     observation: Observation,
     source: "input" | "output",

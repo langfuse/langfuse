@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { ClickHouseClientManager, logger } from "@langfuse/shared/src/server";
 import { disconnectAllRedisInstances } from "@langfuse/shared/src/server";
 
@@ -42,14 +41,14 @@ let drainPromise: Promise<void> | null = null;
 // and flush pending writes, then close connections. Shared by the
 // SIGTERM/SIGINT path and the fatal-error path; memoized so concurrent
 // triggers reuse one drain instead of closing workers/connections twice.
-export const drainAndClose = (): Promise<void> => {
+export function drainAndClose(): Promise<void> {
   if (!drainPromise) {
     drainPromise = runDrainAndClose();
   }
   return drainPromise;
-};
+}
 
-const runDrainAndClose = async () => {
+async function runDrainAndClose() {
   setSigtermReceived();
 
   server?.close();
@@ -151,4 +150,4 @@ const runDrainAndClose = async () => {
   logger.info("All tokenizers are cleaned up from memory.");
 
   logger.info("Shutdown complete, exiting process...");
-};
+}

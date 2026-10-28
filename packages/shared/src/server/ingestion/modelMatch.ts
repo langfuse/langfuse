@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { Model, Prisma } from "../../";
 import {
   instrumentAsync,
@@ -27,6 +26,9 @@ export type ModelWithPrices = {
 const MODEL_MATCH_CACHE_LOCKED_KEY = "LOCK:model-match-clear";
 const DEFAULT_LOCAL_CACHE_MODEL_MATCH_TTL_MS = 10_000;
 const DEFAULT_LOCAL_CACHE_MODEL_MATCH_MAX = 20_000;
+
+const NOT_FOUND_TOKEN = "LANGFUSE_MODEL_MATCH_NOT_FOUND" as const;
+
 // This L1 cache is intentionally TTL-only. Cross-container consistency continues
 // to come from Redis invalidation plus the short local TTL.
 const modelMatchLocalCache = new LocalCache<ModelWithPrices>({
@@ -156,16 +158,16 @@ export async function findModel(p: ModelMatchProps): Promise<ModelWithPrices> {
   );
 }
 
-const formatModelMatchDebugMessage = (
+function formatModelMatchDebugMessage(
   message: string,
   metadata: Record<string, unknown>,
-): string => {
+): string {
   try {
     return `${message} ${JSON.stringify(metadata)}`;
   } catch {
     return `${message} [unserializable]`;
   }
-};
+}
 
 function getPositiveNumberOrDefault(value: unknown, fallback: number): number {
   const parsed = Number(value);
@@ -176,9 +178,9 @@ export const clearModelMatchLocalCache = (): void => {
   modelMatchLocalCache.clear();
 };
 
-const getModelWithPricesFromRedis = async (
+async function getModelWithPricesFromRedis(
   p: ModelMatchProps,
-): Promise<ModelWithPrices | null> => {
+): Promise<ModelWithPrices | null> {
   if (env.LANGFUSE_CACHE_MODEL_MATCH_ENABLED === "false") {
     return null;
   }
@@ -234,7 +236,7 @@ const getModelWithPricesFromRedis = async (
     );
     return null;
   }
-};
+}
 
 export async function findPricingTiersForModel(
   modelId: string,
@@ -306,9 +308,7 @@ export async function findModelInPostgres(
   return foundModels[0] ?? null;
 }
 
-const NOT_FOUND_TOKEN = "LANGFUSE_MODEL_MATCH_NOT_FOUND" as const;
-
-const addModelNotFoundTokenToRedis = async (p: ModelMatchProps) => {
+async function addModelNotFoundTokenToRedis(p: ModelMatchProps) {
   try {
     const key = getRedisModelKey(p);
     await redis?.set(
@@ -323,13 +323,13 @@ const addModelNotFoundTokenToRedis = async (p: ModelMatchProps) => {
       error,
     );
   }
-};
+}
 
-const addModelWithPricingTiersToRedis = async (
+async function addModelWithPricingTiersToRedis(
   p: ModelMatchProps,
   model: Model,
   pricingTiers: PricingTierWithPrices[],
-) => {
+) {
   try {
     const key = getRedisModelKey(p);
 
@@ -354,23 +354,23 @@ const addModelWithPricingTiersToRedis = async (
       error,
     );
   }
-};
+}
 
-export const getRedisModelKey = (p: ModelMatchProps) => {
+export function getRedisModelKey(p: ModelMatchProps) {
   const uriEncodedModel = encodeURIComponent(p.model);
   return `${getModelMatchKeyPrefix()}:${p.projectId}:${uriEncodedModel}`;
-};
+}
 
-const getModelMatchKeyPrefix = () => {
+function getModelMatchKeyPrefix() {
   if (env.REDIS_CLUSTER_ENABLED === "true") {
     // Use hash tags for Redis cluster compatibility
     // This ensures all model cache keys are placed on the same hash slot
     return "{model-price-tiers}";
   }
   return "model-price-tiers";
-};
+}
 
-export const redisModelToPrismaModel = (redisModel: Model): Model => {
+export function redisModelToPrismaModel(redisModel: Model): Model {
   return {
     ...redisModel,
     createdAt: new Date(redisModel.createdAt),
@@ -392,7 +392,7 @@ export const redisModelToPrismaModel = (redisModel: Model): Model => {
         ? new Date(redisModel.startDate)
         : null,
   };
-};
+}
 
 export async function clearModelCacheForProject(
   projectId: string,

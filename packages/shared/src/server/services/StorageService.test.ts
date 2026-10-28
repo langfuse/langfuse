@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { createHash, getFips } from "crypto";
 import { createServer } from "http";
 import { PassThrough, Readable } from "stream";
@@ -254,7 +253,7 @@ describe("AzureBlobStorageService.streamToString", () => {
 
   // Emits each provided buffer as its own discrete "data" chunk, so we can
   // reproduce exact chunk boundaries.
-  const streamFromChunks = (chunks: Buffer[]): Readable => {
+  function streamFromChunks(chunks: Buffer[]): Readable {
     let index = 0;
     return new Readable({
       read() {
@@ -265,7 +264,7 @@ describe("AzureBlobStorageService.streamToString", () => {
         }
       },
     });
-  };
+  }
 
   const splitBufferAt = (buffer: Buffer, offset: number): Buffer[] => [
     buffer.subarray(0, offset),

@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import {
   BatchExportFileFormat,
   FilterCondition,
@@ -431,9 +430,9 @@ export const getObservationStream = async (
  * traceTimestamp is not carried by the events table and is exported as null,
  * matching getObservationsWithModelDataFromEventsTable.
  */
-const getObservationStreamFromEvents = async (
+async function getObservationStreamFromEvents(
   props: ObservationStreamProps,
-): Promise<Readable> => {
+): Promise<Readable> {
   const {
     projectId,
     cutoffCreatedAt,
@@ -734,4 +733,4 @@ const getObservationStreamFromEvents = async (
       }
     })(),
   );
-};
+}

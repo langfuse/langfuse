@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { z } from "zod";
 import {
   DEFAULT_TRACE_ENVIRONMENT,
@@ -92,6 +91,13 @@ const EVALUATOR_TYPES_BY_EXECUTION_TYPE: Record<
   ],
   [EvalTemplateType.CODE]: [EvalTemplateType.CODE],
 };
+
+const evaluatorInclude = {
+  project: { select: { orgId: true } },
+  // A rule runs its evaluator's current version, so the definition is resolved
+  // here rather than pinned at dispatch.
+  versions: { orderBy: { version: "desc" }, take: 1 },
+} satisfies Prisma.EvaluatorInclude;
 
 export type ObservationEvalProcessorOutcome =
   | "completed"
@@ -435,13 +441,6 @@ async function resolveObservationEvalExecution(params: {
 
   return buildV2Execution({ rule, assignment, evaluator });
 }
-
-const evaluatorInclude = {
-  project: { select: { orgId: true } },
-  // A rule runs its evaluator's current version, so the definition is resolved
-  // here rather than pinned at dispatch.
-  versions: { orderBy: { version: "desc" }, take: 1 },
-} satisfies Prisma.EvaluatorInclude;
 
 function normalizeEvalTemplate(
   template: EvalTemplate & { promptMessages?: unknown; questions?: unknown },

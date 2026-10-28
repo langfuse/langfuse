@@ -1,4 +1,4 @@
-/* eslint-disable no-nested-ternary, @typescript-eslint/no-use-before-define */
+/* eslint-disable no-nested-ternary */
 import {
   commandClickhouse,
   parseClickhouseUTCDateTimeFormat,
@@ -444,7 +444,7 @@ export const getObservationsById = async (
   return records.map((record) => convertObservation(record));
 };
 
-const getObservationByIdInternal = async ({
+async function getObservationByIdInternal({
   id,
   projectId,
   fetchWithInputOutput = false,
@@ -464,7 +464,7 @@ const getObservationByIdInternal = async ({
   traceId?: string;
   renderingProps?: RenderingProps;
   preferredClickhouseService?: PreferredClickhouseService;
-}) => {
+}) {
   const query = `
   SELECT
     id,
@@ -530,7 +530,7 @@ const getObservationByIdInternal = async ({
     tags: { projectId },
     preferredClickhouseService,
   });
-};
+}
 
 export type ObservationTableQuery = {
   projectId: string;
@@ -661,11 +661,11 @@ export const getObservationsTableWithModelData = async (
   });
 };
 
-const getObservationsTableInternal = async <T>(
+async function getObservationsTableInternal<T>(
   opts: ObservationTableQuery & {
     select: "count" | "rows";
   },
-): Promise<Array<T>> => {
+): Promise<Array<T>> {
   const select =
     opts.select === "count"
       ? "count(*) as count"
@@ -888,7 +888,7 @@ const getObservationsTableInternal = async <T>(
     tags: input.tags,
     clickhouseConfigs,
   });
-};
+}
 
 export const getObservationsGroupedByModel = async (
   projectId: string,

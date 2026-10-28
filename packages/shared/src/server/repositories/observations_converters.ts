@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { parseClickhouseUTCDateTimeFormat } from "./clickhouse";
 import { normalizeEventsTraceName } from "../../eventsTable";
 import {
@@ -462,13 +461,13 @@ export function convertEventsObservation(
   };
 }
 
-export const reduceUsageOrCostDetails = (
+export function reduceUsageOrCostDetails(
   details: Record<string, number> | null | undefined,
 ): {
   input: number | null;
   output: number | null;
   total: number | null;
-} => {
+} {
   return {
     input: Object.entries(details ?? {})
       .filter(([usageType]) => usageType.includes("input"))
@@ -486,4 +485,4 @@ export const reduceUsageOrCostDetails = (
     // is null so callers can distinguish "no value" from zero.
     total: details?.total != null ? Number(details.total) : null,
   };
-};
+}

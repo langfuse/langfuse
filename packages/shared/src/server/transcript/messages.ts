@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { partition } from "lodash";
 import type { NormalizedMessage } from "../../utils/normalized-io";
 import { messageKey } from "./comparison";
@@ -30,6 +29,9 @@ export function prepareMessage(message: NormalizedMessage): PreparedMessage {
   };
 }
 
-export const isEnrichmentPart = (part: NormalizedMessage["parts"][number]) =>
-  part.type === "reasoning" ||
-  (part.type === "file" && part.reasoning === true);
+export function isEnrichmentPart(part: NormalizedMessage["parts"][number]) {
+  return (
+    part.type === "reasoning" ||
+    (part.type === "file" && part.reasoning === true)
+  );
+}

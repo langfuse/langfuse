@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import {
   TOPICS_MODEL_SLOT_DETAILS,
   type TopicsModelSlotName,
@@ -11,6 +10,10 @@ import {
   pauseTopicsModels,
   type TopicsModel,
 } from "@langfuse/shared/topics/server";
+
+const contentFilterErrorSchema = z.object({
+  error: z.object({ code: z.literal("content_filter") }),
+});
 
 type TopicsProviderErrorReason =
   | "authentication"
@@ -112,10 +115,6 @@ export function topicProviderError(
     providerErrorDetails(error, status),
   );
 }
-
-const contentFilterErrorSchema = z.object({
-  error: z.object({ code: z.literal("content_filter") }),
-});
 
 /** Provider error strings can echo request/response content; retain only status. */
 function providerErrorDetails(

@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import {
   InternalServerError,
   PromptWebhookOutboundSchema,
@@ -145,10 +144,10 @@ export const webhookProcessor: Processor = async (
 };
 
 // TODO: Webhook outgoing API versioning
-export const executeWebhook = async (
+export async function executeWebhook(
   input: WebhookInput,
   options?: { skipValidation?: boolean },
-) => {
+) {
   const { projectId, automationId } = input;
 
   try {
@@ -197,7 +196,7 @@ export const executeWebhook = async (
     logger.error("Error executing action", error);
     throw error;
   }
-};
+}
 
 /**
  * Shared HTTP execution logic for webhook and GitHub dispatch actions
@@ -1011,7 +1010,7 @@ async function slackMonitorAlertFailure({
   }
 }
 
-const setActionLastFailingExecutionId = async ({
+async function setActionLastFailingExecutionId({
   tx,
   actionId,
   projectId,
@@ -1021,7 +1020,7 @@ const setActionLastFailingExecutionId = async ({
   actionId: string;
   projectId: string;
   executionId: string;
-}) => {
+}) {
   // The execution config may contain decrypted headers, so patch only this JSON
   // key and leave the stored encrypted config untouched.
   await tx.$executeRaw`
@@ -1037,4 +1036,4 @@ const setActionLastFailingExecutionId = async ({
     WHERE id = ${actionId}
       AND project_id = ${projectId}
   `;
-};
+}

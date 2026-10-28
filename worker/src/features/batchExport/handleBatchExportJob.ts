@@ -1,4 +1,4 @@
-/* eslint-disable no-nested-ternary, @typescript-eslint/no-use-before-define */
+/* eslint-disable no-nested-ternary */
 import { pipeline, Transform } from "stream";
 import {
   BATCH_EXPORT_ABANDONED_AFTER_MS,
@@ -156,7 +156,7 @@ export const handleBatchExportJob = async (
 };
 
 /** Streams the export to blob storage, marks it COMPLETED and emails the user. */
-const runExport = async ({
+async function runExport({
   projectId,
   batchExportId,
   jobDetails,
@@ -166,7 +166,7 @@ const runExport = async ({
   batchExportId: string;
   jobDetails: BatchExport;
   span: ReturnType<typeof getCurrentSpan>;
-}) => {
+}) {
   // Parse query from job
   const parsedQuery = BatchExportQuerySchema.safeParse(jobDetails.query);
   if (!parsedQuery.success) {
@@ -399,13 +399,13 @@ const runExport = async ({
       `[BATCH EXPORT] Batch export with id ${batchExportId} for project ${projectId} successful. Email sent to user ${user.id}`,
     );
   }
-};
+}
 
 /** Refreshes a running export's updatedAt until stopped, so it keeps holding its slot. */
-const startExportHeartbeat = (params: {
+function startExportHeartbeat(params: {
   projectId: string;
   batchExportId: string;
-}) => {
+}) {
   const timer = setInterval(() => {
     touchRunningExport(params).catch((error) =>
       logger.warn(
@@ -416,17 +416,17 @@ const startExportHeartbeat = (params: {
   }, BATCH_EXPORT_HEARTBEAT_INTERVAL_MS);
   timer.unref();
   return () => clearInterval(timer);
-};
+}
 
 /** Bumps updatedAt of the export if it is still PROCESSING. */
-export const touchRunningExport = ({
+export function touchRunningExport({
   projectId,
   batchExportId,
 }: {
   projectId: string;
   batchExportId: string;
-}) =>
-  prisma.batchExport.updateMany({
+}) {
+  return prisma.batchExport.updateMany({
     where: {
       id: batchExportId,
       projectId,
@@ -434,9 +434,10 @@ export const touchRunningExport = ({
     },
     data: { updatedAt: new Date() },
   });
+}
 
 /** Claims the user's per-project export slot, serialized across workers by an advisory lock. */
-export const claimExportSlot = async ({
+export async function claimExportSlot({
   projectId,
   userId,
   batchExportId,
@@ -444,8 +445,8 @@ export const claimExportSlot = async ({
   projectId: string;
   userId: string;
   batchExportId: string;
-}): Promise<boolean> =>
-  prisma.$transaction(async (tx) => {
+}): Promise<boolean> {
+  return prisma.$transaction(async (tx) => {
     await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`batch-export:${projectId}:${userId}`}, 0))`;
 
     const running = await tx.batchExport.count({
@@ -467,3 +468,4 @@ export const claimExportSlot = async ({
     });
     return true;
   });
+}

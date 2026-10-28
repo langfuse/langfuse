@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { TableViewPresetTableName } from "../domain/table-view-presets";
 import { type FilterState } from "../types";
 import { encodeFiltersGeneric } from "../features/filters/filterQueryEncoding";
@@ -251,7 +250,7 @@ export const buildTracePath = (params: {
     },
   );
 
-const decodeURIComponentSafely = (value?: string | null) => {
+function decodeURIComponentSafely(value?: string | null) {
   if (!value) {
     return undefined;
   }
@@ -261,7 +260,7 @@ const decodeURIComponentSafely = (value?: string | null) => {
   } catch {
     return value;
   }
-};
+}
 
 export const buildTracesPath = (params: {
   projectId: string;

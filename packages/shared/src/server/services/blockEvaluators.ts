@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { EvalTemplateType, EvaluatorBlockReason, Prisma } from "@prisma/client";
 import { prisma } from "../../db";
 import { env } from "../../env";
@@ -299,10 +298,10 @@ function emitEvaluatorBlocks(params: {
   }
 }
 
-const getBlockedEvaluatorConfigNotifications = (
+function getBlockedEvaluatorConfigNotifications(
   blockedByReason: BlockedEvaluatorConfigIdsByReason,
-): BlockedEvaluatorConfigNotification[] =>
-  Object.entries(blockedByReason).flatMap(([blockReason, blockedIds]) =>
+): BlockedEvaluatorConfigNotification[] {
+  return Object.entries(blockedByReason).flatMap(([blockReason, blockedIds]) =>
     blockedIds?.length
       ? [
           {
@@ -312,6 +311,7 @@ const getBlockedEvaluatorConfigNotifications = (
         ]
       : [],
   );
+}
 
 type NotifyBlockedEvaluatorsParams = {
   projectId: string;

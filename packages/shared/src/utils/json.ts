@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { JsonNested } from "./zod";
 import { isSafeNumber } from "lossless-json";
 
@@ -483,8 +482,9 @@ const UNSAFE_NUMBER_PATTERN = /[\d.]{13,}|\d[eE]/;
 const JSON_NUMBER_LITERAL_PATTERN =
   /^-?(?:0|[1-9]\d*)(?:\.\d+)?(?:[eE][+-]?\d+)?$/;
 
-export const isJsonNumberLiteral = (value: string): boolean =>
-  JSON_NUMBER_LITERAL_PATTERN.test(value.trim());
+export function isJsonNumberLiteral(value: string): boolean {
+  return JSON_NUMBER_LITERAL_PATTERN.test(value.trim());
+}
 
 /**
  * JSON.parse reviver with source-text access (TC39 json-parse-with-source,
@@ -517,7 +517,7 @@ const preserveUnsafeNumbers: ReviverWithSource = (_key, value, context) =>
  * rounding them to a JS double (issue #6628). Throws on invalid JSON, exactly
  * like JSON.parse, so callers can fall back to other parsing strategies.
  */
-const parsePreservingPrecision = (json: string): unknown => {
+function parsePreservingPrecision(json: string): unknown {
   // Fast path: native JSON.parse when no number could lose precision.
   if (!UNSAFE_NUMBER_PATTERN.test(json)) {
     return JSON.parse(json);
@@ -532,7 +532,7 @@ const parsePreservingPrecision = (json: string): unknown => {
   // reviver receives no context and unsafe numbers round like plain
   // JSON.parse; the server (Node >= 21) always preserves them.
   return JSON.parse(json, preserveUnsafeNumbers);
-};
+}
 
 export const parseJsonPrioritised = (
   json: string,

@@ -1,4 +1,4 @@
-/* eslint-disable no-nested-ternary, @typescript-eslint/no-use-before-define */
+/* eslint-disable no-nested-ternary */
 import {
   CloudWatchClient,
   PutMetricDataCommand,
@@ -73,7 +73,7 @@ export async function instrumentAsync<T>(
  * Severs the parent trace but carries baggage and the ClickHouse route onto the
  * new root, so queries in the new trace keep their attribution.
  */
-const newTraceRootContext = () => {
+function newTraceRootContext() {
   const active = opentelemetry.context.active();
   const root = opentelemetry.propagation.setBaggage(
     opentelemetry.ROOT_CONTEXT,
@@ -84,7 +84,7 @@ const newTraceRootContext = () => {
   return route === undefined
     ? root
     : root.setValue(CLICKHOUSE_ROUTE_CONTEXT_KEY, route);
-};
+}
 
 type SyncCallbackFn<T> = (span: opentelemetry.Span) => T;
 
@@ -147,11 +147,11 @@ export const addTagsToCurrentSpan = (
   getCurrentSpan()?.setAttributes(attributes);
 };
 
-export const traceException = (
+export function traceException(
   ex: unknown,
   span?: opentelemetry.Span,
   code?: string,
-) => {
+) {
   const activeSpan = span ?? getCurrentSpan();
 
   if (!activeSpan) {
@@ -194,7 +194,7 @@ export const traceException = (
     code: opentelemetry.SpanStatusCode.ERROR,
     message: exception.message,
   });
-};
+}
 
 export const addUserToSpan = (
   attributes: {
@@ -269,7 +269,9 @@ export const addUserToSpan = (
   return opentelemetry.propagation.setBaggage(ctx, baggage);
 };
 
-export const getTracer = (name: string) => opentelemetry.trace.getTracer(name);
+export function getTracer(name: string) {
+  return opentelemetry.trace.getTracer(name);
+}
 
 const cloudWatchClient = new CloudWatchClient();
 let lastFlushTime = 0;
@@ -290,7 +292,7 @@ const sendCloudWatchMetric = (key: string, value: number, replace: boolean) => {
 };
 
 // Flush all cached metrics in a single API call
-export const flushMetricsToCloudWatch = () => {
+export function flushMetricsToCloudWatch() {
   if (Object.keys(metricCache).length === 0) return;
 
   lastFlushTime = Date.now();
@@ -313,7 +315,7 @@ export const flushMetricsToCloudWatch = () => {
     .catch((error) => {
       logger.warn("Failed to send metrics to CloudWatch", error);
     });
-};
+}
 
 // Metrics ending with these suffixes have their tags flattened into the
 // CloudWatch metric name (excluding CW_UNFLATTENED_TAGS). Other metrics are

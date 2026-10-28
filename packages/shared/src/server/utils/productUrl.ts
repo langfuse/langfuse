@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { type APIScoreV3 } from "../../features/scores/interfaces/api/v3/schemas";
 import {
   buildDashboardWidgetPath,
@@ -165,10 +164,12 @@ export const buildDatasetRunUrl = (params: {
     `/project/${encodeURIComponent(params.projectId)}/datasets/${encodeURIComponent(params.datasetId)}/runs/${encodeURIComponent(params.datasetRunId)}`,
   );
 
-export const buildExperimentUrl = (params: {
+export function buildExperimentUrl(params: {
   projectId: string;
   experimentId: string;
-}) => buildProductUrl(buildExperimentPath(params));
+}) {
+  return buildProductUrl(buildExperimentPath(params));
+}
 
 export const buildAnnotationQueueUrl = (params: {
   projectId: string;

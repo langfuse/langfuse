@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import type {
   Expression,
   ExpressionBuilder,
@@ -445,8 +444,13 @@ function sessionAggregationSelectMap(eb: EventsExpressionBuilder) {
 }
 
 /** Orders a session's events by start, then write time, then span id. */
-const latestSpanOrder = (eb: EventsExpressionBuilder) =>
-  tuple(eb.ref("e.start_time"), eb.ref("e.event_ts"), eb.ref("e.span_id"));
+function latestSpanOrder(eb: EventsExpressionBuilder) {
+  return tuple(
+    eb.ref("e.start_time"),
+    eb.ref("e.event_ts"),
+    eb.ref("e.span_id"),
+  );
+}
 
 /**
  * One row per experiment, aggregated from its events. Grouped by

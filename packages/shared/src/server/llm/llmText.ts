@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { type ZodType } from "zod";
 
 import {
@@ -467,19 +466,6 @@ function isJsonObject(
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
-export function createEvaluatorMediaUrlPolicy(
-  messages: ModelMessage[],
-): Experimental_DownloadFunction {
-  const transport = resolveEvaluatorMediaTransport({
-    configured: env.LANGFUSE_EVALUATOR_MEDIA_TRANSPORT,
-    cloudRegion: env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
-  });
-
-  return transport === "url"
-    ? createProviderSupportedMediaUrlPolicy(messages)
-    : rejectRemoteMediaDownloads;
-}
-
 const rejectRemoteMediaDownloads: Experimental_DownloadFunction = async (
   downloads,
 ) => {
@@ -492,6 +478,19 @@ const rejectRemoteMediaDownloads: Experimental_DownloadFunction = async (
   }
   return [];
 };
+
+export function createEvaluatorMediaUrlPolicy(
+  messages: ModelMessage[],
+): Experimental_DownloadFunction {
+  const transport = resolveEvaluatorMediaTransport({
+    configured: env.LANGFUSE_EVALUATOR_MEDIA_TRANSPORT,
+    cloudRegion: env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
+  });
+
+  return transport === "url"
+    ? createProviderSupportedMediaUrlPolicy(messages)
+    : rejectRemoteMediaDownloads;
+}
 
 function createProviderSupportedMediaUrlPolicy(
   messages: ModelMessage[],

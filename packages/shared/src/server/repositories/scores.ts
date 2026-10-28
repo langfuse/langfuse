@@ -1,4 +1,4 @@
-/* eslint-disable no-nested-ternary, @typescript-eslint/no-use-before-define */
+/* eslint-disable no-nested-ternary */
 import { z } from "zod";
 import {
   ScoreDataTypeType,
@@ -1352,7 +1352,7 @@ export async function getScoresUiTable<
   });
 }
 
-const getScoresUiGeneric = async <T>(props: {
+async function getScoresUiGeneric<T>(props: {
   select: "count" | "rows";
   projectId: string;
   filter: FilterState;
@@ -1364,7 +1364,7 @@ const getScoresUiGeneric = async <T>(props: {
   excludeMetadata?: boolean;
   includeHasMetadataFlag?: boolean;
   preferredClickhouseService?: PreferredClickhouseService;
-}): Promise<T[]> => {
+}): Promise<T[]> {
   const {
     projectId,
     filter,
@@ -1468,7 +1468,7 @@ const getScoresUiGeneric = async <T>(props: {
     clickhouseConfigs,
     preferredClickhouseService,
   });
-};
+}
 
 /**
  * Trace column mapping for building WHERE filters inside the flat events CTE.
@@ -1896,10 +1896,11 @@ const getScoresUiGenericFromEvents = async <T>(props: {
 };
 
 /** Appends s.id in the primary sort direction so LIMIT/OFFSET pages are deterministic on ties */
-const withIdTiebreaker = (orderByClause: string, orderBy: OrderByState) =>
-  orderByClause && orderBy
+function withIdTiebreaker(orderByClause: string, orderBy: OrderByState) {
+  return orderByClause && orderBy
     ? `${orderByClause}, s.id ${orderBy.order}`
     : orderByClause;
+}
 
 export const getScoresUiCountFromEvents = async (props: {
   projectId: string;
@@ -2885,10 +2886,10 @@ export const getScoresForAnalyticsIntegrations = async function* (
   }
 };
 
-export const hasAnyScore = async (
+export async function hasAnyScore(
   projectId: string,
   preferredClickhouseService?: PreferredClickhouseService,
-) => {
+) {
   const query = `    SELECT 1
     FROM scores
     WHERE project_id = {projectId: String}
@@ -2905,7 +2906,7 @@ export const hasAnyScore = async (
   });
 
   return rows.length > 0;
-};
+}
 
 export const getScoreMetadataById = async (
   projectId: string,

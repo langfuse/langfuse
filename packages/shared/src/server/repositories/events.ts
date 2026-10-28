@@ -1,4 +1,4 @@
-/* eslint-disable no-nested-ternary, @typescript-eslint/no-use-before-define */
+/* eslint-disable no-nested-ternary */
 import { prisma } from "../../db";
 import {
   TupleParam,
@@ -4129,10 +4129,10 @@ export async function getLatestSdkVersionInfoFromEvents(params: {
   };
 }
 
-export const getTracesIdentifierForSessionFromEvents = async (
+export async function getTracesIdentifierForSessionFromEvents(
   projectId: string,
   sessionId: string,
-) => {
+) {
   /** tracesCte aggregates traces with a span in the session, keeping those whose aggregated session_id equals sessionId */
   const tracesCte = (qb: QueryCreator<ClickHouseDatabase>) =>
     qb
@@ -4190,4 +4190,4 @@ export const getTracesIdentifierForSessionFromEvents = async (
     timestamp: parseClickhouseUTCDateTimeFormat(row.timestamp),
     environment: row.environment,
   }));
-};
+}

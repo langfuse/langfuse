@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { ClickHouseClientConfigOptions } from "@clickhouse/client";
 import { InvalidRequestError } from "../../errors";
 import { OrderByState } from "../../interfaces/orderBy";
@@ -147,9 +146,9 @@ export type FetchSessionsTableFromEventsProps = {
   clickhouseConfigs?: ClickHouseClientConfigOptions | undefined;
 };
 
-const getSessionsTableFromEventsGeneric = async <T>(
+async function getSessionsTableFromEventsGeneric<T>(
   props: FetchSessionsTableFromEventsProps,
-) => {
+) {
   const { select, projectId, filter, orderBy, limit, page, clickhouseConfigs } =
     props;
 
@@ -279,12 +278,12 @@ const getSessionsTableFromEventsGeneric = async <T>(
     clickhouseConfigs,
     preferredClickhouseService: "EventsReadOnly",
   });
-};
+}
 
 // Keeps only metadata filters an events_full skip index can prune on, so the
 // prefilter subquery stays bounded. Any subset of the conjuncts is still a
 // necessary condition for the outer filter. Returns null when none qualify.
-const buildMetadataSessionPrefilter = (filter: FilterState) => {
+function buildMetadataSessionPrefilter(filter: FilterState) {
   const prunableMetadataFilters = filter.filter(
     (item) =>
       item.type === "stringObject" &&
@@ -306,4 +305,4 @@ const buildMetadataSessionPrefilter = (filter: FilterState) => {
       sessionsEventsViewCols,
     ),
   ).apply();
-};
+}
