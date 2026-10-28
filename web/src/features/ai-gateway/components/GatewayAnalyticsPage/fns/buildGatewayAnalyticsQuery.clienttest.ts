@@ -21,6 +21,7 @@ describe("buildGatewayAnalyticsQuery", () => {
     (_id, w) => {
       const query = buildGatewayAnalyticsQuery(w, timeRange);
 
+      expect(w.chartConfig.type).toBe(w.chartType);
       expect(querySchema.safeParse(query).success).toBe(true);
       expect(validateQuery(query, "v2")).toEqual({ valid: true });
       expect(query.filters[0]).toEqual({

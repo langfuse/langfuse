@@ -45,7 +45,7 @@ export function GatewayAnalyticsWidgetCard({
         projectId={projectId}
         query={query}
         version="v2"
-        chartType={widget.chartConfig.type}
+        chartType={widget.chartType}
         chartConfig={widget.chartConfig}
         metrics={widget.metrics}
         dimensions={widget.dimensions}

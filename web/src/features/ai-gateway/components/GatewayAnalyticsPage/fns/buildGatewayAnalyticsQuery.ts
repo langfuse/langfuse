@@ -26,7 +26,7 @@ export function buildGatewayAnalyticsQuery(
   widget: GatewayAnalyticsWidget,
   timeRange: { from: Date; to: Date },
 ): QueryType {
-  const chartType = widget.chartConfig.type;
+  const chartType = widget.chartType;
   const isTimeSeries = isTimeSeriesChart(chartType);
   const needsTopN = isV2BreakdownChart({
     version: "v2",
@@ -36,7 +36,7 @@ export function buildGatewayAnalyticsQuery(
   });
   const metrics = widget.metrics.map((metric) => ({
     measure: metric.measure,
-    aggregation: metric.agg as QueryType["metrics"][number]["aggregation"],
+    aggregation: metric.agg,
   }));
 
   return {

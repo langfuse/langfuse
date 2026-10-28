@@ -30,7 +30,6 @@ export {
   getWidgetMetricPresentation,
   getWidgetMissingBucketValue,
 } from "@/src/features/widgets/utils";
-export type { WidgetChartConfig } from "@/src/features/widgets/utils";
 export {
   buildWidgetExport,
   parseImportedWidgetJson,
