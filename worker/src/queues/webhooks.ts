@@ -56,7 +56,7 @@ import { backOff } from "exponential-backoff";
 import { env } from "../env";
 import { SlackMessageBuilder } from "../features/slack/slackMessageBuilder";
 import {
-  buildPagerDutyEvents,
+  buildPagerDutyEvent,
   type PagerDutyEvent,
 } from "../features/pagerduty/buildPagerDutyEvent";
 
@@ -1072,16 +1072,14 @@ async function executePagerDutyAction({
 
   try {
     const envelope = buildWebhookOutboundPayload(input);
-    const events = await buildPagerDutyDelivery({ input, envelope, config });
-    if (events.length === 0) {
+    const event = await buildPagerDutyDelivery({ input, envelope, config });
+    if (!event) {
       logger.info(
         `No PagerDuty event for ${input.payload.type} of automation ${automation.id} in project ${projectId}`,
       );
       return;
     }
-    for (const event of events) {
-      await sendPagerDutyEvent(event, config.region);
-    }
+    await sendPagerDutyEvent(event, config.region);
   } catch (error) {
     logger.error("Error executing PagerDuty action", error);
     await recordPagerDutyFailure({ input, automation, executionStart, error });
@@ -1107,7 +1105,7 @@ async function executePagerDutyAction({
   });
 }
 
-/** buildPagerDutyDelivery decrypts the routing key and maps the job payload to PagerDuty events. */
+/** buildPagerDutyDelivery decrypts the routing key and maps the job payload to its PagerDuty event. */
 async function buildPagerDutyDelivery({
   input,
   envelope,
@@ -1116,12 +1114,12 @@ async function buildPagerDutyDelivery({
   input: WebhookInput;
   envelope: WebhookOutboundPayload;
   config: PagerDutyActionConfigWithSecrets;
-}): Promise<PagerDutyEvent[]> {
+}): Promise<PagerDutyEvent | undefined> {
   const project = await prisma.project.findUniqueOrThrow({
     where: { id: input.projectId },
     select: { name: true },
   });
-  return buildPagerDutyEvents({
+  return buildPagerDutyEvent({
     envelope,
     projectId: input.projectId,
     projectName: project.name,

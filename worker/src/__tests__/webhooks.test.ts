@@ -2494,7 +2494,7 @@ describe("Webhook Integration Tests", () => {
       await redis!.del(`automation-failures:${projectId}:${automationId}`);
     });
 
-    it("triggers a critical alert keyed by the monitor and severity with LLMOps details", async () => {
+    it("triggers a critical alert keyed by the monitor with LLMOps details", async () => {
       await executeWebhook(buildMonitorInput("ALERT"));
 
       const [{ url, body }] = pagerDutyRequests();
@@ -2505,7 +2505,7 @@ describe("Webhook Integration Tests", () => {
       expect(body).toMatchObject({
         routing_key: routingKey,
         event_action: "trigger",
-        dedup_key: `langfuse-${projectId}-${monitorId}-ALERT`,
+        dedup_key: `langfuse-${projectId}-${monitorId}`,
         client: "Langfuse",
         links: [
           {
@@ -2548,31 +2548,32 @@ describe("Webhook Integration Tests", () => {
       },
     );
 
-    it("resolves the alerts of the other severities after a severity change", async () => {
+    it("re-triggers the monitor's alert under the same key on a severity change", async () => {
+      await executeWebhook(buildMonitorInput("WARNING"));
       await executeWebhook(buildMonitorInput("ALERT"));
 
       expect(
         pagerDutyRequests().map(({ body }) => [
           body.event_action,
           body.dedup_key,
+          body.payload.severity,
         ]),
       ).toEqual([
-        ["trigger", `langfuse-${projectId}-${monitorId}-ALERT`],
-        ["resolve", `langfuse-${projectId}-${monitorId}-WARNING`],
-        ["resolve", `langfuse-${projectId}-${monitorId}-NO_DATA`],
+        ["trigger", `langfuse-${projectId}-${monitorId}`, "warning"],
+        ["trigger", `langfuse-${projectId}-${monitorId}`, "critical"],
       ]);
     });
 
-    it("resolves the monitor's alerts of every severity on recovery", async () => {
+    it("resolves the monitor's alert on recovery", async () => {
       await executeWebhook(buildMonitorInput("OK"));
 
-      expect(pagerDutyRequests().map(({ body }) => body)).toEqual(
-        ["ALERT", "WARNING", "NO_DATA"].map((severity) => ({
+      expect(pagerDutyRequests().map(({ body }) => body)).toEqual([
+        {
           routing_key: routingKey,
           event_action: "resolve",
-          dedup_key: `langfuse-${projectId}-${monitorId}-${severity}`,
-        })),
-      );
+          dedup_key: `langfuse-${projectId}-${monitorId}`,
+        },
+      ]);
     });
 
     it("sends to the EU host for EU routing keys", async () => {

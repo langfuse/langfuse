@@ -19,10 +19,6 @@ const monitorSeverities: Partial<
   NO_DATA: "error",
 };
 
-const pagedMonitorSeverities = Object.keys(
-  monitorSeverities,
-) as MonitorAlert["severity"][];
-
 const notificationSeverities: Record<
   ProjectNotificationEvent["severity"],
   PagerDutySeverity
@@ -37,13 +33,13 @@ const modelFilterColumns = new Set([
   "observationModelName",
 ]);
 
-/** buildPagerDutyEvents maps a validated webhook envelope to the PagerDuty events to send in order; empty when the alert has nothing to send. */
-export function buildPagerDutyEvents(args: {
+/** buildPagerDutyEvent maps a validated webhook envelope to its PagerDuty event, or undefined when the alert has nothing to send. */
+export function buildPagerDutyEvent(args: {
   envelope: PagerDutyEnvelope;
   projectId: string;
   projectName: string;
   routingKey: string;
-}): PagerDutyEvent[] {
+}): PagerDutyEvent | undefined {
   const context = {
     projectId: args.projectId,
     projectName: args.projectName,
@@ -51,56 +47,44 @@ export function buildPagerDutyEvents(args: {
   };
   switch (args.envelope.type) {
     case "monitor-alert":
-      return buildMonitorAlertEvents(args.envelope.payload, context);
+      return buildMonitorAlertEvent(args.envelope.payload, context);
     case "project-notification":
-      return [buildProjectNotificationEvent(args.envelope.event, context)];
+      return buildProjectNotificationEvent(args.envelope.event, context);
     case "prompt-version":
-      return [buildPromptChangeEvent(args.envelope, context)];
+      return buildPromptChangeEvent(args.envelope, context);
   }
 }
 
-/** buildMonitorAlertEvents triggers the alert's severity and resolves the monitor's other severities; OK resolves them all. */
-function buildMonitorAlertEvents(
+/** buildMonitorAlertEvent triggers the monitor's alert at the alert's severity, or resolves it on OK. */
+function buildMonitorAlertEvent(
   alert: MonitorAlert,
   context: EventContext,
-): PagerDutyEvent[] {
-  if (alert.severity === "OK") return resolveOtherSeverities(alert, context);
+): PagerDutyEvent | undefined {
+  if (alert.severity === "OK") return buildMonitorResolveEvent(alert, context);
 
   const severity = monitorSeverities[alert.severity];
-  if (!severity) return [];
-
-  return [
-    buildMonitorTriggerEvent(alert, severity, context),
-    ...resolveOtherSeverities(alert, context),
-  ];
+  if (!severity) return undefined;
+  return buildMonitorTriggerEvent(alert, severity, context);
 }
 
-/** resolveOtherSeverities resolves the monitor's alerts of every paged severity except the alert's own. */
-function resolveOtherSeverities(
+/** buildMonitorResolveEvent resolves the monitor's open alert. */
+function buildMonitorResolveEvent(
   alert: MonitorAlert,
   context: EventContext,
-): PagerDutyEvent[] {
-  return pagedMonitorSeverities
-    .filter((severity) => severity !== alert.severity)
-    .map(
-      (severity): PagerDutyEvent => ({
-        kind: "alert",
-        event: {
-          routing_key: context.routingKey,
-          event_action: "resolve",
-          dedup_key: monitorDedupKey(context, alert.monitorId, severity),
-        },
-      }),
-    );
+): PagerDutyEvent {
+  return {
+    kind: "alert",
+    event: {
+      routing_key: context.routingKey,
+      event_action: "resolve",
+      dedup_key: monitorDedupKey(context, alert.monitorId),
+    },
+  };
 }
 
-/** monitorDedupKey keys alerts by monitor and severity, since PagerDuty keeps an open alert's original severity. */
-function monitorDedupKey(
-  context: EventContext,
-  monitorId: string,
-  severity: MonitorAlert["severity"],
-): string {
-  return `langfuse-${context.projectId}-${monitorId}-${severity}`;
+/** monitorDedupKey keys a monitor's alert so later triggers update its severity and OK resolves it. */
+function monitorDedupKey(context: EventContext, monitorId: string): string {
+  return `langfuse-${context.projectId}-${monitorId}`;
 }
 
 /** buildMonitorTriggerEvent triggers the monitor's alert for the alert's severity. */
@@ -114,7 +98,7 @@ function buildMonitorTriggerEvent(
     event: {
       routing_key: context.routingKey,
       event_action: "trigger",
-      dedup_key: monitorDedupKey(context, alert.monitorId, alert.severity),
+      dedup_key: monitorDedupKey(context, alert.monitorId),
       ...clientFields(context.projectId),
       links: compactLinks([
         { href: alert.permalink, text: "View monitor in Langfuse" },
