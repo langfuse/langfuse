@@ -16,10 +16,15 @@ export type AccessAuditOrg = {
  * LANGFUSE_AUDIT_LOG_ACCESS_EVENTS. "enforced" follows the instance, not the
  * org's plan: every org on Langfuse Cloud, every org on a self-hosted instance
  * with an enterprise license, and none without one.
+ *
+ * The staging kill switch LANGFUSE_AUDIT_LOG_STAGING_ENABLED turns recording
+ * off in every mode. Reads then succeed unrecorded rather than fail.
  */
 export function isAccessAuditLogEnabled(
   org: Pick<AccessAuditOrg, "plan" | "accessAuditLogEnabled">,
 ): boolean {
+  if (env.LANGFUSE_AUDIT_LOG_STAGING_ENABLED !== "true") return false;
+
   switch (env.LANGFUSE_AUDIT_LOG_ACCESS_EVENTS) {
     case "disabled":
       return false;

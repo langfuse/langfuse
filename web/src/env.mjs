@@ -726,6 +726,8 @@ export const env = createEnv({
 
     // Kill switch for staging audit events for the ClickHouse audit_logs table
     // on Langfuse Cloud. The Postgres audit_logs row is written either way.
+    // Read-access events have no Postgres row, so turning it off stops
+    // recording them; reads still succeed.
     LANGFUSE_AUDIT_LOG_STAGING_ENABLED: z
       .enum(["true", "false"])
       .default("true"),
@@ -737,6 +739,7 @@ export const env = createEnv({
     // covers every plan; self-hosted instances need an enterprise license,
     // without one nothing is recorded.
     // "disabled": never recorded.
+    // LANGFUSE_AUDIT_LOG_STAGING_ENABLED=false also stops recording.
     LANGFUSE_AUDIT_LOG_ACCESS_EVENTS: z
       .enum(["org", "enforced", "disabled"])
       .default("org"),

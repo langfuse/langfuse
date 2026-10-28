@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   mode: "org" as "org" | "enforced" | "disabled",
+  stagingEnabled: "true",
   cloudRegion: undefined as string | undefined,
   licenseKey: undefined as string | undefined,
 }));
@@ -15,6 +16,8 @@ vi.mock("@/src/env.mjs", async (importOriginal) => {
     env: new Proxy(original.env, {
       get: (target, prop) => {
         if (prop === "LANGFUSE_AUDIT_LOG_ACCESS_EVENTS") return mocks.mode;
+        if (prop === "LANGFUSE_AUDIT_LOG_STAGING_ENABLED")
+          return mocks.stagingEnabled;
         if (prop === "NEXT_PUBLIC_LANGFUSE_CLOUD_REGION")
           return mocks.cloudRegion;
         if (prop === "LANGFUSE_EE_LICENSE_KEY") return mocks.licenseKey;
@@ -29,12 +32,25 @@ import { isAccessAuditLogEnabled } from "@/src/ee/features/access-audit-log/serv
 describe("isAccessAuditLogEnabled", () => {
   beforeEach(() => {
     mocks.mode = "org";
+    mocks.stagingEnabled = "true";
     mocks.cloudRegion = undefined;
     mocks.licenseKey = undefined;
   });
 
   it("records nothing when disabled", () => {
     mocks.mode = "disabled";
+    mocks.cloudRegion = "EU";
+    expect(
+      isAccessAuditLogEnabled({
+        plan: "cloud:enterprise",
+        accessAuditLogEnabled: true,
+      }),
+    ).toBe(false);
+  });
+
+  it("records nothing while the staging kill switch is off, even when enforced", () => {
+    mocks.mode = "enforced";
+    mocks.stagingEnabled = "false";
     mocks.cloudRegion = "EU";
     expect(
       isAccessAuditLogEnabled({
