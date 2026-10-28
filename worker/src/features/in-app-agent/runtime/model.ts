@@ -5,7 +5,10 @@ import { createVertexAnthropic } from "ai-sdk-google-vertex-v4/anthropic";
 import { createOpenAICompatible } from "ai-sdk-openai-compatible-v4";
 import { createOpenAI } from "ai-sdk-openai-v4";
 
-import type { InAppAgentModelConfig } from "@langfuse/shared/in-app-agent/server/modelProvider";
+import type {
+  InAppAgentModelConfig,
+  LangfuseAIModelFamily,
+} from "@langfuse/shared/in-app-agent/server/modelProvider";
 import {
   isOpenAICompatibleEndpoint,
   resolveLangfuseAIOpenAICall,
@@ -149,9 +152,17 @@ function createOpenAIInAppAgentLanguageModel(config: {
 // Adaptive thinking is the default for every Claude model so new generations
 // work without maintaining a model list. Older models that only support
 // thinking.type.enabled (e.g. haiku 4.5) reject adaptive with a 400 — the
-// in-app agent must run on a model generation that supports it.
-export function getBedrockReasoningProviderOptions(modelId: string) {
-  if (!modelId.includes(BEDROCK_CLAUDE_MODEL_ID_PART)) {
+// in-app agent must run on a model generation that supports it. A declared
+// "claude" family covers ids that do not name Claude, such as application
+// inference profile ARNs; the operator vouches for the generation behind them.
+export function getBedrockReasoningProviderOptions(
+  modelId: string,
+  modelFamily?: LangfuseAIModelFamily,
+) {
+  if (
+    modelFamily !== "claude" &&
+    !modelId.includes(BEDROCK_CLAUDE_MODEL_ID_PART)
+  ) {
     return undefined;
   }
 
@@ -175,7 +186,10 @@ export function getInAppAgentReasoningProviderOptions(
 ) {
   switch (config.provider) {
     case "anthropic": {
-      if (!config.modelId.includes(ANTHROPIC_CLAUDE_MODEL_ID_PART)) {
+      if (
+        config.modelFamily !== "claude" &&
+        !config.modelId.includes(ANTHROPIC_CLAUDE_MODEL_ID_PART)
+      ) {
         return undefined;
       }
 
@@ -192,7 +206,8 @@ export function getInAppAgentReasoningProviderOptions(
       const call = resolveLangfuseAIOpenAICallFromEnv(config.baseURL);
       if (
         call.apiMode !== "responses" ||
-        !config.modelId.includes(ANTHROPIC_CLAUDE_MODEL_ID_PART)
+        (config.modelFamily !== "claude" &&
+          !config.modelId.includes(ANTHROPIC_CLAUDE_MODEL_ID_PART))
       ) {
         return call.providerOptions;
       }
@@ -228,7 +243,10 @@ export function getInAppAgentReasoningProviderOptions(
       };
     }
     case "bedrock":
-      return getBedrockReasoningProviderOptions(config.modelId);
+      return getBedrockReasoningProviderOptions(
+        config.modelId,
+        config.modelFamily,
+      );
     default: {
       const _exhaustive: never = config;
       return undefined;

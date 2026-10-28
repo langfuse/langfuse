@@ -59,6 +59,21 @@ describe("getBedrockReasoningProviderOptions", () => {
       getBedrockReasoningProviderOptions("meta.llama3-70b-instruct-v1:0"),
     ).toBeUndefined();
   });
+
+  it("sends thinking config to an inference profile ARN declared as Claude", () => {
+    const modelId =
+      "arn:aws:bedrock:eu-west-1:123456789012:application-inference-profile/a1b2c3d4e5f6";
+
+    expect(getBedrockReasoningProviderOptions(modelId)).toBeUndefined();
+    expect(getBedrockReasoningProviderOptions(modelId, "claude")).toEqual({
+      bedrock: {
+        additionalModelRequestFields: {
+          thinking: { type: "adaptive", display: "summarized" },
+          output_config: { effort: "medium" },
+        },
+      },
+    });
+  });
 });
 
 describe("OpenAI Chat Completions request shape", () => {

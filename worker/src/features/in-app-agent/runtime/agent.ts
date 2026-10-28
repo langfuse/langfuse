@@ -60,7 +60,10 @@ import {
   IN_APP_AGENT_QUESTIONNAIRE_TOOL_NAME,
   IN_APP_AGENT_REDIRECT_TOOL_NAME,
 } from "@langfuse/shared/in-app-agent";
-import type { InAppAgentModelConfig } from "@langfuse/shared/in-app-agent/server/modelProvider";
+import type {
+  InAppAgentModelConfig,
+  LangfuseAIModelFamily,
+} from "@langfuse/shared/in-app-agent/server/modelProvider";
 import { applyPromptCacheToCall } from "./promptCache";
 import {
   createInAppAgentLanguageModel,
@@ -1035,6 +1038,7 @@ function withModelTracing(
     onStart?: (options: unknown) => void;
     onStreamPart?: (part: unknown) => void;
   },
+  modelFamily?: LangfuseAIModelFamily,
 ): InAppAgentLanguageModel {
   // Copy provider/supportedUrls after the spread: @ai-sdk/anthropic defines
   // them as prototype getters, and object spread only copies own enumerable
@@ -1052,6 +1056,7 @@ function withModelTracing(
         applyPromptCacheToCall({
           provider: String(model.provider ?? ""),
           modelId: model.modelId,
+          modelFamily,
           options,
         }),
       ),
@@ -1059,6 +1064,7 @@ function withModelTracing(
       const nextOptions = applyPromptCacheToCall({
         provider: String(model.provider ?? ""),
         modelId: model.modelId,
+        modelFamily,
         options,
       });
       callbacks.onStart?.(nextOptions);
@@ -1263,10 +1269,14 @@ async function createMastraAdapter(params: {
     // instruction channel so the model receives the same higher-priority
     // guidance on resumed runs.
     let developerGuidance: string | undefined;
-    const model = withModelTracing(languageModel, {
-      onStart: params.onModelCallStart,
-      onStreamPart: params.onModelStreamPart,
-    });
+    const model = withModelTracing(
+      languageModel,
+      {
+        onStart: params.onModelCallStart,
+        onStreamPart: params.onModelStreamPart,
+      },
+      params.options.model.modelFamily,
+    );
     const agent = new Agent({
       id: "langfuse-in-app-assistant",
       name: ASSISTANT_TITLE,
