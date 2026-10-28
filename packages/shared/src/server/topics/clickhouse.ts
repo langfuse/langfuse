@@ -630,7 +630,7 @@ export async function hasStoredTopicSummaries(
   return hasSummaries;
 }
 
-/** Estimate from retained summaries; replacements can change previous execution totals. */
+/** Approximate totals; retry and replacement rows can overcount until background merges. */
 export async function getTopicExecutionCosts(
   projectId: string,
   executionIds: string[],
@@ -639,13 +639,11 @@ export async function getTopicExecutionCosts(
   const rows = await queryClickhouse<{ executionId: string; cost: string }>({
     query: `SELECT JSONExtractString(metadata, 'executionId') AS executionId,
         sum(cost_details['total']) AS cost
-      FROM topic_facet_summaries FINAL
+      FROM topic_facet_summaries
       WHERE project_id = {projectId:String}
         AND executionId IN {executionIds:Array(String)}
         AND mapContains(cost_details, 'total')
       GROUP BY executionId`,
-    // Filter by execution only after replacing older summary versions.
-    clickhouseSettings: { optimize_move_to_prewhere_if_final: 0 },
     params: { projectId, executionIds },
     tags: { route: "topics-execution-costs", projectId },
   }).catch((error: unknown) => {

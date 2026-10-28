@@ -794,11 +794,16 @@ describe("Topics definition persistence", () => {
     ]);
   });
 
-  it("sums current summary and embedding costs once per source and facet", async () => {
+  it("sums stored summary and embedding totals by project and execution", async () => {
     const priced: TopicSummary = {
       ...summary,
       facetId: randomUUID(),
-      costDetails: { summary_input: 0.05, summary_output: 0.1, total: 0.15 },
+      costDetails: {
+        summary_input: 0.05,
+        summary_output: 0.1,
+        embedding_input: 0.05,
+        total: 0.2,
+      },
       metadata: { executionId: "priced" },
     };
     await writeTopicSummaries([
@@ -812,7 +817,6 @@ describe("Topics definition persistence", () => {
         providedCostDetails: { total: 0.07 },
         costDetails: { total: 0.07 },
       },
-      { ...priced, traceId: "reprocessed" },
       {
         ...priced,
         traceId: "unpriced",
@@ -826,28 +830,9 @@ describe("Topics definition persistence", () => {
         metadata: { executionId: "zero" },
       },
     ]);
-    await writeTopicSummaries([
-      priced,
-      {
-        ...priced,
-        sessionId: "parent-session",
-        processedAt: "2026-09-01T00:00:01.000Z",
-        costDetails: {
-          ...priced.costDetails,
-          embedding_input: 0.05,
-          total: 0.2,
-        },
-      },
-      {
-        ...priced,
-        traceId: "reprocessed",
-        processedAt: "2026-09-01T00:00:01.000Z",
-        metadata: { executionId: "other" },
-      },
-    ]);
     const requested = ["priced", "unpriced", "zero", "missing"];
     expect(await getTopicExecutionCosts(projectId, requested)).toEqual({
-      priced: 0.42,
+      priced: 0.47,
       zero: 0,
     });
   });

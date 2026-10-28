@@ -332,8 +332,8 @@ export function TopicRunDetails({
             </div>
             <p className="text-muted-foreground text-xs">
               Total for this run’s stored summaries and embeddings. Excludes
-              topic naming and failed calls. May change when summaries are
-              replaced or deleted.
+              topic naming and failed calls. May temporarily overcount or change
+              when summaries are replaced or deleted.
             </p>
           </>
         )}

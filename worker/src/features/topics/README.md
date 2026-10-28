@@ -492,7 +492,7 @@ Successful summary and embedding results retain the events-style `provided_usage
 
 The existing result pipeline splits summary costs across produced facet rows and adds each embedding batch's costs once. Reused summaries carry no new model cost. Cost maps are written with the completed summaries; no separate cost write or cost table is needed.
 
-Manual processing summaries carry their execution ID in metadata. History sums `cost_details['total']` on current summary rows, deduplicating the table's full replacement key before filtering by execution ID. This includes total-only provider prices and avoids counting superseded rows. It shows zero for a stored zero total and no estimate when no stored total exists.
+Manual processing summaries carry their execution ID in metadata. History sums stored `cost_details['total']` by project and execution without query-time deduplication. Retry and replacement rows can temporarily overcount until background merges. This includes total-only provider prices, shows zero for a stored zero total, and shows no estimate when no stored total exists.
 
 These are approximate processing costs for retained results. They exclude topic naming, failed calls, and results that were not saved. Partial pricing can undercount the total, and replacing or deleting summaries can change historical estimates. This tradeoff keeps costs in the existing result lifecycle.
 
