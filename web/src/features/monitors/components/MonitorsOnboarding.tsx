@@ -1,11 +1,15 @@
 import Link from "next/link";
 import { Github, Plus, Slack, Webhook } from "@langfuse/icons";
+import { SiPagerduty } from "@langfuse/icons/si";
 import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 
 import { ActionButton } from "@/src/components/ActionButton";
 import { Button } from "@/src/components/ui/button";
 import { SplashScreen } from "@/src/components/ui/SplashScreen";
-import { automationCreateHref } from "@/src/features/automations";
+import {
+  automationCreateHref,
+  useAvailableActionTypes,
+} from "@/src/features/automations";
 import { type ActionTypes } from "@langfuse/shared";
 
 /** OnboardingChannel describes one notification-channel CTA shown in step 1 of the splash. */
@@ -15,7 +19,7 @@ type OnboardingChannel = {
   icon: React.ReactNode;
 };
 
-/** channels enumerates the three notification channels presented to a first-time user. */
+/** channels enumerates the notification channels presented to a first-time user. */
 const channels: OnboardingChannel[] = [
   {
     actionType: "SLACK",
@@ -32,6 +36,11 @@ const channels: OnboardingChannel[] = [
     label: "Connect Github Actions",
     icon: <Github size="base" aria-hidden="true" />,
   },
+  {
+    actionType: "PAGERDUTY",
+    label: "Connect PagerDuty",
+    icon: <SiPagerduty size="base" aria-hidden="true" />,
+  },
 ];
 
 /** MonitorsOnboarding renders the splash shown on /monitors when the project has no monitors yet. */
@@ -42,6 +51,13 @@ export function MonitorsOnboarding({
   projectId: string;
   hasCUDAccess: boolean;
 }) {
+  const actionTypes = useAvailableActionTypes(
+    channels.map((channel) => channel.actionType),
+  );
+  const visibleChannels = channels.filter((channel) =>
+    actionTypes.includes(channel.actionType),
+  );
+
   return (
     <div className="mx-auto w-full max-w-xl pt-12">
       <SplashScreen
@@ -50,11 +66,10 @@ export function MonitorsOnboarding({
         steps={[
           {
             title: "Choose where alerts should go",
-            description:
-              "Send alerts to Slack, Webhooks, or GitHub Actions so your team and your workflows can respond automatically.",
+            description: channelsDescription(actionTypes),
             content: (
               <div className="flex flex-col gap-2">
-                {channels.map((channel) => (
+                {visibleChannels.map((channel) => (
                   <Button
                     key={channel.actionType}
                     asChild
@@ -100,4 +115,12 @@ export function MonitorsOnboarding({
       />
     </div>
   );
+}
+
+/** channelsDescription names the channels the user can connect. */
+function channelsDescription(actionTypes: ActionTypes[]): string {
+  if (actionTypes.includes("PAGERDUTY")) {
+    return "Send alerts to Slack, Webhooks, GitHub Actions, or PagerDuty so your team and your workflows can respond automatically.";
+  }
+  return "Send alerts to Slack, Webhooks, or GitHub Actions so your team and your workflows can respond automatically.";
 }
