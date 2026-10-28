@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 
+import { toKeyOwnerLabelMap } from "@/src/features/ai-gateway/components/GatewayAnalyticsPage/fns/toKeyOwnerLabelMap";
 import { toLabelMap } from "@/src/features/ai-gateway/components/GatewayAnalyticsPage/fns/toLabelMap";
 import type { GatewayAnalyticsLabelSource } from "@/src/features/ai-gateway/components/GatewayAnalyticsPage/types/gatewayAnalyticsWidget";
 import { api } from "@/src/utils/api";
@@ -15,7 +16,7 @@ export function useGatewayAnalyticsLabels(
   return useMemo(
     () => ({
       apiKeys: toLabelMap(data?.apiKeys ?? []),
-      users: toLabelMap(data?.users ?? []),
+      keyOwners: toKeyOwnerLabelMap(data?.apiKeys ?? []),
     }),
     [data],
   );

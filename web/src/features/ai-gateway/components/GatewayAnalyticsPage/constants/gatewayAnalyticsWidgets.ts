@@ -1,6 +1,8 @@
 import type { GatewayAnalyticsWidget } from "@/src/features/ai-gateway/components/GatewayAnalyticsPage/types/gatewayAnalyticsWidget";
 
 const BREAKDOWN_ROW_LIMIT = 20;
+/** The query row cap; keys past it are missing from the folded totals. */
+const MAX_FOLDED_KEYS = 1000;
 
 export const GATEWAY_ANALYTICS_WIDGETS: readonly GatewayAnalyticsWidget[] = [
   {
@@ -54,16 +56,17 @@ export const GATEWAY_ANALYTICS_WIDGETS: readonly GatewayAnalyticsWidget[] = [
   {
     id: "cost-by-user",
     name: "Cost by user",
-    description: `Top ${BREAKDOWN_ROW_LIMIT} users by cost`,
+    description: `Top ${BREAKDOWN_ROW_LIMIT} by cost; service keys appear as themselves`,
     view: "observations",
-    dimensions: [{ field: "userId" }],
+    // Grouped by key rather than by the span's user ID, which callers of a
+    // service key may set freely. The key-owner labels fold a user's keys.
+    dimensions: [{ field: "aiGatewayKeyId" }],
     metrics: [{ measure: "totalCost", agg: "sum" }],
-    filters: [
-      { column: "userId", operator: "is not null", value: "", type: "null" },
-    ],
+    filters: [],
     chartType: "HORIZONTAL_BAR",
     chartConfig: { type: "HORIZONTAL_BAR", row_limit: BREAKDOWN_ROW_LIMIT },
-    dimensionLabels: "users",
+    dimensionLabels: "keyOwners",
+    queryRowLimit: MAX_FOLDED_KEYS,
     size: "medium",
   },
   {

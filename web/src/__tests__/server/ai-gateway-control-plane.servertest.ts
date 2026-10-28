@@ -997,7 +997,7 @@ describe("AI gateway control plane", () => {
     );
   });
 
-  it("names analytics keys and users of the organization for managers only", async () => {
+  it("names every organization key and its owner for managers only", async () => {
     const owner = await prepare();
     const other = await prepare();
     const member = await createCallerForOrganizationRole(owner, Role.MEMBER);
@@ -1005,6 +1005,18 @@ describe("AI gateway control plane", () => {
       orgId: owner.org.id,
       name: "Member key",
       metadata: {},
+    });
+    const serviceKey = await owner.caller.aiGateway.createApiKey({
+      orgId: owner.org.id,
+      name: "Service key",
+      metadata: {},
+      issuedAs: "serviceAccount",
+    });
+    const plainOrgKey = await createApiKey(prisma, {
+      tenant: OrganizationId(owner.org.id),
+      scope: OrganizationId(owner.org.id),
+      role: SystemRoleId("ADMIN"),
+      createdBy: UserId(owner.user.id),
     });
     await other.caller.aiGateway.createApiKey({
       orgId: other.org.id,
@@ -1016,13 +1028,17 @@ describe("AI gateway control plane", () => {
       orgId: owner.org.id,
     });
 
-    expect(labels.apiKeys).toEqual([
-      { id: memberKey.id, name: "Member key", detail: expect.any(String) },
-    ]);
-    expect(labels.users.map((user) => user.name).sort()).toEqual([
-      "Gateway member",
-      "Gateway tester",
-    ]);
+    const byId = new Map(labels.apiKeys.map((key) => [key.id, key]));
+    expect(labels.apiKeys).toHaveLength(3);
+    expect(byId.get(memberKey.id)).toMatchObject({
+      name: "Member key",
+      owner: { name: "Gateway member" },
+    });
+    expect(byId.get(serviceKey.id)).toMatchObject({
+      name: "Service key",
+      owner: null,
+    });
+    expect(byId.get(plainOrgKey.id)).toMatchObject({ owner: null });
     await expect(
       member.aiGateway.getAnalyticsLabels({ orgId: owner.org.id }),
     ).rejects.toMatchObject({ code: "FORBIDDEN" });

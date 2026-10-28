@@ -23,6 +23,7 @@ import {
   getWidgetMissingBucketValue,
   type WidgetChartConfig,
 } from "@/src/features/widgets/utils";
+import { sumRowsSharingLabel } from "@/src/features/widgets/chart-library/sumRowsSharingLabel";
 import { isTimeSeriesChart } from "@/src/features/widgets/chart-library/utils";
 import { useReadPath } from "@/src/features/events";
 import { cn } from "@/src/utils/tailwind";
@@ -81,6 +82,8 @@ export interface WidgetContentProps {
   /**
    * Optional presentation-only labels for the first dimension's values, e.g.
    * names for ID breakdowns. Values without a label keep their raw value.
+   * Several values may share a label: for a sum or count metric their rows
+   * are added up into one series.
    */
   dimensionLabelMap?: ReadonlyMap<string, string>;
   /**
@@ -305,6 +308,17 @@ export function WidgetContent({
             : Number(metricValue || 0),
       };
     });
+
+    const firstAgg = metrics[0]?.agg;
+    if (
+      dimensionLabelMap &&
+      chartType !== "PIVOT_TABLE" &&
+      (firstAgg === "sum" || firstAgg === "count")
+    ) {
+      return sumRowsSharingLabel(mapped, {
+        isTimeSeries: isTimeSeriesChart(chartType),
+      });
+    }
 
     // Entity-dimension charts have no meaningful query-side order (the server
     // falls back to first-metric DESC, which differs per chart). Order the

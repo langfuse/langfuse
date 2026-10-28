@@ -36,7 +36,8 @@ import { countRows, escapeLike } from "./verify";
  *
  * Writes go to the ingestion project of the --project's organization, not to
  * --project itself. Missing gateway keys are created (bound round-robin to
- * organization members) until the organization has --keys of them.
+ * organization members) until the organization has --keys of them. One extra
+ * service key, bound to no user, sends requests whose user ID the caller set.
  */
 
 const MODELS = [
@@ -54,7 +55,11 @@ const ensureGatewayKeys = async (params: {
 }) => {
   const existing = await prisma.gatewayApiKeyAssociation.findMany({
     where: {
-      apiKey: { orgId: params.organizationId, scope: "ORGANIZATION" },
+      apiKey: {
+        orgId: params.organizationId,
+        scope: "ORGANIZATION",
+        userId: { not: null },
+      },
     },
     select: { apiKey: { select: { id: true, userId: true } } },
     orderBy: { apiKeyId: "asc" },
@@ -112,6 +117,46 @@ const ensureGatewayKeys = async (params: {
     keys.push(key);
   }
   return keys;
+};
+
+/** A key issued to no user, as the gateway's service-account keys are. */
+const ensureServiceKey = async (params: {
+  organizationId: string;
+  idPrefix: string;
+}) => {
+  const keyMaterial = `${params.idPrefix}-${params.organizationId}-service`;
+  const publicKey = `pk-lf-gateway-${keyMaterial}`;
+  const found = await prisma.apiKey.findUnique({
+    where: { publicKey },
+    select: { id: true, orgId: true },
+  });
+  if (found && found.orgId !== params.organizationId) {
+    throw new SeedError(
+      `Seeded gateway key ${publicKey} belongs to another organization`,
+      "pass a different --id-prefix",
+    );
+  }
+  const id =
+    found?.id ??
+    (
+      await createApiKey(prisma, {
+        tenant: OrganizationId(params.organizationId),
+        scope: OrganizationId(params.organizationId),
+        role: SystemRoleId("AI_GATEWAY"),
+        createdBy: "system",
+        name: "Seeded service key",
+        predefinedKeys: {
+          publicKey,
+          secretKey: `sk-lf-gateway-${keyMaterial}`,
+        },
+      })
+    ).id;
+  await prisma.gatewayApiKeyAssociation.upsert({
+    where: { apiKeyId: id },
+    create: { apiKeyId: id, metadata: { team: "service" } },
+    update: {},
+  });
+  return { id, userId: null };
 };
 
 const generationCost = (
@@ -283,11 +328,17 @@ const run = async (
     };
   }
 
-  const keys = await ensureGatewayKeys({
-    organizationId: project.orgId,
-    keyCount,
-    idPrefix: ctx.idPrefix,
-  });
+  const keys = [
+    await ensureServiceKey({
+      organizationId: project.orgId,
+      idPrefix: ctx.idPrefix,
+    }),
+    ...(await ensureGatewayKeys({
+      organizationId: project.orgId,
+      keyCount,
+      idPrefix: ctx.idPrefix,
+    })),
+  ];
   ctx.log(
     `building ${gatewayEvents} gateway requests over ${days} day(s) across ${keys.length} key(s)`,
   );
@@ -318,7 +369,10 @@ const run = async (
             ? `${ctx.idPrefix}-d${d}-r${row}`
             : `${ctx.idPrefix}-d${d}-sdk${row}`,
           name: isGateway ? "chat.completions" : "sdk-generation",
-          userId: isGateway ? key.userId : "sdk-user",
+          // A service key's caller sets the user ID itself.
+          userId: isGateway
+            ? (key.userId ?? `app-user-${jitter(ctx.seed, g * 29 + 7, 2)}`)
+            : "sdk-user",
           gatewayKeyId: isGateway ? key.id : null,
           model: MODELS[jitter(ctx.seed, g * 11 + 2, MODELS.length - 1)],
           usageInput: 300 + jitter(ctx.seed, g * 13 + 3, 4000),
@@ -368,7 +422,7 @@ const run = async (
 export const gatewayTrafficScenario: ScenarioDefinition = {
   name: "gateway-traffic",
   description:
-    "AI Gateway requests in the organization's gateway ingestion project: one GENERATION per request attributed to the gateway service, its gateway key, and the key's user, plus a few SDK events. Creates gateway keys up to --keys. Built for the AI Gateway analytics settings tab.",
+    "AI Gateway requests in the organization's gateway ingestion project: one GENERATION per request attributed to the gateway service, its gateway key, and the key's user, plus a few SDK events. Creates gateway keys up to --keys, plus one service key bound to no user. Built for the AI Gateway analytics settings tab.",
   supportsV4: true,
   flags: [
     {

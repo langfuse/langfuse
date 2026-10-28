@@ -47,6 +47,16 @@ describe("buildGatewayAnalyticsQuery", () => {
     expect(query.timeDimension).toBeNull();
   });
 
+  it("attributes cost by key and fetches every key before folding by owner", () => {
+    const query = buildGatewayAnalyticsQuery(widget("cost-by-user"), timeRange);
+
+    expect(query.dimensions).toEqual([{ field: "aiGatewayKeyId" }]);
+    expect(query.chartConfig?.row_limit).toBe(1000);
+    expect(widget("cost-by-user").chartConfig).toMatchObject({
+      row_limit: 20,
+    });
+  });
+
   it("buckets time series automatically without ordering", () => {
     const query = buildGatewayAnalyticsQuery(
       widget("cost-over-time"),
