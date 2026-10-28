@@ -66,6 +66,7 @@ import {
   type IngestionAttribution,
   type PricingTierMatchAttributes,
   AI_GATEWAY_INSTRUMENTATION_SCOPE_NAME,
+  isAiGatewayIngestionApiKey,
 } from "@langfuse/shared/src/server";
 
 import { tokenCountAsync } from "../../features/tokenisation/async-usage";
@@ -77,8 +78,11 @@ import {
   hasAiGatewayScope,
   isAiGatewayGenerationEvent,
   overwriteObject,
-  resolveAiGatewayAttribution,
 } from "./utils";
+import {
+  resolveAiGatewayAttribution,
+  withoutAiGatewayServiceClaim,
+} from "./aiGatewayAttribution";
 import { randomUUID } from "crypto";
 import { SpanKind } from "@opentelemetry/api";
 import { ClickhouseReadSkipCache } from "../../utils/clickhouseReadSkipCache";
@@ -330,13 +334,20 @@ export class IngestionService {
       eventData.modelParameters,
     );
     const metadata = eventData.metadata ?? {};
-    const spanAttribution = resolveAiGatewayAttribution({
-      ingestionApiKey: eventData.ingestionApiKey,
-      metadata,
-      serviceName: eventData.serviceName,
-      serviceVersion: eventData.serviceVersion,
-      scopeVersion: eventData.scopeVersion,
-    });
+    const spanAttribution = isAiGatewayIngestionApiKey(
+      eventData.ingestionApiKey,
+    )
+      ? resolveAiGatewayAttribution({
+          metadata,
+          scopeVersion: eventData.scopeVersion,
+        })
+      : {
+          ingestionApiKey: eventData.ingestionApiKey ?? "",
+          ...withoutAiGatewayServiceClaim({
+            serviceName: eventData.serviceName,
+            serviceVersion: eventData.serviceVersion,
+          }),
+        };
 
     // Runs outside the modelName gate below so model-less events with provided
     // usage are still checked.

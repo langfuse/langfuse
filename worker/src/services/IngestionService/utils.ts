@@ -2,8 +2,6 @@
 import { JsonNested, Prisma } from "@langfuse/shared";
 import {
   AI_GATEWAY_INSTRUMENTATION_SCOPE_NAME,
-  AI_GATEWAY_KEY_ID_METADATA_KEY,
-  AI_GATEWAY_SERVICE_NAME,
   isAiGatewayIngestionApiKey,
 } from "@langfuse/shared/src/server";
 import { mergeWith, merge } from "lodash";
@@ -88,53 +86,6 @@ export const isAiGatewayGenerationEvent = (params: {
   params.ingestionApiKey
     ? isAiGatewayIngestionApiKey(params.ingestionApiKey)
     : params.hasGatewayScope();
-
-/**
- * Which key and service a span is attributed to on the events table.
- *
- * An upload the AI gateway authenticated (ingestion key `gateway:<grant>`)
- * batches requests made with different gateway API keys. Each span names its
- * key in `langfuse.gateway.api_key.id`, which the gateway always overwrites, so
- * that key id becomes the span's ingestion API key and the service is the
- * gateway, versioned by its instrumentation scope. The gateway sends no
- * `service.version` because ingestion would use it as the generation's
- * version. A gateway span without a key id is rejected.
- *
- * Any other sender, including replays without an ingestion key, may set the
- * metadata key and `service.name` freely, so claiming the gateway service name
- * clears the service name and version.
- */
-export const resolveAiGatewayAttribution = (params: {
-  ingestionApiKey: string | null | undefined;
-  metadata: Record<string, unknown>;
-  serviceName: string | null | undefined;
-  serviceVersion: string | null | undefined;
-  scopeVersion: string | null | undefined;
-}): {
-  ingestionApiKey: string;
-  serviceName: string | null | undefined;
-  serviceVersion: string | null | undefined;
-} => {
-  if (!isAiGatewayIngestionApiKey(params.ingestionApiKey)) {
-    const claimsGateway = params.serviceName === AI_GATEWAY_SERVICE_NAME;
-    return {
-      ingestionApiKey: params.ingestionApiKey ?? "",
-      serviceName: claimsGateway ? undefined : params.serviceName,
-      serviceVersion: claimsGateway ? undefined : params.serviceVersion,
-    };
-  }
-  const keyId = params.metadata[AI_GATEWAY_KEY_ID_METADATA_KEY];
-  if (typeof keyId !== "string" || keyId.length === 0) {
-    throw new Error(
-      `AI gateway span is missing ${AI_GATEWAY_KEY_ID_METADATA_KEY} in its metadata`,
-    );
-  }
-  return {
-    ingestionApiKey: keyId,
-    serviceName: AI_GATEWAY_SERVICE_NAME,
-    serviceVersion: params.scopeVersion,
-  };
-};
 
 export function overwriteObject(
   a: {
