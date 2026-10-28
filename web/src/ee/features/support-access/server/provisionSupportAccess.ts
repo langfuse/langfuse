@@ -1,5 +1,5 @@
-import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { prisma } from "@langfuse/shared/src/db";
+import { logger } from "@langfuse/shared/src/server";
 
 import {
   type GrantRequest,
@@ -36,22 +36,6 @@ async function findUser(email: string) {
 
 type User = NonNullable<Awaited<ReturnType<typeof findUser>>>;
 
-function audit(
-  action: "grant" | "revoke",
-  userId: string,
-  orgId: string,
-  after: unknown,
-) {
-  return auditLog({
-    userId: "conductorone-webhook",
-    orgId,
-    resourceType: "supportAccess",
-    resourceId: userId,
-    action,
-    after,
-  });
-}
-
 async function grant(
   request: GrantRequest,
   user: User | null,
@@ -77,9 +61,10 @@ async function grant(
 
   const expiresAt = new Date(now.getTime() + request.durationMs);
   await grantSupportAccess(user.id, org.id, expiresAt);
-  await audit("grant", user.id, org.id, {
-    role: "VIEWER",
-    expiresAt,
+  logger.info("ConductorOne support access granted", {
+    userId: user.id,
+    orgId: org.id,
+    expiresAt: expiresAt.toISOString(),
     c1TaskId: request.taskId,
   });
   return accepted(`VIEWER access granted until ${expiresAt.toISOString()}`);
@@ -94,9 +79,11 @@ async function revoke(
   }
 
   const orgIds = await revokeAllSupportAccess(user);
-  for (const orgId of orgIds) {
-    await audit("revoke", user.id, orgId, { c1TaskId: request.taskId });
-  }
+  logger.info("ConductorOne support access revoked", {
+    userId: user.id,
+    orgIds,
+    c1TaskId: request.taskId,
+  });
   return accepted("Support access revoked");
 }
 
