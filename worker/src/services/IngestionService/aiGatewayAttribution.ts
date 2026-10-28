@@ -1,29 +1,41 @@
 import {
   AI_GATEWAY_KEY_ID_METADATA_KEY,
   AI_GATEWAY_SERVICE_NAME,
+  isAiGatewayIngestionApiKey,
 } from "@langfuse/shared/src/server";
 
-type SpanAttribution = {
+/**
+ * Key and service a span is attributed to on the events table.
+ *
+ * An upload the AI gateway authenticated (ingestion key `gateway:<grant>`)
+ * batches requests made with different gateway API keys. Each span names its
+ * key in `langfuse.gateway.api_key.id`, which the gateway always overwrites, so
+ * that key id becomes the span's ingestion API key. The service is the gateway,
+ * versioned by its instrumentation scope: the gateway sends no `service.version`
+ * because ingestion would use it as the generation's version. A gateway span
+ * without a key id is rejected.
+ */
+export const resolveAiGatewayAttribution = (params: {
+  ingestionApiKey: string | null | undefined;
+  metadata: Record<string, unknown>;
+  serviceName: string | null | undefined;
+  serviceVersion: string | null | undefined;
+  scopeVersion: string | null | undefined;
+}): {
   ingestionApiKey: string;
   serviceName: string | null | undefined;
   serviceVersion: string | null | undefined;
-};
-
-/**
- * Key and service of a span from an upload the AI gateway authenticated
- * (ingestion key `gateway:<grant>`).
- *
- * One upload batches requests made with different gateway API keys. Each span
- * names its key in `langfuse.gateway.api_key.id`, which the gateway always
- * overwrites, so that key id becomes the span's ingestion API key. The service
- * is the gateway, versioned by its instrumentation scope: the gateway sends no
- * `service.version` because ingestion would use it as the generation's version.
- * A span without a key id is rejected.
- */
-export const resolveAiGatewayAttribution = (params: {
-  metadata: Record<string, unknown>;
-  scopeVersion: string | null | undefined;
-}): SpanAttribution => {
+} => {
+  if (!isAiGatewayIngestionApiKey(params.ingestionApiKey)) {
+    // Real gateway spans never get here, but an SDK sending straight to
+    // Langfuse can claim the gateway's service name; such spans lose it.
+    const spoofsGateway = params.serviceName === AI_GATEWAY_SERVICE_NAME;
+    return {
+      ingestionApiKey: params.ingestionApiKey ?? "",
+      serviceName: spoofsGateway ? undefined : params.serviceName,
+      serviceVersion: spoofsGateway ? undefined : params.serviceVersion,
+    };
+  }
   const keyId = params.metadata[AI_GATEWAY_KEY_ID_METADATA_KEY];
   if (typeof keyId !== "string" || keyId.length === 0) {
     throw new Error(
@@ -36,17 +48,3 @@ export const resolveAiGatewayAttribution = (params: {
     serviceVersion: params.scopeVersion,
   };
 };
-
-/**
- * For uploads that did not come through the gateway. Real gateway spans never
- * get here, but an SDK sending straight to Langfuse can set `service.name` to
- * `langfuse-ai-gateway` to pass its spans off as gateway traffic. Such spoofed
- * spans keep everything else but lose the service name and version.
- */
-export const stripSpoofedAiGatewayService = (params: {
-  serviceName: string | null | undefined;
-  serviceVersion: string | null | undefined;
-}): Pick<SpanAttribution, "serviceName" | "serviceVersion"> =>
-  params.serviceName === AI_GATEWAY_SERVICE_NAME
-    ? { serviceName: undefined, serviceVersion: undefined }
-    : params;
