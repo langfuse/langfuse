@@ -240,9 +240,6 @@ clickhouse_table_schema! {
     ingestion_api_key: String => DefaultPolicy::None,
     ingestion_sdk_name: String => DefaultPolicy::Literal("unknown"),
     ingestion_sdk_version: String => DefaultPolicy::Literal("unknown"),
-    // No metadata fallback: any SDK can write the gateway key id into metadata.
-    // Only the worker sets this, and only for uploads the AI gateway authenticated.
-    ai_gateway_key_id: String => DefaultPolicy::None,
     event_type as "type": String => DefaultPolicy::None,
     start_time: DateTime64Micros => DefaultPolicy::None,
     created_at: DateTime64Micros => DefaultPolicy::None,

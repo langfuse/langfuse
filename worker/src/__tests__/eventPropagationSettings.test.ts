@@ -11,8 +11,6 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock("@langfuse/shared/src/server", () => ({
-  AI_GATEWAY_INGESTION_API_KEY_PREFIX: "gateway:",
-  AI_GATEWAY_KEY_ID_METADATA_KEY: "langfuse.gateway.api_key.id",
   queryClickhouse: mocks.queryClickhouse,
   commandClickhouse: mocks.commandClickhouse,
   getCurrentSpan: vi.fn(() => undefined),

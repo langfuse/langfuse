@@ -552,7 +552,6 @@ export const eventRecordBaseSchema = z.object({
   ingestion_api_key: z.string(),
   ingestion_sdk_name: z.string(),
   ingestion_sdk_version: z.string(),
-  ai_gateway_key_id: z.string().optional(),
   service_name: z.string().nullish(),
   service_version: z.string().nullish(),
   scope_name: z.string().nullish(),

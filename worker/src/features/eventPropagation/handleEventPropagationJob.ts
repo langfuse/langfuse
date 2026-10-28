@@ -1,6 +1,4 @@
 import {
-  AI_GATEWAY_INGESTION_API_KEY_PREFIX,
-  AI_GATEWAY_KEY_ID_METADATA_KEY,
   queryClickhouse,
   commandClickhouse,
   getCurrentSpan,
@@ -265,8 +263,7 @@ export const handleEventPropagationJob = async (
           is_deleted,
           ingestion_api_key,
           ingestion_sdk_name,
-          ingestion_sdk_version,
-          ai_gateway_key_id
+          ingestion_sdk_version
         )
         SELECT
           obs.project_id,
@@ -325,15 +322,7 @@ export const handleEventPropagationJob = async (
           obs.is_deleted,
           obs.ingestion_api_key AS ingestion_api_key,
           obs.ingestion_sdk_name AS ingestion_sdk_name,
-          obs.ingestion_sdk_version AS ingestion_sdk_version,
-          -- The AI gateway overwrites this metadata key on everything it uploads,
-          -- but an SDK sending straight to Langfuse can set it freely. So only
-          -- rows the gateway uploaded (ingestion key 'gateway:...') fill the column.
-          if(
-            startsWith(obs.ingestion_api_key, '${AI_GATEWAY_INGESTION_API_KEY_PREFIX}'),
-            obs.metadata['${AI_GATEWAY_KEY_ID_METADATA_KEY}'],
-            ''
-          ) AS ai_gateway_key_id
+          obs.ingestion_sdk_version AS ingestion_sdk_version
         FROM observations_batch_staging obs FINAL
         LEFT JOIN relevant_traces t
         ON (
