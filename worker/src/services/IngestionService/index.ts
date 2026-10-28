@@ -77,8 +77,8 @@ import {
   hasAiGatewayScope,
   isAiGatewayGenerationEvent,
   overwriteObject,
-  resolveAiGatewayAttribution,
 } from "./utils";
+import { resolveAiGatewayAttribution } from "./aiGatewayAttribution";
 import { randomUUID } from "crypto";
 import { SpanKind } from "@opentelemetry/api";
 import { ClickhouseReadSkipCache } from "../../utils/clickhouseReadSkipCache";

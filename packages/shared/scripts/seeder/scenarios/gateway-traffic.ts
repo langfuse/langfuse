@@ -10,10 +10,10 @@ import {
   createEventsCh,
   EventRecordInsertType,
 } from "../../../src/server";
+import { AI_GATEWAY_SERVICE_NAME } from "../../../src/features/ai-gateway/constants";
 import {
   AI_GATEWAY_INSTRUMENTATION_SCOPE_NAME,
   AI_GATEWAY_KEY_ID_METADATA_KEY,
-  AI_GATEWAY_SERVICE_NAME,
 } from "../../../src/server/otel/OtelIngestionProcessor";
 import { GEN_INPUT_PRICE, GEN_OUTPUT_PRICE } from "./payload";
 import { jitter, utcDayStartMs } from "./rng";

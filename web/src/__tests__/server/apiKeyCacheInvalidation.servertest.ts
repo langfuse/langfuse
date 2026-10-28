@@ -390,7 +390,7 @@ describe("API-key cache invalidation on project/org lifecycle", () => {
     expect(res.statusCode).toBe(409);
     expect(res.body).toEqual({
       message:
-        "This project is used as the AI Gateway ingestion project. Select another ingestion project before deleting it.",
+        "This project is used as the AI Gateway ingestion project. Select another ingestion project or set the ingestion mode to None before deleting it.",
     });
     expect(await survivingKeys(keys)).toEqual(keys);
     await expect(
