@@ -30,7 +30,7 @@ import {
 } from "../clickhouse/client";
 import { recordDistribution } from "../instrumentation";
 import { logger } from "../logger";
-import { AI_GATEWAY_SERVICE_NAME } from "../otel/OtelIngestionProcessor";
+import { AI_GATEWAY_SERVICE_NAME } from "../../features/ai-gateway/constants";
 import { compileClickhouseQuery } from "../query-ast/compile";
 import { getClickhouseKysely } from "../query-ast/dialect";
 import type { ClickHouseDatabase } from "../query-ast/schema";

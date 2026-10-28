@@ -29,7 +29,6 @@ import {
   getUsersFromEventsTable,
   getUsersCountFromEventsTable,
   getTracingCountsByProjectInCreationIntervalFromEventsTable,
-  AI_GATEWAY_SERVICE_NAME,
   type EventFilterOptionColumn,
 } from "@langfuse/shared/src/server";
 import {
@@ -42,6 +41,7 @@ import { prisma } from "@langfuse/shared/src/db";
 import { randomUUID } from "crypto";
 import { env } from "@/src/env.mjs";
 import {
+  AI_GATEWAY_SERVICE_NAME,
   LangfuseNotFoundError,
   type EventsTableFilterState,
   type FilterCondition,
