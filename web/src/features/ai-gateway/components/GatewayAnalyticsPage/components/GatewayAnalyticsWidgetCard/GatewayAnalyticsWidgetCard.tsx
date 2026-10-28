@@ -4,6 +4,7 @@ import { buildGatewayAnalyticsQuery } from "@/src/features/ai-gateway/components
 import type { GatewayAnalyticsWidget } from "@/src/features/ai-gateway/components/GatewayAnalyticsPage/types/gatewayAnalyticsWidget";
 import { DashboardCard } from "@/src/features/dashboard/components/cards/DashboardCard";
 import { WidgetContent } from "@/src/features/widgets";
+import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
 import { cn } from "@/src/utils/tailwind";
 
 const SIZE_CLASSES: Record<GatewayAnalyticsWidget["size"], string> = {
@@ -11,6 +12,16 @@ const SIZE_CLASSES: Record<GatewayAnalyticsWidget["size"], string> = {
   medium: "h-96 lg:col-span-3",
   full: "h-96 lg:col-span-6",
 };
+
+// A breakdown bar chart draws nothing but empty axes when there are no rows,
+// unlike the time-series and number tiles that already fail into a "No data"
+// card themselves. Hand it one explicitly. Stable node so the chart memo holds.
+const NO_DATA_PLACEHOLDER = <NoDataOrLoading isLoading={false} />;
+
+const BAR_CHART_TYPES = new Set<GatewayAnalyticsWidget["chartType"]>([
+  "HORIZONTAL_BAR",
+  "VERTICAL_BAR",
+]);
 
 export function GatewayAnalyticsWidgetCard({
   projectId,
@@ -53,6 +64,11 @@ export function GatewayAnalyticsWidgetCard({
         schedulerId={`ai-gateway-analytics:${widget.id}`}
         layoutHint="compact"
         dimensionLabelMap={dimensionLabelMap}
+        emptyState={
+          BAR_CHART_TYPES.has(widget.chartType)
+            ? NO_DATA_PLACEHOLDER
+            : undefined
+        }
       />
     </DashboardCard>
   );
