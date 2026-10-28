@@ -53,13 +53,8 @@ export function buildGatewayAnalyticsQuery(
       needsTopN,
       firstMetric: metrics[0],
     }),
-    chartConfig: toQueryChartConfig(
-      widget.queryRowLimit === undefined
-        ? widget.chartConfig
-        : { ...widget.chartConfig, row_limit: widget.queryRowLimit },
-      {
-        defaultRowLimit: needsTopN ? DEFAULT_BREAKDOWN_ROW_LIMIT : undefined,
-      },
-    ),
+    chartConfig: toQueryChartConfig(widget.chartConfig, {
+      defaultRowLimit: needsTopN ? DEFAULT_BREAKDOWN_ROW_LIMIT : undefined,
+    }),
   };
 }

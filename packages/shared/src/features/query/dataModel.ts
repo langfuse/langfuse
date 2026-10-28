@@ -14,7 +14,10 @@ import {
 } from "../../eventsTable";
 import { LISTABLE_SCORE_TYPES } from "../../domain/scores";
 import { EvalExecutionMetadataKey } from "../evals/evalExecutionMetadata";
-import { AI_GATEWAY_SERVICE_NAME } from "../ai-gateway/constants";
+import {
+  AI_GATEWAY_KEY_OWNER_USER_ID_METADATA_KEY,
+  AI_GATEWAY_SERVICE_NAME,
+} from "../ai-gateway/constants";
 
 // The data model defines all available dimensions, measures, and the timeDimension for a given view.
 // Make sure to update web/src/features/dashboard/lib/dashboardUiTableToViewMapping.ts if you make changes
@@ -1334,6 +1337,18 @@ export const eventsObservationsView: ViewDeclarationType = {
       type: "string",
       description:
         "Identifier of the AI Gateway API key that produced the observation. Empty for traffic that did not pass through the gateway.",
+      highCardinality: true,
+      uiHidden: true,
+    },
+    aiGatewayAttributedTo: {
+      // The span's user_id is not used: a key without an owner lets its caller
+      // set any user ID. The owner ID comes from metadata the gateway writes,
+      // so it outlives the key's deletion.
+      sql: `if(events_observations.service_name = '${AI_GATEWAY_SERVICE_NAME}', coalesce(nullIf(events_observations.metadata_values[indexOf(events_observations.metadata_names, '${AI_GATEWAY_KEY_OWNER_USER_ID_METADATA_KEY}')], ''), nullIf(events_observations.ingestion_api_key, '')), NULL)`,
+      alias: "aiGatewayAttributedTo",
+      type: "string",
+      description:
+        "Who AI Gateway usage is attributed to: the bound user of a user-tied key, otherwise the key's identifier. Empty for traffic that did not pass through the gateway.",
       highCardinality: true,
       uiHidden: true,
     },

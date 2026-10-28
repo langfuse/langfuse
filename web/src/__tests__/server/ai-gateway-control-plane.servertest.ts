@@ -997,7 +997,7 @@ describe("AI gateway control plane", () => {
     );
   });
 
-  it("names every organization key and its owner for managers only", async () => {
+  it("names every organization key and member for managers only", async () => {
     const owner = await prepare();
     const other = await prepare();
     const member = await createCallerForOrganizationRole(owner, Role.MEMBER);
@@ -1030,15 +1030,13 @@ describe("AI gateway control plane", () => {
 
     const byId = new Map(labels.apiKeys.map((key) => [key.id, key]));
     expect(labels.apiKeys).toHaveLength(3);
-    expect(byId.get(memberKey.id)).toMatchObject({
-      name: "Member key",
-      owner: { name: "Gateway member" },
-    });
-    expect(byId.get(serviceKey.id)).toMatchObject({
-      name: "Service key",
-      owner: null,
-    });
-    expect(byId.get(plainOrgKey.id)).toMatchObject({ owner: null });
+    expect(byId.get(memberKey.id)).toMatchObject({ name: "Member key" });
+    expect(byId.get(serviceKey.id)).toMatchObject({ name: "Service key" });
+    expect(byId.has(plainOrgKey.id)).toBe(true);
+    expect(labels.users.map((user) => user.name).sort()).toEqual([
+      "Gateway member",
+      "Gateway tester",
+    ]);
     await expect(
       member.aiGateway.getAnalyticsLabels({ orgId: owner.org.id }),
     ).rejects.toMatchObject({ code: "FORBIDDEN" });

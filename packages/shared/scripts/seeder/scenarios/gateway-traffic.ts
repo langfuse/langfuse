@@ -10,7 +10,10 @@ import {
   createEventsCh,
   EventRecordInsertType,
 } from "../../../src/server";
-import { AI_GATEWAY_SERVICE_NAME } from "../../../src/features/ai-gateway/constants";
+import {
+  AI_GATEWAY_KEY_OWNER_USER_ID_METADATA_KEY,
+  AI_GATEWAY_SERVICE_NAME,
+} from "../../../src/features/ai-gateway/constants";
 import {
   AI_GATEWAY_INSTRUMENTATION_SCOPE_NAME,
   AI_GATEWAY_KEY_ID_METADATA_KEY,
@@ -30,8 +33,8 @@ import { countRows, escapeLike } from "./verify";
  * AI Gateway traffic in the organization's gateway ingestion project, built
  * for the AI Gateway analytics settings tab. Each request is one root
  * GENERATION event with the gateway service name, the gateway key id as its
- * ingestion API key, and the key's bound user, the shape gateway ingestion
- * writes. A few SDK events land in the same project; analytics must ignore
+ * ingestion API key, and the key's bound user as user ID and owner metadata,
+ * the shape gateway ingestion writes. A few SDK events land in the same project; analytics must ignore
  * them.
  *
  * Writes go to the ingestion project of the --project's organization, not to
@@ -191,6 +194,7 @@ const toGenerationEvent = (params: {
   name: string;
   userId: string | null;
   gatewayKeyId: string | null;
+  keyOwnerUserId: string | null;
   model: (typeof MODELS)[number];
   usageInput: number;
   usageOutput: number;
@@ -198,7 +202,15 @@ const toGenerationEvent = (params: {
   durationMs: number;
 }): EventRecordInsertType => {
   const metadata: Record<string, string> = params.gatewayKeyId
-    ? { [AI_GATEWAY_KEY_ID_METADATA_KEY]: params.gatewayKeyId }
+    ? {
+        [AI_GATEWAY_KEY_ID_METADATA_KEY]: params.gatewayKeyId,
+        ...(params.keyOwnerUserId
+          ? {
+              [AI_GATEWAY_KEY_OWNER_USER_ID_METADATA_KEY]:
+                params.keyOwnerUserId,
+            }
+          : {}),
+      }
     : { scenario: "gateway-traffic" };
   const metadataNames = Object.keys(metadata).sort();
   return createEvent({
@@ -374,6 +386,7 @@ const run = async (
             ? (key.userId ?? `app-user-${jitter(ctx.seed, g * 29 + 7, 2)}`)
             : "sdk-user",
           gatewayKeyId: isGateway ? key.id : null,
+          keyOwnerUserId: isGateway ? key.userId : null,
           model: MODELS[jitter(ctx.seed, g * 11 + 2, MODELS.length - 1)],
           usageInput: 300 + jitter(ctx.seed, g * 13 + 3, 4000),
           usageOutput: 100 + jitter(ctx.seed, g * 17 + 4, 1500),
