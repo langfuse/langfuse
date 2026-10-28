@@ -134,6 +134,9 @@ overrides:
   "@ai-sdk/vue@3.0.33>ai": 6.0.230
   # CVE-2026-45820: fflate infinite loop DoS in unzipSync (GHSA-px8p-9vwx-vf98)
   fflate@0.8.1: 0.8.3
+  # CVE-2026-104844: quadratic flat-selector parsing, fixed in 6.1.5.
+  # @tailwindcss/typography pins exactly 6.0.10, including at its latest release.
+  "@tailwindcss/typography>postcss-selector-parser": 6.1.5
   # @ag-ui/mastra imports parsePartialJson from @ai-sdk/ui-utils, whose module
   # evaluation needs exports (validatorSymbol) that only exist in its own
   # provider-utils 2.x line — exempt it from the blanket 4.0.33 lift above.
