@@ -1,6 +1,5 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { BadGatewayError } from "./BadGatewayError";
-import { type BaseError } from "./BaseError";
+import { BaseError } from "./BaseError";
 import { LangfuseConflictError } from "./ConflictError";
 import { ForbiddenError } from "./ForbiddenError";
 import { GatewayTimeoutError } from "./GatewayTimeoutError";
@@ -13,7 +12,7 @@ import { ServiceUnavailableError } from "./ServiceUnavailableError";
 import { TooManyRequestsError } from "./TooManyRequestsError";
 import { UnauthorizedError } from "./UnauthorizedError";
 
-const errorsByStatus: Partial<Record<number, BaseErrorClass>> = {
+const errorsByStatus = {
   400: InvalidRequestError,
   401: UnauthorizedError,
   403: ForbiddenError,
@@ -26,19 +25,34 @@ const errorsByStatus: Partial<Record<number, BaseErrorClass>> = {
   502: BadGatewayError,
   503: ServiceUnavailableError,
   504: GatewayTimeoutError,
-};
+} as const;
 
-/** toBaseError maps an HTTP status to its base error, using the error's default message when none is given. */
-export function toBaseError(status: number, message?: string): BaseError {
-  const ErrorClass = errorsByStatus[status] ?? fallbackErrorClass(status);
-  return new ErrorClass(message);
+/** toBaseError maps an HTTP status to its base error, or to a plain BaseError with that status when none is mapped. */
+export function toBaseError<Status extends number>(
+  status: Status,
+  message?: string,
+): BaseErrorForStatus<Status> {
+  const ErrorClass: BaseErrorClass | undefined =
+    errorsByStatus[status as keyof ErrorsByStatus];
+  if (!ErrorClass) {
+    return new BaseError(
+      "HttpError",
+      status,
+      message ?? `HTTP ${status}`,
+      true,
+    ) as BaseErrorForStatus<Status>;
+  }
+  return new ErrorClass(message) as BaseErrorForStatus<Status>;
 }
 
-/** fallbackErrorClass is InternalServerError for unmapped 5xx statuses and InvalidRequestError otherwise. */
-function fallbackErrorClass(status: number): BaseErrorClass {
-  if (status >= 500) return InternalServerError;
-  return InvalidRequestError;
-}
+/** ErrorsByStatus is the status-to-class table toBaseError reads. */
+type ErrorsByStatus = typeof errorsByStatus;
+
+/** BaseErrorForStatus is the error class mapped to a literal status, and BaseError for any other status. */
+type BaseErrorForStatus<Status extends number> =
+  Status extends keyof ErrorsByStatus
+    ? InstanceType<ErrorsByStatus[Status]>
+    : BaseError;
 
 /** BaseErrorClass is a base error constructor taking an optional message. */
 type BaseErrorClass = new (description?: string) => BaseError;
