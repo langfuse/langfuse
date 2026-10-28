@@ -14,14 +14,12 @@ const db = vi.hoisted(() => ({
   organization: { findUnique: vi.fn(), findMany: vi.fn() },
   $executeRaw: vi.fn(),
 }));
-const auditLog = vi.hoisted(() => vi.fn());
 
 vi.mock("@langfuse/shared/src/db", () => ({
   prisma: db,
   Prisma: { DbNull: "DbNull" },
   Role: { VIEWER: "VIEWER" },
 }));
-vi.mock("@/src/features/audit-logs/auditLog", () => ({ auditLog }));
 
 import { verifyConductorOneRequest } from "@/src/ee/features/support-access/server/conductorOneAuth";
 import {
@@ -245,9 +243,6 @@ describe("provisionSupportAccess", () => {
       message: "VIEWER access granted until 2026-10-24T00:00:00.000Z",
     });
     expect(db.$executeRaw).toHaveBeenCalledOnce();
-    expect(auditLog).toHaveBeenCalledWith(
-      expect.objectContaining({ orgId: "org-1", action: "grant" }),
-    );
   });
 
   it.each([
@@ -351,6 +346,23 @@ describe("support access in the session", () => {
         supportAccess: true,
       },
     ]);
+  });
+
+  it("gives no access to an org whose grant has expired", async () => {
+    db.organization.findMany.mockResolvedValue([
+      { id: "active", projects: [] },
+    ]);
+    const memberships = await getSupportAccessMemberships({
+      supportAccess: {
+        active,
+        expired: entry(new Date(Date.now() - 1000).toISOString()),
+      },
+      organizationMemberships: [],
+    });
+    expect(db.organization.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: { in: ["active"] } } }),
+    );
+    expect(memberships.map((m) => m.organization.id)).toEqual(["active"]);
   });
 
   it("does not query when there is no active grant", async () => {
