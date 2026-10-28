@@ -10,7 +10,7 @@ import {
   isWebhookAction,
   isGitHubDispatchAction,
   isPagerDutyActionConfig,
-  ApiError,
+  isBaseError,
   type AutomationDomain,
   type ActionDomainWithSecrets,
   type PagerDutyActionConfigWithSecrets,
@@ -26,6 +26,7 @@ import {
   type WebhookValidationWhitelist,
   WEBHOOK_URL_VALIDATION_LOG_CONTEXT,
   buildWebhookRequestHeaders,
+  recordIncrement,
 } from "@langfuse/shared/src/server";
 import {
   TQueueJobTypes,
@@ -41,6 +42,7 @@ import {
   ProjectNotificationWebhookQueueEventSchema,
   buildProjectNotificationSlackMessage,
 } from "@langfuse/shared/src/server";
+import { type MonitorAlert } from "@langfuse/shared/monitors";
 import {
   MonitorWebhookQueueEventSchema,
   buildMonitorAlertSlackMessage,
@@ -180,7 +182,14 @@ export const executeWebhook = async (
       return;
     }
 
-    if (await isStaleMonitorAlert({ projectId, automationId, input })) {
+    if (
+      await isStaleMonitorAlert({
+        projectId,
+        automationId,
+        actionType: automation.action.type,
+        input,
+      })
+    ) {
       return;
     }
 
@@ -219,19 +228,16 @@ export const executeWebhook = async (
   }
 };
 
-/**
- * isStaleMonitorAlert reports whether a monitor-alert job is outdated: its
- * monitor is gone, or the monitor emitted a newer alert. The processor
- * publishes before it saves alertedAt, so only a later alertedAt is newer. A
- * stale job is acknowledged without delivery and does not count as a failure.
- */
+/** isStaleMonitorAlert reports whether a monitor-alert job is stale, logging and counting each one it drops. */
 async function isStaleMonitorAlert({
   projectId,
   automationId,
+  actionType,
   input,
 }: {
   projectId: string;
   automationId: string;
+  actionType: string;
   input: WebhookInput;
 }): Promise<boolean> {
   if (input.payload.type !== "monitor-alert") return false;
@@ -239,30 +245,71 @@ async function isStaleMonitorAlert({
   if (envelope.type !== "monitor-alert") return false;
   const alert = envelope.payload;
 
-  const monitor = await prisma.monitor.findUnique({
-    where: { id: alert.monitorId },
-    select: { projectId: true, alertedAt: true },
-  });
-
-  let reason: "monitor_deleted" | "newer_alert" | undefined;
-  if (!monitor || monitor.projectId !== projectId) {
-    reason = "monitor_deleted";
-  } else if (
-    alert.alertedAt &&
-    monitor.alertedAt &&
-    monitor.alertedAt > alert.alertedAt
-  ) {
-    reason = "newer_alert";
-  }
+  const reason = await getStaleMonitorAlertReason({ projectId, alert });
   if (!reason) return false;
 
-  logger.info("Dropping stale monitor alert", {
+  recordStaleMonitorAlertDrop({
     projectId,
     automationId,
+    actionType,
     monitorId: alert.monitorId,
     reason,
   });
   return true;
+}
+
+/** getStaleMonitorAlertReason says why an alert is stale, or undefined when it is current. */
+async function getStaleMonitorAlertReason({
+  projectId,
+  alert,
+}: {
+  projectId: string;
+  alert: MonitorAlert;
+}): Promise<StaleMonitorAlertReason | undefined> {
+  const monitor = await prisma.monitor.findUnique({
+    where: { id: alert.monitorId },
+    select: { projectId: true, alertedAt: true },
+  });
+  if (!monitor || monitor.projectId !== projectId) return "monitor_deleted";
+  // The processor publishes before it saves alertedAt, so only a later alertedAt is newer.
+  if (
+    alert.alertedAt &&
+    monitor.alertedAt &&
+    monitor.alertedAt > alert.alertedAt
+  ) {
+    return "newer_alert";
+  }
+  return undefined;
+}
+
+/** recordStaleMonitorAlertDrop logs a dropped stale alert and counts it by reason and action type. */
+function recordStaleMonitorAlertDrop({
+  projectId,
+  automationId,
+  actionType,
+  monitorId,
+  reason,
+}: {
+  projectId: string;
+  automationId: string;
+  actionType: string;
+  monitorId: string;
+  reason: StaleMonitorAlertReason;
+}): void {
+  logger.info("Dropping stale monitor alert", {
+    projectId,
+    automationId,
+    monitorId,
+    reason,
+  });
+  recordIncrement(
+    "langfuse.queue.webhook_queue.stale_monitor_alerts_dropped",
+    1,
+    {
+      reason,
+      actionType,
+    },
+  );
 }
 
 /**
@@ -1129,10 +1176,7 @@ async function recordPagerDutyFailure({
         startedAt: executionStart,
         finishedAt: new Date(),
         error: error instanceof Error ? error.message : "Unknown error",
-        output:
-          error instanceof ApiError
-            ? { httpStatus: error.httpCode }
-            : undefined,
+        output: isBaseError(error) ? { httpStatus: error.httpCode } : undefined,
       },
     });
 
@@ -1266,3 +1310,6 @@ const setActionLastFailingExecutionId = async ({
       AND project_id = ${projectId}
   `;
 };
+
+/** StaleMonitorAlertReason is why a queued monitor alert was dropped. */
+type StaleMonitorAlertReason = "monitor_deleted" | "newer_alert";

@@ -2696,6 +2696,44 @@ describe("Webhook Integration Tests", () => {
       ).toBe("1");
     });
 
+    it("records PagerDuty's status on a rejected prompt change", async () => {
+      webhookServer.pagerDutyStatus = 400;
+      const fullPrompt = await prisma.prompt.findUniqueOrThrow({
+        where: { id: promptId },
+      });
+      await prisma.automationExecution.create({
+        data: {
+          id: executionId,
+          projectId,
+          triggerId,
+          automationId,
+          actionId,
+          status: ActionExecutionStatus.PENDING,
+          sourceId: executionId,
+          input: {},
+        },
+      });
+
+      await executeWebhook({
+        projectId,
+        automationId,
+        executionId,
+        payload: {
+          prompt: PromptDomainSchema.parse(fullPrompt),
+          action: "created",
+          type: "prompt-version",
+        },
+      });
+
+      const execution = await prisma.automationExecution.findUniqueOrThrow({
+        where: { id: executionId },
+      });
+      expect(execution).toMatchObject({
+        status: ActionExecutionStatus.ERROR,
+        output: { httpStatus: 400 },
+      });
+    });
+
     it("returns the routing key only on the execution read path", async () => {
       const withSecrets = await getActionByIdWithSecrets({
         projectId,
