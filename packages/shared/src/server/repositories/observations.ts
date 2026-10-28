@@ -1225,7 +1225,7 @@ export const getCostForTraces = async (
   return res.length > 0 ? Number(res[0].total_cost) : undefined;
 };
 
-export const deleteObservationsByTraceIds = async (
+const deleteObservationsTableByTraceIds = async (
   projectId: string,
   traceIds: string[],
 ) => {
@@ -1278,6 +1278,71 @@ export const deleteObservationsByTraceIds = async (
   });
 };
 
+export const deleteStagedObservationsByTraceIds = async (
+  projectId: string,
+  traceIds: string[],
+) => {
+  if (!traceIds.length) return;
+
+  const preflight = await queryClickhouse<{
+    min_ts: string;
+    max_ts: string;
+    cnt: string;
+  }>({
+    query: `
+      SELECT
+        min(s3_first_seen_timestamp) - INTERVAL 1 HOUR as min_ts,
+        max(s3_first_seen_timestamp) + INTERVAL 1 HOUR as max_ts,
+        count(*) as cnt
+      FROM observations_batch_staging
+      WHERE project_id = {projectId: String} AND trace_id IN ({traceIds: Array(String)})
+    `,
+    params: { projectId, traceIds },
+    clickhouseConfigs: {
+      request_timeout: env.LANGFUSE_CLICKHOUSE_DELETION_TIMEOUT_MS,
+    },
+    tags: { projectId },
+  });
+
+  const count = Number(preflight[0]?.cnt ?? 0);
+  if (count === 0) {
+    logger.info(
+      `deleteStagedObservationsByTraceIds: no rows found for project ${projectId}, skipping DELETE`,
+    );
+    return;
+  }
+
+  await commandClickhouse({
+    query: `
+      DELETE FROM observations_batch_staging
+      WHERE project_id = {projectId: String}
+      AND trace_id IN ({traceIds: Array(String)})
+      AND s3_first_seen_timestamp >= {minTs: String}::DateTime64(3)
+      AND s3_first_seen_timestamp <= {maxTs: String}::DateTime64(3)
+    `,
+    params: {
+      projectId,
+      traceIds,
+      minTs: preflight[0].min_ts,
+      maxTs: preflight[0].max_ts,
+    },
+    clickhouseConfigs: {
+      request_timeout: env.LANGFUSE_CLICKHOUSE_DELETION_TIMEOUT_MS,
+    },
+    tags: { projectId },
+  });
+};
+
+export const deleteObservationsByTraceIds = async (
+  projectId: string,
+  traceIds: string[],
+) => {
+  await Promise.all([
+    deleteObservationsTableByTraceIds(projectId, traceIds),
+    deleteStagedObservationsByTraceIds(projectId, traceIds),
+  ]);
+};
+
 export const hasAnyObservation = async (projectId: string) => {
   const query = `
     SELECT 1
@@ -1295,28 +1360,71 @@ export const hasAnyObservation = async (projectId: string) => {
   return rows.length > 0;
 };
 
+export const hasAnyStagedObservation = async (projectId: string) => {
+  const query = `
+    SELECT 1
+    FROM observations_batch_staging
+    WHERE project_id = {projectId: String}
+    LIMIT 1
+  `;
+
+  const rows = await queryClickhouse<{ 1: number }>({
+    query,
+    params: { projectId },
+    tags: { projectId },
+  });
+
+  return rows.length > 0;
+};
+
 export const deleteObservationsByProjectId = async (
   projectId: string,
 ): Promise<boolean> => {
-  const hasData = await hasAnyObservation(projectId);
-  if (!hasData) {
+  const [hasData, hasStagedData] = await Promise.all([
+    hasAnyObservation(projectId),
+    hasAnyStagedObservation(projectId),
+  ]);
+
+  if (!hasData && !hasStagedData) {
     return false;
   }
 
-  const query = `
-    DELETE FROM observations
-    WHERE project_id = {projectId: String};
-  `;
   const tags = { projectId };
+  const clickhouseConfigs = {
+    request_timeout: env.LANGFUSE_CLICKHOUSE_DELETION_TIMEOUT_MS,
+  };
 
-  await commandClickhouse({
-    query,
-    params: { projectId },
-    clickhouseConfigs: {
-      request_timeout: env.LANGFUSE_CLICKHOUSE_DELETION_TIMEOUT_MS,
-    },
-    tags,
-  });
+  const tasks: Promise<unknown>[] = [];
+
+  if (hasData) {
+    tasks.push(
+      commandClickhouse({
+        query: `
+          DELETE FROM observations
+          WHERE project_id = {projectId: String};
+        `,
+        params: { projectId },
+        clickhouseConfigs,
+        tags,
+      }),
+    );
+  }
+
+  if (hasStagedData) {
+    tasks.push(
+      commandClickhouse({
+        query: `
+          DELETE FROM observations_batch_staging
+          WHERE project_id = {projectId: String};
+        `,
+        params: { projectId },
+        clickhouseConfigs,
+        tags,
+      }),
+    );
+  }
+
+  await Promise.all(tasks);
 
   return true;
 };
