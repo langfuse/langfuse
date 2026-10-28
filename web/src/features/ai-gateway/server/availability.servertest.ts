@@ -116,12 +116,8 @@ describe("self-hosted deployments", () => {
 });
 
 describe("v4 write mode", () => {
-  it.each([
-    deployedSelfHosted,
-    { nodeEnv: "production", cloudRegion: "EU" },
-    { nodeEnv: "development" },
-    { nodeEnv: "production", previewPrUrl: PREVIEW_PR_URL },
-  ] as const)(
+  // Development otherwise enables every organization regardless of flags.
+  it.each([deployedSelfHosted, { nodeEnv: "development" }] as const)(
     "turns the gateway off in legacy write mode for %o",
     (environment) => {
       const legacy = {

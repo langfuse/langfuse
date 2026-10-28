@@ -165,12 +165,12 @@ async function jobScheduler(): Promise<
  * Counts traces, observations and AI gateway requests created in `[start, end)`
  * from the tables the worker writes: under `events_only` the legacy
  * traces/observations tables are empty, so the events table is the only
- * source. Only the events table marks gateway rows; `legacy` mode does not
- * write it and does not run the gateway, so it reports no gateway count.
+ * source. Gateway requests are reported only there: legacy tables do not mark
+ * gateway rows, and in `dual` mode a second full events scan would cost too
+ * much for that one number.
  */
 async function countTracing({ start, end }: { start: Date; end: Date }) {
-  const writeMode = env.LANGFUSE_MIGRATION_V4_WRITE_MODE;
-  if (writeMode === "events_only") {
+  if (env.LANGFUSE_MIGRATION_V4_WRITE_MODE === "events_only") {
     const counts =
       await getTracingCountsByProjectInCreationIntervalFromEventsTable({
         start,
@@ -182,37 +182,22 @@ async function countTracing({ start, end }: { start: Date; end: Date }) {
         (acc, curr) => acc + curr.observations,
         0,
       ),
-      countGatewayRequests: sumGatewayRequests(counts),
+      countGatewayRequests: counts.reduce(
+        (acc, curr) => acc + curr.gatewayRequests,
+        0,
+      ),
     };
   }
 
-  const [traces, observations, eventsCounts] = await Promise.all([
+  const [traces, observations] = await Promise.all([
     getTraceCountsByProjectInCreationInterval({ start, end }),
     getObservationCountsByProjectInCreationInterval({ start, end }),
-    writeMode === "dual"
-      ? getTracingCountsByProjectInCreationIntervalFromEventsTable({
-          start,
-          end,
-        })
-      : undefined,
   ]);
   return {
     countTraces: traces.reduce((acc, curr) => acc + curr.count, 0),
     countObservations: observations.reduce((acc, curr) => acc + curr.count, 0),
-    countGatewayRequests: eventsCounts
-      ? sumGatewayRequests(eventsCounts)
-      : undefined,
+    countGatewayRequests: undefined,
   };
-}
-
-function sumGatewayRequests(
-  counts: Awaited<
-    ReturnType<
-      typeof getTracingCountsByProjectInCreationIntervalFromEventsTable
-    >
-  >,
-) {
-  return counts.reduce((acc, curr) => acc + curr.gatewayRequests, 0);
 }
 
 async function posthogTelemetry({
