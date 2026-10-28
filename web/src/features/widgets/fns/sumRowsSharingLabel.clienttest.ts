@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { sumRowsSharingLabel } from "@/src/features/widgets/chart-library/sumRowsSharingLabel";
+import { sumRowsSharingLabel } from "@/src/features/widgets/fns/sumRowsSharingLabel";
 
 describe("sumRowsSharingLabel", () => {
   it("adds up rows with one label and re-ranks a breakdown", () => {

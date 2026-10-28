@@ -1,7 +1,5 @@
 import { toLabelMap } from "@/src/features/ai-gateway/components/GatewayAnalyticsPage/fns/toLabelMap";
-
-type LabelEntry = { id: string; name: string | null; detail: string | null };
-type KeyEntry = LabelEntry & { owner: LabelEntry | null };
+import type { RouterOutputs } from "@/src/utils/api";
 
 /**
  * Maps key IDs to who the traffic is attributed to: the bound owner for a
@@ -25,3 +23,7 @@ export function toKeyOwnerLabelMap(
     }),
   );
 }
+
+type KeyEntry =
+  RouterOutputs["aiGateway"]["getAnalyticsLabels"]["apiKeys"][number];
+type LabelEntry = Parameters<typeof toLabelMap>[0][number];

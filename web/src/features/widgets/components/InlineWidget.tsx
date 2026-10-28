@@ -23,7 +23,7 @@ import {
   getWidgetMissingBucketValue,
   type WidgetChartConfig,
 } from "@/src/features/widgets/utils";
-import { sumRowsSharingLabel } from "@/src/features/widgets/chart-library/sumRowsSharingLabel";
+import { sumRowsSharingLabel } from "@/src/features/widgets/fns/sumRowsSharingLabel";
 import { isTimeSeriesChart } from "@/src/features/widgets/chart-library/utils";
 import { useReadPath } from "@/src/features/events";
 import { cn } from "@/src/utils/tailwind";
