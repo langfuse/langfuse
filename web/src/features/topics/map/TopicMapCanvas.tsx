@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { useEffect, useEffectEvent, useRef } from "react";
 import {
   prepareMapNodes,

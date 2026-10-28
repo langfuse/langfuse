@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { parseS3Uri } from "@langfuse/shared";
 import Image from "next/image";
 import { useId, useState, type SyntheticEvent } from "react";

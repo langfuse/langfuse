@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { Slider } from "@/src/components/ui/Slider";
 import { useState } from "react";
 import {

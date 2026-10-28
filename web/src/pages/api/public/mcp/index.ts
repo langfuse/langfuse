@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 /**
  * MCP (Model Context Protocol) Server API Endpoint
  *

@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { createGoogleGenerativeAI } from "@ai-sdk/google";
 import type { EmbeddingModel, LanguageModel } from "ai";
 
