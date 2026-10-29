@@ -33,7 +33,21 @@ service:
       path: /v2/datasets
       request: CreateDatasetRequest
       response: commons.Dataset
+    delete:
+      method: DELETE
+      docs: |
+        Delete a dataset by name. This action is irreversible and also deletes
+        all dataset items and dataset runs that belong to the dataset.
+      path: /v2/datasets/{datasetName}
+      path-parameters:
+        datasetName: string
+      response: DeleteDatasetResponse
 types:
+  DeleteDatasetResponse:
+    properties:
+      message:
+        type: string
+        docs: Success message after deletion
   PaginatedDatasets:
     properties:
       data: list<commons.Dataset>
