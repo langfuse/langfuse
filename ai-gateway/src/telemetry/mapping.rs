@@ -116,7 +116,8 @@ pub(super) fn span(facts: InferenceFacts, context: &GenerationContext) -> Value 
 /// A key bound to a user always attributes to that user's email, or to their
 /// internal user ID when the email is unknown, even inside a caller's trace.
 /// Keys without a bound user, such as service account keys, take the caller's
-/// user ID and otherwise fall back to the key's name.
+/// user ID. Only when the gateway starts the trace do they fall back to the
+/// key's name, so a caller's trace keeps the user set on its own spans.
 fn user_id_source<'a>(
     facts: &'a InferenceFacts,
     context: &GenerationContext,
@@ -134,6 +135,9 @@ fn user_id_source<'a>(
     }
     if context.attributes.contains_key(USER_ID_ATTRIBUTE) {
         return Some(("client", None));
+    }
+    if context.parent_span_id.is_some() {
+        return None;
     }
     facts
         .metadata
@@ -825,6 +829,18 @@ mod tests {
         assert_eq!(
             metadata(&attrs)["langfuse.gateway.user_id_source"],
             "client"
+        );
+
+        let mut child = context();
+        child.parent_span_id = Some("fedcba9876543210".into());
+        let mut named = facts();
+        named.metadata["key_name"] = json!("checkout-agent");
+        let attrs = attributes(&span(named, &child));
+        assert!(!attrs.contains_key("user.id"));
+        assert!(
+            metadata(&attrs)
+                .get("langfuse.gateway.user_id_source")
+                .is_none()
         );
     }
 
