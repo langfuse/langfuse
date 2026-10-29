@@ -34,6 +34,10 @@ vi.mock("@langfuse/shared/src/server", async () => {
 import { v4 as uuidv4 } from "uuid";
 import { prisma } from "@langfuse/shared/src/db";
 import {
+  IN_APP_AGENT_LANGFUSE_MCP_TOOL_POLICIES,
+  isMcpToolName,
+} from "@langfuse/shared/in-app-agent/server/mcpPolicy";
+import {
   createObservation,
   createObservationsCh,
   createDatasetRunItem,
@@ -51,6 +55,7 @@ import {
 import "@/src/features/mcp/server/bootstrap";
 import { config as mcpRouteConfig } from "@/src/pages/api/public/mcp";
 import { toolRegistry } from "@/src/features/mcp/server/registry";
+import { env } from "@/src/env.mjs";
 import {
   handleCreateAnnotationQueue,
   handleCreateAnnotationQueueAssignment,
@@ -175,13 +180,28 @@ describe("MCP public API tools", () => {
     );
   });
 
-  it("exposes the same feature-enabled tools for in-app agent keys", async () => {
-    const toolNames = await getToolNames();
-    const inAppToolNames = await getToolNames(
-      mockServerContext({ inAppAgent: { permissions: "read" } }),
-    );
+  it("exposes feature-enabled tools except those disabled for in-app agent keys", async () => {
+    const originalPreviewOptIn = env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN;
+    Object.assign(env, { LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN: "true" });
 
-    expect(inAppToolNames.sort()).toEqual(toolNames.sort());
+    try {
+      const toolNames = await getToolNames();
+      const inAppToolNames = await getToolNames(
+        mockServerContext({ inAppAgent: { permissions: "read" } }),
+      );
+      const availableToolNames = toolNames.filter(
+        (toolName) =>
+          !isMcpToolName(toolName) ||
+          IN_APP_AGENT_LANGFUSE_MCP_TOOL_POLICIES[toolName].availability !==
+            false,
+      );
+
+      expect(inAppToolNames.sort()).toEqual(availableToolNames.sort());
+    } finally {
+      Object.assign(env, {
+        LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN: originalPreviewOptIn,
+      });
+    }
   });
 
   it("does not resolve mutating tools for in-app agent keys without a run override", async () => {
