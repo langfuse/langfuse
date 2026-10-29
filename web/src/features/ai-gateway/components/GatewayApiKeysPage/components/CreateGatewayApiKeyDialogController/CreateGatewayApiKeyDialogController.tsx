@@ -89,9 +89,7 @@ export function CreateGatewayApiKeyDialogController({
   const metadataCount = metadata.filter((field) => field.key.trim()).length;
   const expiresAt = resolveApiKeyExpiration(expiryPreset, customExpiry);
   const effectiveIssuedAs = canIssueServiceAccountKeys ? issuedAs : "user";
-  // A service-account key has no owner, so its name is the default user ID.
-  const isNameRequired = effectiveIssuedAs === "serviceAccount";
-  const isNameMissing = isNameRequired && !name.trim();
+  const isNameMissing = !name.trim();
 
   const submit = async () => {
     if (expiresAt === undefined || isNameMissing) return;
@@ -103,7 +101,7 @@ export function CreateGatewayApiKeyDialogController({
     try {
       const created = await create.mutateAsync({
         orgId: organizationId,
-        name: name.trim() || undefined,
+        name: name.trim(),
         metadata: metadataObject,
         expiresAt,
         issuedAs: effectiveIssuedAs,
@@ -189,9 +187,7 @@ export function CreateGatewayApiKeyDialogController({
                 >
                   <span>
                     Name
-                    {isNameRequired ? (
-                      <span className="text-destructive ml-1">*</span>
-                    ) : null}
+                    <span className="text-destructive ml-1">*</span>
                   </span>
                   <InfoTooltip label="About gateway key names">
                     Shown in the key list. Use it to describe what consumes the
@@ -202,7 +198,7 @@ export function CreateGatewayApiKeyDialogController({
                   id="gateway-key-name"
                   className="mt-1.5"
                   maxLength={500}
-                  required={isNameRequired}
+                  required
                   placeholder="e.g. Checkout agent, backend service"
                   value={name}
                   onChange={(event) => setName(event.target.value)}

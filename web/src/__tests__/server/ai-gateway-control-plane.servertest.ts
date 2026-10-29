@@ -1082,6 +1082,7 @@ describe("AI gateway control plane", () => {
     await expect(
       caller.aiGateway.createApiKey({
         orgId: org.id,
+        name: "Test key",
         metadata: { nested: { rejected: true } } as never,
       }),
     ).rejects.toThrow();
@@ -1163,7 +1164,11 @@ describe("AI gateway control plane", () => {
       viewer.aiGateway.listApiKeys({ orgId: owner.org.id }),
     ).rejects.toMatchObject({ code: "FORBIDDEN" });
     await expect(
-      viewer.aiGateway.createApiKey({ orgId: owner.org.id, metadata: {} }),
+      viewer.aiGateway.createApiKey({
+        orgId: owner.org.id,
+        name: "Test key",
+        metadata: {},
+      }),
     ).rejects.toMatchObject({ code: "FORBIDDEN" });
   });
 
@@ -1198,26 +1203,25 @@ describe("AI gateway control plane", () => {
     ).toEqual([]);
   });
 
-  it("requires a name for service-account keys only", async () => {
+  it("requires a name for every gateway key", async () => {
     const owner = await prepare();
 
-    for (const name of [undefined, "   "]) {
-      await expect(
-        owner.caller.aiGateway.createApiKey({
-          orgId: owner.org.id,
-          name,
-          metadata: {},
-          issuedAs: "serviceAccount",
-        }),
-      ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    for (const issuedAs of ["user", "serviceAccount"] as const) {
+      for (const name of [undefined, "   "]) {
+        await expect(
+          owner.caller.aiGateway.createApiKey({
+            orgId: owner.org.id,
+            // Deliberately invalid input to exercise server-side validation.
+            name: name as string,
+            metadata: {},
+            issuedAs,
+          }),
+        ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+      }
     }
-    await expect(
-      owner.caller.aiGateway.createApiKey({
-        orgId: owner.org.id,
-        metadata: {},
-        issuedAs: "user",
-      }),
-    ).resolves.toMatchObject({ secretKey: expect.stringMatching(/^sk-lf-/) });
+    expect(
+      (await owner.caller.aiGateway.listApiKeys({ orgId: owner.org.id })).data,
+    ).toEqual([]);
   });
 
   it.each(["legacy", "shadow"] as const)(
@@ -1235,11 +1239,16 @@ describe("AI gateway control plane", () => {
         const admin = await createCallerForOrganizationRole(owner, Role.ADMIN);
 
         await expect(
-          member.aiGateway.createApiKey({ orgId: owner.org.id, metadata: {} }),
+          member.aiGateway.createApiKey({
+            orgId: owner.org.id,
+            name: "Test key",
+            metadata: {},
+          }),
         ).rejects.toMatchObject({ code: "FORBIDDEN" });
         await expect(
           owner.caller.aiGateway.createApiKey({
             orgId: owner.org.id,
+            name: "Test key",
             metadata: {},
           }),
         ).resolves.toMatchObject({
@@ -1275,6 +1284,7 @@ describe("AI gateway control plane", () => {
     await expect(
       caller.aiGateway.createApiKey({
         orgId: org.id,
+        name: "Test key",
         metadata: {},
         expiresAt: new Date(Date.now() - 1_000),
       }),
@@ -1302,6 +1312,7 @@ describe("AI gateway control plane", () => {
     });
     const key = await apiKeyService.create({
       organizationId: org.id,
+      name: "Test key",
       metadata: {},
       issuedAs: "user",
       session,
@@ -1453,6 +1464,7 @@ describe("AI gateway control plane", () => {
     });
     const gatewayKey = await caller.aiGateway.createApiKey({
       orgId: org.id,
+      name: "Test key",
       metadata: {},
     });
 
@@ -1531,6 +1543,7 @@ describe("AI gateway control plane", () => {
     });
     const gatewayKey = await caller.aiGateway.createApiKey({
       orgId: org.id,
+      name: "Test key",
       metadata: {},
     });
     const otherOrganization = await prepare();
@@ -1603,6 +1616,7 @@ describe("AI gateway control plane", () => {
     });
     const gatewayKey = await caller.aiGateway.createApiKey({
       orgId: org.id,
+      name: "Test key",
       metadata: {},
     });
     const fastHashedSecretKey = createShaHash(gatewayKey.secretKey, env.SALT);
@@ -2041,6 +2055,7 @@ describe("AI gateway control plane", () => {
     });
     const key = await caller.aiGateway.createApiKey({
       orgId: org.id,
+      name: "Test key",
       metadata: {},
     });
     const resolveParams = {
@@ -2116,6 +2131,7 @@ describe("AI gateway control plane", () => {
       const { caller, org } = await prepare();
       const gatewayKey = await caller.aiGateway.createApiKey({
         orgId: org.id,
+        name: "Test key",
         metadata: {},
       });
       const authenticator = new GatewayApiKeyAuthenticator(prisma);
@@ -2235,6 +2251,7 @@ describe("AI gateway control plane", () => {
     });
     const key = await caller.aiGateway.createApiKey({
       orgId: org.id,
+      name: "Test key",
       metadata: {},
     });
     await prisma.project.update({
@@ -2275,6 +2292,7 @@ describe("AI gateway control plane", () => {
     });
     const key = await caller.aiGateway.createApiKey({
       orgId: org.id,
+      name: "Test key",
       metadata: {},
     });
     const fetcher = vi.fn<typeof fetch>().mockImplementation(async (url) => {
@@ -2426,6 +2444,7 @@ describe("AI gateway control plane", () => {
     });
     const key = await caller.aiGateway.createApiKey({
       orgId: org.id,
+      name: "Test key",
       metadata: {},
     });
     const fetcher = vi
