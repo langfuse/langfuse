@@ -1188,6 +1188,7 @@ describe("AI gateway control plane", () => {
     await expect(
       member.aiGateway.createApiKey({
         orgId: owner.org.id,
+        name: "Service key",
         metadata: {},
         issuedAs: "serviceAccount",
       }),
@@ -1195,6 +1196,28 @@ describe("AI gateway control plane", () => {
     expect(
       (await member.aiGateway.listApiKeys({ orgId: owner.org.id })).data,
     ).toEqual([]);
+  });
+
+  it("requires a name for service-account keys only", async () => {
+    const owner = await prepare();
+
+    for (const name of [undefined, "   "]) {
+      await expect(
+        owner.caller.aiGateway.createApiKey({
+          orgId: owner.org.id,
+          name,
+          metadata: {},
+          issuedAs: "serviceAccount",
+        }),
+      ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    }
+    await expect(
+      owner.caller.aiGateway.createApiKey({
+        orgId: owner.org.id,
+        metadata: {},
+        issuedAs: "user",
+      }),
+    ).resolves.toMatchObject({ secretKey: expect.stringMatching(/^sk-lf-/) });
   });
 
   it.each(["legacy", "shadow"] as const)(
@@ -1225,6 +1248,7 @@ describe("AI gateway control plane", () => {
         await expect(
           admin.aiGateway.createApiKey({
             orgId: owner.org.id,
+            name: "Service key",
             metadata: {},
             issuedAs: "serviceAccount",
           }),
@@ -1232,6 +1256,7 @@ describe("AI gateway control plane", () => {
         await expect(
           owner.caller.aiGateway.createApiKey({
             orgId: owner.org.id,
+            name: "Service key",
             metadata: {},
             issuedAs: "serviceAccount",
           }),

@@ -473,17 +473,23 @@ export const aiGatewayRouter = createTRPCRouter({
   // Returns the plaintext secret key once, so the procedure must not be traced.
   createApiKey: protectedOrganizationProcedureWithoutTracing
     .input(
-      organizationInput.extend({
-        name: z.string().max(500).optional(),
-        metadata: GatewayMetadataSchema.default({}),
-        expiresAt: z
-          .date()
-          .nullish()
-          .refine((date) => date == null || date.getTime() > Date.now(), {
-            message: "Expiration date must be in the future",
-          }),
-        issuedAs: z.enum(["user", "serviceAccount"]).default("user"),
-      }),
+      organizationInput
+        .extend({
+          name: z.string().max(500).optional(),
+          metadata: GatewayMetadataSchema.default({}),
+          expiresAt: z
+            .date()
+            .nullish()
+            .refine((date) => date == null || date.getTime() > Date.now(), {
+              message: "Expiration date must be in the future",
+            }),
+          issuedAs: z.enum(["user", "serviceAccount"]).default("user"),
+        })
+        // A service-account key has no owner, so its name is the default user ID.
+        .refine(
+          (input) => input.issuedAs === "user" || Boolean(input.name?.trim()),
+          { message: "Service account keys need a name", path: ["name"] },
+        ),
     )
     .mutation(async ({ input, ctx }) => {
       // Legacy public API auth ignores key roles, so a gateway key passes as an

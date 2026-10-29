@@ -88,15 +88,18 @@ export function CreateGatewayApiKeyDialogController({
 
   const metadataCount = metadata.filter((field) => field.key.trim()).length;
   const expiresAt = resolveApiKeyExpiration(expiryPreset, customExpiry);
+  const effectiveIssuedAs = canIssueServiceAccountKeys ? issuedAs : "user";
+  // A service-account key has no owner, so its name is the default user ID.
+  const isNameRequired = effectiveIssuedAs === "serviceAccount";
+  const isNameMissing = isNameRequired && !name.trim();
 
   const submit = async () => {
-    if (expiresAt === undefined) return;
+    if (expiresAt === undefined || isNameMissing) return;
     const metadataObject = Object.fromEntries(
       metadata
         .filter((field) => field.key.trim())
         .map((field) => [field.key.trim(), field.value]),
     );
-    const effectiveIssuedAs = canIssueServiceAccountKeys ? issuedAs : "user";
     try {
       const created = await create.mutateAsync({
         orgId: organizationId,
@@ -145,7 +148,8 @@ export function CreateGatewayApiKeyDialogController({
               {
                 label: "Create key",
                 loading: create.isPending,
-                disabled: create.isPending || expiresAt === undefined,
+                disabled:
+                  create.isPending || expiresAt === undefined || isNameMissing,
                 onClick: submit,
               },
             ]}
@@ -183,7 +187,12 @@ export function CreateGatewayApiKeyDialogController({
                   htmlFor="gateway-key-name"
                   className="flex items-center gap-1.5"
                 >
-                  Name
+                  <span>
+                    Name
+                    {isNameRequired ? (
+                      <span className="text-destructive ml-1">*</span>
+                    ) : null}
+                  </span>
                   <InfoTooltip label="About gateway key names">
                     Shown in the key list. Use it to describe what consumes the
                     key.
@@ -193,6 +202,7 @@ export function CreateGatewayApiKeyDialogController({
                   id="gateway-key-name"
                   className="mt-1.5"
                   maxLength={500}
+                  required={isNameRequired}
                   placeholder="e.g. Checkout agent, backend service"
                   value={name}
                   onChange={(event) => setName(event.target.value)}
