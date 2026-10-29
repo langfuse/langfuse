@@ -120,8 +120,11 @@ export function ExperimentSelectionControls({
   // The same marker the cells put in front of a value, so the run whose values
   // are plain is named as the baseline here. Absent when the cells show no
   // colour at all, which is what an empty colour order means.
+  const selectionLabel = comparisonIds.length > 0 ? "Baseline" : "Experiment";
   const baselineMarkerClass =
-    baselineId && colorExperimentIds.includes(baselineId)
+    comparisonIds.length > 0 &&
+    baselineId &&
+    colorExperimentIds.includes(baselineId)
       ? getExperimentColorStyles(baselineId, colorExperimentIds).markerClass
       : undefined;
 
@@ -137,13 +140,14 @@ export function ExperimentSelectionControls({
               )}
             />
           )}
-          Baseline
+          {selectionLabel}
         </div>
         <div className="w-full max-w-64 min-w-0 flex-1">
           <ExperimentBaselineControls
             projectId={projectId}
             baselineId={baselineId}
             baselineName={baselineName}
+            selectionLabel={selectionLabel}
             onBaselineChange={onBaselineChange}
             onBaselineClear={onBaselineClear}
           />
