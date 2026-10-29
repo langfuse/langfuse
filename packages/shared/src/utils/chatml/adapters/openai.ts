@@ -291,15 +291,16 @@ function normalizeMessage(msg: unknown): Record<string, unknown> {
     Array.isArray(normalized.content) &&
     normalized.content.length > 0
   ) {
-    const firstItem = normalized.content[0];
-    if (
-      firstItem &&
-      typeof firstItem === "object" &&
-      (firstItem as Record<string, unknown>).type === "output_text" &&
-      typeof (firstItem as Record<string, unknown>).text === "string"
-    ) {
-      // Extract just the text for simple output
-      normalized.content = (firstItem as Record<string, unknown>).text;
+    const outputTextItems = normalized.content.filter(
+      (item): item is Record<string, unknown> =>
+        Boolean(item) &&
+        typeof item === "object" &&
+        (item as Record<string, unknown>).type === "output_text" &&
+        typeof (item as Record<string, unknown>).text === "string",
+    );
+
+    if (outputTextItems.length === normalized.content.length) {
+      normalized.content = outputTextItems.map((item) => item.text).join("");
     }
   }
 
