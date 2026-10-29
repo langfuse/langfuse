@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Braces, SquareTerminal, type IconComponent } from "@langfuse/icons";
-import { SiClaude, SiOpenai } from "@langfuse/icons/si";
+import { SiClaude, SiGithubcopilot, SiOpenai } from "@langfuse/icons/si";
 
 import { Button } from "@/src/components/design-system/Button/Button";
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
@@ -20,6 +20,7 @@ const TABS: { id: TabId; label: string; icon: IconComponent }[] = [
   { id: "claude", label: "Claude", icon: SiClaude },
   { id: "codex", label: "Codex", icon: SiOpenai },
   { id: "opencode", label: "OpenCode", icon: SquareTerminal },
+  { id: "copilot-cli", label: "Copilot CLI", icon: SiGithubcopilot },
 ];
 
 type SetupInstructionsTabsProps = {

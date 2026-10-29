@@ -8,4 +8,6 @@ export const AGENT_SETUP_DOCS_URLS = {
   "claude-code": `${GATEWAY_DOCS_URL}/coding-agents/claude-code#claude-code-cli`,
   codex: `${GATEWAY_DOCS_URL}/coding-agents/codex`,
   opencode: `${GATEWAY_DOCS_URL}/coding-agents/opencode`,
+  "copilot-cli":
+    "https://docs.github.com/en/copilot/how-tos/copilot-cli/customize-copilot/use-byok-models",
 } as const;
