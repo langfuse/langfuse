@@ -1,7 +1,4 @@
-import { ArrowRight } from "@langfuse/icons";
-import Link from "next/link";
-
-import { Button } from "@/src/components/ui/button";
+import { Button } from "@/src/components/design-system/Button/Button";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { GatewayHero } from "@/src/features/ai-gateway/components/GatewayLaunch/GatewayHero";
 
@@ -23,24 +20,20 @@ export function GatewayOnlyLanding({
           Get your AI Gateway API key
         </h2>
         <p className="text-muted-foreground text-base leading-relaxed">
-          {organizationName} uses the Langfuse AI Gateway. Create a key, then
-          paste it into Claude Code, Codex or OpenCode.
+          <span className="ph-no-capture">{organizationName}</span> uses the
+          Langfuse AI Gateway. Create a key, then paste it into Claude Code,
+          Codex or OpenCode.
         </p>
-        <Button asChild className="mt-4">
-          <Link
+        <span
+          className="mt-4"
+          onClick={() => capture("ai_gateway_launch:gateway_only_key_clicked")}
+        >
+          <Button
+            variant="primary"
+            text="Get API key"
             href={`/organization/${organizationId}/settings/ai-gateway-api-keys`}
-            onClick={() =>
-              capture("ai_gateway_launch:gateway_only_key_clicked")
-            }
-          >
-            Get API key
-            <ArrowRight
-              size="base"
-              __rawClassName="ml-1.5"
-              aria-hidden="true"
-            />
-          </Link>
-        </Button>
+          />
+        </span>
       </div>
     </div>
   );
