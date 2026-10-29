@@ -32,7 +32,8 @@ permissions: {}
 
 concurrency:
   # Support concurrent `push` and `workflow_dispatch`` actions
-  group: deploy-${{ github.event_name }}-${{ github.ref }}
+  # Dispatches to different environments/services must not cancel each other.
+  group: deploy-${{ github.event_name }}-${{ github.ref }}${{ github.event_name == 'workflow_dispatch' && format('-{0}-{1}', inputs.environment, inputs.service) || '' }}
   cancel-in-progress: true
 
 name: Deploy to ECS
@@ -48,6 +49,8 @@ jobs:
         with:
           script: |
             const services = ["web", "web-ingestion", "web-iso", "worker", "worker-cpu"];
+            // Prod ai-gateway deploys run only via explicit dispatch until its
+            // prod ECS services are bootstrapped.
             const isStaging = context.eventName === "workflow_dispatch"
               ? context.payload.inputs.environment === "staging"
               : context.ref === "refs/heads/main";
@@ -55,9 +58,6 @@ jobs:
 
             if (context.eventName === "workflow_dispatch") {
               const service = context.payload.inputs.service;
-              if (service === "ai-gateway" && !isStaging) {
-                throw new Error("AI Gateway deployments are only enabled in staging.");
-              }
               return JSON.stringify(service === "all" ? services : [service]);
             }
             if (context.eventName === "push") {
