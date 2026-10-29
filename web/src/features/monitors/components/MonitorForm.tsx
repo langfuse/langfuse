@@ -480,6 +480,11 @@ export const MonitorForm = ({
               </CardDescription>
             </CardHeader>
             <CardContent className="min-h-0 flex-1 overflow-y-auto overscroll-contain py-0">
+              {/* Fades content out as it slides under the form header. */}
+              <div
+                aria-hidden
+                className="from-background pointer-events-none sticky top-0 z-20 -mb-3 h-3 bg-linear-to-b to-transparent"
+              />
               <Section title="Metric Definition" step={1}>
                 <FormField
                   control={form.control}
