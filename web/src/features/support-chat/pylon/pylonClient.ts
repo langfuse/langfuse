@@ -278,16 +278,25 @@ export function mapMessageTypeToPylonQuestionType(messageType: string): string {
 export function mapToPylonCaseSeverity(params: {
   severity: string;
   plan?: string;
+  /**
+   * Whether the request was filed from the demo organization. Every Langfuse
+   * Cloud user is a member of it and it runs on an Enterprise plan so the
+   * demo shows the full feature set, so requests from there are capped to
+   * Sev-3 regardless of the plan.
+   */
+  isDemoOrganization: boolean;
 }): "Sev-1" | "Sev-2" | "Sev-3" | undefined {
-  const { severity, plan } = params;
+  const { severity, plan, isDemoOrganization } = params;
 
   if (isPlanWithoutCaseSeverity(plan)) {
     return undefined;
   }
-  if (severity === SEVERITY_1 && isEnterpriseSupportPlan(plan)) {
+  const mayRaiseHighSeverity =
+    !isDemoOrganization && isEnterpriseSupportPlan(plan);
+  if (severity === SEVERITY_1 && mayRaiseHighSeverity) {
     return "Sev-1";
   }
-  if (severity === SEVERITY_2 && isEnterpriseSupportPlan(plan)) {
+  if (severity === SEVERITY_2 && mayRaiseHighSeverity) {
     return "Sev-2";
   }
   return "Sev-3";
