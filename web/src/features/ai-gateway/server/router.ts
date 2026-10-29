@@ -145,9 +145,14 @@ export const aiGatewayRouter = createTRPCRouter({
     .input(organizationInput)
     .query(async ({ input, ctx }) => {
       requireGatewayAdmin({ session: ctx.session, orgId: input.orgId });
-      return new GatewayAnalyticsLabelsRepository(ctx.prisma).getLabels(
-        input.orgId,
-      );
+      return new GatewayAnalyticsLabelsRepository(ctx.prisma).getLabels({
+        organizationId: input.orgId,
+        includePlainOrganizationKeys: hasOrganizationAccess({
+          session: ctx.session,
+          organizationId: input.orgId,
+          scope: "organization:CRUD_apiKeys",
+        }),
+      });
     }),
 
   /** What a key owner needs to point a client at the gateway; no connection details. */

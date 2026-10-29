@@ -9,12 +9,24 @@ type LabelUser = { id: string; name: string | null; email: string | null };
 export class GatewayAnalyticsLabelsRepository {
   constructor(private readonly prisma: PrismaClient) {}
 
-  async getLabels(organizationId: string) {
+  /**
+   * Gateway keys are always included. Plain organization keys can also call
+   * the gateway, but only callers who may list organization API keys get them.
+   */
+  async getLabels(params: {
+    organizationId: string;
+    includePlainOrganizationKeys: boolean;
+  }) {
     const [keys, memberships] = await Promise.all([
-      // Every organization key whose role grants gateway:invoke can call the
-      // gateway, not only keys with a gateway association.
       this.prisma.apiKey.findMany({
-        where: { orgId: organizationId, scope: "ORGANIZATION" },
+        where: {
+          orgId: params.organizationId,
+          scope: "ORGANIZATION",
+          isInAppAgentKey: false,
+          ...(!params.includePlainOrganizationKeys && {
+            gatewayAssociation: { isNot: null },
+          }),
+        },
         select: {
           id: true,
           note: true,
@@ -23,7 +35,7 @@ export class GatewayAnalyticsLabelsRepository {
         },
       }),
       this.prisma.organizationMembership.findMany({
-        where: { orgId: organizationId },
+        where: { orgId: params.organizationId },
         select: { user: { select: { id: true, name: true, email: true } } },
       }),
     ]);
