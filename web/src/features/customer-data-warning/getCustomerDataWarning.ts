@@ -8,6 +8,7 @@ const STAFF_EMAIL_DOMAINS = ["@clickhouse.com", "@langfuse.com"] as const;
 type CustomerDataWarningMembership = {
   id: string;
   projects: { id: string }[];
+  supportAccess?: boolean; // support access grant, not a real membership
 };
 
 export type CustomerDataWarning =
@@ -57,11 +58,14 @@ function isOrganizationMember(
 export function getCustomerDataWarning(
   input: CustomerDataWarningInput,
 ): CustomerDataWarning | null {
-  if (!input.isLangfuseCloud || !input.isAdmin) return null;
+  const hasSupportAccess = input.memberships.some((m) => m.supportAccess);
+  if (!input.isLangfuseCloud || !(input.isAdmin || hasSupportAccess))
+    return null;
   if (!isStaffEmail(input.email)) return null;
+  const memberships = input.memberships.filter((m) => !m.supportAccess);
 
   if (input.projectId) {
-    if (isProjectMember(input.memberships, input.projectId)) return null;
+    if (isProjectMember(memberships, input.projectId)) return null;
     if (!input.organizationName || !input.projectName) return null;
     return {
       scope: "project",
@@ -71,8 +75,7 @@ export function getCustomerDataWarning(
   }
 
   if (input.organizationId) {
-    if (isOrganizationMember(input.memberships, input.organizationId))
-      return null;
+    if (isOrganizationMember(memberships, input.organizationId)) return null;
     if (!input.organizationName) return null;
     return {
       scope: "organization",
