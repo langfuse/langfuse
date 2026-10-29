@@ -755,7 +755,7 @@ async function createGatewayAdmin() {
   const [organization, user] = await Promise.all([
     prisma.organization.findUniqueOrThrow({
       where: { id: ORGANIZATION_ID },
-      select: { id: true, name: true, email: true },
+      select: { id: true, name: true },
     }),
     prisma.user.findUniqueOrThrow({
       where: { id: membership.userId },
