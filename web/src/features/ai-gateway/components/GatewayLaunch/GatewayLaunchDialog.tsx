@@ -71,9 +71,9 @@ export function GatewayLaunchDialog({
       >
         <PopoverLayerProvider container={popoverContainer}>
           <div className="flex min-h-0 flex-1 flex-col overflow-hidden sm:rounded-lg">
-            <div className="min-h-0 flex-1 overflow-y-auto">
+            <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
               <GatewayHero />
-              <div className="flex flex-col gap-2 px-8 pt-6 pb-8">
+              <div className="flex shrink-0 flex-col gap-2 px-8 pt-6 pb-8">
                 {/* eslint-disable-next-line @typescript-eslint/no-deprecated -- design-system Dialog has no hero slot */}
                 <DialogTitle className="text-xl font-bold tracking-tight">
                   {title}

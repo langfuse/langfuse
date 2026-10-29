@@ -5,12 +5,12 @@ import styles from "@/src/features/ai-gateway/components/GatewayLaunch/gatewayLa
 import { GatewayReceipt } from "@/src/features/ai-gateway/components/GatewayLaunch/GatewayReceipt";
 import { cn } from "@/src/utils/tailwind";
 
-/** Illustration: provider spend flowing into a per-person receipt. */
+/** Illustration: provider spend flowing into a per-person receipt; shrinks first in short dialogs. */
 export function GatewayHero() {
   return (
     <div
       className={cn(
-        "bg-surface-section flex h-72 shrink-0 items-center justify-center gap-5 overflow-hidden border-b px-8",
+        "bg-surface-section flex h-72 min-h-48 items-center justify-center gap-5 overflow-hidden border-b px-8",
         styles.dotGrid,
       )}
     >
