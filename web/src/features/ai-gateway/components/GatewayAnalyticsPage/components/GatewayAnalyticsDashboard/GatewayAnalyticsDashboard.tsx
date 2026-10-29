@@ -1,19 +1,13 @@
 import { useMemo, useState } from "react";
-import { type FilterState } from "@langfuse/shared";
 
 import { TimeRangePicker } from "@/src/components/date-picker";
 import Header from "@/src/components/layouts/header";
 import { PageHeaderControlsPortal } from "@/src/components/layouts/page-header-controls-slot";
 import { GatewayAnalyticsWidgetCard } from "@/src/features/ai-gateway/components/GatewayAnalyticsPage/components/GatewayAnalyticsWidgetCard/GatewayAnalyticsWidgetCard";
 import { GATEWAY_ANALYTICS_WIDGETS } from "@/src/features/ai-gateway/components/GatewayAnalyticsPage/constants/gatewayAnalyticsWidgets";
+import { useGatewayAnalyticsFilters } from "@/src/features/ai-gateway/components/GatewayAnalyticsPage/hooks/useGatewayAnalyticsFilters";
 import { useGatewayAnalyticsLabels } from "@/src/features/ai-gateway/components/GatewayAnalyticsPage/hooks/useGatewayAnalyticsLabels";
 import { MultiSelect, PopoverFilterBuilder } from "@/src/features/filters";
-import { useDebounce } from "@/src/hooks/useDebounce";
-import { useEnvironmentFilterOptionsCache } from "@/src/hooks/use-environment-filter-options-cache";
-import {
-  convertSelectedEnvironmentsToFilter,
-  useEnvironmentFilter,
-} from "@/src/hooks/useEnvironmentFilter";
 import {
   toAbsoluteTimeRange,
   type TimeRange,
@@ -41,78 +35,38 @@ export function GatewayAnalyticsDashboard({
     () => toAbsoluteTimeRange(timeRange),
     [timeRange],
   );
-  const [userFilters, setUserFilters] = useState<FilterState>([]);
   const labels = useGatewayAnalyticsLabels(organizationId);
-
-  const { environmentOptions } = useEnvironmentFilterOptionsCache({
-    projectId,
-    timeRange,
-  });
-  const { selectedEnvironments, setSelectedEnvironments } =
-    useEnvironmentFilter(environmentOptions, projectId);
-  const setSelectedEnvironmentsDebounced = useDebounce(setSelectedEnvironments);
-
-  const filters = useMemo(
-    () => [
-      ...userFilters,
-      ...convertSelectedEnvironmentsToFilter(
-        ["environment"],
-        selectedEnvironments,
-      ),
-    ],
-    [userFilters, selectedEnvironments],
-  );
-
-  // Values are IDs; option labels are member names and API key names.
-  const filterColumns = useMemo(
-    () => [
-      {
-        name: "User",
-        id: "aiGatewayKeyOwnerUserId",
-        type: "stringOptions" as const,
-        options: toOptions(labels.users),
-        internal: "aiGatewayKeyOwnerUserId",
-      },
-      {
-        name: "API Key",
-        id: "aiGatewayKeyId",
-        type: "stringOptions" as const,
-        options: toOptions(labels.apiKeys),
-        internal: "aiGatewayKeyId",
-      },
-    ],
-    [labels],
+  const { filters, isReady, environment, builder } = useGatewayAnalyticsFilters(
+    { projectId, timeRange, labels },
   );
 
   return (
     <div className="flex flex-col gap-4">
-      <Header
-        title="Gateway analytics"
-        help={{
-          description:
-            "Cost and usage of requests made through the AI Gateway, read from its ingestion project.",
-        }}
-        actionButtonsLeft={
-          <div className="ph-no-capture flex items-center gap-2">
-            <MultiSelect
-              title="Environment"
-              label="Env"
-              values={selectedEnvironments}
-              onValueChange={setSelectedEnvironmentsDebounced}
-              options={environmentOptions.map((value) => ({ value }))}
-              className="my-0 w-auto overflow-hidden"
-            />
-            <PopoverFilterBuilder
-              columns={filterColumns}
-              filterState={userFilters}
-              onChange={setUserFilters}
-              columnIdentifier="id"
-              tableName="gateway-analytics"
-              isV4
-            />
-          </div>
-        }
-      />
+      <div className="flex flex-wrap items-center gap-3">
+        <Header
+          title="Gateway analytics"
+          className="mb-0!"
+          help={{
+            description:
+              "Cost and usage of requests made through the AI Gateway, read from its ingestion project.",
+          }}
+        />
+        {/* Option labels are member and API key names. */}
+        <div className="ph-no-capture flex items-center gap-2">
+          <MultiSelect
+            title="Environment"
+            label="Env"
+            className="my-0 w-auto overflow-hidden"
+            {...environment}
+          />
+          <PopoverFilterBuilder
+            columnIdentifier="id"
+            tableName="gateway-analytics"
+            isV4
+            {...builder}
+          />
+        </div>
+      </div>
       <PageHeaderControlsPortal>
         <TimeRangePicker
           timeRange={timeRange}
@@ -122,7 +76,7 @@ export function GatewayAnalyticsDashboard({
           triggerClassName="px-2"
         />
       </PageHeaderControlsPortal>
-      {absoluteTimeRange && (
+      {absoluteTimeRange && isReady && (
         <div className="grid grid-cols-1 gap-3 lg:grid-cols-6">
           {GATEWAY_ANALYTICS_WIDGETS.map((widget) => (
             <GatewayAnalyticsWidgetCard
@@ -140,11 +94,4 @@ export function GatewayAnalyticsDashboard({
       )}
     </div>
   );
-}
-
-function toOptions(labelMap: ReadonlyMap<string, string>) {
-  return [...labelMap].map(([value, displayValue]) => ({
-    value,
-    displayValue,
-  }));
 }
