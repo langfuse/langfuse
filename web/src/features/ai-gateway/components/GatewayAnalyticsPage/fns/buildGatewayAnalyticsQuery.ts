@@ -6,6 +6,7 @@ import {
   type QueryType,
 } from "@langfuse/shared/query";
 import { isTimeSeriesChart } from "@/src/features/widgets";
+import type { GatewayAnalyticsFilterState } from "@/src/features/ai-gateway/components/GatewayAnalyticsPage/types/gatewayAnalyticsFilterState";
 import type { GatewayAnalyticsWidget } from "@/src/features/ai-gateway/components/GatewayAnalyticsPage/types/gatewayAnalyticsWidget";
 
 /**
@@ -25,6 +26,7 @@ const DEFAULT_BREAKDOWN_ROW_LIMIT = 100;
 export function buildGatewayAnalyticsQuery(
   widget: GatewayAnalyticsWidget,
   timeRange: { from: Date; to: Date },
+  filterState: GatewayAnalyticsFilterState,
 ): QueryType {
   const chartType = widget.chartType;
   const isTimeSeries = isTimeSeriesChart(chartType);
@@ -43,7 +45,11 @@ export function buildGatewayAnalyticsQuery(
     view: widget.view,
     dimensions: widget.dimensions,
     metrics,
-    filters: [GATEWAY_TRAFFIC_FILTER, ...widget.filters],
+    filters: [
+      GATEWAY_TRAFFIC_FILTER,
+      ...widget.filters,
+      ...toSelectionFilters(filterState),
+    ],
     timeDimension: isTimeSeries ? { granularity: "auto" } : null,
     fromTimestamp: timeRange.from.toISOString(),
     toTimestamp: timeRange.to.toISOString(),
@@ -57,4 +63,27 @@ export function buildGatewayAnalyticsQuery(
       defaultRowLimit: needsTopN ? DEFAULT_BREAKDOWN_ROW_LIMIT : undefined,
     }),
   };
+}
+
+function toSelectionFilters(
+  filterState: GatewayAnalyticsFilterState,
+): FilterCondition[] {
+  const filters: FilterCondition[] = [];
+  if (filterState.userIds.length > 0) {
+    filters.push({
+      column: "aiGatewayKeyOwnerUserId",
+      operator: "any of",
+      value: filterState.userIds,
+      type: "stringOptions",
+    });
+  }
+  if (filterState.apiKeyIds.length > 0) {
+    filters.push({
+      column: "aiGatewayKeyId",
+      operator: "any of",
+      value: filterState.apiKeyIds,
+      type: "stringOptions",
+    });
+  }
+  return filters;
 }

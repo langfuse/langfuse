@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 
 import { buildGatewayAnalyticsQuery } from "@/src/features/ai-gateway/components/GatewayAnalyticsPage/fns/buildGatewayAnalyticsQuery";
+import type { GatewayAnalyticsFilterState } from "@/src/features/ai-gateway/components/GatewayAnalyticsPage/types/gatewayAnalyticsFilterState";
 import type { GatewayAnalyticsWidget } from "@/src/features/ai-gateway/components/GatewayAnalyticsPage/types/gatewayAnalyticsWidget";
 import { DashboardCard } from "@/src/features/dashboard/components/cards/DashboardCard";
 import { WidgetContent } from "@/src/features/widgets";
@@ -27,16 +28,18 @@ export function GatewayAnalyticsWidgetCard({
   projectId,
   widget,
   timeRange,
+  filterState,
   dimensionLabelMap,
 }: {
   projectId: string;
   widget: GatewayAnalyticsWidget;
   timeRange: { from: Date; to: Date };
+  filterState: GatewayAnalyticsFilterState;
   dimensionLabelMap?: ReadonlyMap<string, string>;
 }) {
   const query = useMemo(
-    () => buildGatewayAnalyticsQuery(widget, timeRange),
-    [widget, timeRange],
+    () => buildGatewayAnalyticsQuery(widget, timeRange, filterState),
+    [widget, timeRange, filterState],
   );
 
   return (

@@ -2,9 +2,11 @@ import { useMemo, useState } from "react";
 
 import { TimeRangePicker } from "@/src/components/date-picker";
 import Header from "@/src/components/layouts/header";
+import { GatewayAnalyticsFilterBar } from "@/src/features/ai-gateway/components/GatewayAnalyticsPage/components/GatewayAnalyticsFilterBar/GatewayAnalyticsFilterBar";
 import { GatewayAnalyticsWidgetCard } from "@/src/features/ai-gateway/components/GatewayAnalyticsPage/components/GatewayAnalyticsWidgetCard/GatewayAnalyticsWidgetCard";
 import { GATEWAY_ANALYTICS_WIDGETS } from "@/src/features/ai-gateway/components/GatewayAnalyticsPage/constants/gatewayAnalyticsWidgets";
 import { useGatewayAnalyticsLabels } from "@/src/features/ai-gateway/components/GatewayAnalyticsPage/hooks/useGatewayAnalyticsLabels";
+import type { GatewayAnalyticsFilterState } from "@/src/features/ai-gateway/components/GatewayAnalyticsPage/types/gatewayAnalyticsFilterState";
 import {
   toAbsoluteTimeRange,
   type TimeRange,
@@ -17,6 +19,8 @@ const TIME_RANGE_PRESETS = [
   "last90Days",
   "last1Year",
 ] as const;
+
+const NO_FILTERS: GatewayAnalyticsFilterState = { userIds: [], apiKeyIds: [] };
 
 export function GatewayAnalyticsDashboard({
   organizationId,
@@ -32,6 +36,8 @@ export function GatewayAnalyticsDashboard({
     () => toAbsoluteTimeRange(timeRange),
     [timeRange],
   );
+  const [filterState, setFilterState] =
+    useState<GatewayAnalyticsFilterState>(NO_FILTERS);
   const labels = useGatewayAnalyticsLabels(organizationId);
 
   return (
@@ -43,11 +49,18 @@ export function GatewayAnalyticsDashboard({
             "Cost and usage of requests made through the AI Gateway, read from its ingestion project.",
         }}
         actionButtons={
-          <TimeRangePicker
-            timeRange={timeRange}
-            onTimeRangeChange={setTimeRange}
-            timeRangePresets={TIME_RANGE_PRESETS}
-          />
+          <>
+            <GatewayAnalyticsFilterBar
+              filterState={filterState}
+              onFilterStateChange={setFilterState}
+              labels={labels}
+            />
+            <TimeRangePicker
+              timeRange={timeRange}
+              onTimeRangeChange={setTimeRange}
+              timeRangePresets={TIME_RANGE_PRESETS}
+            />
+          </>
         }
       />
       {absoluteTimeRange && (
@@ -58,6 +71,7 @@ export function GatewayAnalyticsDashboard({
               projectId={projectId}
               widget={widget}
               timeRange={absoluteTimeRange}
+              filterState={filterState}
               dimensionLabelMap={
                 widget.dimensionLabels && labels[widget.dimensionLabels]
               }

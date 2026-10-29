@@ -9,6 +9,8 @@ const timeRange = {
   to: new Date("2026-01-31T00:00:00.000Z"),
 };
 
+const noFilters = { userIds: [], apiKeyIds: [] };
+
 const widget = (id: string) => {
   const found = GATEWAY_ANALYTICS_WIDGETS.find((w) => w.id === id);
   if (!found) throw new Error(`Unknown widget ${id}`);
@@ -19,7 +21,7 @@ describe("buildGatewayAnalyticsQuery", () => {
   it.each(GATEWAY_ANALYTICS_WIDGETS.map((w) => [w.id, w] as const))(
     "builds a valid v2 query scoped to gateway traffic for %s",
     (_id, w) => {
-      const query = buildGatewayAnalyticsQuery(w, timeRange);
+      const query = buildGatewayAnalyticsQuery(w, timeRange, noFilters);
 
       expect(w.chartConfig.type).toBe(w.chartType);
       expect(querySchema.safeParse(query).success).toBe(true);
@@ -37,6 +39,7 @@ describe("buildGatewayAnalyticsQuery", () => {
     const query = buildGatewayAnalyticsQuery(
       widget("cost-by-api-key"),
       timeRange,
+      noFilters,
     );
 
     expect(query.dimensions).toEqual([{ field: "aiGatewayKeyId" }]);
@@ -51,9 +54,39 @@ describe("buildGatewayAnalyticsQuery", () => {
     const query = buildGatewayAnalyticsQuery(
       widget("cost-over-time"),
       timeRange,
+      noFilters,
     );
 
     expect(query.timeDimension).toEqual({ granularity: "auto" });
     expect(query.orderBy).toBeNull();
+  });
+
+  it("narrows every widget to the selected users and API keys", () => {
+    const query = buildGatewayAnalyticsQuery(
+      widget("cost-by-user"),
+      timeRange,
+      {
+        userIds: ["user-a", "user-b"],
+        apiKeyIds: ["key-1"],
+      },
+    );
+
+    expect(validateQuery(query, "v2")).toEqual({ valid: true });
+    expect(query.filters).toEqual(
+      expect.arrayContaining([
+        {
+          column: "aiGatewayKeyOwnerUserId",
+          operator: "any of",
+          value: ["user-a", "user-b"],
+          type: "stringOptions",
+        },
+        {
+          column: "aiGatewayKeyId",
+          operator: "any of",
+          value: ["key-1"],
+          type: "stringOptions",
+        },
+      ]),
+    );
   });
 });
