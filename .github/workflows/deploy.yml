@@ -48,13 +48,7 @@ jobs:
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         with:
           script: |
-            const services = ["web", "web-ingestion", "web-iso", "worker", "worker-cpu"];
-            // Prod ai-gateway deploys run only via explicit dispatch until its
-            // prod ECS services are bootstrapped.
-            const isStaging = context.eventName === "workflow_dispatch"
-              ? context.payload.inputs.environment === "staging"
-              : context.ref === "refs/heads/main";
-            if (isStaging) services.push("ai-gateway");
+            const services = ["web", "web-ingestion", "web-iso", "worker", "worker-cpu", "ai-gateway"];
 
             if (context.eventName === "workflow_dispatch") {
               const service = context.payload.inputs.service;
@@ -120,6 +114,9 @@ jobs:
       IRONBANK_USER: ${{ secrets.IRONBANK_USER }}
       IRONBANK_PASS: ${{ secrets.IRONBANK_PASS }}
     strategy:
+      # Each service/region rollout is independent; one failed leg must not
+      # cancel the others mid-rollout. Any failure still alerts Slack below.
+      fail-fast: false
       matrix:
         service: ${{ fromJson(needs.affected-services.outputs.services) }}
         environment: ${{ fromJson(needs.affected-environments.outputs.environments) }}
