@@ -1,16 +1,8 @@
-/* eslint-disable @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 import { type ReactNode, useMemo, useRef } from "react";
 import { useRouter } from "next/router";
-import { ExternalLinkIcon } from "@langfuse/icons";
 import { api } from "@/src/utils/api";
-import {
-  DialogController,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-  DialogBody,
-} from "@/src/components/ui/dialog";
-import { Button } from "@/src/components/ui/button";
+import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
+import { CloneDashboardDialog } from "./CloneDashboardDialog";
 import { showErrorToast, showSuccessToast } from "@/src/features/notifications";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import type { DashboardPlacement } from "@/src/features/widgets";
@@ -23,7 +15,7 @@ import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
  * `pendingDefinition` and setting the clone as the project's Home) and
  * navigates to the editable copy.
  */
-type CloneFirstDialogControllerProps = {
+type CloneDashboardDialogState = {
   projectId: string;
   dashboardId: string;
   dashboardName: string;
@@ -35,36 +27,29 @@ type CloneFirstDialogControllerProps = {
   onCancel?: () => void;
 };
 
-export function CloneFirstDialogController({
+export function ConnectedCloneDashboardDialogController({
   children,
-  ...props
-}: CloneFirstDialogControllerProps & {
-  children: (control: { openDialog: () => void }) => ReactNode;
+}: {
+  children: (control: {
+    openDialog: (state: CloneDashboardDialogState) => void;
+  }) => ReactNode;
 }) {
   const capture = usePostHogClientCapture();
   const cloneInFlightRef = useRef(false);
-  const handleCancel = () => {
-    capture("dashboard:clone_first_cancelled", {
-      dashboard_id: props.dashboardId,
-      had_pending_change: Boolean(props.pendingDefinition),
-    });
-    props.onCancel?.();
-  };
+  const onDismissRef = useRef<(() => void) | undefined>(undefined);
 
   return (
-    <DialogController
-      closeOnInteractionOutside={false}
+    <DialogController<CloneDashboardDialogState>
       onBeforeClose={() => !cloneInFlightRef.current}
-      onDismiss={handleCancel}
-      size="default"
-      renderContent={({ closeDialog }) => (
-        <CloneFirstDialogContent
-          {...props}
+      onDismiss={() => onDismissRef.current?.()}
+      renderDialog={({ state, closeDialog }) => (
+        <ConnectedCloneDashboardDialog
+          {...state}
           closeDialog={closeDialog}
           cancelDialog={() => {
             if (cloneInFlightRef.current) return false;
             closeDialog();
-            handleCancel();
+            onDismissRef.current?.();
             return true;
           }}
           onPendingChange={(isPending) => {
@@ -73,12 +58,25 @@ export function CloneFirstDialogController({
         />
       )}
     >
-      {({ openDialog }) => children({ openDialog })}
+      {({ openDialog }) =>
+        children({
+          openDialog: (state) => {
+            onDismissRef.current = () => {
+              capture("dashboard:clone_first_cancelled", {
+                dashboard_id: state.dashboardId,
+                had_pending_change: Boolean(state.pendingDefinition),
+              });
+              state.onCancel?.();
+            };
+            openDialog(state);
+          },
+        })
+      }
     </DialogController>
   );
 }
 
-function CloneFirstDialogContent({
+function ConnectedCloneDashboardDialog({
   closeDialog,
   cancelDialog,
   onPendingChange,
@@ -87,7 +85,7 @@ function CloneFirstDialogContent({
   dashboardName,
   setAsHome = false,
   pendingDefinition,
-}: Omit<CloneFirstDialogControllerProps, "onCancel"> & {
+}: Omit<CloneDashboardDialogState, "onCancel"> & {
   closeDialog: () => void;
   cancelDialog: () => boolean;
   onPendingChange: (isPending: boolean) => void;
@@ -168,88 +166,26 @@ function CloneFirstDialogContent({
     });
   };
 
-  const handleClose = () => {
-    cancelDialog();
-  };
-
   return (
-    <>
-      <DialogHeader>
-        <DialogTitle>Create your editable copy</DialogTitle>
-      </DialogHeader>
-      <DialogBody>
-        <div className="text-muted-foreground grid gap-3 py-4 text-sm">
-          <p>
-            <span className="text-foreground font-bold">
-              &ldquo;{dashboardName}&rdquo;
-            </span>{" "}
-            is maintained by Langfuse and can&rsquo;t be edited directly.
-            We&rsquo;ll create your own editable copy in this project
-            {pendingDefinition ? " with your change applied" : ""}
-            {setAsHome ? " and show it on your Home page from now on" : ""}.
-          </p>
-          <p>
-            Langfuse-maintained tiles on the copy can be rearranged or removed;
-            editing their content will become available in a future release.
-          </p>
-          {existingClone && (
-            <div className="bg-muted/50 flex flex-wrap items-center justify-between gap-2 rounded-md border p-3">
-              <span>
-                You already have a copy:{" "}
-                <span className="text-foreground font-bold">
-                  &ldquo;{existingClone.name}&rdquo;
-                </span>
-                {pendingDefinition
-                  ? " — opening it will discard your attempted change"
-                  : ""}
-              </span>
-              <Button
-                variant="outline"
-                size="sm"
-                type="button"
-                disabled={cloneDashboard.isPending}
-                onClick={() => {
-                  capture("dashboard:clone_open_existing_click", {
-                    dashboard_id: dashboardId,
-                    existing_clone_id: existingClone.id,
-                    had_pending_change: Boolean(pendingDefinition),
-                  });
-                  if (!cancelDialog()) return;
-                  router.push(
-                    `/project/${projectId}/dashboards/${encodeURIComponent(existingClone.id)}`,
-                  );
-                }}
-              >
-                <ExternalLinkIcon
-                  size="base"
-                  color="default"
-                  __rawClassName="mr-1"
-                />
-                Open it instead
-              </Button>
-            </div>
-          )}
-        </div>
-      </DialogBody>
-      <DialogFooter>
-        <div className="flex gap-2">
-          <Button
-            onClick={handleClose}
-            variant="outline"
-            type="button"
-            disabled={cloneDashboard.isPending}
-          >
-            Cancel
-          </Button>
-          <Button
-            onClick={handleConfirm}
-            type="button"
-            loading={cloneDashboard.isPending}
-          >
-            Create my copy
-          </Button>
-        </div>
-      </DialogFooter>
-    </>
+    <CloneDashboardDialog
+      dashboardName={dashboardName}
+      setAsHome={setAsHome}
+      hasPendingChange={Boolean(pendingDefinition)}
+      existingCloneName={existingClone?.name}
+      isPending={cloneDashboard.isPending}
+      onConfirm={handleConfirm}
+      onOpenExisting={() => {
+        if (!existingClone) return;
+        capture("dashboard:clone_open_existing_click", {
+          dashboard_id: dashboardId,
+          existing_clone_id: existingClone.id,
+          had_pending_change: Boolean(pendingDefinition),
+        });
+        if (!cancelDialog()) return;
+        router.push(
+          `/project/${projectId}/dashboards/${encodeURIComponent(existingClone.id)}`,
+        );
+      }}
+    />
   );
 }
