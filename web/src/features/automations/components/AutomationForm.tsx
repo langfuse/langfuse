@@ -44,11 +44,17 @@ import {
   TriggerEventSourceSchema,
   webhookActionFilterOptions,
 } from "@langfuse/shared";
+import {
+  PagerDutyRegionSchema,
+  PagerDutyRoutingKeySchema,
+} from "@langfuse/shared/pagerduty";
 import { InlineFilterBuilder, MultiSelect } from "@/src/features/filters";
 import { DeleteAutomationDialogController } from "./DeleteAutomationDialogController";
 import { useLangfuseCloudRegion } from "@/src/features/organizations";
 import { useHasProjectAccess } from "@/src/features/rbac";
 import { ActionHandlerRegistry } from "./actions";
+import { actionTypeLabel } from "@/src/features/automations/actionTypeLabels";
+import { useAvailableActionTypes } from "@/src/features/automations/useAvailableActionTypes";
 import { webhookSchema } from "./actions/WebhookActionForm";
 import { Alert } from "@/src/components/design-system/Alert/Alert";
 import Link from "next/link";
@@ -70,6 +76,13 @@ const githubDispatchSchema = z.object({
   originalUrl: z.string().optional(),
 });
 
+// Define PagerDuty action schema; an empty routing key keeps the stored one on edit
+const pagerDutySchema = z.object({
+  routingKey: z.union([z.literal(""), PagerDutyRoutingKeySchema]),
+  displayRoutingKey: z.string().optional(),
+  region: PagerDutyRegionSchema,
+});
+
 /** promptEventActionDefaults is the default eventAction set for a fresh prompt-source automation. */
 const promptEventActionDefaults: string[] = ["created", "updated", "deleted"];
 
@@ -78,6 +91,7 @@ const projectNotificationName = (data: FormValues): string => {
   // Automation names are visible to every project member, so they must not
   // carry Slack channel names (private ones are only for channel members).
   if (data.actionType === "SLACK") return "Slack";
+  if (data.actionType === "PAGERDUTY") return "PagerDuty";
   if (data.actionType === "WEBHOOK") {
     try {
       return `Webhook ${new URL(data.webhook.url).hostname}`;
@@ -194,6 +208,10 @@ const formSchema = z
     baseFormSchema.extend({
       actionType: z.literal("GITHUB_DISPATCH"),
       githubDispatch: githubDispatchSchema,
+    }),
+    baseFormSchema.extend({
+      actionType: z.literal("PAGERDUTY"),
+      pagerDuty: pagerDutySchema,
     }),
   ])
   .superRefine((data, ctx) => {
@@ -408,6 +426,9 @@ export const AutomationForm = ({
     projectId,
     scope: "automations:CUD",
   });
+  const availableActionTypes = useAvailableActionTypes(
+    allowedActionTypes ?? ActionHandlerRegistry.getAllActionTypes(),
+  );
 
   const utils = api.useUtils();
 
@@ -521,6 +542,14 @@ export const AutomationForm = ({
             githubDefaults.githubDispatch.displayGitHubToken || undefined,
           originalUrl: githubDefaults.githubDispatch.originalUrl,
         },
+      };
+    } else if (actionType === "PAGERDUTY") {
+      const handler = ActionHandlerRegistry.getHandler("PAGERDUTY");
+      const pagerDutyDefaults = handler.getDefaultValues(automation);
+      return {
+        ...baseValues,
+        actionType: "PAGERDUTY" as const,
+        pagerDuty: pagerDutyDefaults.pagerDuty,
       };
     }
     throw new Error("Invalid action type");
@@ -645,6 +674,10 @@ export const AutomationForm = ({
       const handler = ActionHandlerRegistry.getHandler("GITHUB_DISPATCH");
       const defaultValues = handler.getDefaultValues();
       form.setValue("githubDispatch", defaultValues.githubDispatch);
+    } else if (value === "PAGERDUTY") {
+      const handler = ActionHandlerRegistry.getHandler("PAGERDUTY");
+      const defaultValues = handler.getDefaultValues();
+      form.setValue("pagerDuty", defaultValues.pagerDuty);
     }
   };
 
@@ -798,18 +831,9 @@ export const AutomationForm = ({
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      {(
-                        allowedActionTypes ??
-                        ActionHandlerRegistry.getAllActionTypes()
-                      ).map((actionType) => (
+                      {availableActionTypes.map((actionType) => (
                         <SelectItem key={actionType} value={actionType}>
-                          {actionType === "WEBHOOK"
-                            ? "Webhook"
-                            : actionType === "SLACK"
-                              ? "Slack"
-                              : actionType === "GITHUB_DISPATCH"
-                                ? "GitHub Dispatch"
-                                : "Annotation Queue"}
+                          {actionTypeLabel[actionType]}
                         </SelectItem>
                       ))}
                       <SelectItem disabled={true} value="planned">

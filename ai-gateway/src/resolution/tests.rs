@@ -776,6 +776,7 @@ async fn accepts_unknown_response_fields_outside_provider_auth() {
     body["ingestion"]["unexpected"] = json!(1);
     body["attribution"]["key_name"] = json!("CI key");
     body["attribution"]["user_name"] = json!("Alice");
+    body["attribution"]["user_email"] = json!("alice@example.com");
     let web = FakeWeb::start(move |_| {
         let body = body.clone();
         async move { response(body) }
@@ -796,6 +797,7 @@ async fn accepts_unknown_response_fields_outside_provider_auth() {
     assert_eq!(attribution.key_name(), Some("CI key"));
     assert_eq!(attribution.user_id(), Some("user-1"));
     assert_eq!(attribution.user_name(), Some("Alice"));
+    assert_eq!(attribution.user_email(), Some("alice@example.com"));
 }
 
 #[tokio::test]
@@ -803,7 +805,7 @@ async fn treats_missing_or_blank_key_snapshots_as_absent() {
     for value in [None, Some(json!("")), Some(json!("  ")), Some(Value::Null)] {
         let mut body = success("project-1", "provider-token");
         if let Some(value) = value {
-            for field in ["key_name", "user_name"] {
+            for field in ["key_name", "user_name", "user_email"] {
                 body["attribution"][field] = value.clone();
             }
         }
@@ -826,6 +828,7 @@ async fn treats_missing_or_blank_key_snapshots_as_absent() {
         let attribution = context.attribution();
         assert_eq!(attribution.key_name(), None);
         assert_eq!(attribution.user_name(), None);
+        assert_eq!(attribution.user_email(), None);
     }
 }
 

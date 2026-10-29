@@ -34,6 +34,7 @@ export type FormFieldProps<
   label: string;
   name: TName;
   registerLabelTooltip?: TooltipTriggerPropsGetter;
+  required?: boolean;
 };
 
 type StandaloneFormFieldProps = {
@@ -46,6 +47,7 @@ type StandaloneFormFieldProps = {
   description?: string;
   label: string;
   registerLabelTooltip?: TooltipTriggerPropsGetter;
+  required?: boolean;
 };
 
 function FormFieldLayout({
@@ -56,6 +58,7 @@ function FormFieldLayout({
   errorMessage,
   errorId,
   registerLabelTooltip,
+  required,
   children,
 }: {
   label: string;
@@ -65,6 +68,7 @@ function FormFieldLayout({
   errorMessage?: string;
   errorId: string;
   registerLabelTooltip?: TooltipTriggerPropsGetter;
+  required?: boolean;
   children: ReactElement;
 }) {
   return (
@@ -72,6 +76,11 @@ function FormFieldLayout({
       <div className="flex items-center gap-1.5">
         <label htmlFor={controlId} className="text-sm leading-none font-bold">
           {label}
+          {required ? (
+            <span aria-hidden className="text-destructive ml-1">
+              *
+            </span>
+          ) : null}
         </label>
         {registerLabelTooltip ? (
           <button
@@ -119,7 +128,7 @@ export function FormField<
   const controlId = `${id}-control`;
   const descriptionId = `${id}-description`;
   const errorId = `${id}-error`;
-  const { label, description, registerLabelTooltip } = props;
+  const { label, description, registerLabelTooltip, required } = props;
 
   if (props.control) {
     const { control, name, children } = props;
@@ -144,6 +153,7 @@ export function FormField<
               errorMessage={errorMessage}
               errorId={errorId}
               registerLabelTooltip={registerLabelTooltip}
+              required={required}
             >
               {children({
                 ...field,
@@ -166,6 +176,7 @@ export function FormField<
       descriptionId={descriptionId}
       errorId={errorId}
       registerLabelTooltip={registerLabelTooltip}
+      required={required}
     >
       {props.children({
         id: controlId,

@@ -1,9 +1,9 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { type ComponentProps } from "react";
 import { useRouter } from "next/router";
 import { useSession } from "next-auth/react";
 import { PagedSettingsContainer } from "@/src/components/PagedSettingsContainer";
 import ContainerPage from "@/src/components/layouts/ContainerPage";
+import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
 import { OrganizationDropdownMenu } from "@/src/components/OrganizationDropdownMenu/OrganizationDropdownMenu";
 import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
@@ -62,6 +62,11 @@ export function SettingsPage({ scope }: SettingsPageProps) {
         fullHeight={fullHeight}
         sectionHeaders={{
           [ORGANIZATION_SECTION]: <OrganizationSectionHeader />,
+        }}
+        sectionBadges={{
+          "AI Gateway": (
+            <Badge text="Beta" color="blue" size="sm" font="mono" />
+          ),
         }}
       />
     </ContainerPage>
