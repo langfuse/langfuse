@@ -114,7 +114,8 @@ pub(super) fn span(facts: InferenceFacts, context: &GenerationContext) -> Value 
 }
 
 /// A key bound to a user always attributes to that user, even inside a caller's
-/// trace. Only keys without a bound user accept the caller's user ID.
+/// trace. Keys without a bound user, such as service account keys, take the
+/// caller's user ID and otherwise fall back to the key's name.
 fn user_id_source<'a>(
     facts: &'a InferenceFacts,
     context: &GenerationContext,
@@ -126,10 +127,14 @@ fn user_id_source<'a>(
     {
         return Some(("api_key_owner", Some(owner)));
     }
-    context
-        .attributes
-        .contains_key(USER_ID_ATTRIBUTE)
-        .then_some(("client", None))
+    if context.attributes.contains_key(USER_ID_ATTRIBUTE) {
+        return Some(("client", None));
+    }
+    facts
+        .metadata
+        .get("key_name")
+        .and_then(Value::as_str)
+        .map(|name| ("api_key_name", Some(name)))
 }
 
 pub(super) fn omit_input(span: &mut Value, reason: InputOmissionReason) -> bool {
@@ -787,6 +792,29 @@ mod tests {
             metadata(&attrs)
                 .get("langfuse.gateway.user_id_source")
                 .is_none()
+        );
+    }
+
+    #[test]
+    fn keys_without_a_bound_user_default_to_the_key_name() {
+        let mut named = facts();
+        named.metadata["key_name"] = json!("checkout-agent");
+        let attrs = attributes(&span(named, &context()));
+        assert_eq!(attrs["user.id"], "checkout-agent");
+        assert_eq!(
+            metadata(&attrs)["langfuse.gateway.user_id_source"],
+            "api_key_name"
+        );
+
+        let mut caller = context();
+        caller.attributes.insert("user.id".into(), json!("caller"));
+        let mut named = facts();
+        named.metadata["key_name"] = json!("checkout-agent");
+        let attrs = attributes(&span(named, &caller));
+        assert_eq!(attrs["user.id"], "caller");
+        assert_eq!(
+            metadata(&attrs)["langfuse.gateway.user_id_source"],
+            "client"
         );
     }
 

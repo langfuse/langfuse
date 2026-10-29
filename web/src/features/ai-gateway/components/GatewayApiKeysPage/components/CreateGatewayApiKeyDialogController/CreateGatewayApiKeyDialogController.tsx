@@ -39,7 +39,8 @@ type IssuedAs = "user" | "serviceAccount";
 
 const issuedAsDescriptions: Record<IssuedAs, string> = {
   user: "Stops working if you leave the organization.",
-  serviceAccount: "Keeps working when people leave the organization.",
+  serviceAccount:
+    "Keeps working when people leave the organization. Requests use the key's name as user ID unless the client sends one.",
 };
 
 export function CreateGatewayApiKeyDialogController({
@@ -150,26 +151,6 @@ export function CreateGatewayApiKeyDialogController({
             ]}
           >
             <Dialog.Body>
-              <div>
-                <Label
-                  htmlFor="gateway-key-name"
-                  className="flex items-center gap-1.5"
-                >
-                  Description
-                  <InfoTooltip label="About gateway key descriptions">
-                    Shown in the key list. Use it to describe what consumes the
-                    key.
-                  </InfoTooltip>
-                </Label>
-                <Input
-                  id="gateway-key-name"
-                  className="mt-1.5"
-                  maxLength={500}
-                  placeholder="e.g. Checkout agent, backend service"
-                  value={name}
-                  onChange={(event) => setName(event.target.value)}
-                />
-              </div>
               {canIssueServiceAccountKeys ? (
                 <div className="flex flex-col gap-1.5">
                   <Label>Issued as</Label>
@@ -197,6 +178,26 @@ export function CreateGatewayApiKeyDialogController({
                   </p>
                 </div>
               ) : null}
+              <div>
+                <Label
+                  htmlFor="gateway-key-name"
+                  className="flex items-center gap-1.5"
+                >
+                  Name
+                  <InfoTooltip label="About gateway key names">
+                    Shown in the key list. Use it to describe what consumes the
+                    key.
+                  </InfoTooltip>
+                </Label>
+                <Input
+                  id="gateway-key-name"
+                  className="mt-1.5"
+                  maxLength={500}
+                  placeholder="e.g. Checkout agent, backend service"
+                  value={name}
+                  onChange={(event) => setName(event.target.value)}
+                />
+              </div>
               <ApiKeyExpirationInput
                 id="gateway-key-expiry"
                 expiryPreset={expiryPreset}
