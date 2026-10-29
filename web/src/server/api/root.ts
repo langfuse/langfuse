@@ -8,6 +8,7 @@ import { dashboardRouter } from "@/src/features/dashboard/server/dashboard-route
 import { projectsRouter } from "@/src/features/projects/server";
 import { projectApiKeysRouter } from "@/src/features/public-api/server/projectApiKeyRouter";
 import { membersRouter } from "@/src/features/rbac/server/membersRouter";
+import { groupsRouter } from "@/src/features/groups/server/groupsRouter";
 import { userRouter } from "@/src/server/api/routers/users";
 import { userAccountRouter } from "@/src/server/api/routers/userAccount";
 import { datasetRouter } from "@/src/features/datasets/server/dataset-router";
@@ -97,6 +98,7 @@ export const appRouter = createTRPCRouter({
   userAccount: userAccountRouter,
   projectApiKeys: projectApiKeysRouter,
   members: membersRouter,
+  groups: groupsRouter,
   datasets: datasetRouter,
   cloudBilling: cloudBillingRouter,
   spendAlerts: spendAlertRouter,
