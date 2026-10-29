@@ -161,7 +161,7 @@ export function GatewayLaunchDialog({
               )}
               {state === "ask-admin" && (
                 <p role="status" className="text-muted-foreground text-sm">
-                  Ask your organization admin to set up the AI Gateway.
+                  Ask an admin to set it up.
                 </p>
               )}
             </div>
