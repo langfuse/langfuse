@@ -3,6 +3,9 @@ import { useSession } from "next-auth/react";
 import { ChevronRight, Plus, X } from "@langfuse/icons";
 
 import { Alert } from "@/src/components/design-system/Alert/Alert";
+import { CustomTooltip } from "@/src/components/design-system/CustomTooltip/CustomTooltip";
+import { FormField } from "@/src/components/design-system/FormField/FormField";
+import { Input as DesignSystemInput } from "@/src/components/design-system/Input/Input";
 import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
 import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
@@ -179,30 +182,34 @@ export function CreateGatewayApiKeyDialogController({
                   </p>
                 </div>
               ) : null}
-              <div>
-                <Label
-                  htmlFor="gateway-key-name"
-                  className="flex items-center gap-1.5"
-                >
+              <CustomTooltip
+                content={
                   <span>
-                    Name
-                    <span className="text-destructive ml-1">*</span>
-                  </span>
-                  <InfoTooltip label="About gateway key names">
                     Shown in the key list. Use it to describe what consumes the
                     key.
-                  </InfoTooltip>
-                </Label>
-                <Input
-                  id="gateway-key-name"
-                  className="mt-1.5"
-                  maxLength={500}
-                  required
-                  placeholder="e.g. Checkout agent, backend service"
-                  value={name}
-                  onChange={(event) => setName(event.target.value)}
-                />
-              </div>
+                  </span>
+                }
+              >
+                {({ getTriggerProps }) => (
+                  <FormField
+                    label="Name"
+                    required
+                    registerLabelTooltip={getTriggerProps}
+                  >
+                    {(field) => (
+                      <DesignSystemInput
+                        id={field.id}
+                        aria-describedby={field.inputDescribedById}
+                        maxLength={500}
+                        required
+                        placeholder="e.g. Checkout agent, backend service"
+                        value={name}
+                        onChange={(event) => setName(event.target.value)}
+                      />
+                    )}
+                  </FormField>
+                )}
+              </CustomTooltip>
               <ApiKeyExpirationInput
                 id="gateway-key-expiry"
                 expiryPreset={expiryPreset}

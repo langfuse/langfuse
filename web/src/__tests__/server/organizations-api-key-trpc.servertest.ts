@@ -482,6 +482,37 @@ describe("organization API keys trpc", () => {
       expect(await cache.get(cacheEntry)).toBeNull();
     });
 
+    it("rejects a blank name for a gateway key but not for other keys", async () => {
+      const gatewayKey = await createApiKey(prisma, {
+        tenant: OrganizationId(organizationId),
+        scope: OrganizationId(organizationId),
+        role: SystemRoleId("AI_GATEWAY"),
+        createdBy: UserId("user-1"),
+        name: "Named gateway key",
+      });
+
+      await expect(
+        ownerCaller.organizationApiKeys.updateName({
+          orgId: organizationId,
+          keyId: gatewayKey.id,
+          name: "  ",
+        }),
+      ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+      await expect(
+        prisma.apiKey.findUniqueOrThrow({ where: { id: gatewayKey.id } }),
+      ).resolves.toMatchObject({ note: "Named gateway key" });
+
+      const otherKey = await ownerCaller.organizationApiKeys.create({
+        orgId: organizationId,
+        name: "Named key",
+      });
+      await ownerCaller.organizationApiKeys.updateName({
+        orgId: organizationId,
+        keyId: otherKey.id,
+        name: "",
+      });
+    });
+
     it("returns NOT_FOUND for a missing API key", async () => {
       await expect(
         ownerCaller.organizationApiKeys.updateName({
