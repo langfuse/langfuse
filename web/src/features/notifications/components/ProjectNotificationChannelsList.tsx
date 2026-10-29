@@ -1,6 +1,6 @@
 /* eslint-disable no-nested-ternary */
-import { SiSlack } from "react-icons/si";
-import { Webhook, Plus, Pencil, Trash2 } from "lucide-react";
+import { SiPagerduty, SiSlack } from "@langfuse/icons/si";
+import { Webhook, Plus, Pencil, Trash2 } from "@langfuse/icons";
 
 import { Button } from "@/src/components/ui/button";
 import { type AutomationDomain } from "@langfuse/shared";
@@ -8,14 +8,25 @@ import { type AutomationDomain } from "@langfuse/shared";
 const destinationLabel = (automation: AutomationDomain): string => {
   if (automation.action.type === "SLACK") {
     const config = automation.action.config;
-    return config.type === "SLACK" ? `Slack #${config.channelName}` : "Slack";
+    if (config.type !== "SLACK") return "Slack";
+    return config.isPrivate
+      ? `Slack ${config.channelName}`
+      : `Slack #${config.channelName}`;
   }
   if (automation.action.type === "WEBHOOK") {
     const config = automation.action.config;
     return config.type === "WEBHOOK" ? `Webhook ${config.url}` : "Webhook";
   }
+  if (automation.action.type === "PAGERDUTY") return "PagerDuty";
   return automation.action.type;
 };
+
+/** ChannelIcon renders the icon of a channel's action type. */
+function ChannelIcon({ type }: { type: AutomationDomain["action"]["type"] }) {
+  if (type === "SLACK") return <SiSlack size="base" />;
+  if (type === "PAGERDUTY") return <SiPagerduty size="base" />;
+  return <Webhook size="base" />;
+}
 
 export type ProjectNotificationChannelsListProps = {
   channels: AutomationDomain[] | undefined;
@@ -51,11 +62,7 @@ export function ProjectNotificationChannelsList({
               className="flex items-center justify-between gap-4 rounded-lg border p-4"
             >
               <div className="flex min-w-0 items-center gap-2">
-                {channel.action.type === "SLACK" ? (
-                  <SiSlack className="h-4 w-4 shrink-0" />
-                ) : (
-                  <Webhook className="h-4 w-4 shrink-0" />
-                )}
+                <ChannelIcon type={channel.action.type} />
                 <span
                   className="truncate text-sm font-bold"
                   title={destinationLabel(channel)}
@@ -70,7 +77,7 @@ export function ProjectNotificationChannelsList({
                   onClick={() => onEdit(channel)}
                   title="Edit channel"
                 >
-                  <Pencil className="h-4 w-4" />
+                  <Pencil size="base" color="default" />
                 </Button>
                 <Button
                   variant="ghost"
@@ -79,7 +86,7 @@ export function ProjectNotificationChannelsList({
                   onClick={() => onDelete(channel.id)}
                   title="Delete channel"
                 >
-                  <Trash2 className="h-4 w-4" />
+                  <Trash2 size="base" color="default" />
                 </Button>
               </div>
             </div>
@@ -91,7 +98,7 @@ export function ProjectNotificationChannelsList({
       {!isLoading && !channels?.length && (
         <div>
           <Button variant="secondary" onClick={onAdd}>
-            <Plus className="mr-2 h-4 w-4" />
+            <Plus size="base" __rawClassName="mr-2" />
             Add channel
           </Button>
         </div>

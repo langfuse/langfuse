@@ -1,3 +1,4 @@
+/* eslint-disable @repo/prefer-stories-over-client-tests */
 import { fireEvent, render, screen } from "@testing-library/react";
 import { TooltipProvider } from "@/src/components/ui/tooltip";
 import { EvaluatorSavedDialog } from "./EvaluatorSavedDialog";

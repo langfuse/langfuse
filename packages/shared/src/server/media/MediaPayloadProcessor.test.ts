@@ -1,10 +1,20 @@
 import { describe, expect, it, vi } from "vitest";
 
 import { transformMediaPayload } from "./MediaPayloadProcessor";
+import {
+  DATA_URI,
+  DATA_URI_PUNCTUATIONS,
+  MEDIA_ID,
+  MIXED_STRINGIFIED_VALUE,
+  PNG_BASE64,
+  REPEATED_DATA_PREFIX,
+  REPEATED_DATA_URI_VALUE,
+  TEXT_BASE64,
+  TEXT_DATA_URI,
+  providerMediaCases,
+} from "./MediaPayloadProcessor.fixtures";
 
-const PNG_BASE64 = Buffer.from("test-image").toString("base64");
-const MEDIA_REFERENCE =
-  "@@@langfuseMedia:type=image/png|id=test-media-id|source=base64_data_uri@@@";
+const MEDIA_REFERENCE = `@@@langfuseMedia:type=image/png|id=${MEDIA_ID}|source=base64_data_uri@@@`;
 
 describe("transformMediaPayload", () => {
   it("does not inspect ordinary text containing data prefixes", async () => {
@@ -51,8 +61,8 @@ describe("transformMediaPayload", () => {
   it("scans adversarial repeated data prefixes in linear time", async () => {
     const processCandidate = vi.fn().mockResolvedValue(MEDIA_REFERENCE);
     const onDetectionPath = vi.fn();
-    const repeatedPrefixes = "data:".repeat(256_000);
-    const value = `${repeatedPrefixes}data:image/png;base64,${PNG_BASE64}`;
+    const repeatedPrefixes = REPEATED_DATA_PREFIX;
+    const value = REPEATED_DATA_URI_VALUE;
     const startedAt = performance.now();
 
     const transformed = await transformMediaPayload(value, {
@@ -76,7 +86,7 @@ describe("transformMediaPayload", () => {
   it("processes each embedded data URI occurrence independently", async () => {
     const processCandidate = vi.fn().mockResolvedValue(MEDIA_REFERENCE);
     const onDetectionPath = vi.fn();
-    const dataUri = `data:image/png;base64,${PNG_BASE64}`;
+    const dataUri = DATA_URI;
 
     const transformed = await transformMediaPayload(
       `${dataUri} between ${dataUri}`,
@@ -99,11 +109,11 @@ describe("transformMediaPayload", () => {
     );
   });
 
-  it.each([".", ";", "?", "!"])(
+  it.each(DATA_URI_PUNCTUATIONS)(
     "processes an embedded Data URI followed by %s",
     async (punctuation) => {
       const processCandidate = vi.fn().mockResolvedValue(MEDIA_REFERENCE);
-      const dataUri = `data:image/png;base64,${PNG_BASE64}`;
+      const dataUri = DATA_URI;
 
       const transformed = await transformMediaPayload(
         `media: ${dataUri}${punctuation}`,
@@ -122,8 +132,7 @@ describe("transformMediaPayload", () => {
 
   it("processes Data URIs with media type parameters", async () => {
     const processCandidate = vi.fn().mockResolvedValue(MEDIA_REFERENCE);
-    const textBase64 = Buffer.from("hello").toString("base64");
-    const dataUri = `data:text/plain;charset=utf-8;base64,${textBase64}`;
+    const dataUri = TEXT_DATA_URI;
 
     const transformed = await transformMediaPayload(`file: ${dataUri}`, {
       processCandidate,
@@ -134,7 +143,7 @@ describe("transformMediaPayload", () => {
 
     expect(transformed.value).toBe(`file: ${MEDIA_REFERENCE}`);
     expect(processCandidate).toHaveBeenCalledWith({
-      encodedData: textBase64,
+      encodedData: TEXT_BASE64,
       encoding: "base64",
       contentType: "text/plain",
       kind: "data_uri",
@@ -146,15 +155,7 @@ describe("transformMediaPayload", () => {
     const onDetectionPath = vi.fn();
 
     await transformMediaPayload(
-      JSON.stringify(
-        {
-          type: "base64",
-          media_type: "image/png",
-          data: PNG_BASE64,
-        },
-        null,
-        2,
-      ),
+      JSON.stringify(providerMediaCases[0].value, null, 2),
       {
         processCandidate: vi.fn().mockResolvedValue(MEDIA_REFERENCE),
         onInvalidCandidate: vi.fn(),
@@ -172,15 +173,7 @@ describe("transformMediaPayload", () => {
 
   it("processes Data URIs and raw base64 shapes in the same stringified JSON", async () => {
     const processCandidate = vi.fn().mockResolvedValue(MEDIA_REFERENCE);
-    const dataUri = `data:image/png;base64,${PNG_BASE64}`;
-    const value = JSON.stringify({
-      image: dataUri,
-      document: {
-        type: "base64",
-        media_type: "image/png",
-        data: PNG_BASE64,
-      },
-    });
+    const value = MIXED_STRINGIFIED_VALUE;
 
     const transformed = await transformMediaPayload(value, {
       processCandidate,
@@ -225,9 +218,7 @@ describe("transformMediaPayload", () => {
 
   it("processes structured normalized payloads without serializing them first", async () => {
     const onDetectionPath = vi.fn();
-    const value = {
-      messages: [{ type: "base64", media_type: "image/png", data: PNG_BASE64 }],
-    };
+    const value = { messages: [structuredClone(providerMediaCases[0].value)] };
 
     const transformed = await transformMediaPayload(value, {
       processCandidate: vi.fn().mockResolvedValue(MEDIA_REFERENCE),

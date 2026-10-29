@@ -1,5 +1,5 @@
 import { useState, type InputHTMLAttributes, type Ref } from "react";
-import { Eye, EyeOff } from "lucide-react";
+import { Eye, EyeOff } from "@langfuse/icons";
 import { InputControl } from "../internal/InputControl/InputControl";
 
 type PasswordInputProps = Pick<
@@ -23,11 +23,13 @@ type PasswordInputProps = Pick<
   | "tabIndex"
   | "value"
 > & {
+  allowPasswordManager?: boolean;
   error?: boolean;
   ref?: Ref<HTMLInputElement>;
 };
 
 export function PasswordInput({
+  allowPasswordManager,
   ref,
   disabled,
   error,
@@ -50,6 +52,7 @@ export function PasswordInput({
     >
       <input
         {...props}
+        {...(!allowPasswordManager && { "data-1p-ignore": true })}
         ref={ref}
         type={isPasswordVisible ? "text" : "password"}
         disabled={disabled}

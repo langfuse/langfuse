@@ -15,3 +15,4 @@ export {
   createStructuredPublicApiError,
   StructuredPublicApiError,
 } from "./types/structuredPublicApiError";
+export { LlmConnectionEmptyState } from "./components/LlmConnectionEmptyState/LlmConnectionEmptyState";

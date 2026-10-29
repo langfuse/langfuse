@@ -1,4 +1,5 @@
-import Page from "@/src/components/layouts/page";
+/* eslint-disable @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
+import Page from "@/src/components/layouts/Page";
 import { Button } from "@/src/components/ui/button";
 import {
   Dialog,
@@ -12,7 +13,7 @@ import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { useHasProjectAccess } from "@/src/features/rbac";
 import { V4MigrationDelayBadge } from "@/src/features/v4-migration/V4MigrationDelayBadge";
 import { api } from "@/src/utils/api";
-import { FlaskConical } from "lucide-react";
+import { FlaskConical } from "@langfuse/icons";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/router";
 import { Spinner } from "@/src/components/design-system/Spinner/Spinner";
@@ -75,7 +76,7 @@ export default function ExperimentsPage() {
                   disabled={!hasExperimentWriteAccess}
                   onClick={() => capture("dataset_run:new_form_open")}
                 >
-                  <FlaskConical className="h-4 w-4" />
+                  <FlaskConical size="base" color="default" />
                   <span className="ml-2 hidden md:block">Run experiment</span>
                 </Button>
               </DialogTrigger>

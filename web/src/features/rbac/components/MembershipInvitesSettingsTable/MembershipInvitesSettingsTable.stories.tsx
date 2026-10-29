@@ -11,6 +11,7 @@ export const Default = meta.story({
     hasCudAccess: true,
     onDelete: fn(),
     pagination: {
+      mode: "offset",
       totalCount: 5,
       state: { pageIndex: 0, pageSize: 10 },
       onChange: fn(),
@@ -64,6 +65,7 @@ export const Loading = meta.story({
     hasCudAccess: true,
     onDelete: fn(),
     pagination: {
+      mode: "offset",
       totalCount: null,
       state: { pageIndex: 0, pageSize: 10 },
       onChange: fn(),

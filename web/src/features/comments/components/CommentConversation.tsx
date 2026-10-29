@@ -4,8 +4,8 @@ import { type CommentObjectType } from "@langfuse/shared";
 import { api, type RouterOutputs } from "@/src/utils/api";
 import { Button } from "@/src/components/ui/button";
 import { Input } from "@/src/components/ui/input";
-import { Badge } from "@/src/components/ui/badge";
-import { Search, Trash, X } from "lucide-react";
+import { Badge } from "@/src/components/design-system/Badge/Badge";
+import { Search, Trash, X } from "@langfuse/icons";
 import { getRelativeTimestampFromNow } from "@/src/utils/dates";
 import { stripMarkdown } from "@/src/utils/markdown";
 import { ReactionBar } from "../ReactionBar";
@@ -123,7 +123,11 @@ export function CommentConversation({
       {comments.length > 0 && (
         <div className="flex shrink-0 flex-col gap-2 border-b px-4 py-3">
           <div className="relative">
-            <Search className="text-muted-foreground pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2" />
+            <Search
+              size="base"
+              color="muted"
+              __rawClassName="pointer-events-none absolute top-1/2 left-3 -translate-y-1/2"
+            />
             <Input
               ref={searchInputRef}
               aria-label="Search comments"
@@ -141,7 +145,7 @@ export function CommentConversation({
                 className="absolute top-1/2 right-2 -translate-y-1/2"
                 onClick={() => setSearchQuery("")}
               >
-                <X className="size-3" />
+                <X size="sm" color="default" />
               </Button>
             )}
           </div>
@@ -177,9 +181,11 @@ export function CommentConversation({
               location={
                 comment.dataField && comment.path.length > 0 ? (
                   <div className="flex min-w-0 items-center gap-2">
-                    <Badge variant="outline" className="shrink-0 text-[10px]">
-                      {comment.dataField.toUpperCase()}
-                    </Badge>
+                    <Badge
+                      color="primary"
+                      size="sm"
+                      text={comment.dataField.toUpperCase()}
+                    />
                     <span className="truncate" title={comment.path[0]}>
                       {humanizeJsonPath(comment.path[0])}
                     </span>
@@ -208,7 +214,7 @@ export function CommentConversation({
                         });
                     }}
                   >
-                    <Trash className="size-3.5" />
+                    <Trash size="sm" color="default" />
                   </Button>
                 ) : null
               }

@@ -1,4 +1,4 @@
-/* eslint-disable no-nested-ternary */
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import {
   Action,
   ActionExecutionStatus,
@@ -26,10 +26,16 @@ import {
   SafeWebhookActionConfigSchema,
   SlackActionConfigSchema,
   SafeGitHubDispatchActionConfigSchema,
+  isPagerDutyActionConfig,
+  SafePagerDutyActionConfigSchema,
 } from "../../domain/automations";
 import { InternalServerError } from "../../errors";
 import { FilterState } from "../../types";
-import { decryptSecretHeaders, mergeHeaders } from "../utils/headerUtils";
+import {
+  createDisplayHeaders,
+  decryptSecretHeaders,
+  getLegacyOnlyHeaders,
+} from "../utils/headerUtils";
 
 export const getActionByIdWithSecrets = async ({
   projectId,
@@ -52,20 +58,12 @@ export const getActionByIdWithSecrets = async ({
   if (isWebhookActionConfig(actionConfig.config)) {
     const config = actionConfig.config; // Type guard ensures this is WebhookActionConfigWithSecrets
 
-    // Decrypt secret headers for webhook execution using new structure
-    const decryptedHeaders = config.requestHeaders
-      ? decryptSecretHeaders(
-          mergeHeaders(config.headers, config.requestHeaders),
-        )
-      : config.headers
-        ? Object.entries(config.headers).reduce(
-            (acc, [key, value]) => {
-              acc[key] = { secret: false, value };
-              return acc;
-            },
-            {} as Record<string, { secret: boolean; value: string }>,
-          )
-        : {};
+    // Legacy headers are plaintext but flagged secret, so they are merged in
+    // after decryption.
+    const decryptedHeaders = {
+      ...getLegacyOnlyHeaders(config),
+      ...decryptSecretHeaders(config.requestHeaders ?? {}),
+    };
 
     return {
       ...actionConfig,
@@ -82,7 +80,7 @@ export const getActionByIdWithSecrets = async ({
     };
   }
 
-  // SLACK and GITHUB_DISPATCH need no header decryption, so the stored config
+  // SLACK, GITHUB_DISPATCH and PAGERDUTY need no header decryption, so the stored config
   // is returned verbatim. Secrets are included by design here - callers that
   // hand configs to a client must use getActionById instead.
   return actionConfig as ActionDomainWithSecrets;
@@ -161,19 +159,17 @@ const convertTriggerToDomain = (trigger: Trigger): TriggerDomain => {
   };
 };
 
+/**
+ * Display headers are readable by every project role. Legacy plaintext
+ * `headers` that `requestHeaders` does not override are always masked, even if
+ * a stored `displayHeaders` entry lists them unmasked.
+ */
 const getDisplayHeaders = (config: WebhookActionConfigWithSecrets) => {
-  let displayHeaders = config.displayHeaders;
-  if (!displayHeaders && config.headers) {
-    // Convert legacy headers to displayHeaders format
-    displayHeaders = Object.entries(config.headers).reduce(
-      (acc, [key, value]) => {
-        acc[key] = { secret: false, value };
-        return acc;
-      },
-      {} as Record<string, { secret: boolean; value: string }>,
-    );
+  const legacyHeaders = createDisplayHeaders(getLegacyOnlyHeaders(config));
+  if (!config.displayHeaders && Object.keys(legacyHeaders).length === 0) {
+    return config.displayHeaders;
   }
-  return displayHeaders;
+  return { ...config.displayHeaders, ...legacyHeaders };
 };
 
 /**
@@ -245,6 +241,19 @@ const convertToSafeActionConfig = (action: Action): SafeActionConfig => {
         action.config,
         actionType,
         Object.keys(SafeGitHubDispatchActionConfigSchema.shape),
+      );
+    case "PAGERDUTY":
+      if (isPagerDutyActionConfig(action.config)) {
+        return {
+          type: action.config.type,
+          displayRoutingKey: action.config.displayRoutingKey,
+          region: action.config.region,
+        };
+      }
+      return pickSafeConfigFields(
+        action.config,
+        actionType,
+        Object.keys(SafePagerDutyActionConfigSchema.shape),
       );
     default: {
       const unhandledActionType: never = actionType;

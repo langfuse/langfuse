@@ -255,6 +255,7 @@ describe("trace delete batch action worker processor", () => {
     let leaseExtensions = 0;
     await processTraceDeleteBatchAction({
       batchActionId: batchAction.id,
+      projectId,
       batchSize: 2,
       extendLease: async () => {
         leaseExtensions += 1;
@@ -380,6 +381,7 @@ describe("trace delete batch action worker processor", () => {
 
     await processTraceDeleteBatchAction({
       batchActionId: batchAction.id,
+      projectId,
       batchSize: 2,
     });
 
@@ -476,6 +478,7 @@ describe("trace delete batch action worker processor", () => {
 
     await processTraceDeleteBatchAction({
       batchActionId: batchAction.id,
+      projectId,
       batchSize: 2,
     });
 
@@ -530,6 +533,7 @@ describe("trace delete batch action worker processor", () => {
 
     const result = await processTraceDeleteBatchAction({
       batchActionId: batchAction.id,
+      projectId,
       batchSize: 1,
       shouldSkipDeletion: async (seenProjectId, traceIds, entityType) => {
         skippedDeletion = {
@@ -611,6 +615,7 @@ describe("trace delete batch action worker processor", () => {
     await expect(
       processTraceDeleteBatchAction({
         batchActionId: batchAction.id,
+        projectId,
         batchSize: 2,
         canCommitProgress: async () => false,
       }),
@@ -627,6 +632,58 @@ describe("trace delete batch action worker processor", () => {
     ).toMatchObject({
       failureCount: 0,
       inFlightBatch,
+    });
+  });
+
+  it("does not process or update a batch action from another project", async () => {
+    const { projectId } = await createOrgProjectAndApiKey({ plan: "Team" });
+    const { projectId: otherProjectId } = await createOrgProjectAndApiKey({
+      plan: "Team",
+    });
+    const deleteUserId = `delete-user-${randomUUID()}`;
+    const beforeCutoff = new Date(Date.now() - 60_000);
+    const selectedTraceIds = [randomUUID()];
+
+    await createLegacyArtifacts({
+      projectId,
+      traceIds: selectedTraceIds,
+      userId: deleteUserId,
+      timestamp: beforeCutoff,
+    });
+
+    const batchAction = await createTraceDeleteBatchAction({
+      projectId,
+      userId: `user-${randomUUID()}`,
+      useEventsTable: false,
+      cutoffCreatedAt: new Date(),
+      query: traceDeleteQuery(deleteUserId),
+    });
+
+    await expect(
+      processTraceDeleteBatchAction({
+        batchActionId: batchAction.id,
+        projectId: otherProjectId,
+        batchSize: 1,
+      }),
+    ).rejects.toThrow("not found");
+
+    await expectCountsEventually(projectId, selectedTraceIds, {
+      traces: 1,
+      observations: 1,
+      scores: 1,
+    });
+
+    const unchangedBatchAction = await prisma.batchAction.findUniqueOrThrow({
+      where: { id: batchAction.id },
+    });
+    expect(unchangedBatchAction.status).toBe(BatchActionStatus.Queued);
+    expect(unchangedBatchAction.processedCount).toBe(0);
+    expect(unchangedBatchAction.log).toBeNull();
+    expect(
+      TraceDeleteBatchActionConfigSchema.parse(unchangedBatchAction.config),
+    ).toMatchObject({
+      failureCount: 0,
+      inFlightBatch: null,
     });
   });
 
@@ -661,6 +718,7 @@ describe("trace delete batch action worker processor", () => {
       await expect(
         processTraceDeleteBatchAction({
           batchActionId,
+          projectId,
           batchSize: 1,
         }),
       ).rejects.toThrow();

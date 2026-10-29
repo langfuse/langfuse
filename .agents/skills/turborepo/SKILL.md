@@ -12,6 +12,11 @@ metadata:
 
 Build system for JavaScript/TypeScript monorepos. Turborepo caches task outputs and runs tasks in parallel based on dependency graph.
 
+Before changing Turbo configuration or commands, read
+`node_modules/turbo/docs/README.md` from the repository root and follow the relevant
+page. These installed docs match the running version; prefer them over this skill's
+bundled references for supported options and defaults.
+
 ## IMPORTANT: Package Tasks, Not Root Tasks
 
 **DO NOT create Root Tasks. ALWAYS create package tasks.**

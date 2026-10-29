@@ -1,10 +1,10 @@
-import { Bot, Gauge, Zap, BarChart4 } from "lucide-react";
+import { Bot, Gauge, Zap, BarChart4 } from "@langfuse/icons";
 
 import {
   type ActionConfig,
   SplashScreen,
   type ValueProposition,
-} from "@/src/components/ui/splash-screen";
+} from "@/src/components/ui/SplashScreen";
 
 const llmAsJudgeValuePropositions: ValueProposition[] = [
   {

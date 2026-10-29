@@ -51,16 +51,129 @@ programmatic calls from the dx seed chain.
 | `annotation-queue`  | two human-annotation queues for the annotate UI: a "core types" queue with one of every score-field render path (categorical toggle/combobox, boolean, ranged/decimal/unranged numeric, text) over fresh trace items, and an "edge cases" queue adding archived/stale/partial scores, comments, and observation/session/deleted/completed items                          | `--core-items`, `--v4` (default true)                                                                                                                                                             |
 | `custom-models`     | project-level model definitions (one tiered with a condition-gated second tier and a usage type priced at 0, one single-tier) plus a trace whose generations link to them, and one generation whose model matches no definition so its badge opens the create dialog                                                                                                     | —                                                                                                                                                                                                 |
 | `evaluator-gallery` | project-owned code evaluators for gallery pagination and infinite-scroll testing; reconciles deterministic names through the seeded public API key so local and PR preview environments are supported                                                                                                                                                                    | `--count`                                                                                                                                                                                         |
+| `assistant-skills` | bundled assistant skills imported through the seeded public API key, with production labels and an assistant catalog tag; unchanged versions are reused | `--tag`, `--demo` |
 | `support-agent`     | one demo-grade, fully handcrafted trace: a customer-support copilot resolving a duplicate-charge refund — input guardrail → intent classification → parallel context fan-out (CRM/billing/tickets) → 3-turn ReAct loop (llm.chat + Stripe tools) → drafted reply → output guardrail → send                                                                               | —                                                                                                                                                                                                 |
+| `incident-session`  | one demo-grade, fully handcrafted multi-user v4 session: an on-call copilot and four engineers work a checkout-latency incident over seven turns — parallel, untraced and failing tool calls, a nested sub-agent, reasoning, markdown answers, a guardrail-flagged refusal, typed session scores and comments                                                            | `--v4` (default true)                                                                                                                                                                             |
 | `timeline-shapes`   | a dozen SMALL traces (4-25 observations each), one per timeline morphology: rag answer, streamed chat, parallel fan-out, retry backoff with widening gaps, a 13-minute wait on a human, one slow tool dwarfing everything, an error cascade with failover, in-flight spans, zero-duration checkpoints, a ten-level ladder, 24 flat siblings, and a three-turn agent loop | `--shape all\|rag-answer\|streaming-chat\|parallel-fanout\|retry-backoff\|waiting-on-approval\|slow-tool\|error-cascade\|still-running\|checkpoint-marks\|deep-ladder\|flat-siblings\|mixed-loop` |
 
 Common flags: `--project` (defaults to the seeded example project),
 `--environment`, `--seed`, `--id-prefix`, `--dry-run` (instant, arithmetic
 counts, writes nothing), `--json` (machine mode: pure-JSON stdout).
 
+For queue setup testing, use `annotation-queue --setup-demo --core-items 4`.
+It seeds Answer quality and Safety review queues with different, nonalphabetical
+score config orders and a shared Feedback config, plus a Start here queue with
+four pending items and intentionally empty `scoreConfigIds`. This empty queue is
+a test fixture; the application still requires a config when saving. The demo
+uses separate queue names and adds `-setup` to the ID prefix, preserving the
+default keyboard QA fixtures. It includes observation, session, and completed
+examples but skips the missing-object item.
+
+Add `--score-config-count 60` to seed a larger, varied project catalog. With
+`--setup-demo`, Answer quality selects 35 fields and Safety review selects 34,
+using different subsets and orders; Start here stays unconfigured. The default
+is nine configs, and the supported range is 9–500. Use a fresh project and
+`--id-prefix` for an independent fixture: queue names are reused within a project.
+
 Scenarios compose: e.g. a session where one trace has zero observations is
 two `long-session` runs sharing a `--session-id` with different
 `--id-prefix` values.
+
+### Managed assistant skills
+
+With the seeded local web app running, import the checked-in assistant catalog:
+
+```bash
+pnpm run seed -- assistant-skills
+```
+
+This writes `SKILL.md` files through `/api/public/skills` using the synthetic
+seed API key, adds the `in-app-agent` tag, and labels each imported version
+`production`. Re-running reuses unchanged versions. Names match the bundled
+skills, so `--seed` and `--id-prefix` do not create independent copies. The
+scenario verifies the production contents through the API and prints UI links.
+Use `--dry-run` to inspect the catalog without writing, or `--tag <tag>` to
+select a different catalog tag.
+
+For a distinct end-to-end check, run `pnpm run seed -- assistant-skills --demo`.
+It also creates an instructions-only `local-assistant-check` skill. Open the
+seeded project, open the assistant, start a new chat and send:
+"Run the local assistant check skill." The expected response is exactly
+"Hosted skills are connected." Open Skills → local-assistant-check to inspect
+its `SKILL.md` instructions.
+
+To use these skills in the local assistant, set the following worker environment
+and restart the worker:
+
+```dotenv
+LANGFUSE_AI_FEATURES_HOST=http://localhost:3000
+LANGFUSE_AI_FEATURES_PUBLIC_KEY=pk-lf-1234567890
+LANGFUSE_AI_FEATURES_SECRET_KEY=sk-lf-1234567890
+LANGFUSE_IN_APP_AGENT_SKILLS_TAG=in-app-agent
+```
+
+The keys above are the public synthetic development fixtures. The assistant
+merges tagged production versions from this project with the bundled catalog;
+remote skills take precedence on an exact name match. Edit an imported skill
+in Skills, create a version and assign `production`, then start a new assistant
+run to use it. Leaving the tag setting unset keeps the bundled catalog.
+If managed loading fails, the worker logs a warning and uses the complete
+bundled catalog for that run.
+
+### Experiment filter fixture
+
+`NEXTAUTH_URL=http://localhost:3010 pnpm run seed -- experiment-filters --id-prefix experiment-targets`
+creates the runs **Filter A**, **Filter B**, and **Filter C** over 60 shared
+items. Their distinct numeric `quality`, categorical `verdict`, boolean
+`approved`, status, item metadata (`category`, `cohort`) and event metadata
+(`region`, `variant`) make experiment targeting visible. Filter C omits items
+6, 12, …, 60. Each run also omits ten quality scores.
+
+For `quality > 0.8`, the per-experiment matches are:
+
+| Experiment | Matching item numbers, repeated every six items | Count |
+| ---------- | ----------------------------------------------- | ----- |
+| Filter A   | 4, 5                                            | 20    |
+| Filter B   | 2, 3                                            | 20    |
+| Filter C   | 1                                               | 10    |
+
+Adding `level:ERROR` to Filter B narrows its matching items to 2, 8, …, 56
+(10 items). These are per-experiment matches; the comparison table's item
+coverage mode still determines how the sets are combined.
+
+For query-volume and suggestion-cardinality checks, use a fresh prefix:
+
+`pnpm run seed -- experiment-filters --items 12000 --extra-score-names 600 --id-prefix experiment-options-perf`
+
+This creates 34,000 events and 130,000 scores. Each event gets one additional
+numeric score, cycling through 600 names; Filter B places those scores on the
+trace, while A and C place them on the root observation. Readback verifies both
+row counts and the expected quality matches (4,000 / 4,000 / 2,000).
+
+## Topics
+
+After applying the normal Postgres and ClickHouse migrations, seed either fixture:
+
+```bash
+pnpm run seed -- topics
+pnpm run seed -- topics --batch evaluation --id-prefix topics-eval-s42
+```
+
+The default batch creates 12 discovery traces across three themes and three
+assignment traces (two familiar themes and one new theme), with v4 events enabled
+by default. `--batch discovery` seeds IDs `-t00` through `-t11`;
+`--batch assignment` seeds `-t12` through `-t14`. Process the `discovery` tag,
+choose **Update topics** with **Small sample mode**, then process the
+held-out `assignment` tag after publishing a map.
+
+The evaluation batch creates 100 traces (`-e00` through `-e99`) with five intent
+themes and cross-cutting tool outcomes: 20 each of timeout, denied access,
+invalid JSON, empty results, and success. Each trace has a generation and a
+child tool. Intent has 100 applicable traces; Issues has 80 and needs **Small
+sample mode** with the default minimum-count settings.
+
+Seeding makes no model calls. Theme/outcome labels remain outside trace metadata
+and I/O.
 
 ## The contract (additive-only)
 

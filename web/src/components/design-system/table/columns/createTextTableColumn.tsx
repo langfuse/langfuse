@@ -1,6 +1,6 @@
 /* eslint-disable boundaries/dependencies */
 import { type CellContext, type RowData } from "@tanstack/react-table";
-import { Check, Copy, InfoIcon, type LucideIcon } from "lucide-react";
+import { Check, Copy, InfoIcon, type IconComponent } from "@langfuse/icons";
 import { type ReactNode } from "react";
 
 import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
@@ -28,12 +28,16 @@ type TextTableColumnOptions<TData extends RowData, TValue> = TableColumnOptions<
 type TextTableColumnTrailingAction<TData extends RowData, TValue> =
   | {
       type: "copy-to-clipboard";
+      /** Called after the value was written to the clipboard. */
+      onAfterCopy?: (
+        context: CellContext<TData, TValue | null | undefined>,
+      ) => void;
     }
   | {
       type: "custom";
-      icon: LucideIcon;
+      icon: IconComponent;
       label: string;
-      onClick: (context: CellContext<TData, TValue>) => void;
+      onClick: (context: CellContext<TData, TValue | null | undefined>) => void;
     };
 
 export function createTextTableColumn<TData extends RowData, TValue = string>({
@@ -68,7 +72,12 @@ export function createTextTableColumn<TData extends RowData, TValue = string>({
         if (!trailingAction)
           return nullValue ? <Text value={nullValue} /> : null;
         if (trailingAction.type === "copy-to-clipboard") {
-          return nullValue ? <CopyableText value={nullValue} /> : null;
+          return nullValue ? (
+            <CopyableText
+              value={nullValue}
+              onAfterCopy={() => trailingAction.onAfterCopy?.(context)}
+            />
+          ) : null;
         }
 
         return (
@@ -96,7 +105,7 @@ export function createTextTableColumn<TData extends RowData, TValue = string>({
                       aria-label="More information"
                       className="flex items-center"
                     >
-                      <InfoIcon className="text-muted-foreground size-3" />
+                      <InfoIcon size="sm" color="muted" />
                     </button>
                   )}
                 </Tooltip>
@@ -107,7 +116,12 @@ export function createTextTableColumn<TData extends RowData, TValue = string>({
       }
 
       if (trailingAction?.type === "copy-to-clipboard") {
-        return <CopyableText value={text} />;
+        return (
+          <CopyableText
+            value={text}
+            onAfterCopy={() => trailingAction.onAfterCopy?.(context)}
+          />
+        );
       }
       if (trailingAction?.type === "custom") {
         return (
@@ -133,19 +147,21 @@ function TextWithTrailingAction<TData extends RowData, TValue>({
     TextTableColumnTrailingAction<TData, TValue>,
     { type: "custom" }
   >;
-  context: CellContext<TData, TValue>;
+  context: CellContext<TData, TValue | null | undefined>;
   value?: string;
 }) {
   return (
     <TextWithAction
       value={value}
       action={
-        <IconButton
-          icon={action.icon}
-          label={action.label}
-          size="xs"
-          onClick={() => action.onClick(context)}
-        />
+        <span className="opacity-0 transition-opacity group-hover/row:opacity-100 focus-within:opacity-100">
+          <IconButton
+            icon={action.icon}
+            label={action.label}
+            size="xs"
+            onClick={() => action.onClick(context)}
+          />
+        </span>
       }
     />
   );
@@ -178,29 +194,38 @@ function Text({ value }: { value: string }) {
   );
 }
 
-function CopyableText({ value }: { value: string }) {
+function CopyableText({
+  value,
+  onAfterCopy,
+}: {
+  value: string;
+  onAfterCopy: () => void;
+}) {
   const { copy, isCopied } = useCopyToClipboard();
 
   return (
     <TextWithAction
       value={value}
       action={
-        <IconButton
-          icon={isCopied ? Check : Copy}
-          label={isCopied ? "Copied" : "Copy to clipboard"}
-          size="xs"
-          title="Copy to clipboard"
-          onClick={async (event) => {
-            const button = event.currentTarget;
-            try {
-              await copy(value);
-            } catch {
-              // Clipboard failures are intentionally silent.
-            } finally {
-              button.focus();
-            }
-          }}
-        />
+        <span className="inline-flex translate-y-px">
+          <IconButton
+            icon={isCopied ? Check : Copy}
+            label={isCopied ? "Copied" : "Copy to clipboard"}
+            size="xs"
+            title="Copy to clipboard"
+            onClick={async (event) => {
+              const button = event.currentTarget;
+              try {
+                await copy(value);
+                onAfterCopy();
+              } catch {
+                // Clipboard failures are intentionally silent.
+              } finally {
+                button.focus();
+              }
+            }}
+          />
+        </span>
       }
     />
   );

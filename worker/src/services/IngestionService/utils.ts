@@ -1,5 +1,9 @@
-/* eslint-disable no-nested-ternary */
+/* eslint-disable no-nested-ternary, @typescript-eslint/no-use-before-define */
 import { JsonNested, Prisma } from "@langfuse/shared";
+import {
+  AI_GATEWAY_INSTRUMENTATION_SCOPE_NAME,
+  isAiGatewayIngestionApiKey,
+} from "@langfuse/shared/src/server";
 import { mergeWith, merge } from "lodash";
 
 // Theoretically this returns Record<string, unknown>, but it would be hard to align the typing accordingly.
@@ -50,13 +54,38 @@ export const convertPostgresJsonToMetadataRecord = (
 export const convertRecordValuesToString = (
   record: Record<string, unknown>,
 ): Record<string, string> => {
-  const result: Record<string, string> = {};
-  for (const key in record) {
-    const value = record[key];
-    result[key] = typeof value === "string" ? value : JSON.stringify(value);
-  }
-  return result;
+  // Built via Object.fromEntries rather than `result[key] = ...` so a key
+  // named `__proto__` becomes an ordinary own property instead of invoking
+  // Object.prototype's `__proto__` setter, which would silently drop it.
+  return Object.fromEntries(
+    Object.entries(record).map(([key, value]) => [
+      key,
+      typeof value === "string" ? value : JSON.stringify(value),
+    ]),
+  );
 };
+
+// OTel-ingested observation events carry the instrumentation scope as
+// `metadata.scope` ({ name, version, attributes }).
+export const hasAiGatewayScope = (metadata: unknown): boolean => {
+  if (!metadata || typeof metadata !== "object") return false;
+  const scope = (metadata as { scope?: unknown }).scope;
+  return (
+    typeof scope === "object" &&
+    scope !== null &&
+    (scope as { name?: unknown }).name === AI_GATEWAY_INSTRUMENTATION_SCOPE_NAME
+  );
+};
+
+// Any OTLP sender can set the instrumentation scope, so the ingestion API key
+// decides. Replayed events carry no key; only those fall back to the scope.
+export const isAiGatewayGenerationEvent = (params: {
+  ingestionApiKey: string | null | undefined;
+  hasGatewayScope: () => boolean;
+}): boolean =>
+  params.ingestionApiKey
+    ? isAiGatewayIngestionApiKey(params.ingestionApiKey)
+    : params.hasGatewayScope();
 
 export function overwriteObject(
   a: {

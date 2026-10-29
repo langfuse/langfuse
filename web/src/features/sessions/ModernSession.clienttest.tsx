@@ -8,9 +8,16 @@ vi.mock("@/src/features/sessions/ConnectedModernSessionBodyLegacy", () => ({
   ConnectedModernSessionBodyLegacy: () => <div>Legacy body</div>,
 }));
 
-vi.mock("@/src/features/sessions/ConnectedModernSessionBodyTimeline", () => ({
-  ConnectedModernSessionBodyTimeline: () => <div>Timeline body</div>,
-}));
+vi.mock(
+  "@/src/features/sessions/components/ConnectedModernSessionBodyTimeline/ConnectedModernSessionBodyTimeline",
+  () => ({
+    ConnectedModernSessionBodyTimeline: ({
+      transcriptSource,
+    }: Pick<ComponentProps<typeof ModernSession>, "transcriptSource">) => (
+      <div data-source={transcriptSource}>Timeline body</div>
+    ),
+  }),
+);
 
 vi.mock("@/src/features/sessions/ModernSessionHeader", () => ({
   ModernSessionHeader: () => <div>Modern session header</div>,
@@ -21,7 +28,7 @@ vi.mock("@/src/features/sessions/ModernSessionFilterControls", () => ({
     children,
   }: {
     children: (controls: never) => ReactNode;
-  }) => children({} as never),
+  }) => <div data-testid="legacy-filter-controls">{children({} as never)}</div>,
 }));
 
 vi.mock("@/src/features/sessions/SessionMetadataJsonPathControl", () => ({
@@ -47,13 +54,13 @@ vi.mock("@/src/features/sessions/SessionMetadataJsonPathControl", () => ({
 
 const defaultProps = {
   isTimelineEnabled: false,
+  transcriptSource: "generations",
   session: {
     countTraces: 0,
     inputUsage: 0,
     outputUsage: 0,
     totalTokens: 0,
     totalCost: 0,
-    environment: undefined,
     users: [],
     scores: [],
     minTimestamp: new Date("2026-01-01T00:00:00.000Z"),
@@ -96,11 +103,30 @@ const defaultProps = {
 } satisfies ComponentProps<typeof ModernSession>;
 
 describe("ModernSession", () => {
+  it.each(["root", "generations"] as const)(
+    "passes the resolved %s transcript source to the timeline",
+    (transcriptSource) => {
+      render(
+        <ModernSession
+          {...defaultProps}
+          isTimelineEnabled
+          transcriptSource={transcriptSource}
+        />,
+      );
+
+      expect(screen.getByText("Timeline body")).toHaveAttribute(
+        "data-source",
+        transcriptSource,
+      );
+    },
+  );
+
   it("renders the shared header and legacy connected body by default", () => {
     render(<ModernSession {...defaultProps} />);
 
     expect(screen.getByText("Modern session header")).toBeInTheDocument();
     expect(screen.getByText("Legacy body")).toBeInTheDocument();
+    expect(screen.getByTestId("legacy-filter-controls")).toBeInTheDocument();
     expect(screen.queryByText("Timeline body")).not.toBeInTheDocument();
   });
 
@@ -109,6 +135,9 @@ describe("ModernSession", () => {
 
     expect(screen.getByText("Modern session header")).toBeInTheDocument();
     expect(screen.getByText("Timeline body")).toBeInTheDocument();
+    expect(
+      screen.queryByTestId("legacy-filter-controls"),
+    ).not.toBeInTheDocument();
     expect(screen.queryByText("Legacy body")).not.toBeInTheDocument();
   });
 });

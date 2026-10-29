@@ -1,5 +1,4 @@
 #!/usr/bin/env node
-/* eslint-disable no-nested-ternary */
 // Structure stats — violations per project-structure-RFC rule over web/src.
 //
 //   pnpm structure:stats                     per-rule counts (+ Δ vs baseline)
@@ -353,8 +352,15 @@ if (flag("json")) {
 }
 
 /** @type {(delta: number) => string} */
-const fmtDelta = (delta) =>
-  delta === 0 ? dim("±0") : delta < 0 ? green(String(delta)) : red(`+${delta}`);
+const fmtDelta = (delta) => {
+  if (delta === 0) {
+    return dim("±0");
+  }
+  if (delta < 0) {
+    return green(String(delta));
+  }
+  return red(`+${delta}`);
+};
 
 if (ruleFilter) {
   const id = Number(ruleFilter);

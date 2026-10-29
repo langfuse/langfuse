@@ -383,12 +383,16 @@ export function formatMetric(
     );
 
     const normalizedValue = absValue / durationDivisors[tier];
+    const maxFractionDigits =
+      normalizedValue > 0 && normalizedValue < 1
+        ? Math.min(20, 2 - Math.floor(Math.log10(normalizedValue)))
+        : 2;
 
     return applyNegative(
       formatWithConstrainedDecimals({
         value: normalizedValue,
         maxCharacters: magnitudeMaxCharacters,
-        maxFractionDigits: 2,
+        maxFractionDigits,
         createFormatter: (fractionDigits) =>
           new Intl.NumberFormat("en-US", {
             style: "unit",

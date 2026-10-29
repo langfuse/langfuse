@@ -1,8 +1,7 @@
 /* eslint-disable no-nested-ternary */
 import { useState } from "react";
-import { ChevronDown, ChevronRight } from "lucide-react";
+import { ExpandToggle } from "@/src/components/design-system/ExpandToggle/ExpandToggle";
 import { Alert } from "@/src/components/design-system/Alert/Alert";
-import { Button } from "@/src/components/ui/button";
 import { type BulkDatasetItemValidationError } from "@langfuse/shared";
 
 type CsvImportValidationErrorProps = {
@@ -33,20 +32,13 @@ export const CsvImportValidationError: React.FC<
               Fix the errors in your CSV file and try importing again.
             </p>
 
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              onClick={() => setIsExpanded(!isExpanded)}
-              className="h-auto p-0 text-sm font-bold hover:bg-transparent"
-            >
-              {isExpanded ? (
-                <ChevronDown className="mr-1 h-4 w-4" />
-              ) : (
-                <ChevronRight className="mr-1 h-4 w-4" />
-              )}
-              {isExpanded ? "Hide" : "Show"} error details
-            </Button>
+            <ExpandToggle
+              variant="icon"
+              expanded={isExpanded}
+              label="Show error details"
+              expandedLabel="Hide error details"
+              onExpandedChange={setIsExpanded}
+            />
 
             {isExpanded && (
               <div className="border-destructive/20 bg-destructive/5 mt-3 max-h-[400px] space-y-3 overflow-y-auto rounded-md border p-3">

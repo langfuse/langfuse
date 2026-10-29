@@ -1,17 +1,17 @@
 import { claimed, dropped, unmatched } from "../..";
 import { asRecord, compact, optionalString } from "../../../core/utils/json";
 import { toolCallPart } from "../../../core/normalize/message-parts/tool-calls";
-import { toolResultPart } from "../../../core/normalize/message-parts/tool-results";
 import type {
   FinishReason,
   NormalizedMessage,
-  ToolResultPart,
+  NormalizedMessagePart,
 } from "../../../types";
 import type {
   ConventionResult,
   IOConvention,
   MessageEnvelopeContext,
   PartHandler,
+  PartHandlerContext,
   ToolDefinitionCarrier,
   ToolDefinitionSource,
 } from "../../io-convention";
@@ -25,9 +25,13 @@ import type {
  */
 function normalizeOtelGenaiToolResult(
   value: Record<string, unknown>,
-): ConventionResult<ToolResultPart> {
+  context: PartHandlerContext,
+): ConventionResult<NormalizedMessagePart[]> {
+  // GenAI carriers can retain AI SDK output envelopes. Delegate their contents
+  // to the existing tool-result handler after translating the carrier fields.
   return claimed(
-    toolResultPart({
+    context.normalizePartValue({
+      type: "tool-result",
       toolCallId:
         value.toolCallId /* ai sdk */ ??
         value.tool_use_id /* anthropic */ ??
@@ -42,9 +46,7 @@ function normalizeOtelGenaiToolResult(
       isError: [
         value.is_error /* anthropic */,
         value.isError /* ai sdk */,
-      ].find((candidate) => typeof candidate === "boolean") as
-        | boolean
-        | undefined,
+      ].find((candidate) => typeof candidate === "boolean"),
     }),
   );
 }
@@ -69,8 +71,7 @@ const OTEL_GENAI_PART_HANDLERS = {
         toolType: optionalString(value.type),
       }),
     ),
-  tool_call_response: (value: Record<string, unknown>) =>
-    normalizeOtelGenaiToolResult(value),
+  tool_call_response: normalizeOtelGenaiToolResult,
 } satisfies Readonly<Record<string, PartHandler>>;
 
 /** GenAI choice events: `{index?, message, finish_reason?}`. */

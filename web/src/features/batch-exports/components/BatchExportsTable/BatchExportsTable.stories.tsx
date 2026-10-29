@@ -24,6 +24,7 @@ const completedExport: BatchExportRow = {
 };
 
 const pagination = {
+  mode: "offset" as const,
   totalCount: 3,
   state: { pageIndex: 0, pageSize: 10 },
   onChange: fn(),

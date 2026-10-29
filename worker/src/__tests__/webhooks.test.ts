@@ -9,6 +9,7 @@ import {
   vi,
 } from "vitest";
 import { v4 } from "uuid";
+import dns from "node:dns/promises";
 import { backOff } from "exponential-backoff";
 import {
   ActionExecutionStatus,
@@ -19,7 +20,9 @@ import {
 import {
   WebhookInput,
   createOrgProjectAndApiKey,
+  getActionById,
   getActionByIdWithSecrets,
+  logger,
   redis,
 } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
@@ -32,6 +35,42 @@ import { generateWebhookSecret } from "@langfuse/shared/encryption";
 import { setupServer } from "msw/node";
 import { http, HttpResponse } from "msw";
 import { executeWebhook } from "../queues/webhooks";
+
+const outboundWhitelistBuilders = vi.hoisted(() => ({
+  webhookWhitelistFromEnv: vi.fn(),
+  whitelistFromEnv: vi.fn(),
+  realWebhookWhitelistFromEnv: (): {
+    hosts: string[];
+    ips: string[];
+    ip_ranges: string[];
+    allowedHosts?: string[];
+  } => ({ hosts: [], ips: [], ip_ranges: [] }),
+  realWhitelistFromEnv: (): {
+    hosts: string[];
+    ips: string[];
+    ip_ranges: string[];
+    allowedHosts?: string[];
+  } => ({ hosts: [], ips: [], ip_ranges: [] }),
+}));
+
+vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import("@langfuse/shared/src/server")>();
+  outboundWhitelistBuilders.realWebhookWhitelistFromEnv =
+    actual.webhookWhitelistFromEnv;
+  outboundWhitelistBuilders.realWhitelistFromEnv = actual.whitelistFromEnv;
+  outboundWhitelistBuilders.webhookWhitelistFromEnv.mockImplementation(
+    actual.webhookWhitelistFromEnv,
+  );
+  outboundWhitelistBuilders.whitelistFromEnv.mockImplementation(
+    actual.whitelistFromEnv,
+  );
+  return {
+    ...actual,
+    webhookWhitelistFromEnv: outboundWhitelistBuilders.webhookWhitelistFromEnv,
+    whitelistFromEnv: outboundWhitelistBuilders.whitelistFromEnv,
+  };
+});
 
 vi.mock("exponential-backoff", async (importOriginal) => {
   const actual = await importOriginal<typeof import("exponential-backoff")>();
@@ -54,9 +93,26 @@ class WebhookTestServer {
     headers: Record<string, string>;
     body: string;
   }> = [];
+  pagerDutyStatus = 202;
 
   constructor() {
+    const recordPagerDutyEvent = async ({ request }: { request: Request }) => {
+      this.receivedRequests.push({
+        url: request.url,
+        method: request.method,
+        headers: Object.fromEntries(request.headers.entries()),
+        body: JSON.stringify(await request.json()),
+      });
+      return HttpResponse.json(
+        { status: "success", message: "Event processed" },
+        { status: this.pagerDutyStatus },
+      );
+    };
+
     this.server = setupServer(
+      http.post("https://events.pagerduty.com/*", recordPagerDutyEvent),
+      http.post("https://events.eu.pagerduty.com/*", recordPagerDutyEvent),
+
       // Default success response
       http.post("https://webhook.example.com/*", async ({ request }) => {
         this.receivedRequests.push({
@@ -106,6 +162,7 @@ class WebhookTestServer {
 
   reset() {
     this.receivedRequests = [];
+    this.pagerDutyStatus = 202;
     this.server.resetHandlers();
   }
 
@@ -123,6 +180,28 @@ class WebhookTestServer {
 }
 
 const webhookServer = new WebhookTestServer();
+
+/** createMonitor writes a minimal Monitor row so monitor-alert jobs pass the stale-alert guard. */
+async function createMonitor(projectId: string): Promise<string> {
+  const monitor = await prisma.monitor.create({
+    data: {
+      projectId,
+      name: "Test monitor",
+      view: "OBSERVATIONS",
+      filters: [],
+      metric: { measure: "count", aggregation: "count" },
+      windowMs: 5n * 60_000n,
+      cadenceMs: 60_000n,
+      thresholdOperator: "GT",
+      alertThreshold: 100,
+      noData: { mode: "SHOW_NO_DATA" },
+      renotify: { mode: "OFF" },
+      schedulerBatchId: 0n,
+      severity: "ALERT",
+    },
+  });
+  return monitor.id;
+}
 const GITHUB_REPOSITORY_DISPATCH_TRUNCATION_MARKER =
   "[TRUNCATED: GitHub repository_dispatch payload exceeded size limit]";
 const GITHUB_REPOSITORY_DISPATCH_MAX_PAYLOAD_BYTES = 64 * 1024;
@@ -134,6 +213,7 @@ describe("Webhook Integration Tests", () => {
   let automationId: string;
   let promptId: string;
   let executionId: string;
+  let monitorId: string;
 
   beforeAll(() => {
     webhookServer.setup();
@@ -206,6 +286,7 @@ describe("Webhook Integration Tests", () => {
       },
     });
     executionId = v4();
+    monitorId = await createMonitor(projectId);
   });
 
   afterEach(() => {
@@ -556,6 +637,108 @@ describe("Webhook Integration Tests", () => {
       });
     });
 
+    it("sends a query-string secret and keeps it out of logs and the execution error", async () => {
+      const signedUrl =
+        "https://webhook-error.example.com/test?api-version=2016-06-01&sig=super-secret-sig";
+      const action = await prisma.action.findUnique({
+        where: { id: actionId },
+      });
+      if (!action) {
+        throw new Error("Action not found");
+      }
+
+      await prisma.action.update({
+        where: { id: actionId },
+        data: {
+          projectId,
+          type: "WEBHOOK",
+          config: {
+            ...(action.config as WebhookActionConfigWithSecrets),
+            url: signedUrl,
+          },
+        },
+      });
+
+      await prisma.automationExecution.create({
+        data: {
+          id: executionId,
+          projectId,
+          triggerId,
+          automationId,
+          actionId,
+          status: ActionExecutionStatus.PENDING,
+          sourceId: v4(),
+          input: {
+            promptName: "test-prompt",
+            promptVersion: 1,
+            action: "created",
+            type: "prompt-version",
+          },
+        },
+      });
+
+      const info = vi.spyOn(logger, "info");
+      const warn = vi.spyOn(logger, "warn");
+      const error = vi.spyOn(logger, "error");
+
+      try {
+        await executeWebhook(
+          {
+            projectId,
+            automationId,
+            executionId,
+            payload: {
+              prompt: PromptDomainSchema.parse(
+                await prisma.prompt.findUnique({ where: { id: promptId } }),
+              ),
+              action: "created",
+              type: "prompt-version",
+              user: {
+                id: "user-123",
+                name: "Test User",
+                email: "test@example.com",
+              },
+            },
+          },
+          { skipValidation: true },
+        );
+
+        const requests = webhookServer.getReceivedRequests();
+        expect(requests.length).toBeGreaterThan(0);
+        expect(requests.every((request) => request.url === signedUrl)).toBe(
+          true,
+        );
+
+        const execution = await prisma.automationExecution.findUnique({
+          where: { id: executionId },
+        });
+        expect(execution?.error).toContain(
+          "https://webhook-error.example.com/test",
+        );
+        expect(execution?.error).not.toContain("super-secret-sig");
+
+        const logged = [info, warn, error]
+          .flatMap((spy) => spy.mock.calls)
+          .map((call) =>
+            call
+              .map((arg) => {
+                if (arg instanceof Error) {
+                  return `${arg.name} ${arg.message} ${arg.stack ?? ""} ${JSON.stringify(arg)}`;
+                }
+                return typeof arg === "string" ? arg : JSON.stringify(arg);
+              })
+              .join(" "),
+          )
+          .join("\n");
+        expect(logged).toContain("https://webhook-error.example.com/test");
+        expect(logged).not.toContain("super-secret-sig");
+      } finally {
+        info.mockRestore();
+        warn.mockRestore();
+        error.mockRestore();
+      }
+    });
+
     it("should disable trigger after 5 consecutive failures and store lastFailingExecutionId", async () => {
       const fullPrompt = await prisma.prompt.findUnique({
         where: { id: promptId },
@@ -704,7 +887,7 @@ describe("Webhook Integration Tests", () => {
             type: "monitor-alert",
             apiVersion: "v1",
             payload: {
-              monitorId: v4(),
+              monitorId,
               projectId,
               severity: "ALERT",
               permalink: `https://cloud.langfuse.com/project/${projectId}/monitors/mon`,
@@ -884,7 +1067,7 @@ describe("Webhook Integration Tests", () => {
           type: "monitor-alert",
           apiVersion: "v1",
           payload: {
-            monitorId: v4(),
+            monitorId,
             projectId,
             severity: "ALERT",
             permalink: `https://cloud.langfuse.com/project/${projectId}/monitors/mon`,
@@ -1770,6 +1953,134 @@ describe("Webhook Integration Tests", () => {
       expect(clientPayloadKeys[clientPayloadKeys.length - 1]).toBe("prompt");
     });
 
+    it("applies the webhook host allowlist to webhook delivery and not GitHub dispatch", async () => {
+      const resolve4 = vi
+        .spyOn(dns, "resolve4")
+        .mockResolvedValue(["93.184.216.34"]);
+      const resolve6 = vi
+        .spyOn(dns, "resolve6")
+        .mockRejectedValue(
+          Object.assign(new Error("ENODATA"), { code: "ENODATA" }),
+        );
+      const lookup = vi
+        .spyOn(dns, "lookup")
+        .mockResolvedValue([{ address: "93.184.216.34", family: 4 }] as never);
+      outboundWhitelistBuilders.webhookWhitelistFromEnv.mockReturnValue({
+        hosts: [],
+        ips: [],
+        ip_ranges: [],
+        allowedHosts: ["hooks.example.com"],
+      });
+      outboundWhitelistBuilders.whitelistFromEnv.mockReturnValue({
+        hosts: [],
+        ips: [],
+        ip_ranges: [],
+      });
+
+      try {
+        const fullPrompt = await prisma.prompt.findUnique({
+          where: { id: promptId },
+        });
+        const promptPayload = {
+          prompt: PromptDomainSchema.parse(fullPrompt),
+          action: "created" as const,
+          type: "prompt-version" as const,
+        };
+
+        const webhookInput: WebhookInput = {
+          projectId,
+          automationId,
+          executionId,
+          payload: promptPayload,
+        };
+        await prisma.automationExecution.create({
+          data: {
+            id: executionId,
+            projectId,
+            triggerId,
+            automationId,
+            actionId,
+            status: ActionExecutionStatus.PENDING,
+            sourceId: promptId,
+            input: webhookInput,
+          },
+        });
+
+        await executeWebhook(webhookInput);
+
+        const webhookExecution = await prisma.automationExecution.findUnique({
+          where: { id: executionId },
+        });
+        expect(webhookExecution?.status).toBe(ActionExecutionStatus.ERROR);
+        expect(webhookExecution?.error).toContain(
+          "Host is not in the outbound URL allowlist",
+        );
+        expect(webhookServer.getReceivedRequests()).toHaveLength(0);
+
+        const ghActionId = v4();
+        await prisma.action.create({
+          data: {
+            id: ghActionId,
+            projectId,
+            type: "GITHUB_DISPATCH",
+            config: {
+              type: "GITHUB_DISPATCH",
+              url: "https://webhook.example.com/dispatches",
+              eventType: "prompt-update",
+              githubToken: encrypt("ghp_test_token"),
+              displayGitHubToken: "ghp_...n",
+            },
+          },
+        });
+        const ghAutomationId = v4();
+        await prisma.automation.create({
+          data: {
+            id: ghAutomationId,
+            projectId,
+            triggerId,
+            actionId: ghActionId,
+            name: "GitHub Dispatch Automation",
+          },
+        });
+        const ghExecutionId = v4();
+        await prisma.automationExecution.create({
+          data: {
+            id: ghExecutionId,
+            projectId,
+            triggerId,
+            automationId: ghAutomationId,
+            actionId: ghActionId,
+            status: ActionExecutionStatus.PENDING,
+            sourceId: promptId,
+            input: {},
+          },
+        });
+
+        await executeWebhook({
+          projectId,
+          automationId: ghAutomationId,
+          executionId: ghExecutionId,
+          payload: promptPayload,
+        });
+
+        expect(webhookServer.getReceivedRequests()).toHaveLength(1);
+        const dispatchExecution = await prisma.automationExecution.findUnique({
+          where: { id: ghExecutionId },
+        });
+        expect(dispatchExecution?.status).toBe(ActionExecutionStatus.COMPLETED);
+      } finally {
+        outboundWhitelistBuilders.webhookWhitelistFromEnv.mockImplementation(
+          outboundWhitelistBuilders.realWebhookWhitelistFromEnv,
+        );
+        outboundWhitelistBuilders.whitelistFromEnv.mockImplementation(
+          outboundWhitelistBuilders.realWhitelistFromEnv,
+        );
+        resolve4.mockRestore();
+        resolve6.mockRestore();
+        lookup.mockRestore();
+      }
+    });
+
     it("should truncate oversized GitHub dispatch prompt fields", async () => {
       const fullPrompt = await prisma.prompt.findUnique({
         where: { id: promptId },
@@ -1925,7 +2236,7 @@ describe("Webhook Integration Tests", () => {
           type: "monitor-alert",
           apiVersion: "v1",
           payload: {
-            monitorId: v4(),
+            monitorId,
             projectId,
             severity: "ALERT",
             permalink: `https://cloud.langfuse.com/project/${projectId}/monitors/mon`,
@@ -1967,5 +2278,514 @@ describe("Webhook Integration Tests", () => {
         truncatedFields: ["payload.filters", "payload.message.body"],
       });
     });
+  });
+
+  describe("stale monitor alerts", () => {
+    const alertedAt = new Date("2026-05-27T14:00:00.000Z");
+
+    const buildMonitorAlertInput = (alertAlertedAt?: Date) =>
+      ({
+        projectId,
+        automationId,
+        executionId: v4(),
+        payload: {
+          id: v4(),
+          timestamp: new Date(),
+          type: "monitor-alert",
+          apiVersion: "v1",
+          payload: {
+            monitorId,
+            projectId,
+            severity: "ALERT",
+            timestamp: new Date(),
+            fromTimestamp: new Date(Date.now() - 5 * 60_000),
+            toTimestamp: new Date(),
+            message: { title: "High error rate", body: "errors > 100" },
+            view: "observations",
+            filters: [],
+            window: "5m",
+            alertedAt: alertAlertedAt,
+          },
+        },
+      }) satisfies WebhookInput;
+
+    const useErrorEndpoint = async () => {
+      const action = await prisma.action.findUniqueOrThrow({
+        where: { id: actionId },
+      });
+      await prisma.action.update({
+        where: { id: actionId },
+        data: {
+          config: {
+            ...(action.config as WebhookActionConfigWithSecrets),
+            url: "https://webhook-error.example.com/test",
+          },
+        },
+      });
+    };
+
+    it("drops the alert without counting a failure once the monitor emitted a newer alert", async () => {
+      await prisma.monitor.update({
+        where: { id: monitorId },
+        data: { alertedAt: new Date(alertedAt.getTime() + 1) },
+      });
+      await useErrorEndpoint();
+      const failureKey = `automation-failures:${projectId}:${automationId}`;
+      await redis!.del(failureKey);
+
+      await executeWebhook(buildMonitorAlertInput(alertedAt), {
+        skipValidation: true,
+      });
+
+      expect(webhookServer.getReceivedRequests()).toHaveLength(0);
+      expect(await redis!.get(failureKey)).toBeNull();
+    });
+
+    it("drops the alert when its monitor was deleted", async () => {
+      await prisma.monitor.delete({ where: { id: monitorId } });
+
+      await executeWebhook(buildMonitorAlertInput(alertedAt), {
+        skipValidation: true,
+      });
+
+      expect(webhookServer.getReceivedRequests()).toHaveLength(0);
+    });
+
+    it("drops the alert for every action type, not only webhooks", async () => {
+      await prisma.monitor.update({
+        where: { id: monitorId },
+        data: { alertedAt: new Date(alertedAt.getTime() + 1) },
+      });
+      await prisma.action.update({
+        where: { id: actionId },
+        data: {
+          type: "GITHUB_DISPATCH",
+          config: {
+            type: "GITHUB_DISPATCH",
+            url: "https://webhook.example.com/dispatches",
+            eventType: "monitor-alert",
+            githubToken: encrypt("ghp_test_token"),
+            displayGitHubToken: "ghp_...n",
+          },
+        },
+      });
+
+      await executeWebhook(buildMonitorAlertInput(alertedAt), {
+        skipValidation: true,
+      });
+
+      expect(webhookServer.getReceivedRequests()).toHaveLength(0);
+    });
+
+    it.each([
+      // The processor publishes before it saves alertedAt.
+      ["before the monitor saved it", new Date(0)],
+      ["after the monitor saved it", alertedAt],
+    ])("delivers the alert %s", async (_, monitorAlertedAt) => {
+      await prisma.monitor.update({
+        where: { id: monitorId },
+        data: { alertedAt: monitorAlertedAt },
+      });
+
+      await executeWebhook(buildMonitorAlertInput(alertedAt), {
+        skipValidation: true,
+      });
+
+      expect(webhookServer.getReceivedRequests()).toHaveLength(1);
+    });
+
+    it("delivers the alert when the monitor changed severity without emitting an alert", async () => {
+      await prisma.monitor.update({
+        where: { id: monitorId },
+        data: {
+          severityChangedAt: new Date(alertedAt.getTime() + 1),
+          alertedAt,
+        },
+      });
+
+      await executeWebhook(buildMonitorAlertInput(alertedAt), {
+        skipValidation: true,
+      });
+
+      expect(webhookServer.getReceivedRequests()).toHaveLength(1);
+    });
+
+    it("delivers alerts queued without alertedAt", async () => {
+      await prisma.monitor.update({
+        where: { id: monitorId },
+        data: { alertedAt: new Date() },
+      });
+
+      await executeWebhook(buildMonitorAlertInput(), {
+        skipValidation: true,
+      });
+
+      expect(webhookServer.getReceivedRequests()).toHaveLength(1);
+    });
+  });
+
+  describe("PagerDuty action", () => {
+    const routingKey = "R0abcdefghijklmnopqrstuvwxyz9xYz";
+
+    const setPagerDutyConfig = (region: "US" | "EU") =>
+      prisma.action.update({
+        where: { id: actionId },
+        data: {
+          type: "PAGERDUTY",
+          config: {
+            type: "PAGERDUTY",
+            routingKey: encrypt(routingKey),
+            displayRoutingKey: "R0ab...9xYz",
+            region,
+          },
+        },
+      });
+
+    const buildMonitorInput = (
+      severity: "ALERT" | "WARNING" | "OK" | "NO_DATA",
+    ): WebhookInput => ({
+      projectId,
+      automationId,
+      executionId: v4(),
+      payload: {
+        id: v4(),
+        timestamp: new Date(),
+        type: "monitor-alert",
+        apiVersion: "v1",
+        payload: {
+          monitorId,
+          projectId,
+          severity,
+          permalink: `https://cloud.langfuse.com/project/${projectId}/alerts/${monitorId}`,
+          timestamp: new Date("2026-05-27T14:32:00.000Z"),
+          fromTimestamp: new Date("2026-05-27T14:00:00.000Z"),
+          toTimestamp: new Date("2026-05-27T14:30:00.000Z"),
+          message: { title: "Hallucination rate breached", body: "0.42 > 0.3" },
+          view: "observations",
+          filters: [
+            {
+              column: "providedModelName",
+              type: "stringOptions",
+              operator: "any of",
+              value: ["gpt-4o"],
+            },
+          ],
+          window: "30m",
+          monitorName: "Hallucination rate",
+          metric: { measure: "latency", aggregation: "p95" },
+          metricValue: 0.42,
+          thresholdOperator: "GT",
+          alertThreshold: 0.3,
+          warningThreshold: 0.2,
+        },
+      },
+    });
+
+    const pagerDutyRequests = () =>
+      webhookServer.getReceivedRequests().map((request) => ({
+        url: request.url,
+        body: JSON.parse(request.body),
+      }));
+
+    const lastPagerDutyRequest = () => pagerDutyRequests().at(-1)!;
+
+    beforeEach(async () => {
+      await setPagerDutyConfig("US");
+      await redis!.del(`automation-failures:${projectId}:${automationId}`);
+    });
+
+    it("triggers a critical alert keyed by the monitor with LLMOps details", async () => {
+      await executeWebhook(buildMonitorInput("ALERT"));
+
+      const [{ url, body }] = pagerDutyRequests();
+      const project = await prisma.project.findUniqueOrThrow({
+        where: { id: projectId },
+      });
+      expect(url).toBe("https://events.pagerduty.com/v2/enqueue");
+      expect(body).toMatchObject({
+        routing_key: routingKey,
+        event_action: "trigger",
+        dedup_key: `langfuse-${projectId}-${monitorId}`,
+        client: "Langfuse",
+        links: [
+          {
+            href: `https://cloud.langfuse.com/project/${projectId}/alerts/${monitorId}`,
+          },
+        ],
+        payload: {
+          summary: "Hallucination rate breached",
+          source: `langfuse/${project.name}`,
+          severity: "critical",
+          timestamp: "2026-05-27T14:32:00.000Z",
+          class: "monitor-alert",
+          component: "observations",
+          custom_details: {
+            llmops: {
+              model_name: "gpt-4o",
+              project_name: project.name,
+              monitor_name: "Hallucination rate",
+              monitor_id: monitorId,
+              monitor_alert_start: "2026-05-27T14:00:00.000Z",
+              monitor_alert_end: "2026-05-27T14:30:00.000Z",
+              metric_value: 0.42,
+              threshold_value: 0.3,
+            },
+            langfuse: { window: "30m" },
+          },
+        },
+      });
+    });
+
+    it.each([
+      ["WARNING", "warning"],
+      ["NO_DATA", "error"],
+    ] as const)(
+      "maps %s to PagerDuty severity %s",
+      async (severity, expected) => {
+        await executeWebhook(buildMonitorInput(severity));
+
+        expect(pagerDutyRequests()[0].body.payload.severity).toBe(expected);
+      },
+    );
+
+    it("re-triggers the monitor's alert under the same key on a severity change", async () => {
+      await executeWebhook(buildMonitorInput("WARNING"));
+      await executeWebhook(buildMonitorInput("ALERT"));
+
+      expect(
+        pagerDutyRequests().map(({ body }) => [
+          body.event_action,
+          body.dedup_key,
+          body.payload.severity,
+        ]),
+      ).toEqual([
+        ["trigger", `langfuse-${projectId}-${monitorId}`, "warning"],
+        ["trigger", `langfuse-${projectId}-${monitorId}`, "critical"],
+      ]);
+    });
+
+    it("resolves the monitor's alert on recovery", async () => {
+      await executeWebhook(buildMonitorInput("OK"));
+
+      expect(pagerDutyRequests().map(({ body }) => body)).toEqual([
+        {
+          routing_key: routingKey,
+          event_action: "resolve",
+          dedup_key: `langfuse-${projectId}-${monitorId}`,
+        },
+      ]);
+    });
+
+    it("sends to the EU host for EU routing keys", async () => {
+      await setPagerDutyConfig("EU");
+
+      await executeWebhook(buildMonitorInput("ALERT"));
+
+      expect(pagerDutyRequests()[0].url).toBe(
+        "https://events.eu.pagerduty.com/v2/enqueue",
+      );
+    });
+
+    it("sends prompt changes as change events and completes the execution", async () => {
+      const fullPrompt = await prisma.prompt.findUniqueOrThrow({
+        where: { id: promptId },
+      });
+      const input: WebhookInput = {
+        projectId,
+        automationId,
+        executionId,
+        payload: {
+          prompt: PromptDomainSchema.parse(fullPrompt),
+          action: "created",
+          type: "prompt-version",
+        },
+      };
+      await prisma.automationExecution.create({
+        data: {
+          id: executionId,
+          projectId,
+          triggerId,
+          automationId,
+          actionId,
+          status: ActionExecutionStatus.PENDING,
+          sourceId: executionId,
+          input: {},
+        },
+      });
+
+      await executeWebhook(input);
+
+      const { url, body } = lastPagerDutyRequest();
+      expect(url).toBe("https://events.pagerduty.com/v2/change/enqueue");
+      expect(body).toMatchObject({
+        routing_key: routingKey,
+        payload: {
+          summary: 'Langfuse prompt "test-prompt" version 1 created',
+          custom_details: { prompt_name: "test-prompt", prompt_version: 1 },
+        },
+      });
+      expect(body).not.toHaveProperty("event_action");
+      const execution = await prisma.automationExecution.findUniqueOrThrow({
+        where: { id: executionId },
+      });
+      expect(execution.status).toBe(ActionExecutionStatus.COMPLETED);
+    });
+
+    it("always triggers project notifications keyed by event type and resource", async () => {
+      await prisma.automationExecution.create({
+        data: {
+          id: executionId,
+          projectId,
+          triggerId,
+          automationId,
+          actionId,
+          status: ActionExecutionStatus.PENDING,
+          sourceId: executionId,
+          input: {},
+        },
+      });
+
+      await executeWebhook({
+        projectId,
+        automationId,
+        executionId,
+        payload: {
+          id: executionId,
+          timestamp: new Date(),
+          type: "project-notification",
+          apiVersion: "v1",
+          event: {
+            eventType: "blob-export-failed",
+            severity: "ALERT",
+            projectId,
+            projectName: "Test Project",
+            resourceId: "res_1",
+            resourceName: "my-bucket",
+            message: "Blob storage export failed.",
+          },
+        },
+      });
+
+      expect(lastPagerDutyRequest().body).toMatchObject({
+        event_action: "trigger",
+        dedup_key: `langfuse-${projectId}-blob-export-failed-res_1`,
+        payload: { severity: "error", class: "blob-export-failed" },
+      });
+    });
+
+    it.each([429, 500])(
+      "retries a %i in-process, then counts a failure once retries run out",
+      async (status) => {
+        webhookServer.pagerDutyStatus = status;
+
+        await executeWebhook(buildMonitorInput("ALERT"));
+
+        expect(webhookServer.getReceivedRequests()).toHaveLength(4);
+        expect(
+          await redis!.get(`automation-failures:${projectId}:${automationId}`),
+        ).toBe("1");
+      },
+    );
+
+    it("counts a rejected event as a failure without retrying", async () => {
+      webhookServer.pagerDutyStatus = 400;
+
+      await executeWebhook(buildMonitorInput("ALERT"));
+
+      expect(
+        await redis!.get(`automation-failures:${projectId}:${automationId}`),
+      ).toBe("1");
+    });
+
+    it("records PagerDuty's status on a rejected prompt change", async () => {
+      webhookServer.pagerDutyStatus = 400;
+      const fullPrompt = await prisma.prompt.findUniqueOrThrow({
+        where: { id: promptId },
+      });
+      await prisma.automationExecution.create({
+        data: {
+          id: executionId,
+          projectId,
+          triggerId,
+          automationId,
+          actionId,
+          status: ActionExecutionStatus.PENDING,
+          sourceId: executionId,
+          input: {},
+        },
+      });
+
+      await executeWebhook({
+        projectId,
+        automationId,
+        executionId,
+        payload: {
+          prompt: PromptDomainSchema.parse(fullPrompt),
+          action: "created",
+          type: "prompt-version",
+        },
+      });
+
+      const execution = await prisma.automationExecution.findUniqueOrThrow({
+        where: { id: executionId },
+      });
+      expect(execution).toMatchObject({
+        status: ActionExecutionStatus.ERROR,
+        output: { httpStatus: 400 },
+      });
+    });
+
+    it("returns the routing key only on the execution read path", async () => {
+      const withSecrets = await getActionByIdWithSecrets({
+        projectId,
+        actionId,
+      });
+      const safe = await getActionById({ projectId, actionId });
+
+      const config = withSecrets?.config as { routingKey: string };
+      expect(decrypt(config.routingKey)).toBe(routingKey);
+      expect(safe?.config).toEqual({
+        type: "PAGERDUTY",
+        displayRoutingKey: "R0ab...9xYz",
+        region: "US",
+      });
+      expect(JSON.stringify(safe)).not.toContain(routingKey);
+    });
+  });
+});
+
+describe("getActionByIdWithSecrets legacy headers", () => {
+  it("sends legacy headers as secret and never falls back to a legacy value its requestHeaders entry overrides", async () => {
+    const { projectId } = await createOrgProjectAndApiKey();
+    const action = await prisma.action.create({
+      data: {
+        id: v4(),
+        projectId,
+        type: "WEBHOOK",
+        config: {
+          type: "WEBHOOK",
+          url: "https://example.com/webhook",
+          headers: {
+            "x-api-key": "legacy-api-key",
+            Authorization: "Bearer stale-token",
+          },
+          requestHeaders: {
+            Authorization: { secret: true, value: "not-a-valid-ciphertext" },
+          },
+          apiVersion: { prompt: "v1" },
+          secretKey: encrypt("whsec"),
+          displaySecretKey: "lf-whsec_...",
+        },
+      },
+    });
+
+    const result = await getActionByIdWithSecrets({
+      projectId,
+      actionId: action.id,
+    });
+
+    expect(
+      (result?.config as WebhookActionConfigWithSecrets).requestHeaders,
+    ).toEqual({ "x-api-key": { secret: true, value: "legacy-api-key" } });
   });
 });

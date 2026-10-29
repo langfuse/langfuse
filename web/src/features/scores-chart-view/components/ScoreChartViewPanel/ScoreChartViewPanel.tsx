@@ -1,6 +1,11 @@
 /* eslint-disable no-nested-ternary */
 import React, { useCallback, useState } from "react";
-import { AlertCircle, ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
+import {
+  AlertCircle,
+  ChevronLeft,
+  ChevronRight,
+  Loader2,
+} from "@langfuse/icons";
 import { type DashboardWidgetChartType } from "@langfuse/shared/src/db";
 import type { DataPoint } from "@/src/features/widgets";
 import { Button } from "@/src/components/ui/button";
@@ -92,12 +97,12 @@ export const ScoreChartViewPanel = React.memo(function ScoreChartViewPanel({
         <div className="min-h-0 flex-1">
           {error ? (
             <div className="text-muted-foreground flex h-full flex-col items-center justify-center gap-2 p-8 text-center">
-              <AlertCircle className="h-10 w-10 opacity-40" />
+              <AlertCircle __rawClassName="h-10 w-10 opacity-40" />
               <p className="max-w-md text-sm">{error}</p>
             </div>
           ) : isLoading ? (
             <div className="text-muted-foreground flex h-full items-center justify-center">
-              <Loader2 className="h-6 w-6 animate-spin" />
+              <Loader2 size="lg" __rawClassName="animate-spin" />
             </div>
           ) : (
             <ChartCanvas
@@ -125,14 +130,14 @@ export const ScoreChartViewPanel = React.memo(function ScoreChartViewPanel({
               aria-label="Collapse panel"
               onClick={() => setOpen(false)}
             >
-              <ChevronRight className="h-4 w-4" />
+              <ChevronRight size="sm" color="default" />
             </Button>
           </div>
           <PanelField label="Chart type">
             <ChartTypePicker
               value={config.chartType}
               onChange={onChartType}
-              showLabels
+              layout="full"
             />
           </PanelField>
           <PanelField label="View">
@@ -177,7 +182,7 @@ export const ScoreChartViewPanel = React.memo(function ScoreChartViewPanel({
             aria-label="Expand panel"
             onClick={() => setOpen(true)}
           >
-            <ChevronLeft className="h-4 w-4" />
+            <ChevronLeft size="sm" color="default" />
           </Button>
         </div>
       )}

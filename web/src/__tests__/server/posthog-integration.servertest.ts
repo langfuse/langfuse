@@ -178,6 +178,35 @@ describe("PostHog Integration legacy export source cutoff gate", () => {
     return { project, caller };
   };
 
+  it("marks backfill on re-enable, not on a plain save", async () => {
+    const { caller, project } = await prepare();
+    const save = (enabled: boolean) =>
+      caller.posthogIntegration.update({
+        projectId: project.id,
+        ...baseConfig,
+        enabled,
+        exportSource: "EVENTS" as const,
+      });
+    const backfill = async () =>
+      (
+        await prisma.posthogIntegration.findUniqueOrThrow({
+          where: { projectId: project.id },
+        })
+      ).backfill;
+
+    await save(true);
+    await prisma.posthogIntegration.update({
+      where: { projectId: project.id },
+      data: { backfill: false },
+    });
+    await save(true);
+    expect(await backfill()).toBe(false);
+
+    await save(false);
+    await save(true);
+    expect(await backfill()).toBe(true);
+  });
+
   // A pre-cutoff project no longer buys a *new* integration the right to a
   // legacy source. Existing integrations stay grandfathered — see
   // "Cloud new-integration enriched pin" below.
@@ -839,6 +868,28 @@ describe("PostHog Integration legacy export source cutoff gate", () => {
         baseConfig.posthogProjectApiKey,
       );
       expect(row.enabled).toBe(false);
+    });
+
+    it("update changing the hostname with a blank key → BAD_REQUEST", async () => {
+      const { caller, project } = await prepare();
+      await caller.posthogIntegration.update({
+        projectId: project.id,
+        ...baseConfig,
+      });
+      await expect(
+        caller.posthogIntegration.update({
+          projectId: project.id,
+          ...baseConfig,
+          posthogHostname: "https://eu.posthog.com",
+          posthogProjectApiKey: "",
+        }),
+      ).rejects.toThrow(
+        "PostHog Project API Key is required when changing the hostname",
+      );
+      const row = await prisma.posthogIntegration.findUniqueOrThrow({
+        where: { projectId: project.id },
+      });
+      expect(row.posthogHostName).toBe("https://us.posthog.com/");
     });
 
     it("create with a blank key → BAD_REQUEST", async () => {

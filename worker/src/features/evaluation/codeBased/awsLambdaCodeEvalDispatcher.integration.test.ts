@@ -1,4 +1,3 @@
-/* eslint-disable @repo/no-exotic-operators */
 import { describe, expect, it } from "vitest";
 import {
   AwsLambdaCodeEvalDispatcher,
@@ -11,9 +10,15 @@ const endpoint = process.env.LANGFUSE_CODE_EVAL_AWS_LAMBDA_ENDPOINT;
 const describeWithFloci = endpoint ? describe : describe.skip;
 const FLOCI_TEST_TIMEOUT_MS = 30_000;
 
-process.env.AWS_ACCESS_KEY_ID ??= "test";
-process.env.AWS_SECRET_ACCESS_KEY ??= "test";
-process.env.AWS_REGION ??= "us-east-1";
+if (process.env.AWS_ACCESS_KEY_ID === undefined) {
+  process.env.AWS_ACCESS_KEY_ID = "test";
+}
+if (process.env.AWS_SECRET_ACCESS_KEY === undefined) {
+  process.env.AWS_SECRET_ACCESS_KEY = "test";
+}
+if (process.env.AWS_REGION === undefined) {
+  process.env.AWS_REGION = "us-east-1";
+}
 
 const baseInput: DispatchInput = {
   scope: {
@@ -136,6 +141,47 @@ describeWithFloci("AwsLambdaCodeEvalDispatcher Floci integration", () => {
       ).rejects.toMatchObject({
         code: "USER_CODE_ERROR",
         message: "boom",
+        retryable: false,
+      } satisfies Partial<CodeEvalDispatcherError>);
+    },
+    FLOCI_TEST_TIMEOUT_MS,
+  );
+
+  it.each([
+    {
+      label: "self-referential list",
+      source: `
+def evaluate(ctx):
+    items = []
+    items.append(items)
+    return {"scores": [{"name": "x", "value": 1, "metadata": {"items": items}}]}
+`,
+      message: /RecursionError/,
+    },
+    {
+      label: "tuple holding a cyclic list",
+      source: `
+def evaluate(ctx):
+    items = []
+    items.append(items)
+    return {"scores": [{"name": "x", "value": 1, "metadata": {"items": (items,)}}]}
+`,
+      message: /Circular reference detected/,
+    },
+  ])(
+    "returns a non-retryable INVALID_RESULT for a Python $label",
+    async ({ source, message }) => {
+      // Cycles must not escape the runner. An unhandled Lambda error is
+      // classified as a retryable invocation failure.
+      await expect(
+        dispatcher.dispatch({
+          ...baseInput,
+          runtime: { language: "PYTHON" },
+          code: { source },
+        }),
+      ).rejects.toMatchObject({
+        code: "INVALID_RESULT",
+        message: expect.stringMatching(message),
         retryable: false,
       } satisfies Partial<CodeEvalDispatcherError>);
     },

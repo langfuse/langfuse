@@ -798,18 +798,26 @@ describe("ssoConfigRouter.save — IdP discovery validation", () => {
     const { org, caller } = await prepare();
     const domain = `discovery-mismatch-${uuidv4().slice(0, 8)}.com`;
     await addVerifiedDomain(org.id, domain);
+    // Chosen by the remote IdP. Must not be copied into the client error.
+    const reportedIssuer =
+      "https://idp-reported.invalid/issuer-must-not-appear-in-the-error";
     fetchMock.mockResolvedValueOnce(
       discoveryResponse({
-        issuer: "https://different.example.com",
-        authorization_endpoint: "https://different.example.com/authorize",
-        token_endpoint: "https://different.example.com/oauth/token",
-        jwks_uri: "https://different.example.com/.well-known/jwks.json",
+        issuer: reportedIssuer,
+        authorization_endpoint: "https://example.com/authorize",
+        token_endpoint: "https://example.com/oauth/token",
+        jwks_uri: "https://example.com/.well-known/jwks.json",
       }),
     );
 
     await expect(
       caller.ssoConfig.save({ orgId: org.id, payload: samplePayload(domain) }),
-    ).rejects.toMatchObject({ code: "PRECONDITION_FAILED" });
+    ).rejects.toSatisfy((error: { code?: string; message?: string }) => {
+      expect(error.code).toBe("PRECONDITION_FAILED");
+      expect(error.message).toContain("did not report the configured issuer");
+      expect(error.message).not.toContain(reportedIssuer);
+      return true;
+    });
   });
 
   it("accepts a discovery doc whose issuer matches modulo trailing slash", async () => {
@@ -969,6 +977,84 @@ describe("ssoConfigRouter.save — IdP discovery validation", () => {
       expect(result.domain).toBe(domain);
     } finally {
       sharedEnv.LANGFUSE_SSO_DISCOVERY_WHITELISTED_HOST = original;
+    }
+  });
+
+  describe("OneLogin", () => {
+    /** Tenant URLs (NextAuth's form) and full issuers (OneLogin console's form) both validate against the sign-in discovery doc. */
+    it.each([
+      "https://example.com",
+      "https://example.com/",
+      "https://example.com/oidc/2",
+      "https://example.com/oidc/2/",
+    ])(
+      "validates %s against the /oidc/2 discovery doc and stores it as entered",
+      async (issuer) => {
+        const { org, caller } = await prepare();
+        const domain = `onelogin-${uuidv4().slice(0, 8)}.com`;
+        await addVerifiedDomain(org.id, domain);
+        mockDiscoveryOk("https://example.com/oidc/2");
+
+        await caller.ssoConfig.save({
+          orgId: org.id,
+          payload: oneLoginPayload(domain, issuer),
+        });
+
+        expect(fetchMock).toHaveBeenCalledWith(
+          "https://example.com/oidc/2/.well-known/openid-configuration",
+          expect.any(Object),
+        );
+        const stored = await prisma.ssoConfig.findUniqueOrThrow({
+          where: { domain },
+        });
+        expect((stored.authConfig as Record<string, unknown>).issuer).toBe(
+          issuer,
+        );
+      },
+    );
+
+    it("rejects a tenant URL whose discovery doc reports the tenant URL as issuer", async () => {
+      const { org, caller } = await prepare();
+      const domain = `onelogin-raw-${uuidv4().slice(0, 8)}.com`;
+      await addVerifiedDomain(org.id, domain);
+      mockDiscoveryOk("https://example.com");
+
+      await expect(
+        caller.ssoConfig.save({
+          orgId: org.id,
+          payload: oneLoginPayload(domain, "https://example.com"),
+        }),
+      ).rejects.toMatchObject({ code: "PRECONDITION_FAILED" });
+    });
+
+    it("rejects a tenant URL with embedded credentials", async () => {
+      const { org, caller } = await prepare();
+      const domain = `onelogin-creds-${uuidv4().slice(0, 8)}.com`;
+      await addVerifiedDomain(org.id, domain);
+
+      await expect(
+        caller.ssoConfig.save({
+          orgId: org.id,
+          payload: oneLoginPayload(domain, "https://user:pass@example.com"),
+        }),
+      ).rejects.toMatchObject({ code: "PRECONDITION_FAILED" });
+
+      expect(fetchMock).not.toHaveBeenCalled();
+      const row = await prisma.ssoConfig.findUnique({ where: { domain } });
+      expect(row).toBeNull();
+    });
+
+    function oneLoginPayload(domain: string, issuer: string) {
+      return {
+        domain,
+        authProvider: "onelogin" as const,
+        authConfig: {
+          clientId: "onelogin-client",
+          clientSecret: "onelogin-secret",
+          issuer,
+          allowDangerousEmailAccountLinking: false,
+        },
+      };
     }
   });
 

@@ -1,8 +1,12 @@
 import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
+import type * as SharedServer from "@langfuse/shared/src/server";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import { type Prisma, prisma } from "@langfuse/shared/src/db";
-import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
+import {
+  createOrgProjectAndApiKey,
+  SLACK_CHANNEL_NOT_FOUND_MESSAGE,
+} from "@langfuse/shared/src/server";
 import type { Session } from "next-auth";
 import { v4 } from "uuid";
 import {
@@ -19,6 +23,73 @@ import {
   generateWebhookSecret,
 } from "@langfuse/shared/encryption";
 import { TRPCError } from "@trpc/server";
+import { type MockInstance } from "vitest";
+import { env } from "@/src/env.mjs";
+
+// Fake Slack workspace: the bot is in private channels "G_PRIVATE" and archived
+// "G_ARCHIVED". Slack API calls are faked; the access logic is real.
+const fakeSlack = vi.hoisted(() => ({
+  installerChannelIds: ["G_PRIVATE", "G_ARCHIVED"],
+  missingScope: false,
+}));
+vi.mock("@langfuse/shared/src/server", async () => {
+  const actual = await vi.importActual<typeof SharedServer>(
+    "@langfuse/shared/src/server",
+  );
+  const channels = [
+    { id: "C123456", name: "general", is_private: false },
+    { id: "G_PRIVATE", name: "secret-plans", is_private: true },
+    {
+      id: "G_ARCHIVED",
+      name: "old-secrets",
+      is_private: true,
+      is_archived: true,
+    },
+  ];
+  const client = {
+    users: {
+      conversations: async (args: {
+        user?: string;
+        exclude_archived?: boolean;
+      }) => {
+        if (fakeSlack.missingScope) {
+          throw Object.assign(new Error("missing_scope"), {
+            data: { error: "missing_scope" },
+          });
+        }
+        return {
+          ok: true,
+          channels: channels.filter(
+            (channel) =>
+              channel.is_private &&
+              !(args.exclude_archived && channel.is_archived) &&
+              (!args.user ||
+                (args.user === "U_INSTALLER" &&
+                  fakeSlack.installerChannelIds.includes(channel.id))),
+          ),
+        };
+      },
+    },
+    conversations: {
+      info: async ({ channel }: { channel: string }) => {
+        const found = channels.find(({ id }) => id === channel);
+        if (!found) throw new Error("channel_not_found");
+        return { ok: true, channel: found };
+      },
+    },
+  };
+  const slackService = {
+    getWebClientForProject: async () => client,
+    getPrivateChannels: actual.SlackService.prototype.getPrivateChannels,
+    checkPrivateChannelAccess:
+      actual.SlackService.prototype.checkPrivateChannelAccess,
+    getChannelInfo: actual.SlackService.prototype.getChannelInfo,
+  };
+  // Patched on the real class so calls from inside the shared module see it too.
+  actual.SlackService.getInstance = () =>
+    slackService as unknown as SharedServer.SlackService;
+  return actual;
+});
 
 const __orgIds: string[] = [];
 
@@ -203,10 +274,16 @@ describe("automations trpc", () => {
           config: {
             type: "WEBHOOK",
             url: "https://example.com/webhook",
-            headers: {
-              "content-type": "application/json",
-              "x-api-key": encrypt("secret-api-key-123"),
-              authorization: encrypt("Bearer secret-token-456"),
+            requestHeaders: {
+              "content-type": { secret: false, value: "application/json" },
+              "x-api-key": {
+                secret: true,
+                value: encrypt("secret-api-key-123"),
+              },
+              authorization: {
+                secret: true,
+                value: encrypt("Bearer secret-token-456"),
+              },
             },
             displayHeaders: {
               "content-type": { secret: false, value: "application/json" },
@@ -592,7 +669,9 @@ describe("automations trpc", () => {
           config: {
             type: "WEBHOOK",
             url: "https://example.com/webhook",
-            headers: { "Content-Type": "application/json" },
+            requestHeaders: {
+              "Content-Type": { secret: false, value: "application/json" },
+            },
             displayHeaders: {
               "Content-Type": { secret: false, value: "application/json" },
             },
@@ -669,10 +748,10 @@ describe("automations trpc", () => {
           config: {
             type: "WEBHOOK",
             url: "https://example.com/webhook",
-            headers: {
-              "content-type": "application/json",
-              "x-custom": "public-value",
-              "x-secret": encrypt("secret-value-789"),
+            requestHeaders: {
+              "content-type": { secret: false, value: "application/json" },
+              "x-custom": { secret: false, value: "public-value" },
+              "x-secret": { secret: true, value: encrypt("secret-value-789") },
             },
             displayHeaders: {
               "content-type": { secret: false, value: "application/json" },
@@ -713,7 +792,7 @@ describe("automations trpc", () => {
       expect(config).not.toHaveProperty("headers");
     });
 
-    it("should return all legacy header values when reading automation", async () => {
+    it("should mask legacy header values when reading automation", async () => {
       const { project, caller } = await prepare();
 
       // Create test trigger and action with legacy headers
@@ -742,6 +821,14 @@ describe("automations trpc", () => {
               "content-type": "application/json",
               "x-api-key": "legacy-api-key-value",
             },
+            requestHeaders: {
+              "x-env": { secret: false, value: "production" },
+            },
+            // A stored displayHeaders entry may list a legacy value unmasked.
+            displayHeaders: {
+              "x-api-key": { secret: false, value: "legacy-api-key-value" },
+              "x-env": { secret: false, value: "production" },
+            },
             apiVersion: { prompt: "v1" },
             secretKey: encrypt(secretKey),
             displaySecretKey,
@@ -765,16 +852,25 @@ describe("automations trpc", () => {
 
       const config = response.action.config as SafeWebhookActionConfig;
 
-      // Should have display values with all legacy header values returned
-      // Legacy headers are converted to the new format with secret: false
+      // Legacy headers may hold credentials and are readable by VIEWERs, so
+      // they are treated as secret and masked.
       expect(config.displayHeaders).toEqual({
-        "content-type": { secret: false, value: "application/json" },
-        "x-api-key": { secret: false, value: "legacy-api-key-value" },
+        "content-type": { secret: true, value: "appl...json" },
+        "x-api-key": { secret: true, value: "lega...alue" },
+        "x-env": { secret: false, value: "production" },
       });
 
       // Should NOT have raw headers object in response
       expect(config).not.toHaveProperty("headers");
       expect(config).not.toHaveProperty("requestHeaders");
+
+      const list = await caller.automations.getAutomations({
+        projectId: project.id,
+      });
+      const listed = list.find((a) => a.id === automation.id);
+      expect(
+        (listed?.action.config as SafeWebhookActionConfig).displayHeaders,
+      ).toEqual(config.displayHeaders);
     });
 
     it("should throw error when automation not found", async () => {
@@ -1149,6 +1245,147 @@ describe("automations trpc", () => {
       ).rejects.toThrow(
         "Slack integration not found. Please connect your Slack workspace first.",
       );
+    });
+  });
+
+  describe("Slack private channels", () => {
+    const slackAutomationInput = (projectId: string, channelId: string) => ({
+      projectId,
+      name: "Slack Automation",
+      eventSource: "prompt",
+      eventAction: ["created"],
+      filter: [],
+      status: JobConfigState.ACTIVE,
+      actionType: "SLACK" as const,
+      actionConfig: {
+        type: "SLACK" as const,
+        channelId,
+        channelName: "secret-plans",
+      },
+    });
+
+    const prepareWithInstaller = async (installerUserId: string) => {
+      const prepared = await prepare();
+      await prisma.slackIntegration.create({
+        data: {
+          projectId: prepared.project.id,
+          teamId: "T123456",
+          teamName: "Test Team",
+          botToken: encrypt("xoxb-test-token"),
+          botUserId: "U123456",
+          installerUserId,
+          installerSlackUserId: "U_INSTALLER",
+        },
+      });
+      const otherUserCaller = appRouter.createCaller({
+        ...createInnerTRPCContext({
+          session: {
+            ...prepared.session,
+            user: { ...prepared.session.user!, id: "user-2" },
+          },
+          headers: {},
+        }),
+        prisma,
+      });
+      return { ...prepared, otherUserCaller };
+    };
+
+    beforeEach(() => {
+      fakeSlack.installerChannelIds = ["G_PRIVATE", "G_ARCHIVED"];
+      fakeSlack.missingScope = false;
+    });
+
+    it("rejects private channels the user can't use exactly like non-existent channels", async () => {
+      const { project, caller } = await prepareWithInstaller("someone-else");
+      const errorFor = (channelId: string) =>
+        caller.automations
+          .createAutomation(slackAutomationInput(project.id, channelId))
+          .catch((error: Error) => error.message);
+
+      for (const channelId of ["G_PRIVATE", "G_ARCHIVED", "C_MISSING"]) {
+        expect(await errorFor(channelId)).toBe(SLACK_CHANNEL_NOT_FOUND_MESSAGE);
+      }
+      // Typed names are rejected before any lookup.
+      expect(await errorFor("#secret-plans")).toBe(
+        await errorFor("#does-not-exist"),
+      );
+    });
+
+    it("fails closed for private channels on installs without groups:read", async () => {
+      const { project, caller } = await prepareWithInstaller("user-1");
+      fakeSlack.missingScope = true;
+
+      await expect(
+        caller.automations.createAutomation(
+          slackAutomationInput(project.id, "G_PRIVATE"),
+        ),
+      ).rejects.toThrow(SLACK_CHANNEL_NOT_FOUND_MESSAGE);
+      const created = await caller.automations.createAutomation(
+        slackAutomationInput(project.id, "C123456"),
+      );
+      expect(created.action.config).toMatchObject({
+        channelName: "general",
+        isPrivate: false,
+      });
+    });
+
+    it("masks a saved private channel name for everyone but the installer", async () => {
+      const { project, caller, otherUserCaller } =
+        await prepareWithInstaller("user-1");
+
+      const created = await caller.automations.createAutomation(
+        slackAutomationInput(project.id, "G_PRIVATE"),
+      );
+      expect(created.action.config).toMatchObject({
+        channelId: "G_PRIVATE",
+        channelName: "secret-plans",
+        isPrivate: true,
+      });
+
+      const [otherList, otherSingle] = await Promise.all([
+        otherUserCaller.automations.getAutomations({ projectId: project.id }),
+        otherUserCaller.automations.getAutomation({
+          projectId: project.id,
+          automationId: created.automation.id,
+        }),
+      ]);
+      expect(JSON.stringify([otherList, otherSingle])).not.toContain(
+        "secret-plans",
+      );
+      expect(otherSingle.action.config).toMatchObject({
+        channelId: "G_PRIVATE",
+        channelName: "Private Channel (…ATE)",
+      });
+
+      // Saving the masked config unchanged keeps the real channel.
+      await otherUserCaller.automations.updateAutomation({
+        ...slackAutomationInput(project.id, "G_PRIVATE"),
+        automationId: created.automation.id,
+        name: "Renamed",
+        actionConfig: {
+          ...(otherSingle.action.config as { channelId: string }),
+          type: "SLACK",
+          channelName: "Private Channel (…ATE)",
+        },
+      });
+      const installerView = await caller.automations.getAutomation({
+        projectId: project.id,
+        automationId: created.automation.id,
+      });
+      expect(installerView.action.config).toMatchObject({
+        channelName: "secret-plans",
+        isPrivate: true,
+      });
+
+      // The installer loses the name once they leave the channel.
+      fakeSlack.installerChannelIds = [];
+      const afterLeaving = await caller.automations.getAutomation({
+        projectId: project.id,
+        automationId: created.automation.id,
+      });
+      expect(afterLeaving.action.config).toMatchObject({
+        channelName: "Private Channel (…ATE)",
+      });
     });
   });
 
@@ -1570,111 +1807,175 @@ describe("automations trpc", () => {
       });
     });
 
-    it("should allow URL update without requiring secret header values", async () => {
-      const { project, caller } = await prepare();
+    describe("webhook URL changes", () => {
+      const createWebhookAutomation = async (projectId: string) => {
+        const trigger = await prisma.trigger.create({
+          data: {
+            id: v4(),
+            projectId,
+            eventSource: "prompt",
+            eventActions: ["created"],
+            filter: [],
+            status: JobConfigState.ACTIVE,
+          },
+        });
 
-      // Create initial automation with secret headers
-      const trigger = await prisma.trigger.create({
-        data: {
-          id: v4(),
-          projectId: project.id,
+        const { secretKey, displaySecretKey } = generateWebhookSecret();
+        const action = await prisma.action.create({
+          data: {
+            id: v4(),
+            projectId,
+            type: "WEBHOOK",
+            config: {
+              type: "WEBHOOK",
+              url: "https://example.com/webhook",
+              requestHeaders: {
+                "content-type": { secret: false, value: "application/json" },
+                "x-api-key": { secret: true, value: encrypt("secret-key-123") },
+              },
+              displayHeaders: {
+                "content-type": { secret: false, value: "application/json" },
+                "x-api-key": { secret: true, value: "secr...-123" },
+              },
+              apiVersion: { prompt: "v1" },
+              secretKey: encrypt(secretKey),
+              displaySecretKey,
+            },
+          },
+        });
+
+        const automation = await prisma.automation.create({
+          data: {
+            projectId,
+            triggerId: trigger.id,
+            actionId: action.id,
+            name: "URL Update Test",
+          },
+        });
+
+        return { action, automation };
+      };
+
+      const updateWebhook = (
+        caller: Awaited<ReturnType<typeof prepare>>["caller"],
+        projectId: string,
+        automationId: string,
+        actionConfig: {
+          url: string;
+          requestHeaders: Record<string, { secret: boolean; value: string }>;
+        },
+      ) =>
+        caller.automations.updateAutomation({
+          projectId,
+          automationId,
+          name: "Updated URL Automation",
           eventSource: "prompt",
-          eventActions: ["created"],
+          eventAction: ["created"],
           filter: [],
           status: JobConfigState.ACTIVE,
-        },
-      });
-
-      const { secretKey, displaySecretKey } = generateWebhookSecret();
-      const action = await prisma.action.create({
-        data: {
-          id: v4(),
-          projectId: project.id,
-          type: "WEBHOOK",
-          config: {
+          actionType: "WEBHOOK",
+          actionConfig: {
             type: "WEBHOOK",
-            url: "https://example.com/webhook",
-            requestHeaders: {
-              "content-type": { secret: false, value: "application/json" },
-              "x-api-key": { secret: true, value: encrypt("secret-key-123") },
-              authorization: {
-                secret: true,
-                value: encrypt("Bearer token-456"),
-              },
-            },
-            displayHeaders: {
-              "content-type": { secret: false, value: "application/json" },
-              "x-api-key": { secret: true, value: "secr...-123" },
-              authorization: { secret: true, value: "Bear...-456" },
-            },
             apiVersion: { prompt: "v1" },
-            secretKey: encrypt(secretKey),
-            displaySecretKey,
+            ...actionConfig,
           },
-        },
+        });
+
+      it("should reject a URL change when stored secret headers are left blank", async () => {
+        const { project, caller } = await prepare();
+        const { action, automation } = await createWebhookAutomation(
+          project.id,
+        );
+
+        await expect(
+          updateWebhook(caller, project.id, automation.id, {
+            url: "https://example.org/webhook",
+            requestHeaders: {
+              "content-type": { secret: false, value: "" },
+              "x-api-key": { secret: true, value: "" },
+            },
+          }),
+        ).rejects.toThrow(
+          'Secret header "x-api-key" must be re-entered when changing the webhook URL',
+        );
+
+        const unchangedAction = await prisma.action.findUniqueOrThrow({
+          where: { id: action.id },
+        });
+        const config = unchangedAction.config as WebhookActionConfigWithSecrets;
+        expect(config.url).toBe("https://example.com/webhook");
+        expect(decrypt(config.requestHeaders!["x-api-key"].value)).toBe(
+          "secret-key-123",
+        );
       });
 
-      const automation = await prisma.automation.create({
-        data: {
-          projectId: project.id,
-          triggerId: trigger.id,
-          actionId: action.id,
-          name: "URL Update Test",
-        },
+      it("should drop stored secret headers on a URL change when no headers are submitted", async () => {
+        const { project, caller } = await prepare();
+        const { action, automation } = await createWebhookAutomation(
+          project.id,
+        );
+
+        await updateWebhook(caller, project.id, automation.id, {
+          url: "https://example.org/webhook",
+          requestHeaders: {},
+        });
+
+        const updatedAction = await prisma.action.findUniqueOrThrow({
+          where: { id: action.id },
+        });
+        const config = updatedAction.config as WebhookActionConfigWithSecrets;
+        expect(config.url).toBe("https://example.org/webhook");
+        expect(config.requestHeaders).toEqual({
+          "content-type": { secret: false, value: "application/json" },
+        });
       });
 
-      // Update only the URL without providing secret header values
-      const response = await caller.automations.updateAutomation({
-        projectId: project.id,
-        automationId: automation.id,
-        name: "Updated URL Automation",
-        eventSource: "prompt",
-        eventAction: ["created"],
-        filter: [],
-        status: JobConfigState.ACTIVE,
-        actionType: "WEBHOOK",
-        actionConfig: {
-          type: "WEBHOOK",
+      it("should accept a URL change when secret headers are re-entered", async () => {
+        const { project, caller } = await prepare();
+        const { action, automation } = await createWebhookAutomation(
+          project.id,
+        );
+
+        await updateWebhook(caller, project.id, automation.id, {
           url: "https://example.com/new-webhook-url",
-          requestHeaders: {}, // No headers provided
-          apiVersion: { prompt: "v1" },
-        },
+          requestHeaders: {
+            "content-type": { secret: false, value: "" },
+            "x-api-key": { secret: true, value: "rotated-key-456" },
+          },
+        });
+
+        const updatedAction = await prisma.action.findUniqueOrThrow({
+          where: { id: action.id },
+        });
+        const config = updatedAction.config as WebhookActionConfigWithSecrets;
+        expect(config.url).toBe("https://example.com/new-webhook-url");
+        expect(decrypt(config.requestHeaders!["x-api-key"].value)).toBe(
+          "rotated-key-456",
+        );
+        expect(config.requestHeaders!["content-type"]).toEqual({
+          secret: false,
+          value: "application/json",
+        });
       });
-      const actionConfig = response.action.config as SafeWebhookActionConfig;
 
-      // Verify the URL was updated
-      expect(actionConfig.url).toBe("https://example.com/new-webhook-url");
+      it("should keep stored secret headers when the URL is unchanged", async () => {
+        const { project, caller } = await prepare();
+        const { action, automation } = await createWebhookAutomation(
+          project.id,
+        );
 
-      // Verify secret headers were preserved
-      expect(actionConfig.displayHeaders).toMatchObject({
-        "content-type": { secret: false, value: "application/json" },
-        "x-api-key": { secret: true, value: "secr...-123" },
-        authorization: { secret: true, value: "Bear...-456" },
-      });
+        await updateWebhook(caller, project.id, automation.id, {
+          url: "https://EXAMPLE.com/webhook",
+          requestHeaders: {},
+        });
 
-      // Verify the action was updated correctly in the database
-      const updatedAction = await prisma.action.findUnique({
-        where: { id: action.id },
-      });
-
-      const config = updatedAction?.config as WebhookActionConfigWithSecrets;
-
-      // URL should be updated
-      expect(config.url).toBe("https://example.com/new-webhook-url");
-
-      // Secret headers should still be encrypted and preserved
-      expect(config.requestHeaders!["x-api-key"].value).not.toBe(
-        "secret-key-123",
-      );
-      expect(config.requestHeaders!["authorization"].value).not.toBe(
-        "Bearer token-456",
-      );
-
-      // Display values should be preserved
-      expect(config.displayHeaders).toMatchObject({
-        "content-type": { secret: false, value: "application/json" },
-        "x-api-key": { secret: true, value: "secr...-123" },
-        authorization: { secret: true, value: "Bear...-456" },
+        const updatedAction = await prisma.action.findUniqueOrThrow({
+          where: { id: action.id },
+        });
+        const config = updatedAction.config as WebhookActionConfigWithSecrets;
+        expect(decrypt(config.requestHeaders!["x-api-key"].value)).toBe(
+          "secret-key-123",
+        );
       });
     });
 
@@ -1780,6 +2081,87 @@ describe("automations trpc", () => {
         "x-api-key": { secret: true, value: "new-...-key" },
       });
     });
+
+    it.each([
+      {
+        name: "kept with an empty value",
+        requestHeaders: { "x-api-key": { secret: true, value: "" } },
+      },
+      { name: "omitted (URL-only update)", requestHeaders: undefined },
+    ])(
+      "should encrypt a legacy header $name on update",
+      async ({ requestHeaders }) => {
+        const { project, caller } = await prepare();
+
+        const trigger = await prisma.trigger.create({
+          data: {
+            id: v4(),
+            projectId: project.id,
+            eventSource: "prompt",
+            eventActions: ["created"],
+            filter: [],
+            status: JobConfigState.ACTIVE,
+          },
+        });
+
+        const { secretKey, displaySecretKey } = generateWebhookSecret();
+        const action = await prisma.action.create({
+          data: {
+            id: v4(),
+            projectId: project.id,
+            type: "WEBHOOK",
+            config: {
+              type: "WEBHOOK",
+              url: "https://example.com/webhook",
+              headers: { "x-api-key": "legacy-api-key" },
+              apiVersion: { prompt: "v1" },
+              secretKey: encrypt(secretKey),
+              displaySecretKey,
+            },
+          },
+        });
+
+        const automation = await prisma.automation.create({
+          data: {
+            projectId: project.id,
+            triggerId: trigger.id,
+            actionId: action.id,
+            name: "Legacy Header Encryption Test",
+          },
+        });
+
+        await caller.automations.updateAutomation({
+          projectId: project.id,
+          automationId: automation.id,
+          name: "Legacy Header Encryption Test",
+          eventSource: "prompt",
+          eventAction: ["created"],
+          filter: [],
+          status: JobConfigState.ACTIVE,
+          actionType: "WEBHOOK",
+          actionConfig: {
+            type: "WEBHOOK",
+            url: "https://example.com/webhook",
+            requestHeaders,
+            apiVersion: { prompt: "v1" },
+          },
+        });
+
+        const updatedAction = await prisma.action.findUnique({
+          where: { id: action.id },
+        });
+        const config = updatedAction?.config as WebhookActionConfigWithSecrets;
+
+        expect(config.headers).toEqual({});
+        expect(config.requestHeaders!["x-api-key"].secret).toBe(true);
+        expect(decrypt(config.requestHeaders!["x-api-key"].value)).toBe(
+          "legacy-api-key",
+        );
+        expect(config.displayHeaders).toEqual({
+          "x-api-key": { secret: true, value: "lega...-key" },
+        });
+      },
+    );
   });
 
   describe("automations.deleteAutomation", () => {
@@ -3005,6 +3387,329 @@ describe("automations trpc", () => {
       expect(config).not.toHaveProperty("githubToken");
       expect(config.type).toBe("GITHUB_DISPATCH");
       expect(config.eventType).toBe("langfuse-prompt-created");
+    });
+  });
+  describe("PagerDuty actions", () => {
+    const routingKey = "R0abcdefghijklmnopqrstuvwxyz9xYz";
+    const newRoutingKey = "N3wkeyabcdefghijklmnopqrstuv7uVw";
+    const mutableEnv = env as { NEXT_PUBLIC_LANGFUSE_CLOUD_REGION?: string };
+    const originalCloudRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
+
+    beforeAll(() => {
+      mutableEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "STAGING";
+    });
+
+    afterAll(() => {
+      mutableEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = originalCloudRegion;
+    });
+
+    const createInput = (
+      projectId: string,
+      actionConfig: {
+        routingKey?: string;
+        region: "US" | "EU";
+      } = { routingKey, region: "US" },
+    ) => ({
+      projectId,
+      name: "Page on-call",
+      eventSource: TriggerEventSource.Monitor,
+      eventAction: [],
+      filter: [],
+      status: JobConfigState.ACTIVE,
+      actionType: "PAGERDUTY" as const,
+      actionConfig: { type: "PAGERDUTY" as const, ...actionConfig },
+    });
+
+    async function storedConfig(actionId: string) {
+      const action = await prisma.action.findUniqueOrThrow({
+        where: { id: actionId },
+      });
+      return action.config as Record<string, string>;
+    }
+
+    function viewerCaller(session: Session) {
+      const viewerSession: Session = {
+        ...session,
+        user: {
+          ...session.user!,
+          admin: false,
+          organizations: [
+            {
+              ...session.user!.organizations[0],
+              role: "MEMBER",
+              projects: [
+                {
+                  ...session.user!.organizations[0].projects[0],
+                  role: "VIEWER",
+                },
+              ],
+            },
+          ],
+        },
+      };
+      return appRouter.createCaller({
+        ...createInnerTRPCContext({ session: viewerSession, headers: {} }),
+        prisma,
+      });
+    }
+
+    it("encrypts the routing key and returns only the masked key", async () => {
+      const { project, caller } = await prepare();
+
+      const result = await caller.automations.createAutomation(
+        createInput(project.id, { routingKey, region: "EU" }),
+      );
+
+      const config = await storedConfig(result.action.id);
+      expect(config.routingKey).not.toBe(routingKey);
+      expect(decrypt(config.routingKey)).toBe(routingKey);
+      expect(config.displayRoutingKey).toBe("R0ab...9xYz");
+      expect(config.region).toBe("EU");
+      expect(result.action.config).toEqual({
+        type: "PAGERDUTY",
+        displayRoutingKey: "R0ab...9xYz",
+        region: "EU",
+      });
+    });
+
+    function callerWithUser(session: Session, user: Partial<Session["user"]>) {
+      return appRouter.createCaller({
+        ...createInnerTRPCContext({
+          session: { ...session, user: { ...session.user!, ...user } },
+          headers: {},
+        }),
+        prisma,
+      });
+    }
+
+    it("rejects users who are not Langfuse Cloud admins", async () => {
+      const { project, session } = await prepare();
+      const owner = callerWithUser(session, { admin: false });
+
+      await expect(
+        owner.automations.createAutomation(createInput(project.id)),
+      ).rejects.toMatchObject({ code: "FORBIDDEN" });
+      await expect(
+        owner.automations.sendPagerDutyTestEvent({
+          projectId: project.id,
+          region: "US",
+          routingKey,
+          step: "trigger",
+        }),
+      ).rejects.toMatchObject({ code: "FORBIDDEN" });
+    });
+
+    it("rejects admins on self-hosted instances", async () => {
+      const { project, caller } = await prepare();
+      mutableEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = undefined;
+
+      try {
+        await expect(
+          caller.automations.createAutomation(createInput(project.id)),
+        ).rejects.toMatchObject({ code: "FORBIDDEN" });
+      } finally {
+        mutableEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "STAGING";
+      }
+    });
+
+    it("rejects a create without a routing key", async () => {
+      const { project, caller } = await prepare();
+
+      await expect(
+        caller.automations.createAutomation(
+          createInput(project.id, { region: "US" }),
+        ),
+      ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    });
+
+    it("rejects a malformed routing key", async () => {
+      const { project, caller } = await prepare();
+
+      await expect(
+        caller.automations.createAutomation(
+          createInput(project.id, { routingKey: "too-short", region: "US" }),
+        ),
+      ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    });
+
+    it("keeps the stored key when an update omits it", async () => {
+      const { project, caller } = await prepare();
+      const created = await caller.automations.createAutomation(
+        createInput(project.id),
+      );
+
+      await caller.automations.updateAutomation({
+        ...createInput(project.id, { region: "EU" }),
+        automationId: created.automation.id,
+      });
+
+      const config = await storedConfig(created.action.id);
+      expect(decrypt(config.routingKey)).toBe(routingKey);
+      expect(config.displayRoutingKey).toBe("R0ab...9xYz");
+      expect(config.region).toBe("EU");
+    });
+
+    it("replaces the key when an update sends a new one", async () => {
+      const { project, caller } = await prepare();
+      const created = await caller.automations.createAutomation(
+        createInput(project.id),
+      );
+
+      await caller.automations.updateAutomation({
+        ...createInput(project.id, {
+          routingKey: newRoutingKey,
+          region: "US",
+        }),
+        automationId: created.automation.id,
+      });
+
+      const config = await storedConfig(created.action.id);
+      expect(decrypt(config.routingKey)).toBe(newRoutingKey);
+      expect(config.displayRoutingKey).toBe("N3wk...7uVw");
+    });
+
+    it("never returns the routing key on any read path to a project VIEWER", async () => {
+      const { project, session, caller } = await prepare();
+      const created = await caller.automations.createAutomation(
+        createInput(project.id),
+      );
+      const storedKey = (await storedConfig(created.action.id)).routingKey;
+      const viewer = viewerCaller(session);
+
+      const responses = [
+        await viewer.automations.getAutomations({ projectId: project.id }),
+        await viewer.automations.getAutomation({
+          projectId: project.id,
+          automationId: created.automation.id,
+        }),
+      ];
+
+      for (const response of responses) {
+        const serialized = JSON.stringify(response);
+        expect(serialized).not.toContain(routingKey);
+        expect(serialized).not.toContain(storedKey);
+        expect(serialized).not.toContain("routingKey");
+      }
+    });
+
+    describe("sendPagerDutyTestEvent", () => {
+      let fetchSpy: MockInstance<typeof fetch>;
+
+      beforeEach(() => {
+        fetchSpy = vi
+          .spyOn(global, "fetch")
+          .mockResolvedValue(new Response("{}", { status: 202 }));
+      });
+
+      afterEach(() => {
+        fetchSpy.mockRestore();
+      });
+
+      function sentEvents() {
+        return fetchSpy.mock.calls.map(([url, init]) => ({
+          url: String(url),
+          body: JSON.parse(String((init as RequestInit).body)),
+        }));
+      }
+
+      it.each([
+        ["trigger", "trigger", "critical"],
+        ["resolve", "resolve", undefined],
+      ] as const)(
+        "sends the %s step as one %s under the project's test key",
+        async (step, eventAction, severity) => {
+          const { project, caller } = await prepare();
+
+          await caller.automations.sendPagerDutyTestEvent({
+            projectId: project.id,
+            region: "EU",
+            routingKey,
+            step,
+          });
+
+          const [event, ...rest] = sentEvents();
+          expect(rest).toEqual([]);
+          expect(event.url).toBe("https://events.eu.pagerduty.com/v2/enqueue");
+          expect(event.body).toMatchObject({
+            routing_key: routingKey,
+            event_action: eventAction,
+            dedup_key: `langfuse-${project.id}-test`,
+          });
+          expect(event.body.payload?.severity).toBe(severity);
+        },
+      );
+
+      it("falls back to the stored key of the action", async () => {
+        const { project, caller } = await prepare();
+        const created = await caller.automations.createAutomation(
+          createInput(project.id),
+        );
+
+        await caller.automations.sendPagerDutyTestEvent({
+          projectId: project.id,
+          region: "US",
+          actionId: created.action.id,
+          step: "trigger",
+        });
+
+        expect(sentEvents()[0]).toMatchObject({
+          url: "https://events.pagerduty.com/v2/enqueue",
+          body: { routing_key: routingKey },
+        });
+      });
+
+      it("rejects a stored key of another project", async () => {
+        const { project: otherProject, caller: otherCaller } = await prepare();
+        const otherAction = await otherCaller.automations.createAutomation(
+          createInput(otherProject.id),
+        );
+        const { project, caller } = await prepare();
+
+        await expect(
+          caller.automations.sendPagerDutyTestEvent({
+            projectId: project.id,
+            region: "US",
+            actionId: otherAction.action.id,
+            step: "trigger",
+          }),
+        ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+        expect(fetchSpy).not.toHaveBeenCalled();
+      });
+
+      it("maps a PagerDuty rejection to BAD_REQUEST", async () => {
+        fetchSpy.mockResolvedValue(
+          new Response("invalid key", { status: 400 }),
+        );
+        const { project, caller } = await prepare();
+
+        await expect(
+          caller.automations.sendPagerDutyTestEvent({
+            projectId: project.id,
+            region: "US",
+            routingKey,
+            step: "trigger",
+          }),
+        ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+      });
+
+      it.each([
+        [429, "TOO_MANY_REQUESTS"],
+        [502, "BAD_GATEWAY"],
+        [503, "SERVICE_UNAVAILABLE"],
+      ])("returns a PagerDuty %i as %s after retries", async (status, code) => {
+        fetchSpy.mockResolvedValue(new Response("busy", { status }));
+        const { project, caller } = await prepare();
+
+        await expect(
+          caller.automations.sendPagerDutyTestEvent({
+            projectId: project.id,
+            region: "US",
+            routingKey,
+            step: "trigger",
+          }),
+        ).rejects.toMatchObject({ code });
+        expect(fetchSpy).toHaveBeenCalledTimes(4);
+      });
     });
   });
 });

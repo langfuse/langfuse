@@ -1,49 +1,52 @@
+import type { ComponentProps } from "react";
 import Header from "@/src/components/layouts/header";
 import { Alert } from "@/src/components/design-system/Alert/Alert";
+import { GatewayNotSetUpNotice } from "@/src/features/ai-gateway/components/GatewayNotSetUpNotice/GatewayNotSetUpNotice";
 import { Button } from "@/src/components/ui/button";
 import { Skeleton } from "@/src/components/ui/skeleton";
-import { GatewayModelsView } from "@/src/features/ai-gateway/components/GatewayModelsPage/components/GatewayModelsView/GatewayModelsView";
-import type { GatewayProvider } from "@/src/features/ai-gateway/types/gatewayProvider";
-import { api, reportNonTrpcError, type RouterOutputs } from "@/src/utils/api";
-
-type Connection = RouterOutputs["aiGateway"]["listConnections"]["data"][number];
-type RefreshResult = RouterOutputs["aiGateway"]["refreshModels"][number];
-
-const providerFormats: Record<GatewayProvider, string[]> = {
-  OPENAI: ["OpenAI Responses", "OpenAI Chat Completions"],
-  ANTHROPIC: ["Anthropic Messages"],
-};
-
-type ModelRow = {
-  id: string;
-  availableVia: Array<{
-    connectionId: string;
-    connectionName: string;
-    provider: GatewayProvider;
-  }>;
-  apiFormats: string[];
-};
+import { ProviderDialogController } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/ProviderDialogController/ProviderDialogController";
+import { ConnectedGatewayModelsTable } from "@/src/features/ai-gateway/components/GatewayModelsPage/components/ConnectedGatewayModelsTable/ConnectedGatewayModelsTable";
+import { useGatewaySettingsAccess } from "@/src/features/ai-gateway/hooks/useGatewaySettingsAccess";
+import { api } from "@/src/utils/api";
+import { aggregateModels } from "./fns/aggregateModels";
 
 export function GatewayModelsPage({
   organizationId,
 }: {
   organizationId: string;
 }) {
-  const utils = api.useUtils();
-  const connectionsQuery = api.aiGateway.listConnections.useInfiniteQuery(
-    { orgId: organizationId, limit: 100 },
-    { getNextPageParam: (lastPage) => lastPage.nextCursor ?? undefined },
+  const { canManageGateway, isIngestionConfigured, isSetupStatusPending } =
+    useGatewaySettingsAccess(organizationId);
+
+  if (isSetupStatusPending) {
+    return <ModelsSkeleton />;
+  }
+  /** Managers are redirected to Setup by the settings route. */
+  if (!canManageGateway && isIngestionConfigured === false) {
+    return <GatewayNotSetUpNotice title="Models" />;
+  }
+  return (
+    <GatewayModels
+      organizationId={organizationId}
+      canManageGateway={canManageGateway}
+    />
   );
+}
+
+function GatewayModels({
+  organizationId,
+  canManageGateway,
+}: {
+  organizationId: string;
+  canManageGateway: boolean;
+}) {
+  const connectionsQuery = api.aiGateway.listModelConnections.useQuery({
+    orgId: organizationId,
+  });
   const modelsQuery = api.aiGateway.refreshModels.useQuery(
     { orgId: organizationId },
     { enabled: connectionsQuery.isSuccess },
   );
-  const syncModelsMutation = api.aiGateway.syncModels.useMutation({
-    onSuccess: (data) => {
-      utils.aiGateway.refreshModels.setData({ orgId: organizationId }, data);
-    },
-  });
-
   if (connectionsQuery.isPending) {
     return <ModelsSkeleton />;
   }
@@ -52,79 +55,38 @@ export function GatewayModelsPage({
     return <ModelsLoadError retry={() => connectionsQuery.refetch()} />;
   }
 
-  const connections =
-    connectionsQuery.data?.pages.flatMap((page) => page.data) ?? [];
+  const connections = connectionsQuery.data ?? [];
   const results = modelsQuery.data ?? null;
   const rows = results ? aggregateModels(results, connections) : [];
   const failedResults = results?.filter((result) => !result.success) ?? [];
+  const tableProps = {
+    models: rows,
+    organizationId,
+    canManageGateway,
+    failedProviderCount: failedResults.length,
+    providerCount: results?.length ?? connections.length,
+    hasProviders: connections.length > 0,
+    hasSynced: results !== null,
+    isLoading: modelsQuery.isPending || modelsQuery.isFetching,
+    syncError: modelsQuery.isError,
+  } satisfies ComponentProps<typeof ConnectedGatewayModelsTable>;
 
-  const sync = () =>
-    syncModelsMutation
-      .mutateAsync({ orgId: organizationId })
-      .then(() => undefined)
-      .catch((error) => reportNonTrpcError(error, "ai-gateway-models"));
-
-  return (
-    <GatewayModelsView
-      models={rows}
-      failedProviderCount={failedResults.length}
-      providerCount={results?.length ?? connections.length}
-      hasProviders={connections.length > 0}
-      hasSynced={results !== null}
-      isLoading={
-        modelsQuery.isPending ||
-        modelsQuery.isFetching ||
-        syncModelsMutation.isPending
-      }
-      syncError={modelsQuery.isError || syncModelsMutation.isError}
-      onSync={sync}
-      hasMoreProviders={Boolean(connectionsQuery.hasNextPage)}
-      isLoadingMoreProviders={connectionsQuery.isFetchingNextPage}
-      onLoadMoreProviders={() => connectionsQuery.fetchNextPage()}
-    />
-  );
-}
-
-function aggregateModels(
-  results: RefreshResult[],
-  connections: Connection[],
-): ModelRow[] {
-  const connectionsById = new Map(
-    connections.map((connection) => [connection.id, connection]),
-  );
-  const models = new Map<string, ModelRow>();
-
-  for (const result of results) {
-    if (!result.success) continue;
-    const connection = connectionsById.get(result.connectionId);
-    if (!connection) continue;
-    for (const modelId of result.models) {
-      const existing = models.get(modelId);
-      const availableVia = {
-        connectionId: connection.id,
-        connectionName: connection.name,
-        provider: connection.provider,
-      };
-      if (existing) {
-        existing.availableVia.push(availableVia);
-        existing.apiFormats = [
-          ...new Set([
-            ...existing.apiFormats,
-            ...providerFormats[connection.provider],
-          ]),
-        ];
-      } else {
-        models.set(modelId, {
-          id: modelId,
-          availableVia: [availableVia],
-          apiFormats: [...providerFormats[connection.provider]],
-        });
-      }
-    }
+  /** The credential dialog reads the manager-only credential list. */
+  if (!canManageGateway) {
+    return <ConnectedGatewayModelsTable {...tableProps} />;
   }
-
-  return [...models.values()].toSorted((left, right) =>
-    left.id.localeCompare(right.id),
+  return (
+    <ProviderDialogController
+      organizationId={organizationId}
+      surface="models_page"
+    >
+      {({ openAddDialog }) => (
+        <ConnectedGatewayModelsTable
+          {...tableProps}
+          onAddProvider={openAddDialog}
+        />
+      )}
+    </ProviderDialogController>
   );
 }
 

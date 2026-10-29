@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { useMemo } from "react";
 import { type z } from "zod";
 
@@ -182,16 +183,17 @@ export const MonitorChartPreview = ({
             // before the real result (or the leading point) arrives.
             isLoading={queryResult.isPending || scalarResult.isPending}
           />
-          <ChartLoadingState
-            isLoading={queryResult.isError}
-            showSpinner={false}
-            showHintImmediately
-            layout="compact"
-            hintText={
-              queryResult.error?.message ?? RESOURCE_LIMIT_ERROR_MESSAGE
-            }
-            className="bg-background/80 absolute inset-0 z-20 backdrop-blur-xs"
-          />
+          {queryResult.isError && (
+            <ChartLoadingState
+              showSpinner={false}
+              showHintImmediately
+              layout="compact"
+              hintText={
+                queryResult.error?.message ?? RESOURCE_LIMIT_ERROR_MESSAGE
+              }
+              className="bg-background/80 absolute inset-0 z-20 backdrop-blur-xs"
+            />
+          )}
         </div>
       </CardContent>
     </Card>

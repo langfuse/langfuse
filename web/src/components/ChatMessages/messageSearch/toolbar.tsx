@@ -1,4 +1,4 @@
-/* eslint-disable @repo/no-style-props */
+/* eslint-disable @repo/no-style-props, @repo/component-file-structure */
 "use client";
 
 import {
@@ -6,8 +6,8 @@ import {
   ChevronUp,
   Search,
   X,
-  type LucideIcon,
-} from "lucide-react";
+  type IconComponent,
+} from "@langfuse/icons";
 import { useEffect, useRef } from "react";
 
 import { Button } from "@/src/components/ui/button";
@@ -50,7 +50,7 @@ export function MessageSearchToolbar({ className }: { className?: string }) {
         onClick={openSearch}
         aria-label="Find in messages"
       >
-        <Search className="h-3.5 w-3.5" />
+        <Search size="base" color="default" />
         <span className="hidden lg:inline">Find</span>
       </Button>
     );
@@ -68,7 +68,7 @@ export function MessageSearchToolbar({ className }: { className?: string }) {
         className,
       )}
     >
-      <Search className="text-muted-foreground ml-1 h-3.5 w-3.5 shrink-0" />
+      <Search size="base" color="muted" __rawClassName="ml-1" />
       <Input
         ref={inputRef}
         value={queryInput}
@@ -122,7 +122,7 @@ function IconButton({
   onClick,
   disabled,
 }: {
-  icon: LucideIcon;
+  icon: IconComponent;
   label: string;
   onClick: () => void;
   disabled?: boolean;
@@ -137,7 +137,7 @@ function IconButton({
       disabled={disabled}
       aria-label={label}
     >
-      <Icon className="h-3.5 w-3.5" />
+      <Icon size="base" color="default" />
     </Button>
   );
 }

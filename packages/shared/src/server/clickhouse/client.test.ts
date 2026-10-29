@@ -6,8 +6,8 @@ const mocks = vi.hoisted(() => ({
   close: vi.fn(async () => undefined),
   env: {
     CLICKHOUSE_URL: "http://localhost:8123",
-    CLICKHOUSE_READ_ONLY_URL: undefined,
-    CLICKHOUSE_EVENTS_READ_ONLY_URL: undefined,
+    CLICKHOUSE_READ_ONLY_URL: undefined as string | undefined,
+    CLICKHOUSE_EVENTS_READ_ONLY_URL: undefined as string | undefined,
     CLICKHOUSE_USER: "default",
     CLICKHOUSE_PASSWORD: "",
     CLICKHOUSE_DB: "default",
@@ -40,7 +40,12 @@ vi.mock("@clickhouse/client", async (importOriginal) => {
   };
 });
 
-import { ClickHouseClientManager, clickhouseClient } from "./client";
+import {
+  ClickHouseClientManager,
+  clickhouseClient,
+  resolveClickhouseService,
+  type PreferredClickhouseService,
+} from "./client";
 import { setClickHouseCompatibilityVersionForTests } from "./compatibility";
 
 describe("ClickHouseClientManager compatibility settings", () => {
@@ -182,4 +187,72 @@ describe("ClickHouseClientManager compatibility settings", () => {
 
     expect(mocks.createClient).toHaveBeenCalledTimes(2);
   });
+});
+
+describe("resolveClickhouseService", () => {
+  const MAIN = "http://main:8123";
+  const READ_REPLICA = "http://read-replica:8123";
+  const EVENTS_READ_REPLICA = "http://events-read-replica:8123";
+
+  beforeEach(async () => {
+    await ClickHouseClientManager.getInstance().closeAllConnections();
+    mocks.createClient.mockReset();
+    mocks.createClient.mockReturnValue({ close: mocks.close });
+  });
+
+  // The label must name the node the client actually connects to, including
+  // when an unset replica URL falls back to a less specific one.
+  it.each<
+    [
+      PreferredClickhouseService | undefined,
+      string | undefined,
+      string | undefined,
+      string,
+      string,
+    ]
+  >([
+    [undefined, READ_REPLICA, EVENTS_READ_REPLICA, "main", MAIN],
+    ["ReadWrite", READ_REPLICA, EVENTS_READ_REPLICA, "main", MAIN],
+    [
+      "ReadOnly",
+      READ_REPLICA,
+      EVENTS_READ_REPLICA,
+      "read_replica",
+      READ_REPLICA,
+    ],
+    ["ReadOnly", undefined, EVENTS_READ_REPLICA, "main", MAIN],
+    [
+      "EventsReadOnly",
+      READ_REPLICA,
+      EVENTS_READ_REPLICA,
+      "events_read_replica",
+      EVENTS_READ_REPLICA,
+    ],
+    ["EventsReadOnly", READ_REPLICA, "", "read_replica", READ_REPLICA],
+    ["EventsReadOnly", undefined, undefined, "main", MAIN],
+  ])(
+    "resolves %s (read_only=%s, events_read_only=%s) to %s",
+    (
+      preferred,
+      readOnlyUrl,
+      eventsReadOnlyUrl,
+      expectedService,
+      expectedUrl,
+    ) => {
+      const originalUrl = mocks.env.CLICKHOUSE_URL;
+      mocks.env.CLICKHOUSE_URL = MAIN;
+      mocks.env.CLICKHOUSE_READ_ONLY_URL = readOnlyUrl;
+      mocks.env.CLICKHOUSE_EVENTS_READ_ONLY_URL = eventsReadOnlyUrl;
+      try {
+        expect(resolveClickhouseService(preferred)).toBe(expectedService);
+
+        clickhouseClient({}, preferred);
+        expect(mocks.createClient.mock.calls[0][0].url).toBe(expectedUrl);
+      } finally {
+        mocks.env.CLICKHOUSE_URL = originalUrl;
+        mocks.env.CLICKHOUSE_READ_ONLY_URL = undefined;
+        mocks.env.CLICKHOUSE_EVENTS_READ_ONLY_URL = undefined;
+      }
+    },
+  );
 });

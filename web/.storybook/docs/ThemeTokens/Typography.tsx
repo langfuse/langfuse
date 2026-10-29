@@ -68,6 +68,7 @@ const formatPx = (px: number) => `${Number(px.toFixed(2))}px`;
  * the scale table reads like Carbon's "used for …" guidance but stays honest.
  */
 const SIZE_USAGE: Record<string, string> = {
+  "--text-2xs": "Session message footer",
   "--text-xs": "Badge · DataTable cells",
   "--text-sm": "Button · Input · DropdownMenu",
   "--text-base": "support-chat intro · eval template detail",

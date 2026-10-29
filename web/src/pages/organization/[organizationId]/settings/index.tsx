@@ -1,5 +1,5 @@
-export {
-  default,
-  useOrganizationSettingsPages,
-  getOrganizationSettingsPages,
-} from "@/src/features/organizations/OrganizationSettingsPage";
+import { SettingsPage } from "@/src/features/settings";
+
+export default function OrganizationSettingsRoute() {
+  return <SettingsPage scope="organization" />;
+}

@@ -10,6 +10,7 @@ describe("PromptService", () => {
   // Typed handle on the same vi.fn instance wired into mockPrisma, because
   // Prisma's overloaded findFirst signature survives vitest's Mocked mapping.
   let promptFindFirstMock: Mock;
+  let promptDependencyFindManyMock: Mock;
   let mockRedis: Mocked<Redis>;
   let mockMetricIncrementer: Mock;
 
@@ -33,12 +34,13 @@ describe("PromptService", () => {
 
   beforeEach(() => {
     promptFindFirstMock = vi.fn();
+    promptDependencyFindManyMock = vi.fn().mockResolvedValue([]);
     mockPrisma = {
       prompt: {
         findFirst: promptFindFirstMock,
       },
       promptDependency: {
-        findMany: vi.fn().mockResolvedValue([]),
+        findMany: promptDependencyFindManyMock,
       },
     } as unknown as Mocked<PrismaClient>;
 
@@ -100,6 +102,54 @@ describe("PromptService", () => {
         "EX",
         expect.any(Number),
       );
+    });
+
+    it("does not cache an in-flight read under a newer epoch", async () => {
+      const cache = new Map<string, string>([
+        ["prompt_cache_epoch:project1", "epoch-1"],
+      ]);
+      mockRedis.get.mockImplementation(
+        async (key) => cache.get(key.toString()) ?? null,
+      );
+      mockRedis.set.mockImplementation(async (key, value) => {
+        cache.set(key.toString(), value.toString());
+        return "OK";
+      });
+      promptFindFirstMock.mockResolvedValue(mockPrompt);
+
+      const readStarted = Promise.withResolvers<void>();
+      const resumeRead = Promise.withResolvers<void>();
+      promptDependencyFindManyMock.mockImplementationOnce(async () => {
+        readStarted.resolve();
+        await resumeRead.promise;
+        return [];
+      });
+      const params = {
+        projectId: "project1",
+        promptName: "testPrompt",
+        version: undefined,
+        label: "test",
+      };
+      const firstRead = promptService.getPrompt(params);
+      await readStarted.promise;
+
+      promptFindFirstMock.mockResolvedValue({
+        ...mockPrompt,
+        id: "prompt-v2",
+        version: 2,
+        prompt: "Version 2 content",
+      });
+      try {
+        await promptService.invalidateCache({ projectId: params.projectId });
+      } finally {
+        resumeRead.resolve();
+      }
+
+      expect(await firstRead).toMatchObject({ version: 1 });
+      expect(await promptService.getPrompt(params)).toMatchObject({
+        version: 2,
+        prompt: "Version 2 content",
+      });
     });
 
     it("does not share cached prompts between a version and numeric label", async () => {

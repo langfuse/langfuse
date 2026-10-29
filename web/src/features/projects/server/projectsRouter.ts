@@ -17,9 +17,12 @@ import {
   QueueJobs,
   redis,
   ProjectDeleteQueue,
+  DefaultEvalModelService,
   getEnvironmentsForProject,
   invalidateCachedOrgApiKeys,
 } from "@langfuse/shared/src/server";
+import { transferRoleAssignments } from "@langfuse/shared/rbac/server";
+import { reconcileTopicsConnectionsForProject } from "@langfuse/shared/topics/server";
 import { randomUUID } from "crypto";
 import { LangfuseConflictError, StringNoHTMLNonEmpty } from "@langfuse/shared";
 import type { PrismaClient } from "@langfuse/shared/src/db";
@@ -323,13 +326,13 @@ export const projectsRouter = createTRPCRouter({
         after: { orgId: input.targetOrgId },
       });
 
-      await ctx.prisma.$transaction([
-        ctx.prisma.projectMembership.deleteMany({
+      await ctx.prisma.$transaction(async (tx) => {
+        await tx.projectMembership.deleteMany({
           where: {
             projectId: input.projectId,
           },
-        }),
-        ctx.prisma.project.update({
+        });
+        await tx.project.update({
           where: {
             id: input.projectId,
             orgId: ctx.session.orgId,
@@ -337,8 +340,11 @@ export const projectsRouter = createTRPCRouter({
           data: {
             orgId: input.targetOrgId,
           },
-        }),
-      ]);
+        });
+        // Move the project's api-key assignments to the destination org and
+        // drop its user assignments, matching the membership wipe above.
+        await transferRoleAssignments(tx, input.projectId, input.targetOrgId);
+      });
 
       // API keys need to be deleted from cache. Otherwise, they will still be valid.
       // It has to be called after the db is done to prevent new API keys from being cached.
@@ -367,6 +373,11 @@ export const projectsRouter = createTRPCRouter({
         orgId: input.targetOrgId,
         projectId: input.projectId,
       });
+
+      await Promise.all([
+        DefaultEvalModelService.reconcileConnectionForProject(input.projectId),
+        reconcileTopicsConnectionsForProject(input.projectId),
+      ]);
     }),
 
   environmentFilterOptions: protectedProjectProcedure
@@ -404,6 +415,8 @@ async function isGatewayIngestionProject(params: {
     where: {
       organizationId: params.organizationId,
       defaultIngestionProjectId: params.projectId,
+      // With ingestion NONE the project is only remembered, not written to.
+      ingestionMode: { not: "NONE" },
     },
     select: { organizationId: true },
   });
@@ -417,7 +430,7 @@ async function throwIfGatewayIngestionProject(params: {
 }) {
   if (await isGatewayIngestionProject(params)) {
     throw new LangfuseConflictError(
-      "This project is used as the AI Gateway ingestion project. Select another ingestion project before deleting it.",
+      "This project is used as the AI Gateway ingestion project. Select another ingestion project or set the ingestion mode to None before deleting it.",
     );
   }
 }

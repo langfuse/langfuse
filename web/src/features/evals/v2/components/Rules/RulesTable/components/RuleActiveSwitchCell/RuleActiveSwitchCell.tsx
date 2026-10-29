@@ -19,7 +19,7 @@ export function RuleActiveSwitchCell({
   const capture = usePostHogClientCapture();
   const utils = api.useUtils();
   const setEnabled = api.evalsV2.rules.setEnabled.useMutation({
-    onError: trpcErrorToast,
+    onError: (error) => trpcErrorToast(error, "evaluator_rule.status_update"),
     onSuccess: async (_result, variables) => {
       capture("evaluation_rules:status_change", {
         isEnabled: variables.enabled,

@@ -1,7 +1,7 @@
 import React from "react";
-import { CheckCircle, AlertCircle } from "lucide-react";
-import { Badge } from "@/src/components/ui/badge";
-import { Button } from "@/src/components/ui/button";
+import { CheckCircle, AlertCircle, Unlink } from "@langfuse/icons";
+import { Badge } from "@/src/components/design-system/Badge/Badge";
+import { Button } from "@/src/components/design-system/Button/Button";
 import {
   Card,
   CardContent,
@@ -12,7 +12,8 @@ import {
 import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { api } from "@/src/utils/api";
 import { SlackConnectButton } from "@/src/features/slack/components/SlackConnectButton";
-import { SlackDisconnectButton } from "@/src/features/slack/components/SlackDisconnectButton";
+import { SlackDisconnectDialogController } from "@/src/features/slack/components/SlackDisconnectDialogController";
+import { useHasProjectAccess } from "@/src/features/rbac";
 
 /**
  * Props for the SlackConnectionCard component
@@ -50,6 +51,13 @@ export const SlackConnectionCard: React.FC<SlackConnectionCardProps> = ({
   onConnectionChange,
   showConnectButton = true,
 }) => {
+  // Connecting and disconnecting a workspace is project integration config,
+  // separate from managing the automations that use it.
+  const canManageIntegration = useHasProjectAccess({
+    projectId,
+    scope: "integrations:CRUD",
+  });
+
   // Get Slack integration status
   const {
     data: integrationStatus,
@@ -137,10 +145,16 @@ export const SlackConnectionCard: React.FC<SlackConnectionCardProps> = ({
               your automations.
             </p>
 
+            {!canManageIntegration && (
+              <p className="text-muted-foreground text-sm">
+                Ask a project admin to connect Slack.
+              </p>
+            )}
+
             {showConnectButton && (
               <SlackConnectButton
                 projectId={projectId}
-                disabled={disabled}
+                disabled={disabled || !canManageIntegration}
                 onSuccess={() => handleConnectionChange(true)}
                 onError={(error: Error) => {
                   console.error("Slack connection error:", error);
@@ -165,7 +179,7 @@ export const SlackConnectionCard: React.FC<SlackConnectionCardProps> = ({
       <CardContent className="space-y-4">
         {/* Connection Status */}
         <div className="flex items-center gap-2">
-          <CheckCircle className="h-4 w-4 text-green-500" />
+          <CheckCircle size="base" __rawClassName="text-green-500" />
           <span className="text-sm font-bold">Connected</span>
         </div>
 
@@ -173,47 +187,58 @@ export const SlackConnectionCard: React.FC<SlackConnectionCardProps> = ({
         <div className="space-y-2">
           <div className="flex items-center gap-2">
             <span className="text-sm font-bold">Workspace:</span>
-            <Badge variant="secondary" className="text-xs">
-              {integrationStatus.teamName}
-            </Badge>
+            <Badge color="filled" text={integrationStatus.teamName ?? ""} />
           </div>
 
           <div className="flex items-center gap-2">
             <span className="text-sm font-bold">Team ID:</span>
-            <Badge variant="outline" className="font-mono text-xs">
-              {integrationStatus.teamId}
-            </Badge>
+            <Badge
+              color="primary"
+              font="mono"
+              text={integrationStatus.teamId ?? ""}
+            />
           </div>
 
           {integrationStatus.botUserId && (
             <div className="flex items-center gap-2">
               <span className="text-sm font-bold">Bot User:</span>
-              <Badge variant="outline" className="font-mono text-xs">
-                {integrationStatus.botUserId}
-              </Badge>
+              <Badge
+                color="primary"
+                font="mono"
+                text={integrationStatus.botUserId}
+              />
             </div>
           )}
         </div>
 
         {/* Management Actions */}
         <div className="flex gap-2 pt-2">
-          <SlackDisconnectButton
+          <SlackDisconnectDialogController
             projectId={projectId}
-            disabled={disabled}
             onSuccess={() => handleConnectionChange(false)}
             onError={(error: Error) => {
               console.error("Slack disconnection error:", error);
             }}
-          />
+          >
+            {({ isPending, openDialog }) => (
+              <Button
+                text="Disconnect"
+                icon={Unlink}
+                variant="destructive"
+                size="sm"
+                onClick={openDialog}
+                disabled={disabled || isPending || !canManageIntegration}
+              />
+            )}
+          </SlackDisconnectDialogController>
 
           <Button
-            variant="outline"
+            text="Refresh Status"
+            variant="secondary"
             size="sm"
             onClick={() => refetchStatus()}
             disabled={disabled}
-          >
-            Refresh Status
-          </Button>
+          />
         </div>
       </CardContent>
     </Card>

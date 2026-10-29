@@ -1,4 +1,4 @@
-/* eslint-disable no-nested-ternary */
+/* eslint-disable no-nested-ternary, @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 import { type ReactNode, useState } from "react";
 import { ActionId, BatchExportTableName } from "@langfuse/shared";
 import { api } from "@/src/utils/api";
@@ -94,17 +94,21 @@ export function AddTracesToAnnotationQueueDialogController({
     typeof queueCountQuery.data === "number" &&
     queueCountQuery.data >= queueLimit;
 
-  const createQueueState = !hasQueueAccess
-    ? ({
+  const createQueueState = (() => {
+    if (!hasQueueAccess) {
+      return {
         status: "disabled",
         reason: "You don't have permission to create annotation queues.",
-      } as const)
-    : atQueueLimit
-      ? ({
-          status: "disabled",
-          reason: "Maximum number of annotation queues reached for your plan.",
-        } as const)
-      : ({ status: "enabled" } as const);
+      } as const;
+    }
+    if (atQueueLimit) {
+      return {
+        status: "disabled",
+        reason: "Maximum number of annotation queues reached for your plan.",
+      } as const;
+    }
+    return { status: "enabled" } as const;
+  })();
 
   const handleSelectSubmit = async (targetId: string) => {
     await onAddToQueue({ projectId, targetId });

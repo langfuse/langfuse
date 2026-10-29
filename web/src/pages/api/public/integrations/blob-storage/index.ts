@@ -7,10 +7,7 @@ import {
   toPublicExportSource,
   type BlobStorageIntegrationResponseType,
 } from "@/src/features/public-api/types/blob-storage-integrations";
-import {
-  type ObservationFieldGroupFull,
-  LangfuseNotFoundError,
-} from "@langfuse/shared";
+import { type ExportFieldGroup, LangfuseNotFoundError } from "@langfuse/shared";
 import { upsertBlobStorageIntegration } from "@/src/features/blobstorage-integration/service";
 import { resolveExportSource } from "@/src/features/analytics-integrations/server";
 import { auditLog } from "@/src/features/audit-logs/server";
@@ -59,8 +56,7 @@ async function handleGetBlobStorageIntegrations(
       exportStartDate: integration.exportStartDate,
       compressed: integration.compressed,
       exportSource: toPublicExportSource(integration.exportSource),
-      exportFieldGroups:
-        integration.exportFieldGroups as ObservationFieldGroupFull[],
+      exportFieldGroups: integration.exportFieldGroups as ExportFieldGroup[],
       nextSyncAt: integration.nextSyncAt,
       lastSyncAt: integration.lastSyncAt,
       lastError: integration.lastError,
@@ -171,8 +167,7 @@ async function handleUpsertBlobStorageIntegration(
     exportStartDate: integration.exportStartDate,
     compressed: integration.compressed,
     exportSource: toPublicExportSource(integration.exportSource),
-    exportFieldGroups:
-      integration.exportFieldGroups as ObservationFieldGroupFull[],
+    exportFieldGroups: integration.exportFieldGroups as ExportFieldGroup[],
     nextSyncAt: integration.nextSyncAt,
     lastSyncAt: integration.lastSyncAt,
     lastError: integration.lastError,

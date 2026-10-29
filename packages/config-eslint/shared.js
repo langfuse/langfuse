@@ -4,6 +4,14 @@ import tseslint from "typescript-eslint";
 import langfusePlugin from "@repo/eslint-plugin";
 import "eslint-plugin-only-warn";
 
+// Files allowed to create each Prisma model's rows; globs match trailing path segments.
+const prismaWriters = {
+  apiKey: ["packages/shared/src/server/auth/apiKeys.ts"],
+  roleAssignment: [
+    "packages/shared/src/features/rbac/roleAssignmentService.ts",
+  ],
+};
+
 export default [
   {
     name: "langfuse/shared/ignores",
@@ -34,7 +42,9 @@ export default [
       "no-else-return": "warn",
       "no-unneeded-ternary": "warn",
       "no-nested-ternary": "error",
+      "no-use-before-define": ["warn", { functions: false, classes: false }],
       "@repo/no-exotic-operators": "warn",
+      "@repo/no-restricted-prisma-writes": ["error", { models: prismaWriters }],
     },
   },
 
@@ -45,6 +55,11 @@ export default [
       "@typescript-eslint": tseslint.plugin,
     },
     rules: {
+      "no-use-before-define": "off",
+      "@typescript-eslint/no-use-before-define": [
+        "warn",
+        { functions: false, classes: false },
+      ],
       "no-unused-vars": "off", // Use @typescript-eslint/no-unused-vars instead
       "@typescript-eslint/no-unused-vars": [
         "warn",
@@ -57,6 +72,16 @@ export default [
         },
       ],
       "@typescript-eslint/no-inferrable-types": "warn",
+    },
+  },
+
+  // Prisma `contains`/`startsWith`/`endsWith` and raw `LIKE` treat `_`, `%` and `\` as wildcards.
+  {
+    name: "langfuse/shared/no-unescaped-prisma-like-pattern",
+    files: ["**/*.ts", "**/*.tsx", "**/*.mts", "**/*.cts"],
+    ignores: ["**/*.test.ts", "**/*.servertest.ts", "**/__tests__/**"],
+    rules: {
+      "@repo/no-unescaped-prisma-like-pattern": "warn",
     },
   },
 

@@ -1,6 +1,4 @@
 #!/usr/bin/env node
-/* eslint-disable no-nested-ternary */
-
 import {
   cpSync,
   existsSync,
@@ -88,12 +86,15 @@ function renderMigration(
     );
   }
 
-  const clusterClause =
-    mode === "clustered"
-      ? clusterName === "default"
-        ? "ON CLUSTER default"
-        : `ON CLUSTER ${quoteClickHouseString(clusterName)}`
-      : "";
+  const clusterClause = (() => {
+    if (mode === "clustered") {
+      if (clusterName === "default") {
+        return "ON CLUSTER default";
+      }
+      return `ON CLUSTER ${quoteClickHouseString(clusterName)}`;
+    }
+    return "";
+  })();
 
   const replicationPrefix = mode === "clustered" ? "Replicated" : "";
   let rendered = source

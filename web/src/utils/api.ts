@@ -1,4 +1,3 @@
-/* eslint-disable no-nested-ternary */
 /**
  * This is the client-side entrypoint for your tRPC API. It is used to create the `api` object which
  * contains the Next.js App-wrapper, as well as your type-safe React Query hooks.
@@ -23,24 +22,38 @@ import { type inferRouterInputs, type inferRouterOutputs } from "@trpc/server";
 import { observable } from "@trpc/server/observable";
 import superjson from "superjson";
 import { env } from "@/src/env.mjs";
+import type {
+  ToastOperation,
+  TrpcToastOperation,
+} from "@/src/features/notifications/toastAnalytics";
 import { versionUpdateStore } from "@/src/features/version-update/versionUpdateStore";
 import { type AppRouter } from "@/src/server/api/root";
 import { reportError } from "@/src/utils/reportError";
 import { setUpSuperjson } from "@/src/utils/superjson";
+import { EXPECTED_TRPC_BAD_REQUEST_PATHS } from "@/src/utils/trpcErrorClassification";
 import { trpcErrorToast } from "@/src/utils/trpcErrorToast";
+import {
+  createToastOperationMutationCache,
+  rememberTrpcToastOperation,
+  resolveToastOperation,
+} from "@/src/utils/trpcToastOperation";
 import { isTrpcZodValidationError } from "@/src/utils/trpcValidationError";
 
 export { isTrpcZodValidationError } from "@/src/utils/trpcValidationError";
+export { EXPECTED_TRPC_BAD_REQUEST_PATHS } from "@/src/utils/trpcErrorClassification";
 
 setUpSuperjson();
 
 const getBaseUrl = () => {
-  const hostname =
-    typeof window !== "undefined"
-      ? window.location.origin
-      : process.env.VERCEL_URL
-        ? `https://${process.env.VERCEL_URL}`
-        : `http://localhost:${process.env.PORT ?? 3000}`;
+  const hostname = (() => {
+    if (typeof window !== "undefined") {
+      return window.location.origin;
+    }
+    if (process.env.VERCEL_URL) {
+      return `https://${process.env.VERCEL_URL}`;
+    }
+    return `http://localhost:${process.env.PORT ?? 3000}`;
+  })();
 
   return `${hostname}${env.NEXT_PUBLIC_BASE_PATH ?? ""}`;
 };
@@ -157,22 +170,6 @@ export const EXPECTED_TRPC_ERROR_CODES = [
  */
 export const EXPECTED_TRPC_CONFLICT_PATHS = [
   "inAppAgent.decideToolApproval",
-] as const;
-
-/**
- * BAD_REQUEST is usually a client bug (a missing hydrated route param,
- * an invariant the UI should not have sent). These procedures throw 400
- * only as user-configured-URL / secret-header validation the product
- * already toasts — expected user-facing state, not a regression.
- *
- * `datasets.triggerRemoteExperiment` and `datasets.upsertRemoteExperiment`
- * wrap `validateWebhookURL` (and related header checks) as BAD_REQUEST.
- * A DNS miss, private IP, or missing remote URL is the user fixing their
- * webhook, not an app failure.
- */
-export const EXPECTED_TRPC_BAD_REQUEST_PATHS = [
-  "datasets.triggerRemoteExperiment",
-  "datasets.upsertRemoteExperiment",
 ] as const;
 
 const getTrpcErrorData = (
@@ -427,7 +424,11 @@ const shouldShowToast = (error: unknown): boolean => {
   return true;
 };
 
-const handleTrpcError = (error: unknown, shouldSilenceError = false) => {
+const handleTrpcError = (
+  error: unknown,
+  operation: ToastOperation,
+  shouldSilenceError = false,
+) => {
   if (error instanceof TRPCClientError) {
     const httpStatus: number =
       typeof error.data?.httpStatus === "number" ? error.data.httpStatus : 500;
@@ -499,7 +500,7 @@ const handleTrpcError = (error: unknown, shouldSilenceError = false) => {
   }
 
   if (!shouldSilenceError && shouldShowToast(error)) {
-    trpcErrorToast(error);
+    trpcErrorToast(error, operation);
   }
 };
 
@@ -537,7 +538,11 @@ export const reportTrpcErrorWithoutToast = (
   area: string,
 ): void => {
   if (error instanceof TRPCClientError) {
-    handleTrpcError(error, true);
+    handleTrpcError(
+      error,
+      resolveToastOperation(error, undefined, "mutation.execute"),
+      true,
+    );
     return;
   }
   reportError(error, { area });
@@ -557,7 +562,7 @@ export const captureBuildId = (response: unknown) => {
 };
 
 // Track the build id serving tRPC responses to compare against the running one.
-const buildIdLink = (): TRPCLink<AppRouter> => () => {
+export const buildIdLink = (): TRPCLink<AppRouter> => () => {
   return ({ next, op }) => {
     return observable((observer) => {
       const unsubscribe = next(op).subscribe({
@@ -569,6 +574,10 @@ const buildIdLink = (): TRPCLink<AppRouter> => () => {
           captureBuildId(
             err.meta && err.meta.response ? err.meta.response : undefined,
           );
+          // `op.path` comes from the typed AppRouter operation, not from the
+          // response body. Record it before React Query and local handlers see
+          // the error so transport and pathless failures retain their origin.
+          rememberTrpcToastOperation(err, op.path as TrpcToastOperation);
           observer.error(err);
         },
         complete() {
@@ -659,6 +668,47 @@ const shouldSilenceError = (
   return false;
 };
 
+/**
+ * Default retry policy for tRPC queries.
+ *
+ * Don't retry on 404s: a deleted/missing resource never appears via retry, so
+ * failing fast avoids piling up pointless refetches (and ClickHouse load for
+ * resources backed by it).
+ *
+ * Don't retry on 422s either: the server mints UNPROCESSABLE_CONTENT only for
+ * query resource guardrails (`ClickHouseResourceError`) and oversized payloads
+ * (see {@link EXPECTED_TRPC_ERROR_CODES}). A retry re-runs the same over-budget
+ * query while ClickHouse is still saturated — self-hosted ClickHouse keeps
+ * executing the abandoned attempt (`cancel_http_readonly_queries_on_client_close`
+ * defaults to 0 outside ClickHouse Cloud) — so each rejection would multiply
+ * the load that caused it.
+ *
+ * Every other 4xx keeps the default retry/backoff — some (e.g. a route param
+ * that hasn't hydrated yet, a proxy-level 429) are transient and self-heal.
+ */
+export const shouldRetryQuery = (
+  failureCount: number,
+  error: unknown,
+): boolean => {
+  const httpStatus = getHttpStatus(error);
+  if (httpStatus === 404 || httpStatus === 422) {
+    return false;
+  }
+  return failureCount < 3;
+};
+
+/**
+ * Retry policy for single-resource detail queries (trace, session): also fails
+ * fast on 401 so the page can render its access error immediately. Use this
+ * instead of a hand-written `retry` so the {@link shouldRetryQuery} rules still
+ * apply — a per-query `retry` replaces the default rather than extending it.
+ */
+export const shouldRetryResourceQuery = (
+  failureCount: number,
+  error: unknown,
+): boolean =>
+  getHttpStatus(error) !== 401 && shouldRetryQuery(failureCount, error);
+
 /** APIError is returned by api.*.*.useQuery */
 export type APIError = TRPCClientErrorLike<AppRouter>;
 
@@ -716,29 +766,28 @@ export const api = createTRPCNext<AppRouter>({
           queries: {
             // react query defaults to `online`, but we want to disable it as it caused issues for some users
             networkMode: "always",
-            // Don't retry on 404s: a deleted/missing resource never appears via
-            // retry, so failing fast avoids piling up pointless refetches (and
-            // ClickHouse load for resources backed by it). Every other 4xx keeps
-            // the default retry/backoff — some (e.g. a route param that hasn't
-            // hydrated yet, a proxy-level 429) are transient and self-heal.
-            retry: (failureCount, error) => {
-              if (getHttpStatus(error) === 404) {
-                return false;
-              }
-              return failureCount < 3;
-            },
+            retry: shouldRetryQuery,
           },
           mutations: {
-            onError: (error) => handleTrpcError(error),
+            onError: (error) =>
+              handleTrpcError(
+                error,
+                resolveToastOperation(error, undefined, "mutation.execute"),
+              ),
             // react query defaults to `online`, but we want to disable it as it caused issues for some users
             networkMode: "always",
           },
         },
         queryCache: new QueryCache({
           onError: (error, query) => {
-            handleTrpcError(error, shouldSilenceError(query.meta ?? {}, error));
+            handleTrpcError(
+              error,
+              resolveToastOperation(error, query.meta, "query.execute"),
+              shouldSilenceError(query.meta ?? {}, error),
+            );
           },
         }),
+        mutationCache: createToastOperationMutationCache(),
       },
     };
   },

@@ -2,9 +2,10 @@ import { type ComponentProps } from "react";
 import { type FilterState } from "@langfuse/shared";
 
 import { ConnectedModernSessionBodyLegacy } from "@/src/features/sessions/ConnectedModernSessionBodyLegacy";
-import { ConnectedModernSessionBodyTimeline } from "@/src/features/sessions/ConnectedModernSessionBodyTimeline";
+import { ConnectedModernSessionBodyTimeline } from "@/src/features/sessions/components/ConnectedModernSessionBodyTimeline/ConnectedModernSessionBodyTimeline";
 import { ModernSessionFilterControls } from "@/src/features/sessions/ModernSessionFilterControls";
 import { ModernSessionHeader } from "@/src/features/sessions/ModernSessionHeader";
+import { SessionReviewLeading } from "@/src/features/sessions/SessionReviewLeadingProvider";
 import { SessionMetadataJsonPathControl } from "@/src/features/sessions/SessionMetadataJsonPathControl";
 import {
   type EventSession,
@@ -12,7 +13,11 @@ import {
 } from "@/src/features/sessions/sessionDetailPageTypes";
 
 type ModernSessionProps = {
+  headerDividerTone?: ComponentProps<typeof ModernSessionHeader>["dividerTone"];
   isTimelineEnabled: boolean;
+  transcriptSource: ComponentProps<
+    typeof ConnectedModernSessionBodyTimeline
+  >["transcriptSource"];
   session: Pick<
     EventSession,
     | "countTraces"
@@ -20,7 +25,6 @@ type ModernSessionProps = {
     | "outputUsage"
     | "totalTokens"
     | "totalCost"
-    | "environment"
     | "users"
     | "scores"
     | "minTimestamp"
@@ -49,7 +53,9 @@ type ModernSessionProps = {
 };
 
 export function ModernSession({
+  headerDividerTone,
   isTimelineEnabled,
+  transcriptSource,
   session,
   tracesState,
   projectId,
@@ -91,29 +97,35 @@ export function ModernSession({
         filterState={filterState}
       >
         {(metadataJsonPaths) => (
-          <ModernSessionHeader
-            projectId={projectId}
-            countTraces={session.countTraces}
-            traces={headerTraces}
-            tokensIn={session.inputUsage}
-            tokensOut={session.outputUsage}
-            totalTokens={session.totalTokens}
-            totalCost={session.totalCost ?? 0}
-            environment={session.environment ?? null}
-            users={session.users ?? []}
-            metadataJsonPaths={metadataJsonPaths}
-            scores={session.scores}
-          />
+          <SessionReviewLeading>
+            <ModernSessionHeader
+              dividerTone={headerDividerTone ?? "default"}
+              projectId={projectId}
+              countTraces={session.countTraces}
+              minTimestamp={session.minTimestamp}
+              maxTimestamp={session.maxTimestamp}
+              tokensIn={session.inputUsage}
+              tokensOut={session.outputUsage}
+              totalTokens={session.totalTokens}
+              totalCost={session.totalCost ?? 0}
+              users={session.users ?? []}
+              metadataJsonPaths={metadataJsonPaths}
+              scores={session.scores}
+            />
+          </SessionReviewLeading>
         )}
       </SessionMetadataJsonPathControl>
-      <ModernSessionFilterControls {...filterControlsProps}>
-        {(sidebarFilterControls) =>
-          isTimelineEnabled ? (
-            <ConnectedModernSessionBodyTimeline
-              {...sharedBodyProps}
-              sidebarFilterControls={sidebarFilterControls}
-            />
-          ) : (
+      {isTimelineEnabled ? (
+        <ConnectedModernSessionBodyTimeline
+          transcriptSource={transcriptSource}
+          tracesState={tracesState}
+          projectId={projectId}
+          sessionId={sessionId}
+          openPeek={openPeek}
+        />
+      ) : (
+        <ModernSessionFilterControls {...filterControlsProps}>
+          {(sidebarFilterControls) => (
             <ConnectedModernSessionBodyLegacy
               {...sharedBodyProps}
               traceCommentCounts={traceCommentCounts}
@@ -121,9 +133,9 @@ export function ModernSession({
               showSystemPrompt={showSystemPrompt}
               sidebarFilterControls={sidebarFilterControls}
             />
-          )
-        }
-      </ModernSessionFilterControls>
+          )}
+        </ModernSessionFilterControls>
+      )}
     </>
   );
 }

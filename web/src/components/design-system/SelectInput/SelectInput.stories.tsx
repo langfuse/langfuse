@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { BarChart3, LineChart } from "@langfuse/icons";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import preview from "../../../../.storybook/preview";
 import { SelectInput } from "./SelectInput";
@@ -72,6 +73,50 @@ export const Default = meta.story({
   },
 });
 
+export const WithIconsAndExplanations = meta.story({
+  args: {
+    value: "line",
+    placeholder: "Select a chart type",
+    options: [
+      {
+        value: "line",
+        label: "Line chart",
+        icon: LineChart,
+        explanation: {
+          title: "Line chart",
+          description: "Show how a value changes over time.",
+          badges: [{ label: "Category", value: "Time series" }],
+        },
+      },
+      {
+        value: "bar",
+        label: "Bar chart",
+        icon: BarChart3,
+        explanation: {
+          title: "Bar chart",
+          description: "Compare values across categories.",
+          badges: [{ label: "Category", value: "Comparison" }],
+        },
+      },
+    ],
+    onValueChange: fn(),
+  },
+  render: (args) => {
+    const [value, setValue] = useState(args.value);
+
+    return (
+      <SelectInput
+        {...args}
+        value={value}
+        onValueChange={(newValue) => {
+          setValue(newValue);
+          args.onValueChange(newValue);
+        }}
+      />
+    );
+  },
+});
+
 export const WithLongText = meta.story({
   args: {
     value: "long-option",
@@ -89,6 +134,47 @@ export const WithLongText = meta.story({
       <SelectInput {...args} />
     </div>
   ),
+});
+
+export const SearchableWithBadges = meta.story({
+  name: "(Test) Searchable with badges",
+  args: {
+    value: "quality",
+    placeholder: "Select a key",
+    search: { placeholder: "Search keys..." },
+    options: [
+      {
+        value: "quality",
+        label: "quality",
+        badges: [
+          { text: "Trace", color: "violet" },
+          { text: "Observation", color: "blue" },
+        ],
+      },
+      { value: "relevance", label: "relevance" },
+    ],
+    onValueChange: fn(),
+  },
+  render: (args) => {
+    const [value, setValue] = useState(args.value);
+    return (
+      <div className="w-64">
+        <SelectInput {...args} value={value} onValueChange={setValue} />
+      </div>
+    );
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const body = within(canvasElement.ownerDocument.body);
+    await userEvent.click(canvas.getByRole("combobox"));
+    await userEvent.type(
+      body.getByPlaceholderText("Search keys..."),
+      "relevance",
+    );
+    await expect(body.getByRole("option", { name: /relevance/ })).toBeVisible();
+    await userEvent.click(body.getByRole("option", { name: /relevance/ }));
+    await expect(canvas.getByRole("combobox")).toHaveTextContent("relevance");
+  },
 });
 
 export const Empty = meta.story({
@@ -200,5 +286,108 @@ export const TestForwardsTriggerProps = meta.story({
     await expect(trigger).toHaveAttribute("id", "model-select");
     await userEvent.click(canvas.getByText("Model"));
     await expect(body.getByRole("option", { name: "GPT-4.1" })).toHaveFocus();
+  },
+});
+
+export const TestKeepsBadgedLabelReadable = meta.story({
+  name: "(Test) Keeps Badged Label Readable",
+  args: {
+    // The geometry the score-key picker actually ships in: a filter-sidebar
+    // width popover, a score name long enough to matter, and both level pills
+    // because one name can be scored at trace *and* observation level.
+    value: "answer_relevancy",
+    placeholder: "Select a key",
+    search: { placeholder: "Search keys..." },
+    options: [
+      {
+        value: "answer_relevancy",
+        label: "answer_relevancy",
+        badges: [
+          { text: "Trace", color: "violet" },
+          { text: "Observation", color: "blue" },
+        ],
+      },
+    ],
+    onValueChange: fn(),
+  },
+  render: (args) => (
+    <div className="w-50">
+      <SelectInput {...args} />
+    </div>
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const body = within(canvasElement.ownerDocument.body);
+
+    await userEvent.click(canvas.getByRole("combobox"));
+
+    const option = await body.findByRole("option", {
+      name: /answer_relevancy/,
+    });
+    // The pills wrap beneath the name rather than squeezing it, so the name is
+    // laid out at its full width instead of being cut down to a few
+    // characters and an ellipsis.
+    const label = within(option).getByTitle("answer_relevancy");
+    await waitFor(() => {
+      // `scrollWidth <= clientWidth` alone is also satisfied by 0 <= 0, which
+      // is the collapsed state being guarded against — so pin the width too.
+      expect(label.clientWidth).toBeGreaterThan(0);
+      expect(label.scrollWidth).toBeLessThanOrEqual(label.clientWidth + 1);
+      // The pills survive the wrap intact — the name must not be won back by
+      // dropping the level information, nor by crushing the pills instead.
+      // Visibility alone would not catch that: Badge clips its own text with
+      // an ellipsis, so a squeezed "Observation" still renders a visible "O…".
+      for (const level of ["Trace", "Observation"]) {
+        const pill = within(option).getByText(level);
+        expect(pill).toBeVisible();
+        expect(pill.scrollWidth).toBeLessThanOrEqual(pill.clientWidth + 1);
+      }
+    });
+  },
+});
+
+export const TestKeepsBadgedLabelReadableWithoutSearch = meta.story({
+  name: "(Test) Keeps Badged Label Readable Without Search",
+  args: {
+    // Same case as above through the plain SelectPrimitive branch, which takes
+    // a different code path for badges and was otherwise untested.
+    value: "answer_relevancy",
+    placeholder: "Select a key",
+    options: [
+      {
+        value: "answer_relevancy",
+        label: "answer_relevancy",
+        badges: [
+          { text: "Trace", color: "violet" },
+          { text: "Observation", color: "blue" },
+        ],
+      },
+    ],
+    onValueChange: fn(),
+  },
+  render: (args) => (
+    <div className="w-50">
+      <SelectInput {...args} />
+    </div>
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const body = within(canvasElement.ownerDocument.body);
+
+    await userEvent.click(canvas.getByRole("combobox"));
+
+    const option = await body.findByRole("option", {
+      name: /answer_relevancy/,
+    });
+    const label = within(option).getByTitle("answer_relevancy");
+    await waitFor(() => {
+      expect(label.clientWidth).toBeGreaterThan(0);
+      expect(label.scrollWidth).toBeLessThanOrEqual(label.clientWidth + 1);
+      for (const level of ["Trace", "Observation"]) {
+        const pill = within(option).getByText(level);
+        expect(pill).toBeVisible();
+        expect(pill.scrollWidth).toBeLessThanOrEqual(pill.clientWidth + 1);
+      }
+    });
   },
 });

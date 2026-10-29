@@ -28,7 +28,7 @@ import { evalConfigFilterColumns } from "@/src/server/api/definitions/evalConfig
 import { evalExecutionsFilterCols } from "@/src/server/api/definitions/evalExecutionsTable";
 import { experimentsTableCols } from "@/src/features/experiments/components/table/filter-config";
 import { experimentItemsTableCols } from "@/src/features/experiments/config/experiment-items-filter-config";
-import { usePeekTableState } from "@/src/components/table/peek/contexts/PeekTableStateContext";
+import { usePeekTableState } from "@/src/components/table/peek/contexts/PeekTableStateProvider";
 
 const DEBUG_QUERY_STATE = false;
 
@@ -88,26 +88,34 @@ const getCommaArrayParam = (table: TableName) => ({
           type === "positionInTrace"
             ? normalizeLegacySessionPositionInTraceKey(key)
             : key;
-        const parsedValue =
-          decodedValue === undefined || type === undefined
-            ? undefined
-            : type === "datetime"
-              ? new Date(decodedValue)
-              : type === "number" || type === "numberObject"
-                ? Number(decodedValue)
-                : type === "positionInTrace"
-                  ? decodedValue === ""
-                    ? undefined
-                    : Number(decodedValue)
-                  : type === "stringOptions" ||
-                      type === "arrayOptions" ||
-                      type === "categoryOptions"
-                    ? splitOnUnescapedPipe(decodedValue).map(
-                        unescapePipeInValue,
-                      )
-                    : type === "boolean" || type === "booleanObject"
-                      ? decodedValue === "true"
-                      : decodedValue;
+        const parsedValue = (() => {
+          if (decodedValue === undefined || type === undefined) {
+            return undefined;
+          }
+          if (type === "datetime") {
+            return new Date(decodedValue);
+          }
+          if (type === "number" || type === "numberObject") {
+            return Number(decodedValue);
+          }
+          if (type === "positionInTrace") {
+            if (decodedValue === "") {
+              return undefined;
+            }
+            return Number(decodedValue);
+          }
+          if (
+            type === "stringOptions" ||
+            type === "arrayOptions" ||
+            type === "categoryOptions"
+          ) {
+            return splitOnUnescapedPipe(decodedValue).map(unescapePipeInValue);
+          }
+          if (type === "boolean" || type === "booleanObject") {
+            return decodedValue === "true";
+          }
+          return decodedValue;
+        })();
 
         if (DEBUG_QUERY_STATE) console.log("parsedValue", parsedValue);
         const parsed = singleFilter.safeParse({

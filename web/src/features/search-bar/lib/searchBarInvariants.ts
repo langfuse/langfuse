@@ -1,4 +1,3 @@
-/* eslint-disable no-nested-ternary */
 // Reusable property-test harness for the search bar — the universal safety net
 // described in README.md ("Round-trip property test", "Extending to other
 // views"). It is PURE (no vitest import, no global state) so it is safe in the
@@ -88,9 +87,15 @@ function stable(value: unknown): string {
   return JSON.stringify(value, (_k, v) =>
     v && typeof v === "object" && !Array.isArray(v)
       ? Object.fromEntries(
-          Object.entries(v as Record<string, unknown>).sort(([a], [b]) =>
-            a < b ? -1 : a > b ? 1 : 0,
-          ),
+          Object.entries(v as Record<string, unknown>).sort(([a], [b]) => {
+            if (a < b) {
+              return -1;
+            }
+            if (a > b) {
+              return 1;
+            }
+            return 0;
+          }),
         )
       : v,
   );

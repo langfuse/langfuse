@@ -1,9 +1,9 @@
-/* eslint-disable no-nested-ternary */
 import { Readable } from "stream";
 import { pipeline } from "stream/promises";
 import {
   DeleteObjectsCommand,
   GetObjectCommand,
+  HeadObjectCommand,
   ListObjectsV2Command,
   PutObjectCommand,
   PutObjectCommandInput,
@@ -44,6 +44,7 @@ import {
   getSecureOutboundHttpAgents,
   type OutboundUrlConnectionValidationOptions,
 } from "../outbound-url";
+import { isS3SlowDownError } from "./s3ThrottleError";
 
 export interface S3SseConfig {
   serverSideEncryption?: string;
@@ -102,8 +103,11 @@ function handleStorageError(err: unknown, operation: string): never {
     err.code === "EAI_AGAIN"
   ) {
     logger.error(`DNS lookup failure during ${operation}`, err);
-    throw new ServiceUnavailableError(
-      "Storage service temporarily unavailable due to network issues",
+    throw Object.assign(
+      new ServiceUnavailableError(
+        "Storage service temporarily unavailable due to network issues",
+      ),
+      { cause: err },
     );
   }
   // For other errors, throw with the original cause preserved
@@ -125,11 +129,20 @@ function handleStorageError(err: unknown, operation: string): never {
 
 function createS3RequestHandler(
   connectionValidation?: OutboundUrlConnectionValidationOptions,
+  s3RequestTimeoutMs?: number,
 ): NodeHttpHandler {
   const maxSockets = env.LANGFUSE_S3_CONCURRENT_WRITES;
+  const timeout =
+    s3RequestTimeoutMs === undefined
+      ? {}
+      : { requestTimeout: s3RequestTimeoutMs, throwOnRequestTimeout: true };
 
   if (!connectionValidation) {
+    // Both agents need the limit: plain-HTTP endpoints (e.g. MinIO) go through
+    // httpAgent, which otherwise stays at the SDK default of 50 sockets.
     return new NodeHttpHandler({
+      ...timeout,
+      httpAgent: { maxSockets },
       httpsAgent: { maxSockets },
     });
   }
@@ -140,6 +153,7 @@ function createS3RequestHandler(
   );
 
   return new NodeHttpHandler({
+    ...timeout,
     httpAgent,
     httpsAgent,
   });
@@ -316,6 +330,8 @@ export interface StorageService {
     asAttachment?: boolean,
   ): Promise<string>;
 
+  getObjectContentLength(path: string): Promise<number | undefined>;
+
   getSignedUploadUrl(params: {
     path: string;
     ttlSeconds: number;
@@ -348,7 +364,10 @@ export class StorageServiceFactory {
    * @param params.googleCloudCredentials - Google Cloud Storage credentials JSON string or path to credentials file
    * @param params.awsSse - Server-side encryption method (e.g., "aws:kms")
    * @param params.awsSseKmsKeyId - SSE KMS Key ID when using KMS encryption
+   * @param params.logSlowDownAsWarning - Log S3 SlowDown as a warning. Set only when the caller escalates to an error after its own retries are spent.
+   * @param params.maxAttempts - Maximum AWS SDK attempts for each S3 operation.
    * @param params.connectionValidation - Optional connection-time DNS/IP validation for user-controlled endpoints.
+   * @param params.s3RequestTimeoutMs - Optional S3 HTTP request deadline; timeout rejects the request.
    */
   public static getInstance(params: {
     accessKeyId: string | undefined;
@@ -364,7 +383,10 @@ export class StorageServiceFactory {
     googleCloudCredentials?: string;
     awsSse: string | undefined;
     awsSseKmsKeyId: string | undefined;
+    logSlowDownAsWarning?: boolean;
+    maxAttempts?: number;
     connectionValidation?: OutboundUrlConnectionValidationOptions;
+    s3RequestTimeoutMs?: number;
   }): StorageService {
     if (
       params.useAzureBlob !== undefined
@@ -378,16 +400,18 @@ export class StorageServiceFactory {
         ? params.useGoogleCloudStorage
         : env.LANGFUSE_USE_GOOGLE_CLOUD_STORAGE === "true"
     ) {
-      // connectionValidation is intentionally not applied here: GCS is selected
-      // by deployment env for Langfuse-owned storage, not by user-configured
-      // blob storage integrations. Those callers force useGoogleCloudStorage to
-      // false. Add SDK-specific connection-time validation before exposing GCS
-      // as a user-configurable blob export endpoint.
+      // connectionValidation is not applied to GCS: the endpoint is always
+      // Google's, never user-supplied. Only env-selected (Langfuse-owned)
+      // storage falls back to LANGFUSE_GOOGLE_CLOUD_STORAGE_CREDENTIALS;
+      // callers that select GCS explicitly (blob storage integrations) get
+      // exactly the credentials they pass, or ADC when none.
       const googleParams = {
         ...params,
         googleCloudCredentials:
-          params.googleCloudCredentials ||
-          env.LANGFUSE_GOOGLE_CLOUD_STORAGE_CREDENTIALS,
+          params.useGoogleCloudStorage !== undefined
+            ? params.googleCloudCredentials
+            : params.googleCloudCredentials ||
+              env.LANGFUSE_GOOGLE_CLOUD_STORAGE_CREDENTIALS,
       };
       return new GoogleCloudStorageService(googleParams);
     }
@@ -699,6 +723,19 @@ class AzureBlobStorageService implements StorageService {
     }
   }
 
+  public async getObjectContentLength(
+    path: string,
+  ): Promise<number | undefined> {
+    try {
+      await this.createContainerIfNotExists();
+      const properties = await this.client.getBlobClient(path).getProperties();
+      return properties.contentLength;
+    } catch (err) {
+      logger.error(`Failed to read Azure Blob Storage metadata ${path}`, err);
+      handleStorageError(err, "read Azure Blob Storage metadata");
+    }
+  }
+
   public async getSignedUploadUrl(params: {
     path: string;
     ttlSeconds: number;
@@ -742,6 +779,7 @@ class S3StorageService implements StorageService {
   private bucketName: string;
   private awsSse: string | undefined;
   private awsSseKmsKeyId: string | undefined;
+  private logSlowDownAsWarning: boolean;
 
   constructor(params: {
     accessKeyId: string | undefined;
@@ -753,7 +791,10 @@ class S3StorageService implements StorageService {
     forcePathStyle: boolean;
     awsSse: string | undefined;
     awsSseKmsKeyId: string | undefined;
+    logSlowDownAsWarning?: boolean;
+    maxAttempts?: number;
     connectionValidation?: OutboundUrlConnectionValidationOptions;
+    s3RequestTimeoutMs?: number;
   }) {
     // Use accessKeyId and secretAccessKey if provided or fallback to default credentials
     const { accessKeyId, secretAccessKey } = params;
@@ -765,23 +806,34 @@ class S3StorageService implements StorageService {
           }
         : undefined;
 
-    const requestHandler = createS3RequestHandler(params.connectionValidation);
+    const requestHandler = createS3RequestHandler(
+      params.connectionValidation,
+      params.s3RequestTimeoutMs,
+    );
     const region =
       params.region === undefined
         ? undefined
         : normalizeBlobStorageRegion(params.region);
+    // `auto` is a real region for S3-compatible stores such as Cloudflare R2,
+    // but not for Amazon S3. There, sign for us-east-1 and let the SDK follow
+    // S3's redirect (`x-amz-bucket-region`) to the bucket's actual region.
+    const isAutoRegionOnAws =
+      region?.toLowerCase() === "auto" && !params.endpoint;
+    const clientRegion = isAutoRegionOnAws ? "us-east-1" : region;
 
     // Create the main client for S3 operations using the internal endpoint
     this.client = new S3Client({
       credentials,
       endpoint: params.endpoint,
-      region,
+      region: clientRegion,
       forcePathStyle: params.forcePathStyle,
+      followRegionRedirects: isAutoRegionOnAws,
       // Restore pre-v3.729 default so CompleteMultipartUpload doesn't send a
       // composite CRC32 header, which GCS's S3-compat layer rejects with 412.
       requestChecksumCalculation: "WHEN_REQUIRED",
       responseChecksumValidation: "WHEN_REQUIRED",
       requestHandler,
+      maxAttempts: params.maxAttempts,
     });
 
     addS3DiagnosticsMiddleware(this.client, {
@@ -809,6 +861,28 @@ class S3StorageService implements StorageService {
     this.bucketName = params.bucketName;
     this.awsSse = params.awsSse;
     this.awsSseKmsKeyId = params.awsSseKmsKeyId;
+    this.logSlowDownAsWarning = params.logSlowDownAsWarning ?? false;
+  }
+
+  /**
+   * SlowDown is a warning only when this client was built for a caller that
+   * escalates once its own retry budget is spent. Every other client keeps
+   * error, so a persistent throttle still pages.
+   */
+  private logClientFailure(
+    message: string,
+    err: unknown,
+    fields?: Record<string, unknown>,
+  ): void {
+    const log =
+      this.logSlowDownAsWarning && isS3SlowDownError(err)
+        ? logger.warn
+        : logger.error;
+    if (fields) {
+      log(message, { error: err, ...fields });
+      return;
+    }
+    log(message, err);
   }
 
   private addSSEToParams<T>(params: Record<string, unknown>): T {
@@ -846,7 +920,7 @@ class S3StorageService implements StorageService {
 
       return;
     } catch (err) {
-      logger.error(`Failed to upload file to ${fileName}`, err);
+      this.logClientFailure(`Failed to upload file to ${fileName}`, err);
       handleStorageError(err, "upload file to S3");
     }
   }
@@ -903,7 +977,10 @@ class S3StorageService implements StorageService {
     try {
       return await uploader.upload(data);
     } catch (err) {
-      logger.error(`Failed to upload file (buffered) to ${fileName}`, err);
+      this.logClientFailure(
+        `Failed to upload file (buffered) to ${fileName}`,
+        err,
+      );
       handleStorageError(err, "upload file to S3 (buffered)");
     }
   }
@@ -923,7 +1000,7 @@ class S3StorageService implements StorageService {
 
       return { signedUrl };
     } catch (err) {
-      logger.error(`Failed to upload file to ${fileName}`, err);
+      this.logClientFailure(`Failed to upload file to ${fileName}`, err);
       handleStorageError(err, "upload file to S3 or generate signed URL");
     }
   }
@@ -941,7 +1018,7 @@ class S3StorageService implements StorageService {
     try {
       await this.client.send(putCommand);
     } catch (err) {
-      logger.error(`Failed to upload JSON to S3 ${path}`, err);
+      this.logClientFailure(`Failed to upload JSON to S3 ${path}`, err);
       handleStorageError(err, "upload JSON to S3");
     }
   }
@@ -956,7 +1033,7 @@ class S3StorageService implements StorageService {
       const response = await this.client.send(getCommand);
       return (await response.Body?.transformToString()) ?? "";
     } catch (err) {
-      logger.error(`Failed to download file from S3 ${path}`, err);
+      this.logClientFailure(`Failed to download file from S3 ${path}`, err);
       handleStorageError(err, "download file from S3");
     }
   }
@@ -968,7 +1045,7 @@ class S3StorageService implements StorageService {
       );
       return storageBodyToBytes(response.Body);
     } catch (err) {
-      logger.error(`Failed to download bytes from S3 ${path}`, err);
+      this.logClientFailure(`Failed to download bytes from S3 ${path}`, err);
       handleStorageError(err, "download bytes from S3");
     }
   }
@@ -992,7 +1069,7 @@ class S3StorageService implements StorageService {
         ) ?? []
       );
     } catch (err) {
-      logger.error(`Failed to list files from S3 ${prefix}`, err);
+      this.logClientFailure(`Failed to list files from S3 ${prefix}`, err);
       handleStorageError(err, "list files from S3");
     }
   }
@@ -1015,8 +1092,28 @@ class S3StorageService implements StorageService {
         { expiresIn: ttlSeconds },
       );
     } catch (err) {
-      logger.error(`Failed to generate presigned URL for ${fileName}`, err);
+      this.logClientFailure(
+        `Failed to generate presigned URL for ${fileName}`,
+        err,
+      );
       handleStorageError(err, "generate signed URL");
+    }
+  }
+
+  public async getObjectContentLength(
+    path: string,
+  ): Promise<number | undefined> {
+    try {
+      const response = await this.client.send(
+        new HeadObjectCommand({
+          Bucket: this.bucketName,
+          Key: path,
+        }),
+      );
+      return response.ContentLength;
+    } catch (err) {
+      this.logClientFailure(`Failed to read S3 object metadata ${path}`, err);
+      handleStorageError(err, "read S3 object metadata");
     }
   }
 
@@ -1059,8 +1156,7 @@ class S3StorageService implements StorageService {
         }
       }
     } catch (err) {
-      logger.error(`Failed to delete files from S3`, {
-        error: err,
+      this.logClientFailure(`Failed to delete files from S3`, err, {
         files: paths,
       });
       handleStorageError(err, "delete files from S3");
@@ -1300,6 +1396,19 @@ class GoogleCloudStorageService implements StorageService {
         err,
       );
       handleStorageError(err, "generate signed URL for Google Cloud Storage");
+    }
+  }
+
+  public async getObjectContentLength(
+    path: string,
+  ): Promise<number | undefined> {
+    try {
+      const [metadata] = await this.bucket.file(path).getMetadata();
+      const contentLength = Number(metadata.size);
+      return Number.isFinite(contentLength) ? contentLength : undefined;
+    } catch (err) {
+      logger.error(`Failed to read Google Cloud Storage metadata ${path}`, err);
+      handleStorageError(err, "read Google Cloud Storage metadata");
     }
   }
 
@@ -1588,21 +1697,28 @@ class OCIObjectStorageService implements StorageService {
       // UploadManager in the OCI SDK expects content shaped as one of:
       // { blob }, { filePath }, or { stream }.
       // To work reliably in Node, always provide { stream }.
-      const stream =
-        typeof data === "string"
-          ? Readable.from([data])
-          : data instanceof Readable
-            ? data
-            : Buffer.isBuffer(data as any)
-              ? Readable.from([data as any])
-              : Readable.from([String(data)]);
+      const stream = (() => {
+        if (typeof data === "string") {
+          return Readable.from([data]);
+        }
+        if (data instanceof Readable) {
+          return data;
+        }
+        if (Buffer.isBuffer(data as any)) {
+          return Readable.from([data as any]);
+        }
+        return Readable.from([String(data)]);
+      })();
 
-      const contentLength =
-        typeof data === "string"
-          ? Buffer.byteLength(data)
-          : Buffer.isBuffer(data as any)
-            ? (data as any).byteLength
-            : undefined;
+      const contentLength = (() => {
+        if (typeof data === "string") {
+          return Buffer.byteLength(data);
+        }
+        if (Buffer.isBuffer(data as any)) {
+          return (data as any).byteLength;
+        }
+        return undefined;
+      })();
 
       await uploadManager.upload({
         requestDetails: {
@@ -1810,6 +1926,23 @@ class OCIObjectStorageService implements StorageService {
         err,
       );
       handleStorageError(err, "generate signed URL for OCI Object Storage ");
+    }
+  }
+
+  public async getObjectContentLength(
+    path: string,
+  ): Promise<number | undefined> {
+    try {
+      const { client, namespaceName } = await this.getClientAndNamespace();
+      const response = await client.headObject({
+        namespaceName,
+        bucketName: this.bucketName,
+        objectName: path,
+      });
+      return response.contentLength;
+    } catch (err) {
+      logger.error(`Failed to read OCI Object Storage metadata ${path}`, err);
+      handleStorageError(err, "read OCI Object Storage metadata");
     }
   }
 

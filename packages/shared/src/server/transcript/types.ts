@@ -1,27 +1,48 @@
-import type { NormalizedMessage } from "../../utils/normalized-io/types";
+import type { z } from "zod";
+import type {
+  threadMessageSchema,
+  turnSchema,
+  threadSchema,
+  executionIssueSchema,
+  transcriptSchema,
+} from "./schema";
+import type { Observation } from "../../domain";
 
-export type ThreadMessage = NormalizedMessage & {
-  /** Observation that first emitted this message. */
-  observationId: string;
-  /** Trace the emitting observation belongs to. Helpful when the transcript
-   * spans several traces, for example one session. */
-  traceId: string;
+export type TranscriptOptions = {
+  /** Hard limit on JSON.stringify(result).length, including metadata and escaping.
+   * Must be a safe integer >= 4, the serialized size of null. Unlimited by default. */
+  maxCharacters?: number;
+  onTimings?: (timings: {
+    normalizationMs: number;
+    matchingMs: number;
+  }) => void;
 };
 
-/** Messages of one turn with the observations that emitted them. */
-export type Turn = {
-  messages: ThreadMessage[];
-  /** Observations that contributed to this turn, in contribution order. */
-  observations: { id: string; traceId: string }[];
-};
+/** Observation fields consumed by ordering and transcript assembly. */
+export type TranscriptObservation = Pick<
+  Observation,
+  | "id"
+  | "traceId"
+  | "parentObservationId"
+  | "type"
+  | "name"
+  | "startTime"
+  | "endTime"
+  | "input"
+  | "output"
+  | "metadata"
+> &
+  Partial<Pick<Observation, "level" | "statusMessage">>;
 
-export type Thread = {
-  /** Messages replayed from earlier turns, in replay order, without provenance. */
-  conversationHistory: NormalizedMessage[];
-  /** Messages the supplied observations added to the conversation. */
-  currentTurn: Turn;
-};
+export type ThreadMessage = z.infer<typeof threadMessageSchema>;
+export type Turn = z.infer<typeof turnSchema>;
+export type Thread = z.infer<typeof threadSchema>;
+export type Transcript = z.infer<typeof transcriptSchema>;
+export type ExecutionIssue = z.infer<typeof executionIssueSchema>;
 
-export type Transcript = {
-  threads: Thread[];
+/** A transcript and the execution issues of the same observations. */
+export type TranscriptContext = {
+  transcript: Transcript;
+  /** In observation order; empty when no observation failed. */
+  executionIssues: ExecutionIssue[];
 };

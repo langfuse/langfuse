@@ -1,4 +1,3 @@
-/* eslint-disable no-nested-ternary */
 /* eslint-disable @repo/no-exotic-operators */
 /**
  * A focus+context lens over a list of rows — GROUNDWORK, not in use.
@@ -83,14 +82,18 @@ export function applyFocusLens(input: {
   let totalWeight = 0;
   for (let index = 0; index < rowCount; index++) {
     const distance = Math.abs(index - focusIndex);
-    const falloff =
-      radius <= 0
-        ? distance === 0
-          ? 1
-          : 0
-        : distance >= radius
-          ? 0
-          : 0.5 * (1 + Math.cos((Math.PI * distance) / radius));
+    const falloff = (() => {
+      if (radius <= 0) {
+        if (distance === 0) {
+          return 1;
+        }
+        return 0;
+      }
+      if (distance >= radius) {
+        return 0;
+      }
+      return 0.5 * (1 + Math.cos((Math.PI * distance) / radius));
+    })();
     const weight = 1 + (magnification - 1) * falloff;
     weights[index] = weight;
     totalWeight += weight;

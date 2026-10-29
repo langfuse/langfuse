@@ -1,7 +1,8 @@
 // Rule of thumb: If you join observations from left, use observations to trace and vice versa
 
 // t.timestamp > observation.start_time - 2 days
-export const OBSERVATIONS_TO_TRACE_INTERVAL = "INTERVAL 2 DAY";
+export const OBSERVATIONS_TO_TRACE_INTERVAL_DAYS = 2;
+export const OBSERVATIONS_TO_TRACE_INTERVAL = `INTERVAL ${OBSERVATIONS_TO_TRACE_INTERVAL_DAYS} DAY`;
 // observation.start_time > t.timestamp - 1 hour
 export const TRACE_TO_OBSERVATIONS_INTERVAL = "INTERVAL 1 HOUR";
 // observation.start_time > s.timestamp - 1 hour

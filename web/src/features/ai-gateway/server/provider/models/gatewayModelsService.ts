@@ -1,9 +1,11 @@
-/* eslint-disable no-nested-ternary */
 import type { GatewayProvider, PrismaClient } from "@langfuse/shared/src/db";
-import { redis as defaultRedis } from "@langfuse/shared/src/server";
+import { logger, redis as defaultRedis } from "@langfuse/shared/src/server";
 import type { Cluster, Redis } from "ioredis";
 
 import type { GatewayApiKeyAuthContext } from "@/src/features/ai-gateway/server/auth/gatewayApiKeyAuthenticator";
+import { formatGatewayModelSlug } from "@/src/features/ai-gateway/fns/formatGatewayModelSlug";
+import { isGatewayModelAllowed } from "@/src/features/ai-gateway/fns/isGatewayModelAllowed";
+import { toGatewayAllowedModelsSet } from "@/src/features/ai-gateway/fns/toGatewayAllowedModelsSet";
 import { GatewayControlPlaneError } from "@/src/features/ai-gateway/server/gatewayControlPlaneError";
 import {
   type GatewayApiFormat,
@@ -44,29 +46,49 @@ export class GatewayModelsService {
       ) as GatewayProvider[],
     });
     const results = await Promise.all(
-      connections.map((connection) =>
-        this.modelCatalogService.getModelCatalog({
+      connections.map(async (connection) => ({
+        connection,
+        catalog: await this.modelCatalogService.getModelCatalog({
           organizationId: params.context.organizationId,
           connectionId: connection.id,
         }),
-      ),
+      })),
     );
-    if (results.some((result) => !result.success)) {
+    const successfulResults = results.filter(
+      (result) => result.catalog.success,
+    );
+    for (const { connection, catalog } of results) {
+      if (!catalog.success) {
+        logger.warn("Failed to discover models for AI Gateway connection", {
+          organizationId: params.context.organizationId,
+          connectionId: connection.id,
+          connectionName: connection.name,
+          error: catalog.error,
+        });
+      }
+    }
+    if (results.length > 0 && successfulResults.length === 0) {
       throw new GatewayControlPlaneError(
         "Gateway model discovery is temporarily unavailable",
         503,
       );
     }
 
-    const modelsById = new Map<string, GatewayModelCatalogEntry>();
-    for (const result of results) {
-      if (!result.success) continue;
-      for (const model of result.models) {
-        if (!modelsById.has(model.id)) modelsById.set(model.id, model);
-      }
-    }
     return {
-      data: [...modelsById.values()].sort(compareModels),
+      data: successfulResults
+        .flatMap(({ connection, catalog }) => {
+          if (!catalog.success) return [];
+          const allowedModels = toGatewayAllowedModelsSet(
+            connection.allowedModels,
+          );
+          return catalog.models
+            .filter((model) => isGatewayModelAllowed(allowedModels, model.id))
+            .map((model) => ({
+              ...model,
+              id: formatGatewayModelSlug(connection.name, model.id),
+            }));
+        })
+        .sort(compareModels),
     };
   }
 }
@@ -75,5 +97,11 @@ function compareModels(
   left: GatewayModelCatalogEntry,
   right: GatewayModelCatalogEntry,
 ) {
-  return left.id < right.id ? -1 : left.id > right.id ? 1 : 0;
+  if (left.id < right.id) {
+    return -1;
+  }
+  if (left.id > right.id) {
+    return 1;
+  }
+  return 0;
 }

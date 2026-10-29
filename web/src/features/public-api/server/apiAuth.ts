@@ -27,7 +27,8 @@ import { isPrismaException } from "@/src/utils/exceptions";
 import { type Redis, type Cluster } from "ioredis";
 import { getOrganizationPlanServerSide } from "@/src/features/entitlements/server";
 import { type z } from "zod";
-import { CloudConfigSchema, isPlan } from "@langfuse/shared";
+import { CloudConfigSchema, isPlan, UnauthorizedError } from "@langfuse/shared";
+import { isApiKeyExpired } from "@/src/features/apiKey/helpers/isApiKeyExpired";
 
 type VerifyAuthHeaderOptions = {
   allowInAppAgentKey?: boolean;
@@ -115,8 +116,7 @@ export class ApiAuthService {
 
               if (!slowKey) {
                 logger.error(
-                  "No key found for public key",
-                  formatSubmittedPublicKeyForLog(publicKey),
+                  `No key found for public key: ${formatSubmittedPublicKeyForLog(publicKey)}`,
                 );
                 if (this.redis) {
                   logger.info(
@@ -158,15 +158,18 @@ export class ApiAuthService {
 
             if (!finalApiKey) {
               logger.info(
-                "No project id found for key",
-                formatSubmittedPublicKeyForLog(publicKey),
+                `No project id found for key: ${formatSubmittedPublicKeyForLog(publicKey)}`,
               );
               throw new Error("Invalid credentials");
+            }
+            if (isApiKeyExpired(finalApiKey.expiresAt)) {
+              logger.info(`Expired api key: ${finalApiKey.publicKey}`);
+              throw new UnauthorizedError("Invalid credentials");
             }
             const plan = finalApiKey.plan;
 
             if (!isPlan(plan)) {
-              logger.error("Invalid plan type for key", finalApiKey.plan);
+              logger.error(`Invalid plan type for key: ${finalApiKey.plan}`);
               throw new Error("Invalid credentials");
             }
 
@@ -325,8 +328,14 @@ export class ApiAuthService {
       },
     });
     if (!dbKey) {
-      logger.info("No api key found for public key:", publicKey);
+      logger.info(
+        `No api key found for public key: ${formatSubmittedPublicKeyForLog(publicKey)}`,
+      );
       throw new Error("Invalid public key");
+    }
+    if (isApiKeyExpired(dbKey.expiresAt)) {
+      logger.info(`Expired api key: ${dbKey.publicKey}`);
+      throw new UnauthorizedError("Invalid public key");
     }
     return dbKey;
   }
@@ -524,6 +533,7 @@ export class ApiAuthService {
     const newApiKey = OrgEnrichedApiKey.parse({
       ...apiKeyAndOrganisation,
       createdAt: apiKeyAndOrganisation.createdAt?.toISOString(),
+      expiresAt: apiKeyAndOrganisation.expiresAt?.toISOString() ?? null,
       orgId,
       organizationCreatedAt: organizationCreatedAt.toISOString(),
       plan: getOrganizationPlanServerSide(cloudConfig),

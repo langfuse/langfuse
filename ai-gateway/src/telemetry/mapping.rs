@@ -3,7 +3,12 @@ use chrono::{DateTime, SecondsFormat};
 use serde_json::{Map, Value, json};
 
 use super::context::GenerationContext;
-use crate::capture::{InferenceFacts, RelayOutcome};
+use crate::{
+    capture::{InferenceFacts, InputOmissionReason, MAX_INPUT_CAPTURE_BYTES, RelayOutcome},
+    observability::{ErrorOrigin, provider_status_reason},
+};
+
+const USER_ID_ATTRIBUTE: &str = "user.id";
 
 pub(super) fn span(facts: InferenceFacts, context: &GenerationContext) -> Value {
     let full = facts.metadata.get("ingestion_mode").and_then(Value::as_str) == Some("full");
@@ -16,7 +21,12 @@ pub(super) fn span(facts: InferenceFacts, context: &GenerationContext) -> Value 
         .collect();
     // Trusted key attribution and gateway facts take precedence over caller metadata.
     metadata.extend(generation_metadata(&facts));
-    let inference = facts.inference;
+    if let Some(user_agent) = &context.user_agent {
+        metadata.insert(
+            "langfuse.gateway.client.user_agent".into(),
+            json!(user_agent),
+        );
+    }
     let mut attributes = vec![attribute("langfuse.observation.type", "generation")];
     attributes.extend(context.attributes.iter().map(|(key, value)| {
         attribute(
@@ -26,7 +36,19 @@ pub(super) fn span(facts: InferenceFacts, context: &GenerationContext) -> Value 
                 .map_or_else(|| value.to_string(), str::to_owned),
         )
     }));
-    if let Some(model) = inference.model.or(inference.requested_model) {
+    if let Some((source, user_id)) = user_id_source(&facts, context) {
+        if let Some(user_id) = user_id {
+            attributes.retain(|attribute| attribute["key"] != USER_ID_ATTRIBUTE);
+            attributes.push(attribute(USER_ID_ATTRIBUTE, user_id));
+        }
+        metadata.insert("langfuse.gateway.user_id_source".into(), json!(source));
+    }
+    let inference = facts.inference;
+    if let Some(model) = inference
+        .model
+        .or(facts.upstream_model)
+        .or(inference.requested_model)
+    {
         attributes.push(attribute("langfuse.observation.model.name", model));
     }
     if !inference.model_parameters.is_empty() {
@@ -91,6 +113,53 @@ pub(super) fn span(facts: InferenceFacts, context: &GenerationContext) -> Value 
     span
 }
 
+/// A key bound to a user always attributes to that user, even inside a caller's
+/// trace. Only keys without a bound user accept the caller's user ID.
+fn user_id_source<'a>(
+    facts: &'a InferenceFacts,
+    context: &GenerationContext,
+) -> Option<(&'static str, Option<&'a str>)> {
+    if let Some(owner) = facts
+        .metadata
+        .get("key_owner_user_id")
+        .and_then(Value::as_str)
+    {
+        return Some(("api_key_owner", Some(owner)));
+    }
+    context
+        .attributes
+        .contains_key(USER_ID_ATTRIBUTE)
+        .then_some(("client", None))
+}
+
+pub(super) fn omit_input(span: &mut Value, reason: InputOmissionReason) -> bool {
+    let Some(attributes) = span["attributes"].as_array_mut() else {
+        return false;
+    };
+    let Some(index) = attributes
+        .iter()
+        .position(|attribute| attribute["key"] == "langfuse.observation.input")
+    else {
+        return false;
+    };
+    attributes.remove(index);
+    if let Some(value) = attributes
+        .iter_mut()
+        .find(|attribute| attribute["key"] == "langfuse.observation.metadata")
+        .map(|attribute| &mut attribute["value"]["stringValue"])
+        && let Some(Value::Object(mut metadata)) = value
+            .as_str()
+            .and_then(|value| serde_json::from_str(value).ok())
+    {
+        metadata.insert(
+            "langfuse.gateway.request.input_omitted".into(),
+            json!(reason),
+        );
+        *value = Value::String(Value::Object(metadata).to_string());
+    }
+    true
+}
+
 fn reserved_metadata(key: &str) -> bool {
     [
         "langfuse.gateway",
@@ -110,10 +179,6 @@ fn generation_metadata(facts: &InferenceFacts) -> Map<String, Value> {
         .and_then(Value::as_object)
     {
         for (key, value) in attribution {
-            // Attribution remains searchable, but cannot impersonate gateway, agent or OTEL fields.
-            if !reserved_metadata(key) && !agent_metadata(key) {
-                metadata.insert(key.clone(), value.clone());
-            }
             metadata.insert(
                 format!("langfuse.gateway.api_key.metadata.{key}"),
                 value.clone(),
@@ -121,14 +186,27 @@ fn generation_metadata(facts: &InferenceFacts) -> Map<String, Value> {
         }
     }
     for (source, target) in [
-        ("project_id", "project.id"),
         ("organization_id", "organization.id"),
         ("ingestion_mode", "ingestion.mode"),
         ("key_id", "api_key.id"),
+        ("key_name", "api_key.name"),
+        ("key_owner_user_id", "api_key.owner.user_id"),
+        ("key_owner_name", "api_key.owner.name"),
         ("provider_connection_id", "connection.id"),
+        ("connection_name", "connection.name"),
+        ("provider", "connection.provider"),
     ] {
-        if let Some(value) = facts.metadata.get(source) {
+        if let Some(value) = facts.metadata.get(source).filter(|value| !value.is_null()) {
             metadata.insert(format!("langfuse.gateway.{target}"), value.clone());
+        }
+    }
+    for (key, value) in [
+        ("model.requested", &facts.inference.requested_model),
+        ("model.upstream", &facts.upstream_model),
+        ("model.response", &facts.inference.model),
+    ] {
+        if let Some(value) = value {
+            metadata.insert(format!("langfuse.gateway.{key}"), json!(value));
         }
     }
     metadata.insert(
@@ -146,22 +224,97 @@ fn generation_metadata(facts: &InferenceFacts) -> Map<String, Value> {
         "langfuse.gateway.response.status_code".into(),
         json!(response_status),
     );
+    metadata.extend(upstream_metadata(facts));
+    for (key, value) in &facts.inference.request_metadata {
+        metadata.insert(
+            format!("langfuse.gateway.client.request.{key}"),
+            value.clone(),
+        );
+    }
+    // Inserted after caller request metadata so the gateway's own ID always wins.
+    for (source, target) in [
+        ("request_id", "request.id"),
+        ("client_request_id", "client.request.id"),
+    ] {
+        if let Some(value) = facts.metadata.get(source) {
+            metadata.insert(format!("langfuse.gateway.{target}"), value.clone());
+        }
+    }
+    if let Some(omission) = facts.inference.input_omission {
+        metadata.insert(
+            "langfuse.gateway.request.input_omitted".into(),
+            json!(omission.reason),
+        );
+        if omission.reason == InputOmissionReason::SizeLimit {
+            metadata.insert(
+                "langfuse.gateway.request.input_limit_bytes".into(),
+                json!(MAX_INPUT_CAPTURE_BYTES),
+            );
+        }
+    }
+    metadata
+}
+
+/// Facts about the provider's answer, or why there was none.
+fn upstream_metadata(facts: &InferenceFacts) -> Map<String, Value> {
+    let mut metadata = Map::new();
+    if let Some(status) = facts.http_status {
+        metadata.insert(
+            "langfuse.gateway.upstream.status_code".into(),
+            json!(status),
+        );
+    }
+    if let Some(retry_after_ms) = facts.retry_after_ms {
+        metadata.insert(
+            "langfuse.gateway.upstream.retry_after_ms".into(),
+            json!(retry_after_ms),
+        );
+    }
+    if let Some((origin, kind)) = error_classification(facts) {
+        metadata.insert(
+            "langfuse.gateway.error.origin".into(),
+            json!(origin.as_str()),
+        );
+        metadata.insert("langfuse.gateway.error.type".into(), json!(kind));
+    }
+    metadata.insert(
+        "langfuse.gateway.request.body_bytes".into(),
+        json!(facts.request_body_bytes),
+    );
+    if facts.http_status.is_some() {
+        metadata.insert(
+            "langfuse.gateway.response.body_bytes".into(),
+            json!(facts.response_body_bytes),
+        );
+    }
     for (key, value) in [
-        ("response.id", &facts.inference.provider_response_id),
+        (
+            "upstream.response.id",
+            &facts.inference.provider_response_id,
+        ),
         ("upstream.request.id", &facts.inference.provider_request_id),
     ] {
         if let Some(value) = value {
             metadata.insert(format!("langfuse.gateway.{key}"), json!(value));
         }
     }
-    for (key, value) in &facts.inference.request_metadata {
-        metadata.insert(format!("langfuse.gateway.request.{key}"), value.clone());
-    }
     metadata
 }
 
-fn agent_metadata(key: &str) -> bool {
-    key == "agent" || key.starts_with("agent.")
+/// Mirrors the failure order of [`observation_status`] and the bounded
+/// `error.origin`/`error.reason` values on the gateway's own request telemetry.
+fn error_classification(facts: &InferenceFacts) -> Option<(ErrorOrigin, &'static str)> {
+    if let Some(status) = facts.http_status.filter(|status| *status >= 400) {
+        Some((ErrorOrigin::Provider, provider_status_reason(status)))
+    } else if facts.inference.provider_status.as_deref() == Some("failed") {
+        Some((ErrorOrigin::Provider, "provider_response_failed"))
+    } else {
+        match facts.outcome {
+            RelayOutcome::Timeout => Some((ErrorOrigin::ProviderTransport, "timeout")),
+            RelayOutcome::TransportError => Some((ErrorOrigin::ProviderTransport, "transport")),
+            RelayOutcome::Eof | RelayOutcome::Cancelled => None,
+        }
+    }
 }
 
 fn observation_status(facts: &InferenceFacts) -> (&'static str, Option<String>) {
@@ -202,22 +355,31 @@ fn attribute(key: &str, value: impl Into<String>) -> Value {
 
 fn usage_projection(api_format: &str, usage: &Value) -> Option<Value> {
     match api_format {
-        "openai.responses" => openai_usage(usage),
+        "openai.responses" => openai_usage(
+            usage,
+            ["input_tokens", "output_tokens", "total_tokens"],
+            ["input_tokens_details", "output_tokens_details"],
+        ),
+        "openai.chat-completions" => openai_usage(
+            usage,
+            ["prompt_tokens", "completion_tokens", "total_tokens"],
+            ["prompt_tokens_details", "completion_tokens_details"],
+        ),
         "anthropic.messages" => usage.is_object().then(|| usage.clone()),
         _ => None,
     }
 }
 
-/// The receiver's native `OpenAI` usage schema is strict at the top level, but
-/// accepts new numeric detail counters.
-fn openai_usage(usage: &Value) -> Option<Value> {
+/// The receiver's native `OpenAI` usage schemas are strict at the top level, but
+/// accept new numeric detail counters.
+fn openai_usage(usage: &Value, counters: [&str; 3], details: [&str; 2]) -> Option<Value> {
     let usage = usage.as_object()?;
     let mut projected = Map::new();
-    for key in ["input_tokens", "output_tokens", "total_tokens"] {
+    for key in counters {
         let value = usage.get(key).filter(|value| value.as_u64().is_some())?;
         projected.insert(key.into(), value.clone());
     }
-    for key in ["input_tokens_details", "output_tokens_details"] {
+    for key in details {
         match usage.get(key) {
             Some(Value::Null) => {
                 projected.insert(key.into(), Value::Null);
@@ -260,7 +422,11 @@ mod tests {
             first_byte_ms: Some(50),
             completion_start_ms: Some(125),
             http_status: Some(200),
-            metadata: json!({"ingestion_mode": "full", "project_id": "project", "key_id": "key", "key_metadata": {"team": "search"}}),
+            retry_after_ms: None,
+            upstream_model: None,
+            request_body_bytes: 64,
+            response_body_bytes: 256,
+            metadata: json!({"ingestion_mode": "full", "key_id": "key", "key_metadata": {"team": "search"}}),
             outcome: RelayOutcome::Eof,
             inference: crate::capture::ProviderFacts::default(),
         };
@@ -349,9 +515,8 @@ mod tests {
         );
         let metadata = metadata(&attrs);
         assert_eq!(metadata["custom"], "value");
-        assert_eq!(metadata["team"], "search");
+        assert_eq!(metadata["team"], "untrusted");
         assert_eq!(metadata["langfuse.gateway.response.status_code"], 200);
-        assert_eq!(metadata["langfuse.gateway.project.id"], "project");
         assert_eq!(metadata["langfuse.gateway.api_key.id"], "key");
         assert_eq!(metadata["langfuse.gateway.api_key.metadata.team"], "search");
         for key in [
@@ -359,10 +524,44 @@ mod tests {
             "resourceAttributes.secret",
             "attributes",
             "langfuse.gateway.request.fake",
+            "langfuse.gateway.project.id",
         ] {
             assert!(metadata.get(key).is_none(), "caller forged {key}");
         }
         assert!(!attrs.contains_key("langfuse.trace.metadata"));
+    }
+
+    // Langfuse stores this metadata key as the span's ingestion API key for
+    // gateway uploads, so callers must never be able to set it.
+    #[test]
+    fn caller_headers_never_supply_the_gateway_key_id() {
+        let mut headers = axum::http::HeaderMap::new();
+        headers.insert(
+            "langfuse-metadata",
+            "langfuse.gateway.api_key.id:header-key".parse().unwrap(),
+        );
+        headers.insert(
+            "baggage",
+            "langfuse_metadata_langfuse.gateway.api_key.id=baggage-key"
+                .parse()
+                .unwrap(),
+        );
+        let context = GenerationContext {
+            trace_id: "0123456789abcdef0123456789abcdef".into(),
+            observation_id: "0123456789abcdef".into(),
+            ..GenerationContext::from_headers(&headers)
+        };
+        assert!(context.metadata.contains_key("langfuse.gateway.api_key.id"));
+
+        let mut unattributed = facts();
+        unattributed.metadata["key_id"] = Value::Null;
+        for (facts, expected) in [(facts(), Some("key")), (unattributed, None)] {
+            let metadata = metadata(&attributes(&span(facts, &context)));
+            assert_eq!(
+                metadata.get("langfuse.gateway.api_key.id"),
+                expected.map(Value::from).as_ref()
+            );
+        }
     }
 
     #[test]
@@ -391,25 +590,30 @@ mod tests {
             metadata,
             json!({
                 "langfuse.gateway.response.status_code": 200,
-                "team": "search",
+                "langfuse.gateway.upstream.status_code": 200,
                 "langfuse.gateway.api_key.metadata.team": "search",
                 "langfuse.gateway.api_key.id": "key",
-                "langfuse.gateway.project.id": "project",
                 "langfuse.gateway.ingestion.mode": "full",
                 "langfuse.gateway.request.api_format": "openai.responses",
+                "langfuse.gateway.request.body_bytes": 64,
+                "langfuse.gateway.response.body_bytes": 256,
+                "langfuse.gateway.model.requested": "requested-model",
+                "langfuse.gateway.model.response": "actual-model",
             })
         );
     }
 
     #[test]
-    fn attribution_is_searchable_without_overwriting_gateway_or_otel_metadata() {
+    fn key_metadata_is_only_namespaced_and_cannot_overwrite_gateway_or_otel_metadata() {
         let mut facts = facts();
         facts.metadata["organization_id"] = json!("org");
         facts.metadata["provider_connection_id"] = json!("connection");
+        facts.metadata["key_owner_user_id"] = json!("user");
         facts.metadata["key_metadata"] = json!({
             "team": "search", "enabled": true, "cost_center": 42,
             "langfuse.gateway.response.status_code": 500,
             "langfuse.gateway.api_key.id": "spoofed-key",
+            "langfuse.gateway.api_key.owner.user_id": "spoofed-user",
             "langfuse.gateway.upstream.request.id": "spoofed-request",
             "langfuse.gateway.future_field": "spoofed-future",
             "langfuse.gateway.api_key.metadata.team": "spoofed-team",
@@ -425,18 +629,29 @@ mod tests {
             .insert("agent.name".into(), json!("opencode"));
         let attrs = attributes(&span(facts, &context));
         let metadata = metadata(&attrs);
-        assert_eq!(metadata["team"], "search");
-        assert_eq!(metadata["enabled"], true);
-        assert_eq!(metadata["cost_center"], 42);
+        for key in ["team", "enabled", "cost_center"] {
+            assert!(metadata.get(key).is_none(), "{key}");
+        }
         assert_eq!(metadata["langfuse.gateway.api_key.metadata.team"], "search");
+        assert_eq!(metadata["langfuse.gateway.api_key.metadata.enabled"], true);
+        assert_eq!(
+            metadata["langfuse.gateway.api_key.metadata.cost_center"],
+            42
+        );
         assert_eq!(
             metadata["langfuse.gateway.api_key.metadata.langfuse.gateway.response.status_code"],
             500
         );
         assert_eq!(metadata["langfuse.gateway.response.status_code"], 200);
         assert_eq!(metadata["langfuse.gateway.api_key.id"], "key");
+        assert_eq!(metadata["langfuse.gateway.api_key.owner.user_id"], "user");
+        assert!(metadata.get("langfuse.gateway.api_key.user.id").is_none());
         assert_eq!(metadata["langfuse.gateway.connection.id"], "connection");
-        assert_eq!(metadata["langfuse.gateway.response.id"], "response");
+        assert_eq!(
+            metadata["langfuse.gateway.upstream.response.id"],
+            "response"
+        );
+        assert!(metadata.get("langfuse.gateway.response.id").is_none());
         assert_eq!(metadata["langfuse.gateway.organization.id"], "org");
         assert_eq!(metadata["agent.name"], "opencode");
         assert_eq!(
@@ -477,6 +692,200 @@ mod tests {
     }
 
     #[test]
+    fn event_model_prefers_response_then_upstream_then_requested() {
+        for (response, upstream, expected) in [
+            (
+                Some("response-model"),
+                Some("upstream-model"),
+                "response-model",
+            ),
+            (None, Some("upstream-model"), "upstream-model"),
+            (None, None, "requested-model"),
+        ] {
+            let mut facts = facts();
+            facts.inference.model = response.map(str::to_owned);
+            facts.upstream_model = upstream.map(str::to_owned);
+            let attrs = attributes(&span(facts, &context()));
+            assert_eq!(attrs["langfuse.observation.model.name"], expected);
+            let metadata = metadata(&attrs);
+            assert_eq!(
+                metadata["langfuse.gateway.model.requested"],
+                "requested-model"
+            );
+            assert_eq!(
+                metadata.get("langfuse.gateway.model.upstream"),
+                upstream.map(|model| json!(model)).as_ref()
+            );
+            assert_eq!(
+                metadata.get("langfuse.gateway.model.response"),
+                response.map(|model| json!(model)).as_ref()
+            );
+        }
+    }
+
+    #[test]
+    fn key_and_connection_snapshots_use_gateway_names_and_skip_absent_values() {
+        let mut facts = facts();
+        facts.metadata["organization_id"] = json!("org");
+        facts.metadata["key_name"] = json!("CI key");
+        facts.metadata["key_owner_user_id"] = json!("user-1");
+        facts.metadata["key_owner_name"] = json!("Alice");
+        facts.metadata["provider_connection_id"] = json!("connection");
+        facts.metadata["connection_name"] = Value::Null;
+        facts.metadata["provider"] = json!("openai");
+        let metadata = metadata(&attributes(&span(facts, &context())));
+        assert_eq!(metadata["langfuse.gateway.organization.id"], "org");
+        assert_eq!(metadata["langfuse.gateway.api_key.name"], "CI key");
+        assert_eq!(metadata["langfuse.gateway.api_key.owner.user_id"], "user-1");
+        assert_eq!(metadata["langfuse.gateway.api_key.owner.name"], "Alice");
+        assert_eq!(metadata["langfuse.gateway.connection.id"], "connection");
+        assert_eq!(metadata["langfuse.gateway.connection.provider"], "openai");
+        assert!(metadata.get("langfuse.gateway.connection.name").is_none());
+    }
+
+    #[test]
+    fn user_bound_keys_always_attribute_to_the_key_owner() {
+        let mut caller_in_child = context();
+        caller_in_child.parent_span_id = Some("fedcba9876543210".into());
+        caller_in_child
+            .attributes
+            .insert("user.id".into(), json!("caller"));
+        for context in [context(), caller_in_child] {
+            let mut owned = facts();
+            owned.metadata["key_owner_user_id"] = json!("owner");
+            let span = span(owned, &context);
+            let user_ids: Vec<_> = span["attributes"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .filter(|attribute| attribute["key"] == "user.id")
+                .map(|attribute| attribute["value"]["stringValue"].clone())
+                .collect();
+            assert_eq!(user_ids, [json!("owner")]);
+            assert_eq!(
+                metadata(&attributes(&span))["langfuse.gateway.user_id_source"],
+                "api_key_owner"
+            );
+        }
+    }
+
+    #[test]
+    fn keys_without_a_bound_user_take_the_callers_user_id() {
+        let mut caller = context();
+        caller.parent_span_id = Some("fedcba9876543210".into());
+        caller.attributes.insert("user.id".into(), json!("caller"));
+        let attrs = attributes(&span(facts(), &caller));
+        assert_eq!(attrs["user.id"], "caller");
+        assert_eq!(
+            metadata(&attrs)["langfuse.gateway.user_id_source"],
+            "client"
+        );
+
+        let attrs = attributes(&span(facts(), &context()));
+        assert!(!attrs.contains_key("user.id"));
+        assert!(
+            metadata(&attrs)
+                .get("langfuse.gateway.user_id_source")
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn client_user_agent_is_recorded_as_gateway_metadata() {
+        let mut context = context();
+        context.user_agent = Some("codex_cli_rs/0.1".into());
+        let metadata = metadata(&attributes(&span(facts(), &context)));
+        assert_eq!(
+            metadata["langfuse.gateway.client.user_agent"],
+            "codex_cli_rs/0.1"
+        );
+    }
+
+    #[test]
+    fn failures_carry_error_origin_type_and_upstream_rate_limit_details() {
+        for (http_status, provider_status, outcome, expected) in [
+            (
+                Some(429),
+                None,
+                RelayOutcome::Eof,
+                Some(("provider", "provider_rate_limited")),
+            ),
+            (
+                Some(401),
+                None,
+                RelayOutcome::Eof,
+                Some(("provider", "provider_auth")),
+            ),
+            (
+                Some(400),
+                None,
+                RelayOutcome::Eof,
+                Some(("provider", "provider_4xx")),
+            ),
+            (
+                Some(503),
+                None,
+                RelayOutcome::Eof,
+                Some(("provider", "provider_5xx")),
+            ),
+            (
+                Some(200),
+                Some("failed"),
+                RelayOutcome::Eof,
+                Some(("provider", "provider_response_failed")),
+            ),
+            (
+                None,
+                None,
+                RelayOutcome::Timeout,
+                Some(("provider_transport", "timeout")),
+            ),
+            (
+                Some(200),
+                None,
+                RelayOutcome::TransportError,
+                Some(("provider_transport", "transport")),
+            ),
+            (Some(200), None, RelayOutcome::Cancelled, None),
+            (Some(200), None, RelayOutcome::Eof, None),
+        ] {
+            let mut facts = facts();
+            facts.http_status = http_status;
+            facts.inference.provider_status = provider_status.map(str::to_owned);
+            facts.outcome = outcome;
+            let metadata = metadata(&attributes(&span(facts, &context())));
+            assert_eq!(
+                metadata.get("langfuse.gateway.error.origin").cloned(),
+                expected.map(|(origin, _)| json!(origin)),
+                "{http_status:?} {outcome:?}"
+            );
+            assert_eq!(
+                metadata.get("langfuse.gateway.error.type").cloned(),
+                expected.map(|(_, kind)| json!(kind)),
+                "{http_status:?} {outcome:?}"
+            );
+            assert_eq!(
+                metadata
+                    .get("langfuse.gateway.upstream.status_code")
+                    .cloned(),
+                http_status.map(|status| json!(status))
+            );
+            assert_eq!(
+                metadata
+                    .get("langfuse.gateway.response.body_bytes")
+                    .is_some(),
+                http_status.is_some()
+            );
+        }
+
+        let mut facts = facts();
+        facts.http_status = Some(429);
+        facts.retry_after_ms = Some(30_000);
+        let metadata = metadata(&attributes(&span(facts, &context())));
+        assert_eq!(metadata["langfuse.gateway.upstream.retry_after_ms"], 30_000);
+    }
+
+    #[test]
     fn usage_projection_preserves_new_numeric_details_without_unknown_top_level_fields() {
         let mut facts = facts();
         let usage = json!({
@@ -485,7 +894,7 @@ mod tests {
             "output_tokens_details": null,
             "future_usage": {"cost": 123},
         });
-        facts.inference.usage_details = Some(usage.clone());
+        facts.inference.usage_details = Some(usage);
         let attrs = attributes(&span(facts, &context()));
         assert!(metadata(&attrs).get("native_usage").is_none());
         let projected: Value = serde_json::from_str(
@@ -552,6 +961,39 @@ mod tests {
     }
 
     #[test]
+    fn chat_completions_usage_projects_into_the_receivers_completion_schema() {
+        let native = json!({
+            "prompt_tokens": 20, "completion_tokens": 10, "total_tokens": 30,
+            "prompt_tokens_details": {"cached_tokens": 4, "audio_tokens": 0},
+            "completion_tokens_details": {"reasoning_tokens": 6, "accepted_prediction_tokens": null, "future_object": {}},
+            "future_usage": {"cost": 123},
+        });
+        assert_eq!(
+            projected_usage("openai.chat-completions", native),
+            Some(json!({
+                "prompt_tokens": 20, "completion_tokens": 10, "total_tokens": 30,
+                "prompt_tokens_details": {"cached_tokens": 4, "audio_tokens": 0},
+                "completion_tokens_details": {"reasoning_tokens": 6, "accepted_prediction_tokens": null},
+            }))
+        );
+        // Each OpenAI contract projects only its own counter names.
+        assert_eq!(
+            projected_usage(
+                "openai.chat-completions",
+                json!({"input_tokens": 2, "output_tokens": 1, "total_tokens": 3})
+            ),
+            None
+        );
+        assert_eq!(
+            projected_usage(
+                "openai.responses",
+                json!({"prompt_tokens": 2, "completion_tokens": 1, "total_tokens": 3})
+            ),
+            None
+        );
+    }
+
+    #[test]
     fn provider_request_metadata_is_namespaced_and_keeps_native_types() {
         let mut facts = facts();
         facts.inference.request_metadata = serde_json::from_value(json!({
@@ -564,21 +1006,71 @@ mod tests {
         let attrs = attributes(&span(facts, &context()));
         let metadata = metadata(&attrs);
         assert_eq!(
-            metadata["langfuse.gateway.request.metadata"],
+            metadata["langfuse.gateway.client.request.metadata"],
             json!({"customer": "customer-1"})
         );
         assert_eq!(
-            metadata["langfuse.gateway.request.prompt_cache_key"],
+            metadata["langfuse.gateway.client.request.prompt_cache_key"],
             "cache-key"
         );
         assert_eq!(
-            metadata["langfuse.gateway.request.safety_identifier"],
+            metadata["langfuse.gateway.client.request.safety_identifier"],
             "safety-id"
         );
-        assert_eq!(metadata["langfuse.gateway.request.user"], "legacy-user");
+        assert_eq!(
+            metadata["langfuse.gateway.client.request.user"],
+            "legacy-user"
+        );
         for key in ["metadata", "prompt_cache_key", "safety_identifier", "user"] {
             assert!(metadata.get(key).is_none());
+            assert!(
+                metadata
+                    .get(format!("langfuse.gateway.request.{key}"))
+                    .is_none()
+            );
         }
+    }
+
+    #[test]
+    fn omitted_input_is_explained_in_gateway_metadata() {
+        let mut facts = facts();
+        facts.inference.input = None;
+        facts.request_body_bytes = MAX_INPUT_CAPTURE_BYTES + 1;
+        facts.inference.input_omission = Some(crate::capture::InputOmission {
+            reason: InputOmissionReason::SizeLimit,
+            body_bytes: MAX_INPUT_CAPTURE_BYTES + 1,
+        });
+        let attrs = attributes(&span(facts, &context()));
+        assert!(!attrs.contains_key("langfuse.observation.input"));
+        let metadata = metadata(&attrs);
+        assert_eq!(
+            metadata["langfuse.gateway.request.input_omitted"],
+            "size_limit"
+        );
+        assert_eq!(
+            metadata["langfuse.gateway.request.body_bytes"],
+            MAX_INPUT_CAPTURE_BYTES + 1
+        );
+        assert_eq!(
+            metadata["langfuse.gateway.request.input_limit_bytes"],
+            MAX_INPUT_CAPTURE_BYTES
+        );
+
+        let mut facts = self::facts();
+        facts.inference.input_omission = Some(crate::capture::InputOmission {
+            reason: InputOmissionReason::ContentEncoding,
+            body_bytes: 10,
+        });
+        let metadata = self::metadata(&attributes(&span(facts, &context())));
+        assert_eq!(
+            metadata["langfuse.gateway.request.input_omitted"],
+            "content_encoding"
+        );
+        assert!(
+            metadata
+                .get("langfuse.gateway.request.input_limit_bytes")
+                .is_none()
+        );
     }
 
     #[test]

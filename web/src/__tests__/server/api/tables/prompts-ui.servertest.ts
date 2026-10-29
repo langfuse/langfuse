@@ -587,9 +587,9 @@ describe("UI Prompts Table", () => {
       "observation",
     );
 
-    expect(query).toContain("INNER JOIN prompt_events");
-    expect(query).toContain(
-      "(s.trace_id, s.observation_id) IN (SELECT trace_id, span_id FROM prompt_events",
+    expect(query).toMatch(/inner join prompt_events/i);
+    expect(query).toMatch(
+      /\(s\.trace_id, s\.observation_id\) in \(select trace_id, span_id from prompt_events/i,
     );
   });
 

@@ -1,10 +1,10 @@
 /* eslint-disable no-nested-ternary */
 import type {
   FilePart,
-  JsonValue,
   NormalizedIO,
   NormalizedMessage,
   NormalizedMessagePart,
+  ToolResultPart,
   ToolDefinition as NormalizedToolDefinition,
 } from "@langfuse/shared/src/utils/normalized-io";
 import {
@@ -76,7 +76,11 @@ function toToolDefinition(definition: NormalizedToolDefinition): {
   };
 }
 
-type ToolCallResponse = { output: JsonValue; isError?: boolean } | null;
+type ToolCallResponse = {
+  output: ToolResultPart["output"]["value"];
+  isError?: boolean;
+  message?: ChatMlMessage;
+} | null;
 
 function toToolCallPart(
   part: Extract<NormalizedMessagePart, { type: "tool-call" }>,
@@ -97,10 +101,18 @@ function toToolResultMessage(
   // Deliberately no `name`: the renderer titles messages name-over-role, and
   // a tool result must render as a tool turn, not as a participant named
   // after the tool. The tool name stays on the paired tool-call part.
+  const content =
+    part.output.type === "content"
+      ? toChatMessages({
+          role: "tool",
+          source: "output",
+          parts: part.output.value,
+        }).main
+      : { content: part.output.value };
   return {
+    ...content,
     role: "tool",
     ...(part.toolCallId ? { tool_call_id: part.toolCallId } : {}),
-    content: part.output,
   } as ChatMlMessage;
 }
 
@@ -183,12 +195,15 @@ function toChatMessages(message: NormalizedMessage): ProjectedMessage {
       ? contentParts.join("")
       : undefined;
 
-  const json =
-    jsonParts.length === 0
-      ? undefined
-      : jsonParts.length === 1
-        ? jsonParts[0]
-        : jsonParts;
+  const json = (() => {
+    if (jsonParts.length === 0) {
+      return undefined;
+    }
+    if (jsonParts.length === 1) {
+      return jsonParts[0];
+    }
+    return jsonParts;
+  })();
 
   const hasMainMessage =
     content !== undefined ||
@@ -257,7 +272,10 @@ export function toIOPreview(io: NormalizedIO): ChatMLParserResult {
           : undefined;
         if (!entry || entry.response !== null) return true;
         entry.response = {
-          output: part.output,
+          output: part.output.value,
+          ...(part.output.type === "content"
+            ? { message: toToolResultMessage(part) }
+            : {}),
           ...(part.isError !== undefined ? { isError: part.isError } : {}),
         };
         return false;

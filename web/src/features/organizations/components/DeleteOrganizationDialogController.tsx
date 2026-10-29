@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 import { showSuccessToast } from "@/src/features/notifications";
 import { type ReactNode, useState } from "react";
 
@@ -48,6 +49,7 @@ export function DeleteOrganizationDialogController({
       });
       capture("organization_settings:delete_organization");
       showSuccessToast({
+        operation: "organization.delete",
         title: "Organization Deleted",
         description: "The organization has been successfully deleted.",
       });

@@ -1,4 +1,3 @@
-/* eslint-disable @repo/no-exotic-operators */
 import type * as ts from "@typescript/typescript6";
 import type { Diagnostic as RuffDiagnostic } from "@astral-sh/ruff-wasm-web";
 import {
@@ -937,9 +936,11 @@ function hasEvaluateFunction(
     if (tsModule.isExportDeclaration(node) && !node.moduleSpecifier) {
       const exportClause = node.exportClause;
       if (exportClause && tsModule.isNamedExports(exportClause)) {
-        hasEvaluate ||= exportClause.elements.some(
-          (element) => element.name.text === "evaluate",
-        );
+        if (!hasEvaluate) {
+          hasEvaluate = exportClause.elements.some(
+            (element) => element.name.text === "evaluate",
+          );
+        }
       }
     }
 
@@ -1037,15 +1038,17 @@ function collectPythonContractDiagnostics(
 }
 
 async function getPythonRuffWorkspace(): Promise<RuffWorkspace> {
-  ruffWorkspacePromise ??= import("@astral-sh/ruff-wasm-web").then(
-    async (ruffModule) => {
-      await ruffModule.default();
-      return new ruffModule.Workspace(
-        PYTHON_RUFF_SETTINGS,
-        ruffModule.PositionEncoding.Utf16,
-      ) as RuffWorkspace;
-    },
-  );
+  if (ruffWorkspacePromise === null) {
+    ruffWorkspacePromise = import("@astral-sh/ruff-wasm-web").then(
+      async (ruffModule) => {
+        await ruffModule.default();
+        return new ruffModule.Workspace(
+          PYTHON_RUFF_SETTINGS,
+          ruffModule.PositionEncoding.Utf16,
+        ) as RuffWorkspace;
+      },
+    );
+  }
 
   return ruffWorkspacePromise;
 }

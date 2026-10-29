@@ -1,6 +1,100 @@
-import { describe, expect, it, vi } from "vitest";
-import { createNumericEvalOutputDefinition } from "../../features/evals/outputDefinition";
-import { executeLlmEvaluator } from "./llmEvaluatorExecution";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { z } from "zod";
+import {
+  compilePersistedEvalOutputDefinition,
+  createNumericEvalOutputDefinition,
+} from "../../features/evals/outputDefinition";
+import { ChatMessageRole, ChatMessageType, LLMAdapter } from "../llm/types";
+import {
+  executeLlmEvaluator,
+  generateLlmEvaluatorOutput,
+} from "./llmEvaluatorExecution";
+
+const { mockGenerateLLMText } = vi.hoisted(() => ({
+  mockGenerateLLMText: vi.fn(),
+}));
+
+vi.mock("../llm/llmText", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../llm/llmText")>()),
+  createLLMOutput: (schema: z.ZodType) => ({ schema }),
+  generateLLMText: mockGenerateLLMText,
+}));
+
+vi.mock("../llm/mediaMessages", () => ({
+  compileLangfuseMediaMessages: async ({
+    messages,
+  }: {
+    messages: Array<{ role: string; content: string }>;
+  }) => {
+    const mapped = messages.map(({ role, content }) => ({ role, content }));
+    return { providerMessages: mapped, traceMessages: mapped };
+  },
+}));
+
+describe("generateLlmEvaluatorOutput", () => {
+  beforeEach(() => {
+    mockGenerateLLMText.mockReset();
+  });
+
+  it("renames reasoning only for the model call and maps it back", async () => {
+    mockGenerateLLMText.mockResolvedValue({
+      output: { score: 0.8, scoreExplanation: "Good response" },
+      usage: { inputTokens: 10, outputTokens: 5 },
+    });
+    const { outputResultSchema } = compilePersistedEvalOutputDefinition(
+      createNumericEvalOutputDefinition({
+        scoreDescription: "score between 0 and 1",
+        reasoningDescription: "why this score was given",
+      }),
+    );
+
+    const result = await generateLlmEvaluatorOutput({
+      projectId: "project-123",
+      connection: { secretKey: "secret" },
+      modelParams: {
+        provider: "openai",
+        model: "gpt-4.1",
+        adapter: LLMAdapter.OpenAI,
+      },
+      messages: [
+        {
+          role: ChatMessageRole.User,
+          type: ChatMessageType.User,
+          content: "Judge this answer",
+        },
+      ],
+      outputResultSchema,
+      trace: {
+        targetProjectId: "project-123",
+        traceId: "trace-123",
+        traceName: "Judge trace",
+        environment: "langfuse-llm-as-a-judge",
+      },
+    });
+
+    const call = mockGenerateLLMText.mock.calls[0][0];
+    expect(call).toMatchObject({
+      maxRetries: 1,
+      trace: { traceId: "trace-123" },
+    });
+    const modelSchema = z.toJSONSchema(call.output.schema as z.ZodType);
+    expect(modelSchema).toMatchObject({
+      description:
+        'Return only top-level "score" and "scoreExplanation". Put other requested fields inside "scoreExplanation".',
+      properties: {
+        scoreExplanation: {
+          type: "string",
+          description: "why this score was given",
+        },
+        score: { type: "number", description: "score between 0 and 1" },
+      },
+      required: ["scoreExplanation", "score"],
+    });
+    expect(modelSchema.properties).not.toHaveProperty("reasoning");
+    expect(result.output).toEqual({ score: 0.8, reasoning: "Good response" });
+    expect(result.usage).toEqual({ inputTokens: 10, outputTokens: 5 });
+  });
+});
 
 describe("executeLlmEvaluator", () => {
   it("interpolates a single user prompt message", async () => {

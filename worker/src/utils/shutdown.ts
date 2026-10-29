@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { ClickHouseClientManager, logger } from "@langfuse/shared/src/server";
 import { disconnectAllRedisInstances } from "@langfuse/shared/src/server";
 
@@ -15,12 +16,14 @@ import {
   batchProjectCleaners,
   batchDataRetentionCleaners,
   mediaRetentionCleaner,
+  inAppAgentRetentionCleaner,
   batchProjectMediaCleaner,
   batchProjectBlobCleaner,
   batchTraceDeletionCleaner,
   traceDeleteBatchActionRunner,
   inAppAgentIntegrityRunner,
   deletedMaskCleaner,
+  auditLogRelay,
   queueMetricsRunner,
   monitorRunners,
   inAppAgentDlqRetryRunner,
@@ -67,6 +70,7 @@ const runDrainAndClose = async () => {
 
   // Stop media retention cleaner
   mediaRetentionCleaner?.stop();
+  inAppAgentRetentionCleaner?.stop();
 
   // Stop batch project media cleaner
   batchProjectMediaCleaner?.stop();
@@ -84,6 +88,8 @@ const runDrainAndClose = async () => {
 
   // Stop deleted-mask cleaner
   deletedMaskCleaner?.stop();
+
+  auditLogRelay?.stop();
 
   // Stop queue metrics runner
   queueMetricsRunner?.stop();
@@ -111,8 +117,13 @@ const runDrainAndClose = async () => {
   await BackgroundMigrationManager.close();
 
   // Flush all pending writes to Clickhouse AFTER closing ingestion queue worker that is writing to it
-  await ClickhouseWriter.getInstance().shutdown();
+  await ClickhouseWriter.shutdownAll();
   logger.info("Clickhouse writer has been shut down.");
+
+  await Promise.all([
+    inAppAgentRetentionCleaner?.drain(5_000),
+    inAppAgentIntegrityRunner?.drain(5_000),
+  ]);
 
   // Closes the shared client and every per-queue client in one pass. Each
   // queue holds its own client; without this they stay connected, retry

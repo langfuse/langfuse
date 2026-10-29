@@ -29,6 +29,10 @@ let automations: (typeof existingRow)[] = [];
 /** gateFetch defers the post-create list read so a test can interleave user input. */
 let gateFetch: Promise<unknown> | undefined;
 
+vi.mock("next-auth/react", () => ({
+  useSession: () => ({ data: null, status: "unauthenticated" }),
+}));
+
 vi.mock("@/src/utils/api", () => ({
   api: {
     automations: {
@@ -58,7 +62,7 @@ type SuccessHandler = (
 /** stubSave stands in for the real form, whose contract with the panel is "prefill in, onSuccess out". */
 let stubSave: (onSuccess: SuccessHandler) => void;
 
-vi.mock("@/src/features/automations/components/automationForm", () => ({
+vi.mock("@/src/features/automations/components/AutomationForm", () => ({
   AutomationForm: ({ onSuccess }: { onSuccess: SuccessHandler }) => (
     <button onClick={() => stubSave(onSuccess)}>stub save</button>
   ),

@@ -30,7 +30,6 @@
     "next-env.d.ts",
     "next-env.d.ts",
     "src",
-    "types/global.d.ts",
-    ".next-check/types/**/*.ts"
+    "types/global.d.ts"
   ]
 }

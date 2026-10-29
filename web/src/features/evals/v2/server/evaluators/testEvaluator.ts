@@ -5,19 +5,19 @@ import {
 import { decrypt } from "@langfuse/shared/encryption";
 import {
   buildEvalExecutionData,
-  compileLangfuseMediaMessages,
-  createTypeSafeDecisionModelClient,
+  createDecisionModelClient,
   createW3CTraceId,
+  decryptAndParseExtraHeaders,
   DefaultEvalModelService,
-  createLLMOutput,
   executeDecisionModelEvaluator,
   executeLlmEvaluator,
   extractObservationVariables,
   findModel,
-  generateLLMText,
-  isDecisionModelAdapter,
+  generateLlmEvaluatorOutput,
+  isAllowedDecisionModel,
+  LLMAdapter,
+  OPENAI_DECISION_MODEL_IDS,
   LangfuseInternalTraceEnvironment,
-  mapLegacyLLMCompletionParams,
   matchPricingTier,
   resolveConfiguredCodeEvalDispatcher,
   runCodeBasedEvaluationDispatch,
@@ -86,6 +86,7 @@ export async function testEvaluator(params: {
   const result = await runEvaluatorTest({
     ...params,
     variables,
+    hasExperimentContext: Boolean(observation.experiment_id),
     ...executionData,
   });
 
@@ -98,6 +99,7 @@ async function runEvaluatorTest(params: {
   evaluatorId: string;
   definition: NormalizedEvaluatorDefinition;
   variables: ExtractedVariable[];
+  hasExperimentContext: boolean;
   executionMetadata: Record<string, string>;
   evaluationContext: ReturnType<
     typeof buildEvalExecutionData
@@ -133,20 +135,32 @@ async function testDecisionModelEvaluator(params: {
   if (!modelConfig.valid) {
     return { success: false as const, error: modelConfig.error };
   }
-  if (!isDecisionModelAdapter(modelConfig.config.apiKey.adapter)) {
+  if (
+    !isAllowedDecisionModel(
+      modelConfig.config.apiKey.adapter,
+      modelConfig.config.model,
+    )
+  ) {
     return {
       success: false as const,
-      error: `Connection "${params.definition.provider}" is not a decision-model connection.`,
+      error:
+        modelConfig.config.apiKey.adapter === LLMAdapter.OpenAI
+          ? `Model "${modelConfig.config.model}" is not supported for decision models. Use ${OPENAI_DECISION_MODEL_IDS.join(", ")}.`
+          : `Connection "${params.definition.provider}" is not a decision-model connection.`,
     };
   }
 
   const executionTraceId = createW3CTraceId();
   let request: DecisionModelRequest | undefined;
   try {
-    const client = createTypeSafeDecisionModelClient({
+    const client = createDecisionModelClient({
+      adapter: modelConfig.config.apiKey.adapter,
       apiKey: decrypt(modelConfig.config.apiKey.secretKey),
       model: modelConfig.config.model,
       baseURL: modelConfig.config.apiKey.baseURL,
+      extraHeaders: decryptAndParseExtraHeaders(
+        modelConfig.config.apiKey.extraHeaders,
+      ),
     });
     const execution = await executeDecisionModelEvaluator({
       variables: params.variables,
@@ -221,29 +235,17 @@ async function testLlmEvaluator(params: {
         interpolatedPrompt: prompt,
       }) => {
         interpolatedPrompt = prompt;
-        const modelParams = {
-          provider: modelConfig.config.provider,
-          model: modelConfig.config.model,
-          adapter: modelConfig.config.apiKey.adapter,
-          ...modelConfig.config.modelParams,
-        };
-        const llmParams = mapLegacyLLMCompletionParams({
+        const result = await generateLlmEvaluatorOutput({
+          projectId: params.projectId,
           connection: modelConfig.config.apiKey,
-          messages,
-          modelParams,
-        });
-        const { providerMessages, traceMessages } =
-          await compileLangfuseMediaMessages({
-            projectId: params.projectId,
-            messages,
+          modelParams: {
+            provider: modelConfig.config.provider,
+            model: modelConfig.config.model,
             adapter: modelConfig.config.apiKey.adapter,
-          });
-        const result = await generateLLMText({
-          ...llmParams,
-          messages: providerMessages,
-          traceInput: traceMessages,
-          output: createLLMOutput(compiledOutputDefinition.outputResultSchema),
-          maxRetries: 1,
+            ...modelConfig.config.modelParams,
+          },
+          messages,
+          outputResultSchema: compiledOutputDefinition.outputResultSchema,
           trace: {
             targetProjectId: params.projectId,
             traceId: executionTraceId,
@@ -326,6 +328,7 @@ async function testCodeEvaluator(params: {
   evaluatorId: string;
   definition: Extract<NormalizedEvaluatorDefinition, { type: "CODE" }>;
   variables: ExtractedVariable[];
+  hasExperimentContext: boolean;
   executionMetadata: Record<string, string>;
   evaluationContext: ReturnType<
     typeof buildEvalExecutionData
@@ -349,6 +352,7 @@ async function testCodeEvaluator(params: {
     evaluator: { id: params.evaluatorId },
     version: params.definition,
     extractedVariables: params.variables,
+    hasExperimentContext: params.hasExperimentContext,
     traceName: "Test evaluator",
     metadata: params.executionMetadata,
     evaluationContext: params.evaluationContext,

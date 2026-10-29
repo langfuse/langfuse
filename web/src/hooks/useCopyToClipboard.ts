@@ -24,18 +24,15 @@ export function useCopyToClipboard({
   }, []);
 
   const runCopy = async (copyToClipboard: () => Promise<void> | void) => {
+    await copyToClipboard();
     setIsCopied(true);
-    try {
-      await copyToClipboard();
-    } finally {
-      if (timeoutRef.current) {
-        clearTimeout(timeoutRef.current);
-      }
-
-      timeoutRef.current = setTimeout(() => {
-        setIsCopied(false);
-      }, successDuration);
+    if (timeoutRef.current) {
+      clearTimeout(timeoutRef.current);
     }
+
+    timeoutRef.current = setTimeout(() => {
+      setIsCopied(false);
+    }, successDuration);
   };
 
   const copy = async (text: string) => runCopy(() => copyTextToClipboard(text));

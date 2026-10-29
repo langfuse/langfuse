@@ -43,6 +43,13 @@ export type ModelCatalogRefreshResult =
 
 const MODEL_CACHE_PREFIX = "ai-gateway:models";
 const MODEL_CACHE_TTL_SECONDS = 5 * 60;
+/**
+ * Codex sends its auto-review requests as `codex-auto-review`, which OpenAI serves but does not list in `/v1/models`.
+ * Listing it here keeps it allowed by default on every OpenAI connection while admins can still disable it.
+ */
+const CUSTOM_MODELS: Partial<Record<GatewayProviderName, string[]>> = {
+  OPENAI: ["codex-auto-review"],
+};
 
 export class GatewayModelCatalogService {
   private readonly repository: GatewayProviderRepository;
@@ -73,6 +80,42 @@ export class GatewayModelCatalogService {
         }),
       ),
     );
+  }
+
+  async listCachedModels(
+    organizationId: string,
+  ): Promise<ModelRefreshResult[]> {
+    const connections = await this.listAllConnections(
+      organizationId,
+      "ENABLED",
+    );
+    return Promise.all(
+      connections.map(async (connection) => {
+        const cachedModels = await this.getCachedModels(
+          organizationId,
+          connection.id,
+        );
+        return {
+          connectionId: connection.id,
+          success: true as const,
+          models:
+            cachedModels?.map(({ id }) => id) ?? connection.allowedModels ?? [],
+        };
+      }),
+    );
+  }
+
+  async listModelConnections(organizationId: string) {
+    const connections = await this.listAllConnections(
+      organizationId,
+      "ENABLED",
+    );
+    return connections.map(({ id, name, provider, allowedModels }) => ({
+      id,
+      name,
+      provider,
+      allowedModels,
+    }));
   }
 
   async refreshModels(params: {
@@ -202,7 +245,7 @@ export class GatewayModelCatalogService {
       fetcher: this.fetcher,
     });
     if (!models.success) {
-      if (models.error === "unauthorized") {
+      if (models.error === "unauthorized" && connection.status === "ENABLED") {
         await this.repository.updateConnectionStatus({
           organizationId: params.organizationId,
           id: connection.id,
@@ -220,11 +263,8 @@ export class GatewayModelCatalogService {
         error: models.error,
       };
     }
-    await this.cacheModels(
-      params.organizationId,
-      params.connectionId,
-      models.models,
-    );
+    const catalog = addCustomModels(provider, models.models);
+    await this.cacheModels(params.organizationId, params.connectionId, catalog);
     if (params.explicitRetry && connection.status === "ERROR") {
       await this.repository.updateConnectionStatus({
         organizationId: params.organizationId,
@@ -236,7 +276,7 @@ export class GatewayModelCatalogService {
     return {
       connectionId: connection.id,
       success: true,
-      models: models.models,
+      models: catalog,
     };
   }
 
@@ -277,6 +317,23 @@ export class GatewayModelCatalogService {
       // Redis is optional. Provider discovery still succeeds when it is unavailable.
     }
   }
+}
+
+function addCustomModels(
+  provider: GatewayProviderName,
+  models: GatewayModelCatalogEntry[],
+): GatewayModelCatalogEntry[] {
+  const discoveredIds = new Set(models.map(({ id }) => id));
+  const customModels = (CUSTOM_MODELS[provider] ?? [])
+    .filter((id) => !discoveredIds.has(id))
+    .map((id) => ({
+      id,
+      provider,
+      canonicalSlug: id,
+      displayName: id,
+      createdAt: new Date(0).toISOString(),
+    }));
+  return models.concat(customModels);
 }
 
 function isGatewayModelCatalog(

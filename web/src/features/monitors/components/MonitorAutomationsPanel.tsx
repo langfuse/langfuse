@@ -1,4 +1,4 @@
-/* eslint-disable @repo/no-style-props */
+/* eslint-disable @repo/no-style-props, @typescript-eslint/no-deprecated, @typescript-eslint/no-use-before-define -- Legacy UI usage retained during migration to design-system components. */
 import { useMemo, useCallback, useRef, useState } from "react";
 import {
   Check,
@@ -6,7 +6,8 @@ import {
   Plus,
   Slack,
   Webhook as WebhookIcon,
-} from "lucide-react";
+} from "@langfuse/icons";
+import { SiPagerduty } from "@langfuse/icons/si";
 
 import { api } from "@/src/utils/api";
 import { Button } from "@/src/components/ui/button";
@@ -22,7 +23,9 @@ import {
 } from "@/src/components/ui/dialog";
 import { DropdownMenu } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
 import {
+  actionTypeLabel,
   AutomationForm,
+  useAvailableActionTypes,
   WebhookSecretRender,
 } from "@/src/features/automations";
 import { cn } from "@/src/utils/tailwind";
@@ -33,19 +36,11 @@ import {
   TriggerEventSource,
 } from "@langfuse/shared";
 
-/** actionLabel maps each automation action type to its display name. */
-const actionLabel: Record<ActionTypes, string> = {
-  WEBHOOK: "Webhook",
-  SLACK: "Slack",
-  GITHUB_DISPATCH: "GitHub Dispatch",
-};
-
 const actionIcon = {
   WEBHOOK: WebhookIcon,
-  // eslint-disable-next-line @typescript-eslint/no-deprecated -- Preserve existing automation brand icons until their replacements are migrated.
   SLACK: Slack,
-  // eslint-disable-next-line @typescript-eslint/no-deprecated -- Preserve existing automation brand icons until their replacements are migrated.
   GITHUB_DISPATCH: Github,
+  PAGERDUTY: SiPagerduty,
 } satisfies Record<ActionTypes, typeof WebhookIcon>;
 
 /** MonitorAutomationsPanel lets the user select which automations fire for a monitor via explicit trigger IDs. */
@@ -230,7 +225,7 @@ const MonitorAutomationsListRow = ({
     <RowCheckbox checked={isSelected} />
     <ActionIcon
       type={automation.action.type as ActionTypes}
-      className="h-3.5 w-3.5 shrink-0"
+      className="icon-base shrink-0"
     />
     <span className="truncate" title={automation.name}>
       {automation.name}
@@ -247,7 +242,7 @@ const RowCheckbox = ({ checked }: { checked: boolean }) => (
       checked && "bg-primary text-primary-foreground",
     )}
   >
-    {checked && <Check className="h-3.5 w-3.5" />}
+    {checked && <Check size="base" />}
   </span>
 );
 
@@ -273,6 +268,7 @@ const AddAutomationDropdown = ({
   isDisabled?: boolean;
   onAutomationCreated: (automationId: string) => void;
 }) => {
+  const actionTypes = useAvailableActionTypes(ActionTypeSchema.options);
   const [draft, setDraft] = useState<NewAutomationDraft | null>(null);
   const [createdSecret, setCreatedSecret] =
     useState<CreatedWebhookSecret | null>(null);
@@ -297,10 +293,10 @@ const AddAutomationDropdown = ({
             icon: Plus,
             onClick: () => setDraft({}),
           },
-          ...ActionTypeSchema.options.map((actionType) => ({
+          ...actionTypes.map((actionType) => ({
             type: "item" as const,
             id: actionType,
-            title: actionLabel[actionType],
+            title: actionTypeLabel[actionType],
             icon: actionIcon[actionType],
             onClick: () => setDraft({ actionType }),
           })),
@@ -314,7 +310,7 @@ const AddAutomationDropdown = ({
             className={fullWidth ? "w-full" : undefined}
             {...getTriggerProps()}
           >
-            <Plus className="mr-2 h-4 w-4" />
+            <Plus size="base" color="default" __rawClassName="mr-2" />
             Automation
           </Button>
         )}
@@ -400,12 +396,12 @@ const ActionIcon = ({
 }) => {
   switch (type) {
     case "WEBHOOK":
-      return <WebhookIcon className={className} />;
+      return <WebhookIcon __rawClassName={className} />;
     case "SLACK":
-      // eslint-disable-next-line @typescript-eslint/no-deprecated -- see import note.
-      return <Slack className={className} />;
+      return <Slack __rawClassName={className} />;
     case "GITHUB_DISPATCH":
-      // eslint-disable-next-line @typescript-eslint/no-deprecated -- see import note.
-      return <Github className={className} />;
+      return <Github __rawClassName={className} />;
+    case "PAGERDUTY":
+      return <SiPagerduty __rawClassName={className} />;
   }
 };

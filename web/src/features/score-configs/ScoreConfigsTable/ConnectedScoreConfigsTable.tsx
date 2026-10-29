@@ -78,6 +78,7 @@ export function ConnectedScoreConfigsTable({
                 <ScoreConfigsTable
                   data={tableData}
                   pagination={{
+                    mode: "offset",
                     totalCount: configs.data?.totalCount ?? null,
                     onChange: setPaginationState,
                     state: paginationState,

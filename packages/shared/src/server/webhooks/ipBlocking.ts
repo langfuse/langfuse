@@ -1,4 +1,5 @@
 import ipaddr from "ipaddr.js";
+import { parseBlockedCidr } from "./parseBlockedCidr";
 
 // Static deny-list (IPv4 + IPv6) for SSRF protection
 const BLOCKED_CIDRS = [
@@ -52,6 +53,7 @@ export function isIPBlocked(
   ipString: string,
   whitelistedIPs: string[],
   whiteListedIpSegments: string[],
+  blockedIpSegments: string[] = [],
 ): boolean {
   try {
     const cleanedIp = normalizeIPAddress(ipString);
@@ -76,6 +78,10 @@ export function isIPBlocked(
     for (const { network, mask, kind } of whitelistedSegments) {
       if (ip.kind() !== kind) continue;
       if (ip.match(network, mask)) return false;
+    }
+
+    for (const cidr of blockedIpSegments ?? []) {
+      if (ipMatchesCidr(ip, cidr)) return true;
     }
 
     for (const { network, mask, kind } of blockedNetworks) {
@@ -141,6 +147,17 @@ export function isHostnameBlocked(hostname: string): boolean {
   }
 
   return false;
+}
+
+function ipMatchesCidr(
+  ip: ReturnType<typeof ipaddr.parse>,
+  cidr: string,
+): boolean {
+  // A malformed operator CIDR must not fail the whole check closed: that
+  // would block every public address. Startup validation uses this parser.
+  const parsed = parseBlockedCidr(cidr);
+  if (!parsed || ip.kind() !== parsed.network.kind()) return false;
+  return ip.match(parsed.network, parsed.prefix);
 }
 
 function normalizeIPAddress(ipString: string): string {

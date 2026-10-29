@@ -1,7 +1,16 @@
 import { describe, expect, it, vi } from "vitest";
 import type { DecisionModelRequest } from "../../evals/decisionModelEvaluatorExecution";
+import { createSecureLlmFetch } from "../secureLlmFetch";
 import { TYPESAFE_UPSTREAMS } from "../types";
 import { createTypeSafeDecisionModelClient } from "./typeSafeDecisionModelClient";
+
+vi.mock("../secureLlmFetch", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../secureLlmFetch")>();
+  return {
+    ...actual,
+    createSecureLlmFetch: vi.fn(actual.createSecureLlmFetch),
+  };
+});
 
 function jsonResponse(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -16,15 +25,19 @@ const request: DecisionModelRequest = {
     readiness: {
       type: "choice",
       instructions: "Is `reply` ready to send?",
-      criteria: { ready: null, needs_revision: null },
+      choices: [{ value: "ready" }, { value: "needs_revision" }],
     },
     frustration: {
       type: "score",
       instructions: "How frustrated is the customer?",
-      criteria: ["Calm", "Frustrated", "Angry"],
+      levels: [
+        { description: "Calm" },
+        { description: "Frustrated" },
+        { description: "Angry" },
+      ],
     },
     refund: {
-      type: "boolean",
+      type: "predicate",
       instructions: "Does `question` request a refund?",
     },
   },
@@ -68,14 +81,25 @@ describe("createTypeSafeDecisionModelClient", () => {
     expect(new Headers(init.headers).get("authorization")).toBe(
       "Bearer sk-test",
     );
-    // The SDK sends TypeSafe's native `noul` type for boolean questions.
+    // Score levels become a description list. Predicates go out as TypeSafe's noul type.
     expect(JSON.parse(init.body as string)).toEqual({
       model: "jev-latest",
       state: request.state,
       questions: {
-        readiness: request.questions.readiness,
-        frustration: request.questions.frustration,
-        refund: { ...request.questions.refund, type: "noul" },
+        readiness: {
+          type: "choice",
+          instructions: "Is `reply` ready to send?",
+          criteria: { ready: null, needs_revision: null },
+        },
+        frustration: {
+          type: "score",
+          instructions: "How frustrated is the customer?",
+          criteria: ["Calm", "Frustrated", "Angry"],
+        },
+        refund: {
+          type: "noul",
+          instructions: "Does `question` request a refund?",
+        },
       },
     });
 
@@ -133,6 +157,63 @@ describe("createTypeSafeDecisionModelClient", () => {
       );
     },
   );
+
+  it("posts to a custom base URL with the connection's extra headers", async () => {
+    const fetchImpl = vi.fn().mockResolvedValue(
+      jsonResponse({
+        model: "jev",
+        answers: { refund: { type: "noul", noul: 0.5 } },
+      }),
+    );
+
+    const client = createTypeSafeDecisionModelClient({
+      apiKey: "sk-test",
+      model: "jev-latest",
+      baseURL: "https://llm-proxy.example.com/typesafe/v1/",
+      extraHeaders: { "x-team": "evals" },
+      fetchImpl,
+    });
+    await client.evaluate({
+      state: request.state,
+      questions: { refund: request.questions.refund },
+    });
+
+    const [url, init] = fetchImpl.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe("https://llm-proxy.example.com/typesafe/v1/systemone");
+    const headers = new Headers(init.headers);
+    expect(headers.get("x-team")).toBe("evals");
+    expect(headers.get("authorization")).toBe("Bearer sk-test");
+  });
+
+  it("strips the connection's extra headers on cross-origin redirects", () => {
+    createTypeSafeDecisionModelClient({
+      apiKey: "sk-test",
+      model: "jev-latest",
+      baseURL: "https://llm-proxy.example.com/typesafe/v1",
+      extraHeaders: { "X-Api-Key": "proxy-secret", "x-team": "evals" },
+    });
+
+    expect(vi.mocked(createSecureLlmFetch)).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        additionalSensitiveHeaders: ["X-Api-Key", "x-team"],
+      }),
+    );
+  });
+
+  it("blocks a custom base URL that points at an internal address", async () => {
+    const client = createTypeSafeDecisionModelClient({
+      apiKey: "sk-test",
+      model: "jev-latest",
+      baseURL: "http://169.254.169.254/v1",
+    });
+
+    await expect(
+      client.evaluate({
+        state: request.state,
+        questions: { refund: request.questions.refund },
+      }),
+    ).rejects.toMatchObject({ name: "LLMValidationError" });
+  });
 
   it("tolerates the extra routing fields gateways add to the TypeSafe response", async () => {
     // OpenRouter returns its own id/provider and a cost inside usage; the model

@@ -1,4 +1,3 @@
-/* eslint-disable no-nested-ternary */
 import { z } from "zod";
 import { auditLog } from "@/src/features/audit-logs/server";
 import { throwIfNoProjectAccess } from "@/src/features/rbac";
@@ -36,6 +35,7 @@ import {
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
 import {
+  isoDateTime,
   BatchActionQuerySchema,
   BatchTableNames,
   BatchExportTableName,
@@ -55,6 +55,7 @@ import {
   ScoreDataTypeArray,
   ScoreDataTypeEnum,
   LISTABLE_SCORE_TYPES,
+  LangfuseNotFoundError,
 } from "@langfuse/shared";
 import { TRPCError } from "@trpc/server";
 import { createBatchActionJob } from "@/src/features/table/server";
@@ -431,16 +432,24 @@ export const traceRouter = createTRPCRouter({
         .map((o) => o.endTime)
         .filter((t) => t)
         .sort((a, b) => (a as Date).getTime() - (b as Date).getTime());
-      const latencyMs =
-        obsStartTimes.length > 0
-          ? obsEndTimes.length > 0
-            ? (obsEndTimes[obsEndTimes.length - 1] as Date).getTime() -
+      const latencyMs = (() => {
+        if (obsStartTimes.length > 0) {
+          if (obsEndTimes.length > 0) {
+            return (
+              (obsEndTimes[obsEndTimes.length - 1] as Date).getTime() -
               obsStartTimes[0]!.getTime()
-            : obsStartTimes.length > 1
-              ? obsStartTimes[obsStartTimes.length - 1]!.getTime() -
-                obsStartTimes[0]!.getTime()
-              : undefined
-          : undefined;
+            );
+          }
+          if (obsStartTimes.length > 1) {
+            return (
+              obsStartTimes[obsStartTimes.length - 1]!.getTime() -
+              obsStartTimes[0]!.getTime()
+            );
+          }
+          return undefined;
+        }
+        return undefined;
+      })();
 
       const scoresDomain =
         toDomainArrayWithStringifiedMetadata<ScoreDomain>(scores);
@@ -552,7 +561,9 @@ export const traceRouter = createTRPCRouter({
           ),
         );
 
-        await traceDeletionProcessor(input.projectId, input.traceIds);
+        await traceDeletionProcessor(input.projectId, input.traceIds, {
+          actor: { type: "USER", userId: ctx.session.user.id },
+        });
       }
     }),
   bookmark: protectedProjectProcedure
@@ -629,58 +640,45 @@ export const traceRouter = createTRPCRouter({
         projectId: input.projectId,
         scope: "objects:publish",
       });
-      try {
-        await auditLog({
-          session: ctx.session,
-          resourceType: "trace",
-          resourceId: input.traceId,
-          action: "publish",
-          after: input.public,
-        });
+      await auditLog({
+        session: ctx.session,
+        resourceType: "trace",
+        resourceId: input.traceId,
+        action: "publish",
+        after: input.public,
+      });
 
-        // eslint-disable-next-line @typescript-eslint/no-deprecated
-        const clickhouseTrace = await getTraceById({
-          traceId: input.traceId,
-          projectId: input.projectId,
-        });
-        if (!clickhouseTrace) {
-          logger.error(
-            `Trace not found in Clickhouse: ${input.traceId}. Skipping publishing.`,
-          );
-          throw new TRPCError({
-            code: "NOT_FOUND",
-            message: "Trace not found",
-          });
-        }
-        clickhouseTrace.public = input.public;
-        const promises = [
-          upsertTrace(convertTraceDomainToClickhouse(clickhouseTrace)),
-        ];
-        if (env.LANGFUSE_MIGRATION_V4_WRITE_MODE !== "legacy") {
-          promises.push(
-            updateEvents(
-              input.projectId,
-              { traceIds: [clickhouseTrace.id] },
-              { public: input.public },
-            ),
-          );
-        }
-        await Promise.all(promises);
-        return clickhouseTrace;
-      } catch (error) {
-        logger.error("Failed to call traces.publish", error);
-        throw new TRPCError({
-          code: "INTERNAL_SERVER_ERROR",
-        });
+      // eslint-disable-next-line @typescript-eslint/no-deprecated
+      const clickhouseTrace = await getTraceById({
+        traceId: input.traceId,
+        projectId: input.projectId,
+      });
+      if (!clickhouseTrace) {
+        throw new LangfuseNotFoundError("Trace not found");
       }
+      clickhouseTrace.public = input.public;
+      const promises = [
+        upsertTrace(convertTraceDomainToClickhouse(clickhouseTrace)),
+      ];
+      if (env.LANGFUSE_MIGRATION_V4_WRITE_MODE !== "legacy") {
+        promises.push(
+          updateEvents(
+            input.projectId,
+            { traceIds: [clickhouseTrace.id] },
+            { public: input.public },
+          ),
+        );
+      }
+      await Promise.all(promises);
+      return clickhouseTrace;
     }),
   getAgentGraphData: protectedGetTraceProcedure
     .input(
       z.object({
         projectId: z.string(),
         traceId: z.string(),
-        minStartTime: z.iso.datetime({ offset: true }),
-        maxStartTime: z.iso.datetime({ offset: true }),
+        minStartTime: isoDateTime({ offset: true }),
+        maxStartTime: isoDateTime({ offset: true }),
         // Optional fields for enforceTraceAccess middleware (supports public traces)
         timestamp: z.date().nullish(),
         fromTimestamp: z.date().nullish(),

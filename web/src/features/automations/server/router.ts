@@ -13,6 +13,11 @@ import {
   TriggerEventSourceSchema,
   ProjectNotificationEventTypeSchema,
 } from "@langfuse/shared";
+import {
+  PagerDutyRegionSchema,
+  PagerDutyRoutingKeySchema,
+  PagerDutyTestEventStepSchema,
+} from "@langfuse/shared/pagerduty";
 import { throwIfNoProjectAccess } from "@/src/features/rbac";
 import { v4 } from "uuid";
 import {
@@ -20,11 +25,19 @@ import {
   getAutomations,
   getAutomationById,
   getConsecutiveAutomationFailures,
+  getViewablePrivateSlackChannelIds,
+  maskPrivateSlackChannel,
   logger,
 } from "@langfuse/shared/src/server";
 import { generateWebhookSecret, encrypt } from "@langfuse/shared/encryption";
 import { processWebhookActionConfig } from "./webhookHelpers";
 import { processGitHubDispatchActionConfig } from "./githubDispatchHelpers";
+import {
+  processPagerDutyActionConfig,
+  sendPagerDutyTestEvent,
+  throwIfPagerDutyUnavailable,
+} from "@/src/features/pagerduty/server";
+import { maskActionForViewer, processSlackActionConfig } from "./slackHelpers";
 import { updateTriggerEventActions } from "./automationService";
 import { TRPCError } from "@trpc/server";
 import { auditLog } from "@/src/features/audit-logs/server";
@@ -160,10 +173,24 @@ export const automationsRouter = createTRPCRouter({
         scope: "automations:read",
       });
 
-      const automations = await getAutomations({
+      const allAutomations = await getAutomations({
         projectId: input.projectId,
         eventSource: input.eventSource,
       });
+      const viewablePrivateChannelIds = await getViewablePrivateSlackChannelIds(
+        {
+          projectId: input.projectId,
+          userId: ctx.session.user.id,
+          actions: allAutomations.map((automation) => automation.action),
+        },
+      );
+      const automations = allAutomations.map((automation) => ({
+        ...automation,
+        action: maskPrivateSlackChannel(
+          automation.action,
+          viewablePrivateChannelIds,
+        ),
+      }));
 
       // Project-notification channels are managed from project settings, not
       // the general Automations UI. When no eventSource is requested (the
@@ -206,7 +233,14 @@ export const automationsRouter = createTRPCRouter({
         });
       }
 
-      return automation;
+      return {
+        ...automation,
+        action: await maskActionForViewer({
+          action: automation.action,
+          projectId: input.projectId,
+          userId: ctx.session.user.id,
+        }),
+      };
     }),
 
   // Get execution history for an automation
@@ -293,18 +327,11 @@ export const automationsRouter = createTRPCRouter({
         finalActionConfig = webhookResult.finalActionConfig;
         newUnencryptedWebhookSecret = webhookResult.newUnencryptedWebhookSecret;
       } else if (input.actionType === "SLACK") {
-        // Validate that Slack integration exists for this project
-        const slackIntegration = await ctx.prisma.slackIntegration.findUnique({
-          where: { projectId: input.projectId },
+        finalActionConfig = await processSlackActionConfig({
+          actionConfig: input.actionConfig,
+          projectId: input.projectId,
+          userId: ctx.session.user.id,
         });
-
-        if (!slackIntegration) {
-          throw new TRPCError({
-            code: "NOT_FOUND",
-            message:
-              "Slack integration not found. Please connect your Slack workspace first.",
-          });
-        }
       } else if (input.actionType === "GITHUB_DISPATCH") {
         const githubResult = await processGitHubDispatchActionConfig({
           actionConfig: input.actionConfig,
@@ -312,6 +339,12 @@ export const automationsRouter = createTRPCRouter({
         });
         finalActionConfig = githubResult.finalActionConfig;
         newUnencryptedWebhookSecret = githubResult.githubToken;
+      } else if (input.actionType === "PAGERDUTY") {
+        throwIfPagerDutyUnavailable(ctx.session);
+        finalActionConfig = await processPagerDutyActionConfig({
+          actionConfig: input.actionConfig,
+          projectId: input.projectId,
+        });
       }
 
       const [trigger, action, automation] = await ctx.prisma.$transaction(
@@ -367,7 +400,11 @@ export const automationsRouter = createTRPCRouter({
       logger.info(`Created automation ${trigger.id} for action ${action.id}`);
 
       return {
-        action: convertActionToDomain(action),
+        action: await maskActionForViewer({
+          action: convertActionToDomain(action),
+          projectId: input.projectId,
+          userId: ctx.session.user.id,
+        }),
         trigger,
         automation,
         webhookSecret: newUnencryptedWebhookSecret, // Return webhook secret at top level for one-time display
@@ -406,18 +443,12 @@ export const automationsRouter = createTRPCRouter({
         });
         finalActionConfig = webhookResult.finalActionConfig;
       } else if (input.actionType === "SLACK") {
-        // Validate that Slack integration exists for this project
-        const slackIntegration = await ctx.prisma.slackIntegration.findUnique({
-          where: { projectId: input.projectId },
+        finalActionConfig = await processSlackActionConfig({
+          actionConfig: input.actionConfig,
+          existingActionConfig: existingAutomation.action.config,
+          projectId: input.projectId,
+          userId: ctx.session.user.id,
         });
-
-        if (!slackIntegration) {
-          throw new TRPCError({
-            code: "NOT_FOUND",
-            message:
-              "Slack integration not found. Please connect your Slack workspace first.",
-          });
-        }
       } else if (input.actionType === "GITHUB_DISPATCH") {
         const githubResult = await processGitHubDispatchActionConfig({
           actionConfig: input.actionConfig,
@@ -425,6 +456,13 @@ export const automationsRouter = createTRPCRouter({
           projectId: input.projectId,
         });
         finalActionConfig = githubResult.finalActionConfig;
+      } else if (input.actionType === "PAGERDUTY") {
+        throwIfPagerDutyUnavailable(ctx.session);
+        finalActionConfig = await processPagerDutyActionConfig({
+          actionConfig: input.actionConfig,
+          actionId: existingAutomation.action.id,
+          projectId: input.projectId,
+        });
       }
 
       const [action, trigger, automation] = await ctx.prisma.$transaction(
@@ -495,7 +533,11 @@ export const automationsRouter = createTRPCRouter({
       });
 
       return {
-        action: convertActionToDomain(action),
+        action: await maskActionForViewer({
+          action: convertActionToDomain(action),
+          projectId: input.projectId,
+          userId: ctx.session.user.id,
+        }),
         trigger,
         automation,
       };
@@ -630,5 +672,37 @@ export const automationsRouter = createTRPCRouter({
       });
 
       return count;
+    }),
+
+  sendPagerDutyTestEvent: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        region: PagerDutyRegionSchema,
+        routingKey: PagerDutyRoutingKeySchema.optional(),
+        actionId: z.string().optional(),
+        step: PagerDutyTestEventStepSchema,
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "automations:CUD",
+      });
+
+      throwIfPagerDutyUnavailable(ctx.session);
+      await sendPagerDutyTestEvent(input);
+
+      if (input.actionId) {
+        await auditLog({
+          session: ctx.session,
+          resourceType: "action",
+          resourceId: input.actionId,
+          action: "create",
+          after: { action: "test_event_sent", region: input.region },
+        });
+      }
+      return { success: true };
     }),
 });

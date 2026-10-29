@@ -1,8 +1,8 @@
 import { useState, type ReactNode } from "react";
 import { formatDistanceToNowStrict } from "date-fns";
-import { Check, Plus } from "lucide-react";
+import { Check, Plus } from "@langfuse/icons";
 
-import { Badge } from "@/src/components/ui/badge";
+import { Badge } from "@/src/components/design-system/Badge/Badge";
 import {
   Command,
   CommandEmpty,
@@ -41,9 +41,7 @@ function EvaluationRulePickerOption({ rule }: { rule: EvaluationRule }) {
           {rule.name}
         </span>
         {rule.enabled !== undefined ? (
-          <Badge variant="secondary" className="shrink-0 whitespace-nowrap">
-            {rule.enabled ? "Active" : "Inactive"}
-          </Badge>
+          <Badge color="filled" text={rule.enabled ? "Active" : "Inactive"} />
         ) : null}
       </div>
       {hasMetadata ? (
@@ -147,7 +145,7 @@ export function EvaluationRulePicker<Rule extends EvaluationRule>({
                   value="create new rule"
                   onSelect={() => select(onCreateRule)}
                 >
-                  <Plus className="h-4 w-4" />
+                  <Plus size="base" />
                   Create a new rule
                 </CommandItem>
               </CommandGroup>
@@ -162,7 +160,7 @@ export function EvaluationRulePicker<Rule extends EvaluationRule>({
                     title={reason}
                     className="py-2.5"
                   >
-                    <Check className="h-4 w-4 shrink-0" />
+                    <Check size="base" />
                     <EvaluationRulePickerOption rule={rule} />
                   </CommandItem>
                 ))}
@@ -179,7 +177,7 @@ export function EvaluationRulePicker<Rule extends EvaluationRule>({
                     className="py-2.5"
                     onSelect={() => select(() => onSelectAvailableRule(rule))}
                   >
-                    <Plus className="h-4 w-4 shrink-0" />
+                    <Plus size="base" />
                     <EvaluationRulePickerOption rule={rule} />
                   </CommandItem>
                 ))

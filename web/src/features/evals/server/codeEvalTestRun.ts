@@ -1,4 +1,3 @@
-/* eslint-disable no-nested-ternary */
 import {
   applyCommentFilters,
   buildEvalExecutionData,
@@ -150,24 +149,27 @@ async function runCodeEvalTestForObservation(params: {
         },
         include: { evaluator: true },
       });
-  const codeTemplate =
-    managedTemplate?.evaluator.type === EvalTemplateType.CODE
-      ? {
-          id: params.evalTemplateId,
-          name: managedTemplate.name,
-          version: 1,
-          sourceCode: managedTemplate.evaluator.source,
-          sourceCodeLanguage: managedTemplate.evaluator.language,
-        }
-      : storedVersion?.sourceCode && storedVersion.sourceCodeLanguage
-        ? {
-            id: storedVersion.evaluator.id,
-            name: storedVersion.evaluator.name,
-            version: storedVersion.version,
-            sourceCode: storedVersion.sourceCode,
-            sourceCodeLanguage: storedVersion.sourceCodeLanguage,
-          }
-        : null;
+  const codeTemplate = (() => {
+    if (managedTemplate?.evaluator.type === EvalTemplateType.CODE) {
+      return {
+        id: params.evalTemplateId,
+        name: managedTemplate.name,
+        version: 1,
+        sourceCode: managedTemplate.evaluator.source,
+        sourceCodeLanguage: managedTemplate.evaluator.language,
+      };
+    }
+    if (storedVersion?.sourceCode && storedVersion.sourceCodeLanguage) {
+      return {
+        id: storedVersion.evaluator.id,
+        name: storedVersion.evaluator.name,
+        version: storedVersion.version,
+        sourceCode: storedVersion.sourceCode,
+        sourceCodeLanguage: storedVersion.sourceCodeLanguage,
+      };
+    }
+    return null;
+  })();
 
   if (!codeTemplate) {
     throw new CodeEvalTestRunSetupError(

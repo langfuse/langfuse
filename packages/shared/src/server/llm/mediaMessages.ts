@@ -56,6 +56,12 @@ const EVALUATOR_MEDIA_TYPES = new Set([
   "video/3gpp",
 ]);
 
+const EVALUATOR_MEDIA_URL_UNSUPPORTED_ADAPTERS = new Set<LLMAdapter>([
+  // Bedrock Converse accepts inline bytes and S3 locations, but not HTTP(S) URLs.
+  // https://github.com/aws-samples/amazon-bedrock-samples/issues/684
+  LLMAdapter.Bedrock,
+]);
+
 export function normalizeEvaluatorMediaType(mediaType: string) {
   const normalized = mediaType.trim().toLowerCase();
   return MEDIA_TYPE_ALIASES[normalized] ?? normalized;
@@ -235,6 +241,15 @@ export async function compileLangfuseMediaMessages(params: {
           traceMessage: { ...message, content: traceContent },
         };
       }
+      if (
+        transport === "url" &&
+        EVALUATOR_MEDIA_URL_UNSUPPORTED_ADAPTERS.has(params.adapter)
+      ) {
+        return {
+          providerMessage: message,
+          traceMessage: { ...message, content: traceContent },
+        };
+      }
 
       // Resolve and load independent media objects concurrently. Promise.all
       // keeps the results in source order even if downloads finish out of order.
@@ -247,7 +262,7 @@ export async function compileLangfuseMediaMessages(params: {
           });
           if (!resolved) {
             throw new LLMValidationError({
-              code: "invalid-request",
+              code: "media-not-found",
               message: `Media asset ${match.id} was not found in this project`,
             });
           }

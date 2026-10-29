@@ -41,6 +41,16 @@ export function CreateProjectMemberDialogController({
     projectId: project?.id,
     scope: "projectMembers:CUD",
   });
+  const canManageOrgOwnership = useHasOrganizationAccess({
+    organizationId: orgId,
+    scope: "organizationMembers:manageOwnership",
+  });
+  // Org owners outrank any project role override they hold.
+  const canManageProjectOwnership =
+    useHasProjectAccess({
+      projectId: project?.id,
+      scope: "projectMembers:manageOwnership",
+    }) || canManageOrgOwnership;
   const hasProjectRoleEntitlement = useHasEntitlement("rbac-project-roles");
   const hasOnlySingleProjectAccess =
     !hasOrgAccess && hasProjectAccess && hasProjectRoleEntitlement;
@@ -90,6 +100,8 @@ export function CreateProjectMemberDialogController({
           project={project}
           hasOnlySingleProjectAccess={hasOnlySingleProjectAccess}
           hasProjectRoleEntitlement={hasProjectRoleEntitlement}
+          canManageOrgOwnership={canManageOrgOwnership}
+          canManageProjectOwnership={canManageProjectOwnership}
           isPending={createProjectMemberMutation.isPending}
           createProjectMember={(values) => {
             capture(

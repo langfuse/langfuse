@@ -1,4 +1,5 @@
-import { Play } from "lucide-react";
+/* eslint-disable @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
+import { Play } from "@langfuse/icons";
 
 import { Button } from "@/src/components/ui/button";
 import {
@@ -30,7 +31,7 @@ export function TestRunButton({
       className={disabledReason ? "pointer-events-none" : undefined}
       onClick={onRun}
     >
-      <Play className="mr-1.5 h-3.5 w-3.5" />
+      <Play size="base" color="default" __rawClassName="mr-1.5" />
       Run test on this sample
     </Button>
   );

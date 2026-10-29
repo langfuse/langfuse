@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 import { type ComponentProps } from "react";
 import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
 import {
@@ -5,17 +6,18 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/src/components/ui/dialog";
-import { CreateLLMApiKeyForm } from "./CreateLLMApiKeyForm";
+import {
+  CreateLLMApiKeyForm,
+  type LlmApiKeyListItem,
+  type LlmConnectionFormOwner,
+} from "./CreateLLMApiKeyForm";
 import { useUiCustomization } from "@/src/ee/features/ui-customization";
-import { type RouterOutputs } from "@/src/utils/api";
-
-type LlmApiKeyListItem = RouterOutputs["llmApiKey"]["all"]["data"][number];
 
 export function UpdateLLMApiKeyDialog({
-  projectId,
+  owner,
   children,
 }: {
-  projectId: string;
+  owner: LlmConnectionFormOwner;
   children: ComponentProps<
     typeof DialogController<LlmApiKeyListItem>
   >["children"];
@@ -31,7 +33,7 @@ export function UpdateLLMApiKeyDialog({
           </DialogHeader>
           <CreateLLMApiKeyForm
             key={apiKey.id}
-            projectId={projectId}
+            owner={owner}
             onSuccess={closeDialog}
             customization={uiCustomization}
             mode="update"

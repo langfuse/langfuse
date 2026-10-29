@@ -17,6 +17,7 @@ import { posthogIntegrationFormSchema } from "@/src/features/posthog-integration
 import { TRPCError } from "@trpc/server";
 import { env } from "@/src/env.mjs";
 import { validateWebhookURL } from "@langfuse/shared/src/server";
+import { areDestinationUrlsEquivalent } from "@/src/features/automations/destinationUrl";
 import {
   AnalyticsIntegrationExportSource,
   LangfuseNotFoundError,
@@ -114,9 +115,27 @@ export const posthogIntegrationRouter = createTRPCRouter({
           select: {
             exportSource: true,
             createdAt: true,
+            enabled: true,
             encryptedPosthogApiKey: true,
+            posthogHostName: true,
           },
         });
+
+      // A stored key is only sent to the hostname it was entered for.
+      if (
+        existingIntegration &&
+        !input.posthogProjectApiKey &&
+        !areDestinationUrlsEquivalent(
+          input.posthogHostname,
+          existingIntegration.posthogHostName,
+        )
+      ) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message:
+            "PostHog Project API Key is required when changing the hostname",
+        });
+      }
 
       // Write-only credential: blank/omitted keeps the persisted encrypted
       // value (write-only credential).
@@ -164,6 +183,12 @@ export const posthogIntegrationRouter = createTRPCRouter({
             // undefined → Prisma omits the column → preserves the persisted
             // value on partial updates.
             exportSource: config.exportSource,
+            // A re-enabled integration resumes from its old lastSyncAt; the
+            // worker clears the flag once it reaches the live tail. CREATE gets
+            // it from the column default.
+            ...(config.enabled && !existingIntegration?.enabled
+              ? { backfill: true }
+              : {}),
             // lastError is deliberately left intact so the last fault stays
             // visible until a successful run clears it.
           },

@@ -387,11 +387,15 @@ export class DataGenerator {
     for (const evalJobConfiguration of SEED_EVALUATOR_CONFIGS) {
       traces.forEach((trace, traceIndex) => {
         for (let i = 0; i < observationsPerTrace; i++) {
-          const obsType = this.randomBoolean(0.47)
-            ? "GENERATION"
-            : this.randomBoolean(0.94)
-              ? "SPAN"
-              : "EVENT";
+          const obsType = (() => {
+            if (this.randomBoolean(0.47)) {
+              return "GENERATION";
+            }
+            if (this.randomBoolean(0.94)) {
+              return "SPAN";
+            }
+            return "EVENT";
+          })();
 
           const observation: ObservationRecordInsertType = createObservation({
             id: generateEvalObservationId(
