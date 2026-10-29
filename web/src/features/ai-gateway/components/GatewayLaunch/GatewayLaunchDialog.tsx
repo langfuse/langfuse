@@ -29,11 +29,7 @@ const copy = {
   member: {
     title: "Get your own AI Gateway key",
     lead: "Create your own API key and use Claude Code, Codex or OpenCode through Langfuse.",
-    points: [
-      "Create your own keys",
-      "One key for Anthropic and OpenAI models",
-      "Works with Claude Code, Codex and OpenCode",
-    ],
+    points: ["Create your own keys", "One key for Anthropic and OpenAI models"],
   },
 };
 
