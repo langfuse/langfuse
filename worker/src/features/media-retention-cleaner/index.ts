@@ -162,7 +162,7 @@ export class MediaRetentionCleaner extends PeriodicExclusiveRunner {
       storageClient: getS3MediaStorageClient(
         env.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET!,
       ),
-      linkCleanupCutoffDate: workload.cutoffDate,
+      retentionCutoffDate: workload.cutoffDate,
     });
 
     // Record successful deletion metrics

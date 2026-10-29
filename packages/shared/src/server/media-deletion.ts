@@ -24,12 +24,28 @@ const expiredMediaWorkCondition = (params: {
   m.project_id = ${params.projectId}
   AND m.created_at <= ${params.cutoffDate}
   AND (
-    NOT EXISTS (
-      SELECT 1
-      FROM dataset_item_media dim
-      WHERE dim.project_id = ${params.projectId}
-        AND dim.media_id = m.id
-        AND dim.dataset_item_valid_from IS NOT NULL
+    (
+      NOT EXISTS (
+        SELECT 1
+        FROM dataset_item_media dim
+        WHERE dim.project_id = ${params.projectId}
+          AND dim.media_id = m.id
+          AND dim.dataset_item_valid_from IS NOT NULL
+      )
+      AND NOT EXISTS (
+        SELECT 1
+        FROM trace_media tm
+        WHERE tm.project_id = ${params.projectId}
+          AND tm.media_id = m.id
+          AND tm.created_at > ${params.cutoffDate}
+      )
+      AND NOT EXISTS (
+        SELECT 1
+        FROM observation_media om
+        WHERE om.project_id = ${params.projectId}
+          AND om.media_id = m.id
+          AND om.created_at > ${params.cutoffDate}
+      )
     )
     OR EXISTS (
       SELECT 1
@@ -82,6 +98,8 @@ export async function findExpiredMediaByProjectId(params: {
 /**
  * Find the oldest bounded retention batch. Each returned row either deletes
  * media or removes expired trace/observation links, so every batch progresses.
+ * Deduplication reuses media rows, so media older than the cutoff stays while
+ * a claimed dataset item or a link created after the cutoff still uses it.
  */
 export async function findExpiredMediaBatchByProjectId(params: {
   projectId: string;
@@ -172,17 +190,18 @@ export async function deleteMediaLinkRowsByProjectId(params: {
 /**
  * Delete media files from S3 first, then from PostgreSQL.
  * S3 is deleted first to avoid orphaned files if PG deletion succeeds but S3 fails.
- * A link cutoff preserves recent links when retention keeps dataset-protected media.
+ * Claimed dataset items always protect media. With a retention cutoff, trace
+ * and observation links created after it protect media too; only links older
+ * than the cutoff are removed from protected media.
  * Returns the number of media files deleted.
  */
 export async function deleteMediaFiles(params: {
   projectId: string;
   mediaFiles: MediaFileRef[];
   storageClient: StorageClient;
-  linkCleanupCutoffDate?: Date;
+  retentionCutoffDate?: Date;
 }): Promise<number> {
-  const { projectId, mediaFiles, storageClient, linkCleanupCutoffDate } =
-    params;
+  const { projectId, mediaFiles, storageClient, retentionCutoffDate } = params;
 
   if (mediaFiles.length === 0) {
     return 0;
@@ -197,29 +216,51 @@ export async function deleteMediaFiles(params: {
 
   for (const batch of chunks) {
     const mediaIds = batch.map((f) => f.id);
-    // Only a claimed association (validFrom set) protects media; pending rows
-    // (null validFrom) don't, so abandoned uploads are reclaimed by retention.
-    const datasetAssociatedMedia = await prisma.datasetItemMedia.findMany({
-      select: { mediaId: true },
-      where: {
-        projectId,
-        mediaId: { in: mediaIds },
-        datasetItemValidFrom: { not: null },
-      },
-      distinct: ["mediaId"],
-    });
-    const datasetAssociatedMediaIds = new Set(
-      datasetAssociatedMedia.map((media) => media.mediaId),
+    const retainedLinkFilter = retentionCutoffDate
+      ? {
+          where: {
+            projectId,
+            mediaId: { in: mediaIds },
+            createdAt: { gt: retentionCutoffDate },
+          },
+          select: { mediaId: true },
+          distinct: ["mediaId" as const],
+        }
+      : null;
+    const [datasetAssociatedMedia, retainedTraceLinks, retainedObsLinks] =
+      await Promise.all([
+        // Only a claimed association (validFrom set) protects media; pending
+        // rows (null validFrom) don't, so abandoned uploads are reclaimed.
+        prisma.datasetItemMedia.findMany({
+          select: { mediaId: true },
+          where: {
+            projectId,
+            mediaId: { in: mediaIds },
+            datasetItemValidFrom: { not: null },
+          },
+          distinct: ["mediaId"],
+        }),
+        retainedLinkFilter
+          ? prisma.traceMedia.findMany(retainedLinkFilter)
+          : [],
+        retainedLinkFilter
+          ? prisma.observationMedia.findMany(retainedLinkFilter)
+          : [],
+      ]);
+    const protectedMediaIds = new Set(
+      [
+        ...datasetAssociatedMedia,
+        ...retainedTraceLinks,
+        ...retainedObsLinks,
+      ].map((media) => media.mediaId),
     );
-    const deletableBatch = batch.filter(
-      (f) => !datasetAssociatedMediaIds.has(f.id),
-    );
+    const deletableBatch = batch.filter((f) => !protectedMediaIds.has(f.id));
     const deletableMediaIds = deletableBatch.map((f) => f.id);
-    const linkCleanupFilter = linkCleanupCutoffDate
+    const linkCleanupFilter = retentionCutoffDate
       ? {
           OR: [
             { mediaId: { in: deletableMediaIds } },
-            { createdAt: { lte: linkCleanupCutoffDate } },
+            { createdAt: { lte: retentionCutoffDate } },
           ],
         }
       : {};
