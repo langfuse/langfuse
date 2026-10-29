@@ -250,6 +250,58 @@ describe("OpenAI Adapter", () => {
     expect(result.data?.[0].tool_call_id).toBe("call_456");
   });
 
+  it("should not overwrite tool message role, name, or tool_call_id when content has colliding keys", () => {
+    const input = {
+      messages: [
+        {
+          role: "tool",
+          name: "get_user",
+          tool_call_id: "call_real_123",
+          content: {
+            name: "Alice",
+            role: "admin",
+            email: "a@x.io",
+            tool_call_id: "fake_tool_call_id",
+          },
+        },
+      ],
+    };
+
+    const result = normalizeInput(input, { framework: "openai" });
+    expect(result.success).toBe(true);
+    expect(result.data?.[0].role).toBe("tool");
+    expect(result.data?.[0].name).toBe("get_user");
+    expect(result.data?.[0].tool_call_id).toBe("call_real_123");
+    expect(typeof result.data?.[0].content).toBe("string");
+    expect(result.data?.[0].content).toContain("Alice");
+    expect(result.data?.[0].content).toContain("admin");
+  });
+
+  it("should preserve MCP tool results with content and isError without collision", () => {
+    const input = {
+      messages: [
+        {
+          role: "tool",
+          name: "mcp_tool",
+          tool_call_id: "call_mcp_1",
+          content: {
+            content: [{ type: "text", text: "Tool output text" }],
+            isError: false,
+          },
+        },
+      ],
+    };
+
+    const result = normalizeInput(input, { framework: "openai" });
+    expect(result.success).toBe(true);
+    expect(result.data?.[0].role).toBe("tool");
+    expect(result.data?.[0].name).toBe("mcp_tool");
+    expect(result.data?.[0].tool_call_id).toBe("call_mcp_1");
+    expect(result.data?.[0].content).toEqual([
+      { type: "text", text: "Tool output text" },
+    ]);
+  });
+
   describe("OpenAI Agents SDK format", () => {
     it("should convert function_call to assistant with tool_calls", () => {
       const output = [
