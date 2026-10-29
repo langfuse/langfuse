@@ -55,8 +55,8 @@ describe("agent setup instructions", () => {
 
       expect(markdown).toMatch(/^# /);
       expect(markdown).not.toContain("undefined");
-      expect(markdown.trimEnd()).toMatch(
-        new RegExp(`Docs: ${instructions.docsUrl}$`),
+      expect(markdown.trimEnd().endsWith(`Docs: ${instructions.docsUrl}`)).toBe(
+        true,
       );
     }
   });
