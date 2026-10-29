@@ -1,15 +1,16 @@
-import { Check, Settings2 } from "@langfuse/icons";
+import { Settings2 } from "@langfuse/icons";
 import { Button } from "@/src/components/design-system/Button/Button";
 import { DropdownMenu } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
 
 export type RunScoreDisplay = "collapsed" | "compact" | "regular";
 
-const displayOptions: { id: RunScoreDisplay; title: string }[] = [
+const DISPLAY_OPTIONS: { id: RunScoreDisplay; title: string }[] = [
   { id: "collapsed", title: "Collapsed" },
   { id: "compact", title: "Compact" },
   { id: "regular", title: "Regular" },
 ];
 
+/** Display menu for the run-level score summary only. */
 export function ExperimentScoreDisplaySettings({
   display,
   onDisplayChange,
@@ -20,13 +21,14 @@ export function ExperimentScoreDisplaySettings({
   return (
     <DropdownMenu
       title="Run-level scores"
-      ariaLabel="Run-level score display"
       placement="bottom-end"
-      items={displayOptions.map((option) => ({
-        ...option,
-        type: "item",
-        icon: display === option.id ? Check : undefined,
-        onClick: () => onDisplayChange(option.id),
+      items={DISPLAY_OPTIONS.map(({ id, title }) => ({
+        id,
+        title,
+        type: "checkbox",
+        checked: display === id,
+        closeOnCheckedChange: true,
+        onCheckedChange: () => onDisplayChange(id),
       }))}
     >
       {({ getTriggerProps }) => (

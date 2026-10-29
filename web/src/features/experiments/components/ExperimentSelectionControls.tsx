@@ -117,14 +117,15 @@ export function ExperimentSelectionControls({
     captureComparisonChanged,
   ]);
 
+  // A run is only a baseline when something is compared against it.
+  const isComparing = comparisonIds.length > 0;
+  const selectionLabel = isComparing ? "Baseline" : "Experiment";
+
   // The same marker the cells put in front of a value, so the run whose values
   // are plain is named as the baseline here. Absent when the cells show no
   // colour at all, which is what an empty colour order means.
-  const selectionLabel = comparisonIds.length > 0 ? "Baseline" : "Experiment";
   const baselineMarkerClass =
-    comparisonIds.length > 0 &&
-    baselineId &&
-    colorExperimentIds.includes(baselineId)
+    isComparing && baselineId && colorExperimentIds.includes(baselineId)
       ? getExperimentColorStyles(baselineId, colorExperimentIds).markerClass
       : undefined;
 

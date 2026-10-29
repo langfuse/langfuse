@@ -153,7 +153,7 @@ export function Table<TData extends object>({
   });
 
   const visibleColumns = table.getVisibleLeafColumns();
-  const cellPadding = rowHeight === "xs" ? "px-2 py-1" : "p-2";
+  const defaultCellPadding = rowHeight === "xs" ? "px-2 py-1" : "p-2";
 
   return (
     <div className="flex w-full max-w-full flex-1 flex-col overflow-auto">
@@ -318,7 +318,7 @@ export function Table<TData extends object>({
                           "h-full overflow-hidden border-b align-middle text-xs whitespace-nowrap",
                           column.columnDef.cellPadding === "none"
                             ? "p-0"
-                            : cellPadding,
+                            : defaultCellPadding,
                           column.columnDef.cellClassName,
                           column.columnDef.sensitive && "ph-no-capture",
                           column.columnDef.hideBelowMd &&
@@ -398,7 +398,9 @@ export function Table<TData extends object>({
                         key={cell.id}
                         className={cn(
                           "h-full overflow-hidden border-b align-middle text-xs whitespace-nowrap",
-                          column.cellPadding === "none" ? "p-0" : cellPadding,
+                          column.cellPadding === "none"
+                            ? "p-0"
+                            : defaultCellPadding,
                           column.cellClassName,
                           column.sensitive && "ph-no-capture",
                           column.hideBelowMd && "hidden md:table-cell",

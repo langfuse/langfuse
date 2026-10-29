@@ -75,9 +75,13 @@ function cells(label: string) {
     .map((cell) => cell.textContent);
 }
 
-function chooseDisplay(option: "Collapsed" | "Compact" | "Regular") {
+function openDisplayMenu() {
   fireEvent.click(screen.getByRole("button", { name: "Display" }));
-  fireEvent.click(screen.getByRole("button", { name: option }));
+}
+
+function chooseDisplay(option: "Collapsed" | "Compact" | "Regular") {
+  openDisplayMenu();
+  fireEvent.click(screen.getByRole("menuitemcheckbox", { name: option }));
 }
 
 describe("ExperimentScoreSummary", () => {
@@ -290,7 +294,17 @@ describe("ExperimentScoreSummary", () => {
   it("uses its own Display menu and remembers the choice", () => {
     renderSummary();
     expect(screen.getByText(/Deltas are/)).toBeInTheDocument();
-    chooseDisplay("Compact");
+    openDisplayMenu();
+    expect(
+      screen.getByRole("menuitemcheckbox", { name: "Regular" }),
+    ).toHaveAttribute("aria-checked", "true");
+    expect(
+      screen.getByRole("menuitemcheckbox", { name: "Compact" }),
+    ).toHaveAttribute("aria-checked", "false");
+    fireEvent.click(screen.getByRole("menuitemcheckbox", { name: "Compact" }));
+    expect(
+      screen.queryByRole("menuitemcheckbox", { name: "Compact" }),
+    ).not.toBeInTheDocument();
     expect(screen.queryByText(/Deltas are/)).not.toBeInTheDocument();
     expect(cells("recall")).toEqual(["recall (api)", "0.5", "0.75", "+0.25"]);
     cleanup();

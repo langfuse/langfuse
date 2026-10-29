@@ -1,31 +1,29 @@
 import { useId } from "react";
 import { type ColumnDef } from "@tanstack/react-table";
-import {
-  type AggregatedScoreData,
-  type ScoreAggregate,
-} from "@langfuse/shared";
+import { type AggregatedScoreData } from "@langfuse/shared";
 import {
   Table,
   type AsyncTableData,
 } from "@/src/components/design-system/table/Table";
-import { ScoreTag } from "@/src/components/ScoreTag";
 import { ExpandToggle } from "@/src/components/design-system/ExpandToggle/ExpandToggle";
+import { ScoreTag } from "@/src/components/ScoreTag";
 import useLocalStorage from "@/src/components/useLocalStorage";
-import {
-  ExperimentScoreDisplaySettings,
-  type RunScoreDisplay,
-} from "./ExperimentScoreDisplaySettings";
 import {
   getScoreLabelFromKey,
   splitScoreDataTypeIcon,
 } from "@/src/features/scores";
 import { useExperimentNames } from "@/src/features/experiments/hooks/useExperimentNames";
 import { api } from "@/src/utils/api";
+import {
+  ExperimentScoreDisplaySettings,
+  type RunScoreDisplay,
+} from "./ExperimentScoreDisplaySettings";
 
-type ExperimentScoreRow = {
+/** One numeric score, with its value per selected experiment. */
+type ScoreRow = {
   id: string;
   label: string;
-  scores: Record<string, ScoreAggregate>;
+  values: Record<string, number | undefined>;
 };
 
 function numericValue(score: AggregatedScoreData | undefined) {
@@ -46,14 +44,19 @@ function formatDelta(value: number | undefined) {
 }
 
 function tableData(
-  rows: ExperimentScoreRow[],
+  rows: ScoreRow[],
   query: { isPending: boolean; error: { message: string } | null },
-): AsyncTableData<ExperimentScoreRow[]> {
+): AsyncTableData<ScoreRow[]> {
   if (query.error) return { status: "error", error: query.error.message };
   if (query.isPending) return { status: "loading" };
   return { status: "success", data: rows };
 }
 
+/**
+ * Experiment-level (run-level) scores of the selected experiments, above the
+ * item table. These describe each whole experiment, so the item table's
+ * filters, page, and layout never change them.
+ */
 export function ExperimentScoreSummary({
   projectId,
   experimentIds,
@@ -70,58 +73,63 @@ export function ExperimentScoreSummary({
   );
   const expanded = display !== "collapsed";
   const compact = display === "compact";
-  const isComparing = Boolean(baselineId) && experimentIds.length > 1;
+  // Deltas and the "Baseline" label only mean something against another run.
+  const comparedBaselineId =
+    baselineId && experimentIds.length > 1 ? baselineId : undefined;
   const { experimentNames } = useExperimentNames({ projectId });
-  // Run scores describe the whole experiment, independent of the item table's
-  // filters, visible page, and layout.
   const metrics = api.experiments.metrics.useQuery(
     { projectId, experimentIds, filter: null },
     { enabled: Boolean(projectId) && experimentIds.length > 0 && expanded },
   );
 
-  const scores = Object.fromEntries(
-    (metrics.data ?? [])
-      .filter((metric) => experimentIds.includes(metric.id))
-      .map((metric) => [metric.id, metric.experimentScores]),
+  const scoresByExperiment = new Map(
+    (metrics.data ?? []).map((metric) => [metric.id, metric.experimentScores]),
   );
-  const keys = Array.from(
-    new Set(
-      Object.values(scores).flatMap((aggregate) =>
-        Object.entries(aggregate).flatMap(([key, score]) =>
-          score.type === "NUMERIC" ? [key] : [],
-        ),
+  const scoreKeys = new Set(
+    experimentIds.flatMap((id) =>
+      Object.entries(scoresByExperiment.get(id) ?? {}).flatMap(
+        ([key, score]) => (score.type === "NUMERIC" ? [key] : []),
       ),
     ),
-  ).sort((a, b) => a.localeCompare(b));
-  const rows = keys.map((key) => ({
-    id: key,
-    label: splitScoreDataTypeIcon(getScoreLabelFromKey(key)).label,
-    scores,
-  }));
+  );
+  const rows: ScoreRow[] = [...scoreKeys]
+    .sort((a, b) => a.localeCompare(b))
+    .map((key) => ({
+      id: key,
+      label: splitScoreDataTypeIcon(getScoreLabelFromKey(key)).label,
+      values: Object.fromEntries(
+        experimentIds.map((id) => [
+          id,
+          numericValue(scoresByExperiment.get(id)?.[key]),
+        ]),
+      ),
+    }));
 
-  const columns: ColumnDef<ExperimentScoreRow>[] = [
+  const columns: ColumnDef<ScoreRow>[] = [
     { accessorKey: "label", header: "Score", size: 220 },
-    ...experimentIds.flatMap((id): ColumnDef<ExperimentScoreRow>[] => {
+    ...experimentIds.flatMap((id): ColumnDef<ScoreRow>[] => {
       const name =
         experimentNames.find((experiment) => experiment.experimentId === id)
           ?.experimentName ?? id;
-      const valueColumn: ColumnDef<ExperimentScoreRow> = {
+      const valueColumn: ColumnDef<ScoreRow> = {
         id,
-        header: isComparing && id === baselineId ? `Baseline: ${name}` : name,
-        accessorFn: (row) => numericValue(row.scores[id]?.[row.id]),
+        header: id === comparedBaselineId ? `Baseline: ${name}` : name,
+        accessorFn: (row) => row.values[id],
         cell: ({ getValue }) => formatValue(getValue<number | undefined>()),
         cellClassName: "tabular-nums",
         size: 160,
       };
-      if (!baselineId || id === baselineId) return [valueColumn];
+      if (!comparedBaselineId || id === comparedBaselineId) {
+        return [valueColumn];
+      }
       return [
         valueColumn,
         {
           id: `delta-${id}`,
           header: "Δ vs baseline",
           accessorFn: (row) => {
-            const value = numericValue(row.scores[id]?.[row.id]);
-            const baseline = numericValue(row.scores[baselineId]?.[row.id]);
+            const value = row.values[id];
+            const baseline = row.values[comparedBaselineId];
             if (value === undefined || baseline === undefined) return undefined;
             return value - baseline;
           },
@@ -132,6 +140,7 @@ export function ExperimentScoreSummary({
       ];
     }),
   ];
+
   return (
     <section
       aria-label="Experiment-level score summary"
@@ -168,7 +177,7 @@ export function ExperimentScoreSummary({
             <p className="text-muted-foreground text-xs">
               Whole-experiment numeric scores. Item filters and pagination do
               not change these values.
-              {isComparing && " Deltas are comparison minus baseline."}
+              {comparedBaselineId && " Deltas are comparison minus baseline."}
             </p>
           )}
           <Table
