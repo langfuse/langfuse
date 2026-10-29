@@ -6,7 +6,7 @@ export default function AuthErrorPage() {
   const router = useRouter();
   const { error } = router.query;
   const errorMessage = error
-    ? decodeURIComponent(String(error))
+    ? String(error)
     : "An authentication error occurred. Please reach out to support.";
 
   return (
