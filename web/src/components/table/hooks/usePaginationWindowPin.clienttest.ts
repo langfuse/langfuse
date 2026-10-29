@@ -55,7 +55,7 @@ describe("usePaginationWindowPin", () => {
     // Rows keep arriving while the reader sits on page 1; leaving it must pin to
     // what was on screen, NOT to now, or page 2 re-includes the new arrivals.
     vi.setSystemTime(new Date(START.getTime() + 40_000));
-    act(() => result.current.pinOnLeavingFirstPage(1, NEWEST_ON_PAGE_1));
+    act(() => result.current.pinOnLeavingFirstPage(0, 1, NEWEST_ON_PAGE_1));
     rerender({ pageIndex: 1 });
     expect(result.current.range?.to).toEqual(NEWEST_ON_PAGE_1);
 
@@ -64,12 +64,19 @@ describe("usePaginationWindowPin", () => {
     rerender({ pageIndex: 2 });
     expect(result.current.range).toBe(pinned);
 
+    // Leaving page 3 must not move the upper bound to that older page's first
+    // row, otherwise the available page count shrinks with every next click.
+    act(() => result.current.pinOnLeavingFirstPage(2, 3, OLDEST_ON_PAGE_1));
+    rerender({ pageIndex: 3 });
+    expect(result.current.range).toBe(pinned);
+
+    act(() => result.current.pinOnLeavingFirstPage(3, 0, undefined));
     rerender({ pageIndex: 0 });
     expect(result.current.range?.to).toBeUndefined();
 
     // Going back out again re-pins to that page's newest row, not the stale one.
     const newerTop = new Date(START.getTime() + 60_000);
-    act(() => result.current.pinOnLeavingFirstPage(1, newerTop));
+    act(() => result.current.pinOnLeavingFirstPage(0, 1, newerTop));
     rerender({ pageIndex: 1 });
     expect(result.current.range?.to).toEqual(newerTop);
   });
@@ -95,7 +102,7 @@ describe("usePaginationWindowPin", () => {
     act(() => result.current.resetPin());
     expect(result.current.range?.to).toBeUndefined();
     rerender({ pageIndex: 0 });
-    act(() => result.current.pinOnLeavingFirstPage(1, NEWEST_ON_PAGE_1));
+    act(() => result.current.pinOnLeavingFirstPage(0, 1, NEWEST_ON_PAGE_1));
     rerender({ pageIndex: 1 });
     expect(result.current.range?.to).toEqual(NEWEST_ON_PAGE_1);
   });
@@ -107,7 +114,7 @@ describe("usePaginationWindowPin", () => {
       { initialProps: { pageIndex: 0 } },
     );
 
-    act(() => result.current.pinOnLeavingFirstPage(1, OLDEST_ON_PAGE_1));
+    act(() => result.current.pinOnLeavingFirstPage(0, 1, OLDEST_ON_PAGE_1));
     rerender({ pageIndex: 1 });
 
     expect(result.current.range?.to).toBeUndefined();
@@ -121,7 +128,7 @@ describe("usePaginationWindowPin", () => {
       { initialProps: { pageIndex: 0, enabled: true } },
     );
 
-    act(() => result.current.pinOnLeavingFirstPage(1, NEWEST_ON_PAGE_1));
+    act(() => result.current.pinOnLeavingFirstPage(0, 1, NEWEST_ON_PAGE_1));
     rerender({ pageIndex: 1, enabled: true });
     expect(result.current.range?.to).toEqual(NEWEST_ON_PAGE_1);
 
@@ -151,7 +158,7 @@ describe("usePaginationWindowPin", () => {
       { initialProps: { enabled: true } },
     );
 
-    act(() => result.current.pinOnLeavingFirstPage(1, NEWEST_ON_PAGE_1));
+    act(() => result.current.pinOnLeavingFirstPage(0, 1, NEWEST_ON_PAGE_1));
     expect(result.current.range?.to).toEqual(NEWEST_ON_PAGE_1);
 
     rerender({ enabled: false });

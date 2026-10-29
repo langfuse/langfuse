@@ -73,9 +73,18 @@ export function usePaginationWindowPin(
 
   /** Call from the pagination handler, where the leaving page's rows are known. */
   const pinOnLeavingFirstPage = useCallback(
-    (nextPageIndex: number, newestVisible: Date | undefined) => {
+    (
+      currentPageIndex: number,
+      nextPageIndex: number,
+      newestVisible: Date | undefined,
+    ) => {
       if (!enabled) return;
-      if (nextPageIndex > 0) setPinnedAt(newestVisible ?? new Date());
+
+      if (nextPageIndex === 0) {
+        setPinnedAt(null);
+      } else if (currentPageIndex === 0) {
+        setPinnedAt(newestVisible ?? new Date());
+      }
     },
     [enabled],
   );
