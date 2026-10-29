@@ -245,10 +245,9 @@ Your contributions are welcome!
 
 ## 🥇 License
 
-This repository is MIT licensed ([LICENSE](LICENSE)), except for the following:
-
-- All content that resides under the `ee/`, `web/src/ee/`, and `worker/src/ee/` directories is licensed under the Langfuse Enterprise License defined in [ee/LICENSE](ee/LICENSE).
-- All third party components incorporated into Langfuse are licensed under the original license provided by the owner of the applicable component.
+- Core: [MIT](LICENSE)
+- Enterprise Edition (`ee/`, `web/src/ee/`, `worker/src/ee/`, `packages/shared/src/server/ee/`): [Langfuse Enterprise License](LICENSE.enterprise)
+- Which license applies where: [LICENSING.md](LICENSING.md)
 
 See the [docs](https://langfuse.com/docs/open-source) for more details.
 

@@ -1,0 +1,15 @@
+Langfuse Enterprise License Notice
+
+Copyright (c) 2023-2026 ClickHouse, Inc.
+
+All content that resides under the "ee/", "web/src/ee/", "worker/src/ee/",
+and/or "packages/shared/src/server/ee/" directories of this repository, if
+these directories exist, is not licensed under the MIT License in "LICENSE".
+It is licensed under the Langfuse Enterprise License defined in "ee/LICENSE".
+
+All third party components incorporated into the Langfuse Software are
+licensed under the original license provided by the owner of the applicable
+component.
+
+See "LICENSING.md" for an overview of which license applies to which part of
+this repository.
