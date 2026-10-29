@@ -161,7 +161,7 @@ export function GatewayLaunchDialog({
               )}
               {state === "ask-admin" && (
                 <p role="status" className="text-muted-foreground text-sm">
-                  Ask an admin to set it up.
+                  Ask your admin to set it up.
                 </p>
               )}
             </div>
