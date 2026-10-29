@@ -28,6 +28,33 @@ const parserImplementations = [
 ] as const;
 
 describe("useChatMLParser", () => {
+  it("displays reasoning when a legacy completion is empty", () => {
+    const result = parseChatML(
+      [{ role: "user", content: "Explain your answer" }],
+      {
+        completion: "",
+        reasoning: "The evidence supports this conclusion.",
+      },
+      undefined,
+      undefined,
+    );
+
+    expect(result.canDisplayAsChat).toBe(true);
+    expect(result.allMessages).toEqual([
+      { role: "user", content: "Explain your answer" },
+      {
+        role: "assistant",
+        content: "",
+        thinking: [
+          {
+            type: "thinking",
+            content: "The evidence supports this conclusion.",
+          },
+        ],
+      },
+    ]);
+  });
+
   it.each(parserImplementations)(
     "$name parser highlights only skills requested by the current generation",
     ({ parse }) => {
