@@ -15,7 +15,6 @@ import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
 import { AIAssistedInput } from "@/src/components/ui/AIAssistedInput";
 import { Button } from "@/src/components/ui/button";
 import {
-  Card,
   CardContent,
   CardDescription,
   CardFooter,
@@ -471,7 +470,7 @@ export const MonitorForm = ({
     <Form {...form}>
       <form onSubmit={onSubmit} className="flex h-full gap-4 overflow-hidden">
         <div className="h-full min-h-0 w-full min-w-107.5 md:w-1/3">
-          <Card className="flex h-full flex-col">
+          <div className="flex h-full flex-col">
             <CardHeader>
               <CardTitle>Alert Configuration</CardTitle>
               <CardDescription>
@@ -954,7 +953,7 @@ export const MonitorForm = ({
                 </Button>
               </div>
             </CardFooter>
-          </Card>
+          </div>
         </div>
 
         <div className="hidden h-full w-2/3 min-w-107.5 flex-col gap-6 overflow-y-auto overscroll-contain md:flex">
@@ -991,8 +990,8 @@ const Header = ({
   step?: number;
   icon?: IconComponent;
 }) => (
-  <div className="bg-card sticky top-0 z-10">
-    <h3 className="flex items-center gap-2 py-2 text-lg font-bold">
+  <div className="sticky top-0 z-10">
+    <h3 className="bg-background flex items-center gap-2 pt-2 text-lg font-bold">
       {step != null ? (
         <span className="bg-foreground text-background flex h-6 w-6 items-center justify-center rounded-full text-sm font-bold">
           {step}
@@ -1001,6 +1000,11 @@ const Header = ({
       {Icon ? <Icon size="lg" aria-hidden="true" /> : null}
       {title}
     </h3>
+    {/* Fades content out as it slides under the pinned title. */}
+    <div
+      aria-hidden
+      className="from-background h-3 bg-linear-to-b to-transparent"
+    />
   </div>
 );
 

@@ -8,7 +8,7 @@ interface PropertyHoverCardProps {
   description?: string;
   unit?: string;
   type?: string;
-  children: React.ReactNode;
+  children: React.ReactElement<React.HTMLProps<HTMLElement>>;
 }
 
 export const PropertyHoverCard = ({
@@ -45,7 +45,10 @@ export const PropertyHoverCard = ({
         </div>
       }
     >
-      {({ getTriggerProps }) => <div {...getTriggerProps()}>{children}</div>}
+      {/* Anchors the card on the item itself, not a full-width wrapper. */}
+      {({ getTriggerProps }) =>
+        React.cloneElement(children, getTriggerProps(children.props))
+      }
     </HoverCard>
   );
 };

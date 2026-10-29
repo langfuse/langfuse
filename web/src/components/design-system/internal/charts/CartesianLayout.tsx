@@ -5,7 +5,7 @@ export const CARTESIAN_CHART_INSETS = {
   right: 16,
   bottomWithLabels: 26,
   bottomWithoutLabels: 12,
-  minLeft: 64,
+  minLeft: 32,
 };
 
 const Y_TICK_HEIGHT = 28;

@@ -246,8 +246,8 @@ const RowCheckbox = ({ checked }: { checked: boolean }) => (
   </span>
 );
 
-/** NewAutomationDraft is the pending create-automation dialog; an absent actionType lets the form pick its own default. */
-type NewAutomationDraft = { actionType?: ActionTypes };
+/** NewAutomationDraft is the pending create-automation dialog for the picked action type. */
+type NewAutomationDraft = { actionType: ActionTypes };
 
 /** CreatedWebhookSecret is the signing secret of a just-created webhook automation, shown once before the dialog closes. */
 type CreatedWebhookSecret = { automationId: string; webhookSecret: string };
@@ -285,22 +285,14 @@ const AddAutomationDropdown = ({
       <DropdownMenu
         disabled={isDisabled}
         placement="bottom-end"
-        items={[
-          {
-            type: "item",
-            id: "new",
-            title: "New automation",
-            icon: Plus,
-            onClick: () => setDraft({}),
-          },
-          ...actionTypes.map((actionType) => ({
-            type: "item" as const,
-            id: actionType,
-            title: actionTypeLabel[actionType],
-            icon: actionIcon[actionType],
-            onClick: () => setDraft({ actionType }),
-          })),
-        ]}
+        matchTriggerWidth={fullWidth}
+        items={actionTypes.map((actionType) => ({
+          type: "item" as const,
+          id: actionType,
+          title: actionTypeLabel[actionType],
+          icon: actionIcon[actionType],
+          onClick: () => setDraft({ actionType }),
+        }))}
       >
         {({ getTriggerProps }) => (
           <Button

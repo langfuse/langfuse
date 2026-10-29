@@ -10,6 +10,7 @@ import {
   offset,
   safePolygon,
   shift,
+  size,
   useClick,
   useDismiss,
   useFloating,
@@ -175,6 +176,8 @@ type DropdownMenuProps = {
   items: DropdownMenuItemDefinition[];
   disabled?: boolean;
   maxHeight?: React.CSSProperties["maxHeight"];
+  /** Sizes the menu to the trigger's width, e.g. for a full-width button. */
+  matchTriggerWidth?: boolean;
   placement?: Placement;
   search?: { placeholder: string };
   title?: string;
@@ -206,6 +209,7 @@ function DropdownMenuNode({
   internal = false,
   items,
   maxHeight = "15rem",
+  matchTriggerWidth = false,
   placement = "bottom-start",
   search,
   title,
@@ -241,7 +245,20 @@ function DropdownMenuNode({
       if (open) tree?.events.emit("menuopen", { nodeId, parentId });
     },
     placement,
-    middleware: [offset(4), flip(), shift({ padding: 8, crossAxis: true })],
+    middleware: [
+      offset(4),
+      flip(),
+      shift({ padding: 8, crossAxis: true }),
+      ...(matchTriggerWidth
+        ? [
+            size({
+              apply({ rects, elements }) {
+                elements.floating.style.width = `${rects.reference.width}px`;
+              },
+            }),
+          ]
+        : []),
+    ],
     transform: false,
     whileElementsMounted: autoUpdate,
   });
