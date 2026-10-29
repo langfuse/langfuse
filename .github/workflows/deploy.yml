@@ -114,9 +114,6 @@ jobs:
       IRONBANK_USER: ${{ secrets.IRONBANK_USER }}
       IRONBANK_PASS: ${{ secrets.IRONBANK_PASS }}
     strategy:
-      # Each service/region rollout is independent; one failed leg must not
-      # cancel the others mid-rollout. Any failure still alerts Slack below.
-      fail-fast: false
       matrix:
         service: ${{ fromJson(needs.affected-services.outputs.services) }}
         environment: ${{ fromJson(needs.affected-environments.outputs.environments) }}
