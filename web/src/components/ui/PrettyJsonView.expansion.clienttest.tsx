@@ -15,7 +15,6 @@ vi.mock("@/src/features/posthog-analytics/usePostHogClientCapture", () => ({
 
 import { PrettyJsonViewContent } from "@/src/components/ui/PrettyJsonViewContent";
 import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
-import { getJsonViewContentKind } from "@/src/components/ui/fns/getJsonViewContentKind";
 
 function renderPrettyJson(ui: ReactNode) {
   return render(ui);
@@ -99,8 +98,7 @@ describe("PrettyJsonView short-list expansion", () => {
             title="Input"
             onCopy={state.copy}
             actions={
-              getJsonViewContentKind(state) === "table" &&
-              state.hasExpandableRows
+              state.contentKind === "table" && state.hasExpandableRows
                 ? [
                     {
                       icon: state.allRowsExpanded
@@ -114,9 +112,7 @@ describe("PrettyJsonView short-list expansion", () => {
                   ]
                 : undefined
             }
-            variant={
-              getJsonViewContentKind(state) === "table" ? "table" : "text"
-            }
+            variant={state.contentKind === "table" ? "table" : "text"}
           >
             <PrettyJsonViewContent state={state} title="Input" borderless />
           </IOSection>
@@ -146,8 +142,7 @@ describe("PrettyJsonView short-list expansion", () => {
             title="Input"
             onCopy={state.copy}
             actions={
-              getJsonViewContentKind(state) === "table" &&
-              state.hasExpandableRows
+              state.contentKind === "table" && state.hasExpandableRows
                 ? [
                     {
                       icon: state.allRowsExpanded
@@ -161,9 +156,7 @@ describe("PrettyJsonView short-list expansion", () => {
                   ]
                 : undefined
             }
-            variant={
-              getJsonViewContentKind(state) === "table" ? "table" : "text"
-            }
+            variant={state.contentKind === "table" ? "table" : "text"}
           >
             <PrettyJsonViewContent state={state} title="Input" borderless />
           </IOSection>
@@ -202,8 +195,7 @@ describe("PrettyJsonView short-list expansion", () => {
             title="Input"
             onCopy={state.copy}
             actions={
-              getJsonViewContentKind(state) === "table" &&
-              state.hasExpandableRows
+              state.contentKind === "table" && state.hasExpandableRows
                 ? [
                     {
                       icon: state.allRowsExpanded
@@ -217,9 +209,7 @@ describe("PrettyJsonView short-list expansion", () => {
                   ]
                 : undefined
             }
-            variant={
-              getJsonViewContentKind(state) === "table" ? "table" : "text"
-            }
+            variant={state.contentKind === "table" ? "table" : "text"}
           >
             <PrettyJsonViewContent state={state} title="Input" borderless />
           </IOSection>
@@ -254,8 +244,7 @@ describe("PrettyJsonView short-list expansion", () => {
             title="Input"
             onCopy={state.copy}
             actions={
-              getJsonViewContentKind(state) === "table" &&
-              state.hasExpandableRows
+              state.contentKind === "table" && state.hasExpandableRows
                 ? [
                     {
                       icon: state.allRowsExpanded
@@ -269,9 +258,7 @@ describe("PrettyJsonView short-list expansion", () => {
                   ]
                 : undefined
             }
-            variant={
-              getJsonViewContentKind(state) === "table" ? "table" : "text"
-            }
+            variant={state.contentKind === "table" ? "table" : "text"}
           >
             <PrettyJsonViewContent state={state} title="Input" borderless />
           </IOSection>
@@ -294,8 +281,7 @@ describe("PrettyJsonView short-list expansion", () => {
             title="Input"
             onCopy={state.copy}
             actions={
-              getJsonViewContentKind(state) === "table" &&
-              state.hasExpandableRows
+              state.contentKind === "table" && state.hasExpandableRows
                 ? [
                     {
                       icon: state.allRowsExpanded
@@ -309,9 +295,7 @@ describe("PrettyJsonView short-list expansion", () => {
                   ]
                 : undefined
             }
-            variant={
-              getJsonViewContentKind(state) === "table" ? "table" : "text"
-            }
+            variant={state.contentKind === "table" ? "table" : "text"}
           >
             <PrettyJsonViewContent state={state} title="Input" borderless />
           </IOSection>
@@ -340,8 +324,7 @@ describe("PrettyJsonView short-list expansion", () => {
             title="Input"
             onCopy={state.copy}
             actions={
-              getJsonViewContentKind(state) === "table" &&
-              state.hasExpandableRows
+              state.contentKind === "table" && state.hasExpandableRows
                 ? [
                     {
                       icon: state.allRowsExpanded
@@ -355,9 +338,7 @@ describe("PrettyJsonView short-list expansion", () => {
                   ]
                 : undefined
             }
-            variant={
-              getJsonViewContentKind(state) === "table" ? "table" : "text"
-            }
+            variant={state.contentKind === "table" ? "table" : "text"}
           >
             <PrettyJsonViewContent state={state} title="Input" borderless />
           </IOSection>

@@ -7,7 +7,6 @@ import Image from "next/image";
 import { FoldVertical, UnfoldVertical, Pencil, Wrench } from "@langfuse/icons";
 import { IOSection } from "./IOSection";
 import { PrettyJsonViewContent } from "./PrettyJsonViewContent";
-import { getJsonViewContentKind } from "@/src/components/ui/fns/getJsonViewContentKind";
 import { IO_STICKY_HEADERS_CLASS } from "@/src/features/traces/constants/ioSectionClasses";
 
 const meta = preview.meta({
@@ -118,8 +117,7 @@ export const VariantMatrix = meta.story({
               title="Input"
               onCopy={state.copy}
               actions={
-                getJsonViewContentKind(state) === "table" &&
-                state.hasExpandableRows
+                state.contentKind === "table" && state.hasExpandableRows
                   ? [
                       {
                         icon: state.allRowsExpanded
@@ -133,9 +131,7 @@ export const VariantMatrix = meta.story({
                     ]
                   : undefined
               }
-              variant={
-                getJsonViewContentKind(state) === "table" ? "table" : "text"
-              }
+              variant={state.contentKind === "table" ? "table" : "text"}
             >
               <PrettyJsonViewContent state={state} title="Input" borderless />
             </IOSection>
@@ -189,8 +185,7 @@ export const VariantMatrix = meta.story({
               title="Output"
               onCopy={state.copy}
               actions={
-                getJsonViewContentKind(state) === "table" &&
-                state.hasExpandableRows
+                state.contentKind === "table" && state.hasExpandableRows
                   ? [
                       {
                         icon: state.allRowsExpanded
@@ -204,9 +199,7 @@ export const VariantMatrix = meta.story({
                     ]
                   : undefined
               }
-              variant={
-                getJsonViewContentKind(state) === "table" ? "table" : "text"
-              }
+              variant={state.contentKind === "table" ? "table" : "text"}
               tone="danger"
             >
               <PrettyJsonViewContent state={state} title="Output" borderless />

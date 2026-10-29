@@ -13,7 +13,6 @@ vi.mock("@/src/components/ui/LangfuseMediaView", () => ({
 }));
 
 import { PrettyJsonViewContent } from "@/src/components/ui/PrettyJsonViewContent";
-import { getJsonViewContentKind } from "@/src/components/ui/fns/getJsonViewContentKind";
 import { LARGE_STRING_RENDER_CHAR_LIMIT } from "@/src/components/ui/largeStringGate";
 import { MediaEnabledFields } from "@/src/features/media/validation";
 
@@ -38,8 +37,7 @@ describe("PrettyJsonView media layout", () => {
             title="Output"
             onCopy={state.copy}
             actions={
-              getJsonViewContentKind(state) === "table" &&
-              state.hasExpandableRows
+              state.contentKind === "table" && state.hasExpandableRows
                 ? [
                     {
                       icon: state.allRowsExpanded
@@ -53,9 +51,7 @@ describe("PrettyJsonView media layout", () => {
                   ]
                 : undefined
             }
-            variant={
-              getJsonViewContentKind(state) === "table" ? "table" : "text"
-            }
+            variant={state.contentKind === "table" ? "table" : "text"}
           >
             <PrettyJsonViewContent state={state} title="Output" borderless />
           </IOSection>

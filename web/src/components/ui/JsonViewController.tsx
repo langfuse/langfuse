@@ -31,7 +31,6 @@ import {
   transformJsonToTableData,
 } from "@/src/components/table/utils/jsonExpansionUtils";
 import { isLargeRenderString } from "@/src/components/ui/largeStringGate";
-import { generateChildRows } from "./fns/generateChildRows";
 
 // Custom expanded state type that allows false ("user intentionally collapsed all")
 type LangfuseExpandedState = ExpandedState | false;
@@ -447,7 +446,13 @@ export function JsonViewController(props: {
             actualExpansionState[keyPath]);
 
         if (shouldHaveChildren && row.rawChildData && !row.childrenGenerated) {
-          const children = generateChildRows(row);
+          const children = transformJsonToTableData(
+            row.rawChildData,
+            row.key,
+            row.level + 1,
+            row.id,
+            false,
+          );
           updatedRow = {
             ...row,
             subRows: children,
@@ -600,7 +605,17 @@ export function JsonViewController(props: {
     }),
   );
 
+  const contentKind = (() => {
+    if (largeStringValue !== null) return "large-string";
+    if (actualCurrentView === "json") return "json";
+    if (isEmpty) return "empty";
+    if (isMarkdown) return "markdown";
+    if (isChatML) return "json";
+    return "table";
+  })();
+
   return props.children({
+    contentKind,
     parsedJson,
     largeStringValue,
     jsonViewInput,
@@ -633,6 +648,7 @@ export function JsonViewController(props: {
 }
 
 export type JsonViewState = {
+  contentKind: "large-string" | "json" | "empty" | "markdown" | "table";
   parsedJson: unknown;
   largeStringValue: string | null;
   jsonViewInput: unknown;

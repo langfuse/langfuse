@@ -1,8 +1,6 @@
 /* eslint-disable no-nested-ternary, react/no-unstable-nested-components */
 /* eslint-disable @repo/no-style-props */
 import { type JsonViewState } from "./JsonViewController";
-import { generateChildRows } from "./fns/generateChildRows";
-import { getJsonViewContentKind } from "./fns/getJsonViewContentKind";
 import React, {
   useMemo,
   useState,
@@ -34,6 +32,7 @@ import { MarkdownView } from "@/src/components/ui/MarkdownView";
 
 import {
   convertRowIdToKeyPath,
+  transformJsonToTableData,
   type JsonTableRow,
 } from "@/src/components/table/utils/jsonExpansionUtils";
 import {
@@ -117,7 +116,13 @@ function generateAllChildrenRecursively(
   onRowGenerated?: (rowId: string) => void,
 ): void {
   if (row.rawChildData && !row.childrenGenerated) {
-    row.subRows = generateChildRows(row);
+    row.subRows = transformJsonToTableData(
+      row.rawChildData,
+      row.key,
+      row.level + 1,
+      row.id,
+      false,
+    );
     row.childrenGenerated = true;
     onRowGenerated?.(row.id);
     row.subRows.forEach((child) => {
@@ -546,7 +551,7 @@ export function PrettyJsonViewContent(props: {
   } = props.state;
   const codeClassName = props.codeClassName;
   const tableBorderless = props.borderless ?? false;
-  const contentKind = getJsonViewContentKind(props.state);
+  const contentKind = props.state.contentKind;
   const isPrettyView = props.state.currentView === "pretty";
   const isMarkdownMode = contentKind === "markdown";
   const shouldUseTableView = contentKind === "table";

@@ -32,7 +32,6 @@ vi.mock("@/src/components/ui/CodeJsonViewer", async (importOriginal) => {
 });
 
 import { PrettyJsonViewContent } from "@/src/components/ui/PrettyJsonViewContent";
-import { getJsonViewContentKind } from "@/src/components/ui/fns/getJsonViewContentKind";
 import { LARGE_STRING_RENDER_CHAR_LIMIT } from "@/src/components/ui/largeStringGate";
 
 describe("PrettyJsonView large-string gate (LFE-10991)", () => {
@@ -45,8 +44,7 @@ describe("PrettyJsonView large-string gate (LFE-10991)", () => {
             title="Input"
             onCopy={state.copy}
             actions={
-              getJsonViewContentKind(state) === "table" &&
-              state.hasExpandableRows
+              state.contentKind === "table" && state.hasExpandableRows
                 ? [
                     {
                       icon: state.allRowsExpanded
@@ -60,9 +58,7 @@ describe("PrettyJsonView large-string gate (LFE-10991)", () => {
                   ]
                 : undefined
             }
-            variant={
-              getJsonViewContentKind(state) === "table" ? "table" : "text"
-            }
+            variant={state.contentKind === "table" ? "table" : "text"}
           >
             <PrettyJsonViewContent state={state} title="Input" borderless />
           </IOSection>
@@ -92,8 +88,7 @@ describe("PrettyJsonView large-string gate (LFE-10991)", () => {
             title="Input"
             onCopy={state.copy}
             actions={
-              getJsonViewContentKind(state) === "table" &&
-              state.hasExpandableRows
+              state.contentKind === "table" && state.hasExpandableRows
                 ? [
                     {
                       icon: state.allRowsExpanded
@@ -107,9 +102,7 @@ describe("PrettyJsonView large-string gate (LFE-10991)", () => {
                   ]
                 : undefined
             }
-            variant={
-              getJsonViewContentKind(state) === "table" ? "table" : "text"
-            }
+            variant={state.contentKind === "table" ? "table" : "text"}
           >
             <PrettyJsonViewContent state={state} title="Input" borderless />
           </IOSection>
@@ -142,8 +135,7 @@ describe("PrettyJsonView large-string gate (LFE-10991)", () => {
             title="Input"
             onCopy={state.copy}
             actions={
-              getJsonViewContentKind(state) === "table" &&
-              state.hasExpandableRows
+              state.contentKind === "table" && state.hasExpandableRows
                 ? [
                     {
                       icon: state.allRowsExpanded
@@ -157,9 +149,7 @@ describe("PrettyJsonView large-string gate (LFE-10991)", () => {
                   ]
                 : undefined
             }
-            variant={
-              getJsonViewContentKind(state) === "table" ? "table" : "text"
-            }
+            variant={state.contentKind === "table" ? "table" : "text"}
           >
             <PrettyJsonViewContent state={state} title="Input" borderless />
           </IOSection>
@@ -184,8 +174,7 @@ describe("PrettyJsonView large-string gate (LFE-10991)", () => {
             title="Input"
             onCopy={state.copy}
             actions={
-              getJsonViewContentKind(state) === "table" &&
-              state.hasExpandableRows
+              state.contentKind === "table" && state.hasExpandableRows
                 ? [
                     {
                       icon: state.allRowsExpanded
@@ -199,9 +188,7 @@ describe("PrettyJsonView large-string gate (LFE-10991)", () => {
                   ]
                 : undefined
             }
-            variant={
-              getJsonViewContentKind(state) === "table" ? "table" : "text"
-            }
+            variant={state.contentKind === "table" ? "table" : "text"}
           >
             <PrettyJsonViewContent state={state} title="Input" borderless />
           </IOSection>

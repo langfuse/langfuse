@@ -12,7 +12,6 @@ import { PrettyJsonViewContent } from "@/src/components/ui/PrettyJsonViewContent
 import { MarkdownViewController } from "@/src/components/ui/MarkdownViewController";
 import { MarkdownViewContent } from "@/src/components/ui/MarkdownViewContent";
 import { canRenderContentAsMarkdown } from "@/src/components/ui/MarkdownJsonView";
-import { getJsonViewContentKind } from "@/src/components/ui/fns/getJsonViewContentKind";
 import { useMarkdownRenderCharacterLimit } from "@/src/hooks/useMarkdownRenderCharacterLimit";
 import { assertUnreachable } from "@/src/utils/types";
 
@@ -123,7 +122,7 @@ export function PromptMessagePreview({
               currentView="pretty"
             >
               {(state) => {
-                const kind = getJsonViewContentKind(state);
+                const kind = state.contentKind;
                 const sectionActions = [
                   ...(kind === "table" && state.hasExpandableRows
                     ? [

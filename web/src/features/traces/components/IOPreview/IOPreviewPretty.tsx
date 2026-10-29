@@ -14,7 +14,6 @@ import {
   deepParseJson,
 } from "@langfuse/shared";
 import { PrettyJsonViewContent } from "@/src/components/ui/PrettyJsonViewContent";
-import { getJsonViewContentKind } from "@/src/components/ui/fns/getJsonViewContentKind";
 import { IOSection, type IOSectionAction } from "@/src/components/ui/IOSection";
 import {
   FoldVertical,
@@ -133,8 +132,7 @@ function JsonInputOutputView({
               title="Input"
               onCopy={state.copy}
               actions={
-                getJsonViewContentKind(state) === "table" &&
-                state.hasExpandableRows
+                state.contentKind === "table" && state.hasExpandableRows
                   ? [
                       {
                         icon: state.allRowsExpanded
@@ -148,9 +146,7 @@ function JsonInputOutputView({
                     ]
                   : undefined
               }
-              variant={
-                getJsonViewContentKind(state) === "table" ? "table" : "text"
-              }
+              variant={state.contentKind === "table" ? "table" : "text"}
             >
               <PrettyJsonViewContent state={state} title="Input" borderless />
             </IOSection>
@@ -172,8 +168,7 @@ function JsonInputOutputView({
               title="Output"
               onCopy={state.copy}
               actions={
-                getJsonViewContentKind(state) === "table" &&
-                state.hasExpandableRows
+                state.contentKind === "table" && state.hasExpandableRows
                   ? [
                       {
                         icon: state.allRowsExpanded
@@ -188,9 +183,7 @@ function JsonInputOutputView({
                     ]
                   : outputActions
               }
-              variant={
-                getJsonViewContentKind(state) === "table" ? "table" : "text"
-              }
+              variant={state.contentKind === "table" ? "table" : "text"}
             >
               <PrettyJsonViewContent state={state} title="Output" borderless />
             </IOSection>
@@ -589,7 +582,7 @@ export function IOPreviewPretty({
               }
               actions={
                 parsedStatusMessage !== undefined &&
-                getJsonViewContentKind(state) === "table" &&
+                state.contentKind === "table" &&
                 state.hasExpandableRows
                   ? [
                       {
@@ -606,7 +599,7 @@ export function IOPreviewPretty({
               }
               variant={
                 parsedStatusMessage !== undefined &&
-                getJsonViewContentKind(state) === "table"
+                state.contentKind === "table"
                   ? "table"
                   : "text"
               }
@@ -874,7 +867,7 @@ export function IOPreviewPretty({
                                 currentView="pretty"
                               >
                                 {(state) => {
-                                  const kind = getJsonViewContentKind(state);
+                                  const kind = state.contentKind;
                                   const sectionActions = [
                                     ...(kind === "table" &&
                                     state.hasExpandableRows
@@ -1022,8 +1015,7 @@ export function IOPreviewPretty({
                                     currentView="pretty"
                                   >
                                     {(state) => {
-                                      const kind =
-                                        getJsonViewContentKind(state);
+                                      const kind = state.contentKind;
                                       const sectionActions = [
                                         ...(kind === "table" &&
                                         state.hasExpandableRows
@@ -1119,7 +1111,7 @@ export function IOPreviewPretty({
                                   currentView="pretty"
                                 >
                                   {(state) => {
-                                    const kind = getJsonViewContentKind(state);
+                                    const kind = state.contentKind;
                                     const sectionActions = [
                                       ...(kind === "table" &&
                                       state.hasExpandableRows
@@ -1248,8 +1240,7 @@ export function IOPreviewPretty({
                       title="Additional Input"
                       onCopy={state.copy}
                       actions={
-                        getJsonViewContentKind(state) === "table" &&
-                        state.hasExpandableRows
+                        state.contentKind === "table" && state.hasExpandableRows
                           ? [
                               {
                                 icon: state.allRowsExpanded
@@ -1263,11 +1254,7 @@ export function IOPreviewPretty({
                             ]
                           : undefined
                       }
-                      variant={
-                        getJsonViewContentKind(state) === "table"
-                          ? "table"
-                          : "text"
-                      }
+                      variant={state.contentKind === "table" ? "table" : "text"}
                     >
                       <PrettyJsonViewContent
                         state={state}
