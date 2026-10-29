@@ -1108,7 +1108,10 @@ describe("Token Cost Calculation", () => {
           level: "WARNING",
           statusMessage: "Client cancelled the response",
           scopeName: gatewayScope.name,
-          metadata: { scope: gatewayScope },
+          metadata: {
+            scope: gatewayScope,
+            "langfuse.gateway.api_key.id": "gateway-key-1",
+          },
           ingestionApiKey: gatewayAttribution.ingestionApiKey,
           input: "hello world",
           output: "[]",
@@ -1158,7 +1161,10 @@ describe("Token Cost Calculation", () => {
           modelName,
           level: "WARNING",
           scopeName: gatewayScope.name,
-          metadata: { scope: gatewayScope },
+          metadata: {
+            scope: gatewayScope,
+            "langfuse.gateway.api_key.id": "gateway-key-1",
+          },
           ingestionApiKey: gatewayAttribution.ingestionApiKey,
           providedUsageDetails: { input: 10, output: 5 },
           input: "hello world",

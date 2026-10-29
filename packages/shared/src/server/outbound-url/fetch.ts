@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { addSecureOutboundConnectionValidation } from "./connection";
 import type { OutboundUrlValidationWhitelist } from "./validation";
 import { logger } from "../logger";

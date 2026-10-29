@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 // Container hook: wires the draft-only search-bar store to the table's filter
 // state with a single, one-way data direction.
 //

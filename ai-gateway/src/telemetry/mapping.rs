@@ -531,6 +531,39 @@ mod tests {
         assert!(!attrs.contains_key("langfuse.trace.metadata"));
     }
 
+    // Langfuse stores this metadata key as the span's ingestion API key for
+    // gateway uploads, so callers must never be able to set it.
+    #[test]
+    fn caller_headers_never_supply_the_gateway_key_id() {
+        let mut headers = axum::http::HeaderMap::new();
+        headers.insert(
+            "langfuse-metadata",
+            "langfuse.gateway.api_key.id:header-key".parse().unwrap(),
+        );
+        headers.insert(
+            "baggage",
+            "langfuse_metadata_langfuse.gateway.api_key.id=baggage-key"
+                .parse()
+                .unwrap(),
+        );
+        let context = GenerationContext {
+            trace_id: "0123456789abcdef0123456789abcdef".into(),
+            observation_id: "0123456789abcdef".into(),
+            ..GenerationContext::from_headers(&headers)
+        };
+        assert!(context.metadata.contains_key("langfuse.gateway.api_key.id"));
+
+        let mut unattributed = facts();
+        unattributed.metadata["key_id"] = Value::Null;
+        for (facts, expected) in [(facts(), Some("key")), (unattributed, None)] {
+            let metadata = metadata(&attributes(&span(facts, &context)));
+            assert_eq!(
+                metadata.get("langfuse.gateway.api_key.id"),
+                expected.map(Value::from).as_ref()
+            );
+        }
+    }
+
     #[test]
     fn full_generation_preserves_native_content_attribution_and_completion_time() {
         let span = span(facts(), &context());

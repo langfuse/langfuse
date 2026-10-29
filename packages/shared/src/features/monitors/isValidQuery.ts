@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 /** isValidQuery.ts checks that a Monitor's (view, metric, filters) tuple
  * resolves against the v2 view declaration in the query package. Consumed as
  * a zod `superRefine` from the Monitor input schemas in `./types`. */

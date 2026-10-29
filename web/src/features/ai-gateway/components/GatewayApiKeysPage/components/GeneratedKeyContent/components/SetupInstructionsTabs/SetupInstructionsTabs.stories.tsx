@@ -6,7 +6,6 @@ import { SetupInstructionsTabs } from "./SetupInstructionsTabs";
 
 const context = {
   gatewayOrigin: "https://cloud.langfuse.com",
-  userId: "demo@langfuse.com",
 };
 
 const meta = preview.meta({ component: SetupInstructionsTabs });
