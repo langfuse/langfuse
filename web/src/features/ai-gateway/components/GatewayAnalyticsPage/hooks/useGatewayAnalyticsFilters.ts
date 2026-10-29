@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { type FilterState } from "@langfuse/shared";
+import type { FilterState } from "@langfuse/shared";
 
 import type { GatewayAnalyticsLabelSource } from "@/src/features/ai-gateway/components/GatewayAnalyticsPage/types/gatewayAnalyticsWidget";
 import { useDebounce } from "@/src/hooks/useDebounce";
@@ -11,8 +11,8 @@ import {
 import { type TimeRange } from "@/src/utils/date-range-utils";
 
 /**
- * Environment selection plus the user and API key filter builder, as on
- * dashboards. Filter values are IDs; options show member and API key names.
+ * Environment, user and API key selections. User and API key values are IDs;
+ * their options show member and API key names.
  */
 export function useGatewayAnalyticsFilters({
   projectId,
@@ -23,7 +23,8 @@ export function useGatewayAnalyticsFilters({
   timeRange: TimeRange;
   labels: Record<GatewayAnalyticsLabelSource, ReadonlyMap<string, string>>;
 }) {
-  const [builderFilters, setBuilderFilters] = useState<FilterState>([]);
+  const [userIds, setUserIds] = useState<string[]>([]);
+  const [apiKeyIds, setApiKeyIds] = useState<string[]>([]);
 
   const { environmentOptions, isReady } = useEnvironmentFilterOptionsCache({
     projectId,
@@ -35,33 +36,20 @@ export function useGatewayAnalyticsFilters({
 
   const filters = useMemo(
     () => [
-      ...builderFilters,
       ...convertSelectedEnvironmentsToFilter(
         ["environment"],
         selectedEnvironments,
       ),
+      ...anyOf("aiGatewayKeyOwnerUserId", userIds),
+      ...anyOf("aiGatewayKeyId", apiKeyIds),
     ],
-    [builderFilters, selectedEnvironments],
+    [selectedEnvironments, userIds, apiKeyIds],
   );
 
-  const filterColumns = useMemo(
-    () => [
-      {
-        name: "User",
-        id: "aiGatewayKeyOwnerUserId",
-        type: "stringOptions" as const,
-        options: toOptions(labels.users),
-        internal: "aiGatewayKeyOwnerUserId",
-      },
-      {
-        name: "API Key",
-        id: "aiGatewayKeyId",
-        type: "stringOptions" as const,
-        options: toOptions(labels.apiKeys),
-        internal: "aiGatewayKeyId",
-      },
-    ],
-    [labels],
+  const userOptions = useMemo(() => toOptions(labels.users), [labels.users]);
+  const apiKeyOptions = useMemo(
+    () => toOptions(labels.apiKeys),
+    [labels.apiKeys],
   );
 
   return {
@@ -72,10 +60,11 @@ export function useGatewayAnalyticsFilters({
       options: environmentOptions.map((value) => ({ value })),
       onValueChange: setSelectedEnvironmentsDebounced,
     },
-    builder: {
-      columns: filterColumns,
-      filterState: builderFilters,
-      onChange: setBuilderFilters,
+    user: { values: userIds, options: userOptions, onValueChange: setUserIds },
+    apiKey: {
+      values: apiKeyIds,
+      options: apiKeyOptions,
+      onValueChange: setApiKeyIds,
     },
   };
 }
@@ -85,4 +74,9 @@ function toOptions(labelMap: ReadonlyMap<string, string>) {
     value,
     displayValue,
   }));
+}
+
+function anyOf(column: string, values: string[]): FilterState {
+  if (values.length === 0) return [];
+  return [{ column, operator: "any of", value: values, type: "stringOptions" }];
 }

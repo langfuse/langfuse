@@ -7,7 +7,7 @@ import { GatewayAnalyticsWidgetCard } from "@/src/features/ai-gateway/components
 import { GATEWAY_ANALYTICS_WIDGETS } from "@/src/features/ai-gateway/components/GatewayAnalyticsPage/constants/gatewayAnalyticsWidgets";
 import { useGatewayAnalyticsFilters } from "@/src/features/ai-gateway/components/GatewayAnalyticsPage/hooks/useGatewayAnalyticsFilters";
 import { useGatewayAnalyticsLabels } from "@/src/features/ai-gateway/components/GatewayAnalyticsPage/hooks/useGatewayAnalyticsLabels";
-import { MultiSelect, PopoverFilterBuilder } from "@/src/features/filters";
+import { MultiSelect } from "@/src/features/filters";
 import {
   toAbsoluteTimeRange,
   type TimeRange,
@@ -36,9 +36,8 @@ export function GatewayAnalyticsDashboard({
     [timeRange],
   );
   const labels = useGatewayAnalyticsLabels(organizationId);
-  const { filters, isReady, environment, builder } = useGatewayAnalyticsFilters(
-    { projectId, timeRange, labels },
-  );
+  const { filters, isReady, environment, user, apiKey } =
+    useGatewayAnalyticsFilters({ projectId, timeRange, labels });
 
   return (
     <div className="flex flex-col gap-4">
@@ -52,18 +51,24 @@ export function GatewayAnalyticsDashboard({
           }}
         />
         {/* Option labels are member and API key names. */}
-        <div className="ph-no-capture flex items-center gap-2">
+        <div className="ph-no-capture flex flex-wrap items-center gap-2">
           <MultiSelect
             title="Environment"
             label="Env"
             className="my-0 w-auto overflow-hidden"
             {...environment}
           />
-          <PopoverFilterBuilder
-            columnIdentifier="id"
-            tableName="gateway-analytics"
-            isV4
-            {...builder}
+          <MultiSelect
+            title="User"
+            label="User"
+            className="my-0 w-auto overflow-hidden"
+            {...user}
+          />
+          <MultiSelect
+            title="API key"
+            label="API key"
+            className="my-0 w-auto overflow-hidden"
+            {...apiKey}
           />
         </div>
       </div>
