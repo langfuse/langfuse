@@ -610,6 +610,7 @@ describe("AI gateway live end-to-end", () => {
               user_id: admin.userId,
               key_name: `Gateway E2E ${provider} ${apiFormat}`,
               user_name: admin.userName || null,
+              user_email: admin.userEmail || null,
               key_metadata: {
                 test: true,
                 provider,
@@ -754,11 +755,11 @@ async function createGatewayAdmin() {
   const [organization, user] = await Promise.all([
     prisma.organization.findUniqueOrThrow({
       where: { id: ORGANIZATION_ID },
-      select: { id: true, name: true },
+      select: { id: true, name: true, email: true },
     }),
     prisma.user.findUniqueOrThrow({
       where: { id: membership.userId },
-      select: { id: true, name: true },
+      select: { id: true, name: true, email: true },
     }),
   ]);
   const session: Session = {
@@ -789,6 +790,7 @@ async function createGatewayAdmin() {
     caller: appRouter.createCaller({ ...context, prisma }),
     userId: user.id,
     userName: user.name,
+    userEmail: user.email,
   };
 }
 

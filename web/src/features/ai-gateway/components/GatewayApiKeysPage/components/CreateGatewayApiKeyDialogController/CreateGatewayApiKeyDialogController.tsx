@@ -39,8 +39,7 @@ type IssuedAs = "user" | "serviceAccount";
 
 const issuedAsDescriptions: Record<IssuedAs, string> = {
   user: "Stops working if you leave the organization.",
-  serviceAccount:
-    "Keeps working when people leave the organization. Requests use the key's name as user ID unless the client sends one.",
+  serviceAccount: "Keeps working when people leave the organization.",
 };
 
 export function CreateGatewayApiKeyDialogController({

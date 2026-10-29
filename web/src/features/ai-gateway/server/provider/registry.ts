@@ -53,6 +53,7 @@ export const GatewayResolveResponseSchema = z
         user_id: z.string().nullable(),
         key_name: z.string().nullable(),
         user_name: z.string().nullable(),
+        user_email: z.string().nullable(),
         key_metadata: GatewayMetadataSchema,
         provider_connection_id: z.string(),
       })

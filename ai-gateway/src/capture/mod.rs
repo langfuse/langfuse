@@ -181,6 +181,7 @@ impl ExecutionCapture {
                 "key_name": attribution.key_name().and_then(bounded_string),
                 "key_owner_user_id": attribution.user_id(),
                 "key_owner_name": attribution.user_name().and_then(bounded_string),
+                "key_owner_email": attribution.user_email().and_then(bounded_string),
                 "provider_connection_id": attribution.provider_connection_id(),
                 "connection_name": context.connection().name().and_then(bounded_string),
                 "provider": context.connection().provider().as_str(),

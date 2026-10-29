@@ -113,9 +113,10 @@ pub(super) fn span(facts: InferenceFacts, context: &GenerationContext) -> Value 
     span
 }
 
-/// A key bound to a user always attributes to that user, even inside a caller's
-/// trace. Keys without a bound user, such as service account keys, take the
-/// caller's user ID and otherwise fall back to the key's name.
+/// A key bound to a user always attributes to that user's email, or to their
+/// internal user ID when the email is unknown, even inside a caller's trace.
+/// Keys without a bound user, such as service account keys, take the caller's
+/// user ID and otherwise fall back to the key's name.
 fn user_id_source<'a>(
     facts: &'a InferenceFacts,
     context: &GenerationContext,
@@ -125,7 +126,11 @@ fn user_id_source<'a>(
         .get("key_owner_user_id")
         .and_then(Value::as_str)
     {
-        return Some(("api_key_owner", Some(owner)));
+        let email = facts
+            .metadata
+            .get("key_owner_email")
+            .and_then(Value::as_str);
+        return Some(("api_key_owner", Some(email.unwrap_or(owner))));
     }
     if context.attributes.contains_key(USER_ID_ATTRIBUTE) {
         return Some(("client", None));
@@ -756,21 +761,26 @@ mod tests {
             .attributes
             .insert("user.id".into(), json!("caller"));
         for context in [context(), caller_in_child] {
-            let mut owned = facts();
-            owned.metadata["key_owner_user_id"] = json!("owner");
-            let span = span(owned, &context);
-            let user_ids: Vec<_> = span["attributes"]
-                .as_array()
-                .unwrap()
-                .iter()
-                .filter(|attribute| attribute["key"] == "user.id")
-                .map(|attribute| attribute["value"]["stringValue"].clone())
-                .collect();
-            assert_eq!(user_ids, [json!("owner")]);
-            assert_eq!(
-                metadata(&attributes(&span))["langfuse.gateway.user_id_source"],
-                "api_key_owner"
-            );
+            for (email, expected) in [
+                (json!("owner@example.com"), "owner@example.com"),
+                (Value::Null, "owner"),
+            ] {
+                let mut owned = facts();
+                owned.metadata["key_owner_user_id"] = json!("owner");
+                owned.metadata["key_owner_email"] = email;
+                let span = span(owned, &context);
+                let user_ids: Vec<_> = span["attributes"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .filter(|attribute| attribute["key"] == "user.id")
+                    .map(|attribute| attribute["value"]["stringValue"].clone())
+                    .collect();
+                assert_eq!(user_ids, [json!(expected)]);
+                let metadata = metadata(&attributes(&span));
+                assert_eq!(metadata["langfuse.gateway.user_id_source"], "api_key_owner");
+                assert_eq!(metadata["langfuse.gateway.api_key.owner.user_id"], "owner");
+            }
         }
     }
 
