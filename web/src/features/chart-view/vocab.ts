@@ -184,7 +184,7 @@ export const DEFAULT_CONFIG: ChartViewConfig = {
   metric: "count",
   aggregation: "count",
   breakdown: "model",
-  chartType: "LINE_TIME_SERIES",
+  chartType: "BAR_TIME_SERIES",
   timeGranularity: "hour",
 };
 
