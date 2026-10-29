@@ -16,11 +16,26 @@ import {
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { GatewayHero } from "@/src/features/ai-gateway/components/GatewayLaunch/GatewayHero";
 
-const points = [
-  "A key for every member, cost attributed per person",
-  "Turn models on or off for your org",
-  "Every call traced in Langfuse",
-];
+const copy = {
+  admin: {
+    title: "Introducing Langfuse AI Gateway",
+    lead: "Point Claude Code, Codex or your SDK at one Langfuse endpoint. See what every member spends.",
+    points: [
+      "A key for every member, cost attributed per person",
+      "Turn models on or off for your org",
+      "Every call traced in Langfuse",
+    ],
+  },
+  member: {
+    title: "Get your own AI Gateway key",
+    lead: "Create your own API key and use Claude Code, Codex or OpenCode through Langfuse.",
+    points: [
+      "Create your own keys",
+      "One key for Anthropic and OpenAI models",
+      "Works with Claude Code, Codex and OpenCode",
+    ],
+  },
+};
 
 export function GatewayLaunchDialog({
   organizationId,
@@ -40,6 +55,7 @@ export function GatewayLaunchDialog({
   // Menus inside the dialog portal here, so the modal does not hide them from assistive tech.
   const [popoverContainer, setPopoverContainer] =
     useState<HTMLDivElement | null>(null);
+  const { title, lead, points } = copy[state === "setup" ? "admin" : "member"];
   const setupHref = (orgId: string) =>
     `/organization/${orgId}/settings/ai-gateway`;
 
@@ -59,11 +75,10 @@ export function GatewayLaunchDialog({
               <div className="flex flex-col gap-2 px-8 pt-6 pb-8">
                 {/* eslint-disable-next-line @typescript-eslint/no-deprecated -- design-system Dialog has no hero slot */}
                 <DialogTitle className="text-xl font-bold tracking-tight">
-                  Introducing Langfuse AI Gateway
+                  {title}
                 </DialogTitle>
                 <p className="text-muted-foreground text-base leading-relaxed">
-                  Point Claude Code, Codex or your SDK at one Langfuse endpoint.
-                  See what every member spends.
+                  {lead}
                 </p>
                 <ul className="text-muted-foreground mt-2 flex flex-col gap-1 text-sm">
                   {points.map((point) => (
@@ -127,6 +142,19 @@ export function GatewayLaunchDialog({
                     variant="primary"
                     text="Set up gateway"
                     href={setupHref(organizationId)}
+                  />
+                </span>
+              )}
+              {state === "get-key" && (
+                <span
+                  onClick={() =>
+                    capture("ai_gateway_launch:dialog_get_key_clicked")
+                  }
+                >
+                  <Button
+                    variant="primary"
+                    text="Get API key"
+                    href={`/organization/${organizationId}/settings/ai-gateway-api-keys`}
                   />
                 </span>
               )}

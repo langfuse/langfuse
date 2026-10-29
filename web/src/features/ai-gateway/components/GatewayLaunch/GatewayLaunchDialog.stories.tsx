@@ -65,6 +65,16 @@ export const AskAdmin = meta.story({
   },
 });
 
+export const GetApiKey = meta.story({
+  args: {
+    organizationId: acmeRobotics.organizationId,
+    state: "get-key",
+    setupOptions: [],
+    open: true,
+    onOpenChange: fn(),
+  },
+});
+
 export const PicksOrg = SetupSeveralOrgs.extend({
   name: "(Test) Picks Org",
   play: async ({ canvasElement, userEvent }) => {

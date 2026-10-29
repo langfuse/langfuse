@@ -1,5 +1,4 @@
 import { ArrowRight, X } from "@langfuse/icons";
-import Link from "next/link";
 import { useState } from "react";
 
 import { DismissController } from "@/src/components/DismissController";
@@ -75,27 +74,15 @@ export function GatewayLaunchBanner({
               </div>
             </div>
             <div className="flex shrink-0 items-center gap-2">
-              {state === "get-key" ? (
-                <Button asChild>
-                  <Link
-                    href={`/organization/${organizationId}/settings/ai-gateway-api-keys`}
-                    onClick={captureCta}
-                  >
-                    {ctaLabel(state)}
-                    {arrow}
-                  </Link>
-                </Button>
-              ) : (
-                <Button
-                  onClick={() => {
-                    captureCta();
-                    setOpen(true);
-                  }}
-                >
-                  {ctaLabel(state)}
-                  {arrow}
-                </Button>
-              )}
+              <Button
+                onClick={() => {
+                  captureCta();
+                  setOpen(true);
+                }}
+              >
+                {ctaLabel(state)}
+                {arrow}
+              </Button>
             </div>
             <span className="absolute top-2 right-2">
               <IconButton

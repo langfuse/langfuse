@@ -469,6 +469,7 @@ const events = {
     "banner_cta_clicked",
     "banner_dismissed",
     "dialog_setup_clicked",
+    "dialog_get_key_clicked",
     "dialog_learn_more_clicked",
   ],
   sidebar: [
