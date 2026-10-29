@@ -346,6 +346,10 @@ describe("OTel metadata processing", () => {
       ["2026-04-24T15:22:36.622Z", "2026-04-24 15:22:36.622"],
       ["None", undefined],
       ["v1", undefined],
+      ["0000-12-31T23:59:59.999Z", undefined],
+      ["0001-01-01T01:00:00+02:00", undefined],
+      ["+010000-01-01T00:00:00.000Z", undefined],
+      ["9999-12-31T23:00:00-02:00", undefined],
     ])("normalizes '%s' to %s", async (input, expected) => {
       const otelSpan = buildOtelSpan({
         scopeVersion: "4.5.0",
