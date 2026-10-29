@@ -76,12 +76,6 @@ describe("buildGatewayAnalyticsQuery", () => {
         value: ["key-1"],
         type: "stringOptions",
       },
-      {
-        column: "environment",
-        operator: "any of",
-        value: ["production"],
-        type: "stringOptions",
-      },
     ];
     const query = buildGatewayAnalyticsQuery(
       widget("cost-by-user"),

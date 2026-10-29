@@ -36,8 +36,7 @@ export function GatewayAnalyticsDashboard({
     [timeRange],
   );
   const labels = useGatewayAnalyticsLabels(organizationId);
-  const { filters, isReady, environment, user, apiKey } =
-    useGatewayAnalyticsFilters({ projectId, timeRange, labels });
+  const { filters, user, apiKey } = useGatewayAnalyticsFilters({ labels });
 
   return (
     <div className="flex flex-col gap-4">
@@ -52,12 +51,6 @@ export function GatewayAnalyticsDashboard({
         />
         {/* Option labels are member and API key names. */}
         <div className="ph-no-capture flex flex-wrap items-center gap-2">
-          <MultiSelect
-            title="Environment"
-            label="Env"
-            className="my-0 w-auto overflow-hidden"
-            {...environment}
-          />
           <MultiSelect
             title="User"
             label="User"
@@ -81,7 +74,7 @@ export function GatewayAnalyticsDashboard({
           triggerClassName="px-2"
         />
       </PageHeaderControlsPortal>
-      {absoluteTimeRange && isReady && (
+      {absoluteTimeRange && (
         <div className="grid grid-cols-1 gap-3 lg:grid-cols-6">
           {GATEWAY_ANALYTICS_WIDGETS.map((widget) => (
             <GatewayAnalyticsWidgetCard
