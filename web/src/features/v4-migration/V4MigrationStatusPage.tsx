@@ -1,4 +1,4 @@
-/* eslint-disable no-nested-ternary, react/no-unstable-nested-components, @typescript-eslint/no-use-before-define */
+/* eslint-disable no-nested-ternary, react/no-unstable-nested-components */
 /* eslint-disable @repo/no-null-render */
 import { useState, type ReactNode } from "react";
 import Link from "next/link";

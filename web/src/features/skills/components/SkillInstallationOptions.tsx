@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { useId, useState, type ChangeEvent } from "react";
 import { SkillNameSchema } from "@langfuse/shared";
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";

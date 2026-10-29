@@ -32,7 +32,6 @@ export function buildCodexInstructions(
           'touch "$CODEX_DIR/.env" && chmod 600 "$CODEX_DIR/.env"',
           `cat >> "$CODEX_DIR/.env" <<'EOF'`,
           `LANGFUSE_GATEWAY_KEY=${GATEWAY_KEY_PLACEHOLDER}`,
-          `LF_USER_ID=${context.userId}`,
           "EOF",
         ].join("\n"),
       },
@@ -49,7 +48,6 @@ export function buildCodexInstructions(
           `base_url = "${context.gatewayOrigin}/openai/v1"`,
           'env_key = "LANGFUSE_GATEWAY_KEY"',
           'wire_api = "responses"',
-          'env_http_headers = { "langfuse-user-id" = "LF_USER_ID" }',
         ].join("\n"),
       },
       {

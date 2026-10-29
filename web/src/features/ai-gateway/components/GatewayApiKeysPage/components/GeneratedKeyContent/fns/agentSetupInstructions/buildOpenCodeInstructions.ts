@@ -32,7 +32,6 @@ export function buildOpenCodeInstructions(
             baseURL: `${context.gatewayOrigin}${OPENCODE_PROVIDERS[provider].path}`,
             apiKey: "{env:LANGFUSE_GATEWAY_KEY}",
           },
-          headers: { "langfuse-user-id": context.userId },
         },
       ]),
     ),

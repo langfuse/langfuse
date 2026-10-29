@@ -5,6 +5,10 @@ import {
   validateQuery,
   type QueryType,
 } from "@langfuse/shared/query";
+import {
+  AI_GATEWAY_KEY_OWNER_USER_ID_METADATA_KEY,
+  AI_GATEWAY_SERVICE_NAME,
+} from "@langfuse/shared";
 import { env } from "@/src/env.mjs";
 import {
   createTrace,
@@ -4440,6 +4444,82 @@ describe("queryBuilder", () => {
         ),
       ).rejects.toThrow("Only one pairExpand dimension is supported per query");
     });
+  });
+
+  describe("AI gateway attribution (v2)", () => {
+    const itWithEventsTable =
+      env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN === "true" ? it : it.skip;
+
+    itWithEventsTable(
+      "attributes user-tied keys to their owner and leaves service keys out",
+      async () => {
+        const projectId = randomUUID();
+        const gatewayEvent = (params: {
+          keyId: string;
+          ownerUserId?: string;
+          userId?: string;
+        }) =>
+          createEvent({
+            project_id: projectId,
+            type: "GENERATION",
+            start_time: Date.now() * 1000,
+            service_name: AI_GATEWAY_SERVICE_NAME,
+            ingestion_api_key: params.keyId,
+            user_id: params.userId ?? null,
+            metadata_names: params.ownerUserId
+              ? [AI_GATEWAY_KEY_OWNER_USER_ID_METADATA_KEY]
+              : [],
+            metadata_values: params.ownerUserId ? [params.ownerUserId] : [],
+          });
+        await createEventsCh([
+          gatewayEvent({ keyId: "key-a1", ownerUserId: "user-a" }),
+          // A second key of the same owner, e.g. one revoked since.
+          gatewayEvent({ keyId: "key-a2", ownerUserId: "user-a" }),
+          // A service key whose caller claims to be user-a.
+          gatewayEvent({ keyId: "service-key", userId: "user-a" }),
+          // SDK traffic into the same project.
+          createEvent({
+            project_id: projectId,
+            type: "GENERATION",
+            start_time: Date.now() * 1000,
+            user_id: "user-a",
+            ingestion_api_key: "pk-lf-sdk",
+          }),
+        ]);
+
+        const result = await executeQuery(
+          projectId,
+          {
+            view: "observations",
+            dimensions: [{ field: "aiGatewayKeyOwnerUserId" }],
+            metrics: [{ measure: "count", aggregation: "count" }],
+            filters: [
+              {
+                column: "aiGatewayKeyOwnerUserId",
+                operator: "is not null",
+                value: "",
+                type: "null",
+              },
+            ],
+            timeDimension: null,
+            fromTimestamp: new Date(Date.now() - 86400000).toISOString(),
+            toTimestamp: new Date(Date.now() + 86400000).toISOString(),
+            orderBy: null,
+          },
+          "v2",
+          true,
+        );
+
+        expect(
+          Object.fromEntries(
+            result.map((row) => [
+              String(row["aiGatewayKeyOwnerUserId"]),
+              Number(row["count_count"]),
+            ]),
+          ),
+        ).toEqual({ "user-a": 2 });
+      },
+    );
   });
 });
 
