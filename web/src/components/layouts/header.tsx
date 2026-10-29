@@ -19,6 +19,8 @@ type HeaderProps = {
     href: string;
   };
   help?: { description: string; href?: string; className?: string };
+  /** Controls rendered right of the title, e.g. filters. */
+  actionButtonsLeft?: React.ReactNode;
   actionButtons?: React.ReactNode;
   className?: string;
 };
@@ -102,6 +104,7 @@ function BaseHeader({ ...props }: HeaderProps & { level: "h3" | "h4" | "h5" }) {
               />
             </Link>
           )}
+          {props.actionButtonsLeft}
         </div>
         {props.actionButtons ? (
           <div className="flex flex-wrap items-center gap-3">

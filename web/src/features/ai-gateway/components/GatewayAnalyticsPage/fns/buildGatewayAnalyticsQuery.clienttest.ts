@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import type { FilterState } from "@langfuse/shared";
 import { query as querySchema, validateQuery } from "@langfuse/shared/query";
 
 import { GATEWAY_ANALYTICS_WIDGETS } from "@/src/features/ai-gateway/components/GatewayAnalyticsPage/constants/gatewayAnalyticsWidgets";
@@ -9,7 +10,7 @@ const timeRange = {
   to: new Date("2026-01-31T00:00:00.000Z"),
 };
 
-const noFilters = { userIds: [], apiKeyIds: [] };
+const noFilters: FilterState = [];
 
 const widget = (id: string) => {
   const found = GATEWAY_ANALYTICS_WIDGETS.find((w) => w.id === id);
@@ -61,32 +62,34 @@ describe("buildGatewayAnalyticsQuery", () => {
     expect(query.orderBy).toBeNull();
   });
 
-  it("narrows every widget to the selected users and API keys", () => {
+  it("appends the header filters as valid v2 filters", () => {
+    const filters: FilterState = [
+      {
+        column: "aiGatewayKeyOwnerUserId",
+        operator: "any of",
+        value: ["user-a", "user-b"],
+        type: "stringOptions",
+      },
+      {
+        column: "aiGatewayKeyId",
+        operator: "any of",
+        value: ["key-1"],
+        type: "stringOptions",
+      },
+      {
+        column: "environment",
+        operator: "any of",
+        value: ["production"],
+        type: "stringOptions",
+      },
+    ];
     const query = buildGatewayAnalyticsQuery(
       widget("cost-by-user"),
       timeRange,
-      {
-        userIds: ["user-a", "user-b"],
-        apiKeyIds: ["key-1"],
-      },
+      filters,
     );
 
     expect(validateQuery(query, "v2")).toEqual({ valid: true });
-    expect(query.filters).toEqual(
-      expect.arrayContaining([
-        {
-          column: "aiGatewayKeyOwnerUserId",
-          operator: "any of",
-          value: ["user-a", "user-b"],
-          type: "stringOptions",
-        },
-        {
-          column: "aiGatewayKeyId",
-          operator: "any of",
-          value: ["key-1"],
-          type: "stringOptions",
-        },
-      ]),
-    );
+    expect(query.filters).toEqual(expect.arrayContaining(filters));
   });
 });
