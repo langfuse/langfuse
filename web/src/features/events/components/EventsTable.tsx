@@ -135,6 +135,7 @@ import {
   useApplyAppRootFallback,
 } from "@/src/features/events/hooks/useAppRootDefault";
 import { getAppRootSavedViewComparisonFilters } from "@/src/features/events/lib/appRootDefaultFilterPolicy";
+import { refreshEventsTable } from "@/src/features/events/lib/refreshEventsTable";
 import { useEventsFilterOptions } from "@/src/features/events/hooks/useEventsFilterOptions";
 import { getSafeRedirectPath } from "@/src/utils/redirect";
 
@@ -462,16 +463,13 @@ export default function ObservationsEventsTable({
   // A refresh is invalidation only: rows, counts and facet options share one
   // anchored window (see useLiveTableDateRange), so every refetch reuses its
   // query key and updates in place instead of re-keying into a cold load. The
-  // chart runs dashboard.executeQuery, which is invalidated alongside.
-  const handleRefresh = useCallback(() => {
+  // chart runs dashboard.executeQuery, which is invalidated alongside. The
+  // auxiliary queries are invalidated once the row refetch has settled so they
+  // do not compete with it (without row queries, in chart mode, it settles
+  // immediately).
+  const handleRefresh = useCallback(async () => {
     setChartRefreshedAt(startOfMinute(new Date()).getTime());
-    Promise.all([
-      utils.events.all.invalidate(),
-      utils.events.countAll.invalidate(),
-      // Invalidate filterOptions too so the "Total ≈ X" count refreshes.
-      utils.events.filterOptions.invalidate(),
-      utils.dashboard.executeQuery.invalidate(),
-    ]);
+    await refreshEventsTable(utils);
   }, [utils]);
 
   useEffect(() => {
@@ -716,6 +714,101 @@ export default function ObservationsEventsTable({
     [dateRange],
   );
 
+  // The sidebar's effective filter state is the single source of truth in both
+  // modes — the search bar syncs into it, and the facet counts below refine
+  // from the same state + embed scoping (LFE-14489).
+  const combinedFilterState = filterCore.filterState
+    .concat(dateRangeFilter)
+    .concat(embedScopeFilterState);
+
+  // Use external filter state if provided, otherwise use combined filter
+  // state. Even with an external filter, still apply the date-range bound so
+  // callers that pass an externalDateRange (e.g. the eval preview's "last 24
+  // hours" window) have it honored for the row query, not just score columns.
+  const filterState = externalFilterState
+    ? externalFilterState.concat(dateRangeFilter)
+    : combinedFilterState;
+
+  // Offer the chart on the full (v4) surface — not embedded, not user/session
+  // scoped. Unlike the old gate, an unsupported filter no longer HIDES the
+  // chart: the chart forwards what it can and the sidebar + search bar mark the
+  // rest as "not applied" (see chartFilterExclusions below).
+  const chartEnabled = showToolbar && !userId && !sessionId && !skill;
+
+  // Hide the strip where it would silently diverge from the table: prompt-version scope (not forwardable, no "not applied" affordance) or external date/filter pins.
+  const outlierStripEnabled =
+    chartEnabled &&
+    promptVersion === undefined &&
+    !externalDateRange &&
+    !externalFilterState;
+
+  // The chart is actually on screen (not just enabled). Only then do we mark
+  // the filters it can't honour as "not applied", so table mode stays untouched.
+  // Both surfaces read the same resolvers (chartFacetExclusionReason /
+  // chartSearchFieldReason) — a filter deactivates in the sidebar and its
+  // search-bar pill identically.
+  const chartActive = chartEnabled && chartViewMode === "chart";
+  // Free-text search is never applied to the chart (it has no aggregate form).
+  const chartFreeTextIgnored = chartActive && Boolean(searchQuery);
+  // A facet reads blocked when its column is unsupported OR when it holds a
+  // condition the chart drops (a metadata filter outside its keyed shape, a
+  // presence check), so the sidebar can never show a filter as applied that the
+  // chart query left out.
+  const chartBlockedColumnReason = useCallback(
+    (column: string) => chartFacetExclusionReason(filterState, column),
+    [filterState],
+  );
+
+  // Use the custom hook for observations data fetching
+  const {
+    observations,
+    canLoadAuxiliaryData,
+    isAuxiliaryDataDeferred,
+    totalCount,
+    uniqueTraceCount,
+    isTotalCountLoading,
+    isTotalCountError,
+    hasMore,
+    handleAddToAnnotationQueue,
+    isFetching,
+    isIoPending,
+    isSilencedError,
+    usedAppRootFallback,
+  } = useEventsTableData({
+    projectId,
+    filterState,
+    tableDataScope: {
+      projectId,
+      filter:
+        externalFilterState ??
+        filterCore.filterState.concat(embedScopeFilterState),
+      searchQuery,
+      searchType,
+      timeRange: externalDateRange ?? timeRange,
+    },
+    paginationState: limitRows
+      ? { page: 1, limit: limitRows }
+      : paginationState,
+    orderByState,
+    searchQuery,
+    searchType,
+    selectedRows,
+    selectAll,
+    setSelectedRows,
+    appRootFallbackEnabled: appRootDefault.isAutoManaged,
+    // In chart mode the table is hidden and the chart runs its own aggregate
+    // query — don't also run the expensive row + batched-I/O fetches.
+    rowsEnabled: !chartActive,
+    // The unpinned range: a re-anchored relative window re-arms the gate,
+    // while the pagination-pinned range would make it depend on the page.
+    auxiliaryDateRange: dateRange,
+    ioCharLimit: getRowHeightIOCharLimit(
+      rowHeight,
+      rowHeights.mode,
+      rowHeights.activeHeightPx,
+    ),
+  });
+
   // Fetch filter options. Lazy: start with the eagerly-visible facets and load
   // the rest (high-cardinality userId/sessionId, model/prompt/score facets) only
   // when a sidebar section is opened or a field is typed into the search bar.
@@ -735,6 +828,9 @@ export default function ObservationsEventsTable({
     // "Total ≈ X" rides the facet scan (uniq(span_id) over facetRefiningFilter); skip for embedded/preview tables.
     includeApproxCount: !limitRows,
     lazy: true,
+    // Facet scans wait for the rows so they do not compete with the row query.
+    enabled: canLoadAuxiliaryData,
+    deferred: isAuxiliaryDataDeferred,
   });
 
   // Partial scope (over-counts) when the server dropped filters (input/output/comment) or a full-text search is active.
@@ -897,96 +993,6 @@ export default function ObservationsEventsTable({
   //         },
   //       ]
   //     : [];
-
-  // The sidebar's effective filter state is the single source of truth in both
-  // modes — the search bar syncs into it, and the facet counts above refine
-  // from the same state + embed scoping (LFE-14489).
-  const combinedFilterState = queryFilter.effectiveFilterState
-    .concat(dateRangeFilter)
-    .concat(embedScopeFilterState);
-
-  // Use external filter state if provided, otherwise use combined filter
-  // state. Even with an external filter, still apply the date-range bound so
-  // callers that pass an externalDateRange (e.g. the eval preview's "last 24
-  // hours" window) have it honored for the row query, not just score columns.
-  const filterState = externalFilterState
-    ? externalFilterState.concat(dateRangeFilter)
-    : combinedFilterState;
-
-  // Offer the chart on the full (v4) surface — not embedded, not user/session
-  // scoped. Unlike the old gate, an unsupported filter no longer HIDES the
-  // chart: the chart forwards what it can and the sidebar + search bar mark the
-  // rest as "not applied" (see chartFilterExclusions below).
-  const chartEnabled = showToolbar && !userId && !sessionId && !skill;
-
-  // Hide the strip where it would silently diverge from the table: prompt-version scope (not forwardable, no "not applied" affordance) or external date/filter pins.
-  const outlierStripEnabled =
-    chartEnabled &&
-    promptVersion === undefined &&
-    !externalDateRange &&
-    !externalFilterState;
-
-  // The chart is actually on screen (not just enabled). Only then do we mark
-  // the filters it can't honour as "not applied", so table mode stays untouched.
-  // Both surfaces read the same resolvers (chartFacetExclusionReason /
-  // chartSearchFieldReason) — a filter deactivates in the sidebar and its
-  // search-bar pill identically.
-  const chartActive = chartEnabled && chartViewMode === "chart";
-  // Free-text search is never applied to the chart (it has no aggregate form).
-  const chartFreeTextIgnored = chartActive && Boolean(searchQuery);
-  // A facet reads blocked when its column is unsupported OR when it holds a
-  // condition the chart drops (a metadata filter outside its keyed shape, a
-  // presence check), so the sidebar can never show a filter as applied that the
-  // chart query left out.
-  const chartBlockedColumnReason = useCallback(
-    (column: string) => chartFacetExclusionReason(filterState, column),
-    [filterState],
-  );
-
-  // Use the custom hook for observations data fetching
-  const {
-    observations,
-    totalCount,
-    uniqueTraceCount,
-    isTotalCountLoading,
-    isTotalCountError,
-    hasMore,
-    handleAddToAnnotationQueue,
-    isFetching,
-    isIoPending,
-    isSilencedError,
-    usedAppRootFallback,
-  } = useEventsTableData({
-    projectId,
-    filterState,
-    tableDataScope: {
-      projectId,
-      filter:
-        externalFilterState ??
-        queryFilter.effectiveFilterState.concat(embedScopeFilterState),
-      searchQuery,
-      searchType,
-      timeRange: externalDateRange ?? timeRange,
-    },
-    paginationState: limitRows
-      ? { page: 1, limit: limitRows }
-      : paginationState,
-    orderByState,
-    searchQuery,
-    searchType,
-    selectedRows,
-    selectAll,
-    setSelectedRows,
-    appRootFallbackEnabled: appRootDefault.isAutoManaged,
-    // In chart mode the table is hidden and the chart runs its own aggregate
-    // query — don't also run the expensive row + batched-I/O fetches.
-    rowsEnabled: !chartActive,
-    ioCharLimit: getRowHeightIOCharLimit(
-      rowHeight,
-      rowHeights.mode,
-      rowHeights.activeHeightPx,
-    ),
-  });
 
   useApplyAppRootFallback({
     additionalRowsFound: usedAppRootFallback,
@@ -2295,6 +2301,7 @@ export default function ObservationsEventsTable({
                 fromTimestamp={chartTimeWindow.from}
                 toTimestamp={chartTimeWindow.to}
                 searchIgnored={Boolean(searchQuery)}
+                enabled={canLoadAuxiliaryData}
                 onSelectRange={setTimeRangeTransient}
               />
             )}

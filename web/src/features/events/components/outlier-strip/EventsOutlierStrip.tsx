@@ -164,6 +164,7 @@ export function EventsOutlierStrip({
   fromTimestamp,
   toTimestamp,
   searchIgnored = false,
+  enabled = true,
   onSelectRange,
 }: {
   projectId: string;
@@ -172,6 +173,8 @@ export function EventsOutlierStrip({
   toTimestamp: Date;
   /** The table has an active free-text search the strip cannot apply. */
   searchIgnored?: boolean;
+  /** Holds the aggregate query back and shows the loading state. */
+  enabled?: boolean;
   onSelectRange: (range: { from: Date; to: Date }) => void;
 }) {
   const capture = usePostHogClientCapture();
@@ -231,7 +234,7 @@ export function EventsOutlierStrip({
     {
       // Wait for the first width measurement, and never run a partially
       // filtered query when the table state cannot be represented.
-      enabled: validRange && width > 0 && canApplyFilters,
+      enabled: enabled && validRange && width > 0 && canApplyFilters,
       // Keep the previous bins ONLY across same-grid refetches (auto-refresh
       // ticks re-key the query via the re-evaluated relative window) — a
       // persistent band must not flash to a skeleton every interval. A grid

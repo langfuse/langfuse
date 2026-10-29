@@ -1,5 +1,5 @@
 import { api, sendAsPostOption } from "@/src/utils/api";
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   type FilterState,
   AnnotationQueueObjectType,
@@ -51,11 +51,41 @@ type UseEventsTableDataParams = {
    */
   rowsEnabled?: boolean;
   /**
+   * The resolved date range the table queries, before any pagination pinning.
+   * A change (for example a relative range re-anchoring) re-arms the auxiliary
+   * gate, because the auxiliary query keys change with it.
+   */
+  auxiliaryDateRange?: { from?: Date; to?: Date } | null;
+  /**
    * Chars of I/O to fetch per cell. Undefined keeps the cheap pre-truncated
    * read, which holds too little text to fill a taller row (LFE-14586).
    */
   ioCharLimit?: number;
 };
+
+/**
+ * useHasPaintedScope reports whether the browser has painted at least once
+ * since `scope` became current. A `null` scope is never painted.
+ */
+function useHasPaintedScope(scope: string | null) {
+  const [paintedScope, setPaintedScope] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (scope === null) return;
+    let afterPaintFrame: number | undefined;
+    // The first frame callback runs before the paint; the second runs after it.
+    const beforePaintFrame = requestAnimationFrame(() => {
+      afterPaintFrame = requestAnimationFrame(() => setPaintedScope(scope));
+    });
+    return () => {
+      cancelAnimationFrame(beforePaintFrame);
+      if (afterPaintFrame !== undefined) cancelAnimationFrame(afterPaintFrame);
+      setPaintedScope(null);
+    };
+  }, [scope]);
+
+  return scope !== null && paintedScope === scope;
+}
 
 export function useEventsTableData({
   projectId,
@@ -70,6 +100,7 @@ export function useEventsTableData({
   setSelectedRows,
   appRootFallbackEnabled = false,
   rowsEnabled = true,
+  auxiliaryDateRange,
   ioCharLimit,
 }: UseEventsTableDataParams) {
   const capture = usePostHogClientCapture();
@@ -143,10 +174,71 @@ export function useEventsTableData({
       silentHttpCodes,
     },
   });
-  const activeObservations =
-    shouldRunAppRootFallback && !appRootFallbackQuery.isError
-      ? appRootFallbackQuery
-      : observations;
+  const isAppRootFallbackActive =
+    shouldRunAppRootFallback && !appRootFallbackQuery.isError;
+  const activeObservations = isAppRootFallbackActive
+    ? appRootFallbackQuery
+    : observations;
+  const rowQueryScope = useMemo(
+    () =>
+      JSON.stringify(isAppRootFallbackActive ? fallbackPayload : getAllPayload),
+    [isAppRootFallbackActive, fallbackPayload, getAllPayload],
+  );
+  // A terminal row error also settles the rows, so a failed row query never
+  // leaves the independent auxiliary queries blocked.
+  const areRowsSettled =
+    rowsEnabled &&
+    !activeObservations.isPlaceholderData &&
+    (activeObservations.isSuccess || activeObservations.isError);
+  const haveRowsPainted = useHasPaintedScope(
+    areRowsSettled ? rowQueryScope : null,
+  );
+  const haveRowsLoaded = areRowsSettled && haveRowsPainted;
+  // The auxiliary data (facets, exact count, outlier strip) is defined by the
+  // filters, search, time range and project, never by page, page size or sort.
+  const auxiliaryScope = useMemo(
+    () => JSON.stringify([tableDataScope, auxiliaryDateRange ?? null]),
+    [tableDataScope, auxiliaryDateRange],
+  );
+  // A row query that refreshes the data it already shows (refresh, window
+  // focus) must not overlap new auxiliary fetches. A page or sort change is
+  // navigation, including a stale refetch behind cached rows of a revisited
+  // page: it never counts, from the moment the row query key changes until
+  // the fetches it started settle.
+  const rowsFetching =
+    observations.isFetching || appRootFallbackQuery.isFetching;
+  const [trackedRowScope, setTrackedRowScope] = useState(rowQueryScope);
+  const [isNavigationFetching, setIsNavigationFetching] = useState(false);
+  const hasRowScopeChanged = trackedRowScope !== rowQueryScope;
+  if (hasRowScopeChanged) {
+    setTrackedRowScope(rowQueryScope);
+    setIsNavigationFetching(rowsFetching);
+  } else if (isNavigationFetching && !rowsFetching) {
+    setIsNavigationFetching(false);
+  }
+  const isRowNavigation = hasRowScopeChanged || isNavigationFetching;
+  const isRowRefetching =
+    !isRowNavigation &&
+    [observations, appRootFallbackQuery].some(
+      (query) =>
+        query.isFetching && query.isSuccess && !query.isPlaceholderData,
+    );
+  const [openedAuxiliaryScope, setOpenedAuxiliaryScope] = useState<
+    string | null
+  >(null);
+  // The gate opens once the rows of the current auxiliary scope loaded and
+  // painted, and stays open while the user pages or sorts. A new filter,
+  // search, time range or project re-arms it.
+  const isAuxiliaryScopeOpen =
+    openedAuxiliaryScope === auxiliaryScope ||
+    (haveRowsLoaded && !isRowRefetching);
+  if (isAuxiliaryScopeOpen && openedAuxiliaryScope !== auxiliaryScope) {
+    setOpenedAuxiliaryScope(auxiliaryScope);
+  }
+  // Without row queries (chart mode) nothing competes. Auxiliary data that
+  // already loaded stays in place while the gate is closed.
+  const canLoadAuxiliaryData =
+    !rowsEnabled || (isAuxiliaryScopeOpen && !isRowRefetching);
   const usedAppRootFallback =
     shouldRunAppRootFallback &&
     appRootFallbackQuery.isSuccess &&
@@ -244,7 +336,7 @@ export function useEventsTableData({
   // Fetch the exact count only after the user selects all matching rows.
   const totalCountQuery = api.events.countAll.useQuery(getCountPayload, {
     ...placeholderOptions,
-    enabled: selectAll,
+    enabled: selectAll && canLoadAuxiliaryData,
     refetchOnWindowFocus: true,
   });
 
@@ -256,8 +348,11 @@ export function useEventsTableData({
   const uniqueTraceCount = selectAll
     ? (totalCountQuery.data?.uniqueTraceCount ?? null)
     : null;
+  const isAuxiliaryDataDeferred = rowsEnabled && !canLoadAuxiliaryData;
   const isTotalCountLoading =
-    selectAll && totalCount === null && totalCountQuery.isFetching;
+    selectAll &&
+    totalCount === null &&
+    (totalCountQuery.isFetching || isAuxiliaryDataDeferred);
   const isTotalCountError =
     selectAll &&
     totalCount === null &&
@@ -331,6 +426,14 @@ export function useEventsTableData({
      * screen, and `isTotalCountLoading` already covers its own UI.
      */
     isFetching: activeObservations.isFetching || ioDataQuery.isFetching,
+    /**
+     * True once the current rows have settled and painted and the row query is
+     * idle (or there is no row query). Facet scans, counts, and aggregate charts
+     * start only then so they do not compete with the row query.
+     */
+    canLoadAuxiliaryData,
+    /** True while the gate blocks new auxiliary fetches. */
+    isAuxiliaryDataDeferred,
     totalCount,
     uniqueTraceCount,
     isTotalCountLoading,
