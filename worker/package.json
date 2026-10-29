@@ -67,7 +67,7 @@
     "bullmq": "^5.76.3",
     "cors": "^2.8.5",
     "csv-parse": "^7.0.2",
-    "dd-trace": "5.109.0",
+    "dd-trace": "5.131.1",
     "decimal.js": "^10.4.3",
     "dockerode": "^4.0.9",
     "dotenv": "^16.4.5",
