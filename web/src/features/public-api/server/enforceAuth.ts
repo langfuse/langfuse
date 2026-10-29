@@ -47,6 +47,14 @@ const orgIdHeader = "langfuse-organization-id";
 /** projectIdHeader selects the target project for keys without a bound project. */
 const projectIdHeader = "langfuse-project-id";
 
+/** projectErrors are the 403 messages for a request whose target project cannot be resolved for the key. */
+export const projectErrors = {
+  missing: `Organization API keys require the 'x-${projectIdHeader}' header to select a project`,
+  pathMismatch:
+    "The project in the URL does not match the project this API key belongs to",
+  headerMismatch: `The 'x-${projectIdHeader}' header does not match the project this API key belongs to`,
+} as const;
+
 /** enforceAuth authenticates the request and authorizes the action for the given endpoint, or only resolves context when the route skips authz (combines authz and authn). */
 export async function enforceAuth({
   req,
@@ -196,20 +204,23 @@ function getOrgId(
   return { success: true, orgId };
 }
 
-/** getProjectId prioritizes the bound project, then the query parameter, then the header, refusing a bound key whose path names another project. */
+/** getProjectId prioritizes the bound project, then the query parameter, then the header, refusing a bound key whose path or header names another project. */
 function getProjectId(
   context: AuthorizationContext,
   req: NextApiRequest,
 ): ResolvedProject | ErrorResult<ForbiddenError> {
   const boundProjectId = getBoundProjectId(context);
   if (!equal([boundProjectId, getPathProjectId(req)])) {
-    return forbiddenError();
+    return forbiddenError(projectErrors.pathMismatch);
+  }
+  if (!equal([boundProjectId, getHeaderProjectId(req)])) {
+    return forbiddenError(projectErrors.headerMismatch);
   }
 
   const projectId =
     boundProjectId ?? getUrlProjectId(req) ?? getHeaderProjectId(req);
   if (!projectId) {
-    return forbiddenError();
+    return forbiddenError(projectErrors.missing);
   }
 
   return { success: true, projectId };
