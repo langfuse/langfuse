@@ -55,7 +55,8 @@ export function GatewayLaunchDialog({
   // Menus inside the dialog portal here, so the modal does not hide them from assistive tech.
   const [popoverContainer, setPopoverContainer] =
     useState<HTMLDivElement | null>(null);
-  const { title, lead, points } = copy[state === "setup" ? "admin" : "member"];
+  const { title, lead, points } =
+    copy[state === "get-key" ? "member" : "admin"];
   const setupHref = (orgId: string) =>
     `/organization/${orgId}/settings/ai-gateway`;
 
