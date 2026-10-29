@@ -160,6 +160,8 @@ export interface ChartProps {
    * affects a categorical axis — a temporal axis keeps its timestamp labels.
    */
   hideXAxisLabels?: boolean;
+  /** compactYAxis shrinks the y-axis gutter to fit short tick labels. Consumed by LINE_TIME_SERIES. */
+  compactYAxis?: boolean;
   /**
    * Give each bar of a categorical (entity) axis its own palette colour, plus a
    * legend below the plot that names it. Off by default: a dashboard bar chart

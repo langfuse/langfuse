@@ -5,7 +5,8 @@ export const CARTESIAN_CHART_INSETS = {
   right: 16,
   bottomWithLabels: 26,
   bottomWithoutLabels: 12,
-  minLeft: 32,
+  minLeft: 64,
+  compactMinLeft: 32,
 };
 
 const Y_TICK_HEIGHT = 28;
@@ -25,19 +26,27 @@ function getCartesianTickCount(plotHeight: number) {
   return Math.min(5, Math.max(1, Math.floor(plotHeight / Y_TICK_HEIGHT)));
 }
 
+/** getMinLeft picks the y-axis gutter floor; compact fits short tick labels. */
+function getMinLeft(compactYAxis: boolean) {
+  if (compactYAxis) return CARTESIAN_CHART_INSETS.compactMinLeft;
+  return CARTESIAN_CHART_INSETS.minLeft;
+}
+
 function getCartesianLayout({
   width,
   height,
   showXAxisLabels,
+  compactYAxis,
   yTickLabels,
 }: {
   width: number;
   height: number;
   showXAxisLabels: boolean;
+  compactYAxis: boolean;
   yTickLabels: string[];
 }) {
   const left = Math.max(
-    CARTESIAN_CHART_INSETS.minLeft,
+    getMinLeft(compactYAxis),
     ...yTickLabels.map((label) => label.length * 7 + 16),
   );
   return {
@@ -54,11 +63,13 @@ export function CartesianLayout({
   width,
   height,
   showXAxisLabels,
+  compactYAxis = false,
   children,
 }: {
   width: number;
   height: number;
   showXAxisLabels: boolean;
+  compactYAxis?: boolean;
   children: (layout: {
     measuredPlot: CartesianPlot;
     maxYTicks: number;
@@ -72,6 +83,7 @@ export function CartesianLayout({
     width,
     height,
     showXAxisLabels,
+    compactYAxis,
     yTickLabels: [],
   });
   return children({
@@ -82,6 +94,7 @@ export function CartesianLayout({
         width,
         height,
         showXAxisLabels: options?.showXAxisLabels ?? showXAxisLabels,
+        compactYAxis,
         yTickLabels,
       }),
   });
