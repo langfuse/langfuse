@@ -24,6 +24,11 @@ feature.
   [`security-review`](../security-review/SKILL.md) skill. Run its
   [`references/checklist.md`](../security-review/references/checklist.md)
   before signoff.
+- If the review is in a Langfuse coding-agent observability plugin repo (the
+  `*-observability-plugin` repos in the `langfuse` org) rather than this
+  monorepo, read the descriptions of the `integration-*` skills and load the one
+  matching the artifact under review. Where none covers it, apply this skill's
+  own rules directly.
 
 ## Review Priorities
 
