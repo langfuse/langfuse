@@ -178,7 +178,7 @@ impl ExecutionCapture {
             metadata: json!({
                 "organization_id": attribution.organization_id().as_str(),
                 "key_id": attribution.key_id(),
-                "key_name": attribution.key_name().and_then(bounded_string),
+                "key_name": attribution.key_name().map(truncated_string),
                 "key_owner_user_id": attribution.user_id(),
                 "key_owner_name": attribution.user_name().and_then(bounded_string),
                 "key_owner_email": attribution.user_email().and_then(bounded_string),
@@ -320,6 +320,13 @@ fn bounded_string(value: &str) -> Option<String> {
     (value.len() <= MAX_FACT_STRING).then(|| value.to_owned())
 }
 
+/// Key names are the user ID fallback, so an over-long name is cut at a char
+/// boundary instead of dropped. Web caps names at 500 UTF-16 code units, which
+/// can exceed `MAX_FACT_STRING` bytes for non-Latin scripts.
+fn truncated_string(value: &str) -> String {
+    value[..value.floor_char_boundary(MAX_FACT_STRING)].to_owned()
+}
+
 fn identity_encoding(headers: &HeaderMap) -> bool {
     headers
         .get_all(header::CONTENT_ENCODING)
@@ -347,5 +354,15 @@ mod tests {
             }
             assert_eq!(retry_after_ms(&headers), expected, "{value:?}");
         }
+    }
+
+    #[test]
+    fn long_multibyte_key_names_are_truncated_not_dropped() {
+        let name = "名".repeat(171);
+        let truncated = truncated_string(&name);
+        assert!(truncated.len() <= MAX_FACT_STRING);
+        assert!(name.starts_with(&truncated));
+        assert_eq!(truncated.chars().count(), MAX_FACT_STRING / 3);
+        assert_eq!(truncated_string("checkout-agent"), "checkout-agent");
     }
 }
