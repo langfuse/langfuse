@@ -118,3 +118,40 @@ it("renders a compact bar chart whose values cross zero", () => {
   );
   expect(screen.getByText("0")).toBeInTheDocument();
 });
+
+describe("Chart dispatcher — pivot table config limits", () => {
+  it("does not console.error when a pivot table has more than two dimensions", () => {
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    render(
+      <Chart
+        chartType="PIVOT_TABLE"
+        data={[
+          {
+            time_dimension: undefined,
+            dimension: "prod",
+            metric: 1,
+            environment: "prod",
+            name: "chat",
+            userId: "user-1",
+            count_count: 1,
+          } as DataPoint,
+        ]}
+        rowLimit={100}
+        chartConfig={{
+          type: "PIVOT_TABLE",
+          dimensions: ["environment", "name", "userId"],
+          metrics: ["count_count"],
+        }}
+      />,
+    );
+
+    expect(errorSpy).not.toHaveBeenCalled();
+    expect(
+      screen.getByText("A pivot table supports at most 2 dimensions."),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText("Unable to process data for pivot table"),
+    ).not.toBeInTheDocument();
+  });
+});

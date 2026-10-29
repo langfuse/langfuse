@@ -472,6 +472,7 @@ export function effectiveWidgetName(
  * the same pure logic the legacy mount/measure/chart-type effects applied:
  *
  * - non-pivot charts keep a single metric and at most one dimension;
+ * - pivot charts keep at most {@link MAX_PIVOT_TABLE_DIMENSIONS} dimensions;
  * - the (chart type, leading aggregation) pair is resolved via
  *   {@link resolveAggregationAndChartType} — e.g. a HISTOGRAM on a
  *   non-histogram-capable measure falls back to NUMBER, a stranded histogram
@@ -496,6 +497,8 @@ export function normalizeWidgetFormValues(
   if (!isPivot) {
     if (metrics.length > 1) metrics = metrics.slice(0, 1);
     if (dimensions.length > 1) dimensions = dimensions.slice(0, 1);
+  } else if (dimensions.length > MAX_PIVOT_TABLE_DIMENSIONS) {
+    dimensions = dimensions.slice(0, MAX_PIVOT_TABLE_DIMENSIONS);
   }
 
   const measure = metrics[0]?.measure ?? "count";
