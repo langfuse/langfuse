@@ -26,6 +26,7 @@ import { OrgAuditLogsSettingsPage } from "@/src/ee/features/audit-log-viewer";
 import { useV4UpgradeUiFlag } from "@/src/features/v4-migration/useV4UpgradeUiEnabled";
 import { OrganizationFeaturePreviewsSettings } from "@/src/features/feature-flags/components/OrganizationFeaturePreviewsSettings";
 import {
+  GatewayAnalyticsPage,
   GatewayApiKeysPage,
   GatewayModelsPage,
   GatewayNotDeployedNotice,
@@ -363,6 +364,15 @@ const getOrganizationSettingsPages = ({
     cmdKKeywords: ["gateway", "api", "keys", "metadata", "credentials"],
     content: <GatewayApiKeysPage organizationId={organization.id} />,
     show: showAiGatewayApiKeys,
+    disabledReason: gatewaySetupDisabledReason,
+  },
+  {
+    title: "Analytics",
+    slug: "ai-gateway-analytics",
+    section: "AI Gateway",
+    cmdKKeywords: ["gateway", "analytics", "cost", "usage", "consumption"],
+    content: <GatewayAnalyticsPage organizationId={organization.id} />,
+    show: showAiGatewayManagement,
     disabledReason: gatewaySetupDisabledReason,
   },
 ];

@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { env } from "../../../env";
 import {
   type OutboundUrlConnectionValidationOptions,

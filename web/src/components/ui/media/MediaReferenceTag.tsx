@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { MediaTag, type MediaTagProps } from "../../MediaTag/MediaTag";
 import { useResolvedMedia } from "./useResolvedMedia";
 import { useResolvedExternalMedia } from "./useResolvedExternalMedia";

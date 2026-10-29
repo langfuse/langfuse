@@ -41,6 +41,10 @@ export const ChannelSelector: React.FC<ChannelSelectorProps> = ({
     projectId,
     scope: "automations:CUD",
   });
+  const canManageIntegration = useHasProjectAccess({
+    projectId,
+    scope: "integrations:CRUD",
+  });
   const { channelsData, isLoadingChannels, error, refetchChannels } =
     useSlackChannels(projectId, canListChannels);
 
@@ -70,7 +74,7 @@ export const ChannelSelector: React.FC<ChannelSelectorProps> = ({
       hasError={!!error}
       isRefreshing={isRefreshing}
       onRefresh={handleRefresh}
-      onReauthenticate={handleReauthenticate}
+      onReauthenticate={canManageIntegration ? handleReauthenticate : undefined}
     />
   );
 };

@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { CloudConfigSchema, type ParsedOrganization } from "@langfuse/shared";
 import { prisma, Role } from "@langfuse/shared/src/db";
 import { logger, traceException } from "@langfuse/shared/src/server";

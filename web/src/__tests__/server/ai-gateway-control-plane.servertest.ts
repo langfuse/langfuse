@@ -997,6 +997,69 @@ describe("AI gateway control plane", () => {
     );
   });
 
+  it("names organization keys and members for managers, plain organization keys only for key admins", async () => {
+    const owner = await prepare();
+    const other = await prepare();
+    const member = await createCallerForOrganizationRole(owner, Role.MEMBER);
+    const admin = await createCallerForOrganizationRole(owner, Role.ADMIN);
+    const memberKey = await member.aiGateway.createApiKey({
+      orgId: owner.org.id,
+      name: "Member key",
+      metadata: {},
+    });
+    const serviceKey = await owner.caller.aiGateway.createApiKey({
+      orgId: owner.org.id,
+      name: "Service key",
+      metadata: {},
+      issuedAs: "serviceAccount",
+    });
+    const plainOrgKey = await createApiKey(prisma, {
+      tenant: OrganizationId(owner.org.id),
+      scope: OrganizationId(owner.org.id),
+      role: SystemRoleId("ADMIN"),
+      createdBy: UserId(owner.user.id),
+    });
+    await createApiKey(prisma, {
+      tenant: OrganizationId(owner.org.id),
+      scope: OrganizationId(owner.org.id),
+      role: SystemRoleId("ADMIN"),
+      createdBy: UserId(owner.user.id),
+      isInAppAgentKey: true,
+    });
+    await other.caller.aiGateway.createApiKey({
+      orgId: other.org.id,
+      name: "Other org key",
+      metadata: {},
+    });
+
+    const ownerLabels = await owner.caller.aiGateway.getAnalyticsLabels({
+      orgId: owner.org.id,
+    });
+    expect(ownerLabels.apiKeys.map((key) => key.id).sort()).toEqual(
+      [memberKey.id, serviceKey.id, plainOrgKey.id].sort(),
+    );
+    const byId = new Map(ownerLabels.apiKeys.map((key) => [key.id, key]));
+    expect(byId.get(memberKey.id)).toMatchObject({ name: "Member key" });
+    expect(byId.get(serviceKey.id)).toMatchObject({ name: "Service key" });
+    expect(ownerLabels.users.map((user) => user.name).sort()).toEqual([
+      "Gateway admin",
+      "Gateway member",
+      "Gateway tester",
+    ]);
+
+    // An admin manages the gateway but cannot list organization API keys.
+    const adminLabels = await admin.aiGateway.getAnalyticsLabels({
+      orgId: owner.org.id,
+    });
+    expect(adminLabels.apiKeys.map((key) => key.id).sort()).toEqual(
+      [memberKey.id, serviceKey.id].sort(),
+    );
+
+    await expect(
+      member.aiGateway.getAnalyticsLabels({ orgId: owner.org.id }),
+    ).rejects.toMatchObject({ code: "FORBIDDEN" });
+  });
+
   it("creates, lists, and revokes only associated organization keys", async () => {
     const { caller, org } = await prepare();
     const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
@@ -2105,10 +2168,31 @@ describe("AI gateway control plane", () => {
     ).resolves.toEqual({ isGatewayIngestionProject: true });
     await expect(
       caller.projects.delete({ projectId: project.id }),
-    ).rejects.toThrow("Select another ingestion project before deleting it");
+    ).rejects.toThrow(
+      "Select another ingestion project or set the ingestion mode to None before deleting it",
+    );
     await expect(
       prisma.project.findUnique({ where: { id: project.id } }),
     ).resolves.toMatchObject({ deletedAt: null });
+  });
+
+  it("allows deleting the linked ingestion project while ingestion is NONE", async () => {
+    const { caller, org, project } = await prepare();
+    await caller.aiGateway.updateConfig({
+      orgId: org.id,
+      defaultIngestionProjectId: project.id,
+      ingestionMode: "NONE",
+    });
+
+    await expect(
+      caller.projects.deletionProtection({ projectId: project.id }),
+    ).resolves.toEqual({ isGatewayIngestionProject: false });
+    await expect(
+      caller.projects.delete({ projectId: project.id }),
+    ).resolves.toBe(true);
+    await expect(
+      prisma.project.findUnique({ where: { id: project.id } }),
+    ).resolves.toMatchObject({ deletedAt: expect.any(Date) });
   });
 
   it("blocks resolve after the default ingestion project is deleted", async () => {

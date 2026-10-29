@@ -29,11 +29,11 @@ export default async function handler(
       return res.status(401).json({ error: "Authentication required" });
     }
 
-    // Verify user has permission to modify automations for this project
+    // Connecting a workspace is project integration config
     const hasAccess = hasProjectAccess({
       session,
       projectId,
-      scope: "automations:CUD",
+      scope: "integrations:CRUD",
     });
 
     if (!hasAccess) {

@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { randomBytes } from "node:crypto";
 
 import type { Telemetry } from "ai";

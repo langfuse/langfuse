@@ -6,7 +6,6 @@ import { formatAgentSetupMarkdown } from "../formatAgentSetupMarkdown";
 
 const context = {
   gatewayOrigin: "https://gateway.example.com",
-  userId: "jane@example.com",
   providers: ["ANTHROPIC" as const],
 };
 
