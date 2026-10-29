@@ -25,7 +25,6 @@ on:
         required: true
 jobs:
   ecs-deploy:
-    if: ${{ inputs.service != 'ai-gateway' || inputs.environment == 'staging' }}
     runs-on: blacksmith-4vcpu-ubuntu-2404
     environment: ${{ inputs.environment }}
     permissions:
@@ -124,14 +123,39 @@ jobs:
             --build-arg NEXT_PUBLIC_ASSET_PREFIX=${VARS_NEXT_PUBLIC_ASSET_PREFIX} \
             .
           docker push $REGISTRY/$REPOSITORY:$IMAGE_TAG
+      # A service can be bootstrapped by infra from an image pushed above, so a
+      # missing service skips the rollout instead of failing the deploy.
+      - name: Check AWS ECS Service exists
+        id: ecs-service
+        env:
+          CLUSTER: ${{ inputs.environment }}-cluster
+          SERVICE: ${{ inputs.environment }}-${{ inputs.service }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          status="$(aws ecs describe-services \
+            --cluster "$CLUSTER" \
+            --services "$SERVICE" \
+            --query 'services[0].status' \
+            --output text)"
+          if [ "$status" = "ACTIVE" ]; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "exists=false" >> "$GITHUB_OUTPUT"
+          message="ECS service $SERVICE in cluster $CLUSTER is not ACTIVE (status: $status). Pushed image tag $IMAGE_TAG and skipped the ECS rollout."
+          echo "::notice title=ECS rollout skipped::$message"
+          echo "### ECS rollout skipped" >> "$GITHUB_STEP_SUMMARY"
+          echo "$message" >> "$GITHUB_STEP_SUMMARY"
       - name: Render AWS ECS Task Definition
         id: render-task-definition
+        if: ${{ steps.ecs-service.outputs.exists == 'true' }}
         uses: aws-actions/amazon-ecs-render-task-definition@138c24f321fdbdf7edee4a685519d253cae2cdea # v1.9.0
         with:
           container-name: ${{ inputs.service }}
           image: ${{ steps.login-ecr.outputs.registry }}/${{ inputs.service == 'ai-gateway' && 'ai-gateway' || steps.split.outputs._0 }}:${{ github.sha }}
           task-definition-family: ${{ inputs.environment }}-${{ inputs.service }}
       - name: Update AWS ECS Service
+        if: ${{ steps.ecs-service.outputs.exists == 'true' }}
         uses: aws-actions/amazon-ecs-deploy-task-definition@c465972ecbd160473f22e683363b422a5412a3de # v2.6.3
         with:
           task-definition: ${{ steps.render-task-definition.outputs.task-definition }}
