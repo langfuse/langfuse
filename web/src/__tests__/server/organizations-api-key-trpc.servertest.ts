@@ -803,6 +803,7 @@ describe("organization API keys trpc", () => {
         });
         const key = await ownerCallerForOrg(orgId).organizationApiKeys.create({
           orgId,
+          name: `${role} key`,
           role,
         });
         expect(
@@ -817,6 +818,23 @@ describe("organization API keys trpc", () => {
         });
       },
     );
+
+    it("rejects an AI_GATEWAY key without a name", async () => {
+      Object.assign(env, { API_KEY_ORG_ROLES_ENABLE: "true" });
+      const orgId = `org-${randomUUID()}`;
+      await prisma.organization.create({
+        data: { id: orgId, name: "Scoped" },
+      });
+
+      await expect(
+        ownerCallerForOrg(orgId).organizationApiKeys.create({
+          orgId,
+          name: "  ",
+          role: "AI_GATEWAY",
+        }),
+      ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+      await expect(prisma.apiKey.count({ where: { orgId } })).resolves.toBe(0);
+    });
 
     describe.each([
       { migration: "legacy", enabled: "false" },
