@@ -50,6 +50,27 @@ const severityFormat = function () {
   })();
 };
 
+// ioredis attaches the command it was running to reply errors, and for AUTH and
+// HELLO the arguments are the credential itself. The spread below deliberately
+// keeps fields an SDK attached to its own error type, so without this the
+// credential reaches the log -- as the error's own property, nested in a `cause`
+// chain, inside an AggregateError, or lifted to the top level by the `errors`
+// format. Mirrors the redaction already applied to ioredis spans in
+// `server/instrumentation`.
+const CREDENTIAL_BEARING_COMMANDS = new Set(["auth", "hello"]);
+
+const isCredentialBearingCommand = (
+  value: unknown,
+): value is { name: string; args: unknown[] } => {
+  if (typeof value !== "object" || value === null) return false;
+  const { name, args } = value as { name?: unknown; args?: unknown };
+  return (
+    typeof name === "string" &&
+    Array.isArray(args) &&
+    CREDENTIAL_BEARING_COMMANDS.has(name.toLowerCase())
+  );
+};
+
 // `Error` serialises to `{}`, so Errors anywhere in the metadata are expanded,
 // and BigInt is stringified. Build one per log line: the cycle guard breaks
 // cyclic `cause` chains — the replacer hands back a new object for every
@@ -59,6 +80,12 @@ const createErrorReplacer = () => {
   const visitedErrors = new WeakSet<Error>();
 
   return (_key: string, value: unknown) => {
+    // Checked before the Error branch so it also catches the command object the
+    // `errors` format lifts onto the record, where it is no longer inside an Error.
+    if (isCredentialBearingCommand(value)) {
+      return { ...value, args: "[REDACTED]" };
+    }
+
     if (value instanceof Error) {
       if (visitedErrors.has(value)) return "[Circular]";
       visitedErrors.add(value);
