@@ -25,11 +25,14 @@ const errorMessage = (error: unknown): string =>
 
 // Matched on message too: a client without an open connection reports an
 // unreachable server as PrismaClientInitializationError without an error code.
+// Administrator termination is not matched: a deliberately killed query must not rerun.
 const CONNECTION_ERROR_MESSAGES = [
   "Can't reach database server",
   "the database system is starting up",
   "the database system is shutting down",
-  "terminating connection due to administrator command",
+  "the database system is in recovery mode",
+  "the database system is not yet accepting connections",
+  "terminating connection because of crash of another server process",
   "Error opening a TLS connection",
 ];
 
