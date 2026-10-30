@@ -67,6 +67,7 @@ jobs:
           REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           REPOSITORY: ${{ inputs.service == 'ai-gateway' && 'ai-gateway' || steps.split.outputs._0 }}
           IMAGE_TAG: ${{ github.sha }}-${{ inputs.service }}
+          RUN_ATTEMPT: ${{ github.run_attempt }}
         run: |
           set -euo pipefail
           image="$REGISTRY/$REPOSITORY:$IMAGE_TAG"
@@ -75,8 +76,13 @@ jobs:
             --query '[length(images), failures[0].failureCode]' --output text)"
           read -r found failure <<<"$result"
           if [[ "$found" -gt 0 ]]; then
+            if [[ "$RUN_ATTEMPT" -le 1 ]]; then
+              echo "::error::$image already exists and tags are immutable, so this run cannot push a new build. Push a new commit to rebuild it (e.g. for a new base image), or re-run the workflow run that built it to redeploy it."
+              exit 1
+            fi
             exists=true
-            echo "Deploying existing image \`$image\`" >> "$GITHUB_STEP_SUMMARY"
+            echo "::warning::re-run: deploying $image from an earlier run; nothing was built or pushed"
+            echo "Deploying existing image \`$image\` (re-run, not rebuilt)" >> "$GITHUB_STEP_SUMMARY"
           elif [[ "$failure" == "ImageNotFound" ]]; then
             exists=false
             echo "Deploying newly built image \`$image\`" >> "$GITHUB_STEP_SUMMARY"
