@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { type Prisma, type ProjectMembership, type Role } from "@prisma/client";
 
 import { LangfuseNotFoundError } from "../../errors";
