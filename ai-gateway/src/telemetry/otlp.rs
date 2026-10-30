@@ -82,8 +82,6 @@ impl Uploader {
             .connect_timeout(Duration::from_secs(2))
             .timeout(UPLOAD_TIMEOUT)
             .pool_max_idle_per_host(16)
-            // reqwest's http2 feature is for the Web resolver; trace uploads stay on HTTP/1.1.
-            .http1_only()
             .build()
             .map_err(|_| ResolutionError::Configuration)?;
         Ok(Self {
