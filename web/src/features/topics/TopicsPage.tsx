@@ -104,26 +104,33 @@ function TopicsWorkspace({ projectId }: { projectId: string }) {
     facets: facets.data ?? [],
     facetsReady: facets.isSuccess,
   });
+  // The workspace mounts while facets load so its requests start alongside
+  // them. It remounts when the project later gains or loses its facets, but
+  // not when the first facets response arrives.
+  const hasFacets = facets.data ? facets.data.length > 0 : undefined;
+  const [loadedWithFacets, setLoadedWithFacets] = useState(hasFacets);
+  if (loadedWithFacets === undefined && hasFacets !== undefined)
+    setLoadedWithFacets(hasFacets);
+  const facetsChanged =
+    hasFacets !== undefined && hasFacets !== (loadedWithFacets ?? hasFacets);
   return (
-    <TopicsWorkspaceGate isLoading={facets.isLoading} fallback={loadingPage}>
-      <TopicSetupFlowController
-        projectId={projectId}
-        canWrite={canWrite}
-        settings={modelSettings.configure.settings}
-        onSaveSampling={modelSettings.automaticProcessing.save}
-      >
-        {({ openSetup }) => (
-          <TopicsWorkspaceView
-            key={(facets.data?.length ?? 0) > 0 ? "configured" : "empty"}
-            projectId={projectId}
-            facets={facets}
-            canWrite={canWrite}
-            modelSettings={modelSettings}
-            openSetup={openSetup}
-          />
-        )}
-      </TopicSetupFlowController>
-    </TopicsWorkspaceGate>
+    <TopicSetupFlowController
+      projectId={projectId}
+      canWrite={canWrite}
+      settings={modelSettings.configure.settings}
+      onSaveSampling={modelSettings.automaticProcessing.save}
+    >
+      {({ openSetup }) => (
+        <TopicsWorkspaceView
+          key={facetsChanged ? "facets-changed" : "first-load"}
+          projectId={projectId}
+          facets={facets}
+          canWrite={canWrite}
+          modelSettings={modelSettings}
+          openSetup={openSetup}
+        />
+      )}
+    </TopicSetupFlowController>
   );
 }
 
@@ -314,12 +321,23 @@ function TopicsWorkspaceContent({
           : [],
     ),
   );
+  // Runs that finished before the run list first loaded are already in the
+  // first results request; only later completions start a new one.
+  const [listedCompletedAt, setListedCompletedAt] = useState<number | null>(
+    null,
+  );
+  if (executions.data && listedCompletedAt === null)
+    setListedCompletedAt(completedAt);
+  const refreshAfter =
+    listedCompletedAt === null || completedAt === listedCompletedAt
+      ? 0
+      : completedAt;
   const { currentTimeRange, effectiveTimeRange, isTimeRangeCapped } =
     useMemo(() => {
       const to =
         "from" in timeRange
           ? timeRange.to
-          : new Date(Math.max(Date.now(), completedAt, refreshedAt));
+          : new Date(Math.max(Date.now(), refreshAfter, refreshedAt));
       const from =
         "from" in timeRange
           ? timeRange.from
@@ -346,7 +364,7 @@ function TopicsWorkspaceContent({
         effectiveTimeRange,
         isTimeRangeCapped,
       };
-    }, [timeRange, completedAt, refreshedAt]);
+    }, [timeRange, refreshAfter, refreshedAt]);
   const validTimeRange = isValidTopicTimeRange(currentTimeRange);
   const running =
     Boolean(executions.data?.some((execution) => busy(execution.status))) ||
@@ -359,7 +377,7 @@ function TopicsWorkspaceContent({
     projectId,
     running,
     pollForSummaries: modelSettings.automaticProcessing.state.status === "on",
-    refreshAfter: completedAt,
+    refreshAfter,
     timeRange: currentTimeRange,
   });
   const traceFilters = useTopicTraceFilters(
@@ -423,7 +441,7 @@ function TopicsWorkspaceContent({
     openAutomaticProcessing(true);
   }
 
-  return (
+  const workspace = (
     <DialogController<TopicOperation>
       renderDialog={({ closeDialog, state }) => (
         <ManualTopicsFormContent
@@ -675,7 +693,6 @@ function TopicsWorkspaceContent({
                     />
                   </div>
                 )}
-                {facets.isLoading && <p>Loading facets…</p>}
                 {facets.error && (
                   <TopicsErrorMessage message={facets.error.message} />
                 )}
@@ -685,6 +702,11 @@ function TopicsWorkspaceContent({
         );
       }}
     </DialogController>
+  );
+  return (
+    <TopicsWorkspaceGate isLoading={facets.isLoading} fallback={loadingPage}>
+      {workspace}
+    </TopicsWorkspaceGate>
   );
 }
 
