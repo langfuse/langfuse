@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { Fragment, useMemo } from "react";
 import * as SelectPrimitive from "@radix-ui/react-select";
 import { startCase } from "lodash";
 import { type UseFormReturn } from "react-hook-form";
@@ -15,6 +15,7 @@ import {
   Select,
   SelectContent,
   SelectItem,
+  SelectSeparator,
   SelectValue,
 } from "@/src/components/ui/select";
 import {
@@ -34,7 +35,7 @@ import {
 import { viewLabels } from "../helpers/monitorLabels";
 import { aggregationLabel } from "../helpers/renderMonitorLabels";
 
-/** countMeasure is the row-count measure, shown as "*" and only offered with the count aggregation. */
+/** countMeasure is the row-count measure, shown as "All" and only offered with the count aggregation. */
 const countMeasure = "count";
 
 /** MonitorMetricDefinition picks a monitor's metric as "[aggregation]", then "[view] [measure]", then filters. */
@@ -58,6 +59,8 @@ export const MonitorMetricDefinition = ({
     [view],
   );
   const measures = viewDeclarations.v2[view]?.measures ?? {};
+  const hasFieldMeasures =
+    (measuresByAggregation.get(aggregation) ?? []).length > 1;
 
   /** changeAggregation snaps the measure to the first one the new aggregation supports. */
   const changeAggregation = (next: MonitorAggregation) => {
@@ -171,20 +174,24 @@ export const MonitorMetricDefinition = ({
                   <FormControl>
                     <SelectPrimitive.Trigger asChild aria-label="Measure">
                       <CompactPickerButton>
-                        <SelectValue />
+                        <MeasureValue measure={field.value} />
                       </CompactPickerButton>
                     </SelectPrimitive.Trigger>
                   </FormControl>
                   <SelectContent>
                     {(measuresByAggregation.get(aggregation) ?? []).map((m) => (
-                      <WidgetPropertySelectItem
-                        key={m}
-                        value={m}
-                        label={measureLabel(m)}
-                        description={measures[m]?.description}
-                        unit={measures[m]?.unit}
-                        type={measures[m]?.type}
-                      />
+                      <Fragment key={m}>
+                        <WidgetPropertySelectItem
+                          value={m}
+                          label={measureLabel(m, view)}
+                          description={measures[m]?.description}
+                          unit={measures[m]?.unit}
+                          type={measures[m]?.type}
+                        />
+                        {m === countMeasure && hasFieldMeasures && (
+                          <SelectSeparator />
+                        )}
+                      </Fragment>
                     ))}
                   </SelectContent>
                 </Select>
@@ -218,9 +225,19 @@ export const MonitorMetricDefinition = ({
   );
 };
 
-/** measureLabel renders a measure name, with the row count shown as "*". */
-function measureLabel(measure: string): string {
-  if (measure === countMeasure) return "*";
+/** MeasureValue shows the picked measure, with the row count as a muted "All". */
+function MeasureValue({ measure }: { measure: string }) {
+  if (measure !== countMeasure) return <SelectValue />;
+  return (
+    <SelectValue>
+      <span className="text-muted-foreground">All</span>
+    </SelectValue>
+  );
+}
+
+/** measureLabel renders a measure name, with the row count as "All <view>", e.g. "All observations". */
+function measureLabel(measure: string, view: MonitorView): string {
+  if (measure === countMeasure) return `All ${viewLabels[view].toLowerCase()}`;
   return startCase(measure);
 }
 
