@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { SquareArrowOutUpRight, type IconComponent } from "@langfuse/icons";
+import { type IconComponent } from "@langfuse/icons";
 
 export function TextLink({
   path,
@@ -8,7 +8,6 @@ export function TextLink({
   onClick,
   title,
   external = false,
-  variant = "standalone",
 }: {
   path: string;
   value: string;
@@ -17,8 +16,6 @@ export function TextLink({
   title?: string;
   /** Opens in a new tab. */
   external?: boolean;
-  /** `inline` sits within running text: inherited size, normal weight, underlined, trailing external icon. */
-  variant?: "standalone" | "inline";
 }) {
   const Icon = icon;
   const handleClick = (event: React.MouseEvent) => {
@@ -30,29 +27,6 @@ export function TextLink({
     event.preventDefault();
     onClick(event);
   };
-
-  if (variant === "inline") {
-    return (
-      <Link
-        className="text-link hover:text-link-hover underline underline-offset-2"
-        href={path}
-        title={title}
-        prefetch={false}
-        onClick={handleClick}
-        {...(external && { target: "_blank", rel: "noopener noreferrer" })}
-      >
-        {value}
-        {external && (
-          <SquareArrowOutUpRight
-            aria-hidden
-            size="sm"
-            color="muted"
-            __rawClassName="ml-0.75 inline-block align-[-1px]"
-          />
-        )}
-      </Link>
-    );
-  }
 
   return (
     <Link

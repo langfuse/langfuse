@@ -5,11 +5,11 @@ import { type PagerDutyRegion } from "@langfuse/shared/pagerduty";
 import { Form } from "@/src/components/design-system/Form/Form";
 import { PasswordInput } from "@/src/components/design-system/PasswordInput/PasswordInput";
 import { SelectInput } from "@/src/components/design-system/SelectInput/SelectInput";
-import { TextLink } from "@/src/components/design-system/TextLink/TextLink";
 import { type MonitorAutomationFormValues } from "../helpers/monitorAutomationFormSchema";
 import { describedBy } from "../helpers/describedBy";
 import { FieldHelp } from "./FieldHelp";
 import { FieldWithHelp } from "./FieldWithHelp";
+import { HelpLink } from "./HelpLink";
 
 const integrationDocsUrl =
   "https://support.pagerduty.com/main/docs/services-and-integrations#create-a-generic-events-api-integration";
@@ -62,12 +62,7 @@ export function PagerDutyActionFields({
         </Form.Field>
         <FieldHelp id={routingKeyHelpId}>
           Integration key for a PagerDuty Service or Event Orchestration.{" "}
-          <TextLink
-            path={integrationDocsUrl}
-            value="Learn more"
-            variant="inline"
-            external
-          />
+          <HelpLink href={integrationDocsUrl} text="Learn more" />
         </FieldHelp>
       </FieldWithHelp>
       <Form.Field

@@ -30,17 +30,3 @@ export const External = meta.story({
     external: true,
   },
 });
-
-export const Inline = meta.story({
-  render: () => (
-    <p className="text-muted-foreground text-sm">
-      GitHub API endpoint for repository dispatch.{" "}
-      <TextLink
-        path="https://docs.github.com/en/rest/repos/repos#create-a-repository-dispatch-event"
-        value="Learn more"
-        variant="inline"
-        external
-      />
-    </p>
-  ),
-});

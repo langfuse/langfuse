@@ -4,12 +4,12 @@ import { type UseFormReturn } from "react-hook-form";
 import { Form } from "@/src/components/design-system/Form/Form";
 import { Input } from "@/src/components/design-system/Input/Input";
 import { PasswordInput } from "@/src/components/design-system/PasswordInput/PasswordInput";
-import { TextLink } from "@/src/components/design-system/TextLink/TextLink";
 import { type MonitorAutomationFormValues } from "../helpers/monitorAutomationFormSchema";
 import { InlineCode } from "./InlineCode";
 import { describedBy } from "../helpers/describedBy";
 import { FieldHelp } from "./FieldHelp";
 import { FieldWithHelp } from "./FieldWithHelp";
+import { HelpLink } from "./HelpLink";
 
 const dispatchDocsUrl =
   "https://docs.github.com/en/rest/repos/repos#create-a-repository-dispatch-event";
@@ -55,12 +55,7 @@ export function GitHubDispatchActionFields({
         </Form.Field>
         <FieldHelp id={urlHelpId}>
           GitHub API endpoint for repository dispatch.{" "}
-          <TextLink
-            path={dispatchDocsUrl}
-            value="Learn more"
-            variant="inline"
-            external
-          />
+          <HelpLink href={dispatchDocsUrl} text="Learn more" />
         </FieldHelp>
       </FieldWithHelp>
       <FieldWithHelp>
@@ -118,13 +113,7 @@ export function GitHubDispatchActionFields({
         </Form.Field>
         <FieldHelp id={tokenHelpId}>
           GitHub PAT with <InlineCode>repo</InlineCode> scope for repository
-          dispatch.{" "}
-          <TextLink
-            path={createTokenUrl}
-            value="Create token"
-            variant="inline"
-            external
-          />
+          dispatch. <HelpLink href={createTokenUrl} text="Create token" />
         </FieldHelp>
       </FieldWithHelp>
     </>
