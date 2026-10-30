@@ -55,7 +55,8 @@ const crossRegionRedirect = (req: SentinelContext) => {
     cookie &&
     origin &&
     cookie.origin !== origin &&
-    sameRegistrableDomain(cookie.origin, origin)
+    sameRegistrableDomain(cookie.origin, origin) &&
+    new URL(cookie.origin).hostname !== new URL(origin).hostname
   ) {
     return redirect(`${cookie.origin}${resolvedUrl}`);
   }

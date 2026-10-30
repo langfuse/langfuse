@@ -210,6 +210,25 @@ describe("sentinel redirect /project/~/", () => {
     });
   });
 
+  it("same-host HTTPS cookie on HTTP: keeps the redirect on the current origin", async () => {
+    getServerAuthSessionMock.mockResolvedValue(makeSession(["proj-first"]));
+
+    const result = await getServerSideProps(
+      makeCtx({ path: ["traces"] }, "/project/~/traces", {
+        host: "langfuse.example.com",
+        proto: "http",
+        cookie: {
+          origin: "https://langfuse.example.com",
+          projectId: "proj-first",
+        },
+      }),
+    );
+
+    expect(result).toEqual({
+      redirect: { destination: "/project/proj-first/traces", permanent: false },
+    });
+  });
+
   it("cross-region cookie, same parent domain: bounces to cookie origin sentinel", async () => {
     getServerAuthSessionMock.mockResolvedValue(makeSession(["proj-first"]));
 
