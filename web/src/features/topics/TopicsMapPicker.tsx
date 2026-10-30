@@ -119,7 +119,7 @@ export function TopicsMapPicker({
     },
   ];
   return (
-    <DropdownMenu ariaLabel="Topic maps" items={items}>
+    <DropdownMenu ariaLabel="Topic maps" items={items} maxHeight="32rem">
       {({ getTriggerProps }) => (
         <button
           {...getTriggerProps()}
