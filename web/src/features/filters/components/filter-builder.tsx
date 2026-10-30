@@ -59,6 +59,7 @@ import {
   getSessionPositionInTraceFilterMode,
 } from "@langfuse/shared";
 import { cn } from "@/src/utils/tailwind";
+import { CompactConnectorRow } from "@/src/features/filters/components/CompactConnectorRow";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import {
   InputCommand,
@@ -1139,17 +1140,13 @@ function FilterBuilderForm({
           ) : null}
           <div className="flex w-5 shrink-0 justify-end">{removeButton}</div>
         </div>
-        <div className="flex items-start">
-          <span className="w-16 shrink-0" aria-hidden="true" />
-          <div className="border-input h-6 w-3 shrink-0 rounded-bl-md border-b-2 border-l-2" />
-          <div className="flex min-w-0 flex-1 items-center gap-1.5 pt-2">
-            <div className="shrink-0">{operatorSelect}</div>
-            {valueControl ? (
-              <div className="min-w-0 flex-1">{valueControl}</div>
-            ) : null}
-            <span className="w-5 shrink-0" aria-hidden="true" />
-          </div>
-        </div>
+        <CompactConnectorRow indent="label" align="center">
+          <div className="shrink-0">{operatorSelect}</div>
+          {valueControl ? (
+            <div className="min-w-0 flex-1">{valueControl}</div>
+          ) : null}
+          <span className="w-5 shrink-0" aria-hidden="true" />
+        </CompactConnectorRow>
       </div>
     ) : (
       <tr key={i}>

@@ -780,13 +780,11 @@ export const MonitorForm = ({
               </Section>
             </CardContent>
             <CardFooter className="mt-auto">
-              <div className="flex w-full flex-col gap-2 pt-4">
+              <div className="flex w-full items-center gap-2 pt-4">
                 {/* Looks disabled while incomplete but stays clickable, so a click still reveals the field errors. */}
                 <Button
                   type="submit"
-                  size="lg"
                   className={cn(
-                    "w-full",
                     isIncomplete &&
                       "hover:bg-primary cursor-not-allowed opacity-50",
                   )}
@@ -809,8 +807,6 @@ export const MonitorForm = ({
                       <Button
                         type="button"
                         variant="outline"
-                        size="lg"
-                        className="w-full"
                         onClick={openDialog}
                       >
                         Cancel
