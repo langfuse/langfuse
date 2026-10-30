@@ -1060,6 +1060,23 @@ describe("AI gateway control plane", () => {
     ).rejects.toMatchObject({ code: "FORBIDDEN" });
   });
 
+  it("rejects analytics label requests for another organization", async () => {
+    const owner = await prepare();
+    const other = await prepare();
+    await owner.caller.aiGateway.createApiKey({
+      orgId: owner.org.id,
+      name: "Owner key",
+      metadata: {},
+    });
+
+    await expect(
+      other.caller.aiGateway.getAnalyticsLabels({ orgId: owner.org.id }),
+    ).rejects.toMatchObject({
+      code: "UNAUTHORIZED",
+      message: "User is not a member of this organization",
+    });
+  });
+
   it("creates, lists, and revokes only associated organization keys", async () => {
     const { caller, org } = await prepare();
     const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
