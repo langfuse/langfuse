@@ -14,7 +14,7 @@
     "typecheck": "dotenv -e ../.env -- tsc -p tsconfig.json --noEmit --skipLibCheck --incremental --tsBuildInfoFile .tsbuildinfo && dotenv -e ../.env -- tsc -p tsconfig.tests.json --noEmit --skipLibCheck --incremental --tsBuildInfoFile .tests.tsbuildinfo",
     "dev": "dotenv -e ../.env -- next dev",
     "dev:http": "dotenv -e ../.env -- next dev --experimental-https --experimental-https-key ./localhost+1-key.pem --experimental-https-cert ./localhost+1.pem",
-    "lint": "dotenv -e ../.env -- node --max-old-space-size=8192 node_modules/eslint/bin/eslint.js --cache --cache-location .next/cache/eslint/ --max-warnings 0 --concurrency off",
+    "lint": "dotenv -e ../.env -- node --max-old-space-size=${WEB_LINT_MAX_OLD_SPACE_SIZE:-8192} node_modules/eslint/bin/eslint.js --cache --cache-location .next/cache/eslint/ --max-warnings 0 --concurrency off",
     "lint:fix": "dotenv -e ../.env -- node --max-old-space-size=8192 node_modules/eslint/bin/eslint.js . --cache --cache-location .next/cache/eslint/ --fix --concurrency off",
     "analyze": "dotenv -e ../.env -- next analyze",
     "clean": "rm -rf node_modules",
