@@ -575,80 +575,27 @@ describe("Topics filtered trace preview", () => {
     expect(mocks.createTopicExecution).not.toHaveBeenCalled();
   });
 
-  it("runs saved rules without creating facet versions and rejects stale or foreign rules", async () => {
-    const rule = {
-      id: "rule-a",
-      projectId,
-      name: "Billing",
-      filter: selection.filter,
-      facetIds: ["facet-a"],
-    };
-    const request = {
-      projectId,
-      requestId: "rule-request",
-      operation: "process" as const,
-      facets: selectedFacets,
-      ruleId: rule.id,
-      selection: {
-        filter: selection.filter,
-        from: selection.from,
-        to: selection.to,
-        limit: selection.limit,
-        sampling: selection.sampling,
-        seed: selection.seed,
-      },
-    };
-    mocks.getTopicRule.mockResolvedValue(null);
-    await expect(caller().trigger(request)).rejects.toThrow(
-      "Topic rule not found in this project",
-    );
-    expect(mocks.getTopicRule).toHaveBeenCalledWith(projectId, rule.id);
-    mocks.getTopicRule.mockResolvedValue({
-      ...rule,
-      filter: [
-        {
-          column: "environment",
-          type: "stringOptions",
-          operator: "any of",
-          value: ["production"],
+  it("rejects processing past traces through a rule before any storage access", async () => {
+    await expect(
+      caller().trigger({
+        projectId,
+        requestId: "rule-request",
+        operation: "process",
+        facets: selectedFacets,
+        ruleId: "rule-a",
+        selection: {
+          filter: selection.filter,
+          from: selection.from,
+          to: selection.to,
+          limit: selection.limit,
+          sampling: selection.sampling,
+          seed: selection.seed,
         },
-      ],
-    });
-    await expect(caller().trigger(request)).rejects.toThrow(
-      "Topic rule changed",
-    );
-    mocks.getTopicRule.mockResolvedValue({
-      ...rule,
-      facetIds: ["other-facet"],
-    });
-    await expect(caller().trigger(request)).rejects.toThrow(
-      "Select the facets attached",
-    );
-    mocks.getTopicRule.mockResolvedValue(rule);
-    mocks.queryClickhouse.mockResolvedValue([
-      {
-        id: "trace-a",
-        timestampMs: "1789430400000",
-        name: "Agent",
-        environment: "default",
-        matchedTraceCount: "1",
-      },
-    ]);
-    await caller().trigger(request);
-    expect(mocks.createTopicExecution.mock.calls[0][0]).toMatchObject({
-      ruleId: rule.id,
-      traceIds: ["trace-a"],
-    });
-    await caller().trigger({
-      ...request,
-      requestId: "rule-request-manual-sampling",
-      selection: { ...request.selection, sampling: "latest", limit: 50 },
-    });
-    expect(mocks.createTopicExecution.mock.calls[1][0]).toMatchObject({
-      ruleId: rule.id,
-      traceIds: ["trace-a"],
-    });
-    expect(mocks.createTopicFacetVersion).not.toHaveBeenCalled();
+      }),
+    ).rejects.toThrow("Process past traces with a trace filter");
+    expect(mocks.getTopicRule).not.toHaveBeenCalled();
+    expect(mocks.queryClickhouse).not.toHaveBeenCalled();
+    expect(mocks.createTopicExecution).not.toHaveBeenCalled();
   });
 
   it("orders latest traces after deduplication and returns an empty preview when no events match", async () => {
