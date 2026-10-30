@@ -55,7 +55,6 @@ import { cn } from "@/src/utils/tailwind";
 import {
   CreateMonitorSchema,
   type CreateMonitor,
-  ErrorAtLeastOneTrigger,
   getValidMonitorAggregationsForMeasure,
   type Monitor,
   type MonitorNoData,
@@ -81,7 +80,6 @@ import { MonitorAutomationsPanel } from "./MonitorAutomationsPanel";
 import { MonitorSeverityBadge } from "./MonitorSeverityBadge";
 import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { ConfirmationDialogController } from "@/src/components/design-system/ConfirmationDialogController/ConfirmationDialogController";
-import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import {
   operatorLabels,
   operatorSymbol,
@@ -107,6 +105,7 @@ const createDefaults = (
   metric: prefill?.metric ?? { measure: "count", aggregation: "count" },
   window: prefill?.window ?? "5m",
   thresholdOperator: MonitorThresholdOperatorSchema.enum.GT,
+  alertThreshold: 0,
   warningThreshold: null,
   noData: { mode: MonitorNoDataModeSchema.enum.SUBSTITUTE_ZERO },
   renotify: { mode: "OFF" },
@@ -445,15 +444,6 @@ export const MonitorForm = ({
 
   namePlaceholderRef.current = namePlaceholder;
 
-  /** missingRequirements lists what still blocks creating a new alert. */
-  const missingRequirements = useMemo(() => {
-    if (isEdit) return [];
-    return getMissingRequirements(schema, {
-      ...watched,
-      name: nameOrPlaceholder(watched.name, namePlaceholder),
-    });
-  }, [isEdit, schema, watched, namePlaceholder]);
-
   /** previewFilters strips unsupported rows from the picked view's filters for the preview query. */
   const previewFilters = useMemo<FilterState>(
     () =>
@@ -477,6 +467,8 @@ export const MonitorForm = ({
     createMutation.isPending ||
     updateMutation.isPending ||
     suggestName.isPending;
+  /** isIncomplete is true while a new alert is missing required fields. */
+  const isIncomplete = !isEdit && !form.formState.isValid;
 
   return (
     <Form {...form}>
@@ -960,11 +952,20 @@ export const MonitorForm = ({
             </CardContent>
             <CardFooter className="mt-auto">
               <div className="flex w-full flex-col gap-2 pt-4">
-                <SubmitAlertButton
-                  label={isEdit ? "Save Alert" : "Create Alert"}
+                {/* Looks disabled while incomplete but stays clickable, so a click still reveals the field errors. */}
+                <Button
+                  type="submit"
+                  size="lg"
+                  className={cn(
+                    "w-full",
+                    isIncomplete &&
+                      "hover:bg-primary cursor-not-allowed opacity-50",
+                  )}
+                  aria-disabled={isIncomplete || undefined}
                   disabled={!hasAccess || submitting}
-                  missingRequirements={missingRequirements}
-                />
+                >
+                  {isEdit ? "Save Alert" : "Create Alert"}
+                </Button>
                 {!isEdit && (
                   <ConfirmationDialogController
                     title="Discard this alert?"
@@ -1064,41 +1065,6 @@ const Section = ({
     <div className={cn("space-y-4 px-2 pb-4", className)}>{children}</div>
   </div>
 );
-
-/** SubmitAlertButton submits the form, looking disabled with a tooltip of what is missing; clicking it still reveals the field errors. */
-const SubmitAlertButton = ({
-  label,
-  disabled,
-  missingRequirements,
-}: {
-  label: string;
-  disabled: boolean;
-  missingRequirements: string[];
-}) => {
-  const isMissingRequirements = missingRequirements.length > 0;
-  const button = (
-    <Button
-      type="submit"
-      size="lg"
-      className={cn(
-        "w-full",
-        isMissingRequirements &&
-          "hover:bg-primary cursor-not-allowed opacity-50",
-      )}
-      aria-disabled={isMissingRequirements || undefined}
-      disabled={disabled}
-    >
-      {label}
-    </Button>
-  );
-  if (!isMissingRequirements) return button;
-
-  return (
-    <Tooltip label={missingRequirements.join("\n")}>
-      {({ getTriggerProps }) => <div {...getTriggerProps()}>{button}</div>}
-    </Tooltip>
-  );
-};
 
 /** NoDataField renders the no-data mode picker plus its dependent fields. */
 const NoDataField = ({
@@ -1240,23 +1206,9 @@ const RenotifyField = ({
   </div>
 );
 
-/** getMissingRequirements returns the unique validation messages for the given form values. */
-function getMissingRequirements(
-  schema: typeof CreateMonitorSchema | typeof UpdateMonitorSchema,
-  values: Record<string, unknown> & { triggerIds?: unknown[] },
-): string[] {
-  const result = schema.safeParse(values);
-  if (result.success) return [];
-  const messages = new Set(result.error.issues.map((issue) => issue.message));
-  // The automation refinement only runs once the base fields parse.
-  if (!values.triggerIds?.length) messages.add(ErrorAtLeastOneTrigger);
-  return [...messages];
-}
-
 /** __test exposes private helpers to co-located tests without widening the module API. */
 export const __test = {
   createDefaults,
-  getMissingRequirements,
   monitorToDefaults,
   nameOrPlaceholder,
   resolveViewChangePatch,

@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 
 import {
   CreateMonitorSchema,
-  ErrorAlertThresholdRequired,
   ErrorAtLeastOneTrigger,
   type Monitor,
   MonitorNoDataModeSchema,
@@ -15,7 +14,6 @@ import { __test } from "./MonitorForm";
 
 const {
   createDefaults,
-  getMissingRequirements,
   monitorToDefaults,
   nameOrPlaceholder,
   resolveViewChangePatch,
@@ -23,7 +21,7 @@ const {
 } = __test;
 
 describe("createDefaults", () => {
-  it("only surfaces name + alertThreshold as missing base fields (no hidden missing fields)", () => {
+  it("only surfaces name as a missing base field (no hidden missing fields)", () => {
     const defaults = createDefaults("project-1");
     const result = CreateMonitorSchema.safeParse(defaults);
     expect(result.success).toBe(false);
@@ -31,7 +29,7 @@ describe("createDefaults", () => {
 
     const paths = result.error.issues.map((i) => i.path.join("."));
     expect(paths).toContain("name");
-    expect(paths).toContain("alertThreshold");
+    expect(paths).not.toContain("alertThreshold");
     // Anything else has no error UI in the form, so the submit would silently
     // reject and the user would see the create button "do nothing". Defaults
     // must cover these fields with schema-valid values.
@@ -78,29 +76,6 @@ describe("createDefaults", () => {
 
   it("uses a prefilled evaluator score window", () => {
     expect(createDefaults("project-1", { window: "1d" }).window).toBe("1d");
-  });
-});
-
-describe("getMissingRequirements", () => {
-  it("lists the threshold and the automation before either is filled in", () => {
-    const defaults = createDefaults("project-1");
-
-    expect(
-      getMissingRequirements(CreateMonitorSchema, { ...defaults, name: "n" }),
-    ).toEqual([ErrorAlertThresholdRequired, ErrorAtLeastOneTrigger]);
-  });
-
-  it("is empty once the draft is valid", () => {
-    const defaults = createDefaults("project-1");
-
-    expect(
-      getMissingRequirements(CreateMonitorSchema, {
-        ...defaults,
-        name: "n",
-        alertThreshold: 5,
-        triggerIds: ["trigger-1"],
-      }),
-    ).toEqual([]);
   });
 });
 
