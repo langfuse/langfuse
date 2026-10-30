@@ -464,13 +464,17 @@ export const NewPromptForm: React.FC<NewPromptFormProps> = (props) => {
               isLoading={createPromptMutation.isPending}
               onConfirm={form.handleSubmit(onSubmit)}
             >
-              <Button
-                disabled={!form.formState.isValid}
-                variant="secondary"
-                className="w-full"
-              >
-                Review changes
-              </Button>
+              {({ openDialog }) => (
+                <Button
+                  type="button"
+                  disabled={!form.formState.isValid}
+                  variant="secondary"
+                  className="w-full"
+                  onClick={openDialog}
+                >
+                  Review changes
+                </Button>
+              )}
             </ReviewPromptDialog>
 
             <Button
