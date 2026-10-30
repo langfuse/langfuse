@@ -8,7 +8,6 @@ import { type IconComponent, Plus } from "@langfuse/icons";
 import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { startCase } from "lodash";
 
 import { api } from "@/src/utils/api";
 import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
@@ -42,8 +41,6 @@ import {
 import { useHasProjectAccess } from "@/src/features/rbac";
 import { useLangfuseCloudRegion } from "@/src/features/organizations";
 import { useProject } from "@/src/features/projects";
-import { WidgetPropertySelectItem } from "@/src/features/widgets";
-import { ConnectedMetricsFilterBuilder } from "@/src/features/metrics";
 import { partitionWidgetUiTableFiltersToView } from "@/src/features/dashboard";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import {
@@ -55,7 +52,6 @@ import { cn } from "@/src/utils/tailwind";
 import {
   CreateMonitorSchema,
   type CreateMonitor,
-  getValidMonitorAggregationsForMeasure,
   type Monitor,
   type MonitorNoData,
   MonitorNoDataModeSchema,
@@ -65,31 +61,27 @@ import {
   type MonitorThresholdOperator,
   MonitorThresholdOperatorSchema,
   type MonitorView,
-  MonitorViewSchema,
   type MonitorWindow,
   MonitorWindowSchema,
   UpdateMonitorSchema,
   type UpdateMonitor,
 } from "@langfuse/shared/monitors";
-import { viewDeclarations, type FilterState } from "@langfuse/shared";
+import { type FilterState } from "@langfuse/shared";
 
 import { TagManager } from "@/src/features/tag";
 import { MonitorChartPreview } from "./MonitorChartPreview";
 import { getMonitorFilterOptionsLookbackFrom } from "../helpers/monitorTimeRanges";
 import { MonitorAutomationsPanel } from "./MonitorAutomationsPanel";
+import { MonitorMetricDefinition } from "./MonitorMetricDefinition";
 import { MonitorSeverityBadge } from "./MonitorSeverityBadge";
 import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { ConfirmationDialogController } from "@/src/components/design-system/ConfirmationDialogController/ConfirmationDialogController";
 import {
   operatorLabels,
   operatorSymbol,
-  viewLabels,
   windowLabels,
 } from "../helpers/monitorLabels";
-import {
-  aggregationLabel,
-  renderNamePlaceholder,
-} from "../helpers/renderMonitorLabels";
+import { renderNamePlaceholder } from "../helpers/renderMonitorLabels";
 
 /** createDefaults returns the form defaults for a brand-new monitor. */
 const createDefaults = (
@@ -132,18 +124,6 @@ const monitorToDefaults = (monitor: Monitor): UpdateMonitor => ({
   triggerIds: monitor.triggerIds,
   // status omitted: the pause/resume toolbar owns it.
 });
-
-/** resolveViewChangePatch returns the form fields that must change when the view changes. */
-const resolveViewChangePatch = (
-  nextView: keyof (typeof viewDeclarations)["v2"],
-  currentMeasure: string,
-): Partial<Pick<CreateMonitor, "metric">> => {
-  const measures = viewDeclarations.v2[nextView]?.measures ?? {};
-  // Filters are never patched; MetricsFilterBuilder drops rows the view cannot render.
-  return currentMeasure in measures
-    ? {}
-    : { metric: { measure: "count", aggregation: "count" } };
-};
 
 /** nameOrPlaceholder falls back to the placeholder when the name is blank. */
 const nameOrPlaceholder = (
@@ -403,23 +383,6 @@ export const MonitorForm = ({
     { staleTime: Infinity, refetchOnWindowFocus: false },
   );
 
-  /** measureOptions is the list of measure names available on the currently picked view. */
-  const measureOptions = useMemo(() => {
-    const view = (watched.view ??
-      "observations") as keyof (typeof viewDeclarations)["v2"];
-    const measures = viewDeclarations.v2[view]?.measures ?? {};
-    return Object.keys(measures);
-  }, [watched.view]);
-
-  /** aggregationOptions is the set of valid aggregations for the picked (view, measure) pair. */
-  const aggregationOptions = useMemo(() => {
-    const view = (watched.view ??
-      "observations") as keyof (typeof viewDeclarations)["v2"];
-    const measureName = watched.metric?.measure ?? "count";
-    const measureDef = viewDeclarations.v2[view]?.measures[measureName];
-    return getValidMonitorAggregationsForMeasure(measureDef);
-  }, [watched.view, watched.metric?.measure]);
-
   /** namePlaceholder builds an auto-suggested name from the current view + metric + threshold (e.g. "Sum of Observations Latency is below 100"). */
   const namePlaceholder = useMemo(
     () =>
@@ -490,160 +453,16 @@ export const MonitorForm = ({
                 className="from-background pointer-events-none sticky top-0 z-20 -mb-3 h-3 bg-linear-to-b to-transparent"
               />
               <Section title="Metric Definition" step={1}>
-                <FormField
-                  control={form.control}
-                  name="view"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>View</FormLabel>
-                      <Select
-                        value={field.value}
-                        onValueChange={(next) => {
-                          field.onChange(next);
-                          const patch = resolveViewChangePatch(
-                            next as keyof (typeof viewDeclarations)["v2"],
-                            form.getValues("metric.measure"),
-                          );
-                          if (patch.metric) {
-                            form.setValue("metric", patch.metric, {
-                              shouldValidate: true,
-                            });
-                          }
-                        }}
-                        disabled={!hasAccess}
-                      >
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          {MonitorViewSchema.options.map((v) => (
-                            <WidgetPropertySelectItem
-                              key={v}
-                              value={v}
-                              label={viewLabels[v]}
-                              description={
-                                viewDeclarations.v2[v]?.description ?? undefined
-                              }
-                            />
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="metric.measure"
-                  render={({ field }) => {
-                    const view = (watched.view ??
-                      "observations") as keyof (typeof viewDeclarations)["v2"];
-                    const measures = viewDeclarations.v2[view]?.measures ?? {};
-                    return (
-                      <FormItem>
-                        <FormLabel>Measure</FormLabel>
-                        <Select
-                          value={field.value}
-                          onValueChange={(next) => {
-                            field.onChange(next);
-                            // The aggregation dropdown filters by the new
-                            // measure, but the stored value can stay stale
-                            // (e.g. "sum" against a string measure, or "p95"
-                            // against `count`). Snap it to the first valid
-                            // option whenever the current one isn't supported.
-                            const validAggs =
-                              getValidMonitorAggregationsForMeasure(
-                                measures[next],
-                              );
-                            const currentAgg =
-                              form.getValues("metric.aggregation");
-                            if (!validAggs.includes(currentAgg)) {
-                              form.setValue(
-                                "metric.aggregation",
-                                validAggs[0] ?? "count",
-                                { shouldValidate: true },
-                              );
-                            }
-                          }}
-                          disabled={!hasAccess}
-                        >
-                          <FormControl>
-                            <SelectTrigger>
-                              <SelectValue />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            {measureOptions.map((m) => {
-                              const meta = measures[m];
-                              return (
-                                <WidgetPropertySelectItem
-                                  key={m}
-                                  value={m}
-                                  label={startCase(m)}
-                                  description={meta?.description}
-                                  unit={meta?.unit}
-                                  type={meta?.type}
-                                />
-                              );
-                            })}
-                          </SelectContent>
-                        </Select>
-                        <FormMessage />
-                      </FormItem>
-                    );
-                  }}
-                />
-                {watched.metric?.measure !== "count" && (
-                  <FormField
-                    control={form.control}
-                    name="metric.aggregation"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Aggregation</FormLabel>
-                        <Select
-                          value={field.value}
-                          onValueChange={field.onChange}
-                          disabled={!hasAccess}
-                        >
-                          <FormControl>
-                            <SelectTrigger>
-                              <SelectValue />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            {aggregationOptions.map((a) => (
-                              <SelectItem key={a} value={a}>
-                                {aggregationLabel(a)}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                )}
-                <FormField
-                  control={form.control}
-                  name="filters"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Filters</FormLabel>
-                      <FormControl>
-                        <ConnectedMetricsFilterBuilder
-                          version="v2"
-                          view={(watched.view ?? "observations") as MonitorView}
-                          projectId={projectId}
-                          dateRange={{ from: filterOptionsLookbackFrom }}
-                          filters={(field.value ?? []) as FilterState}
-                          onChange={(next: FilterState) => field.onChange(next)}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
+                <MonitorMetricDefinition
+                  form={form}
+                  view={(watched.view ?? "observations") as MonitorView}
+                  aggregation={
+                    (watched.metric?.aggregation ??
+                      "count") as CreateMonitor["metric"]["aggregation"]
+                  }
+                  projectId={projectId}
+                  filterOptionsLookbackFrom={filterOptionsLookbackFrom}
+                  disabled={!hasAccess}
                 />
                 {formError.query && (
                   <p className="text-destructive text-xs">
@@ -1211,6 +1030,5 @@ export const __test = {
   createDefaults,
   monitorToDefaults,
   nameOrPlaceholder,
-  resolveViewChangePatch,
   monitorCreateAnalyticsProperties,
 };
