@@ -8,7 +8,7 @@ import {
 } from "@/src/features/slack/components/ChannelSelector";
 import { SlackTestMessageButton } from "@/src/features/slack/components/SlackTestMessageButton";
 import { PrivateChannelsInfoTooltip } from "@/src/features/slack/components/PrivateChannelsInfoTooltip";
-import { useSlackIntegration } from "@/src/features/slack/useSlackIntegration";
+import { useSlackIntegration } from "@/src/features/slack/hooks/useSlackIntegration";
 import { useRouter } from "next/router";
 import { useState, useEffect } from "react";
 import { Badge } from "@/src/components/design-system/Badge/Badge";
