@@ -294,10 +294,10 @@ jobs:
         run: |
           cp .env.dev.example .env
       - name: lint web
-        # Three packages with four ESLint workers leave headroom on 16 vCPUs.
-        run: pnpm turbo run lint --filter=!ai-gateway --filter=!@langfuse/native --concurrency=3 -- --concurrency=4
-      # Rust packages lint with cargo, which rejects the trailing ESLint flag
-      # above, so they run outside that invocation (ai-gateway in its own job).
+        # Respect package-level worker limits: web's typed linting duplicates
+        # its TypeScript project state in each worker.
+        run: pnpm turbo run lint --filter=!ai-gateway --filter=!@langfuse/native --concurrency=3
+      # Rust packages lint separately (ai-gateway in its own job).
       - name: lint native addon (rustfmt, clippy)
         run: pnpm --filter @langfuse/native run lint
       - name: Install Rust dependency checkers
