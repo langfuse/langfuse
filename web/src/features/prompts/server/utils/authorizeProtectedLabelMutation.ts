@@ -63,7 +63,7 @@ async function resolveApiKeyCreatorProjectAccess(params: {
 
   const projectRole = projectMembership?.role ?? orgMembership.role;
 
-  if (projectRole === Role.NONE) {
+  if (!hasProjectAccessByRole({ role: projectRole, scope: "project:read" })) {
     return null;
   }
 

@@ -1,9 +1,10 @@
 import { createRef, type ComponentProps } from "react";
-import { Search, type IconComponent } from "@langfuse/icons";
+import { Search, SearchIcon, type IconComponent } from "@langfuse/icons";
 import { SiGithub } from "@langfuse/icons/si";
 import { TbBrandAzure } from "@langfuse/icons/tb";
 
 const icon: IconComponent = Search;
+const alias: typeof Search = SearchIcon;
 const props: ComponentProps<typeof Search> = {
   size: "sm",
   ref: createRef<SVGSVGElement>(),
@@ -47,5 +48,8 @@ const props: ComponentProps<typeof Search> = {
 <SiGithub size={24} />;
 // @ts-expect-error The same constraints apply to Tabler icons.
 <TbBrandAzure className="size-4" />;
+// @ts-expect-error Aliases preserve the same semantic size constraints.
+<SearchIcon size={16} />;
 
 void icon;
+void alias;

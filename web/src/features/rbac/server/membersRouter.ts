@@ -31,6 +31,7 @@ import {
 } from "@/src/features/rbac/utils/checkProjectAccess";
 import { allMembersRoutes } from "@/src/features/rbac/server/allMembersRoutes";
 import { allInvitesRoutes } from "@/src/features/rbac/server/allInvitesRoutes";
+import { requireGatewayEnabledForRole } from "@/src/features/ai-gateway/server/availability";
 import {
   deleteUserBoundApiKeys,
   deleteUserBoundApiKeysForRole,
@@ -71,7 +72,7 @@ export const membersRouter = createTRPCRouter({
         orgRole: z.enum(Role),
         // in case a projectRole should be set for a specific project
         projectId: z.string().optional(),
-        projectRole: z.enum(Role).optional(),
+        projectRole: z.enum(Role).exclude([Role.AI_GATEWAY]).optional(),
       }),
     )
     .mutation(async ({ input, ctx }) => {
@@ -275,6 +276,7 @@ export const membersRouter = createTRPCRouter({
         ownRole: ctx.session.orgRole,
         role: input.role, // new
       });
+      requireGatewayEnabledForRole(input.orgId, input.role);
       throwIfHigherRole({
         ownRole: ctx.session.orgRole,
         role: membership.role, // old
@@ -411,7 +413,7 @@ export const membersRouter = createTRPCRouter({
         orgMembershipId: z.string(),
         userId: z.string(),
         projectId: z.string(),
-        projectRole: z.enum(Role).nullable(),
+        projectRole: z.enum(Role).exclude([Role.AI_GATEWAY]).nullable(),
       }),
     )
     .mutation(async ({ input, ctx }) => {

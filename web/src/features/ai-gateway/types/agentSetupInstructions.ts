@@ -20,7 +20,14 @@ export type AgentSetupStep = {
 );
 
 export type AgentSetupInstructions = {
-  id: "api" | "claude-desktop" | "claude-code" | "codex" | "opencode";
+  id:
+    | "api"
+    | "claude-desktop"
+    | "claude-code"
+    | "codex"
+    | "opencode"
+    | "copilot-cli"
+    | "copilot-desktop";
   label: string;
   /** First line of the "Copy for agent" Markdown. */
   heading: string;
