@@ -8,14 +8,13 @@ import {
   Hr,
   Html,
   Img,
-  Preview,
   Section,
   Tailwind,
   Text,
 } from "@react-email/components";
 
 export type IntegrationExportFailedEmailCopy = {
-  /** Sentence-initial, for the subject and preview: "Blob storage export failed for …". */
+  /** Sentence-initial, for the subject: "Blob storage export failed for …". */
   subjectLabel: string;
   /** Title Case, for the email heading: "Blob Storage Export Disabled". */
   headingLabel: string;
@@ -38,13 +37,9 @@ export const IntegrationExportFailedEmailTemplate = ({
   settingsUrl,
   disabled = false,
 }: IntegrationExportFailedEmailTemplateProps) => {
-  const preview = disabled
-    ? `${copy.subjectLabel} export disabled for project "${projectName}"`
-    : `${copy.subjectLabel} export failed for project "${projectName}"`;
   return (
     <Html>
       <Head />
-      <Preview>{preview}</Preview>
       <Tailwind>
         <Body className="bg-background my-auto mx-auto font-sans">
           <Container className="mx-auto my-10 w-[465px] rounded border border-solid border-[#eaeaea] p-5">

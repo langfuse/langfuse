@@ -10,7 +10,6 @@ import {
   Heading,
   Html,
   Img,
-  Preview,
   Section,
   Tailwind,
   Text,
@@ -28,13 +27,9 @@ const ResetPasswordTemplate = ({
   token,
   isSetupMode,
 }: ResetPasswordTemplateProps) => {
-  const previewText = isSetupMode
-    ? "Verify your Langfuse email"
-    : "Your Langfuse reset code";
   return (
     <Html>
       <Head />
-      <Preview>{previewText}</Preview>
       <Tailwind>
         <Body className="mx-auto my-auto bg-background font-sans">
           <Container className="mx-auto my-10 w-[465px] rounded border border-solid border-[#eaeaea] p-5">
