@@ -18,6 +18,7 @@ Always fetch pricing from the provider's official docs before editing.
 | AWS Bedrock               | `https://aws.amazon.com/bedrock/pricing/`                                        |
 | Azure OpenAI              | `https://azure.microsoft.com/pricing/details/cognitive-services/openai-service/` |
 | TypeSafe (Jev)            | `https://docs.typesafe.ai/models`                                                |
+| Nace (Drex)               | `https://console.nace.ai/docs/drex/reference/pricing`                            |
 
 Per-model pages add detail the aggregate tables miss:
 `https://developers.openai.com/api/docs/models/<model-id>`,
@@ -213,6 +214,26 @@ Model Availability" in `automated-audit.md` for the removal criteria.
   and the `jev-latest` / `jev-preview` aliases. `typeSafeModels` in `types.ts`
   is not an audit-editable array; report a new Jev version that should become
   selectable as unresolved.
+
+### Nace Drex
+
+- `drex-max` and `drex-v2.0` are nace.ai's decision models, served through the
+  same `/v1/systemone` protocol as Jev at `https://console.nace.ai/v1` (the
+  `nace` preset in `TYPESAFE_UPSTREAMS`). Official prices are on
+  `https://console.nace.ai/docs/drex/reference/pricing`, per 1M input tokens:
+  `drex-max` and `drex-max-v1.1` $0.03, `drex-v2.0` and `drex-latest` (alias of
+  `drex-v2.0`) $0.06. Output tokens are not billed.
+- Two entries, not one shared price: `drex-max` (matches `drex-max` and
+  `drex-max-v1.1`) at `input` `0.03e-6`, and `drex-v2.0` (matches `drex-v2.0`
+  and `drex-latest`) at `input` `0.06e-6`. Both use `output` `0` in a single
+  Standard tier; the page documents no cache, batch, or context tiers, and Drex
+  Max image tokens count as input tokens.
+- The response `model` reports the pinned version, never the `drex-latest`
+  alias, but the alias stays in the pattern for requests priced by requested
+  model name. `drex-v1.5` ($0.05/MTok) matches neither entry and is not covered.
+  `naceModels` in `types.ts` is not an audit-editable array.
+- Nace is outside the automated audit's fetch allowlist; leave the Drex
+  entries unchanged during audit runs.
 
 ## Known Gaps
 

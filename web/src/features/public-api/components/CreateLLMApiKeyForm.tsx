@@ -922,7 +922,7 @@ export function CreateLLMApiKeyForm({
                 )}
               />
 
-              {/* Decision-model upstream: which gateway serves Jev */}
+              {/* Decision-model upstream: which provider serves the model */}
               {currentAdapter === LLMAdapter.TypeSafe && (
                 <FormField
                   control={form.control}
@@ -931,9 +931,10 @@ export function CreateLLMApiKeyForm({
                     <FormItem>
                       <FormLabel>Upstream</FormLabel>
                       <FormDescription>
-                        Provider that serves the Jev decision model. Vercel AI
-                        Gateway, OpenRouter, and custom gateways expose
-                        TypeSafe&apos;s API, so evaluators behave the same on
+                        Provider that serves the decision model. Vercel AI
+                        Gateway, OpenRouter, and custom gateways serve Jev
+                        through TypeSafe&apos;s API; Nace serves its Drex models
+                        through the same API, so evaluators behave the same on
                         every upstream.
                       </FormDescription>
                       <FormControl>
