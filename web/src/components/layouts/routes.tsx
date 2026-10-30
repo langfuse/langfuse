@@ -114,7 +114,7 @@ export const ROUTES: Route[] = [
       !organization ||
       hasOrganizationAccess({
         role: organization.role,
-        scope: "organization:settings:read",
+        scope: "organizationSettings:read",
       }) ||
       organization.projects.length > 0,
     section: RouteSection.Main,

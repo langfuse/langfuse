@@ -197,7 +197,7 @@ describe("useOrganizationSettingsPages", () => {
 
   it("gates the v4 migration link on deployment availability", () => {
     vi.mocked(useHasOrganizationAccess).mockImplementation(
-      ({ scope }) => scope === "organization:settings:read",
+      ({ scope }) => scope === "organizationSettings:read",
     );
     const { result } = renderHook(() => useOrganizationSettingsPages());
 
@@ -388,7 +388,7 @@ describe("useOrganizationSettingsPages", () => {
     vi.mocked(useHasOrganizationAccess).mockImplementation(
       ({ scope }) =>
         scope === "organizationUsage:read" ||
-        scope === "organization:settings:read",
+        scope === "organizationSettings:read",
     );
     vi.mocked(useHasEntitlement).mockImplementation(
       (entitlement) => entitlement === "cloud-billing",

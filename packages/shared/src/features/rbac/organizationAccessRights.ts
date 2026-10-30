@@ -1,7 +1,7 @@
 import { type Role } from "../../db";
 
 export const organizationScopes = [
-  "organization:settings:read",
+  "organizationSettings:read",
   "projects:read",
   "projects:create",
   "projects:transfer_org",
@@ -26,7 +26,7 @@ export type OrganizationScope = (typeof organizationScopes)[number];
 
 export const organizationRoleAccessRights: Record<Role, OrganizationScope[]> = {
   OWNER: [
-    "organization:settings:read",
+    "organizationSettings:read",
     "projects:create",
     "projects:transfer_org",
     "organization:CRUD_apiKeys",
@@ -47,7 +47,7 @@ export const organizationRoleAccessRights: Record<Role, OrganizationScope[]> = {
     "projects:read",
   ],
   ADMIN: [
-    "organization:settings:read",
+    "organizationSettings:read",
     "projects:create",
     "projects:transfer_org",
     "organization:update",
@@ -64,13 +64,13 @@ export const organizationRoleAccessRights: Record<Role, OrganizationScope[]> = {
     "projects:read",
   ],
   MEMBER: [
-    "organization:settings:read",
+    "organizationSettings:read",
     "gateway:read",
     "gateway:invoke",
     "organizationMembers:read",
   ],
-  VIEWER: ["organization:settings:read", "gateway:read"],
-  NONE: ["organization:settings:read"],
+  VIEWER: ["organizationSettings:read", "gateway:read"],
+  NONE: ["organizationSettings:read"],
   AI_GATEWAY: ["gateway:read", "gateway:invoke"],
 };
 

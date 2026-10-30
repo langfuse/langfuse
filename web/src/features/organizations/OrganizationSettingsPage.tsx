@@ -63,7 +63,7 @@ export function useOrganizationSettingsPages(): OrganizationSettingsPage[] {
   const hasAuditLogsEntitlement = useHasEntitlement("audit-logs");
   const canReadSettings = useHasOrganizationAccess({
     organizationId: organization?.id,
-    scope: "organization:settings:read",
+    scope: "organizationSettings:read",
   });
   const canUpdateOrganization = useHasOrganizationAccess({
     organizationId: organization?.id,

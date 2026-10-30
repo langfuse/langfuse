@@ -727,7 +727,7 @@ function canViewOrganizationProjects(
     hasOrganizationAccess({
       session,
       organizationId: org.id,
-      scope: "organization:settings:read",
+      scope: "organizationSettings:read",
     }) || org.projects.length > 0
   );
 }

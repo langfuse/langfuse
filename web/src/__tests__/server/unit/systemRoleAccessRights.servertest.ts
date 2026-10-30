@@ -122,10 +122,10 @@ describe("systemRoleAccessRights", () => {
   });
 
   it.each(["OWNER", "ADMIN", "MEMBER", "VIEWER", "NONE"] as const)(
-    "grants %s organization:settings:read",
+    "grants %s organizationSettings:read",
     (role) => {
       expect(organizationRoleAccessRights[role]).toContain(
-        "organization:settings:read",
+        "organizationSettings:read",
       );
     },
   );
