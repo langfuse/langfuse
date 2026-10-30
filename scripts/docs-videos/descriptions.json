@@ -9,7 +9,7 @@
   },
   "2025-12-16-prompt-config": {
     "title": "Add a model config to a prompt version",
-    "description": "Prompts > support-reply. Click \"New version\", replace the JSON in the \"Config\" editor with {\"model\": \"gpt-4.1\", \"temperature\": 0} and click \"Save new prompt version\". On the new version, open the \"Config\" tab to see the saved config."
+    "description": "Prompts > support-reply. Click \"New version\", set the JSON in the \"Config\" editor to model gpt-4.1 and temperature 0 and click \"Save new prompt version\". On the new version, open the \"Config\" tab to see the saved config."
   },
   "2025-12-19-annotation-queues": {
     "title": "Create and work an annotation queue",
@@ -61,7 +61,7 @@
   },
   "dataset-item-create": {
     "title": "Add a dataset item manually",
-    "description": "Datasets > san-francisco-sites. Click \"New item\", enter {\"question\": \"Which Art Deco tower stands on Telegraph Hill?\"} as Input and \"Coit Tower\" as Expected output, then click \"Add to dataset\". The item appears at the top of the Items table."
+    "description": "Datasets > san-francisco-sites. Click \"New item\", enter the question \"Which Art Deco tower stands on Telegraph Hill?\" as Input and \"Coit Tower\" as Expected output, then click \"Add to dataset\". The item appears at the top of the Items table."
   },
   "dataset-item-upload": {
     "title": "Import dataset items from CSV",
