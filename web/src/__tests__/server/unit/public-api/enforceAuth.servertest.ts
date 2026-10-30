@@ -157,18 +157,36 @@ describe.each(["x-langfuse-project-id", "langfuse-project-id"])(
         ),
       ).toEqual({ success: true, projectId: PRJ });
     });
-    it("ignores a header disagreeing with the bound project", () => {
+    it("resolves a header agreeing with the bound project", () => {
       expect(
-        getProjectId(projectKey(), req({}, { [projectIdHeader]: "prj_2" })),
+        getProjectId(projectKey(), req({}, { [projectIdHeader]: PRJ })),
       ).toEqual({ success: true, projectId: PRJ });
     });
+    it("403s a header disagreeing with the bound project", () => {
+      const result = getProjectId(
+        projectKey(),
+        req({}, { [projectIdHeader]: "prj_2" }),
+      );
+      expect(result).toMatchObject({
+        success: false,
+        error: expect.any(ForbiddenError),
+      });
+      expect(!result.success && result.error.message).toBe(
+        "The 'x-langfuse-project-id' header does not match the project this API key belongs to",
+      );
+    });
     it("403s a bound key whose path names another project", () => {
-      expect(
-        getProjectId(
-          projectKey(),
-          req({ projectId: "prj_2" }, {}, "/api/public/projects/prj_2/apiKeys"),
-        ),
-      ).toMatchObject({ success: false, error: expect.any(ForbiddenError) });
+      const result = getProjectId(
+        projectKey(),
+        req({ projectId: "prj_2" }, {}, "/api/public/projects/prj_2/apiKeys"),
+      );
+      expect(result).toMatchObject({
+        success: false,
+        error: expect.any(ForbiddenError),
+      });
+      expect(!result.success && result.error.message).toBe(
+        "The project in the URL does not match the project this API key belongs to",
+      );
     });
     it("403s a bound key whose percent-encoded path names another project", () => {
       expect(
@@ -193,7 +211,7 @@ describe.each(["x-langfuse-project-id", "langfuse-project-id"])(
           projectKey(),
           req(
             { projectId: "llm-app" },
-            { [projectIdHeader]: "prj_3" },
+            {},
             "/api/public/ingestion?projectId=llm-app",
           ),
         ),
@@ -222,10 +240,14 @@ describe.each(["x-langfuse-project-id", "langfuse-project-id"])(
       ).toEqual({ success: true, projectId: PRJ });
     });
     it("403s when neither URL, header, nor bound project exists", () => {
-      expect(getProjectId(orgKey(), req())).toMatchObject({
+      const result = getProjectId(orgKey(), req());
+      expect(result).toMatchObject({
         success: false,
         error: expect.any(ForbiddenError),
       });
+      expect(!result.success && result.error.message).toBe(
+        "Organization API keys require the 'x-langfuse-project-id' header to select a project",
+      );
     });
   },
 );
@@ -246,10 +268,7 @@ describe("enforceAuth span metadata", () => {
     const result = await enforceAuth({
       req: req(
         { projectId: "ignored-url-project" },
-        {
-          "x-langfuse-project-id": "ignored-header-project",
-          authorization: "Bearer untrusted-submitted-credential",
-        },
+        { authorization: "Bearer untrusted-submitted-credential" },
         "/api/public/traces?projectId=ignored-url-project",
       ),
       action: "traces:read",
