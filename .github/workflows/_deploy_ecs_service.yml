@@ -61,16 +61,6 @@ jobs:
           registry: registry1.dso.mil
           username: ${{ secrets.IRONBANK_USER }}
           password: ${{ secrets.IRONBANK_PASS }}
-      # Each service pushes its own <sha>-<service> tag: web, web-ingestion and
-      # web-iso build separately into the web repository (worker and worker-cpu
-      # into worker), and the repositories are tag-immutable, so a tag names
-      # exactly one build and the task definition can reference it by tag.
-      #
-      # An existing tag is the image an earlier run built for this commit and
-      # service, so it is deployed as is instead of rebuilt; re-pushing it would
-      # fail on the immutable tag. Only a definitive ImageNotFound counts as
-      # absent; any other failure (throttling, a missing grant) is inconclusive
-      # and stops the job.
       - name: Resolve image
         id: image
         env:
