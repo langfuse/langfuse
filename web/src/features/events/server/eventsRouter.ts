@@ -40,6 +40,7 @@ import {
 import { loadTraceTranscript } from "./loadTraceTranscript";
 import {
   instrumentAsync,
+  getCurrentSpan,
   getScoresAndCorrectionsForTraces,
   getAgentGraphDataFromEventsTable,
   getObservationsForTraceFromEventsTable,
@@ -52,7 +53,7 @@ import {
   AgentGraphDataSchema,
   type AgentGraphDataResponse,
 } from "@/src/features/trace-graph-view/server";
-import * as opentelemetry from "@opentelemetry/api";
+import type * as opentelemetry from "@opentelemetry/api";
 
 const GetAllEventsInput = EventsTableOptions.safeExtend({
   ...paginationZod,
@@ -147,7 +148,7 @@ export const eventsRouter = createTRPCRouter({
         orderBy: input.orderBy,
         expectedTimeColumn: "startTime",
       });
-      const span = opentelemetry.trace.getActiveSpan();
+      const span = getCurrentSpan();
       if (span) {
         addAttributesToSpan({ span, input, orderBy: normalizedOrderBy });
       }
