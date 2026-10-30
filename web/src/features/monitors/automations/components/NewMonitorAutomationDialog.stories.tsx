@@ -143,9 +143,9 @@ export const ErrorsShown = meta.story({
     await userEvent.click(
       body.getByRole("button", { name: "Create automation" }),
     );
-    await expect(
-      await body.findByText("Enter a valid HTTPS URL."),
-    ).toBeVisible();
+    await waitFor(() =>
+      expect(body.getByText("Enter a valid HTTPS URL.")).toBeVisible(),
+    );
     await expect(args.onSubmit).not.toHaveBeenCalled();
   },
 });
@@ -172,11 +172,13 @@ export const TestServerErrorShownInline = meta.story({
     await userEvent.click(
       body.getByRole("button", { name: "Create automation" }),
     );
-    await expect(
-      await body.findByText(
-        "Invalid webhook URL: DNS lookup failed for kjhkjhkj.com",
-      ),
-    ).toBeVisible();
+    await waitFor(() =>
+      expect(
+        body.getByText(
+          "Invalid webhook URL: DNS lookup failed for kjhkjhkj.com",
+        ),
+      ).toBeVisible(),
+    );
     await expect(
       body.getByLabelText("Repository dispatch URL"),
     ).toHaveAttribute("aria-invalid", "true");
