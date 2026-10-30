@@ -61,28 +61,58 @@ jobs:
           registry: registry1.dso.mil
           username: ${{ secrets.IRONBANK_USER }}
           password: ${{ secrets.IRONBANK_PASS }}
-      - name: Build, tag, and push AI Gateway image
-        if: ${{ inputs.service == 'ai-gateway' }}
+      - name: Resolve image
+        id: image
         env:
           REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          IMAGE_TAG: ${{ github.sha }}
+          REPOSITORY: ${{ inputs.service == 'ai-gateway' && 'ai-gateway' || steps.split.outputs._0 }}
+          IMAGE_TAG: ${{ github.sha }}-${{ inputs.service }}
+          RUN_ATTEMPT: ${{ github.run_attempt }}
+        run: |
+          set -euo pipefail
+          image="$REGISTRY/$REPOSITORY:$IMAGE_TAG"
+          result="$(aws ecr batch-get-image --repository-name "$REPOSITORY" \
+            --image-ids imageTag="$IMAGE_TAG" \
+            --query '[length(images), failures[0].failureCode]' --output text)"
+          read -r found failure <<<"$result"
+          if [[ "$found" -gt 0 ]]; then
+            if [[ "$RUN_ATTEMPT" -le 1 ]]; then
+              echo "::error::$image already exists and tags are immutable, so this run cannot push a new build. Push a new commit to rebuild it (e.g. for a new base image), or re-run the workflow run that built it to redeploy it."
+              exit 1
+            fi
+            exists=true
+            echo "::warning::re-run: deploying $image from an earlier run; nothing was built or pushed"
+            echo "Deploying existing image \`$image\` (re-run, not rebuilt)" >> "$GITHUB_STEP_SUMMARY"
+          elif [[ "$failure" == "ImageNotFound" ]]; then
+            exists=false
+            echo "Deploying newly built image \`$image\`" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "::error::could not confirm whether $image exists (failure: $failure); if the lifecycle policy archived it, restore it in ECR and re-run"
+            exit 1
+          fi
+          echo "image=$image" >> "$GITHUB_OUTPUT"
+          echo "exists=$exists" >> "$GITHUB_OUTPUT"
+      - name: Build, tag, and push AI Gateway image
+        if: ${{ inputs.service == 'ai-gateway' && steps.image.outputs.exists != 'true' }}
+        env:
+          IMAGE: ${{ steps.image.outputs.image }}
+          BUILD_ID: ${{ github.sha }}
         run: |
           docker build \
             --pull \
             --platform linux/amd64 \
             --target runtime \
-            --build-arg BUILD_ID="$IMAGE_TAG" \
+            --build-arg BUILD_ID="$BUILD_ID" \
             --build-arg BASE_IMAGE="$BASE_IMAGE" \
             --build-arg MICRO_BASE_IMAGE="$MICRO_BASE_IMAGE" \
-            -t "$REGISTRY/ai-gateway:$IMAGE_TAG" \
+            -t "$IMAGE" \
             ./ai-gateway
-          docker push "$REGISTRY/ai-gateway:$IMAGE_TAG"
+          docker push "$IMAGE"
       - name: Build, tag, and push Docker image
-        if: ${{ inputs.service != 'ai-gateway' }}
+        if: ${{ inputs.service != 'ai-gateway' && steps.image.outputs.exists != 'true' }}
         env:
-          REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          REPOSITORY: ${{ steps.split.outputs._0 }}
-          IMAGE_TAG: ${{ github.sha }}
+          IMAGE: ${{ steps.image.outputs.image }}
+          BUILD_ID: ${{ github.sha }}
           STEPS_SPLIT_OUTPUTS__0: ${{ steps.split.outputs._0 }}
           VARS_NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: ${{ vars.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION }}
           VARS_NEXT_LANGFUSE_TRACING_SAMPLE_RATE: ${{ vars.NEXT_LANGFUSE_TRACING_SAMPLE_RATE }}
@@ -101,7 +131,7 @@ jobs:
           SECRETS_SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
         run: |
           docker build \
-            -t $REGISTRY/$REPOSITORY:$IMAGE_TAG \
+            -t "$IMAGE" \
             -f ./${STEPS_SPLIT_OUTPUTS__0}/Dockerfile \
             --build-arg BASE_IMAGE="$BASE_IMAGE" \
             --build-arg MICRO_BASE_IMAGE="$MICRO_BASE_IMAGE" \
@@ -111,7 +141,7 @@ jobs:
             --build-arg NEXT_PUBLIC_DEMO_ORG_ID=${VARS_NEXT_PUBLIC_DEMO_ORG_ID} \
             --build-arg NEXT_PUBLIC_DEMO_PROJECT_ID=${VARS_NEXT_PUBLIC_DEMO_PROJECT_ID} \
             --build-arg NEXT_PUBLIC_SENTRY_DSN=${VARS_NEXT_PUBLIC_SENTRY_DSN} \
-            --build-arg NEXT_PUBLIC_BUILD_ID=${IMAGE_TAG} \
+            --build-arg NEXT_PUBLIC_BUILD_ID=${BUILD_ID} \
             --build-arg NEXT_PUBLIC_POSTHOG_KEY=${VARS_NEXT_PUBLIC_POSTHOG_KEY} \
             --build-arg NEXT_PUBLIC_POSTHOG_HOST=${VARS_NEXT_PUBLIC_POSTHOG_HOST} \
             --build-arg NEXT_PUBLIC_PLAIN_APP_ID=${VARS_NEXT_PUBLIC_PLAIN_APP_ID} \
@@ -122,13 +152,13 @@ jobs:
             --build-arg NEXT_PUBLIC_LANGFUSE_TRACING_SAMPLE_RATE=${VARS_NEXT_PUBLIC_LANGFUSE_TRACING_SAMPLE_RATE} \
             --build-arg NEXT_PUBLIC_ASSET_PREFIX=${VARS_NEXT_PUBLIC_ASSET_PREFIX} \
             .
-          docker push $REGISTRY/$REPOSITORY:$IMAGE_TAG
+          docker push "$IMAGE"
       - name: Render AWS ECS Task Definition
         id: render-task-definition
         uses: aws-actions/amazon-ecs-render-task-definition@138c24f321fdbdf7edee4a685519d253cae2cdea # v1.9.0
         with:
           container-name: ${{ inputs.service }}
-          image: ${{ steps.login-ecr.outputs.registry }}/${{ inputs.service == 'ai-gateway' && 'ai-gateway' || steps.split.outputs._0 }}:${{ github.sha }}
+          image: ${{ steps.image.outputs.image }}
           task-definition-family: ${{ inputs.environment }}-${{ inputs.service }}
       - name: Update AWS ECS Service
         uses: aws-actions/amazon-ecs-deploy-task-definition@c465972ecbd160473f22e683363b422a5412a3de # v2.6.3
