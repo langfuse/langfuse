@@ -1,5 +1,4 @@
-import { Fragment, useMemo } from "react";
-import * as SelectPrimitive from "@radix-ui/react-select";
+import { type ComponentProps, useMemo } from "react";
 import { startCase } from "lodash";
 import { type UseFormReturn } from "react-hook-form";
 
@@ -11,19 +10,12 @@ import {
   FormMessage,
 } from "@/src/components/ui/form";
 import { Label } from "@/src/components/ui/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectSeparator,
-  SelectValue,
-} from "@/src/components/ui/select";
+import { SelectDropdown } from "@/src/components/design-system/SelectDropdown/SelectDropdown";
 import {
   CompactConnectorRow,
   CompactPickerButton,
 } from "@/src/features/filters";
 import { ConnectedMetricsFilterBuilder } from "@/src/features/metrics";
-import { WidgetPropertySelectItem } from "@/src/features/widgets";
 import { viewDeclarations, type FilterState } from "@langfuse/shared";
 import {
   type CreateMonitor,
@@ -58,9 +50,6 @@ export const MonitorMetricDefinition = ({
     () => getMeasuresByAggregation(view),
     [view],
   );
-  const measures = viewDeclarations.v2[view]?.measures ?? {};
-  const hasFieldMeasures =
-    (measuresByAggregation.get(aggregation) ?? []).length > 1;
 
   /** changeAggregation snaps the measure to the first one the new aggregation supports. */
   const changeAggregation = (next: MonitorAggregation) => {
@@ -99,28 +88,24 @@ export const MonitorMetricDefinition = ({
             name="metric.aggregation"
             render={({ field }) => (
               <FormItem className="min-w-0 flex-1 space-y-0">
-                <Select
-                  value={field.value}
-                  onValueChange={(next) =>
-                    changeAggregation(next as MonitorAggregation)
-                  }
-                  disabled={disabled}
-                >
-                  <FormControl>
-                    <SelectPrimitive.Trigger asChild aria-label="Aggregation">
-                      <CompactPickerButton>
-                        <SelectValue />
+                <FormControl>
+                  <SelectDropdown
+                    value={field.value}
+                    onValueChange={changeAggregation}
+                    options={[...measuresByAggregation.keys()].map((a) => ({
+                      value: a,
+                      label: aggregationLabel(a),
+                    }))}
+                    aria-label="Aggregation"
+                    disabled={disabled}
+                  >
+                    {({ getTriggerProps, selectedLabel }) => (
+                      <CompactPickerButton {...getTriggerProps()}>
+                        {selectedLabel}
                       </CompactPickerButton>
-                    </SelectPrimitive.Trigger>
-                  </FormControl>
-                  <SelectContent>
-                    {[...measuresByAggregation.keys()].map((a) => (
-                      <SelectItem key={a} value={a}>
-                        {aggregationLabel(a)}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                    )}
+                  </SelectDropdown>
+                </FormControl>
                 <FormMessage />
               </FormItem>
             )}
@@ -132,31 +117,21 @@ export const MonitorMetricDefinition = ({
             name="view"
             render={({ field }) => (
               <FormItem className="min-w-0 flex-1 space-y-0">
-                <Select
-                  value={field.value}
-                  onValueChange={(next) => changeView(next as MonitorView)}
-                  disabled={disabled}
-                >
-                  <FormControl>
-                    <SelectPrimitive.Trigger asChild aria-label="View">
-                      <CompactPickerButton>
-                        <SelectValue />
+                <FormControl>
+                  <SelectDropdown
+                    value={field.value as MonitorView}
+                    onValueChange={changeView}
+                    options={MonitorViewSchema.options.map(viewOption)}
+                    aria-label="View"
+                    disabled={disabled}
+                  >
+                    {({ getTriggerProps, selectedLabel }) => (
+                      <CompactPickerButton {...getTriggerProps()}>
+                        {selectedLabel}
                       </CompactPickerButton>
-                    </SelectPrimitive.Trigger>
-                  </FormControl>
-                  <SelectContent>
-                    {MonitorViewSchema.options.map((v) => (
-                      <WidgetPropertySelectItem
-                        key={v}
-                        value={v}
-                        label={viewLabels[v]}
-                        description={
-                          viewDeclarations.v2[v]?.description ?? undefined
-                        }
-                      />
-                    ))}
-                  </SelectContent>
-                </Select>
+                    )}
+                  </SelectDropdown>
+                </FormControl>
                 <FormMessage />
               </FormItem>
             )}
@@ -166,35 +141,27 @@ export const MonitorMetricDefinition = ({
             name="metric.measure"
             render={({ field }) => (
               <FormItem className="min-w-0 flex-1 space-y-0">
-                <Select
-                  value={field.value}
-                  onValueChange={field.onChange}
-                  disabled={disabled}
-                >
-                  <FormControl>
-                    <SelectPrimitive.Trigger asChild aria-label="Measure">
-                      <CompactPickerButton>
-                        <MeasureValue measure={field.value} />
-                      </CompactPickerButton>
-                    </SelectPrimitive.Trigger>
-                  </FormControl>
-                  <SelectContent>
-                    {(measuresByAggregation.get(aggregation) ?? []).map((m) => (
-                      <Fragment key={m}>
-                        <WidgetPropertySelectItem
-                          value={m}
-                          label={measureLabel(m, view)}
-                          description={measures[m]?.description}
-                          unit={measures[m]?.unit}
-                          type={measures[m]?.type}
+                <FormControl>
+                  <SelectDropdown
+                    value={field.value}
+                    onValueChange={field.onChange}
+                    options={measureOptions(
+                      measuresByAggregation.get(aggregation) ?? [],
+                      view,
+                    )}
+                    aria-label="Measure"
+                    disabled={disabled}
+                  >
+                    {({ getTriggerProps, selectedLabel }) => (
+                      <CompactPickerButton {...getTriggerProps()}>
+                        <MeasureValue
+                          measure={field.value}
+                          label={selectedLabel}
                         />
-                        {m === countMeasure && hasFieldMeasures && (
-                          <SelectSeparator />
-                        )}
-                      </Fragment>
-                    ))}
-                  </SelectContent>
-                </Select>
+                      </CompactPickerButton>
+                    )}
+                  </SelectDropdown>
+                </FormControl>
                 <FormMessage />
               </FormItem>
             )}
@@ -226,13 +193,59 @@ export const MonitorMetricDefinition = ({
 };
 
 /** MeasureValue shows the picked measure, with the row count as a muted "All". */
-function MeasureValue({ measure }: { measure: string }) {
-  if (measure !== countMeasure) return <SelectValue />;
-  return (
-    <SelectValue>
-      <span className="text-muted-foreground">All</span>
-    </SelectValue>
-  );
+function MeasureValue({
+  measure,
+  label,
+}: {
+  measure: string;
+  label: string | undefined;
+}) {
+  if (measure !== countMeasure) return label;
+  return <span className="text-muted-foreground">All</span>;
+}
+
+/** viewOption is a view's dropdown option, explained by its description. */
+function viewOption(view: MonitorView): SelectDropdownOption<MonitorView> {
+  return {
+    value: view,
+    label: viewLabels[view],
+    explanation: {
+      title: viewLabels[view],
+      description: viewDeclarations.v2[view]?.description ?? undefined,
+    },
+  };
+}
+
+/** measureOptions lists the measures as dropdown options, with the row count ahead of the field measures. */
+function measureOptions(
+  measureNames: string[],
+  view: MonitorView,
+): SelectDropdownNode<string>[] {
+  const options = measureNames.map((name) => measureOption(name, view));
+  const [first, ...rest] = options;
+  if (measureNames[0] !== countMeasure || rest.length === 0) return options;
+  return [
+    first,
+    { type: "group", id: "fields", label: "Fields", options: rest },
+  ];
+}
+
+/** measureOption is a measure's dropdown option, explained by its description, unit and type. */
+function measureOption(
+  name: string,
+  view: MonitorView,
+): SelectDropdownOption<string> {
+  const definition = viewDeclarations.v2[view]?.measures[name];
+  const label = measureLabel(name, view);
+  return {
+    value: name,
+    label,
+    explanation: {
+      title: label,
+      description: definition?.description,
+      badges: measureBadges(definition),
+    },
+  };
 }
 
 /** measureLabel renders a measure name, with the row count as "All <view>", e.g. "All observations". */
@@ -263,6 +276,27 @@ function aggregationsForMeasure(
   if (name === countMeasure) return ["count"];
   return getValidMonitorAggregationsForMeasure(definition);
 }
+
+/** measureBadges lists a measure's unit and type for its explanation. */
+function measureBadges(
+  definition: { unit?: string; type?: string } | undefined,
+): { label: string; value: string }[] {
+  const badges: { label: string; value: string }[] = [];
+  if (definition?.unit) badges.push({ label: "Unit", value: definition.unit });
+  if (definition?.type) badges.push({ label: "Type", value: definition.type });
+  return badges;
+}
+
+/** SelectDropdownNode is an option or option group of a SelectDropdown. */
+type SelectDropdownNode<V extends string> = ComponentProps<
+  typeof SelectDropdown<V>
+>["options"][number];
+
+/** SelectDropdownOption is a single, ungrouped SelectDropdown option. */
+type SelectDropdownOption<V extends string> = Exclude<
+  SelectDropdownNode<V>,
+  { type: "group" }
+>;
 
 /** MonitorAggregation is an aggregation a monitor metric can use. */
 type MonitorAggregation = CreateMonitor["metric"]["aggregation"];
