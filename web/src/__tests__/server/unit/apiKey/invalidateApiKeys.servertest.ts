@@ -67,12 +67,28 @@ describe("invalidateCachedApiKeys clears both cache namespaces", () => {
     await invalidateCachedApiKeys([key], "test", redis);
 
     const keys = deletedKeys();
+    const publicHash = createShaHash("pk-lf-2", env.SALT!);
     expect(keys).toEqual([
-      `${AUTHZ_CONTEXT_CACHE_KEY_PREFIX}${createShaHash("pk-lf-2", env.SALT!)}`,
-      createAuthzContextCacheKey("bearer", createShaHash("pk-lf-2", env.SALT!)),
+      `${AUTHZ_CONTEXT_CACHE_KEY_PREFIX}${publicHash}`,
+      createAuthzContextCacheKey("bearer", publicHash),
+      `${AUTHZ_CONTEXT_CACHE_KEY_PREFIX}v2:bearer:${publicHash}`,
     ]);
     expect(keys.some((k) => k.startsWith(API_KEY_CACHE_KEY_PREFIX))).toBe(
       false,
+    );
+  });
+
+  it("deletes the previous release's v2 presentations", async () => {
+    const { redis, deletedKeys } = delSpy();
+    const key = apiKey({ fastHashedSecretKey: "fh1", publicKey: "pk-lf-1" });
+
+    await invalidateCachedApiKeys([key], "test", redis);
+
+    const keys = deletedKeys();
+    expect(keys).toContain(`${AUTHZ_CONTEXT_CACHE_KEY_PREFIX}v2:basic:fh1`);
+    expect(keys).toContain(`${AUTHZ_CONTEXT_CACHE_KEY_PREFIX}v2:bearer:fh1`);
+    expect(keys).toContain(
+      `${AUTHZ_CONTEXT_CACHE_KEY_PREFIX}v2:bearer:${createShaHash("pk-lf-1", env.SALT!)}`,
     );
   });
 });
