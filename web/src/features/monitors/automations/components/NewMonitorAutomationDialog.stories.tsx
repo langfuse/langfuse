@@ -1,11 +1,9 @@
 import { type ComponentProps } from "react";
-import { Send } from "@langfuse/icons";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 
 import preview from "@/.storybook/preview";
-import { Button } from "@/src/components/design-system/Button/Button";
 import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
-import { defaultMonitorAutomationFormValues } from "./helpers/monitorAutomationFormSchema";
+import { defaultMonitorAutomationFormValues } from "../helpers/monitorAutomationFormSchema";
 import { NewMonitorAutomationDialog } from "./NewMonitorAutomationDialog";
 import { WebhookSecretDialog } from "./WebhookSecretDialog";
 
@@ -33,16 +31,16 @@ const baseArgs: ComponentProps<typeof NewMonitorAutomationDialog> = {
       channel: { id: "C-alerts", name: "alerts" },
     })),
   },
-  renderPagerDutyTestEvent: ({ routingKey }) => (
-    <Button
-      type="button"
-      text="Send test event"
-      variant="secondary"
-      size="sm"
-      icon={Send}
-      disabled={!routingKey}
-    />
-  ),
+  pagerDuty: {
+    canSend: true,
+    isTestAlertOpen: false,
+    isSending: false,
+    sendError: undefined,
+    onSend: fn(async () => {}),
+    onResetSend: fn(),
+    isResolving: false,
+    onResolve: fn(),
+  },
   isSubmitting: false,
   onSubmit: fn(async () => ({})),
 };
@@ -56,18 +54,18 @@ const meta = preview.meta({
 
 export const Picker = meta.story({});
 
-export const LockedSlack = meta.story({ args: { lockedActionType: "SLACK" } });
+export const LockedSlack = meta.story({ args: { actionTypes: ["SLACK"] } });
 
 export const LockedWebhook = meta.story({
-  args: { lockedActionType: "WEBHOOK" },
+  args: { actionTypes: ["WEBHOOK"] },
 });
 
 export const LockedGitHubDispatch = meta.story({
-  args: { lockedActionType: "GITHUB_DISPATCH" },
+  args: { actionTypes: ["GITHUB_DISPATCH"] },
 });
 
 export const LockedPagerDuty = meta.story({
-  args: { lockedActionType: "PAGERDUTY" },
+  args: { actionTypes: ["PAGERDUTY"] },
 });
 
 export const SlackNotConnected = meta.story({
@@ -128,7 +126,7 @@ export const ErrorsShown = meta.story({
   name: "(Test) Errors shown",
   args: {
     onSubmit: fn(async () => ({})),
-    lockedActionType: "WEBHOOK",
+    actionTypes: ["WEBHOOK"],
     defaultValues: {
       ...defaultMonitorAutomationFormValues("WEBHOOK", "Staging alerts"),
       webhook: {
@@ -155,7 +153,7 @@ export const ErrorsShown = meta.story({
 export const TestServerErrorShownInline = meta.story({
   name: "(Test) Server error shown inline",
   args: {
-    lockedActionType: "GITHUB_DISPATCH",
+    actionTypes: ["GITHUB_DISPATCH"],
     defaultValues: {
       ...defaultMonitorAutomationFormValues("GITHUB_DISPATCH", "Deploy"),
       githubDispatch: {
@@ -189,7 +187,7 @@ export const TestWebhookSubmitsHttpsUrl = meta.story({
   name: "(Test) Webhook submits the https URL",
   args: {
     onSubmit: fn(async () => ({})),
-    lockedActionType: "WEBHOOK",
+    actionTypes: ["WEBHOOK"],
   },
   play: async ({ args, canvasElement }) => {
     const body = within(canvasElement.ownerDocument.body);
@@ -215,7 +213,7 @@ export const TestDoesNotSubmitSurroundingForm = meta.story({
   name: "(Test) Does not submit the surrounding form",
   args: {
     onSubmit: fn(async () => ({})),
-    lockedActionType: "WEBHOOK",
+    actionTypes: ["WEBHOOK"],
     defaultValues: {
       ...defaultMonitorAutomationFormValues("WEBHOOK", "Staging alerts"),
       webhook: { url: "example.com/hook", headers: [] },

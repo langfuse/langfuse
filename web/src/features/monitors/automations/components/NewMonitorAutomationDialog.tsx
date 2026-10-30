@@ -1,28 +1,25 @@
-import { useId, type ReactNode } from "react";
+import { useId } from "react";
 import { useForm, useWatch, type UseFormReturn } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 
 import { type ActionTypes } from "@langfuse/shared";
-import { type PagerDutyRegion } from "@langfuse/shared/pagerduty";
+import { type PagerDutyTestEventState } from "@/src/features/pagerduty";
 import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
 import { Form } from "@/src/components/design-system/Form/Form";
 import { Input } from "@/src/components/design-system/Input/Input";
 import { SelectInput } from "@/src/components/design-system/SelectInput/SelectInput";
-import { DividedDialogBody } from "./components/DividedDialogBody";
-import { GitHubDispatchActionFields } from "./components/GitHubDispatchActionFields";
-import { PagerDutyActionFields } from "./components/PagerDutyActionFields";
-import {
-  SlackActionFields,
-  type SlackFieldsState,
-} from "./components/SlackActionFields";
-import { WebhookActionFields } from "./components/WebhookActionFields";
-import { isMonitorAutomationFormComplete } from "./helpers/isMonitorAutomationFormComplete";
-import { serverErrorField } from "./helpers/serverErrorField";
+import { DividedDialogBody } from "./DividedDialogBody";
+import { GitHubDispatchActionFields } from "./GitHubDispatchActionFields";
+import { PagerDutyActionFields } from "./PagerDutyActionFields";
+import { SlackActionFields, type SlackFieldsState } from "./SlackActionFields";
+import { WebhookActionFields } from "./WebhookActionFields";
+import { isMonitorAutomationFormComplete } from "../helpers/isMonitorAutomationFormComplete";
+import { serverErrorField } from "../helpers/serverErrorField";
 import {
   defaultMonitorAutomationFormValues,
   monitorAutomationFormSchema,
   type MonitorAutomationFormValues,
-} from "./helpers/monitorAutomationFormSchema";
+} from "../helpers/monitorAutomationFormSchema";
 
 const defaultActionType: ActionTypes = "SLACK";
 
@@ -36,25 +33,18 @@ const monitorActionLabel: Record<ActionTypes, string> = {
 
 /** NewMonitorAutomationDialog collects a name and one action's fields for a new monitor automation. */
 export function NewMonitorAutomationDialog({
-  lockedActionType,
   actionTypes,
   slack,
-  renderPagerDutyTestEvent,
+  pagerDuty,
   defaultValues,
   isSubmitting,
   onSubmit,
 }: {
-  /** lockedActionType hides the action picker and fixes the form to this action. */
-  lockedActionType?: ActionTypes;
   actionTypes: ActionTypes[];
   slack: SlackFieldsState;
-  renderPagerDutyTestEvent: (target: {
-    routingKey: string;
-    region: PagerDutyRegion;
-  }) => ReactNode;
+  pagerDuty: PagerDutyTestEventState;
   defaultValues?: MonitorAutomationFormValues;
   isSubmitting: boolean;
-  /** onSubmit resolves to the server's rejection, if any, which the form shows inline. */
   onSubmit: (
     values: MonitorAutomationFormValues,
   ) => Promise<MonitorAutomationSubmitResult>;
@@ -64,7 +54,7 @@ export function NewMonitorAutomationDialog({
     resolver: zodResolver(monitorAutomationFormSchema),
     defaultValues:
       defaultValues ??
-      defaultMonitorAutomationFormValues(lockedActionType ?? defaultActionType),
+      defaultMonitorAutomationFormValues(actionTypes[0] ?? defaultActionType),
   });
   const values = useWatch({ control: form.control });
   const isComplete = isMonitorAutomationFormComplete(
@@ -81,7 +71,7 @@ export function NewMonitorAutomationDialog({
 
   return (
     <Dialog
-      title={dialogTitle(lockedActionType)}
+      title={dialogTitle(actionTypes)}
       actions={[
         {
           label: "Create automation",
@@ -103,14 +93,14 @@ export function NewMonitorAutomationDialog({
           }}
         >
           <NameField form={form} />
-          {!lockedActionType && (
+          {actionTypes.length > 1 && (
             <ActionTypeField form={form} actionTypes={actionTypes} />
           )}
           <ActionFields
             form={form}
             actionType={form.watch("actionType")}
             slack={slack}
-            renderPagerDutyTestEvent={renderPagerDutyTestEvent}
+            pagerDuty={pagerDuty}
           />
           {rootError && <FormError message={rootError} />}
         </Form>
@@ -194,15 +184,12 @@ function ActionFields({
   form,
   actionType,
   slack,
-  renderPagerDutyTestEvent,
+  pagerDuty,
 }: {
   form: MonitorAutomationForm;
   actionType: ActionTypes;
   slack: SlackFieldsState;
-  renderPagerDutyTestEvent: (target: {
-    routingKey: string;
-    region: PagerDutyRegion;
-  }) => ReactNode;
+  pagerDuty: PagerDutyTestEventState;
 }) {
   switch (actionType) {
     case "SLACK":
@@ -212,19 +199,14 @@ function ActionFields({
     case "GITHUB_DISPATCH":
       return <GitHubDispatchActionFields form={form} />;
     case "PAGERDUTY":
-      return (
-        <PagerDutyActionFields
-          form={form}
-          renderTestEvent={renderPagerDutyTestEvent}
-        />
-      );
+      return <PagerDutyActionFields form={form} testEvent={pagerDuty} />;
   }
 }
 
-/** dialogTitle names the locked action, or the alert automation in general. */
-function dialogTitle(lockedActionType: ActionTypes | undefined): string {
-  if (!lockedActionType) return "New alert automation";
-  return `New ${monitorActionLabel[lockedActionType]} automation`;
+/** dialogTitle names the only offered action, or the alert automation in general. */
+function dialogTitle(actionTypes: ActionTypes[]): string {
+  if (actionTypes.length !== 1) return "New alert automation";
+  return `New ${monitorActionLabel[actionTypes[0]]} automation`;
 }
 
 /** MonitorAutomationForm is the form state shared with the action field groups. */

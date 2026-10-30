@@ -1,7 +1,11 @@
-import { useId, type ReactNode } from "react";
+import { useId } from "react";
 import { type UseFormReturn } from "react-hook-form";
 
 import { type PagerDutyRegion } from "@langfuse/shared/pagerduty";
+import {
+  PagerDutyTestEventButtonsView,
+  type PagerDutyTestEventState,
+} from "@/src/features/pagerduty";
 import { Form } from "@/src/components/design-system/Form/Form";
 import { PasswordInput } from "@/src/components/design-system/PasswordInput/PasswordInput";
 import { SelectInput } from "@/src/components/design-system/SelectInput/SelectInput";
@@ -22,13 +26,10 @@ const regionOptions: { value: PagerDutyRegion; label: string }[] = [
 /** PagerDutyActionFields collects the integration key and region, and can send them a test event. */
 export function PagerDutyActionFields({
   form,
-  renderTestEvent,
+  testEvent,
 }: {
   form: UseFormReturn<MonitorAutomationFormValues>;
-  renderTestEvent: (target: {
-    routingKey: string;
-    region: PagerDutyRegion;
-  }) => ReactNode;
+  testEvent: PagerDutyTestEventState;
 }) {
   const routingKeyHelpId = useId();
   const routingKey = form.watch("pagerDuty.routingKey");
@@ -83,7 +84,10 @@ export function PagerDutyActionFields({
         )}
       </Form.Field>
       <div className="flex">
-        {renderTestEvent({ routingKey: routingKey.trim(), region })}
+        <PagerDutyTestEventButtonsView
+          target={{ region, routingKey: routingKey.trim() || undefined }}
+          testEvent={testEvent}
+        />
       </div>
     </>
   );

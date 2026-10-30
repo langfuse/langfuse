@@ -6,11 +6,11 @@ import { Form } from "@/src/components/design-system/Form/Form";
 import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
 import { Input } from "@/src/components/design-system/Input/Input";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
-import { DividedDialogBody } from "./components/DividedDialogBody";
-import { InlineCode } from "./components/InlineCode";
-import { describedBy } from "./helpers/describedBy";
-import { FieldHelp } from "./components/FieldHelp";
-import { FieldWithHelp } from "./components/FieldWithHelp";
+import { DividedDialogBody } from "./DividedDialogBody";
+import { InlineCode } from "./InlineCode";
+import { describedBy } from "../helpers/describedBy";
+import { FieldHelp } from "./FieldHelp";
+import { FieldWithHelp } from "./FieldWithHelp";
 
 /** WebhookSecretDialog shows a just-created webhook automation's signing secret, which is never shown again. */
 export function WebhookSecretDialog({

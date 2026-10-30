@@ -1,6 +1,6 @@
 import { type ActionTypes } from "@langfuse/shared";
 import { useAvailableActionTypes } from "@/src/features/automations";
-import { PagerDutyTestEventButtons } from "@/src/features/pagerduty";
+import { usePagerDutyTestEvent } from "@/src/features/pagerduty";
 import { useHasProjectAccess } from "@/src/features/rbac";
 import {
   useChannelSelectorData,
@@ -14,7 +14,7 @@ import { type MonitorAutomationFormValues } from "./helpers/monitorAutomationFor
 import {
   NewMonitorAutomationDialog,
   type MonitorAutomationSubmitResult,
-} from "./NewMonitorAutomationDialog";
+} from "./components/NewMonitorAutomationDialog";
 
 const monitorActionTypes: readonly ActionTypes[] = [
   "SLACK",
@@ -33,45 +33,17 @@ export function ConnectedNewMonitorAutomationDialog({
   lockedActionType?: ActionTypes;
   onCreated: (automation: CreatedMonitorAutomation) => void;
 }) {
-  const actionTypes = useAvailableActionTypes(monitorActionTypes);
+  const availableActionTypes = useAvailableActionTypes(monitorActionTypes);
   const slack = useSlackFieldsState(projectId);
+  const pagerDuty = usePagerDutyTestEvent(projectId);
   const createAutomation = useCreateMonitorAutomation();
-
-  const submit = async (
-    values: MonitorAutomationFormValues,
-  ): Promise<MonitorAutomationSubmitResult> => {
-    try {
-      const result = await createAutomation.mutateAsync(
-        buildCreateMonitorAutomationInput(projectId, values),
-      );
-      onCreated({
-        automationId: result.automation.id,
-        name: values.name.trim(),
-        // GitHub dispatch also returns its token in `webhookSecret`.
-        webhookSecret: webhookSigningSecret(
-          values.actionType,
-          result.webhookSecret,
-        ),
-      });
-      return {};
-    } catch (error) {
-      return { error: rejectionMessage(error) };
-    }
-  };
+  const submit = useSubmit(createAutomation, projectId, onCreated);
 
   return (
     <NewMonitorAutomationDialog
-      lockedActionType={lockedActionType}
-      actionTypes={actionTypes}
+      actionTypes={offeredActionTypes(lockedActionType, availableActionTypes)}
       slack={slack}
-      renderPagerDutyTestEvent={({ routingKey, region }) => (
-        <PagerDutyTestEventButtons
-          projectId={projectId}
-          region={region}
-          routingKey={routingKey || undefined}
-          actionId={undefined}
-        />
-      )}
+      pagerDuty={pagerDuty}
       isSubmitting={createAutomation.isPending}
       onSubmit={submit}
     />
@@ -127,6 +99,44 @@ function useCreateMonitorAutomation() {
     // The dialog shows rejections under the field they concern.
     onError: (error) => reportTrpcErrorWithoutToast(error, "automations"),
   });
+}
+
+/** useSubmit creates the automation and reports it, or resolves to the server's rejection for the form to show. */
+function useSubmit(
+  createAutomation: ReturnType<typeof useCreateMonitorAutomation>,
+  projectId: string,
+  onCreated: (automation: CreatedMonitorAutomation) => void,
+) {
+  return async (
+    values: MonitorAutomationFormValues,
+  ): Promise<MonitorAutomationSubmitResult> => {
+    try {
+      const result = await createAutomation.mutateAsync(
+        buildCreateMonitorAutomationInput(projectId, values),
+      );
+      onCreated({
+        automationId: result.automation.id,
+        name: values.name.trim(),
+        // GitHub dispatch also returns its token in `webhookSecret`.
+        webhookSecret: webhookSigningSecret(
+          values.actionType,
+          result.webhookSecret,
+        ),
+      });
+      return {};
+    } catch (error) {
+      return { error: rejectionMessage(error) };
+    }
+  };
+}
+
+/** offeredActionTypes limits the dialog to the locked action, if there is one. */
+function offeredActionTypes(
+  lockedActionType: ActionTypes | undefined,
+  availableActionTypes: ActionTypes[],
+): ActionTypes[] {
+  if (lockedActionType) return [lockedActionType];
+  return availableActionTypes;
 }
 
 /** rejectionMessage is the reason the server gave for refusing the automation. */

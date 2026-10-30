@@ -3,11 +3,11 @@ import { useEffect, useRef, type ReactNode } from "react";
 import { type ActionTypes } from "@langfuse/shared";
 import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
 import { showSuccessToast } from "@/src/features/notifications";
+import { WebhookSecretDialog } from "./components/WebhookSecretDialog";
 import {
   ConnectedNewMonitorAutomationDialog,
   type CreatedMonitorAutomation,
 } from "./ConnectedNewMonitorAutomationDialog";
-import { WebhookSecretDialog } from "./WebhookSecretDialog";
 
 /** secretDialogDelayMs lets the create dialog finish its exit animation before the secret dialog enters. */
 const secretDialogDelayMs = 200;
@@ -24,6 +24,29 @@ export function NewMonitorAutomationDialogController({
     openDialog: (draft?: NewMonitorAutomationDraft) => void;
   }) => ReactNode;
 }) {
+  return (
+    <WebhookSecretDialogController>
+      {({ openSecretDialog }) => (
+        <ConnectedNewMonitorAutomationDialogController
+          projectId={projectId}
+          onCreated={onCreated}
+          openSecretDialog={openSecretDialog}
+        >
+          {children}
+        </ConnectedNewMonitorAutomationDialogController>
+      )}
+    </WebhookSecretDialogController>
+  );
+}
+
+/** WebhookSecretDialogController shows a webhook's once-only secret after the create dialog has closed. */
+function WebhookSecretDialogController({
+  children,
+}: {
+  children: (control: {
+    openSecretDialog: (secret: CreatedWebhookSecret) => void;
+  }) => ReactNode;
+}) {
   const secretTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
   useEffect(() => () => clearTimeout(secretTimer.current), []);
 
@@ -36,30 +59,51 @@ export function NewMonitorAutomationDialogController({
         />
       )}
     >
-      {({ openDialog: openSecretDialog }) => (
-        <DialogController<NewMonitorAutomationDraft>
-          renderDialog={({ state, closeDialog }) => (
-            <ConnectedNewMonitorAutomationDialog
-              projectId={projectId}
-              lockedActionType={state.actionType}
-              onCreated={(automation) => {
-                closeDialog();
-                onCreated?.(automation.automationId);
-                announceCreated(automation, (secret) => {
-                  secretTimer.current = setTimeout(
-                    () => openSecretDialog(secret),
-                    secretDialogDelayMs,
-                  );
-                });
-              }}
-            />
-          )}
-        >
-          {({ openDialog }) =>
-            children({ openDialog: (draft = {}) => openDialog(draft) })
-          }
-        </DialogController>
+      {({ openDialog }) =>
+        children({
+          openSecretDialog: (secret) => {
+            secretTimer.current = setTimeout(
+              () => openDialog(secret),
+              secretDialogDelayMs,
+            );
+          },
+        })
+      }
+    </DialogController>
+  );
+}
+
+/** ConnectedNewMonitorAutomationDialogController opens the create dialog and announces each automation it creates. */
+function ConnectedNewMonitorAutomationDialogController({
+  projectId,
+  onCreated,
+  openSecretDialog,
+  children,
+}: {
+  projectId: string;
+  onCreated?: (automationId: string) => void;
+  openSecretDialog: (secret: CreatedWebhookSecret) => void;
+  children: (control: {
+    openDialog: (draft?: NewMonitorAutomationDraft) => void;
+  }) => ReactNode;
+}) {
+  return (
+    <DialogController<NewMonitorAutomationDraft>
+      renderDialog={({ state, closeDialog }) => (
+        <ConnectedNewMonitorAutomationDialog
+          projectId={projectId}
+          lockedActionType={state.actionType}
+          onCreated={(automation) => {
+            closeDialog();
+            onCreated?.(automation.automationId);
+            announceCreated(automation, openSecretDialog);
+          }}
+        />
       )}
+    >
+      {({ openDialog }) =>
+        children({ openDialog: (draft = {}) => openDialog(draft) })
+      }
     </DialogController>
   );
 }
