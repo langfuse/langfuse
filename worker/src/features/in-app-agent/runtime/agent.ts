@@ -67,8 +67,9 @@ import type { InAppAgentModelConfig } from "@langfuse/shared/in-app-agent/server
 import { applyPromptCacheToCall } from "./promptCache";
 import {
   createInAppAgentLanguageModel,
-  getInAppAgentReasoningProviderOptions,
+  getInAppAgentProviderOptions,
   type InAppAgentLanguageModel,
+  type InAppAgentProviderOptionOverrides,
 } from "./model";
 
 const ASSISTANT_TITLE = "Langfuse Halo";
@@ -251,6 +252,8 @@ type CreateAgUiStreamOptions = {
   onError?: (error: unknown) => void | Promise<void>;
   onFinish?: () => void | Promise<void>;
   model: InAppAgentModelConfig;
+  /** Provider options layered over the built-in reasoning defaults. */
+  providerOptionOverrides?: InAppAgentProviderOptionOverrides;
   awsProfile?: string;
   langfuseMcp: {
     url: string;
@@ -1227,8 +1230,9 @@ async function createMastraAdapter(params: {
     });
     params.onToolsAvailable?.(tools);
 
-    const reasoningProviderOptions = getInAppAgentReasoningProviderOptions(
+    const providerOptions = getInAppAgentProviderOptions(
       params.options.model,
+      params.options.providerOptionOverrides,
     );
 
     // @ag-ui/mastra currently forwards only assistant, user, and tool
@@ -1275,9 +1279,7 @@ async function createMastraAdapter(params: {
         ...(params.options.sandboxWorkspaceWasReset
           ? { system: SANDBOX_WORKSPACE_RESET_INSTRUCTION }
           : {}),
-        ...(reasoningProviderOptions
-          ? { providerOptions: reasoningProviderOptions }
-          : {}),
+        ...(providerOptions ? { providerOptions } : {}),
       },
     });
 

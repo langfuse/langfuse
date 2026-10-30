@@ -178,7 +178,9 @@ stale-run reconciliation, including after assistant opt-out.
 
 Environment ownership:
 
-- Worker: queue concurrency, sandbox provider and Lambda MicroVM values.
+- Worker: queue concurrency, sandbox provider and Lambda MicroVM values, and
+  optional model provider options (`LANGFUSE_IN_APP_AGENT_PROVIDER_OPTIONS`)
+  layered over the built-in reasoning defaults.
   Enablement is `LANGFUSE_IN_APP_AGENT_ENABLED` (shared with web); optional `"false"`
   queue and integrity flags opt a split-role worker out.
 - Shared: local `LANGFUSE_AI_FEATURES_AWS_PROFILE` for Topics, Assistant, and

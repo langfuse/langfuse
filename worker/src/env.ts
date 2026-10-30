@@ -886,6 +886,31 @@ const EnvSchema = z.object({
     .number()
     .positive()
     .default(600_000),
+  // AI SDK provider options for the Assistant model loop, keyed by provider
+  // namespace and layered over the built-in reasoning defaults. Lets models
+  // without defaults (non-Claude ids) be tuned, e.g.
+  // {"anthropic":{"thinking":{"type":"disabled"}}}.
+  LANGFUSE_IN_APP_AGENT_PROVIDER_OPTIONS: z
+    .string()
+    .optional()
+    .transform((value, ctx) => {
+      if (value === undefined) {
+        return undefined;
+      }
+
+      try {
+        return z
+          .record(z.string(), z.record(z.string(), z.json()))
+          .parse(JSON.parse(value));
+      } catch {
+        ctx.addIssue({
+          code: "custom",
+          message:
+            "LANGFUSE_IN_APP_AGENT_PROVIDER_OPTIONS must be a JSON object mapping provider names to option objects",
+        });
+        return z.NEVER;
+      }
+    }),
   LANGFUSE_DELETE_BATCH_SIZE: z.coerce.number().positive().default(2000),
   LANGFUSE_TOKEN_COUNT_WORKER_POOL_SIZE: z.coerce
     .number()
