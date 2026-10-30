@@ -5,6 +5,7 @@ import {
   type Prisma,
 } from "@langfuse/shared/src/db";
 import { type AuditLogActor as StagedAuditLogActor } from "@langfuse/shared";
+import { isSandboxPublicKey } from "@langfuse/shared/in-app-agent";
 import {
   deriveAuditLogEventId,
   formatSubmittedPublicKeyForLog,
@@ -208,10 +209,11 @@ export async function auditLog(
       },
     });
 
-    const userId =
-      apiKey?.isInAppAgentKey === true
-        ? (apiKey.createdByUserId ?? undefined)
-        : undefined;
+    const actsForUser =
+      apiKey?.isInAppAgentKey === true || isSandboxPublicKey(apiKey?.publicKey);
+    const userId = actsForUser
+      ? (apiKey?.createdByUserId ?? undefined)
+      : undefined;
 
     // Actor telemetry is ungated — see top-of-function comment.
     logAuditEvent(log, {

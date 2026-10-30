@@ -29,6 +29,7 @@ import { getOrganizationPlanServerSide } from "@/src/features/entitlements/serve
 import { type z } from "zod";
 import { CloudConfigSchema, isPlan, UnauthorizedError } from "@langfuse/shared";
 import { isApiKeyExpired } from "@/src/features/apiKey/helpers/isApiKeyExpired";
+import { isSandboxPublicKey } from "@langfuse/shared/in-app-agent";
 
 type VerifyAuthHeaderOptions = {
   allowInAppAgentKey?: boolean;
@@ -301,6 +302,15 @@ export class ApiAuthService {
         validKey: false,
         error:
           "Access denied - in-app agent keys are not allowed for this endpoint",
+      };
+    }
+
+    // Sandbox keys are capped by the policy resolver, which legacy auth skips.
+    if (result.validKey && isSandboxPublicKey(result.scope.publicKey)) {
+      return {
+        validKey: false,
+        error:
+          "Access denied - sandbox keys require API_AUTH_MIGRATION=enforce",
       };
     }
 
