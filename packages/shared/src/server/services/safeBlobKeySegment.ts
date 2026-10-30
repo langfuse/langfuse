@@ -8,10 +8,9 @@ const HASH_SUFFIX_OVERHEAD = HASH_HEX_LENGTH + 1; // hex chars + leading "_"
 // Characters that must not appear in a single S3 key path segment: "/" and
 // "\" break path semantics; NUL and other ASCII control chars are rejected by
 // S3/MinIO.
-// eslint-disable-next-line no-control-regex
-const FORBIDDEN_CHAR = /[\x00-\x1f/\\]/;
-// eslint-disable-next-line no-control-regex
-const FORBIDDEN_CHAR_GLOBAL = /[\x00-\x1f/\\]/g;
+const FORBIDDEN_PATTERN = "[\\u0000-\\u001F/\\\\]";
+const FORBIDDEN_CHAR = new RegExp(FORBIDDEN_PATTERN);
+const FORBIDDEN_CHAR_GLOBAL = new RegExp(FORBIDDEN_PATTERN, "g");
 
 function sliceUtf8Bytes(input: string, maxBytes: number): string {
   const buf = Buffer.from(input, "utf8");
