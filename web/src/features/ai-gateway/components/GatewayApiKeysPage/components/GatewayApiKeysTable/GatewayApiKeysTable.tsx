@@ -64,7 +64,7 @@ export function GatewayApiKeysTable({
     createTextTableColumn<GatewayApiKey>({
       accessorFn: (row) => row.apiKey.note,
       id: "description",
-      header: "Description",
+      header: "Name",
       nullValue: "-",
       enableResizing: false,
     }),

@@ -21,6 +21,8 @@ type SettingsPage = {
   show?: boolean | (() => boolean);
   /** Lists the page but blocks opening it; shown as the entry's tooltip */
   disabledReason?: string;
+  /** Marks the entry with a dot when something there needs the user */
+  indicator?: boolean;
 } & (
   | { content: ReactNode }
   | {
@@ -36,6 +38,8 @@ type SettingsProps = {
   fullHeight?: boolean;
   /** Replaces a section's label; rendered even when the section has no pages */
   sectionHeaders?: Record<string, ReactNode>;
+  /** Shown next to a section's default label, e.g. a Beta badge */
+  sectionBadges?: Record<string, ReactNode>;
 };
 
 const pageKey = (page: SettingsPage) => `${page.section ?? ""}:${page.slug}`;
@@ -45,6 +49,7 @@ export const PagedSettingsContainer = ({
   activeSlug,
   fullHeight = false,
   sectionHeaders = {},
+  sectionBadges = {},
 }: SettingsProps) => {
   const router = useRouter();
   const availablePages = pages.filter((page) =>
@@ -107,7 +112,10 @@ export const PagedSettingsContainer = ({
               {groups.map((group) => (
                 <SelectGroup key={group.section ?? "default"}>
                   {group.section ? (
-                    <SelectLabel>{group.section}</SelectLabel>
+                    <SelectLabel className="flex items-center gap-2">
+                      {group.section}
+                      {sectionBadges[group.section]}
+                    </SelectLabel>
                   ) : null}
                   {group.pages.map((page) => (
                     <SelectItem
@@ -146,8 +154,9 @@ export const PagedSettingsContainer = ({
             >
               {group.section
                 ? (sectionHeaders[group.section] ?? (
-                    <span className="text-foreground flex h-8 items-center px-2 text-xs font-bold">
+                    <span className="text-foreground flex h-8 items-center gap-2 px-2 text-xs font-bold">
                       {group.section}
+                      {sectionBadges[group.section]}
                     </span>
                   ))
                 : null}
@@ -199,6 +208,7 @@ function NavEntry({
         className="hover:bg-muted hover:text-foreground flex h-8 flex-row items-center gap-2 rounded-sm px-2"
       >
         {page.title}
+        {page.indicator && <NavIndicator />}
         {!page.internal && <ArrowUpRight size="base" __rawClassName="inline" />}
       </Link>
     );
@@ -211,12 +221,22 @@ function NavEntry({
     <span
       onClick={handleSelect}
       className={cn(
-        "hover:bg-muted hover:text-foreground flex h-8 cursor-pointer items-center rounded-sm px-2",
+        "hover:bg-muted hover:text-foreground flex h-8 cursor-pointer items-center gap-2 rounded-sm px-2",
         isActive && "bg-muted text-primary font-bold",
       )}
     >
       {page.title}
+      {page.indicator && <NavIndicator />}
     </span>
+  );
+}
+
+function NavIndicator() {
+  return (
+    <span
+      aria-label="Needs your attention"
+      className="size-1.75 shrink-0 rounded-full bg-orange-400"
+    />
   );
 }
 
