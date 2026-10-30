@@ -1,0 +1,125 @@
+# `license/cla` is a required commit status posted by cla-assistant.io. PRs
+# authored by members of the `maintainers` team do not need it, so this
+# workflow sets `license/cla` to success on their head commit: when the PR is
+# opened or updated, and again whenever cla-assistant.io overwrites it with a
+# non-success state.
+#
+# Requires the `ORG_MEMBERS_READ_TOKEN` secret: a fine-grained PAT or GitHub App
+# token for the langfuse org with Organization > Members: read-only. Without it
+# the workflow does nothing and the cla-assistant.io status stands.
+name: CLA for Maintainers
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize]
+  status:
+
+permissions: {}
+
+jobs:
+  skip-cla:
+    name: Skip CLA for Maintainers
+    # Fork PRs get a read-only GITHUB_TOKEN and no secrets, so they keep the
+    # regular CLA check.
+    if: >-
+      (github.event_name == 'pull_request' &&
+        github.event.pull_request.head.repo.full_name == github.repository) ||
+      (github.event_name == 'status' &&
+        github.event.context == 'license/cla' &&
+        github.event.state != 'success')
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: read
+      statuses: write
+    steps:
+      - name: Set license/cla to success for Maintainers
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        env:
+          ORG_MEMBERS_READ_TOKEN: ${{ secrets.ORG_MEMBERS_READ_TOKEN }}
+          TEAM_SLUG: maintainers
+        with:
+          script: |
+            const { owner, repo } = context.repo;
+            const teamSlug = process.env.TEAM_SLUG;
+            const membersToken = process.env.ORG_MEMBERS_READ_TOKEN;
+
+            if (!membersToken) {
+              core.warning(
+                "ORG_MEMBERS_READ_TOKEN is not set; leaving license/cla to cla-assistant.io.",
+              );
+              return;
+            }
+
+            let sha;
+            let pullRequests;
+            if (context.eventName === "pull_request") {
+              sha = context.payload.pull_request.head.sha;
+              pullRequests = [context.payload.pull_request];
+            } else {
+              sha = context.payload.sha;
+              const { data } = await github.rest.repos.listPullRequestsAssociatedWithCommit({
+                owner,
+                repo,
+                commit_sha: sha,
+              });
+              pullRequests = data.filter(
+                (pr) =>
+                  pr.state === "open" &&
+                  pr.head.sha === sha &&
+                  pr.head.repo?.full_name === `${owner}/${repo}`,
+              );
+            }
+
+            if (pullRequests.length === 0) {
+              core.info(`No open same-repo PR has ${sha} as its head commit.`);
+              return;
+            }
+
+            const teams = getOctokit(membersToken).rest.teams;
+            // Membership lookups return 404 both for non-members and for a team
+            // the token cannot see, so fail loudly on the latter first.
+            await teams.getByName({ org: owner, team_slug: teamSlug });
+
+            const isMaintainer = async (username) => {
+              try {
+                const { data } = await teams.getMembershipForUserInOrg({
+                  org: owner,
+                  team_slug: teamSlug,
+                  username,
+                });
+                return data.state === "active";
+              } catch (error) {
+                if (error.status === 404) {
+                  return false;
+                }
+                throw error;
+              }
+            };
+
+            let maintainerPr;
+            for (const pr of pullRequests) {
+              if (await isMaintainer(pr.user.login)) {
+                maintainerPr = pr;
+                break;
+              }
+            }
+
+            if (!maintainerPr) {
+              core.info(
+                `PR author(s) ${pullRequests.map((pr) => pr.user.login).join(", ")} not in ${teamSlug}; leaving license/cla to cla-assistant.io.`,
+              );
+              return;
+            }
+
+            await github.rest.repos.createCommitStatus({
+              owner,
+              repo,
+              sha,
+              state: "success",
+              context: "license/cla",
+              description: `Not required: @${maintainerPr.user.login} is in the ${teamSlug} team.`,
+              target_url: `${context.serverUrl}/${owner}/${repo}/actions/runs/${context.runId}`,
+            });
+            core.info(
+              `Set license/cla to success on ${sha} for PR #${maintainerPr.number} by @${maintainerPr.user.login}.`,
+            );
