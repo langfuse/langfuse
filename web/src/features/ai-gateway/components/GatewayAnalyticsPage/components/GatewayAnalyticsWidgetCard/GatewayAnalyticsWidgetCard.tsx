@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import type { FilterState } from "@langfuse/shared";
 
 import { buildGatewayAnalyticsQuery } from "@/src/features/ai-gateway/components/GatewayAnalyticsPage/fns/buildGatewayAnalyticsQuery";
 import type { GatewayAnalyticsWidget } from "@/src/features/ai-gateway/components/GatewayAnalyticsPage/types/gatewayAnalyticsWidget";
@@ -27,16 +28,18 @@ export function GatewayAnalyticsWidgetCard({
   projectId,
   widget,
   timeRange,
+  filters,
   dimensionLabelMap,
 }: {
   projectId: string;
   widget: GatewayAnalyticsWidget;
   timeRange: { from: Date; to: Date };
+  filters: FilterState;
   dimensionLabelMap?: ReadonlyMap<string, string>;
 }) {
   const query = useMemo(
-    () => buildGatewayAnalyticsQuery(widget, timeRange),
-    [widget, timeRange],
+    () => buildGatewayAnalyticsQuery(widget, timeRange, filters),
+    [widget, timeRange, filters],
   );
 
   return (
@@ -53,6 +56,9 @@ export function GatewayAnalyticsWidgetCard({
       cardContentClassName="min-h-0"
     >
       <WidgetContent
+        // The loading skeleton has a min height taller than the small tiles;
+        // clip it to the content area like dashboard widgets do.
+        className="overflow-hidden"
         projectId={projectId}
         query={query}
         version="v2"

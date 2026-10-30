@@ -1,4 +1,4 @@
-import { Role } from "@langfuse/shared";
+import { hasProjectAccessByRole, type Role } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import {
   getLangfuseAIAwsProfile,
@@ -735,7 +735,8 @@ async function resolveUserProjectAccess(params: {
 
   const projectRole = projectMembership?.role ?? orgMembership.role;
 
-  if (projectRole === Role.NONE) return null;
+  if (!hasProjectAccessByRole({ role: projectRole, scope: "project:read" }))
+    return null;
 
   return {
     projectRole,

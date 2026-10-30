@@ -4518,6 +4518,30 @@ describe("queryBuilder", () => {
             ]),
           ),
         ).toEqual({ "user-a": 2 });
+
+        const [keyFiltered] = await executeQuery(
+          projectId,
+          {
+            view: "observations",
+            dimensions: [],
+            metrics: [{ measure: "count", aggregation: "count" }],
+            filters: [
+              {
+                column: "aiGatewayKeyId",
+                operator: "any of",
+                value: ["key-a1", "service-key"],
+                type: "stringOptions",
+              },
+            ],
+            timeDimension: null,
+            fromTimestamp: new Date(Date.now() - 86400000).toISOString(),
+            toTimestamp: new Date(Date.now() + 86400000).toISOString(),
+            orderBy: null,
+          },
+          "v2",
+          true,
+        );
+        expect(Number(keyFiltered["count_count"])).toBe(2);
       },
     );
   });
