@@ -15,6 +15,7 @@ import { throwIfNoOrganizationAccess } from "@/src/features/rbac/utils/checkOrga
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { throwIfHigherProjectRole } from "@/src/features/rbac/server/throwIfHigherProjectRole";
 import { throwIfHigherRole } from "@/src/features/rbac/server/throwIfHigherRole";
+import { requireGatewayEnabledForRole } from "@/src/features/ai-gateway/server/availability";
 import type { OrgAuthedContext } from "@/src/server/api/trpc";
 
 type InviteOrganizationMemberParams = {
@@ -109,6 +110,7 @@ export async function inviteOrganizationMember({
     ownRole: ctx.session.orgRole,
     role: input.orgRole,
   });
+  requireGatewayEnabledForRole(input.orgId, input.orgRole);
 
   // check for entilement (project role)
   if (input.projectId && input.projectRole) {
