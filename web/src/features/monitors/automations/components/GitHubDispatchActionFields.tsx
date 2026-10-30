@@ -10,7 +10,7 @@ import { stripUrlScheme } from "../helpers/stripUrlScheme";
 import { FieldHelp } from "./FieldHelp";
 import { FieldWithHelp } from "./FieldWithHelp";
 import { HelpLink } from "./HelpLink";
-import { PrefixedInput } from "./PrefixedInput";
+import { PrefixedInput } from "@/src/components/design-system/PrefixedInput/PrefixedInput";
 
 const dispatchDocsUrl =
   "https://docs.github.com/en/rest/repos/repos#create-a-repository-dispatch-event";

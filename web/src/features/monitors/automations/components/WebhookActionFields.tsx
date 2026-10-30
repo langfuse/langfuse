@@ -14,7 +14,7 @@ import { Input } from "@/src/components/design-system/Input/Input";
 import { type MonitorAutomationFormValues } from "../helpers/monitorAutomationFormSchema";
 import { stripUrlScheme } from "../helpers/stripUrlScheme";
 import { FieldGroup } from "./FieldGroup";
-import { PrefixedInput } from "./PrefixedInput";
+import { PrefixedInput } from "@/src/components/design-system/PrefixedInput/PrefixedInput";
 
 const defaultHeaders = [
   {
