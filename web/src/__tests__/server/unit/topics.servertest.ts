@@ -1,5 +1,6 @@
 import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import { canViewTopics } from "@/src/features/topics/topicsAccess";
+import { TOPICS_BACKFILL_TRACE_LIMIT } from "@/src/features/topics/backfill-limit";
 import type { Session } from "next-auth";
 import type * as topicsServer from "@langfuse/shared/topics/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -9,6 +10,7 @@ import {
   DEFAULT_TOPIC_FACETS,
   type TopicExecution,
   type TopicExecutionInput,
+  type TopicRule,
 } from "@langfuse/shared/topics";
 
 const mocks = vi.hoisted(() => ({
@@ -459,15 +461,15 @@ describe("Topics filtered trace preview", () => {
         timestampMs: "1789430400000",
         name: "Agent",
         environment: "default",
-        matchedTraceCount: "1001",
+        matchedTraceCount: String(TOPICS_BACKFILL_TRACE_LIMIT + 1),
       },
     ]);
     const response = await caller().previewTraces({
       ...selection,
       limit: null,
     });
-    expect(response.matchedTraceCount).toBe(1001);
-    expect(response.selectedTraceCount).toBe(1000);
+    expect(response.matchedTraceCount).toBe(TOPICS_BACKFILL_TRACE_LIMIT + 1);
+    expect(response.selectedTraceCount).toBe(TOPICS_BACKFILL_TRACE_LIMIT);
     expect(mocks.queryClickhouse.mock.calls[0][0].params.limit).toBe(100);
     await caller().previewTraces({ ...selection, limit: 500 });
     expect(mocks.queryClickhouse.mock.calls[1][0].params.limit).toBe(100);
@@ -480,12 +482,12 @@ describe("Topics filtered trace preview", () => {
       status: "queued",
     }));
     mocks.queryClickhouse.mockResolvedValue(
-      Array.from({ length: 1000 }, (_, index) => ({
+      Array.from({ length: TOPICS_BACKFILL_TRACE_LIMIT }, (_, index) => ({
         id: `trace-${index}`,
         timestampMs: "1789430400000",
         name: "Agent",
         environment: "default",
-        matchedTraceCount: "1001",
+        matchedTraceCount: String(TOPICS_BACKFILL_TRACE_LIMIT + 1),
       })),
     );
     const criteria = {
@@ -506,9 +508,11 @@ describe("Topics filtered trace preview", () => {
     });
     const resolved = mocks.createTopicExecution.mock.calls[0][0];
     expect(resolved.processingConfig.maxInputTokens).toBe(2000);
-    expect(resolved.traceIds).toHaveLength(999);
+    expect(resolved.traceIds).toHaveLength(TOPICS_BACKFILL_TRACE_LIMIT - 1);
     expect(resolved.traceIds[0]).toBe("trace-1");
-    expect(resolved.traceIds.at(-1)).toBe("trace-999");
+    expect(resolved.traceIds.at(-1)).toBe(
+      `trace-${TOPICS_BACKFILL_TRACE_LIMIT - 1}`,
+    );
     expect(mocks.enqueueTopicExecution).toHaveBeenCalledWith(
       projectId,
       "execution-a",
@@ -516,7 +520,9 @@ describe("Topics filtered trace preview", () => {
     );
     expect(resolved).not.toHaveProperty("selection");
     expect(mocks.queryClickhouse.mock.calls[0][0].query).toContain("LIMIT");
-    expect(mocks.queryClickhouse.mock.calls[0][0].params.limit).toBe(1000);
+    expect(mocks.queryClickhouse.mock.calls[0][0].params.limit).toBe(
+      TOPICS_BACKFILL_TRACE_LIMIT,
+    );
     expect(mocks.queryClickhouse.mock.calls[0][0].params.samplingSeed).toBe(
       "sample-seed",
     );
@@ -537,9 +543,12 @@ describe("Topics filtered trace preview", () => {
 
   it("rejects oversized manual backfill selections before querying or creating a run", async () => {
     for (const selectionInput of [
-      { selection: { ...selection, limit: 1001 } },
+      { selection: { ...selection, limit: TOPICS_BACKFILL_TRACE_LIMIT + 1 } },
       {
-        traceIds: Array.from({ length: 1001 }, (_, index) => `trace-${index}`),
+        traceIds: Array.from(
+          { length: TOPICS_BACKFILL_TRACE_LIMIT + 1 },
+          (_, index) => `trace-${index}`,
+        ),
       },
     ]) {
       await expect(
@@ -550,11 +559,18 @@ describe("Topics filtered trace preview", () => {
           facets: selectedFacets,
           ...selectionInput,
         }),
-      ).rejects.toThrow("Select at most 1,000 traces");
+      ).rejects.toThrow(
+        `Select at most ${TOPICS_BACKFILL_TRACE_LIMIT.toLocaleString("en-US")} traces`,
+      );
     }
     await expect(
-      caller().previewTraces({ ...selection, limit: 1001 }),
-    ).rejects.toThrow("Select at most 1,000 traces");
+      caller().previewTraces({
+        ...selection,
+        limit: TOPICS_BACKFILL_TRACE_LIMIT + 1,
+      }),
+    ).rejects.toThrow(
+      `Select at most ${TOPICS_BACKFILL_TRACE_LIMIT.toLocaleString("en-US")} traces`,
+    );
     expect(mocks.queryClickhouse).not.toHaveBeenCalled();
     expect(mocks.createTopicExecution).not.toHaveBeenCalled();
   });
@@ -1310,6 +1326,7 @@ describe("Topics current results", () => {
       "intent",
       timeRange,
       undefined,
+      undefined,
     );
     await expect(caller("VIEWER").trigger(input)).rejects.toMatchObject({
       code: "FORBIDDEN",
@@ -1409,6 +1426,7 @@ describe("Topics current results", () => {
         projectId,
         "intent",
         timeRange,
+        undefined,
         undefined,
       );
       expect(mocks.getTopicRuns).toHaveBeenCalledWith(projectId, []);
@@ -1683,4 +1701,42 @@ describe("Topics write access", () => {
       for (const mock of writeMocks) expect(mock).not.toHaveBeenCalled();
     },
   );
+});
+
+describe("Topics analyses", () => {
+  const condition = (column: string, value: string) => ({
+    column,
+    type: "string" as const,
+    operator: "=" as const,
+    value,
+  });
+  const rule = (id: string, filter: ReturnType<typeof condition>[]) =>
+    ({ id, name: id, filter }) as unknown as TopicRule;
+
+  it("compares an analysis with the narrowest rule whose filters it applies", async () => {
+    const { parentRuleFor } =
+      await import("@/src/features/topics/server/slices");
+    const env = condition("environment", "production");
+    const support = condition("traceName", "support-agent");
+    const rules = [
+      rule("all", []),
+      rule("support", [env, support]),
+      rule("checkout", [env, condition("traceName", "checkout-agent")]),
+    ];
+    expect(
+      parentRuleFor(rules, [support, env, condition("level", "ERROR")])?.id,
+    ).toBe("support");
+    expect(parentRuleFor(rules, [env])?.id).toBe("all");
+    expect(parentRuleFor(rules.slice(1), [env])).toBeNull();
+  });
+
+  it("classifies a topic's change between runs by its share", async () => {
+    const { topicRunChange } =
+      await import("@/src/features/topics/server/slices");
+    expect(topicRunChange(0, 0.1)).toBe("new");
+    expect(topicRunChange(0.1, 0)).toBe("gone");
+    expect(topicRunChange(0.1, 0.12)).toBe("grown");
+    expect(topicRunChange(0.1, 0.08)).toBe("shrunk");
+    expect(topicRunChange(0.1, 0.11)).toBe("stable");
+  });
 });
