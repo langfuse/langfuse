@@ -474,7 +474,7 @@ export const aiGatewayRouter = createTRPCRouter({
   createApiKey: protectedOrganizationProcedureWithoutTracing
     .input(
       organizationInput.extend({
-        name: z.string().max(500).optional(),
+        name: z.string().trim().min(1, "Gateway keys need a name").max(500),
         metadata: GatewayMetadataSchema.default({}),
         expiresAt: z
           .date()

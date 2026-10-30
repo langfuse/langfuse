@@ -152,6 +152,7 @@ describe("user-bound API keys", () => {
 
       const key = await new GatewayApiKeyService(prisma).create({
         organizationId: org.id,
+        name: "Test key",
         metadata: {},
         issuedAs: "user",
         session: orgSession(user, org, Role.MEMBER),
@@ -169,6 +170,7 @@ describe("user-bound API keys", () => {
 
       const key = await new GatewayApiKeyService(prisma).create({
         organizationId: org.id,
+        name: "Test key",
         metadata: {},
         issuedAs: "serviceAccount",
         session: orgSession(user, org, Role.ADMIN),
@@ -197,6 +199,7 @@ describe("user-bound API keys", () => {
       await expect(
         new GatewayApiKeyService(prisma).create({
           organizationId: org.id,
+          name: "Test key",
           metadata: {},
           issuedAs: "serviceAccount",
           session: orgSession(user, org, Role.ADMIN),
@@ -216,6 +219,7 @@ describe("user-bound API keys", () => {
       await expect(
         new GatewayApiKeyService(prisma).create({
           organizationId: org.id,
+          name: "Test key",
           metadata: {},
           issuedAs: "user",
           session: orgSession(user, org, Role.OWNER),
@@ -232,6 +236,7 @@ describe("user-bound API keys", () => {
       await expect(
         new GatewayApiKeyService(prisma).create({
           organizationId: org.id,
+          name: "Test key",
           metadata: {},
           issuedAs: "user",
           session: orgSession(user, org, Role.OWNER),

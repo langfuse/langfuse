@@ -59,6 +59,9 @@ import { webhookSchema } from "./actions/WebhookActionForm";
 import { Alert } from "@/src/components/design-system/Alert/Alert";
 import Link from "next/link";
 import { Info } from "@langfuse/icons";
+import { useIsFeatureEnabled } from "@/src/features/feature-flags";
+import { useReadPath } from "@/src/features/events";
+import { useVersionFilterOptions } from "../hooks/useVersionFilterOptions";
 
 // Define Slack action schema
 const slackSchema = z.object({
@@ -83,8 +86,8 @@ const pagerDutySchema = z.object({
   region: PagerDutyRegionSchema,
 });
 
-/** promptEventActionDefaults is the default eventAction set for a fresh prompt-source automation. */
-const promptEventActionDefaults: string[] = ["created", "updated", "deleted"];
+/** versionEventActionDefaults is the default eventAction set for a fresh version-source automation. */
+const versionEventActionDefaults: string[] = ["created", "updated", "deleted"];
 
 /** projectNotificationName derives the auto-generated channel name from the destination — the name field is hidden for this source. */
 const projectNotificationName = (data: FormValues): string => {
@@ -215,11 +218,12 @@ const formSchema = z
     }),
   ])
   .superRefine((data, ctx) => {
-    // Prompt-source triggers require at least one event action; monitor and
+    // Prompt and skill triggers require at least one event action; monitor and
     // project-notification sources don't use this field (project-notification
     // triggers are match-all).
     if (
-      data.eventSource === TriggerEventSource.Prompt &&
+      (data.eventSource === TriggerEventSource.Prompt ||
+        data.eventSource === TriggerEventSource.Skill) &&
       data.eventAction.length === 0
     ) {
       ctx.addIssue({
@@ -234,15 +238,22 @@ type FormValues = z.infer<typeof formSchema>;
 
 /** EventSourceField renders the trigger source picker and routes changes through onSourceChange so the parent can reset dependent fields. */
 const EventSourceField = ({
+  projectId,
   control,
   onSourceChange,
   disabled,
 }: {
+  projectId: string;
   control: Control<FormValues>;
   onSourceChange: (value: TriggerEventSource) => void;
   disabled: boolean;
 }) => {
   const { isLangfuseCloud } = useLangfuseCloudRegion();
+  const { isV4 } = useReadPath();
+  const skillsEnabled = useIsFeatureEnabled("skillManagement", {
+    projectId,
+    enableForAdmins: false,
+  });
   return (
     <FormField
       control={control}
@@ -264,6 +275,10 @@ const EventSourceField = ({
             </FormControl>
             <SelectContent>
               <SelectItem value={TriggerEventSource.Prompt}>Prompt</SelectItem>
+              {((isV4 && skillsEnabled) ||
+                field.value === TriggerEventSource.Skill) && (
+                <SelectItem value={TriggerEventSource.Skill}>Skill</SelectItem>
+              )}
               {(isLangfuseCloud ||
                 field.value === TriggerEventSource.Monitor) && (
                 <SelectItem value={TriggerEventSource.Monitor}>
@@ -285,22 +300,28 @@ const EventSourceField = ({
   );
 };
 
-/** PromptTriggerFields renders the eventAction picker and inline filter builder for prompt-source automations. */
-const PromptTriggerFields = ({
+/** VersionTriggerFields renders the eventAction picker and inline filter builder for prompt and skill automations. */
+const VersionTriggerFields = ({
   projectId,
+  eventSource,
   control,
   disabled,
 }: {
   projectId: string;
+  eventSource: TriggerEventSource;
   control: Control<FormValues>;
   disabled: boolean;
 }) => {
   const [optionsOpened, setOptionsOpened] = React.useState(false);
-  const { data: filterOptions, isFetching: optionsLoading } =
-    api.prompts.filterOptions.useQuery(
-      { projectId },
-      { enabled: optionsOpened },
-    );
+  const isSkill = eventSource === TriggerEventSource.Skill;
+  const resource = isSkill ? "skill" : "prompt";
+  const { filterOptions, isFetching: optionsLoading } = useVersionFilterOptions(
+    {
+      projectId,
+      eventSource,
+      enabled: optionsOpened,
+    },
+  );
 
   return (
     <>
@@ -319,16 +340,15 @@ const PromptTriggerFields = ({
                 options={[
                   {
                     value: "created",
-                    description: "Whenever a new prompt version is created",
+                    description: `Whenever a new ${resource} version is created`,
                   },
                   {
                     value: "updated",
-                    description:
-                      "Whenever tags or labels on a prompt version are updated",
+                    description: `Whenever tags or labels on a ${resource} version are updated`,
                   },
                   {
                     value: "deleted",
-                    description: "Whenever a prompt version is deleted",
+                    description: `Whenever a ${resource} version is deleted`,
                   },
                 ]}
                 className="my-0 w-auto overflow-hidden"
@@ -473,8 +493,9 @@ export const AutomationForm = ({
 
     const resolvedEventAction: string[] =
       automation?.trigger.eventActions ??
-      (resolvedEventSource === TriggerEventSource.Prompt
-        ? promptEventActionDefaults
+      (resolvedEventSource === TriggerEventSource.Prompt ||
+      resolvedEventSource === TriggerEventSource.Skill
+        ? versionEventActionDefaults
         : resolvedEventSource === TriggerEventSource.ProjectNotification
           ? // New channels start with every event enabled; the per-event
             // toggles in the settings section manage them afterwards.
@@ -724,7 +745,7 @@ export const AutomationForm = ({
     if (value === TriggerEventSource.Monitor) {
       form.setValue("eventAction", []);
     } else {
-      form.setValue("eventAction", promptEventActionDefaults);
+      form.setValue("eventAction", versionEventActionDefaults);
     }
     form.setValue("filter", []);
   };
@@ -788,6 +809,7 @@ export const AutomationForm = ({
             <CardContent className="space-y-4">
               {!lockedEventSource && (
                 <EventSourceField
+                  projectId={projectId}
                   control={form.control}
                   onSourceChange={handleEventSourceChange}
                   disabled={!hasAccess || !isEditing}
@@ -796,8 +818,10 @@ export const AutomationForm = ({
               {watchedEventSource === TriggerEventSource.Monitor ? (
                 <MonitorTriggerFields projectId={projectId} />
               ) : (
-                <PromptTriggerFields
+                <VersionTriggerFields
+                  key={watchedEventSource}
                   projectId={projectId}
+                  eventSource={watchedEventSource}
                   control={form.control}
                   disabled={!hasAccess || !isEditing}
                 />
