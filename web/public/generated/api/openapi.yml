@@ -12154,10 +12154,7 @@ components:
         baseURL:
           type: string
           nullable: true
-          description: >-
-            Custom base URL for the LLM API. For `typesafe`, omit it to use
-            TypeSafe itself, or set a gateway's base URL; Langfuse appends
-            `/systemone`.
+          description: Custom base URL for the LLM API
         customModels:
           type: array
           items:

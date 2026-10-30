@@ -112,7 +112,7 @@ types:
         docs: Secret key for the LLM API.
       baseURL:
         type: optional<string>
-        docs: Custom base URL for the LLM API. For `typesafe`, omit it to use TypeSafe itself, or set a gateway's base URL; Langfuse appends `/systemone`.
+        docs: Custom base URL for the LLM API
       customModels:
         type: optional<list<string>>
         docs: List of custom model names
