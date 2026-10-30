@@ -4,6 +4,7 @@ export {
   createDatasetForApi,
   createDatasetItemForApi,
   createDatasetRunItemForApi,
+  deleteDatasetForApi,
   deleteDatasetItemForApi,
   deleteDatasetRunByIdForApi,
   getDatasetByIdForApi,

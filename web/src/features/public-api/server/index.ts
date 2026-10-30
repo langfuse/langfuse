@@ -70,6 +70,8 @@ export {
   DeleteDatasetItemV1Query,
   DeleteDatasetItemV1Response,
   DeleteDatasetRunV1Response,
+  DeleteDatasetV2Query,
+  DeleteDatasetV2Response,
   GetDatasetItemsV1Query,
   GetDatasetItemsV1Response,
   GetDatasetItemV1Query,

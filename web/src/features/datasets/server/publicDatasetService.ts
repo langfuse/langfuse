@@ -9,6 +9,7 @@ import {
   generateDatasetRunItemsForPublicApi,
   getDatasetRunItemsCountForPublicApi,
   type APIDatasetRunItem,
+  type DeleteDatasetV2Query,
   type GetDatasetsV1Query,
   type GetDatasetV1Query,
   type GetDatasetItemV1Query,
@@ -145,6 +146,9 @@ type DeleteDatasetRunByIdInput = DatasetAuditScope & {
 
 type DeleteDatasetItemInput = DatasetAuditScope &
   z.infer<typeof GetDatasetItemV1Query>;
+
+type DeleteDatasetInput = DatasetAuditScope &
+  z.infer<typeof DeleteDatasetV2Query>;
 
 // This deprecated endpoint embeds items without pagination. Keep its response
 // bounded while giving existing users room to migrate to GET /dataset-items.
@@ -507,6 +511,7 @@ export const listDatasetItemsForApi = async ({
   sourceTraceId,
   sourceObservationId,
   version,
+  includeArchived,
   page,
   limit,
 }: ListDatasetItemsInput) => {
@@ -523,7 +528,7 @@ export const listDatasetItemsForApi = async ({
     ...(datasetId ? { datasetIds: [datasetId] } : {}),
     sourceTraceId: sourceTraceId ?? undefined,
     sourceObservationId: sourceObservationId ?? undefined,
-    status: "ACTIVE",
+    status: includeArchived ? "ALL" : "ACTIVE",
   });
 
   const [items, totalItems] = await Promise.all([
@@ -1271,6 +1276,60 @@ export const deleteDatasetRunForApi = async ({
 
   return {
     message: "Dataset run successfully deleted" as const,
+  };
+};
+
+export const deleteDatasetForApi = async ({
+  projectId,
+  orgId,
+  apiKeyId,
+  datasetName,
+}: DeleteDatasetInput) => {
+  const dataset = await getDatasetByNameOrThrow({ projectId, datasetName });
+
+  // Dataset items and dataset runs are removed by the Prisma cascade. Dataset
+  // run items in ClickHouse are removed asynchronously by the worker queue.
+  try {
+    await prisma.dataset.delete({
+      where: {
+        id_projectId: {
+          id: dataset.id,
+          projectId,
+        },
+      },
+    });
+  } catch (error) {
+    if (
+      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error.code === "P2025"
+    ) {
+      // The dataset was deleted between the lookup and the delete call.
+      throw new LangfuseNotFoundError("Dataset not found");
+    }
+    throw error;
+  }
+
+  // Queue the ClickHouse cleanup before writing the audit log so a failing
+  // audit write cannot leave dataset run items behind. This matches the
+  // internal delete flow.
+  await addToDeleteDatasetQueue({
+    deletionType: "dataset",
+    projectId,
+    datasetId: dataset.id,
+  });
+
+  await auditLog({
+    action: "delete",
+    resourceType: "dataset",
+    resourceId: dataset.id,
+    projectId,
+    orgId,
+    apiKeyId,
+    before: dataset,
+  });
+
+  return {
+    message: "Dataset successfully deleted" as const,
   };
 };
 

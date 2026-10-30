@@ -1012,6 +1012,15 @@ paths:
             type: string
             format: date-time
             nullable: true
+        - name: includeArchived
+          in: query
+          description: |-
+            Include archived dataset items in the response. Defaults to `false`,
+            which returns only active items.
+          required: false
+          schema:
+            type: boolean
+            nullable: true
         - name: page
           in: query
           description: page number, starts at 1
@@ -1267,6 +1276,52 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Dataset'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+      security: *ref_0
+    delete:
+      description: |-
+        Delete a dataset by name. This action is irreversible and also deletes
+        all dataset items and dataset runs that belong to the dataset.
+      operationId: datasets_delete
+      tags:
+        - Datasets
+      parameters:
+        - name: datasetName
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeleteDatasetResponse'
         '400':
           description: ''
           content:
@@ -9933,6 +9988,15 @@ components:
       required:
         - data
         - meta
+    DeleteDatasetResponse:
+      title: DeleteDatasetResponse
+      type: object
+      properties:
+        message:
+          type: string
+          description: Success message after deletion
+      required:
+        - message
     PaginatedDatasets:
       title: PaginatedDatasets
       type: object
