@@ -6,8 +6,10 @@ import {
   FormControl,
   FormField,
   FormItem,
+  FormLabel,
   FormMessage,
 } from "@/src/components/ui/form";
+import { Label } from "@/src/components/ui/label";
 import {
   Select,
   SelectContent,
@@ -31,7 +33,7 @@ import { aggregationLabel } from "../helpers/renderMonitorLabels";
 /** countMeasure is the row-count measure, shown as "*" and only offered with the count aggregation. */
 const countMeasure = "count";
 
-/** MonitorMetricDefinition picks a monitor's metric as "[aggregation] [view]", then "[measure]", then filters. */
+/** MonitorMetricDefinition picks a monitor's metric as "[aggregation]", then "[view] [measure]", then filters. */
 export const MonitorMetricDefinition = ({
   form,
   view,
@@ -83,6 +85,7 @@ export const MonitorMetricDefinition = ({
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-col">
+        <Label className="mb-2">Metric</Label>
         <div className="flex items-start gap-1.5">
           <FormField
             control={form.control}
@@ -113,74 +116,78 @@ export const MonitorMetricDefinition = ({
               </FormItem>
             )}
           />
-          <FormField
-            control={form.control}
-            name="view"
-            render={({ field }) => (
-              <FormItem className="min-w-0 flex-1 space-y-1">
-                <Select
-                  value={field.value}
-                  onValueChange={(next) => changeView(next as MonitorView)}
-                  disabled={disabled}
-                >
-                  <FormControl>
-                    <SelectTrigger aria-label="View">
-                      <SelectValue />
-                    </SelectTrigger>
-                  </FormControl>
-                  <SelectContent>
-                    {MonitorViewSchema.options.map((v) => (
-                      <WidgetPropertySelectItem
-                        key={v}
-                        value={v}
-                        label={viewLabels[v]}
-                        description={
-                          viewDeclarations.v2[v]?.description ?? undefined
-                        }
-                      />
-                    ))}
-                  </SelectContent>
-                </Select>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
         </div>
         <div className="flex items-start">
           <span className="w-3 shrink-0" aria-hidden="true" />
           <div className="border-input h-6 w-3 shrink-0 rounded-bl-md border-b-2 border-l-2" />
-          <FormField
-            control={form.control}
-            name="metric.measure"
-            render={({ field }) => (
-              <FormItem className="min-w-0 flex-1 space-y-1 pt-2 pl-1.5">
-                <Select
-                  value={field.value}
-                  onValueChange={field.onChange}
-                  disabled={disabled}
-                >
-                  <FormControl>
-                    <SelectTrigger aria-label="Measure">
-                      <SelectValue />
-                    </SelectTrigger>
-                  </FormControl>
-                  <SelectContent>
-                    {(measuresByAggregation.get(aggregation) ?? []).map((m) => (
-                      <WidgetPropertySelectItem
-                        key={m}
-                        value={m}
-                        label={measureLabel(m)}
-                        description={measures[m]?.description}
-                        unit={measures[m]?.unit}
-                        type={measures[m]?.type}
-                      />
-                    ))}
-                  </SelectContent>
-                </Select>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
+          <div className="flex min-w-0 flex-1 items-start gap-1.5 pt-2 pl-1.5">
+            <FormField
+              control={form.control}
+              name="view"
+              render={({ field }) => (
+                <FormItem className="min-w-0 flex-1 space-y-1">
+                  <Select
+                    value={field.value}
+                    onValueChange={(next) => changeView(next as MonitorView)}
+                    disabled={disabled}
+                  >
+                    <FormControl>
+                      <SelectTrigger aria-label="View">
+                        <SelectValue />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {MonitorViewSchema.options.map((v) => (
+                        <WidgetPropertySelectItem
+                          key={v}
+                          value={v}
+                          label={viewLabels[v]}
+                          description={
+                            viewDeclarations.v2[v]?.description ?? undefined
+                          }
+                        />
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="metric.measure"
+              render={({ field }) => (
+                <FormItem className="min-w-0 flex-1 space-y-1">
+                  <Select
+                    value={field.value}
+                    onValueChange={field.onChange}
+                    disabled={disabled}
+                  >
+                    <FormControl>
+                      <SelectTrigger aria-label="Measure">
+                        <SelectValue />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {(measuresByAggregation.get(aggregation) ?? []).map(
+                        (m) => (
+                          <WidgetPropertySelectItem
+                            key={m}
+                            value={m}
+                            label={measureLabel(m)}
+                            description={measures[m]?.description}
+                            unit={measures[m]?.unit}
+                            type={measures[m]?.type}
+                          />
+                        ),
+                      )}
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+          </div>
         </div>
       </div>
       <FormField
@@ -188,6 +195,7 @@ export const MonitorMetricDefinition = ({
         name="filters"
         render={({ field }) => (
           <FormItem>
+            <FormLabel>Filters</FormLabel>
             <FormControl>
               <ConnectedMetricsFilterBuilder
                 version="v2"

@@ -66,7 +66,7 @@ import {
   UpdateMonitorSchema,
   type UpdateMonitor,
 } from "@langfuse/shared/monitors";
-import { type FilterState } from "@langfuse/shared";
+import { viewDeclarations, type FilterState } from "@langfuse/shared";
 
 import { TagManager } from "@/src/features/tag";
 import { MonitorChartPreview } from "./MonitorChartPreview";
@@ -82,6 +82,12 @@ import {
   windowLabels,
 } from "../helpers/monitorLabels";
 import { renderNamePlaceholder } from "../helpers/renderMonitorLabels";
+
+/** numericMeasureTypes are the measure types whose values carry their own unit. */
+const numericMeasureTypes = new Set(["integer", "decimal", "number"]);
+
+/** unitLabels spells out measure units that read better pluralized. */
+const unitLabels: Record<string, string> = { millisecond: "milliseconds" };
 
 /** createDefaults returns the form defaults for a brand-new monitor. */
 const createDefaults = (
@@ -430,6 +436,12 @@ export const MonitorForm = ({
     createMutation.isPending ||
     updateMutation.isPending ||
     suggestName.isPending;
+  /** thresholdUnitLabel names the unit the thresholds are compared in, e.g. "milliseconds". */
+  const thresholdUnitLabel = thresholdUnit(
+    (watched.view ?? "observations") as MonitorView,
+    watched.metric?.measure ?? "count",
+    watched.metric?.aggregation ?? "count",
+  );
   /** isIncomplete is true while a new alert is missing required fields. */
   const isIncomplete = !isEdit && !form.formState.isValid;
 
@@ -534,9 +546,8 @@ export const MonitorForm = ({
                           }
                         </span>
                         <FormControl>
-                          <Input
-                            type="number"
-                            className="flex-1"
+                          <ThresholdInput
+                            unit={thresholdUnitLabel}
                             placeholder="0"
                             value={field.value ?? ""}
                             onChange={(e) => {
@@ -578,9 +589,8 @@ export const MonitorForm = ({
                           }
                         </span>
                         <FormControl>
-                          <Input
-                            type="number"
-                            className="flex-1"
+                          <ThresholdInput
+                            unit={thresholdUnitLabel}
                             placeholder="optional"
                             value={field.value ?? ""}
                             onChange={(e) => {
@@ -885,6 +895,26 @@ const Section = ({
   </div>
 );
 
+/** ThresholdInput is a number input with the threshold's unit as a muted suffix. */
+const ThresholdInput = ({
+  unit,
+  className,
+  ...props
+}: Omit<React.ComponentProps<typeof Input>, "type"> & { unit?: string }) => (
+  <div className="relative flex-1">
+    <Input
+      type="number"
+      className={cn("appearance-none", unit && "pr-28", className)}
+      {...props}
+    />
+    {unit && (
+      <span className="text-muted-foreground pointer-events-none absolute inset-y-0 right-2 flex items-center text-sm">
+        {unit}
+      </span>
+    )}
+  </div>
+);
+
 /** NoDataField renders the no-data mode picker plus its dependent fields. */
 const NoDataField = ({
   value,
@@ -1025,9 +1055,25 @@ const RenotifyField = ({
   </div>
 );
 
+/** thresholdUnit returns the unit a metric's value is in, or undefined when it has none. */
+function thresholdUnit(
+  view: MonitorView,
+  measure: string,
+  aggregation: string,
+): string | undefined {
+  const measures = viewDeclarations.v2[view]?.measures ?? {};
+  const definition = measures[measure];
+  const isNumeric = numericMeasureTypes.has(definition?.type ?? "");
+  if (aggregation === "count" && isNumeric) return measures.count?.unit;
+  if (aggregation === "uniq" && isNumeric) return undefined;
+  if (!definition?.unit) return undefined;
+  return unitLabels[definition.unit] ?? definition.unit;
+}
+
 /** __test exposes private helpers to co-located tests without widening the module API. */
 export const __test = {
   createDefaults,
+  thresholdUnit,
   monitorToDefaults,
   nameOrPlaceholder,
   monitorCreateAnalyticsProperties,
