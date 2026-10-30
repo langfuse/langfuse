@@ -1293,19 +1293,19 @@ async function updateTopics(
             maxRows: env.LANGFUSE_TOPICS_MAX_CLUSTERING_ROWS,
           });
           // An analysis continues its previous run; a refit continues its rule's map.
-          const current = analysis
-            ? analysis.previousExecutionId
-              ? await getTopicAnalysisRun(
-                  execution.projectId,
-                  analysis.previousExecutionId,
-                  facet.facetId,
-                )
-              : null
-            : await getPublishedTopicRun(
-                execution.projectId,
-                facet.facetId,
-                cohort.ruleId ?? undefined,
-              );
+          let current: TopicRun | null = null;
+          if (!analysis)
+            current = await getPublishedTopicRun(
+              execution.projectId,
+              facet.facetId,
+              cohort.ruleId ?? undefined,
+            );
+          else if (analysis.previousExecutionId)
+            current = await getTopicAnalysisRun(
+              execution.projectId,
+              analysis.previousExecutionId,
+              facet.facetId,
+            );
           const previous =
             current?.status === "completed" &&
             current.facetVersion === facet.version

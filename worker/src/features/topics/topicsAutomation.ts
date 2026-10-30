@@ -33,6 +33,7 @@ import type {
   TopicEmbeddingConfig,
   TopicExecutionSummary,
   TopicFacetRef,
+  TopicRule,
   TopicRun,
   TopicSummary,
   TopicTimeRange,
@@ -97,9 +98,9 @@ export async function processTopicsAutomation(
   const { projectId, embeddingConfig } = batch;
   const rules = await listTopicRules(projectId);
   // A project without rules keeps its project-wide maps for every facet.
-  const matched = !rules.length
-    ? [undefined]
-    : batch.ruleIds
+  let matched: (TopicRule | undefined)[] = [undefined];
+  if (rules.length)
+    matched = batch.ruleIds
       ? rules.filter((rule) => batch.ruleIds!.includes(rule.id))
       : rules.slice(0, 1);
   for (const rule of matched) {
