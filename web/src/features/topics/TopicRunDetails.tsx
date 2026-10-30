@@ -321,12 +321,21 @@ export function TopicRunDetails({
           )}
         </div>
         {!isBusy && !isUpdate && execution.estimatedCost != null && (
-          <div className="flex items-center justify-between gap-2.5">
-            <span className="text-muted-foreground text-xs">Est. cost</span>
-            <span className="font-mono text-xs">
-              ~{costFormatter(execution.estimatedCost)}
-            </span>
-          </div>
+          <>
+            <div className="flex items-center justify-between gap-2.5">
+              <span className="text-muted-foreground text-xs">
+                Estimated processing cost
+              </span>
+              <span className="font-mono text-xs">
+                ~{costFormatter(execution.estimatedCost)}
+              </span>
+            </div>
+            <p className="text-muted-foreground text-xs">
+              Total for this run’s stored summaries and embeddings. Excludes
+              topic naming and failed calls. May temporarily overcount or change
+              when summaries are replaced or deleted.
+            </p>
+          </>
         )}
       </div>
       <div className="flex flex-col">

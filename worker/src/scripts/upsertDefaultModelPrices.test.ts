@@ -14,6 +14,60 @@ import {
 } from "./upsertDefaultModelPrices";
 import defaultModelPrices from "../constants/default-model-prices.json";
 
+describe("default Bedrock Topics model prices", () => {
+  it.each([
+    ["us.openai.gpt-5.6-luna", 0.22e-6, 1.32e-6],
+    ["us.openai.gpt-6-luna", 0.11e-6, 0.55e-6],
+    ["global.openai.gpt-6-luna", 0.1e-6, 0.5e-6],
+    ["us.openai.gpt-5.6-terra", 2.2e-6, 13.2e-6],
+    ["us.cohere.embed-v4:0", 0.12e-6, undefined],
+    ["eu.cohere.embed-v4:0", 0.12e-6, undefined],
+  ])("matches and prices %s", (modelName, input, output) => {
+    const matches = defaultModelPrices.filter(({ matchPattern }) =>
+      // Both catalogue patterns and model names are checked-in test fixtures.
+      // nosemgrep: javascript.lang.security.audit.detect-non-literal-regexp.detect-non-literal-regexp
+      new RegExp(matchPattern.replace(/^\(\?i\)/, ""), "i").test(
+        modelName as string,
+      ),
+    );
+    expect(matches).toHaveLength(1);
+    expect(
+      matches[0].pricingTiers.find((tier) => tier.isDefault)?.prices,
+    ).toMatchObject({
+      input,
+      ...(output === undefined ? {} : { output }),
+    });
+  });
+  it("counts cache reads and writes at the Bedrock long-context boundary", () => {
+    const model = defaultModelPrices.find(
+      ({ modelName }) => modelName === "us.openai.gpt-6-luna",
+    )!;
+    const tiers = model.pricingTiers.map((tier) => ({
+      ...tier,
+      conditions:
+        tier.conditions as DefaultModelPrice["pricingTiers"][number]["conditions"],
+      prices: Object.entries(tier.prices).map(([usageType, price]) => ({
+        usageType,
+        price: new Decimal(price),
+      })),
+    }));
+    const usage = {
+      input: 100_000,
+      input_cached_tokens: 100_000,
+      input_cache_creation: 72_000,
+      output: 1_000,
+      output_reasoning_tokens: 1_000,
+    };
+    expect(matchPricingTier(tiers, usage)?.pricingTierName).toBe("Standard");
+    const longContext = matchPricingTier(tiers, { ...usage, input: 100_001 });
+    expect(longContext?.pricingTierName).toBe("Large Context (>272K)");
+    expect(longContext?.prices.input.toNumber()).toBe(0.22e-6);
+    expect(longContext?.prices.output_reasoning_tokens.toNumber()).toBe(
+      0.825e-6,
+    );
+  });
+});
+
 describe("upsertModelWithTiers", () => {
   beforeEach(() => {
     vi.clearAllMocks();

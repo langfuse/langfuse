@@ -105,6 +105,7 @@
     automatic window selection, with the same eligibility as the full read.
     `readTopicRunTraceIds(..., maxRows)` requires a continuity population limit.
     These limits cover admitted data, not total process or native-fit memory.
+  - Processing cost reads sum stored `cost_details['total']` without query-time deduplication; retry and replacement rows can temporarily overcount until background merges. `findModel` resolves source-project/default prices; `calculateModelUsageCosts` shares tier selection and monetary calculation with ingestion.
   - `execution-store.ts`: one BatchAction per request, compact counters and run references.
     Writes accept progress only; immutable settings stay in the stored request.
     Trace inputs and paid outputs belong outside the execution store.

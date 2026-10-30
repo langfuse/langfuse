@@ -629,7 +629,7 @@ export async function hasStoredTopicSummaries(
   return hasSummaries;
 }
 
-/** Approximate costs; retry inserts can overcount until background merges deduplicate them. */
+/** Approximate totals; retry and replacement rows can overcount until background merges. */
 export async function getTopicExecutionCosts(
   projectId: string,
   executionIds: string[],
@@ -637,11 +637,11 @@ export async function getTopicExecutionCosts(
   if (executionIds.length === 0) return {};
   const rows = await queryClickhouse<{ executionId: string; cost: string }>({
     query: `SELECT JSONExtractString(metadata, 'executionId') AS executionId,
-        sum(calculated_total_cost) AS cost
+        sum(cost_details['total']) AS cost
       FROM topic_facet_summaries
       WHERE project_id = {projectId:String}
         AND executionId IN {executionIds:Array(String)}
-        AND notEmpty(cost_details)
+        AND mapContains(cost_details, 'total')
       GROUP BY executionId`,
     params: { projectId, executionIds },
     tags: { route: "topics-execution-costs", projectId },

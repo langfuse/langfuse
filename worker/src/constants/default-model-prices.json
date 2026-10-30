@@ -8802,5 +8802,274 @@
         }
       }
     ]
+  },
+  {
+    "id": "a006d855-591e-4cbd-aba5-94530bf02be5",
+    "modelName": "us.openai.gpt-5.6-luna",
+    "matchPattern": "(?i)^us\\.openai\\.gpt-5\\.6-luna$",
+    "createdAt": "2026-10-26T00:00:00.000Z",
+    "updatedAt": "2026-10-26T00:00:00.000Z",
+    "tokenizerConfig": {
+      "tokensPerName": 1,
+      "tokenizerModel": "gpt-4",
+      "tokensPerMessage": 3
+    },
+    "tokenizerId": "openai",
+    "pricingTiers": [
+      {
+        "id": "a006d855-591e-4cbd-aba5-94530bf02be5_tier_default",
+        "name": "Standard",
+        "isDefault": true,
+        "priority": 0,
+        "conditions": [],
+        "prices": {
+          "input": 0.22e-6,
+          "input_cached_tokens": 0.022e-6,
+          "input_cache_read": 0.022e-6,
+          "cache_read_input_tokens": 0.022e-6,
+          "input_cache_creation": 0.275e-6,
+          "cache_write_tokens": 0.275e-6,
+          "input_cache_write_tokens": 0.275e-6,
+          "output": 1.32e-6,
+          "output_reasoning_tokens": 1.32e-6,
+          "output_reasoning": 1.32e-6,
+          "reasoning_tokens": 1.32e-6
+        }
+      },
+      {
+        "id": "5c5428e6-9749-4bd5-9662-f2d679d415cb",
+        "name": "Large Context (>272K)",
+        "isDefault": false,
+        "priority": 1,
+        "conditions": [
+          {
+            "usageDetailPattern": "(input|cache_write)",
+            "operator": "gt",
+            "value": 272000,
+            "caseSensitive": false
+          }
+        ],
+        "prices": {
+          "input": 0.44e-6,
+          "input_cached_tokens": 0.044e-6,
+          "input_cache_read": 0.044e-6,
+          "cache_read_input_tokens": 0.044e-6,
+          "input_cache_creation": 0.55e-6,
+          "cache_write_tokens": 0.55e-6,
+          "input_cache_write_tokens": 0.55e-6,
+          "output": 1.98e-6,
+          "output_reasoning_tokens": 1.98e-6,
+          "output_reasoning": 1.98e-6,
+          "reasoning_tokens": 1.98e-6
+        }
+      }
+    ]
+  },
+  {
+    "id": "a964e27e-ea24-4a84-8358-070a18d463d3",
+    "modelName": "us.openai.gpt-6-luna",
+    "matchPattern": "(?i)^us\\.openai\\.gpt-6-luna$",
+    "createdAt": "2026-10-26T00:00:00.000Z",
+    "updatedAt": "2026-10-26T00:00:00.000Z",
+    "tokenizerConfig": {
+      "tokensPerName": 1,
+      "tokenizerModel": "gpt-4",
+      "tokensPerMessage": 3
+    },
+    "tokenizerId": "openai",
+    "pricingTiers": [
+      {
+        "id": "a964e27e-ea24-4a84-8358-070a18d463d3_tier_default",
+        "name": "Standard",
+        "isDefault": true,
+        "priority": 0,
+        "conditions": [],
+        "prices": {
+          "input": 0.11e-6,
+          "input_cached_tokens": 0.011e-6,
+          "input_cache_read": 0.011e-6,
+          "cache_read_input_tokens": 0.011e-6,
+          "input_cache_creation": 0.1375e-6,
+          "cache_write_tokens": 0.1375e-6,
+          "input_cache_write_tokens": 0.1375e-6,
+          "output": 0.55e-6,
+          "output_reasoning_tokens": 0.55e-6,
+          "output_reasoning": 0.55e-6,
+          "reasoning_tokens": 0.55e-6
+        }
+      },
+      {
+        "id": "34604246-7ac0-47a2-9d1d-de23b897eba7",
+        "name": "Large Context (>272K)",
+        "isDefault": false,
+        "priority": 1,
+        "conditions": [
+          {
+            "usageDetailPattern": "(input|cache_write)",
+            "operator": "gt",
+            "value": 272000,
+            "caseSensitive": false
+          }
+        ],
+        "prices": {
+          "input": 0.22e-6,
+          "input_cached_tokens": 0.022e-6,
+          "input_cache_read": 0.022e-6,
+          "cache_read_input_tokens": 0.022e-6,
+          "input_cache_creation": 0.275e-6,
+          "cache_write_tokens": 0.275e-6,
+          "input_cache_write_tokens": 0.275e-6,
+          "output": 0.825e-6,
+          "output_reasoning_tokens": 0.825e-6,
+          "output_reasoning": 0.825e-6,
+          "reasoning_tokens": 0.825e-6
+        }
+      }
+    ]
+  },
+  {
+    "id": "817aee85-b579-44cb-9c6d-d753b56e9f05",
+    "modelName": "global.openai.gpt-6-luna",
+    "matchPattern": "(?i)^global\\.openai\\.gpt-6-luna$",
+    "createdAt": "2026-10-26T00:00:00.000Z",
+    "updatedAt": "2026-10-26T00:00:00.000Z",
+    "tokenizerConfig": {
+      "tokensPerName": 1,
+      "tokenizerModel": "gpt-4",
+      "tokensPerMessage": 3
+    },
+    "tokenizerId": "openai",
+    "pricingTiers": [
+      {
+        "id": "817aee85-b579-44cb-9c6d-d753b56e9f05_tier_default",
+        "name": "Standard",
+        "isDefault": true,
+        "priority": 0,
+        "conditions": [],
+        "prices": {
+          "input": 0.1e-6,
+          "input_cached_tokens": 0.01e-6,
+          "input_cache_read": 0.01e-6,
+          "cache_read_input_tokens": 0.01e-6,
+          "input_cache_creation": 0.125e-6,
+          "cache_write_tokens": 0.125e-6,
+          "input_cache_write_tokens": 0.125e-6,
+          "output": 0.5e-6,
+          "output_reasoning_tokens": 0.5e-6,
+          "output_reasoning": 0.5e-6,
+          "reasoning_tokens": 0.5e-6
+        }
+      },
+      {
+        "id": "e72145c3-2024-4f0a-bdd7-cd520d315b61",
+        "name": "Large Context (>272K)",
+        "isDefault": false,
+        "priority": 1,
+        "conditions": [
+          {
+            "usageDetailPattern": "(input|cache_write)",
+            "operator": "gt",
+            "value": 272000,
+            "caseSensitive": false
+          }
+        ],
+        "prices": {
+          "input": 0.2e-6,
+          "input_cached_tokens": 0.02e-6,
+          "input_cache_read": 0.02e-6,
+          "cache_read_input_tokens": 0.02e-6,
+          "input_cache_creation": 0.25e-6,
+          "cache_write_tokens": 0.25e-6,
+          "input_cache_write_tokens": 0.25e-6,
+          "output": 0.75e-6,
+          "output_reasoning_tokens": 0.75e-6,
+          "output_reasoning": 0.75e-6,
+          "reasoning_tokens": 0.75e-6
+        }
+      }
+    ]
+  },
+  {
+    "id": "d37719b5-f4af-41a2-aa2d-2ebf40614fe7",
+    "modelName": "us.openai.gpt-5.6-terra",
+    "matchPattern": "(?i)^us\\.openai\\.gpt-5\\.6-terra$",
+    "createdAt": "2026-10-26T00:00:00.000Z",
+    "updatedAt": "2026-10-26T00:00:00.000Z",
+    "tokenizerConfig": {
+      "tokensPerName": 1,
+      "tokenizerModel": "gpt-4",
+      "tokensPerMessage": 3
+    },
+    "tokenizerId": "openai",
+    "pricingTiers": [
+      {
+        "id": "d37719b5-f4af-41a2-aa2d-2ebf40614fe7_tier_default",
+        "name": "Standard",
+        "isDefault": true,
+        "priority": 0,
+        "conditions": [],
+        "prices": {
+          "input": 2.2e-6,
+          "input_cached_tokens": 0.22e-6,
+          "input_cache_read": 0.22e-6,
+          "cache_read_input_tokens": 0.22e-6,
+          "input_cache_creation": 2.75e-6,
+          "cache_write_tokens": 2.75e-6,
+          "input_cache_write_tokens": 2.75e-6,
+          "output": 13.2e-6,
+          "output_reasoning_tokens": 13.2e-6,
+          "output_reasoning": 13.2e-6,
+          "reasoning_tokens": 13.2e-6
+        }
+      },
+      {
+        "id": "9803ca29-276d-4772-a458-6ef47d89147e",
+        "name": "Large Context (>272K)",
+        "isDefault": false,
+        "priority": 1,
+        "conditions": [
+          {
+            "usageDetailPattern": "(input|cache_write)",
+            "operator": "gt",
+            "value": 272000,
+            "caseSensitive": false
+          }
+        ],
+        "prices": {
+          "input": 4.4e-6,
+          "input_cached_tokens": 0.44e-6,
+          "input_cache_read": 0.44e-6,
+          "cache_read_input_tokens": 0.44e-6,
+          "input_cache_creation": 5.5e-6,
+          "cache_write_tokens": 5.5e-6,
+          "input_cache_write_tokens": 5.5e-6,
+          "output": 19.8e-6,
+          "output_reasoning_tokens": 19.8e-6,
+          "output_reasoning": 19.8e-6,
+          "reasoning_tokens": 19.8e-6
+        }
+      }
+    ]
+  },
+  {
+    "id": "87f5e170-30ff-4d39-a886-e95b30d853e0",
+    "modelName": "cohere.embed-v4:0",
+    "matchPattern": "(?i)^((us|eu)\\.)?cohere\\.embed-v4:0$",
+    "createdAt": "2026-10-26T00:00:00.000Z",
+    "updatedAt": "2026-10-26T00:00:00.000Z",
+    "tokenizerConfig": null,
+    "tokenizerId": null,
+    "pricingTiers": [
+      {
+        "id": "87f5e170-30ff-4d39-a886-e95b30d853e0_tier_default",
+        "name": "Standard",
+        "isDefault": true,
+        "priority": 0,
+        "conditions": [],
+        "prices": {
+          "input": 0.12e-6
+        }
+      }
+    ]
   }
 ]

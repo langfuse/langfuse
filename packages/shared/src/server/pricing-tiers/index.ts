@@ -10,3 +10,4 @@ export type {
 } from "./types";
 
 export { hasPricingTierUsageDetails, matchPricingTier } from "./matcher";
+export { calculateModelUsageCosts } from "./calculate";

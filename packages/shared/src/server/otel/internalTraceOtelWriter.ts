@@ -267,7 +267,7 @@ export async function publishInternalOtelSpans(params: {
 
 /**
  * Exactly the `InternalTraceEventInput` fields this writer maps onto OTel
- * spans. Narrowed so a caller with richer inputs (cost, prompt, experiment
+ * spans. Narrowed so a caller with richer inputs (prompt, experiment
  * linkage, ...) gets a compile-time surface mismatch instead of silent drops.
  */
 export type InternalOtelSpanInput = Pick<
@@ -291,6 +291,7 @@ export type InternalOtelSpanInput = Pick<
   | "modelName"
   | "modelParameters"
   | "providedUsageDetails"
+  | "providedCostDetails"
   | "userId"
   | "sessionId"
 >;

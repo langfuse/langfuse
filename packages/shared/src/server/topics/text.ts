@@ -17,6 +17,7 @@ import {
   canUseBedrockDefaultCredentials,
   resolveBedrockProviderAuth,
 } from "../llm/ai-sdk/providers/bedrock";
+import { isOpenRouterEndpoint } from "../llm/ai-sdk/providers/openai";
 import { isPlainObject } from "../llm/ai-sdk/providers/utils";
 import { generateLLMText } from "../llm/llmText";
 import { LLMAdapter, type TraceSinkParams } from "../llm/types";
@@ -62,9 +63,12 @@ const RAW_FINISH_REASONS = new Set([
  * which Converse does not accept for them, so cached prompts on those models
  * use InvokeModel at the same regional endpoint and model ID.
  */
-export async function generateTopicText<T>(
-  params: TopicTextParams<T>,
-): Promise<TopicTextResult> {
+export async function generateTopicText<T>(params: TopicTextParams<T>): Promise<
+  TopicTextResult & {
+    usageDetails: Record<string, number>;
+    providedCostDetails: Record<string, number>;
+  }
+> {
   const startTimeISO = new Date().toISOString();
   let result: TopicTextResult | undefined;
   let responseMetadata: TopicTextResponseMetadata | undefined;
@@ -81,7 +85,11 @@ export async function generateTopicText<T>(
       isBedrockGPT(params.model) && params.system.some((part) => part.cache)
         ? await invokeWithCache(params, recordResponse)
         : await generateWithConnection(params, recordResponse);
-    return result;
+    return {
+      ...result,
+      usageDetails: topicTraceUsage(result.usage) ?? {},
+      providedCostDetails: result.providedCostDetails ?? {},
+    };
   } catch (error) {
     failure = error;
     // Responses refusal blocks can fail SDK validation before onEnd runs.
@@ -143,6 +151,7 @@ async function writeTopicTrace<T>(
           input: JSON.stringify(topicMessages(params)),
           output: JSON.stringify(result?.output),
           providedUsageDetails: topicTraceUsage(result?.usage),
+          providedCostDetails: result?.providedCostDetails,
           metadata: trace.metadata ?? {},
           userId: trace.userId,
           sessionId: trace.sessionId,
@@ -161,10 +170,14 @@ function topicTraceUsage(usage: TopicTextResult["usage"] | undefined) {
   if (!usage) return undefined;
   const details: Record<string, number | undefined> = {
     input: undefined,
-    output: usage.outputTokens,
+    output:
+      usage.outputTokens === undefined
+        ? undefined
+        : Math.max(0, usage.outputTokens - (usage.reasoningTokens ?? 0)),
     total: usage.totalTokens,
     input_cached_tokens: usage.cacheReadTokens,
     input_cache_creation: usage.cacheWriteTokens,
+    output_reasoning_tokens: usage.reasoningTokens,
   };
   /** Standard input excludes cached tokens, which have their own prices. */
   if (usage.inputTokens !== undefined) {
@@ -206,14 +219,46 @@ export function topicMessages(params: {
 
 function topicUsage(
   usage: LanguageModelUsage | undefined,
+  responseBody?: unknown,
 ): TopicTextResult["usage"] {
+  const raw = responseUsage(responseBody);
+  const details = isPlainObject(raw.prompt_tokens_details)
+    ? raw.prompt_tokens_details
+    : {};
   return {
     inputTokens: usage?.inputTokens,
     outputTokens: usage?.outputTokens,
     totalTokens: usage?.totalTokens,
     cacheReadTokens: usage?.inputTokenDetails?.cacheReadTokens,
-    cacheWriteTokens: usage?.inputTokenDetails?.cacheWriteTokens,
+    // Compatible adapters can retain cache writes only in the raw response.
+    cacheWriteTokens:
+      usage?.inputTokenDetails?.cacheWriteTokens ??
+      nonNegativeNumber(details.cache_write_tokens),
+    reasoningTokens: usage?.outputTokenDetails?.reasoningTokens || undefined,
   };
+}
+
+function responseUsage(body: unknown): Record<string, unknown> {
+  return isPlainObject(body) && isPlainObject(body.usage) ? body.usage : {};
+}
+
+function nonNegativeNumber(value: unknown): number | undefined {
+  return typeof value === "number" && Number.isFinite(value) && value >= 0
+    ? value
+    : undefined;
+}
+
+function openRouterCost(body: unknown): number | undefined {
+  const usage = responseUsage(body);
+  const cost = nonNegativeNumber(usage.cost);
+  if (cost === undefined || usage.is_byok !== true) return cost;
+  const upstreamCost = isPlainObject(usage.cost_details)
+    ? nonNegativeNumber(usage.cost_details.upstream_inference_cost)
+    : undefined;
+  // BYOK bills the provider separately; an incomplete total uses catalog pricing.
+  return upstreamCost === undefined
+    ? undefined
+    : nonNegativeNumber(cost + upstreamCost);
 }
 
 async function generateWithConnection<T>(
@@ -254,15 +299,25 @@ async function generateWithConnection<T>(
     onEnd: ({ finalStep }) => {
       const text = finalStep.text;
       recordResponse(
-        { output: text, usage: topicUsage(finalStep.usage) },
+        {
+          output: text,
+          usage: topicUsage(finalStep.usage, finalStep.response.body),
+        },
         responseAttributes(finalStep, text.length, params.maxOutputTokens),
       );
     },
   });
-  const usage = topicUsage(result.usage);
+  const body = result.finalStep.response.body;
+  const usage = topicUsage(result.usage, body);
+  const cost =
+    params.model.adapter === LLMAdapter.OpenAI &&
+    isOpenRouterEndpoint(params.model.connection.baseURL)
+      ? openRouterCost(body)
+      : undefined;
   return {
     output: result.output,
     usage,
+    providedCostDetails: cost === undefined ? {} : { total: cost },
   };
 }
 
@@ -501,6 +556,7 @@ async function invokeWithCache(
         cached_tokens?: number;
         cache_write_tokens?: number;
       };
+      completion_tokens_details?: { reasoning_tokens?: number };
     };
   };
   const message = json.choices?.[0]?.message;
@@ -512,6 +568,8 @@ async function invokeWithCache(
       totalTokens: json.usage?.total_tokens,
       cacheReadTokens: json.usage?.prompt_tokens_details?.cached_tokens,
       cacheWriteTokens: json.usage?.prompt_tokens_details?.cache_write_tokens,
+      reasoningTokens:
+        json.usage?.completion_tokens_details?.reasoning_tokens || undefined,
     },
   };
   // Retain paid usage and the original response if parsing or validation fails.
@@ -542,12 +600,14 @@ type TopicTextResponseMetadata = Record<string, string | number>;
 
 type TopicTextResult = {
   output: unknown;
+  providedCostDetails?: Record<string, number>;
   usage: {
     inputTokens?: number;
     outputTokens?: number;
     totalTokens?: number;
     cacheReadTokens?: number;
     cacheWriteTokens?: number;
+    reasoningTokens?: number;
   };
 };
 

@@ -82,9 +82,9 @@ The embedding model and dimensions cannot change once the project has embedded
 summaries, so existing vectors stay comparable. Summary and clustering model changes apply
 to new work only; an execution frozen on another summary or embedding model
 fails and must be started again. Deleting a connection that a slot uses turns
-automatic processing off and records why. Usage is retained for any model, but
-cost estimates are only available for the model IDs priced in
-[models.ts](models.ts).
+automatic processing off and records why. Usage is retained for any model. Cost
+estimates use the source project's custom model pricing or the default Langfuse
+catalog, including model matching and pricing tiers.
 
 Summary and naming calls emit one generation each to the configured internal
 AI-features project (`LANGFUSE_AI_FEATURES_PROJECT_ID`) only when the source
@@ -96,8 +96,8 @@ Multi-facet summaries share one generation. Both connection-based SDK calls and
 cached Bedrock InvokeModel calls record inputs, outputs, models, usage, and errors;
 embeddings are untraced.
 Trace costs use the destination project's model catalog. Unmatched connection
-model IDs retain their usage but have no trace cost, independently of Topics'
-own estimates in `models.ts`.
+model IDs retain their usage but have no trace cost. Topics processing estimates
+use the source project's catalog, independently of optional tracing.
 Traces use `langfuse-topics`. Topics excludes all `langfuse`-prefixed environments
 and `llm-as-a-judge` through the shared eval exclusion predicate, preventing loops
 from these internal traces. Manual selection checks matching root observations
@@ -125,7 +125,7 @@ For Bedrock summary models, use `us.openai.gpt-6-luna` for US routing or
 `global.openai.gpt-6-luna` for global routing; GPT-6 Luna has no EU geographic
 profile. Both support Bedrock Converse tool-based structured output; OpenAI
 models on Bedrock are called with reasoning effort `none`.
-Summary cost estimates include both GPT-6 Luna profiles and the existing
+The central pricing catalog includes both GPT-6 Luna profiles and the existing
 `us.openai.gpt-5.6-luna` profile. See the
 [GPT-6 Luna model card](https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-openai-gpt-6-luna.html)
 for supported source regions and pricing. The
@@ -488,23 +488,17 @@ an old definition may still be in use by the current map. There is no age-based
 expiry. Transcripts stay in memory.
 There are no Topics object-storage manifests, numerical checkpoints or shared-disk files.
 
-Provider usage and calculated model costs use the events-style
-`provided_usage_details`, `usage_details`, `provided_cost_details` and `cost_details`
-maps. Summary and embedding keys are prefixed by stage; effective maps include
-combined totals.
-Manual processing summaries carry their execution ID in metadata. Run estimates
-sum retained summary and embedding costs with available pricing. They exclude
-topic naming and failed provider calls, and can change after reprocessing or deletion.
-Priced model IDs: global Bedrock text rates per million input/output tokens are $0.20/$1.20 for
-[Luna](https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-openai-gpt-56-luna.html)
-and $2/$12 for
-[Terra](https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-openai-gpt-56-terra.html).
-Naming requests above 272,000 input tokens use $4/$18 for the whole request.
-Embedding costs use Bedrock-reported input tokens at $0.12/million. Missing usage
-is logged and omitted from usage/cost maps, never estimated with an OpenAI tokenizer.
-Model prices and token budgets live in [models.ts](models.ts) and the shared
-Topics contracts. Summary input defaults to 120,000 tokens. Oversized naming
-input is limited to 900,000 estimated tokens and 16 MiB of serialized input.
+Successful summary and embedding results retain the events-style `provided_usage_details`, `usage_details`, `provided_cost_details` and `cost_details` maps on `topic_facet_summaries`. [models.ts](models.ts) resolves prices with `findModel` for the source project and uses `calculateModelUsageCosts`, shared with ingestion, to price canonical usage buckets before adding stage prefixes. Explicit provider USD costs take precedence; OpenRouter can supply a total, while current Bedrock transports supply token usage. Missing usage is never estimated from token limits. Pricing failures are logged without retrying inference.
+
+The existing result pipeline splits summary costs across produced facet rows and adds each embedding batch's costs once. Reused summaries carry no new model cost. Cost maps are written with the completed summaries; no separate cost write or cost table is needed.
+
+Manual processing summaries carry their execution ID in metadata. History sums stored `cost_details['total']` by project and execution without query-time deduplication. Retry and replacement rows can temporarily overcount until background merges. This includes total-only provider prices, shows zero for a stored zero total, and shows no estimate when no stored total exists.
+
+These are approximate processing costs for retained results. They exclude topic naming, failed calls, and results that were not saved. Partial pricing can undercount the total, and replacing or deleting summaries can change historical estimates. This tradeoff keeps costs in the existing result lifecycle.
+
+Token budgets live in [models.ts](models.ts) and the shared Topics contracts.
+Summary input defaults to 120,000 tokens. Oversized naming input is limited to
+900,000 estimated tokens and 16 MiB of serialized input.
 The token cap is an application ceiling, not a guarantee that every configured
 model supports that context. Selection reserves bounded space for a conflict
 retry; contrast and conflicting examples are omitted whole when they exceed
