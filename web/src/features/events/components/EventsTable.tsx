@@ -79,6 +79,7 @@ import {
   formatObservationCost,
   isObservationCostDisplayable,
 } from "@/src/utils/observationCost";
+import { formatObservationTokenCount } from "@/src/utils/observationTokenCount";
 import { useOrderByState } from "@/src/features/orderBy";
 import {
   customRowHeightMenu,
@@ -1510,7 +1511,8 @@ export default function ObservationsEventsTable({
           enableHiding: true,
           defaultHidden: true,
           enableSorting,
-          formatter: (value) => numberFormatter(value, 0, 0),
+          formatter: (value, { row }) =>
+            formatObservationTokenCount(value, row.original.type),
         }),
         createNumberTableColumn<EventsTableRow>({
           accessorFn: (row) => getCachedInputMetric(row.usageDetails),
@@ -1520,7 +1522,8 @@ export default function ObservationsEventsTable({
           enableHiding: true,
           defaultHidden: true,
           enableSorting,
-          formatter: (value) => numberFormatter(value, 0, 0),
+          formatter: (value, { row }) =>
+            formatObservationTokenCount(value, row.original.type),
         }),
         createNumberTableColumn<EventsTableRow>({
           id: "outputTokens",
@@ -1530,7 +1533,8 @@ export default function ObservationsEventsTable({
           enableHiding: true,
           defaultHidden: true,
           enableSorting,
-          formatter: (value) => numberFormatter(value, 0, 0),
+          formatter: (value, { row }) =>
+            formatObservationTokenCount(value, row.original.type),
         }),
         createNumberTableColumn<EventsTableRow>({
           id: "totalTokens",
@@ -1540,7 +1544,8 @@ export default function ObservationsEventsTable({
           enableHiding: true,
           defaultHidden: true,
           enableSorting,
-          formatter: (value) => numberFormatter(value, 0, 0),
+          formatter: (value, { row }) =>
+            formatObservationTokenCount(value, row.original.type),
         }),
       ] satisfies LangfuseColumnDef<EventsTableRow>[],
     },
