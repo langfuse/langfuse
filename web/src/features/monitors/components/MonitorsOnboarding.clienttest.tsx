@@ -6,7 +6,7 @@ import type * as EnvModule from "@/src/env.mjs";
 import { MonitorsOnboarding } from "./MonitorsOnboarding";
 
 vi.mock(
-  "@/src/features/monitors/create/ConnectedNewMonitorAutomationDialog",
+  "@/src/features/monitors/automations/ConnectedNewMonitorAutomationDialog",
   () => ({
     ConnectedNewMonitorAutomationDialog: ({
       lockedActionType,
