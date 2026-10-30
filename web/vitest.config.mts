@@ -170,6 +170,8 @@ export default defineConfig({
   plugins: [markdownRawPlugin(), tsconfigPaths(), react()],
   resolve: {
     alias: [
+      // Tests and stories are excluded from the tsconfig discovered by tsconfigPaths.
+      { find: /^@\//, replacement: `${import.meta.dirname}/` },
       // next-query-params ships a CJS `pages` entry whose default-export
       // interop breaks when the package is inlined (server.deps.inline
       // below, needed so vi.mock("next/router") intercepts the adapter's
