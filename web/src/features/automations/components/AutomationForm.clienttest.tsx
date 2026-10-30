@@ -31,6 +31,11 @@ vi.mock("@/src/utils/api", () => ({
         useQuery: () => ({ data: { labels: [], tags: [] }, isFetching: false }),
       },
     },
+    skills: {
+      filterOptions: {
+        useQuery: () => ({ data: { labels: [], tags: [] }, isFetching: false }),
+      },
+    },
     projects: { byId: { useQuery: () => ({ data: undefined }) } },
     naturalLanguageFilters: {
       createCompletion: { useMutation: () => ({ mutateAsync: vi.fn() }) },
@@ -62,6 +67,10 @@ vi.mock("@/src/features/feature-flags/hooks/useIsFeatureEnabled", () => ({
 // Cloud-only: the Alert option in the event-source picker is gated on this.
 vi.mock("@/src/features/organizations/hooks", () => ({
   useLangfuseCloudRegion: () => ({ isLangfuseCloud: true, region: "US" }),
+}));
+
+vi.mock("@/src/features/events", () => ({
+  useReadPath: () => ({ isV4: true }),
 }));
 
 import { AutomationForm } from "./AutomationForm";

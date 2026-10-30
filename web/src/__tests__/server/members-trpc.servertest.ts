@@ -8,6 +8,7 @@ import { entitlementAccess } from "@/src/features/entitlements/constants/entitle
 import type { Session } from "next-auth";
 import { createApiKey } from "@langfuse/shared/src/server";
 import { OrganizationId, SystemRoleId, UserId } from "@langfuse/shared/rbac";
+import { env } from "@/src/env.mjs";
 
 // Session fixture sub-object types; casts keep the runtime fixtures unchanged
 // while satisfying newer required fields on the session user type.
@@ -1225,4 +1226,192 @@ describe("membersRouter - gateway key revocation", () => {
       expect(await keyExists(key.id)).toBe(kept);
     },
   );
+});
+
+describe("membersRouter - AI_GATEWAY role", () => {
+  const originalGatewayAllowlist = [
+    ...env.LANGFUSE_AI_GATEWAY_ORGANIZATION_ID_ALLOWLIST,
+  ];
+  const originalGatewayAvailability = {
+    NODE_ENV: env.NODE_ENV,
+    LANGFUSE_AI_GATEWAY_ENABLED: env.LANGFUSE_AI_GATEWAY_ENABLED,
+    NEXT_PUBLIC_PREVIEW_PR_URL: env.NEXT_PUBLIC_PREVIEW_PR_URL,
+  };
+
+  // Only the org allowlist enables the gateway in these tests.
+  beforeEach(() => {
+    Object.assign(env, {
+      NODE_ENV: "test",
+      LANGFUSE_AI_GATEWAY_ENABLED: "false",
+      NEXT_PUBLIC_PREVIEW_PR_URL: undefined,
+    });
+  });
+
+  afterEach(() => {
+    Object.assign(env, originalGatewayAvailability);
+    env.LANGFUSE_AI_GATEWAY_ORGANIZATION_ID_ALLOWLIST.splice(
+      0,
+      env.LANGFUSE_AI_GATEWAY_ORGANIZATION_ID_ALLOWLIST.length,
+      ...originalGatewayAllowlist,
+    );
+  });
+
+  it("adds an organization member with the AI_GATEWAY role", async () => {
+    const { org, caller } = await prepare("cloud:core");
+    env.LANGFUSE_AI_GATEWAY_ORGANIZATION_ID_ALLOWLIST.push(org.id);
+    const newUser = await createTestUser();
+
+    await caller.members.create({
+      orgId: org.id,
+      email: newUser.email!,
+      orgRole: Role.AI_GATEWAY,
+    });
+
+    const membership = await prisma.organizationMembership.findFirst({
+      where: { orgId: org.id, userId: newUser.id },
+    });
+    expect(membership?.role).toBe(Role.AI_GATEWAY);
+  });
+
+  it("rejects adding an AI_GATEWAY member while the AI Gateway is off", async () => {
+    const { org, caller } = await prepare("cloud:core");
+    const newUser = await createTestUser();
+
+    await expect(
+      caller.members.create({
+        orgId: org.id,
+        email: newUser.email!,
+        orgRole: Role.AI_GATEWAY,
+      }),
+    ).rejects.toMatchObject({ code: "FORBIDDEN" });
+    expect(
+      await prisma.organizationMembership.count({
+        where: { orgId: org.id, userId: newUser.id },
+      }),
+    ).toBe(0);
+  });
+
+  it("rejects changing a member to AI_GATEWAY while the AI Gateway is off", async () => {
+    const { org, caller } = await prepare("cloud:core");
+    const member = await createTestUser();
+    const membership = await prisma.organizationMembership.create({
+      data: { userId: member.id, orgId: org.id, role: Role.MEMBER },
+    });
+
+    await expect(
+      caller.members.updateOrgMembership({
+        orgId: org.id,
+        orgMembershipId: membership.id,
+        role: Role.AI_GATEWAY,
+      }),
+    ).rejects.toMatchObject({ code: "FORBIDDEN" });
+    expect(
+      (
+        await prisma.organizationMembership.findUnique({
+          where: { id: membership.id },
+        })
+      )?.role,
+    ).toBe(Role.MEMBER);
+  });
+
+  it("changes a member to AI_GATEWAY while the AI Gateway is on", async () => {
+    const { org, caller } = await prepare("cloud:core");
+    env.LANGFUSE_AI_GATEWAY_ORGANIZATION_ID_ALLOWLIST.push(org.id);
+    const member = await createTestUser();
+    const membership = await prisma.organizationMembership.create({
+      data: { userId: member.id, orgId: org.id, role: Role.MEMBER },
+    });
+
+    await caller.members.updateOrgMembership({
+      orgId: org.id,
+      orgMembershipId: membership.id,
+      role: Role.AI_GATEWAY,
+    });
+
+    expect(
+      (
+        await prisma.organizationMembership.findUnique({
+          where: { id: membership.id },
+        })
+      )?.role,
+    ).toBe(Role.AI_GATEWAY);
+  });
+
+  it("rejects AI_GATEWAY as a project role", async () => {
+    const { org, project, caller } = await prepare("cloud:core");
+    const newUser = await createTestUser();
+
+    await expect(
+      caller.members.create({
+        orgId: org.id,
+        email: newUser.email!,
+        orgRole: Role.NONE,
+        projectId: project.id,
+        projectRole: Role.AI_GATEWAY as never,
+      }),
+    ).rejects.toThrow();
+  });
+
+  it("omits AI_GATEWAY members from project-scoped member lists", async () => {
+    const { org, project } = await prepare("cloud:core");
+    const gatewayUser = await createTestUser();
+    await prisma.organizationMembership.create({
+      data: { userId: gatewayUser.id, orgId: org.id, role: Role.AI_GATEWAY },
+    });
+    const projectOnlyUser = await createTestUser();
+    const orgMembership = await prisma.organizationMembership.create({
+      data: { userId: projectOnlyUser.id, orgId: org.id, role: Role.NONE },
+    });
+    await prisma.projectMembership.create({
+      data: {
+        userId: projectOnlyUser.id,
+        projectId: project.id,
+        role: Role.MEMBER,
+        orgMembershipId: orgMembership.id,
+      },
+    });
+    const ctx = createInnerTRPCContext({
+      session: createSession(projectOnlyUser, org, project, "cloud:core", {
+        orgRole: Role.NONE,
+        projectRole: Role.MEMBER,
+      }),
+      headers: {},
+    });
+    const caller = appRouter.createCaller({ ...ctx, prisma });
+
+    const result = await caller.members.allFromProject({
+      projectId: project.id,
+      page: 0,
+      limit: 10,
+    });
+
+    expect(result.memberships.map((m) => m.userId)).not.toContain(
+      gatewayUser.id,
+    );
+  });
+  it("lists AI_GATEWAY members with a project role in that project", async () => {
+    const { org, project, caller } = await prepare("cloud:core");
+    const gatewayUser = await createTestUser();
+    const gatewayMembership = await prisma.organizationMembership.create({
+      data: { userId: gatewayUser.id, orgId: org.id, role: Role.AI_GATEWAY },
+    });
+    await prisma.projectMembership.create({
+      data: {
+        userId: gatewayUser.id,
+        projectId: project.id,
+        role: Role.VIEWER,
+        orgMembershipId: gatewayMembership.id,
+      },
+    });
+
+    const result = await caller.members.allFromProject({
+      projectId: project.id,
+      page: 0,
+      limit: 10,
+    });
+
+    expect(
+      result.memberships.find((m) => m.userId === gatewayUser.id)?.projectRole,
+    ).toBe(Role.VIEWER);
+  });
 });
