@@ -309,24 +309,24 @@ export const NotificationEventSchema = z.discriminatedUnion("type", [
   // Future notification types can be added here
 ]);
 
+const entityChangeUserSchema = z.object({
+  id: z.string(),
+  name: z.string().nullable(),
+  email: z.string().nullable(),
+});
+
 export const promptVersionWebhookEnvelopeSchema = z.object({
   type: z.literal("prompt-version"),
   prompt: PromptDomainSchema,
   action: EventActionSchema,
-  user: z
-    .object({
-      id: z.string(),
-      name: z.string().nullable(),
-      email: z.string().nullable(),
-    })
-    .optional(),
+  user: entityChangeUserSchema.optional(),
 });
 
 export const skillVersionWebhookEnvelopeSchema = z.object({
   type: z.literal("skill-version"),
   skill: SkillVersionSchema,
   action: EventActionSchema,
-  user: promptVersionWebhookEnvelopeSchema.shape.user,
+  user: entityChangeUserSchema.optional(),
 });
 
 /** WebhookOutboundEnvelopeSchema is the WebhookInput.payload contract: a discriminated union over `type`. The monitor-alert and system variants are unified envelopes (queue payload = HTTP outbound body); the prompt-version variant keeps its original dispatch-time wrap. */
@@ -352,13 +352,7 @@ export const EntityChangeEventSchema = z.discriminatedUnion("entityType", [
     promptId: z.string(),
     action: EventActionSchema,
     prompt: PromptDomainSchema,
-    user: z
-      .object({
-        id: z.string(),
-        name: z.string().nullable(),
-        email: z.string().nullable(),
-      })
-      .optional(),
+    user: entityChangeUserSchema.optional(),
   }),
   z.object({
     entityType: z.literal("skill-version"),
@@ -366,7 +360,7 @@ export const EntityChangeEventSchema = z.discriminatedUnion("entityType", [
     skillId: z.string(),
     action: EventActionSchema,
     skill: SkillVersionSchema,
-    user: promptVersionWebhookEnvelopeSchema.shape.user,
+    user: entityChangeUserSchema.optional(),
   }),
   // Add other entity types here in the future
 ]);

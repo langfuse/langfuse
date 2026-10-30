@@ -94,6 +94,7 @@ describe("SkillService versions", () => {
           .fn()
           .mockResolvedValue({ updatedAt: new Date("2026-10-23T12:00:00Z") }),
         updateMany: vi.fn(),
+        updateManyAndReturn: vi.fn().mockResolvedValue([]),
         delete: vi.fn(),
         deleteMany: vi.fn().mockResolvedValue({ count: 2 }),
         create,
@@ -182,41 +183,6 @@ describe("SkillService versions", () => {
     };
   }
 
-  it("publishes a content-free created snapshot only after the transaction commits", async () => {
-    const test = setup();
-    const commit = Promise.withResolvers<void>();
-    test.transaction.mockImplementation(async (callback) => {
-      const result = await callback(test.tx);
-      await commit.promise;
-      return result;
-    });
-    const mutation = test.service.createVersion(test.params);
-    await vi.waitFor(() => expect(test.create).toHaveBeenCalledOnce());
-    expect(queueAdd).not.toHaveBeenCalled();
-    commit.resolve();
-    await mutation;
-    expect(queueAdd).toHaveBeenCalledOnce();
-    const event = queueAdd.mock.calls[0]![1].payload;
-    expect(event).toMatchObject({
-      entityType: "skill-version",
-      projectId: "project",
-      skillId: "skill",
-      action: "created",
-      skill: { name: "test-skill", version: 1 },
-    });
-    expect(event.skill.files).toHaveLength(3);
-    expect(event.skill.files[0]).toMatchObject({
-      path: "SKILL.md",
-      sha256Hash: test.blobs[0]!.sha256Hash,
-    });
-    expect(
-      event.skill.files.every(
-        (file: Record<string, unknown>) =>
-          !("content" in file) && !("blob" in file),
-      ),
-    ).toBe(true);
-  });
-
   it("does not publish changes from a rolled-back transaction", async () => {
     const test = setup();
     test.transaction.mockImplementation(async (callback) => {
@@ -238,12 +204,13 @@ describe("SkillService versions", () => {
     expect(queueAdd).toHaveBeenCalledOnce();
   });
 
-  it("publishes shared tag changes for every changed version and skips unchanged tags", async () => {
+  it("publishes stored snapshots for changed tag versions", async () => {
     const test = setup();
+    const updatedAt = new Date("2026-10-30T12:00:00Z");
     test.tx.skill.findFirst.mockResolvedValue(test.skill);
+    test.tx.skill.updateManyAndReturn.mockResolvedValue([{ id: "skill" }]);
     test.tx.skill.findMany.mockResolvedValue([
-      test.skill,
-      { ...test.skill, id: "previous", version: 2, tags: ["support"] },
+      { ...test.skill, tags: ["support"], updatedAt },
     ]);
     await test.service.setTags({
       projectId: "project",
@@ -251,11 +218,21 @@ describe("SkillService versions", () => {
       tags: ["support"],
       actor: test.params.actor,
     });
-    expect(queueAdd).toHaveBeenCalledOnce();
-    expect(queueAdd.mock.calls[0]![1].payload).toMatchObject({
-      action: "updated",
-      skill: { id: "skill", tags: ["support"] },
+    expect(test.tx.skill.updateManyAndReturn).toHaveBeenCalledWith({
+      where: {
+        projectId: "project",
+        name: "test-skill",
+        NOT: { tags: { equals: ["support"] } },
+      },
+      data: { tags: { set: ["support"] } },
+      select: { id: true },
     });
+    expect(queueAdd.mock.calls.map((call) => call[1].payload)).toMatchObject([
+      {
+        action: "updated",
+        skill: { id: "skill", tags: ["support"], updatedAt },
+      },
+    ]);
   });
 
   it("publishes deletion with its former labels and the restored latest version", async () => {
@@ -518,6 +495,12 @@ describe("SkillService versions", () => {
 
   it("creates with only latest and leaves deployment labels on the previous version", async () => {
     const test = setup();
+    const commit = Promise.withResolvers<void>();
+    test.transaction.mockImplementation(async (callback) => {
+      const result = await callback(test.tx);
+      await commit.promise;
+      return result;
+    });
     const previous = {
       ...test.skill,
       id: "previous",
@@ -536,7 +519,11 @@ describe("SkillService versions", () => {
       input: { ...test.params.input, labels: ["production"] },
     };
 
-    await test.service.createVersion(params);
+    const mutation = test.service.createVersion(params);
+    await vi.waitFor(() => expect(test.create).toHaveBeenCalledOnce());
+    expect(queueAdd).not.toHaveBeenCalled();
+    commit.resolve();
+    await mutation;
 
     expect(test.create).toHaveBeenCalledWith({
       include: expect.any(Object),
@@ -557,6 +544,18 @@ describe("SkillService versions", () => {
       },
       { action: "created", skill: { id: "skill", labels: ["latest"] } },
     ]);
+    const created = queueAdd.mock.calls[1]![1].payload.skill;
+    expect(created.files).toHaveLength(3);
+    expect(created.files[0]).toMatchObject({
+      path: "SKILL.md",
+      sha256Hash: test.blobs[0]!.sha256Hash,
+    });
+    expect(
+      created.files.every(
+        (file: Record<string, unknown>) =>
+          !("content" in file) && !("blob" in file),
+      ),
+    ).toBe(true);
   });
 
   it("blocks whole-skill deletion when an older version has a protected label", async () => {

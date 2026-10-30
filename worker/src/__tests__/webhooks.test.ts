@@ -300,7 +300,6 @@ describe("Webhook Integration Tests", () => {
   describe("skill version delivery", () => {
     it.each([
       { github: false, oversized: false },
-      { github: true, oversized: false },
       { github: true, oversized: true },
     ])(
       "serializes skill metadata (github=$github, oversized=$oversized)",

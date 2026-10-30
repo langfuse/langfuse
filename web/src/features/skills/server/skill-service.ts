@@ -622,21 +622,25 @@ export class SkillService {
       if (!target) throw new LangfuseNotFoundError("Skill not found");
 
       const tags = [...new Set(input.tags)];
-      const versions = await tx.skill.findMany({
-        where: { projectId: params.projectId, name: params.name },
-        include: skillFilesInclude,
+      const updated = await tx.skill.updateManyAndReturn({
+        where: {
+          projectId: params.projectId,
+          name: params.name,
+          NOT: { tags: { equals: tags } },
+        },
+        data: { tags: { set: tags } },
+        select: { id: true },
       });
-      const updatedAt = new Date();
-      await tx.skill.updateMany({
-        where: { projectId: params.projectId, name: params.name },
-        data: { tags: { set: tags }, updatedAt },
-      });
-      for (const version of versions) {
-        if (version.tags.join("\0") !== tags.join("\0")) {
-          changes.push({
-            action: "updated",
-            skill: serializeVersion({ ...version, tags, updatedAt }),
-          });
+      if (updated.length > 0) {
+        const versions = await tx.skill.findMany({
+          where: {
+            projectId: params.projectId,
+            id: { in: updated.map(({ id }) => id) },
+          },
+          include: skillFilesInclude,
+        });
+        for (const version of versions) {
+          changes.push({ action: "updated", skill: serializeVersion(version) });
         }
       }
       await auditLog(
