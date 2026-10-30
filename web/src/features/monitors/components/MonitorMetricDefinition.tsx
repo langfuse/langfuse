@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import * as SelectPrimitive from "@radix-ui/react-select";
 import { startCase } from "lodash";
 import { type UseFormReturn } from "react-hook-form";
 
@@ -14,10 +15,12 @@ import {
   Select,
   SelectContent,
   SelectItem,
-  SelectTrigger,
   SelectValue,
 } from "@/src/components/ui/select";
-import { CompactConnectorRow } from "@/src/features/filters";
+import {
+  CompactConnectorRow,
+  CompactPickerButton,
+} from "@/src/features/filters";
 import { ConnectedMetricsFilterBuilder } from "@/src/features/metrics";
 import { WidgetPropertySelectItem } from "@/src/features/widgets";
 import { viewDeclarations, type FilterState } from "@langfuse/shared";
@@ -101,9 +104,11 @@ export const MonitorMetricDefinition = ({
                   disabled={disabled}
                 >
                   <FormControl>
-                    <SelectTrigger aria-label="Aggregation">
-                      <SelectValue />
-                    </SelectTrigger>
+                    <SelectPrimitive.Trigger asChild aria-label="Aggregation">
+                      <CompactPickerButton>
+                        <SelectValue />
+                      </CompactPickerButton>
+                    </SelectPrimitive.Trigger>
                   </FormControl>
                   <SelectContent>
                     {[...measuresByAggregation.keys()].map((a) => (
@@ -130,9 +135,11 @@ export const MonitorMetricDefinition = ({
                   disabled={disabled}
                 >
                   <FormControl>
-                    <SelectTrigger aria-label="View">
-                      <SelectValue />
-                    </SelectTrigger>
+                    <SelectPrimitive.Trigger asChild aria-label="View">
+                      <CompactPickerButton>
+                        <SelectValue />
+                      </CompactPickerButton>
+                    </SelectPrimitive.Trigger>
                   </FormControl>
                   <SelectContent>
                     {MonitorViewSchema.options.map((v) => (
@@ -162,9 +169,11 @@ export const MonitorMetricDefinition = ({
                   disabled={disabled}
                 >
                   <FormControl>
-                    <SelectTrigger aria-label="Measure">
-                      <SelectValue />
-                    </SelectTrigger>
+                    <SelectPrimitive.Trigger asChild aria-label="Measure">
+                      <CompactPickerButton>
+                        <SelectValue />
+                      </CompactPickerButton>
+                    </SelectPrimitive.Trigger>
                   </FormControl>
                   <SelectContent>
                     {(measuresByAggregation.get(aggregation) ?? []).map((m) => (

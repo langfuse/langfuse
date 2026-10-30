@@ -60,6 +60,7 @@ import {
 } from "@langfuse/shared";
 import { cn } from "@/src/utils/tailwind";
 import { CompactConnectorRow } from "@/src/features/filters/components/CompactConnectorRow";
+import { CompactPickerButton } from "@/src/features/filters/components/CompactPickerButton";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import {
   InputCommand,
@@ -701,21 +702,13 @@ function FilterBuilderForm({
         onOpenChange={(open) => setOpenColumnRow(open ? i : null)}
       >
         <PopoverTrigger asChild>
-          <Button
-            variant="outline"
-            role="combobox"
-            type="button"
+          <CompactPickerButton
             disabled={disabled}
-            className={cn(
-              "flex items-center justify-between gap-2",
-              compact ? "w-full min-w-0" : "w-full min-w-32",
-            )}
+            title={columnLabel}
+            minWidth={compact ? "none" : "default"}
           >
-            <span className="min-w-0 truncate" title={columnLabel}>
-              {columnLabel}
-            </span>
-            <DropdownIndicator />
-          </Button>
+            {columnLabel}
+          </CompactPickerButton>
         </PopoverTrigger>
         <PopoverContent align="start" className="ph-no-capture max-w-fit p-0">
           <InputCommand>
