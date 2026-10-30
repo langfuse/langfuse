@@ -9,6 +9,7 @@ let submittedValues = defaultMonitorAutomationFormValues("WEBHOOK", "Hook");
 const mutateAsync = vi.fn();
 
 vi.mock("@/src/utils/api", () => ({
+  reportTrpcErrorWithoutToast: vi.fn(),
   api: {
     useUtils: () => ({ automations: { invalidate: vi.fn() } }),
     automations: {

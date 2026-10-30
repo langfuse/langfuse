@@ -8,7 +8,7 @@ import {
   useSlackTestMessage,
 } from "@/src/features/slack";
 import { useSupportDrawer } from "@/src/features/support-chat";
-import { api } from "@/src/utils/api";
+import { api, reportTrpcErrorWithoutToast } from "@/src/utils/api";
 import { type SlackFieldsState } from "./components/SlackActionFields";
 import { buildCreateMonitorAutomationInput } from "./fns/buildCreateMonitorAutomationInput";
 import { type MonitorAutomationFormValues } from "./fns/monitorAutomationFormSchema";
@@ -131,9 +131,9 @@ function useSlackFieldsState(projectId: string): SlackFieldsState {
 function useCreateMonitorAutomation() {
   const utils = api.useUtils();
   return api.automations.createAutomation.useMutation({
-    // The dialog shows rejections under the field they concern.
-    meta: { silentAllErrors: true },
     onSuccess: () => utils.automations.invalidate(),
+    // The dialog shows rejections under the field they concern.
+    onError: (error) => reportTrpcErrorWithoutToast(error, "automations"),
   });
 }
 
