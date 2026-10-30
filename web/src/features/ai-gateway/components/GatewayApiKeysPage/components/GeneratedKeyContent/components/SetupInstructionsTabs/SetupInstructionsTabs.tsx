@@ -1,17 +1,44 @@
 import { useState } from "react";
 import { Braces, SquareTerminal, type IconComponent } from "@langfuse/icons";
-import { SiClaude, SiOpenai } from "@langfuse/icons/si";
+import { SiClaude, SiGithubcopilot, SiOpenai } from "@langfuse/icons/si";
 
 import { Button } from "@/src/components/design-system/Button/Button";
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import type { AgentSetupInstructions } from "@/src/features/ai-gateway/types/agentSetupInstructions";
 import { AgentInstructionsPanel } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/GeneratedKeyContent/components/AgentInstructionsPanel";
 import {
-  ClaudeSetupTabs,
-  type ClaudeAgentId,
-} from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/GeneratedKeyContent/components/ClaudeSetupTabs";
+  AgentVariantTabs,
+  type AgentVariant,
+} from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/GeneratedKeyContent/components/AgentVariantTabs";
 
-type TabId = Exclude<AgentSetupInstructions["id"], ClaudeAgentId> | "claude";
+type AgentId = AgentSetupInstructions["id"];
+type VariantTabId = "claude" | "copilot";
+type TabId =
+  | Exclude<
+      AgentId,
+      "claude-code" | "claude-desktop" | "copilot-cli" | "copilot-desktop"
+    >
+  | VariantTabId;
+
+const VARIANT_TABS: Record<
+  VariantTabId,
+  { ariaLabel: string; variants: AgentVariant[] }
+> = {
+  claude: {
+    ariaLabel: "Claude app",
+    variants: [
+      { id: "claude-code", label: "Code" },
+      { id: "claude-desktop", label: "Desktop" },
+    ],
+  },
+  copilot: {
+    ariaLabel: "GitHub Copilot app",
+    variants: [
+      { id: "copilot-cli", label: "CLI" },
+      { id: "copilot-desktop", label: "Desktop" },
+    ],
+  },
+};
 
 const DEFAULT_TAB: TabId = "api";
 
@@ -20,7 +47,12 @@ const TABS: { id: TabId; label: string; icon: IconComponent }[] = [
   { id: "claude", label: "Claude", icon: SiClaude },
   { id: "codex", label: "Codex", icon: SiOpenai },
   { id: "opencode", label: "OpenCode", icon: SquareTerminal },
+  { id: "copilot", label: "GitHub Copilot", icon: SiGithubcopilot },
 ];
+
+function isVariantTabId(value: string): value is VariantTabId {
+  return value in VARIANT_TABS;
+}
 
 type SetupInstructionsTabsProps = {
   organizationId: string;
@@ -32,14 +64,16 @@ export function SetupInstructionsTabs({
   instructions,
 }: SetupInstructionsTabsProps) {
   const [activeTab, setActiveTab] = useState<string>(DEFAULT_TAB);
-  const [claudeVariant, setClaudeVariant] =
-    useState<ClaudeAgentId>("claude-code");
+  const [activeVariants, setActiveVariants] = useState<
+    Record<VariantTabId, AgentId>
+  >({ claude: "claude-code", copilot: "copilot-cli" });
 
   const findEntry = (id: string) =>
     instructions.find((entry) => entry.id === id);
   const activeEntry =
-    findEntry(activeTab === "claude" ? claudeVariant : activeTab) ??
-    instructions[0];
+    findEntry(
+      isVariantTabId(activeTab) ? activeVariants[activeTab] : activeTab,
+    ) ?? instructions[0];
 
   return (
     <div className="flex flex-col gap-2">
@@ -79,15 +113,22 @@ export function SetupInstructionsTabs({
           </Tabs.List>
         </div>
         {TABS.map((tab) => {
-          if (tab.id === "claude") {
+          if (isVariantTabId(tab.id)) {
+            const variantTabId = tab.id;
             return (
               <Tabs.Content key={tab.id} value={tab.id}>
                 <div className="pt-4">
-                  <ClaudeSetupTabs
+                  <AgentVariantTabs
                     organizationId={organizationId}
                     instructions={instructions}
-                    value={claudeVariant}
-                    onValueChange={setClaudeVariant}
+                    {...VARIANT_TABS[variantTabId]}
+                    value={activeVariants[variantTabId]}
+                    onValueChange={(next) =>
+                      setActiveVariants((current) => ({
+                        ...current,
+                        [variantTabId]: next,
+                      }))
+                    }
                   />
                 </div>
               </Tabs.Content>
