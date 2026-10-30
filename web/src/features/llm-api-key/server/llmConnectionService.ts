@@ -422,6 +422,24 @@ export class LlmConnectionService {
     private readonly db: typeof prisma = prisma,
   ) {}
 
+  private lockProvider(
+    tx: Prisma.TransactionClient,
+    owner: LlmConnectionOwner,
+    provider: string,
+  ) {
+    // Serialize writes to one owner's provider so adapter checks see the
+    // connection that the write replaces.
+    const ownerId =
+      owner.type === "project" ? owner.projectId : owner.organizationId;
+    const key = JSON.stringify([
+      "llm-connections",
+      owner.type,
+      ownerId,
+      provider,
+    ]);
+    return tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${key}))`;
+  }
+
   private async validateHierarchyAdapter(params: {
     repository: LlmConnectionRepository;
     owner: LlmConnectionOwner;
@@ -531,6 +549,7 @@ export class LlmConnectionService {
     let key: LlmApiKeys;
     try {
       key = await this.db.$transaction(async (tx) => {
+        await this.lockProvider(tx, params.owner, params.input.provider);
         const repository = this.repository.withDb(tx);
         await this.validateHierarchyAdapter({
           repository,
@@ -606,6 +625,7 @@ export class LlmConnectionService {
       ? Object.keys(params.input.extraHeaders)
       : undefined;
     const { connection, existing } = await this.db.$transaction(async (tx) => {
+      await this.lockProvider(tx, params.owner, params.input.provider);
       const repository = this.repository.withDb(tx);
       const existing = await repository.findByProvider({
         owner: params.owner,

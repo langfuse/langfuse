@@ -835,6 +835,28 @@ describe("/api/public/llm-connections API Endpoints", () => {
       });
     });
 
+    it("should keep one adapter kind when concurrent upserts create the same provider", async () => {
+      const provider = generateUniqueProvider("concurrent-adapter-kinds");
+
+      const responses = await Promise.all(
+        [LLMAdapter.OpenAI, LLMAdapter.TypeSafe].map((adapter) =>
+          makeAPICall<{ adapter?: string; message?: string }>(
+            "PUT",
+            "/api/public/llm-connections",
+            { provider, adapter, secretKey: `sk-${adapter}` },
+            auth,
+          ),
+        ),
+      );
+
+      expect(responses.map((r) => r.status).sort()).toEqual([201, 400]);
+      const created = responses.find((r) => r.status === 201)!;
+      const stored = await prisma.llmApiKeys.findFirstOrThrow({
+        where: { projectId, provider },
+      });
+      expect(stored.adapter).toBe(created.body.adapter);
+    });
+
     it("should handle optional fields correctly", async () => {
       // Test with all optional fields provided
       const fullDataResponse = await makeZodVerifiedAPICall(
