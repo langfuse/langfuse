@@ -414,6 +414,55 @@ function userPrompt() {
   ];
 }
 
+describe("getInAppAgentReasoningProviderOptions with a declared Claude family", () => {
+  // Gateway aliases and custom deployments can hide Claude behind an id that
+  // does not name it; LANGFUSE_AI_MODEL_FAMILY stands in for the id check.
+  const aliasConfig = {
+    modelId: "langfuse-assistant-default",
+    titleModelId: "langfuse-assistant-small",
+    apiKey: "sk-test",
+  };
+
+  it("sends adaptive summarized thinking to an Anthropic alias only when declared Claude", () => {
+    expect(
+      getInAppAgentReasoningProviderOptions({
+        provider: "anthropic",
+        ...aliasConfig,
+      }),
+    ).toBeUndefined();
+    expect(
+      getInAppAgentReasoningProviderOptions({
+        provider: "anthropic",
+        ...aliasConfig,
+        modelFamily: "claude",
+      }),
+    ).toEqual({
+      anthropic: {
+        thinking: { type: "adaptive", display: "summarized" },
+      },
+    });
+  });
+
+  it("forces Responses reasoning for an OpenAI gateway alias only when declared Claude", () => {
+    Object.assign(env, { LANGFUSE_AI_USE_RESPONSES_API: "true" });
+    const config = {
+      provider: "openai" as const,
+      ...aliasConfig,
+      baseURL: "https://ai-gateway.internal/v1",
+    };
+
+    expect(
+      getInAppAgentReasoningProviderOptions(config)?.openai,
+    ).not.toHaveProperty("forceReasoning");
+    expect(
+      getInAppAgentReasoningProviderOptions({
+        ...config,
+        modelFamily: "claude",
+      })?.openai,
+    ).toMatchObject({ forceReasoning: true, systemMessageMode: "system" });
+  });
+});
+
 describe("getInAppAgentReasoningProviderOptions on Vertex", () => {
   // Claude on Vertex runs the Anthropic Messages model, so it takes the same
   // canonical "anthropic" provider options as the direct Anthropic path even

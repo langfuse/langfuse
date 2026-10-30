@@ -470,6 +470,37 @@ describe("applyPromptCacheToCall", () => {
     });
   });
 
+  it.each([
+    ["anthropic.messages", anthropicCacheControl],
+    ["openai.responses", openaiCacheBreakpoint],
+    [
+      "openai.chat",
+      { openaiCompatible: { cache_control: { type: "ephemeral" } } },
+    ],
+  ])(
+    "stamps %s cache markers for a gateway alias only when the model family is declared Claude",
+    (provider, systemProviderOptions) => {
+      const options = { prompt: twoMessagePrompt };
+      const modelId = "langfuse-assistant-default";
+
+      expect(applyPromptCacheToCall({ provider, modelId, options })).toBe(
+        options,
+      );
+
+      const result = applyPromptCacheToCall({
+        provider,
+        modelId,
+        modelFamily: "claude",
+        options,
+      });
+      expect(result.prompt[0]).toEqual({
+        role: "system",
+        content: "You are the Langfuse assistant.",
+        providerOptions: systemProviderOptions,
+      });
+    },
+  );
+
   it("stamps Bedrock cache points for Claude models and leaves other models unchanged", () => {
     const options = {
       prompt: twoMessagePrompt,
