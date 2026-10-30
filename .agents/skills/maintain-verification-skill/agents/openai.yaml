@@ -1,0 +1,4 @@
+interface:
+  display_name: "Maintain verification"
+  short_description: "Propose fixes when verify-changes is stale"
+  default_prompt: "Use $maintain-verification-skill to propose diffs to verify-changes from the latest verification run."
