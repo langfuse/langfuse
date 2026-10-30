@@ -77,7 +77,7 @@ function webhookIssues(
   webhook: MonitorAutomationFormValues["webhook"],
 ): FormIssue[] {
   const headerIssues = webhookHeaderIssues(webhook.headers);
-  if (isHttpsUrl(webhookUrl(webhook.url))) return headerIssues;
+  if (isHttpsUrl(httpsUrl(webhook.url))) return headerIssues;
   return [
     issue(["webhook", "url"], "Enter a valid HTTPS URL."),
     ...headerIssues,
@@ -118,7 +118,7 @@ function githubDispatchIssues(
   githubDispatch: MonitorAutomationFormValues["githubDispatch"],
 ): FormIssue[] {
   const issues: FormIssue[] = [];
-  if (!isUrlWithHost(githubDispatch.url.trim())) {
+  if (!isHttpsUrl(httpsUrl(githubDispatch.url))) {
     issues.push(
       issue(
         ["githubDispatch", "url"],
@@ -148,8 +148,8 @@ function pagerDutyIssues(
   ];
 }
 
-/** webhookUrl is the submitted webhook URL for the host and path the user typed. */
-export function webhookUrl(hostAndPath: string): string {
+/** httpsUrl is the submitted URL for the host and path typed after a fixed https:// prefix. */
+export function httpsUrl(hostAndPath: string): string {
   return `https://${hostAndPath.trim()}`;
 }
 

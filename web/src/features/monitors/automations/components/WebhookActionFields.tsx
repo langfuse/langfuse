@@ -12,10 +12,9 @@ import { Form } from "@/src/components/design-system/Form/Form";
 import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
 import { Input } from "@/src/components/design-system/Input/Input";
 import { type MonitorAutomationFormValues } from "../helpers/monitorAutomationFormSchema";
+import { stripUrlScheme } from "../helpers/stripUrlScheme";
 import { FieldGroup } from "./FieldGroup";
 import { PrefixedInput } from "./PrefixedInput";
-
-const schemePattern = /^\s*https?:\/\//i;
 
 const defaultHeaders = [
   {
@@ -62,12 +61,13 @@ function WebhookUrlField({
           name={field.name}
           value={field.value}
           onChange={(event) =>
-            field.onChange(event.target.value.replace(schemePattern, ""))
+            field.onChange(stripUrlScheme(event.target.value))
           }
           onBlur={field.onBlur}
           ref={field.ref}
           addon="POST"
           prefix="https://"
+          inputMode="url"
           placeholder="example.com/webhook"
           aria-describedby={field.inputDescribedById}
           aria-invalid={!!field.error}

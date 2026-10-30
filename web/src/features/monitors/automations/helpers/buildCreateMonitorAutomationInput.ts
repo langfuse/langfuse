@@ -2,7 +2,7 @@ import { TriggerEventSource, type ActionCreate } from "@langfuse/shared";
 
 import { type RouterInputs } from "@/src/utils/api";
 import {
-  webhookUrl,
+  httpsUrl,
   type MonitorAutomationFormValues,
 } from "./monitorAutomationFormSchema";
 
@@ -35,14 +35,14 @@ function buildActionConfig(values: MonitorAutomationFormValues): ActionCreate {
     case "WEBHOOK":
       return {
         type: "WEBHOOK",
-        url: webhookUrl(values.webhook.url),
+        url: httpsUrl(values.webhook.url),
         requestHeaders: requestHeaders(values.webhook.headers),
         apiVersion: { monitor: "v1" },
       };
     case "GITHUB_DISPATCH":
       return {
         type: "GITHUB_DISPATCH",
-        url: values.githubDispatch.url.trim(),
+        url: httpsUrl(values.githubDispatch.url),
         eventType: values.githubDispatch.eventType.trim(),
         githubToken: values.githubDispatch.githubToken.trim(),
       };

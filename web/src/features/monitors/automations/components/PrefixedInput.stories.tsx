@@ -15,6 +15,14 @@ const meta = preview.meta({
 
 export const Default = meta.story({});
 
+export const WithoutAddon = meta.story({
+  args: {
+    "aria-label": "Repository dispatch URL",
+    addon: undefined,
+    placeholder: "api.github.com/repos/owner/repo/dispatches",
+  },
+});
+
 export const Invalid = meta.story({
   args: { value: "not a url", error: true, "aria-invalid": true },
 });

@@ -150,6 +150,35 @@ export const ErrorsShown = meta.story({
   },
 });
 
+export const TestInvalidDispatchUrlShowsError = meta.story({
+  name: "(Test) Invalid dispatch URL shows the form error",
+  args: {
+    onSubmit: fn(async () => ({})),
+    actionTypes: ["GITHUB_DISPATCH"],
+    defaultValues: {
+      ...defaultMonitorAutomationFormValues("GITHUB_DISPATCH", "Deploy"),
+      githubDispatch: {
+        url: "not a url",
+        eventType: "langfuse-alert",
+        githubToken: "ghp_token",
+      },
+    },
+  },
+  play: async ({ args, canvasElement }) => {
+    const body = within(canvasElement.ownerDocument.body);
+    await body.findByDisplayValue("not a url");
+    await userEvent.click(
+      body.getByRole("button", { name: "Create automation" }),
+    );
+    await waitFor(() =>
+      expect(
+        body.getByText("Enter a valid repository dispatch URL."),
+      ).toBeVisible(),
+    );
+    await expect(args.onSubmit).not.toHaveBeenCalled();
+  },
+});
+
 export const TestServerErrorShownInline = meta.story({
   name: "(Test) Server error shown inline",
   args: {
@@ -157,7 +186,7 @@ export const TestServerErrorShownInline = meta.story({
     defaultValues: {
       ...defaultMonitorAutomationFormValues("GITHUB_DISPATCH", "Deploy"),
       githubDispatch: {
-        url: "https://kjhkjhkj.com",
+        url: "kjhkjhkj.com",
         eventType: "langfuse-alert",
         githubToken: "ghp_token",
       },
@@ -168,7 +197,7 @@ export const TestServerErrorShownInline = meta.story({
   },
   play: async ({ canvasElement }) => {
     const body = within(canvasElement.ownerDocument.body);
-    await body.findByDisplayValue("https://kjhkjhkj.com");
+    await body.findByDisplayValue("kjhkjhkj.com");
     await userEvent.click(
       body.getByRole("button", { name: "Create automation" }),
     );

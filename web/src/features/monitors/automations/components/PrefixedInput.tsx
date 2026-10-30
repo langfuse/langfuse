@@ -8,7 +8,7 @@ import {
 
 import { cn } from "@/src/utils/tailwind";
 
-/** PrefixedInput renders a text input after a shaded addon and a muted prefix inside one shared border. */
+/** PrefixedInput renders a text input after an optional shaded addon and a muted prefix inside one shared border. */
 export function PrefixedInput({
   addon,
   prefix,
@@ -20,13 +20,14 @@ export function PrefixedInput({
   | "aria-describedby"
   | "aria-invalid"
   | "id"
+  | "inputMode"
   | "name"
   | "onBlur"
   | "onChange"
   | "placeholder"
   | "value"
 > & {
-  addon: string;
+  addon?: string;
   prefix: string;
   error?: boolean;
   ref?: Ref<HTMLInputElement>;
@@ -41,9 +42,11 @@ export function PrefixedInput({
       )}
       onMouseDown={(event) => focusInput(event, inputRef)}
     >
-      <span className="bg-muted text-muted-foreground border-input flex h-full shrink-0 items-center border-r px-2.5 font-mono text-xs">
-        {addon}
-      </span>
+      {addon && (
+        <span className="bg-muted text-muted-foreground border-input flex h-full shrink-0 items-center border-r px-2.5 font-mono text-xs">
+          {addon}
+        </span>
+      )}
       <span className="text-foreground-secondary shrink-0 pr-0.5 pl-3">
         {prefix}
       </span>

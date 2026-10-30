@@ -88,7 +88,7 @@ describe("ConnectedNewMonitorAutomationDialog", () => {
     submittedValues = {
       ...defaultMonitorAutomationFormValues("GITHUB_DISPATCH", "Deploy"),
       githubDispatch: {
-        url: "https://api.github.com/repos/o/r/dispatches",
+        url: "api.github.com/repos/o/r/dispatches",
         eventType: "langfuse-alert",
         githubToken: "ghp_token",
       },

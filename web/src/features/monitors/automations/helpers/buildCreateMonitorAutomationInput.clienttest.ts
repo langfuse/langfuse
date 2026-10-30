@@ -39,6 +39,26 @@ describe("buildCreateMonitorAutomationInput", () => {
       },
     });
   });
+
+  it("dispatches to the https URL for the host and path typed after the prefix", () => {
+    const values = {
+      ...defaultMonitorAutomationFormValues("GITHUB_DISPATCH", "Deploy"),
+      githubDispatch: {
+        url: " api.github.com/repos/o/r/dispatches ",
+        eventType: "langfuse-alert",
+        githubToken: "ghp_token",
+      },
+    };
+
+    expect(
+      buildCreateMonitorAutomationInput("p1", values).actionConfig,
+    ).toEqual({
+      type: "GITHUB_DISPATCH",
+      url: "https://api.github.com/repos/o/r/dispatches",
+      eventType: "langfuse-alert",
+      githubToken: "ghp_token",
+    });
+  });
 });
 
 describe("monitorAutomationFormSchema", () => {

@@ -7,9 +7,11 @@ import { PasswordInput } from "@/src/components/design-system/PasswordInput/Pass
 import { type MonitorAutomationFormValues } from "../helpers/monitorAutomationFormSchema";
 import { InlineCode } from "./InlineCode";
 import { describedBy } from "../helpers/describedBy";
+import { stripUrlScheme } from "../helpers/stripUrlScheme";
 import { FieldHelp } from "./FieldHelp";
 import { FieldWithHelp } from "./FieldWithHelp";
 import { HelpLink } from "./HelpLink";
+import { PrefixedInput } from "./PrefixedInput";
 
 const dispatchDocsUrl =
   "https://docs.github.com/en/rest/repos/repos#create-a-repository-dispatch-event";
@@ -35,15 +37,18 @@ export function GitHubDispatchActionFields({
           label="Repository dispatch URL"
         >
           {(field) => (
-            <Input
+            <PrefixedInput
               id={field.id}
               name={field.name}
               value={field.value}
-              onChange={field.onChange}
+              onChange={(event) =>
+                field.onChange(stripUrlScheme(event.target.value))
+              }
               onBlur={field.onBlur}
               ref={field.ref}
-              type="url"
-              placeholder="https://api.github.com/repos/owner/repo/dispatches"
+              prefix="https://"
+              inputMode="url"
+              placeholder="api.github.com/repos/owner/repo/dispatches"
               aria-describedby={describedBy(
                 field.inputDescribedById,
                 urlHelpId,
