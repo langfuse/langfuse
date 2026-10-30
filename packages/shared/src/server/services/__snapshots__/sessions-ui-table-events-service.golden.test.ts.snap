@@ -14,7 +14,10 @@ exports[`golden: sessions simple aggregates family > getSessionTracesFromEvents 
     e.project_id AS project_id,
     coalesce(
         nullIf(argMaxIf(e.trace_name, e.event_ts, e.trace_name != ''), ''),
-        nullIf(argMaxIf(e.name, e.event_ts, ((e.parent_span_id = '') OR (e.is_app_root = true)) AND (e.name != '')), '')
+        nullIf(
+            argMaxIf(e.name, e.event_ts, (((e.parent_span_id = '') OR (e.is_app_root = true)) AND (e.name != ''))),
+            ''
+        )
     ) AS name,
     min(e.start_time) AS timestamp,
     argMaxIf(e.environment, e.event_ts, e.environment != '') AS environment,
@@ -38,7 +41,7 @@ exports[`golden: sessions simple aggregates family > getSessionTracesFromEvents 
     ) AS latency_milliseconds,
     groupUniqArrayIf(e.span_id, e.span_id != '') AS observation_ids,
     length(
-        groupUniqArrayIf(e.span_id, (e.span_id != '') AND (e.span_id != concat('t-', e.trace_id)))
+        groupUniqArrayIf(e.span_id, ((e.span_id != '') AND (e.span_id != concat('t-', e.trace_id))))
     ) AS observation_count,
     argMaxIf(e.bookmarked, e.event_ts, e.parent_span_id = '') AS bookmarked,
     max(e.public) AS public,
@@ -102,14 +105,15 @@ exports[`golden: sessions table aggregation family > getSessionsTableCountFromEv
       "param9": "golden-value",
     },
     "route": "unknown",
-    "sql": "WITH session_data AS
+    "sql": "WITH
+    session_data AS
     (
         SELECT
             e.session_id AS session_id,
             max(e.start_time) AS max_timestamp,
             min(e.start_time) AS min_timestamp,
             groupUniqArray(e.trace_id) AS trace_ids,
-            groupUniqArrayIf(e.user_id, (e.user_id IS NOT NULL) AND (e.user_id != '')) AS user_ids,
+            groupUniqArrayIf(e.user_id, ((e.user_id IS NOT NULL) AND (e.user_id != ''))) AS user_ids,
             uniq(e.trace_id) AS trace_count,
             groupUniqArrayArrayIf(e.tags, notEmpty(e.tags)) AS trace_tags,
             argMaxIf(e.environment, e.event_ts, e.environment != '') AS environment,
@@ -172,14 +176,15 @@ exports[`golden: sessions table aggregation family > getSessionsTableFromEvents 
       "param2": 50,
     },
     "route": "unknown",
-    "sql": "WITH session_data AS
+    "sql": "WITH
+    session_data AS
     (
         SELECT
             e.session_id AS session_id,
             max(e.start_time) AS max_timestamp,
             min(e.start_time) AS min_timestamp,
             groupUniqArray(e.trace_id) AS trace_ids,
-            groupUniqArrayIf(e.user_id, (e.user_id IS NOT NULL) AND (e.user_id != '')) AS user_ids,
+            groupUniqArrayIf(e.user_id, ((e.user_id IS NOT NULL) AND (e.user_id != ''))) AS user_ids,
             uniq(e.trace_id) AS trace_count,
             groupUniqArrayArrayIf(e.tags, notEmpty(e.tags)) AS trace_tags,
             argMaxIf(e.environment, e.event_ts, e.environment != '') AS environment,
