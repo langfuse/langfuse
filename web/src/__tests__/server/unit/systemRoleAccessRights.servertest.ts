@@ -103,15 +103,32 @@ describe("systemRoleAccessRights", () => {
     ]);
   });
 
-  it("grants AI_GATEWAY exactly gateway:invoke at org scope", () => {
+  it("grants AI_GATEWAY exactly gateway:read and gateway:invoke at org scope", () => {
     expect(systemRoleAccessRights.AI_GATEWAY.policies).toEqual([
       {
         resourceKind: "organization",
         effect: "ALLOW",
-        actions: ["gateway:invoke"],
+        actions: ["gateway:read", "gateway:invoke"],
       },
     ]);
   });
+
+  it("grants the AI_GATEWAY membership role the AI_GATEWAY system role's access", () => {
+    expect(organizationRoleAccessRights.AI_GATEWAY).toEqual([
+      "gateway:read",
+      "gateway:invoke",
+    ]);
+    expect(projectRoleAccessRights.AI_GATEWAY).toEqual([]);
+  });
+
+  it.each(["OWNER", "ADMIN", "MEMBER", "VIEWER", "NONE"] as const)(
+    "grants %s organizationSettings:read",
+    (role) => {
+      expect(organizationRoleAccessRights[role]).toContain(
+        "organizationSettings:read",
+      );
+    },
+  );
 
   it.each(["OWNER", "ADMIN", "MEMBER", "VIEWER", "NONE"] as const)(
     "derives %s policies from the org and project access-right tables",
@@ -148,7 +165,7 @@ describe("systemRoleAccessRights", () => {
   it("tags api-key roles and user roles disjointly", () => {
     const tagsFor = (role: keyof typeof systemRoleAccessRights) =>
       systemRoleAccessRights[role].tags;
-    for (const role of ["SCORES_INGEST", "INGEST", "AI_GATEWAY"] as const) {
+    for (const role of ["SCORES_INGEST", "INGEST"] as const) {
       expect(tagsFor(role)).toEqual(["principal:apiKey"]);
     }
     for (const role of [
@@ -163,6 +180,7 @@ describe("systemRoleAccessRights", () => {
       "MEMBER",
       "VIEWER",
       "NONE",
+      "AI_GATEWAY",
     ] as const) {
       expect(tagsFor(role)).toContain("principal:user");
     }
