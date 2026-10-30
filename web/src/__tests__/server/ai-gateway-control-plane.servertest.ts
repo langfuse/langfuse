@@ -519,7 +519,7 @@ describe("AI gateway control plane", () => {
         where: { orgId: owner.org.id, email: inviteeEmail },
         select: { orgRole: true },
       }),
-    ).resolves.toEqual({ orgRole: Role.MEMBER });
+    ).resolves.toEqual({ orgRole: Role.AI_GATEWAY });
   });
 
   it("tells which invitee addresses already belong to the organization and get notified", async () => {
