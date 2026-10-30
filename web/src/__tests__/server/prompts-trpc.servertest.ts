@@ -6,8 +6,9 @@ import { prisma, Prisma } from "@langfuse/shared/src/db";
 import {
   createOrgProjectAndApiKey,
   EntityChangeQueue,
+  PromptService,
 } from "@langfuse/shared/src/server";
-import { PromptType } from "@langfuse/shared";
+import { CreatePromptSchema, PromptType } from "@langfuse/shared";
 import type { Session } from "next-auth";
 import { v4 } from "uuid";
 import waitForExpect from "wait-for-expect";
@@ -195,6 +196,257 @@ describe("prompts trpc", () => {
   });
 
   describe("prompts.importBulk", () => {
+    it.each([true, false])(
+      "restores composed prompts from exported JSON (includeAllVersions=%s)",
+      async (includeAllVersions) => {
+        const source = await prepare();
+        const target = await prepare();
+        const prefix = `import-roundtrip-${v4()}`;
+        const parentName = `${prefix}/a-parent`;
+        const childName = `${prefix}/z-child`;
+
+        await source.caller.prompts.create({
+          projectId: source.project.id,
+          name: childName,
+          prompt: "Shared instruction",
+        });
+        await source.caller.prompts.create({
+          projectId: source.project.id,
+          name: parentName,
+          prompt: `Before @@@langfusePrompt:name=${childName}|version=1@@@ after`,
+        });
+
+        const exported = await source.caller.prompts.exportAll({
+          projectId: source.project.id,
+          includeAllVersions,
+        });
+        const prompts = CreatePromptSchema.array().parse(
+          JSON.parse(JSON.stringify(exported)),
+        );
+        expect(prompts.map(({ name }) => name)).toEqual([
+          parentName,
+          childName,
+        ]);
+
+        const result = await target.caller.prompts.importBulk({
+          projectId: target.project.id,
+          prompts,
+        });
+
+        expect(result.results).toEqual([
+          { name: parentName, success: true },
+          { name: childName, success: true },
+        ]);
+        const parent = await prisma.prompt.findUniqueOrThrow({
+          where: {
+            projectId_name_version: {
+              projectId: target.project.id,
+              name: parentName,
+              version: 1,
+            },
+          },
+        });
+        await expect(
+          new PromptService(prisma, null).resolvePrompt(parent),
+        ).resolves.toMatchObject({
+          prompt: "Before Shared instruction after",
+        });
+      },
+    );
+
+    it("keeps deferred versions ahead of later versions with the same name", async () => {
+      const { project, caller } = await prepare();
+      const prefix = `import-version-order-${v4()}`;
+      const parentName = `${prefix}/parent`;
+      const childName = `${prefix}/child`;
+      const firstContent = `Depends on @@@langfusePrompt:name=${childName}|version=1@@@`;
+
+      const result = await caller.prompts.importBulk({
+        projectId: project.id,
+        prompts: [
+          { name: parentName, prompt: firstContent, labels: ["staging"] },
+          {
+            name: parentName,
+            prompt: "Independent second version",
+            labels: ["reviewed"],
+          },
+          { name: childName, prompt: "Child content" },
+        ],
+      });
+
+      expect(result.results).toEqual([
+        { name: parentName, success: true },
+        { name: parentName, success: true },
+        { name: childName, success: true },
+      ]);
+      const versions = await prisma.prompt.findMany({
+        where: { projectId: project.id, name: parentName },
+        orderBy: { version: "asc" },
+      });
+      expect(versions).toMatchObject([
+        { version: 1, prompt: firstContent, labels: ["staging"] },
+        {
+          version: 2,
+          prompt: "Independent second version",
+          labels: expect.arrayContaining(["reviewed", "latest"]),
+        },
+      ]);
+    });
+
+    it("restores shallow dependencies that need more than five import passes", async () => {
+      const source = await prepare();
+      const target = await prepare();
+      const prefix = `import-many-passes-${v4()}`;
+      const names = Array.from(
+        { length: 7 },
+        (_, index) => `${prefix}/${index}`,
+      );
+
+      // Each first version needs the next name's second version, which has no
+      // dependencies. The source graphs are shallow despite the import order.
+      for (const [index, name] of Array.from(names.entries()).reverse()) {
+        await source.caller.prompts.create({
+          projectId: source.project.id,
+          name,
+          prompt:
+            index === names.length - 1
+              ? "Last first version"
+              : `@@@langfusePrompt:name=${names[index + 1]}|version=2@@@`,
+        });
+        await source.caller.prompts.create({
+          projectId: source.project.id,
+          name,
+          prompt: `Second version ${index}`,
+        });
+      }
+
+      const exported = await source.caller.prompts.exportAll({
+        projectId: source.project.id,
+        includeAllVersions: true,
+      });
+      const result = await target.caller.prompts.importBulk({
+        projectId: target.project.id,
+        prompts: CreatePromptSchema.array().parse(exported),
+      });
+
+      expect(result.results).toEqual(
+        exported.map(({ name }) => ({ name, success: true })),
+      );
+      await expect(
+        prisma.prompt.findMany({
+          where: { projectId: target.project.id },
+          orderBy: [{ name: "asc" }, { version: "asc" }],
+          select: { name: true, version: true, prompt: true },
+        }),
+      ).resolves.toEqual(
+        exported.map(({ name, version, prompt }) => ({
+          name,
+          version,
+          prompt,
+        })),
+      );
+    });
+
+    it("reports unresolved dependencies and blocked versions while importing unrelated prompts", async () => {
+      const { project, caller } = await prepare();
+      const prefix = `import-unresolved-${v4()}`;
+      const parentName = `${prefix}/parent`;
+      const missingName = `${prefix}/missing`;
+      const cycleAName = `${prefix}/cycle-a`;
+      const cycleBName = `${prefix}/cycle-b`;
+      const independentName = `${prefix}/independent`;
+
+      const result = await caller.prompts.importBulk({
+        projectId: project.id,
+        prompts: [
+          {
+            name: parentName,
+            prompt: `@@@langfusePrompt:name=${missingName}|version=1@@@`,
+          },
+          { name: parentName, prompt: "Later parent version" },
+          {
+            name: cycleAName,
+            prompt: `@@@langfusePrompt:name=${cycleBName}|version=1@@@`,
+          },
+          {
+            name: cycleBName,
+            prompt: `@@@langfusePrompt:name=${cycleAName}|version=1@@@`,
+          },
+          { name: independentName, prompt: "Independent content" },
+        ],
+      });
+
+      expect(result.results).toMatchObject([
+        {
+          name: parentName,
+          success: false,
+          error: expect.stringContaining("Prompt dependency not found"),
+        },
+        { name: parentName, success: false, error: expect.any(String) },
+        { name: cycleAName, success: false, error: expect.any(String) },
+        { name: cycleBName, success: false, error: expect.any(String) },
+        { name: independentName, success: true },
+      ]);
+      await expect(
+        prisma.prompt.findMany({
+          where: { projectId: project.id },
+          select: { name: true, version: true, prompt: true },
+        }),
+      ).resolves.toEqual([
+        { name: independentName, version: 1, prompt: "Independent content" },
+      ]);
+    });
+
+    it.each([
+      { label: "staging", parentSucceeds: true },
+      { label: "production", parentSucceeds: false },
+    ])(
+      "resolves imported label references only when the label is retained ($label)",
+      async ({ label, parentSucceeds }) => {
+        const { project, caller } = await prepare();
+        const prefix = `import-label-${v4()}`;
+        const parentName = `${prefix}/parent`;
+        const childName = `${prefix}/child`;
+
+        const result = await caller.prompts.importBulk({
+          projectId: project.id,
+          prompts: [
+            {
+              name: parentName,
+              prompt: `@@@langfusePrompt:name=${childName}|label=${label}@@@`,
+            },
+            { name: childName, prompt: "Labeled child", labels: [label] },
+          ],
+        });
+
+        expect(result.results).toMatchObject([
+          { name: parentName, success: parentSucceeds },
+          { name: childName, success: true },
+        ]);
+        if (parentSucceeds) {
+          const parent = await prisma.prompt.findFirstOrThrow({
+            where: { projectId: project.id, name: parentName },
+          });
+          await expect(
+            new PromptService(prisma, null).resolvePrompt(parent),
+          ).resolves.toMatchObject({ prompt: "Labeled child" });
+        } else {
+          await expect(
+            prisma.prompt.findFirst({
+              where: { projectId: project.id, name: parentName },
+            }),
+          ).resolves.toBeNull();
+          expect(result.results[0]?.error).toContain(
+            `Prompt dependency not found: ${childName} - label production`,
+          );
+          const child = await prisma.prompt.findFirstOrThrow({
+            where: { projectId: project.id, name: childName },
+          });
+          expect(child.labels).not.toContain("production");
+        }
+      },
+    );
+
     it("enforces the prompt count limit for new prompt names", async () => {
       const { project, org } = await createOrgProjectAndApiKey();
       const existingPromptName = `existing-${v4()}`;
@@ -378,7 +630,7 @@ describe("prompts trpc", () => {
       }
     });
 
-    it("reports failures that happen before the prompt is committed", async () => {
+    it("reports permanent failures without blocking later versions of the same name", async () => {
       const { project, caller } = await prepare();
       const promptName = `type-mismatch-${v4()}`;
       await caller.prompts.importBulk({
@@ -394,6 +646,10 @@ describe("prompts trpc", () => {
             type: PromptType.Chat,
             prompt: [{ role: "user", content: "Chat prompt" }],
           },
+          {
+            name: promptName,
+            prompt: "Text prompt after rejected chat version",
+          },
         ],
       });
 
@@ -402,12 +658,13 @@ describe("prompts trpc", () => {
           name: promptName,
           success: false,
         }),
+        { name: promptName, success: true },
       ]);
       await expect(
         prisma.prompt.count({
           where: { projectId: project.id, name: promptName },
         }),
-      ).resolves.toBe(1);
+      ).resolves.toBe(2);
     });
   });
 

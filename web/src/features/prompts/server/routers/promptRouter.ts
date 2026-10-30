@@ -21,6 +21,7 @@ import {
   CommentObjectType,
   CreatePromptSchema,
   CreatePromptTRPCSchema,
+  isBaseError,
   LATEST_PROMPT_LABEL,
   optionalPaginationZod,
   paginationZod,
@@ -1606,8 +1607,9 @@ export const promptRouter = createTRPCRouter({
         scope: "prompts:CUD",
       });
 
-      const importItems = input.prompts.map((item) => ({
+      const importItems = input.prompts.map((item, index) => ({
         item,
+        index,
         labels: item.labels.filter(
           (label) => label !== "latest" && label !== "production",
         ),
@@ -1678,60 +1680,95 @@ export const promptRouter = createTRPCRouter({
         error?: string;
       }> = [];
 
-      for (const { item, labels } of importItems) {
-        try {
-          const sharedParams = {
-            projectId: input.projectId,
-            name: item.name,
-            config: item.config ?? {},
-            tags: item.tags ?? [],
-            labels,
-            commitMessage: item.commitMessage ?? null,
-            createdBy: ctx.session.user.id,
-            prisma: ctx.prisma,
-            user: {
-              id: ctx.session.user.id,
-              name: ctx.session.user.name ?? null,
-              email: ctx.session.user.email ?? null,
-            },
-          };
-          let createdPrompt;
-          if (item.type === "chat") {
-            createdPrompt = await createPrompt({
-              ...sharedParams,
-              type: PromptType.Chat,
-              prompt: item.prompt,
-            });
-          } else {
-            createdPrompt = await createPrompt({
-              ...sharedParams,
-              type: PromptType.Text,
-              prompt: item.prompt,
-            });
+      let pendingItems = importItems;
+      while (pendingItems.length > 0) {
+        const deferredItems: typeof importItems = [];
+        const blockedNames = new Map<string, string>();
+        let madeProgress = false;
+
+        for (const importItem of pendingItems) {
+          const { item, labels, index } = importItem;
+          const blockedError = blockedNames.get(item.name);
+          if (blockedError !== undefined) {
+            // Later versions must not overtake a deferred version of this name.
+            results[index] = {
+              name: item.name,
+              success: false,
+              error: `An earlier version of this prompt has unresolved dependencies: ${blockedError}`,
+            };
+            deferredItems.push(importItem);
+            continue;
           }
-          await auditLog(
-            {
-              session: ctx.session,
-              resourceType: "prompt",
-              resourceId: createdPrompt.id,
-              action: "create",
-              after: createdPrompt,
-            },
-            ctx.prisma,
-          ).catch((error) => {
-            logger.error(
-              `Failed to create audit log for bulk-imported prompt ${createdPrompt.id} in project ${input.projectId}`,
+
+          try {
+            const sharedParams = {
+              projectId: input.projectId,
+              name: item.name,
+              config: item.config ?? {},
+              tags: item.tags ?? [],
+              labels,
+              commitMessage: item.commitMessage ?? null,
+              createdBy: ctx.session.user.id,
+              prisma: ctx.prisma,
+              user: {
+                id: ctx.session.user.id,
+                name: ctx.session.user.name ?? null,
+                email: ctx.session.user.email ?? null,
+              },
+            };
+            let createdPrompt;
+            if (item.type === "chat") {
+              createdPrompt = await createPrompt({
+                ...sharedParams,
+                type: PromptType.Chat,
+                prompt: item.prompt,
+              });
+            } else {
+              createdPrompt = await createPrompt({
+                ...sharedParams,
+                type: PromptType.Text,
+                prompt: item.prompt,
+              });
+            }
+            await auditLog(
+              {
+                session: ctx.session,
+                resourceType: "prompt",
+                resourceId: createdPrompt.id,
+                action: "create",
+                after: createdPrompt,
+              },
+              ctx.prisma,
+            ).catch((error) => {
+              logger.error(
+                `Failed to create audit log for bulk-imported prompt ${createdPrompt.id} in project ${input.projectId}`,
+                error,
+              );
+            });
+            results[index] = { name: item.name, success: true };
+            madeProgress = true;
+          } catch (e) {
+            const error = e instanceof Error ? e.message : "Unknown error";
+            results[index] = {
+              name: item.name,
+              success: false,
               error,
-            );
-          });
-          results.push({ name: item.name, success: true });
-        } catch (e) {
-          results.push({
-            name: item.name,
-            success: false,
-            error: e instanceof Error ? e.message : "Unknown error",
-          });
+            };
+            // createPrompt wraps missing graph dependencies in InvalidRequestError.
+            if (
+              isBaseError(e) &&
+              e.name === "InvalidRequestError" &&
+              error.startsWith("Prompt dependency not found: ")
+            ) {
+              deferredItems.push(importItem);
+              blockedNames.set(item.name, error);
+            }
+          }
         }
+
+        // Successful items leave the queue, so retries are bounded by the input.
+        if (!madeProgress) break;
+        pendingItems = deferredItems;
       }
 
       return { results };
