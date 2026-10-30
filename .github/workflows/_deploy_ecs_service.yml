@@ -123,12 +123,37 @@ jobs:
             --build-arg NEXT_PUBLIC_ASSET_PREFIX=${VARS_NEXT_PUBLIC_ASSET_PREFIX} \
             .
           docker push $REGISTRY/$REPOSITORY:$IMAGE_TAG
+      # Pin the task definition to the image digest rather than the commit tag.
+      # The tag stays on the image in ECR for humans; the digest is what ECS
+      # pulls, so the deployed artifact is immutable and traceable even though
+      # the repositories allow tag overwrites (compliance: Fargate services must
+      # run version-controlled images). batch-get-image is already granted to the
+      # deploy credentials; the full tag:digest reference is kept in the step
+      # summary for the deploy log.
+      - name: Resolve image digest
+        id: digest
+        env:
+          REPOSITORY: ${{ inputs.service == 'ai-gateway' && 'ai-gateway' || steps.split.outputs._0 }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          digest="$(aws ecr batch-get-image \
+            --repository-name "$REPOSITORY" \
+            --image-ids imageTag="$IMAGE_TAG" \
+            --query 'images[0].imageId.imageDigest' \
+            --output text)"
+          if [[ "$digest" != sha256:* ]]; then
+            echo "::error::could not resolve the digest of $REPOSITORY:$IMAGE_TAG from ECR (got '$digest')"
+            exit 1
+          fi
+          echo "digest=$digest" >> "$GITHUB_OUTPUT"
+          echo "Deploying $REPOSITORY:$IMAGE_TAG as $REPOSITORY@$digest" >> "$GITHUB_STEP_SUMMARY"
       - name: Render AWS ECS Task Definition
         id: render-task-definition
         uses: aws-actions/amazon-ecs-render-task-definition@138c24f321fdbdf7edee4a685519d253cae2cdea # v1.9.0
         with:
           container-name: ${{ inputs.service }}
-          image: ${{ steps.login-ecr.outputs.registry }}/${{ inputs.service == 'ai-gateway' && 'ai-gateway' || steps.split.outputs._0 }}:${{ github.sha }}
+          image: ${{ steps.login-ecr.outputs.registry }}/${{ inputs.service == 'ai-gateway' && 'ai-gateway' || steps.split.outputs._0 }}@${{ steps.digest.outputs.digest }}
           task-definition-family: ${{ inputs.environment }}-${{ inputs.service }}
       - name: Update AWS ECS Service
         uses: aws-actions/amazon-ecs-deploy-task-definition@c465972ecbd160473f22e683363b422a5412a3de # v2.6.3
