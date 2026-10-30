@@ -8,6 +8,14 @@ import { Checkbox } from "../../Checkbox/Checkbox";
 
 type SlottedProps = Omit<ComponentPropsWithoutRef<typeof Slot>, "className">;
 
+const optionHighlightClassName = {
+  "aria-selected":
+    "aria-selected:bg-accent aria-selected:text-accent-foreground",
+  focus:
+    "focus:bg-accent focus:text-accent-foreground data-disabled:opacity-50",
+  none: null,
+} as const;
+
 function Content({
   width,
   ...props
@@ -85,7 +93,7 @@ function Option({
   checked,
   ...props
 }: SlottedProps & {
-  highlight: "aria-selected" | "focus";
+  highlight: "aria-selected" | "focus" | "none";
   checked?: boolean;
 }) {
   return (
@@ -93,12 +101,19 @@ function Option({
       data-checked={checked}
       className={cn(
         "relative flex w-full cursor-pointer items-center gap-2 rounded-sm px-1.5 py-1.5 text-sm outline-hidden select-none aria-disabled:cursor-not-allowed aria-disabled:opacity-50",
-        highlight === "aria-selected"
-          ? "aria-selected:bg-accent aria-selected:text-accent-foreground"
-          : "focus:bg-accent focus:text-accent-foreground data-disabled:opacity-50",
+        optionHighlightClassName[highlight],
       )}
       {...props}
     />
+  );
+}
+
+/** ActionOption renders a row that runs a command instead of holding a value. */
+function ActionOption({ label }: { label: string }) {
+  return (
+    <span className="text-muted-foreground flex-1 truncate" title={label}>
+      {label}
+    </span>
   );
 }
 
@@ -194,6 +209,7 @@ function OptionContent({
 }
 
 export const InputDropdown = {
+  ActionOption,
   Content,
   Empty,
   List,

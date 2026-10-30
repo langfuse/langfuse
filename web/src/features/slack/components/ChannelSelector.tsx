@@ -1,9 +1,8 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
-import React, { useState, useMemo, useEffect } from "react";
-import { api, reportNonTrpcError } from "@/src/utils/api";
+import React, { useState } from "react";
 import { env } from "@/src/env.mjs";
 import { type SlackChannel } from "@langfuse/shared/src/server";
 import { useHasProjectAccess } from "@/src/features/rbac";
+import { useSlackChannels } from "@/src/features/slack/useSlackChannels";
 import {
   ChannelSelectorView,
   type ChannelSelectorViewProps,
@@ -23,8 +22,6 @@ type ChannelSelectorProps = {
   | "onRefresh"
   | "onReauthenticate"
 >;
-
-const MAX_SLACK_CHANNEL_PAGES = 20;
 
 /**
  * ChannelSelector loads the project's Slack channels and renders them in
@@ -77,58 +74,4 @@ export const ChannelSelector: React.FC<ChannelSelectorProps> = ({
       onReauthenticate={canManageIntegration ? handleReauthenticate : undefined}
     />
   );
-};
-
-const useSlackChannels = (projectId: string, enabled: boolean) => {
-  const {
-    data: channelsPages,
-    isLoading,
-    isFetching,
-    isFetchingNextPage,
-    hasNextPage,
-    fetchNextPage,
-    error,
-    refetch: refetchChannels,
-  } = api.slack.getChannels.useInfiniteQuery(
-    { projectId },
-    {
-      enabled: !!projectId && enabled,
-      getNextPageParam: (lastPage, allPages) =>
-        allPages.length >= MAX_SLACK_CHANNEL_PAGES
-          ? undefined
-          : lastPage.nextCursor,
-      staleTime: 5 * 60 * 1000,
-    },
-  );
-
-  const channelsData = useMemo(() => {
-    const pages = channelsPages?.pages ?? [];
-    if (pages.length === 0) return null;
-
-    return {
-      channels: pages.flatMap((page) => page.channels),
-      hasPrivateChannelAccess: pages.every(
-        (page) => page.hasPrivateChannelAccess,
-      ),
-    };
-  }, [channelsPages?.pages]);
-
-  const isLoadingChannels =
-    isLoading || isFetchingNextPage || (isFetching && !channelsData);
-
-  // useInfiniteQuery stores page state, but next pages are only loaded when requested.
-  useEffect(() => {
-    if (error || !hasNextPage || isFetchingNextPage) return;
-
-    // Query failures are classified + captured by the QueryCache seam; only
-    // report non-tRPC failures of the fetch dispatch itself.
-    fetchNextPage().catch((error) => reportNonTrpcError(error, "slack"));
-  }, [error, fetchNextPage, hasNextPage, isFetchingNextPage]);
-
-  return {
-    channelsData,
-    isLoadingChannels,
-    error,
-    refetchChannels,
-  };
 };

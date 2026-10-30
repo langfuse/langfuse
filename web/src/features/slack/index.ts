@@ -6,3 +6,6 @@ export {
 } from "@/src/features/slack/components/ChannelSelector";
 export { SlackConnectionCard } from "@/src/features/slack/components/SlackConnectionCard";
 export { SlackTestMessageButton } from "@/src/features/slack/components/SlackTestMessageButton";
+export { useSlackChannels } from "@/src/features/slack/useSlackChannels";
+export { useSlackConnect } from "@/src/features/slack/useSlackConnect";
+export { useSlackTestMessage } from "@/src/features/slack/useSlackTestMessage";

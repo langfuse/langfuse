@@ -10,6 +10,7 @@ const inputControlVariants = cva(
     variants: {
       contentLayout: {
         none: null,
+        prefixed: "flex min-w-0 items-center overflow-hidden",
         text: "min-w-14 px-3 py-2",
         spread: "flex min-w-0 items-center justify-between gap-1 px-3 py-2",
       },
@@ -26,6 +27,18 @@ const inputControlVariants = cva(
         false: null,
       },
     },
+    compoundVariants: [
+      {
+        contentLayout: "prefixed",
+        class:
+          "cursor-text focus-within:ring-ring focus-within:ring-2 focus-within:ring-offset-2",
+      },
+      {
+        contentLayout: "prefixed",
+        error: true,
+        class: "focus-within:ring-destructive/40 focus-within:ring-offset-0",
+      },
+    ],
     defaultVariants: {
       error: false,
     },
@@ -36,7 +49,7 @@ type InputControlProps = Omit<
   ComponentPropsWithoutRef<typeof Slot>,
   "className"
 > & {
-  contentLayout: "none" | "text" | "spread";
+  contentLayout: "none" | "text" | "spread" | "prefixed";
   error?: boolean;
   disabled?: boolean;
   trailingAction?: {
