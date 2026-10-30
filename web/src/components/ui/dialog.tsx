@@ -1,37 +1,84 @@
+/* eslint-disable @repo/no-style-props, @repo/no-margin-on-root-elements, @repo/component-file-structure, @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 "use client";
 
 import * as React from "react";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
-import { X } from "lucide-react";
+import { X } from "@langfuse/icons";
 import { cva, type VariantProps } from "class-variance-authority";
 
 import { cn } from "@/src/utils/tailwind";
+import { useLayerContainer } from "@/src/context/LayerContext/LayerContext";
+import { DialogController as DesignSystemDialogController } from "@/src/components/design-system/DialogController/DialogController";
+import motionStyles from "./dialog-motion.module.css";
 
+/**
+ * @deprecated Use design-system/DialogController/DialogController with design-system/Dialog/Dialog.
+ */
 const Dialog = DialogPrimitive.Root;
 
+/**
+ * @deprecated Use openDialog from the children render prop of design-system/DialogController/DialogController.
+ */
 const DialogTrigger = DialogPrimitive.Trigger;
 
-const DialogPortal = DialogPrimitive.Portal;
+// Route the portal into the `modal` overlay layer (null until mounted →
+// falls back to <body>, SSR-parity). Layer order, not z-index, stacks it.
+/**
+ * @deprecated Use design-system/Dialog/Dialog.
+ */
+const DialogPortal = ({
+  ...props
+}: React.ComponentPropsWithoutRef<typeof DialogPrimitive.Portal>) => {
+  const container = useLayerContainer("modal");
+  return <DialogPrimitive.Portal container={container} {...props} />;
+};
+DialogPortal.displayName = "DialogPortal";
 
+/**
+ * @deprecated Use closeDialog from design-system/DialogController/DialogController.
+ */
 const DialogClose = DialogPrimitive.Close;
 
+type DialogOverlayMode = "subtle" | "invisible" | "blocking" | "soft";
+
+const dialogOverlayClasses: Record<DialogOverlayMode, string> = {
+  invisible: "bg-transparent",
+  soft: "bg-black/10 dark:bg-black/65",
+  subtle: "bg-black/25 dark:bg-black/45",
+  blocking: "bg-black/50 dark:bg-black/65",
+};
+
+/**
+ * @deprecated Use design-system/Dialog/Dialog.
+ */
 const DialogOverlay = React.forwardRef<
   React.ComponentRef<typeof DialogPrimitive.Overlay>,
-  React.ComponentPropsWithoutRef<typeof DialogPrimitive.Overlay>
->(({ className, ...props }, ref) => (
+  React.ComponentPropsWithoutRef<typeof DialogPrimitive.Overlay> & {
+    overlayMode?: DialogOverlayMode;
+  }
+>(({ className, overlayMode = "subtle", onClick, ...props }, ref) => (
   <DialogPrimitive.Overlay
     ref={ref}
     className={cn(
-      "bg-foreground/40 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 fixed inset-0 z-50",
+      motionStyles.overlay,
+      "fixed inset-0",
+      dialogOverlayClasses[overlayMode],
       className,
     )}
+    // The dialog portals its DOM out of the app tree, but React synthetic
+    // events still bubble through the REACT tree — into whatever rendered the
+    // dialog (e.g. a clickable table row). Backdrop clicks must not leak there.
+    onClick={(e) => {
+      onClick?.(e);
+      e.stopPropagation();
+    }}
     {...props}
   />
 ));
 DialogOverlay.displayName = DialogPrimitive.Overlay.displayName;
 
 const dialogContentVariants = cva(
-  "fixed left-[50%] top-[50%] overflow-hidden z-50 flex w-full flex-col translate-x-[-50%] translate-y-[-50%] bg-background shadow-lg duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[state=closed]:slide-out-to-left-1/2 data-[state=closed]:slide-out-to-top-[48%] data-[state=open]:slide-in-from-left-1/2 data-[state=open]:slide-in-from-top-[48%] sm:rounded-lg",
+  "fixed left-[50%] top-[50%] overflow-hidden flex w-full translate-x-[-50%] translate-y-[-50%] flex-col bg-modal shadow-lg sm:rounded-lg",
   {
     variants: {
       size: {
@@ -47,19 +94,35 @@ const dialogContentVariants = cva(
   },
 );
 
+/**
+ * @deprecated Use Dialog from design-system/Dialog/Dialog inside design-system/DialogController/DialogController.
+ */
 const DialogContent = React.forwardRef<
   React.ComponentRef<typeof DialogPrimitive.Content>,
-  React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content> & {
-    closeOnInteractionOutside?: boolean;
-    stopPropagationOnEnterSpace?: boolean;
-  } & VariantProps<typeof dialogContentVariants>
+  Omit<
+    React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content> & {
+      closeOnInteractionOutside?: boolean;
+      confirmCloseOnEscape?: string;
+      overlayMode?: DialogOverlayMode;
+      overlayClassName?: string;
+      stopPropagationOnEnterSpace?: boolean;
+      showCloseButton?: boolean;
+    } & VariantProps<typeof dialogContentVariants>,
+    "onPointerDownOutside" | "onInteractOutside"
+  >
 >(
   (
     {
       className,
       children,
       closeOnInteractionOutside = false,
+      confirmCloseOnEscape,
+      overlayMode = "subtle",
+      overlayClassName,
       stopPropagationOnEnterSpace = true,
+      showCloseButton = true,
+      onEscapeKeyDown,
+      onClick,
       size,
       ...props
     },
@@ -72,15 +135,38 @@ const DialogContent = React.forwardRef<
         e.stopPropagation();
       }
     };
+    const handleEscapeKeyDown: React.ComponentPropsWithoutRef<
+      typeof DialogPrimitive.Content
+    >["onEscapeKeyDown"] = (e) => {
+      onEscapeKeyDown?.(e);
+
+      if (e.defaultPrevented || !confirmCloseOnEscape) {
+        return;
+      }
+
+      if (!window.confirm(confirmCloseOnEscape)) {
+        e.preventDefault();
+      }
+    };
 
     return (
       <DialogPortal>
-        <DialogOverlay />
+        <DialogOverlay overlayMode={overlayMode} className={overlayClassName} />
         <DialogPrimitive.Content
           ref={ref}
-          className={cn(dialogContentVariants({ size, className }))}
+          className={cn(
+            motionStyles.content,
+            dialogContentVariants({ size, className }),
+          )}
           aria-describedby={undefined}
           onKeyDown={handleKeyDown}
+          onEscapeKeyDown={handleEscapeKeyDown}
+          // See DialogOverlay: clicks inside the dialog must not bubble
+          // through the React tree into the component that rendered it.
+          onClick={(e) => {
+            onClick?.(e);
+            e.stopPropagation();
+          }}
           onPointerDownOutside={(e) => {
             if (!closeOnInteractionOutside) {
               e.preventDefault();
@@ -94,12 +180,14 @@ const DialogContent = React.forwardRef<
           {...props}
         >
           {children}
-          <div className="[&:has(.dialog-header)]:hidden [&:not(:has(.dialog-header))]:absolute [&:not(:has(.dialog-header))]:top-3 [&:not(:has(.dialog-header))]:right-3 [&:not(:has(.dialog-header))]:z-20">
-            <DialogPrimitive.Close className="ring-offset-background focus:ring-ring data-[state=open]:bg-accent data-[state=open]:text-muted-foreground rounded-sm opacity-70 transition-opacity hover:opacity-100 focus:ring-2 focus:ring-offset-2 focus:outline-hidden disabled:pointer-events-none">
-              <X className="h-4 w-4" />
-              <span className="sr-only">Close</span>
-            </DialogPrimitive.Close>
-          </div>
+          {showCloseButton && (
+            <div className="[&:has(.dialog-header)]:hidden [&:not(:has(.dialog-header))]:absolute [&:not(:has(.dialog-header))]:top-3 [&:not(:has(.dialog-header))]:right-3 [&:not(:has(.dialog-header))]:z-20">
+              <DialogPrimitive.Close className="ring-offset-background focus:ring-ring data-[state=open]:bg-accent data-[state=open]:text-muted-foreground rounded-sm opacity-70 transition-opacity hover:opacity-100 focus:ring-2 focus:ring-offset-2 focus:outline-hidden disabled:pointer-events-none">
+                <X size="base" />
+                <span className="sr-only">Close</span>
+              </DialogPrimitive.Close>
+            </div>
+          )}
         </DialogPrimitive.Content>
       </DialogPortal>
     );
@@ -107,25 +195,99 @@ const DialogContent = React.forwardRef<
 );
 DialogContent.displayName = DialogPrimitive.Content.displayName;
 
+/**
+ * Owns dialog open state while callers retain trigger and content presentation.
+ */
+type DialogControllerProps<State = void> = {
+  // Evaluated only when the controller mounts; later callback or dependency changes do not update the dialog.
+  initialState?: () => State | undefined;
+  children: (control: {
+    isOpen: boolean;
+    openDialog: (...args: [State] extends [void] ? [] : [state: State]) => void;
+  }) => React.ReactNode;
+  closeOnInteractionOutside: boolean;
+  onBeforeClose?: () => boolean;
+  onDismiss?: () => void;
+  renderContent: (control: {
+    state: State;
+    closeDialog: () => void;
+  }) => React.ReactNode;
+  size: React.ComponentProps<typeof DialogContent>["size"];
+};
+
+/**
+ * @deprecated Use design-system/DialogController/DialogController with its renderDialog prop and design-system/Dialog/Dialog.
+ */
+const DialogController = <State = void,>({
+  initialState,
+  children,
+  closeOnInteractionOutside,
+  onBeforeClose,
+  onDismiss,
+  renderContent,
+  size,
+}: DialogControllerProps<State>) => (
+  <DesignSystemDialogController
+    initialState={initialState}
+    onBeforeClose={onBeforeClose}
+    onDismiss={onDismiss}
+    renderDialog={({ state, closeDialog }) => (
+      <DialogContent
+        size={size}
+        closeOnInteractionOutside={closeOnInteractionOutside}
+      >
+        {renderContent({ state, closeDialog })}
+      </DialogContent>
+    )}
+  >
+    {children}
+  </DesignSystemDialogController>
+);
+
+const dialogHeaderVariants = cva(
+  "bg-modal sticky top-0 z-30 flex shrink-0 flex-col space-y-1.5 rounded-t-lg p-4",
+  {
+    variants: {
+      variant: {
+        default: "border-b",
+        // Borderless confirm dialogs drop the divider, so trim the bottom
+        // padding to keep title and body from drifting apart.
+        action: "pb-2",
+      },
+    },
+    defaultVariants: {
+      variant: "default",
+    },
+  },
+);
+
+/**
+ * @deprecated Use the title prop of design-system/Dialog/Dialog.
+ */
 const DialogHeader = ({
   className,
   children,
+  variant,
   ...props
-}: React.HTMLAttributes<HTMLDivElement>) => (
+}: React.HTMLAttributes<HTMLDivElement> &
+  VariantProps<typeof dialogHeaderVariants>) => (
   <div
     className={cn(
-      "dialog-header bg-background sticky top-0 z-30 flex shrink-0 flex-col space-y-1.5 rounded-t-lg border-b p-4",
-      className,
+      "dialog-header",
+      dialogHeaderVariants({ variant, className }),
     )}
     {...props}
   >
     <div className="flex w-full items-center justify-between gap-4 text-center sm:text-left">
       <div className="min-w-0 flex-1">{children}</div>
+      {/* Untabbable on purpose: as the first tabbable descendant of the
+          content it would take Radix's initial focus away from the dialog's
+          first field or primary action. Escape and the mouse still close. */}
       <DialogPrimitive.Close
-        className="ring-offset-background focus:ring-ring data-[state=open]:bg-accent data-[state=open]:text-muted-foreground z-20 mt-1 ml-4 rounded-sm opacity-70 transition-opacity hover:opacity-100 focus:ring-2 focus:ring-offset-2 focus:outline-hidden disabled:pointer-events-none"
+        className="ring-offset-background focus:ring-ring data-[state=open]:bg-accent data-[state=open]:text-muted-foreground hover:bg-accent z-20 -my-2 -mr-2 ml-2 inline-flex size-9 shrink-0 items-center justify-center rounded-md opacity-70 transition-opacity hover:opacity-100 focus:ring-2 focus:ring-offset-2 focus:outline-hidden disabled:pointer-events-none"
         tabIndex={-1}
       >
-        <X className="h-4 w-4" />
+        <X size="base" />
         <span className="sr-only">Close</span>
       </DialogPrimitive.Close>
     </div>
@@ -133,6 +295,9 @@ const DialogHeader = ({
 );
 DialogHeader.displayName = "DialogHeader";
 
+/**
+ * @deprecated Use Dialog.Body from design-system/Dialog/Dialog.
+ */
 const DialogBody = React.forwardRef<
   HTMLDivElement,
   React.HTMLAttributes<HTMLDivElement>
@@ -145,35 +310,60 @@ const DialogBody = React.forwardRef<
 ));
 DialogBody.displayName = "DialogBody";
 
+const dialogFooterVariants = cva(
+  "bg-modal sticky bottom-0 z-10 flex shrink-0 flex-col-reverse rounded-b-lg p-6 px-6 sm:flex-row sm:justify-end sm:space-x-2",
+  {
+    variants: {
+      variant: {
+        default: "border-t",
+        // Borderless confirm dialogs drop the divider, so trim the top padding
+        // to pull the buttons closer to the content.
+        action: "pt-2",
+      },
+    },
+    defaultVariants: {
+      variant: "default",
+    },
+  },
+);
+
+/**
+ * @deprecated Use the actions prop of design-system/Dialog/Dialog.
+ */
 const DialogFooter = ({
   className,
+  variant,
   ...props
-}: React.HTMLAttributes<HTMLDivElement>) => (
+}: React.HTMLAttributes<HTMLDivElement> &
+  VariantProps<typeof dialogFooterVariants>) => (
   <div
     className={cn(
-      "dialog-footer bg-background sticky bottom-0 z-10 flex shrink-0 flex-col-reverse rounded-b-lg border-t p-6 px-6 sm:flex-row sm:justify-end sm:space-x-2",
-      className,
+      "dialog-footer",
+      dialogFooterVariants({ variant, className }),
     )}
     {...props}
   />
 );
 DialogFooter.displayName = "DialogFooter";
 
+/**
+ * @deprecated Use the title prop of design-system/Dialog/Dialog.
+ */
 const DialogTitle = React.forwardRef<
   React.ComponentRef<typeof DialogPrimitive.Title>,
   React.ComponentPropsWithoutRef<typeof DialogPrimitive.Title>
 >(({ className, ...props }, ref) => (
   <DialogPrimitive.Title
     ref={ref}
-    className={cn(
-      "text-xl leading-none font-semibold tracking-tight",
-      className,
-    )}
+    className={cn("text-xl leading-none font-bold tracking-tight", className)}
     {...props}
   />
 ));
 DialogTitle.displayName = DialogPrimitive.Title.displayName;
 
+/**
+ * @deprecated Use the text prop or Dialog.Body from design-system/Dialog/Dialog.
+ */
 const DialogDescription = React.forwardRef<
   React.ComponentRef<typeof DialogPrimitive.Description>,
   React.ComponentPropsWithoutRef<typeof DialogPrimitive.Description>
@@ -188,8 +378,7 @@ DialogDescription.displayName = DialogPrimitive.Description.displayName;
 
 export {
   Dialog,
-  DialogPortal,
-  DialogOverlay,
+  DialogController,
   DialogClose,
   DialogTrigger,
   DialogContent,

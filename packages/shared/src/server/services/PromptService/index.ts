@@ -1,9 +1,10 @@
-import { Prompt, PrismaClient } from "@prisma/client";
 import { Redis, Cluster } from "ioredis";
-import { randomBytes } from "crypto";
+import { createHash, randomBytes } from "crypto";
 import { env } from "../../../env";
 import { logger } from "../../logger";
 import { escapeRegex } from "./utils";
+import { LangfuseConflictError } from "../../../errors";
+import { type Prisma, type PrismaClient, type Prompt } from "../../../db";
 import {
   PromptGraph,
   PromptParams,
@@ -16,6 +17,7 @@ import {
 import { ParsedPromptDependencyTag } from "../../../features/prompts/parsePromptDependencyTags";
 
 export const MAX_PROMPT_NESTING_DEPTH = 5;
+type PrismaClientOrTransaction = PrismaClient | Prisma.TransactionClient;
 
 export class PromptService {
   private cacheEnabled: boolean;
@@ -26,7 +28,7 @@ export class PromptService {
   private epochTtlSeconds = 7 * 24 * 60 * 60;
 
   constructor(
-    private prisma: PrismaClient,
+    private prisma: PrismaClientOrTransaction,
     private redis: Redis | Cluster | null,
 
     private metricIncrementer?: // used for otel metrics
@@ -49,8 +51,19 @@ export class PromptService {
       return this.getRawPrompt(params);
     }
 
+    let cacheKey: string | null = null;
     if (this.cacheEnabled) {
-      const cachedPrompt = await this.getCachedPrompt(params);
+      try {
+        // Capture the namespace before reading the DB so invalidation cannot
+        // move an in-flight result into the new epoch.
+        cacheKey = await this.getCacheKey(params);
+      } catch (e) {
+        this.logError("Error getting cached prompt", e);
+      }
+
+      const cachedPrompt = cacheKey
+        ? await this.getCachedPrompt(cacheKey)
+        : null;
 
       this.incrementMetric(
         cachedPrompt
@@ -67,8 +80,8 @@ export class PromptService {
 
     const dbPrompt = await this.getDbPrompt(params);
 
-    if (this.cacheEnabled && dbPrompt) {
-      await this.cachePrompt({ ...params, prompt: dbPrompt });
+    if (cacheKey && dbPrompt) {
+      await this.cachePrompt(cacheKey, dbPrompt);
 
       this.logDebug("Successfully cached prompt for params", params);
     }
@@ -144,13 +157,8 @@ export class PromptService {
     };
   }
 
-  private async getCachedPrompt(
-    params: PromptParams,
-  ): Promise<PromptResult | null> {
+  private async getCachedPrompt(key: string): Promise<PromptResult | null> {
     try {
-      const key = await this.getCacheKey(params);
-      if (!key) return null;
-
       const value = await this.redis?.get(key);
 
       if (value) return JSON.parse(value) as PromptResult;
@@ -161,12 +169,9 @@ export class PromptService {
     return null;
   }
 
-  private async cachePrompt(params: PromptParams & { prompt: PromptResult }) {
+  private async cachePrompt(key: string, prompt: PromptResult) {
     try {
-      const key = await this.getCacheKey(params);
-      if (!key) return;
-
-      const value = JSON.stringify(params.prompt);
+      const value = JSON.stringify(prompt);
 
       await this.redis?.set(key, value, "EX", this.ttlSeconds);
     } catch (e) {
@@ -189,13 +194,61 @@ export class PromptService {
     );
   }
 
+  /**
+   * Counts prompt names matching a list filter, cached under the project's
+   * epoch so every prompt write (which rotates the epoch) invalidates it.
+   */
+  public async getPromptListCount(params: {
+    projectId: string;
+    filterKey: string;
+    computeCount: () => Promise<number>;
+  }): Promise<number> {
+    if (!this.cacheEnabled) return params.computeCount();
+
+    let key: string | null = null;
+    try {
+      // Read the epoch before counting: a write committing mid-count rotates
+      // the epoch afterwards, so a stale count can only land under a dead key.
+      const epoch = await this.getOrCreateEpoch(params);
+      if (epoch) {
+        const filterHash = createHash("sha256")
+          .update(params.filterKey)
+          .digest("base64url");
+        key = `prompt_list_count:${params.projectId}:${epoch}:${filterHash}`;
+
+        const cached = await this.redis?.get(key);
+        if (cached) return Number(cached);
+      }
+    } catch (e) {
+      this.logError("Error getting cached prompt list count", e);
+    }
+
+    const count = await params.computeCount();
+
+    if (key) {
+      try {
+        await this.redis?.set(key, String(count), "EX", this.ttlSeconds);
+      } catch (e) {
+        this.logError("Error caching prompt list count", e);
+      }
+    }
+
+    return count;
+  }
+
   private async getCacheKey(params: PromptParams): Promise<string | null> {
     const epoch = await this.getOrCreateEpoch(params);
     if (!epoch) return null;
 
     const prefix = this.getCacheKeyPrefix(params, epoch);
 
-    return `${prefix}:${params.version ?? params.label}`;
+    // Numeric labels must not share a cache entry with the same prompt version.
+    const selector =
+      typeof params.version === "number"
+        ? `version:${params.version}`
+        : `label:${params.label}`;
+
+    return `${prefix}:${selector}`;
   }
 
   private getCacheKeyPrefix(
@@ -256,7 +309,7 @@ export class PromptService {
       ) => {
         // Nesting depth check
         if (level >= MAX_PROMPT_NESTING_DEPTH) {
-          throw Error(
+          throw new LangfuseConflictError(
             `Maximum nesting depth exceeded (${MAX_PROMPT_NESTING_DEPTH})`,
           );
         }
@@ -267,7 +320,7 @@ export class PromptService {
           (currentPrompt.name === parentPrompt.name &&
             currentPrompt.id !== parentPrompt.id) // ensure that the parent prompt cannot reference a prompt of the same name but different version
         ) {
-          throw Error(
+          throw new LangfuseConflictError(
             `Circular dependency detected involving prompt '${currentPrompt.name}' version ${currentPrompt.version}`,
           );
         }
@@ -289,15 +342,27 @@ export class PromptService {
                 childVersion: true,
               },
             })
-          ).map(
-            (dep) =>
-              ({
+          ).map((dep) => {
+            if (dep.childVersion !== null) {
+              return {
                 name: dep.childName,
-                ...(dep.childVersion
-                  ? { type: "version", version: dep.childVersion }
-                  : { type: "label", label: dep.childLabel }),
-              }) as ParsedPromptDependencyTag,
-          );
+                type: "version",
+                version: dep.childVersion,
+              } as ParsedPromptDependencyTag;
+            }
+
+            if (dep.childLabel !== null) {
+              return {
+                name: dep.childName,
+                type: "label",
+                label: dep.childLabel,
+              } as ParsedPromptDependencyTag;
+            }
+
+            throw new LangfuseConflictError(
+              `Prompt dependency is malformed: ${dep.childName}`,
+            );
+          });
         }
 
         if (promptDependencies && promptDependencies.length) {
@@ -319,12 +384,18 @@ export class PromptService {
             const logName = `${dep.name} - ${dep.type} ${dep.type === "version" ? dep.version : dep.label}`;
 
             if (!depPrompt)
-              throw Error(`Prompt dependency not found: ${logName}`);
+              throw new LangfuseConflictError(
+                `Prompt dependency not found: ${logName}`,
+              );
             if (depPrompt.type !== "text")
-              throw Error(`Prompt dependency is not a text prompt: ${logName}`);
+              throw new LangfuseConflictError(
+                `Prompt dependency is not a text prompt: ${logName}`,
+              );
 
             // side-effect: populate adjacency list to return later as well
-            graph.dependencies[currentPrompt.id] ??= []; // initializes an empty list if it does not exist yet
+            if (graph.dependencies[currentPrompt.id] === undefined) {
+              graph.dependencies[currentPrompt.id] = [];
+            }
             graph.dependencies[currentPrompt.id].push({
               id: depPrompt.id,
               name: depPrompt.name,
@@ -358,11 +429,11 @@ export class PromptService {
           seen.delete(currentPrompt.id);
 
           return JSON.parse(resolvedPrompt);
-        } else {
-          seen.delete(currentPrompt.id);
-
-          return currentPrompt.prompt;
         }
+
+        seen.delete(currentPrompt.id);
+
+        return currentPrompt.prompt;
       };
 
       const resolvedPrompt = await resolve(parentPrompt, dependencies, 0);
@@ -386,7 +457,7 @@ export class PromptService {
     logger.debug(`[PromptService] ${message}`, ...args);
   }
 
-  private incrementMetric(name: PromptServiceMetrics, value: number = 1) {
+  private incrementMetric(name: PromptServiceMetrics, value = 1) {
     try {
       this.metricIncrementer?.(name, value);
     } catch (e) {

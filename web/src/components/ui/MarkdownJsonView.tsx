@@ -1,142 +1,210 @@
+/* eslint-disable @repo/no-style-props, @repo/component-file-structure, @typescript-eslint/no-use-before-define */
 import {
+  OpenAIContentParts,
   OpenAIContentSchema,
   type OpenAIOutputAudioType,
 } from "@langfuse/shared";
 import { Button } from "@/src/components/ui/button";
 import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
 import { MarkdownView } from "@/src/components/ui/MarkdownViewer";
-import { type MediaReturnType } from "@/src/features/media/validation";
-import { Check, Copy } from "lucide-react";
+import { type MediaReturnType } from "@/src/features/media";
+import { Check, Copy, type IconComponent } from "@langfuse/icons";
+import { type IOSectionAction } from "@/src/components/ui/IOSection";
 import { useMemo, useState } from "react";
 import { type z } from "zod";
-import { MARKDOWN_RENDER_CHARACTER_LIMIT } from "@/src/utils/constants";
+import { useMarkdownRenderCharacterLimit } from "@/src/hooks/useMarkdownRenderCharacterLimit";
+import { cn } from "@/src/utils/tailwind";
+import { classifyMediaValue } from "@/src/components/ui/media/mediaUtils";
 
 type MarkdownJsonViewHeaderProps = {
   title: string | React.ReactNode;
   titleIcon?: React.ReactNode;
-  handleOnValueChange: () => void;
   handleOnCopy: (event?: React.MouseEvent<HTMLButtonElement>) => void;
-  canEnableMarkdown?: boolean;
   controlButtons?: React.ReactNode;
+  /** Hosts that render their own copy control (e.g. inside the content box)
+      suppress the header's. */
+  hideCopyButton?: boolean;
+  /** Reveal the right-side controls only while hovering the hosting section
+      (requires a `group/iosection` ancestor). */
+  hoverRevealControls?: boolean;
 };
 
 export function MarkdownJsonViewHeader({
   title,
   titleIcon,
-  handleOnValueChange: _handleOnValueChange,
   handleOnCopy,
-  canEnableMarkdown: _canEnableMarkdown = true,
   controlButtons,
+  hideCopyButton = false,
+  hoverRevealControls = false,
 }: MarkdownJsonViewHeaderProps) {
   const [isCopied, setIsCopied] = useState(false);
 
   return (
-    <div className="io-message-header group-hover:bg-muted/80 flex flex-row items-center justify-between px-1 py-1 text-sm font-medium capitalize transition-colors">
-      <div className="flex items-center gap-2">
+    <div className="io-message-header flex h-8 flex-row items-center justify-between px-1 text-sm font-bold capitalize">
+      {/* Masked from session recordings: the title can be a customer-provided
+          message `name` (or tool name) rather than a fixed role string. */}
+      <div className="ph-no-capture flex items-center gap-2">
         {titleIcon}
         {title}
       </div>
-      <div className="mr-1 flex min-w-0 shrink flex-row items-center gap-1">
+      <div
+        className={cn(
+          "mr-1 flex min-w-0 shrink flex-row items-center gap-1",
+          // pointer-coarse: touch devices have no hover, so the controls
+          // stay visible there instead of being unreachable.
+          hoverRevealControls &&
+            "opacity-0 transition-opacity group-hover/iosection:opacity-100 focus-within:opacity-100 pointer-coarse:opacity-100",
+        )}
+      >
         {controlButtons}
-        <Button
-          title="Copy to clipboard"
-          variant="ghost"
-          size="icon-xs"
-          type="button"
-          onClick={(event) => {
-            setIsCopied(true);
-            handleOnCopy(event);
-            setTimeout(() => setIsCopied(false), 1000);
-          }}
-          className="hover:bg-border -mr-2"
-        >
-          {isCopied ? (
-            <Check className="h-3 w-3" />
-          ) : (
-            <Copy className="h-3 w-3" />
-          )}
-        </Button>
+        {!hideCopyButton && (
+          <Button
+            title="Copy to clipboard"
+            variant="ghost"
+            size="icon-xs"
+            type="button"
+            onClick={(event) => {
+              setIsCopied(true);
+              handleOnCopy(event);
+              setTimeout(() => setIsCopied(false), 1000);
+            }}
+            className="text-muted-foreground hover:text-foreground hover:bg-transparent"
+          >
+            {isCopied ? (
+              <Check size="base" color="default" />
+            ) : (
+              <Copy size="base" color="default" />
+            )}
+          </Button>
+        )}
       </div>
     </div>
   );
 }
 
-const isSupportedMarkdownFormat = (
+/**
+ * Whether `content` renders through MarkdownView (inline text/image/audio
+ * parts) rather than as a JSON table. Narrows to the schema's INPUT type:
+ * `MediaReferenceStringSchema` transforms `@@@langfuseMedia:…@@@` into a parsed
+ * object, and the renderer's own part guards re-validate the untransformed
+ * shape — so the raw content is what must reach it (LFE-14815).
+ *
+ * Exported so callers deduping the media strip against what rendered inline
+ * ask the same question the renderer answered.
+ */
+export const canRenderContentAsMarkdown = (
   content: unknown,
-  contentValidation: z.ZodSafeParseResult<z.infer<typeof OpenAIContentSchema>>,
-): content is z.infer<typeof OpenAIContentSchema> => {
-  if (!contentValidation.success) return false;
-
+  characterLimit: number,
+): content is z.input<typeof OpenAIContentSchema> =>
+  (OpenAIContentSchema.safeParse(content).success ||
+    isOpenAIContentWithExternalS3Image(content)) &&
   // Don't render if markdown content is huge
-  const contentSize = JSON.stringify(content || {}).length;
-  if (contentSize > MARKDOWN_RENDER_CHARACTER_LIMIT) {
-    return false;
-  }
+  JSON.stringify(content || {}).length <= characterLimit;
 
-  return true;
+const isOpenAIContentWithExternalS3Image = (content: unknown) => {
+  if (!Array.isArray(content)) return false;
+
+  let hasExternalS3Image = false;
+  const hasOnlyRenderableParts = content.every((part) => {
+    if (
+      typeof part === "object" &&
+      part !== null &&
+      part.type === "image_url" &&
+      typeof part.image_url === "object" &&
+      part.image_url !== null
+    ) {
+      const descriptor = classifyMediaValue(part.image_url.url);
+      if (descriptor?.kind === "s3") {
+        hasExternalS3Image = true;
+        return true;
+      }
+    }
+
+    return OpenAIContentParts.safeParse([part]).success;
+  });
+
+  return hasExternalS3Image && hasOnlyRenderableParts;
 };
 
-// MarkdownJsonView will render markdown if `isMarkdownEnabled` (global context) is true and the content is valid markdown
-// otherwise, if content is valid markdown will render JSON with switch to enable markdown globally
+// MarkdownJsonView renders markdown whenever the content is valid markdown
+// (see canRenderContentAsMarkdown), otherwise it falls back to JSON.
 export function MarkdownJsonView({
   content,
   title,
   titleIcon,
   className,
-  customCodeHeaderClassName,
   audio,
   media,
-  controlButtons,
-  afterHeader,
+  actions,
+  beforeContent,
+  afterContent,
+  isSystemPrompt,
+  defaultCollapsed,
+  collapsed,
+  onCollapsedChange,
 }: {
   content?: unknown;
   title?: string;
-  titleIcon?: React.ReactNode;
+  titleIcon?: IconComponent;
   className?: string;
-  customCodeHeaderClassName?: string;
   audio?: OpenAIOutputAudioType;
   media?: MediaReturnType[];
-  controlButtons?: React.ReactNode;
-  /** Content to render between header and main content (e.g., thinking blocks) */
-  afterHeader?: React.ReactNode;
+  /** Section header actions. */
+  actions?: IOSectionAction[];
+  /** Rendered inside the section box above the content (e.g. thinking blocks). */
+  beforeContent?: React.ReactNode;
+  /** Rendered inside the section box below the content (e.g. tool calls). */
+  afterContent?: React.ReactNode;
+  /** Long system prompts start collapsed (from raw `role === "system"`, since
+      the title can carry a message `name` instead of the role). */
+  isSystemPrompt?: boolean;
+  /** Initial collapsed state of the section; system prompts use their own rule. */
+  defaultCollapsed?: boolean;
+  /** Controlled collapsed state; long system prompts still follow their rule. */
+  collapsed?: boolean;
+  onCollapsedChange?: (collapsed: boolean) => void;
 }) {
-  const validatedOpenAIContent = useMemo(
-    () => OpenAIContentSchema.safeParse(content),
-    [content],
+  const characterLimit = useMarkdownRenderCharacterLimit();
+  // Boxed so a renderable `null` content stays distinguishable from
+  // "not renderable as markdown", without re-widening the narrowed type.
+  const markdownContent = useMemo(
+    () =>
+      canRenderContentAsMarkdown(content, characterLimit)
+        ? { value: content }
+        : null,
+    [content, characterLimit],
   );
 
-  const canEnableMarkdown = isSupportedMarkdownFormat(
-    content,
-    validatedOpenAIContent,
-  );
-
-  return (
-    <>
-      {canEnableMarkdown ? (
-        <MarkdownView
-          markdown={
-            validatedOpenAIContent.success ? validatedOpenAIContent.data : null
-          }
-          title={title}
-          titleIcon={titleIcon}
-          customCodeHeaderClassName={customCodeHeaderClassName}
-          audio={audio}
-          media={media}
-          controlButtons={controlButtons}
-          afterHeader={afterHeader}
-        />
-      ) : (
-        <PrettyJsonView
-          json={content ?? (audio ? { audio } : null)}
-          title={title}
-          titleIcon={titleIcon}
-          className={className}
-          media={media}
-          currentView="pretty"
-          controlButtons={controlButtons}
-          afterHeader={afterHeader}
-        />
-      )}
-    </>
+  return markdownContent ? (
+    <MarkdownView
+      markdown={markdownContent.value}
+      title={title}
+      titleIcon={titleIcon}
+      audio={audio}
+      media={media}
+      actions={actions}
+      beforeContent={beforeContent}
+      afterContent={afterContent}
+      isSystemPrompt={isSystemPrompt}
+      defaultCollapsed={defaultCollapsed}
+      collapsed={collapsed}
+      onCollapsedChange={onCollapsedChange}
+    />
+  ) : (
+    <PrettyJsonView
+      json={content ?? (audio ? { audio } : null)}
+      title={title}
+      titleIcon={titleIcon}
+      className={className}
+      media={media}
+      currentView="pretty"
+      actions={actions}
+      beforeContent={beforeContent}
+      afterContent={afterContent}
+      isSystemPrompt={isSystemPrompt}
+      defaultCollapsed={defaultCollapsed}
+      collapsed={collapsed}
+      onCollapsedChange={onCollapsedChange}
+    />
   );
 }

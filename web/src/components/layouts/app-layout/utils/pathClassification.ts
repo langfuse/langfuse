@@ -13,6 +13,7 @@ export const PATH_CONSTANTS = {
     "/auth/sign-in",
     "/auth/sign-up",
     "/auth/sso-initiate",
+    "/auth/enterprise-sso-required",
     "/auth/error",
     "/auth/hf-spaces",
   ] as const,
@@ -106,4 +107,11 @@ export function isPathActive(routePath: string, currentPath: string): boolean {
   if (isRoot) return false;
 
   return currentPath.startsWith(routePath + "/");
+}
+
+export function matchesPathname(routePathnames: string[]) {
+  return (pathname: string) =>
+    routePathnames.some((routePathname) =>
+      isPathActive(routePathname, pathname),
+    );
 }

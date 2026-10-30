@@ -1,0 +1,188 @@
+// @vitest-environment node
+
+import { reportError } from "@/src/utils/reportError";
+
+const { captureExceptionMock, addBreadcrumbMock } = vi.hoisted(() => ({
+  captureExceptionMock: vi.fn(),
+  addBreadcrumbMock: vi.fn(),
+}));
+
+vi.mock("@sentry/nextjs", () => ({
+  captureException: captureExceptionMock,
+  addBreadcrumb: addBreadcrumbMock,
+}));
+
+describe("reportError", () => {
+  let warnSpy: ReturnType<typeof vi.spyOn>;
+  let errorSpy: ReturnType<typeof vi.spyOn>;
+
+  beforeEach(() => {
+    captureExceptionMock.mockClear();
+    addBreadcrumbMock.mockClear();
+    warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+  });
+
+  afterEach(() => {
+    warnSpy.mockRestore();
+    errorSpy.mockRestore();
+  });
+
+  describe("expected: true", () => {
+    it("adds a breadcrumb and does NOT capture", () => {
+      reportError(new Error("member of another project"), {
+        area: "trpc.query",
+        expected: true,
+        extra: { code: "FORBIDDEN" },
+      });
+
+      expect(captureExceptionMock).not.toHaveBeenCalled();
+      expect(addBreadcrumbMock).toHaveBeenCalledTimes(1);
+      const crumb = addBreadcrumbMock.mock.calls[0]![0];
+      expect(crumb.category).toBe("trpc.query");
+      expect(crumb.type).toBe("error");
+      expect(crumb.level).toBe("info");
+      expect(crumb.data).toEqual({ code: "FORBIDDEN" });
+    });
+
+    it("does not warn or error for an expected state", () => {
+      reportError("some expected state", {
+        area: "auth.session",
+        expected: true,
+      });
+
+      expect(warnSpy).not.toHaveBeenCalled();
+      expect(errorSpy).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("unexpected (captured)", () => {
+    it("passes a real Error through untouched (same instance → stack preserved) with area tag", () => {
+      const original = new Error("boom");
+      reportError(original, { area: "io.parse", extra: { traceId: "abc" } });
+
+      expect(captureExceptionMock).toHaveBeenCalledTimes(1);
+      const [err, options] = captureExceptionMock.mock.calls[0]!;
+      expect(err).toBe(original); // same instance → original stack preserved
+      expect(options.tags.area).toBe("io.parse");
+      expect(options.extra).toEqual({ traceId: "abc" });
+      expect(addBreadcrumbMock).not.toHaveBeenCalled();
+    });
+
+    it("synthesizes a legible Error for a plain object (not [object Object])", () => {
+      reportError({ code: 42, reason: "bad" }, { area: "io.parse" });
+
+      expect(captureExceptionMock).toHaveBeenCalledTimes(1);
+      const [err] = captureExceptionMock.mock.calls[0]!;
+      expect(err).toBeInstanceOf(Error);
+      expect(err.message).not.toContain("[object Object]");
+      expect(err.message).toContain("code");
+      expect(err.message).toContain("42");
+      expect(err.message).toContain("io.parse");
+    });
+
+    it("synthesizes a legible Error for a string", () => {
+      reportError("something failed", { area: "io.parse" });
+
+      const [err] = captureExceptionMock.mock.calls[0]!;
+      expect(err).toBeInstanceOf(Error);
+      expect(err.message).toBe("[io.parse] something failed");
+    });
+
+    it("logs via console.warn, never console.error (avoids captureConsole double-capture)", () => {
+      reportError(new Error("boom"), { area: "io.parse" });
+
+      expect(warnSpy).toHaveBeenCalledTimes(1);
+      expect(errorSpy).not.toHaveBeenCalled();
+    });
+
+    it("captures exactly once per call", () => {
+      reportError(new Error("once"), { area: "io.parse" });
+      expect(captureExceptionMock).toHaveBeenCalledTimes(1);
+    });
+
+    it("passes undefined extra through when omitted", () => {
+      reportError(new Error("boom"), { area: "io.parse" });
+
+      const [, options] = captureExceptionMock.mock.calls[0]!;
+      expect(options.tags.area).toBe("io.parse");
+      expect(options.extra).toBeUndefined();
+    });
+
+    it("merges caller tags alongside the area tag", () => {
+      reportError(new Error("boom"), {
+        area: "trpc",
+        tags: {
+          "trpc.code": "INTERNAL_SERVER_ERROR",
+          "trpc.path": "traces.all",
+        },
+      });
+
+      const [, options] = captureExceptionMock.mock.calls[0]!;
+      expect(options.tags).toEqual({
+        "trpc.code": "INTERNAL_SERVER_ERROR",
+        "trpc.path": "traces.all",
+        area: "trpc",
+      });
+    });
+
+    it("passes a caller fingerprint through to captureException", () => {
+      reportError(new Error("boom"), {
+        area: "trpc",
+        fingerprint: [
+          "trpc-client-error",
+          "INTERNAL_SERVER_ERROR",
+          "traces.all",
+        ],
+      });
+
+      const [, options] = captureExceptionMock.mock.calls[0]!;
+      expect(options.fingerprint).toEqual([
+        "trpc-client-error",
+        "INTERNAL_SERVER_ERROR",
+        "traces.all",
+      ]);
+    });
+
+    it("omits the fingerprint key entirely when not provided (Sentry default grouping)", () => {
+      reportError(new Error("boom"), { area: "io.parse" });
+
+      const [, options] = captureExceptionMock.mock.calls[0]!;
+      expect("fingerprint" in options).toBe(false);
+    });
+
+    it("the seam's area tag wins over a conflicting caller tag", () => {
+      reportError(new Error("boom"), {
+        area: "trpc",
+        tags: { area: "spoofed" },
+      });
+
+      const [, options] = captureExceptionMock.mock.calls[0]!;
+      expect(options.tags.area).toBe("trpc");
+    });
+
+    it("warnMessage overrides the console line body, prefixed with the area", () => {
+      reportError(new Error("boom"), {
+        area: "io-parse-worker",
+        warnMessage: "useParsedTrace worker failed to load: details",
+      });
+
+      expect(warnSpy).toHaveBeenCalledTimes(1);
+      expect(warnSpy.mock.calls[0]![0]).toBe(
+        "[io-parse-worker] useParsedTrace worker failed to load: details",
+      );
+    });
+
+    it("warnMessage never affects what is captured", () => {
+      const original = new Error("boom");
+      reportError(original, {
+        area: "io-parse-worker",
+        warnMessage: "console-only text",
+      });
+
+      const [err] = captureExceptionMock.mock.calls[0]!;
+      expect(err).toBe(original);
+      expect(err.message).toBe("boom");
+    });
+  });
+});

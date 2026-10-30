@@ -1,24 +1,46 @@
 import { Job, Processor, Worker, WorkerOptions } from "bullmq";
+import { context as otelContext } from "@opentelemetry/api";
 import {
   convertQueueNameToMetricName,
-  createNewRedisInstance,
-  getQueuePrefix,
+  contextWithLangfuseProps,
+  createBullMQWorkerOptionsWithRedis,
   logger,
   QueueName,
-  recordGauge,
-  recordHistogram,
+  recordDistribution,
   recordIncrement,
-  redisQueueRetryOptions,
   traceException,
 } from "@langfuse/shared/src/server";
-import { env } from "../env";
 import {
-  resolveQueueInstance,
-  SHARDED_QUEUE_BASE_NAMES,
-} from "./shardedQueueRegistry";
+  markQueueJobActivity,
+  markQueueWorkerRegistered,
+} from "../features/health/queueConsumption";
+import { WORKER_HOST_ID } from "../utils/hostId";
+import { logRetryableJobFailure } from "./jobFailureLog";
+import { SHARDED_QUEUE_BASE_NAMES } from "./shardedQueueRegistry";
+import { classifyJobFailure } from "./jobFailureReason";
 
 export class WorkerManager {
   private static workers: { [key: string]: Worker } = {};
+
+  private static extractProjectId(job: Job): string | undefined {
+    const data = job.data as
+      | {
+          payload?: {
+            projectId?: unknown;
+            authCheck?: { scope?: { projectId?: unknown } };
+          };
+        }
+      | undefined;
+
+    const candidates = [
+      data?.payload?.projectId,
+      data?.payload?.authCheck?.scope?.projectId,
+    ];
+
+    return candidates.find((candidate): candidate is string => {
+      return typeof candidate === "string" && candidate.length > 0;
+    });
+  }
 
   private static resolveMetricInfo(queueName: QueueName): {
     baseMetric: string;
@@ -38,68 +60,84 @@ export class WorkerManager {
     };
   }
 
+  // Empty failed set emits 0 so monitors see the gauge reset after a DLQ
+  // drain.
+  public static computeDlqOldestAgeMs(
+    jobs: (Job | undefined)[],
+    nowMs: number,
+  ): number {
+    const oldest = jobs.find(Boolean);
+    return oldest ? nowMs - (oldest.finishedOn ?? oldest.timestamp) : 0;
+  }
+
+  /**
+   * Queue wait before the current pickup: first attempts measure from
+   * timestamp + opts.delay; retries and stall re-runs return undefined because
+   * BullMQ keeps no record of when they became ready again.
+   */
+  public static computeWaitTimeMs(
+    job: Pick<
+      Job,
+      | "timestamp"
+      | "opts"
+      | "attemptsMade"
+      | "attemptsStarted"
+      | "stalledCounter"
+    >,
+    nowMs: number,
+  ): { attempt: "first" | "retry"; waitMs: number | undefined } {
+    const isRetry =
+      (job.attemptsMade ?? 0) > 0 ||
+      (job.attemptsStarted ?? 0) > 1 ||
+      (job.stalledCounter ?? 0) > 0;
+    if (isRetry) {
+      return { attempt: "retry", waitMs: undefined };
+    }
+    const readyAt = job.timestamp + Math.max(0, job.opts?.delay ?? 0);
+    return { attempt: "first", waitMs: Math.max(0, nowMs - readyAt) };
+  }
+
   private static metricWrapper(
     processor: Processor,
     queueName: QueueName,
   ): Processor {
-    const oldMetric = convertQueueNameToMetricName(queueName);
     const { baseMetric, shardTag } = WorkerManager.resolveMetricInfo(queueName);
 
     return async (job: Job) => {
       const startTime = Date.now();
-      const waitTime = Date.now() - job.timestamp;
+      const { attempt, waitMs } = WorkerManager.computeWaitTimeMs(
+        job,
+        startTime,
+      );
 
-      recordIncrement(oldMetric + ".request");
       recordIncrement(baseMetric + ".rate", 1, {
         type: "request",
+        attempt,
         ...shardTag,
       });
 
-      recordHistogram(oldMetric + ".wait_time", waitTime, {
-        unit: "milliseconds",
-      });
-      recordHistogram(baseMetric + ".time", waitTime, {
-        type: "wait",
-        unit: "milliseconds",
-        ...shardTag,
-      });
-
-      const result = await processor(job);
-
-      const queue = resolveQueueInstance(queueName);
-      // Sample queue depth gauges for sharded queues to reduce metric volume.
-      const shouldSample =
-        !shardTag || Math.random() < env.LANGFUSE_QUEUE_METRICS_SAMPLE_RATE;
-
-      if (shouldSample) {
-        Promise.allSettled([
-          // Here we only consider waiting jobs instead of the default ("waiting" or "delayed"
-          // or "prioritized" or "waiting-children") that count provides
-          queue?.getWaitingCount().then((count) => {
-            recordGauge(oldMetric + ".length", count, {
-              unit: "records",
-            });
-          }),
-          queue?.getFailedCount().then((count) => {
-            recordGauge(oldMetric + ".dlq_length", count, {
-              unit: "records",
-            });
-          }),
-          queue?.getActiveCount().then((count) => {
-            recordGauge(oldMetric + ".active", count, {
-              unit: "records",
-            });
-          }),
-        ]).catch((err) => {
-          logger.error("Failed to record queue length", err);
+      if (waitMs !== undefined) {
+        recordDistribution(baseMetric + ".time_distribution", waitMs, {
+          type: "wait",
+          attempt,
+          unit: "milliseconds",
+          ...shardTag,
         });
       }
 
-      const processingTime = Date.now() - startTime;
-      recordHistogram(oldMetric + ".processing_time", processingTime, {
-        unit: "milliseconds",
+      const clickHouseCtx = contextWithLangfuseProps({
+        projectId: WorkerManager.extractProjectId(job),
+        clickhouse: {
+          surface: "worker",
+          route: baseMetric,
+        },
       });
-      recordHistogram(baseMetric + ".time", processingTime, {
+      const result = await otelContext.with(clickHouseCtx, () =>
+        processor(job),
+      );
+
+      const processingTime = Date.now() - startTime;
+      recordDistribution(baseMetric + ".time_distribution", processingTime, {
         type: "processing",
         unit: "milliseconds",
         ...shardTag,
@@ -134,9 +172,9 @@ export class WorkerManager {
       return;
     }
 
-    // Create redis connection for queue worker
-    const redisInstance = createNewRedisInstance(redisQueueRetryOptions);
-    if (!redisInstance) {
+    const workerOptionsWithRedis =
+      createBullMQWorkerOptionsWithRedis(queueName);
+    if (!workerOptionsWithRedis) {
       logger.error("Failed to initialize redis connection");
       return;
     }
@@ -146,29 +184,60 @@ export class WorkerManager {
       queueName,
       WorkerManager.metricWrapper(processor, queueName),
       {
-        connection: redisInstance,
-        prefix: getQueuePrefix(queueName),
+        ...workerOptionsWithRedis,
         ...additionalOptions,
       },
     );
     WorkerManager.workers[queueName] = worker;
+    markQueueWorkerRegistered();
     logger.info(`${queueName} executor started: ${worker.isRunning()}`);
 
-    const oldMetric = convertQueueNameToMetricName(queueName);
     const { baseMetric, shardTag } = WorkerManager.resolveMetricInfo(queueName);
+
+    // Liveness signal for the ?failIfQueueConsumptionStuck=true health check.
+    // "active" and "completed" prove this container's consumption loop is
+    // alive; "failed" is excluded because the stalled-checker emits it for
+    // jobs this container never picked up.
+    worker.on("active", markQueueJobActivity);
+    // No "active" counter: metricWrapper already records "request" on pickup.
+    worker.on("completed", () => {
+      markQueueJobActivity();
+      recordIncrement(baseMetric + ".rate", 1, {
+        type: "completed",
+        ...shardTag,
+      });
+    });
 
     // Add error handling
     worker.on("failed", (job: Job | undefined, err: Error) => {
-      logger.error(
-        `Queue job ${job?.name} with id ${job?.id} in ${queueName} failed`,
-        err,
-      );
-      traceException(err);
-      recordIncrement(oldMetric + ".failed");
+      const reason = classifyJobFailure(err);
+      logRetryableJobFailure({
+        message: `Queue job ${job?.name} with id ${job?.id} in ${queueName} failed`,
+        error: err,
+        job,
+        attemptsIncludeCurrentFailure: true,
+        fields: {
+          projectId: job ? WorkerManager.extractProjectId(job) : undefined,
+          jobId: job?.id,
+          failureReason: reason,
+          // true once BullMQ stops retrying: the job's events are dropped.
+          terminal: Boolean(job?.finishedOn),
+        },
+      });
       recordIncrement(baseMetric + ".rate", 1, {
         type: "failed",
+        reason,
         ...shardTag,
       });
+      // BullMQ sets finishedOn only when it moves the job to the failed set
+      // instead of scheduling a retry.
+      if (job?.finishedOn) {
+        recordIncrement(baseMetric + ".rate", 1, {
+          type: "failed_terminal",
+          reason,
+          ...shardTag,
+        });
+      }
     });
     worker.on("error", (failedReason: Error) => {
       logger.error(
@@ -176,9 +245,21 @@ export class WorkerManager {
         failedReason,
       );
       traceException(failedReason);
-      recordIncrement(oldMetric + ".error");
       recordIncrement(baseMetric + ".rate", 1, {
         type: "error",
+        ...shardTag,
+      });
+    });
+    // Counts intermediate re-enqueues (LFE-10063), not just the terminal
+    // "stalled more than allowable limit" the "failed" handler catches.
+    worker.on("stalled", (jobId: string) => {
+      // detectedOnHost: the stall-checker pod, which may differ from the pod
+      // whose lock expired.
+      logger.warn(
+        `Queue job ${jobId} in ${queueName} stalled (lock expired, re-enqueued) detectedOnHost=${WORKER_HOST_ID}`,
+      );
+      recordIncrement(baseMetric + ".rate", 1, {
+        type: "stalled",
         ...shardTag,
       });
     });

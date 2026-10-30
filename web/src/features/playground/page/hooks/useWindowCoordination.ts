@@ -4,7 +4,7 @@ import {
   type WindowCoordinationReturn,
   PLAYGROUND_EVENTS,
 } from "../types";
-import { showErrorToast } from "@/src/features/notifications/showErrorToast";
+import { showErrorToast } from "@/src/features/notifications";
 
 /**
  * Playground window registry for coordinating actions across multiple playground windows
@@ -143,6 +143,11 @@ export const useWindowCoordination = (): WindowCoordinationReturn => {
         showErrorToast(
           "No content to execute",
           "Please add at least one message with content to any window.",
+          {
+            operation: "playground.execute",
+            errorOrigin: "frontend",
+            errorCategory: "user_input",
+          },
         );
         setIsExecutingAll(false);
       } else {
@@ -263,19 +268,6 @@ export const useWindowCoordination = (): WindowCoordinationReturn => {
 };
 
 /**
- * Utility function to get the current playground window registry
- * Useful for debugging and testing purposes
- *
- * @returns Map of windowId to PlaygroundHandle
- */
-export const getPlaygroundWindowRegistry = (): Map<
-  string,
-  PlaygroundHandle
-> => {
-  return playgroundWindowRegistry;
-};
-
-/**
  * Utility function to get the playground event bus
  * Useful for advanced coordination scenarios and testing
  *
@@ -283,14 +275,4 @@ export const getPlaygroundWindowRegistry = (): Map<
  */
 export const getPlaygroundEventBus = (): EventTarget => {
   return playgroundEventBus;
-};
-
-/**
- * Utility function to get the current window count
- * Useful for UI components that need to display window statistics
- *
- * @returns Number of currently registered windows
- */
-export const getWindowCount = (): number => {
-  return playgroundWindowRegistry.size;
 };

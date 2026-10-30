@@ -1,7 +1,7 @@
-import { LlmApiKeys } from "@prisma/client";
 import z from "zod";
 import {
   BedrockConfigSchema,
+  OpenAIConfigSchema,
   VertexAIConfigSchema,
 } from "../../interfaces/customLLMProviderConfigSchemas";
 import { JSONObjectSchema } from "../../utils/zod";
@@ -9,6 +9,7 @@ import type {
   InternalTraceEventInput,
   InternalTraceExperimentContext,
 } from "./internalTraceEvents";
+import type { EvalExecutionContext } from "../../features/evals/evalExecutionMetadata";
 
 // disable lint as this is exported and used in web/worker
 
@@ -41,32 +42,20 @@ export const JSONSchemaFormSchema = z
       .transform((data) => JSON.stringify(data, null, 2)),
   );
 
+export const LLMToolNameSchema = z
+  .string()
+  .regex(
+    /^[a-zA-Z0-9._-]+$/,
+    "Name must contain only alphanumeric letters, hyphens, periods and underscores",
+  )
+  .min(1, "Name is required");
+
 export const LLMToolDefinitionSchema = z.object({
   name: z.string(),
   description: z.string(),
   parameters: LLMJSONSchema,
 });
 export type LLMToolDefinition = z.infer<typeof LLMToolDefinitionSchema>;
-
-const AnthropicMessageContentWithToolUse = z.union([
-  z.object({
-    type: z.literal("text"),
-    text: z.string(),
-  }),
-  z.object({
-    type: z.literal("tool_use"),
-    id: z.string(),
-    name: z.string(),
-    input: z.unknown(),
-  }),
-]);
-
-const GoogleAIStudioMessageContentWithToolUse = z.object({
-  functionCall: z.object({
-    name: z.string(),
-    args: z.unknown(),
-  }),
-});
 
 export const LLMToolCallSchema = z.object({
   name: z.string(),
@@ -114,12 +103,17 @@ export const OpenAIResponseFormatSchema = z.object({
   }),
 });
 
+// Legacy playground tool-call content can be either text or an array of
+// provider-normalized blocks. Keep the discriminator loose while persisted
+// responses migrate to native AI SDK tool-call results.
+const StandardContentBlockSchema = z
+  .object({
+    type: z.string(),
+  })
+  .loose();
+
 export const ToolCallResponseSchema = z.object({
-  content: z.union([
-    z.string(),
-    z.array(AnthropicMessageContentWithToolUse),
-    z.array(GoogleAIStudioMessageContentWithToolUse),
-  ]),
+  content: z.union([z.string(), z.array(StandardContentBlockSchema)]),
   tool_calls: z.array(LLMToolCallSchema),
 });
 export type ToolCallResponse = z.infer<typeof ToolCallResponseSchema>;
@@ -256,7 +250,46 @@ export enum LLMAdapter {
   Bedrock = "bedrock",
   VertexAI = "google-vertex-ai",
   GoogleAIStudio = "google-ai-studio",
+  TypeSafe = "typesafe",
 }
+
+export const DECISION_MODEL_ADAPTERS: readonly LLMAdapter[] = [
+  LLMAdapter.TypeSafe,
+];
+
+/** OpenAI models the Decisions API accepts. */
+export const OPENAI_DECISION_MODEL_IDS: readonly string[] = ["gpt-6-luna"];
+
+export function isOpenAIDecisionModel(model: string): boolean {
+  return OPENAI_DECISION_MODEL_IDS.includes(model);
+}
+
+export function isDecisionModelAdapter(adapter: string): boolean {
+  return DECISION_MODEL_ADAPTERS.includes(adapter as LLMAdapter);
+}
+
+/** Adapters that can answer a decision-model evaluator. OpenAI stays a text adapter too. */
+export function supportsDecisionModels(adapter: string): boolean {
+  return adapter === LLMAdapter.TypeSafe || adapter === LLMAdapter.OpenAI;
+}
+
+export function isAllowedDecisionModel(
+  adapter: string,
+  model: string,
+): boolean {
+  if (adapter === LLMAdapter.TypeSafe) return model.length > 0;
+  if (adapter === LLMAdapter.OpenAI) return isOpenAIDecisionModel(model);
+  return false;
+}
+
+// Some providers require at least one user message. The persisted-message
+// conversion boundary turns a lone message into a user message for them.
+export const PROVIDERS_WITH_REQUIRED_USER_MESSAGE: readonly LLMAdapter[] = [
+  LLMAdapter.VertexAI,
+  LLMAdapter.GoogleAIStudio,
+  LLMAdapter.Anthropic,
+  LLMAdapter.Bedrock,
+];
 
 export const TextPromptContentSchema = z.string().min(1, "Enter a prompt");
 
@@ -314,8 +347,18 @@ export const openAIModels = [
   "gpt-4.1-2025-04-14",
   "gpt-4.1-mini",
   "gpt-4.1-mini-2025-04-14",
-  "gpt-4.1-nano",
-  "gpt-4.1-nano-2025-04-14",
+  "gpt-6-astra",
+  "gpt-6-sol",
+  "gpt-6.1-sol",
+  "gpt-6.1-terra",
+  "gpt-6-luna",
+  "gpt-5.6-sol",
+  "gpt-5.6-terra",
+  "gpt-5.6-luna",
+  "gpt-5.5",
+  "gpt-5.5-2026-04-23",
+  "gpt-5.5-pro",
+  "gpt-5.5-pro-2026-04-23",
   "gpt-5.4",
   "gpt-5.4-2026-03-05",
   "gpt-5.4-pro",
@@ -324,6 +367,7 @@ export const openAIModels = [
   "gpt-5.4-mini-2026-03-17",
   "gpt-5.4-nano",
   "gpt-5.4-nano-2026-03-17",
+  "gpt-5.3-codex",
   "gpt-5.2-2025-12-11",
   "gpt-5.1",
   "gpt-5.1-2025-11-13",
@@ -335,160 +379,121 @@ export const openAIModels = [
   "gpt-5-nano-2025-08-07",
   "o3",
   "o3-2025-04-16",
-  "o4-mini",
-  "o4-mini-2025-04-16",
   "gpt-4o",
   "gpt-4o-2024-08-06",
-  "gpt-4o-2024-05-13",
   "gpt-4o-mini",
   "gpt-4o-mini-2024-07-18",
-  "o3-mini",
-  "o3-mini-2025-01-31",
-  "o1-preview",
-  "o1-preview-2024-09-12",
-  "o1-mini",
-  "o1-mini-2024-09-12",
-  "gpt-4.5-preview",
-  "gpt-4.5-preview-2025-02-27",
-  "gpt-4-turbo-preview",
-  "gpt-4-1106-preview",
-  "gpt-4-0613",
-  "gpt-4-0125-preview",
-  "gpt-4",
-  "gpt-3.5-turbo-16k-0613",
   "gpt-3.5-turbo-16k",
-  "gpt-3.5-turbo-1106",
-  "gpt-3.5-turbo-0613",
-  "gpt-3.5-turbo-0301",
-  "gpt-3.5-turbo-0125",
-  "gpt-3.5-turbo",
 ] as const;
-
-type OpenAIReasoningMap = Record<OpenAIModel, boolean>;
-export const openAIModelToReasoning: OpenAIReasoningMap = {
-  // reasoning models
-  "gpt-5.4": true,
-  "gpt-5.4-2026-03-05": true,
-  "gpt-5.4-pro": true,
-  "gpt-5.4-pro-2026-03-05": true,
-  "gpt-5.2-2025-12-11": true,
-  "gpt-5.1": true,
-  "gpt-5.1-2025-11-13": true,
-  "gpt-5": true,
-  "gpt-5-2025-08-07": true,
-  "gpt-5-mini": true,
-  "gpt-5-mini-2025-08-07": true,
-  "gpt-5-nano": true,
-  "gpt-5-nano-2025-08-07": true,
-  o3: true,
-  "o3-2025-04-16": true,
-  "o4-mini": true,
-  "o4-mini-2025-04-16": true,
-  "o3-mini": true,
-  "o3-mini-2025-01-31": true,
-  "o1-preview": true,
-  "o1-preview-2024-09-12": true,
-  "o1-mini": true,
-  "o1-mini-2024-09-12": true,
-  // non-reasoning models
-  "gpt-4.5-preview": false,
-  "gpt-4.5-preview-2025-02-27": false,
-  "gpt-4-turbo-preview": false,
-  "gpt-4-1106-preview": false,
-  "gpt-4-0613": false,
-  "gpt-4-0125-preview": false,
-  "gpt-4": false,
-  "gpt-3.5-turbo-16k-0613": false,
-  "gpt-3.5-turbo-16k": false,
-  "gpt-3.5-turbo-1106": false,
-  "gpt-3.5-turbo-0613": false,
-  "gpt-3.5-turbo-0301": false,
-  "gpt-3.5-turbo-0125": false,
-  "gpt-3.5-turbo": false,
-  "gpt-4.1": false,
-  "gpt-4.1-2025-04-14": false,
-  "gpt-4.1-mini": false,
-  "gpt-4.1-mini-2025-04-14": false,
-  "gpt-4.1-nano": false,
-  "gpt-4.1-nano-2025-04-14": false,
-  "gpt-5.4-mini": false,
-  "gpt-5.4-mini-2026-03-17": false,
-  "gpt-5.4-nano": false,
-  "gpt-5.4-nano-2026-03-17": false,
-  "gpt-4o": false,
-  "gpt-4o-2024-08-06": false,
-  "gpt-4o-2024-05-13": false,
-  "gpt-4o-mini": false,
-  "gpt-4o-mini-2024-07-18": false,
-};
-
-export const isOpenAIReasoningModel = (model: OpenAIModel): boolean => {
-  return openAIModelToReasoning[model];
-};
 
 export type OpenAIModel = (typeof openAIModels)[number];
 
 // NOTE: Update docs page when changing this! https://langfuse.com/docs/prompt-management/features/playground#openai-playground--anthropic-playground
 // WARNING: The first entry in the array is chosen as the default model to add LLM API keys
 export const anthropicModels = [
+  "claude-sonnet-5",
+  "claude-sonnet-5-5",
   "claude-sonnet-4-5-20250929",
+  "claude-fable-5",
+  "claude-fable-5-1",
+  "claude-mythos-5",
+  "claude-mythos-5-1",
+  "claude-opus-5-5",
+  "claude-opus-5",
+  "claude-haiku-5-5",
   "claude-haiku-4-5-20251001",
+  "claude-opus-4-8",
   "claude-opus-4-7",
   "claude-sonnet-4-6",
   "claude-opus-4-6",
   "claude-opus-4-5-20251101",
-  "claude-sonnet-4-20250514",
-  "claude-opus-4-1-20250805",
-  "claude-opus-4-20250514",
-  "claude-3-7-sonnet-20250219",
-  "claude-3-5-sonnet-20241022",
-  "claude-3-5-sonnet-20240620",
-  "claude-3-opus-20240229",
-  "claude-3-sonnet-20240229",
-  "claude-3-5-haiku-20241022",
-  "claude-3-haiku-20240307",
-  "claude-2.1",
-  "claude-2.0",
-  "claude-instant-1.2",
 ] as const;
 
 // WARNING: The first entry in the array is chosen as the default model to add LLM API keys
+// Only models Vertex AI still serves. Gemini 3.x is served from the "global"
+// location only (the default for Vertex connections). Retired 1.0/1.5/2.0
+// models, superseded previews and the Live API audio model are not listed.
 export const vertexAIModels = [
+  "gemini-3.5-flash",
   "gemini-2.5-flash",
   "gemini-2.5-pro",
+  "gemini-3.8-flash",
+  "gemini-3.7-flash",
+  "gemini-3.6-flash",
+  "gemini-3.5-flash-lite",
   "gemini-3.1-pro-preview",
-  "gemini-3.1-flash-lite-preview",
-  "gemini-3-pro-preview",
+  "gemini-3.1-flash-lite",
   "gemini-3-flash-preview",
-  "gemini-2.5-flash-preview-09-2025",
   "gemini-2.5-flash-lite",
-  "gemini-2.5-flash-lite-preview-09-2025",
-  "gemini-live-2.5-flash-native-audio",
-  "gemini-2.0-flash",
-  "gemini-2.0-pro-exp-02-05",
-  "gemini-2.0-flash-001",
-  "gemini-2.0-flash-exp",
-  "gemini-1.5-pro",
-  "gemini-1.5-flash",
-  "gemini-1.0-pro",
 ] as const;
 
 // WARNING: The first entry in the array is chosen as the default model to add LLM API keys. Make sure it supports top_p, max_tokens and temperature.
 export const googleAIStudioModels = [
   "gemini-2.5-flash",
   "gemini-2.5-pro",
+  "gemini-4-argon",
+  "gemini-3.8-flash",
+  "gemini-3.7-flash",
+  "gemini-3.6-flash",
+  "gemini-3.5-flash",
+  "gemini-3.5-flash-lite",
   "gemini-3.1-pro-preview",
-  "gemini-3.1-flash-lite-preview",
-  "gemini-3-pro-preview",
+  "gemini-3.1-flash-lite",
   "gemini-3-flash-preview",
   "gemini-2.5-flash-lite",
-  "gemini-2.5-flash-lite-preview-09-2025",
-  "gemini-2.0-flash",
   "gemini-2.0-flash-thinking-exp-01-21",
   "gemini-1.5-pro",
   "gemini-1.5-flash",
   "gemini-1.5-flash-8b",
 ] as const;
+
+export const typeSafeModels = ["jev-latest"] as const;
+
+/**
+ * Providers that serve Jev through TypeSafe's `/v1/systemone` API. A TypeSafe
+ * connection stores a gateway's `baseURL`, or none for TypeSafe itself, which
+ * the AI SDK provider then defaults to. Presets only prefill the base URL; a
+ * `custom` connection stores any base URL the provider appends `/systemone`
+ * to.
+ */
+export const TYPESAFE_UPSTREAMS = [
+  {
+    id: "typesafe",
+    label: "TypeSafe",
+    baseURL: null,
+    apiKeyLabel: "TypeSafe API key",
+  },
+  {
+    id: "vercel-ai-gateway",
+    label: "Vercel AI Gateway",
+    baseURL: "https://ai-gateway.vercel.sh/typesafe/v1",
+    apiKeyLabel: "Vercel AI Gateway API key",
+  },
+  {
+    id: "openrouter",
+    label: "OpenRouter",
+    baseURL: "https://openrouter.ai/api/v1",
+    apiKeyLabel: "OpenRouter API key",
+  },
+  {
+    id: "custom",
+    label: "Custom",
+    baseURL: null,
+    apiKeyLabel: "API key",
+  },
+] as const;
+
+export type TypeSafeUpstream = (typeof TYPESAFE_UPSTREAMS)[number];
+
+export function resolveTypeSafeUpstream(
+  baseURL: string | null | undefined,
+): TypeSafeUpstream {
+  if (!baseURL) return TYPESAFE_UPSTREAMS[0];
+  return (
+    TYPESAFE_UPSTREAMS.find((upstream) => upstream.baseURL === baseURL) ??
+    TYPESAFE_UPSTREAMS[TYPESAFE_UPSTREAMS.length - 1]
+  );
+}
 
 export type AnthropicModel = (typeof anthropicModels)[number];
 export type VertexAIModel = (typeof vertexAIModels)[number];
@@ -499,6 +504,7 @@ export const supportedModels = {
   [LLMAdapter.GoogleAIStudio]: googleAIStudioModels,
   [LLMAdapter.Azure]: [],
   [LLMAdapter.Bedrock]: [],
+  [LLMAdapter.TypeSafe]: typeSafeModels,
 } as const;
 
 export type LLMFunctionCall = {
@@ -522,20 +528,23 @@ export const LLMApiKeySchema = z
     baseURL: z.string().nullable(),
     customModels: z.array(z.string()),
     withDefaultModels: z.boolean(),
-    config: z.union([BedrockConfigSchema, VertexAIConfigSchema]).nullish(), // Bedrock and VertexAI have additional config
+    config: z
+      .union([BedrockConfigSchema, VertexAIConfigSchema, OpenAIConfigSchema])
+      .nullish(),
   })
   // strict mode to prevent extra keys. Thorws error otherwise
   // https://github.com/colinhacks/zod?tab=readme-ov-file#strict
   .strict();
 
-export type LLMApiKey =
-  z.infer<typeof LLMApiKeySchema> extends LlmApiKeys
-    ? z.infer<typeof LLMApiKeySchema>
-    : never;
+export type LLMApiKey = z.infer<typeof LLMApiKeySchema>;
 
 export enum LangfuseInternalTraceEnvironment {
   PromptExperiments = "langfuse-prompt-experiment",
   LLMJudge = "langfuse-llm-as-a-judge",
+  CodeEval = "langfuse-code-eval",
+  NaturalLanguageFilter = "langfuse-natural-language-filter",
+  InAppAgent = "langfuse-in-app-agent",
+  Topics = "langfuse-topics",
 }
 
 export type ProcessedTraceEvent = {
@@ -544,16 +553,22 @@ export type ProcessedTraceEvent = {
   body: Record<string, unknown>;
 };
 
+export type InternalTraceWriteInput = {
+  rootSpanId: string;
+  eventInputs: InternalTraceEventInput[];
+};
+
+export type InternalTraceWriter = (
+  params: InternalTraceWriteInput,
+) => Promise<void>;
+
 /**
  * Configuration for direct writing of trace events to the events table.
  * Used by internal tracing (prompt experiments, evaluations).
  */
 export type InternalEventsWriter = {
   experimentContext?: InternalTraceExperimentContext;
-  write: (params: {
-    rootSpanId: string;
-    eventInputs: InternalTraceEventInput[];
-  }) => Promise<void>;
+  write: InternalTraceWriter;
 };
 
 export type TraceSinkParams = {
@@ -566,7 +581,9 @@ export type TraceSinkParams = {
   // NOTE: These strings must be whitelisted in the TS SDK to allow ingestion of traces by Langfuse. Please mirror edits to this string in https://github.com/langfuse/langfuse-js/blob/main/langfuse-core/src/index.ts.
   environment: string;
   userId?: string;
+  sessionId?: string;
   metadata?: Record<string, unknown>;
+  evaluationContext?: EvalExecutionContext;
   prompt?: {
     name: string;
     version: number;
@@ -578,4 +595,14 @@ export type TraceSinkParams = {
    * events are still written to the legacy traces/observations tables.
    */
   eventsWriter?: InternalEventsWriter;
+  /**
+   * When true, v4 write modes (`dual` / `events_only`) publish through
+   * `publishAiFeatureTraceViaOtelIngestion` instead of `processEventBatch`
+   * (LangChain) or with `isLangfuseInternal: false` (AI SDK). Used by
+   * in-app agent, Ask AI, and conversation-title product traces. Those
+   * traces use environment `production` (not `langfuse-*`) so they stay
+   * eligible as observation-eval targets. Legacy write mode keeps
+   * `processEventBatch` for the LangChain path.
+   */
+  aiFeatureOtelIngestion?: boolean;
 };

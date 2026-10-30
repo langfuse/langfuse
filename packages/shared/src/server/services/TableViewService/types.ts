@@ -1,11 +1,16 @@
 import z from "zod";
-import { orderBy, singleFilter, TableViewPresetTableName } from "../../..";
+import {
+  orderBy,
+  singleFilterList,
+  SystemTableViewPresetCategory,
+  TableViewPresetTableName,
+} from "../../..";
 
 export const CreateTableViewPresetsInput = z.object({
   projectId: z.string(),
   name: z.string().min(1, "View name is required"),
   tableName: z.enum(TableViewPresetTableName),
-  filters: z.array(singleFilter),
+  filters: singleFilterList,
   columnOrder: z.array(z.string()),
   columnVisibility: z.record(z.string(), z.boolean()),
   searchQuery: z.string().optional(),
@@ -40,14 +45,18 @@ export const TableViewPresetsNamesCreatorListSchema = z.array(
     tableName: z.enum(TableViewPresetTableName),
     description: z.string().optional(),
     isSystem: z.boolean().optional(),
+    // Present on categorized system presets that surface as quick-access chips
+    // beneath the search bar; undefined for user views and uncategorized presets.
+    category: z.enum(SystemTableViewPresetCategory).optional(),
     createdBy: z.string().nullable(),
     createdByUser: z
       .object({
         image: z.string().nullish(),
         name: z.string().nullish(),
+        email: z.string().nullish(),
       })
       .nullish(),
-    filters: z.array(singleFilter),
+    filters: singleFilterList,
     columnOrder: z.array(z.string()),
     columnVisibility: z.record(z.string(), z.boolean()),
     searchQuery: z.string().nullish(),

@@ -1,30 +1,45 @@
-import { Button } from "@/src/components/ui/button";
-import { InputCommandShortcut } from "@/src/components/ui/input-command";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/src/components/ui/tooltip";
+/* eslint-disable @repo/no-null-render */
+import { Button, type ButtonProps } from "@/src/components/ui/button";
+import { HeaderActionButton } from "@/src/components/HeaderActionButton";
+import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import {
   type ListEntry,
   useDetailPageLists,
-} from "@/src/features/navigate-detail-pages/context";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import { ChevronDown, ChevronUp } from "lucide-react";
+} from "@/src/features/navigate-detail-pages/DetailPageListsProvider";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { useReadPath } from "@/src/features/events";
+import { cn } from "@/src/utils/tailwind";
+import { ArrowDown, ArrowUp } from "@langfuse/icons";
 import { useRouter } from "next/router";
-import { useCallback, useEffect } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+
+const SHORTCUT_PULSE_MS = 160;
+
+type ShortcutPulse = "previous" | "next" | null;
 
 export const DetailPageNav = (props: {
   currentId: string;
   path: (entry: ListEntry) => string;
   listKey: string;
   onNavigate?: (entry: ListEntry) => void;
+  /** Button size; defaults to the cva default. Pass "sm" to match icon-xs rows. */
+  size?: ButtonProps["size"];
+  /**
+   * Compact mode for header action rows: icon-only ghost arrows with the K/J
+   * hint moved to the tooltip. Shortcuts still work.
+   */
+  compact?: boolean;
 }) => {
-  const { currentId, path, listKey, onNavigate } = props;
+  const { currentId, path, listKey, onNavigate, size, compact } = props;
   const { detailPagelists } = useDetailPageLists();
   const entries = detailPagelists[listKey] ?? [];
+  const [shortcutPulse, setShortcutPulse] = useState<ShortcutPulse>(null);
+  const shortcutPulseTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(
+    null,
+  );
 
   const capture = usePostHogClientCapture();
+  const { isV4 } = useReadPath();
   const router = useRouter();
   const currentIndex = entries.findIndex((entry) => entry.id === currentId);
   const previousPageEntry =
@@ -33,21 +48,59 @@ export const DetailPageNav = (props: {
     currentIndex < entries.length - 1 ? entries[currentIndex + 1] : undefined;
 
   const navigateToEntry = useCallback(
-    (entry: ListEntry) => {
+    (
+      entry: ListEntry,
+      direction: "previous" | "next",
+      method: "button" | "keyboard",
+    ) => {
+      // Single seam for both triggers so K/J navigation counts too (it
+      // used to be button-only). `listKey` is a static list identifier and
+      // `isPeek` distinguishes peek-header nav from full detail pages.
+      capture("navigate_detail_pages:button_click_prev_or_next", {
+        direction,
+        method,
+        listKey,
+        isPeek: router.query.peek !== undefined,
+        isV4,
+      });
+
       if (onNavigate) {
         onNavigate(entry);
         return;
       }
 
-      void router.push(
+      router.push(
         path({
           id: encodeURIComponent(entry.id),
           params: entry.params,
         }),
       );
     },
-    [onNavigate, path, router],
+    [onNavigate, path, router, capture, listKey, isV4],
   );
+
+  const pulseShortcut = useCallback(
+    (direction: Exclude<ShortcutPulse, null>) => {
+      if (shortcutPulseTimeoutRef.current) {
+        clearTimeout(shortcutPulseTimeoutRef.current);
+      }
+
+      setShortcutPulse(direction);
+      shortcutPulseTimeoutRef.current = setTimeout(() => {
+        setShortcutPulse(null);
+        shortcutPulseTimeoutRef.current = null;
+      }, SHORTCUT_PULSE_MS);
+    },
+    [],
+  );
+
+  useEffect(() => {
+    return () => {
+      if (shortcutPulseTimeoutRef.current) {
+        clearTimeout(shortcutPulseTimeoutRef.current);
+      }
+    };
+  }, []);
 
   // keyboard shortcuts for buttons k and j
   useEffect(() => {
@@ -67,74 +120,98 @@ export const DetailPageNav = (props: {
       }
 
       if (event.key === "k" && previousPageEntry) {
-        navigateToEntry(previousPageEntry);
+        pulseShortcut("previous");
+        navigateToEntry(previousPageEntry, "previous", "keyboard");
       } else if (event.key === "j" && nextPageEntry) {
-        navigateToEntry(nextPageEntry);
+        pulseShortcut("next");
+        navigateToEntry(nextPageEntry, "next", "keyboard");
       }
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [previousPageEntry, nextPageEntry, navigateToEntry]);
+  }, [previousPageEntry, nextPageEntry, navigateToEntry, pulseShortcut]);
 
-  if (entries.length > 1)
+  if (entries.length > 1) {
+    if (compact) {
+      return (
+        <div className="flex flex-row gap-1">
+          <HeaderActionButton
+            label="Navigate up"
+            shortcut="K"
+            icon={<ArrowUp size="base" />}
+            active={shortcutPulse === "previous"}
+            disabled={!previousPageEntry}
+            onClick={() => {
+              if (previousPageEntry) {
+                navigateToEntry(previousPageEntry, "previous", "button");
+              }
+            }}
+          />
+          <HeaderActionButton
+            label="Navigate down"
+            shortcut="J"
+            icon={<ArrowDown size="base" />}
+            active={shortcutPulse === "next"}
+            disabled={!nextPageEntry}
+            onClick={() => {
+              if (nextPageEntry) {
+                navigateToEntry(nextPageEntry, "next", "button");
+              }
+            }}
+          />
+        </div>
+      );
+    }
+    const buttonClassName = (active: boolean) =>
+      cn(
+        "px-2 transition-[background-color,border-color,box-shadow,color] duration-150",
+        active && "border-primary/60 bg-accent/60 ring-primary/20 ring-2",
+      );
     return (
       <div className="flex flex-row gap-1">
-        <Tooltip>
-          <TooltipTrigger asChild>
+        <Tooltip label="Navigate up" shortcut={{ keys: ["K"] }}>
+          {({ getTriggerProps }) => (
             <Button
+              {...getTriggerProps()}
+              aria-label="Navigate up"
               variant="outline"
               type="button"
-              className="p-2"
+              size={size}
+              className={buttonClassName(shortcutPulse === "previous")}
               disabled={!previousPageEntry}
               onClick={() => {
                 if (previousPageEntry) {
-                  capture("navigate_detail_pages:button_click_prev_or_next");
-                  navigateToEntry(previousPageEntry);
+                  navigateToEntry(previousPageEntry, "previous", "button");
                 }
               }}
             >
-              <ChevronUp className="h-4 w-4" />
-              <span className="bg-primary/80 text-primary-foreground ml-1 h-4 w-4 rounded-sm text-xs shadow-xs">
-                K
-              </span>
+              <ArrowUp size="base" color="default" />
             </Button>
-          </TooltipTrigger>
-          <TooltipContent>
-            <span>Navigate up</span>
-            <InputCommandShortcut className="bg-muted ml-2 rounded-sm p-1 px-2">
-              k
-            </InputCommandShortcut>
-          </TooltipContent>
+          )}
         </Tooltip>
 
-        <Tooltip>
-          <TooltipTrigger asChild>
+        <Tooltip label="Navigate down" shortcut={{ keys: ["J"] }}>
+          {({ getTriggerProps }) => (
             <Button
+              {...getTriggerProps()}
+              aria-label="Navigate down"
               variant="outline"
               type="button"
-              className="p-2"
+              size={size}
+              className={buttonClassName(shortcutPulse === "next")}
               disabled={!nextPageEntry}
               onClick={() => {
                 if (nextPageEntry) {
-                  capture("navigate_detail_pages:button_click_prev_or_next");
-                  navigateToEntry(nextPageEntry);
+                  navigateToEntry(nextPageEntry, "next", "button");
                 }
               }}
             >
-              <ChevronDown className="h-4 w-4" />
-              <span className="bg-primary/80 text-primary-foreground ml-1 h-4 w-4 rounded-sm text-xs shadow-xs">
-                J
-              </span>
+              <ArrowDown size="base" color="default" />
             </Button>
-          </TooltipTrigger>
-          <TooltipContent>
-            <span>Navigate down</span>
-            <InputCommandShortcut className="bg-muted ml-2 rounded-sm p-1 px-2">
-              j
-            </InputCommandShortcut>
-          </TooltipContent>
+          )}
         </Tooltip>
       </div>
     );
-  else return null;
+  }
+  return null;
 };

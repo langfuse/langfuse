@@ -160,6 +160,34 @@ describe("/api/public/llm-connections API Endpoints", () => {
       expect(secondConnection.config).toBeNull();
     });
 
+    it("should include decision-model connections", async () => {
+      const connection = await prisma.llmApiKeys.create({
+        data: {
+          projectId,
+          provider: generateUniqueProvider("decision-model"),
+          adapter: LLMAdapter.TypeSafe,
+          secretKey: encrypt("sk-decision-model"),
+          displaySecretKey: "...odel",
+        },
+      });
+
+      const response = await makeZodVerifiedAPICall(
+        GetLlmConnectionsV1Response,
+        "GET",
+        "/api/public/llm-connections",
+        undefined,
+        auth,
+      );
+
+      expect(response.body.data).toEqual([
+        expect.objectContaining({
+          id: connection.id,
+          adapter: LLMAdapter.TypeSafe,
+        }),
+      ]);
+      expect(response.body.meta.totalItems).toBe(1);
+    });
+
     it("should handle pagination correctly", async () => {
       // Create 3 test connections
       await Promise.all([
@@ -239,7 +267,24 @@ describe("/api/public/llm-connections API Endpoints", () => {
     });
 
     it("should return 400 for invalid query parameters", async () => {
-      const [negativePageResponse, negativeLimitResponse] = await Promise.all([
+      const [
+        zeroPageResponse,
+        fractionalPageResponse,
+        negativePageResponse,
+        negativeLimitResponse,
+      ] = await Promise.all([
+        makeAPICall(
+          "GET",
+          "/api/public/llm-connections?page=0&limit=10",
+          undefined,
+          auth,
+        ),
+        makeAPICall(
+          "GET",
+          "/api/public/llm-connections?page=0.5&limit=10",
+          undefined,
+          auth,
+        ),
         makeAPICall(
           "GET",
           "/api/public/llm-connections?page=-1&limit=10",
@@ -254,6 +299,8 @@ describe("/api/public/llm-connections API Endpoints", () => {
         ),
       ]);
 
+      expect(zeroPageResponse.status).toBe(400);
+      expect(fractionalPageResponse.status).toBe(400);
       expect(negativePageResponse.status).toBe(400);
       expect(negativeLimitResponse.status).toBe(400);
     });
@@ -382,7 +429,7 @@ describe("/api/public/llm-connections API Endpoints", () => {
     });
 
     it("should reject creating a connection with a localhost baseURL", async () => {
-      const response = await makeAPICall(
+      const response = await makeAPICall<{ message: string }>(
         "PUT",
         "/api/public/llm-connections",
         {
@@ -396,7 +443,7 @@ describe("/api/public/llm-connections API Endpoints", () => {
 
       expect(response.status).toBe(400);
       expect(response.body.message).toBe(
-        "Invalid baseURL: Blocked hostname detected",
+        "Invalid base URL: Blocked hostname detected",
       );
     });
 
@@ -444,6 +491,38 @@ describe("/api/public/llm-connections API Endpoints", () => {
       expect(response.body.baseURL).toBe(TEST_UPDATED_PUBLIC_LLM_BASE_URL); // Updated
       expect(response.body.customModels).toEqual(["claude-3"]); // Updated
       expect(response.body.withDefaultModels).toBe(false); // Updated
+    });
+
+    it("should preserve config when an upsert omits it", async () => {
+      const provider = generateUniqueProvider("openai-config");
+      await makeZodVerifiedAPICall(
+        PutLlmConnectionV1Response,
+        "PUT",
+        "/api/public/llm-connections",
+        {
+          provider,
+          adapter: LLMAdapter.OpenAI,
+          secretKey: "sk-original",
+          config: { useResponsesApi: true },
+        },
+        auth,
+        201,
+      );
+
+      const response = await makeZodVerifiedAPICall(
+        PutLlmConnectionV1Response,
+        "PUT",
+        "/api/public/llm-connections",
+        {
+          provider,
+          adapter: LLMAdapter.OpenAI,
+          secretKey: "sk-updated",
+        },
+        auth,
+        200,
+      );
+
+      expect(response.body.config).toEqual({ useResponsesApi: true });
     });
 
     it("should return 401 for invalid auth", async () => {
@@ -1095,13 +1174,36 @@ describe("/api/public/llm-connections API Endpoints", () => {
         expect(response.body.config).toBeNull();
       });
 
-      it("should reject OpenAI connection with config", async () => {
+      it("should create OpenAI connection with Responses API config", async () => {
+        const createData = {
+          provider: generateUniqueProvider("openai-responses-api"),
+          adapter: LLMAdapter.OpenAI,
+          secretKey: "sk-test123",
+          config: {
+            useResponsesApi: true,
+          },
+        };
+
+        const response = await makeZodVerifiedAPICall(
+          PutLlmConnectionV1Response,
+          "PUT",
+          "/api/public/llm-connections",
+          createData,
+          auth,
+          201,
+        );
+
+        expect(response.status).toBe(201);
+        expect(response.body.config).toEqual({ useResponsesApi: true });
+      });
+
+      it("should reject OpenAI connection with unsupported config", async () => {
         const createData = {
           provider: generateUniqueProvider("openai-with-config"),
           adapter: LLMAdapter.OpenAI,
           secretKey: "sk-test123",
           config: {
-            region: "us-east-1", // OpenAI doesn't support config
+            region: "us-east-1",
           },
         };
 
@@ -1114,7 +1216,7 @@ describe("/api/public/llm-connections API Endpoints", () => {
 
         expect(response.status).toBe(400);
         expect(JSON.stringify(response.body)).toContain(
-          "Config is not supported for openai adapter",
+          "Invalid OpenAI config",
         );
       });
 

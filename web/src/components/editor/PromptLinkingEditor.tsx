@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-style-props */
 import { useState, useRef, useEffect } from "react";
 import { CodeMirrorEditor } from "./CodeMirrorEditor";
 import { Button } from "@/src/components/ui/button";
@@ -5,13 +6,14 @@ import { Button } from "@/src/components/ui/button";
 import { PromptSelectionDialog } from "@/src/features/prompts/components/PromptSelectionDialog";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import { type ReactCodeMirrorRef } from "@uiw/react-codemirror";
-import { Plus } from "lucide-react";
+import { Plus } from "@langfuse/icons";
 
 type PromptLinkingEditorProps = {
   value: string;
   onChange?: (value: string) => void;
   onBlur?: () => void;
   minHeight?: number | string;
+  maxHeight?: number | string;
   className?: string;
 };
 
@@ -20,6 +22,7 @@ export function PromptLinkingEditor({
   onChange,
   onBlur,
   minHeight,
+  maxHeight = "60vh",
   className,
 }: PromptLinkingEditorProps) {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -61,6 +64,7 @@ export function PromptLinkingEditor({
         onBlur={onBlur}
         mode="prompt"
         minHeight={minHeight}
+        maxHeight={maxHeight}
         className={className}
         editorRef={editorRef}
       />
@@ -71,7 +75,7 @@ export function PromptLinkingEditor({
           className="flex items-center gap-1 px-2 py-1"
           onClick={() => setIsDialogOpen(true)}
         >
-          <Plus className="mr-2 h-4 w-4" />
+          <Plus size="base" color="default" __rawClassName="mr-2" />
           <span className="text-xs">Add prompt reference</span>
         </Button>
       </div>

@@ -1,4 +1,5 @@
-import { Check, Save } from "lucide-react";
+/* eslint-disable @repo/no-style-props, @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
+import { Check, Save } from "@langfuse/icons";
 import { useRouter } from "next/router";
 import { useState } from "react";
 
@@ -22,9 +23,9 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/src/components/ui/tooltip";
-import { usePlaygroundContext } from "@/src/features/playground/page/context";
+import { usePlaygroundContext } from "@/src/features/playground/page/context/PlaygroundProvider";
 import usePlaygroundCache from "@/src/features/playground/page/hooks/usePlaygroundCache";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import { api } from "@/src/utils/api";
 import { cn } from "@/src/utils/tailwind";
@@ -103,7 +104,7 @@ export const SaveToPromptButton: React.FC<SaveToPromptButtonProps> = ({
                   className,
                 )}
               >
-                <Save size={14} />
+                <Save size="base" color="default" />
                 <span className="sr-only">Save as prompt</span>
               </Button>
             </PopoverTrigger>
@@ -118,7 +119,7 @@ export const SaveToPromptButton: React.FC<SaveToPromptButtonProps> = ({
               className,
             )}
           >
-            <Save size={14} />
+            <Save size="base" color="default" />
             <span>Save as prompt</span>
           </Button>
         </PopoverTrigger>
@@ -155,8 +156,9 @@ export const SaveToPromptButton: React.FC<SaveToPromptButtonProps> = ({
                     }}
                   >
                     <Check
-                      className={cn(
-                        "mr-2 h-4 w-4",
+                      size="base"
+                      __rawClassName={cn(
+                        "mr-2",
                         selectedPromptId === chatPrompt.id
                           ? "opacity-100"
                           : "opacity-0",
@@ -183,7 +185,7 @@ export const SaveToPromptButton: React.FC<SaveToPromptButtonProps> = ({
   );
 };
 
-export function Divider() {
+function Divider() {
   return (
     <div className="my-3 flex flex-row justify-center align-middle">
       <div className="flex flex-1 flex-col">

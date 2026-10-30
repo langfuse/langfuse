@@ -5,15 +5,20 @@ import {
   createEventsCh,
   getExperimentsCountFromEvents,
   getExperimentsFromEvents,
+  getDatasetExperimentMetricsFromEvents,
   getExperimentMetricsFromEvents,
+  getExperimentItemsFilterOptions,
+  getExperimentNamesFromEvents,
+  getExperimentScoreOptions,
   createTraceScore,
+  createDatasetRunScore,
   createScoresCh,
 } from "@langfuse/shared/src/server";
 
 const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
 
 const maybe =
-  env.LANGFUSE_ENABLE_EVENTS_TABLE_OBSERVATIONS === "true"
+  env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN === "true"
     ? describe
     : describe.skip;
 
@@ -33,6 +38,85 @@ describe("Clickhouse Experiment Repository Test", () => {
       });
 
       expect(count).toBe(0);
+    });
+
+    it("should return experiment count and latest start time per dataset", async () => {
+      const datasetId1 = randomUUID();
+      const datasetId2 = randomUUID();
+      const experimentId1 = randomUUID();
+      const experimentId2 = randomUUID();
+      const experimentId3 = randomUUID();
+      const olderStart = new Date("2026-08-27T10:00:00.000Z");
+      const latestStart = new Date("2026-08-29T12:00:00.000Z");
+
+      const makeEvent = ({
+        datasetId,
+        experimentId,
+        startTime,
+      }: {
+        datasetId: string;
+        experimentId: string;
+        startTime: Date;
+      }) => {
+        const spanId = randomUUID();
+        return createEvent({
+          id: spanId,
+          span_id: spanId,
+          project_id: projectId,
+          trace_id: randomUUID(),
+          type: "GENERATION",
+          experiment_id: experimentId,
+          experiment_name: `experiment-${experimentId}`,
+          experiment_dataset_id: datasetId,
+          experiment_item_id: randomUUID(),
+          experiment_item_root_span_id: spanId,
+          start_time: startTime.getTime() * 1000,
+        });
+      };
+
+      await createEventsCh([
+        makeEvent({
+          datasetId: datasetId1,
+          experimentId: experimentId1,
+          startTime: olderStart,
+        }),
+        makeEvent({
+          datasetId: datasetId1,
+          experimentId: experimentId2,
+          startTime: latestStart,
+        }),
+        makeEvent({
+          datasetId: datasetId1,
+          experimentId: experimentId2,
+          startTime: new Date(latestStart.getTime() + 60_000),
+        }),
+        makeEvent({
+          datasetId: datasetId2,
+          experimentId: experimentId3,
+          startTime: olderStart,
+        }),
+      ]);
+
+      const result = await getDatasetExperimentMetricsFromEvents({
+        projectId,
+        datasetIds: [datasetId1, datasetId2],
+      });
+
+      expect(result).toHaveLength(2);
+      expect(result).toEqual(
+        expect.arrayContaining([
+          {
+            datasetId: datasetId1,
+            countDatasetRuns: 2,
+            lastRunAt: latestStart,
+          },
+          {
+            datasetId: datasetId2,
+            countDatasetRuns: 1,
+            lastRunAt: olderStart,
+          },
+        ]),
+      );
     });
 
     it("should return one experiment row with two item rows", async () => {
@@ -109,6 +193,153 @@ describe("Clickhouse Experiment Repository Test", () => {
       expect(experiment?.description).toBe(experimentDescription);
       expect(experiment?.datasetId).toBe(experimentDatasetId);
       expect(experiment?.itemCount).toBe(2);
+    });
+
+    it("should count items that carry an ERROR event, not every ERROR event", async () => {
+      const experimentId = randomUUID();
+      const experimentName = "experiment-errors-" + randomUUID();
+      const datasetId = randomUUID();
+      const failingItemId = randomUUID();
+      const cleanItemId = randomUUID();
+      const failingRootId = randomUUID();
+      const failingChildId = randomUUID();
+      const cleanRootId = randomUUID();
+      const now = Date.now() * 1000;
+
+      await createEventsCh([
+        createEvent({
+          id: failingRootId,
+          span_id: failingRootId,
+          project_id: projectId,
+          trace_id: randomUUID(),
+          type: "SPAN",
+          experiment_id: experimentId,
+          experiment_name: experimentName,
+          experiment_dataset_id: datasetId,
+          experiment_item_id: failingItemId,
+          experiment_item_root_span_id: failingRootId,
+          level: "DEFAULT",
+          start_time: now,
+        }),
+        createEvent({
+          id: failingChildId,
+          span_id: failingChildId,
+          parent_span_id: failingRootId,
+          project_id: projectId,
+          trace_id: randomUUID(),
+          type: "SPAN",
+          experiment_id: experimentId,
+          experiment_name: experimentName,
+          experiment_dataset_id: datasetId,
+          experiment_item_id: failingItemId,
+          experiment_item_root_span_id: failingRootId,
+          level: "ERROR",
+          start_time: now + 1,
+        }),
+        createEvent({
+          id: randomUUID(),
+          span_id: randomUUID(),
+          parent_span_id: failingRootId,
+          project_id: projectId,
+          trace_id: randomUUID(),
+          type: "SPAN",
+          experiment_id: experimentId,
+          experiment_name: experimentName,
+          experiment_dataset_id: datasetId,
+          experiment_item_id: failingItemId,
+          experiment_item_root_span_id: failingRootId,
+          level: "ERROR",
+          start_time: now + 2,
+        }),
+        createEvent({
+          id: cleanRootId,
+          span_id: cleanRootId,
+          project_id: projectId,
+          trace_id: randomUUID(),
+          type: "SPAN",
+          experiment_id: experimentId,
+          experiment_name: experimentName,
+          experiment_dataset_id: datasetId,
+          experiment_item_id: cleanItemId,
+          experiment_item_root_span_id: cleanRootId,
+          level: "DEFAULT",
+          start_time: now + 3,
+        }),
+      ]);
+
+      const result = await getExperimentsFromEvents({
+        projectId,
+        filter: [],
+        limit: 1000,
+        page: 0,
+      });
+
+      const experiment = result.find((e) => e.id === experimentId);
+      expect(experiment).toBeDefined();
+      expect(experiment?.itemCount).toBe(2);
+      expect(experiment?.errorCount).toBe(1);
+    });
+
+    it("should read description from experiment item root spans", async () => {
+      const experimentId = randomUUID();
+      const experimentName = "root-attributes-experiment-" + randomUUID();
+      const experimentDescription = "root-description-" + randomUUID();
+      const experimentDatasetId = randomUUID();
+      const experimentItemId = randomUUID();
+      const traceId = randomUUID();
+      const rootSpanId = randomUUID();
+
+      const childEvent = createEvent({
+        id: randomUUID(),
+        span_id: randomUUID(),
+        project_id: projectId,
+        trace_id: traceId,
+        type: "SPAN",
+        name: "child-span-without-optional-experiment-attributes",
+        experiment_id: experimentId,
+        experiment_name: experimentName,
+        experiment_metadata_names: ["application", "source"],
+        experiment_metadata_values: ["example-agent", "remote-trigger"],
+        experiment_description: null,
+        experiment_dataset_id: experimentDatasetId,
+        experiment_item_id: experimentItemId,
+        experiment_item_version: null,
+        experiment_item_metadata_names: [],
+        experiment_item_metadata_values: [],
+        experiment_item_root_span_id: rootSpanId,
+      });
+
+      const rootEvent = createEvent({
+        id: rootSpanId,
+        span_id: rootSpanId,
+        project_id: projectId,
+        trace_id: traceId,
+        type: "SPAN",
+        name: "experiment-item-root-span",
+        experiment_id: experimentId,
+        experiment_name: experimentName,
+        experiment_metadata_names: ["application", "source"],
+        experiment_metadata_values: ["example-agent", "remote-trigger"],
+        experiment_description: experimentDescription,
+        experiment_dataset_id: experimentDatasetId,
+        experiment_item_id: experimentItemId,
+        experiment_item_version: null,
+        experiment_item_metadata_names: [],
+        experiment_item_metadata_values: [],
+        experiment_item_root_span_id: rootSpanId,
+      });
+
+      await createEventsCh([childEvent, rootEvent]);
+
+      const result = await getExperimentsFromEvents({
+        projectId,
+        filter: [],
+        limit: 1000,
+        page: 0,
+      });
+
+      const experiment = result.find((entry) => entry.id === experimentId);
+      expect(experiment?.description).toBe(experimentDescription);
     });
 
     it("should order by startTime DESC", async () => {
@@ -198,7 +429,9 @@ describe("Clickhouse Experiment Repository Test", () => {
 
       // Filter to only our test experiments
       const testExperiments = result.filter((e) =>
-        [experimentId1, experimentId2, experimentId3].includes(e.id),
+        ([experimentId1, experimentId2, experimentId3] as string[]).includes(
+          e.id,
+        ),
       );
 
       expect(testExperiments.length).toBe(3);
@@ -775,6 +1008,88 @@ describe("Clickhouse Experiment Repository Test", () => {
       expect(excludedExperiment).toBeUndefined(); // avg = 0.5 < 0.6
     });
 
+    it("should filter experiments by boolean trace scores", async () => {
+      const experimentIdWithTrueScore = randomUUID();
+      const experimentIdWithFalseScore = randomUUID();
+      const experimentIdWithoutScore = randomUUID();
+      const datasetId = randomUUID();
+      const scoreName = `passes_guardrail_${randomUUID()}`;
+
+      const now = new Date().getTime();
+
+      const traceIdWithTrueScore = randomUUID();
+      const traceIdWithFalseScore = randomUUID();
+      const traceIdWithoutScore = randomUUID();
+
+      const makeExperimentEvent = (experimentId: string, traceId: string) => {
+        const rootSpanId = randomUUID();
+        return createEvent({
+          id: randomUUID(),
+          span_id: rootSpanId,
+          project_id: projectId,
+          trace_id: traceId,
+          type: "GENERATION",
+          name: "test-generation",
+          experiment_id: experimentId,
+          experiment_name: `boolean-score-filter-${experimentId}`,
+          experiment_metadata_names: [],
+          experiment_metadata_values: [],
+          experiment_dataset_id: datasetId,
+          experiment_item_id: randomUUID(),
+          experiment_item_version: null,
+          experiment_item_root_span_id: rootSpanId,
+          start_time: now * 1000,
+        });
+      };
+
+      await createEventsCh([
+        makeExperimentEvent(experimentIdWithTrueScore, traceIdWithTrueScore),
+        makeExperimentEvent(experimentIdWithFalseScore, traceIdWithFalseScore),
+        makeExperimentEvent(experimentIdWithoutScore, traceIdWithoutScore),
+      ]);
+
+      await createScoresCh([
+        createTraceScore({
+          project_id: projectId,
+          trace_id: traceIdWithTrueScore,
+          observation_id: null,
+          name: scoreName,
+          value: 1,
+          string_value: "True",
+          data_type: "BOOLEAN",
+        }),
+        createTraceScore({
+          project_id: projectId,
+          trace_id: traceIdWithFalseScore,
+          observation_id: null,
+          name: scoreName,
+          value: 0,
+          string_value: "False",
+          data_type: "BOOLEAN",
+        }),
+      ]);
+
+      const result = await getExperimentsFromEvents({
+        projectId,
+        filter: [
+          {
+            column: "trace_score_booleans",
+            type: "booleanObject",
+            key: scoreName,
+            operator: "=",
+            value: true,
+          },
+        ],
+        limit: 1000,
+        page: 0,
+      });
+
+      const resultIds = result.map((e) => e.id);
+      expect(resultIds).toContain(experimentIdWithTrueScore);
+      expect(resultIds).not.toContain(experimentIdWithFalseScore);
+      expect(resultIds).not.toContain(experimentIdWithoutScore);
+    });
+
     it("should filter experiments by name with equals operator", async () => {
       const experimentId1 = randomUUID();
       const experimentName1 = "exact-match-name-" + randomUUID();
@@ -1146,6 +1461,573 @@ describe("Clickhouse Experiment Repository Test", () => {
       expect(matchingExperiment?.name).toBe(experimentName1);
       // Experiment without metadata should not match
       expect(excludedExperiment).toBeUndefined();
+    });
+
+    it("returns a row per experiment id when two experiments share a name", async () => {
+      const isolatedProjectId = randomUUID();
+      const sharedName = `v1-${randomUUID()}`;
+      const experimentIdA = randomUUID();
+      const experimentIdB = randomUUID();
+      const datasetIdA = randomUUID();
+      const datasetIdB = randomUUID();
+
+      await createEventsCh([
+        createEvent({
+          id: randomUUID(),
+          span_id: randomUUID(),
+          project_id: isolatedProjectId,
+          trace_id: randomUUID(),
+          type: "GENERATION",
+          experiment_id: experimentIdA,
+          experiment_name: sharedName,
+          experiment_dataset_id: datasetIdA,
+          experiment_item_id: randomUUID(),
+          experiment_item_root_span_id: randomUUID(),
+        }),
+        createEvent({
+          id: randomUUID(),
+          span_id: randomUUID(),
+          project_id: isolatedProjectId,
+          trace_id: randomUUID(),
+          type: "GENERATION",
+          experiment_id: experimentIdB,
+          experiment_name: sharedName,
+          experiment_dataset_id: datasetIdB,
+          experiment_item_id: randomUUID(),
+          experiment_item_root_span_id: randomUUID(),
+        }),
+      ]);
+
+      const result = await getExperimentNamesFromEvents({
+        projectId: isolatedProjectId,
+      });
+
+      // `startTime` (the run's first event) came with the recency ordering the
+      // comparison picker needs — the rows are otherwise unchanged.
+      expect(result).toEqual(
+        expect.arrayContaining([
+          {
+            experimentId: experimentIdA,
+            experimentName: sharedName,
+            datasetId: datasetIdA,
+            startTime: expect.any(Date),
+          },
+          {
+            experimentId: experimentIdB,
+            experimentName: sharedName,
+            datasetId: datasetIdB,
+            startTime: expect.any(Date),
+          },
+        ]),
+      );
+      expect(result).toHaveLength(2);
+    });
+  });
+
+  maybe("getExperimentItemsFilterOptions", () => {
+    it("should return empty arrays when no experiment IDs provided", async () => {
+      const result = await getExperimentItemsFilterOptions({
+        projectId,
+        experimentIds: [],
+      });
+
+      // The per-level lists stay the source (the charts read them); the
+      // level-agnostic set and its level maps are the projection the three
+      // score facets offer.
+      expect(result).toEqual({
+        obs_scores_avg: [],
+        obs_score_categories: [],
+        obs_score_booleans: [],
+        obs_score_columns: [],
+        trace_scores_avg: [],
+        trace_score_categories: [],
+        trace_score_booleans: [],
+        trace_score_columns: [],
+        scores_avg: [],
+        score_categories: [],
+        score_booleans: [],
+        score_columns: [],
+        score_name_levels_numeric: {},
+        score_name_levels_categorical: {},
+        score_name_levels_boolean: {},
+      });
+    });
+
+    it("should return empty arrays for non-existent experiments", async () => {
+      const result = await getExperimentItemsFilterOptions({
+        projectId,
+        experimentIds: [randomUUID()],
+      });
+
+      // The per-level lists stay the source (the charts read them); the
+      // level-agnostic set and its level maps are the projection the three
+      // score facets offer.
+      expect(result).toEqual({
+        obs_scores_avg: [],
+        obs_score_categories: [],
+        obs_score_booleans: [],
+        obs_score_columns: [],
+        trace_scores_avg: [],
+        trace_score_categories: [],
+        trace_score_booleans: [],
+        trace_score_columns: [],
+        scores_avg: [],
+        score_categories: [],
+        score_booleans: [],
+        score_columns: [],
+        score_name_levels_numeric: {},
+        score_name_levels_categorical: {},
+        score_name_levels_boolean: {},
+      });
+    });
+
+    it("should return trace-level score filter options", async () => {
+      const experimentId = randomUUID();
+      const experimentName = "filter-options-trace-" + randomUUID();
+      const datasetId = randomUUID();
+      const traceId = randomUUID();
+      const rootSpanId = randomUUID();
+
+      const now = new Date().getTime();
+
+      // Create experiment event
+      const event = createEvent({
+        id: randomUUID(),
+        span_id: rootSpanId,
+        project_id: projectId,
+        trace_id: traceId,
+        type: "GENERATION",
+        name: "test-generation",
+        experiment_id: experimentId,
+        experiment_name: experimentName,
+        experiment_metadata_names: [],
+        experiment_metadata_values: [],
+        experiment_dataset_id: datasetId,
+        experiment_item_id: randomUUID(),
+        experiment_item_version: null,
+        experiment_item_root_span_id: rootSpanId,
+        start_time: now * 1000,
+      });
+
+      await createEventsCh([event]);
+
+      // Create trace-level numeric score
+      const numericScore = createTraceScore({
+        project_id: projectId,
+        trace_id: traceId,
+        observation_id: null,
+        name: "accuracy",
+        value: 0.85,
+        source: "API",
+        data_type: "NUMERIC",
+      });
+
+      // Create trace-level categorical score
+      const categoricalScore = createTraceScore({
+        project_id: projectId,
+        trace_id: traceId,
+        observation_id: null,
+        name: "quality",
+        // Categorical scores store NULL in the Nullable(Float64) value column;
+        // the insert schema types value as number, so cast to keep the fixture.
+        value: null as unknown as number,
+        string_value: "good",
+        source: "API",
+        data_type: "CATEGORICAL",
+      });
+
+      await createScoresCh([numericScore, categoricalScore]);
+
+      const result = await getExperimentItemsFilterOptions({
+        projectId,
+        experimentIds: [experimentId],
+      });
+
+      expect(result.trace_scores_avg).toContain("accuracy");
+      expect(result.trace_score_categories).toContainEqual({
+        label: "quality",
+        values: expect.arrayContaining(["good"]),
+      });
+    });
+
+    it("should return observation-level score filter options", async () => {
+      const experimentId = randomUUID();
+      const experimentName = "filter-options-obs-" + randomUUID();
+      const datasetId = randomUUID();
+      const traceId = randomUUID();
+      const rootSpanId = randomUUID();
+
+      const now = new Date().getTime();
+
+      // Create experiment event
+      const event = createEvent({
+        id: randomUUID(),
+        span_id: rootSpanId,
+        project_id: projectId,
+        trace_id: traceId,
+        type: "GENERATION",
+        name: "test-generation",
+        experiment_id: experimentId,
+        experiment_name: experimentName,
+        experiment_metadata_names: [],
+        experiment_metadata_values: [],
+        experiment_dataset_id: datasetId,
+        experiment_item_id: randomUUID(),
+        experiment_item_version: null,
+        experiment_item_root_span_id: rootSpanId,
+        start_time: now * 1000,
+      });
+
+      await createEventsCh([event]);
+
+      // Create observation-level numeric score (on the root span)
+      const numericScore = createTraceScore({
+        project_id: projectId,
+        trace_id: traceId,
+        observation_id: rootSpanId,
+        name: "relevance",
+        value: 0.9,
+        source: "API",
+        data_type: "NUMERIC",
+      });
+
+      // Create observation-level categorical score
+      const categoricalScore = createTraceScore({
+        project_id: projectId,
+        trace_id: traceId,
+        observation_id: rootSpanId,
+        name: "sentiment",
+        // Categorical scores store NULL in the Nullable(Float64) value column;
+        // the insert schema types value as number, so cast to keep the fixture.
+        value: null as unknown as number,
+        string_value: "positive",
+        source: "API",
+        data_type: "CATEGORICAL",
+      });
+
+      await createScoresCh([numericScore, categoricalScore]);
+
+      const result = await getExperimentItemsFilterOptions({
+        projectId,
+        experimentIds: [experimentId],
+      });
+
+      expect(result.obs_scores_avg).toContain("relevance");
+      expect(result.obs_score_categories).toContainEqual({
+        label: "sentiment",
+        values: expect.arrayContaining(["positive"]),
+      });
+    });
+
+    it("should return both trace and observation scores for multiple experiments", async () => {
+      const experimentId1 = randomUUID();
+      const experimentId2 = randomUUID();
+      const datasetId = randomUUID();
+
+      const now = new Date().getTime();
+
+      // Experiment 1
+      const traceId1 = randomUUID();
+      const rootSpanId1 = randomUUID();
+      const event1 = createEvent({
+        id: randomUUID(),
+        span_id: rootSpanId1,
+        project_id: projectId,
+        trace_id: traceId1,
+        type: "GENERATION",
+        name: "test-generation",
+        experiment_id: experimentId1,
+        experiment_name: "exp1-" + randomUUID(),
+        experiment_metadata_names: [],
+        experiment_metadata_values: [],
+        experiment_dataset_id: datasetId,
+        experiment_item_id: randomUUID(),
+        experiment_item_version: null,
+        experiment_item_root_span_id: rootSpanId1,
+        start_time: now * 1000,
+      });
+
+      // Experiment 2
+      const traceId2 = randomUUID();
+      const rootSpanId2 = randomUUID();
+      const event2 = createEvent({
+        id: randomUUID(),
+        span_id: rootSpanId2,
+        project_id: projectId,
+        trace_id: traceId2,
+        type: "GENERATION",
+        name: "test-generation",
+        experiment_id: experimentId2,
+        experiment_name: "exp2-" + randomUUID(),
+        experiment_metadata_names: [],
+        experiment_metadata_values: [],
+        experiment_dataset_id: datasetId,
+        experiment_item_id: randomUUID(),
+        experiment_item_version: null,
+        experiment_item_root_span_id: rootSpanId2,
+        start_time: now * 1000,
+      });
+
+      await createEventsCh([event1, event2]);
+
+      // Scores for experiment 1
+      const traceScore1 = createTraceScore({
+        project_id: projectId,
+        trace_id: traceId1,
+        observation_id: null,
+        name: "score_from_exp1",
+        value: 0.7,
+        source: "API",
+        data_type: "NUMERIC",
+      });
+
+      // Scores for experiment 2
+      const obsScore2 = createTraceScore({
+        project_id: projectId,
+        trace_id: traceId2,
+        observation_id: rootSpanId2,
+        name: "score_from_exp2",
+        value: 0.8,
+        source: "API",
+        data_type: "NUMERIC",
+      });
+
+      await createScoresCh([traceScore1, obsScore2]);
+
+      const result = await getExperimentItemsFilterOptions({
+        projectId,
+        experimentIds: [experimentId1, experimentId2],
+      });
+
+      // Should include scores from both experiments
+      expect(result.trace_scores_avg).toContain("score_from_exp1");
+      expect(result.obs_scores_avg).toContain("score_from_exp2");
+    });
+
+    it("should aggregate categorical score values across experiments", async () => {
+      const experimentId1 = randomUUID();
+      const experimentId2 = randomUUID();
+      const datasetId = randomUUID();
+
+      const now = new Date().getTime();
+
+      // Experiment 1
+      const traceId1 = randomUUID();
+      const rootSpanId1 = randomUUID();
+      const event1 = createEvent({
+        id: randomUUID(),
+        span_id: rootSpanId1,
+        project_id: projectId,
+        trace_id: traceId1,
+        type: "GENERATION",
+        name: "test-generation",
+        experiment_id: experimentId1,
+        experiment_name: "exp1-" + randomUUID(),
+        experiment_metadata_names: [],
+        experiment_metadata_values: [],
+        experiment_dataset_id: datasetId,
+        experiment_item_id: randomUUID(),
+        experiment_item_version: null,
+        experiment_item_root_span_id: rootSpanId1,
+        start_time: now * 1000,
+      });
+
+      // Experiment 2
+      const traceId2 = randomUUID();
+      const rootSpanId2 = randomUUID();
+      const event2 = createEvent({
+        id: randomUUID(),
+        span_id: rootSpanId2,
+        project_id: projectId,
+        trace_id: traceId2,
+        type: "GENERATION",
+        name: "test-generation",
+        experiment_id: experimentId2,
+        experiment_name: "exp2-" + randomUUID(),
+        experiment_metadata_names: [],
+        experiment_metadata_values: [],
+        experiment_dataset_id: datasetId,
+        experiment_item_id: randomUUID(),
+        experiment_item_version: null,
+        experiment_item_root_span_id: rootSpanId2,
+        start_time: now * 1000,
+      });
+
+      await createEventsCh([event1, event2]);
+
+      // Same categorical score name with different values
+      const catScore1 = createTraceScore({
+        project_id: projectId,
+        trace_id: traceId1,
+        observation_id: null,
+        name: "rating",
+        // Categorical scores store NULL in the Nullable(Float64) value column;
+        // the insert schema types value as number, so cast to keep the fixture.
+        value: null as unknown as number,
+        string_value: "excellent",
+        source: "API",
+        data_type: "CATEGORICAL",
+      });
+
+      const catScore2 = createTraceScore({
+        project_id: projectId,
+        trace_id: traceId2,
+        observation_id: null,
+        name: "rating",
+        // Categorical scores store NULL in the Nullable(Float64) value column;
+        // the insert schema types value as number, so cast to keep the fixture.
+        value: null as unknown as number,
+        string_value: "poor",
+        source: "API",
+        data_type: "CATEGORICAL",
+      });
+
+      await createScoresCh([catScore1, catScore2]);
+
+      const result = await getExperimentItemsFilterOptions({
+        projectId,
+        experimentIds: [experimentId1, experimentId2],
+      });
+
+      // Should aggregate values from both experiments
+      const ratingCategory = result.trace_score_categories.find(
+        (c) => c.label === "rating",
+      );
+      expect(ratingCategory).toBeDefined();
+      expect(ratingCategory?.values).toContain("excellent");
+      expect(ratingCategory?.values).toContain("poor");
+    });
+  });
+
+  maybe("getExperimentScoreOptions", () => {
+    it("should return empty arrays when no experiment IDs provided", async () => {
+      const result = await getExperimentScoreOptions({
+        projectId,
+        experimentIds: [],
+      });
+
+      expect(result).toEqual({
+        obs_scores_avg: [],
+        obs_score_categories: [],
+        obs_score_columns: [],
+        trace_scores_avg: [],
+        trace_score_categories: [],
+        trace_score_columns: [],
+        experiment_scores_avg: [],
+        experiment_score_categories: [],
+        experiment_score_columns: [],
+        scores_avg: [],
+        score_categories: [],
+        score_booleans: [],
+        score_columns: [],
+        score_name_levels_numeric: {},
+        score_name_levels_categorical: {},
+        score_name_levels_boolean: {},
+      });
+    });
+
+    it("should return experiment-run score filter options", async () => {
+      const experimentId = randomUUID();
+
+      const numericScore = createDatasetRunScore({
+        project_id: projectId,
+        dataset_run_id: experimentId,
+        name: "run_accuracy",
+        value: 0.91,
+        source: "API",
+        data_type: "NUMERIC",
+      });
+
+      const categoricalScore = createDatasetRunScore({
+        project_id: projectId,
+        dataset_run_id: experimentId,
+        name: "run_grade",
+        // Categorical scores store NULL in the Nullable(Float64) value column;
+        // the insert schema types value as number, so cast to keep the fixture.
+        value: null as unknown as number,
+        string_value: "pass",
+        source: "API",
+        data_type: "CATEGORICAL",
+      });
+
+      await createScoresCh([numericScore, categoricalScore]);
+
+      const result = await getExperimentScoreOptions({
+        projectId,
+        experimentIds: [experimentId],
+      });
+
+      expect(result.experiment_scores_avg).toContain("run_accuracy");
+      expect(result.experiment_score_categories).toContainEqual({
+        label: "run_grade",
+        values: expect.arrayContaining(["pass"]),
+      });
+      expect(result.experiment_score_columns).toEqual(
+        expect.arrayContaining([
+          {
+            name: "run_accuracy",
+            dataType: "NUMERIC",
+            source: "API",
+          },
+          {
+            name: "run_grade",
+            dataType: "CATEGORICAL",
+            source: "API",
+          },
+        ]),
+      );
+    });
+  });
+  maybe("getExperimentNamesFromEvents", () => {
+    it("should return one option per run when two runs share a name", async () => {
+      // Own project so the assertion sees only the runs created here.
+      const ownProjectId = randomUUID();
+      const sharedName = "shared-name-" + randomUUID();
+      const datasetId = randomUUID();
+      const olderExperimentId = randomUUID();
+      const newerExperimentId = randomUUID();
+      const now = new Date();
+      const yesterday = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+
+      const eventFor = (experimentId: string, startTime: Date) => {
+        const rootSpanId = randomUUID();
+        return createEvent({
+          id: randomUUID(),
+          span_id: rootSpanId,
+          project_id: ownProjectId,
+          trace_id: randomUUID(),
+          type: "GENERATION",
+          name: "test-generation",
+          experiment_id: experimentId,
+          experiment_name: sharedName,
+          experiment_metadata_names: [],
+          experiment_metadata_values: [],
+          experiment_dataset_id: datasetId,
+          experiment_item_id: randomUUID(),
+          experiment_item_version: null,
+          experiment_item_root_span_id: rootSpanId,
+          start_time: startTime.getTime() * 1000,
+        });
+      };
+
+      await createEventsCh([
+        eventFor(olderExperimentId, yesterday),
+        eventFor(newerExperimentId, now),
+      ]);
+
+      const options = await getExperimentNamesFromEvents({
+        projectId: ownProjectId,
+      });
+
+      expect(options).toHaveLength(2);
+      expect(options.map((option) => option.experimentId)).toEqual([
+        newerExperimentId,
+        olderExperimentId,
+      ]);
+      options.forEach((option) => {
+        expect(option.experimentName).toBe(sharedName);
+        expect(option.datasetId).toBe(datasetId);
+      });
     });
   });
 });

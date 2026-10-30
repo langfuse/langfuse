@@ -3,6 +3,9 @@ import {
   geminiAdapter,
   selectAdapter,
   SimpleChatMlArraySchema,
+  normalizeInput as chatmlNormalizeInput,
+  normalizeOutput as chatmlNormalizeOutput,
+  combineInputOutputMessages,
   type NormalizerContext,
 } from "@langfuse/shared";
 
@@ -268,5 +271,124 @@ describe("geminiAdapter", () => {
       expect(result.data?.[3].role).toBe("user");
       expect(result.data?.[3].content).toBeDefined();
     });
+  });
+});
+
+// Real payloads from a Google ADK invocation root span
+// (openinference-instrumentation-google-adk 0.1.17, google-adk 2.4.0).
+// Regression tests for https://github.com/langfuse/langfuse/issues/13292
+describe("geminiAdapter: Google ADK invocation root span", () => {
+  const invocationInput = {
+    user_id: "demo-user",
+    session_id: "demo-session",
+    invocation_id: null,
+    new_message: {
+      parts: [
+        {
+          text: "hi",
+        },
+      ],
+      role: "user",
+    },
+    state_delta: null,
+    run_config: {
+      save_input_blobs_as_artifacts: false,
+      support_cfc: false,
+      streaming_mode: "StreamingMode.NONE",
+      output_audio_transcription: {},
+      input_audio_transcription: {},
+      save_live_blob: false,
+      save_live_audio: false,
+      max_llm_calls: 500,
+    },
+    yield_user_message: false,
+  };
+
+  const invocationOutput = {
+    model_version: "gemini-3.1-flash-lite",
+    content: {
+      parts: [
+        {
+          text: "Hello! How can I help you today?",
+          thought_signature:
+            "EjQKMgERTTIP4vHbi_GtaO9Rcz5K7VC1uJkE5IsctGfJn7xqR9usflAYTBhwqAuJMyGmdnsy",
+        },
+      ],
+      role: "model",
+    },
+    finish_reason: "STOP",
+    usage_metadata: {
+      candidates_token_count: 9,
+      prompt_token_count: 62,
+      prompt_tokens_details: [
+        {
+          modality: "TEXT",
+          token_count: 62,
+        },
+      ],
+      total_token_count: 71,
+    },
+    invocation_id: "e-db33baf0-bb57-4b21-a6f7-a222364a4309",
+    author: "hello_agent",
+    actions: {
+      state_delta: {},
+      artifact_delta: {},
+      requested_auth_configs: {},
+      requested_tool_confirmations: {},
+    },
+    node_info: {
+      path: "hello_agent@1",
+    },
+    id: "8f01c045-0d98-421a-848f-cf25fc4fe1d3",
+    timestamp: 1784663909.934617,
+  };
+
+  const observationMetadata = {
+    attributes: {
+      "langfuse.internal.is_app_root": "true",
+      "input.mime_type": "application/json",
+      "user.id": "demo-user",
+      "session.id": "demo-session",
+      "output.mime_type": "application/json",
+      "openinference.span.kind": "CHAIN",
+    },
+    resourceAttributes: {
+      "telemetry.sdk.language": "python",
+      "telemetry.sdk.name": "opentelemetry",
+      "telemetry.sdk.version": "1.42.1",
+      "service.name": "unknown_service",
+    },
+    scope: {
+      name: "openinference.instrumentation.google_adk",
+      version: "0.1.17",
+      attributes: {},
+    },
+  };
+
+  // ctx exactly as parseChatML (useChatMLParser.ts) builds it
+  const ctx: NormalizerContext = {
+    metadata: observationMetadata,
+    observationName: "invocation [hello_app]",
+  };
+
+  it("normalizes the invocation input envelope into a user message", () => {
+    const res = chatmlNormalizeInput(invocationInput, ctx);
+    expect(res.success).toBe(true);
+    if (!res.success) return;
+    expect(res.data).toHaveLength(1);
+    expect(res.data[0].role).toBe("user");
+    expect(res.data[0].content).toBe("hi");
+  });
+
+  it("combines invocation input and output so the trace renders as chat", () => {
+    const inResult = chatmlNormalizeInput(invocationInput, ctx);
+    const outResult = chatmlNormalizeOutput(invocationOutput, ctx);
+    const messages = combineInputOutputMessages(
+      inResult,
+      outResult,
+      invocationOutput,
+    );
+    expect(messages).toHaveLength(2);
+    expect(messages[1].role).toBe("model");
   });
 });

@@ -1,14 +1,70 @@
-import { encrypt, decrypt } from "../../encryption";
+import { encrypt, decrypt, createSignatureHeader } from "../../encryption";
+import {
+  WebhookDefaultHeaders,
+  WebhookProtectedHeaders,
+  WebhookSignatureHeader,
+} from "../../domain/webhooks";
 
+export type RequestHeaders = Record<string, { secret: boolean; value: string }>;
+
+/**
+ * Builds the headers shared by webhook-compatible outbound requests.
+ * Custom secret values must already be decrypted by the caller and are only
+ * kept in memory for the duration of the request.
+ */
+export function buildWebhookRequestHeaders({
+  customHeaders = {},
+  body,
+  signingSecret,
+}: {
+  customHeaders?: RequestHeaders;
+  body: string;
+  signingSecret?: string;
+}): {
+  headers: Record<string, string>;
+  sensitiveHeaderNames: string[];
+} {
+  const headers: Record<string, string> = {};
+  const sensitiveHeaderNames: string[] = [];
+
+  for (const [key, headerObj] of Object.entries(customHeaders)) {
+    if (WebhookProtectedHeaders.includes(key.toLowerCase())) {
+      continue;
+    }
+
+    headers[key] = headerObj.value;
+    if (headerObj.secret) {
+      sensitiveHeaderNames.push(key);
+    }
+  }
+
+  Object.assign(headers, WebhookDefaultHeaders);
+
+  if (signingSecret) {
+    headers[WebhookSignatureHeader] = createSignatureHeader(
+      body,
+      signingSecret,
+    );
+  }
+
+  return { headers, sensitiveHeaderNames };
+}
+
+/**
+ * Merges the deprecated plaintext `headers` field into `requestHeaders`.
+ * Legacy headers predate the secret flag and commonly carry credentials, so
+ * they are treated as secret: masked on display and encrypted on the next
+ * write. Their values are plaintext, so `requestHeaders` must already be
+ * decrypted (or be passed to `encryptSecretHeaders` afterwards).
+ */
 export function mergeHeaders(
   legacyHeaders: Record<string, string> = {},
   requestHeaders: Record<string, { secret: boolean; value: string }> = {},
 ): Record<string, { secret: boolean; value: string }> {
   const merged: Record<string, { secret: boolean; value: string }> = {};
 
-  // Add legacy headers as non-secret
   for (const [key, value] of Object.entries(legacyHeaders)) {
-    merged[key] = { secret: false, value };
+    merged[key] = { secret: true, value };
   }
 
   // requestHeaders takes precedence
@@ -17,6 +73,26 @@ export function mergeHeaders(
   }
 
   return merged;
+}
+
+/**
+ * Legacy plaintext headers that no `requestHeaders` entry overrides, flagged
+ * secret. Overridden keys are dropped before any decryption, so a
+ * `requestHeaders` value that fails to decrypt never falls back to its stale
+ * legacy value.
+ */
+export function getLegacyOnlyHeaders(config: {
+  headers?: Record<string, string>;
+  requestHeaders?: RequestHeaders;
+}): RequestHeaders {
+  const requestHeaders = config.requestHeaders ?? {};
+  return mergeHeaders(
+    Object.fromEntries(
+      Object.entries(config.headers ?? {}).filter(
+        ([key]) => !(key in requestHeaders),
+      ),
+    ),
+  );
 }
 
 export function createDisplayHeaders(

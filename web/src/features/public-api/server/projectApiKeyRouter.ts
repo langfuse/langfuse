@@ -1,5 +1,5 @@
-import { auditLog } from "@/src/features/audit-logs/auditLog";
-import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { auditLog } from "@/src/features/audit-logs/server";
+import { throwIfNoProjectAccess } from "@/src/features/rbac";
 import {
   createTRPCRouter,
   protectedProjectProcedure,
@@ -7,8 +7,15 @@ import {
 import * as z from "zod";
 import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
 import { redis } from "@langfuse/shared/src/server";
-import { createAndAddApiKeysToDb } from "@langfuse/shared/src/server/auth/apiKeys";
-import { StringNoHTML } from "@langfuse/shared";
+import { createApiKey } from "@langfuse/shared/src/server/auth/apiKeys";
+import { LangfuseNotFoundError, StringNoHTML } from "@langfuse/shared";
+import {
+  OrganizationId,
+  ProjectId,
+  SystemRoleId,
+  UserId,
+} from "@langfuse/shared/rbac";
+import { apiKeyCreationRoleSchema } from "@/src/features/public-api/server/apiKeyCreationRoleSchema";
 
 export const projectApiKeysRouter = createTRPCRouter({
   byProjectId: protectedProjectProcedure
@@ -28,6 +35,7 @@ export const projectApiKeysRouter = createTRPCRouter({
         where: {
           projectId: input.projectId,
           scope: "PROJECT",
+          isInAppAgentKey: false,
         },
         select: {
           id: true,
@@ -37,6 +45,20 @@ export const projectApiKeysRouter = createTRPCRouter({
           note: true,
           publicKey: true,
           displaySecretKey: true,
+          createdByUser: {
+            select: {
+              id: true,
+              name: true,
+              email: true,
+              image: true,
+            },
+          },
+          createdByApiKey: {
+            select: {
+              id: true,
+              publicKey: true,
+            },
+          },
         },
         orderBy: {
           createdAt: "asc",
@@ -47,7 +69,14 @@ export const projectApiKeysRouter = createTRPCRouter({
     .input(
       z.object({
         projectId: z.string(),
-        note: StringNoHTML.optional(),
+        name: StringNoHTML.optional(),
+        role: apiKeyCreationRoleSchema("project"),
+        expiresAt: z
+          .date()
+          .nullish()
+          .refine((date) => date == null || date.getTime() > Date.now(), {
+            message: "Expiration date must be in the future",
+          }),
       }),
     )
     .mutation(async ({ input, ctx }) => {
@@ -57,11 +86,13 @@ export const projectApiKeysRouter = createTRPCRouter({
         scope: "apiKeys:CUD",
       });
 
-      const apiKeyMeta = await createAndAddApiKeysToDb({
-        prisma: ctx.prisma,
-        entityId: input.projectId,
-        note: input.note,
-        scope: "PROJECT",
+      const apiKeyMeta = await createApiKey(ctx.prisma, {
+        tenant: OrganizationId(ctx.session.orgId),
+        scope: ProjectId(input.projectId),
+        role: SystemRoleId(input.role),
+        createdBy: UserId(ctx.session.user.id),
+        name: input.name,
+        expiresAt: input.expiresAt,
       });
 
       await auditLog({
@@ -69,16 +100,17 @@ export const projectApiKeysRouter = createTRPCRouter({
         resourceType: "apiKey",
         resourceId: apiKeyMeta.id,
         action: "create",
+        after: { role: input.role, expiresAt: input.expiresAt ?? null },
       });
 
       return apiKeyMeta;
     }),
-  updateNote: protectedProjectProcedure
+  updateName: protectedProjectProcedure
     .input(
       z.object({
         projectId: z.string(),
         keyId: z.string(),
-        note: StringNoHTML,
+        name: StringNoHTML,
       }),
     )
     .mutation(async ({ input, ctx }) => {
@@ -87,6 +119,18 @@ export const projectApiKeysRouter = createTRPCRouter({
         projectId: input.projectId,
         scope: "apiKeys:CUD",
       });
+
+      const apiKey = await ctx.prisma.apiKey.findFirst({
+        where: {
+          id: input.keyId,
+          projectId: input.projectId,
+          isInAppAgentKey: false,
+        },
+      });
+
+      if (!apiKey) {
+        throw new LangfuseNotFoundError("API key not found");
+      }
 
       await auditLog({
         session: ctx.session,
@@ -99,9 +143,10 @@ export const projectApiKeysRouter = createTRPCRouter({
         where: {
           id: input.keyId,
           projectId: input.projectId,
+          isInAppAgentKey: false,
         },
         data: {
-          note: input.note,
+          note: input.name,
         },
       });
 
@@ -121,6 +166,20 @@ export const projectApiKeysRouter = createTRPCRouter({
         projectId: input.projectId,
         scope: "apiKeys:CUD",
       });
+      const apiKey = await ctx.prisma.apiKey.findFirst({
+        where: {
+          id: input.id,
+          projectId: input.projectId,
+          scope: "PROJECT",
+        },
+      });
+
+      if (!apiKey) {
+        throw new LangfuseNotFoundError("API key not found");
+      }
+
+      if (apiKey.isInAppAgentKey) return false;
+
       await auditLog({
         session: ctx.session,
         resourceType: "apiKey",

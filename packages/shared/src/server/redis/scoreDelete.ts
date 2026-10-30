@@ -1,10 +1,6 @@
 import { QueueName, TQueueJobTypes } from "../queues";
 import { Queue } from "bullmq";
-import {
-  createNewRedisInstance,
-  redisQueueRetryOptions,
-  getQueuePrefix,
-} from "./redis";
+import { createBullMQQueueOptionsWithRedis } from "./redis";
 import { logger } from "../logger";
 
 export class ScoreDeleteQueue {
@@ -16,17 +12,14 @@ export class ScoreDeleteQueue {
   > | null {
     if (ScoreDeleteQueue.instance) return ScoreDeleteQueue.instance;
 
-    const newRedis = createNewRedisInstance({
-      enableOfflineQueue: false,
-      ...redisQueueRetryOptions,
-    });
-
-    ScoreDeleteQueue.instance = newRedis
+    const queueOptionsWithRedis = createBullMQQueueOptionsWithRedis(
+      QueueName.ScoreDelete,
+    );
+    ScoreDeleteQueue.instance = queueOptionsWithRedis
       ? new Queue<TQueueJobTypes[QueueName.ScoreDelete]>(
           QueueName.ScoreDelete,
           {
-            connection: newRedis,
-            prefix: getQueuePrefix(QueueName.ScoreDelete),
+            ...queueOptionsWithRedis,
             defaultJobOptions: {
               removeOnComplete: true,
               removeOnFail: 100_000,

@@ -1,0 +1,87 @@
+/**
+ * TraceSearchList - Search results view
+ *
+ * Displays filtered list of observations based on search query.
+ * Uses VirtualizedList for performance with large result sets.
+ * Filtering is co-located to avoid unnecessary re-renders.
+ */
+
+import { useMemo } from "react";
+import { useTraceData } from "@/src/features/traces/contexts/TraceDataProvider";
+import { useSearch } from "@/src/features/traces/contexts/SearchProvider";
+import { useSelection } from "@/src/features/traces/contexts/SelectionProvider";
+import { useHandlePrefetchObservation } from "@/src/features/traces/hooks/useHandlePrefetchObservation";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { useTraceAnalyticsDimensions } from "@/src/features/traces/hooks/useTraceAnalyticsDimensions";
+import { matchesSearchQuery } from "@/src/features/traces/fns/matchesSearchQuery";
+import { VirtualizedList } from "./VirtualizedList";
+import { TraceSearchListItem } from "./TraceSearchListItem";
+import { Button } from "@/src/components/ui/button";
+import { XIcon } from "@langfuse/icons";
+
+export function TraceSearchList() {
+  const { searchItems } = useTraceData();
+  const { searchQuery, setSearchInputValue } = useSearch();
+  const { selectedNodeId, selectNode } = useSelection();
+  const { handleHover } = useHandlePrefetchObservation();
+  const capture = usePostHogClientCapture();
+  const analyticsDimensions = useTraceAnalyticsDimensions();
+  const handleSelectItem = (id: string | null) => {
+    if (id) {
+      capture("trace_detail:node_selected", {
+        source: "search",
+        ...analyticsDimensions,
+      });
+    }
+    selectNode(id);
+  };
+
+  // Co-located filtering - only this component re-renders on search query change.
+  // What counts as a match lives in fns/matchesSearchQuery, because the Timeline
+  // highlights with the same rule and states a count next to it.
+  const searchResults = useMemo(
+    () =>
+      searchItems.filter((item) => matchesSearchQuery(item.node, searchQuery)),
+    [searchItems, searchQuery],
+  );
+
+  // Empty state
+  if (searchResults.length === 0 && searchQuery.trim()) {
+    return (
+      <div className="flex h-full flex-col items-center justify-center p-8 text-center">
+        <div className="space-y-4">
+          <p className="text-muted-foreground">No results found</p>
+          <p className="text-muted-foreground text-sm">
+            Try searching by type, title, or id
+          </p>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setSearchInputValue("")}
+          >
+            <XIcon size="base" color="default" __rawClassName="mr-2" />
+            Clear search
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <VirtualizedList
+      items={searchResults}
+      selectedItemId={selectedNodeId}
+      onSelectItem={handleSelectItem}
+      getItemId={(item) => item.node.id}
+      estimatedItemSize={48}
+      renderItem={({ item, isSelected, onSelect }) => (
+        <TraceSearchListItem
+          item={item}
+          isSelected={isSelected}
+          onSelect={onSelect}
+          onHover={() => handleHover(item.node)}
+        />
+      )}
+    />
+  );
+}

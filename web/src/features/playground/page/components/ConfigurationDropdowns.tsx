@@ -1,21 +1,57 @@
-import React from "react";
+import React, { useState } from "react";
 import { Button } from "@/src/components/ui/button";
-import { Badge } from "@/src/components/ui/badge";
-import { ChevronDown, Wrench, Braces, Variable } from "lucide-react";
+import { Badge } from "@/src/components/design-system/Badge/Badge";
+import { Wrench, Braces, Variable, type IconComponent } from "@langfuse/icons";
+import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from "@/src/components/ui/popover";
-import { usePlaygroundContext } from "../context";
+import { usePlaygroundContext } from "../context/PlaygroundProvider";
 import { usePlaygroundWindowSize } from "../hooks/usePlaygroundWindowSize";
-import { PlaygroundTools, PlaygroundToolsPopover } from "./PlaygroundTools";
+import {
+  PlaygroundTools,
+  PlaygroundToolsPopover,
+  type PlaygroundToolDialogRequest,
+} from "./PlaygroundTools";
 import {
   StructuredOutputSchemaSection,
   StructuredOutputSchemaPopover,
+  type StructuredOutputSchemaDialogRequest,
 } from "./StructuredOutputSchemaSection";
 import { Variables } from "./Variables";
 import { MessagePlaceholders } from "./MessagePlaceholders";
+import { CreateOrEditLLMToolDialog } from "./CreateOrEditLLMToolDialog";
+import { CreateOrEditLLMSchemaDialog } from "./CreateOrEditLLMSchemaDialog";
+import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
+
+function usePopoverToDialog<T>() {
+  const [popoverOpen, setPopoverOpen] = useState(false);
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [request, setRequest] = useState<{ id: number; payload: T }>();
+
+  const openDialog = (payload: T) => {
+    setPopoverOpen(false);
+    setRequest((previous) => ({ id: (previous?.id ?? 0) + 1, payload }));
+    setDialogOpen(true);
+  };
+
+  const handleDialogOpenChange = (open: boolean) => {
+    if (open) return;
+    setDialogOpen(false);
+    setPopoverOpen(true);
+  };
+
+  return {
+    popoverOpen,
+    setPopoverOpen,
+    request,
+    dialogOpen,
+    openDialog,
+    handleDialogOpenChange,
+  };
+}
 
 export const ConfigurationDropdowns: React.FC = () => {
   const { containerRef, width, isVeryCompact, isCompact } =
@@ -26,6 +62,10 @@ export const ConfigurationDropdowns: React.FC = () => {
     promptVariables,
     messagePlaceholders,
   } = usePlaygroundContext();
+  const projectId = useProjectIdFromURL();
+  const toolsOverlay = usePopoverToDialog<PlaygroundToolDialogRequest>();
+  const schemaOverlay =
+    usePopoverToDialog<StructuredOutputSchemaDialogRequest>();
 
   const toolsCount = tools.length;
   const hasSchema = structuredOutputSchema ? 1 : 0;
@@ -36,23 +76,23 @@ export const ConfigurationDropdowns: React.FC = () => {
   // Helper function to get responsive content (text or icon)
   const getResponsiveContent = (
     fullText: string,
-    IconComponent: React.ComponentType<{ className?: string }>,
+    Icon: IconComponent,
     abbreviation?: string,
   ) => {
     if (isVeryCompact) {
-      return <IconComponent className="h-3 w-3" />;
+      return <Icon size="base" />;
     }
     if (isCompact) {
       return (
         <>
-          <IconComponent className="h-3 w-3" />
+          <Icon size="base" />
           <span className="text-sm">{abbreviation ?? fullText}</span>
         </>
       );
     }
     return (
       <>
-        <IconComponent className="h-3 w-3" />
+        <Icon size="base" />
         <span className="text-sm">{fullText}</span>
       </>
     );
@@ -62,16 +102,17 @@ export const ConfigurationDropdowns: React.FC = () => {
     <div ref={containerRef} className="bg-muted/25 shrink-0 border-b px-3 py-2">
       <div className="flex items-center justify-start gap-2">
         {/* Tools Dropdown */}
-        <Popover>
+        <Popover
+          open={toolsOverlay.popoverOpen}
+          onOpenChange={toolsOverlay.setPopoverOpen}
+        >
           <PopoverTrigger asChild>
             <Button variant="outline" size="sm" className="h-8 gap-2">
               {getResponsiveContent("Tools", Wrench)}
               {toolsCount > 0 && (
-                <Badge variant="secondary" className="h-4 text-xs">
-                  {toolsCount}
-                </Badge>
+                <Badge color="filled" size="sm" text={String(toolsCount)} />
               )}
-              <ChevronDown className="h-3 w-3" />
+              <DropdownIndicator size="sm" nudge />
             </Button>
           </PopoverTrigger>
           <PopoverContent
@@ -80,14 +121,14 @@ export const ConfigurationDropdowns: React.FC = () => {
             style={toolsPopoverWidth ? { width: toolsPopoverWidth } : undefined}
           >
             <div className="mb-3">
-              <h4 className="mb-1 text-sm font-medium">Tools</h4>
+              <h4 className="mb-1 text-sm font-bold">Tools</h4>
               <p className="text-muted-foreground text-xs">
                 Configure tools for your model to use.
               </p>
             </div>
             {toolsCount > 0 ? (
               <div className="mb-3">
-                <PlaygroundTools />
+                <PlaygroundTools onOpenToolDialog={toolsOverlay.openDialog} />
               </div>
             ) : (
               <div className="mb-3">
@@ -97,34 +138,51 @@ export const ConfigurationDropdowns: React.FC = () => {
               </div>
             )}
             <div className="border-t pt-3">
-              <PlaygroundToolsPopover />
+              <PlaygroundToolsPopover
+                onOpenToolDialog={toolsOverlay.openDialog}
+              />
             </div>
           </PopoverContent>
         </Popover>
+        {toolsOverlay.request && projectId && (
+          <CreateOrEditLLMToolDialog
+            key={`tool-${toolsOverlay.request.id}`}
+            projectId={projectId}
+            open={toolsOverlay.dialogOpen}
+            onOpenChange={toolsOverlay.handleDialogOpenChange}
+            onSave={toolsOverlay.request.payload.onSave}
+            onDelete={toolsOverlay.request.payload.onDelete}
+            existingLlmTool={toolsOverlay.request.payload.existingLlmTool}
+            defaultValues={toolsOverlay.request.payload.defaultValues}
+          />
+        )}
 
         {/* Structured Output Dropdown */}
-        <Popover>
+        <Popover
+          open={schemaOverlay.popoverOpen}
+          onOpenChange={schemaOverlay.setPopoverOpen}
+        >
           <PopoverTrigger asChild>
             <Button variant="outline" size="sm" className="h-8 gap-2">
               {getResponsiveContent("Schema", Braces)}
               {hasSchema > 0 && (
-                <Badge variant="secondary" className="h-4 text-xs">
-                  {hasSchema}
-                </Badge>
+                <Badge color="filled" size="sm" text={String(hasSchema)} />
               )}
-              <ChevronDown className="h-3 w-3" />
+              <DropdownIndicator size="sm" nudge />
             </Button>
           </PopoverTrigger>
           <PopoverContent className="w-80 p-4" align="start">
             <div className="mb-3">
-              <h4 className="mb-1 text-sm font-medium">Structured Output</h4>
+              <h4 className="mb-1 text-sm font-bold">Structured Output</h4>
               <p className="text-muted-foreground text-xs">
                 Configure JSON schema for structured output.
               </p>
             </div>
             {structuredOutputSchema ? (
               <div className="mb-3">
-                <StructuredOutputSchemaSection />
+                <StructuredOutputSchemaSection
+                  onOpenSchemaDialog={schemaOverlay.openDialog}
+                />
               </div>
             ) : (
               <div className="mb-3">
@@ -134,10 +192,24 @@ export const ConfigurationDropdowns: React.FC = () => {
               </div>
             )}
             <div className="border-t pt-3">
-              <StructuredOutputSchemaPopover />
+              <StructuredOutputSchemaPopover
+                onOpenSchemaDialog={schemaOverlay.openDialog}
+              />
             </div>
           </PopoverContent>
         </Popover>
+        {schemaOverlay.request && projectId && (
+          <CreateOrEditLLMSchemaDialog
+            key={`schema-${schemaOverlay.request.id}`}
+            projectId={projectId}
+            open={schemaOverlay.dialogOpen}
+            onOpenChange={schemaOverlay.handleDialogOpenChange}
+            onSave={schemaOverlay.request.payload.onSave}
+            onDelete={schemaOverlay.request.payload.onDelete}
+            existingLlmSchema={schemaOverlay.request.payload.existingLlmSchema}
+            defaultValues={schemaOverlay.request.payload.defaultValues}
+          />
+        )}
 
         {/* Variables & Placeholders Dropdown */}
         <Popover>
@@ -145,16 +217,14 @@ export const ConfigurationDropdowns: React.FC = () => {
             <Button variant="outline" size="sm" className="h-8 gap-2">
               {getResponsiveContent("Variables", Variable, "Vars")}
               {variablesCount > 0 && (
-                <Badge variant="secondary" className="h-4 text-xs">
-                  {variablesCount}
-                </Badge>
+                <Badge color="filled" size="sm" text={String(variablesCount)} />
               )}
-              <ChevronDown className="h-3 w-3" />
+              <DropdownIndicator size="sm" nudge />
             </Button>
           </PopoverTrigger>
           <PopoverContent className="w-80 p-4" align="start">
             <div className="mb-3">
-              <h4 className="mb-1 text-sm font-medium">
+              <h4 className="mb-1 text-sm font-bold">
                 Variables & Message Placeholders
               </h4>
               <p className="text-muted-foreground text-xs">
@@ -168,11 +238,11 @@ export const ConfigurationDropdowns: React.FC = () => {
               >
                 <div className="space-y-4">
                   <div>
-                    <h5 className="mb-2 text-xs font-medium">Variables</h5>
+                    <h5 className="mb-2 text-xs font-bold">Variables</h5>
                     <Variables />
                   </div>
                   <div>
-                    <h5 className="mb-2 text-xs font-medium">
+                    <h5 className="mb-2 text-xs font-bold">
                       Message Placeholders
                     </h5>
                     <MessagePlaceholders />

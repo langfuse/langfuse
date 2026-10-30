@@ -1,1 +1,0 @@
-DROP TABLE observations ON CLUSTER default;

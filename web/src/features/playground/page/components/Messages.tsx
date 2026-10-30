@@ -1,19 +1,21 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { Button } from "@/src/components/ui/button";
-import { usePlaygroundContext } from "@/src/features/playground/page/context";
+import { usePlaygroundContext } from "@/src/features/playground/page/context/PlaygroundProvider";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/src/components/ui/dropdown-menu";
-import { Switch } from "@/src/components/ui/switch";
-import { Settings } from "lucide-react";
+import { Switch } from "@/src/components/design-system/Switch/Switch";
+import { Settings } from "@langfuse/icons";
 import useLocalStorage from "@/src/components/useLocalStorage";
 import { env } from "@/src/env.mjs";
 import { STREAMING_PREF_KEY } from "@/src/features/playground/page/storage/keys";
+import { captureUnknownError } from "@/src/utils/captureUnknownError";
 
 import { GenerationOutput } from "./GenerationOutput";
-import { ChatMessages } from "@/src/components/ChatMessages";
+import { ChatMessages } from "@/src/components/ChatMessages/ChatMessages";
 import { type MessagesContext } from "@/src/components/ChatMessages/types";
 import {
   ResizableHandle,
@@ -23,7 +25,7 @@ import {
 
 export const Messages: React.FC<MessagesContext> = (props) => {
   return (
-    <div className="flex h-full flex-col space-y-4 pt-2 pr-4">
+    <div className="flex h-full flex-col space-y-4 pt-2">
       <ResizablePanelGroup orientation="vertical">
         <ResizablePanel minSize="10%">
           <ChatMessages {...props} />
@@ -56,7 +58,9 @@ const SubmitButton = () => {
       <Button
         className="flex-1"
         onClick={() => {
-          handleSubmit(streamingEnabled).catch((err) => console.error(err));
+          handleSubmit(streamingEnabled).catch((err) =>
+            captureUnknownError("playground.run", err),
+          );
         }}
         loading={isStreaming}
       >
@@ -70,7 +74,7 @@ const SubmitButton = () => {
             className="h-8 w-8 focus:ring-0 focus:outline-hidden focus-visible:ring-0"
             disabled={isStreaming}
           >
-            <Settings className="h-4 w-4" />
+            <Settings size="base" color="default" />
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-52">
@@ -79,7 +83,7 @@ const SubmitButton = () => {
             onClick={(e) => e.preventDefault()}
           >
             <div className="flex flex-col">
-              <span className="font-medium">Stream responses</span>
+              <span className="font-bold">Stream responses</span>
               <span className="text-muted-foreground text-xs">
                 {streamingEnabled
                   ? "Real-time response streaming"

@@ -1,5 +1,5 @@
 import { Transform, type TransformCallback } from "stream";
-import { stringifyForCsv } from "./stringify";
+import { stringifyForCsv } from "../../../utils/stringify";
 
 const DELIMITER = ",";
 const CSV_DOUBLE_QUOTE = /"/g;

@@ -1,17 +1,9 @@
-import { createTransport } from "nodemailer";
-import { parseConnectionUrl } from "nodemailer/lib/shared/index.js";
 import { render } from "@react-email/render";
+import { createMailTransport } from "../transport";
 
-import MembershipInvitationTemplate from "./MembershipInvitationEmailTemplate";
+import { MembershipInvitationTemplate } from "./MembershipInvitationEmailTemplate";
 import { logger } from "../../../logger";
-
-const langfuseUrls = {
-  US: "https://us.cloud.langfuse.com",
-  EU: "https://cloud.langfuse.com",
-  STAGING: "https://staging.langfuse.com",
-  HIPAA: "https://hipaa.cloud.langfuse.com",
-  JP: "https://jp.cloud.langfuse.com",
-};
+import { getEmailAppBaseUrl } from "../getEmailAppBaseUrl";
 
 type SendMembershipInvitationParams = {
   env: Partial<
@@ -47,16 +39,7 @@ export const sendMembershipInvitationEmail = async ({
     return;
   }
 
-  const getAuthURL = () =>
-    env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === "US" ||
-    env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === "EU" ||
-    env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === "HIPAA" ||
-    env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === "JP" ||
-    env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION === "STAGING"
-      ? langfuseUrls[env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION]
-      : env.NEXTAUTH_URL;
-
-  const authUrl = getAuthURL();
+  const authUrl = getEmailAppBaseUrl(env);
   if (!authUrl) {
     logger.error(
       "Missing NEXTAUTH_URL or NEXT_PUBLIC_LANGFUSE_CLOUD_REGION environment variable.",
@@ -70,7 +53,7 @@ export const sendMembershipInvitationEmail = async ({
     : `${authUrl}/auth/sign-up?targetPath=${encodeURIComponent(`/organization/${orgId}`)}&email=${encodeURIComponent(to)}`;
 
   try {
-    const mailer = createTransport(parseConnectionUrl(env.SMTP_CONNECTION_URL));
+    const mailer = createMailTransport(env.SMTP_CONNECTION_URL);
 
     const htmlTemplate = await render(
       MembershipInvitationTemplate({

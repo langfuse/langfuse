@@ -1,7 +1,7 @@
-import { useState } from "react";
-import { SplashScreen } from "@/src/components/ui/splash-screen";
-import { Braces, Code, ListTree, Upload } from "lucide-react";
-import DocPopup from "@/src/components/layouts/doc-popup";
+/* eslint-disable @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
+import { useRef, useState } from "react";
+import { SplashScreen } from "@/src/components/ui/SplashScreen";
+import { Braces, Code, ListTree, Upload } from "@langfuse/icons";
 import Link from "next/link";
 import {
   Dialog,
@@ -12,8 +12,8 @@ import {
 } from "@/src/components/ui/dialog";
 import { CsvUploadDialog } from "@/src/features/datasets/components/CsvUploadDialog";
 import { NewDatasetItemForm } from "@/src/features/datasets/components/NewDatasetItemForm";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { useHasProjectAccess } from "@/src/features/rbac";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { cn } from "@/src/utils/tailwind";
 
 interface DatasetItemEntryPointRowProps {
@@ -22,11 +22,6 @@ interface DatasetItemEntryPointRowProps {
   description: string;
   onClick?: () => void;
   hasAccess?: boolean;
-  comingSoon?: boolean;
-  docPopup?: {
-    description: string;
-    href: string;
-  };
 }
 
 const DatasetItemEntryPointRow = ({
@@ -35,10 +30,8 @@ const DatasetItemEntryPointRow = ({
   description,
   onClick,
   hasAccess = true,
-  comingSoon = false,
-  docPopup,
 }: DatasetItemEntryPointRowProps) => {
-  const disabled = !hasAccess || comingSoon;
+  const disabled = !hasAccess;
   return (
     <div
       role="button"
@@ -69,13 +62,8 @@ const DatasetItemEntryPointRow = ({
     >
       <div className="flex items-center">{icon}</div>
       <div className="flex flex-1 flex-col gap-1">
-        <h3 className="font-semibold">{title}</h3>
-        <div className="flex items-center gap-1">
-          <p className="text-muted-foreground text-sm">{description}</p>
-          {docPopup && (
-            <DocPopup description={docPopup.description} href={docPopup.href} />
-          )}
-        </div>
+        <h3 className="font-bold">{title}</h3>
+        <p className="text-muted-foreground text-sm">{description}</p>
       </div>
     </div>
   );
@@ -91,6 +79,7 @@ export const DatasetItemsOnboarding = ({
   const capture = usePostHogClientCapture();
   const [isUploadDialogOpen, setIsUploadDialogOpen] = useState(false);
   const [isNewItemDialogOpen, setIsNewItemDialogOpen] = useState(false);
+  const submissionPending = useRef(false);
 
   const hasProjectAccess = useHasProjectAccess({
     projectId,
@@ -111,7 +100,7 @@ export const DatasetItemsOnboarding = ({
         >
           <DialogTrigger asChild disabled={!hasProjectAccess}>
             <DatasetItemEntryPointRow
-              icon={<Upload className="h-5 w-5" />}
+              icon={<Upload size="lg" />}
               title="Upload CSV"
               description="Import dataset items from a CSV file"
               onClick={() => {
@@ -126,11 +115,13 @@ export const DatasetItemsOnboarding = ({
 
         <Dialog
           open={hasProjectAccess && isNewItemDialogOpen}
-          onOpenChange={setIsNewItemDialogOpen}
+          onOpenChange={(open) => {
+            if (!submissionPending.current) setIsNewItemDialogOpen(open);
+          }}
         >
           <DialogTrigger asChild disabled={!hasProjectAccess}>
             <DatasetItemEntryPointRow
-              icon={<Braces className="h-5 w-5" />}
+              icon={<Braces size="lg" />}
               title="Add Manually"
               description="Manually input a single item"
               onClick={() => {
@@ -148,6 +139,9 @@ export const DatasetItemsOnboarding = ({
             <NewDatasetItemForm
               projectId={projectId}
               datasetId={datasetId}
+              onPendingChange={(pending) => {
+                submissionPending.current = pending;
+              }}
               onFormSuccess={() => setIsNewItemDialogOpen(false)}
               className="h-full overflow-y-auto"
             />
@@ -159,23 +153,22 @@ export const DatasetItemsOnboarding = ({
           target="_blank"
         >
           <DatasetItemEntryPointRow
-            icon={<Code className="h-5 w-5" />}
+            icon={<Code size="lg" />}
             title="Add via Code"
             description="Use our Python/TS/JS SDKs or custom API"
           />
         </Link>
 
-        <DatasetItemEntryPointRow
-          icon={<ListTree className="h-5 w-5" />}
-          title="Select Traces"
-          description="Coming soon!"
-          comingSoon
-          docPopup={{
-            description:
-              "Creating items from production data is supported on single trace level. Click to view docs for more details.",
-            href: "https://langfuse.com/docs/evaluation/experiments/datasets#create-items-from-production-data",
-          }}
-        />
+        <Link href={`/project/${projectId}/observations`}>
+          <DatasetItemEntryPointRow
+            icon={<ListTree size="lg" />}
+            title="Select Observations"
+            description="Select observations in the observations table and use a batch action to add them to your dataset"
+            onClick={() => {
+              capture("dataset_item:select_observations_button_click");
+            }}
+          />
+        </Link>
       </div>
     </SplashScreen>
   );

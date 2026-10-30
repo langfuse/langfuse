@@ -17,6 +17,11 @@ const sourcePath = resolve(repoRoot, ".agents/config.json");
 const config = JSON.parse(readFileSync(sourcePath, "utf8"));
 const servers = config.mcpServers;
 const checkMode = process.argv.includes("--check");
+// Path validation is a lint concern, not an install concern. `postinstall` runs
+// this script without the flag so a stale doc path cannot fail `pnpm i` (and
+// with it every CI job that installs); the lint job opts in via
+// `pnpm run agents:check`.
+const checkPaths = process.argv.includes("--check-paths");
 
 const sortObject = (value) =>
   Object.fromEntries(
@@ -99,7 +104,9 @@ const formatCodexToml = () => {
       }
       if (server.env) {
         lines.push(`[mcp_servers.${name}.env]`);
-        for (const [envName, envValue] of Object.entries(sortObject(server.env))) {
+        for (const [envName, envValue] of Object.entries(
+          sortObject(server.env),
+        )) {
           lines.push(`${envName} = ${JSON.stringify(envValue)}`);
         }
       }
@@ -110,7 +117,9 @@ const formatCodexToml = () => {
         for (const [headerName, headerValue] of Object.entries(
           sortObject(server.headers),
         )) {
-          lines.push(`${JSON.stringify(headerName)} = ${JSON.stringify(headerValue)}`);
+          lines.push(
+            `${JSON.stringify(headerName)} = ${JSON.stringify(headerValue)}`,
+          );
         }
       }
     }
@@ -127,15 +136,14 @@ const formatClaudeSettings = () =>
 const formatCursorEnvironment = () =>
   JSON.stringify(
     {
+      $schema: "https://www.cursor.com/schemas/environment.schema.json",
+      name: config.cursor.environment.name,
+      user: config.cursor.environment.user,
+      build: config.cursor.environment.build,
+      install: config.cursor.environment.install ?? config.shared.setupScript,
+      start: config.cursor.environment.start,
+      ports: config.cursor.environment.ports,
       agentCanUpdateSnapshot: config.cursor.environment.agentCanUpdateSnapshot,
-      install: config.shared.setupScript,
-      terminals: [
-        {
-          name: "Development Terminal",
-          command: config.shared.devCommand,
-          description: config.shared.devTerminalDescription,
-        },
-      ],
     },
     null,
     2,
@@ -192,19 +200,56 @@ const skillsRoot = resolve(repoRoot, ".agents/skills");
 const sharedSkillNames = readdirSync(skillsRoot, { withFileTypes: true })
   .filter(
     (entry) =>
-      entry.isDirectory() && existsSync(resolve(skillsRoot, entry.name, "SKILL.md")),
+      entry.isDirectory() &&
+      existsSync(resolve(skillsRoot, entry.name, "SKILL.md")),
   )
   .map((entry) => entry.name)
   .sort((left, right) => left.localeCompare(right));
+
+// Directory names never worth walking into when discovering package-local
+// `AGENTS.md` files. Dot-directories are skipped separately, which also keeps
+// vendored skill bundles (for example `web/.agents/skills/*/AGENTS.md`) from
+// being treated as directory-scoped instructions.
+const ignoredDirectoryNames = new Set([
+  "node_modules",
+  "dist",
+  "build",
+  "generated",
+  "skills",
+]);
+
+const findDirectoriesWithAgentsFile = (startDirectory) => {
+  const directories = [];
+
+  const walk = (directory) => {
+    for (const entry of readdirSync(directory, { withFileTypes: true })) {
+      if (!entry.isDirectory() || entry.isSymbolicLink()) {
+        continue;
+      }
+
+      if (entry.name.startsWith(".") || ignoredDirectoryNames.has(entry.name)) {
+        continue;
+      }
+
+      const child = resolve(directory, entry.name);
+
+      if (existsSync(resolve(child, "AGENTS.md"))) {
+        directories.push(child);
+      }
+
+      walk(child);
+    }
+  };
+
+  walk(startDirectory);
+
+  return directories.sort((left, right) => left.localeCompare(right));
+};
 
 const symlinkOutputs = [
   {
     path: resolve(repoRoot, "AGENTS.md"),
     target: resolve(repoRoot, ".agents/AGENTS.md"),
-  },
-  {
-    path: resolve(repoRoot, "CLAUDE.md"),
-    target: resolve(repoRoot, "AGENTS.md"),
   },
   ...sharedSkillNames.map((name) => ({
     path: resolve(repoRoot, ".claude/skills", name),
@@ -218,6 +263,108 @@ const managedDirectoryEntries = [
     expectedChildren: new Set(sharedSkillNames),
   },
 ];
+
+// Agent guidance rots silently: a file gets moved and the instructions keep
+// pointing at the old path, which is worse than no pointer at all. These checks
+// resolve every concrete path an `AGENTS.md` cites.
+const markdownLinkPattern = /\[[^\]]*\]\(([^)]+)\)/g;
+const backtickedPathPattern =
+  /`([A-Za-z0-9_./-]+\.(?:ts|tsx|js|jsx|mjs|json|prisma|sql|md|mdx|css|yaml|yml))`/g;
+const placeholderPattern = /[*{}[\]<>?]/;
+
+const collectReferencedPaths = (filePath, contents) => {
+  const fileDirectory = dirname(filePath);
+  const references = [];
+
+  for (const [, target] of contents.matchAll(markdownLinkPattern)) {
+    const cleaned = target.split("#")[0].trim();
+
+    if (
+      !cleaned ||
+      cleaned.startsWith("http://") ||
+      cleaned.startsWith("https://") ||
+      cleaned.startsWith("mailto:") ||
+      placeholderPattern.test(cleaned)
+    ) {
+      continue;
+    }
+
+    references.push({
+      raw: target,
+      escapesUpward: cleaned.startsWith("../"),
+      candidates: [resolve(fileDirectory, cleaned)],
+    });
+  }
+
+  for (const [, target] of contents.matchAll(backtickedPathPattern)) {
+    if (placeholderPattern.test(target) || !target.includes("/")) {
+      continue;
+    }
+
+    // Backticked paths are written either repo-relative or package-relative,
+    // and both conventions are in use. Accept whichever resolves.
+    references.push({
+      raw: target,
+      escapesUpward: target.startsWith("../"),
+      candidates: [resolve(repoRoot, target), resolve(fileDirectory, target)],
+    });
+  }
+
+  return references;
+};
+
+// True when `candidate` sits under a top-level repo directory that exists, so
+// a missing file below it is rot rather than an unfetched sibling checkout.
+const isInsideRepoDirectory = (candidate) => {
+  const relativePath = relative(repoRoot, candidate);
+
+  if (!relativePath || relativePath.startsWith("..")) {
+    return false;
+  }
+
+  const [topLevel] = relativePath.split("/");
+
+  return existsSync(resolve(repoRoot, topLevel));
+};
+
+const findBrokenReferences = () => {
+  const broken = [];
+  const guidanceFiles = [
+    resolve(repoRoot, ".agents/AGENTS.md"),
+    ...findDirectoriesWithAgentsFile(repoRoot).map((directory) =>
+      resolve(directory, "AGENTS.md"),
+    ),
+  ];
+
+  for (const filePath of guidanceFiles) {
+    const contents = readFileSync(filePath, "utf8");
+
+    for (const reference of collectReferencedPaths(filePath, contents)) {
+      if (reference.candidates.some((candidate) => existsSync(candidate))) {
+        continue;
+      }
+
+      // A `../`-relative reference is reported only when it resolves, because
+      // it usually points at a sibling checkout (`../langfuse-docs/**`) that a
+      // standalone clone legitimately lacks.
+      if (reference.escapesUpward) {
+        continue;
+      }
+
+      // Otherwise police anything landing under a top-level directory that
+      // exists. Testing the immediate parent instead would miss a path whose
+      // entire directory was renamed or removed, which is exactly the rot
+      // worth catching.
+      if (!reference.candidates.some(isInsideRepoDirectory)) {
+        continue;
+      }
+
+      broken.push({ filePath, raw: reference.raw });
+    }
+  }
+
+  return broken;
+};
 
 const isMatchingSymlink = (path, target) => {
   const stats = lstatSync(path);
@@ -252,7 +399,12 @@ for (const output of fileOutputs) {
         continue;
       }
 
-      if (error && typeof error === "object" && "code" in error && error.code === "ENOENT") {
+      if (
+        error &&
+        typeof error === "object" &&
+        "code" in error &&
+        error.code === "ENOENT"
+      ) {
         hasMismatch = true;
         console.error(
           `Missing generated config: ${output.path}. Run "pnpm run agents:sync".`,
@@ -287,9 +439,16 @@ for (const output of symlinkOutputs) {
         console.error(`Out of sync symlink: ${output.path}`);
       }
     } catch (error) {
-      if (error && typeof error === "object" && "code" in error && error.code === "ENOENT") {
+      if (
+        error &&
+        typeof error === "object" &&
+        "code" in error &&
+        error.code === "ENOENT"
+      ) {
         hasMismatch = true;
-        console.error(`Missing symlink shim: ${output.path}. Run "pnpm run agents:sync".`);
+        console.error(
+          `Missing symlink shim: ${output.path}. Run "pnpm run agents:sync".`,
+        );
         continue;
       }
 
@@ -306,7 +465,14 @@ for (const output of symlinkOutputs) {
       continue;
     }
   } catch (error) {
-    if (!(error && typeof error === "object" && "code" in error && error.code === "ENOENT")) {
+    if (
+      !(
+        error &&
+        typeof error === "object" &&
+        "code" in error &&
+        error.code === "ENOENT"
+      )
+    ) {
       throw error;
     }
   }
@@ -330,7 +496,9 @@ for (const directory of managedDirectoryEntries) {
   if (checkMode) {
     hasMismatch = true;
     for (const child of unexpectedChildren) {
-      console.error(`Unexpected generated shim: ${resolve(directory.path, child)}`);
+      console.error(
+        `Unexpected generated shim: ${resolve(directory.path, child)}`,
+      );
     }
     continue;
   }
@@ -342,6 +510,15 @@ for (const directory of managedDirectoryEntries) {
   }
 }
 
-if (checkMode && hasMismatch) {
+if (checkPaths) {
+  for (const { filePath, raw } of findBrokenReferences()) {
+    hasMismatch = true;
+    console.error(
+      `Broken path reference in ${relative(repoRoot, filePath)}: ${raw} does not exist.`,
+    );
+  }
+}
+
+if (hasMismatch) {
   process.exitCode = 1;
 }

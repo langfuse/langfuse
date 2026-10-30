@@ -1,10 +1,7 @@
 import { type z } from "zod";
 import { type FilterState, type singleFilter } from "@langfuse/shared";
-import {
-  type QueryType,
-  type ViewVersion,
-  mapLegacyUiTableFilterToView,
-} from "@/src/features/query";
+import { type QueryType, type ViewVersion } from "@langfuse/shared/query";
+import { mapLegacyUiTableFilterToView } from "@/src/features/dashboard/lib/dashboardUiTableToViewMapping";
 
 // traces do not have a startTime or endTime column, so we need to map these to the timestamp column
 export const createTracesTimeFilter = (
@@ -17,14 +14,13 @@ export const createTracesTimeFilter = (
         ...f,
         column: columnName,
       };
-    } else {
-      return f;
     }
+    return f;
   });
 };
 
 /** Filter to exclude events with empty trace_name (observations view only). */
-export const TRACE_NAME_NOT_NULL_FILTER: z.infer<typeof singleFilter> = {
+const TRACE_NAME_NOT_NULL_FILTER: z.infer<typeof singleFilter> = {
   type: "null",
   column: "traceName",
   operator: "is not null",

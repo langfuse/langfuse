@@ -3,17 +3,20 @@ import {
   ChatMessageRole,
   ChatMessageType,
   compileChatMessages,
+  compileTemplateString,
   extractPlaceholderNames,
   extractVariables,
+  hasPromptToolStructuredOutputConflict,
   MessagePlaceholderValues,
+  PROMPT_TOOL_STRUCTURED_OUTPUT_CONFLICT_MESSAGE,
   Prisma,
   PromptContent,
   PromptType,
   stringifyValue,
 } from "@langfuse/shared";
-import { compileTemplateString } from "../utils/utilities";
 import {
   logger,
+  parsePromptToolConfig,
   PromptService,
   type PromptMessage,
   redis,
@@ -21,6 +24,7 @@ import {
   ExperimentMetadataSchema,
   LLMApiKeySchema,
   PromptContentSchema,
+  resolveLlmApiKey,
 } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
 import z from "zod";
@@ -48,10 +52,7 @@ export const parseDatasetItemInput = (
   }
 };
 
-export const fetchDatasetRun = async (
-  datasetRunId: string,
-  projectId: string,
-) => {
+const fetchDatasetRun = async (datasetRunId: string, projectId: string) => {
   return await prisma.datasetRuns.findFirst({
     where: {
       id: datasetRunId,
@@ -60,7 +61,7 @@ export const fetchDatasetRun = async (
   });
 };
 
-export const fetchPrompt = async (promptId: string, projectId: string) => {
+const fetchPrompt = async (promptId: string, projectId: string) => {
   const promptService = new PromptService(prisma, redis);
 
   const rawPrompt = await prisma.prompt.findUnique({
@@ -196,10 +197,29 @@ export async function validateAndSetupExperiment(
     throw new UnrecoverableError(`Prompt ${prompt_id} has invalid format`);
   }
 
+  // Tools are lenient by design: the experiment form warns about invalid tool
+  // configs at creation time, so at execution time we run without tools
+  // instead of failing the whole run.
+  const toolConfig = parsePromptToolConfig(prompt.config);
+  if (toolConfig.status === "invalid") {
+    logger.info(
+      `Prompt ${prompt_id} has an invalid tool config, ignoring tools for experiment run ${runId}`,
+    );
+  }
+
+  if (
+    hasPromptToolStructuredOutputConflict(
+      toolConfig,
+      Boolean(validatedRunMetadata.data.structured_output_schema),
+    )
+  ) {
+    throw new UnrecoverableError(
+      PROMPT_TOOL_STRUCTURED_OUTPUT_CONFLICT_MESSAGE,
+    );
+  }
+
   // Fetch and validate API key
-  const apiKey = await prisma.llmApiKeys.findFirst({
-    where: { projectId, provider },
-  });
+  const apiKey = await resolveLlmApiKey({ projectId, provider });
   if (!apiKey) {
     throw new UnrecoverableError(`API key for provider ${provider} not found`);
   }
@@ -231,6 +251,7 @@ export async function validateAndSetupExperiment(
     provider,
     model,
     model_params,
+    tools: toolConfig.status === "valid" ? toolConfig.tools : [],
     structuredOutputSchema: validatedRunMetadata.data.structured_output_schema,
     experimentName: validatedRunMetadata.data.experiment_name,
     experimentRunName: validatedRunMetadata.data.experiment_run_name,

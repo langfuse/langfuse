@@ -1,5 +1,7 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { test, expect, type Page } from "@playwright/test";
 import { prisma } from "@langfuse/shared/src/db";
+import { signIn } from "./utils/auth";
 
 // const checkConsoleErrors = async (page: Page) => {
 //   const errors: string[] = [];
@@ -39,30 +41,14 @@ test.describe("Create project", () => {
 
     // Sign in
     await page.goto("/auth/sign-in");
-    await page.fill('input[name="email"]', "demo@langfuse.com");
-    await page.fill('input[type="password"]', "password");
+    await signIn(page);
 
+    // Start create org flow. `page.isVisible` does not wait and its result
+    // was discarded, so the click below carried the whole wait on its 10s
+    // action timeout; assert it instead.
     await expect(
-      page.locator('button[data-testid="submit-email-password-sign-in-form"]'),
-    ).toBeEnabled();
-
-    await page.click(
-      'button[data-testid="submit-email-password-sign-in-form"]',
-    );
-
-    await page.waitForTimeout(2000);
-
-    const errorElement = page.locator(".text-destructive");
-    const hasError = await errorElement.isVisible().catch(() => false);
-    if (hasError) {
-      const errorText = await errorElement.textContent();
-      throw new Error(`Sign-in failed with error: ${errorText}`);
-    }
-
-    await expect(page).toHaveURL("/");
-
-    // Start create org flow
-    await page.isVisible('[data-testid="create-organization-btn"]');
+      page.locator('[data-testid="create-organization-btn"]'),
+    ).toBeVisible();
     await page.click('[data-testid="create-organization-btn"]');
     await expect(page).toHaveURL("/setup");
 
@@ -84,6 +70,8 @@ test.describe("Create project", () => {
       "e2e test project",
     );
     await page.click('button[type="submit"]');
+
+    // should be redirected to the traces page of the new project
     await expect(page).toHaveURL(/\/project\/.*\/traces/, { timeout: 15000 });
 
     const projectUrl = new URL(page.url());
@@ -91,11 +79,12 @@ test.describe("Create project", () => {
 
     // check that the project exists by navigating to its home screen
     await page.goto("/project/" + projectId);
-    await expect(page).toHaveURL(new RegExp(`/project/${projectId}`));
+    await expect(page).toHaveURL(
+      (url) => url.pathname === `/project/${projectId}`,
+    );
 
     await page.waitForTimeout(10000);
-    const headings = await page.locator("h2").allTextContents();
-    expect(headings).toContain("Home");
+    await checkPageHeaderTitle(page, "Home");
 
     // Check for console errors
     // expect(errors).toHaveLength(0);
@@ -139,25 +128,7 @@ test.describe("Create project", () => {
 
 const signin = async (page: Page) => {
   await page.goto("/auth/sign-in");
-  await page.fill('input[name="email"]', "demo@langfuse.com");
-  await page.fill('input[type="password"]', "password");
-
-  await expect(
-    page.locator('button[data-testid="submit-email-password-sign-in-form"]'),
-  ).toBeEnabled();
-
-  await page.click('button[data-testid="submit-email-password-sign-in-form"]');
-
-  await page.waitForTimeout(2000);
-
-  const errorElement = page.locator(".text-destructive");
-  const hasError = await errorElement.isVisible().catch(() => false);
-  if (hasError) {
-    const errorText = await errorElement.textContent();
-    throw new Error(`Sign-in failed with error: ${errorText}`);
-  }
-
-  await expect(page).toHaveURL("/");
+  await signIn(page);
 };
 
 const checkPageHeaderTitle = async (page: Page, title: string) => {

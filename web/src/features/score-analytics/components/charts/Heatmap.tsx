@@ -1,12 +1,9 @@
+/* eslint-disable @repo/no-style-props */
 import { useMemo, useLayoutEffect, useState, useRef } from "react";
 import { type HeatmapCell } from "@/src/features/score-analytics/lib/heatmap-utils";
 import { HeatmapCellComponent } from "./HeatmapCell";
 import { TooltipProvider } from "@/src/components/ui/tooltip";
-import {
-  HoverCard,
-  HoverCardContent,
-  HoverCardTrigger,
-} from "@/src/components/ui/hover-card";
+import { HoverCard } from "@/src/components/design-system/HoverCard/HoverCard";
 import { cn } from "@/src/utils/tailwind";
 
 export interface HeatmapProps {
@@ -199,21 +196,25 @@ export function Heatmap({
                     )}
                   >
                     {shouldTruncate ? (
-                      <HoverCard>
-                        <HoverCardTrigger asChild>
-                          <span className="cursor-help text-right">
+                      <HoverCard
+                        placement="left"
+                        content={
+                          <div className="w-auto p-3">
+                            <div className="space-y-1">
+                              <p className="font-bold">{label}</p>
+                            </div>
+                          </div>
+                        }
+                      >
+                        {({ getTriggerProps }) => (
+                          <span
+                            className="cursor-help text-right"
+                            tabIndex={0}
+                            {...getTriggerProps()}
+                          >
                             {truncated}
                           </span>
-                        </HoverCardTrigger>
-                        <HoverCardContent
-                          side="left"
-                          align="center"
-                          className="w-auto"
-                        >
-                          <div className="space-y-1">
-                            <p className="font-semibold">{label}</p>
-                          </div>
-                        </HoverCardContent>
+                        )}
                       </HoverCard>
                     ) : (
                       <span>{label}</span>
@@ -301,19 +302,24 @@ export function Heatmap({
                     )}
                   >
                     {shouldTruncate ? (
-                      <HoverCard>
-                        <HoverCardTrigger asChild>
-                          <span className="cursor-help">{truncated}</span>
-                        </HoverCardTrigger>
-                        <HoverCardContent
-                          side="bottom"
-                          align="center"
-                          className="w-auto"
-                        >
-                          <div className="space-y-1">
-                            <p className="text-xs">{label}</p>
+                      <HoverCard
+                        content={
+                          <div className="w-auto p-3">
+                            <div className="space-y-1">
+                              <p className="text-xs">{label}</p>
+                            </div>
                           </div>
-                        </HoverCardContent>
+                        }
+                      >
+                        {({ getTriggerProps }) => (
+                          <span
+                            className="cursor-help"
+                            tabIndex={0}
+                            {...getTriggerProps()}
+                          >
+                            {truncated}
+                          </span>
+                        )}
                       </HoverCard>
                     ) : (
                       <span>{label}</span>

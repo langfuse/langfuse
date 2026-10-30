@@ -1,6 +1,9 @@
-import { expect, describe, it, beforeAll } from "vitest";
+import { expect, describe, it, beforeAll, afterEach, vi } from "vitest";
+import waitForExpect from "wait-for-expect";
 import {
   clickhouseClient,
+  createEvent,
+  createEventsCh,
   createObservation,
   createObservationsCh,
   createOrgProjectAndApiKey,
@@ -12,13 +15,39 @@ import {
   getObservationsForTrace,
   getScoresForTraces,
   getTracesByIds,
+  queryClickhouse,
+  removeIngestionEventsFromS3AndDeleteClickhouseRefsForTraces,
   StorageService,
   StorageServiceFactory,
+  toClickhouseDateTime,
 } from "@langfuse/shared/src/server";
 import { randomUUID } from "crypto";
+import { createRequire } from "node:module";
 import { processClickhouseTraceDelete } from "../features/traces/processClickhouseTraceDelete";
+import { processPostgresTraceDelete } from "../features/traces/processPostgresTraceDelete";
 import { env } from "../env";
-import { prisma } from "@langfuse/shared/src/db";
+import { prisma, type JobConfigState } from "@langfuse/shared/src/db";
+import { skipUnlessClickhouseTablesExist } from "./helpers/clickhouseTables";
+
+vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import("@langfuse/shared/src/server")>();
+  return {
+    ...actual,
+    commandClickhouse: (opts: Parameters<typeof actual.commandClickhouse>[0]) =>
+      actual.commandClickhouse({
+        ...opts,
+        clickhouseSettings: /^\s*DELETE FROM topic_facet_summaries\b/.test(
+          opts.query,
+        )
+          ? {
+              lightweight_delete_mode: "lightweight_update_force",
+              ...opts.clickhouseSettings,
+            }
+          : opts.clickhouseSettings,
+      }),
+  };
+});
 
 describe("trace deletion", () => {
   let eventStorageService: StorageService;
@@ -42,6 +71,87 @@ describe("trace deletion", () => {
       region: env.LANGFUSE_S3_MEDIA_UPLOAD_REGION,
       forcePathStyle: env.LANGFUSE_S3_MEDIA_UPLOAD_FORCE_PATH_STYLE === "true",
     });
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("deletes job executions of deleted traces across evaluation rules, rule-less evaluators and active and inactive configurations", async () => {
+    const { projectId } = await createOrgProjectAndApiKey();
+    const { projectId: otherProjectId } = await createOrgProjectAndApiKey();
+    const deletedTraceId = randomUUID();
+    const keptTraceId = randomUUID();
+
+    const createConfig = (configProjectId: string, status: JobConfigState) =>
+      prisma.jobConfiguration.create({
+        data: {
+          projectId: configProjectId,
+          status,
+          jobType: "EVAL",
+          scoreName: "score",
+          filter: [],
+          targetObject: "trace",
+          variableMapping: [],
+          sampling: 1,
+          delay: 0,
+        },
+      });
+    const activeConfig = await createConfig(projectId, "ACTIVE");
+    const inactiveConfig = await createConfig(projectId, "INACTIVE");
+    const otherProjectConfig = await createConfig(otherProjectId, "ACTIVE");
+    const evaluationRule = await prisma.evaluationRule.create({
+      data: {
+        projectId,
+        name: "score",
+        filter: [],
+        sampling: 1,
+        delay: 0,
+        targetObject: "trace",
+      },
+    });
+    const ruleLessEvaluator = await prisma.evaluator.create({
+      data: {
+        projectId,
+        name: "standalone",
+        type: "LLM_AS_JUDGE",
+        versions: { create: { version: 1 } },
+      },
+    });
+
+    const createExecution = (
+      executionProjectId: string,
+      jobConfigurationId: string,
+      jobInputTraceId: string,
+    ) =>
+      prisma.jobExecution.create({
+        data: {
+          projectId: executionProjectId,
+          jobConfigurationId,
+          jobInputTraceId,
+          status: "PENDING",
+        },
+      });
+    await createExecution(projectId, activeConfig.id, deletedTraceId);
+    await createExecution(projectId, inactiveConfig.id, deletedTraceId);
+    await createExecution(projectId, evaluationRule.id, deletedTraceId);
+    await createExecution(projectId, ruleLessEvaluator.id, deletedTraceId);
+    const kept = await createExecution(projectId, activeConfig.id, keptTraceId);
+    const otherProject = await createExecution(
+      otherProjectId,
+      otherProjectConfig.id,
+      deletedTraceId,
+    );
+
+    await processPostgresTraceDelete(projectId, [deletedTraceId]);
+
+    const remaining = await prisma.jobExecution.findMany({
+      where: { projectId: { in: [projectId, otherProjectId] } },
+      select: { id: true },
+    });
+    expect(remaining.map((r) => r.id).sort()).toEqual(
+      [kept.id, otherProject.id].sort(),
+    );
   });
 
   it("should delete all traces, observations, and scores from Clickhouse", async () => {
@@ -72,6 +182,115 @@ describe("trace deletion", () => {
       traceIds: [traceId],
     });
     expect(scores).toHaveLength(0);
+  });
+
+  it("deletes Topics results when patch deletes are forced by default and processing is disabled without affecting other traces or projects", async ({
+    onTestFinished,
+  }) => {
+    // The built Topics entrypoint reads the CommonJS env singleton.
+    const { env: sharedEnv } = createRequire(import.meta.url)(
+      "@langfuse/shared/src/env",
+    ) as typeof import("@langfuse/shared/src/env");
+    const originalTopicsEnabled = sharedEnv.LANGFUSE_TOPICS_ENABLED;
+    onTestFinished(() => {
+      sharedEnv.LANGFUSE_TOPICS_ENABLED = originalTopicsEnabled;
+    });
+    sharedEnv.LANGFUSE_TOPICS_ENABLED = "false";
+
+    const { projectId } = await createOrgProjectAndApiKey();
+    const otherProjectId = randomUUID();
+    const traceId = randomUUID();
+    const retainedTraceId = randomUUID();
+    const timestamp = toClickhouseDateTime(new Date());
+    const rows = [
+      {
+        project_id: projectId,
+        trace_id: traceId,
+        facet_id: "intent",
+        facet_version: 1,
+      },
+      {
+        project_id: projectId,
+        trace_id: traceId,
+        facet_id: "intent",
+        facet_version: 2,
+      },
+      {
+        project_id: projectId,
+        trace_id: traceId,
+        facet_id: "outcome",
+        facet_version: 1,
+      },
+      {
+        project_id: projectId,
+        trace_id: retainedTraceId,
+        session_id: traceId,
+        facet_id: "intent",
+        facet_version: 1,
+      },
+      {
+        project_id: otherProjectId,
+        trace_id: traceId,
+        facet_id: "intent",
+        facet_version: 1,
+      },
+    ].map((row) => ({
+      session_id: "",
+      ...row,
+      unit_start_time: timestamp,
+    }));
+
+    await Promise.all([
+      clickhouseClient().insert({
+        table: "topic_facet_summaries",
+        format: "JSONEachRow",
+        values: rows.map((row) => ({
+          ...row,
+          processing_state: "complete",
+          summary: "A trace summary.",
+          embedding: [0.25, 0.75],
+        })),
+      }),
+      clickhouseClient().insert({
+        table: "topic_assignments",
+        format: "JSONEachRow",
+        values: rows.map((row) => ({
+          ...row,
+          topic_id: "topic",
+          topic_version_id: "topic-version",
+          coordinates: [0.1, 0.2],
+        })),
+      }),
+    ]);
+
+    await processClickhouseTraceDelete(projectId, [traceId]);
+
+    for (const table of ["topic_facet_summaries", "topic_assignments"]) {
+      const remaining = await queryClickhouse<{
+        project_id: string;
+        trace_id: string;
+        session_id: string;
+      }>({
+        query: `SELECT project_id, trace_id, session_id FROM ${table}
+          WHERE project_id IN ({projectIds: Array(String)})`,
+        params: { projectIds: [projectId, otherProjectId] },
+      });
+      expect(remaining).toHaveLength(2);
+      expect(remaining).toEqual(
+        expect.arrayContaining([
+          {
+            project_id: projectId,
+            trace_id: retainedTraceId,
+            session_id: traceId,
+          },
+          {
+            project_id: otherProjectId,
+            trace_id: traceId,
+            session_id: "",
+          },
+        ]),
+      );
+    }
   });
 
   it("should delete S3 media files for deleted traces", async () => {
@@ -167,7 +386,12 @@ describe("trace deletion", () => {
     });
     expect(media).toHaveLength(0);
 
-    // No need to check observationMedia and traceMedia as they have a foreign key to media table.
+    await expect(
+      prisma.traceMedia.findMany({ where: { projectId } }),
+    ).resolves.toHaveLength(0);
+    await expect(
+      prisma.observationMedia.findMany({ where: { projectId } }),
+    ).resolves.toHaveLength(0);
   });
 
   it("should NOT delete S3 media files for deleted traces if referenced by other entity", async () => {
@@ -246,6 +470,127 @@ describe("trace deletion", () => {
     expect(traceMedia).toHaveLength(1);
   });
 
+  it("should NOT delete S3 media files for deleted traces if referenced by a dataset item", async () => {
+    // Setup
+    const { projectId } = await createOrgProjectAndApiKey();
+
+    const traceId = randomUUID();
+    await createTracesCh([createTrace({ id: traceId, project_id: projectId })]);
+
+    const fileType = "text/plain";
+    await mediaStorageService.uploadFile({
+      fileName: `${projectId}/trace-${traceId}.txt`,
+      fileType,
+      data: "Hello, world!",
+    });
+
+    const mediaId = randomUUID();
+    await prisma.media.create({
+      data: {
+        id: mediaId,
+        sha256Hash: randomUUID(),
+        projectId,
+        bucketPath: `${projectId}/trace-${traceId}.txt`,
+        bucketName: String(env.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET),
+        contentType: fileType,
+        contentLength: 0,
+      },
+    });
+    await prisma.traceMedia.create({
+      data: {
+        id: randomUUID(),
+        projectId,
+        traceId,
+        mediaId,
+        field: "test",
+      },
+    });
+    await prisma.datasetItemMedia.create({
+      data: {
+        id: randomUUID(),
+        projectId,
+        datasetId: randomUUID(),
+        datasetItemId: randomUUID(),
+        datasetItemValidFrom: new Date(),
+        mediaId,
+        field: "input",
+        jsonPath: "$['image']",
+        referenceString: `@@@langfuseMedia:type=text/plain|id=${mediaId}|source=bytes@@@`,
+      },
+    });
+
+    // When
+    await processClickhouseTraceDelete(projectId, [traceId]);
+
+    // Then: trace link removed, but media and S3 file survive
+    await expect(
+      prisma.traceMedia.findMany({ where: { projectId } }),
+    ).resolves.toHaveLength(0);
+    await expect(
+      prisma.media.findMany({ where: { projectId } }),
+    ).resolves.toHaveLength(1);
+    const files = await mediaStorageService.listFiles(projectId);
+    expect(files).toHaveLength(1);
+  });
+
+  it("deletes trace media and sweeps a pending dataset association on trace deletion", async () => {
+    const { projectId } = await createOrgProjectAndApiKey();
+
+    const traceId = randomUUID();
+    await createTracesCh([createTrace({ id: traceId, project_id: projectId })]);
+
+    const fileType = "text/plain";
+    await mediaStorageService.uploadFile({
+      fileName: `${projectId}/trace-${traceId}.txt`,
+      fileType,
+      data: "Hello, world!",
+    });
+
+    const mediaId = randomUUID();
+    await prisma.media.create({
+      data: {
+        id: mediaId,
+        sha256Hash: randomUUID(),
+        projectId,
+        bucketPath: `${projectId}/trace-${traceId}.txt`,
+        bucketName: String(env.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET),
+        contentType: fileType,
+        contentLength: 0,
+      },
+    });
+    await prisma.traceMedia.create({
+      data: { id: randomUUID(), projectId, traceId, mediaId, field: "test" },
+    });
+    // Pending association (null validFrom): an abandoned upload, not a claimed
+    // item reference, so it must not protect the trace media from cleanup.
+    await prisma.datasetItemMedia.create({
+      data: {
+        id: randomUUID(),
+        projectId,
+        datasetId: randomUUID(),
+        datasetItemId: randomUUID(),
+        datasetItemValidFrom: null,
+        mediaId,
+        field: "input",
+        jsonPath: null,
+        referenceString: null,
+      },
+    });
+
+    // When
+    await processClickhouseTraceDelete(projectId, [traceId]);
+
+    // Then: media, S3 file, and the pending row are all reclaimed
+    await expect(
+      prisma.media.findMany({ where: { projectId } }),
+    ).resolves.toHaveLength(0);
+    await expect(
+      prisma.datasetItemMedia.findMany({ where: { projectId } }),
+    ).resolves.toHaveLength(0);
+    const files = await mediaStorageService.listFiles(projectId);
+    expect(files).toHaveLength(0);
+  });
+
   it("should delete S3 event files for deleted traces", async () => {
     // Setup
     const { projectId } = await createOrgProjectAndApiKey();
@@ -303,8 +648,8 @@ describe("trace deletion", () => {
           event_id: randomUUID(),
           bucket_name: env.LANGFUSE_S3_EVENT_UPLOAD_BUCKET,
           bucket_path: `${projectId}/traces/${traceId}-trace.json`,
-          created_at: new Date().getTime(),
-          updated_at: new Date().getTime(),
+          created_at: toClickhouseDateTime(),
+          updated_at: toClickhouseDateTime(),
         },
         {
           id: randomUUID(),
@@ -314,8 +659,8 @@ describe("trace deletion", () => {
           event_id: randomUUID(),
           bucket_name: env.LANGFUSE_S3_EVENT_UPLOAD_BUCKET,
           bucket_path: `${projectId}/observation/${traceId}-observation.json`,
-          created_at: new Date().getTime(),
-          updated_at: new Date().getTime(),
+          created_at: toClickhouseDateTime(),
+          updated_at: toClickhouseDateTime(),
         },
         {
           id: randomUUID(),
@@ -325,8 +670,8 @@ describe("trace deletion", () => {
           event_id: randomUUID(),
           bucket_name: env.LANGFUSE_S3_EVENT_UPLOAD_BUCKET,
           bucket_path: `${projectId}/score/${traceId}-score.json`,
-          created_at: new Date().getTime(),
-          updated_at: new Date().getTime(),
+          created_at: toClickhouseDateTime(),
+          updated_at: toClickhouseDateTime(),
         },
       ],
     });
@@ -338,6 +683,245 @@ describe("trace deletion", () => {
     const eventLog = getBlobStorageByProjectId(projectId);
     for await (const _ of eventLog) {
       // Should never happen as the expect event log to be empty
+      expect(true).toBe(false);
+    }
+
+    const files = await eventStorageService.listFiles(projectId);
+    expect(files).toHaveLength(0);
+  });
+
+  it("should clean up a trace blob ref that has no row in the traces table", async () => {
+    // Setup: a blob ref for a trace whose `traces` row does not exist (e.g. a
+    // project in v4 events_only write mode where traces are not written to the
+    // legacy `traces` table). The old query joined against `traces`, so this
+    // ref was missed and the S3 file leaked.
+    const { projectId } = await createOrgProjectAndApiKey();
+
+    const traceId = randomUUID();
+    const bucketPath = `${projectId}/traces/${traceId}-trace.json`;
+
+    await eventStorageService.uploadFile({
+      fileName: bucketPath,
+      fileType: "application/json",
+      data: JSON.stringify({ hello: "world" }),
+    });
+
+    await clickhouseClient().insert({
+      table: "blob_storage_file_log",
+      format: "JSONEachRow",
+      values: [
+        {
+          id: randomUUID(),
+          project_id: projectId,
+          entity_type: "trace",
+          entity_id: traceId,
+          event_id: randomUUID(),
+          bucket_name: env.LANGFUSE_S3_EVENT_UPLOAD_BUCKET,
+          bucket_path: bucketPath,
+          created_at: toClickhouseDateTime(),
+          updated_at: toClickhouseDateTime(),
+        },
+      ],
+    });
+
+    // When: no traces/observations/scores rows exist at all
+    await removeIngestionEventsFromS3AndDeleteClickhouseRefsForTraces({
+      projectId,
+      traceIds: [traceId],
+      includeEventsTable: false,
+    });
+
+    // Then: blob ref soft-deleted (invisible under FINAL) and S3 file gone
+    const eventLog = getBlobStorageByProjectId(projectId);
+    for await (const _ of eventLog) {
+      expect(true).toBe(false);
+    }
+
+    const files = await eventStorageService.listFiles(projectId);
+    expect(files).toHaveLength(0);
+  });
+
+  it("should clean up an events-only observation blob ref when includeEventsTable is true", async (ctx) => {
+    await skipUnlessClickhouseTablesExist(
+      ctx,
+      ["events_core"],
+      "events ClickHouse tables are not enabled",
+    );
+
+    // Setup: a span that exists only in the events pipeline (events_full →
+    // events_core via MV), with no row in the legacy `observations` table.
+    const { projectId } = await createOrgProjectAndApiKey();
+
+    const traceId = randomUUID();
+    const spanId = randomUUID();
+    const eventTime = Date.now() * 1000; // micros
+
+    await createEventsCh([
+      createEvent({
+        id: spanId,
+        span_id: spanId,
+        trace_id: traceId,
+        project_id: projectId,
+        start_time: eventTime,
+        created_at: eventTime,
+        updated_at: eventTime,
+        event_ts: eventTime,
+      }),
+    ]);
+
+    // The events_core materialized view populates asynchronously; wait for the
+    // span to land before deleting so the query can prune to it.
+    await waitForExpect(async () => {
+      const rows = await queryClickhouse<{ count: string }>({
+        query: `
+          select count(*) as count
+          from events_core
+          where project_id = {projectId: String}
+            and trace_id in ({traceIds: Array(String)})
+        `,
+        params: { projectId, traceIds: [traceId] },
+      });
+      expect(Number(rows[0]?.count ?? 0)).toBe(1);
+    }, 20_000);
+
+    const bucketPath = `${projectId}/observation/${spanId}-observation.json`;
+    await eventStorageService.uploadFile({
+      fileName: bucketPath,
+      fileType: "application/json",
+      data: JSON.stringify({ hello: "world" }),
+    });
+
+    await clickhouseClient().insert({
+      table: "blob_storage_file_log",
+      format: "JSONEachRow",
+      values: [
+        {
+          id: randomUUID(),
+          project_id: projectId,
+          entity_type: "observation",
+          entity_id: spanId,
+          event_id: randomUUID(),
+          bucket_name: env.LANGFUSE_S3_EVENT_UPLOAD_BUCKET,
+          bucket_path: bucketPath,
+          created_at: toClickhouseDateTime(),
+          updated_at: toClickhouseDateTime(),
+        },
+      ],
+    });
+
+    // When
+    await removeIngestionEventsFromS3AndDeleteClickhouseRefsForTraces({
+      projectId,
+      traceIds: [traceId],
+      includeEventsTable: true,
+    });
+
+    // Then: blob ref soft-deleted and S3 file removed
+    const eventLog = getBlobStorageByProjectId(projectId);
+    for await (const _ of eventLog) {
+      expect(true).toBe(false);
+    }
+
+    const files = await eventStorageService.listFiles(projectId);
+    expect(files).toHaveLength(0);
+  });
+
+  it("should clean up legacy trace/observation/score blob refs with includeEventsTable false", async () => {
+    // Gating: with the events branch disabled, legacy data backed by the
+    // traces/observations/scores tables must be cleaned exactly as before.
+    const { projectId } = await createOrgProjectAndApiKey();
+
+    const traceId = randomUUID();
+    const observationId = randomUUID();
+    const scoreId = randomUUID();
+
+    await createTracesCh([createTrace({ id: traceId, project_id: projectId })]);
+    await createObservationsCh([
+      createObservation({
+        id: observationId,
+        trace_id: traceId,
+        project_id: projectId,
+      }),
+    ]);
+    await createScoresCh([
+      createTraceScore({
+        id: scoreId,
+        trace_id: traceId,
+        project_id: projectId,
+      }),
+    ]);
+
+    const fileType = "application/json";
+    const data = JSON.stringify({ hello: "world" });
+
+    await Promise.all([
+      eventStorageService.uploadFile({
+        fileName: `${projectId}/traces/${traceId}-trace.json`,
+        fileType,
+        data,
+      }),
+      eventStorageService.uploadFile({
+        fileName: `${projectId}/observation/${observationId}-observation.json`,
+        fileType,
+        data,
+      }),
+      eventStorageService.uploadFile({
+        fileName: `${projectId}/score/${scoreId}-score.json`,
+        fileType,
+        data,
+      }),
+    ]);
+
+    await clickhouseClient().insert({
+      table: "blob_storage_file_log",
+      format: "JSONEachRow",
+      values: [
+        {
+          id: randomUUID(),
+          project_id: projectId,
+          entity_type: "trace",
+          entity_id: traceId,
+          event_id: randomUUID(),
+          bucket_name: env.LANGFUSE_S3_EVENT_UPLOAD_BUCKET,
+          bucket_path: `${projectId}/traces/${traceId}-trace.json`,
+          created_at: toClickhouseDateTime(),
+          updated_at: toClickhouseDateTime(),
+        },
+        {
+          id: randomUUID(),
+          project_id: projectId,
+          entity_type: "observation",
+          entity_id: observationId,
+          event_id: randomUUID(),
+          bucket_name: env.LANGFUSE_S3_EVENT_UPLOAD_BUCKET,
+          bucket_path: `${projectId}/observation/${observationId}-observation.json`,
+          created_at: toClickhouseDateTime(),
+          updated_at: toClickhouseDateTime(),
+        },
+        {
+          id: randomUUID(),
+          project_id: projectId,
+          entity_type: "score",
+          entity_id: scoreId,
+          event_id: randomUUID(),
+          bucket_name: env.LANGFUSE_S3_EVENT_UPLOAD_BUCKET,
+          bucket_path: `${projectId}/score/${scoreId}-score.json`,
+          created_at: toClickhouseDateTime(),
+          updated_at: toClickhouseDateTime(),
+        },
+      ],
+    });
+
+    // When
+    await removeIngestionEventsFromS3AndDeleteClickhouseRefsForTraces({
+      projectId,
+      traceIds: [traceId],
+      includeEventsTable: false,
+    });
+
+    // Then
+    const eventLog = getBlobStorageByProjectId(projectId);
+    for await (const _ of eventLog) {
       expect(true).toBe(false);
     }
 

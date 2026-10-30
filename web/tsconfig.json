@@ -3,7 +3,6 @@
   "compilerOptions": {
     "declaration": false,
     "declarationMap": false,
-    "outDir": "dist",
     "plugins": [
       {
         "name": "next"
@@ -31,7 +30,6 @@
     "next-env.d.ts",
     "next-env.d.ts",
     "src",
-    "types/global.d.ts",
-    ".next-check/types/**/*.ts"
+    "types/global.d.ts"
   ]
 }

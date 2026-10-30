@@ -1,4 +1,5 @@
 import { JSONPath } from "jsonpath-plus";
+import { parseJsonPrioritised } from "../../utils/json";
 
 const UNSUPPORTED_JSONPATH_NEGATIVE_INDEX_ERROR_MESSAGE =
   "JSONPath negative indexing like [-1] is not supported by jsonpath-plus. Use slice syntax instead (e.g. [-1:] for the last element).";
@@ -40,19 +41,20 @@ function parseMultiEncodedJson(value: unknown): unknown {
     return value;
   }
 
-  try {
-    const parsed = JSON.parse(value);
+  const parsed = parseJsonPrioritised(value);
 
-    // If result is still a string, it might be double-encoded - recurse
-    if (typeof parsed === "string") {
-      return parseMultiEncodedJson(parsed);
-    }
-
-    return parsed;
-  } catch {
-    // If parsing fails, return original value
+  // If parsing fails, parseJsonPrioritised returns the original string.
+  // Stop here to avoid recursing forever on plain strings.
+  if (parsed === value || parsed === undefined) {
     return value;
   }
+
+  // If result is still a string, it might be double-encoded - recurse
+  if (typeof parsed === "string") {
+    return parseMultiEncodedJson(parsed);
+  }
+
+  return parsed;
 }
 
 function stripJsonPathStringLiterals(selector: string): string {
@@ -130,7 +132,7 @@ export function extractValueFromObject(
   selectedColumnId: string,
   jsonSelector?: string,
   parseJson?: (selectedColumn: unknown, jsonSelector: string) => unknown,
-): { value: string; error: Error | null } {
+): { value: unknown; error: Error | null } {
   const selectedColumn = obj[selectedColumnId];
 
   const jsonParser = parseJson || parseJsonDefault;
@@ -159,8 +161,26 @@ export function extractValueFromObject(
     jsonSelectedColumn = selectedColumn;
   }
 
-  return {
-    value: parseUnknownToString(jsonSelectedColumn),
-    error,
-  };
+  return { value: jsonSelectedColumn, error };
+}
+
+/**
+ * Backwards-compatible extraction for UI prompt previews and LLM prompt
+ * rendering. `extractValueFromObject` preserves typed values for code eval;
+ * this wrapper keeps the previous string-only behavior for prompt surfaces.
+ */
+export function extractValueFromObjectAsString(
+  obj: Record<string, unknown>,
+  selectedColumnId: string,
+  jsonSelector?: string,
+  parseJson?: (selectedColumn: unknown, jsonSelector: string) => unknown,
+): { value: string; error: Error | null } {
+  const { value, error } = extractValueFromObject(
+    obj,
+    selectedColumnId,
+    jsonSelector,
+    parseJson,
+  );
+
+  return { value: parseUnknownToString(value), error };
 }

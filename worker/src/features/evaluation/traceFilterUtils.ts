@@ -1,4 +1,8 @@
-import { FilterState, TraceDomain } from "@langfuse/shared";
+import {
+  FilterState,
+  matchesUiColumnMapping,
+  TraceDomain,
+} from "@langfuse/shared";
 import { tracesTableUiColumnDefinitions } from "@langfuse/shared/src/server";
 
 const _inMemoryTraceFilterColumns = [
@@ -21,9 +25,7 @@ type InMemoryTraceFilterColumn = (typeof _inMemoryTraceFilterColumns)[number];
 function getColumnDefinition(column: string) {
   const columnDef = tracesTableUiColumnDefinitions.find(
     (col) =>
-      col.uiTableId === column ||
-      col.uiTableName === column ||
-      col.clickhouseSelect === column,
+      matchesUiColumnMapping(col, column) || col.clickhouseSelect === column,
   );
   if (!columnDef) {
     throw new Error(`Unhandled column for trace filter: ${column}`);
@@ -96,6 +98,26 @@ export function mapTraceFilterColumn(
       return trace.metadata;
     default:
       throw new Error(`Unhandled column in trace filter mapping: ${column}`);
+  }
+}
+
+/**
+ * Whether in-memory evaluation of this trace filter reads the metadata field.
+ * False when the filter never runs in memory (it requires a database lookup)
+ * or references no metadata column. Unknown columns report true so the cached
+ * trace fetch never drops a column a filter might need.
+ */
+export function inMemoryFilterRequiresMetadata(filter: FilterState): boolean {
+  try {
+    if (requiresDatabaseLookup(filter)) {
+      return false;
+    }
+    return filter.some(
+      (condition) =>
+        getInMemoryTraceFilterColumn(condition.column) === "metadata",
+    );
+  } catch {
+    return true;
   }
 }
 

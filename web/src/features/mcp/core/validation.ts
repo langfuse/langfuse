@@ -6,19 +6,13 @@
  *
  * @example
  * // Prompt-specific schemas:
- * import { ParamPromptName } from "../features/prompts/validation";
+ * import { ParamPromptName } from "../server/prompts/validation";
  *
  * // Cross-feature schemas:
  * import { ParamProjectId, ParamLimit } from "../core/validation";
  */
 
 import { z } from "zod";
-
-/**
- * Project ID parameter
- * No format enforcement - validated via API key authentication
- */
-export const ParamProjectId = z.string().describe("The project ID");
 
 /**
  * Pagination limit parameter
@@ -42,10 +36,3 @@ export const ParamPage = z.coerce
   .min(1)
   .default(1)
   .describe("Page number for pagination (default: 1)");
-
-/**
- * Helper to extract schema description for MCP tool definitions
- */
-export function getSchemaDescription(schema: z.ZodType): string | undefined {
-  return schema.description;
-}

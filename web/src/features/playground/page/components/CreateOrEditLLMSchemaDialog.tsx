@@ -1,7 +1,8 @@
-import React, { useEffect, useState } from "react";
+/* eslint-disable @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
+import React, { useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { ArrowUpRight } from "lucide-react";
+import { ArrowUpRight } from "@langfuse/icons";
 import * as z from "zod";
 
 import { Button } from "@/src/components/ui/button";
@@ -13,7 +14,6 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/src/components/ui/dialog";
 import {
   Form,
@@ -26,12 +26,12 @@ import {
 } from "@/src/components/ui/form";
 import { Input } from "@/src/components/ui/input";
 import { Textarea } from "@/src/components/ui/textarea";
-import { LLMSchemaNameSchema } from "@/src/features/llm-schemas/validation";
+import { LLMSchemaNameSchema } from "@/src/features/llm-schemas";
 import { api } from "@/src/utils/api";
 
 import { JSONSchemaFormSchema, type LlmSchema } from "@langfuse/shared";
 import { CodeMirrorEditor } from "@/src/components/editor";
-import { showErrorToast } from "@/src/features/notifications/showErrorToast";
+import { showErrorToast } from "@/src/features/notifications";
 
 const formSchema = z.object({
   name: LLMSchemaNameSchema,
@@ -42,7 +42,6 @@ const formSchema = z.object({
 type FormValues = z.infer<typeof formSchema>;
 
 type CreateOrEditLLMSchemaDialog = {
-  children: React.ReactNode;
   projectId: string;
   onSave: (llmSchema: LlmSchema) => void;
   onDelete?: (llmSchema: LlmSchema) => void;
@@ -52,19 +51,19 @@ type CreateOrEditLLMSchemaDialog = {
     description: string;
     schema: string;
   };
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
 };
 
 export const CreateOrEditLLMSchemaDialog: React.FC<
   CreateOrEditLLMSchemaDialog
 > = (props) => {
-  const { children, projectId, onSave, existingLlmSchema } = props;
+  const { projectId, onSave, existingLlmSchema, open, onOpenChange } = props;
 
   const utils = api.useUtils();
   const createLlmSchema = api.llmSchemas.create.useMutation();
   const updateLlmSchema = api.llmSchemas.update.useMutation();
   const deleteLlmSchema = api.llmSchemas.delete.useMutation();
-
-  const [open, setOpen] = useState(false);
 
   const form = useForm({
     resolver: zodResolver(formSchema),
@@ -117,7 +116,7 @@ export const CreateOrEditLLMSchemaDialog: React.FC<
     await utils.llmSchemas.getAll.invalidate({ projectId });
 
     onSave(result);
-    setOpen(false);
+    onOpenChange(false);
   }
 
   async function handleDelete() {
@@ -131,7 +130,7 @@ export const CreateOrEditLLMSchemaDialog: React.FC<
     props.onDelete?.(existingLlmSchema);
 
     await utils.llmSchemas.getAll.invalidate({ projectId });
-    setOpen(false);
+    onOpenChange(false);
   }
 
   const prettifyJson = () => {
@@ -144,15 +143,22 @@ export const CreateOrEditLLMSchemaDialog: React.FC<
       showErrorToast(
         "Failed to prettify JSON",
         "Please verify your input is valid JSON",
+        {
+          operation: "playground_schema.prettify",
+          errorOrigin: "frontend",
+          errorCategory: "user_input",
+        },
         "WARNING",
       );
     }
   };
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>{children}</DialogTrigger>
-      <DialogContent className="flex flex-col sm:min-w-128 md:min-w-160">
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent
+        className="flex flex-col sm:min-w-128 md:min-w-160"
+        onClick={(e) => e.stopPropagation()}
+      >
         <DialogHeader>
           <DialogTitle>
             {existingLlmSchema ? "Edit LLM Schema" : "Create LLM Schema"}
@@ -225,7 +231,7 @@ export const CreateOrEditLLMSchemaDialog: React.FC<
                           className="flex items-center"
                         >
                           See JSON Schema examples here
-                          <ArrowUpRight className="h-3 w-3" />
+                          <ArrowUpRight size="sm" />
                         </a>
                       </FormDescription>
                       <FormControl>
@@ -258,7 +264,7 @@ export const CreateOrEditLLMSchemaDialog: React.FC<
               </div>
             </DialogBody>
 
-            <DialogFooter className="bg-background sticky bottom-0 mt-4 flex flex-col gap-2 border-t pt-4">
+            <DialogFooter className="bg-modal sticky bottom-0 mt-4 flex flex-col gap-2 border-t pt-4">
               <div className="flex w-full flex-col gap-2">
                 <p className="text-muted-foreground text-xs">
                   Note: Changes to schemas are reflected to all members of this
@@ -278,7 +284,7 @@ export const CreateOrEditLLMSchemaDialog: React.FC<
                   <Button
                     type="button"
                     variant="outline"
-                    onClick={() => setOpen(false)}
+                    onClick={() => onOpenChange(false)}
                   >
                     Cancel
                   </Button>

@@ -317,6 +317,34 @@ describe("/api/public/annotation-queues/:queueId/assignments API", () => {
       expect(response.body.success).toBe(true);
     });
 
+    it("should be idempotent when assignment was already deleted", async () => {
+      const firstResponse = await makeZodVerifiedAPICall(
+        DeleteAnnotationQueueAssignmentResponse,
+        "DELETE",
+        `/api/public/annotation-queues/${queueId}/assignments`,
+        {
+          userId: testUserId,
+        },
+        auth,
+      );
+
+      expect(firstResponse.status).toBe(200);
+      expect(firstResponse.body.success).toBe(true);
+
+      const secondResponse = await makeZodVerifiedAPICall(
+        DeleteAnnotationQueueAssignmentResponse,
+        "DELETE",
+        `/api/public/annotation-queues/${queueId}/assignments`,
+        {
+          userId: testUserId,
+        },
+        auth,
+      );
+
+      expect(secondResponse.status).toBe(200);
+      expect(secondResponse.body.success).toBe(true);
+    });
+
     it("should return 404 for non-existent annotation queue", async () => {
       const nonExistentQueueId = uuidv4();
 

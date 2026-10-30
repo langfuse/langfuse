@@ -1,200 +1,23 @@
 types:
+  # Migration signal attached as the top-level `_deprecation` key on responses
+  # from deprecated (legacy, pre-v4-data-model) endpoints.
+  Deprecation:
+    docs: Migration signal returned by deprecated endpoints. Optional fields are omitted when they have no value.
+    properties:
+      message:
+        type: string
+        docs: Human- and agent-readable summary of the deprecation and its replacement.
+      replacement:
+        type: optional<string>
+        docs: The replacement endpoint, e.g. "GET /api/public/v2/observations". Omitted when the endpoint is being removed without a direct replacement.
+      docsUrl:
+        type: optional<string>
+        docs: Link to the migration documentation (markdown), when available.
+      sunsetAt:
+        type: optional<string>
+        docs: ISO date after which the endpoint may stop working, when a removal date is committed.
+
   # Objects
-  # Source: web/src/features/public-api/types/traces.ts - APITrace, APIExtendedTrace, GetTraceV1Response
-  Trace:
-    properties:
-      id:
-        type: string
-        docs: The unique identifier of a trace
-      timestamp:
-        type: datetime
-        docs: The timestamp when the trace was created
-      name:
-        type: nullable<string>
-        docs: The name of the trace
-      input:
-        type: optional<unknown>
-        docs: The input data of the trace. Can be any JSON.
-      output:
-        type: optional<unknown>
-        docs: The output data of the trace. Can be any JSON.
-      sessionId:
-        type: nullable<string>
-        docs: The session identifier associated with the trace
-      release:
-        type: nullable<string>
-        docs: The release version of the application when the trace was created
-      version:
-        type: nullable<string>
-        docs: The version of the trace
-      userId:
-        type: nullable<string>
-        docs: The user identifier associated with the trace
-      metadata:
-        type: optional<unknown>
-        docs: The metadata associated with the trace. Can be any JSON.
-      tags:
-        type: list<string>
-        docs: The tags associated with the trace.
-      public:
-        type: boolean
-        docs: Public traces are accessible via url without login
-      environment:
-        type: string
-        docs: The environment from which this trace originated. Can be any lowercase alphanumeric string with hyphens and underscores that does not start with 'langfuse'.
-  TraceWithDetails: # GET /traces
-    extends: Trace
-    properties:
-      htmlPath:
-        type: string
-        docs: Path of trace in Langfuse UI
-      latency:
-        type: optional<nullable<double>>
-        docs: Latency of trace in seconds
-      totalCost:
-        type: optional<nullable<double>>
-        docs: Cost of trace in USD
-      observations:
-        type: optional<nullable<list<string>>>
-        docs: List of observation ids
-      scores:
-        type: optional<nullable<list<string>>>
-        docs: List of score ids
-  TraceWithFullDetails: # GET traces/[traceID]
-    extends: Trace
-    properties:
-      htmlPath:
-        type: string
-        docs: Path of trace in Langfuse UI
-      latency:
-        type: optional<nullable<double>>
-        docs: Latency of trace in seconds
-      totalCost:
-        type: optional<nullable<double>>
-        docs: Cost of trace in USD
-      observations:
-        type: list<ObservationsView>
-        docs: List of observations
-      scores:
-        type: list<ScoreV1>
-        docs: List of scores
-  # Source: web/src/features/public-api/types/sessions.ts - APISession
-  Session:
-    properties:
-      id: string
-      createdAt: datetime
-      projectId: string
-      environment:
-        type: string
-        docs: The environment from which this session originated.
-  SessionWithTraces:
-    extends: Session
-    properties:
-      traces: list<Trace>
-  # Source: web/src/features/public-api/types/observations.ts - APIObservation
-  Observation:
-    properties:
-      id:
-        type: string
-        docs: The unique identifier of the observation
-      traceId:
-        type: nullable<string>
-        docs: The trace ID associated with the observation
-      type:
-        type: string
-        docs: The type of the observation
-      name:
-        type: nullable<string>
-        docs: The name of the observation
-      startTime:
-        type: datetime
-        docs: The start time of the observation
-      endTime:
-        type: nullable<datetime>
-        docs: The end time of the observation.
-      completionStartTime:
-        type: nullable<datetime>
-        docs: The completion start time of the observation
-      model:
-        type: nullable<string>
-        docs: The model used for the observation
-      modelParameters:
-        type: unknown
-        docs: The parameters of the model used for the observation
-      input:
-        type: unknown
-        docs: The input data of the observation
-      version:
-        type: nullable<string>
-        docs: The version of the observation
-      metadata:
-        type: unknown
-        docs: Additional metadata of the observation
-      output:
-        type: unknown
-        docs: The output data of the observation
-      usage:
-        type: Usage
-        docs: (Deprecated. Use usageDetails and costDetails instead.) The usage data of the observation
-      level:
-        type: ObservationLevel
-        docs: The level of the observation
-      statusMessage:
-        type: nullable<string>
-        docs: The status message of the observation
-      parentObservationId:
-        type: nullable<string>
-        docs: The parent observation ID
-      promptId:
-        type: nullable<string>
-        docs: The prompt ID associated with the observation
-      usageDetails:
-        type: map<string, integer>
-        docs: The usage details of the observation. Key is the name of the usage metric, value is the number of units consumed. The total key is the sum of all (non-total) usage metrics or the total value ingested.
-      costDetails:
-        type: map<string, double>
-        docs: The cost details of the observation. Key is the name of the cost metric, value is the cost in USD. The total key is the sum of all (non-total) cost metrics or the total value ingested.
-      environment:
-        type: string
-        docs: The environment from which this observation originated. Can be any lowercase alphanumeric string with hyphens and underscores that does not start with 'langfuse'.
-
-  ObservationsView:
-    extends: Observation
-    properties:
-      promptName:
-        type: nullable<string>
-        docs: The name of the prompt associated with the observation
-      promptVersion:
-        type: nullable<integer>
-        docs: The version of the prompt associated with the observation
-      modelId:
-        type: nullable<string>
-        docs: The unique identifier of the model
-      inputPrice:
-        type: nullable<double>
-        docs: The price of the input in USD
-      outputPrice:
-        type: nullable<double>
-        docs: The price of the output in USD.
-      totalPrice:
-        type: nullable<double>
-        docs: The total price in USD.
-      calculatedInputCost:
-        type: nullable<double>
-        docs: (Deprecated. Use usageDetails and costDetails instead.) The calculated cost of the input in USD
-      calculatedOutputCost:
-        type: nullable<double>
-        docs: (Deprecated. Use usageDetails and costDetails instead.) The calculated cost of the output in USD
-      calculatedTotalCost:
-        type: nullable<double>
-        docs: (Deprecated. Use usageDetails and costDetails instead.) The calculated total cost in USD
-      latency:
-        type: nullable<double>
-        docs: The latency in seconds.
-      timeToFirstToken:
-        type: nullable<double>
-        docs: The time to the first token in seconds
-
   # Source: web/src/features/public-api/types/observations.ts - APIObservationV2
   ObservationV2:
     docs: |
@@ -219,12 +42,19 @@ types:
         docs: The project ID this observation belongs to
       parentObservationId:
         type: nullable<string>
-        docs: The parent observation ID
+        docs: |
+          The physical parent observation ID, if present.
+          Observations marked as app roots by the SDK may retain a non-null parent ID.
       type:
         type: string
         docs: The type of the observation (e.g. GENERATION, SPAN, EVENT)
 
       # Basic fields (field group: basic)
+      isRootObservation:
+        type: optional<boolean>
+        docs: |
+          Whether this observation is a logical root.
+          This is true for observations without a physical parent and observations marked as app roots by the SDK.
       name:
         type: optional<nullable<string>>
         docs: The name of the observation
@@ -274,11 +104,11 @@ types:
 
       # Metadata fields (field group: metadata)
       metadata:
-        type: optional<unknown>
+        type: optional<map<string, unknown>>
         docs: Additional metadata of the observation
 
       # Model fields (field group: model)
-      providedModelName:
+      model:
         type: optional<nullable<string>>
         docs: The model name as provided by the user
       internalModelId:
@@ -321,10 +151,19 @@ types:
         type: optional<nullable<double>>
         docs: The time to first token in seconds
 
-      # Enrichment fields (added by server-side enrichment)
+      # Enrichment fields (always present on v2 responses, null when `model` field group not requested)
       modelId:
-        type: optional<nullable<string>>
-        docs: The matched model ID
+        type: nullable<string>
+        docs: The matched model ID. Null when the `model` field group is not requested.
+      inputPrice:
+        type: nullable<string>
+        docs: The input token price (USD per unit) from the matched model, serialized as a decimal string (e.g. "0.0001"). Null when the `model` field group is not requested.
+      outputPrice:
+        type: nullable<string>
+        docs: The output token price (USD per unit) from the matched model, serialized as a decimal string (e.g. "0.0001"). Null when the `model` field group is not requested.
+      totalPrice:
+        type: nullable<string>
+        docs: The total token price (USD per unit) from the matched model, serialized as a decimal string (e.g. "0.0001"). Null when the `model` field group is not requested.
 
       # Trace context fields (field group: trace_context)
       traceName:
@@ -366,7 +205,9 @@ types:
     docs: Configuration for a score
     properties:
       id: string
-      name: string
+      name:
+        type: string
+        docs: Score config name. Maximum 80 characters.
       createdAt: datetime
       updatedAt: datetime
       projectId: string
@@ -390,83 +231,6 @@ types:
     properties:
       value: double
       label: string
-  # Source: packages/shared/src/features/scores/interfaces/api/v1/schemas.ts - APIScoreSchemaV1
-  BaseScoreV1:
-    properties:
-      id: string
-      traceId: string
-      name: string
-      source: ScoreSource
-      observationId:
-        type: optional<nullable<string>>
-        docs: The observation ID associated with the score
-      timestamp: datetime
-      createdAt: datetime
-      updatedAt: datetime
-      authorUserId:
-        type: nullable<string>
-        docs: The user ID of the author
-      comment:
-        type: nullable<string>
-        docs: Comment on the score
-      metadata:
-        type: unknown
-        docs: Metadata associated with the score
-      configId:
-        type: nullable<string>
-        docs: Reference a score config on a score. When set, config and score name must be equal and value must comply to optionally defined numerical range
-      queueId:
-        type: nullable<string>
-        docs: The annotation queue referenced by the score. Indicates if score was initially created while processing annotation queue.
-      environment:
-        type: string
-        docs: The environment from which this score originated. Can be any lowercase alphanumeric string with hyphens and underscores that does not start with 'langfuse'.
-  NumericScoreV1:
-    extends: BaseScoreV1
-    properties:
-      value:
-        type: double
-        docs: The numeric value of the score
-  BooleanScoreV1:
-    extends: BaseScoreV1
-    properties:
-      value:
-        type: double
-        docs: The numeric value of the score. Equals 1 for "True" and 0 for "False"
-      stringValue:
-        type: string
-        docs: The string representation of the score value. Is inferred from the numeric value and equals "True" or "False"
-  CategoricalScoreV1:
-    extends: BaseScoreV1
-    properties:
-      value:
-        type: double
-        docs: Represents the numeric category mapping of the stringValue. If no config is linked, defaults to 0.
-      stringValue:
-        type: string
-        docs: The string representation of the score value. If no config is linked, can be any string. Otherwise, must map to a config category
-  TextScoreV1:
-    extends: BaseScoreV1
-    properties:
-      stringValue:
-        type: string
-        docs: The text content of the score (1-500 characters)
-  ScoreV1:
-    discriminant: "dataType"
-    union:
-      NUMERIC:
-        type: NumericScoreV1
-        docs: "Score with NUMERIC data type"
-      CATEGORICAL:
-        type: CategoricalScoreV1
-        docs: "Score with CATEGORICAL data type"
-      BOOLEAN:
-        type: BooleanScoreV1
-        docs: "Score with BOOLEAN data type"
-      TEXT:
-        type: TextScoreV1
-        docs: "Score with TEXT data type"
-
   # Source: packages/shared/src/features/scores/interfaces/api/v2/schemas.ts - APIScoreSchemaV2
   BaseScore:
     properties:
@@ -495,7 +259,7 @@ types:
         type: nullable<string>
         docs: Comment on the score
       metadata:
-        type: unknown
+        type: optional<map<string, unknown>>
         docs: Metadata associated with the score
       configId:
         type: nullable<string>
@@ -547,6 +311,8 @@ types:
         docs: The text content of the score (1-500 characters)
   Score:
     discriminant: "dataType"
+    base-properties:
+      _deprecation: optional<Deprecation>
     union:
       NUMERIC:
         type: NumericScore
@@ -597,10 +363,10 @@ types:
         type: unknown
         docs: Metadata associated with the dataset
       inputSchema:
-        type: nullable<unknown>
+        type: nullable<map<string, unknown>>
         docs: JSON Schema for validating dataset item inputs
       expectedOutputSchema:
-        type: nullable<unknown>
+        type: nullable<map<string, unknown>>
         docs: JSON Schema for validating dataset item expected outputs
       projectId: string
       createdAt: datetime
@@ -629,50 +395,52 @@ types:
       datasetName: string
       createdAt: datetime
       updatedAt: datetime
-  # Source: web/src/features/public-api/types/datasets.ts - APIDatasetRunItem
-  DatasetRunItem:
+      version:
+        type: optional<datetime>
+        docs: When this version of the dataset item became current. Listing dataset items with a `version` at or after this timestamp returns this item version, until the item is changed again. Self-hosted deployments that set `LANGFUSE_DATASET_SERVICE_WRITE_TO_VERSIONED_IMPLEMENTATION=false` update items in place, so there it stays at the item's first write.
+      mediaReferences:
+        type: list<DatasetItemMediaReference>
+        docs: Resolved Langfuse media references found in input, expectedOutput, and metadata.
+  # Source: web/src/features/public-api/types/datasets.ts - APIDatasetItemMediaReference
+  DatasetItemMediaReference:
     properties:
-      id: string
-      datasetRunId: string
-      datasetRunName: string
-      datasetItemId: string
-      traceId: string
-      observationId:
-        type: nullable<string>
-        docs: The observation ID associated with this run item
-      createdAt: datetime
-      updatedAt: datetime
-  # Source: web/src/features/public-api/types/datasets.ts - APIDatasetRun
-  DatasetRun:
+      field:
+        type: DatasetItemMediaReferenceField
+        docs: The dataset item field containing the reference
+      referenceString:
+        type: string
+        docs: The Langfuse media reference string, e.g. `@@@langfuseMedia:type=image/png|id=...|source=bytes@@@`
+      jsonPath:
+        type: string
+        docs: JSONPath of the string holding the reference within the field, e.g. `$['image']`
+      media:
+        type: DatasetItemMediaReferenceMedia
+        docs: The resolved media record.
+  DatasetItemMediaReferenceField:
+    enum:
+      - value: input
+        name: INPUT
+      - value: expectedOutput
+        name: EXPECTED_OUTPUT
+      - value: metadata
+        name: METADATA
+  DatasetItemMediaReferenceMedia:
     properties:
-      id:
+      mediaId:
         type: string
-        docs: Unique identifier of the dataset run
-      name:
+        docs: The unique langfuse identifier of the media record
+      contentType:
         type: string
-        docs: Name of the dataset run
-      description:
-        type: nullable<string>
-        docs: Description of the run
-      metadata:
-        type: unknown
-        docs: Metadata of the dataset run
-      datasetId:
+        docs: The MIME type of the media record
+      contentLength:
+        type: integer
+        docs: The size of the media record in bytes
+      url:
         type: string
-        docs: Id of the associated dataset
-      datasetName:
+        docs: The signed download URL of the media record
+      urlExpiry:
         type: string
-        docs: Name of the associated dataset
-      createdAt:
-        type: datetime
-        docs: The date and time when the dataset run was created
-      updatedAt:
-        type: datetime
-        docs: The date and time when the dataset run was last updated
-  DatasetRunWithItems:
-    extends: DatasetRun
-    properties:
-      datasetRunItems: list<DatasetRunItem>
+        docs: The expiry date and time of the download URL
   # Source: web/src/features/public-api/types/models.ts - APIModelDefinition
   Model:
     docs: |
@@ -680,7 +448,7 @@ types:
 
       Models can have either simple flat pricing or tiered pricing:
       - Flat pricing: Single price per usage type (legacy, but still supported)
-      - Tiered pricing: Multiple pricing tiers with conditional matching based on usage patterns
+      - Tiered pricing: Multiple pricing tiers with conditional matching based on usage patterns or observation attributes
 
       The pricing tiers approach is recommended for models with usage-based pricing variations.
       When using tiered pricing, the flat price fields (inputPrice, outputPrice, prices) are populated
@@ -728,10 +496,10 @@ types:
         type: map<string, ModelPrice>
       pricingTiers:
         docs: |
-          Array of pricing tiers with conditional pricing based on usage thresholds.
+          Array of pricing tiers with conditional pricing based on usage thresholds or observation attributes.
 
           Pricing tiers enable accurate cost tracking for models that charge different rates based on usage patterns
-          (e.g., different rates for high-volume usage, large context windows, or cached tokens).
+          or request attributes (e.g., high-volume usage, large context windows, cached tokens, or service tiers).
 
           Each model must have exactly one default tier (isDefault=true, priority=0) that serves as a fallback.
           Additional conditional tiers can be defined with specific matching criteria.
@@ -745,54 +513,76 @@ types:
 
   PricingTierCondition:
     docs: |
-      Condition for matching a pricing tier based on usage details. Used to implement tiered pricing models where costs vary based on usage thresholds.
+      Condition for matching a pricing tier against usage details or observation attributes.
 
-      How it works:
-      1. The regex pattern matches against usage detail keys (e.g., "input_tokens", "input_cached")
-      2. Values of all matching keys are summed together
-      3. The sum is compared against the threshold value using the specified operator
-      4. All conditions in a tier must be met (AND logic) for the tier to match
+      Usage-detail conditions treat usageDetailPattern as a regex, sum all matching usage values, and compare the sum to the numeric value. Model-parameter and metadata conditions match an exact top-level key against one or more string values.
+    discriminated: false
+    union:
+      - PricingTierUsageCondition
+      - PricingTierAttributeCondition
 
-      Common use cases:
-      - Threshold-based pricing: Match when accumulated usage exceeds a certain amount
-      - Usage-type-specific pricing: Different rates for cached vs non-cached tokens, or input vs output
-      - Volume-based pricing: Different rates based on total request or token count
+  PricingTierUsageCondition:
+    docs: Condition that sums usage details whose keys match a regex.
     properties:
       usageDetailPattern:
-        docs: |
-          Regex pattern to match against usage detail keys. All matching keys' values are summed for threshold comparison.
-
-          Examples:
-          - "^input" matches "input", "input_tokens", "input_cached", etc.
-          - "^(input|prompt)" matches both "input_tokens" and "prompt_tokens"
-          - "_cache$" matches "input_cache", "output_cache", etc.
-
-          The pattern is case-insensitive by default. If no keys match, the sum is treated as zero.
+        docs: Regex pattern matched against usage detail keys.
         type: string
-      operator:
-        docs: |
-          Comparison operator to apply between the summed value and the threshold.
-
-          - gt: greater than (sum > threshold)
-          - gte: greater than or equal (sum >= threshold)
-          - lt: less than (sum < threshold)
-          - lte: less than or equal (sum <= threshold)
-          - eq: equal (sum == threshold)
-          - neq: not equal (sum != threshold)
-        type: PricingTierOperator
+      operator: PricingTierOperator
       value:
-        docs: Threshold value for comparison. For token-based pricing, this is typically the token count threshold (e.g., 200000 for a 200K token threshold).
+        docs: Numeric threshold for the summed matching usage values.
         type: double
       caseSensitive:
-        docs: Whether the regex pattern matching is case-sensitive. Default is false (case-insensitive matching).
+        docs: Whether the usage-detail regex is case-sensitive.
         type: boolean
+
+  PricingTierAttributeCondition:
+    docs: Condition that matches any configured value for a top-level observation attribute.
+    properties:
+      source:
+        docs: Observation attribute object evaluated by this condition.
+        type: PricingTierAttributeSource
+      key:
+        docs: Exact top-level attribute key.
+        type: string
+      operator:
+        docs: Membership operator.
+        type: literal<"in">
+      values:
+        docs: Accepted string attribute values. At least one value is required.
+        type: list<string>
+
+  PricingTierAttributeSource:
+    enum:
+      - model_parameters
+      - metadata
+
+  PricingTierConditionInput:
+    docs: Condition input for matching a pricing tier.
+    discriminated: false
+    union:
+      - PricingTierUsageConditionInput
+      - PricingTierAttributeCondition
+
+  PricingTierUsageConditionInput:
+    docs: Input condition that sums usage details whose keys match a regex.
+    properties:
+      usageDetailPattern:
+        docs: Regex pattern matched against usage detail keys.
+        type: string
+      operator: PricingTierOperator
+      value:
+        docs: Numeric threshold for the summed matching usage values.
+        type: double
+      caseSensitive:
+        docs: Whether the usage-detail regex is case-sensitive. Defaults to false.
+        type: optional<boolean>
 
   PricingTier:
     docs: |
-      Pricing tier definition with conditional pricing based on usage thresholds.
+      Pricing tier definition with conditional pricing based on usage thresholds or observation attributes.
 
-      Pricing tiers enable accurate cost tracking for LLM providers that charge different rates based on usage patterns.
-      For example, some providers charge higher rates when context size exceeds certain thresholds.
+      Pricing tiers enable accurate cost tracking for LLM providers that charge different rates based on usage patterns or request attributes.
+      For example, some providers charge higher rates when context size exceeds certain thresholds or when an accelerated service tier is selected.
 
       How tier matching works:
       1. Tiers are evaluated in ascending priority order (priority 1 before priority 2, etc.)
@@ -882,8 +672,8 @@ types:
           - Must have priority=0
           - Must have empty conditions array (conditions=[])
 
-          The default tier acts as a fallback when no conditional tiers match.
-        type: boolean
+          The default tier acts as a fallback when no conditional tiers match. Defaults to false when omitted.
+        type: optional<boolean>
       priority:
         docs: |
           Priority for tier matching evaluation. Lower numbers = higher priority (evaluated first).
@@ -898,8 +688,8 @@ types:
           The default tier must have an empty array (conditions=[]).
           Conditional tiers should define one or more conditions that specify when this tier's pricing applies.
 
-          Each condition specifies a regex pattern, operator, and threshold value for matching against usage details.
-        type: list<PricingTierCondition>
+          Conditions can compare summed matching usage details to a numeric threshold, or exactly match a top-level model parameter or metadata value.
+        type: list<PricingTierConditionInput>
       prices:
         docs: |
           Prices (USD) by usage type for this tier. At least one price must be defined.
@@ -973,6 +763,13 @@ types:
       - CATEGORICAL
       - CORRECTION
       - TEXT
+
+  OpenAIUsage:
+    docs: Usage interface of OpenAI for improved compatibility.
+    properties:
+      promptTokens: optional<integer>
+      completionTokens: optional<integer>
+      totalTokens: optional<integer>
 
 errors:
   Error:

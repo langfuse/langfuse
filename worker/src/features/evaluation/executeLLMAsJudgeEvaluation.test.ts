@@ -1,10 +1,58 @@
-import { describe, expect, it, vi, type Mock } from "vitest";
+import { beforeEach, describe, expect, it, vi, type Mock } from "vitest";
 import { JobExecutionStatus } from "@prisma/client";
 import z from "zod";
+
+const observabilityMocks = vi.hoisted(() => ({
+  spans: [] as Array<{
+    name: string;
+    attributes: Record<string, unknown>;
+  }>,
+  blockEvaluator: vi.fn().mockResolvedValue({ blockedEvaluatorIds: [] }),
+  recordIncrement: vi.fn(),
+}));
+
+vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import("@langfuse/shared/src/server")>();
+
+  return {
+    ...actual,
+    blockEvaluator: observabilityMocks.blockEvaluator,
+    recordIncrement: observabilityMocks.recordIncrement,
+    instrumentAsync: vi.fn(
+      async (
+        { name }: { name: string },
+        callback: (span: {
+          setAttribute: (key: string, value: unknown) => unknown;
+          setAttributes: (attributes: Record<string, unknown>) => unknown;
+        }) => Promise<unknown>,
+      ) => {
+        const captured = { name, attributes: {} as Record<string, unknown> };
+        const span = {
+          setAttribute(key: string, value: unknown) {
+            captured.attributes[key] = value;
+            return span;
+          },
+          setAttributes(attributes: Record<string, unknown>) {
+            Object.assign(captured.attributes, attributes);
+            return span;
+          },
+        };
+        observabilityMocks.spans.push(captured);
+        return callback(span);
+      },
+    ),
+  };
+});
+
 import { executeLLMAsJudgeEvaluation } from "./evalService";
 import { createMockEvalExecutionDeps } from "./evalExecutionDeps";
 import { UnrecoverableError } from "../../errors/UnrecoverableError";
-import { ExtractedVariable } from "./observationEval/extractObservationVariables";
+import {
+  LLMValidationError,
+  recordIncrement,
+  type ExtractedVariable,
+} from "@langfuse/shared/src/server";
 import {
   EvalTargetObject,
   type PersistedEvalOutputDefinition,
@@ -26,6 +74,18 @@ import {
 describe("executeLLMAsJudgeEvaluation", () => {
   const projectId = "test-project-123";
   const jobExecutionId = "test-job-execution-456";
+  const getScorePersistenceMetricCalls = () =>
+    vi
+      .mocked(recordIncrement)
+      .mock.calls.filter(
+        ([metric]) => metric === "langfuse.evaluation.score_persistence",
+      );
+
+  beforeEach(() => {
+    observabilityMocks.spans.length = 0;
+    observabilityMocks.blockEvaluator.mockClear();
+    observabilityMocks.recordIncrement.mockClear();
+  });
 
   // ============================================================================
   // Test Fixtures
@@ -115,6 +175,7 @@ describe("executeLLMAsJudgeEvaluation", () => {
     provider: "openai",
     model: "gpt-4",
     apiKey: { adapter: "openai", secretKey: "test-key" },
+    adapter: "openai",
     modelParams: {},
   };
 
@@ -199,6 +260,17 @@ describe("executeLLMAsJudgeEvaluation", () => {
         }),
       );
       expect(enqueueScoreIngestion).toHaveBeenCalledTimes(1);
+      expect(getScorePersistenceMetricCalls()).toEqual([
+        [
+          "langfuse.evaluation.score_persistence",
+          1,
+          {
+            evaluator_type: "llm_as_judge",
+            outcome: "success",
+            score_count_bucket: "1",
+          },
+        ],
+      ]);
       expect(updateJobExecution).toHaveBeenCalledWith(
         expect.objectContaining({
           id: jobExecutionId,
@@ -211,6 +283,31 @@ describe("executeLLMAsJudgeEvaluation", () => {
           }),
         }),
       );
+
+      const executeSpan = observabilityMocks.spans.find(
+        ({ name }) => name === "eval.execute-llm-as-judge",
+      );
+      const callSpan = observabilityMocks.spans.find(
+        ({ name }) => name === "eval.call-llm",
+      );
+
+      expect(executeSpan?.attributes).toMatchObject({
+        "langfuse.project.id": projectId,
+        "eval.job_execution.id": jobExecutionId,
+        "eval.execution.trace_id": expect.any(String),
+        "eval.execution.stage": "completed",
+        "eval.execution.outcome": "success",
+        "eval.model.provider": "openai",
+        "eval.model.name": "gpt-4",
+        "eval.model.adapter": "openai",
+      });
+      expect(callSpan?.attributes).toMatchObject({
+        "langfuse.project.id": projectId,
+        "eval.job_execution.id": jobExecutionId,
+        "eval.execution.trace_id":
+          executeSpan?.attributes["eval.execution.trace_id"],
+        "eval.llm.outcome": "success",
+      });
     });
 
     it("should include observation ID in score when present", async () => {
@@ -360,6 +457,17 @@ describe("executeLLMAsJudgeEvaluation", () => {
       await expect(
         executeLLMAsJudgeEvaluation(createExecutionParams({ deps })),
       ).rejects.toThrow("Failed to write score");
+      expect(getScorePersistenceMetricCalls()).toEqual([
+        [
+          "langfuse.evaluation.score_persistence",
+          1,
+          {
+            evaluator_type: "llm_as_judge",
+            outcome: "failure",
+            score_count_bucket: "1",
+          },
+        ],
+      ]);
     });
 
     it("should throw error if score ingestion queue fails", async () => {
@@ -449,11 +557,13 @@ describe("executeLLMAsJudgeEvaluation", () => {
             traceId: expect.any(String),
             traceName: `Execute evaluator: ${mockEvalTemplate.name}`,
             environment: "langfuse-llm-as-a-judge",
+            evaluationContext: {
+              evaluationRuleId: mockJobExecution.jobConfigurationId,
+              evaluatorExecutionIsTest: false,
+            },
             metadata: expect.objectContaining({
               job_execution_id: jobExecutionId,
-              job_configuration_id: mockJobExecution.jobConfigurationId,
               target_trace_id: mockJobExecution.jobInputTraceId,
-              score_id: expect.any(String),
             }),
           }),
         }),
@@ -464,7 +574,24 @@ describe("executeLLMAsJudgeEvaluation", () => {
       const callLLM = mockSuccessfulLLMCall(0.8, "Good response");
       const deps = createSuccessfulDeps({ callLLM });
 
-      await executeLLMAsJudgeEvaluation(createExecutionParams({ deps }));
+      await executeLLMAsJudgeEvaluation(
+        createExecutionParams({
+          deps,
+          template: {
+            ...mockEvalTemplate,
+            outputDefinition: {
+              version: 2,
+              dataType: ScoreDataTypeEnum.NUMERIC,
+              reasoning: { description: "Explain the score" },
+              score: {
+                description: "Return a score between 0 and 1",
+                minValue: 0,
+                maxValue: 1,
+              },
+            },
+          },
+        }),
+      );
 
       const structuredOutputSchema = callLLM.mock.calls[0][0]
         .structuredOutputSchema as z.ZodTypeAny;
@@ -475,6 +602,20 @@ describe("executeLLMAsJudgeEvaluation", () => {
           reasoning: "Good response",
         }).success,
       ).toBe(true);
+      expect(
+        structuredOutputSchema.safeParse({
+          score: 1.1,
+          reasoning: "Outside the configured range",
+        }).success,
+      ).toBe(false);
+      expect(z.toJSONSchema(structuredOutputSchema)).toMatchObject({
+        properties: {
+          score: {
+            minimum: 0,
+            maximum: 1,
+          },
+        },
+      });
     });
 
     it("should pass categorical structured output schema to LLM", async () => {
@@ -738,9 +879,8 @@ describe("executeLLMAsJudgeEvaluation", () => {
         createExecutionParams({ job: fullJob, deps }),
       );
 
-      const expectedMetadata = {
+      const expectedTraceMetadata = {
         job_execution_id: jobExecutionId,
-        job_configuration_id: fullJob.jobConfigurationId,
         target_trace_id: fullJob.jobInputTraceId,
         target_observation_id: "obs-full",
         target_dataset_item_id: "dataset-full",
@@ -749,7 +889,11 @@ describe("executeLLMAsJudgeEvaluation", () => {
       expect(callLLM).toHaveBeenCalledWith(
         expect.objectContaining({
           traceSinkParams: expect.objectContaining({
-            metadata: expect.objectContaining(expectedMetadata),
+            evaluationContext: {
+              evaluationRuleId: fullJob.jobConfigurationId,
+              evaluatorExecutionIsTest: false,
+            },
+            metadata: expect.objectContaining(expectedTraceMetadata),
           }),
         }),
       );
@@ -758,7 +902,13 @@ describe("executeLLMAsJudgeEvaluation", () => {
         expect.objectContaining({
           event: expect.objectContaining({
             body: expect.objectContaining({
-              metadata: expect.objectContaining(expectedMetadata),
+              evaluationRuleId: fullJob.jobConfigurationId,
+              metadata: expect.objectContaining({
+                job_execution_id: jobExecutionId,
+                target_trace_id: fullJob.jobInputTraceId,
+                target_observation_id: "obs-full",
+                target_dataset_item_id: "dataset-full",
+              }),
             }),
           }),
         }),
@@ -791,12 +941,14 @@ describe("executeLLMAsJudgeEvaluation", () => {
             name: mockJobConfiguration.scoreName,
             value: 0.88,
             comment: "Well structured response",
+            configId: undefined,
             source: "EVAL",
             environment: "production",
             executionTraceId: expect.any(String),
+            evaluatorId: undefined,
+            evaluationRuleId: mockJobExecution.jobConfigurationId,
             metadata: expect.objectContaining({
               job_execution_id: jobExecutionId,
-              job_configuration_id: mockJobExecution.jobConfigurationId,
               target_trace_id: mockJobExecution.jobInputTraceId,
             }),
             dataType: "NUMERIC",
@@ -1067,6 +1219,17 @@ describe("executeLLMAsJudgeEvaluation", () => {
 
       expect(uploadScore).toHaveBeenCalledTimes(2);
       expect(enqueueScoreIngestion).toHaveBeenCalledTimes(2);
+      expect(getScorePersistenceMetricCalls()).toEqual([
+        [
+          "langfuse.evaluation.score_persistence",
+          1,
+          {
+            evaluator_type: "llm_as_judge",
+            outcome: "success",
+            score_count_bucket: "2",
+          },
+        ],
+      ]);
 
       const firstUploadCall = uploadScore.mock.calls[0][0];
       const secondUploadCall = uploadScore.mock.calls[1][0];
@@ -1188,6 +1351,60 @@ describe("executeLLMAsJudgeEvaluation", () => {
       await expect(
         executeLLMAsJudgeEvaluation(createExecutionParams({ deps })),
       ).rejects.toThrow("Rate limit exceeded");
+    });
+
+    it("records native error policy and blocks the evaluator", async () => {
+      const llmError = new LLMValidationError({
+        code: "endpoint-unreachable",
+        message: "Cannot reach custom endpoint",
+      });
+      const deps = createMockEvalExecutionDeps({
+        fetchModelConfig: mockValidFetchModelConfig(),
+        callLLM: vi.fn().mockRejectedValue(llmError),
+      });
+
+      await expect(
+        executeLLMAsJudgeEvaluation({
+          ...createExecutionParams({ deps }),
+          evaluatorId: "evaluator-123",
+        }),
+      ).rejects.toBe(llmError);
+
+      const executeSpan = observabilityMocks.spans.find(
+        ({ name }) => name === "eval.execute-llm-as-judge",
+      );
+      const callSpan = observabilityMocks.spans.find(
+        ({ name }) => name === "eval.call-llm",
+      );
+      const expectedErrorAttributes = {
+        "eval.llm.error.kind": "validation",
+        "eval.llm.error.retryable": false,
+        "eval.llm.error.status_code": 400,
+        "eval.llm.blocked": true,
+        "eval.llm.block.reason": "LLM_CONNECTION_ENDPOINT_UNREACHABLE",
+        "eval.llm.block.source": "llm_completion_error",
+      };
+
+      expect(callSpan?.attributes).toMatchObject({
+        ...expectedErrorAttributes,
+        "eval.llm.outcome": "blocked",
+      });
+      expect(executeSpan?.attributes).toMatchObject({
+        ...expectedErrorAttributes,
+        "eval.llm.block.applied": true,
+        "eval.execution.stage": "call_llm",
+        "eval.execution.outcome": "blocked",
+      });
+      expect(callSpan?.attributes).not.toHaveProperty(
+        "http.response.status_code",
+      );
+      expect(observabilityMocks.blockEvaluator).toHaveBeenCalledWith(
+        expect.objectContaining({
+          evaluatorId: "evaluator-123",
+          blockReason: "LLM_CONNECTION_ENDPOINT_UNREACHABLE",
+          source: "llm_completion_error",
+        }),
+      );
     });
   });
 

@@ -3,7 +3,6 @@ import {
   getObservationsFromEventsTableForPublicApi,
   getObservationsCountFromEventsTableForPublicApi,
 } from "@langfuse/shared/src/server";
-import { env } from "@/src/env.mjs";
 
 import {
   LEGACY_PUBLIC_API_OBSERVATIONS_CLICKHOUSE_RESOURCE_ERROR_MESSAGE,
@@ -20,14 +19,49 @@ import {
   generateObservationsForPublicApi,
   getObservationsCountForPublicApi,
 } from "@/src/features/public-api/server/observations";
-
+import { legacyPublicApiRateLimitUpgradePaths } from "@/src/features/public-api/server/rateLimitUpgradePaths";
+import { OBSERVATIONS_V1_DEPRECATION } from "@/src/features/public-api/server/deprecations";
+import { clampToDataAccessDays } from "@/src/features/entitlements/server";
 export default withMiddlewares(
   {
     GET: createAuthedProjectAPIRoute({
       name: "Get Observations",
+      action: "traces:read",
+      allowInAppAgentKey: true,
+      rateLimitResource: "public-api-legacy",
       querySchema: GetObservationsV1Query,
       responseSchema: GetObservationsV1Response,
+      rateLimitUpgradePath:
+        legacyPublicApiRateLimitUpgradePaths.observationsList,
+      rejectInEventsOnlyMode: true,
+      deprecation: OBSERVATIONS_V1_DEPRECATION,
       fn: async ({ query, auth }) => {
+        const dataAccessWindow = clampToDataAccessDays({
+          plan: auth.scope.plan,
+          fromTimestamp: query.fromStartTime ?? undefined,
+        });
+        const advancedFilters = dataAccessWindow.accessFloor
+          ? [
+              ...(query.filter ?? []),
+              {
+                column: "startTime",
+                operator: ">=" as const,
+                value: dataAccessWindow.effectiveFromTimestamp!,
+                type: "datetime" as const,
+              },
+              ...(query.toStartTime
+                ? [
+                    {
+                      column: "startTime",
+                      operator: "<" as const,
+                      value: new Date(query.toStartTime),
+                      type: "datetime" as const,
+                    },
+                  ]
+                : []),
+            ]
+          : query.filter;
+
         const filterProps = {
           projectId: auth.scope.projectId,
           page: query.page,
@@ -39,19 +73,13 @@ export default withMiddlewares(
           type: query.type ?? undefined,
           environment: query.environment ?? undefined,
           parentObservationId: query.parentObservationId ?? undefined,
-          fromStartTime: query.fromStartTime ?? undefined,
+          fromStartTime: dataAccessWindow.effectiveFromTimestamp?.toISOString(),
           toStartTime: query.toStartTime ?? undefined,
           version: query.version ?? undefined,
-          advancedFilters: query.filter,
+          advancedFilters,
         };
 
-        // Use events table if query parameter is explicitly set, otherwise use environment variable
-        const useEventsTable =
-          query.useEventsTable !== undefined && query.useEventsTable !== null
-            ? query.useEventsTable === true
-            : env.LANGFUSE_ENABLE_EVENTS_TABLE_OBSERVATIONS;
-
-        if (useEventsTable) {
+        if (query.useEventsTable) {
           const [items, count] = await Promise.all([
             getObservationsFromEventsTableForPublicApi(filterProps),
             getObservationsCountFromEventsTableForPublicApi(filterProps),
@@ -94,7 +122,9 @@ export default withMiddlewares(
                   ],
                 },
                 include: {
-                  Price: true,
+                  Price: {
+                    where: { pricingTier: { isDefault: true } },
+                  },
                 },
               })
             : [];

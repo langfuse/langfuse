@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 import {
   Card,
   CardContent,
@@ -6,13 +7,13 @@ import {
 } from "@/src/components/ui/card";
 import { cn } from "@/src/utils/tailwind";
 import { useDraggable, useDroppable } from "@dnd-kit/core";
-import { InfoIcon, X } from "lucide-react";
+import { InfoIcon, X } from "@langfuse/icons";
 import {
   type CsvColumnPreview,
   type FieldMapping,
 } from "@/src/features/datasets/lib/csv/types";
 import { isSchemaField } from "@/src/features/datasets/lib/csv/helpers";
-import { Switch } from "@/src/components/ui/switch";
+import { Switch } from "@/src/components/design-system/Switch/Switch";
 import { Label } from "@/src/components/ui/label";
 import {
   Tooltip,
@@ -48,11 +49,11 @@ function SchemaKeyDropZone({
     >
       {mappedColumns.length === 0 ? (
         <div className="flex h-full min-h-[52px] flex-col justify-start p-2">
-          <div className="mb-1 text-sm font-medium">{schemaKey}</div>
+          <div className="mb-1 text-sm font-bold">{schemaKey}</div>
         </div>
       ) : (
         <div className="p-2">
-          <div className="mb-1 text-sm font-medium">{schemaKey}</div>
+          <div className="mb-1 text-sm font-bold">{schemaKey}</div>
           <div className="flex flex-wrap gap-1.5">
             {mappedColumns.map((column) => (
               <MappedColumnBadge
@@ -125,7 +126,7 @@ function MappedColumnBadge({
     <div
       ref={setNodeRef}
       className={cn(
-        "bg-accent-dark-blue text-muted group flex cursor-grab items-center gap-1 rounded-md px-2 py-1 text-sm font-medium active:cursor-grabbing",
+        "bg-accent-dark-blue text-muted group flex cursor-grab items-center gap-1 rounded-md px-2 py-1 text-sm font-bold active:cursor-grabbing",
         isDragging && "opacity-30",
       )}
       {...attributes}
@@ -140,7 +141,7 @@ function MappedColumnBadge({
         }}
         className="hover:bg-accent-dark-blue/80 flex items-center rounded-sm"
       >
-        <X className="h-3.5 w-3.5" />
+        <X size="base" />
       </button>
     </div>
   );
@@ -178,7 +179,7 @@ export function MappingCard({
   return (
     <Card className="flex h-full flex-col overflow-hidden">
       <CardHeader className="shrink-0 border-b p-3">
-        <CardTitle className="text-base font-semibold">
+        <CardTitle className="text-base font-bold">
           Map to Dataset Items
         </CardTitle>
       </CardHeader>
@@ -186,17 +187,19 @@ export function MappingCard({
         {/* INPUT SECTION */}
         <div className="space-y-2">
           <div className="flex items-center justify-between">
-            <h3 className="text-muted-foreground text-sm font-semibold tracking-wide">
+            <h3 className="text-muted-foreground text-sm font-bold tracking-wide">
               Input
             </h3>
             {inputSchemaKeys && inputSchemaKeys.length > 0 && (
               <div className="flex items-center gap-1.5">
-                <Switch
-                  id="direct-mapping-input"
-                  checked={useDirectMappingForInput}
-                  onCheckedChange={onToggleDirectMappingForInput}
-                  className="scale-75"
-                />
+                <div className="mx-1">
+                  <Switch
+                    id="direct-mapping-input"
+                    checked={useDirectMappingForInput}
+                    onCheckedChange={onToggleDirectMappingForInput}
+                    size="sm"
+                  />
+                </div>
                 <Label
                   htmlFor="direct-mapping-input"
                   className="text-muted-foreground cursor-pointer text-xs font-normal"
@@ -205,7 +208,7 @@ export function MappingCard({
                 </Label>
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <InfoIcon className="text-muted-foreground h-3 w-3" />
+                    <InfoIcon size="sm" color="muted" />
                   </TooltipTrigger>
                   <TooltipContent className="max-w-[250px]" side="left">
                     {useDirectMappingForInput
@@ -242,18 +245,20 @@ export function MappingCard({
         {/* OUTPUT SECTION */}
         <div className="space-y-2">
           <div className="flex items-center justify-between">
-            <h3 className="text-muted-foreground text-sm font-semibold tracking-wide">
+            <h3 className="text-muted-foreground text-sm font-bold tracking-wide">
               Expected Output
             </h3>
             {expectedOutputSchemaKeys &&
               expectedOutputSchemaKeys.length > 0 && (
                 <div className="flex items-center gap-1.5">
-                  <Switch
-                    id="direct-mapping-expected"
-                    checked={useDirectMappingForExpectedOutput}
-                    onCheckedChange={onToggleDirectMappingForExpectedOutput}
-                    className="scale-75"
-                  />
+                  <div className="mx-1">
+                    <Switch
+                      id="direct-mapping-expected"
+                      checked={useDirectMappingForExpectedOutput}
+                      onCheckedChange={onToggleDirectMappingForExpectedOutput}
+                      size="sm"
+                    />
+                  </div>
                   <Label
                     htmlFor="direct-mapping-expected"
                     className="text-muted-foreground cursor-pointer text-xs font-normal"
@@ -262,7 +267,7 @@ export function MappingCard({
                   </Label>
                   <Tooltip>
                     <TooltipTrigger asChild>
-                      <InfoIcon className="text-muted-foreground h-3 w-3" />
+                      <InfoIcon size="sm" color="muted" />
                     </TooltipTrigger>
                     <TooltipContent className="max-w-[250px]" side="left">
                       {useDirectMappingForExpectedOutput
@@ -298,7 +303,7 @@ export function MappingCard({
 
         {/* METADATA SECTION */}
         <div className="space-y-2">
-          <h3 className="text-muted-foreground text-sm font-semibold tracking-wide">
+          <h3 className="text-muted-foreground text-sm font-bold tracking-wide">
             Metadata
           </h3>
           <FreeformDropZone

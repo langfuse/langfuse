@@ -1,9 +1,9 @@
-import { CheckCircle2, Circle, TrashIcon } from "lucide-react";
+import { CheckCircle2, Circle, TrashIcon } from "@langfuse/icons";
 import { Button } from "@/src/components/ui/button";
 import { type PromptVariable } from "@langfuse/shared";
 import { CodeMirrorEditor } from "@/src/components/editor";
 
-import { usePlaygroundContext } from "../context";
+import { usePlaygroundContext } from "../context/PlaygroundProvider";
 import { useNamingConflicts } from "../hooks/useNamingConflicts";
 
 export const PromptVariableComponent: React.FC<{
@@ -29,9 +29,9 @@ export const PromptVariableComponent: React.FC<{
     deletePromptVariable(name);
   };
   const isUsedIcon = isUsed ? (
-    <CheckCircle2 size={16} color="green" />
+    <CheckCircle2 size="base" __rawStyle={{ color: "green" }} />
   ) : (
-    <Circle size={16} color="grey" />
+    <Circle size="base" __rawStyle={{ color: "grey" }} />
   );
   const isUsedTooltip = isUsed
     ? "Variable is in use"
@@ -57,7 +57,7 @@ export const PromptVariableComponent: React.FC<{
           onClick={handleDeleteVariable}
           className="p-0"
         >
-          {!isUsed && <TrashIcon size={16} />}
+          {!isUsed && <TrashIcon size="base" color="default" />}
         </Button>
       </div>
 

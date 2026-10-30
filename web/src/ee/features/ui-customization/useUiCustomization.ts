@@ -1,4 +1,4 @@
-import { useHasEntitlement } from "@/src/features/entitlements/hooks";
+import { useHasEntitlement } from "@/src/features/entitlements";
 import { api } from "@/src/utils/api";
 
 export const useUiCustomization = () => {
@@ -13,7 +13,3 @@ export const useUiCustomization = () => {
   if (!hasEntitlement) return null;
   return customization.data ?? null;
 };
-
-export type UiCustomizationOption = keyof NonNullable<
-  ReturnType<typeof useUiCustomization>
->;

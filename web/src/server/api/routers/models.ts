@@ -1,24 +1,32 @@
 import { v4 as uuidv4 } from "uuid";
 import { z } from "zod";
 
-import { auditLog } from "@/src/features/audit-logs/auditLog";
+import { isPrismaRecordNotFoundError } from "@/src/features/analytics-integrations/server";
+import { auditLog } from "@/src/features/audit-logs/server";
 import { isValidPostgresRegex } from "@/src/features/models/server/isValidPostgresRegex";
 import {
   GetModelResultSchema,
   ModelLastUsedQueryResult,
   UpsertModelSchema,
 } from "@/src/features/models/validation";
-import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { throwIfNoProjectAccess } from "@/src/features/rbac";
 import {
   createTRPCRouter,
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
-import { ModelUsageUnit, paginationZod, Prisma } from "@langfuse/shared";
+import {
+  LangfuseNotFoundError,
+  ModelUsageUnit,
+  paginationZod,
+  Prisma,
+} from "@langfuse/shared";
 import {
   clearModelCacheForProject,
   queryClickhouse,
   findModel,
+  hasPricingTierUsageDetails,
   matchPricingTier,
+  escapeSqlLikePattern,
 } from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
 
@@ -110,7 +118,7 @@ export const modelRouter = createTRPCRouter({
     .query(async ({ input, ctx }) => {
       const { projectId, page, limit, searchString } = input;
 
-      const searchStringTemplate = `%${searchString}%`;
+      const searchStringTemplate = `%${escapeSqlLikePattern(searchString)}%`;
       const searchStringCondition = searchString
         ? Prisma.sql`AND model_name ILIKE ${searchStringTemplate}`
         : Prisma.sql`AND 1=1`;
@@ -389,12 +397,20 @@ export const modelRouter = createTRPCRouter({
         scope: "models:CUD",
       });
 
-      const deletedModel = await ctx.prisma.model.delete({
-        where: {
-          id: input.modelId,
-          projectId: input.projectId,
-        },
-      });
+      let deletedModel;
+      try {
+        deletedModel = await ctx.prisma.model.delete({
+          where: {
+            id: input.modelId,
+            projectId: input.projectId,
+          },
+        });
+      } catch (error) {
+        if (isPrismaRecordNotFoundError(error)) {
+          throw new LangfuseNotFoundError("Model not found");
+        }
+        throw error;
+      }
 
       await auditLog({
         session: ctx.session,
@@ -415,10 +431,13 @@ export const modelRouter = createTRPCRouter({
         projectId: z.string(),
         modelName: z.string().min(1),
         usageDetails: z.record(z.string(), z.number()).optional(),
+        modelParameters: z.record(z.string(), z.string()).optional(),
+        metadata: z.record(z.string(), z.string()).optional(),
       }),
     )
     .query(async ({ input, ctx }) => {
-      const { projectId, modelName, usageDetails } = input;
+      const { projectId, modelName, usageDetails, modelParameters, metadata } =
+        input;
 
       throwIfNoProjectAccess({
         session: ctx.session,
@@ -436,41 +455,26 @@ export const modelRouter = createTRPCRouter({
         return { matched: false as const };
       }
 
-      // Step 2: If no usage details provided, return default tier
-      if (!usageDetails || Object.keys(usageDetails).length === 0) {
-        const defaultTier = pricingTiers.find((t) => t.isDefault);
-        if (!defaultTier) {
-          return { matched: false as const };
+      // Without usage details, fall back to the model's default pricing tier.
+      const defaultTier = pricingTiers.find((tier) => tier.isDefault);
+      const matchResult = (() => {
+        if (hasPricingTierUsageDetails(usageDetails)) {
+          return matchPricingTier(pricingTiers, usageDetails ?? {}, {
+            modelParameters,
+            metadata,
+          });
         }
-
-        return {
-          matched: true as const,
-          model: {
-            id: model.id,
-            modelName: model.modelName,
-            matchPattern: model.matchPattern,
-            projectId: model.projectId,
-          },
-          matchedTier: {
-            id: defaultTier.id,
-            name: defaultTier.name,
-            priority: defaultTier.priority,
-            isDefault: true,
-            prices: Object.fromEntries(
-              defaultTier.prices.map((p) => [p.usageType, p.price.toNumber()]),
-            ),
-          },
-        };
-      }
-
-      // Step 3: Use matchPricingTier from shared
-      const matchResult = matchPricingTier(pricingTiers, usageDetails);
+        if (defaultTier) {
+          return { pricingTierId: defaultTier.id };
+        }
+        return null;
+      })();
 
       if (!matchResult) {
         return { matched: false as const };
       }
 
-      // Step 4: Find the full tier details
+      // Step 3: Find the full tier details
       const matchedTier = pricingTiers.find(
         (t) => t.id === matchResult.pricingTierId,
       );

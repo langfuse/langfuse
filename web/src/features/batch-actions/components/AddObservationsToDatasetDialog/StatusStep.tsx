@@ -1,7 +1,7 @@
 import { Button } from "@/src/components/ui/button";
-import { Progress } from "@/src/components/ui/progress";
+import { Progress } from "@/src/components/design-system/Progress/Progress";
 import { api } from "@/src/utils/api";
-import { StatusBadge } from "@/src/components/layouts/status-badge";
+import { StatusBadge } from "@/src/components/ui/StatusBadge/StatusBadge";
 import { BatchActionStatus } from "@langfuse/shared";
 import {
   Card,
@@ -11,8 +11,8 @@ import {
 } from "@/src/components/ui/card";
 import Link from "next/link";
 import { useRouter } from "next/router";
-import { Check, AlertCircle } from "lucide-react";
-import Spinner from "@/src/components/design-system/Spinner/Spinner";
+import { Check, AlertCircle } from "@langfuse/icons";
+import { Spinner } from "@/src/components/design-system/Spinner/Spinner";
 
 type StatusStepProps = {
   projectId: string;
@@ -71,16 +71,16 @@ export function StatusStep({
           )}
           {isSuccess && (
             <div className="mb-4 rounded-full bg-green-100 p-6 dark:bg-green-900/20">
-              <Check className="h-12 w-12 text-green-600 dark:text-green-500" />
+              <Check __rawClassName="h-12 w-12 text-green-600 dark:text-green-500" />
             </div>
           )}
           {isComplete && !isSuccess && (
             <div className="mb-4 rounded-full bg-yellow-100 p-6 dark:bg-yellow-900/20">
-              <AlertCircle className="h-12 w-12 text-yellow-600 dark:text-yellow-500" />
+              <AlertCircle __rawClassName="h-12 w-12 text-yellow-600 dark:text-yellow-500" />
             </div>
           )}
 
-          <h2 className="mb-2 text-2xl font-semibold">
+          <h2 className="mb-2 text-2xl font-bold">
             {!isComplete && "Adding Observations to Dataset"}
             {isSuccess && "Successfully Added!"}
             {isComplete && !isSuccess && "Completed with Issues"}
@@ -132,20 +132,20 @@ export function StatusStep({
                       <span className="text-muted-foreground">
                         {processedCount} of {totalCount} processed
                       </span>
-                      <span className="font-medium">{progressPercent}%</span>
+                      <span className="font-bold">{progressPercent}%</span>
                     </div>
-                    <Progress value={progressPercent} className="h-2" />
+                    <Progress value={progressPercent} />
                   </div>
 
                   <div className="bg-muted/50 grid grid-cols-2 gap-4 rounded-lg p-3 text-sm">
                     <div className="flex items-center justify-between">
                       <span className="text-muted-foreground">Processed</span>
-                      <span className="font-semibold">{processedCount}</span>
+                      <span className="font-bold">{processedCount}</span>
                     </div>
                     <div className="flex items-center justify-between">
                       <span className="text-muted-foreground">Failed</span>
                       <span
-                        className={`font-semibold ${failedCount > 0 ? "text-destructive" : ""}`}
+                        className={`font-bold ${failedCount > 0 ? "text-destructive" : ""}`}
                       >
                         {failedCount}
                       </span>
@@ -160,11 +160,11 @@ export function StatusStep({
                     <span className="text-muted-foreground">
                       Successfully processed
                     </span>
-                    <span className="font-semibold">{processedCount}</span>
+                    <span className="font-bold">{processedCount}</span>
                   </div>
                   <div className="mt-2 flex items-center justify-between">
                     <span className="text-muted-foreground">Failed</span>
-                    <span className="text-destructive font-semibold">
+                    <span className="text-destructive font-bold">
                       {failedCount}
                     </span>
                   </div>
@@ -173,7 +173,7 @@ export function StatusStep({
 
               {status.data?.log && (
                 <div className="border-destructive/50 bg-destructive/5 space-y-2 rounded-lg border p-3">
-                  <p className="text-destructive text-xs font-medium">
+                  <p className="text-destructive text-xs font-bold">
                     Error Summary:
                   </p>
                   <pre className="text-muted-foreground max-h-32 overflow-auto text-[10px]">
@@ -199,7 +199,7 @@ export function StatusStep({
               <Button
                 className="flex-1"
                 onClick={() =>
-                  void router.push(
+                  router.push(
                     `/project/${projectId}/datasets/${encodeURIComponent(dataset.id)}/items`,
                   )
                 }

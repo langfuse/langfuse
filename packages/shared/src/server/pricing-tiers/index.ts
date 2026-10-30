@@ -3,6 +3,10 @@
  * Export validation, types, and other utilities for use across the codebase
  */
 
-export type { PricingTierMatchResult, PricingTierWithPrices } from "./types";
+export type {
+  PricingTierMatchAttributes,
+  PricingTierMatchResult,
+  PricingTierWithPrices,
+} from "./types";
 
-export { matchPricingTier } from "./matcher";
+export { hasPricingTierUsageDetails, matchPricingTier } from "./matcher";

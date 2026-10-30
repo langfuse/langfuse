@@ -72,7 +72,7 @@ export async function handleMcpRequest(
       // Connect server to transport
       await server.connect(transport);
 
-      logger.info("MCP server connected via Streamable HTTP transport", {
+      logger.debug("MCP server connected via Streamable HTTP transport", {
         method: req.method,
       });
 

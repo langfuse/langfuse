@@ -7,11 +7,15 @@ export const ScoreConfigCategory = z.object({
   value: z.number(),
 });
 
+export const SCORE_CONFIG_NAME_MIN_LENGTH = 1;
+export const SCORE_CONFIG_NAME_MAX_LENGTH = 80;
+const SCORE_CONFIG_NAME_MAX_LENGTH_FOR_DB_READ = 80;
+
 /** Input-only schema for score config names. Use at API/tRPC boundaries, not for DB reads. */
 export const ScoreConfigNameSchema = z
   .string()
-  .min(1)
-  .max(35)
+  .min(SCORE_CONFIG_NAME_MIN_LENGTH)
+  .max(SCORE_CONFIG_NAME_MAX_LENGTH)
   .regex(/^[\p{L}\p{N}_ .()-]+$/u, "Name contains invalid characters");
 
 // Numeric config fields
@@ -88,7 +92,7 @@ export const TextConfigFields = z.object({
 
 const ScoreConfigBase = z.object({
   id: z.string(),
-  name: z.string().min(1).max(35),
+  name: z.string().min(1).max(SCORE_CONFIG_NAME_MAX_LENGTH_FOR_DB_READ),
   isArchived: z.boolean(),
   description: z.string().nullish(),
   createdAt: z.coerce.date(),

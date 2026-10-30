@@ -5,6 +5,7 @@ import {
   type OrderByState,
 } from "@langfuse/shared";
 import { normalizeFilterColumnNames } from "@/src/features/filters/lib/filter-transform";
+import type { FilterStateMigration } from "@/src/features/filters/lib/filter-config";
 
 /**
  * Validates if an orderBy state references valid columns.
@@ -17,8 +18,19 @@ export function validateOrderBy(
 ): OrderByState | null {
   if (!orderBy || !columns || columns.length === 0) return null;
 
+  // Flatten group columns: a sortable column can live inside a group def
+  // (e.g. the events table's totalTokens under "Usage"), and a flat lookup
+  // would silently drop a saved orderBy that references it.
+  const flatColumns = columns.flatMap(function flatten(
+    col: LangfuseColumnDef<any, any>,
+  ): LangfuseColumnDef<any, any>[] {
+    return [col, ...(col.columns?.flatMap(flatten) ?? [])];
+  });
+
   const isSortableColumn = (columnId: string) =>
-    columns.some((col) => col.id === columnId && col.enableSorting !== false);
+    flatColumns.some(
+      (col) => col.id === columnId && col.enableSorting !== false,
+    );
 
   // If the column already exists in the active table, keep it.
   if (isSortableColumn(orderBy.column)) {
@@ -63,6 +75,7 @@ export function validateOrderBy(
 export function validateFilters(
   filters: FilterState,
   filterColumnDefinition?: ColumnDefinition[],
+  migrateFilterState?: FilterStateMigration,
 ): FilterState {
   if (!filterColumnDefinition || filterColumnDefinition.length === 0)
     return filters;
@@ -72,10 +85,13 @@ export function validateFilters(
     filters,
     filterColumnDefinition,
   );
+  const migrated = migrateFilterState
+    ? migrateFilterState(normalized)
+    : normalized;
 
   // Validate that columns exist (remove invalid ones)
   // After normalization, filter.column is always a canonical ID
-  return normalized.filter((filter) => {
+  return migrated.filter((filter) => {
     return filterColumnDefinition.some((def) => def.id === filter.column);
   });
 }

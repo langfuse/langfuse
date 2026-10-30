@@ -1,4 +1,5 @@
-import { Info } from "lucide-react";
+/* eslint-disable @repo/no-style-props */
+import { Info } from "@langfuse/icons";
 import { format } from "date-fns";
 import { Button } from "@/src/components/ui/button";
 
@@ -27,12 +28,12 @@ export function DatasetVersionWarningBanner({
     <div
       className={`border-accent-dark-blue/10 bg-accent-light-blue/30 flex items-start gap-3 border-b p-3 ${className}`}
     >
-      <Info className="mt-0.5 h-4 w-4 shrink-0" />
+      <Info size="base" __rawClassName="mt-0.5" />
       <div className="flex min-w-0 flex-1 flex-col gap-2">
         <div className="flex items-center justify-between gap-4">
           <p className="text-muted-foreground text-sm wrap-break-word">
             Viewing version from{" "}
-            <span className="text-foreground font-medium">
+            <span className="text-foreground font-bold">
               {format(selectedVersion, "MMM d, yyyy 'at' h:mm a")}
             </span>
           </p>

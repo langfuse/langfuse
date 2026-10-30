@@ -1,5 +1,11 @@
-import { type FilterState } from "@langfuse/shared";
-import { encodeFiltersGeneric } from "@/src/features/filters/lib/filter-query-encoding";
+import {
+  type FilterState,
+  TABLE_AGGREGATION_OPTIONS,
+  TIME_RANGES,
+  decodeFiltersGeneric,
+  encodeFiltersGeneric,
+  rangeToString,
+} from "@langfuse/shared";
 
 type BuildEventsTablePathForSpanNameParams = {
   currentPath: string;
@@ -72,4 +78,156 @@ export function buildEventsTablePathForObservationType({
     column: "type",
     value: observationType,
   });
+}
+
+/** Smallest preset window still containing `time`, else an absolute day. */
+function dateRangeCovering(time: Date, now = new Date()): string {
+  const ageMinutes = (now.getTime() - time.getTime()) / 60_000;
+  for (const option of TABLE_AGGREGATION_OPTIONS) {
+    const minutes = TIME_RANGES[option].minutes;
+    // Presets reach back from now, so a future timestamp must not match.
+    if (minutes != null && ageMinutes >= 0 && ageMinutes < minutes * 0.9) {
+      return rangeToString({ range: option });
+    }
+  }
+  const dayMs = 24 * 60 * 60_000;
+  return rangeToString({
+    from: new Date(time.getTime() - dayMs),
+    to: new Date(
+      Math.max(time.getTime(), Math.min(now.getTime(), time.getTime() + dayMs)),
+    ),
+  });
+}
+
+function rangeCovers(encoded: string, time: Date, now = new Date()): boolean {
+  const preset = Object.values(TIME_RANGES).find(
+    (def) => def.abbreviation === encoded,
+  );
+  if (preset?.minutes != null) {
+    const age = now.getTime() - time.getTime();
+    return age >= 0 && age < preset.minutes * 60_000;
+  }
+  const [from, to] = encoded.split("-").map(Number);
+  if (Number.isFinite(from) && Number.isFinite(to)) {
+    return time.getTime() >= from && time.getTime() <= to;
+  }
+  return false;
+}
+
+export function buildEventsTablePathForColumnFilter({
+  currentPath,
+  projectId,
+  target,
+  filter,
+  coverTime,
+}: {
+  currentPath: string;
+  projectId: string;
+  target: "observations" | "traces";
+  filter: FilterState[number];
+  /** A time the window must include. */
+  coverTime?: Date;
+}) {
+  const url = new URL(currentPath, "https://langfuse.local");
+  const params = new URLSearchParams();
+
+  const dateRange = url.searchParams.get("dateRange");
+  if (coverTime && !(dateRange && rangeCovers(dateRange, coverTime))) {
+    params.set("dateRange", dateRangeCovering(coverTime));
+  } else if (dateRange) {
+    params.set("dateRange", dateRange);
+  }
+
+  const existingFilters = decodeFiltersGeneric(
+    url.searchParams.get("filter") ?? "",
+  ).filter((f) => f.column !== filter.column);
+
+  params.set("filter", encodeFiltersGeneric([...existingFilters, filter]));
+
+  const query = params.toString();
+
+  return `/project/${projectId}/${target}${query ? `?${query}` : ""}`;
+}
+
+export type MetadataFilterOperator = "=" | "contains" | "does not contain";
+
+type BuildEventsTablePathForMetadataFilterParams = {
+  currentPath: string;
+  projectId: string;
+  metadataKey: string;
+  value: string;
+  operator: MetadataFilterOperator;
+  /** Whether to land on the observations or traces events table. */
+  target: "observations" | "traces";
+};
+
+/**
+ * Builds an events-table URL that adds a `metadata` filter (a `stringObject`
+ * clause). Unlike the name/type helpers above, this MERGES into any filters
+ * already present in `currentPath` (e.g. the list filter behind a peek) so the
+ * action reads as "add to filter" rather than "replace". The clicked value is
+ * matched against the top-level metadata key — metadata is stored as a flat
+ * `Map(String, String)`, so a nested value is filtered as a `contains` on its
+ * top-level branch (the caller chooses the operator accordingly).
+ */
+export function buildEventsTablePathForMetadataFilter({
+  currentPath,
+  projectId,
+  metadataKey,
+  value,
+  operator,
+  target,
+}: BuildEventsTablePathForMetadataFilterParams) {
+  const url = new URL(currentPath, "https://langfuse.local");
+  const params = new URLSearchParams();
+
+  const dateRange = url.searchParams.get("dateRange");
+  if (dateRange) {
+    params.set("dateRange", dateRange);
+  }
+
+  const existingFilters = decodeFiltersGeneric(
+    url.searchParams.get("filter") ?? "",
+  );
+
+  // Reconcile the new clause against any existing clause on this same
+  // key+value, direction-aware:
+  //  - Include (`contains`) only toggles the menu's OWN operators (contains /
+  //    does not contain). A stricter clause set elsewhere — the filter-builder
+  //    defaults stringObject to `=`, plus starts/ends with — is preserved, so a
+  //    one-click Include never broadens an exact filter (`= v AND contains v`
+  //    reduces to `= v`).
+  //  - Exclude (`does not contain`) contradicts EVERY positive clause on the
+  //    value (`= v`, `starts/ends with v` all imply it contains v), so it drops
+  //    them all; otherwise `= v AND does not contain v` is always false and
+  //    silently empties the table.
+  // Clauses on other keys/values are always left untouched (AND-merge).
+  const isExclude = operator === "does not contain";
+  const withoutConflicting = existingFilters.filter((f) => {
+    const sameTarget =
+      f.column === "metadata" &&
+      f.type === "stringObject" &&
+      f.key === metadataKey &&
+      f.value === value;
+    if (!sameTarget) return true;
+    if (isExclude) return false;
+    return f.operator !== "contains" && f.operator !== "does not contain";
+  });
+
+  const filters: FilterState = [
+    ...withoutConflicting,
+    {
+      column: "metadata",
+      type: "stringObject",
+      key: metadataKey,
+      operator,
+      value,
+    },
+  ];
+
+  params.set("filter", encodeFiltersGeneric(filters));
+
+  const query = params.toString();
+
+  return `/project/${projectId}/${target}${query ? `?${query}` : ""}`;
 }

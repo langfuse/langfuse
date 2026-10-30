@@ -1,14 +1,15 @@
-import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
 import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
 import { prisma } from "@langfuse/shared/src/db";
-import { logger, redis } from "@langfuse/shared/src/server";
-
+import { logger } from "@langfuse/shared/src/server";
+import { env } from "@/src/env.mjs";
 import { type NextApiRequest, type NextApiResponse } from "next";
-import { hashPassword } from "@/src/features/auth-credentials/lib/credentialsServerUtils";
 import { z } from "zod";
-import { type Role } from "@langfuse/shared";
-import { auditLog } from "@/src/features/audit-logs/auditLog";
-
+import { isBaseError, type Role } from "@langfuse/shared";
+import { auditLog } from "@/src/features/audit-logs/server";
+import { assertValidOwnershipChange } from "@/src/ee/features/admin-api/server/memberships";
+import { getSfdcService } from "@/src/ee/features/sfdc-sync/server";
+import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server";
+import { shadowAuth, writeScimError } from "@/src/features/public-api/server";
 export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse,
@@ -27,28 +28,32 @@ export default async function handler(
   }
 
   // CHECK AUTH
-  const authCheck = await new ApiAuthService(
-    prisma,
-    redis,
-  ).verifyAuthHeaderAndReturnScope(req.headers.authorization);
-  if (!authCheck.validKey) {
-    return res.status(401).json({
-      schemas: ["urn:ietf:params:scim:api:messages:2.0:Error"],
-      detail: authCheck.error,
-      status: 401,
-    });
+  const authCheck = await shadowAuth({
+    req,
+    action:
+      req.method === "GET"
+        ? "organizationMembers:read"
+        : "organizationMembers:CUD",
+    allowedAccessLevels: ["organization"],
+  });
+  if (!authCheck.success) {
+    return writeScimError(res, authCheck.error);
   }
   // END CHECK AUTH
 
-  // Check if using an organization API key
+  // Gate SCIM provisioning behind the `admin-api` entitlement, matching the
+  // sibling organization admin endpoints (memberships, projects, apiKeys).
+  // Without this, any org-scoped key could create users and assign roles on
+  // plans that do not include the feature.
   if (
-    authCheck.scope.accessLevel !== "organization" ||
-    !authCheck.scope.orgId
+    !hasEntitlementBasedOnPlan({
+      plan: authCheck.scope.plan,
+      entitlement: "admin-api",
+    })
   ) {
     return res.status(403).json({
       schemas: ["urn:ietf:params:scim:api:messages:2.0:Error"],
-      detail:
-        "Invalid API key. Organization-scoped API key required for this operation.",
+      detail: "This feature is not available on your current plan.",
       status: 403,
     });
   }
@@ -154,7 +159,17 @@ export default async function handler(
         }
       }
 
-      const { userName, name, password, displayName, roles } = body;
+      // A `password` in the request body is accepted and ignored. Setting it
+      // created a usable login credential for an email address nobody had
+      // verified, so an org-scoped key could pre-register an account for
+      // someone else's address. Ignoring rather than rejecting is deliberate:
+      // RFC 7644 3.3 lets a service provider ignore POSTed content, the
+      // attribute is `returned: "never"` so no conformant client can observe
+      // the difference, and Okta sends a placeholder password on every create
+      // even when password sync is disabled — rejecting it would break those
+      // syncs. Users authenticate via SSO, or claim the account through the
+      // password-reset flow.
+      const { userName, name, displayName, roles } = body;
 
       if (!userName) {
         logger.warn("[SCIM] userName is required for user creation");
@@ -182,6 +197,14 @@ export default async function handler(
         // Use the first valid role
         role = parsedRoles.data[0];
       }
+
+      await assertValidOwnershipChange({
+        tx: prisma,
+        context: authCheck.ctx,
+        orgId: authCheck.scope.orgId,
+        from: undefined,
+        to: role,
+      });
 
       // Check if user already exists. Normalize the email to lowercase to
       // stay consistent with the upsert below; otherwise a case-variant
@@ -216,7 +239,10 @@ export default async function handler(
         create: {
           email: normalizedEmail,
           name: name?.formatted || displayName,
-          password: password ? await hashPassword(password) : undefined,
+          v4BetaEnabled:
+            env.LANGFUSE_MIGRATION_V4_WRITE_MODE === "events_only" ||
+            (env.LANGFUSE_MIGRATION_V4_WRITE_MODE === "dual" &&
+              Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION)),
         },
         update: {},
       });
@@ -238,6 +264,21 @@ export default async function handler(
       logger.info(
         `[SCIM] Assigned user ${user.id} to org ${authCheck.scope.orgId} with role ${role}`,
       );
+
+      await getSfdcService()?.upsertUser({
+        userId: user.id,
+        email: user.email,
+        name: user.name,
+        createdAt: user.createdAt,
+        // SCIM provisioning is org-admin-driven, never an organic signup.
+        leadSource: "Langfuse Cloud Invite",
+      });
+      await getSfdcService()?.setUserRole({
+        orgId: authCheck.scope.orgId,
+        userId: user.id,
+        email: user.email,
+        role,
+      });
 
       // Return SCIM formatted user
       return res.status(201).json({
@@ -262,6 +303,9 @@ export default async function handler(
       });
     } catch (error) {
       logger.error("[SCIM] Failed to create user", error);
+      if (isBaseError(error)) {
+        return writeScimError(res, error);
+      }
       return res.status(500).json({
         schemas: ["urn:ietf:params:scim:api:messages:2.0:Error"],
         detail: "Internal server error",

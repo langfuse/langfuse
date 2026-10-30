@@ -1,8 +1,13 @@
 import React from "react";
 import { api } from "@/src/utils/api";
-import { JobConfigState, type AutomationDomain } from "@langfuse/shared";
+import {
+  JobConfigState,
+  TriggerEventSource,
+  type AutomationDomain,
+} from "@langfuse/shared";
 import { cn } from "@/src/utils/tailwind";
-import { StatusBadge } from "@/src/components/layouts/status-badge";
+import { StatusBadge } from "@/src/components/ui/StatusBadge/StatusBadge";
+import { actionTypeLabel } from "@/src/features/automations/actionTypeLabels";
 
 interface AutomationSidebarProps {
   projectId: string;
@@ -16,9 +21,14 @@ export const AutomationSidebar: React.FC<AutomationSidebarProps> = ({
   onAutomationSelect,
 }) => {
   const { data: automations, isLoading } =
-    api.automations.getAutomations.useQuery({
-      projectId,
-    });
+    api.automations.getAutomations.useQuery(
+      {
+        projectId,
+      },
+      {
+        enabled: !!projectId,
+      },
+    );
 
   const sidebarWidth = "w-40 sm:w-64";
 
@@ -81,27 +91,29 @@ export const AutomationSidebar: React.FC<AutomationSidebarProps> = ({
                     <div className="space-y-2">
                       {/* Top row: Name and Active badge */}
                       <div className="flex items-center justify-between gap-2">
-                        <h4 className="truncate text-sm leading-tight font-medium">
+                        <h4
+                          className="truncate text-sm leading-tight font-bold"
+                          title={automation.name}
+                        >
                           {automation.name}
                         </h4>
                         {automation.trigger.status === JobConfigState.ACTIVE ? (
-                          <StatusBadge type={"active"} />
+                          <StatusBadge type="active" />
                         ) : (
-                          <StatusBadge type={"inactive"} />
+                          <StatusBadge type="inactive" />
                         )}
                       </div>
 
                       {/* Bottom row: eventSource -> automation type */}
                       <p className="text-muted-foreground text-xs">
                         <span className="font-mono">
-                          {automation.trigger.eventSource}
+                          {automation.trigger.eventSource ===
+                          TriggerEventSource.Monitor
+                            ? "alert"
+                            : automation.trigger.eventSource}
                         </span>
                         {" → "}
-                        {automation.action.type === "WEBHOOK"
-                          ? "Webhook"
-                          : automation.action.type === "SLACK"
-                            ? "Slack"
-                            : "Annotation Queue"}
+                        {actionTypeLabel[automation.action.type]}
                       </p>
                     </div>
                   </div>

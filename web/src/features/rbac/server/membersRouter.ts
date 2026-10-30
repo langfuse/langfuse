@@ -1,4 +1,4 @@
-import { auditLog } from "@/src/features/audit-logs/auditLog";
+import { auditLog } from "@/src/features/audit-logs/server";
 import {
   createTRPCRouter,
   protectedOrganizationProcedure,
@@ -14,96 +14,50 @@ import {
   type FilterState,
   optionalPaginationZod,
   Prisma,
-  type PrismaClient,
   Role,
 } from "@langfuse/shared";
-import { sendMembershipInvitationEmail } from "@langfuse/shared/src/server";
+import {
+  sendMembershipInvitationEmail,
+  getUserProjectRoles,
+  getUserProjectRolesCount,
+  escapeSqlLikePattern,
+} from "@langfuse/shared/src/server";
 import { env } from "@/src/env.mjs";
-import { hasEntitlement } from "@/src/features/entitlements/server/hasEntitlement";
-import { throwIfExceedsLimit } from "@/src/features/entitlements/server/hasEntitlementLimit";
+import { getSfdcService } from "@/src/ee/features/sfdc-sync/server";
+import { hasEntitlement } from "@/src/features/entitlements/server";
 import {
   hasProjectAccess,
   throwIfNoProjectAccess,
 } from "@/src/features/rbac/utils/checkProjectAccess";
 import { allMembersRoutes } from "@/src/features/rbac/server/allMembersRoutes";
 import { allInvitesRoutes } from "@/src/features/rbac/server/allInvitesRoutes";
-import { orderedRoles } from "@/src/features/rbac/constants/orderedRoles";
 import {
-  getUserProjectRoles,
-  getUserProjectRolesCount,
-} from "@langfuse/shared/src/server";
+  deleteUserBoundApiKeys,
+  deleteUserBoundApiKeysForRole,
+  evictRevokedApiKeys,
+} from "@/src/features/ai-gateway/server/apiKey/userBoundApiKeys";
+import { inviteOrganizationMember } from "@/src/features/rbac/server/inviteOrganizationMember";
+import { throwIfHigherProjectRole } from "@/src/features/rbac/server/throwIfHigherProjectRole";
+import { throwIfHigherRole } from "@/src/features/rbac/server/throwIfHigherRole";
+import {
+  userFeaturePreviewFlags,
+  setUserFeaturePreviewWithAuthorization,
+} from "@/src/features/feature-flags/server";
 
 function buildUserSearchFilter(searchQuery: string | undefined | null) {
   if (searchQuery === undefined || searchQuery === null || searchQuery === "") {
     return Prisma.empty;
   }
 
-  const q = searchQuery;
+  const pattern = `%${escapeSqlLikePattern(searchQuery)}%`;
   const searchConditions: Prisma.Sql[] = [];
 
-  searchConditions.push(Prisma.sql`u.name ILIKE ${`%${q}%`}`);
-  searchConditions.push(Prisma.sql`u.email ILIKE ${`%${q}%`}`);
+  searchConditions.push(Prisma.sql`u.name ILIKE ${pattern}`);
+  searchConditions.push(Prisma.sql`u.email ILIKE ${pattern}`);
 
   return searchConditions.length > 0
     ? Prisma.sql` AND (${Prisma.join(searchConditions, " OR ")})`
     : Prisma.empty;
-}
-
-// Record as it allows to type check that all roles are included
-function throwIfHigherRole({ ownRole, role }: { ownRole: Role; role: Role }) {
-  if (orderedRoles[ownRole] < orderedRoles[role]) {
-    throw new TRPCError({
-      code: "FORBIDDEN",
-      message: "You cannot grant/edit a role higher than your own",
-    });
-  }
-}
-
-/**
- * Throw if the user tries to set a project role that is higher than their own
- * role determined by MAX(orgRole, projectRole)
- */
-async function throwIfHigherProjectRole({
-  orgCtx, // context by protectedOrganizationProcedure
-  projectId,
-  projectRole,
-}: {
-  orgCtx: {
-    session: {
-      orgId: string;
-      orgRole: Role;
-      user: {
-        id: string;
-      };
-    };
-    prisma: PrismaClient;
-  };
-  projectId: string;
-  projectRole: Role;
-}) {
-  const projectMembership = await orgCtx.prisma.projectMembership.findFirst({
-    where: {
-      projectId,
-      userId: orgCtx.session.user.id,
-      organizationMembership: {
-        orgId: orgCtx.session.orgId,
-      },
-    },
-  });
-
-  const ownRoleValue: number = projectMembership
-    ? Math.max(
-        orderedRoles[projectMembership.role],
-        orderedRoles[orgCtx.session.orgRole],
-      )
-    : orderedRoles[orgCtx.session.orgRole];
-
-  if (ownRoleValue < orderedRoles[projectRole]) {
-    throw new TRPCError({
-      code: "FORBIDDEN",
-      message: "You cannot grant/edit a role higher than your own",
-    });
-  }
 }
 
 export const membersRouter = createTRPCRouter({
@@ -121,271 +75,20 @@ export const membersRouter = createTRPCRouter({
       }),
     )
     .mutation(async ({ input, ctx }) => {
-      /**
-       * Create a new organization membership
-       * - Checks for:
-       *   - scope: organizationMembers:CUD if not only project-role is set, then projectMembers:CUD
-       *   - orgRole is not higher than own role
-       *   - if project role
-       *     - projectRole is not higher than own role
-       *     - entitlement for project roles if projectRole is set
-       *     - project is in org
-       *  - if user exists
-       *    - if org membership exists
-       *      - if only project role is set (orgRole === Role.NONE)
-       *         - create project role
-       *         - audit log
-       *         - return
-       *      - else throw error
-       *    - create org membership
-       *    - audit log
-       *    - if project role is set
-       *     - create project role
-       *    - audit log
-       *    - send email
-       * - else
-       *  - create membership invitation
-       *  - audit log
-       *  - send email
-       */
-
-      if (
-        // Require only project-level access rights if no orgRole is set but a projectId is
-        input.projectId &&
-        input.orgRole === Role.NONE
-      ) {
-        throwIfNoProjectAccess({
-          session: ctx.session,
-          projectId: input.projectId,
-          scope: "projectMembers:CUD",
-        });
-      } else {
-        // Require org-level access rights
-        throwIfNoOrganizationAccess({
-          session: ctx.session,
-          organizationId: input.orgId,
-          scope: "organizationMembers:CUD",
-        });
-      }
-
-      throwIfHigherRole({
-        ownRole: ctx.session.orgRole,
-        role: input.orgRole,
-      });
-
-      // check for entilement (project role)
-      if (input.projectId && input.projectRole) {
-        const entitled = hasEntitlement({
-          entitlement: "rbac-project-roles",
-          sessionUser: ctx.session.user,
-          orgId: input.orgId,
-        });
-        if (!entitled)
-          throw new TRPCError({
-            code: "FORBIDDEN",
-            message:
-              "Organization does not have the required entitlement to set project roles",
-          });
-      }
-
-      const user = await ctx.prisma.user.findUnique({
-        where: {
-          email: input.email.toLowerCase(),
-        },
-      });
-
-      // security check if project is in org
-      const project = input.projectId
-        ? await ctx.prisma.project.findFirst({
-            where: {
-              id: input.projectId,
-              orgId: input.orgId,
-              deletedAt: null,
-            },
-          })
-        : null;
-      if (project && input.projectRole)
-        await throwIfHigherProjectRole({
-          orgCtx: ctx,
-          projectId: project.id,
-          projectRole: input.projectRole,
-        });
-
-      const org = await ctx.prisma.organization.findFirst({
-        where: {
-          id: input.orgId,
-        },
-      });
-      if (!org) {
-        throw new TRPCError({ code: "NOT_FOUND", message: "Org not found" });
-      }
-
-      // Count current members + pending invitations for limit check
-      const [currentMemberCount, pendingInviteCount] = await Promise.all([
-        ctx.prisma.organizationMembership.count({
-          where: { orgId: input.orgId },
-        }),
-        ctx.prisma.membershipInvitation.count({
-          where: { orgId: input.orgId },
-        }),
-      ]);
-
-      if (user) {
-        const existingOrgMembership =
-          await ctx.prisma.organizationMembership.findFirst({
-            where: {
-              orgId: input.orgId,
-              userId: user.id,
-            },
-          });
-
-        // early return if user is already a member of the org
-        if (existingOrgMembership) {
-          // user exists and only a project role shall be added
-          if (
-            input.orgRole === Role.NONE &&
-            project &&
-            input.projectRole &&
-            input.projectRole !== Role.NONE
-          ) {
-            // Create project role for user
-            const newProjectMembership =
-              await ctx.prisma.projectMembership.create({
-                data: {
-                  userId: user.id,
-                  projectId: project.id,
-                  role: input.projectRole,
-                  orgMembershipId: existingOrgMembership.id,
-                },
-              });
-
-            // audit log
-            await auditLog({
-              session: ctx.session,
-              resourceType: "projectMembership",
-              resourceId: project.id + "--" + user.id,
-              action: "create",
-              after: newProjectMembership,
-            });
-            return;
-          } else {
-            throw new TRPCError({
-              code: "BAD_REQUEST",
-              message: "User is already a member of this organization",
-            });
-          }
-        }
-
-        // Check member limit before creating new membership
-        throwIfExceedsLimit({
-          entitlementLimit: "organization-member-count",
-          sessionUser: ctx.session.user,
-          orgId: input.orgId,
-          currentUsage: currentMemberCount + pendingInviteCount,
-        });
-
-        // create org membership as user is not a member yet
-        const orgMembership = await ctx.prisma.organizationMembership.create({
-          data: {
-            userId: user.id,
-            orgId: input.orgId,
-            role: input.orgRole,
-          },
-        });
-        await auditLog({
-          session: ctx.session,
-          resourceType: "orgMembership",
-          resourceId: orgMembership.id,
-          action: "create",
-          after: orgMembership,
-        });
-        if (project && input.projectRole && input.projectRole !== Role.NONE) {
-          const projectMembership = await ctx.prisma.projectMembership.create({
-            data: {
-              userId: user.id,
-              projectId: project.id,
-              role: input.projectRole,
-              orgMembershipId: orgMembership.id,
-            },
-          });
-          await auditLog({
-            session: ctx.session,
-            resourceType: "projectMembership",
-            resourceId:
-              projectMembership.projectId + "--" + projectMembership.userId,
-            action: "create",
-            after: projectMembership,
-          });
-        }
-        await sendMembershipInvitationEmail({
-          inviterEmail: ctx.session.user.email!,
-          inviterName: ctx.session.user.name!,
-          to: input.email,
-          orgName: org.name,
-          orgId: input.orgId,
-          userExists: true,
-          env: env,
-        });
-      } else {
-        // Check member limit before creating invitation
-        throwIfExceedsLimit({
-          entitlementLimit: "organization-member-count",
-          sessionUser: ctx.session.user,
-          orgId: input.orgId,
-          currentUsage: currentMemberCount + pendingInviteCount,
-        });
-
-        try {
-          const invitation = await ctx.prisma.membershipInvitation.create({
-            data: {
-              orgId: input.orgId,
-              projectId:
-                project && input.projectRole && input.projectRole !== Role.NONE
-                  ? project.id
-                  : null,
-              email: input.email.toLowerCase(),
-              orgRole: input.orgRole,
-              projectRole:
-                input.projectRole && input.projectRole !== Role.NONE && project
-                  ? input.projectRole
-                  : null,
-              invitedByUserId: ctx.session.user.id,
-            },
-          });
-
-          await auditLog({
-            session: ctx.session,
-            resourceType: "membershipInvitation",
-            resourceId: invitation.id,
-            action: "create",
-            after: invitation,
-          });
-          await sendMembershipInvitationEmail({
+      return inviteOrganizationMember({
+        ctx,
+        input,
+        sendInvitationEmail: ({ to, orgName, userExists }) =>
+          sendMembershipInvitationEmail({
             inviterEmail: ctx.session.user.email!,
             inviterName: ctx.session.user.name!,
-            to: input.email,
-            orgName: org.name,
+            to,
+            orgName,
             orgId: input.orgId,
-            userExists: false,
+            userExists,
             env: env,
-          });
-
-          return invitation;
-        } catch (error) {
-          if (
-            error instanceof Prisma.PrismaClientKnownRequestError &&
-            error.code === "P2002"
-          ) {
-            throw new TRPCError({
-              code: "BAD_REQUEST",
-              message:
-                "A pending membership invitation with this email and organization already exists",
-            });
-          } else {
-            throw error;
-          }
-        }
-      }
+          }),
+      });
     }),
   deleteMembership: protectedOrganizationProcedure
     .input(
@@ -405,6 +108,8 @@ export const membersRouter = createTRPCRouter({
         },
         include: {
           ProjectMemberships: true,
+          // user.email is read by the SFDC sync after delete.
+          user: { select: { email: true } },
         },
       });
       if (!orgMembership)
@@ -455,12 +160,31 @@ export const membersRouter = createTRPCRouter({
         before: orgMembership,
       });
 
-      return await ctx.prisma.organizationMembership.delete({
-        where: {
-          id: orgMembership.id,
-          orgId: input.orgId,
+      const { deleted, revokedKeys } = await ctx.prisma.$transaction(
+        async (tx) => {
+          const deleted = await tx.organizationMembership.delete({
+            where: {
+              id: orgMembership.id,
+              orgId: input.orgId,
+            },
+          });
+          const revokedKeys = await deleteUserBoundApiKeys(tx, {
+            userId: orgMembership.userId,
+            orgId: input.orgId,
+          });
+          return { deleted, revokedKeys };
         },
+      );
+      await evictRevokedApiKeys(revokedKeys, { session: ctx.session });
+
+      // SFDC: remove the org-member bridge.
+      await getSfdcService()?.removeUser({
+        orgId: input.orgId,
+        userId: orgMembership.userId,
+        email: orgMembership.user?.email,
       });
+
+      return deleted;
     }),
   deleteInvite: protectedOrganizationProcedure
     .input(
@@ -542,6 +266,8 @@ export const membersRouter = createTRPCRouter({
           orgId: input.orgId,
           id: input.orgMembershipId,
         },
+        // user.email is read by the SFDC sync after update.
+        include: { user: { select: { email: true } } },
       });
       if (!membership) throw new TRPCError({ code: "NOT_FOUND" });
 
@@ -572,15 +298,26 @@ export const membersRouter = createTRPCRouter({
         });
       }
 
-      const updatedMembership = await ctx.prisma.organizationMembership.update({
-        where: {
-          id: membership.id,
-          orgId: input.orgId,
+      const { updatedMembership, revokedKeys } = await ctx.prisma.$transaction(
+        async (tx) => {
+          const updatedMembership = await tx.organizationMembership.update({
+            where: {
+              id: membership.id,
+              orgId: input.orgId,
+            },
+            data: {
+              role: input.role,
+            },
+          });
+          const revokedKeys = await deleteUserBoundApiKeysForRole(tx, {
+            userId: membership.userId,
+            orgId: input.orgId,
+            role: input.role,
+          });
+          return { updatedMembership, revokedKeys };
         },
-        data: {
-          role: input.role,
-        },
-      });
+      );
+      await evictRevokedApiKeys(revokedKeys, { session: ctx.session });
 
       await auditLog({
         session: ctx.session,
@@ -591,7 +328,81 @@ export const membersRouter = createTRPCRouter({
         after: updatedMembership,
       });
 
+      await getSfdcService()?.setUserRole({
+        orgId: input.orgId,
+        userId: membership.userId,
+        email: membership.user?.email,
+        role: input.role,
+      });
+
       return updatedMembership;
+    }),
+  setUserFeaturePreviewEnabled: protectedOrganizationProcedure
+    .input(
+      z.object({
+        orgId: z.string(),
+        userId: z.string(),
+        flag: z.enum(userFeaturePreviewFlags),
+        enabled: z.boolean(),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      throwIfNoOrganizationAccess({
+        session: ctx.session,
+        organizationId: input.orgId,
+        scope: "organization:update",
+      });
+      if (
+        env.NEXT_PUBLIC_DEMO_ORG_ID &&
+        input.orgId === env.NEXT_PUBLIC_DEMO_ORG_ID
+      ) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message:
+            "Feature previews cannot be managed in the demo organization",
+        });
+      }
+
+      const result = await setUserFeaturePreviewWithAuthorization({
+        prisma: ctx.prisma,
+        actorUserId: ctx.session.user.id,
+        actorIsPlatformAdmin: ctx.session.user.admin === true,
+        currentOrgId: input.orgId,
+        targetUserId: input.userId,
+        flag: input.flag,
+        enabled: input.enabled,
+        demoOrgId: env.NEXT_PUBLIC_DEMO_ORG_ID,
+      });
+      if (!result) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message:
+            "You can only change this user's feature flags if you are an administrator in every organization they belong to.",
+        });
+      }
+
+      await auditLog({
+        session: ctx.session,
+        resourceType: "orgMembership",
+        resourceId: result.membershipId,
+        action: "updateUserFeatureFlag",
+        before: {
+          flag: input.flag,
+          override: result.before,
+          scope: "global",
+        },
+        after: {
+          flag: input.flag,
+          override: result.after,
+          scope: "global",
+        },
+      });
+
+      return {
+        userId: input.userId,
+        flag: input.flag,
+        enabled: input.enabled,
+      };
     }),
   updateProjectRole: protectedOrganizationProcedure
     .input(
@@ -625,6 +436,42 @@ export const membersRouter = createTRPCRouter({
         });
       }
 
+      // Project-level role assignments require the rbac-project-roles entitlement
+      // (Team/Enterprise cloud, Enterprise self-hosted). Mirror the create path.
+      // Clearing a role (null / NONE) stays allowed so orgs can clean up after a
+      // plan downgrade without needing the paid entitlement.
+      if (input.projectRole !== null && input.projectRole !== Role.NONE) {
+        const entitled = hasEntitlement({
+          entitlement: "rbac-project-roles",
+          sessionUser: ctx.session.user,
+          orgId: input.orgId,
+        });
+        if (!entitled) {
+          throw new TRPCError({
+            code: "FORBIDDEN",
+            message:
+              "Organization does not have the required entitlement to set project roles",
+          });
+        }
+      }
+
+      const project = await ctx.prisma.project.findFirst({
+        where: {
+          id: input.projectId,
+          orgId: input.orgId,
+          deletedAt: null,
+        },
+        select: {
+          id: true,
+        },
+      });
+      if (!project) {
+        throw new TRPCError({
+          code: "NOT_FOUND",
+          message: "Project not found",
+        });
+      }
+
       // check org membership id, can be trusted after this check
       const orgMembership = await ctx.prisma.organizationMembership.findUnique({
         where: {
@@ -636,6 +483,19 @@ export const membersRouter = createTRPCRouter({
         throw new TRPCError({
           code: "NOT_FOUND",
           message: "Organization membership not found",
+        });
+      }
+
+      // orgMembershipId and userId are independent client inputs, but project
+      // access is resolved via orgMembershipId (OrganizationMembership.userId),
+      // not this row's userId. A mismatched pair would grant the role to the
+      // org membership owner while recording it against a different user in both
+      // the ProjectMembership row and the audit log, so reject it.
+      if (orgMembership.userId !== input.userId) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message:
+            "The provided userId does not match the organization membership",
         });
       }
 

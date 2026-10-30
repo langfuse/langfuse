@@ -1,5 +1,13 @@
 import { randomUUID } from "node:crypto";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+  type TestContext,
+} from "vitest";
 import { uuid, z } from "zod";
 import { prisma } from "@langfuse/shared/src/db";
 import {
@@ -16,16 +24,34 @@ import {
   TraceRecordReadType,
   createOrgProjectAndApiKey,
   createIngestionEventSchema,
+  getObservationsV2FromEventsTableForPublicApi,
+  queryClickhouse,
   setNoEvalConfigsCache,
 } from "@langfuse/shared/src/server";
 import waitForExpect from "wait-for-expect";
 import { ClickhouseWriter, TableName } from "../../ClickhouseWriter";
 import { IngestionService } from "../../IngestionService";
 import { ModelUsageUnit, ScoreSourceEnum } from "@langfuse/shared";
-import { env } from "../../../env";
+import {
+  clickhouseTableExists,
+  skipUnlessClickhouseTablesExist,
+} from "../../../__tests__/helpers/clickhouseTables";
 
 let projectId = "";
 const environment = "default";
+const testIngestionAttribution = {
+  ingestionApiKey: "pk-lf-ingestion-service-test",
+  ingestionSdkName: "langfuse-test",
+  ingestionSdkVersion: "0.0.0",
+};
+
+async function skipUnlessEventsTablesExist(ctx: TestContext): Promise<void> {
+  await skipUnlessClickhouseTablesExist(
+    ctx,
+    [TableName.EventsFull],
+    "events ClickHouse tables are not enabled",
+  );
+}
 
 describe("Ingestion end-to-end tests", () => {
   let ingestionService: IngestionService;
@@ -53,10 +79,7 @@ describe("Ingestion end-to-end tests", () => {
     vi.restoreAllMocks();
     vi.useRealTimers();
 
-    // Reset singleton instance
-    await clickhouseWriter.shutdown();
-
-    ClickhouseWriter.instance = null;
+    await ClickhouseWriter.shutdownAll();
   });
 
   it("should correctly ingest a trace", async () => {
@@ -103,6 +126,157 @@ describe("Ingestion end-to-end tests", () => {
     expect(trace.output).toBe("bar");
     expect(trace.session_id).toBeNull();
     expect(trace.timestamp).toBe(timestamp);
+  });
+
+  it("should paginate events with sub-millisecond wire timestamps after ingestion normalization", async (ctx) => {
+    await skipUnlessEventsTablesExist(ctx);
+
+    const traceId = randomUUID();
+    const firstSpanId = randomUUID();
+    const secondSpanId = randomUUID();
+    const wireStartTimeA = "2026-01-01T12:00:00.123456Z";
+    const wireStartTimeB = "2026-01-01T12:00:00.123789Z";
+    const normalizedStartTime = "2026-01-01 12:00:00.123";
+
+    const eventRecords = await Promise.all(
+      [
+        { spanId: firstSpanId, startTimeISO: wireStartTimeA },
+        { spanId: secondSpanId, startTimeISO: wireStartTimeB },
+      ].map((event) =>
+        ingestionService.createEventRecord(
+          {
+            projectId,
+            traceId,
+            spanId: event.spanId,
+            parentSpanId: "",
+            name: `sub-ms-cursor-${event.spanId}`,
+            type: "SPAN",
+            environment,
+            startTimeISO: event.startTimeISO,
+            endTimeISO: "2026-01-01T12:00:00.124000Z",
+            metadata: {},
+            source: "test",
+          },
+          `sub-ms-cursor/${event.spanId}.json`,
+        ),
+      ),
+    );
+
+    expect(eventRecords.map((record) => record.start_time)).toEqual([
+      normalizedStartTime,
+      normalizedStartTime,
+    ]);
+
+    await Promise.all(
+      eventRecords.map((record) => ingestionService.writeEventRecord(record)),
+    );
+    await clickhouseWriter.flushAll(true);
+
+    await waitForExpect(async () => {
+      const rows = await queryClickhouse<{ count: string }>({
+        query: `
+          SELECT count() AS count
+          FROM events_core
+          WHERE project_id = {projectId: String}
+            AND trace_id = {traceId: String}
+            AND span_id IN ({spanIds: Array(String)})
+        `,
+        params: {
+          projectId,
+          traceId,
+          spanIds: [firstSpanId, secondSpanId],
+        },
+      });
+
+      expect(Number(rows[0]?.count ?? 0)).toBe(2);
+    }, 5_000);
+
+    const firstPageItems = await getObservationsV2FromEventsTableForPublicApi({
+      projectId,
+      traceId,
+      page: 1,
+      limit: 1,
+      fields: ["core"],
+    });
+    const firstPage = firstPageItems.slice(0, 1);
+    expect(firstPage).toHaveLength(1);
+
+    const firstItem = firstPage[0]!;
+    expect(firstItem.startTime.getTime()).toBe(Date.parse(wireStartTimeA));
+
+    const secondPageItems = await getObservationsV2FromEventsTableForPublicApi({
+      projectId,
+      traceId,
+      page: 1,
+      limit: 1,
+      fields: ["core"],
+      cursor: {
+        lastStartTimeTo: firstItem.startTime,
+        lastTraceId: firstItem.traceId!,
+        lastId: firstItem.id,
+      },
+    });
+    const secondPage = secondPageItems.slice(0, 1);
+    expect(secondPage).toHaveLength(1);
+
+    expect(secondPage[0]!.id).not.toBe(firstItem.id);
+    expect(new Set([firstItem.id, secondPage[0]!.id])).toEqual(
+      new Set([firstSpanId, secondSpanId]),
+    );
+  });
+
+  it("should write ingestion attribution to observation staging records", async (ctx) => {
+    await skipUnlessObservationsBatchStagingEnabled(ctx);
+
+    const traceId = randomUUID();
+    const generationId = randomUUID();
+    const timestamp = new Date().toISOString();
+    const attribution = {
+      ingestionApiKey: "pk-lf-ingestion-service-integration",
+      ingestionSdkName: "langfuse-js",
+      ingestionSdkVersion: "4.2.0",
+    };
+
+    const generationEventList: ObservationEvent[] = [
+      {
+        id: randomUUID(),
+        type: "generation-create",
+        timestamp,
+        body: {
+          id: generationId,
+          traceId,
+          startTime: timestamp,
+          name: "generation-with-attribution",
+          environment,
+        },
+      },
+    ];
+
+    await ingestionService.mergeAndWrite({
+      projectId,
+      entityId: generationId,
+      createdAtTimestamp: new Date(timestamp),
+      eventType: "observation",
+      events: generationEventList,
+      forwardToEventsTable: true,
+      attribution,
+    });
+
+    await clickhouseWriter.flushAll(true);
+
+    const generation = await getClickhouseRecord(
+      TableName.Observations,
+      generationId,
+    );
+    const stagingAttribution =
+      await getClickhouseObservationBatchStagingAttribution(generationId);
+
+    expect(generation.id).toBe(generationId);
+    expect(stagingAttribution).toEqual({
+      ingestion_api_key: attribution.ingestionApiKey,
+      ingestion_sdk_name: attribution.ingestionSdkName,
+      ingestion_sdk_version: attribution.ingestionSdkVersion,
+    });
   });
 
   [
@@ -375,6 +549,31 @@ describe("Ingestion end-to-end tests", () => {
         output_reasoning_tokens: 4,
       },
     },
+    // OpenAI-compatible provider extensions (e.g. OpenRouter cost fields)
+    {
+      usage: null,
+      usageDetails: {
+        prompt_tokens: 194,
+        completion_tokens: 2,
+        total_tokens: 196,
+        prompt_tokens_details: { cached_tokens: 4 },
+        completion_tokens_details: { reasoning_tokens: 1 },
+        cost: 0.0001,
+        cost_details: { upstream_inference_cost: 0.0001 },
+      },
+      expectedUsageDetails: {
+        input: 190,
+        output: 1,
+        total: 196,
+        input_cached_tokens: 4,
+        output_reasoning_tokens: 1,
+      },
+      absentUsageDetailKeys: [
+        "prompt_tokens",
+        "completion_tokens",
+        "total_tokens",
+      ],
+    },
     // OpenAI Response API format
     {
       usage: null,
@@ -429,6 +628,66 @@ describe("Ingestion end-to-end tests", () => {
         output_text_tokens: 3,
         output_reasoning_tokens: 4,
       },
+    },
+    {
+      usage: null,
+      usageDetails: {
+        input_tokens: 194,
+        output_tokens: 2,
+        total_tokens: 196,
+        input_tokens_details: { cached_tokens: 4 },
+        output_tokens_details: { reasoning_tokens: 1 },
+        cost: 0.0001,
+      },
+      expectedUsageDetails: {
+        input: 190,
+        output: 1,
+        total: 196,
+        input_cached_tokens: 4,
+        output_reasoning_tokens: 1,
+      },
+      absentUsageDetailKeys: ["input_tokens", "output_tokens", "total_tokens"],
+    },
+    {
+      usage: null,
+      usageDetails: {
+        input_tokens: 3,
+        output_tokens: 94,
+        total_tokens: 16496,
+        cache_read_input_tokens: 16399,
+        service_tier: "standard",
+      },
+      expectedUsageDetails: {
+        input: 3,
+        output: 94,
+        total: 16496,
+        cache_read_input_tokens: 16399,
+      },
+      absentUsageDetailKeys: ["input_tokens", "output_tokens"],
+    },
+    // Native Anthropic Messages usage with TTL-split cache writes
+    {
+      usage: null,
+      usageDetails: {
+        input_tokens: 3,
+        output_tokens: 94,
+        cache_creation_input_tokens: 12256,
+        cache_read_input_tokens: 16399,
+        cache_creation: {
+          ephemeral_5m_input_tokens: 2000,
+          ephemeral_1h_input_tokens: 10256,
+        },
+        server_tool_use: { web_search_requests: 0 },
+        service_tier: "standard",
+      },
+      expectedUsageDetails: {
+        input_tokens: 3,
+        output_tokens: 94,
+        cache_read_input_tokens: 16399,
+        input_cache_creation_5m: 2000,
+        input_cache_creation_1h: 10256,
+      },
+      absentUsageDetailKeys: ["cache_creation_input_tokens"],
     },
   ].forEach((testConfig) => {
     it(`should create trace, generation and score without matching models ${JSON.stringify(
@@ -539,12 +798,14 @@ describe("Ingestion end-to-end tests", () => {
           traceEventList,
         }),
         ingestionService.processObservationEventList({
+          attribution: testIngestionAttribution,
           projectId,
           entityId: spanId,
           createdAtTimestamp: new Date(),
           observationEventList: spanEventList,
         }),
         ingestionService.processObservationEventList({
+          attribution: testIngestionAttribution,
           projectId,
           entityId: generationId,
           createdAtTimestamp: new Date(),
@@ -555,6 +816,7 @@ describe("Ingestion end-to-end tests", () => {
           entityId: scoreId,
           createdAtTimestamp: new Date(),
           scoreEventList,
+          attribution: testIngestionAttribution,
         }),
       ]);
 
@@ -591,6 +853,9 @@ describe("Ingestion end-to-end tests", () => {
       expect(generation.usage_details).toMatchObject(
         testConfig.expectedUsageDetails,
       );
+      for (const key of testConfig.absentUsageDetailKeys ?? []) {
+        expect(generation.usage_details).not.toHaveProperty(key);
+      }
       expect(generation.output).toEqual(
         JSON.stringify({
           key: "this is a great gpt output",
@@ -665,6 +930,7 @@ describe("Ingestion end-to-end tests", () => {
         entityId: scoreId,
         createdAtTimestamp: new Date(),
         scoreEventList,
+        attribution: testIngestionAttribution,
       }),
     ]);
 
@@ -954,6 +1220,7 @@ describe("Ingestion end-to-end tests", () => {
           traceEventList,
         }),
         ingestionService.processObservationEventList({
+          attribution: testIngestionAttribution,
           projectId,
           entityId: generationId,
           createdAtTimestamp: new Date(),
@@ -987,7 +1254,7 @@ describe("Ingestion end-to-end tests", () => {
           ? null
           : getModelId(testConfig.expectedInternalModelId);
       expect(generation.internal_model_id).toBe(expectedModelId);
-    });
+    }, 15_000);
   });
 
   it("should create and update all events", async () => {
@@ -1118,18 +1385,21 @@ describe("Ingestion end-to-end tests", () => {
         traceEventList,
       }),
       ingestionService.processObservationEventList({
+        attribution: testIngestionAttribution,
         projectId,
         entityId: spanId,
         createdAtTimestamp: new Date(),
         observationEventList: spanEventList,
       }),
       ingestionService.processObservationEventList({
+        attribution: testIngestionAttribution,
         projectId,
         entityId: generationId,
         createdAtTimestamp: new Date(),
         observationEventList: generationEventList,
       }),
       ingestionService.processObservationEventList({
+        attribution: testIngestionAttribution,
         projectId,
         entityId: eventId,
         createdAtTimestamp: new Date(),
@@ -1140,6 +1410,7 @@ describe("Ingestion end-to-end tests", () => {
         entityId: scoreId,
         createdAtTimestamp: new Date(),
         scoreEventList,
+        attribution: testIngestionAttribution,
       }),
     ]);
 
@@ -1252,6 +1523,7 @@ describe("Ingestion end-to-end tests", () => {
         projectId,
         entityId: validScoreId1,
         createdAtTimestamp: new Date(),
+        attribution: testIngestionAttribution,
         scoreEventList: [
           {
             id: validScoreId1,
@@ -1275,6 +1547,7 @@ describe("Ingestion end-to-end tests", () => {
         projectId,
         entityId: validScoreId2,
         createdAtTimestamp: new Date(),
+        attribution: testIngestionAttribution,
         scoreEventList: [
           // invalid score 1
           {
@@ -1342,11 +1615,15 @@ describe("Ingestion end-to-end tests", () => {
 
     // Verify that invalid scores were silently rejected (not inserted)
     await expect(
-      getClickhouseRecord(TableName.Scores, invalidScoreId1),
+      getClickhouseRecord(TableName.Scores, invalidScoreId1, {
+        waitForRecord: false,
+      }),
     ).rejects.toThrow();
 
     await expect(
-      getClickhouseRecord(TableName.Scores, invalidScoreId2),
+      getClickhouseRecord(TableName.Scores, invalidScoreId2, {
+        waitForRecord: false,
+      }),
     ).rejects.toThrow();
   });
 
@@ -1582,6 +1859,7 @@ describe("Ingestion end-to-end tests", () => {
     ];
 
     await ingestionService.processObservationEventList({
+      attribution: testIngestionAttribution,
       projectId,
       entityId: observationId,
       createdAtTimestamp: new Date(),
@@ -1720,6 +1998,7 @@ describe("Ingestion end-to-end tests", () => {
     ];
 
     await ingestionService.processObservationEventList({
+      attribution: testIngestionAttribution,
       projectId,
       entityId: observationId,
       createdAtTimestamp: new Date(),
@@ -1775,6 +2054,7 @@ describe("Ingestion end-to-end tests", () => {
       },
     ];
     await ingestionService.processObservationEventList({
+      attribution: testIngestionAttribution,
       projectId,
       entityId: observationId,
       createdAtTimestamp: new Date(),
@@ -1798,6 +2078,7 @@ describe("Ingestion end-to-end tests", () => {
       },
     ];
     await ingestionService.processObservationEventList({
+      attribution: testIngestionAttribution,
       projectId,
       entityId: observationId,
       createdAtTimestamp: new Date(),
@@ -1850,6 +2131,7 @@ describe("Ingestion end-to-end tests", () => {
     ];
 
     await ingestionService.processObservationEventList({
+      attribution: testIngestionAttribution,
       projectId,
       entityId: generationId,
       createdAtTimestamp: new Date(),
@@ -1920,6 +2202,7 @@ describe("Ingestion end-to-end tests", () => {
         traceEventList,
       }),
       ingestionService.processObservationEventList({
+        attribution: testIngestionAttribution,
         projectId,
         entityId: generationId,
         createdAtTimestamp: new Date(),
@@ -1962,6 +2245,7 @@ describe("Ingestion end-to-end tests", () => {
     ];
 
     await ingestionService.processObservationEventList({
+      attribution: testIngestionAttribution,
       projectId,
       entityId: generationId,
       createdAtTimestamp: new Date(),
@@ -2064,6 +2348,7 @@ describe("Ingestion end-to-end tests", () => {
         traceEventList,
       }),
       ingestionService.processObservationEventList({
+        attribution: testIngestionAttribution,
         projectId,
         entityId: generationId,
         createdAtTimestamp: new Date(),
@@ -2170,6 +2455,7 @@ describe("Ingestion end-to-end tests", () => {
         traceEventList,
       }),
       ingestionService.processObservationEventList({
+        attribution: testIngestionAttribution,
         projectId,
         entityId: generationId,
         createdAtTimestamp: new Date(),
@@ -2361,6 +2647,7 @@ describe("Ingestion end-to-end tests", () => {
           traceEventList,
         }),
         ingestionService.processObservationEventList({
+          attribution: testIngestionAttribution,
           projectId,
           entityId: generationId,
           createdAtTimestamp: new Date(),
@@ -2384,6 +2671,189 @@ describe("Ingestion end-to-end tests", () => {
   });
 
   describe("Tiered Pricing", () => {
+    it("applies an exact model parameter tier to direct event writes", async () => {
+      const traceId = randomUUID();
+      const generationId = randomUUID();
+      const modelId = randomUUID();
+      const modelName = `priority-tier-${randomUUID()}`;
+
+      await prisma.model.create({
+        data: {
+          id: modelId,
+          projectId,
+          modelName,
+          matchPattern: `(?i)^(${modelName})$`,
+          startDate: new Date("2021-01-01T00:00:00.000Z"),
+          unit: ModelUsageUnit.Tokens,
+          pricingTiers: {
+            create: [
+              {
+                name: "Standard",
+                isDefault: true,
+                priority: 0,
+                conditions: [],
+                prices: {
+                  create: [
+                    { usageType: "input", price: 0.000005, modelId },
+                    { usageType: "output", price: 0.00003, modelId },
+                  ],
+                },
+              },
+              {
+                name: "Priority",
+                isDefault: false,
+                priority: 1,
+                conditions: [
+                  {
+                    source: "model_parameters",
+                    key: "service_tier",
+                    operator: "in",
+                    values: ["priority"],
+                  },
+                ],
+                prices: {
+                  create: [
+                    { usageType: "input", price: 0.0000125, modelId },
+                    { usageType: "output", price: 0.000075, modelId },
+                  ],
+                },
+              },
+            ],
+          },
+        },
+      });
+
+      const eventRecord = await ingestionService.createEventRecord(
+        {
+          projectId,
+          traceId,
+          spanId: generationId,
+          name: "priority-generation",
+          type: "GENERATION",
+          environment,
+          startTimeISO: new Date().toISOString(),
+          modelName,
+          modelParameters: { service_tier: "priority" },
+          metadata: {},
+          providedUsageDetails: { input: 12, output: 21 },
+          source: "otel",
+        },
+        `otel/${projectId}/priority-generation.json`,
+      );
+
+      expect(eventRecord.usage_pricing_tier_name).toBe("Priority");
+      expect(eventRecord.cost_details.total).toBeCloseTo(0.001725, 9);
+    });
+
+    it("applies exact attribute tiers from a legacy usage event", async () => {
+      const traceId = randomUUID();
+      const generationId = randomUUID();
+      const modelId = randomUUID();
+      const modelName = `legacy-priority-tier-${randomUUID()}`;
+
+      await prisma.model.create({
+        data: {
+          id: modelId,
+          projectId,
+          modelName,
+          matchPattern: `(?i)^(${modelName})$`,
+          startDate: new Date("2021-01-01T00:00:00.000Z"),
+          unit: ModelUsageUnit.Tokens,
+          pricingTiers: {
+            create: [
+              {
+                name: "Standard",
+                isDefault: true,
+                priority: 0,
+                conditions: [],
+                prices: {
+                  create: [
+                    { usageType: "input", price: 0.000005, modelId },
+                    { usageType: "output", price: 0.00003, modelId },
+                  ],
+                },
+              },
+              {
+                name: "Priority US",
+                isDefault: false,
+                priority: 1,
+                conditions: [
+                  {
+                    source: "model_parameters",
+                    key: "service_tier",
+                    operator: "in",
+                    values: ["priority"],
+                  },
+                  {
+                    source: "metadata",
+                    key: "region",
+                    operator: "in",
+                    values: ["us"],
+                  },
+                ],
+                prices: {
+                  create: [
+                    { usageType: "input", price: 0.0000125, modelId },
+                    { usageType: "output", price: 0.000075, modelId },
+                  ],
+                },
+              },
+            ],
+          },
+        },
+      });
+
+      const observationEventList: ObservationEvent[] = [
+        {
+          id: randomUUID(),
+          timestamp: new Date().toISOString(),
+          type: "generation-create",
+          body: {
+            id: generationId,
+            traceId,
+            name: "legacy-priority-generation",
+            startTime: new Date().toISOString(),
+            model: modelName,
+            environment,
+          },
+        },
+        {
+          id: randomUUID(),
+          timestamp: new Date().toISOString(),
+          type: "generation-update",
+          body: {
+            id: generationId,
+            traceId,
+            usage: {
+              input: 12,
+              output: 21,
+              unit: ModelUsageUnit.Tokens,
+            },
+            modelParameters: { service_tier: "priority" },
+            metadata: { region: "us" },
+            environment,
+          },
+        },
+      ];
+
+      await ingestionService.processObservationEventList({
+        attribution: testIngestionAttribution,
+        projectId,
+        entityId: generationId,
+        createdAtTimestamp: new Date(),
+        observationEventList,
+      });
+      await clickhouseWriter.flushAll(true);
+
+      const generation = await getClickhouseRecord(
+        TableName.Observations,
+        generationId,
+      );
+
+      expect(generation.usage_pricing_tier_name).toBe("Priority US");
+      expect(generation.cost_details.total).toBeCloseTo(0.001725, 9);
+    });
+
     it("should apply default tier for usage below threshold (Anthropic Claude example)", async () => {
       const traceId = randomUUID();
       const generationId = randomUUID();
@@ -2495,6 +2965,7 @@ describe("Ingestion end-to-end tests", () => {
           ],
         }),
         ingestionService.processObservationEventList({
+          attribution: testIngestionAttribution,
           projectId,
           entityId: generationId,
           createdAtTimestamp: new Date(),
@@ -2635,6 +3106,7 @@ describe("Ingestion end-to-end tests", () => {
           ],
         }),
         ingestionService.processObservationEventList({
+          attribution: testIngestionAttribution,
           projectId,
           entityId: generationId,
           createdAtTimestamp: new Date(),
@@ -2764,6 +3236,7 @@ describe("Ingestion end-to-end tests", () => {
           ],
         }),
         ingestionService.processObservationEventList({
+          attribution: testIngestionAttribution,
           projectId,
           entityId: generationId,
           createdAtTimestamp: new Date(),
@@ -2885,6 +3358,7 @@ describe("Ingestion end-to-end tests", () => {
           ],
         }),
         ingestionService.processObservationEventList({
+          attribution: testIngestionAttribution,
           projectId,
           entityId: generationId,
           createdAtTimestamp: new Date(),
@@ -2909,44 +3383,29 @@ describe("Ingestion end-to-end tests", () => {
 async function getClickhouseRecord<T extends TableName>(
   tableName: T,
   entityId: string,
+  options: { waitForRecord?: boolean } = {},
 ): Promise<RecordReadType<T>> {
-  let query = await clickhouseClient().query({
-    query: `SELECT * FROM ${tableName} FINAL WHERE project_id = '${projectId}' AND id = '${entityId}'`,
-    format: "JSONEachRow",
-  });
+  let result: unknown;
+  const waitForRecord = options.waitForRecord ?? true;
 
-  if (
-    tableName === "traces" &&
-    env.LANGFUSE_EXPERIMENT_RETURN_NEW_RESULT === "true"
-  ) {
-    await new Promise((resolve) => setTimeout(resolve, 100));
-    query = await clickhouseClient().query({
-      query: `SELECT
-                id,
-                name as name,
-                user_id as user_id,
-                metadata as metadata,
-                release as release,
-                version as version,
-                project_id,
-                environment,
-                public as public,
-                bookmarked as bookmarked,
-                tags,
-                input as input,
-                output as output,
-                session_id as session_id,
-                0 as is_deleted,
-                start_time as timestamp,
-                created_at,
-                updated_at,
-                updated_at as event_ts
-        FROM traces_all_amt FINAL WHERE project_id = '${projectId}' AND id = '${entityId}'`,
+  const loadResult = async () => {
+    let query = await clickhouseClient().query({
+      query: `SELECT * FROM ${tableName} FINAL WHERE project_id = '${projectId}' AND id = '${entityId}'`,
       format: "JSONEachRow",
     });
-  }
 
-  const result = (await query.json())[0];
+    result = (await query.json())[0];
+  };
+
+  if (waitForRecord) {
+    await waitForExpect(async () => {
+      await loadResult();
+      expect(result).toBeDefined();
+    }, 1_500);
+  } else {
+    await loadResult();
+    expect(result).toBeDefined();
+  }
 
   return (
     tableName === TableName.Traces
@@ -2959,6 +3418,43 @@ async function getClickhouseRecord<T extends TableName>(
   ) as RecordReadType<T>;
 }
 
+async function getClickhouseObservationBatchStagingAttribution(
+  entityId: string,
+): Promise<{
+  ingestion_api_key: string;
+  ingestion_sdk_name: string;
+  ingestion_sdk_version: string;
+}> {
+  let result: unknown;
+
+  const loadResult = async () => {
+    const query = await clickhouseClient().query({
+      query: `
+        SELECT
+          ingestion_api_key,
+          ingestion_sdk_name,
+          ingestion_sdk_version
+        FROM ${TableName.ObservationsBatchStaging} FINAL
+        WHERE project_id = '${projectId}' AND id = '${entityId}'
+      `,
+      format: "JSONEachRow",
+    });
+
+    result = (await query.json())[0];
+  };
+
+  await waitForExpect(async () => {
+    await loadResult();
+    expect(result).toBeDefined();
+  }, 1_500);
+
+  return result as {
+    ingestion_api_key: string;
+    ingestion_sdk_name: string;
+    ingestion_sdk_version: string;
+  };
+}
+
 type RecordReadType<T extends TableName> = T extends TableName.Scores
   ? ScoreRecordReadType
   : T extends TableName.Observations
@@ -2966,3 +3462,15 @@ type RecordReadType<T extends TableName> = T extends TableName.Scores
     : T extends TableName.Traces
       ? TraceRecordReadType
       : never;
+
+async function isObservationsBatchStagingEnabled(): Promise<boolean> {
+  return clickhouseTableExists(TableName.ObservationsBatchStaging);
+}
+
+async function skipUnlessObservationsBatchStagingEnabled(
+  ctx: TestContext,
+): Promise<void> {
+  if (!(await isObservationsBatchStagingEnabled())) {
+    ctx.skip("observations_batch_staging is not enabled in this ClickHouse");
+  }
+}

@@ -1,12 +1,9 @@
 ---
 name: debug-issue-with-datadog
 description: |
-  Debug a user-reported issue, Linear ticket, or incident report by combining
-  Datadog (APM, logs, metrics) with the Langfuse repo to establish a
-  root cause. Use when given a Linear issue URL/ID (e.g. LFE-XXXX), a GitHub
-  issue, or a pasted error/report and asked to investigate, root-cause, or
-  triage. Produces a structured analysis — error breakdown, hypothesis-by-class,
-  suggested patches with code references.
+  Establish root cause by combining Datadog telemetry with the Langfuse repo.
+  Use when investigating or triaging a user report, Linear or GitHub issue,
+  incident, or pasted production error.
 ---
 
 # Debug Issue with Datadog
@@ -42,6 +39,10 @@ supports them.
    the issue *and* its comments via the Linear MCP — the description is often
    updated inline as triage proceeds. For a GitHub issue, use `gh issue view`.
    For pasted text, treat it as the description.
+   If intake contains an alert identity (a Datadog monitor ID or title, an
+   incident.io alert/INC reference, or an on-call page), first apply
+   [`incident-alert-tickets`](../incident-alert-tickets/SKILL.md) — a
+   documented cause section may resolve the investigation before any sweep.
 
 2. **Scope the sweep.** From the intake, pick the affected subsystem and time
    window. Use [`references/repo-debug-map.md`](references/repo-debug-map.md)
@@ -71,6 +72,11 @@ supports them.
 
 7. **Deliver.** Default: print the analysis in chat. If the user asked for it,
    also save under the workflow they specified (file, Linear comment via, etc.).
+   If the investigation was anchored to an alert identity, also offer the
+   human-gated write-back from
+   [`incident-alert-tickets`](../incident-alert-tickets/SKILL.md): append the
+   established root cause as a dated cause section, or create the monitor's
+   ticket.
 
 ## Datadog MCP Usage Notes
 
@@ -110,6 +116,9 @@ do not invent root causes.
 
 ## Cross-References
 
+- Per-monitor knowledge base — look up documented causes before the sweep,
+  record new ones after (human-gated):
+  [`incident-alert-tickets`](../incident-alert-tickets/SKILL.md)
 - Production telemetry query recipes, tenant/public API usage, and queue
   consumer measurements:
   [`datadog-query-recipes`](../datadog-query-recipes/SKILL.md)

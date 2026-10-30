@@ -1,18 +1,31 @@
+/* eslint-disable react/no-unstable-nested-components */
 import React from "react";
 import { api } from "@/src/utils/api";
 import { DataTable } from "@/src/components/table/data-table";
 import { DataTableToolbar } from "@/src/components/table/data-table-toolbar";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
-import { StatusBadge } from "@/src/components/layouts/status-badge";
-import { IOTableCell } from "@/src/components/ui/IOTableCell";
+import { createStatusTableColumn } from "@/src/components/design-system/table/columns/createStatusTableColumn";
+import { createIOTableColumn } from "@/src/components/design-system/table/columns/createIOTableColumn";
 import { useQueryParams, withDefault, NumberParam } from "use-query-params";
 import { formatDistanceToNow } from "date-fns";
 import { formatIntervalSeconds } from "@/src/utils/dates";
-import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
+import {
+  customRowHeightMenu,
+  useRowHeightLocalStorage,
+} from "@/src/components/table/data-table-row-height-switch";
+import { ActionExecutionStatus } from "@langfuse/shared";
+import { type Status } from "@/src/components/ui/StatusBadge/StatusBadge";
+
+const actionExecutionStatusToStatus = {
+  [ActionExecutionStatus.COMPLETED]: "completed",
+  [ActionExecutionStatus.ERROR]: "error",
+  [ActionExecutionStatus.PENDING]: "pending",
+  [ActionExecutionStatus.CANCELLED]: "cancelled",
+} satisfies Record<ActionExecutionStatus, Status>;
 
 type ActionExecutionRow = {
   id: string;
-  status: string;
+  status: ActionExecutionStatus;
   sourceId: string;
   input: any;
   output: any;
@@ -35,29 +48,31 @@ export const AutomationExecutionsTable: React.FC<
     pageSize: withDefault(NumberParam, 50),
   });
 
-  const [rowHeight, setRowHeight] = useRowHeightLocalStorage(
+  const [rowHeight, setRowHeight, rowHeights] = useRowHeightLocalStorage(
     "automation-executions",
     "s",
   );
 
   const { data, isLoading, isError, error } =
-    api.automations.getAutomationExecutions.useQuery({
-      projectId,
-      automationId,
-      page: paginationState.pageIndex,
-      limit: paginationState.pageSize,
-    });
+    api.automations.getAutomationExecutions.useQuery(
+      {
+        projectId,
+        automationId,
+        page: paginationState.pageIndex,
+        limit: paginationState.pageSize,
+      },
+      // Suppress 404 toast: invalidation after deletion can refetch this query
+      // before the component unmounts.
+      { meta: { silentHttpCodes: [404] } },
+    );
 
   const columns: LangfuseColumnDef<ActionExecutionRow>[] = [
-    {
+    createStatusTableColumn<ActionExecutionRow, ActionExecutionStatus>({
       accessorKey: "status",
       header: "Status",
-      id: "status",
-      cell: ({ row }) => {
-        const status = row.getValue("status") as string;
-        return <StatusBadge type={status.toLowerCase()} />;
-      },
-    },
+      getStatus: (status) =>
+        status ? actionExecutionStatusToStatus[status] : undefined,
+    }),
     {
       accessorKey: "startedAt",
       header: "Started",
@@ -90,25 +105,16 @@ export const AutomationExecutionsTable: React.FC<
         );
       },
     },
-    {
+    createIOTableColumn<ActionExecutionRow>({
       accessorKey: "input",
       header: "Input",
-      id: "input",
-      cell: ({ row }) => {
-        const value = row.getValue("input");
-        return <IOTableCell data={value} />;
-      },
-    },
-    {
+    }),
+    createIOTableColumn<ActionExecutionRow>({
       accessorKey: "output",
       header: "Output",
-      id: "output",
-      cell: ({ row }) => {
-        const value = row.getValue("output");
-        if (!value) return <span className="text-muted-foreground">-</span>;
-        return <IOTableCell data={value} />;
-      },
-    },
+      getCell: (value) => value || "-",
+      variant: "output",
+    }),
     {
       accessorKey: "error",
       header: "Error",
@@ -153,12 +159,14 @@ export const AutomationExecutionsTable: React.FC<
   return (
     <>
       <DataTableToolbar
+        tableName="automation-executions"
         columns={columns}
         rowHeight={rowHeight}
         setRowHeight={setRowHeight}
+        customRowHeight={customRowHeightMenu(rowHeights)}
       />
       <DataTable
-        tableName={"automationExecutions"}
+        tableName="automationExecutions"
         columns={columns}
         data={{
           isLoading,
@@ -171,6 +179,9 @@ export const AutomationExecutionsTable: React.FC<
           state: paginationState,
         }}
         rowHeight={rowHeight}
+        customRowHeightPx={rowHeights.activeHeightPx}
+        onCustomRowHeightChange={rowHeights.setCustomPx}
+        onSelectRowHeight={setRowHeight}
       />
     </>
   );

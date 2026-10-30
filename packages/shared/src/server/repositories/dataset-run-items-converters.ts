@@ -104,7 +104,7 @@ export function convertDatasetRunItemClickhouseToDomain<
         (row as any).dataset_item_metadata,
       ),
     } as DatasetRunItemDomain<WithIO>;
-  } else {
-    return baseConversion as DatasetRunItemDomain<WithIO>;
   }
+
+  return baseConversion as DatasetRunItemDomain<WithIO>;
 }

@@ -1,3 +1,8 @@
+import type { ApiAccessScope } from "@langfuse/shared/src/server";
+
+import type { AuthorizationContext } from "@/src/features/auth/policy/types";
+import type { McpToolName } from "./server/bootstrap";
+
 /**
  * MCP (Model Context Protocol) Server Types
  *
@@ -48,4 +53,29 @@ export interface ServerContext {
 
   /** Public key used for authentication */
   publicKey: string;
+
+  /** Billing plan of the organization, for plan-based rate limiting */
+  plan: ApiAccessScope["plan"];
+
+  /** Org-level rate limit overrides from the cloud config */
+  rateLimitOverrides: ApiAccessScope["rateLimitOverrides"];
+
+  /** User agent from the MCP client's HTTP request */
+  userAgent?: string;
+
+  /** In-app-agent-specific MCP authorization state. */
+  inAppAgent?: InAppAgentContext;
+
+  /** Resolved policy-core context, present only once the new authz path resolves the connection (enforce). */
+  auth?: AuthorizationContext;
 }
+
+/** In-app agent MCP access is read-only unless a prior approval mints a mutating-tool allowlist. */
+type InAppAgentContext =
+  | {
+      permissions: "read";
+    }
+  | {
+      permissions: "tool-allowlist";
+      allowedToolNames: McpToolName[];
+    };

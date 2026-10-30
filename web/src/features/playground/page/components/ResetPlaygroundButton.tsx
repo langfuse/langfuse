@@ -1,4 +1,4 @@
-import { ListRestartIcon } from "lucide-react";
+import { ListRestartIcon } from "@langfuse/icons";
 import { useRouter } from "next/router";
 
 import { Button } from "@/src/components/ui/button";
@@ -20,7 +20,7 @@ export const ResetPlaygroundButton: React.FC = () => {
       onClick={handleClick}
       className="gap-1"
     >
-      <ListRestartIcon className="h-4 w-4" />
+      <ListRestartIcon size="base" color="default" />
       <span className="hidden lg:inline">Reset playground</span>
     </Button>
   );

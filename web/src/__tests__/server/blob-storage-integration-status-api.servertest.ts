@@ -6,15 +6,28 @@ import { prisma } from "@langfuse/shared/src/db";
 import { z } from "zod";
 import { randomUUID } from "crypto";
 import {
-  createAndAddApiKeysToDb,
+  createApiKey,
   createBasicAuthHeader,
 } from "@langfuse/shared/src/server";
+import {
+  OrganizationId,
+  ProjectId,
+  SystemRoleId,
+  UserId,
+} from "@langfuse/shared/rbac";
 
 const BlobStorageIntegrationStatusResponseSchema = z
   .object({
     id: z.string(),
     projectId: z.string(),
-    syncStatus: z.enum(["idle", "queued", "up_to_date", "disabled", "error"]),
+    syncStatus: z.enum([
+      "idle",
+      "running",
+      "queued",
+      "up_to_date",
+      "disabled",
+      "error",
+    ]),
     enabled: z.boolean(),
     lastSyncAt: z.coerce.date().nullable(),
     nextSyncAt: z.coerce.date().nullable(),
@@ -29,6 +42,7 @@ const HOUR_AGO = new Date(NOW - 60 * 60 * 1000);
 const TWO_HOURS_AGO = new Date(NOW - 2 * 60 * 60 * 1000);
 const THIRTY_MIN_AGO = new Date(NOW - 30 * 60 * 1000);
 const TEN_MIN_AGO = new Date(NOW - 10 * 60 * 1000);
+const THREE_HOURS_AGO = new Date(NOW - 3 * 60 * 60 * 1000);
 const TOMORROW = new Date(NOW + 24 * 60 * 60 * 1000);
 
 describe("Blob Storage Integration Status API - GET /api/public/integrations/blob-storage/{id}", () => {
@@ -56,11 +70,15 @@ describe("Blob Storage Integration Status API - GET /api/public/integrations/blo
     });
     testProjectId = testProject.id;
 
-    const orgApiKey = await createAndAddApiKeysToDb({
-      prisma,
-      entityId: testOrgId,
-      scope: "ORGANIZATION",
-      note: "Test API Key for Blob Status API",
+    const orgKeyCreator = await prisma.user.create({
+      data: { email: `apikey-creator-${randomUUID()}@example.com` },
+    });
+    const orgApiKey = await createApiKey(prisma, {
+      tenant: OrganizationId(testOrgId),
+      scope: OrganizationId(testOrgId),
+      role: SystemRoleId("LEGACY_ORGANIZATION_API_KEY"),
+      createdBy: UserId(orgKeyCreator.id),
+      name: "Test API Key for Blob Status API",
       predefinedKeys: {
         publicKey: `pk-lf-bstat-${randomUUID().substring(0, 8)}`,
         secretKey: `sk-lf-bstat-${randomUUID().substring(0, 8)}`,
@@ -110,11 +128,15 @@ describe("Blob Storage Integration Status API - GET /api/public/integrations/blo
   });
 
   it("should return 403 with project-scoped API key", async () => {
-    const projectApiKey = await createAndAddApiKeysToDb({
-      prisma,
-      entityId: testProjectId,
-      scope: "PROJECT",
-      note: "Project API Key for status test",
+    const keyCreator = await prisma.user.create({
+      data: { email: `apikey-creator-${randomUUID()}@example.com` },
+    });
+    const projectApiKey = await createApiKey(prisma, {
+      tenant: OrganizationId(testOrgId),
+      scope: ProjectId(testProjectId),
+      role: SystemRoleId("LEGACY_PROJECT_API_KEY"),
+      createdBy: UserId(keyCreator.id),
+      name: "Project API Key for status test",
       predefinedKeys: {
         publicKey: `pk-lf-pstat-${randomUUID().substring(0, 8)}`,
         secretKey: `sk-lf-pstat-${randomUUID().substring(0, 8)}`,
@@ -178,6 +200,7 @@ describe("Blob Storage Integration Status API - GET /api/public/integrations/blo
     nextSyncAt: Date | null;
     lastError: string | null;
     lastErrorAt: Date | null;
+    runStartedAt?: Date | null;
     expectedStatus: string;
     expectedFields?: Record<string, unknown>;
   }>([
@@ -200,6 +223,35 @@ describe("Blob Storage Integration Status API - GET /api/public/integrations/blo
       lastErrorAt: null,
       expectedStatus: "idle",
       expectedFields: { enabled: true, lastSyncAt: null },
+    },
+    {
+      name: "queued (nextSyncAt past, lastSyncAt null — precedence: queued wins over idle)",
+      enabled: true,
+      lastSyncAt: null,
+      nextSyncAt: TEN_MIN_AGO,
+      lastError: null,
+      lastErrorAt: null,
+      expectedStatus: "queued",
+    },
+    {
+      name: "running (runStartedAt set, never synced)",
+      enabled: true,
+      lastSyncAt: null,
+      nextSyncAt: null,
+      lastError: null,
+      lastErrorAt: null,
+      runStartedAt: TEN_MIN_AGO,
+      expectedStatus: "running",
+    },
+    {
+      name: "running (runStartedAt set, previously synced)",
+      enabled: true,
+      lastSyncAt: HOUR_AGO,
+      nextSyncAt: TOMORROW,
+      lastError: null,
+      lastErrorAt: null,
+      runStartedAt: TEN_MIN_AGO,
+      expectedStatus: "running",
     },
     {
       name: "up_to_date (nextSyncAt in future)",
@@ -252,6 +304,27 @@ describe("Blob Storage Integration Status API - GET /api/public/integrations/blo
       expectedFields: { lastError: "Access Denied" },
     },
     {
+      name: "stale runStartedAt (>2h fixed TTL, falls through to up_to_date)",
+      enabled: true,
+      lastSyncAt: HOUR_AGO,
+      nextSyncAt: TOMORROW,
+      lastError: null,
+      lastErrorAt: null,
+      runStartedAt: THREE_HOURS_AGO,
+      expectedStatus: "up_to_date",
+    },
+    {
+      name: "error > running (precedence: lastError wins over runStartedAt)",
+      enabled: true,
+      lastSyncAt: HOUR_AGO,
+      nextSyncAt: TOMORROW,
+      lastError: "Access Denied",
+      lastErrorAt: THIRTY_MIN_AGO,
+      runStartedAt: TEN_MIN_AGO,
+      expectedStatus: "error",
+      expectedFields: { lastError: "Access Denied" },
+    },
+    {
       name: "error > up_to_date (precedence: lastError wins over future nextSyncAt)",
       enabled: true,
       lastSyncAt: HOUR_AGO,
@@ -269,6 +342,7 @@ describe("Blob Storage Integration Status API - GET /api/public/integrations/blo
       nextSyncAt,
       lastError,
       lastErrorAt,
+      runStartedAt,
       expectedStatus,
       expectedFields,
     }) => {
@@ -290,6 +364,7 @@ describe("Blob Storage Integration Status API - GET /api/public/integrations/blo
           nextSyncAt,
           lastError,
           lastErrorAt,
+          runStartedAt: runStartedAt ?? null,
         },
       });
 
@@ -345,7 +420,7 @@ describe("Blob Storage Integration Status API - GET /api/public/integrations/blo
       200,
     );
 
-    expect(new Date(response.body.lastErrorAt).getTime()).toBe(
+    expect(new Date(response.body.lastErrorAt!).getTime()).toBe(
       errorDate.getTime(),
     );
   });

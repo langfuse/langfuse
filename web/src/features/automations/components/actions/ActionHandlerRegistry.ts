@@ -4,6 +4,7 @@ import { type BaseActionHandler } from "./BaseActionHandler";
 import { WebhookActionHandler } from "./WebhookActionHandler";
 import { SlackActionHandler } from "./SlackActionHandler";
 import { GitHubDispatchActionHandler } from "./GitHubDispatchActionHandler";
+import { PagerDutyActionHandler } from "./PagerDutyActionHandler";
 
 export class ActionHandlerRegistry {
   private static handlers: Map<ActionType, BaseActionHandler<FieldValues>> =
@@ -14,6 +15,7 @@ export class ActionHandlerRegistry {
     this.handlers.set("WEBHOOK", new WebhookActionHandler());
     this.handlers.set("SLACK", new SlackActionHandler());
     this.handlers.set("GITHUB_DISPATCH", new GitHubDispatchActionHandler());
+    this.handlers.set("PAGERDUTY", new PagerDutyActionHandler());
   }
 
   static getHandler<T extends FieldValues = FieldValues>(

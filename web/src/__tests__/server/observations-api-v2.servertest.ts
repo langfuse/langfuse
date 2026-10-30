@@ -1,5 +1,5 @@
 import {
-  createEvent,
+  createEvent as createEventBase,
   createEventsCh,
   createOrgProjectAndApiKey,
   queryClickhouse,
@@ -16,6 +16,15 @@ import waitForExpect from "wait-for-expect";
 let projectId: string;
 let auth: string;
 
+// The events tables carry metadata as flattened `metadata_names` /
+// `metadata_values` arrays. The fixtures below also pass the nested object
+// form for readability; it is not a column and is ignored by the insert.
+const createEvent = (
+  event: Parameters<typeof createEventBase>[0] & {
+    metadata?: Record<string, unknown>;
+  },
+) => createEventBase(event);
+
 const getObservations = (url: string) =>
   makeZodVerifiedAPICall(
     GetObservationsV2Response,
@@ -28,7 +37,7 @@ const getObservations = (url: string) =>
 const getRaw = (url: string) => makeAPICall("GET", url, undefined, auth);
 
 const maybe =
-  env.LANGFUSE_ENABLE_EVENTS_TABLE_V2_APIS === "true"
+  env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN === "true"
     ? describe
     : describe.skip;
 
@@ -44,7 +53,78 @@ describe("/api/public/v2/observations API Endpoint", () => {
     // redis connection when everything else is skipped.
   });
 
+  it("rejects matches filters on v1 observations", async () => {
+    const filterParam = JSON.stringify([
+      {
+        type: "string",
+        column: "output",
+        operator: "matches",
+        value: "needle",
+      },
+    ]);
+
+    const response = await getRaw(
+      `/api/public/observations?useEventsTable=true&filter=${encodeURIComponent(filterParam)}`,
+    );
+
+    expect(response.status).toBe(400);
+  });
+
   maybe("GET /api/public/v2/observations", () => {
+    it("clamps Hobby observation access to the last 30 days", async () => {
+      const fixture = await createOrgProjectAndApiKey({ plan: "Hobby" });
+      const oldId = randomUUID();
+      const recentId = randomUUID();
+      const createObservationAt = (id: string, timestamp: number) =>
+        createEvent({
+          id,
+          span_id: id,
+          trace_id: randomUUID(),
+          project_id: fixture.projectId,
+          name: `data-access-${id}`,
+          type: "SPAN",
+          level: "DEFAULT",
+          start_time: timestamp * 1000,
+          end_time: timestamp * 1000 + 1_000,
+        });
+      await createEventsCh([
+        createObservationAt(oldId, Date.now() - 100 * 24 * 60 * 60 * 1000),
+        createObservationAt(recentId, Date.now() - 24 * 60 * 60 * 1000),
+      ]);
+
+      const response = await makeZodVerifiedAPICall(
+        GetObservationsV2Response,
+        "GET",
+        "/api/public/v2/observations",
+        undefined,
+        fixture.auth,
+      );
+
+      expect(response.body.data.map((observation) => observation.id)).toContain(
+        recentId,
+      );
+      expect(
+        response.body.data.map((observation) => observation.id),
+      ).not.toContain(oldId);
+    });
+
+    it("allows legacy v1 contains filters on IO", async () => {
+      const filterParam = JSON.stringify([
+        {
+          type: "string",
+          column: "output",
+          operator: "contains",
+          value: "needle",
+        },
+      ]);
+
+      const response = await getRaw(
+        `/api/public/observations?useEventsTable=true&filter=${encodeURIComponent(filterParam)}`,
+      );
+
+      expect(response.status).toBe(200);
+    });
+
     it("should fetch observations with only requested field groups", async () => {
       const traceId = randomUUID();
       const observationId = randomUUID();
@@ -57,6 +137,8 @@ describe("/api/public/v2/observations API Endpoint", () => {
         span_id: observationId,
         trace_id: traceId,
         project_id: projectId,
+        parent_span_id: "external-parent",
+        is_app_root: true,
         name: "test-observation",
         type: "GENERATION",
         level: "DEFAULT",
@@ -72,9 +154,9 @@ describe("/api/public/v2/observations API Endpoint", () => {
 
       await createEventsCh([observation]);
 
-      // Request only basic field group (core is always included)
+      // Request only basic and trace context field groups (core is always included)
       const response = await getObservations(
-        `/api/public/v2/observations?fields=basic&traceId=${traceId}`,
+        `/api/public/v2/observations?fields=basic,trace_context&traceId=${traceId}`,
       );
 
       expect(response.status).toBe(200);
@@ -99,6 +181,7 @@ describe("/api/public/v2/observations API Endpoint", () => {
       // Verify basic fields are present
       expect(createdObs?.name).toBe("test-observation");
       expect(createdObs?.level).toBe("DEFAULT");
+      expect(createdObs?.traceName).toBe("test-observation");
 
       // Verify fields from non-requested groups are not present
       expect(createdObs?.input).toBeUndefined();
@@ -157,6 +240,38 @@ describe("/api/public/v2/observations API Endpoint", () => {
       expect(response.status).toBe(400);
       expect(response.body).toHaveProperty("error");
       expect(JSON.stringify(response.body)).toContain("parseIoAsJson");
+    });
+
+    it("returns core and basic fields when fields is omitted", async () => {
+      const traceId = randomUUID();
+      const observationId = randomUUID();
+
+      await createEventsCh([
+        createEvent({
+          id: observationId,
+          span_id: observationId,
+          trace_id: traceId,
+          project_id: projectId,
+          name: "default-fields-observation",
+          type: "GENERATION",
+          level: "DEFAULT",
+          start_time: Date.now() * 1000,
+        }),
+      ]);
+
+      const response = await getObservations(
+        `/api/public/v2/observations?traceId=${traceId}`,
+      );
+
+      expect(response.status).toBe(200);
+      expect(response.body.data).toContainEqual(
+        expect.objectContaining({
+          id: observationId,
+          name: "default-fields-observation",
+          level: "DEFAULT",
+          isRootObservation: true,
+        }),
+      );
     });
 
     it("should respect limit parameter with default of 50", async () => {
@@ -223,6 +338,314 @@ describe("/api/public/v2/observations API Endpoint", () => {
       expect(obs?.name).toBe("unique-observation-name");
       expect(obs?.type).toBe("GENERATION");
       expect(obs?.level).toBe("WARNING");
+    });
+
+    it("should filter observations by sessionId and prefer advanced filters", async () => {
+      const sessionId = `session-${randomUUID()}`;
+      const otherSessionId = `session-${randomUUID()}`;
+      const userId = `user-${randomUUID()}`;
+      const otherUserId = `user-${randomUUID()}`;
+      const environment = `environment-${randomUUID()}`;
+      const otherEnvironment = `environment-${randomUUID()}`;
+      const observations = [
+        [sessionId, userId, environment],
+        [otherSessionId, otherUserId, otherEnvironment],
+      ].map(([value, observationUserId, observationEnvironment]) => {
+        const observationId = randomUUID();
+        return createEvent({
+          id: observationId,
+          span_id: observationId,
+          trace_id: randomUUID(),
+          project_id: projectId,
+          name: `session-filter-${value}`,
+          type: "GENERATION",
+          level: "DEFAULT",
+          session_id: value,
+          user_id: observationUserId,
+          environment: observationEnvironment,
+          start_time: Date.now() * 1000,
+        });
+      });
+      const otherProject = await createOrgProjectAndApiKey();
+      const crossProjectObservationId = randomUUID();
+      const crossProjectObservation = createEvent({
+        id: crossProjectObservationId,
+        span_id: crossProjectObservationId,
+        trace_id: randomUUID(),
+        project_id: otherProject.projectId,
+        name: "cross-project-session-filter",
+        type: "GENERATION",
+        level: "DEFAULT",
+        session_id: sessionId,
+        start_time: Date.now() * 1000,
+      });
+
+      await createEventsCh([...observations, crossProjectObservation]);
+
+      await waitForExpect(
+        async () => {
+          const result = await queryClickhouse<{ count: string }>({
+            query: `SELECT count() as count FROM events_core WHERE span_id IN ({ids: Array(String)})`,
+            params: {
+              ids: [
+                ...observations.map((observation) => observation.span_id),
+                crossProjectObservation.span_id,
+              ],
+            },
+          });
+          expect(Number(result[0]?.count)).toBeGreaterThanOrEqual(3);
+        },
+        5000,
+        10,
+      );
+
+      const matchingResponse = await getObservations(
+        `/api/public/v2/observations?fields=basic&sessionId=${encodeURIComponent(sessionId)}`,
+      );
+
+      expect(matchingResponse.status).toBe(200);
+      expect(matchingResponse.body.data).toHaveLength(1);
+      expect(matchingResponse.body.data[0]?.sessionId).toBe(sessionId);
+
+      const missingResponse = await getObservations(
+        "/api/public/v2/observations?fields=basic&sessionId=missing-session",
+      );
+
+      expect(missingResponse.status).toBe(200);
+      expect(missingResponse.body.data).toHaveLength(0);
+
+      const advancedFilter = JSON.stringify([
+        {
+          type: "string",
+          column: "sessionId",
+          operator: "=",
+          value: otherSessionId,
+        },
+      ]);
+      const advancedFilterResponse = await getObservations(
+        `/api/public/v2/observations?fields=basic&sessionId=${encodeURIComponent(sessionId)}&filter=${encodeURIComponent(advancedFilter)}`,
+      );
+
+      expect(advancedFilterResponse.status).toBe(200);
+      expect(advancedFilterResponse.body.data).toHaveLength(1);
+      expect(advancedFilterResponse.body.data[0]?.sessionId).toBe(
+        otherSessionId,
+      );
+
+      const userAdvancedFilter = JSON.stringify([
+        {
+          type: "string",
+          column: "userId",
+          operator: "=",
+          value: otherUserId,
+        },
+      ]);
+      const userFilterResponse = await getObservations(
+        `/api/public/v2/observations?fields=basic&userId=${encodeURIComponent(userId)}&filter=${encodeURIComponent(userAdvancedFilter)}`,
+      );
+
+      expect(userFilterResponse.status).toBe(200);
+      expect(userFilterResponse.body.data).toHaveLength(1);
+      expect(userFilterResponse.body.data[0]?.id).toBe(
+        observations[1]?.span_id,
+      );
+
+      const nameAdvancedFilter = JSON.stringify([
+        {
+          type: "string",
+          column: "name",
+          operator: "=",
+          value: observations[1]!.name,
+        },
+      ]);
+      const nameFilterResponse = await getObservations(
+        `/api/public/v2/observations?fields=basic&name=${encodeURIComponent(observations[0]!.name)}&filter=${encodeURIComponent(nameAdvancedFilter)}`,
+      );
+
+      expect(nameFilterResponse.status).toBe(200);
+      expect(nameFilterResponse.body.data).toHaveLength(1);
+      expect(nameFilterResponse.body.data[0]?.id).toBe(
+        observations[1]?.span_id,
+      );
+
+      const environmentAdvancedFilter = JSON.stringify([
+        {
+          type: "string",
+          column: "traceEnvironment",
+          operator: "=",
+          value: otherEnvironment,
+        },
+      ]);
+      const environmentFilterResponse = await getObservations(
+        `/api/public/v2/observations?fields=basic&environment=${encodeURIComponent(environment)}&filter=${encodeURIComponent(environmentAdvancedFilter)}`,
+      );
+
+      expect(environmentFilterResponse.status).toBe(200);
+      expect(environmentFilterResponse.body.data).toHaveLength(1);
+      expect(environmentFilterResponse.body.data[0]?.id).toBe(
+        observations[1]?.span_id,
+      );
+    });
+
+    it("should filter semantic roots while preserving their physical parent", async () => {
+      const traceId = randomUUID();
+      const physicalRootId = randomUUID();
+      const appRootId = randomUUID();
+      const childId = randomUUID();
+      const externalParentId = randomUUID();
+      const timeValue = Date.now() * 1000;
+
+      await createEventsCh(
+        (
+          [
+            [physicalRootId, "", false],
+            [appRootId, externalParentId, true],
+            [childId, physicalRootId, false],
+          ] as const
+        ).map(([id, parentSpanId, isAppRoot], offset) =>
+          createEvent({
+            id,
+            span_id: id,
+            parent_span_id: parentSpanId,
+            is_app_root: isAppRoot,
+            trace_id: traceId,
+            project_id: projectId,
+            type: "SPAN",
+            level: "DEFAULT",
+            start_time: timeValue + offset,
+          }),
+        ),
+      );
+
+      const fetchTopology = async (filter: string) =>
+        Object.fromEntries(
+          (
+            await getObservations(
+              `/api/public/v2/observations?fields=basic&traceId=${traceId}&${filter}`,
+            )
+          ).body.data.map(({ id, isRootObservation, parentObservationId }) => [
+            id,
+            [isRootObservation, parentObservationId],
+          ]),
+        );
+      const structuredFilter = encodeURIComponent(
+        JSON.stringify([
+          {
+            type: "boolean",
+            column: "isRootObservation",
+            operator: "=",
+            value: true,
+          },
+        ]),
+      );
+      const expectedRoots = {
+        [physicalRootId]: [true, null],
+        [appRootId]: [true, externalParentId],
+      };
+
+      expect(
+        await Promise.all(
+          [
+            "isRootObservation=true",
+            `filter=${structuredFilter}`,
+            "parentObservationId=",
+            "isRootObservation=false",
+          ].map(fetchTopology),
+        ),
+      ).toEqual([
+        expectedRoots,
+        expectedRoots,
+        { [physicalRootId]: [true, null] },
+        { [childId]: [false, physicalRootId] },
+      ]);
+    });
+
+    it("should filter by multiple environment query params (any-of semantics)", async () => {
+      const traceId = randomUUID();
+      const envA = `env-a-${randomUUID()}`;
+      const envB = `env-b-${randomUUID()}`;
+      const envC = `env-c-${randomUUID()}`;
+      const observationIdA: string = randomUUID();
+      const observationIdB: string = randomUUID();
+      const observationIdC: string = randomUUID();
+      const timestamp = new Date();
+      const timeValue = timestamp.getTime() * 1000;
+
+      const buildObservation = (
+        id: string,
+        environment: string,
+        offsetMicros: number,
+      ) =>
+        createEvent({
+          id,
+          span_id: id,
+          trace_id: traceId,
+          project_id: projectId,
+          name: `env-filter-obs-${environment}`,
+          type: "GENERATION",
+          level: "DEFAULT",
+          environment,
+          start_time: timeValue + offsetMicros,
+          end_time: timeValue + offsetMicros + 1000 * 1000,
+        });
+
+      await createEventsCh([
+        buildObservation(observationIdA, envA, 0),
+        buildObservation(observationIdB, envB, 1000 * 1000),
+        buildObservation(observationIdC, envC, 2000 * 1000),
+      ]);
+
+      await waitForExpect(
+        async () => {
+          const result = await queryClickhouse<{ count: string }>({
+            query: `SELECT count() as count FROM events_core WHERE project_id = {projectId: String} AND span_id IN ({ids: Array(String)})`,
+            params: {
+              projectId,
+              ids: [observationIdA, observationIdB, observationIdC],
+            },
+          });
+          expect(Number(result[0]?.count)).toBeGreaterThanOrEqual(3);
+        },
+        5000,
+        10,
+      );
+
+      const response = await getObservations(
+        `/api/public/v2/observations?fields=basic&traceId=${traceId}&environment=${encodeURIComponent(envA)}&environment=${encodeURIComponent(envB)}`,
+      );
+
+      expect(response.status).toBe(200);
+      const returnedIds = response.body.data
+        .map((obs: any) => obs.id)
+        .filter((id: string) =>
+          [observationIdA, observationIdB, observationIdC].includes(id),
+        );
+      expect(returnedIds.sort()).toEqual(
+        [observationIdA, observationIdB].sort(),
+      );
+
+      for (const obs of response.body.data) {
+        expect([envA, envB]).toContain(obs.environment);
+      }
+
+      // Backwards-compat: single environment value (scalar string) must still
+      // behave as exact-match equality (previously `environment = 'foo'`, now
+      // `environment IN ('foo')`).
+      const singleEnvResponse = await getObservations(
+        `/api/public/v2/observations?fields=basic&traceId=${traceId}&environment=${encodeURIComponent(envA)}`,
+      );
+
+      expect(singleEnvResponse.status).toBe(200);
+      const singleEnvReturnedIds = singleEnvResponse.body.data
+        .map((obs: any) => obs.id)
+        .filter((id: string) =>
+          [observationIdA, observationIdB, observationIdC].includes(id),
+        );
+      expect(singleEnvReturnedIds).toEqual([observationIdA]);
+
+      for (const obs of singleEnvResponse.body.data) {
+        expect(obs.environment).toBe(envA);
+      }
     });
 
     it("should support filter parameter on various columns without SQL crashes", async () => {
@@ -487,6 +910,422 @@ describe("/api/public/v2/observations API Endpoint", () => {
       expect(matchedObs).toBeDefined();
       expect(matchedObs?.name).toBe("nested-metadata-obs-1");
     });
+
+    it("supports indexed literal matches filters for IO and metadata", async () => {
+      const traceId = randomUUID();
+      const timestamp = new Date();
+      const timeValue = timestamp.getTime() * 1000;
+      const tokenMatchId = randomUUID();
+      const punctuationMatchId = randomUUID();
+      const embeddedOnlyId = randomUUID();
+      const ioPhraseMatchId = randomUUID();
+      const ioPhraseReverseId = randomUUID();
+      const ioPhraseGapId = randomUUID();
+      const metadataCaseMatchId = randomUUID();
+      const metadataCaseMismatchId = randomUUID();
+      const metadataWrongKeyId = randomUUID();
+      const metadataMultiTokenMatchId = randomUUID();
+      const metadataMultiTokenReverseId = randomUUID();
+      const metadataMultiTokenGapId = randomUUID();
+      const metadataSplitAcrossValuesId = randomUUID();
+      const metadataMultiTokenWrongKeyId = randomUUID();
+
+      await createEventsCh([
+        createEvent({
+          id: tokenMatchId,
+          span_id: tokenMatchId,
+          trace_id: traceId,
+          project_id: projectId,
+          name: "io-token-match",
+          type: "GENERATION",
+          level: "DEFAULT",
+          start_time: timeValue,
+          output: "Needle in mixed case",
+        }),
+        createEvent({
+          id: punctuationMatchId,
+          span_id: punctuationMatchId,
+          trace_id: traceId,
+          project_id: projectId,
+          name: "io-punctuation-match",
+          type: "GENERATION",
+          level: "DEFAULT",
+          start_time: timeValue + 1000,
+          output: "needle@gmail.com",
+        }),
+        createEvent({
+          id: embeddedOnlyId,
+          span_id: embeddedOnlyId,
+          trace_id: traceId,
+          project_id: projectId,
+          name: "io-embedded-only",
+          type: "GENERATION",
+          level: "DEFAULT",
+          start_time: timeValue + 2000,
+          output: "foobarneedle cadabra",
+        }),
+        createEvent({
+          id: ioPhraseMatchId,
+          span_id: ioPhraseMatchId,
+          trace_id: traceId,
+          project_id: projectId,
+          name: "io-phrase-match",
+          type: "GENERATION",
+          level: "DEFAULT",
+          start_time: timeValue + 3000,
+          output: "prefix alpha beta suffix",
+        }),
+        createEvent({
+          id: ioPhraseReverseId,
+          span_id: ioPhraseReverseId,
+          trace_id: traceId,
+          project_id: projectId,
+          name: "io-phrase-reverse",
+          type: "GENERATION",
+          level: "DEFAULT",
+          start_time: timeValue + 4000,
+          output: "prefix beta alpha suffix",
+        }),
+        createEvent({
+          id: ioPhraseGapId,
+          span_id: ioPhraseGapId,
+          trace_id: traceId,
+          project_id: projectId,
+          name: "io-phrase-gap",
+          type: "GENERATION",
+          level: "DEFAULT",
+          start_time: timeValue + 5000,
+          output: "prefix alpha gap beta suffix",
+        }),
+        createEvent({
+          id: metadataCaseMatchId,
+          span_id: metadataCaseMatchId,
+          trace_id: traceId,
+          project_id: projectId,
+          name: "metadata-case-match",
+          type: "GENERATION",
+          level: "DEFAULT",
+          start_time: timeValue + 6000,
+          metadata: { source: "needle API" },
+          metadata_names: ["source"],
+          metadata_values: ["needle API"],
+        }),
+        createEvent({
+          id: metadataCaseMismatchId,
+          span_id: metadataCaseMismatchId,
+          trace_id: traceId,
+          project_id: projectId,
+          name: "metadata-case-mismatch",
+          type: "GENERATION",
+          level: "DEFAULT",
+          start_time: timeValue + 7000,
+          metadata: { source: "Needle API" },
+          metadata_names: ["source"],
+          metadata_values: ["Needle API"],
+        }),
+        createEvent({
+          id: metadataWrongKeyId,
+          span_id: metadataWrongKeyId,
+          trace_id: traceId,
+          project_id: projectId,
+          name: "metadata-wrong-key",
+          type: "GENERATION",
+          level: "DEFAULT",
+          start_time: timeValue + 8000,
+          metadata: { other: "needle API" },
+          metadata_names: ["other"],
+          metadata_values: ["needle API"],
+        }),
+        createEvent({
+          id: metadataMultiTokenMatchId,
+          span_id: metadataMultiTokenMatchId,
+          trace_id: traceId,
+          project_id: projectId,
+          name: "metadata-multi-token-match",
+          type: "GENERATION",
+          level: "DEFAULT",
+          start_time: timeValue + 9000,
+          metadata: { source: "alpha beta" },
+          metadata_names: ["source"],
+          metadata_values: ["alpha beta"],
+        }),
+        createEvent({
+          id: metadataMultiTokenReverseId,
+          span_id: metadataMultiTokenReverseId,
+          trace_id: traceId,
+          project_id: projectId,
+          name: "metadata-multi-token-reverse",
+          type: "GENERATION",
+          level: "DEFAULT",
+          start_time: timeValue + 10000,
+          metadata: { source: "beta alpha" },
+          metadata_names: ["source"],
+          metadata_values: ["beta alpha"],
+        }),
+        createEvent({
+          id: metadataMultiTokenGapId,
+          span_id: metadataMultiTokenGapId,
+          trace_id: traceId,
+          project_id: projectId,
+          name: "metadata-multi-token-gap",
+          type: "GENERATION",
+          level: "DEFAULT",
+          start_time: timeValue + 11000,
+          metadata: { source: "alpha gap beta" },
+          metadata_names: ["source"],
+          metadata_values: ["alpha gap beta"],
+        }),
+        createEvent({
+          id: metadataSplitAcrossValuesId,
+          span_id: metadataSplitAcrossValuesId,
+          trace_id: traceId,
+          project_id: projectId,
+          name: "metadata-split-across-values",
+          type: "GENERATION",
+          level: "DEFAULT",
+          start_time: timeValue + 12000,
+          metadata: { source: "alpha", other: "beta" },
+          metadata_names: ["source", "other"],
+          metadata_values: ["alpha", "beta"],
+        }),
+        createEvent({
+          id: metadataMultiTokenWrongKeyId,
+          span_id: metadataMultiTokenWrongKeyId,
+          trace_id: traceId,
+          project_id: projectId,
+          name: "metadata-multi-token-wrong-key",
+          type: "GENERATION",
+          level: "DEFAULT",
+          start_time: timeValue + 13000,
+          metadata: { source: "unrelated", other: "alpha beta" },
+          metadata_names: ["source", "other"],
+          metadata_values: ["unrelated", "alpha beta"],
+        }),
+      ]);
+
+      await waitForExpect(
+        async () => {
+          const result = await queryClickhouse<{ count: string }>({
+            query: `SELECT count() as count FROM events_core WHERE project_id = {projectId: String} AND trace_id = {traceId: String}`,
+            params: { projectId, traceId },
+          });
+          expect(Number(result[0]?.count)).toBeGreaterThanOrEqual(14);
+        },
+        5000,
+        10,
+      );
+
+      const ioFilterParam = JSON.stringify([
+        {
+          type: "string",
+          column: "output",
+          operator: "matches",
+          value: "needle",
+        },
+      ]);
+      const ioResponse = await getObservations(
+        `/api/public/v2/observations?traceId=${traceId}&fields=basic,io&filter=${encodeURIComponent(ioFilterParam)}`,
+      );
+      const ioIds = ioResponse.body.data.map((obs: any) => obs.id);
+
+      expect(ioResponse.status).toBe(200);
+      expect(ioIds).toEqual(
+        expect.arrayContaining([tokenMatchId, punctuationMatchId]),
+      );
+      expect(ioIds).not.toContain(embeddedOnlyId);
+
+      const ioPhraseFilterParam = JSON.stringify([
+        {
+          type: "string",
+          column: "output",
+          operator: "matches",
+          value: "alpha beta",
+        },
+      ]);
+      const ioPhraseResponse = await getObservations(
+        `/api/public/v2/observations?traceId=${traceId}&fields=basic,io&filter=${encodeURIComponent(ioPhraseFilterParam)}`,
+      );
+      const ioPhraseIds = ioPhraseResponse.body.data.map((obs: any) => obs.id);
+
+      expect(ioPhraseResponse.status).toBe(200);
+      expect(ioPhraseIds).toContain(ioPhraseMatchId);
+      expect(ioPhraseIds).not.toContain(ioPhraseReverseId);
+      expect(ioPhraseIds).not.toContain(ioPhraseGapId);
+
+      const metadataFilterParam = JSON.stringify([
+        {
+          type: "stringObject",
+          column: "metadata",
+          operator: "matches",
+          key: "source",
+          value: "needle",
+        },
+      ]);
+      const metadataResponse = await getObservations(
+        `/api/public/v2/observations?traceId=${traceId}&fields=basic,metadata&filter=${encodeURIComponent(metadataFilterParam)}`,
+      );
+      const metadataIds = metadataResponse.body.data.map((obs: any) => obs.id);
+
+      expect(metadataResponse.status).toBe(200);
+      expect(metadataIds).toContain(metadataCaseMatchId);
+      expect(metadataIds).not.toContain(metadataCaseMismatchId);
+      expect(metadataIds).not.toContain(metadataWrongKeyId);
+
+      const multiTokenMetadataFilterParam = JSON.stringify([
+        {
+          type: "stringObject",
+          column: "metadata",
+          operator: "matches",
+          key: "source",
+          value: "alpha beta",
+        },
+      ]);
+      const multiTokenMetadataResponse = await getObservations(
+        `/api/public/v2/observations?traceId=${traceId}&fields=basic,metadata&filter=${encodeURIComponent(multiTokenMetadataFilterParam)}`,
+      );
+      const multiTokenMetadataIds = multiTokenMetadataResponse.body.data.map(
+        (obs: any) => obs.id,
+      );
+
+      expect(multiTokenMetadataResponse.status).toBe(200);
+      expect(multiTokenMetadataIds).toContain(metadataMultiTokenMatchId);
+      expect(multiTokenMetadataIds).not.toContain(metadataMultiTokenReverseId);
+      expect(multiTokenMetadataIds).not.toContain(metadataMultiTokenGapId);
+      expect(multiTokenMetadataIds).not.toContain(metadataSplitAcrossValuesId);
+      expect(multiTokenMetadataIds).not.toContain(metadataMultiTokenWrongKeyId);
+    });
+
+    it("rejects public v2 IO filters that are guaranteed to be slow", async () => {
+      const containsOnlyFilter = JSON.stringify([
+        {
+          type: "string",
+          column: "output",
+          operator: "contains",
+          value: "needle",
+        },
+      ]);
+      const containsOnlyResponse = await getRaw(
+        `/api/public/v2/observations?fields=basic&filter=${encodeURIComponent(containsOnlyFilter)}`,
+      );
+      expect(containsOnlyResponse.status).toBe(400);
+
+      const matchesAndContainsFilter = JSON.stringify([
+        {
+          type: "string",
+          column: "output",
+          operator: "matches",
+          value: "needle",
+        },
+        {
+          type: "string",
+          column: "output",
+          operator: "contains",
+          value: "needle",
+        },
+      ]);
+      const matchesAndContainsResponse = await getRaw(
+        `/api/public/v2/observations?fields=basic&filter=${encodeURIComponent(matchesAndContainsFilter)}`,
+      );
+      expect(matchesAndContainsResponse.status).toBe(200);
+
+      const metadataMatchesAndIoContainsFilter = JSON.stringify([
+        {
+          type: "stringObject",
+          column: "metadata",
+          operator: "matches",
+          key: "source",
+          value: "needle",
+        },
+        {
+          type: "string",
+          column: "output",
+          operator: "contains",
+          value: "needle",
+        },
+      ]);
+      const metadataMatchesAndIoContainsResponse = await getRaw(
+        `/api/public/v2/observations?fields=basic&filter=${encodeURIComponent(metadataMatchesAndIoContainsFilter)}`,
+      );
+      expect(metadataMatchesAndIoContainsResponse.status).toBe(400);
+    });
+
+    it.each([
+      {
+        description: "null",
+        filter: {
+          type: "null",
+          column: "output",
+          operator: "is null",
+          value: "",
+        },
+      },
+      {
+        description: "stringOptions",
+        filter: {
+          type: "stringOptions",
+          column: "output",
+          operator: "any of",
+          value: ["needle"],
+        },
+      },
+    ])(
+      "rejects non-string public v2 IO $description filters",
+      async ({ filter }) => {
+        const filterParam = JSON.stringify([filter]);
+
+        const response = await getRaw(
+          `/api/public/v2/observations?fields=basic&filter=${encodeURIComponent(filterParam)}`,
+        );
+
+        expect(response.status).toBe(400);
+        expect(JSON.stringify(response.body)).toContain(
+          "Input/output filters only support filter type `string`.",
+        );
+      },
+    );
+
+    it.each([
+      {
+        description: "non-indexed event column",
+        filter: [
+          {
+            type: "string",
+            column: "name",
+            operator: "matches",
+            value: "needle",
+          },
+        ],
+      },
+      {
+        description: "empty value",
+        filter: [
+          {
+            type: "string",
+            column: "output",
+            operator: "matches",
+            value: "",
+          },
+        ],
+      },
+      {
+        description: "tokenless value",
+        filter: [
+          {
+            type: "stringObject",
+            column: "metadata",
+            operator: "matches",
+            key: "source",
+            value: "!!!",
+          },
+        ],
+      },
+    ])("rejects matches filters with $description", async ({ filter }) => {
+      const response = await getRaw(
+        `/api/public/v2/observations?fields=basic&filter=${encodeURIComponent(JSON.stringify(filter))}`,
+      );
+
+      expect(response.status).toBe(400);
+    });
   });
 
   maybe("Field group contract", () => {
@@ -516,6 +1355,7 @@ describe("/api/public/v2/observations API Endpoint", () => {
       "public",
       "userId",
       "sessionId",
+      "isRootObservation",
       // time
       "completionStartTime",
       "createdAt",
@@ -629,6 +1469,7 @@ describe("/api/public/v2/observations API Endpoint", () => {
         "public",
         "userId",
         "sessionId",
+        "isRootObservation",
       ],
       time: ["completionStartTime", "createdAt", "updatedAt"],
       io: ["input", "output"],
@@ -693,6 +1534,40 @@ describe("/api/public/v2/observations API Endpoint", () => {
         }
       });
     }
+  });
+
+  maybe("trace_context group: unresolvable trace name", () => {
+    // The events table ships "no resolvable trace name" as '' on the wire
+    // (eventsTableTraceNameSelectSql, LFE-14924). The API contract is null, so
+    // the partial (field-group) converter must map it back.
+    it("returns null traceName for a child span without a stored trace name", async () => {
+      const traceId = randomUUID();
+      const observationId = randomUUID();
+
+      await createEventsCh([
+        createEvent({
+          id: observationId,
+          span_id: observationId,
+          parent_span_id: randomUUID(),
+          trace_id: traceId,
+          project_id: projectId,
+          type: "SPAN",
+          name: "child-without-trace-name",
+          trace_name: "",
+        }),
+      ]);
+
+      const response = await getObservations(
+        `/api/public/v2/observations?fields=trace_context&traceId=${traceId}`,
+      );
+
+      expect(response.status).toBe(200);
+      const observation = response.body.data.find(
+        (candidate: { id: string }) => candidate.id === observationId,
+      );
+      expect(observation).toBeDefined();
+      expect(observation?.traceName).toBeNull();
+    });
   });
 
   maybe("Metadata expansion with expandMetadata parameter", () => {
@@ -1197,9 +2072,9 @@ describe("/api/public/v2/observations API Endpoint", () => {
       // Should fail validation
       expect(response.status).toBe(400);
       expect(response.body).toHaveProperty("message");
-      expect((response.body as { message: string }).message).toContain(
-        "Invalid cursor format",
-      );
+      expect(
+        (response.body as unknown as { message: string }).message,
+      ).toContain("Invalid cursor format");
     });
   });
 });

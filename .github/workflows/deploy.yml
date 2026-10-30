@@ -15,6 +15,7 @@ on:
           - web-iso
           - worker
           - worker-cpu
+          - ai-gateway
         required: true
       environment:
         description: "Environment to deploy to"
@@ -31,7 +32,8 @@ permissions: {}
 
 concurrency:
   # Support concurrent `push` and `workflow_dispatch`` actions
-  group: deploy-${{ github.event_name }}-${{ github.ref }}
+  # Dispatches to different environments/services must not cancel each other.
+  group: deploy-${{ github.event_name }}-${{ github.ref }}${{ github.event_name == 'workflow_dispatch' && format('-{0}-{1}', inputs.environment, inputs.service) || '' }}
   cancel-in-progress: true
 
 name: Deploy to ECS
@@ -46,14 +48,14 @@ jobs:
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         with:
           script: |
+            const services = ["web", "web-ingestion", "web-iso", "worker", "worker-cpu", "ai-gateway"];
+
             if (context.eventName === "workflow_dispatch") {
-              if (context.payload.inputs.service === "all") {
-                return `["web", "web-ingestion", "web-iso", "worker", "worker-cpu"]`
-              }
-              return `["${context.payload.inputs.service}"]`
+              const service = context.payload.inputs.service;
+              return JSON.stringify(service === "all" ? services : [service]);
             }
             if (context.eventName === "push") {
-              return `["web", "web-ingestion", "web-iso", "worker", "worker-cpu"]`
+              return JSON.stringify(services);
             }
             return "[]"
           result-encoding: string
@@ -109,6 +111,8 @@ jobs:
       AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
       AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
       SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+      IRONBANK_USER: ${{ secrets.IRONBANK_USER }}
+      IRONBANK_PASS: ${{ secrets.IRONBANK_PASS }}
     strategy:
       matrix:
         service: ${{ fromJson(needs.affected-services.outputs.services) }}
@@ -116,3 +120,20 @@ jobs:
     with:
       service: ${{ matrix.service }}
       environment: ${{ matrix.environment }}
+
+  notify-slack-on-failure:
+    needs: [affected-services, affected-environments, ecs-deploy]
+    if: failure()
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Notify Slack
+        uses: ./.github/actions/notify-slack-failure
+        with:
+          message: "❌ Deploy failed on ${{ github.ref_name }}"
+          webhook-url: ${{ secrets.SLACK_CI_FAILURE_WORKFLOW_WEBHOOK_URL }}

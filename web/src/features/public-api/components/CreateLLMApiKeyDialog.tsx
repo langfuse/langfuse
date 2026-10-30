@@ -1,4 +1,5 @@
-import { PlusIcon } from "lucide-react";
+/* eslint-disable @repo/no-abstracted-overlay-trigger, @repo/no-null-render, @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
+import { PlusIcon } from "@langfuse/icons";
 import { Button } from "@/src/components/ui/button";
 import {
   Dialog,
@@ -7,17 +8,26 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/src/components/ui/dialog";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { useHasProjectAccess } from "@/src/features/rbac";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
-import { useUiCustomization } from "@/src/ee/features/ui-customization/useUiCustomization";
+import { useUiCustomization } from "@/src/ee/features/ui-customization";
 import { CreateLLMApiKeyForm } from "@/src/features/public-api/components/CreateLLMApiKeyForm";
 
 export function CreateLLMApiKeyDialog({
   open,
   setOpen,
+  hideTrigger = false,
 }: {
   open: boolean;
   setOpen: (open: boolean) => void;
+  /**
+   * Hide the built-in "Add LLM Connection" trigger button and render only the
+   * (controlled) dialog. Use this when the dialog is opened from elsewhere — e.g.
+   * from inside a Select/dropdown, where the dialog must live OUTSIDE the
+   * dropdown content so it survives the dropdown closing. See the overlay
+   * lifecycle note in web/AGENTS.md.
+   */
+  hideTrigger?: boolean;
 }) {
   const projectId = useProjectIdFromURL();
   const hasAccess = useHasProjectAccess({
@@ -26,7 +36,7 @@ export function CreateLLMApiKeyDialog({
   });
   const uiCustomization = useUiCustomization();
 
-  if (!hasAccess) return null;
+  if (!projectId || !hasAccess) return null;
 
   return (
     <Dialog
@@ -35,19 +45,25 @@ export function CreateLLMApiKeyDialog({
         setOpen(isOpen);
       }}
     >
-      <DialogTrigger asChild>
-        <Button variant="secondary">
-          <PlusIcon className="mr-1.5 -ml-0.5 h-5 w-5" aria-hidden="true" />
-          Add LLM Connection
-        </Button>
-      </DialogTrigger>
+      {!hideTrigger && (
+        <DialogTrigger asChild>
+          <Button variant="secondary">
+            <PlusIcon
+              size="base"
+              __rawClassName="mr-1.5 -ml-0.5"
+              aria-hidden="true"
+            />
+            Add LLM Connection
+          </Button>
+        </DialogTrigger>
+      )}
       <DialogContent className="max-h-[90%] min-w-[40vw] overflow-auto">
         <DialogHeader>
           <DialogTitle>New LLM Connection</DialogTitle>
         </DialogHeader>
         {open && (
           <CreateLLMApiKeyForm
-            projectId={projectId}
+            owner={{ scope: "project", projectId }}
             onSuccess={() => setOpen(false)}
             customization={uiCustomization}
           />

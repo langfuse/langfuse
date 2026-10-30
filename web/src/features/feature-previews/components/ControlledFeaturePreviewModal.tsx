@@ -1,0 +1,136 @@
+/* eslint-disable no-nested-ternary */
+import { showErrorToast, showSuccessToast } from "@/src/features/notifications";
+import { useSession } from "next-auth/react";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { useReadPath, V4_PREVIEW_LABEL } from "@/src/features/events";
+import {
+  featurePreviewLabels,
+  useInternalFeaturesEnabled,
+} from "@/src/features/feature-flags";
+import { api } from "@/src/utils/api";
+import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
+
+import {
+  FeaturePreviewModal,
+  type PreviewFlag,
+  type PreviewState,
+} from "./FeaturePreviewModal";
+
+type ControlledFeaturePreviewModalProps = {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+};
+
+export function ControlledFeaturePreviewModal({
+  open,
+  onOpenChange,
+}: ControlledFeaturePreviewModalProps) {
+  const authSession = useSession();
+  const internalViewEnabled = useInternalFeaturesEnabled();
+  const { isV4 } = useReadPath();
+  const capture = usePostHogClientCapture();
+  const setFeaturePreviewEnabled =
+    api.userAccount.setFeaturePreviewEnabled.useMutation({
+      onSuccess: async (_data, variables) => {
+        await authSession.update();
+        capture("user_settings:feature_preview_toggled", {
+          feature: variables.flag,
+          isEnabled: variables.enabled,
+        });
+        showSuccessToast({
+          operation: "user_feature_preview.update",
+          title: "Feature preview updated",
+          description: `${featurePreviewLabels[variables.flag]} preview has been ${variables.enabled ? "enabled" : "disabled"}.`,
+        });
+      },
+      onError: (error) => {
+        showErrorToast(
+          "Failed to update feature preview",
+          error.message,
+          classifyTrpcToastError(error, "user_feature_preview.update"),
+        );
+      },
+    });
+
+  const onToggle = (flag: PreviewFlag) => (enabled: boolean) =>
+    setFeaturePreviewEnabled.mutate({ flag, enabled });
+
+  const isModernSessionEnabled =
+    isV4 &&
+    (authSession.data?.user?.featureFlags.sessionViewV2 === true ||
+      authSession.data?.environment.enableExperimentalFeatures === true);
+
+  const state: Partial<Record<PreviewFlag, PreviewState>> = {
+    skillManagement: {
+      enabled:
+        isV4 &&
+        (authSession.data?.user?.featureFlags.skillManagement === true ||
+          authSession.data?.environment.enableExperimentalFeatures === true),
+      disabled:
+        !isV4 ||
+        authSession.data?.environment.enableExperimentalFeatures === true,
+      warningReason: !isV4
+        ? `Skill Management requires ${V4_PREVIEW_LABEL}. Turn it on to enable this preview.`
+        : authSession.data?.environment.enableExperimentalFeatures === true
+          ? "This preview is enabled by LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES, so a per-user opt-out does not disable it."
+          : undefined,
+      onToggle: onToggle("skillManagement"),
+      isToggling: setFeaturePreviewEnabled.isPending,
+    },
+    ...(authSession.data?.user?.admin === true
+      ? {
+          langfuseTopics: {
+            enabled:
+              internalViewEnabled ||
+              authSession.data.user.featureFlags.langfuseTopics === true,
+            disabled: internalViewEnabled,
+            warningReason: internalViewEnabled
+              ? "Topics is enabled by Internal view. Switch to External view to manage this preview separately."
+              : undefined,
+            onToggle: onToggle("langfuseTopics"),
+            isToggling: setFeaturePreviewEnabled.isPending,
+          },
+        }
+      : {}),
+    sessionViewV2: {
+      enabled: isModernSessionEnabled,
+      disabled:
+        !isV4 ||
+        authSession.data?.environment.enableExperimentalFeatures === true,
+      warningReason: !isV4
+        ? `Redesigned Session View is only available on the events-backed session view. Turn on ${V4_PREVIEW_LABEL} to enable it.`
+        : authSession.data?.environment.enableExperimentalFeatures === true
+          ? "This preview is enabled by LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES, so a per-user opt-out does not disable it."
+          : undefined,
+      onToggle: onToggle("sessionViewV2"),
+      isToggling: setFeaturePreviewEnabled.isPending,
+    },
+    sessionViewV2Timeline: {
+      enabled:
+        isModernSessionEnabled &&
+        (authSession.data?.user?.featureFlags.sessionViewV2Timeline === true ||
+          authSession.data?.environment.enableExperimentalFeatures === true),
+      disabled:
+        !isV4 ||
+        !isModernSessionEnabled ||
+        authSession.data?.environment.enableExperimentalFeatures === true,
+      warningReason: !isV4
+        ? `Redesigned Session View is only available on the events-backed session view. Turn on ${V4_PREVIEW_LABEL} to enable it.`
+        : !isModernSessionEnabled
+          ? "Enable Redesigned Session View before enabling the Session Timeline."
+          : authSession.data?.environment.enableExperimentalFeatures === true
+            ? "This preview is enabled by LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES, so a per-user opt-out does not disable it."
+            : undefined,
+      onToggle: onToggle("sessionViewV2Timeline"),
+      isToggling: setFeaturePreviewEnabled.isPending,
+    },
+  };
+
+  return (
+    <FeaturePreviewModal
+      open={open}
+      onOpenChange={onOpenChange}
+      state={state}
+    />
+  );
+}

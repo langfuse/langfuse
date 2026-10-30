@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { prisma } from "@langfuse/shared/src/db";
 import langfuseDashboards from "../constants/langfuse-dashboards.json";
+import { LANGFUSE_HOME_DASHBOARD } from "@langfuse/shared";
 import {
   logger,
   WidgetDomainSchema,
@@ -58,8 +59,19 @@ export const upsertLangfuseDashboards = async (force = false) => {
 
     const parsed = FileSchema.parse(langfuseDashboards);
 
+    // The curated Home dashboard lives in @langfuse/shared (the web app falls
+    // back to the same constant when this row does not exist yet). Its
+    // placements are presets, so it brings no widgets of its own.
+    const homeDashboard = RawDashboardSchema.parse({
+      ...LANGFUSE_HOME_DASHBOARD,
+      projectId: null,
+      createdBy: null,
+      updatedBy: null,
+      owner: "LANGFUSE",
+    });
+
     await upsertWidgets(parsed.widgets, force);
-    await upsertDashboards(parsed.dashboards, force);
+    await upsertDashboards([...parsed.dashboards, homeDashboard], force);
 
     logger.info(
       `Finished upserting Langfuse dashboards and widgets in ${Date.now() - startTime}ms`,

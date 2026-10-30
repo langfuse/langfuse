@@ -1,3 +1,5 @@
+// @vitest-environment node
+
 import { getWidgetMetricPresentation } from "@/src/features/widgets/utils";
 
 describe("getWidgetMetricPresentation", () => {

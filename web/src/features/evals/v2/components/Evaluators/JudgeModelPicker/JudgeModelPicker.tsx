@@ -1,0 +1,382 @@
+/* eslint-disable no-nested-ternary, @repo/component-file-structure */
+import {
+  Check,
+  ExternalLink,
+  Plug,
+  Settings2,
+  Sparkles,
+  TriangleAlert,
+} from "@langfuse/icons";
+import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
+import { forwardRef, type ReactNode } from "react";
+
+import { Spinner } from "@/src/components/design-system/Spinner/Spinner";
+import { Badge } from "@/src/components/design-system/Badge/Badge";
+import { Button, type ButtonProps } from "@/src/components/ui/button";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+  CommandSeparator,
+} from "@/src/components/ui/command";
+import { Popover, PopoverContent } from "@/src/components/ui/popover";
+import { selectTriggerClassName } from "@/src/components/ui/select";
+import type { JudgeModel } from "@/src/features/evals/v2/judgeModel";
+import { cn } from "@/src/utils/tailwind";
+
+type JudgeModelMode = "default" | "custom";
+
+type JudgeModelPickerCommonProps = {
+  children: ReactNode;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  providerGroups: Array<[string, string[]]>;
+  onConfigureProviders: () => void;
+};
+
+type EvaluatorJudgeModelPickerProps = JudgeModelPickerCommonProps & {
+  purpose?: "evaluator";
+  mode: JudgeModelMode;
+  defaultModel?: JudgeModel | null;
+  selectedModel: JudgeModel | null;
+  onModeChange: (mode: JudgeModelMode) => void;
+  onSelectCustom: (model: JudgeModel) => void;
+  onConfigureModel: () => void;
+  hasModelConfiguration?: boolean;
+  canSetProjectDefault: boolean;
+  onSetProjectDefault: () => void;
+};
+
+type DecisionJudgeModelPickerProps = JudgeModelPickerCommonProps & {
+  purpose: "decision";
+  selectedModel: JudgeModel | null;
+  onSelect: (model: JudgeModel) => void;
+};
+
+type ProjectDefaultJudgeModelPickerProps = JudgeModelPickerCommonProps & {
+  purpose: "projectDefault";
+  defaultModel: JudgeModel | null;
+  onSelectProjectDefault: (model: JudgeModel) => void;
+  onConfigureModel: () => void;
+  hasModelConfiguration?: boolean;
+};
+
+export type JudgeModelPickerProps =
+  | EvaluatorJudgeModelPickerProps
+  | ProjectDefaultJudgeModelPickerProps
+  | DecisionJudgeModelPickerProps;
+
+type JudgeModelPickerTriggerProps = Omit<
+  ButtonProps,
+  "children" | "className" | "disabled" | "type" | "variant"
+> & {
+  mode: JudgeModelMode;
+  defaultModel?: JudgeModel | null;
+  selectedModel: JudgeModel | null;
+  disabled: boolean;
+  missingDefaultLabel?: string;
+  modelAvailability?: "available" | "missing";
+  borderVariant?: "default" | "contrast";
+};
+
+export const JudgeModelPickerTrigger = forwardRef<
+  HTMLButtonElement,
+  JudgeModelPickerTriggerProps
+>(
+  (
+    {
+      mode,
+      defaultModel,
+      selectedModel,
+      missingDefaultLabel,
+      modelAvailability = "available",
+      // Handled here rather than by `Button`, which swaps its children for the
+      // spinner. That would drop the model label mid-mutation and collapse this
+      // content-width trigger, shifting everything next to it in the header.
+      loading,
+      loadingText,
+      disabled,
+      borderVariant = "default",
+      ...buttonProps
+    },
+    forwardedRef,
+  ) => {
+    const customSelectionLabel = selectedModel
+      ? `${selectedModel.provider} / ${selectedModel.model}`
+      : "Select a model";
+    const customSelectionIsDefault =
+      mode === "custom" &&
+      selectedModel !== null &&
+      defaultModel != null &&
+      selectedModel.provider === defaultModel.provider &&
+      selectedModel.model === defaultModel.model;
+    const modelConnectionMissing =
+      modelAvailability === "missing" &&
+      Boolean(mode === "default" ? defaultModel : selectedModel);
+    const connectionWarning = modelConnectionMissing ? (
+      <>
+        <TriangleAlert
+          aria-hidden="true"
+          size="base"
+          __rawClassName="text-dark-yellow"
+        />
+        <span className="sr-only">Model connection missing.</span>
+      </>
+    ) : null;
+
+    return (
+      <Button
+        {...buttonProps}
+        ref={forwardedRef}
+        type="button"
+        variant="outline"
+        disabled={disabled || loading}
+        // The label stays put while loading, so announce the pending action
+        // for anyone who cannot see the spinner.
+        aria-label={loading && loadingText ? String(loadingText) : undefined}
+        aria-busy={loading || undefined}
+        className={cn(
+          selectTriggerClassName,
+          "w-auto max-w-full min-w-0 justify-start",
+          borderVariant === "contrast" && "border-border-contrast",
+        )}
+      >
+        {mode === "default" ? (
+          defaultModel ? (
+            <span className="flex min-w-0 items-center gap-2">
+              {connectionWarning}
+              <span
+                className="truncate"
+                title={`${defaultModel.provider} / ${defaultModel.model}`}
+              >
+                {defaultModel.provider} / {defaultModel.model}
+              </span>
+              <Badge color="filled" text="Project default" />
+            </span>
+          ) : (
+            <span className="flex items-center gap-1.5">
+              <TriangleAlert size="base" __rawClassName="text-dark-yellow" />
+              <span className="text-muted-foreground">
+                {missingDefaultLabel ?? "Select a model"}
+              </span>
+            </span>
+          )
+        ) : (
+          <span className="flex min-w-0 items-center gap-2">
+            {connectionWarning}
+            <span className="truncate" title={customSelectionLabel}>
+              {customSelectionLabel}
+            </span>
+            {customSelectionIsDefault ? (
+              <Badge color="filled" text="Project default" />
+            ) : null}
+          </span>
+        )}
+        {loading ? (
+          <Spinner size="sm" variant="muted" />
+        ) : (
+          <DropdownIndicator />
+        )}
+      </Button>
+    );
+  },
+);
+JudgeModelPickerTrigger.displayName = "JudgeModelPickerTrigger";
+
+function selectionShowsCheck(props: JudgeModelPickerProps) {
+  if (props.purpose === "decision" || props.purpose === "projectDefault") {
+    return true;
+  }
+  return props.mode === "custom";
+}
+
+/** A controlled model selection menu for evaluators and the project default. */
+export function JudgeModelPicker(props: JudgeModelPickerProps) {
+  const { children, open, onOpenChange, providerGroups, onConfigureProviders } =
+    props;
+  const selectsProjectDefault = props.purpose === "projectDefault";
+  const selectsDecision = props.purpose === "decision";
+  const defaultModel = selectsDecision ? null : props.defaultModel;
+  const hasModelConfiguration = selectsDecision
+    ? false
+    : (props.hasModelConfiguration ?? false);
+  const selectedModel = selectsDecision
+    ? props.selectedModel
+    : selectsProjectDefault
+      ? (defaultModel ?? null)
+      : props.selectedModel;
+  const selectedModelIsDefault =
+    !selectsProjectDefault &&
+    selectedModel !== null &&
+    defaultModel != null &&
+    selectedModel.provider === defaultModel.provider &&
+    selectedModel.model === defaultModel.model;
+  // Command selections do not close this controlled popover automatically.
+  // Close it before the callback can navigate or open another surface.
+  const selectAndClose = (action: () => void) => {
+    onOpenChange(false);
+    action();
+  };
+
+  return (
+    <Popover open={open} onOpenChange={onOpenChange}>
+      {children}
+      <PopoverContent
+        className="w-96 p-0"
+        align={selectsProjectDefault ? "end" : "start"}
+      >
+        <Command>
+          <CommandInput placeholder="Find a model..." />
+          <CommandList>
+            <CommandEmpty>No model found.</CommandEmpty>
+            {props.purpose !== "decision" &&
+            props.purpose !== "projectDefault" &&
+            props.defaultModel ? (
+              <>
+                <CommandGroup>
+                  <CommandItem
+                    value={`project-default ${props.defaultModel.provider} ${props.defaultModel.model}`}
+                    onSelect={() =>
+                      selectAndClose(() => props.onModeChange("default"))
+                    }
+                  >
+                    <Check
+                      size="base"
+                      __rawClassName={cn(
+                        "mr-2",
+                        props.mode === "default" ? "opacity-100" : "opacity-0",
+                      )}
+                    />
+                    <Sparkles size="base" color="muted" __rawClassName="mr-2" />
+                    <span
+                      className="truncate"
+                      title={`${props.defaultModel.provider} / ${props.defaultModel.model}`}
+                    >
+                      {props.defaultModel.provider} / {props.defaultModel.model}
+                    </span>
+                    <span className="ml-auto flex shrink-0">
+                      <Badge color="filled" text="Project default" />
+                    </span>
+                  </CommandItem>
+                </CommandGroup>
+                <CommandSeparator />
+              </>
+            ) : null}
+            {providerGroups.map(([provider, models]) => (
+              <CommandGroup key={provider} heading={provider}>
+                {models.map((model) => {
+                  const isSelected =
+                    selectedModel?.provider === provider &&
+                    selectedModel.model === model &&
+                    selectionShowsCheck(props);
+                  const isProjectDefault =
+                    defaultModel?.provider === provider &&
+                    defaultModel.model === model;
+                  return (
+                    <CommandItem
+                      key={model}
+                      value={`${provider} ${model}`}
+                      disabled={selectsProjectDefault && isProjectDefault}
+                      onSelect={() =>
+                        selectAndClose(() => {
+                          if (selectsProjectDefault) {
+                            props.onSelectProjectDefault({ provider, model });
+                          } else if (selectsDecision) {
+                            props.onSelect({ provider, model });
+                          } else {
+                            props.onSelectCustom({ provider, model });
+                          }
+                        })
+                      }
+                    >
+                      <Check
+                        size="base"
+                        __rawClassName={cn(
+                          "mr-2",
+                          isSelected ? "opacity-100" : "opacity-0",
+                        )}
+                      />
+                      <span className="truncate" title={model}>
+                        {model}
+                      </span>
+                      {isProjectDefault ? (
+                        <span className="ml-auto flex shrink-0">
+                          <Badge color="primary" text="default" />
+                        </span>
+                      ) : null}
+                    </CommandItem>
+                  );
+                })}
+              </CommandGroup>
+            ))}
+          </CommandList>
+          <div className="flex flex-col border-t p-1">
+            <Button
+              type="button"
+              variant="ghost"
+              className="font-regular justify-start"
+              onClick={() => selectAndClose(onConfigureProviders)}
+            >
+              <Plug size="base" color="muted" __rawClassName="mr-2" />
+              Configure AI providers
+              <ExternalLink
+                size="base"
+                color="muted"
+                __rawClassName="ml-auto"
+              />
+            </Button>
+            {props.purpose === "decision" ? null : (
+              <Button
+                type="button"
+                variant="ghost"
+                className="font-regular justify-start"
+                disabled={
+                  props.purpose === "projectDefault"
+                    ? !props.defaultModel
+                    : props.mode !== "custom" || !selectedModel
+                }
+                onClick={() => selectAndClose(props.onConfigureModel)}
+              >
+                <Settings2 size="base" color="muted" __rawClassName="mr-2" />
+                Model configuration
+                {hasModelConfiguration ? (
+                  <>
+                    <span className="sr-only">Customized</span>
+                    <span
+                      aria-hidden="true"
+                      className="relative ml-auto inline-flex h-2.5 w-2.5"
+                    >
+                      <span className="bg-dark-yellow absolute inline-flex h-full w-full animate-ping rounded-full opacity-75" />
+                      <span className="bg-dark-yellow relative inline-flex h-2.5 w-2.5 rounded-full" />
+                    </span>
+                  </>
+                ) : null}
+              </Button>
+            )}
+            {props.purpose !== "projectDefault" &&
+            props.purpose !== "decision" ? (
+              <Button
+                type="button"
+                variant="ghost"
+                className="font-regular justify-start"
+                disabled={
+                  props.mode !== "custom" ||
+                  !selectedModel ||
+                  selectedModelIsDefault ||
+                  !props.canSetProjectDefault
+                }
+                onClick={() => selectAndClose(props.onSetProjectDefault)}
+              >
+                <Sparkles size="base" color="muted" __rawClassName="mr-2" />
+                Set selected model as project default
+              </Button>
+            ) : null}
+          </div>
+        </Command>
+      </PopoverContent>
+    </Popover>
+  );
+}

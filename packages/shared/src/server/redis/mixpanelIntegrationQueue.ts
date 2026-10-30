@@ -1,10 +1,7 @@
 import { Queue } from "bullmq";
 import { QueueName, QueueJobs } from "../queues";
-import {
-  createNewRedisInstance,
-  redisQueueRetryOptions,
-  getQueuePrefix,
-} from "./redis";
+import { createBullMQQueueOptionsWithRedis } from "./redis";
+import { scheduleRecurringJob } from "./scheduleRecurringJob";
 import { logger } from "../logger";
 
 export const MIXPANEL_SYNC_CRON_PATTERN = "30 * * * *"; // every hour at :30
@@ -17,15 +14,12 @@ export class MixpanelIntegrationQueue {
       return MixpanelIntegrationQueue.instance;
     }
 
-    const newRedis = createNewRedisInstance({
-      enableOfflineQueue: false,
-      ...redisQueueRetryOptions,
-    });
-
-    MixpanelIntegrationQueue.instance = newRedis
+    const queueOptionsWithRedis = createBullMQQueueOptionsWithRedis(
+      QueueName.MixpanelIntegrationQueue,
+    );
+    MixpanelIntegrationQueue.instance = queueOptionsWithRedis
       ? new Queue(QueueName.MixpanelIntegrationQueue, {
-          connection: newRedis,
-          prefix: getQueuePrefix(QueueName.MixpanelIntegrationQueue),
+          ...queueOptionsWithRedis,
           defaultJobOptions: {
             removeOnComplete: true,
             removeOnFail: 100,
@@ -44,17 +38,10 @@ export class MixpanelIntegrationQueue {
 
     if (MixpanelIntegrationQueue.instance) {
       logger.debug("Scheduling jobs for MixpanelIntegrationQueue");
-      MixpanelIntegrationQueue.instance
-        .add(
-          QueueJobs.MixpanelIntegrationJob,
-          {},
-          {
-            repeat: { pattern: MIXPANEL_SYNC_CRON_PATTERN },
-          },
-        )
-        .catch((err) => {
-          logger.error("Error adding MixpanelIntegrationJob schedule", err);
-        });
+      scheduleRecurringJob(MixpanelIntegrationQueue.instance, {
+        jobName: QueueJobs.MixpanelIntegrationJob,
+        pattern: MIXPANEL_SYNC_CRON_PATTERN,
+      });
     }
 
     return MixpanelIntegrationQueue.instance;

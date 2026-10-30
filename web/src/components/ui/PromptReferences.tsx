@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary, @repo/component-file-structure */
 import React, { createContext, useContext, type ReactNode } from "react";
 import {
   MUSTACHE_REGEX,
@@ -5,10 +6,10 @@ import {
   isValidVariableName,
   type ParsedPromptDependencyTag,
 } from "@langfuse/shared";
-import { Badge } from "@/src/components/ui/badge";
+import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { Button } from "@/src/components/ui/button";
 import { cn } from "@/src/utils/tailwind";
-import { FileCode } from "lucide-react";
+import { FileCode } from "@langfuse/icons";
 
 const PROMPT_REFERENCE_MARKDOWN_PREFIX = "/__langfuse_prompt_reference__?";
 const PromptReferenceContext = createContext<string | undefined>(undefined);
@@ -72,7 +73,7 @@ export const parsePromptDependencyInnerContent = (
   };
 };
 
-export const getPromptReferenceUrl = (
+const getPromptReferenceUrl = (
   projectId: string,
   tag: ParsedPromptDependencyTag,
 ) => {
@@ -162,28 +163,40 @@ export const PromptReferenceButton = ({
     );
   }
 
+  const promptRefSuffix = (() => {
+    if (promptRef.type === "version") {
+      return ` (v${promptRef.version})`;
+    }
+    if (promptRef.label) {
+      return ` (${promptRef.label})`;
+    }
+    return "";
+  })();
+
+  const promptRefTitle = `${promptRef.name}${promptRefSuffix}`;
+
   return (
     <Button
       variant="outline"
       size="sm"
-      className="bg-muted/50 hover:bg-muted inline-flex items-center gap-1.5 rounded-sm border-dashed px-2 py-0.5 align-[-3px] text-xs font-medium transition-colors"
+      className="bg-muted/50 hover:bg-muted inline-flex items-center gap-1.5 rounded-sm border-dashed px-2 py-0.5 align-[-3px] text-xs font-bold transition-colors"
       dir="ltr"
       onClick={() =>
         window.open(getPromptReferenceUrl(projectId, promptRef), "_blank")
       }
-      title={`Open prompt: ${promptRef.name}${promptRef.type === "version" ? ` (v${promptRef.version})` : promptRef.label ? ` (${promptRef.label})` : ""}`}
+      title={`Open prompt: ${promptRefTitle}`}
     >
-      <FileCode className="text-muted-foreground h-3 w-3 shrink-0" />
-      <span className="truncate font-medium">
+      <FileCode size="base" color="muted" />
+      <span className="truncate font-bold" title={promptRefTitle}>
         {promptRef.name}
         {promptRef.type === "version" ? (
-          <Badge variant="outline" className="ml-1 px-1 py-0 text-[10px]">
-            v{promptRef.version}
-          </Badge>
+          <span className="ml-1">
+            <Badge color="primary" size="sm" text={`v${promptRef.version}`} />
+          </span>
         ) : promptRef.label ? (
-          <Badge variant="outline" className="ml-1 px-1 py-0 text-[10px]">
-            {promptRef.label}
-          </Badge>
+          <span className="ml-1">
+            <Badge color="primary" size="sm" text={promptRef.label} />
+          </span>
         ) : (
           ""
         )}
@@ -192,7 +205,7 @@ export const PromptReferenceButton = ({
   );
 };
 
-const PromptVar = ({ name, isValid }: { name: string; isValid: boolean }) => (
+const PromptVar = ({ text, isValid }: { text: string; isValid: boolean }) => (
   <span
     dir="ltr"
     style={{ unicodeBidi: "isolate" }}
@@ -201,7 +214,7 @@ const PromptVar = ({ name, isValid }: { name: string; isValid: boolean }) => (
       "whitespace-nowrap",
     )}
   >
-    {`{{${name}}}`}
+    {text}
   </span>
 );
 
@@ -253,7 +266,7 @@ export const renderRichPromptContent = (content: string): React.ReactNode[] => {
       const variable = match[2];
       parts.push(
         <React.Fragment key={`var-${index}-${variable}`}>
-          <PromptVar name={variable} isValid={isValidVariableName(variable)} />
+          <PromptVar text={fullMatch} isValid={isValidVariableName(variable)} />
         </React.Fragment>,
       );
     }

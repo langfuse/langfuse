@@ -1,0 +1,2 @@
+ALTER TABLE scores {CLICKHOUSE_CLUSTER_CLAUSE} ADD INDEX IF NOT EXISTS idx_project_trace_observation (project_id, trace_id, observation_id) TYPE bloom_filter(0.001) GRANULARITY 1{CLICKHOUSE_CLUSTERED_ONLY: SETTINGS alter_sync = 2}{CLICKHOUSE_UNCLUSTERED_ONLY: SETTINGS mutations_sync = 2};
+ALTER TABLE scores {CLICKHOUSE_CLUSTER_CLAUSE} MATERIALIZE INDEX IF EXISTS idx_project_trace_observation SETTINGS mutations_sync = 2;

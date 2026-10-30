@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-exotic-operators */
 const BACKSLASH = 92;
 const U_CHAR = 117;
 // high surrogate is the first code of a surrogate pair (\uD83D\uDE00 -> 😀)
@@ -25,7 +26,7 @@ const LOW_SURROGATE_END = 0xdfff;
  */
 export function decodeUnicodeEscapesOnly(
   input: string,
-  greedy: boolean = false,
+  greedy = false,
 ): string {
   if (input.indexOf("\\") === -1) return input;
 

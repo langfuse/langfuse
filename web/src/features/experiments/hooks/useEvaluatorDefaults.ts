@@ -7,7 +7,7 @@ import {
 import { type PartialConfig } from "@/src/features/evals/types";
 import { createDefaultVariableMappings } from "@/src/features/experiments/utils/evaluatorMappingUtils";
 
-export const CONFIG_BASE = {
+const CONFIG_BASE = {
   sampling: new Decimal(1),
   delay: 30000,
   timeScope: ["NEW"],

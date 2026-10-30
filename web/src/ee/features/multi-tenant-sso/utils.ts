@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { z } from "zod";
 import { type Provider } from "next-auth/providers/index";
 import GoogleProvider from "next-auth/providers/google";
@@ -14,6 +15,7 @@ import { multiTenantSsoAvailable } from "@/src/ee/features/multi-tenant-sso/mult
 import { type SsoConfig, prisma } from "@langfuse/shared/src/db";
 import { decrypt } from "@langfuse/shared/encryption";
 import { SsoProviderSchema } from "./types";
+import { getDiscoveryUrl, resolveOneLoginIssuer } from "./oidcDiscovery";
 import {
   CustomSSOProvider,
   GitHubEnterpriseProvider,
@@ -245,6 +247,10 @@ const dbToNextAuthProvider = (provider: SsoProviderSchema): Provider | null => {
       id: getAuthProviderIdForSsoConfig(provider), // use the domain as the provider id as we use domain-specific credentials
       ...provider.authConfig,
       clientSecret: decrypt(provider.authConfig.clientSecret),
+      /** Same discovery URL as save-time validation; NextAuth's default appends /oidc/2 to any issuer. */
+      wellKnown: getDiscoveryUrl(
+        resolveOneLoginIssuer(provider.authConfig.issuer),
+      ),
       ...getClientConfig(provider.authConfig),
     });
   else if (provider.authProvider === "azure-ad") {
@@ -346,20 +352,19 @@ const dbToNextAuthProvider = (provider: SsoProviderSchema): Provider | null => {
       },
       ...getClientConfig(provider.authConfig),
     });
-  else {
-    // Type check to ensure we handle all providers
 
-    const _: never = provider;
-    logger.error(
+  // Type check to ensure we handle all providers
+
+  const _: never = provider;
+  logger.error(
+    `Unrecognized SSO provider for domain ${(provider as any).domain}`,
+  );
+  traceException(
+    new Error(
       `Unrecognized SSO provider for domain ${(provider as any).domain}`,
-    );
-    traceException(
-      new Error(
-        `Unrecognized SSO provider for domain ${(provider as any).domain}`,
-      ),
-    );
-    return null;
-  }
+    ),
+  );
+  return null;
 };
 
 /**
@@ -397,7 +402,6 @@ export const findMultiTenantSsoConfig = async ({
 
   if (config) {
     return { isMultiTenantSsoProvider: true, domain: config.domain };
-  } else {
-    return { isMultiTenantSsoProvider: false, domain: null };
   }
+  return { isMultiTenantSsoProvider: false, domain: null };
 };

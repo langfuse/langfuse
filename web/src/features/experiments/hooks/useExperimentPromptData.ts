@@ -1,11 +1,14 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { useMemo } from "react";
 import { api } from "@/src/utils/api";
 import { type UseFormReturn } from "react-hook-form";
 import {
   extractVariables,
+  parsePromptToolConfig,
   PromptType,
   extractPlaceholderNames,
   type PromptMessage,
+  type PromptToolConfig,
   ZodModelConfig,
 } from "@langfuse/shared";
 import { z } from "zod/v4";
@@ -74,11 +77,17 @@ export function useExperimentPromptData({
     return getPromptModelConfig(prompt?.config);
   }, [promptId, promptMeta.data]);
 
+  const selectedPromptToolConfig: PromptToolConfig = useMemo(() => {
+    const prompt = promptMeta.data?.find((p) => p.id === promptId);
+    return parsePromptToolConfig(prompt?.config);
+  }, [promptId, promptMeta.data]);
+
   return {
     expectedColumns,
     promptsByName,
     promptId,
     selectedPromptModelConfig,
+    selectedPromptToolConfig,
   };
 }
 

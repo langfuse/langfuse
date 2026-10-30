@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 import {
   Card,
   CardContent,
@@ -5,14 +6,11 @@ import {
   CardHeader,
   CardTitle,
 } from "@/src/components/ui/card";
-import { showErrorToast } from "@/src/features/notifications/showErrorToast";
+import { showErrorToast } from "@/src/features/notifications";
 import { z } from "zod";
 import { parseCsvClient } from "@/src/features/datasets/lib/csv/helpers";
 import { DialogBody } from "@/src/components/ui/dialog";
-import {
-  Dropzone,
-  DropzoneEmptyState,
-} from "@/src/components/ui/shadcn-io/dropzone";
+import { Dropzone } from "@/src/components/design-system/Dropzone/Dropzone";
 import type { CsvPreviewResult } from "@/src/features/datasets/lib/csv/types";
 
 export const MAX_FILE_SIZE_BYTES = 1024 * 1024 * 1 * 10; // 10MB
@@ -36,12 +34,20 @@ export const UploadDatasetCsv = ({
 
     const result = FileSchema.safeParse(file);
     if (!result.success) {
-      showErrorToast("Invalid file type", "Please select a valid CSV file");
+      showErrorToast("Invalid file type", "Please select a valid CSV file", {
+        operation: "dataset_items.import",
+        errorOrigin: "frontend",
+        errorCategory: "user_input",
+      });
       return;
     }
 
     if (file.size > MAX_FILE_SIZE_BYTES) {
-      showErrorToast("File too large", "Maximum file size is 10MB");
+      showErrorToast("File too large", "Maximum file size is 10MB", {
+        operation: "dataset_items.import",
+        errorOrigin: "frontend",
+        errorCategory: "resource_limit",
+      });
       return;
     }
 
@@ -53,7 +59,11 @@ export const UploadDatasetCsv = ({
       });
 
       if (!Boolean(preview.columns.length)) {
-        showErrorToast("Invalid CSV", "CSV must have at least 1 column");
+        showErrorToast("Invalid CSV", "CSV must have at least 1 column", {
+          operation: "dataset_items.import",
+          errorOrigin: "frontend",
+          errorCategory: "user_input",
+        });
         return;
       }
 
@@ -62,6 +72,11 @@ export const UploadDatasetCsv = ({
       showErrorToast(
         "Failed to parse CSV",
         error instanceof Error ? error.message : "Unknown error",
+        {
+          operation: "dataset_items.import",
+          errorOrigin: "frontend",
+          errorCategory: "user_input",
+        },
       );
     }
   };
@@ -80,12 +95,14 @@ export const UploadDatasetCsv = ({
           <Dropzone
             onDrop={handleFiles}
             accept={{ "text/csv": [".csv"] }}
+            isDisabled={false}
             maxFiles={1}
             maxSize={MAX_FILE_SIZE_BYTES}
-            className="bg-secondary/50 border-dashed"
-          >
-            <DropzoneEmptyState />
-          </Dropzone>
+            minSize={undefined}
+            onError={undefined}
+            src={undefined}
+            variant="panel"
+          />
         </CardContent>
       </Card>
     </DialogBody>

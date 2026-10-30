@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import Decimal from "decimal.js";
 
 export const compactNumberFormatter = (
@@ -61,8 +62,8 @@ export const latencyFormatter = (milliseconds?: number): string => {
 
 export const usdFormatter = (
   number?: number | bigint | Decimal,
-  minimumFractionDigits: number = 2,
-  maximumFractionDigits: number = 6,
+  minimumFractionDigits = 2,
+  maximumFractionDigits = 6,
 ) => {
   const numberToFormat = number instanceof Decimal ? number.toNumber() : number;
   return new Intl.NumberFormat("en-US", {
@@ -76,13 +77,40 @@ export const usdFormatter = (
   }).format(numberToFormat ?? 0);
 };
 
+/** Below this, two fraction digits would render a real cost as "$0.00". */
+const SUB_CENT_THRESHOLD = 0.01;
+/** Upper bound on the widening, so a dust value cannot stretch a table cell. */
+const MAX_SUB_CENT_FRACTION_DIGITS = 10;
+
 export const costFormatter = (totalCost?: number) => {
-  return totalCost
-    ? totalCost < 5
-      ? usdFormatter(totalCost, 2, 6)
-      : usdFormatter(totalCost, 2, 2)
-    : usdFormatter(0);
+  const cost = totalCost ?? 0;
+
+  if (
+    typeof cost === "number" &&
+    cost !== 0 &&
+    Math.abs(cost) < SUB_CENT_THRESHOLD
+  ) {
+    return usdFormatter(cost, 2, subCentFractionDigits(cost));
+  }
+
+  return usdFormatter(cost, 2, 2);
 };
+
+/** Cent precision; a non-zero cost that would round to $0.00 reads "<$0.01". */
+export const centCostFormatter = (cost: number) => {
+  if (cost !== 0 && Math.abs(cost) < SUB_CENT_THRESHOLD / 2) {
+    return `${cost < 0 ? "-" : ""}<${usdFormatter(SUB_CENT_THRESHOLD, 2, 2)}`;
+  }
+
+  return usdFormatter(cost, 2, 2);
+};
+
+/** Returns the fraction digits that render a sub-cent cost to ~3 significant digits. */
+const subCentFractionDigits = (cost: number) =>
+  Math.min(
+    2 + Math.ceil(-Math.log10(Math.abs(cost))),
+    MAX_SUB_CENT_FRACTION_DIGITS,
+  );
 
 export const formatTokenCounts = (
   inputUsage?: number | null,
@@ -96,7 +124,3 @@ export const formatTokenCounts = (
     ? `${numberFormatter(inputUsage ?? 0, 0)} prompt → ${numberFormatter(outputUsage ?? 0, 0)} completion (∑ ${numberFormatter(totalUsage ?? 0, 0)})`
     : `${numberFormatter(inputUsage ?? 0, 0)} → ${numberFormatter(outputUsage ?? 0, 0)} (∑ ${numberFormatter(totalUsage ?? 0, 0)})`;
 };
-
-export function randomIntFromInterval(min: number, max: number) {
-  return Math.floor(Math.random() * (max - min + 1) + min);
-}

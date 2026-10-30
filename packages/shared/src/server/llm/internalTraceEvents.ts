@@ -1,3 +1,8 @@
+import type {
+  SkillsAvailableInput,
+  SkillsResourceLoaded,
+} from "../../features/skills/trace";
+import { SkillsAvailableInputSchema } from "../../features/skills/trace";
 import {
   asBoolean,
   asNumberRecord,
@@ -5,7 +10,12 @@ import {
   asString,
   asStringArray,
 } from "../../utils/objects";
+import type { EvalExecutionContext } from "../../features/evals/evalExecutionMetadata";
 import { stringifyValue } from "../../utils/stringChecks";
+import {
+  ObservationTypeDomain,
+  type ObservationType,
+} from "../../domain/observations";
 import {
   convertCallsToArrays,
   convertDefinitionsToMap,
@@ -53,6 +63,7 @@ export type InternalTraceEventInput = {
   tags?: string[];
   bookmarked?: boolean;
   public?: boolean;
+  isAppRoot?: boolean | null;
   userId?: string;
   sessionId?: string;
   level?: string;
@@ -60,6 +71,8 @@ export type InternalTraceEventInput = {
   promptId?: string;
   promptName?: string;
   promptVersion?: string;
+  skillsAvailable?: SkillsAvailableInput;
+  skillsResourceLoaded?: SkillsResourceLoaded;
   modelId?: string;
   modelName?: string;
   modelParameters?: string | Record<string, unknown>;
@@ -74,6 +87,9 @@ export type InternalTraceEventInput = {
   output?: string;
   metadata: Record<string, unknown>;
   source: string;
+  ingestionApiKey?: string;
+  ingestionSdkName?: string;
+  ingestionSdkVersion?: string;
   serviceName?: string;
   serviceVersion?: string;
   scopeName?: string;
@@ -84,6 +100,7 @@ export type InternalTraceEventInput = {
   blobStorageFilePath?: string;
   eventRaw?: string;
   eventBytes?: number;
+  evaluationContext?: EvalExecutionContext;
   experimentId?: string;
   experimentName?: string;
   experimentMetadataNames?: string[];
@@ -104,7 +121,7 @@ type InternalTraceSnapshot = {
   traceId: string;
   parentSpanId?: string;
   name?: string;
-  type: "SPAN" | "GENERATION";
+  type: ObservationType;
   environment?: string;
   version?: string;
   release?: string;
@@ -119,6 +136,7 @@ type InternalTraceSnapshot = {
   modelParameters?: Record<string, unknown>;
   providedUsageDetails?: Record<string, number>;
   providedCostDetails?: Record<string, number>;
+  skillsAvailable?: SkillsAvailableInput;
   input?: unknown;
   output?: unknown;
   metadata: Record<string, unknown>;
@@ -138,8 +156,18 @@ function isCreateEvent(type: string): boolean {
   return type.endsWith("-create");
 }
 
-function getSnapshotType(eventType: string): "SPAN" | "GENERATION" {
-  return eventType.startsWith("generation-") ? "GENERATION" : "SPAN";
+function getSnapshotType(eventType: string): ObservationType {
+  const prefix = eventType.replace(/-(create|update)$/i, "").toUpperCase();
+  const parsed = ObservationTypeDomain.safeParse(prefix);
+  return parsed.success ? parsed.data : "SPAN";
+}
+
+function asIsoTimestamp(value: unknown): string | undefined {
+  if (value instanceof Date && !Number.isNaN(value.getTime())) {
+    return value.toISOString();
+  }
+
+  return asString(value);
 }
 
 function getEventTime(
@@ -149,6 +177,10 @@ function getEventTime(
   const candidates = [body.startTime, body.timestamp, event.timestamp];
 
   for (const candidate of candidates) {
+    if (candidate instanceof Date && !Number.isNaN(candidate.getTime())) {
+      return candidate.getTime();
+    }
+
     if (typeof candidate === "string") {
       const parsed = new Date(candidate).getTime();
       if (!Number.isNaN(parsed)) {
@@ -201,27 +233,29 @@ function mergeSnapshotEvent(
   event: ProcessedTraceEvent,
 ): InternalTraceSnapshot {
   const { body } = event;
-  const startTime = asString(body.startTime);
-  const timestamp = asString(body.timestamp) ?? asString(event.timestamp);
+  const startTime = asIsoTimestamp(body.startTime);
+  const timestamp =
+    asIsoTimestamp(body.timestamp) ?? asIsoTimestamp(event.timestamp);
   const metadata = asRecord(body.metadata);
+  const skillsAvailable = SkillsAvailableInputSchema.safeParse(
+    body.skillsAvailable,
+  );
 
   return {
     ...snapshot,
     traceId: asString(body.traceId) ?? snapshot.traceId,
     parentSpanId: asString(body.parentObservationId) ?? snapshot.parentSpanId,
     type:
-      snapshot.type === "GENERATION"
-        ? snapshot.type
-        : getSnapshotType(event.type),
+      snapshot.type !== "SPAN" ? snapshot.type : getSnapshotType(event.type),
     name: asString(body.name) ?? snapshot.name,
     environment: asString(body.environment) ?? snapshot.environment,
     version: asString(body.version) ?? snapshot.version,
     release: asString(body.release) ?? snapshot.release,
     startTimeISO:
       startTime ?? snapshot.startTimeISO ?? timestamp ?? snapshot.startTimeISO,
-    endTimeISO: asString(body.endTime) ?? snapshot.endTimeISO,
+    endTimeISO: asIsoTimestamp(body.endTime) ?? snapshot.endTimeISO,
     completionStartTime:
-      asString(body.completionStartTime) ?? snapshot.completionStartTime,
+      asIsoTimestamp(body.completionStartTime) ?? snapshot.completionStartTime,
     level: asString(body.level) ?? snapshot.level,
     statusMessage: asString(body.statusMessage) ?? snapshot.statusMessage,
     promptName: asString(body.promptName) ?? snapshot.promptName,
@@ -237,6 +271,9 @@ function mergeSnapshotEvent(
       snapshot.providedUsageDetails,
     providedCostDetails:
       asNumberRecord(body.costDetails) ?? snapshot.providedCostDetails,
+    skillsAvailable: skillsAvailable.success
+      ? skillsAvailable.data
+      : snapshot.skillsAvailable,
     input:
       body.input !== undefined && body.input !== null
         ? body.input
@@ -307,6 +344,8 @@ export function buildInternalTraceEventInputs(params: {
   processedEvents: ProcessedTraceEvent[];
   traceId: string;
   projectId: string;
+  userId?: string;
+  sessionId?: string;
   experimentContext?: InternalTraceExperimentContext;
 }): {
   rootSpanId: string;
@@ -371,8 +410,9 @@ export function buildInternalTraceEventInputs(params: {
       tags: rootSnapshot.tags ?? [],
       bookmarked: rootSnapshot.bookmarked,
       public: rootSnapshot.public,
-      userId: rootSnapshot.userId,
-      sessionId: rootSnapshot.sessionId,
+      userId: snapshot.userId ?? rootSnapshot.userId ?? params.userId,
+      sessionId:
+        snapshot.sessionId ?? rootSnapshot.sessionId ?? params.sessionId,
       level: snapshot.level ?? "DEFAULT",
       statusMessage: snapshot.statusMessage,
       promptName: snapshot.promptName,
@@ -381,6 +421,7 @@ export function buildInternalTraceEventInputs(params: {
       modelParameters: snapshot.modelParameters,
       providedUsageDetails: snapshot.providedUsageDetails,
       providedCostDetails: snapshot.providedCostDetails,
+      skillsAvailable: snapshot.skillsAvailable,
       toolDefinitions: convertDefinitionsToMap(toolDefinitions),
       toolCalls: toolCalls.tool_calls,
       toolCallNames: toolCalls.tool_call_names,

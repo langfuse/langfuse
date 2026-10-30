@@ -1,6 +1,7 @@
+/* eslint-disable @repo/no-style-props */
 import React, { useState } from "react";
 import { api } from "@/src/utils/api";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { useHasProjectAccess } from "@/src/features/rbac";
 import { type RouterOutput, type RouterInput } from "@/src/utils/types";
 import TagManager from "@/src/features/tag/components/TagManager";
 import { trpcErrorToast } from "@/src/utils/trpcErrorToast";
@@ -35,7 +36,7 @@ export function TagPromptPopover({
     },
     onError: (err, _newTags, context) => {
       utils.prompts.all.setData(promptsFilter, context?.prevPrompt);
-      trpcErrorToast(err);
+      trpcErrorToast(err, "prompt_tags.update");
       setIsLoading(false);
     },
     onSettled: (data, error, { name, tags }) => {
@@ -55,7 +56,7 @@ export function TagPromptPopover({
   });
 
   function mutateTags(newTags: string[]) {
-    void mutTags.mutateAsync({
+    mutTags.mutateAsync({
       projectId,
       name: promptName,
       tags: newTags,

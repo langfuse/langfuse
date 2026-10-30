@@ -1,5 +1,6 @@
 import {
   FilterCondition,
+  matchesUiColumnMapping,
   type ScoreDataTypeType,
   TracingSearchType,
   tracesTableCols,
@@ -13,7 +14,9 @@ import {
   tracesTableUiColumnDefinitions,
   clickhouseSearchCondition,
   parseClickhouseUTCDateTimeFormat,
+  scoreBooleansAggregation,
   StringFilter,
+  shouldSkipScoresDedup,
 } from "@langfuse/shared/src/server";
 import { Readable } from "stream";
 import { env } from "../../env";
@@ -57,8 +60,8 @@ export const getTraceStream = async (props: {
   // Filter out observation-level filters since we don't join the observations table
   // This prevents batch export failures when observation-level filters are present
   const traceOnlyFilters = (filter ?? []).filter((f) => {
-    const columnDef = tracesTableUiColumnDefinitions.find(
-      (col) => col.uiTableName === f.column || col.uiTableId === f.column,
+    const columnDef = tracesTableUiColumnDefinitions.find((col) =>
+      matchesUiColumnMapping(col, f.column),
     );
     // Keep the filter if it's not an observation-level filter
     return columnDef?.clickhouseTableName !== "observations";
@@ -71,6 +74,7 @@ export const getTraceStream = async (props: {
     filter: traceOnlyFilters,
     isTimestampFilter: isTraceTimestampFilter,
     clickhouseConfigs,
+    preferredClickhouseService: "ReadOnly",
   });
 
   const emptyScoreColumns = distinctScoreNames.reduce(
@@ -110,7 +114,11 @@ export const getTraceStream = async (props: {
 
   const appliedScoresFilter = scoresFilter.apply();
 
-  const search = clickhouseSearchCondition(searchQuery, searchType, "t");
+  const search = clickhouseSearchCondition({
+    query: searchQuery,
+    searchType,
+    tablePrefix: "t",
+  });
 
   const query = `
     WITH scores_agg AS (
@@ -131,7 +139,9 @@ export const getTraceStream = async (props: {
         groupArrayIf(
           tuple(name, string_value, data_type),
           data_type IN ('CATEGORICAL', 'TEXT') AND notEmpty(string_value)
-        ) AS score_categories_tuples
+        ) AS score_categories_tuples,
+        -- boolean score existence entries for booleanObject filters (has())
+        ${scoreBooleansAggregation()} AS score_booleans
       FROM (
         SELECT
           project_id,
@@ -140,7 +150,7 @@ export const getTraceStream = async (props: {
           data_type,
           string_value,
           avg(value) as avg_value
-        FROM scores FINAL
+        FROM scores ${shouldSkipScoresDedup(projectId) ? "" : "FINAL"}
         WHERE ${appliedScoresFilter.query}
         GROUP BY
           project_id,
@@ -216,12 +226,8 @@ export const getTraceStream = async (props: {
       ...search.params,
     },
     clickhouseConfigs,
-    tags: {
-      feature: "batch-export",
-      type: "trace",
-      kind: "export",
-      projectId,
-    },
+    tags: { projectId },
+    preferredClickhouseService: "ReadOnly",
   });
 
   // Helper function to process a single trace row

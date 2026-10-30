@@ -4,11 +4,32 @@ import {
 } from "@/src/__tests__/test-utils";
 import { z } from "zod";
 import {
-  createAndAddApiKeysToDb,
+  createApiKey,
   createBasicAuthHeader,
+  invalidateCachedOrgApiKeys,
 } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
+import {
+  OrganizationId,
+  ProjectId,
+  SystemRoleId,
+  UserId,
+} from "@langfuse/shared/rbac";
 import { randomUUID } from "crypto";
+import { type NextApiRequest, type NextApiResponse } from "next";
+import { createMocks } from "node-mocks-http";
+import projectApiKeysHandler from "@/src/pages/api/public/projects/[projectId]/apiKeys";
+import projectApiKeyHandler from "@/src/pages/api/public/projects/[projectId]/apiKeys/[apiKeyId]";
+import {
+  organizationApiKeyCreationSchema,
+  projectApiKeyCreationSchema,
+} from "@/src/ee/features/admin-api/server/apiKeys";
+import { env } from "@/src/env.mjs";
+
+vi.mock("@/src/env.mjs", async (importOriginal) => {
+  const actual = await importOriginal<{ env: typeof env }>();
+  return { ...actual, env: { ...actual.env } };
+});
 
 // Schema for project response
 const ProjectResponseSchema = z.object({
@@ -56,7 +77,9 @@ const ApiKeysResponseSchema = z.object({
       createdAt: z.string().or(z.date()),
       expiresAt: z.string().or(z.date()).nullable(),
       lastUsedAt: z.string().or(z.date()).nullable(),
+      name: z.string().nullable(),
       note: z.string().nullable(),
+      role: z.string().nullable(),
       publicKey: z.string(),
       displaySecretKey: z.string().nullable(),
     }),
@@ -69,14 +92,109 @@ const ApiKeyCreationResponseSchema = z.object({
   publicKey: z.string(),
   secretKey: z.string(),
   displaySecretKey: z.string(),
+  name: z.string().nullable(),
   note: z.string().nullable(),
+  role: z.string(),
   createdAt: z.string().or(z.date()),
-  expiresAt: z.string().or(z.date()).optional(),
+  expiresAt: z.iso.datetime().nullable(),
 });
 
 // Schema for API key deletion response
 const ApiKeyDeletionResponseSchema = z.object({
   success: z.boolean(),
+});
+
+describe("REST API key creation schemas", () => {
+  const originalFlags = {
+    API_AUTH_MIGRATION: env.API_AUTH_MIGRATION,
+    API_KEY_PROJECT_ROLES_ENABLE: env.API_KEY_PROJECT_ROLES_ENABLE,
+    API_KEY_ORG_ROLES_ENABLE: env.API_KEY_ORG_ROLES_ENABLE,
+  };
+
+  afterEach(() => {
+    Object.assign(env, originalFlags);
+  });
+
+  describe.each([
+    {
+      scope: "project",
+      schema: projectApiKeyCreationSchema,
+      legacyRole: "LEGACY_PROJECT_API_KEY",
+      roles: ["ADMIN", "VIEWER", "INGEST", "SCORES_INGEST"],
+      invalidRoles: [
+        "LEGACY_PROJECT_API_KEY",
+        "LEGACY_ORGANIZATION_API_KEY",
+        "AI_GATEWAY",
+        "OWNER",
+        "",
+        "INVALID",
+        [],
+      ],
+    },
+    {
+      scope: "organization",
+      schema: organizationApiKeyCreationSchema,
+      legacyRole: "LEGACY_ORGANIZATION_API_KEY",
+      roles: ["ADMIN", "VIEWER", "INGEST", "SCORES_INGEST", "AI_GATEWAY"],
+      invalidRoles: [
+        "LEGACY_PROJECT_API_KEY",
+        "LEGACY_ORGANIZATION_API_KEY",
+        "OWNER",
+        "",
+        "INVALID",
+        [],
+      ],
+    },
+  ])("$scope", ({ scope, schema, legacyRole, roles, invalidRoles }) => {
+    describe.each([
+      { migration: "legacy", projectEnabled: "true", orgEnabled: "true" },
+      { migration: "shadow", projectEnabled: "true", orgEnabled: "true" },
+      { migration: "enforce", projectEnabled: "false", orgEnabled: "false" },
+      { migration: "enforce", projectEnabled: "true", orgEnabled: "false" },
+      { migration: "enforce", projectEnabled: "false", orgEnabled: "true" },
+      { migration: "enforce", projectEnabled: "true", orgEnabled: "true" },
+    ])(
+      "$migration, project roles $projectEnabled, organization roles $orgEnabled",
+      ({ migration, projectEnabled, orgEnabled }) => {
+        beforeEach(() => {
+          Object.assign(env, {
+            API_AUTH_MIGRATION: migration,
+            API_KEY_PROJECT_ROLES_ENABLE: projectEnabled,
+            API_KEY_ORG_ROLES_ENABLE: orgEnabled,
+          });
+        });
+
+        it.each([
+          { label: "omitted", body: {} },
+          { label: "undefined", body: { role: undefined } },
+          { label: "null", body: { role: null } },
+        ])("defaults $label role to the stored legacy role", ({ body }) => {
+          expect(schema.parse(body).role).toBe(legacyRole);
+        });
+
+        it.each(roles)("gates %s on role exposure", (role) => {
+          const result = schema.safeParse({ role });
+
+          const rolesEnabled =
+            migration === "enforce" &&
+            (scope === "project" ? projectEnabled : orgEnabled) === "true";
+          if (rolesEnabled) {
+            expect(result.success).toBe(true);
+            expect(result.data?.role).toBe(role);
+          } else {
+            expect(result.success).toBe(false);
+          }
+        });
+
+        it.each(invalidRoles.map((role) => ({ role })))(
+          "rejects role $role",
+          ({ role }) => {
+            expect(schema.safeParse({ role }).success).toBe(false);
+          },
+        );
+      },
+    );
+  });
 });
 
 describe("Projects API", () => {
@@ -90,16 +208,23 @@ describe("Projects API", () => {
   const orgApiKey = `pk-lf-org-${randomUUID().substring(0, 8)}`;
   const orgSecretKey = `sk-lf-org-${randomUUID().substring(0, 8)}`;
 
+  let orgApiKeyId: string;
+
   beforeAll(async () => {
-    await createAndAddApiKeysToDb({
-      prisma,
-      entityId: "seed-org-id",
-      scope: "ORGANIZATION",
+    const keyCreator = await prisma.user.create({
+      data: { email: `apikey-creator-${randomUUID()}@example.com` },
+    });
+    const orgKey = await createApiKey(prisma, {
+      tenant: OrganizationId("seed-org-id"),
+      scope: OrganizationId("seed-org-id"),
+      role: SystemRoleId("LEGACY_ORGANIZATION_API_KEY"),
+      createdBy: UserId(keyCreator.id),
       predefinedKeys: {
         publicKey: orgApiKey,
         secretKey: orgSecretKey,
       },
     });
+    orgApiKeyId = orgKey.id;
   });
 
   describe("GET /api/public/projects", () => {
@@ -127,7 +252,7 @@ describe("Projects API", () => {
     });
 
     it("should return 401 when invalid API keys are provided", async () => {
-      const result = await makeAPICall(
+      const result = await makeAPICall<{ message: string }>(
         "GET",
         "/api/public/projects",
         undefined,
@@ -138,7 +263,7 @@ describe("Projects API", () => {
     });
 
     it("should return 405 for non-GET methods", async () => {
-      const result = await makeAPICall(
+      const result = await makeAPICall<{ message: string }>(
         "PUT", // Changed from POST to PUT since we now support POST
         "/api/public/projects",
         {},
@@ -146,26 +271,6 @@ describe("Projects API", () => {
       );
       expect(result.status).toBe(405);
       expect(result.body.message).toContain("Method not allowed");
-    });
-
-    it("should handle different authentication formats", async () => {
-      // Test with Bearer token format
-      const bearerResult = await makeAPICall(
-        "GET",
-        "/api/public/projects",
-        undefined,
-        `Bearer ${projectSecretKey}`,
-      );
-      expect(bearerResult.status).toBe(401);
-
-      // Test with just the secret key (no Bearer prefix)
-      const secretKeyResult = await makeAPICall(
-        "GET",
-        "/api/public/projects",
-        undefined,
-        projectSecretKey,
-      );
-      expect(secretKeyResult.status).toBe(401);
     });
   });
 
@@ -175,6 +280,7 @@ describe("Projects API", () => {
       // Delete any test projects created during tests
       await prisma.project.deleteMany({
         where: {
+          orgId: "seed-org-id",
           name: {
             startsWith: "Test Project",
           },
@@ -248,7 +354,7 @@ describe("Projects API", () => {
       "should reject create when metadata is %s",
       async (_label, metadataValue) => {
         const uniqueProjectName = `Test Project ${randomUUID().substring(0, 8)}`;
-        const result = await makeAPICall(
+        const result = await makeAPICall<{ message: string }>(
           "POST",
           "/api/public/projects",
           {
@@ -286,7 +392,7 @@ describe("Projects API", () => {
 
     it("should reject create when metadata is a literal null", async () => {
       const uniqueProjectName = `Test Project ${randomUUID().substring(0, 8)}`;
-      const result = await makeAPICall(
+      const result = await makeAPICall<{ message: string }>(
         "POST",
         "/api/public/projects",
         {
@@ -331,7 +437,7 @@ describe("Projects API", () => {
       const uniqueProjectName = `Test Project ${randomUUID().substring(0, 8)}`;
 
       // Test with invalid retention days (less than 3 and not 0)
-      const invalidResult = await makeAPICall(
+      const invalidResult = await makeAPICall<{ message: string }>(
         "POST",
         "/api/public/projects",
         {
@@ -347,7 +453,7 @@ describe("Projects API", () => {
     it("should return 403 when using project API key instead of organization API key", async () => {
       const uniqueProjectName = `Test Project ${randomUUID().substring(0, 8)}`;
 
-      const result = await makeAPICall(
+      const result = await makeAPICall<{ message: string }>(
         "POST",
         "/api/public/projects",
         {
@@ -356,15 +462,12 @@ describe("Projects API", () => {
         createBasicAuthHeader(projectApiKey, projectSecretKey),
       );
       expect(result.status).toBe(403);
-      expect(result.body.message).toContain(
-        "Organization-scoped API key required",
-      );
     });
 
     it("should return 401 when invalid API keys are provided", async () => {
       const uniqueProjectName = `Test Project ${randomUUID().substring(0, 8)}`;
 
-      const result = await makeAPICall(
+      const result = await makeAPICall<{ message: string }>(
         "POST",
         "/api/public/projects",
         {
@@ -378,7 +481,7 @@ describe("Projects API", () => {
 
     it("should return 400 when project name is invalid", async () => {
       // Test with a name that's too short
-      const shortNameResult = await makeAPICall(
+      const shortNameResult = await makeAPICall<{ message: string }>(
         "POST",
         "/api/public/projects",
         {
@@ -390,7 +493,7 @@ describe("Projects API", () => {
       expect(shortNameResult.body.message).toContain("Invalid project name");
 
       // Test with a name that's too long
-      const longNameResult = await makeAPICall(
+      const longNameResult = await makeAPICall<{ message: string }>(
         "POST",
         "/api/public/projects",
         {
@@ -406,7 +509,7 @@ describe("Projects API", () => {
       const uniqueProjectName = `Test Project ${randomUUID().substring(0, 8)}`;
 
       // First create a project
-      await makeAPICall(
+      await makeAPICall<{ message: string }>(
         "POST",
         "/api/public/projects",
         {
@@ -416,7 +519,7 @@ describe("Projects API", () => {
       );
 
       // Try to create another project with the same name
-      const duplicateResult = await makeAPICall(
+      const duplicateResult = await makeAPICall<{ message: string }>(
         "POST",
         "/api/public/projects",
         {
@@ -443,6 +546,9 @@ describe("Projects API", () => {
         },
       });
       testProjectId = project.id;
+      // The raw create bypasses the invalidation real create paths run, so the
+      // org key's cached context would keep a projectIds snapshot without it.
+      await invalidateCachedOrgApiKeys("seed-org-id");
     });
 
     afterEach(async () => {
@@ -482,7 +588,7 @@ describe("Projects API", () => {
 
     it("should validate retention days on update", async () => {
       // Test with invalid retention days (less than 3 and not 0)
-      const invalidResult = await makeAPICall(
+      const invalidResult = await makeAPICall<{ message: string }>(
         "PUT",
         `/api/public/projects/${testProjectId}`,
         {
@@ -577,7 +683,7 @@ describe("Projects API", () => {
           data: { metadata: seedMetadata },
         });
 
-        const result = await makeAPICall(
+        const result = await makeAPICall<{ message: string }>(
           "PUT",
           `/api/public/projects/${testProjectId}`,
           {
@@ -631,7 +737,7 @@ describe("Projects API", () => {
         data: { metadata: seedMetadata },
       });
 
-      const result = await makeAPICall(
+      const result = await makeAPICall<{ message: string }>(
         "PUT",
         `/api/public/projects/${testProjectId}`,
         {
@@ -650,7 +756,7 @@ describe("Projects API", () => {
     });
 
     it("should return 403 when using project API key instead of organization API key", async () => {
-      const result = await makeAPICall(
+      const result = await makeAPICall<{ message: string }>(
         "PUT",
         `/api/public/projects/${testProjectId}`,
         {
@@ -659,14 +765,11 @@ describe("Projects API", () => {
         createBasicAuthHeader(projectApiKey, projectSecretKey),
       );
       expect(result.status).toBe(403);
-      expect(result.body.message).toContain(
-        "Organization-scoped API key required",
-      );
     });
 
     it("should return 404 when project does not exist", async () => {
       const nonExistentProjectId = randomUUID();
-      const result = await makeAPICall(
+      const result = await makeAPICall<{ message: string }>(
         "PUT",
         `/api/public/projects/${nonExistentProjectId}`,
         {
@@ -692,6 +795,9 @@ describe("Projects API", () => {
         },
       });
       testProjectId = project.id;
+      // The raw create bypasses the invalidation real create paths run, so the
+      // org key's cached context would keep a projectIds snapshot without it.
+      await invalidateCachedOrgApiKeys("seed-org-id");
     });
 
     afterEach(async () => {
@@ -726,20 +832,17 @@ describe("Projects API", () => {
     });
 
     it("should return 403 when using project API key instead of organization API key", async () => {
-      const result = await makeAPICall(
+      const result = await makeAPICall<{ message: string }>(
         "DELETE",
         `/api/public/projects/${testProjectId}`,
         undefined,
         createBasicAuthHeader(projectApiKey, projectSecretKey),
       );
       expect(result.status).toBe(403);
-      expect(result.body.message).toContain(
-        "Organization-scoped API key required",
-      );
     });
 
     it("should return 401 when invalid API keys are provided", async () => {
-      const result = await makeAPICall(
+      const result = await makeAPICall<{ message: string }>(
         "DELETE",
         `/api/public/projects/${testProjectId}`,
         undefined,
@@ -751,7 +854,7 @@ describe("Projects API", () => {
 
     it("should return 404 when project does not exist", async () => {
       const nonExistentProjectId = randomUUID();
-      const result = await makeAPICall(
+      const result = await makeAPICall<{ message: string }>(
         "DELETE",
         `/api/public/projects/${nonExistentProjectId}`,
         undefined,
@@ -780,7 +883,7 @@ describe("Projects API", () => {
     });
 
     it("should return 401 when invalid API keys are provided", async () => {
-      const result = await makeAPICall(
+      const result = await makeAPICall<{ message: string }>(
         "GET",
         `/api/public/projects/${projectId}/apiKeys`,
         undefined,
@@ -791,21 +894,18 @@ describe("Projects API", () => {
     });
 
     it("should return 403 when using project API key instead of organization API key", async () => {
-      const result = await makeAPICall(
+      const result = await makeAPICall<{ message: string }>(
         "GET",
         `/api/public/projects/${projectId}/apiKeys`,
         undefined,
         createBasicAuthHeader(projectApiKey, projectSecretKey),
       );
       expect(result.status).toBe(403);
-      expect(result.body.message).toContain(
-        "Organization-scoped API key required",
-      );
     });
 
     it("should return 404 when project does not exist", async () => {
       const nonExistentProjectId = randomUUID();
-      const result = await makeAPICall(
+      const result = await makeAPICall<{ message: string }>(
         "GET",
         `/api/public/projects/${nonExistentProjectId}/apiKeys`,
         undefined,
@@ -816,7 +916,7 @@ describe("Projects API", () => {
     });
 
     it("should return 405 for non-GET/POST methods", async () => {
-      const result = await makeAPICall(
+      const result = await makeAPICall<{ message: string }>(
         "PUT",
         `/api/public/projects/${projectId}/apiKeys`,
         {},
@@ -842,6 +942,163 @@ describe("Projects API", () => {
       }
     });
 
+    it("attributes project-key creation to the authenticating API key", async () => {
+      const { req, res } = createMocks<NextApiRequest, NextApiResponse>({
+        method: "POST",
+        query: { projectId },
+        headers: {
+          authorization: createBasicAuthHeader(orgApiKey, orgSecretKey),
+        },
+        body: { note: "Audit attribution" },
+      });
+
+      await projectApiKeysHandler(req, res);
+      expect(res._getStatusCode()).toBe(201);
+      createdApiKeyId = res._getJSONData().id;
+
+      const audit = await prisma.auditLog.findFirstOrThrow({
+        where: { projectId, resourceId: createdApiKeyId, action: "create" },
+      });
+      expect(audit).toMatchObject({
+        apiKeyId: orgApiKeyId,
+        orgId: "seed-org-id",
+        projectId,
+        resourceType: "apiKey",
+        resourceId: createdApiKeyId,
+      });
+    });
+
+    it.each([
+      {
+        label: "omitted",
+        role: undefined,
+        expiresAt: undefined,
+        name: "Named key",
+      },
+      { label: "null", role: null, expiresAt: null, name: "Named key" },
+      {
+        label: "omitted with empty name",
+        role: undefined,
+        expiresAt: undefined,
+        name: "",
+      },
+      {
+        label: "null with expiration",
+        name: undefined,
+        role: null,
+        expiresAt: new Date(Date.now() + 86_400_000).toISOString(),
+      },
+    ])(
+      "provisions a key with $label role and lists its expiration",
+      async ({ role, expiresAt, name }) => {
+        const response = await makeAPICall<
+          z.infer<typeof ApiKeyCreationResponseSchema>
+        >(
+          "POST",
+          `/api/public/projects/${projectId}/apiKeys`,
+          { name, role, expiresAt },
+          createBasicAuthHeader(orgApiKey, orgSecretKey),
+        );
+        createdApiKeyId = response.body.id;
+        expect(response.status).toBe(201);
+        expect(response.body).toMatchObject({
+          name: name ?? null,
+          note: name ?? null,
+          expiresAt: expiresAt ?? null,
+          role: "LEGACY_PROJECT_API_KEY",
+        });
+
+        const stored = await prisma.apiKey.findUniqueOrThrow({
+          where: { id: response.body.id },
+          include: { roleAssignments: true },
+        });
+        expect(stored.note).toBe(name ?? null);
+        expect(stored.expiresAt?.toISOString() ?? null).toBe(expiresAt ?? null);
+        expect(stored.roleAssignments).toMatchObject([
+          { systemRole: "LEGACY_PROJECT_API_KEY" },
+        ]);
+
+        const listed = await makeAPICall<z.infer<typeof ApiKeysResponseSchema>>(
+          "GET",
+          `/api/public/projects/${projectId}/apiKeys`,
+          undefined,
+          createBasicAuthHeader(orgApiKey, orgSecretKey),
+        );
+        expect(listed.status).toBe(200);
+        ApiKeysResponseSchema.parse(listed.body);
+        const listedKey = listed.body.apiKeys.find(
+          (key) => key.id === stored.id,
+        );
+        expect(listedKey).toMatchObject({
+          name: name ?? null,
+          note: name ?? null,
+          expiresAt: expiresAt ?? null,
+          role: "LEGACY_PROJECT_API_KEY",
+        });
+        for (const field of [
+          "secretKey",
+          "hashedSecretKey",
+          "fastHashedSecretKey",
+          "roleAssignments",
+        ]) {
+          expect(listedKey).not.toHaveProperty(field);
+        }
+      },
+    );
+
+    it.each([
+      { label: "both name and note", body: { name: "same", note: "same" } },
+      { label: "empty name and note", body: { name: "", note: "" } },
+      { label: "empty name with note", body: { name: "", note: "alias" } },
+      { label: "name with empty note", body: { name: "name", note: "" } },
+      { label: "null name", body: { name: null } },
+      { label: "past expiration", body: { expiresAt: "2000-01-01T00:00:00Z" } },
+      { label: "invalid expiration", body: { expiresAt: "not-a-date" } },
+      { label: "numeric expiration", body: { expiresAt: 4_102_444_800_000 } },
+      { label: "empty role", body: { role: "" } },
+      {
+        label: "explicit legacy role",
+        body: { role: "LEGACY_PROJECT_API_KEY" },
+      },
+      {
+        label: "wrong-scope legacy role",
+        body: { role: "LEGACY_ORGANIZATION_API_KEY" },
+      },
+      { label: "gateway role", body: { role: "AI_GATEWAY" } },
+      { label: "role array", body: { role: [] } },
+    ])("rejects $label without creating a key", async ({ body }) => {
+      const before = await prisma.apiKey.count({ where: { projectId } });
+      const result = await makeAPICall<{ message: string }>(
+        "POST",
+        `/api/public/projects/${projectId}/apiKeys`,
+        body,
+        createBasicAuthHeader(orgApiKey, orgSecretKey),
+      );
+      expect(result.status).toBe(400);
+      expect(result.body.message).toEqual(expect.any(String));
+      expect(await prisma.apiKey.count({ where: { projectId } })).toBe(before);
+    });
+
+    it("provisions a key with a selected role under the default env", async () => {
+      const response = await makeAPICall<
+        z.infer<typeof ApiKeyCreationResponseSchema>
+      >(
+        "POST",
+        `/api/public/projects/${projectId}/apiKeys`,
+        { role: "INGEST" },
+        createBasicAuthHeader(orgApiKey, orgSecretKey),
+      );
+      createdApiKeyId = response.body.id;
+      expect(response.status).toBe(201);
+      expect(response.body.role).toBe("INGEST");
+
+      const stored = await prisma.apiKey.findUniqueOrThrow({
+        where: { id: response.body.id },
+        include: { roleAssignments: true },
+      });
+      expect(stored.roleAssignments).toMatchObject([{ systemRole: "INGEST" }]);
+    });
+
     it("should create a new API key with valid organization API key", async () => {
       const note = `Test API Key ${randomUUID().substring(0, 8)}`;
 
@@ -861,6 +1118,9 @@ describe("Projects API", () => {
       expect(response.body).toHaveProperty("publicKey");
       expect(response.body).toHaveProperty("secretKey");
       expect(response.body.note).toBe(note);
+      expect(response.body.name).toBe(note);
+      expect(response.body.expiresAt).toBeNull();
+      expect(response.body.role).toBe("LEGACY_PROJECT_API_KEY");
 
       // Store the created API key ID for cleanup
       createdApiKeyId = response.body.id;
@@ -873,12 +1133,19 @@ describe("Projects API", () => {
       expect(apiKey?.note).toBe(note);
       expect(apiKey?.projectId).toBe(projectId);
       expect(apiKey?.scope).toBe("PROJECT");
+
+      // Verify the creating org API key is referenced
+      const orgKeyRecord = await prisma.apiKey.findUnique({
+        where: { publicKey: orgApiKey },
+      });
+      expect(apiKey?.createdByApiKeyId).toBe(orgKeyRecord?.id);
+      expect(apiKey?.createdByUserId).toBeNull();
     });
 
     it("should return 403 when using project API key instead of organization API key", async () => {
       const note = `Test API Key ${randomUUID().substring(0, 8)}`;
 
-      const result = await makeAPICall(
+      const result = await makeAPICall<{ message: string }>(
         "POST",
         `/api/public/projects/${projectId}/apiKeys`,
         {
@@ -887,15 +1154,12 @@ describe("Projects API", () => {
         createBasicAuthHeader(projectApiKey, projectSecretKey),
       );
       expect(result.status).toBe(403);
-      expect(result.body.message).toContain(
-        "Organization-scoped API key required",
-      );
     });
 
     it("should return 401 when invalid API keys are provided", async () => {
       const note = `Test API Key ${randomUUID().substring(0, 8)}`;
 
-      const result = await makeAPICall(
+      const result = await makeAPICall<{ message: string }>(
         "POST",
         `/api/public/projects/${projectId}/apiKeys`,
         {
@@ -911,7 +1175,7 @@ describe("Projects API", () => {
       const nonExistentProjectId = randomUUID();
       const note = `Test API Key ${randomUUID().substring(0, 8)}`;
 
-      const result = await makeAPICall(
+      const result = await makeAPICall<{ message: string }>(
         "POST",
         `/api/public/projects/${nonExistentProjectId}/apiKeys`,
         {
@@ -962,7 +1226,7 @@ describe("Projects API", () => {
       const note = `Test API Key ${randomUUID().substring(0, 8)}`;
       const predefinedPublicKey = `pk-lf-${randomUUID()}`;
 
-      const result = await makeAPICall(
+      const result = await makeAPICall<{ message: string }>(
         "POST",
         `/api/public/projects/${projectId}/apiKeys`,
         {
@@ -982,7 +1246,7 @@ describe("Projects API", () => {
       const note = `Test API Key ${randomUUID().substring(0, 8)}`;
       const predefinedSecretKey = `sk-lf-${randomUUID()}`;
 
-      const result = await makeAPICall(
+      const result = await makeAPICall<{ message: string }>(
         "POST",
         `/api/public/projects/${projectId}/apiKeys`,
         {
@@ -1003,7 +1267,7 @@ describe("Projects API", () => {
       const invalidPublicKey = `invalid-${randomUUID()}`;
       const predefinedSecretKey = `sk-lf-${randomUUID()}`;
 
-      const result = await makeAPICall(
+      const result = await makeAPICall<{ message: string }>(
         "POST",
         `/api/public/projects/${projectId}/apiKeys`,
         {
@@ -1023,7 +1287,7 @@ describe("Projects API", () => {
       const predefinedPublicKey = `pk-lf-${randomUUID()}`;
       const invalidSecretKey = `invalid-${randomUUID()}`;
 
-      const result = await makeAPICall(
+      const result = await makeAPICall<{ message: string }>(
         "POST",
         `/api/public/projects/${projectId}/apiKeys`,
         {
@@ -1045,7 +1309,7 @@ describe("Projects API", () => {
       const secretKey2 = `sk-lf-${randomUUID()}`;
 
       // Create first API key with predefined keys
-      const firstResponse = await makeAPICall(
+      const firstResponse = await makeAPICall<{ id: string }>(
         "POST",
         `/api/public/projects/${projectId}/apiKeys`,
         {
@@ -1059,7 +1323,7 @@ describe("Projects API", () => {
       createdApiKeyId = firstResponse.body.id;
 
       // Try to create second API key with same publicKey but different secretKey
-      const secondResponse = await makeAPICall(
+      const secondResponse = await makeAPICall<{ message: string }>(
         "POST",
         `/api/public/projects/${projectId}/apiKeys`,
         {
@@ -1080,11 +1344,15 @@ describe("Projects API", () => {
 
     beforeEach(async () => {
       // Create a test API key to delete
-      const apiKeyMeta = await createAndAddApiKeysToDb({
-        prisma,
-        entityId: projectId,
-        scope: "PROJECT",
-        note: `Delete Test API Key ${randomUUID().substring(0, 8)}`,
+      const keyCreator = await prisma.user.create({
+        data: { email: `apikey-creator-${randomUUID()}@example.com` },
+      });
+      const apiKeyMeta = await createApiKey(prisma, {
+        tenant: OrganizationId("seed-org-id"),
+        scope: ProjectId(projectId),
+        role: SystemRoleId("LEGACY_PROJECT_API_KEY"),
+        createdBy: UserId(keyCreator.id),
+        name: `Delete Test API Key ${randomUUID().substring(0, 8)}`,
       });
       deleteTestApiKeyId = apiKeyMeta.id;
     });
@@ -1100,6 +1368,33 @@ describe("Projects API", () => {
       } catch {
         // Ignore errors if the API key was already deleted by the test
       }
+    });
+
+    it("attributes project-key deletion to the authenticating API key", async () => {
+      const { req, res } = createMocks<NextApiRequest, NextApiResponse>({
+        method: "DELETE",
+        query: { projectId, apiKeyId: deleteTestApiKeyId },
+        headers: {
+          authorization: createBasicAuthHeader(orgApiKey, orgSecretKey),
+        },
+      });
+
+      await projectApiKeyHandler(req, res);
+      expect(res._getStatusCode()).toBe(200);
+      expect(
+        await prisma.apiKey.findUnique({ where: { id: deleteTestApiKeyId } }),
+      ).toBeNull();
+
+      const audit = await prisma.auditLog.findFirstOrThrow({
+        where: { projectId, resourceId: deleteTestApiKeyId, action: "delete" },
+      });
+      expect(audit).toMatchObject({
+        apiKeyId: orgApiKeyId,
+        orgId: "seed-org-id",
+        projectId,
+        resourceType: "apiKey",
+        resourceId: deleteTestApiKeyId,
+      });
     });
 
     it("should delete an API key with valid organization API key", async () => {
@@ -1123,20 +1418,17 @@ describe("Projects API", () => {
     });
 
     it("should return 403 when using project API key instead of organization API key", async () => {
-      const result = await makeAPICall(
+      const result = await makeAPICall<{ message: string }>(
         "DELETE",
         `/api/public/projects/${projectId}/apiKeys/${deleteTestApiKeyId}`,
         undefined,
         createBasicAuthHeader(projectApiKey, projectSecretKey),
       );
       expect(result.status).toBe(403);
-      expect(result.body.message).toContain(
-        "Organization-scoped API key required",
-      );
     });
 
     it("should return 401 when invalid API keys are provided", async () => {
-      const result = await makeAPICall(
+      const result = await makeAPICall<{ message: string }>(
         "DELETE",
         `/api/public/projects/${projectId}/apiKeys/${deleteTestApiKeyId}`,
         undefined,
@@ -1148,7 +1440,7 @@ describe("Projects API", () => {
 
     it("should return 404 when API key does not exist", async () => {
       const nonExistentApiKeyId = randomUUID();
-      const result = await makeAPICall(
+      const result = await makeAPICall<{ message: string }>(
         "DELETE",
         `/api/public/projects/${projectId}/apiKeys/${nonExistentApiKeyId}`,
         undefined,
@@ -1160,7 +1452,7 @@ describe("Projects API", () => {
 
     it("should return 404 when project does not exist", async () => {
       const nonExistentProjectId = randomUUID();
-      const result = await makeAPICall(
+      const result = await makeAPICall<{ message: string }>(
         "DELETE",
         `/api/public/projects/${nonExistentProjectId}/apiKeys/${deleteTestApiKeyId}`,
         undefined,
@@ -1172,7 +1464,7 @@ describe("Projects API", () => {
   });
 
   it("should return 405 for unallowed methods", async () => {
-    const result = await makeAPICall(
+    const result = await makeAPICall<{ message: string }>(
       "PATCH",
       `/api/public/projects/${projectId}`,
       undefined,

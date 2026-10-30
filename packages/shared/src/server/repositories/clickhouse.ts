@@ -1,9 +1,13 @@
+import { type Readable } from "stream";
 import { env } from "../../env";
 import {
   clickhouseClient,
   convertDateToClickhouseDateTime,
   PreferredClickhouseService,
+  EXCEPTION_TAG_HEADER_NAME,
+  resolveClickhouseService,
 } from "../clickhouse/client";
+import { ClickhouseExecExceptionTagTransform } from "./clickhouseExecExceptionTag";
 import { logger } from "../logger";
 import { getTracer, instrumentAsync } from "../instrumentation";
 import { randomUUID } from "crypto";
@@ -11,16 +15,41 @@ import { getClickhouseEntityType } from "../clickhouse/schemaUtils";
 import { NodeClickHouseClientConfigOptions } from "@clickhouse/client/dist/config";
 import { type Span, context, SpanKind, trace } from "@opentelemetry/api";
 import { backOff } from "exponential-backoff";
-import {
-  StorageService,
-  StorageServiceFactory,
-} from "../services/StorageService";
+import { StorageService } from "../services/StorageService";
+import { createEventUploadStorageService } from "../s3";
+import { buildEventBucketPrefix } from "../ingestion/eventBucketPath";
 import {
   ClickHouseSettings,
+  type ProgressRow,
   type RowOrProgress,
   type DataFormat,
+  isException,
+  isProgressRow,
+  isRow,
 } from "@clickhouse/client";
 import { RESOURCE_LIMIT_ERROR_MESSAGE } from "../../errors/errorMessages";
+import {
+  buildClickHouseLogComment,
+  normalizeClickHouseQueryTags,
+  type ClickHouseQueryTags,
+  type NormalizedClickHouseQueryTags,
+} from "../clickhouse/queryTags";
+import {
+  CLICKHOUSE_NETWORK_ERROR_PATTERNS,
+  CLICKHOUSE_RESOURCE_ERROR_OUTCOMES,
+  clickHouseQueryShape,
+  clickHouseQueryTableLabel,
+  recordClickHouseQueryOutcome,
+  recordClickHouseQueryElapsed,
+} from "../clickhouse/queryOutcome";
+
+/**
+ * Re-exported so callers can build `Array(Tuple(...))` query parameters without
+ * importing `@clickhouse/client` directly (e.g. composite `(col_a, col_b) IN`
+ * predicates). A plain JS array serializes as an `Array`; `TupleParam` is what
+ * renders each element as a `(...)` tuple, with string contents escaped.
+ */
+export { TupleParam } from "@clickhouse/client";
 
 /**
  * Custom error class for ClickHouse resource-related errors
@@ -32,14 +61,23 @@ const ERROR_TYPE_CONFIG: Record<
     discriminators: string[];
   }
 > = {
-  MEMORY_LIMIT: {
-    discriminators: ["memory limit exceeded"],
-  },
+  // Order matters: matched top-to-bottom, first hit wins. OvercommitTracker
+  // kills also carry a "Memory limit … exceeded" phrase, so OVERCOMMIT must
+  // precede MEMORY_LIMIT to keep the more specific cause in the outcome metric.
   OVERCOMMIT: {
-    discriminators: ["OvercommitTracker"],
+    discriminators: ["overcommittracker"],
+  },
+  MEMORY_LIMIT: {
+    discriminators: [
+      "memory limit exceeded",
+      "memory limit (for query) exceeded",
+      "memory limit (total) exceeded",
+      "memory limit (for user) exceeded",
+      "memory limit",
+    ],
   },
   TIMEOUT: {
-    discriminators: ["Timeout", "timeout", "timed out"],
+    discriminators: ["timeout", "timed out"],
   },
 };
 
@@ -49,19 +87,35 @@ export class ClickHouseResourceError extends Error {
   static ERROR_ADVICE_MESSAGE = RESOURCE_LIMIT_ERROR_MESSAGE;
 
   public readonly errorType: ErrorType;
+  public readonly tags?: NormalizedClickHouseQueryTags;
 
-  constructor(errType: ErrorType, originalError: Error) {
+  constructor(
+    errType: ErrorType,
+    originalError: Error,
+    tags?: NormalizedClickHouseQueryTags,
+  ) {
     super(originalError.message, { cause: originalError });
     this.name = "ClickHouseResourceError";
     this.errorType = errType;
+    this.tags = tags;
     // Preserve the original stack trace if available
     if (originalError.stack) {
       this.stack = originalError.stack;
     }
   }
 
-  static wrapIfResourceError(originalError: Error): Error {
-    const errorMessage = originalError.message || "";
+  static is(error: unknown): error is ClickHouseResourceError {
+    return (
+      error instanceof ClickHouseResourceError ||
+      (error instanceof Error && error.name === "ClickHouseResourceError")
+    );
+  }
+
+  static wrapIfResourceError(
+    originalError: Error,
+    tags?: NormalizedClickHouseQueryTags,
+  ): Error {
+    const errorMessage = (originalError.message || "").toLowerCase();
 
     for (const [type, config] of Object.entries(ERROR_TYPE_CONFIG) as Array<
       [
@@ -70,11 +124,11 @@ export class ClickHouseResourceError extends Error {
       ]
     >) {
       const hasDiscriminator = config.discriminators.some((discriminator) =>
-        errorMessage.includes(discriminator),
+        errorMessage.includes(discriminator.toLowerCase()),
       );
 
       if (hasDiscriminator) {
-        return new ClickHouseResourceError(type, originalError);
+        return new ClickHouseResourceError(type, originalError, tags);
       }
     }
 
@@ -86,16 +140,7 @@ let s3StorageServiceClient: StorageService;
 
 const getS3StorageServiceClient = (bucketName: string): StorageService => {
   if (!s3StorageServiceClient) {
-    s3StorageServiceClient = StorageServiceFactory.getInstance({
-      bucketName,
-      accessKeyId: env.LANGFUSE_S3_EVENT_UPLOAD_ACCESS_KEY_ID,
-      secretAccessKey: env.LANGFUSE_S3_EVENT_UPLOAD_SECRET_ACCESS_KEY,
-      endpoint: env.LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT,
-      region: env.LANGFUSE_S3_EVENT_UPLOAD_REGION,
-      forcePathStyle: env.LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE === "true",
-      awsSse: env.LANGFUSE_S3_EVENT_UPLOAD_SSE,
-      awsSseKmsKeyId: env.LANGFUSE_S3_EVENT_UPLOAD_SSE_KMS_KEY_ID,
-    });
+    s3StorageServiceClient = createEventUploadStorageService(bucketName);
   }
   return s3StorageServiceClient;
 };
@@ -122,7 +167,7 @@ export async function upsertClickhouse<
   table: "scores" | "traces" | "observations" | "traces_null";
   records: T[];
   eventBodyMapper: (body: T) => Record<string, unknown>;
-  tags?: Record<string, string>;
+  tags?: ClickHouseQueryTags;
 }): Promise<void> {
   return await instrumentAsync(
     { name: "clickhouse-upsert", spanKind: SpanKind.CLIENT },
@@ -143,7 +188,12 @@ export async function upsertClickhouse<
           }
 
           const eventId = randomUUID();
-          const bucketPath = `${env.LANGFUSE_S3_EVENT_UPLOAD_PREFIX}${record.project_id}/${getClickhouseEntityType(eventType)}/${record.id}/${eventId}.json`;
+          const entityType = getClickhouseEntityType(eventType);
+          const bucketPath = `${buildEventBucketPrefix({
+            projectId: String(record.project_id),
+            entityType,
+            entityId: String(record.id),
+          })}${eventId}.json`;
 
           if (env.LANGFUSE_ENABLE_BLOB_STORAGE_FILE_LOG === "true") {
             // Write new file directly to ClickHouse. We don't use the ClickHouse writer here as we expect more limited traffic
@@ -154,7 +204,7 @@ export async function upsertClickhouse<
                 {
                   id: randomUUID(),
                   project_id: record.project_id,
-                  entity_type: getClickhouseEntityType(eventType),
+                  entity_type: entityType,
                   entity_id: record.id,
                   event_id: eventId,
                   bucket_name: env.LANGFUSE_S3_EVENT_UPLOAD_BUCKET,
@@ -165,7 +215,7 @@ export async function upsertClickhouse<
               ],
               format: "JSONEachRow",
               clickhouse_settings: {
-                log_comment: JSON.stringify(opts.tags ?? {}),
+                log_comment: buildClickHouseLogComment(opts.tags),
               },
             });
           }
@@ -191,7 +241,7 @@ export async function upsertClickhouse<
         })),
         format: "JSONEachRow",
         clickhouse_settings: {
-          log_comment: JSON.stringify(opts.tags ?? {}),
+          log_comment: buildClickHouseLogComment(opts.tags),
         },
       });
       // same logic as for prisma. we want to see queries in development
@@ -223,23 +273,32 @@ export async function upsertClickhouse<
 }
 
 export async function* queryClickhouseStream<T>(
-  opts: ClickhouseQueryOpts,
+  opts: ClickhouseQueryOpts & { queryId?: string },
 ): AsyncGenerator<T> {
   if (!opts.allowLegacyEventsRead) assertNoLegacyEventsRead(opts.query);
+  const normalizedTags = normalizeClickHouseQueryTags(opts.tags);
   const tracer = getTracer("clickhouse-query-stream");
   const span = tracer.startSpan("clickhouse-query-stream", {
     kind: SpanKind.CLIENT,
   });
 
+  // Client-generated so failures before/without a response still carry a
+  // query_id on errors and spans; system.query_log stays pollable by id.
+  const queryId = opts.queryId ?? randomUUID();
+
   try {
     setSpanQueryAttributes(span, opts.query);
+    span.setAttribute("ch.queryId", queryId);
 
     const res = await context
       .with(trace.setSpan(context.active(), span), () =>
-        sendClickhouseQuery({ ...opts, format: "JSONEachRow", span }),
+        sendClickhouseQuery({ ...opts, format: "JSONEachRow", span, queryId }),
       )
       .catch((error) => {
-        throw ClickHouseResourceError.wrapIfResourceError(error as Error);
+        throw ClickHouseResourceError.wrapIfResourceError(
+          error as Error,
+          normalizedTags,
+        );
       });
 
     for await (const rows of res.stream<T>()) {
@@ -248,11 +307,251 @@ export async function* queryClickhouseStream<T>(
       }
     }
   } catch (error) {
-    if (error instanceof ClickHouseResourceError) throw error;
-    throw ClickHouseResourceError.wrapIfResourceError(error as Error);
+    if (error instanceof ClickHouseResourceError) {
+      const enriched = enrichWithQueryId(error, queryId);
+      throw enriched === error
+        ? error
+        : new ClickHouseResourceError(
+            error.errorType,
+            enriched,
+            normalizedTags,
+          );
+    }
+    throw ClickHouseResourceError.wrapIfResourceError(
+      enrichWithQueryId(error as Error, queryId),
+      normalizedTags,
+    );
   } finally {
     span.end();
   }
+}
+
+/**
+ * Raw passthrough read for the blob-export path (LFE-10402): yields each row's
+ * unparsed JSONEachRow text (no trailing newline) instead of its parsed object.
+ * Skips the per-row `JSON.parse` (`row.json()`) and lets the caller skip the
+ * re-serialize step — the dominant CPU cost on large exports — while reusing the
+ * exact same client machinery as {@link queryClickhouseStream}, including its
+ * built-in mid-stream exception detection. A failed query therefore throws here,
+ * just like the parsed path, so the pipeline aborts instead of emitting a
+ * truncated object — no out-of-band system.query_log check needed.
+ *
+ * IMPORTANT: that mid-stream detection only works on ClickHouse >= 25.11 (it
+ * relies on the `x-clickhouse-exception-tag` response header). On older servers
+ * a query that fails after a 200 response is NOT detected and this can silently
+ * yield a truncated object. The only caller (blob raw-passthrough export) is an
+ * experimental, per-project opt-in gated on that version — see
+ * RAW_PASSTHROUGH_MIN_CLICKHOUSE_VERSION in features/analytics-integrations.
+ */
+export async function* queryClickhouseStreamRawText(
+  opts: ClickhouseQueryOpts,
+): AsyncGenerator<string> {
+  if (!opts.allowLegacyEventsRead) assertNoLegacyEventsRead(opts.query);
+  const normalizedTags = normalizeClickHouseQueryTags(opts.tags);
+  const tracer = getTracer("clickhouse-query-stream-raw-text");
+  const span = tracer.startSpan("clickhouse-query-stream-raw-text", {
+    kind: SpanKind.CLIENT,
+  });
+
+  // Client-generated so failures before/without a response still carry a
+  // query_id on errors and spans; system.query_log stays pollable by id.
+  const queryId = randomUUID();
+
+  try {
+    setSpanQueryAttributes(span, opts.query);
+    span.setAttribute("ch.queryId", queryId);
+
+    const res = await context
+      .with(trace.setSpan(context.active(), span), () =>
+        sendClickhouseQuery({ ...opts, format: "JSONEachRow", span, queryId }),
+      )
+      .catch((error) => {
+        throw ClickHouseResourceError.wrapIfResourceError(
+          error as Error,
+          normalizedTags,
+        );
+      });
+
+    for await (const rows of res.stream()) {
+      for (const row of rows) {
+        yield row.text;
+      }
+    }
+  } catch (error) {
+    if (error instanceof ClickHouseResourceError) {
+      const enriched = enrichWithQueryId(error, queryId);
+      throw enriched === error
+        ? error
+        : new ClickHouseResourceError(
+            error.errorType,
+            enriched,
+            normalizedTags,
+          );
+    }
+    throw ClickHouseResourceError.wrapIfResourceError(
+      enrichWithQueryId(error as Error, queryId),
+      normalizedTags,
+    );
+  } finally {
+    span.end();
+  }
+}
+
+// Blob-export Parquet settings (LFE-10463). CH buffers a row group in memory and
+// flushes at whichever cap hits first. The bytes cap is the real memory governor
+// (auto-adapts to row width); set below CH's 512 MiB default since the dispatcher
+// exports up to 4 tables concurrently (peak ≈ 4×). The row cap bounds narrow tables.
+//
+// The remaining settings guard Arrow's 2^31-byte ceiling on a single column-chunk
+// buffer ("Capacity error: array cannot contain more than 2147483646 bytes",
+// surfacing to the worker as ECONNRESET mid-stream). Two ClickHouse behaviors
+// compose into it: ParquetBlockOutputFormat splits oversized staging by rows
+// only, so the bytes cap above cannot split one fat pipeline chunk (sorted/FINAL
+// stages emit blocks bounded by max_block_size rows, not bytes), and the
+// writer's page/dictionary size checks run once per write batch, so multi-MB
+// payload values overshoot int32 limits between checks (~125 × 17 MiB values in
+// one 1024-value batch overflow the dictionary before its 1 MiB fallback fires).
+export const BLOB_EXPORT_PARQUET_CLICKHOUSE_SETTINGS: ClickHouseSettings = {
+  output_format_parquet_row_group_size: "1000000",
+  output_format_parquet_row_group_size_bytes: String(128 * 1024 * 1024), // 128 MiB
+  // Keep source chunks small so the bytes cap actually binds; at the default
+  // ~65k rows per sorted block, multi-MB payloads reach multi-GiB row groups.
+  max_block_size: "8192",
+  // Run the size checks every 16 rows instead of 1024, capping the per-page /
+  // per-dictionary overshoot at 16 rows' worth of bytes.
+  output_format_parquet_batch_size: "16",
+  // 0 disables dictionary encoding. Near-unique LLM payloads fall back to plain
+  // anyway (dictionary ≈ data), and disabling removes the Arrow dictionary
+  // memo-table ceiling as a failure class; zstd output compression recovers
+  // most of the size difference on low-cardinality columns.
+  output_format_parquet_max_dictionary_size: "0",
+};
+
+export type ClickhouseExecRawResult = {
+  queryId: string;
+  // Raw response body, already wrapped by the exception-tag Transform so a
+  // mid-stream failure (CH >= 25.11) errors it instead of truncating.
+  stream: Readable;
+  responseHeaders: Record<string, string | string[] | undefined>;
+};
+
+/**
+ * Raw binary read for the blob-export Parquet path (LFE-10463). Runs the query
+ * via `clickhouseClient().exec()` (returns the unparsed HTTP body as a
+ * {@link Readable}) and appends `FORMAT <format>` to the SQL — exec has no
+ * `format` param. Streams ClickHouse-native Parquet bytes straight to upload,
+ * offloading columnar encoding + compression to ClickHouse.
+ *
+ * `exec()` skips the ResultSet machinery and its mid-stream exception detection,
+ * so we restore it by piping through {@link ClickhouseExecExceptionTagTransform}
+ * — the stream errors on a failed query, aborting the upload before any commit.
+ * Detection needs CH >= 25.11 (exception-tag header); the only caller is an
+ * experimental per-project opt-in with the same caveat as raw passthrough — see
+ * RAW_PASSTHROUGH_MIN_CLICKHOUSE_VERSION. Pass Parquet tuning via `clickhouseSettings`.
+ */
+export async function queryClickhouseExecRaw(
+  opts: ClickhouseQueryOpts & { format: string },
+): Promise<ClickhouseExecRawResult> {
+  if (!opts.allowLegacyEventsRead) assertNoLegacyEventsRead(opts.query);
+  const normalizedTags = normalizeClickHouseQueryTags(opts.tags);
+  const tracer = getTracer("clickhouse-query-exec-raw");
+  const span = tracer.startSpan("clickhouse-query-exec-raw", {
+    kind: SpanKind.CLIENT,
+  });
+
+  // Client-generated so failures before/without a response still carry a
+  // query_id on errors and spans; system.query_log stays pollable by id.
+  const queryId = randomUUID();
+
+  try {
+    const queryWithFormat = `${opts.query}\nFORMAT ${opts.format}`;
+    setSpanQueryAttributes(span, queryWithFormat);
+    span.setAttribute("ch.queryId", queryId);
+
+    // Failures reject into the outer catch, which enriches with the query_id
+    // and wraps resource errors exactly once.
+    const res = await context.with(trace.setSpan(context.active(), span), () =>
+      clickhouseClient(
+        opts.clickhouseConfigs,
+        opts.preferredClickhouseService,
+      ).exec({
+        query: queryWithFormat,
+        query_params: opts.params,
+        use_multipart_params_auto: opts.useMultipartParamsAuto,
+        query_id: queryId,
+        clickhouse_settings: {
+          ...opts.clickhouseSettings,
+          log_comment: JSON.stringify(normalizedTags),
+        },
+      }),
+    );
+    for (const [key, value] of Object.entries(normalizedTags)) {
+      span.setAttribute(`ch.tag.${key}`, value);
+    }
+    recordSummaryOnSpan(span, res.response_headers);
+
+    if (env.NODE_ENV === "development") {
+      logger.info(`clickhouse:exec ${res.query_id} ${queryWithFormat}`);
+    }
+
+    const exceptionTag = res.response_headers[EXCEPTION_TAG_HEADER_NAME] as
+      | string
+      | undefined;
+
+    const guardedStream = res.stream.pipe(
+      new ClickhouseExecExceptionTagTransform({
+        exceptionTag,
+        wrapError: (error) =>
+          ClickHouseResourceError.wrapIfResourceError(
+            enrichWithQueryId(error, queryId),
+            normalizedTags,
+          ),
+      }),
+    );
+
+    // The span outlives this function (it covers the consumer's read). Forward
+    // source errors (e.g. mid-transfer connection resets) so the consumer sees
+    // them, enriched like the other error paths of this function.
+    res.stream.on("error", (error) =>
+      guardedStream.destroy(
+        ClickHouseResourceError.wrapIfResourceError(
+          enrichWithQueryId(error, queryId),
+          normalizedTags,
+        ),
+      ),
+    );
+    // `.pipe()` only wires src→dest, so destroying guardedStream (e.g. the
+    // worker's pipeline aborting on an upload failure) would leave the live CH
+    // body streaming into an unread socket — pinning a connection slot and query
+    // thread until the request timeout. 'close' fires on every termination path
+    // (end, error, no-arg destroy); span.end() is idempotent.
+    guardedStream.once("close", () => {
+      span.end();
+      if (!res.stream.destroyed) res.stream.destroy();
+    });
+
+    return {
+      queryId,
+      stream: guardedStream,
+      responseHeaders: res.response_headers,
+    };
+  } catch (error) {
+    span.end();
+    if (error instanceof ClickHouseResourceError) throw error;
+    throw ClickHouseResourceError.wrapIfResourceError(
+      enrichWithQueryId(error as Error, queryId),
+      normalizedTags,
+    );
+  }
+}
+
+function enrichWithQueryId(error: Error, queryId: string | undefined): Error {
+  if (!queryId) return error;
+  const enriched = new Error(`${error.message} [query_id: ${queryId}]`, {
+    cause: error,
+  });
+  enriched.stack = error.stack;
+  return enriched;
 }
 
 /**
@@ -295,36 +594,50 @@ function handleExceptionRow<T>(parsedRow: T): T {
 export type ClickhouseQueryOpts = {
   query: string;
   params?: Record<string, unknown>;
+  useMultipartParamsAuto?: boolean;
   clickhouseConfigs?: NodeClickHouseClientConfigOptions;
-  tags?: Record<string, string>;
+  tags?: ClickHouseQueryTags;
   preferredClickhouseService?: PreferredClickhouseService;
   clickhouseSettings?: ClickHouseSettings;
   allowLegacyEventsRead?: boolean;
 };
 
-function recordSummaryOnSpan(
-  span: Span,
+/**
+ * ClickHouse writes this header when the response starts, so for a result
+ * larger than its output buffer the values cover only the work done until then.
+ */
+function parseClickHouseSummary(
   responseHeaders: Record<string, string | string[] | undefined>,
-): void {
+): Record<string, string> | undefined {
   const summaryHeader = responseHeaders["x-clickhouse-summary"];
-  if (!summaryHeader) return;
+  if (!summaryHeader) return undefined;
   try {
-    const summary = Array.isArray(summaryHeader)
+    return Array.isArray(summaryHeader)
       ? JSON.parse(summaryHeader[0])
       : JSON.parse(summaryHeader);
-    for (const key in summary) {
-      span.setAttribute(`ch.${key}`, summary[key]);
-    }
   } catch (error) {
     logger.debug(
       `Failed to parse clickhouse summary header ${summaryHeader}`,
       error,
     );
+    return undefined;
+  }
+}
+
+function recordSummaryOnSpan(
+  span: Span,
+  responseHeaders: Record<string, string | string[] | undefined>,
+): void {
+  const summary = parseClickHouseSummary(responseHeaders);
+  if (!summary) return;
+  for (const key in summary) {
+    span.setAttribute(`ch.${key}`, summary[key]);
   }
 }
 
 function setSpanQueryAttributes(span: Span, query: string): void {
   span.setAttribute("ch.query.text", query);
+  span.setAttribute("ch.query.shape", clickHouseQueryShape(query));
   span.setAttribute("db.system", "clickhouse");
   span.setAttribute("db.query.text", query);
   span.setAttribute("db.operation.name", "SELECT");
@@ -333,13 +646,17 @@ function setSpanQueryAttributes(span: Span, query: string): void {
 async function sendClickhouseQuery<F extends DataFormat>(opts: {
   query: string;
   params?: Record<string, unknown>;
+  useMultipartParamsAuto?: boolean;
   clickhouseConfigs?: NodeClickHouseClientConfigOptions;
-  tags?: Record<string, string>;
+  tags?: ClickHouseQueryTags;
   preferredClickhouseService?: PreferredClickhouseService;
   clickhouseSettings?: ClickHouseSettings;
   format: F;
   span: Span;
+  queryId?: string;
+  abortSignal?: AbortSignal;
 }) {
+  const normalizedTags = normalizeClickHouseQueryTags(opts.tags);
   const res = await clickhouseClient(
     opts.clickhouseConfigs,
     opts.preferredClickhouseService,
@@ -347,9 +664,12 @@ async function sendClickhouseQuery<F extends DataFormat>(opts: {
     query: opts.query,
     format: opts.format,
     query_params: opts.params,
+    use_multipart_params_auto: opts.useMultipartParamsAuto,
+    ...(opts.queryId ? { query_id: opts.queryId } : {}),
+    ...(opts.abortSignal ? { abort_signal: opts.abortSignal } : {}),
     clickhouse_settings: {
       ...opts.clickhouseSettings,
-      log_comment: JSON.stringify(opts.tags ?? {}),
+      log_comment: JSON.stringify(normalizedTags),
     },
   });
 
@@ -358,6 +678,9 @@ async function sendClickhouseQuery<F extends DataFormat>(opts: {
   }
 
   opts.span.setAttribute("ch.queryId", res.query_id);
+  for (const [key, value] of Object.entries(normalizedTags)) {
+    opts.span.setAttribute(`ch.tag.${key}`, value);
+  }
   recordSummaryOnSpan(opts.span, res.response_headers);
 
   return res;
@@ -372,29 +695,35 @@ function isRetryableError(error: unknown): boolean {
   const errorMessage = (error as Error).message?.toLowerCase() || "";
 
   // Check for socket hang up and other network-related errors
-  const retryablePatterns = [
-    "socket hang up",
-    "broken pipe",
-    "connection reset",
-    "econnreset",
-    "network_error",
-    "etimedout",
-    "econnrefused",
-  ];
+  return CLICKHOUSE_NETWORK_ERROR_PATTERNS.some((pattern) =>
+    errorMessage.includes(pattern),
+  );
+}
 
-  return retryablePatterns.some((pattern) => errorMessage.includes(pattern));
+export class ClickHouseQueryAbortedError extends Error {
+  constructor(cause?: unknown) {
+    super("ClickHouse query aborted", { cause });
+    this.name = "ClickHouseQueryAbortedError";
+  }
 }
 
 export async function queryClickhouse<T>(
   opts: ClickhouseQueryOpts,
 ): Promise<T[]> {
   if (!opts.allowLegacyEventsRead) assertNoLegacyEventsRead(opts.query);
+  const normalizedTags = normalizeClickHouseQueryTags(opts.tags);
+  const table = clickHouseQueryTableLabel(opts.query);
+  const shape = clickHouseQueryShape(opts.query, table);
+  const clickhouseService = resolveClickhouseService(
+    opts.preferredClickhouseService,
+  );
   return await instrumentAsync(
     { name: "clickhouse-query", spanKind: SpanKind.CLIENT },
     async (span) => {
       setSpanQueryAttributes(span, opts.query);
 
-      return await backOff(
+      let summary: Record<string, string> | undefined;
+      const rows = await backOff(
         async () => {
           const res = await sendClickhouseQuery({
             ...opts,
@@ -406,6 +735,7 @@ export async function queryClickhouse<T>(
             format: "JSONEachRow",
             span,
           });
+          summary = parseClickHouseSummary(res.response_headers);
           return (await res.json<T>()).map(handleExceptionRow);
         },
         {
@@ -418,7 +748,7 @@ export async function queryClickhouse<T>(
                 {
                   error: error.message,
                   attemptNumber,
-                  tags: opts.tags,
+                  tags: normalizedTags,
                 },
               );
               span.addEvent("clickhouse-query-retry", {
@@ -430,7 +760,7 @@ export async function queryClickhouse<T>(
                 `ClickHouse query failed with non-retryable error: ${error.message}`,
                 {
                   error: error.message,
-                  tags: opts.tags,
+                  tags: normalizedTags,
                 },
               );
             }
@@ -441,16 +771,60 @@ export async function queryClickhouse<T>(
           maxDelay: 100,
         },
       ).catch((error) => {
-        throw ClickHouseResourceError.wrapIfResourceError(error as Error);
+        const wrapped = ClickHouseResourceError.wrapIfResourceError(
+          error as Error,
+          normalizedTags,
+        );
+        recordClickHouseQueryOutcome(
+          wrapped instanceof ClickHouseResourceError
+            ? CLICKHOUSE_RESOURCE_ERROR_OUTCOMES[wrapped.errorType]
+            : "error",
+          normalizedTags,
+          table,
+          shape,
+          clickhouseService,
+          error,
+        );
+        throw wrapped;
       });
+
+      recordClickHouseQueryOutcome(
+        "success",
+        normalizedTags,
+        table,
+        shape,
+        clickhouseService,
+      );
+      if (summary) {
+        recordClickHouseQueryElapsed(
+          summary,
+          normalizedTags,
+          table,
+          shape,
+          clickhouseService,
+        );
+      }
+      return rows;
     },
   );
 }
 
 export async function* queryClickhouseWithProgress<T>(
-  opts: ClickhouseQueryOpts,
+  opts: ClickhouseQueryOpts & { abortSignal?: AbortSignal },
 ): AsyncGenerator<RowOrProgress<T>> {
   if (!opts.allowLegacyEventsRead) assertNoLegacyEventsRead(opts.query);
+  const normalizedTags = normalizeClickHouseQueryTags(opts.tags);
+  const table = clickHouseQueryTableLabel(opts.query);
+  const shape = clickHouseQueryShape(opts.query, table);
+  const clickhouseService = resolveClickhouseService(
+    opts.preferredClickhouseService,
+  );
+  const progressContext = {
+    normalizedTags,
+    table,
+    shape,
+    clickhouseService,
+  };
 
   const tracer = getTracer("clickhouse-query-progress");
   const span = tracer.startSpan("clickhouse-query-progress", {
@@ -459,42 +833,278 @@ export async function* queryClickhouseWithProgress<T>(
 
   try {
     setSpanQueryAttributes(span, opts.query);
-
-    const res = await context
-      .with(trace.setSpan(context.active(), span), () =>
-        sendClickhouseQuery({
-          ...opts,
-          clickhouseSettings: {
-            asterisk_include_alias_columns: 1,
-            asterisk_include_materialized_columns: 1,
-            ...opts.clickhouseSettings,
-          },
-          format: "JSONEachRowWithProgress",
-          span,
-        }),
-      )
-      .catch((error) => {
-        throw ClickHouseResourceError.wrapIfResourceError(error as Error);
-      });
-
-    for await (const rows of res.stream()) {
-      for (const row of rows) {
-        yield row.json() as RowOrProgress<T>;
-      }
-    }
-  } catch (error) {
-    if (error instanceof ClickHouseResourceError) throw error;
-    throw ClickHouseResourceError.wrapIfResourceError(error as Error);
+    yield* runClickHouseProgressAttempts<T>(opts, span, progressContext);
   } finally {
     span.end();
   }
 }
 
+async function* runClickHouseProgressAttempts<T>(
+  opts: ClickhouseQueryOpts & { abortSignal?: AbortSignal },
+  span: Span,
+  progressContext: ClickHouseProgressQueryContext,
+): AsyncGenerator<RowOrProgress<T>> {
+  let emittedDataRow = false;
+  let completed = { read_rows: 0, read_bytes: 0, elapsed_ns: 0 };
+  let outcomeRecorded = false;
+  const recordError = (error: unknown, queryId?: string) => {
+    outcomeRecorded = true;
+    return recordClickHouseProgressError(error, queryId, progressContext);
+  };
+  const maxAttempts = Math.max(1, env.LANGFUSE_CLICKHOUSE_QUERY_MAX_ATTEMPTS);
+
+  try {
+    for (let attemptNumber = 1; attemptNumber <= maxAttempts; attemptNumber++) {
+      // Client-generated so failures before/without a response still carry a
+      // query_id on errors and spans; system.query_log stays pollable by id.
+      const queryId = randomUUID();
+      const progress = createClickHouseProgressAccumulator(completed);
+      try {
+        const { response, summary } = await startClickHouseProgressAttempt(
+          opts,
+          span,
+          progressContext.normalizedTags,
+          queryId,
+        );
+        for await (const event of streamClickHouseProgressResponse<T>(
+          response,
+        )) {
+          opts.abortSignal?.throwIfAborted();
+          if (isException(event))
+            recordError(new Error(event.exception), queryId);
+          if (isRow(event)) emittedDataRow = true;
+          yield isProgressRow(event) ? progress.add(event) : event;
+        }
+        opts.abortSignal?.throwIfAborted();
+        if (!outcomeRecorded) {
+          outcomeRecorded = true;
+          recordClickHouseProgressSuccess(summary, progressContext);
+        }
+        return;
+      } catch (error) {
+        if (opts.abortSignal?.aborted) {
+          const aborted = new ClickHouseQueryAbortedError(error);
+          if (!outcomeRecorded) recordError(aborted, queryId);
+          throw aborted;
+        }
+        if (outcomeRecorded) throw error;
+        if (
+          shouldRetryClickHouseProgress(
+            error,
+            emittedDataRow,
+            attemptNumber,
+            maxAttempts,
+          )
+        ) {
+          completed = progress.totals;
+          await retryClickHouseProgress(
+            error,
+            attemptNumber,
+            maxAttempts,
+            progressContext.normalizedTags,
+            span,
+          );
+          continue;
+        }
+        throw recordError(error, queryId);
+      }
+    }
+  } finally {
+    /** Consumer return()/break closes the stream without reaching EOF or catch. */
+    if (!outcomeRecorded) recordError(new ClickHouseQueryAbortedError());
+  }
+}
+
+async function startClickHouseProgressAttempt(
+  opts: ClickhouseQueryOpts & { abortSignal?: AbortSignal },
+  span: Span,
+  normalizedTags: NormalizedClickHouseQueryTags,
+  queryId: string,
+): Promise<{
+  response: ClickHouseProgressResponse;
+  summary: Record<string, string> | undefined;
+}> {
+  opts.abortSignal?.throwIfAborted();
+  span.setAttribute("ch.queryId", queryId);
+  const response = await context
+    .with(trace.setSpan(context.active(), span), () =>
+      sendClickhouseQuery({
+        ...opts,
+        clickhouseSettings: {
+          asterisk_include_alias_columns: 1,
+          asterisk_include_materialized_columns: 1,
+          ...opts.clickhouseSettings,
+        },
+        format: "JSONEachRowWithProgress",
+        span,
+        queryId,
+      }),
+    )
+    .catch((error) => {
+      throw ClickHouseResourceError.wrapIfResourceError(
+        error as Error,
+        normalizedTags,
+      );
+    });
+
+  return {
+    response,
+    summary: parseClickHouseSummary(response.response_headers),
+  };
+}
+
+async function* streamClickHouseProgressResponse<T>(
+  response: ClickHouseProgressResponse,
+): AsyncGenerator<RowOrProgress<T>> {
+  for await (const rows of response.stream()) {
+    for (const row of rows) yield row.json() as RowOrProgress<T>;
+  }
+}
+
+/** Own cumulative maxima; completed work is counted once across retries. */
+function createClickHouseProgressAccumulator(
+  completed: ClickHouseProgressCounters,
+) {
+  const totals = { ...completed };
+  return {
+    totals,
+    add: ({ progress }: ProgressRow): ProgressRow => {
+      const result = { ...progress };
+      for (const key of ["read_rows", "read_bytes", "elapsed_ns"] as const) {
+        const value = Number(progress[key]);
+        if (Number.isFinite(value)) {
+          totals[key] = Math.max(totals[key], completed[key] + value);
+        }
+        result[key] = String(totals[key]);
+      }
+      const estimate = Number(progress.total_rows_to_read);
+      if (estimate > 0) {
+        result.total_rows_to_read = String(
+          Math.max(
+            totals.read_rows,
+            completed.read_rows + (Number.isFinite(estimate) ? estimate : 0),
+          ),
+        );
+      }
+      return { progress: result };
+    },
+  };
+}
+
+function recordClickHouseProgressSuccess(
+  summary: Record<string, string> | undefined,
+  context: ClickHouseProgressQueryContext,
+): void {
+  recordClickHouseQueryOutcome(
+    "success",
+    context.normalizedTags,
+    context.table,
+    context.shape,
+    context.clickhouseService,
+  );
+  if (summary) {
+    recordClickHouseQueryElapsed(
+      summary,
+      context.normalizedTags,
+      context.table,
+      context.shape,
+      context.clickhouseService,
+    );
+  }
+}
+
+function shouldRetryClickHouseProgress(
+  error: unknown,
+  emittedDataRow: boolean,
+  attemptNumber: number,
+  maxAttempts: number,
+): boolean {
+  return (
+    !emittedDataRow &&
+    attemptNumber < maxAttempts &&
+    !(error instanceof ClickHouseQueryAbortedError) &&
+    isRetryableError(error)
+  );
+}
+
+async function retryClickHouseProgress(
+  error: unknown,
+  attemptNumber: number,
+  maxAttempts: number,
+  normalizedTags: NormalizedClickHouseQueryTags,
+  span: Span,
+): Promise<void> {
+  const message = error instanceof Error ? error.message : String(error);
+  logger.warn(
+    `ClickHouse query failed with retryable error (attempt ${attemptNumber}/${maxAttempts}): ${message}`,
+    {
+      error: message,
+      attemptNumber,
+      tags: normalizedTags,
+    },
+  );
+  span.addEvent("clickhouse-query-retry", {
+    "retry.attempt": attemptNumber,
+    "retry.error": message,
+  });
+  await new Promise((resolve) => setTimeout(resolve, 100));
+}
+
+function recordClickHouseProgressError(
+  error: unknown,
+  queryId: string | undefined,
+  context: ClickHouseProgressQueryContext,
+): Error {
+  const originalError = error as Error;
+  const wrapped =
+    originalError instanceof ClickHouseResourceError
+      ? new ClickHouseResourceError(
+          originalError.errorType,
+          enrichWithQueryId(originalError, queryId),
+          context.normalizedTags,
+        )
+      : ClickHouseResourceError.wrapIfResourceError(
+          enrichWithQueryId(originalError, queryId),
+          context.normalizedTags,
+        );
+  const fallbackOutcome =
+    error instanceof ClickHouseQueryAbortedError ? "client_closed" : "error";
+  recordClickHouseQueryOutcome(
+    wrapped instanceof ClickHouseResourceError
+      ? CLICKHOUSE_RESOURCE_ERROR_OUTCOMES[wrapped.errorType]
+      : fallbackOutcome,
+    context.normalizedTags,
+    context.table,
+    context.shape,
+    context.clickhouseService,
+    error,
+  );
+  return wrapped;
+}
+
+type ClickHouseProgressCounters = {
+  read_rows: number;
+  read_bytes: number;
+  elapsed_ns: number;
+};
+
+type ClickHouseProgressResponse = {
+  stream: () => AsyncIterable<ReadonlyArray<{ json: () => unknown }>>;
+};
+
+type ClickHouseProgressQueryContext = {
+  normalizedTags: NormalizedClickHouseQueryTags;
+  table: ReturnType<typeof clickHouseQueryTableLabel>;
+  shape: ReturnType<typeof clickHouseQueryShape>;
+  clickhouseService: ReturnType<typeof resolveClickhouseService>;
+};
+
 export async function commandClickhouse(opts: {
   query: string;
   params?: Record<string, unknown> | undefined;
   clickhouseConfigs?: NodeClickHouseClientConfigOptions;
-  tags?: Record<string, string>;
+  tags?: ClickHouseQueryTags;
+  queryId?: string;
   clickhouseSettings?: ClickHouseSettings;
   abortSignal?: AbortSignal;
   session_id?: string;
@@ -507,18 +1117,17 @@ export async function commandClickhouse(opts: {
       span.setAttribute("db.system", "clickhouse");
       span.setAttribute("db.query.text", opts.query);
       span.setAttribute("db.operation.name", "COMMAND");
+      const normalizedTags = normalizeClickHouseQueryTags(opts.tags);
 
       const res = await clickhouseClient(opts.clickhouseConfigs).command({
         query: opts.query,
         query_params: opts.params,
         ...(opts.session_id ? { session_id: opts.session_id } : {}),
-        ...(opts.tags?.queryId
-          ? { query_id: opts.tags.queryId as string }
-          : {}),
+        ...(opts.queryId ? { query_id: opts.queryId } : {}),
         ...(opts.abortSignal ? { abort_signal: opts.abortSignal } : {}),
         clickhouse_settings: {
           ...opts.clickhouseSettings,
-          log_comment: JSON.stringify(opts.tags ?? {}),
+          log_comment: JSON.stringify(normalizedTags),
         },
       });
       // same logic as for prisma. we want to see queries in development
@@ -527,6 +1136,9 @@ export async function commandClickhouse(opts: {
       }
 
       span.setAttribute("ch.queryId", res.query_id);
+      for (const [key, value] of Object.entries(normalizedTags)) {
+        span.setAttribute(`ch.tag.${key}`, value);
+      }
 
       // add summary headers to the span. Helps to tune performance
       const summaryHeader = res.response_headers["x-clickhouse-summary"];

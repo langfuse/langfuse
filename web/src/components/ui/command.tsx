@@ -1,17 +1,24 @@
+/* eslint-disable @repo/no-style-props, @repo/no-margin-on-root-elements, @repo/component-file-structure, @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 "use client";
 
 import * as React from "react";
 import { DialogTitle, type DialogProps } from "@radix-ui/react-dialog";
 import { Command as CommandPrimitive } from "cmdk";
-import { Search } from "lucide-react";
+import { Search } from "@langfuse/icons";
 
 import { cn } from "@/src/utils/tailwind";
+import {
+  KeyboardShortcut,
+  type KeyboardShortcutProps,
+} from "@/src/components/design-system/KeyboardShortcut/KeyboardShortcut";
 import {
   Dialog,
   DialogBody,
   DialogContent,
   DialogHeader,
 } from "@/src/components/ui/dialog";
+
+const commandDialogSurfaceClass = "bg-popover";
 
 const Command = React.forwardRef<
   React.ComponentRef<typeof CommandPrimitive>,
@@ -38,8 +45,14 @@ const CommandDialog = ({
   return (
     <Dialog {...props}>
       <DialogContent
-        className="overflow-hidden p-0 shadow-lg"
+        className={cn(
+          commandDialogSurfaceClass,
+          // Dark-mode depth: two near-black ambient layers.
+          "top-[calc(var(--banner-offset)+clamp(4rem,20dvh,12rem))] translate-y-0 overflow-hidden p-0 shadow-2xl dark:shadow-[0_32px_96px_-28px_hsl(var(--background)/0.95),0_16px_40px_-24px_hsl(var(--background)/0.9)]",
+        )}
         closeOnInteractionOutside
+        overlayMode="soft"
+        showCloseButton={false}
       >
         <DialogHeader className="sr-only p-0">
           <DialogTitle>Search</DialogTitle>
@@ -47,7 +60,10 @@ const CommandDialog = ({
         <DialogBody className="p-0">
           <Command
             filter={filter}
-            className="**:[[cmdk-group-heading]]:text-muted-foreground pb-1 [&_[cmdk-group]:not([hidden])_~[cmdk-group]]:pt-0 [&_[cmdk-input-wrapper]_svg]:h-5 [&_[cmdk-input-wrapper]_svg]:w-5 **:[[cmdk-group-heading]]:px-2 **:[[cmdk-group-heading]]:font-medium **:[[cmdk-group]]:px-2 **:[[cmdk-input]]:h-12"
+            className={cn(
+              commandDialogSurfaceClass,
+              "**:[[cmdk-group-heading]]:text-muted-foreground [&_[cmdk-item]_svg]:text-muted-foreground [&_[cmdk-item][data-selected=true]]:text-primary **:[[cmdk-input]]:text-primary **:[[cmdk-list]]:scroll-fade-b [&_.cmdk-input-wrapper>svg]:left-4 [&_[cmdk-group]:not([hidden])_~[cmdk-group]]:pt-0 [&_[cmdk-item]]:py-2.5 **:[[cmdk-group-heading]]:px-2 **:[[cmdk-group-heading]]:font-normal **:[[cmdk-group]]:px-2 **:[[cmdk-input]]:h-11 **:[[cmdk-input]]:pl-8.5 **:[[cmdk-list]]:max-h-[min(24rem,calc(100dvh-var(--banner-offset)-clamp(4rem,20dvh,12rem)-4.5rem))] **:[[cmdk-list]]:scroll-py-2 **:[[cmdk-list]]:pb-1",
+            )}
           >
             {children}
           </Command>
@@ -61,8 +77,10 @@ const CommandInput = React.forwardRef<
   React.ComponentRef<typeof CommandPrimitive.Input>,
   React.ComponentPropsWithoutRef<typeof CommandPrimitive.Input> & {
     showBorder?: boolean;
+    /** Compact panel-toolbar search: 28px, xs text, mono placeholder. */
+    variant?: "default" | "toolbar";
   }
->(({ className, showBorder = true, ...props }, ref) => (
+>(({ className, showBorder = true, variant = "default", ...props }, ref) => (
   <div
     className={cn(
       "relative flex items-center p-1",
@@ -70,11 +88,15 @@ const CommandInput = React.forwardRef<
       "cmdk-input-wrapper",
     )}
   >
-    <Search className="absolute top-1/2 left-2 mr-2 h-3.5 w-3.5 shrink-0 -translate-y-1/2 opacity-50" />
+    <Search
+      size="base"
+      __rawClassName="absolute top-1/2 left-2 mr-2 -translate-y-1/2 opacity-50"
+    />
     <CommandPrimitive.Input
       ref={ref}
       className={cn(
         "placeholder:text-muted-foreground flex h-8 w-full rounded-md bg-transparent py-3 pr-6 pl-6 text-sm outline-hidden focus:ring-0 focus:outline-hidden disabled:cursor-not-allowed disabled:opacity-50",
+        variant === "toolbar" && "h-7 text-xs placeholder:font-mono",
         className,
       )}
       {...props}
@@ -117,7 +139,7 @@ const CommandGroup = React.forwardRef<
   <CommandPrimitive.Group
     ref={ref}
     className={cn(
-      "text-foreground **:[[cmdk-group-heading]]:text-muted-foreground overflow-hidden p-1 **:[[cmdk-group-heading]]:px-2 **:[[cmdk-group-heading]]:py-1.5 **:[[cmdk-group-heading]]:text-xs **:[[cmdk-group-heading]]:font-medium",
+      "text-foreground **:[[cmdk-group-heading]]:text-muted-foreground overflow-hidden p-1 **:[[cmdk-group-heading]]:px-2 **:[[cmdk-group-heading]]:py-1.5 **:[[cmdk-group-heading]]:text-xs **:[[cmdk-group-heading]]:font-bold",
       className,
     )}
     {...props}
@@ -146,7 +168,7 @@ const CommandItem = React.forwardRef<
     ref={ref}
     className={cn(
       className,
-      "data-[selected='true']:bg-accent data-[selected=true]:text-accent-foreground relative flex cursor-default items-center gap-2 rounded-sm px-2 py-1.5 text-sm outline-hidden select-none data-[disabled=true]:pointer-events-none data-[disabled=true]:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
+      "data-[selected='true']:bg-accent data-[selected=true]:text-accent-foreground relative flex cursor-pointer items-center gap-2 rounded-sm px-2 py-1.5 text-sm outline-hidden select-none data-[disabled=true]:pointer-events-none data-[disabled=true]:cursor-not-allowed data-[disabled=true]:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0",
     )}
     {...props}
   />
@@ -154,18 +176,15 @@ const CommandItem = React.forwardRef<
 
 CommandItem.displayName = CommandPrimitive.Item.displayName;
 
-const CommandShortcut = ({
-  className,
-  ...props
-}: React.HTMLAttributes<HTMLSpanElement>) => {
+type CommandShortcutProps = KeyboardShortcutProps & {
+  className?: string;
+};
+
+const CommandShortcut = ({ className, ...props }: CommandShortcutProps) => {
   return (
-    <span
-      className={cn(
-        "text-muted-foreground ml-auto text-xs tracking-widest",
-        className,
-      )}
-      {...props}
-    />
+    <span className={cn("ml-auto hidden md:inline-flex", className)}>
+      <KeyboardShortcut {...props} />
+    </span>
   );
 };
 CommandShortcut.displayName = "CommandShortcut";
@@ -178,6 +197,6 @@ export {
   CommandEmpty,
   CommandGroup,
   CommandItem,
-  CommandShortcut,
   CommandSeparator,
+  CommandShortcut,
 };

@@ -1,16 +1,17 @@
 import {
+  clickhouseClient,
   createObservation,
   createTraceScore,
   createTrace,
   createSessionScore,
   getScoresByIds,
   getScoreById,
-} from "@langfuse/shared/src/server";
-import {
   createObservationsCh,
   createScoresCh,
   createTracesCh,
   createOrgProjectAndApiKey,
+  toClickhouseDateTime,
+  ScoreBody,
 } from "@langfuse/shared/src/server";
 import {
   makeAPICall,
@@ -20,11 +21,87 @@ import {
   DeleteScoreResponseV1,
   GetScoreResponseV1,
   GetScoresResponseV1,
+  NumericData,
+  PostScoreBodyV1,
 } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import { v4 } from "uuid";
 import { z } from "zod";
 import waitForExpect from "wait-for-expect";
+
+type IngestionAttributionRow = {
+  ingestion_api_key: string;
+  ingestion_sdk_name: string;
+  ingestion_sdk_version: string;
+};
+
+const getScoreIngestionAttribution = async (
+  projectId: string,
+  scoreId: string,
+) => {
+  const result = await clickhouseClient().query({
+    query: `
+      SELECT
+        ingestion_api_key,
+        ingestion_sdk_name,
+        ingestion_sdk_version
+      FROM scores
+      WHERE project_id = {projectId: String}
+        AND id = {scoreId: String}
+      ORDER BY event_ts DESC
+      LIMIT 1
+    `,
+    query_params: {
+      projectId,
+      scoreId,
+    },
+    format: "JSONEachRow",
+  });
+
+  const rows = await result.json<IngestionAttributionRow>();
+  return rows[0];
+};
+
+// GetScoreResponseV1 is a union whose TEXT variant carries no `value`; the
+// scores asserted below are NUMERIC, so narrow to the value-carrying variants.
+type APIScoreV1WithValue = Extract<
+  z.infer<typeof GetScoreResponseV1>,
+  { value: number }
+>;
+
+describe("score schema omission compatibility", () => {
+  it.each([
+    { name: "public API", schema: PostScoreBodyV1 },
+    { name: "ingestion", schema: ScoreBody },
+  ])("accepts inferred score types through $name", ({ schema }) => {
+    for (const value of [0.5, "positive"]) {
+      const input = { name: "inferred score", traceId: "trace-id", value };
+      const parsed = schema.parse(input);
+
+      expect(parsed).toMatchObject(input);
+      expect(parsed).not.toHaveProperty("dataType");
+      expect(schema.safeParse({ ...input, dataType: null }).success).toBe(
+        false,
+      );
+      expect(schema.safeParse({ ...input, dataType: "UNKNOWN" }).success).toBe(
+        false,
+      );
+    }
+  });
+
+  it("accepts numeric score data without a string value", () => {
+    expect(NumericData.parse({ dataType: "NUMERIC" })).toEqual({
+      dataType: "NUMERIC",
+    });
+    expect(
+      NumericData.safeParse({ dataType: "NUMERIC", stringValue: null }).success,
+    ).toBe(true);
+    expect(
+      NumericData.safeParse({ dataType: "NUMERIC", stringValue: "positive" })
+        .success,
+    ).toBe(false);
+  });
+});
 
 describe("/api/public/scores API Endpoint", () => {
   describe("GET /api/public/scores/:scoreId", () => {
@@ -191,6 +268,261 @@ describe("/api/public/scores API Endpoint", () => {
   });
 
   describe("POST /api/public/scores", () => {
+    it("should ingest multiple scores posted as a list", async () => {
+      const { projectId, auth } = await createOrgProjectAndApiKey();
+      const traceId = v4();
+      await createTracesCh([
+        createTrace({ id: traceId, project_id: projectId }),
+      ]);
+
+      const scoreIds = [v4(), v4()];
+      const response = await makeAPICall(
+        "POST",
+        "/api/public/scores",
+        scoreIds.map((id, index) => ({
+          id,
+          traceId,
+          name: `batch-score-${index}`,
+          value: index + 1,
+        })),
+        auth,
+      );
+
+      expect(response.status).toBe(202);
+      expect(response.body).toEqual({ message: "Accepted" });
+
+      await waitForExpect(async () => {
+        const scores = await getScoresByIds(projectId, scoreIds);
+        expect(scores).toHaveLength(2);
+        expect(scores).toEqual(
+          expect.arrayContaining(
+            scoreIds.map((id, index) =>
+              expect.objectContaining({
+                id,
+                name: `batch-score-${index}`,
+                value: index + 1,
+              }),
+            ),
+          ),
+        );
+      });
+    });
+
+    it.each([
+      ["with Z", "2026-01-15T10:20:30.123Z"],
+      ["with a +02:00 offset", "2026-01-15T12:20:30.123+02:00"],
+    ])("should store a single score timestamp %s", async (_, timestamp) => {
+      const { projectId, auth } = await createOrgProjectAndApiKey();
+      const scoreId = v4();
+
+      const response = await makeAPICall(
+        "POST",
+        "/api/public/scores",
+        {
+          id: scoreId,
+          traceId: v4(),
+          name: "timestamped-score",
+          value: 1,
+          timestamp,
+        },
+        auth,
+      );
+      expect(response.status).toBe(200);
+
+      await waitForExpect(async () => {
+        const score = await getScoreById({ projectId, scoreId });
+        expect(score?.timestamp).toEqual(new Date(timestamp));
+      });
+    });
+
+    it("should default the score timestamp to now", async () => {
+      const { projectId, auth } = await createOrgProjectAndApiKey();
+      const scoreId = v4();
+      const before = Date.now();
+
+      const response = await makeAPICall(
+        "POST",
+        "/api/public/scores",
+        { id: scoreId, traceId: v4(), name: "untimestamped-score", value: 1 },
+        auth,
+      );
+      expect(response.status).toBe(200);
+
+      await waitForExpect(async () => {
+        const score = await getScoreById({ projectId, scoreId });
+        expect(score?.timestamp.getTime()).toBeGreaterThanOrEqual(before);
+        expect(score?.timestamp.getTime()).toBeLessThanOrEqual(Date.now());
+      });
+    });
+
+    it.each([
+      ["without an offset", "2026-01-15T10:20:30.123"],
+      ["with a space separator", "2026-01-15 10:20:30"],
+    ])("should reject a single score timestamp %s", async (_, timestamp) => {
+      const { auth } = await createOrgProjectAndApiKey();
+
+      const response = await makeAPICall(
+        "POST",
+        "/api/public/scores",
+        {
+          traceId: v4(),
+          name: "bad-timestamp",
+          value: 1,
+          timestamp,
+        },
+        auth,
+      );
+
+      expect(response.status).toBe(400);
+    });
+
+    it("should apply per-item timestamps in a batch with mixed timestamps", async () => {
+      const { projectId, auth } = await createOrgProjectAndApiKey();
+      const traceId = v4();
+      const [firstId, secondId, defaultId] = [v4(), v4(), v4()];
+      const firstTimestamp = "2026-01-15T10:20:30.123Z";
+      const secondTimestamp = "2025-06-01T08:00:00.000+02:00";
+      const before = Date.now();
+
+      const response = await makeAPICall(
+        "POST",
+        "/api/public/scores",
+        [
+          {
+            id: firstId,
+            traceId,
+            name: "batch-ts",
+            value: 1,
+            timestamp: firstTimestamp,
+          },
+          {
+            id: secondId,
+            traceId,
+            name: "batch-ts",
+            value: 2,
+            timestamp: secondTimestamp,
+          },
+          { id: defaultId, traceId, name: "batch-ts", value: 3 },
+        ],
+        auth,
+      );
+
+      expect(response.status).toBe(202);
+
+      await waitForExpect(async () => {
+        const scores = await getScoresByIds(projectId, [
+          firstId,
+          secondId,
+          defaultId,
+        ]);
+        const timestampById = new Map(
+          scores.map((score) => [score.id, score.timestamp.getTime()]),
+        );
+        expect(timestampById.get(firstId)).toBe(
+          new Date(firstTimestamp).getTime(),
+        );
+        expect(timestampById.get(secondId)).toBe(
+          new Date(secondTimestamp).getTime(),
+        );
+        expect(timestampById.get(defaultId)).toBeGreaterThanOrEqual(before);
+      });
+    });
+
+    it("should accept a batch body larger than the 1 MB default limit", async () => {
+      const { auth } = await createOrgProjectAndApiKey();
+      const comment = "x".repeat(400_000);
+
+      const response = await makeAPICall(
+        "POST",
+        "/api/public/scores",
+        [0, 1, 2].map((index) => ({
+          traceId: v4(),
+          name: `large-batch-${index}`,
+          value: index,
+          comment,
+        })),
+        auth,
+      );
+
+      expect(response.status).toBe(202);
+    });
+
+    it("should reject only the batch item with an invalid timestamp", async () => {
+      const { projectId, auth } = await createOrgProjectAndApiKey();
+      const validId = v4();
+
+      const response = await makeAPICall<{
+        accepted: number;
+        rejected: number;
+        errors: { message: string }[];
+      }>(
+        "POST",
+        "/api/public/scores",
+        [
+          { id: validId, traceId: v4(), name: "valid", value: 1 },
+          {
+            traceId: v4(),
+            name: "invalid-timestamp",
+            value: 1,
+            timestamp: "2026-01-15T10:20:30",
+          },
+        ],
+        auth,
+      );
+
+      expect(response.status).toBe(207);
+      expect(response.body).toEqual({
+        accepted: 1,
+        rejected: 1,
+        errors: [{ message: expect.stringContaining("timestamp") }],
+      });
+      await waitForExpect(async () => {
+        const scores = await getScoresByIds(projectId, [validId]);
+        expect(scores).toHaveLength(1);
+      });
+    });
+
+    it("should summarize accepted and rejected scores in a partially failed batch", async () => {
+      const { auth } = await createOrgProjectAndApiKey();
+      const response = await makeAPICall<{
+        accepted: number;
+        rejected: number;
+        errors: { message: string }[];
+      }>(
+        "POST",
+        "/api/public/scores",
+        [
+          { name: "accepted-score", value: 1, traceId: v4() },
+          { id: "bad\r", name: "rejected-score", value: 1, traceId: v4() },
+          { value: 1, traceId: v4() },
+          {
+            name: "wrong-type",
+            dataType: "NUMERIC",
+            value: "great",
+            traceId: v4(),
+          },
+          null,
+        ],
+        auth,
+      );
+
+      expect(response.status).toBe(207);
+      expect(response.body).toEqual({
+        accepted: 1,
+        rejected: 4,
+        errors: expect.arrayContaining([
+          { message: expect.stringContaining("name") },
+          { message: expect.stringContaining("value") },
+          { message: expect.stringContaining("null") },
+          {
+            message: expect.stringContaining(
+              "ID cannot contain carriage return characters",
+            ),
+          },
+        ]),
+      });
+    });
+
     it("should create score for a trace", async () => {
       const traceId = v4();
 
@@ -229,7 +561,7 @@ describe("/api/public/scores API Endpoint", () => {
       expect(fetchedScore.body?.id).toBe(scoreId);
       expect(fetchedScore.body?.traceId).toBe(traceId);
       expect(fetchedScore.body?.name).toBe("score-name");
-      expect(fetchedScore.body?.value).toBe(100.5);
+      expect((fetchedScore.body as APIScoreV1WithValue)?.value).toBe(100.5);
       expect(fetchedScore.body?.observationId).toBeNull();
       expect(fetchedScore.body?.comment).toBe("comment");
       expect(fetchedScore.body?.source).toBe("API");
@@ -250,6 +582,7 @@ describe("/api/public/scores API Endpoint", () => {
       await createTracesCh([trace]);
 
       const scoreId = v4();
+      const now = Date.now();
 
       const score = createTraceScore({
         id: scoreId,
@@ -262,6 +595,8 @@ describe("/api/public/scores API Endpoint", () => {
         metadata: { "test-key": "test-value" },
         observation_id: null,
         environment: "production",
+        updated_at: now,
+        event_ts: now,
       });
       await createScoresCh([score]);
 
@@ -269,8 +604,8 @@ describe("/api/public/scores API Endpoint", () => {
         ...score,
         value: 200.5,
         metadata: { "test-key": "test-value-updated" },
-        updated_at: score.updated_at + 1,
-        event_ts: score.event_ts + 1,
+        updated_at: toClickhouseDateTime(now + 1),
+        event_ts: toClickhouseDateTime(now + 1),
       };
       await createScoresCh([updatedScore]);
 
@@ -285,7 +620,7 @@ describe("/api/public/scores API Endpoint", () => {
       expect(fetchedScore.body?.id).toBe(scoreId);
       expect(fetchedScore.body?.traceId).toBe(traceId);
       expect(fetchedScore.body?.name).toBe("score-name");
-      expect(fetchedScore.body?.value).toBe(200.5);
+      expect((fetchedScore.body as APIScoreV1WithValue)?.value).toBe(200.5);
       expect(fetchedScore.body?.observationId).toBeNull();
       expect(fetchedScore.body?.comment).toBe("comment");
       expect(fetchedScore.body?.source).toBe("API");
@@ -347,7 +682,7 @@ describe("/api/public/scores API Endpoint", () => {
       expect(fetchedScore.body?.id).toBe(scoreId);
       expect(fetchedScore.body?.traceId).toBe(traceId);
       expect(fetchedScore.body?.name).toBe("score-name");
-      expect(fetchedScore.body?.value).toBe(100);
+      expect((fetchedScore.body as APIScoreV1WithValue)?.value).toBe(100);
       expect(fetchedScore.body?.configId).toBe(configId);
       expect(fetchedScore.body?.observationId).toBeNull();
       expect(fetchedScore.body?.comment).toBe("comment");
@@ -362,6 +697,45 @@ describe("/api/public/scores API Endpoint", () => {
   });
 
   describe("GET /api/public/scores", () => {
+    it("clamps Hobby score access to the last 30 days", async () => {
+      const fixture = await createOrgProjectAndApiKey({ plan: "Hobby" });
+      const oldId = v4();
+      const recentId = v4();
+      const traceId = v4();
+      await createTracesCh([
+        createTrace({
+          id: traceId,
+          project_id: fixture.projectId,
+          timestamp: Date.now() - 24 * 60 * 60 * 1000,
+        }),
+      ]);
+      await createScoresCh([
+        createTraceScore({
+          id: oldId,
+          project_id: fixture.projectId,
+          trace_id: traceId,
+          timestamp: Date.now() - 100 * 24 * 60 * 60 * 1000,
+        }),
+        createTraceScore({
+          id: recentId,
+          project_id: fixture.projectId,
+          trace_id: traceId,
+          timestamp: Date.now() - 24 * 60 * 60 * 1000,
+        }),
+      ]);
+
+      const response = await makeZodVerifiedAPICall(
+        GetScoresResponseV1,
+        "GET",
+        "/api/public/scores",
+        undefined,
+        fixture.auth,
+      );
+
+      expect(response.body.data.map((score) => score.id)).toContain(recentId);
+      expect(response.body.data.map((score) => score.id)).not.toContain(oldId);
+    });
+
     it("#6396: should correctly list 100s of scores", async () => {
       const { projectId, auth } = await createOrgProjectAndApiKey();
 
@@ -438,7 +812,9 @@ describe("/api/public/scores API Endpoint", () => {
             dataType: "NUMERIC",
           });
           expect(score.name).toMatch(/^score-\d+$/);
-          expect(score.value).toBe(parseInt(score.name.split("-")[1]));
+          expect((score as APIScoreV1WithValue).value).toBe(
+            parseInt(score.name.split("-")[1]),
+          );
         }
 
         // Check if we need to fetch more pages
@@ -1100,8 +1476,11 @@ describe("/api/public/scores API Endpoint", () => {
               authentication,
             );
           } catch (error) {
-            expect((error as Error).message).toBe(
-              `API call did not return 200, returned status 400, body {\"message\":\"Invalid request data\",\"error\":[{\"code\":\"invalid_value\",\"values\":[\"<\",\">\",\"<=\",\">=\",\"!=\",\"=\"],\"path\":[\"operator\"],\"message\":\"Invalid option: expected one of \\\"<\\\"|\\\">\\\"|\\\"<=\\\"|\\\">=\\\"|\\\"!=\\\"|\\\"=\\\"\"}]}`,
+            const message = (error as Error).message;
+            expect(message).toContain("returned status 400");
+            expect(message).toContain('"message":"Invalid request data');
+            expect(message).toContain(
+              `\"error\":[{\"code\":\"invalid_value\",\"values\":[\"<\",\">\",\"<=\",\">=\",\"!=\",\"=\"],\"path\":[\"operator\"],\"message\":\"Invalid option: expected one of \\\"<\\\"|\\\">\\\"|\\\"<=\\\"|\\\">=\\\"|\\\"!=\\\"|\\\"=\\\"\"}]`,
             );
           }
         });
@@ -1119,10 +1498,73 @@ describe("/api/public/scores API Endpoint", () => {
               authentication,
             );
           } catch (error) {
-            expect((error as Error).message).toBe(
-              'API call did not return 200, returned status 400, body {"message":"Invalid request data","error":[{"expected":"number","code":"invalid_type","received":"NaN","path":["value"],"message":"Invalid input: expected number, received NaN"}]}',
+            const message = (error as Error).message;
+            expect(message).toContain("returned status 400");
+            expect(message).toContain('"message":"Invalid request data');
+            expect(message).toContain(
+              '"error":[{"expected":"number","code":"invalid_type","received":"NaN","path":["value"],"message":"Invalid input: expected number, received NaN"}]',
             );
           }
+        });
+
+        // Regression tests for #8630: the value operator must not override
+        // the fixed >= / < operators of the fromTimestamp/toTimestamp filters.
+        describe("operator combined with timestamp window", () => {
+          const fromTimestamp = new Date(
+            Date.now() - 24 * 60 * 60 * 1000,
+          ).toISOString();
+          const toTimestamp = new Date(
+            Date.now() + 24 * 60 * 60 * 1000,
+          ).toISOString();
+          const timestampWindow = `fromTimestamp=${fromTimestamp}&toTimestamp=${toTimestamp}`;
+
+          it("test operator > with timestamp window", async () => {
+            const getScore = await makeZodVerifiedAPICall(
+              GetScoresResponseV1,
+              "GET",
+              `/api/public/scores?${queryUserName}&operator=>&value=100&${timestampWindow}`,
+              undefined,
+              authentication,
+            );
+            expect(getScore.status).toBe(200);
+            expect(getScore.body.meta).toMatchObject({
+              page: 1,
+              limit: 50,
+              totalItems: 1,
+              totalPages: 1,
+            });
+            expect(getScore.body.data).toMatchObject([
+              {
+                id: scoreId_3,
+                name: scoreName,
+                value: 100.8,
+              },
+            ]);
+          });
+
+          it("test operator < with timestamp window", async () => {
+            const getScore = await makeZodVerifiedAPICall(
+              GetScoresResponseV1,
+              "GET",
+              `/api/public/scores?${queryUserName}&operator=<&value=50&${timestampWindow}`,
+              undefined,
+              authentication,
+            );
+            expect(getScore.status).toBe(200);
+            expect(getScore.body.meta).toMatchObject({
+              page: 1,
+              limit: 50,
+              totalItems: 1,
+              totalPages: 1,
+            });
+            expect(getScore.body.data).toMatchObject([
+              {
+                id: scoreId_1,
+                name: scoreName,
+                value: 10.5,
+              },
+            ]);
+          });
         });
       });
 
@@ -1447,6 +1889,40 @@ describe("/api/public/scores API Endpoint", () => {
   });
 
   describe("POST /api/public/scores source field", () => {
+    it("persists SDK attribution for POST /api/public/scores", async () => {
+      const { projectId, auth, publicKey } = await createOrgProjectAndApiKey();
+      const traceId = v4();
+      await createTracesCh([
+        createTrace({ id: traceId, project_id: projectId }),
+      ]);
+
+      const scoreId = v4();
+      const response = await makeAPICall(
+        "POST",
+        "/api/public/scores",
+        { id: scoreId, traceId, name: "feedback", value: 1 },
+        auth,
+        {
+          "x-langfuse-sdk-name": "python",
+          "x-langfuse-sdk-version": "3.4.0",
+        },
+      );
+
+      expect(response.status).toBe(200);
+
+      await waitForExpect(async () => {
+        const score = await getScoreById({ projectId, scoreId });
+        expect(score).toBeDefined();
+        expect(score!.id).toBe(scoreId);
+
+        expect(await getScoreIngestionAttribution(projectId, scoreId)).toEqual({
+          ingestion_api_key: publicKey,
+          ingestion_sdk_name: "python",
+          ingestion_sdk_version: "3.4.0",
+        });
+      }, 15_000);
+    }, 20_000);
+
     it("defaults source to API when omitted", async () => {
       const { projectId, auth } = await createOrgProjectAndApiKey();
       const traceId = v4();

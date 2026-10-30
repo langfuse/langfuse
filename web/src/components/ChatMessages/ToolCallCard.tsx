@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-margin-on-root-elements */
 import { type LLMToolCall } from "@langfuse/shared";
 import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
 
@@ -11,7 +12,7 @@ export const ToolCallCard: React.FC<{ toolCall: LLMToolCall }> = ({
           <div className="text-xs text-gray-500 dark:text-gray-400">
             Tool called
           </div>
-          <div className="mt-1 overflow-hidden text-xs font-medium text-ellipsis whitespace-nowrap">
+          <div className="mt-1 overflow-hidden text-xs font-bold text-ellipsis whitespace-nowrap">
             {toolCall.name}
           </div>
         </div>

@@ -1,16 +1,44 @@
 import { Action, Trigger } from "@prisma/client";
 import { FilterState } from "../types";
 import { z } from "zod";
+import {
+  PagerDutyRegionSchema,
+  PagerDutyRoutingKeySchema,
+} from "../features/pagerduty/types";
 
 export enum TriggerEventSource {
   Prompt = "prompt",
+  Monitor = "monitor",
+  // ProjectNotification groups platform "something went wrong" events (e.g.
+  // failed exports, blocked evaluators). The specific event lives in the
+  // trigger's eventActions.
+  ProjectNotification = "project-notification",
 }
 
 export const EventActionSchema = z.enum(["created", "updated", "deleted"]);
 
 export type TriggerEventAction = z.infer<typeof EventActionSchema>;
 
-export const TriggerEventSourceSchema = z.enum([TriggerEventSource.Prompt]);
+export const TriggerEventSourceSchema = z.enum([
+  TriggerEventSource.Prompt,
+  TriggerEventSource.Monitor,
+  TriggerEventSource.ProjectNotification,
+]);
+
+/**
+ * ProjectNotificationEventTypeSchema enumerates the platform "something went
+ * wrong" events routable to project notification channels. Stored as a
+ * `project-notification`-source trigger's eventActions. Client-safe so
+ * settings UI can list them. Add new event types here.
+ */
+export const ProjectNotificationEventTypeSchema = z.enum([
+  "blob-export-failed",
+  "posthog-export-failed",
+  "evaluator-blocked",
+]);
+export type ProjectNotificationEventType = z.infer<
+  typeof ProjectNotificationEventTypeSchema
+>;
 
 export type TriggerDomain = Omit<
   Trigger,
@@ -36,10 +64,15 @@ export type ActionDomainWithSecrets = Omit<Action, "config"> & {
   config: ActionConfigWithSecrets;
 };
 
-export const ActionTypeSchema = z.enum(["WEBHOOK", "SLACK", "GITHUB_DISPATCH"]);
+export const ActionTypeSchema = z.enum([
+  "WEBHOOK",
+  "SLACK",
+  "GITHUB_DISPATCH",
+  "PAGERDUTY",
+]);
 
-export const AvailableWebhookApiSchema = z.record(
-  z.enum(["prompt"]),
+export const AvailableWebhookApiSchema = z.partialRecord(
+  z.enum(["prompt", "monitor", "project-notification"]),
   z.enum(["v1"]),
 );
 
@@ -82,6 +115,8 @@ export const SlackActionConfigSchema = z.object({
   channelId: z.string(),
   channelName: z.string(),
   messageTemplate: z.string().optional(),
+  // Set server-side on save; private channel names are masked for everyone but the installer
+  isPrivate: z.boolean().optional(),
 });
 
 export type SlackActionConfig = z.infer<typeof SlackActionConfigSchema>;
@@ -118,22 +153,51 @@ export type GitHubDispatchActionConfigWithSecrets = z.infer<
   typeof GitHubDispatchActionConfigSchema
 >;
 
+/** PagerDutyActionConfigSchema is a stored PagerDuty action; `routingKey` is encrypted. */
+export const PagerDutyActionConfigSchema = z.object({
+  type: z.literal("PAGERDUTY"),
+  routingKey: z.string(),
+  displayRoutingKey: z.string(),
+  region: PagerDutyRegionSchema,
+});
+
+export const SafePagerDutyActionConfigSchema = PagerDutyActionConfigSchema.omit(
+  { routingKey: true },
+);
+
+/** PagerDutyActionCreateSchema is the PagerDuty action input; an update without `routingKey` keeps the stored key. */
+export const PagerDutyActionCreateSchema = z.object({
+  type: z.literal("PAGERDUTY"),
+  routingKey: PagerDutyRoutingKeySchema.optional(),
+  region: PagerDutyRegionSchema,
+});
+
+export type PagerDutyActionConfigWithSecrets = z.infer<
+  typeof PagerDutyActionConfigSchema
+>;
+export type SafePagerDutyActionConfig = z.infer<
+  typeof SafePagerDutyActionConfigSchema
+>;
+
 export const ActionConfigSchema = z.discriminatedUnion("type", [
   WebhookActionConfigSchema,
   SlackActionConfigSchema,
   GitHubDispatchActionConfigSchema,
+  PagerDutyActionConfigSchema,
 ]);
 
 export const ActionCreateSchema = z.discriminatedUnion("type", [
   WebhookActionCreateSchema,
   SlackActionConfigSchema,
   GitHubDispatchActionCreateSchema,
+  PagerDutyActionCreateSchema,
 ]);
 
 export const SafeActionConfigSchema = z.discriminatedUnion("type", [
   SafeWebhookActionConfigSchema,
   SlackActionConfigSchema,
   SafeGitHubDispatchActionConfigSchema,
+  SafePagerDutyActionConfigSchema,
 ]);
 
 export type ActionTypes = z.infer<typeof ActionTypeSchema>;
@@ -251,4 +315,11 @@ export function convertToSafeGitHubDispatchConfig(
     displayGitHubToken: config.displayGitHubToken,
     lastFailingExecutionId: config.lastFailingExecutionId,
   };
+}
+
+/** isPagerDutyActionConfig checks for a valid PagerDuty action configuration. */
+export function isPagerDutyActionConfig(
+  config: unknown,
+): config is PagerDutyActionConfigWithSecrets {
+  return PagerDutyActionConfigSchema.safeParse(config).success;
 }

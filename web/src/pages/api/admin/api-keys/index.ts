@@ -1,10 +1,13 @@
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { z } from "zod";
 import { prisma } from "@langfuse/shared/src/db";
-import { logger, redis } from "@langfuse/shared/src/server";
+import {
+  invalidateAllCachedApiKeys,
+  logger,
+  redis,
+} from "@langfuse/shared/src/server";
 import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
-import { AdminApiAuthService } from "@/src/ee/features/admin-api/server/adminApiAuth";
-
+import { AdminApiAuthService } from "@/src/ee/features/admin-api/server";
 /* 
 This API route is used by Langfuse Cloud to delete API keys for a project.
 We will work on admin APIs in the future. See the discussion here: https://github.com/orgs/langfuse/discussions/3243
@@ -20,9 +23,14 @@ const InvalidateApiKeySchema = z.object({
   projectIds: z.array(z.string()),
 });
 
+const InvalidateAllApiKeysSchema = z.object({
+  action: z.literal("invalidate-all"),
+});
+
 const ApiKeyAction = z.discriminatedUnion("action", [
   DeleteApiKeySchema,
   InvalidateApiKeySchema,
+  InvalidateAllApiKeysSchema,
 ]);
 
 export default async function handler(
@@ -107,6 +115,14 @@ export default async function handler(
         `Invalidated API keys for projects ${body.data.projectIds.join(", ")}`,
       );
       return res.status(200).json({ message: "API keys invalidated" });
+    } else if (body.data.action === "invalidate-all") {
+      const invalidatedCount = await invalidateAllCachedApiKeys(redis);
+
+      logger.info(`Invalidated all cached API keys (${invalidatedCount})`);
+      return res.status(200).json({
+        message: "All cached API keys invalidated",
+        invalidatedCount,
+      });
     }
 
     // return not implemented error

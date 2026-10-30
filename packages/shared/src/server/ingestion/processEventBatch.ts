@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary, @typescript-eslint/no-use-before-define */
 import { randomUUID } from "crypto";
 import { z } from "zod";
 
@@ -7,14 +8,16 @@ import {
   LangfuseNotFoundError,
   UnauthorizedError,
 } from "../../errors";
-import { AuthHeaderValidVerificationResultIngestion } from "../auth/types";
-import { getClickhouseEntityType } from "../clickhouse/schemaUtils";
+import { type AuthHeaderValidVerificationResultIngestion } from "../auth/types";
+import {
+  getClickhouseEntityType,
+  type IngestionEntityTypes,
+} from "../clickhouse/schemaUtils";
 import {
   getCurrentSpan,
   instrumentAsync,
   recordDistribution,
   recordIncrement,
-  traceException,
 } from "../instrumentation";
 import { logger } from "../logger";
 import { QueueJobs } from "../queues";
@@ -25,30 +28,28 @@ import {
   createIngestionEventSchema,
   IngestionEventType,
 } from "./types";
+import type { IngestionAttribution } from "./ingestionAttribution";
+import { StorageService } from "../services/StorageService";
+import { createEventUploadStorageService } from "../s3";
 import {
-  StorageService,
-  StorageServiceFactory,
-} from "../services/StorageService";
+  HASH_HEX_LENGTH,
+  safeBlobFilenameStem,
+  safeBlobKeySegment,
+} from "../services/safeBlobKeySegment";
+import { buildEventBucketPrefix } from "./eventBucketPath";
 import { isTraceIdInSample } from "./sampling";
 import {
+  createS3ThrottledIngestionError,
   isS3SlowDownError,
   markProjectS3Slowdown,
 } from "../redis/s3SlowdownTracking";
+import { markProjectIngestFailure } from "../redis/ingestionFailureTracking";
 
 let s3StorageServiceClient: StorageService;
 
 const getS3StorageServiceClient = (bucketName: string): StorageService => {
   if (!s3StorageServiceClient) {
-    s3StorageServiceClient = StorageServiceFactory.getInstance({
-      bucketName,
-      accessKeyId: env.LANGFUSE_S3_EVENT_UPLOAD_ACCESS_KEY_ID,
-      secretAccessKey: env.LANGFUSE_S3_EVENT_UPLOAD_SECRET_ACCESS_KEY,
-      endpoint: env.LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT,
-      region: env.LANGFUSE_S3_EVENT_UPLOAD_REGION,
-      forcePathStyle: env.LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE === "true",
-      awsSse: env.LANGFUSE_S3_EVENT_UPLOAD_SSE,
-      awsSseKmsKeyId: env.LANGFUSE_S3_EVENT_UPLOAD_SSE_KMS_KEY_ID,
-    });
+    s3StorageServiceClient = createEventUploadStorageService(bucketName);
   }
   return s3StorageServiceClient;
 };
@@ -87,24 +88,21 @@ const getDelay = (delay: number | null, source: "api" | "otel") => {
  * @property source - Source of the events for metrics tracking (e.g., "otel", "api").
  * @property isLangfuseInternal - Whether the events are being ingested by Langfuse internally (e.g. traces created for prompt experiments).
  * @property forwardToEventsTable - Whether to forward events to the staging events table for batch propagation. If undefined, falls back to environment flags.
+ * @property attribution - Request-level ingestion attribution to persist on generated records.
  */
 type ProcessEventBatchOptions = {
   delay?: number | null;
   source?: "api" | "otel";
   isLangfuseInternal?: boolean;
   forwardToEventsTable?: boolean;
+  attribution: IngestionAttribution;
 };
 
-/**
- * Processes a batch of events.
- * @param input - Batch of IngestionEventType. Will validate the types first thing and return errors if they are invalid.
- * @param authCheck - AuthHeaderValidVerificationResultIngestion
- * @param options - (Optional) Options for the event batch processing.
- */
+/** processEventBatch validates and queues authorized ingestion events, returning per-event results. */
 export const processEventBatch = async (
   input: unknown[],
   authCheck: AuthHeaderValidVerificationResultIngestion,
-  options: ProcessEventBatchOptions = {},
+  options: ProcessEventBatchOptions,
 ): Promise<{
   successes: { id: string; status: number }[];
   errors: {
@@ -122,6 +120,7 @@ export const processEventBatch = async (
     source = "api",
     isLangfuseInternal = false,
     forwardToEventsTable,
+    attribution,
   } = options;
 
   // add context of api call to the span
@@ -149,7 +148,6 @@ export const processEventBatch = async (
   }
 
   const validationErrors: { id: string; error: unknown }[] = [];
-  const authenticationErrors: { id: string; error: unknown }[] = [];
 
   const ingestionSchema = createIngestionEventSchema(isLangfuseInternal);
   const batch: z.infer<typeof ingestionSchema>[] = input
@@ -164,13 +162,6 @@ export const processEventBatch = async (
                 : "unknown"
               : "unknown",
           error: new InvalidRequestError(parsed.error.message),
-        });
-        return [];
-      }
-      if (!isAuthorized(parsed.data, authCheck)) {
-        authenticationErrors.push({
-          id: parsed.data.id,
-          error: new UnauthorizedError("Access Scope Denied"),
         });
         return [];
       }
@@ -189,6 +180,18 @@ export const processEventBatch = async (
 
   // We group events by eventBodyId which allows us to store and process them
   // as one which reduces infra interactions per event. Only used in the S3 case.
+  //
+  // The dedup struct also caches `entityType` and `bucketPrefix` so the two
+  // downstream loops (S3 upload + IngestionQueue enqueue) read a single
+  // source-of-truth per id instead of recomputing — that makes the
+  // producer/consumer-must-agree invariant structural. The sanitization warn
+  // log fires once at the time we resolve the prefix.
+  //
+  // `String(...)` preserves the prior null → "null" coercion of
+  // `authCheck.scope.projectId`. The surrounding function legitimately treats
+  // projectId as nullable elsewhere (metric labels, span attributes); we
+  // don't narrow it in the type system, and a `null` projectId would land
+  // events under an isolated `null/...` path rather than throw.
   const sortedBatchByEventBodyId = sortedBatch.reduce(
     (
       acc: Record<
@@ -198,6 +201,8 @@ export const processEventBatch = async (
           key: string;
           eventBodyId: string;
           type: (typeof eventTypes)[keyof typeof eventTypes];
+          entityType: IngestionEntityTypes;
+          bucketPrefix: string;
         }
       >,
       event,
@@ -205,16 +210,41 @@ export const processEventBatch = async (
       if (!event.body?.id) {
         return acc;
       }
-      const key = `${getClickhouseEntityType(event.type)}-${event.body.id}`;
-      if (!acc[key]) {
-        acc[key] = {
+      const entityType = getClickhouseEntityType(event.type);
+      const dedupKey = `${entityType}-${event.body.id}`;
+      if (!acc[dedupKey]) {
+        const eventBodyId = event.body.id;
+        const safeEventBodyId = safeBlobKeySegment(eventBodyId);
+        if (safeEventBodyId !== eventBodyId) {
+          // Do not log the raw or sanitized ID itself: the prefix can carry
+          // PII (litellm encodes provider/model/request metadata in the ID).
+          // The 16-hex hash is enough to correlate with the stored object
+          // during debugging.
+          logger.warn("Sanitized oversized/invalid entity ID for S3 key", {
+            projectId: authCheck.scope.projectId,
+            entityType,
+            originalIdByteLength: Buffer.byteLength(eventBodyId, "utf8"),
+            originalIdHash16: safeEventBodyId.slice(-HASH_HEX_LENGTH),
+          });
+        }
+        acc[dedupKey] = {
           data: [],
-          key: event.id,
+          // `event.id` becomes a single-segment filename (`<id>.json`) at S3
+          // write time and rides the queue payload as `fileKey`. Sanitize
+          // here so `/`, `\`, control bytes, and over-budget lengths can't
+          // reroute the write or overflow NAME_MAX.
+          key: safeBlobFilenameStem(event.id, ".json"),
           type: event.type,
-          eventBodyId: event.body.id,
+          eventBodyId,
+          entityType,
+          bucketPrefix: buildEventBucketPrefix({
+            projectId: String(authCheck.scope.projectId),
+            entityType,
+            entityId: eventBodyId,
+          }),
         };
       }
-      acc[key].data.push(event);
+      acc[dedupKey].data.push(event);
       return acc;
     },
     {},
@@ -224,6 +254,8 @@ export const processEventBatch = async (
    * ASYNC PROCESSING *
    ********************/
   let s3UploadErrored = false;
+  let s3UploadThrottled = false;
+  let s3UploadFailedOtherwise = false;
   await instrumentAsync({ name: "s3-upload-events" }, async () => {
     // S3 Event Upload is blocking, but non-failing.
     // If a promise rejects, we log it below, but do not throw an error.
@@ -233,8 +265,8 @@ export const processEventBatch = async (
         // We upload the event in an array to the S3 bucket grouped by the eventBodyId.
         // That way we batch updates from the same invocation into a single file and reduce
         // write operations on S3.
-        const { data, key, type, eventBodyId } = sortedBatchByEventBodyId[id];
-        const bucketPath = `${env.LANGFUSE_S3_EVENT_UPLOAD_PREFIX}${authCheck.scope.projectId}/${getClickhouseEntityType(type)}/${eventBodyId}/${key}.json`;
+        const { data, key, bucketPrefix } = sortedBatchByEventBodyId[id];
+        const bucketPath = `${bucketPrefix}${key}.json`;
         return getS3StorageServiceClient(
           env.LANGFUSE_S3_EVENT_UPLOAD_BUCKET,
         ).uploadJson(bucketPath, data);
@@ -246,6 +278,7 @@ export const processEventBatch = async (
 
         // Check if this is a SlowDown error and mark the project for secondary queue
         if (isS3SlowDownError(result.reason)) {
+          s3UploadThrottled = true;
           logger.warn(
             "S3 SlowDown error during upload, marking project for secondary queue",
             {
@@ -253,16 +286,28 @@ export const processEventBatch = async (
               error: result.reason,
             },
           );
-          // Fire and forget - don't await, don't block the error flow
           markProjectS3Slowdown(authCheck.scope.projectId!).catch(() => {});
+          markProjectIngestFailure(authCheck.scope.projectId!, {
+            source: "process_event_batch",
+            reason: "s3_slowdown",
+          });
+        } else {
+          s3UploadFailedOtherwise = true;
+          markProjectIngestFailure(authCheck.scope.projectId!, {
+            source: "process_event_batch",
+            reason: "s3_upload_error",
+          });
+          logger.error("Failed to upload event to S3", {
+            error: result.reason,
+          });
         }
-
-        logger.error("Failed to upload event to S3", {
-          error: result.reason,
-        });
       }
     });
   });
+
+  if (s3UploadThrottled && !s3UploadFailedOtherwise) {
+    throw createS3ThrottledIngestionError(source);
+  }
 
   // Send each event individually to IngestionQueue for ClickHouse processing
   if (s3UploadErrored) {
@@ -284,10 +329,8 @@ export const processEventBatch = async (
       const shardingKey = `${authCheck.scope.projectId}-${eventData.eventBodyId}`;
       const queue = IngestionQueue.getInstance({ shardingKey });
 
-      const isDatasetRunItemEvent =
-        getClickhouseEntityType(eventData.type) === "dataset_run_item";
-      const isObservationEvent =
-        getClickhouseEntityType(eventData.type) === "observation";
+      const isDatasetRunItemEvent = eventData.entityType === "dataset_run_item";
+      const isObservationEvent = eventData.entityType === "observation";
 
       const isOtelOrSkipS3Project =
         authCheck.scope.projectId !== null &&
@@ -332,6 +375,10 @@ export const processEventBatch = async (
                   fileKey: eventData.key,
                   skipS3List: shouldSkipS3List,
                   forwardToEventsTable,
+                  bucketPrefix: eventData.bucketPrefix,
+                  ingestionApiKey: attribution.ingestionApiKey,
+                  ingestionSdkName: attribution.ingestionSdkName,
+                  ingestionSdkVersion: attribution.ingestionSdkVersion,
                 },
                 authCheck: authCheck as {
                   validKey: true;
@@ -349,28 +396,10 @@ export const processEventBatch = async (
   );
 
   return aggregateBatchResult(
-    [...validationErrors, ...authenticationErrors],
+    validationErrors,
     sortedBatch.map((event) => ({ id: event.id, result: event })),
     authCheck.scope.projectId,
   );
-};
-
-const isAuthorized = (
-  event: IngestionEventType,
-  authScope: AuthHeaderValidVerificationResultIngestion,
-): boolean => {
-  if (event.type === eventTypes.SDK_LOG) {
-    return true;
-  }
-
-  if (event.type === eventTypes.SCORE_CREATE) {
-    return (
-      authScope.scope.accessLevel === "scores" ||
-      authScope.scope.accessLevel === "project"
-    );
-  }
-
-  return authScope.scope.accessLevel === "project";
 };
 
 /**
@@ -446,8 +475,7 @@ export const aggregateBatchResult = (
   });
 
   if (returnedErrors.length > 0) {
-    traceException(errors);
-    logger.error("Error processing events", {
+    logger.warn("Error processing events", {
       errors: returnedErrors,
       "langfuse.project.id": projectId,
     });

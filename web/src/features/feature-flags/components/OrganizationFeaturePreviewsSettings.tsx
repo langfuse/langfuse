@@ -1,0 +1,252 @@
+/* eslint-disable @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
+import { showErrorToast, showSuccessToast } from "@/src/features/notifications";
+import { useState } from "react";
+import { useSession } from "next-auth/react";
+
+import Header from "@/src/components/layouts/header";
+import { Switch } from "@/src/components/design-system/Switch/Switch";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/src/components/ui/alert-dialog";
+import { Alert } from "@/src/components/design-system/Alert/Alert";
+import { Card } from "@/src/components/ui/card";
+import {
+  featurePreviewFlags,
+  featurePreviewLabels,
+  defaultOnFeaturePreviewFlags,
+  isOrganizationOnlyFeaturePreviewFlag,
+  type FeaturePreviewFlag,
+} from "@/src/features/feature-flags/available-flags";
+import { OrganizationFeaturePreviewIntro } from "./OrganizationFeaturePreviewIntro";
+import { PersonalEnablementWarning } from "./PersonalEnablementWarning";
+import { canOpenPersonalFeaturePreviews } from "@/src/features/feature-previews/canOpenPersonalFeaturePreviews";
+import { ControlledFeaturePreviewModal } from "@/src/features/feature-previews/components/ControlledFeaturePreviewModal";
+import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { api } from "@/src/utils/api";
+import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
+
+type ProposedChange = {
+  flag: FeaturePreviewFlag;
+  enabled: boolean;
+};
+
+export function OrganizationFeaturePreviewsSettings({
+  orgId,
+}: {
+  orgId: string;
+}) {
+  const [proposedChange, setProposedChange] = useState<ProposedChange | null>(
+    null,
+  );
+  const [personalPreviewsOpen, setPersonalPreviewsOpen] = useState(false);
+  const session = useSession();
+  const { isLangfuseCloud } = useLangfuseCloudRegion();
+  const capture = usePostHogClientCapture();
+  const canOpenPersonalPreviews = canOpenPersonalFeaturePreviews({
+    isLangfuseCloud,
+    v4BetaEnabled: session.data?.user?.v4BetaEnabled === true,
+    isAdmin: session.data?.user?.admin === true,
+  });
+  const openPersonalPreviews = (source: "description" | "preview_row") => {
+    capture("organization_settings:personal_feature_previews_opened", {
+      source,
+    });
+    setPersonalPreviewsOpen(true);
+  };
+  const handleOpenFromDescription = () => {
+    openPersonalPreviews("description");
+  };
+  const handleOpenFromPreviewRow = () => {
+    openPersonalPreviews("preview_row");
+  };
+  const utils = api.useUtils();
+  const defaultsQuery = api.organizations.getFeatureFlagOrgDefaults.useQuery({
+    orgId,
+  });
+  const updateDefault = api.organizations.setFeatureFlagOrgDefault.useMutation({
+    onSuccess: async (_result, variables) => {
+      capture("organization_settings:feature_flag_default_toggled", {
+        feature: variables.flag,
+        isEnabled: variables.enabled,
+      });
+      setProposedChange(null);
+      await Promise.all([
+        utils.organizations.getFeatureFlagOrgDefaults.invalidate({ orgId }),
+        utils.members.allFromOrg.invalidate(),
+        session.update(),
+      ]);
+      showSuccessToast({
+        operation: "organization_feature_preview.update",
+        title: "Feature preview default updated",
+        description: `${featurePreviewLabels[variables.flag]} was ${
+          variables.enabled ? "enabled" : "disabled"
+        } for this organization.`,
+      });
+    },
+    onError: (error) => {
+      setProposedChange(null);
+      showErrorToast(
+        "Failed to update feature preview",
+        error.message,
+        classifyTrpcToastError(error, "organization_feature_preview.update"),
+      );
+    },
+  });
+
+  if (defaultsQuery.isError) {
+    return (
+      <Alert variant="destructive">
+        <Alert.Title>Feature previews unavailable</Alert.Title>
+        <Alert.Description>{defaultsQuery.error.message}</Alert.Description>
+      </Alert>
+    );
+  }
+
+  const selectedDefaults = new Set(defaultsQuery.data?.defaults ?? []);
+  const memberCount = defaultsQuery.data?.memberCount ?? 0;
+  const experimentalFeaturesEnabled =
+    session.data?.environment.enableExperimentalFeatures === true;
+
+  return (
+    <div className="flex flex-col gap-4">
+      <div>
+        <Header title="Feature Previews" />
+        <OrganizationFeaturePreviewIntro
+          canOpenPersonalPreviews={canOpenPersonalPreviews}
+          onOpenPersonalPreviews={handleOpenFromDescription}
+        />
+      </div>
+
+      {experimentalFeaturesEnabled ? (
+        <Alert>
+          <Alert.Title>
+            Experimental features enabled deployment-wide
+          </Alert.Title>
+          <Alert.Description>
+            Every preview on this page is enabled by the env variable
+            LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES=true. Per-user opt-outs do not
+            disable these previews.
+          </Alert.Description>
+        </Alert>
+      ) : null}
+
+      <div className="flex flex-col gap-3">
+        {featurePreviewFlags.map((flag) => {
+          const selected = selectedDefaults.has(flag);
+          const enabledForAdmin =
+            session.data?.user?.featureFlags[flag] === true;
+          const requiresPersonalEnablement =
+            !isOrganizationOnlyFeaturePreviewFlag(flag) &&
+            !selected &&
+            !enabledForAdmin;
+          return (
+            <Card
+              key={flag}
+              className="flex items-start justify-between gap-6 p-4"
+            >
+              <div className="flex min-w-0 flex-col gap-1">
+                <h3 className="font-bold">{featurePreviewLabels[flag]}</h3>
+                {defaultOnFeaturePreviewFlags.some(
+                  (defaultFlag) => defaultFlag === flag,
+                ) ? (
+                  <p className="text-muted-foreground text-xs">
+                    Enabled by default on the events-backed view. Turn off to
+                    disable it for this organization.
+                  </p>
+                ) : null}
+                {requiresPersonalEnablement ? (
+                  <PersonalEnablementWarning
+                    canOpenPersonalPreviews={canOpenPersonalPreviews}
+                    onOpenPersonalPreviews={handleOpenFromPreviewRow}
+                  />
+                ) : null}
+              </div>
+              <Switch
+                aria-label={`Toggle ${featurePreviewLabels[flag]} organization default`}
+                checked={experimentalFeaturesEnabled || selected}
+                disabled={
+                  experimentalFeaturesEnabled ||
+                  defaultsQuery.isPending ||
+                  updateDefault.isPending ||
+                  requiresPersonalEnablement
+                }
+                onCheckedChange={(enabled) =>
+                  setProposedChange({ flag, enabled })
+                }
+              />
+            </Card>
+          );
+        })}
+      </div>
+
+      <p className="text-muted-foreground text-xs">
+        Defaults apply only in this organization. Personal opt-outs apply to
+        user-level previews.
+      </p>
+
+      <AlertDialog
+        open={proposedChange !== null}
+        onOpenChange={(open) => {
+          if (!open && !updateDefault.isPending) setProposedChange(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {proposedChange?.enabled ? "Enable" : "Disable"} feature preview?
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              This will {proposedChange?.enabled ? "enable" : "disable"}{" "}
+              {proposedChange
+                ? featurePreviewLabels[proposedChange.flag]
+                : "this preview"}{" "}
+              for up to {memberCount} current member
+              {memberCount === 1 ? "" : "s"}. New members inherit enabled
+              organization defaults.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          {proposedChange?.enabled &&
+          !isOrganizationOnlyFeaturePreviewFlag(proposedChange.flag) ? (
+            <Alert>
+              <Alert.Title>Already enabled for you</Alert.Title>
+              <Alert.Description>
+                This preview is already enabled in your personal Feature Preview
+                settings. Make sure you have tested it before enabling it for
+                the organization.
+              </Alert.Description>
+            </Alert>
+          ) : null}
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={updateDefault.isPending}>
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              disabled={updateDefault.isPending || proposedChange === null}
+              onClick={() => {
+                if (!proposedChange) return;
+                updateDefault.mutate({ orgId, ...proposedChange });
+              }}
+            >
+              Confirm
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {canOpenPersonalPreviews ? (
+        <ControlledFeaturePreviewModal
+          open={personalPreviewsOpen}
+          onOpenChange={setPersonalPreviewsOpen}
+        />
+      ) : null}
+    </div>
+  );
+}

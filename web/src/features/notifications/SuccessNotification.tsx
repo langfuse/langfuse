@@ -1,9 +1,13 @@
 import { ActionButton } from "@/src/components/ActionButton";
-import { BadgeCheck, X } from "lucide-react";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { BadgeCheck, X } from "@langfuse/icons";
+import { useRef } from "react";
+import type { ToastOperation } from "./toastAnalytics";
 
 export type SuccessNotificationProps = {
   title: string;
   description: string;
+  operation: ToastOperation;
   onDismiss: () => void;
   link?: {
     href: string;
@@ -14,15 +18,40 @@ export type SuccessNotificationProps = {
 export const SuccessNotification: React.FC<SuccessNotificationProps> = ({
   title,
   description,
+  operation,
   onDismiss,
   link,
 }) => {
+  const capture = usePostHogClientCapture();
+  const didCaptureShown = useRef(false);
+
+  const captureShown = (element: HTMLDivElement | null) => {
+    if (!element || didCaptureShown.current) return;
+    didCaptureShown.current = true;
+
+    capture("toast:shown", {
+      toastType: "SUCCESS",
+      source: "application",
+      operation,
+      hasErrorId: false,
+    });
+  };
+
+  const handleDismiss = () => {
+    capture("toast:dismiss", {
+      toastType: "SUCCESS",
+      source: "application",
+      operation,
+    });
+    onDismiss();
+  };
+
   return (
-    <div className="flex justify-between">
+    <div ref={captureShown} className="flex justify-between">
       <div className="flex min-w-[300px] flex-1 flex-col gap-2">
         <div className="flex items-center gap-2">
-          <BadgeCheck size={20} className="text-primary-foreground" />
-          <div className="text-primary-foreground m-0 text-sm leading-tight font-medium">
+          <BadgeCheck size="lg" __rawClassName="text-primary-foreground" />
+          <div className="text-primary-foreground m-0 text-sm leading-tight font-bold">
             {title}
           </div>
         </div>
@@ -32,22 +61,19 @@ export const SuccessNotification: React.FC<SuccessNotificationProps> = ({
           </div>
         )}
         {link && (
-          <ActionButton
-            href={link.href}
-            size="sm"
-            variant="secondary"
-            className="self-start"
-          >
-            {link.text}
-          </ActionButton>
+          <div className="self-start">
+            <ActionButton href={link.href} size="sm" variant="secondary">
+              {link.text}
+            </ActionButton>
+          </div>
         )}
       </div>
       <button
         className="text-primary-foreground flex h-6 w-6 cursor-pointer items-start justify-end border-none bg-transparent p-0 transition-colors duration-200"
-        onClick={onDismiss}
+        onClick={handleDismiss}
         aria-label="Close"
       >
-        <X size={14} />
+        <X size="base" />
       </button>
     </div>
   );

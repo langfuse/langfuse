@@ -1,17 +1,25 @@
+import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import crypto from "crypto";
 import fs from "fs";
+import type { Session } from "next-auth";
 import path from "path";
 import { z } from "zod";
 
 import { makeZodVerifiedAPICallSilent } from "@/src/__tests__/test-utils";
 import { env } from "@/src/env.mjs";
 import {
+  createMediaUploadUrl,
   type GetMediaResponse,
   GetMediaResponseSchema,
   type GetMediaUploadUrlResponse,
   GetMediaUploadUrlResponseSchema,
-} from "@/src/features/media/validation";
+  MediaContentType,
+  updateMediaUploadStatus,
+} from "@/src/features/media/server";
+import { appRouter } from "@/src/server/api/root";
+import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import {
+  MediaAssociationOrigin,
   type Media,
   type ObservationMedia,
   prisma,
@@ -29,6 +37,43 @@ describe("Media Upload API", () => {
   const describeIfNotAzureBlobStorage = isAzureBlobMode
     ? describe.skip
     : describe;
+  const session: Session = {
+    expires: "1",
+    user: {
+      id: "user-1",
+      canCreateOrganizations: true,
+      name: "Demo User",
+      organizations: [
+        {
+          id: "seed-org-id",
+          name: "Test Organization",
+          role: "OWNER",
+          plan: "cloud:hobby",
+          cloudConfig: undefined,
+          metadata: {},
+          aiFeaturesEnabled: false,
+          aiTelemetryEnabled: true,
+          projects: [
+            {
+              id: projectId,
+              role: "ADMIN",
+              retentionDays: 30,
+              deletedAt: null,
+              hasTraces: false,
+              name: "Test Project",
+              metadata: {},
+              createdAt: new Date().toISOString(),
+            },
+          ],
+        },
+      ],
+      featureFlags: testFeatureFlags(),
+      admin: true,
+    },
+    environment: {} as any,
+  };
+  const ctx = createInnerTRPCContext({ session, headers: {} });
+  const caller = appRouter.createCaller({ ...ctx, prisma });
 
   // Read the image file once and reuse it for all tests
   const imagePathPNG = path.join(staticFixtureDir, "langfuse-logo.png");
@@ -138,7 +183,7 @@ describe("Media Upload API", () => {
         getUploadUrlResponse.body.uploadUrl,
         {
           method: "PUT",
-          body: fileBytes,
+          body: fileBytes as BodyInit,
           headers: {
             "Content-Type": contentType,
             "X-Amz-Checksum-Sha256": sha256Hash,
@@ -230,7 +275,9 @@ describe("Media Upload API", () => {
       throw new Error("You cannot prune database unless running on localhost.");
     }
 
-    await prisma.media.deleteMany();
+    await prisma.traceMedia.deleteMany({ where: { projectId } });
+    await prisma.observationMedia.deleteMany({ where: { projectId } });
+    await prisma.media.deleteMany({ where: { projectId } });
   });
 
   afterAll(async () => {
@@ -270,6 +317,7 @@ describe("Media Upload API", () => {
         traceId,
         mediaId: result.mediaRecord?.id,
         field,
+        origin: MediaAssociationOrigin.CLIENT_UPLOAD,
       });
       expect(result.observationMediaRecord).toBeNull();
       expect(result.fetchMediaAssetResponse?.status).toBe(200);
@@ -323,6 +371,7 @@ describe("Media Upload API", () => {
         observationId,
         mediaId: result.mediaRecord?.id,
         field,
+        origin: MediaAssociationOrigin.CLIENT_UPLOAD,
       });
       expect(result.fetchMediaAssetResponse?.status).toBe(200);
       expect(result.fetchMediaAssetResponse?.headers.get("content-type")).toBe(
@@ -756,7 +805,122 @@ describe("Media Upload API", () => {
     }, 10_000);
   });
 
+  // Azure Blob Storage answers a successful Put Blob with 201 Created.
+  describe("Azure Blob upload status", () => {
+    it("treats a 201 upload as completed and reuses the media", async () => {
+      const uploadRequest = {
+        contentType: MediaContentType.PNG,
+        contentLength: validPNG.contentLength,
+        sha256Hash: validPNG.sha256Hash,
+        traceId: `trace-${crypto.randomUUID()}`,
+        field: "input",
+      };
+
+      const first = await createMediaUploadUrl({
+        projectId,
+        body: uploadRequest,
+      });
+      expect(first.uploadUrl).toEqual(expect.any(String));
+
+      await updateMediaUploadStatus({
+        projectId,
+        mediaId: first.mediaId,
+        body: {
+          uploadedAt: new Date(),
+          uploadHttpStatus: 201,
+          uploadHttpError: "",
+        },
+      });
+
+      const media = await prisma.media.findUnique({
+        where: { projectId_id: { projectId, id: first.mediaId } },
+      });
+      expect(media).toMatchObject({
+        uploadHttpStatus: 201,
+        uploadHttpError: null,
+      });
+
+      const second = await createMediaUploadUrl({
+        projectId,
+        body: { ...uploadRequest, traceId: `trace-${crypto.randomUUID()}` },
+      });
+      expect(second).toEqual({ mediaId: first.mediaId, uploadUrl: null });
+    });
+  });
+
+  describe("tRPC media reader", () => {
+    it("ignores media link rows without a media parent", async () => {
+      const traceId = `trace-${crypto.randomUUID()}`;
+      const observationTraceId = `trace-${crypto.randomUUID()}`;
+      const observationId = `observation-${crypto.randomUUID()}`;
+
+      await prisma.traceMedia.create({
+        data: {
+          id: crypto.randomUUID(),
+          projectId,
+          traceId,
+          mediaId: crypto.randomUUID(),
+          field: "input",
+        },
+      });
+      await prisma.observationMedia.create({
+        data: {
+          id: crypto.randomUUID(),
+          projectId,
+          traceId: observationTraceId,
+          observationId,
+          mediaId: crypto.randomUUID(),
+          field: "output",
+        },
+      });
+
+      await expect(
+        caller.media.getByTraceOrObservationId({ projectId, traceId }),
+      ).resolves.toEqual([]);
+      await expect(
+        caller.media.getByTraceOrObservationId({
+          projectId,
+          traceId: observationTraceId,
+          observationId,
+        }),
+      ).resolves.toEqual([]);
+    });
+  });
+
   describe("Request Validation", () => {
+    it("should reject observationId without traceId", async () => {
+      const response = await makeZodVerifiedAPICallSilent(
+        z.any(),
+        "POST",
+        "api/public/media",
+        {
+          observationId: "test-observation",
+          contentType: validPNG.contentType,
+          contentLength: validPNG.contentLength,
+          sha256Hash: validPNG.sha256Hash,
+          field: "input",
+        },
+      );
+
+      expect(response.status).toBe(400);
+    }, 10_000);
+
+    it("should reject traceId without field", async () => {
+      const response = await makeZodVerifiedAPICallSilent(
+        z.any(),
+        "POST",
+        "api/public/media",
+        {
+          traceId: "test",
+          contentType: validPNG.contentType,
+          contentLength: validPNG.contentLength,
+          sha256Hash: validPNG.sha256Hash,
+        },
+      );
+
+      expect(response.status).toBe(400);
+    }, 10_000);
+
     it("should reject invalid content types", async () => {
       const traceId = "test";
       const field = "input";
@@ -825,7 +989,7 @@ describe("Media Upload API", () => {
 
       // Create a modified copy of the PNG file bytes by changing a single byte
       const modifiedFileBytes = Buffer.from(validPNG.fileBytes);
-      modifiedFileBytes[0] = modifiedFileBytes[0] ^ 0xff; // Flip bits of first byte
+      modifiedFileBytes[0] = 255 - modifiedFileBytes[0];
 
       const result = await runMediaUploadEndToEndTest({
         ...validPNG,

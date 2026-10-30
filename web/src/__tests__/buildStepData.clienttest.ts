@@ -15,7 +15,7 @@ vi.mock("@langfuse/shared", () => ({
 }));
 
 import { buildStepData } from "@/src/features/trace-graph-view/buildStepData";
-import { type AgentGraphDataResponse } from "@/src/features/trace-graph-view/types";
+import { type AgentGraphDataResponse } from "@/src/features/trace-graph-view";
 
 describe("buildStepData", () => {
   const createMockObservation = (
@@ -30,6 +30,47 @@ describe("buildStepData", () => {
     endTime: "2025-08-21 18:53:25.587",
     observationType: "AGENT",
     ...overrides,
+  });
+
+  describe("inverted time ranges", () => {
+    it("makes progress when a group contains inverted time ranges", () => {
+      const observations = [
+        createMockObservation({
+          id: "generation-1",
+          name: "generation-1",
+          startTime: "2026-05-27T09:17:52.469Z",
+          endTime: "2026-05-27T09:17:56.536Z",
+        }),
+        createMockObservation({
+          id: "generation-2",
+          name: "generation-2",
+          startTime: "2026-05-27T09:17:52.556Z",
+          endTime: "2026-05-27T09:17:57.301Z",
+        }),
+        createMockObservation({
+          id: "inverted-tool-1",
+          name: "inverted-tool-1",
+          startTime: "2026-05-27T09:17:55.846Z",
+          endTime: "2026-05-27T09:17:52.468Z",
+        }),
+        createMockObservation({
+          id: "inverted-tool-2",
+          name: "inverted-tool-2",
+          startTime: "2026-05-27T09:17:56.536Z",
+          endTime: "2026-05-27T09:17:52.556Z",
+        }),
+      ];
+      const result = buildStepData(observations);
+      const userObservations = result.filter((obs) => !obs.name.includes("__"));
+
+      expect(userObservations.map((obs) => obs.id)).toEqual([
+        "generation-1",
+        "generation-2",
+        "inverted-tool-1",
+        "inverted-tool-2",
+      ]);
+      expect(userObservations.every((obs) => obs.step !== null)).toBe(true);
+    });
   });
 
   describe("basic sequential timing", () => {
@@ -437,12 +478,89 @@ describe("buildStepData", () => {
       expect(parent!.step!).toBeLessThan(child!.step!);
     });
 
+    it(
+      "should terminate when parent pointers form a cycle and still assign steps to well-formed nodes",
+      { timeout: 2000 },
+      () => {
+        // o1 and o2 name each other as parent (malformed data): without the
+        // ancestor-walk cycle guard in assignGlobalTimingSteps this walk would
+        // loop forever; the MAX_ITERATIONS bound caps the unsatisfiable
+        // constraint loop the cycle creates.
+        const observations: AgentGraphDataResponse[] = [
+          createMockObservation({
+            id: "o1",
+            name: "cycle-first",
+            startTime: "2025-08-21 18:53:25.000",
+            endTime: "2025-08-21 18:53:25.100",
+            parentObservationId: "o2",
+          }),
+          createMockObservation({
+            id: "o2",
+            name: "cycle-second",
+            startTime: "2025-08-21 18:53:25.050",
+            endTime: "2025-08-21 18:53:25.150",
+            parentObservationId: "o1",
+          }),
+          createMockObservation({
+            id: "root",
+            name: "well-formed-root",
+            startTime: "2025-08-21 18:53:25.020",
+            endTime: "2025-08-21 18:53:25.120",
+            parentObservationId: null,
+          }),
+        ];
+
+        const result = buildStepData(observations);
+
+        const userObservations = result.filter(
+          (obs) => !obs.name.includes("__"),
+        );
+        expect(userObservations).toHaveLength(3);
+
+        const root = userObservations.find(
+          (obs) => obs.name === "well-formed-root",
+        );
+        expect(root?.step).toEqual(expect.any(Number));
+      },
+    );
+
     it("should handle empty array", () => {
       const result = buildStepData([]);
       // Should only have system nodes (__start__, __end__)
       expect(result).toHaveLength(2);
       expect(result.every((obs) => obs.name.includes("__"))).toBe(true);
     });
+
+    it(
+      "should group a long sequential chain without overflowing the call stack",
+      { timeout: 15_000 },
+      () => {
+        // Each non-overlapping observation becomes its own step group. A
+        // recursive walk overflows the browser stack on a long sequential
+        // trace even when every group makes progress.
+        const COUNT = 8_000;
+        const base = Date.parse("2025-08-21T18:53:25.000Z");
+        const observations: AgentGraphDataResponse[] = Array.from(
+          { length: COUNT },
+          (_, i) =>
+            createMockObservation({
+              id: `seq-${i}`,
+              name: `seq-${i}`,
+              startTime: new Date(base + i * 20).toISOString(),
+              endTime: new Date(base + i * 20 + 10).toISOString(),
+            }),
+        );
+
+        const result = buildStepData(observations);
+        const userObservations = result.filter(
+          (obs) => !obs.name.includes("__"),
+        );
+
+        expect(userObservations).toHaveLength(COUNT);
+        expect(userObservations[0].step).toBe(1);
+        expect(userObservations[COUNT - 1].step).toBe(COUNT);
+      },
+    );
 
     it(
       "should handle large number of observations with identical timestamps just below limit",

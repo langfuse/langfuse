@@ -3,7 +3,7 @@ import { useLayoutEffect, useMemo, useRef } from "react";
 function debounce<T extends (...args: any[]) => any>(
   func: T,
   timeout: number,
-  executeFirstCall: boolean = false,
+  executeFirstCall = false,
 ): (...args: Parameters<T>) => ReturnType<T> | undefined {
   let timer: ReturnType<typeof setTimeout> | null = null;
   let result: ReturnType<T> | undefined;
@@ -30,8 +30,8 @@ function debounce<T extends (...args: any[]) => any>(
 
 export function useDebounce<T extends (...args: any[]) => any>(
   callback: T,
-  delay: number = 600,
-  executeFirstCall: boolean = true,
+  delay = 600,
+  executeFirstCall = true,
 ): (...args: Parameters<T>) => ReturnType<T> | undefined {
   const callbackRef = useRef(callback);
   useLayoutEffect(() => {

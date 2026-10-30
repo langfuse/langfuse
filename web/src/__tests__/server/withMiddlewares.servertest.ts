@@ -1,8 +1,14 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import {
   LEGACY_PUBLIC_API_METRICS_CLICKHOUSE_RESOURCE_ERROR_MESSAGE,
+  type RouteHandler,
   withMiddlewares,
 } from "@/src/features/public-api/server/withMiddlewares";
+import {
+  clickHouseRouteForRequest,
+  DYNAMIC_API_ROUTE_TEMPLATES,
+} from "@/src/features/public-api/server/clickHouseRequestTags";
+import { readdirSync, readFileSync } from "fs";
 import {
   BaseError,
   LangfuseNotFoundError,
@@ -17,6 +23,13 @@ import {
 import { createMocks } from "node-mocks-http";
 import { z } from "zod";
 import { Prisma } from "@prisma/client";
+import { env } from "@/src/env.mjs";
+import { sendAuthErrorJson } from "@/src/features/public-api/server/deprecations";
+
+vi.mock("@/src/env.mjs", async (importOriginal) => {
+  const actual = await importOriginal<{ env: typeof env }>();
+  return { ...actual, env: { ...actual.env } };
+});
 
 // Mock the logger and traceException
 vi.mock("@langfuse/shared/src/server", async () => ({
@@ -29,6 +42,95 @@ vi.mock("@langfuse/shared/src/server", async () => ({
   },
   traceException: vi.fn(),
 }));
+
+describe("clickHouseRouteForRequest", () => {
+  const request = (method: string | undefined, url: string | undefined) =>
+    ({ method, url }) as NextApiRequest;
+
+  it("uses only the request pathname", () => {
+    expect(
+      clickHouseRouteForRequest(
+        request(
+          "GET",
+          "/api/public/v2/traces?projectId=project-1&secret=do-not-log",
+        ),
+      ),
+    ).toBe("GET /api/public/v2/traces");
+  });
+
+  it("removes search params from malformed urls in the fallback path", () => {
+    expect(
+      clickHouseRouteForRequest(
+        request("POST", "http://[::1?secret=do-not-log#fragment"),
+      ),
+    ).toBe("POST http://[::1");
+  });
+
+  it("reports a dynamic route as its template", () => {
+    expect(
+      clickHouseRouteForRequest(
+        request(
+          "GET",
+          "/api/public/v2/prompts/team%2Fsupport/versions/3?label=prod",
+        ),
+      ),
+    ).toBe("GET /api/public/v2/prompts/[promptName]/versions/[promptVersion]");
+  });
+
+  // A caller-chosen id must not survive into the route: the route tag feeds a
+  // metric, so every distinct id would add a series.
+  it.each([
+    "/api/public/traces/abcdefgh?traceId=x",
+    "/api/public/traces/api",
+    "/api/public/traces/traces/",
+  ])("templates %s regardless of the id's value", (url) => {
+    expect(clickHouseRouteForRequest(request("GET", url))).toBe(
+      "GET /api/public/traces/[traceId]",
+    );
+  });
+
+  it("lists every dynamic API route that tags its ClickHouse queries", () => {
+    const apiDir = `${__dirname}/../../pages/api`;
+    const tagsQueries = (file: string) =>
+      file.startsWith("public/") ||
+      /\b(withMiddlewares|createAuthedProjectAPIRoute|clickHouseRouteForRequest)\(/.test(
+        readFileSync(`${apiDir}/${file}`, "utf8"),
+      );
+    const dynamicTemplates = readdirSync(apiDir, { recursive: true })
+      .map(String)
+      .filter((file) => file.endsWith(".ts") && file.includes("["))
+      .filter(tagsQueries)
+      .map(
+        (file) => "/api/" + file.replace(/\.ts$/, "").replace(/\/index$/, ""),
+      );
+
+    expect([...DYNAMIC_API_ROUTE_TEMPLATES].sort()).toEqual(
+      [...new Set(dynamicTemplates)].sort(),
+    );
+  });
+
+  it("reports static routes as themselves even where a template overlaps them", () => {
+    const apiDir = `${__dirname}/../../pages/api`;
+    const staticPaths = readdirSync(apiDir, { recursive: true })
+      .map(String)
+      .filter((file) => file.endsWith(".ts") && !file.includes("["))
+      .map(
+        (file) => "/api/" + file.replace(/\.ts$/, "").replace(/\/index$/, ""),
+      );
+
+    const misreported = staticPaths.filter(
+      (path) =>
+        clickHouseRouteForRequest(request("GET", path)) !== `GET ${path}`,
+    );
+    expect(misreported).toEqual([]);
+  });
+
+  it("falls back to UNKNOWN method for missing methods", () => {
+    expect(
+      clickHouseRouteForRequest(request(undefined, "/api/public/health")),
+    ).toBe("UNKNOWN /api/public/health");
+  });
+});
 
 describe("withMiddlewares error handling", () => {
   beforeEach(() => {
@@ -60,6 +162,9 @@ describe("withMiddlewares error handling", () => {
         message: "Bad Request",
         error: "BadRequest",
       });
+      expect(logger.warn).toHaveBeenCalledWith(error);
+      expect(logger.error).not.toHaveBeenCalled();
+      expect(traceException).not.toHaveBeenCalled();
     });
 
     it("should handle BaseError with 5xx status code and trace exception", async () => {
@@ -93,6 +198,24 @@ describe("withMiddlewares error handling", () => {
       });
       // Should trace 5xx errors
       expect(traceException).toHaveBeenCalledWith(error);
+    });
+    it("should set Retry-After when a ServiceUnavailableError carries one", async () => {
+      const handler = withMiddlewares({
+        POST: async () => {
+          throw new ServiceUnavailableError("Throttled", {
+            retryAfterSeconds: 2,
+          });
+        },
+      });
+
+      const { req, res } = createMocks<NextApiRequest, NextApiResponse>({
+        method: "POST",
+      });
+
+      await handler(req, res);
+
+      expect(res._getStatusCode()).toBe(503);
+      expect(res.getHeader("Retry-After")).toBe("2");
     });
   });
 
@@ -215,6 +338,48 @@ describe("withMiddlewares error handling", () => {
       expect(jsonData["error"]).toBe("Request timed out");
     });
 
+    it("should include tags from the error in the warn log", async () => {
+      const originalError = new Error("Memory limit exceeded");
+      const resourceError = new ClickHouseResourceError(
+        "MEMORY_LIMIT",
+        originalError,
+        {
+          tag_schema_version: "1",
+          surface: "publicapi",
+          route: "GET /api/public/test",
+        },
+      );
+
+      const handler = withMiddlewares({
+        GET: async () => {
+          throw resourceError;
+        },
+      });
+
+      const { req, res } = createMocks<NextApiRequest, NextApiResponse>({
+        method: "GET",
+        headers: {
+          "x-langfuse-public-key": "test-key",
+        },
+      });
+
+      await handler(req, res);
+
+      expect(res._getStatusCode()).toBe(422);
+      expect(logger.warn).toHaveBeenCalledTimes(1);
+      expect(logger.warn).toHaveBeenCalledWith(
+        "ClickHouse resource limit exceeded",
+        expect.objectContaining({
+          errorType: "MEMORY_LIMIT",
+          tags: {
+            tag_schema_version: "1",
+            surface: "publicapi",
+            route: "GET /api/public/test",
+          },
+        }),
+      );
+    });
+
     it("should handle ClickHouseResourceError with custom advice", async () => {
       const originalError = new Error("Timeout exceeded");
       const resourceError = new ClickHouseResourceError(
@@ -322,6 +487,9 @@ describe("withMiddlewares error handling", () => {
           }),
         ]),
       });
+      expect(logger.warn).toHaveBeenCalledWith(expect.any(z.ZodError));
+      expect(logger.error).not.toHaveBeenCalled();
+      expect(traceException).not.toHaveBeenCalled();
     });
   });
 
@@ -359,6 +527,34 @@ describe("withMiddlewares error handling", () => {
   });
 
   describe("Generic error handling", () => {
+    it("should keep handler RangeError instances on the generic 500 path", async () => {
+      const error = new RangeError("Invalid string length");
+
+      const handler = withMiddlewares({
+        GET: async () => {
+          throw error;
+        },
+      });
+
+      const { req, res } = createMocks<NextApiRequest, NextApiResponse>({
+        method: "GET",
+        headers: {
+          "x-langfuse-public-key": "test-key",
+        },
+      });
+
+      await handler(req, res);
+
+      expect(res._getStatusCode()).toBe(500);
+      const jsonData = JSON.parse(res._getData());
+      expect(jsonData).toMatchObject({
+        message: "Internal Server Error",
+        error: "Invalid string length",
+      });
+      expect(logger.error).toHaveBeenCalledWith(error);
+      expect(traceException).toHaveBeenCalledWith(error);
+    });
+
     it("should handle generic Error instances with 500 status", async () => {
       const error = new Error("Something went wrong");
 
@@ -434,5 +630,176 @@ describe("withMiddlewares error handling", () => {
         error: "An unknown error occurred",
       });
     });
+  });
+});
+
+describe("withMiddlewares deprecation signal", () => {
+  const deprecation = {
+    message: "Removed on 2026-11-16. Use GET /api/public/v2/observations.",
+    replacement: "GET /api/public/v2/observations?fromStartTime=<from>",
+    docsUrl: "https://langfuse.com/docs/x",
+    sunsetAt: "2026-11-16",
+  };
+  const originalRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
+
+  beforeEach(() => {
+    Object.assign(env, { NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: "US" });
+  });
+  afterEach(() => {
+    Object.assign(env, { NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: originalRegion });
+  });
+
+  const deprecated = (fn: RouteHandler): RouteHandler =>
+    Object.assign(fn, { deprecation });
+
+  async function call(
+    handlers: Parameters<typeof withMiddlewares>[0],
+    method: "GET" | "POST" | "PUT",
+  ) {
+    const { req, res } = createMocks<NextApiRequest, NextApiResponse>({
+      method,
+    });
+    await withMiddlewares(handlers)(req, res);
+    return res;
+  }
+
+  it("sends deprecation headers and leads the body with `_deprecation`", async () => {
+    const res = await call(
+      {
+        GET: deprecated(async (_req, res) => {
+          res.status(200).json({ data: [], meta: { page: 1 } });
+        }),
+      },
+      "GET",
+    );
+
+    expect(res._getStatusCode()).toBe(200);
+    expect(res.getHeader("Deprecation")).toBe("@1784764800");
+    expect(res.getHeader("Sunset")).toBe("Mon, 16 Nov 2026 00:00:00 GMT");
+    expect(res.getHeader("Link")).toBe(
+      '</api/public/v2/observations>; rel="successor-version", <https://langfuse.com/docs/x>; rel="deprecation"',
+    );
+    const body = JSON.parse(res._getData());
+    expect(Object.keys(body)[0]).toBe("_deprecation");
+    expect(body.meta).toEqual({
+      deprecation: {
+        sunsetAt: deprecation.sunsetAt,
+        replacement: deprecation.replacement,
+      },
+      page: 1,
+    });
+  });
+
+  it("names the replacement in thrown 4xx errors", async () => {
+    const res = await call(
+      {
+        GET: deprecated(async () => {
+          throw new LangfuseNotFoundError("Observation not found");
+        }),
+      },
+      "GET",
+    );
+
+    expect(res._getStatusCode()).toBe(404);
+    const body = JSON.parse(res._getData());
+    expect(body._deprecation).toEqual(deprecation);
+    expect(body.message).toBe(
+      `Observation not found. Use ${deprecation.replacement} instead.`,
+    );
+  });
+
+  it("stamps a 405 for a method the deprecated route does not have", async () => {
+    const res = await call({ GET: deprecated(async () => {}) }, "POST");
+
+    expect(res._getStatusCode()).toBe(405);
+    expect(res.getHeader("Sunset")).toBe("Mon, 16 Nov 2026 00:00:00 GMT");
+    expect(JSON.parse(res._getData())._deprecation).toEqual(deprecation);
+  });
+
+  it.each([
+    [401, new UnauthorizedError("Invalid credentials.")],
+    [500, new BaseError("Internal", 500, "Database down", false)],
+  ])(
+    "stamps but does not add the replacement to a %i",
+    async (status, error) => {
+      const res = await call(
+        {
+          GET: deprecated(async () => {
+            throw error;
+          }),
+        },
+        "GET",
+      );
+
+      expect(res._getStatusCode()).toBe(status);
+      const body = JSON.parse(res._getData());
+      expect(body._deprecation).toEqual(deprecation);
+      expect(body.message).toBe(error.message);
+    },
+  );
+
+  it("sends a plain 405 when the route also has live methods", async () => {
+    const res = await call(
+      {
+        GET: deprecated(async () => {}),
+        POST: async () => {},
+      },
+      "PUT",
+    );
+
+    expect(res._getStatusCode()).toBe(405);
+    expect(res.getHeader("Deprecation")).toBeUndefined();
+    expect(JSON.parse(res._getData())._deprecation).toBeUndefined();
+  });
+
+  it("stamps auth errors without the replacement hint", async () => {
+    const res = await call(
+      {
+        GET: deprecated(async (_req, res) => {
+          sendAuthErrorJson(res, 404, {
+            message: "Project not found or you don't have access to it",
+          });
+        }),
+      },
+      "GET",
+    );
+
+    expect(res._getStatusCode()).toBe(404);
+    const body = JSON.parse(res._getData());
+    expect(body._deprecation).toEqual(deprecation);
+    expect(body.message).toBe(
+      "Project not found or you don't have access to it",
+    );
+  });
+
+  it("leaves non-deprecated methods of the same route unchanged", async () => {
+    const res = await call(
+      {
+        GET: deprecated(async () => {}),
+        POST: async (_req, res) => {
+          res.status(201).json({ id: "1" });
+        },
+      },
+      "POST",
+    );
+
+    expect(res.getHeader("Deprecation")).toBeUndefined();
+    expect(JSON.parse(res._getData())).toEqual({ id: "1" });
+  });
+
+  it("sends no signal outside Langfuse Cloud", async () => {
+    Object.assign(env, { NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: undefined });
+
+    const res = await call(
+      {
+        GET: deprecated(async (_req, res) => {
+          res.status(200).json({ data: [] });
+        }),
+      },
+      "GET",
+    );
+
+    expect(res.getHeader("Deprecation")).toBeUndefined();
+    expect(JSON.parse(res._getData())).toEqual({ data: [] });
   });
 });

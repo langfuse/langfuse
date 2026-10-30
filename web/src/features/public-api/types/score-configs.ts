@@ -7,6 +7,7 @@ import {
   paginationMetaResponseZod,
   publicApiPaginationZod,
   ScoreConfigCategory,
+  SCORE_CONFIG_NAME_MAX_LENGTH,
   ScoreConfigNameSchema,
   validateCategories,
   validateNumericRangeFields,
@@ -34,7 +35,7 @@ const CategoriesWithCustomError = jsonSchema.superRefine((categories, ctx) => {
 const ScoreConfigBase = z.object({
   id: z.string(),
   projectId: z.string(),
-  name: z.string(),
+  name: z.string().max(SCORE_CONFIG_NAME_MAX_LENGTH),
   description: z.string().nullish(),
   createdAt: z.coerce.date(),
   updatedAt: z.coerce.date(),
@@ -95,14 +96,14 @@ export const PostScoreConfigBody = z
       // Boolean config API POST body will always infer the categories based on data type
       ...z.object({
         dataType: z.literal("BOOLEAN"),
-        categories: z.undefined(),
+        categories: z.undefined().optional(),
       }).shape,
     }),
     z.object({
       ...PostScoreConfigBase.shape,
       ...z.object({
         dataType: z.literal("TEXT"),
-        categories: z.undefined(),
+        categories: z.undefined().optional(),
         maxValue: z.undefined().nullish(),
         minValue: z.undefined().nullish(),
       }).shape,
@@ -117,6 +118,9 @@ export const PutScoreConfigQuery = z.object({
   configId: z.string(),
 });
 
+const nonEmptyScoreConfigUpdateMessage =
+  "Request body cannot be empty. At least one field must be provided for update.";
+
 export const PutScoreConfigBody = z
   .object({
     isArchived: z.boolean().optional(),
@@ -127,8 +131,19 @@ export const PutScoreConfigBody = z
     description: z.string().optional(),
   })
   .refine((data) => Object.keys(data).length > 0, {
-    message:
-      "Request body cannot be empty. At least one field must be provided for update.",
+    message: nonEmptyScoreConfigUpdateMessage,
+  });
+
+export const PutScoreConfigBodyWithoutArchived = z
+  .object({
+    name: ScoreConfigNameSchema.optional(),
+    minValue: z.number().optional(),
+    maxValue: z.number().optional(),
+    categories: CategoriesWithCustomError.optional(),
+    description: z.string().optional(),
+  })
+  .refine((data) => Object.keys(data).length > 0, {
+    message: nonEmptyScoreConfigUpdateMessage,
   });
 
 export const PutScoreConfigResponse = APIScoreConfig;

@@ -1,5 +1,6 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import capitalize from "lodash/capitalize";
-import { GripVertical, MinusCircleIcon } from "lucide-react";
+import { GripVertical, MinusCircleIcon } from "@langfuse/icons";
 import {
   memo,
   useState,
@@ -32,11 +33,16 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/src/components/ui/select";
-import { useOptionalPlaygroundContext } from "@/src/features/playground/page/context";
+import { useOptionalPlaygroundContext } from "@/src/features/playground/page/context/PlaygroundProvider";
 import {
   useOptionalMessageSearchActions,
   useOptionalMessageSearchPageId,
 } from "./MessageSearch";
+
+export type MessageRowRefs = {
+  rowRef: RefObject<HTMLDivElement | null>;
+  editorRef: RefObject<ReactCodeMirrorRef | null>;
+};
 
 type ChatMessageProps = Pick<
   MessagesContext,
@@ -45,7 +51,13 @@ type ChatMessageProps = Pick<
   | "availableRoles"
   | "toolCallIds"
   | "replaceMessage"
-> & { message: ChatMessageWithId; index: number };
+> & {
+  message: ChatMessageWithId;
+  index: number;
+  // Lets the parent ChatMessages track this row's DOM + editor refs so it can
+  // scroll to and focus a freshly added message (LFE-6864).
+  registerRow?: (id: string, refs: MessageRowRefs | null) => void;
+};
 
 const ROLES: ChatMessageRole[] = [
   ChatMessageRole.User,
@@ -75,8 +87,6 @@ const getRoleNamePlaceholder = (role: string) => {
 };
 
 const ToolCalls: React.FC<{ toolCalls: LLMToolCall[] }> = ({ toolCalls }) => {
-  if (!toolCalls || toolCalls.length === 0) return null;
-
   return (
     <div className="w-full space-y-2">
       {toolCalls.map((toolCall) => (
@@ -94,6 +104,7 @@ export const ChatMessageComponent: React.FC<ChatMessageProps> = ({
   availableRoles,
   index: _index,
   toolCallIds,
+  registerRow,
 }) => {
   const [roleIndex, setRoleIndex] = useState(1);
   const playgroundContext = useOptionalPlaygroundContext();
@@ -243,7 +254,21 @@ export const ChatMessageComponent: React.FC<ChatMessageProps> = ({
     unregisterMessageTarget,
   ]);
 
+  // Keep the parent ChatMessages registry in sync so it can scroll to and
+  // focus this row when it is the newly added message (LFE-6864). The actual
+  // registration happens in handleEditorMount once CodeMirror has mounted and
+  // editorRef.current is populated — registering here on first render would
+  // store a null editor (CodeMirror mounts async). This effect only handles
+  // unregistering the row when it unmounts.
+  useEffect(() => {
+    return () => {
+      registerRow?.(message.id, null);
+    };
+  }, [message.id, registerRow]);
+
   const handleEditorMount = useCallback(() => {
+    registerRow?.(message.id, { rowRef, editorRef });
+
     if (!pageId || !registerMessageTarget) {
       return;
     }
@@ -252,7 +277,7 @@ export const ChatMessageComponent: React.FC<ChatMessageProps> = ({
       rowRef,
       editorRef,
     });
-  }, [message.id, pageId, registerMessageTarget]);
+  }, [message.id, pageId, registerMessageTarget, registerRow]);
 
   return (
     <Card
@@ -272,11 +297,9 @@ export const ChatMessageComponent: React.FC<ChatMessageProps> = ({
           {...listeners}
           className="flex w-3 cursor-move items-center justify-center opacity-50 transition-opacity hover:opacity-100"
         >
-          <GripVertical className="h-3 w-3" />
+          <GripVertical size="sm" />
         </div>
-        <CardContent
-          className={cn("flex flex-1 flex-row items-center gap-2 p-0 pl-1")}
-        >
+        <CardContent className="flex flex-1 flex-row items-center gap-2 p-0 pl-1">
           <div className="bg-background sticky top-0 bottom-0 z-10 flex w-16 shrink-0 flex-col gap-1">
             {isPlaceholder ? (
               <span className="bg-accent text-muted-foreground inline-flex h-6 w-full items-center justify-center rounded-md px-4 font-mono text-[9px]">
@@ -287,7 +310,7 @@ export const ChatMessageComponent: React.FC<ChatMessageProps> = ({
                 onClick={toggleRole}
                 type="button"
                 variant="ghost"
-                className="text-muted-foreground hover:bg-accent hover:text-accent-foreground h-6 w-full px-1 py-0 text-[10px] font-semibold"
+                className="text-muted-foreground hover:bg-accent hover:text-accent-foreground h-6 w-full px-1 py-0 text-[10px] font-bold"
               >
                 {capitalize(message.role)}
               </Button>
@@ -342,9 +365,10 @@ export const ChatMessageComponent: React.FC<ChatMessageProps> = ({
                 />
               )}
             </div>
-            {message.type === ChatMessageType.AssistantToolCall && (
-              <ToolCalls toolCalls={message.toolCalls as LLMToolCall[]} />
-            )}
+            {message.type === ChatMessageType.AssistantToolCall &&
+              message.toolCalls.length > 0 && (
+                <ToolCalls toolCalls={message.toolCalls as LLMToolCall[]} />
+              )}
           </div>
           <Button
             variant="ghost"
@@ -354,7 +378,7 @@ export const ChatMessageComponent: React.FC<ChatMessageProps> = ({
             className="h-5 w-5 shrink-0 rounded-full p-0 opacity-60 transition-all hover:opacity-100"
             aria-label="Delete message"
           >
-            <MinusCircleIcon size={14} />
+            <MinusCircleIcon size="base" color="default" />
           </Button>
         </CardContent>
       </div>

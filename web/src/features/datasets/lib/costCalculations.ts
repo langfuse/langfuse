@@ -15,7 +15,7 @@ export type ObservationCostData = {
 /**
  * Find all descendants of a root observation using BFS traversal
  */
-export const findObservationDescendants = <T extends ObservationCostData>(
+const findObservationDescendants = <T extends ObservationCostData>(
   rootObsId: string,
   allObservations: T[],
 ): T[] => {
@@ -63,7 +63,7 @@ export const findObservationDescendants = <T extends ObservationCostData>(
 /**
  * Sum costs for a list of observations
  */
-export const sumObservationCosts = (
+const sumObservationCosts = (
   observations: ObservationCostData[],
 ): Decimal | undefined => {
   return observations.reduce<Decimal | undefined>((prev, curr) => {

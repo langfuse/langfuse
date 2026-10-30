@@ -7,11 +7,11 @@
     "declaration": false,
     "declarationMap": false,
     "outDir": "./dist",
+    "rootDir": "./src",
     "target": "es2024",
     "types": ["node"],
-    "downlevelIteration": true,
     "resolveJsonModule": true
   },
-  "include": ["."],
+  "include": ["src"],
   "exclude": ["node_modules", "dist", "src/**/*.test.ts", "vitest.config.ts"]
 }

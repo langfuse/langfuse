@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-style-props, @repo/no-margin-on-root-elements, @repo/component-file-structure, @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 "use client";
 
 import * as React from "react";
@@ -5,20 +6,38 @@ import * as AlertDialogPrimitive from "@radix-ui/react-alert-dialog";
 
 import { cn } from "@/src/utils/tailwind";
 import { buttonVariants } from "@/src/components/ui/button";
+import { useLayerContainer } from "@/src/context/LayerContext/LayerContext";
+import motionStyles from "./dialog-motion.module.css";
 
+/**
+ * @deprecated Use design-system/ConfirmationDialogController/ConfirmationDialogController.
+ */
 const AlertDialog = AlertDialogPrimitive.Root;
 
-const AlertDialogTrigger = AlertDialogPrimitive.Trigger;
+// Route the portal into the `modal` overlay layer (null until mounted →
+// falls back to <body>, SSR-parity). Layer order, not z-index, stacks it.
+/**
+ * @deprecated Use design-system/ConfirmationDialogController/ConfirmationDialogController.
+ */
+const AlertDialogPortal = ({
+  ...props
+}: React.ComponentPropsWithoutRef<typeof AlertDialogPrimitive.Portal>) => {
+  const container = useLayerContainer("modal");
+  return <AlertDialogPrimitive.Portal container={container} {...props} />;
+};
+AlertDialogPortal.displayName = "AlertDialogPortal";
 
-const AlertDialogPortal = AlertDialogPrimitive.Portal;
-
+/**
+ * @deprecated Use design-system/ConfirmationDialogController/ConfirmationDialogController.
+ */
 const AlertDialogOverlay = React.forwardRef<
   React.ComponentRef<typeof AlertDialogPrimitive.Overlay>,
   React.ComponentPropsWithoutRef<typeof AlertDialogPrimitive.Overlay>
 >(({ className, ...props }, ref) => (
   <AlertDialogPrimitive.Overlay
     className={cn(
-      "data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 fixed inset-0 z-50 bg-black/80",
+      motionStyles.overlay,
+      "fixed inset-0 bg-black/50 dark:bg-black/65",
       className,
     )}
     {...props}
@@ -27,6 +46,9 @@ const AlertDialogOverlay = React.forwardRef<
 ));
 AlertDialogOverlay.displayName = AlertDialogPrimitive.Overlay.displayName;
 
+/**
+ * @deprecated Use design-system/ConfirmationDialogController/ConfirmationDialogController or compose design-system/DialogController/DialogController with design-system/Dialog/Dialog.
+ */
 const AlertDialogContent = React.forwardRef<
   React.ComponentRef<typeof AlertDialogPrimitive.Content>,
   React.ComponentPropsWithoutRef<typeof AlertDialogPrimitive.Content>
@@ -36,7 +58,8 @@ const AlertDialogContent = React.forwardRef<
     <AlertDialogPrimitive.Content
       ref={ref}
       className={cn(
-        "bg-background data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[state=closed]:slide-out-to-left-1/2 data-[state=closed]:slide-out-to-top-[48%] data-[state=open]:slide-in-from-left-1/2 data-[state=open]:slide-in-from-top-[48%] fixed top-[50%] left-[50%] z-50 grid w-full max-w-lg translate-x-[-50%] translate-y-[-50%] gap-4 border p-6 shadow-lg duration-200 sm:rounded-lg",
+        motionStyles.content,
+        "bg-modal fixed top-[50%] left-[50%] grid w-full max-w-lg translate-x-[-50%] translate-y-[-50%] gap-4 border p-6 shadow-lg sm:rounded-lg",
         className,
       )}
       {...props}
@@ -45,6 +68,9 @@ const AlertDialogContent = React.forwardRef<
 ));
 AlertDialogContent.displayName = AlertDialogPrimitive.Content.displayName;
 
+/**
+ * @deprecated Use the title prop of design-system/ConfirmationDialogController/ConfirmationDialogController.
+ */
 const AlertDialogHeader = ({
   className,
   ...props
@@ -59,6 +85,9 @@ const AlertDialogHeader = ({
 );
 AlertDialogHeader.displayName = "AlertDialogHeader";
 
+/**
+ * @deprecated Use design-system/ConfirmationDialogController/ConfirmationDialogController.
+ */
 const AlertDialogFooter = ({
   className,
   ...props
@@ -73,18 +102,24 @@ const AlertDialogFooter = ({
 );
 AlertDialogFooter.displayName = "AlertDialogFooter";
 
+/**
+ * @deprecated Use the title prop of design-system/ConfirmationDialogController/ConfirmationDialogController.
+ */
 const AlertDialogTitle = React.forwardRef<
   React.ComponentRef<typeof AlertDialogPrimitive.Title>,
   React.ComponentPropsWithoutRef<typeof AlertDialogPrimitive.Title>
 >(({ className, ...props }, ref) => (
   <AlertDialogPrimitive.Title
     ref={ref}
-    className={cn("text-lg font-semibold", className)}
+    className={cn("text-lg font-bold", className)}
     {...props}
   />
 ));
 AlertDialogTitle.displayName = AlertDialogPrimitive.Title.displayName;
 
+/**
+ * @deprecated Use the text prop of design-system/ConfirmationDialogController/ConfirmationDialogController.
+ */
 const AlertDialogDescription = React.forwardRef<
   React.ComponentRef<typeof AlertDialogPrimitive.Description>,
   React.ComponentPropsWithoutRef<typeof AlertDialogPrimitive.Description>
@@ -98,6 +133,9 @@ const AlertDialogDescription = React.forwardRef<
 AlertDialogDescription.displayName =
   AlertDialogPrimitive.Description.displayName;
 
+/**
+ * @deprecated Use the confirmLabel, onConfirm and variant props of design-system/ConfirmationDialogController/ConfirmationDialogController.
+ */
 const AlertDialogAction = React.forwardRef<
   React.ComponentRef<typeof AlertDialogPrimitive.Action>,
   React.ComponentPropsWithoutRef<typeof AlertDialogPrimitive.Action>
@@ -110,6 +148,9 @@ const AlertDialogAction = React.forwardRef<
 ));
 AlertDialogAction.displayName = AlertDialogPrimitive.Action.displayName;
 
+/**
+ * @deprecated Use design-system/ConfirmationDialogController/ConfirmationDialogController.
+ */
 const AlertDialogCancel = React.forwardRef<
   React.ComponentRef<typeof AlertDialogPrimitive.Cancel>,
   React.ComponentPropsWithoutRef<typeof AlertDialogPrimitive.Cancel>
@@ -128,9 +169,6 @@ AlertDialogCancel.displayName = AlertDialogPrimitive.Cancel.displayName;
 
 export {
   AlertDialog,
-  AlertDialogPortal,
-  AlertDialogOverlay,
-  AlertDialogTrigger,
   AlertDialogContent,
   AlertDialogHeader,
   AlertDialogFooter,

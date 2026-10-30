@@ -1,10 +1,6 @@
 import { Queue } from "bullmq";
 import { QueueName, TQueueJobTypes } from "../queues";
-import {
-  createNewRedisInstance,
-  redisQueueRetryOptions,
-  getQueuePrefix,
-} from "./redis";
+import { createBullMQQueueOptionsWithRedis } from "./redis";
 import { logger } from "../logger";
 
 export class NotificationQueue {
@@ -17,17 +13,14 @@ export class NotificationQueue {
   > | null {
     if (NotificationQueue.instance) return NotificationQueue.instance;
 
-    const newRedis = createNewRedisInstance({
-      enableOfflineQueue: false,
-      ...redisQueueRetryOptions,
-    });
-
-    NotificationQueue.instance = newRedis
+    const queueOptionsWithRedis = createBullMQQueueOptionsWithRedis(
+      QueueName.NotificationQueue,
+    );
+    NotificationQueue.instance = queueOptionsWithRedis
       ? new Queue<TQueueJobTypes[QueueName.NotificationQueue]>(
           QueueName.NotificationQueue,
           {
-            connection: newRedis,
-            prefix: getQueuePrefix(QueueName.NotificationQueue),
+            ...queueOptionsWithRedis,
             defaultJobOptions: {
               removeOnComplete: true,
               removeOnFail: 1_000,

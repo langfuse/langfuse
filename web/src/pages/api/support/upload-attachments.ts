@@ -3,6 +3,7 @@ import { getServerAuthSession } from "@/src/server/auth";
 import { env } from "@/src/env.mjs";
 import { logger } from "@langfuse/shared/src/server";
 import { uploadPylonAttachment } from "@/src/features/support-chat/pylon/pylonClient";
+import { PYLON_MAX_FILE_SIZE_BYTES } from "@/src/features/support-chat/pylon/pylonConstants";
 
 export const config = {
   api: {
@@ -24,7 +25,6 @@ type RequestBody = {
 type ResponseBody = { attachment_urls: string[] } | { error: string };
 
 const MAX_FILES = 5;
-const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024;
 
 export default async function handler(
   req: NextApiRequest,
@@ -70,9 +70,9 @@ export default async function handler(
 
       const buffer = Buffer.from(file.fileBase64, "base64");
 
-      if (buffer.length > MAX_FILE_SIZE_BYTES) {
+      if (buffer.length > PYLON_MAX_FILE_SIZE_BYTES) {
         return res.status(400).json({
-          error: `File "${file.fileName}" exceeds maximum size of ${MAX_FILE_SIZE_BYTES / (1024 * 1024)}MB`,
+          error: `File "${file.fileName}" exceeds maximum size of ${PYLON_MAX_FILE_SIZE_BYTES / (1024 * 1024)}MB`,
         });
       }
 
