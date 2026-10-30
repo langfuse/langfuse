@@ -241,7 +241,7 @@ export const aiGatewayRouter = createTRPCRouter({
       });
     }),
 
-  /** Invites new people as members and optionally tells existing members. */
+  /** Invites new people with the AI Gateway role and optionally tells existing members. */
   inviteTeam: protectedOrganizationProcedure
     .input(
       organizationInput.extend({
