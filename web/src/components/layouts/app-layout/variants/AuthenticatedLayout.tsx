@@ -521,8 +521,11 @@ function useProjectCookie(router: NextRouter) {
   const projectId = router.query.projectId;
   useEffect(() => {
     if (typeof projectId !== "string") return;
-    fetch(`/api/project/${encodeURIComponent(projectId)}/visit`, {
-      method: "POST",
-    }).catch(() => {});
+    fetch(
+      `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/api/project/${encodeURIComponent(projectId)}/visit`,
+      {
+        method: "POST",
+      },
+    ).catch(() => {});
   }, [projectId]);
 }
