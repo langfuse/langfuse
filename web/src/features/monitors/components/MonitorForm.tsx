@@ -683,7 +683,7 @@ export const MonitorForm = ({
                 </AccordionPrimitive.Root>
               </Section>
 
-              <Section title="Notifications" step={3} className="pb-2">
+              <Section title="Notifications" step={3}>
                 <FormField
                   control={form.control}
                   name="name"
@@ -778,21 +778,14 @@ export const MonitorForm = ({
                   )}
                 />
               </Section>
+              {/* Fades content out as it slides under the action bar. */}
+              <div
+                aria-hidden
+                className="from-background pointer-events-none sticky bottom-0 z-20 -mt-3 h-3 bg-linear-to-t to-transparent"
+              />
             </CardContent>
             <CardFooter className="mt-auto">
-              <div className="flex w-full items-center gap-2 pt-4">
-                {/* Looks disabled while incomplete but stays clickable, so a click still reveals the field errors. */}
-                <Button
-                  type="submit"
-                  className={cn(
-                    isIncomplete &&
-                      "hover:bg-primary cursor-not-allowed opacity-50",
-                  )}
-                  aria-disabled={isIncomplete || undefined}
-                  disabled={!hasAccess || submitting}
-                >
-                  {isEdit ? "Save Alert" : "Create Alert"}
-                </Button>
+              <div className="flex w-full items-center justify-end gap-2 pt-4">
                 {!isEdit && (
                   <ConfirmationDialogController
                     title="Discard this alert?"
@@ -814,6 +807,18 @@ export const MonitorForm = ({
                     )}
                   </ConfirmationDialogController>
                 )}
+                {/* Looks disabled while incomplete but stays clickable, so a click still reveals the field errors. */}
+                <Button
+                  type="submit"
+                  className={cn(
+                    isIncomplete &&
+                      "hover:bg-primary cursor-not-allowed opacity-50",
+                  )}
+                  aria-disabled={isIncomplete || undefined}
+                  disabled={!hasAccess || submitting}
+                >
+                  {isEdit ? "Save Alert" : "Create Alert"}
+                </Button>
               </div>
             </CardFooter>
           </div>
