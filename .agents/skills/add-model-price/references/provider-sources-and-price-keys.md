@@ -1187,6 +1187,8 @@ json_literal    = "<price_per_mtok>e-6"
   This confirms the generic version-number matchPattern design handles new
   dotted Jev point releases without per-version entries, as intended.
 
+- **Nace Drex pricing (documented October 26 2026, split October 31 2026)** — `drex-max` and `drex-v2.0` are nace.ai's decision models, served through the same `/v1/systemone` protocol as Jev at `https://console.nace.ai/v1` (the `nace` preset in `TYPESAFE_UPSTREAMS`). The official price table is `https://console.nace.ai/docs/drex/reference/pricing` ("Per 1M input tokens": drex-max $0.03, drex-max-v1.1 $0.03, drex-v2.0 $0.06, drex-latest (alias of drex-v2.0) $0.06; output tokens "are not billed"). Two entries, so the models are not charged at one shared price: `drex-max` matches `drex-max` and `drex-max-v1.1` at `input` `0.03e-6`, and `drex-v2.0` matches `drex-v2.0` and `drex-latest` at `input` `0.06e-6`, both with `output` `0` in one Standard tier: the page documents no cache, batch, or context tiers, and Drex Max image tokens count as input tokens. The response `model` reports the pinned version, never the `drex-latest` alias, but the alias is kept in the pattern for requests priced by the requested model name. `drex-v1.5` ($0.05/MTok) matches neither entry and is not covered. `naceModels` in `types.ts` is not one of the selectable arrays the audit may edit.
+
 - **Claude Sonnet 5.5 cache-read price corrected to 0.05x (found October 13 2026)** —
   Anthropic's pricing page cache-hits footnote changed from listing only Claude Opus 5.5
   (and separately Fable 5.1/Mythos 5.1) at a non-standard multiplier to now also including

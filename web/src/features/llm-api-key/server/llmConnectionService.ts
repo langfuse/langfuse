@@ -13,6 +13,7 @@ import {
   ChatMessageRole,
   EvaluatorBlockReason,
   GCPServiceAccountKeySchema,
+  getConnectionDefaultModels,
   InvalidRequestError,
   InternalServerError,
   isDecisionModelAdapter,
@@ -22,7 +23,6 @@ import {
   LLMConnectionConfigSchema,
   LLMAdapter,
   OpenAIConfigSchema,
-  supportedModels,
   VERTEXAI_USE_DEFAULT_CREDENTIALS,
   VertexAIConfigSchema,
   type ChatMessage,
@@ -340,7 +340,7 @@ async function testLlmConnection(
 
     const model = params.customModels?.length
       ? params.customModels[0]
-      : supportedModels[params.adapter][0];
+      : getConnectionDefaultModels(params)[0];
     if (!model) {
       throw new Error("No model found");
     }

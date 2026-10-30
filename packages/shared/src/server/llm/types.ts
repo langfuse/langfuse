@@ -448,12 +448,16 @@ export const googleAIStudioModels = [
 
 export const typeSafeModels = ["jev-latest"] as const;
 
+/** Nace's Drex decision models, served through the same `/v1/systemone` API. */
+export const naceModels = ["drex-max", "drex-v2.0"] as const;
+
 /**
- * Providers that serve Jev through TypeSafe's `/v1/systemone` API. A TypeSafe
- * connection stores a gateway's `baseURL`, or none for TypeSafe itself, which
- * the AI SDK provider then defaults to. Presets only prefill the base URL; a
- * `custom` connection stores any base URL the provider appends `/systemone`
- * to.
+ * Providers that serve a decision model through TypeSafe's `/v1/systemone`
+ * API. A TypeSafe connection stores a gateway's `baseURL`, or none for
+ * TypeSafe itself, which the AI SDK provider then defaults to. Presets only
+ * prefill the base URL; a `custom` connection stores any base URL the provider
+ * appends `/systemone` to. `defaultModels` is what each upstream serves: Jev
+ * on TypeSafe and the gateways that proxy it, Drex on Nace.
  */
 export const TYPESAFE_UPSTREAMS = [
   {
@@ -461,36 +465,67 @@ export const TYPESAFE_UPSTREAMS = [
     label: "TypeSafe",
     baseURL: null,
     apiKeyLabel: "TypeSafe API key",
+    defaultModels: typeSafeModels,
   },
   {
     id: "vercel-ai-gateway",
     label: "Vercel AI Gateway",
     baseURL: "https://ai-gateway.vercel.sh/typesafe/v1",
     apiKeyLabel: "Vercel AI Gateway API key",
+    defaultModels: typeSafeModels,
   },
   {
     id: "openrouter",
     label: "OpenRouter",
     baseURL: "https://openrouter.ai/api/v1",
     apiKeyLabel: "OpenRouter API key",
+    defaultModels: typeSafeModels,
+  },
+  {
+    id: "nace",
+    label: "Nace (Drex)",
+    baseURL: "https://console.nace.ai/v1",
+    apiKeyLabel: "Nace API key",
+    defaultModels: naceModels,
   },
   {
     id: "custom",
     label: "Custom",
     baseURL: null,
     apiKeyLabel: "API key",
+    defaultModels: typeSafeModels,
   },
 ] as const;
 
 export type TypeSafeUpstream = (typeof TYPESAFE_UPSTREAMS)[number];
 
+/**
+ * Canonical form of a base URL for preset matching: scheme and host in lower
+ * case, the default port dropped and trailing slashes removed. Anything that
+ * does not parse as a URL is compared as written.
+ */
+function normalizeBaseURL(baseURL: string): string {
+  const trimmed = baseURL.trim();
+  try {
+    const url = new URL(trimmed);
+    const path = url.pathname.replace(/\/+$/, "");
+    return `${url.protocol}//${url.host}${path}${url.search}${url.hash}`;
+  } catch {
+    return trimmed;
+  }
+}
+
 export function resolveTypeSafeUpstream(
   baseURL: string | null | undefined,
 ): TypeSafeUpstream {
   if (!baseURL) return TYPESAFE_UPSTREAMS[0];
+  const normalized = normalizeBaseURL(baseURL);
   return (
-    TYPESAFE_UPSTREAMS.find((upstream) => upstream.baseURL === baseURL) ??
-    TYPESAFE_UPSTREAMS[TYPESAFE_UPSTREAMS.length - 1]
+    TYPESAFE_UPSTREAMS.find(
+      (upstream) =>
+        upstream.baseURL !== null &&
+        normalizeBaseURL(upstream.baseURL) === normalized,
+    ) ?? TYPESAFE_UPSTREAMS[TYPESAFE_UPSTREAMS.length - 1]
   );
 }
 
@@ -505,6 +540,20 @@ export const supportedModels = {
   [LLMAdapter.Bedrock]: [],
   [LLMAdapter.TypeSafe]: typeSafeModels,
 } as const;
+
+/**
+ * Default models a connection offers: one list per adapter, except TypeSafe,
+ * whose list depends on the upstream its base URL points at.
+ */
+export function getConnectionDefaultModels(connection: {
+  adapter: LLMAdapter;
+  baseURL?: string | null;
+}): readonly string[] {
+  if (connection.adapter === LLMAdapter.TypeSafe) {
+    return resolveTypeSafeUpstream(connection.baseURL).defaultModels;
+  }
+  return supportedModels[connection.adapter];
+}
 
 export type LLMFunctionCall = {
   name: string;

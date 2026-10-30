@@ -11,6 +11,7 @@ const UPSTREAM_DESCRIPTIONS: Record<TypeSafeUpstreamId, string> = {
   typesafe: "Direct connection, billed by TypeSafe.",
   "vercel-ai-gateway": "Routed and billed through your AI Gateway.",
   openrouter: "Routed and billed through OpenRouter.",
+  nace: "Drex decision models, billed by Nace.",
   custom: "Your own TypeSafe-compatible gateway.",
 };
 
@@ -23,7 +24,7 @@ type TypeSafeUpstreamCardsProps = {
 >;
 
 /**
- * Picks which provider serves the Jev decision model. Each card is a radio
+ * Picks which provider serves the decision model. Each card is a radio
  * item, so arrow keys move the selection and the group reads as one field.
  */
 export function TypeSafeUpstreamCards({
@@ -36,7 +37,7 @@ export function TypeSafeUpstreamCards({
       {...rootProps}
       value={value}
       onValueChange={(next) => onValueChange(next as TypeSafeUpstreamId)}
-      className="grid gap-2 sm:grid-cols-4"
+      className="grid gap-2 sm:grid-cols-3"
     >
       {TYPESAFE_UPSTREAMS.map(({ id, label }) => {
         return (
