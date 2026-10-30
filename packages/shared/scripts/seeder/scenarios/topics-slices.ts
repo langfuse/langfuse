@@ -666,7 +666,6 @@ export async function runTopicSlices(
 ): Promise<SeedSummary> {
   const startedAt = Date.now();
   const anchor = utcDayStartMs();
-  const dayKey = iso(anchor).slice(0, 10);
   const processingRunAt = anchor - 3 * DAY - 4 * HOUR;
   const traces = buildTraces(ctx, anchor, processingRunAt);
   const support = traces.filter((trace) => trace.agent === "support-agent");
@@ -891,7 +890,14 @@ export async function runTopicSlices(
     const timeRange = window(DAYS, 0);
     for (const name of names) {
       const ref = facetRef(name);
-      const id = stableId("rule-run", ctx.projectId, dayKey, rule.id, name);
+      const id = stableId("rule-run", ctx.projectId, rule.id, name);
+      await prisma.topicClusteringRun.deleteMany({
+        where: {
+          projectId: ctx.projectId,
+          id,
+          NOT: { finishedAt: new Date(finishedAt) },
+        },
+      });
       await prisma.topicClusteringRun.upsert({
         where: { id },
         create: {
@@ -967,14 +973,35 @@ export async function runTopicSlices(
     executionIds.push(execution.id);
   };
 
+  // A later-day re-run re-anchors its windows, so the stored request no longer
+  // matches; drop that execution and its maps before creating it again.
+  const resetStaleExecution = async (requestId: string, createdAt: number) => {
+    const stale = await prisma.batchAction.findMany({
+      where: {
+        projectId: ctx.projectId,
+        config: { path: ["inputSettings", "requestId"], equals: requestId },
+        NOT: { createdAt: new Date(createdAt) },
+      },
+      select: { id: true },
+    });
+    for (const { id } of stale) {
+      await prisma.topicClusteringRun.deleteMany({
+        where: { projectId: ctx.projectId, batchActionId: id },
+      });
+      await prisma.batchAction.delete({ where: { id } });
+    }
+  };
+
   const processed = support.filter(
     (trace) => trace.timestamp < processingRunAt,
   );
+  const processRequestId = `${ctx.idPrefix}-process`;
+  await resetStaleExecution(processRequestId, processingRunAt);
   const processing = await createTopicExecution(
     {
       operation: "process",
       projectId: ctx.projectId,
-      requestId: `${ctx.idPrefix}-process-${dayKey}`,
+      requestId: processRequestId,
       facets: refs(supportFacets),
       embeddingConfig,
       traceIds: processed.map((trace) => trace.id),
@@ -1049,7 +1076,8 @@ export async function runTopicSlices(
       { timeRange: secondWindow, createdAt: anchor - 90 * 60_000 },
     ];
     for (const [runIndex, { timeRange, createdAt }] of runs.entries()) {
-      const requestId = `${ctx.idPrefix}-analysis-${analysis.key}-${runIndex + 1}-${dayKey}`;
+      const requestId = `${ctx.idPrefix}-analysis-${analysis.key}-${runIndex + 1}`;
+      await resetStaleExecution(requestId, createdAt + analysis.offset);
       const execution = await createTopicExecution(
         {
           operation: "update",
