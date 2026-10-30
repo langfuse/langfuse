@@ -8,6 +8,7 @@ import {
 import { observationToEvent, traceToEvent } from "./event-mirror";
 import { jitter, utcDayStartMs } from "./rng";
 import { topicEvaluationExamples } from "./topics-evaluation";
+import { runTopicSlices } from "./topics-slices";
 import { ScenarioDefinition, SeedError } from "./types";
 import { countRows, traceLink, tracesListLink } from "./verify";
 
@@ -82,14 +83,15 @@ const ASSIGNMENT: ReadonlyArray<readonly [string, string]> = [
 export const topicsScenario: ScenarioDefinition = {
   name: "topics",
   description:
-    "Synthetic topic discovery: 12 traces across three semantic themes, plus three separate assignment traces (two familiar requests and one new theme). Use evaluation for 100 varied requests with cross-cutting tool outcomes. No model calls.",
+    "Synthetic topic discovery: 12 traces across three semantic themes, plus three separate assignment traces (two familiar requests and one new theme). Use evaluation for 100 varied requests with cross-cutting tool outcomes. Use slices for topic rules, analyses with reruns and a past-traces processing run over 800 production traces. No model calls.",
   supportsV4: true,
   flags: [
     {
       flag: "batch",
       type: "string",
       default: "all",
-      description: "all, discovery (12), assignment (3), or evaluation (100)",
+      description:
+        "all, discovery (12), assignment (3), evaluation (100), or slices (800 traces with two topic rules, two analyses and a processing run)",
     },
     {
       flag: "v4",
@@ -101,12 +103,17 @@ export const topicsScenario: ScenarioDefinition = {
   run: async (ctx, params) => {
     const startedAt = Date.now();
     const batch = String(params.batch ?? "all");
-    if (!["all", "discovery", "assignment", "evaluation"].includes(batch)) {
+    if (
+      !["all", "discovery", "assignment", "evaluation", "slices"].includes(
+        batch,
+      )
+    ) {
       throw new SeedError(
-        "--batch must be all, discovery, assignment, or evaluation",
+        "--batch must be all, discovery, assignment, evaluation, or slices",
       );
     }
     const withV4 = params.v4 !== false;
+    if (batch === "slices") return runTopicSlices(ctx, params, withV4);
     const evaluation = batch === "evaluation" ? topicEvaluationExamples() : [];
     const examples =
       batch === "evaluation"
