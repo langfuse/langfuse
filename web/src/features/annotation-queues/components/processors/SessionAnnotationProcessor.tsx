@@ -9,7 +9,7 @@ import {
   LazyTraceEventsRow,
   asCommentCounts,
 } from "@/src/features/sessions";
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, type Ref } from "react";
 import { Button } from "@/src/components/ui/button";
 import { Button as DsButton } from "@/src/components/design-system/Button/Button";
 import { ActionButtonCountBadge } from "@/src/components/ui/ActionButtonCountBadge";
@@ -25,6 +25,7 @@ import { JsonSkeleton } from "@/src/components/ui/CodeJsonViewer";
 import { CommentDrawerController } from "@/src/features/comments";
 import { getNumberFromMap } from "@/src/utils/map-utils";
 import { MessageSquare, MessageSquareOff } from "@langfuse/icons";
+import type { AnnotationRefreshHandle } from "@/src/features/scores";
 
 type SessionAnnotationQueueItem = AnnotationQueueItem & {
   parentTraceId?: string | null;
@@ -36,6 +37,7 @@ interface SessionAnnotationProcessorProps {
   data: any; // // Session data with scores
   configs: ScoreConfigDomain[];
   projectId: string;
+  annotationRefreshRef?: Ref<AnnotationRefreshHandle>;
 }
 
 // some projects have thousands of traces in a session, paginate to avoid rendering all at once
@@ -46,7 +48,7 @@ const EMPTY_FILTER_STATE: [] = [];
 
 export const SessionAnnotationProcessor: React.FC<
   SessionAnnotationProcessorProps
-> = ({ item, data, configs, projectId }) => {
+> = ({ item, data, configs, projectId, annotationRefreshRef }) => {
   const [visibleTraces, setVisibleTraces] = useState(PAGE_SIZE);
   const handleLoadMoreTraces = () => {
     setVisibleTraces((prev) => prev + PAGE_SIZE);
@@ -284,6 +286,7 @@ export const SessionAnnotationProcessor: React.FC<
     <AnnotationDrawerSection
       item={item}
       isV4={isV4}
+      annotationRefreshRef={annotationRefreshRef}
       scoreTarget={{
         type: "session",
         sessionId: item.objectId,

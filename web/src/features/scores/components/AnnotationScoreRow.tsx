@@ -1,4 +1,4 @@
-import React, { useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { useFormState, useWatch, type UseFormReturn } from "react-hook-form";
 import { useStore } from "zustand";
 import {
@@ -66,7 +66,7 @@ function CommentField({
   onValueChange: (value: string | null) => void;
   disabled: boolean;
   loading: boolean;
-  onSave: (comment: string | null) => void;
+  onSave: (comment: string | null) => Promise<boolean>;
 }) {
   const hasChanges = localValue.trim() !== (savedComment || "");
 
@@ -82,10 +82,7 @@ function CommentField({
                 type="button"
                 size="icon-xs"
                 loading={loading}
-                onClick={() => {
-                  onSave(null);
-                  onValueChange(null);
-                }}
+                onClick={() => onSave(null)}
               >
                 <Trash size="sm" color="default" />
               </Button>
@@ -124,10 +121,7 @@ function CommentField({
               className="text-xs"
               disabled={disabled}
               loading={loading}
-              onClick={() => {
-                onSave(localValue);
-                onValueChange(null);
-              }}
+              onClick={() => onSave(localValue)}
             >
               Save Changes
             </Button>
@@ -170,6 +164,11 @@ export function AnnotationScoreRow({
 }) {
   const [commentOpen, setCommentOpen] = useState(false);
   const [commentDraft, setCommentDraft] = useState<string | null>(null);
+  const commentDraftRef = useRef<string | null>(null);
+  const changeCommentDraft = (value: string | null) => {
+    commentDraftRef.current = value;
+    setCommentDraft(value);
+  };
   const score = useWatch({ control: form.control, name: `scoreData.${index}` });
   const fieldState = useFormState({
     control: form.control,
@@ -223,6 +222,27 @@ export function AnnotationScoreRow({
       actions.saveNumeric(fieldKey, target, input);
     else if (input) actions.saveText(fieldKey, target);
   };
+  useEffect(() => {
+    if (!isActive) return;
+    actions.registerPendingCommentFlush(fieldKey, async () => {
+      const draft = commentDraftRef.current;
+      if (draft === null) return true;
+      const currentIndex = actions.indexOf(fieldKey);
+      const currentScore = form.getValues(`scoreData.${currentIndex}`);
+      const nextValue = draft.trim();
+      if (nextValue === (currentScore?.comment ?? "").trim()) return true;
+      const saved = await actions.saveComment(
+        fieldKey,
+        target,
+        nextValue || null,
+      );
+      if (!saved || commentDraftRef.current !== draft) return false;
+      commentDraftRef.current = null;
+      setCommentDraft(null);
+      return true;
+    });
+    return () => actions.registerPendingCommentFlush(fieldKey, null);
+  }, [actions, fieldKey, form, isActive, target]);
   return (
     <Form {...form} formState={fieldState}>
       <div
@@ -294,16 +314,20 @@ export function AnnotationScoreRow({
                             <CommentField
                               savedComment={score.comment ?? null}
                               localValue={commentDraft ?? score.comment ?? ""}
-                              onValueChange={setCommentDraft}
+                              onValueChange={changeCommentDraft}
                               disabled={config.isArchived || locked}
                               loading={commentSaving}
-                              onSave={(newComment) => {
+                              onSave={async (newComment) => {
+                                const draft = commentDraftRef.current;
                                 const trimmed = newComment?.trim();
-                                actions.saveComment(
+                                const saved = await actions.saveComment(
                                   fieldKey,
                                   target,
                                   trimmed || null,
                                 );
+                                if (saved && commentDraftRef.current === draft)
+                                  changeCommentDraft(null);
+                                return saved;
                               }}
                             />
                           </FormControl>

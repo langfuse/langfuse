@@ -16,6 +16,10 @@ each project and queue; changing the current item keeps the same run history.
   expose a retry action. Confirmed completion IDs survive a failed refresh or
   advance, and an acquired next-item lock survives failed navigation, so retries
   neither complete twice nor acquire a different item.
+  Completion holds the same transition lock while the active score form blurs
+  value inputs, flushes comment drafts, and awaits pending saves. Save failures
+  leave the item open; repeated completion and skip/back actions cannot overtake
+  that preparation. Retrying completion prepares the current drafts again.
 - `AnnotationQueueItemPage.tsx` adapts tRPC and routing to those actions. A query
   gates initial loading, shares the initial lock during Strict Mode replay, and
   owns cancellation. Actions check that this query still has an active observer

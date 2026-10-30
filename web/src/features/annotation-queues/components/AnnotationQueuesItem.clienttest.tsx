@@ -5,10 +5,16 @@ import {
   screen,
   waitFor,
 } from "@testing-library/react";
-import { StrictMode, type ReactNode } from "react";
+import {
+  StrictMode,
+  useImperativeHandle,
+  type ReactNode,
+  type Ref,
+} from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { vi } from "vitest";
 import { AnnotationQueuesItem } from "./AnnotationQueuesItem";
+import type { AnnotationRefreshHandle } from "@/src/features/scores/types";
 
 function render(ui: ReactNode) {
   const client = new QueryClient({
@@ -30,6 +36,7 @@ const {
   refreshQueue,
   queueFields,
   items,
+  flushEdits,
 } = vi.hoisted(() => ({
   router: {
     isReady: true,
@@ -44,6 +51,7 @@ const {
   refreshQueue: vi.fn(),
   queueFields: { configs: [] as { id: string; name: string }[] },
   items: new Map<string, Record<string, unknown>>(),
+  flushEdits: vi.fn(),
 }));
 
 vi.mock("next/router", () => ({ useRouter: () => router }));
@@ -62,7 +70,8 @@ vi.mock("@/src/components/ui/tooltip", () => ({
   TooltipTrigger: ({ children }: { children: ReactNode }) => children,
   TooltipContent: () => null,
 }));
-vi.mock("@/src/features/scores", () => ({
+vi.mock("@/src/features/scores", async () => ({
+  ...(await import("@/src/features/scores/lib/prepareAnnotationQueueComplete")),
   hasModifier: () => false,
   isCompleteShortcut: () => false,
   isInteractiveTarget: () => false,
@@ -144,18 +153,27 @@ vi.mock("./shared/AnnotationDrawerSection", () => ({
   AnnotationDrawerSection: ({
     item,
     configs,
+    annotationRefreshRef,
   }: {
     item: { objectId: string };
     configs: { name: string }[];
-  }) => (
-    <>
-      <p>{item.objectId}</p>
-      <output aria-label="Queue fields">
-        {configs.map((config) => config.name).join(", ")}
-      </output>
-      <input aria-label="Comment draft" />
-    </>
-  ),
+    annotationRefreshRef?: Ref<AnnotationRefreshHandle>;
+  }) => {
+    useImperativeHandle(annotationRefreshRef, () => ({
+      focus: vi.fn(),
+      refresh: vi.fn(),
+      flushPendingEdits: flushEdits,
+    }));
+    return (
+      <>
+        <p>{item.objectId}</p>
+        <output aria-label="Queue fields">
+          {configs.map((config) => config.name).join(", ")}
+        </output>
+        <input aria-label="Comment draft" />
+      </>
+    );
+  },
 }));
 vi.mock("./shared/AnnotationProcessingLayout", () => ({
   AnnotationProcessingLayout: ({
@@ -182,6 +200,7 @@ beforeEach(() => {
   complete.mockReset();
   refreshItems.mockReset();
   refreshQueue.mockReset();
+  flushEdits.mockReset().mockResolvedValue(true);
   queueFields.configs = [];
   refreshQueue.mockImplementation(() =>
     Promise.resolve({
@@ -306,10 +325,79 @@ it.each(["refresh", "advance", "navigation"])(
     fireEvent.click(screen.getByRole("button", { name: "Try again" }));
     expect(await screen.findByText("second-observation")).toBeVisible();
     expect(complete).toHaveBeenCalledTimes(1);
+    expect(flushEdits).toHaveBeenCalledTimes(2);
     expect(fetchNext).toHaveBeenCalledTimes(phase === "advance" ? 3 : 2);
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   },
 );
+
+it.each([true, false])(
+  "waits for saves and serializes navigation before completing: %s",
+  async (saved) => {
+    let finishSave!: (result: boolean) => void;
+    flushEdits.mockImplementationOnce(
+      () =>
+        new Promise<boolean>((resolve) => {
+          finishSave = resolve;
+        }),
+    );
+    fetchNext
+      .mockResolvedValueOnce(items.get("first-item"))
+      .mockResolvedValueOnce({ ...items.get("second-item"), queueId: "first" });
+    render(
+      <AnnotationQueuesItem projectId="project" annotationQueueId="first" />,
+    );
+    expect(await screen.findByText("first-observation")).toBeVisible();
+    router.push.mockClear();
+    const completed = screen.getByRole("button", { name: /Mark Completed/ });
+    const next = screen.getByRole("button", { name: "Skip to next item" });
+    fireEvent.click(completed);
+    expect(completed).toBeDisabled();
+    expect(next).toBeDisabled();
+    fireEvent.click(completed);
+    fireEvent.click(next);
+    expect(flushEdits).toHaveBeenCalledOnce();
+    expect(complete).not.toHaveBeenCalled();
+    expect(router.push).not.toHaveBeenCalled();
+    expect(fetchNext).toHaveBeenCalledOnce();
+    await act(async () => finishSave(saved));
+    if (saved) {
+      expect(await screen.findByText("second-observation")).toBeVisible();
+      expect(complete).toHaveBeenCalledOnce();
+    } else {
+      expect(screen.getByText("first-observation")).toBeVisible();
+      expect(complete).not.toHaveBeenCalled();
+      expect(router.push).not.toHaveBeenCalled();
+      expect(completed).toBeEnabled();
+      fireEvent.click(completed);
+      expect(await screen.findByText("second-observation")).toBeVisible();
+      expect(complete).toHaveBeenCalledOnce();
+    }
+  },
+);
+
+it("does not complete an abandoned queue after its pending save finishes", async () => {
+  let finishSave!: (saved: boolean) => void;
+  flushEdits.mockImplementationOnce(
+    () =>
+      new Promise<boolean>((resolve) => {
+        finishSave = resolve;
+      }),
+  );
+  const { rerender } = render(
+    <AnnotationQueuesItem projectId="project" annotationQueueId="first" />,
+  );
+  expect(await screen.findByText("first-observation")).toBeVisible();
+  fireEvent.click(screen.getByRole("button", { name: /Mark Completed/ }));
+  rerender(
+    <AnnotationQueuesItem projectId="project" annotationQueueId="second" />,
+  );
+  expect(await screen.findByText("second-observation")).toBeVisible();
+  router.push.mockClear();
+  await act(async () => finishSave(true));
+  expect(complete).not.toHaveBeenCalled();
+  expect(router.push).not.toHaveBeenCalled();
+});
 
 it("locks only one starting item during Strict Mode replay", async () => {
   render(

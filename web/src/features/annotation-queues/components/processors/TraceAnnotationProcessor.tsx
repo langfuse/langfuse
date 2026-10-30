@@ -4,8 +4,10 @@ import {
   type AnnotationQueueItem,
   type ScoreConfigDomain,
 } from "@langfuse/shared";
+import type { AnnotationRefreshHandle } from "@/src/features/scores";
 import { AnnotationDrawerSection } from "../shared/AnnotationDrawerSection";
 import { AnnotationProcessingLayout } from "../shared/AnnotationProcessingLayout";
+import type { Ref } from "react";
 
 interface TraceAnnotationProcessorProps {
   item: AnnotationQueueItem & {
@@ -15,11 +17,12 @@ interface TraceAnnotationProcessorProps {
   data: any; // Trace data with observations and scores
   configs: ScoreConfigDomain[];
   projectId: string;
+  annotationRefreshRef?: Ref<AnnotationRefreshHandle>;
 }
 
 export const TraceAnnotationProcessor: React.FC<
   TraceAnnotationProcessorProps
-> = ({ item, data, configs, projectId }) => {
+> = ({ item, data, configs, projectId, annotationRefreshRef }) => {
   const { isV4 } = useReadPath();
   const traceId = item.parentTraceId ?? item.objectId;
 
@@ -41,6 +44,7 @@ export const TraceAnnotationProcessor: React.FC<
     <AnnotationDrawerSection
       item={item}
       isV4={isV4}
+      annotationRefreshRef={annotationRefreshRef}
       scoreTarget={{
         type: "trace",
         traceId: traceId,

@@ -88,12 +88,15 @@ export function createAnnotationFormActions({
   let sequence = 0;
   const latestSaves = new Map<string, number>();
   const pendingFields = new Map<string, number>();
+  const pendingSaves = new Map<Promise<boolean>, string>();
+  const pendingComments = new Map<string, Promise<boolean>>();
   const failedFields = new Set<string>();
   const serverFields = new Map(
     fields().map((field) => [annotationFieldKey(field), { ...field }]),
   );
   let savedStatusTimer: ReturnType<typeof setTimeout> | undefined;
   let isClosed = true;
+  const pendingCommentFlushes = new Map<string, () => Promise<boolean>>();
   const scheduleSavedStatusClear = () => {
     if (savedStatusTimer) clearTimeout(savedStatusTimer);
     if (isClosed) return;
@@ -154,7 +157,7 @@ export function createAnnotationFormActions({
       failed: failedFields.size > 0,
     }));
     // Promise-owned completion survives overlapping mutation observers.
-    operation.then(
+    const settled = operation.then(
       () => {
         finishPendingField(key);
         saveStore.setState((state) => {
@@ -172,6 +175,7 @@ export function createAnnotationFormActions({
         });
         if (changed) scheduleSavedStatusClear();
         tracked?.success();
+        return true;
       },
       () => {
         finishPendingField(key);
@@ -185,8 +189,12 @@ export function createAnnotationFormActions({
           pending: state.pending - 1,
           failed: failedFields.size > 0,
         }));
+        return false;
       },
     );
+    pendingSaves.set(settled, key);
+    settled.then(() => pendingSaves.delete(settled));
+    return settled;
   };
 
   const reportFailure = (field: AnnotationScoreFormData, message: string) => {
@@ -345,7 +353,8 @@ export function createAnnotationFormActions({
   return {
     saveStore,
     indexOf,
-    isSaving: (key: string) => pendingFields.has(key),
+    isSaving: (key: string) =>
+      pendingFields.has(key) || pendingComments.has(key),
     clear,
     validateNumericInput,
     reconcileServerFields(incoming: AnnotationScoreFormData[]) {
@@ -526,39 +535,86 @@ export function createAnnotationFormActions({
       });
       if (isPresent(value)) upsert(key, target, value, stringValue);
     },
+    registerPendingCommentFlush(
+      key: string,
+      flush: (() => Promise<boolean>) | null,
+    ) {
+      if (flush) pendingCommentFlushes.set(key, flush);
+      else pendingCommentFlushes.delete(key);
+    },
+    async flushPendingEdits() {
+      const flushed = await Promise.all(
+        [...pendingCommentFlushes.values()].map((flush) => flush()),
+      );
+      while (pendingSaves.size || pendingComments.size) {
+        await Promise.all([
+          ...pendingSaves.keys(),
+          ...pendingComments.values(),
+        ]);
+      }
+      return (
+        flushed.every(Boolean) &&
+        failedFields.size === 0 &&
+        fields().every(
+          (_, index) =>
+            !form.getFieldState(`scoreData.${index}.value`).invalid &&
+            !form.getFieldState(`scoreData.${index}.stringValue`).invalid &&
+            !form.getFieldState(`scoreData.${index}.comment`).invalid,
+        )
+      );
+    },
     saveComment(
       key: string,
       target: PreparedAnnotationTarget,
       comment: string | null,
     ) {
-      const field = find(key);
-      if (!field?.id || editsDisabled) return;
-      const next = { ...field, comment };
-      const tracked = beginSave(
-        comment ? "update_comment" : "delete_comment",
-        next,
-      );
-      replaceField(indexOf(key), next);
-      const { targetKey: _targetKey, ...score } = field;
-      trackSave(
-        updateScore({
-          ...score,
-          ...target.scoreMetadata,
-          scoreTarget: target.scoreTarget,
-          comment,
-        } as UpdateAnnotationScoreData),
-        tracked,
-        next,
-        () => {
-          const index = indexOf(key);
-          if (index < 0) return;
-          replaceField(index, field);
-          form.setError(`scoreData.${index}.comment`, {
-            type: "server",
-            message: "Failed to update comment",
-          });
-        },
-      );
+      const previousComment = pendingComments.get(key);
+      const scoreSaves = [...pendingSaves]
+        .filter(([, fieldKey]) => fieldKey === key)
+        .map(([save]) => save);
+      const persist = async () => {
+        await previousComment;
+        await Promise.all(scoreSaves);
+        if ((previousComment || scoreSaves.length > 0) && failedFields.has(key))
+          return false;
+        const field = find(key);
+        if (!field?.id || editsDisabled) return false;
+        if ((field.comment ?? null) === comment) return true;
+        const next = { ...field, comment };
+        const tracked = beginSave(
+          comment ? "update_comment" : "delete_comment",
+          next,
+        );
+        const index = indexOf(key);
+        form.clearErrors(`scoreData.${index}.comment`);
+        form.setValue(`scoreData.${index}.comment`, comment);
+        const { targetKey: _targetKey, ...score } = field;
+        return trackSave(
+          updateScore({
+            ...score,
+            ...target.scoreMetadata,
+            scoreTarget: target.scoreTarget,
+            comment,
+          } as UpdateAnnotationScoreData),
+          tracked,
+          next,
+          () => {
+            const currentIndex = indexOf(key);
+            if (currentIndex < 0) return;
+            form.setValue(`scoreData.${currentIndex}.comment`, field.comment);
+            form.setError(`scoreData.${currentIndex}.comment`, {
+              type: "server",
+              message: "Failed to update comment",
+            });
+          },
+        );
+      };
+      const operation = persist();
+      pendingComments.set(key, operation);
+      operation.then(() => {
+        if (pendingComments.get(key) === operation) pendingComments.delete(key);
+      });
+      return operation;
     },
   };
 }

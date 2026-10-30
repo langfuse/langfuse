@@ -26,6 +26,7 @@ import { DualAnnotationContent } from "./DualAnnotationContent";
 import { AnnotationForm } from "./AnnotationForm";
 import { cloneElement, createRef } from "react";
 import type { AnnotationRefreshHandle } from "../types";
+import { prepareAnnotationQueueComplete } from "../lib/prepareAnnotationQueueComplete";
 
 const mocks = vi.hoisted(() => ({
   create: vi.fn(),
@@ -218,6 +219,7 @@ describe("unified annotation targets", () => {
   });
 
   afterEach(() => {
+    configs[0] = defaultConfig;
     configs.splice(1);
     vi.unstubAllGlobals();
   });
@@ -646,6 +648,205 @@ describe("unified annotation targets", () => {
       "Unsent score comment",
     );
     expect(mocks.update).not.toHaveBeenCalled();
+  });
+
+  it.each(["saved", "creating"] as const)(
+    "flushes the active comment draft and waits for the %s score before completing",
+    async (state) => {
+      const creation = deferred();
+      const commentSave = deferred();
+      if (state === "creating")
+        mocks.create.mockReturnValueOnce(creation.promise);
+      mocks.update.mockReturnValueOnce(commentSave.promise);
+      const refreshRef = createRef<AnnotationRefreshHandle>();
+      renderContent(
+        cloneElement(content, {
+          refreshRef,
+          observationScores:
+            state === "saved"
+              ? [{ ...serverQualityScore(), metadata: "{}" }]
+              : [],
+        }),
+      );
+      if (state === "creating") {
+        fireEvent.mouseDown(screen.getByRole("tab", { name: /True/ }));
+        await waitFor(() => expect(mocks.create).toHaveBeenCalledOnce());
+      }
+      fireEvent.click(screen.getByTitle("Add or view score comment"));
+      const comment = await screen.findByRole("textbox");
+      fireEvent.change(comment, { target: { value: "  Draft to persist  " } });
+      const complete = vi.fn();
+      let completion!: Promise<void>;
+      act(() => {
+        completion = prepareAnnotationQueueComplete({
+          flushPendingEdits: () => refreshRef.current!.flushPendingEdits(),
+        }).then((ready) => {
+          if (ready) complete();
+        });
+      });
+      expect(complete).not.toHaveBeenCalled();
+      if (state === "creating") {
+        expect(mocks.update).not.toHaveBeenCalled();
+        expect(comment).toHaveValue("  Draft to persist  ");
+        await act(async () => creation.resolve({}));
+      }
+      await waitFor(() => {
+        expect(mocks.update).toHaveBeenCalledOnce();
+        expect(mocks.update.mock.calls[0]![0]).toMatchObject({
+          comment: "Draft to persist",
+          id:
+            state === "saved"
+              ? "saved-quality"
+              : mocks.create.mock.calls[0]![0].id,
+        });
+      });
+      expect(complete).not.toHaveBeenCalled();
+      await act(async () => {
+        commentSave.resolve({});
+        await completion;
+      });
+      expect(complete).toHaveBeenCalledOnce();
+    },
+  );
+
+  it.each(["create", "comment"] as const)(
+    "retains the comment draft and blocks completion when the %s save fails",
+    async (failure) => {
+      const creation = deferred();
+      const commentSave = deferred();
+      if (failure === "create")
+        mocks.create.mockReturnValueOnce(creation.promise);
+      mocks.update.mockReturnValueOnce(commentSave.promise);
+      const refreshRef = createRef<AnnotationRefreshHandle>();
+      renderContent(
+        cloneElement(content, {
+          refreshRef,
+          observationScores:
+            failure === "comment"
+              ? [{ ...serverQualityScore(), metadata: "{}" }]
+              : [],
+        }),
+      );
+      if (failure === "create") {
+        fireEvent.mouseDown(screen.getByRole("tab", { name: /True/ }));
+        await waitFor(() => expect(mocks.create).toHaveBeenCalledOnce());
+      }
+      fireEvent.click(screen.getByTitle("Add or view score comment"));
+      const comment = await screen.findByRole("textbox");
+      fireEvent.change(comment, { target: { value: "Keep this draft" } });
+      let completion!: Promise<boolean>;
+      act(() => {
+        completion = prepareAnnotationQueueComplete({
+          flushPendingEdits: () => refreshRef.current!.flushPendingEdits(),
+        });
+      });
+      if (failure === "comment")
+        await waitFor(() => expect(mocks.update).toHaveBeenCalledOnce());
+      await act(async () => {
+        (failure === "create" ? creation : commentSave).reject(
+          new Error("Save failed"),
+        );
+        await expect(completion).resolves.toBe(false);
+      });
+      expect(comment).toHaveValue("Keep this draft");
+      expect(
+        screen.getByRole("status", { name: "Score save status" }),
+      ).toHaveTextContent("Could not save");
+      if (failure === "create") expect(mocks.update).not.toHaveBeenCalled();
+      mocks.update.mockReset().mockResolvedValue({});
+      if (failure === "create") {
+        mocks.create.mockResolvedValue({});
+        fireEvent.mouseDown(screen.getByRole("tab", { name: /True/ }));
+        await waitFor(() => expect(mocks.create).toHaveBeenCalledTimes(2));
+      }
+      await act(async () => {
+        await expect(
+          prepareAnnotationQueueComplete({
+            flushPendingEdits: () => refreshRef.current!.flushPendingEdits(),
+          }),
+        ).resolves.toBe(true);
+      });
+      expect(mocks.update.mock.calls[0]![0]).toMatchObject({
+        comment: "Keep this draft",
+      });
+    },
+  );
+
+  it.each(["flush", "manual"] as const)(
+    "retains a newer comment draft while its earlier %s save settles",
+    async (method) => {
+      const commentSave = deferred();
+      mocks.update.mockReturnValueOnce(commentSave.promise);
+      const refreshRef = createRef<AnnotationRefreshHandle>();
+      renderContent(
+        cloneElement(content, {
+          refreshRef,
+          observationScores: [{ ...serverQualityScore(), metadata: "{}" }],
+        }),
+      );
+      fireEvent.click(screen.getByTitle("Add or view score comment"));
+      fireEvent.change(screen.getByRole("textbox"), {
+        target: { value: "Submitted draft" },
+      });
+      let completion: Promise<boolean> | undefined;
+      if (method === "flush") {
+        act(() => {
+          completion = refreshRef.current!.flushPendingEdits();
+        });
+      } else {
+        fireEvent.click(screen.getByRole("button", { name: "Save Changes" }));
+      }
+      await waitFor(() => expect(mocks.update).toHaveBeenCalledOnce());
+      if (method === "manual")
+        fireEvent.click(screen.getByTitle("Add or view score comment"));
+      const editor = await screen.findByRole("textbox");
+      fireEvent.change(editor, { target: { value: "Newer draft" } });
+      await act(async () => {
+        commentSave.resolve({});
+        if (completion) await expect(completion).resolves.toBe(false);
+      });
+      expect(editor).toHaveValue("Newer draft");
+      mocks.update.mockResolvedValue({});
+      await act(async () => {
+        await expect(refreshRef.current!.flushPendingEdits()).resolves.toBe(
+          true,
+        );
+      });
+      expect(mocks.update.mock.lastCall![0]).toMatchObject({
+        comment: "Newer draft",
+      });
+    },
+  );
+
+  it("waits for the score creation triggered by numeric blur", async () => {
+    configs[0] = {
+      ...defaultConfig,
+      dataType: "NUMERIC",
+      categories: undefined,
+    };
+    const creation = deferred();
+    mocks.create.mockReturnValueOnce(creation.promise);
+    const refreshRef = createRef<AnnotationRefreshHandle>();
+    renderContent(cloneElement(content, { refreshRef }));
+    const input = screen.getByRole("spinbutton");
+    fireEvent.change(input, { target: { value: "5" } });
+    input.focus();
+    const complete = vi.fn();
+    let completion!: Promise<void>;
+    act(() => {
+      completion = prepareAnnotationQueueComplete({
+        flushPendingEdits: () => refreshRef.current!.flushPendingEdits(),
+      }).then((ready) => {
+        if (ready) complete();
+      });
+    });
+    await waitFor(() => expect(mocks.create).toHaveBeenCalledOnce());
+    expect(complete).not.toHaveBeenCalled();
+    await act(async () => {
+      creation.resolve({});
+      await completion;
+    });
+    expect(complete).toHaveBeenCalledOnce();
   });
 
   it("hides the saved status after its confirmation window", async () => {
