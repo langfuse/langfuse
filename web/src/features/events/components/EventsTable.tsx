@@ -164,6 +164,19 @@ import { showSuccessToast } from "@/src/features/notifications";
 import { MobileFullTextSearch } from "@/src/features/events/components/MobileFullTextSearch";
 import { CategoryPresetChips } from "@/src/features/events/components/CategoryPresetChips";
 import { TableViewPresetsDrawer } from "@/src/components/table/table-view-presets/components/data-table-view-presets-drawer";
+import { MetadataColumnsSettings } from "@/src/features/metadata-columns/MetadataColumnsSettings";
+import { createMetadataColumns } from "@/src/features/metadata-columns/createMetadataColumns";
+import { useMetadataColumns } from "@/src/features/metadata-columns/useMetadataColumns";
+import {
+  getMetadataColumnVisibility,
+  mergeMetadataColumnOrder,
+  parseMetadataRecord,
+  stripMetadataColumnOrder,
+  stripMetadataColumnVisibility,
+  stripMetadataColumnsFromView,
+  updateMetadataColumnOrder,
+  updateMetadataColumnVisibility,
+} from "@/src/features/metadata-columns/metadata-columns";
 import { EventsChartView } from "@/src/features/chart-view/EventsChartView";
 import { ViewModeToggle, useChartViewState } from "@/src/features/chart-view";
 import { EventsOutlierStrip } from "@/src/features/events/components/outlier-strip/EventsOutlierStrip";
@@ -242,6 +255,7 @@ export type EventsTableRow = {
   input?: string;
   output?: string;
   metadata?: unknown;
+  parsedMetadata: Record<string, unknown> | null;
 
   // Trace fields
   traceTags?: string[];
@@ -276,6 +290,8 @@ export type EventsTableProps = {
   showControlsInPageHeader?: boolean;
   /** Explicit signal from the Fast Preview/v4 page routes. */
   enableAppRootDefault?: boolean;
+  /** Browser-local metadata columns, enabled only by the main v4 routes. */
+  enableMetadataColumns?: boolean;
   /**
    * Keep an embedded table's filters, search, and saved views independent from
    * the project-wide observations page. The project date range remains shared.
@@ -325,8 +341,13 @@ export default function ObservationsEventsTable({
   sessionId,
   showControlsInPageHeader = false,
   enableAppRootDefault = false,
+  enableMetadataColumns = false,
   isolateTableState = false,
 }: EventsTableProps) {
+  const { metadataColumns, setMetadataColumns } = useMetadataColumns(
+    projectId,
+    enableMetadataColumns,
+  );
   const peekContext = usePeekTableState();
   const hasBatchExportAccess = useHasProjectAccess({
     projectId,
@@ -1264,7 +1285,7 @@ export default function ObservationsEventsTable({
   const isMobile = useIsMobile();
   const enableSorting = showToolbar;
 
-  const columns: LangfuseColumnDef<EventsTableRow>[] = [
+  const baseColumns: LangfuseColumnDef<EventsTableRow>[] = [
     ...(showToolbar && !isMobile ? [selectActionColumn] : []),
     createDateTableColumn<EventsTableRow>({
       accessorKey: "startTime",
@@ -1673,16 +1694,40 @@ export default function ObservationsEventsTable({
     }),
   ];
 
-  const [columnVisibility, setColumnVisibilityState] =
+  const [baseColumnVisibility, setColumnVisibilityState] =
     useColumnVisibility<EventsTableRow>(
       `eventsColumnVisibility-${projectId}`,
-      columns,
+      baseColumns,
     );
 
-  const [columnOrder, setColumnOrder] = useColumnOrder<EventsTableRow>(
+  const [baseColumnOrder, setColumnOrder] = useColumnOrder<EventsTableRow>(
     `eventsColumnOrder-${projectId}`,
-    columns,
+    baseColumns,
   );
+
+  const columns = [
+    ...baseColumns,
+    ...createMetadataColumns<EventsTableRow>({
+      metadataColumns,
+      isIoPending,
+      singleLine: compactRows,
+    }),
+  ];
+  const columnOrder = mergeMetadataColumnOrder(
+    baseColumnOrder,
+    metadataColumns,
+  );
+  const columnVisibility = {
+    ...baseColumnVisibility,
+    ...getMetadataColumnVisibility(metadataColumns),
+  };
+  const metadataViewOptions = enableMetadataColumns
+    ? {
+        prepareStateForSave: stripMetadataColumnsFromView,
+        localColumnSettingsDescription:
+          "Metadata columns stay in this browser. Metadata filters are included in saved views.",
+      }
+    : {};
 
   const peekNavigationProps = usePeekNavigation({
     queryParams: ["observation", "display", "timestamp", "traceId"],
@@ -1706,12 +1751,14 @@ export default function ObservationsEventsTable({
       setOrderBy: setOrderByState,
       setFilters: setSavedViewFiltersWrapper,
       setExpandedFilters: queryFilter.onExpandedChange,
-      setColumnOrder: setColumnOrder,
-      setColumnVisibility: setColumnVisibilityState,
+      setColumnOrder: (order) =>
+        setColumnOrder(stripMetadataColumnOrder(order)),
+      setColumnVisibility: (visibility) =>
+        setColumnVisibilityState(stripMetadataColumnVisibility(visibility)),
       setSearchQuery: setSearchQuery,
     },
     validationContext: {
-      columns,
+      columns: baseColumns,
       filterColumnDefinition: eventsFilterConfig.columnDefinitions,
       expandableFilterColumns: eventsFilterConfig.facets.map(
         (facet) => facet.column,
@@ -1746,16 +1793,20 @@ export default function ObservationsEventsTable({
   };
   const handleColumnOrderChange: typeof setColumnOrder = (update) => {
     const next = typeof update === "function" ? update(columnOrder) : update;
-    viewControllers.handleUserStateChange(columnOrder, next);
-    setColumnOrder(next);
+    const baseOrder = stripMetadataColumnOrder(next);
+    viewControllers.handleUserStateChange(baseColumnOrder, baseOrder);
+    setColumnOrder(baseOrder);
+    setMetadataColumns(updateMetadataColumnOrder(metadataColumns, next));
   };
   const handleColumnVisibilityChange: typeof setColumnVisibilityState = (
     update,
   ) => {
     const next =
       typeof update === "function" ? update(columnVisibility) : update;
-    viewControllers.handleUserStateChange(columnVisibility, next);
-    setColumnVisibilityState(next);
+    const baseVisibility = stripMetadataColumnVisibility(next);
+    viewControllers.handleUserStateChange(baseColumnVisibility, baseVisibility);
+    setColumnVisibilityState(baseVisibility);
+    setMetadataColumns(updateMetadataColumnVisibility(metadataColumns, next));
   };
 
   const peekConfig: DataTablePeekViewProps | undefined = useMemo(() => {
@@ -1822,6 +1873,9 @@ export default function ObservationsEventsTable({
                   : JSON.stringify(observation.output)
                 : undefined,
               metadata: observation.metadata,
+              parsedMetadata: enableMetadataColumns
+                ? parseMetadataRecord(observation.metadata)
+                : null,
               userId: observation.userId ?? undefined,
               sessionId: observation.sessionId ?? undefined,
               completionStartTime: observation.completionStartTime ?? undefined,
@@ -1836,7 +1890,7 @@ export default function ObservationsEventsTable({
         : [];
 
     return result;
-  }, [observations]);
+  }, [observations, enableMetadataColumns]);
 
   const selectedObservationIds = useMemo(() => {
     const rowIds = new Set(observations.rows?.map((o) => o.id));
@@ -1991,6 +2045,7 @@ export default function ObservationsEventsTable({
                       tableName: TableViewPresetTableName.ObservationsEvents,
                       projectId,
                       controllers: viewControllers,
+                      ...metadataViewOptions,
                     }}
                     currentState={{
                       orderBy: orderByState ?? null,
@@ -2120,6 +2175,26 @@ export default function ObservationsEventsTable({
                 setColumnVisibility={handleColumnVisibilityChange}
                 columnOrder={columnOrder}
                 setColumnOrder={handleColumnOrderChange}
+                additionalColumnSettings={
+                  enableMetadataColumns
+                    ? {
+                        content: (
+                          <MetadataColumnsSettings
+                            metadataColumns={metadataColumns}
+                            onChange={setMetadataColumns}
+                            keyOptions={Object.keys(
+                              observedMetadataPaths ?? {},
+                            )}
+                            baseColumnCount={baseColumns.length}
+                            filterState={queryFilter.explicitFilterState}
+                            onFilterChange={setFiltersWrapper}
+                          />
+                        ),
+                        isDefault: metadataColumns.length === 0,
+                        onRestoreDefaults: () => setMetadataColumns([]),
+                      }
+                    : undefined
+                }
                 orderByState={orderByState}
                 rowHeight={rowHeight}
                 setRowHeight={setRowHeight}
@@ -2248,6 +2323,7 @@ export default function ObservationsEventsTable({
                             TableViewPresetTableName.ObservationsEvents,
                           projectId,
                           controllers: viewControllers,
+                          ...metadataViewOptions,
                         }}
                         currentState={{
                           orderBy: orderByState ?? null,

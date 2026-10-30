@@ -73,6 +73,8 @@ export default function ObservationsPage() {
           projectId={projectId}
           showControlsInPageHeader
           enableAppRootDefault
+          enableMetadataColumns
+          key={projectId}
         />
       ) : (
         <ObservationsTable projectId={projectId} showControlsInPageHeader />
