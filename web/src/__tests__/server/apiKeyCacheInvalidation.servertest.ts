@@ -1,3 +1,4 @@
+import { getGatewayIngestionProjectDeletionMessage } from "@/src/features/ai-gateway/fns/gatewayIngestionModePolicy";
 import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import { LLMAdapter, type Plan, Role } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
@@ -389,8 +390,7 @@ describe("API-key cache invalidation on project/org lifecycle", () => {
 
     expect(res.statusCode).toBe(409);
     expect(res.body).toEqual({
-      message:
-        "This project is used as the AI Gateway ingestion project. Select another ingestion project or set the ingestion mode to None before deleting it.",
+      message: getGatewayIngestionProjectDeletionMessage(),
     });
     expect(await survivingKeys(keys)).toEqual(keys);
     await expect(
