@@ -7,6 +7,7 @@ import {
   Slack,
   Webhook as WebhookIcon,
 } from "@langfuse/icons";
+import { SiPagerduty } from "@langfuse/icons/si";
 
 import { api } from "@/src/utils/api";
 import { Button } from "@/src/components/ui/button";
@@ -22,7 +23,9 @@ import {
 } from "@/src/components/ui/dialog";
 import { DropdownMenu } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
 import {
+  actionTypeLabel,
   AutomationForm,
+  useAvailableActionTypes,
   WebhookSecretRender,
 } from "@/src/features/automations";
 import { cn } from "@/src/utils/tailwind";
@@ -33,17 +36,11 @@ import {
   TriggerEventSource,
 } from "@langfuse/shared";
 
-/** actionLabel maps each automation action type to its display name. */
-const actionLabel: Record<ActionTypes, string> = {
-  WEBHOOK: "Webhook",
-  SLACK: "Slack",
-  GITHUB_DISPATCH: "GitHub Dispatch",
-};
-
 const actionIcon = {
   WEBHOOK: WebhookIcon,
   SLACK: Slack,
   GITHUB_DISPATCH: Github,
+  PAGERDUTY: SiPagerduty,
 } satisfies Record<ActionTypes, typeof WebhookIcon>;
 
 /** MonitorAutomationsPanel lets the user select which automations fire for a monitor via explicit trigger IDs. */
@@ -271,6 +268,7 @@ const AddAutomationDropdown = ({
   isDisabled?: boolean;
   onAutomationCreated: (automationId: string) => void;
 }) => {
+  const actionTypes = useAvailableActionTypes(ActionTypeSchema.options);
   const [draft, setDraft] = useState<NewAutomationDraft | null>(null);
   const [createdSecret, setCreatedSecret] =
     useState<CreatedWebhookSecret | null>(null);
@@ -295,10 +293,10 @@ const AddAutomationDropdown = ({
             icon: Plus,
             onClick: () => setDraft({}),
           },
-          ...ActionTypeSchema.options.map((actionType) => ({
+          ...actionTypes.map((actionType) => ({
             type: "item" as const,
             id: actionType,
-            title: actionLabel[actionType],
+            title: actionTypeLabel[actionType],
             icon: actionIcon[actionType],
             onClick: () => setDraft({ actionType }),
           })),
@@ -403,5 +401,7 @@ const ActionIcon = ({
       return <Slack __rawClassName={className} />;
     case "GITHUB_DISPATCH":
       return <Github __rawClassName={className} />;
+    case "PAGERDUTY":
+      return <SiPagerduty __rawClassName={className} />;
   }
 };

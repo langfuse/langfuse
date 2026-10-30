@@ -447,7 +447,7 @@ export function ChartTooltip({
           <div
             ref={refs.setFloating}
             role="tooltip"
-            className="border-border/50 bg-background pointer-events-none z-50 grid min-w-32 gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs shadow-xl"
+            className="ph-no-capture border-border/50 bg-background pointer-events-none z-50 grid min-w-32 gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs shadow-xl"
             style={floatingStyles}
           >
             {activeTooltip.heading ? (

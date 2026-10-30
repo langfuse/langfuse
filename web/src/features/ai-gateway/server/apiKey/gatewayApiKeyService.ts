@@ -49,7 +49,7 @@ export class GatewayApiKeyService {
 
   async create(params: {
     organizationId: string;
-    name?: string;
+    name: string;
     metadata: GatewayMetadata;
     expiresAt?: Date | null;
     /** `user` keys are revoked with the creator's gateway access; `serviceAccount` keys belong to the organization. */

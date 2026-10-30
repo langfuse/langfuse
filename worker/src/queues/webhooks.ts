@@ -2,6 +2,7 @@
 import {
   InternalServerError,
   PromptWebhookOutboundSchema,
+  SkillWebhookOutboundSchema,
   WebhookDefaultHeaders,
   ActionExecutionStatus,
   LangfuseNotFoundError,
@@ -9,8 +10,11 @@ import {
   isSlackActionConfig,
   isWebhookAction,
   isGitHubDispatchAction,
+  isPagerDutyActionConfig,
+  isBaseError,
   type AutomationDomain,
   type ActionDomainWithSecrets,
+  type PagerDutyActionConfigWithSecrets,
 } from "@langfuse/shared";
 import { decrypt, createSignatureHeader } from "@langfuse/shared/encryption";
 import { Prisma, prisma } from "@langfuse/shared/src/db";
@@ -23,6 +27,7 @@ import {
   type WebhookValidationWhitelist,
   WEBHOOK_URL_VALIDATION_LOG_CONTEXT,
   buildWebhookRequestHeaders,
+  recordIncrement,
 } from "@langfuse/shared/src/server";
 import {
   TQueueJobTypes,
@@ -38,14 +43,23 @@ import {
   ProjectNotificationWebhookQueueEventSchema,
   buildProjectNotificationSlackMessage,
 } from "@langfuse/shared/src/server";
+import { type MonitorAlert } from "@langfuse/shared/monitors";
 import {
   MonitorWebhookQueueEventSchema,
   buildMonitorAlertSlackMessage,
 } from "@langfuse/shared/monitors/server";
+import {
+  pagerDutyClient,
+  type PagerDutyRegion,
+} from "@langfuse/shared/pagerduty/server";
 import { Processor, Job } from "bullmq";
 import { backOff } from "exponential-backoff";
 import { env } from "../env";
 import { SlackMessageBuilder } from "../features/slack/slackMessageBuilder";
+import {
+  buildPagerDutyEvent,
+  type PagerDutyEvent,
+} from "../features/pagerduty/buildPagerDutyEvent";
 
 /** WEBHOOK_ADDRESS_ATTEMPT_TIMEOUT_MS lets a retransmitted SYN finish before Node closes the socket. */
 const WEBHOOK_ADDRESS_ATTEMPT_TIMEOUT_MS = 2_000;
@@ -90,6 +104,9 @@ async function resetAutomationFailures(args: {
   await redis.del(automationFailureKey(args.projectId, args.automationId));
 }
 
+/** WebhookOutboundPayload is the validated HTTP body of a WebhookInput. */
+type WebhookOutboundPayload = ReturnType<typeof buildWebhookOutboundPayload>;
+
 /** buildWebhookOutboundPayload validates and returns the HTTP body for a WebhookInput, discriminating on payload.type. monitor-alert: the processor already built the unified envelope — pass through. prompt-version: wrap at dispatch time with id = executionId and timestamp = now. */
 function buildWebhookOutboundPayload(input: WebhookInput) {
   if (input.payload.type === "monitor-alert") {
@@ -111,6 +128,14 @@ function buildWebhookOutboundPayload(input: WebhookInput) {
       );
     }
     return parsed.data;
+  }
+  if (input.payload.type === "skill-version") {
+    return SkillWebhookOutboundSchema.parse({
+      id: input.executionId,
+      timestamp: new Date(),
+      apiVersion: "v1",
+      ...input.payload,
+    });
   }
   const promptPayload = input.payload;
   const parsed = PromptWebhookOutboundSchema.safeParse({
@@ -166,6 +191,17 @@ export const executeWebhook = async (
       return;
     }
 
+    if (
+      await isStaleMonitorAlert({
+        projectId,
+        automationId,
+        actionType: automation.action.type,
+        input,
+      })
+    ) {
+      return;
+    }
+
     // Route to appropriate handler based on action type
     if (automation.action.type === "WEBHOOK") {
       await executeWebhookAction({
@@ -184,6 +220,8 @@ export const executeWebhook = async (
         automation,
         skipValidation: options?.skipValidation,
       });
+    } else if (automation.action.type === "PAGERDUTY") {
+      await executePagerDutyAction({ input, automation });
     } else {
       throw new InternalServerError(
         `Unsupported action type: ${automation.action.type}`,
@@ -198,6 +236,90 @@ export const executeWebhook = async (
     throw error;
   }
 };
+
+/** isStaleMonitorAlert prevents older queued alerts from overwriting newer published alerts by reporting which jobs to drop. */
+async function isStaleMonitorAlert({
+  projectId,
+  automationId,
+  actionType,
+  input,
+}: {
+  projectId: string;
+  automationId: string;
+  actionType: string;
+  input: WebhookInput;
+}): Promise<boolean> {
+  if (input.payload.type !== "monitor-alert") return false;
+  const envelope = buildWebhookOutboundPayload(input);
+  if (envelope.type !== "monitor-alert") return false;
+  const alert = envelope.payload;
+
+  const reason = await getStaleMonitorAlertReason({ projectId, alert });
+  if (!reason) return false;
+
+  recordStaleMonitorAlertDrop({
+    projectId,
+    automationId,
+    actionType,
+    monitorId: alert.monitorId,
+    reason,
+  });
+  return true;
+}
+
+/** getStaleMonitorAlertReason says why an alert is stale, or undefined when it is current. */
+async function getStaleMonitorAlertReason({
+  projectId,
+  alert,
+}: {
+  projectId: string;
+  alert: MonitorAlert;
+}): Promise<StaleMonitorAlertReason | undefined> {
+  const monitor = await prisma.monitor.findUnique({
+    where: { id: alert.monitorId },
+    select: { projectId: true, alertedAt: true },
+  });
+  if (!monitor || monitor.projectId !== projectId) return "monitor_deleted";
+  // The processor publishes before it saves alertedAt, so only a later alertedAt is newer.
+  if (
+    alert.alertedAt &&
+    monitor.alertedAt &&
+    monitor.alertedAt > alert.alertedAt
+  ) {
+    return "newer_alert";
+  }
+  return undefined;
+}
+
+/** recordStaleMonitorAlertDrop logs a dropped stale alert and counts it by reason and action type. */
+function recordStaleMonitorAlertDrop({
+  projectId,
+  automationId,
+  actionType,
+  monitorId,
+  reason,
+}: {
+  projectId: string;
+  automationId: string;
+  actionType: string;
+  monitorId: string;
+  reason: StaleMonitorAlertReason;
+}): void {
+  logger.info("Dropping stale monitor alert", {
+    projectId,
+    automationId,
+    monitorId,
+    reason,
+  });
+  recordIncrement(
+    "langfuse.queue.webhook_queue.stale_monitor_alerts_dropped",
+    1,
+    {
+      reason,
+      actionType,
+    },
+  );
+}
 
 /**
  * Shared HTTP execution logic for webhook and GitHub dispatch actions
@@ -521,12 +643,12 @@ async function executeWebhookAction({
 
   const webhookConfig = actionConfig.config;
 
-  const validated = buildWebhookOutboundPayload(input);
+  const envelope = buildWebhookOutboundPayload(input);
   let webhookPayload: string;
   if (input.payload.type === "prompt-version") {
     // Prompt-version contract: prompt key always last.
-    const { prompt, user, ...otherFields } = validated as Extract<
-      typeof validated,
+    const { prompt, user, ...otherFields } = envelope as Extract<
+      typeof envelope,
       { type: "prompt-version" }
     >;
     webhookPayload = JSON.stringify({
@@ -536,7 +658,7 @@ async function executeWebhookAction({
     });
   } else {
     // monitor-alert: post the envelope verbatim.
-    webhookPayload = JSON.stringify(validated);
+    webhookPayload = JSON.stringify(envelope);
   }
 
   let requestHeaders: Record<string, string>;
@@ -575,6 +697,64 @@ async function executeWebhookAction({
   });
 }
 
+function buildSkillDispatchPayload(
+  validated: Extract<
+    ReturnType<typeof buildWebhookOutboundPayload>,
+    { type: "skill-version" }
+  >,
+  eventType: string,
+): string {
+  let githubPayload = JSON.stringify({
+    event_type: eventType,
+    client_payload: validated,
+  });
+  if (
+    Buffer.byteLength(githubPayload, "utf8") >=
+    GITHUB_REPOSITORY_DISPATCH_MAX_PAYLOAD_BYTES
+  ) {
+    githubPayload = JSON.stringify({
+      event_type: eventType,
+      client_payload: {
+        id: validated.id,
+        timestamp: validated.timestamp,
+        type: validated.type,
+        apiVersion: validated.apiVersion,
+        action: validated.action,
+        skill: {
+          id: validated.skill.id,
+          name: validated.skill.name,
+          version: validated.skill.version,
+          projectId: validated.skill.projectId,
+        },
+        truncation: {
+          payloadTruncated: true,
+          truncatedFields: [
+            "skill.files",
+            "skill.frontmatter",
+            "skill.description",
+            "skill.tags",
+            "skill.labels",
+            "skill.commitMessage",
+            "skill.createdBy",
+            "skill.createdAt",
+            "skill.updatedAt",
+            "user",
+          ],
+        },
+      },
+    });
+  }
+  if (
+    Buffer.byteLength(githubPayload, "utf8") >=
+    GITHUB_REPOSITORY_DISPATCH_MAX_PAYLOAD_BYTES
+  ) {
+    throw new InternalServerError(
+      "Skill repository dispatch payload exceeds GitHub's size limit",
+    );
+  }
+  return githubPayload;
+}
+
 /**
  * Execute GitHub Dispatch action with repository dispatch API
  */
@@ -609,12 +789,12 @@ async function executeGitHubDispatchAction({
 
   const githubConfig = actionConfig.config;
   const eventType = githubConfig.eventType;
-  const validated = buildWebhookOutboundPayload(input);
+  const envelope = buildWebhookOutboundPayload(input);
 
   let githubPayload: string;
   if (input.payload.type === "prompt-version") {
-    const { prompt, user, ...otherFields } = validated as Extract<
-      typeof validated,
+    const { prompt, user, ...otherFields } = envelope as Extract<
+      typeof envelope,
       { type: "prompt-version" }
     >;
     const fullGithubPayload = JSON.stringify({
@@ -645,10 +825,12 @@ async function executeGitHubDispatchAction({
               },
             },
           });
+  } else if (envelope.type === "skill-version") {
+    githubPayload = buildSkillDispatchPayload(envelope, eventType);
   } else {
     // monitor-alert: post the envelope as client_payload.
-    const monitorEnvelope = validated as Extract<
-      typeof validated,
+    const monitorEnvelope = envelope as Extract<
+      typeof envelope,
       { type: "monitor-alert" }
     >;
     const fullGithubPayload = JSON.stringify({
@@ -761,7 +943,11 @@ async function executeSlackAction({
       });
     } catch (error) {
       logger.error("Error executing Slack action", error);
-      await slackMonitorAlertFailure({ projectId, automation });
+      await monitorAlertDeliveryFailure({
+        projectId,
+        automation,
+        channel: "slack",
+      });
     }
     return;
   }
@@ -929,6 +1115,157 @@ async function executeSlackAction({
   }
 }
 
+/**
+ * Execute PagerDuty action. Events go only to the fixed PagerDuty hosts of the
+ * routing key's region. 429, 5xx and network errors are retried in-process
+ * like HTTP actions; a failure that remains counts toward trigger auto-disable.
+ */
+async function executePagerDutyAction({
+  input,
+  automation,
+}: {
+  input: WebhookInput;
+  automation: NonNullable<Awaited<ReturnType<typeof getAutomationById>>>;
+}) {
+  const { projectId, executionId } = input;
+  const executionStart = new Date();
+
+  const actionConfig = await getActionByIdWithSecrets({
+    projectId,
+    actionId: automation.action.id,
+  });
+  if (!actionConfig || !isPagerDutyActionConfig(actionConfig.config)) {
+    throw new InternalServerError("PagerDuty action config not found");
+  }
+  const config = actionConfig.config;
+
+  try {
+    const envelope = buildWebhookOutboundPayload(input);
+    const event = await buildPagerDutyDelivery({ input, envelope, config });
+    if (!event) {
+      logger.info(
+        `No PagerDuty event for ${input.payload.type} of automation ${automation.id} in project ${projectId}`,
+      );
+      return;
+    }
+    await sendPagerDutyEvent(event, config.region);
+  } catch (error) {
+    logger.error("Error executing PagerDuty action", error);
+    await recordPagerDutyFailure({ input, automation, executionStart, error });
+    return;
+  }
+
+  if (input.payload.type === "monitor-alert") {
+    await resetAutomationFailures({ projectId, automationId: automation.id });
+    return;
+  }
+  await prisma.automationExecution.update({
+    where: {
+      projectId,
+      triggerId: automation.trigger.id,
+      actionId: automation.action.id,
+      id: executionId,
+    },
+    data: {
+      status: ActionExecutionStatus.COMPLETED,
+      startedAt: executionStart,
+      finishedAt: new Date(),
+    },
+  });
+}
+
+/** buildPagerDutyDelivery decrypts the routing key and maps the job payload to its PagerDuty event. */
+async function buildPagerDutyDelivery({
+  input,
+  envelope,
+  config,
+}: {
+  input: WebhookInput;
+  envelope: WebhookOutboundPayload;
+  config: PagerDutyActionConfigWithSecrets;
+}): Promise<PagerDutyEvent | undefined> {
+  const project = await prisma.project.findUniqueOrThrow({
+    where: { id: input.projectId },
+    select: { name: true },
+  });
+  return buildPagerDutyEvent({
+    envelope,
+    projectId: input.projectId,
+    projectName: project.name,
+    routingKey: decrypt(config.routingKey),
+  });
+}
+
+/** sendPagerDutyEvent posts the event to the alert or change endpoint of the key's region. */
+async function sendPagerDutyEvent(
+  event: PagerDutyEvent,
+  region: PagerDutyRegion,
+) {
+  if (event.kind === "change") {
+    await pagerDutyClient.change({ region, event: event.event });
+    return;
+  }
+  await pagerDutyClient.alert({ region, event: event.event });
+}
+
+/** recordPagerDutyFailure records a non-retryable delivery failure and auto-disables the trigger like the other action types. */
+async function recordPagerDutyFailure({
+  input,
+  automation,
+  executionStart,
+  error,
+}: {
+  input: WebhookInput;
+  automation: NonNullable<Awaited<ReturnType<typeof getAutomationById>>>;
+  executionStart: Date;
+  error: unknown;
+}) {
+  const { projectId, executionId } = input;
+  if (input.payload.type === "monitor-alert") {
+    await monitorAlertDeliveryFailure({
+      projectId,
+      automation,
+      channel: "pagerduty",
+    });
+    return;
+  }
+
+  await prisma.$transaction(async (tx) => {
+    await tx.automationExecution.update({
+      where: {
+        id: executionId,
+        projectId,
+        triggerId: automation.trigger.id,
+        actionId: automation.action.id,
+      },
+      data: {
+        status: ActionExecutionStatus.ERROR,
+        startedAt: executionStart,
+        finishedAt: new Date(),
+        error: error instanceof Error ? error.message : "Unknown error",
+        output: isBaseError(error) ? { httpStatus: error.httpCode } : undefined,
+      },
+    });
+
+    // Project notifications record the error but never auto-disable.
+    if (input.payload.type === "project-notification") return;
+
+    const consecutiveFailures = await getConsecutiveAutomationFailures({
+      automationId: automation.id,
+      projectId,
+    });
+    if (consecutiveFailures >= automationFailureThreshold - 1) {
+      await tx.trigger.update({
+        where: { id: automation.trigger.id, projectId },
+        data: { status: JobConfigState.INACTIVE },
+      });
+      logger.warn(
+        `Automation ${automation.trigger.id} disabled after ${consecutiveFailures} consecutive failures in project ${projectId} (pagerduty)`,
+      );
+    }
+  });
+}
+
 /** sendSlackMonitorAlert builds and posts a monitor-alert to Slack, then clears the failure streak. */
 async function sendSlackMonitorAlert({
   payload,
@@ -984,13 +1321,15 @@ async function sendSlackProjectNotification({
   });
 }
 
-/** slackMonitorAlertFailure tracks a failed monitor-alert delivery and auto-disables the trigger past the failure threshold. */
-async function slackMonitorAlertFailure({
+/** monitorAlertDeliveryFailure tracks a failed monitor-alert delivery and auto-disables the trigger past the failure threshold. */
+async function monitorAlertDeliveryFailure({
   projectId,
   automation,
+  channel,
 }: {
   projectId: string;
   automation: NonNullable<Awaited<ReturnType<typeof getAutomationById>>>;
+  channel: "slack" | "pagerduty";
 }) {
   const count = await incrementAutomationFailure({
     projectId,
@@ -1006,7 +1345,7 @@ async function slackMonitorAlertFailure({
       automationId: automation.id,
     });
     logger.warn(
-      `Automation ${automation.trigger.id} disabled after ${count} consecutive failures in project ${projectId} (monitor-alert/slack)`,
+      `Automation ${automation.trigger.id} disabled after ${count} consecutive failures in project ${projectId} (monitor-alert/${channel})`,
     );
   }
 }
@@ -1038,3 +1377,6 @@ const setActionLastFailingExecutionId = async ({
       AND project_id = ${projectId}
   `;
 };
+
+/** StaleMonitorAlertReason is why a queued monitor alert was dropped. */
+type StaleMonitorAlertReason = "monitor_deleted" | "newer_alert";

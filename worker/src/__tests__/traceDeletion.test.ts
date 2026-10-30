@@ -24,8 +24,9 @@ import {
 import { randomUUID } from "crypto";
 import { createRequire } from "node:module";
 import { processClickhouseTraceDelete } from "../features/traces/processClickhouseTraceDelete";
+import { processPostgresTraceDelete } from "../features/traces/processPostgresTraceDelete";
 import { env } from "../env";
-import { prisma } from "@langfuse/shared/src/db";
+import { prisma, type JobConfigState } from "@langfuse/shared/src/db";
 import { skipUnlessClickhouseTablesExist } from "./helpers/clickhouseTables";
 
 vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
@@ -74,6 +75,83 @@ describe("trace deletion", () => {
 
   afterEach(() => {
     vi.restoreAllMocks();
+  });
+
+  it("deletes job executions of deleted traces across evaluation rules, rule-less evaluators and active and inactive configurations", async () => {
+    const { projectId } = await createOrgProjectAndApiKey();
+    const { projectId: otherProjectId } = await createOrgProjectAndApiKey();
+    const deletedTraceId = randomUUID();
+    const keptTraceId = randomUUID();
+
+    const createConfig = (configProjectId: string, status: JobConfigState) =>
+      prisma.jobConfiguration.create({
+        data: {
+          projectId: configProjectId,
+          status,
+          jobType: "EVAL",
+          scoreName: "score",
+          filter: [],
+          targetObject: "trace",
+          variableMapping: [],
+          sampling: 1,
+          delay: 0,
+        },
+      });
+    const activeConfig = await createConfig(projectId, "ACTIVE");
+    const inactiveConfig = await createConfig(projectId, "INACTIVE");
+    const otherProjectConfig = await createConfig(otherProjectId, "ACTIVE");
+    const evaluationRule = await prisma.evaluationRule.create({
+      data: {
+        projectId,
+        name: "score",
+        filter: [],
+        sampling: 1,
+        delay: 0,
+        targetObject: "trace",
+      },
+    });
+    const ruleLessEvaluator = await prisma.evaluator.create({
+      data: {
+        projectId,
+        name: "standalone",
+        type: "LLM_AS_JUDGE",
+        versions: { create: { version: 1 } },
+      },
+    });
+
+    const createExecution = (
+      executionProjectId: string,
+      jobConfigurationId: string,
+      jobInputTraceId: string,
+    ) =>
+      prisma.jobExecution.create({
+        data: {
+          projectId: executionProjectId,
+          jobConfigurationId,
+          jobInputTraceId,
+          status: "PENDING",
+        },
+      });
+    await createExecution(projectId, activeConfig.id, deletedTraceId);
+    await createExecution(projectId, inactiveConfig.id, deletedTraceId);
+    await createExecution(projectId, evaluationRule.id, deletedTraceId);
+    await createExecution(projectId, ruleLessEvaluator.id, deletedTraceId);
+    const kept = await createExecution(projectId, activeConfig.id, keptTraceId);
+    const otherProject = await createExecution(
+      otherProjectId,
+      otherProjectConfig.id,
+      deletedTraceId,
+    );
+
+    await processPostgresTraceDelete(projectId, [deletedTraceId]);
+
+    const remaining = await prisma.jobExecution.findMany({
+      where: { projectId: { in: [projectId, otherProjectId] } },
+      select: { id: true },
+    });
+    expect(remaining.map((r) => r.id).sort()).toEqual(
+      [kept.id, otherProject.id].sort(),
+    );
   });
 
   it("should delete all traces, observations, and scores from Clickhouse", async () => {

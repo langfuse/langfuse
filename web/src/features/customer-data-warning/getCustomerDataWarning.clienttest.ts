@@ -53,6 +53,37 @@ describe("getCustomerDataWarning", () => {
     ).toBeNull();
   });
 
+  it("shows for a non-admin staff user viewing through support access", () => {
+    expect(
+      getCustomerDataWarning({
+        ...viewingCustomerProject,
+        isAdmin: false,
+        memberships: [
+          {
+            id: "org_customer",
+            projects: [{ id: "proj_customer" }],
+            supportAccess: true,
+          },
+        ],
+      }),
+    ).toMatchObject({ scope: "project" });
+  });
+
+  it("shows an organization warning for a support access membership", () => {
+    expect(
+      getCustomerDataWarning({
+        ...viewingCustomerProject,
+        isAdmin: false,
+        projectId: null,
+        organizationId: "org_customer",
+        projectName: null,
+        memberships: [
+          { id: "org_customer", projects: [], supportAccess: true },
+        ],
+      }),
+    ).toMatchObject({ scope: "organization" });
+  });
+
   it("hides on self-hosted deployments", () => {
     expect(
       getCustomerDataWarning({

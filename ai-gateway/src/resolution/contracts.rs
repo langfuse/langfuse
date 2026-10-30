@@ -251,6 +251,8 @@ pub struct RequestAttribution {
     key_name: Option<String>,
     #[serde(default)]
     user_name: Option<String>,
+    #[serde(default)]
+    user_email: Option<String>,
     key_metadata: BTreeMap<String, MetadataValue>,
     provider_connection_id: String,
 }
@@ -273,6 +275,9 @@ impl RequestAttribution {
     }
     pub fn user_name(&self) -> Option<&str> {
         non_blank(self.user_name.as_deref())
+    }
+    pub fn user_email(&self) -> Option<&str> {
+        non_blank(self.user_email.as_deref())
     }
     pub fn key_metadata(&self) -> &BTreeMap<String, MetadataValue> {
         &self.key_metadata

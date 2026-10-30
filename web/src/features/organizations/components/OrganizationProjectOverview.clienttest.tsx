@@ -39,6 +39,9 @@ vi.mock("@/src/features/v4-migration/V4MigrationBanner", () => ({
 vi.mock("@/src/features/v4-migration/hooks/useV4MigrationData", () => ({
   useAccountV4MigrationData: () => new Map(),
 }));
+vi.mock("@/src/features/ai-gateway/hooks/useGatewayLaunchEligibility", () => ({
+  useGatewayLaunchTarget: () => null,
+}));
 vi.mock("@/src/features/feature-flags", () => ({
   useIsFeatureEnabled: vi.fn(() => true),
 }));
@@ -46,6 +49,11 @@ vi.mock("@/src/utils/api", () => ({
   api: {
     organizations: {
       lastTraceByProject: { useQuery: () => ({ isSuccess: false }) },
+    },
+    aiGateway: {
+      listApiKeys: { useQuery: () => ({ data: undefined }) },
+      getSetupStatus: { useQuery: () => ({ data: undefined }) },
+      getConfig: { useQuery: () => ({ data: undefined }) },
     },
   },
 }));
@@ -91,6 +99,7 @@ describe("OrganizationProjectOverview", () => {
             },
           ],
         },
+        environment: { aiGatewayDeployed: true },
       },
     } as unknown as ReturnType<typeof useSession>);
   });
