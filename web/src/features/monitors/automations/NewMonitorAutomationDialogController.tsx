@@ -1,4 +1,4 @@
-import { useEffect, useRef, type ReactNode } from "react";
+import { type ReactNode } from "react";
 
 import { type ActionTypes } from "@langfuse/shared";
 import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
@@ -47,9 +47,6 @@ function WebhookSecretDialogController({
     openSecretDialog: (secret: CreatedWebhookSecret) => void;
   }) => ReactNode;
 }) {
-  const secretTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
-  useEffect(() => () => clearTimeout(secretTimer.current), []);
-
   return (
     <DialogController<CreatedWebhookSecret>
       renderDialog={({ state }) => (
@@ -61,12 +58,8 @@ function WebhookSecretDialogController({
     >
       {({ openDialog }) =>
         children({
-          openSecretDialog: (secret) => {
-            secretTimer.current = setTimeout(
-              () => openDialog(secret),
-              secretDialogDelayMs,
-            );
-          },
+          openSecretDialog: (secret) =>
+            setTimeout(() => openDialog(secret), secretDialogDelayMs),
         })
       }
     </DialogController>
