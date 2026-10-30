@@ -107,7 +107,6 @@ describe("Topics trace selection", () => {
     const open = vi.spyOn(window, "open").mockImplementation(() => null);
     mocks.fetch.mockResolvedValue(result("trace-0", "trace-1"));
     setup();
-    fireEvent.click(screen.getByRole("button", { name: "Preview traces" }));
     await screen.findByRole("link", { name: "trace-0" });
     fireEvent.click(
       screen.getByRole("checkbox", { name: "Select trace trace-1" }),
@@ -127,20 +126,17 @@ describe("Topics trace selection", () => {
     open.mockRestore();
   });
 
-  it("freezes only the latest preview and invalidates it immediately when criteria change", async () => {
+  it("loads the preview on its own, keeps only the latest, and debounces limit typing", async () => {
     const pending: Array<(value: ReturnType<typeof result>) => void> = [];
     mocks.fetch.mockImplementation(
       () => new Promise((resolve) => pending.push(resolve)),
     );
     const { client } = setup();
-    expect(mocks.fetch).not.toHaveBeenCalled();
-    expect(selected()).toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: "Preview traces" }));
     await waitFor(() => expect(pending).toHaveLength(1));
+    expect(selected()).toBeNull();
     fireEvent.change(screen.getByLabelText("Maximum traces"), {
       target: { value: "50" },
     });
-    fireEvent.click(screen.getByRole("button", { name: "Preview traces" }));
     await waitFor(() => expect(pending).toHaveLength(2));
     await act(async () => pending[1](result("new-trace")));
     await waitFor(() =>
@@ -156,7 +152,6 @@ describe("Topics trace selection", () => {
       await client.invalidateQueries();
     });
     expect(mocks.fetch).toHaveBeenCalledTimes(2);
-    expect(selected().selection.seed).toBe(mocks.fetch.mock.calls[1][0].seed);
     fireEvent.click(
       screen.getByRole("checkbox", { name: "Select trace new-trace" }),
     );
@@ -173,9 +168,22 @@ describe("Topics trace selection", () => {
     });
     expect(selected()).toBeNull();
     fireEvent.change(screen.getByLabelText("Maximum traces"), {
+      target: { value: "20" },
+    });
+    await waitFor(() => expect(pending).toHaveLength(3));
+    expect(mocks.fetch.mock.calls[2][0]).toMatchObject({ limit: 20 });
+  });
+
+  it("a click during the reload delay replaces the pending reload", async () => {
+    mocks.fetch.mockResolvedValue(result("trace-0"));
+    setup();
+    await waitFor(() => expect(mocks.fetch).toHaveBeenCalledTimes(1));
+    fireEvent.change(screen.getByLabelText("Maximum traces"), {
       target: { value: "50" },
     });
-    expect(selected()).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Preview traces" }));
+    await waitFor(() => expect(mocks.fetch).toHaveBeenCalledTimes(2));
+    await act(() => new Promise((resolve) => setTimeout(resolve, 700)));
     expect(mocks.fetch).toHaveBeenCalledTimes(2);
   });
 
@@ -183,7 +191,6 @@ describe("Topics trace selection", () => {
     const traces = Array.from({ length: 21 }, (_, i) => `trace-${i}`);
     mocks.fetch.mockResolvedValue(result(...traces));
     setup();
-    fireEvent.click(screen.getByRole("button", { name: "Preview traces" }));
     await screen.findByRole("checkbox", { name: "Select trace trace-0" });
     expect(
       screen.queryByRole("checkbox", { name: "Select trace trace-20" }),
