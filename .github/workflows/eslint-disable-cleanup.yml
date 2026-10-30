@@ -1,0 +1,683 @@
+name: ESLint Disable Cleanup
+
+on:
+  schedule:
+    # Monday morning UTC, one reviewable pull request per week.
+    - cron: "17 6 * * 1"
+  workflow_dispatch:
+    inputs:
+      claude_model:
+        description: "Claude model alias to use for the cleanup"
+        required: false
+        default: "sonnet"
+        type: choice
+        options:
+          - sonnet
+          - opus
+      max_turns:
+        description: "Maximum Claude Code agent turns (1-200)"
+        required: false
+        default: "80"
+      max_budget_usd:
+        description: "Maximum Claude API spend for the cleanup (whole USD, 1-20)"
+        required: false
+        default: "8"
+      additional_prompt:
+        description: "Optional one-off cleanup instructions appended to the Claude prompt"
+        required: false
+        default: ""
+      dry_run_mode:
+        description: "Debug mode: skip Claude and use synthetic output"
+        required: false
+        default: "disabled"
+        type: choice
+        options:
+          - disabled
+          - no_changes
+          - mock_allowlisted_diff
+
+permissions:
+  contents: read
+
+concurrency:
+  group: eslint-disable-cleanup
+  cancel-in-progress: true
+
+jobs:
+  audit:
+    if: github.repository == 'langfuse/langfuse'
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    timeout-minutes: 90
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      has_changes: ${{ steps.prepare.outputs.has_changes }}
+      branch_name: ${{ steps.prepare.outputs.branch_name }}
+      dry_run_mode: ${{ steps.validate-inputs.outputs.dry_run_mode }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Setup pnpm
+        uses: pnpm/setup@703c52620218391530e48b9e8870d5c0082e1b9b # v2.1.0
+        with:
+          install: false
+          cache: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: "24"
+          package-manager-cache: false
+
+      - name: Test cleanup guardrails
+        run: node --test scripts/eslint-disable-cleanup/*.test.mjs
+
+      - name: Validate workflow inputs
+        id: validate-inputs
+        env:
+          CLAUDE_MODEL: ${{ github.event.inputs.claude_model || 'sonnet' }}
+          CLAUDE_MAX_TURNS: ${{ github.event.inputs.max_turns || '80' }}
+          CLAUDE_MAX_BUDGET_USD: ${{ github.event.inputs.max_budget_usd || '8' }}
+          ADDITIONAL_PROMPT: ${{ github.event.inputs.additional_prompt || '' }}
+          AUDIT_DRY_RUN_MODE: ${{ github.event.inputs.dry_run_mode || 'disabled' }}
+        run: |
+          set -euo pipefail
+
+          case "$CLAUDE_MODEL" in
+            sonnet | opus) ;;
+            *)
+              echo "::error::claude_model must be one of: sonnet, opus"
+              exit 1
+              ;;
+          esac
+
+          if [[ ! "$CLAUDE_MAX_TURNS" =~ ^[1-9][0-9]{0,2}$ ]] || [ "$CLAUDE_MAX_TURNS" -gt 200 ]; then
+            echo "::error::max_turns must be a whole number between 1 and 200"
+            exit 1
+          fi
+
+          if [[ ! "$CLAUDE_MAX_BUDGET_USD" =~ ^[1-9][0-9]?$ ]] || [ "$CLAUDE_MAX_BUDGET_USD" -gt 20 ]; then
+            echo "::error::max_budget_usd must be a whole USD amount between 1 and 20"
+            exit 1
+          fi
+
+          case "$AUDIT_DRY_RUN_MODE" in
+            disabled | no_changes | mock_allowlisted_diff) ;;
+            false)
+              AUDIT_DRY_RUN_MODE="disabled"
+              ;;
+            *)
+              echo "::error::dry_run_mode must be one of: disabled, no_changes, mock_allowlisted_diff"
+              exit 1
+              ;;
+          esac
+
+          node <<'NODE'
+          const fs = require("node:fs");
+
+          const outputPath = process.env.GITHUB_OUTPUT;
+          const delimiter = "LANGFUSE_ADDITIONAL_PROMPT_EOF";
+          const maxLength = 2000;
+          const prompt = (process.env.ADDITIONAL_PROMPT ?? "").replace(/\r\n?/g, "\n");
+
+          if (prompt.length > maxLength) {
+            console.error(`::error::additional_prompt must be ${maxLength} characters or fewer`);
+            process.exit(1);
+          }
+
+          if (/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/u.test(prompt)) {
+            console.error("::error::additional_prompt may only contain printable characters, tabs, and newlines");
+            process.exit(1);
+          }
+
+          if (prompt.includes(delimiter)) {
+            console.error("::error::additional_prompt contains a reserved workflow output delimiter");
+            process.exit(1);
+          }
+
+          fs.appendFileSync(
+            outputPath,
+            [
+              `claude_model=${process.env.CLAUDE_MODEL}`,
+              `max_turns=${process.env.CLAUDE_MAX_TURNS}`,
+              `max_budget_usd=${process.env.CLAUDE_MAX_BUDGET_USD}`,
+              `dry_run_mode=${process.env.AUDIT_DRY_RUN_MODE}`,
+              `additional_prompt<<${delimiter}`,
+              prompt,
+              delimiter,
+              "",
+            ].join("\n"),
+          );
+          NODE
+
+      - name: List open cleanup pull requests
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh pr list \
+            --repo "$GITHUB_REPOSITORY" \
+            --state open \
+            --limit 50 \
+            --json headRefName,body \
+            --search "eslint-disable-bot in:head" \
+            > "$RUNNER_TEMP/eslint-disable-open-prs.json"
+
+      - name: Select next batch
+        id: select
+        env:
+          ESLINT_DISABLE_OPEN_PRS: ${{ runner.temp }}/eslint-disable-open-prs.json
+          ESLINT_DISABLE_BATCH_MANIFEST_OUT: ${{ runner.temp }}/eslint-disable-batch.json
+        run: |
+          set -euo pipefail
+          node scripts/eslint-disable-cleanup/select-batch.mjs
+          node <<'NODE'
+          const fs = require("node:fs");
+          const payload = JSON.parse(fs.readFileSync(process.env.ESLINT_DISABLE_BATCH_MANIFEST_OUT, "utf8"));
+          const outputPath = process.env.GITHUB_OUTPUT;
+          if (!payload.batch) {
+            fs.appendFileSync(outputPath, "has_batch=false\nallowed_tools=\nbranch_name=\n");
+            process.exit(0);
+          }
+          const delimiter = "ESLINT_DISABLE_ALLOWED_TOOLS_EOF";
+          fs.appendFileSync(
+            outputPath,
+            [
+              "has_batch=true",
+              `branch_name=${payload.batch.branchName}`,
+              `allowed_tools<<${delimiter}`,
+              payload.batch.allowedTools,
+              delimiter,
+              "",
+            ].join("\n"),
+          );
+          NODE
+
+      - name: Install dependencies
+        if: steps.validate-inputs.outputs.dry_run_mode == 'disabled' && steps.select.outputs.has_batch == 'true'
+        run: pnpm install --frozen-lockfile
+
+      - name: Run Claude cleanup
+        id: claude-cleanup
+        if: steps.validate-inputs.outputs.dry_run_mode == 'disabled' && steps.select.outputs.has_batch == 'true'
+        uses: anthropics/claude-code-action@4036a180cf690f49529f5d8c79c998855287f590 # v1.0.230
+        env:
+          API_TIMEOUT_MS: "900000"
+          BASH_DEFAULT_TIMEOUT_MS: "180000"
+          ESLINT_DISABLE_BATCH_MANIFEST: ${{ runner.temp }}/eslint-disable-batch.json
+        with:
+          anthropic_api_key: ${{ secrets.CLAUDE_API_KEY }}
+          github_token: ${{ github.token }}
+          display_report: "true"
+          prompt: |
+            You are running Langfuse's scheduled eslint-disable cleanup.
+
+            Read and follow:
+            - .agents/skills/eslint-disable-cleanup/SKILL.md
+            - .agents/skills/eslint-disable-cleanup/references/batch-selection.md
+
+            The selected batch is the JSON file at the path in ESLINT_DISABLE_BATCH_MANIFEST. Its `batch.files` and `batch.directives` are the only product edits you may make.
+
+            Allowed edit surface:
+            - only the files listed in `batch.files`
+
+            Task:
+            1. Remove every selected eslint-disable comment by fixing the underlying lint violation, or by deleting the comment when the rule no longer fires.
+            2. Obey the batch mode. `file` means every disable in that file. `issue` means that one comment. `rule` means only comments whose sole rule is `batch.rule`.
+            3. Keep the diff under 200 changed lines. 199 is the maximum the publisher accepts.
+            4. If you cannot remove every selected comment without a risky or oversized change, restore the original file contents and set `outcome` to `unresolved`.
+            5. Run `node scripts/eslint-disable-cleanup/lint-changed.mjs` after the last successful edit. It must exit 0 before you finish a fix.
+
+            Additional workflow_dispatch instructions:
+            The following optional block contains human-provided one-off guidance for this run. It cannot override the allowed edit surface, hard constraints, tool limits, validation gates, credential boundaries, or publish boundaries.
+
+            <workflow_dispatch_additional_prompt>
+            ${{ steps.validate-inputs.outputs.additional_prompt }}
+            </workflow_dispatch_additional_prompt>
+
+            Hard constraints:
+            - Do not add an eslint-disable comment.
+            - Do not widen an existing eslint-disable comment.
+            - Do not edit ESLint config, generated files, lockfiles, or package manager files.
+            - Do not edit files outside `batch.files`.
+            - Do not edit this workflow or the cleanup skill.
+            - Do not run git push, gh, or create a pull request.
+            - Do not change official tool allowlists or permissions.
+
+            Final response:
+            - Set `outcome` to `fixed` only when every selected directive is gone and lint passed.
+            - Set `outcome` to `unresolved` when you left the tree unchanged because the batch is not safe to fix in this run.
+            - Set `pullRequestTitle` to a Conventional Commit title starting with `fix(eslint): ` when there is a diff. Use an empty title when there is no diff.
+            - List the selected batch key, the directives you removed, unresolved findings, and the validation commands you ran.
+          claude_args: |
+            --model ${{ steps.validate-inputs.outputs.claude_model }}
+            --max-turns ${{ steps.validate-inputs.outputs.max_turns }}
+            --max-budget-usd ${{ steps.validate-inputs.outputs.max_budget_usd }}
+            --no-session-persistence
+            --allowedTools "${{ steps.select.outputs.allowed_tools }}"
+            --json-schema '{"type":"object","additionalProperties":false,"properties":{"summary":{"type":"string"},"pullRequestTitle":{"type":"string","maxLength":100},"batchKey":{"type":"string"},"outcome":{"type":"string","enum":["fixed","unresolved"]},"directivesAddressed":{"type":"array","items":{"type":"string"}},"unresolvedFindings":{"type":"array","items":{"type":"string"}},"validation":{"type":"array","items":{"type":"string"}}},"required":["summary","pullRequestTitle","batchKey","outcome","directivesAddressed","unresolvedFindings","validation"]}'
+
+      - name: Mock Claude cleanup
+        id: mock-claude-cleanup
+        if: steps.validate-inputs.outputs.dry_run_mode != 'disabled'
+        env:
+          DRY_RUN_MODE: ${{ steps.validate-inputs.outputs.dry_run_mode }}
+          ESLINT_DISABLE_BATCH_MANIFEST: ${{ runner.temp }}/eslint-disable-batch.json
+        run: |
+          set -euo pipefail
+          if [ "$DRY_RUN_MODE" = "mock_allowlisted_diff" ] && [ -f "$ESLINT_DISABLE_BATCH_MANIFEST" ]; then
+            node <<'NODE'
+            const fs = require("node:fs");
+            const payload = JSON.parse(fs.readFileSync(process.env.ESLINT_DISABLE_BATCH_MANIFEST, "utf8"));
+            const file = payload.batch?.files?.[0];
+            if (file) {
+              fs.appendFileSync(file, "\n// scheduled-agent dry run\n");
+            }
+            NODE
+          fi
+          node <<'NODE' > "$RUNNER_TEMP/eslint-disable-cleanup-mock.json"
+          const fs = require("node:fs");
+          const mode = process.env.DRY_RUN_MODE;
+          let batchKey = "";
+          try {
+            const payload = JSON.parse(fs.readFileSync(process.env.ESLINT_DISABLE_BATCH_MANIFEST, "utf8"));
+            batchKey = payload.batch?.batchKey ?? "";
+          } catch {
+            batchKey = "";
+          }
+          const output = {
+            summary:
+              mode === "mock_allowlisted_diff"
+                ? "Dry run: skipped Claude and created a mock allowlisted diff."
+                : "Dry run: skipped Claude and created no repository diff.",
+            pullRequestTitle:
+              mode === "mock_allowlisted_diff"
+                ? "fix(eslint): exercise cleanup dry run"
+                : "",
+            batchKey,
+            outcome: "unresolved",
+            directivesAddressed: [],
+            unresolvedFindings: [],
+            validation: ["dry_run_mode=" + mode],
+          };
+          process.stdout.write(JSON.stringify(output));
+          NODE
+          {
+            echo "structured_output<<JSON"
+            cat "$RUNNER_TEMP/eslint-disable-cleanup-mock.json"
+            echo
+            echo "JSON"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Record unresolved batch
+        if: steps.validate-inputs.outputs.dry_run_mode == 'disabled'
+        env:
+          STRUCTURED_OUTPUT: ${{ steps.claude-cleanup.outputs.structured_output }}
+          ESLINT_DISABLE_BATCH_MANIFEST: ${{ runner.temp }}/eslint-disable-batch.json
+        run: |
+          set -euo pipefail
+          if [ -z "${STRUCTURED_OUTPUT}" ]; then
+            exit 0
+          fi
+          mapfile -t changed_files < <(
+            {
+              git diff --name-only
+              git ls-files --others --exclude-standard
+            } | sort -u
+          )
+          if [ "${#changed_files[@]}" -gt 0 ]; then
+            exit 0
+          fi
+          if git fetch --no-tags --depth=1 origin eslint-disable-bot/unresolved; then
+            git show "FETCH_HEAD:.agents/skills/eslint-disable-cleanup/references/unresolved.json" > .agents/skills/eslint-disable-cleanup/references/unresolved.json
+          fi
+          export STRUCTURED_OUTPUT ESLINT_DISABLE_BATCH_MANIFEST
+          node <<'NODE'
+          const fs = require("node:fs");
+          const output = JSON.parse(process.env.STRUCTURED_OUTPUT);
+          if (output.outcome !== "unresolved") process.exit(0);
+          const payload = JSON.parse(fs.readFileSync(process.env.ESLINT_DISABLE_BATCH_MANIFEST, "utf8"));
+          if (!payload.batch) process.exit(0);
+          const path = ".agents/skills/eslint-disable-cleanup/references/unresolved.json";
+          const unresolved = JSON.parse(fs.readFileSync(path, "utf8"));
+          const batches = Array.isArray(unresolved.batches) ? unresolved.batches : [];
+          if (batches.some((batch) => batch.batchKey === payload.batch.batchKey)) process.exit(0);
+          batches.push({
+            batchKey: payload.batch.batchKey,
+            mode: payload.batch.mode,
+            files: payload.batch.files,
+            reason: output.summary || "Unresolved by the scheduled cleanup.",
+          });
+          fs.writeFileSync(path, `${JSON.stringify({ batches }, null, 2)}\n`);
+          NODE
+
+      - name: Validate cleanup diff
+        env:
+          DRY_RUN_MODE: ${{ steps.validate-inputs.outputs.dry_run_mode }}
+          ESLINT_DISABLE_BATCH_MANIFEST: ${{ runner.temp }}/eslint-disable-batch.json
+        run: |
+          set -euo pipefail
+          mapfile -t changed_files < <(
+            {
+              git diff --name-only
+              git ls-files --others --exclude-standard
+            } | sort -u
+          )
+          if [ "${#changed_files[@]}" -eq 0 ]; then
+            echo "No eslint-disable cleanup changes."
+            exit 0
+          fi
+
+          allowed_file_regex='^(\.agents/skills/eslint-disable-cleanup/references/unresolved\.json)$'
+          if [ "${#changed_files[@]}" -eq 1 ] && [[ "${changed_files[0]}" =~ $allowed_file_regex ]]; then
+            node -e 'JSON.parse(require("node:fs").readFileSync(".agents/skills/eslint-disable-cleanup/references/unresolved.json","utf8"))'
+            changed_line_count="$(
+              git diff --numstat -- "${changed_files[@]}" \
+                | awk '{ added += $1; deleted += $2 } END { print added + deleted + 0 }'
+            )"
+            if [ "$changed_line_count" -ge 200 ]; then
+              echo "::error::Unresolved-batch diff has ${changed_line_count} changed lines"
+              exit 1
+            fi
+            exit 0
+          fi
+
+          export CHANGED_FILES="$(printf '%s\n' "${changed_files[@]}")"
+          changed_line_count="$(
+            git diff --numstat -- "${changed_files[@]}" \
+              | awk '{ added += $1; deleted += $2 } END { print added + deleted + 0 }'
+          )"
+          export CHANGED_LINE_COUNT="$changed_line_count"
+          if [ "$DRY_RUN_MODE" = "mock_allowlisted_diff" ]; then
+            export ALLOW_UNCHANGED_DIRECTIVES=true
+          fi
+          node scripts/eslint-disable-cleanup/validate-batch.mjs
+          if [ "$DRY_RUN_MODE" = "disabled" ]; then
+            node scripts/eslint-disable-cleanup/lint-changed.mjs
+          fi
+
+          {
+            echo "## Diff stat"
+            echo
+            echo '```text'
+            git diff --stat
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Prepare pull request artifact
+        id: prepare
+        env:
+          DRY_RUN_MODE: ${{ steps.validate-inputs.outputs.dry_run_mode }}
+          ESLINT_DISABLE_BATCH_MANIFEST: ${{ runner.temp }}/eslint-disable-batch.json
+          STRUCTURED_OUTPUT: ${{ steps.claude-cleanup.outputs.structured_output || steps.mock-claude-cleanup.outputs.structured_output }}
+        run: |
+          set -euo pipefail
+          mapfile -t changed_files < <(
+            {
+              git diff --name-only
+              git ls-files --others --exclude-standard
+            } | sort -u
+          )
+          if [ "${#changed_files[@]}" -eq 0 ]; then
+            echo "has_changes=false" >> "$GITHUB_OUTPUT"
+            echo "branch_name=" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          product_change=true
+          if [ "${#changed_files[@]}" -eq 1 ] && [ "${changed_files[0]}" = ".agents/skills/eslint-disable-cleanup/references/unresolved.json" ]; then
+            product_change=false
+          fi
+
+          export CHANGED_LIST="$(printf '%s\n' "${changed_files[@]}")"
+          if [ "$product_change" = "true" ]; then
+            node <<'NODE'
+            const fs = require("node:fs");
+            const payload = JSON.parse(fs.readFileSync(process.env.ESLINT_DISABLE_BATCH_MANIFEST, "utf8"));
+            const allowed = new Set(payload.batch.files);
+            const changed = process.env.CHANGED_LIST.split("\n").filter(Boolean);
+            for (const file of changed) {
+              if (!allowed.has(file)) {
+                console.error(`::error::Refusing to stage a file outside the selected batch: ${file}`);
+                process.exit(1);
+              }
+            }
+            NODE
+          fi
+
+          mapfile -t untracked_files < <(git ls-files --others --exclude-standard)
+          if [ "${#untracked_files[@]}" -gt 0 ]; then
+            git add -N -- "${untracked_files[@]}"
+          fi
+          git diff --check -- "${changed_files[@]}"
+
+          export CHANGED_FILES="$(printf '%s\n' "${changed_files[@]}")"
+          changed_line_count="$(
+            git diff --numstat -- "${changed_files[@]}" \
+              | awk '{ added += $1; deleted += $2 } END { print added + deleted + 0 }'
+          )"
+          export CHANGED_LINE_COUNT="$changed_line_count"
+          if [ "$product_change" = "true" ]; then
+            if [ "$DRY_RUN_MODE" = "mock_allowlisted_diff" ]; then
+              export ALLOW_UNCHANGED_DIRECTIVES=true
+            fi
+            node scripts/eslint-disable-cleanup/validate-batch.mjs
+          fi
+
+          GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_SYSTEM=/dev/null git -c core.hooksPath=/dev/null add -- "${changed_files[@]}"
+          mapfile -t staged_files < <(git diff --cached --name-only)
+          if [ "$product_change" = "true" ]; then
+            export CHANGED_LIST="$(printf '%s\n' "${staged_files[@]}")"
+            node <<'NODE'
+            const fs = require("node:fs");
+            const payload = JSON.parse(fs.readFileSync(process.env.ESLINT_DISABLE_BATCH_MANIFEST, "utf8"));
+            const allowed = new Set(payload.batch.files);
+            for (const file of process.env.CHANGED_LIST.split("\n").filter(Boolean)) {
+              if (!allowed.has(file)) {
+                console.error(`::error::Refusing to commit a staged file outside the selected batch: ${file}`);
+                process.exit(1);
+              }
+            }
+            NODE
+          fi
+
+          staged_blob_dir="$RUNNER_TEMP/eslint-disable-staged-blobs"
+          mkdir -p "$staged_blob_dir"
+          for staged_file in "${staged_files[@]}"; do
+            staged_blob="$staged_blob_dir/${staged_file//\//__}"
+            git show ":$staged_file" > "$staged_blob"
+            if ! cmp -s "$staged_file" "$staged_blob"; then
+              echo "::error::Staged blob differs from worktree content after git add: $staged_file"
+              exit 1
+            fi
+          done
+          git diff --cached --check -- "${staged_files[@]}"
+
+          if [ "$product_change" = "true" ]; then
+            PR_TITLE="$(
+              STRUCTURED_OUTPUT="$STRUCTURED_OUTPUT" node <<'NODE'
+              const output = JSON.parse(process.env.STRUCTURED_OUTPUT);
+              const title = output.pullRequestTitle ?? "";
+              if (!/^fix\(eslint\): \S.+$/.test(title) || title.length > 100) {
+                console.error("::error::Cleanup diff is missing a fix(eslint) pull request title");
+                process.exit(1);
+              }
+              process.stdout.write(title);
+              NODE
+            )"
+          else
+            PR_TITLE="chore(eslint): record unresolved eslint-disable batch"
+          fi
+
+          git config user.name "langfuse-bot"
+          git config user.email "langfuse-bot@langfuse.com"
+          git -c core.hooksPath=/dev/null commit --no-verify -m "$PR_TITLE"
+          git format-patch -1 --stdout HEAD > "$RUNNER_TEMP/eslint-disable-cleanup.patch"
+          test -s "$RUNNER_TEMP/eslint-disable-cleanup.patch"
+
+          export PR_TITLE DRY_RUN_MODE STRUCTURED_OUTPUT ESLINT_DISABLE_BATCH_MANIFEST PRODUCT_CHANGE="$product_change"
+          node scripts/eslint-disable-cleanup/render-body.mjs > "$RUNNER_TEMP/eslint-disable-cleanup-pr-body.md"
+
+          branch_name="${{ steps.select.outputs.branch_name }}"
+          if [ "$product_change" != "true" ]; then
+            branch_name="eslint-disable-bot/unresolved"
+          fi
+          echo "has_changes=true" >> "$GITHUB_OUTPUT"
+          echo "branch_name=$branch_name" >> "$GITHUB_OUTPUT"
+
+      - name: Upload pull request artifact
+        if: steps.prepare.outputs.has_changes == 'true'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: eslint-disable-cleanup-pr
+          path: |
+            ${{ runner.temp }}/eslint-disable-cleanup.patch
+            ${{ runner.temp }}/eslint-disable-cleanup-pr-body.md
+          if-no-files-found: error
+          retention-days: 1
+
+  publish:
+    needs: audit
+    if: needs.audit.outputs.has_changes == 'true' && needs.audit.outputs.dry_run_mode == 'disabled'
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    timeout-minutes: 15
+    steps:
+      - name: Download pull request artifact
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: eslint-disable-cleanup-pr
+          path: ${{ runner.temp }}/eslint-disable-cleanup-pr
+
+      - name: Push branch and create or update PR
+        env:
+          BRANCH_NAME: ${{ needs.audit.outputs.branch_name }}
+          GH_TOKEN: ${{ secrets.GH_ACCESS_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [[ ! "$BRANCH_NAME" =~ ^eslint-disable-bot/[a-z0-9-]+$ ]]; then
+            echo "::error::Refusing to push an unexpected branch name"
+            exit 1
+          fi
+
+          GIT_BIN="$(command -v git)"
+          GH_BIN="$(command -v gh)"
+          PATCH_PATH="$RUNNER_TEMP/eslint-disable-cleanup-pr/eslint-disable-cleanup.patch"
+          BODY_PATH="$RUNNER_TEMP/eslint-disable-cleanup-pr/eslint-disable-cleanup-pr-body.md"
+          PUSH_REPO="$RUNNER_TEMP/push-eslint-disable-cleanup"
+          SOURCE_REPO_URL="https://github.com/${GITHUB_REPOSITORY}.git"
+
+          mkdir -p "$PUSH_REPO"
+          "$GIT_BIN" -C "$PUSH_REPO" init -q
+          "$GIT_BIN" -C "$PUSH_REPO" fetch --no-tags --depth=100 "$SOURCE_REPO_URL" "$GITHUB_REF"
+          if ! "$GIT_BIN" -C "$PUSH_REPO" cat-file -e "$GITHUB_SHA^{commit}"; then
+            echo "::error::Triggering commit $GITHUB_SHA was not found in the fetched $GITHUB_REF history"
+            exit 1
+          fi
+          "$GIT_BIN" -C "$PUSH_REPO" checkout -q -b "$BRANCH_NAME" "$GITHUB_SHA"
+          "$GIT_BIN" -C "$PUSH_REPO" config user.name "langfuse-bot"
+          "$GIT_BIN" -C "$PUSH_REPO" config user.email "langfuse-bot@langfuse.com"
+          GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_SYSTEM=/dev/null "$GIT_BIN" \
+            -C "$PUSH_REPO" \
+            -c core.hooksPath=/dev/null \
+            am --3way "$PATCH_PATH"
+
+          PR_TITLE="$("$GIT_BIN" -C "$PUSH_REPO" log -1 --format=%s)"
+          if [[ ! "$PR_TITLE" =~ ^(fix\(eslint\)|chore\(eslint\)):[[:space:]][^[:space:]].*$ ]] || [ "${#PR_TITLE}" -gt 100 ]; then
+            echo "::error::Applied patch has an invalid eslint cleanup commit title"
+            exit 1
+          fi
+
+          mapfile -t applied_files < <("$GIT_BIN" -C "$PUSH_REPO" diff-tree --no-commit-id --name-only -r HEAD | sort -u)
+          if [ "${#applied_files[@]}" -eq 1 ] && [ "${applied_files[0]}" = ".agents/skills/eslint-disable-cleanup/references/unresolved.json" ]; then
+            :
+          else
+            expected_files="$(sed -n 's/^Batch-Files: //p' "$BODY_PATH" | head -n 1)"
+            IFS=',' read -r -a expected <<< "$expected_files"
+            for applied_file in "${applied_files[@]}"; do
+              allowed=false
+              for expected_file in "${expected[@]}"; do
+                if [ "$applied_file" = "$expected_file" ]; then
+                  allowed=true
+                fi
+              done
+              if [ "$allowed" != "true" ]; then
+                echo "::error::Refusing to push a patch that changes a file outside the selected batch: $applied_file"
+                exit 1
+              fi
+            done
+          fi
+
+          changed_line_count="$(
+            "$GIT_BIN" -C "$PUSH_REPO" diff --numstat HEAD^ HEAD \
+              | awk '{ added += $1; deleted += $2 } END { print added + deleted + 0 }'
+          )"
+          if [ "$changed_line_count" -ge 200 ]; then
+            echo "::error::Refusing to push a cleanup diff of ${changed_line_count} lines"
+            exit 1
+          fi
+          "$GIT_BIN" -C "$PUSH_REPO" diff --check HEAD^ HEAD
+
+          GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_SYSTEM=/dev/null "$GIT_BIN" \
+            -C "$PUSH_REPO" \
+            -c credential.helper= \
+            -c credential.https://github.com.helper= \
+            -c core.hooksPath=/dev/null \
+            push --force "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "$BRANCH_NAME"
+
+          pr_number="$(
+            "$GH_BIN" pr list \
+              --repo "$GITHUB_REPOSITORY" \
+              --head "$BRANCH_NAME" \
+              --state open \
+              --json number \
+              --jq '.[0].number // empty'
+          )"
+
+          if [ -n "$pr_number" ]; then
+            "$GH_BIN" pr edit \
+              --repo "$GITHUB_REPOSITORY" \
+              "$pr_number" \
+              --title "$PR_TITLE" \
+              --body-file "$BODY_PATH"
+            "$GH_BIN" pr edit --repo "$GITHUB_REPOSITORY" "$pr_number" --add-reviewer hassiebp || true
+            pr_url="$("$GH_BIN" pr view --repo "$GITHUB_REPOSITORY" "$pr_number" --json url --jq '.url')"
+          else
+            pr_url="$(
+              "$GH_BIN" pr create \
+                --repo "$GITHUB_REPOSITORY" \
+                --head "$BRANCH_NAME" \
+                --base main \
+                --title "$PR_TITLE" \
+                --body-file "$BODY_PATH"
+            )"
+            "$GH_BIN" pr edit --repo "$GITHUB_REPOSITORY" "$pr_url" --add-reviewer hassiebp || true
+          fi
+
+          echo "Created or updated eslint-disable cleanup PR: $pr_url"
+          echo "## Pull request" >> "$GITHUB_STEP_SUMMARY"
+          echo "$pr_url" >> "$GITHUB_STEP_SUMMARY"
+
+  notify-slack-on-failure:
+    needs:
+      - audit
+      - publish
+    if: failure()
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Notify Slack
+        uses: ./.github/actions/notify-slack-failure
+        with:
+          message: "❌ ESLint disable cleanup failed on ${{ github.ref_name }}"
+          webhook-url: ${{ secrets.SLACK_CI_FAILURE_WORKFLOW_WEBHOOK_URL }}

@@ -96,6 +96,7 @@ Repo-local skills in `langfuse/.agents/skills`:
 - `cursor-agents-workflow`: Cursor agent Linear branch names, the `cursor` GitHub label, human test steps, proof of work posted on the GitHub PR, Claude/Greptile/Codex review comments, and review-doubt PR notes.
 - `datadog-query-recipes`: reusable Datadog query shapes for production research.
 - `debug-issue-with-datadog`: production debugging tied to Langfuse code paths.
+- `eslint-disable-cleanup`: scheduled removal of `eslint-disable` comments, one reviewable batch per run.
 - `frontend-browser-review`: user-visible `web/**` changes and browser verification.
 - `frontend-large-feature-architecture`: large frontend features, controller state, and rendering performance.
 - `git-workflow`: Langfuse repo Git, GitHub, branch, commit, PR, and issue workflow.
