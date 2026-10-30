@@ -36,7 +36,7 @@ export function buildCopilotCliInstructions(
 
   return {
     id: "copilot-cli",
-    label: "Copilot CLI",
+    label: "GitHub Copilot CLI",
     heading: "Route GitHub Copilot CLI through the Langfuse AI Gateway",
     summary:
       "Use the gateway as Copilot CLI's model provider so every model call is recorded in Langfuse.",

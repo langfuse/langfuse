@@ -26,7 +26,8 @@ export type AgentSetupInstructions = {
     | "claude-code"
     | "codex"
     | "opencode"
-    | "copilot-cli";
+    | "copilot-cli"
+    | "copilot-desktop";
   label: string;
   /** First line of the "Copy for agent" Markdown. */
   heading: string;

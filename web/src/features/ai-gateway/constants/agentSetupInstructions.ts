@@ -10,4 +10,6 @@ export const AGENT_SETUP_DOCS_URLS = {
   opencode: `${GATEWAY_DOCS_URL}/coding-agents/opencode`,
   "copilot-cli":
     "https://docs.github.com/en/copilot/how-tos/copilot-cli/customize-copilot/use-byok-models",
+  "copilot-desktop":
+    "https://docs.github.com/en/copilot/how-tos/github-copilot-app/add-llm-models",
 } as const;
