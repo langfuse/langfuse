@@ -1,4 +1,3 @@
-/* eslint-disable no-nested-ternary */
 import { SiPagerduty, SiSlack } from "@langfuse/icons/si";
 import { Webhook, Plus, Pencil, Trash2 } from "@langfuse/icons";
 
@@ -52,9 +51,10 @@ export function ProjectNotificationChannelsList({
 }: ProjectNotificationChannelsListProps) {
   return (
     <div className="flex flex-col gap-4">
-      {isLoading ? (
+      {isLoading && (
         <p className="text-muted-foreground text-sm">Loading channels...</p>
-      ) : !channels || channels.length === 0 ? null : (
+      )}
+      {!isLoading && channels && channels.length > 0 && (
         <div className="flex flex-col gap-3">
           {channels.map((channel) => (
             <div
