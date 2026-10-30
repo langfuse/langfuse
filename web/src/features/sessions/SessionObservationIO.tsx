@@ -194,7 +194,9 @@ export const SessionObservationIO = ({
       media={observationMedia.data}
       projectId={projectId}
       traceId={traceId}
-      observationId={observation.id}
+      observationId={
+        observation.id === `t-${traceId}` ? undefined : observation.id
+      }
       environment={environment}
       showCorrections={showCorrections}
       outputCorrection={outputCorrection}
