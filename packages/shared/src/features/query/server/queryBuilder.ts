@@ -1730,8 +1730,13 @@ export class QueryBuilder {
 
     // Check if single-level optimization is applicable
     // Note: Relation tables are OK as long as measures have aggs configuration
+    // A join can match several rows per score, so scores views with relation
+    // tables need the per-id inner GROUP BY to count each score once.
+    const isScoresView = this.actualTableName(view) === "scores";
     const canOptimize =
-      enableSingleLevelOptimization &&
+      (isScoresView
+        ? relationTables.size === 0
+        : enableSingleLevelOptimization) &&
       this.canUseSingleLevelQuery(appliedDimensions, appliedMetrics);
 
     // Build GROUP BY clause (used by both single-level and two-level queries)
