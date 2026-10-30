@@ -1,7 +1,9 @@
 /* eslint-disable @repo/no-style-props */
+
+import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
 import { ChevronDown, ChevronRight, Wrench } from "@langfuse/icons";
 import { cn } from "@/src/utils/tailwind";
-import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
+
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import useLocalStorage from "@/src/components/useLocalStorage";
 import { useState } from "react";
@@ -76,7 +78,6 @@ function ToolCallArgumentsList({
               <PrettyJsonView
                 json={parseToolCallArguments(toolCall.arguments)}
                 currentView="pretty"
-                codeClassName="text-xs"
               />
             ) : (
               <div className="text-muted-foreground rounded-sm border px-2 py-1.5 text-xs">
@@ -169,7 +170,6 @@ function ToolDefinitionRow({
                 <PrettyJsonView
                   json={tool.parameters}
                   currentView={currentView === "json" ? "json" : "pretty"}
-                  codeClassName="text-xs"
                 />
               </div>
             )}
@@ -200,7 +200,7 @@ function ToolDefinitionRow({
 /**
  * ToolCallDefinitionCard renders tools as expandable rows numbered from 1.
  * The section header, its collapse and the Called / Not called switch
- * belong to the hosting IOSection (see SectionToolDefinitions).
+ * belong to the hosting IOSection in IOPreviewPretty.
  */
 export function ToolCallDefinitionCard({
   tools,

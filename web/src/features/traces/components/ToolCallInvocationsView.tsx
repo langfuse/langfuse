@@ -112,11 +112,7 @@ export function ToolCallInvocationsView({
                   Arguments
                 </div>
               )}
-              <PrettyJsonView
-                json={parsedArguments}
-                currentView="pretty"
-                codeClassName="text-xs"
-              />
+              <PrettyJsonView json={parsedArguments} currentView="pretty" />
             </div>
 
             {/* Response view: paired tool result. Only the normalized-parser
@@ -135,7 +131,6 @@ export function ToolCallInvocationsView({
                   <PrettyJsonView
                     json={parseIfJsonString(response.output)}
                     currentView="pretty"
-                    codeClassName="text-xs"
                   />
                 )}
               </div>

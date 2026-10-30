@@ -2,7 +2,7 @@ import { type ReactNode } from "react";
 import { cva } from "class-variance-authority";
 
 import { Avatar } from "@/src/components/design-system/Avatar/Avatar";
-import { MarkdownView } from "@/src/components/ui/MarkdownViewer";
+import { MarkdownView } from "@/src/components/ui/MarkdownView";
 import { cn } from "@/src/utils/tailwind";
 
 const commentCardVariants = cva(
