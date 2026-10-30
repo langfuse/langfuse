@@ -17,6 +17,8 @@ import {
   TOPICS_MAX_TIME_RANGE_MS,
   topicsModelSettingsSchema,
   topicsSetupSchema,
+  topicRuleFilterError,
+  TOPICS_REFIT_INTERVAL_HOURS,
   type TopicTimeRange,
   type TopicExecutionSummary,
   type TopicFacetRef,
@@ -45,6 +47,8 @@ import {
   checkTopicsModelSettings,
   saveTopicsSetup,
   setTopicsAutomaticProcessing,
+  setTopicRuleEnabled,
+  setTopicsRefitInterval,
   enqueueTopicExecution,
   getTopicExecutionQueueState,
 } from "@langfuse/shared/topics/server";
@@ -67,6 +71,14 @@ import {
 } from "./traceSelection";
 
 import { currentTopicResults, traceFacetResults } from "./currentResults";
+import {
+  analysisRunDiff,
+  analysisTopicResults,
+  previewTopicAnalysis,
+  rerunTopicAnalysis,
+  startTopicAnalysis,
+  topicMapsOverview,
+} from "./slices";
 import { TOPIC_SETUP_BACKFILL_LIMIT } from "../topic-setup-flow";
 
 const projectInput = z.object({ projectId: topicIdSchema });
@@ -80,6 +92,11 @@ const resultInput = projectInput.extend({
   ),
 });
 const mapInput = resultInput.extend({ runId: topicIdSchema });
+const analysisFilterInput = projectInput.extend({
+  filter: topicRuleConfigSchema.shape.filter,
+  timeRange: resultInput.shape.timeRange,
+  facets: z.array(topicFacetRefSchema).min(1),
+});
 const topicsProcedure = protectedProjectProcedureWithoutTracing
   .input(projectInput)
   .use(({ ctx, input, next }) => {
@@ -316,9 +333,44 @@ async function publishedTopicMap(input: {
 
 export const topicsRouter = createTRPCRouter({
   currentResults: topicsProcedure
-    .input(resultInput)
+    .input(resultInput.extend({ ruleId: topicIdSchema.optional() }))
     .query(({ input }) =>
-      currentTopicResults(input.projectId, input.timeRange),
+      currentTopicResults(input.projectId, input.timeRange, {
+        ruleId: input.ruleId,
+      }),
+    ),
+  /** Rule maps and one-off analyses for the map picker and the Rules page. */
+  maps: topicsProcedure.query(({ input, ctx }) =>
+    topicMapsOverview(input.projectId, ctx.prisma),
+  ),
+  analysisResults: topicsProcedure
+    .input(executionInput)
+    .query(({ input }) =>
+      analysisTopicResults(input.projectId, input.executionId),
+    ),
+  analysisDiff: topicsProcedure
+    .input(executionInput)
+    .query(({ input }) => analysisRunDiff(input.projectId, input.executionId)),
+  previewAnalysis: topicsProcedure
+    .input(analysisFilterInput)
+    .query(async ({ input, ctx }) => {
+      await requireFacetVersions(input.projectId, input.facets);
+      return previewTopicAnalysis(input, ctx.prisma);
+    }),
+  startAnalysis: topicsWriteProcedure
+    .input(
+      analysisFilterInput.extend({
+        label: z.string().trim().min(1).max(100),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      await requireFacetVersions(input.projectId, input.facets);
+      return startTopicAnalysis(input, ctx.session.user.id, ctx.prisma);
+    }),
+  rerunAnalysis: topicsWriteProcedure
+    .input(executionInput.extend({ timeRange: resultInput.shape.timeRange }))
+    .mutation(({ input, ctx }) =>
+      rerunTopicAnalysis(input, ctx.session.user.id, ctx.prisma),
     ),
   /** Trace header: every facet result of one trace, with its summary. */
   forTrace: topicsProcedure
@@ -356,9 +408,15 @@ export const topicsRouter = createTRPCRouter({
         id: topicIdSchema.optional(),
         name: z.string().trim().min(1).max(100),
         facetIds: z.array(topicIdSchema).min(1),
+        sampling: z.number().gt(0).max(1).optional(),
       }),
     )
     .mutation(async ({ input, ctx }) => {
+      const filterError = topicRuleFilterError(input.filter);
+      if (filterError) throw new InvalidRequestError(filterError);
+      const before = input.id
+        ? await getTopicRule(input.projectId, input.id)
+        : null;
       const rule = await saveTopicRule({
         ...input,
         userId: ctx.session.user.id,
@@ -368,10 +426,49 @@ export const topicsRouter = createTRPCRouter({
         resourceType: JOB_CONFIGURATION_AUDIT_LOG_RESOURCE_TYPE,
         resourceId: rule.id,
         action: input.id ? "update" : "create",
+        ...(before ? { before } : {}),
         after: rule,
       });
       return rule;
     }),
+  setRuleEnabled: topicsWriteProcedure
+    .input(projectInput.extend({ id: topicIdSchema, enabled: z.boolean() }))
+    .mutation(async ({ input, ctx }) => {
+      const before = await getTopicRule(input.projectId, input.id);
+      const rule = await setTopicRuleEnabled(
+        input.projectId,
+        input.id,
+        input.enabled,
+      );
+      await auditLog({
+        session: ctx.session,
+        resourceType: JOB_CONFIGURATION_AUDIT_LOG_RESOURCE_TYPE,
+        resourceId: rule.id,
+        action: "update",
+        before,
+        after: rule,
+      });
+      return rule;
+    }),
+  setRefitInterval: topicsWriteProcedure
+    .input(
+      projectInput.extend({
+        refitIntervalHours: z.union([
+          z.literal(TOPICS_REFIT_INTERVAL_HOURS[0]),
+          z.literal(TOPICS_REFIT_INTERVAL_HOURS[1]),
+          z.literal(TOPICS_REFIT_INTERVAL_HOURS[2]),
+        ]),
+      }),
+    )
+    .mutation(({ input, ctx }) =>
+      auditedTopicConfigSave(ctx, input.projectId, () =>
+        setTopicsRefitInterval(
+          input.projectId,
+          input.refitIntervalHours,
+          ctx.session.user.id,
+        ),
+      ),
+    ),
   modelSettings: topicsProcedure.query(({ input }) =>
     readTopicsModelSettings(input.projectId),
   ),

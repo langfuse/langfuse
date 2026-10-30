@@ -4,7 +4,7 @@ import {
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
 import { paginationZod } from "@langfuse/shared";
-import { TOPICS_ACTION } from "@langfuse/shared/topics/server";
+import { TOPICS_ACTION_TYPES } from "@langfuse/shared/topics/server";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { GetBatchActionByIdSchema } from "../validation";
@@ -27,7 +27,7 @@ export const batchActionRouter = createTRPCRouter({
         where: {
           id: input.batchActionId,
           projectId: input.projectId,
-          actionType: { not: TOPICS_ACTION },
+          actionType: { notIn: TOPICS_ACTION_TYPES },
         },
         select: {
           id: true,
@@ -72,7 +72,7 @@ export const batchActionRouter = createTRPCRouter({
         ctx.prisma.batchAction.findMany({
           where: {
             projectId: input.projectId,
-            actionType: { not: TOPICS_ACTION },
+            actionType: { notIn: TOPICS_ACTION_TYPES },
           },
           take: input.limit,
           skip: input.page * input.limit,
@@ -83,7 +83,7 @@ export const batchActionRouter = createTRPCRouter({
         ctx.prisma.batchAction.count({
           where: {
             projectId: input.projectId,
-            actionType: { not: TOPICS_ACTION },
+            actionType: { notIn: TOPICS_ACTION_TYPES },
           },
         }),
       ]);
