@@ -1,4 +1,5 @@
 import type { PrismaClient } from "@langfuse/shared/src/db";
+import { orgBoundApiKeyScopes } from "@langfuse/shared/src/server/auth/apiKeys";
 
 type LabelUser = { id: string; name: string | null; email: string | null };
 
@@ -21,7 +22,7 @@ export class GatewayAnalyticsLabelsRepository {
       this.prisma.apiKey.findMany({
         where: {
           orgId: params.organizationId,
-          scope: "ORGANIZATION",
+          scope: { in: orgBoundApiKeyScopes },
           isInAppAgentKey: false,
           ...(!params.includePlainOrganizationKeys && {
             gatewayAssociation: { isNot: null },

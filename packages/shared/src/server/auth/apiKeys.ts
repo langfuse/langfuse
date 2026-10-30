@@ -24,6 +24,9 @@ import { assignRole } from "../../features/rbac/roleAssignmentService";
 import { invalidateCachedApiKeys } from "./invalidateApiKeys";
 import { withTransaction } from "../utils/withTransaction";
 
+/** orgBoundApiKeyScopes are the scopes of keys that belong to an organization through their orgId. */
+export const orgBoundApiKeyScopes: ApiKeyScope[] = ["ORGANIZATION", "USER"];
+
 export function getDisplaySecretKey(secretKey: string) {
   return secretKey.slice(0, 6) + "..." + secretKey.slice(-4);
 }
@@ -192,7 +195,7 @@ function scopeColumns(
     return {
       orgId: untag(tenant),
       userId: untag(scope),
-      scope: "ORGANIZATION",
+      scope: "USER",
     };
   }
   if (hasProjectKind(scope)) {

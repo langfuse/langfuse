@@ -56,7 +56,7 @@ const authContext = (policies: Policy[]): AuthorizationContext => ({
     organizations: [],
     boundResource: { orgId: "org_1", projectId: PRJ },
   },
-  policies,
+  policies: [policies],
 });
 
 const serverContext = (auth?: AuthorizationContext): ServerContext => ({

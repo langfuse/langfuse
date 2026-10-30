@@ -155,7 +155,7 @@ describe("Authenticator consolidated context cache", () => {
     const first = await auth.authenticate(bearer(KNOWN_SECRET));
     expect(first.success).toBe(true);
     expect([...redis.map.keys()]).toEqual([
-      `${AUTHZ_CONTEXT_CACHE_KEY_PREFIX}v2:bearer:${knownHash}`,
+      `${AUTHZ_CONTEXT_CACHE_KEY_PREFIX}v3:bearer:${knownHash}`,
     ]);
 
     const verifySpy = vi.spyOn(verifier, "verify");

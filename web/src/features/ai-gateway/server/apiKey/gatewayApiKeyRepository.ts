@@ -1,5 +1,6 @@
 import type { PrismaClient } from "@langfuse/shared/src/db";
 import { escapeSqlLikePattern } from "@langfuse/shared/src/server";
+import { orgBoundApiKeyScopes } from "@langfuse/shared/src/server/auth/apiKeys";
 
 const GATEWAY_API_KEY_SELECT = {
   metadata: true,
@@ -67,7 +68,7 @@ function gatewayApiKeyWhere(params: {
 }) {
   return {
     orgId: params.organizationId,
-    scope: "ORGANIZATION",
+    scope: { in: orgBoundApiKeyScopes },
     ...(params.ownerUserId !== undefined && { userId: params.ownerUserId }),
   } as const;
 }

@@ -198,7 +198,7 @@ describe("createApiKey assignment rows", () => {
     expect(data.createdByUserId).toBeUndefined();
   });
 
-  it("binds a USER-scoped key to the user as an organization key in its tenant", async () => {
+  it("binds a USER-scoped key to the user in its tenant", async () => {
     const { tx, assignments, getApiKeyData } = makeTx();
 
     await createApiKey(asTx(tx), {
@@ -223,7 +223,7 @@ describe("createApiKey assignment rows", () => {
     expect(data).toMatchObject({
       orgId: ORG_ID,
       userId: "user_1",
-      scope: "ORGANIZATION",
+      scope: "USER",
     });
     expect(data.projectId).toBeUndefined();
   });

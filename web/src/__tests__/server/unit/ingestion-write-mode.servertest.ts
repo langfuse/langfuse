@@ -317,14 +317,16 @@ describe("ingestion per-event shadow comparison", () => {
         },
         policies: allowTrace
           ? [
-              {
-                id: "trace-policy",
-                tenantId: OrganizationId("org"),
-                roleId: SystemRoleId("ADMIN"),
-                actions: ["traces:create"],
-                resources: [ProjectId("project")],
-                effect: "ALLOW",
-              },
+              [
+                {
+                  id: "trace-policy",
+                  tenantId: OrganizationId("org"),
+                  roleId: SystemRoleId("ADMIN"),
+                  actions: ["traces:create"],
+                  resources: [ProjectId("project")],
+                  effect: "ALLOW",
+                },
+              ],
             ]
           : [],
       };

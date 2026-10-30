@@ -10,7 +10,10 @@ import { TRPCError } from "@trpc/server";
 import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
 import { redis } from "@langfuse/shared/src/server";
 import { LangfuseNotFoundError } from "@langfuse/shared";
-import { createApiKey } from "@langfuse/shared/src/server/auth/apiKeys";
+import {
+  createApiKey,
+  orgBoundApiKeyScopes,
+} from "@langfuse/shared/src/server/auth/apiKeys";
 import { OrganizationId, SystemRoleId, UserId } from "@langfuse/shared/rbac";
 import { apiKeyCreationRoleSchema } from "@/src/features/public-api/server/apiKeyCreationRoleSchema";
 import { excludeGatewayApiKeys } from "@/src/features/ai-gateway/server/apiKey/excludeGatewayApiKeys";
@@ -38,7 +41,7 @@ export const organizationApiKeysRouter = createTRPCRouter({
       return ctx.prisma.apiKey.findMany({
         where: {
           orgId: input.orgId,
-          scope: "ORGANIZATION",
+          scope: { in: orgBoundApiKeyScopes },
           isInAppAgentKey: false,
           ...(input.includeGatewayKeys ? {} : excludeGatewayApiKeys),
         },
@@ -210,7 +213,7 @@ export const organizationApiKeysRouter = createTRPCRouter({
         where: {
           id: input.id,
           orgId: input.orgId,
-          scope: "ORGANIZATION",
+          scope: { in: orgBoundApiKeyScopes },
         },
       });
 
@@ -230,7 +233,7 @@ export const organizationApiKeysRouter = createTRPCRouter({
       const deleted = await new ApiAuthService(ctx.prisma, redis).deleteApiKey(
         input.id,
         input.orgId,
-        "ORGANIZATION",
+        apiKey.scope,
       );
       // Any organization key whose role grants gateway:invoke may sit in the
       // gateway resolve cache, which would otherwise keep it usable until the TTL.

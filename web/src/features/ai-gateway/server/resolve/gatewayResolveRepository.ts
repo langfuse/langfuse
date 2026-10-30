@@ -1,4 +1,5 @@
 import type { GatewayProvider, PrismaClient } from "@langfuse/shared/src/db";
+import { orgBoundApiKeyScopes } from "@langfuse/shared/src/server/auth/apiKeys";
 
 export class GatewayResolveRepository {
   constructor(private readonly prisma: PrismaClient) {}
@@ -12,13 +13,14 @@ export class GatewayResolveRepository {
       relationLoadStrategy: "join",
       where: {
         fastHashedSecretKey: params.fastHashedSecretKey,
-        scope: "ORGANIZATION",
+        scope: { in: orgBoundApiKeyScopes },
         orgId: { not: null },
         OR: [{ expiresAt: null }, { expiresAt: { gt: now } }],
       },
       select: {
         id: true,
         orgId: true,
+        scope: true,
         userId: true,
         expiresAt: true,
         note: true,
