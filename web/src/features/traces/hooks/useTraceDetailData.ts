@@ -96,12 +96,14 @@ export function useTraceDetailData({
       isLoading: eventsData.isLoading,
       error: eventsData.error,
       isError: !!eventsData.error,
-      // The events path surfaces "missing" as no-data after loading rather than
-      // a NOT_FOUND error code. Any error (UNAUTHORIZED, a 500, a network blip)
-      // also lands as no-data, so "not found" must mean no-data AND no-error —
-      // else a transient failure is mislabeled as a deleted/missing trace.
+      // The events path surfaces "missing" either as no-data after loading or
+      // as a NOT_FOUND error (e.g. a non-public trace for a signed-out viewer).
+      // Any other error (UNAUTHORIZED, a 500, a network blip) also lands as
+      // no-data, so it must not count as "not found" — else a transient
+      // failure is mislabeled as a deleted/missing trace.
       isNotFound:
-        !eventsData.isLoading && !eventsData.data && !eventsData.error,
+        eventsErrorCode === "NOT_FOUND" ||
+        (!eventsData.isLoading && !eventsData.data && !eventsData.error),
       isUnauthorized,
       truncatedAtObservations: eventsData.truncatedAtObservations,
       isPlaceholderData: eventsData.isPlaceholderData,
