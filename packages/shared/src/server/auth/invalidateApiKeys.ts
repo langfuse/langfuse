@@ -10,7 +10,7 @@ import {
   AUTHZ_CONTEXT_CACHE_PATTERN,
   AUTHZ_CONTEXT_CACHE_KEY_PREFIX,
   createApiKeyCacheKey,
-  createAuthzContextCacheKey,
+  createEvictableAuthzContextCacheKeys,
 } from "./apiKeyCache";
 import { createShaHash } from "./apiKeys";
 
@@ -22,13 +22,21 @@ function cacheKeysForRows(apiKeys: ApiKey[]): string[] {
     if (key.fastHashedSecretKey) {
       keys.push(createApiKeyCacheKey(key.fastHashedSecretKey));
       keys.push(`${AUTHZ_CONTEXT_CACHE_KEY_PREFIX}${key.fastHashedSecretKey}`);
-      keys.push(createAuthzContextCacheKey("basic", key.fastHashedSecretKey));
-      keys.push(createAuthzContextCacheKey("bearer", key.fastHashedSecretKey));
+      keys.push(
+        ...createEvictableAuthzContextCacheKeys(
+          "basic",
+          key.fastHashedSecretKey,
+        ),
+        ...createEvictableAuthzContextCacheKeys(
+          "bearer",
+          key.fastHashedSecretKey,
+        ),
+      );
     }
     if (salt && key.publicKey) {
       const publicHash = createShaHash(key.publicKey, salt);
       keys.push(`${AUTHZ_CONTEXT_CACHE_KEY_PREFIX}${publicHash}`);
-      keys.push(createAuthzContextCacheKey("bearer", publicHash));
+      keys.push(...createEvictableAuthzContextCacheKeys("bearer", publicHash));
     }
   }
   return keys;
