@@ -9,6 +9,8 @@ import {
   recordIncrement,
   validateOtelSpanIds,
 } from "@langfuse/shared/src/server";
+import { isSandboxPublicKey } from "@langfuse/shared/in-app-agent";
+import { findUnwritableSandboxTraceIds } from "@langfuse/shared/in-app-agent/server/sandboxKey";
 
 type OtelIngestionConfig = {
   projectId: string;
@@ -270,6 +272,21 @@ export async function processOtelIngestion(
   }
 
   const processor = new OtelIngestionProcessor(config);
+
+  // Spans upsert their trace, so a sandbox key may only send spans for traces
+  // it created. Checked before upload: the worker writes spans on several paths.
+  if (isSandboxPublicKey(config.publicKey)) {
+    const unwritable = await findUnwritableSandboxTraceIds({
+      projectId: config.projectId,
+      publicKey: config.publicKey,
+      traceIds: processor.getTraceIds(resourceSpans),
+    });
+    if (unwritable.length > 0) {
+      return httpResult(403, {
+        error: "Sandbox script keys can only write to traces they created",
+      });
+    }
+  }
 
   // At this point, we have the raw OpenTelemetry Span body. We upload the full batch to S3
   // and the OtelIngestionProcessor logic will handle processing in the worker container.
