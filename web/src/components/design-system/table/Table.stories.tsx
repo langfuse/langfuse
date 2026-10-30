@@ -157,6 +157,22 @@ export const Loading = meta.story({
   },
 });
 
+export const Compact = meta.story({
+  name: "(Test) Compact rows",
+  args: {
+    rowHeight: "xs",
+    data: { status: "success", data: sortableRows },
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const row = canvas.getByRole("cell", { name: "Dashboard" }).closest("tr");
+    await expect(row?.getBoundingClientRect().height).toBeLessThanOrEqual(33);
+    await expect(
+      canvas.getByRole("cell", { name: "Team analytics overview" }),
+    ).toBeVisible();
+  },
+});
+
 export const Sorting = meta.story({
   name: "(Test) Sorts columns",
   args: {

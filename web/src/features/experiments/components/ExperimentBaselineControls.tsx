@@ -20,6 +20,7 @@ type ExperimentBaselineControlsProps = {
   projectId: string;
   baselineId?: string;
   baselineName?: string;
+  selectionLabel?: "Baseline" | "Experiment";
   onBaselineChange: (id: string) => void;
   onBaselineClear: () => void;
 };
@@ -28,6 +29,7 @@ export function ExperimentBaselineControls({
   projectId,
   baselineId,
   baselineName,
+  selectionLabel = "Baseline",
   onBaselineChange,
   onBaselineClear,
 }: ExperimentBaselineControlsProps) {
@@ -84,7 +86,11 @@ export function ExperimentBaselineControls({
             );
             onBaselineChange(id);
           }}
-          placeholder={baselineName ?? baselineId ?? "Select baseline..."}
+          placeholder={
+            baselineName ??
+            baselineId ??
+            `Select ${selectionLabel.toLowerCase()}...`
+          }
           emptyText="No experiments found"
           searchPlaceholder="Search experiments..."
           disabled={isLoading}
@@ -111,8 +117,8 @@ export function ExperimentBaselineControls({
             onBaselineClear();
           }}
           disabled={isLoading}
-          title="Clear baseline"
-          aria-label="Clear baseline"
+          title={`Clear ${selectionLabel.toLowerCase()}`}
+          aria-label={`Clear ${selectionLabel.toLowerCase()}`}
         >
           <X size="base" color="default" />
         </Button>

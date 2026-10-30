@@ -3,6 +3,7 @@ import Page from "@/src/components/layouts/Page";
 import { api } from "@/src/utils/api";
 import { ExperimentItemsTable } from "@/src/features/experiments/components/table";
 import { ExperimentOverviewPanel } from "@/src/features/experiments/components/ExperimentOverviewPanel";
+import { ExperimentScoreSummary } from "@/src/features/experiments/components/ExperimentScoreSummary";
 import {
   OverviewPanelLayout,
   OverviewPanelToggle,
@@ -158,28 +159,39 @@ export default function ExperimentResultsPage() {
         open={isOverviewOpen}
         persistId={`experiment-detail-${baselineId ?? "none"}`}
         mainContent={
-          <ExperimentItemsTable
-            // The shared table body's memo comparator does not look at the
-            // column definitions, so a format change alone never reaches the
-            // cells. Remounting is what makes the switch take effect.
-            key={ioRenderMode}
-            projectId={projectId}
-            ioRenderMode={ioRenderMode}
-            toolbarSettings={
-              <ExperimentDisplaySettings
-                layout={layout}
-                onLayoutChange={handleLayoutChange}
-                diffMode={diffMode}
-                onDiffModeChange={handleDiffModeChange}
-                itemVisibility={itemVisibility}
-                onItemVisibilityChange={setItemVisibility}
-                hasComparisons={comparisonIds.length > 0}
-                hasBaseline={hasBaseline}
-                ioRenderMode={ioRenderMode}
-                onIoRenderModeChange={setIoRenderMode}
+          <div className="flex h-full min-h-0 flex-col overflow-hidden">
+            {allExperimentIds.length > 0 && (
+              <ExperimentScoreSummary
+                projectId={projectId}
+                experimentIds={allExperimentIds}
+                baselineId={baselineId}
               />
-            }
-          />
+            )}
+            <div className="min-h-0 flex-1 overflow-hidden">
+              <ExperimentItemsTable
+                // The shared table body's memo comparator does not look at the
+                // column definitions, so a format change alone never reaches the
+                // cells. Remounting is what makes the switch take effect.
+                key={ioRenderMode}
+                projectId={projectId}
+                ioRenderMode={ioRenderMode}
+                toolbarSettings={
+                  <ExperimentDisplaySettings
+                    layout={layout}
+                    onLayoutChange={handleLayoutChange}
+                    diffMode={diffMode}
+                    onDiffModeChange={handleDiffModeChange}
+                    itemVisibility={itemVisibility}
+                    onItemVisibilityChange={setItemVisibility}
+                    hasComparisons={comparisonIds.length > 0}
+                    hasBaseline={hasBaseline}
+                    ioRenderMode={ioRenderMode}
+                    onIoRenderModeChange={setIoRenderMode}
+                  />
+                }
+              />
+            </div>
+          </div>
         }
         overviewContent={
           <ExperimentOverviewPanel
