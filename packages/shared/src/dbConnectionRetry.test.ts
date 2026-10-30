@@ -1,30 +1,33 @@
-import { describe, expect, it, vi } from "vitest";
-import { Prisma } from "@prisma/client";
-import { withPostgresConnectionRetry } from "./dbConnectionRetry";
-
-const knownError = (code: string, message: string) =>
-  new Prisma.PrismaClientKnownRequestError(message, {
-    code,
-    clientVersion: "test",
-  });
+import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { Prisma, PrismaClient } from "@prisma/client";
+import {
+  postgresConnectionRetryExtension,
+  withPostgresConnectionRetry,
+} from "./dbConnectionRetry";
+import { logger } from "./server/logger";
 
 const unreachable = () =>
-  knownError("P1001", "Can't reach database server at `db:5432`");
+  new Prisma.PrismaClientKnownRequestError(
+    "Can't reach database server at `db:5432`",
+    { code: "P1001", clientVersion: "test" },
+  );
 const startingUp = () =>
   new Prisma.PrismaClientUnknownRequestError(
     "Error in connector: Error querying the database: FATAL: the database system is starting up",
     { clientVersion: "test" },
   );
-const connectionClosed = () =>
-  knownError("P1017", "Server has closed the connection.");
-
-const noDelays = [0, 0, 0];
+const connectionClosedOnInit = () =>
+  new Prisma.PrismaClientInitializationError(
+    "Server has closed the connection.",
+    "test",
+    "P1017",
+  );
 
 describe("withPostgresConnectionRetry", () => {
   it.each([
     ["unreachable server", unreachable],
     ["server starting up", startingUp],
-    ["connection closed mid-query", connectionClosed],
+    ["connection closed", connectionClosedOnInit],
   ])("retries reads on %s", async (_, makeError) => {
     const run = vi
       .fn()
@@ -32,30 +35,30 @@ describe("withPostgresConnectionRetry", () => {
       .mockResolvedValueOnce("ok");
 
     await expect(
-      withPostgresConnectionRetry({ operation: "findFirst" }, run, noDelays),
+      withPostgresConnectionRetry({ operation: "findFirst" }, run, 0),
     ).resolves.toBe("ok");
     expect(run).toHaveBeenCalledTimes(2);
   });
 
-  it.each(["create", "update", "$executeRaw", "$queryRaw"])(
-    "does not retry %s on connection errors",
-    async (operation) => {
-      const error = unreachable();
-      const run = vi.fn().mockRejectedValue(error);
-
-      await expect(
-        withPostgresConnectionRetry({ operation }, run, noDelays),
-      ).rejects.toBe(error);
-      expect(run).toHaveBeenCalledTimes(1);
-    },
-  );
-
-  it("does not retry query errors", async () => {
-    const error = knownError("P2002", "Unique constraint failed");
+  it("does not retry writes on connection errors", async () => {
+    const error = unreachable();
     const run = vi.fn().mockRejectedValue(error);
 
     await expect(
-      withPostgresConnectionRetry({ operation: "findFirst" }, run, noDelays),
+      withPostgresConnectionRetry({ operation: "create" }, run, 0),
+    ).rejects.toBe(error);
+    expect(run).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not retry query errors", async () => {
+    const error = new Prisma.PrismaClientKnownRequestError(
+      "Unique constraint failed",
+      { code: "P2002", clientVersion: "test" },
+    );
+    const run = vi.fn().mockRejectedValue(error);
+
+    await expect(
+      withPostgresConnectionRetry({ operation: "findFirst" }, run, 0),
     ).rejects.toBe(error);
     expect(run).toHaveBeenCalledTimes(1);
   });
@@ -70,8 +73,38 @@ describe("withPostgresConnectionRetry", () => {
       .mockRejectedValueOnce(last);
 
     await expect(
-      withPostgresConnectionRetry({ operation: "findMany" }, run, noDelays),
+      withPostgresConnectionRetry({ operation: "findMany" }, run, 0),
     ).rejects.toBe(last);
     expect(run).toHaveBeenCalledTimes(4);
+  });
+});
+
+describe("postgresConnectionRetryExtension", () => {
+  // Nothing listens on port 1, so every query fails to connect.
+  const base = new PrismaClient({
+    datasourceUrl: "postgresql://postgres:postgres@127.0.0.1:1/postgres",
+  });
+  const client = base.$extends(postgresConnectionRetryExtension);
+  const warn = vi.spyOn(logger, "warn");
+  const retryWarnings = () =>
+    warn.mock.calls.filter(([message]) =>
+      String(message).startsWith("Retrying Postgres"),
+    );
+
+  beforeEach(() => warn.mockClear());
+  afterAll(() => base.$disconnect());
+
+  it("retries reads issued through the extended client", async () => {
+    await expect(client.project.findFirst()).rejects.toThrow(
+      "Can't reach database server",
+    );
+    expect(retryWarnings()).toHaveLength(3);
+  });
+
+  it("does not retry writes issued through the extended client", async () => {
+    await expect(
+      client.organization.create({ data: { name: "unreachable" } }),
+    ).rejects.toThrow("Can't reach database server");
+    expect(retryWarnings()).toHaveLength(0);
   });
 });

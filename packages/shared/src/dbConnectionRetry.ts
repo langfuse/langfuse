@@ -1,9 +1,6 @@
 import { Prisma } from "@prisma/client";
+import { backOff } from "exponential-backoff";
 import { logger } from "./server/logger";
-
-// Covers a Postgres restart (e.g. an Aurora minor-version upgrade or failover),
-// which refuses connections for one to two seconds.
-const RETRY_DELAYS_MS = [250, 750, 1500];
 
 const READ_OPERATIONS = new Set([
   "findUnique",
@@ -26,7 +23,10 @@ const errorCode = (error: unknown): string | undefined => {
 const errorMessage = (error: unknown): string =>
   error instanceof Error ? error.message : "";
 
+// Matched on message too: a client without an open connection reports an
+// unreachable server as PrismaClientInitializationError without an error code.
 const CONNECTION_ERROR_MESSAGES = [
+  "Can't reach database server",
   "the database system is starting up",
   "the database system is shutting down",
   "terminating connection due to administrator command",
@@ -41,32 +41,37 @@ const isConnectionError = (error: unknown): boolean => {
   return CONNECTION_ERROR_MESSAGES.some((m) => message.includes(m));
 };
 
+// Retries cover a Postgres restart (e.g. an Aurora minor-version upgrade or
+// failover), which refuses connections for one to two seconds.
 // Writes and raw queries are never retried: a dropped connection may already
 // have committed them, and a retried operation from a batch $transaction would
 // run outside that transaction.
 const isRetryable = (error: unknown, operation: string): boolean =>
   READ_OPERATIONS.has(operation) && isConnectionError(error);
 
-export const withPostgresConnectionRetry = async <T>(
+const MAX_ATTEMPTS = 4;
+
+export const withPostgresConnectionRetry = <T>(
   context: { model?: string; operation: string },
   run: () => Promise<T>,
-  delaysMs: number[] = RETRY_DELAYS_MS,
-): Promise<T> => {
-  for (let attempt = 0; ; attempt++) {
-    try {
-      return await run();
-    } catch (error) {
-      if (attempt >= delaysMs.length || !isRetryable(error, context.operation))
-        throw error;
-
+  startingDelayMs = 250,
+): Promise<T> =>
+  backOff(run, {
+    numOfAttempts: MAX_ATTEMPTS,
+    startingDelay: startingDelayMs,
+    timeMultiple: 3,
+    maxDelay: 1500,
+    // Also called after the final attempt, which is never retried.
+    retry: (error, attemptNumber) => {
+      if (attemptNumber >= MAX_ATTEMPTS) return false;
+      if (!isRetryable(error, context.operation)) return false;
       logger.warn(
-        `Retrying Postgres ${context.model ?? "raw"}.${context.operation} after connection error (attempt ${attempt + 1})`,
+        `Retrying Postgres ${context.model ?? "raw"}.${context.operation} after connection error (attempt ${attemptNumber})`,
         { error: errorMessage(error) },
       );
-      await new Promise((resolve) => setTimeout(resolve, delaysMs[attempt]));
-    }
-  }
-};
+      return true;
+    },
+  });
 
 export const postgresConnectionRetryExtension = Prisma.defineExtension({
   name: "postgresConnectionRetry",
