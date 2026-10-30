@@ -211,7 +211,9 @@ describe("sentinel redirect /project/~/", () => {
   });
 
   it("same-host HTTPS cookie on HTTP: keeps the redirect on the current origin", async () => {
-    getServerAuthSessionMock.mockResolvedValue(makeSession(["proj-first"]));
+    getServerAuthSessionMock.mockResolvedValue(
+      makeSession(["proj-first", "proj-last"]),
+    );
 
     const result = await getServerSideProps(
       makeCtx({ path: ["traces"] }, "/project/~/traces", {
@@ -219,13 +221,13 @@ describe("sentinel redirect /project/~/", () => {
         proto: "http",
         cookie: {
           origin: "https://langfuse.example.com",
-          projectId: "proj-first",
+          projectId: "proj-last",
         },
       }),
     );
 
     expect(result).toEqual({
-      redirect: { destination: "/project/proj-first/traces", permanent: false },
+      redirect: { destination: "/project/proj-last/traces", permanent: false },
     });
   });
 
