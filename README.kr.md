@@ -260,7 +260,7 @@ _[Langfuse의 공개 예제 trace](https://cloud.langfuse.com/project/cloramnkj0
 
 ## 🥇 라이선스
 
-이 저장소는 `ee` 폴더를 제외하고 MIT 라이선스가 적용됩니다. 자세한 내용은 [LICENSE](LICENSE)와 [문서](https://langfuse.com/docs/open-source)를 확인하세요.
+이 저장소는 `ee` 폴더를 제외하고 MIT 라이선스가 적용됩니다. 자세한 내용은 [LICENSING.md](LICENSING.md)와 [문서](https://langfuse.com/docs/open-source)를 확인하세요.
 
 ## ⭐️ 별(Star) 히스토리
 

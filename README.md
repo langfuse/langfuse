@@ -251,7 +251,11 @@ Your contributions are welcome!
 
 ## 🥇 License
 
-This repository is MIT licensed, except for the `ee` folders. See [LICENSE](LICENSE) and [docs](https://langfuse.com/docs/open-source) for more details.
+- Core: [MIT](LICENSE)
+- Enterprise Edition (`ee/`, `web/src/ee/`, `worker/src/ee/`, `packages/shared/src/server/ee/`): [Langfuse Enterprise License](LICENSE.enterprise)
+- Which license applies where: [LICENSING.md](LICENSING.md)
+
+See the [docs](https://langfuse.com/docs/open-source) for more details.
 
 ## Dependencies
 

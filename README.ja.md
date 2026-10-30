@@ -278,7 +278,7 @@ _[Langfuseの公開トレース例](https://cloud.langfuse.com/project/cloramnkj
 ## 🥇 ライセンス
 
 このリポジトリは、`ee`フォルダを除き、MITライセンスの下で公開されています。  
-詳細は[LICENSE](LICENSE)および[オープンソースに関するドキュメント](https://langfuse.com/docs/open-source)をご確認ください。
+詳細は[LICENSING.md](LICENSING.md)および[オープンソースに関するドキュメント](https://langfuse.com/docs/open-source)をご確認ください。
 
 ## ⭐️ スターの履歴
 
