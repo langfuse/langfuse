@@ -294,9 +294,13 @@ jobs:
         run: |
           cp .env.dev.example .env
       - name: lint web
-        # Respect package-level worker limits: web's typed linting duplicates
-        # its TypeScript project state in each worker.
-        run: pnpm turbo run lint --filter=!ai-gateway --filter=!@langfuse/native --concurrency=3
+        # Web's typed linting duplicates its TypeScript project state in each
+        # worker (about 6.5 GB each), above Node's default heap limit. The
+        # 64 GB runner fits four 8 GB workers; local `pnpm lint` stays
+        # single-process for smaller machines.
+        env:
+          NODE_OPTIONS: --max_old_space_size=8192
+        run: pnpm turbo run lint --filter=!ai-gateway --filter=!@langfuse/native --concurrency=3 -- --concurrency=4
       # Rust packages lint separately (ai-gateway in its own job).
       - name: lint native addon (rustfmt, clippy)
         run: pnpm --filter @langfuse/native run lint
