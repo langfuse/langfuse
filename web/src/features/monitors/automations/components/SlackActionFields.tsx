@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useId, useState } from "react";
 import { type UseFormReturn } from "react-hook-form";
 import { SiSlack } from "@langfuse/icons/si";
 
@@ -13,6 +13,8 @@ import {
 import { type MonitorAutomationFormValues } from "../helpers/monitorAutomationFormSchema";
 import { FieldGroup } from "./FieldGroup";
 import { InlineCode } from "./InlineCode";
+import { FieldHelp } from "./FieldHelp";
+import { FieldWithHelp } from "./FieldWithHelp";
 
 /** SlackActionFields picks the channel of a connected workspace, or offers to connect one. */
 export function SlackActionFields({
@@ -72,6 +74,7 @@ function SlackChannelFields({
   const channelId = form.watch("slack.channelId");
   const channelName = form.watch("slack.channelName");
   const selectedChannel = selectedSlackChannel(channelId, channelName);
+  const channelHelpId = useId();
   const [testResult, setTestResult] = useState<SlackTestMessageResult>();
   const selectChannel = (channel: SlackChannel) => {
     form.setValue("slack.channelId", channel.id);
@@ -80,32 +83,32 @@ function SlackChannelFields({
 
   return (
     <>
-      <Form.Field
-        control={form.control}
-        name="slack.channelId"
-        label="Slack channel"
-        description={
-          <>
-            Select the Slack channel where notifications will be sent. Private
-            channels appear only for the person who connected Slack, and only if
-            both they and the app are members. Invite the app with{" "}
-            <InlineCode isShaded>/invite @Langfuse</InlineCode>.
-          </>
-        }
-      >
-        {() => (
-          <ChannelSelectorView
-            {...channelSelectorData(slack)}
-            selectedChannelId={channelId}
-            selectedChannel={selectedChannel}
-            onChannelSelect={(channel) => {
-              setTestResult(undefined);
-              selectChannel(channel);
-            }}
-            placeholder="Select a channel"
-          />
-        )}
-      </Form.Field>
+      <FieldWithHelp>
+        <Form.Field
+          control={form.control}
+          name="slack.channelId"
+          label="Slack channel"
+        >
+          {() => (
+            <ChannelSelectorView
+              {...channelSelectorData(slack)}
+              selectedChannelId={channelId}
+              selectedChannel={selectedChannel}
+              onChannelSelect={(channel) => {
+                setTestResult(undefined);
+                selectChannel(channel);
+              }}
+              placeholder="Select a channel"
+            />
+          )}
+        </Form.Field>
+        <FieldHelp id={channelHelpId}>
+          Select the Slack channel where notifications will be sent. Private
+          channels appear only for the person who connected Slack, and only if
+          both they and the app are members. Invite the app with{" "}
+          <InlineCode isShaded>/invite @Langfuse</InlineCode>.
+        </FieldHelp>
+      </FieldWithHelp>
       {selectedChannel && slack.status === "connected" && (
         <div className="flex items-center gap-3">
           <Button

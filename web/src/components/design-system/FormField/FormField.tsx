@@ -1,12 +1,7 @@
 "use client";
 
 import { Info } from "@langfuse/icons";
-import {
-  useId,
-  type ComponentProps,
-  type ReactElement,
-  type ReactNode,
-} from "react";
+import { useId, type ComponentProps, type ReactElement } from "react";
 import {
   Controller,
   type ControllerRenderProps,
@@ -35,7 +30,7 @@ export type FormFieldProps<
       inputDescribedById: string | undefined;
     },
   ) => ReactElement;
-  description?: ReactNode;
+  description?: string;
   label: string;
   name: TName;
   registerLabelTooltip?: TooltipTriggerPropsGetter;
@@ -48,7 +43,7 @@ type StandaloneFormFieldProps = {
     id: string;
     inputDescribedById: string | undefined;
   }) => ReactElement;
-  description?: ReactNode;
+  description?: string;
   label: string;
   registerLabelTooltip?: TooltipTriggerPropsGetter;
 };
@@ -65,7 +60,7 @@ function FormFieldLayout({
 }: {
   label: string;
   controlId: string;
-  description?: ReactNode;
+  description?: string;
   descriptionId: string;
   errorMessage?: string;
   errorId: string;

@@ -1,3 +1,4 @@
+import { useId } from "react";
 import { type UseFormReturn } from "react-hook-form";
 
 import { Form } from "@/src/components/design-system/Form/Form";
@@ -6,6 +7,9 @@ import { PasswordInput } from "@/src/components/design-system/PasswordInput/Pass
 import { TextLink } from "@/src/components/design-system/TextLink/TextLink";
 import { type MonitorAutomationFormValues } from "../helpers/monitorAutomationFormSchema";
 import { InlineCode } from "./InlineCode";
+import { describedBy } from "../helpers/describedBy";
+import { FieldHelp } from "./FieldHelp";
+import { FieldWithHelp } from "./FieldWithHelp";
 
 const dispatchDocsUrl =
   "https://docs.github.com/en/rest/repos/repos#create-a-repository-dispatch-event";
@@ -18,99 +22,111 @@ export function GitHubDispatchActionFields({
 }: {
   form: UseFormReturn<MonitorAutomationFormValues>;
 }) {
+  const urlHelpId = useId();
+  const eventTypeHelpId = useId();
+  const tokenHelpId = useId();
+
   return (
     <>
-      <Form.Field
-        control={form.control}
-        name="githubDispatch.url"
-        label="Repository dispatch URL"
-        description={
-          <>
-            GitHub API endpoint for repository dispatch.{" "}
-            <TextLink
-              path={dispatchDocsUrl}
-              value="Learn more"
-              variant="inline"
-              external
+      <FieldWithHelp>
+        <Form.Field
+          control={form.control}
+          name="githubDispatch.url"
+          label="Repository dispatch URL"
+        >
+          {(field) => (
+            <Input
+              id={field.id}
+              name={field.name}
+              value={field.value}
+              onChange={field.onChange}
+              onBlur={field.onBlur}
+              ref={field.ref}
+              type="url"
+              placeholder="https://api.github.com/repos/owner/repo/dispatches"
+              aria-describedby={describedBy(
+                field.inputDescribedById,
+                urlHelpId,
+              )}
+              aria-invalid={!!field.error}
+              error={!!field.error}
             />
-          </>
-        }
-      >
-        {(field) => (
-          <Input
-            id={field.id}
-            name={field.name}
-            value={field.value}
-            onChange={field.onChange}
-            onBlur={field.onBlur}
-            ref={field.ref}
-            type="url"
-            placeholder="https://api.github.com/repos/owner/repo/dispatches"
-            aria-describedby={field.inputDescribedById}
-            aria-invalid={!!field.error}
-            error={!!field.error}
+          )}
+        </Form.Field>
+        <FieldHelp id={urlHelpId}>
+          GitHub API endpoint for repository dispatch.{" "}
+          <TextLink
+            path={dispatchDocsUrl}
+            value="Learn more"
+            variant="inline"
+            external
           />
-        )}
-      </Form.Field>
-      <Form.Field
-        control={form.control}
-        name="githubDispatch.eventType"
-        label="Event type"
-        description={
-          <>
-            Add this to the{" "}
-            <InlineCode>on.repository_dispatch.types</InlineCode> filter in your
-            workflow.
-          </>
-        }
-      >
-        {(field) => (
-          <Input
-            id={field.id}
-            name={field.name}
-            value={field.value}
-            onChange={field.onChange}
-            onBlur={field.onBlur}
-            ref={field.ref}
-            placeholder="e.g. langfuse-alert"
-            aria-describedby={field.inputDescribedById}
-            aria-invalid={!!field.error}
-            error={!!field.error}
-          />
-        )}
-      </Form.Field>
-      <Form.Field
-        control={form.control}
-        name="githubDispatch.githubToken"
-        label="GitHub personal access token"
-        description={
-          <>
-            GitHub PAT with <InlineCode>repo</InlineCode> scope for repository
-            dispatch.{" "}
-            <TextLink
-              path={createTokenUrl}
-              value="Create token"
-              variant="inline"
-              external
+        </FieldHelp>
+      </FieldWithHelp>
+      <FieldWithHelp>
+        <Form.Field
+          control={form.control}
+          name="githubDispatch.eventType"
+          label="Event type"
+        >
+          {(field) => (
+            <Input
+              id={field.id}
+              name={field.name}
+              value={field.value}
+              onChange={field.onChange}
+              onBlur={field.onBlur}
+              ref={field.ref}
+              placeholder="e.g. langfuse-alert"
+              aria-describedby={describedBy(
+                field.inputDescribedById,
+                eventTypeHelpId,
+              )}
+              aria-invalid={!!field.error}
+              error={!!field.error}
             />
-          </>
-        }
-      >
-        {(field) => (
-          <PasswordInput
-            id={field.id}
-            name={field.name}
-            value={field.value}
-            onChange={field.onChange}
-            onBlur={field.onBlur}
-            ref={field.ref}
-            placeholder="ghp_..."
-            aria-describedby={field.inputDescribedById}
-            aria-invalid={!!field.error}
-            error={!!field.error}
+          )}
+        </Form.Field>
+        <FieldHelp id={eventTypeHelpId}>
+          Add this to the <InlineCode>on.repository_dispatch.types</InlineCode>{" "}
+          filter in your workflow.
+        </FieldHelp>
+      </FieldWithHelp>
+      <FieldWithHelp>
+        <Form.Field
+          control={form.control}
+          name="githubDispatch.githubToken"
+          label="GitHub personal access token"
+        >
+          {(field) => (
+            <PasswordInput
+              id={field.id}
+              name={field.name}
+              value={field.value}
+              onChange={field.onChange}
+              onBlur={field.onBlur}
+              ref={field.ref}
+              placeholder="ghp_..."
+              aria-describedby={describedBy(
+                field.inputDescribedById,
+                tokenHelpId,
+              )}
+              aria-invalid={!!field.error}
+              error={!!field.error}
+            />
+          )}
+        </Form.Field>
+        <FieldHelp id={tokenHelpId}>
+          GitHub PAT with <InlineCode>repo</InlineCode> scope for repository
+          dispatch.{" "}
+          <TextLink
+            path={createTokenUrl}
+            value="Create token"
+            variant="inline"
+            external
           />
-        )}
-      </Form.Field>
+        </FieldHelp>
+      </FieldWithHelp>
     </>
   );
 }
