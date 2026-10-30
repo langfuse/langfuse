@@ -825,8 +825,8 @@ async function executeGitHubDispatchAction({
               },
             },
           });
-  } else if (validated.type === "skill-version") {
-    githubPayload = buildSkillDispatchPayload(validated, eventType);
+  } else if (envelope.type === "skill-version") {
+    githubPayload = buildSkillDispatchPayload(envelope, eventType);
   } else {
     // monitor-alert: post the envelope as client_payload.
     const monitorEnvelope = envelope as Extract<

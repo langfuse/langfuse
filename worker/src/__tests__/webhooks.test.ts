@@ -2703,50 +2703,81 @@ describe("Webhook Integration Tests", () => {
       );
     });
 
-    it("sends prompt changes as change events and completes the execution", async () => {
-      const fullPrompt = await prisma.prompt.findUniqueOrThrow({
-        where: { id: promptId },
-      });
-      const input: WebhookInput = {
-        projectId,
-        automationId,
-        executionId,
-        payload: {
-          prompt: PromptDomainSchema.parse(fullPrompt),
-          action: "created",
-          type: "prompt-version",
-        },
-      };
-      await prisma.automationExecution.create({
-        data: {
-          id: executionId,
+    it.each(["prompt", "skill"] as const)(
+      "sends %s changes as change events and completes the execution",
+      async (entity) => {
+        const fullPrompt = await prisma.prompt.findUniqueOrThrow({
+          where: { id: promptId },
+        });
+        const input: WebhookInput = {
           projectId,
-          triggerId,
           automationId,
-          actionId,
-          status: ActionExecutionStatus.PENDING,
-          sourceId: executionId,
-          input: {},
-        },
-      });
+          executionId,
+          payload:
+            entity === "prompt"
+              ? {
+                  prompt: PromptDomainSchema.parse(fullPrompt),
+                  action: "created",
+                  type: "prompt-version",
+                }
+              : {
+                  type: "skill-version",
+                  action: "created",
+                  skill: {
+                    id: v4(),
+                    projectId,
+                    name: "test-skill",
+                    version: 1,
+                    description: "Test skill",
+                    frontmatter: {},
+                    files: [],
+                    tags: [],
+                    labels: ["latest"],
+                    commitMessage: null,
+                    createdBy: "test-user",
+                    createdAt: new Date(),
+                    updatedAt: new Date(),
+                  },
+                },
+        };
+        await prisma.automationExecution.create({
+          data: {
+            id: executionId,
+            projectId,
+            triggerId,
+            automationId,
+            actionId,
+            status: ActionExecutionStatus.PENDING,
+            sourceId: executionId,
+            input: {},
+          },
+        });
 
-      await executeWebhook(input);
+        await executeWebhook(input);
 
-      const { url, body } = lastPagerDutyRequest();
-      expect(url).toBe("https://events.pagerduty.com/v2/change/enqueue");
-      expect(body).toMatchObject({
-        routing_key: routingKey,
-        payload: {
-          summary: 'Langfuse prompt "test-prompt" version 1 created',
-          custom_details: { prompt_name: "test-prompt", prompt_version: 1 },
-        },
-      });
-      expect(body).not.toHaveProperty("event_action");
-      const execution = await prisma.automationExecution.findUniqueOrThrow({
-        where: { id: executionId },
-      });
-      expect(execution.status).toBe(ActionExecutionStatus.COMPLETED);
-    });
+        const { url, body } = lastPagerDutyRequest();
+        expect(url).toBe("https://events.pagerduty.com/v2/change/enqueue");
+        expect(body).toMatchObject({
+          routing_key: routingKey,
+          payload: {
+            summary: `Langfuse ${entity} "test-${entity}" version 1 created`,
+            custom_details: {
+              [`${entity}_name`]: `test-${entity}`,
+              [`${entity}_version`]: 1,
+            },
+          },
+        });
+        expect(body).not.toHaveProperty("event_action");
+        expect(body.links[0].href).toContain(
+          `/project/${projectId}/${entity}s/`,
+        );
+        expect(body.links[0].href).toContain("version=1");
+        const execution = await prisma.automationExecution.findUniqueOrThrow({
+          where: { id: executionId },
+        });
+        expect(execution.status).toBe(ActionExecutionStatus.COMPLETED);
+      },
+    );
 
     it("always triggers project notifications keyed by event type and resource", async () => {
       await prisma.automationExecution.create({
