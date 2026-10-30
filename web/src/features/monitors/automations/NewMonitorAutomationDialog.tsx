@@ -42,7 +42,6 @@ export function NewMonitorAutomationDialog({
   renderPagerDutyTestEvent,
   defaultValues,
   isSubmitting,
-  onRequestAutomation,
   onSubmit,
 }: {
   /** lockedActionType hides the action picker and fixes the form to this action. */
@@ -55,7 +54,6 @@ export function NewMonitorAutomationDialog({
   }) => ReactNode;
   defaultValues?: MonitorAutomationFormValues;
   isSubmitting: boolean;
-  onRequestAutomation: () => void;
   /** onSubmit resolves to the server's rejection, if any, which the form shows inline. */
   onSubmit: (
     values: MonitorAutomationFormValues,
@@ -106,11 +104,7 @@ export function NewMonitorAutomationDialog({
         >
           <NameField form={form} />
           {!lockedActionType && (
-            <ActionTypeField
-              form={form}
-              actionTypes={actionTypes}
-              onRequestAutomation={onRequestAutomation}
-            />
+            <ActionTypeField form={form} actionTypes={actionTypes} />
           )}
           <ActionFields
             form={form}
@@ -165,11 +159,9 @@ function NameField({ form }: { form: MonitorAutomationForm }) {
 function ActionTypeField({
   form,
   actionTypes,
-  onRequestAutomation,
 }: {
   form: MonitorAutomationForm;
   actionTypes: ActionTypes[];
-  onRequestAutomation: () => void;
 }) {
   return (
     <Form.Field control={form.control} name="actionType" label="Action">
@@ -189,10 +181,6 @@ function ActionTypeField({
             value: actionType,
             label: monitorActionLabel[actionType],
           }))}
-          action={{
-            label: "Request an automation…",
-            onSelect: onRequestAutomation,
-          }}
           placeholder="Select an action"
           aria-describedby={field.inputDescribedById}
         />

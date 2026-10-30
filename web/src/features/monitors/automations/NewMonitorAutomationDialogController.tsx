@@ -42,7 +42,6 @@ export function NewMonitorAutomationDialogController({
             <ConnectedNewMonitorAutomationDialog
               projectId={projectId}
               lockedActionType={state.actionType}
-              onClose={closeDialog}
               onCreated={(automation) => {
                 closeDialog();
                 onCreated?.(automation.automationId);

@@ -7,7 +7,6 @@ import {
   useSlackConnect,
   useSlackTestMessage,
 } from "@/src/features/slack";
-import { useSupportDrawer } from "@/src/features/support-chat";
 import { api, reportTrpcErrorWithoutToast } from "@/src/utils/api";
 import { type SlackFieldsState } from "./components/SlackActionFields";
 import { buildCreateMonitorAutomationInput } from "./helpers/buildCreateMonitorAutomationInput";
@@ -28,17 +27,14 @@ const monitorActionTypes: readonly ActionTypes[] = [
 export function ConnectedNewMonitorAutomationDialog({
   projectId,
   lockedActionType,
-  onClose,
   onCreated,
 }: {
   projectId: string;
   lockedActionType?: ActionTypes;
-  onClose: () => void;
   onCreated: (automation: CreatedMonitorAutomation) => void;
 }) {
   const actionTypes = useAvailableActionTypes(monitorActionTypes);
   const slack = useSlackFieldsState(projectId);
-  const { setOpen: setSupportDrawerOpen } = useSupportDrawer();
   const createAutomation = useCreateMonitorAutomation();
 
   const submit = async (
@@ -77,10 +73,6 @@ export function ConnectedNewMonitorAutomationDialog({
         />
       )}
       isSubmitting={createAutomation.isPending}
-      onRequestAutomation={() => {
-        onClose();
-        setSupportDrawerOpen(true);
-      }}
       onSubmit={submit}
     />
   );

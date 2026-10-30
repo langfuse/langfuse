@@ -31,9 +31,6 @@ vi.mock("@/src/features/pagerduty", () => ({
   PagerDutyTestEventButtons: () => null,
 }));
 vi.mock("@/src/features/rbac", () => ({ useHasProjectAccess: () => true }));
-vi.mock("@/src/features/support-chat", () => ({
-  useSupportDrawer: () => ({ setOpen: vi.fn() }),
-}));
 vi.mock("@/src/features/slack", () => ({
   useChannelSelectorData: () => ({ canListChannels: true }),
   useSlackConnect: () => ({ connect: vi.fn(), canConnect: true }),
@@ -72,7 +69,6 @@ describe("ConnectedNewMonitorAutomationDialog", () => {
     render(
       <ConnectedNewMonitorAutomationDialog
         projectId="p1"
-        onClose={vi.fn()}
         onCreated={onCreated}
       />,
     );
@@ -105,7 +101,6 @@ describe("ConnectedNewMonitorAutomationDialog", () => {
     render(
       <ConnectedNewMonitorAutomationDialog
         projectId="p1"
-        onClose={vi.fn()}
         onCreated={onCreated}
       />,
     );
@@ -133,7 +128,6 @@ describe("ConnectedNewMonitorAutomationDialog", () => {
     render(
       <ConnectedNewMonitorAutomationDialog
         projectId="p1"
-        onClose={vi.fn()}
         onCreated={onCreated}
       />,
     );

@@ -40,9 +40,6 @@ function isSelectGroup<V>(
   return "type" in node && node.type === "group";
 }
 
-/** actionValue is the item value reserved for the action row; it never reaches onValueChange. */
-const actionValue = "__select-dropdown-action__";
-
 type TriggerControls = {
   getTriggerProps: (
     props?: React.ComponentPropsWithoutRef<"button">,
@@ -84,7 +81,6 @@ export function SelectDropdown<V extends string>({
   options,
   onValueChange,
   emptyMessage = "No options available.",
-  action,
   children,
   ref,
   ...triggerProps
@@ -93,8 +89,6 @@ export function SelectDropdown<V extends string>({
   options: readonly SelectNode<V>[];
   onValueChange: (value: V) => void;
   emptyMessage?: string;
-  /** Last row that runs `onSelect` instead of selecting a value. */
-  action?: SelectAction;
   children: (
     controls: TriggerControls & { selectedLabel: string | undefined },
   ) => React.ReactNode;
@@ -198,16 +192,7 @@ export function SelectDropdown<V extends string>({
   };
 
   return (
-    <SelectPrimitive.Root
-      value={value}
-      onValueChange={(nextValue) => {
-        if (action && nextValue === actionValue) {
-          action.onSelect();
-          return;
-        }
-        onValueChange(nextValue as V);
-      }}
-    >
+    <SelectPrimitive.Root value={value} onValueChange={onValueChange}>
       <SelectPrimitive.Trigger
         asChild
         ref={ref}
@@ -243,15 +228,6 @@ export function SelectDropdown<V extends string>({
                     ),
                   )
                 )}
-                {action && (
-                  <InputDropdown.Option highlight="none">
-                    <SelectPrimitive.Item value={actionValue}>
-                      <SelectPrimitive.ItemText>
-                        <InputDropdown.ActionOption label={action.label} />
-                      </SelectPrimitive.ItemText>
-                    </SelectPrimitive.Item>
-                  </InputDropdown.Option>
-                )}
               </SelectPrimitive.Viewport>
             </InputDropdown.List>
             <SelectPrimitive.ScrollDownButton
@@ -266,6 +242,3 @@ export function SelectDropdown<V extends string>({
     </SelectPrimitive.Root>
   );
 }
-
-/** SelectAction is a command offered as the last row of the dropdown. */
-export type SelectAction = { label: string; onSelect: () => void };

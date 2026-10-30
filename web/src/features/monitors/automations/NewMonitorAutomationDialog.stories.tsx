@@ -44,7 +44,6 @@ const baseArgs: ComponentProps<typeof NewMonitorAutomationDialog> = {
     />
   ),
   isSubmitting: false,
-  onRequestAutomation: fn(),
   onSubmit: fn(async () => ({})),
 };
 
@@ -183,20 +182,6 @@ export const TestServerErrorShownInline = meta.story({
     await expect(
       body.getByLabelText("Repository dispatch URL"),
     ).toHaveAttribute("aria-invalid", "true");
-  },
-});
-
-export const TestRequestAutomationKeepsAction = meta.story({
-  name: "(Test) Request an automation keeps the action",
-  play: async ({ args, canvasElement }) => {
-    const body = within(canvasElement.ownerDocument.body);
-    const actionPicker = body.getByRole("combobox", { name: "Action" });
-    await userEvent.click(actionPicker);
-    await userEvent.click(
-      body.getByRole("option", { name: "Request an automation…" }),
-    );
-    await expect(args.onRequestAutomation).toHaveBeenCalledOnce();
-    await expect(actionPicker).toHaveTextContent("Slack");
   },
 });
 

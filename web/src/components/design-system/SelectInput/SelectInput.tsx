@@ -5,10 +5,7 @@ import * as PopoverPrimitive from "@radix-ui/react-popover";
 import { Command as CommandPrimitive } from "cmdk";
 
 import { useLayerContainer } from "@/src/context/LayerContext/LayerContext";
-import {
-  SelectDropdown,
-  type SelectAction,
-} from "../SelectDropdown/SelectDropdown";
+import { SelectDropdown } from "../SelectDropdown/SelectDropdown";
 import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 import { Badge } from "../Badge/Badge";
 import { stopScrollPropagation } from "@/src/hooks/stopScrollPropagation";
@@ -26,7 +23,6 @@ type SelectInputProps<V extends string> = Pick<
   | "options"
   | "onValueChange"
   | "emptyMessage"
-  | "action"
   | "id"
   | "aria-describedby"
   | "aria-invalid"
@@ -52,7 +48,6 @@ function SelectInputInner<V extends string>(
     onValueChange,
     placeholder,
     emptyMessage = "No options available.",
-    action,
     search,
     error,
     muted,
@@ -167,12 +162,6 @@ function SelectInputInner<V extends string>(
                           </CommandPrimitive.Group>
                         );
                       })}
-                      {action && (
-                        <SearchActionOption
-                          action={action}
-                          onSelect={() => setOpen(false)}
-                        />
-                      )}
                     </CommandPrimitive.List>
                   </InputDropdown.List>
                 </CommandPrimitive>
@@ -189,7 +178,6 @@ function SelectInputInner<V extends string>(
       options={options}
       onValueChange={onValueChange}
       emptyMessage={emptyMessage}
-      action={action}
       ref={ref}
       {...triggerProps}
     >
@@ -210,30 +198,6 @@ function SelectInputInner<V extends string>(
         </InputControl>
       )}
     </SelectDropdown>
-  );
-}
-
-/** SearchActionOption renders the action row of a searchable select. */
-function SearchActionOption({
-  action,
-  onSelect,
-}: {
-  action: SelectAction;
-  onSelect: () => void;
-}) {
-  return (
-    <InputDropdown.Option highlight="none">
-      <CommandPrimitive.Item
-        value={action.label}
-        forceMount
-        onSelect={() => {
-          onSelect();
-          action.onSelect();
-        }}
-      >
-        <InputDropdown.ActionOption label={action.label} />
-      </CommandPrimitive.Item>
-    </InputDropdown.Option>
   );
 }
 
