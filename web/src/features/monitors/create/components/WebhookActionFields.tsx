@@ -11,7 +11,7 @@ import { Button } from "@/src/components/design-system/Button/Button";
 import { Form } from "@/src/components/design-system/Form/Form";
 import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
 import { Input } from "@/src/components/design-system/Input/Input";
-import { type MonitorAutomationFormValues } from "../fns/monitorAutomationFormSchema";
+import { type MonitorAutomationFormValues } from "../helpers/monitorAutomationFormSchema";
 import { FieldGroup } from "./FieldGroup";
 
 const schemePattern = /^\s*https?:\/\//i;

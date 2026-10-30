@@ -10,7 +10,7 @@ export {
   ChannelSelectorView,
   type ChannelSelectorViewProps,
 } from "@/src/features/slack/components/ChannelSelectorView/ChannelSelectorView";
-export { useChannelSelectorData } from "@/src/features/slack/useChannelSelectorData";
-export { useSlackConnect } from "@/src/features/slack/useSlackConnect";
-export { useSlackTestMessage } from "@/src/features/slack/useSlackTestMessage";
-export { type SlackTestMessageResult } from "@/src/features/slack/useSlackTestMessage";
+export { useChannelSelectorData } from "@/src/features/slack/hooks/useChannelSelectorData";
+export { useSlackConnect } from "@/src/features/slack/hooks/useSlackConnect";
+export { useSlackTestMessage } from "@/src/features/slack/hooks/useSlackTestMessage";
+export { type SlackTestMessageResult } from "@/src/features/slack/hooks/useSlackTestMessage";

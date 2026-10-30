@@ -6,7 +6,7 @@ import { Form } from "@/src/components/design-system/Form/Form";
 import { PasswordInput } from "@/src/components/design-system/PasswordInput/PasswordInput";
 import { SelectInput } from "@/src/components/design-system/SelectInput/SelectInput";
 import { TextLink } from "@/src/components/design-system/TextLink/TextLink";
-import { type MonitorAutomationFormValues } from "../fns/monitorAutomationFormSchema";
+import { type MonitorAutomationFormValues } from "../helpers/monitorAutomationFormSchema";
 
 const integrationDocsUrl =
   "https://support.pagerduty.com/main/docs/services-and-integrations#create-a-generic-events-api-integration";

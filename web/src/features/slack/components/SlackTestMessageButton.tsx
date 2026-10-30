@@ -2,7 +2,7 @@ import React from "react";
 import { Button, type ButtonProps } from "@/src/components/ui/button";
 import { Zap } from "@langfuse/icons";
 import { type SlackChannel } from "./ChannelSelector";
-import { useSlackTestMessage } from "@/src/features/slack/useSlackTestMessage";
+import { useSlackTestMessage } from "@/src/features/slack/hooks/useSlackTestMessage";
 
 /**
  * Props for the SlackTestMessageButton component

@@ -1,7 +1,7 @@
 import React from "react";
 import { Button, type ButtonProps } from "@/src/components/ui/button";
 import { SiSlack } from "@langfuse/icons/si";
-import { useSlackConnect } from "@/src/features/slack/useSlackConnect";
+import { useSlackConnect } from "@/src/features/slack/hooks/useSlackConnect";
 
 /**
  * Props for the SlackConnectButton component

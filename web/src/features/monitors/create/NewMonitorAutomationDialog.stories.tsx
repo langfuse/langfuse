@@ -5,7 +5,7 @@ import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import preview from "@/.storybook/preview";
 import { Button } from "@/src/components/design-system/Button/Button";
 import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
-import { defaultMonitorAutomationFormValues } from "./fns/monitorAutomationFormSchema";
+import { defaultMonitorAutomationFormValues } from "./helpers/monitorAutomationFormSchema";
 import { NewMonitorAutomationDialog } from "./NewMonitorAutomationDialog";
 import { WebhookSecretDialog } from "./WebhookSecretDialog";
 

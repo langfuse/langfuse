@@ -39,7 +39,7 @@ const STORY_TITLE_GROUPS: StoryTitleGroup[] = [
     titlePrefix: "Features/In-App Agent",
   },
   {
-    directory: "src/features/monitors/components",
+    directory: "src/features/monitors/create",
     titlePrefix: "Features/Monitors",
   },
   {

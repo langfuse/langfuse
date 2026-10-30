@@ -10,7 +10,7 @@ import {
   type SlackChannel,
   type SlackTestMessageResult,
 } from "@/src/features/slack";
-import { type MonitorAutomationFormValues } from "../fns/monitorAutomationFormSchema";
+import { type MonitorAutomationFormValues } from "../helpers/monitorAutomationFormSchema";
 import { FieldGroup } from "./FieldGroup";
 import { InlineCode } from "./InlineCode";
 

@@ -10,8 +10,8 @@ import {
 import { useSupportDrawer } from "@/src/features/support-chat";
 import { api, reportTrpcErrorWithoutToast } from "@/src/utils/api";
 import { type SlackFieldsState } from "./components/SlackActionFields";
-import { buildCreateMonitorAutomationInput } from "./fns/buildCreateMonitorAutomationInput";
-import { type MonitorAutomationFormValues } from "./fns/monitorAutomationFormSchema";
+import { buildCreateMonitorAutomationInput } from "./helpers/buildCreateMonitorAutomationInput";
+import { type MonitorAutomationFormValues } from "./helpers/monitorAutomationFormSchema";
 import {
   NewMonitorAutomationDialog,
   type MonitorAutomationSubmitResult,

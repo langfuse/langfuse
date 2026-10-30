@@ -1,6 +1,6 @@
 import React from "react";
 import { type SlackChannel } from "@langfuse/shared/src/server";
-import { useChannelSelectorData } from "@/src/features/slack/useChannelSelectorData";
+import { useChannelSelectorData } from "@/src/features/slack/hooks/useChannelSelectorData";
 import {
   ChannelSelectorView,
   type ChannelSelectorViewProps,

@@ -1,6 +1,6 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 
-import { defaultMonitorAutomationFormValues } from "./fns/monitorAutomationFormSchema";
+import { defaultMonitorAutomationFormValues } from "./helpers/monitorAutomationFormSchema";
 import { ConnectedNewMonitorAutomationDialog } from "./ConnectedNewMonitorAutomationDialog";
 
 /** submittedValues is what the stubbed dialog submits. */

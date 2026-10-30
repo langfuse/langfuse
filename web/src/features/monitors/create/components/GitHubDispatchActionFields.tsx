@@ -4,7 +4,7 @@ import { Form } from "@/src/components/design-system/Form/Form";
 import { Input } from "@/src/components/design-system/Input/Input";
 import { PasswordInput } from "@/src/components/design-system/PasswordInput/PasswordInput";
 import { TextLink } from "@/src/components/design-system/TextLink/TextLink";
-import { type MonitorAutomationFormValues } from "../fns/monitorAutomationFormSchema";
+import { type MonitorAutomationFormValues } from "../helpers/monitorAutomationFormSchema";
 import { InlineCode } from "./InlineCode";
 
 const dispatchDocsUrl =

@@ -17,7 +17,7 @@ import {
   actionTypeLabel,
   useAvailableActionTypes,
 } from "@/src/features/automations";
-import { NewMonitorAutomationDialogController } from "@/src/features/monitors/components/NewMonitorAutomationDialog/NewMonitorAutomationDialogController";
+import { NewMonitorAutomationDialogController } from "@/src/features/monitors/create/NewMonitorAutomationDialogController";
 import { cn } from "@/src/utils/tailwind";
 import {
   ActionTypeSchema,

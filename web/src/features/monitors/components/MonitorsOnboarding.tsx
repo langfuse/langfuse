@@ -6,7 +6,7 @@ import { ActionButton } from "@/src/components/ActionButton";
 import { Button } from "@/src/components/ui/button";
 import { SplashScreen } from "@/src/components/ui/SplashScreen";
 import { useAvailableActionTypes } from "@/src/features/automations";
-import { NewMonitorAutomationDialogController } from "@/src/features/monitors/components/NewMonitorAutomationDialog/NewMonitorAutomationDialogController";
+import { NewMonitorAutomationDialogController } from "@/src/features/monitors/create/NewMonitorAutomationDialogController";
 import { useHasProjectAccess } from "@/src/features/rbac";
 import { type ActionTypes } from "@langfuse/shared";
 

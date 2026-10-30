@@ -16,13 +16,13 @@ import {
   type SlackFieldsState,
 } from "./components/SlackActionFields";
 import { WebhookActionFields } from "./components/WebhookActionFields";
-import { isMonitorAutomationFormComplete } from "./fns/isMonitorAutomationFormComplete";
-import { serverErrorField } from "./fns/serverErrorField";
+import { isMonitorAutomationFormComplete } from "./helpers/isMonitorAutomationFormComplete";
+import { serverErrorField } from "./helpers/serverErrorField";
 import {
   defaultMonitorAutomationFormValues,
   monitorAutomationFormSchema,
   type MonitorAutomationFormValues,
-} from "./fns/monitorAutomationFormSchema";
+} from "./helpers/monitorAutomationFormSchema";
 
 const defaultActionType: ActionTypes = "SLACK";
 

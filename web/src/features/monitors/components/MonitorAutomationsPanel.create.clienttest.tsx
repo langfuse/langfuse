@@ -63,7 +63,7 @@ type CreatedHandler = (automation: {
 let stubSave: (onCreated: CreatedHandler) => void;
 
 vi.mock(
-  "@/src/features/monitors/components/NewMonitorAutomationDialog/ConnectedNewMonitorAutomationDialog",
+  "@/src/features/monitors/create/ConnectedNewMonitorAutomationDialog",
   () => ({
     ConnectedNewMonitorAutomationDialog: ({
       onCreated,

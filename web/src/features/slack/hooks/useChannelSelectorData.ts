@@ -2,7 +2,7 @@ import { useState } from "react";
 
 import { env } from "@/src/env.mjs";
 import { useHasProjectAccess } from "@/src/features/rbac";
-import { useSlackChannels } from "@/src/features/slack/useSlackChannels";
+import { useSlackChannels } from "@/src/features/slack/hooks/useSlackChannels";
 
 /** useChannelSelectorData loads the channel list and the refresh/reauthenticate actions ChannelSelectorView needs. */
 export function useChannelSelectorData(projectId: string, isEnabled = true) {
