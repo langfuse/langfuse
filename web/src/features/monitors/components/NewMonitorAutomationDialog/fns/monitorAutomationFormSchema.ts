@@ -8,12 +8,6 @@ import {
 
 const maxNameLength = 100;
 const maxEventTypeLength = 100;
-// Chromium's URL parser percent-encodes invalid hosts instead of rejecting them.
-const urlSchema = z.url({ hostname: z.regexes.hostname });
-const httpsUrlSchema = z.url({
-  protocol: /^https$/,
-  hostname: z.regexes.hostname,
-});
 const pagerDutyRoutingKeySchema =
   PagerDutyActionCreateSchema.shape.routingKey.unwrap();
 
@@ -124,7 +118,7 @@ function githubDispatchIssues(
   githubDispatch: MonitorAutomationFormValues["githubDispatch"],
 ): FormIssue[] {
   const issues: FormIssue[] = [];
-  if (!urlSchema.safeParse(githubDispatch.url.trim()).success) {
+  if (!isUrlWithHost(githubDispatch.url.trim())) {
     issues.push(
       issue(
         ["githubDispatch", "url"],
@@ -161,7 +155,23 @@ export function webhookUrl(hostAndPath: string): string {
 
 /** isHttpsUrl accepts absolute https URLs with a host. */
 function isHttpsUrl(url: string): boolean {
-  return httpsUrlSchema.safeParse(url).success;
+  return isUrlWithHost(url) && url.toLowerCase().startsWith("https://");
+}
+
+/** isUrlWithHost accepts absolute URLs with a host, including underscores and IPv6 literals. */
+function isUrlWithHost(url: string): boolean {
+  const hostname = parseHostname(url);
+  // Chromium percent-encodes invalid hosts such as "not a url" instead of rejecting them.
+  return Boolean(hostname) && !hostname?.includes("%");
+}
+
+/** parseHostname is the URL's hostname, or undefined when it does not parse. */
+function parseHostname(url: string): string | undefined {
+  try {
+    return new URL(url).hostname;
+  } catch {
+    return undefined;
+  }
 }
 
 /** issue builds a custom zod issue for a form field. */

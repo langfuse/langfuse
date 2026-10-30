@@ -3,7 +3,7 @@ import { useAvailableActionTypes } from "@/src/features/automations";
 import { PagerDutyTestEventButtons } from "@/src/features/pagerduty";
 import { useHasProjectAccess } from "@/src/features/rbac";
 import {
-  useSlackChannels,
+  useChannelSelectorData,
   useSlackConnect,
   useSlackTestMessage,
 } from "@/src/features/slack";
@@ -46,7 +46,11 @@ export function ConnectedNewMonitorAutomationDialog({
       onCreated({
         automationId: result.automation.id,
         name: values.name.trim(),
-        webhookSecret: result.webhookSecret,
+        // GitHub dispatch also returns its token in `webhookSecret`.
+        webhookSecret: webhookSigningSecret(
+          values.actionType,
+          result.webhookSecret,
+        ),
       });
     } catch {
       // The mutation cache toasts the error; the dialog stays open to retry.
@@ -78,15 +82,15 @@ export function ConnectedNewMonitorAutomationDialog({
 
 /** useSlackFieldsState resolves the project's Slack connection, channels, and connect/test actions. */
 function useSlackFieldsState(projectId: string): SlackFieldsState {
-  const canListChannels = useHasProjectAccess({
+  const canManageIntegration = useHasProjectAccess({
     projectId,
-    scope: "automations:CUD",
+    scope: "integrations:CRUD",
   });
   const integration = api.slack.getIntegrationStatus.useQuery({ projectId });
   const isConnected = integration.data?.isConnected === true;
-  const { channelsData, isLoadingChannels } = useSlackChannels(
+  const { canListChannels, ...channelSelector } = useChannelSelectorData(
     projectId,
-    canListChannels && isConnected,
+    isConnected,
   );
   const { connect, isConnecting, canConnect } = useSlackConnect({
     projectId,
@@ -100,15 +104,15 @@ function useSlackFieldsState(projectId: string): SlackFieldsState {
   if (!isConnected) {
     return {
       status: "disconnected",
-      canConnect,
+      canManageIntegration,
+      canConnect: canConnect && canManageIntegration,
       isConnecting,
       onConnect: connect,
     };
   }
   return {
     status: "connected",
-    channels: channelsData?.channels ?? [],
-    isLoadingChannels,
+    channelSelector: { ...channelSelector, disabled: !canListChannels },
     isTesting,
     onTestChannel: sendTestMessage,
   };
@@ -120,6 +124,15 @@ function useCreateMonitorAutomation() {
   return api.automations.createAutomation.useMutation({
     onSuccess: () => utils.automations.invalidate(),
   });
+}
+
+/** webhookSigningSecret keeps the returned secret only for webhooks, the one action whose secret is shown once. */
+function webhookSigningSecret(
+  actionType: ActionTypes,
+  secret: string | undefined,
+): string | undefined {
+  if (actionType !== "WEBHOOK") return undefined;
+  return secret;
 }
 
 /** CreatedMonitorAutomation is a just-created automation; `webhookSecret` is set only for webhooks. */

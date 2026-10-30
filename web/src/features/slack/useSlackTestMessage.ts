@@ -36,15 +36,18 @@ export function useSlackTestMessage({
     },
   });
 
+  /** sendTestMessage resolves to the channel as Slack reports it, or undefined when sending failed. */
   const sendTestMessage = async (channel: SlackChannel) => {
     try {
-      await testMessageMutation.mutateAsync({
+      const result = await testMessageMutation.mutateAsync({
         projectId,
         channelId: channel.id,
         channelName: channel.name ?? undefined,
       });
+      return result.channelInfo;
     } catch {
       // The mutation's onError already reported it.
+      return undefined;
     }
   };
 

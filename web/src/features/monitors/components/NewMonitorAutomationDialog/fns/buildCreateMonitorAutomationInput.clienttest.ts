@@ -58,6 +58,18 @@ describe("monitorAutomationFormSchema", () => {
     ]);
   });
 
+  it.each(["my_service.internal/hook", "[2001:db8::1]/hook"])(
+    "accepts the webhook host %s, which the server also accepts",
+    (url) => {
+      const values = {
+        ...defaultMonitorAutomationFormValues("WEBHOOK", "Hook"),
+        webhook: { url, headers: [] },
+      };
+
+      expect(monitorAutomationFormSchema.safeParse(values).success).toBe(true);
+    },
+  );
+
   it("rejects a custom header that overrides a Langfuse header", () => {
     const values = {
       ...defaultMonitorAutomationFormValues("WEBHOOK", "Hook"),

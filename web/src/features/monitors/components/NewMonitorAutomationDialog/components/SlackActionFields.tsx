@@ -2,8 +2,11 @@ import { type UseFormReturn } from "react-hook-form";
 
 import { Button } from "@/src/components/design-system/Button/Button";
 import { Form } from "@/src/components/design-system/Form/Form";
-import { SelectInput } from "@/src/components/design-system/SelectInput/SelectInput";
-import { type SlackChannel } from "@/src/features/slack";
+import {
+  ChannelSelectorView,
+  type ChannelSelectorViewProps,
+  type SlackChannel,
+} from "@/src/features/slack";
 import { type MonitorAutomationFormValues } from "../fns/monitorAutomationFormSchema";
 import { FieldGroup } from "./FieldGroup";
 import { InlineCode } from "./InlineCode";
@@ -33,6 +36,8 @@ function SlackConnectField({
       <p className="text-muted-foreground text-sm">
         Connect your Slack workspace to enable real-time notifications for your
         automations.
+        {!slack.canManageIntegration &&
+          " Ask a project admin to connect Slack."}
       </p>
       <div className="flex">
         <Button
@@ -48,7 +53,7 @@ function SlackConnectField({
   );
 }
 
-/** SlackChannelFields selects the channel and tests it once one is chosen. */
+/** SlackChannelFields selects the channel and tests it once one is chosen; testing also resolves a typed #name. */
 function SlackChannelFields({
   form,
   slack,
@@ -56,9 +61,13 @@ function SlackChannelFields({
   form: UseFormReturn<MonitorAutomationFormValues>;
   slack: Exclude<SlackFieldsState, { status: "disconnected" }>;
 }) {
-  const channels = slackChannels(slack);
   const channelId = form.watch("slack.channelId");
-  const selectedChannel = channels.find((channel) => channel.id === channelId);
+  const channelName = form.watch("slack.channelName");
+  const selectedChannel = selectedSlackChannel(channelId, channelName);
+  const selectChannel = (channel: SlackChannel) => {
+    form.setValue("slack.channelId", channel.id);
+    form.setValue("slack.channelName", channel.name);
+  };
 
   return (
     <>
@@ -75,29 +84,13 @@ function SlackChannelFields({
           </>
         }
       >
-        {(field) => (
-          <SelectInput<string>
-            id={field.id}
-            value={field.value}
-            onValueChange={(nextChannelId) => {
-              field.onChange(nextChannelId);
-              form.setValue(
-                "slack.channelName",
-                channels.find((channel) => channel.id === nextChannelId)
-                  ?.name ?? "",
-              );
-            }}
-            options={channels.map((channel) => ({
-              value: channel.id,
-              label: `#${channel.name}`,
-            }))}
-            search={{ placeholder: "Search channels" }}
+        {() => (
+          <ChannelSelectorView
+            {...channelSelectorData(slack)}
+            selectedChannelId={channelId}
+            selectedChannel={selectedChannel}
+            onChannelSelect={selectChannel}
             placeholder="Select a channel"
-            emptyMessage={channelsEmptyMessage(slack)}
-            disabled={slack.status === "loading"}
-            aria-describedby={field.inputDescribedById}
-            aria-invalid={!!field.error}
-            error={!!field.error}
           />
         )}
       </Form.Field>
@@ -108,7 +101,16 @@ function SlackChannelFields({
             variant="secondary"
             text="Test channel"
             loading={slack.isTesting}
-            onClick={() => slack.onTestChannel(selectedChannel)}
+            onClick={async () => {
+              const resolved = await slack.onTestChannel(selectedChannel);
+              if (resolved) {
+                selectChannel({
+                  ...selectedChannel,
+                  id: resolved.id,
+                  name: resolved.name ?? selectedChannel.name,
+                });
+              }
+            }}
           />
           <p className="text-muted-foreground text-sm">
             Test this channel to verify the bot can send messages.
@@ -125,22 +127,28 @@ function connectLabel(isConnecting: boolean): string {
   return "Connect Slack";
 }
 
-/** slackChannels lists the loaded channels, if any. */
-function slackChannels(
-  slack: Exclude<SlackFieldsState, { status: "disconnected" }>,
-): SlackChannel[] {
-  if (slack.status === "loading") return [];
-  return slack.channels;
+/** selectedSlackChannel is the channel the form holds, if one is chosen. */
+function selectedSlackChannel(
+  channelId: string,
+  channelName: string,
+): SlackChannel | null {
+  if (!channelId) return null;
+  return { id: channelId, name: channelName };
 }
 
-/** channelsEmptyMessage explains an empty channel list. */
-function channelsEmptyMessage(
+/** channelSelectorData is the channel list state, empty and loading until the integration status is known. */
+function channelSelectorData(
   slack: Exclude<SlackFieldsState, { status: "disconnected" }>,
-): string {
-  if (slack.status === "connected" && slack.isLoadingChannels) {
-    return "Loading channels…";
-  }
-  return "No channels found.";
+): SlackChannelSelectorData {
+  if (slack.status === "connected") return slack.channelSelector;
+  return {
+    channelsData: null,
+    isLoading: true,
+    hasError: false,
+    isRefreshing: false,
+    onRefresh: () => {},
+    disabled: true,
+  };
 }
 
 /** SlackFieldsState is what the Slack fields need to know about the project's Slack integration. */
@@ -148,14 +156,22 @@ export type SlackFieldsState =
   | { status: "loading" }
   | {
       status: "disconnected";
+      canManageIntegration: boolean;
       canConnect: boolean;
       isConnecting: boolean;
       onConnect: () => void;
     }
   | {
       status: "connected";
-      channels: SlackChannel[];
-      isLoadingChannels: boolean;
+      channelSelector: SlackChannelSelectorData;
       isTesting: boolean;
-      onTestChannel: (channel: SlackChannel) => void;
+      onTestChannel: (
+        channel: SlackChannel,
+      ) => Promise<{ id: string; name?: string } | undefined>;
     };
+
+/** SlackChannelSelectorData is the channel list state ChannelSelectorView renders, without the selection. */
+type SlackChannelSelectorData = Omit<
+  ChannelSelectorViewProps,
+  "selectedChannelId" | "selectedChannel" | "onChannelSelect" | "placeholder"
+>;

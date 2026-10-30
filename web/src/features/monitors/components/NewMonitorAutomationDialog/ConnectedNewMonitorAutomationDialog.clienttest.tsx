@@ -1,0 +1,111 @@
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+
+import { defaultMonitorAutomationFormValues } from "./fns/monitorAutomationFormSchema";
+import { ConnectedNewMonitorAutomationDialog } from "./ConnectedNewMonitorAutomationDialog";
+
+/** submittedValues is what the stubbed dialog submits. */
+let submittedValues = defaultMonitorAutomationFormValues("WEBHOOK", "Hook");
+
+const mutateAsync = vi.fn();
+
+vi.mock("@/src/utils/api", () => ({
+  api: {
+    useUtils: () => ({ automations: { invalidate: vi.fn() } }),
+    automations: {
+      createAutomation: {
+        useMutation: () => ({ mutateAsync, isPending: false }),
+      },
+    },
+    slack: {
+      getIntegrationStatus: {
+        useQuery: () => ({ isPending: true, data: undefined }),
+      },
+    },
+  },
+}));
+vi.mock("@/src/features/automations", () => ({
+  useAvailableActionTypes: (types: string[]) => types,
+}));
+vi.mock("@/src/features/pagerduty", () => ({
+  PagerDutyTestEventButtons: () => null,
+}));
+vi.mock("@/src/features/rbac", () => ({ useHasProjectAccess: () => true }));
+vi.mock("@/src/features/support-chat", () => ({
+  useSupportDrawer: () => ({ setOpen: vi.fn() }),
+}));
+vi.mock("@/src/features/slack", () => ({
+  useChannelSelectorData: () => ({ canListChannels: true }),
+  useSlackConnect: () => ({ connect: vi.fn(), canConnect: true }),
+  useSlackTestMessage: () => ({ sendTestMessage: vi.fn() }),
+}));
+vi.mock("./NewMonitorAutomationDialog", () => ({
+  NewMonitorAutomationDialog: ({
+    onSubmit,
+  }: {
+    onSubmit: (values: typeof submittedValues) => Promise<void>;
+  }) => <button onClick={() => onSubmit(submittedValues)}>create</button>,
+}));
+
+describe("ConnectedNewMonitorAutomationDialog", () => {
+  it("passes on a webhook's signing secret for its once-only display", async () => {
+    submittedValues = {
+      ...defaultMonitorAutomationFormValues("WEBHOOK", "Hook"),
+      webhook: { url: "example.com", headers: [] },
+    };
+    mutateAsync.mockResolvedValue({
+      automation: { id: "auto-1" },
+      webhookSecret: "lf-whsec_1",
+    });
+    const onCreated = vi.fn();
+    render(
+      <ConnectedNewMonitorAutomationDialog
+        projectId="p1"
+        onClose={vi.fn()}
+        onCreated={onCreated}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "create" }));
+
+    await waitFor(() =>
+      expect(onCreated).toHaveBeenCalledWith({
+        automationId: "auto-1",
+        name: "Hook",
+        webhookSecret: "lf-whsec_1",
+      }),
+    );
+  });
+
+  it("never shows a GitHub dispatch token as a webhook secret", async () => {
+    submittedValues = {
+      ...defaultMonitorAutomationFormValues("GITHUB_DISPATCH", "Deploy"),
+      githubDispatch: {
+        url: "https://api.github.com/repos/o/r/dispatches",
+        eventType: "langfuse-alert",
+        githubToken: "ghp_token",
+      },
+    };
+    mutateAsync.mockResolvedValue({
+      automation: { id: "auto-2" },
+      webhookSecret: "ghp_token",
+    });
+    const onCreated = vi.fn();
+    render(
+      <ConnectedNewMonitorAutomationDialog
+        projectId="p1"
+        onClose={vi.fn()}
+        onCreated={onCreated}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "create" }));
+
+    await waitFor(() =>
+      expect(onCreated).toHaveBeenCalledWith({
+        automationId: "auto-2",
+        name: "Deploy",
+        webhookSecret: undefined,
+      }),
+    );
+  });
+});

@@ -20,10 +20,15 @@ const baseArgs: ComponentProps<typeof NewMonitorAutomationDialog> = {
   actionTypes: ["SLACK", "WEBHOOK", "GITHUB_DISPATCH", "PAGERDUTY"],
   slack: {
     status: "connected",
-    channels,
-    isLoadingChannels: false,
+    channelSelector: {
+      channelsData: { channels, hasPrivateChannelAccess: true },
+      isLoading: false,
+      hasError: false,
+      isRefreshing: false,
+      onRefresh: fn(),
+    },
     isTesting: false,
-    onTestChannel: fn(),
+    onTestChannel: fn(async () => undefined),
   },
   renderPagerDutyTestEvent: ({ routingKey }) => (
     <Button
@@ -67,9 +72,40 @@ export const SlackNotConnected = meta.story({
   args: {
     slack: {
       status: "disconnected",
+      canManageIntegration: true,
       canConnect: true,
       isConnecting: false,
       onConnect: fn(),
+    },
+  },
+});
+
+export const SlackCannotConnect = meta.story({
+  args: {
+    slack: {
+      status: "disconnected",
+      canManageIntegration: false,
+      canConnect: false,
+      isConnecting: false,
+      onConnect: fn(),
+    },
+  },
+});
+
+export const SlackChannelsFailedToLoad = meta.story({
+  args: {
+    slack: {
+      status: "connected",
+      channelSelector: {
+        channelsData: null,
+        isLoading: false,
+        hasError: true,
+        isRefreshing: false,
+        onRefresh: fn(),
+        onReauthenticate: fn(),
+      },
+      isTesting: false,
+      onTestChannel: fn(async () => undefined),
     },
   },
 });
