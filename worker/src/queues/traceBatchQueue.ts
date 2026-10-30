@@ -28,12 +28,13 @@ import {
   writeTopicSummaries,
   type TopicsModels,
 } from "@langfuse/shared/topics/server";
-import type { TopicFacet, TopicSummary } from "@langfuse/shared/topics";
+import type {
+  TopicFacet,
+  TopicRule,
+  TopicSummary,
+} from "@langfuse/shared/topics";
 import { env } from "../env";
-import {
-  getDeterministicSamplingValue,
-  shouldSampleEvaluation,
-} from "../features/evaluation/deterministicSampling";
+import { matchTopicRules } from "../features/topics/ruleMatching";
 import {
   isRejectedConnection,
   pauseForRejectedConnection,
@@ -57,7 +58,7 @@ type TraceBatchObservation = Observation & {
 type TraceOutcome = (
   | { outcome: "disabled" | "unchanged" | "summarized" }
   | { outcome: "failed"; reason: string }
-) & { rows: TopicSummary[] };
+) & { rows: TopicSummary[]; ruleIds?: string[] };
 
 /** Identity of one trace within a batch; a batch spans projects. */
 const traceKey = (projectId: string, traceId: string) =>
@@ -71,7 +72,7 @@ class TopicsBatchProjects {
   private readonly models: Promise<Map<string, TopicsModels>>;
   private readonly settings = new Map<
     string,
-    Promise<{ facets: TopicFacet[]; sampling: number }>
+    Promise<{ facets: TopicFacet[]; rules: TopicRule[] | null }>
   >();
   private readonly paused = new Set<string>();
 
@@ -104,19 +105,13 @@ class TopicsBatchProjects {
   }
 }
 
-/** The saved rule's facets and sampling; without a rule, every facet runs. */
+/** The project's facets and saved rules; without rules, every facet runs on every trace. */
 async function loadProjectRule(projectId: string) {
   const [facets, rules] = await Promise.all([
     listTopicFacets(projectId),
     listTopicRules(projectId),
   ]);
-  const rule = rules[0];
-  if (!rule) return { facets, sampling: 1 };
-  const selected = new Set(rule.facetIds);
-  return {
-    facets: facets.filter((facet) => selected.has(facet.id)),
-    sampling: rule.sampling,
-  };
+  return { facets, rules: rules.length ? rules : null };
 }
 
 /** Orders events like manual processing: event_ts, then span ID, then environment. */
@@ -181,13 +176,22 @@ async function summarizeTraceBatch(
   let rows: TopicSummary[] = [];
   try {
     const project = await topics.get(first.projectId);
-    if (
-      !project ||
-      !shouldSampleEvaluation({
-        samplingValue: getDeterministicSamplingValue(traceId),
-        samplingRate: project.sampling,
-      })
-    )
+    if (!project) return { outcome: "disabled", rows };
+    // Summaries are rule-agnostic: one summary per facet any matched rule runs.
+    const ruleIds = project.rules
+      ? matchTopicRules(traceId, observations, project.rules)
+      : undefined;
+    const selected = project.rules
+      ? new Set(
+          project.rules
+            .filter((rule) => ruleIds?.includes(rule.id))
+            .flatMap((rule) => rule.facetIds),
+        )
+      : undefined;
+    const facets = selected
+      ? project.facets.filter((facet) => selected.has(facet.id))
+      : project.facets;
+    if (ruleIds && (!ruleIds.length || !facets.length))
       return { outcome: "disabled", rows };
     // Capture reports its own failures; drain both before releasing the Topics slot.
     const [summary] = await Promise.allSettled([
@@ -199,7 +203,7 @@ async function summarizeTraceBatch(
         traceName: traceContext.traceName ?? "",
         transcript: context?.transcript ?? null,
         models: project.models,
-        facets: project.facets,
+        facets,
       }),
       inputReference
         ? storeInputs(
@@ -216,7 +220,8 @@ async function summarizeTraceBatch(
     if (summary.status === "rejected") throw summary.reason;
     const result = summary.value;
     rows = result.rows;
-    if (result.failure === undefined) return { outcome: result.outcome, rows };
+    if (result.failure === undefined)
+      return { outcome: result.outcome, rows, ruleIds };
     throw result.failure;
   } catch (error) {
     // One trace's failure must not fail or re-read the shared batch.
@@ -566,6 +571,13 @@ export const traceBatchQueueProcessor: Processor<
         topicsOutcomes
           .flatMap(({ rows }) => rows)
           .filter((row) => !droppedRows.has(row)),
+        new Map(
+          topicsOutcomes.flatMap(({ rows, ruleIds }) =>
+            ruleIds && rows[0]?.traceId
+              ? [[traceKey(rows[0].projectId, rows[0].traceId), ruleIds]]
+              : [],
+          ),
+        ),
       ).catch((error: unknown) =>
         logger.warn("Topics assignment could not be queued for trace batch", {
           error: error instanceof Error ? error.message : String(error),

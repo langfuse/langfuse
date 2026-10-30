@@ -462,6 +462,19 @@ export async function getPublishedTopicRun(
   return row ? (await hydrateRuns(projectId, [row]))[0] : null;
 }
 
+/** The map one analysis execution built for a facet. */
+export async function getTopicAnalysisRun(
+  projectId: string,
+  executionId: string,
+  facetId: string,
+): Promise<TopicRun | null> {
+  const row = await prisma.topicClusteringRun.findFirst({
+    where: { projectId, batchActionId: executionId, facetId },
+    orderBy: servingMapOrder,
+  });
+  return row ? (await hydrateRuns(projectId, [row]))[0] : null;
+}
+
 /** Capture compatible serving-map IDs without reading their ClickHouse cohorts. */
 export async function getTopicProcessingMapIds(
   projectId: string,

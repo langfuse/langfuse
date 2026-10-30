@@ -19,6 +19,8 @@ import {
   createTopicRun,
   getTopicRun,
   getPublishedTopicRun,
+  getTopicAnalysisRun,
+  resolveTopicClusteringCohort,
   readTopicMapAssignments,
   getTopicClusteringSummaries,
   saveTopicRun,
@@ -532,6 +534,8 @@ async function clusterFacet(
           facetId: facet.facetId,
           facetVersion: facet.version,
           config,
+          ruleId: execution.input.ruleId ?? null,
+          batchActionId: execution.input.analysis ? execution.id : null,
         });
   progress.runId = run.id;
   // Persist the attempt and selected cohort before any terminal result or inference.
@@ -1280,12 +1284,33 @@ async function updateTopics(
             await saveProgress(metrics, execution, "processing");
             return;
           }
-          const current = await getPublishedTopicRun(
-            execution.projectId,
-            facet.facetId,
-          );
+          const { analysis } = execution.input;
+          const cohort = await resolveTopicClusteringCohort({
+            projectId: execution.projectId,
+            timeRange: execution.input.timeRange,
+            ruleId: execution.input.ruleId,
+            analysis,
+            maxRows: env.LANGFUSE_TOPICS_MAX_CLUSTERING_ROWS,
+          });
+          // An analysis continues its previous run; a refit continues its rule's map.
+          const current = analysis
+            ? analysis.previousExecutionId
+              ? await getTopicAnalysisRun(
+                  execution.projectId,
+                  analysis.previousExecutionId,
+                  facet.facetId,
+                )
+              : null
+            : await getPublishedTopicRun(
+                execution.projectId,
+                facet.facetId,
+                cohort.ruleId ?? undefined,
+              );
           const previous =
-            current?.facetVersion === facet.version ? current : null;
+            current?.status === "completed" &&
+            current.facetVersion === facet.version
+              ? current
+              : null;
           const summaries = await getTopicClusteringSummaries(
             execution.projectId,
             facet.facetId,
@@ -1296,6 +1321,7 @@ async function updateTopics(
               maxRows: env.LANGFUSE_TOPICS_MAX_CLUSTERING_ROWS,
               maxBytes: env.LANGFUSE_TOPICS_MAX_CLUSTERING_BYTES,
             },
+            cohort.cohortTraceIds,
           ).catch(async (error: unknown) => {
             if (accepted?.status === "pending")
               await saveTopicRun({

@@ -927,9 +927,11 @@ describe("trace batch queue", () => {
       { projectId: "a", state: "complete" },
     ]);
     // A retry skips stored rows, so they are queued before the failure rethrows.
-    expect(enqueueTopicsAutomation).toHaveBeenCalledWith("stream-failure", [
-      { projectId: "a", state: "complete" },
-    ]);
+    expect(enqueueTopicsAutomation).toHaveBeenCalledWith(
+      "stream-failure",
+      [{ projectId: "a", state: "complete" }],
+      new Map(),
+    );
     vi.mocked(summarizeAssembledTrace).mockImplementation(async () => ({
       outcome: "unchanged",
       rows: [],
@@ -1279,9 +1281,25 @@ describe("trace batch queue", () => {
     ]);
     vi.mocked(listTopicRules).mockImplementation(async (projectId) => [
       {
+        id: "rule-issues",
+        filter: [],
         facetIds: ["issues"],
         sampling: projectId === "picked" ? 1 : 0,
-      } as TopicRule,
+      } as unknown as TopicRule,
+      // Another rule's facets run only on traces that rule matches.
+      {
+        id: "rule-other-trace",
+        filter: [
+          {
+            column: "traceName",
+            type: "string",
+            operator: "=",
+            value: "another-trace",
+          },
+        ],
+        facetIds: ["intent"],
+        sampling: 1,
+      } as unknown as TopicRule,
     ]);
     const job = {
       data: {
@@ -1355,7 +1373,12 @@ describe("trace batch queue", () => {
       { id: "intent" } as TopicFacet,
     ]);
     vi.mocked(listTopicRules).mockResolvedValue([
-      { facetIds: ["intent"], sampling: 1 } as TopicRule,
+      {
+        id: "rule",
+        filter: [],
+        facetIds: ["intent"],
+        sampling: 1,
+      } as unknown as TopicRule,
     ]);
     const job = {
       data: {

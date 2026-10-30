@@ -317,6 +317,26 @@ export async function listTopicExecutions(
   return batches.map(summaryResult);
 }
 
+/** One-off analysis executions, newest first; each rerun is its own execution. */
+export async function listTopicAnalysisExecutions(
+  projectId: string,
+): Promise<TopicExecutionSummary[]> {
+  topicIdSchema.parse(projectId);
+  const batches = await prisma.batchAction.findMany({
+    where: {
+      projectId,
+      actionType: TOPICS_CLUSTER_ACTION,
+      config: {
+        path: ["inputSettings", "analysis", "seed"],
+        string_contains: "",
+      },
+    },
+    orderBy: { createdAt: "desc" },
+    take: 200,
+  });
+  return batches.map(summaryResult);
+}
+
 export async function writeTopicExecution(
   execution: Pick<
     TopicExecutionSummary,

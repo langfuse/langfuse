@@ -549,6 +549,8 @@ export const TopicAutomationBatchSchema = z.object({
     embeddingDimensions: z.number().int().positive(),
   }),
   timeRange: z.object({ from: z.coerce.date(), to: z.coerce.date() }),
+  // Topics rules every trace of the batch matched; absent on batches queued before rules.
+  ruleIds: z.array(z.string().min(1)).max(5).optional(),
 });
 
 export const TraceBatchEventSchema = z.object({
