@@ -7,16 +7,13 @@ import { expand } from "dotenv-expand";
 import { defineConfig } from "vitest/config";
 import react from "@vitejs/plugin-react";
 import tsconfigPaths from "vite-tsconfig-paths";
+import { type Plugin } from "vite";
 import { VitestCiReporter } from "../scripts/vitest/ci-reporter";
 
 expand(config({ path: "../.env.test" }));
 expand(config({ path: "../.env" }));
 
-const sharedExclude = [
-  "**/node_modules/**",
-  "**/.next/**",
-  "**/dist/**",
-];
+const sharedExclude = ["**/node_modules/**", "**/.next/**", "**/dist/**"];
 
 // The server suite spends more time importing the heavy @langfuse/shared
 // module graph per test file than running tests (measured in CI: 371s
@@ -63,7 +60,7 @@ const sharedContextServerTestFiles = serverTestFiles.filter(
   (file) => !isolatedServerTestFiles.includes(file),
 );
 
-function markdownRawPlugin() {
+function markdownRawPlugin(): Plugin {
   return {
     name: "markdown-raw",
     enforce: "pre",
