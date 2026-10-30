@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import type { FilterNode } from "./ast";
 import type { FieldRegistry, FilterTargeting } from "./fields";
 import { quote, quoteIfNeeded, unquote } from "./quoting";

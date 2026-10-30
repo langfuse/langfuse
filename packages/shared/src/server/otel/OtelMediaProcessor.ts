@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import type { MediaContentType, MediaField } from "../../domain/media";
 import { recordDistribution, recordIncrement } from "../instrumentation";
 import { logger } from "../logger";

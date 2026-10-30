@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
 import { auditLog } from "@/src/features/audit-logs/server";
 import {
@@ -656,8 +655,15 @@ async function handlePut(
   // is omitted we create a default NONE membership if one is missing but leave
   // an existing membership untouched — so a periodic IdP full-sync that omits
   // roles cannot reset an existing member's role back to NONE.
-  if (typeof body.active === "boolean") {
-    if (body.active) {
+  //
+  // Okta profile pushes send `roles` without `active`. The membership check
+  // above guarantees the user is already a member, so a roles-only PUT is
+  // handled like `active: true`.
+  const isRolesOnlyUpdate =
+    body.active === undefined && body.roles !== undefined;
+  const effectiveActive = isRolesOnlyUpdate ? true : body.active;
+  if (typeof effectiveActive === "boolean") {
+    if (effectiveActive) {
       const outcome = await provisionMembership({
         userId: user.id,
         orgId,

@@ -1,19 +1,52 @@
-/* eslint-disable react/no-unstable-nested-components, @typescript-eslint/no-use-before-define */
-import { useState } from "react";
-import { type OnChangeFn, type PaginationState } from "@tanstack/react-table";
+/* eslint-disable react/no-unstable-nested-components */
+import {
+  type PointerEvent,
+  type RefObject,
+  type UIEvent,
+  useState,
+} from "react";
 import { ExternalLink } from "@langfuse/icons";
 import { DataTable } from "@/src/components/table/data-table";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { type DataTablePeekViewProps } from "@/src/components/table/peek";
 import { Button } from "@/src/components/design-system/Button/Button";
-import { formatCompactRelativeTime } from "@/src/utils/dates";
 import { cn } from "@/src/utils/tailwind";
 import { useReadPath } from "@/src/features/events/hooks/useReadPath";
 import { type FacetRow, topicTracesHref } from "./facet-topics";
 
 /** With the table's own 4px (8px on the first column), cells end up 16px from each edge. */
 const CELL = "block px-3";
+/** Rows drawn at once; more load as the list nears its end. */
+const ROW_CHUNK = 100;
+const LOAD_MORE_THRESHOLD_PX = 400;
 const FIRST_CELL = "block pr-3 pl-2";
+
+/**
+ * `truncate` compares unrounded widths: whole-pixel `scrollWidth` misses
+ * sub-pixel overflows that still get an ellipsis, and tight leading overflows
+ * the height of text that fits. Assumes no horizontal padding.
+ */
+function clipsText(element: HTMLElement, clip: "truncate" | "line-clamp") {
+  if (clip === "line-clamp") return element.scrollHeight > element.clientHeight;
+  const text = document.createRange();
+  text.selectNodeContents(element);
+  return (
+    text.getBoundingClientRect().width > element.getBoundingClientRect().width
+  );
+}
+
+/**
+ * Native tooltip with the full text, only while the element clips it. The list
+ * can stay mounted across topics, so a measurement only counts for its text.
+ */
+function useTruncatedTitle(text: string, clip: "truncate" | "line-clamp") {
+  const [clippedText, setClippedText] = useState<string | null>(null);
+  return {
+    title: clippedText === text ? text : undefined,
+    onPointerMove: (event: PointerEvent<HTMLElement>) =>
+      setClippedText(clipsText(event.currentTarget, clip) ? text : null),
+  };
+}
 
 export function TopicTraceList({
   projectId,
@@ -23,29 +56,30 @@ export function TopicTraceList({
   rows,
   peekView,
   tracePanelRef,
+  headerRef,
   divider,
 }: TopicTraceListProps) {
-  const [pagination, setPagination] = useState<PaginationState>({
-    pageIndex: 0,
-    pageSize: 20,
-  });
-  const pageIndex = Math.min(
-    pagination.pageIndex,
-    Math.max(0, Math.ceil(rows.length / pagination.pageSize) - 1),
-  );
-  const onPaginationChange: OnChangeFn<PaginationState> = (update) => {
-    setPagination((current) =>
-      typeof update === "function" ? update(current) : update,
-    );
+  const [shown, setShown] = useState({ rows, count: ROW_CHUNK });
+  // A new topic or facet starts again from the first chunk.
+  const visibleCount = shown.rows === rows ? shown.count : ROW_CHUNK;
+  const onScrollCapture = (event: UIEvent<HTMLElement>) => {
+    const target = event.target as HTMLElement;
+    const nearBottom =
+      target.scrollTop + target.clientHeight >=
+      target.scrollHeight - LOAD_MORE_THRESHOLD_PX;
+    if (nearBottom && visibleCount < rows.length)
+      setShown({ rows, count: visibleCount + ROW_CHUNK });
   };
+  const titleTooltip = useTruncatedTitle(title, "truncate");
+  const descriptionTooltip = useTruncatedTitle(description ?? "", "line-clamp");
   const { isV4 } = useReadPath();
   const tracingHref = topicTracesHref(projectId, rows, isV4);
   const columns: LangfuseColumnDef<FacetRow>[] = [
     {
       accessorKey: "traceId",
       header: () => <span className={FIRST_CELL}>Trace ID</span>,
-      size: 128,
-      minSize: 96,
+      size: 208,
+      minSize: 128,
       cell: ({ row }) => (
         <span
           className={cn(
@@ -73,22 +107,12 @@ export function TopicTraceList({
         );
       },
     },
-    {
-      accessorKey: "unitStartTime",
-      header: () => <span className={CELL}>Started</span>,
-      size: 96,
-      minSize: 88,
-      cell: ({ row }) => (
-        <span className={cn("text-muted-foreground block tabular-nums", CELL)}>
-          {compactAge(row.original.unitStartTime)}
-        </span>
-      ),
-    },
   ];
   return (
     <section
       aria-label="Topic traces"
       ref={tracePanelRef}
+      onScrollCapture={onScrollCapture}
       className={cn(
         "flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden",
         divider === "side" && "border-t lg:border-t-0 lg:border-l",
@@ -96,40 +120,50 @@ export function TopicTraceList({
         !divider && "rounded-md border",
       )}
     >
-      <div className="flex h-12 shrink-0 items-center justify-between gap-2 px-4">
-        <h3 className="flex min-w-0 items-baseline gap-2 text-base leading-none font-bold">
-          {swatchColor ? (
+      <div ref={headerRef} className="flex shrink-0 flex-col gap-1 px-4 py-3">
+        <div className="flex h-7 items-center justify-between gap-4">
+          <p className="text-muted-foreground flex min-w-0 items-center gap-2">
+            {swatchColor && (
+              <span
+                aria-hidden
+                className="size-3 shrink-0 rounded-xs"
+                style={{ backgroundColor: swatchColor }}
+              />
+            )}
             <span
-              aria-hidden
-              className="size-2.5 shrink-0 self-center rounded-xs"
-              style={{ backgroundColor: swatchColor }}
+              className="truncate font-mono text-xs"
+              title={`${rows.length.toLocaleString()} traces`}
+            >
+              {`${rows.length.toLocaleString()} traces`}
+            </span>
+          </p>
+          {tracingHref && (
+            <Button
+              href={tracingHref}
+              text="Open in Tracing"
+              variant="ghost"
+              size="sm"
+              icon={ExternalLink}
             />
-          ) : null}
-          <span className="truncate" title={title}>
-            {title}
-          </span>
-          <span className="text-muted-foreground shrink-0 font-mono text-xs font-normal">
-            {rows.length.toLocaleString()} traces
-          </span>
-        </h3>
-        {tracingHref ? (
-          <Button
-            href={tracingHref}
-            text="Open in Tracing"
-            variant="secondary"
-            size="sm"
-            icon={ExternalLink}
-          />
-        ) : null}
-      </div>
-      {description ? (
-        <p
-          className="bg-muted text-muted-foreground mx-4 mb-3 line-clamp-3 rounded-md px-3 py-2 text-sm"
-          title={description}
+          )}
+        </div>
+        <h3
+          className="truncate text-lg font-bold"
+          title={titleTooltip.title}
+          onPointerMove={titleTooltip.onPointerMove}
         >
-          {description}
-        </p>
-      ) : null}
+          {title}
+        </h3>
+        {description && (
+          <p
+            className="text-muted-foreground line-clamp-2 text-sm"
+            title={descriptionTooltip.title}
+            onPointerMove={descriptionTooltip.onPointerMove}
+          >
+            {description}
+          </p>
+        )}
+      </div>
       <DataTable
         tableName="topics-topic-traces"
         columns={columns}
@@ -137,17 +171,8 @@ export function TopicTraceList({
           isLoading: false,
           isError: false,
           data: rows
-            .slice(
-              pageIndex * pagination.pageSize,
-              (pageIndex + 1) * pagination.pageSize,
-            )
+            .slice(0, visibleCount)
             .map((row) => ({ ...row, id: row.traceId })),
-        }}
-        pagination={{
-          totalCount: rows.length,
-          state: { ...pagination, pageIndex },
-          onChange: onPaginationChange,
-          options: [20, 50, 100],
         }}
         className="min-h-0 overscroll-contain"
         cellPadding="relaxed"
@@ -166,9 +191,7 @@ type TopicTraceListProps = {
   rows: FacetRow[];
   peekView: DataTablePeekViewProps;
   tracePanelRef?: (element: HTMLElement | null) => void;
+  /** Lets a neighbouring panel match this header's height. */
+  headerRef?: RefObject<HTMLDivElement | null>;
   divider?: "top" | "side";
 };
-
-function compactAge(timestamp: string) {
-  return formatCompactRelativeTime(new Date(timestamp)).replace(/ ago$/, "");
-}

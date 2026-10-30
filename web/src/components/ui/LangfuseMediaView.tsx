@@ -1,4 +1,4 @@
-/* eslint-disable @repo/no-null-render, @typescript-eslint/no-use-before-define */
+/* eslint-disable @repo/no-null-render */
 import { api } from "@/src/utils/api";
 import { useMemo } from "react";
 
@@ -13,6 +13,7 @@ import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import {
   type MediaContentType,
   type MediaReturnType,
+  mediaUrlQueryOptions,
 } from "@/src/features/media";
 import { MediaReferenceTag } from "@/src/components/ui/media/MediaReferenceTag";
 import { MediaFileView } from "@/src/components/ui/media/MediaFileView";
@@ -99,11 +100,7 @@ export const LangfuseMediaView = ({
     },
     {
       enabled: Boolean(projectId) && !isOversizedField,
-      meta: { silentHttpCodes: [404] },
-      refetchOnWindowFocus: false,
-      refetchOnMount: false,
-      refetchOnReconnect: false,
-      staleTime: 55 * 60 * 1000, // 55 minutes, s3 links expire after 1 hour
+      ...mediaUrlQueryOptions,
     },
   );
 

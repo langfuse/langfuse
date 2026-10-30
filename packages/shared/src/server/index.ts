@@ -83,6 +83,7 @@ export * from "./otel/utils";
 export * from "./clickhouse/client";
 export {
   getClickHouseCompatibilitySettings,
+  getDetectedClickHouseVersion,
   initializeClickhouseCompatibility,
 } from "./clickhouse/compatibility";
 export * from "./clickhouse/schemaUtils";
@@ -159,6 +160,7 @@ export * from "./queries";
 export * from "./queries/clickhouse-sql/orderby-factory";
 export * from "./queries/clickhouse-sql/query-options";
 export * from "./repositories";
+export * from "./billing/billingLedgerShadow";
 export { SCORE_TO_TRACE_OBSERVATIONS_INTERVAL } from "./repositories/constants";
 export { scoreDomainToV3 } from "./repositories/scores";
 export * from "./repositories/observations";

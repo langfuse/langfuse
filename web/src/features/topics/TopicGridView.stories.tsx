@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { type ComponentProps } from "react";
 import { fn } from "storybook/test";
 import preview from "../../../.storybook/preview";
@@ -21,7 +20,7 @@ const topics = [
     count: 0,
   },
   { id: "howto", name: "How-to and onboarding", description: "", count: 0 },
-];
+].map((topic) => ({ ...topic, versionId: `${topic.id}-v1`, runId: "run" }));
 const clusters: { topic: number | null; x: number; y: number; n: number }[] = [
   { topic: 0, x: -6, y: -4, n: 70 },
   { topic: 1, x: 5, y: -5, n: 55 },

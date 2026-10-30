@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { Sha256 } from "@aws-crypto/sha256-browser";
 import { useCallback, useState } from "react";
 

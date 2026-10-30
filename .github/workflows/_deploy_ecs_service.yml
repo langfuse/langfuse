@@ -25,7 +25,6 @@ on:
         required: true
 jobs:
   ecs-deploy:
-    if: ${{ inputs.service != 'ai-gateway' || inputs.environment == 'staging' }}
     runs-on: blacksmith-4vcpu-ubuntu-2404
     environment: ${{ inputs.environment }}
     permissions:

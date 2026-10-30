@@ -24,8 +24,17 @@ export function buildClaudeDesktopInstructions(
           "Open Developer → Configure Third-Party Inference and set Inference provider to Gateway. If the Developer menu is missing, enable Developer Mode under Help → Troubleshooting.",
       },
       {
+        title: "Optional: keep your claude.ai chats",
+        description:
+          "Gateway mode uses a separate profile. To keep your existing chats and sessions, turn on Claude.ai data import under Capabilities. After restarting, use Settings → Import & export.",
+        link: {
+          label: "Import and export docs",
+          href: "https://claude.com/docs/third-party/claude-desktop/import",
+        },
+      },
+      {
         title: "Set the gateway base URL",
-        description: "No /v1 in the base URL. Claude Desktop appends it.",
+        description: "Paste this URL exactly as shown.",
         language: "text",
         code: `${context.gatewayOrigin}/anthropic`,
       },
@@ -35,15 +44,14 @@ export function buildClaudeDesktopInstructions(
           "Set Credential kind to Static API key, paste your gateway key as Gateway API key, and select Bearer as the auth scheme.",
       },
       {
-        title: "Add the user header",
-        description: "Under Custom headers, add this header.",
-        language: "text",
-        code: `langfuse-user-id: ${context.userId}`,
+        title: "Allow egress hosts",
+        description:
+          "Under Capabilities → General restrictions, we recommend adding \"*\" to Allowed egress hosts. Otherwise, Claude can't reach websites or services outside the gateway, such as GitHub, and won't ask for permission.",
       },
       {
         title: "Apply and restart",
         description:
-          "Test the connection, select Apply Changes, then Save & Restart.",
+          "Test the connection, select Apply Changes, then Save & Restart. Start a new session so the egress settings apply.",
       },
     ],
   };

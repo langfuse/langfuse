@@ -366,6 +366,11 @@ export const env = createEnv({
         "ENCRYPTION_KEY must be 256 bits, 64 string characters in hex format, generate via: openssl rand -hex 32",
       )
       .optional(),
+    // ConductorOne support access webhook (Langfuse Cloud only), disabled
+    // unless both are set. ISSUER is the C1 tenant domain, e.g.
+    // "clickhouse.conductor.one"; ENTITLEMENT_ID is this region's entitlement.
+    LANGFUSE_CONDUCTORONE_ISSUER: z.string().min(1).optional(),
+    LANGFUSE_CONDUCTORONE_ENTITLEMENT_ID: z.string().min(1).optional(),
     LANGFUSE_AI_GATEWAY_SERVICE_KEY: z.string().min(1).optional(),
     LANGFUSE_AI_GATEWAY_SERVICE_KEY_PREVIOUS: z.string().min(1).optional(),
     // Whether an AI gateway is deployed next to Web. When false, every gateway
@@ -522,6 +527,12 @@ export const env = createEnv({
     // Bearer secret CHB's metering pipeline presents to GET /api/billing/metrics.
     // Unset disables the endpoint (it 500s) rather than leaving it open.
     CLICKHOUSE_BILLING_METRICS_API_KEY: z.string().optional(),
+    // Compares each GET /api/billing/metrics poll with the billable_events
+    // ledger and reports the gap. Requires the ledger table, which only
+    // Langfuse Cloud has; keep in sync with worker/src/env.ts.
+    LANGFUSE_BILLING_LEDGER_SHADOW_ENABLED: z
+      .enum(["true", "false"])
+      .default("false"),
     // ARN of CHB's cross-account EventBridge bus we publish project lifecycle
     // events to. Unset = no events are emitted. The ARN carries the bus region,
     // so it is the only input needed; authentication is SigV4 from the task
@@ -1191,6 +1202,9 @@ export const env = createEnv({
     LANGFUSE_EE_LICENSE_KEY: process.env.LANGFUSE_EE_LICENSE_KEY,
     ADMIN_API_KEY: process.env.ADMIN_API_KEY,
     ENCRYPTION_KEY: process.env.ENCRYPTION_KEY,
+    LANGFUSE_CONDUCTORONE_ISSUER: process.env.LANGFUSE_CONDUCTORONE_ISSUER,
+    LANGFUSE_CONDUCTORONE_ENTITLEMENT_ID:
+      process.env.LANGFUSE_CONDUCTORONE_ENTITLEMENT_ID,
     LANGFUSE_AI_GATEWAY_SERVICE_KEY:
       process.env.LANGFUSE_AI_GATEWAY_SERVICE_KEY,
     LANGFUSE_AI_GATEWAY_SERVICE_KEY_PREVIOUS:
@@ -1233,6 +1247,8 @@ export const env = createEnv({
       process.env.LANGFUSE_CLOUD_BILLING_CHB_OPT_IN_ORG_IDS,
     CLICKHOUSE_BILLING_METRICS_API_KEY:
       process.env.CLICKHOUSE_BILLING_METRICS_API_KEY,
+    LANGFUSE_BILLING_LEDGER_SHADOW_ENABLED:
+      process.env.LANGFUSE_BILLING_LEDGER_SHADOW_ENABLED,
     CLICKHOUSE_BILLING_EVENT_BUS_ARN:
       process.env.CLICKHOUSE_BILLING_EVENT_BUS_ARN,
     CLICKHOUSE_BILLING_BASE_URL: process.env.CLICKHOUSE_BILLING_BASE_URL,

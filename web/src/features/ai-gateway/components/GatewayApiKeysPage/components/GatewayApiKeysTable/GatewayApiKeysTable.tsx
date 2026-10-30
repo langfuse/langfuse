@@ -1,5 +1,4 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
-import { Plus, Trash } from "@langfuse/icons";
+import { Plus, Trash, UserPlus } from "@langfuse/icons";
 
 import { SettingsTable } from "@/src/components/SettingsTable/SettingsTable";
 import type { PaginationBarProps } from "@/src/components/design-system/PaginationBar/PaginationBar";
@@ -9,8 +8,8 @@ import { createTextTableColumn } from "@/src/components/design-system/table/colu
 import { createUserTableColumn } from "@/src/components/design-system/table/columns/createUserTableColumn";
 import type { AsyncTableData } from "@/src/components/design-system/table/Table";
 import type { LangfuseColumnDef } from "@/src/components/table/types";
-import { GATEWAY_API_KEYS_DOCS_URL } from "@/src/features/ai-gateway/constants/gatewayDocsUrls";
 import { isApiKeyExpired } from "@/src/features/apiKey";
+import { GatewayApiKeysEmptyState } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/GatewayApiKeysTable/components/GatewayApiKeysEmptyState/GatewayApiKeysEmptyState";
 
 type GatewayApiKey = {
   metadata: unknown;
@@ -32,16 +31,22 @@ type GatewayApiKey = {
 export function GatewayApiKeysTable({
   data,
   createAction,
+  inviteAction,
   onRevoke,
   pagination,
   search,
 }: {
   data: AsyncTableData<GatewayApiKey[]>;
   createAction: () => void;
+  /** Omit for callers who cannot invite people to the organization. */
+  inviteAction?: () => void;
   onRevoke: (apiKeyId: string) => void;
   pagination: PaginationBarProps;
   search: { value: string; onChange: (value: string) => void };
 }) {
+  const hasSearch = search.value.trim().length > 0;
+  /** An out-of-range page is also empty; it keeps the table so its pagination can page back. */
+  const hasNoKeys = !hasSearch && pagination.totalCount === 0;
   const columns: LangfuseColumnDef<GatewayApiKey>[] = [
     createDateTableColumn<GatewayApiKey>({
       accessorFn: (row) => row.apiKey.createdAt,
@@ -59,7 +64,7 @@ export function GatewayApiKeysTable({
     createTextTableColumn<GatewayApiKey>({
       accessorFn: (row) => row.apiKey.note,
       id: "description",
-      header: "Description",
+      header: "Name",
       nullValue: "-",
       enableResizing: false,
     }),
@@ -109,12 +114,17 @@ export function GatewayApiKeysTable({
       pagination={pagination}
       search={{ ...search, placeholder: "Search by name or user" }}
       toolbarActions={[
-        {
-          id: "docs",
-          label: "Docs",
-          variant: "secondary",
-          href: GATEWAY_API_KEYS_DOCS_URL,
-        },
+        ...(inviteAction
+          ? [
+              {
+                id: "invite",
+                label: "Notify team",
+                variant: "outline" as const,
+                icon: <UserPlus size="base" aria-hidden="true" />,
+                onClick: inviteAction,
+              },
+            ]
+          : []),
         {
           id: "create-key",
           label: "Create key",
@@ -123,10 +133,11 @@ export function GatewayApiKeysTable({
         },
       ]}
       noResultsMessage={
-        search.value.trim().length > 0
+        hasSearch
           ? "No gateway API keys match the current search."
           : "No gateway API keys created."
       }
+      emptyState={hasNoKeys ? <GatewayApiKeysEmptyState /> : undefined}
     />
   );
 }

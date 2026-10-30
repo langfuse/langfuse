@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { auditLog, type AuditLogActor } from "@/src/features/audit-logs/server";
 import { env } from "@/src/env.mjs";
 import {

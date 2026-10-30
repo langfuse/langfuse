@@ -27,7 +27,11 @@ fn facts(project: &str) -> InferenceFacts {
         first_byte_ms: Some(10),
         completion_start_ms: None,
         http_status: Some(200),
-        metadata: json!({"project_id": project, "ingestion_mode": "usage"}),
+        retry_after_ms: None,
+        upstream_model: None,
+        request_body_bytes: 0,
+        response_body_bytes: 0,
+        metadata: json!({"key_id": project, "ingestion_mode": "usage"}),
         outcome: RelayOutcome::Eof,
         inference: crate::capture::ProviderFacts::default(),
     }
@@ -93,6 +97,16 @@ async fn upload_uses_prefixed_path_signed_grant_and_gateway_sdk_headers() {
         assert_eq!(headers["x-langfuse-ingestion-version"], "4");
         let bytes = to_bytes(request.into_body(), 64 * 1024).await.unwrap();
         let payload = upload_json(&bytes);
+        // No `service.version`: ingestion would use it as the generation's
+        // user-facing version. Langfuse takes the gateway version from the scope.
+        assert_eq!(
+            payload["resourceSpans"][0]["resource"]["attributes"],
+            json!([{"key": "service.name", "value": {"stringValue": "langfuse-ai-gateway"}}])
+        );
+        assert_eq!(
+            payload["resourceSpans"][0]["scopeSpans"][0]["scope"]["version"],
+            env!("CARGO_PKG_VERSION")
+        );
         let spans = payload["resourceSpans"][0]["scopeSpans"][0]["spans"]
             .as_array()
             .unwrap();
@@ -146,7 +160,7 @@ async fn concurrent_projects_keep_their_original_grants_and_attribution() {
                 serde_json::from_str(metadata["value"]["stringValue"].as_str().unwrap()).unwrap();
             received.lock().unwrap().push((
                 authorization,
-                metadata["langfuse.gateway.project.id"]
+                metadata["langfuse.gateway.api_key.id"]
                     .as_str()
                     .unwrap()
                     .to_owned(),
@@ -374,7 +388,7 @@ fn span_projects(payload: &Value) -> Vec<String> {
                 .unwrap();
             let metadata: Value =
                 serde_json::from_str(metadata["value"]["stringValue"].as_str().unwrap()).unwrap();
-            metadata["langfuse.gateway.project.id"]
+            metadata["langfuse.gateway.api_key.id"]
                 .as_str()
                 .unwrap()
                 .to_owned()
@@ -770,10 +784,6 @@ async fn input_that_does_not_fit_is_omitted_instead_of_dropping_the_generation()
         )
         .unwrap();
         assert_eq!(metadata["langfuse.gateway.request.input_omitted"], reason);
-        assert_eq!(
-            metadata["langfuse.gateway.request.input_bytes"],
-            input_size + 2
-        );
     }
 }
 

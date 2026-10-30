@@ -37,7 +37,7 @@ export const normalizeEventsTraceName = (
   traceName: string | null | undefined,
 ): string | null => traceName || null;
 export const eventsTableTraceNameAggregationSqlForAlias = (alias: string) =>
-  `COALESCE(nullIf(argMaxIf(${alias}.trace_name, ${alias}.event_ts, ${alias}.trace_name <> ''), ''), nullIf(argMaxIf(${alias}.name, ${alias}.event_ts, ${eventsTableIsRootObservationSqlForAlias(alias)} AND ${alias}.name <> ''), ''))`;
+  `COALESCE(nullIf(argMaxIf(${alias}.trace_name, ${alias}.event_ts, ${alias}.trace_name <> ''), ''), nullIf(argMaxIf(${alias}.name, ${alias}.event_ts, (${eventsTableIsRootObservationSqlForAlias(alias)} AND ${alias}.name <> '')), ''))`;
 export const eventsTableTraceNameAggregationSql =
   eventsTableTraceNameAggregationSqlForAlias("e");
 

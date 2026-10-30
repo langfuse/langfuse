@@ -1,4 +1,4 @@
-/* eslint-disable no-nested-ternary, @typescript-eslint/no-use-before-define */
+/* eslint-disable no-nested-ternary */
 import { z } from "zod";
 import type { InAppAgentWindowMessage } from "../InAppAgentWindow";
 import type { InAppAgentPendingToolApproval } from "../InAppAiAgentProvider";
@@ -87,6 +87,7 @@ const IN_APP_AGENT_TOOL_PROGRESS_LABEL_OVERRIDES: Record<string, string> = {
   proposeRedirect: "Opening page",
   queryMetrics: "Checking metrics",
   read: "Reading file",
+  runBatchEvaluation: "Running batch evaluation",
   submitFeedback: "Submitting user feedback",
   testEvaluator: "Testing evaluator",
   testExternalMediaStorage: "Testing external media storage",

@@ -47,6 +47,24 @@ import { defineOwnValue } from "../../utils/objects";
 
 export const AI_GATEWAY_INSTRUMENTATION_SCOPE_NAME = "langfuse-ai-gateway";
 
+const AI_GATEWAY_INGESTION_API_KEY_PREFIX = "gateway:";
+
+/** Metadata key under which the AI gateway records the caller's gateway API key id. */
+export const AI_GATEWAY_KEY_ID_METADATA_KEY = "langfuse.gateway.api_key.id";
+
+/**
+ * The ingestion API key Web records for an upload authorized by a gateway
+ * ingestion grant. Unlike the instrumentation scope name, an OTLP sender cannot
+ * choose it, so it is the marker for behavior that trusts the gateway.
+ */
+export const aiGatewayIngestionApiKey = (grantId: string) =>
+  `${AI_GATEWAY_INGESTION_API_KEY_PREFIX}${grantId}`;
+
+export const isAiGatewayIngestionApiKey = (
+  ingestionApiKey: string | null | undefined,
+): boolean =>
+  ingestionApiKey?.startsWith(AI_GATEWAY_INGESTION_API_KEY_PREFIX) ?? false;
+
 // Foreign level vocabularies observed from OTel senders (OTel severity
 // names, python logging, loguru, console) mapped onto the Langfuse enum.
 //  The classic ingestion API keeps its strict enum; only the
@@ -3005,6 +3023,7 @@ export class OtelIngestionProcessor {
   ): string | undefined {
     const modelNameKeys = [
       LangfuseOtelSpanAttributes.OBSERVATION_MODEL,
+      "litellm.provider.model",
       "gen_ai.response.model",
       "ai.model.id",
       "gen_ai.request.model",
@@ -3348,6 +3367,21 @@ export class OtelIngestionProcessor {
       rawUsageDetails["details.cache_creation_input_tokens"] ??
       rawUsageDetails["prompt_details.cache_write"] ??
       rawUsageDetails["input_cache_creation"];
+    // TTL breakdown of the cache-write total; only the unattributed remainder
+    // stays in input_cache_creation so each write is counted and priced once.
+    const cacheCreation5mTokens =
+      rawUsageDetails["cache_creation.5m_input_tokens"];
+    const cacheCreation1hTokens =
+      rawUsageDetails["cache_creation.1h_input_tokens"];
+    const hasCacheCreationBreakdown =
+      cacheCreation5mTokens !== undefined ||
+      cacheCreation1hTokens !== undefined;
+    const cacheCreationBreakdownTokens =
+      (cacheCreation5mTokens ?? 0) + (cacheCreation1hTokens ?? 0);
+    const cacheCreationRemainderTokens =
+      cacheCreationTokens !== undefined && hasCacheCreationBreakdown
+        ? Math.max(cacheCreationTokens - cacheCreationBreakdownTokens, 0)
+        : cacheCreationTokens;
     // Reasoning/audio details are included in the emitted output token count
     // and are therefore subtracted from output below to avoid double counting.
     const outputReasoningTokens =
@@ -3382,6 +3416,8 @@ export class OtelIngestionProcessor {
             "details.cache_creation_input_tokens",
             "prompt_details.cache_write",
             "input_cache_creation",
+            "cache_creation.5m_input_tokens",
+            "cache_creation.1h_input_tokens",
             "reasoning.output_tokens",
             "completion_details.reasoning",
             "completion_details.audio",
@@ -3402,7 +3438,10 @@ export class OtelIngestionProcessor {
 
     if (inputTokens !== undefined) {
       normalizedUsageDetails.input = Math.max(
-        inputTokens - (cacheReadTokens ?? 0) - (cacheCreationTokens ?? 0),
+        inputTokens -
+          (cacheReadTokens ?? 0) -
+          (cacheCreationRemainderTokens ?? 0) -
+          cacheCreationBreakdownTokens,
         0,
       );
     }
@@ -3422,8 +3461,17 @@ export class OtelIngestionProcessor {
       normalizedUsageDetails.input_cached_tokens = cacheReadTokens;
     }
 
-    if (cacheCreationTokens !== undefined) {
-      normalizedUsageDetails.input_cache_creation = cacheCreationTokens;
+    if (cacheCreationRemainderTokens !== undefined) {
+      normalizedUsageDetails.input_cache_creation =
+        cacheCreationRemainderTokens;
+    }
+
+    if (cacheCreation5mTokens !== undefined) {
+      normalizedUsageDetails.input_cache_creation_5m = cacheCreation5mTokens;
+    }
+
+    if (cacheCreation1hTokens !== undefined) {
+      normalizedUsageDetails.input_cache_creation_1h = cacheCreation1hTokens;
     }
 
     if (outputReasoningTokens !== undefined) {

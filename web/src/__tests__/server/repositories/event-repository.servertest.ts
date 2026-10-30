@@ -28,6 +28,7 @@ import {
   createTraceScore,
   getUsersFromEventsTable,
   getUsersCountFromEventsTable,
+  getTracingCountsByProjectInCreationIntervalFromEventsTable,
   type EventFilterOptionColumn,
 } from "@langfuse/shared/src/server";
 import {
@@ -40,6 +41,7 @@ import { prisma } from "@langfuse/shared/src/db";
 import { randomUUID } from "crypto";
 import { env } from "@/src/env.mjs";
 import {
+  AI_GATEWAY_SERVICE_NAME,
   LangfuseNotFoundError,
   type EventsTableFilterState,
   type FilterCondition,
@@ -5996,6 +5998,89 @@ describe("Clickhouse Events Repository Test", () => {
       expect(traceScoreCategoryLabels).toContain(traceCategoryName);
       expect(traceScoreCategoryLabels).not.toContain(observationCategoryName);
     });
+  });
+});
+
+describe("tracing counts by project on the events table", () => {
+  it("counts traces, observations and gateway requests created in the interval, excluding synthetic trace rows", async () => {
+    const projectA = randomUUID();
+    const projectB = randomUUID();
+    const legacyTraceId = randomUUID();
+    const otelTraceId = randomUUID();
+    const start = new Date("2026-01-10T00:00:00.000Z");
+    const end = new Date("2026-01-10T12:00:00.000Z");
+    const inWindow = new Date("2026-01-10T06:00:00.000Z");
+
+    const event = (
+      overrides: Partial<Parameters<typeof createEvent>[0]> & {
+        project_id: string;
+        trace_id: string;
+      },
+    ) => {
+      const spanId = overrides.span_id ?? randomUUID();
+      return createEvent({
+        created_at: inWindow,
+        ...overrides,
+        span_id: spanId,
+        id: spanId,
+      });
+    };
+
+    await createEventsCh([
+      // Ingestion-API trace: synthetic `t-` root row plus two observations.
+      event({
+        project_id: projectA,
+        trace_id: legacyTraceId,
+        span_id: `t-${legacyTraceId}`,
+        type: "SPAN",
+      }),
+      event({ project_id: projectA, trace_id: legacyTraceId }),
+      event({ project_id: projectA, trace_id: legacyTraceId }),
+      // OTel-native trace: real root span plus one child, no synthetic row.
+      event({ project_id: projectA, trace_id: otelTraceId }),
+      event({ project_id: projectA, trace_id: otelTraceId }),
+      // Created on the interval bounds: start is inclusive, end is exclusive.
+      event({
+        project_id: projectA,
+        trace_id: randomUUID(),
+        created_at: start,
+      }),
+      event({ project_id: projectA, trace_id: randomUUID(), created_at: end }),
+      event({ project_id: projectB, trace_id: randomUUID() }),
+      // AI gateway generations carry the gateway service; outside the window they don't count.
+      event({
+        project_id: projectB,
+        trace_id: randomUUID(),
+        service_name: AI_GATEWAY_SERVICE_NAME,
+      }),
+      event({
+        project_id: projectB,
+        trace_id: randomUUID(),
+        service_name: AI_GATEWAY_SERVICE_NAME,
+      }),
+      event({
+        project_id: projectB,
+        trace_id: randomUUID(),
+        service_name: AI_GATEWAY_SERVICE_NAME,
+        created_at: end,
+      }),
+    ]);
+
+    const counts =
+      await getTracingCountsByProjectInCreationIntervalFromEventsTable({
+        start,
+        end,
+        projectIds: [projectA, projectB],
+      });
+
+    expect(
+      counts.sort((a, b) => a.projectId.localeCompare(b.projectId)),
+    ).toEqual(
+      [
+        { projectId: projectA, traces: 3, observations: 5, gatewayRequests: 0 },
+        { projectId: projectB, traces: 3, observations: 3, gatewayRequests: 2 },
+      ].sort((a, b) => a.projectId.localeCompare(b.projectId)),
+    );
   });
 });
 

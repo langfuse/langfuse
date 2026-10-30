@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { type Readable } from "stream";
 import { env } from "../../env";
 import {
@@ -1069,7 +1068,7 @@ function recordClickHouseProgressError(
           context.normalizedTags,
         );
   const fallbackOutcome =
-    error instanceof ClickHouseQueryAbortedError ? "cancelled" : "error";
+    error instanceof ClickHouseQueryAbortedError ? "client_closed" : "error";
   recordClickHouseQueryOutcome(
     wrapped instanceof ClickHouseResourceError
       ? CLICKHOUSE_RESOURCE_ERROR_OUTCOMES[wrapped.errorType]

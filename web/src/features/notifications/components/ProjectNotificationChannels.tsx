@@ -25,8 +25,12 @@ import {
   type ProjectNotificationEventType,
 } from "@langfuse/shared";
 
-/** Project notifications route to webhooks or Slack; GitHub dispatch is not wired for this event source. */
-const PROJECT_NOTIFICATION_ACTION_TYPES: ActionTypes[] = ["WEBHOOK", "SLACK"];
+/** Project notifications route to webhooks, Slack or PagerDuty; GitHub dispatch is not wired for this event source. */
+const PROJECT_NOTIFICATION_ACTION_TYPES: ActionTypes[] = [
+  "WEBHOOK",
+  "SLACK",
+  "PAGERDUTY",
+];
 
 const NOTIFIED_EVENT_COPY: Record<
   ProjectNotificationEventType,

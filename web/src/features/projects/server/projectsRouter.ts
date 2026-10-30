@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import {
   createTRPCRouter,
   protectedOrganizationProcedure,
@@ -416,6 +415,8 @@ async function isGatewayIngestionProject(params: {
     where: {
       organizationId: params.organizationId,
       defaultIngestionProjectId: params.projectId,
+      // With ingestion NONE the project is only remembered, not written to.
+      ingestionMode: { not: "NONE" },
     },
     select: { organizationId: true },
   });
@@ -429,7 +430,7 @@ async function throwIfGatewayIngestionProject(params: {
 }) {
   if (await isGatewayIngestionProject(params)) {
     throw new LangfuseConflictError(
-      "This project is used as the AI Gateway ingestion project. Select another ingestion project before deleting it.",
+      "This project is used as the AI Gateway ingestion project. Select another ingestion project or set the ingestion mode to None before deleting it.",
     );
   }
 }

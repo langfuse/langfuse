@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import type { EarlyOtelBatch } from "@langfuse/native";
 import {
   resolveExtractedMedia,
