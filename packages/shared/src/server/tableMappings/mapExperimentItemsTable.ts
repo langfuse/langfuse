@@ -1,6 +1,22 @@
 import { UiColumnMappings } from "../../tableDefinitions";
 
 export const experimentItemsTableNativeUiColumnDefinitions: UiColumnMappings = [
+  // Dataset-backed experiment items store the dataset item id in
+  // experiment_item_id. The results table offers both labels as filters.
+  {
+    uiTableName: "Experiment Item ID",
+    uiTableId: "id",
+    clickhouseTableName: "events_proto",
+    clickhouseSelect: "experiment_item_id",
+    queryPrefix: "e",
+  },
+  {
+    uiTableName: "Dataset Item ID",
+    uiTableId: "datasetItemId",
+    clickhouseTableName: "events_proto",
+    clickhouseSelect: "experiment_item_id",
+    queryPrefix: "e",
+  },
   {
     uiTableName: "Numeric Scores",
     uiTableId: "scores_avg",
