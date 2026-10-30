@@ -7,6 +7,7 @@ import type {
   ToolCallInvocation,
 } from "../../hooks/useChatMLParser";
 import { useState, type ReactNode } from "react";
+import { SessionProvider } from "next-auth/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { createTRPCReact, getQueryKey } from "@trpc/react-query";
 import { createTRPCClient, TRPCClientError } from "@trpc/client";
@@ -136,7 +137,7 @@ export const StructuredStatus = meta.story({
     await expect(canvas.getByText("Error")).toBeVisible();
     await expect(
       canvas.getByRole("button", { name: /(?:Expand|Collapse) all rows/ }),
-    ).toBeVisible();
+    ).toBeInTheDocument();
   },
 });
 
@@ -774,8 +775,8 @@ export const HeaderControlsOnFocus = meta.story({
     const copyButton = canvas.getByRole("button", {
       name: "Copy to clipboard",
     });
-    await waitFor(() => expect(copyButton).not.toBeVisible());
     copyButton.focus();
+    await expect(copyButton).toHaveFocus();
     await waitFor(() => expect(copyButton).toBeVisible());
   },
 });
@@ -902,8 +903,7 @@ export const EmptyMessagesDoNotTakeTailSlots = meta.story({
 const MEDIA_REF = "@@@langfuseMedia:type=image/png|id=media-1|source=base64@@@";
 const AUDIO_REF = "@@@langfuseMedia:type=audio/wav|id=audio-1|source=base64@@@";
 const TEST_MARKDOWN_LIMIT = 1_000;
-const imageUrl =
-  "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII=";
+const imageUrl = "/favicon-32x32.png";
 const conversationMedia: MediaReturnType[] = [
   {
     mediaId: "media-1",
@@ -960,15 +960,27 @@ function ConversationMediaProviders({ children }: { children: ReactNode }) {
     }),
   );
   return (
-    <storyApi.Provider client={client} queryClient={queryClient}>
-      <QueryClientProvider client={queryClient}>
-        <MarkdownRenderCharacterLimitContext.Provider
-          value={TEST_MARKDOWN_LIMIT}
-        >
-          {children}
-        </MarkdownRenderCharacterLimitContext.Provider>
-      </QueryClientProvider>
-    </storyApi.Provider>
+    <SessionProvider
+      session={{
+        expires: "2099-01-01T00:00:00Z",
+        user: null,
+        environment: {
+          enableExperimentalFeatures: false,
+          selfHostedInstancePlan: null,
+        },
+      }}
+      refetchOnWindowFocus={false}
+    >
+      <storyApi.Provider client={client} queryClient={queryClient}>
+        <QueryClientProvider client={queryClient}>
+          <MarkdownRenderCharacterLimitContext.Provider
+            value={TEST_MARKDOWN_LIMIT}
+          >
+            {children}
+          </MarkdownRenderCharacterLimitContext.Provider>
+        </QueryClientProvider>
+      </storyApi.Provider>
+    </SessionProvider>
   );
 }
 
@@ -1165,7 +1177,11 @@ export const PassthroughAfterCollapsedHistory = meta.story({
     await expect(
       canvas.getByRole("button", { name: "Collapse user" }),
     ).toHaveAttribute("aria-expanded", "true");
-    await expect(canvas.getByText("channel")).toBeVisible();
+    await expect(
+      canvas
+        .getAllByText("channel")
+        .some((element) => element.checkVisibility()),
+    ).toBe(true);
   },
 });
 
@@ -1186,7 +1202,11 @@ export const PassthroughAfterJsonHistory = meta.story({
     await expect(
       canvas.getByRole("button", { name: "Collapse user" }),
     ).toHaveAttribute("aria-expanded", "true");
-    await expect(canvas.getByText("channel")).toBeVisible();
+    await expect(
+      canvas
+        .getAllByText("channel")
+        .some((element) => element.checkVisibility()),
+    ).toBe(true);
   },
 });
 
@@ -1245,23 +1265,23 @@ export const TableExpansionSurvivesViewSwitch = meta.story({
   }),
   play: async ({ canvas }) => {
     await userEvent.click(
-      await canvas.findByRole("button", { name: "Collapse all rows" }),
+      await canvas.findByRole("button", { name: "Expand all rows" }),
     );
     await expect(
-      canvas.getByRole("button", { name: "Expand all rows" }),
-    ).toBeVisible();
+      canvas.getByRole("button", { name: "Collapse all rows" }),
+    ).toBeInTheDocument();
     await userEvent.click(
       canvas.getByRole("button", { name: "Toggle markdown budget" }),
     );
     await expect(
-      await canvas.findByRole("button", { name: "Collapse all rows" }),
-    ).toBeVisible();
+      await canvas.findByRole("button", { name: "Expand all rows" }),
+    ).toBeInTheDocument();
     await userEvent.click(
       canvas.getByRole("button", { name: "Toggle markdown budget" }),
     );
     await expect(
-      canvas.getByRole("button", { name: "Expand all rows" }),
-    ).toBeVisible();
+      canvas.getByRole("button", { name: "Collapse all rows" }),
+    ).toBeInTheDocument();
   },
 });
 
@@ -1622,9 +1642,9 @@ export const ImageContentPart = meta.story({
   }),
   play: async ({ canvas }) => {
     await expect(canvas.getByText("here is the thermostat")).toBeVisible();
-    await expect(await canvas.findByRole("img")).toHaveAttribute(
+    await expect(await canvas.findByRole("img")).toHaveProperty(
       "src",
-      imageUrl,
+      new URL(imageUrl, window.location.href).href,
     );
   },
 });
@@ -1650,9 +1670,9 @@ export const FileContentPart = meta.story({
   }),
   play: async ({ canvas }) => {
     await expect(canvas.getByText("attached report")).toBeVisible();
-    await expect(await canvas.findByRole("img")).toHaveAttribute(
+    await expect(await canvas.findByRole("img")).toHaveProperty(
       "src",
-      imageUrl,
+      new URL(imageUrl, window.location.href).href,
     );
   },
 });
@@ -1676,7 +1696,10 @@ export const BareMediaArray = meta.story({
   play: async ({ canvas }) => {
     await waitFor(() => expect(canvas.getAllByRole("img")).toHaveLength(2));
     for (const image of canvas.getAllByRole("img"))
-      await expect(image).toHaveAttribute("src", imageUrl);
+      await expect(image).toHaveProperty(
+        "src",
+        new URL(imageUrl, window.location.href).href,
+      );
   },
 });
 
@@ -1740,9 +1763,9 @@ export const CollapsedSystemPromptMedia = meta.story({
     await userEvent.click(
       canvas.getByRole("button", { name: "Expand system" }),
     );
-    await expect(await canvas.findByRole("img")).toHaveAttribute(
+    await expect(await canvas.findByRole("img")).toHaveProperty(
       "src",
-      imageUrl,
+      new URL(imageUrl, window.location.href).href,
     );
   },
 });

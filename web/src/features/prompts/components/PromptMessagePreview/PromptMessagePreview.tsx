@@ -1,11 +1,9 @@
 import { useTheme } from "next-themes";
 import { FoldVertical, UnfoldVertical } from "@langfuse/icons";
-import {
-  ChatMessageController,
-  ChatMessageContent,
-  SystemPromptCollapseController,
-  getMessageTitle,
-} from "@/src/features/traces";
+import { ChatMessageController } from "@/src/features/traces/components/IOPreview/components/ChatMessageController";
+import { ChatMessageContent } from "@/src/features/traces/components/IOPreview/components/ChatMessageContent";
+import { SystemPromptCollapseController } from "@/src/features/traces/components/IOPreview/components/SystemPromptCollapseController";
+import { getMessageTitle } from "@/src/features/traces/fns/chatMessageUtils";
 import { IOSection } from "@/src/components/ui/IOSection";
 import { JsonViewController } from "@/src/components/ui/JsonViewController";
 import { PrettyJsonViewContent } from "@/src/components/ui/PrettyJsonViewContent";
