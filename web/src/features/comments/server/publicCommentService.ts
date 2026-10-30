@@ -3,24 +3,15 @@ import type { z } from "zod";
 
 import { auditLog } from "@/src/features/audit-logs/server";
 import { validateCommentReferenceObject } from "@/src/features/comments/validateCommentReferenceObject";
-import {
-  type GetCommentV1Query,
-  type GetCommentsV1Query,
-  type PostCommentsV1Body,
+import type {
+  GetCommentV1Query,
+  GetCommentsV1Query,
+  PostCommentsV1Body,
 } from "@/src/features/public-api/server";
-import { InvalidRequestError, LangfuseNotFoundError } from "@langfuse/shared";
+import { LangfuseNotFoundError } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 
-type CommentAuditScope = {
-  projectId: string;
-  orgId: string;
-  apiKeyId: string;
-};
-
-type CreateCommentInput = {
-  input: z.infer<typeof PostCommentsV1Body>;
-  auditScope: CommentAuditScope;
-};
+const maxApiKeyCreatorDepth = 10;
 
 type ListCommentsInput = z.infer<typeof GetCommentsV1Query> & {
   projectId: string;
@@ -71,41 +62,14 @@ const getCommentRecordOrThrow = async ({
   return comment;
 };
 
-// The public API accepts a client-supplied authorUserId, so we must verify that
-// the author is a member of the authenticated project's organization. Otherwise
-// any project write key could attribute comments to arbitrary users.
-// The message is identical for unknown and out-of-scope users so that the
-// endpoint does not disclose whether a given user id exists.
-const throwIfAuthorNotInOrganization = async ({
-  authorUserId,
-  orgId,
-}: {
-  authorUserId: string;
-  orgId: string;
-}) => {
-  const membership = await prisma.organizationMembership.findFirst({
-    where: { orgId, userId: authorUserId },
-    select: { id: true },
-  });
-
-  if (!membership) {
-    throw new InvalidRequestError(
-      "authorUserId must belong to a member of the organization that owns the authenticated project.",
-    );
-  }
-};
-
+/** createCommentForApi attributes comments to authenticated users or API key creators. */
 export const createCommentForApi = async ({
   input,
   auditScope,
-}: CreateCommentInput) => {
-  if (input.authorUserId != null) {
-    await throwIfAuthorNotInOrganization({
-      authorUserId: input.authorUserId,
-      orgId: auditScope.orgId,
-    });
-  }
-
+}: {
+  input: z.infer<typeof PostCommentsV1Body>;
+  auditScope: CommentAuditScope;
+}) => {
   const result = await validateCommentReferenceObject({
     ctx: { prisma, auth: { scope: { projectId: auditScope.projectId } } },
     input: {
@@ -118,13 +82,15 @@ export const createCommentForApi = async ({
     throw new LangfuseNotFoundError(result.errorMessage);
   }
 
-  // Create comment with content as-is (no mention processing, no inline positioning).
+  const authorUserId =
+    auditScope.userId ?? (await resolveApiKeyCreator(auditScope));
+
   const comment = await prisma.comment.create({
     data: {
       content: input.content,
       objectId: input.objectId,
       objectType: input.objectType,
-      authorUserId: input.authorUserId,
+      authorUserId,
       id: v4(),
       projectId: auditScope.projectId,
     },
@@ -184,4 +150,46 @@ export const getCommentForApi = async ({
 }: GetCommentInput) => {
   const comment = await getCommentRecordOrThrow({ projectId, commentId });
   return toPublicComment(comment);
+};
+
+/** resolveApiKeyCreator follows creator keys within the authenticated tenant. */
+const resolveApiKeyCreator = async ({
+  apiKeyId,
+  projectId,
+  orgId,
+}: CommentAuditScope): Promise<string | null> => {
+  const [creator] = await prisma.$queryRaw<{ userId: string }[]>`
+    WITH RECURSIVE creator_keys AS (
+      SELECT id, created_by_user_id, created_by_api_key_id, 0 AS depth
+      FROM api_keys
+      WHERE id = ${apiKeyId}
+        AND (
+          (scope = 'PROJECT' AND project_id = ${projectId})
+          OR (scope = 'ORGANIZATION' AND organization_id = ${orgId})
+        )
+      UNION ALL
+      SELECT parent.id, parent.created_by_user_id, parent.created_by_api_key_id, child.depth + 1
+      FROM api_keys parent
+      JOIN creator_keys child ON parent.id = child.created_by_api_key_id
+      WHERE child.created_by_user_id IS NULL
+        AND child.depth < ${maxApiKeyCreatorDepth}
+        AND (
+          (parent.scope = 'PROJECT' AND parent.project_id = ${projectId})
+          OR (parent.scope = 'ORGANIZATION' AND parent.organization_id = ${orgId})
+        )
+    )
+    SELECT created_by_user_id AS "userId"
+    FROM creator_keys
+    WHERE created_by_user_id IS NOT NULL
+    LIMIT 1
+  `;
+
+  return creator?.userId ?? null;
+};
+
+type CommentAuditScope = {
+  projectId: string;
+  orgId: string;
+  apiKeyId: string;
+  userId?: string | null;
 };
