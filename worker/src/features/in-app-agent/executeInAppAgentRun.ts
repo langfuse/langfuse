@@ -67,7 +67,10 @@ import {
   createInAppAgentSandboxProvider,
   getDefaultInAppAgentSandboxProviderType,
 } from "./runtime/sandbox/config";
-import { createInAppAgentSandbox } from "./runtime/sandbox";
+import {
+  createInAppAgentSandbox,
+  withLangfuseSdkScriptGate,
+} from "./runtime/sandbox";
 import { createAgUiStream } from "./runtime/agent";
 import { getInAppAgentPromptClient } from "./runtime/promptClient";
 import { loadInAppAgentSkills } from "./runtime/skills";
@@ -639,7 +642,15 @@ export async function executeInAppAgentRun(params: {
             isAdmin: userAccess.isAdmin,
           },
         }),
-        sandbox: sandboxState?.sandbox,
+        sandbox: sandboxState
+          ? withLangfuseSdkScriptGate(sandboxState.sandbox, {
+              projectId,
+              userId: triggeredByUserId,
+              conversationId: conversation.id,
+              langfuseBaseUrl: env.NEXTAUTH_URL,
+              signal: abortController.signal,
+            })
+          : undefined,
         // History still shows this agent's own earlier writes, so it needs telling.
         sandboxWorkspaceWasReset: sandboxState?.workspaceWasReset,
       },

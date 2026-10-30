@@ -2,6 +2,7 @@ import { createLambdaMicrovmSandboxProvider } from "./providers/lambdaMicrovm";
 import type { InAppAgentSandboxProviderType, SandboxProvider } from "./types";
 import { env } from "../../../../env";
 import { assertUnreachable } from "@langfuse/shared";
+import { logger } from "@langfuse/shared/src/server";
 
 const IN_APP_AGENT_LOCAL_SANDBOX_IMAGE = "langfuse-in-app-agent-sandbox:latest";
 
@@ -16,6 +17,17 @@ export function getDefaultInAppAgentSandboxProviderType(): InAppAgentSandboxProv
     throw new Error(
       "The dangerous-docker in-app agent sandbox provider is only supported in development.",
     );
+  }
+
+  // Lambda MicroVMs run only with an egress network connector attached.
+  if (
+    providerType === "lambda-microvm" &&
+    !env.LANGFUSE_IN_APP_AGENT_SANDBOX_AWS_LAMBDA_MICROVM_EGRESS_NETWORK_CONNECTOR_ARN
+  ) {
+    logger.error(
+      "In-app agent sandbox disabled: lambda-microvm requires an egress network connector",
+    );
+    return null;
   }
 
   return providerType;
