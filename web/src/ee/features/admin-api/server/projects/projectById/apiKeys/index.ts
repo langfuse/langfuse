@@ -72,8 +72,7 @@ export async function handleCreateApiKey(
     });
   }
 
-  const { name, note, expiresAt, role, publicKey, secretKey } =
-    validationResult.data;
+  const { name, expiresAt, role, publicKey, secretKey } = validationResult.data;
 
   if (publicKey || secretKey) {
     if (!publicKey || !secretKey) {
@@ -109,7 +108,6 @@ export async function handleCreateApiKey(
       role: SystemRoleId(role),
       createdBy: ApiKeyId(createdByApiKeyId),
       name,
-      note,
       expiresAt,
       predefinedKeys:
         publicKey && secretKey ? { publicKey, secretKey } : undefined,

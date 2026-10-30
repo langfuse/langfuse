@@ -194,6 +194,24 @@ describe("REST API key creation schemas", () => {
         );
       },
     );
+
+    it.each(["legacy name", ""])(
+      "accepts the deprecated note alias %j as the name",
+      (note) => {
+        const parsed = schema.parse({ note });
+        expect(parsed.name).toBe(note);
+        expect(parsed).not.toHaveProperty("note");
+      },
+    );
+
+    it.each([
+      { name: "same", note: "same" },
+      { name: "", note: "" },
+      { name: "", note: "alias" },
+      { name: "name", note: "" },
+    ])("rejects conflicting name and note inputs %j", (input) => {
+      expect(schema.safeParse(input).success).toBe(false);
+    });
   });
 });
 

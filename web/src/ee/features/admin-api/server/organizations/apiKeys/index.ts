@@ -68,7 +68,7 @@ export async function handleCreateApiKey(
     });
   }
 
-  const { name, note, expiresAt, role } = validationResult.data;
+  const { name, expiresAt, role } = validationResult.data;
 
   const apiKeyMeta = await createApiKey(prisma, {
     tenant: OrganizationId(organizationId),
@@ -76,7 +76,6 @@ export async function handleCreateApiKey(
     role: SystemRoleId(role),
     createdBy: "system",
     name,
-    note,
     expiresAt,
   });
 

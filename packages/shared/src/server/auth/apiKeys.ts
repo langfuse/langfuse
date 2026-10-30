@@ -4,7 +4,6 @@ import { randomUUID } from "crypto";
 import * as crypto from "crypto";
 import type { Cluster, Redis } from "ioredis";
 import { env } from "../../env";
-import { InvalidRequestError } from "../../errors";
 import {
   ApiKeyId,
   hasApiKeyKind,
@@ -107,8 +106,6 @@ export async function createApiKey(
     role: RoleId;
     createdBy: ApiKeyId | UserId | "system";
     name?: string;
-    /** @deprecated Use name instead; name and note are mutually exclusive. */
-    note?: string;
     expiresAt?: Date | null;
     isInAppAgentKey?: boolean;
     predefinedKeys?: { secretKey: string; publicKey: string };
@@ -153,7 +150,6 @@ function validateApiKeyParams(opts: {
   scope: OrganizationId | ProjectId | UserId;
   createdBy: ApiKeyId | UserId | "system";
   name?: string;
-  note?: string;
   expiresAt?: Date | null;
   isInAppAgentKey?: boolean;
 }): Omit<
@@ -161,26 +157,12 @@ function validateApiKeyParams(opts: {
   "publicKey" | "hashedSecretKey" | "fastHashedSecretKey" | "displaySecretKey"
 > {
   return {
-    ...noteColumn(opts),
+    note: opts.name,
     ...scopeColumns(opts.tenant, opts.scope),
     ...creatorColumns(opts.createdBy),
     expiresAt: opts.expiresAt ?? null,
     isInAppAgentKey: opts.isInAppAgentKey ?? false,
   };
-}
-
-/** noteColumn provides the note column for api key creation */
-function noteColumn({
-  name,
-  note,
-}: {
-  name?: string;
-  note?: string;
-}): Pick<Prisma.ApiKeyUncheckedCreateInput, "note"> {
-  if (name !== undefined && note !== undefined) {
-    throw new InvalidRequestError("Provide either name or note, not both");
-  }
-  return { note: name ?? note };
 }
 
 /** scopeColumns provides scope columns for api key creation */
