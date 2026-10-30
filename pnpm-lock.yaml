@@ -426,8 +426,8 @@ importers:
         specifier: ^3.6.0
         version: 3.6.0
       dd-trace:
-        specifier: 5.109.0
-        version: 5.109.0(@openfeature/server-sdk@1.22.0(@openfeature/core@1.11.0))
+        specifier: 5.131.1
+        version: 5.131.1
       decimal.js:
         specifier: ^10.4.3
         version: 10.6.0
@@ -802,8 +802,8 @@ importers:
         specifier: ^3.6.0
         version: 3.6.0
       dd-trace:
-        specifier: 5.109.0
-        version: 5.109.0(@openfeature/server-sdk@1.22.0(@openfeature/core@1.11.0))
+        specifier: 5.131.1
+        version: 5.131.1
       decimal.js:
         specifier: ^10.4.3
         version: 10.6.0
@@ -834,6 +834,9 @@ importers:
       ioredis:
         specifier: ^5.10.1
         version: 5.10.1(supports-color@8.1.1)
+      jose:
+        specifier: 6.2.3
+        version: 6.2.3
       json-schema-faker:
         specifier: 0.6.1
         version: 0.6.1
@@ -1229,8 +1232,8 @@ importers:
         specifier: ^7.0.2
         version: 7.0.2
       dd-trace:
-        specifier: 5.109.0
-        version: 5.109.0(@openfeature/server-sdk@1.22.0(@openfeature/core@1.11.0))
+        specifier: 5.131.1
+        version: 5.131.1
       decimal.js:
         specifier: ^10.4.3
         version: 10.6.0
@@ -1999,35 +2002,34 @@ packages:
   '@dabh/diagnostics@2.0.3':
     resolution: {integrity: sha512-hrlQOIi7hAfzsMqlGSFyVucrx38O+j6wiGOf//H2ecvIEqYN4ADBSS2iLMh5UFyDunCNniUIPk/q3riFv45xRA==}
 
-  '@datadog/flagging-core@1.2.1':
-    resolution: {integrity: sha512-qeDkki9fFlqyoZBrn7tneT6pZ04EKKvf3xxisYw1a74zbJihvQui/ARUsjXCurRpzpFqGGTJw/oz+HnXaKhcdw==}
+  '@datadog/libdatadog-extras@0.21.0':
+    resolution: {integrity: sha512-VgAlNdNtilutWsEoDy6cAtn1iRLVQuj84lppjGlrwfvMwoCJ40B4pIttrZr0R7n01a6H83zv2SNt7SiH3smJRg==}
 
-  '@datadog/libdatadog@0.9.4':
-    resolution: {integrity: sha512-55wHHAuhHOOrBGoWV+fRuEDypN6PMJZq4LTOwExnhoDMvVcZKtqYT05xea/toRs0o75+A1IeNAQHsRLbJMf5oA==}
+  '@datadog/libdatadog-wasm@0.21.0':
+    resolution: {integrity: sha512-2wg5naOV+X7wyCNBJ/mRxE56fK22iz4ZwehzA/dSzuBO4/daNaVM6UgudRjkgXA9Pp0zEYcxmv4e1tNApQAEng==}
+    engines: {node: '>=18'}
 
-  '@datadog/native-appsec@11.0.1':
-    resolution: {integrity: sha512-Y/XfknUmmJcw4hhQVhqzgdQvfjy+EGmXuUBgtVkI1r+/qS00egYu+wD/x7pOvjdbZNqN96znVszAnXvDQAzMDQ==}
+  '@datadog/libdatadog@0.21.0':
+    resolution: {integrity: sha512-6JQVv7LGBYG6uiY2wtno5paqP/G1UFXK1tA4LZEt2Bc9AzbCMtO2yrs1VfYDzMyVaFSj0+6QLdR8Hu5DQUODmw==}
+    engines: {node: '>=18'}
+
+  '@datadog/native-appsec@11.0.3':
+    resolution: {integrity: sha512-IlB4IuL42rWVHmigMrWhtYW38Q7rQd5iH2Yf7HRkL51mP2ODiD52rwdrbTsJl9nt2msMR8/fsoySIs4d02xzEA==}
+    engines: {node: '>=18'}
+
+  '@datadog/native-iast-taint-tracking@4.2.1':
+    resolution: {integrity: sha512-KRLu3aTXvyAusouAZGTw2w1Xo67cRTw93yG4C9vTMpIgN9FXiqhlcvtNHvUzaA/KRrwtNwbaUELubOtk/kxOFg==}
+
+  '@datadog/native-metrics@4.0.0':
+    resolution: {integrity: sha512-rS6Qc8WAbOgbrtDYdqK15gi2xbuIEyfuquUH05g+2DOdiNAswNAGrlIuSdJZQF/qoJzjcFvxb9kCHu8BjiPfQQ==}
+    engines: {node: '>=18'}
+
+  '@datadog/pprof@5.19.0':
+    resolution: {integrity: sha512-0ACUNjUdZ254ay7ZeAm8A3iO1t+jdPzAV8DuVHzqsuxV72KqygwT6ydq4/tm4LqIq51m1pQXEPT1L+j9myzn6g==}
     engines: {node: '>=16'}
 
-  '@datadog/native-iast-taint-tracking@4.2.0':
-    resolution: {integrity: sha512-NpZABJQoNMzF6cU521RT4GQ8/FbfFRoDepOLTcLYKyw0DY2WmSpg3iG+PoQNK4O3jPSXC++K3rg59GiQgA3Mog==}
-
-  '@datadog/native-metrics@3.1.2':
-    resolution: {integrity: sha512-7AEWt0ZLr/ogR/9if1DmFBDTg3y67xM+gdhXUXKs+UQMxK0lnjrOHgN7fkpEmUG1uL+EkX2BDE3ENDlQ23J7OQ==}
-    engines: {node: '>=16'}
-
-  '@datadog/openfeature-node-server@2.0.0':
-    resolution: {integrity: sha512-Ummu/Bd7ZJpCCNdFnZUt/JI+L1+8OMK53+MyIXbS7dCt4JXWWwelbpzSGqmC2jWbWQ/mTo4hEfnFw3kYOINbXA==}
-    engines: {node: '>=18.0.0'}
-    peerDependencies:
-      '@openfeature/server-sdk': '>=1.15.1'
-
-  '@datadog/pprof@5.15.0':
-    resolution: {integrity: sha512-ODGC3pE+NHo+rz74bWyOyFeC5GgvqA6Xzk0wIBGs8W3v+A14I5Q+Pmc7EC8etk5gE8t0hGYYwA5ymSGCljov+Q==}
-    engines: {node: '>=16'}
-
-  '@datadog/wasm-js-rewriter@5.0.1':
-    resolution: {integrity: sha512-EzbV3Lrdt3udQEsbDOVC5gB1y7yxfpBbrSIk4jaEsGjyj0Dbv2HGj7tZjs+qXzIzNonHc8h5El2bYZOGfC2wwg==}
+  '@datadog/wasm-js-rewriter@5.0.4':
+    resolution: {integrity: sha512-tSjbk51dkNzFMM3P/7y82tyrBj/9CWnPzcVb1JB8TUea/PIholdXSPuGC5F975YvvGB8KDujfmJIacN+EmuXMg==}
     engines: {node: '>= 10'}
 
   '@date-fns/tz@1.4.1':
@@ -2394,9 +2396,9 @@ packages:
     peerDependencies:
       vue: ^3.2.0
 
-  '@hono/node-server@1.19.17':
-    resolution: {integrity: sha512-dSneS5qhiauZWGDCeK4o695Xd9nUNjviSZCMQrj10eetr8Uln1ucn6bbphOM6UynAMMtNIzZNSpL9vnASJwrPQ==}
-    engines: {node: '>=18.14.1'}
+  '@hono/node-server@2.1.3':
+    resolution: {integrity: sha512-TA//nWMqPhbfdfneACk6t5a9eqbS9lABEPyKn0/xZTah3H3U2XaVg85rJFl0/Fyit0I552YDHgXGVSf3GwqbUw==}
+    engines: {node: '>=20'}
     peerDependencies:
       hono: 4.13.11
 
@@ -3681,15 +3683,6 @@ packages:
 
   '@open-draft/until@2.1.0':
     resolution: {integrity: sha512-U69T3ItWHvLwGg5eJ0n3I62nWuE6ilHlmz7zM0npLBRvPRd7e6NYmg54vvRtP5mZG7kZqZCFVdsTWo7BPtBujg==}
-
-  '@openfeature/core@1.11.0':
-    resolution: {integrity: sha512-P0u3/ht/oZCQT89fOed+laLk0kZR529a825cS02uPDglxXbE97irWYpDAeRGGVETIzKfuy+H2g8c3Ccv/tXJNQ==}
-
-  '@openfeature/server-sdk@1.22.0':
-    resolution: {integrity: sha512-YBrf6SQkn0FNB/dRAtLEs41dvFMUE8CrQTwI+iLaMFUIqWlqGNJfGnulKSneEKS+2OgKTAC6DdmKcZ6tK7kBcg==}
-    engines: {node: '>=20'}
-    peerDependencies:
-      '@openfeature/core': ^1.11.0
 
   '@opentelemetry/api-logs@0.213.0':
     resolution: {integrity: sha512-zRM5/Qj6G84Ej3F1yt33xBVY/3tnMxtL1fiDIxYbDWYaZ/eudVw3/PBiZ8G7JwUxXxjW8gU4g6LnOyfGKYHYgw==}
@@ -7253,11 +7246,6 @@ packages:
     resolution: {integrity: sha512-5cvg6CtKwfgdmVqY1WIiXKc3Q1bkRqGLi+2W/6ao+6Y7gu/RCwRuAhGEzh5B4KlszSuTLgZYuqFqo5bImjNKng==}
     engines: {node: '>= 0.6'}
 
-  acorn-import-attributes@1.9.5:
-    resolution: {integrity: sha512-n02Vykv5uA3eHGM/Z2dQrcD56kL8TyDb2p1+0P83PClMnC/nc+anbQRhIOWnSq4Ke/KvDPrY3C9hDtC/A3eHnQ==}
-    peerDependencies:
-      acorn: ^8
-
   acorn-jsx-walk@2.0.0:
     resolution: {integrity: sha512-uuo6iJj4D4ygkdzd6jPtcxs8vZgDX9YFIkqczGImoypX2fQ4dVImmu3UzA4ynixCIMTrEOWW+95M2HuBaCEOVA==}
 
@@ -8013,9 +8001,9 @@ packages:
     resolution: {integrity: sha512-TyyeGcjx0YeThAI9fTFtgsvj5qd4R+aGfVmXiUhevbgzWFDr7IK4tv4YjE6jaGzLHQTchk4h7DHdr5q4WGgaZw==}
     engines: {node: '>=12.17'}
 
-  dd-trace@5.109.0:
-    resolution: {integrity: sha512-yjhNcegw4xX29YNqBJX3s/90oBmvRiHidifjypwEKktj+n2o1Fg3zqEh1Nl9r/gmgcpxmU1td9kW9zSTYCTfdg==}
-    engines: {node: '>=18 <27'}
+  dd-trace@5.131.1:
+    resolution: {integrity: sha512-7Tl2w2Y0xj3TZ8IAFm580SCUCR41HnZatHwfhTpO57o5YLL/mn+EnKeuN3LPd+ga5DRyubMbmXIG4pNYLCjcWw==}
+    engines: {node: '>=18'}
 
   debug@2.6.9:
     resolution: {integrity: sha512-bC7ElrdJaJnPbAP+1EotYvqZsb3ecl5wi6Bfi6BJTUcNowp6cvspg0jXznRTKDjm/E7AdgFBVeAPVMNcKGsHMA==}
@@ -8295,6 +8283,9 @@ packages:
 
   es-module-lexer@2.3.0:
     resolution: {integrity: sha512-KLdwQm2NvGLDkQDCGvmiQrhkd0JbMzXthwQAUgWjQuQdBLFa3eiBP5arXZyA+f8x+x7OXgud6bq2rxjGtHV2tw==}
+
+  es-module-lexer@3.0.4:
+    resolution: {integrity: sha512-BldNY5mwkVu+cQ5Ymn3e6hB9Sx8XHx4ZevWbiUyZbfKxJxYO27Hf0wfzkxIaD5CAJMaGl3YspKELj0ff/7nCMA==}
 
   es-object-atoms@1.1.1:
     resolution: {integrity: sha512-FGgH2h8zKNim9ljj7dankFPcICIK9Cp5bm+c2gQSYePhpaG5+esrLODihIorn+Pe6FGJzWhXQotPv73jTaldXA==}
@@ -9183,8 +9174,8 @@ packages:
   immer@11.1.4:
     resolution: {integrity: sha512-XREFCPo6ksxVzP4E0ekD5aMdf8WMwmdNaz6vuvxgI40UaEiu6q3p8X52aU6GdyvLY3XXX/8R7JOTXStz/nBbRw==}
 
-  import-in-the-middle@3.0.1:
-    resolution: {integrity: sha512-pYkiyXVL2Mf3pozdlDGV6NAObxQx13Ae8knZk1UJRJ6uRW/ZRmTGHlQYtrsSl7ubuE5F8CD1z+s1n4RHNuTtuA==}
+  import-in-the-middle@3.5.1:
+    resolution: {integrity: sha512-mPKuL8bPQzecui2KK6Gb+M8JvJoHnhS1FeYGa22QopBmlevF5F0FE6ued/B5EgHDeIoMTONIpDWWFKUPOG0DBQ==}
     engines: {node: '>=18'}
 
   imurmurhash@0.1.4:
@@ -10716,8 +10707,8 @@ packages:
     resolution: {integrity: sha512-ZlsFlG7MtSFCoc5xreOvBAozCJ6Pf06opgJjh9ONEv418xpZSAzNjstD36C6+JwOnfSqOW/9uDkqKjezTdxZhw==}
     engines: {node: '>=20'}
 
-  pprof-format@2.2.1:
-    resolution: {integrity: sha512-p4tVN7iK19ccDqQv8heyobzUmbHyds4N2FI6aBMcXz6y99MglTWDxIyhFkNaLeEXs6IFUEzT0zya0icbSLLY0g==}
+  pprof-format@2.3.2:
+    resolution: {integrity: sha512-fcMM+sgKMOveSurz7i0BMHfy1hHNnI9+VWjd4kdclqQjSTuiHWaP69DGwvkw3zcLkM/F76LhVIKvPyrxmp6iiw==}
 
   preact-render-to-string@5.2.6:
     resolution: {integrity: sha512-JyhErpYOvBV1hEPwIxc/fHWXPfnEGdRKxc8gFdAZ7XV4tlzyzG847XAyEZqoDnynP88akM4eaHcSOzNcLWFguw==}
@@ -11411,15 +11402,12 @@ packages:
     resolution: {integrity: sha512-UjgapumWlbMhkBgzT7Ykc5YXUT46F0iKu8SGXq0bcwP5dz/h0Plj6enJqjz1Zbq2l5WaqYnrVbwWOWMyF3F47g==}
     engines: {node: '>=0.10.0'}
 
-  source-map@0.7.4:
-    resolution: {integrity: sha512-l3BikUxvPOcn5E74dZiq5BGsTb5yEwhaTSzccU6t4sDOH8NWJCstKO5QT2CvtFoK6F0saL7p9xHAqHOlCPJygA==}
-    engines: {node: '>= 8'}
+  source-map@0.8.0:
+    resolution: {integrity: sha512-d8EqvL+k/SOXCreS/SUzg2ciyHqBBLcN/yuRjFsbvVhHTE2pgei7oAhmPM7kWFbkX6OSMQfUq4KbkF3au9lhYQ==}
+    engines: {node: '>= 12'}
 
   space-separated-tokens@2.0.2:
     resolution: {integrity: sha512-PEGlAwrG8yXGXRjW32fGbg66JAlOAwbObuqVoJpv/mRgoWDQfgH1wDPvtzWyUSNAXBGSk8h755YDbbcEy3SH2Q==}
-
-  spark-md5@3.0.2:
-    resolution: {integrity: sha512-wcFzz9cDfbuqe0FZzfi2or1sgyIrsDwmPwfZC4hiNidPdPINjeUwNfv5kldczoEAcjl9Y1L3SM7Uz2PUEQzxQw==}
 
   split-ca@1.0.1:
     resolution: {integrity: sha512-Q5thBSxp5t8WPTTJQS59LrGqOZqOsrhDGDVm8azCqIBjSBd7nd9o2PM+mDulQQkh8h//4U6hFZnc/mul8t5pWQ==}
@@ -13612,44 +13600,41 @@ snapshots:
       enabled: 2.0.0
       kuler: 2.0.0
 
-  '@datadog/flagging-core@1.2.1':
+  '@datadog/libdatadog-extras@0.21.0':
+    optional: true
+
+  '@datadog/libdatadog-wasm@0.21.0':
+    optional: true
+
+  '@datadog/libdatadog@0.21.0':
     dependencies:
-      spark-md5: 3.0.2
+      '@datadog/libdatadog-wasm': 0.21.0
     optional: true
 
-  '@datadog/libdatadog@0.9.4':
-    optional: true
-
-  '@datadog/native-appsec@11.0.1':
-    dependencies:
-      node-gyp-build: 3.9.0
-    optional: true
-
-  '@datadog/native-iast-taint-tracking@4.2.0':
+  '@datadog/native-appsec@11.0.3':
     dependencies:
       node-gyp-build: 3.9.0
     optional: true
 
-  '@datadog/native-metrics@3.1.2':
+  '@datadog/native-iast-taint-tracking@4.2.1':
+    dependencies:
+      node-gyp-build: 3.9.0
+    optional: true
+
+  '@datadog/native-metrics@4.0.0':
     dependencies:
       node-addon-api: 6.1.0
       node-gyp-build: 3.9.0
     optional: true
 
-  '@datadog/openfeature-node-server@2.0.0(@openfeature/server-sdk@1.22.0(@openfeature/core@1.11.0))':
-    dependencies:
-      '@datadog/flagging-core': 1.2.1
-      '@openfeature/server-sdk': 1.22.0(@openfeature/core@1.11.0)
-    optional: true
-
-  '@datadog/pprof@5.15.0':
+  '@datadog/pprof@5.19.0':
     dependencies:
       node-gyp-build: 4.8.4
-      pprof-format: 2.2.1
-      source-map: 0.7.4
+      pprof-format: 2.3.2
+      source-map: 0.8.0
     optional: true
 
-  '@datadog/wasm-js-rewriter@5.0.1':
+  '@datadog/wasm-js-rewriter@5.0.4':
     dependencies:
       js-yaml: 4.3.2
       lru-cache: 7.18.3
@@ -14005,7 +13990,7 @@ snapshots:
       '@tanstack/vue-virtual': 3.13.36(vue@3.5.43(typescript@7.0.2))
       vue: 3.5.43(typescript@7.0.2)
 
-  '@hono/node-server@1.19.17(hono@4.13.11)':
+  '@hono/node-server@2.1.3(hono@4.13.11)':
     dependencies:
       hono: 4.13.11
 
@@ -14592,7 +14577,7 @@ snapshots:
 
   '@modelcontextprotocol/sdk@1.32.0(@cfworker/json-schema@4.1.1)(supports-color@8.1.1)(zod@4.6.6)':
     dependencies:
-      '@hono/node-server': 1.19.17(hono@4.13.11)
+      '@hono/node-server': 2.1.3(hono@4.13.11)
       ajv: 8.20.0
       ajv-formats: 3.0.1(ajv@8.20.0)
       content-type: 1.0.5
@@ -15182,14 +15167,6 @@ snapshots:
 
   '@open-draft/until@2.1.0': {}
 
-  '@openfeature/core@1.11.0':
-    optional: true
-
-  '@openfeature/server-sdk@1.22.0(@openfeature/core@1.11.0)':
-    dependencies:
-      '@openfeature/core': 1.11.0
-    optional: true
-
   '@opentelemetry/api-logs@0.213.0':
     dependencies:
       '@opentelemetry/api': 1.9.1
@@ -15373,7 +15350,7 @@ snapshots:
     dependencies:
       '@opentelemetry/api': 1.9.1
       '@opentelemetry/api-logs': 0.213.0
-      import-in-the-middle: 3.0.1
+      import-in-the-middle: 3.5.1
       require-in-the-middle: 8.0.1(supports-color@8.1.1)
     transitivePeerDependencies:
       - supports-color
@@ -15382,7 +15359,7 @@ snapshots:
     dependencies:
       '@opentelemetry/api': 1.9.1
       '@opentelemetry/api-logs': 0.220.0
-      import-in-the-middle: 3.0.1
+      import-in-the-middle: 3.5.1
       require-in-the-middle: 8.0.1(supports-color@8.1.1)
     transitivePeerDependencies:
       - supports-color
@@ -18767,10 +18744,6 @@ snapshots:
       mime-types: 3.0.2
       negotiator: 1.0.0
 
-  acorn-import-attributes@1.9.5(acorn@8.18.0):
-    dependencies:
-      acorn: 8.18.0
-
   acorn-jsx-walk@2.0.0: {}
 
   acorn-jsx@5.3.2(acorn@8.17.0):
@@ -19546,24 +19519,22 @@ snapshots:
 
   dc-polyfill@0.1.11: {}
 
-  dd-trace@5.109.0(@openfeature/server-sdk@1.22.0(@openfeature/core@1.11.0)):
+  dd-trace@5.131.1:
     dependencies:
       dc-polyfill: 0.1.11
-      import-in-the-middle: 3.0.1
+      import-in-the-middle: 3.5.1
       opentracing: 0.14.7
     optionalDependencies:
-      '@datadog/libdatadog': 0.9.4
-      '@datadog/native-appsec': 11.0.1
-      '@datadog/native-iast-taint-tracking': 4.2.0
-      '@datadog/native-metrics': 3.1.2
-      '@datadog/openfeature-node-server': 2.0.0(@openfeature/server-sdk@1.22.0(@openfeature/core@1.11.0))
-      '@datadog/pprof': 5.15.0
-      '@datadog/wasm-js-rewriter': 5.0.1
+      '@datadog/libdatadog': 0.21.0
+      '@datadog/libdatadog-extras': 0.21.0
+      '@datadog/native-appsec': 11.0.3
+      '@datadog/native-iast-taint-tracking': 4.2.1
+      '@datadog/native-metrics': 4.0.0
+      '@datadog/pprof': 5.19.0
+      '@datadog/wasm-js-rewriter': 5.0.4
       '@opentelemetry/api': 1.9.1
       '@opentelemetry/api-logs': 0.220.0
       oxc-parser: 0.132.0
-    transitivePeerDependencies:
-      - '@openfeature/server-sdk'
 
   debug@2.6.9(supports-color@8.1.1):
     dependencies:
@@ -19898,6 +19869,8 @@ snapshots:
   es-module-lexer@1.7.0: {}
 
   es-module-lexer@2.3.0: {}
+
+  es-module-lexer@3.0.4: {}
 
   es-object-atoms@1.1.1:
     dependencies:
@@ -21064,11 +21037,10 @@ snapshots:
   immer@11.1.4:
     optional: true
 
-  import-in-the-middle@3.0.1:
+  import-in-the-middle@3.5.1:
     dependencies:
-      acorn: 8.18.0
-      acorn-import-attributes: 1.9.5(acorn@8.18.0)
       cjs-module-lexer: 2.2.0
+      es-module-lexer: 3.0.4
       module-details-from-path: 1.0.4
 
   imurmurhash@0.1.4: {}
@@ -22954,7 +22926,7 @@ snapshots:
 
   powershell-utils@0.2.0: {}
 
-  pprof-format@2.2.1:
+  pprof-format@2.3.2:
     optional: true
 
   preact-render-to-string@5.2.6(preact@10.29.8):
@@ -23821,13 +23793,10 @@ snapshots:
 
   source-map@0.6.1: {}
 
-  source-map@0.7.4:
+  source-map@0.8.0:
     optional: true
 
   space-separated-tokens@2.0.2: {}
-
-  spark-md5@3.0.2:
-    optional: true
 
   split-ca@1.0.1: {}
 

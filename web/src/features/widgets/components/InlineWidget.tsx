@@ -79,6 +79,11 @@ export interface WidgetContentProps {
    */
   entityDimensionLabelMap?: Record<string, string>;
   /**
+   * Optional presentation-only labels for the first dimension's values, e.g.
+   * names for ID breakdowns. Values without a label keep their raw value.
+   */
+  dimensionLabelMap?: ReadonlyMap<string, string>;
+  /**
    * Hide x-axis tick labels on a categorical (entity-name) axis; the full name
    * stays in the hover tooltip. Off by default. Opt in on entity-dimension
    * charts whose long names clutter the axis.
@@ -146,6 +151,7 @@ export function WidgetContent({
   onSortChange,
   className,
   entityDimensionLabelMap,
+  dimensionLabelMap,
   hideXAxisLabels,
   colorBarsByCategory,
   legendPosition,
@@ -276,7 +282,7 @@ export function WidgetContent({
         if (val === null || val === undefined || val === "") {
           seriesDimension = "n/a";
         } else if (typeof val === "string") {
-          seriesDimension = val;
+          seriesDimension = dimensionLabelMap?.get(val) ?? val;
         } else if (Array.isArray(val)) {
           seriesDimension = val.join(", ");
         } else {
@@ -331,6 +337,7 @@ export function WidgetContent({
     metrics,
     dimensions,
     entityDimensionLabelMap,
+    dimensionLabelMap,
   ]);
 
   // Chart presentation (label and formatter)

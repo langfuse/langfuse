@@ -53,8 +53,8 @@ function normalizeEmails(emails: string[]) {
 type GatewayTeamContext = Pick<OrgAuthedContext, "session" | "prisma">;
 
 /**
- * Owns every email the gateway setup sends: invitations for new people (as
- * organization members) and the announcement to existing members who can use
+ * Owns every email the gateway setup sends: invitations for new people (with
+ * the AI Gateway organization role) and the announcement to existing members who can use
  * the gateway. Emails are queued, one job per recipient, and sent by the worker.
  */
 export class GatewayTeamService {
@@ -203,7 +203,7 @@ export class GatewayTeamService {
       try {
         await inviteOrganizationMember({
           ctx,
-          input: { orgId: organizationId, email, orgRole: Role.MEMBER },
+          input: { orgId: organizationId, email, orgRole: Role.AI_GATEWAY },
           sendInvitationEmail: async ({ to, userExists }) => {
             emailJobs.push({
               ...sender,

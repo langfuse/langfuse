@@ -628,7 +628,7 @@ exports[`golden: events export streams family > getEventsForBlobStorageExport fi
     e.environment AS environment,
     e.type AS type,
     e.parent_span_id AS parent_observation_id,
-    toBool((e.parent_span_id = '') OR (e.is_app_root = true)) AS is_root_observation,
+    toBool(((e.parent_span_id = '') OR (e.is_app_root = true))) AS is_root_observation,
     e.name AS name,
     e.level AS level,
     e.status_message AS status_message,
@@ -698,7 +698,7 @@ exports[`golden: events export streams family > getEventsForBlobStorageExport fi
     e.environment AS environment,
     e.type AS type,
     e.parent_span_id AS parent_observation_id,
-    toBool((e.parent_span_id = '') OR (e.is_app_root = true)) AS is_root_observation,
+    toBool(((e.parent_span_id = '') OR (e.is_app_root = true))) AS is_root_observation,
     e.name AS name,
     e.level AS level,
     e.status_message AS status_message,
@@ -710,7 +710,7 @@ exports[`golden: events export streams family > getEventsForBlobStorageExport fi
     ifNull(
         coalesce(
             nullIf(e.trace_name, ''),
-            if((e.parent_span_id = '') OR (e.is_app_root = true), nullIf(e.name, ''), NULL)
+            if(((e.parent_span_id = '') OR (e.is_app_root = true)), nullIf(e.name, ''), NULL)
         ),
         ''
     ) AS trace_name,
@@ -968,7 +968,7 @@ exports[`golden: events export streams family > getEventsForBlobStorageExport fi
     e.environment AS environment,
     e.type AS type,
     e.parent_span_id AS parent_observation_id,
-    toBool((e.parent_span_id = '') OR (e.is_app_root = true)) AS is_root_observation,
+    toBool(((e.parent_span_id = '') OR (e.is_app_root = true))) AS is_root_observation,
     e.name AS name,
     e.level AS level,
     e.status_message AS status_message,
@@ -980,7 +980,7 @@ exports[`golden: events export streams family > getEventsForBlobStorageExport fi
     ifNull(
         coalesce(
             nullIf(e.trace_name, ''),
-            if((e.parent_span_id = '') OR (e.is_app_root = true), nullIf(e.name, ''), NULL)
+            if(((e.parent_span_id = '') OR (e.is_app_root = true)), nullIf(e.name, ''), NULL)
         ),
         ''
     ) AS trace_name,
@@ -1111,7 +1111,7 @@ exports[`golden: events export streams family > getEventsForBlobStorageExport fi
     ifNull(
         coalesce(
             nullIf(e.trace_name, ''),
-            if((e.parent_span_id = '') OR (e.is_app_root = true), nullIf(e.name, ''), NULL)
+            if(((e.parent_span_id = '') OR (e.is_app_root = true)), nullIf(e.name, ''), NULL)
         ),
         ''
     ) AS trace_name,
@@ -1183,7 +1183,7 @@ exports[`golden: events export streams family > getEventsForBlobStorageExportPar
     e.environment AS environment,
     e.type AS type,
     e.parent_span_id AS parent_observation_id,
-    toBool((e.parent_span_id = '') OR (e.is_app_root = true)) AS is_root_observation,
+    toBool(((e.parent_span_id = '') OR (e.is_app_root = true))) AS is_root_observation,
     e.name AS name,
     e.level AS level,
     e.status_message AS status_message,
@@ -1195,7 +1195,7 @@ exports[`golden: events export streams family > getEventsForBlobStorageExportPar
     ifNull(
         coalesce(
             nullIf(e.trace_name, ''),
-            if((e.parent_span_id = '') OR (e.is_app_root = true), nullIf(e.name, ''), NULL)
+            if(((e.parent_span_id = '') OR (e.is_app_root = true)), nullIf(e.name, ''), NULL)
         ),
         ''
     ) AS trace_name,
@@ -1259,7 +1259,7 @@ exports[`golden: events export streams family > getEventsForBlobStorageExportPar
     e.environment AS environment,
     e.type AS type,
     e.parent_span_id AS parent_observation_id,
-    toBool((e.parent_span_id = '') OR (e.is_app_root = true)) AS is_root_observation,
+    toBool(((e.parent_span_id = '') OR (e.is_app_root = true))) AS is_root_observation,
     e.name AS name,
     e.level AS level,
     e.status_message AS status_message,
@@ -1271,7 +1271,7 @@ exports[`golden: events export streams family > getEventsForBlobStorageExportPar
     ifNull(
         coalesce(
             nullIf(e.trace_name, ''),
-            if((e.parent_span_id = '') OR (e.is_app_root = true), nullIf(e.name, ''), NULL)
+            if(((e.parent_span_id = '') OR (e.is_app_root = true)), nullIf(e.name, ''), NULL)
         ),
         ''
     ) AS trace_name,
@@ -1367,7 +1367,7 @@ exports[`golden: events export streams family > getEventsForBlobStorageExportRaw
     e.environment AS environment,
     e.type AS type,
     e.parent_span_id AS parent_observation_id,
-    toBool((e.parent_span_id = '') OR (e.is_app_root = true)) AS is_root_observation,
+    toBool(((e.parent_span_id = '') OR (e.is_app_root = true))) AS is_root_observation,
     e.name AS name,
     e.level AS level,
     e.status_message AS status_message,
@@ -1379,7 +1379,7 @@ exports[`golden: events export streams family > getEventsForBlobStorageExportRaw
     ifNull(
         coalesce(
             nullIf(e.trace_name, ''),
-            if((e.parent_span_id = '') OR (e.is_app_root = true), nullIf(e.name, ''), NULL)
+            if(((e.parent_span_id = '') OR (e.is_app_root = true)), nullIf(e.name, ''), NULL)
         ),
         ''
     ) AS trace_name,
@@ -1442,7 +1442,7 @@ exports[`golden: events export streams family > getEventsForBlobStorageExportRaw
     e.environment AS environment,
     e.type AS type,
     e.parent_span_id AS parent_observation_id,
-    toBool((e.parent_span_id = '') OR (e.is_app_root = true)) AS is_root_observation,
+    toBool(((e.parent_span_id = '') OR (e.is_app_root = true))) AS is_root_observation,
     e.name AS name,
     e.level AS level,
     e.status_message AS status_message,
@@ -1454,7 +1454,7 @@ exports[`golden: events export streams family > getEventsForBlobStorageExportRaw
     ifNull(
         coalesce(
             nullIf(e.trace_name, ''),
-            if((e.parent_span_id = '') OR (e.is_app_root = true), nullIf(e.name, ''), NULL)
+            if(((e.parent_span_id = '') OR (e.is_app_root = true)), nullIf(e.name, ''), NULL)
         ),
         ''
     ) AS trace_name,
@@ -1564,7 +1564,7 @@ exports[`golden: events metadata map and session resolution > getEventsForAnalyt
     ifNull(
         coalesce(
             nullIf(e.trace_name, ''),
-            if((e.parent_span_id = '') OR (e.is_app_root = true), nullIf(e.name, ''), NULL)
+            if(((e.parent_span_id = '') OR (e.is_app_root = true)), nullIf(e.name, ''), NULL)
         ),
         ''
     ) AS trace_name,
@@ -1634,7 +1634,7 @@ exports[`golden: events metadata map and session resolution > getObservationsV2F
     e.environment AS environment,
     e.type AS type,
     e.parent_span_id AS parent_observation_id,
-    toBool((e.parent_span_id = '') OR (e.is_app_root = true)) AS is_root_observation,
+    toBool(((e.parent_span_id = '') OR (e.is_app_root = true))) AS is_root_observation,
     e.name AS name,
     e.level AS level,
     e.status_message AS status_message,
@@ -1646,7 +1646,7 @@ exports[`golden: events metadata map and session resolution > getObservationsV2F
     ifNull(
         coalesce(
             nullIf(e.trace_name, ''),
-            if((e.parent_span_id = '') OR (e.is_app_root = true), nullIf(e.name, ''), NULL)
+            if(((e.parent_span_id = '') OR (e.is_app_root = true)), nullIf(e.name, ''), NULL)
         ),
         ''
     ) AS trace_name,
@@ -1812,7 +1812,7 @@ WHERE (e.project_id IN ({param1:Array(String)}))
     ))
     AND (e.start_time >= fromUnixTimestamp64Milli({param4:Int64}))
     AND (e.start_time <= fromUnixTimestamp64Milli({param5:Int64}))
-    AND arrayExists((group_project_id, group_trace_ids, min_ms, max_ms) -> ((e.project_id = group_project_id) AND has(group_trace_ids, e.trace_id) AND ((e.start_time >= fromUnixTimestamp64Milli(min_ms)) AND (e.start_time <= fromUnixTimestamp64Milli(max_ms)))), {param6:Array(String)}, {param7:Array(Array(String))}, {param8:Array(Int64)}, {param9:Array(Int64)})
+    AND (arrayExists((group_project_id, group_trace_ids, min_ms, max_ms) -> ((e.project_id = group_project_id) AND has(group_trace_ids, e.trace_id) AND ((e.start_time >= fromUnixTimestamp64Milli(min_ms)) AND (e.start_time <= fromUnixTimestamp64Milli(max_ms)))), {param6:Array(String)}, {param7:Array(Array(String))}, {param8:Array(Int64)}, {param9:Array(Int64)}))
 ORDER BY
     e.project_id ASC,
     e.trace_id ASC",
@@ -1969,7 +1969,7 @@ FROM
         ifNull(
             coalesce(
                 nullIf(e.trace_name, ''),
-                if((e.parent_span_id = '') OR (e.is_app_root = true), nullIf(e.name, ''), NULL)
+                if(((e.parent_span_id = '') OR (e.is_app_root = true)), nullIf(e.name, ''), NULL)
             ),
             ''
         ) AS trace_name,
@@ -2088,7 +2088,7 @@ FROM
         ifNull(
             coalesce(
                 nullIf(e.trace_name, ''),
-                if((e.parent_span_id = '') OR (e.is_app_root = true), nullIf(e.name, ''), NULL)
+                if(((e.parent_span_id = '') OR (e.is_app_root = true)), nullIf(e.name, ''), NULL)
             ),
             ''
         ) AS trace_name,
@@ -2209,7 +2209,7 @@ FROM
         ifNull(
             coalesce(
                 nullIf(e.trace_name, ''),
-                if((e.parent_span_id = '') OR (e.is_app_root = true), nullIf(e.name, ''), NULL)
+                if(((e.parent_span_id = '') OR (e.is_app_root = true)), nullIf(e.name, ''), NULL)
             ),
             ''
         ) AS trace_name,
@@ -2332,7 +2332,7 @@ FROM
         ifNull(
             coalesce(
                 nullIf(e.trace_name, ''),
-                if((e.parent_span_id = '') OR (e.is_app_root = true), nullIf(e.name, ''), NULL)
+                if(((e.parent_span_id = '') OR (e.is_app_root = true)), nullIf(e.name, ''), NULL)
             ),
             ''
         ) AS trace_name,
@@ -2415,7 +2415,8 @@ exports[`golden: events point-reads & existence family > getTraceByIdFromEventsT
       ],
     },
     "route": "unknown",
-    "sql": "WITH event_traces AS
+    "sql": "WITH
+    event_traces AS
     (
         SELECT
             e.trace_id AS id,
@@ -2423,7 +2424,11 @@ exports[`golden: events point-reads & existence family > getTraceByIdFromEventsT
             coalesce(
                 nullIf(argMaxIf(e.trace_name, e.event_ts, e.trace_name != ''), ''),
                 nullIf(
-                    argMaxIf(e.name, e.event_ts, ((e.parent_span_id = '') OR (e.is_app_root = true)) AND (e.name != '')),
+                    argMaxIf(
+                        e.name,
+                        e.event_ts,
+                        (((e.parent_span_id = '') OR (e.is_app_root = true)) AND (e.name != ''))
+                    ),
                     ''
                 )
             ) AS name,
@@ -2449,7 +2454,7 @@ exports[`golden: events point-reads & existence family > getTraceByIdFromEventsT
             ) AS latency_milliseconds,
             groupUniqArrayIf(e.span_id, e.span_id != '') AS observation_ids,
             length(
-                groupUniqArrayIf(e.span_id, (e.span_id != '') AND (e.span_id != concat('t-', e.trace_id)))
+                groupUniqArrayIf(e.span_id, ((e.span_id != '') AND (e.span_id != concat('t-', e.trace_id))))
             ) AS observation_count,
             argMaxIf(e.bookmarked, e.event_ts, e.parent_span_id = '') AS bookmarked,
             max(e.public) AS public,
@@ -2520,7 +2525,8 @@ exports[`golden: events point-reads & existence family > getTraceByIdFromEventsT
       ],
     },
     "route": "unknown",
-    "sql": "WITH event_traces AS
+    "sql": "WITH
+    event_traces AS
     (
         SELECT
             e.trace_id AS id,
@@ -2528,7 +2534,11 @@ exports[`golden: events point-reads & existence family > getTraceByIdFromEventsT
             coalesce(
                 nullIf(argMaxIf(e.trace_name, e.event_ts, e.trace_name != ''), ''),
                 nullIf(
-                    argMaxIf(e.name, e.event_ts, ((e.parent_span_id = '') OR (e.is_app_root = true)) AND (e.name != '')),
+                    argMaxIf(
+                        e.name,
+                        e.event_ts,
+                        (((e.parent_span_id = '') OR (e.is_app_root = true)) AND (e.name != ''))
+                    ),
                     ''
                 )
             ) AS name,
@@ -2554,7 +2564,7 @@ exports[`golden: events point-reads & existence family > getTraceByIdFromEventsT
             ) AS latency_milliseconds,
             groupUniqArrayIf(e.span_id, e.span_id != '') AS observation_ids,
             length(
-                groupUniqArrayIf(e.span_id, (e.span_id != '') AND (e.span_id != concat('t-', e.trace_id)))
+                groupUniqArrayIf(e.span_id, ((e.span_id != '') AND (e.span_id != concat('t-', e.trace_id))))
             ) AS observation_count,
             argMaxIf(e.bookmarked, e.event_ts, e.parent_span_id = '') AS bookmarked,
             max(e.public) AS public,
@@ -2627,7 +2637,8 @@ exports[`golden: events point-reads & existence family > getTraceByIdFromEventsT
       "param4": "2026-01-01 00:00:00.000",
     },
     "route": "unknown",
-    "sql": "WITH event_traces AS
+    "sql": "WITH
+    event_traces AS
     (
         SELECT
             e.trace_id AS id,
@@ -2635,7 +2646,11 @@ exports[`golden: events point-reads & existence family > getTraceByIdFromEventsT
             coalesce(
                 nullIf(argMaxIf(e.trace_name, e.event_ts, e.trace_name != ''), ''),
                 nullIf(
-                    argMaxIf(e.name, e.event_ts, ((e.parent_span_id = '') OR (e.is_app_root = true)) AND (e.name != '')),
+                    argMaxIf(
+                        e.name,
+                        e.event_ts,
+                        (((e.parent_span_id = '') OR (e.is_app_root = true)) AND (e.name != ''))
+                    ),
                     ''
                 )
             ) AS name,
@@ -2661,7 +2676,7 @@ exports[`golden: events point-reads & existence family > getTraceByIdFromEventsT
             ) AS latency_milliseconds,
             groupUniqArrayIf(e.span_id, e.span_id != '') AS observation_ids,
             length(
-                groupUniqArrayIf(e.span_id, (e.span_id != '') AND (e.span_id != concat('t-', e.trace_id)))
+                groupUniqArrayIf(e.span_id, ((e.span_id != '') AND (e.span_id != concat('t-', e.trace_id))))
             ) AS observation_count,
             argMaxIf(e.bookmarked, e.event_ts, e.parent_span_id = '') AS bookmarked,
             max(e.public) AS public,
@@ -2734,7 +2749,8 @@ exports[`golden: events point-reads & existence family > getTraceByIdFromEventsT
       ],
     },
     "route": "unknown",
-    "sql": "WITH event_traces AS
+    "sql": "WITH
+    event_traces AS
     (
         SELECT
             e.trace_id AS id,
@@ -2742,7 +2758,11 @@ exports[`golden: events point-reads & existence family > getTraceByIdFromEventsT
             coalesce(
                 nullIf(argMaxIf(e.trace_name, e.event_ts, e.trace_name != ''), ''),
                 nullIf(
-                    argMaxIf(e.name, e.event_ts, ((e.parent_span_id = '') OR (e.is_app_root = true)) AND (e.name != '')),
+                    argMaxIf(
+                        e.name,
+                        e.event_ts,
+                        (((e.parent_span_id = '') OR (e.is_app_root = true)) AND (e.name != ''))
+                    ),
                     ''
                 )
             ) AS name,
@@ -2768,7 +2788,7 @@ exports[`golden: events point-reads & existence family > getTraceByIdFromEventsT
             ) AS latency_milliseconds,
             groupUniqArrayIf(e.span_id, e.span_id != '') AS observation_ids,
             length(
-                groupUniqArrayIf(e.span_id, (e.span_id != '') AND (e.span_id != concat('t-', e.trace_id)))
+                groupUniqArrayIf(e.span_id, ((e.span_id != '') AND (e.span_id != concat('t-', e.trace_id))))
             ) AS observation_count,
             argMaxIf(e.bookmarked, e.event_ts, e.parent_span_id = '') AS bookmarked,
             max(e.public) AS public,
@@ -2846,14 +2866,14 @@ exports[`golden: events point-reads & existence family > getTraceMetadataByIdsFr
     e.trace_id AS id,
     coalesce(
         nullIf(e.trace_name, ''),
-        if((e.parent_span_id = '') OR (e.is_app_root = true), nullIf(e.name, ''), NULL)
+        if(((e.parent_span_id = '') OR (e.is_app_root = true)), nullIf(e.name, ''), NULL)
     ) AS name,
     e.user_id AS user_id,
     e.tags AS tags
 FROM events_core AS e
 WHERE (e.project_id = {param1:String})
     AND (e.is_deleted = 0)
-    AND (coalesce(nullIf(e.trace_name, ''), if((e.parent_span_id = '') OR (e.is_app_root = true), nullIf(e.name, ''), NULL)) IS NOT NULL)
+    AND (coalesce(nullIf(e.trace_name, ''), if(((e.parent_span_id = '') OR (e.is_app_root = true)), nullIf(e.name, ''), NULL)) IS NOT NULL)
     AND (e.trace_id IN ({param2:Array(String)}))
 LIMIT 1 BY e.trace_id",
   },
@@ -2956,7 +2976,8 @@ exports[`golden: events simple aggregates family > getObservationMetricsForPromp
       "param2": [],
     },
     "route": "unknown",
-    "sql": "WITH prompt_events AS
+    "sql": "WITH
+    prompt_events AS
     (
         SELECT
             latest.project_id,
@@ -3028,7 +3049,8 @@ exports[`golden: events simple aggregates family > getObservationMetricsForPromp
       "param3": "2025-12-01 00:00:00.000",
     },
     "route": "unknown",
-    "sql": "WITH prompt_events AS
+    "sql": "WITH
+    prompt_events AS
     (
         SELECT
             latest.project_id,
@@ -3102,7 +3124,8 @@ exports[`golden: events simple aggregates family > getObservationMetricsForPromp
       "param4": "2026-01-02 00:00:00.000",
     },
     "route": "unknown",
-    "sql": "WITH prompt_events AS
+    "sql": "WITH
+    prompt_events AS
     (
         SELECT
             latest.project_id,
@@ -3176,7 +3199,8 @@ exports[`golden: events simple aggregates family > getObservationMetricsForPromp
       "param3": "2026-01-02 00:00:00.000",
     },
     "route": "unknown",
-    "sql": "WITH prompt_events AS
+    "sql": "WITH
+    prompt_events AS
     (
         SELECT
             latest.project_id,
@@ -3248,7 +3272,8 @@ exports[`golden: events simple aggregates family > getObservationMetricsForPromp
       ],
     },
     "route": "unknown",
-    "sql": "WITH prompt_events AS
+    "sql": "WITH
+    prompt_events AS
     (
         SELECT
             latest.project_id,
@@ -3455,7 +3480,7 @@ exports[`golden: events simple aggregates family > getSessionMetricsFromEvents f
     max(e.start_time) AS max_timestamp,
     min(e.start_time) AS min_timestamp,
     groupUniqArray(e.trace_id) AS trace_ids,
-    groupUniqArrayIf(e.user_id, (e.user_id IS NOT NULL) AND (e.user_id != '')) AS user_ids,
+    groupUniqArrayIf(e.user_id, ((e.user_id IS NOT NULL) AND (e.user_id != ''))) AS user_ids,
     uniq(e.trace_id) AS trace_count,
     groupUniqArrayArrayIf(e.tags, notEmpty(e.tags)) AS trace_tags,
     argMaxIf(e.environment, e.event_ts, e.environment != '') AS environment,
@@ -3564,7 +3589,11 @@ exports[`golden: events trace aggregation family > getTracesFromEventsTableForPu
             coalesce(
                 nullIf(argMaxIf(e.trace_name, e.event_ts, e.trace_name != ''), ''),
                 nullIf(
-                    argMaxIf(e.name, e.event_ts, ((e.parent_span_id = '') OR (e.is_app_root = true)) AND (e.name != '')),
+                    argMaxIf(
+                        e.name,
+                        e.event_ts,
+                        (((e.parent_span_id = '') OR (e.is_app_root = true)) AND (e.name != ''))
+                    ),
                     ''
                 )
             ) AS name,
@@ -3590,7 +3619,7 @@ exports[`golden: events trace aggregation family > getTracesFromEventsTableForPu
             ) AS latency_milliseconds,
             groupUniqArrayIf(e.span_id, e.span_id != '') AS observation_ids,
             length(
-                groupUniqArrayIf(e.span_id, (e.span_id != '') AND (e.span_id != concat('t-', e.trace_id)))
+                groupUniqArrayIf(e.span_id, ((e.span_id != '') AND (e.span_id != concat('t-', e.trace_id))))
             ) AS observation_count,
             argMaxIf(e.bookmarked, e.event_ts, e.parent_span_id = '') AS bookmarked,
             max(e.public) AS public,
@@ -3679,7 +3708,8 @@ exports[`golden: events trace aggregation family > getTracesFromEventsTableForPu
       "param4": 50,
     },
     "route": "unknown",
-    "sql": "WITH traces AS
+    "sql": "WITH
+    traces AS
     (
         SELECT
             e.trace_id AS id,
@@ -3687,7 +3717,11 @@ exports[`golden: events trace aggregation family > getTracesFromEventsTableForPu
             coalesce(
                 nullIf(argMaxIf(e.trace_name, e.event_ts, e.trace_name != ''), ''),
                 nullIf(
-                    argMaxIf(e.name, e.event_ts, ((e.parent_span_id = '') OR (e.is_app_root = true)) AND (e.name != '')),
+                    argMaxIf(
+                        e.name,
+                        e.event_ts,
+                        (((e.parent_span_id = '') OR (e.is_app_root = true)) AND (e.name != ''))
+                    ),
                     ''
                 )
             ) AS name,
@@ -3713,7 +3747,7 @@ exports[`golden: events trace aggregation family > getTracesFromEventsTableForPu
             ) AS latency_milliseconds,
             groupUniqArrayIf(e.span_id, e.span_id != '') AS observation_ids,
             length(
-                groupUniqArrayIf(e.span_id, (e.span_id != '') AND (e.span_id != concat('t-', e.trace_id)))
+                groupUniqArrayIf(e.span_id, ((e.span_id != '') AND (e.span_id != concat('t-', e.trace_id))))
             ) AS observation_count,
             argMaxIf(e.bookmarked, e.event_ts, e.parent_span_id = '') AS bookmarked,
             max(e.public) AS public,
@@ -3763,7 +3797,7 @@ SELECT
     t.release,
     CONCAT('/project/', t.project_id, '/traces/', t.id) AS htmlPath
 FROM traces AS t
-WHERE t.timestamp >= {param3:DateTime64(3, 'UTC')}
+WHERE (t.timestamp >= {param3:DateTime64(3, 'UTC')})
 ORDER BY
     t.project_id DESC,
     t.timestamp DESC
@@ -3781,7 +3815,8 @@ exports[`golden: events trace aggregation family > getTracesIdentifierForSession
       "param2": "golden-session",
     },
     "route": "unknown",
-    "sql": "WITH event_traces AS
+    "sql": "WITH
+    event_traces AS
     (
         SELECT
             e.trace_id AS id,
@@ -3789,7 +3824,11 @@ exports[`golden: events trace aggregation family > getTracesIdentifierForSession
             coalesce(
                 nullIf(argMaxIf(e.trace_name, e.event_ts, e.trace_name != ''), ''),
                 nullIf(
-                    argMaxIf(e.name, e.event_ts, ((e.parent_span_id = '') OR (e.is_app_root = true)) AND (e.name != '')),
+                    argMaxIf(
+                        e.name,
+                        e.event_ts,
+                        (((e.parent_span_id = '') OR (e.is_app_root = true)) AND (e.name != ''))
+                    ),
                     ''
                 )
             ) AS name,

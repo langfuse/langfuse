@@ -118,6 +118,7 @@ export class GatewayResolveService {
           user_id: context.userId,
           key_name: context.apiKeyName,
           user_name: context.userName,
+          user_email: context.userEmail,
           key_metadata: context.keyMetadata,
           provider_connection_id: context.connection.id,
         },

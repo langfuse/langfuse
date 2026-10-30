@@ -19,6 +19,7 @@ const context: CachedResolveContext = {
   userId: "user-1",
   apiKeyName: "CI key",
   userName: "Alice",
+  userEmail: "alice@example.com",
   keyMetadata: {},
   ingestionProjectId: null,
   ingestionMode: null,
@@ -134,6 +135,7 @@ describe("GatewayResolveCache", () => {
       ...legacy,
       apiKeyName: null,
       userName: null,
+      userEmail: null,
     });
   });
 

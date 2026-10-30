@@ -3,6 +3,7 @@ import {
   logger,
   type EntityChangeEventType,
 } from "@langfuse/shared/src/server";
+import { skillVersionProcessor } from "./skillVersionProcessor";
 import { promptVersionProcessor } from "./promptVersionProcessor";
 
 /**
@@ -24,11 +25,17 @@ export const entityChangeWorker = async (
     if (span) {
       span.setAttribute("entityType", event.entityType);
       span.setAttribute("projectId", event.projectId);
-      span.setAttribute("promptId", event.promptId);
+      if (event.entityType === "prompt-version") {
+        span.setAttribute("promptId", event.promptId);
+      } else {
+        span.setAttribute("skillId", event.skillId);
+      }
       span.setAttribute("action", event.action);
     }
 
     switch (event.entityType) {
+      case "skill-version":
+        return await skillVersionProcessor(event);
       case "prompt-version":
         return await promptVersionProcessor(event);
       default:
