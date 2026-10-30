@@ -28,7 +28,7 @@ import {
   getIsCharOrUnderscore,
 } from "@langfuse/shared";
 import { PromptChatMessages } from "./PromptChatMessages";
-import { ReviewPromptDialog } from "./ReviewPromptDialog";
+import { ReviewPromptDialogController } from "./ReviewPromptDialogController";
 import {
   NewPromptFormSchema,
   type NewPromptFormSchemaType,
@@ -458,7 +458,7 @@ export const NewPromptForm: React.FC<NewPromptFormProps> = (props) => {
 
         {initialPrompt ? (
           <div className="flex flex-col gap-2">
-            <ReviewPromptDialog
+            <ReviewPromptDialogController
               initialPrompt={initialPrompt}
               getNewPromptValues={form.getValues}
               isLoading={createPromptMutation.isPending}
@@ -475,7 +475,7 @@ export const NewPromptForm: React.FC<NewPromptFormProps> = (props) => {
                   Review changes
                 </Button>
               )}
-            </ReviewPromptDialog>
+            </ReviewPromptDialogController>
 
             <Button
               type="submit"

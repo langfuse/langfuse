@@ -5,7 +5,7 @@ import { DialogController } from "@/src/components/design-system/DialogControlle
 import DiffViewer from "@/src/components/DiffViewer";
 import { type NewPromptFormSchemaType } from "./validation";
 
-type ReviewPromptDialogProps = {
+type ReviewPromptDialogControllerProps = {
   initialPrompt: Prompt;
   isLoading: boolean;
   children: (control: { openDialog: () => void }) => React.ReactNode;
@@ -31,9 +31,9 @@ const formatMessages = (messages: any[], excludeKeys: string[] = []) => {
   );
 };
 
-export const ReviewPromptDialog: React.FC<ReviewPromptDialogProps> = (
-  props,
-) => {
+export const ReviewPromptDialogController: React.FC<
+  ReviewPromptDialogControllerProps
+> = (props) => {
   const { initialPrompt, children, getNewPromptValues, onConfirm, isLoading } =
     props;
 
