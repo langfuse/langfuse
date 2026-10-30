@@ -95,7 +95,7 @@ export const MonitorMetricDefinition = ({
             control={form.control}
             name="metric.aggregation"
             render={({ field }) => (
-              <FormItem className="min-w-0 flex-1 space-y-1">
+              <FormItem className="min-w-0 flex-1 space-y-0">
                 <Select
                   value={field.value}
                   onValueChange={(next) =>
@@ -128,7 +128,7 @@ export const MonitorMetricDefinition = ({
             control={form.control}
             name="view"
             render={({ field }) => (
-              <FormItem className="min-w-0 flex-1 space-y-1">
+              <FormItem className="min-w-0 flex-1 space-y-0">
                 <Select
                   value={field.value}
                   onValueChange={(next) => changeView(next as MonitorView)}
@@ -162,7 +162,7 @@ export const MonitorMetricDefinition = ({
             control={form.control}
             name="metric.measure"
             render={({ field }) => (
-              <FormItem className="min-w-0 flex-1 space-y-1">
+              <FormItem className="min-w-0 flex-1 space-y-0">
                 <Select
                   value={field.value}
                   onValueChange={field.onChange}

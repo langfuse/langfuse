@@ -4,7 +4,7 @@ import { cva } from "class-variance-authority";
 /** indentVariants offsets the elbow: past a row label ("Where") or just inside the field above. */
 const indentVariants = cva("shrink-0", {
   variants: {
-    indent: { label: "w-16", field: "w-3" },
+    indent: { label: "w-16", field: "w-3.5" },
   },
 });
 
