@@ -97,8 +97,7 @@ export const GetMediaResponseSchema = z.object({
 
 export type GetMediaResponse = z.infer<typeof GetMediaResponseSchema>;
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars -- Used via z.infer
-const MediaReturnSchema = z.object({
+export const MediaReturnSchema = z.object({
   mediaId: z.string(),
   contentType: z.enum(MediaContentType),
   contentLength: z.coerce.number(),
