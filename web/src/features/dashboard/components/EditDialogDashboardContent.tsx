@@ -1,13 +1,6 @@
-/* eslint-disable @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 import React, { useState } from "react";
 import { api } from "@/src/utils/api";
-import {
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-  DialogBody,
-} from "@/src/components/ui/dialog";
-import { Button } from "@/src/components/ui/button";
+import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
 import { Input } from "@/src/components/ui/input";
 import { Label } from "@/src/components/ui/label";
 import { Textarea } from "@/src/components/ui/textarea";
@@ -66,11 +59,19 @@ export function EditDialogDashboardContent({
   };
 
   return (
-    <>
-      <DialogHeader>
-        <DialogTitle>Edit Dashboard</DialogTitle>
-      </DialogHeader>
-      <DialogBody>
+    <Dialog
+      title="Edit Dashboard"
+      closeOnInteractionOutside={false}
+      closeLabel="Cancel"
+      actions={[
+        {
+          label: "Save Changes",
+          loading: updateDashboard.isPending,
+          onClick: handleSave,
+        },
+      ]}
+    >
+      <Dialog.Body>
         <div className="grid gap-4 py-4">
           <div className="grid gap-2">
             <Label htmlFor="name">Name</Label>
@@ -92,21 +93,7 @@ export function EditDialogDashboardContent({
             />
           </div>
         </div>
-      </DialogBody>
-      <DialogFooter>
-        <div className="flex gap-2">
-          <Button onClick={closeDialog} variant="outline" type="button">
-            Cancel
-          </Button>
-          <Button
-            onClick={handleSave}
-            type="button"
-            loading={updateDashboard.isPending}
-          >
-            Save Changes
-          </Button>
-        </div>
-      </DialogFooter>
-    </>
+      </Dialog.Body>
+    </Dialog>
   );
 }
