@@ -298,3 +298,38 @@ describe("default Gemini Pro pricing tiers", () => {
     },
   );
 });
+
+describe("default DeepSeek prices", () => {
+  it("prices deepseek-chat input, output and cached tokens", () => {
+    const model = defaultModelPrices.find(
+      (defaultModel) => defaultModel.modelName === "deepseek-chat",
+    );
+    expect(model).toBeDefined();
+    if (!model) return;
+
+    const standardTier = model.pricingTiers.find((tier) => tier.isDefault);
+    expect(standardTier?.prices.input).toBe(0.27e-6);
+    expect(standardTier?.prices.output).toBe(1.1e-6);
+    expect(standardTier?.prices.input_cached_tokens).toBe(0.07e-6);
+    expect(standardTier?.prices.input_cache_read).toBe(0.07e-6);
+    expect(standardTier?.prices.cache_read_input_tokens).toBe(0.07e-6);
+  });
+
+  it("prices deepseek-reasoner input, output, cached tokens and reasoning aliases", () => {
+    const model = defaultModelPrices.find(
+      (defaultModel) => defaultModel.modelName === "deepseek-reasoner",
+    );
+    expect(model).toBeDefined();
+    if (!model) return;
+
+    const standardTier = model.pricingTiers.find((tier) => tier.isDefault);
+    expect(standardTier?.prices.input).toBe(0.55e-6);
+    expect(standardTier?.prices.output).toBe(2.19e-6);
+    expect(standardTier?.prices.input_cached_tokens).toBe(0.14e-6);
+    expect(standardTier?.prices.input_cache_read).toBe(0.14e-6);
+    expect(standardTier?.prices.cache_read_input_tokens).toBe(0.14e-6);
+    expect(standardTier?.prices.output_reasoning_tokens).toBe(2.19e-6);
+    expect(standardTier?.prices.output_reasoning).toBe(2.19e-6);
+    expect(standardTier?.prices.reasoning_tokens).toBe(2.19e-6);
+  });
+});
