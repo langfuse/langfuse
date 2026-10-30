@@ -30,21 +30,21 @@ export const EnvLabelBadge = ({ region, onDismiss }: EnvLabelBadgeProps) => {
     if (isProduction) {
       return {
         label: `PROD-${region}`,
-        color: "red",
+        color: "error",
       } as const;
     }
 
     if (region === "STAGING") {
       return {
         label: region,
-        color: "blue",
+        color: "info",
       } as const;
     }
 
     if (region === "DEV") {
       return {
         label: region,
-        color: "green",
+        color: "success",
       } as const;
     }
 
@@ -54,7 +54,6 @@ export const EnvLabelBadge = ({ region, onDismiss }: EnvLabelBadgeProps) => {
   return (
     <BadgeShell
       color={color}
-      font="mono"
       size="sm"
       onDismiss={onDismiss}
       title={DISMISS_HINT}

@@ -27,12 +27,12 @@ function getStatus({
 }
 
 const colors = {
-  Blocked: "red",
-  Inactive: "primary",
-  Healthy: "green",
-  Degraded: "yellow",
-  Failing: "red",
-  Unknown: "primary",
+  Blocked: "error",
+  Inactive: "outline",
+  Healthy: "success",
+  Degraded: "warning",
+  Failing: "error",
+  Unknown: "outline",
 } as const;
 
 /** Displays evaluator health from the most recent execution traces of the last seven days. */
@@ -79,7 +79,10 @@ export function EvaluatorStatusBadge({
   }, [status, blockMessage, blockReason, ruleCount, summary]);
 
   const badge = (
-    <Badge text={status === "Unknown" ? "—" : status} color={colors[status]} />
+    <Badge
+      text={status === "Unknown" ? "—" : status.toUpperCase()}
+      color={colors[status]}
+    />
   );
 
   return (

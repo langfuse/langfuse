@@ -392,7 +392,7 @@ const matchesExpectedOutput = (
 const ExpectedMatchChip = ({ matches }: { matches: boolean }) => (
   <span className="mt-0.5 ml-1 inline-flex shrink-0">
     <Badge
-      color={matches ? "green" : "red"}
+      color={matches ? "success" : "error"}
       text={matches ? "match" : "differs"}
     />
   </span>
@@ -1140,7 +1140,7 @@ export default function ExperimentItemsTable({
                       </span>
                       {diff && (
                         <DiffLabel
-                          variant="ghost"
+                          plain
                           diff={diff}
                           formatValue={(v) => v.toFixed(2)}
                           title={diffTitle}
@@ -1242,7 +1242,7 @@ export default function ExperimentItemsTable({
     if (!diff) return null;
     return (
       <DiffLabel
-        variant="ghost"
+        plain
         diff={diff}
         formatValue={format}
         title={describeRunComparison({

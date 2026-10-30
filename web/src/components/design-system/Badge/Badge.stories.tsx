@@ -3,6 +3,7 @@ import { ExternalLinkIcon, TriangleAlert } from "@langfuse/icons";
 import { expect } from "storybook/test";
 
 import preview from "../../../../.storybook/preview";
+import { Metric } from "../Metric/Metric";
 import { Badge } from "./Badge";
 
 type ComponentProps = React.ComponentProps<typeof Badge>;
@@ -15,33 +16,29 @@ const meta = preview.meta({
   },
 });
 
-const allColors = Object.keys({
-  primary: true,
-  red: true,
-  yellow: true,
-  blue: true,
-  violet: true,
-  teal: true,
-  green: true,
-  ghost: true,
-  "ghost-warning": true,
-  filled: true,
-  filledOnMuted: true,
-  violetTint: true,
-  skyTint: true,
-  emeraldTint: true,
-  amberTint: true,
-  pinkTint: true,
-  indigoTint: true,
-  tealTint: true,
-  orangeTint: true,
-  limeTint: true,
-  fuchsiaTint: true,
-  violetHighlight: true,
-  blueHighlight: true,
-  amberHighlight: true,
-  inverted: true,
-} satisfies Record<Color, true>) as Color[];
+const colorFamily = {
+  outline: "Neutral",
+  filled: "Neutral",
+  inverted: "Neutral",
+  error: "Status",
+  warning: "Status",
+  success: "Status",
+  info: "Status",
+  violet: "Category",
+  blue: "Category",
+  teal: "Category",
+  green: "Category",
+  amber: "Category",
+  pink: "Category",
+} satisfies Record<Color, string>;
+
+const colorGroups = Object.entries(colorFamily).reduce<Record<string, Color[]>>(
+  (groups, [color, family]) => {
+    groups[family] = [...(groups[family] ?? []), color as Color];
+    return groups;
+  },
+  {},
+);
 
 export const Default = meta.story({});
 
@@ -53,11 +50,7 @@ export const WithDescenders = meta.story({
   },
   render: () => (
     <div className="flex flex-wrap items-center gap-1.5">
-      <Badge
-        text="gpt-5"
-        trailingIcon={ExternalLinkIcon}
-        trailingIconTone="link"
-      />
+      <Badge text="gpt-5" trailingIcon={ExternalLinkIcon} />
       <Badge
         text="Prompt: langfuse-docs-assistant-chat - v27"
         trailingIcon={ExternalLinkIcon}
@@ -82,26 +75,7 @@ export const Small = meta.story({
 });
 
 export const Large = meta.story({
-  args: { text: "# 16", size: "lg", color: "inverted", font: "mono" },
-});
-
-export const GhostInteractive = meta.story({
-  args: {
-    color: "ghost",
-    interactive: true,
-    label: "cost",
-    text: "$0.0042",
-  },
-});
-
-export const GhostWarning = meta.story({
-  args: {
-    color: "ghost-warning",
-    interactive: true,
-    font: "mono",
-    leadingIcon: TriangleAlert,
-    text: "no cost",
-  },
+  args: { text: "# 16", size: "lg", color: "inverted" },
 });
 
 export const VariantMatrix = meta.story({
@@ -111,12 +85,106 @@ export const VariantMatrix = meta.story({
     },
   },
   render: () => (
-    <div className="grid grid-cols-[repeat(2,max-content)] items-center gap-3">
-      {allColors.map((color) => (
-        <Badge key={color} color={color} text={color} />
+    <div className="flex flex-col gap-4">
+      {Object.entries(colorGroups).map(([group, colors]) => (
+        <div key={group} className="flex flex-col gap-2">
+          <span className="text-muted-foreground text-xs">{group}</span>
+          <div className="flex flex-wrap items-center gap-2">
+            {colors.map((color) => (
+              <Badge key={color} color={color} text={color} />
+            ))}
+          </div>
+        </div>
       ))}
     </div>
   ),
+});
+
+/** Each family where the app uses it; the reference for picking a colour. */
+export const InContext = meta.story({
+  parameters: {
+    controls: {
+      disable: true,
+    },
+  },
+  render: () => {
+    const rows: { title: string; badges: React.ReactNode }[] = [
+      {
+        title: "Header metrics and links: Metric (not a Badge)",
+        badges: (
+          <>
+            <Metric label="latency" value="0.71s" />
+            <Metric value="$0.0042" />
+            <Metric
+              icon={TriangleAlert}
+              iconTone="warning"
+              interactive
+              value="no cost"
+            />
+            <Metric href="#" value="session" />
+          </>
+        ),
+      },
+      {
+        title: "Attributes: outline",
+        badges: (
+          <>
+            <Badge label="env" text="production" />
+            <Badge label="release" text="v2.3.0" />
+            <Badge label="version" text="4" />
+          </>
+        ),
+      },
+      {
+        title: "Scores and tags: filled, md; level as category tint",
+        badges: (
+          <>
+            <Badge color="blue" size="md" text="observation" />
+            <Badge color="filled" size="md" label="accuracy" text="0.95" />
+            <Badge color="violet" size="md" text="trace" />
+            <Badge color="filled" size="md" label="helpfulness" text="0.81" />
+            <Badge color="filled" size="md" text="prod-rollout" />
+          </>
+        ),
+      },
+      {
+        title: "Status: error, warning, success, info",
+        badges: (
+          <>
+            <Badge color="error" text="FAILING" />
+            <Badge color="warning" text="DEGRADED" />
+            <Badge color="success" text="HEALTHY" />
+            <Badge color="info" size="sm" text="BETA" />
+          </>
+        ),
+      },
+      {
+        title: "Categories: hue fill, hairline and text",
+        badges: (
+          <>
+            <Badge color="violet" text="Billing questions" />
+            <Badge color="blue" text="Onboarding" />
+            <Badge color="green" text="Refunds" />
+            <Badge color="amber" text="Bug reports" />
+          </>
+        ),
+      },
+      {
+        title: "One strong marker: inverted",
+        badges: <Badge color="inverted" size="lg" text="# 16" />,
+      },
+    ];
+    return (
+      <div className="flex flex-col gap-4">
+        {rows.map(({ title, badges }) => (
+          <div key={title} className="flex flex-col gap-2">
+            <span className="text-muted-foreground text-xs">{title}</span>
+            <div className="flex flex-wrap items-center gap-2">{badges}</div>
+          </div>
+        ))}
+      </div>
+    );
+  },
 });
 
 export const LongWrappedLabel = meta.story({

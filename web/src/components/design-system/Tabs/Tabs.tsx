@@ -449,7 +449,7 @@ function labelText(label: string | undefined, count: number | undefined) {
 }
 
 function TabsInternalBadge() {
-  return <Badge text="Internal" color="yellow" size="sm" />;
+  return <Badge text="INTERNAL" color="warning" size="sm" />;
 }
 
 /** The underline list with `overflow="menu"`; only direct `Tabs.Trigger` children take part. */

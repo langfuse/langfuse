@@ -25,7 +25,7 @@ import { EntityTitle } from "@/src/components/EntityTitle";
 import { DetailViewHeaderShell } from "@/src/features/traces/components/DetailViewHeaderShell";
 import { AnnotateDrawerController } from "@/src/features/scores";
 import { ConnectedTraceObservationAddToDropdownMenuController } from "@/src/features/traces/components/ConnectedTraceObservationAddToDropdownMenuController";
-import { Badge } from "@/src/components/design-system/Badge/Badge";
+import { Metric } from "@/src/components/design-system/Metric/Metric";
 import { PromptBadge } from "@/src/features/traces/components/PromptBadge";
 import { LatencyBadge } from "@/src/features/traces/components/LatencyBadge";
 import { TimeToFirstTokenBadge } from "@/src/features/traces/components/TimeToFirstTokenBadge";
@@ -198,12 +198,7 @@ export const ObservationDetailViewHeader = memo(
     };
 
     const timestampBadge = preparedDate && (
-      <Badge
-        font="mono"
-        color="ghost"
-        text={preparedDate.display}
-        title={preparedDate.title}
-      />
+      <Metric value={preparedDate.display} title={preparedDate.title} />
     );
 
     const renderAddToButton = (triggerProps: Record<string, unknown> = {}) => (

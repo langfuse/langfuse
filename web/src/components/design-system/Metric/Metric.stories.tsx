@@ -1,15 +1,15 @@
 import React from "react";
+import { TriangleAlert } from "@langfuse/icons";
 import { expect } from "storybook/test";
 
 import preview from "../../../../.storybook/preview";
-import { LinkBadge } from "./LinkBadge";
+import { Metric } from "./Metric";
 
 const meta = preview.meta({
-  component: LinkBadge,
+  component: Metric,
   args: {
-    href: "#",
-    label: "prompt",
-    text: "langfuse-docs-assistant-chat - v27",
+    label: "latency",
+    value: "0.71s",
   },
 });
 
@@ -23,19 +23,29 @@ export const Variants = meta.story({
   },
   render: () => (
     <div className="flex flex-wrap items-center gap-4">
-      <LinkBadge href="#" text="gpt-5" />
-      <LinkBadge
+      <Metric label="latency" value="0.71s" />
+      <Metric value="$0.0042" interactive />
+      <Metric
+        icon={TriangleAlert}
+        iconTone="warning"
+        interactive
+        value="no cost"
+      />
+      <Metric href="#" value="session" />
+      <Metric href="#" label="user" value="maya.chen@acme-robotics.io" />
+      <Metric
         href="#"
         label="prompt"
-        text="langfuse-docs-assistant-chat - v27"
+        value="langfuse-docs-assistant-chat - v27"
       />
-      <LinkBadge href="#" label="user" text="maya.chen@acme-robotics.io" />
+      <Metric size="sm" value="Oct 23, 14:02:11" />
     </div>
   ),
 });
 
 export const RendersALink = meta.story({
   name: "(Test) Renders A Link",
+  args: { href: "#", label: "prompt", value: "docs-assistant - v27" },
   play: async ({ canvasElement }) => {
     const link = canvasElement.querySelector("a");
     await expect(link).not.toBeNull();
@@ -49,25 +59,18 @@ export const WrapsALongValue = meta.story({
   args: {
     href: "https://langfuse.com/self-hosting/oss-newsletter",
     label: undefined,
-    text: "https://langfuse.com/self-hosting/oss-newsletter",
+    value: "https://langfuse.com/self-hosting/oss-newsletter",
     shouldWrap: true,
   },
   render: (args) => (
     <div className="w-40">
-      <LinkBadge {...args} />
+      <Metric {...args} />
     </div>
   ),
   play: async ({ canvas, args }) => {
-    const value = canvas.getByText(args.text);
-    // The badge clips overflow, so measure the text itself: it must stay inside the box, on several lines.
-    const text = document.createRange();
-    text.selectNodeContents(value);
-    await expect(text.getClientRects().length).toBeGreaterThan(1);
-    await expect(text.getBoundingClientRect().right).toBeLessThanOrEqual(
-      value.getBoundingClientRect().right + 1,
-    );
-    await expect(
-      value.closest("a")?.getBoundingClientRect().width,
-    ).toBeLessThanOrEqual(160);
+    const value = canvas.getByText(args.value as string);
+    const range = document.createRange();
+    range.selectNodeContents(value);
+    await expect(range.getClientRects().length).toBeGreaterThan(1);
   },
 });

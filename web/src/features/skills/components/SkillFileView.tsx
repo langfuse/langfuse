@@ -65,7 +65,7 @@ export function SkillFileView({
           <div className="flex shrink-0 items-center gap-2">
             <Badge
               text={mode.kind === "draft" ? "Editing draft" : "Viewing"}
-              color={mode.kind === "draft" ? "blue" : "primary"}
+              color={mode.kind === "draft" ? "info" : "outline"}
             />
             {isMarkdown ? (
               <Tabs.List aria-label="File display" variant="inset" size="sm">

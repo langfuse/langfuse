@@ -943,12 +943,12 @@ export const SessionPage: React.FC<{
                   />
                 ) : null}
                 <Badge
-                  color="primary"
+                  color="outline"
                   text={`Total traces: ${session.data?.traces.length ?? ""}`}
                 />
                 {session.data && (
                   <Badge
-                    color="primary"
+                    color="outline"
                     text={`Total cost: ${usdFormatter(session.data.totalCost, 2)}`}
                   />
                 )}
@@ -2176,11 +2176,11 @@ const LoadedSessionEventsPage: React.FC<{
                   {!isModernSessionEnabled ? (
                     <>
                       <Badge
-                        color="primary"
+                        color="outline"
                         text={`Total traces: ${session.countTraces}`}
                       />
                       <Badge
-                        color="primary"
+                        color="outline"
                         text={`Total cost: ${usdFormatter(session.totalCost ?? 0, 2)}`}
                       />
                     </>

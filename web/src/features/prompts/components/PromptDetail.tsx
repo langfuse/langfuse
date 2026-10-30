@@ -513,7 +513,7 @@ export const PromptDetail = ({
             <div className="grid w-full grid-cols-1 items-start gap-2 md:grid-cols-[minmax(0,1fr)_auto]">
               <div className="flex min-w-0 flex-wrap items-center gap-x-1 gap-y-1.5">
                 <span className="mr-1 inline-flex max-w-full min-w-0 items-center gap-2">
-                  <BadgeShell color="inverted" font="mono" size="lg">
+                  <BadgeShell color="inverted" size="lg">
                     # {prompt.version}
                   </BadgeShell>
                   <span

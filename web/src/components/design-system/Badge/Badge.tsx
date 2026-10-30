@@ -7,7 +7,7 @@ import { type ComponentPropsWithoutRef, type ElementType } from "react";
 import { cn } from "@/src/utils/tailwind";
 
 const badgeVariants = cva(
-  "inline-flex w-fit max-w-full min-w-0 shrink-0 items-center rounded-sm border text-xs leading-none font-normal",
+  "inline-flex w-fit max-w-full min-w-0 shrink-0 items-center rounded-sm border font-mono text-xs leading-none font-normal",
   {
     variants: {
       size: {
@@ -17,51 +17,33 @@ const badgeVariants = cva(
         md: "h-5 gap-1 px-1.5",
         sm: "h-4.5 gap-1 px-1.5",
       },
+      /**
+       * Neutrals are named by appearance, status colours by state, category
+       * colours by hue. Every coloured fill carries a same-hue
+       * hairline tuned to error's border-to-fill lightness gap, in both modes.
+       */
       color: {
-        primary: "border-border bg-transparent text-foreground-secondary",
-        red: "border-red-100 bg-red-50 text-red-800 dark:border-transparent dark:bg-light-red/40 dark:text-dark-red/90",
-        yellow:
-          "border-yellow-100 bg-yellow-50 text-yellow-800 dark:border-transparent dark:bg-light-yellow/80 dark:text-dark-yellow",
-        blue: "border-transparent bg-light-blue text-dark-blue",
-        violet: "border-transparent bg-light-violet text-dark-violet",
-        teal: "border-transparent bg-light-teal text-dark-teal",
-        green: "border-transparent bg-light-green text-dark-green",
-        ghost: "border-0 bg-transparent px-0 text-foreground-secondary",
-        /** `ghost` with the leading icon in the warning colour; the text stays muted. */
-        "ghost-warning":
-          "border-0 bg-transparent px-0 text-foreground-secondary",
-        filled: "border-transparent bg-muted text-foreground-secondary",
-        /** `filled` for a chip on a muted or accent surface, e.g. a selected or hovered row, where `bg-muted` vanishes. */
-        filledOnMuted:
-          "border-transparent bg-background text-foreground-secondary",
-        /** Category highlight tints, as used by treemap tiles. */
-        violetHighlight:
-          "border-transparent bg-category-violet-highlight/35 text-foreground-secondary",
-        blueHighlight:
-          "border-transparent bg-category-blue-highlight/35 text-foreground-secondary",
-        amberHighlight:
-          "border-transparent bg-category-amber-highlight/35 text-foreground-secondary",
-        violetTint:
-          "border-category-violet/40 bg-category-violet/10 text-foreground-secondary",
-        skyTint:
-          "border-category-sky/40 bg-category-sky/10 text-foreground-secondary",
-        emeraldTint:
-          "border-category-emerald/40 bg-category-emerald/10 text-foreground-secondary",
-        amberTint:
-          "border-category-amber/40 bg-category-amber/10 text-foreground-secondary",
-        pinkTint:
-          "border-category-pink/40 bg-category-pink/10 text-foreground-secondary",
-        indigoTint:
-          "border-category-indigo/40 bg-category-indigo/10 text-foreground-secondary",
-        tealTint:
-          "border-category-teal/40 bg-category-teal/10 text-foreground-secondary",
-        orangeTint:
-          "border-category-orange/40 bg-category-orange/10 text-foreground-secondary",
-        limeTint:
-          "border-category-lime/40 bg-category-lime/10 text-foreground-secondary",
-        fuchsiaTint:
-          "border-category-fuchsia/40 bg-category-fuchsia/10 text-foreground-secondary",
+        outline: "border-border bg-transparent text-foreground-secondary",
+        /** Translucent, so the chip stays visible on muted, hovered and selected rows. */
+        filled:
+          "border-transparent bg-foreground/5 text-foreground-secondary dark:bg-foreground/10",
         inverted: "border-transparent bg-primary text-primary-foreground",
+        error:
+          "border-red-100 bg-red-50 text-red-800 dark:border-dark-red/5 dark:bg-light-red/40 dark:text-dark-red/90",
+        warning:
+          "border-yellow-200 bg-yellow-50 text-yellow-800 dark:border-dark-yellow/6 dark:bg-light-yellow/80 dark:text-dark-yellow",
+        success:
+          "border-emerald-100 bg-emerald-50 text-emerald-800 dark:border-dark-green/6 dark:bg-light-green dark:text-dark-green",
+        info: "border-blue-100 bg-blue-50 text-blue-800 dark:border-dark-blue/8 dark:bg-light-blue dark:text-dark-blue",
+        violet:
+          "border-category-violet-highlight/25 bg-category-violet-highlight/30 text-category-violet-foreground dark:border-category-violet-highlight/20 dark:bg-category-violet-highlight/45",
+        blue: "border-category-blue-highlight/25 bg-category-blue-highlight/30 text-category-blue-foreground dark:border-category-blue-highlight/20 dark:bg-category-blue-highlight/45",
+        teal: "border-category-teal-highlight/25 bg-category-teal-highlight/30 text-category-teal-foreground dark:border-category-teal-highlight/20 dark:bg-category-teal-highlight/45",
+        green:
+          "border-category-green-highlight/25 bg-category-green-highlight/30 text-category-green-foreground dark:border-category-green-highlight/20 dark:bg-category-green-highlight/45",
+        amber:
+          "border-category-amber-highlight/25 bg-category-amber-highlight/30 text-category-amber-foreground dark:border-category-amber-highlight/20 dark:bg-category-amber-highlight/45",
+        pink: "border-category-pink-highlight/25 bg-category-pink-highlight/30 text-category-pink-foreground dark:border-category-pink-highlight/20 dark:bg-category-pink-highlight/45",
       },
       interactive: {
         true: "underline-dotted",
@@ -71,21 +53,15 @@ const badgeVariants = cva(
         true: "cursor-pointer transition-opacity hover:opacity-80 ring-offset-background focus-visible:ring-ring focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-hidden",
         false: "",
       },
-      /** Metric values (latency, cost, timestamps) read in mono. */
-      font: {
-        sans: "font-sans",
-        mono: "font-mono",
-      },
       shouldWrap: {
         true: "h-auto leading-snug",
         false: "",
       },
     },
     defaultVariants: {
-      color: "primary",
+      color: "outline",
       size: "default",
       interactive: false,
-      font: "sans",
     },
   },
 );
@@ -111,7 +87,6 @@ export function BadgeShell({
   color,
   size,
   interactive,
-  font,
   shouldWrap,
   onDismiss,
   ...props
@@ -132,7 +107,6 @@ export function BadgeShell({
           color,
           size,
           interactive,
-          font,
           shouldWrap,
           dismissible: onDismiss != null,
         }),
@@ -143,14 +117,24 @@ export function BadgeShell({
 
 type BadgeProps = Omit<BadgeShellProps, "asChild" | "children"> & {
   text: string;
-  /** Key shown muted before the value, e.g. `latency` before `0.71s`. */
+  /** Key shown muted before the value, e.g. `env` before `production`. */
   label?: string;
   leadingIcon?: IconComponent;
   trailingIcon?: IconComponent;
-  /** Link badges tint the arrow and underline the text on hover. */
-  trailingIconTone?: "default" | "link";
 };
 
+/**
+ * Pick the colour by the badge's job:
+ * - `outline` (default): read. Attributes such as environment, release, version.
+ * - `filled`: data chips. Scores, tags, counts.
+ * - `inverted`: one strong marker per surface, e.g. a version number next to a title.
+ * - `error`, `warning`, `success`, `info`: a state, never decoration.
+ * - Category hues (`violet`, `blue`, `teal`, `green`, `amber`, `pink`): tell
+ *   categories apart, e.g. score levels and topics.
+ *
+ * Header metrics and links use `Metric`, not `Badge`. Full guidance with
+ * examples: `Badge.mdx` (Storybook "Guidance").
+ */
 export function Badge({
   color,
   text,
@@ -160,20 +144,11 @@ export function Badge({
   shouldWrap,
   leadingIcon: LeadingIcon,
   trailingIcon: TrailingIcon,
-  trailingIconTone = "default",
   ...props
 }: BadgeProps) {
-  const warningIcon = color === "ghost-warning";
   return (
     <BadgeShell color={color} shouldWrap={shouldWrap} {...props}>
-      {LeadingIcon && (
-        <LeadingIcon
-          aria-hidden
-          size="sm"
-          color={warningIcon ? "inherit" : "tertiary"}
-          __rawClassName={warningIcon ? "text-dark-yellow" : undefined}
-        />
-      )}
+      {LeadingIcon && <LeadingIcon aria-hidden size="sm" color="tertiary" />}
       {label && <span className="shrink-0 py-0.5">{label}:</span>}
       <span
         className={cn(
@@ -184,21 +159,12 @@ export function Badge({
           interactive
             ? "underline-dotted overflow-clip"
             : "overflow-x-clip overflow-y-visible",
-          trailingIconTone === "link" &&
-            "underline-offset-2 group-hover/badge:underline",
         )}
         title={title ?? (interactive ? undefined : text)}
       >
         {text}
       </span>
-      {TrailingIcon && (
-        <TrailingIcon
-          aria-hidden
-          size="sm"
-          color="tertiary"
-          __rawClassName={trailingIconTone === "link" ? "-ml-0.5" : undefined}
-        />
-      )}
+      {TrailingIcon && <TrailingIcon aria-hidden size="sm" color="tertiary" />}
     </BadgeShell>
   );
 }

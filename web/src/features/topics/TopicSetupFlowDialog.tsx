@@ -557,7 +557,7 @@ function ModelRow({
                 {model?.model ?? "Select a model"}
               </span>
               {recommended ? (
-                <Badge text="Recommended" color="green" size="sm" />
+                <Badge text="RECOMMENDED" color="success" size="sm" />
               ) : null}
             </span>
             <ChevronDown

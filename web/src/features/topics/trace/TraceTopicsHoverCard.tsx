@@ -1,4 +1,5 @@
-import { Badge, BadgeShell } from "@/src/components/design-system/Badge/Badge";
+import { BadgeShell } from "@/src/components/design-system/Badge/Badge";
+import { Metric } from "@/src/components/design-system/Metric/Metric";
 import { HoverCard } from "@/src/components/design-system/HoverCard/HoverCard";
 import { TextLink } from "@/src/components/design-system/TextLink/TextLink";
 import {
@@ -79,7 +80,7 @@ function TraceTopicsTrigger({
       {...triggerProps}
     >
       {lead?.topicName ? (
-        <BadgeShell color="ghost" font="mono">
+        <Metric>
           <TopicDot rank={lead.topicIndex} />
           <span className="truncate" title={lead.topicName}>
             {lead.topicName}
@@ -89,9 +90,9 @@ function TraceTopicsTrigger({
               +{assigned.length - 1}
             </span>
           )}
-        </BadgeShell>
+        </Metric>
       ) : (
-        <Badge color="ghost" font="mono" text="Topics" title="" />
+        <Metric value="Topics" title="" />
       )}
     </span>
   );

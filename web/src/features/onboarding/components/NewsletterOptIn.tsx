@@ -9,7 +9,7 @@ import { createForm } from "@/src/components/design-system/factories/createForm"
 import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
 import { Input } from "@/src/components/design-system/Input/Input";
 import { LangfuseIcon } from "@/src/components/design-system/LangfuseIcon/LangfuseIcon";
-import { LinkBadge } from "@/src/components/design-system/LinkBadge/LinkBadge";
+import { Metric } from "@/src/components/design-system/Metric/Metric";
 import { Spinner } from "@/src/components/design-system/Spinner/Spinner";
 import { useWatchedPromiseCallback } from "@/src/hooks/useWatchedPromiseCallback";
 import {
@@ -289,7 +289,7 @@ function NewsletterFallback({
               <span className="text-muted-foreground text-xs">
                 {FALLBACK_LINK_LABELS[list]}
               </span>
-              <LinkBadge href={url} text={url} newTab shouldWrap />
+              <Metric href={url} value={url} newTab shouldWrap />
             </li>
           ))}
         </ul>

@@ -85,21 +85,11 @@ function BaseHeader({ ...props }: HeaderProps & { level: "h3" | "h4" | "h5" }) {
           </div>
           {props.status && <StatusBadge type={props.status} />}
           {props.labelBadge && (
-            <Badge
-              color="filled"
-              font="mono"
-              size="sm"
-              text={props.labelBadge}
-            />
+            <Badge color="filled" size="sm" text={props.labelBadge} />
           )}
           {props.label && (
             <Link href={props.label.href} className="flex">
-              <Badge
-                color="filled"
-                font="mono"
-                size="sm"
-                text={props.label.text}
-              />
+              <Badge color="filled" size="sm" text={props.label.text} />
             </Link>
           )}
         </div>

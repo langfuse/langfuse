@@ -17,12 +17,12 @@ with `<ScoreTag>`.**
 | **Observation** | a single observation (span) | blue   | live                                           |
 | **Trace**       | the whole trace             | violet | live — most scores today are trace-level       |
 | **Session**     | a session of traces         | teal   | future — session ids not yet written on scores |
-| **Experiment**  | an experiment / dataset run | yellow | future — experiment ids not yet written        |
+| **Experiment**  | an experiment / dataset run | amber  | future — experiment ids not yet written        |
 
 The coding is **global**: one hue per level, identical on every surface
 (filter bar, sidebar facets, trace Scores tab, tree/timeline, tables). The
-hues are theme tokens in `globals.css` (light + dark) and are applied through
-the design-system `Badge` — never restate them at a call site.
+hues are the category tints of the design-system `Badge` — never restate them
+at a call site.
 
 <Canvas of={ScoreTagStories.VariantMatrix} />
 

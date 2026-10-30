@@ -5,7 +5,7 @@ import { OverflowCountBadge } from "@/src/components/OverflowCountBadge";
 import { useMemo, useState, type ReactNode } from "react";
 
 import { GroupedScoreBadges } from "@/src/components/GroupedScoreBadges";
-import { BadgeShell } from "@/src/components/design-system/Badge/Badge";
+import { Metric } from "@/src/components/design-system/Metric/Metric";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { TagList } from "@/src/features/tag";
 import {
@@ -59,9 +59,9 @@ function TraceHeaderLoading() {
     <TraceHeaderFrame>
       <CollapsibleBadgeRow>
         {LOADING_BADGE_WIDTHS.map((width) => (
-          <BadgeShell key={width} color="ghost">
+          <Metric key={width}>
             <Skeleton className={cn("h-3", width)} />
-          </BadgeShell>
+          </Metric>
         ))}
       </CollapsibleBadgeRow>
     </TraceHeaderFrame>

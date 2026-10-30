@@ -55,7 +55,7 @@ export function TierAccordionItem({
           <div className="flex w-full items-center justify-between">
             <div className="flex items-center gap-2">
               <span className="font-bold">{name ?? tier.name}</span>
-              {isDefault && <Badge color="filled" text="Default" />}
+              {isDefault && <Badge color="filled" text="DEFAULT" />}
               <span className="text-muted-foreground text-xs">
                 Priority: {priority}
               </span>

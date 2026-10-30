@@ -686,7 +686,7 @@ export default function ExperimentsTable({
             })}
             aria-label={`View ${formatted} failing items`}
           >
-            <Badge color="red" text={formatted} />
+            <Badge color="error" text={formatted} />
           </Link>
         );
       },

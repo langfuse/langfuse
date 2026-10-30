@@ -58,26 +58,23 @@ export const scoreLevelFromScore = (score: {
   return "trace";
 };
 
-// The global score-level color coding: one hue per level, used identically on
-// every surface. Hue pairs live in the design-system Badge and globals.css:
-// observation=blue, trace=violet, session=teal, experiment=yellow.
-const scoreTagColors: Record<
-  ScoreLevel,
-  "blue" | "violet" | "teal" | "yellow"
-> = {
-  observation: "blue",
-  trace: "violet",
-  session: "teal",
-  experiment: "yellow",
-};
+// The global score-level color coding: one category hue per level, used
+// identically on every surface (tag tint and compact dot).
+const scoreTagColors: Record<ScoreLevel, "blue" | "violet" | "teal" | "amber"> =
+  {
+    observation: "blue",
+    trace: "violet",
+    session: "teal",
+    experiment: "amber",
+  };
 
 const scoreDotVariants = cva("inline-block size-2 shrink-0 rounded-full", {
   variants: {
     level: {
-      observation: "bg-dark-blue",
-      trace: "bg-dark-violet",
-      session: "bg-dark-teal",
-      experiment: "bg-dark-yellow",
+      observation: "bg-category-blue-foreground",
+      trace: "bg-category-violet-foreground",
+      session: "bg-category-teal-foreground",
+      experiment: "bg-category-amber-foreground",
     },
   },
 });
@@ -115,10 +112,11 @@ export const ScoreTag = ({ level, compact = false }: ScoreTagProps) => {
   return (
     <Tooltip label={SCORE_LEVEL_DESCRIPTIONS[level]}>
       {({ getTriggerProps }) => (
-        <span {...getTriggerProps()}>
+        <span {...getTriggerProps()} className="inline-flex">
           <Badge
             color={scoreTagColors[level]}
-            text={SCORE_LEVEL_LABELS[level]}
+            size="md"
+            text={SCORE_LEVEL_LABELS[level].toLowerCase()}
           />
         </span>
       )}

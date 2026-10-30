@@ -1,15 +1,11 @@
-/** Canvas colors match the category tokens in styles/globals.css. */
+/** Canvas colors: the six category hues of styles/globals.css at oklch(0.58 0.13 h). */
 const COLORS = [
-  { color: "#7c3aed", badgeColor: "violetTint" },
-  { color: "#0284c7", badgeColor: "skyTint" },
-  { color: "#059669", badgeColor: "emeraldTint" },
-  { color: "#d97706", badgeColor: "amberTint" },
-  { color: "#db2777", badgeColor: "pinkTint" },
-  { color: "#4f46e5", badgeColor: "indigoTint" },
-  { color: "#0d9488", badgeColor: "tealTint" },
-  { color: "#c2410c", badgeColor: "orangeTint" },
-  { color: "#65a30d", badgeColor: "limeTint" },
-  { color: "#a21caf", badgeColor: "fuchsiaTint" },
+  { color: "#7e69c0", badgeColor: "violet" },
+  { color: "#397dc4", badgeColor: "blue" },
+  { color: "#00918b", badgeColor: "teal" },
+  { color: "#578b35", badgeColor: "green" },
+  { color: "#aa6a00", badgeColor: "amber" },
+  { color: "#b25785", badgeColor: "pink" },
 ] as const;
 
 export const topicColor = (index: number) =>
@@ -17,8 +13,8 @@ export const topicColor = (index: number) =>
 
 export const topicBadgeColor = (
   index: number,
-): (typeof COLORS)[number]["badgeColor"] | "primary" =>
-  index < 0 ? "primary" : COLORS[index % COLORS.length].badgeColor;
+): (typeof COLORS)[number]["badgeColor"] | "outline" =>
+  index < 0 ? "outline" : COLORS[index % COLORS.length].badgeColor;
 
 const TREEMAP_HUES = [
   {
@@ -57,9 +53,7 @@ export const treemapSwatchColor = (rank: number) =>
 export const treemapBadgeColor = (rank: number) =>
   rank < 0
     ? ("filled" as const)
-    : (["violetHighlight", "blueHighlight", "amberHighlight"] as const)[
-        rank % 3
-      ];
+    : (["violet", "blue", "amber"] as const)[rank % 3];
 
 /** Grey tile for traces without a topic. */
 export const unassignedTileClasses = {

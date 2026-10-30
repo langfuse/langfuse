@@ -11,8 +11,8 @@ import { type ScoreDomain } from "@langfuse/shared";
 import { Plus, Search, X } from "@langfuse/icons";
 import { type ReactNode, type SyntheticEvent, useState } from "react";
 
-import { Badge, BadgeShell } from "@/src/components/design-system/Badge/Badge";
-import { LinkBadge } from "@/src/components/design-system/LinkBadge/LinkBadge";
+import { BadgeShell } from "@/src/components/design-system/Badge/Badge";
+import { Metric } from "@/src/components/design-system/Metric/Metric";
 import { SingleLineOverflowList } from "@/src/components/SingleLineOverflowList";
 import { BreakdownTooltip } from "@/src/features/traces/components/BreakdownTooltip";
 import {
@@ -86,12 +86,12 @@ const scoreChipValue = (
 
 const UserChip = ({ projectId, user }: { projectId: string; user: string }) => (
   <span className="inline-flex max-w-[280px] min-w-0">
-    <LinkBadge
+    <Metric
       href={`/project/${projectId}/users/${encodeURIComponent(user)}`}
       noCapture
       data-session-header-pill="true"
       label="user"
-      text={user}
+      value={user}
     />
   </span>
 );
@@ -134,7 +134,7 @@ const MetadataJsonPathPill = ({
   onRemove: (path: string) => void;
 }) => (
   <span className="ph-no-capture group flex max-w-full min-w-0 items-center">
-    <BadgeShell font="mono" data-session-header-pill="true">
+    <BadgeShell data-session-header-pill="true">
       <span
         className="text-muted-foreground max-w-64 shrink-0 truncate"
         title={display.path}
@@ -320,12 +320,12 @@ export function ModernSessionHeader({
       searchText: `traces ${countTraces}`,
       type: "traces",
       content: (
-        <BadgeShell font="mono" color="ghost" data-session-header-pill="true">
+        <Metric data-session-header-pill="true">
           <span>
             {numberFormatter(countTraces, 0)}{" "}
             <ChipKey>{countTraces === 1 ? "trace" : "traces"}</ChipKey>
           </span>
-        </BadgeShell>
+        </Metric>
       ),
     },
   ];
@@ -335,11 +335,9 @@ export function ModernSessionHeader({
     searchText: `duration ${durationSeconds}`,
     type: "duration",
     content: (
-      <Badge
-        font="mono"
-        color="ghost"
+      <Metric
         data-session-header-pill="true"
-        text={formatIntervalSeconds(durationSeconds)}
+        value={formatIntervalSeconds(durationSeconds)}
         title="session duration"
       />
     ),
@@ -351,11 +349,9 @@ export function ModernSessionHeader({
       searchText: `cost ${totalCost}`,
       type: "cost",
       content: (
-        <Badge
-          font="mono"
-          color="ghost"
+        <Metric
           data-session-header-pill="true"
-          text={formatMetricCost(totalCost)}
+          value={formatMetricCost(totalCost)}
           title={`exact $${totalCost.toFixed(6)}`}
         />
       ),
@@ -372,12 +368,10 @@ export function ModernSessionHeader({
           details={{ input: tokensIn, output: tokensOut, total: totalTokens }}
           isCost={false}
         >
-          <Badge
-            font="mono"
-            color="ghost"
+          <Metric
             interactive
             data-session-header-pill="true"
-            text={formatMetricTokens(totalTokens)}
+            value={formatMetricTokens(totalTokens)}
           />
         </BreakdownTooltip>
       ),
