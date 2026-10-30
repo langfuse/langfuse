@@ -976,6 +976,68 @@ describe("SCIM API", () => {
         expect(auditLogs.length).toBe(0);
       });
 
+      it("should update an existing member's role when active is omitted (Okta profile push)", async () => {
+        const before = await prisma.organizationMembership.findFirst({
+          where: { userId: testUserId, orgId: orgId },
+        });
+
+        const response = await makeZodVerifiedAPICall(
+          ScimUserSchema,
+          "PUT",
+          `/api/public/scim/Users/${testUserId}`,
+          {
+            schemas: ["urn:ietf:params:scim:schemas:core:2.0:User"],
+            id: testUserId,
+            userName: "test.user@example.com",
+            roles: ["ADMIN"],
+          },
+          createBasicAuthHeader(orgApiKey, orgSecretKey),
+          200,
+        );
+        expect(response.status).toBe(200);
+
+        const after = await prisma.organizationMembership.findFirst({
+          where: { userId: testUserId, orgId: orgId },
+        });
+        expect(after!.id).toBe(before!.id);
+        expect(after!.role).toBe("ADMIN");
+
+        const auditLogs = await prisma.auditLog.findMany({
+          where: {
+            resourceType: "orgMembership",
+            resourceId: before!.id,
+            action: "update",
+            orgId: orgId,
+          },
+        });
+        expect(auditLogs.length).toBe(1);
+      });
+
+      it("should leave an existing member untouched when both active and roles are omitted", async () => {
+        await prisma.organizationMembership.updateMany({
+          where: { userId: testUserId, orgId: orgId },
+          data: { role: "MEMBER" },
+        });
+
+        const response = await makeAPICall(
+          "PUT",
+          `/api/public/scim/Users/${testUserId}`,
+          {
+            schemas: ["urn:ietf:params:scim:schemas:core:2.0:User"],
+            id: testUserId,
+            userName: "test.user@example.com",
+          },
+          createBasicAuthHeader(orgApiKey, orgSecretKey),
+        );
+        expect(response.status).toBe(200);
+
+        const after = await prisma.organizationMembership.findMany({
+          where: { userId: testUserId, orgId: orgId },
+        });
+        expect(after.length).toBe(1);
+        expect(after[0].role).toBe("MEMBER");
+      });
+
       it("should write a delete audit log when PUT active:false deprovisions a membership", async () => {
         const before = await prisma.organizationMembership.findFirst({
           where: { userId: testUserId, orgId: orgId },
@@ -1592,7 +1654,10 @@ describe("SCIM API", () => {
       const result = await makeAPICall<{ detail: string; userName?: string }>(
         "PUT",
         `/api/public/scim/Users/${outsider.id}`,
-        { schemas: ["urn:ietf:params:scim:schemas:core:2.0:User"] },
+        {
+          schemas: ["urn:ietf:params:scim:schemas:core:2.0:User"],
+          roles: ["ADMIN"],
+        },
         createBasicAuthHeader(orgApiKey, orgSecretKey),
       );
 
