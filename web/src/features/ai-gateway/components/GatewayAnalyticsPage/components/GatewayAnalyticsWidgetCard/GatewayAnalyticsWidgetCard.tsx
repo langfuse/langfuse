@@ -56,6 +56,9 @@ export function GatewayAnalyticsWidgetCard({
       cardContentClassName="min-h-0"
     >
       <WidgetContent
+        // The loading skeleton has a min height taller than the small tiles;
+        // clip it to the content area like dashboard widgets do.
+        className="overflow-hidden"
         projectId={projectId}
         query={query}
         version="v2"
