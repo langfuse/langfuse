@@ -38,6 +38,7 @@ import {
   EVENT_FILTER_OPTIONS_COLUMNS,
 } from "./eventsService";
 import { loadTraceTranscript } from "./loadTraceTranscript";
+import { assertTopicSummarySearchAllowed } from "@/src/features/topics/server/summarySearchAccess";
 import {
   instrumentAsync,
   getScoresAndCorrectionsForTraces,
@@ -143,6 +144,13 @@ export const eventsRouter = createTRPCRouter({
   all: protectedProjectProcedure
     .input(GetAllEventsInput)
     .query(async ({ input, ctx }) => {
+      assertTopicSummarySearchAllowed({
+        session: ctx.session,
+        projectId: ctx.session.projectId,
+        searchQuery: input.searchQuery,
+        searchType: input.searchType,
+        readsEventsTable: true,
+      });
       const { filterState, hasNoMatches } = await applyCommentFilters({
         filterState: input.filter ?? [],
         prisma: ctx.prisma,
@@ -180,6 +188,13 @@ export const eventsRouter = createTRPCRouter({
   sessionAll: protectedGetSessionProcedure
     .input(GetSessionEventsInput)
     .query(async ({ input, ctx }) => {
+      assertTopicSummarySearchAllowed({
+        session: ctx.session,
+        projectId: input.projectId,
+        searchQuery: input.searchQuery,
+        searchType: input.searchType,
+        readsEventsTable: true,
+      });
       const filter = ctx.session.projectRole
         ? (input.filter ?? [])
         : (input.filter ?? []).filter(
@@ -224,6 +239,13 @@ export const eventsRouter = createTRPCRouter({
   listCursor: protectedProjectProcedure
     .input(GetEventsCursorInput)
     .query(async ({ input, ctx }) => {
+      assertTopicSummarySearchAllowed({
+        session: ctx.session,
+        projectId: ctx.session.projectId,
+        searchQuery: input.searchQuery,
+        searchType: input.searchType,
+        readsEventsTable: true,
+      });
       const { filterState, hasNoMatches } = await applyCommentFilters({
         filterState: input.filter ?? [],
         prisma: ctx.prisma,
@@ -262,6 +284,13 @@ export const eventsRouter = createTRPCRouter({
   countAll: protectedProjectProcedure
     .input(EventsTableOptions)
     .query(async ({ input, ctx }) => {
+      assertTopicSummarySearchAllowed({
+        session: ctx.session,
+        projectId: ctx.session.projectId,
+        searchQuery: input.searchQuery,
+        searchType: input.searchType,
+        readsEventsTable: true,
+      });
       const { filterState, hasNoMatches } = await applyCommentFilters({
         filterState: input.filter ?? [],
         prisma: ctx.prisma,

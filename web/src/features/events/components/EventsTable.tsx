@@ -179,6 +179,7 @@ import {
   useObservedMetadataRecorder,
 } from "@/src/hooks/useObservedMetadata";
 import { AddTracesToAnnotationQueueDialogController } from "@/src/features/annotation-queues";
+import { useCanViewTopics } from "@/src/features/topics/topicsAccess";
 
 export type EventsTableRow = {
   // Identity fields
@@ -308,6 +309,13 @@ const toStartTimeFilterState = (range?: TableDateRange): TimeFilter[] =>
       ]
     : [];
 
+function withoutSummarySearch(
+  searchType: TracingSearchType[],
+): TracingSearchType[] {
+  const kept = searchType.filter((type) => type !== "summary");
+  return kept.length > 0 ? kept : ["id"];
+}
+
 export default function ObservationsEventsTable({
   projectId,
   userId,
@@ -356,9 +364,15 @@ export default function ObservationsEventsTable({
   const searchQuery = tableStatePolicy.useIsolatedSearch
     ? isolatedSearchQuery
     : urlSearch.searchQuery;
-  const searchType = tableStatePolicy.useIsolatedSearch
+  const canSearchTraceSummaries = useCanViewTopics(projectId);
+  const requestedSearchType = tableStatePolicy.useIsolatedSearch
     ? isolatedSearchType
     : urlSearch.searchType;
+  // A shared URL can carry the summary scope to a user without Topics access.
+  const searchType =
+    canSearchTraceSummaries || !requestedSearchType.includes("summary")
+      ? requestedSearchType
+      : withoutSummarySearch(requestedSearchType);
   const setSearchQuery: (query: string | null) => void =
     tableStatePolicy.useIsolatedSearch
       ? setIsolatedSearchQuery
@@ -788,6 +802,7 @@ export default function ObservationsEventsTable({
       ...(promptVersion ? ["promptVersion"] : []),
     ],
     tableStatePolicy.useHostSearchScopes,
+    canSearchTraceSummaries,
   );
   const sidebarAiFiltersEnabled =
     !searchBarMode || !searchRegistry.aiFilterPrompt;

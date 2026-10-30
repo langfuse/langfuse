@@ -1,6 +1,8 @@
 import { env } from "@/src/env.mjs";
 import { InvalidRequestError, type TracingSearchType } from "@langfuse/shared";
+import { writeTopicSummaries } from "@langfuse/shared/topics/server";
 import {
+  clickhouseClient,
   clickhouseSearchCondition,
   createEvent,
   createEventsCh,
@@ -523,6 +525,83 @@ describe("clickhouseSearchCondition", () => {
     const params = search.params as Record<string, string>;
     expect(params.searchStringExact).toBe("alpha");
     expect(params.searchString).toBe("%alpha%");
+  });
+
+  describe("trace summary lane", () => {
+    const projectId = randomUUID();
+    const [refundTrace, shippingTrace] = [randomUUID(), randomUUID()];
+
+    afterAll(async () => {
+      await clickhouseClient().command({
+        query: `DELETE FROM topic_facet_summaries WHERE project_id = {projectId:String}`,
+        query_params: { projectId },
+        clickhouse_settings: { mutations_sync: "1" },
+      });
+    });
+
+    const summaryTraceIds = async (query: string) => {
+      const search = clickhouseSearchCondition({
+        query,
+        searchType: ["summary"],
+        tablePrefix: "e",
+        useEventsTablePath: true,
+      });
+      const rows = await queryClickhouse<{ traceId: string }>({
+        query: `
+          SELECT e.trace_id AS traceId
+          FROM values('trace_id String', ('${refundTrace}'), ('${shippingTrace}')) AS e
+          WHERE 1 = 1 ${search.query}`,
+        params: { ...search.params, projectId },
+        preferredClickhouseService: "EventsReadOnly",
+      });
+      return rows.map((row) => row.traceId);
+    };
+
+    it("matches trace IDs whose Topics summary contains every search token", async () => {
+      await writeTopicSummaries(
+        [
+          [refundTrace, "Customer asked for a refund"],
+          [shippingTrace, "Refunds and shipping delays"],
+        ].map(([traceId, summary]) => ({
+          projectId,
+          facetId: "facet",
+          facetVersion: 1,
+          traceId,
+          sessionId: null,
+          triggerType: "manual_poc",
+          environment: "default",
+          traceName: "trace",
+          unitStartTime: "2026-08-01T00:00:00.000Z",
+          state: "complete",
+          summary,
+          embedding: [1, ...Array<number>(255).fill(0)],
+          transcriptId: "test",
+          transcriptVersion: "test",
+          summaryModel: "test",
+          embeddingModel: "eu.cohere.embed-v4:0",
+          providedUsageDetails: {},
+          usageDetails: {},
+          providedCostDetails: {},
+          costDetails: {},
+          processedAt: "2026-08-01T00:00:00.000Z",
+          metadata: {},
+        })),
+      );
+
+      expect(await summaryTraceIds("REFUND")).toEqual([refundTrace]);
+      expect(await summaryTraceIds("shipping delays")).toEqual([shippingTrace]);
+      expect(await summaryTraceIds("--")).toEqual([]);
+    });
+
+    it("rejects summary search off the events table path", () => {
+      expect(() =>
+        clickhouseSearchCondition({
+          query: "refund",
+          searchType: ["summary"],
+          tablePrefix: "t",
+        }),
+      ).toThrow(InvalidRequestError);
+    });
   });
 
   it("keeps ILIKE name search off the events table path", () => {

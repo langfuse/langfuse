@@ -2,6 +2,7 @@ import { useMemo } from "react";
 import type { TopicTimeRange } from "@langfuse/shared/topics";
 import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { cn } from "@/src/utils/tailwind";
+import { useMemo } from "react";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { getQueryKey } from "@trpc/react-query";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
@@ -111,6 +112,12 @@ function CurrentFacet({
     isV4: false,
     queryParams: ["observation", "display", "timestamp", "traceId"],
   });
+  const summaryMatches = useTopicSummaryMatches(
+    projectId,
+    view === "map" ? facet.facetId : undefined,
+    timeRange,
+    traceFilters.searchQuery,
+  );
   const peekView = { itemType: "TRACE" as const, ...peekNavigation };
   if (isHandheld)
     return (
@@ -147,6 +154,7 @@ function CurrentFacet({
         mapResult={mapResult}
         tracePanelRef={tracePanelRef}
         traceFilters={traceFilters}
+        summaryMatches={summaryMatches}
         onGenerateTopics={onGenerateTopics}
         canGenerateTopics={canGenerateTopics}
         onOpenTrace={peekNavigation.openPeek}
@@ -267,6 +275,36 @@ function useCurrentTopicMap(
           ? previous
           : undefined,
     },
+  );
+}
+
+/**
+ * Summary matches from the ClickHouse text index (whole-token). Undefined while
+ * loading, on error, or when the result is truncated, so the caller falls back
+ * to matching the loaded summaries in the browser.
+ */
+function useTopicSummaryMatches(
+  projectId: string,
+  facetId: string | undefined,
+  timeRange: TopicTimeRange,
+  searchQuery: string | null,
+) {
+  const query = searchQuery?.trim() ?? "";
+  const { data } = api.topics.summarySearch.useQuery(
+    { projectId, facetId: facetId ?? "", timeRange, query },
+    {
+      enabled:
+        Boolean(facetId) &&
+        query.length > 0 &&
+        isValidTopicTimeRange(timeRange),
+    },
+  );
+  return useMemo(
+    () =>
+      data && !data.truncated && query.length > 0
+        ? new Set(data.traceIds)
+        : undefined,
+    [data, query],
   );
 }
 

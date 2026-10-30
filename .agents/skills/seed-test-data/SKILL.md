@@ -74,6 +74,8 @@ comparison row. Set `NEXTAUTH_URL` to your local app URL when using a port
 other than 3000.
 
 For Topics discovery and later assignment, run `pnpm run seed -- topics`.
+Add `--summaries` to also store one summary per trace, which the Topics page
+and trace-summary search need without model calls.
 For the 100-trace Intent/Issues evaluation, run
 `pnpm run seed -- topics --batch evaluation --id-prefix topics-eval-s42`.
 Read the [Topics fixture walkthrough](../../../packages/shared/scripts/seeder/README.md#topics)
