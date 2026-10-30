@@ -291,6 +291,8 @@ vi.mock("@/src/utils/api", () => ({
         }),
       },
       traceErrors: { useQuery: () => ({}) },
+      maps: { useQuery: () => ({ data: undefined }) },
+      analysisResults: { useQuery: () => ({}) },
       retry: {
         useMutation: ({ onSuccess }: { onSuccess: () => void }) => ({
           mutate: (input: unknown) => {
@@ -644,9 +646,11 @@ it("shows Analyze in the header while auto-analyze is off and keeps Analyze, reg
   const items = await screen.findAllByRole("menuitem");
   expect(items.map((item) => item.textContent)).toEqual([
     "AnalyzeOff",
+    "Process past traces",
+    "Manage rules",
     "Regenerate topics",
     "History",
-    "Settings",
+    "Configure Topics",
   ]);
 });
 

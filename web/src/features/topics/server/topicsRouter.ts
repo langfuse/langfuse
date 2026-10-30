@@ -674,34 +674,12 @@ export const topicsRouter = createTRPCRouter({
           await enqueueTopicExecution(input.projectId, existing.id);
         return { id: existing.id };
       }
-      const ruleId = input.operation === "process" ? input.ruleId : undefined;
-      const rule = ruleId ? await getTopicRule(input.projectId, ruleId) : null;
-      if (ruleId && !rule)
-        throw new InvalidRequestError("Topic rule not found in this project.");
-      if (rule && !("selection" in input))
+      // Processing past traces writes rule-agnostic summaries; rules never backfill.
+      if (input.operation === "process" && input.ruleId)
         throw new InvalidRequestError(
-          "Topic rules require a filtered trace selection.",
+          "Process past traces with a trace filter instead of a rule.",
         );
       await requireFacetVersions(input.projectId, input.facets);
-      const facetIds = new Set(input.facets.map(({ facetId }) => facetId));
-
-      if (
-        rule &&
-        (rule.facetIds.length !== facetIds.size ||
-          !rule.facetIds.every((id) => facetIds.has(id)))
-      )
-        throw new InvalidRequestError(
-          "Select the facets attached to this Topic rule, or save its changes first.",
-        );
-      if (rule && "selection" in input) {
-        // Reject stale previews instead of silently running a newly edited rule.
-        const selected = topicRuleConfigSchema.parse(input.selection);
-        const saved = topicRuleConfigSchema.parse(rule);
-        if (JSON.stringify(selected) !== JSON.stringify(saved))
-          throw new InvalidRequestError(
-            "This Topic rule changed. Reload it and preview the traces again.",
-          );
-      }
       const resolvedInput = await resolveTopicTraceSelection(input, ctx.prisma);
       const configuredInput = topicExecutionInputSchema.parse({
         ...resolvedInput,

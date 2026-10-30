@@ -1,14 +1,7 @@
 import { useState } from "react";
-import {
-  eventsEvalFilterColumns,
-  experimentEvalFilterColsWithOptions,
-  observationEvalFilterColsWithOptions,
-  type FilterState,
-  type TimeFilter,
-} from "@langfuse/shared";
+import { type FilterState } from "@langfuse/shared";
 import { api, type RouterInputs } from "@/src/utils/api";
-import { toObservedOptions } from "@/src/features/search-bar";
-import { useEventsFilterOptions } from "@/src/features/events/hooks/useEventsFilterOptions";
+import { useTopicFilterColumns } from "./useTopicFilterColumns";
 import {
   TopicTraceSelectorView,
   type TopicTraceSelectorViewProps,
@@ -120,49 +113,14 @@ export function useTopicTraceSelector({
         error instanceof Error ? error.message : "Invalid trace IDs.";
     }
   }
-  const startTimeFilter: TimeFilter[] = [
-    {
-      column: "startTime",
-      type: "datetime",
-      operator: ">=",
-      value: range.from,
-    },
-    { column: "startTime", type: "datetime", operator: "<", value: range.to },
-  ];
-  const options = useEventsFilterOptions({
+  const { builderColumns, observed, options } = useTopicFilterColumns({
     projectId,
-    startTimeFilter,
-    refiningFilter: filter.map((item) =>
-      item.column === "tags" ? { ...item, column: "traceTags" } : item,
-    ),
+    filter,
+    range,
+    scope: "process",
     lazy: filterMode === "query",
-    columns: [
-      "environment",
-      "name",
-      "traceTags",
-      "traceName",
-      "calledToolNames",
-      "experimentDatasetId",
-      "experimentId",
-    ],
     enabled:
       enabled && filterOptionsEnabled && mode === "filters" && validRange,
-  });
-  const observed = toObservedOptions(
-    options.filterOptions,
-    options.isFilterOptionsPending,
-  );
-  const builderColumns = experimentEvalFilterColsWithOptions(
-    options.filterOptions,
-    observationEvalFilterColsWithOptions(
-      { ...options.filterOptions, tags: options.filterOptions?.traceTags },
-      [...eventsEvalFilterColumns],
-    ),
-  ).flatMap((column) => {
-    if (column.id === "isRootObservation") return [];
-    return column.id === "experimentId" && column.type === "stringOptions"
-      ? [{ ...column, options: options.filterOptions?.experimentId ?? [] }]
-      : [column];
   });
   const previewTraces = () => {
     setExcluded([]);

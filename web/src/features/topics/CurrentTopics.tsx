@@ -219,26 +219,34 @@ export function useCurrentTopics({
   pollForSummaries = false,
   refreshAfter,
   timeRange,
+  ruleId,
+  enabled = true,
 }: {
   projectId: string;
   running: boolean;
   pollForSummaries?: boolean;
   refreshAfter: number;
   timeRange: TopicTimeRange;
+  /** Scopes topics to one rule's map; omitted means every rule. */
+  ruleId?: string;
+  enabled?: boolean;
 }) {
   const { client } = api.useUtils();
   return useQuery({
     queryKey: [
       ...getQueryKey(
         api.topics.currentResults,
-        { projectId, timeRange },
+        { projectId, timeRange, ruleId },
         "query",
       ),
       // A completed status needs a new request, even if an older poll is in flight.
       running ? 0 : refreshAfter,
     ],
     queryFn: ({ signal }) =>
-      client.topics.currentResults.query({ projectId, timeRange }, { signal }),
+      client.topics.currentResults.query(
+        { projectId, timeRange, ruleId },
+        { signal },
+      ),
     placeholderData: keepPreviousData,
     refetchInterval: (query) => {
       if (running) return 3000;
@@ -246,7 +254,7 @@ export function useCurrentTopics({
         ? 10000
         : false;
     },
-    enabled: isValidTopicTimeRange(timeRange),
+    enabled: enabled && isValidTopicTimeRange(timeRange),
     meta: { toastOperation: "topics.load" },
   });
 }
@@ -273,10 +281,12 @@ function useCurrentTopicMap(
 type CurrentTopicsProps = {
   projectId: string;
   timeRange: TopicTimeRange;
-  result: Pick<
-    ReturnType<typeof useCurrentTopics>,
-    "data" | "isLoading" | "error"
-  >;
+  /** Current topics of a rule, or one analysis run's snapshot. */
+  result: {
+    data: { facets: Facet[] } | undefined;
+    isLoading: boolean;
+    error: { message: string } | null;
+  };
   selectedFacetId: string | undefined;
   view: TopicsResultsView;
   tracePanelRef?: (element: HTMLElement | null) => void;
