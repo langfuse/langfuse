@@ -126,4 +126,31 @@ export const organizationLlmApiKeyRouter = createTRPCRouter({
         input: connectionInput,
       });
     }),
+
+  listModels: protectedOrganizationProcedureWithoutTracing
+    .input(CreateOrganizationLlmApiKey)
+    .mutation(async ({ input, ctx }) => {
+      requireAccess({
+        session: ctx.session,
+        orgId: input.orgId,
+        scope: "organizationLlmApiKeys:CUD",
+      });
+      const { orgId: _orgId, ...connectionInput } = input;
+      return new LlmConnectionService().listModels(connectionInput);
+    }),
+
+  listModelsUpdate: protectedOrganizationProcedureWithoutTracing
+    .input(UpdateOrganizationLlmApiKey)
+    .mutation(async ({ input, ctx }) => {
+      requireAccess({
+        session: ctx.session,
+        orgId: input.orgId,
+        scope: "organizationLlmApiKeys:CUD",
+      });
+      const { orgId, ...connectionInput } = input;
+      return new LlmConnectionService().listModelsForUpdate({
+        owner: { type: "organization", organizationId: orgId },
+        input: connectionInput,
+      });
+    }),
 });

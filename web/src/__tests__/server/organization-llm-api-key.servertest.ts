@@ -1,3 +1,13 @@
+const mockListOpenAIConnectionModels = vi.hoisted(() => vi.fn());
+
+vi.mock("@langfuse/shared/src/server", async () => {
+  const actual = await vi.importActual("@langfuse/shared/src/server");
+  return {
+    ...actual,
+    listOpenAIConnectionModels: mockListOpenAIConnectionModels,
+  };
+});
+
 import { randomUUID } from "crypto";
 import type { Session } from "next-auth";
 
@@ -55,6 +65,10 @@ const createCaller = (session: Session) => {
 };
 
 describe("organization LLM connections", () => {
+  beforeEach(() => {
+    mockListOpenAIConnectionModels.mockReset();
+  });
+
   it("lets an owner manage a connection without exposing its secret", async () => {
     const setup = await createOrgProjectAndApiKey();
     const caller = createCaller(
@@ -214,6 +228,106 @@ describe("organization LLM connections", () => {
     });
 
     expect(effective.data).toEqual([]);
+  });
+
+  it("requires organization connection management to fetch a connection's models", async () => {
+    const setup = await createOrgProjectAndApiKey();
+    const caller = createCaller(
+      createSession({
+        orgId: setup.orgId,
+        projectId: setup.projectId,
+        orgRole: "MEMBER",
+        projectRole: "ADMIN",
+      }),
+    );
+
+    await expect(
+      caller.organizationLlmApiKey.listModels({
+        orgId: setup.orgId,
+        provider: "openai",
+        adapter: LLMAdapter.OpenAI,
+        secretKey: "sk-test",
+        baseURL: "https://attacker.example.com/v1",
+      }),
+    ).rejects.toThrow("does not have access");
+    expect(mockListOpenAIConnectionModels).not.toHaveBeenCalled();
+  });
+
+  it("requires organization connection management to fetch an existing connection's models", async () => {
+    const setup = await createOrgProjectAndApiKey();
+    const owner = createCaller(
+      createSession({
+        orgId: setup.orgId,
+        projectId: setup.projectId,
+        orgRole: "OWNER",
+        projectRole: "ADMIN",
+      }),
+    );
+    const created = await owner.organizationLlmApiKey.create({
+      orgId: setup.orgId,
+      provider: "openai",
+      adapter: LLMAdapter.OpenAI,
+      secretKey: "sk-organization-test",
+    });
+    const member = createCaller(
+      createSession({
+        orgId: setup.orgId,
+        projectId: setup.projectId,
+        orgRole: "MEMBER",
+        projectRole: "ADMIN",
+      }),
+    );
+
+    await expect(
+      member.organizationLlmApiKey.listModelsUpdate({
+        id: created.id,
+        orgId: setup.orgId,
+        provider: "openai",
+        adapter: LLMAdapter.OpenAI,
+      }),
+    ).rejects.toThrow("does not have access");
+    expect(mockListOpenAIConnectionModels).not.toHaveBeenCalled();
+  });
+
+  it("does not fetch the models of another organization's connection", async () => {
+    const [ownSetup, otherSetup] = await Promise.all([
+      createOrgProjectAndApiKey(),
+      createOrgProjectAndApiKey(),
+    ]);
+    const otherConnection = await createCaller(
+      createSession({
+        orgId: otherSetup.orgId,
+        projectId: otherSetup.projectId,
+        orgRole: "OWNER",
+        projectRole: "ADMIN",
+      }),
+    ).organizationLlmApiKey.create({
+      orgId: otherSetup.orgId,
+      provider: "openai",
+      adapter: LLMAdapter.OpenAI,
+      secretKey: "sk-other-organization",
+    });
+    const caller = createCaller(
+      createSession({
+        orgId: ownSetup.orgId,
+        projectId: ownSetup.projectId,
+        orgRole: "OWNER",
+        projectRole: "ADMIN",
+      }),
+    );
+
+    const result = await caller.organizationLlmApiKey.listModelsUpdate({
+      id: otherConnection.id,
+      orgId: ownSetup.orgId,
+      provider: "openai",
+      adapter: LLMAdapter.OpenAI,
+    });
+
+    expect(result).toEqual({
+      success: false,
+      error: "LLM connection not found",
+    });
+    expect(mockListOpenAIConnectionModels).not.toHaveBeenCalled();
   });
 
   it("rejects organization access across tenants", async () => {
