@@ -611,6 +611,18 @@ export class LlmConnectionService {
         owner: params.owner,
         provider: params.input.provider,
       });
+      // Text and decision-model evaluators resolve connections by provider, so
+      // swapping one kind of adapter for the other would break every evaluator
+      // that uses this connection.
+      if (
+        existing &&
+        isDecisionModelAdapter(existing.adapter) !==
+          isDecisionModelAdapter(params.input.adapter)
+      ) {
+        throw new InvalidRequestError(
+          "A connection's adapter cannot change between a decision-model adapter and a text adapter. Delete the connection and create it again.",
+        );
+      }
       if (!existing || existing.adapter !== params.input.adapter) {
         await this.validateHierarchyAdapter({
           repository,

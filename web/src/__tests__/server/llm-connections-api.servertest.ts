@@ -711,6 +711,130 @@ describe("/api/public/llm-connections API Endpoints", () => {
       expect(vertexResponse.body.config).toBeNull();
     });
 
+    it("should create and update a decision-model connection", async () => {
+      const provider = generateUniqueProvider("typesafe");
+
+      const created = await makeZodVerifiedAPICall(
+        PutLlmConnectionV1Response,
+        "PUT",
+        "/api/public/llm-connections",
+        {
+          provider,
+          adapter: LLMAdapter.TypeSafe,
+          secretKey: "sk-typesafe-original",
+        },
+        auth,
+        201,
+      );
+      expect(created.body.adapter).toBe(LLMAdapter.TypeSafe);
+      expect(created.body.baseURL).toBeNull();
+      expect(created.body.config).toBeNull();
+
+      const updated = await makeZodVerifiedAPICall(
+        PutLlmConnectionV1Response,
+        "PUT",
+        "/api/public/llm-connections",
+        {
+          provider,
+          adapter: LLMAdapter.TypeSafe,
+          secretKey: "sk-typesafe-gateway",
+          baseURL: TEST_PUBLIC_LLM_BASE_URL,
+          customModels: ["jev-latest"],
+          extraHeaders: { "X-Gateway": "nip" },
+        },
+        auth,
+        200,
+      );
+      expect(updated.body.id).toBe(created.body.id);
+      expect(updated.body.baseURL).toBe(TEST_PUBLIC_LLM_BASE_URL);
+      expect(updated.body.customModels).toEqual(["jev-latest"]);
+      expect(updated.body.extraHeaderKeys).toEqual(["X-Gateway"]);
+    });
+
+    it("should reject a decision-model base URL that ends in /systemone", async () => {
+      const response = await makeAPICall<{ message: string }>(
+        "PUT",
+        "/api/public/llm-connections",
+        {
+          provider: generateUniqueProvider("typesafe-systemone"),
+          adapter: LLMAdapter.TypeSafe,
+          secretKey: "sk-typesafe",
+          baseURL: `${TEST_PUBLIC_LLM_BASE_URL}/systemone`,
+        },
+        auth,
+      );
+
+      expect(response.status).toBe(400);
+      expect(response.body.message).toBe(
+        "Invalid base URL: Remove /systemone from the end of the base URL. Langfuse appends it.",
+      );
+    });
+
+    it("should reject changing a connection between a decision-model and a text adapter", async () => {
+      const textProvider = generateUniqueProvider("text-to-decision");
+      const decisionProvider = generateUniqueProvider("decision-to-text");
+      const [textConnection, decisionConnection] = await Promise.all([
+        prisma.llmApiKeys.create({
+          data: {
+            projectId,
+            provider: textProvider,
+            adapter: LLMAdapter.OpenAI,
+            secretKey: encrypt("sk-openai"),
+            displaySecretKey: "...nai",
+          },
+        }),
+        prisma.llmApiKeys.create({
+          data: {
+            projectId,
+            provider: decisionProvider,
+            adapter: LLMAdapter.TypeSafe,
+            secretKey: encrypt("sk-typesafe"),
+            displaySecretKey: "...afe",
+          },
+        }),
+      ]);
+
+      const responses = await Promise.all([
+        makeAPICall<{ message: string }>(
+          "PUT",
+          "/api/public/llm-connections",
+          {
+            provider: textProvider,
+            adapter: LLMAdapter.TypeSafe,
+            secretKey: "sk-typesafe",
+          },
+          auth,
+        ),
+        makeAPICall<{ message: string }>(
+          "PUT",
+          "/api/public/llm-connections",
+          {
+            provider: decisionProvider,
+            adapter: LLMAdapter.OpenAI,
+            secretKey: "sk-openai",
+          },
+          auth,
+        ),
+      ]);
+
+      for (const response of responses) {
+        expect(response.status).toBe(400);
+        expect(response.body.message).toBe(
+          "A connection's adapter cannot change between a decision-model adapter and a text adapter. Delete the connection and create it again.",
+        );
+      }
+
+      const stored = await prisma.llmApiKeys.findMany({
+        where: { id: { in: [textConnection.id, decisionConnection.id] } },
+      });
+      expect(
+        Object.fromEntries(stored.map((c) => [c.provider, c.adapter])),
+      ).toEqual({
+        [textProvider]: LLMAdapter.OpenAI,
+        [decisionProvider]: LLMAdapter.TypeSafe,
+      });
+    });
+
     it("should handle optional fields correctly", async () => {
       // Test with all optional fields provided
       const fullDataResponse = await makeZodVerifiedAPICall(
