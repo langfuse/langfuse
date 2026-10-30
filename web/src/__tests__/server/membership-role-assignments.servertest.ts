@@ -24,7 +24,7 @@ import scimUserRoute from "@/src/pages/api/public/scim/Users/[id]";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import {
-  InvalidRequestError,
+  LangfuseConflictError,
   LangfuseNotFoundError,
   Role,
   type Plan,
@@ -320,7 +320,7 @@ describe("membership role assignments", () => {
 
       await expect(
         createOrgMembership(prisma, { ...input, role: Role.VIEWER }),
-      ).rejects.toBeInstanceOf(InvalidRequestError);
+      ).rejects.toBeInstanceOf(LangfuseConflictError);
       expect(await rolesOf(user.id)).toEqual([org(orgId, "ADMIN")]);
     });
 
@@ -341,7 +341,7 @@ describe("membership role assignments", () => {
 
       await expect(
         createProjectMembership(prisma, { ...input, role: Role.MEMBER }),
-      ).rejects.toBeInstanceOf(InvalidRequestError);
+      ).rejects.toBeInstanceOf(LangfuseConflictError);
       expect(await rolesOf(user.id)).toEqual(
         sorted([org(orgId, "VIEWER"), proj(orgId, projectId, "ADMIN")]),
       );
