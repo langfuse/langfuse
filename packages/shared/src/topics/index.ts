@@ -114,6 +114,62 @@ export const topicRuleSettingsSchema = topicRuleConfigSchema.extend({
   sampling: z.number().min(0).max(1).default(1),
 });
 
+/** A project runs at most this many continuous Topics rules. */
+export const TOPICS_MAX_RULES = 5;
+/** Largest random cohort a one-off analysis or past-trace processing run selects. */
+export const TOPICS_SLICE_MAX_TRACES = 20_000;
+/** An analysis needs this many summarized traces before it can cluster. */
+export const TOPICS_ANALYSIS_MIN_TRACES = 100;
+export const TOPICS_REFIT_INTERVAL_HOURS = [6, 12, 24] as const;
+export type TopicsRefitIntervalHours =
+  (typeof TOPICS_REFIT_INTERVAL_HOURS)[number];
+
+/**
+ * Columns the online matcher can evaluate on a finished trace's observations.
+ * A trace matches a rule when one of its observations meets every filter.
+ */
+export const TOPICS_RULE_FILTER_COLUMNS = [
+  "environment",
+  "traceName",
+  "name",
+  "type",
+  "level",
+  "metadata",
+] as const;
+const negativeOperators = new Set([
+  "none of",
+  "does not contain",
+  "is not set",
+  "<>",
+  "is null",
+]);
+export const TOPICS_RULE_FILTER_ERROR =
+  "Scores, cost, latency, 'is not' and topics can't be used in rules. Use an analysis for those.";
+/** Rules match during ingestion, so they only take positive filters on matcher columns. */
+export function topicRuleFilterError(
+  filter: z.infer<typeof singleFilterList>,
+): string | null {
+  const unsupported = filter.some(
+    (item) =>
+      !(TOPICS_RULE_FILTER_COLUMNS as readonly string[]).includes(
+        item.column,
+      ) || negativeOperators.has(item.operator),
+  );
+  return unsupported ? TOPICS_RULE_FILTER_ERROR : null;
+}
+
+/** Saved with a one-off clustering run; the cohort resolves from it at fit time. */
+export const topicAnalysisConfigSchema = z.object({
+  label: z.string().trim().min(1).max(100),
+  filter: topicRuleConfigSchema.shape.filter,
+  // The narrowest rule whose filters the analysis filters contain, if any.
+  parentRuleId: topicIdSchema.nullable().default(null),
+  // The analysis this one reruns on a new window.
+  previousExecutionId: topicIdSchema.nullable().default(null),
+  seed: z.string().min(1).max(128),
+});
+export type TopicAnalysisConfig = z.infer<typeof topicAnalysisConfigSchema>;
+
 export const topicsSetupSchema = topicsModelSettingsSchema.extend({
   traceIdleMs: z
     .number()
@@ -174,6 +230,8 @@ export type TopicRule = z.infer<typeof topicRuleSettingsSchema> & {
   name: string;
   facetIds: string[];
   updatedAt: string;
+  enabled?: boolean;
+  createdAt?: string;
 };
 
 export const topicFacetRefSchema = z.object({
@@ -208,6 +266,7 @@ export const topicExecutionInputSchema = z.discriminatedUnion("operation", [
             ({ from, to }) => to.getTime() - from.getTime() <= 93 * 86_400_000,
             "Select a time range of at most 93 days.",
           ),
+          ruleId: topicIdSchema.optional(),
         })
         .optional(),
     })
@@ -219,6 +278,10 @@ export const topicExecutionInputSchema = z.discriminatedUnion("operation", [
       timeRange: topicTimeRangeSchema,
       exploratory: z.boolean().default(false),
       minimumTraceCount: topicMinimumTraceCountSchema.optional(),
+      // Refit of one rule's maps over the rule's cohort in the window.
+      ruleId: topicIdSchema.optional(),
+      // One-off clustering of a filtered slice; never serves online assignment.
+      analysis: topicAnalysisConfigSchema.optional(),
     })
     .strict(),
 ]);
@@ -323,6 +386,8 @@ export type TopicAssignment = z.infer<typeof topicSourceSchema> & {
   runnerUpDistance: number | null;
   origin: "initial" | "online" | "backfill";
   assignedAt: string;
+  /** Rule the assignment serves; null for analysis rows and rows written before rules. */
+  ruleId?: string | null;
 };
 export interface TopicDefinition {
   topicVersionId: string;
@@ -376,6 +441,10 @@ export interface TopicRun {
   config: Record<string, unknown>;
   error: string | null;
   topics: TopicDefinition[];
+  /** Rule whose continuous map this is; null for analyses and pre-rule runs. */
+  ruleId?: string | null;
+  /** Analysis execution this one-off map belongs to. */
+  batchActionId?: string | null;
 }
 export interface TopicFacetProgress {
   facetId: string;

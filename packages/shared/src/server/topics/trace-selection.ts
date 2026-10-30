@@ -28,10 +28,15 @@ type SelectionRows = {
   };
 };
 
-/** Select trace identities from matching root observations. */
+/**
+ * Select trace identities from matching root observations. With
+ * anyObservation, a trace matches when any of its observations meets every
+ * filter, the semantics of continuous Topics rules.
+ */
 export async function selectTopicTraceRows<Mode extends keyof SelectionRows>(
   input: z.infer<typeof topicTraceSelectionCriteriaSchema> & {
     projectId: string;
+    anyObservation?: boolean;
   },
   prisma: PrismaClient,
   mode: Mode,
@@ -48,16 +53,20 @@ export async function selectTopicTraceRows<Mode extends keyof SelectionRows>(
     }),
   });
   if (hasNoMatches) return [];
+  const rootObservationFilter: typeof filterState = [
+    {
+      column: "isRootObservation",
+      type: "boolean",
+      operator: "=",
+      value: true,
+    },
+  ];
 
   const { queryBuilder } = buildEventsObservationRowSelection({
     projectId: input.projectId,
-    filter: filterState.concat([
-      {
-        column: "isRootObservation",
-        type: "boolean",
-        operator: "=",
-        value: true,
-      },
+    filter: [
+      ...filterState,
+      ...(input.anyObservation ? [] : rootObservationFilter),
       {
         column: "startTime",
         type: "datetime",
@@ -65,7 +74,7 @@ export async function selectTopicTraceRows<Mode extends keyof SelectionRows>(
         value: input.from,
       },
       { column: "startTime", type: "datetime", operator: "<", value: input.to },
-    ]),
+    ],
   });
   const preview = mode === "preview";
   const matching = queryBuilder

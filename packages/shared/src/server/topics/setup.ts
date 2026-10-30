@@ -1,6 +1,8 @@
 import type { z } from "zod";
 import { InvalidRequestError } from "../../errors";
 import {
+  TOPICS_REFIT_INTERVAL_HOURS,
+  type TopicsRefitIntervalHours,
   topicsAutomaticProcessingSchema,
   topicsSetupSchema,
   type TopicRule,
@@ -28,8 +30,9 @@ import {
 } from "./processing-gate";
 
 /**
- * One Topics setup: models, the four built-in facets, and a single rule. It
- * keeps the stored automatic-processing state, pause and sampling rate.
+ * One Topics setup: models, the four built-in facets, and the setup rule. Without
+ * a rule id it edits the project's oldest rule, creating "All traces" when there
+ * is none. It keeps the stored automatic-processing state, pause and sampling rate.
  */
 export async function saveTopicsSetup(
   projectId: string,
@@ -60,9 +63,10 @@ export async function saveTopicsSetup(
     embeddingDimensions: setup.embeddingDimensions,
     clustering: setup.clustering,
   });
+  const setupRuleId = setup.ruleId ?? (await listTopicRules(projectId))[0]?.id;
   return saveTopicRuleAndModels(
     {
-      id: setup.ruleId,
+      id: setupRuleId,
       projectId,
       userId,
       filter: setup.filter,
@@ -105,7 +109,7 @@ export async function saveTopicRuleAndModels(
  * Turns automatic processing of new traces on or off. Turning it on requires all
  * three stored models and re-tests them after a pause; either direction clears
  * a pause.
- * Sampling, when given, is written to the project's Topics rule.
+ * Sampling, when given, is written to the project's oldest (setup) Topics rule.
  */
 export async function setTopicsAutomaticProcessing(
   projectId: string,
@@ -121,10 +125,6 @@ export async function setTopicsAutomaticProcessing(
   if (!config || !rule)
     throw new InvalidRequestError(
       "Save the Topics setup in Configure Topics first.",
-    );
-  if (rules.length > 1)
-    throw new InvalidRequestError(
-      "This project has more than one Topics rule.",
     );
   if (enabled) await checkStoredTopicsModels(config);
 
@@ -148,4 +148,24 @@ export async function setTopicsAutomaticProcessing(
   await invalidateTopicsProcessingActive(projectId);
   const ruleAfter = (await getTopicRule(projectId, rule.id)) ?? rule;
   return { ruleBefore: rule, ruleAfter };
+}
+
+/** How often continuous rule maps are re-clustered. */
+export async function setTopicsRefitInterval(
+  projectId: string,
+  refitIntervalHours: TopicsRefitIntervalHours,
+  userId: string | null = null,
+): Promise<void> {
+  if (!TOPICS_REFIT_INTERVAL_HOURS.includes(refitIntervalHours))
+    throw new InvalidRequestError(
+      "Choose a refit interval of 6, 12 or 24 hours.",
+    );
+  const updated = await prisma.topicConfig.updateMany({
+    where: { projectId },
+    data: { refitIntervalHours, updatedBy: userId },
+  });
+  if (!updated.count)
+    throw new InvalidRequestError(
+      "Save the Topics setup in Configure Topics first.",
+    );
 }

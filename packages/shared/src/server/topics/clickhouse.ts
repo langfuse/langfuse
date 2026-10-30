@@ -17,6 +17,7 @@ import type {
 } from "../../topics";
 import { topicSourceSchema, topicTimeRangeSchema } from "../../topics";
 import { prisma } from "../../db";
+import { topicRuleWhere } from "./processing-gate";
 import { logger } from "../logger";
 import { traceException } from "../instrumentation";
 import { redis } from "../redis/redis";
@@ -436,11 +437,25 @@ export async function getLatestFacetSummaries(
 const clusteringSummaryScopeSql = `trace_id != '' AND facet_id = {facetId:String}
   AND facet_version = {facetVersion:UInt32}`;
 
-function clusteringSummariesSql(columns: string, rowColumns = "*") {
+const cohortSql = "trace_id IN {cohortTraceIds:Array(String)}";
+
+/** A cohort restricts clustering to the traces of a rule or analysis slice. */
+function cohortParams(cohortTraceIds: string[] | undefined) {
+  return cohortTraceIds ? { cohortTraceIds } : {};
+}
+
+function clusteringSummariesSql(
+  columns: string,
+  rowColumns = "*",
+  cohort = false,
+) {
+  const scopeSql = cohort
+    ? `${clusteringSummaryScopeSql} AND ${cohortSql}`
+    : clusteringSummaryScopeSql;
   return `SELECT ${columns} FROM (
       SELECT ${rowColumns}, length(embedding) AS dimensions FROM topic_facet_summaries
-      WHERE project_id = {projectId:String} AND ${unitTimeFilterSql} AND ${clusteringSummaryScopeSql}
-        AND ${latestSummaryFilterSql(clusteringSummaryScopeSql)}
+      WHERE project_id = {projectId:String} AND ${unitTimeFilterSql} AND ${scopeSql}
+        AND ${latestSummaryFilterSql(scopeSql)}
       ORDER BY processed_at DESC
       LIMIT 1 BY ${sourceKeySql}
     ) WHERE processing_state = 'complete' AND embedding_model = {embeddingModel:String}
@@ -457,12 +472,14 @@ export async function getTopicClusteringSummaryStats(
   embeddingConfig: TopicEmbeddingConfig,
   timeRange: TopicTimeRange,
   limits: { maxRows: number; maxBytes: number },
+  cohortTraceIds?: string[],
 ): Promise<{ count: number; bytes: number }> {
   const [{ count }] = await getTopicSummaryCounts(
     projectId,
     [{ facetId, version: facetVersion }],
     embeddingConfig,
     timeRange,
+    cohortTraceIds,
   );
   const vectorBytes = count * embeddingConfig.embeddingDimensions * 8;
   // Narrow oversized windows using metadata before inspecting their text payloads.
@@ -481,8 +498,10 @@ export async function getTopicClusteringSummaryStats(
     query: clusteringSummariesSql(
       "count() AS count, sum(estimated_bytes) AS bytes",
       `processing_state, embedding_model, environment, ${estimatedBytesSql} AS estimated_bytes`,
+      Boolean(cohortTraceIds),
     ),
     params: {
+      ...cohortParams(cohortTraceIds),
       projectId,
       facetId,
       facetVersion,
@@ -506,6 +525,7 @@ export async function getTopicClusteringSummaries(
   embeddingConfig: TopicEmbeddingConfig,
   timeRange: TopicTimeRange,
   limits: { maxRows: number; maxBytes: number },
+  cohortTraceIds?: string[],
 ): Promise<TopicSummary[]> {
   const capacityError = () => new Error(TOPIC_CLUSTERING_CAPACITY_ERROR);
   if (
@@ -521,6 +541,7 @@ export async function getTopicClusteringSummaries(
     [{ facetId, version: facetVersion }],
     embeddingConfig,
     timeRange,
+    cohortTraceIds,
   );
   if (
     count > limits.maxRows ||
@@ -532,9 +553,10 @@ export async function getTopicClusteringSummaries(
   let bytes = 0;
   try {
     for await (const row of queryClickhouseStream<SummaryRow>({
-      query: `${clusteringSummariesSql(summaryColumns)}
+      query: `${clusteringSummariesSql(summaryColumns, "*", Boolean(cohortTraceIds))}
         ORDER BY trace_id LIMIT {maximumRows:UInt64}`,
       params: {
+        ...cohortParams(cohortTraceIds),
         projectId,
         facetId,
         facetVersion,
@@ -664,10 +686,11 @@ export async function getTopicSummaryCounts(
   facets: TopicFacetRef[],
   embeddingConfig: TopicEmbeddingConfig,
   timeRange: TopicTimeRange,
+  cohortTraceIds?: string[],
 ): Promise<{ facetId: string; facetVersion: number; count: number }[]> {
   if (!facets.length) return [];
   const scopeSql = `trace_id != ''
-    AND (facet_id, facet_version) IN arrayZip({facetIds:Array(String)}, {facetVersions:Array(UInt32)})`;
+    AND (facet_id, facet_version) IN arrayZip({facetIds:Array(String)}, {facetVersions:Array(UInt32)})${cohortTraceIds ? ` AND ${cohortSql}` : ""}`;
   const rows = await queryClickhouse<{
     facetId: string;
     facetVersion: number;
@@ -687,6 +710,7 @@ export async function getTopicSummaryCounts(
     GROUP BY facet_id, facet_version`,
     params: {
       projectId,
+      ...cohortParams(cohortTraceIds),
       ...timeRangeParams(timeRange),
       facetIds: facets.map(({ facetId }) => facetId),
       facetVersions: facets.map(({ version }) => version),
@@ -784,6 +808,7 @@ export async function writeTopicAssignments(
     environment: row.environment,
     trace_name: row.traceId ? row.traceName : "",
     clustering_run_id: row.runId ?? "",
+    rule_id: row.ruleId ?? "",
     topic_id: row.topicId ?? "",
     topic_version_id: row.topicVersionId ?? "",
     distance: row.distance,
@@ -801,7 +826,7 @@ const assignmentColumns = `project_id AS projectId, facet_id AS facetId,
       toUnixTimestamp64Milli(unit_start_time) AS unitStartTimeMs,
       coordinates,
       toUnixTimestamp64Milli(summary_processed_at) AS summaryProcessedAtMs,
-      clustering_run_id AS runId,
+      clustering_run_id AS runId, rule_id AS ruleId,
       topic_id AS topicId, topic_version_id AS topicVersionId, distance,
       runner_up_distance AS runnerUpDistance, origin,
       toUnixTimestamp64Milli(assigned_at) AS assignedAtMs`;
@@ -811,12 +836,14 @@ type AssignmentRow = Omit<
   | "assignedAt"
   | "summaryProcessedAt"
   | "runId"
+  | "ruleId"
   | "coordinates"
 > & {
   unitStartTimeMs: string;
   summaryProcessedAtMs: string;
   assignedAtMs: string;
   runId: string;
+  ruleId: string;
   coordinates: number[];
 };
 function assignmentResult({
@@ -832,6 +859,7 @@ function assignmentResult({
       sessionId: row.sessionId || null,
     }),
     runId: row.runId || null,
+    ruleId: row.ruleId || null,
     topicId: row.topicId || null,
     topicVersionId: row.topicVersionId || null,
     coordinates:
@@ -941,25 +969,44 @@ export async function readTopicAssignments(
   return rows.map(assignmentResult);
 }
 
-/** Current membership prefers the newest facet version, including ad-hoc attempts. */
+/**
+ * Current membership prefers the newest facet version of rule assignments.
+ * Analysis rows carry no rule and never count; rows written before rules
+ * count for the oldest rule. A ruleId narrows membership to one rule's map.
+ */
 export async function readLatestTopicAssignments(
   projectId: string,
   facetId: string,
   timeRange: TopicTimeRange,
   traceIds?: string[],
+  ruleId?: string,
 ): Promise<TopicAssignment[]> {
-  const publishedRuns = await prisma.topicClusteringRun.findMany({
-    where: {
-      projectId,
-      facetId,
-      status: "completed",
-    },
-    select: { id: true },
-  });
+  const [runs, oldestRule] = await Promise.all([
+    prisma.topicClusteringRun.findMany({
+      where: { projectId, facetId, status: "completed", batchActionId: null },
+      select: { id: true, ruleId: true },
+    }),
+    ruleId
+      ? prisma.evaluationRule.findFirst({
+          where: topicRuleWhere(projectId),
+          orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+          select: { id: true },
+        })
+      : null,
+  ]);
+  const includeLegacy = !ruleId || oldestRule?.id === ruleId;
+  const ruleRunIds = runs
+    .filter((run) => run.ruleId && (!ruleId || run.ruleId === ruleId))
+    .map(({ id }) => id);
+  const legacyRunIds = runs.filter((run) => !run.ruleId).map(({ id }) => id);
   const rows = await queryClickhouse<AssignmentRow>({
     query: `SELECT ${assignmentColumns} FROM topic_assignments
       WHERE project_id = {projectId:String} AND ${unitTimeFilterSql} AND facet_id = {facetId:String}
-        AND (clustering_run_id = '' OR clustering_run_id IN ({publishedRunIds:Array(String)}))
+        AND (
+          (rule_id != '' ${ruleId ? "AND rule_id = {ruleId:String}" : ""}
+            AND (clustering_run_id = '' OR clustering_run_id IN ({ruleRunIds:Array(String)})))
+          ${includeLegacy ? "OR (rule_id = '' AND (clustering_run_id = '' OR clustering_run_id IN ({legacyRunIds:Array(String)})))" : ""}
+        )
         ${traceIds ? "AND trace_id IN {traceIds:Array(String)}" : ""}
       ORDER BY facet_version DESC, assigned_at DESC, clustering_run_id DESC, origin DESC
       LIMIT 1 BY project_id, facet_id, trace_id, if(trace_id = '', session_id, '')`,
@@ -967,7 +1014,9 @@ export async function readLatestTopicAssignments(
       projectId,
       ...timeRangeParams(timeRange),
       facetId,
-      publishedRunIds: publishedRuns.map(({ id }) => id),
+      ruleRunIds,
+      legacyRunIds,
+      ...(ruleId ? { ruleId } : {}),
       ...(traceIds ? { traceIds } : {}),
     },
     tags: { route: "topics-current-assignments", projectId },

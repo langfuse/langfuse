@@ -367,6 +367,7 @@ async function startFollowUpTopicUpdate(execution: TopicExecutionSummary) {
       embeddingConfig: input.embeddingConfig,
       timeRange: input.thenUpdate.timeRange,
       exploratory: false,
+      ...(input.thenUpdate.ruleId ? { ruleId: input.thenUpdate.ruleId } : {}),
     },
     undefined,
     userId,
