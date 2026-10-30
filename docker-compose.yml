@@ -7,14 +7,17 @@ services:
   langfuse-worker:
     image: docker.langfuse.com/langfuse/langfuse-worker:4
     restart: always
-    depends_on: &langfuse-depends-on
-      postgres:
-        condition: service_healthy
-      minio:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-      clickhouse:
+    depends_on:
+      <<: &langfuse-depends-on
+        postgres:
+          condition: service_healthy
+        minio:
+          condition: service_healthy
+        redis:
+          condition: service_healthy
+        clickhouse:
+          condition: service_healthy
+      langfuse-web:
         condition: service_healthy
     ports:
       - 127.0.0.1:3030:3030
@@ -118,6 +121,12 @@ services:
     image: docker.langfuse.com/langfuse/langfuse:4
     restart: always
     depends_on: *langfuse-depends-on
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://$$HOSTNAME:3000/api/public/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 120s
     ports:
       - 3000:3000
     environment:
