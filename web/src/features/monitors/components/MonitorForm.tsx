@@ -464,7 +464,7 @@ export const MonitorForm = ({
                 aria-hidden
                 className="from-background pointer-events-none sticky top-0 z-20 -mb-3 h-3 bg-linear-to-b to-transparent"
               />
-              <Section title="Metric Definition" step={1}>
+              <Section title="Metric Definition" step={1} hasNextStep>
                 <MonitorMetricDefinition
                   form={form}
                   view={(watched.view ?? "observations") as MonitorView}
@@ -483,7 +483,7 @@ export const MonitorForm = ({
                 )}
               </Section>
 
-              <Section title="Alert Conditions" step={2}>
+              <Section title="Alert Conditions" step={2} hasNextStep>
                 <FormField
                   control={form.control}
                   name="thresholdOperator"
@@ -875,23 +875,31 @@ const Header = ({
   </div>
 );
 
-/** Section wraps a Header and its body in the layout used by every MonitorForm section. */
+/** Section wraps a Header and its body in the layout used by every MonitorForm section, linking its step to the next one. */
 const Section = ({
   title,
   step,
   icon,
+  hasNextStep = false,
   children,
   className,
 }: {
   title: string;
   step?: number;
   icon?: IconComponent;
+  hasNextStep?: boolean;
   children: React.ReactNode;
   className?: string;
 }) => (
-  <div>
+  <div className="relative">
+    {hasNextStep && (
+      <div
+        aria-hidden
+        className="bg-border absolute top-9 bottom-0 left-3 w-px -translate-x-1/2"
+      />
+    )}
     <Header title={title} step={step} icon={icon} />
-    <div className={cn("space-y-4 px-2 pb-4", className)}>{children}</div>
+    <div className={cn("space-y-4 pr-2 pb-4 pl-8", className)}>{children}</div>
   </div>
 );
 

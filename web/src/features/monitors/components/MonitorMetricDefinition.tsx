@@ -91,7 +91,7 @@ export const MonitorMetricDefinition = ({
             control={form.control}
             name="metric.aggregation"
             render={({ field }) => (
-              <FormItem className="shrink-0 space-y-1">
+              <FormItem className="min-w-0 flex-1 space-y-1">
                 <Select
                   value={field.value}
                   onValueChange={(next) =>
@@ -100,7 +100,7 @@ export const MonitorMetricDefinition = ({
                   disabled={disabled}
                 >
                   <FormControl>
-                    <SelectTrigger className="w-auto" aria-label="Aggregation">
+                    <SelectTrigger aria-label="Aggregation">
                       <SelectValue />
                     </SelectTrigger>
                   </FormControl>
