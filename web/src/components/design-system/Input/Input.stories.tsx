@@ -66,38 +66,3 @@ export const TestAcceptsText = meta.story({
     await expect(input).toHaveValue("production/evaluations");
   },
 });
-
-export const WithPrefix = meta.story({
-  args: {
-    "aria-label": "Webhook URL",
-    placeholder: "example.com/webhook",
-    addon: "POST",
-    prefix: "https://",
-  },
-});
-
-export const WithPrefixInvalid = meta.story({
-  args: {
-    "aria-label": "Webhook URL",
-    defaultValue: "not a url",
-    error: true,
-    addon: "POST",
-    prefix: "https://",
-  },
-});
-
-export const WithPrefixFocusesOnPrefixClick = meta.story({
-  name: "(Test) With prefix focuses on prefix click",
-  args: {
-    "aria-label": "Webhook URL",
-    addon: "POST",
-    prefix: "https://",
-  },
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement);
-    await userEvent.click(canvas.getByText("POST"));
-    await expect(
-      canvas.getByRole("textbox", { name: "Webhook URL" }),
-    ).toHaveFocus();
-  },
-});

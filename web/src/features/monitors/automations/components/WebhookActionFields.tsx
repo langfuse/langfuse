@@ -13,6 +13,7 @@ import { IconButton } from "@/src/components/design-system/IconButton/IconButton
 import { Input } from "@/src/components/design-system/Input/Input";
 import { type MonitorAutomationFormValues } from "../helpers/monitorAutomationFormSchema";
 import { FieldGroup } from "./FieldGroup";
+import { PrefixedInput } from "./PrefixedInput";
 
 const schemePattern = /^\s*https?:\/\//i;
 
@@ -56,7 +57,7 @@ function WebhookUrlField({
       description="Called whenever the severity changes."
     >
       {(field) => (
-        <Input
+        <PrefixedInput
           id={field.id}
           name={field.name}
           value={field.value}
