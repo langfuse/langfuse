@@ -17,6 +17,7 @@ import {
 } from "./components/SlackActionFields";
 import { WebhookActionFields } from "./components/WebhookActionFields";
 import { isMonitorAutomationFormComplete } from "./fns/isMonitorAutomationFormComplete";
+import { serverErrorField } from "./fns/serverErrorField";
 import {
   defaultMonitorAutomationFormValues,
   monitorAutomationFormSchema,
@@ -55,7 +56,10 @@ export function NewMonitorAutomationDialog({
   defaultValues?: MonitorAutomationFormValues;
   isSubmitting: boolean;
   onRequestAutomation: () => void;
-  onSubmit: (values: MonitorAutomationFormValues) => Promise<void>;
+  /** onSubmit resolves to the server's rejection, if any, which the form shows inline. */
+  onSubmit: (
+    values: MonitorAutomationFormValues,
+  ) => Promise<MonitorAutomationSubmitResult>;
 }) {
   const formId = useId();
   const form = useForm<MonitorAutomationFormValues>({
@@ -68,6 +72,14 @@ export function NewMonitorAutomationDialog({
   const isComplete = isMonitorAutomationFormComplete(
     values as MonitorAutomationFormValues,
   );
+  const rootError = form.formState.errors.root?.server?.message;
+  const submit = async (submitted: MonitorAutomationFormValues) => {
+    const { error } = await onSubmit(submitted);
+    if (!error) return;
+    form.setError(serverErrorField(submitted.actionType, error), {
+      message: error,
+    });
+  };
 
   return (
     <Dialog
@@ -89,7 +101,7 @@ export function NewMonitorAutomationDialog({
           onSubmit={(event) => {
             // The dialog portals out of any surrounding form, but React still bubbles submit through it.
             event.stopPropagation();
-            return form.handleSubmit(onSubmit)(event);
+            return form.handleSubmit(submit)(event);
           }}
         >
           <NameField form={form} />
@@ -106,9 +118,19 @@ export function NewMonitorAutomationDialog({
             slack={slack}
             renderPagerDutyTestEvent={renderPagerDutyTestEvent}
           />
+          {rootError && <FormError message={rootError} />}
         </Form>
       </DividedDialogBody>
     </Dialog>
+  );
+}
+
+/** FormError shows a rejection that concerns no single field. */
+function FormError({ message }: { message: string }) {
+  return (
+    <p role="alert" className="text-destructive text-sm">
+      {message}
+    </p>
   );
 }
 
@@ -219,3 +241,6 @@ function dialogTitle(lockedActionType: ActionTypes | undefined): string {
 
 /** MonitorAutomationForm is the form state shared with the action field groups. */
 type MonitorAutomationForm = UseFormReturn<MonitorAutomationFormValues>;
+
+/** MonitorAutomationSubmitResult is the server's answer to a create; `error` is its rejection message. */
+export type MonitorAutomationSubmitResult = { error?: string };

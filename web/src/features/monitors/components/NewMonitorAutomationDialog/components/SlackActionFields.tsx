@@ -1,4 +1,6 @@
+import { useState } from "react";
 import { type UseFormReturn } from "react-hook-form";
+import { SiSlack } from "@langfuse/icons/si";
 
 import { Button } from "@/src/components/design-system/Button/Button";
 import { Form } from "@/src/components/design-system/Form/Form";
@@ -6,6 +8,7 @@ import {
   ChannelSelectorView,
   type ChannelSelectorViewProps,
   type SlackChannel,
+  type SlackTestMessageResult,
 } from "@/src/features/slack";
 import { type MonitorAutomationFormValues } from "../fns/monitorAutomationFormSchema";
 import { FieldGroup } from "./FieldGroup";
@@ -42,13 +45,18 @@ function SlackConnectField({
       <div className="flex">
         <Button
           type="button"
-          variant="secondary"
+          variant="primary"
+          icon={SiSlack}
           text={connectLabel(slack.isConnecting)}
-          loading={slack.isConnecting}
-          disabled={!slack.canConnect}
+          disabled={!slack.canConnect || slack.isConnecting}
           onClick={slack.onConnect}
         />
       </div>
+      {slack.connectError && (
+        <p role="alert" className="text-destructive text-sm">
+          {slack.connectError}
+        </p>
+      )}
     </FieldGroup>
   );
 }
@@ -64,6 +72,7 @@ function SlackChannelFields({
   const channelId = form.watch("slack.channelId");
   const channelName = form.watch("slack.channelName");
   const selectedChannel = selectedSlackChannel(channelId, channelName);
+  const [testResult, setTestResult] = useState<SlackTestMessageResult>();
   const selectChannel = (channel: SlackChannel) => {
     form.setValue("slack.channelId", channel.id);
     form.setValue("slack.channelName", channel.name);
@@ -89,7 +98,10 @@ function SlackChannelFields({
             {...channelSelectorData(slack)}
             selectedChannelId={channelId}
             selectedChannel={selectedChannel}
-            onChannelSelect={selectChannel}
+            onChannelSelect={(channel) => {
+              setTestResult(undefined);
+              selectChannel(channel);
+            }}
             placeholder="Select a channel"
           />
         )}
@@ -102,28 +114,54 @@ function SlackChannelFields({
             text="Test channel"
             loading={slack.isTesting}
             onClick={async () => {
-              const resolved = await slack.onTestChannel(selectedChannel);
-              if (resolved) {
+              const result = await slack.onTestChannel(selectedChannel);
+              setTestResult(result);
+              if (result.status === "sent") {
                 selectChannel({
                   ...selectedChannel,
-                  id: resolved.id,
-                  name: resolved.name ?? selectedChannel.name,
+                  id: result.channel.id,
+                  name: result.channel.name ?? selectedChannel.name,
                 });
               }
             }}
           />
-          <p className="text-muted-foreground text-sm">
-            Test this channel to verify the bot can send messages.
-          </p>
+          <TestChannelStatus result={testResult} />
         </div>
       )}
     </>
   );
 }
 
+/** TestChannelStatus explains the test, then reports how the last one went. */
+function TestChannelStatus({
+  result,
+}: {
+  result: SlackTestMessageResult | undefined;
+}) {
+  if (result?.status === "failed") {
+    return (
+      <p role="alert" className="text-destructive text-sm">
+        {result.message}
+      </p>
+    );
+  }
+  if (result?.status === "sent") {
+    return (
+      <p role="status" className="text-muted-foreground text-sm">
+        Test message sent. Check the channel in Slack.
+      </p>
+    );
+  }
+  return (
+    <p className="text-muted-foreground text-sm">
+      Test this channel to verify the bot can send messages.
+    </p>
+  );
+}
+
 /** connectLabel reflects a pending Slack OAuth popup. */
 function connectLabel(isConnecting: boolean): string {
-  if (isConnecting) return "Connecting…";
+  if (isConnecting) return "Connecting...";
   return "Connect Slack";
 }
 
@@ -158,6 +196,7 @@ export type SlackFieldsState =
       status: "disconnected";
       canManageIntegration: boolean;
       canConnect: boolean;
+      connectError?: string;
       isConnecting: boolean;
       onConnect: () => void;
     }
@@ -165,9 +204,7 @@ export type SlackFieldsState =
       status: "connected";
       channelSelector: SlackChannelSelectorData;
       isTesting: boolean;
-      onTestChannel: (
-        channel: SlackChannel,
-      ) => Promise<{ id: string; name?: string } | undefined>;
+      onTestChannel: (channel: SlackChannel) => Promise<SlackTestMessageResult>;
     };
 
 /** SlackChannelSelectorData is the channel list state ChannelSelectorView renders, without the selection. */

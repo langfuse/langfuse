@@ -12,7 +12,10 @@ import { api } from "@/src/utils/api";
 import { type SlackFieldsState } from "./components/SlackActionFields";
 import { buildCreateMonitorAutomationInput } from "./fns/buildCreateMonitorAutomationInput";
 import { type MonitorAutomationFormValues } from "./fns/monitorAutomationFormSchema";
-import { NewMonitorAutomationDialog } from "./NewMonitorAutomationDialog";
+import {
+  NewMonitorAutomationDialog,
+  type MonitorAutomationSubmitResult,
+} from "./NewMonitorAutomationDialog";
 
 const monitorActionTypes: readonly ActionTypes[] = [
   "SLACK",
@@ -38,7 +41,9 @@ export function ConnectedNewMonitorAutomationDialog({
   const { setOpen: setSupportDrawerOpen } = useSupportDrawer();
   const createAutomation = useCreateMonitorAutomation();
 
-  const submit = async (values: MonitorAutomationFormValues) => {
+  const submit = async (
+    values: MonitorAutomationFormValues,
+  ): Promise<MonitorAutomationSubmitResult> => {
     try {
       const result = await createAutomation.mutateAsync(
         buildCreateMonitorAutomationInput(projectId, values),
@@ -52,8 +57,9 @@ export function ConnectedNewMonitorAutomationDialog({
           result.webhookSecret,
         ),
       });
-    } catch {
-      // The mutation cache toasts the error; the dialog stays open to retry.
+      return {};
+    } catch (error) {
+      return { error: rejectionMessage(error) };
     }
   };
 
@@ -92,12 +98,14 @@ function useSlackFieldsState(projectId: string): SlackFieldsState {
     projectId,
     isConnected,
   );
-  const { connect, isConnecting, canConnect } = useSlackConnect({
+  const { connect, connectError, isConnecting, canConnect } = useSlackConnect({
     projectId,
+    shouldToast: false,
     onSuccess: () => integration.refetch(),
   });
   const { sendTestMessage, isPending: isTesting } = useSlackTestMessage({
     projectId,
+    shouldToast: false,
   });
 
   if (integration.isPending) return { status: "loading" };
@@ -106,6 +114,7 @@ function useSlackFieldsState(projectId: string): SlackFieldsState {
       status: "disconnected",
       canManageIntegration,
       canConnect: canConnect && canManageIntegration,
+      connectError,
       isConnecting,
       onConnect: connect,
     };
@@ -122,8 +131,16 @@ function useSlackFieldsState(projectId: string): SlackFieldsState {
 function useCreateMonitorAutomation() {
   const utils = api.useUtils();
   return api.automations.createAutomation.useMutation({
+    // The dialog shows rejections under the field they concern.
+    meta: { silentAllErrors: true },
     onSuccess: () => utils.automations.invalidate(),
   });
+}
+
+/** rejectionMessage is the reason the server gave for refusing the automation. */
+function rejectionMessage(error: unknown): string {
+  if (error instanceof Error && error.message) return error.message;
+  return "The automation could not be created. Try again.";
 }
 
 /** webhookSigningSecret keeps the returned secret only for webhooks, the one action whose secret is shown once. */

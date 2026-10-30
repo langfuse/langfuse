@@ -1,10 +1,10 @@
-import { Copy } from "@langfuse/icons";
+import { useState } from "react";
+import { Check, Copy } from "@langfuse/icons";
 
 import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
 import { Form } from "@/src/components/design-system/Form/Form";
 import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
 import { Input } from "@/src/components/design-system/Input/Input";
-import { showErrorToast, showSuccessToast } from "@/src/features/notifications";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
 import { DividedDialogBody } from "./components/DividedDialogBody";
 import { InlineCode } from "./components/InlineCode";
@@ -17,6 +17,8 @@ export function WebhookSecretDialog({
   automationName: string;
   webhookSecret: string;
 }) {
+  const [copyStatus, setCopyStatus] = useState<CopyStatus>("idle");
+
   return (
     <Dialog
       title={`Automation "${automationName}" was created`}
@@ -36,19 +38,28 @@ export function WebhookSecretDialog({
           }
         >
           {(field) => (
-            <div className="ph-no-capture grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2">
-              <Input
-                id={field.id}
-                value={webhookSecret}
-                aria-describedby={field.inputDescribedById}
-                readOnly
-              />
-              <IconButton
-                icon={Copy}
-                label="Copy secret"
-                variant="outline"
-                onClick={() => copySecret(webhookSecret)}
-              />
+            <div className="flex flex-col gap-1">
+              <div className="ph-no-capture grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2">
+                <Input
+                  id={field.id}
+                  value={webhookSecret}
+                  aria-describedby={field.inputDescribedById}
+                  readOnly
+                />
+                <IconButton
+                  icon={copyIcon(copyStatus)}
+                  label={copyLabel(copyStatus)}
+                  variant="outline"
+                  onClick={async () =>
+                    setCopyStatus(await copySecret(webhookSecret))
+                  }
+                />
+              </div>
+              {copyStatus === "failed" && (
+                <p role="alert" className="text-destructive text-sm">
+                  Copy failed. Select the secret and copy it manually.
+                </p>
+              )}
             </div>
           )}
         </Form.Field>
@@ -57,20 +68,27 @@ export function WebhookSecretDialog({
   );
 }
 
-/** copySecret copies the secret and confirms the outcome, since it is never shown again. */
-async function copySecret(webhookSecret: string) {
+/** copySecret copies the secret and reports whether the clipboard accepted it. */
+async function copySecret(webhookSecret: string): Promise<CopyStatus> {
   try {
     await copyTextToClipboard(webhookSecret);
-    showSuccessToast({
-      operation: "automation.create",
-      title: "Webhook secret copied",
-      description: "Store it somewhere safe; it will not be shown again.",
-    });
+    return "copied";
   } catch {
-    showErrorToast("Copy failed", "Select the secret and copy it manually.", {
-      operation: "automation.create",
-      errorOrigin: "frontend",
-      errorCategory: "product_state",
-    });
+    return "failed";
   }
 }
+
+/** copyIcon confirms a successful copy with a check mark. */
+function copyIcon(copyStatus: CopyStatus) {
+  if (copyStatus === "copied") return Check;
+  return Copy;
+}
+
+/** copyLabel names the copy button's state for assistive technology. */
+function copyLabel(copyStatus: CopyStatus): string {
+  if (copyStatus === "copied") return "Secret copied";
+  return "Copy secret";
+}
+
+/** CopyStatus is the outcome of the last copy attempt. */
+type CopyStatus = "idle" | "copied" | "failed";

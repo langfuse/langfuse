@@ -13,3 +13,4 @@ export {
 export { useChannelSelectorData } from "@/src/features/slack/useChannelSelectorData";
 export { useSlackConnect } from "@/src/features/slack/useSlackConnect";
 export { useSlackTestMessage } from "@/src/features/slack/useSlackTestMessage";
+export { type SlackTestMessageResult } from "@/src/features/slack/useSlackTestMessage";

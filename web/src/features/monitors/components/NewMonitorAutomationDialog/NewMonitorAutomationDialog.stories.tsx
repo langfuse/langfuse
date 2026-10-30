@@ -28,7 +28,10 @@ const baseArgs: ComponentProps<typeof NewMonitorAutomationDialog> = {
       onRefresh: fn(),
     },
     isTesting: false,
-    onTestChannel: fn(async () => undefined),
+    onTestChannel: fn(async () => ({
+      status: "sent" as const,
+      channel: { id: "C-alerts", name: "alerts" },
+    })),
   },
   renderPagerDutyTestEvent: ({ routingKey }) => (
     <Button
@@ -42,7 +45,7 @@ const baseArgs: ComponentProps<typeof NewMonitorAutomationDialog> = {
   ),
   isSubmitting: false,
   onRequestAutomation: fn(),
-  onSubmit: fn(async () => {}),
+  onSubmit: fn(async () => ({})),
 };
 
 const meta = preview.meta({
@@ -105,7 +108,10 @@ export const SlackChannelsFailedToLoad = meta.story({
         onReauthenticate: fn(),
       },
       isTesting: false,
-      onTestChannel: fn(async () => undefined),
+      onTestChannel: fn(async () => ({
+        status: "sent" as const,
+        channel: { id: "C-alerts", name: "alerts" },
+      })),
     },
   },
 });
@@ -122,7 +128,7 @@ export const SlackChannelSelected = meta.story({
 export const ErrorsShown = meta.story({
   name: "(Test) Errors shown",
   args: {
-    onSubmit: fn(async () => {}),
+    onSubmit: fn(async () => ({})),
     lockedActionType: "WEBHOOK",
     defaultValues: {
       ...defaultMonitorAutomationFormValues("WEBHOOK", "Staging alerts"),
@@ -147,6 +153,39 @@ export const ErrorsShown = meta.story({
   },
 });
 
+export const TestServerErrorShownInline = meta.story({
+  name: "(Test) Server error shown inline",
+  args: {
+    lockedActionType: "GITHUB_DISPATCH",
+    defaultValues: {
+      ...defaultMonitorAutomationFormValues("GITHUB_DISPATCH", "Deploy"),
+      githubDispatch: {
+        url: "https://kjhkjhkj.com",
+        eventType: "langfuse-alert",
+        githubToken: "ghp_token",
+      },
+    },
+    onSubmit: fn(async () => ({
+      error: "Invalid webhook URL: DNS lookup failed for kjhkjhkj.com",
+    })),
+  },
+  play: async ({ canvasElement }) => {
+    const body = within(canvasElement.ownerDocument.body);
+    await body.findByDisplayValue("https://kjhkjhkj.com");
+    await userEvent.click(
+      body.getByRole("button", { name: "Create automation" }),
+    );
+    await expect(
+      await body.findByText(
+        "Invalid webhook URL: DNS lookup failed for kjhkjhkj.com",
+      ),
+    ).toBeVisible();
+    await expect(
+      body.getByLabelText("Repository dispatch URL"),
+    ).toHaveAttribute("aria-invalid", "true");
+  },
+});
+
 export const TestRequestAutomationKeepsAction = meta.story({
   name: "(Test) Request an automation keeps the action",
   play: async ({ args, canvasElement }) => {
@@ -164,7 +203,7 @@ export const TestRequestAutomationKeepsAction = meta.story({
 export const TestWebhookSubmitsHttpsUrl = meta.story({
   name: "(Test) Webhook submits the https URL",
   args: {
-    onSubmit: fn(async () => {}),
+    onSubmit: fn(async () => ({})),
     lockedActionType: "WEBHOOK",
   },
   play: async ({ args, canvasElement }) => {
@@ -183,7 +222,6 @@ export const TestWebhookSubmitsHttpsUrl = meta.story({
       expect.objectContaining({
         webhook: { url: "example.com/hook", headers: [] },
       }),
-      expect.anything(),
     );
   },
 });
@@ -191,7 +229,7 @@ export const TestWebhookSubmitsHttpsUrl = meta.story({
 export const TestDoesNotSubmitSurroundingForm = meta.story({
   name: "(Test) Does not submit the surrounding form",
   args: {
-    onSubmit: fn(async () => {}),
+    onSubmit: fn(async () => ({})),
     lockedActionType: "WEBHOOK",
     defaultValues: {
       ...defaultMonitorAutomationFormValues("WEBHOOK", "Staging alerts"),

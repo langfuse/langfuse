@@ -3,17 +3,20 @@ import { useEffect, useRef, useState } from "react";
 import { showSuccessToast, showErrorToast } from "@/src/features/notifications";
 import { api } from "@/src/utils/api";
 
-/** useSlackConnect runs the Slack OAuth popup flow for a project and tracks whether it is pending. */
+/** useSlackConnect runs the Slack OAuth popup flow for a project and tracks whether it is pending or failed; it reports the outcome in a toast unless `shouldToast` is false. */
 export function useSlackConnect({
   projectId,
   onSuccess,
   onError,
+  shouldToast = true,
 }: {
   projectId: string;
+  shouldToast?: boolean;
   onSuccess?: () => void;
   onError?: (error: Error) => void;
 }) {
   const [isConnecting, setIsConnecting] = useState(false);
+  const [connectError, setConnectError] = useState<string>();
   const popupRef = useRef<Window | null>(null);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const messageHandlerRef = useRef<((event: MessageEvent) => void) | null>(
@@ -42,16 +45,19 @@ export function useSlackConnect({
   const connect = async () => {
     if (!integrationStatus?.installUrl) {
       const errorMessage = "Install URL not available. Please try again.";
+      setConnectError(errorMessage);
       onError?.(new Error(errorMessage));
-      showErrorToast("Connection Failed", errorMessage, {
-        operation: "slack.connect",
-        errorOrigin: "backend",
-        errorCategory: "product_state",
-      });
+      if (shouldToast)
+        showErrorToast("Connection Failed", errorMessage, {
+          operation: "slack.connect",
+          errorOrigin: "backend",
+          errorCategory: "product_state",
+        });
       return;
     }
 
     setIsConnecting(true);
+    setConnectError(undefined);
 
     try {
       const popup = window.open(
@@ -75,11 +81,12 @@ export function useSlackConnect({
           popup.close();
           setIsConnecting(false);
 
-          showSuccessToast({
-            operation: "slack.connect",
-            title: "Slack Connected",
-            description: `Successfully connected to ${event.data.teamName}.`,
-          });
+          if (shouldToast)
+            showSuccessToast({
+              operation: "slack.connect",
+              title: "Slack Connected",
+              description: `Successfully connected to ${event.data.teamName}.`,
+            });
 
           onSuccess?.();
 
@@ -94,11 +101,13 @@ export function useSlackConnect({
           popup.close();
           setIsConnecting(false);
 
-          showErrorToast("Connection Failed", event.data.error, {
-            operation: "slack.connect",
-            errorOrigin: "backend",
-            errorCategory: "internal",
-          });
+          if (shouldToast)
+            showErrorToast("Connection Failed", event.data.error, {
+              operation: "slack.connect",
+              errorOrigin: "backend",
+              errorCategory: "internal",
+            });
+          setConnectError(event.data.error);
           onError?.(new Error(event.data.error));
 
           window.removeEventListener("message", handleMessage);
@@ -131,17 +140,20 @@ export function useSlackConnect({
       setIsConnecting(false);
       const errorMessage =
         error instanceof Error ? error.message : "Failed to connect to Slack";
+      setConnectError(errorMessage);
       onError?.(new Error(errorMessage));
-      showErrorToast("Connection Failed", errorMessage, {
-        operation: "slack.connect",
-        errorOrigin: "frontend",
-        errorCategory: "product_state",
-      });
+      if (shouldToast)
+        showErrorToast("Connection Failed", errorMessage, {
+          operation: "slack.connect",
+          errorOrigin: "frontend",
+          errorCategory: "product_state",
+        });
     }
   };
 
   return {
     connect,
+    connectError,
     isConnecting,
     canConnect: Boolean(integrationStatus?.installUrl),
   };

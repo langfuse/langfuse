@@ -38,12 +38,23 @@ vi.mock("@/src/features/slack", () => ({
   useSlackConnect: () => ({ connect: vi.fn(), canConnect: true }),
   useSlackTestMessage: () => ({ sendTestMessage: vi.fn() }),
 }));
+/** submitResult is what the dialog's onSubmit resolved to. */
+let submitResult: unknown;
+
 vi.mock("./NewMonitorAutomationDialog", () => ({
   NewMonitorAutomationDialog: ({
     onSubmit,
   }: {
-    onSubmit: (values: typeof submittedValues) => Promise<void>;
-  }) => <button onClick={() => onSubmit(submittedValues)}>create</button>,
+    onSubmit: (values: typeof submittedValues) => Promise<unknown>;
+  }) => (
+    <button
+      onClick={async () => {
+        submitResult = await onSubmit(submittedValues);
+      }}
+    >
+      create
+    </button>
+  ),
 }));
 
 describe("ConnectedNewMonitorAutomationDialog", () => {
@@ -107,5 +118,32 @@ describe("ConnectedNewMonitorAutomationDialog", () => {
         webhookSecret: undefined,
       }),
     );
+  });
+
+  it("hands a server rejection back to the form instead of reporting a creation", async () => {
+    submittedValues = {
+      ...defaultMonitorAutomationFormValues("WEBHOOK", "Hook"),
+      webhook: { url: "kjhkjhkj.com", headers: [] },
+    };
+    mutateAsync.mockRejectedValue(
+      new Error("Invalid webhook URL: DNS lookup failed for kjhkjhkj.com"),
+    );
+    const onCreated = vi.fn();
+    render(
+      <ConnectedNewMonitorAutomationDialog
+        projectId="p1"
+        onClose={vi.fn()}
+        onCreated={onCreated}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "create" }));
+
+    await waitFor(() =>
+      expect(submitResult).toEqual({
+        error: "Invalid webhook URL: DNS lookup failed for kjhkjhkj.com",
+      }),
+    );
+    expect(onCreated).not.toHaveBeenCalled();
   });
 });
