@@ -111,10 +111,16 @@ vi.mock("next-auth/react", () => ({ useSession: vi.fn() }));
 
 const getSetupStatusQuery = vi.hoisted(() => vi.fn());
 vi.mock("@/src/utils/api", () => ({
-  api: { aiGateway: { getSetupStatus: { useQuery: getSetupStatusQuery } } },
+  api: {
+    aiGateway: {
+      getSetupStatus: { useQuery: getSetupStatusQuery },
+      listApiKeys: { useQuery: () => ({ data: undefined }) },
+    },
+  },
 }));
 
 vi.mock("@/src/features/ai-gateway", () => ({
+  GatewayAnalyticsPage: () => null,
   GatewayApiKeysPage: () => null,
   GatewayModelsPage: () => null,
   GatewayNotDeployedNotice: () => null,
@@ -285,6 +291,7 @@ describe("useOrganizationSettingsPages", () => {
       "ai-gateway",
       "ai-gateway-models",
       "ai-gateway-api-keys",
+      "ai-gateway-analytics",
     ]);
     expect(gatewayPages.every((page) => page.show === true)).toBe(true);
     expect(gatewayPages.every((page) => !page.disabledReason)).toBe(true);
@@ -313,6 +320,7 @@ describe("useOrganizationSettingsPages", () => {
       ["ai-gateway", false],
       ["ai-gateway-models", true],
       ["ai-gateway-api-keys", true],
+      ["ai-gateway-analytics", true],
     ]);
   });
 

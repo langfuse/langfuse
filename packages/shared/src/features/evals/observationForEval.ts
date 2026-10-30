@@ -1,13 +1,9 @@
 import { z } from "zod";
 import { DEFAULT_TRACE_ENVIRONMENT } from "../../server/ingestion/types";
 import { type EventRecordBaseType } from "../../server/repositories/definitions";
-import { ObservationLevel, ObservationType } from "../../domain";
+import { ObservationLevel } from "../../domain";
 import { metadataArraysToRecord } from "../../server/utils/metadata_conversion";
-import { SingleValueOption } from "../../tableDefinitions";
-import { ColumnDefinition } from "../../tableDefinitions";
-import { formatColumnOptions } from "../../tableDefinitions/typeHelpers";
 import { parseJsonIfString } from "../../utils/json";
-import { isRootObservation } from "../../eventsTable";
 
 const flexibleUsageCostSchema = z.record(
   z.string(),
@@ -182,35 +178,6 @@ export function convertEventRecordToObservationForEval(
   });
 }
 
-export type ObservationEvalFilterColumnInternal =
-  /** Column identifier (must match an ObservationForEval field name) */
-  keyof Pick<
-    ObservationForEval,
-    | "type"
-    | "name"
-    | "environment"
-    | "level"
-    | "status_message"
-    | "version"
-    | "release"
-    | "trace_name"
-    | "user_id"
-    | "session_id"
-    | "provided_model_name"
-    | "prompt_name"
-    | "prompt_version"
-    | "tags"
-    | "experiment_id"
-    | "experiment_name"
-    | "experiment_dataset_id"
-    | "experiment_item_root_span_id"
-    | "metadata"
-    | "parent_span_id"
-    | "is_app_root"
-    | "tool_call_names"
-    | "tool_call_count"
-  >;
-
 export type ObservationEvalMappingColumnInternal = keyof Pick<
   ObservationForEval,
   | "input"
@@ -322,269 +289,18 @@ export const observationEvalVariableColumns: ObservationEvalVariableColumn[] = [
   ...experimentTargetEvalVariableColumns,
 ];
 
-type ObservationEvalColumnDef = ColumnDefinition & {
-  internal: ObservationEvalFilterColumnInternal;
-};
-
-/**
- * Columns available for filtering in observation-based evals.
- *
- * These columns can be used in filter conditions to determine
- * which observations should be evaluated.
- */
-export const observationEvalFilterColumns: ObservationEvalColumnDef[] = [
-  {
-    name: "Type",
-    id: "type",
-    type: "stringOptions",
-    internal: "type",
-    options: Object.values(ObservationType).map((key) => ({ value: key })),
-  },
-  {
-    name: "Name",
-    id: "name",
-    type: "stringOptions",
-    internal: "name",
-    options: [], // to be filled at runtime
-  },
-  {
-    name: "Environment",
-    id: "environment",
-    type: "stringOptions",
-    internal: "environment",
-    options: [], // to be filled at runtime
-  },
-  {
-    name: "Status",
-    id: "level",
-    type: "stringOptions",
-    internal: "level",
-    options: Object.values(ObservationLevel).map((key) => ({ value: key })),
-    aliases: ["Level"],
-  },
-  {
-    name: "Version",
-    id: "version",
-    type: "string",
-    internal: "version",
-    nullable: true,
-  },
-  {
-    name: "Release",
-    id: "release",
-    type: "string",
-    internal: "release",
-    nullable: true,
-  },
-  {
-    name: "Status Message",
-    id: "statusMessage",
-    type: "string",
-    internal: "status_message",
-    nullable: true,
-  },
-  {
-    name: "Provided Model Name",
-    id: "providedModelName",
-    type: "string",
-    internal: "provided_model_name",
-    nullable: true,
-  },
-  {
-    name: "Prompt Name",
-    id: "promptName",
-    type: "string",
-    internal: "prompt_name",
-    nullable: true,
-  },
-  {
-    name: "Prompt Version",
-    id: "promptVersion",
-    type: "number",
-    internal: "prompt_version",
-    nullable: true,
-  },
-  {
-    name: "Trace Name",
-    id: "traceName",
-    type: "stringOptions",
-    internal: "trace_name",
-    options: [], // to be filled at runtime
-    nullable: true,
-  },
-  {
-    name: "User ID",
-    id: "userId",
-    type: "string",
-    internal: "user_id",
-    nullable: true,
-  },
-  {
-    name: "Session ID",
-    id: "sessionId",
-    type: "string",
-    internal: "session_id",
-    nullable: true,
-  },
-  {
-    name: "Tags",
-    id: "tags",
-    type: "arrayOptions",
-    internal: "tags",
-    options: [], // to be filled at runtime
-  },
-  {
-    name: "Metadata",
-    id: "metadata",
-    type: "stringObject",
-    internal: "metadata",
-  },
-  {
-    name: "Is Root Observation",
-    id: "isRootObservation",
-    type: "boolean",
-    internal: "is_app_root",
-  },
-  {
-    name: "Parent Observation",
-    id: "parentObservationId",
-    type: "null",
-    internal: "parent_span_id",
-    nullable: true,
-  },
-  {
-    name: "Experiment ID",
-    id: "experimentId",
-    type: "stringOptions",
-    internal: "experiment_id",
-    options: [], // to be filled at runtime
-    nullable: true,
-  },
-  {
-    name: "Experiment Name",
-    id: "experimentName",
-    type: "string",
-    internal: "experiment_name",
-    nullable: true,
-  },
-  {
-    name: "Is Experiment Item Root Span",
-    id: "isExperimentItemRootSpan",
-    type: "boolean",
-    internal: "experiment_item_root_span_id",
-  },
-  {
-    name: "Called Tool Names",
-    id: "calledToolNames",
-    type: "arrayOptions",
-    internal: "tool_call_names",
-    options: [], // to be filled at runtime
-  },
-  {
-    name: "Tool Call Count",
-    id: "toolCalls",
-    type: "number",
-    internal: "tool_call_count",
-    step: 1,
-    min: 0,
-  },
-];
-
-export const experimentEvalFilterColumns: ObservationEvalColumnDef[] = [
-  {
-    name: "Dataset",
-    id: "experimentDatasetId",
-    type: "stringOptions",
-    internal: "experiment_dataset_id",
-    options: [], // to be filled at runtime
-  },
-];
-
-export const eventsEvalFilterColumns: ObservationEvalColumnDef[] = [
-  ...observationEvalFilterColumns,
-  ...experimentEvalFilterColumns,
-];
-
-// Options type for observation eval filters
-export type ObservationEvalOptions = {
-  environment?: Array<SingleValueOption>;
-  tags?: Array<SingleValueOption>;
-  traceName?: Array<SingleValueOption>;
-  name?: Array<SingleValueOption>;
-  calledToolNames?: Array<SingleValueOption>;
-};
-
-export type ExperimentEvalOptions = {
-  experimentDatasetId?: Array<SingleValueOption>;
-};
-
-export function observationEvalFilterColsWithOptions(
-  options?: ObservationEvalOptions,
-  cols: ColumnDefinition[] = observationEvalFilterColumns,
-): ColumnDefinition[] {
-  return cols.map((col) => {
-    if (col.id === "environment") {
-      return formatColumnOptions(col, options?.environment ?? []);
-    }
-    if (col.id === "tags") {
-      return formatColumnOptions(col, options?.tags ?? []);
-    }
-    if (col.id === "traceName") {
-      return formatColumnOptions(col, options?.traceName ?? []);
-    }
-    if (col.id === "name") {
-      return formatColumnOptions(col, options?.name ?? []);
-    }
-    if (col.id === "calledToolNames") {
-      return formatColumnOptions(col, options?.calledToolNames ?? []);
-    }
-    return col;
-  });
-}
-
-export function experimentEvalFilterColsWithOptions(
-  options?: ExperimentEvalOptions,
-  cols: ColumnDefinition[] = experimentEvalFilterColumns,
-): ColumnDefinition[] {
-  return cols.map((col) => {
-    if (col.id === "experimentDatasetId") {
-      return formatColumnOptions(col, options?.experimentDatasetId ?? []);
-    }
-    return col;
-  });
-}
-
-/**
- * Field mapper for observation eval filters.
- * Maps camelCase filter column IDs to snake_case observation fields.
- * Based on events table column definitions.
- *
- * @param observation - The observation data object
- * @param column - The camelCase column ID from filter definitions
- * @returns The value from the observation object
- */
-export function mapEventEvalFilterColumnIdToField(
-  observation: ObservationForEval,
-  column: string,
-) {
-  const columnMapping = eventsEvalFilterColumns.find((c) => c.id === column);
-  if (!columnMapping) {
-    return undefined;
-  }
-
-  if (columnMapping.id === "isRootObservation") {
-    return isRootObservation({
-      parentObservationId: observation.parent_span_id,
-      isAppRoot: observation.is_app_root,
-    });
-  }
-
-  if (columnMapping.id === "isExperimentItemRootSpan") {
-    return (
-      observation.experiment_item_root_span_id !== null &&
-      observation.experiment_item_root_span_id === observation.span_id
-    );
-  }
-
-  return observation[columnMapping.internal];
-}
+export {
+  mapEventEvalFilterColumnIdToField,
+  type ObservationEvalFilterColumnInternal,
+} from "./filterFields";
+export {
+  observationEvalFilterColumns,
+  eventsEvalFilterColumns,
+  observationEvalFilterColsWithOptions,
+  type ObservationEvalOptions,
+} from "./spanFilters";
+export {
+  experimentEvalFilterColumns,
+  experimentEvalFilterColsWithOptions,
+  type ExperimentEvalOptions,
+} from "./experimentFilters";
