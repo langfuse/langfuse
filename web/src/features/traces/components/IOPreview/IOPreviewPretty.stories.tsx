@@ -384,6 +384,62 @@ export const AvailableSkills = meta.story({
   },
 });
 
+export const RequestedSkills = meta.story({
+  name: "(Test) Requested skills",
+  args: {
+    skills: {
+      kind: "available",
+      items: [{ skillName: "refund-policy" }, { skillName: "shipping-policy" }],
+    },
+    output: {
+      role: "assistant",
+      tool_calls: [
+        {
+          id: "read-refund-policy",
+          type: "function",
+          function: {
+            name: "langfuse_loadSkillResource",
+            arguments: JSON.stringify({
+              name: "refund-policy",
+              path: "references/refunds.md",
+            }),
+          },
+        },
+      ],
+    },
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(
+      canvas.getByRole("tab", { name: /Requested 1/ }),
+    ).toHaveAttribute("aria-selected", "true");
+    await userEvent.click(
+      canvas.getByRole("button", { name: "2 available skills show" }),
+    );
+    const files = canvas.getByRole("button", {
+      name: "Files requested for refund-policy",
+    });
+    await userEvent.click(files);
+    await expect(canvas.getByText("references/refunds.md")).toBeVisible();
+    await expect(
+      canvas.queryByText("shipping-policy", { exact: true }),
+    ).not.toBeInTheDocument();
+    await userEvent.click(canvas.getByRole("tab", { name: /Not requested 1/ }));
+    await expect(
+      canvas.getByText("shipping-policy", { exact: true }),
+    ).toBeVisible();
+    await expect(
+      canvas.queryByRole("button", {
+        name: "Files requested for refund-policy",
+      }),
+    ).not.toBeInTheDocument();
+    await userEvent.click(canvas.getByRole("tab", { name: /Requested 1/ }));
+    await expect(
+      canvas.getByRole("button", { name: "Files requested for refund-policy" }),
+    ).toHaveAttribute("aria-expanded", "false");
+  },
+});
+
 export const LoadedSkills = meta.story({
   name: "(Test) Loaded skills",
   args: {

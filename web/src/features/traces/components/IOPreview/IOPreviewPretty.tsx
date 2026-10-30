@@ -69,6 +69,7 @@ import {
 import { type ObservationStatusMessage } from "./components/statusMessagePresentation";
 import { useStatusMessage } from "./hooks/useStatusMessage";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
+import { getSkillLoadRequests } from "../../fns/getSkillLoadRequests";
 
 const TOOLS_COLLAPSE_THRESHOLD = 5;
 // The user's collapse choice lasts the session, across observations.
@@ -294,6 +295,7 @@ export function IOPreviewPretty({
   const { statusPresentation, parsedStatusMessage } = useStatusMessage(status);
   const [isSkillsExpanded, setSkillsExpanded] = useState(false);
   const [expandedSkillKey, setExpandedSkillKey] = useState("");
+  const [activeSkillTab, setActiveSkillTab] = useState("requested");
   const [othersOpen, setOthersOpen] = useState(false);
   const [activeToolTab, setActiveToolTab] = useState<"called" | "not-called">(
     "called",
@@ -377,6 +379,27 @@ export function IOPreviewPretty({
     messageToToolCallNumbers,
     inputMessageCount,
   } = parserResult;
+
+  const skillLoadRequests = getSkillLoadRequests(
+    skills?.kind === "available"
+      ? Array.from(skillGroups.values(), ({ skill }) => skill)
+      : [],
+    toolCallsByName,
+  );
+  const requestedSkillGroups = Array.from(skillGroups.values()).filter(
+    ({ skill }) => skillLoadRequests.has(skill),
+  );
+  const notRequestedSkillGroups = Array.from(skillGroups.values()).filter(
+    ({ skill }) => !skillLoadRequests.has(skill),
+  );
+  const hasSkillTabs =
+    requestedSkillGroups.length > 0 && notRequestedSkillGroups.length > 0;
+  const visibleSkillGroups = (() => {
+    if (!hasSkillTabs) return Array.from(skillGroups.values());
+    return activeSkillTab === "requested"
+      ? requestedSkillGroups
+      : notRequestedSkillGroups;
+  })();
 
   const { calledTools, notCalledTools } = useMemo(
     () =>
@@ -660,7 +683,41 @@ export function IOPreviewPretty({
       ) : null}
 
       {showData && skills && skills.items.length > 0 ? (
-        <IOSection title="Skills" count={skillGroups.size}>
+        <IOSection
+          title="Skills"
+          count={hasSkillTabs ? undefined : skillGroups.size}
+          tabs={
+            hasSkillTabs
+              ? {
+                  value: activeSkillTab,
+                  onValueChange: (value) => {
+                    setActiveSkillTab(value);
+                    setExpandedSkillKey("");
+                  },
+                  items: [
+                    {
+                      value: "requested",
+                      label: "Requested",
+                      count: requestedSkillGroups.length,
+                    },
+                    {
+                      value: "not-requested",
+                      label: "Not requested",
+                      count: notRequestedSkillGroups.length,
+                    },
+                  ],
+                }
+              : undefined
+          }
+          info={
+            skillLoadRequests.size > 0
+              ? {
+                  label: "About skill load requests",
+                  text: `${skillLoadRequests.size} of ${skillGroups.size} available skills requested by this generation's output tool calls. A request does not confirm that the skill was loaded successfully.`,
+                }
+              : undefined
+          }
+        >
           <Collapsible
             open={isSkillsExpanded}
             onOpenChange={setSkillsExpanded}
@@ -686,85 +743,93 @@ export function IOPreviewPretty({
             </CollapsibleTrigger>
             <CollapsibleContent asChild>
               <ul className="flex flex-col gap-2">
-                {Array.from(skillGroups.values(), ({ key, skill, files }) => (
-                  <Collapsible
-                    key={key}
-                    asChild
-                    open={expandedSkillKey === key}
-                    onOpenChange={(open) =>
-                      setExpandedSkillKey(open ? key : "")
-                    }
-                  >
-                    <li className="min-w-0 overflow-hidden rounded-sm border">
-                      <div className="flex min-w-0 items-center gap-2 px-3 py-1.5">
-                        <FileCode2 size="base" color="muted" aria-hidden />
-                        <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-1">
-                          {skill.langfuseSkillId &&
-                          skill.skillVersion != null ? (
-                            <LinkBadge
-                              href={`/project/${projectId}/skills/${encodeURIComponent(skill.skillName)}?version=${skill.skillVersion}`}
-                              text={skill.skillName}
-                              newTab
-                              noCapture
-                            />
-                          ) : (
-                            <Badge
-                              color="ghost"
-                              font="mono"
-                              text={skill.skillName}
-                            />
-                          )}
-                          {skill.skillVersion != null ? (
-                            <Badge
-                              color="filled"
-                              size="sm"
-                              text={`v${skill.skillVersion}`}
-                            />
-                          ) : null}
-                        </div>
-                        {files.size > 0 ? (
-                          <CollapsibleTrigger
-                            className="hover:bg-muted/20 flex shrink-0 items-center gap-1.5 rounded-sm px-1 py-0.5"
-                            aria-label={`Files loaded for ${skill.skillName}`}
-                          >
-                            <Badge
-                              color="green"
-                              size="sm"
-                              text={`${files.size} ${files.size === 1 ? "file" : "files"}`}
-                            />
-                            <DropdownIndicator
-                              direction={
-                                expandedSkillKey === key ? "down" : "right"
-                              }
-                            />
-                          </CollapsibleTrigger>
-                        ) : null}
-                      </div>
-                      {files.size > 0 ? (
-                        <CollapsibleContent asChild>
-                          <ul className="bg-muted/30 flex flex-col gap-2 border-t px-3 py-3">
-                            {Array.from(files, (filePath) => (
-                              <li
-                                key={filePath}
-                                className="flex min-w-0 items-start gap-2"
-                              >
-                                <FileText
-                                  size="base"
-                                  color="muted"
-                                  __rawClassName="mt-0.5"
-                                  aria-hidden
+                {visibleSkillGroups.map(
+                  ({ key, skill, files: loadedFiles }) => {
+                    const files =
+                      skills.kind === "available"
+                        ? (skillLoadRequests.get(skill) ?? new Set<string>())
+                        : loadedFiles;
+                    return (
+                      <Collapsible
+                        key={key}
+                        asChild
+                        open={expandedSkillKey === key}
+                        onOpenChange={(open) =>
+                          setExpandedSkillKey(open ? key : "")
+                        }
+                      >
+                        <li className="min-w-0 overflow-hidden rounded-sm border">
+                          <div className="flex min-w-0 items-center gap-2 px-3 py-1.5">
+                            <FileCode2 size="base" color="muted" aria-hidden />
+                            <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-1">
+                              {skill.langfuseSkillId &&
+                              skill.skillVersion != null ? (
+                                <LinkBadge
+                                  href={`/project/${projectId}/skills/${encodeURIComponent(skill.skillName)}?version=${skill.skillVersion}`}
+                                  text={skill.skillName}
+                                  newTab
+                                  noCapture
                                 />
-                                <span className="min-w-0 font-mono text-xs leading-relaxed break-all">
-                                  {filePath}
-                                </span>
-                              </li>
-                            ))}
-                          </ul>
-                        </CollapsibleContent>
-                      ) : null}
-                    </li>
-                  </Collapsible>
-                ))}
+                              ) : (
+                                <Badge
+                                  color="ghost"
+                                  font="mono"
+                                  text={skill.skillName}
+                                />
+                              )}
+                              {skill.skillVersion != null ? (
+                                <Badge
+                                  color="filled"
+                                  size="sm"
+                                  text={`v${skill.skillVersion}`}
+                                />
+                              ) : null}
+                            </div>
+                            {files.size > 0 ? (
+                              <CollapsibleTrigger
+                                className="hover:bg-muted/20 flex shrink-0 items-center gap-1.5 rounded-sm px-1 py-0.5"
+                                aria-label={`Files ${skills.kind === "available" ? "requested" : "loaded"} for ${skill.skillName}`}
+                              >
+                                <Badge
+                                  color="green"
+                                  size="sm"
+                                  text={`${files.size} ${files.size === 1 ? "file" : "files"}`}
+                                />
+                                <DropdownIndicator
+                                  direction={
+                                    expandedSkillKey === key ? "down" : "right"
+                                  }
+                                />
+                              </CollapsibleTrigger>
+                            ) : null}
+                          </div>
+                          {files.size > 0 ? (
+                            <CollapsibleContent asChild>
+                              <ul className="bg-muted/30 flex flex-col gap-2 border-t px-3 py-3">
+                                {Array.from(files, (filePath) => (
+                                  <li
+                                    key={filePath}
+                                    className="flex min-w-0 items-start gap-2"
+                                  >
+                                    <FileText
+                                      size="base"
+                                      color="muted"
+                                      __rawClassName="mt-0.5"
+                                      aria-hidden
+                                    />
+                                    <span className="min-w-0 font-mono text-xs leading-relaxed break-all">
+                                      {filePath}
+                                    </span>
+                                  </li>
+                                ))}
+                              </ul>
+                            </CollapsibleContent>
+                          ) : null}
+                        </li>
+                      </Collapsible>
+                    );
+                  },
+                )}
               </ul>
             </CollapsibleContent>
           </Collapsible>
