@@ -160,35 +160,6 @@ export const parseCreateAutomationPrefill = (
   }
 };
 
-/** serializeCreateAutomationPrefill encodes a typed prefill as a base64url JSON blob for a single URL query param, UTF-8-safe so non-ASCII tags don't throw at btoa. */
-const serializeCreateAutomationPrefill = (
-  prefill: CreateAutomationPrefill,
-): string => {
-  const bytes = new TextEncoder().encode(JSON.stringify(prefill));
-  let binary = "";
-  for (let i = 0; i < bytes.length; i++)
-    binary += String.fromCharCode(bytes[i]);
-  return btoa(binary)
-    .replace(/\+/g, "-")
-    .replace(/\//g, "_")
-    .replace(/=+$/, "");
-};
-
-/** automationCreateHref builds the deep-link to the automations create form, prefilling eventSource as Monitor and (optionally) the chosen actionType + a same-origin redirectUrl to return to after save. */
-export const automationCreateHref = (
-  projectId: string,
-  actionType?: ActionTypes,
-  redirectUrl?: string,
-): string => {
-  const prefill = serializeCreateAutomationPrefill({
-    eventSource: TriggerEventSource.Monitor,
-    ...(actionType ? { actionType } : {}),
-    ...(redirectUrl ? { redirectUrl } : {}),
-  });
-  const params = new URLSearchParams({ view: "create", prefill });
-  return `/project/${projectId}/automations?${params.toString()}`;
-};
-
 // Define schemas for form validation
 const baseFormSchema = z.object({
   name: z.string().min(1, "Name is required").max(100),

@@ -294,10 +294,10 @@ jobs:
         run: |
           cp .env.dev.example .env
       - name: lint web
-        # Three packages with four ESLint workers leave headroom on 16 vCPUs.
-        run: pnpm turbo run lint --filter=!ai-gateway --filter=!@langfuse/native --concurrency=3 -- --concurrency=4
-      # Rust packages lint with cargo, which rejects the trailing ESLint flag
-      # above, so they run outside that invocation (ai-gateway in its own job).
+        # Respect package-level worker limits: web's typed linting duplicates
+        # its TypeScript project state in each worker.
+        run: pnpm turbo run lint --filter=!ai-gateway --filter=!@langfuse/native --concurrency=3
+      # Rust packages lint separately (ai-gateway in its own job).
       - name: lint native addon (rustfmt, clippy)
         run: pnpm --filter @langfuse/native run lint
       - name: Install Rust dependency checkers
@@ -652,14 +652,14 @@ jobs:
         # `clickhouse format` (from clickhouse-common-static) normalizes SQL for
         # the equivalence snapshots. Its output is version-specific, so pin the
         # exact version and regenerate snapshots on any bump; keep in sync with
-        # scripts/codex/cloud_services.sh. 26.4 is the v4-recommended version.
+        # scripts/codex/cloud_services.sh and docker-compose.dev.yml.
         # continue-on-error + timeout-minutes: a missing binary OR a stalled apt
         # mirror just skips the tests, never blocks (timeout-minutes bounds a
         # hang, which continue-on-error alone would not).
         continue-on-error: true
         timeout-minutes: 5
         env:
-          CLICKHOUSE_VERSION: 26.4.5.143
+          CLICKHOUSE_VERSION: 26.8.36.3
         run: |
           set -euo pipefail
           sudo mkdir -p /etc/apt/keyrings
