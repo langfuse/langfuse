@@ -35,6 +35,7 @@ import {
   replaceVariablesInPrompt,
   validateAndSetupExperiment,
   type PromptExperimentConfig,
+  getExperimentDatasetVersion,
 } from "./utils";
 import {
   validateDatasetItem,
@@ -329,12 +330,14 @@ export const createExperimentJobClickhouse = async ({
     logger.error("Failed to validate and setup experiment", error);
     const errorMessage =
       error instanceof Error ? error.message : "Unknown error";
+    const datasetVersion = await getExperimentDatasetVersion(runId, projectId);
     // Create all dataset run items with the configuration error
     await createAllDatasetRunItemsWithConfigError(
       projectId,
       datasetId,
       runId,
       errorMessage,
+      datasetVersion,
     );
     return { success: true };
   }
@@ -390,14 +393,16 @@ async function createAllDatasetRunItemsWithConfigError(
   datasetId: string,
   runId: string,
   errorMessage: string,
+  datasetVersion?: Date,
 ) {
-  // Fetch all dataset items
+  // Fetch all dataset items at the specified version (if provided)
   const datasetItems = await getDatasetItems({
     projectId,
     filterState: createDatasetItemFilterState({
       datasetIds: [datasetId],
       status: "ACTIVE",
     }),
+    version: datasetVersion,
     includeIO: true,
   });
 
