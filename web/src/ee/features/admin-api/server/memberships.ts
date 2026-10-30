@@ -7,6 +7,7 @@ import {
   deleteUserBoundApiKeysForRole,
   evictRevokedApiKeys,
 } from "@/src/features/ai-gateway/server/apiKey/userBoundApiKeys";
+import { requireGatewayEnabledForRole } from "@/src/features/ai-gateway/server/availability";
 import { auditLog } from "@/src/features/audit-logs/server";
 import {
   deleteOrgMembership,
@@ -101,6 +102,9 @@ export async function handleUpdateMembership(
       from: before?.role,
       to: validatedBody.data.role,
     });
+    if (before?.role !== validatedBody.data.role) {
+      requireGatewayEnabledForRole(orgId, validatedBody.data.role);
+    }
     const after = await saveOrgMembership(tx, {
       orgId,
       userId: validatedBody.data.userId,
