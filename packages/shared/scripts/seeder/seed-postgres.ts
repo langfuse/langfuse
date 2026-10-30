@@ -43,9 +43,14 @@ import {
 } from "./utils/seed-helpers";
 import { seedInAppAgentDemoConversation } from "./utils/in-app-agent-seed";
 import { seedDatasetVersions } from "./seed-dataset-versions";
+import {
+  assertLocalBedrockSeedEnvironment,
+  seedLocalBedrockConnection,
+} from "./local-bedrock";
 
 const options = {
   environment: { type: "string" },
+  "local-bedrock": { type: "boolean", default: false },
 } as const;
 
 const prisma = new PrismaClient();
@@ -53,9 +58,10 @@ const IN_APP_AGENT_SYSTEM_PROMPT_NAME = "in-app-agent-system-prompt";
 const inAppAgentSystemPrompt = IN_APP_AGENT_SYSTEM_PROMPT_TEMPLATE;
 
 async function main() {
-  const environment = parseArgs({
+  const { environment, "local-bedrock": localBedrock } = parseArgs({
     options,
-  }).values.environment;
+  }).values;
+  if (localBedrock) assertLocalBedrockSeedEnvironment(process.env);
 
   const seedOrgId = "seed-org-id";
   const seedProjectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
@@ -137,6 +143,8 @@ async function main() {
       orgId: seedOrgId,
     },
   });
+
+  if (localBedrock) await seedLocalBedrockConnection(prisma, process.env);
 
   await upsertInAppAgentSystemPrompt(project1.id);
   await upsertNaturalLanguageFilterPrompt(project1.id);
