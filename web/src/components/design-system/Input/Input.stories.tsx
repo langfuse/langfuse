@@ -71,7 +71,8 @@ export const WithPrefix = meta.story({
   args: {
     "aria-label": "Webhook URL",
     placeholder: "example.com/webhook",
-    prefix: { addon: "POST", text: "https://" },
+    addon: "POST",
+    prefix: "https://",
   },
 });
 
@@ -80,7 +81,8 @@ export const WithPrefixInvalid = meta.story({
     "aria-label": "Webhook URL",
     defaultValue: "not a url",
     error: true,
-    prefix: { addon: "POST", text: "https://" },
+    addon: "POST",
+    prefix: "https://",
   },
 });
 
@@ -88,7 +90,8 @@ export const WithPrefixFocusesOnPrefixClick = meta.story({
   name: "(Test) With prefix focuses on prefix click",
   args: {
     "aria-label": "Webhook URL",
-    prefix: { addon: "POST", text: "https://" },
+    addon: "POST",
+    prefix: "https://",
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);

@@ -65,7 +65,8 @@ function WebhookUrlField({
           }
           onBlur={field.onBlur}
           ref={field.ref}
-          prefix={{ addon: "POST", text: "https://" }}
+          addon="POST"
+          prefix="https://"
           placeholder="example.com/webhook"
           aria-describedby={field.inputDescribedById}
           aria-invalid={!!field.error}

@@ -40,8 +40,10 @@ type InputProps = Pick<
    * place it in a `w-fit` container.
    */
   layout?: "block" | "inline";
-  /** Fixed content inside the border before the value: a shaded `addon` segment, then muted `text`. */
-  prefix?: InputPrefix;
+  /** Shaded segment inside the border at the start, e.g. an HTTP method. */
+  addon?: string;
+  /** Muted text inside the border right before the value, e.g. a URL scheme. */
+  prefix?: string;
   ref?: Ref<HTMLInputElement>;
 };
 
@@ -49,14 +51,16 @@ export function Input({
   allowPasswordManager,
   error,
   layout = "block",
+  addon,
   prefix,
   ref,
   ...props
 }: InputProps) {
-  if (prefix) {
+  if (addon || prefix) {
     return (
       <PrefixedInput
         {...props}
+        addon={addon}
         prefix={prefix}
         error={error}
         allowPasswordManager={allowPasswordManager}
@@ -77,14 +81,15 @@ export function Input({
   );
 }
 
-/** PrefixedInput renders the input after its prefix inside one shared border. */
+/** PrefixedInput renders the input after its addon and prefix inside one shared border. */
 function PrefixedInput({
   allowPasswordManager,
   error,
+  addon,
   prefix,
   ref,
   ...props
-}: Omit<InputProps, "layout" | "prefix"> & { prefix: InputPrefix }) {
+}: Omit<InputProps, "layout">) {
   const inputRef = useRef<HTMLInputElement | null>(null);
   const attachInput = (input: HTMLInputElement | null) => {
     inputRef.current = input;
@@ -105,14 +110,14 @@ function PrefixedInput({
           inputRef.current?.focus();
         }}
       >
-        {prefix.addon && (
+        {addon && (
           <span className="bg-muted text-muted-foreground border-input flex h-full shrink-0 items-center border-r px-2.5 font-mono text-xs">
-            {prefix.addon}
+            {addon}
           </span>
         )}
-        {prefix.text && (
+        {prefix && (
           <span className="text-foreground-secondary shrink-0 pr-0.5 pl-3">
-            {prefix.text}
+            {prefix}
           </span>
         )}
         <input
@@ -125,6 +130,3 @@ function PrefixedInput({
     </InputControl>
   );
 }
-
-/** InputPrefix is the fixed content an input shows before its value. */
-type InputPrefix = { addon?: string; text?: string };
