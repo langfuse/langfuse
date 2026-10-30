@@ -96,6 +96,17 @@ function proj(orgId: string, projectId: string, role: Role) {
   return assignment(orgId, `project/${projectId}`, `system/${role}`);
 }
 
+/** waitForBlockedQuery resolves once a database query is waiting on a lock. */
+async function waitForBlockedQuery() {
+  await vi.waitFor(async () => {
+    const blocked = await prisma.$queryRaw<{ pid: number }[]>`
+      SELECT pid FROM pg_stat_activity
+      WHERE datname = current_database() AND wait_event_type = 'Lock'
+    `;
+    expect(blocked).not.toHaveLength(0);
+  });
+}
+
 /** rolesOf lists a user's role assignments as sorted tenant/owner/role triples. */
 async function rolesOf(userId: string) {
   const assignments = await prisma.roleAssignment.findMany({
@@ -414,6 +425,42 @@ describe("membership role assignments", () => {
         expect(await rolesOf(user.id)).toEqual([]);
       },
     );
+
+    it("saveProjectMembership waits for a concurrent project transfer", async () => {
+      const user = await createUser();
+      const orgMembership = await saveOrgMembership(prisma, {
+        orgId,
+        userId: user.id,
+        role: Role.VIEWER,
+      });
+      const input = {
+        orgId,
+        orgMembershipId: orgMembership.id,
+        projectId,
+        userId: user.id,
+      };
+      await saveProjectMembership(prisma, { ...input, role: Role.MEMBER });
+      const targetOrg = await prisma.organization.create({
+        data: { name: randomUUID() },
+      });
+
+      let saved: Promise<unknown> = Promise.resolve();
+      await prisma.$transaction(async (tx) => {
+        await tx.project.update({
+          where: { id: projectId },
+          data: { orgId: targetOrg.id },
+        });
+        saved = saveProjectMembership(prisma, {
+          ...input,
+          role: Role.ADMIN,
+        }).catch((error: unknown) => error);
+        await waitForBlockedQuery();
+        await deleteProjectMemberships(tx, { projectId });
+      });
+
+      expect(await saved).toBeInstanceOf(LangfuseNotFoundError);
+      expect(await rolesOf(user.id)).toEqual([org(orgId, "VIEWER")]);
+    });
 
     it("deleteProjectMemberships removes the project's memberships and roles", async () => {
       const [first, second] = await Promise.all([createUser(), createUser()]);

@@ -125,16 +125,18 @@ export async function getProjectMembershipRoles(
   );
 }
 
-/** assertProjectInOrg throws LangfuseNotFoundError unless the project belongs to the organization. */
+/** assertProjectInOrg share-locks the project and throws LangfuseNotFoundError unless it belongs to the organization. */
 async function assertProjectInOrg(
   tx: Prisma.TransactionClient,
   { orgId, projectId }: { orgId: string; projectId: string },
 ) {
-  const project = await tx.project.findFirst({
-    where: { id: projectId, orgId },
-    select: { id: true },
-  });
-  if (!project) {
+  // Lock the project before the membership row so writers queue behind a transfer.
+  const projects = await tx.$queryRaw<{ id: string }[]>`
+    SELECT id FROM projects
+    WHERE id = ${projectId} AND org_id = ${orgId}
+    FOR SHARE
+  `;
+  if (projects.length === 0) {
     throw new LangfuseNotFoundError("Project not found in organization");
   }
 }
