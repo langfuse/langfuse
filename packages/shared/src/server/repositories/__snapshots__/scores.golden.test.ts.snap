@@ -11,7 +11,8 @@ exports[`golden: scores.getAggregatedScoresForPromptsFromEvents > relation=obser
     "param3": "2026-01-01 00:00:00.000",
     "param4": "2026-01-31 23:59:59.000",
   },
-  "sql": "WITH prompt_events AS
+  "sql": "WITH
+    prompt_events AS
     (
         SELECT
             latest.project_id,
@@ -86,7 +87,8 @@ exports[`golden: scores.getAggregatedScoresForPromptsFromEvents > relation=obser
       "prompt-b",
     ],
   },
-  "sql": "WITH prompt_events AS
+  "sql": "WITH
+    prompt_events AS
     (
         SELECT
             latest.project_id,
@@ -160,7 +162,8 @@ exports[`golden: scores.getAggregatedScoresForPromptsFromEvents > relation=trace
     ],
     "param3": "2026-01-01 00:00:00.000",
   },
-  "sql": "WITH prompt_events AS
+  "sql": "WITH
+    prompt_events AS
     (
         SELECT
             latest.project_id,
@@ -232,7 +235,8 @@ exports[`golden: scores.getAggregatedScoresForPromptsFromEvents > relation=trace
       "prompt-b",
     ],
   },
-  "sql": "WITH prompt_events AS
+  "sql": "WITH
+    prompt_events AS
     (
         SELECT
             latest.project_id,
