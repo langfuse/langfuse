@@ -217,6 +217,7 @@ impl InferenceService {
             "resolution",
             otel.kind = "internal",
             gateway.outcome = tracing::field::Empty,
+            gateway.resolution.retry = tracing::field::Empty,
             otel.status_code = tracing::field::Empty,
             error.type = tracing::field::Empty
         );
