@@ -1183,7 +1183,12 @@ function useEntityGroups(
     {
       projectId,
       limit: ENTITY_LIMIT,
-      search: debouncedSearch.trim() || undefined,
+      // A group keyword selects the group client-side; sending it to the server as a
+      // name filter would hide every row whose name does not contain that word.
+      search: entitySearchTerm(
+        debouncedSearch,
+        ENTITY_GROUPS.evaluator.keywords,
+      ),
     },
     {
       enabled: open && evaluatorsUrl !== null,
@@ -1335,6 +1340,34 @@ export function getEntityBaseUrl({
   if (!projectId || !navItem?.url || !canRead(config.scope)) return null;
   if (config.v4Only && isLegacyNavItem(navItem, projectId)) return null;
   return navItem.url;
+}
+
+/**
+ * The search to send to the server for one entity group.
+ *
+ * A group's keywords only select that group client-side (`toEntityGroup` matches
+ * them), so they must not also become a name filter on the server: typing
+ * "evaluator" would otherwise ask for evaluators whose *name* contains
+ * "evaluator", and the group would vanish once the debounced value arrived.
+ * Returns the remaining term, or undefined when there is nothing to filter by.
+ */
+export function entitySearchTerm(
+  search: string,
+  keywords: string[],
+): string | undefined {
+  let term = search.trim().toLowerCase();
+  if (!term) return undefined;
+
+  // Longest first, so "evaluator" wins over "eval" and "eval " is trimmed once.
+  for (const keyword of [...keywords].sort((a, b) => b.length - a.length)) {
+    if (term === keyword) return undefined;
+    if (term.startsWith(`${keyword} `)) {
+      term = term.slice(keyword.length).trim();
+      return term || undefined;
+    }
+  }
+
+  return term;
 }
 
 /** Caps the rows matching the search, so any row stays findable. */
