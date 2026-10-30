@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { isMap, parseDocument, stringify } from "yaml";
 import { Codeblock } from "@/src/components/design-system/Codeblock/Codeblock";
 import { normalizeCodeblockLanguage } from "@/src/utils/normalizeCodeblockLanguage";

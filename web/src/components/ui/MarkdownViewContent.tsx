@@ -1,4 +1,4 @@
-/* eslint-disable no-nested-ternary, @typescript-eslint/no-use-before-define */
+/* eslint-disable no-nested-ternary */
 /* eslint-disable @repo/no-style-props */
 import { cn } from "@/src/utils/tailwind";
 import { useTheme } from "next-themes";

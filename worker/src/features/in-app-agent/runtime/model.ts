@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { createAmazonBedrock } from "ai-sdk-amazon-bedrock-v4";
 import { createAnthropic } from "ai-sdk-anthropic-v4";
 import { createVertex } from "ai-sdk-google-vertex-v4";

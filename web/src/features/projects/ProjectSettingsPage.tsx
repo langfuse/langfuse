@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-use-before-define */
 import Header from "@/src/components/layouts/header";
 import { ApiKeyList } from "@/src/features/public-api/components/ApiKeyList";
-import { DeleteProjectDialogController } from "@/src/features/projects/components/DeleteProjectDialogController";
+import { DeleteProjectDialogController } from "@/src/features/projects/components/DeleteProjectDialogController/DeleteProjectDialogController";
 import { HostNameProject } from "@/src/features/projects/components/HostNameProject";
 import RenameProject from "@/src/features/projects/components/RenameProject";
 import { Button } from "@/src/components/ui/button";

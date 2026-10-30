@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { z } from "zod";
 import { createHash } from "node:crypto";
 import { InvalidRequestError, LangfuseNotFoundError } from "@langfuse/shared";
@@ -473,19 +472,6 @@ export const topicsRouter = createTRPCRouter({
       );
       if (!execution) throw new LangfuseNotFoundError("Execution not found.");
       return readTopicExecutionTraceErrors(execution);
-    }),
-  /** Topics each grouping run published, for the setup progress view. */
-  setupTopicCounts: topicsProcedure
-    .input(projectInput.extend({ runIds: z.array(topicIdSchema).max(20) }))
-    .query(async ({ input, ctx }) => {
-      const runs = await ctx.prisma.topicClusteringRun.findMany({
-        where: { projectId: input.projectId, id: { in: input.runIds } },
-        select: { id: true, topicVersionIds: true },
-      });
-      return runs.map((run) => ({
-        runId: run.id,
-        topicCount: run.topicVersionIds.length,
-      }));
     }),
   setupTraceCounts: topicsProcedure.query(async ({ input }) =>
     getTopicSetupTraceCounts({

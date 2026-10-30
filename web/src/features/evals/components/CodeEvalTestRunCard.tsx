@@ -1,5 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
-
 import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
 import { CodeMirrorEditor } from "@/src/components/editor";
 import { TablePeekViewTraceDetail } from "@/src/components/table/peek/TablePeekViewTraceDetail";

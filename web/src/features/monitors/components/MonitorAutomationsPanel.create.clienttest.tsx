@@ -29,6 +29,10 @@ let automations: (typeof existingRow)[] = [];
 /** gateFetch defers the post-create list read so a test can interleave user input. */
 let gateFetch: Promise<unknown> | undefined;
 
+vi.mock("next-auth/react", () => ({
+  useSession: () => ({ data: null, status: "unauthenticated" }),
+}));
+
 vi.mock("@/src/utils/api", () => ({
   api: {
     automations: {

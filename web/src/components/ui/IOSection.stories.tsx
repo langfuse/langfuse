@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { JsonViewController } from "@/src/components/ui/JsonViewController";
 import { useState } from "react";
 import preview from "../../../.storybook/preview";

@@ -8,6 +8,7 @@ type GatewayAvailabilityEnvironment = {
   previewPrUrl?: string;
   deployed?: "true" | "false";
   enabledForAllOrganizations?: "true" | "false";
+  writeMode?: (typeof env)["LANGFUSE_MIGRATION_V4_WRITE_MODE"];
 };
 
 const getGatewayAvailabilityEnvironment =
@@ -17,6 +18,7 @@ const getGatewayAvailabilityEnvironment =
     previewPrUrl: env.NEXT_PUBLIC_PREVIEW_PR_URL,
     deployed: env.LANGFUSE_AI_GATEWAY_DEPLOYED,
     enabledForAllOrganizations: env.LANGFUSE_AI_GATEWAY_ENABLED,
+    writeMode: env.LANGFUSE_MIGRATION_V4_WRITE_MODE,
   });
 
 const isDevelopmentOrPreview = (environment: GatewayAvailabilityEnvironment) =>
@@ -48,12 +50,17 @@ const isEnabledForAllOrganizations = (
     ? !environment.cloudRegion
     : environment.enabledForAllOrganizations === "true";
 
+/**
+ * Gateway generations are only attributed to their gateway API key and service
+ * in the v4 events table, which the `legacy` write mode never writes.
+ */
 export const isGatewayEnabledForOrganization = (
   organizationId: string,
   allowedOrganizationIds = env.LANGFUSE_AI_GATEWAY_ORGANIZATION_ID_ALLOWLIST ??
     [],
   environment = getGatewayAvailabilityEnvironment(),
 ): boolean =>
+  environment.writeMode !== "legacy" &&
   isGatewayDeployed(environment) &&
   (isEnabledForAllOrganizations(environment) ||
     isDevelopmentOrPreview(environment) ||

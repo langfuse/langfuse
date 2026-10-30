@@ -6,9 +6,13 @@ import type { AgentSetupInstructions } from "@/src/features/ai-gateway/types/age
 
 type AgentSetupStepsProps = {
   instructions: AgentSetupInstructions;
+  onAfterStepCopy?: (stepNumber: number) => void;
 };
 
-export function AgentSetupSteps({ instructions }: AgentSetupStepsProps) {
+export function AgentSetupSteps({
+  instructions,
+  onAfterStepCopy,
+}: AgentSetupStepsProps) {
   return (
     <div className="flex flex-col gap-3">
       {instructions.warning ? (
@@ -45,7 +49,9 @@ export function AgentSetupSteps({ instructions }: AgentSetupStepsProps) {
               <CodeSection
                 variant="outline"
                 content={step.code}
+                language={step.language}
                 shouldWrapLines={false}
+                onAfterCopy={() => onAfterStepCopy?.(index + 1)}
               />
             )}
           </Stepper>

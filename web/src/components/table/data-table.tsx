@@ -524,7 +524,7 @@ export function DataTable<TData extends object, TValue>({
           // some cursor room. Partial mitigation for LFE-10460: a maximized browser
           // still clamps the cursor at the screen edge.
           className={cn(
-            "relative min-h-full w-full overflow-auto border-t [scrollbar-gutter:stable]",
+            "relative min-h-full w-full overflow-auto border-t",
             table.getVisibleLeafColumns().at(-1)?.getCanResize() && "pr-2",
             // Room for the last row's resize strip, which hangs 3px below the table.
             onCustomRowHeightChange != null && "pb-[3px]",

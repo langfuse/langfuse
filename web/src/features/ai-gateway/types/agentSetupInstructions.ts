@@ -4,8 +4,6 @@ import type { GatewayProvider } from "@/src/features/ai-gateway/types/gatewayPro
 export type AgentSetupContext = {
   /** Gateway origin without a path, e.g. `https://staging.langfuse.com`. */
   gatewayOrigin: string;
-  /** Sent as `langfuse-user-id`; already safe to embed in shell, TOML and JSON strings. */
-  userId: string;
   /** Providers with an enabled connection in the organization. */
   providers: GatewayProvider[];
 };

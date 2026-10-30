@@ -1,4 +1,4 @@
-/* eslint-disable no-nested-ternary, @typescript-eslint/no-use-before-define */
+/* eslint-disable no-nested-ternary */
 import { JsonViewController } from "@/src/components/ui/JsonViewController";
 import { MarkdownViewController } from "@/src/components/ui/MarkdownViewController";
 import { MarkdownViewContent } from "@/src/components/ui/MarkdownViewContent";

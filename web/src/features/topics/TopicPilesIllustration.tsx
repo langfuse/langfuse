@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { cn } from "@/src/utils/tailwind";
 
 const PILE_LEFT = ["left-5", "left-33.5", "left-62"] as const;
@@ -98,7 +97,7 @@ function fadedColor(color: PileColor, index: number) {
 
 type PileColor = "violet" | "blue" | "amber";
 
-type TopicPile = {
+export type TopicPile = {
   name: string;
   detail: string;
   slots: number;

@@ -83,6 +83,7 @@ export * from "./otel/utils";
 export * from "./clickhouse/client";
 export {
   getClickHouseCompatibilitySettings,
+  getDetectedClickHouseVersion,
   initializeClickhouseCompatibility,
 } from "./clickhouse/compatibility";
 export * from "./clickhouse/schemaUtils";

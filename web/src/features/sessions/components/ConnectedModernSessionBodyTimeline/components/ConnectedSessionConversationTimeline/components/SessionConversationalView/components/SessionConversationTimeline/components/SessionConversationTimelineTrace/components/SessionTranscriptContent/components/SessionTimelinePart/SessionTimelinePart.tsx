@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
 import { JsonViewController } from "@/src/components/ui/JsonViewController";
 import {
