@@ -1,11 +1,7 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 const LOCAL_GATEWAY_HOSTS = new Set(["localhost", "127.0.0.1", "[::1]"]);
 
 /** Matches numbered preview hosts that use the certificate-covered gateway hostname. */
 const PREVIEW_HOST = /^pr-(\d+)\.preview\.langfuse\.com$/;
-
-/** Staging serves the gateway on the product host under `/openai/v1` and `/anthropic`. */
-const STAGING_ORIGIN = "https://staging.langfuse.com";
 
 /**
  * Returns the gateway URL shown to users. A configured `publicUrl` wins and is
@@ -14,10 +10,6 @@ const STAGING_ORIGIN = "https://staging.langfuse.com";
 export function getGatewayBaseUrl(productBaseUrl: URL, publicUrl?: string) {
   if (publicUrl) {
     return new URL(publicUrl).toString().replace(/\/+$/, "");
-  }
-
-  if (productBaseUrl.origin === STAGING_ORIGIN) {
-    return STAGING_ORIGIN;
   }
 
   const gatewayBaseUrl = new URL(productBaseUrl);

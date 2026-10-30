@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { randomUUID } from "node:crypto";
 import { parseArgs } from "node:util";
 import { hash } from "bcryptjs";

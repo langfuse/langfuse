@@ -44,18 +44,6 @@ export function buildClaudeDesktopInstructions(
           "Set Credential kind to Static API key, paste your gateway key as Gateway API key, and select Bearer as the auth scheme.",
       },
       {
-        title: "Add the user header",
-        description: "Under Custom headers, add a header with this name.",
-        language: "text",
-        code: "langfuse-user-id",
-      },
-      {
-        title: "Set the header value",
-        description: "Enter your email or handle as its value.",
-        language: "text",
-        code: context.userId,
-      },
-      {
         title: "Allow egress hosts",
         description:
           "Under Capabilities → General restrictions, we recommend adding \"*\" to Allowed egress hosts. Otherwise, Claude can't reach websites or services outside the gateway, such as GitHub, and won't ask for permission.",

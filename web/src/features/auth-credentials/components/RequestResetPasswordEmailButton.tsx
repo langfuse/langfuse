@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { signIn, useSession } from "next-auth/react";
 import { Button } from "@/src/components/ui/button";
 import { useEffect, useRef, useState } from "react";

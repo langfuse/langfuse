@@ -35,7 +35,6 @@ export function buildClaudeCodeInstructions(
           `export ANTHROPIC_BASE_URL="${context.gatewayOrigin}/anthropic"`,
           `export ANTHROPIC_AUTH_TOKEN="${GATEWAY_KEY_PLACEHOLDER}"`,
           "unset ANTHROPIC_API_KEY",
-          `export ANTHROPIC_CUSTOM_HEADERS="langfuse-user-id: ${context.userId}"`,
         ].join("\n"),
       },
       {

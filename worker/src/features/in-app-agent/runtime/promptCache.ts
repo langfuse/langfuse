@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { isRecord } from "@langfuse/shared/in-app-agent/server/toolErrors";
 
 type PromptCacheProvider =

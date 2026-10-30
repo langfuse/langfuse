@@ -1,10 +1,10 @@
 import { Button } from "@/src/components/design-system/Button/Button";
 import { Stepper } from "@/src/components/design-system/Stepper/Stepper";
-import { GATEWAY_SETUP } from "@/src/features/ai-gateway/components/GatewaySetupPage/constants/gatewaySetup";
 import {
   TeamInviteForm,
   type TeamInviteFormProps,
 } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/GatewaySetupGuide/components/TeamInviteStep/components/TeamInviteForm/TeamInviteForm";
+import { TEAM_NOTIFY_COPY } from "@/src/features/ai-gateway/constants/gatewayTeamInvites";
 import type { getSetupStepStatus } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/GatewaySetupGuide/fns/getSetupStepStatus";
 
 export type TeamInviteStepProps = TeamInviteFormProps & {
@@ -15,22 +15,21 @@ export function TeamInviteStep({ status, ...formProps }: TeamInviteStepProps) {
   return (
     <Stepper
       number={3}
-      title="Invite your team"
+      title={TEAM_NOTIFY_COPY.title}
       size="sm"
       status={status}
       isCollapsible={false}
       description={
         <>
-          Members can create their own gateway keys and use the models you
-          enabled. New people join as Member.
+          {TEAM_NOTIFY_COPY.description}
           {status === "current" ? (
             <>
               {" "}
               <Button
                 variant="text"
                 size="sm"
-                text="How gateway keys work"
-                href={GATEWAY_SETUP.docsUrl}
+                text="About roles"
+                href={TEAM_NOTIFY_COPY.rolesDocsUrl}
               />
             </>
           ) : null}
