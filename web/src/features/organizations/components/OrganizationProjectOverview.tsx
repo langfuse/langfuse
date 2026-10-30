@@ -27,7 +27,7 @@ import {
   useHasOrganizationAccess,
 } from "@/src/features/rbac";
 import { env } from "@/src/env.mjs";
-import { Fragment, type ReactNode, useEffect } from "react";
+import { Fragment, type ReactNode } from "react";
 import { useRouter } from "next/router";
 import { useSession } from "next-auth/react";
 import {
@@ -50,12 +50,12 @@ import { useV4UpgradeUiEnabled } from "@/src/features/v4-migration/useV4UpgradeU
 import { useAccountV4MigrationData } from "@/src/features/v4-migration/hooks/useV4MigrationData";
 import { getProjectMigrationReadiness } from "@/src/features/v4-migration/migrationData";
 import { ErrorPage } from "@/src/components/error-page";
-import { useIsFeatureEnabled } from "@/src/features/feature-flags";
 import { GatewayLaunchBanner } from "@/src/features/ai-gateway/components/GatewayLaunch/GatewayLaunchBanner";
 import { useGatewayKeyReminder } from "@/src/features/ai-gateway/hooks/useGatewayKeyReminder";
 import { useGatewayLaunchTarget } from "@/src/features/ai-gateway/hooks/useGatewayLaunchEligibility";
 import { useGatewaySettingsAccess } from "@/src/features/ai-gateway/hooks/useGatewaySettingsAccess";
 import { getContextualFeatureFlags } from "@/src/features/feature-flags/utils";
+import { gatewayOnlyLanding } from "@/src/features/organizations/utils/gatewayOnlyLanding";
 
 const lastTraceLabel = (lastTraceAt: Date | string | null | undefined) =>
   lastTraceAt
@@ -449,15 +449,7 @@ export const OrganizationProjectOverview = () => {
   const organizations = session.data?.user?.organizations;
   const [{ search }, setQueryParams] = useQueryParams({ search: StringParam });
   const v4MigrationBannerState = useV4MigrationBannerState(v4UpgradeUiEnabled);
-  const hiddenProjectsOrgId = orgIdWithHiddenProjects({
-    session: session.data,
-    queryOrgId,
-    organizations,
-  });
-  const canUseGateway = useCanUseGateway(hiddenProjectsOrgId);
-  const settingsRedirectOrgId =
-    (canUseGateway && hiddenProjectsOrgId) || undefined;
-  useRedirectToOrganizationSettings(settingsRedirectOrgId);
+  const landing = gatewayOnlyLanding(session.data, queryOrgId);
   const gatewayLaunchCandidates = (organizations ?? [])
     .filter(
       (org) =>
@@ -483,7 +475,7 @@ export const OrganizationProjectOverview = () => {
   const gatewayLaunchTarget = useGatewayLaunchTarget(gatewayLaunchCandidates);
   const userId = session.data?.user?.id;
 
-  if (hiddenProjectsOrgId && !canUseGateway) {
+  if (landing && !landing.canUseGateway) {
     return (
       <ErrorPage
         title="No access to this organization"
@@ -492,7 +484,7 @@ export const OrganizationProjectOverview = () => {
     );
   }
 
-  if (organizations === undefined || settingsRedirectOrgId) {
+  if (organizations === undefined) {
     return "loading...";
   }
 
@@ -667,69 +659,5 @@ const Onboarding = () => {
     </Card>
   );
 };
-
-/** useCanUseGateway reports whether the user can invoke the AI Gateway in the given org */
-function useCanUseGateway(orgId: string | undefined) {
-  const { data: session } = useSession();
-  const isAiGatewayEnabled = useIsFeatureEnabled("aiGateway", {
-    enableForAdmins: false,
-    organizationId: orgId,
-  });
-  if (!orgId || !isAiGatewayEnabled) return false;
-  return hasOrganizationAccess({
-    session,
-    organizationId: orgId,
-    scope: "gateway:invoke",
-  });
-}
-
-/** useRedirectToOrganizationSettings sends the user to the given org's settings */
-function useRedirectToOrganizationSettings(orgId: string | undefined) {
-  const router = useRouter();
-
-  useEffect(() => {
-    if (!orgId) return;
-    router.replace(`/organization/${orgId}/settings`).catch(() => undefined);
-  }, [router, orgId]);
-}
-
-/** orgIdWithHiddenProjects returns the landing org whose projects the user cannot see */
-function orgIdWithHiddenProjects({
-  session,
-  queryOrgId,
-  organizations,
-}: {
-  session: Session | null;
-  queryOrgId: string | string[] | undefined;
-  organizations: Organization[] | undefined;
-}) {
-  const org = landingOrganization(queryOrgId, organizations ?? []);
-  if (!org || canViewOrganizationProjects(session, org)) return undefined;
-  return org.id;
-}
-
-/** landingOrganization picks the org requested in the URL, or the user's only org */
-function landingOrganization(
-  queryOrgId: string | string[] | undefined,
-  organizations: Organization[],
-) {
-  if (queryOrgId) return organizations.find((org) => org.id === queryOrgId);
-  if (organizations.length === 1) return organizations[0];
-  return undefined;
-}
-
-/** canViewOrganizationProjects is true when the user can read the org settings or any of its projects */
-function canViewOrganizationProjects(
-  session: Session | null,
-  org: Organization,
-) {
-  return (
-    hasOrganizationAccess({
-      session,
-      organizationId: org.id,
-      scope: "organizationSettings:read",
-    }) || org.projects.length > 0
-  );
-}
 
 type Organization = NonNullable<Session["user"]>["organizations"][number];

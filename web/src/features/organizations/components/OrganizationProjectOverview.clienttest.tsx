@@ -65,43 +65,7 @@ describe("OrganizationProjectOverview", () => {
       query: {},
       replace: vi.fn(),
     } as unknown as ReturnType<typeof useRouter>);
-    vi.mocked(useSession).mockReturnValue({
-      status: "authenticated",
-      update: vi.fn(),
-      data: {
-        expires: "",
-        user: {
-          id: "user-1",
-          admin: false,
-          organizations: [
-            {
-              id: "gateway-org",
-              name: "Gateway Org",
-              role: "AI_GATEWAY",
-              plan: "oss",
-              projects: [],
-            },
-            {
-              id: "owner-org",
-              name: "Owner Org",
-              role: "OWNER",
-              plan: "oss",
-              projects: [],
-            },
-            {
-              id: "project-org",
-              name: "Project Org",
-              role: "MEMBER",
-              plan: "oss",
-              projects: [
-                { id: "project-1", name: "Project 1", role: "MEMBER" },
-              ],
-            },
-          ],
-        },
-        environment: { aiGatewayDeployed: true },
-      },
-    } as unknown as ReturnType<typeof useSession>);
+    mockSession(true);
   });
 
   it("points orgs without visible projects to their settings", () => {
@@ -140,25 +104,11 @@ describe("OrganizationProjectOverview", () => {
       screen.getAllByText("This organization has no projects yet."),
     ).toHaveLength(1);
   });
-  it("sends gateway-only members to their organization settings", () => {
-    const replace = vi.fn(() => Promise.resolve(true));
-    vi.mocked(useRouter).mockReturnValue({
-      query: { organizationId: "gateway-org" },
-      replace,
-    } as unknown as ReturnType<typeof useRouter>);
-
-    render(<OrganizationProjectOverview />);
-
-    expect(replace).toHaveBeenCalledWith("/organization/gateway-org/settings");
-  });
-
   it("tells gateway-only members when the AI Gateway is off for their organization", () => {
-    const replace = vi.fn(() => Promise.resolve(true));
     vi.mocked(useRouter).mockReturnValue({
       query: { organizationId: "gateway-org" },
-      replace,
     } as unknown as ReturnType<typeof useRouter>);
-    vi.mocked(useIsFeatureEnabled).mockReturnValue(false);
+    mockSession(false);
 
     render(<OrganizationProjectOverview />);
 
@@ -167,6 +117,45 @@ describe("OrganizationProjectOverview", () => {
         "AI Gateway is not enabled for this organization. Ask an organization admin to change your role.",
       ),
     ).toBeInTheDocument();
-    expect(replace).not.toHaveBeenCalled();
   });
 });
+
+/** mockSession signs in a user who belongs to a gateway-only, an owner and a project org */
+function mockSession(gatewayEnabled: boolean) {
+  vi.mocked(useSession).mockReturnValue({
+    status: "authenticated",
+    update: vi.fn(),
+    data: {
+      expires: "",
+      user: {
+        id: "user-1",
+        admin: false,
+        organizations: [
+          {
+            id: "gateway-org",
+            name: "Gateway Org",
+            role: "AI_GATEWAY",
+            plan: "oss",
+            projects: [],
+            featureFlags: { aiGateway: gatewayEnabled },
+          },
+          {
+            id: "owner-org",
+            name: "Owner Org",
+            role: "OWNER",
+            plan: "oss",
+            projects: [],
+          },
+          {
+            id: "project-org",
+            name: "Project Org",
+            role: "MEMBER",
+            plan: "oss",
+            projects: [{ id: "project-1", name: "Project 1", role: "MEMBER" }],
+          },
+        ],
+      },
+      environment: { aiGatewayDeployed: true },
+    },
+  } as unknown as ReturnType<typeof useSession>);
+}
