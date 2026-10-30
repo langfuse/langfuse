@@ -2,12 +2,6 @@ import { type ComponentProps } from "react";
 import { JsonViewController } from "./JsonViewController";
 import { PrettyJsonViewContent } from "./PrettyJsonViewContent";
 
-export {
-  decodeUnicodeInJson,
-  DECODE_UNICODE_MAX_NODES,
-  DECODE_UNICODE_MAX_DEPTH,
-} from "@/src/utils/decodeUnicodeInJson";
-
 export function PrettyJsonView({
   json,
   parsedJson,

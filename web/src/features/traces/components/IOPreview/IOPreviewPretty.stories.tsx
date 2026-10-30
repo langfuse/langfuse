@@ -387,31 +387,37 @@ export const AvailableSkills = meta.story({
 export const RequestedSkills = meta.story({
   name: "(Test) Requested skills",
   args: {
+    ...toolPreviewArgs(
+      [],
+      new Map([["langfuse_loadSkillResource", 1]]),
+      new Map([
+        [
+          "langfuse_loadSkillResource",
+          [
+            {
+              id: "read-refund-policy",
+              name: "langfuse_loadSkillResource",
+              arguments: {
+                name: "refund-policy",
+                path: "references/refunds.md",
+              },
+              invocationNumber: 1,
+            },
+          ],
+        ],
+      ]),
+    ),
     skills: {
       kind: "available",
       items: [{ skillName: "refund-policy" }, { skillName: "shipping-policy" }],
-    },
-    output: {
-      role: "assistant",
-      tool_calls: [
-        {
-          id: "read-refund-policy",
-          type: "function",
-          function: {
-            name: "langfuse_loadSkillResource",
-            arguments: JSON.stringify({
-              name: "refund-policy",
-              path: "references/refunds.md",
-            }),
-          },
-        },
-      ],
     },
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     await expect(
-      canvas.getByRole("tab", { name: /Requested 1/ }),
+      (await canvas.findByText("Requested", { exact: true })).closest(
+        '[role="tab"]',
+      ),
     ).toHaveAttribute("aria-selected", "true");
     await userEvent.click(
       canvas.getByRole("button", { name: "2 available skills show" }),
@@ -424,7 +430,7 @@ export const RequestedSkills = meta.story({
     await expect(
       canvas.queryByText("shipping-policy", { exact: true }),
     ).not.toBeInTheDocument();
-    await userEvent.click(canvas.getByRole("tab", { name: /Not requested 1/ }));
+    await userEvent.click(canvas.getByText("Not requested", { exact: true }));
     await expect(
       canvas.getByText("shipping-policy", { exact: true }),
     ).toBeVisible();
@@ -433,7 +439,7 @@ export const RequestedSkills = meta.story({
         name: "Files requested for refund-policy",
       }),
     ).not.toBeInTheDocument();
-    await userEvent.click(canvas.getByRole("tab", { name: /Requested 1/ }));
+    await userEvent.click(canvas.getByText("Requested", { exact: true }));
     await expect(
       canvas.getByRole("button", { name: "Files requested for refund-policy" }),
     ).toHaveAttribute("aria-expanded", "false");
