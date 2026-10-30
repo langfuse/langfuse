@@ -38,6 +38,14 @@ export const OpenRouterSelected = meta.story({
   },
 });
 
+export const NaceSelected = meta.story({
+  args: {
+    "aria-label": "Upstream",
+    value: "nace",
+    onValueChange: fn(),
+  },
+});
+
 export const CustomSelected = meta.story({
   args: {
     "aria-label": "Upstream",

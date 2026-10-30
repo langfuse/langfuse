@@ -1,8 +1,9 @@
-import { type LLMAdapter, supportedModels } from "@langfuse/shared";
+import { getConnectionDefaultModels, type LLMAdapter } from "@langfuse/shared";
 
-/** Returns a connection's custom models plus, if enabled, its adapter's default models. */
+/** Returns a connection's custom models plus, if enabled, its default models. */
 export function getConnectionAvailableModels(connection: {
   adapter: LLMAdapter;
+  baseURL?: string | null;
   customModels: string[];
   withDefaultModels: boolean;
 }): string[] {
@@ -10,7 +11,7 @@ export function getConnectionAvailableModels(connection: {
     new Set([
       ...connection.customModels,
       ...(connection.withDefaultModels
-        ? supportedModels[connection.adapter]
+        ? getConnectionDefaultModels(connection)
         : []),
     ]),
   );

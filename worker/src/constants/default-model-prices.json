@@ -8802,5 +8802,45 @@
         }
       }
     ]
+  },
+  {
+    "id": "68ed8718-4424-4d8a-a8fd-4b29127cd945",
+    "modelName": "drex-max",
+    "matchPattern": "(?i)^drex-max(-v1\\.1)?$",
+    "createdAt": "2026-10-26T00:00:00.000Z",
+    "updatedAt": "2026-10-31T00:00:00.000Z",
+    "pricingTiers": [
+      {
+        "id": "68ed8718-4424-4d8a-a8fd-4b29127cd945_tier_default",
+        "name": "Standard",
+        "isDefault": true,
+        "priority": 0,
+        "conditions": [],
+        "prices": {
+          "input": 0.03e-6,
+          "output": 0
+        }
+      }
+    ]
+  },
+  {
+    "id": "e2b6a1c4-3d57-4f0a-8b92-6c1d7a5e9f38",
+    "modelName": "drex-v2.0",
+    "matchPattern": "(?i)^drex-(v2\\.0|latest)$",
+    "createdAt": "2026-10-31T00:00:00.000Z",
+    "updatedAt": "2026-10-31T00:00:00.000Z",
+    "pricingTiers": [
+      {
+        "id": "e2b6a1c4-3d57-4f0a-8b92-6c1d7a5e9f38_tier_default",
+        "name": "Standard",
+        "isDefault": true,
+        "priority": 0,
+        "conditions": [],
+        "prices": {
+          "input": 0.06e-6,
+          "output": 0
+        }
+      }
+    ]
   }
 ]
