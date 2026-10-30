@@ -21,7 +21,7 @@
   },
   "2026-03-06-add-llm-connection-v3": {
     "title": "Add an LLM connection",
-    "description": "Project Settings > \"LLM Connections\". Click \"+ Project Connection\", choose the LLM adapter (openai), enter a provider name and an API key; \"Show advanced settings\" holds the base URL and custom models, and \"Create connection\" saves it. The video closes the dialog without creating the connection."
+    "description": "Project Settings > \"LLM Connections\". Click \"+ Project Connection\", choose the LLM adapter (openai), enter a provider name (openai-support) and an API key, then click \"Create connection\"; Langfuse checks the key and the new connection appears under Project connections. \"Show advanced settings\" holds the base URL and custom models."
   },
   "2026-06-17-create-multimodal-dataset-item": {
     "title": "Add an image to a dataset item",

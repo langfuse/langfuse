@@ -52,7 +52,7 @@ function summary(
 export const docsDemoProjectScenario: ScenarioDefinition = {
   name: "docs-demo-project",
   description:
-    "Creates the clean 'Acme Corp' org with project 'customer-support' (id docs-demo) plus two sibling projects, makes the demo user OWNER, adds project API keys pk-lf-docs-demo / sk-lf-docs-demo, and — when DOCS_DEMO_LLM_API_KEY is set — an OpenAI-adapter LLM connection (base URL from DOCS_DEMO_LLM_BASE_URL). Run once before the other docs-demo-* scenarios, which take --project docs-demo.",
+    "Creates the clean 'Acme Corp' org with project 'customer-support' (id docs-demo) plus two sibling projects, makes the demo user OWNER, adds project API keys pk-lf-docs-demo / sk-lf-docs-demo, and — when DOCS_DEMO_LLM_API_KEY is set — an OpenAI-adapter LLM connection (base URL from DOCS_DEMO_LLM_BASE_URL); re-runs remove any other project LLM connection. Run once before the other docs-demo-* scenarios, which take --project docs-demo.",
   supportsV4: false,
   flags: [],
   run: async (ctx) => {
@@ -109,6 +109,12 @@ export const docsDemoProjectScenario: ScenarioDefinition = {
         predefinedKeys: DOCS_DEMO_API_KEYS,
       });
     }
+
+    // Connections a video created (the add-LLM-connection scene saves one)
+    // are removed, so every take starts from the same list.
+    await prisma.llmApiKeys.deleteMany({
+      where: { projectId: DOCS_DEMO_PROJECT_ID, provider: { not: "openai" } },
+    });
 
     // The key only ever comes from the environment, never from this file.
     const llmKey = process.env.DOCS_DEMO_LLM_API_KEY; // eslint-disable-line turbo/no-undeclared-env-vars

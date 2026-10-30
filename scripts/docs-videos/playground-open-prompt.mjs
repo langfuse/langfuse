@@ -83,14 +83,19 @@ await page.waitForTimeout(300);
 const submitBox = await submit.boundingBox();
 await glideTo(submitBox.x + submitBox.width * 0.45, submitBox.y - 60, 900);
 wide();
-// Skip ahead to the finished answer: while running, the button shows a
-// spinner instead of its "Submit" label.
-await clickHidden(submit, 350, { x: 0.47, y: 0.5 }, async () => {
-  await page.waitForTimeout(800);
-  await submit.and(page.locator(":enabled")).waitFor({ timeout: 90_000 });
-  await page.getByText(/Dune/).first().waitFor();
-  await page.waitForTimeout(300);
-});
+// Show the model at work: the spinner and the answer streaming in. Only a
+// wait past a few seconds is cut, so a slow gateway cannot stall the take.
+await glideClick(submit, 350, { x: 0.47, y: 0.5 });
+let answered = false;
+const answer = submit
+  .and(page.locator(":enabled"))
+  .waitFor({ timeout: 90_000 })
+  .then(() => (answered = true));
+await page.waitForTimeout(800);
+await Promise.race([answer, page.waitForTimeout(3500)]);
+if (!answered) await scene.cut(() => answer);
+await page.getByText(/Dune/).first().waitFor();
+await page.waitForTimeout(300);
 // The answer spans the full width, so read it in the wide frame.
 const outputBox = await page.getByText("Output", { exact: true }).boundingBox();
 await glideTo(outputBox.x + 700, outputBox.y - 60, 800);
