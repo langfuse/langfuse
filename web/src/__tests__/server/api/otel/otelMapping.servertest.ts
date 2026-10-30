@@ -8943,6 +8943,76 @@ describe("OTel Resource Span Mapping", () => {
       });
     });
 
+    it("should normalize the flat cache_write_input_tokens attribute", async () => {
+      // Strands Agents emits cache writes under this spelling
+      const traceId = "abcdef1234567890abcdef1234567893";
+      const flatCacheWriteSpan = {
+        resource: {
+          attributes: [
+            {
+              key: "service.name",
+              value: { stringValue: "test-service" },
+            },
+          ],
+        },
+        scopeSpans: [
+          {
+            scope: {
+              name: "strands-agents",
+              version: "1.0.0",
+            },
+            spans: [
+              {
+                traceId: Buffer.from(traceId, "hex"),
+                spanId: Buffer.from("1234567890abcde2", "hex"),
+                name: "flat-cache-write-usage",
+                kind: 1,
+                startTimeUnixNano: {
+                  low: 1000000,
+                  high: 406528574,
+                  unsigned: true,
+                },
+                endTimeUnixNano: {
+                  low: 2000000,
+                  high: 406528574,
+                  unsigned: true,
+                },
+                attributes: [
+                  {
+                    key: "gen_ai.usage.input_tokens",
+                    value: {
+                      intValue: { low: 5858, high: 0, unsigned: false },
+                    },
+                  },
+                  {
+                    key: "gen_ai.usage.cache_write_input_tokens",
+                    value: {
+                      intValue: { low: 5848, high: 0, unsigned: false },
+                    },
+                  },
+                ],
+                status: {},
+              },
+            ],
+          },
+        ],
+      };
+
+      const events = await convertOtelSpanToIngestionEvent(
+        flatCacheWriteSpan,
+        new Set(),
+      );
+      const observationEvent = events.find(
+        (event) =>
+          event.type === "generation-create" || event.type === "span-create",
+      );
+
+      expect(observationEvent?.body.usageDetails).toEqual({
+        input: 10,
+        input_cache_creation: 5848,
+      });
+    });
+
     it("should normalize raw Anthropic cache_read_input_tokens / cache_creation_input_tokens into Langfuse canonical keys", async () => {
       // flat Anthropic cache spellings must map to cache aliases, not opaque passthrough buckets
       const traceId = "abcdef1234567890abcdef1234567893";

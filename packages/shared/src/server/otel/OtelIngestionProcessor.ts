@@ -3362,6 +3362,7 @@ export class OtelIngestionProcessor {
       rawUsageDetails["cache_creation.input_tokens"] ??
       rawUsageDetails["cache_write.input_tokens"] ??
       rawUsageDetails["cache_creation_input_tokens"] ??
+      rawUsageDetails["cache_write_input_tokens"] ??
       rawUsageDetails["cache_write_tokens"] ??
       rawUsageDetails["details.cache_write_tokens"] ??
       rawUsageDetails["details.cache_creation_input_tokens"] ??
@@ -3411,6 +3412,7 @@ export class OtelIngestionProcessor {
             "cache_creation.input_tokens",
             "cache_write.input_tokens",
             "cache_creation_input_tokens",
+            "cache_write_input_tokens",
             "cache_write_tokens",
             "details.cache_write_tokens",
             "details.cache_creation_input_tokens",
