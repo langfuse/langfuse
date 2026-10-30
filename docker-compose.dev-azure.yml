@@ -1,6 +1,6 @@
 services:
   clickhouse:
-    image: docker.io/clickhouse/clickhouse-server:26.3.62.3-lts
+    image: docker.io/clickhouse/clickhouse-server:26.3.62.3
     user: "101:101"
     environment:
       CLICKHOUSE_DB: default
