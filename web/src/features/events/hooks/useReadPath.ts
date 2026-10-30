@@ -24,14 +24,15 @@ export function useReadPath(): {
 
   // A session re-check reports "loading" with the previous session still in
   // hand — that keeps the resolved path. Only a cold load is unknown.
-  let readPath: ReadPath;
-  if (session?.user) {
-    readPath = session.user.v4BetaEnabled === true ? "v4" : "v3";
-  } else if (status === "loading") {
-    readPath = "unknown";
-  } else {
-    readPath = "v3";
-  }
+  const readPath = ((): ReadPath => {
+    if (session?.user) {
+      return session.user.v4BetaEnabled === true ? "v4" : "v3";
+    }
+    if (status === "loading") {
+      return "unknown";
+    }
+    return "v3";
+  })();
 
   return {
     readPath,
