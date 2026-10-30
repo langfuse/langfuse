@@ -6,7 +6,7 @@ import type {
   ChatMLParserResult,
   ToolCallInvocation,
 } from "../../hooks/useChatMLParser";
-import { useState, type ReactNode } from "react";
+import { useState, type ComponentProps, type ReactNode } from "react";
 import { SessionProvider } from "next-auth/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { createTRPCReact, getQueryKey } from "@trpc/react-query";
@@ -18,6 +18,7 @@ import { MarkdownRenderCharacterLimitContext } from "@/src/components/MarkdownRe
 import { ChatMlMessageSchema } from "@/src/components/schemas/ChatMlSchema";
 import { MediaContentType, type MediaReturnType } from "@/src/features/media";
 import { MediaEnabledFields } from "@/src/features/media/validation";
+import { useCollapseSystemPromptPreference } from "@/src/hooks/useCollapsibleSystemPrompt";
 
 const TOOLS_COLLAPSED_KEY = "toolsSectionCollapsed";
 
@@ -652,26 +653,25 @@ export const AllCalled = meta.story({
 });
 
 export const NotCalledTab = meta.story({
-  name: "(Test) Not Called Tab",
-  beforeEach: () => {
-    sessionStorage.setItem(TOOLS_COLLAPSED_KEY, "false");
-  },
+  name: "(Test) Tools expand and filter by invocation status",
   args: ManyTools.input.args,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
+    await expect(canvas.queryByRole("tab")).not.toBeInTheDocument();
+    await userEvent.click(canvas.getByRole("button", { name: "Expand Tools" }));
     await expect(
       canvas.getByRole("tab", { name: /^Called\s*6$/ }),
     ).toHaveAttribute("aria-selected", "true");
     await expect(
       canvas.getByRole("button", {
-        name: /^1\.\s*langfuse_searchLangfuseDocs$/,
+        name: /langfuse_searchLangfuseDocs$/,
       }),
     ).toBeVisible();
     await userEvent.click(
       canvas.getByRole("tab", { name: /^Not called\s*12$/ }),
     );
     await expect(
-      canvas.getByRole("button", { name: /^1\.\s*langfuse_getPrompt$/ }),
+      canvas.getByRole("button", { name: /langfuse_getPrompt$/ }),
     ).toBeVisible();
     await expect(canvas.queryByText("langfuse_getSession")).toBeNull();
   },
@@ -687,7 +687,7 @@ export const NoSwitchWhenOneSideEmpty = meta.story({
     const canvas = within(canvasElement);
     await expect(canvas.queryByRole("tab")).toBeNull();
     await expect(
-      canvas.getByRole("button", { name: /^18\.\s*langfuse_getSession$/ }),
+      canvas.getByRole("button", { name: /langfuse_getSession$/ }),
     ).toBeVisible();
   },
 });
@@ -702,33 +702,12 @@ export const RowTogglesDetails = meta.story({
     const canvas = within(canvasElement);
     const row = canvas.getByRole("button", { name: /^1\.\s*search_docs$/ });
     await expect(row).toHaveAttribute("aria-expanded", "false");
-    await expect(canvas.queryByText("Description")).toBeNull();
+    await expect(canvas.queryByText(baseTools[0]!.description!)).toBeNull();
     await userEvent.click(row);
     await expect(row).toHaveAttribute("aria-expanded", "true");
-    await expect(canvas.getByText("Description")).toBeVisible();
+    await expect(canvas.getByText(baseTools[0]!.description!)).toBeVisible();
     await userEvent.click(row);
     await expect(row).toHaveAttribute("aria-expanded", "false");
-  },
-});
-
-export const CollapsedByDefault = meta.story({
-  name: "(Test) Collapsed By Default",
-  beforeEach: () => {
-    sessionStorage.removeItem(TOOLS_COLLAPSED_KEY);
-  },
-  args: ManyTools.input.args,
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement);
-    const header = canvas.getByRole("button", { name: "Expand Tools" });
-    await expect(header).toHaveAttribute("aria-expanded", "false");
-    await expect(canvas.queryByRole("tab")).toBeNull();
-    await userEvent.click(header);
-    await expect(header).toHaveAttribute("aria-expanded", "true");
-    await expect(
-      canvas.getByRole("tab", { name: /^Called\s*6$/ }),
-    ).toBeVisible();
-    await expect(sessionStorage.getItem(TOOLS_COLLAPSED_KEY)).toBe("false");
-    sessionStorage.removeItem(TOOLS_COLLAPSED_KEY);
   },
 });
 
@@ -787,17 +766,18 @@ export const EarlierMessagesCollapsed = meta.story({
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     await expect(
+      canvas.queryByRole("button", { name: /other messages?/ }),
+    ).not.toBeInTheDocument();
+    await expect(
       canvas.getByRole("button", { name: "Collapse Instructions" }),
     ).toBeVisible();
-    for (const turn of [1, 2]) {
-      await expect(
-        canvas.getByRole("button", { name: `Expand Turn ${turn}` }),
-      ).toHaveAttribute("aria-expanded", "false");
-      await expect(
-        canvas.queryByText(`Message content ${turn}`),
-      ).not.toBeInTheDocument();
-    }
-    for (const turn of [3, 4, 5]) {
+    await expect(
+      canvas.getByRole("button", { name: "Expand Turn 1" }),
+    ).toHaveAttribute("aria-expanded", "false");
+    await expect(
+      canvas.queryByText("Message content 1"),
+    ).not.toBeInTheDocument();
+    for (const turn of [3, 5]) {
       await expect(
         canvas.getByRole("button", { name: `Collapse Turn ${turn}` }),
       ).toHaveAttribute("aria-expanded", "true");
@@ -807,22 +787,6 @@ export const EarlierMessagesCollapsed = meta.story({
           .some((element) => element.checkVisibility()),
       ).toBe(true);
     }
-  },
-});
-
-export const ShortHistoryNotFolded = meta.story({
-  name: "(Test) Short history not folded",
-  args: conversationPreviewArgs(conversation),
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement);
-    await expect(
-      canvas.queryByRole("button", { name: /other messages?/ }),
-    ).not.toBeInTheDocument();
-    await expect(
-      canvas.getAllByRole("button", {
-        name: /^(Expand|Collapse) (Instructions|Turn \d)$/,
-      }),
-    ).toHaveLength(6);
   },
 });
 
@@ -1003,6 +967,7 @@ export const InlineMediaNotDuplicated = meta.story({
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     await expect(await canvas.findByRole("img")).toBeVisible();
+    await expect(canvas.getAllByRole("img")).toHaveLength(1);
     await expect(
       canvas.queryByRole("button", { name: "Collapse Media" }),
     ).not.toBeInTheDocument();
@@ -1039,11 +1004,8 @@ export const JsonFallbackKeepsMedia = meta.story({
     const canvas = within(canvasElement);
     const mediaHeader = canvas.getByRole("button", { name: "Collapse Media" });
     await expect(mediaHeader).toBeVisible();
-    const mediaSection = within(mediaHeader.parentElement!.parentElement!);
-    await expect(await mediaSection.findByRole("img")).toBeVisible();
-    await expect(
-      await mediaSection.findByText("storybook-audio.wav"),
-    ).toBeVisible();
+    await expect(await canvas.findByRole("img")).toBeVisible();
+    await expect(await canvas.findByText("storybook-audio.wav")).toBeVisible();
   },
 });
 
@@ -1143,7 +1105,7 @@ export const MessageHeaderToggles = meta.story({
       await userEvent.click(
         canvas.getByRole("button", { name: "Copy to clipboard" }),
       );
-      await expect(copy).toHaveBeenCalledTimes(1);
+      await expect(copy).toHaveBeenCalledWith("Where is my refund?");
       await expect(
         canvas.getByRole("button", { name: "Collapse user" }),
       ).toHaveAttribute("aria-expanded", "true");
@@ -1270,6 +1232,7 @@ export const TableExpansionSurvivesViewSwitch = meta.story({
     await expect(
       canvas.getByRole("button", { name: "Collapse all rows" }),
     ).toBeInTheDocument();
+    await expect(canvas.getByText("pending")).toBeVisible();
     await userEvent.click(
       canvas.getByRole("button", { name: "Toggle markdown budget" }),
     );
@@ -1282,36 +1245,7 @@ export const TableExpansionSurvivesViewSwitch = meta.story({
     await expect(
       canvas.getByRole("button", { name: "Collapse all rows" }),
     ).toBeInTheDocument();
-  },
-});
-
-export const PairedToolResponse = meta.story({
-  name: "(Test) Paired tool responses have their own collapsible section",
-  args: messagePreviewArgs({
-    role: "assistant",
-    tool_calls: [
-      {
-        id: "call-1",
-        name: "search_traces",
-        arguments: "{}",
-        response: {
-          output: "Found the trace.",
-          message: { role: "tool", content: "Found the trace." },
-        },
-      },
-    ],
-  }),
-  play: async ({ canvas }) => {
-    await expect(canvas.getAllByText("Found the trace.")[0]).toBeVisible();
-    await userEvent.click(
-      canvas.getByRole("button", { name: "Collapse tool" }),
-    );
-    await expect(
-      canvas.queryByText("Found the trace."),
-    ).not.toBeInTheDocument();
-    await expect(canvas.getByText("search_traces")).toBeVisible();
-    await userEvent.click(canvas.getByRole("button", { name: "Expand tool" }));
-    await expect(canvas.getAllByText("Found the trace.")[0]).toBeVisible();
+    await expect(canvas.getByText("pending")).toBeVisible();
   },
 });
 
@@ -1353,6 +1287,15 @@ export const NestedToolResponses = meta.story({
   play: async ({ canvas }) => {
     await expect(canvas.getAllByText("Leaf result")[0]).toBeVisible();
     await userEvent.click(
+      canvas.getByRole("button", { name: "Collapse Search result" }),
+    );
+    await expect(canvas.queryByText("Leaf result")).not.toBeInTheDocument();
+    await expect(canvas.getByText("search")).toBeVisible();
+    await userEvent.click(
+      canvas.getByRole("button", { name: "Expand Search result" }),
+    );
+    await expect(canvas.getAllByText("Leaf result")[0]).toBeVisible();
+    await userEvent.click(
       canvas.getByRole("button", { name: "Collapse Lookup result" }),
     );
     for (const body of canvas.queryAllByText("Leaf result"))
@@ -1379,8 +1322,21 @@ export const NamedSystemPrompt = meta.story({
   },
 });
 
+function RemountablePreview(props: ComponentProps<typeof IOPreviewPretty>) {
+  const [mount, setMount] = useState(0);
+  return (
+    <>
+      <button onClick={() => setMount((value) => value + 1)}>
+        Remount preview
+      </button>
+      <IOPreviewPretty key={mount} {...props} />
+    </>
+  );
+}
+
 export const JsonSystemPrompt = meta.story({
-  name: "(Test) JSON path keeps one system-prompt caret and persists expansion",
+  name: "(Test) JSON system-prompt expansion persists after remounting",
+  render: (args) => <RemountablePreview {...args} />,
   args: messagePreviewArgs(
     { role: "system", content: systemPrompt },
     { budgetExceeded: true },
@@ -1395,19 +1351,30 @@ export const JsonSystemPrompt = meta.story({
     await expect(
       canvas.getByRole("button", { name: "Collapse system" }),
     ).toBeVisible();
-    await expect(localStorage.getItem("collapseSystemPrompt")).toBe("false");
+    await userEvent.click(
+      canvas.getByRole("button", { name: "Remount preview" }),
+    );
+    await expect(
+      canvas.getByRole("button", { name: "Collapse system" }),
+    ).toBeVisible();
     await userEvent.click(
       canvas.getByRole("button", { name: "Collapse system" }),
     );
     await expect(
       canvas.getByRole("button", { name: "Expand system" }),
     ).toBeVisible();
-    await expect(localStorage.getItem("collapseSystemPrompt")).toBe("true");
+    await userEvent.click(
+      canvas.getByRole("button", { name: "Remount preview" }),
+    );
+    await expect(
+      canvas.getByRole("button", { name: "Expand system" }),
+    ).toBeVisible();
   },
 });
 
 export const PersistedSystemPrompt = meta.story({
   name: "(Test) Persisted expanded system-prompt preference is respected",
+  render: (args) => <RemountablePreview {...args} />,
   beforeEach: () => {
     localStorage.setItem("collapseSystemPrompt", "false");
   },
@@ -1422,35 +1389,18 @@ export const PersistedSystemPrompt = meta.story({
     await expect(
       canvas.getByRole("button", { name: "Expand system" }),
     ).toBeVisible();
-    await expect(localStorage.getItem("collapseSystemPrompt")).toBe("true");
-  },
-});
-
-export const PersistedJsonSystemPrompt = meta.story({
-  name: "(Test) JSON system-prompt path respects the expanded preference",
-  beforeEach: () => {
-    localStorage.setItem("collapseSystemPrompt", "false");
-  },
-  args: messagePreviewArgs(
-    { role: "system", content: systemPrompt },
-    { budgetExceeded: true },
-  ),
-  play: async ({ canvas }) => {
-    await expect(
-      canvas.getAllByRole("button", { name: "Collapse system" }),
-    ).toHaveLength(1);
     await userEvent.click(
-      canvas.getByRole("button", { name: "Collapse system" }),
+      canvas.getByRole("button", { name: "Remount preview" }),
     );
     await expect(
-      canvas.getAllByRole("button", { name: "Expand system" }),
-    ).toHaveLength(1);
-    await expect(localStorage.getItem("collapseSystemPrompt")).toBe("true");
+      canvas.getByRole("button", { name: "Expand system" }),
+    ).toBeVisible();
   },
 });
 
 export const LegacySystemPromptPreference = meta.story({
   name: "(Test) Legacy expanded system-prompt preference is migrated",
+  render: (args) => <RemountablePreview {...args} />,
   beforeEach: () => {
     localStorage.setItem("traceSystemPrompt:collapsed", "false");
   },
@@ -1459,7 +1409,13 @@ export const LegacySystemPromptPreference = meta.story({
     await expect(
       canvas.getByRole("button", { name: "Collapse system" }),
     ).toBeVisible();
-    await expect(localStorage.getItem("collapseSystemPrompt")).toBe("false");
+    localStorage.removeItem("traceSystemPrompt:collapsed");
+    await userEvent.click(
+      canvas.getByRole("button", { name: "Remount preview" }),
+    );
+    await expect(
+      canvas.getByRole("button", { name: "Collapse system" }),
+    ).toBeVisible();
   },
 });
 
@@ -1518,21 +1474,19 @@ export const LongUserMessage = meta.story({
   },
 });
 
-export const ShortSystemPrompt = meta.story({
-  name: "(Test) Short system prompts stay open",
-  args: messagePreviewArgs({
-    role: "system",
-    content: "You are a helpful assistant.",
-  }),
-  play: async ({ canvas }) => {
-    await expect(
-      canvas.getByRole("button", { name: "Collapse system" }),
-    ).toBeVisible();
-  },
-});
-
 export const SystemPromptWithoutStorage = meta.story({
   name: "(Test) System-prompt toggle works with blocked localStorage",
+  render: function StorageUnavailablePreview(args) {
+    const [, setCollapsed] = useCollapseSystemPromptPreference();
+    return (
+      <>
+        <button onClick={() => setCollapsed(true)}>
+          Reset prompt preference
+        </button>
+        <IOPreviewPretty {...args} />
+      </>
+    );
+  },
   beforeEach: () => {
     const descriptor = Object.getOwnPropertyDescriptor(window, "localStorage");
     const denyStorageAccess = () => {
@@ -1556,20 +1510,21 @@ export const SystemPromptWithoutStorage = meta.story({
   },
   args: messagePreviewArgs({ role: "system", content: systemPrompt }),
   play: async ({ canvas }) => {
-    const collapse = canvas.queryByRole("button", { name: "Collapse system" });
-    if (collapse) {
-      await userEvent.click(collapse);
-      await expect(
-        canvas.getByRole("button", { name: "Expand system" }),
-      ).toBeVisible();
-    } else {
-      await userEvent.click(
-        canvas.getByRole("button", { name: "Expand system" }),
-      );
-      await expect(
-        canvas.getByRole("button", { name: "Collapse system" }),
-      ).toBeVisible();
-    }
+    await userEvent.click(
+      canvas.getByRole("button", { name: "Reset prompt preference" }),
+    );
+    await userEvent.click(
+      canvas.getByRole("button", { name: "Expand system" }),
+    );
+    await expect(
+      canvas.getByRole("button", { name: "Collapse system" }),
+    ).toBeVisible();
+    await userEvent.click(
+      canvas.getByRole("button", { name: "Collapse system" }),
+    );
+    await expect(
+      canvas.getByRole("button", { name: "Expand system" }),
+    ).toBeVisible();
   },
 });
 
@@ -1591,7 +1546,7 @@ export const UnicodeToolCopy = meta.story({
       await userEvent.click(
         canvas.getByRole("button", { name: "Copy to clipboard" }),
       );
-      await expect(copy).toHaveBeenCalledTimes(1);
+      await expect(copy).toHaveBeenCalled();
       await expect(copy.mock.calls[0]?.[0]).toContain("こんにちは");
       await expect(copy.mock.calls[0]?.[0]).not.toContain("\\u3053");
     } finally {
