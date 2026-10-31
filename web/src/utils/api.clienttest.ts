@@ -481,6 +481,18 @@ describe("isExpectedTrpcClientError", () => {
     });
 
     expect(isExpectedTrpcClientError(error)).toBe(false);
+    // Queue/enqueue failure on create is still a real bug — do not hide it
+    // just because CONFLICT on this path is expected.
+    expect(
+      isExpectedTrpcClientError(
+        trpcServerError({
+          code: "INTERNAL_SERVER_ERROR",
+          httpStatus: 500,
+          path: "batchExport.create",
+          message: "Creating export job failed.",
+        }),
+      ),
+    ).toBe(false);
   });
 
   it("does not suppress client validation errors (BAD_REQUEST / CONFLICT)", () => {
@@ -505,6 +517,21 @@ describe("isExpectedTrpcClientError", () => {
       httpStatus: 409,
       path: "inAppAgent.decideToolApproval",
       message: "This approval is no longer pending. Reload the conversation.",
+    });
+
+    expect(isExpectedTrpcClientError(error)).toBe(true);
+  });
+
+  it("treats an in-progress batch export as expected", () => {
+    // batchExport.create throws CONFLICT only from assertNoActiveExport
+    // (one queued/processing export per user and project). The mutation
+    // toast already shows the wait-or-cancel message.
+    const error = trpcServerError({
+      code: "CONFLICT",
+      httpStatus: 409,
+      path: "batchExport.create",
+      message:
+        "Your export started at 2026-01-02 03:04 UTC is still running. Wait for it to finish or cancel it under Settings > Exports.",
     });
 
     expect(isExpectedTrpcClientError(error)).toBe(true);
@@ -865,6 +892,26 @@ describe("reportTrpcErrorWithoutToast", () => {
     expect(addBreadcrumbMock.mock.calls[0]![0].data).toMatchObject({
       code: "CONFLICT",
       path: "inAppAgent.decideToolApproval",
+    });
+  });
+
+  it("suppresses an in-progress batch export (breadcrumb, no capture)", () => {
+    reportTrpcErrorWithoutToast(
+      trpcServerError({
+        code: "CONFLICT",
+        httpStatus: 409,
+        path: "batchExport.create",
+        message:
+          "Your export started at 2026-01-02 03:04 UTC is still running. Wait for it to finish or cancel it under Settings > Exports.",
+      }),
+      "batch-exports",
+    );
+
+    expect(captureExceptionMock).not.toHaveBeenCalled();
+    expect(addBreadcrumbMock).toHaveBeenCalledTimes(1);
+    expect(addBreadcrumbMock.mock.calls[0]![0].data).toMatchObject({
+      code: "CONFLICT",
+      path: "batchExport.create",
     });
   });
 
