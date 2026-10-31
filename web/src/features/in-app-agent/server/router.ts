@@ -41,6 +41,8 @@ import {
 } from "@/src/features/in-app-agent/server/rateLimit";
 import { assertInAppAgentRunCapacity } from "@/src/features/in-app-agent/server/runCapacity";
 import { hasInternalAccess } from "@/src/features/feature-flags/server";
+import { canViewTopics } from "@/src/features/topics/topicsAccess";
+import { isTopicsProjectEnabled } from "@langfuse/shared/topics/server";
 import {
   cancelBackgroundRun,
   decideBackgroundApproval,
@@ -245,6 +247,10 @@ export const inAppAgentRouter = createTRPCRouter({
         message: input.message,
         context: input.context,
         isV4Enabled: ctx.session.user.v4BetaEnabled === true,
+        topicsAvailable: canViewTopics(ctx.session, {
+          id: input.projectId,
+          topicsEnabled: isTopicsProjectEnabled(input.projectId),
+        }),
         model: modelConfig.modelId,
         aiTelemetryEnabled: projectAvailability.aiTelemetryEnabled,
       });

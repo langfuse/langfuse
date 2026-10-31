@@ -7835,6 +7835,196 @@ paths:
               schema:
                 $ref: '#/components/schemas/unstablePublicApiError'
       security: *ref_0
+  /api/public/unstable/topic-traces:
+    get:
+      description: >-
+        Unstable: Topics is in closed beta. The shape may change without notice.
+
+
+        List traces with their current Topics result per facet, one row per
+
+        trace. A trace is listed when it has a Topics summary in the window
+
+        for at least one requested facet. `facets` on each row follows the
+
+        order of `GET /topic-facets`; a facet without a result for the trace
+
+        has `state: not_processed`.
+
+
+        The window applies to the trace start time. It defaults to the last
+
+        7 days and can span at most 93 days.
+
+
+        `filter` is a JSON array of filter conditions combined with AND.
+
+        Facet-keyed conditions use `categoryOptions`, `stringObject` or
+
+        `numberObject` with `key` set to a facet id or name. Columns:
+
+        `traceId` (stringOptions), `traceName` (string, stringOptions),
+
+        `environment` (stringOptions), `sessionId` (string, stringOptions),
+
+        `userId` (stringOptions, exact match), `timestamp` (datetime),
+
+        `processedAt` (datetime), `topicId` (stringOptions), `topicName`
+
+        (stringOptions across facets, or categoryOptions keyed by facet),
+
+        `topicStatus` (categoryOptions keyed by facet), `summary`
+
+        (stringObject keyed by facet, including `is set` / `is not set`),
+
+        `facetVersion` (numberObject keyed by facet).
+
+
+        `topicStatus` values: `assigned` (the trace belongs to a topic of the
+
+        current map), `outlier` (summarized, but no topic fits),
+
+        `awaiting_map` (summarized, not yet assigned), `not_applicable` (the
+
+        facet does not apply to the trace), `insufficient_input` (too little
+
+        input to summarize).
+
+
+        Common questions:
+
+        - Topics of specific traces: `traceId` `any of` the trace ids.
+
+        - Traces in a topic: `topicName` keyed by facet, or `topicId`.
+
+        - Traces without a topic yet: `topicStatus` `any of` `["awaiting_map",
+        "outlier"]`.
+
+        - Traces of a user or session: `userId` or `sessionId`.
+      operationId: unstable_topics_getTopicsForTraces
+      tags:
+        - UnstableTopics
+      parameters:
+        - name: fromTimestamp
+          in: query
+          description: >-
+            Start of the window (trace start time, inclusive). Defaults to 7
+            days before `toTimestamp`.
+          required: false
+          schema:
+            type: string
+            format: date-time
+            nullable: true
+        - name: toTimestamp
+          in: query
+          description: End of the window (trace start time, exclusive). Defaults to now.
+          required: false
+          schema:
+            type: string
+            format: date-time
+            nullable: true
+        - name: filter
+          in: query
+          description: >-
+            JSON array of filter conditions, for example
+            `[{"type":"categoryOptions","column":"topicStatus","key":"Issues","operator":"any
+            of","value":["assigned"]}]`.
+          required: false
+          schema:
+            type: string
+            nullable: true
+        - name: facets
+          in: query
+          description: >-
+            Comma-separated facet ids or names to include on each row. Defaults
+            to all active facets.
+          required: false
+          schema:
+            type: string
+            nullable: true
+        - name: includeTotal
+          in: query
+          description: >-
+            Whether to count all matching traces in `meta.totalItems`. Defaults
+            to `false`.
+          required: false
+          schema:
+            type: boolean
+            nullable: true
+        - name: truncateSummaries
+          in: query
+          description: >-
+            Whether to truncate summaries to 500 characters. Defaults to `false`.
+          required: false
+          schema:
+            type: boolean
+            nullable: true
+        - name: orderBy
+          in: query
+          description: Defaults to `timestamp.desc`.
+          required: false
+          schema:
+            $ref: '#/components/schemas/unstableTopicTracesOrderBy'
+            nullable: true
+        - name: limit
+          in: query
+          description: Maximum number of traces per page. Defaults to `50`, at most `500`.
+          required: false
+          schema:
+            type: integer
+            nullable: true
+        - name: cursor
+          in: query
+          description: The `meta.cursor` of the previous page.
+          required: false
+          schema:
+            type: string
+            nullable: true
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/unstableTopicTraceList'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '429':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/unstablePublicApiError'
+        '500':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/unstablePublicApiError'
+      security: *ref_0
 components:
   schemas:
     AnnotationQueueStatus:
@@ -15118,6 +15308,149 @@ components:
       required:
         - message
         - code
+    unstableTopicTracesOrderBy:
+      title: unstableTopicTracesOrderBy
+      type: string
+      enum:
+        - timestamp.desc
+        - timestamp.asc
+    unstableTopicTraceFacetState:
+      title: unstableTopicTraceFacetState
+      type: string
+      enum:
+        - complete
+        - not_applicable
+        - insufficient_input
+        - not_processed
+    unstableTopicTraceAssignmentStatus:
+      title: unstableTopicTraceAssignmentStatus
+      type: string
+      enum:
+        - assigned
+        - outlier
+        - awaiting_map
+    unstableTopicTraceTopic:
+      title: unstableTopicTraceTopic
+      type: object
+      properties:
+        id:
+          type: string
+          description: Stable topic id.
+        versionId:
+          type: string
+        name:
+          type: string
+      required:
+        - id
+        - versionId
+        - name
+    unstableTopicTraceAssignment:
+      title: unstableTopicTraceAssignment
+      type: object
+      properties:
+        status:
+          $ref: '#/components/schemas/unstableTopicTraceAssignmentStatus'
+        topic:
+          $ref: '#/components/schemas/unstableTopicTraceTopic'
+          nullable: true
+          description: Set when `status` is `assigned`.
+      required:
+        - status
+    unstableTopicTraceFacet:
+      title: unstableTopicTraceFacet
+      type: object
+      properties:
+        facetId:
+          type: string
+        facetName:
+          type: string
+        facetVersion:
+          type: integer
+          nullable: true
+        state:
+          $ref: '#/components/schemas/unstableTopicTraceFacetState'
+        summary:
+          type: string
+          nullable: true
+          description: The facet summary of the trace. Set when `state` is `complete`.
+        summaryTruncated:
+          type: boolean
+        processedAt:
+          type: string
+          format: date-time
+          nullable: true
+        assignment:
+          $ref: '#/components/schemas/unstableTopicTraceAssignment'
+          nullable: true
+          description: Set when `state` is `complete`.
+      required:
+        - facetId
+        - facetName
+        - state
+        - summaryTruncated
+    unstableTopicTrace:
+      title: unstableTopicTrace
+      type: object
+      properties:
+        traceId:
+          type: string
+        traceName:
+          type: string
+        environment:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+        traceUrl:
+          type: string
+          description: Path of the trace in the Langfuse UI.
+        processedAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: >-
+            Latest Topics processing time across the returned facets. Null when
+            the trace matched through a filter facet and none of the returned
+            facets has processed it yet.
+        facets:
+          type: array
+          items:
+            $ref: '#/components/schemas/unstableTopicTraceFacet'
+      required:
+        - traceId
+        - traceName
+        - environment
+        - timestamp
+        - traceUrl
+        - facets
+    unstableTopicTraceListMeta:
+      title: unstableTopicTraceListMeta
+      type: object
+      properties:
+        cursor:
+          type: string
+          nullable: true
+          description: Pass as `cursor` to fetch the next page. Null on the last page.
+        totalItems:
+          type: integer
+          nullable: true
+          description: Set when `includeTotal` is `true`.
+    unstableTopicTraceList:
+      title: unstableTopicTraceList
+      type: object
+      properties:
+        window:
+          $ref: '#/components/schemas/unstableTopicWindow'
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/unstableTopicTrace'
+        meta:
+          $ref: '#/components/schemas/unstableTopicTraceListMeta'
+      required:
+        - window
+        - data
+        - meta
     unstableTopicsOrderBy:
       title: unstableTopicsOrderBy
       type: string

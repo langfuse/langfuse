@@ -138,8 +138,165 @@ service:
         - errors.MethodNotAllowedError
         - errors.TooManyRequestsError
         - errors.InternalServerError
+    getTopicsForTraces:
+      docs: |
+        Unstable: Topics is in closed beta. The shape may change without notice.
+
+        List traces with their current Topics result per facet, one row per
+        trace. A trace is listed when it has a Topics summary in the window
+        for at least one requested facet. `facets` on each row follows the
+        order of `GET /topic-facets`; a facet without a result for the trace
+        has `state: not_processed`.
+
+        The window applies to the trace start time. It defaults to the last
+        7 days and can span at most 93 days.
+
+        `filter` is a JSON array of filter conditions combined with AND.
+        Facet-keyed conditions use `categoryOptions`, `stringObject` or
+        `numberObject` with `key` set to a facet id or name. Columns:
+        `traceId` (stringOptions), `traceName` (string, stringOptions),
+        `environment` (stringOptions), `sessionId` (string, stringOptions),
+        `userId` (stringOptions, exact match), `timestamp` (datetime),
+        `processedAt` (datetime), `topicId` (stringOptions), `topicName`
+        (stringOptions across facets, or categoryOptions keyed by facet),
+        `topicStatus` (categoryOptions keyed by facet), `summary`
+        (stringObject keyed by facet, including `is set` / `is not set`),
+        `facetVersion` (numberObject keyed by facet).
+
+        `topicStatus` values: `assigned` (the trace belongs to a topic of the
+        current map), `outlier` (summarized, but no topic fits),
+        `awaiting_map` (summarized, not yet assigned), `not_applicable` (the
+        facet does not apply to the trace), `insufficient_input` (too little
+        input to summarize).
+
+        Common questions:
+        - Topics of specific traces: `traceId` `any of` the trace ids.
+        - Traces in a topic: `topicName` keyed by facet, or `topicId`.
+        - Traces without a topic yet: `topicStatus` `any of` `["awaiting_map", "outlier"]`.
+        - Traces of a user or session: `userId` or `sessionId`.
+      method: GET
+      path: /topic-traces
+      request:
+        name: GetTopicsForTracesRequest
+        query-parameters:
+          fromTimestamp:
+            type: optional<datetime>
+            docs: Start of the window (trace start time, inclusive). Defaults to 7 days before `toTimestamp`.
+          toTimestamp:
+            type: optional<datetime>
+            docs: End of the window (trace start time, exclusive). Defaults to now.
+          filter:
+            type: optional<string>
+            docs: JSON array of filter conditions, for example `[{"type":"categoryOptions","column":"topicStatus","key":"Issues","operator":"any of","value":["assigned"]}]`.
+          facets:
+            type: optional<string>
+            docs: Comma-separated facet ids or names to include on each row. Defaults to all active facets.
+          includeTotal:
+            type: optional<boolean>
+            docs: Whether to count all matching traces in `meta.totalItems`. Defaults to `false`.
+          truncateSummaries:
+            type: optional<boolean>
+            docs: Whether to truncate summaries to 500 characters. Defaults to `false`.
+          orderBy:
+            type: optional<TopicTracesOrderBy>
+            docs: Defaults to `timestamp.desc`.
+          limit:
+            type: optional<integer>
+            docs: Maximum number of traces per page. Defaults to `50`, at most `500`.
+          cursor:
+            type: optional<string>
+            docs: The `meta.cursor` of the previous page.
+      response: TopicTraceList
+      errors:
+        - errors.BadRequestError
+        - errors.UnauthorizedError
+        - errors.AccessDeniedError
+        - errors.NotFoundError
+        - errors.MethodNotAllowedError
+        - errors.TooManyRequestsError
+        - errors.InternalServerError
 
 types:
+  TopicTracesOrderBy:
+    enum:
+      - value: timestamp.desc
+        name: TimestampDesc
+      - value: timestamp.asc
+        name: TimestampAsc
+  TopicTraceFacetState:
+    enum:
+      - value: complete
+        name: Complete
+      - value: not_applicable
+        name: NotApplicable
+      - value: insufficient_input
+        name: InsufficientInput
+      - value: not_processed
+        name: NotProcessed
+  TopicTraceAssignmentStatus:
+    enum:
+      - value: assigned
+        name: Assigned
+      - value: outlier
+        name: Outlier
+      - value: awaiting_map
+        name: AwaitingMap
+  TopicTraceTopic:
+    properties:
+      id:
+        type: string
+        docs: Stable topic id.
+      versionId: string
+      name: string
+  TopicTraceAssignment:
+    properties:
+      status: TopicTraceAssignmentStatus
+      topic:
+        type: optional<TopicTraceTopic>
+        docs: Set when `status` is `assigned`.
+  TopicTraceFacet:
+    properties:
+      facetId: string
+      facetName: string
+      facetVersion: optional<integer>
+      state: TopicTraceFacetState
+      summary:
+        type: optional<string>
+        docs: The facet summary of the trace. Set when `state` is `complete`.
+      summaryTruncated: boolean
+      processedAt: optional<datetime>
+      assignment:
+        type: optional<TopicTraceAssignment>
+        docs: Set when `state` is `complete`.
+  TopicTrace:
+    properties:
+      traceId: string
+      traceName: string
+      environment: string
+      timestamp: datetime
+      traceUrl:
+        type: string
+        docs: Path of the trace in the Langfuse UI.
+      processedAt:
+        type: optional<datetime>
+        docs: >-
+          Latest Topics processing time across the returned facets. Null when
+          the trace matched through a filter facet and none of the returned
+          facets has processed it yet.
+      facets: list<TopicTraceFacet>
+  TopicTraceListMeta:
+    properties:
+      cursor:
+        type: optional<string>
+        docs: Pass as `cursor` to fetch the next page. Null on the last page.
+      totalItems:
+        type: optional<integer>
+        docs: Set when `includeTotal` is `true`.
+  TopicTraceList:
+    properties:
+      window: TopicWindow
+      data: list<TopicTrace>
+      meta: TopicTraceListMeta
   TopicsOrderBy:
     enum:
       - value: traceCount.desc

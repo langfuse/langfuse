@@ -76,6 +76,9 @@ other than 3000.
 For Topics discovery and later assignment, run `pnpm run seed -- topics`.
 For the 100-trace Intent/Issues evaluation, run
 `pnpm run seed -- topics --batch evaluation --id-prefix topics-eval-s42`.
+For Topics reader performance at volume (summaries, runs, topics and
+assignments, no traces), run
+`pnpm run seed -- topic-results --traces 1000000 --days 7 --id-prefix topic-results-1m`.
 Read the [Topics fixture walkthrough](../../../packages/shared/scripts/seeder/README.md#topics)
 for batch IDs, dataset contents, and clustering settings.
 

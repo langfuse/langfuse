@@ -32,19 +32,22 @@ import {
 const sourceKeySql =
   "project_id, facet_id, facet_version, trace_id, if(trace_id = '', session_id, '')";
 
-const unitTimeFilterSql =
+export const unitTimeFilterSql =
   "unit_start_time >= {from:DateTime64(3)} AND unit_start_time < {to:DateTime64(3)}";
 
 const summaryVersionKeySql =
   "facet_id, facet_version, trace_id, if(trace_id = '', session_id, ''), unit_start_time, processed_at";
-const summarySourceKeySql =
+export const summarySourceKeySql =
   "facet_id, trace_id, if(trace_id = '', session_id, '')";
 
 // Payloads are time-bounded; source-index metadata must include versions that moved
 // outside that window. State, model and dimension filters apply after this check.
 // Candidate keys scope the metadata scan; a scalar facet_version predicate there
 // prevents ClickHouse from selecting the latest_source_versions projection.
-function latestSummaryFilterSql(scopeSql: string, latestKeySql = sourceKeySql) {
+export function latestSummaryFilterSql(
+  scopeSql: string,
+  latestKeySql = sourceKeySql,
+) {
   return `(${summaryVersionKeySql}) IN (
     SELECT ${summaryVersionKeySql} FROM topic_facet_summaries
     WHERE project_id = {projectId:String}
@@ -58,7 +61,7 @@ function latestSummaryFilterSql(scopeSql: string, latestKeySql = sourceKeySql) {
   )`;
 }
 
-function timeRangeParams(timeRange: TopicTimeRange) {
+export function timeRangeParams(timeRange: TopicTimeRange) {
   const { from, to } = topicTimeRangeSchema.parse(timeRange);
   return {
     from: convertDateToClickhouseDateTime(from),

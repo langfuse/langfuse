@@ -31,3 +31,4 @@ export * from "./score-configs";
 export * from "./auditLogs";
 export * from "./billable-events";
 export * from "./topic-setup-events";
+export * from "./topic-traces";

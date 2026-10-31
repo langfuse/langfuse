@@ -175,6 +175,19 @@ sample mode** with the default minimum-count settings.
 Seeding makes no model calls. Theme/outcome labels remain outside trace metadata
 and I/O.
 
+For Topics reader performance, `topic-results` writes processed results
+directly instead of traces:
+
+```bash
+pnpm run seed -- topic-results --traces 1000000 --days 7 --id-prefix topic-results-1m
+```
+
+Each trace gets a summary for every default facet (80% complete, 15% not
+applicable, 5% insufficient input). A completed run per facet publishes 20
+topics; 90% of complete summaries are assigned and 10% are outliers. 5% are
+re-summarized after mapping, so they read as awaiting map. Use a new
+`--id-prefix` per volume: unit start times depend on `--traces`.
+
 ## The contract (additive-only)
 
 Scenario names, flag names, JSON summary keys, and exit-code semantics are a
