@@ -7,6 +7,197 @@ import {
 } from "@langfuse/shared/src/server";
 
 describe("extractToolsFromObservation", () => {
+  describe("Native Bedrock Converse observations", () => {
+    const parameters = {
+      type: "object",
+      properties: { order_id: { type: "string" } },
+      required: ["order_id"],
+    };
+    const toolSpec = {
+      name: "lookup_order",
+      description: "Look up an order",
+      inputSchema: { json: parameters },
+    };
+    const toolUse = {
+      toolUseId: "tool-1",
+      name: "lookup_order",
+      input: { order_id: "demo-42" },
+    };
+
+    it.each([false, true])(
+      "indexes definitions and parallel calls while preserving raw I/O (JSON strings: %s)",
+      (serialized) => {
+        const rawInput = {
+          messages: [{ role: "user", content: [{ text: "Find my orders" }] }],
+          toolConfig: {
+            tools: [{ toolSpec }, { cachePoint: { type: "default" } }],
+          },
+        };
+        const rawOutput = {
+          output: {
+            message: {
+              role: "assistant",
+              content: [
+                { text: "I will look up both orders." },
+                { toolUse },
+                {
+                  toolUse: {
+                    ...toolUse,
+                    toolUseId: "tool-2",
+                    input: { order_id: "demo-43" },
+                  },
+                },
+              ],
+            },
+          },
+          stopReason: "tool_use",
+          usage: { inputTokens: 12, outputTokens: 8, totalTokens: 20 },
+        };
+        const input = serialized ? JSON.stringify(rawInput) : rawInput;
+        const output = serialized ? JSON.stringify(rawOutput) : rawOutput;
+        const metadata = { environment: "test", custom: { keep: true } };
+        const originals = structuredClone({ input, output, metadata });
+
+        const result = normalizeToolsForObservation(input, output, metadata);
+
+        expect(result.toolDefinitions).toEqual({
+          lookup_order: JSON.stringify({
+            description: "Look up an order",
+            parameters: JSON.stringify(parameters),
+          }),
+        });
+        expect(result.toolCallNames).toEqual(["lookup_order", "lookup_order"]);
+        expect(result.toolCalls.map((call) => JSON.parse(call))).toEqual([
+          {
+            id: "tool-1",
+            arguments: JSON.stringify({ order_id: "demo-42" }),
+            type: "function",
+            index: 0,
+          },
+          {
+            id: "tool-2",
+            arguments: JSON.stringify({ order_id: "demo-43" }),
+            type: "function",
+            index: 0,
+          },
+        ]);
+        expect({
+          input: result.input,
+          output: result.output,
+          metadata: result.metadata,
+        }).toEqual(originals);
+        expect({ input, output, metadata }).toEqual(originals);
+      },
+    );
+
+    it.each([false, true])(
+      "extracts calls from an assistant message and deduplicates IDs (message array: %s)",
+      (asArray) => {
+        const message = {
+          role: "assistant",
+          content: [{ toolUse }, { toolUse }],
+        };
+        const result = extractToolsFromObservation(
+          null,
+          asArray ? [message] : message,
+        );
+
+        expect(result.toolArguments).toEqual([
+          {
+            id: "tool-1",
+            name: "lookup_order",
+            arguments: JSON.stringify(toolUse.input),
+            type: "function",
+          },
+        ]);
+      },
+    );
+
+    it.each([null, "literal input"])(
+      "preserves the JSON value of native tool input (%s)",
+      (input) => {
+        const result = normalizeToolsForObservation(
+          null,
+          { role: "assistant", content: [{ toolUse: { ...toolUse, input } }] },
+          {},
+        );
+
+        expect(JSON.parse(result.toolCalls[0]).arguments).toBe(
+          JSON.stringify(input),
+        );
+      },
+    );
+
+    it("ignores tool results and prior input history when indexing output calls", () => {
+      const result = normalizeToolsForObservation(
+        { messages: [{ role: "assistant", content: [{ toolUse }] }] },
+        {
+          output: {
+            message: {
+              role: "user",
+              content: [
+                {
+                  toolResult: {
+                    toolUseId: "tool-1",
+                    content: [{ json: { status: "shipped" } }],
+                  },
+                },
+                { text: "Thank you" },
+              ],
+            },
+          },
+        },
+        {},
+      );
+
+      expect(result.toolCalls).toEqual([]);
+      expect(result.toolCallNames).toEqual([]);
+      expect(result.toolDefinitions).toEqual({});
+    });
+
+    it("skips invalid native blocks without discarding later valid tools", () => {
+      const result = extractToolsFromObservation(
+        {
+          toolConfig: {
+            tools: [
+              null,
+              { toolSpec: null },
+              { toolSpec: { name: 7 } },
+              { toolSpec: { name: "missing_schema" } },
+              { toolSpec },
+            ],
+          },
+        },
+        {
+          output: {
+            message: {
+              role: "assistant",
+              content: [
+                null,
+                { toolUse: null },
+                { toolUse: { ...toolUse, name: 7 } },
+                { toolUse: { ...toolUse, toolUseId: 7 } },
+                { toolUse: { name: "missing_id", input: {} } },
+                { toolUse: { name: "missing_input", toolUseId: "partial" } },
+                { toolUse },
+              ],
+            },
+          },
+        },
+      );
+
+      expect(result.toolDefinitions).toEqual([
+        {
+          name: "lookup_order",
+          description: "Look up an order",
+          parameters: JSON.stringify(parameters),
+        },
+      ]);
+      expect(result.toolArguments).toHaveLength(1);
+      expect(result.toolArguments[0].id).toBe("tool-1");
+    });
+  });
+
   describe("Tool metadata normalization", () => {
     it("moves AI SDK tools from metadata to input and removes duplicate metadata", () => {
       const input = [
