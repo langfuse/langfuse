@@ -25,7 +25,9 @@ import {
   getEnvironmentsForProject,
   invalidateCachedOrgApiKeys,
 } from "@langfuse/shared/src/server";
-import { transferRoleAssignments } from "@langfuse/shared/rbac/server";
+import { OrganizationId, ProjectId } from "@langfuse/shared/rbac";
+import { transferApiKeyRoles } from "@langfuse/shared/rbac/server";
+import { deleteProjectMemberships } from "@langfuse/shared/memberships";
 import { reconcileTopicsConnectionsForProject } from "@langfuse/shared/topics/server";
 import { randomUUID } from "crypto";
 import { LangfuseConflictError, StringNoHTMLNonEmpty } from "@langfuse/shared";
@@ -331,11 +333,6 @@ export const projectsRouter = createTRPCRouter({
       });
 
       await ctx.prisma.$transaction(async (tx) => {
-        await tx.projectMembership.deleteMany({
-          where: {
-            projectId: input.projectId,
-          },
-        });
         await tx.project.update({
           where: {
             id: input.projectId,
@@ -345,9 +342,11 @@ export const projectsRouter = createTRPCRouter({
             orgId: input.targetOrgId,
           },
         });
-        // Move the project's api-key assignments to the destination org and
-        // drop its user assignments, matching the membership wipe above.
-        await transferRoleAssignments(tx, input.projectId, input.targetOrgId);
+        await deleteProjectMemberships(tx, { projectId: input.projectId });
+        await transferApiKeyRoles(tx, {
+          ownerId: ProjectId(input.projectId),
+          newTenantId: OrganizationId(input.targetOrgId),
+        });
       });
 
       // API keys need to be deleted from cache. Otherwise, they will still be valid.

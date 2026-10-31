@@ -2,6 +2,10 @@ import { env } from "@/src/env.mjs";
 import { createUserEmailPassword } from "@/src/features/auth-credentials/lib/credentialsServerUtils";
 import { prisma } from "@langfuse/shared/src/db";
 import { createApiKey } from "@langfuse/shared/src/server/auth/apiKeys";
+import {
+  saveOrgMembership,
+  saveProjectMembership,
+} from "@langfuse/shared/memberships";
 import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server";
 import { getOrganizationPlanServerSide } from "@/src/features/entitlements/server/getPlan";
 import { CloudConfigSchema } from "@langfuse/shared";
@@ -141,16 +145,10 @@ if (env.LANGFUSE_INIT_ORG_ID) {
     initUserId = userId;
 
     // Create OrgMembership: Org -> OrgMembership <- User
-    const orgMembership = await prisma.organizationMembership.upsert({
-      where: {
-        orgId_userId: { userId, orgId: org.id },
-      },
-      update: { role: "OWNER" },
-      create: {
-        userId,
-        orgId: org.id,
-        role: "OWNER",
-      },
+    const orgMembership = await saveOrgMembership(prisma, {
+      userId,
+      orgId: org.id,
+      role: "OWNER",
     });
 
     // On EE plans with rbac-project-roles, createUserEmailPassword ->
@@ -164,20 +162,12 @@ if (env.LANGFUSE_INIT_ORG_ID) {
         entitlement: "rbac-project-roles",
       })
     ) {
-      await prisma.projectMembership.upsert({
-        where: {
-          projectId_userId: {
-            projectId: env.LANGFUSE_INIT_PROJECT_ID,
-            userId,
-          },
-        },
-        update: { role: "OWNER" },
-        create: {
-          userId,
-          orgMembershipId: orgMembership.id,
-          projectId: env.LANGFUSE_INIT_PROJECT_ID,
-          role: "OWNER",
-        },
+      await saveProjectMembership(prisma, {
+        orgId: org.id,
+        userId,
+        orgMembershipId: orgMembership.id,
+        projectId: env.LANGFUSE_INIT_PROJECT_ID,
+        role: "OWNER",
       });
     }
   }

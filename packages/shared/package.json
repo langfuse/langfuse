@@ -123,6 +123,10 @@
       "import": "./dist/src/features/rbac/server.js",
       "require": "./dist/src/features/rbac/server.js"
     },
+    "./memberships": {
+      "import": "./dist/src/features/memberships/index.js",
+      "require": "./dist/src/features/memberships/index.js"
+    },
     "./query/server": {
       "import": "./dist/src/features/query/server/index.js",
       "require": "./dist/src/features/query/server/index.js"

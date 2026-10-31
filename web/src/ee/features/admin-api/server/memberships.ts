@@ -9,6 +9,10 @@ import {
 } from "@/src/features/ai-gateway/server/apiKey/userBoundApiKeys";
 import { requireGatewayEnabledForRole } from "@/src/features/ai-gateway/server/availability";
 import { auditLog } from "@/src/features/audit-logs/server";
+import {
+  deleteOrgMembership,
+  saveOrgMembership,
+} from "@langfuse/shared/memberships";
 import { type AuthorizationContext } from "@/src/features/auth/policy/types";
 import { authorize } from "@/src/features/rbac/authorize";
 import { ForbiddenError, Role } from "@langfuse/shared";
@@ -101,14 +105,10 @@ export async function handleUpdateMembership(
     if (before?.role !== validatedBody.data.role) {
       requireGatewayEnabledForRole(orgId, validatedBody.data.role);
     }
-    const after = await tx.organizationMembership.upsert({
-      where: { orgId_userId: { orgId, userId: validatedBody.data.userId } },
-      update: { role: validatedBody.data.role },
-      create: {
-        orgId,
-        userId: validatedBody.data.userId,
-        role: validatedBody.data.role,
-      },
+    const after = await saveOrgMembership(tx, {
+      orgId,
+      userId: validatedBody.data.userId,
+      role: validatedBody.data.role,
     });
     await auditLog(
       {
@@ -174,9 +174,7 @@ export async function handleDeleteMembership(
       orgId,
       from: before.role,
     });
-    await tx.organizationMembership.delete({
-      where: { id: before.id, orgId },
-    });
+    await deleteOrgMembership(tx, { orgId, userId: before.userId });
     await auditLog(
       {
         orgId,

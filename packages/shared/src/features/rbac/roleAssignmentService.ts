@@ -5,11 +5,15 @@ import {
 } from "@prisma/client";
 
 import { InvalidRequestError, NotImplementedError } from "../../errors";
+import { getApiKeyRoles } from "../../server/auth/apiKeys";
 import { withTransaction } from "../../server/utils/withTransaction";
+import { getOrgMembershipRoles } from "../memberships/orgMembershipRepository";
+import { getProjectMembershipRoles } from "../memberships/projectMembershipRepository";
 import {
   hasApiKeyKind,
   hasOrganizationKind,
   hasSystemRoleKind,
+  hasUserKind,
   untag,
   type PrincipalId,
   type OwnerId,
@@ -18,14 +22,16 @@ import {
   type TenantId,
 } from "./types";
 
-/** getRoleAssignmentsForPrincipal loads a principal's stored assignments. */
+/** getRoleAssignmentsForPrincipal loads a principal's stored assignments, backfilling a principal without any from its legacy rows. */
 export async function getRoleAssignmentsForPrincipal(
-  tx: Prisma.TransactionClient,
+  prisma: Prisma.TransactionClient,
   principalId: PrincipalId,
 ): Promise<StoredRoleAssignment[]> {
-  return await tx.roleAssignment.findMany({
-    where: { principalId },
-  });
+  const assignments = await findRoleAssignments(prisma, principalId);
+  if (assignments.length > 0) return assignments;
+  // eslint-disable-next-line @typescript-eslint/no-deprecated -- Compatibility until the next major version.
+  await backfillRoleAssignments(prisma, principalId);
+  return await findRoleAssignments(prisma, principalId);
 }
 
 /** assignRole persists a system-role assignment in the supplied tenant. */
@@ -50,21 +56,112 @@ export async function assignRole(
   });
 }
 
-/** transferRoleAssignments moves a transferred project's api-key assignments to the destination organization and drops its user assignments, mirroring the membership wipe. */
-export async function transferRoleAssignments(
+/** replaceRolesForPrincipal revokes all existing roles for a principal on an owner before assigning the principal a new role. */
+export async function replaceRolesForPrincipal(
   prisma: Prisma.TransactionClient,
-  projectId: string,
-  targetOrgId: string,
+  ra: Omit<RoleAssignment, "id" | "createdAt" | "updatedAt">,
+): Promise<StoredRoleAssignment> {
+  return await withTransaction(prisma, async (tx) => {
+    await revokeRolesForPrincipal(tx, {
+      tenantId: ra.tenantId,
+      principalId: ra.principalId,
+      ownerId: ra.ownerId,
+    });
+    return await assignRole(tx, ra);
+  });
+}
+
+/** revokeRolesForPrincipal removes a principal's assignments in a tenant, optionally limited to one owner. */
+export async function revokeRolesForPrincipal(
+  prisma: Prisma.TransactionClient,
+  {
+    tenantId,
+    principalId,
+    ownerId,
+  }: { tenantId: TenantId; principalId: PrincipalId; ownerId?: OwnerId },
+): Promise<void> {
+  await prisma.roleAssignment.deleteMany({
+    where: { orgId: untag(tenantId), principalId, ownerId },
+  });
+}
+
+/** revokeUserRoles removes every user's assignments on an owner. */
+export async function revokeUserRoles(
+  prisma: Prisma.TransactionClient,
+  { ownerId }: { ownerId: OwnerId },
+): Promise<void> {
+  await prisma.roleAssignment.deleteMany({
+    where: { ownerId, userId: { not: null } },
+  });
+}
+
+/** transferApiKeyRoles moves an owner's api-key assignments to the tenant that now holds the owner. */
+export async function transferApiKeyRoles(
+  prisma: Prisma.TransactionClient,
+  { ownerId, newTenantId }: { ownerId: OwnerId; newTenantId: TenantId },
 ): Promise<void> {
   await withTransaction(prisma, async (tx) => {
+    await validateTenancy(tx, newTenantId, ownerId);
     await tx.roleAssignment.updateMany({
-      where: { projectId, apiKeyId: { not: null } },
-      data: { orgId: targetOrgId },
-    });
-    await tx.roleAssignment.deleteMany({
-      where: { projectId, userId: { not: null } },
+      where: { ownerId, apiKeyId: { not: null } },
+      data: { orgId: untag(newTenantId) },
     });
   });
+}
+
+/** findRoleAssignments reads a principal's stored assignments. */
+async function findRoleAssignments(
+  prisma: Prisma.TransactionClient,
+  principalId: PrincipalId,
+): Promise<StoredRoleAssignment[]> {
+  return await prisma.roleAssignment.findMany({ where: { principalId } });
+}
+
+/**
+ * backfillRoleAssignments assigns a principal without assignments the roles its legacy rows imply while holding those rows against concurrent writes.
+ * @deprecated RoleAssignment backfill will be removed in the next major version.
+ */
+async function backfillRoleAssignments(
+  prisma: Prisma.TransactionClient,
+  principalId: PrincipalId,
+): Promise<void> {
+  await withTransaction(prisma, async (tx) => {
+    // eslint-disable-next-line @typescript-eslint/no-deprecated -- Compatibility until the next major version.
+    const impliedRoles = await getImpliedRoles(tx, principalId);
+    const assignments = await findRoleAssignments(tx, principalId);
+    if (assignments.length > 0) return;
+    const data: Prisma.RoleAssignmentCreateManyInput[] = [];
+    for (const ra of impliedRoles) {
+      data.push({
+        ...(await validateTenancy(tx, ra.tenantId, ra.ownerId)),
+        ...principalFields(ra.principalId),
+        ...validateRole(ra.roleId),
+      });
+    }
+    await tx.roleAssignment.createMany({ data, skipDuplicates: true });
+  });
+}
+
+/**
+ * getImpliedRoles share-locks a principal's api key or memberships and returns the role assignments they imply.
+ * @deprecated RoleAssignment backfill will be removed in the next major version.
+ */
+async function getImpliedRoles(
+  tx: Prisma.TransactionClient,
+  principalId: PrincipalId,
+): Promise<Omit<RoleAssignment, "id" | "createdAt" | "updatedAt">[]> {
+  if (hasApiKeyKind(principalId)) {
+    // eslint-disable-next-line @typescript-eslint/no-deprecated -- Compatibility until the next major version.
+    return await getApiKeyRoles(tx, { apiKeyId: untag(principalId) });
+  }
+  if (!hasUserKind(principalId)) return [];
+  const userId = untag(principalId);
+  return [
+    // eslint-disable-next-line @typescript-eslint/no-deprecated -- Compatibility until the next major version.
+    ...(await getOrgMembershipRoles(tx, { userId })),
+    // eslint-disable-next-line @typescript-eslint/no-deprecated -- Compatibility until the next major version.
+    ...(await getProjectMembershipRoles(tx, { userId })),
+  ];
 }
 
 /** validateTenancy holds project ownership stable until the transaction ends. */
