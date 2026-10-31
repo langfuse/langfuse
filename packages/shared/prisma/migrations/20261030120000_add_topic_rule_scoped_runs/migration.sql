@@ -8,11 +8,3 @@ CREATE INDEX "topic_clustering_runs_project_id_batch_action_id_idx" ON "topic_cl
 
 -- How often each rule's maps are re-clustered.
 ALTER TABLE "topic_configs" ADD COLUMN "refit_interval_hours" INTEGER NOT NULL DEFAULT 24;
-
--- Topics executions split into summary-only processing and clustering.
-UPDATE "batch_actions"
-SET "action_type" = CASE
-  WHEN "config"->'inputSettings'->>'operation' = 'process' THEN 'topics-summary'
-  ELSE 'topics-cluster'
-END
-WHERE "action_type" = 'topics';
