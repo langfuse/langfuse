@@ -719,11 +719,11 @@ describe("AI gateway control plane", () => {
     ).resolves.toBe(0);
   });
 
-  it("requires an ingestion project unless ingestion mode is NONE, also on cloud", async () => {
+  it("requires an ingestion project unless ingestion mode is NONE on self-hosted", async () => {
     const { caller, org } = await prepare();
     const originalCloudRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
     try {
-      Object.assign(env, { NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: "EU" });
+      Object.assign(env, { NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: undefined });
       await expect(
         caller.aiGateway.updateConfig({
           orgId: org.id,
@@ -740,6 +740,50 @@ describe("AI gateway control plane", () => {
       await expect(
         caller.aiGateway.getSetupStatus({ orgId: org.id }),
       ).resolves.toEqual({ isConfigured: true });
+    } finally {
+      Object.assign(env, {
+        NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: originalCloudRegion,
+      });
+    }
+  });
+
+  it("rejects NONE on cloud and treats a stored NONE config as USAGE", async () => {
+    const { caller, org, project } = await prepare();
+    const originalCloudRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
+    try {
+      Object.assign(env, { NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: "EU" });
+      await expect(
+        caller.aiGateway.updateConfig({
+          orgId: org.id,
+          defaultIngestionProjectId: project.id,
+          ingestionMode: "NONE",
+        }),
+      ).rejects.toThrow("not available on Langfuse Cloud");
+
+      await prisma.gatewayConfig.create({
+        data: {
+          organizationId: org.id,
+          defaultIngestionProjectId: null,
+          ingestionMode: "NONE",
+        },
+      });
+      await expect(
+        caller.aiGateway.getConfig({ orgId: org.id }),
+      ).resolves.toMatchObject({ config: { ingestionMode: "USAGE" } });
+      await expect(
+        caller.aiGateway.getSetupStatus({ orgId: org.id }),
+      ).resolves.toEqual({ isConfigured: false });
+
+      await prisma.gatewayConfig.update({
+        where: { organizationId: org.id },
+        data: { defaultIngestionProjectId: project.id },
+      });
+      await expect(
+        caller.projects.deletionProtection({ projectId: project.id }),
+      ).resolves.toEqual({ isGatewayIngestionProject: true });
+      await expect(
+        caller.projects.delete({ projectId: project.id }),
+      ).rejects.toThrow("Select another ingestion project before deleting it");
     } finally {
       Object.assign(env, {
         NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: originalCloudRegion,
@@ -2226,28 +2270,34 @@ describe("AI gateway control plane", () => {
     ).resolves.toEqual({ isGatewayIngestionProject: true });
     await expect(
       caller.projects.delete({ projectId: project.id }),
-    ).rejects.toThrow(
-      "Select another ingestion project or set the ingestion mode to None before deleting it",
-    );
+    ).rejects.toThrow("Select another ingestion project");
     await expect(
       prisma.project.findUnique({ where: { id: project.id } }),
     ).resolves.toMatchObject({ deletedAt: null });
   });
 
-  it("allows deleting the linked ingestion project while ingestion is NONE", async () => {
+  it("allows deleting the linked ingestion project while ingestion is NONE on self-hosted", async () => {
     const { caller, org, project } = await prepare();
-    await caller.aiGateway.updateConfig({
-      orgId: org.id,
-      defaultIngestionProjectId: project.id,
-      ingestionMode: "NONE",
-    });
+    const originalCloudRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
+    try {
+      Object.assign(env, { NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: undefined });
+      await caller.aiGateway.updateConfig({
+        orgId: org.id,
+        defaultIngestionProjectId: project.id,
+        ingestionMode: "NONE",
+      });
 
-    await expect(
-      caller.projects.deletionProtection({ projectId: project.id }),
-    ).resolves.toEqual({ isGatewayIngestionProject: false });
-    await expect(
-      caller.projects.delete({ projectId: project.id }),
-    ).resolves.toBe(true);
+      await expect(
+        caller.projects.deletionProtection({ projectId: project.id }),
+      ).resolves.toEqual({ isGatewayIngestionProject: false });
+      await expect(
+        caller.projects.delete({ projectId: project.id }),
+      ).resolves.toBe(true);
+    } finally {
+      Object.assign(env, {
+        NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: originalCloudRegion,
+      });
+    }
     await expect(
       prisma.project.findUnique({ where: { id: project.id } }),
     ).resolves.toMatchObject({ deletedAt: expect.any(Date) });
