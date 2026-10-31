@@ -16,10 +16,15 @@ import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import {
   ListToolsRequestSchema,
   CallToolRequestSchema,
+  McpError,
+  ErrorCode,
 } from "@modelcontextprotocol/sdk/types.js";
 import { isProductFeedbackAvailable } from "@/src/features/feedback/server";
 import { shadowAuthorize } from "@/src/features/public-api/server";
-import { formatErrorForUser } from "../core/error-formatting";
+import {
+  formatErrorForUser,
+  formatErrorMessageForUser,
+} from "../core/error-formatting";
 import type { ServerContext } from "../types";
 import type { ToolDefinition } from "../core/define-tool";
 import { toolRegistry } from "./registry";
@@ -105,7 +110,7 @@ export function createMcpServer(context: ServerContext): Server {
     const registeredTool = await toolRegistry.getEnabledTool(name, context);
 
     if (!registeredTool) {
-      throw new Error(`Unknown tool: ${name}`);
+      throw new McpError(ErrorCode.InvalidParams, `Unknown tool: ${name}`);
     }
 
     assertToolAuthorized(registeredTool.definition, context);
@@ -120,21 +125,33 @@ export function createMcpServer(context: ServerContext): Server {
         route: name,
       },
     });
-    const result = await otelContext.with(clickHouseCtx, () =>
-      registeredTool.handler(args, context),
-    );
 
-    return {
-      content: [
-        {
-          type: "text",
-          text:
-            typeof result === "string"
-              ? result
-              : JSON.stringify(result, null, 2),
-        },
-      ],
-    };
+    try {
+      const result = await otelContext.with(clickHouseCtx, () =>
+        registeredTool.handler(args, context),
+      );
+
+      return {
+        content: [
+          {
+            type: "text",
+            text:
+              typeof result === "string"
+                ? result
+                : JSON.stringify(result, null, 2),
+          },
+        ],
+      };
+    } catch (error) {
+      // Execution failures are tool results with isError: true, not protocol
+      // errors: a thrown error becomes a JSON-RPC error that MCP clients
+      // surface as an exception, so the agent never sees the recovery guidance
+      // (e.g. ClickHouse timeout advice) that the error formatter prepares.
+      return {
+        content: [{ type: "text", text: formatErrorMessageForUser(error) }],
+        isError: true,
+      };
+    }
   });
 
   return server;

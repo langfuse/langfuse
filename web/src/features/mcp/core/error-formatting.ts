@@ -17,29 +17,36 @@ import {
 } from "@langfuse/shared";
 import { ClickHouseResourceError, logger } from "@langfuse/shared/src/server";
 
+interface FormattedError {
+  code: ErrorCode;
+  message: string;
+}
+
 /**
- * Format an error for MCP response.
- * Returns a properly formatted McpError with appropriate error code.
+ * Map an error to the JSON-RPC error code and the message the caller should
+ * see. Shared by formatErrorForUser (protocol errors) and
+ * formatErrorMessageForUser (tool execution errors), so both surfaces stay in
+ * sync.
  *
  * @param error - The error to format
- * @returns Formatted McpError
+ * @returns Formatted error code and message
  */
-export function formatErrorForUser(error: unknown): McpError {
+function formatErrorPartsForUser(error: unknown): FormattedError {
   // Log server errors for monitoring (sanitized to avoid PII exposure)
   if (isApiServerError(error)) {
     logger.error("MCP API Server Error", {
       message: error.message,
       name: error.name,
     });
-    return new McpError(
-      ErrorCode.InternalError,
-      "An internal server error occurred. Please try again later.",
-    );
+    return {
+      code: ErrorCode.InternalError,
+      message: "An internal server error occurred. Please try again later.",
+    };
   }
 
   // User input errors - provide helpful message
   if (isUserInputError(error)) {
-    return new McpError(ErrorCode.InvalidRequest, error.message);
+    return { code: ErrorCode.InvalidRequest, message: error.message };
   }
 
   // Zod validation errors
@@ -47,30 +54,30 @@ export function formatErrorForUser(error: unknown): McpError {
     const messages = error.issues.map(
       (issue) => `${issue.path.join(".")}: ${issue.message}`,
     );
-    return new McpError(
-      ErrorCode.InvalidParams,
-      `Validation failed: ${messages.join(", ")}`,
-    );
+    return {
+      code: ErrorCode.InvalidParams,
+      message: `Validation failed: ${messages.join(", ")}`,
+    };
   }
 
   // Langfuse standard errors
   if (error instanceof UnauthorizedError) {
-    return new McpError(
-      ErrorCode.InvalidRequest,
-      "Authentication failed. Please check your API key.",
-    );
+    return {
+      code: ErrorCode.InvalidRequest,
+      message: "Authentication failed. Please check your API key.",
+    };
   }
 
   if (error instanceof ForbiddenError) {
-    return new McpError(ErrorCode.InvalidRequest, error.message);
+    return { code: ErrorCode.InvalidRequest, message: error.message };
   }
 
   if (error instanceof LangfuseNotFoundError) {
-    return new McpError(ErrorCode.InvalidRequest, error.message);
+    return { code: ErrorCode.InvalidRequest, message: error.message };
   }
 
   if (error instanceof InvalidRequestError) {
-    return new McpError(ErrorCode.InvalidRequest, error.message);
+    return { code: ErrorCode.InvalidRequest, message: error.message };
   }
 
   if (error instanceof ClickHouseResourceError) {
@@ -78,12 +85,13 @@ export function formatErrorForUser(error: unknown): McpError {
       errorType: error.errorType,
       tags: error.tags,
     });
-    return new McpError(
-      ErrorCode.InvalidRequest,
-      error.errorType === "TIMEOUT"
-        ? "The ClickHouse query timed out. Narrow the query by shortening the date range or adding more specific filters before trying again."
-        : ClickHouseResourceError.ERROR_ADVICE_MESSAGE,
-    );
+    return {
+      code: ErrorCode.InvalidRequest,
+      message:
+        error.errorType === "TIMEOUT"
+          ? "The ClickHouse query timed out. Narrow the query by shortening the date range or adding more specific filters before trying again."
+          : ClickHouseResourceError.ERROR_ADVICE_MESSAGE,
+    };
   }
 
   if (error instanceof BaseError && error.httpCode >= 500) {
@@ -91,15 +99,15 @@ export function formatErrorForUser(error: unknown): McpError {
       name: error.name,
       httpCode: error.httpCode,
     });
-    return new McpError(
-      ErrorCode.InternalError,
-      "An internal server error occurred. Please try again later.",
-    );
+    return {
+      code: ErrorCode.InternalError,
+      message: "An internal server error occurred. Please try again later.",
+    };
   }
 
   if (error instanceof BaseError) {
     logger.warn("MCP BaseError", error);
-    return new McpError(ErrorCode.InvalidRequest, error.message);
+    return { code: ErrorCode.InvalidRequest, message: error.message };
   }
 
   // Generic errors (sanitized logging)
@@ -108,20 +116,43 @@ export function formatErrorForUser(error: unknown): McpError {
       message: error.message,
       name: error.name,
     });
-    return new McpError(
-      ErrorCode.InternalError,
-      "An unexpected error occurred. Please try again later.",
-    );
+    return {
+      code: ErrorCode.InternalError,
+      message: "An unexpected error occurred. Please try again later.",
+    };
   }
 
   // Unknown error type (sanitized logging)
   logger.error("MCP Unknown Error Type", {
     errorType: typeof error,
   });
-  return new McpError(
-    ErrorCode.InternalError,
-    "An unexpected error occurred. Please try again later.",
-  );
+  return {
+    code: ErrorCode.InternalError,
+    message: "An unexpected error occurred. Please try again later.",
+  };
+}
+
+/**
+ * Format an error for MCP response.
+ * Returns a properly formatted McpError with appropriate error code.
+ *
+ * @param error - The error to format
+ * @returns Formatted McpError
+ */
+export function formatErrorForUser(error: unknown): McpError {
+  const { code, message } = formatErrorPartsForUser(error);
+  return new McpError(code, message);
+}
+
+/**
+ * Format an error message for display inside a tool result. Unlike
+ * formatErrorForUser, the message carries no "MCP error <code>:" prefix.
+ *
+ * @param error - The error to format
+ * @returns Sanitized message for the tool result text
+ */
+export function formatErrorMessageForUser(error: unknown): string {
+  return formatErrorPartsForUser(error).message;
 }
 
 /**
