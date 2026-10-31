@@ -109,6 +109,7 @@ describe("sendRateLimitResponse", () => {
       publicKey: "pk-test",
       isIngestionSuspended: false,
       isInAppAgentKey: false,
+      accessAuditLogEnabled: false,
     },
     consumedPoints: 11,
     isFirstInDuration: false,

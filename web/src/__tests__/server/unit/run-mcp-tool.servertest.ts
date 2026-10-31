@@ -50,6 +50,7 @@ const context: ServerContext = {
   publicKey: "pk-lf-test",
   plan: "oss",
   rateLimitOverrides: [],
+  accessAuditLogEnabled: false,
 };
 
 describe("runMcpTool outcome telemetry", () => {

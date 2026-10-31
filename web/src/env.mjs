@@ -737,9 +737,23 @@ export const env = createEnv({
 
     // Kill switch for staging audit events for the ClickHouse audit_logs table
     // on Langfuse Cloud. The Postgres audit_logs row is written either way.
+    // Read-access events have no Postgres row, so turning it off stops
+    // recording them; reads still succeed.
     LANGFUSE_AUDIT_LOG_STAGING_ENABLED: z
       .enum(["true", "false"])
       .default("true"),
+
+    // Read-access audit events (EE).
+    // "org": recorded for organizations whose plan includes audit logs and
+    // that enable access logging in their settings.
+    // "enforced": recorded for every organization. On Langfuse Cloud this
+    // covers every plan; self-hosted instances need an enterprise license,
+    // without one nothing is recorded.
+    // "disabled": never recorded.
+    // LANGFUSE_AUDIT_LOG_STAGING_ENABLED=false also stops recording.
+    LANGFUSE_AUDIT_LOG_ACCESS_EVENTS: z
+      .enum(["org", "enforced", "disabled"])
+      .default("org"),
 
     // Background-migration env gates. Mirror worker/src/env.ts (names, defaults)
     // so the background-migrations status endpoint can tell dormant, env-gated
@@ -1331,6 +1345,8 @@ export const env = createEnv({
     LANGFUSE_TRUSTED_PROXY_COUNT: process.env.LANGFUSE_TRUSTED_PROXY_COUNT,
     LANGFUSE_AUDIT_LOG_STAGING_ENABLED:
       process.env.LANGFUSE_AUDIT_LOG_STAGING_ENABLED,
+    LANGFUSE_AUDIT_LOG_ACCESS_EVENTS:
+      process.env.LANGFUSE_AUDIT_LOG_ACCESS_EVENTS,
     LANGFUSE_BACKGROUND_MIGRATION_V4_ENABLE_HISTORIC_BACKFILL:
       process.env.LANGFUSE_BACKGROUND_MIGRATION_V4_ENABLE_HISTORIC_BACKFILL,
     LANGFUSE_BACKGROUND_MIGRATION_V4_DROP_PID_TID_SORTING_TABLES:

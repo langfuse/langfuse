@@ -70,6 +70,7 @@ const orgRow = {
   createdAt: new Date("2026-09-16T00:00:00.000Z"),
   cloudConfig: null,
   cloudFreeTierUsageThresholdState: null,
+  accessAuditLogEnabled: false,
   projects: [{ id: PRJ }],
 } as unknown as OrganizationWithProjects;
 
