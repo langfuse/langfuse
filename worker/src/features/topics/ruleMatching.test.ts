@@ -101,6 +101,104 @@ describe("matchTopicRules", () => {
     ).toEqual([]);
   });
 
+  it("matches on session, status message, parent and tool call columns", () => {
+    const withTools = [
+      { ...observation({}), sessionId: "session-1" },
+      {
+        ...observation({
+          id: "tool-step",
+          parentObservationId: "span",
+          statusMessage: "rate limited",
+          toolCalls: ['{"name":"search"}', '{"name":"lookup"}'],
+          toolCallNames: ["search", "lookup"],
+        }),
+        sessionId: "session-1",
+      },
+    ];
+    expect(
+      matchTopicRules("trace", withTools, [
+        rule("session", [
+          {
+            column: "sessionId",
+            type: "string",
+            operator: "=",
+            value: "session-1",
+          },
+        ]),
+        rule("tools", [
+          {
+            column: "calledToolNames",
+            type: "arrayOptions",
+            operator: "any of",
+            value: ["search"],
+          },
+          { column: "toolCalls", type: "number", operator: ">=", value: 2 },
+          {
+            column: "statusMessage",
+            type: "string",
+            operator: "contains",
+            value: "rate",
+          },
+          {
+            column: "parentObservationId",
+            type: "null",
+            operator: "is not null",
+            value: "",
+          },
+        ]),
+        rule("other-session", [
+          {
+            column: "sessionId",
+            type: "string",
+            operator: "=",
+            value: "session-2",
+          },
+        ]),
+      ]),
+    ).toEqual(["session", "tools"]);
+  });
+
+  it("matches a stored rule on the conditions it can evaluate and reports the rest", () => {
+    const unsupported: [string, string[]][] = [];
+    expect(
+      matchTopicRules(
+        "trace",
+        trace,
+        [
+          rule("legacy", [
+            environment("production"),
+            {
+              column: "tags",
+              type: "arrayOptions",
+              operator: "any of",
+              value: ["beta"],
+            },
+            {
+              column: "userId",
+              type: "string",
+              operator: "=",
+              value: "u1",
+            },
+          ]),
+          rule("legacy-staging", [
+            environment("staging"),
+            {
+              column: "tags",
+              type: "arrayOptions",
+              operator: "any of",
+              value: ["beta"],
+            },
+          ]),
+        ],
+        (ruleId, columns) => unsupported.push([ruleId, columns]),
+      ),
+    ).toEqual(["legacy"]);
+    expect(unsupported).toEqual([
+      ["legacy", ["tags", "userId"]],
+      ["legacy-staging", ["tags"]],
+    ]);
+  });
+
   it("applies each rule's deterministic sampling and skips disabled rules", () => {
     const value = getDeterministicSamplingValue("trace");
     expect(

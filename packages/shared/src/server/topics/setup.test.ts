@@ -112,6 +112,24 @@ describe("Topics setup", () => {
     expect(mocks.writeReadiness).not.toHaveBeenCalled();
   });
 
+  it("rejects a rule filter on a column the matcher cannot evaluate", async () => {
+    await expect(
+      saveTopicsSetup(projectId, {
+        ...setup,
+        filter: [
+          {
+            column: "tags",
+            type: "arrayOptions",
+            operator: "any of",
+            value: ["beta"],
+          },
+        ],
+      }),
+    ).rejects.toThrow("can't be used in rules");
+    expect(mocks.saveRule).not.toHaveBeenCalled();
+    expect(mocks.writeModels).not.toHaveBeenCalled();
+  });
+
   it("never writes a rule without a rule id once the project has rules", async () => {
     mocks.listRules.mockResolvedValue([{ id: "rule-setup" }, { id: "rule-b" }]);
     await expect(saveTopicsSetup(projectId, setup)).rejects.toThrow(

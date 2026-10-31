@@ -64,6 +64,17 @@ type TraceOutcome = (
 const traceKey = (projectId: string, traceId: string) =>
   JSON.stringify([projectId, traceId]);
 
+// Warn once per rule and process; the rule is matched on its other conditions.
+const warnedUnsupportedRules = new Set<string>();
+function warnUnsupportedRuleColumns(ruleId: string, columns: string[]) {
+  if (warnedUnsupportedRules.has(ruleId)) return;
+  warnedUnsupportedRules.add(ruleId);
+  logger.warn("Topics rule filters on columns the matcher cannot evaluate", {
+    ruleId,
+    columns,
+  });
+}
+
 /**
  * Topics settings of one batch, loaded with one query while the read starts.
  * A project paused mid-batch is skipped for the rest of the batch.
@@ -181,7 +192,12 @@ async function summarizeTraceBatch(
     if (!project) return { outcome: "disabled", rows };
     // Summaries are rule-agnostic: one summary per facet any matched rule runs.
     const matched = project.rules
-      ? matchTopicRules(traceId, observations, project.rules)
+      ? matchTopicRules(
+          traceId,
+          observations,
+          project.rules,
+          warnUnsupportedRuleColumns,
+        )
       : undefined;
     ruleIds = matched;
     const selected = project.rules

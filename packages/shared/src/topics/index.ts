@@ -135,6 +135,11 @@ export const TOPICS_RULE_FILTER_COLUMNS = [
   "type",
   "level",
   "metadata",
+  "statusMessage",
+  "sessionId",
+  "parentObservationId",
+  "calledToolNames",
+  "toolCalls",
 ] as const;
 const negativeOperators = new Set([
   "none of",
@@ -144,7 +149,7 @@ const negativeOperators = new Set([
   "is null",
 ]);
 export const TOPICS_RULE_FILTER_ERROR =
-  "Scores, cost, latency, 'is not' and topics can't be used in rules. Use an analysis for those.";
+  "Scores, cost, latency, tags, users, versions, releases, models, prompts, experiments, 'is not' and topics can't be used in rules. Use an analysis for those.";
 /** Rules match during ingestion, so they only take positive filters on matcher columns. */
 export function topicRuleFilterError(
   filter: z.infer<typeof singleFilterList>,
