@@ -40,6 +40,19 @@ import {
  */
 const SECONDARY_QUEUE_NON_SLOWDOWN_ATTEMPTS = 5;
 
+const normalizeS3EventFileKey = (fileName: string) =>
+  fileName.endsWith(".json")
+    ? fileName.slice(0, -".json".length)
+    : fileName;
+
+const getSeenEventCacheKey = (
+  projectId: string,
+  eventType: string,
+  eventBodyId: string,
+  fileKey: string,
+) =>
+  `langfuse:ingestion:recently-processed:${projectId}:${eventType}:${eventBodyId}:${fileKey}`;
+
 export const ingestionQueueProcessorBuilder = (
   enableRedirectToSecondaryQueue: boolean,
 ): Processor => {
@@ -99,7 +112,12 @@ export const ingestionQueueProcessorBuilder = (
         redis &&
         job.data.payload.data.fileKey
       ) {
-        const key = `langfuse:ingestion:recently-processed:${job.data.payload.authCheck.scope.projectId}:${job.data.payload.data.type}:${job.data.payload.data.eventBodyId}:${job.data.payload.data.fileKey}`;
+        const key = getSeenEventCacheKey(
+          job.data.payload.authCheck.scope.projectId,
+          job.data.payload.data.type,
+          job.data.payload.data.eventBodyId,
+          normalizeS3EventFileKey(`${job.data.payload.data.fileKey}.json`),
+        );
         const exists = await redis.exists(key);
         if (exists) {
           recordIncrement("langfuse.ingestion.recently_processed_cache", 1, {
@@ -259,9 +277,15 @@ export const ingestionQueueProcessorBuilder = (
           await Promise.all(
             eventFiles
               .map((e) => e.file.split("/").pop() ?? "")
+              .map(normalizeS3EventFileKey)
               .map((key) =>
                 redis!.set(
-                  `langfuse:ingestion:recently-processed:${job.data.payload.authCheck.scope.projectId}:${job.data.payload.data.type}:${job.data.payload.data.eventBodyId}:${key.replace(".json", "")}`,
+                  getSeenEventCacheKey(
+                    job.data.payload.authCheck.scope.projectId,
+                    job.data.payload.data.type,
+                    job.data.payload.data.eventBodyId,
+                    key,
+                  ),
                   "1",
                   "EX",
                   60 * 5, // 5 minutes
