@@ -16,6 +16,8 @@ import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import {
   ListToolsRequestSchema,
   CallToolRequestSchema,
+  McpError,
+  ErrorCode,
 } from "@modelcontextprotocol/sdk/types.js";
 import { isProductFeedbackAvailable } from "@/src/features/feedback/server";
 import { shadowAuthorize } from "@/src/features/public-api/server";
@@ -105,7 +107,7 @@ export function createMcpServer(context: ServerContext): Server {
     const registeredTool = await toolRegistry.getEnabledTool(name, context);
 
     if (!registeredTool) {
-      throw new Error(`Unknown tool: ${name}`);
+      throw new McpError(ErrorCode.InvalidParams, `Unknown tool: ${name}`);
     }
 
     assertToolAuthorized(registeredTool.definition, context);
@@ -120,21 +122,35 @@ export function createMcpServer(context: ServerContext): Server {
         route: name,
       },
     });
-    const result = await otelContext.with(clickHouseCtx, () =>
-      registeredTool.handler(args, context),
-    );
 
-    return {
-      content: [
-        {
-          type: "text",
-          text:
-            typeof result === "string"
-              ? result
-              : JSON.stringify(result, null, 2),
-        },
-      ],
-    };
+    try {
+      const result = await otelContext.with(clickHouseCtx, () =>
+        registeredTool.handler(args, context),
+      );
+
+      return {
+        content: [
+          {
+            type: "text",
+            text:
+              typeof result === "string"
+                ? result
+                : JSON.stringify(result, null, 2),
+          },
+        ],
+      };
+    } catch (err) {
+      const formatted = err instanceof McpError ? err : formatErrorForUser(err);
+      return {
+        content: [
+          {
+            type: "text",
+            text: formatted.message,
+          },
+        ],
+        isError: true,
+      };
+    }
   });
 
   return server;
