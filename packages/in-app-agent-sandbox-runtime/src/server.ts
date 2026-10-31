@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process";
-import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, readdir, readFile, rm, writeFile } from "node:fs/promises";
 import {
   createServer,
   type IncomingMessage,
@@ -8,11 +8,13 @@ import {
 import path from "node:path";
 
 import {
+  CancelSandboxCommandSchema,
   SandboxFileSchema,
   SandboxOperationSchema,
   type BashSandboxOperation,
   type EditSandboxOperation,
   type ReadSandboxOperation,
+  type ReapSandboxOperation,
   type SandboxFile,
   type WriteSandboxOperation,
 } from "./contracts.js";
@@ -28,8 +30,12 @@ const TOOL_CALLS_ROOT = path.join(WORKSPACE_ROOT, "tool_calls");
 const MICROVM_RUNTIME_HOOKS_ROOT = "/aws/lambda-microvms/runtime/v1";
 const MAX_REQUEST_BODY_BYTES = 10 * 1024 * 1024;
 const COMMAND_TERMINATION_GRACE_MS = 1_000;
+const REAP_SETTLE_MS = 1_000;
+const REAP_POLL_MS = 50;
 let requestCounter = 0;
 let sandboxOperationTail: Promise<unknown> = Promise.resolve();
+/** Kill handles for bash commands started with a `commandId`, removed when they settle. */
+const cancellableCommands = new Map<string, () => void>();
 
 function runSandboxOperationExclusive<T>(task: () => Promise<T>): Promise<T> {
   const result = sandboxOperationTail.then(task, task);
@@ -147,6 +153,19 @@ async function routeRequest(request: IncomingMessage, requestId: string) {
     return { statusCode: 200, body: await terminateHook(requestId) };
   }
 
+  // Outside the operation queue: the command it targets is holding the queue.
+  if (request.method === "POST" && request.url === "/sandbox/cancel") {
+    const body = CancelSandboxCommandSchema.parse(await readJsonBody(request));
+    const kill = cancellableCommands.get(body.commandId);
+    kill?.();
+    logSandboxServer("bash.cancel", {
+      requestId,
+      commandId: body.commandId,
+      found: Boolean(kill),
+    });
+    return { statusCode: 200, body: { result: { cancelled: Boolean(kill) } } };
+  }
+
   if (request.method === "POST" && request.url === "/sandbox") {
     const body = SandboxOperationSchema.parse(await readJsonBody(request));
     logSandboxServer("sandbox.request", {
@@ -170,6 +189,10 @@ async function routeRequest(request: IncomingMessage, requestId: string) {
 
       if (body.operation === "edit") {
         return { statusCode: 200, body: await editOperation(body, requestId) };
+      }
+
+      if (body.operation === "reap") {
+        return { statusCode: 200, body: await reapOperation(body, requestId) };
       }
 
       return { statusCode: 200, body: await bashOperation(body, requestId) };
@@ -258,7 +281,13 @@ async function editOperation(body: EditSandboxOperation, requestId: string) {
 }
 
 async function bashOperation(body: BashSandboxOperation, requestId: string) {
-  const result = await runCommand(body.command, body.timeoutMs, requestId);
+  const result = await runCommand(
+    body.command,
+    body.timeoutMs,
+    requestId,
+    body.env,
+    body.commandId,
+  );
   logSandboxServer("bash.complete", {
     requestId,
     result: summarizeBashResult(result),
@@ -310,6 +339,88 @@ async function terminateHook(requestId: string) {
   return { terminated: true };
 }
 
+/**
+ * Runs inside the operation queue, so no command of ours is in flight. Every
+ * other process with the server's uid is left over from an earlier command,
+ * including descendants that left their process group.
+ */
+async function reapOperation(_body: ReapSandboxOperation, requestId: string) {
+  const protectedPids = await ownAncestry();
+  const targets = await listOwnUidProcesses(protectedPids);
+  for (const pid of targets) {
+    try {
+      process.kill(pid, "SIGKILL");
+    } catch {
+      // Already exited.
+    }
+  }
+
+  let survivors = targets;
+  const deadline = Date.now() + REAP_SETTLE_MS;
+  while (survivors.length > 0 && Date.now() < deadline) {
+    await new Promise((resolve) => setTimeout(resolve, REAP_POLL_MS));
+    survivors = await listOwnUidProcesses(protectedPids);
+  }
+
+  const result = { killed: targets.length, survivors: survivors.length };
+  logSandboxServer("reap.complete", { requestId, result });
+  return { result };
+}
+
+/** The server and its ancestors, which a reap must not kill. */
+async function ownAncestry(): Promise<Set<number>> {
+  const pids = new Set<number>();
+  let pid = process.pid;
+  while (pid > 0 && !pids.has(pid)) {
+    pids.add(pid);
+    const status = await readProcStatus(pid);
+    if (!status) break;
+    pid = status.ppid;
+  }
+  return pids;
+}
+
+/** Live (non-zombie) processes with the server's real uid, minus `exclude`. */
+async function listOwnUidProcesses(exclude: Set<number>): Promise<number[]> {
+  const uid = process.getuid?.();
+  if (uid === undefined) {
+    throw new Error("Sandbox reap requires a POSIX uid");
+  }
+  const pids: number[] = [];
+  for (const entry of await readdir("/proc")) {
+    const pid = Number(entry);
+    if (!Number.isInteger(pid) || exclude.has(pid)) continue;
+    const status = await readProcStatus(pid);
+    if (status && status.uid === uid && status.state !== "Z") {
+      pids.push(pid);
+    }
+  }
+  return pids;
+}
+
+async function readProcStatus(
+  pid: number,
+): Promise<{ uid: number; ppid: number; state: string } | null> {
+  let text: string;
+  try {
+    text = await readFile(`/proc/${pid}/status`, "utf8");
+  } catch {
+    return null;
+  }
+  const field = (name: string) =>
+    text
+      .split("\n")
+      .find((line) => line.startsWith(`${name}:`))
+      ?.slice(name.length + 1)
+      .trim()
+      .split(/\s+/)[0];
+  const uid = Number(field("Uid"));
+  const ppid = Number(field("PPid"));
+  const state = field("State");
+  if (!Number.isInteger(uid) || !Number.isInteger(ppid) || !state) return null;
+  return { uid, ppid, state };
+}
+
 async function ensureWorkspaceRoots() {
   await mkdir(WORKSPACE_ROOT, { recursive: true });
   await mkdir(TOOL_CALLS_ROOT, { recursive: true });
@@ -319,6 +430,8 @@ function runCommand(
   command: string,
   timeoutMs: number | undefined,
   requestId: string,
+  env?: Record<string, string>,
+  commandId?: string,
 ) {
   return new Promise<{
     stdout: string;
@@ -330,6 +443,7 @@ function runCommand(
     const child = spawn("sh", ["-lc", command], {
       cwd: WORKSPACE_ROOT,
       detached: true,
+      ...(env ? { env: { ...process.env, ...env } } : {}),
     });
     let stdout = "";
     let stderr = "";
@@ -339,11 +453,36 @@ function runCommand(
     const startedAt = new Date().toISOString();
     const startedAtMs = Date.now();
 
+    const killProcessGroup = () => {
+      if (!child.pid) {
+        child.kill("SIGKILL");
+        return;
+      }
+      try {
+        // Process-group termination is best-effort:
+        // descendants can escape by creating a new session or process group.
+        // A sandbox should have lifetime limits as the final containment boundary.
+        process.kill(-child.pid, "SIGKILL");
+      } catch (error) {
+        logSandboxServer("bash.processGroupKillError", {
+          requestId,
+          pid: child.pid,
+          error: error instanceof Error ? error.message : String(error),
+        });
+        child.kill("SIGKILL");
+      }
+    };
+    const forgetCommand = () => {
+      if (commandId) cancellableCommands.delete(commandId);
+    };
+    if (commandId) cancellableCommands.set(commandId, killProcessGroup);
+
     const resolveTimedOutCommand = () => {
       if (settled) {
         return;
       }
 
+      forgetCommand();
       settled = true;
       if (timeoutId) {
         clearTimeout(timeoutId);
@@ -365,6 +504,7 @@ function runCommand(
       pid: child.pid ?? null,
       commandBytes: Buffer.byteLength(command, "utf8"),
       timeoutMs: timeoutMs ?? null,
+      envKeyCount: env ? Object.keys(env).length : 0,
     });
 
     child.stdout.on("data", (chunk: Buffer | string) => {
@@ -378,6 +518,7 @@ function runCommand(
         return;
       }
 
+      forgetCommand();
       settled = true;
       logSandboxServer("bash.error", {
         requestId,
@@ -397,23 +538,7 @@ function runCommand(
             }
 
             timedOut = true;
-            if (child.pid) {
-              try {
-                // Process-group termination is best-effort:
-                // descendants can escape by creating a new session or process group.
-                // A sandbox should have lifetime limits as the final containment boundary.
-                process.kill(-child.pid, "SIGKILL");
-              } catch (error) {
-                logSandboxServer("bash.processGroupKillError", {
-                  requestId,
-                  pid: child.pid,
-                  error: error instanceof Error ? error.message : String(error),
-                });
-                child.kill("SIGKILL");
-              }
-            } else {
-              child.kill("SIGKILL");
-            }
+            killProcessGroup();
 
             terminationGraceTimeoutId = setTimeout(() => {
               if (settled) {
@@ -436,6 +561,7 @@ function runCommand(
         return;
       }
 
+      forgetCommand();
       logSandboxServer("bash.processComplete", {
         requestId,
         pid: child.pid ?? null,

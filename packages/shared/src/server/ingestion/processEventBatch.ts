@@ -9,6 +9,8 @@ import {
   UnauthorizedError,
 } from "../../errors";
 import { type AuthHeaderValidVerificationResultIngestion } from "../auth/types";
+import { isSandboxPublicKey } from "../../in-app-agent/constants";
+import { findUnwritableSandboxTraceIds } from "../../in-app-agent/server/sandboxKey";
 import {
   getClickhouseEntityType,
   type IngestionEntityTypes,
@@ -98,6 +100,61 @@ type ProcessEventBatchOptions = {
   attribution: IngestionAttribution;
 };
 
+/**
+ * Sandbox script keys create traces but never write into an existing trace
+ * or any session. Observations must name their trace, and that trace must be
+ * one the key created; see `findUnwritableSandboxTraceIds`.
+ */
+async function filterSandboxKeyWrites<T extends IngestionEventType>(params: {
+  batch: T[];
+  projectId: string;
+  publicKey: string;
+  validationErrors: { id: string; error: unknown }[];
+}): Promise<T[]> {
+  const targets = params.batch.map((event) => {
+    const body = event.body as {
+      id?: string | null;
+      traceId?: string | null;
+      sessionId?: string | null;
+    };
+    const entityType = getClickhouseEntityType(event.type);
+    if (entityType === "trace") {
+      return { event, traceId: body.id, sessionId: body.sessionId };
+    }
+    if (entityType === "observation") {
+      return { event, traceId: body.traceId, sessionId: undefined };
+    }
+    return { event, traceId: undefined, sessionId: undefined, exempt: true };
+  });
+
+  const unwritable = new Set(
+    await findUnwritableSandboxTraceIds({
+      projectId: params.projectId,
+      publicKey: params.publicKey,
+      traceIds: targets.flatMap((target) =>
+        target.traceId ? [target.traceId] : [],
+      ),
+    }),
+  );
+
+  return targets.flatMap((target) => {
+    if ("exempt" in target) return [target.event];
+    const reason = target.sessionId
+      ? "Sandbox script keys cannot write to sessions"
+      : !target.traceId
+        ? "Sandbox script keys must set the trace id"
+        : unwritable.has(target.traceId)
+          ? "Sandbox script keys can only write to traces they created"
+          : null;
+    if (!reason) return [target.event];
+    params.validationErrors.push({
+      id: target.event.id,
+      error: new InvalidRequestError(reason),
+    });
+    return [];
+  });
+}
+
 /** processEventBatch validates and queues authorized ingestion events, returning per-event results. */
 export const processEventBatch = async (
   input: unknown[],
@@ -150,7 +207,7 @@ export const processEventBatch = async (
   const validationErrors: { id: string; error: unknown }[] = [];
 
   const ingestionSchema = createIngestionEventSchema(isLangfuseInternal);
-  const batch: z.infer<typeof ingestionSchema>[] = input
+  let batch: z.infer<typeof ingestionSchema>[] = input
     .flatMap((event) => {
       const parsed = ingestionSchema.safeParse(event);
       if (!parsed.success) {
@@ -174,7 +231,33 @@ export const processEventBatch = async (
         return [];
       }
       return [event];
+    })
+    .flatMap((event) => {
+      // Traces written by sandbox script keys stay private.
+      if (
+        event.type === eventTypes.TRACE_CREATE &&
+        event.body.public === true &&
+        isSandboxPublicKey(authCheck.scope.publicKey)
+      ) {
+        validationErrors.push({
+          id: event.id,
+          error: new InvalidRequestError(
+            "Sandbox script keys cannot make traces public",
+          ),
+        });
+        return [];
+      }
+      return [event];
     });
+
+  if (isSandboxPublicKey(authCheck.scope.publicKey)) {
+    batch = await filterSandboxKeyWrites({
+      batch,
+      projectId: authCheck.scope.projectId,
+      publicKey: authCheck.scope.publicKey!,
+      validationErrors,
+    });
+  }
 
   const sortedBatch = sortBatch(batch);
 

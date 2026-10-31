@@ -14,6 +14,8 @@ import {
 } from "@langfuse/shared/rbac";
 
 import { assignRole } from "@langfuse/shared/rbac/server";
+import { isSandboxPublicKey } from "@langfuse/shared/in-app-agent";
+import { isSandboxKeyAction } from "@langfuse/shared/in-app-agent/server/sandboxKey";
 
 import { getRolesForPrincipal } from "@/src/features/rbac/getRolesForPrincipal";
 import { getOrganizationPlanServerSide } from "@/src/features/entitlements/server";
@@ -117,6 +119,13 @@ async function materialize(
     boundResource: boundResourceFor(apiKey, org),
   };
 
+  if (isSandboxPublicKey(apiKey.publicKey)) {
+    return {
+      principal,
+      policies: await sandboxKeyPolicies(prisma, apiKey, authorization),
+    };
+  }
+
   const roles = await getRolesForApiKey(apiKey.id);
   const context = {
     principal,
@@ -143,6 +152,37 @@ async function materialize(
     }
     return roles;
   }
+}
+
+/**
+ * sandboxKeyPolicies caps an in-app agent sandbox key at the sandbox scope.
+ * Its stored role is the bound user's project role at mint, so the result is
+ * that role intersected with the sandbox scope. A key that is not a
+ * user-bound project key, is presented as a public key, or lost its role
+ * assignment gets no policies; there is no legacy backfill.
+ */
+async function sandboxKeyPolicies(
+  prisma: PrismaClient,
+  apiKey: ApiKey,
+  authorization: "publicKey" | "privateKey",
+): Promise<Policy[]> {
+  if (
+    authorization !== "privateKey" ||
+    apiKey.scope !== "PROJECT" ||
+    apiKey.userId === null ||
+    apiKey.userId !== apiKey.createdByUserId
+  ) {
+    return [];
+  }
+  const roles = await getRolesForPrincipal(prisma, ApiKeyId(apiKey.id));
+  return roles
+    .flatMap((role) => role.policies)
+    .map((policy) =>
+      policy.effect === "DENY"
+        ? policy
+        : { ...policy, actions: policy.actions.filter(isSandboxKeyAction) },
+    )
+    .filter((policy) => policy.actions.length > 0);
 }
 
 /**

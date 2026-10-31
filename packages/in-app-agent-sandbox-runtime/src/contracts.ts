@@ -30,7 +30,25 @@ const BashSandboxOperationSchema = z.object({
   operation: z.literal("bash"),
   command: z.string(),
   timeoutMs: z.number().finite().optional(),
+  /** Extra process environment for this command only. Values are never logged. */
+  env: z.record(z.string(), z.string()).optional(),
+  /** Caller-chosen id that `POST /sandbox/cancel` can target while the command runs. */
+  commandId: z.string().min(1).optional(),
   toolCallFiles: z.array(SandboxFileSchema).optional(),
+});
+
+/**
+ * Kills every process running as the sandbox user except the server itself,
+ * so nothing started earlier survives into the next command.
+ */
+const ReapSandboxOperationSchema = z.object({
+  operation: z.literal("reap"),
+  toolCallFiles: z.array(SandboxFileSchema).optional(),
+});
+
+/** Body of `POST /sandbox/cancel`, which bypasses the per-operation queue. */
+export const CancelSandboxCommandSchema = z.object({
+  commandId: z.string().min(1),
 });
 
 export const SandboxOperationSchema = z.discriminatedUnion("operation", [
@@ -38,6 +56,7 @@ export const SandboxOperationSchema = z.discriminatedUnion("operation", [
   WriteSandboxOperationSchema,
   EditSandboxOperationSchema,
   BashSandboxOperationSchema,
+  ReapSandboxOperationSchema,
 ]);
 
 export type SandboxFile = z.infer<typeof SandboxFileSchema>;
@@ -46,4 +65,5 @@ export type ReadSandboxOperation = z.infer<typeof ReadSandboxOperationSchema>;
 export type WriteSandboxOperation = z.infer<typeof WriteSandboxOperationSchema>;
 export type EditSandboxOperation = z.infer<typeof EditSandboxOperationSchema>;
 export type BashSandboxOperation = z.infer<typeof BashSandboxOperationSchema>;
+export type ReapSandboxOperation = z.infer<typeof ReapSandboxOperationSchema>;
 export type SandboxOperation = z.infer<typeof SandboxOperationSchema>;
