@@ -108,8 +108,63 @@ function extractUsageCounts(val: Record<string, unknown>) {
   }
 
   splitAnthropicCacheCreation(val.cache_creation, result);
+  normalizeTtlCacheCreationTokens(result);
 
   return result;
+}
+
+/**
+ * Bedrock, LangChain, and other integrations report Anthropic-compatible
+ * ephemeral cache-creation tokens as flat keys (e.g. `cache_creation_ephemeral_5m_input_tokens`,
+ * `input_ephemeral_5m_input_tokens`, or `ephemeral_5m_input_tokens`). Map them to the canonical
+ * `input_cache_creation_5m` and `input_cache_creation_1h` so model pricing recognizes and prices them,
+ * and decrement any aggregate cache creation counters so tokens are not counted twice.
+ */
+function normalizeTtlCacheCreationTokens(result: Record<string, number>) {
+  const fiveMinute =
+    result["input_ephemeral_5m_input_tokens"] ??
+    result["ephemeral_5m_input_tokens"] ??
+    result["cache_creation_ephemeral_5m_input_tokens"];
+  const oneHour =
+    result["input_ephemeral_1h_input_tokens"] ??
+    result["ephemeral_1h_input_tokens"] ??
+    result["cache_creation_ephemeral_1h_input_tokens"];
+
+  if (fiveMinute === undefined && oneHour === undefined) return;
+
+  let attributed = 0;
+  if (fiveMinute !== undefined && fiveMinute >= 0) {
+    if (result["input_cache_creation_5m"] === undefined) {
+      result["input_cache_creation_5m"] = fiveMinute;
+    }
+    delete result["input_ephemeral_5m_input_tokens"];
+    delete result["ephemeral_5m_input_tokens"];
+    delete result["cache_creation_ephemeral_5m_input_tokens"];
+    attributed += fiveMinute;
+  }
+
+  if (oneHour !== undefined && oneHour >= 0) {
+    if (result["input_cache_creation_1h"] === undefined) {
+      result["input_cache_creation_1h"] = oneHour;
+    }
+    delete result["input_ephemeral_1h_input_tokens"];
+    delete result["ephemeral_1h_input_tokens"];
+    delete result["cache_creation_ephemeral_1h_input_tokens"];
+    attributed += oneHour;
+  }
+
+  if (attributed > 0) {
+    for (const key of ["cache_creation_input_tokens", "input_cache_creation"]) {
+      if (result[key] !== undefined) {
+        const remainder = result[key] - attributed;
+        if (remainder > 0) {
+          result[key] = remainder;
+        } else {
+          delete result[key];
+        }
+      }
+    }
+  }
 }
 
 /**
@@ -196,6 +251,7 @@ const OpenAICompletionUsageSchema = z
           result.input = Math.max(result.input - (value ?? 0), 0);
         }
       }
+      normalizeTtlCacheCreationTokens(result);
     }
 
     if (completion_tokens_details) {
@@ -253,6 +309,7 @@ const OpenAIResponseUsageSchema = z
           result.input = Math.max(result.input - (value ?? 0), 0);
         }
       }
+      normalizeTtlCacheCreationTokens(result);
     }
 
     if (output_tokens_details) {

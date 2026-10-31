@@ -230,6 +230,63 @@ describe("Token Cost Calculation", () => {
     expect(costs.total_cost).toBeCloseTo(0.069036, 9);
   });
 
+  it("prices input_ephemeral_5m_input_tokens using input_cache_creation_5m model price", () => {
+    const costs = (IngestionService as any).calculateUsageCosts(
+      [
+        {
+          price: new Decimal(0.00000375),
+          usageType: "input_cache_creation_5m",
+        },
+        { price: new Decimal(0.000006), usageType: "input_cache_creation_1h" },
+      ],
+      { provided_cost_details: {} },
+      { input_ephemeral_5m_input_tokens: 194 },
+    );
+
+    expect(costs.cost_details.input_ephemeral_5m_input_tokens).toBeCloseTo(
+      0.0007275,
+      7,
+    );
+    expect(costs.total_cost).toBeCloseTo(0.0007275, 7);
+  });
+
+  it("prices input_ephemeral_5m_input_tokens using aggregate price when only aggregate exists", () => {
+    const costs = (IngestionService as any).calculateUsageCosts(
+      [
+        {
+          price: new Decimal(0.00000375),
+          usageType: "cache_creation_input_tokens",
+        },
+      ],
+      { provided_cost_details: {} },
+      { input_ephemeral_5m_input_tokens: 194 },
+    );
+
+    expect(costs.cost_details.input_ephemeral_5m_input_tokens).toBeCloseTo(
+      0.0007275,
+      7,
+    );
+    expect(costs.total_cost).toBeCloseTo(0.0007275, 7);
+  });
+
+  it("prices cache_creation_ephemeral_5m_input_tokens using input_cache_creation_5m model price (#19452)", () => {
+    const costs = (IngestionService as any).calculateUsageCosts(
+      [
+        {
+          price: new Decimal(0.00000375),
+          usageType: "input_cache_creation_5m",
+        },
+      ],
+      { provided_cost_details: {} },
+      { cache_creation_ephemeral_5m_input_tokens: 5544 },
+    );
+
+    expect(
+      costs.cost_details.cache_creation_ephemeral_5m_input_tokens,
+    ).toBeCloseTo(0.02079, 7);
+    expect(costs.total_cost).toBeCloseTo(0.02079, 7);
+  });
+
   it("should correctly calculate token costs with user provided costs", async () => {
     const prices = await prisma.price.findMany({
       where: {
