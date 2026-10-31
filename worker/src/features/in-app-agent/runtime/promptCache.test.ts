@@ -497,6 +497,70 @@ describe("applyPromptCacheToCall", () => {
     });
   });
 
+  it("stamps Bedrock cache points for an inference profile ARN only when the model family is declared Claude", () => {
+    // Application inference profile ARNs carry an opaque id, so the model id
+    // alone cannot tell that Claude sits behind them.
+    const options = { prompt: twoMessagePrompt };
+    const modelId =
+      "arn:aws:bedrock:eu-west-1:123456789012:application-inference-profile/a1b2c3d4e5f6";
+
+    expect(
+      applyPromptCacheToCall({ provider: "amazon-bedrock", modelId, options }),
+    ).toBe(options);
+    expect(
+      applyPromptCacheToCall({
+        provider: "amazon-bedrock",
+        modelId,
+        modelFamily: "claude",
+        options,
+      }),
+    ).toEqual({
+      prompt: [
+        {
+          role: "system",
+          content: "You are the Langfuse assistant.",
+          providerOptions: bedrockCachePoint,
+        },
+        {
+          role: "user",
+          content: [{ type: "text", text: "hello" }],
+          providerOptions: bedrockCachePoint,
+        },
+      ],
+    });
+  });
+
+  it.each([
+    ["anthropic.messages", anthropicCacheControl],
+    ["openai.responses", openaiCacheBreakpoint],
+    [
+      "openai.chat",
+      { openaiCompatible: { cache_control: { type: "ephemeral" } } },
+    ],
+  ])(
+    "stamps %s cache markers for a gateway alias only when the model family is declared Claude",
+    (provider, systemProviderOptions) => {
+      const options = { prompt: twoMessagePrompt };
+      const modelId = "langfuse-assistant-default";
+
+      expect(applyPromptCacheToCall({ provider, modelId, options })).toBe(
+        options,
+      );
+
+      const result = applyPromptCacheToCall({
+        provider,
+        modelId,
+        modelFamily: "claude",
+        options,
+      });
+      expect(result.prompt[0]).toEqual({
+        role: "system",
+        content: "You are the Langfuse assistant.",
+        providerOptions: systemProviderOptions,
+      });
+    },
+  );
+
   it("stamps Bedrock cache points for Claude models and leaves other models unchanged", () => {
     const options = {
       prompt: twoMessagePrompt,

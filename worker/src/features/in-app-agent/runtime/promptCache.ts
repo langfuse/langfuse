@@ -1,3 +1,4 @@
+import type { LangfuseAIModelFamily } from "@langfuse/shared/in-app-agent/server/modelProvider";
 import { isRecord } from "@langfuse/shared/in-app-agent/server/toolErrors";
 
 type PromptCacheProvider =
@@ -50,17 +51,27 @@ const OPENAI_PROMPT_CACHE_BREAKPOINT = { mode: "explicit" as const };
  * assistant or tool message moves back to the nearest preceding user or
  * system message. In-loop steps read through the latest user turn and send
  * this turn's tool calls and results uncached.
+ *
+ * A declared `modelFamily` of "claude" stands in for the model-id check, for
+ * ids that do not name Claude (Bedrock application inference profile ARNs,
+ * gateway aliases).
  */
 export function applyPromptCacheToCall<T>({
   provider,
   modelId,
+  modelFamily,
   options,
 }: {
   provider: string;
   modelId: string;
+  modelFamily?: LangfuseAIModelFamily;
   options: T;
 }): T {
-  const cacheProvider = resolvePromptCacheProvider(provider, modelId);
+  const cacheProvider = resolvePromptCacheProvider(
+    provider,
+    modelId,
+    modelFamily,
+  );
   if (
     cacheProvider == null ||
     !isRecord(options) ||
@@ -165,28 +176,34 @@ function canCarryPromptCache(
 function resolvePromptCacheProvider(
   provider: string,
   modelId: string,
+  modelFamily: LangfuseAIModelFamily | undefined,
 ): PromptCacheProvider | undefined {
+  const isDeclaredClaude = modelFamily === "claude";
   if (
     provider.includes("bedrock") &&
-    modelId.includes(BEDROCK_CLAUDE_MODEL_ID_PART)
+    (isDeclaredClaude || modelId.includes(BEDROCK_CLAUDE_MODEL_ID_PART))
   ) {
     return "bedrock";
   }
   if (
     provider.includes("anthropic") &&
-    modelId.includes(ANTHROPIC_CLAUDE_MODEL_ID_PART)
+    (isDeclaredClaude || modelId.includes(ANTHROPIC_CLAUDE_MODEL_ID_PART))
   ) {
     return "anthropic";
   }
   if (
     provider.includes("openai.responses") &&
-    modelId.includes(ANTHROPIC_CLAUDE_MODEL_ID_PART)
+    (isDeclaredClaude || modelId.includes(ANTHROPIC_CLAUDE_MODEL_ID_PART))
   ) {
     return "openai-responses";
   }
   // OpenRouter / LiteLLM Chat Completions: provider is `openai.chat` but
-  // the upstream model id is still `anthropic/claude-…`.
-  if (modelId.includes("anthropic")) {
+  // the upstream model id is still `anthropic/claude-…`, or the gateway
+  // aliases it and the family is declared instead.
+  if (
+    modelId.includes("anthropic") ||
+    (isDeclaredClaude && provider.includes("openai"))
+  ) {
     return "openai-compatible";
   }
   return undefined;

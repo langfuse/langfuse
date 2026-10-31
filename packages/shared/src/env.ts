@@ -689,6 +689,10 @@ const EnvSchema = z.object({
   // apply to all providers. LANGFUSE_AI_API_KEY / LANGFUSE_AI_BASE_URL /
   // LANGFUSE_AI_EXTRA_HEADERS apply to anthropic and openai.
   // LANGFUSE_AI_USE_RESPONSES_API applies to openai only.
+  // LANGFUSE_AI_MODEL_FAMILY applies to bedrock, anthropic, and openai. It
+  // declares the model family when the model id does not name it (a Bedrock
+  // application inference profile ARN, a gateway alias); unset detects Claude
+  // from the model id.
   // LANGFUSE_AI_VERTEX_LOCATION applies to vertex only; like bedrock, vertex
   // authenticates through the instance credential chain (GCP application
   // default credentials) and takes no key.
@@ -697,6 +701,7 @@ const EnvSchema = z.object({
     .optional(),
   LANGFUSE_AI_MODEL: z.string().optional(),
   LANGFUSE_AI_SMALL_MODEL: z.string().optional(),
+  LANGFUSE_AI_MODEL_FAMILY: z.enum(["claude"]).optional(),
   LANGFUSE_AI_API_KEY: z.string().optional(),
   LANGFUSE_AI_BASE_URL: z.string().optional(),
   LANGFUSE_AI_USE_RESPONSES_API: z.enum(["true", "false"]).optional(),

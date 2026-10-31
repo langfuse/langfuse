@@ -11,6 +11,7 @@ const original = {
   LANGFUSE_AI_PROVIDER: env.LANGFUSE_AI_PROVIDER,
   LANGFUSE_AI_MODEL: env.LANGFUSE_AI_MODEL,
   LANGFUSE_AI_SMALL_MODEL: env.LANGFUSE_AI_SMALL_MODEL,
+  LANGFUSE_AI_MODEL_FAMILY: env.LANGFUSE_AI_MODEL_FAMILY,
   LANGFUSE_AI_API_KEY: env.LANGFUSE_AI_API_KEY,
   LANGFUSE_AI_BASE_URL: env.LANGFUSE_AI_BASE_URL,
   LANGFUSE_AI_USE_RESPONSES_API: env.LANGFUSE_AI_USE_RESPONSES_API,
@@ -191,6 +192,26 @@ describe("getInAppAgentModelConfig", () => {
     });
 
     expect(getInAppAgentModelConfig()).toBeUndefined();
+  });
+
+  it("carries LANGFUSE_AI_MODEL_FAMILY onto the resolved config", () => {
+    Object.assign(env, {
+      LANGFUSE_AI_PROVIDER: "bedrock",
+      LANGFUSE_AI_MODEL:
+        "arn:aws:bedrock:eu-west-1:123456789012:application-inference-profile/a1b2c3d4e5f6",
+      LANGFUSE_AI_SMALL_MODEL: undefined,
+      LANGFUSE_AI_MODEL_FAMILY: "claude",
+      LANGFUSE_AI_API_KEY: undefined,
+      LANGFUSE_AI_BASE_URL: undefined,
+      LANGFUSE_AI_EXTRA_HEADERS: undefined,
+      LANGFUSE_AI_AWS_BEDROCK_REGION: "eu-west-1",
+      NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: undefined,
+    });
+
+    expect(getInAppAgentModelConfig()).toMatchObject({
+      provider: "bedrock",
+      modelFamily: "claude",
+    });
   });
 
   it("treats an unset LANGFUSE_AI_PROVIDER as unconfigured even when model vars are set", () => {

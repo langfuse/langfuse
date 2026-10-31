@@ -15,6 +15,16 @@ import { processOpenAIBaseURL } from "../../server/llm/utils";
 
 export type LangfuseAIProvider = "bedrock" | "anthropic" | "openai" | "vertex";
 
+/**
+ * Model family declared through `LANGFUSE_AI_MODEL_FAMILY`. Unset means the
+ * family is detected from the model id.
+ */
+export type LangfuseAIModelFamily = "claude";
+
+type LangfuseAIModelFamilyConfig = {
+  modelFamily?: LangfuseAIModelFamily;
+};
+
 type LangfuseAIHttpProviderConfig = {
   modelId: string;
   titleModelId: string;
@@ -23,7 +33,7 @@ type LangfuseAIHttpProviderConfig = {
   extraHeaders?: Record<string, string>;
 };
 
-export type InAppAgentModelConfig =
+export type InAppAgentModelConfig = (
   | {
       provider: "bedrock";
       modelId: string;
@@ -41,7 +51,9 @@ export type InAppAgentModelConfig =
       modelId: string;
       titleModelId: string;
       location?: string;
-    };
+    }
+) &
+  LangfuseAIModelFamilyConfig;
 
 export const LANGFUSE_AI_MODEL_UNCONFIGURED_MESSAGE =
   "Langfuse AI is not configured. Set LANGFUSE_AI_PROVIDER and LANGFUSE_AI_MODEL, plus LANGFUSE_AI_API_KEY when LANGFUSE_AI_PROVIDER is anthropic or openai.";
@@ -69,6 +81,9 @@ const extraHeadersRecordSchema = z.record(z.string(), z.string());
  * LANGFUSE_AI_EXTRA_HEADERS apply to anthropic and openai.
  * LANGFUSE_AI_USE_RESPONSES_API applies to openai only.
  * LANGFUSE_AI_VERTEX_LOCATION applies to vertex only.
+ * LANGFUSE_AI_MODEL_FAMILY applies to bedrock, anthropic, and openai, and
+ * covers model ids that do not name their family, such as Bedrock application
+ * inference profile ARNs or gateway aliases. Vertex model ids always name it.
  */
 export function getInAppAgentModelConfig(params?: {
   modelId?: string | null;
@@ -78,11 +93,23 @@ export function getInAppAgentModelConfig(params?: {
     return undefined;
   }
 
+  const config = resolveProviderConfig({ provider, modelId: params?.modelId });
+  const modelFamily = env.LANGFUSE_AI_MODEL_FAMILY;
+
+  return config && modelFamily ? { ...config, modelFamily } : config;
+}
+
+function resolveProviderConfig(params: {
+  provider: LangfuseAIProvider;
+  modelId?: string | null;
+}): InAppAgentModelConfig | undefined {
+  const { provider } = params;
+
   if (provider === "anthropic" || provider === "openai") {
-    return resolveHttpProviderConfig({ provider, modelId: params?.modelId });
+    return resolveHttpProviderConfig({ provider, modelId: params.modelId });
   }
 
-  const modelId = params?.modelId ?? env.LANGFUSE_AI_MODEL;
+  const modelId = params.modelId ?? env.LANGFUSE_AI_MODEL;
 
   if (!modelId) {
     return undefined;
