@@ -28,7 +28,7 @@
    <br/>
    <span>Langfuseは、サポートと機能リクエストのために <a href="https://github.com/orgs/langfuse/discussions"><strong>GitHub Discussions</strong></a> を利用しています。</span>
    <br/>
-   <span><b>We're hiring.</b> <a href="https://langfuse.com/careers"><strong>チームに加わる</strong></a> （製品エンジニアリングおよびテクニカルGTMのポジション）への応募をお待ちしています。</span>
+   <span><b>We're hiring.</b> リモート勤務で、ベルリン、サンフランシスコ、アムステルダム、ニューヨークにオフィスがあります。<a href="https://langfuse.com/careers"><strong>チームに加わる</strong></a></span>
    <br/>
    <br/>
    <div>
@@ -73,7 +73,7 @@ Langfuseは**オープンソースのLLMエンジニアリング**プラット�
 チームが共同でAIアプリケーションを**開発、監視、評価**、および**デバッグ**するのを支援します。  
 Langfuseは**数分でセルフホスト可能**で、**多くの実績を持つ**システムです。
 
-[![Langfuse Overview Video](https://github.com/user-attachments/assets/3926b288-ff61-4b95-8aa1-45d041c70866)](https://langfuse.com/watch-demo)
+[![Langfuse Overview Video](.github/watch-demo.png)](https://langfuse.com/watch-demo)
 
 ## ✨ コア機能
 

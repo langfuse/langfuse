@@ -66,10 +66,11 @@ Langfuse is an **open source LLM engineering** platform. It helps teams collabor
 
 > ### 🧑‍💻 We're hiring
 >
-> Langfuse is growing fast (we doubled the team in the last 6 months) - since January 2026 we're part of ClickHouse, we're hiring engineering hybrid across the EU.
+> Langfuse is growing fast (we doubled the team in the last 6 months). Since January 2026 we're part of ClickHouse. We hire remotely, with offices in Berlin, San Francisco, Amsterdam, and New York.
 > We hire engineers who love open source and great developer experiences.
 > **[See open roles →](https://langfuse.com/careers?utm_source=github&utm_medium=readme&utm_campaign=hiring&utm_content=langfuse)**
 
+[![Langfuse Overview Video](.github/watch-demo.png)](https://langfuse.com/watch-demo)
 
 ## ✨ Core Features
 
