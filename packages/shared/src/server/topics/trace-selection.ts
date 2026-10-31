@@ -31,7 +31,7 @@ type SelectionRows = {
 /**
  * Select trace identities from matching root observations. With
  * anyObservation, a trace matches when any of its observations meets every
- * filter, the semantics of continuous Topics rules.
+ * filter, the semantics of Topics rules, analyses and past-trace processing.
  */
 export async function selectTopicTraceRows<Mode extends keyof SelectionRows>(
   input: z.infer<typeof topicTraceSelectionCriteriaSchema> & {

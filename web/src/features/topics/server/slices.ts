@@ -339,6 +339,7 @@ async function analysisCohort(
         limit: TOPICS_SLICE_MAX_TRACES,
         sampling: "random",
         seed,
+        anyObservation: true,
       },
       prisma,
       "ids",

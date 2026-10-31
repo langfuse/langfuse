@@ -32,6 +32,7 @@ export async function resolveTopicClusteringCohort(input: {
         limit: TOPICS_SLICE_MAX_TRACES,
         sampling: "random",
         seed: input.analysis.seed,
+        anyObservation: true,
       },
       prisma,
       "ids",

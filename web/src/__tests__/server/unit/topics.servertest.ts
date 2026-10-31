@@ -450,6 +450,8 @@ describe("Topics filtered trace preview", () => {
     expect(request.query).not.toMatch(
       /e\.(input|output)\b|\bFINAL\b|\bSAMPLE\b/,
     );
+    // A trace matches when any of its spans meets the filters, not only the root.
+    expect(request.query).not.toMatch(/is_app_root = true\) = \{/);
     expect(request.params).toMatchObject({
       projectId,
       limit: 100,
@@ -523,6 +525,9 @@ describe("Topics filtered trace preview", () => {
       resolved.traceIds,
     );
     expect(resolved).not.toHaveProperty("selection");
+    expect(mocks.queryClickhouse.mock.calls[0][0].query).not.toMatch(
+      /is_app_root = true\) = \{/,
+    );
     expect(mocks.queryClickhouse.mock.calls[0][0].query).toContain("LIMIT");
     expect(mocks.queryClickhouse.mock.calls[0][0].params.limit).toBe(
       TOPICS_BACKFILL_TRACE_LIMIT,
