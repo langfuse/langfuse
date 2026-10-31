@@ -35,7 +35,6 @@ on:
         options:
           - disabled
           - no_changes
-          - mock_memory_diff
           - mock_workflow_diff
 
 permissions:
@@ -103,12 +102,12 @@ jobs:
           fi
 
           case "$AUDIT_DRY_RUN_MODE" in
-            disabled | no_changes | mock_memory_diff | mock_workflow_diff) ;;
+            disabled | no_changes | mock_workflow_diff) ;;
             false)
               AUDIT_DRY_RUN_MODE="disabled"
               ;;
             *)
-              echo "::error::dry_run_mode must be one of: disabled, no_changes, mock_memory_diff, mock_workflow_diff"
+              echo "::error::dry_run_mode must be one of: disabled, no_changes, mock_workflow_diff"
               exit 1
               ;;
           esac
@@ -205,9 +204,9 @@ jobs:
             5. Make only surgical edits with official provider evidence.
             6. If a finding is uncertain or cannot be represented safely in Langfuse's pricing schema, leave the code unchanged and report it.
             7. Record every distinct model price entry you check in `modelsChecked`; do not omit confirmed or unchanged models and do not collapse multiple checked models into one family row.
-            8. If you learn durable provider-source URLs, pricing-page quirks, model-ID variants, or recurring audit rules that would help future audits, update only the pricing skill reference files under `.agents/skills/add-model-price/references/*.md`.
-            9. You may replace the optional snapshot in `.agents/skills/add-model-price/references/model-audit-memory.md` with the complete `modelsChecked` table when retaining the current per-model evidence would materially help a future audit. Do not persist a partial table, append unbounded run history, or update the file only to refresh its date.
-            10. If the audit reveals that future runs need a sharper prompt, exact deterministic tools, input defaults, validation gates, or publish guardrails, update only `.github/workflows/model-price-audit.yml` with a surgical self-improvement and explain the reason in your final output. Report required provider-domain changes as unresolved so the fetch and deterministic source allowlists can be reviewed together.
+            8. A pull request is opened only when `default-model-prices.json` or the selectable model arrays in `types.ts` change. When neither changes, every other edit (skill references, audit memory, this workflow) is discarded and never published, so do not make reference or workflow edits in that case; put findings in `unresolvedFindings` and proposed workflow improvements in `workflowUpdates` instead.
+            9. In a run that changes prices or selectable models, keep `.agents/skills/add-model-price/references/*.md` current, not historical: edit or delete the existing bullet when a durable fact changes (source URLs, pricing-page quirks, model-ID variants, audit rules), add a row to "Scheduled Changes" in `provider-sources-and-price-keys.md` for a newly announced dated retirement or price change, and delete the rows this run acted on. Never add dated per-audit entries (for example "October 31 2026 audit: ..."), re-confirmations of unchanged prices, lists of pages fetched, or narrative about how this run went. In the same kind of run you may replace the snapshot in `model-audit-memory.md` with the complete `modelsChecked` table; never append to it.
+            10. If the audit reveals that future runs need a sharper prompt, exact deterministic tools, input defaults, validation gates, or publish guardrails, and this run also changes prices or selectable models, you may update `.github/workflows/model-price-audit.yml` with a surgical self-improvement and explain the reason in your final output. Report required provider-domain changes as unresolved so the fetch and deterministic source allowlists can be reviewed together.
             11. Re-run the deterministic validation script before finishing.
             12. If you change any `matchPattern`, run the bundled match-pattern tester with representative accepted and rejected model IDs before finishing.
 
@@ -241,9 +240,9 @@ jobs:
             - Set `tieringCorrect` to `yes` only when all applicable price tiers, thresholds, and tier-specific prices are confirmed. Use `not_applicable` only when the provider has no applicable tiering dimension, otherwise use `no` and explain the gap in `comments`.
             - For every model removed from a selectable model array, add exactly one row with `change` set to `removed`, the provider's own retirement, shutdown, or model-listing URL in `officialSources`, and a comment naming the arrays it was removed from, its retirement status or date, and its successor if one exists. Price, usage-key, and tiering confirmations may be `no` for removed rows. A model ID listed in several arrays gets one row, but every distinct removed ID gets its own row: an alias and its dated snapshot (for example `o1-preview` and `o1-preview-2024-09-12`) are two rows, not one row with the snapshot named in `comments`. Set `model` to the exact string from the selectable array, even when its pricing `modelName` is spelled differently (for example `claude-3-7-sonnet-20250219` in the array versus `claude-3.7-sonnet-20250219` in the pricing file), and set `provider` to `OpenAI`, `Anthropic`, or `Google` to match the array.
             - Put the official evidence URLs used for each model in that row. Comments should capture price units and conversions, tier thresholds, corrections, uncertainty, or why no change was made. For `added`, `updated`, and `removed` rows, start `comments` with the old and new values and the reason for the change, because the pull request body shows only these rows' `pricingChecked`, `comments`, and `officialSources`.
-            - Treat every allowed repository edit as a diff, including an audit snapshot written to `model-audit-memory.md` when no model prices changed. If there is no repository diff at all, set `pullRequestTitle` to an empty string, say that no pricing changes were made, and list notable unresolved findings.
-            - If there is a diff, set `pullRequestTitle` to a Conventional Commit title starting with `chore(pricing): ` that names the affected model families or the specific audit behavior changed, for example `chore(pricing): remove retired gemini-2.0 models from pickers`. Never use a generic title such as `update default model prices`.
-            - If there is a diff, also list every changed model, every workflow or skill-reference improvement, and the validation commands run.
+            - If you did not change `default-model-prices.json` or the selectable model arrays in `types.ts`, set `pullRequestTitle` to an empty string, say in `summary` that no prices or selectable models changed, and list notable unresolved findings.
+            - If you did change them, set `pullRequestTitle` to a Conventional Commit title starting with `chore(pricing): ` that names the affected models or model families, for example `chore(pricing): remove retired gemini-2.0 models from pickers`. Never use a generic title such as `update default model prices`.
+            - If you did change them, also list every changed model, every workflow or skill-reference update, and the validation commands run.
           claude_args: |
             --model ${{ steps.validate-inputs.outputs.claude_model }}
             --max-turns ${{ steps.validate-inputs.outputs.max_turns }}
@@ -265,11 +264,6 @@ jobs:
               echo
               echo "# Dry-run mock diff generated by workflow_dispatch; publish job is skipped."
             } >> .github/workflows/model-price-audit.yml
-          elif [ "$DRY_RUN_MODE" = "mock_memory_diff" ]; then
-            {
-              echo
-              echo "<!-- Dry-run mock audit-memory diff; publish job is skipped. -->"
-            } >> .agents/skills/add-model-price/references/model-audit-memory.md
           fi
 
           node <<'NODE' > "$RUNNER_TEMP/claude-model-price-audit-mock.json"
@@ -278,8 +272,6 @@ jobs:
             summary:
               mode === "mock_workflow_diff"
                 ? "Dry run: skipped Claude and created a mock workflow diff to exercise validation, commit, patch, and artifact upload steps."
-                : mode === "mock_memory_diff"
-                  ? "Dry run: skipped Claude and created a mock audit-memory diff to exercise the memory-table PR path."
                 : "Dry run: skipped Claude and created no repository diff to exercise the no-change path.",
             auditDate: new Date().toISOString().slice(0, 10),
             pullRequestTitle:
@@ -302,12 +294,7 @@ jobs:
               },
             ],
             changedModels: [],
-            skillReferenceUpdates:
-              mode === "mock_memory_diff"
-                ? [
-                    ".agents/skills/add-model-price/references/model-audit-memory.md - created a synthetic memory-only diff with an intentionally empty model title.",
-                  ]
-                : [],
+            skillReferenceUpdates: [],
             workflowUpdates:
               mode === "mock_workflow_diff"
                 ? [
@@ -344,6 +331,11 @@ jobs:
             --base "$base_pricing_file" \
             --current worker/src/constants/default-model-prices.json
 
+      # Dry runs skip this step so mock diffs still exercise the publish path.
+      - name: Discard edits without price or selectable-model changes
+        if: steps.validate-inputs.outputs.dry_run_mode == 'disabled'
+        run: node scripts/model-price-audit/discard-edits-without-model-changes.mjs
+
       - name: Write audit summary
         env:
           STRUCTURED_OUTPUT: ${{ steps.claude-audit.outputs.structured_output || steps.mock-claude-audit.outputs.structured_output }}
@@ -361,11 +353,6 @@ jobs:
             HAS_REPOSITORY_DIFF=true
           fi
 
-          MEMORY_SNAPSHOT_ONLY=false
-          if [ "${#changed_files[@]}" -eq 1 ] && [ "${changed_files[0]}" = ".agents/skills/add-model-price/references/model-audit-memory.md" ]; then
-            MEMORY_SNAPSHOT_ONLY=true
-          fi
-
           BASE_PRICING_FILE="$RUNNER_TEMP/default-model-prices-before-audit.json"
           BASE_TYPES_FILE="$RUNNER_TEMP/llm-types-before-audit.ts"
           git show "HEAD:packages/shared/src/server/llm/types.ts" > "$BASE_TYPES_FILE"
@@ -374,7 +361,7 @@ jobs:
           STRUCTURED_OUTPUT_PATH="$RUNNER_TEMP/claude-model-price-audit.json"
           TYPES_DIFF_FILE="$RUNNER_TEMP/llm-types-before-prepare.diff"
           git diff --unified=0 -- "packages/shared/src/server/llm/types.ts" > "$TYPES_DIFF_FILE"
-          export BASE_PRICING_FILE BASE_TYPES_FILE CURRENT_PRICING_FILE CURRENT_TYPES_FILE HAS_REPOSITORY_DIFF MEMORY_SNAPSHOT_ONLY STRUCTURED_OUTPUT_PATH TYPES_DIFF_FILE
+          export BASE_PRICING_FILE BASE_TYPES_FILE CURRENT_PRICING_FILE CURRENT_TYPES_FILE HAS_REPOSITORY_DIFF STRUCTURED_OUTPUT_PATH TYPES_DIFF_FILE
           node scripts/model-price-audit/validate-and-render-audit-output.mjs \
             | tee "$RUNNER_TEMP/claude-model-price-audit.txt"
 
