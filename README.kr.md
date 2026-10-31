@@ -1,4 +1,4 @@
-![Langfuse GitHub Banner](https://langfuse.com/images/docs/github-readme/github-banner.png)
+![Langfuse GitHub Banner](.github/readme-banner.png)
 
 <div align="center">
    <div>
@@ -28,7 +28,7 @@
    <br/>
    <span>Langfuse는 지원 및 기능 요청을 위해 <a href="https://github.com/orgs/langfuse/discussions"><strong>GitHub Discussions</strong></a>를 사용합니다.</span>
    <br/>
-   <span><b>채용 중입니다.</b> <a href="https://langfuse.com/careers"><strong>함께 하세요</strong></a> – 제품 엔지니어링 및 기술 go-to-market 역할의 인재를 찾고 있습니다.</span>
+   <span><b>채용 중입니다.</b> 원격으로 근무하며 베를린, 샌프란시스코, 암스테르담, 뉴욕에 오피스가 있습니다. <a href="https://langfuse.com/careers"><strong>함께 하세요</strong></a></span>
    <br/>
    <br/>
    <div>
@@ -73,7 +73,7 @@ Langfuse는 **오픈 소스 LLM 엔지니어링** 플랫폼입니다.
 팀이 협업하여 AI 애플리케이션을 **개발, 모니터링, 평가** 및 **디버그**할 수 있도록 도와줍니다.  
 Langfuse는 몇 분 안에 셀프 호스팅할 수 있으며, 검증된(battle-tested) 솔루션입니다.
 
-[![Langfuse Overview Video](https://github.com/user-attachments/assets/3926b288-ff61-4b95-8aa1-45d041c70866)](https://langfuse.com/watch-demo)
+<a href="https://langfuse.com/watch-demo"><img width="37.5%" alt="Langfuse Overview Video" src=".github/watch-demo.png"></a>
 
 ## ✨ 주요 기능
 
