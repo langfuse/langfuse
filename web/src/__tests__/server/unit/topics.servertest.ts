@@ -8,6 +8,8 @@ import {
   topicProcessingConfigSchema,
   topicEmbeddingConfigSchema,
   DEFAULT_TOPIC_FACETS,
+  TOPICS_ANALYSIS_SAMPLING_SEED,
+  TOPICS_SLICE_MAX_TRACES,
   type TopicExecution,
   type TopicExecutionInput,
   type TopicRule,
@@ -46,8 +48,14 @@ const mocks = vi.hoisted(() => ({
   auditLog: vi.fn(),
 }));
 vi.mock("@langfuse/shared/topics/server", async (importOriginal) => {
-  const { selectTopicTraceRows } = await importOriginal<typeof topicsServer>();
-  return { ...mocks, selectTopicTraceRows };
+  const { selectTopicTraceRows, topicAnalysisCohort, countTopicCohortTraces } =
+    await importOriginal<typeof topicsServer>();
+  return {
+    ...mocks,
+    selectTopicTraceRows,
+    topicAnalysisCohort,
+    countTopicCohortTraces,
+  };
 });
 vi.mock(
   "@langfuse/shared/src/server/repositories/clickhouse",
@@ -1681,6 +1689,45 @@ describe("Topics analyses", () => {
     ).toBe("support");
     expect(parentRuleFor(rules, [env])?.id).toBe("all");
     expect(parentRuleFor(rules.slice(1), [env])).toBeNull();
+  });
+
+  it("previews and runs an analysis on the same seeded sample of summarized traces", async () => {
+    const slice = {
+      projectId,
+      filter: [condition("environment", "production")],
+      timeRange,
+      facets: selectedFacets,
+    };
+    mocks.queryClickhouse.mockResolvedValue([{ count: "250" }]);
+    mocks.getTopicSummaryCounts.mockResolvedValue([
+      { facetId, facetVersion, count: 120 },
+    ]);
+    mocks.createTopicExecution.mockResolvedValue({
+      ...execution(),
+      status: "queued",
+    });
+    expect(await caller().previewAnalysis(slice)).toMatchObject({
+      matchedTraceCount: 250,
+      summarizedCount: 120,
+      ready: true,
+    });
+    await caller().startAnalysis({ ...slice, label: "Production" });
+    const sample = {
+      seed: TOPICS_ANALYSIS_SAMPLING_SEED,
+      limit: TOPICS_SLICE_MAX_TRACES,
+    };
+    expect(
+      mocks.getTopicSummaryCounts.mock.calls.map((call) => call[4].sample),
+    ).toEqual([sample, sample]);
+    expect(mocks.getTopicSummaryCounts.mock.calls[0][4].traces.query).toMatch(
+      /^SELECT id FROM \(WITH/,
+    );
+    expect(mocks.createTopicExecution.mock.calls[0][0].analysis.seed).toBe(
+      TOPICS_ANALYSIS_SAMPLING_SEED,
+    );
+    expect(mocks.queryClickhouse.mock.calls[0][0].query).toMatch(
+      /^SELECT count\(\) AS count FROM \(SELECT id FROM/,
+    );
   });
 
   it("keeps a trace in an analysis after the trace is summarized again", async () => {

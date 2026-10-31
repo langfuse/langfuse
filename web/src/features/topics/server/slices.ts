@@ -3,6 +3,7 @@ import { InvalidRequestError, LangfuseNotFoundError } from "@langfuse/shared";
 import type { PrismaClient } from "@langfuse/shared/src/db";
 import {
   TOPICS_ANALYSIS_MIN_TRACES,
+  TOPICS_ANALYSIS_SAMPLING_SEED,
   TOPICS_SLICE_MAX_TRACES,
   type TopicAnalysisConfig,
   type TopicExecutionSummary,
@@ -12,6 +13,7 @@ import {
   type TopicsRefitIntervalHours,
 } from "@langfuse/shared/topics";
 import {
+  countTopicCohortTraces,
   createTopicExecution,
   enqueueTopicExecution,
   getLatestFacetSummaries,
@@ -25,7 +27,7 @@ import {
   listTopicRules,
   readTopicExecutionSummary,
   readTopicMapAssignments,
-  selectTopicTraceRows,
+  topicAnalysisCohort,
 } from "@langfuse/shared/topics/server";
 import { facetTopicResult } from "./currentResults";
 
@@ -322,70 +324,41 @@ async function embeddingConfig(projectId: string) {
   };
 }
 
-async function analysisCohort(
-  projectId: string,
-  filter: Filter,
-  timeRange: TopicTimeRange,
-  seed: string,
-  prisma: PrismaClient,
-) {
-  return (
-    await selectTopicTraceRows(
-      {
-        projectId,
-        filter,
-        from: timeRange.from,
-        to: timeRange.to,
-        limit: TOPICS_SLICE_MAX_TRACES,
-        sampling: "random",
-        seed,
-        anyObservation: true,
-      },
-      prisma,
-      "ids",
-    )
-  ).map((row) => row.id);
-}
-
-/** How many traces an analysis would cluster, per facet; Run needs enough of them. */
-export async function previewTopicAnalysis(
-  input: {
-    projectId: string;
-    filter: Filter;
-    timeRange: TopicTimeRange;
-    facets: TopicFacetRef[];
-  },
-  prisma: PrismaClient,
-) {
-  const [traceIds, rules, config] = await Promise.all([
-    analysisCohort(
-      input.projectId,
-      input.filter,
-      input.timeRange,
-      "preview",
-      prisma,
-    ),
+/**
+ * How many traces an analysis would cluster, per facet: a seeded sample of the
+ * slice's summarized traces, the same one its run clusters. Run needs enough.
+ */
+export async function previewTopicAnalysis(input: {
+  projectId: string;
+  filter: Filter;
+  timeRange: TopicTimeRange;
+  facets: TopicFacetRef[];
+}) {
+  const [cohort, rules, config] = await Promise.all([
+    topicAnalysisCohort({
+      projectId: input.projectId,
+      filter: input.filter,
+      timeRange: input.timeRange,
+      seed: TOPICS_ANALYSIS_SAMPLING_SEED,
+    }),
     listTopicRules(input.projectId),
     embeddingConfig(input.projectId),
   ]);
-  const counts = traceIds.length
-    ? await getTopicSummaryCounts(
-        input.projectId,
-        input.facets,
-        config,
-        input.timeRange,
-        traceIds,
-      )
-    : input.facets.map(({ facetId, version }) => ({
-        facetId,
-        facetVersion: version,
-        count: 0,
-      }));
+  const [matchedTraceCount, counts] = await Promise.all([
+    countTopicCohortTraces(input.projectId, cohort.traces),
+    getTopicSummaryCounts(
+      input.projectId,
+      input.facets,
+      config,
+      input.timeRange,
+      cohort,
+    ),
+  ]);
   const summarizedCount = Math.min(...counts.map(({ count }) => count));
   const parentRule = parentRuleFor(rules, input.filter);
   return {
-    matchedTraceCount: traceIds.length,
-    capped: traceIds.length >= TOPICS_SLICE_MAX_TRACES,
+    matchedTraceCount,
+    capped: summarizedCount >= TOPICS_SLICE_MAX_TRACES,
     summarized: counts,
     summarizedCount,
     minimumTraceCount: TOPICS_ANALYSIS_MIN_TRACES,
@@ -407,9 +380,8 @@ export async function startTopicAnalysis(
     previousExecutionId?: string | null;
   },
   userId: string,
-  prisma: PrismaClient,
 ) {
-  const preview = await previewTopicAnalysis(input, prisma);
+  const preview = await previewTopicAnalysis(input);
   if (!preview.ready)
     throw new InvalidRequestError(
       `An analysis needs at least ${TOPICS_ANALYSIS_MIN_TRACES} summarized traces. Process past traces for this slice first.`,
@@ -429,7 +401,7 @@ export async function startTopicAnalysis(
         filter: input.filter,
         parentRuleId: preview.parentRule?.id ?? null,
         previousExecutionId: input.previousExecutionId ?? null,
-        seed: requestId,
+        seed: TOPICS_ANALYSIS_SAMPLING_SEED,
       },
     },
     createHash("sha256").update(requestId).digest("hex"),
@@ -444,7 +416,6 @@ export async function startTopicAnalysis(
 export async function rerunTopicAnalysis(
   input: { projectId: string; executionId: string; timeRange: TopicTimeRange },
   userId: string,
-  prisma: PrismaClient,
 ) {
   const previous = await requireAnalysis(input.projectId, input.executionId);
   const facets = await listTopicFacets(input.projectId);
@@ -464,6 +435,5 @@ export async function rerunTopicAnalysis(
       previousExecutionId: previous.id,
     },
     userId,
-    prisma,
   );
 }

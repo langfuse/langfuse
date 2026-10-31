@@ -353,9 +353,9 @@ export const topicsRouter = createTRPCRouter({
     .query(({ input }) => analysisRunDiff(input.projectId, input.executionId)),
   previewAnalysis: topicsProcedure
     .input(analysisFilterInput)
-    .query(async ({ input, ctx }) => {
+    .query(async ({ input }) => {
       await requireFacetVersions(input.projectId, input.facets);
-      return previewTopicAnalysis(input, ctx.prisma);
+      return previewTopicAnalysis(input);
     }),
   startAnalysis: topicsWriteProcedure
     .input(
@@ -365,12 +365,12 @@ export const topicsRouter = createTRPCRouter({
     )
     .mutation(async ({ input, ctx }) => {
       await requireFacetVersions(input.projectId, input.facets);
-      return startTopicAnalysis(input, ctx.session.user.id, ctx.prisma);
+      return startTopicAnalysis(input, ctx.session.user.id);
     }),
   rerunAnalysis: topicsWriteProcedure
     .input(executionInput.extend({ timeRange: resultInput.shape.timeRange }))
     .mutation(({ input, ctx }) =>
-      rerunTopicAnalysis(input, ctx.session.user.id, ctx.prisma),
+      rerunTopicAnalysis(input, ctx.session.user.id),
     ),
   /** Trace header: every facet result of one trace, with its summary. */
   forTrace: topicsProcedure

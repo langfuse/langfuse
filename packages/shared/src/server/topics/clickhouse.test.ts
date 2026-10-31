@@ -230,6 +230,45 @@ describe("Topics clustering capacity", () => {
     },
   );
 
+  it("selects a cohort inside ClickHouse and samples its summarized traces with the cohort seed", async () => {
+    const traces = {
+      query: "SELECT id FROM matching WHERE env = {envFilter:String}",
+      params: { envFilter: "production" },
+    };
+    const sample = { seed: "analysis-seed", limit: 20_000 };
+    await getTopicSummaryCounts(
+      "project-a",
+      [{ facetId: "facet-a", version: 1 }],
+      embedding,
+      timeRange,
+      { traces, sample },
+    );
+    const counts = mocks.query.mock.calls[0][0];
+    expect(counts.query).toContain(`AND trace_id IN (${traces.query})`);
+    expect(counts.query).toMatch(
+      /ORDER BY cityHash64\(trace_id, \{cohortSeed:String\}\), trace_id\s+LIMIT \{cohortLimit:UInt64\} BY facet_id, facet_version/,
+    );
+    expect(counts.query).not.toContain("Array(String)} AND trace_id");
+    expect(counts.params).toMatchObject({
+      envFilter: "production",
+      cohortSeed: "analysis-seed",
+      cohortLimit: 20_000,
+    });
+
+    mocks.queryStream.mockImplementation(async function* () {
+      yield row;
+    });
+    await getTopicClusteringSummaries(...args, limits, { traces, sample });
+    const [{ query, params }] = mocks.queryStream.mock.calls[0];
+    expect(query).toContain(`AND trace_id IN (${traces.query})`);
+    expect(query).toContain("LIMIT {cohortLimit:UInt64}");
+    expect(params).toMatchObject({
+      envFilter: "production",
+      cohortSeed: "analysis-seed",
+    });
+    expect(params).not.toHaveProperty("cohortTraceIds");
+  });
+
   it("returns the complete at-limit cohort and bounds the query result", async () => {
     mocks.queryStream.mockImplementation(async function* () {
       yield row;

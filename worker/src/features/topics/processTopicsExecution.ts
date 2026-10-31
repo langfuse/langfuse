@@ -1290,7 +1290,6 @@ async function updateTopics(
             timeRange: execution.input.timeRange,
             ruleId: execution.input.ruleId,
             analysis,
-            maxRows: env.LANGFUSE_TOPICS_MAX_CLUSTERING_ROWS,
           });
           // An analysis continues its previous run; a refit continues its rule's map.
           let current: TopicRun | null = null;
@@ -1321,7 +1320,7 @@ async function updateTopics(
               maxRows: env.LANGFUSE_TOPICS_MAX_CLUSTERING_ROWS,
               maxBytes: env.LANGFUSE_TOPICS_MAX_CLUSTERING_BYTES,
             },
-            cohort.cohortTraceIds,
+            cohort.cohort,
           ).catch(async (error: unknown) => {
             if (accepted?.status === "pending")
               await saveTopicRun({

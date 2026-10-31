@@ -133,11 +133,11 @@ export function NewAnalysisDialog({
         <TopicSliceFields.Counts
           items={[
             {
-              label: `Matching traces (random sample of at most ${count(TOPICS_SLICE_MAX_TRACES)})`,
+              label: "Matching traces",
               value: preview.data ? count(preview.data.matchedTraceCount) : "…",
             },
             {
-              label: "Summarized, will be clustered",
+              label: `Summarized, will be clustered (random sample of at most ${count(TOPICS_SLICE_MAX_TRACES)})`,
               value: preview.data ? count(preview.data.summarizedCount) : "…",
               emphasis: true,
             },

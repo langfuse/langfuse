@@ -6,6 +6,7 @@ import { applyCommentFilters } from "../services/commentFilterService";
 import { CTEQueryBuilder } from "../queries/clickhouse-sql/event-query-builder";
 import { buildEventsObservationRowSelection } from "../queries/clickhouse-sql/events-observation-row-selection";
 import { queryClickhouse } from "../repositories/clickhouse";
+import type { TopicCohortTraces } from "./clickhouse";
 import {
   INTERNAL_EVAL_ENVIRONMENT_PREFIX,
   PUBLIC_LLM_JUDGE_ENVIRONMENT,
@@ -28,19 +29,17 @@ type SelectionRows = {
   };
 };
 
-/**
- * Select trace identities from matching root observations. With
- * anyObservation, a trace matches when any of its observations meets every
- * filter, the semantics of Topics rules, analyses and past-trace processing.
- */
-export async function selectTopicTraceRows<Mode extends keyof SelectionRows>(
-  input: z.infer<typeof topicTraceSelectionCriteriaSchema> & {
-    projectId: string;
-    anyObservation?: boolean;
-  },
+type TraceSelectionInput = z.infer<typeof topicTraceSelectionCriteriaSchema> & {
+  projectId: string;
+  anyObservation?: boolean;
+};
+
+/** One row per matching trace; null when comment filters exclude every observation. */
+async function matchingTracesQuery(
+  input: Omit<TraceSelectionInput, "limit" | "sampling" | "seed">,
   prisma: PrismaClient,
-  mode: Mode,
-): Promise<SelectionRows[Mode][]> {
+  preview: boolean,
+) {
   const { filterState, hasNoMatches } = await applyCommentFilters({
     projectId: input.projectId,
     prisma,
@@ -52,7 +51,7 @@ export async function selectTopicTraceRows<Mode extends keyof SelectionRows>(
       return [filter];
     }),
   });
-  if (hasNoMatches) return [];
+  if (hasNoMatches) return null;
   const rootObservationFilter: typeof filterState = [
     {
       column: "isRootObservation",
@@ -76,7 +75,6 @@ export async function selectTopicTraceRows<Mode extends keyof SelectionRows>(
       { column: "startTime", type: "datetime", operator: "<", value: input.to },
     ],
   });
-  const preview = mode === "preview";
   const matching = queryBuilder
     .selectRaw(
       "e.trace_id AS id",
@@ -88,7 +86,7 @@ export async function selectTopicTraceRows<Mode extends keyof SelectionRows>(
     )
     .whereRaw("e.trace_id != ''")
     .buildWithParams();
-  const traces = new CTEQueryBuilder()
+  return new CTEQueryBuilder()
     .withCTE("matching_observations", {
       ...matching,
       schema: [
@@ -121,6 +119,57 @@ export async function selectTopicTraceRows<Mode extends keyof SelectionRows>(
       },
     )
     .buildWithParams();
+}
+
+/**
+ * A subquery of the trace IDs any of whose observations meets every filter in
+ * the window, for clustering queries to join inside ClickHouse.
+ */
+export async function selectTopicCohortTraces(
+  input: Pick<TraceSelectionInput, "projectId" | "filter" | "from" | "to">,
+  prisma: PrismaClient,
+): Promise<TopicCohortTraces> {
+  const traces = await matchingTracesQuery(
+    { ...input, anyObservation: true },
+    prisma,
+    false,
+  );
+  return traces
+    ? { query: `SELECT id FROM (${traces.query})`, params: traces.params }
+    : { query: "SELECT '' AS id LIMIT 0", params: {} };
+}
+
+export async function countTopicCohortTraces(
+  projectId: string,
+  traces: TopicCohortTraces,
+): Promise<number> {
+  const [row] = await queryClickhouse<{ count: string }>({
+    query: `SELECT count() AS count FROM (${traces.query})`,
+    params: traces.params,
+    preferredClickhouseService: "EventsReadOnly",
+    tags: { projectId, route: "topics-cohort-count" },
+    clickhouseSettings: {
+      max_threads: 2,
+      max_execution_time: 30,
+      timeout_overflow_mode: "throw",
+    },
+  });
+  return Number(row?.count ?? 0);
+}
+
+/**
+ * Select trace identities from matching root observations. With
+ * anyObservation, a trace matches when any of its observations meets every
+ * filter, the semantics of Topics rules, analyses and past-trace processing.
+ */
+export async function selectTopicTraceRows<Mode extends keyof SelectionRows>(
+  input: TraceSelectionInput,
+  prisma: PrismaClient,
+  mode: Mode,
+): Promise<SelectionRows[Mode][]> {
+  const preview = mode === "preview";
+  const traces = await matchingTracesQuery(input, prisma, preview);
+  if (!traces) return [];
   const selection = new CTEQueryBuilder()
     .withCTE("matching_traces", {
       ...traces,
