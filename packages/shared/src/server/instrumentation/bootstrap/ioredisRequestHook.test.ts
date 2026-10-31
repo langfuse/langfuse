@@ -40,7 +40,8 @@ describe("ioredisRequestHook", () => {
     const keys = Array.from({ length: 10_000 }, (_, i) => `key:${i}`);
     const command = recordFullCommand("del", keys);
 
-    expect(command.length).toBeLessThan(2_000);
+    expect(command.length).toBeLessThanOrEqual(1_024 + "…[truncated]".length);
+    expect(command.endsWith("…[truncated]")).toBe(true);
     expect(command.startsWith("del key:0 key:1")).toBe(true);
   });
 
