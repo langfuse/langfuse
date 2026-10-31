@@ -99,6 +99,41 @@ describe("LangGraph Adapter", () => {
     );
   });
 
+  it("should stringify rich tool result payloads that carry reserved message fields", () => {
+    const input = {
+      messages: [
+        {
+          content: {
+            name: "Alice",
+            role: "admin",
+            email: "a@x.io",
+            tool_call_id: "garbage",
+          },
+          type: "tool",
+          name: "Web-Search",
+          tool_call_id: "call_abc",
+        },
+      ],
+    };
+
+    const result = normalizeInput(input, { framework: "langgraph" });
+    expect(result.success).toBe(true);
+    if (!result.data) throw new Error("Expected data to be defined");
+
+    expect(result.data[0].role).toBe("tool");
+    expect(result.data[0].name).toBe("Web-Search");
+    expect(result.data[0].tool_call_id).toBe("call_abc");
+    // Colliding payload stays visible as a JSON string instead of
+    // overwriting the message identity
+    expect(typeof result.data[0].content).toBe("string");
+    expect(JSON.parse(result.data[0].content)).toEqual({
+      name: "Alice",
+      role: "admin",
+      email: "a@x.io",
+      tool_call_id: "garbage",
+    });
+  });
+
   it("should filter out tool definitions and attach them to messages", () => {
     // This is the format from langgraph-2025-08-22.json
     const input = [
