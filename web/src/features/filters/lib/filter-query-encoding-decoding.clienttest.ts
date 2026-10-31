@@ -468,6 +468,18 @@ describe("Filter Query Encoding & Decoding (Legacy Format)", () => {
   });
 
   describe("Round-trip consistency", () => {
+    it.each([
+      { value: [""] },
+      { value: ["\\e"] },
+      { value: ["\\\\e"] },
+      { value: ["", "\\e", "a|b"] },
+    ])("preserves empty strings and escaped values ($value)", ({ value }) => {
+      const filters: FilterState = [
+        { column: "name", type: "stringOptions", operator: "any of", value },
+      ];
+      expect(decodeFilters(encodeFilters(filters))).toEqual(filters);
+    });
+
     it("should maintain consistency through encode -> decode", () => {
       const originalFilters: FilterState = [
         {

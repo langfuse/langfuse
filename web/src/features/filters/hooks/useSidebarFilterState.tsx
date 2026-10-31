@@ -49,6 +49,7 @@ import {
   clearCategoricalColumn,
   deriveOperatorChange,
   hasMultipleFilterTargets,
+  hasEmptyCheckboxSelection,
   removeColumnFiltersOfType,
   removeTextFilterEntry,
   type BooleanKeyValueFilterEntry,
@@ -1761,19 +1762,19 @@ export function useSidebarFilterPresentation(
           const falseLabel = facet.falseLabel ?? "False";
           const invert = facet.invertValue ?? false;
           const availableOptions = [trueLabel, falseLabel];
-          const filterEntry = filterByColumn.get(facet.column);
-
-          let selectedOptions = availableOptions;
-          if (filterEntry) {
-            const boolValue = filterEntry.value as boolean;
-            if (invert) {
-              // Inverted: filter value=true means falseLabel selected, value=false means trueLabel selected
-              selectedOptions = boolValue === true ? [falseLabel] : [trueLabel];
-            } else {
-              selectedOptions = boolValue === true ? [trueLabel] : [falseLabel];
-            }
-          }
-          const isActive = selectedOptions.length === 1;
+          const booleanFilters = filterState.filter(
+            (filter) =>
+              filter.column === facet.column && filter.type === "boolean",
+          );
+          const selectedOptions = availableOptions.filter((label) => {
+            const value = label === trueLabel ? !invert : invert;
+            return booleanFilters.every((filter) =>
+              filter.operator === "="
+                ? filter.value === value
+                : filter.value !== value,
+            );
+          });
+          const isActive = booleanFilters.length > 0;
           const disableState = getFacetDisabledState(facet);
 
           // Build counts from options
@@ -1813,31 +1814,29 @@ export function useSidebarFilterPresentation(
             isActive,
             isDisabled: disableState.isDisabled,
             disabledReason: disableState.reason,
-            onChange: (values: string[]) => {
-              if (values.length === 0 || values.length === 2) {
-                updateFilter(facet.column, []);
-                return;
-              }
-              if (values.includes(trueLabel) && !values.includes(falseLabel)) {
-                updateFilter(facet.column, [trueLabel]);
-              } else if (
-                values.includes(falseLabel) &&
-                !values.includes(trueLabel)
-              ) {
-                updateFilter(facet.column, [falseLabel]);
-              }
-            },
+            onChange: (values: string[]) => updateFilter(facet.column, values),
             onOnlyChange: (value: string) => {
               if (
                 selectedOptions.length === 1 &&
                 selectedOptions.includes(value)
               ) {
-                updateFilter(facet.column, []);
+                updateFilter(facet.column, availableOptions);
               } else {
                 updateFilter(facet.column, [value]);
               }
             },
-            onReset: () => updateFilter(facet.column, []),
+            onReset: () => {
+              const next = filterState.filter(
+                (filter) => filter.column !== facet.column,
+              );
+              setFilterState(next);
+              if (next.length < filterState.length) {
+                emitFacetCleared(
+                  facet.column,
+                  filterState.length - next.length,
+                );
+              }
+            },
           };
         }
 
@@ -1875,10 +1874,13 @@ export function useSidebarFilterPresentation(
             (f.type === "stringOptions" || f.type === "arrayOptions"),
         );
 
-        const selectedValues = computeSelectedValues(
-          availableValues,
-          checkboxFilter,
+        const hasEmptyPositiveSelection = hasEmptyCheckboxSelection(
+          filterState,
+          facet.column,
         );
+        const selectedValues = hasEmptyPositiveSelection
+          ? []
+          : computeSelectedValues(availableValues, checkboxFilter);
 
         // Determine current operator for ANY/ALL toggle
         // When a user selects items in an arrayOptions filter, we expose a toggle
@@ -1959,6 +1961,7 @@ export function useSidebarFilterPresentation(
         //   its "Clear" affordance.
         const isActive =
           hasTextFilters ||
+          hasEmptyPositiveSelection ||
           (isManagedEnvironmentFacet
             ? hasExplicitManagedEnvironmentFilter
             : (currentOperator === "all of" &&
