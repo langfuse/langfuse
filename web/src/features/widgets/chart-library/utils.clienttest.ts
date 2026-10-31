@@ -4,6 +4,7 @@ import {
   formatMetric,
   getDimensionSummaries,
   getEvenTickInterval,
+  toFullMetricString,
 } from "@/src/features/widgets/chart-library/utils";
 import { type DataPoint } from "@/src/features/widgets/chart-library/chart-props";
 
@@ -46,6 +47,71 @@ describe("formatMetric", () => {
     ).toEqual({
       main: "12.3",
     });
+  });
+
+  it("limits unconstrained compact notation to two fractional digits", () => {
+    const cases = [
+      { value: 8_862, main: "8.86", suffix: "K" },
+      { value: 3_551, main: "3.55", suffix: "K" },
+      { value: 12_345, main: "12.35", suffix: "K" },
+      { value: 1_234_567, main: "1.23", suffix: "M" },
+    ];
+
+    for (const { value, main, suffix } of cases) {
+      const formatted = formatMetric(value, { style: "compact" });
+      expect(formatted).toEqual({ main, suffix });
+      expect(toFullMetricString(formatted)).toBe(`${main}${suffix}`);
+    }
+  });
+
+  it("rolls unconstrained compact values onto the next suffix", () => {
+    const cases = [
+      { value: 999_999, expected: { main: "1", suffix: "M" }, text: "1M" },
+      {
+        value: 999_999_999,
+        expected: { main: "1", suffix: "B" },
+        text: "1B",
+      },
+      {
+        value: 999_999_999_999,
+        expected: { main: "1", suffix: "T" },
+        text: "1T",
+      },
+      {
+        value: -999_999,
+        expected: { negative: true, main: "1", suffix: "M" },
+        text: "-1M",
+      },
+      {
+        value: 999_994,
+        expected: { main: "999.99", suffix: "K" },
+        text: "999.99K",
+      },
+      {
+        value: 999_994_000,
+        expected: { main: "999.99", suffix: "M" },
+        text: "999.99M",
+      },
+      { value: 1_000, expected: { main: "1", suffix: "K" }, text: "1K" },
+      { value: 1_500, expected: { main: "1.5", suffix: "K" }, text: "1.5K" },
+      { value: 1_000_000, expected: { main: "1", suffix: "M" }, text: "1M" },
+      {
+        value: 1_000_000_000,
+        expected: { main: "1", suffix: "B" },
+        text: "1B",
+      },
+      {
+        value: 1_000_000_000_000,
+        expected: { main: "1", suffix: "T" },
+        text: "1T",
+      },
+    ];
+
+    for (const { value, expected, text } of cases) {
+      const formatted = formatMetric(value, { style: "compact" });
+      expect(formatted).toEqual(expected);
+      expect(toFullMetricString(formatted)).toBe(text);
+    }
   });
 
   it("normalizes compact units when constrained rounding reaches the next suffix", () => {
