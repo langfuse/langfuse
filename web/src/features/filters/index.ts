@@ -6,6 +6,8 @@
 // useFilterState imports it, so routing it here would close a runtime cycle.
 // events/config/filter-config stays on the deep path for the same reason
 // against users-config.
+export { CompactConnectorRow } from "@/src/features/filters/components/CompactConnectorRow";
+export { CompactPickerButton } from "@/src/features/filters/components/CompactPickerButton";
 export { FilterToken } from "@/src/features/filters/components/FilterToken";
 export {
   InlineFilterBuilder,

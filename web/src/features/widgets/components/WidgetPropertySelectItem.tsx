@@ -1,6 +1,5 @@
-/* eslint-disable @repo/no-style-props, @repo/component-file-structure */
+/* eslint-disable @repo/component-file-structure */
 import { HoverCard } from "@/src/components/design-system/HoverCard/HoverCard";
-import { SelectItem } from "@/src/components/ui/select";
 import * as React from "react";
 
 interface PropertyHoverCardProps {
@@ -8,7 +7,7 @@ interface PropertyHoverCardProps {
   description?: string;
   unit?: string;
   type?: string;
-  children: React.ReactNode;
+  children: React.ReactElement<React.HTMLProps<HTMLElement>>;
 }
 
 export const PropertyHoverCard = ({
@@ -45,40 +44,10 @@ export const PropertyHoverCard = ({
         </div>
       }
     >
-      {({ getTriggerProps }) => <div {...getTriggerProps()}>{children}</div>}
+      {/* Anchors the card on the item itself, not a full-width wrapper. */}
+      {({ getTriggerProps }) =>
+        React.cloneElement(children, getTriggerProps(children.props))
+      }
     </HoverCard>
-  );
-};
-
-/**
- * Generic SelectItem with a hover-card that shows documentation for a widget property
- * (view, metric, dimension).
- */
-export const WidgetPropertySelectItem = ({
-  value,
-  label,
-  description,
-  unit,
-  type,
-  className,
-}: {
-  value: string;
-  label: string;
-  description?: string;
-  unit?: string;
-  type?: string;
-  className?: string;
-}) => {
-  return (
-    <PropertyHoverCard
-      label={label}
-      description={description}
-      unit={unit}
-      type={type}
-    >
-      <SelectItem value={value} className={className ?? "max-w-56"}>
-        {label}
-      </SelectItem>
-    </PropertyHoverCard>
   );
 };

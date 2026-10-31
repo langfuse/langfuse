@@ -263,22 +263,14 @@ const AddAutomationDropdown = ({
         <DropdownMenu
           disabled={isDisabled}
           placement="bottom-end"
-          items={[
-            {
-              type: "item",
-              id: "new",
-              title: "New automation",
-              icon: Plus,
-              onClick: () => openDialog(),
-            },
-            ...actionTypes.map((actionType) => ({
-              type: "item" as const,
-              id: actionType,
-              title: actionTypeLabel[actionType],
-              icon: actionIcon[actionType],
-              onClick: () => openDialog({ actionType }),
-            })),
-          ]}
+          matchTriggerWidth={fullWidth}
+          items={actionTypes.map((actionType) => ({
+            type: "item" as const,
+            id: actionType,
+            title: actionTypeLabel[actionType],
+            icon: actionIcon[actionType],
+            onClick: () => openDialog({ actionType }),
+          }))}
         >
           {({ getTriggerProps }) => (
             <Button

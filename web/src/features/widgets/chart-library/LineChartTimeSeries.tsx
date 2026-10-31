@@ -83,6 +83,7 @@ export function LineChartTimeSeries({
   missingValue = "gap",
   connectNulls = false,
   hideXAxisLabels = false,
+  compactYAxis = false,
 }: ChartProps) {
   const allDimensions = useMemo(() => getUniqueDimensions(data), [data]);
   const groupedData = useMemo(
@@ -187,6 +188,7 @@ export function LineChartTimeSeries({
         thresholds={chartThresholds}
         sync={sync}
         legend={chartLegend}
+        compactYAxis={compactYAxis}
         xAxis={{
           type: "category",
           labels: hideXAxisLabels ? "hidden" : "visible",
@@ -214,6 +216,7 @@ export function LineChartTimeSeries({
         thresholds={chartThresholds}
         sync={sync}
         legend={chartLegend}
+        compactYAxis={compactYAxis}
         xAxis={{
           type: "time",
         }}

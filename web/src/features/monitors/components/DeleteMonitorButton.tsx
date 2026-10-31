@@ -39,11 +39,11 @@ export function DeleteMonitorButton({
         <Button
           type="button"
           variant="outline"
-          size="icon"
           title="Delete alert"
           aria-label="Delete alert"
         >
-          <Trash2 size="base" color="destructive" />
+          <Trash2 size="base" color="destructive" __rawClassName="mr-2" />
+          Delete
         </Button>
       }
     />

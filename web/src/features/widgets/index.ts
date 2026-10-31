@@ -24,7 +24,6 @@ export type { DashboardPlacement } from "@/src/features/widgets/components/Dashb
 export { useClipboardWidgetProbe } from "@/src/features/widgets/hooks/useClipboardWidgetProbe";
 export { pushDownForInsertion } from "@/src/features/widgets/utils/grid-placement";
 export { WidgetContent } from "@/src/features/widgets/components/InlineWidget";
-export { WidgetPropertySelectItem } from "@/src/features/widgets/components/WidgetPropertySelectItem";
 export type { WidgetDimensionConfig } from "@/src/features/widgets/hooks/useWidgetQuery";
 export {
   getWidgetMetricPresentation,
