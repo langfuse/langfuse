@@ -1,5 +1,6 @@
 import {
   forwardRef,
+  useCallback,
   useImperativeHandle,
   useMemo,
   useRef,
@@ -8,6 +9,7 @@ import {
 import CodeMirror, {
   EditorView,
   type ReactCodeMirrorRef,
+  type ViewUpdate,
 } from "@uiw/react-codemirror";
 import { Prec } from "@codemirror/state";
 import { commentEditorMentions } from "./CommentEditorMentions";
@@ -74,6 +76,14 @@ export const CommentEditor = forwardRef<
   ref,
 ) {
   const editorRef = useRef<ReactCodeMirrorRef>(null);
+  const onChangeRef = useRef(onChange);
+  const onCursorChangeRef = useRef(onCursorChange);
+  const onKeyDownRef = useRef(onKeyDown);
+  const disabledRef = useRef(disabled);
+  onChangeRef.current = onChange;
+  onCursorChangeRef.current = onCursorChange;
+  onKeyDownRef.current = onKeyDown;
+  disabledRef.current = disabled;
 
   useImperativeHandle(
     ref,
@@ -108,7 +118,24 @@ export const CommentEditor = forwardRef<
     [disabled],
   );
 
-  // CodeMirror reconfigures when extensions change identity.
+  // react-codemirror reconfigures the EditorView whenever `extensions`,
+  // `onChange`, or `onUpdate` change identity. Keep those stable across
+  // parent re-renders (every keystroke in CommentComposer) so the language
+  // highlighter is not asked to map stale positions through an empty changeset.
+  const handleChange = useCallback((nextValue: string) => {
+    onChangeRef.current(nextValue);
+  }, []);
+
+  const handleUpdate = useCallback((update: ViewUpdate) => {
+    if (update.selectionSet || update.docChanged) {
+      onCursorChangeRef.current?.(update.state.selection.main.head);
+    }
+  }, []);
+
+  const handleCreateEditor = useCallback((view: EditorView) => {
+    onCursorChangeRef.current?.(view.state.selection.main.head);
+  }, []);
+
   const extensions = useMemo(
     () => [
       editorTheme,
@@ -129,7 +156,11 @@ export const CommentEditor = forwardRef<
       Prec.highest(
         EditorView.domEventHandlers({
           keydown: (event) => {
-            if (disabled || event.isComposing || !onKeyDown?.(event)) {
+            if (
+              disabledRef.current ||
+              event.isComposing ||
+              !onKeyDownRef.current?.(event)
+            ) {
               return false;
             }
             event.preventDefault();
@@ -138,7 +169,7 @@ export const CommentEditor = forwardRef<
         }),
       ),
     ],
-    [ariaDescribedBy, ariaInvalid, disabled, id, onKeyDown],
+    [ariaDescribedBy, ariaInvalid, id],
   );
 
   return (
@@ -149,15 +180,9 @@ export const CommentEditor = forwardRef<
       <CodeMirror
         ref={editorRef}
         value={value}
-        onChange={onChange}
-        onUpdate={(update) => {
-          if (update.selectionSet || update.docChanged) {
-            onCursorChange?.(update.state.selection.main.head);
-          }
-        }}
-        onCreateEditor={(view) => {
-          onCursorChange?.(view.state.selection.main.head);
-        }}
+        onChange={handleChange}
+        onUpdate={handleUpdate}
+        onCreateEditor={handleCreateEditor}
         extensions={extensions}
         basicSetup={basicSetup}
         theme="none"
