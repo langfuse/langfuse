@@ -37,3 +37,16 @@ export const TestFocusesOnAddonClick = meta.story({
     ).toHaveFocus();
   },
 });
+
+export const TestFocusesOnPrefixClick = meta.story({
+  name: "(Test) Focuses on prefix click",
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const input = canvas.getByRole("textbox", { name: "Webhook URL" });
+
+    await userEvent.click(canvas.getByText("https://"));
+    await expect(input).toHaveFocus();
+    await userEvent.type(input, "example.com/webhook");
+    await expect(input).toHaveValue("example.com/webhook");
+  },
+});

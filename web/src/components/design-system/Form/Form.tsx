@@ -1,7 +1,74 @@
-import { type FormHTMLAttributes, type ReactNode } from "react";
+import {
+  type ComponentProps,
+  type FormHTMLAttributes,
+  type ReactNode,
+} from "react";
+import { type FieldPath, type FieldValues } from "react-hook-form";
 
 import { Button } from "@/src/components/design-system/Button/Button";
-import { FormField } from "@/src/components/design-system/FormField/FormField";
+import {
+  FormField,
+  type FormFieldProps,
+} from "@/src/components/design-system/FormField/FormField";
+import { Input } from "@/src/components/design-system/Input/Input";
+
+/** Wraps Form.Field with the default Input and its form bindings. */
+function FormInputField<
+  TFieldValues extends FieldValues,
+  TName extends FieldPath<TFieldValues>,
+  TTransformedValues extends FieldValues = TFieldValues,
+>({
+  control,
+  name,
+  label,
+  description,
+  registerLabelTooltip,
+  required,
+  "aria-describedby": describedBy,
+  ...inputProps
+}: Omit<FormFieldProps<TFieldValues, TName, TTransformedValues>, "children"> &
+  Omit<
+    ComponentProps<typeof Input>,
+    | "id"
+    | "name"
+    | "value"
+    | "defaultValue"
+    | "onChange"
+    | "onBlur"
+    | "ref"
+    | "error"
+    | "aria-invalid"
+  >) {
+  return (
+    <FormField
+      control={control}
+      name={name}
+      label={label}
+      description={description}
+      registerLabelTooltip={registerLabelTooltip}
+      required={required}
+    >
+      {(field) => (
+        <Input
+          {...inputProps}
+          id={field.id}
+          name={field.name}
+          value={field.value}
+          onChange={field.onChange}
+          onBlur={field.onBlur}
+          ref={field.ref}
+          required={required}
+          aria-describedby={
+            [field.inputDescribedById, describedBy].filter(Boolean).join(" ") ||
+            undefined
+          }
+          aria-invalid={Boolean(field.error)}
+          error={Boolean(field.error)}
+        />
+      )}
+    </FormField>
+  );
+}
 
 export type FormAction = {
   id: string;
@@ -80,4 +147,5 @@ function FormRoot({
 
 export const Form = Object.assign(FormRoot, {
   Field: FormField,
+  InputField: FormInputField,
 });

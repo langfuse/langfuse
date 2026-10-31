@@ -2,7 +2,6 @@ import { useId } from "react";
 import { type UseFormReturn } from "react-hook-form";
 
 import { Form } from "@/src/components/design-system/Form/Form";
-import { Input } from "@/src/components/design-system/Input/Input";
 import { PasswordInput } from "@/src/components/design-system/PasswordInput/PasswordInput";
 import { type MonitorAutomationFormValues } from "../helpers/monitorAutomationFormSchema";
 import { InlineCode } from "./InlineCode";
@@ -11,7 +10,7 @@ import { stripUrlScheme } from "../helpers/stripUrlScheme";
 import { FieldHelp } from "./FieldHelp";
 import { FieldWithHelp } from "./FieldWithHelp";
 import { HelpLink } from "./HelpLink";
-import { PrefixedInput } from "./PrefixedInput";
+import { PrefixedInput } from "@/src/components/design-system/PrefixedInput/PrefixedInput";
 
 const dispatchDocsUrl =
   "https://docs.github.com/en/rest/repos/repos#create-a-repository-dispatch-event";
@@ -64,29 +63,13 @@ export function GitHubDispatchActionFields({
         </FieldHelp>
       </FieldWithHelp>
       <FieldWithHelp>
-        <Form.Field
+        <Form.InputField
           control={form.control}
           name="githubDispatch.eventType"
           label="Event type"
-        >
-          {(field) => (
-            <Input
-              id={field.id}
-              name={field.name}
-              value={field.value}
-              onChange={field.onChange}
-              onBlur={field.onBlur}
-              ref={field.ref}
-              placeholder="e.g. langfuse-alert"
-              aria-describedby={describedBy(
-                field.inputDescribedById,
-                eventTypeHelpId,
-              )}
-              aria-invalid={!!field.error}
-              error={!!field.error}
-            />
-          )}
-        </Form.Field>
+          placeholder="e.g. langfuse-alert"
+          aria-describedby={eventTypeHelpId}
+        />
         <FieldHelp id={eventTypeHelpId}>
           Add this to the <InlineCode>on.repository_dispatch.types</InlineCode>{" "}
           filter in your workflow.
