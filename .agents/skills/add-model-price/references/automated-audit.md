@@ -11,6 +11,12 @@ not only validate rows already present in the pricing file, and must keep the
 selectable model arrays free of models the provider no longer serves. Prefer a
 small report over an uncertain code change.
 
+The workflow opens a pull request only when `default-model-prices.json` or the
+selectable model arrays in `types.ts` change. It discards edits to skill
+references, the audit memory, or the workflow file when neither of those two
+files changed, so report findings in the final output instead of writing them
+to a reference file.
+
 ## Required Inputs
 
 - Current pricing JSON:
@@ -53,13 +59,17 @@ small report over an uncertain code change.
 6. Add one complete report-table row for every distinct model price entry
    checked, including confirmed and unchanged entries. Do not collapse multiple
    checked models into a family-level row.
-7. Capture durable provider-source URLs, model-ID variants, pricing-page quirks,
-   or recurring audit rules in the most relevant file under
-   `.agents/skills/add-model-price/references/`.
-8. Optionally replace the snapshot in `references/model-audit-memory.md` when
-   retaining the complete current per-model result would materially help a
-   future audit. Do not persist a partial table, append unbounded run history,
-   or update it only to refresh the audit date.
+7. In a run that changes prices or selectable models, keep the reference files
+   current: edit or delete the existing bullet when a durable fact changes
+   (source URLs, model-ID variants, pricing-page quirks, audit rules), add a
+   row to "Scheduled Changes" in `provider-sources-and-price-keys.md` for a
+   newly announced dated retirement or price change, and delete rows that this
+   run acted on. Never add dated per-audit entries, re-confirmations of
+   unchanged prices, or lists of pages fetched.
+8. Optionally replace the snapshot in `references/model-audit-memory.md` in the
+   same kind of run, when retaining the complete current per-model result
+   would materially help a future audit. Do not persist a partial table,
+   append run history, or update it only to refresh the audit date.
 9. Re-run the validator, including changed-entry usage-key validation against
    the pre-audit pricing file.
 
@@ -181,4 +191,4 @@ pricing entry stays unchanged.
 For every unresolved finding, include why no code change was made.
 
 For every skill reference update, include the changed reference file and the
-durable learning captured there.
+durable fact that was added, changed, or removed.
