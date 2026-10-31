@@ -1,4 +1,4 @@
-<img width="2400" height="600" alt="Langfuse by ClickHouse" src=".github/readme-banner.png" />
+![Langfuse GitHub Banner](.github/readme-banner.png)
 
 <div align="center">
   <div>
