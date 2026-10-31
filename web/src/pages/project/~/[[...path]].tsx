@@ -55,7 +55,8 @@ const crossRegionRedirect = (req: SentinelContext) => {
     cookie &&
     origin &&
     cookie.origin !== origin &&
-    sameRegistrableDomain(cookie.origin, origin)
+    sameRegistrableDomain(cookie.origin, origin) &&
+    new URL(cookie.origin).hostname !== new URL(origin).hostname
   ) {
     return redirect(`${cookie.origin}${resolvedUrl}`);
   }
@@ -82,7 +83,7 @@ const projectRedirect = async ({
   const projects =
     session?.user?.organizations.flatMap((org) => org.projects) ?? [];
 
-  if (cookie && origin && cookie.origin === origin) {
+  if (cookie && origin && sameHost(cookie.origin, origin)) {
     if (projects.some((p) => p.id === cookie.projectId)) {
       return redirect(`/project/${cookie.projectId}${rest}`);
     }
@@ -98,6 +99,15 @@ const projectRedirect = async ({
 const redirect = (destination: string): GetServerSidePropsResult<never> => ({
   redirect: { destination, permanent: false },
 });
+
+/** sameHost matches a saved project's deployment without changing the request scheme. */
+const sameHost = (originA: string, originB: string): boolean => {
+  try {
+    return new URL(originA).host === new URL(originB).host;
+  } catch {
+    return false;
+  }
+};
 
 /** sameRegistrableDomain returns true when two origins share the last-two-label registrable domain. */
 const sameRegistrableDomain = (originA: string, originB: string): boolean => {
