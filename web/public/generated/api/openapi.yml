@@ -2526,7 +2526,8 @@ paths:
     put:
       description: >-
         Create or update an LLM connection. The connection is upserted on
-        provider.
+        provider. An existing connection's adapter cannot change between
+        `typesafe` and a text adapter.
       operationId: llmConnections_upsert
       tags:
         - LlmConnections
@@ -2677,7 +2678,8 @@ paths:
       description: >-
         Create or update an organization-level LLM connection. The connection is
         upserted on provider and inherited by projects without a provider
-        override. Requires an organization-scoped API key.
+        override. An existing connection's adapter cannot change between
+        `typesafe` and a text adapter. Requires an organization-scoped API key.
       operationId: llmConnections_upsertOrganization
       tags:
         - LlmConnections
@@ -12204,6 +12206,7 @@ components:
         - bedrock
         - google-vertex-ai
         - google-ai-studio
+        - typesafe
     GetMediaResponse:
       title: GetMediaResponse
       type: object
