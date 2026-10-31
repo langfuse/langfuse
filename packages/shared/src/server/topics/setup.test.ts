@@ -112,12 +112,30 @@ describe("Topics setup", () => {
     expect(mocks.writeReadiness).not.toHaveBeenCalled();
   });
 
-  it("edits the oldest rule when no rule id is given", async () => {
+  it("never writes a rule without a rule id once the project has rules", async () => {
     mocks.listRules.mockResolvedValue([{ id: "rule-setup" }, { id: "rule-b" }]);
-    await saveTopicsSetup(projectId, setup);
+    await expect(saveTopicsSetup(projectId, setup)).rejects.toThrow(
+      "several Topics rules",
+    );
+    const { facets: _, filter: __, ...settingsOnly } = setup;
+    await expect(saveTopicsSetup(projectId, settingsOnly)).resolves.toBeNull();
+    expect(mocks.saveRule).not.toHaveBeenCalled();
+    expect(mocks.writeModels).toHaveBeenCalledOnce();
+  });
+
+  it("keeps the named rule's filter when the save sends none", async () => {
+    mocks.listRules.mockResolvedValue([
+      { id: "rule-setup", filter: setup.filter },
+      { id: "rule-b", filter: [] },
+    ]);
+    const { filter: _, ...withoutFilter } = setup;
+    await saveTopicsSetup(projectId, {
+      ...withoutFilter,
+      ruleId: "rule-setup",
+    });
     expect(mocks.saveRule).toHaveBeenCalledWith(
       "tx",
-      expect.objectContaining({ id: "rule-setup" }),
+      expect.objectContaining({ id: "rule-setup", filter: setup.filter }),
     );
   });
 

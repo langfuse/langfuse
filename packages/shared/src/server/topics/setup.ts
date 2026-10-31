@@ -2,6 +2,7 @@ import type { z } from "zod";
 import { InvalidRequestError } from "../../errors";
 import {
   TOPICS_REFIT_INTERVAL_HOURS,
+  topicRuleFilterError,
   type TopicsRefitIntervalHours,
   topicsAutomaticProcessingSchema,
   topicsSetupSchema,
@@ -12,7 +13,7 @@ import {
   prepareTopicsModelSettings,
   writeTopicsModelSettings,
 } from "./model-config";
-import { prisma } from "../../db";
+import { prisma, type Prisma } from "../../db";
 import {
   cacheTracingReadinessSettings,
   writeTracingReadinessSettings,
@@ -30,23 +31,47 @@ import {
 } from "./processing-gate";
 
 /**
- * One Topics setup: models, the four built-in facets, and the setup rule. Without
- * a rule id it edits the project's oldest rule, creating "All traces" when there
- * is none. It keeps the stored automatic-processing state, pause and sampling rate.
+ * One Topics setup: models, the four built-in facets, and optionally a rule.
+ * Rule fields are written only to the rule named by `ruleId`, or to a new
+ * "All traces" rule while the project has none; a project-wide save without a
+ * rule id never changes a rule. It keeps the stored automatic-processing state,
+ * pause and sampling rate. Returns the written rule, or null for a
+ * settings-only save.
  */
 export async function saveTopicsSetup(
   projectId: string,
   input: z.input<typeof topicsSetupSchema>,
   userId: string | null = null,
-): Promise<TopicRule> {
+): Promise<TopicRule | null> {
   const setup = topicsSetupSchema.parse(input);
+  const rules = await listTopicRules(projectId);
+  const existing = setup.ruleId
+    ? rules.find((rule) => rule.id === setup.ruleId)
+    : undefined;
+  if (setup.ruleId && !existing)
+    throw new InvalidRequestError("Topic rule not found in this project.");
+  const writesRule = Boolean(existing) || rules.length === 0;
+  const sendsRuleFields =
+    setup.facets !== undefined ||
+    setup.customFacetIds !== undefined ||
+    setup.filter !== undefined;
+  if (!writesRule && sendsRuleFields)
+    throw new InvalidRequestError(
+      "This project has several Topics rules. Edit facets and filters on the rule itself.",
+    );
+  if (writesRule && !setup.facets)
+    throw new InvalidRequestError("Choose the facets for the Topics rule.");
+  const filterError = setup.filter ? topicRuleFilterError(setup.filter) : null;
+  if (filterError) throw new InvalidRequestError(filterError);
+  const filter = setup.filter ?? existing?.filter ?? [];
+
   const facets = await ensureDefaultTopicFacets(projectId);
   const facetIdByName = new Map(
     facets
       .filter((facet) => facet.isBuiltIn)
       .map((facet) => [facet.name, facet.id]),
   );
-  const facetIds = setup.facets.flatMap((facet) => {
+  const facetIds = (setup.facets ?? []).flatMap((facet) => {
     if (!facet.enabled) return [];
     const id = facetIdByName.get(facet.name);
     if (!id)
@@ -55,7 +80,7 @@ export async function saveTopicsSetup(
       );
     return [id];
   });
-  facetIds.push(...setup.customFacetIds);
+  facetIds.push(...(setup.customFacetIds ?? []));
   // The test calls hit the network, so they run before the transaction.
   const models = await prepareTopicsModelSettings(projectId, {
     summary: setup.summary,
@@ -63,15 +88,18 @@ export async function saveTopicsSetup(
     embeddingDimensions: setup.embeddingDimensions,
     clustering: setup.clustering,
   });
-  const setupRuleId = setup.ruleId ?? (await listTopicRules(projectId))[0]?.id;
-  return saveTopicRuleAndModels(
-    {
-      id: setupRuleId,
+  if (!writesRule) {
+    await writeModelsAndReadiness(
       projectId,
       userId,
-      filter: setup.filter,
-      facetIds,
-    },
+      models,
+      setup.traceIdleMs,
+      () => Promise.resolve(null),
+    );
+    return null;
+  }
+  return saveTopicRuleAndModels(
+    { id: existing?.id, projectId, userId, filter, facetIds },
     models,
     setup.traceIdleMs,
   );
@@ -86,22 +114,30 @@ export async function saveTopicRuleAndModels(
   models: Parameters<typeof writeTopicsModelSettings>[1],
   traceIdleMs: number,
 ): Promise<TopicRule> {
+  return writeModelsAndReadiness(
+    rule.projectId,
+    rule.userId ?? null,
+    models,
+    traceIdleMs,
+    (tx) => writeTopicRule(tx, rule),
+  );
+}
+
+async function writeModelsAndReadiness<T>(
+  projectId: string,
+  userId: string | null,
+  models: Parameters<typeof writeTopicsModelSettings>[1],
+  traceIdleMs: number,
+  writeRule: (tx: Prisma.TransactionClient) => Promise<T>,
+): Promise<T> {
   const saved = await prisma.$transaction(async (tx) => {
-    const saved = await writeTopicRule(tx, rule);
-    await writeTopicsModelSettings(rule.projectId, models, {
-      userId: rule.userId,
-      tx,
-    });
-    await writeTracingReadinessSettings(
-      tx,
-      rule.projectId,
-      { traceIdleMs },
-      rule.userId,
-    );
+    const saved = await writeRule(tx);
+    await writeTopicsModelSettings(projectId, models, { userId, tx });
+    await writeTracingReadinessSettings(tx, projectId, { traceIdleMs }, userId);
     return saved;
   });
-  await cacheTracingReadinessSettings(rule.projectId, { traceIdleMs });
-  await invalidateTopicsProcessingActive(rule.projectId);
+  await cacheTracingReadinessSettings(projectId, { traceIdleMs });
+  await invalidateTopicsProcessingActive(projectId);
   return saved;
 }
 
@@ -109,23 +145,30 @@ export async function saveTopicRuleAndModels(
  * Turns automatic processing of new traces on or off. Turning it on requires all
  * three stored models and re-tests them after a pause; either direction clears
  * a pause.
- * Sampling, when given, is written to the project's oldest (setup) Topics rule.
+ * Sampling is written only to the rule named by `ruleId`.
  */
 export async function setTopicsAutomaticProcessing(
   projectId: string,
   input: z.input<typeof topicsAutomaticProcessingSchema>,
   userId: string | null = null,
-): Promise<{ ruleBefore: TopicRule; ruleAfter: TopicRule }> {
-  const { enabled, sampling } = topicsAutomaticProcessingSchema.parse(input);
+): Promise<{ ruleBefore: TopicRule | null; ruleAfter: TopicRule | null }> {
+  const { enabled, ruleId, sampling } =
+    topicsAutomaticProcessingSchema.parse(input);
+  if (sampling !== undefined && !ruleId)
+    throw new InvalidRequestError(
+      "Choose the Topics rule whose sample rate changes.",
+    );
   const [config, rules] = await Promise.all([
     prisma.topicConfig.findUnique({ where: { projectId } }),
     listTopicRules(projectId),
   ]);
-  const rule = rules[0];
-  if (!config || !rule)
+  if (!config || !rules.length)
     throw new InvalidRequestError(
       "Save the Topics setup in Configure Topics first.",
     );
+  const rule = ruleId ? rules.find((item) => item.id === ruleId) : undefined;
+  if (ruleId && !rule)
+    throw new InvalidRequestError("Topic rule not found in this project.");
   if (enabled) await checkStoredTopicsModels(config);
 
   await prisma.$transaction(async (tx) => {
@@ -139,13 +182,14 @@ export async function setTopicsAutomaticProcessing(
         updatedBy: userId,
       },
     });
-    if (sampling !== undefined && sampling !== rule.sampling)
+    if (rule && sampling !== undefined && sampling !== rule.sampling)
       await tx.evaluationRule.update({
         where: { ...topicRuleWhere(projectId), id: rule.id },
         data: { sampling },
       });
   });
   await invalidateTopicsProcessingActive(projectId);
+  if (!rule) return { ruleBefore: null, ruleAfter: null };
   const ruleAfter = (await getTopicRule(projectId, rule.id)) ?? rule;
   return { ruleBefore: rule, ruleAfter };
 }

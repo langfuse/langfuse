@@ -486,13 +486,14 @@ export const topicsRouter = createTRPCRouter({
       const rule = await auditedTopicConfigSave(ctx, projectId, () =>
         saveTopicsSetup(projectId, setup, ctx.session.user.id),
       );
-      await auditLog({
-        session: ctx.session,
-        resourceType: JOB_CONFIGURATION_AUDIT_LOG_RESOURCE_TYPE,
-        resourceId: rule.id,
-        action: setup.ruleId ? "update" : "create",
-        after: rule,
-      });
+      if (rule)
+        await auditLog({
+          session: ctx.session,
+          resourceType: JOB_CONFIGURATION_AUDIT_LOG_RESOURCE_TYPE,
+          resourceId: rule.id,
+          action: setup.ruleId ? "update" : "create",
+          after: rule,
+        });
       return rule;
     }),
   setAutomaticProcessing: topicsWriteProcedure
@@ -504,7 +505,7 @@ export const topicsRouter = createTRPCRouter({
         () =>
           setTopicsAutomaticProcessing(projectId, input, ctx.session.user.id),
       );
-      if (ruleBefore.sampling !== ruleAfter.sampling)
+      if (ruleBefore && ruleAfter && ruleBefore.sampling !== ruleAfter.sampling)
         await auditLog({
           session: ctx.session,
           resourceType: JOB_CONFIGURATION_AUDIT_LOG_RESOURCE_TYPE,
@@ -513,7 +514,7 @@ export const topicsRouter = createTRPCRouter({
           before: ruleBefore,
           after: ruleAfter,
         });
-      return { enabled: input.enabled, sampling: ruleAfter.sampling };
+      return { enabled: input.enabled, sampling: ruleAfter?.sampling ?? null };
     }),
   summaryCounts: topicsProcedure
     .input(

@@ -177,7 +177,8 @@ export const topicsSetupSchema = topicsModelSettingsSchema.extend({
     .multipleOf(1000, "Use whole seconds for the idle time.")
     .min(60_000, "Wait at least 60 seconds.")
     .max(3_600_000, "Wait at most 3,600 seconds."),
-  // The project's existing rule; omit only when the project has none yet.
+  // The rule whose facets (and filter) this save writes. Without it, rule fields
+  // are only accepted while the project has no rule yet; otherwise omit them.
   ruleId: topicIdSchema.optional(),
   facets: z
     .array(
@@ -205,19 +206,23 @@ export const topicsSetupSchema = topicsModelSettingsSchema.extend({
           message: "Turn on at least one facet.",
         });
       }
-    }),
+    })
+    .optional(),
   // Enabled custom facets keep their rule assignment; they are edited elsewhere.
-  customFacetIds: z.array(topicIdSchema).default([]),
-  filter: topicRuleConfigSchema.shape.filter,
+  customFacetIds: z.array(topicIdSchema).optional(),
+  // Omit to keep the rule's stored filter; a new rule defaults to all traces.
+  filter: topicRuleConfigSchema.shape.filter.optional(),
 });
 export type TopicsSetup = z.infer<typeof topicsSetupSchema>;
 
 /**
  * Turns automatic processing of new traces on or off. Sampling applies only to
- * automatic processing; omit it to keep the rule's stored rate.
+ * automatic processing and is written to `ruleId`; omit both to keep every
+ * rule's stored rate.
  */
 export const topicsAutomaticProcessingSchema = z.object({
   enabled: z.boolean(),
+  ruleId: topicIdSchema.optional(),
   sampling: z.number().min(0).max(1).optional(),
 });
 export type TopicsAutomaticProcessing = z.infer<

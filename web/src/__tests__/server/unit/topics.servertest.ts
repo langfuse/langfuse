@@ -1501,7 +1501,6 @@ describe("Topics setup", () => {
         embeddingDimensions: 1024,
         clustering: setup.clustering,
         facets: setup.facets,
-        customFacetIds: [],
         filter: setup.filter,
         traceIdleMs: 120_000,
       },
