@@ -2,37 +2,37 @@ import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import type { AgentSetupInstructions } from "@/src/features/ai-gateway/types/agentSetupInstructions";
 import { AgentInstructionsPanel } from "./AgentInstructionsPanel";
 
-const CLAUDE_VARIANTS: { id: ClaudeAgentId; label: string }[] = [
-  { id: "claude-code", label: "Code" },
-  { id: "claude-desktop", label: "Desktop" },
-];
+type AgentId = AgentSetupInstructions["id"];
 
-function isClaudeAgentId(value: string): value is ClaudeAgentId {
-  return CLAUDE_VARIANTS.some((variant) => variant.id === value);
-}
+export type AgentVariant = { id: AgentId; label: string };
 
-type ClaudeSetupTabsProps = {
+type AgentVariantTabsProps = {
   organizationId: string;
   instructions: AgentSetupInstructions[];
-  value: ClaudeAgentId;
-  onValueChange: (value: ClaudeAgentId) => void;
+  variants: AgentVariant[];
+  ariaLabel: string;
+  value: AgentId;
+  onValueChange: (value: AgentId) => void;
 };
 
-/** Claude Code and Claude Desktop share one tab, with a switch between them. */
-export function ClaudeSetupTabs({
+/** Variants of one tool, e.g. Claude Code and Claude Desktop, share one tab with a switch between them. */
+export function AgentVariantTabs({
   organizationId,
   instructions,
+  variants,
+  ariaLabel,
   value,
   onValueChange,
-}: ClaudeSetupTabsProps) {
+}: AgentVariantTabsProps) {
   const handleValueChange = (next: string) => {
-    if (isClaudeAgentId(next)) onValueChange(next);
+    const variant = variants.find((v) => v.id === next);
+    if (variant) onValueChange(variant.id);
   };
 
   return (
     <Tabs value={value} onValueChange={handleValueChange}>
-      <Tabs.List variant="inset" size="sm" aria-label="Claude app">
-        {CLAUDE_VARIANTS.map((variant) => (
+      <Tabs.List variant="inset" size="sm" aria-label={ariaLabel}>
+        {variants.map((variant) => (
           <Tabs.Trigger
             key={variant.id}
             value={variant.id}
@@ -40,7 +40,7 @@ export function ClaudeSetupTabs({
           />
         ))}
       </Tabs.List>
-      {CLAUDE_VARIANTS.map((variant) => {
+      {variants.map((variant) => {
         const entry = instructions.find((e) => e.id === variant.id);
         return entry ? (
           <Tabs.Content key={variant.id} value={variant.id}>
@@ -56,8 +56,3 @@ export function ClaudeSetupTabs({
     </Tabs>
   );
 }
-
-export type ClaudeAgentId = Extract<
-  AgentSetupInstructions["id"],
-  "claude-code" | "claude-desktop"
->;

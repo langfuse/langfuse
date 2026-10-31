@@ -327,25 +327,28 @@ console.log();
 
 // --- language service over a mutable in-memory layout ------------------------
 const t0 = Date.now();
-const parsed = ts.getParsedCommandLineOfConfigFile(
-  `${webRoot}/tsconfig.json`,
-  {},
-  {
-    useCaseSensitiveFileNames: ts.sys.useCaseSensitiveFileNames,
-    readDirectory: ts.sys.readDirectory,
-    fileExists: ts.sys.fileExists,
-    readFile: ts.sys.readFile,
-    getCurrentDirectory: () => webRoot,
-    onUnRecoverableConfigFileDiagnostic: (dg) => {
-      console.error(ts.flattenDiagnosticMessageText(dg.messageText, "\n"));
-      process.exit(1);
+const projects = ["tsconfig.json", "tsconfig.tests.json"].map((configName) => {
+  const parsed = ts.getParsedCommandLineOfConfigFile(
+    `${webRoot}/${configName}`,
+    {},
+    {
+      useCaseSensitiveFileNames: ts.sys.useCaseSensitiveFileNames,
+      readDirectory: ts.sys.readDirectory,
+      fileExists: ts.sys.fileExists,
+      readFile: ts.sys.readFile,
+      getCurrentDirectory: () => webRoot,
+      onUnRecoverableConfigFileDiagnostic: (dg) => {
+        console.error(ts.flattenDiagnosticMessageText(dg.messageText, "\n"));
+        process.exit(1);
+      },
     },
-  },
-);
-if (!parsed) {
-  console.error("could not read web/tsconfig.json");
-  process.exit(1);
-}
+  );
+  if (!parsed) {
+    console.error(`could not read web/${configName}`);
+    process.exit(1);
+  }
+  return parsed;
+});
 
 /** @type {(p: string) => string} */
 const norm = (p) => p.replace(/\\/g, "/");
@@ -356,7 +359,9 @@ const removed = new Set();
 /** @type {Map<string, number>} */
 const versions = new Map();
 /** @type {Set<string>} */
-const scriptFileNames = new Set(parsed.fileNames.map(norm));
+const scriptFileNames = new Set(
+  projects.flatMap((project) => project.fileNames).map(norm),
+);
 let projectVersion = 0;
 
 /** @type {(p: string) => string | undefined} */
@@ -394,7 +399,7 @@ const lsHost = {
   },
   getProjectVersion: () => String(projectVersion),
   getCurrentDirectory: () => webRoot,
-  getCompilationSettings: () => parsed.options,
+  getCompilationSettings: () => projects[0].options,
   getDefaultLibFileName: (o) => ts.getDefaultLibFilePath(o),
   // a case-only rename is only a rename under case-sensitive comparison
   useCaseSensitiveFileNames: () =>
@@ -606,7 +611,7 @@ for (const [dest, original] of movedOriginal) {
     const resolved = ts.resolveModuleName(
       spec,
       dest,
-      parsed.options,
+      projects[0].options,
       overlayResolutionHost,
     ).resolvedModule?.resolvedFileName;
     const bucket =

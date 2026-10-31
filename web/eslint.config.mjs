@@ -73,6 +73,39 @@ export default [
 
   ...nextConfig,
   {
+    name: "langfuse/web/test-and-story-typescript-project",
+    files: [
+      "**/__tests__/**/*.{ts,tsx,mts,cts}",
+      "**/__e2e__/**/*.{ts,tsx,mts,cts}",
+      "**/*.{test,spec,clienttest,servertest,story,stories}.{ts,tsx,mts,cts}",
+      ".storybook/**/*.{ts,tsx,mts,cts}",
+      "vitest.config.mts",
+      "playwright.config.ts",
+    ],
+    languageOptions: {
+      parserOptions: {
+        // Project service discovers tsconfig.json, not sibling named configs.
+        projectService: false,
+        project: "./tsconfig.tests.json",
+        tsconfigRootDir: import.meta.dirname,
+      },
+    },
+  },
+  {
+    name: "langfuse/web/non-react-tests",
+    files: [
+      "**/*.clienttest.ts",
+      "**/*.test.ts",
+      "**/*.spec.ts",
+      "**/__tests__/**/*.ts",
+    ],
+    rules: {
+      // Compiler analysis serializes the AST through Babel, including large
+      // JSON fixtures. These non-JSX tests do not define React components.
+      "react-hooks/static-components": "off",
+    },
+  },
+  {
     name: "langfuse/web/client-test-story-cache-key",
     files: ["src/**/*.clienttest.{ts,tsx}"],
     settings: {

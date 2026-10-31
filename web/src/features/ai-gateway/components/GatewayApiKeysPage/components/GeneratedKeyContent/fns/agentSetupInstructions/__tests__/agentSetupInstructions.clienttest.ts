@@ -41,8 +41,12 @@ describe("agent setup instructions", () => {
 
   it("puts the key placeholder into the commands of every terminal setup", () => {
     for (const instructions of buildAgentSetupInstructions(context)) {
-      // Claude Desktop takes the key in a settings field, not a command.
-      if (instructions.id === "claude-desktop") continue;
+      // Desktop apps take the key in a settings field, not a command.
+      if (
+        instructions.id === "claude-desktop" ||
+        instructions.id === "copilot-desktop"
+      )
+        continue;
       const code = instructions.steps.flatMap((s) => s.code ?? []).join("\n");
 
       expect(code).toContain(GATEWAY_KEY_PLACEHOLDER);
@@ -55,8 +59,8 @@ describe("agent setup instructions", () => {
 
       expect(markdown).toMatch(/^# /);
       expect(markdown).not.toContain("undefined");
-      expect(markdown.trimEnd()).toMatch(
-        new RegExp(`Docs: ${instructions.docsUrl}$`),
+      expect(markdown.trimEnd().endsWith(`Docs: ${instructions.docsUrl}`)).toBe(
+        true,
       );
     }
   });

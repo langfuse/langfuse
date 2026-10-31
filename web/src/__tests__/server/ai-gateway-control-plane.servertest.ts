@@ -260,7 +260,7 @@ describe("AI gateway control plane", () => {
   it.each([
     {
       productUrl: "https://staging.langfuse.com",
-      gatewayUrl: "https://staging.langfuse.com",
+      gatewayUrl: "https://gateway.staging.langfuse.com/v1",
     },
     {
       productUrl: "http://localhost:3000",
@@ -519,7 +519,7 @@ describe("AI gateway control plane", () => {
         where: { orgId: owner.org.id, email: inviteeEmail },
         select: { orgRole: true },
       }),
-    ).resolves.toEqual({ orgRole: Role.MEMBER });
+    ).resolves.toEqual({ orgRole: Role.AI_GATEWAY });
   });
 
   it("tells which invitee addresses already belong to the organization and get notified", async () => {
@@ -1102,6 +1102,23 @@ describe("AI gateway control plane", () => {
     await expect(
       member.aiGateway.getAnalyticsLabels({ orgId: owner.org.id }),
     ).rejects.toMatchObject({ code: "FORBIDDEN" });
+  });
+
+  it("rejects analytics label requests for another organization", async () => {
+    const owner = await prepare();
+    const other = await prepare();
+    await owner.caller.aiGateway.createApiKey({
+      orgId: owner.org.id,
+      name: "Owner key",
+      metadata: {},
+    });
+
+    await expect(
+      other.caller.aiGateway.getAnalyticsLabels({ orgId: owner.org.id }),
+    ).rejects.toMatchObject({
+      code: "UNAUTHORIZED",
+      message: "User is not a member of this organization",
+    });
   });
 
   it("creates, lists, and revokes only associated organization keys", async () => {
