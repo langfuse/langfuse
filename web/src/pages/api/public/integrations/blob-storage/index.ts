@@ -4,10 +4,15 @@ import { type NextApiRequest, type NextApiResponse } from "next";
 import {
   CreateBlobStorageIntegrationRequest,
   toInternalExportSource,
+  toPublicExportFieldGroups,
   toPublicExportSource,
   type BlobStorageIntegrationResponseType,
 } from "@/src/features/public-api/types/blob-storage-integrations";
-import { type ExportFieldGroup, LangfuseNotFoundError } from "@langfuse/shared";
+import {
+  LangfuseNotFoundError,
+  TRACE_EXPORT_FIELD_GROUPS,
+  type ExportFieldGroup,
+} from "@langfuse/shared";
 import { upsertBlobStorageIntegration } from "@/src/features/blobstorage-integration/service";
 import { resolveExportSource } from "@/src/features/analytics-integrations/server";
 import { auditLog } from "@/src/features/audit-logs/server";
@@ -56,7 +61,9 @@ async function handleGetBlobStorageIntegrations(
       exportStartDate: integration.exportStartDate,
       compressed: integration.compressed,
       exportSource: toPublicExportSource(integration.exportSource),
-      exportFieldGroups: integration.exportFieldGroups as ExportFieldGroup[],
+      exportFieldGroups: toPublicExportFieldGroups(
+        integration.exportFieldGroups,
+      ),
       nextSyncAt: integration.nextSyncAt,
       lastSyncAt: integration.lastSyncAt,
       lastError: integration.lastError,
@@ -100,7 +107,7 @@ async function handleUpsertBlobStorageIntegration(
   // enriched value is rejected.
   const existingIntegration = await prisma.blobStorageIntegration.findUnique({
     where: { projectId: validatedData.projectId },
-    select: { createdAt: true, exportSource: true },
+    select: { createdAt: true, exportSource: true, exportFieldGroups: true },
   });
 
   // Explicit sources must pass every check; an omitted source keeps the
@@ -116,6 +123,14 @@ async function handleUpsertBlobStorageIntegration(
     requestedExportSource: internalExportSource,
     existingIntegration,
   });
+
+  // Trace groups are set in the UI only; keep them when the API replaces the
+  // public groups.
+  const storedTraceFieldGroups = (
+    existingIntegration?.exportFieldGroups ?? []
+  ).filter((group): group is ExportFieldGroup =>
+    (TRACE_EXPORT_FIELD_GROUPS as readonly string[]).includes(group),
+  );
 
   await auditLog({
     action: "update",
@@ -145,7 +160,9 @@ async function handleUpsertBlobStorageIntegration(
       exportStartDate: validatedData.exportStartDate ?? null,
       compressed: validatedData.compressed,
       exportSource: internalExportSource,
-      exportFieldGroups: validatedData.exportFieldGroups ?? undefined,
+      exportFieldGroups: validatedData.exportFieldGroups
+        ? [...validatedData.exportFieldGroups, ...storedTraceFieldGroups]
+        : undefined,
     },
   });
 
@@ -167,7 +184,7 @@ async function handleUpsertBlobStorageIntegration(
     exportStartDate: integration.exportStartDate,
     compressed: integration.compressed,
     exportSource: toPublicExportSource(integration.exportSource),
-    exportFieldGroups: integration.exportFieldGroups as ExportFieldGroup[],
+    exportFieldGroups: toPublicExportFieldGroups(integration.exportFieldGroups),
     nextSyncAt: integration.nextSyncAt,
     lastSyncAt: integration.lastSyncAt,
     lastError: integration.lastError,

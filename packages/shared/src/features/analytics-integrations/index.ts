@@ -12,6 +12,9 @@ import {
   SCORE_EXPORT_FIELD_GROUPS,
   SCORE_EXPORT_GROUP_FIELDS,
   type ScoreExportFieldGroup,
+  TRACE_EXPORT_FIELDS,
+  TRACE_EXPORT_FIELD_GROUPS,
+  type TraceExportFieldGroup,
 } from "../../domain/export-field-groups";
 
 export * from "./export-source-policy";
@@ -173,5 +176,22 @@ export const SCORE_EXPORT_FIELD_GROUP_OPTIONS = SCORE_EXPORT_FIELD_GROUPS.map(
     value,
     ...SCORE_EXPORT_FIELD_GROUP_LABELS[value],
     description: SCORE_EXPORT_GROUP_FIELDS[value].join(", "),
+  }),
+);
+
+/** Trace group labels, in the order of the matching observation groups. */
+const TRACE_EXPORT_FIELD_GROUP_LABELS = {
+  trace_core: { label: "Core" },
+  trace_io: { label: "Input / Output" },
+  trace_metadata: { label: "Metadata" },
+} satisfies Record<TraceExportFieldGroup, { label: string }>;
+
+export const TRACE_EXPORT_FIELD_GROUP_OPTIONS = TRACE_EXPORT_FIELD_GROUPS.map(
+  (value) => ({
+    value,
+    ...TRACE_EXPORT_FIELD_GROUP_LABELS[value],
+    description: TRACE_EXPORT_FIELDS.filter((f) => f.group === value)
+      .map((f) => f.field)
+      .join(", "),
   }),
 );
