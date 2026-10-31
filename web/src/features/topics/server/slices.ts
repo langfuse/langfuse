@@ -167,7 +167,7 @@ export async function analysisTopicResults(
             storedAssignments: [],
             storedSummaries: [],
             run: null,
-            onlyAssigned: true,
+            membership: "snapshot",
           })),
           outcome: progress.outcome,
         };
@@ -195,7 +195,7 @@ export async function analysisTopicResults(
           storedAssignments,
           storedSummaries,
           run,
-          onlyAssigned: true,
+          membership: "snapshot",
         })),
         outcome: progress.outcome,
       };

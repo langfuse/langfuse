@@ -1683,6 +1683,68 @@ describe("Topics analyses", () => {
     expect(parentRuleFor(rules.slice(1), [env])).toBeNull();
   });
 
+  it("keeps a trace in an analysis after the trace is summarized again", async () => {
+    const base = execution();
+    mocks.readTopicExecutionSummary.mockResolvedValue({
+      ...base,
+      input: {
+        ...base.input,
+        analysis: {
+          label: "Refund errors",
+          filter: [],
+          parentRuleId: null,
+          previousExecutionId: null,
+          seed: "analysis-seed",
+        },
+      },
+    });
+    mocks.listTopicFacets.mockResolvedValue([
+      { id: facetId, name: "Intent", versions: [{ version: facetVersion }] },
+    ]);
+    mocks.getTopicRun.mockResolvedValue({
+      ...run,
+      topics: run.topics.map((topic) => ({
+        ...topic,
+        topicVersionId: "topic-a-v1",
+        createdByRunId: "run-a",
+      })),
+    });
+    mocks.getTopicRuns.mockResolvedValue([]);
+    mocks.readTopicMapAssignments.mockResolvedValue([
+      {
+        projectId,
+        facetId,
+        facetVersion,
+        traceId: "trace-a",
+        sessionId: null,
+        environment: "production",
+        traceName: "support-agent",
+        unitStartTime: summary.unitStartTime,
+        summaryProcessedAt: summary.processedAt,
+        runId: "run-a",
+        topicId: "topic-a",
+        topicVersionId: "topic-a-v1",
+        coordinates: [1, 2],
+        distance: 0.1,
+        runnerUpDistance: null,
+        origin: "initial",
+        assignedAt: "2026-09-16T01:00:00Z",
+        ruleId: null,
+      },
+    ]);
+    mocks.getLatestFacetSummaries.mockResolvedValue([
+      { ...summary, processedAt: "2026-09-18T00:00:00Z" },
+    ]);
+    const { facets } = await caller("VIEWER").analysisResults({
+      projectId,
+      executionId: "execution-a",
+    });
+    expect(facets[0].rows).toMatchObject([
+      { traceId: "trace-a", outcome: "assigned", topicId: "topic-a" },
+    ]);
+    expect(facets[0].topics).toMatchObject([{ id: "topic-a", count: 1 }]);
+  });
+
   it("classifies a topic's change between runs by its share", () => {
     expect(topicRunChange(0, 0.1)).toBe("new");
     expect(topicRunChange(0.1, 0)).toBe("gone");

@@ -18,6 +18,14 @@ import {
   readLatestTopicAssignments,
 } from "@langfuse/shared/topics/server";
 
+/**
+ * Which traces a result lists and when a stored assignment counts:
+ * - "current": every summary; an assignment counts while it covers the latest summary.
+ * - "rule": like "current", but only traces the rule assigned.
+ * - "snapshot": the run's own assignment rows, even after a trace is summarized again.
+ */
+type TopicResultMembership = "current" | "rule" | "snapshot";
+
 function resolveTopicResult(
   summary: Pick<
     TopicSummary,
@@ -29,16 +37,20 @@ function resolveTopicResult(
     | "processedAt"
     | "state"
   >,
-  stored?: TopicAssignment,
+  stored: TopicAssignment | undefined,
+  membership: TopicResultMembership,
 ) {
-  const assignment =
-    summary.state === "complete" &&
+  const sameSource =
     stored?.projectId === summary.projectId &&
     stored.facetId === summary.facetId &&
     stored.facetVersion === summary.facetVersion &&
     stored.traceId === summary.traceId &&
-    stored.unitStartTime === summary.unitStartTime &&
-    stored.summaryProcessedAt === summary.processedAt
+    stored.unitStartTime === summary.unitStartTime;
+  const assignment =
+    sameSource &&
+    (membership === "snapshot" ||
+      (summary.state === "complete" &&
+        stored.summaryProcessedAt === summary.processedAt))
       ? stored
       : undefined;
   let outcome: string = summary.state;
@@ -102,7 +114,7 @@ export async function currentTopicResults(
           storedAssignments,
           storedSummaries,
           run,
-          onlyAssigned: Boolean(ruleId),
+          membership: ruleId ? "rule" : "current",
         });
       }),
   );
@@ -116,14 +128,14 @@ export async function facetTopicResult({
   storedAssignments,
   storedSummaries,
   run,
-  onlyAssigned,
+  membership,
 }: {
   projectId: string;
   facet: TopicFacet;
   storedAssignments: TopicAssignment[];
   storedSummaries: Awaited<ReturnType<typeof getLatestFacetSummaries>>;
   run: TopicRun | null;
-  onlyAssigned: boolean;
+  membership: TopicResultMembership;
 }) {
   const version = facet.versions[0];
   const assignmentByTrace = new Map(
@@ -132,7 +144,7 @@ export async function facetTopicResult({
   const latestSummaries = storedSummaries.filter(
     (row): row is typeof row & { traceId: string } =>
       row.traceId !== null &&
-      (!onlyAssigned || assignmentByTrace.has(row.traceId)),
+      (membership === "current" || assignmentByTrace.has(row.traceId)),
   );
   const current = latestSummaries
     .sort(
@@ -142,7 +154,11 @@ export async function facetTopicResult({
     )
     .map((summary) => ({
       summary,
-      ...resolveTopicResult(summary, assignmentByTrace.get(summary.traceId)),
+      ...resolveTopicResult(
+        summary,
+        assignmentByTrace.get(summary.traceId),
+        membership,
+      ),
     }));
   const assignmentRuns = await getTopicRuns(projectId, [
     ...new Set(
