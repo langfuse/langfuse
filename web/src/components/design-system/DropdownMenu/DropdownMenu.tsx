@@ -24,7 +24,7 @@ import {
   type Placement,
 } from "@floating-ui/react";
 import { cva } from "class-variance-authority";
-import { type IconComponent } from "@langfuse/icons";
+import { X, type IconComponent } from "@langfuse/icons";
 import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 import Link from "next/link";
 import * as React from "react";
@@ -219,6 +219,7 @@ function DropdownMenuNode({
   const tree = useFloatingTree();
   const isNested = parentId !== null;
   const layerContainer = useLayerContainer("popover");
+  const searchInputRef = React.useRef<HTMLInputElement>(null);
   const listRef = React.useRef<Array<HTMLElement | null>>([]);
   const labelsRef = React.useRef<Array<string | null>>([]);
   const closeMenu = React.useCallback(() => {
@@ -358,39 +359,63 @@ function DropdownMenuNode({
               ) : null}
               {search ? (
                 <div className="border-border bg-popover sticky top-0 z-1 border-b p-1.5">
-                  <input
-                    type="search"
-                    value={searchQuery}
-                    placeholder={search.placeholder}
-                    aria-label={search.placeholder}
-                    className="border-input bg-background focus:ring-ring h-8 w-full rounded-md border px-2 text-sm outline-hidden focus:ring-1"
-                    onChange={(event) => {
-                      setSearchQuery(event.target.value);
-                      setActiveIndex(null);
-                    }}
-                    onKeyDown={(event) => {
-                      if (event.key === "Escape") {
-                        closeMenu();
-                        event.preventDefault();
-                      } else if (event.key === "ArrowDown") {
-                        const firstIndex = listRef.current
-                          .slice(0, visibleItems.length)
-                          .findIndex((element) => element !== null);
-                        setActiveIndex(firstIndex === -1 ? null : firstIndex);
-                        listRef.current[firstIndex]?.focus();
-                        event.preventDefault();
-                      } else if (event.key === "ArrowUp") {
-                        const lastIndex = listRef.current
-                          .slice(0, visibleItems.length)
-                          .findLastIndex((element) => element !== null);
-                        setActiveIndex(lastIndex === -1 ? null : lastIndex);
-                        listRef.current[lastIndex]?.focus();
-                        event.preventDefault();
-                      }
+                  <div className="relative">
+                    <input
+                      ref={searchInputRef}
+                      type="search"
+                      value={searchQuery}
+                      placeholder={search.placeholder}
+                      aria-label={search.placeholder}
+                      className="border-input bg-background focus:ring-ring h-8 w-full rounded-md border pr-8 pl-2 text-sm outline-hidden focus:ring-1 [&::-webkit-search-cancel-button]:hidden"
+                      onChange={(event) => {
+                        setSearchQuery(event.target.value);
+                        setActiveIndex(null);
+                      }}
+                      onKeyDown={(event) => {
+                        if (event.key === "Escape") {
+                          closeMenu();
+                          event.preventDefault();
+                        } else if (event.key === "ArrowDown") {
+                          const firstIndex = listRef.current
+                            .slice(0, visibleItems.length)
+                            .findIndex((element) => element !== null);
+                          setActiveIndex(firstIndex === -1 ? null : firstIndex);
+                          listRef.current[firstIndex]?.focus();
+                          event.preventDefault();
+                        } else if (event.key === "ArrowUp") {
+                          const lastIndex = listRef.current
+                            .slice(0, visibleItems.length)
+                            .findLastIndex((element) => element !== null);
+                          setActiveIndex(lastIndex === -1 ? null : lastIndex);
+                          listRef.current[lastIndex]?.focus();
+                          event.preventDefault();
+                        }
 
-                      event.stopPropagation();
-                    }}
-                  />
+                        event.stopPropagation();
+                      }}
+                    />
+                    {searchQuery !== "" && (
+                      <button
+                        type="button"
+                        aria-label="Clear search"
+                        // Not a tab stop, matching the native control it
+                        // replaces.
+                        tabIndex={-1}
+                        // The button unmounts as soon as the query clears, so
+                        // hand focus back to the field. That also keeps DOM
+                        // focus and the cleared activeIndex in agreement when
+                        // the list had been arrowed into.
+                        onClick={() => {
+                          setSearchQuery("");
+                          setActiveIndex(null);
+                          searchInputRef.current?.focus();
+                        }}
+                        className="text-muted-foreground hover:bg-accent hover:text-accent-foreground absolute top-1/2 right-1.5 flex size-6 -translate-y-1/2 items-center justify-center rounded-sm"
+                      >
+                        <X size="base" aria-hidden />
+                      </button>
+                    )}
+                  </div>
                 </div>
               ) : null}
               <div
