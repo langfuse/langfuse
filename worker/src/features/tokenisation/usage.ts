@@ -164,7 +164,13 @@ function openAiChatTokenCount(params: {
           "functionCall",
         ].some((k) => k === key)
       ) {
-        const tokens = getTokensByModel(model, value);
+        // tool-call keys carry objects, not strings; serialise them so the
+        // tokeniser sees the call's name and arguments instead of failing on
+        // the raw value.
+        const tokens = getTokensByModel(
+          model,
+          isString(value) ? value : JSON.stringify(value),
+        );
         if (tokens) numTokens += tokens;
       }
       if (key === "name") {
