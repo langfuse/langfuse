@@ -153,11 +153,23 @@ ErrorEvent]` fingerprints with no stack. ⚠ The 5EX cluster (opaque non-Error
    `area` tag, static message, structured `extra`, no PII.
 3. **If suppressing:** add a named predicate in `sentryFilters.ts` reading the
    right event field, with a written rationale and a negative fixture (Rule 6).
-   Prefer root-causing the emission instead (Rule 5).
+   Prefer root-causing the emission instead (Rule 5). Before writing it, search
+   open pull requests:
+
+   ```bash
+   node .agents/skills/retro/scripts/agent-pr-log.mjs --search "<issue id or distinctive title words>"
+   ```
+
+   Exit 1 means an open PR already covers that drop. Push onto that branch or
+   stop. `event.exception?.values?.[0]` is possibly `undefined`; narrow
+   `exception` before reading `.type` or `.value`.
 4. **Verify** — unit test for the contract; **browser A/B** for the actual
-   event removal (Rule 8).
+   event removal (Rule 8). When the diff touches `sentryFilters.ts`, also run
+   `pnpm --filter web run typecheck`. The client test does not catch
+   `TS18048` (`'exception' is possibly 'undefined'`).
 5. **PR** with the decision note; for suppression changes, the explicit
-   "does this hide a real error?" answer + the negative-fixture test.
+   "does this hide a real error?" answer + the negative-fixture test. One open
+   PR per drop.
 
 ## Anti-patterns
 
@@ -175,6 +187,9 @@ ErrorEvent]` fingerprints with no stack. ⚠ The 5EX cluster (opaque non-Error
 - Trusting a green jsdom test as proof the noise is gone (Rule 8).
 - An ad-hoc inline `beforeSend` check instead of a named, tested predicate in
   `sentryFilters.ts`.
+- A second suppression PR for a drop that already has an open PR.
+- Reading `exception.type` or `exception.value` when `exception` may be
+  `undefined`.
 
 ## References
 
