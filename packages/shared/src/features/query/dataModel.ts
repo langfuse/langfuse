@@ -259,6 +259,13 @@ export const eventsTracesView: ViewDeclarationType = {
       aggregationFunction:
         "formatDateTime(min(events_traces.start_time), '%Y-%m')",
     },
+    ingestionApiKey: {
+      sql: "nullIf(events_traces.ingestion_api_key, '')",
+      alias: "ingestionApiKey",
+      type: "string",
+      description:
+        "Public API key (pk-lf-...) used to ingest the events of the trace.",
+    },
   },
   measures: {
     count: {
@@ -1390,6 +1397,12 @@ export const eventsObservationsView: ViewDeclarationType = {
       alias: "providedModelName",
       type: "string",
       description: "Name of the model used for the observation.",
+    },
+    ingestionApiKey: {
+      sql: "nullIf(events_observations.ingestion_api_key, '')",
+      alias: "ingestionApiKey",
+      type: "string",
+      description: "Public API key (pk-lf-...) used to ingest the event.",
     },
     promptName: {
       sql: "nullIf(events_observations.prompt_name, '')",
