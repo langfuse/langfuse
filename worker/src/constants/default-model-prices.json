@@ -5534,10 +5534,7 @@
             "source": "model_parameters",
             "key": "service_tier",
             "operator": "in",
-            "values": [
-              "fast",
-              "priority"
-            ]
+            "values": ["fast", "priority"]
           }
         ],
         "prices": {
@@ -7585,10 +7582,7 @@
             "source": "model_parameters",
             "key": "service_tier",
             "operator": "in",
-            "values": [
-              "fast",
-              "priority"
-            ]
+            "values": ["fast", "priority"]
           },
           {
             "usageDetailPattern": "(input|cache_write)",
@@ -7621,9 +7615,7 @@
             "source": "model_parameters",
             "key": "service_tier",
             "operator": "in",
-            "values": [
-              "flex"
-            ]
+            "values": ["flex"]
           },
           {
             "usageDetailPattern": "(input|cache_write)",
@@ -7656,10 +7648,7 @@
             "source": "model_parameters",
             "key": "service_tier",
             "operator": "in",
-            "values": [
-              "fast",
-              "priority"
-            ]
+            "values": ["fast", "priority"]
           }
         ],
         "prices": {
@@ -7686,9 +7675,7 @@
             "source": "model_parameters",
             "key": "service_tier",
             "operator": "in",
-            "values": [
-              "flex"
-            ]
+            "values": ["flex"]
           }
         ],
         "prices": {
@@ -7777,10 +7764,7 @@
             "source": "model_parameters",
             "key": "service_tier",
             "operator": "in",
-            "values": [
-              "fast",
-              "priority"
-            ]
+            "values": ["fast", "priority"]
           },
           {
             "usageDetailPattern": "(input|cache_write)",
@@ -7813,9 +7797,7 @@
             "source": "model_parameters",
             "key": "service_tier",
             "operator": "in",
-            "values": [
-              "flex"
-            ]
+            "values": ["flex"]
           },
           {
             "usageDetailPattern": "(input|cache_write)",
@@ -7848,10 +7830,7 @@
             "source": "model_parameters",
             "key": "service_tier",
             "operator": "in",
-            "values": [
-              "fast",
-              "priority"
-            ]
+            "values": ["fast", "priority"]
           }
         ],
         "prices": {
@@ -7878,9 +7857,7 @@
             "source": "model_parameters",
             "key": "service_tier",
             "operator": "in",
-            "values": [
-              "flex"
-            ]
+            "values": ["flex"]
           }
         ],
         "prices": {
@@ -8799,6 +8776,55 @@
         "prices": {
           "input": 4.2e-8,
           "output": 0
+        }
+      }
+    ]
+  },
+  {
+    "id": "3e3024b4-768b-4161-b289-766ff145ac34",
+    "modelName": "deepseek-chat",
+    "matchPattern": "(?i)^(deepseek(-ai)?\\/)?(deepseek-(chat|v3))$",
+    "createdAt": "2026-10-31T00:00:00.000Z",
+    "updatedAt": "2026-10-31T00:00:00.000Z",
+    "pricingTiers": [
+      {
+        "id": "3e3024b4-768b-4161-b289-766ff145ac34_tier_default",
+        "name": "Standard",
+        "isDefault": true,
+        "priority": 0,
+        "conditions": [],
+        "prices": {
+          "input": 0.27e-6,
+          "input_cached_tokens": 0.07e-6,
+          "input_cache_read": 0.07e-6,
+          "cache_read_input_tokens": 0.07e-6,
+          "output": 1.1e-6
+        }
+      }
+    ]
+  },
+  {
+    "id": "8ad85fd2-c63d-43c5-bf1f-f79eaed1d3b0",
+    "modelName": "deepseek-reasoner",
+    "matchPattern": "(?i)^(deepseek(-ai)?\\/)?(deepseek-(reasoner|r1))$",
+    "createdAt": "2026-10-31T00:00:00.000Z",
+    "updatedAt": "2026-10-31T00:00:00.000Z",
+    "pricingTiers": [
+      {
+        "id": "8ad85fd2-c63d-43c5-bf1f-f79eaed1d3b0_tier_default",
+        "name": "Standard",
+        "isDefault": true,
+        "priority": 0,
+        "conditions": [],
+        "prices": {
+          "input": 0.55e-6,
+          "input_cached_tokens": 0.14e-6,
+          "input_cache_read": 0.14e-6,
+          "cache_read_input_tokens": 0.14e-6,
+          "output": 2.19e-6,
+          "output_reasoning_tokens": 2.19e-6,
+          "output_reasoning": 2.19e-6,
+          "reasoning_tokens": 2.19e-6
         }
       }
     ]
