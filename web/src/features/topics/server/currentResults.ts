@@ -187,6 +187,11 @@ export async function currentTopicResults(
                   runId: topic.createdByRunId,
                   name: topic.name,
                   description: topic.description,
+                  // Traces clustered into the topic when the map was built.
+                  ...(typeof topic.metadata.effectiveMemberCount ===
+                    "number" && {
+                    memberCount: topic.metadata.effectiveMemberCount,
+                  }),
                 })),
               }
             : null,
@@ -214,6 +219,8 @@ export async function traceFacetResults(
   });
   return facets.map((facet) => {
     const row = facet.rows.find((item) => item.traceId === traceId);
+    const mapIndex =
+      facet.map?.topics.findIndex((topic) => topic.id === row?.topicId) ?? -1;
     return {
       facetId: facet.facetId,
       name: facet.name,
@@ -222,8 +229,8 @@ export async function traceFacetResults(
       topicId: row?.topicId ?? null,
       topicName: row?.topicName ?? null,
       // Slot in the published map; picks the topic's color.
-      topicIndex:
-        facet.map?.topics.findIndex((topic) => topic.id === row?.topicId) ?? -1,
+      topicIndex: mapIndex,
+      topicMemberCount: facet.map?.topics[mapIndex]?.memberCount ?? null,
     };
   });
 }

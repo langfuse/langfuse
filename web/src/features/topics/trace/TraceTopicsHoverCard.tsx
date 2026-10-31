@@ -50,7 +50,15 @@ function TopicDot({ rank }: { rank: number }) {
 }
 
 /** Topic chip colored by the topic's slot in the published map. */
-function TopicChip({ name, mapIndex }: { name: string; mapIndex: number }) {
+function TopicChip({
+  name,
+  mapIndex,
+  traceCount,
+}: {
+  name: string;
+  mapIndex: number;
+  traceCount: number | null;
+}) {
   return (
     <span className="flex min-w-0">
       <BadgeShell color={treemapBadgeColor(mapIndex)}>
@@ -58,6 +66,14 @@ function TopicChip({ name, mapIndex }: { name: string; mapIndex: number }) {
         <span className="truncate" title={name}>
           {name}
         </span>
+        {traceCount !== null && (
+          <span
+            className="text-muted-foreground shrink-0 font-mono"
+            title="Approximate number of traces in this topic"
+          >
+            ~{traceCount} traces
+          </span>
+        )}
       </BadgeShell>
     </span>
   );
@@ -133,6 +149,7 @@ export function TraceTopicsHoverCard({
                   <TopicChip
                     name={facet.topicName}
                     mapIndex={facet.topicIndex}
+                    traceCount={facet.topicMemberCount}
                   />
                 )}
                 {!facet.summary && (
