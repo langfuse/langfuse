@@ -579,6 +579,55 @@ describe("isDenylistedNoiseEvent", () => {
       ).toBe(true);
     });
 
+    // posthog-js aborts its ingest fetch after request_timeout_ms (default
+    // 3000) and rejects with this vendor-namespaced AbortError. Production
+    // shape (LANGFUSE-64C / LANGFUSE-5ZD):
+    // auto.browser.global_handlers.onunhandledrejection.
+    const posthogRequestTimeoutEvent = (
+      value: string,
+      type = "AbortError",
+      mechanismType = "auto.browser.global_handlers.onunhandledrejection",
+    ): ErrorEvent =>
+      ({
+        exception: {
+          values: [
+            {
+              type,
+              value,
+              mechanism: { type: mechanismType, handled: false },
+            },
+          ],
+        },
+      }) as ErrorEvent;
+
+    it("drops a PostHog ingest timeout AbortError (LANGFUSE-64C)", () => {
+      expect(
+        isDenylistedNoiseEvent(
+          posthogRequestTimeoutEvent("PostHog request timed out after 3000ms"),
+        ),
+      ).toBe(true);
+    });
+
+    it("drops a PostHog ingest timeout without a duration suffix", () => {
+      expect(
+        isDenylistedNoiseEvent(
+          posthogRequestTimeoutEvent("PostHog request timed out"),
+        ),
+      ).toBe(true);
+    });
+
+    it("drops a PostHog ingest timeout from the global onerror handler", () => {
+      expect(
+        isDenylistedNoiseEvent(
+          posthogRequestTimeoutEvent(
+            "PostHog request timed out after 10000ms",
+            "AbortError",
+            "auto.browser.global_handlers.onerror",
+          ),
+        ),
+      ).toBe(true);
+    });
+
     // PostHog logs a string via console.error, so it arrives as a MESSAGE event
     // (captureConsoleIntegration) — assert against that production shape.
     it("drops a third-party [PostHog.js] notice (message event)", () => {
@@ -1304,6 +1353,75 @@ describe("isDenylistedNoiseEvent", () => {
             "NotSupportedError",
           ),
         ),
+      ).toBe(false);
+    });
+
+    it("keeps an app-captured PostHog timeout phrase (not a Sentry browser wrap)", () => {
+      expect(
+        isDenylistedNoiseEvent(
+          exceptionEvent(
+            "PostHog request timed out after 3000ms",
+            "AbortError",
+          ),
+        ),
+      ).toBe(false);
+    });
+
+    it("keeps a TypeError that merely quotes the PostHog timeout wording", () => {
+      expect(
+        isDenylistedNoiseEvent({
+          exception: {
+            values: [
+              {
+                type: "TypeError",
+                value: "PostHog request timed out after 3000ms",
+                mechanism: {
+                  type: "auto.browser.global_handlers.onunhandledrejection",
+                  handled: false,
+                },
+              },
+            ],
+          },
+        } as ErrorEvent),
+      ).toBe(false);
+    });
+
+    it("keeps a longer app message that merely quotes the PostHog timeout", () => {
+      expect(
+        isDenylistedNoiseEvent({
+          exception: {
+            values: [
+              {
+                type: "AbortError",
+                value:
+                  "Failed to save prompt: PostHog request timed out after 3000ms",
+                mechanism: {
+                  type: "auto.browser.global_handlers.onunhandledrejection",
+                  handled: false,
+                },
+              },
+            ],
+          },
+        } as ErrorEvent),
+      ).toBe(false);
+    });
+
+    it("keeps a generic request-timeout AbortError that is not PostHog-namespaced", () => {
+      expect(
+        isDenylistedNoiseEvent({
+          exception: {
+            values: [
+              {
+                type: "AbortError",
+                value: "Request timed out after 3000ms",
+                mechanism: {
+                  type: "auto.browser.global_handlers.onunhandledrejection",
+                  handled: false,
+                },
+              },
+            ],
+          },
+        } as ErrorEvent),
       ).toBe(false);
     });
 
