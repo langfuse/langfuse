@@ -3362,6 +3362,7 @@ export class OtelIngestionProcessor {
       rawUsageDetails["cache_creation.input_tokens"] ??
       rawUsageDetails["cache_write.input_tokens"] ??
       rawUsageDetails["cache_creation_input_tokens"] ??
+      rawUsageDetails["cache_write_input_tokens"] ??
       rawUsageDetails["cache_write_tokens"] ??
       rawUsageDetails["details.cache_write_tokens"] ??
       rawUsageDetails["details.cache_creation_input_tokens"] ??
@@ -3411,6 +3412,7 @@ export class OtelIngestionProcessor {
             "cache_creation.input_tokens",
             "cache_write.input_tokens",
             "cache_creation_input_tokens",
+            "cache_write_input_tokens",
             "cache_write_tokens",
             "details.cache_write_tokens",
             "details.cache_creation_input_tokens",
@@ -3437,13 +3439,20 @@ export class OtelIngestionProcessor {
     );
 
     if (inputTokens !== undefined) {
-      normalizedUsageDetails.input = Math.max(
-        inputTokens -
-          (cacheReadTokens ?? 0) -
-          (cacheCreationRemainderTokens ?? 0) -
-          cacheCreationBreakdownTokens,
-        0,
-      );
+      const cacheTokens =
+        (cacheReadTokens ?? 0) +
+        (cacheCreationRemainderTokens ?? 0) +
+        cacheCreationBreakdownTokens;
+      // Some emitters (e.g. Strands Agents < 1.54 on Bedrock) report input
+      // already exclusive of cache; their total then adds the cache on top.
+      const inputExcludesCache =
+        cacheTokens > 0 &&
+        outputTokens !== undefined &&
+        totalTokens !== undefined &&
+        inputTokens + outputTokens + cacheTokens === totalTokens;
+      normalizedUsageDetails.input = inputExcludesCache
+        ? inputTokens
+        : Math.max(inputTokens - cacheTokens, 0);
     }
 
     if (outputTokens !== undefined) {
