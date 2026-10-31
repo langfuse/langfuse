@@ -12,6 +12,7 @@ import {
   listTopicSummaries,
   readTopicAssignments,
   readTopicExecutionSummary,
+  resolveTopicClusteringCohort,
   TOPIC_CLUSTERING_CAPACITY_ERROR,
   writeTopicAssignments,
 } from "@langfuse/shared/topics/server";
@@ -64,6 +65,7 @@ vi.mock("@langfuse/shared/topics/server", () => ({
     ruleId,
   })),
   getTopicClusteringSummaryStats: vi.fn(),
+  resolveTopicClusteringCohort: vi.fn(async () => ({ ruleId: "rule-a" })),
   getTopicExecutionQueueState: vi.fn(async () => "active"),
   TOPIC_CLUSTERING_CAPACITY_ERROR:
     "Topics clustering exceeds this worker's capacity. Choose a smaller time window; no partial cohort was used.",
@@ -377,6 +379,76 @@ describe("automatic Topics assignment", () => {
     expect(releaseDiscoveryGate).toHaveBeenCalledWith(
       expect.stringContaining("langfuse:topics:discovery:project:"),
     );
+  });
+
+  it("sizes the discovery window with the rule's cohort", async () => {
+    const cohort = {
+      traces: { query: "SELECT id FROM rule_traces", params: {} },
+    };
+    vi.mocked(resolveTopicClusteringCohort).mockResolvedValue({
+      ruleId: "rule-a",
+      cohort,
+    });
+    vi.mocked(listTopicSummaries).mockResolvedValue([]);
+    vi.mocked(getTopicClusteringSummaryStats).mockResolvedValue({
+      count: 100,
+      bytes: 1000,
+    });
+    await processTopicsAutomation({ ...batch, ruleIds: ["rule-a"] });
+    const [, , , , timeRange, , probed] = vi.mocked(
+      getTopicClusteringSummaryStats,
+    ).mock.calls[0];
+    expect(probed).toBe(cohort);
+    expect(resolveTopicClusteringCohort).toHaveBeenCalledWith({
+      projectId: "project",
+      timeRange,
+      ruleId: "rule-a",
+    });
+    expect(createTopicExecution).toHaveBeenCalledWith(
+      expect.objectContaining({ ruleId: "rule-a", timeRange }),
+      expect.any(String),
+      "system:topics",
+    );
+  });
+
+  it("retries discovery on a full window after a fit had too little data", async () => {
+    vi.mocked(listTopicSummaries).mockResolvedValue([]);
+    vi.mocked(getTopicClusteringSummaryStats).mockResolvedValue({
+      count: 100,
+      bytes: 1000,
+    });
+    const previous = {
+      id: "too-small",
+      status: "completed",
+      input: {
+        operation: "update",
+        timeRange: {
+          from: new Date("2026-10-13T00:00:00.000Z"),
+          to: new Date("2026-10-14T00:00:00.000Z"),
+        },
+      },
+      facets: [
+        {
+          facetId: "facet",
+          facetVersion: 2,
+          runId: "skipped-run",
+          outcome: "insufficient_data",
+          error: null,
+        },
+      ],
+    } as unknown as TopicExecutionSummary;
+    vi.mocked(prisma.batchAction.findFirst).mockResolvedValue({
+      id: previous.id,
+    } as never);
+    vi.mocked(readTopicExecutionSummary).mockResolvedValue(previous);
+    await processTopicsAutomation({ ...batch, ruleIds: ["rule-a"] });
+    const [input, requestId] = vi.mocked(createTopicExecution).mock.calls[0];
+    expect(requestId).not.toBe(previous.id);
+    expect(
+      input.operation === "update"
+        ? input.timeRange.to.getTime() - input.timeRange.from.getTime()
+        : 0,
+    ).toBe(7 * 24 * 60 * 60_000);
   });
 
   it("recovers late-arrival capacity failures until a smaller frozen request succeeds", async () => {

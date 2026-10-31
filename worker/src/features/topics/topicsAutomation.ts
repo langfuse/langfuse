@@ -25,6 +25,7 @@ import {
   TOPICS_ACTION_TYPES,
   TOPICS_SYSTEM_USER_ID,
   TOPICS_TRACE_BATCH_SIZE,
+  resolveTopicClusteringCohort,
   TOPIC_CLUSTERING_CAPACITY_ERROR,
   TopicsAutomationQueue,
   writeTopicAssignments,
@@ -272,7 +273,9 @@ async function startDiscovery(
     projectId,
     facet,
     embeddingConfig,
-    existing?.input.operation === "update"
+    ruleId,
+    existing?.input.operation === "update" &&
+      discoveryCapacityFailure(existing, facet)
       ? existing.input.timeRange
       : undefined,
   ).catch(async (error: unknown) => {
@@ -355,7 +358,11 @@ async function latestDiscovery(
   return row ? readTopicExecutionSummary(batch.projectId, row.id) : null;
 }
 
-/** Active work is monitored; only a capacity failure permits another discovery. */
+/**
+ * Active work is monitored. A capacity failure permits another discovery on a
+ * smaller window; a fit that found too little data permits one on a full
+ * window once the discovery gate's cooldown passes.
+ */
 async function continueDiscovery(
   batch: AutomationBatch,
   facet: TopicFacetRef,
@@ -383,6 +390,7 @@ async function continueDiscovery(
     await deferDiscovery(batch, facet);
     return true;
   }
+  if (discoveryLackedData(existing, facet)) return false;
   const capacityFailure = discoveryCapacityFailure(existing, facet);
   if (!capacityFailure) return true;
   // Admission can fail before a precreated run enters the fitting lifecycle.
@@ -419,6 +427,22 @@ function discoveryCapacityFailure(
     : undefined;
 }
 
+function discoveryLackedData(
+  execution: TopicExecutionSummary,
+  facet: TopicFacetRef,
+) {
+  return (
+    ["completed", "completed_with_errors"].includes(execution.status) &&
+    execution.facets.some(
+      (progress) =>
+        progress.facetId === facet.facetId &&
+        progress.facetVersion === facet.version &&
+        (progress.outcome === "insufficient_data" ||
+          progress.outcome === "no_applicable_summaries"),
+    )
+  );
+}
+
 /** One delayed check per facet/model, including a successor to an active check. */
 async function deferDiscovery(batch: AutomationBatch, facet: TopicFacetRef) {
   const queue = TopicsAutomationQueue.getInstance();
@@ -445,11 +469,15 @@ async function deferDiscovery(batch: AutomationBatch, facet: TopicFacetRef) {
   );
 }
 
-/** Keep a complete recent cohort; only aggregate counts and byte estimates are loaded. */
+/**
+ * Keep a complete recent cohort of the rule the fit serves; only aggregate
+ * counts and byte estimates are loaded.
+ */
 async function selectDiscoveryWindow(
   projectId: string,
   facet: TopicFacetRef,
   embeddingConfig: TopicEmbeddingConfig,
+  ruleId: string | undefined,
   failedWindow?: TopicTimeRange,
 ): Promise<TopicTimeRange | null> {
   const to = new Date();
@@ -485,6 +513,11 @@ async function selectDiscoveryWindow(
         ? to.getTime() - firstDuration
         : Math.floor((earliest + latest) / 2);
     const timeRange = { from: new Date(from), to };
+    const { cohort } = await resolveTopicClusteringCohort({
+      projectId,
+      timeRange,
+      ruleId,
+    });
     const { count, bytes } = await getTopicClusteringSummaryStats(
       projectId,
       facet.facetId,
@@ -492,6 +525,7 @@ async function selectDiscoveryWindow(
       embeddingConfig,
       timeRange,
       limits,
+      cohort,
     );
     if (count < minimumCount) {
       if (from === to.getTime() - DISCOVERY_WINDOW_MS) return null;
