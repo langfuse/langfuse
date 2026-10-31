@@ -571,6 +571,20 @@ describe("ClickhouseWriter", () => {
     );
   });
 
+  it("leaves a Topics metadata JSON string untouched when truncating", () => {
+    const row = {
+      project_id: "project-1",
+      facet_id: "facet-1",
+      facet_version: 1,
+      trace_id: "t-1",
+      session_id: "",
+      metadata: '{"a":1}',
+    } as any;
+    expect(
+      truncateOversizedRecord(TableName.TopicFacetSummaries, row).metadata,
+    ).toBe('{"a":1}');
+  });
+
   it("should retry client request timeouts within the same flush", async () => {
     const mockInsert = vi
       .spyOn(clickhouseClientMock, "insert")

@@ -8,7 +8,11 @@ import {
 import type { ClickhouseClientType } from "@langfuse/shared/src/server";
 
 import type { RecordInsertType, TableName } from "./types";
-import { clampDecimal64Fields, truncateOversizedRecord } from "./jsonRecords";
+import {
+  clampDecimal64Fields,
+  recordIdentity,
+  truncateOversizedRecord,
+} from "./jsonRecords";
 
 export type ClickhouseWriteStrategy<Row> = {
   write(
@@ -47,14 +51,7 @@ const jsonWriteStrategy: ClickhouseWriteStrategy<RecordInsertType<TableName>> =
     },
     prepare: clampDecimal64Fields,
     truncate: truncateOversizedRecord,
-    droppedId(record) {
-      return {
-        project_id: record.project_id,
-        trace_id:
-          ("trace_id" in record ? record.trace_id : undefined) ?? record.id,
-        id: record.id,
-      };
-    },
+    droppedId: recordIdentity,
   };
 
 export const jsonWriteStrategyFactory: ClickhouseWriteStrategyFactory<
