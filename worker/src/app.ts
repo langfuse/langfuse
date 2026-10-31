@@ -49,6 +49,7 @@ import {
   SecondaryEvalExecutionQueue,
   LLMAsJudgeExecutionQueue,
   CodeEvalExecutionQueue,
+  TopicsTraceQueue,
 } from "@langfuse/shared/src/server";
 import { monitorProcessorTtl } from "@langfuse/shared/monitors/server";
 import { IN_APP_AGENT_RUN_MAX_DURATION_MS } from "@langfuse/shared/in-app-agent/server/tunables";
@@ -61,6 +62,7 @@ import { ClickhouseReadSkipCache } from "./utils/clickhouseReadSkipCache";
 import { experimentCreateQueueProcessor } from "./queues/experimentQueue";
 import { traceDeleteProcessor } from "./queues/traceDelete";
 import { traceBatchQueueProcessor } from "./queues/traceBatchQueue";
+import { topicsTraceQueueProcessorBuilder } from "./queues/topicsTraceQueue";
 import { TraceBatchDispatcher } from "./features/traceBatching/traceBatching";
 import { TraceBatchMetricsRunner } from "./features/traceBatching/TraceBatchMetricsRunner";
 import { projectDeleteProcessor } from "./queues/projectDelete";
@@ -331,6 +333,21 @@ if (env.QUEUE_CONSUMER_CODE_EVAL_EXECUTION_QUEUE_IS_ENABLED === "true") {
       codeEvalExecutionQueueProcessorBuilder(shardName),
       {
         concurrency: env.LANGFUSE_CODE_EVAL_EXECUTION_WORKER_CONCURRENCY,
+        lockDuration: 60000,
+        stalledInterval: 120000,
+        maxStalledCount: 3,
+      },
+    );
+  });
+}
+
+if (env.QUEUE_CONSUMER_TOPICS_TRACE_QUEUE_IS_ENABLED === "true") {
+  TopicsTraceQueue.getShardNames().forEach((shardName) => {
+    WorkerManager.register(
+      shardName as QueueName,
+      topicsTraceQueueProcessorBuilder(shardName),
+      {
+        concurrency: env.LANGFUSE_TOPICS_TRACE_QUEUE_PROCESSING_CONCURRENCY,
         lockDuration: 60000,
         stalledInterval: 120000,
         maxStalledCount: 3,

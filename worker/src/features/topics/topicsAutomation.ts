@@ -100,6 +100,46 @@ export async function processTopicsAutomation(
   }
 }
 
+const DISCOVERY_SIGNAL_TTL_MS = 60_000;
+const MAX_DISCOVERY_SIGNAL_KEYS = 10_000;
+const discoverySignals = new Map<string, number>();
+
+/**
+ * Queues the delayed discovery check for a facet that has no compatible map yet,
+ * at most once a minute per pod; the queue deduplicates across pods.
+ */
+export async function signalTopicsDiscovery(
+  summary: TopicSummary & { traceId: string },
+): Promise<void> {
+  const facet = { facetId: summary.facetId, version: summary.facetVersion };
+  const embeddingConfig = {
+    embeddingModel: summary.embeddingModel,
+    embeddingDimensions: summary.embedding.length,
+  };
+  const key = hash([summary.projectId, facet, embeddingConfig]);
+  const now = Date.now();
+  if ((discoverySignals.get(key) ?? 0) > now) return;
+  if (discoverySignals.size >= MAX_DISCOVERY_SIGNAL_KEYS)
+    discoverySignals.clear();
+  discoverySignals.set(key, now + DISCOVERY_SIGNAL_TTL_MS);
+  const start = new Date(summary.unitStartTime);
+  try {
+    await deferDiscovery(
+      {
+        projectId: summary.projectId,
+        embeddingConfig,
+        timeRange: { from: start, to: new Date(start.getTime() + 1) },
+        traceIds: [summary.traceId],
+        facets: [facet],
+      },
+      facet,
+    );
+  } catch (error) {
+    discoverySignals.delete(key);
+    throw error;
+  }
+}
+
 /** One batch per project and vector space, spanning its summaries' unit start times. */
 function groupStoredSummaries(rows: TopicSummary[]): AutomationBatch[] {
   const groups = new Map<string, AutomationBatch>();

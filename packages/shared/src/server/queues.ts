@@ -452,6 +452,7 @@ export enum QueueName {
   MonitorQueue = "monitor-queue",
   InAppAgentRunQueue = "in-app-agent-run-queue",
   V4LegacyApiUsageQueue = "v4-legacy-api-usage-queue",
+  TopicsTrace = "topics-trace-queue",
 }
 
 export enum QueueJobs {
@@ -496,6 +497,7 @@ export enum QueueJobs {
   MonitorJob = "monitor-job",
   InAppAgentRunJob = "in-app-agent-run-job",
   V4LegacyApiUsageJob = "v4-legacy-api-usage-job",
+  TopicsTraceJob = "topics-trace-job",
 }
 
 export const TraceBatchTraceSchema = z.object({
@@ -505,6 +507,23 @@ export const TraceBatchTraceSchema = z.object({
   maxStart: z.number(),
   revision: z.string(),
 });
+
+/** One trace's Topics summary, from the transcript trace-batch stored for this revision. */
+export const TopicsTraceEventSchema = z.object({
+  projectId: z.string().min(1),
+  traceId: z.string().min(1),
+  revision: z.string().min(1),
+  transcriptS3Key: z.string().min(1),
+  facets: z
+    .array(
+      z.object({
+        facetId: z.string().min(1),
+        version: z.number().int().positive(),
+      }),
+    )
+    .min(1),
+});
+export type TopicsTraceEventType = z.infer<typeof TopicsTraceEventSchema>;
 
 export const TopicEmbeddingBatchSchema = z.object({
   projectId: z.string().min(1),
@@ -648,6 +667,13 @@ export type TQueueJobTypes = {
     id: string;
     payload: ObservationEvalExecutionEventType;
     name: QueueJobs.LLMAsJudgeExecution;
+    retryBaggage?: RetryBaggage;
+  };
+  [QueueName.TopicsTrace]: {
+    timestamp: Date;
+    id: string;
+    payload: TopicsTraceEventType;
+    name: QueueJobs.TopicsTraceJob;
     retryBaggage?: RetryBaggage;
   };
   [QueueName.CodeEvalExecution]: {

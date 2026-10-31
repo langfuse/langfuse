@@ -435,4 +435,63 @@ describe("retryLLMRateLimitError", () => {
       { delay: 30 * 1000 },
     );
   });
+
+  it("starts the retry window at the first job's timestamp when there is no database row", async () => {
+    const add = vi.fn().mockResolvedValue(undefined);
+    const timestamp = new Date("2026-01-01T02:00:00.000Z");
+
+    const result = await retryLLMRateLimitError(
+      {
+        data: {
+          timestamp,
+          payload: { projectId: "project-id", traceId: "trace-id" },
+        },
+      },
+      {
+        table: null,
+        idField: "traceId",
+        queue: { add },
+        queueName: "topics-trace-queue",
+        jobName: "topics-trace-job",
+      },
+    );
+
+    expect(prisma.jobExecution.findFirstOrThrow).not.toHaveBeenCalled();
+    expect(result).toEqual({
+      outcome: "scheduled",
+      delaySeconds: 300,
+      retryBaggage: { originalJobTimestamp: timestamp, attempt: 1 },
+    });
+    expect(add).toHaveBeenCalledWith(
+      "topics-trace-queue",
+      expect.objectContaining({
+        payload: { projectId: "project-id", traceId: "trace-id" },
+      }),
+      { delay: 300_000 },
+    );
+  });
+
+  it("stops retrying once the first job is older than the retry age", async () => {
+    const result = await retryLLMRateLimitError(
+      {
+        data: {
+          timestamp: new Date("2026-01-01T01:59:00.000Z"),
+          payload: { projectId: "project-id", traceId: "trace-id" },
+          retryBaggage: {
+            originalJobTimestamp: new Date("2025-12-31T23:59:00.000Z"),
+            attempt: 2,
+          },
+        },
+      },
+      {
+        table: null,
+        idField: "traceId",
+        queue: { add: vi.fn() },
+        queueName: "topics-trace-queue",
+        jobName: "topics-trace-job",
+      },
+    );
+
+    expect(result).toEqual({ outcome: "skipped", reason: "too_old" });
+  });
 });

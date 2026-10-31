@@ -71,18 +71,27 @@ const getInitialQueueDelayMs = (delay: unknown) =>
 /**
  * Configuration for retry handling with rate limiting and age checks
  */
-interface RetryConfig {
-  /** Database table to check age against */
-  table: "dataset_runs" | "job_executions";
-  /** Name of the ID field in the payload */
-  idField: "runId" | "jobExecutionId";
+type RetryConfig = (
+  | {
+      /** Database table to check age against */
+      table: "dataset_runs" | "job_executions";
+      /** Name of the ID field in the payload */
+      idField: "runId" | "jobExecutionId";
+    }
+  | {
+      /** No database row: the retry window starts at the first job's timestamp. */
+      table: null;
+      /** Payload field that identifies the job in logs */
+      idField: string;
+    }
+) & {
   /** Queue instance to add retry job to */
   queue: any;
   /** Queue name for the retry job */
   queueName: string;
   /** Job name for the retry job */
   jobName: string;
-}
+};
 
 export type RetryScheduleResult =
   | {
@@ -97,6 +106,34 @@ export type RetryScheduleResult =
   | {
       outcome: "queue_unavailable";
     };
+
+async function getRetryWindowStartTimeMs(
+  job: Parameters<typeof retryLLMRateLimitError>[0],
+  config: RetryConfig,
+  jobId: string,
+): Promise<number> {
+  if (config.table === null)
+    return new Date(
+      job.data.retryBaggage?.originalJobTimestamp ?? job.data.timestamp,
+    ).getTime();
+
+  const record =
+    config.table === "dataset_runs"
+      ? await prisma.datasetRuns.findFirstOrThrow({
+          select: { createdAt: true },
+          where: { id: jobId, projectId: job.data.payload.projectId },
+        })
+      : await prisma.jobExecution.findFirstOrThrow({
+          select: { createdAt: true },
+          where: { id: jobId, projectId: job.data.payload.projectId },
+        });
+
+  // The retry budget starts when the LLM call is first attempted, not when a
+  // delayed evaluation job row was created.
+  return (
+    record.createdAt.getTime() + getInitialQueueDelayMs(job.data.payload.delay)
+  );
+}
 
 /**
  * Handles rate limiting and retry logic for queue jobs.
@@ -118,22 +155,11 @@ export async function retryLLMRateLimitError(
     const maxRetryAttempts = env.LANGFUSE_LLM_AS_JUDGE_QUEUE_RETRY_MAX_ATTEMPTS;
     const maxAgeSeconds = env.LANGFUSE_LLM_AS_JUDGE_QUEUE_RETRY_MAX_AGE_SECONDS;
 
-    const record =
-      config.table === "dataset_runs"
-        ? await prisma.datasetRuns.findFirstOrThrow({
-            select: { createdAt: true },
-            where: { id: jobId, projectId: job.data.payload.projectId },
-          })
-        : await prisma.jobExecution.findFirstOrThrow({
-            select: { createdAt: true },
-            where: { id: jobId, projectId: job.data.payload.projectId },
-          });
-
-    // The retry budget starts when the LLM call is first attempted, not when a
-    // delayed evaluation job row was created.
-    const retryWindowStartTimeMs =
-      record.createdAt.getTime() +
-      getInitialQueueDelayMs(job.data.payload.delay);
+    const retryWindowStartTimeMs = await getRetryWindowStartTimeMs(
+      job,
+      config,
+      jobId,
+    );
 
     const elapsedSeconds = Math.max(
       0,
