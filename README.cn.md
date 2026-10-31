@@ -84,7 +84,7 @@
 
 Langfuse 是一个 **开源 LLM 工程** 平台。它帮助团队协作 **开发、监控、评估** 以及 **调试** AI 应用。Langfuse 可在几分钟内 **自托管**，并且经过 **实战考验**。
 
-[![Langfuse 概览视频](.github/watch-demo.png)](https://langfuse.com/watch-demo)
+<a href="https://langfuse.com/watch-demo"><img width="25%" alt="Langfuse 概览视频" src=".github/watch-demo.png"></a>
 
 ## ✨ 核心特性
 

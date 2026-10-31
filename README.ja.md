@@ -73,7 +73,7 @@ Langfuseは**オープンソースのLLMエンジニアリング**プラット�
 チームが共同でAIアプリケーションを**開発、監視、評価**、および**デバッグ**するのを支援します。  
 Langfuseは**数分でセルフホスト可能**で、**多くの実績を持つ**システムです。
 
-[![Langfuse Overview Video](.github/watch-demo.png)](https://langfuse.com/watch-demo)
+<a href="https://langfuse.com/watch-demo"><img width="25%" alt="Langfuse Overview Video" src=".github/watch-demo.png"></a>
 
 ## ✨ コア機能
 
