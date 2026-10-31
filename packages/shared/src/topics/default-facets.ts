@@ -1,4 +1,5 @@
-export const DEFAULT_TOPIC_FACETS = [
+/** Every built-in facet definition, including ones new setups no longer get. */
+export const BUILT_IN_TOPIC_FACETS = [
   {
     name: "Intent",
     description: "What the run was asked to do.",
@@ -109,3 +110,24 @@ Examples:
 - Every inventory lookup timed out, so no quote could be produced and the user was asked to retry later.`,
   },
 ];
+
+// Sentiment leans heavily towards Neutral, so new setups do not get it.
+// Projects that already have it keep it as a built-in facet.
+const NOT_OFFERED_TO_NEW_SETUPS = new Set(["Sentiment"]);
+
+/** The built-in facets created and offered when Topics is configured. */
+export const DEFAULT_TOPIC_FACETS = BUILT_IN_TOPIC_FACETS.filter(
+  (facet) => !NOT_OFFERED_TO_NEW_SETUPS.has(facet.name),
+);
+
+/**
+ * The built-in facets a setup shows: the defaults plus any other built-in
+ * facet the project already has, in definition order.
+ */
+export function offeredTopicFacets(existingBuiltInNames: Iterable<string>) {
+  const existing = new Set(existingBuiltInNames);
+  return BUILT_IN_TOPIC_FACETS.filter(
+    (facet) =>
+      !NOT_OFFERED_TO_NEW_SETUPS.has(facet.name) || existing.has(facet.name),
+  );
+}

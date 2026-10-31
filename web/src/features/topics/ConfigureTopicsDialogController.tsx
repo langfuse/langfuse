@@ -10,7 +10,7 @@ import {
   supportedModels,
 } from "@langfuse/shared";
 import {
-  DEFAULT_TOPIC_FACETS,
+  offeredTopicFacets,
   topicsModelSettingsSchema,
   type TopicFacet,
   type TopicsModelSlotName,
@@ -394,7 +394,7 @@ function facetDrafts(
       .filter((facet) => facet.isBuiltIn)
       .map((facet) => [facet.name, facet]),
   );
-  const builtIn = DEFAULT_TOPIC_FACETS.map((preset) => {
+  const builtIn = offeredTopicFacets(builtInsByName.keys()).map((preset) => {
     const existing = builtInsByName.get(preset.name);
     return {
       id: existing?.id ?? preset.name,
