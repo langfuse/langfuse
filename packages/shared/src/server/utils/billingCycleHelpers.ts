@@ -138,11 +138,12 @@ export function getBillingCycleEnd(
 /**
  * Calculate the maximum number of days to look back for a billing cycle
  *
- * Returns the number of days in the previous month relative to the reference date.
- * This ensures we capture a full billing cycle when processing usage.
+ * Covers billing starts in the previous month, including anchors clamped to
+ * its last day when the current month has more days.
  *
  * Examples:
  * - Reference date: March 15, 2024 → Look back 29 days (Feb has 29 days in 2024)
+ * - Reference date: March 30, 2024 → Look back 30 days (a Jan 31 anchor started Feb 29)
  * - Reference date: April 15, 2024 → Look back 31 days (March has 31 days)
  * - Reference date: May 15, 2024 → Look back 30 days (April has 30 days)
  *
@@ -152,10 +153,18 @@ export function getBillingCycleEnd(
 export function getDaysToLookBack(referenceDate: Date): number {
   const refYear = referenceDate.getUTCFullYear();
   const refMonth = referenceDate.getUTCMonth();
+  const refDay = referenceDate.getUTCDate();
 
   // Get the previous month
   const prevMonthDate = subMonths(new Date(Date.UTC(refYear, refMonth, 1)), 1);
+  const previousMonthDays = getDaysInMonth(prevMonthDate);
 
-  // Return the number of days in the previous month
-  return getDaysInMonth(prevMonthDate);
+  // A cycle anchored after the reference day may have started on the final
+  // day of a shorter previous month. On the final day, every anchor has already
+  // started a cycle in the current month.
+  const isLastDayOfMonth =
+    refDay === new Date(Date.UTC(refYear, refMonth + 1, 0)).getUTCDate();
+  return isLastDayOfMonth
+    ? previousMonthDays
+    : Math.max(previousMonthDays, refDay);
 }
