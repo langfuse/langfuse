@@ -73,7 +73,7 @@ Langfuse는 **오픈 소스 LLM 엔지니어링** 플랫폼입니다.
 팀이 협업하여 AI 애플리케이션을 **개발, 모니터링, 평가** 및 **디버그**할 수 있도록 도와줍니다.  
 Langfuse는 몇 분 안에 셀프 호스팅할 수 있으며, 검증된(battle-tested) 솔루션입니다.
 
-<a href="https://langfuse.com/watch-demo"><img width="25%" alt="Langfuse Overview Video" src=".github/watch-demo.png"></a>
+<a href="https://langfuse.com/watch-demo"><img width="37.5%" alt="Langfuse Overview Video" src=".github/watch-demo.png"></a>
 
 ## ✨ 주요 기능
 

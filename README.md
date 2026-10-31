@@ -70,7 +70,7 @@ Langfuse is an **open source LLM engineering** platform. It helps teams collabor
 > We hire engineers who love open source and great developer experiences.
 > **[See open roles →](https://langfuse.com/careers?utm_source=github&utm_medium=readme&utm_campaign=hiring&utm_content=langfuse)**
 
-<a href="https://langfuse.com/watch-demo"><img width="25%" alt="Langfuse Overview Video" src=".github/watch-demo.png"></a>
+<a href="https://langfuse.com/watch-demo"><img width="37.5%" alt="Langfuse Overview Video" src=".github/watch-demo.png"></a>
 
 ## ✨ Core Features
 
