@@ -3,6 +3,7 @@ import {
   createS3ThrottledIngestionError,
   getCurrentSpan,
   isS3SlowDownError,
+  legacyLangfuseSdkScopeRejection,
   logger,
   markProjectIngestFailure,
   OtelIngestionProcessor,
@@ -19,6 +20,11 @@ type OtelIngestionConfig = {
   sdkVersion: string;
   rejectionSdkName?: string | string[];
   ingestionVersion?: string;
+  /**
+   * When set, a Langfuse instrumentation scope rejects the batch. Header
+   * checks have already allowed current SDKs and rejected old ones.
+   */
+  rejectLangfuseSdkScope?: boolean;
 };
 
 export type OtelIngestionRequest = {
@@ -37,6 +43,11 @@ export type OtelIngestionResult =
       kind: "http";
       status: number;
       body: unknown;
+    }
+  | {
+      kind: "legacy_langfuse_sdk";
+      sdk: string;
+      versionBucket: string;
     };
 
 export const OTEL_REQUEST_BODY_WARNING_BYTES = 16 * 1024 * 1024;
@@ -104,6 +115,17 @@ export async function processOtelIngestion(
 
   if (!resourceSpans || resourceSpans.length === 0) {
     return { kind: "ok" };
+  }
+
+  // Older Langfuse SDKs omit version headers and are only visible as a
+  // langfuse instrumentation scope. The body is already parsed here, so the
+  // scope scan returns a 4xx before the batch is queued. Checked only when
+  // the route could not decide from headers.
+  if (config.rejectLangfuseSdkScope) {
+    const scopeRejection = legacyLangfuseSdkScopeRejection(resourceSpans);
+    if (scopeRejection) {
+      return { kind: "legacy_langfuse_sdk", ...scopeRejection };
+    }
   }
 
   // Reject payloads the worker cannot convert: spans whose traceId/spanId is
