@@ -654,6 +654,78 @@ describe("ClickhouseWriter", () => {
     },
   );
 
+  it("retries rows that fail the final flush during shutdown", async () => {
+    const mockInsert = vi
+      .spyOn(clickhouseClientMock, "insert")
+      .mockRejectedValueOnce(new Error("DB Error"))
+      .mockResolvedValue();
+    writer.addToQueue(TableName.Traces, { id: "1", name: "trace" });
+
+    await writer.shutdown();
+
+    expect(mockInsert).toHaveBeenCalledTimes(2);
+    expect(writer["queue"][TableName.Traces]).toHaveLength(0);
+  });
+
+  it("writes the requeued half of a split batch during shutdown", async () => {
+    const mockInsert = vi
+      .spyOn(clickhouseClientMock, "insert")
+      .mockRejectedValueOnce(new Error("invalid string length"))
+      .mockResolvedValue();
+    for (let i = 0; i < 4; i++) {
+      writer.addToQueue(TableName.Traces, { id: `${i}`, name: `trace${i}` });
+    }
+
+    const shutdown = writer.shutdown();
+    // let the backOff retry delay elapse
+    await vi.advanceTimersByTimeAsync(200);
+    await shutdown;
+
+    // Failed batch of 4, retried first half, then the requeued second half.
+    expect(mockInsert).toHaveBeenCalledTimes(3);
+    expect(writer["queue"][TableName.Traces]).toHaveLength(0);
+  });
+
+  it("drops rows that keep failing during shutdown", async () => {
+    const mockInsert = vi
+      .spyOn(clickhouseClientMock, "insert")
+      .mockRejectedValue(new Error("DB Error"));
+    writer.addToQueue(TableName.Traces, { id: "1", name: "trace" });
+
+    await writer.shutdown();
+
+    expect(mockInsert).toHaveBeenCalledTimes(writer.maxAttempts);
+    expect(writer["queue"][TableName.Traces]).toHaveLength(0);
+    expect(serverExports.recordIncrement).toHaveBeenCalledWith(
+      "langfuse.queue.clickhouse_writer.rows_dropped",
+      1,
+      { entity_type: TableName.Traces, format: "json", reason: "other" },
+    );
+  });
+
+  it("stops retrying after max attempts and logs rows left in the queue", async () => {
+    let nextId = 2;
+    const mockInsert = vi
+      .spyOn(clickhouseClientMock, "insert")
+      .mockImplementation(() => {
+        // A producer that never stops, so the queue never empties.
+        writer.addToQueue(TableName.Traces, {
+          id: `${nextId++}`,
+          name: "trace",
+        });
+        return Promise.resolve();
+      });
+    writer.addToQueue(TableName.Traces, { id: "1", name: "trace" });
+
+    await writer.shutdown();
+
+    expect(mockInsert).toHaveBeenCalledTimes(writer.maxAttempts);
+    expect(logger.error).toHaveBeenCalledWith(
+      expect.stringContaining("Shutdown left 1 traces record(s) unwritten"),
+      { droppedIds: [expect.objectContaining({ id: "4" })] },
+    );
+  });
+
   it("should handle multiple table types", async () => {
     const mockInsert = vi
       .spyOn(clickhouseClientMock, "insert")
