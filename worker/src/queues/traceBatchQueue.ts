@@ -174,24 +174,27 @@ async function summarizeTraceBatch(
     traceName: first.name,
   };
   let rows: TopicSummary[] = [];
+  // Kept on failures too: partial rows must reach the rules that matched.
+  let ruleIds: string[] | undefined;
   try {
     const project = await topics.get(first.projectId);
     if (!project) return { outcome: "disabled", rows };
     // Summaries are rule-agnostic: one summary per facet any matched rule runs.
-    const ruleIds = project.rules
+    const matched = project.rules
       ? matchTopicRules(traceId, observations, project.rules)
       : undefined;
+    ruleIds = matched;
     const selected = project.rules
       ? new Set(
           project.rules
-            .filter((rule) => ruleIds?.includes(rule.id))
+            .filter((rule) => matched?.includes(rule.id))
             .flatMap((rule) => rule.facetIds),
         )
       : undefined;
     const facets = selected
       ? project.facets.filter((facet) => selected.has(facet.id))
       : project.facets;
-    if (ruleIds && (!ruleIds.length || !facets.length))
+    if (matched && (!matched.length || !facets.length))
       return { outcome: "disabled", rows };
     // Capture reports its own failures; drain both before releasing the Topics slot.
     const [summary] = await Promise.allSettled([
@@ -221,7 +224,7 @@ async function summarizeTraceBatch(
     const result = summary.value;
     rows = result.rows;
     if (result.failure === undefined)
-      return { outcome: result.outcome, rows, ruleIds };
+      return { outcome: result.outcome, rows, ruleIds: matched };
     throw result.failure;
   } catch (error) {
     // One trace's failure must not fail or re-read the shared batch.
@@ -234,7 +237,7 @@ async function summarizeTraceBatch(
       reason,
       error: error instanceof Error ? error.message : String(error),
     });
-    return { outcome: "failed", reason, rows };
+    return { outcome: "failed", reason, rows, ruleIds };
   }
 }
 

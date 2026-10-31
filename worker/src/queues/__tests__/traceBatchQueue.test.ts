@@ -1339,6 +1339,95 @@ describe("trace batch queue", () => {
     vi.mocked(listTopicRules).mockResolvedValue([]);
   });
 
+  it("queues a partially failed trace's rows for the rules it matched", async () => {
+    vi.mocked(getTraceBatchEventStream).mockImplementation(async function* () {
+      yield {
+        project_id: "partial",
+        trace_id: "trace",
+        environment: "default",
+        span_id: "span",
+        parent_span_id: null,
+        start_time: "2026-09-11 00:00:00.000000",
+        event_ts: "2026-09-11 00:00:00.000000",
+        type: "GENERATION",
+        name: "generation",
+        input: JSON.stringify([{ role: "user", content: "question" }]),
+        output: JSON.stringify({ role: "assistant", content: "answer" }),
+        metadata: {},
+        level: "DEFAULT",
+        status_message: null,
+        tool_definitions: {},
+        tool_calls: [],
+        tool_call_names: [],
+      };
+    });
+    vi.mocked(listTopicFacets).mockResolvedValue([
+      { id: "intent" } as TopicFacet,
+    ]);
+    vi.mocked(listTopicRules).mockResolvedValue([
+      {
+        id: "rule-oldest",
+        filter: [
+          {
+            column: "traceName",
+            type: "string",
+            operator: "=",
+            value: "another-trace",
+          },
+        ],
+        facetIds: ["intent"],
+        sampling: 1,
+      } as unknown as TopicRule,
+      {
+        id: "rule-matched",
+        filter: [],
+        facetIds: ["intent"],
+        sampling: 1,
+      } as unknown as TopicRule,
+    ]);
+    vi.mocked(summarizeAssembledTrace).mockResolvedValue({
+      outcome: "summarized",
+      rows: [
+        {
+          projectId: "partial",
+          traceId: "trace",
+          state: "complete",
+        } as TopicSummary,
+      ],
+      failure: new TopicsProviderUnavailable("bad output", "invalid_output"),
+    });
+    const job = {
+      data: {
+        id: "partial",
+        name: QueueJobs.TraceBatch,
+        timestamp: new Date(),
+        payload: {
+          traces: [
+            {
+              projectId: "partial",
+              traceId: "trace",
+              minStart: 0,
+              maxStart: 1,
+              revision: "r",
+            },
+          ],
+        },
+      },
+    } as Job<TQueueJobTypes[QueueName.TraceBatch]>;
+
+    await traceBatchQueueProcessor(job, undefined);
+
+    const [, rows, ruleIds] = vi.mocked(enqueueTopicsAutomation).mock.lastCall!;
+    expect(rows.map((row) => row.traceId)).toEqual(["trace"]);
+    expect([...(ruleIds?.values() ?? [])]).toEqual([["rule-matched"]]);
+    vi.mocked(listTopicFacets).mockResolvedValue([]);
+    vi.mocked(listTopicRules).mockResolvedValue([]);
+    vi.mocked(summarizeAssembledTrace).mockImplementation(async () => ({
+      outcome: "unchanged",
+      rows: [],
+    }));
+  });
+
   it("passes the session of the newest event that has one, breaking timestamp ties by span ID", async () => {
     env.LANGFUSE_TRACE_BATCH_TRANSCRIPT_STORAGE_ENABLED = "true";
     vi.mocked(getTraceBatchEventStream).mockImplementation(async function* () {
