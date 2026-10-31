@@ -5,6 +5,7 @@ import {
   type TreeNodeMetadata,
 } from "./VirtualizedTreeNodeWrapper";
 import { SpanContent } from "./SpanContent";
+import { LongestObservationIndicator } from "./LongestObservationIndicator";
 import { useTraceData } from "@/src/features/traces/contexts/TraceDataProvider";
 import { useSelection } from "@/src/features/traces/contexts/SelectionProvider";
 import { useHandlePrefetchObservation } from "@/src/features/traces/hooks/useHandlePrefetchObservation";
@@ -14,6 +15,7 @@ import {
   metricEmphasisFor,
   type MetricEmphasisContext,
 } from "@/src/features/traces/fns/metricEmphasis";
+import { type LongestLeafObservation } from "@/src/features/traces/fns/longestLeafObservation";
 
 /**
  * TraceTree - Composition of VirtualizedTree + TreeNodeWrapper + SpanContent.
@@ -61,7 +63,8 @@ function TraceTreeLoading() {
 }
 
 function LoadedTraceTree() {
-  const { roots, comments, metricEmphasis } = useTraceData();
+  const { roots, comments, metricEmphasis, longestLeafObservation } =
+    useTraceData();
   const { selectedNodeId, collapsedNodes, toggleCollapsed } = useSelection();
   const { handleHover } = useHandlePrefetchObservation();
   const handleSelectNode = useSelectTraceNode("tree");
@@ -81,6 +84,11 @@ function LoadedTraceTree() {
             node={typedNode}
             emphasis={metricEmphasisFor(typedNode, metricEmphasis)}
             commentCount={comments.get(typedNode.id)}
+            longestLeaf={
+              longestLeafObservation?.id === typedNode.id
+                ? longestLeafObservation
+                : undefined
+            }
             onHover={() => handleHover(typedNode)}
           />
         );
@@ -99,6 +107,7 @@ function TraceTreeRow({
   onSelect,
   emphasis,
   commentCount,
+  longestLeaf,
   onHover,
 }: {
   node: TreeNode;
@@ -109,6 +118,8 @@ function TraceTreeRow({
   onSelect: () => void;
   emphasis: MetricEmphasisContext | undefined;
   commentCount: number | undefined;
+  /** Set on the one row that is the trace's longest leaf observation. */
+  longestLeaf: LongestLeafObservation | undefined;
   onHover: () => void;
 }) {
   const [isHovered, setIsHovered] = useState(false);
@@ -128,6 +139,14 @@ function TraceTreeRow({
         node={node}
         emphasis={emphasis}
         commentCount={commentCount}
+        durationAdornment={
+          longestLeaf && (
+            <LongestObservationIndicator
+              durationMs={longestLeaf.durationMs}
+              shareOfTrace={longestLeaf.shareOfTrace}
+            />
+          )
+        }
         onSelect={onSelect}
         onHover={onHover}
         surface={isSelected || isHovered ? "muted" : "default"}
