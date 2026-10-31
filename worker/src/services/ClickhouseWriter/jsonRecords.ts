@@ -30,31 +30,11 @@ export function recordIdentity(record: RecordInsertType<TableName>): {
   };
 }
 
-type TopicsTableName =
-  | TableName.TopicFacetSummaries
-  | TableName.TopicAssignments;
-
-const TOPICS_TABLES: ReadonlySet<TableName> = new Set<TopicsTableName>([
-  TableName.TopicFacetSummaries,
-  TableName.TopicAssignments,
-]);
-
-/** Decided by table alone; the row argument only carries the type narrowing. */
-function isTopicsRecord(
-  tableName: TableName,
-  _record: RecordInsertType<TableName>,
-): _record is RecordInsertType<TopicsTableName> {
-  return TOPICS_TABLES.has(tableName);
-}
-
 export function truncateOversizedRecord<
   Row extends RecordInsertType<TableName>,
 >(tableName: TableName, record: Row): Row {
   const maxFieldSize = 1024 * 1024; // 1MB per field as safety margin
   const truncationMessage = "[TRUNCATED: Field exceeded size limit]";
-
-  // Topics rows hold bounded model output and store `metadata` as a JSON string, not a map.
-  if (isTopicsRecord(tableName, record)) return record;
 
   // Helper function to safely truncate string fields
   const truncateField = (value: string | null | undefined): string | null => {
@@ -94,15 +74,19 @@ export function truncateOversizedRecord<
     );
   }
 
-  // Truncate metadata field if present
-  if ("metadata" in record && record.metadata) {
+  // Truncate map metadata; JSON-string metadata (Topics) can't be cut without breaking it
+  if (
+    "metadata" in record &&
+    record.metadata &&
+    typeof record.metadata === "object"
+  ) {
     const metadata = record.metadata;
     const truncatedMetadata: Record<string, string> = {};
     for (const [key, value] of Object.entries(metadata)) {
       if (value && value.length > maxFieldSize) {
         truncatedMetadata[key] = truncateField(value) || "";
         logger.info(
-          `Truncated oversized metadata for record ${record.id} of type ${tableName} and key ${key}`,
+          `Truncated oversized metadata for record ${recordIdentity(record).id} of type ${tableName} and key ${key}`,
           {
             projectId: record.project_id,
           },
