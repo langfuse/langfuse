@@ -1,6 +1,6 @@
 /* eslint-disable no-nested-ternary, @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 import { useState, type ReactNode } from "react";
-import { TriangleAlert } from "@langfuse/icons";
+import { Info, TriangleAlert } from "@langfuse/icons";
 
 import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { Button } from "@/src/components/ui/button";
@@ -17,6 +17,8 @@ import { CredentialFields } from "@/src/features/ai-gateway/components/GatewaySe
 import { ProviderSelect } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/ProviderDialogController/components/ProviderSelect";
 import { providerLabels } from "@/src/features/ai-gateway/constants/providerLabels";
 import { isGatewayConnectionNameError } from "@/src/features/ai-gateway/fns/isGatewayConnectionNameError";
+import { isGatewayHipaaNoticeVisible } from "@/src/features/ai-gateway/fns/isGatewayHipaaNoticeVisible";
+import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
 import { suggestGatewayConnectionName } from "@/src/features/ai-gateway/fns/suggestGatewayConnectionName";
 import type {
   GatewayConnection,
@@ -59,6 +61,7 @@ export function ProviderDialogController({
   const utils = api.useUtils();
   const capture = usePostHogClientCapture();
   const existingNames = useExistingConnectionNames(organizationId);
+  const { region } = useLangfuseCloudRegion();
   const name =
     nameDraft ?? suggestGatewayConnectionName(provider, existingNames);
   const test = api.aiGateway.testConnection.useMutation({
@@ -208,6 +211,16 @@ export function ProviderDialogController({
               </DialogTitle>
             </DialogHeader>
             <DialogBody>
+              {isGatewayHipaaNoticeVisible(region) ? (
+                <Alert variant="info" icon={Info}>
+                  <Alert.Title>HIPAA region</Alert.Title>
+                  <Alert.Description>
+                    Requests are forwarded to the provider you configure, using
+                    your credentials and on your instruction. Make sure you have
+                    a BAA with that provider before sending PHI.
+                  </Alert.Description>
+                </Alert>
+              ) : null}
               {selectedConnection ? (
                 <div>
                   <Label>Provider</Label>
