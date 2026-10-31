@@ -41,7 +41,8 @@ const state = vi.hoisted(() => ({
   rulesError: null as Error | null,
   configurationFailure: null as "settings" | "readiness" | "connections" | null,
   settings: {} as Record<string, unknown>,
-  rules: [] as Array<{ facetIds: string[] }>,
+  rules: [] as Array<{ id?: string; facetIds: string[] }>,
+  maps: undefined as unknown,
   countsPending: false,
   countsFetching: false,
   summaryCountInput: vi.fn(),
@@ -291,7 +292,7 @@ vi.mock("@/src/utils/api", () => ({
         }),
       },
       traceErrors: { useQuery: () => ({}) },
-      maps: { useQuery: () => ({ data: undefined }) },
+      maps: { useQuery: () => ({ data: state.maps }) },
       analysisResults: { useQuery: () => ({}) },
       retry: {
         useMutation: ({ onSuccess }: { onSuccess: () => void }) => ({
@@ -331,6 +332,7 @@ vi.mock("@/src/utils/api", () => ({
 
 beforeEach(() => {
   vi.clearAllMocks();
+  state.maps = undefined;
   vi.useFakeTimers({ toFake: ["Date"] });
   vi.setSystemTime(new Date("2026-10-09T12:00:00Z"));
   vi.stubGlobal(
@@ -849,6 +851,48 @@ it("regenerates the rule's facets that have summaries, at their latest version, 
     minimumTraceCount: 100,
     requestId: expect.any(String),
   });
+});
+
+it("regenerates the shown rule's map, not the project's oldest rule", async () => {
+  withSummaries();
+  state.rules = [
+    { id: "rule-oldest", facetIds: ["outcome"] },
+    { id: "rule-shown", facetIds: ["intent"] },
+  ];
+  state.maps = {
+    refitIntervalHours: 24,
+    rules: [
+      {
+        id: "rule-shown",
+        name: "Shown",
+        filter: [],
+        sampling: 1,
+        facetIds: ["intent"],
+        enabled: true,
+        lastRefitAt: "2026-10-09T10:00:00Z",
+      },
+    ],
+    analyses: [],
+  };
+  render(<TopicsPage />, { wrapper: LayerProvider });
+  await openManualDialog();
+  fireEvent.mouseDown(screen.getByRole("tab", { name: "Generate topics" }), {
+    button: 0,
+    ctrlKey: false,
+  });
+  const dialog = screen.getByRole("dialog", { name: "Manual processing" });
+  fireEvent.click(
+    within(dialog).getByRole("button", { name: "Generate topics" }),
+  );
+
+  await waitFor(() =>
+    expect(state.trigger).toHaveBeenCalledWith(
+      expect.objectContaining({
+        ruleId: "rule-shown",
+        facets: [{ facetId: "intent", version: 2 }],
+      }),
+    ),
+  );
 });
 
 it("shows a regenerate failure that settles after the dialog was closed and reopened, and retries with the same requestId", async () => {

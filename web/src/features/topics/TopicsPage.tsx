@@ -471,6 +471,7 @@ function TopicsWorkspaceContent({
   }
   const regenerate = useRegenerateTopics({
     projectId,
+    ruleId: selectedRule?.id ?? null,
     facets: facets.data ?? [],
     canWrite,
     timeRange: generationRange.bounds,
@@ -573,7 +574,8 @@ function TopicsWorkspaceContent({
               automaticProcessing,
               canWrite,
               configureAvailable: modelSettings.configure.settings !== null,
-              regenerateAvailable: pipeline.available,
+              // An analysis is regenerated with its Rerun action.
+              regenerateAvailable: pipeline.available && !selectedAnalysis,
               menuOnly: landingOnly,
               onAutomaticProcessing: openAutomaticProcessingFromHeader,
               onConfigure: configured ? openConfigure : openSetup,
