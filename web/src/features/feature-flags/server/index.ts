@@ -19,6 +19,7 @@ export {
   getContextualFeatureFlags,
   getFeaturePreviewOptOutFlag,
   hasInternalAccess,
+  hasInternalEmailDomain,
 } from "@/src/features/feature-flags/utils";
 export { getOrganizationFeaturePreviewDefaults } from "../fns/getOrganizationFeaturePreviewDefaults";
 export {

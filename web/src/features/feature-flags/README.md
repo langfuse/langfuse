@@ -19,6 +19,21 @@ User-controlled previews may pass `{ enableForAdmins: false }` so an
 administrator can opt in or out like any other user. The deployment-wide
 `LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES` override still forces flags on.
 
+Internal view is available to platform admins, users with a verified email ending
+exactly in `@langfuse.com` or `@clickhouse.com` (case-insensitive, no subdomains),
+and deployments with experimental features enabled. Eligible users can switch
+view modes through their account menu, including on self-hosted deployments
+without Fast (Preview). Authenticated users can always opt out of Internal view.
+Email eligibility grants access to internal surfaces only; it does not change
+`user.admin`, project membership,
+RBAC permissions, or admin-only feature-flag overrides.
+
+Fresh OAuth sign-in records staff email ownership from a matching verified-email
+claim or GitHub's verified email list. Existing sessions without stored
+verification need another sign-in. Missing proof never grants internal access.
+Verification records past email ownership, not current employment; closing a
+company mailbox does not automatically revoke Internal view eligibility.
+
 Topics is available through internal view or the `langfuseTopics` ("Langfuse
 Topics") personal flag. Internal view follows the shared internal eligibility
 and opt-out rules; its sidebar entry carries the Internal badge. Only platform

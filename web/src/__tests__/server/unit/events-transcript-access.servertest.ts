@@ -66,17 +66,35 @@ describe("events.transcriptByTraceId preview access", () => {
       allowed: true,
     },
     {
-      name: "user opt-out",
+      name: "unverified staff opt-out",
+      email: "member@clickhouse.com",
       flags: [getFeaturePreviewOptOutFlag("sessionViewV2Timeline")],
       defaults: ["sessionViewV2", "sessionViewV2Timeline"],
       allowed: false,
     },
-  ])("respects $name", async ({ flags, defaults, allowed }) => {
+    {
+      name: "staff access without the timeline preview",
+      email: "member@clickhouse.com",
+      emailVerified: "2026-01-01T00:00:00.000Z",
+      flags: [getFeaturePreviewOptOutFlag("sessionViewV2Timeline")],
+      defaults: [],
+      allowed: true,
+    },
+  ])("respects $name", async (testCase) => {
+    const {
+      flags,
+      defaults,
+      allowed,
+      email = "user@example.com",
+      emailVerified,
+    } = testCase;
     const session = {
       expires: "1",
       user: {
         id: "user-id",
         name: "Test User",
+        email,
+        emailVerified,
         admin: false,
         canCreateOrganizations: true,
         featureFlags: testFeatureFlags(),
@@ -91,7 +109,7 @@ describe("events.transcriptByTraceId preview access", () => {
             aiFeaturesEnabled: false,
             aiTelemetryEnabled: false,
             featureFlags: parseFlagsWithOrganizationDefaults(flags, defaults, {
-              email: "user@example.com",
+              email,
               v4BetaEnabled: true,
             }),
             projects: [
@@ -128,7 +146,10 @@ describe("events.transcriptByTraceId preview access", () => {
       ).not.toHaveBeenCalled();
       return;
     }
-    await expect(result).resolves.toEqual({ transcript: null, cutoff: false });
+    await expect(result).resolves.toEqual({
+      transcript: null,
+      cutoff: false,
+    });
     expect(mocks.getObservationsForTraceFromEventsTable).toHaveBeenCalledTimes(
       2,
     );

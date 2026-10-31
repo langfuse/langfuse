@@ -96,28 +96,41 @@ describe("in-app agent router", () => {
 
   it("exposes the telemetry project to internal users only", async () => {
     const fixture = await createProjectFixture();
-    const userCaller = createCallerForFixture(fixture, fixture.ownerUserId);
-    const adminCaller = createCallerForFixture(fixture, fixture.ownerUserId, {
-      admin: true,
+    const staffCaller = createCallerForFixture(fixture, fixture.ownerUserId, {
+      email: "member@clickhouse.com",
+      emailVerified: "2026-01-01T00:00:00.000Z",
     });
+    const unverifiedStaffCaller = createCallerForFixture(
+      fixture,
+      fixture.ownerUserId,
+      {
+        email: "member@clickhouse.com",
+      },
+    );
     const originalAiFeaturesProjectId = env.LANGFUSE_AI_FEATURES_PROJECT_ID;
+    const originalExperimentalFeatures =
+      env.LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES;
 
     try {
+      Object.assign(env, { LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES: "false" });
       (
         env as { LANGFUSE_AI_FEATURES_PROJECT_ID?: string }
       ).LANGFUSE_AI_FEATURES_PROJECT_ID = "ai-features-project";
 
       await expect(
-        userCaller.inAppAgent.telemetryProject({
+        unverifiedStaffCaller.inAppAgent.telemetryProject({
           projectId: fixture.projectId,
         }),
       ).rejects.toThrow("internal surface");
       await expect(
-        adminCaller.inAppAgent.telemetryProject({
+        staffCaller.inAppAgent.telemetryProject({
           projectId: fixture.projectId,
         }),
       ).resolves.toEqual({ projectId: "ai-features-project" });
     } finally {
+      Object.assign(env, {
+        LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES: originalExperimentalFeatures,
+      });
       (
         env as { LANGFUSE_AI_FEATURES_PROJECT_ID?: string }
       ).LANGFUSE_AI_FEATURES_PROJECT_ID = originalAiFeaturesProjectId;
@@ -185,13 +198,17 @@ async function createProjectFixture() {
 function createCallerForFixture(
   fixture: Awaited<ReturnType<typeof createProjectFixture>>,
   userId: string,
-  { admin = false }: { admin?: boolean } = {},
+  {
+    email = `${userId}@example.com`,
+    emailVerified,
+  }: { email?: string; emailVerified?: string } = {},
 ) {
   const session: Session = {
     expires: "1",
     user: {
       id: userId,
-      email: `${userId}@example.com`,
+      email,
+      emailVerified,
       name: "In-app Agent Router Test User",
       canCreateOrganizations: true,
       organizations: [
@@ -219,7 +236,7 @@ function createCallerForFixture(
         },
       ],
       featureFlags: testFeatureFlags(),
-      admin,
+      admin: false,
     },
     environment: {
       enableExperimentalFeatures: false,

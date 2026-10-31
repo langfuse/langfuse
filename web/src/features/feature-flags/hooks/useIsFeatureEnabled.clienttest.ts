@@ -14,12 +14,16 @@ const mockSession = ({
   aiGateway,
   langfuseTopics = false,
   admin = false,
+  email,
+  emailVerified,
   enableExperimentalFeatures = false,
   internalFeatures,
 }: {
   aiGateway: boolean;
   langfuseTopics?: boolean;
   admin?: boolean;
+  email?: string;
+  emailVerified?: string | null;
   enableExperimentalFeatures?: boolean;
   internalFeatures?: boolean;
 }) => {
@@ -28,6 +32,8 @@ const mockSession = ({
       environment: { enableExperimentalFeatures },
       user: {
         admin,
+        email,
+        emailVerified,
         featureFlags: testFeatureFlags({
           aiGateway: false,
           langfuseTopics,
@@ -71,6 +77,36 @@ describe("useIsFeatureEnabled", () => {
       mockSession({ aiGateway: false, ...options });
       const { result } = renderHook(() => useInternalFeaturesEnabled());
       expect(result.current).toBe(expected);
+    },
+  );
+
+  it.each([
+    ["member@langfuse.com", true, true],
+    ["MEMBER@CLICKHOUSE.COM", true, true],
+    ["member@sub.langfuse.com", true, false],
+    ["member@clickhouse.com.example.org", true, false],
+    ["member@notclickhouse.com", true, false],
+    ["member@langfuse.com", false, false],
+  ] as const)(
+    "internal view for %s (verified=%s): %s",
+    (email, verified, expected) => {
+      mockSession({
+        aiGateway: false,
+        email,
+        emailVerified: verified ? "2026-01-01T00:00:00.000Z" : null,
+      });
+      const { result } = renderHook(() => ({
+        internal: useInternalFeaturesEnabled(),
+        searchBar: useIsFeatureEnabled("searchBar"),
+        aiGateway: useIsFeatureEnabled("aiGateway"),
+        langfuseTopics: useIsFeatureEnabled("langfuseTopics"),
+      }));
+      expect(result.current).toEqual({
+        internal: expected,
+        searchBar: false,
+        aiGateway: false,
+        langfuseTopics: false,
+      });
     },
   );
 

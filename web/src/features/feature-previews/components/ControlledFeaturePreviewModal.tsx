@@ -111,7 +111,6 @@ export function ControlledFeaturePreviewModal({
         (authSession.data?.user?.featureFlags.sessionViewV2Timeline === true ||
           authSession.data?.environment.enableExperimentalFeatures === true),
       disabled:
-        !isV4 ||
         !isModernSessionEnabled ||
         authSession.data?.environment.enableExperimentalFeatures === true,
       warningReason: !isV4
