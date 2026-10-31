@@ -1,6 +1,6 @@
 type Invalidatable = { invalidate: () => Promise<unknown> };
 
-export type EventsRefreshUtils = {
+type EventsRefreshUtils = {
   events: {
     all: Invalidatable;
     countAll: Invalidatable;

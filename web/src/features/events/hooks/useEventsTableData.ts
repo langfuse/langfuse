@@ -179,10 +179,8 @@ export function useEventsTableData({
   const activeObservations = isAppRootFallbackActive
     ? appRootFallbackQuery
     : observations;
-  const rowQueryScope = useMemo(
-    () =>
-      JSON.stringify(isAppRootFallbackActive ? fallbackPayload : getAllPayload),
-    [isAppRootFallbackActive, fallbackPayload, getAllPayload],
+  const rowQueryScope = JSON.stringify(
+    isAppRootFallbackActive ? fallbackPayload : getAllPayload,
   );
   // A terminal row error also settles the rows, so a failed row query never
   // leaves the independent auxiliary queries blocked.
@@ -196,12 +194,14 @@ export function useEventsTableData({
   const haveRowsLoaded = areRowsSettled && haveRowsPainted;
   // The auxiliary data (facets, exact count, outlier strip) is defined by the
   // filters, search, time range and project, never by page, page size or sort.
-  const auxiliaryScope = useMemo(
-    () => JSON.stringify([tableDataScope, auxiliaryDateRange ?? null]),
-    [tableDataScope, auxiliaryDateRange],
-  );
-  // A row query that refreshes the data it already shows (refresh, window
-  // focus) must not overlap new auxiliary fetches. A page or sort change is
+  const auxiliaryScope = JSON.stringify([
+    tableDataScope,
+    auxiliaryDateRange ?? null,
+  ]);
+  // A refetch of the rows already on screen (such as a refresh) holds back
+  // auxiliary fetches that would start during it. Window focus is not covered:
+  // it refetches the rows and the stale auxiliary queries that refetch on focus
+  // in the same tick, before the gate closes. A page or sort change is
   // navigation, including a stale refetch behind cached rows of a revisited
   // page: it never counts, from the moment the row query key changes until
   // the fetches it started settle.
@@ -226,14 +226,17 @@ export function useEventsTableData({
   const [openedAuxiliaryScope, setOpenedAuxiliaryScope] = useState<
     string | null
   >(null);
-  // The gate opens once the rows of the current auxiliary scope loaded and
-  // painted, and stays open while the user pages or sorts. A new filter,
-  // search, time range or project re-arms it.
+  // The gate opens once the rows of the current auxiliary scope loaded,
+  // painted and stopped fetching, so cached rows of a revisited filter wait for
+  // their refetch. It stays open while the user pages or sorts. Only the
+  // current scope is remembered: a new filter, search, time range or project
+  // re-arms it, including a return to an earlier one.
   const isAuxiliaryScopeOpen =
     openedAuxiliaryScope === auxiliaryScope ||
-    (haveRowsLoaded && !isRowRefetching);
-  if (isAuxiliaryScopeOpen && openedAuxiliaryScope !== auxiliaryScope) {
-    setOpenedAuxiliaryScope(auxiliaryScope);
+    (haveRowsLoaded && !rowsFetching);
+  const nextOpenedAuxiliaryScope = isAuxiliaryScopeOpen ? auxiliaryScope : null;
+  if (openedAuxiliaryScope !== nextOpenedAuxiliaryScope) {
+    setOpenedAuxiliaryScope(nextOpenedAuxiliaryScope);
   }
   // Without row queries (chart mode) nothing competes. Auxiliary data that
   // already loaded stays in place while the gate is closed.
@@ -348,11 +351,10 @@ export function useEventsTableData({
   const uniqueTraceCount = selectAll
     ? (totalCountQuery.data?.uniqueTraceCount ?? null)
     : null;
-  const isAuxiliaryDataDeferred = rowsEnabled && !canLoadAuxiliaryData;
   const isTotalCountLoading =
     selectAll &&
     totalCount === null &&
-    (totalCountQuery.isFetching || isAuxiliaryDataDeferred);
+    (totalCountQuery.isFetching || !canLoadAuxiliaryData);
   const isTotalCountError =
     selectAll &&
     totalCount === null &&
@@ -427,13 +429,13 @@ export function useEventsTableData({
      */
     isFetching: activeObservations.isFetching || ioDataQuery.isFetching,
     /**
-     * True once the current rows have settled and painted and the row query is
-     * idle (or there is no row query). Facet scans, counts, and aggregate charts
-     * start only then so they do not compete with the row query.
+     * True once the rows of the current filters, search, time range and
+     * project have settled, painted and stopped fetching, and while the user
+     * pages or sorts within them; false while the rows on screen refetch.
+     * Always true without row queries. Facet scans, counts, and aggregate
+     * charts start only then so they do not compete with the row query.
      */
     canLoadAuxiliaryData,
-    /** True while the gate blocks new auxiliary fetches. */
-    isAuxiliaryDataDeferred,
     totalCount,
     uniqueTraceCount,
     isTotalCountLoading,

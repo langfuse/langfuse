@@ -178,7 +178,6 @@ describe("auxiliary data gate", () => {
     const { result } = renderGate({ scope: ROWS_SCOPE });
 
     expect(result.current.canLoadAuxiliaryData).toBe(false);
-    expect(result.current.isAuxiliaryDataDeferred).toBe(true);
     expect(result.current.isTotalCountLoading).toBe(true);
     expect(isCountFetching()).toBe(false);
 
@@ -193,7 +192,6 @@ describe("auxiliary data gate", () => {
     expect(result.current.canLoadAuxiliaryData).toBe(false);
     frames.runFrame();
     expect(result.current.canLoadAuxiliaryData).toBe(true);
-    expect(result.current.isAuxiliaryDataDeferred).toBe(false);
     await waitFor(() => expect(isCountFetching()).toBe(true));
   });
 
@@ -220,7 +218,6 @@ describe("auxiliary data gate", () => {
     paint();
 
     expect(result.current.canLoadAuxiliaryData).toBe(true);
-    expect(result.current.isAuxiliaryDataDeferred).toBe(false);
     await waitFor(() => expect(isCountFetching()).toBe(true));
   });
 
@@ -242,7 +239,6 @@ describe("auxiliary data gate", () => {
     rerender({ scope: ROWS_SCOPE, page: 2 });
     expect(result.current.observations.rows).toEqual([{ id: "page-1" }]);
     expect(result.current.canLoadAuxiliaryData).toBe(true);
-    expect(result.current.isAuxiliaryDataDeferred).toBe(false);
     expect(result.current.totalCount).toBe(7);
 
     await resolveRows(1, [{ id: "page-2" }]);
@@ -282,6 +278,58 @@ describe("auxiliary data gate", () => {
     expect(countRequests).toBe(1);
   });
 
+  it.each([
+    { otherFilter: "loaded", loadOtherFilter: true },
+    { otherFilter: "still loading", loadOtherFilter: false },
+  ])(
+    "holds auxiliary queries while the cached rows of a revisited filter refetch (other filter $otherFilter)",
+    async ({ loadOtherFilter }) => {
+      let countRequests = 0;
+      queryHandlers["events.countAll"] = async () => {
+        countRequests += 1;
+        return { totalCount: 7, uniqueTraceCount: 3 };
+      };
+      const { result, rerender } = renderGate({ scope: ROWS_SCOPE });
+      await resolveRows(0, [{ id: "unfiltered" }]);
+      await waitFor(() =>
+        expect(result.current.observations.status).toBe("success"),
+      );
+      paint();
+      await waitFor(() => expect(countRequests).toBe(1));
+
+      rerender({ scope: FILTERED_SCOPE });
+      expect(result.current.canLoadAuxiliaryData).toBe(false);
+      if (loadOtherFilter) {
+        await resolveRows(1, [{ id: "filtered" }]);
+        await waitFor(() =>
+          expect(result.current.observations.rows).toEqual([
+            { id: "filtered" },
+          ]),
+        );
+        paint();
+        await waitFor(() => expect(countRequests).toBe(2));
+      }
+      const countRequestsBeforeReturn = countRequests;
+
+      // Back to the first filter: its cached rows show at once and refetch.
+      rerender({ scope: ROWS_SCOPE });
+      expect(result.current.observations.rows).toEqual([{ id: "unfiltered" }]);
+      await waitFor(() => expect(rowRequests).toHaveLength(3));
+      paint();
+      await act(async () => {});
+      expect(result.current.canLoadAuxiliaryData).toBe(false);
+      expect(countRequests).toBe(countRequestsBeforeReturn);
+
+      await resolveRows(2, [{ id: "unfiltered" }]);
+      await waitFor(() =>
+        expect(result.current.canLoadAuxiliaryData).toBe(true),
+      );
+      await waitFor(() =>
+        expect(countRequests).toBe(countRequestsBeforeReturn + 1),
+      );
+    },
+  );
+
   it("does not start auxiliary fetches while rows refetch but keeps loaded data in place", async () => {
     queryHandlers["events.countAll"] = async () => ({
       totalCount: 7,
@@ -301,8 +349,7 @@ describe("auxiliary data gate", () => {
     });
     await waitFor(() => expect(result.current.isFetching).toBe(true));
     expect(result.current.canLoadAuxiliaryData).toBe(false);
-    // The gate blocks new auxiliary fetches, and already loaded data stays.
-    expect(result.current.isAuxiliaryDataDeferred).toBe(true);
+    // Already loaded auxiliary data stays in place while the gate is closed.
     expect(result.current.totalCount).toBe(7);
     expect(result.current.isTotalCountLoading).toBe(false);
 
@@ -402,7 +449,6 @@ describe("auxiliary data gate", () => {
     );
 
     expect(result.current.canLoadAuxiliaryData).toBe(true);
-    expect(result.current.isAuxiliaryDataDeferred).toBe(false);
     expect(rowRequests).toHaveLength(0);
   });
 });
@@ -566,7 +612,7 @@ describe("auxiliary queries wired as in the events table", () => {
           ],
           columns: ["name"],
           enabled: data.canLoadAuxiliaryData,
-          deferred: data.isAuxiliaryDataDeferred,
+          deferred: !data.canLoadAuxiliaryData,
         });
         // The outlier strip: independent of rows, page and sort.
         api.dashboard.executeQuery.useQuery(
@@ -718,7 +764,6 @@ describe("auxiliary queries wired as in the events table", () => {
 
     view.rerender({ range: { from: new Date("2026-01-01T01:00:00.000Z") } });
     expect(view.result.current.canLoadAuxiliaryData).toBe(false);
-    expect(view.result.current.isAuxiliaryDataDeferred).toBe(true);
     expect(auxCounts()).toEqual([1, 1, 1]);
 
     await waitFor(() => expect(rowRequests).toHaveLength(2));
