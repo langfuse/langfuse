@@ -63,6 +63,19 @@ and a concrete next step when handed a link. Keep answers short. Handbook:
     maintainer guidance, and an id there is provenance an engineer can follow —
     "the shape from LFE-10959", "the worked example". Tracker URLs stay out even
     here: they cannot be opened from a fork and they carry the workspace name.
+- This repository is public. Never commit or post, in code, docs, commits,
+  pull requests, or comments:
+  - internal analytics or observability URLs (PostHog, Sentry, Datadog,
+    Grafana, incident.io, Linear workspace links) and internal dashboard or
+    project ids
+  - customer names, Pylon or other support-desk references, and internal
+    Slack channels or links
+  - production usage numbers (event totals, user totals, repeat rates)
+  Describe the source in words, for example an internal analytics dashboard
+  of a named event, and prefer rankings or qualitative shares. Public vendor
+  documentation, SDK ingest hosts, and the product's own support API host
+  are fine. CI rejects newly added lines and pull request title or body text
+  that match those internal URL patterns.
 - Code comments document behavior for future readers, not the reasoning
   behind the current change. Do not reference PR/review history ("changed X
   to Y", "now also handles", "per review", "was previously") or describe
