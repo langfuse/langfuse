@@ -31,6 +31,7 @@ import {
   traceAggregationSelects,
 } from "../repositories/events-selects";
 import {
+  canonicalizeSessionOrderBy,
   sessionEventsCols,
   sessionEventsOrderByCols,
 } from "../tableMappings/mapSessionTable";
@@ -150,8 +151,11 @@ export type FetchSessionsTableFromEventsProps = {
 const getSessionsTableFromEventsGeneric = async <T>(
   props: FetchSessionsTableFromEventsProps,
 ) => {
-  const { select, projectId, filter, orderBy, limit, page, clickhouseConfigs } =
-    props;
+  const { select, projectId, filter, limit, page, clickhouseConfigs } = props;
+  const orderBy = canonicalizeSessionOrderBy(
+    props.orderBy,
+    sessionEventsOrderByCols,
+  );
 
   const nullMetadataFilter = filter.find(
     (candidate) =>
