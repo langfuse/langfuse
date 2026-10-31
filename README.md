@@ -1,4 +1,4 @@
-<img width="2400" alt="hero-b (1)" src="https://github.com/user-attachments/assets/5810ae13-15d6-4b60-afd2-927adc501861" />
+<img width="2400" height="600" alt="Langfuse by ClickHouse" src=".github/readme-banner.png" />
 
 <div align="center">
    <div>

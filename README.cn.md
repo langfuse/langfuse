@@ -1,4 +1,4 @@
-![Langfuse GitHub Banner](https://langfuse.com/images/docs/github-readme/github-banner.png)
+<img width="2400" height="600" alt="Langfuse by ClickHouse" src=".github/readme-banner.png" />
 
 <div align="center">
   <div>
