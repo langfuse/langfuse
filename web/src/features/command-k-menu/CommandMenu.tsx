@@ -27,18 +27,17 @@ import {
   type IconComponent,
 } from "@langfuse/icons";
 import { useTheme } from "next-themes";
-import { keepPreviousData } from "@tanstack/react-query";
 import { Fragment, useEffect, memo, useState } from "react";
 import { useSession } from "next-auth/react";
 import { env } from "@/src/env.mjs";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
-import { useDebounce } from "@/src/hooks/useDebounce";
+import { Spinner } from "@/src/components/design-system/Spinner/Spinner";
 import { useCommandMenu } from "@/src/features/command-k-menu/CommandMenuProvider";
 import { useOrganizationSettingsPages } from "@/src/features/organizations/OrganizationSettingsPage";
 import { useAccountSettingsPages } from "@/src/features/account";
 import { useQueryProjectOrOrganization } from "@/src/features/projects";
 import { useProjectSettingsPages } from "@/src/features/projects/ProjectSettingsPage";
-import { api } from "@/src/utils/api";
+import { api, type RouterOutputs } from "@/src/utils/api";
 import { type NavigationItem } from "@/src/components/layouts/utilities/routes";
 import useLocalStorage from "@/src/components/useLocalStorage";
 import { hasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
@@ -481,13 +480,14 @@ function MainNavigationItem({
 }
 
 function ProjectsGroup({
+  allProjectItems,
   onNavigate,
 }: {
+  allProjectItems: ReturnType<typeof useNavigationItems>["allProjectItems"];
   onNavigate: (entry: RecentEntry) => void;
 }) {
   const router = useRouter();
   const capture = usePostHogClientCapture();
-  const { allProjectItems } = useNavigationItems();
 
   if (allProjectItems.length === 0) return null;
 
@@ -525,31 +525,16 @@ function ProjectsGroup({
 }
 
 function DashboardsGroup({
+  dashboards,
+  projectId,
   onNavigate,
 }: {
+  dashboards: RouterOutputs["dashboard"]["allDashboards"]["dashboards"];
+  projectId: string;
   onNavigate: (entry: RecentEntry) => void;
 }) {
   const router = useRouter();
   const capture = usePostHogClientCapture();
-  const { project } = useQueryProjectOrOrganization();
-  const { open } = useCommandMenu();
-
-  const dashboardsQuery = api.dashboard.allDashboards.useQuery(
-    {
-      projectId: project?.id ?? "",
-      orderBy: {
-        column: "updatedAt",
-        order: "DESC",
-      },
-      limit: 100,
-      page: 0,
-    },
-    {
-      enabled: open && Boolean(project?.id),
-    },
-  );
-
-  const dashboards = dashboardsQuery.data?.dashboards ?? [];
 
   if (dashboards.length === 0) return null;
 
@@ -568,7 +553,7 @@ function DashboardsGroup({
             ]}
             disabled={router.query.dashboardId === dashboard.id}
             onSelect={() => {
-              const url = `/project/${project?.id}/dashboards/${dashboard.id}`;
+              const url = `/project/${projectId}/dashboards/${dashboard.id}`;
               router.push(url);
               capture("cmd_k_menu:navigated", {
                 type: "dashboard",
@@ -836,6 +821,38 @@ function CommandMenuComponent({
 }) {
   const { open, setOpen } = useCommandMenu();
   const capture = usePostHogClientCapture();
+  const { project, organization } = useQueryProjectOrOrganization();
+
+  useEffect(() => {
+    const down = (e: KeyboardEvent) => {
+      if (e.key === "k" && (e.metaKey || e.ctrlKey)) {
+        e.preventDefault();
+        if (!open) {
+          capture("cmd_k_menu:opened", { source: "cmd_k" });
+        }
+        setOpen(!open);
+      }
+    };
+    document.addEventListener("keydown", down);
+    return () => document.removeEventListener("keydown", down);
+  }, [capture, setOpen, open]);
+
+  // Closing or changing projects discards the input, selection, and pending timers.
+  return open ? (
+    <CommandMenuSession
+      key={project?.id ?? organization?.id ?? "global"}
+      mainNavigation={mainNavigation}
+    />
+  ) : null;
+}
+
+function CommandMenuSession({
+  mainNavigation,
+}: {
+  mainNavigation: NavigationItem[];
+}) {
+  const { setOpen } = useCommandMenu();
+  const capture = usePostHogClientCapture();
   const { project } = useQueryProjectOrOrganization();
   const { isV4 } = useReadPath();
   const [search, setSearch] = useState("");
@@ -844,22 +861,27 @@ function CommandMenuComponent({
   const flatNavigation = flattenNavigation(mainNavigation);
   const createActions = useCreateActions(mainNavigation);
   const pageShortcuts = usePageShortcuts(mainNavigation);
-  const { entityGroups, entityBaseUrls } = useEntityGroups(
-    mainNavigation,
-    search,
-    debouncedSearch,
-  );
+  const {
+    entityGroups,
+    entityBaseUrls,
+    dashboards,
+    allProjectItems,
+    isPending,
+  } = useCommandMenuData(mainNavigation, search, debouncedSearch);
   const isSearching = search !== "";
   const idNavigationItem = getIdNavigationItem(search, project?.id, isV4);
 
-  const debouncedSearchChange = useDebounce(
-    (value: string) => {
-      setDebouncedSearch(value);
-      capture("cmd_k_menu:search_entered", getSearchAnalytics(value));
-    },
-    500,
-    false,
-  );
+  useEffect(() => {
+    if (!search) return;
+    const searchTimer = setTimeout(() => setDebouncedSearch(search), 200);
+    const analyticsTimer = setTimeout(() => {
+      capture("cmd_k_menu:search_entered", getSearchAnalytics(search));
+    }, 500);
+    return () => {
+      clearTimeout(searchTimer);
+      clearTimeout(analyticsTimer);
+    };
+  }, [search, capture]);
 
   const navItems = mainNavigation
     .flatMap((item) => {
@@ -880,25 +902,6 @@ function CommandMenuComponent({
       ];
     })
     .filter((item) => Boolean(item.url) && !item.url.includes("["));
-
-  // Keyboard shortcut effect
-  useEffect(() => {
-    const down = (e: KeyboardEvent) => {
-      if (e.key === "k" && (e.metaKey || e.ctrlKey)) {
-        e.preventDefault();
-        if (!open) {
-          capture("cmd_k_menu:opened", {
-            source: "cmd_k",
-          });
-        }
-        const nextOpen = !open;
-        setOpen(nextOpen);
-        if (!nextOpen) setSearch("");
-      }
-    };
-    document.addEventListener("keydown", down);
-    return () => document.removeEventListener("keydown", down);
-  }, [capture, setOpen, open]);
 
   const shortcutItems = [
     ...[...pageShortcuts.byNavUrl.values()].flat(),
@@ -922,17 +925,13 @@ function CommandMenuComponent({
 
   const handleNavigate = (entry?: RecentEntry) => {
     if (entry) addRecent(entry);
-    setSearch("");
     setOpen(false);
   };
 
   return (
     <CommandDialog
-      open={open}
-      onOpenChange={(nextOpen) => {
-        setOpen(nextOpen);
-        if (!nextOpen) setSearch("");
-      }}
+      open
+      onOpenChange={setOpen}
       filter={(value, search, keywords) =>
         matchesSearch(`${value} ${keywords?.join(" ")}`, search) ? 1 : 0
       }
@@ -943,48 +942,67 @@ function CommandMenuComponent({
         value={search}
         onValueChange={(value) => {
           setSearch(value);
-          debouncedSearchChange(value);
+          if (!value) setDebouncedSearch("");
         }}
       />
-      <CommandList>
-        <CommandEmpty>No results found.</CommandEmpty>
-        {idNavigationItem && (
-          <IdNavigationGroup
-            heading="Tracing"
-            item={idNavigationItem}
-            icon={ListTree}
-            search={search}
-            onNavigate={handleNavigate}
-          />
-        )}
-        {!isSearching && (
-          <RecentGroup
-            recents={visibleRecents}
-            iconByUrl={iconByUrl}
-            onNavigate={handleNavigate}
-          />
-        )}
-        <MainNavigationGroup
-          navItems={navItems}
-          pageShortcuts={pageShortcuts}
-          createActions={createActions}
-          isSearching={isSearching}
-          onNavigate={handleNavigate}
-          onDone={() => handleNavigate()}
-        />
-        <ProjectsGroup onNavigate={handleNavigate} />
-        <DashboardsGroup onNavigate={handleNavigate} />
-        {isSearching &&
-          entityGroups.map((group) => (
-            <EntityGroup
-              key={group.type}
-              group={group}
+      <CommandList aria-busy={isPending}>
+        {isPending ? (
+          <div
+            role="status"
+            className="text-muted-foreground flex items-center justify-center gap-2 py-6 text-sm"
+          >
+            <Spinner size="sm" />
+            Searching…
+          </div>
+        ) : (
+          <>
+            <CommandEmpty>No results found.</CommandEmpty>
+            {idNavigationItem && (
+              <IdNavigationGroup
+                heading="Tracing"
+                item={idNavigationItem}
+                icon={ListTree}
+                search={search}
+                onNavigate={handleNavigate}
+              />
+            )}
+            {!isSearching && (
+              <RecentGroup
+                recents={visibleRecents}
+                iconByUrl={iconByUrl}
+                onNavigate={handleNavigate}
+              />
+            )}
+            <MainNavigationGroup
+              navItems={navItems}
+              pageShortcuts={pageShortcuts}
+              createActions={createActions}
+              isSearching={isSearching}
+              onNavigate={handleNavigate}
+              onDone={() => handleNavigate()}
+            />
+            <ProjectsGroup
+              allProjectItems={allProjectItems}
               onNavigate={handleNavigate}
             />
-          ))}
-        <ProjectSettingsGroup onNavigate={handleNavigate} />
-        <OrganizationSettingsGroup onNavigate={handleNavigate} />
-        <AccountSettingsGroup onNavigate={handleNavigate} />
+            <DashboardsGroup
+              dashboards={dashboards}
+              projectId={project?.id ?? ""}
+              onNavigate={handleNavigate}
+            />
+            {isSearching &&
+              entityGroups.map((group) => (
+                <EntityGroup
+                  key={group.type}
+                  group={group}
+                  onNavigate={handleNavigate}
+                />
+              ))}
+            <ProjectSettingsGroup onNavigate={handleNavigate} />
+            <OrganizationSettingsGroup onNavigate={handleNavigate} />
+            <AccountSettingsGroup onNavigate={handleNavigate} />
+          </>
+        )}
       </CommandList>
     </CommandDialog>
   );
@@ -1136,22 +1154,41 @@ function usePageShortcuts(mainNavigation: NavigationItem[]): PageShortcuts {
   });
 }
 
-/**
- * Fetches names while the menu is open, only for pages the user can see and
- * read. Evaluators are searched on the server since their list is capped.
- */
-function useEntityGroups(
+const MENU_QUERY_OPTIONS = {
+  // Avoid background refreshes moving a row while the user is choosing it.
+  refetchOnWindowFocus: false,
+  refetchOnReconnect: false,
+  // A failed source must not hold navigation behind automatic retry backoff.
+  retry: false,
+};
+
+function getEvaluatorSearchQuery(search: string): string {
+  const keywords = ENTITY_GROUPS.evaluator.keywords;
+  const terms = search.toLowerCase().split(" ");
+  const isNameTerm = (term: string) => term !== "" && !keywords.includes(term);
+  const start = terms.findIndex(isNameTerm);
+  if (start === -1) return "";
+
+  // The server matches a contiguous substring, including category words inside names.
+  return terms.slice(start, terms.findLastIndex(isNameTerm) + 1).join(" ");
+}
+
+/** Fetch names for readable pages; evaluators use server search for their capped list. */
+function useCommandMenuData(
   mainNavigation: NavigationItem[],
   search: string,
   debouncedSearch: string,
 ): {
   entityGroups: EntityGroupData[];
   entityBaseUrls: string[];
+  dashboards: RouterOutputs["dashboard"]["allDashboards"]["dashboards"];
+  allProjectItems: ReturnType<typeof useNavigationItems>["allProjectItems"];
+  isPending: boolean;
 } {
   const session = useSession();
   const { project } = useQueryProjectOrOrganization();
-  const { open } = useCommandMenu();
   const projectId = project?.id ?? "";
+  const { allProjectItems, isLoading: projectsPending } = useNavigationItems();
   const navItems = flattenNavigation(mainNavigation);
 
   const getBaseUrl = (type: EntityType) =>
@@ -1166,32 +1203,58 @@ function useEntityGroups(
   const datasetsUrl = getBaseUrl("dataset");
   const queuesUrl = getBaseUrl("annotation_queue");
   const evaluatorsUrl = getBaseUrl("evaluator");
+  const evaluatorSearch = getEvaluatorSearchQuery(search);
+  const debouncedEvaluatorSearch = getEvaluatorSearchQuery(debouncedSearch);
+  const evaluatorSearchPending = evaluatorSearch !== debouncedEvaluatorSearch;
+
+  const dashboards = api.dashboard.allDashboards.useQuery(
+    {
+      projectId,
+      orderBy: { column: "updatedAt", order: "DESC" },
+      limit: 100,
+      page: 0,
+    },
+    { ...MENU_QUERY_OPTIONS, enabled: Boolean(projectId) },
+  );
 
   const prompts = api.prompts.allNames.useQuery(
     { projectId },
-    { enabled: open && promptsUrl !== null },
+    { ...MENU_QUERY_OPTIONS, enabled: promptsUrl !== null },
   );
   const datasets = api.datasets.allNamesAndIds.useQuery(
     { projectId },
-    { enabled: open && datasetsUrl !== null },
+    { ...MENU_QUERY_OPTIONS, enabled: datasetsUrl !== null },
   );
   const queues = api.annotationQueues.allNamesAndIds.useQuery(
     { projectId },
-    { enabled: open && queuesUrl !== null },
+    { ...MENU_QUERY_OPTIONS, enabled: queuesUrl !== null },
   );
   const evaluators = api.evalsV2.options.useQuery(
     {
       projectId,
       limit: ENTITY_LIMIT,
-      search: debouncedSearch.trim() || undefined,
+      search: evaluatorSearch || undefined,
     },
     {
-      enabled: open && evaluatorsUrl !== null,
-      placeholderData: keepPreviousData,
+      ...MENU_QUERY_OPTIONS,
+      enabled: evaluatorsUrl !== null && !evaluatorSearchPending,
     },
   );
 
   return {
+    dashboards: dashboards.data?.dashboards ?? [],
+    allProjectItems,
+    // Publish one complete list, never cached or partial rows that can reshuffle.
+    isPending:
+      projectsPending ||
+      (Boolean(projectId) && (dashboards.isPending || dashboards.isFetching)) ||
+      (promptsUrl !== null && (prompts.isPending || prompts.isFetching)) ||
+      (datasetsUrl !== null && (datasets.isPending || datasets.isFetching)) ||
+      (queuesUrl !== null && (queues.isPending || queues.isFetching)) ||
+      (evaluatorsUrl !== null &&
+        (evaluatorSearchPending ||
+          evaluators.isPending ||
+          evaluators.isFetching)),
     entityGroups: [
       toEntityGroup("prompt", promptsUrl, prompts.data, search),
       toEntityGroup("dataset", datasetsUrl, datasets.data, search),
