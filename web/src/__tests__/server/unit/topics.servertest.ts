@@ -64,6 +64,10 @@ vi.mock("@/src/features/posthog-analytics/server/backendActivity", () => ({
 }));
 
 import { topicsRouter } from "@/src/features/topics/server/topicsRouter";
+import {
+  parentRuleFor,
+  topicRunChange,
+} from "@/src/features/topics/server/slices";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 
 const projectId = "project-a";
@@ -1660,9 +1664,7 @@ describe("Topics analyses", () => {
   const rule = (id: string, filter: ReturnType<typeof condition>[]) =>
     ({ id, name: id, filter }) as unknown as TopicRule;
 
-  it("compares an analysis with the narrowest rule whose filters it applies", async () => {
-    const { parentRuleFor } =
-      await import("@/src/features/topics/server/slices");
+  it("compares an analysis with the narrowest rule whose filters it applies", () => {
     const env = condition("environment", "production");
     const support = condition("traceName", "support-agent");
     const rules = [
@@ -1677,9 +1679,7 @@ describe("Topics analyses", () => {
     expect(parentRuleFor(rules.slice(1), [env])).toBeNull();
   });
 
-  it("classifies a topic's change between runs by its share", async () => {
-    const { topicRunChange } =
-      await import("@/src/features/topics/server/slices");
+  it("classifies a topic's change between runs by its share", () => {
     expect(topicRunChange(0, 0.1)).toBe("new");
     expect(topicRunChange(0.1, 0)).toBe("gone");
     expect(topicRunChange(0.1, 0.12)).toBe("grown");
