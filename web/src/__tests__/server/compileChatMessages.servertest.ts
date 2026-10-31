@@ -144,6 +144,31 @@ describe("compileChatMessages", () => {
     ]);
   });
 
+  it("should insert variable values containing dollar signs literally", () => {
+    const promptTemplate = [
+      { role: "user", content: "Price is {{price}} and pattern {{regex}}" },
+    ];
+
+    const textVariables = {
+      price: "$$100 and $& then $` and $'",
+      regex: String.raw`^val(?:ue)?$`,
+    };
+
+    const compiledMessages = compileChatMessages(
+      promptTemplate,
+      {},
+      textVariables,
+    );
+
+    expect(compiledMessages).toEqual([
+      {
+        role: "user",
+        content:
+          "Price is $$100 and $& then $` and $' and pattern ^val(?:ue)?$",
+      },
+    ]);
+  });
+
   it("should extract all placeholder names from messages", () => {
     const promptTemplate = [
       { role: "system", content: "System message" },
