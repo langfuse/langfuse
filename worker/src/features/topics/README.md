@@ -480,6 +480,10 @@ Naming calls use short member labels; accepted evidence references store typed
 facet-version and trace-or-session fields under the definition's project.
 A trace reference omits its parent session. Those references identify the current
 source result, not a historical summary snapshot.
+Summary embeddings are stored as `Array(BFloat16)`. JSON inserts truncate each element
+to BFloat16 and reads return plain numbers, so vectors loaded from storage differ slightly
+from the model output that online assignment classified; classifier inputs are normalized
+and compared by cosine distance, which this rounding barely moves.
 Definitions use RowBinary inserts with `Float64` geometry to preserve classifier precision and
 `ReplacingMergeTree(created_at)` partitioned by creation month and ordered by
 project, creation date and version ID to deduplicate identical retry writes.
