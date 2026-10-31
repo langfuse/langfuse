@@ -1475,6 +1475,51 @@ json_literal    = "<price_per_mtok>e-6"
   by the existing generic version-number matchPattern). No other new flagship
   text/chat/reasoning model was found on any provider.
 
+- **October 28 2026 audit: no price or catalog drift; a new "GPT-5.3-Codex, GPT-5.1,
+  GPT-5.4-Nano" deprecation batch found, shutdown April 1, 2027 (not yet
+  actionable)** — Re-fetched the full Anthropic pricing page (model table, cache-hits
+  footnote, Fast mode table, Batch table, tool-use table) and the Anthropic
+  model-deprecations page (full "Model status" table: no model beyond the existing
+  lineup; `claude-sonnet-4-5-20250929` still `Deprecated`, retirement November 30, 2026
+  not yet passed; `claude-haiku-4-5-20251001` still `Active`, `Deprecated: N/A`), the
+  OpenAI aggregate Standard pricing table, `https://developers.openai.com/api/docs/deprecations`,
+  the OpenAI model catalog (`developers.openai.com/api/docs/models/all`), both Gemini
+  pricing pages (`ai.google.dev/gemini-api/docs/pricing` for the 3.x family,
+  `ai.google.dev/pricing` for the 2.5 family), the Gemini models catalog, the Gemini
+  deprecations page, the AWS Bedrock pricing page, and the TypeSafe Jev models page.
+  Every price already in the file was cross-checked field-by-field against the live
+  JSON with `jq` (every Anthropic Standard/Fast-mode tier, every OpenAI Standard tier
+  from `gpt-6-astra` through `o4-mini-2025-04-16`, and every priced Gemini 2.5/3.x/4
+  model) and matched exactly; no pricing-file edits were needed. One new finding:
+  a targeted verbatim-quote fetch of `https://developers.openai.com/api/docs/deprecations`
+  surfaced a deprecation batch not seen in any prior audit, announced 2026-10-01:
+  `gpt-5.3-codex` → `gpt-6-sol`, `gpt-5.4-nano`/`gpt-5.4-nano-2026-03-17` → `gpt-6-luna`,
+  `gpt-5.1`/`gpt-5.1-2025-11-13` → `gpt-6-sol`, all with shutdown date **April 1, 2027**
+  — over five months after this audit's date, not yet actionable under the removal
+  criteria in `automated-audit.md`. All three bare IDs (plus the two dated snapshots)
+  are currently in `openAIModels`; re-check this exact page on or after April 1, 2027
+  and remove them once the page confirms the shutdown has passed (keep their pricing
+  entries). This is a third, separate batch from the already-tracked October 23, 2026
+  "Legacy GPT model snapshots" batch (passed, already removed per the October 25 2026
+  entry) and the January 14, 2027 "GPT-4 series" batch (still future) — do not conflate
+  any of the three when a future audit processes one of them. The October 23, 2026 and
+  January 14, 2027 batches were both re-confirmed unchanged via the same fetch. No other
+  drift was found: the Gemini deprecations page re-confirms `gemini-3.5-flash`/
+  `gemini-3.7-flash` still show `Shutdown date: N/A` with silent auto-routing to
+  `gemini-3.6-flash`/`gemini-3.8-flash` respectively — same unresolved lifecycle-category
+  gap as the October 21 2026 entry, left unchanged in both selectable arrays;
+  `gemini-2.5-pro`/`gemini-2.5-flash`/`gemini-2.5-flash-lite` still carry only the
+  access-restriction note, no shutdown date. The Vertex AI lifecycle page
+  (`cloud.google.com/vertex-ai/generative-ai/docs/learn/model-versions`) still
+  301-redirects to `docs.cloud.google.com`, outside the allowed WebFetch domain list —
+  not fetched, consistent with the standing quirk. AWS Bedrock's pricing page again
+  yielded no extractable per-model numeric rows for any Claude model or Amazon Nova
+  (standing limitation); only the already-applied Sonnet 5.5 cache-read footnote came
+  through qualitatively. TypeSafe's Jev page confirms `jev-1.13.0`/`jev-1.14.0`
+  unchanged at $42/Btok input, output free; `jev-latest` and `jev-preview` both now
+  point to `jev-1.14.0`. No new flagship text/chat/reasoning model was found on any
+  provider.
+
 ## Provider Usage Keys
 
 Use [provider-usage-key-matrix.md](provider-usage-key-matrix.md) as the single
