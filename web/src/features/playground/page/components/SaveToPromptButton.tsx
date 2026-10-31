@@ -26,10 +26,12 @@ import {
 import { usePlaygroundContext } from "@/src/features/playground/page/context/PlaygroundProvider";
 import usePlaygroundCache from "@/src/features/playground/page/hooks/usePlaygroundCache";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { useHasProjectAccess } from "@/src/features/rbac";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import { api } from "@/src/utils/api";
 import { cn } from "@/src/utils/tailwind";
 import DocPopup from "@/src/components/layouts/doc-popup";
+import { ActionButton } from "@/src/components/ActionButton";
 import { PromptType } from "@langfuse/shared";
 
 interface SaveToPromptButtonProps {
@@ -46,6 +48,10 @@ export const SaveToPromptButton: React.FC<SaveToPromptButtonProps> = ({
   const router = useRouter();
   const projectId = useProjectIdFromURL();
   const { setPlaygroundCache } = usePlaygroundCache();
+  const hasAccess = useHasProjectAccess({
+    projectId,
+    scope: "prompts:CUD",
+  });
 
   const allChatPromptNamesWithIds =
     api.prompts.allNames
@@ -54,7 +60,7 @@ export const SaveToPromptButton: React.FC<SaveToPromptButtonProps> = ({
           projectId: projectId as string, // Typecast as query is enabled only when projectId is present
           type: PromptType.Chat,
         },
-        { enabled: Boolean(projectId) },
+        { enabled: Boolean(projectId) && hasAccess },
       )
       .data?.map((prompt) => ({
         name: prompt.name,
@@ -62,6 +68,7 @@ export const SaveToPromptButton: React.FC<SaveToPromptButtonProps> = ({
       })) ?? [];
 
   const handleNewPrompt = async () => {
+    if (!hasAccess) return;
     capture("playground:save_to_new_prompt_button_click", { projectId });
 
     setPlaygroundCache({
@@ -77,6 +84,7 @@ export const SaveToPromptButton: React.FC<SaveToPromptButtonProps> = ({
   };
 
   const handleNewPromptVersion = async () => {
+    if (!hasAccess) return;
     capture("playground:save_to_prompt_version_button_click", { projectId });
 
     setPlaygroundCache({
@@ -124,14 +132,17 @@ export const SaveToPromptButton: React.FC<SaveToPromptButtonProps> = ({
           </Button>
         </PopoverTrigger>
         <PopoverContent>
-          <Button className="mt-2 w-full" onClick={handleNewPrompt}>
-            Save as new prompt
-          </Button>
+          <div className="mt-2 flex flex-col">
+            <ActionButton hasAccess={hasAccess} onClick={handleNewPrompt}>
+              Save as new prompt
+            </ActionButton>
+          </div>
           <Divider />
           <InputCommand className="min-h-32">
             <InputCommandInput
               placeholder="Search chat prompts..."
               variant="bottom"
+              disabled={!hasAccess}
             />
             <InputCommandEmpty>
               No chat prompt found
@@ -144,6 +155,7 @@ export const SaveToPromptButton: React.FC<SaveToPromptButtonProps> = ({
                     key={chatPrompt.id}
                     title={chatPrompt.name}
                     value={chatPrompt.name}
+                    disabled={!hasAccess}
                     onSelect={(currentValue) => {
                       const promptId =
                         allChatPromptNamesWithIds.find(
@@ -172,13 +184,15 @@ export const SaveToPromptButton: React.FC<SaveToPromptButtonProps> = ({
               </InputCommandList>
             </InputCommandGroup>
           </InputCommand>
-          <Button
-            className="mt-2 w-full"
-            disabled={!Boolean(selectedPromptId)}
-            onClick={handleNewPromptVersion}
-          >
-            Save as new prompt version
-          </Button>
+          <div className="mt-2 flex flex-col">
+            <ActionButton
+              hasAccess={hasAccess}
+              disabled={!Boolean(selectedPromptId)}
+              onClick={handleNewPromptVersion}
+            >
+              Save as new prompt version
+            </ActionButton>
+          </div>
         </PopoverContent>
       </Popover>
     </TooltipProvider>
