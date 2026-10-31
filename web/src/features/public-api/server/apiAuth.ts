@@ -185,9 +185,9 @@ export class ApiAuthService {
             );
 
             const accessLevel =
-              finalApiKey.scope === "ORGANIZATION"
-                ? ("organization" as const)
-                : ("project" as const);
+              finalApiKey.scope === "PROJECT"
+                ? ("project" as const)
+                : ("organization" as const);
 
             // The API key is resolved via the hash of the secret key, so the
             // submitted public key may not belong to it, e.g. after a partial
@@ -223,7 +223,7 @@ export class ApiAuthService {
 
             const dbKey = await this.findDbKeyOrThrow(publicKey);
 
-            if (dbKey.scope === "ORGANIZATION") {
+            if (dbKey.scope !== "PROJECT") {
               throw new Error(
                 "Unauthorized: Cannot use organization key with bearer auth",
               );

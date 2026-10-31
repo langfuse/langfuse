@@ -1,7 +1,12 @@
-import type { GatewayProvider, PrismaClient } from "@langfuse/shared/src/db";
-import { ApiKeyId, OrganizationId } from "@langfuse/shared/rbac";
+import type {
+  ApiKeyScope,
+  GatewayProvider,
+  PrismaClient,
+} from "@langfuse/shared/src/db";
+import { ApiKeyId, OrganizationId, UserId } from "@langfuse/shared/rbac";
 
 import { authorize } from "@/src/features/rbac/authorize";
+import { type Policy, type Role } from "@/src/features/rbac/types";
 import { getRolesForPrincipal } from "@/src/features/rbac/getRolesForPrincipal";
 import { isGatewayEnabledForOrganization } from "@/src/features/ai-gateway/server/availability";
 import { GatewayControlPlaneError } from "@/src/features/ai-gateway/server/gatewayControlPlaneError";
@@ -165,7 +170,7 @@ export class GatewayApiKeyAuthenticator {
 
     // Any organization key may call the gateway when its roles grant
     // gateway:invoke, so this check must not depend on API_AUTH_MIGRATION.
-    await assertCanInvokeGateway(this.prisma, row.id, organizationId);
+    await assertCanInvokeGateway(this.prisma, row, organizationId);
 
     await this.cache.set({
       fastHashedSecretKey: params.fastHashedSecretKey,
@@ -177,28 +182,27 @@ export class GatewayApiKeyAuthenticator {
   }
 }
 
-/** assertCanInvokeGateway denies the key when its stored roles do not grant gateway:invoke on the organization. */
+/** assertCanInvokeGateway denies the key when its stored roles, or for a user key its user's roles, do not grant gateway:invoke on the organization. */
 async function assertCanInvokeGateway(
   prisma: PrismaClient,
-  apiKeyId: string,
+  apiKey: { id: string; scope: ApiKeyScope; userId: string | null },
   organizationId: string,
 ) {
-  const roles = await getRolesForPrincipal(prisma, ApiKeyId(apiKeyId));
   const tenant = OrganizationId(organizationId);
   const allowed = authorize(
     {
       principal: {
         kind: "apiKey",
-        apiKeyId,
+        apiKeyId: apiKey.id,
         userId: null,
         isInAppAgentKey: false,
         publicKey: "",
-        scope: "ORGANIZATION",
+        scope: apiKey.scope,
         presentation: "privateKey",
         organizations: [],
         boundResource: { orgId: organizationId },
       },
-      policies: roles.flatMap((role) => role.policies),
+      policies: await getPolicySets(prisma, apiKey),
     },
     tenant,
     "gateway:invoke",
@@ -210,6 +214,28 @@ async function assertCanInvokeGateway(
       403,
     );
   }
+}
+
+/** getPolicySets loads one policy set per principal the key acts as: its user's for a user key, then its own. */
+async function getPolicySets(
+  prisma: PrismaClient,
+  apiKey: { id: string; scope: ApiKeyScope; userId: string | null },
+): Promise<Policy[][]> {
+  const keyPolicies = toPolicies(
+    await getRolesForPrincipal(prisma, ApiKeyId(apiKey.id)),
+  );
+  if (apiKey.scope !== "USER") return [keyPolicies];
+  // An empty user set denies a user key whose user is gone.
+  if (apiKey.userId === null) return [[], keyPolicies];
+  const userPolicies = toPolicies(
+    await getRolesForPrincipal(prisma, UserId(apiKey.userId)),
+  );
+  return [userPolicies, keyPolicies];
+}
+
+/** toPolicies flattens a principal's roles into its one policy set. */
+function toPolicies(roles: Role[]): Policy[] {
+  return roles.flatMap((role) => role.policies);
 }
 
 function supportedProviders(apiFormat: GatewayApiFormat): GatewayProvider[] {

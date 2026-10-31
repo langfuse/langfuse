@@ -974,14 +974,16 @@ describe("call site: admin API handleUpdateMembership", () => {
       boundResource: { orgId: "org-1" },
     },
     policies: [
-      {
-        id: "membership-admin",
-        roleId: SystemRoleId("ADMIN"),
-        tenantId: OrganizationId("org-1"),
-        effect: "ALLOW",
-        actions: ["organizationMembers:CUD"],
-        resources: [OrganizationId("org-1")],
-      },
+      [
+        {
+          id: "membership-admin",
+          roleId: SystemRoleId("ADMIN"),
+          tenantId: OrganizationId("org-1"),
+          effect: "ALLOW",
+          actions: ["organizationMembers:CUD"],
+          resources: [OrganizationId("org-1")],
+        },
+      ],
     ],
   };
 

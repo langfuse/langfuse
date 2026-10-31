@@ -9,6 +9,7 @@ import {
   OrganizationId,
   ProjectId,
   SystemRoleId,
+  UserId,
   systemRoleAccessRights,
 } from "@langfuse/shared/rbac";
 
@@ -78,13 +79,15 @@ export class ContextResolver {
     };
   }
 
-  /** loadOrganization loads the key's org by its scope: an org key by orgId, a project key by its bound projectId. */
+  /** loadOrganization loads the key's org by its scope: an org or user key by orgId, a project key by its bound projectId. */
   private async loadOrganization(
     apiKey: ApiKey,
   ): Promise<GetOrganizationResult> {
-    if (apiKey.scope === "ORGANIZATION") {
+    if (apiKey.scope === "ORGANIZATION" || apiKey.scope === "USER") {
       if (apiKey.orgId === null) {
-        return internalServerError(`org key ${apiKey.id} has no orgId`);
+        return internalServerError(
+          `${apiKey.scope.toLowerCase()} key ${apiKey.id} has no orgId`,
+        );
       }
       return this.orgs.getOrganizationByOrgId(apiKey.orgId);
     }
@@ -95,7 +98,7 @@ export class ContextResolver {
   }
 }
 
-/** materialize expands the `ApiKey` row and its presentation into the policies the credential implies. */
+/** materialize expands the `ApiKey` row and its presentation into the policy sets the credential implies. */
 async function materialize(
   apiKey: ApiKey,
   authorization: "publicKey" | "privateKey",
@@ -114,16 +117,26 @@ async function materialize(
     boundResource: boundResourceFor(apiKey, org),
   };
 
-  const roles = await getRolesForApiKey(apiKey.id);
   const context = {
     principal,
-    policies: roles.flatMap((role) => role.policies),
+    policies: await getPolicySets(),
   };
   if (authorization === "publicKey") {
     // eslint-disable-next-line @typescript-eslint/no-deprecated -- Compatibility until the next major version.
     return { principal, policies: publicBearerPolicies(context, apiKey, org) };
   }
   return context;
+
+  /** getPolicySets loads one policy set per principal the key acts as: its user's for a user key, then its own. */
+  async function getPolicySets(): Promise<Policy[][]> {
+    const keyPolicies = toPolicies(await getRolesForApiKey(apiKey.id));
+    if (apiKey.scope !== "USER") return [keyPolicies];
+    if (apiKey.userId === null) {
+      throw new InternalServerError(`user key ${apiKey.id} has no userId`);
+    }
+    const userRoles = await getRolesForPrincipal(prisma, UserId(apiKey.userId));
+    return [toPolicies(userRoles), keyPolicies];
+  }
 
   /** getRolesForApiKey loads the key's roles and rejects a key left without any. */
   async function getRolesForApiKey(apiKeyId: string): Promise<Role[]> {
@@ -145,7 +158,7 @@ function publicBearerPolicies(
   roleContext: AuthorizationContext,
   apiKey: ApiKey,
   org: PrincipalOrganization,
-): Policy[] {
+): Policy[][] {
   const tenantId = OrganizationId(org.orgId);
   const project = ProjectId(apiKey.projectId!);
   if (!authorize(roleContext, tenantId, "scores:save", project).success) {
@@ -153,14 +166,16 @@ function publicBearerPolicies(
   }
   const resources = [project];
   const roleId = SystemRoleId("SCORES_INGEST");
-  return systemRoleAccessRights.SCORES_INGEST.policies.map((policy) => ({
-    id: `${roleId}:${policy.resourceKind}`,
-    roleId,
-    tenantId,
-    effect: policy.effect,
-    actions: policy.actions,
-    resources,
-  }));
+  return [
+    systemRoleAccessRights.SCORES_INGEST.policies.map((policy) => ({
+      id: `${roleId}:${policy.resourceKind}`,
+      roleId,
+      tenantId,
+      effect: policy.effect,
+      actions: policy.actions,
+      resources,
+    })),
+  ];
 }
 
 /** adminContext grants the admin principal OWNER permissions across all tenants. */
@@ -182,7 +197,12 @@ function adminContext(): AuthorizationContext {
       ],
     }),
   );
-  return { principal, policies };
+  return { principal, policies: [policies] };
+}
+
+/** toPolicies flattens a principal's roles into its one policy set. */
+function toPolicies(roles: Role[]): Policy[] {
+  return roles.flatMap((role) => role.policies);
 }
 
 /** boundResourceFor is the target a request resolves against with no header: the key's org, narrowed to its project when the key is project-scoped. */
@@ -190,7 +210,7 @@ function boundResourceFor(
   apiKey: ApiKey,
   org: PrincipalOrganization,
 ): BoundResource {
-  if (apiKey.scope === "ORGANIZATION") return { orgId: org.orgId };
+  if (apiKey.scope !== "PROJECT") return { orgId: org.orgId };
   return { orgId: org.orgId, projectId: apiKey.projectId! };
 }
 

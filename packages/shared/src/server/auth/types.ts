@@ -35,6 +35,11 @@ export const OrgEnrichedApiKey = z.discriminatedUnion("scope", [
     scope: z.literal(ApiKeyScope.PROJECT),
     projectId: z.string(),
   }),
+  ApiKeyBaseSchema.extend({
+    scope: z.literal(ApiKeyScope.USER),
+    projectId: z.null(),
+    userId: z.string(),
+  }),
 ]);
 
 export const API_KEY_NON_EXISTENT = "api-key-non-existent";

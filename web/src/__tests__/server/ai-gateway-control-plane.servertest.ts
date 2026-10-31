@@ -2228,6 +2228,46 @@ describe("AI gateway control plane", () => {
     }
   });
 
+  it("denies a user key once its user's role no longer grants gateway:invoke", async () => {
+    const originalCache = env.LANGFUSE_AI_GATEWAY_CACHE_RESOLVE_ENABLED;
+    Object.assign(env, { LANGFUSE_AI_GATEWAY_CACHE_RESOLVE_ENABLED: "false" });
+    try {
+      const { caller, org, user } = await prepare();
+      const gatewayKey = await caller.aiGateway.createApiKey({
+        orgId: org.id,
+        name: "User key",
+        metadata: {},
+      });
+      await expect(
+        prisma.apiKey.findUnique({ where: { id: gatewayKey.id } }),
+      ).resolves.toMatchObject({ scope: "USER", userId: user.id });
+      const authenticator = new GatewayApiKeyAuthenticator(prisma);
+      const request = {
+        fastHashedSecretKey: createShaHash(gatewayKey.secretKey, env.SALT),
+        apiFormat: "openai.responses" as const,
+      };
+
+      await expect(
+        authenticator.authenticateModelsRequest(request),
+      ).resolves.toMatchObject({ organizationId: org.id });
+
+      await prisma.roleAssignment.updateMany({
+        where: { userId: user.id, orgId: org.id },
+        data: { systemRole: "VIEWER", roleId: "system/VIEWER" },
+      });
+      await expect(
+        authenticator.authenticateModelsRequest(request),
+      ).rejects.toMatchObject({
+        status: 403,
+        message: "API key is not allowed to invoke the gateway",
+      });
+    } finally {
+      Object.assign(env, {
+        LANGFUSE_AI_GATEWAY_CACHE_RESOLVE_ENABLED: originalCache,
+      });
+    }
+  });
+
   it("accepts organization keys granted gateway:invoke without a gateway association", async () => {
     const originalCache = env.LANGFUSE_AI_GATEWAY_CACHE_RESOLVE_ENABLED;
     Object.assign(env, { LANGFUSE_AI_GATEWAY_CACHE_RESOLVE_ENABLED: "false" });

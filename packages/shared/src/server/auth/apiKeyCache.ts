@@ -12,6 +12,15 @@ export const AUTHZ_CONTEXT_CACHE_KEY_PREFIX = "authz:context:";
 export const createAuthzContextCacheKey = (
   kind: "basic" | "bearer",
   hash: string,
-) => `${AUTHZ_CONTEXT_CACHE_KEY_PREFIX}v2:${kind}:${hash}`;
+) => `${AUTHZ_CONTEXT_CACHE_KEY_PREFIX}v3:${kind}:${hash}`;
+
+/** createEvictableAuthzContextCacheKeys lists a presentation's keys in the current and previous schema versions, which pods of the previous release still read. */
+export const createEvictableAuthzContextCacheKeys = (
+  kind: "basic" | "bearer",
+  hash: string,
+) => [
+  createAuthzContextCacheKey(kind, hash),
+  `${AUTHZ_CONTEXT_CACHE_KEY_PREFIX}v2:${kind}:${hash}`,
+];
 
 export const AUTHZ_CONTEXT_CACHE_PATTERN = `${AUTHZ_CONTEXT_CACHE_KEY_PREFIX}*`;

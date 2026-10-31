@@ -7,6 +7,7 @@ import { Prisma, type PrismaClient, type Role } from "@langfuse/shared/src/db";
 import {
   createApiKey,
   deleteApiKeyFromDb,
+  orgBoundApiKeyScopes,
 } from "@langfuse/shared/src/server/auth/apiKeys";
 import {
   OrganizationId,
@@ -116,21 +117,24 @@ export class GatewayApiKeyService {
       where: {
         id: params.apiKeyId,
         orgId: params.organizationId,
-        scope: "ORGANIZATION",
+        scope: { in: orgBoundApiKeyScopes },
       },
-      select: { fastHashedSecretKey: true },
+      select: { fastHashedSecretKey: true, scope: true },
     });
+    if (!revoked) {
+      throw new LangfuseNotFoundError("Gateway API key not found");
+    }
     const deleted = await deleteApiKeyFromDb({
       prisma: this.prisma,
       id: params.apiKeyId,
       entityId: params.organizationId,
-      scope: "ORGANIZATION",
+      scope: revoked.scope,
       redis: this.redis,
     });
     if (!deleted) {
       throw new InternalServerError("Failed to revoke gateway API key");
     }
-    if (revoked?.fastHashedSecretKey) {
+    if (revoked.fastHashedSecretKey) {
       await invalidateGatewayResolveCacheForApiKey(revoked.fastHashedSecretKey);
     }
     await auditLog(
@@ -176,7 +180,8 @@ async function assertCreatorCanInvokeGateway(
       AND user_id = ${params.session.user.id}
     FOR SHARE
   `;
-  if (params.session.user.admin) return;
+  // A user key is evaluated against its user's own roles, so admins get no bypass for one.
+  if (params.session.user.admin && params.issuedAs === "serviceAccount") return;
   const allowed =
     membership !== undefined &&
     gatewayApiKeyCreatorScopes(params.issuedAs).every((scope) =>

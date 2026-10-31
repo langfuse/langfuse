@@ -701,19 +701,21 @@ describe("Organization membership safeguards", () => {
     });
     const context: AuthorizationContext = {
       ...adminContext,
-      policies: (
-        [
-          ["VIEWER", "organizationMembers:CUD"],
-          ["INGEST", "organizationMembers:manageOwnership"],
-        ] as const
-      ).map(([role, action]) => ({
-        id: action,
-        roleId: SystemRoleId(role),
-        tenantId: OrganizationId(orgId),
-        effect: "ALLOW",
-        actions: [action],
-        resources: [OrganizationId(orgId)],
-      })),
+      policies: [
+        (
+          [
+            ["VIEWER", "organizationMembers:CUD"],
+            ["INGEST", "organizationMembers:manageOwnership"],
+          ] as const
+        ).map(([role, action]) => ({
+          id: action,
+          roleId: SystemRoleId(role),
+          tenantId: OrganizationId(orgId),
+          effect: "ALLOW",
+          actions: [action],
+          resources: [OrganizationId(orgId)],
+        })),
+      ],
     };
     const { req, res } = createMocks<NextApiRequest, NextApiResponse>({
       method: "PUT",
@@ -1238,19 +1240,21 @@ describe("Project membership safeguards", () => {
   it("combines membership and ownership policy grants across roles", async () => {
     const context: AuthorizationContext = {
       ...adminContext,
-      policies: (
-        [
-          ["VIEWER", "projectMembers:CUD"],
-          ["INGEST", "projectMembers:manageOwnership"],
-        ] as const
-      ).map(([role, action]) => ({
-        id: action,
-        roleId: SystemRoleId(role),
-        tenantId: OrganizationId(orgId),
-        effect: "ALLOW",
-        actions: [action],
-        resources: [ProjectId(projectId)],
-      })),
+      policies: [
+        (
+          [
+            ["VIEWER", "projectMembers:CUD"],
+            ["INGEST", "projectMembers:manageOwnership"],
+          ] as const
+        ).map(([role, action]) => ({
+          id: action,
+          roleId: SystemRoleId(role),
+          tenantId: OrganizationId(orgId),
+          effect: "ALLOW",
+          actions: [action],
+          resources: [ProjectId(projectId)],
+        })),
+      ],
     };
     const { req, res } = createMocks<NextApiRequest, NextApiResponse>({
       method: "PUT",

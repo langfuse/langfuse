@@ -244,6 +244,42 @@ describe("user-bound API keys", () => {
       ).rejects.toThrow(ForbiddenError);
       expect(await existingKeyIds()).toEqual(before);
     });
+
+    it("rejects a user key from an instance admin who is not a member", async () => {
+      const org = await createOrg();
+      const user = await createUser();
+      const session = orgSession(user, org, Role.OWNER);
+      session.user.admin = true;
+      const before = await existingKeyIds();
+
+      await expect(
+        new GatewayApiKeyService(prisma).create({
+          organizationId: org.id,
+          name: "Test key",
+          metadata: {},
+          issuedAs: "user",
+          session,
+        }),
+      ).rejects.toThrow(ForbiddenError);
+      expect(await existingKeyIds()).toEqual(before);
+    });
+
+    it("lets an instance admin who is not a member issue a service-account key", async () => {
+      const org = await createOrg();
+      const user = await createUser();
+      const session = orgSession(user, org, Role.OWNER);
+      session.user.admin = true;
+
+      const key = await new GatewayApiKeyService(prisma).create({
+        organizationId: org.id,
+        name: "Test key",
+        metadata: {},
+        issuedAs: "serviceAccount",
+        session,
+      });
+
+      expect(await boundUserOf(key.id)).toBeNull();
+    });
   });
 
   describe("deleteUserBoundApiKeys", () => {

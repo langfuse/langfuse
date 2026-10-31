@@ -3,6 +3,7 @@ import { prisma } from "@langfuse/shared/src/db";
 import { logger, redis } from "@langfuse/shared/src/server";
 import { auditLog } from "@/src/features/audit-logs/server";
 import { z } from "zod";
+import { orgBoundApiKeyScopes } from "@langfuse/shared/src/server/auth/apiKeys";
 import { ApiAuthService } from "@/src/features/public-api/server";
 
 export const validateQueryParams = (
@@ -30,7 +31,7 @@ export async function handleDeleteApiKey(
     where: {
       id: apiKeyId,
       orgId: organizationId,
-      scope: "ORGANIZATION",
+      scope: { in: orgBoundApiKeyScopes },
       isInAppAgentKey: false,
     },
   });
@@ -43,7 +44,7 @@ export async function handleDeleteApiKey(
   const deleted = await new ApiAuthService(prisma, redis).deleteApiKey(
     apiKeyId,
     organizationId,
-    "ORGANIZATION",
+    apiKey.scope,
   );
 
   if (!deleted) {
