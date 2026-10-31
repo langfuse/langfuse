@@ -8,6 +8,7 @@ import React from "react";
 import { ItemBadge } from "@/src/components/ItemBadge";
 import { deepParseJson, type FilterState } from "@langfuse/shared";
 import { SessionObservationIO } from "@/src/features/sessions/SessionObservationIO";
+import { useObservationCorrections } from "@/src/features/sessions/useObservationCorrections";
 import { FilterX } from "@langfuse/icons";
 import { SESSION_DETAIL_VIEW_TRIGGER_ID } from "@/src/features/sessions/session-detail-presets";
 import { SessionTraceActionButtons } from "@/src/features/sessions/SessionTraceActionButtons";
@@ -34,6 +35,7 @@ const ModernSessionObservation = ({
   traceId,
   environment,
   showCorrections,
+  outputCorrection,
   contentMode,
   showSystemPrompt,
   onOpenInTraceView,
@@ -44,6 +46,9 @@ const ModernSessionObservation = ({
   traceId: string;
   environment?: string;
   showCorrections: boolean;
+  outputCorrection?: React.ComponentProps<
+    typeof SessionObservationIO
+  >["outputCorrection"];
   contentMode: IOPreviewContentMode;
   showSystemPrompt?: boolean;
   onOpenInTraceView: (observationId: string) => void;
@@ -100,6 +105,7 @@ const ModernSessionObservation = ({
         traceId={traceId}
         environment={environment}
         showCorrections={showCorrections}
+        outputCorrection={outputCorrection}
         onOpenInTraceView={onOpenInTraceView}
         contentMode={isConversation ? contentMode : "all"}
         showSystemPrompt={showSystemPrompt}
@@ -303,6 +309,13 @@ export const TraceEventsRow = React.memo(
     const { visibleObservations, hasMoreObservations } =
       visibleObservationState;
 
+    const correctionsByObservation = useObservationCorrections({
+      projectId,
+      traceId: trace.id,
+      showCorrections,
+      visibleObservations,
+    });
+
     const Frame = surface === "card" ? Card : "div";
     const showTracePanel = surface === "card" && !hideTracePanel;
 
@@ -376,6 +389,9 @@ export const TraceEventsRow = React.memo(
                           undefined
                         }
                         showCorrections={showCorrections}
+                        outputCorrection={correctionsByObservation.get(
+                          observation.id,
+                        )}
                         contentMode={contentMode}
                         showSystemPrompt={showSystemPrompt}
                         onOpenInTraceView={openObservationInTraceView}
@@ -397,6 +413,9 @@ export const TraceEventsRow = React.memo(
                           undefined
                         }
                         showCorrections={showCorrections}
+                        outputCorrection={correctionsByObservation.get(
+                          observation.id,
+                        )}
                         onOpenInTraceView={openObservationInTraceView}
                         contentMode={contentMode}
                         showSystemPrompt={showSystemPrompt}
