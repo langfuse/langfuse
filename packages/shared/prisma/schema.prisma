@@ -1435,6 +1435,9 @@ model TopicConfig {
   clusteringLlmApiKey   LlmApiKeys? @relation("TopicConfigClusteringLlmApiKey", fields: [clusteringLlmApiKeyId], references: [id], onDelete: SetNull)
   clusteringModel       String?     @map("clustering_model")
 
+  // How often each Topics rule's maps are re-clustered (6, 12 or 24).
+  refitIntervalHours Int @default(24) @map("refit_interval_hours")
+
   @@index([summaryLlmApiKeyId])
   @@index([embeddingLlmApiKeyId])
   @@index([clusteringLlmApiKeyId])
@@ -2253,7 +2256,13 @@ model TopicClusteringRun {
   startedAt       DateTime?        @map("started_at") @db.Timestamptz(3)
   finishedAt      DateTime?        @map("finished_at") @db.Timestamptz(3)
   topicVersionIds String[]         @default([]) @map("topic_version_ids")
+  // Continuous maps belong to a Topics rule; one-off analyses to their execution.
+  // Runs with neither predate rules and belong to the project's oldest rule.
+  ruleId          String?          @map("rule_id")
+  batchActionId   String?          @map("batch_action_id")
 
   @@index([projectId, facetId, status, facetVersion(sort: Desc), createdAt(sort: Desc), id(sort: Desc)], map: "topic_clustering_runs_serving_map_idx")
+  @@index([projectId, ruleId, facetId, status], map: "topic_clustering_runs_rule_serving_map_idx")
+  @@index([projectId, batchActionId])
   @@map("topic_clustering_runs")
 }

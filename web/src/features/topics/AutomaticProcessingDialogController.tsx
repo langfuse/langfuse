@@ -12,7 +12,7 @@ type AutomaticProcessingSettings = {
   rule: TopicRule | null;
   stored: StoredSettings | undefined;
   /** The write shared with "Keep off", so it outlives a close. */
-  save: (input: { enabled: boolean; sampling: number }) => Promise<unknown>;
+  save: (input: { enabled: boolean; sampling?: number }) => Promise<unknown>;
   saving: boolean;
 };
 
@@ -47,7 +47,7 @@ function AutomaticProcessingDialogContent({
 }) {
   const [error, setError] = useState<string | null>(null);
   const dailyTraces = useDailyTraceEstimate(projectId);
-  const submit = (input: { enabled: boolean; sampling: number }) => {
+  const submit = (input: { enabled: boolean; sampling?: number }) => {
     setError(null);
     save(input)
       .then(closeDialog)
@@ -63,7 +63,7 @@ function AutomaticProcessingDialogContent({
   return (
     <AutomaticProcessingDialog
       initialEnabled={initialEnabled}
-      initialSampling={rule?.sampling ?? 1}
+      initialSampling={rule ? rule.sampling : null}
       dailyTraces={dailyTraces}
       missingModel={TOPICS_MODEL_SLOTS.some((slot) => !stored?.[slot]?.model)}
       saving={saving}

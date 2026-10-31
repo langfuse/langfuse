@@ -59,7 +59,7 @@ const menuBodyVariants = cva(
 );
 
 const menuItemVariants = cva(
-  "focus:bg-accent data-[active]:bg-accent data-[disabled]:cursor-not-allowed data-[disabled]:opacity-50 relative flex h-8 w-full min-w-0 cursor-pointer items-center rounded-sm text-sm outline-hidden transition-colors",
+  "focus:bg-accent data-[active]:bg-accent data-[disabled]:cursor-not-allowed data-[disabled]:opacity-50 relative flex w-full min-w-0 cursor-pointer items-center rounded-sm text-sm outline-hidden transition-colors",
   {
     variants: {
       variant: {
@@ -67,9 +67,14 @@ const menuItemVariants = cva(
         destructive:
           "text-destructive focus:bg-destructive/10 data-[active]:bg-destructive/10",
       },
+      hasDescription: {
+        true: "min-h-8",
+        false: "h-8",
+      },
     },
     defaultVariants: {
       variant: "default",
+      hasDescription: false,
     },
   },
 );
@@ -122,6 +127,8 @@ type DropdownMenuItem = {
   disabled?: { reason: string };
   id: string;
   title: string;
+  /** A second, muted line under the title. */
+  description?: string;
   tooltip?: string;
   badge?: React.ReactNode;
   icon?: IconComponent;
@@ -163,7 +170,9 @@ export type DropdownMenuItemDefinition =
   | DropdownMenuCheckboxItem
   | DropdownMenuSubmenu
   | { id: string; type: "loading" }
-  | { id: string; type: "separator" };
+  | { id: string; type: "separator" }
+  /** A non-interactive section heading; `badge` sits on its right. */
+  | { id: string; type: "label"; title: string; badge?: React.ReactNode };
 
 type DropdownMenuProps = {
   ariaLabel?: string;
@@ -272,14 +281,19 @@ function DropdownMenuNode({
     const normalizedQuery = searchQuery.trim().toLocaleLowerCase();
     if (!search || !normalizedQuery) return items;
     const hasDefaultMatch = items.some((item) => {
-      if (item.type === "separator" || item.type === "loading") return false;
+      if (
+        item.type === "separator" ||
+        item.type === "loading" ||
+        item.type === "label"
+      )
+        return false;
       if (item.searchBehavior && item.searchBehavior !== "default")
         return false;
       return item.title.toLocaleLowerCase().includes(normalizedQuery);
     });
 
     return items.filter((item) => {
-      if (item.type === "separator") return false;
+      if (item.type === "separator" || item.type === "label") return false;
       if (item.type === "loading") return true;
       if (item.searchBehavior === "hide") return false;
       if (item.searchBehavior === "always-show") return true;
@@ -410,6 +424,28 @@ function DropdownMenuNode({
                         role="separator"
                         className="bg-border -mx-1 my-1 h-px"
                       />
+                    );
+                  }
+
+                  if (item.type === "label") {
+                    labelsRef.current[index] = null;
+                    listRef.current[index] = null;
+                    return (
+                      <div
+                        key={item.id}
+                        role="presentation"
+                        className="text-muted-foreground flex h-7 items-center gap-2 px-2 text-xs font-bold"
+                      >
+                        <span
+                          className="min-w-0 flex-1 truncate"
+                          title={item.title}
+                        >
+                          {item.title}
+                        </span>
+                        {item.badge ? (
+                          <span className="shrink-0">{item.badge}</span>
+                        ) : null}
+                      </div>
                     );
                   }
 
@@ -641,7 +677,10 @@ function DropdownMenuNode({
                       }}
                       data-active={activeIndex === index ? "" : undefined}
                       data-disabled={item.disabled ? "" : undefined}
-                      className={menuItemVariants({ variant: item.variant })}
+                      className={menuItemVariants({
+                        variant: item.variant,
+                        hasDescription: Boolean(item.description),
+                      })}
                       {...getItemProps({
                         onClick: (event) => {
                           if (item.disabled) return;
@@ -699,12 +738,10 @@ function DropdownMenuNode({
                               aria-hidden="true"
                             />
                           ) : null}
-                          <span
-                            className="min-w-0 flex-1 overflow-hidden text-left text-ellipsis whitespace-nowrap"
+                          <DropdownMenuItemLabel
                             title={item.title}
-                          >
-                            {item.title}
-                          </span>
+                            description={item.description}
+                          />
                           {item.badge ? (
                             <span className="ml-2 shrink-0">{item.badge}</span>
                           ) : null}
@@ -731,12 +768,10 @@ function DropdownMenuNode({
                               aria-hidden="true"
                             />
                           ) : null}
-                          <span
-                            className="min-w-0 flex-1 overflow-hidden text-left text-ellipsis whitespace-nowrap"
+                          <DropdownMenuItemLabel
                             title={item.title}
-                          >
-                            {item.title}
-                          </span>
+                            description={item.description}
+                          />
                           {item.badge ? (
                             <span className="ml-2 shrink-0">{item.badge}</span>
                           ) : null}
@@ -752,6 +787,37 @@ function DropdownMenuNode({
         </FloatingPortal>
       ) : null}
     </FloatingNode>
+  );
+}
+
+function DropdownMenuItemLabel({
+  title,
+  description,
+}: {
+  title: string;
+  description?: string;
+}) {
+  if (!description)
+    return (
+      <span
+        className="min-w-0 flex-1 overflow-hidden text-left text-ellipsis whitespace-nowrap"
+        title={title}
+      >
+        {title}
+      </span>
+    );
+  return (
+    <span className="flex min-w-0 flex-1 flex-col text-left">
+      <span className="truncate" title={title}>
+        {title}
+      </span>
+      <span
+        className="text-muted-foreground truncate text-xs"
+        title={description}
+      >
+        {description}
+      </span>
+    </span>
   );
 }
 

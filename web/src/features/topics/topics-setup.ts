@@ -6,19 +6,29 @@ type Slots = Pick<
   "summary" | "embedding" | "embeddingDimensions" | "clustering"
 >;
 
+/**
+ * The Configure Topics save. Facets go to `ruleId`, or to the first rule while
+ * the project has none; without facets the save changes no rule. It never
+ * sends a filter, so a rule keeps the filter edited on the rules page.
+ */
 export function topicsSetupPayload(
   value: ConfigureTopicsSaveDraft,
   slots: Slots,
+  ruleId: string | undefined,
 ): TopicsSetup {
   const parsed = topicsSetupSchema.safeParse({
     ...slots,
-    facets: value.facets
-      .filter((facet) => facet.builtIn)
-      .map((facet) => ({ name: facet.name, enabled: facet.enabled })),
-    customFacetIds: value.facets
-      .filter((facet) => !facet.builtIn && facet.enabled)
-      .map((facet) => facet.id),
-    filter: value.filters,
+    ...(value.facets
+      ? {
+          facets: value.facets
+            .filter((facet) => facet.builtIn)
+            .map((facet) => ({ name: facet.name, enabled: facet.enabled })),
+          customFacetIds: value.facets
+            .filter((facet) => !facet.builtIn && facet.enabled)
+            .map((facet) => facet.id),
+          ruleId,
+        }
+      : {}),
     traceIdleMs: Number(value.idleSeconds) * 1000,
   });
   if (!parsed.success)

@@ -29,7 +29,12 @@ vi.mock("../../db", () => {
   const matches = (
     row: Record<string, unknown>,
     where: Record<string, unknown>,
-  ) => Object.entries(where).every(([key, value]) => row[key] === value);
+  ) =>
+    Object.entries(where).every(([key, value]) =>
+      value !== null && typeof value === "object" && "in" in value
+        ? (value.in as unknown[]).includes(row[key])
+        : row[key] === value,
+    );
   const topicClusteringRun = {
     createMany: async ({ data }: { data: Record<string, unknown>[] }) => {
       data.forEach((row) => state.rows.set(String(row.id), row));
@@ -216,11 +221,18 @@ describe("Topics execution store application contract", () => {
                   to: request.timeRange.to.toISOString(),
                 },
               },
+              ruleId: null,
+              batchActionId: null,
             }))
           : [],
       );
       expect(await listTopicExecutions(input.projectId)).toHaveLength(1);
       const summary = (await readTopicExecutionSummary(input.projectId, a.id))!;
+      // Summary-only and clustering executions are separate batch action types.
+      expect([...state.batches.values()][0]).toMatchObject({
+        actionType:
+          request.operation === "update" ? "topics-cluster" : "topics-summary",
+      });
       if (request.operation === "update") {
         expect(summary.input).toMatchObject({ timeRange: request.timeRange });
         const stored = [...state.batches.values()][0];

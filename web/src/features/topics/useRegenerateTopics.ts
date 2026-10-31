@@ -11,12 +11,14 @@ import {
 
 /**
  * Data and the `topics.trigger` (`operation: "update"`) write behind the
- * Regenerate topics dialog. Facets follow the Topics rule at their latest
- * version, the one automatic processing summarizes with. Call it above the
- * dialog content so the request and its error outlive a close.
+ * Regenerate topics dialog. It regenerates the shown rule's map; facets follow
+ * that rule at their latest version, the one automatic processing summarizes
+ * with. Call it above the dialog content so the request and its error outlive
+ * a close.
  */
 export function useRegenerateTopics({
   projectId,
+  ruleId,
   facets,
   canWrite,
   timeRange,
@@ -24,6 +26,8 @@ export function useRegenerateTopics({
   executionsError,
 }: {
   projectId: string;
+  /** The rule whose map is shown; null while none is. */
+  ruleId: string | null;
   facets: TopicFacet[];
   canWrite: boolean;
   timeRange: TopicTimeRange | null;
@@ -37,11 +41,16 @@ export function useRegenerateTopics({
     settings.data.embedding &&
     settings.data.clustering,
   );
-  const rule = rules.data?.length === 1 ? rules.data[0] : null;
+  // With several rules, regenerating needs the shown rule; never another one.
+  const rule =
+    rules.data?.find((item) => item.id === ruleId) ??
+    (rules.data?.length === 1 ? rules.data[0] : null);
   const prerequisiteReason = (() => {
     if (rules.error)
       return `Could not load active Topics facets: ${rules.error.message}`;
     if (!rules.isSuccess) return "Checking the active Topics facets…";
+    if (!rule && rules.data.length > 1)
+      return "Open a topic rule's map to regenerate its topics.";
     if (executionsError)
       return `Could not check Topics runs: ${executionsError}`;
     if (executions === undefined)
@@ -82,6 +91,7 @@ export function useRegenerateTopics({
       projectId,
       operation: "update" as const,
       timeRange,
+      ...(rule ? { ruleId: rule.id } : {}),
       ...values,
     };
     const key = JSON.stringify(input);

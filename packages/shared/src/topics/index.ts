@@ -114,6 +114,69 @@ export const topicRuleSettingsSchema = topicRuleConfigSchema.extend({
   sampling: z.number().min(0).max(1).default(1),
 });
 
+/** A project runs at most this many continuous Topics rules. */
+export const TOPICS_MAX_RULES = 5;
+/** Largest random cohort a one-off analysis or past-trace processing run selects. */
+export const TOPICS_SLICE_MAX_TRACES = 20_000;
+/** An analysis needs this many summarized traces before it can cluster. */
+export const TOPICS_ANALYSIS_MIN_TRACES = 100;
+/** Seeds an analysis's sample, so its preview counts the traces its run clusters. */
+export const TOPICS_ANALYSIS_SAMPLING_SEED = "topics-analysis";
+export const TOPICS_REFIT_INTERVAL_HOURS = [6, 12, 24] as const;
+export type TopicsRefitIntervalHours =
+  (typeof TOPICS_REFIT_INTERVAL_HOURS)[number];
+
+/**
+ * Columns the online matcher can evaluate on a finished trace's observations.
+ * A trace matches a rule when one of its observations meets every filter.
+ */
+export const TOPICS_RULE_FILTER_COLUMNS = [
+  "environment",
+  "traceName",
+  "name",
+  "type",
+  "level",
+  "metadata",
+  "statusMessage",
+  "sessionId",
+  "parentObservationId",
+  "calledToolNames",
+  "toolCalls",
+] as const;
+const negativeOperators = new Set([
+  "none of",
+  "does not contain",
+  "is not set",
+  "<>",
+  "is null",
+]);
+export const TOPICS_RULE_FILTER_ERROR =
+  "Scores, cost, latency, tags, users, versions, releases, models, prompts, experiments, 'is not' and topics can't be used in rules. Use an analysis for those.";
+/** Rules match during ingestion, so they only take positive filters on matcher columns. */
+export function topicRuleFilterError(
+  filter: z.infer<typeof singleFilterList>,
+): string | null {
+  const unsupported = filter.some(
+    (item) =>
+      !(TOPICS_RULE_FILTER_COLUMNS as readonly string[]).includes(
+        item.column,
+      ) || negativeOperators.has(item.operator),
+  );
+  return unsupported ? TOPICS_RULE_FILTER_ERROR : null;
+}
+
+/** Saved with a one-off clustering run; the cohort resolves from it at fit time. */
+export const topicAnalysisConfigSchema = z.object({
+  label: z.string().trim().min(1).max(100),
+  filter: topicRuleConfigSchema.shape.filter,
+  // The narrowest rule whose filters the analysis filters contain, if any.
+  parentRuleId: topicIdSchema.nullable().default(null),
+  // The analysis this one reruns on a new window.
+  previousExecutionId: topicIdSchema.nullable().default(null),
+  seed: z.string().min(1).max(128),
+});
+export type TopicAnalysisConfig = z.infer<typeof topicAnalysisConfigSchema>;
+
 export const topicsSetupSchema = topicsModelSettingsSchema.extend({
   traceIdleMs: z
     .number()
@@ -121,7 +184,8 @@ export const topicsSetupSchema = topicsModelSettingsSchema.extend({
     .multipleOf(1000, "Use whole seconds for the idle time.")
     .min(60_000, "Wait at least 60 seconds.")
     .max(3_600_000, "Wait at most 3,600 seconds."),
-  // The project's existing rule; omit only when the project has none yet.
+  // The rule whose facets (and filter) this save writes. Without it, rule fields
+  // are only accepted while the project has no rule yet; otherwise omit them.
   ruleId: topicIdSchema.optional(),
   facets: z
     .array(
@@ -149,19 +213,23 @@ export const topicsSetupSchema = topicsModelSettingsSchema.extend({
           message: "Turn on at least one facet.",
         });
       }
-    }),
+    })
+    .optional(),
   // Enabled custom facets keep their rule assignment; they are edited elsewhere.
-  customFacetIds: z.array(topicIdSchema).default([]),
-  filter: topicRuleConfigSchema.shape.filter,
+  customFacetIds: z.array(topicIdSchema).optional(),
+  // Omit to keep the rule's stored filter; a new rule defaults to all traces.
+  filter: topicRuleConfigSchema.shape.filter.optional(),
 });
 export type TopicsSetup = z.infer<typeof topicsSetupSchema>;
 
 /**
  * Turns automatic processing of new traces on or off. Sampling applies only to
- * automatic processing; omit it to keep the rule's stored rate.
+ * automatic processing and is written to `ruleId`; omit both to keep every
+ * rule's stored rate.
  */
 export const topicsAutomaticProcessingSchema = z.object({
   enabled: z.boolean(),
+  ruleId: topicIdSchema.optional(),
   sampling: z.number().min(0).max(1).optional(),
 });
 export type TopicsAutomaticProcessing = z.infer<
@@ -174,6 +242,8 @@ export type TopicRule = z.infer<typeof topicRuleSettingsSchema> & {
   name: string;
   facetIds: string[];
   updatedAt: string;
+  enabled?: boolean;
+  createdAt?: string;
 };
 
 export const topicFacetRefSchema = z.object({
@@ -208,6 +278,7 @@ export const topicExecutionInputSchema = z.discriminatedUnion("operation", [
             ({ from, to }) => to.getTime() - from.getTime() <= 93 * 86_400_000,
             "Select a time range of at most 93 days.",
           ),
+          ruleId: topicIdSchema.optional(),
         })
         .optional(),
     })
@@ -219,6 +290,10 @@ export const topicExecutionInputSchema = z.discriminatedUnion("operation", [
       timeRange: topicTimeRangeSchema,
       exploratory: z.boolean().default(false),
       minimumTraceCount: topicMinimumTraceCountSchema.optional(),
+      // Refit of one rule's maps over the rule's cohort in the window.
+      ruleId: topicIdSchema.optional(),
+      // One-off clustering of a filtered slice; never serves online assignment.
+      analysis: topicAnalysisConfigSchema.optional(),
     })
     .strict(),
 ]);
@@ -323,6 +398,8 @@ export type TopicAssignment = z.infer<typeof topicSourceSchema> & {
   runnerUpDistance: number | null;
   origin: "initial" | "online" | "backfill";
   assignedAt: string;
+  /** Rule the assignment serves; null for analysis rows and rows written before rules. */
+  ruleId?: string | null;
 };
 export interface TopicDefinition {
   topicVersionId: string;
@@ -376,6 +453,10 @@ export interface TopicRun {
   config: Record<string, unknown>;
   error: string | null;
   topics: TopicDefinition[];
+  /** Rule whose continuous map this is; null for analyses and pre-rule runs. */
+  ruleId?: string | null;
+  /** Analysis execution this one-off map belongs to. */
+  batchActionId?: string | null;
 }
 export interface TopicFacetProgress {
   facetId: string;

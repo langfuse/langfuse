@@ -116,10 +116,11 @@ function resolveWindow(from?: Date, to?: Date): TopicTimeRange {
   return { from: start, to: end };
 }
 
-// Matches currentTopicResults: the latest rule's facets, or all facets without a rule (manual runs).
+// Matches currentTopicResults: facets of any rule, or all facets without rules (manual runs).
 async function isFacetActive(projectId: string) {
-  const [rule] = await listTopicRules(projectId);
-  return (facetId: string) => !rule || rule.facetIds.includes(facetId);
+  const rules = await listTopicRules(projectId);
+  const facetIds = new Set(rules.flatMap((rule) => rule.facetIds));
+  return (facetId: string) => !rules.length || facetIds.has(facetId);
 }
 
 function publicFacet(facet: TopicFacet, active: boolean, run: TopicRun | null) {

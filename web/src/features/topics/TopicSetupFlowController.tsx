@@ -1,5 +1,4 @@
 import { useEffect, useState, type ReactNode } from "react";
-import { type FilterState } from "@langfuse/shared";
 import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
 import { env } from "@/src/env.mjs";
 import { type JudgeModel } from "@/src/features/evals/v2/judgeModel";
@@ -37,6 +36,7 @@ export function TopicSetupFlowController({
   onSaveSampling: (input: {
     enabled: boolean;
     sampling: number;
+    ruleId?: string;
   }) => Promise<unknown>;
   children: (control: { openSetup: () => void }) => ReactNode;
 }) {
@@ -87,6 +87,7 @@ function TopicSetupSession({
   onSaveSampling: (input: {
     enabled: boolean;
     sampling: number;
+    ruleId?: string;
   }) => Promise<unknown>;
   closeDialog: () => void;
 }) {
@@ -138,6 +139,8 @@ function TopicSetupSession({
     }),
   );
   const [error, setError] = useState<string | null>(null);
+  // The rules query may not have refetched yet when sampling is saved.
+  const [savedRuleId, setSavedRuleId] = useState(settings.rule?.id);
   // One request per session, so a repeated Start resolves to the same backfill.
   const [requestId] = useState(() => crypto.randomUUID());
   const [pending, setPending] = useState(false);
@@ -178,8 +181,7 @@ function TopicSetupSession({
     );
     if (!summary || !embedding || !clustering)
       throw new Error("Choose a model from a connection in this project.");
-    const filter: FilterState = [];
-    await save.mutateAsync({
+    const saved = await save.mutateAsync({
       projectId,
       summary,
       embedding,
@@ -194,10 +196,10 @@ function TopicSetupSession({
           ? [facet.id]
           : [],
       ),
-      filter,
       traceIdleMs: draft.waitMinutes * 60_000,
       ...(settings.rule ? { ruleId: settings.rule.id } : {}),
     });
+    if (saved) setSavedRuleId(saved.id);
     capture("topics:setup_step_saved", {
       step: "questions",
       questionCount: draft.questions.filter((question) => question.enabled)
@@ -211,6 +213,7 @@ function TopicSetupSession({
     await onSaveSampling({
       enabled,
       sampling: draft.samplePercent / 100,
+      ruleId: savedRuleId,
     });
   }
 

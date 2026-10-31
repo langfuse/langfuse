@@ -105,11 +105,11 @@ describe("Topics eval-backed configuration", () => {
     ).rejects.toThrow(/built-in/i);
   });
 
-  it("keeps one Topics rule per project when first saves race", async () => {
+  it("keeps at most five Topics rules per project when creates race", async () => {
     const facets = await ensureDefaultTopicFacets(ruleProjectId);
     const facetIds = facets.slice(0, 2).map((facet) => facet.id);
     const saved = await Promise.allSettled(
-      [0.25, 0.5, 0.75].map((sampling) =>
+      [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7].map((sampling) =>
         saveTopicRule({
           projectId: ruleProjectId,
           filter: [],
@@ -119,15 +119,15 @@ describe("Topics eval-backed configuration", () => {
       ),
     );
 
-    // One save creates the rule; the others see it and are rejected.
     expect(
       saved.filter((result) => result.status === "fulfilled"),
-    ).toHaveLength(1);
+    ).toHaveLength(5);
     for (const result of saved.filter((r) => r.status === "rejected"))
-      expect(String(result.reason)).toMatch(/already has a Topics rule/);
+      expect(String(result.reason)).toMatch(/at most 5 Topics rules/);
     const rules = await listTopicRules(ruleProjectId);
-    expect(rules).toHaveLength(1);
-    expect(rules[0].facetIds.sort()).toEqual([...facetIds].sort());
+    expect(rules).toHaveLength(5);
+    for (const rule of rules)
+      expect(rule.facetIds.sort()).toEqual([...facetIds].sort());
   });
 
   it("leaves no rule behind when the model settings cannot be written", async () => {
@@ -290,9 +290,9 @@ describe("Topics eval-backed configuration", () => {
         (await listTopicRules(projectId)).map((value) => value.id),
       ).toEqual([rule.id]);
       const second = { projectId, filter: [], facetIds: [facet.id] };
-      await expect(saveTopicRule(second)).rejects.toThrow(
-        /already has a Topics rule/,
-      );
+      const created = await saveTopicRule({ ...second, name: "Another rule" });
+      expect(created.id).not.toBe(rule.id);
+      await prisma.evaluationRule.delete({ where: { id: created.id } });
       expect(
         await saveTopicRule({
           ...second,

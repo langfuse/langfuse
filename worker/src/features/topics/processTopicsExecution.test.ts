@@ -236,6 +236,8 @@ vi.mock("@langfuse/shared/topics/server", async (importOriginal) => {
             a.createdAt.localeCompare(b.createdAt),
         )
         .at(-1) ?? null,
+    getTopicAnalysisRun: async () => null,
+    resolveTopicClusteringCohort: async () => ({ ruleId: null }),
     getTopicClusteringSummaries: vi.fn(
       async (
         projectId: string,
