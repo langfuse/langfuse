@@ -97,6 +97,11 @@ export const SearchInput = React.forwardRef<HTMLInputElement, SearchInputProps>(
             disabled={disabled}
             // Not a tab stop, matching the native control it replaces.
             tabIndex={-1}
+            // Prevent the input from blurring (and firing onBlur) when this
+            // button is pressed. Without this, on mobile filter sheets the
+            // onBlur handler submits the stale draft value before the click
+            // handler can clear it.
+            onMouseDown={(e) => e.preventDefault()}
             // The button unmounts as soon as the value clears, so hand focus to
             // the field rather than letting it fall to the document.
             onClick={() => {
