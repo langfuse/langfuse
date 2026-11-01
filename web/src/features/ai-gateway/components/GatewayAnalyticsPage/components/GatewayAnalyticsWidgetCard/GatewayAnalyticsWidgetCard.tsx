@@ -1,8 +1,10 @@
-import { useMemo, type ReactNode } from "react";
+import { useMemo } from "react";
 import type { FilterState } from "@langfuse/shared";
 
+import { GatewayUnpricedCostBadge } from "@/src/features/ai-gateway/components/GatewayAnalyticsPage/components/GatewayUnpricedCostBadge/GatewayUnpricedCostBadge";
 import { GATEWAY_ANALYTICS_WIDGET_SIZE_CLASSES } from "@/src/features/ai-gateway/components/GatewayAnalyticsPage/constants/gatewayAnalyticsWidgetSizeClasses";
 import { buildGatewayAnalyticsQuery } from "@/src/features/ai-gateway/components/GatewayAnalyticsPage/fns/buildGatewayAnalyticsQuery";
+import type { GatewayUnpricedUsage } from "@/src/features/ai-gateway/components/GatewayAnalyticsPage/fns/summarizeUnpricedUsage";
 import type { GatewayAnalyticsWidget } from "@/src/features/ai-gateway/components/GatewayAnalyticsPage/types/gatewayAnalyticsWidget";
 import { DashboardCard } from "@/src/features/dashboard/components/cards/DashboardCard";
 import { WidgetContent } from "@/src/features/widgets";
@@ -27,7 +29,7 @@ export function GatewayAnalyticsWidgetCard({
   filters,
   dimensionLabelMap,
   isWaitingForLabels = false,
-  titleAddon,
+  unpricedUsage,
 }: {
   projectId: string;
   widget: GatewayAnalyticsWidget;
@@ -36,13 +38,18 @@ export function GatewayAnalyticsWidgetCard({
   dimensionLabelMap?: ReadonlyMap<string, string>;
   /** Covers the chart, which keeps loading underneath, so raw IDs never flash before their labels. */
   isWaitingForLabels?: boolean;
-  /** Sits on the title line, which is tall enough that it never reflows the card. */
-  titleAddon?: ReactNode;
+  /** Flags cost widgets whose totals exclude usage of models without a price. */
+  unpricedUsage?: GatewayUnpricedUsage;
 }) {
   const query = useMemo(
     () => buildGatewayAnalyticsQuery(widget, timeRange, filters),
     [widget, timeRange, filters],
   );
+  const excludedUnpricedUsage = widget.metrics.some(
+    ({ measure }) => measure === "totalCost",
+  )
+    ? unpricedUsage
+    : undefined;
 
   return (
     <DashboardCard
@@ -52,10 +59,11 @@ export function GatewayAnalyticsWidgetCard({
         GATEWAY_ANALYTICS_WIDGET_SIZE_CLASSES[widget.size],
       )}
       title={
-        titleAddon ? (
+        excludedUnpricedUsage ? (
+          // The title line is tall enough that the badge never reflows the card.
           <span className="flex items-center gap-2">
             {widget.name}
-            {titleAddon}
+            <GatewayUnpricedCostBadge usage={excludedUnpricedUsage} />
           </span>
         ) : (
           widget.name
@@ -87,6 +95,7 @@ export function GatewayAnalyticsWidgetCard({
               ? NO_DATA_PLACEHOLDER
               : undefined
           }
+          usdPrecision="cents"
         />
         {isWaitingForLabels ? <Skeleton className="absolute inset-0" /> : null}
       </div>

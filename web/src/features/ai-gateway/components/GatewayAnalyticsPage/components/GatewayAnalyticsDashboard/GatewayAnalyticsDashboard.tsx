@@ -3,7 +3,6 @@ import type { FilterState } from "@langfuse/shared";
 
 import { GatewayAnalyticsHeader } from "@/src/features/ai-gateway/components/GatewayAnalyticsPage/components/GatewayAnalyticsHeader/GatewayAnalyticsHeader";
 import { GatewayAnalyticsWidgetCard } from "@/src/features/ai-gateway/components/GatewayAnalyticsPage/components/GatewayAnalyticsWidgetCard/GatewayAnalyticsWidgetCard";
-import { GatewayUnpricedCostBadge } from "@/src/features/ai-gateway/components/GatewayAnalyticsPage/components/GatewayUnpricedCostBadge/GatewayUnpricedCostBadge";
 import { GatewayUnpricedUsageAlert } from "@/src/features/ai-gateway/components/GatewayAnalyticsPage/components/GatewayUnpricedUsageAlert/GatewayUnpricedUsageAlert";
 import { GATEWAY_ANALYTICS_WIDGETS } from "@/src/features/ai-gateway/components/GatewayAnalyticsPage/constants/gatewayAnalyticsWidgets";
 import { useGatewayAnalyticsFilters } from "@/src/features/ai-gateway/components/GatewayAnalyticsPage/hooks/useGatewayAnalyticsFilters";
@@ -100,13 +99,7 @@ function GatewayAnalyticsWidgets({
             isWaitingForLabels={
               Boolean(widget.dimensionLabels) && labelsPending
             }
-            titleAddon={
-              unpricedUsage &&
-              hasUnpricedUsage &&
-              widget.metrics.some(({ measure }) => measure === "totalCost") ? (
-                <GatewayUnpricedCostBadge usage={unpricedUsage} />
-              ) : undefined
-            }
+            unpricedUsage={hasUnpricedUsage ? unpricedUsage : undefined}
           />
         ))}
       </div>

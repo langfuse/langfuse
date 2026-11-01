@@ -351,9 +351,9 @@ const formatWithConstrainedDecimals = ({
  *
  * - `unit === "millisecond"` auto-scales across ms/s/min/h/d and can reduce
  *   fractional precision to satisfy `maxCharacters`.
- * - `unit === "USD"` formats with a currency prefix and at most two decimals
- *   (fewer to satisfy `maxCharacters`); non-zero values below one cent render
- *   as `<$0.01`.
+ * - `unit === "USD"` formats with a currency prefix and can reduce fractional
+ *   precision to satisfy `maxCharacters`. With `usdPrecision: "cents"` it keeps
+ *   at most two decimals and renders non-zero values below one cent as `<$0.01`.
  * - `style === "compact"` uses compact suffixes for large values (`K`, `M`,
  *   `B`, `T`), decimal formatting for `1e-3 <= |value| < 1`, and exponential
  *   notation below `1e-3`.
@@ -368,7 +368,7 @@ export function formatMetric(
   value: number,
   options: FormatMetricOptions,
 ): FormattedMetric {
-  const { unit, style, maxCharacters } = options;
+  const { unit, style, maxCharacters, usdPrecision } = options;
 
   const negative = value < 0;
   const absValue = Math.abs(value);
@@ -410,15 +410,18 @@ export function formatMetric(
   }
 
   if (unit === "USD") {
-    if (absValue > 0 && absValue < MIN_DISPLAYED_USD) {
+    const roundsToCents = usdPrecision === "cents";
+    if (roundsToCents && absValue > 0 && absValue < MIN_DISPLAYED_USD) {
       return applyNegative({ prefix: "<$", main: "0.01" });
     }
+    const keepsSubCentDigits = !roundsToCents && absValue > 0 && absValue < 5;
+    const maxFractionDigits = keepsSubCentDigits ? 6 : 2;
 
     return applyNegative(
       formatWithConstrainedDecimals({
         value: absValue,
         maxCharacters: magnitudeMaxCharacters,
-        maxFractionDigits: 2,
+        maxFractionDigits,
         createFormatter: (fractionDigits) =>
           new Intl.NumberFormat("en-US", {
             style: "currency",

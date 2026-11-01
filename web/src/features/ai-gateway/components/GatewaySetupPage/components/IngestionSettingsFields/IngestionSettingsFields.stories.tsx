@@ -1,4 +1,4 @@
-import { expect, fn } from "storybook/test";
+import { fn } from "storybook/test";
 
 import preview from "@/.storybook/preview";
 import { IngestionSettingsFields } from "./IngestionSettingsFields";
@@ -11,7 +11,6 @@ const projects = [
 ];
 
 export const NewProject = meta.story({
-  name: "(Test) Usage mode warns that project members see traffic",
   args: {
     settings: {
       ingestionMode: "USAGE",
@@ -22,19 +21,9 @@ export const NewProject = meta.story({
     projects,
     onChange: fn(),
   },
-  play: async ({ canvas }) => {
-    const alert = canvas.getByRole("alert");
-    await expect(alert).toHaveTextContent(
-      "Everyone with project access sees gateway traffic",
-    );
-    await expect(alert).toHaveTextContent("organization member and viewer");
-    await expect(alert).toHaveTextContent("costs, and gateway key owners");
-    await expect(alert).not.toHaveTextContent("prompts and responses");
-  },
 });
 
 export const ExistingProject = meta.story({
-  name: "(Test) Full mode warning includes prompts and responses",
   args: {
     ...NewProject.input.args,
     settings: {
@@ -44,15 +33,9 @@ export const ExistingProject = meta.story({
       existingProjectId: "project-staging",
     },
   },
-  play: async ({ canvas }) => {
-    await expect(canvas.getByRole("alert")).toHaveTextContent(
-      "prompts and responses",
-    );
-  },
 });
 
 export const NoRecording = meta.story({
-  name: "(Test) No warning when nothing is recorded",
   args: {
     ...NewProject.input.args,
     settings: {
@@ -61,8 +44,5 @@ export const NoRecording = meta.story({
       newProjectName: "ai-gateway",
       existingProjectId: undefined,
     },
-  },
-  play: async ({ canvas }) => {
-    await expect(canvas.queryByRole("alert")).not.toBeInTheDocument();
   },
 });

@@ -95,9 +95,11 @@ describe("formatMetric", () => {
     });
   });
 
-  it("formats USD with two decimals and floors tiny non-zero values at one cent", () => {
+  it("rounds USD to cents and floors tiny non-zero values when opted in", () => {
     const usd = (value: number, style: "compact" | "full") =>
-      toFullMetricString(formatMetric(value, { unit: "USD", style }));
+      toFullMetricString(
+        formatMetric(value, { unit: "USD", style, usdPrecision: "cents" }),
+      );
 
     for (const style of ["compact", "full"] as const) {
       expect(usd(2.036571, style)).toBe("$2.04");
@@ -109,11 +111,17 @@ describe("formatMetric", () => {
     }
   });
 
+  it("keeps sub-cent USD precision by default", () => {
+    expect(
+      toFullMetricString(formatMetric(0.0023, { unit: "USD", style: "full" })),
+    ).toBe("$0.0023");
+  });
+
   it("keeps negative currency sign ahead of the currency prefix", () => {
     expect(formatMetric(-1.234567, { unit: "USD", style: "compact" })).toEqual({
       negative: true,
       prefix: "$",
-      main: "1.23",
+      main: "1.234567",
     });
     expect(formatMetric(-10.123456, { unit: "USD", style: "compact" })).toEqual(
       {
