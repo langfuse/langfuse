@@ -43,6 +43,8 @@ import { CodeMirrorEditor } from "@/src/components/editor/CodeMirrorEditor";
 import { PromptLinkingEditor } from "@/src/components/editor/PromptLinkingEditor";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { usePlaygroundCache } from "@/src/features/playground";
+import { useHasProjectAccess } from "@/src/features/rbac";
+import { ActionButton } from "@/src/components/ActionButton";
 import { useQueryParam } from "use-query-params";
 import { usePromptNameValidation } from "@/src/features/prompts/hooks/usePromptNameValidation";
 import { getPromptDetailHref } from "@/src/features/prompts/utils";
@@ -56,6 +58,10 @@ type NewPromptFormProps = {
 export const NewPromptForm: React.FC<NewPromptFormProps> = (props) => {
   const { onFormSuccess, initialPrompt } = props;
   const projectId = useProjectIdFromURL();
+  const hasAccess = useHasProjectAccess({
+    projectId,
+    scope: "prompts:CUD",
+  });
   const [shouldLoadPlaygroundCache] = useQueryParam("loadPlaygroundCache");
   const [folderPath] = useQueryParam("folder");
   const [formError, setFormError] = useState<string | null>(null);
@@ -465,7 +471,7 @@ export const NewPromptForm: React.FC<NewPromptFormProps> = (props) => {
               onConfirm={form.handleSubmit(onSubmit)}
             >
               <Button
-                disabled={!form.formState.isValid}
+                disabled={!hasAccess || !form.formState.isValid}
                 variant="secondary"
                 className="w-full"
               >
@@ -473,26 +479,28 @@ export const NewPromptForm: React.FC<NewPromptFormProps> = (props) => {
               </Button>
             </ReviewPromptDialog>
 
-            <Button
+            <ActionButton
               type="submit"
+              hasAccess={hasAccess}
               loading={createPromptMutation.isPending}
-              className="w-full"
               disabled={!form.formState.isValid}
             >
               Save new prompt version
-            </Button>
+            </ActionButton>
           </div>
         ) : (
-          <Button
-            type="submit"
-            loading={createPromptMutation.isPending}
-            className="w-full"
-            disabled={Boolean(
-              !initialPrompt && form.formState.errors.name?.message,
-            )} // Disable button if prompt name already exists. Check is dynamic and not part of zod schema
-          >
-            Create prompt
-          </Button>
+          <div className="flex flex-col">
+            <ActionButton
+              type="submit"
+              hasAccess={hasAccess}
+              loading={createPromptMutation.isPending}
+              disabled={Boolean(
+                !initialPrompt && form.formState.errors.name?.message,
+              )} // Disable button if prompt name already exists. Check is dynamic and not part of zod schema
+            >
+              Create prompt
+            </ActionButton>
+          </div>
         )}
       </form>
       {formError && (
