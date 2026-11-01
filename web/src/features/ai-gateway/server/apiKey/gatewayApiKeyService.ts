@@ -22,7 +22,10 @@ import type { GatewayMetadata } from "@/src/features/ai-gateway/server/provider"
 import type { OrgAuthedContext } from "@/src/server/api/trpc";
 import { invalidateGatewayResolveCacheForApiKey } from "@/src/features/ai-gateway/server/resolve/gatewayResolveCache";
 import { hasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
+import { GATEWAY_API_KEY_LAST_USED_WINDOW_DAYS } from "@/src/features/ai-gateway/constants/gatewayApiKeyLastUsed";
+import { GatewayConfigRepository } from "@/src/features/ai-gateway/server/config/gatewayConfigRepository";
 import { GatewayApiKeyRepository } from "./gatewayApiKeyRepository";
+import { getGatewayApiKeysLastUsedAt } from "./gatewayApiKeyLastUsedRepository";
 
 type GatewayApiKeyIssuedAs = "user" | "serviceAccount";
 
@@ -45,6 +48,47 @@ export class GatewayApiKeyService {
     limit: number;
   }) {
     return this.repository.listGatewayApiKeys(params);
+  }
+
+  /**
+   * Latest gateway request per key in the last
+   * GATEWAY_API_KEY_LAST_USED_WINDOW_DAYS days, read from the organization's
+   * gateway ingestion project. Ids the caller cannot list are dropped.
+   * `isTracked` is false when no events table holds gateway traffic for the
+   * organization: no active ingestion project, or legacy write mode.
+   */
+  async getLastUsed(params: {
+    organizationId: string;
+    ownerUserId?: string;
+    apiKeyIds: string[];
+    now?: Date;
+  }) {
+    const config = await new GatewayConfigRepository(this.prisma).getConfig(
+      params.organizationId,
+    );
+    const project = config?.defaultIngestionProject;
+    if (
+      env.LANGFUSE_MIGRATION_V4_WRITE_MODE === "legacy" ||
+      !project ||
+      project.deletedAt ||
+      project.orgId !== params.organizationId
+    ) {
+      return { isTracked: false, apiKeys: [] };
+    }
+    const apiKeyIds =
+      await this.repository.filterVisibleGatewayApiKeyIds(params);
+    const since = new Date(
+      (params.now ?? new Date()).getTime() -
+        GATEWAY_API_KEY_LAST_USED_WINDOW_DAYS * 24 * 60 * 60 * 1000,
+    );
+    return {
+      isTracked: true,
+      apiKeys: await getGatewayApiKeysLastUsedAt({
+        projectId: project.id,
+        apiKeyIds,
+        since,
+      }),
+    };
   }
 
   async create(params: {

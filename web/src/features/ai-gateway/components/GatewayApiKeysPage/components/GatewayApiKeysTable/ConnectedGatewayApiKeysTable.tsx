@@ -8,6 +8,7 @@ import { TeamInviteDialogController } from "@/src/features/ai-gateway/components
 import { ConfirmationDialogController } from "@/src/components/design-system/ConfirmationDialogController/ConfirmationDialogController";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { usePaginationState } from "@/src/hooks/usePaginationState";
+import { joinTableCoreAndMetrics } from "@/src/components/table/utils/joinTableCoreAndMetrics";
 import { api } from "@/src/utils/api";
 import { GatewayApiKeysTable } from "./GatewayApiKeysTable";
 
@@ -33,6 +34,20 @@ export function ConnectedGatewayApiKeysTable({
     },
     { placeholderData: keepPreviousData },
   );
+  const lastUsedQuery = api.aiGateway.getApiKeysLastUsed.useQuery(
+    {
+      orgId: organizationId,
+      apiKeyIds: apiKeysQuery.data?.data.map(({ apiKey }) => apiKey.id) ?? [],
+    },
+    {
+      enabled: apiKeysQuery.isSuccess,
+      trpc: { context: { skipBatch: true } },
+    },
+  );
+  const rows = joinTableCoreAndMetrics(
+    apiKeysQuery.data?.data.map((row) => ({ ...row, id: row.apiKey.id })),
+    lastUsedQuery.data?.apiKeys,
+  ).rows;
   const utils = api.useUtils();
   const capture = usePostHogClientCapture();
   const revoke = api.aiGateway.revokeApiKey.useMutation();
@@ -95,11 +110,18 @@ export function ConnectedGatewayApiKeysTable({
                 return (
                   <GatewayApiKeysTable
                     data={
-                      apiKeysQuery.isPending
+                      rows === undefined
                         ? { status: "loading" }
-                        : {
+                        : { status: "success", data: rows }
+                    }
+                    lastUsed={
+                      lastUsedQuery.isSuccess
+                        ? {
                             status: "success",
-                            data: apiKeysQuery.data.data,
+                            isTracked: lastUsedQuery.data.isTracked,
+                          }
+                        : {
+                            status: lastUsedQuery.isError ? "error" : "loading",
                           }
                     }
                     pagination={{

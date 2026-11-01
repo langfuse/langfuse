@@ -9,6 +9,7 @@ import { createUserTableColumn } from "@/src/components/design-system/table/colu
 import type { AsyncTableData } from "@/src/components/design-system/table/Table";
 import type { LangfuseColumnDef } from "@/src/components/table/types";
 import { isApiKeyExpired } from "@/src/features/apiKey";
+import { GATEWAY_API_KEY_LAST_USED_WINDOW_DAYS } from "@/src/features/ai-gateway/constants/gatewayApiKeyLastUsed";
 import { GatewayApiKeysEmptyState } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/GatewayApiKeysTable/components/GatewayApiKeysEmptyState/GatewayApiKeysEmptyState";
 
 type GatewayApiKey = {
@@ -26,10 +27,19 @@ type GatewayApiKey = {
       image: string | null;
     } | null;
   };
+  /** Absent until the last-used query resolves, and when the key had no gateway traffic in the window. */
+  lastUsedAt?: Date;
 };
+
+/** `isTracked` is false when the organization has no events table holding gateway traffic. */
+type GatewayApiKeysLastUsedState =
+  | { status: "loading" }
+  | { status: "error" }
+  | { status: "success"; isTracked: boolean };
 
 export function GatewayApiKeysTable({
   data,
+  lastUsed,
   createAction,
   inviteAction,
   onRevoke,
@@ -37,6 +47,7 @@ export function GatewayApiKeysTable({
   search,
 }: {
   data: AsyncTableData<GatewayApiKey[]>;
+  lastUsed: GatewayApiKeysLastUsedState;
   createAction: () => void;
   /** Omit for callers who cannot invite people to the organization. */
   inviteAction?: () => void;
@@ -86,6 +97,22 @@ export function GatewayApiKeysTable({
       emptyValue: "No expiration",
       getPrefix: (expiresAt) =>
         isApiKeyExpired(expiresAt) ? "Expired on " : null,
+    }),
+    createDateTableColumn<GatewayApiKey>({
+      accessorFn: (row) => row.lastUsedAt,
+      id: "lastUsedAt",
+      header: "Last used",
+      mode: "relative",
+      hideBelowMd: true,
+      enableResizing: false,
+      emptyValue:
+        lastUsed.status === "success" && lastUsed.isTracked
+          ? `Not used in last ${GATEWAY_API_KEY_LAST_USED_WINDOW_DAYS} days`
+          : "Unavailable",
+      getValue: (lastUsedAt) =>
+        lastUsed.status === "loading"
+          ? { type: "loading" }
+          : (lastUsedAt ?? undefined),
     }),
     createBadgeListTableColumn<GatewayApiKey>({
       accessorFn: (row) => getMetadataEntries(row.metadata),
