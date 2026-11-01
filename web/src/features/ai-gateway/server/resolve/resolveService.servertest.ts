@@ -75,9 +75,12 @@ const row = (overrides: {
   expiresAt: null,
   note: overrides.note === undefined ? "CI key" : overrides.note,
   user:
-    overrides.user === undefined
-      ? { name: "Alice", email: "alice@example.com" }
-      : overrides.user,
+    overrides.user === null
+      ? null
+      : {
+          ...(overrides.user ?? { name: "Alice", email: "alice@example.com" }),
+          organizationMemberships: [{ orgId: "org-1", role: "MEMBER" }],
+        },
   gatewayAssociation:
     overrides.metadata === undefined ? null : { metadata: overrides.metadata },
   organization: {

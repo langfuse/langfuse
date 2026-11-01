@@ -49,6 +49,7 @@ import {
   type GatewayResolveError,
   GatewayResolveService,
 } from "@/src/features/ai-gateway/server/resolve/resolveService";
+import { invalidateGatewayResolveCacheForApiKey } from "@/src/features/ai-gateway/server/resolve/gatewayResolveCache";
 import { GatewayModelsService } from "@/src/features/ai-gateway/server/provider/models/gatewayModelsService";
 import { GatewayApiKeyService } from "@/src/features/ai-gateway/server/apiKey/gatewayApiKeyService";
 import { GatewayConfigService } from "@/src/features/ai-gateway/server/config/gatewayConfigService";
@@ -2226,6 +2227,111 @@ describe("AI gateway control plane", () => {
         LANGFUSE_AI_GATEWAY_CACHE_RESOLVE_ENABLED: originalCache,
       });
     }
+  });
+
+  describe("key owner role", () => {
+    const authenticateKey = (secretKey: string) =>
+      new GatewayApiKeyAuthenticator(prisma).authenticateModelsRequest({
+        fastHashedSecretKey: createShaHash(secretKey, env.SALT),
+        apiFormat: "openai.responses",
+      });
+    const setOwnerRole = (orgId: string, userId: string, role: Role | null) =>
+      role
+        ? prisma.organizationMembership.update({
+            where: { orgId_userId: { orgId, userId } },
+            data: { role },
+          })
+        : prisma.organizationMembership.delete({
+            where: { orgId_userId: { orgId, userId } },
+          });
+    const ownerNotAllowed = {
+      status: 403,
+      message: "API key owner is not allowed to invoke the gateway",
+    };
+
+    it.each([
+      { change: "demoted to VIEWER", role: Role.VIEWER },
+      { change: "demoted to NONE", role: Role.NONE },
+      { change: "removed from the organization", role: null },
+    ])(
+      "rejects user-bound keys whose owner was $change out of band",
+      async ({ role }) => {
+        const { caller, org, user } = await prepare();
+        const key = await caller.aiGateway.createApiKey({
+          orgId: org.id,
+          name: "User key",
+          metadata: {},
+        });
+        await setOwnerRole(org.id, user.id, role);
+        const lookup = vi.spyOn(prisma.apiKey, "findFirst");
+
+        for (let attempt = 0; attempt < 2; attempt++) {
+          await expect(authenticateKey(key.secretKey)).rejects.toMatchObject(
+            ownerNotAllowed,
+          );
+        }
+        // A rejection is not cached, so restoring access applies at once.
+        expect(lookup).toHaveBeenCalledTimes(2);
+        lookup.mockRestore();
+      },
+    );
+
+    it.each([Role.AI_GATEWAY, Role.MEMBER])(
+      "accepts user-bound keys whose owner is %s",
+      async (role) => {
+        const { caller, org, user } = await prepare();
+        const key = await caller.aiGateway.createApiKey({
+          orgId: org.id,
+          name: "User key",
+          metadata: {},
+        });
+        await setOwnerRole(org.id, user.id, role);
+
+        await expect(authenticateKey(key.secretKey)).resolves.toMatchObject({
+          apiKeyId: key.id,
+          userId: user.id,
+        });
+      },
+    );
+
+    it("accepts service-account keys regardless of the creator's role", async () => {
+      const { caller, org, user } = await prepare();
+      const key = await caller.aiGateway.createApiKey({
+        orgId: org.id,
+        name: "Service key",
+        metadata: {},
+        issuedAs: "serviceAccount",
+      });
+      await setOwnerRole(org.id, user.id, Role.NONE);
+
+      await expect(authenticateKey(key.secretKey)).resolves.toMatchObject({
+        apiKeyId: key.id,
+        userId: null,
+      });
+    });
+
+    it("serves an out-of-band demotion from cache until the entry expires", async () => {
+      const { caller, org, user } = await prepare();
+      const key = await caller.aiGateway.createApiKey({
+        orgId: org.id,
+        name: "User key",
+        metadata: {},
+      });
+      const fastHashedSecretKey = createShaHash(key.secretKey, env.SALT);
+      await expect(authenticateKey(key.secretKey)).resolves.toMatchObject({
+        apiKeyId: key.id,
+      });
+      await setOwnerRole(org.id, user.id, Role.VIEWER);
+
+      // The resolve cache TTL bounds how long the cached grant survives.
+      await expect(authenticateKey(key.secretKey)).resolves.toMatchObject({
+        apiKeyId: key.id,
+      });
+      await invalidateGatewayResolveCacheForApiKey(fastHashedSecretKey);
+      await expect(authenticateKey(key.secretKey)).rejects.toMatchObject(
+        ownerNotAllowed,
+      );
+    });
   });
 
   it("accepts organization keys granted gateway:invoke without a gateway association", async () => {

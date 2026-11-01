@@ -1,4 +1,5 @@
-import { prisma } from "../../../src/db";
+import { prisma, type Role } from "../../../src/db";
+import { organizationRoleAccessRights } from "../../../src/features/rbac/organizationAccessRights";
 import {
   OrganizationId,
   SystemRoleId,
@@ -39,8 +40,9 @@ import { countRows, escapeLike } from "./verify";
  *
  * Writes go to the ingestion project of the --project's organization, not to
  * --project itself. Missing gateway keys are created (bound round-robin to
- * organization members) until the organization has --keys of them. One extra
- * service key, bound to no user, sends requests whose user ID the caller set.
+ * organization members whose role can invoke the gateway) until the
+ * organization has --keys of them. One extra service key, bound to no user,
+ * sends requests whose user ID the caller set.
  */
 
 const MODELS = [
@@ -50,6 +52,13 @@ const MODELS = [
 ];
 
 const SDK_EVENTS_PER_DAY = 3;
+
+// The gateway rejects keys whose owner's organization role cannot invoke it.
+const GATEWAY_INVOKER_ROLES = (
+  Object.keys(organizationRoleAccessRights) as Role[]
+).filter((role) =>
+  organizationRoleAccessRights[role].includes("gateway:invoke"),
+);
 
 const ensureGatewayKeys = async (params: {
   organizationId: string;
@@ -71,13 +80,16 @@ const ensureGatewayKeys = async (params: {
   if (keys.length >= params.keyCount) return keys;
 
   const members = await prisma.organizationMembership.findMany({
-    where: { orgId: params.organizationId },
+    where: {
+      orgId: params.organizationId,
+      role: { in: GATEWAY_INVOKER_ROLES },
+    },
     select: { userId: true },
     orderBy: { createdAt: "asc" },
   });
   if (members.length === 0) {
     throw new SeedError(
-      "The gateway organization has no members to bind keys to",
+      "The gateway organization has no members that can invoke the gateway to bind keys to",
       "run `pnpm run dx` to seed the default organization and its members",
     );
   }
