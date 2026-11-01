@@ -16,7 +16,7 @@ export function buildCopilotDesktopInstructions(
     docsUrl: AGENT_SETUP_DOCS_URLS["copilot-desktop"],
     warning: context.providers.includes("OPENAI")
       ? undefined
-      : "The GitHub Copilot app needs an OpenAI provider connection, and none is enabled yet.",
+      : "The GitHub Copilot app needs an OpenAI provider credential, and none is enabled yet.",
     steps: [
       {
         title: "Add a custom endpoint",
@@ -37,7 +37,7 @@ export function buildCopilotDesktopInstructions(
       {
         title: "Pick a model",
         description:
-          "The models of your OpenAI provider connection appear in the model picker alongside the GitHub-hosted models. Select one to start a session.",
+          "The models of your OpenAI provider credential appear in the model picker alongside the GitHub-hosted models. Select one to start a session.",
       },
     ],
   };

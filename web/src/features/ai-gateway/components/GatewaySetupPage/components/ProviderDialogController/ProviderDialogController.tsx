@@ -87,7 +87,7 @@ export function ProviderDialogController({
       : null;
   const isError = test.isError || (Boolean(saveError) && !serverNameError);
   const errorTitle = test.isError
-    ? "Provider validation failed"
+    ? "Credential validation failed"
     : "Provider credential could not be saved";
 
   /** Skips the live check after saving, as the refetched list already holds the saved name. */

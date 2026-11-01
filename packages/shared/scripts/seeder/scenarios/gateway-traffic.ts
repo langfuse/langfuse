@@ -43,10 +43,12 @@ import { countRows, escapeLike } from "./verify";
  * service key, bound to no user, sends requests whose user ID the caller set.
  */
 
-const MODELS = [
+/** A `null` rate is a model without a Langfuse price: requests carry usage but no cost. */
+const MODELS: ReadonlyArray<{ name: string; rate: number | null }> = [
   { name: "gpt-5.4-mini", rate: 1 },
   { name: "claude-haiku-4-5", rate: 1.5 },
   { name: "gpt-5.6-sol", rate: 6 },
+  { name: "self-hosted-llama", rate: null },
 ];
 
 const SDK_EVENTS_PER_DAY = 3;
@@ -165,13 +167,21 @@ const ensureServiceKey = async (params: {
 const generationCost = (
   usageInput: number,
   usageOutput: number,
-  rate: number,
+  rate: number | null,
 ) => {
   const usage = {
     input: usageInput,
     output: usageOutput,
     total: usageInput + usageOutput,
   };
+  if (rate === null) {
+    return {
+      provided_usage_details: usage,
+      usage_details: usage,
+      provided_cost_details: {},
+      cost_details: {},
+    };
+  }
   const inputCost = usageInput * GEN_INPUT_PRICE * rate;
   const outputCost = usageOutput * GEN_OUTPUT_PRICE * rate;
   const cost = {
@@ -435,7 +445,7 @@ const run = async (
 export const gatewayTrafficScenario: ScenarioDefinition = {
   name: "gateway-traffic",
   description:
-    "AI Gateway requests in the organization's gateway ingestion project: one GENERATION per request attributed to the gateway service, its gateway key, and the key's user, plus a few SDK events. Creates gateway keys up to --keys, plus one service key bound to no user. Built for the AI Gateway analytics settings tab.",
+    "AI Gateway requests in the organization's gateway ingestion project: one GENERATION per request attributed to the gateway service, its gateway key, and the key's user, plus a few SDK events. One model has no price, so its requests carry usage but no cost. Creates gateway keys up to --keys, plus one service key bound to no user. Built for the AI Gateway analytics settings tab.",
   supportsV4: true,
   flags: [
     {

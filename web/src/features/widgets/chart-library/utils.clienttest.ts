@@ -4,6 +4,7 @@ import {
   formatMetric,
   getDimensionSummaries,
   getEvenTickInterval,
+  toFullMetricString,
 } from "@/src/features/widgets/chart-library/utils";
 import { type DataPoint } from "@/src/features/widgets/chart-library/chart-props";
 
@@ -94,11 +95,25 @@ describe("formatMetric", () => {
     });
   });
 
+  it("formats USD with two decimals and floors tiny non-zero values at one cent", () => {
+    const usd = (value: number, style: "compact" | "full") =>
+      toFullMetricString(formatMetric(value, { unit: "USD", style }));
+
+    for (const style of ["compact", "full"] as const) {
+      expect(usd(2.036571, style)).toBe("$2.04");
+      expect(usd(0.5, style)).toBe("$0.50");
+      expect(usd(1234.5, style)).toBe("$1,234.50");
+      expect(usd(0.004, style)).toBe("<$0.01");
+      expect(usd(0.0000001, style)).toBe("<$0.01");
+      expect(usd(0, style)).toBe("$0.00");
+    }
+  });
+
   it("keeps negative currency sign ahead of the currency prefix", () => {
     expect(formatMetric(-1.234567, { unit: "USD", style: "compact" })).toEqual({
       negative: true,
       prefix: "$",
-      main: "1.234567",
+      main: "1.23",
     });
     expect(formatMetric(-10.123456, { unit: "USD", style: "compact" })).toEqual(
       {

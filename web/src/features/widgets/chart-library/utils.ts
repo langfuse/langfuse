@@ -279,6 +279,8 @@ const formatCompactMetric = (
   return formatExponentialMetric(value, maxCharacters);
 };
 
+const MIN_DISPLAYED_USD = 0.01;
+
 const durationDivisors = [1, 1_000, 60_000, 3_600_000, 86_400_000] as const;
 const durationUnits = [
   "millisecond",
@@ -349,8 +351,9 @@ const formatWithConstrainedDecimals = ({
  *
  * - `unit === "millisecond"` auto-scales across ms/s/min/h/d and can reduce
  *   fractional precision to satisfy `maxCharacters`.
- * - `unit === "USD"` formats with a currency prefix and can reduce fractional
- *   precision to satisfy `maxCharacters`.
+ * - `unit === "USD"` formats with a currency prefix and at most two decimals
+ *   (fewer to satisfy `maxCharacters`); non-zero values below one cent render
+ *   as `<$0.01`.
  * - `style === "compact"` uses compact suffixes for large values (`K`, `M`,
  *   `B`, `T`), decimal formatting for `1e-3 <= |value| < 1`, and exponential
  *   notation below `1e-3`.
@@ -407,13 +410,15 @@ export function formatMetric(
   }
 
   if (unit === "USD") {
-    const maxFractionDigits = value && absValue < 5 ? 6 : 2;
+    if (absValue > 0 && absValue < MIN_DISPLAYED_USD) {
+      return applyNegative({ prefix: "<$", main: "0.01" });
+    }
 
     return applyNegative(
       formatWithConstrainedDecimals({
         value: absValue,
         maxCharacters: magnitudeMaxCharacters,
-        maxFractionDigits,
+        maxFractionDigits: 2,
         createFormatter: (fractionDigits) =>
           new Intl.NumberFormat("en-US", {
             style: "currency",

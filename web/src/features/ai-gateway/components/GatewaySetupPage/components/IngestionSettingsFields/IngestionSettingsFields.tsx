@@ -1,6 +1,7 @@
 import type { GatewayIngestionMode } from "@langfuse/shared";
 
 import { IngestionModeCard } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/IngestionSettingsFields/components/IngestionModeCard";
+import { IngestionProjectAccessAlert } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/IngestionSettingsFields/components/IngestionProjectAccessAlert";
 import { IngestionProjectRow } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/IngestionSettingsFields/components/IngestionProjectRow";
 import type {
   GatewayIngestionSettings,
@@ -47,11 +48,14 @@ export function IngestionSettingsFields({
         ))}
       </div>
       {settings.ingestionMode === "NONE" ? null : (
-        <IngestionProjectRow
-          settings={settings}
-          projects={projects}
-          onChange={onChange}
-        />
+        <>
+          <IngestionProjectRow
+            settings={settings}
+            projects={projects}
+            onChange={onChange}
+          />
+          <IngestionProjectAccessAlert ingestionMode={settings.ingestionMode} />
+        </>
       )}
     </div>
   );

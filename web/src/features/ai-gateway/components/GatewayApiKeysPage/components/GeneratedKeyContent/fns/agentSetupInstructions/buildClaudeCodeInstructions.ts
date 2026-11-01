@@ -19,7 +19,7 @@ export function buildClaudeCodeInstructions(
     docsUrl: AGENT_SETUP_DOCS_URLS["claude-code"],
     warning: context.providers.includes("ANTHROPIC")
       ? undefined
-      : "Claude Code needs an Anthropic provider connection, and none is enabled yet.",
+      : "Claude Code needs an Anthropic provider credential, and none is enabled yet.",
     steps: [
       {
         title: "Log out of any existing session",

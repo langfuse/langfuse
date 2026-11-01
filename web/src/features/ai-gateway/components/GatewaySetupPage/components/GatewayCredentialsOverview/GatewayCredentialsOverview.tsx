@@ -19,7 +19,9 @@ import type {
   GatewayProject,
 } from "@/src/features/ai-gateway/components/GatewaySetupPage/types/gatewaySetup";
 import { GATEWAY_SETUP } from "@/src/features/ai-gateway/components/GatewaySetupPage/constants/gatewaySetup";
+import { IngestionProjectAccessAlert } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/IngestionSettingsFields/components/IngestionProjectAccessAlert";
 import { GATEWAY_INGESTION_MODES } from "@/src/features/ai-gateway/constants/gatewayIngestionModes";
+import { getEffectiveGatewayIngestionMode } from "@/src/features/ai-gateway/fns/gatewayIngestionModePolicy";
 import type { GatewayConnection } from "@/src/features/ai-gateway/types/gatewayProvider";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { api, reportNonTrpcError } from "@/src/utils/api";
@@ -178,6 +180,10 @@ export function GatewayCredentialsOverview({
   const ingestionMode = GATEWAY_INGESTION_MODES.find(
     (mode) => mode.value === config?.ingestionMode,
   );
+  const effectiveMode =
+    config && getEffectiveGatewayIngestionMode(config.ingestionMode);
+  const capturingMode =
+    effectiveMode && effectiveMode !== "NONE" ? effectiveMode : undefined;
   return (
     <div className="flex h-full min-h-0 flex-col gap-4">
       <div>
@@ -224,6 +230,9 @@ export function GatewayCredentialsOverview({
           {GATEWAY_SETUP.description}
         </p>
       </div>
+      {capturingMode ? (
+        <IngestionProjectAccessAlert ingestionMode={capturingMode} />
+      ) : null}
       <section className="flex min-h-0 flex-1 flex-col">
         <Header title="Provider credentials" />
         <ConfirmationDialogController<GatewayConnection>

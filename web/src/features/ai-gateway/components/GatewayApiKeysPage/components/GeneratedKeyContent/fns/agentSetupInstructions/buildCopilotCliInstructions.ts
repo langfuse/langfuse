@@ -43,13 +43,13 @@ export function buildCopilotCliInstructions(
     docsUrl: AGENT_SETUP_DOCS_URLS["copilot-cli"],
     warning:
       context.providers.length === 0
-        ? "Copilot CLI needs an Anthropic or OpenAI provider connection, and none is enabled yet."
+        ? "Copilot CLI needs an Anthropic or OpenAI provider credential, and none is enabled yet."
         : undefined,
     steps: [
       {
         title: "Point Copilot CLI at the gateway",
         description:
-          "Replace the placeholders with your gateway key and a model from your provider connection. If ~/.copilot/providers.json lists providers, it takes precedence over these variables.",
+          "Replace the placeholders with your gateway key and a model from your provider credential. If ~/.copilot/providers.json lists providers, it takes precedence over these variables.",
         language: "sh",
         code: [
           ...env,

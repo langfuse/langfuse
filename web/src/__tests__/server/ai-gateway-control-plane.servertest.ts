@@ -1159,7 +1159,7 @@ describe("AI gateway control plane", () => {
 
     await expect(
       caller.aiGateway.revokeApiKey({ orgId: org.id, id: created.id }),
-    ).rejects.toThrow("Gateway API key not found");
+    ).rejects.toThrow("Gateway key not found");
   });
 
   it("scopes gateway API keys to their creator for members", async () => {
@@ -1216,7 +1216,7 @@ describe("AI gateway control plane", () => {
 
     await expect(
       member.aiGateway.revokeApiKey({ orgId: owner.org.id, id: ownerKey.id }),
-    ).rejects.toThrow("Gateway API key not found");
+    ).rejects.toThrow("Gateway key not found");
     await expect(
       member.aiGateway.revokeApiKey({ orgId: owner.org.id, id: memberKey.id }),
     ).resolves.toEqual({ success: true });
@@ -1405,7 +1405,7 @@ describe("AI gateway control plane", () => {
         apiKeyId: key.id,
         session,
       }),
-    ).rejects.toThrow("Gateway API key not found");
+    ).rejects.toThrow("Gateway key not found");
     expect(await prisma.auditLog.count({ where: { orgId: org.id } })).toBe(
       auditCountAfterSuccess,
     );
@@ -1953,7 +1953,7 @@ describe("AI gateway control plane", () => {
         id: connection.id,
         status: "ENABLED",
       }),
-    ).rejects.toThrow("credential update or successful retry");
+    ).rejects.toThrow("credential update or a successful retry");
     const automaticRefresh = vi.fn<typeof fetch>();
     await new GatewayModelCatalogService(
       prisma,
