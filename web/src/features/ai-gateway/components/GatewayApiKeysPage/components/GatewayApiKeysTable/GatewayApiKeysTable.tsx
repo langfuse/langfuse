@@ -31,7 +31,7 @@ type GatewayApiKey = {
   lastUsedAt?: Date;
 };
 
-/** `isTracked` is false when the organization has no events table holding gateway traffic. */
+/** `isTracked` is false when the organization has no gateway ingestion project to record traffic into. */
 type GatewayApiKeysLastUsedState =
   | { status: "loading" }
   | { status: "error" }

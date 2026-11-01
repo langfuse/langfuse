@@ -54,21 +54,19 @@ export class GatewayApiKeyService {
    * Latest gateway request per key in the last
    * GATEWAY_API_KEY_LAST_USED_WINDOW_DAYS days, read from the organization's
    * gateway ingestion project. Ids the caller cannot list are dropped.
-   * `isTracked` is false when no events table holds gateway traffic for the
-   * organization: no active ingestion project, or legacy write mode.
+   * `isTracked` is false without an active ingestion project, since gateway
+   * traffic is then not recorded anywhere.
    */
   async getLastUsed(params: {
     organizationId: string;
     ownerUserId?: string;
     apiKeyIds: string[];
-    now?: Date;
   }) {
     const config = await new GatewayConfigRepository(this.prisma).getConfig(
       params.organizationId,
     );
     const project = config?.defaultIngestionProject;
     if (
-      env.LANGFUSE_MIGRATION_V4_WRITE_MODE === "legacy" ||
       !project ||
       project.deletedAt ||
       project.orgId !== params.organizationId
@@ -78,8 +76,7 @@ export class GatewayApiKeyService {
     const apiKeyIds =
       await this.repository.filterVisibleGatewayApiKeyIds(params);
     const since = new Date(
-      (params.now ?? new Date()).getTime() -
-        GATEWAY_API_KEY_LAST_USED_WINDOW_DAYS * 24 * 60 * 60 * 1000,
+      Date.now() - GATEWAY_API_KEY_LAST_USED_WINDOW_DAYS * 24 * 60 * 60 * 1000,
     );
     return {
       isTracked: true,

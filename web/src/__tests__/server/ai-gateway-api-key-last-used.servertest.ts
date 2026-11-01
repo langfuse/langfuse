@@ -18,7 +18,6 @@ const cleanupUsers: string[] = [];
 const originalGatewayOrganizationAllowlist = [
   ...env.LANGFUSE_AI_GATEWAY_ORGANIZATION_ID_ALLOWLIST,
 ];
-const originalV4WriteMode = env.LANGFUSE_MIGRATION_V4_WRITE_MODE;
 
 afterEach(async () => {
   await prisma.organization.deleteMany({
@@ -32,7 +31,6 @@ afterEach(async () => {
     env.LANGFUSE_AI_GATEWAY_ORGANIZATION_ID_ALLOWLIST.length,
     ...originalGatewayOrganizationAllowlist,
   );
-  Object.assign(env, { LANGFUSE_MIGRATION_V4_WRITE_MODE: originalV4WriteMode });
 });
 
 async function prepareOrganization() {
@@ -212,13 +210,13 @@ describe("aiGateway.getApiKeysLastUsed", () => {
     const outsider = await callerFor(otherOrg.org, Role.OWNER);
     await expect(
       outsider.aiGateway.getApiKeysLastUsed({ orgId: org.id, apiKeyIds }),
-    ).rejects.toMatchObject({ code: "FORBIDDEN" });
+    ).rejects.toMatchObject({ code: "UNAUTHORIZED" });
     await expect(
       viewer.aiGateway.getApiKeysLastUsed({ orgId: org.id, apiKeyIds }),
     ).rejects.toMatchObject({ code: "FORBIDDEN" });
   });
 
-  it("reports usage as untracked without an ingestion project or in legacy write mode", async () => {
+  it("reports usage as untracked without an active ingestion project", async () => {
     const { org, ingestionProject } = await prepareOrganization();
     const owner = await callerFor(org, Role.OWNER);
     const key = await owner.aiGateway.createApiKey({
@@ -226,12 +224,19 @@ describe("aiGateway.getApiKeysLastUsed", () => {
       name: "Key",
       metadata: {},
     });
+    await createEventsCh([
+      gatewayRequest({
+        projectId: ingestionProject.id,
+        apiKeyId: key.id,
+        at: new Date(Date.now() - HOUR_MS),
+      }),
+    ]);
     const input = { orgId: org.id, apiKeyIds: [key.id] };
+    const untracked = { isTracked: false, apiKeys: [] };
 
-    await expect(owner.aiGateway.getApiKeysLastUsed(input)).resolves.toEqual({
-      isTracked: false,
-      apiKeys: [],
-    });
+    await expect(owner.aiGateway.getApiKeysLastUsed(input)).resolves.toEqual(
+      untracked,
+    );
 
     await prisma.gatewayConfig.create({
       data: {
@@ -239,10 +244,12 @@ describe("aiGateway.getApiKeysLastUsed", () => {
         defaultIngestionProjectId: ingestionProject.id,
       },
     });
-    Object.assign(env, { LANGFUSE_MIGRATION_V4_WRITE_MODE: "legacy" });
-    await expect(owner.aiGateway.getApiKeysLastUsed(input)).resolves.toEqual({
-      isTracked: false,
-      apiKeys: [],
+    await prisma.project.update({
+      where: { id: ingestionProject.id },
+      data: { deletedAt: new Date() },
     });
+    await expect(owner.aiGateway.getApiKeysLastUsed(input)).resolves.toEqual(
+      untracked,
+    );
   });
 });
