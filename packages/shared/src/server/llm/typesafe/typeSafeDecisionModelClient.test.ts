@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import type { DecisionModelRequest } from "../../evals/decisionModelEvaluatorExecution";
+import { VERSION } from "../../../constants/VERSION";
 import { createSecureLlmFetch } from "../secureLlmFetch";
 import { TYPESAFE_UPSTREAMS } from "../types";
 import { createTypeSafeDecisionModelClient } from "./typeSafeDecisionModelClient";
@@ -158,6 +159,10 @@ describe("createTypeSafeDecisionModelClient", () => {
         "Bearer sk-test",
       );
       expect(JSON.parse(init.body as string).model).toBe(model);
+      // Attribution header goes to Nace only.
+      expect(new Headers(init.headers).get("x-nace-client")).toBe(
+        id === "nace" ? `langfuse/${VERSION.replace(/^v/, "")}` : null,
+      );
     },
   );
 
