@@ -18,7 +18,8 @@ vi.mock("@/src/features/posthog-analytics/ServerPosthog", () => ({
 }));
 
 // Stands in for NextAuth's OAuth callback once the provider handshake is
-// done: it creates the new user, then links the provider account to it.
+// done: it links the provider account to the user with that email, creating
+// the user first when there is none.
 vi.mock("next-auth", async (importOriginal) => {
   const actual = await importOriginal<typeof NextAuthModule>();
   return {
@@ -29,15 +30,21 @@ vi.mock("next-auth", async (importOriginal) => {
       options: NextAuthOptions,
     ) => {
       const adapter = options.adapter;
-      if (!adapter?.createUser || !adapter.linkAccount) {
-        throw new Error("NextAuth adapter without createUser/linkAccount");
+      if (
+        !adapter?.createUser ||
+        !adapter.linkAccount ||
+        !adapter.getUserByEmail
+      ) {
+        throw new Error("NextAuth adapter without user and account methods");
       }
       const [, provider] = req.query.nextauth as string[];
-      const user = await adapter.createUser({
-        email: oauthProfile.email,
-        emailVerified: null,
-        name: "Jane Doe",
-      });
+      const user =
+        (await adapter.getUserByEmail(oauthProfile.email)) ??
+        (await adapter.createUser({
+          email: oauthProfile.email,
+          emailVerified: null,
+          name: "Jane Doe",
+        }));
       await adapter.linkAccount({
         userId: user.id,
         type: "oauth",
@@ -108,6 +115,29 @@ describe("cloud_signup_complete", () => {
     await expectOneSignupEvent({ email, provider: "google" });
   });
 
+  it("records nothing when an existing account without memberships links a provider", async () => {
+    const email = uniqueEmail();
+    const existingUser = await prisma.user.create({
+      data: { email, name: "Jane Doe" },
+    });
+    oauthProfile.email = email;
+    const { req, res } = createMocks<NextApiRequest, NextApiResponse>({
+      method: "GET",
+      query: { nextauth: ["callback", "google"] },
+      cookies: docsFirstVisitCookie,
+    });
+
+    await auth(req, res);
+
+    expect(res.statusCode).toBe(200);
+    await expect(
+      prisma.account.findFirst({
+        where: { userId: existingUser.id, provider: "google" },
+      }),
+    ).resolves.not.toBeNull();
+    expect(signupEvents()).toHaveLength(0);
+  });
+
   it("records email for the email-code sign-up", async () => {
     (env as any).AUTH_EMAIL_VERIFICATION_REQUIRED = "true";
     (env as any).SMTP_CONNECTION_URL = "smtp://localhost:1025";
@@ -152,13 +182,17 @@ async function expectOneSignupEvent({
   provider: string;
 }) {
   const user = await prisma.user.findUniqueOrThrow({ where: { email } });
-  const signupEvents = captureMock.mock.calls
-    .map(([event]) => event)
-    .filter(({ event }) => event === "cloud_signup_complete");
+  const events = signupEvents();
 
-  expect(signupEvents).toHaveLength(1);
-  expect(signupEvents[0]).toMatchObject({
+  expect(events).toHaveLength(1);
+  expect(events[0]).toMatchObject({
     distinctId: user.id,
     properties: { provider, ...docsFirstVisitSource },
   });
+}
+
+function signupEvents() {
+  return captureMock.mock.calls
+    .map(([event]) => event)
+    .filter(({ event }) => event === "cloud_signup_complete");
 }

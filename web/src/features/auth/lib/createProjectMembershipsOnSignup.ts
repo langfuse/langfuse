@@ -25,7 +25,8 @@ export async function createProjectMembershipsOnSignup(
   try {
     const isCloudDeployment = Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION);
 
-    // in no case do we want to send duplicate sign up events to posthog
+    // no organization membership yet, e.g. on a pre-existing account's first
+    // SSO sign-in; the first-sign-in setup below runs for it too
     const isNewUser = !(await prisma.organizationMembership.findFirst({
       where: { userId: user.id },
       select: { id: true },
@@ -280,17 +281,8 @@ export async function createProjectMembershipsOnSignup(
       }
     }
 
-    // for conversion metric tracking in posthog: did a new user sign up?
-    // Fires on all production cloud regions, including ones added in the
-    // future. STAGING/DEV are excluded to keep test signups out of
-    // conversion metrics, and self-hosted deployments never emit this
-    // event as the region env is unset. HIPAA still constructs ServerPosthog
-    // here; the client is opted out via disable() so the capture is a no-op.
-    if (
-      isNewUser &&
-      env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION &&
-      !["STAGING", "DEV"].includes(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION)
-    ) {
+    // Linking a provider to an existing account never sends a second event.
+    if (options?.userWasJustCreated && isProductionCloudRegion()) {
       try {
         const posthog = new ServerPosthog();
         posthog.capture({
@@ -316,6 +308,16 @@ export async function createProjectMembershipsOnSignup(
   } catch (e) {
     logger.error("Error assigning project access to new user", e);
   }
+}
+
+/**
+ * Every production Cloud region, including ones added later. STAGING and DEV
+ * keep test sign-ups out of conversion metrics; self-hosted has no region.
+ * HIPAA's ServerPosthog is opted out via disable(), so its captures are no-ops.
+ */
+function isProductionCloudRegion() {
+  const region = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
+  return region !== undefined && !["STAGING", "DEV"].includes(region);
 }
 
 async function processMembershipInvitations(email: string, userId: string) {
