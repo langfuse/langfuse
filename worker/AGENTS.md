@@ -48,6 +48,16 @@
   `src/features/otel-ingestion/processOtelEvents.ts`; the OTEL queue calls this
   after its legacy persistence path for event normalization, evaluation
   scheduling, direct events-table writes, and trace-batch accounting.
+- Automatic evaluation scheduling: OTel ingestion, including prompt-experiment telemetry, uses
+  `src/features/evaluation/fetchEvalRules.ts` and `scheduleEvals.ts` for both
+  observation and transcript rules. Create scheduler dependencies once per batch
+  and flush collected trace activity after scheduling, including on observation
+  scheduling failures. Pass the original event start time; normalized evaluation
+  observations do not contain it. Manual observation batches keep their existing
+  scheduler and execution-mode semantics.
+  Prompt experiments select observation rules only on their root span. Transcript
+  recording preserves Topics' exclusion of internal environments, including prompt
+  experiments. The direct internal writer retains its root-only ready callback.
 - Trace-rule recording: `src/features/traceBatching/traceBatchRules.ts` matches
   enriched observations at the OTel evaluation stage;
   `src/features/traceBatching/traceRuleRecording.ts`

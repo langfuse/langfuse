@@ -5,7 +5,7 @@ import {
   JobConfigState,
   TopicsTargetObject,
 } from "@langfuse/shared";
-import * as fetchers from "../fetchObservationEvalRules";
+import { fetchEvalRules } from "../fetchEvalRules";
 
 const mocks = vi.hoisted(() => ({
   findMany: vi.fn(),
@@ -64,7 +64,7 @@ describe("evaluation rule fetching", () => {
       transcript,
     ]);
 
-    const result = await fetchers.fetchIngestionEvalRules(projectId);
+    const result = await fetchEvalRules(projectId);
 
     expect(mocks.findMany).toHaveBeenCalledTimes(1);
     expect(
@@ -85,12 +85,21 @@ describe("evaluation rule fetching", () => {
       operator: "=",
       value: true,
     });
-    expect(result.traceRules).toEqual([
+    expect(result.traceTranscriptRules).toEqual([
       { ...transcript, ruleId: transcript.id },
     ]);
     expect(mocks.setNoRules).not.toHaveBeenCalled();
 
     const query = mocks.findMany.mock.calls[0][0];
+    expect(query.where.OR[0].assignments.some.evaluator.type.in).not.toContain(
+      EvalTemplateType.FACET,
+    );
+    expect(query.where.OR[1].assignments.some.evaluator.type.in).toContain(
+      EvalTemplateType.FACET,
+    );
+    expect(query.select.assignments.where.evaluator.type.in).toContain(
+      EvalTemplateType.FACET,
+    );
     expect(query.where).toMatchObject({
       projectId,
       status: JobConfigState.ACTIVE,
@@ -118,17 +127,17 @@ describe("evaluation rule fetching", () => {
     ]);
 
     for (let attempt = 0; attempt < 2; attempt++) {
-      const result = await fetchers.fetchIngestionEvalRules(projectId);
+      const result = await fetchEvalRules(projectId);
       expect(result.observationRules).toEqual([]);
-      expect(result.traceRules.map(({ id }) => id)).toEqual(["transcript"]);
+      expect(result.traceTranscriptRules.map(({ id }) => id)).toEqual([
+        "transcript",
+      ]);
     }
     expect(mocks.findMany).toHaveBeenCalledTimes(2);
     expect(mocks.setNoRules).not.toHaveBeenCalled();
-    expect(await fetchers.fetchObservationEvalRules(projectId)).toEqual([]);
-    expect(mocks.findMany).toHaveBeenCalledTimes(2);
   });
 
-  it("caches an empty combined result without replacing the observation-only cache", async () => {
+  it("skips the database after caching an empty combined result", async () => {
     const emptyScopes = new Set<string>();
     mocks.hasNoRules.mockImplementation(async (_projectId, scope) =>
       emptyScopes.has(scope),
@@ -137,27 +146,18 @@ describe("evaluation rule fetching", () => {
       emptyScopes.add(scope);
     });
 
-    expect(await fetchers.fetchIngestionEvalRules(projectId)).toEqual({
+    expect(await fetchEvalRules(projectId)).toEqual({
       observationRules: [],
-      traceRules: [],
+      traceTranscriptRules: [],
     });
-    await fetchers.fetchIngestionEvalRules(projectId);
+    await fetchEvalRules(projectId);
     expect(mocks.findMany).toHaveBeenCalledTimes(1);
-    expect(emptyScopes).toEqual(new Set(["traceTranscriptBased"]));
-
-    await fetchers.fetchObservationEvalRules(projectId);
-    expect(mocks.findMany).toHaveBeenCalledTimes(2);
-    const query = mocks.findMany.mock.calls[1][0];
-    expect(JSON.stringify(query.where)).not.toContain(TopicsTargetObject);
-    expect(JSON.stringify(query)).not.toContain(EvalTemplateType.FACET);
-    expect(emptyScopes).toEqual(
-      new Set(["traceTranscriptBased", "eventBased"]),
-    );
+    expect(emptyScopes).toEqual(new Set(["evalRules"]));
   });
 
   it("does not cache a failed combined query as an empty project", async () => {
     mocks.findMany.mockRejectedValueOnce(new Error("database unavailable"));
-    await expect(fetchers.fetchIngestionEvalRules(projectId)).rejects.toThrow(
+    await expect(fetchEvalRules(projectId)).rejects.toThrow(
       "database unavailable",
     );
     expect(mocks.setNoRules).not.toHaveBeenCalled();

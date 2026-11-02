@@ -12,12 +12,12 @@ import { invalidateTopicsProcessingActive } from "./topics/processing-gate";
  */
 
 /** Cache types for different eval job configuration targets */
-type EvalConfigCacheType = "traceBased" | "eventBased" | "traceTranscriptBased";
+type EvalConfigCacheType = "traceBased" | "eventBased" | "evalRules";
 
 const CACHE_PREFIXES: Record<EvalConfigCacheType, string> = {
   traceBased: "langfuse:eval:no-trace-and-dataset-job-configs", // for target_object 'trace' | 'observation'
   eventBased: "langfuse:eval:no-event-and-experiment-job-configs", // for target_object 'event' | 'experiment'
-  traceTranscriptBased: "langfuse:eval:no-trace-transcript-rules", // for target_object 'trace_transcript'
+  evalRules: "langfuse:eval:no-evaluation-rules", // event, experiment, and trace_transcript rules
 };
 
 const CACHE_TTL_SECONDS = 600; // 10 minutes
@@ -99,7 +99,7 @@ export const invalidateProjectEvalConfigCaches = async (
   await Promise.all([
     clearNoEvalConfigsCache(projectId, "traceBased"),
     clearNoEvalConfigsCache(projectId, "eventBased"),
-    clearNoEvalConfigsCache(projectId, "traceTranscriptBased"),
+    clearNoEvalConfigsCache(projectId, "evalRules"),
     invalidateTopicsProcessingActive(projectId),
   ]);
 };

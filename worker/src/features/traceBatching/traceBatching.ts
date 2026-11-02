@@ -352,6 +352,7 @@ export class TraceBatchDispatcher extends PeriodicExclusiveRunner {
   }
 
   private async cleanupRecordedRules(): Promise<void> {
+    if (!redis) throw new Error("Trace batching requires Redis");
     for (let shard = 0; shard < env.LANGFUSE_TRACE_BATCH_SHARD_COUNT; shard++) {
       let cleanup = { cursor: "0", pendingRemaining: false };
       do {

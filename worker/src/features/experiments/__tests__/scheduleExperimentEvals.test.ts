@@ -15,12 +15,12 @@ import { scheduleExperimentObservationEvals } from "../scheduleExperimentEvals";
 
 const {
   mockAddToClickhouseWriter,
-  mockFetchObservationEvalRules,
+  mockFetchEvalRules,
   mockCreateObservationEvalSchedulerDeps,
   mockScheduleObservationEvals,
 } = vi.hoisted(() => ({
   mockAddToClickhouseWriter: vi.fn(),
-  mockFetchObservationEvalRules: vi.fn(),
+  mockFetchEvalRules: vi.fn(),
   mockCreateObservationEvalSchedulerDeps: vi.fn(),
   mockScheduleObservationEvals: vi.fn(),
 }));
@@ -41,11 +41,14 @@ vi.mock("../../evaluation/observationEval", async (importOriginal) => {
   const original = (await importOriginal()) as object;
   return {
     ...original,
-    fetchObservationEvalRules: mockFetchObservationEvalRules,
     createObservationEvalSchedulerDeps: mockCreateObservationEvalSchedulerDeps,
     scheduleObservationEvals: mockScheduleObservationEvals,
   };
 });
+
+vi.mock("../../evaluation/fetchEvalRules", () => ({
+  fetchEvalRules: mockFetchEvalRules,
+}));
 
 const mockClickhouseClient = {
   query: async () => ({
@@ -532,7 +535,10 @@ describe("prompt experiment direct-write materialization", () => {
 describe("scheduleExperimentObservationEvals", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockFetchObservationEvalRules.mockResolvedValue([{ id: "config-1" }]);
+    mockFetchEvalRules.mockResolvedValue({
+      observationRules: [{ id: "config-1" }],
+      traceTranscriptRules: [],
+    });
     mockCreateObservationEvalSchedulerDeps.mockReturnValue({
       uploadObservationToS3: vi.fn(),
       upsertJobExecution: vi.fn(),
@@ -559,7 +565,7 @@ describe("scheduleExperimentObservationEvals", () => {
 
     await scheduleExperimentObservationEvals({ observation });
 
-    expect(mockFetchObservationEvalRules).toHaveBeenCalledWith("project-123");
+    expect(mockFetchEvalRules).toHaveBeenCalledWith("project-123");
     expect(mockScheduleObservationEvals).toHaveBeenCalledWith({
       observation,
       configs: [{ id: "config-1" }],
@@ -570,7 +576,10 @@ describe("scheduleExperimentObservationEvals", () => {
   });
 
   it("should skip scheduling when no configs exist", async () => {
-    mockFetchObservationEvalRules.mockResolvedValue([]);
+    mockFetchEvalRules.mockResolvedValue({
+      observationRules: [],
+      traceTranscriptRules: [],
+    });
 
     const observation = {
       span_id: traceId,

@@ -1,29 +1,18 @@
 import { restoreInlineMedia } from "../otel-media/resolveExtractedMedia";
 import type { EarlyOtelBatch } from "@langfuse/native";
-import {
-  convertEventRecordToObservationForEval,
-  type ObservationForEval,
-} from "@langfuse/shared";
+import { convertEventRecordToObservationForEval } from "@langfuse/shared";
 import {
   logger,
   OtelIngestionProcessor,
   traceException,
 } from "@langfuse/shared/src/server";
 import { env } from "../../env";
-import { isTopicsProjectEnabled } from "@langfuse/shared/topics/server";
+import { fetchEvalRules } from "../evaluation/fetchEvalRules";
 import {
-  fetchObservationEvalRules,
-  fetchIngestionEvalRules,
-  isObservationAllowedForQueuedObservationEvals,
-  scheduleObservationEvals,
-  createObservationEvalSchedulerDeps,
-} from "../evaluation/observationEval";
+  scheduleEvals,
+  createEvalSchedulerDeps,
+} from "../evaluation/scheduleEvals";
 import { trackTraceBatchActivity } from "../traceBatching/traceBatching";
-import {
-  getMatchingTraceBatchRuleIds,
-  prepareTraceBatchRules,
-} from "../traceBatching/traceBatchRules";
-import { recordTraceRuleMatches } from "../traceBatching/traceRuleRecording";
 import {
   createDirectOtelMediaTargets,
   processOtelEventMedia,
@@ -75,39 +64,16 @@ export async function processOtelEvents({
     return;
   }
 
-  const recordingEnabled =
-    Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) &&
-    isTopicsProjectEnabled(projectId);
-  const rules = await (
-    recordingEnabled
-      ? fetchIngestionEvalRules(projectId)
-      : fetchObservationEvalRules(projectId).then((observationRules) => ({
-          observationRules,
-          traceRules: [],
-        }))
-  ).catch((error) => {
+  const rules = await fetchEvalRules(projectId).catch((error) => {
     traceException(error);
-    logger.warn(
-      `Failed to fetch ingestion eval rules for project ${projectId}`,
-      error,
-    );
-
-    return { observationRules: [], traceRules: [] };
+    logger.warn(`Failed to fetch eval rules for project ${projectId}`, error);
+    return { observationRules: [], traceTranscriptRules: [] };
   });
-  const evalConfigs = rules.observationRules;
-  const hasEvalConfigs = evalConfigs.length > 0;
-  const traceRules = await prepareTraceBatchRules(
-    projectId,
-    rules.traceRules,
-  ).catch((error) => {
-    traceException(error);
-    logger.warn("Failed to prepare trace rules", { projectId, error });
-    return [];
-  });
-  const hasTraceRules = traceRules.length > 0;
+  const hasRules =
+    rules.observationRules.length > 0 || rules.traceTranscriptRules.length > 0;
 
   // Early exit if no processing needed
-  if (!hasEvalConfigs && !hasTraceRules && !shouldWriteToEventsTable) {
+  if (!hasRules && !shouldWriteToEventsTable) {
     return;
   }
 
@@ -137,20 +103,14 @@ export async function processOtelEvents({
     });
   }
 
-  // Create scheduler deps only if we have eval configs
-  const evalSchedulerDeps = hasEvalConfigs
-    ? createObservationEvalSchedulerDeps()
+  const schedulerDeps = hasRules
+    ? createEvalSchedulerDeps(projectId, rules)
     : null;
 
   const traceBatchEvents: {
     traceId: string;
     startTimeISO: string;
     serializedEventBytes: number;
-  }[] = [];
-  const traceRuleEvents: {
-    traceId: string;
-    startTimeISO: string;
-    ruleIds: string[];
   }[] = [];
 
   await Promise.all(
@@ -173,60 +133,20 @@ export async function processOtelEvents({
         return;
       }
 
-      // Step 2: Match evaluation rules (independent of event writes).
-      // Internal environments cannot select rules or schedule evaluations, except
-      // experiment run-item roots. All observations still extend retained bounds
-      // and existing readiness, including experiment child spans.
-      let observation: ObservationForEval | undefined;
-      if (hasEvalConfigs || hasTraceRules) {
+      // Step 2: Schedule evaluations independently of event writes.
+      if (schedulerDeps) {
         try {
-          observation = convertEventRecordToObservationForEval(eventRecord);
-        } catch (error) {
-          traceException(error);
-          logger.error("Failed to normalize observation for evaluation", {
-            projectId,
-            observationId: eventInput.spanId,
-            error,
-            fileKey,
-          });
-        }
-      }
-
-      const canEvaluate =
-        observation &&
-        isObservationAllowedForQueuedObservationEvals(observation);
-      if (observation && hasTraceRules) {
-        try {
-          traceRuleEvents.push({
-            traceId: observation.trace_id,
+          await scheduleEvals({
+            observation: convertEventRecordToObservationForEval(eventRecord),
             startTimeISO: eventInput.startTimeISO,
-            ruleIds: canEvaluate
-              ? getMatchingTraceBatchRuleIds(observation, traceRules)
-              : [],
-          });
-        } catch (error) {
-          traceException(error);
-          logger.error("Failed to match trace rules", {
-            projectId,
-            observationId: eventInput.spanId,
-            error,
-            fileKey,
-          });
-        }
-      }
-
-      if (observation && canEvaluate && evalSchedulerDeps) {
-        try {
-          await scheduleObservationEvals({
-            observation,
-            configs: evalConfigs,
-            schedulerDeps: evalSchedulerDeps,
+            rules,
+            schedulerDeps,
           });
         } catch (error) {
           traceException(error);
 
           logger.error(
-            `Failed to schedule observation evals for project ${eventInput.projectId} and observation ${eventInput.spanId}`,
+            `Failed to schedule evals for project ${eventInput.projectId} and observation ${eventInput.spanId}`,
             { error, fileKey },
           );
         }
@@ -258,9 +178,9 @@ export async function processOtelEvents({
     }),
   );
 
-  if (traceRuleEvents.length > 0) {
+  if (schedulerDeps) {
     try {
-      await recordTraceRuleMatches(projectId, traceRuleEvents);
+      await schedulerDeps.flushTraceActivity();
     } catch (error) {
       traceException(error);
       logger.error("Failed to record trace rule selections", {

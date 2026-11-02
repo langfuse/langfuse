@@ -15,12 +15,9 @@ import * as otelPreparation from "../../features/otel-ingestion/prepareOtelBatch
 import * as mediaRestoration from "../../features/otel-media/resolveExtractedMedia";
 import { IngestionService } from "../../services/IngestionService";
 import { ClickhouseWriter } from "../../services/ClickhouseWriter";
-import {
-  fetchObservationEvalRules,
-  fetchIngestionEvalRules,
-  scheduleObservationEvals,
-  createObservationEvalSchedulerDeps,
-} from "../../features/evaluation/observationEval";
+import { fetchEvalRules } from "../../features/evaluation/fetchEvalRules";
+import { scheduleObservationEvals } from "../../features/evaluation/observationEval/scheduleObservationEvals";
+import { createObservationEvalSchedulerDeps } from "../../features/evaluation/observationEval/createSchedulerDeps";
 import { Prisma } from "@langfuse/shared/src/db";
 import { TopicsTargetObject } from "@langfuse/shared";
 import { isTopicsProjectEnabled } from "@langfuse/shared/topics/server";
@@ -51,16 +48,25 @@ vi.mock("@langfuse/shared/src/server", async (importOriginal) => ({
   getS3EventStorageClient: vi.fn(),
   markProjectIngestFailure: vi.fn(),
 }));
+vi.mock("../../features/evaluation/fetchEvalRules", () => ({
+  fetchEvalRules: vi.fn().mockResolvedValue({
+    observationRules: [],
+    traceTranscriptRules: [],
+  }),
+}));
 vi.mock(
-  "../../features/evaluation/observationEval",
+  "../../features/evaluation/observationEval/createSchedulerDeps",
+  () => ({
+    createObservationEvalSchedulerDeps: vi.fn(),
+  }),
+);
+vi.mock(
+  "../../features/evaluation/observationEval/scheduleObservationEvals",
   async (importOriginal) => ({
     ...(await importOriginal<
-      typeof import("../../features/evaluation/observationEval")
+      typeof import("../../features/evaluation/observationEval/scheduleObservationEvals")
     >()),
-    fetchObservationEvalRules: vi.fn().mockResolvedValue([]),
-    fetchIngestionEvalRules: vi.fn(),
     scheduleObservationEvals: vi.fn(),
-    createObservationEvalSchedulerDeps: vi.fn(),
   }),
 );
 vi.mock("../../features/traceBatching/traceBatching", () => ({
@@ -109,9 +115,9 @@ describe("trace-rule recording at the evaluation stage", () => {
         .fn()
         .mockRejectedValue(new Error("write unavailable"));
       try {
-        vi.mocked(fetchIngestionEvalRules).mockResolvedValue({
+        vi.mocked(fetchEvalRules).mockResolvedValue({
           observationRules: [observationRule],
-          traceRules: [
+          traceTranscriptRules: [
             {
               id: "trace-rule",
               ruleId: "trace-rule",
@@ -179,27 +185,18 @@ describe("trace-rule recording at the evaluation stage", () => {
               startTimeISO: inputs[1].startTimeISO,
               ruleIds: [],
             },
-            {
-              traceId: "trace",
-              startTimeISO: inputs[2].startTimeISO,
-              ruleIds: [],
-            },
           ],
         );
-        expect(scheduleObservationEvals).toHaveBeenCalledTimes(2);
         expect(
           vi
             .mocked(scheduleObservationEvals)
-            .mock.calls.every(
-              ([args]) =>
-                args.configs.length === 1 &&
-                args.configs[0] === observationRule,
-            ),
-        ).toBe(true);
+            .mock.calls.filter(([args]) => args.configs.length > 0)
+            .map(([args]) => args.configs),
+        ).toEqual([[observationRule], [observationRule]]);
         expect(writeEventRecord).toHaveBeenCalledTimes(
           shouldWriteToEventsTable ? 3 : 0,
         );
-        expect(fetchObservationEvalRules).not.toHaveBeenCalled();
+        expect(fetchEvalRules).toHaveBeenCalledExactlyOnceWith(projectId);
       } finally {
         Object.assign(env, original);
         vi.mocked(isTopicsProjectEnabled).mockReturnValue(false);
@@ -244,7 +241,10 @@ describe("direct-v4 trace batch tracking", () => {
       const restore = vi
         .spyOn(mediaRestoration, "restoreInlineMedia")
         .mockResolvedValue(undefined);
-      vi.mocked(fetchObservationEvalRules).mockResolvedValue([]);
+      vi.mocked(fetchEvalRules).mockResolvedValue({
+        observationRules: [],
+        traceTranscriptRules: [],
+      });
       vi.spyOn(ClickhouseWriter, "getInstance").mockReturnValue(
         {} as ClickhouseWriter,
       );
@@ -310,7 +310,7 @@ describe("direct-v4 trace batch tracking", () => {
       ]);
       expect(write).toHaveBeenCalledTimes(3);
       expect(recordTraceRuleMatches).not.toHaveBeenCalled();
-      expect(fetchIngestionEvalRules).not.toHaveBeenCalled();
+      expect(fetchEvalRules).toHaveBeenCalledExactlyOnceWith("project");
       expect(trackTraceBatchActivity).toHaveBeenCalledExactlyOnceWith(
         "project",
         inputs.slice(0, 2).map(({ traceId, startTimeISO }, index) => ({
