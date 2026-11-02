@@ -843,7 +843,11 @@ async function gatewayControlPlaneRequest(input: {
       "Content-Type": "application/json",
       "Langfuse-Gateway-Authorization": gatewayAuthorization,
     },
-    body: JSON.stringify({ apiFormat: input.apiFormat, model: input.model }),
+    body: JSON.stringify({
+      apiFormat: input.apiFormat,
+      model: input.model,
+      requestBytes: 0,
+    }),
   });
   return readJsonResponse(response, 200, RESOLVE_PATH);
 }

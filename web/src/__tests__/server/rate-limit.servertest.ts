@@ -811,6 +811,8 @@ describe("RateLimitService", () => {
     for (const testCase of cases) {
       await redis.del(
         `${RATE_LIMIT_REDIS_KEY_PREFIX}:ai-gateway-requests:${orgId}`,
+      );
+      await redis.del(
         `${RATE_LIMIT_REDIS_KEY_PREFIX}:ai-gateway-request-bytes:${orgId}`,
       );
       const scope = asScope({
