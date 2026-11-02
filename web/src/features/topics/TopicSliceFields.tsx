@@ -1,13 +1,32 @@
-import type { ColumnDefinition, FilterState } from "@langfuse/shared";
+import type { FilterState } from "@langfuse/shared";
+import {
+  TOPICS_RULE_FILTER_COLUMNS,
+  topicRuleFilterError,
+  type TopicTimeRange,
+} from "@langfuse/shared/topics";
 import { Checkbox } from "@/src/components/design-system/Checkbox/Checkbox";
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
-import { RULE_FIELD_REGISTRY } from "@/src/features/evals/v2/constants/ruleSearchRegistry";
-import { ObservationFilterBuilder } from "@/src/features/evals/v2/components/Evaluators/Testing/components/SampleObservationSelectorBase/components/ObservationFilterBuilder/ObservationFilterBuilder";
+import { env } from "@/src/env.mjs";
+import { RULE_SAMPLE_FIELD_REGISTRY } from "@/src/features/evals/v2/constants/evaluatorSearchRegistry";
+import { SampleObservationSelectorBase } from "@/src/features/evals/v2/components/Evaluators/Testing/components/SampleObservationSelectorBase/SampleObservationSelectorBase";
+import { compactNumberFormatter } from "@/src/utils/numbers";
 import { cn } from "@/src/utils/tailwind";
 
-const queryOnlyColumnIds = RULE_FIELD_REGISTRY.fields
-  .filter((field) => field.directFilter === false)
-  .map((field) => field.filterColumn ?? field.id);
+const ruleColumns: readonly string[] = TOPICS_RULE_FILTER_COLUMNS;
+// Rules match during ingestion, so their query only offers the matcher's fields.
+const ruleRegistry = {
+  ...RULE_SAMPLE_FIELD_REGISTRY,
+  fields: RULE_SAMPLE_FIELD_REGISTRY.fields.filter((field) =>
+    ruleColumns.includes(field.filterColumn ?? field.id),
+  ),
+  columns: RULE_SAMPLE_FIELD_REGISTRY.columns.filter((column) =>
+    ruleColumns.includes(column.id),
+  ),
+  filterStateErrors: (filter: FilterState) => {
+    const error = topicRuleFilterError(filter);
+    return error ? [error] : [];
+  },
+};
 
 /** A labelled block of a Topics slice dialog, e.g. "Traces" or "Facets". */
 function TopicDialogSection({
@@ -57,22 +76,63 @@ function TopicCountList({
   );
 }
 
-/** The span filter of a rule, analysis or processing run. */
+/** The observation filter of a rule or analysis, with a preview of its matches. */
 function TopicFilterField({
-  columns,
+  projectId,
+  scope,
+  timeRange,
   filter,
   onChange,
 }: {
-  columns: ColumnDefinition[];
+  projectId: string;
+  scope: "rule" | "analysis";
+  timeRange: TopicTimeRange;
   filter: FilterState;
   onChange: (filter: FilterState) => void;
 }) {
   return (
-    <ObservationFilterBuilder
-      columns={columns}
+    <SampleObservationSelectorBase
+      projectId={projectId}
+      timeRange={timeRange}
       filterState={filter}
-      queryOnlyColumnIds={queryOnlyColumnIds}
-      onChange={onChange}
+      onFilterStateChange={onChange}
+      previewFilters={filter}
+      tableName={`topics-${scope}-matching-spans`}
+      // Analyses filter like the tracing table, so they take its full registry.
+      registry={scope === "rule" ? ruleRegistry : undefined}
+      selectedObservationId={null}
+      onSelect={() => undefined}
+      onOpenTrace={(observation) => {
+        if (!observation.traceId) return;
+        window.open(
+          `${env.NEXT_PUBLIC_BASE_PATH ?? ""}/project/${projectId}/traces/${observation.traceId}?observation=${observation.id}`,
+          "_blank",
+          "noopener,noreferrer",
+        );
+      }}
+      leadingColumns={[]}
+      resolveSelection={() => undefined}
+      getRowClassName={undefined}
+      filterDescription={
+        scope === "rule"
+          ? "A trace matches when one of its observations meets every filter."
+          : "Any tracing filter, including scores, latency, cost and negative filters."
+      }
+      filterTooltip={
+        scope === "rule"
+          ? "Only new traces matching these filters are summarized and assigned by this rule."
+          : "The analysis clusters summarized traces with an observation matching these filters."
+      }
+      matchingDescription={
+        scope === "rule"
+          ? "Observations from the last seven days that match the filters."
+          : "Observations in the analysis window that match the filters."
+      }
+      matchingTooltip="A trace is in the slice when one of its observations matches."
+      formatCount={(count) =>
+        `(${compactNumberFormatter(count)} ${count === 1 ? "match" : "matches"})`
+      }
+      mapObservedOptions={(observed) => observed}
     />
   );
 }
@@ -160,7 +220,7 @@ function TopicWindowTabs({
   );
 }
 
-/** Fields shared by the rule, analysis and Process past traces dialogs. */
+/** Fields shared by the rule and analysis dialogs. */
 export const TopicSliceFields = Object.assign(TopicDialogSection, {
   Section: TopicDialogSection,
   Counts: TopicCountList,

@@ -6,28 +6,20 @@ export type TopicMapsOverview = RouterOutputs["topics"]["maps"];
 export type TopicRuleMap = TopicMapsOverview["rules"][number];
 export type TopicAnalysisMap = TopicMapsOverview["analyses"][number];
 
-/** A rule's live map, or one run of an analysis (its latest by default). */
+/** A rule's live map, or one analysis's snapshot. */
 export type TopicMapSelection =
   | { kind: "rule"; id: string }
-  | { kind: "analysis"; id: string; runId: string };
+  | { kind: "analysis"; id: string };
 
-/** Reads `?map=rule:<id>` or `?map=analysis:<id>&run=<executionId>`; unknown IDs fall back to the first rule. */
+/** Reads `?map=rule:<id>` or `?map=analysis:<executionId>`; unknown IDs fall back to the first rule. */
 export function resolveTopicMapSelection(
   overview: TopicMapsOverview | undefined,
   map: string | undefined,
-  run: string | undefined,
 ): TopicMapSelection | null {
   if (!overview) return null;
   const [kind, id] = map?.split(":", 2) ?? [];
-  if (kind === "analysis") {
-    const analysis = overview.analyses.find((item) => item.id === id);
-    if (analysis) {
-      const runId = analysis.runs.some((item) => item.executionId === run)
-        ? run!
-        : analysis.latestExecutionId;
-      return { kind: "analysis", id: analysis.id, runId };
-    }
-  }
+  if (kind === "analysis" && overview.analyses.some((item) => item.id === id))
+    return { kind: "analysis", id: id! };
   const rule =
     (kind === "rule" && overview.rules.find((item) => item.id === id)) ||
     overview.rules[0];
@@ -35,9 +27,7 @@ export function resolveTopicMapSelection(
 }
 
 export function topicMapQuery(selection: TopicMapSelection) {
-  return selection.kind === "rule"
-    ? { map: `rule:${selection.id}`, run: undefined }
-    : { map: `analysis:${selection.id}`, run: selection.runId };
+  return { map: `${selection.kind}:${selection.id}` };
 }
 
 function filterValue(value: unknown): string {
@@ -79,19 +69,14 @@ function hoursLabel(ms: number) {
   return `${hours} h`;
 }
 
-/** "Updated 2 h ago · next refit in 22 h" for a rule map. */
+/** "Updated 2 h ago" for a rule map. */
 export function topicRuleFreshness(
-  rule: Pick<TopicRuleMap, "enabled" | "lastRefitAt" | "nextRefitAt">,
+  rule: Pick<TopicRuleMap, "enabled" | "lastRefitAt">,
   now: number,
 ) {
   if (rule.enabled === false) return "Disabled · map frozen";
   if (!rule.lastRefitAt) return "Building first topics";
-  const updated = `Updated ${hoursLabel(now - Date.parse(rule.lastRefitAt))} ago`;
-  if (!rule.nextRefitAt) return updated;
-  const next = Date.parse(rule.nextRefitAt) - now;
-  return next > 0
-    ? `${updated} · next refit in ${hoursLabel(next)}`
-    : `${updated} · refit due`;
+  return `Updated ${hoursLabel(now - Date.parse(rule.lastRefitAt))} ago`;
 }
 
 /** The selected facets at their current prompt versions. */

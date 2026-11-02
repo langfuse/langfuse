@@ -12,7 +12,6 @@ import { api } from "@/src/utils/api";
 import { dayWindow, suggestTopicRuleName } from "./topic-maps";
 import { TopicSliceFields } from "./TopicSliceFields";
 import { TopicsErrorMessage } from "./TopicsErrorMessage";
-import { useTopicFilterColumns } from "./useTopicFilterColumns";
 
 /** Creates or edits a continuous Topics rule: filter, sampling and facets. */
 export function TopicRuleDialog({
@@ -30,7 +29,7 @@ export function TopicRuleDialog({
   onSaved: (rule: TopicRule, created: boolean) => void;
   closeDialog: () => void;
 }) {
-  const [now] = useState(Date.now);
+  const [range] = useState(() => dayWindow(7, Date.now()));
   const [filter, setFilter] = useState(rule?.filter ?? []);
   const [facetIds, setFacetIds] = useState(
     rule?.facetIds ?? facets.map(({ id }) => id),
@@ -39,13 +38,6 @@ export function TopicRuleDialog({
     String(Math.round((rule?.sampling ?? 1) * 1000) / 10),
   );
   const [name, setName] = useState<string | null>(rule?.name ?? null);
-  const { builderColumns } = useTopicFilterColumns({
-    projectId,
-    filter,
-    range: dayWindow(7, now),
-    scope: "rule",
-    enabled: true,
-  });
   const utils = api.useUtils();
   const save = api.topics.saveRule.useMutation({
     onSuccess: () =>
@@ -98,23 +90,19 @@ export function TopicRuleDialog({
     >
       <Dialog.Body>
         <p className="text-muted-foreground">
-          A rule keeps a live topic map for the traces it matches and
-          re-clusters it on the refit schedule.{" "}
+          A rule keeps a live topic map for the traces it matches.{" "}
           {rule ? null : `${ruleCount} of ${TOPICS_MAX_RULES} rules used.`}
         </p>
-        <TopicSliceFields.Section
-          label="Traces"
-          description="A trace matches when one of its spans meets every filter."
-        >
-          <TopicSliceFields.Filter
-            columns={builderColumns}
-            filter={filter}
-            onChange={setFilter}
-          />
-          <p className="text-muted-foreground text-xs">
-            {TOPICS_RULE_FILTER_ERROR}
-          </p>
-        </TopicSliceFields.Section>
+        <TopicSliceFields.Filter
+          projectId={projectId}
+          scope="rule"
+          timeRange={range}
+          filter={filter}
+          onChange={setFilter}
+        />
+        <p className="text-muted-foreground -mt-2 text-xs">
+          {TOPICS_RULE_FILTER_ERROR}
+        </p>
         <TopicSliceFields.Section
           label="Sampling"
           description="Share of matching new traces that are summarized and assigned."

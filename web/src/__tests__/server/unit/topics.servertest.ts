@@ -12,7 +12,6 @@ import {
   TOPICS_SLICE_MAX_TRACES,
   type TopicExecution,
   type TopicExecutionInput,
-  type TopicRule,
 } from "@langfuse/shared/topics";
 
 const mocks = vi.hoisted(() => ({
@@ -72,10 +71,7 @@ vi.mock("@/src/features/posthog-analytics/server/backendActivity", () => ({
 }));
 
 import { topicsRouter } from "@/src/features/topics/server/topicsRouter";
-import {
-  parentRuleFor,
-  topicRunChange,
-} from "@/src/features/topics/server/slices";
+import {} from "@/src/features/topics/server/slices";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 
 const projectId = "project-a";
@@ -1673,23 +1669,6 @@ describe("Topics analyses", () => {
     operator: "=" as const,
     value,
   });
-  const rule = (id: string, filter: ReturnType<typeof condition>[]) =>
-    ({ id, name: id, filter }) as unknown as TopicRule;
-
-  it("compares an analysis with the narrowest rule whose filters it applies", () => {
-    const env = condition("environment", "production");
-    const support = condition("traceName", "support-agent");
-    const rules = [
-      rule("all", []),
-      rule("support", [env, support]),
-      rule("checkout", [env, condition("traceName", "checkout-agent")]),
-    ];
-    expect(
-      parentRuleFor(rules, [support, env, condition("level", "ERROR")])?.id,
-    ).toBe("support");
-    expect(parentRuleFor(rules, [env])?.id).toBe("all");
-    expect(parentRuleFor(rules.slice(1), [env])).toBeNull();
-  });
 
   it("previews and runs an analysis on the same seeded sample of summarized traces", async () => {
     const slice = {
@@ -1739,8 +1718,6 @@ describe("Topics analyses", () => {
         analysis: {
           label: "Refund errors",
           filter: [],
-          parentRuleId: null,
-          previousExecutionId: null,
           seed: "analysis-seed",
         },
       },
@@ -1790,13 +1767,5 @@ describe("Topics analyses", () => {
       { traceId: "trace-a", outcome: "assigned", topicId: "topic-a" },
     ]);
     expect(facets[0].topics).toMatchObject([{ id: "topic-a", count: 1 }]);
-  });
-
-  it("classifies a topic's change between runs by its share", () => {
-    expect(topicRunChange(0, 0.1)).toBe("new");
-    expect(topicRunChange(0.1, 0)).toBe("gone");
-    expect(topicRunChange(0.1, 0.12)).toBe("grown");
-    expect(topicRunChange(0.1, 0.08)).toBe("shrunk");
-    expect(topicRunChange(0.1, 0.11)).toBe("stable");
   });
 });

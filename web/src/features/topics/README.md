@@ -43,16 +43,13 @@ project permissions. Processing additionally requires the project allowlist.
   sampling rate. That is the project's first rule; it owns maps written before
   rules existed. A project can have up to five Topics rules.
 - `TopicsMapPicker` switches the page between maps through `?map=rule:<id>` or
-  `?map=analysis:<id>&run=<executionId>` (`topic-maps.ts`). A rule map is live:
-  `TopicMapStrip.Rule` shows its filters, sampling and refit freshness, and a
-  rule without a refit shows `TopicRuleBuildingState`. An analysis is a
-  snapshot: `TopicMapStrip.Analysis` shows its fixed window, the rule it is
-  compared with, Rerun, and a Runs tab (`TopicAnalysisRuns`) that diffs a run
-  against the run it reran. `TopicSliceDialogController` owns the Process past
-  traces, New analysis, Rerun and rule dialogs; `TopicSliceFields` holds their
-  shared sections. `TopicRulesPage` (`/topics/rules`) lists rules, the refit
-  interval and processing runs. `pnpm run seed -- topics --batch slices` seeds
-  rules, analyses with reruns and a processing run.
+  `?map=analysis:<executionId>` (`topic-maps.ts`). A rule map is live:
+  `TopicMapStrip.Rule` shows its filters, sampling and when it last updated, and
+  a rule without topics yet shows `TopicRuleBuildingState`. An analysis is a
+  one-off snapshot: `TopicMapStrip.Analysis` shows its slice and fixed window.
+  `TopicSliceDialogController` owns the New analysis and rule dialogs;
+  `TopicSliceFields` holds their shared sections, and its filter reuses the
+  evaluation rule scope selector. `TopicRulesPage` (`/topics/rules`) lists rules.
   The header shows the auto-analyze status (`AnalyzeControl`); clicking it opens the Analyze traces dialog with the auto-analyze toggle and sample rate. The overflow menu holds Regenerate topics, History and Settings, plus a Show unassigned toggle (on by default, kept in project-scoped sessionStorage); turning it off makes `CurrentTopics` drop traces and map points without a topic, removing the Unassigned tile and the Outliers and awaiting-assignment map zones in every view. Regenerate topics opens the shared manual dialog on its Generate topics tab; the Summarize traces & embed tab stays reachable there. `DialogController` owns the overlay above the page and the mobile actions menu. `ManualTopicsDialog` is the presentational layout shared by the app and its isolated `ManualTopicsDialog.stories.tsx` stories.
   `TopicTraceSelectorView` renders the same filters, batch controls and preview
   table in both places; stories supply fixture results without private API calls.

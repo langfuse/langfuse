@@ -18,7 +18,6 @@ import {
   topicsModelSettingsSchema,
   topicsSetupSchema,
   topicRuleFilterError,
-  TOPICS_REFIT_INTERVAL_HOURS,
   type TopicTimeRange,
   type TopicExecutionSummary,
   type TopicFacetRef,
@@ -48,7 +47,6 @@ import {
   saveTopicsSetup,
   setTopicsAutomaticProcessing,
   setTopicRuleEnabled,
-  setTopicsRefitInterval,
   enqueueTopicExecution,
   getTopicExecutionQueueState,
 } from "@langfuse/shared/topics/server";
@@ -72,10 +70,8 @@ import {
 
 import { currentTopicResults, traceFacetResults } from "./currentResults";
 import {
-  analysisRunDiff,
   analysisTopicResults,
   previewTopicAnalysis,
-  rerunTopicAnalysis,
   startTopicAnalysis,
   topicMapsOverview,
 } from "./slices";
@@ -340,17 +336,14 @@ export const topicsRouter = createTRPCRouter({
       }),
     ),
   /** Rule maps and one-off analyses for the map picker and the Rules page. */
-  maps: topicsProcedure.query(({ input, ctx }) =>
-    topicMapsOverview(input.projectId, ctx.prisma),
+  maps: topicsProcedure.query(({ input }) =>
+    topicMapsOverview(input.projectId),
   ),
   analysisResults: topicsProcedure
     .input(executionInput)
     .query(({ input }) =>
       analysisTopicResults(input.projectId, input.executionId),
     ),
-  analysisDiff: topicsProcedure
-    .input(executionInput)
-    .query(({ input }) => analysisRunDiff(input.projectId, input.executionId)),
   previewAnalysis: topicsProcedure
     .input(analysisFilterInput)
     .query(async ({ input }) => {
@@ -367,11 +360,6 @@ export const topicsRouter = createTRPCRouter({
       await requireFacetVersions(input.projectId, input.facets);
       return startTopicAnalysis(input, ctx.session.user.id);
     }),
-  rerunAnalysis: topicsWriteProcedure
-    .input(executionInput.extend({ timeRange: resultInput.shape.timeRange }))
-    .mutation(({ input, ctx }) =>
-      rerunTopicAnalysis(input, ctx.session.user.id),
-    ),
   /** Trace header: every facet result of one trace, with its summary. */
   forTrace: topicsProcedure
     .input(
@@ -450,25 +438,6 @@ export const topicsRouter = createTRPCRouter({
       });
       return rule;
     }),
-  setRefitInterval: topicsWriteProcedure
-    .input(
-      projectInput.extend({
-        refitIntervalHours: z.union([
-          z.literal(TOPICS_REFIT_INTERVAL_HOURS[0]),
-          z.literal(TOPICS_REFIT_INTERVAL_HOURS[1]),
-          z.literal(TOPICS_REFIT_INTERVAL_HOURS[2]),
-        ]),
-      }),
-    )
-    .mutation(({ input, ctx }) =>
-      auditedTopicConfigSave(ctx, input.projectId, () =>
-        setTopicsRefitInterval(
-          input.projectId,
-          input.refitIntervalHours,
-          ctx.session.user.id,
-        ),
-      ),
-    ),
   modelSettings: topicsProcedure.query(({ input }) =>
     readTopicsModelSettings(input.projectId),
   ),

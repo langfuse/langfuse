@@ -122,9 +122,6 @@ export const TOPICS_SLICE_MAX_TRACES = 20_000;
 export const TOPICS_ANALYSIS_MIN_TRACES = 100;
 /** Seeds an analysis's sample, so its preview counts the traces its run clusters. */
 export const TOPICS_ANALYSIS_SAMPLING_SEED = "topics-analysis";
-export const TOPICS_REFIT_INTERVAL_HOURS = [6, 12, 24] as const;
-export type TopicsRefitIntervalHours =
-  (typeof TOPICS_REFIT_INTERVAL_HOURS)[number];
 
 /**
  * Columns the online matcher can evaluate on a finished trace's observations.
@@ -169,10 +166,6 @@ export function topicRuleFilterError(
 export const topicAnalysisConfigSchema = z.object({
   label: z.string().trim().min(1).max(100),
   filter: topicRuleConfigSchema.shape.filter,
-  // The narrowest rule whose filters the analysis filters contain, if any.
-  parentRuleId: topicIdSchema.nullable().default(null),
-  // The analysis this one reruns on a new window.
-  previousExecutionId: topicIdSchema.nullable().default(null),
   seed: z.string().min(1).max(128),
 });
 export type TopicAnalysisConfig = z.infer<typeof topicAnalysisConfigSchema>;

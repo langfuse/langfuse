@@ -2,16 +2,11 @@ import { createContext, use, useState } from "react";
 import { useRouter } from "next/router";
 import { type ColumnDef } from "@tanstack/react-table";
 import { Plus } from "@langfuse/icons";
-import {
-  TOPICS_MAX_RULES,
-  TOPICS_REFIT_INTERVAL_HOURS,
-  type TopicsRefitIntervalHours,
-} from "@langfuse/shared/topics";
+import { TOPICS_MAX_RULES } from "@langfuse/shared/topics";
 import Page from "@/src/components/layouts/Page";
 import { Spinner } from "@/src/components/layouts/Spinner";
 import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { Button } from "@/src/components/design-system/Button/Button";
-import { SelectInput } from "@/src/components/design-system/SelectInput/SelectInput";
 import { Switch } from "@/src/components/design-system/Switch/Switch";
 import {
   Table,
@@ -28,7 +23,6 @@ import {
   type TopicRuleMap,
 } from "./topic-maps";
 import { TopicSliceDialogController } from "./TopicSliceDialogController";
-import { TopicRunHistoryList } from "./TopicRunHistoryList";
 import { TopicsErrorMessage } from "./TopicsErrorMessage";
 
 type RuleRow = TopicRuleMap & { facetNames: string[]; freshness: string };
@@ -90,7 +84,7 @@ const columns: ColumnDef<RuleRow>[] = [
     size: 200,
     accessorFn: (row) => row.facetNames.join(", "),
   },
-  { accessorKey: "freshness", header: "Last refit", size: 220 },
+  { accessorKey: "freshness", header: "Last updated", size: 220 },
 ];
 
 export default function TopicRulesPage() {
@@ -118,11 +112,7 @@ function TopicRules({ projectId }: { projectId: string }) {
   const utils = api.useUtils();
   const maps = api.topics.maps.useQuery({ projectId });
   const facets = api.topics.facets.useQuery({ projectId });
-  const executions = api.topics.executions.useQuery({ projectId });
   const setEnabled = api.topics.setRuleEnabled.useMutation({
-    onSuccess: () => utils.topics.maps.invalidate({ projectId }),
-  });
-  const setRefitInterval = api.topics.setRefitInterval.useMutation({
     onSuccess: () => utils.topics.maps.invalidate({ projectId }),
   });
   const topicsHref = `/project/${projectId}/topics`;
@@ -134,18 +124,14 @@ function TopicRules({ projectId }: { projectId: string }) {
     facetNames: rule.facetIds.map((id) => facetName.get(id) ?? "Facet"),
     freshness: topicRuleFreshness(rule, now),
   }));
-  const processRuns = (executions.data ?? []).filter(
-    (execution) => execution.input.operation === "process",
-  );
   const ruleCount = rows.length;
   return (
     <TopicSliceDialogController
       projectId={projectId}
       facets={facets.data ?? []}
       ruleCount={ruleCount}
-      onProcessStarted={() => utils.topics.executions.invalidate({ projectId })}
-      onAnalysisStarted={(runId, analysisId) =>
-        router.push(`${topicsHref}?map=analysis:${analysisId}&run=${runId}`)
+      onAnalysisStarted={(analysisId) =>
+        router.push(`${topicsHref}?map=analysis:${analysisId}`)
       }
     >
       {({ openSliceDialog }) => (
@@ -175,35 +161,10 @@ function TopicRules({ projectId }: { projectId: string }) {
           >
             <div className="flex flex-col gap-6 overflow-y-auto p-3">
               <section className="flex flex-col gap-2">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <p className="text-muted-foreground text-sm">
-                    {ruleCount} of {TOPICS_MAX_RULES} rules. Each rule keeps a
-                    live topic map for the traces it matches; rules may overlap.
-                  </p>
-                  <span className="flex items-center gap-2 text-sm">
-                    Re-cluster every
-                    <span className="w-28">
-                      <SelectInput<string>
-                        aria-label="Refit interval"
-                        placeholder="Interval"
-                        disabled={!canWrite || !maps.data}
-                        value={String(maps.data?.refitIntervalHours ?? 24)}
-                        options={TOPICS_REFIT_INTERVAL_HOURS.map((hours) => ({
-                          value: String(hours),
-                          label: `${hours} hours`,
-                        }))}
-                        onValueChange={(value) =>
-                          setRefitInterval.mutate({
-                            projectId,
-                            refitIntervalHours: Number(
-                              value,
-                            ) as TopicsRefitIntervalHours,
-                          })
-                        }
-                      />
-                    </span>
-                  </span>
-                </div>
+                <p className="text-muted-foreground text-sm">
+                  {ruleCount} of {TOPICS_MAX_RULES} rules. Each rule keeps a
+                  live topic map for the traces it matches; rules may overlap.
+                </p>
                 <Table<RuleRow>
                   tableName="topicRules"
                   columns={columns}
@@ -231,55 +192,11 @@ function TopicRules({ projectId }: { projectId: string }) {
                       onClick: () =>
                         openSliceDialog({ kind: "rule", rule: row }),
                     },
-                    {
-                      id: "process",
-                      type: "item",
-                      title: "Process past traces",
-                      description: "Prefilled with this rule's filters",
-                      disabled: canWrite
-                        ? undefined
-                        : { reason: "You need permission to edit Topics." },
-                      onClick: () =>
-                        openSliceDialog({
-                          kind: "process",
-                          prefill: {
-                            filter: row.filter,
-                            facetIds: row.facetIds,
-                            source: row.name,
-                          },
-                        }),
-                    },
                   ]}
                 />
                 {setEnabled.error ? (
                   <TopicsErrorMessage message={setEnabled.error.message} />
                 ) : null}
-              </section>
-              <section className="flex flex-col gap-2">
-                <div className="flex items-center justify-between gap-2">
-                  <h2 className="text-base font-bold">Processing runs</h2>
-                  <Button
-                    variant="outline"
-                    text="Process past traces"
-                    disabled={!canWrite}
-                    onClick={() =>
-                      openSliceDialog({
-                        kind: "process",
-                        prefill: { filter: [], facetIds: [] },
-                      })
-                    }
-                  />
-                </div>
-                <div className="rounded-md border">
-                  <TopicRunHistoryList
-                    executions={processRuns}
-                    errorMessage={executions.error?.message}
-                    onOpen={(executionId) =>
-                      router.push(`${topicsHref}?executionId=${executionId}`)
-                    }
-                    onRetry={() => executions.refetch()}
-                  />
-                </div>
               </section>
             </div>
           </RuleToggleContext>

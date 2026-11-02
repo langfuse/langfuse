@@ -1,9 +1,7 @@
 import type { z } from "zod";
 import { InvalidRequestError } from "../../errors";
 import {
-  TOPICS_REFIT_INTERVAL_HOURS,
   topicRuleFilterError,
-  type TopicsRefitIntervalHours,
   topicsAutomaticProcessingSchema,
   topicsSetupSchema,
   type TopicRule,
@@ -192,24 +190,4 @@ export async function setTopicsAutomaticProcessing(
   if (!rule) return { ruleBefore: null, ruleAfter: null };
   const ruleAfter = (await getTopicRule(projectId, rule.id)) ?? rule;
   return { ruleBefore: rule, ruleAfter };
-}
-
-/** How often continuous rule maps are re-clustered. */
-export async function setTopicsRefitInterval(
-  projectId: string,
-  refitIntervalHours: TopicsRefitIntervalHours,
-  userId: string | null = null,
-): Promise<void> {
-  if (!TOPICS_REFIT_INTERVAL_HOURS.includes(refitIntervalHours))
-    throw new InvalidRequestError(
-      "Choose a refit interval of 6, 12 or 24 hours.",
-    );
-  const updated = await prisma.topicConfig.updateMany({
-    where: { projectId },
-    data: { refitIntervalHours, updatedBy: userId },
-  });
-  if (!updated.count)
-    throw new InvalidRequestError(
-      "Save the Topics setup in Configure Topics first.",
-    );
 }

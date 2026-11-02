@@ -19,7 +19,6 @@ import {
   createTopicRun,
   getTopicRun,
   getPublishedTopicRun,
-  getTopicAnalysisRun,
   resolveTopicClusteringCohort,
   readTopicMapAssignments,
   getTopicClusteringSummaries,
@@ -1291,20 +1290,14 @@ async function updateTopics(
             ruleId: execution.input.ruleId,
             analysis,
           });
-          // An analysis continues its previous run; a refit continues its rule's map.
-          let current: TopicRun | null = null;
-          if (!analysis)
-            current = await getPublishedTopicRun(
-              execution.projectId,
-              facet.facetId,
-              cohort.ruleId ?? undefined,
-            );
-          else if (analysis.previousExecutionId)
-            current = await getTopicAnalysisRun(
-              execution.projectId,
-              analysis.previousExecutionId,
-              facet.facetId,
-            );
+          // A refit continues its rule's map; an analysis always fits fresh.
+          const current = analysis
+            ? null
+            : await getPublishedTopicRun(
+                execution.projectId,
+                facet.facetId,
+                cohort.ruleId ?? undefined,
+              );
           const previous =
             current?.status === "completed" &&
             current.facetVersion === facet.version

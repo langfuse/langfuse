@@ -12,7 +12,6 @@ import {
 } from "@tanstack/react-query";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { useTopicTraceSelector } from "./TopicTraceSelector";
-import { TOPICS_BACKFILL_TRACE_LIMIT } from "./backfill-limit";
 
 const mocks = vi.hoisted(() => ({ fetch: vi.fn() }));
 vi.mock("@/src/utils/api", () => ({
@@ -212,7 +211,7 @@ describe("Topics trace selection", () => {
       mocks.fetch.mock.calls[1][0].seed,
     );
     expect(mocks.fetch.mock.calls[0][0]).toMatchObject({
-      limit: TOPICS_BACKFILL_TRACE_LIMIT,
+      limit: 1000,
       sampling: "random",
     });
   });

@@ -2,7 +2,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { ChevronLeft } from "@langfuse/icons";
 import { type UseQueryResult } from "@tanstack/react-query";
-import { type FilterState } from "@langfuse/shared";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
 import { TablePeekViewTraceDetail } from "@/src/components/table/peek/TablePeekViewTraceDetail";
 import { useRouter } from "next/router";
@@ -72,11 +71,9 @@ import {
   type TopicMapSelection,
 } from "./topic-maps";
 import { TopicsMapPicker } from "./TopicsMapPicker";
-import { TopicMapStrip, type TopicAnalysisTab } from "./TopicMapStrip";
+import { TopicMapStrip } from "./TopicMapStrip";
 import { TopicRuleBuildingState } from "./TopicRuleBuildingState";
-import { TopicAnalysisRuns } from "./TopicAnalysisRuns";
 import { TopicSliceDialogController } from "./TopicSliceDialogController";
-import type { ProcessPastTracesPrefill } from "./ProcessPastTracesDialog";
 
 const maxTimeRangeMs = TIME_RANGES.last90Days.minutes * 60_000;
 const sharedTimeRangePresets = [
@@ -369,9 +366,7 @@ function TopicsWorkspaceContent({
     { projectId },
     {
       refetchInterval: (query) =>
-        query.state.data?.analyses.some((analysis) =>
-          analysis.runs.some((run) => busy(run.status)),
-        )
+        query.state.data?.analyses.some((analysis) => busy(analysis.status))
           ? 3000
           : false,
     },
@@ -379,7 +374,6 @@ function TopicsWorkspaceContent({
   const mapSelection = resolveTopicMapSelection(
     maps.data,
     typeof router.query.map === "string" ? router.query.map : undefined,
-    typeof router.query.run === "string" ? router.query.run : undefined,
   );
   const selectedRule =
     mapSelection?.kind === "rule"
@@ -390,7 +384,7 @@ function TopicsWorkspaceContent({
       ? maps.data?.analyses.find((analysis) => analysis.id === mapSelection.id)
       : undefined;
   const analysisRunId =
-    mapSelection?.kind === "analysis" ? mapSelection.runId : null;
+    mapSelection?.kind === "analysis" ? mapSelection.id : null;
   const analysisResults = api.topics.analysisResults.useQuery(
     { projectId, executionId: analysisRunId ?? "" },
     {
@@ -401,23 +395,17 @@ function TopicsWorkspaceContent({
           : false,
     },
   );
-  const [analysisTab, setAnalysisTab] = useState<TopicAnalysisTab>("topics");
   const selectMap = (selection: TopicMapSelection) => {
     const query: Record<string, string | string[] | undefined> = {
       ...router.query,
       ...topicMapQuery(selection),
     };
-    if (!query.run) delete query.run;
+    delete query.run;
     delete query.executionId;
-    if (selection.kind === "analysis" && selection.id !== mapSelection?.id)
-      setAnalysisTab("topics");
     router.push({ pathname: router.pathname, query }, undefined, {
       shallow: true,
     });
   };
-  const processPrefill = processPastTracesPrefill(
-    selectedRule ?? selectedAnalysis,
-  );
   const setupBlockedReason = startBlockedReason(
     running,
     modelSettings.automaticProcessing.state.status === "on",
@@ -509,9 +497,8 @@ function TopicsWorkspaceContent({
       projectId={projectId}
       facets={facets.data ?? []}
       ruleCount={maps.data?.rules.length ?? 0}
-      onProcessStarted={openExecution}
-      onAnalysisStarted={(runId, analysisId) =>
-        selectMap({ kind: "analysis", id: analysisId, runId })
+      onAnalysisStarted={(executionId) =>
+        selectMap({ kind: "analysis", id: executionId })
       }
     >
       {({ openSliceDialog }) => (
@@ -574,15 +561,13 @@ function TopicsWorkspaceContent({
               automaticProcessing,
               canWrite,
               configureAvailable: modelSettings.configure.settings !== null,
-              // An analysis is regenerated with its Rerun action.
+              // An analysis clusters a fixed slice once.
               regenerateAvailable: pipeline.available && !selectedAnalysis,
               menuOnly: landingOnly,
               onAutomaticProcessing: openAutomaticProcessingFromHeader,
               onConfigure: configured ? openConfigure : openSetup,
               onRegenerate: openTopicGeneration,
               onHistory: openHistory,
-              onProcessPastTraces: () =>
-                openSliceDialog({ kind: "process", prefill: processPrefill }),
               onManageRules: () => router.push(rulesHref),
               showUnassigned,
               onShowUnassignedChange: setShowUnassigned,
@@ -638,7 +623,7 @@ function TopicsWorkspaceContent({
                   <PageHeaderControlsPortal>
                     <span
                       className="text-muted-foreground flex items-center gap-2 text-xs"
-                      title="An analysis clusters a fixed window. Rerun it to cover another window."
+                      title="An analysis clusters a fixed window once."
                     >
                       <Badge
                         text={topicWindowLabel(
@@ -673,19 +658,7 @@ function TopicsWorkspaceContent({
                     <TopicMapStrip.Rule rule={selectedRule} now={refreshedAt} />
                   ) : null}
                   {selectedAnalysis && analysisRunId ? (
-                    <TopicMapStrip.Analysis
-                      analysis={selectedAnalysis}
-                      runId={analysisRunId}
-                      tab={analysisTab}
-                      onTabChange={setAnalysisTab}
-                      canWrite={canWrite}
-                      onRerun={() =>
-                        openSliceDialog({
-                          kind: "rerun",
-                          analysis: selectedAnalysis,
-                        })
-                      }
-                    />
+                    <TopicMapStrip.Analysis analysis={selectedAnalysis} />
                   ) : null}
                   {!showOnboarding && validTimeRange && headerFacetId && (
                     <div className="shrink-0 px-3 pt-2 md:hidden">
@@ -819,55 +792,24 @@ function TopicsWorkspaceContent({
                       widthStorageKey="topicsPeekViewWidthFraction"
                     />
                     {showBuilding && selectedRule ? (
-                      <TopicRuleBuildingState
-                        rule={selectedRule}
-                        canWrite={canWrite && configured}
-                        onProcessPastTraces={() =>
-                          openSliceDialog({
-                            kind: "process",
-                            prefill: processPrefill,
-                          })
-                        }
-                      />
+                      <TopicRuleBuildingState rule={selectedRule} />
                     ) : null}
-                    {selectedAnalysis &&
-                    analysisRunId &&
-                    analysisTab === "runs" ? (
-                      <TopicAnalysisRuns
-                        projectId={projectId}
-                        analysis={selectedAnalysis}
-                        runId={analysisRunId}
-                        facets={facets.data ?? []}
-                        onSelectRun={(runId) =>
-                          selectMap({
-                            kind: "analysis",
-                            id: selectedAnalysis.id,
-                            runId,
-                          })
-                        }
-                      />
-                    ) : null}
-                    {validTimeRange &&
-                      !showOnboarding &&
-                      !showBuilding &&
-                      !(selectedAnalysis && analysisTab === "runs") && (
-                        <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-                          <CurrentTopics
-                            projectId={projectId}
-                            timeRange={shownTimeRange}
-                            result={shownResults}
-                            selectedFacetId={selectedFacetId}
-                            view={resultsView}
-                            traceFilters={traceFilters}
-                            tracePanelRef={setTracePanel}
-                            onGenerateTopics={openTopicGeneration}
-                            canGenerateTopics={
-                              canWrite && !running && configured
-                            }
-                            showUnassigned={showUnassigned}
-                          />
-                        </div>
-                      )}
+                    {validTimeRange && !showOnboarding && !showBuilding && (
+                      <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+                        <CurrentTopics
+                          projectId={projectId}
+                          timeRange={shownTimeRange}
+                          result={shownResults}
+                          selectedFacetId={selectedFacetId}
+                          view={resultsView}
+                          traceFilters={traceFilters}
+                          tracePanelRef={setTracePanel}
+                          onGenerateTopics={openTopicGeneration}
+                          canGenerateTopics={canWrite && !running && configured}
+                          showUnassigned={showUnassigned}
+                        />
+                      </div>
+                    )}
                     {facets.isLoading && <p>Loading facets…</p>}
                     {facets.error && (
                       <TopicsErrorMessage message={facets.error.message} />
@@ -973,19 +915,4 @@ function startBlockedReason(running: boolean, automaticOn: boolean) {
   if (automaticOn)
     return "Automatic processing is on. Topics appear here as traces are summarized.";
   return null;
-}
-
-/** Process past traces starts from the selected map's slice. */
-function processPastTracesPrefill(
-  map:
-    | { name: string; filter: FilterState; facetIds: string[] }
-    | { label: string; filter: FilterState; facetIds: string[] }
-    | undefined,
-): ProcessPastTracesPrefill {
-  if (!map) return { filter: [], facetIds: [] };
-  return {
-    filter: map.filter,
-    facetIds: map.facetIds,
-    source: "name" in map ? map.name : map.label,
-  };
 }

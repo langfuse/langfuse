@@ -648,7 +648,6 @@ it("shows Analyze in the header while auto-analyze is off and keeps Analyze, reg
   const items = await screen.findAllByRole("menuitem");
   expect(items.map((item) => item.textContent)).toEqual([
     "AnalyzeOff",
-    "Process past traces",
     "Manage rules",
     "Regenerate topics",
     "History",
@@ -860,7 +859,6 @@ it("regenerates the shown rule's map, not the project's oldest rule", async () =
     { id: "rule-shown", facetIds: ["intent"] },
   ];
   state.maps = {
-    refitIntervalHours: 24,
     rules: [
       {
         id: "rule-shown",

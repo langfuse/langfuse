@@ -1,7 +1,4 @@
-import { RotateCcw } from "@langfuse/icons";
 import { Badge } from "@/src/components/design-system/Badge/Badge";
-import { Button } from "@/src/components/design-system/Button/Button";
-import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import { cn } from "@/src/utils/tailwind";
 import {
   samplingLabel,
@@ -46,7 +43,7 @@ function Strip({
   );
 }
 
-/** Scope, sampling and refit timing of the selected rule's live map. */
+/** Scope, sampling and freshness of the selected rule's live map. */
 function TopicRuleStrip({ rule, now }: { rule: TopicRuleMap; now: number }) {
   return (
     <Strip tone="live">
@@ -64,62 +61,15 @@ function TopicRuleStrip({ rule, now }: { rule: TopicRuleMap; now: number }) {
   );
 }
 
-export type TopicAnalysisTab = "topics" | "runs";
-
-/** The blue snapshot strip of an analysis: its slice, parent rule and window. */
-function TopicAnalysisStrip({
-  analysis,
-  runId,
-  tab,
-  onTabChange,
-  canWrite,
-  onRerun,
-}: {
-  analysis: TopicAnalysisMap;
-  runId: string;
-  tab: TopicAnalysisTab;
-  onTabChange: (tab: TopicAnalysisTab) => void;
-  canWrite: boolean;
-  onRerun: () => void;
-}) {
-  const run = analysis.runs.find((item) => item.executionId === runId);
+/** The blue snapshot strip of an analysis: its slice and window. */
+function TopicAnalysisStrip({ analysis }: { analysis: TopicAnalysisMap }) {
   return (
     <Strip tone="snapshot">
       <Badge text="Snapshot" size="sm" color="blue" />
       <FilterChips filter={analysis.filter} />
       <span className="text-muted-foreground">
-        {analysis.parentRuleName
-          ? `compared with ${analysis.parentRuleName}`
-          : "no parent rule"}
-      </span>
-      {run ? (
-        <span className="text-muted-foreground">
-          {topicWindowLabel(run.timeRange)} ·{" "}
-          {run.traceCount.toLocaleString("en-US")} traces
-        </span>
-      ) : null}
-      <span className="ml-auto flex items-center gap-2">
-        <Tabs
-          value={tab}
-          onValueChange={(value) => onTabChange(value as TopicAnalysisTab)}
-        >
-          <Tabs.List variant="inset" size="sm" aria-label="Analysis view">
-            <Tabs.Trigger value="topics" label="Topics" />
-            <Tabs.Trigger
-              value="runs"
-              label="Runs"
-              count={analysis.runs.length}
-            />
-          </Tabs.List>
-        </Tabs>
-        <Button
-          variant="outline"
-          size="sm"
-          icon={RotateCcw}
-          text="Rerun"
-          disabled={!canWrite}
-          onClick={onRerun}
-        />
+        {topicWindowLabel(analysis.timeRange)} ·{" "}
+        {analysis.traceCount.toLocaleString("en-US")} traces
       </span>
     </Strip>
   );
