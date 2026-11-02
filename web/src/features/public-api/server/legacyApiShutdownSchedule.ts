@@ -13,8 +13,8 @@ export const LEGACY_FULL_CUT_DATE = "2026-11-19";
 // PLACEHOLDER: the exact stop and cut times are not decided yet. Both are set
 // to 09:00 UTC (10:00 Europe/Berlin) so the calendar date reads the same in
 // every timezone from UTC-9 to UTC+14. Replace once the times are final.
-export const LEGACY_EVALS_EXPORTS_STOP_TIME_UTC_PLACEHOLDER = "09:00";
-export const LEGACY_FULL_CUT_TIME_UTC_PLACEHOLDER = "09:00";
+const LEGACY_EVALS_EXPORTS_STOP_TIME_UTC_PLACEHOLDER = "09:00";
+const LEGACY_FULL_CUT_TIME_UTC_PLACEHOLDER = "09:00";
 
 export type LegacyApiBrownoutWindow = {
   startsAt: Date;

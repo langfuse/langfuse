@@ -35,7 +35,7 @@ export const legacyApiBannerSource = createStaticLegacyApiBannerSource(
   env.LANGFUSE_V4_BANNER_EXEMPT_ORG_IDS,
 );
 
-export type LegacyApiBannerPhase = "hidden" | LegacyApiShutdownPhase;
+type LegacyApiBannerPhase = "hidden" | LegacyApiShutdownPhase;
 
 export type LegacyApiBannerState = {
   phase: LegacyApiBannerPhase;

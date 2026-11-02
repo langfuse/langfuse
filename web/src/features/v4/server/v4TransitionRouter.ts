@@ -164,7 +164,7 @@ export const v4TransitionRouter = createTRPCRouter({
   /**
    * Phase of the legacy API shutdown top banner, computed with the server
    * clock. Reads no ClickHouse data; the per-project counts come from the
-   * existing summaryByProject queries.
+   * existing per-org migration queries.
    */
   legacyApiBannerState: protectedOrganizationProcedure
     .input(
