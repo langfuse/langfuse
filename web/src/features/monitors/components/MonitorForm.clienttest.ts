@@ -21,7 +21,7 @@ const {
 } = __test;
 
 describe("createDefaults", () => {
-  it("only surfaces name as a missing base field (no hidden missing fields)", () => {
+  it("only surfaces name + alertThreshold as missing base fields (no hidden missing fields)", () => {
     const defaults = createDefaults("project-1");
     const result = CreateMonitorSchema.safeParse(defaults);
     expect(result.success).toBe(false);
@@ -29,7 +29,7 @@ describe("createDefaults", () => {
 
     const paths = result.error.issues.map((i) => i.path.join("."));
     expect(paths).toContain("name");
-    expect(paths).not.toContain("alertThreshold");
+    expect(paths).toContain("alertThreshold");
     // Anything else has no error UI in the form, so the submit would silently
     // reject and the user would see the create button "do nothing". Defaults
     // must cover these fields with schema-valid values.
@@ -94,6 +94,10 @@ describe("thresholdUnit", () => {
       "milliseconds",
     );
     expect(thresholdUnit("observations", "totalCost", "sum")).toBe("USD");
+  });
+
+  it("names the score value unit, which the view leaves undeclared", () => {
+    expect(thresholdUnit("scores-numeric", "value", "avg")).toBe("score value");
   });
 });
 

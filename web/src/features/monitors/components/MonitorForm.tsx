@@ -89,6 +89,9 @@ const numericMeasureTypes = new Set(["integer", "decimal", "number"]);
 /** unitLabels spells out measure units that read better pluralized. */
 const unitLabels: Record<string, string> = { millisecond: "milliseconds" };
 
+/** unitlessMeasureLabels names the unit of measures declared without one. */
+const unitlessMeasureLabels: Record<string, string> = { value: "score value" };
+
 /** createDefaults returns the form defaults for a brand-new monitor. */
 const createDefaults = (
   projectId: string,
@@ -103,7 +106,6 @@ const createDefaults = (
   metric: prefill?.metric ?? { measure: "count", aggregation: "count" },
   window: prefill?.window ?? "5m",
   thresholdOperator: MonitorThresholdOperatorSchema.enum.GT,
-  alertThreshold: 0,
   warningThreshold: null,
   noData: { mode: MonitorNoDataModeSchema.enum.SUBSTITUTE_ZERO },
   renotify: { mode: "OFF" },
@@ -162,6 +164,7 @@ export const MonitorForm = ({
   analyticsSource = "alerts",
   initialTriggerIds = [],
   onNameChange,
+  secondaryAction,
 }: {
   projectId: string;
   monitor?: Monitor;
@@ -172,6 +175,8 @@ export const MonitorForm = ({
   initialTriggerIds?: string[];
   /** onNameChange fires on every form change so the host (e.g. the edit page header) can mirror the live name. */
   onNameChange?: (name: string) => void;
+  /** secondaryAction renders left of the submit button, e.g. the edit page's delete button. */
+  secondaryAction?: React.ReactNode;
 }) => {
   /** router is the Next router used to redirect after a successful create. */
   const router = useRouter();
@@ -451,12 +456,10 @@ export const MonitorForm = ({
         <div className="h-full min-h-0 w-full min-w-107.5 md:w-1/3">
           <div className="flex h-full flex-col">
             <CardHeader>
-              <CardTitle>Alert Configuration</CardTitle>
-              <CardDescription>
-                Receive notifications when a metric crosses a threshold. (eg.
-                &ldquo;sudden cost increase&rdquo;, &ldquo;accuracy has
-                dropped&rdquo;)
-              </CardDescription>
+              <FormHeading
+                isEdit={isEdit}
+                name={nameOrPlaceholder(watched.name, namePlaceholder)}
+              />
             </CardHeader>
             <CardContent className="min-h-0 flex-1 overflow-y-auto overscroll-contain py-0">
               {/* Fades content out as it slides under the form header. */}
@@ -548,7 +551,6 @@ export const MonitorForm = ({
                         <FormControl>
                           <ThresholdInput
                             unit={thresholdUnitLabel}
-                            placeholder="0"
                             value={field.value ?? ""}
                             onChange={(e) => {
                               const raw = e.target.value;
@@ -807,6 +809,7 @@ export const MonitorForm = ({
                     )}
                   </ConfirmationDialogController>
                 )}
+                {secondaryAction}
                 {/* Looks disabled while incomplete but stays clickable, so a click still reveals the field errors. */}
                 <Button
                   type="submit"
@@ -847,6 +850,22 @@ export const MonitorForm = ({
     </Form>
   );
 };
+
+/** FormHeading titles the form: the alert being edited, or a description of a new one. */
+function FormHeading({ isEdit, name }: { isEdit: boolean; name: string }) {
+  if (isEdit) {
+    return <CardTitle>Edit Alert &ldquo;{name}&rdquo;</CardTitle>;
+  }
+  return (
+    <>
+      <CardTitle>Alert Configuration</CardTitle>
+      <CardDescription>
+        Receive notifications when a metric crosses a threshold. (eg.
+        &ldquo;sudden cost increase&rdquo;, &ldquo;accuracy has dropped&rdquo;)
+      </CardDescription>
+    </>
+  );
+}
 
 /** Header pins a section title to the top of the scrolling CardContent. */
 const Header = ({
@@ -1075,7 +1094,7 @@ function thresholdUnit(
   const isNumeric = numericMeasureTypes.has(definition?.type ?? "");
   if (aggregation === "count" && isNumeric) return measures.count?.unit;
   if (aggregation === "uniq" && isNumeric) return undefined;
-  if (!definition?.unit) return undefined;
+  if (!definition?.unit) return unitlessMeasureLabels[measure];
   return unitLabels[definition.unit] ?? definition.unit;
 }
 
