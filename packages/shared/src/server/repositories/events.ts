@@ -211,6 +211,7 @@ const SESSION_TRACE_FIELDS = [
   "user_id",
 ] as const;
 
+const OBSERVATIONS_DEFAULT_FROM_MS = Date.parse("2020-01-01T00:00:00Z");
 const OBSERVATIONS_SCAN_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
 const OBSERVATIONS_SCAN_BUDGET_MS = 45_000;
 const OBSERVATIONS_QUERY_ROW_TARGET = 5_000_000;
@@ -1923,14 +1924,6 @@ export const getObservationsV2FromEventsTableForPublicApi = async (
   );
 };
 
-async function getProjectCreationTime(projectId: string) {
-  const project = await prisma.project.findUnique({
-    where: { id: projectId, deletedAt: null },
-    select: { createdAt: true },
-  });
-  return project?.createdAt.getTime();
-}
-
 /** Assemble a page from completed windows, including empty continuations. */
 export const getObservationsV2PageFromEventsTableForPublicApi = async (
   opts: PublicApiObservationsQuery,
@@ -1943,10 +1936,8 @@ export const getObservationsV2PageFromEventsTableForPublicApi = async (
     const scan = createObservationsScan(opts.projectId);
     try {
       const bounds = extractObservationsStartTimeBounds(opts);
-      // Backfilled timestamps before project creation require an explicit lower bound.
-      const from =
-        bounds.from ?? (await getProjectCreationTime(opts.projectId));
-      if (from === undefined || (bounds.to !== undefined && from > bounds.to)) {
+      const from = bounds.from ?? OBSERVATIONS_DEFAULT_FROM_MS;
+      if (bounds.to !== undefined && from > bounds.to) {
         return { items: [], cursor: undefined };
       }
       const page = await scanObservationWindows(opts, from, bounds.to, scan);

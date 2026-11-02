@@ -96,7 +96,15 @@ export default withMiddlewares({
 
       return {
         data: transformedItems,
-        meta: cursor ? { cursor: encodeCursor(cursor) } : {},
+        meta: cursor
+          ? {
+              cursor: encodeCursor(cursor),
+              ...(transformedItems.length === 0 && {
+                comment:
+                  "This empty page does not indicate completion. Continue requesting pages using meta.cursor.",
+              }),
+            }
+          : {},
       };
     },
   }),
