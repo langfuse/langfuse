@@ -1,3 +1,4 @@
+import { getGatewayIngestionProjectDeletionMessage } from "@/src/features/ai-gateway/fns/gatewayIngestionModePolicy";
 import { ExternalLink } from "@langfuse/icons";
 import { type ReactNode } from "react";
 import { useRouter } from "next/router";
@@ -61,7 +62,7 @@ export function DeleteProjectDialogController({
           return (
             <Dialog
               title="Project cannot be deleted"
-              text="This project is used as the AI Gateway ingestion project. Select another ingestion project or set the ingestion mode to None before deleting it."
+              text={getGatewayIngestionProjectDeletionMessage()}
               actions={[
                 {
                   label: "Open AI Gateway settings",

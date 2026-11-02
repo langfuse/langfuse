@@ -1,4 +1,4 @@
-<img width="2400" alt="hero-b (1)" src="https://github.com/user-attachments/assets/5810ae13-15d6-4b60-afd2-927adc501861" />
+<img width="2400" height="600" alt="Langfuse by ClickHouse" src=".github/readme-banner.png" />
 
 <div align="center">
    <div>
@@ -66,10 +66,11 @@ Langfuse is an **open source LLM engineering** platform. It helps teams collabor
 
 > ### 🧑‍💻 We're hiring
 >
-> Langfuse is growing fast (we doubled the team in the last 6 months) - since January 2026 we're part of ClickHouse, we're hiring engineering hybrid across the EU.
+> Langfuse is growing fast (we doubled the team in the last 6 months). Since January 2026 we're part of ClickHouse. We hire remotely, with offices in Berlin, San Francisco, Amsterdam, and New York.
 > We hire engineers who love open source and great developer experiences.
 > **[See open roles →](https://langfuse.com/careers?utm_source=github&utm_medium=readme&utm_campaign=hiring&utm_content=langfuse)**
 
+<a href="https://langfuse.com/watch-demo"><img width="37.5%" alt="Langfuse Overview Video" src=".github/watch-demo.png"></a>
 
 ## ✨ Core Features
 

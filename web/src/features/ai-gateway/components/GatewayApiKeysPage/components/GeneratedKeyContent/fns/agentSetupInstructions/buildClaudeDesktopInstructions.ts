@@ -16,7 +16,7 @@ export function buildClaudeDesktopInstructions(
     docsUrl: AGENT_SETUP_DOCS_URLS["claude-desktop"],
     warning: context.providers.includes("ANTHROPIC")
       ? undefined
-      : "Claude Desktop needs an Anthropic provider connection, and none is enabled yet.",
+      : "Claude Desktop needs an Anthropic provider credential, and none is enabled yet.",
     steps: [
       {
         title: "Open the third-party inference settings",

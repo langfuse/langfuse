@@ -24,16 +24,16 @@ export function GatewayApiKeysPage({
   }
   /** Managers are redirected to Setup by the settings route. */
   if (!canManageGateway && isIngestionConfigured === false) {
-    return <GatewayNotSetUpNotice title="Gateway API keys" />;
+    return <GatewayNotSetUpNotice title="Gateway keys" />;
   }
   return (
     <div className="flex flex-col gap-4">
       <div>
-        <Header title="Gateway API keys" />
+        <Header title="Gateway keys" />
         <p className="text-muted-foreground text-sm">
           {canManageGateway
-            ? "Keys authenticate requests to the AI Gateway only. User keys are revoked when their owner leaves the organization; service account keys keep working."
-            : "Your keys authenticate requests to the AI Gateway only. They are revoked when you leave the organization or lose gateway access."}{" "}
+            ? "Gateway keys authenticate requests to the AI Gateway only. User keys are revoked when their owner leaves the organization; service account keys keep working."
+            : "Your gateway keys authenticate requests to the AI Gateway only. They are revoked when you leave the organization or lose gateway access."}{" "}
           <Button
             variant="text"
             text="How gateway keys work"

@@ -40,6 +40,7 @@ import {
 import { loadTraceTranscript } from "./loadTraceTranscript";
 import {
   instrumentAsync,
+  getCurrentSpan,
   getScoresAndCorrectionsForTraces,
   getAgentGraphDataFromEventsTable,
   getObservationsForTraceFromEventsTable,
@@ -143,6 +144,15 @@ export const eventsRouter = createTRPCRouter({
   all: protectedProjectProcedure
     .input(GetAllEventsInput)
     .query(async ({ input, ctx }) => {
+      const normalizedOrderBy = normalizeOrderByForTable({
+        orderBy: input.orderBy,
+        expectedTimeColumn: "startTime",
+      });
+      const span = getCurrentSpan();
+      if (span) {
+        addAttributesToSpan({ span, input, orderBy: normalizedOrderBy });
+      }
+
       const { filterState, hasNoMatches } = await applyCommentFilters({
         filterState: input.filter ?? [],
         prisma: ctx.prisma,
@@ -159,10 +169,6 @@ export const eventsRouter = createTRPCRouter({
           name: "get-event-list-trpc",
         },
         async (span) => {
-          const normalizedOrderBy = normalizeOrderByForTable({
-            orderBy: input.orderBy,
-            expectedTimeColumn: "startTime",
-          });
           addAttributesToSpan({ span, input, orderBy: normalizedOrderBy });
 
           return getEventList({
