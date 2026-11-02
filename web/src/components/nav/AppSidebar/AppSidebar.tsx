@@ -558,7 +558,7 @@ const DemoBadge = () => {
             </SidebarMenuButton>
           </SidebarMenuItem>
           <SidebarMenuItem>
-            <SidebarMenuButton asChild tooltip="Your Langfuse orgs">
+            <SidebarMenuButton asChild tooltip="Your Langfuse organizations">
               <Link href="/">
                 <Grid2X2 size="base" />
                 <span>Your Langfuse orgs</span>
