@@ -51,6 +51,26 @@ describe("POST /api/internal/ai-gateway/v1/resolve", () => {
       body: { apiFormat: "openai.responses", limit: 10 },
     },
     { case: "not an object", body: "openai.responses" },
+    {
+      case: "missing request bytes",
+      body: { apiFormat: "openai.responses", model: "gpt-4o-mini" },
+    },
+    {
+      case: "negative request bytes",
+      body: {
+        apiFormat: "openai.responses",
+        model: "gpt-4o-mini",
+        requestBytes: -1,
+      },
+    },
+    {
+      case: "fractional request bytes",
+      body: {
+        apiFormat: "openai.responses",
+        model: "gpt-4o-mini",
+        requestBytes: 1.5,
+      },
+    },
   ])("rejects an invalid body: $case", async ({ body }) => {
     expect((await post(body)).statusCode).toBe(400);
   });
@@ -67,6 +87,7 @@ describe("POST /api/internal/ai-gateway/v1/resolve", () => {
         await post({
           apiFormat: format,
           model: "production:model-with:separator",
+          requestBytes: 0,
         })
       ).statusCode,
     ).toBe(401);
@@ -78,7 +99,9 @@ describe("POST /api/internal/ai-gateway/v1/resolve", () => {
   ])(
     "accepts inferred provider model $model and advances to authorization",
     async ({ model, apiFormat }) => {
-      expect((await post({ apiFormat, model })).statusCode).toBe(401);
+      expect(
+        (await post({ apiFormat, model, requestBytes: 1024 })).statusCode,
+      ).toBe(401);
     },
   );
 
