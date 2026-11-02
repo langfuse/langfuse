@@ -342,48 +342,53 @@ export function ResetPasswordPage({
                         {submitLabel}
                       </Button>
                     </div>
+                    {formError ? (
+                      <div className="text-destructive text-center text-sm font-bold">
+                        {formError}
+                      </div>
+                    ) : null}
+                    <div className="flex flex-col">
+                      <RequestResetPasswordEmailButton
+                        email={effectiveEmail}
+                        callbackUrl={isSetMode ? setupPasswordPath : undefined}
+                        onEmailSent={() => {
+                          setCodeRequested(true);
+                          setTurnstileToken(undefined);
+                          setTurnstileAction(TURNSTILE_ACTIONS.login);
+                        }}
+                        label="Send another code"
+                        variant="secondary"
+                        sharedTurnstile={
+                          turnstileSiteKey
+                            ? {
+                                token: turnstileToken,
+                                action: turnstileAction,
+                                onPreparePasswordReset: () => {
+                                  setTurnstileToken(undefined);
+                                  setTurnstileAction(
+                                    TURNSTILE_ACTIONS.passwordReset,
+                                  );
+                                },
+                                onRejectToken: () => {
+                                  turnstileRef.current?.reset();
+                                },
+                              }
+                            : undefined
+                        }
+                      />
+                    </div>
+                  </>
+                ) : (
+                  <div className="flex flex-col">
                     <RequestResetPasswordEmailButton
                       email={effectiveEmail}
                       callbackUrl={isSetMode ? setupPasswordPath : undefined}
-                      onEmailSent={() => {
-                        setCodeRequested(true);
-                        setTurnstileToken(undefined);
-                        setTurnstileAction(TURNSTILE_ACTIONS.login);
-                      }}
-                      label="Send another code"
-                      sharedTurnstile={
-                        turnstileSiteKey
-                          ? {
-                              token: turnstileToken,
-                              action: turnstileAction,
-                              onPreparePasswordReset: () => {
-                                setTurnstileToken(undefined);
-                                setTurnstileAction(
-                                  TURNSTILE_ACTIONS.passwordReset,
-                                );
-                              },
-                              onRejectToken: () => {
-                                turnstileRef.current?.reset();
-                              },
-                            }
-                          : undefined
-                      }
+                      onEmailSent={() => setCodeRequested(true)}
                     />
-                  </>
-                ) : (
-                  <RequestResetPasswordEmailButton
-                    email={effectiveEmail}
-                    callbackUrl={isSetMode ? setupPasswordPath : undefined}
-                    onEmailSent={() => setCodeRequested(true)}
-                  />
+                  </div>
                 )}
               </form>
             </Form>
-            {formError ? (
-              <div className="text-destructive text-center text-sm font-bold">
-                {formError}
-              </div>
-            ) : null}
             {isSuccess && (
               <div className="text-center text-sm font-bold">
                 {successMessage}

@@ -1,4 +1,5 @@
 import { createHash, randomBytes, randomInt, randomUUID } from "crypto";
+import { EventEmitter } from "events";
 import type { NextApiRequest, NextApiResponse } from "next";
 import { createMocks } from "node-mocks-http";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -24,6 +25,7 @@ import {
 import { verifyTurnstileToken } from "@/src/features/auth/server/verifyTurnstile";
 import type * as VerifyTurnstileModule from "@/src/features/auth/server/verifyTurnstile";
 import auth from "@/src/pages/api/auth/[...nextauth]";
+import trpcHandler from "@/src/pages/api/trpc/[trpc]";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import { getAuthOptions } from "@/src/server/auth";
@@ -274,6 +276,23 @@ describe("POST /api/auth/signin/email code lifetime", () => {
     await expectPassword(userId, NEW_PASSWORD);
   });
 
+  it("answers an expired code with 401, pointing at Send another code", async () => {
+    const { email } = await createUser({ password: OLD_PASSWORD });
+    const token = uniqueOtp();
+    await insertOtp({ email, token, expires: new Date(Date.now() - 60_000) });
+
+    const res = await postResetPassword({
+      email,
+      token,
+      password: NEW_PASSWORD,
+    });
+
+    expect(res.statusCode).toBe(401);
+    expect(JSON.parse(res._getData()).error.json.message).toBe(
+      'This code is wrong or has expired. Use "Send another code" to get a new one.',
+    );
+  });
+
   it.each([
     {
       account: "a passwordless account",
@@ -355,6 +374,28 @@ describe("POST /api/auth/signin/email code lifetime", () => {
     expect((code.expires.getTime() - requestedAt.getTime()) / 1000).toBe(
       seconds,
     );
+  }
+
+  // credentials.resetPassword through the app's tRPC HTTP handler
+  async function postResetPassword(input: {
+    email: string;
+    token: string;
+    password: string;
+  }) {
+    // the handler settles on the response's "finish", which needs an emitter
+    const { req, res } = createMocks<NextApiRequest, NextApiResponse>(
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        query: { trpc: "credentials.resetPassword" },
+        body: { json: input },
+      },
+      { eventEmitter: EventEmitter },
+    );
+
+    await trpcHandler(req, res);
+
+    return res;
   }
 
   function resetPasswordAt(

@@ -192,7 +192,8 @@ export async function consumeEmailOtpAndUpdatePassword({
   if (!passwordUpdated) {
     throw new TRPCError({
       code: "UNAUTHORIZED",
-      message: "Invalid or expired verification code.",
+      message:
+        'This code is wrong or has expired. Use "Send another code" to get a new one.',
     });
   }
 }
