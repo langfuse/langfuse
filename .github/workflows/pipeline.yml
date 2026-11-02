@@ -294,10 +294,16 @@ jobs:
         run: |
           cp .env.dev.example .env
       - name: lint web
-        # Three packages with four ESLint workers leave headroom on 16 vCPUs.
+        # Web's typed linting duplicates its TypeScript project state in each
+        # worker (about 6.5 GB each), above Node's default heap limit. The
+        # 64 GB runner fits four workers; local `pnpm lint` stays
+        # single-process with an 8 GB heap for smaller machines. Web's script
+        # passes its own heap flag, which overrides NODE_OPTIONS.
+        env:
+          NODE_OPTIONS: --max_old_space_size=12288
+          WEB_LINT_MAX_OLD_SPACE_SIZE: "12288"
         run: pnpm turbo run lint --filter=!ai-gateway --filter=!@langfuse/native --concurrency=3 -- --concurrency=4
-      # Rust packages lint with cargo, which rejects the trailing ESLint flag
-      # above, so they run outside that invocation (ai-gateway in its own job).
+      # Rust packages lint separately (ai-gateway in its own job).
       - name: lint native addon (rustfmt, clippy)
         run: pnpm --filter @langfuse/native run lint
       - name: Install Rust dependency checkers
@@ -652,14 +658,14 @@ jobs:
         # `clickhouse format` (from clickhouse-common-static) normalizes SQL for
         # the equivalence snapshots. Its output is version-specific, so pin the
         # exact version and regenerate snapshots on any bump; keep in sync with
-        # scripts/codex/cloud_services.sh. 26.4 is the v4-recommended version.
+        # scripts/codex/cloud_services.sh and docker-compose.dev.yml.
         # continue-on-error + timeout-minutes: a missing binary OR a stalled apt
         # mirror just skips the tests, never blocks (timeout-minutes bounds a
         # hang, which continue-on-error alone would not).
         continue-on-error: true
         timeout-minutes: 5
         env:
-          CLICKHOUSE_VERSION: 26.4.5.143
+          CLICKHOUSE_VERSION: 26.8.36.3
         run: |
           set -euo pipefail
           sudo mkdir -p /etc/apt/keyrings

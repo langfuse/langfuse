@@ -3,9 +3,10 @@ import { useMemo } from "react";
 import { ListTree, Pencil, RefreshCw, Trash2 } from "@langfuse/icons";
 
 import { SettingsTable } from "@/src/components/SettingsTable/SettingsTable";
-import { createStatusTableColumn } from "@/src/components/design-system/table/columns/createStatusTableColumn";
+import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
 import type { LangfuseColumnDef } from "@/src/components/table/types";
+import { StatusBadge } from "@/src/components/ui/StatusBadge/StatusBadge";
 import { GatewayProvidersEmptyState } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/GatewayCredentialsOverview/components/GatewayProvidersTable/components/GatewayProvidersEmptyState/GatewayProvidersEmptyState";
 import { GatewayProviderMark } from "@/src/features/ai-gateway/components/GatewayProviderMark";
 import { providerLabels } from "@/src/features/ai-gateway/constants/providerLabels";
@@ -31,6 +32,10 @@ const connectionStatus = {
   ERROR: "error",
   DISABLED: "disabled",
 } as const satisfies Record<GatewayConnection["status"], string>;
+
+/** Model discovery marks a connection as errored only when the provider rejects its credential. */
+const connectionErrorReason =
+  "The provider rejected this credential. Update the credential or retry validation.";
 
 export function GatewayProvidersTable({
   connections,
@@ -62,19 +67,23 @@ export function GatewayProvidersTable({
         size: 180,
         sensitive: true,
       }),
-      createStatusTableColumn<GatewayConnection, GatewayConnection["status"]>({
+      {
         accessorKey: "status",
         header: "Status",
         size: 110,
-        getStatus: (status) => (status ? connectionStatus[status] : undefined),
-        isLive: false,
-      }),
+        cell: ({ row }) => <ConnectionStatus status={row.original.status} />,
+      },
       {
         accessorKey: "id",
         id: "models",
         header: "Models",
         size: 180,
-        cell: ({ row }) => <ModelCount value={modelCounts[row.original.id]} />,
+        cell: ({ row }) =>
+          row.original.status === "ERROR" ? (
+            <span className="text-destructive">Credential rejected</span>
+          ) : (
+            <ModelCount value={modelCounts[row.original.id]} />
+          ),
       },
     ],
     [modelCounts],
@@ -95,7 +104,7 @@ export function GatewayProvidersTable({
         {
           id: "retry",
           type: "item",
-          title: "Retry provider validation",
+          title: "Retry validation",
           icon: RefreshCw,
           disabled: retryDisabled,
           onClick: () => onRetry(connection),
@@ -123,6 +132,24 @@ export function GatewayProvidersTable({
       noResultsMessage="No provider credentials configured."
       emptyState={<GatewayProvidersEmptyState />}
     />
+  );
+}
+
+function ConnectionStatus({ status }: { status: GatewayConnection["status"] }) {
+  const badge = <StatusBadge type={connectionStatus[status]} isLive={false} />;
+  if (status !== "ERROR") return badge;
+  return (
+    <Tooltip label={connectionErrorReason}>
+      {({ getTriggerProps }) => (
+        <span
+          {...getTriggerProps()}
+          tabIndex={0}
+          className="focus-visible:ring-ring inline-flex rounded-sm focus-visible:ring-2 focus-visible:outline-hidden"
+        >
+          {badge}
+        </span>
+      )}
+    </Tooltip>
   );
 }
 

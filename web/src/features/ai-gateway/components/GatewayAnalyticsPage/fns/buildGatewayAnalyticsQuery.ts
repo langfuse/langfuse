@@ -1,4 +1,4 @@
-import type { FilterCondition } from "@langfuse/shared";
+import type { FilterCondition, FilterState } from "@langfuse/shared";
 import {
   buildWidgetOrderBy,
   isV2BreakdownChart,
@@ -25,6 +25,7 @@ const DEFAULT_BREAKDOWN_ROW_LIMIT = 100;
 export function buildGatewayAnalyticsQuery(
   widget: GatewayAnalyticsWidget,
   timeRange: { from: Date; to: Date },
+  filters: FilterState,
 ): QueryType {
   const chartType = widget.chartType;
   const isTimeSeries = isTimeSeriesChart(chartType);
@@ -43,7 +44,7 @@ export function buildGatewayAnalyticsQuery(
     view: widget.view,
     dimensions: widget.dimensions,
     metrics,
-    filters: [GATEWAY_TRAFFIC_FILTER, ...widget.filters],
+    filters: [GATEWAY_TRAFFIC_FILTER, ...widget.filters, ...filters],
     timeDimension: isTimeSeries ? { granularity: "auto" } : null,
     fromTimestamp: timeRange.from.toISOString(),
     toTimestamp: timeRange.to.toISOString(),

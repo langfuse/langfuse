@@ -1,5 +1,5 @@
-/* eslint-disable @repo/no-style-props, @typescript-eslint/no-deprecated, @typescript-eslint/no-use-before-define -- Legacy UI usage retained during migration to design-system components. */
-import { useMemo, useCallback, useRef, useState } from "react";
+/* eslint-disable @repo/no-style-props, @typescript-eslint/no-use-before-define -- Legacy UI usage retained during migration to design-system components. */
+import { useMemo, useCallback, useRef } from "react";
 import {
   Check,
   Github,
@@ -12,22 +12,12 @@ import { SiPagerduty } from "@langfuse/icons/si";
 import { api } from "@/src/utils/api";
 import { Button } from "@/src/components/ui/button";
 import { Card, CardContent } from "@/src/components/ui/card";
-import {
-  Dialog,
-  DialogBody,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/src/components/ui/dialog";
 import { DropdownMenu } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
 import {
   actionTypeLabel,
-  AutomationForm,
   useAvailableActionTypes,
-  WebhookSecretRender,
 } from "@/src/features/automations";
+import { NewMonitorAutomationDialogController } from "@/src/features/monitors/automations/NewMonitorAutomationDialogController";
 import { cn } from "@/src/utils/tailwind";
 import {
   ActionTypeSchema,
@@ -246,12 +236,6 @@ const RowCheckbox = ({ checked }: { checked: boolean }) => (
   </span>
 );
 
-/** NewAutomationDraft is the pending create-automation dialog; an absent actionType lets the form pick its own default. */
-type NewAutomationDraft = { actionType?: ActionTypes };
-
-/** CreatedWebhookSecret is the signing secret of a just-created webhook automation, shown once before the dialog closes. */
-type CreatedWebhookSecret = { automationId: string; webhookSecret: string };
-
 /**
  * AddAutomationDropdown renders the "+ Automation" CTA for the empty state and
  * the list footer. Creation happens in a dialog on this page: navigating to the
@@ -269,120 +253,48 @@ const AddAutomationDropdown = ({
   onAutomationCreated: (automationId: string) => void;
 }) => {
   const actionTypes = useAvailableActionTypes(ActionTypeSchema.options);
-  const [draft, setDraft] = useState<NewAutomationDraft | null>(null);
-  const [createdSecret, setCreatedSecret] =
-    useState<CreatedWebhookSecret | null>(null);
-
-  /** closeDialog dismisses both dialog phases, selecting the automation when one was created. */
-  const closeDialog = (createdAutomationId?: string) => {
-    setDraft(null);
-    setCreatedSecret(null);
-    if (createdAutomationId) onAutomationCreated(createdAutomationId);
-  };
 
   return (
-    <>
-      <DropdownMenu
-        disabled={isDisabled}
-        placement="bottom-end"
-        items={[
-          {
-            type: "item",
-            id: "new",
-            title: "New automation",
-            icon: Plus,
-            onClick: () => setDraft({}),
-          },
-          ...actionTypes.map((actionType) => ({
-            type: "item" as const,
-            id: actionType,
-            title: actionTypeLabel[actionType],
-            icon: actionIcon[actionType],
-            onClick: () => setDraft({ actionType }),
-          })),
-        ]}
-      >
-        {({ getTriggerProps }) => (
-          <Button
-            variant="outline"
-            size="lg"
-            disabled={isDisabled}
-            className={fullWidth ? "w-full" : undefined}
-            {...getTriggerProps()}
-          >
-            <Plus size="base" color="default" __rawClassName="mr-2" />
-            Automation
-          </Button>
-        )}
-      </DropdownMenu>
-      <Dialog
-        open={draft !== null}
-        onOpenChange={(open) => {
-          if (!open) closeDialog(createdSecret?.automationId);
-        }}
-      >
-        <DialogContent
-          size="lg"
-          // The dialog portals out of the monitor <form>, but React events still
-          // bubble through the REACT tree: without this, saving the automation
-          // would submit the monitor too. Mirrors DialogContent's own onClick.
-          onSubmit={(e) => e.stopPropagation()}
+    <NewMonitorAutomationDialogController
+      projectId={projectId}
+      onCreated={onAutomationCreated}
+    >
+      {({ openDialog }) => (
+        <DropdownMenu
+          disabled={isDisabled}
+          placement="bottom-end"
+          items={[
+            {
+              type: "item",
+              id: "new",
+              title: "New automation",
+              icon: Plus,
+              onClick: () => openDialog(),
+            },
+            ...actionTypes.map((actionType) => ({
+              type: "item" as const,
+              id: actionType,
+              title: actionTypeLabel[actionType],
+              icon: actionIcon[actionType],
+              onClick: () => openDialog({ actionType }),
+            })),
+          ]}
         >
-          {createdSecret ? (
-            <>
-              <DialogHeader>
-                <DialogTitle>Webhook secret created</DialogTitle>
-                <DialogDescription>
-                  Copy the webhook secret below — it will only be shown once.
-                </DialogDescription>
-              </DialogHeader>
-              <DialogBody>
-                <WebhookSecretRender
-                  webhookSecret={createdSecret.webhookSecret}
-                />
-              </DialogBody>
-              <DialogFooter>
-                <Button onClick={() => closeDialog(createdSecret.automationId)}>
-                  {"I've saved the secret"}
-                </Button>
-              </DialogFooter>
-            </>
-          ) : (
-            <>
-              <DialogHeader>
-                <DialogTitle>New automation</DialogTitle>
-                <DialogDescription>
-                  This automation stays available to every alert in the project.
-                </DialogDescription>
-              </DialogHeader>
-              <DialogBody>
-                <AutomationForm
-                  projectId={projectId}
-                  isEditing
-                  lockedEventSource={TriggerEventSource.Monitor}
-                  prefill={{
-                    eventSource: TriggerEventSource.Monitor,
-                    actionType: draft?.actionType,
-                  }}
-                  onSuccess={(automationId, webhookSecret, actionType) => {
-                    if (
-                      automationId &&
-                      webhookSecret &&
-                      actionType === "WEBHOOK"
-                    ) {
-                      setCreatedSecret({ automationId, webhookSecret });
-                      return;
-                    }
-                    closeDialog(automationId);
-                  }}
-                  onCancel={() => closeDialog()}
-                />
-              </DialogBody>
-            </>
+          {({ getTriggerProps }) => (
+            <Button
+              variant="outline"
+              size="lg"
+              disabled={isDisabled}
+              className={fullWidth ? "w-full" : undefined}
+              {...getTriggerProps()}
+            >
+              <Plus size="base" color="default" __rawClassName="mr-2" />
+              Automation
+            </Button>
           )}
-        </DialogContent>
-      </Dialog>
-    </>
+        </DropdownMenu>
+      )}
+    </NewMonitorAutomationDialogController>
   );
 };
 

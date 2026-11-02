@@ -1,4 +1,3 @@
-/* eslint-disable react/no-unstable-nested-components */
 import { useCallback, useMemo, useState } from "react";
 import type { OrderByState } from "@langfuse/shared";
 import type { OnChangeFn, PaginationState } from "@tanstack/react-table";
@@ -24,6 +23,87 @@ const ROW_HEIGHTS = {
   m: "h-24",
   l: "h-64",
 } satisfies CustomHeights;
+
+function GatewayConnectionModelNameCell({ modelId }: { modelId: string }) {
+  return (
+    <span className="block truncate" title={modelId}>
+      {modelId}
+    </span>
+  );
+}
+
+function GatewayConnectionModelEnabledCell({
+  modelId,
+  enabled,
+  isSaving,
+  onToggle,
+}: {
+  modelId: string;
+  enabled: boolean;
+  isSaving: boolean;
+  onToggle: (model: string, enabled: boolean) => void;
+}) {
+  return (
+    <ModelEnabledSwitch
+      model={modelId}
+      enabled={enabled}
+      disabled={isSaving}
+      onToggle={onToggle}
+    />
+  );
+}
+
+function createGatewayConnectionModelsColumns({
+  isSaving,
+  selectActionColumn,
+  toggleModel,
+}: {
+  isSaving: boolean;
+  selectActionColumn: LangfuseColumnDef<GatewayConnectionModelRow>;
+  toggleModel: (model: string, enabled: boolean) => void;
+}): LangfuseColumnDef<GatewayConnectionModelRow>[] {
+  return [
+    {
+      ...selectActionColumn,
+      size: 32,
+      minSize: 32,
+      maxSize: 32,
+      enableResizing: false,
+    },
+    {
+      accessorKey: "id",
+      id: "name",
+      header: "Model",
+      size: 240,
+      minSize: 180,
+      isFlexWidth: true,
+      enableSorting: true,
+      headerClassName: "pl-2",
+      cellClassName: "pl-2",
+      cell: ({ row }) => (
+        <GatewayConnectionModelNameCell modelId={row.original.id} />
+      ),
+    },
+    {
+      accessorKey: "enabled",
+      id: "status",
+      header: "Enabled",
+      enableSorting: true,
+      size: 90,
+      minSize: 90,
+      maxSize: 90,
+      enableResizing: false,
+      cell: ({ row }) => (
+        <GatewayConnectionModelEnabledCell
+          modelId={row.original.id}
+          enabled={row.original.enabled}
+          isSaving={isSaving}
+          onToggle={toggleModel}
+        />
+      ),
+    },
+  ];
+}
 
 export type GatewayConnectionModelsTableProps = {
   models: string[];
@@ -65,50 +145,13 @@ export function GatewayConnectionModelsTable({
       onSetEnabled({ models: [model], enabled, scope: "single" }),
     [onSetEnabled],
   );
-  const columns = useMemo<LangfuseColumnDef<GatewayConnectionModelRow>[]>(
-    () => [
-      {
-        ...selectActionColumn,
-        size: 32,
-        minSize: 32,
-        maxSize: 32,
-        enableResizing: false,
-      },
-      {
-        accessorKey: "id",
-        id: "name",
-        header: "Model",
-        size: 240,
-        minSize: 180,
-        isFlexWidth: true,
-        enableSorting: true,
-        headerClassName: "pl-2",
-        cellClassName: "pl-2",
-        cell: ({ row }) => (
-          <span className="block truncate" title={row.original.id}>
-            {row.original.id}
-          </span>
-        ),
-      },
-      {
-        accessorKey: "enabled",
-        id: "status",
-        header: "Enabled",
-        enableSorting: true,
-        size: 90,
-        minSize: 90,
-        maxSize: 90,
-        enableResizing: false,
-        cell: ({ row }) => (
-          <ModelEnabledSwitch
-            model={row.original.id}
-            enabled={row.original.enabled}
-            disabled={isSaving}
-            onToggle={toggleModel}
-          />
-        ),
-      },
-    ],
+  const columns = useMemo(
+    () =>
+      createGatewayConnectionModelsColumns({
+        isSaving,
+        selectActionColumn,
+        toggleModel,
+      }),
     [isSaving, selectActionColumn, toggleModel],
   );
   const normalizedSearch = search.trim().toLowerCase();

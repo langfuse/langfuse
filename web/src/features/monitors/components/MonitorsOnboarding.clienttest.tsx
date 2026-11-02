@@ -1,9 +1,20 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 
 import { type Session } from "next-auth";
 
 import type * as EnvModule from "@/src/env.mjs";
 import { MonitorsOnboarding } from "./MonitorsOnboarding";
+
+vi.mock(
+  "@/src/features/monitors/automations/ConnectedNewMonitorAutomationDialog",
+  () => ({
+    ConnectedNewMonitorAutomationDialog: ({
+      lockedActionType,
+    }: {
+      lockedActionType?: string;
+    }) => <p>New {lockedActionType} automation dialog</p>,
+  }),
+);
 
 const sessionMock = vi.hoisted(() => ({ data: null as Session | null }));
 vi.mock("next-auth/react", () => ({
@@ -26,25 +37,14 @@ vi.mock("@/src/env.mjs", async (importOriginal) => {
 
 /** signIn sets the session user's admin flag and the deployment's Cloud region. */
 const signIn = ({ admin, region }: { admin: boolean; region?: string }) => {
-  sessionMock.data = { expires: "1", user: { admin } } as unknown as Session;
+  sessionMock.data = {
+    expires: "1",
+    user: { admin, organizations: [] },
+  } as unknown as Session;
   cloudRegion.value = region;
 };
 
 const PROJECT_ID = "proj_test123";
-
-/** parsePrefill decodes the `prefill` query param into the same shape the form's serializer produced. */
-const parsePrefill = (
-  href: string,
-): { eventSource?: string; actionType?: string; redirectUrl?: string } => {
-  const url = new URL(href, "http://localhost");
-  const raw = url.searchParams.get("prefill");
-  if (!raw) return {};
-  const padded = raw.replace(/-/g, "+").replace(/_/g, "/");
-  const binary = atob(padded);
-  const bytes = new Uint8Array(binary.length);
-  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-  return JSON.parse(new TextDecoder().decode(bytes));
-};
 
 describe("MonitorsOnboarding", () => {
   afterEach(() => {
@@ -64,20 +64,21 @@ describe("MonitorsOnboarding", () => {
     expect(screen.getByText("Decide what to monitor")).toBeInTheDocument();
 
     expect(
-      screen.getByRole("link", { name: /Connect Slack/i }),
+      screen.getByRole("button", { name: /Connect Slack/i }),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("link", { name: /Connect Webhooks/i }),
+      screen.getByRole("button", { name: /Connect Webhooks/i }),
     ).toBeInTheDocument();
     expect(
-      screen.getByRole("link", { name: /Connect Github Actions/i }),
+      screen.getByRole("button", { name: /Connect Github Actions/i }),
     ).toBeInTheDocument();
     expect(
       screen.getByRole("link", { name: /Create Alert/i }),
     ).toBeInTheDocument();
   });
 
-  it("links each channel button to /automations?view=create with the matching prefill actionType", () => {
+  it("opens the new automation dialog locked to each clicked channel, without leaving the page", () => {
+    signIn({ admin: true });
     render(<MonitorsOnboarding projectId={PROJECT_ID} hasCUDAccess={true} />);
 
     const cases: Array<{ label: RegExp; expected: string }> = [
@@ -87,16 +88,21 @@ describe("MonitorsOnboarding", () => {
     ];
 
     for (const { label, expected } of cases) {
-      const link = screen.getByRole("link", { name: label });
-      const href = link.getAttribute("href") ?? "";
-      expect(href).toContain(`/project/${PROJECT_ID}/automations`);
-      expect(href).toContain("view=create");
-
-      const decoded = parsePrefill(href);
-      expect(decoded.eventSource).toBe("monitor");
-      expect(decoded.actionType).toBe(expected);
-      expect(decoded.redirectUrl).toBe(`/project/${PROJECT_ID}/alerts`);
+      fireEvent.click(screen.getByRole("button", { name: label }));
+      expect(
+        screen.getByText(`New ${expected} automation dialog`),
+      ).toBeInTheDocument();
     }
+    expect(document.querySelector('a[href*="/automations"]')).toBeNull();
+  });
+
+  it("disables the channel buttons for users who cannot create automations", () => {
+    signIn({ admin: false });
+    render(<MonitorsOnboarding projectId={PROJECT_ID} hasCUDAccess={true} />);
+
+    expect(
+      screen.getByRole("button", { name: /Connect Slack/i }),
+    ).toBeDisabled();
   });
 
   it("hides the PagerDuty CTA from users who are not admins", () => {
@@ -104,7 +110,7 @@ describe("MonitorsOnboarding", () => {
     render(<MonitorsOnboarding projectId={PROJECT_ID} hasCUDAccess={true} />);
 
     expect(
-      screen.queryByRole("link", { name: /Connect PagerDuty/i }),
+      screen.queryByRole("button", { name: /Connect PagerDuty/i }),
     ).not.toBeInTheDocument();
   });
 
@@ -113,7 +119,7 @@ describe("MonitorsOnboarding", () => {
     render(<MonitorsOnboarding projectId={PROJECT_ID} hasCUDAccess={true} />);
 
     expect(
-      screen.queryByRole("link", { name: /Connect PagerDuty/i }),
+      screen.queryByRole("button", { name: /Connect PagerDuty/i }),
     ).not.toBeInTheDocument();
   });
 
@@ -121,11 +127,12 @@ describe("MonitorsOnboarding", () => {
     signIn({ admin: true, region: "EU" });
     render(<MonitorsOnboarding projectId={PROJECT_ID} hasCUDAccess={true} />);
 
-    const link = screen.getByRole("link", { name: /Connect PagerDuty/i });
-    expect(link).not.toHaveTextContent("Internal");
-    expect(parsePrefill(link.getAttribute("href")!).actionType).toBe(
-      "PAGERDUTY",
-    );
+    const button = screen.getByRole("button", { name: /Connect PagerDuty/i });
+    expect(button).not.toHaveTextContent("Internal");
+    fireEvent.click(button);
+    expect(
+      screen.getByText("New PAGERDUTY automation dialog"),
+    ).toBeInTheDocument();
   });
 
   it("links the Create Alert CTA to the project's new-alert route", () => {

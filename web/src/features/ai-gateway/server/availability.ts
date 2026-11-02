@@ -1,4 +1,4 @@
-import { ForbiddenError } from "@langfuse/shared";
+import { ForbiddenError, Role } from "@langfuse/shared";
 
 import { env } from "@/src/env.mjs";
 
@@ -81,4 +81,13 @@ export const requireGatewayEnabledForOrganization = (
   ) {
     throw new ForbiddenError("AI Gateway is not enabled for this organization");
   }
+};
+
+/** requireGatewayEnabledForRole rejects granting the AI_GATEWAY role while the AI Gateway is off for the org */
+export const requireGatewayEnabledForRole = (
+  organizationId: string,
+  role: Role,
+): void => {
+  if (role !== Role.AI_GATEWAY) return;
+  requireGatewayEnabledForOrganization(organizationId);
 };
