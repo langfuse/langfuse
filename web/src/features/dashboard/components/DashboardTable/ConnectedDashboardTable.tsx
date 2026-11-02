@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 import { showErrorToast, showSuccessToast } from "@/src/features/notifications";
 import { useHasProjectAccess } from "@/src/features/rbac";
 import { useEffect, useMemo, useState } from "react";
@@ -12,7 +11,7 @@ import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { EditDialogDashboardContent } from "@/src/features/dashboard/components/EditDialogDashboardContent";
 import { CloneFirstDialogController } from "@/src/features/dashboard/components/CloneFirstDialogController";
 import { useRouter } from "next/router";
-import { DialogController } from "@/src/components/ui/dialog";
+import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
 import { ConfirmationDialogController } from "@/src/components/design-system/ConfirmationDialogController/ConfirmationDialogController";
 import { PaginationBar } from "@/src/components/design-system/PaginationBar/PaginationBar";
 import { type AsyncTableData } from "@/src/components/design-system/table/Table";
@@ -141,9 +140,7 @@ export function ConnectedDashboardTable() {
     >
       {({ openDialog: openCloneFirstDialog }) => (
         <DialogController
-          closeOnInteractionOutside={false}
-          size="default"
-          renderContent={({ closeDialog }) =>
+          renderDialog={({ closeDialog }) =>
             selectedDashboard ? (
               <EditDialogDashboardContent
                 closeDialog={closeDialog}
