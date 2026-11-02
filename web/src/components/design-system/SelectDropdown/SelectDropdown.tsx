@@ -95,7 +95,12 @@ export function SelectDropdown<V extends string>({
   ref?: React.Ref<HTMLButtonElement>;
 } & Pick<
   React.ComponentPropsWithoutRef<typeof SelectPrimitive.Trigger>,
-  "id" | "aria-describedby" | "aria-invalid" | "aria-label" | "disabled"
+  | "id"
+  | "aria-describedby"
+  | "aria-invalid"
+  | "aria-label"
+  | "disabled"
+  | "onBlur"
 >) {
   const container = useLayerContainer("popover");
   const selectedOption = options

@@ -28,6 +28,7 @@ type SelectInputProps<V extends string> = Pick<
   | "aria-invalid"
   | "aria-label"
   | "disabled"
+  | "onBlur"
 > & {
   placeholder: string;
   search?: { placeholder: string };

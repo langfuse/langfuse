@@ -7,7 +7,6 @@ import {
 } from "@/src/features/pagerduty";
 import { Form } from "@/src/components/design-system/Form/Form";
 import { PasswordInput } from "@/src/components/design-system/PasswordInput/PasswordInput";
-import { SelectInput } from "@/src/components/design-system/SelectInput/SelectInput";
 import { type MonitorAutomationFormValues } from "../helpers/monitorAutomationFormSchema";
 
 const integrationDocsUrl =
@@ -58,23 +57,14 @@ export function PagerDutyActionFields({
           />
         )}
       </Form.Field>
-      <Form.Field
+      <Form.SelectInputField
         control={form.control}
         name="pagerDuty.region"
         label="Region"
         description="The service region of your PagerDuty account."
-      >
-        {(field) => (
-          <SelectInput<PagerDutyRegion>
-            id={field.id}
-            value={field.value}
-            onValueChange={field.onChange}
-            options={regionOptions}
-            placeholder="Select a region"
-            aria-describedby={field.inputDescribedById}
-          />
-        )}
-      </Form.Field>
+        options={regionOptions}
+        placeholder="Select a region"
+      />
       <div className="flex">
         <PagerDutyTestEventButtonsView
           target={{ region, routingKey: routingKey.trim() || undefined }}

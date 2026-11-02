@@ -3,7 +3,12 @@ import {
   type FormHTMLAttributes,
   type ReactNode,
 } from "react";
-import { type FieldPath, type FieldValues } from "react-hook-form";
+import {
+  type FieldPath,
+  type FieldPathByValue,
+  type FieldPathValue,
+  type FieldValues,
+} from "react-hook-form";
 
 import { Button } from "@/src/components/design-system/Button/Button";
 import {
@@ -11,6 +16,66 @@ import {
   type FormFieldProps,
 } from "@/src/components/design-system/FormField/FormField";
 import { Input } from "@/src/components/design-system/Input/Input";
+import { SelectInput } from "@/src/components/design-system/SelectInput/SelectInput";
+
+/** Wraps Form.Field with SelectInput and its form bindings. */
+function FormSelectInputField<
+  TFieldValues extends FieldValues,
+  TName extends FieldPathByValue<TFieldValues, string>,
+  TTransformedValues extends FieldValues = TFieldValues,
+>({
+  control,
+  name,
+  label,
+  description,
+  registerLabelTooltip,
+  required,
+  "aria-describedby": describedBy,
+  ...inputProps
+}: Omit<FormFieldProps<TFieldValues, TName, TTransformedValues>, "children"> &
+  Omit<
+    ComponentProps<
+      typeof SelectInput<Extract<FieldPathValue<TFieldValues, TName>, string>>
+    >,
+    | "id"
+    | "value"
+    | "onValueChange"
+    | "onBlur"
+    | "ref"
+    | "error"
+    | "aria-invalid"
+  >) {
+  return (
+    <FormField
+      control={control}
+      name={name}
+      label={label}
+      description={description}
+      registerLabelTooltip={registerLabelTooltip}
+      required={required}
+    >
+      {(field) => (
+        <SelectInput<Extract<FieldPathValue<TFieldValues, TName>, string>>
+          {...inputProps}
+          id={field.id}
+          // FieldPathByValue restricts names to string fields; RHF's generic value type does not retain that constraint.
+          value={
+            field.value as Extract<FieldPathValue<TFieldValues, TName>, string>
+          }
+          onValueChange={field.onChange}
+          onBlur={field.onBlur}
+          ref={field.ref}
+          aria-describedby={
+            [field.inputDescribedById, describedBy].filter(Boolean).join(" ") ||
+            undefined
+          }
+          aria-invalid={Boolean(field.error)}
+          error={Boolean(field.error)}
+        />
+      )}
+    </FormField>
+  );
+}
 
 /** Wraps Form.Field with the default Input and its form bindings. */
 function FormInputField<
@@ -148,4 +213,5 @@ function FormRoot({
 export const Form = Object.assign(FormRoot, {
   Field: FormField,
   InputField: FormInputField,
+  SelectInputField: FormSelectInputField,
 });

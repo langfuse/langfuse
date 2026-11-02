@@ -1,4 +1,4 @@
-import { useForm } from "react-hook-form";
+import { useForm, type ResolverResult } from "react-hook-form";
 import { expect, fn, userEvent, within } from "storybook/test";
 
 import preview from "../../../../.storybook/preview";
@@ -69,5 +69,76 @@ export const Submits = meta.story({
     await userEvent.click(canvas.getByRole("button", { name: "Save" }));
 
     await expect(onSubmit).toHaveBeenCalledWith({ name: "PostHog" });
+  },
+});
+
+const selectSubmit = fn();
+
+function SelectInputFieldExample() {
+  const form = useForm<{ region: "US" | "EU" }>({
+    defaultValues: { region: "US" },
+    mode: "onBlur",
+    resolver: (values): ResolverResult<{ region: "US" | "EU" }> =>
+      values.region === "US"
+        ? {
+            values: {},
+            errors: { region: { type: "validate", message: "Select Europe." } },
+          }
+        : { values, errors: {} },
+  });
+
+  return (
+    <Form
+      onSubmit={form.handleSubmit(selectSubmit)}
+      actions={[{ id: "save", type: "submit", text: "Save" }]}
+    >
+      <Form.SelectInputField
+        control={form.control}
+        name="region"
+        label="Region"
+        description={[{ type: "text", text: "Choose your region." }]}
+        aria-describedby="region-extra-help"
+        options={[
+          { value: "US", label: "United States" },
+          { value: "EU", label: "Europe" },
+        ]}
+        placeholder="Select a region"
+      />
+      <p id="region-extra-help">Additional help.</p>
+    </Form>
+  );
+}
+
+export const SelectInputField = meta.story({
+  name: "(Test) Select field bindings and validation",
+  render: () => <SelectInputFieldExample />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const page = within(canvasElement.ownerDocument.body);
+    const trigger = canvas.getByLabelText("Region");
+    selectSubmit.mockClear();
+
+    await expect(trigger).toHaveTextContent("United States");
+    await userEvent.click(trigger);
+    await userEvent.keyboard("{Escape}");
+    await userEvent.tab();
+    const error = await canvas.findByText("Select Europe.");
+    const description = canvas.getByText("Choose your region.");
+    await expect(trigger).toHaveAttribute("aria-invalid", "true");
+    await expect(trigger).toHaveAttribute(
+      "aria-describedby",
+      `${error.id} ${description.id} region-extra-help`,
+    );
+
+    await userEvent.click(canvas.getByRole("button", { name: "Save" }));
+    await expect(trigger).toHaveFocus();
+    await userEvent.click(trigger);
+    await userEvent.click(await page.findByRole("option", { name: "Europe" }));
+    await expect(trigger).toHaveTextContent("Europe");
+    await userEvent.click(canvas.getByRole("button", { name: "Save" }));
+    await expect(selectSubmit).toHaveBeenCalledWith(
+      { region: "EU" },
+      expect.anything(),
+    );
   },
 });
