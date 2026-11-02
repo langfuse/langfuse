@@ -134,7 +134,12 @@ export function CreateGatewayApiKeyDialogController({
       onBeforeClose={() => !create.isPending}
       renderDialog={() =>
         generatedSecretKey ? (
-          <Dialog title="Gateway key created" size="md" closeLabel="Done">
+          <Dialog
+            title="Gateway key created"
+            size="md"
+            closeLabel="Done"
+            requireExplicitClose
+          >
             <GeneratedKeyContent
               organizationId={organizationId}
               secretKey={generatedSecretKey}
@@ -142,7 +147,7 @@ export function CreateGatewayApiKeyDialogController({
           </Dialog>
         ) : (
           <Dialog
-            title="Issue API key"
+            title="Create gateway key"
             size="md"
             actions={[
               {

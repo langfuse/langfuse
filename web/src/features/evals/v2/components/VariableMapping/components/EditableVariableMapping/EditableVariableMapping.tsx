@@ -1,8 +1,9 @@
 /* eslint-disable no-nested-ternary */
+
+import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
 import { useMemo, useState, type ReactNode } from "react";
 import { TriangleAlert } from "@langfuse/icons";
 
-import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
 import { MediaReferenceTag } from "@/src/components/ui/media/MediaReferenceTag";
 import {
   classifyMediaValue,
@@ -61,16 +62,16 @@ function MappedValuePreview({ value }: { value: string }) {
   return (
     <div>
       {isJson ? (
-        <PrettyJsonView
-          json={parsed}
-          currentView="pretty"
-          isLoading={false}
-          showNullValues={true}
-          stickyTopLevelKey={false}
-          showObservationTypeBadge={false}
-          scrollable={true}
-          className="max-h-96 [&_.border]:border-0 [&_.rounded-sm]:rounded-none"
-        />
+        <div className="max-h-96 overflow-y-auto">
+          <PrettyJsonView
+            json={parsed}
+            currentView="pretty"
+            showNullValues
+            stickyTopLevelKey={false}
+            showObservationTypeBadge={false}
+            borderless
+          />
+        </div>
       ) : hasMedia ? (
         <div
           data-testid="mapped-media-preview"

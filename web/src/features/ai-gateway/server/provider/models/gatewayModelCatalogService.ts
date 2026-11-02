@@ -220,7 +220,7 @@ export class GatewayModelCatalogService {
       organizationId: params.organizationId,
       id: params.connectionId,
     });
-    if (!connection) throw new LangfuseNotFoundError("Gateway connection");
+    if (!connection) throw new LangfuseNotFoundError("Provider credential");
 
     if (params.forceRefresh) {
       await this.clearModelCache(params.organizationId, params.connectionId);

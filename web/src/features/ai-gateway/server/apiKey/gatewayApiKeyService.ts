@@ -109,7 +109,7 @@ export class GatewayApiKeyService {
   }): Promise<void> {
     const association = await this.repository.getGatewayApiKey(params);
     if (!association) {
-      throw new LangfuseNotFoundError("Gateway API key not found");
+      throw new LangfuseNotFoundError("Gateway key not found");
     }
     // Read the hash before the row is gone; it is the resolve cache key.
     const revoked = await this.prisma.apiKey.findFirst({
@@ -128,7 +128,7 @@ export class GatewayApiKeyService {
       redis: this.redis,
     });
     if (!deleted) {
-      throw new InternalServerError("Failed to revoke gateway API key");
+      throw new InternalServerError("Failed to revoke gateway key");
     }
     if (revoked?.fastHashedSecretKey) {
       await invalidateGatewayResolveCacheForApiKey(revoked.fastHashedSecretKey);

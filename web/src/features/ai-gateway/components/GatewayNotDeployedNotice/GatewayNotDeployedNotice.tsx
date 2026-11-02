@@ -12,7 +12,7 @@ export function GatewayNotDeployedNotice() {
       <GatewaySetupEmptyState
         icon={Server}
         title="The AI Gateway isn't deployed"
-        description="On self-hosted Langfuse, the AI Gateway runs as a separate service. Deploy it next to your Langfuse instance to configure providers, models and gateway keys."
+        description="On self-hosted Langfuse, the AI Gateway runs as a separate service. Deploy it next to your Langfuse instance to configure provider credentials, models and gateway keys."
         actions={[
           {
             type: "link",

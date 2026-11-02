@@ -7,6 +7,10 @@ import { auditLog } from "@/src/features/audit-logs/server";
 import type { OrgAuthedContext } from "@/src/server/api/trpc";
 import { invalidateGatewayResolveCacheForOrganization } from "@/src/features/ai-gateway/server/resolve/gatewayResolveCache";
 import { isGatewayIngestionConfigured } from "@/src/features/ai-gateway/fns/isGatewayIngestionConfigured";
+import {
+  getEffectiveGatewayIngestionMode,
+  isGatewayIngestionModeAvailable,
+} from "@/src/features/ai-gateway/fns/gatewayIngestionModePolicy";
 import { GatewayConfigRepository } from "./gatewayConfigRepository";
 
 export class GatewayConfigService {
@@ -16,8 +20,14 @@ export class GatewayConfigService {
     this.repository = new GatewayConfigRepository(prisma);
   }
 
-  getConfig(organizationId: string) {
-    return this.repository.getConfig(organizationId);
+  async getConfig(organizationId: string) {
+    const config = await this.repository.getConfig(organizationId);
+    return (
+      config && {
+        ...config,
+        ingestionMode: getEffectiveGatewayIngestionMode(config.ingestionMode),
+      }
+    );
   }
 
   async getSetupStatus(organizationId: string) {
@@ -38,6 +48,11 @@ export class GatewayConfigService {
     ingestionMode: GatewayIngestionMode;
     session: OrgAuthedContext["session"];
   }) {
+    if (!isGatewayIngestionModeAvailable(params.ingestionMode)) {
+      throw new InvalidRequestError(
+        "Ingestion mode NONE is not available on Langfuse Cloud",
+      );
+    }
     if (
       !isGatewayIngestionConfigured({
         ingestionMode: params.ingestionMode,
@@ -49,7 +64,7 @@ export class GatewayConfigService {
       );
     }
 
-    const before = await this.getConfig(params.organizationId);
+    const before = await this.repository.getConfig(params.organizationId);
 
     if (params.defaultIngestionProjectId) {
       const project = await this.repository.getActiveOrganizationProject({

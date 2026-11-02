@@ -49,6 +49,7 @@ import {
   type GatewayResolveError,
   GatewayResolveService,
 } from "@/src/features/ai-gateway/server/resolve/resolveService";
+import { invalidateGatewayResolveCacheForApiKey } from "@/src/features/ai-gateway/server/resolve/gatewayResolveCache";
 import { GatewayModelsService } from "@/src/features/ai-gateway/server/provider/models/gatewayModelsService";
 import { GatewayApiKeyService } from "@/src/features/ai-gateway/server/apiKey/gatewayApiKeyService";
 import { GatewayConfigService } from "@/src/features/ai-gateway/server/config/gatewayConfigService";
@@ -519,7 +520,7 @@ describe("AI gateway control plane", () => {
         where: { orgId: owner.org.id, email: inviteeEmail },
         select: { orgRole: true },
       }),
-    ).resolves.toEqual({ orgRole: Role.MEMBER });
+    ).resolves.toEqual({ orgRole: Role.AI_GATEWAY });
   });
 
   it("tells which invitee addresses already belong to the organization and get notified", async () => {
@@ -719,11 +720,11 @@ describe("AI gateway control plane", () => {
     ).resolves.toBe(0);
   });
 
-  it("requires an ingestion project unless ingestion mode is NONE, also on cloud", async () => {
+  it("requires an ingestion project unless ingestion mode is NONE on self-hosted", async () => {
     const { caller, org } = await prepare();
     const originalCloudRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
     try {
-      Object.assign(env, { NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: "EU" });
+      Object.assign(env, { NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: undefined });
       await expect(
         caller.aiGateway.updateConfig({
           orgId: org.id,
@@ -740,6 +741,50 @@ describe("AI gateway control plane", () => {
       await expect(
         caller.aiGateway.getSetupStatus({ orgId: org.id }),
       ).resolves.toEqual({ isConfigured: true });
+    } finally {
+      Object.assign(env, {
+        NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: originalCloudRegion,
+      });
+    }
+  });
+
+  it("rejects NONE on cloud and treats a stored NONE config as USAGE", async () => {
+    const { caller, org, project } = await prepare();
+    const originalCloudRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
+    try {
+      Object.assign(env, { NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: "EU" });
+      await expect(
+        caller.aiGateway.updateConfig({
+          orgId: org.id,
+          defaultIngestionProjectId: project.id,
+          ingestionMode: "NONE",
+        }),
+      ).rejects.toThrow("not available on Langfuse Cloud");
+
+      await prisma.gatewayConfig.create({
+        data: {
+          organizationId: org.id,
+          defaultIngestionProjectId: null,
+          ingestionMode: "NONE",
+        },
+      });
+      await expect(
+        caller.aiGateway.getConfig({ orgId: org.id }),
+      ).resolves.toMatchObject({ config: { ingestionMode: "USAGE" } });
+      await expect(
+        caller.aiGateway.getSetupStatus({ orgId: org.id }),
+      ).resolves.toEqual({ isConfigured: false });
+
+      await prisma.gatewayConfig.update({
+        where: { organizationId: org.id },
+        data: { defaultIngestionProjectId: project.id },
+      });
+      await expect(
+        caller.projects.deletionProtection({ projectId: project.id }),
+      ).resolves.toEqual({ isGatewayIngestionProject: true });
+      await expect(
+        caller.projects.delete({ projectId: project.id }),
+      ).rejects.toThrow("Select another ingestion project before deleting it");
     } finally {
       Object.assign(env, {
         NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: originalCloudRegion,
@@ -1060,6 +1105,23 @@ describe("AI gateway control plane", () => {
     ).rejects.toMatchObject({ code: "FORBIDDEN" });
   });
 
+  it("rejects analytics label requests for another organization", async () => {
+    const owner = await prepare();
+    const other = await prepare();
+    await owner.caller.aiGateway.createApiKey({
+      orgId: owner.org.id,
+      name: "Owner key",
+      metadata: {},
+    });
+
+    await expect(
+      other.caller.aiGateway.getAnalyticsLabels({ orgId: owner.org.id }),
+    ).rejects.toMatchObject({
+      code: "UNAUTHORIZED",
+      message: "User is not a member of this organization",
+    });
+  });
+
   it("creates, lists, and revokes only associated organization keys", async () => {
     const { caller, org } = await prepare();
     const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
@@ -1098,7 +1160,7 @@ describe("AI gateway control plane", () => {
 
     await expect(
       caller.aiGateway.revokeApiKey({ orgId: org.id, id: created.id }),
-    ).rejects.toThrow("Gateway API key not found");
+    ).rejects.toThrow("Gateway key not found");
   });
 
   it("scopes gateway API keys to their creator for members", async () => {
@@ -1155,7 +1217,7 @@ describe("AI gateway control plane", () => {
 
     await expect(
       member.aiGateway.revokeApiKey({ orgId: owner.org.id, id: ownerKey.id }),
-    ).rejects.toThrow("Gateway API key not found");
+    ).rejects.toThrow("Gateway key not found");
     await expect(
       member.aiGateway.revokeApiKey({ orgId: owner.org.id, id: memberKey.id }),
     ).resolves.toEqual({ success: true });
@@ -1344,7 +1406,7 @@ describe("AI gateway control plane", () => {
         apiKeyId: key.id,
         session,
       }),
-    ).rejects.toThrow("Gateway API key not found");
+    ).rejects.toThrow("Gateway key not found");
     expect(await prisma.auditLog.count({ where: { orgId: org.id } })).toBe(
       auditCountAfterSuccess,
     );
@@ -1892,7 +1954,7 @@ describe("AI gateway control plane", () => {
         id: connection.id,
         status: "ENABLED",
       }),
-    ).rejects.toThrow("credential update or successful retry");
+    ).rejects.toThrow("credential update or a successful retry");
     const automaticRefresh = vi.fn<typeof fetch>();
     await new GatewayModelCatalogService(
       prisma,
@@ -2167,6 +2229,111 @@ describe("AI gateway control plane", () => {
     }
   });
 
+  describe("key owner role", () => {
+    const authenticateKey = (secretKey: string) =>
+      new GatewayApiKeyAuthenticator(prisma).authenticateModelsRequest({
+        fastHashedSecretKey: createShaHash(secretKey, env.SALT),
+        apiFormat: "openai.responses",
+      });
+    const setOwnerRole = (orgId: string, userId: string, role: Role | null) =>
+      role
+        ? prisma.organizationMembership.update({
+            where: { orgId_userId: { orgId, userId } },
+            data: { role },
+          })
+        : prisma.organizationMembership.delete({
+            where: { orgId_userId: { orgId, userId } },
+          });
+    const ownerNotAllowed = {
+      status: 403,
+      message: "API key owner is not allowed to invoke the gateway",
+    };
+
+    it.each([
+      { change: "demoted to VIEWER", role: Role.VIEWER },
+      { change: "demoted to NONE", role: Role.NONE },
+      { change: "removed from the organization", role: null },
+    ])(
+      "rejects user-bound keys whose owner was $change out of band",
+      async ({ role }) => {
+        const { caller, org, user } = await prepare();
+        const key = await caller.aiGateway.createApiKey({
+          orgId: org.id,
+          name: "User key",
+          metadata: {},
+        });
+        await setOwnerRole(org.id, user.id, role);
+        const lookup = vi.spyOn(prisma.apiKey, "findFirst");
+
+        for (let attempt = 0; attempt < 2; attempt++) {
+          await expect(authenticateKey(key.secretKey)).rejects.toMatchObject(
+            ownerNotAllowed,
+          );
+        }
+        // A rejection is not cached, so restoring access applies at once.
+        expect(lookup).toHaveBeenCalledTimes(2);
+        lookup.mockRestore();
+      },
+    );
+
+    it.each([Role.AI_GATEWAY, Role.MEMBER])(
+      "accepts user-bound keys whose owner is %s",
+      async (role) => {
+        const { caller, org, user } = await prepare();
+        const key = await caller.aiGateway.createApiKey({
+          orgId: org.id,
+          name: "User key",
+          metadata: {},
+        });
+        await setOwnerRole(org.id, user.id, role);
+
+        await expect(authenticateKey(key.secretKey)).resolves.toMatchObject({
+          apiKeyId: key.id,
+          userId: user.id,
+        });
+      },
+    );
+
+    it("accepts service-account keys regardless of the creator's role", async () => {
+      const { caller, org, user } = await prepare();
+      const key = await caller.aiGateway.createApiKey({
+        orgId: org.id,
+        name: "Service key",
+        metadata: {},
+        issuedAs: "serviceAccount",
+      });
+      await setOwnerRole(org.id, user.id, Role.NONE);
+
+      await expect(authenticateKey(key.secretKey)).resolves.toMatchObject({
+        apiKeyId: key.id,
+        userId: null,
+      });
+    });
+
+    it("serves an out-of-band demotion from cache until the entry expires", async () => {
+      const { caller, org, user } = await prepare();
+      const key = await caller.aiGateway.createApiKey({
+        orgId: org.id,
+        name: "User key",
+        metadata: {},
+      });
+      const fastHashedSecretKey = createShaHash(key.secretKey, env.SALT);
+      await expect(authenticateKey(key.secretKey)).resolves.toMatchObject({
+        apiKeyId: key.id,
+      });
+      await setOwnerRole(org.id, user.id, Role.VIEWER);
+
+      // The resolve cache TTL bounds how long the cached grant survives.
+      await expect(authenticateKey(key.secretKey)).resolves.toMatchObject({
+        apiKeyId: key.id,
+      });
+      await invalidateGatewayResolveCacheForApiKey(fastHashedSecretKey);
+      await expect(authenticateKey(key.secretKey)).rejects.toMatchObject(
+        ownerNotAllowed,
+      );
+    });
+  });
+
   it("accepts organization keys granted gateway:invoke without a gateway association", async () => {
     const originalCache = env.LANGFUSE_AI_GATEWAY_CACHE_RESOLVE_ENABLED;
     Object.assign(env, { LANGFUSE_AI_GATEWAY_CACHE_RESOLVE_ENABLED: "false" });
@@ -2209,28 +2376,34 @@ describe("AI gateway control plane", () => {
     ).resolves.toEqual({ isGatewayIngestionProject: true });
     await expect(
       caller.projects.delete({ projectId: project.id }),
-    ).rejects.toThrow(
-      "Select another ingestion project or set the ingestion mode to None before deleting it",
-    );
+    ).rejects.toThrow("Select another ingestion project");
     await expect(
       prisma.project.findUnique({ where: { id: project.id } }),
     ).resolves.toMatchObject({ deletedAt: null });
   });
 
-  it("allows deleting the linked ingestion project while ingestion is NONE", async () => {
+  it("allows deleting the linked ingestion project while ingestion is NONE on self-hosted", async () => {
     const { caller, org, project } = await prepare();
-    await caller.aiGateway.updateConfig({
-      orgId: org.id,
-      defaultIngestionProjectId: project.id,
-      ingestionMode: "NONE",
-    });
+    const originalCloudRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
+    try {
+      Object.assign(env, { NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: undefined });
+      await caller.aiGateway.updateConfig({
+        orgId: org.id,
+        defaultIngestionProjectId: project.id,
+        ingestionMode: "NONE",
+      });
 
-    await expect(
-      caller.projects.deletionProtection({ projectId: project.id }),
-    ).resolves.toEqual({ isGatewayIngestionProject: false });
-    await expect(
-      caller.projects.delete({ projectId: project.id }),
-    ).resolves.toBe(true);
+      await expect(
+        caller.projects.deletionProtection({ projectId: project.id }),
+      ).resolves.toEqual({ isGatewayIngestionProject: false });
+      await expect(
+        caller.projects.delete({ projectId: project.id }),
+      ).resolves.toBe(true);
+    } finally {
+      Object.assign(env, {
+        NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: originalCloudRegion,
+      });
+    }
     await expect(
       prisma.project.findUnique({ where: { id: project.id } }),
     ).resolves.toMatchObject({ deletedAt: expect.any(Date) });

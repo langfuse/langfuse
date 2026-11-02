@@ -16,7 +16,7 @@ import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePos
 import { cn } from "@/src/utils/tailwind";
 
 function ctaLabel(state: GatewayLaunchState) {
-  if (state === "get-key") return "Get API key";
+  if (state === "get-key") return "Get gateway key";
   if (state === "ask-admin") return "Learn more";
   return "Set up";
 }

@@ -722,7 +722,33 @@ export async function writeTopicSummaries(rows: TopicSummary[]): Promise<void> {
   if (!rows.length) return;
   if (!rows.every(isValidTopicSummary))
     throw new Error("Invalid Topics summary result.");
-  await insertTopicRows("topic_facet_summaries", rows, (row) => ({
+  await insertTopicRows("topic_facet_summaries", rows, topicSummaryRecord);
+}
+
+export async function writeTopicAssignments(
+  rows: TopicAssignment[],
+): Promise<void> {
+  if (!rows.length) return;
+  for (const row of rows) {
+    if (
+      !topicSourceSchema.safeParse(row).success ||
+      typeof row.environment !== "string" ||
+      (row.topicId === null) !== (row.topicVersionId === null) ||
+      (row.distance !== null && !Number.isFinite(row.distance)) ||
+      (row.runnerUpDistance !== null &&
+        !Number.isFinite(row.runnerUpDistance)) ||
+      (row.coordinates !== null &&
+        (!row.runId ||
+          row.coordinates.length !== 2 ||
+          !row.coordinates.every(Number.isFinite)))
+    )
+      throw new Error("Invalid Topics assignment.");
+  }
+  await insertTopicRows("topic_assignments", rows, topicAssignmentRecord);
+}
+
+function topicSummaryRecord(row: TopicSummary) {
+  return {
     project_id: row.projectId,
     facet_id: row.facetId,
     facet_version: row.facetVersion,
@@ -747,29 +773,16 @@ export async function writeTopicSummaries(rows: TopicSummary[]): Promise<void> {
     cost_details: row.costDetails,
     processed_at: convertDateToClickhouseDateTime(new Date(row.processedAt)),
     metadata: JSON.stringify(row.metadata),
-  }));
+  };
 }
 
-export async function writeTopicAssignments(
-  rows: TopicAssignment[],
-): Promise<void> {
-  if (!rows.length) return;
-  for (const row of rows) {
-    if (
-      !topicSourceSchema.safeParse(row).success ||
-      typeof row.environment !== "string" ||
-      (row.topicId === null) !== (row.topicVersionId === null) ||
-      (row.distance !== null && !Number.isFinite(row.distance)) ||
-      (row.runnerUpDistance !== null &&
-        !Number.isFinite(row.runnerUpDistance)) ||
-      (row.coordinates !== null &&
-        (!row.runId ||
-          row.coordinates.length !== 2 ||
-          !row.coordinates.every(Number.isFinite)))
-    )
-      throw new Error("Invalid Topics assignment.");
-  }
-  await insertTopicRows("topic_assignments", rows, (row) => ({
+/** A `topic_facet_summaries` row as inserted with JSONEachRow. */
+export type TopicFacetSummaryRecordInsertType = ReturnType<
+  typeof topicSummaryRecord
+>;
+
+function topicAssignmentRecord(row: TopicAssignment) {
+  return {
     project_id: row.projectId,
     facet_id: row.facetId,
     facet_version: row.facetVersion,
@@ -791,8 +804,13 @@ export async function writeTopicAssignments(
     origin: row.origin,
     coordinates: row.coordinates ?? [],
     assigned_at: convertDateToClickhouseDateTime(new Date(row.assignedAt)),
-  }));
+  };
 }
+
+/** A `topic_assignments` row as inserted with JSONEachRow. */
+export type TopicAssignmentRecordInsertType = ReturnType<
+  typeof topicAssignmentRecord
+>;
 
 const assignmentColumns = `project_id AS projectId, facet_id AS facetId,
       facet_version AS facetVersion, trace_id AS traceId,

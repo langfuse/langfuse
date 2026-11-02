@@ -134,8 +134,8 @@ export function GatewayApiKeysTable({
       ]}
       noResultsMessage={
         hasSearch
-          ? "No gateway API keys match the current search."
-          : "No gateway API keys created."
+          ? "No gateway keys match the current search."
+          : "No gateway keys created."
       }
       emptyState={hasNoKeys ? <GatewayApiKeysEmptyState /> : undefined}
     />
