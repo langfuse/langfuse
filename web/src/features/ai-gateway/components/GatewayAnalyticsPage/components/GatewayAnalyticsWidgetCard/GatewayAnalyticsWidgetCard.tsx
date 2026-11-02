@@ -1,10 +1,8 @@
 import { useMemo } from "react";
 import type { FilterState } from "@langfuse/shared";
 
-import { GatewayUnpricedCostBadge } from "@/src/features/ai-gateway/components/GatewayAnalyticsPage/components/GatewayUnpricedCostBadge/GatewayUnpricedCostBadge";
 import { GATEWAY_ANALYTICS_WIDGET_SIZE_CLASSES } from "@/src/features/ai-gateway/components/GatewayAnalyticsPage/constants/gatewayAnalyticsWidgetSizeClasses";
 import { buildGatewayAnalyticsQuery } from "@/src/features/ai-gateway/components/GatewayAnalyticsPage/fns/buildGatewayAnalyticsQuery";
-import type { GatewayUnpricedUsage } from "@/src/features/ai-gateway/components/GatewayAnalyticsPage/fns/summarizeUnpricedUsage";
 import type { GatewayAnalyticsWidget } from "@/src/features/ai-gateway/components/GatewayAnalyticsPage/types/gatewayAnalyticsWidget";
 import { DashboardCard } from "@/src/features/dashboard/components/cards/DashboardCard";
 import { WidgetContent } from "@/src/features/widgets";
@@ -29,7 +27,6 @@ export function GatewayAnalyticsWidgetCard({
   filters,
   dimensionLabelMap,
   isWaitingForLabels = false,
-  unpricedUsage,
 }: {
   projectId: string;
   widget: GatewayAnalyticsWidget;
@@ -38,18 +35,11 @@ export function GatewayAnalyticsWidgetCard({
   dimensionLabelMap?: ReadonlyMap<string, string>;
   /** Covers the chart, which keeps loading underneath, so raw IDs never flash before their labels. */
   isWaitingForLabels?: boolean;
-  /** Flags cost widgets whose totals exclude usage of models without a price. */
-  unpricedUsage?: GatewayUnpricedUsage;
 }) {
   const query = useMemo(
     () => buildGatewayAnalyticsQuery(widget, timeRange, filters),
     [widget, timeRange, filters],
   );
-  const excludedUnpricedUsage = widget.metrics.some(
-    ({ measure }) => measure === "totalCost",
-  )
-    ? unpricedUsage
-    : undefined;
 
   return (
     <DashboardCard
@@ -58,17 +48,7 @@ export function GatewayAnalyticsWidgetCard({
         "ph-no-capture min-w-0",
         GATEWAY_ANALYTICS_WIDGET_SIZE_CLASSES[widget.size],
       )}
-      title={
-        excludedUnpricedUsage ? (
-          // The title line is tall enough that the badge never reflows the card.
-          <span className="flex items-center gap-2">
-            {widget.name}
-            <GatewayUnpricedCostBadge usage={excludedUnpricedUsage} />
-          </span>
-        ) : (
-          widget.name
-        )
-      }
+      title={widget.name}
       description={widget.description}
       // WidgetContent renders its own loading state.
       isLoading={false}
