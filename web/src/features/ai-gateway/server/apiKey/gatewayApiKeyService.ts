@@ -2,6 +2,7 @@ import {
   ForbiddenError,
   InternalServerError,
   LangfuseNotFoundError,
+  type OrderByState,
 } from "@langfuse/shared";
 import { Prisma, type PrismaClient, type Role } from "@langfuse/shared/src/db";
 import {
@@ -47,6 +48,7 @@ export class GatewayApiKeyService {
     organizationId: string;
     ownerUserId?: string;
     searchQuery?: string;
+    orderBy?: OrderByState;
     page: number;
     limit: number;
   }) {
