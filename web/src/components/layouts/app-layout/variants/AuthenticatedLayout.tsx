@@ -67,6 +67,7 @@ import {
   usePaymentBanner,
 } from "@/src/features/payment-banner";
 import { useTopBannerHeight } from "@/src/features/top-banner";
+import { V4MigrationTopBanner } from "@/src/features/v4-migration/V4MigrationTopBanner";
 
 const DISMISSED_SIDEBAR_NOTIFICATIONS_KEY = "dismissed-sidebar-notifications";
 
@@ -117,6 +118,7 @@ type AuthenticatedLayoutProps = PropsWithChildren<{
  * Full authenticated layout with all features:
  * - AppSidebar with navigation
  * - Payment banner (conditional)
+ * - Legacy API shutdown banner (conditional, Langfuse Cloud)
  * - Support drawer
  * - Command menu (Cmd/Ctrl+K)
  * - Toast notifications
@@ -323,6 +325,7 @@ export function AuthenticatedLayout({
                   severity={paymentBanner.severity}
                 />
               )}
+              <V4MigrationTopBanner />
               {env.NEXT_PUBLIC_PREVIEW_PR_URL && (
                 <PreviewDeploymentBanner
                   prUrl={env.NEXT_PUBLIC_PREVIEW_PR_URL}

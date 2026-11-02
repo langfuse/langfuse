@@ -14,6 +14,12 @@ import {
   getSdkUsageSummaries,
   getTraceLevelEvalSummaries,
 } from "@/src/features/v4/server/v4TransitionService";
+import {
+  getLegacyApiBannerState,
+  legacyApiBannerSource,
+  resolveLegacyApiBannerNow,
+} from "@/src/features/v4-migration/server/legacyApiBannerSource";
+import { env } from "@/src/env.mjs";
 
 export const v4TransitionRouter = createTRPCRouter({
   forceV3Experience: protectedProjectProcedure
@@ -152,6 +158,32 @@ export const v4TransitionRouter = createTRPCRouter({
       getMigrationActions({
         prisma: ctx.prisma,
         projectId: input.projectId,
+      }),
+    ),
+
+  /**
+   * Phase of the legacy API shutdown top banner, computed with the server
+   * clock. Reads no ClickHouse data; the per-project counts come from the
+   * existing summaryByProject queries.
+   */
+  legacyApiBannerState: protectedOrganizationProcedure
+    .input(
+      z.object({
+        orgId: z.string(),
+        nowOverride: z.string().max(64).optional(),
+      }),
+    )
+    .query(({ input, ctx }) =>
+      getLegacyApiBannerState({
+        source: legacyApiBannerSource,
+        orgId: input.orgId,
+        now: resolveLegacyApiBannerNow({
+          nowOverride: input.nowOverride,
+          isAdmin: ctx.session.user.admin === true,
+          isPreviewDeployment: Boolean(env.NEXT_PUBLIC_PREVIEW_PR_URL),
+          now: new Date(),
+        }),
+        isLangfuseCloud: Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION),
       }),
     ),
 });

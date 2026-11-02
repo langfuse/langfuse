@@ -715,6 +715,21 @@ export const env = createEnv({
     LANGFUSE_MIGRATION_V4_WRITE_MODE: z
       .enum(["legacy", "dual", "events_only"])
       .default("events_only"),
+    // Langfuse Cloud only, temporary: comma-separated organization ids that
+    // never see the legacy API shutdown top banner. Read only by
+    // features/v4-migration/server/legacyApiBannerSource.ts. Remove once the
+    // per-organization brownout allowlist replaces it as the banner source.
+    LANGFUSE_V4_BANNER_EXEMPT_ORG_IDS: z
+      .string()
+      .optional()
+      .transform((value) =>
+        value
+          ? value
+              .split(",")
+              .map((organizationId) => organizationId.trim())
+              .filter(Boolean)
+          : [],
+      ),
 
     // Character count above which trace/observation I/O is rendered as plain
     // text instead of markdown. Served to the browser via the public tRPC
@@ -1326,6 +1341,8 @@ export const env = createEnv({
       process.env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN,
     LANGFUSE_MIGRATION_V4_WRITE_MODE:
       process.env.LANGFUSE_MIGRATION_V4_WRITE_MODE,
+    LANGFUSE_V4_BANNER_EXEMPT_ORG_IDS:
+      process.env.LANGFUSE_V4_BANNER_EXEMPT_ORG_IDS,
     LANGFUSE_MARKDOWN_RENDER_CHARACTER_LIMIT:
       process.env.LANGFUSE_MARKDOWN_RENDER_CHARACTER_LIMIT,
     LANGFUSE_TRUSTED_PROXY_COUNT: process.env.LANGFUSE_TRUSTED_PROXY_COUNT,

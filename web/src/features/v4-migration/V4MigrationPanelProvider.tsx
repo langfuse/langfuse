@@ -20,7 +20,8 @@ export type V4MigrationPanelOpenSource =
   | "delay_badge"
   | "status_page_row"
   | "sidebar_card"
-  | "project_chip";
+  | "project_chip"
+  | "top_banner";
 
 type V4MigrationPanelContextType = {
   open: boolean;

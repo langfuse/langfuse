@@ -39,10 +39,6 @@ import ContainerPage from "@/src/components/layouts/ContainerPage";
 import { type Session } from "next-auth";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { AgentToolsBanner } from "@/src/features/developer-tools";
-import {
-  V4MigrationBanner,
-  useV4MigrationBannerState,
-} from "@/src/features/v4-migration/V4MigrationBanner";
 import { V4MigrationProjectChip } from "@/src/features/v4-migration/V4MigrationProjectChip";
 import { api } from "@/src/utils/api";
 import { formatCompactRelativeTime } from "@/src/utils/dates";
@@ -448,7 +444,6 @@ export const OrganizationProjectOverview = () => {
   const canCreateOrg = session.data?.user?.canCreateOrganizations;
   const organizations = session.data?.user?.organizations;
   const [{ search }, setQueryParams] = useQueryParams({ search: StringParam });
-  const v4MigrationBannerState = useV4MigrationBannerState(v4UpgradeUiEnabled);
   const landing = gatewayOnlyLanding(session.data, queryOrgId);
   const gatewayLaunchCandidates = (organizations ?? [])
     .filter(
@@ -552,7 +547,6 @@ export const OrganizationProjectOverview = () => {
     >
       {pageBanner({
         v4UpgradeUiEnabled,
-        v4MigrationBannerState,
         gatewayBanner:
           gatewayLaunchTarget && userId ? (
             <GatewayLaunchBanner target={gatewayLaunchTarget} userId={userId} />
@@ -586,32 +580,14 @@ export const OrganizationProjectOverview = () => {
   );
 };
 
-/** One banner at a time: v4 migration work first, then the gateway launch. */
+/** One banner at a time: the gateway launch, else the agent-tools pitch. */
 const pageBanner = ({
   v4UpgradeUiEnabled,
-  v4MigrationBannerState,
   gatewayBanner,
 }: {
   v4UpgradeUiEnabled: boolean;
-  v4MigrationBannerState: ReturnType<typeof useV4MigrationBannerState>;
   gatewayBanner: ReactNode;
 }): ReactNode => {
-  if (
-    v4UpgradeUiEnabled &&
-    v4MigrationBannerState.projectsNeedingMigration > 0
-  ) {
-    return (
-      <V4MigrationBanner
-        projectsNeedingMigration={
-          v4MigrationBannerState.projectsNeedingMigration
-        }
-        totalProjects={v4MigrationBannerState.totalProjects}
-      />
-    );
-  }
-  // The v4 banner takes precedence once its checks finish, so showing the
-  // gateway banner before then would flash it and swap it out.
-  if (v4UpgradeUiEnabled && v4MigrationBannerState.isChecking) return null;
   if (gatewayBanner) return gatewayBanner;
   return v4UpgradeUiEnabled ? null : <AgentToolsBanner />;
 };

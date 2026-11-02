@@ -60,6 +60,11 @@ import { useHasProjectAccess } from "@/src/features/rbac";
 import { api } from "@/src/utils/api";
 import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
 import { encodeFiltersGeneric, type FilterState } from "@langfuse/shared";
+import {
+  formatLegacyScheduleDate,
+  LEGACY_EVALS_EXPORTS_STOP_DATE,
+  LEGACY_FULL_CUT_DATE,
+} from "@/src/features/public-api/server/legacyApiShutdownSchedule";
 import { EvaluatorMigrationDialog } from "@/src/features/v4-migration/EvaluatorMigrationDialog";
 import { buildDeprecatedRulesUrl } from "@/src/features/v4-migration/evaluatorMigrationUrls";
 import {
@@ -73,10 +78,21 @@ import {
 
 const V4_DOCS_URL = "https://langfuse.com/docs/v4";
 const V4_TIMELINE_URL = `${V4_DOCS_URL}#timeline`;
-// Consumed by the status page deadline copy.
-export const V4_MIGRATION_DEADLINE = "November 16, 2026";
+// Consumed by the status page deadline copy: legacy evaluators and exports
+// stop on this date, legacy ingestion and APIs on the cut date.
+export const V4_MIGRATION_DEADLINE = formatLegacyScheduleDate(
+  LEGACY_EVALS_EXPORTS_STOP_DATE,
+  "long",
+);
+export const V4_LEGACY_API_CUT_DATE = formatLegacyScheduleDate(
+  LEGACY_FULL_CUT_DATE,
+  "long",
+);
 // Headline form of the deadline; the year is noise in a title.
-const V4_MIGRATION_DEADLINE_SHORT = "November 16";
+const V4_MIGRATION_DEADLINE_SHORT = V4_MIGRATION_DEADLINE.replace(
+  /, \d{4}$/,
+  "",
+);
 const SDK_UPGRADE_URL =
   "https://langfuse.com/docs/observability/sdk/upgrade-path";
 const OTEL_V4_MIGRATION_URL =
