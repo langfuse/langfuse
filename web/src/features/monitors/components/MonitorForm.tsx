@@ -453,7 +453,7 @@ export const MonitorForm = ({
   return (
     <Form {...form}>
       <form onSubmit={onSubmit} className="flex h-full gap-4 overflow-hidden">
-        <div className="h-full min-h-0 w-full min-w-107.5 md:w-1/3">
+        <div className="@container h-full min-h-0 w-full min-w-0 md:w-1/3 md:min-w-80">
           <div className="flex h-full flex-col">
             <CardHeader>
               <FormHeading
@@ -536,7 +536,7 @@ export const MonitorForm = ({
                         <MonitorSeverityBadge
                           severity={MonitorSeveritySchema.enum.ALERT}
                         />
-                        <span className="text-sm whitespace-nowrap">
+                        <span className="hidden text-sm whitespace-nowrap @sm:inline">
                           Threshold
                         </span>
                         <span className="mr-1.5 ml-1 font-mono text-xs font-bold">
@@ -579,7 +579,7 @@ export const MonitorForm = ({
                         <MonitorSeverityBadge
                           severity={MonitorSeveritySchema.enum.WARNING}
                         />
-                        <span className="text-sm whitespace-nowrap">
+                        <span className="hidden text-sm whitespace-nowrap @sm:inline">
                           Threshold
                         </span>
                         <span className="mr-1.5 ml-1 font-mono text-xs font-bold">
@@ -828,7 +828,7 @@ export const MonitorForm = ({
           </div>
         </div>
 
-        <div className="hidden h-full w-2/3 min-w-107.5 flex-col gap-6 overflow-y-auto overscroll-contain md:flex">
+        <div className="hidden h-full w-2/3 min-w-56 flex-col gap-6 overflow-y-auto overscroll-contain md:flex">
           <MonitorChartPreview
             projectId={projectId}
             view={(watched.view ?? "observations") as MonitorView}
@@ -924,20 +924,24 @@ const Section = ({
   </div>
 );
 
-/** ThresholdInput is a number input with the threshold's unit as a muted suffix. */
+/** ThresholdInput is a number input with the threshold's unit as a muted suffix inside the same box. */
 const ThresholdInput = ({
   unit,
-  className,
   ...props
-}: Omit<React.ComponentProps<typeof Input>, "type"> & { unit?: string }) => (
-  <div className="relative flex-1">
+}: Omit<React.ComponentProps<typeof Input>, "type" | "className"> & {
+  unit?: string;
+}) => (
+  <div className="border-input bg-background focus-within:ring-ring flex h-8 min-w-0 flex-1 items-center rounded-md border pr-2 focus-within:ring-1">
     <Input
       type="number"
-      className={cn("appearance-none", unit && "pr-28", className)}
+      className="h-full min-w-10 flex-1 appearance-none border-0 bg-transparent"
       {...props}
     />
     {unit && (
-      <span className="text-muted-foreground pointer-events-none absolute inset-y-0 right-2 flex items-center text-sm">
+      <span
+        className="text-muted-foreground min-w-0 truncate pl-1 text-sm"
+        title={unit}
+      >
         {unit}
       </span>
     )}
