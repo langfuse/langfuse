@@ -444,14 +444,9 @@ describe("RateLimitService", () => {
     const rateLimitService = RateLimitService.getInstance(redis as Redis);
 
     for (const testCase of cases) {
-      const activeKey = `${RATE_LIMIT_REDIS_KEY_PREFIX}:public-api-legacy:${testCase.durationInSec}:${orgId}`;
-      // Simulates a pod still running the previous release's hourly window
-      // mid-rollout: duration-qualified keys mean it writes to its own
-      // counter and must not interact with the new per-minute counter.
-      const previousReleaseHourlyKey = `${RATE_LIMIT_REDIS_KEY_PREFIX}:public-api-legacy:3600:${orgId}`;
+      const activeKey = `${RATE_LIMIT_REDIS_KEY_PREFIX}:public-api-legacy:${orgId}`;
 
       await redis.del(activeKey);
-      await redis.set(previousReleaseHourlyKey, "1", "EX", 3600);
 
       const scope = {
         orgId: orgId,
@@ -482,13 +477,6 @@ describe("RateLimitService", () => {
       expect(ttlInSec).toBeGreaterThan(0);
       expect(ttlInSec).toBeLessThanOrEqual(testCase.durationInSec);
       expect(ttlInSec).toBeGreaterThan(testCase.durationInSec - 10);
-
-      // The leftover hourly-window key from the previous release is
-      // untouched: this request neither incremented nor reset it.
-      const previousReleaseValue = await redis.get(previousReleaseHourlyKey);
-      expect(previousReleaseValue).toBe("1");
-      const previousReleaseTtl = await redis.ttl(previousReleaseHourlyKey);
-      expect(previousReleaseTtl).toBeGreaterThan(0);
     }
   });
 
@@ -702,9 +690,10 @@ describe("RateLimitService", () => {
     }
   });
 
-  it("should key a custom public-api-legacy override by its own duration, separate from the plan-default and any leftover hourly counter", async () => {
+  it("should apply a custom public-api-legacy override on the shared org key", async () => {
     const overridePoints = 2;
     const overrideDurationInSec = 5;
+    const activeKey = `${RATE_LIMIT_REDIS_KEY_PREFIX}:public-api-legacy:${orgId}`;
 
     const overrideScope = {
       orgId: orgId,
@@ -719,59 +708,39 @@ describe("RateLimitService", () => {
         },
       ],
     };
-    const defaultScope = { ...overrideScope, rateLimitOverrides: [] };
-
-    // A leftover key from a pod still running the previous release's hourly
-    // window; neither the override nor the plan default should touch it.
-    const previousReleaseHourlyKey = `${RATE_LIMIT_REDIS_KEY_PREFIX}:public-api-legacy:3600:${orgId}`;
-    await redis.set(previousReleaseHourlyKey, "999", "EX", 3600);
 
     const rateLimitService = RateLimitService.getInstance(redis as Redis);
 
-    for (let i = 0; i < overridePoints; i++) {
-      await rateLimitService.rateLimitRequest(
-        asScope(overrideScope),
-        "public-api-legacy",
-      );
-    }
-    const overrideRejected = await rateLimitService.rateLimitRequest(
+    const first = await rateLimitService.rateLimitRequest(
       asScope(overrideScope),
       "public-api-legacy",
     );
-    expect(overrideRejected?.isRateLimited()).toBe(true);
-
-    // The plan-default (60s) counter for the same org/resource lives at a
-    // different, duration-qualified Redis key, so it is untouched by the
-    // override's consumption.
-    const defaultResult = await rateLimitService.rateLimitRequest(
-      asScope(defaultScope),
-      "public-api-legacy",
-    );
-    expect(defaultResult?.res).toEqual({
-      scope: defaultScope,
+    expect(first?.res).toEqual({
+      scope: overrideScope,
       resource: "public-api-legacy",
-      points: 2, // cloud:hobby default
-      remainingPoints: 1,
+      points: overridePoints,
+      remainingPoints: overridePoints - 1,
       msBeforeNext: expect.any(Number),
       consumedPoints: 1,
       isFirstInDuration: true,
     });
-    expect(defaultResult?.isRateLimited()).toBe(false);
+    expect(first?.isRateLimited()).toBe(false);
 
-    const overrideKey = `${RATE_LIMIT_REDIS_KEY_PREFIX}:public-api-legacy:${overrideDurationInSec}:${orgId}`;
-    const defaultKey = `${RATE_LIMIT_REDIS_KEY_PREFIX}:public-api-legacy:60:${orgId}`;
+    const second = await rateLimitService.rateLimitRequest(
+      asScope(overrideScope),
+      "public-api-legacy",
+    );
+    expect(second?.isRateLimited()).toBe(false);
 
-    const overrideTtl = await redis.ttl(overrideKey);
-    const defaultTtl = await redis.ttl(defaultKey);
+    const rejected = await rateLimitService.rateLimitRequest(
+      asScope(overrideScope),
+      "public-api-legacy",
+    );
+    expect(rejected?.isRateLimited()).toBe(true);
 
-    expect(overrideTtl).toBeGreaterThan(0);
-    expect(overrideTtl).toBeLessThanOrEqual(overrideDurationInSec);
-    expect(defaultTtl).toBeGreaterThan(0);
-    expect(defaultTtl).toBeLessThanOrEqual(60);
-
-    // The simulated leftover hourly counter is still untouched.
-    const previousReleaseValue = await redis.get(previousReleaseHourlyKey);
-    expect(previousReleaseValue).toBe("999");
+    const ttlInSec = await redis.ttl(activeKey);
+    expect(ttlInSec).toBeGreaterThan(0);
+    expect(ttlInSec).toBeLessThanOrEqual(overrideDurationInSec);
   });
 
   it("should apply public-api-v2-metrics rate limits by cloud plan", async () => {

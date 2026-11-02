@@ -130,16 +130,7 @@ export class RateLimitService {
       points: effectiveConfig.points, // Number of points
       duration: effectiveConfig.durationInSec, // Per second(s)
 
-      // Legacy reads key the window into the Redis key so a 60s config and a
-      // 3600s config never share a counter. During a mixed-version rollout of
-      // this resource's duration (e.g. some pods still enforcing the previous
-      // 3600s window while others enforce the current 60s window), each
-      // duration keeps its own independent quota until the rollout
-      // completes; this divergence is expected and temporary.
-      keyPrefix:
-        resource === "public-api-legacy"
-          ? `${this.rateLimitPrefix(resource)}:${effectiveConfig.durationInSec}`
-          : this.rateLimitPrefix(resource),
+      keyPrefix: this.rateLimitPrefix(resource), // must be unique for limiters with different purpose
       storeClient: RateLimitService.redis,
       rejectIfRedisNotReady: true,
     });
