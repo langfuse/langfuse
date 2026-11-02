@@ -226,11 +226,12 @@ async fn request_configuration_is_projected_out_of_input() {
 }
 
 #[tokio::test]
-async fn oversized_configuration_stays_in_input() {
-    let large = json!({"schema": vec![json!({"": 0}); 16 * 1024]});
+async fn configuration_beyond_the_parse_budget_stays_in_input() {
+    // Each member fits the budget on its own, but not together.
+    let half = json!({"schema": vec![json!({"": 0}); 5 * 1024]});
     let request = json!({
         "model": "requested", "input": "hello",
-        "text": large, "metadata": large, "temperature": 0.5,
+        "text": half, "metadata": half, "temperature": 0.5,
     });
     let capture = OpenAiResponsesCapture::new(
         &HeaderMap::new(),
@@ -240,11 +241,14 @@ async fn oversized_configuration_stays_in_input() {
     .into_facts();
     assert_eq!(
         capture.input_json().unwrap(),
-        json!({"input": "hello", "text": large, "metadata": large})
+        json!({"input": "hello", "metadata": half})
     );
     assert_eq!(
         capture.model_parameters,
-        json!({"temperature": 0.5}).as_object().unwrap().clone()
+        json!({"temperature": 0.5, "text": half})
+            .as_object()
+            .unwrap()
+            .clone()
     );
     assert!(capture.request_metadata.is_empty());
 }
