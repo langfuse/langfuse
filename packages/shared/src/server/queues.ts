@@ -285,6 +285,10 @@ export const DeadLetterRetryQueueEventSchema = z.object({
   timestamp: z.date(),
 });
 
+export const LlmBatchQueueEventSchema = z.object({
+  timestamp: z.date(),
+});
+
 export const NotificationEventSchema = z.discriminatedUnion("type", [
   z.object({
     type: z.literal("COMMENT_MENTION"),
@@ -409,6 +413,7 @@ export type BlobStorageIntegrationProcessingEventType = z.infer<
 export type DeadLetterRetryQueueEventType = z.infer<
   typeof DeadLetterRetryQueueEventSchema
 >;
+export type LlmBatchQueueEventType = z.infer<typeof LlmBatchQueueEventSchema>;
 export type NotificationEventType = z.infer<typeof NotificationEventSchema>;
 
 export const RetryBaggage = z.object({
@@ -456,6 +461,7 @@ export enum QueueName {
   ScoreDelete = "score-delete",
   DatasetDelete = "dataset-delete-queue",
   DeadLetterRetryQueue = "dead-letter-retry-queue",
+  LlmBatchQueue = "llm-batch-queue", // Submits and polls provider batch jobs for deferred LLM-as-judge calls
   WebhookQueue = "webhook-queue",
   EntityChangeQueue = "entity-change-queue",
   EventPropagationQueue = "event-propagation-queue",
@@ -500,6 +506,7 @@ export enum QueueJobs {
   ScoreDelete = "score-delete",
   DatasetDelete = "dataset-delete-job",
   DeadLetterRetryJob = "dead-letter-retry-job",
+  LlmBatchJob = "llm-batch-job",
   WebhookJob = "webhook-job",
   EntityChangeJob = "entity-change-job",
   EventPropagationJob = "event-propagation-job",
@@ -746,6 +753,12 @@ export type TQueueJobTypes = {
     id: string;
     payload: DeadLetterRetryQueueEventType;
     name: QueueJobs.DeadLetterRetryJob;
+  };
+  [QueueName.LlmBatchQueue]: {
+    timestamp: Date;
+    id: string;
+    payload: LlmBatchQueueEventType;
+    name: QueueJobs.LlmBatchJob;
   };
   [QueueName.WebhookQueue]: {
     timestamp: Date;

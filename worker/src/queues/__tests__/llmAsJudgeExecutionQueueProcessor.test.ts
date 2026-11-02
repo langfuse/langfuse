@@ -47,6 +47,9 @@ vi.mock("@langfuse/shared/src/db", () => ({
     jobExecution: {
       update: vi.fn(),
     },
+    llmBatchRequest: {
+      update: vi.fn(),
+    },
   },
 }));
 
@@ -128,6 +131,7 @@ import {
 } from "@langfuse/shared/src/server";
 import { retryLLMRateLimitError } from "../../features/utils";
 import { isUnrecoverableError } from "../../errors/UnrecoverableError";
+import { LlmBatchDeferredError } from "../../features/llm-batch/errors";
 
 function mockLlmError(error: Error, isRetryable: boolean): void {
   vi.mocked(classifyEvaluatorLlmError).mockReturnValue({
@@ -285,6 +289,38 @@ describe("llmAsJudgeExecutionQueueProcessor", () => {
   });
 
   describe("LLM rate limit errors (retryable)", () => {
+    it("parks a batch-deferred evaluation as DELAYED without retry or error", async () => {
+      (processObservationEval as Mock).mockRejectedValue(
+        new LlmBatchDeferredError("batch-row-1", projectId),
+      );
+
+      const job = createMockJob();
+      const result = await llmAsJudgeExecutionQueueProcessor(job);
+
+      expect(result).toBe(true);
+      expect(prisma.llmBatchRequest.update).toHaveBeenCalledWith({
+        where: { id: "batch-row-1", projectId },
+        data: {
+          resumeQueueName: queueName,
+          resumeJobName: QueueJobs.LLMAsJudgeExecution,
+          resumeJobData: job.data,
+        },
+      });
+      expect(prisma.jobExecution.update).toHaveBeenCalledTimes(1);
+      expect(prisma.jobExecution.update).toHaveBeenCalledWith({
+        where: { id: jobExecutionId, projectId },
+        data: { status: JobExecutionStatus.DELAYED },
+      });
+      expect(retryLLMRateLimitError).not.toHaveBeenCalled();
+      expect(classifyEvaluatorLlmError).not.toHaveBeenCalled();
+      expect(traceException).not.toHaveBeenCalled();
+      expect(recordIncrement).not.toHaveBeenCalledWith(
+        "langfuse.evaluation.execution.terminal",
+        expect.anything(),
+        expect.anything(),
+      );
+    });
+
     it("should schedule retry and set DELAYED status for retryable LLM errors", async () => {
       const rateLimitError = new Error("Rate limit exceeded");
       (processObservationEval as Mock).mockRejectedValue(rateLimitError);

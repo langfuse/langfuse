@@ -64,7 +64,7 @@ export function getLangfuseAIVertexLocation(): string | undefined {
  * allowed for self-hosted deployments and for Langfuse-operated AI, in which
  * case the project is resolved from the default credential chain.
  */
-async function resolveVertexConnection(params: {
+export async function resolveVertexConnection(params: {
   apiKey: string;
   config?: LLMConnectionConfig | null;
   credentialSource: LLMCredentialSource;

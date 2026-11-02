@@ -132,6 +132,13 @@ type BaseLLMTextOptions<TOOLS extends ToolSet, OUTPUT extends Output.Output> = {
    */
   traceInput?: unknown;
   credentialSource?: LLMCredentialSource;
+  /**
+   * Replaces the network transport for provider calls. Batch inference uses it
+   * to capture a provider request without sending it, and later to answer the
+   * same call with the batch result. Omitted, calls go through the secure
+   * fetch.
+   */
+  transport?: typeof fetch;
   onEnd?: GenerateTextOnEndCallback<TOOLS, RuntimeContext>;
 };
 
@@ -319,6 +326,7 @@ async function prepareLLMTextCall<
   const { apiKey, extraHeaders, createFetch } = openLLMConnection(
     options.connection,
   );
+  const transport = options.transport;
 
   const languageModel = await buildAiSdkModel({
     model: options.model,
@@ -330,7 +338,7 @@ async function prepareLLMTextCall<
     config: options.connection.config,
     projectId: options.connection.projectId,
     credentialSource,
-    createFetch,
+    createFetch: transport ? () => transport : createFetch,
   });
 
   const capture = options.trace

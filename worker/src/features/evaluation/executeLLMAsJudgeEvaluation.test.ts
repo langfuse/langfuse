@@ -48,6 +48,7 @@ vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
 import { executeLLMAsJudgeEvaluation } from "./evalService";
 import { createMockEvalExecutionDeps } from "./evalExecutionDeps";
 import { UnrecoverableError } from "../../errors/UnrecoverableError";
+import { LlmBatchDeferredError } from "../llm-batch/errors";
 import {
   LLMValidationError,
   recordIncrement,
@@ -1405,6 +1406,47 @@ describe("executeLLMAsJudgeEvaluation", () => {
           source: "llm_completion_error",
         }),
       );
+    });
+  });
+
+  describe("batch inference", () => {
+    it("passes the job execution id to the LLM call", async () => {
+      const callLLM = vi.fn().mockResolvedValue({ score: 1, reasoning: "ok" });
+      const deps = createMockEvalExecutionDeps({
+        fetchModelConfig: mockValidFetchModelConfig(),
+        callLLM,
+      });
+
+      await executeLLMAsJudgeEvaluation(createExecutionParams({ deps }));
+
+      expect(callLLM).toHaveBeenCalledWith(
+        expect.objectContaining({ jobExecutionId }),
+      );
+    });
+
+    it("propagates a batch deferral without writing or blocking anything", async () => {
+      const deferred = new LlmBatchDeferredError("batch-row-1", projectId);
+      const deps = createMockEvalExecutionDeps({
+        fetchModelConfig: mockValidFetchModelConfig(),
+        callLLM: vi.fn().mockRejectedValue(deferred),
+        updateJobExecution: vi.fn(),
+        uploadScore: vi.fn(),
+      });
+
+      await expect(
+        executeLLMAsJudgeEvaluation({
+          ...createExecutionParams({ deps }),
+          evaluatorId: "evaluator-123",
+        }),
+      ).rejects.toBe(deferred);
+
+      expect(deps.updateJobExecution).not.toHaveBeenCalled();
+      expect(deps.uploadScore).not.toHaveBeenCalled();
+      expect(observabilityMocks.blockEvaluator).not.toHaveBeenCalled();
+      const callSpan = observabilityMocks.spans.find(
+        ({ name }) => name === "eval.call-llm",
+      );
+      expect(callSpan?.attributes["eval.llm.outcome"]).toBe("batch_deferred");
     });
   });
 

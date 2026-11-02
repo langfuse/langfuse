@@ -83,7 +83,10 @@ export async function generateLlmEvaluatorOutput(params: {
   modelParams: ModelParams;
   messages: ChatMessage[];
   outputResultSchema: z.ZodObject<{ reasoning: z.ZodString; score: z.ZodType }>;
-  trace: TraceSinkParams;
+  /** Omitted, nothing is written to the execution trace (batch capture). */
+  trace?: TraceSinkParams;
+  /** See `transport` on `generateLLMText`. */
+  transport?: typeof fetch;
 }) {
   const llmParams = mapLegacyLLMCompletionParams({
     connection: params.connection,
@@ -110,6 +113,7 @@ export async function generateLlmEvaluatorOutput(params: {
     output: createLLMOutput(modelFacingOutputSchema),
     maxRetries: 1,
     trace: params.trace,
+    transport: params.transport,
   });
 
   return {
