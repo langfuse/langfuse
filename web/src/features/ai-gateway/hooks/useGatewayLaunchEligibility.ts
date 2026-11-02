@@ -83,14 +83,14 @@ function isLaunchTargetSettled(
   statuses: ReadonlyArray<SettleQuery<{ isConfigured: boolean }>>,
   ownKeys: ReadonlyArray<SettleQuery<unknown>>,
 ) {
+  // `isFetched` rather than `isError`: refetching a failed query resets its
+  // error, which would hide the banner on every window focus.
   return candidates.every((candidate, index) => {
     const status = statuses[index];
-    if (status?.data === undefined) return status?.isError === true;
-    if (candidate.canManage || !status.data.isConfigured) return true;
-    return (
-      ownKeys[index]?.data !== undefined || ownKeys[index]?.isError === true
-    );
+    if (status?.isFetched !== true) return false;
+    if (candidate.canManage || status.data?.isConfigured !== true) return true;
+    return ownKeys[index]?.isFetched === true;
   });
 }
 
-type SettleQuery<TData> = { data?: TData; isError: boolean } | undefined;
+type SettleQuery<TData> = { data?: TData; isFetched: boolean } | undefined;
