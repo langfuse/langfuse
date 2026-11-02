@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { type FilterState, type TimeFilter } from "@langfuse/shared";
 import { type views, type ViewVersion } from "@langfuse/shared/query";
 import { type z } from "zod";
@@ -81,31 +80,25 @@ type ConnectedMetricsFilterBuilderProps = MetricsFilterFetcherProps & {
   version: ViewVersion;
 };
 
-/** Connected filter builder for existing callers. */
-export function ConnectedMetricsFilterBuilder({
-  version,
-  view,
-  projectId,
-  dateRange,
-  filters,
-  onChange,
-}: ConnectedMetricsFilterBuilderProps) {
-  const data = useMetricsFilterBuilderData({
-    version,
-    view,
-    projectId,
-    dateRange,
-    filters,
-  });
-  return (
-    <MetricsFilterBuilder
-      view={view}
-      filters={filters}
-      onChange={onChange}
-      {...data}
-    />
-  );
-}
+/** metricsFilterTimeFilter keys a {from, to?} range to a column as the TimeFilter[] the filter-options endpoints expect. */
+const metricsFilterTimeFilter = (
+  column: "timestamp" | "startTime",
+  dateRange?: MetricsFilterDateRange,
+): TimeFilter[] | undefined => {
+  if (!dateRange) return undefined;
+  const filters: TimeFilter[] = [
+    { column, type: "datetime", operator: ">=", value: dateRange.from },
+  ];
+  if (dateRange.to) {
+    filters.push({
+      column,
+      type: "datetime",
+      operator: "<=",
+      value: dateRange.to,
+    });
+  }
+  return filters;
+};
 
 /** Fetch filter options separately so the editor can render with fixture data. */
 export function useMetricsFilterBuilderData({
@@ -196,22 +189,28 @@ export function useMetricsFilterBuilderData({
   };
 }
 
-/** metricsFilterTimeFilter keys a {from, to?} range to a column as the TimeFilter[] the filter-options endpoints expect. */
-const metricsFilterTimeFilter = (
-  column: "timestamp" | "startTime",
-  dateRange?: MetricsFilterDateRange,
-): TimeFilter[] | undefined => {
-  if (!dateRange) return undefined;
-  const filters: TimeFilter[] = [
-    { column, type: "datetime", operator: ">=", value: dateRange.from },
-  ];
-  if (dateRange.to) {
-    filters.push({
-      column,
-      type: "datetime",
-      operator: "<=",
-      value: dateRange.to,
-    });
-  }
-  return filters;
-};
+/** Connected filter builder for existing callers. */
+export function ConnectedMetricsFilterBuilder({
+  version,
+  view,
+  projectId,
+  dateRange,
+  filters,
+  onChange,
+}: ConnectedMetricsFilterBuilderProps) {
+  const data = useMetricsFilterBuilderData({
+    version,
+    view,
+    projectId,
+    dateRange,
+    filters,
+  });
+  return (
+    <MetricsFilterBuilder
+      view={view}
+      filters={filters}
+      onChange={onChange}
+      {...data}
+    />
+  );
+}
