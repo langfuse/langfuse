@@ -8,6 +8,7 @@ import {
   type Es256JwtSigner,
 } from "@/src/server/utils/jwt";
 
+import { getEffectiveGatewayIngestionMode } from "@/src/features/ai-gateway/fns/gatewayIngestionModePolicy";
 import type { GatewayApiKeyAuthContext } from "@/src/features/ai-gateway/server/auth/gatewayApiKeyAuthenticator";
 import { resolveGatewayJwtKeys } from "@/src/features/ai-gateway/server/auth/gatewayJwtKeys";
 import { GATEWAY_INGESTION_TOKEN_TTL_SECONDS } from "@/src/features/ai-gateway/server/auth/ingestionTokenVerifier";
@@ -71,7 +72,12 @@ export class GatewayResolveService {
         params.context.organizationId,
       );
       const { context } = params;
-      const { ingestionMode, ingestionProjectId } = context;
+      const { ingestionProjectId } = context;
+      // Applied after the resolve cache, so an entry cached as NONE still
+      // captures on Cloud.
+      const ingestionMode =
+        context.ingestionMode &&
+        getEffectiveGatewayIngestionMode(context.ingestionMode);
       // NONE mode delivers nothing to Langfuse, so it needs neither an
       // ingestion project nor ingestion signing keys.
       const deliversToLangfuse = ingestionMode !== "NONE";

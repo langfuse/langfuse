@@ -19,7 +19,7 @@ export function buildCodexInstructions(
     docsUrl: AGENT_SETUP_DOCS_URLS.codex,
     warning: context.providers.includes("OPENAI")
       ? undefined
-      : "Codex needs an OpenAI provider connection, and none is enabled yet.",
+      : "Codex needs an OpenAI provider credential, and none is enabled yet.",
     steps: [
       {
         title: "Store the key in Codex's .env",

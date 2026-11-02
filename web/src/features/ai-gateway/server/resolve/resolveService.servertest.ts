@@ -1,5 +1,5 @@
 import type { PrismaClient } from "@langfuse/shared/src/db";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { GatewayApiKeyAuthenticator } from "@/src/features/ai-gateway/server/auth/gatewayApiKeyAuthenticator";
 import type { GatewayApiFormat } from "@/src/features/ai-gateway/server/provider";
@@ -17,6 +17,7 @@ const mockEnv = vi.hoisted(() => ({
   LANGFUSE_AI_GATEWAY_JWT_KEY_ID: "key-id" as string | undefined,
   LANGFUSE_AI_GATEWAY_JWT_ISSUER: "test-issuer",
   LANGFUSE_AI_GATEWAY_JWT_AUDIENCE: "test-audience",
+  NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: undefined as string | undefined,
 }));
 
 vi.mock("@/src/env.mjs", () => ({ env: mockEnv }));
@@ -74,9 +75,12 @@ const row = (overrides: {
   expiresAt: null,
   note: overrides.note === undefined ? "CI key" : overrides.note,
   user:
-    overrides.user === undefined
-      ? { name: "Alice", email: "alice@example.com" }
-      : overrides.user,
+    overrides.user === null
+      ? null
+      : {
+          ...(overrides.user ?? { name: "Alice", email: "alice@example.com" }),
+          organizationMemberships: [{ orgId: "org-1", role: "MEMBER" }],
+        },
   gatewayAssociation:
     overrides.metadata === undefined ? null : { metadata: overrides.metadata },
   organization: {
@@ -288,6 +292,45 @@ describe("GatewayResolveService", () => {
       }
     },
   );
+
+  describe("on Langfuse Cloud", () => {
+    beforeEach(() => {
+      mockEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "EU";
+    });
+    afterEach(() => {
+      mockEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = undefined;
+    });
+
+    it("resolves a stored NONE mode as USAGE with an ingestion grant", async () => {
+      const service = serviceWith(() =>
+        Promise.resolve(row({ ingestionMode: "NONE" })),
+      );
+
+      await expect(
+        service.resolve({
+          fastHashedSecretKey: "hashed-secret-key",
+          apiFormat: "openai.responses",
+        }),
+      ).resolves.toMatchObject({
+        attribution: { project_id: "project-1" },
+        ingestion_mode: "usage",
+        ingestion: { access_token: "ingestion-token", token_type: "Bearer" },
+      });
+    });
+
+    it("refuses to resolve a stored NONE mode without an ingestion project", async () => {
+      const service = serviceWith(() =>
+        Promise.resolve(row({ ingestionMode: "NONE", withoutProject: true })),
+      );
+
+      await expect(
+        service.resolve({
+          fastHashedSecretKey: "hashed-secret-key",
+          apiFormat: "openai.responses",
+        }),
+      ).rejects.toMatchObject({ status: 403 });
+    });
+  });
 
   it("rejects an unknown or expired gateway key", async () => {
     const service = serviceWith(() => Promise.resolve(null));

@@ -1,54 +1,39 @@
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
+import type { FilterState } from "@langfuse/shared";
 
-import { TimeRangePicker } from "@/src/components/date-picker";
-import Header from "@/src/components/layouts/header";
-import { PageHeaderControlsPortal } from "@/src/components/layouts/page-header-controls-slot";
+import { GatewayAnalyticsHeader } from "@/src/features/ai-gateway/components/GatewayAnalyticsPage/components/GatewayAnalyticsHeader/GatewayAnalyticsHeader";
 import { GatewayAnalyticsWidgetCard } from "@/src/features/ai-gateway/components/GatewayAnalyticsPage/components/GatewayAnalyticsWidgetCard/GatewayAnalyticsWidgetCard";
+import { GatewayUnpricedUsageAlert } from "@/src/features/ai-gateway/components/GatewayAnalyticsPage/components/GatewayUnpricedUsageAlert/GatewayUnpricedUsageAlert";
 import { GATEWAY_ANALYTICS_WIDGETS } from "@/src/features/ai-gateway/components/GatewayAnalyticsPage/constants/gatewayAnalyticsWidgets";
 import { useGatewayAnalyticsFilters } from "@/src/features/ai-gateway/components/GatewayAnalyticsPage/hooks/useGatewayAnalyticsFilters";
 import { useGatewayAnalyticsLabels } from "@/src/features/ai-gateway/components/GatewayAnalyticsPage/hooks/useGatewayAnalyticsLabels";
+import { useGatewayUnpricedUsage } from "@/src/features/ai-gateway/components/GatewayAnalyticsPage/hooks/useGatewayUnpricedUsage";
 import { MultiSelect } from "@/src/features/filters";
 import {
   toAbsoluteTimeRange,
   type TimeRange,
 } from "@/src/utils/date-range-utils";
 
-const TIME_RANGE_PRESETS = [
-  "last1Day",
-  "last7Days",
-  "last30Days",
-  "last90Days",
-  "last1Year",
-] as const;
-
 export function GatewayAnalyticsDashboard({
   organizationId,
   projectId,
+  timeRange,
 }: {
   organizationId: string;
   projectId: string;
+  timeRange: TimeRange;
 }) {
-  const [timeRange, setTimeRange] = useState<TimeRange>({
-    range: "last30Days",
-  });
   const absoluteTimeRange = useMemo(
     () => toAbsoluteTimeRange(timeRange),
     [timeRange],
   );
-  const labels = useGatewayAnalyticsLabels(organizationId);
+  const { labels, isPending: labelsPending } =
+    useGatewayAnalyticsLabels(organizationId);
   const { filters, user, apiKey } = useGatewayAnalyticsFilters({ labels });
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex flex-wrap items-center gap-3">
-        <Header
-          title="Gateway analytics"
-          className="mb-0!"
-          help={{
-            description:
-              "Cost and usage of requests made through the AI Gateway, read from its ingestion project.",
-          }}
-        />
+      <GatewayAnalyticsHeader>
         {/* Option labels are member and API key names. */}
         <div className="ph-no-capture flex flex-wrap items-center gap-2">
           <MultiSelect
@@ -58,38 +43,73 @@ export function GatewayAnalyticsDashboard({
             {...user}
           />
           <MultiSelect
-            title="API key"
-            label="API key"
+            title="Gateway key"
+            label="Gateway key"
             className="my-0 w-auto overflow-hidden"
             {...apiKey}
           />
         </div>
-      </div>
-      <PageHeaderControlsPortal>
-        <TimeRangePicker
-          timeRange={timeRange}
-          onTimeRangeChange={setTimeRange}
-          timeRangePresets={TIME_RANGE_PRESETS}
-          className="my-0 max-w-full overflow-x-auto"
-          triggerClassName="px-2"
-        />
-      </PageHeaderControlsPortal>
+      </GatewayAnalyticsHeader>
       {absoluteTimeRange && (
-        <div className="grid grid-cols-1 gap-3 lg:grid-cols-6">
-          {GATEWAY_ANALYTICS_WIDGETS.map((widget) => (
-            <GatewayAnalyticsWidgetCard
-              key={widget.id}
-              projectId={projectId}
-              widget={widget}
-              timeRange={absoluteTimeRange}
-              filters={filters}
-              dimensionLabelMap={
-                widget.dimensionLabels && labels[widget.dimensionLabels]
-              }
-            />
-          ))}
-        </div>
+        <GatewayAnalyticsWidgets
+          projectId={projectId}
+          timeRange={absoluteTimeRange}
+          filters={filters}
+          labels={labels}
+          labelsPending={labelsPending}
+        />
       )}
     </div>
+  );
+}
+
+function GatewayAnalyticsWidgets({
+  projectId,
+  timeRange,
+  filters,
+  labels,
+  labelsPending,
+}: {
+  projectId: string;
+  timeRange: { from: Date; to: Date };
+  filters: FilterState;
+  labels: ReturnType<typeof useGatewayAnalyticsLabels>["labels"];
+  labelsPending: boolean;
+}) {
+  const unpricedUsage = useGatewayUnpricedUsage({
+    projectId,
+    timeRange,
+    filters,
+  });
+  const hasUnpricedUsage = (unpricedUsage?.requests ?? 0) > 0;
+
+  return (
+    <>
+      <div className="grid grid-cols-1 gap-3 lg:grid-cols-6">
+        {GATEWAY_ANALYTICS_WIDGETS.map((widget) => (
+          <GatewayAnalyticsWidgetCard
+            key={widget.id}
+            projectId={projectId}
+            widget={widget}
+            timeRange={timeRange}
+            filters={filters}
+            dimensionLabelMap={
+              widget.dimensionLabels && labels[widget.dimensionLabels]
+            }
+            isWaitingForLabels={
+              Boolean(widget.dimensionLabels) && labelsPending
+            }
+            unpricedUsage={hasUnpricedUsage ? unpricedUsage : undefined}
+          />
+        ))}
+      </div>
+      {/* Below the grid: it loads after the widgets and must not push them down. */}
+      {unpricedUsage && hasUnpricedUsage ? (
+        <GatewayUnpricedUsageAlert
+          projectId={projectId}
+          usage={unpricedUsage}
+        />
+      ) : null}
+    </>
   );
 }

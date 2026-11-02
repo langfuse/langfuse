@@ -45,6 +45,8 @@ type DialogProps = {
   /** Defaults to "Cancel". Without `actions`, the close button is the only, primary button. */
   closeLabel?: string;
   closeOnInteractionOutside?: boolean;
+  /** Only the footer close button closes the dialog: Escape and the header close button are disabled. */
+  requireExplicitClose?: boolean;
   /** Disable when a child interaction handles activation keys on the document. */
   stopPropagationOnEnterSpace?: boolean;
   size?: VariantProps<typeof dialogContentVariants>["size"];
@@ -62,6 +64,7 @@ function DialogRoot({
   children,
   closeLabel,
   closeOnInteractionOutside = false,
+  requireExplicitClose = false,
   stopPropagationOnEnterSpace = true,
   size,
   text,
@@ -140,11 +143,16 @@ function DialogRoot({
             event.stopPropagation();
           }
         }}
+        onEscapeKeyDown={(event) => {
+          if (requireExplicitClose) event.preventDefault();
+        }}
         onPointerDownOutside={(event) => {
-          if (!closeOnInteractionOutside) event.preventDefault();
+          if (!closeOnInteractionOutside || requireExplicitClose)
+            event.preventDefault();
         }}
         onInteractOutside={(event) => {
-          if (!closeOnInteractionOutside) event.preventDefault();
+          if (!closeOnInteractionOutside || requireExplicitClose)
+            event.preventDefault();
         }}
       >
         <div className="isolate flex min-h-0 flex-1 flex-col overflow-hidden">
@@ -153,13 +161,15 @@ function DialogRoot({
               <DialogPrimitive.Title className="min-w-0 flex-1 text-lg leading-none font-bold tracking-tight">
                 {title}
               </DialogPrimitive.Title>
-              <DialogPrimitive.Close
-                className="ring-offset-background focus:ring-ring data-[state=open]:bg-accent data-[state=open]:text-muted-foreground hover:bg-accent z-20 -mt-2 -mr-2 inline-flex size-8 shrink-0 items-center justify-center rounded-md opacity-70 transition-opacity hover:opacity-100 focus:ring-2 focus:ring-offset-2 focus:outline-hidden disabled:pointer-events-none"
-                tabIndex={-1}
-              >
-                <X size="base" />
-                <span className="sr-only">Close</span>
-              </DialogPrimitive.Close>
+              {requireExplicitClose ? null : (
+                <DialogPrimitive.Close
+                  className="ring-offset-background focus:ring-ring data-[state=open]:bg-accent data-[state=open]:text-muted-foreground hover:bg-accent z-20 -mt-2 -mr-2 inline-flex size-8 shrink-0 items-center justify-center rounded-md opacity-70 transition-opacity hover:opacity-100 focus:ring-2 focus:ring-offset-2 focus:outline-hidden disabled:pointer-events-none"
+                  tabIndex={-1}
+                >
+                  <X size="base" />
+                  <span className="sr-only">Close</span>
+                </DialogPrimitive.Close>
+              )}
             </div>
           </header>
           <PopoverLayerProvider container={popoverContainer}>

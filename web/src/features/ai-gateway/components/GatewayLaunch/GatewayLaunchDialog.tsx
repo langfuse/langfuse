@@ -150,7 +150,7 @@ export function GatewayLaunchDialog({
                 >
                   <Button
                     variant="primary"
-                    text="Get API key"
+                    text="Get gateway key"
                     href={`/organization/${organizationId}/settings/ai-gateway-api-keys`}
                   />
                 </span>

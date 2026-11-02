@@ -48,7 +48,7 @@ export const TestWarnsWithoutAnthropic = meta.story({
     await userEvent.click(canvas.getByRole("tab", { name: "Claude" }));
 
     await expect(
-      canvas.getByText(/needs an Anthropic provider connection/),
+      canvas.getByText(/needs an Anthropic provider credential/),
     ).toBeVisible();
   },
 });
