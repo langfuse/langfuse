@@ -69,6 +69,10 @@ const DefaultStory = compose(
 );
 export const Default = /* Default */ DefaultStory;
 export const Fallback = /* Fallback */ compose(S, "Fallback");
+export const TintedFallback = /* Tinted Fallback */ compose(
+  S,
+  "TintedFallback",
+);
 export const WithEmail = /* With Email */ compose(S, "WithEmail");
 export const VariantMatrix = /* Variant Matrix */ compose(S, "VariantMatrix");
 export const TestHoverNameAndEmail =

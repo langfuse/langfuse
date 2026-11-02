@@ -268,6 +268,7 @@ export async function processObservationEval(
       targetTraceId: job.jobInputTraceId,
       targetObservationId: job.jobInputObservationId,
       targetDatasetItemId: job.jobInputDatasetItemId,
+      batchActionId: event.batchActionId,
     }),
     deps: deps.evalExecutionDeps,
   };

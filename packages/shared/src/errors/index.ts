@@ -10,4 +10,8 @@ export { LangfuseConflictError } from "./ConflictError";
 export { ServiceUnavailableError } from "./ServiceUnavailableError";
 export { NotImplementedError } from "./NotImplementedError";
 export { PayloadTooLargeError } from "./PayloadTooLargeError";
+export { TooManyRequestsError } from "./TooManyRequestsError";
+export { BadGatewayError } from "./BadGatewayError";
+export { GatewayTimeoutError } from "./GatewayTimeoutError";
+export { toBaseError } from "./toBaseError";
 export * from "./errorMessages";

@@ -20,7 +20,7 @@ import { Skeleton } from "@/src/components/ui/skeleton";
 import { cn } from "@/src/utils/tailwind";
 
 const INTERACTIVE_ROW_CLICK_SELECTOR =
-  "a, button, input, select, textarea, summary, [role='button'], [role='link']";
+  "a, button, input, select, textarea, summary, [role='button'], [role='link'], [data-row-click-ignore]";
 
 function shouldIgnoreRowClickTarget(target: EventTarget | null) {
   if (!(target instanceof Element)) return false;
@@ -43,6 +43,8 @@ export interface TableProps<TData> {
   loadingRowCount?: number;
   noResultsMessage?: React.ReactNode;
   onRowClick?: (row: TData, event?: React.MouseEvent) => void;
+  getRowLabel?: (row: TData) => string;
+  selectedRowId?: string | null;
   columnVisibility?: VisibilityState;
   onColumnVisibilityChange?: OnChangeFn<VisibilityState>;
   columnOrder?: ColumnOrderState;
@@ -63,6 +65,8 @@ export function Table<TData extends object>({
   loadingRowCount = 8,
   noResultsMessage = "No results",
   onRowClick,
+  getRowLabel,
+  selectedRowId,
   columnVisibility,
   onColumnVisibilityChange,
   columnOrder,
@@ -140,6 +144,8 @@ export function Table<TData extends object>({
     data: data.status === "success" ? data.data : [],
     columns: tableColumns,
     getCoreRowModel: getCoreRowModel(),
+    getRowId: (row, index) =>
+      "id" in row && typeof row.id === "string" ? row.id : String(index),
     columnResizeMode: "onChange",
     state: { columnVisibility, columnOrder },
     onColumnVisibilityChange,
@@ -152,7 +158,7 @@ export function Table<TData extends object>({
     <div className="flex w-full max-w-full flex-1 flex-col overflow-auto">
       <div
         className={cn(
-          "relative min-h-full w-full overflow-auto [scrollbar-gutter:stable]",
+          "relative min-h-full w-full overflow-auto",
           topBorder && "border-t",
         )}
       >
@@ -356,15 +362,29 @@ export function Table<TData extends object>({
                     rowHeight === "m" && "h-24",
                     rowHeight === "l" && "h-64",
                     onRowClick ? "cursor-pointer" : "cursor-default",
+                    onRowClick &&
+                      "focus-visible:outline-primary focus-visible:outline-2 focus-visible:outline-offset-[-2px]",
+                    selectedRowId === row.id && "bg-muted",
                   )}
                   tabIndex={onRowClick ? 0 : undefined}
+                  aria-label={getRowLabel?.(row.original)}
+                  aria-keyshortcuts={onRowClick ? "Enter Space" : undefined}
+                  aria-selected={
+                    selectedRowId === undefined
+                      ? undefined
+                      : selectedRowId === row.id
+                  }
                   onClick={(event) => {
                     if (shouldIgnoreRowClickTarget(event.target)) return;
                     onRowClick?.(row.original, event);
                   }}
                   onKeyDown={(event) => {
-                    if (event.key !== "Enter") return;
+                    if (event.key !== "Enter" && event.key !== " ") return;
+                    if (!event.currentTarget.contains(event.target as Node))
+                      return;
                     if (shouldIgnoreRowClickTarget(event.target)) return;
+                    if (!onRowClick) return;
+                    event.preventDefault();
                     onRowClick?.(row.original);
                   }}
                 >

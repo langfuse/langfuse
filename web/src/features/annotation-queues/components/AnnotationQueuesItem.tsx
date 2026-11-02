@@ -2,7 +2,7 @@ import { SupportOrUpgradePage } from "@/src/ee/features/billing";
 import { useHasProjectAccess } from "@/src/features/rbac";
 import { AnnotationQueueItemPage } from "@/src/features/annotation-queues/components/AnnotationQueueItemPage";
 import { api } from "@/src/utils/api";
-import Page from "@/src/components/layouts/page";
+import Page from "@/src/components/layouts/Page";
 
 export const AnnotationQueuesItem = ({
   annotationQueueId,

@@ -17,7 +17,7 @@ import {
 } from "@/src/features/experiments";
 import { useHasProjectAccess } from "@/src/features/rbac";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
-import Page from "@/src/components/layouts/page";
+import Page from "@/src/components/layouts/Page";
 import {
   DATASET_RUN_COMPARE_TABS,
   getDatasetRunCompareTabs,
@@ -26,7 +26,7 @@ import { useDatasetRunsCompare } from "@/src/features/datasets/hooks/useDatasetR
 import {
   ActiveCellProvider,
   useActiveCell,
-} from "@/src/features/datasets/contexts/ActiveCellContext";
+} from "@/src/features/datasets/contexts/ActiveCellProvider";
 import { SidePanel, SidePanelContent } from "@/src/components/ui/side-panel";
 import { AnnotationPanel } from "@/src/features/datasets/components/AnnotationPanel";
 import { Spinner } from "@/src/components/design-system/Spinner/Spinner";

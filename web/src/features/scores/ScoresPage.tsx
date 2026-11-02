@@ -1,7 +1,7 @@
 import { useRouter } from "next/router";
 import ScoresTable from "@/src/features/scores/ScoresTable";
 import { TablePeekViewTraceDetail } from "@/src/components/table/peek/TablePeekViewTraceDetail";
-import Page from "@/src/components/layouts/page";
+import Page from "@/src/components/layouts/Page";
 import { api } from "@/src/utils/api";
 import { ScoresOnboarding } from "@/src/components/onboarding/ScoresOnboarding";
 import { getScoresTabs, SCORES_TABS } from "@/src/features/navigation";

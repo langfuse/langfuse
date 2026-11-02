@@ -93,7 +93,7 @@ vi.mock("@/src/components/HeaderActionButton", () => ({
   ),
 }));
 
-vi.mock("@/src/components/publish-object-switch", () => ({
+vi.mock("@/src/components/PublishSessionSwitch", () => ({
   getShareUrl: () => "https://example.com",
   usePublishObject: () => ({
     hasAccess: true,

@@ -1,5 +1,5 @@
 import { useQueryParams, withDefault, NumberParam } from "use-query-params";
-import { usePeekTableState } from "@/src/components/table/peek/contexts/PeekTableStateContext";
+import { usePeekTableState } from "@/src/components/table/peek/contexts/PeekTableStateProvider";
 import type { PaginationState, OnChangeFn } from "@tanstack/react-table";
 
 // Overload for pageIndex/pageSize (returns TanStack types)

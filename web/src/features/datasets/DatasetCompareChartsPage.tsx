@@ -29,7 +29,7 @@ import {
 } from "@/src/features/dashboard";
 import { Chart } from "@/src/features/widgets";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
-import Page from "@/src/components/layouts/page";
+import Page from "@/src/components/layouts/Page";
 import { SubHeaderLabel } from "@/src/components/layouts/header";
 import {
   SidePanel,

@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import {
   Download,
   FileText,
@@ -8,10 +7,8 @@ import {
 } from "@langfuse/icons";
 
 import { HeaderActionButton } from "@/src/components/HeaderActionButton";
-import {
-  HeaderActionMenuRow,
-  HeaderActionMenuRows,
-} from "@/src/components/HeaderActionMenuRow";
+import { HeaderActionMenuRow } from "@/src/components/HeaderActionMenuRow";
+import { HeaderActionMenuRows } from "@/src/components/HeaderActionMenuRows";
 import {
   DropdownMenu,
   type DropdownMenuItemDefinition,

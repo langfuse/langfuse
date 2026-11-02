@@ -8,7 +8,7 @@ import { Columns3, MoreVertical, Trash } from "@langfuse/icons";
 import Link from "next/link";
 import { useRouter } from "next/router";
 import { useEffect } from "react";
-import Page from "@/src/components/layouts/page";
+import Page from "@/src/components/layouts/Page";
 import { DropdownMenu } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
 import {
   SidePanel,

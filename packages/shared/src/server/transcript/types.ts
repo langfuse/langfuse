@@ -3,6 +3,7 @@ import type {
   threadMessageSchema,
   turnSchema,
   threadSchema,
+  executionIssueSchema,
   transcriptSchema,
 } from "./schema";
 import type { Observation } from "../../domain";
@@ -30,9 +31,18 @@ export type TranscriptObservation = Pick<
   | "input"
   | "output"
   | "metadata"
->;
+> &
+  Partial<Pick<Observation, "level" | "statusMessage">>;
 
 export type ThreadMessage = z.infer<typeof threadMessageSchema>;
 export type Turn = z.infer<typeof turnSchema>;
 export type Thread = z.infer<typeof threadSchema>;
 export type Transcript = z.infer<typeof transcriptSchema>;
+export type ExecutionIssue = z.infer<typeof executionIssueSchema>;
+
+/** A transcript and the execution issues of the same observations. */
+export type TranscriptContext = {
+  transcript: Transcript;
+  /** In observation order; empty when no observation failed. */
+  executionIssues: ExecutionIssue[];
+};

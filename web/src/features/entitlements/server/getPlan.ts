@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { mapStripeProductIdToPlan } from "@/src/ee/features/billing/utils/stripeCatalogue";
 import { env } from "@/src/env.mjs";
 import {
@@ -73,6 +72,9 @@ export function getOrganizationPlanServerSide(
 export function getSelfHostedInstancePlanServerSide(): Plan | null {
   const licenseKey = env.LANGFUSE_EE_LICENSE_KEY;
   if (!licenseKey) return null;
+  if (licenseKey.startsWith("lf_gov_")) {
+    return "self-hosted:gov";
+  }
   if (licenseKey.startsWith("langfuse_ee_")) {
     return "self-hosted:enterprise";
   }

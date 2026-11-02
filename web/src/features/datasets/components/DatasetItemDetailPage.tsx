@@ -1,6 +1,6 @@
 /* eslint-disable no-nested-ternary */
 import { useHasProjectAccess } from "@/src/features/rbac";
-import Page from "@/src/components/layouts/page";
+import Page from "@/src/components/layouts/Page";
 import { ActionButton } from "@/src/components/ActionButton";
 import { Button } from "@/src/components/ui/button";
 import { NewDatasetItemFromExistingObjectDialogController } from "@/src/features/datasets/components/NewDatasetItemFromExistingObjectDialogController";

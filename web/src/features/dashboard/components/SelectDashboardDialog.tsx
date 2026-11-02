@@ -10,7 +10,7 @@ import {
   DialogBody,
 } from "@/src/components/ui/dialog";
 import { Button } from "@/src/components/ui/button";
-import { SimpleDataTable } from "@/src/components/table/SimpleDataTable";
+import { Table } from "@/src/components/design-system/table/Table";
 import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 
@@ -106,16 +106,17 @@ export function SelectDashboardDialog({
                 No dashboards found.
               </div>
             ) : (
-              <SimpleDataTable
+              <Table
+                tableName="Dashboards"
                 columns={columns}
-                data={
-                  dashboards.data?.dashboards.filter(
-                    (dashboard: Dashboard) => dashboard.owner === "PROJECT",
-                  ) ?? []
-                }
-                isLoading={false}
-                noResults={null}
-                rowVariant="muted-hover"
+                data={{
+                  status: "success",
+                  data:
+                    dashboards.data?.dashboards.filter(
+                      (dashboard: Dashboard) => dashboard.owner === "PROJECT",
+                    ) ?? [],
+                }}
+                noResultsMessage={null}
                 selectedRowId={selectedDashboardId}
                 onRowClick={(dashboard) => setSelectedDashboardId(dashboard.id)}
                 getRowLabel={(dashboard) =>

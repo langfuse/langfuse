@@ -13,6 +13,11 @@ type PromptVersionPayload = Extract<
   { type: "prompt-version" }
 >;
 
+type SkillVersionPayload = Extract<
+  WebhookInputPayload,
+  { type: "skill-version" }
+>;
+
 const getProductBaseUrl = () => {
   if (!env.NEXTAUTH_URL) return undefined;
 
@@ -117,6 +122,40 @@ export class SlackMessageBuilder {
     return blocks;
   }
 
+  static buildSkillVersionMessage(
+    payload: SkillVersionPayload,
+  ): SlackMessage["blocks"] {
+    const { skill, action } = payload;
+    const baseUrl = getProductBaseUrl();
+    const url = baseUrl
+      ? new URL(
+          `project/${skill.projectId}/skills/${encodeURIComponent(skill.name)}`,
+          baseUrl,
+        )
+      : undefined;
+    url?.searchParams.set("version", String(skill.version));
+    return [
+      {
+        type: "header",
+        text: { type: "plain_text", text: `Skill ${action}` },
+      },
+      {
+        type: "section",
+        text: {
+          type: "mrkdwn",
+          text: `*${escapeSlackMrkdwn(skill.name)}* (version ${skill.version}) has been *${action}*`,
+        },
+      },
+      ...(url
+        ? [
+            buildSlackLinkSection([
+              { label: "View Skill", url: url.toString() },
+            ]),
+          ]
+        : []),
+    ];
+  }
+
   /**
    * Build a simple fallback message for unsupported event types
    */
@@ -174,6 +213,8 @@ export class SlackMessageBuilder {
   static buildMessage(payload: WebhookInputPayload): SlackMessage {
     try {
       switch (payload.type) {
+        case "skill-version":
+          return { blocks: this.buildSkillVersionMessage(payload) };
         case "prompt-version":
           return { blocks: this.buildPromptVersionMessage(payload) };
         default: {

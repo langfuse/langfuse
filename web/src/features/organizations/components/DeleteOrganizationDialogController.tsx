@@ -1,6 +1,8 @@
 /* eslint-disable @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 import { showSuccessToast } from "@/src/features/notifications";
 import { type ReactNode, useState } from "react";
+import { useRouter } from "next/router";
+import { useSession } from "next-auth/react";
 
 import { Dialog, DialogContent } from "@/src/components/ui/dialog";
 import { DeleteOrganizationDialogContent } from "@/src/features/organizations/components/DeleteOrganizationDialogContent";
@@ -8,7 +10,6 @@ import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { useQueryOrganization } from "@/src/features/organizations/hooks";
 import { useHasOrganizationAccess } from "@/src/features/rbac";
 import { api, reportNonTrpcError } from "@/src/utils/api";
-import { env } from "@/src/env.mjs";
 
 type DeleteOrganizationDialogControllerProps = {
   children: (control: {
@@ -21,6 +22,8 @@ export function DeleteOrganizationDialogController({
   children,
 }: DeleteOrganizationDialogControllerProps) {
   const [open, setOpen] = useState(false);
+  const router = useRouter();
+  const session = useSession();
   const capture = usePostHogClientCapture();
   const organization = useQueryOrganization();
   const confirmMessage =
@@ -48,13 +51,15 @@ export function DeleteOrganizationDialogController({
         orgId: organization.id,
       });
       capture("organization_settings:delete_organization");
+      setOpen(false);
       showSuccessToast({
         operation: "organization.delete",
         title: "Organization Deleted",
         description: "The organization has been successfully deleted.",
       });
-      await new Promise((resolve) => setTimeout(resolve, 5000));
-      window.location.href = env.NEXT_PUBLIC_BASE_PATH ?? "/";
+      // Refresh the session first so the landing page no longer lists the deleted organization.
+      await session.update();
+      await router.push("/");
     } catch (error) {
       // tRPC failures were already classified + toasted by the react-query
       // default onError; only report failures of the post-success work here.

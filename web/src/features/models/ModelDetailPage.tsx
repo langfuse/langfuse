@@ -20,7 +20,7 @@ import { PriceUnitSelector } from "@/src/features/models/components/PriceUnitSel
 import { useMemo, useState } from "react";
 import { usePriceUnitMultiplier } from "@/src/features/models/hooks/usePriceUnitMultiplier";
 import { ObservationsTable as Generations } from "@/src/features/tracing-tables";
-import Page from "@/src/components/layouts/page";
+import Page from "@/src/components/layouts/Page";
 import { SquareArrowOutUpRight, Info as InfoIcon } from "@langfuse/icons";
 import {
   Select,

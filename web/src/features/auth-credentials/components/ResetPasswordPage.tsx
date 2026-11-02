@@ -19,7 +19,7 @@ import { signIn, useSession } from "next-auth/react";
 import { ArrowLeft } from "@langfuse/icons";
 import { api } from "@/src/utils/api";
 import { useRouter } from "next/router";
-import { RequestResetPasswordEmailButton } from "@/src/features/auth-credentials/components/ResetPasswordButton";
+import { RequestResetPasswordEmailButton } from "@/src/features/auth-credentials/components/RequestResetPasswordEmailButton";
 import { TRPCClientError } from "@trpc/client";
 import Link from "next/link";
 import { ErrorPage } from "@/src/components/error-page";

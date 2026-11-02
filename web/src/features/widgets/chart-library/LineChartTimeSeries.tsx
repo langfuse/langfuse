@@ -24,7 +24,7 @@ import { prepareVisibleSeries } from "@/src/features/widgets/chart-library/prepa
 import {
   seriesColor,
   SeriesOverflowNote,
-} from "@/src/features/widgets/chart-library/TimeSeriesLegend";
+} from "@/src/features/widgets/chart-library/SeriesOverflowNote";
 import { getPlainTextFromReactNode } from "@/src/utils/react-node-plain-text";
 
 const defaultConfig: NonNullable<ChartProps["config"]> = {

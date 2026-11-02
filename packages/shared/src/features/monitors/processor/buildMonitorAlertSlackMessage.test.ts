@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { describe, it, expect } from "vitest";
 
 import { type MonitorAlert } from "../types";

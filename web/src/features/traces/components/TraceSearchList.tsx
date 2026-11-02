@@ -7,9 +7,9 @@
  */
 
 import { useMemo } from "react";
-import { useTraceData } from "@/src/features/traces/contexts/TraceDataContext";
-import { useSearch } from "@/src/features/traces/contexts/SearchContext";
-import { useSelection } from "@/src/features/traces/contexts/SelectionContext";
+import { useTraceData } from "@/src/features/traces/contexts/TraceDataProvider";
+import { useSearch } from "@/src/features/traces/contexts/SearchProvider";
+import { useSelection } from "@/src/features/traces/contexts/SelectionProvider";
 import { useHandlePrefetchObservation } from "@/src/features/traces/hooks/useHandlePrefetchObservation";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { useTraceAnalyticsDimensions } from "@/src/features/traces/hooks/useTraceAnalyticsDimensions";

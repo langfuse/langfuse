@@ -1,4 +1,4 @@
-/* eslint-disable react/no-unstable-nested-components, @typescript-eslint/no-use-before-define */
+/* eslint-disable react/no-unstable-nested-components */
 import { useMemo } from "react";
 import Link from "next/link";
 import {
@@ -11,6 +11,7 @@ import {
   Plus,
   Terminal,
   Trash,
+  Zap,
 } from "@langfuse/icons";
 import {
   NumberParam,
@@ -18,7 +19,7 @@ import {
   useQueryParams,
   withDefault,
 } from "use-query-params";
-import Page from "@/src/components/layouts/page";
+import Page from "@/src/components/layouts/Page";
 import { Button } from "@/src/components/ui/button";
 import { Button as DesignSystemButton } from "@/src/components/design-system/Button/Button";
 import { DropdownMenu } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
@@ -145,6 +146,10 @@ function SkillsHeaderActions({
   closeMenu,
 }: SkillsHeaderActionsProps) {
   const capture = usePostHogClientCapture();
+  const canReadAutomations = useHasProjectAccess({
+    projectId,
+    scope: "automations:read",
+  });
 
   function handleInstall() {
     closeMenu?.();
@@ -153,6 +158,14 @@ function SkillsHeaderActions({
 
   return (
     <div className="flex max-w-full flex-wrap items-center gap-2">
+      {canReadAutomations && (
+        <DesignSystemButton
+          href={`/project/${projectId}/automations`}
+          text="Automations"
+          icon={Zap}
+          variant="secondary"
+        />
+      )}
       <DropdownMenu
         ariaLabel="Use skill"
         items={[

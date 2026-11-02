@@ -870,6 +870,13 @@ describe("Authenticate API calls", () => {
         orgId: testApiKey.orgId,
         plan: "cloud:hobby",
         scope: "PROJECT",
+        rateLimitOverrides: [
+          {
+            resource: "public-api-legacy",
+            points: null,
+            durationInSec: null,
+          },
+        ],
         organizationCreatedAt: expect.any(String),
       });
     });
@@ -1000,6 +1007,13 @@ describe("Authenticate API calls", () => {
         createdAt: apiKey?.createdAt.toISOString(),
         organizationCreatedAt: expect.any(String),
         scope: "PROJECT",
+        rateLimitOverrides: [
+          {
+            resource: "public-api-legacy",
+            points: null,
+            durationInSec: null,
+          },
+        ],
         isIngestionSuspended: expect.anything(),
       });
 

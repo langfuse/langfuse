@@ -2,6 +2,7 @@ import { ForbiddenError } from "@langfuse/shared";
 import { describe, expect, it } from "vitest";
 
 import {
+  isGatewayDeployedOnInstance,
   isGatewayEnabledForOrganization,
   requireGatewayEnabledForOrganization,
 } from "./availability";
@@ -70,6 +71,29 @@ describe("self-hosted deployments", () => {
   );
 
   it.each([
+    { environment: { nodeEnv: "production" }, expected: false },
+    {
+      environment: { nodeEnv: "production", deployed: "false" },
+      expected: false,
+    },
+    { environment: deployedSelfHosted, expected: true },
+    {
+      environment: { nodeEnv: "production", cloudRegion: "EU" },
+      expected: true,
+    },
+    { environment: { nodeEnv: "development" }, expected: true },
+    {
+      environment: { nodeEnv: "production", previewPrUrl: PREVIEW_PR_URL },
+      expected: true,
+    },
+  ] as const)(
+    "reports the instance gateway as deployed=$expected for $environment",
+    ({ environment, expected }) => {
+      expect(isGatewayDeployedOnInstance(environment)).toBe(expected);
+    },
+  );
+
+  it.each([
     { nodeEnv: "development" },
     { nodeEnv: "production", previewPrUrl: PREVIEW_PR_URL },
   ])(
@@ -87,6 +111,39 @@ describe("self-hosted deployments", () => {
           }),
         ).toBe(true);
       }
+    },
+  );
+});
+
+describe("v4 write mode", () => {
+  // Development otherwise enables every organization regardless of flags.
+  it.each([deployedSelfHosted, { nodeEnv: "development" }] as const)(
+    "turns the gateway off in legacy write mode for %o",
+    (environment) => {
+      const legacy = {
+        ...environment,
+        enabledForAllOrganizations: "true",
+        writeMode: "legacy",
+      } as const;
+
+      expect(isGatewayEnabledForOrganization("org-1", ["org-1"], legacy)).toBe(
+        false,
+      );
+      expect(() =>
+        requireGatewayEnabledForOrganization("org-1", ["org-1"], legacy),
+      ).toThrow(ForbiddenError);
+    },
+  );
+
+  it.each(["dual", "events_only"] as const)(
+    "keeps the gateway on in %s write mode",
+    (writeMode) => {
+      expect(
+        isGatewayEnabledForOrganization("org-1", [], {
+          ...deployedSelfHosted,
+          writeMode,
+        }),
+      ).toBe(true);
     },
   );
 });

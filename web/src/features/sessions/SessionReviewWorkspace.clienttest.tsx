@@ -13,8 +13,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   TraceReviewPanelProvider,
   useTraceReviewPanel,
-} from "@/src/features/traces/contexts/TraceReviewPanelContext";
-import { SessionReviewLeading } from "./sessionReviewLeading";
+} from "@/src/features/traces/contexts/TraceReviewPanelProvider";
+import { SessionReviewLeading } from "./SessionReviewLeadingProvider";
 import { SessionReviewWorkspace } from "./SessionReviewWorkspace";
 
 const { groupRef, router } = vi.hoisted(() => ({

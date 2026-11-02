@@ -4,7 +4,7 @@ import { v4 as uuidv4 } from "uuid";
 import { PlusIcon } from "@langfuse/icons";
 
 import { Button } from "@/src/components/ui/button";
-import { ChatMessages } from "@/src/components/ChatMessages";
+import { ChatMessages } from "@/src/components/ChatMessages/ChatMessages";
 import { createEmptyMessage } from "@/src/components/ChatMessages/utils/createEmptyMessage";
 import {
   ChatMessageRole,

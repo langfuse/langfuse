@@ -25,7 +25,7 @@ import {
 import { createTableSelectionStore } from "@/src/components/table/table-selection-store";
 import type { LangfuseColumnDef } from "@/src/components/table/types";
 import { SingleLineOverflowList } from "@/src/components/SingleLineOverflowList";
-import { Badge } from "@/src/components/ui/badge";
+import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { Button } from "@/src/components/ui/button";
 import { ConfirmDialog } from "@/src/components/ui/ConfirmDialog";
 import { DropdownMenu } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
@@ -100,14 +100,12 @@ function RuleEvaluatorsCell({
       additionalOverflowCount={0}
       getKey={(assignment) => assignment.id}
       renderItem={(assignment) => (
-        <Badge variant="secondary">{assignment.evaluator.name}</Badge>
+        <Badge color="filled" text={assignment.evaluator.name} />
       )}
       renderOverflow={({ hiddenItems, overflowItemCount }) => (
         <Tooltip>
           <TooltipTrigger asChild>
-            <Badge variant="secondary" className="font-normal">
-              +{overflowItemCount}
-            </Badge>
+            <Badge color="filled" text={`+${overflowItemCount}`} />
           </TooltipTrigger>
           <TooltipContent>
             {hiddenItems.map(({ evaluator }) => evaluator.name).join(", ")}

@@ -14,7 +14,7 @@ import {
 } from "@/src/components/ui/form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
-import { Badge } from "@/src/components/ui/badge";
+import { Badge } from "@/src/components/design-system/Badge/Badge";
 import {
   tracesTableColsWithOptions,
   singleFilterList,
@@ -119,7 +119,7 @@ import {
 import { CodeEvalTestRunCard } from "@/src/features/evals/components/CodeEvalTestRunCard";
 import { getExperimentEvalPreviewFilters } from "@/src/features/evals/utils/experiment-eval-preview-utils";
 import { cn } from "@/src/utils/tailwind";
-import { PeekTableStateProvider } from "@/src/components/table/peek/contexts/PeekTableStateContext";
+import { PeekTableStateProvider } from "@/src/components/table/peek/contexts/PeekTableStateProvider";
 
 // Lazy load tables
 const TracesTable = lazy(() => import("@/src/features/traces/TracesTable"));
@@ -924,12 +924,7 @@ export const InnerEvaluatorForm = (props: {
                                 icon={ListTree}
                               >
                                 Traces
-                                <Badge
-                                  variant="secondary"
-                                  className="border-border border font-normal"
-                                >
-                                  Legacy
-                                </Badge>
+                                <Badge color="filled" text="Legacy" />
                               </Tabs.Trigger>
                             </span>
                           )}
@@ -1009,12 +1004,7 @@ export const InnerEvaluatorForm = (props: {
                           icon={BetweenHorizonalStart}
                         >
                           Low-level SDK methods
-                          <Badge
-                            variant="secondary"
-                            className="border-border border font-normal"
-                          >
-                            Legacy
-                          </Badge>
+                          <Badge color="filled" text="Legacy" />
                         </Tabs.Trigger>
                       </span>
                     </Tabs.List>

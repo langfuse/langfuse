@@ -38,6 +38,7 @@ declare module "next-auth" {
             id: PrismaOrganization["id"];
             name: PrismaOrganization["name"];
             role: Role;
+            supportAccess?: boolean; // granted through a ConductorOne support access request, not a real membership
             cloudConfig: CloudConfigSchema | undefined;
             plan: Plan;
             metadata: Record<string, unknown>;
@@ -72,6 +73,10 @@ declare module "next-auth" {
       // opt out of product traces. Optional so existing session mocks need
       // not set it.
       aiFeaturesTracingConfigured?: boolean;
+      // False only on self-hosted instances without LANGFUSE_AI_GATEWAY_DEPLOYED;
+      // Cloud, development and preview always run a gateway. Optional so
+      // existing session mocks need not set it.
+      aiGatewayDeployed?: boolean;
       // Enables features that are only available under an enterprise/commercial license when self-hosting Langfuse
       selfHostedInstancePlan: Plan | null;
       // V4 migration write mode. Mirrors LANGFUSE_MIGRATION_V4_WRITE_MODE so the

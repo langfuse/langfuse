@@ -1,4 +1,4 @@
-import Page from "@/src/components/layouts/page";
+import Page from "@/src/components/layouts/Page";
 import { useRouter } from "next/router";
 import { useHasProjectAccess } from "@/src/features/rbac";
 import { Plus } from "@langfuse/icons";

@@ -1,5 +1,5 @@
-import type { Transcript } from "../transcript/types";
-import type { StoredTranscriptV1 } from "./versions/v1";
+import type { ExecutionIssue, Transcript } from "../transcript/types";
+import type { StoredExecutionIssueV1, StoredTranscriptV1 } from "./versions/v1";
 
 /**
  * Encode the live transcript as stored V1. Only message dates need conversion;
@@ -39,4 +39,22 @@ export function fromStoredTranscriptV1(value: StoredTranscriptV1): Transcript {
       },
     })),
   };
+}
+
+export function toStoredExecutionIssuesV1(
+  issues: ExecutionIssue[],
+): StoredExecutionIssueV1[] {
+  return issues.map((issue) => ({
+    ...issue,
+    startTime: issue.startTime.toISOString(),
+  }));
+}
+
+export function fromStoredExecutionIssuesV1(
+  issues: StoredExecutionIssueV1[],
+): ExecutionIssue[] {
+  return issues.map((issue) => ({
+    ...issue,
+    startTime: new Date(issue.startTime),
+  }));
 }

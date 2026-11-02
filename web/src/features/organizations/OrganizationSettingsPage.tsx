@@ -26,18 +26,20 @@ import { OrgAuditLogsSettingsPage } from "@/src/ee/features/audit-log-viewer";
 import { useV4UpgradeUiFlag } from "@/src/features/v4-migration/useV4UpgradeUiEnabled";
 import { OrganizationFeaturePreviewsSettings } from "@/src/features/feature-flags/components/OrganizationFeaturePreviewsSettings";
 import {
+  GatewayAnalyticsPage,
   GatewayApiKeysPage,
-  GatewayConfigurationPage,
   GatewayModelsPage,
-  GatewayProvidersPage,
+  GatewayNotDeployedNotice,
+  GatewaySetupPage,
 } from "@/src/features/ai-gateway";
 import { useGatewaySettingsAccess } from "@/src/features/ai-gateway/hooks/useGatewaySettingsAccess";
+import { useGatewayKeyReminder } from "@/src/features/ai-gateway/hooks/useGatewayKeyReminder";
 import useSessionStorage from "@/src/components/useSessionStorage";
 import { api } from "@/src/utils/api";
 import { ConnectedLLMApiKeySettingsTable } from "@/src/features/public-api/components/LLMApiKeySettingsTable/ConnectedLLMApiKeySettingsTable";
 
 const GATEWAY_SETUP_REQUIRED_REASON =
-  "Set up an ingestion project in Configuration first.";
+  "Set up an ingestion project in Setup first.";
 
 type OrganizationSettingsPage = {
   title: string;
@@ -45,6 +47,7 @@ type OrganizationSettingsPage = {
   section?: string;
   show?: boolean | (() => boolean);
   disabledReason?: string;
+  indicator?: boolean;
   cmdKKeywords?: string[];
 } & ({ content: React.ReactNode } | { href: string });
 
@@ -57,12 +60,17 @@ export function useOrganizationSettingsPages(): OrganizationSettingsPage[] {
     scope: "organization:CRUD_apiKeys",
   });
   const showOrgApiKeySettings = hasAdminApiEntitlement && hasOrgApiKeyAccess;
-  const showAuditLogs = useHasEntitlement("audit-logs");
+  const hasAuditLogsEntitlement = useHasEntitlement("audit-logs");
+  const canReadSettings = useHasOrganizationAccess({
+    organizationId: organization?.id,
+    scope: "organizationSettings:read",
+  });
   const canUpdateOrganization = useHasOrganizationAccess({
     organizationId: organization?.id,
     scope: "organization:update",
   });
   const gatewayAccess = useGatewaySettingsAccess(organization?.id);
+  const gatewayKeyReminder = useGatewayKeyReminder(organization?.id);
   const canReadOrganizationLlmConnections = useHasOrganizationAccess({
     organizationId: organization?.id,
     scope: "organizationLlmApiKeys:read",
@@ -78,7 +86,8 @@ export function useOrganizationSettingsPages(): OrganizationSettingsPage[] {
 
   if (!organization) return [];
 
-  const showBillingPage = showBillingSettings && isCloudBillingAvailable;
+  const showBillingPage =
+    showBillingSettings && isCloudBillingAvailable && canReadSettings;
 
   return getOrganizationSettingsPages({
     organization,
@@ -87,12 +96,17 @@ export function useOrganizationSettingsPages(): OrganizationSettingsPage[] {
     // covers deployments without one (self-hosted).
     showUsageSettings: canReadUsage && !showBillingPage,
     showOrgApiKeySettings,
-    showAuditLogs,
-    isLangfuseCloud,
-    showV4Migration,
+    showAuditLogs: hasAuditLogsEntitlement && canReadSettings,
+    showSsoSettings: isLangfuseCloud && canReadSettings,
+    showV4Migration: showV4Migration && canReadSettings,
+    showGeneralSettings: canReadSettings,
+    showMembers: canReadSettings,
+    showProjects: canReadSettings || organization.projects.length > 0,
     showAiGatewayManagement: gatewayAccess.showManagement,
+    showAiGatewayNotDeployedNotice: gatewayAccess.showNotDeployedNotice,
     showAiGatewayModels: gatewayAccess.showModels,
     showAiGatewayApiKeys: gatewayAccess.showApiKeys,
+    gatewayKeyReminder,
     /** Only managers get disabled entries; others see a notice on the page. */
     gatewaySetupDisabledReason:
       gatewayAccess.showManagement &&
@@ -111,11 +125,16 @@ const getOrganizationSettingsPages = ({
   showUsageSettings,
   showOrgApiKeySettings,
   showAuditLogs,
-  isLangfuseCloud,
+  showSsoSettings,
   showV4Migration,
+  showGeneralSettings,
+  showMembers,
+  showProjects,
   showAiGatewayManagement,
+  showAiGatewayNotDeployedNotice,
   showAiGatewayModels,
   showAiGatewayApiKeys,
+  gatewayKeyReminder,
   gatewaySetupDisabledReason,
   showOrganizationLlmConnections,
   showFeaturePreviews,
@@ -135,11 +154,16 @@ const getOrganizationSettingsPages = ({
   showUsageSettings: boolean;
   showOrgApiKeySettings: boolean;
   showAuditLogs: boolean;
-  isLangfuseCloud: boolean;
+  showSsoSettings: boolean;
   showV4Migration: boolean;
+  showGeneralSettings: boolean;
+  showMembers: boolean;
+  showProjects: boolean;
   showAiGatewayManagement: boolean;
+  showAiGatewayNotDeployedNotice: boolean;
   showAiGatewayModels: boolean;
   showAiGatewayApiKeys: boolean;
+  gatewayKeyReminder: boolean;
   gatewaySetupDisabledReason: string | undefined;
   showOrganizationLlmConnections: boolean;
   showFeaturePreviews: boolean;
@@ -198,6 +222,7 @@ const getOrganizationSettingsPages = ({
         />
       </div>
     ),
+    show: showGeneralSettings,
   },
   {
     title: "Feature Previews",
@@ -257,6 +282,7 @@ const getOrganizationSettingsPages = ({
     section: "Organization",
     cmdKKeywords: ["invite", "user", "rbac"],
     content: <OrganizationMembersSettings orgId={organization.id} />,
+    show: showMembers,
   },
   {
     title: "Audit Logs",
@@ -304,13 +330,14 @@ const getOrganizationSettingsPages = ({
       "verify",
     ],
     content: <SSOSettings orgId={organization.id} />,
-    show: isLangfuseCloud,
+    show: showSsoSettings,
   },
   {
     title: "Projects",
     slug: "projects",
     section: "Organization",
     href: `/organization/${organization.id}`,
+    show: showProjects,
   },
   {
     title: "v4 Migration",
@@ -320,32 +347,29 @@ const getOrganizationSettingsPages = ({
     show: showV4Migration,
   },
   {
-    title: "Configuration",
+    title: "Setup",
     slug: "ai-gateway",
-    section: "AI Gateway",
-    cmdKKeywords: ["gateway", "llm", "configuration", "instrumentation"],
-    content: (
-      <GatewayConfigurationPage
-        organizationId={organization.id}
-        projects={organization.projects}
-      />
-    ),
-    show: showAiGatewayManagement,
-  },
-  {
-    title: "Provider credentials",
-    slug: "ai-gateway-providers",
     section: "AI Gateway",
     cmdKKeywords: [
       "gateway",
+      "llm",
+      "setup",
+      "configuration",
+      "ingestion",
       "providers",
       "credentials",
       "openai",
       "anthropic",
     ],
-    content: <GatewayProvidersPage organizationId={organization.id} />,
-    show: showAiGatewayManagement,
-    disabledReason: gatewaySetupDisabledReason,
+    content: showAiGatewayNotDeployedNotice ? (
+      <GatewayNotDeployedNotice />
+    ) : (
+      <GatewaySetupPage
+        organizationId={organization.id}
+        projects={organization.projects}
+      />
+    ),
+    show: showAiGatewayManagement || showAiGatewayNotDeployedNotice,
   },
   {
     title: "Models",
@@ -363,6 +387,16 @@ const getOrganizationSettingsPages = ({
     cmdKKeywords: ["gateway", "api", "keys", "metadata", "credentials"],
     content: <GatewayApiKeysPage organizationId={organization.id} />,
     show: showAiGatewayApiKeys,
+    indicator: gatewayKeyReminder,
+    disabledReason: gatewaySetupDisabledReason,
+  },
+  {
+    title: "Analytics",
+    slug: "ai-gateway-analytics",
+    section: "AI Gateway",
+    cmdKKeywords: ["gateway", "analytics", "cost", "usage", "consumption"],
+    content: <GatewayAnalyticsPage organizationId={organization.id} />,
+    show: showAiGatewayManagement,
     disabledReason: gatewaySetupDisabledReason,
   },
 ];

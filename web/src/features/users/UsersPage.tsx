@@ -1,5 +1,5 @@
 import { useRouter } from "next/router";
-import Page from "@/src/components/layouts/page";
+import Page from "@/src/components/layouts/Page";
 import { UsersOnboarding } from "@/src/components/onboarding/UsersOnboarding";
 import { useReadPath } from "@/src/features/events";
 import { api } from "@/src/utils/api";

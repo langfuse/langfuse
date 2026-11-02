@@ -6,19 +6,19 @@ import { type WithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes"
 import {
   TraceDataProvider,
   useTraceData,
-} from "@/src/features/traces/contexts/TraceDataContext";
-import { ViewPreferencesProvider } from "@/src/features/traces/contexts/ViewPreferencesContext";
+} from "@/src/features/traces/contexts/TraceDataProvider";
+import { ViewPreferencesProvider } from "@/src/features/traces/contexts/ViewPreferencesProvider";
 import {
   SelectionProvider,
   useSelection,
-} from "@/src/features/traces/contexts/SelectionContext";
+} from "@/src/features/traces/contexts/SelectionProvider";
 import { useSelectedObservation } from "@/src/features/traces/hooks/useSelectedObservation";
-import { SearchProvider } from "@/src/features/traces/contexts/SearchContext";
-import { JsonExpansionProvider } from "@/src/features/traces/contexts/JsonExpansionContext";
+import { SearchProvider } from "@/src/features/traces/contexts/SearchProvider";
+import { JsonExpansionProvider } from "@/src/features/traces/contexts/JsonExpansionProvider";
 import {
   TraceGraphDataProvider,
   useTraceGraphData,
-} from "@/src/features/traces/contexts/TraceGraphDataContext";
+} from "@/src/features/traces/contexts/TraceGraphDataProvider";
 import { TraceLayoutMobile } from "@/src/features/traces/components/TraceLayoutMobile";
 import { TraceLayoutDesktop } from "@/src/features/traces/components/TraceLayoutDesktop";
 import { TraceHeader } from "@/src/features/traces/components/TraceHeader";
@@ -34,7 +34,7 @@ import { TraceGraphView } from "@/src/features/traces/components/TraceGraphView/
 import { useMemo, type ReactNode } from "react";
 import { useRouter } from "next/router";
 import { getCommentDrawerInitialStateFromUrl } from "@/src/features/comments/CommentDrawerController";
-import { TraceReviewPanelProvider } from "@/src/features/traces/contexts/TraceReviewPanelContext";
+import { TraceReviewPanelProvider } from "@/src/features/traces/contexts/TraceReviewPanelProvider";
 import { TraceReviewPanel } from "./TraceReviewPanel";
 import { useHasProjectAccess } from "@/src/features/rbac";
 import { staleProps } from "@/src/features/traces/fns/staleProps";

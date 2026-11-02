@@ -5,7 +5,7 @@ import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import {
   type ListEntry,
   useDetailPageLists,
-} from "@/src/features/navigate-detail-pages/context";
+} from "@/src/features/navigate-detail-pages/DetailPageListsProvider";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { useReadPath } from "@/src/features/events";
 import { cn } from "@/src/utils/tailwind";

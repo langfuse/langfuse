@@ -1,9 +1,7 @@
 import {
-  isoDateTime,
   InvalidRequestError,
   ObservationTypeDomain,
   isNumericEventsTableColumnId,
-  type timeFilter,
 } from "@langfuse/shared";
 import { z } from "zod";
 import {
@@ -18,6 +16,10 @@ import {
   type ObservationMcpFilterColumn,
 } from "../schema";
 import { clampToDataAccessDays } from "@/src/features/entitlements/server";
+import {
+  buildStartTimeFilters,
+  OptionalStartTimeRangeShape,
+} from "../filter-schema";
 
 const OBSERVATION_MCP_FILTER_VALUE_COLUMNS = [
   "name",
@@ -47,16 +49,7 @@ type FilterValueColumn = z.infer<typeof FilterValueColumnSchema>;
 
 const GetObservationFilterValuesBaseSchema = z.object({
   column: FilterValueColumnSchema,
-  fromStartTime: isoDateTime({ offset: true })
-    .optional()
-    .describe(
-      "Optional inclusive lower bound on observation startTime, as an ISO 8601 timestamp with timezone (Z or an explicit offset). Use the same time window as the observations you intend to search.",
-    ),
-  toStartTime: isoDateTime({ offset: true })
-    .optional()
-    .describe(
-      "Optional exclusive upper bound on observation startTime, as an ISO 8601 timestamp with timezone. For a full calendar day, use midnight at the start of the next day, not 23:59:59.",
-    ),
+  ...OptionalStartTimeRangeShape,
   observationType: ObservationTypeDomain.optional(),
   isRootObservation: z.boolean().optional(),
   hasParentObservation: z.boolean().optional(),
@@ -67,33 +60,6 @@ const GetObservationFilterValuesBaseSchema = z.object({
 type FilterOption = {
   value: string | boolean;
   count?: number;
-};
-
-const buildStartTimeFilter = (params: {
-  fromStartTime?: string;
-  toStartTime?: string;
-}): z.infer<typeof timeFilter>[] => {
-  const filters: z.infer<typeof timeFilter>[] = [];
-
-  if (params.fromStartTime) {
-    filters.push({
-      column: "startTime",
-      operator: ">=",
-      value: new Date(params.fromStartTime),
-      type: "datetime",
-    });
-  }
-
-  if (params.toStartTime) {
-    filters.push({
-      column: "startTime",
-      operator: "<",
-      value: new Date(params.toStartTime),
-      type: "datetime",
-    });
-  }
-
-  return filters;
 };
 
 const normalizeFilterOptions = (
@@ -190,7 +156,7 @@ export const [
           plan: context.plan,
           fromTimestamp: input.fromStartTime,
         });
-        const startTimeFilter = buildStartTimeFilter({
+        const startTimeFilter = buildStartTimeFilters({
           fromStartTime: dataAccessWindow.effectiveFromTimestamp?.toISOString(),
           toStartTime: input.toStartTime,
         });

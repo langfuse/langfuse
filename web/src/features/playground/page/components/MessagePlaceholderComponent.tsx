@@ -4,7 +4,7 @@ import { CodeMirrorEditor } from "@/src/components/editor";
 import { useState, useCallback } from "react";
 import { type ChatMessage } from "@langfuse/shared";
 
-import { usePlaygroundContext } from "../context";
+import { usePlaygroundContext } from "../context/PlaygroundProvider";
 import { type PlaceholderMessageFillIn } from "../types";
 import { useNamingConflicts } from "../hooks/useNamingConflicts";
 

@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import type { FilePart, ModelMessage } from "ai";
 
 import { env } from "../../env";

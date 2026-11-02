@@ -1,9 +1,9 @@
-/* eslint-disable no-nested-ternary, @typescript-eslint/no-deprecated, @typescript-eslint/no-use-before-define -- Legacy UI usage retained during migration to design-system components. */
+/* eslint-disable no-nested-ternary, @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 import { useRouter } from "next/router";
 import { api } from "@/src/utils/api";
 import { useReadPath, type ResolvedReadPath } from "@/src/features/events";
 import { useDashboardFilterOptions } from "@/src/hooks/useDashboardFilterOptions";
-import Page from "@/src/components/layouts/page";
+import Page from "@/src/components/layouts/Page";
 import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
 import { TimeRangePicker } from "@/src/components/date-picker";
 import { PopoverFilterBuilder, MultiSelect } from "@/src/features/filters";
@@ -44,7 +44,7 @@ import {
   useClipboardWidgetProbe,
 } from "@/src/features/widgets";
 import { DashboardGrid } from "@/src/features/widgets/components/DashboardGrid";
-import { CloneFirstDialogController } from "@/src/features/dashboard/components/CloneFirstDialogController";
+import { ConnectedCloneDashboardDialogController } from "@/src/features/dashboard/components/ConnectedCloneDashboardDialogController";
 import { PageHeaderControlsPortal } from "@/src/components/layouts/page-header-controls-slot";
 import {
   DropdownMenu,
@@ -71,7 +71,7 @@ import {
   getDashboardQuerySchedulerMaxConcurrent,
   getDashboardSchedulerResetKey,
   useDashboardQueryScheduler,
-} from "@/src/features/dashboard/hooks/useDashboardQueryScheduler";
+} from "@/src/features/dashboard/hooks/DashboardQuerySchedulerProvider";
 import {
   isPasteablePlacementPayload,
   parseDashboardImport,
@@ -178,8 +178,6 @@ function DashboardDetailView({ readPath }: { readPath: ResolvedReadPath }) {
 
   // gridResetKey remounts the grid to revert an attempted drag/resize when the
   // user cancels the clone-first flow.
-  const [cloneFirstPendingDefinition, setCloneFirstPendingDefinition] =
-    useState<{ widgets: DashboardPlacement[] } | null>(null);
   const [gridResetKey, setGridResetKey] = useState(0);
 
   // Filter state - use persistent filters from dashboard
@@ -1199,16 +1197,7 @@ function DashboardDetailView({ readPath }: { readPath: ResolvedReadPath }) {
   });
 
   return (
-    <CloneFirstDialogController
-      projectId={projectId}
-      dashboardId={dashboardId}
-      dashboardName={dashboard.data?.name ?? "Dashboard"}
-      pendingDefinition={cloneFirstPendingDefinition}
-      onCancel={() => {
-        setCloneFirstPendingDefinition(null);
-        setGridResetKey((key) => key + 1);
-      }}
-    >
+    <ConnectedCloneDashboardDialogController>
       {({ openDialog: openCloneFirstDialog }) => {
         const openCloneFirst = (
           attempt:
@@ -1223,8 +1212,15 @@ function DashboardDetailView({ readPath }: { readPath: ResolvedReadPath }) {
             attempt,
             surface: "detail",
           });
-          setCloneFirstPendingDefinition(pendingDefinition ?? null);
-          openCloneFirstDialog();
+          openCloneFirstDialog({
+            projectId,
+            dashboardId,
+            dashboardName: dashboard.data?.name ?? "Dashboard",
+            pendingDefinition,
+            onCancel: () => {
+              setGridResetKey((key) => key + 1);
+            },
+          });
         };
 
         const handleDeleteWidget = (tileId: string) => {
@@ -1538,6 +1534,6 @@ function DashboardDetailView({ readPath }: { readPath: ResolvedReadPath }) {
           </DialogController>
         );
       }}
-    </CloneFirstDialogController>
+    </ConnectedCloneDashboardDialogController>
   );
 }

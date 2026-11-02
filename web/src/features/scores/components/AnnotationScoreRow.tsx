@@ -29,7 +29,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/src/components/ui/popover";
-import { Badge } from "@/src/components/ui/badge";
+import { Badge } from "@/src/components/design-system/Badge/Badge";
 import {
   DropdownMenuController,
   DropdownMenuItem,
@@ -315,9 +315,7 @@ export function AnnotationScoreRow({
                 </Popover>
               )}
           </div>
-          {showTarget ? (
-            <Badge variant="outline-solid">{target.label}</Badge>
-          ) : null}
+          {showTarget ? <Badge color="primary" text={target.label} /> : null}
         </div>
         {config.description?.trim() && (
           <div className="min-w-0">

@@ -1,6 +1,6 @@
 import { useRouter } from "next/router";
 import { useHasProjectAccess } from "@/src/features/rbac";
-import Page from "@/src/components/layouts/page";
+import Page from "@/src/components/layouts/Page";
 import { ActionButton } from "@/src/components/ActionButton";
 import { PlusIcon } from "@langfuse/icons";
 import { ConnectedDashboardWidgetTable } from "@/src/features/widgets";

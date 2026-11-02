@@ -9,5 +9,5 @@ export {
   type ListEntry,
   type ObservationDetailPageListEntry,
   type TraceDetailPageListEntry,
-} from "@/src/features/navigate-detail-pages/context";
+} from "@/src/features/navigate-detail-pages/DetailPageListsProvider";
 export { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNav";

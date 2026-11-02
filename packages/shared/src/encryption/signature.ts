@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import crypto from "crypto";
 
 // Generate a webhook secret key
