@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { Plus } from "@langfuse/icons";
 import { useRouter } from "next/router";
 
@@ -22,6 +21,7 @@ import type {
 import { GATEWAY_SETUP } from "@/src/features/ai-gateway/components/GatewaySetupPage/constants/gatewaySetup";
 import { GATEWAY_INGESTION_MODES } from "@/src/features/ai-gateway/constants/gatewayIngestionModes";
 import type { GatewayConnection } from "@/src/features/ai-gateway/types/gatewayProvider";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { api, reportNonTrpcError } from "@/src/utils/api";
 
 export type GatewayCredentialsOverviewProps = {
@@ -50,6 +50,7 @@ export function GatewayCredentialsOverview({
     { enabled: !connectionId && connectionsQuery.isSuccess },
   );
   const utils = api.useUtils();
+  const capture = usePostHogClientCapture();
   const retry = api.aiGateway.retryConnection.useMutation();
   const remove = api.aiGateway.deleteConnection.useMutation();
 
@@ -77,6 +78,10 @@ export function GatewayCredentialsOverview({
       await remove.mutateAsync({
         orgId: organizationId,
         id: connection.id,
+      });
+      capture("ai_gateway:provider_credential_deleted", {
+        orgId: organizationId,
+        provider: connection.provider,
       });
       await Promise.all([
         utils.aiGateway.listConnections.invalidate({
@@ -201,7 +206,10 @@ export function GatewayCredentialsOverview({
                   </Button>
                 )}
               </IngestionDialogController>
-              <ProviderDialogController organizationId={organizationId}>
+              <ProviderDialogController
+                organizationId={organizationId}
+                surface="overview"
+              >
                 {({ openAddDialog }) => (
                   <Button onClick={openAddDialog}>
                     <Plus size="base" __rawClassName="mr-1.5" />
@@ -229,7 +237,10 @@ export function GatewayCredentialsOverview({
           onConfirm={deleteConnection}
         >
           {({ openDialog: openDeleteDialog }) => (
-            <ProviderDialogController organizationId={organizationId}>
+            <ProviderDialogController
+              organizationId={organizationId}
+              surface="overview"
+            >
               {({ openEditDialog }) => (
                 <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
                   <GatewayProvidersTable

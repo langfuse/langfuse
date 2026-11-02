@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 export function isValidDateString(dateString: string): boolean {
   return !isNaN(new Date(dateString).getTime());
 }

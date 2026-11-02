@@ -1,9 +1,13 @@
 import {
   addRecentEntry,
   buildCreateActions,
+  buildPageShortcuts,
+  getEntityBaseUrl,
   getIdNavigationItem,
+  getRecentPickAnalytics,
   getSearchAnalytics,
   getVisibleRecents,
+  toEntityGroup,
 } from "./CommandMenu";
 
 describe("getIdNavigationItem", () => {
@@ -89,7 +93,7 @@ describe("addRecentEntry", () => {
 });
 
 describe("getVisibleRecents", () => {
-  it("hides pages and create actions the menu no longer offers", () => {
+  it("hides pages, create actions and entities the menu no longer offers", () => {
     const recents = [
       { title: "Prompts", url: "/p/prompts", type: "main_navigation" },
       { title: "Alerts", url: "/p/alerts", type: "main_navigation" },
@@ -100,14 +104,29 @@ describe("getVisibleRecents", () => {
       },
       { title: "New prompt", url: "/p/prompts/new", type: "create_action" },
       { title: "Cost", url: "/p/dashboards/1", type: "dashboard" },
+      { title: "greeting", url: "/p/prompts/greeting", type: "prompt" },
+      { title: "golden", url: "/p/datasets/d1", type: "dataset" },
     ];
 
     expect(
       getVisibleRecents(recents, {
         navUrls: new Set(["/p/prompts"]),
         createUrls: new Set(["/p/prompts/new"]),
+        entityBaseUrls: ["/p/prompts"],
       }).map((e) => e.title),
-    ).toEqual(["Prompts", "New prompt", "Cost"]);
+    ).toEqual(["Prompts", "New prompt", "Cost", "greeting"]);
+  });
+});
+
+describe("getRecentPickAnalytics", () => {
+  it("reports entity picks by type only", () => {
+    expect(
+      getRecentPickAnalytics({
+        title: "acme/secret-prompt",
+        url: "/p/prompts/acme%2Fsecret-prompt",
+        type: "prompt",
+      }),
+    ).toEqual({ type: "recent", entityType: "prompt" });
   });
 });
 
@@ -143,5 +162,129 @@ describe("buildCreateActions", () => {
     expect(actions.standalone.map((a) => a.url)).toEqual([
       "/project/p1/automations?view=create",
     ]);
+  });
+});
+
+describe("buildPageShortcuts", () => {
+  const navItems = [
+    { href: "/project/[projectId]/dashboards", url: "/project/p1/dashboards" },
+    { href: "/project/[projectId]/evals", url: "/project/p1/evals" },
+  ];
+
+  it("lists hidden pages under their sidebar page, gated by read scope", () => {
+    const shortcuts = buildPageShortcuts({
+      navItems,
+      projectId: "p1",
+      canRead: (scope) => scope !== "evalDefaultModel:read",
+    });
+
+    expect(
+      [...shortcuts.byNavUrl.entries()].map(([navUrl, items]) => [
+        navUrl,
+        items.map((item) => item.url),
+      ]),
+    ).toEqual([
+      ["/project/p1/dashboards", ["/project/p1/widgets"]],
+      ["/project/p1/evals", ["/project/p1/evals/rules"]],
+    ]);
+    expect(shortcuts.standalone.map((item) => item.url)).toEqual([
+      "/project/p1/automations",
+    ]);
+  });
+
+  it("skips v4-only pages when the sidebar links to the legacy page", () => {
+    const shortcuts = buildPageShortcuts({
+      navItems: [
+        { href: "/project/[projectId]/evals", url: "/project/p1/evals/legacy" },
+      ],
+      projectId: "p1",
+      canRead: () => true,
+    });
+
+    expect(
+      shortcuts.byNavUrl
+        .get("/project/p1/evals/legacy")
+        ?.map((item) => item.url),
+    ).toEqual(["/project/p1/evals/default-model"]);
+  });
+
+  it("offers nothing the user cannot read", () => {
+    const shortcuts = buildPageShortcuts({
+      navItems,
+      projectId: "p1",
+      canRead: () => false,
+    });
+
+    expect(shortcuts.byNavUrl.size).toBe(0);
+    expect(shortcuts.standalone).toEqual([]);
+  });
+});
+
+describe("getEntityBaseUrl", () => {
+  const navItems = [
+    { href: "/project/[projectId]/prompts", url: "/project/p1/prompts" },
+    { href: "/project/[projectId]/evals", url: "/project/p1/evals/legacy" },
+  ];
+
+  it("uses the sidebar URL when the page is visible and readable", () => {
+    expect(
+      getEntityBaseUrl({
+        type: "prompt",
+        navItems,
+        projectId: "p1",
+        canRead: (scope) => scope === "prompts:read",
+      }),
+    ).toBe("/project/p1/prompts");
+  });
+
+  it.each<[Parameters<typeof getEntityBaseUrl>[0]["type"], boolean]>([
+    ["prompt", false],
+    ["dataset", true],
+    ["evaluator", true],
+  ])("is null for %s when unreadable, hidden or legacy", (type, readable) => {
+    expect(
+      getEntityBaseUrl({
+        type,
+        navItems,
+        projectId: "p1",
+        canRead: () => readable,
+      }),
+    ).toBeNull();
+  });
+});
+
+describe("toEntityGroup", () => {
+  it("links prompts by encoded name and other entities by ID", () => {
+    const row = { id: "c1", name: "support/greeting v2" };
+
+    expect(
+      toEntityGroup("prompt", "/project/p1/prompts", [row], "").items[0]?.url,
+    ).toBe("/project/p1/prompts/support%2Fgreeting%20v2");
+    expect(
+      toEntityGroup("dataset", "/project/p1/datasets", [row], "").items[0]?.url,
+    ).toBe("/project/p1/datasets/c1");
+  });
+
+  it("caps matches at 100, so rows past the cap stay findable", () => {
+    const rows = Array.from({ length: 150 }, (_, i) => ({
+      id: `id-${i}`,
+      name: `n-${i}`,
+    }));
+
+    expect(toEntityGroup("annotation_queue", "/q", rows, "").items.length).toBe(
+      100,
+    );
+    expect(
+      toEntityGroup("annotation_queue", "/q", rows, "queue n-149").items.map(
+        (item) => item.name,
+      ),
+    ).toEqual(["n-149"]);
+  });
+
+  it("is empty when the page is gated off, even with cached rows", () => {
+    expect(
+      toEntityGroup("evaluator", null, [{ id: "e1", name: "Toxicity" }], "")
+        .items,
+    ).toEqual([]);
   });
 });

@@ -307,7 +307,6 @@ async function hoverInlineNode(canvasElement: HTMLElement) {
 const meta = preview.meta({
   component: EmbeddingMapView,
   args: {
-    projectId: "storybook-project",
     topics: [{ id: "billing", name: "Billing" }],
     data,
     selectedTopic: null,

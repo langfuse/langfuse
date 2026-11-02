@@ -10,13 +10,16 @@ export function showInviteOutcome({
     showToast({
       type: "INFO",
       analytics: { operation: "aiGateway.inviteTeam" },
-      title: "No invitations sent: everyone you entered is already a member.",
+      title: "Nobody was notified: the addresses you entered get no email.",
     });
     return;
   }
   showSuccessToast({
     operation: "aiGateway.inviteTeam",
-    title: "Invitations sent",
-    description: "Invited people can create gateway keys once they join.",
+    title: "Team notified",
+    description:
+      invitedCount > 0
+        ? "New people can create gateway keys once they join the organization."
+        : "Members can now create their own gateway keys.",
   });
 }

@@ -247,7 +247,7 @@ export function createExternalMediaStorageService(prisma: PrismaClient) {
       return {
         url,
         contentLength,
-        expiresAt: new Date(Date.now() + EXTERNAL_MEDIA_URL_TTL_SECONDS * 1000),
+        urlTtlSeconds: EXTERNAL_MEDIA_URL_TTL_SECONDS,
       };
     },
 

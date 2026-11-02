@@ -6,13 +6,13 @@ import { SetupInstructionsTabs } from "./SetupInstructionsTabs";
 
 const context = {
   gatewayOrigin: "https://cloud.langfuse.com",
-  userId: "demo@langfuse.com",
 };
 
 const meta = preview.meta({ component: SetupInstructionsTabs });
 
 export const Default = meta.story({
   args: {
+    organizationId: "seed-org-id",
     instructions: buildAgentSetupInstructions({
       ...context,
       providers: ["ANTHROPIC", "OPENAI"],
@@ -37,6 +37,7 @@ export const TestClaudeSwitch = meta.story({
 export const TestWarnsWithoutAnthropic = meta.story({
   name: "(Test) Claude tab warns without an Anthropic connection",
   args: {
+    organizationId: "seed-org-id",
     instructions: buildAgentSetupInstructions({
       ...context,
       providers: ["OPENAI"],
@@ -47,7 +48,7 @@ export const TestWarnsWithoutAnthropic = meta.story({
     await userEvent.click(canvas.getByRole("tab", { name: "Claude" }));
 
     await expect(
-      canvas.getByText(/needs an Anthropic provider connection/),
+      canvas.getByText(/needs an Anthropic provider credential/),
     ).toBeVisible();
   },
 });

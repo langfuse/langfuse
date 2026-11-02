@@ -13,6 +13,7 @@ import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { api } from "@/src/utils/api";
 import { SlackConnectButton } from "@/src/features/slack/components/SlackConnectButton";
 import { SlackDisconnectDialogController } from "@/src/features/slack/components/SlackDisconnectDialogController";
+import { useHasProjectAccess } from "@/src/features/rbac";
 
 /**
  * Props for the SlackConnectionCard component
@@ -50,6 +51,13 @@ export const SlackConnectionCard: React.FC<SlackConnectionCardProps> = ({
   onConnectionChange,
   showConnectButton = true,
 }) => {
+  // Connecting and disconnecting a workspace is project integration config,
+  // separate from managing the automations that use it.
+  const canManageIntegration = useHasProjectAccess({
+    projectId,
+    scope: "integrations:CRUD",
+  });
+
   // Get Slack integration status
   const {
     data: integrationStatus,
@@ -137,10 +145,16 @@ export const SlackConnectionCard: React.FC<SlackConnectionCardProps> = ({
               your automations.
             </p>
 
+            {!canManageIntegration && (
+              <p className="text-muted-foreground text-sm">
+                Ask a project admin to connect Slack.
+              </p>
+            )}
+
             {showConnectButton && (
               <SlackConnectButton
                 projectId={projectId}
-                disabled={disabled}
+                disabled={disabled || !canManageIntegration}
                 onSuccess={() => handleConnectionChange(true)}
                 onError={(error: Error) => {
                   console.error("Slack connection error:", error);
@@ -213,7 +227,7 @@ export const SlackConnectionCard: React.FC<SlackConnectionCardProps> = ({
                 variant="destructive"
                 size="sm"
                 onClick={openDialog}
-                disabled={disabled || isPending}
+                disabled={disabled || isPending || !canManageIntegration}
               />
             )}
           </SlackDisconnectDialogController>

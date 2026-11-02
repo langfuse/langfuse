@@ -1,3 +1,7 @@
+import {
+  getCapturingGatewayIngestionModes,
+  getGatewayIngestionProjectDeletionMessage,
+} from "@/src/features/ai-gateway/fns/gatewayIngestionModePolicy";
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { prisma } from "@langfuse/shared/src/db";
 import {
@@ -124,13 +128,14 @@ export async function handleDeleteProject(
       where: {
         organizationId: scope.orgId,
         defaultIngestionProjectId: projectId,
+        // With ingestion NONE the project is only remembered, not written to.
+        ingestionMode: { in: getCapturingGatewayIngestionModes() },
       },
       select: { organizationId: true },
     });
     if (gatewayConfig) {
       return res.status(409).json({
-        message:
-          "This project is used as the AI Gateway ingestion project. Select another ingestion project before deleting it.",
+        message: getGatewayIngestionProjectDeletionMessage(),
       });
     }
 

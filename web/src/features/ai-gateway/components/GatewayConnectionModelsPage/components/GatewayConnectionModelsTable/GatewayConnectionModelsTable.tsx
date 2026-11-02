@@ -1,4 +1,3 @@
-/* eslint-disable react/no-unstable-nested-components */
 import { useCallback, useMemo, useState } from "react";
 import type { OrderByState } from "@langfuse/shared";
 import type { OnChangeFn, PaginationState } from "@tanstack/react-table";
@@ -10,11 +9,13 @@ import type { LangfuseColumnDef } from "@/src/components/table/types";
 import { TableSelectionManager } from "@/src/features/table";
 import { isGatewayModelAllowed } from "@/src/features/ai-gateway/fns/isGatewayModelAllowed";
 import { toGatewayAllowedModelsSet } from "@/src/features/ai-gateway/fns/toGatewayAllowedModelsSet";
-import { GatewayConnectionModelsSelectionBar } from "./components/GatewayConnectionModelsSelectionBar";
+import {
+  GatewayConnectionModelsSelectionBar,
+  type GatewayConnectionModelsSelectionBarProps,
+} from "./components/GatewayConnectionModelsSelectionBar";
 import { GatewayConnectionModelsToolbar } from "./components/GatewayConnectionModelsToolbar";
 import { ModelEnabledSwitch } from "./components/ModelEnabledSwitch";
 import type { GatewayConnectionModelRow } from "./types/gatewayConnectionModelRow";
-
 const PAGE_SIZE_OPTIONS = [10, 20, 30, 40, 50];
 const DEFAULT_PAGE_SIZE = 50;
 const ROW_HEIGHTS = {
@@ -23,17 +24,94 @@ const ROW_HEIGHTS = {
   l: "h-64",
 } satisfies CustomHeights;
 
+function GatewayConnectionModelNameCell({ modelId }: { modelId: string }) {
+  return (
+    <span className="block truncate" title={modelId}>
+      {modelId}
+    </span>
+  );
+}
+
+function GatewayConnectionModelEnabledCell({
+  modelId,
+  enabled,
+  isSaving,
+  onToggle,
+}: {
+  modelId: string;
+  enabled: boolean;
+  isSaving: boolean;
+  onToggle: (model: string, enabled: boolean) => void;
+}) {
+  return (
+    <ModelEnabledSwitch
+      model={modelId}
+      enabled={enabled}
+      disabled={isSaving}
+      onToggle={onToggle}
+    />
+  );
+}
+
+function createGatewayConnectionModelsColumns({
+  isSaving,
+  selectActionColumn,
+  toggleModel,
+}: {
+  isSaving: boolean;
+  selectActionColumn: LangfuseColumnDef<GatewayConnectionModelRow>;
+  toggleModel: (model: string, enabled: boolean) => void;
+}): LangfuseColumnDef<GatewayConnectionModelRow>[] {
+  return [
+    {
+      ...selectActionColumn,
+      size: 32,
+      minSize: 32,
+      maxSize: 32,
+      enableResizing: false,
+    },
+    {
+      accessorKey: "id",
+      id: "name",
+      header: "Model",
+      size: 240,
+      minSize: 180,
+      isFlexWidth: true,
+      enableSorting: true,
+      headerClassName: "pl-2",
+      cellClassName: "pl-2",
+      cell: ({ row }) => (
+        <GatewayConnectionModelNameCell modelId={row.original.id} />
+      ),
+    },
+    {
+      accessorKey: "enabled",
+      id: "status",
+      header: "Enabled",
+      enableSorting: true,
+      size: 90,
+      minSize: 90,
+      maxSize: 90,
+      enableResizing: false,
+      cell: ({ row }) => (
+        <GatewayConnectionModelEnabledCell
+          modelId={row.original.id}
+          enabled={row.original.enabled}
+          isSaving={isSaving}
+          onToggle={toggleModel}
+        />
+      ),
+    },
+  ];
+}
+
 export type GatewayConnectionModelsTableProps = {
   models: string[];
   allowedModels: string[] | null;
   isSaving: boolean;
   onEnableAll: () => void;
   onDisableAll: () => void;
-  onSetEnabled: (
-    models: string[],
-    enabled: boolean,
-    onSuccess?: () => void,
-  ) => void;
+  onSetEnabled: GatewayConnectionModelsSelectionBarProps["onSetEnabled"];
 };
 
 export function GatewayConnectionModelsTable({
@@ -63,53 +141,17 @@ export function GatewayConnectionModelsTable({
       selectionStore,
     });
   const toggleModel = useCallback(
-    (model: string, enabled: boolean) => onSetEnabled([model], enabled),
+    (model: string, enabled: boolean) =>
+      onSetEnabled({ models: [model], enabled, scope: "single" }),
     [onSetEnabled],
   );
-  const columns = useMemo<LangfuseColumnDef<GatewayConnectionModelRow>[]>(
-    () => [
-      {
-        ...selectActionColumn,
-        size: 32,
-        minSize: 32,
-        maxSize: 32,
-        enableResizing: false,
-      },
-      {
-        accessorKey: "id",
-        id: "name",
-        header: "Model",
-        size: 240,
-        minSize: 180,
-        isFlexWidth: true,
-        enableSorting: true,
-        headerClassName: "pl-2",
-        cellClassName: "pl-2",
-        cell: ({ row }) => (
-          <span className="block truncate" title={row.original.id}>
-            {row.original.id}
-          </span>
-        ),
-      },
-      {
-        accessorKey: "enabled",
-        id: "status",
-        header: "Enabled",
-        enableSorting: true,
-        size: 90,
-        minSize: 90,
-        maxSize: 90,
-        enableResizing: false,
-        cell: ({ row }) => (
-          <ModelEnabledSwitch
-            model={row.original.id}
-            enabled={row.original.enabled}
-            disabled={isSaving}
-            onToggle={toggleModel}
-          />
-        ),
-      },
-    ],
+  const columns = useMemo(
+    () =>
+      createGatewayConnectionModelsColumns({
+        isSaving,
+        selectActionColumn,
+        toggleModel,
+      }),
     [isSaving, selectActionColumn, toggleModel],
   );
   const normalizedSearch = search.trim().toLowerCase();
