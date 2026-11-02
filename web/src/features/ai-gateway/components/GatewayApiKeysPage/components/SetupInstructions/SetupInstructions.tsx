@@ -5,9 +5,13 @@ import { useAgentSetupInstructions } from "@/src/features/ai-gateway/components/
 
 type SetupInstructionsProps = {
   organizationId: string;
+  defaultExpanded?: boolean;
 };
 
-export function SetupInstructions({ organizationId }: SetupInstructionsProps) {
+export function SetupInstructions({
+  organizationId,
+  defaultExpanded,
+}: SetupInstructionsProps) {
   const { instructions, isPending, isError } =
     useAgentSetupInstructions(organizationId);
 
@@ -29,6 +33,7 @@ export function SetupInstructions({ organizationId }: SetupInstructionsProps) {
     <SetupInstructionsTabs
       organizationId={organizationId}
       instructions={instructions}
+      defaultExpanded={defaultExpanded}
     />
   );
 }

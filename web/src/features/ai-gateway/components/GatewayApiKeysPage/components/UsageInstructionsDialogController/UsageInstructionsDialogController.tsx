@@ -18,7 +18,10 @@ export function UsageInstructionsDialogController({
       renderDialog={() => (
         <Dialog title="Connect to the AI Gateway" size="md" closeLabel="Close">
           <Dialog.Body>
-            <SetupInstructions organizationId={organizationId} />
+            <SetupInstructions
+              organizationId={organizationId}
+              defaultExpanded
+            />
           </Dialog.Body>
         </Dialog>
       )}

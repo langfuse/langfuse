@@ -57,11 +57,14 @@ function isVariantTabId(value: string): value is VariantTabId {
 type SetupInstructionsTabsProps = {
   organizationId: string;
   instructions: AgentSetupInstructions[];
+  /** Shows every step without the "Show all steps" peek. */
+  defaultExpanded?: boolean;
 };
 
 export function SetupInstructionsTabs({
   organizationId,
   instructions,
+  defaultExpanded,
 }: SetupInstructionsTabsProps) {
   const [activeTab, setActiveTab] = useState<string>(DEFAULT_TAB);
   const [activeVariants, setActiveVariants] = useState<
@@ -122,6 +125,7 @@ export function SetupInstructionsTabs({
                     organizationId={organizationId}
                     instructions={instructions}
                     {...VARIANT_TABS[variantTabId]}
+                    defaultExpanded={defaultExpanded}
                     value={activeVariants[variantTabId]}
                     onValueChange={(next) =>
                       setActiveVariants((current) => ({
@@ -141,6 +145,7 @@ export function SetupInstructionsTabs({
                 <AgentInstructionsPanel
                   organizationId={organizationId}
                   instructions={entry}
+                  defaultExpanded={defaultExpanded}
                 />
               </div>
             </Tabs.Content>

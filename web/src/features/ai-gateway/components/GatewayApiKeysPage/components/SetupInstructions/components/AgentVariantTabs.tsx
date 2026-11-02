@@ -13,6 +13,7 @@ type AgentVariantTabsProps = {
   ariaLabel: string;
   value: AgentId;
   onValueChange: (value: AgentId) => void;
+  defaultExpanded?: boolean;
 };
 
 /** Variants of one tool, e.g. Claude Code and Claude Desktop, share one tab with a switch between them. */
@@ -23,6 +24,7 @@ export function AgentVariantTabs({
   ariaLabel,
   value,
   onValueChange,
+  defaultExpanded,
 }: AgentVariantTabsProps) {
   const handleValueChange = (next: string) => {
     const variant = variants.find((v) => v.id === next);
@@ -48,6 +50,7 @@ export function AgentVariantTabs({
               <AgentInstructionsPanel
                 organizationId={organizationId}
                 instructions={entry}
+                defaultExpanded={defaultExpanded}
               />
             </div>
           </Tabs.Content>
