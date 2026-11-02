@@ -3,6 +3,7 @@ import { useState } from "react";
 import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { Button } from "@/src/components/ui/button";
 import { CreateGatewayApiKeyDialogController } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/CreateGatewayApiKeyDialogController/CreateGatewayApiKeyDialogController";
+import { UsageInstructionsDialogController } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/UsageInstructionsDialogController/UsageInstructionsDialogController";
 import { TeamInviteDialogController } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/TeamInviteDialogController/TeamInviteDialogController";
 import { ConfirmationDialogController } from "@/src/components/design-system/ConfirmationDialogController/ConfirmationDialogController";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
@@ -85,35 +86,40 @@ export function ConnectedGatewayApiKeysTable({
       {({ openDialog: openRevokeDialog }) => (
         <TeamInviteDialogController organizationId={organizationId}>
           {({ openDialog: openInviteDialog }) => (
-            <CreateGatewayApiKeyDialogController
-              organizationId={organizationId}
-            >
-              {({ openDialog }) => {
-                return (
-                  <GatewayApiKeysTable
-                    data={
-                      rows === undefined
-                        ? { status: "loading" }
-                        : { status: "success", data: rows }
-                    }
-                    lastUsed={lastUsed}
-                    pagination={{
-                      mode: "offset",
-                      totalCount: apiKeysQuery.data?.totalCount ?? null,
-                      state: paginationState,
-                      onChange: setPaginationState,
-                    }}
-                    search={{
-                      value: searchQuery,
-                      onChange: handleSearchChange,
-                    }}
-                    createAction={openDialog}
-                    inviteAction={canInvite ? openInviteDialog : undefined}
-                    onRevoke={openRevokeDialog}
-                  />
-                );
-              }}
-            </CreateGatewayApiKeyDialogController>
+            <UsageInstructionsDialogController organizationId={organizationId}>
+              {({ openDialog: openUsageInstructionsDialog }) => (
+                <CreateGatewayApiKeyDialogController
+                  organizationId={organizationId}
+                >
+                  {({ openDialog }) => {
+                    return (
+                      <GatewayApiKeysTable
+                        data={
+                          rows === undefined
+                            ? { status: "loading" }
+                            : { status: "success", data: rows }
+                        }
+                        lastUsed={lastUsed}
+                        pagination={{
+                          mode: "offset",
+                          totalCount: apiKeysQuery.data?.totalCount ?? null,
+                          state: paginationState,
+                          onChange: setPaginationState,
+                        }}
+                        search={{
+                          value: searchQuery,
+                          onChange: handleSearchChange,
+                        }}
+                        createAction={openDialog}
+                        inviteAction={canInvite ? openInviteDialog : undefined}
+                        usageInstructionsAction={openUsageInstructionsDialog}
+                        onRevoke={openRevokeDialog}
+                      />
+                    );
+                  }}
+                </CreateGatewayApiKeyDialogController>
+              )}
+            </UsageInstructionsDialogController>
           )}
         </TeamInviteDialogController>
       )}
