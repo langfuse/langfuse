@@ -131,11 +131,11 @@ describe("AI Gateway organization rate limits", () => {
     );
   });
 
-  it("names a custom limit and points to support when the organization has an override", async () => {
+  it("names a custom limit, its window, and support when the organization has an override", async () => {
     const context = contextFor({
       plan: "cloud:enterprise",
       rateLimitOverrides: [
-        { resource: "ai-gateway-requests", points: 2, durationInSec: 60 },
+        { resource: "ai-gateway-requests", points: 2, durationInSec: 3600 },
       ],
     });
     await enforceGatewayRateLimits({ context, requestBytes: 0 });
@@ -146,7 +146,7 @@ describe("AI Gateway organization rate limits", () => {
     );
 
     expect(error.message).toBe(
-      `Langfuse AI Gateway rate limit exceeded: your organization's custom limit allows 2 requests per minute. Retry after ${error.retryAfterSeconds}s or contact Langfuse support to raise the limit.`,
+      `Langfuse AI Gateway rate limit exceeded: your organization's custom limit allows 2 requests per hour. Retry after ${error.retryAfterSeconds}s or contact Langfuse support to raise the limit.`,
     );
   });
 

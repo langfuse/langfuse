@@ -145,6 +145,7 @@ describe("withGatewayResolveSignatureVerification", () => {
           body: JSON.stringify({
             apiFormat: "openai.responses",
             model,
+            requestBytes: 0,
           }),
         }),
         res,

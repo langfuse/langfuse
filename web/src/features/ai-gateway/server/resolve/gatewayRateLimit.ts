@@ -79,15 +79,17 @@ export async function enforceGatewayRateLimits({
     "langfuse.ai_gateway.rate_limited": true,
     "langfuse.ai_gateway.rate_limit.limit": limit,
   });
+  const override = context.rateLimitOverrides.find(
+    (override) => override.resource === res.resource,
+  );
   throw new GatewayRateLimitError(
     gatewayRateLimitMessage({
       limit,
       res,
       plan: context.plan,
       retryAfterSeconds,
-      hasOverride: context.rateLimitOverrides.some(
-        (override) => override.resource === res.resource,
-      ),
+      hasOverride: Boolean(override),
+      windowSeconds: override?.durationInSec ?? 60,
     }),
     limit,
     retryAfterSeconds,
@@ -101,11 +103,13 @@ function gatewayRateLimitMessage(params: {
   plan: Plan;
   retryAfterSeconds: number;
   hasOverride: boolean;
+  windowSeconds: number;
 }) {
+  const window = formatWindow(params.windowSeconds);
   const allowance =
     params.limit === "requests"
-      ? `${params.res.points.toLocaleString("en-US")} requests per minute`
-      : `${formatBytes(params.res.points)} of request bodies per minute`;
+      ? `${params.res.points.toLocaleString("en-US")} requests per ${window}`
+      : `${formatBytes(params.res.points)} of request bodies per ${window}`;
   const subject = params.hasOverride
     ? "your organization's custom limit allows"
     : `your organization's ${planLabels[params.plan]} plan allows`;
@@ -120,4 +124,19 @@ function formatBytes(bytes: number) {
   return bytes >= GiB && bytes % GiB === 0
     ? `${bytes / GiB} GiB`
     : `${Math.round((bytes / MiB) * 10) / 10} MiB`;
+}
+
+const windowUnits = [
+  { seconds: 86_400, name: "day" },
+  { seconds: 3_600, name: "hour" },
+  { seconds: 60, name: "minute" },
+] as const;
+
+function formatWindow(seconds: number) {
+  for (const unit of windowUnits) {
+    if (seconds % unit.seconds !== 0) continue;
+    const count = seconds / unit.seconds;
+    return count === 1 ? unit.name : `${count} ${unit.name}s`;
+  }
+  return seconds === 1 ? "second" : `${seconds} seconds`;
 }

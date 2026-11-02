@@ -114,15 +114,27 @@ describe("POST /api/internal/ai-gateway/v1/resolve", () => {
   it.each([
     {
       case: "unknown unprefixed model",
-      body: { apiFormat: "openai.responses", model: "random-model" },
+      body: {
+        apiFormat: "openai.responses",
+        model: "random-model",
+        requestBytes: 0,
+      },
     },
     {
       case: "empty connection name",
-      body: { apiFormat: "openai.responses", model: ":gpt-4o-mini" },
+      body: {
+        apiFormat: "openai.responses",
+        model: ":gpt-4o-mini",
+        requestBytes: 0,
+      },
     },
     {
       case: "empty provider model",
-      body: { apiFormat: "openai.responses", model: "production:" },
+      body: {
+        apiFormat: "openai.responses",
+        model: "production:",
+        requestBytes: 0,
+      },
     },
   ])("rejects an invalid model slug: $case", async ({ body }) => {
     expect((await post(body)).statusCode).toBe(400);
