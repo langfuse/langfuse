@@ -46,9 +46,10 @@ export function ConnectedSessionOutputCorrectionsDialog({
     <Dialog title="Output corrections" size="lg">
       <Dialog.Body>
         <p className="text-muted-foreground">
-          {trace.name ?? "Trace"} · Corrections apply to an observation’s entire
-          output, not individual conversation messages. Changes are saved
-          automatically.
+          {trace.name ?? "Trace"}
+          <br />
+          Corrections apply to an observation’s entire output, not individual
+          conversation messages. Changes are saved automatically.
         </p>
         {(() => {
           if (observations.isError || correctionsQuery.isError) {
@@ -64,7 +65,18 @@ export function ConnectedSessionOutputCorrectionsDialog({
           return (
             <>
               {editableObservations?.length === 0 && (
-                <p>No observations in this trace.</p>
+                <p>
+                  No observation outputs available to correct here.{" "}
+                  <a
+                    className="underline"
+                    href={`/project/${projectId}/traces/${trace.id}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                  >
+                    Open trace
+                  </a>{" "}
+                  to inspect its output and correction options.
+                </p>
               )}
               {editableObservations?.map((observation) => (
                 <section

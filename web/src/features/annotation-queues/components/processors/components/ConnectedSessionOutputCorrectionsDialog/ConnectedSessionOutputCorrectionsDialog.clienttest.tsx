@@ -148,16 +148,26 @@ describe("ConnectedSessionOutputCorrectionsDialog", () => {
     ).toBeInTheDocument();
   });
 
-  it("does not treat the synthetic trace row as an observation", () => {
+  it.each([
+    { name: "no rows", observations: [] },
+    {
+      name: "only a synthetic trace row",
+      observations: [{ ...observation, id: "t-trace-id" }],
+    },
+  ])("links to the trace when there are $name", ({ observations }) => {
     mocks.observations.mockReturnValue({
-      data: [{ ...observation, id: "t-trace-id" }],
+      data: observations,
       isPending: false,
       isError: false,
     });
     render(<ConnectedSessionOutputCorrectionsDialog {...props} />);
     expect(
-      screen.getByText("No observations in this trace."),
+      screen.getByText(/No observation outputs available to correct here/),
     ).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Open trace" })).toHaveAttribute(
+      "href",
+      "/project/project-id/traces/trace-id",
+    );
     expect(mocks.correction).not.toHaveBeenCalled();
   });
 
