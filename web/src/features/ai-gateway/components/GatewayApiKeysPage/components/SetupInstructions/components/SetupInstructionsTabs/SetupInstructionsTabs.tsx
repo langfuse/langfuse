@@ -5,11 +5,11 @@ import { SiClaude, SiGithubcopilot, SiOpenai } from "@langfuse/icons/si";
 import { Button } from "@/src/components/design-system/Button/Button";
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import type { AgentSetupInstructions } from "@/src/features/ai-gateway/types/agentSetupInstructions";
-import { AgentInstructionsPanel } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/GeneratedKeyContent/components/AgentInstructionsPanel";
+import { AgentInstructionsPanel } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/SetupInstructions/components/AgentInstructionsPanel";
 import {
   AgentVariantTabs,
   type AgentVariant,
-} from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/GeneratedKeyContent/components/AgentVariantTabs";
+} from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/SetupInstructions/components/AgentVariantTabs";
 
 type AgentId = AgentSetupInstructions["id"];
 type VariantTabId = "claude" | "copilot";

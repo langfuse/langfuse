@@ -1,10 +1,10 @@
 import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
 import { Skeleton } from "@/src/components/ui/skeleton";
-import { SetupInstructionsTabs } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/GeneratedKeyContent/components/SetupInstructionsTabs/SetupInstructionsTabs";
+import { SetupInstructionsTabs } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/SetupInstructions/components/SetupInstructionsTabs/SetupInstructionsTabs";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { MaskedGatewayKey } from "./components/MaskedGatewayKey";
-import { useAgentSetupInstructions } from "./hooks/useAgentSetupInstructions";
+import { useAgentSetupInstructions } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/SetupInstructions/hooks/useAgentSetupInstructions";
 
 type SetupInstructionsProps = {
   organizationId: string;
