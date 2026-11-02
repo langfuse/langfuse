@@ -13,10 +13,7 @@ import { api } from "@/src/utils/api";
 import { Button } from "@/src/components/ui/button";
 import { Card, CardContent } from "@/src/components/ui/card";
 import { DropdownMenu } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
-import {
-  actionTypeLabel,
-  useAvailableActionTypes,
-} from "@/src/features/automations";
+import { actionTypeLabel } from "@/src/features/automations";
 import { NewMonitorAutomationDialogController } from "@/src/features/monitors/automations/NewMonitorAutomationDialogController";
 import { cn } from "@/src/utils/tailwind";
 import {
@@ -252,7 +249,7 @@ const AddAutomationDropdown = ({
   isDisabled?: boolean;
   onAutomationCreated: (automationId: string) => void;
 }) => {
-  const actionTypes = useAvailableActionTypes(ActionTypeSchema.options);
+  const actionTypes = ActionTypeSchema.options;
 
   return (
     <NewMonitorAutomationDialogController

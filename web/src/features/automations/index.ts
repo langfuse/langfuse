@@ -6,5 +6,4 @@
 export { AutomationButton } from "@/src/features/automations/components/AutomationButton";
 export { AutomationForm } from "@/src/features/automations/components/AutomationForm";
 export { actionTypeLabel } from "@/src/features/automations/actionTypeLabels";
-export { useAvailableActionTypes } from "@/src/features/automations/useAvailableActionTypes";
 export { WebhookSecretRender } from "@/src/features/automations/components/WebhookSecretRender";
