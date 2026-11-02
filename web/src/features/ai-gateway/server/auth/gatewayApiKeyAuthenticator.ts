@@ -209,17 +209,6 @@ async function assertCanInvokeGateway(
   const tenant = OrganizationId(organizationId);
   const allowed = authorize(
     {
-      principal: {
-        kind: "apiKey",
-        apiKeyId: apiKey.id,
-        userId: null,
-        isInAppAgentKey: false,
-        publicKey: "",
-        scope: apiKey.scope,
-        presentation: "privateKey",
-        organizations: [],
-        boundResource: { orgId: organizationId },
-      },
       policies: await getPoliciesForApiKey(prisma, {
         apiKeyId: apiKey.id,
         userId: apiKey.userId,

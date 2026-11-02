@@ -24,7 +24,7 @@ const wildcardOrgId: OrganizationId = "organization/*";
 
 /** authorize allows action on resource only when the context has policy sets and every one of them allows it. */
 export function authorize(
-  ctx: AuthorizationContext,
+  ctx: Pick<AuthorizationContext, "policies">,
   tenant: TenantId,
   action: Action,
   resource: ResourceId,
