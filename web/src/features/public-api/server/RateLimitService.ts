@@ -167,12 +167,7 @@ export class RateLimitService {
       }
     }
 
-    // rate-limiter-flexible resolves (does not throw) while consumedPoints
-    // <= points, and only rejects once consumedPoints > points. It floors
-    // remainingPoints at 0, so the Nth (allowed) and (N+1)th (rejected)
-    // request both report remainingPoints === 0 and cannot be told apart by
-    // remainingPoints alone. Compare consumedPoints against points instead,
-    // matching the library's own resolve/reject decision.
+    // Library floors remainingPoints at 0; reject only when consumedPoints > points.
     if (res.consumedPoints > res.points) {
       recordIncrement("langfuse.rate_limit.exceeded", 1, {
         orgId: scope.orgId,
@@ -238,10 +233,6 @@ class RateLimitHelper {
   }
 
   isRateLimited() {
-    // See the matching comment in RateLimitService.checkRateLimit: this must
-    // mirror rate-limiter-flexible's own resolve/reject decision, which is
-    // consumedPoints > points, not remainingPoints (floored at 0 for both
-    // the last allowed and the first rejected request).
     return this.res ? this.res.consumedPoints > this.res.points : false;
   }
 
