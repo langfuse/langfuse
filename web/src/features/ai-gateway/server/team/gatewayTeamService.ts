@@ -15,6 +15,7 @@ import { env } from "@/src/env.mjs";
 import {
   getSfdcService,
   type SetUserRoleInput,
+  type SfdcService,
 } from "@/src/ee/features/sfdc-sync/server";
 import {
   inviteOrganizationMember,
@@ -64,7 +65,10 @@ type GatewayTeamContext = Pick<OrgAuthedContext, "session" | "prisma">;
 export class GatewayTeamService {
   private readonly members: OrganizationMembersService;
 
-  constructor(prisma: PrismaClient) {
+  constructor(
+    prisma: PrismaClient,
+    private readonly sfdc: SfdcService | null = getSfdcService(),
+  ) {
     this.members = new OrganizationMembersService(prisma);
   }
 
@@ -295,7 +299,7 @@ export class GatewayTeamService {
    * logs its own delivery failures.
    */
   private syncSfdcUserRoles(inputs: SetUserRoleInput[]) {
-    const sfdc = getSfdcService();
+    const { sfdc } = this;
     if (!sfdc) return;
     Promise.all(inputs.map((input) => sfdc.setUserRole(input))).catch(
       (error) => {
