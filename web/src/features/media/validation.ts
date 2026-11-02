@@ -97,13 +97,11 @@ export const GetMediaResponseSchema = z.object({
 
 export type GetMediaResponse = z.infer<typeof GetMediaResponseSchema>;
 
-export const MediaReturnSchema = z.object({
-  mediaId: z.string(),
-  contentType: z.enum(MediaContentType),
-  contentLength: z.coerce.number(),
-  url: z.string(),
-  urlExpiry: z.string(),
-  field: z.enum(MediaEnabledFields),
-});
-
-export type MediaReturnType = z.infer<typeof MediaReturnSchema>;
+export type MediaReturnType = {
+  mediaId: string;
+  contentType: MediaContentType;
+  contentLength: number;
+  url: string;
+  urlExpiry: string;
+  field: MediaEnabledFields;
+};
