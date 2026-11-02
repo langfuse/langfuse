@@ -130,7 +130,12 @@ export class RateLimitService {
       points: effectiveConfig.points, // Number of points
       duration: effectiveConfig.durationInSec, // Per second(s)
 
-      keyPrefix: this.rateLimitPrefix(resource), // must be unique for limiters with different purpose
+      // Legacy reads include the window so a 60s config and a 3600s config
+      // do not increment the same counter.
+      keyPrefix:
+        resource === "public-api-legacy"
+          ? `${this.rateLimitPrefix(resource)}:${effectiveConfig.durationInSec}`
+          : this.rateLimitPrefix(resource),
       storeClient: RateLimitService.redis,
       rejectIfRedisNotReady: true,
     });

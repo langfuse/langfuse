@@ -432,9 +432,11 @@ describe("RateLimitService", () => {
     const rateLimitService = RateLimitService.getInstance(redis as Redis);
 
     for (const testCase of cases) {
-      const activeKey = `${RATE_LIMIT_REDIS_KEY_PREFIX}:public-api-legacy:${orgId}`;
+      const activeKey = `${RATE_LIMIT_REDIS_KEY_PREFIX}:public-api-legacy:${testCase.durationInSec}:${orgId}`;
+      const previousWindowKey = `${RATE_LIMIT_REDIS_KEY_PREFIX}:public-api-legacy:${orgId}`;
 
       await redis.del(activeKey);
+      await redis.set(previousWindowKey, "1", "EX", 60);
 
       const scope = {
         orgId: orgId,
@@ -465,6 +467,10 @@ describe("RateLimitService", () => {
       expect(ttlInSec).toBeGreaterThan(0);
       expect(ttlInSec).toBeLessThanOrEqual(testCase.durationInSec);
       expect(ttlInSec).toBeGreaterThan(testCase.durationInSec - 60);
+
+      const previousWindowTtl = await redis.ttl(previousWindowKey);
+      expect(previousWindowTtl).toBeGreaterThan(0);
+      expect(previousWindowTtl).toBeLessThanOrEqual(60);
     }
   });
 
