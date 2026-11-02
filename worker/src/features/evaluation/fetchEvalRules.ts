@@ -103,19 +103,6 @@ export async function fetchEvalRules(projectId: string): Promise<EvalRules> {
     },
   });
 
-  if (!hasNoObservationRules && rules.observationRules.length === 0) {
-    logger.debug(
-      `No observation eval rules found for project ${projectId}, caching`,
-    );
-    await setNoEvalConfigsCache(projectId, "eventBased");
-  }
-  if (!hasNoTranscriptRules && rules.traceTranscriptRules.length === 0) {
-    logger.debug(
-      `No transcript eval rules found for project ${projectId}, caching`,
-    );
-    await setNoEvalConfigsCache(projectId, "traceTranscriptBased");
-  }
-
   for (const rule of rows) {
     const filter = coerceLegacyEmptyMetadataFilters(rule.filter) as FilterState;
     if (rule.targetObject === TopicsTargetObject) {
@@ -141,6 +128,19 @@ export async function fetchEvalRules(projectId: string): Promise<EvalRules> {
         ),
       });
     }
+  }
+
+  if (!hasNoObservationRules && rules.observationRules.length === 0) {
+    logger.debug(
+      `No observation eval rules found for project ${projectId}, caching`,
+    );
+    await setNoEvalConfigsCache(projectId, "eventBased");
+  }
+  if (!hasNoTranscriptRules && rules.traceTranscriptRules.length === 0) {
+    logger.debug(
+      `No transcript eval rules found for project ${projectId}, caching`,
+    );
+    await setNoEvalConfigsCache(projectId, "traceTranscriptBased");
   }
 
   logger.debug(`Found ${rows.length} eval rules for project ${projectId}`);
