@@ -47,6 +47,37 @@ function toolResultContent(events: { type: string; content?: string }[]) {
 }
 
 describe("createManualToolApprovalRunInput", () => {
+  it("marks a resolved MCP failure as an error and gives the model retry guidance", async () => {
+    const message = "Categories must have unique labels";
+    const result = {
+      content: [{ type: "text", text: message }],
+      isError: true,
+    };
+    const { input, syntheticEvents, developerGuidance } =
+      await createManualToolApprovalRunInput({
+        input: resumeInput(),
+        executeToolCall: async () => ({ result, modelResult: result }),
+      });
+
+    expect(input.messages.find((entry) => entry.role === "tool")).toMatchObject(
+      {
+        error: message,
+      },
+    );
+    expect(
+      syntheticEvents.find(
+        (event) => event.type === EventType.TOOL_CALL_RESULT,
+      ),
+    ).toMatchObject({
+      error: message,
+      content: JSON.stringify(result),
+    });
+    expect(developerGuidance).toContain(message);
+    expect(developerGuidance).toContain(
+      "Do not call the same tool again with identical arguments.",
+    );
+  });
+
   it("resumes a non-silent approval with the inner payload, not the LanguageModelV3 wrapper", async () => {
     const result = {
       id: "score-config-1",
