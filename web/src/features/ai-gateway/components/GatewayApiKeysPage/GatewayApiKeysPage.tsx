@@ -27,7 +27,7 @@ export function GatewayApiKeysPage({
     return <GatewayNotSetUpNotice title="Gateway keys" />;
   }
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex h-full min-h-0 flex-col gap-4">
       <div>
         <Header title="Gateway keys" />
         <p className="text-muted-foreground text-sm">
@@ -41,11 +41,13 @@ export function GatewayApiKeysPage({
           />
         </p>
       </div>
-      <ConnectedGatewayApiKeysTable
-        key={organizationId}
-        organizationId={organizationId}
-        canInvite={canManageGateway && canInviteMembers}
-      />
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+        <ConnectedGatewayApiKeysTable
+          key={organizationId}
+          organizationId={organizationId}
+          canInvite={canManageGateway && canInviteMembers}
+        />
+      </div>
     </div>
   );
 }

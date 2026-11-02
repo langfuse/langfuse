@@ -54,6 +54,7 @@ const manyApiKeys = Array.from({ length: 30 }, (_, index) => ({
 const actions = {
   lastUsed: { status: "success", isTracked: true },
   createAction: onCreate,
+  usageInstructionsAction: fn(),
   onRevoke,
   pagination: {
     mode: "offset",
@@ -64,7 +65,12 @@ const actions = {
   search: { value: "", onChange: fn() },
 } satisfies Pick<
   ComponentProps<typeof GatewayApiKeysTable>,
-  "lastUsed" | "createAction" | "onRevoke" | "pagination" | "search"
+  | "lastUsed"
+  | "createAction"
+  | "usageInstructionsAction"
+  | "onRevoke"
+  | "pagination"
+  | "search"
 >;
 
 const lastUsedCell = (canvas: {

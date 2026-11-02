@@ -7,11 +7,13 @@ import { CopyForAgentButton } from "./CopyForAgentButton";
 type AgentInstructionsPanelProps = {
   organizationId: string;
   instructions: AgentSetupInstructions;
+  defaultExpanded?: boolean;
 };
 
 export function AgentInstructionsPanel({
   organizationId,
   instructions,
+  defaultExpanded,
 }: AgentInstructionsPanelProps) {
   const capture = usePostHogClientCapture();
   const agent = { orgId: organizationId, agentId: instructions.id };
@@ -31,6 +33,7 @@ export function AgentInstructionsPanel({
       <div className="w-full">
         <ExpandableContentPeek
           expandLabel="Show all steps"
+          defaultExpanded={defaultExpanded}
           onAfterExpand={() =>
             capture("ai_gateway:agent_setup_instructions_viewed", {
               ...agent,
