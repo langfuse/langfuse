@@ -235,6 +235,9 @@ export class GatewayTeamService {
         failed.push({ email, message: message ?? "Invitation failed" });
       }
     }
+    // Started before anything else can throw: the memberships are saved, and a
+    // retry would find these users as members and never sync them again.
+    this.syncSfdcUserRoles(sfdcUserRoles);
 
     if (params.notifyMembers && sendsEmail) {
       const members = await this.members.findMembersWithScope({
@@ -276,7 +279,6 @@ export class GatewayTeamService {
       );
       await queue.addBulk(jobs);
     }
-    this.syncSfdcUserRoles(sfdcUserRoles);
 
     return {
       invitedCount: invited.size,
