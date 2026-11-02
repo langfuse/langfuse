@@ -6,6 +6,7 @@ import { z } from "zod";
 import {
   createApiKey,
   createBasicAuthHeader,
+  createOrgProjectAndApiKey,
   invalidateCachedOrgApiKeys,
 } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
@@ -832,35 +833,36 @@ describe("Projects API", () => {
     });
 
     it("turns the gateway off when deleting its ingestion project", async () => {
+      const { orgId, projectId: ingestionProjectId } =
+        await createOrgProjectAndApiKey({ plan: "Enterprise" });
+      const orgKey = await createApiKey(prisma, {
+        tenant: OrganizationId(orgId),
+        scope: OrganizationId(orgId),
+        role: SystemRoleId("LEGACY_ORGANIZATION_API_KEY"),
+        createdBy: "system",
+      });
       await prisma.gatewayConfig.create({
         data: {
-          organizationId: "seed-org-id",
-          defaultIngestionProjectId: testProjectId,
+          organizationId: orgId,
+          defaultIngestionProjectId: ingestionProjectId,
           ingestionMode: "USAGE",
         },
       });
-      try {
-        const result = await makeAPICall<{ success: boolean }>(
-          "DELETE",
-          `/api/public/projects/${testProjectId}`,
-          undefined,
-          createBasicAuthHeader(orgApiKey, orgSecretKey),
-        );
 
-        expect(result.status).toBe(202);
-        await expect(
-          prisma.gatewayConfig.findUnique({
-            where: { organizationId: "seed-org-id" },
-          }),
-        ).resolves.toMatchObject({ defaultIngestionProjectId: null });
-        await expect(
-          prisma.project.findUnique({ where: { id: testProjectId } }),
-        ).resolves.toMatchObject({ deletedAt: expect.any(Date) });
-      } finally {
-        await prisma.gatewayConfig.deleteMany({
-          where: { organizationId: "seed-org-id" },
-        });
-      }
+      const result = await makeAPICall<{ success: boolean }>(
+        "DELETE",
+        `/api/public/projects/${ingestionProjectId}`,
+        undefined,
+        createBasicAuthHeader(orgKey.publicKey, orgKey.secretKey),
+      );
+
+      expect(result.status).toBe(202);
+      await expect(
+        prisma.gatewayConfig.findUnique({ where: { organizationId: orgId } }),
+      ).resolves.toMatchObject({ defaultIngestionProjectId: null });
+      await expect(
+        prisma.project.findUnique({ where: { id: ingestionProjectId } }),
+      ).resolves.toMatchObject({ deletedAt: expect.any(Date) });
     });
 
     it("should return 403 when using project API key instead of organization API key", async () => {
