@@ -301,7 +301,8 @@ export async function createProjectMembershipsOnSignup(
             hasDemoAccess: demoProject !== undefined,
             hasDefaultOrg: defaultOrgs.length > 0,
             hasDefaultProject: defaultProjects.length > 0,
-            // Google Ads click id for ad conversion attribution
+            provider: options?.provider,
+            ...(options?.signupSource ?? {}),
             // ad-platform click ids (gclid, li_fat_id, rdt_cid, twclid)
             // for ad conversion attribution; only resolved ids are present
             ...(options?.adClickIds ?? {}),
