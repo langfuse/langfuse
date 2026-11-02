@@ -22,6 +22,9 @@ import { type SlackChannel } from "@langfuse/shared/src/server";
 const ITEM_HEIGHT = 32;
 
 export interface ChannelSelectorViewProps {
+  id?: string;
+  "aria-describedby"?: string;
+  "aria-invalid"?: React.AriaAttributes["aria-invalid"];
   /** Loaded channels and private channel flags; null until the first page loads */
   channelsData: {
     channels: SlackChannel[];
@@ -58,6 +61,9 @@ export interface ChannelSelectorViewProps {
  * Items are virtualized with @tanstack/react-virtual to handle large channel lists (~5k).
  */
 export const ChannelSelectorView: React.FC<ChannelSelectorViewProps> = ({
+  id,
+  "aria-describedby": describedBy,
+  "aria-invalid": invalid,
   channelsData,
   isLoading,
   hasError,
@@ -172,6 +178,9 @@ export const ChannelSelectorView: React.FC<ChannelSelectorViewProps> = ({
         <Popover open={open} onOpenChange={handleOpenChange}>
           <PopoverTrigger asChild>
             <Button
+              id={id}
+              aria-describedby={describedBy}
+              aria-invalid={invalid}
               variant="outline"
               role="combobox"
               aria-expanded={open}

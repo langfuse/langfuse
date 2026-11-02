@@ -1,4 +1,3 @@
-import { useId } from "react";
 import { type UseFormReturn } from "react-hook-form";
 
 import { type PagerDutyRegion } from "@langfuse/shared/pagerduty";
@@ -10,10 +9,6 @@ import { Form } from "@/src/components/design-system/Form/Form";
 import { PasswordInput } from "@/src/components/design-system/PasswordInput/PasswordInput";
 import { SelectInput } from "@/src/components/design-system/SelectInput/SelectInput";
 import { type MonitorAutomationFormValues } from "../helpers/monitorAutomationFormSchema";
-import { describedBy } from "../helpers/describedBy";
-import { FieldHelp } from "./FieldHelp";
-import { FieldWithHelp } from "./FieldWithHelp";
-import { HelpLink } from "./HelpLink";
 
 const integrationDocsUrl =
   "https://support.pagerduty.com/main/docs/services-and-integrations#create-a-generic-events-api-integration";
@@ -31,41 +26,38 @@ export function PagerDutyActionFields({
   form: UseFormReturn<MonitorAutomationFormValues>;
   testEvent: PagerDutyTestEventState;
 }) {
-  const routingKeyHelpId = useId();
   const routingKey = form.watch("pagerDuty.routingKey");
   const region = form.watch("pagerDuty.region");
 
   return (
     <>
-      <FieldWithHelp>
-        <Form.Field
-          control={form.control}
-          name="pagerDuty.routingKey"
-          label="Integration Key"
-        >
-          {(field) => (
-            <PasswordInput
-              id={field.id}
-              name={field.name}
-              value={field.value}
-              onChange={field.onChange}
-              onBlur={field.onBlur}
-              ref={field.ref}
-              placeholder="e.g. R0212P1QXGEIQE2NMTQ7L7WXD00DWHIN"
-              aria-describedby={describedBy(
-                field.inputDescribedById,
-                routingKeyHelpId,
-              )}
-              aria-invalid={!!field.error}
-              error={!!field.error}
-            />
-          )}
-        </Form.Field>
-        <FieldHelp id={routingKeyHelpId}>
-          Integration key for a PagerDuty Service or Event Orchestration.{" "}
-          <HelpLink href={integrationDocsUrl} text="Learn more" />
-        </FieldHelp>
-      </FieldWithHelp>
+      <Form.Field
+        control={form.control}
+        name="pagerDuty.routingKey"
+        label="Integration Key"
+        description={[
+          {
+            type: "text",
+            text: "Integration key for a PagerDuty Service or Event Orchestration. ",
+          },
+          { type: "link", text: "Learn more", href: integrationDocsUrl },
+        ]}
+      >
+        {(field) => (
+          <PasswordInput
+            id={field.id}
+            name={field.name}
+            value={field.value}
+            onChange={field.onChange}
+            onBlur={field.onBlur}
+            ref={field.ref}
+            placeholder="e.g. R0212P1QXGEIQE2NMTQ7L7WXD00DWHIN"
+            aria-describedby={field.inputDescribedById}
+            aria-invalid={!!field.error}
+            error={!!field.error}
+          />
+        )}
+      </Form.Field>
       <Form.Field
         control={form.control}
         name="pagerDuty.region"
