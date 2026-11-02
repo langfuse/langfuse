@@ -7,7 +7,7 @@ import { IconButton } from "@/src/components/design-system/IconButton/IconButton
 import { Button } from "@/src/components/ui/button";
 import styles from "@/src/features/ai-gateway/components/GatewayLaunch/gatewayLaunch.module.css";
 import { GatewayLaunchDialog } from "@/src/features/ai-gateway/components/GatewayLaunch/GatewayLaunchDialog";
-import { GatewayReceipt } from "@/src/features/ai-gateway/components/GatewayLaunch/GatewayReceipt";
+import { GatewaySwitchboard } from "@/src/features/ai-gateway/components/GatewayLaunch/GatewaySwitchboard";
 import {
   type GatewayLaunchState,
   type GatewayLaunchTarget,
@@ -68,10 +68,8 @@ export function GatewayLaunchBanner({
                 One gateway key for full visibility into what your agents cost.
               </p>
             </div>
-            <div className="relative mr-12 hidden h-full w-72 shrink-0 xl:block">
-              <div className="absolute inset-x-0 -top-2">
-                <GatewayReceipt variant="banner" />
-              </div>
+            <div className="mr-12 hidden h-full w-72 shrink-0 xl:block">
+              <GatewaySwitchboard variant="banner" />
             </div>
             <div className="flex shrink-0 items-center gap-2">
               <Button
