@@ -87,17 +87,41 @@ describe("trace-rule recording at the evaluation stage", () => {
     { mode: "eval-only", shouldWriteToEventsTable: false, writeFails: false },
     { mode: "failed write", shouldWriteToEventsTable: true, writeFails: true },
     {
+      mode: "ingestion disabled",
+      shouldWriteToEventsTable: true,
+      writeFails: false,
+      ingestionEnabled: false,
+      observationRulesEnabled: false,
+    },
+    {
+      mode: "Topics disabled",
+      shouldWriteToEventsTable: true,
+      writeFails: false,
+      topicsEnabled: false,
+      observationRulesEnabled: false,
+    },
+    {
       mode: "accepted write",
       shouldWriteToEventsTable: true,
       writeFails: false,
     },
   ])(
-    "records matches and nonmatches only for direct-write batches ($mode) despite span scheduling failures",
-    async ({ shouldWriteToEventsTable, writeFails }) => {
+    "fetches and records transcript selections only for eligible batches ($mode)",
+    async ({
+      shouldWriteToEventsTable,
+      writeFails,
+      ingestionEnabled = true,
+      topicsEnabled = true,
+      observationRulesEnabled = true,
+    }) => {
       const original = { ...env };
       env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "DEV";
-      vi.mocked(isTopicsProjectEnabled).mockReturnValue(true);
-      env.LANGFUSE_TRACE_BATCH_INGESTION_ENABLED = "true";
+      vi.mocked(isTopicsProjectEnabled).mockReturnValue(topicsEnabled);
+      env.LANGFUSE_TRACE_BATCH_INGESTION_ENABLED = ingestionEnabled
+        ? "true"
+        : "false";
+      const includeTraceTranscriptRules =
+        shouldWriteToEventsTable && ingestionEnabled && topicsEnabled;
       env.LANGFUSE_OTEL_MEDIA_UPLOAD_ENABLED = "false";
       const projectId = "recording-test";
       const observationRule = createTestEvalConfig({ projectId });
@@ -125,7 +149,7 @@ describe("trace-rule recording at the evaluation stage", () => {
       });
       try {
         vi.mocked(fetchEvalRules).mockResolvedValue({
-          observationRules: [observationRule],
+          observationRules: observationRulesEnabled ? [observationRule] : [],
           traceTranscriptRules: [
             {
               id: "trace-rule",
@@ -181,7 +205,7 @@ describe("trace-rule recording at the evaluation stage", () => {
             shouldWriteToEventsTable,
           }),
         ).resolves.toBeUndefined();
-        if (shouldWriteToEventsTable) {
+        if (includeTraceTranscriptRules) {
           expect(recordTraceActivity).toHaveBeenCalledExactlyOnceWith(
             projectId,
             [
@@ -205,11 +229,18 @@ describe("trace-rule recording at the evaluation stage", () => {
             .mocked(scheduleObservationEvals)
             .mock.calls.filter(([args]) => args.configs.length > 0)
             .map(([args]) => args.configs),
-        ).toEqual([[observationRule], [observationRule]]);
+        ).toEqual(
+          observationRulesEnabled ? [[observationRule], [observationRule]] : [],
+        );
+        if (!observationRulesEnabled) {
+          expect(createObservationEvalSchedulerDeps).not.toHaveBeenCalled();
+        }
         expect(writeEventRecord).toHaveBeenCalledTimes(
           shouldWriteToEventsTable ? 3 : 0,
         );
-        expect(fetchEvalRules).toHaveBeenCalledExactlyOnceWith(projectId);
+        expect(fetchEvalRules).toHaveBeenCalledExactlyOnceWith(projectId, {
+          includeTraceTranscriptRules,
+        });
       } finally {
         Object.assign(env, original);
         vi.mocked(isTopicsProjectEnabled).mockReturnValue(false);
@@ -323,7 +354,9 @@ describe("direct-v4 trace batch tracking", () => {
       ]);
       expect(write).toHaveBeenCalledTimes(3);
       expect(recordTraceActivity).not.toHaveBeenCalled();
-      expect(fetchEvalRules).toHaveBeenCalledExactlyOnceWith("project");
+      expect(fetchEvalRules).toHaveBeenCalledExactlyOnceWith("project", {
+        includeTraceTranscriptRules: false,
+      });
       expect(trackTraceBatchActivity).toHaveBeenCalledExactlyOnceWith(
         "project",
         inputs.slice(0, 2).map(({ traceId, startTimeISO }, index) => ({

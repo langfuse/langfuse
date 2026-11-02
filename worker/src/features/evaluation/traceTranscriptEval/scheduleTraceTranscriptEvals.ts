@@ -12,7 +12,7 @@ export async function scheduleTraceTranscriptEvals({
 }: {
   observation: ObservationForEval;
   /** Absent when the batch does not write the events table directly. */
-  traceActivity?: TraceSpanActivity;
+  traceActivity?: Omit<TraceSpanActivity, "ruleIds">;
   schedulerDeps: EvalSchedulerDeps;
 }): Promise<void> {
   // Only directly written events reach the trace-batch worker; Topics also
@@ -24,7 +24,9 @@ export async function scheduleTraceTranscriptEvals({
   if (rules.length === 0) return;
 
   // Select rules using filters and trace-ID sampling; recording does not sample again.
-  traceActivity.ruleIds = getMatchingTraceBatchRuleIds(observation, rules);
   // Non-matching observations still extend bounds and existing readiness.
-  schedulerDeps.collectTraceActivity(traceActivity);
+  schedulerDeps.collectTraceActivity({
+    ...traceActivity,
+    ruleIds: getMatchingTraceBatchRuleIds(observation, rules),
+  });
 }

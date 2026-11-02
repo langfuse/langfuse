@@ -1,6 +1,7 @@
 import { restoreInlineMedia } from "../otel-media/resolveExtractedMedia";
 import type { EarlyOtelBatch } from "@langfuse/native";
 import { convertEventRecordToObservationForEval } from "@langfuse/shared";
+import { isTopicsProjectEnabled } from "@langfuse/shared/topics/server";
 import {
   logger,
   OtelIngestionProcessor,
@@ -13,7 +14,6 @@ import {
   createEvalSchedulerDeps,
 } from "../evaluation/scheduleEvals";
 import { trackTraceBatchActivity } from "../traceBatching/traceBatching";
-import type { TraceSpanActivity } from "../traceBatching/traceRuleRecording";
 import {
   createDirectOtelMediaTargets,
   processOtelEventMedia,
@@ -65,15 +65,21 @@ export async function processOtelEvents({
     return;
   }
 
-  const rules = await fetchEvalRules(projectId).catch((error) => {
+  // Trace rules record only eligible direct event writes, like existing trace batching.
+  const includeTraceTranscriptRules =
+    shouldWriteToEventsTable &&
+    env.LANGFUSE_TRACE_BATCH_INGESTION_ENABLED === "true" &&
+    isTopicsProjectEnabled(projectId);
+  const rules = await fetchEvalRules(projectId, {
+    includeTraceTranscriptRules,
+  }).catch((error) => {
     traceException(error);
     logger.warn(`Failed to fetch eval rules for project ${projectId}`, error);
     return { observationRules: [], traceTranscriptRules: [] };
   });
-  // Trace rules record only direct event writes, like existing trace batching.
   const hasRules =
     rules.observationRules.length > 0 ||
-    (rules.traceTranscriptRules.length > 0 && shouldWriteToEventsTable);
+    (includeTraceTranscriptRules && rules.traceTranscriptRules.length > 0);
 
   // Early exit if no processing needed
   if (!hasRules && !shouldWriteToEventsTable) {
@@ -138,14 +144,12 @@ export async function processOtelEvents({
 
       // Step 2: Schedule evaluations independently of event writes.
       if (schedulerDeps) {
-        const traceActivity: TraceSpanActivity | undefined =
-          shouldWriteToEventsTable
-            ? {
-                traceId: eventInput.traceId,
-                spanStartTimeISO: eventInput.startTimeISO,
-                ruleIds: [],
-              }
-            : undefined;
+        const traceActivity = includeTraceTranscriptRules
+          ? {
+              traceId: eventInput.traceId,
+              spanStartTimeISO: eventInput.startTimeISO,
+            }
+          : undefined;
         try {
           await scheduleEvals({
             observation: convertEventRecordToObservationForEval(eventRecord),

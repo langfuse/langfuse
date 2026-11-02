@@ -29,16 +29,25 @@ const observationEvaluatorTypes: EvalTemplateType[] = [
   EvalTemplateType.DECISION_MODEL,
 ];
 
-/** Fetch active observation and transcript rules for ingestion and experiments. */
-export async function fetchEvalRules(projectId: string): Promise<EvalRules> {
+/** Fetch active observation rules, including transcript rules when requested. */
+export async function fetchEvalRules(
+  projectId: string,
+  {
+    includeTraceTranscriptRules = false,
+  }: { includeTraceTranscriptRules?: boolean } = {},
+): Promise<EvalRules> {
   const rules: EvalRules = { observationRules: [], traceTranscriptRules: [] };
   // Keep the observation cache key so older deployments still invalidate it.
   // Transcript absence is cached separately and cannot suppress observation evals.
   const [hasNoObservationRules, hasNoTranscriptRules] = await Promise.all([
     hasNoEvalConfigsCache(projectId, "eventBased"),
-    hasNoEvalConfigsCache(projectId, "traceTranscriptBased"),
+    includeTraceTranscriptRules
+      ? hasNoEvalConfigsCache(projectId, "traceTranscriptBased")
+      : false,
   ]);
-  if (hasNoObservationRules && hasNoTranscriptRules) {
+  const shouldFetchTranscriptRules =
+    includeTraceTranscriptRules && !hasNoTranscriptRules;
+  if (hasNoObservationRules && !shouldFetchTranscriptRules) {
     logger.debug(
       `Skipping eval rule fetch - no rules cached for project ${projectId}`,
     );
@@ -70,7 +79,7 @@ export async function fetchEvalRules(projectId: string): Promise<EvalRules> {
       assignments: { some: observationAssignments },
     });
   }
-  if (!hasNoTranscriptRules) {
+  if (shouldFetchTranscriptRules) {
     targets.push({
       targetObject: TopicsTargetObject,
       assignments: { some: transcriptAssignments },
@@ -92,7 +101,9 @@ export async function fetchEvalRules(projectId: string): Promise<EvalRules> {
       status: true,
       targetObject: true,
       assignments: {
-        where: transcriptAssignments,
+        where: shouldFetchTranscriptRules
+          ? transcriptAssignments
+          : observationAssignments,
         select: {
           id: true,
           evaluatorId: true,
@@ -136,7 +147,7 @@ export async function fetchEvalRules(projectId: string): Promise<EvalRules> {
     );
     await setNoEvalConfigsCache(projectId, "eventBased");
   }
-  if (!hasNoTranscriptRules && rules.traceTranscriptRules.length === 0) {
+  if (shouldFetchTranscriptRules && rules.traceTranscriptRules.length === 0) {
     logger.debug(
       `No transcript eval rules found for project ${projectId}, caching`,
     );

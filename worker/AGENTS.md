@@ -63,7 +63,8 @@
   Require the existing ingestion switch and cloud Topics project gate, and record
   only batches that write the events table directly. Reuse shard and idle helpers.
   Bounds count one event update per recorded span; sizes are not recorded.
-  Bounds update in fixed first-arrival buckets; do not extend their expiry.
+  Activity atomically moves merged bounds into the current bucket and removes the
+  old entry, retaining history and pending selections while a trace stays active.
   Records contain only revision, rules, and failed_cnt. Pending cleanup runs during
   recording and dispatch. Map schemas, retention, and missing-bounds behavior:
   `src/features/traceBatching/README.md` → Recording trace-rule selections.

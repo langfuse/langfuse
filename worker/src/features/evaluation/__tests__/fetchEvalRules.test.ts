@@ -50,6 +50,36 @@ describe("evaluation rule fetching", () => {
     mocks.findMany.mockResolvedValue([]);
   });
 
+  it("keeps observation-only fetches on the existing negative cache without touching transcript rules", async () => {
+    await fetchEvalRules(projectId);
+    expect(mocks.findMany).toHaveBeenCalledTimes(1);
+    expect(mocks.findMany.mock.calls[0][0].where.OR).toEqual([
+      expect.objectContaining({
+        targetObject: {
+          in: [EvalTargetObject.EVENT, EvalTargetObject.EXPERIMENT],
+        },
+      }),
+    ]);
+    expect(mocks.setNoRules).toHaveBeenCalledExactlyOnceWith(
+      projectId,
+      "eventBased",
+    );
+
+    mocks.hasNoRules.mockImplementation(
+      async (_projectId, scope) => scope === "eventBased",
+    );
+    mocks.findMany.mockResolvedValue([rule("transcript", TopicsTargetObject)]);
+    expect(await fetchEvalRules(projectId)).toEqual({
+      observationRules: [],
+      traceTranscriptRules: [],
+    });
+    expect(mocks.findMany).toHaveBeenCalledTimes(1);
+    expect(mocks.hasNoRules.mock.calls).toEqual([
+      [projectId, "eventBased"],
+      [projectId, "eventBased"],
+    ]);
+  });
+
   it("fetches both targets once and keeps transcript rules and facet assignments out of observation scheduling", async () => {
     const transcript = rule("transcript", TopicsTargetObject, [
       EvalTemplateType.FACET,
@@ -64,7 +94,9 @@ describe("evaluation rule fetching", () => {
       transcript,
     ]);
 
-    const result = await fetchEvalRules(projectId);
+    const result = await fetchEvalRules(projectId, {
+      includeTraceTranscriptRules: true,
+    });
 
     expect(mocks.findMany).toHaveBeenCalledTimes(1);
     expect(
@@ -129,7 +161,9 @@ describe("evaluation rule fetching", () => {
       );
       mocks.findMany.mockResolvedValue([rule("active", targetObject)]);
 
-      const result = await fetchEvalRules(projectId);
+      const result = await fetchEvalRules(projectId, {
+        includeTraceTranscriptRules: true,
+      });
       expect(result[resultKey].map(({ id }) => id)).toEqual(["active"]);
       expect(mocks.findMany).toHaveBeenCalledTimes(1);
       const targets = mocks.findMany.mock.calls[0][0].where.OR;
@@ -152,11 +186,13 @@ describe("evaluation rule fetching", () => {
       emptyScopes.add(scope);
     });
 
-    expect(await fetchEvalRules(projectId)).toEqual({
+    expect(
+      await fetchEvalRules(projectId, { includeTraceTranscriptRules: true }),
+    ).toEqual({
       observationRules: [],
       traceTranscriptRules: [],
     });
-    await fetchEvalRules(projectId);
+    await fetchEvalRules(projectId, { includeTraceTranscriptRules: true });
     expect(mocks.findMany).toHaveBeenCalledTimes(1);
     expect(emptyScopes).toEqual(
       new Set(["eventBased", "traceTranscriptBased"]),
@@ -167,7 +203,9 @@ describe("evaluation rule fetching", () => {
     mocks.findMany.mockResolvedValue([
       rule("activated", EvalTargetObject.EVENT),
     ]);
-    const result = await fetchEvalRules(projectId);
+    const result = await fetchEvalRules(projectId, {
+      includeTraceTranscriptRules: true,
+    });
     expect(result.observationRules.map(({ id }) => id)).toEqual(["activated"]);
     expect(result.traceTranscriptRules).toEqual([]);
     expect(mocks.findMany).toHaveBeenCalledTimes(2);
@@ -176,9 +214,9 @@ describe("evaluation rule fetching", () => {
 
   it("does not cache a failed combined query as an empty project", async () => {
     mocks.findMany.mockRejectedValueOnce(new Error("database unavailable"));
-    await expect(fetchEvalRules(projectId)).rejects.toThrow(
-      "database unavailable",
-    );
+    await expect(
+      fetchEvalRules(projectId, { includeTraceTranscriptRules: true }),
+    ).rejects.toThrow("database unavailable");
     expect(mocks.setNoRules).not.toHaveBeenCalled();
   });
 });

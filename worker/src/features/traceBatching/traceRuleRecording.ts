@@ -65,7 +65,7 @@ const RECORD_SCRIPT = `
     local eventUpdateCount = tonumber(ARGV[i + 5])
 
     -- 1. Merge the event-time bounds, even when no rule selected this activity.
-    -- Keep each trace in its first-arrival bucket for a fixed retention window.
+    -- Move active traces to the current bucket so their bounds remain available.
     local boundsIndex, previousBounds = current, nil
     for key = 3, #KEYS do
       previousBounds = redis.call('HGET', KEYS[key], member)
@@ -77,11 +77,12 @@ const RECORD_SCRIPT = `
       maxStart = math.max(maxStart, bounds.maxStart)
       eventUpdateCount = eventUpdateCount + bounds.eventUpdateCount
     end
-    redis.call('HSET', KEYS[boundsIndex], member, cjson.encode({
+    redis.call('HSET', KEYS[current], member, cjson.encode({
       minStart = minStart, maxStart = maxStart, eventUpdateCount = eventUpdateCount
     }))
-    local boundsExpiry = (firstBucket + boundsIndex - 2) * width + boundsTtl
-    redis.call('PEXPIREAT', KEYS[boundsIndex], string.format('%.0f', boundsExpiry))
+    if boundsIndex ~= current then redis.call('HDEL', KEYS[boundsIndex], member) end
+    local boundsExpiry = (firstBucket + current - 2) * width + boundsTtl
+    redis.call('PEXPIREAT', KEYS[current], string.format('%.0f', boundsExpiry))
 
     -- 2. Preserve live pending selections; expired selections cannot be revived.
     local previousRecord = redis.call('HGET', recordKey, member)

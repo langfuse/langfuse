@@ -17,11 +17,12 @@ batching; dual-path batches record nothing. These maps are not consumed yet.
 
 | Map             | Contents                                                                  | Retention                                                                 |
 | --------------- | ------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
-| `bounds:<hour>` | `{ minStart, maxStart, eventUpdateCount }`, including nonmatches.         | First-arrival bucket expires after 24–25 hours; updates do not extend it. |
+| `bounds:<hour>` | `{ minStart, maxStart, eventUpdateCount }`, including nonmatches.         | Configured bounds TTL after the latest activity's bucket ends (24–25 hours by default). |
 | `record`        | Only `{ revision, rules, failed_cnt }`; rule IDs are deduplicated.        | Two hours past due.                                                       |
 | `due`           | Selected traces ordered by Redis arrival time plus project idle interval. | Two hours past due.                                                       |
 
-After bounds expire,
+Activity atomically moves merged bounds into the current bucket and removes the old
+entry. `LANGFUSE_TRACE_BATCH_FIRST_SEEN_TTL_MS` controls the bounds TTL. After bounds expire,
 new arrivals start fresh and discard old selections; consumers must handle missing
 bounds. Recording and dispatcher passes clean pending entries in batches of 100;
 key TTLs reclaim inactive maps.

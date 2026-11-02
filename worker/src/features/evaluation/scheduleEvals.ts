@@ -59,7 +59,7 @@ export async function scheduleEvals({
 }: {
   observation: ObservationForEval;
   /** Omitted when the batch skips direct event writes; nothing is recorded then. */
-  traceActivity?: TraceSpanActivity;
+  traceActivity?: Omit<TraceSpanActivity, "ruleIds">;
   rules: EvalRules;
   schedulerDeps: EvalSchedulerDeps;
 }): Promise<void> {

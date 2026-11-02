@@ -722,7 +722,7 @@ describe("trace micro-batch scheduling with Redis", () => {
   });
   afterAll(() => client().disconnect());
 
-  it("updates bounds in their original hourly bucket without extending its lifetime", async () => {
+  it("moves bounds to the current bucket and preserves pending selections on nonmatching activity", async () => {
     vi.mocked(shared.getTracingReadinessSettings).mockResolvedValue({
       traceIdleMs: null,
     });
@@ -743,18 +743,44 @@ describe("trace micro-batch scheduling with Redis", () => {
       }),
     );
     await client().pexpireat(originalKey, expiry);
+    await client().hset(
+      recordingKeys.record,
+      identity,
+      JSON.stringify({
+        revision: "old",
+        rules: ["existing-rule"],
+        failed_cnt: 2,
+      }),
+    );
+    await client().zadd(recordingKeys.due, Number(seconds) * 1_000, identity);
 
     await recordTraceActivity("project", [
-      { ...spanActivity("recorded", 2_000_000), ruleIds: ["rule"] },
+      { ...spanActivity("recorded", 2_000_000), ruleIds: [] },
     ]);
 
-    expect(JSON.parse((await client().hget(originalKey, identity))!)).toEqual({
+    expect(JSON.parse((await client().hget(currentKey, identity))!)).toEqual({
       minStart: 1_000_000,
       maxStart: 2_000_000,
       eventUpdateCount: 2,
     });
-    expect(Number(await client().pexpiretime(originalKey))).toBe(expiry);
-    expect(await client().hget(currentKey, identity)).toBeNull();
+    expect(Number(await client().pexpiretime(currentKey))).toBe(
+      expiry + 3_600_000,
+    );
+    expect(await client().hget(originalKey, identity)).toBeNull();
+    const record = JSON.parse(
+      (await client().hget(recordingKeys.record, identity))!,
+    );
+    expect(record).toEqual({
+      revision: expect.any(String),
+      rules: ["existing-rule"],
+      failed_cnt: 2,
+    });
+    expect(record.revision).not.toBe("old");
+    expect(
+      Number(await client().zscore(recordingKeys.due, identity)),
+    ).toBeGreaterThanOrEqual(
+      Number(seconds) * 1_000 + env.LANGFUSE_TRACE_BATCH_IDLE_MS,
+    );
   });
 
   it("uses the capped project idle time when recording matches and later nonmatching spans", async () => {

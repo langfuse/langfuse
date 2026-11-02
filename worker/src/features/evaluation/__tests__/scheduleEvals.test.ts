@@ -42,7 +42,6 @@ const createTraceActivity = (
 ) => ({
   traceId,
   spanStartTimeISO,
-  ruleIds: [],
 });
 const facetRule: EvalRules["traceTranscriptRules"][number] = {
   id: "facet-rule",
@@ -92,7 +91,7 @@ describe("scheduleEvals", () => {
       const observation = createTestObservation({ name: "selected" });
       await scheduleEvals({
         observation,
-        traceActivity: createTraceActivity(observation.trace_id),
+        traceActivity: Object.freeze(createTraceActivity(observation.trace_id)),
         rules,
         schedulerDeps,
       });
