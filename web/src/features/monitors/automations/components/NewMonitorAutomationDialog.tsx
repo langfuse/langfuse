@@ -7,7 +7,6 @@ import { type PagerDutyTestEventState } from "@/src/features/pagerduty";
 import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
 import { Form } from "@/src/components/design-system/Form/Form";
 import { SelectInput } from "@/src/components/design-system/SelectInput/SelectInput";
-import { DividedDialogBody } from "./DividedDialogBody";
 import { GitHubDispatchActionFields } from "./GitHubDispatchActionFields";
 import { PagerDutyActionFields } from "./PagerDutyActionFields";
 import { SlackActionFields, type SlackFieldsState } from "./SlackActionFields";
@@ -81,7 +80,7 @@ export function NewMonitorAutomationDialog({
         },
       ]}
     >
-      <DividedDialogBody>
+      <Dialog.Body separators="both">
         <Form
           id={formId}
           actions={[]}
@@ -103,7 +102,7 @@ export function NewMonitorAutomationDialog({
           />
           {rootError && <FormError message={rootError} />}
         </Form>
-      </DividedDialogBody>
+      </Dialog.Body>
     </Dialog>
   );
 }

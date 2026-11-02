@@ -6,7 +6,6 @@ import { Form } from "@/src/components/design-system/Form/Form";
 import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
 import { Input } from "@/src/components/design-system/Input/Input";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
-import { DividedDialogBody } from "./DividedDialogBody";
 
 /** WebhookSecretDialog shows a just-created webhook automation's signing secret, which is never shown again. */
 export function WebhookSecretDialog({
@@ -23,7 +22,7 @@ export function WebhookSecretDialog({
       title={`Automation "${automationName}" was created`}
       closeLabel="Done"
     >
-      <DividedDialogBody>
+      <Dialog.Body separators="both">
         <Form.Field
           label="Webhook secret"
           description={[
@@ -62,7 +61,7 @@ export function WebhookSecretDialog({
             </div>
           )}
         </Form.Field>
-      </DividedDialogBody>
+      </Dialog.Body>
     </Dialog>
   );
 }
