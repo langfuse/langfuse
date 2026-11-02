@@ -225,7 +225,7 @@ export function AuthenticatedLayout({
       ? [
           {
             type: "link" as const,
-            name: "v4 Migration",
+            name: "V4 migration",
             href: "/v4-migration",
           },
         ]
@@ -240,7 +240,7 @@ export function AuthenticatedLayout({
       ? [
           {
             type: "action" as const,
-            name: "Feature Preview",
+            name: "Feature preview",
             onClick: () => setFeaturePreviewOpen(true),
           },
         ]

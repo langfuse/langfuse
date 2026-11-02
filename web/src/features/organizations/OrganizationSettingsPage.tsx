@@ -340,7 +340,7 @@ const getOrganizationSettingsPages = ({
     show: showProjects,
   },
   {
-    title: "v4 Migration",
+    title: "V4 migration",
     slug: "v4-migration",
     section: "Organization",
     href: "/v4-migration",

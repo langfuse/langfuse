@@ -31,7 +31,7 @@ import {
   type OrganizationScope,
 } from "@/src/features/rbac";
 import { SupportButton } from "@/src/components/nav/SupportButton";
-import { V4SidebarToggle } from "@/src/features/events";
+import { V4SidebarToggle, V4_PREVIEW_LABEL } from "@/src/features/events";
 import { BookACallButton } from "@/src/components/nav/BookACallButton";
 import { SidebarMenuButton } from "@/src/components/ui/sidebar";
 import { KeyboardShortcut } from "@/src/components/design-system/KeyboardShortcut/KeyboardShortcut";
@@ -52,8 +52,8 @@ export enum RouteSection {
 
 export enum RouteGroup {
   Observability = "Observability",
-  PromptManagement = "Prompt Management",
-  ContextManagement = "Context Management",
+  PromptManagement = "Prompt management",
+  ContextManagement = "Context management",
   Evaluation = "Evaluation",
 }
 
@@ -228,7 +228,7 @@ export const ROUTES: Route[] = [
     legacyPathname: `/project/[projectId]/evals/legacy`,
   },
   {
-    title: "Human Annotation",
+    title: "Human annotation",
     href: `/project/[projectId]/annotation-queues`,
     projectRbacScopes: ["annotationQueues:read"],
     group: RouteGroup.Evaluation,
@@ -254,7 +254,7 @@ export const ROUTES: Route[] = [
   },
   {
     // Keep Action required first in the secondary nav so it is not sandwiched
-    // between regular items like Upgrade Plan and Settings.
+    // between regular items like Upgrade plan and Settings.
     title: "Update",
     id: "v4-migration",
     href: "",
@@ -263,7 +263,7 @@ export const ROUTES: Route[] = [
       v4UpgradeUiAvailable && projectId !== undefined,
   },
   {
-    title: "Cloud Status",
+    title: "Cloud status",
     section: RouteSection.Secondary,
     href: "",
     show: ({ isLangfuseCloud, hasActiveCloudIncident }) =>
@@ -271,7 +271,7 @@ export const ROUTES: Route[] = [
     menuNode: <CloudStatusMenu />,
   },
   {
-    title: "V4 Preview",
+    title: V4_PREVIEW_LABEL,
     href: "",
     section: RouteSection.Secondary,
     featureFlag: "v4BetaToggleVisible",
@@ -287,7 +287,7 @@ export const ROUTES: Route[] = [
     menuNode: <V4SidebarToggle />,
   },
   {
-    title: "Upgrade Plan",
+    title: "Upgrade plan",
     icon: Sparkle,
     href: "/project/[projectId]/settings/billing",
     section: RouteSection.Secondary,
@@ -296,7 +296,7 @@ export const ROUTES: Route[] = [
     show: ({ organization }) => organization?.plan === "cloud:hobby",
   },
   {
-    title: "Upgrade Plan",
+    title: "Upgrade plan",
     icon: Sparkle,
     href: "/organization/[organizationId]/settings/billing",
     section: RouteSection.Secondary,

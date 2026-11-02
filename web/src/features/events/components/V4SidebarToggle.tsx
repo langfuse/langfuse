@@ -42,7 +42,7 @@ function asArrayValue(value: string | string[] | undefined) {
 
 const INTRO_DIALOG_SEEN_KEY = "v4-beta-intro-dialog-seen";
 
-// Shared behavior for every V4 Preview toggle surface: session-backed state,
+// Shared behavior for every V4 preview toggle surface: session-backed state,
 // intro dialog on first enable, and the datasets/experiments URL translation
 // that keeps the current page valid after switching. `source` distinguishes
 // the surfaces in the shared v4_beta_toggled event. The commit itself is the
@@ -209,7 +209,9 @@ export function V4SidebarToggle() {
                   checked={isChecked}
                   onCheckedChange={handleSidebarToggle}
                   disabled={isLoading}
-                  aria-label={canToggleV4 ? "Toggle V4 Preview" : "Enable V4"}
+                  aria-label={
+                    canToggleV4 ? `Toggle ${V4_PREVIEW_LABEL}` : "Enable V4"
+                  }
                   aria-describedby="v4-preview-sidebar-description"
                 />
               </div>
@@ -268,7 +270,7 @@ export function V4PreviewToggleRow({ projectId }: { projectId?: string }) {
           checked={isChecked}
           onCheckedChange={handlePanelToggle}
           disabled={isLoading}
-          aria-label="Toggle V4 Preview"
+          aria-label={`Toggle ${V4_PREVIEW_LABEL}`}
           aria-describedby={descriptionId}
         />
         <Label
