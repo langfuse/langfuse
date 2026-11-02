@@ -26,7 +26,7 @@ export function buildCodexInstructions(
         description: "Codex loads this file every time it starts.",
         language: "sh",
         code: [
-          'CODEX_DIR="${CODEX_HOME:-$HOME/.codex}"',
+          ' CODEX_DIR="${CODEX_HOME:-$HOME/.codex}"',
           'mkdir -p -m 700 "$CODEX_DIR"',
           'touch "$CODEX_DIR/.env" && chmod 600 "$CODEX_DIR/.env"',
           ` cat >> "$CODEX_DIR/.env" <<'EOF'`,
