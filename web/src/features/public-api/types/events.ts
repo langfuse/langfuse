@@ -1,4 +1,4 @@
-import { z } from "zod/v4";
+import { z } from "zod";
 import { CreateEventEvent } from "@langfuse/shared/src/server";
 
 // POST /events

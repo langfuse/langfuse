@@ -1,5 +1,3 @@
-/** @jest-environment node */
-
 import {
   ChatMessageType,
   compileChatMessages,
@@ -14,7 +12,7 @@ describe("compileChatMessages", () => {
     const promptTemplate = [
       { role: "system", content: "You are a helpful assistant." },
       {
-        type: ChatMessageType.Placeholder,
+        type: ChatMessageType.Placeholder as const,
         name: "conversation_history",
       },
       { role: "user", content: "{{user_question}}" },
@@ -52,7 +50,7 @@ describe("compileChatMessages", () => {
     const promptTemplate = [
       { role: "system", content: "You are a helpful assistant." },
       {
-        type: ChatMessageType.Placeholder,
+        type: ChatMessageType.Placeholder as const,
         name: "missing_placeholder",
       },
       { role: "user", content: "Hello" },
@@ -69,7 +67,7 @@ describe("compileChatMessages", () => {
     const promptTemplate = [
       { role: "system", content: "You are a helpful assistant." },
       {
-        type: ChatMessageType.Placeholder,
+        type: ChatMessageType.Placeholder as const,
         name: "arbitrary_messages",
       },
     ];
@@ -116,7 +114,7 @@ describe("compileChatMessages", () => {
         content: "You are a helpful assistant. {{system_var}}",
       },
       {
-        type: ChatMessageType.Placeholder,
+        type: ChatMessageType.Placeholder as const,
         name: "history",
       },
       { role: "user", content: "{{user_var}}" },

@@ -1,5 +1,5 @@
-import { auditLog } from "@/src/features/audit-logs/auditLog";
-import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { auditLog } from "@/src/features/audit-logs/server";
+import { throwIfNoProjectAccess } from "@/src/features/rbac";
 import {
   createTRPCRouter,
   protectedProjectProcedure,
@@ -11,7 +11,7 @@ import {
 } from "@langfuse/shared";
 import { getUserProjectRoles } from "@langfuse/shared/src/server";
 import partition from "lodash/partition";
-import z from "zod/v4";
+import z from "zod";
 
 export const queueAssignmentRouter = createTRPCRouter({
   createMany: protectedProjectProcedure

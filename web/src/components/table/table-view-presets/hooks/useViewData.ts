@@ -1,16 +1,24 @@
 import { api } from "@/src/utils/api";
+import { type TableViewPresetTableName } from "@langfuse/shared";
 
-type UseViewDataProps = {
-  tableName: string;
+export const useViewData = ({
+  tableName,
+  projectId,
+}: {
+  tableName: TableViewPresetTableName;
   projectId: string;
-};
-
-export const useViewData = ({ tableName, projectId }: UseViewDataProps) => {
+}) => {
   const { data: TableViewPresets } =
-    api.TableViewPresets.getByTableName.useQuery({
-      tableName,
-      projectId,
-    });
+    api.TableViewPresets.getByTableName.useQuery(
+      {
+        tableName,
+        projectId,
+      },
+      // `projectId` comes from `router.query`, which Next.js populates only
+      // after hydration; unguarded the query fires with `undefined` and the
+      // rejected zod input surfaces as a "Bad Request" toast.
+      { enabled: Boolean(projectId) },
+    );
 
   return {
     TableViewPresetsList: TableViewPresets,

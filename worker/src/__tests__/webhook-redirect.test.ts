@@ -23,7 +23,7 @@ import { randomUUID } from "crypto";
  * - worker/src/__tests__/webhook-validation.test.ts
  *
  * The redirect validation implementation is in:
- * - packages/shared/src/server/webhooks/redirectHandler.ts (fetchWithSecureRedirects)
+ * - packages/shared/src/server/outbound-url/fetch.ts (fetchWithSecureRedirects)
  * - packages/shared/src/server/webhooks/validation.ts (validateWebhookURL)
  */
 

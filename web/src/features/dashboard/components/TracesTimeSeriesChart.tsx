@@ -1,4 +1,4 @@
-import { api } from "@/src/utils/api";
+/* eslint-disable @repo/no-style-props, @repo/component-file-structure */
 import { type FilterState } from "@langfuse/shared";
 import { DashboardCard } from "@/src/features/dashboard/components/cards/DashboardCard";
 import { TotalMetric } from "@/src/features/dashboard/components/TotalMetric";
@@ -9,14 +9,12 @@ import {
   dashboardDateRangeAggregationSettings,
 } from "@/src/utils/date-range-utils";
 import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
-import { TabComponent } from "@/src/features/dashboard/components/TabsComponent";
-import {
-  type QueryType,
-  type ViewVersion,
-  mapLegacyUiTableFilterToView,
-} from "@/src/features/query";
-import { Chart } from "@/src/features/widgets/chart-library/Chart";
-import { timeSeriesToDataPoints } from "@/src/features/dashboard/lib/chart-data-adapters";
+import { TabComponent } from "@/src/features/dashboard/components/TabComponent";
+import { type QueryType, type ViewVersion } from "@langfuse/shared/query";
+import { mapLegacyUiTableFilterToView } from "@/src/features/dashboard/lib/dashboardUiTableToViewMapping";
+import { DashboardLineTimeSeriesChart } from "@/src/features/dashboard/components/DashboardLineTimeSeriesChart";
+import { useScheduledDashboardExecuteQuery } from "@/src/features/dashboard/hooks/DashboardQuerySchedulerProvider";
+import { useMemo } from "react";
 
 export const TracesAndObservationsTimeSeriesChart = ({
   className,
@@ -27,6 +25,9 @@ export const TracesAndObservationsTimeSeriesChart = ({
   agg,
   isLoading = false,
   metricsVersion,
+  schedulerId,
+  syncId,
+  sync,
 }: {
   className?: string;
   projectId: string;
@@ -35,7 +36,13 @@ export const TracesAndObservationsTimeSeriesChart = ({
   toTimestamp: Date;
   agg: DashboardDateRangeAggregationOption;
   isLoading?: boolean;
-  metricsVersion?: ViewVersion;
+  metricsVersion: ViewVersion;
+  schedulerId?: string;
+  syncId?: string;
+  sync?: {
+    activeKey: string | undefined;
+    onActiveKeyChange: (key: string | undefined) => void;
+  };
 }) => {
   const isV2 = metricsVersion === "v2";
 
@@ -53,7 +60,7 @@ export const TracesAndObservationsTimeSeriesChart = ({
     orderBy: null,
   };
 
-  const traces = api.dashboard.executeQuery.useQuery(
+  const traces = useScheduledDashboardExecuteQuery(
     {
       projectId,
       query: tracesQuery,
@@ -65,23 +72,24 @@ export const TracesAndObservationsTimeSeriesChart = ({
           skipBatch: true,
         },
       },
+      queryId: `${schedulerId ?? "home:traces-time-series"}:traces`,
       enabled: !isLoading && !isV2,
     },
   );
 
-  const transformedTraces = traces.data
-    ? traces.data.map((item) => {
-        return {
-          ts: new Date(item.time_dimension as any).getTime(),
-          values: [
-            {
-              label: "Traces",
-              value: Number(item.count_count),
-            },
-          ],
-        };
-      })
-    : [];
+  // Memoized on the raw query result so the reference is stable across the
+  // dashboard scheduler's page re-renders — that's what lets the chart's
+  // React.memo bail. (LFE-10549)
+  const transformedTraces = useMemo(
+    () =>
+      traces.data
+        ? traces.data.map((item) => ({
+            ts: new Date(item.time_dimension as any).getTime(),
+            values: [{ label: "Traces", value: Number(item.count_count) }],
+          }))
+        : [],
+    [traces.data],
+  );
 
   const total = traces.data?.reduce((acc, item) => {
     return acc + Number(item.count_count);
@@ -101,7 +109,7 @@ export const TracesAndObservationsTimeSeriesChart = ({
     orderBy: null,
   };
 
-  const observations = api.dashboard.executeQuery.useQuery(
+  const observations = useScheduledDashboardExecuteQuery(
     {
       projectId,
       query: observationsQuery,
@@ -113,37 +121,42 @@ export const TracesAndObservationsTimeSeriesChart = ({
           skipBatch: true,
         },
       },
+      queryId: `${schedulerId ?? "home:traces-time-series"}:observations`,
       enabled: !isLoading,
     },
   );
 
-  const transformedObservations = observations.data
-    ? Object.values(
-        observations.data.reduce<
-          Record<
-            number,
-            {
-              ts: number;
-              values: { label: string; value: number | undefined }[];
-            }
-          >
-        >((acc, item) => {
-          const ts = new Date(item.time_dimension as any).getTime();
-          if (!acc[ts]) {
-            acc[ts] = {
-              ts,
-              values: [],
-            };
-          }
-          acc[ts].values.push({
-            label: item.level as string,
-            value: Number(item.count_count),
-          });
+  const transformedObservations = useMemo(
+    () =>
+      observations.data
+        ? Object.values(
+            observations.data.reduce<
+              Record<
+                number,
+                {
+                  ts: number;
+                  values: { label: string; value: number | undefined }[];
+                }
+              >
+            >((acc, item) => {
+              const ts = new Date(item.time_dimension as any).getTime();
+              if (!acc[ts]) {
+                acc[ts] = {
+                  ts,
+                  values: [],
+                };
+              }
+              acc[ts].values.push({
+                label: item.level as string,
+                value: Number(item.count_count),
+              });
 
-          return acc;
-        }, {}),
-      )
-    : [];
+              return acc;
+            }, {}),
+          )
+        : [],
+    [observations.data],
+  );
 
   const totalObservations = observations.data?.reduce((acc, item) => {
     return acc + Number(item.count_count);
@@ -156,6 +169,7 @@ export const TracesAndObservationsTimeSeriesChart = ({
           data: transformedObservations,
           totalMetric: totalObservations,
           metricDescription: `Observations tracked`,
+          chartMetricLabel: "Observations",
         },
       ]
     : [
@@ -164,12 +178,14 @@ export const TracesAndObservationsTimeSeriesChart = ({
           data: transformedTraces,
           totalMetric: total,
           metricDescription: `Traces tracked`,
+          chartMetricLabel: "Traces",
         },
         {
           tabTitle: "Observations by Level",
           data: transformedObservations,
           totalMetric: totalObservations,
           metricDescription: `Observations tracked`,
+          chartMetricLabel: "Observations",
         },
       ];
 
@@ -197,16 +213,21 @@ export const TracesAndObservationsTimeSeriesChart = ({
                   }
                 />
                 {!isEmptyTimeSeries({ data: item.data }) ? (
-                  <div className="h-80 w-full shrink-0">
-                    <Chart
-                      chartType="LINE_TIME_SERIES"
-                      data={timeSeriesToDataPoints(item.data, agg)}
-                      rowLimit={100}
-                      chartConfig={{
-                        type: "LINE_TIME_SERIES",
-                        show_data_point_dots: false,
-                      }}
-                      legendPosition="above"
+                  // The height is the flex basis (floor); grow lets the chart absorb
+                  // extra tile height. On grid (lg) screens the floor is smaller so
+                  // tiles fit narrow viewports — grow recovers the height above the
+                  // grid's rowHeight floor. (LFE-10813)
+                  <div className="h-80 w-full shrink-0 grow lg:h-56">
+                    <DashboardLineTimeSeriesChart
+                      data={item.data}
+                      label={item.chartMetricLabel}
+                      // Counts are additive: the legend total reconciles with
+                      // the card headline. (LFE-10498)
+                      legendSummary="sum"
+                      syncId={syncId}
+                      sync={sync}
+                      // Additive counts: a bucket without data honestly counts 0. (LFE-10694)
+                      missingValue="zero"
                     />
                   </div>
                 ) : (
@@ -218,6 +239,7 @@ export const TracesAndObservationsTimeSeriesChart = ({
                     }
                     description="Traces contain details about LLM applications and can be created using the SDK."
                     href="https://langfuse.com/docs/observability/overview"
+                    className="h-auto grow"
                   />
                 )}
               </>

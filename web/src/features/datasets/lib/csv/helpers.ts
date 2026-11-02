@@ -1,5 +1,9 @@
 import { parse } from "csv-parse";
-import { type Prisma } from "@langfuse/shared";
+import {
+  isJsonNumberLiteral,
+  parseJsonPrioritised,
+  type Prisma,
+} from "@langfuse/shared";
 import type {
   ParseOptions,
   CsvPreviewResult,
@@ -104,6 +108,20 @@ export async function parseCsvClient(
   options: ParseOptions,
 ): Promise<CsvPreviewResult> {
   return new Promise((resolve, reject) => {
+    const isTruncatedPreview =
+      Boolean(options.isPreview) && file.size > PREVIEW_FILE_SIZE_BYTES;
+    const rejectWithTruncationHint = (error: Error) => {
+      if (isTruncatedPreview && error.message.includes("Quote Not Closed")) {
+        reject(
+          new Error(
+            "The file's single dataset items are too large. CSV imports are intended for text and structured JSON dataset items. Use the UI item editor or API/SDKs for multi-modal or very large dataset items: https://langfuse.com/docs/evaluation/experiments/datasets#multi-modal-dataset-items",
+          ),
+        );
+        return;
+      }
+      reject(error);
+    };
+
     const fileToRead = options.isPreview
       ? file.slice(0, PREVIEW_FILE_SIZE_BYTES)
       : file;
@@ -111,7 +129,12 @@ export async function parseCsvClient(
     const reader = new FileReader();
 
     reader.onload = async () => {
-      const parser = await createParser(options, resolve, reject, file.name);
+      const parser = await createParser(
+        options,
+        resolve,
+        rejectWithTruncationHint,
+        file.name,
+      );
       parser.write(reader.result as string);
       parser.end();
     };
@@ -150,30 +173,36 @@ function inferColumnType(samples: string[]): ColumnType {
 function inferTypeFromValue(value: string): ColumnType {
   if (!value || value.toLowerCase() === "null") return "null";
 
-  try {
-    const parsed = JSON.parse(value);
-    if (Array.isArray(parsed)) return "array";
-    if (typeof parsed === "object") return "json";
-    return typeof parsed as ColumnType;
-  } catch {
-    if (value.toLowerCase() === "true") return "boolean";
-    if (value.toLowerCase() === "false") return "boolean";
-    if (!isNaN(Number(value))) return "number";
-    return "string";
-  }
+  const parsed = parseValue(value);
+  if (Array.isArray(parsed)) return "array";
+  if (typeof parsed === "object" && parsed !== null) return "json";
+  return typeof parsed as ColumnType;
 }
 
 // Helper to parse a single value
 export function parseValue(value: string): Prisma.JsonValue {
-  try {
-    return JSON.parse(value);
-  } catch {
-    if (value === "" || value.toLowerCase() === "null") return null;
-    if (value.toLowerCase() === "true") return true;
-    if (value.toLowerCase() === "false") return false;
-    if (!isNaN(Number(value))) return Number(value);
-    return value;
+  if (value === "" || value.toLowerCase() === "null") return null;
+
+  const parsed = parseJsonPrioritised(value);
+  if (
+    parsed !== undefined &&
+    (parsed !== value || isJsonNumberLiteral(value))
+  ) {
+    return parsed as Prisma.JsonValue;
   }
+
+  if (value.toLowerCase() === "true") return true;
+  if (value.toLowerCase() === "false") return false;
+
+  const numericValue = Number(value);
+  if (
+    Number.isFinite(numericValue) &&
+    Math.abs(numericValue) <= Number.MAX_SAFE_INTEGER
+  ) {
+    return numericValue;
+  }
+
+  return value;
 }
 
 // Helper to parse multiple columns into a record
@@ -217,18 +246,17 @@ export function buildSchemaObject(
       if (csvColumns.length === 1) {
         // Single column: use the raw value
         return [schemaKey, parseValue(row[headerMap.get(csvColumns[0]!)!])];
-      } else {
-        // Multiple columns: create an object
-        return [
-          schemaKey,
-          Object.fromEntries(
-            csvColumns.map((csvColumn) => [
-              csvColumn,
-              parseValue(row[headerMap.get(csvColumn)!]),
-            ]),
-          ),
-        ];
       }
+      // Multiple columns: create an object
+      return [
+        schemaKey,
+        Object.fromEntries(
+          csvColumns.map((csvColumn) => [
+            csvColumn,
+            parseValue(row[headerMap.get(csvColumn)!]),
+          ]),
+        ),
+      ];
     }),
   );
 }

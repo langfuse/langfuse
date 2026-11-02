@@ -1,4 +1,4 @@
-import { z } from "zod/v4";
+import { z } from "zod";
 import { LLMJSONSchema } from "@langfuse/shared";
 
 export const LLMSchemaNameSchema = z
@@ -9,7 +9,7 @@ export const LLMSchemaNameSchema = z
   )
   .min(1, "Name is required");
 
-export const LLMSchemaInput = z.object({
+const LLMSchemaInput = z.object({
   name: LLMSchemaNameSchema,
   description: z.string(),
   schema: LLMJSONSchema,

@@ -1,14 +1,22 @@
+/* eslint-disable @repo/no-style-props, @repo/no-margin-on-root-elements, @repo/component-file-structure, @typescript-eslint/no-use-before-define */
 "use client";
 
 import * as React from "react";
 import { Drawer as DrawerPrimitive } from "vaul";
 
 import { cn } from "@/src/utils/tailwind";
+import { useLayerContainer } from "@/src/context/LayerContext/LayerContext";
+import { type LayerName } from "@/src/context/LayerContext/layers";
 import { useMediaQuery } from "react-responsive";
 import { cva } from "class-variance-authority";
 
 type DrawerProps = React.ComponentProps<typeof DrawerPrimitive.Root> & {
-  forceDirection?: "right" | "bottom" | "responsive";
+  forceDirection?:
+    | "right"
+    | "left"
+    | "bottom"
+    | "responsive"
+    | "responsive-left";
   /**
    * Whether to block text selection in the drawer.
    * Set to false to allow text selection (e.g., in comment sections).
@@ -25,41 +33,49 @@ type DrawerContentProps = React.ComponentPropsWithoutRef<
   position?: "top";
   height?: "default" | "md";
   blockTextSelection?: boolean;
+  portalLayer?: LayerName;
 };
 
 // https://tailwindcss.com/docs/responsive-design
 const TAILWIND_MD_MEDIA_QUERY = 768;
 
-const drawerVariants = cva(
-  "fixed inset-x-0 z-50 flex h-auto flex-col rounded-t-lg border bg-background md:inset-x-auto md:right-0 md:mt-0 md:rounded-l-lg md:rounded-r-none ",
-  {
-    variants: {
-      size: {
-        default: "md:w-1/2 lg:w-2/5 xl:w-1/3 2xl:w-1/4",
-        md: "w-3/5",
-        lg: "w-2/3",
-        full: "w-full",
-      },
-      position: {
-        top: "md:bottom-0 md:top-banner-offset md:max-h-screen-with-banner",
-      },
-      height: {
-        default: "h-1/3 md:h-full",
-        md: "md:h-1/2",
-      },
+const drawerVariants = cva("fixed flex flex-col border bg-modal", {
+  variants: {
+    direction: {
+      bottom:
+        "inset-x-0 bottom-0 h-auto max-h-screen-with-banner min-h-0 rounded-t-lg",
+      left: "bottom-0 left-0 top-banner-offset h-screen-with-banner rounded-r-lg",
+      right:
+        "bottom-0 right-0 top-banner-offset h-screen-with-banner rounded-l-lg",
     },
-    defaultVariants: {
-      size: "default",
-      position: "top",
-      height: "default",
+    size: {
+      default: "w-full md:w-1/2 lg:w-2/5 xl:w-1/3 2xl:w-1/4",
+      md: "w-full md:w-3/5",
+      lg: "w-full md:w-2/3",
+      full: "w-full",
+    },
+    position: {
+      top: "",
+    },
+    height: {
+      default: "",
+      md: "md:h-1/2",
     },
   },
-);
+  defaultVariants: {
+    direction: "bottom",
+    size: "default",
+    position: "top",
+    height: "default",
+  },
+});
 
 const DrawerContext = React.createContext<{
   blockTextSelection: boolean;
+  direction: "right" | "left" | "bottom";
 }>({
   blockTextSelection: false,
+  direction: "bottom",
 });
 
 const useDrawerContext = () => React.useContext(DrawerContext);
@@ -73,15 +89,24 @@ const Drawer = ({
   const isMediumScreen = useMediaQuery({
     query: `(min-width: ${TAILWIND_MD_MEDIA_QUERY}px)`,
   });
-  const direction =
-    forceDirection === "responsive"
-      ? isMediumScreen
-        ? "right"
-        : "bottom"
-      : forceDirection;
+  const direction = (() => {
+    if (forceDirection === "responsive") {
+      if (isMediumScreen) {
+        return "right";
+      }
+      return "bottom";
+    }
+    if (forceDirection === "responsive-left") {
+      if (isMediumScreen) {
+        return "left";
+      }
+      return "bottom";
+    }
+    return forceDirection;
+  })();
 
   return (
-    <DrawerContext.Provider value={{ blockTextSelection }}>
+    <DrawerContext.Provider value={{ blockTextSelection, direction }}>
       <DrawerPrimitive.Root
         shouldScaleBackground={shouldScaleBackground}
         direction={direction}
@@ -94,39 +119,63 @@ Drawer.displayName = "Drawer";
 
 const DrawerTrigger = DrawerPrimitive.Trigger;
 
-const DrawerPortal = DrawerPrimitive.Portal;
+// Route the Vaul portal into the `panel` overlay layer (null until mounted →
+// falls back to <body>, SSR-parity). Layer order, not z-index, stacks it.
+const DrawerPortal = ({
+  layer = "panel",
+  ...props
+}: React.ComponentPropsWithoutRef<typeof DrawerPrimitive.Portal> & {
+  layer?: LayerName;
+}) => {
+  const container = useLayerContainer(layer);
+  return <DrawerPrimitive.Portal container={container} {...props} />;
+};
+DrawerPortal.displayName = "DrawerPortal";
 
 const DrawerClose = DrawerPrimitive.Close;
 
 const DrawerOverlay = React.forwardRef<
-  React.ElementRef<typeof DrawerPrimitive.Overlay>,
+  React.ComponentRef<typeof DrawerPrimitive.Overlay>,
   React.ComponentPropsWithoutRef<typeof DrawerPrimitive.Overlay>
 >(({ className, ...props }, ref) => (
   <DrawerPrimitive.Overlay
     ref={ref}
-    className={cn("fixed inset-0 z-50 bg-primary/20", className)}
+    className={cn("bg-primary/20 fixed inset-0", className)}
     {...props}
   />
 ));
 DrawerOverlay.displayName = DrawerPrimitive.Overlay.displayName;
 
 const DrawerContent = React.forwardRef<
-  React.ElementRef<typeof DrawerPrimitive.Content>,
+  React.ComponentRef<typeof DrawerPrimitive.Content>,
   DrawerContentProps
 >(
   (
-    { className, children, overlayClassName, size, height, position, ...props },
+    {
+      className,
+      children,
+      overlayClassName,
+      size,
+      height,
+      position,
+      portalLayer,
+      ...props
+    },
     ref,
   ) => {
-    const { blockTextSelection } = useDrawerContext();
+    const { blockTextSelection, direction } = useDrawerContext();
 
     return (
-      <DrawerPortal>
+      <DrawerPortal layer={portalLayer}>
         <DrawerOverlay className={overlayClassName} />
         <DrawerPrimitive.Content
           ref={ref}
-          className={cn(drawerVariants({ size, className, height, position }))}
+          className={cn(
+            drawerVariants({ direction, size, height, position }),
+            className,
+          )}
           data-allow-text-selection={!blockTextSelection}
+          data-direction={direction}
           {...props}
         >
           <DrawerDescription className="sr-only">
@@ -163,41 +212,108 @@ const DrawerFooter = ({
 DrawerFooter.displayName = "DrawerFooter";
 
 const DrawerTitle = React.forwardRef<
-  React.ElementRef<typeof DrawerPrimitive.Title>,
+  React.ComponentRef<typeof DrawerPrimitive.Title>,
   React.ComponentPropsWithoutRef<typeof DrawerPrimitive.Title>
 >(({ className, ...props }, ref) => (
   <DrawerPrimitive.Title
     ref={ref}
-    className={cn(
-      "text-lg font-semibold leading-none tracking-tight",
-      className,
-    )}
+    className={cn("text-lg leading-none font-bold tracking-tight", className)}
     {...props}
   />
 ));
 DrawerTitle.displayName = DrawerPrimitive.Title.displayName;
 
 const DrawerDescription = React.forwardRef<
-  React.ElementRef<typeof DrawerPrimitive.Description>,
+  React.ComponentRef<typeof DrawerPrimitive.Description>,
   React.ComponentPropsWithoutRef<typeof DrawerPrimitive.Description>
 >(({ className, ...props }, ref) => (
   <DrawerPrimitive.Description
     ref={ref}
-    className={cn("text-sm text-muted-foreground", className)}
+    className={cn("text-muted-foreground text-sm", className)}
     {...props}
   />
 ));
 DrawerDescription.displayName = DrawerPrimitive.Description.displayName;
 
+type DrawerControllerProps<State = void> = Pick<
+  DrawerProps,
+  | "blockTextSelection"
+  | "dismissible"
+  | "forceDirection"
+  | "modal"
+  | "shouldScaleBackground"
+> & {
+  // Evaluated only when the controller mounts; later callback or dependency changes do not update the drawer.
+  initialState?: () => State | undefined;
+  onOpenChange?: (open: boolean) => boolean | void;
+  children: (control: {
+    isOpen: boolean;
+    openDrawer: (...args: [State] extends [void] ? [] : [state: State]) => void;
+  }) => React.ReactNode;
+  renderContent: (control: {
+    state: State;
+    closeDrawer: () => void;
+    replaceState: (state: State) => void;
+  }) => React.ReactNode;
+};
+
+const DrawerController = <State = void,>({
+  initialState,
+  children,
+  onOpenChange,
+  renderContent,
+  ...drawerProps
+}: DrawerControllerProps<State>) => {
+  const [controllerState, setControllerState] = React.useState<
+    { active: false } | { active: boolean; state: State }
+  >(() => {
+    const state = initialState?.();
+    return state === undefined ? { active: false } : { active: true, state };
+  });
+  const closeDrawer = () =>
+    setControllerState((currentState) =>
+      "state" in currentState
+        ? { ...currentState, active: false }
+        : currentState,
+    );
+
+  return (
+    <Drawer
+      {...drawerProps}
+      open={controllerState.active}
+      onOpenChange={(open) => {
+        if (onOpenChange?.(open) === false) return;
+
+        if (open) return;
+        closeDrawer();
+      }}
+    >
+      {children({
+        isOpen: controllerState.active,
+        openDrawer: (...args) =>
+          setControllerState({ active: true, state: args[0] as State }),
+      })}
+      {"state" in controllerState
+        ? renderContent({
+            state: controllerState.state,
+            closeDrawer,
+            replaceState: (state) =>
+              setControllerState((currentState) =>
+                currentState.active ? { active: true, state } : currentState,
+              ),
+          })
+        : null}
+    </Drawer>
+  );
+};
+
 export {
   Drawer,
-  DrawerPortal,
-  DrawerOverlay,
+  DrawerController,
   DrawerTrigger,
   DrawerClose,
   DrawerContent,
   DrawerHeader,
-  DrawerFooter,
   DrawerTitle,
   DrawerDescription,
 };

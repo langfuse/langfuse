@@ -1,11 +1,22 @@
 {
-  "agentCanUpdateSnapshot": false,
-  "install": "cp .env.dev.example .env && pnpm i",
-  "terminals": [
+  "$schema": "https://www.cursor.com/schemas/environment.schema.json",
+  "name": "langfuse",
+  "user": "ubuntu",
+  "build": {
+    "dockerfile": "Dockerfile",
+    "context": ".."
+  },
+  "install": "bash scripts/agents/setup-cursor-cloud.sh",
+  "start": "bash scripts/agents/start-cursor-cloud.sh",
+  "ports": [
     {
-      "name": "Development Terminal",
-      "command": "pnpm run dev",
-      "description": "Main development terminal running the development server"
+      "name": "Langfuse web",
+      "port": 3000
+    },
+    {
+      "name": "Langfuse worker health",
+      "port": 3030
     }
-  ]
+  ],
+  "agentCanUpdateSnapshot": false
 }

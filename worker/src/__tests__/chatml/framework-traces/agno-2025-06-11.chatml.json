@@ -1,0 +1,408 @@
+{
+  "1f883bb9668167c0": {
+    "input": {
+      "success": false,
+      "error": {
+        "name": "ZodError",
+        "message": "[\n  {\n    \"expected\": \"array\",\n    \"code\": \"invalid_type\",\n    \"path\": [],\n    \"message\": \"Invalid input: expected array, received string\"\n  }\n]"
+      }
+    },
+    "output": {
+      "success": false,
+      "error": {
+        "name": "ZodError",
+        "message": "[\n  {\n    \"expected\": \"object\",\n    \"code\": \"invalid_type\",\n    \"path\": [\n      0\n    ],\n    \"message\": \"Invalid input: expected object, received string\"\n  }\n]"
+      }
+    }
+  },
+  "b38a82eaa62b551e": {
+    "input": {
+      "success": true,
+      "data": [
+        {
+          "tools": [
+            {
+              "name": "duckduckgo_search",
+              "description": "Use this function to search DuckDuckGo for a query.",
+              "parameters": {
+                "type": "object",
+                "properties": {
+                  "query": {
+                    "type": "string",
+                    "description": "(str) The query to search for."
+                  },
+                  "max_results": {
+                    "type": "number",
+                    "description": "(optional, default=5) The maximum number of results to return."
+                  }
+                },
+                "required": [
+                  "query"
+                ]
+              }
+            },
+            {
+              "name": "duckduckgo_news",
+              "description": "Use this function to get the latest news from DuckDuckGo.",
+              "parameters": {
+                "type": "object",
+                "properties": {
+                  "query": {
+                    "type": "string",
+                    "description": "(str) The query to search for."
+                  },
+                  "max_results": {
+                    "type": "number",
+                    "description": "(optional, default=5) The maximum number of results to return."
+                  }
+                },
+                "required": [
+                  "query"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "tools": [
+            {
+              "name": "duckduckgo_search",
+              "description": "Use this function to search DuckDuckGo for a query.",
+              "parameters": {
+                "type": "object",
+                "properties": {
+                  "query": {
+                    "type": "string",
+                    "description": "(str) The query to search for."
+                  },
+                  "max_results": {
+                    "type": "number",
+                    "description": "(optional, default=5) The maximum number of results to return."
+                  }
+                },
+                "required": [
+                  "query"
+                ]
+              }
+            },
+            {
+              "name": "duckduckgo_news",
+              "description": "Use this function to get the latest news from DuckDuckGo.",
+              "parameters": {
+                "type": "object",
+                "properties": {
+                  "query": {
+                    "type": "string",
+                    "description": "(str) The query to search for."
+                  },
+                  "max_results": {
+                    "type": "number",
+                    "description": "(optional, default=5) The maximum number of results to return."
+                  }
+                },
+                "required": [
+                  "query"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "tools": [
+            {
+              "name": "duckduckgo_search",
+              "description": "Use this function to search DuckDuckGo for a query.",
+              "parameters": {
+                "type": "object",
+                "properties": {
+                  "query": {
+                    "type": "string",
+                    "description": "(str) The query to search for."
+                  },
+                  "max_results": {
+                    "type": "number",
+                    "description": "(optional, default=5) The maximum number of results to return."
+                  }
+                },
+                "required": [
+                  "query"
+                ]
+              }
+            },
+            {
+              "name": "duckduckgo_news",
+              "description": "Use this function to get the latest news from DuckDuckGo.",
+              "parameters": {
+                "type": "object",
+                "properties": {
+                  "query": {
+                    "type": "string",
+                    "description": "(str) The query to search for."
+                  },
+                  "max_results": {
+                    "type": "number",
+                    "description": "(optional, default=5) The maximum number of results to return."
+                  }
+                },
+                "required": [
+                  "query"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "tools": [
+            {
+              "name": "duckduckgo_search",
+              "description": "Use this function to search DuckDuckGo for a query.",
+              "parameters": {
+                "type": "object",
+                "properties": {
+                  "query": {
+                    "type": "string",
+                    "description": "(str) The query to search for."
+                  },
+                  "max_results": {
+                    "type": "number",
+                    "description": "(optional, default=5) The maximum number of results to return."
+                  }
+                },
+                "required": [
+                  "query"
+                ]
+              }
+            },
+            {
+              "name": "duckduckgo_news",
+              "description": "Use this function to get the latest news from DuckDuckGo.",
+              "parameters": {
+                "type": "object",
+                "properties": {
+                  "query": {
+                    "type": "string",
+                    "description": "(str) The query to search for."
+                  },
+                  "max_results": {
+                    "type": "number",
+                    "description": "(optional, default=5) The maximum number of results to return."
+                  }
+                },
+                "required": [
+                  "query"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    "output": {
+      "success": true,
+      "data": [
+        {
+          "role": "assistant",
+          "content": "To find out what's currently trending on Twitter, you can visit the following resources:\n\n1. **[Twitter Explore](https://twitter.com/explore/tabs/trending/)**: Explore trending topics, hashtags, and conversations directly on Twitter.\n\n2. **[Trends24](https://trends24.in/united-states/)**: This site lists today's top X (Twitter) trends and hashtags in the United States, including topics like National Guard, Los Angeles, and more.\n\n3. **[Get Day Trends](https://getdaytrends.com/top/tweeted/day/)**: This platform analyzes Twitter data to provide insights on current trending topics and hashtags.\n\n4. **[91 Trends](https://91trends.com/twitter/united-states/)**: Get real-time updates on what's trending on Twitter in the United States.\n\n5. **[Global Twitter Trends](https://globaltwittertrends.com/united-states/)**: Check out what's trending specifically in the United States and view tweets based on those trends.\n\nFeel free to explore these links for the most up-to-date trending topics!",
+          "json": {
+            "annotations": []
+          }
+        }
+      ]
+    }
+  },
+  "ca136de468e156c9": {
+    "input": {
+      "success": true,
+      "data": [
+        {
+          "tools": [
+            {
+              "name": "duckduckgo_search",
+              "description": "Use this function to search DuckDuckGo for a query.",
+              "parameters": {
+                "type": "object",
+                "properties": {
+                  "query": {
+                    "type": "string",
+                    "description": "(str) The query to search for."
+                  },
+                  "max_results": {
+                    "type": "number",
+                    "description": "(optional, default=5) The maximum number of results to return."
+                  }
+                },
+                "required": [
+                  "query"
+                ]
+              }
+            },
+            {
+              "name": "duckduckgo_news",
+              "description": "Use this function to get the latest news from DuckDuckGo.",
+              "parameters": {
+                "type": "object",
+                "properties": {
+                  "query": {
+                    "type": "string",
+                    "description": "(str) The query to search for."
+                  },
+                  "max_results": {
+                    "type": "number",
+                    "description": "(optional, default=5) The maximum number of results to return."
+                  }
+                },
+                "required": [
+                  "query"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "tools": [
+            {
+              "name": "duckduckgo_search",
+              "description": "Use this function to search DuckDuckGo for a query.",
+              "parameters": {
+                "type": "object",
+                "properties": {
+                  "query": {
+                    "type": "string",
+                    "description": "(str) The query to search for."
+                  },
+                  "max_results": {
+                    "type": "number",
+                    "description": "(optional, default=5) The maximum number of results to return."
+                  }
+                },
+                "required": [
+                  "query"
+                ]
+              }
+            },
+            {
+              "name": "duckduckgo_news",
+              "description": "Use this function to get the latest news from DuckDuckGo.",
+              "parameters": {
+                "type": "object",
+                "properties": {
+                  "query": {
+                    "type": "string",
+                    "description": "(str) The query to search for."
+                  },
+                  "max_results": {
+                    "type": "number",
+                    "description": "(optional, default=5) The maximum number of results to return."
+                  }
+                },
+                "required": [
+                  "query"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    "output": {
+      "success": true,
+      "data": [
+        {
+          "role": "assistant",
+          "tool_calls": [
+            {
+              "id": "call_VybxG748CQId8Xxo6wb2pWy1",
+              "name": "duckduckgo_search",
+              "arguments": "{\"query\":\"currently trending on Twitter\"}",
+              "type": "function"
+            }
+          ],
+          "json": {
+            "annotations": []
+          }
+        }
+      ]
+    }
+  },
+  "fc7f61b57ecebbaf": {
+    "input": {
+      "success": false,
+      "error": {
+        "name": "ZodError",
+        "message": "[\n  {\n    \"expected\": \"array\",\n    \"code\": \"invalid_type\",\n    \"path\": [],\n    \"message\": \"Invalid input: expected array, received string\"\n  }\n]"
+      }
+    },
+    "output": {
+      "success": false,
+      "error": {
+        "name": "ZodError",
+        "message": "[\n  {\n    \"expected\": \"object\",\n    \"code\": \"invalid_type\",\n    \"path\": [\n      0\n    ],\n    \"message\": \"Invalid input: expected object, received string\"\n  }\n]"
+      }
+    }
+  },
+  "1cffdfa6fe3412e6": {
+    "input": {
+      "success": false,
+      "error": {
+        "name": "ZodError",
+        "message": "[\n  {\n    \"expected\": \"array\",\n    \"code\": \"invalid_type\",\n    \"path\": [],\n    \"message\": \"Invalid input: expected array, received object\"\n  }\n]"
+      }
+    },
+    "output": {
+      "success": false,
+      "error": {
+        "name": "ZodError",
+        "message": "[\n  {\n    \"expected\": \"string\",\n    \"code\": \"invalid_type\",\n    \"path\": [\n      0,\n      \"tools\",\n      0,\n      \"name\"\n    ],\n    \"message\": \"Invalid input: expected string, received undefined\"\n  },\n  {\n    \"expected\": \"string\",\n    \"code\": \"invalid_type\",\n    \"path\": [\n      1,\n      \"tools\",\n      0,\n      \"name\"\n    ],\n    \"message\": \"Invalid input: expected string, received undefined\"\n  },\n  {\n    \"expected\": \"string\",\n    \"code\": \"invalid_type\",\n    \"path\": [\n      2,\n      \"tools\",\n      0,\n      \"name\"\n    ],\n    \"message\": \"Invalid input: expected string, received undefined\"\n  },\n  {\n    \"expected\": \"string\",\n    \"code\": \"invalid_type\",\n    \"path\": [\n      3,\n      \"tools\",\n      0,\n      \"name\"\n    ],\n    \"message\": \"Invalid input: expected string, received undefined\"\n  },\n  {\n    \"expected\": \"string\",\n    \"code\": \"invalid_type\",\n    \"path\": [\n      4,\n      \"tools\",\n      0,\n      \"name\"\n    ],\n    \"message\": \"Invalid input: expected string, received undefined\"\n  }\n]"
+      }
+    }
+  },
+  "6581e147aec6793a": {
+    "input": {
+      "success": false,
+      "error": {
+        "name": "ZodError",
+        "message": "[\n  {\n    \"expected\": \"array\",\n    \"code\": \"invalid_type\",\n    \"path\": [],\n    \"message\": \"Invalid input: expected array, received object\"\n  }\n]"
+      }
+    },
+    "output": {
+      "success": true,
+      "data": [
+        {
+          "json": {
+            "title": "Twitter. It's what's happening / Twitter",
+            "href": "https://twitter.com/explore/tabs/trending/",
+            "body": "Explore trending topics, hashtags, and conversations on Twitter."
+          }
+        },
+        {
+          "json": {
+            "title": "United States — X (Twitter) trending topics and hashtags today ...",
+            "href": "https://trends24.in/united-states/",
+            "body": "Today's top X (Twitter) trends and hashtags in United States: National Guard, Los Angeles, California, Peaceful, Marines. Explore more locations and trending topics on trends24.in"
+          }
+        },
+        {
+          "json": {
+            "title": "Worldwide • Top Hashtags • Most Tweeted • Day - getdaytrends",
+            "href": "https://getdaytrends.com/top/tweeted/day/",
+            "body": "About Us. We store and analyze Twitter data to bring you insights on what's currently trending and help you keep up with the audience. Find out hot trends, review trend history and browse long-term popular hashtags and topics."
+          }
+        },
+        {
+          "json": {
+            "title": "United States Latest Trending X (Twitter) hashtag and topics",
+            "href": "https://91trends.com/twitter/united-states/",
+            "body": "United States X (Twitter) Trends Now | Top X (Twitter) Trending Topics & Hashtags Today. Get real-time updates on the hottest trending hashtags and topics on X (Twitter) United States with our automated page. Our page utilizes the official X (Twitter) API to refresh the most talked-about hashtags and topics every 30 minutes, ensuring you always have access to the most current trends on the ..."
+          }
+        },
+        {
+          "json": {
+            "title": "Trending on Twitter United States today - Global Twitter Trends",
+            "href": "https://globaltwittertrends.com/united-states/",
+            "body": "Above is the table to show what's trending in United States twitter right now . You can click on any one of the trends to tweet it or view all tweets based on that trend. You can also view the twitter trends of all towns in United States by just searching on the search bar above or by choosing from the provided list of countries and towns."
+          }
+        }
+      ]
+    }
+  }
+}

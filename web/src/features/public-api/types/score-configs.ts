@@ -1,15 +1,18 @@
 import {
   BooleanConfigFields,
   CategoricalConfigFields,
+  TextConfigFields,
   jsonSchema,
   NumericConfigFields,
   paginationMetaResponseZod,
   publicApiPaginationZod,
   ScoreConfigCategory,
+  SCORE_CONFIG_NAME_MAX_LENGTH,
+  ScoreConfigNameSchema,
   validateCategories,
   validateNumericRangeFields,
 } from "@langfuse/shared";
-import { z } from "zod/v4";
+import { z } from "zod";
 
 /**
  * Objects
@@ -17,11 +20,9 @@ import { z } from "zod/v4";
 const CategoriesWithCustomError = jsonSchema.superRefine((categories, ctx) => {
   const parseResult = z.array(ScoreConfigCategory).safeParse(categories);
   if (!parseResult.success) {
-    ctx.addIssue({
-      code: z.ZodIssueCode.custom,
-      message:
-        "Category must be an array of objects with label value pairs, where labels and values are unique.",
-    } as z.core.$ZodIssueCustom);
+    ctx.addIssue(
+      "Category must be an array of objects with label value pairs, where labels and values are unique.",
+    );
     return;
   }
 
@@ -34,7 +35,7 @@ const CategoriesWithCustomError = jsonSchema.superRefine((categories, ctx) => {
 const ScoreConfigBase = z.object({
   id: z.string(),
   projectId: z.string(),
-  name: z.string(),
+  name: z.string().max(SCORE_CONFIG_NAME_MAX_LENGTH),
   description: z.string().nullish(),
   createdAt: z.coerce.date(),
   updatedAt: z.coerce.date(),
@@ -55,6 +56,10 @@ const APIScoreConfig = z
       ...ScoreConfigBase.shape,
       ...BooleanConfigFields.shape,
     }),
+    z.object({
+      ...ScoreConfigBase.shape,
+      ...TextConfigFields.shape,
+    }),
   ])
   .superRefine(validateNumericRangeFields);
 
@@ -67,7 +72,7 @@ export const GetScoreConfigResponse = APIScoreConfig;
 
 // POST /score-configs
 const PostScoreConfigBase = z.object({
-  name: z.string(),
+  name: ScoreConfigNameSchema,
   description: z.string().nullish(),
 });
 
@@ -91,7 +96,16 @@ export const PostScoreConfigBody = z
       // Boolean config API POST body will always infer the categories based on data type
       ...z.object({
         dataType: z.literal("BOOLEAN"),
-        categories: z.undefined(),
+        categories: z.undefined().optional(),
+      }).shape,
+    }),
+    z.object({
+      ...PostScoreConfigBase.shape,
+      ...z.object({
+        dataType: z.literal("TEXT"),
+        categories: z.undefined().optional(),
+        maxValue: z.undefined().nullish(),
+        minValue: z.undefined().nullish(),
       }).shape,
     }),
   ])
@@ -104,18 +118,32 @@ export const PutScoreConfigQuery = z.object({
   configId: z.string(),
 });
 
+const nonEmptyScoreConfigUpdateMessage =
+  "Request body cannot be empty. At least one field must be provided for update.";
+
 export const PutScoreConfigBody = z
   .object({
     isArchived: z.boolean().optional(),
-    name: z.string().min(1).max(35).optional(),
+    name: ScoreConfigNameSchema.optional(),
     minValue: z.number().optional(),
     maxValue: z.number().optional(),
     categories: CategoriesWithCustomError.optional(),
     description: z.string().optional(),
   })
   .refine((data) => Object.keys(data).length > 0, {
-    message:
-      "Request body cannot be empty. At least one field must be provided for update.",
+    message: nonEmptyScoreConfigUpdateMessage,
+  });
+
+export const PutScoreConfigBodyWithoutArchived = z
+  .object({
+    name: ScoreConfigNameSchema.optional(),
+    minValue: z.number().optional(),
+    maxValue: z.number().optional(),
+    categories: CategoriesWithCustomError.optional(),
+    description: z.string().optional(),
+  })
+  .refine((data) => Object.keys(data).length > 0, {
+    message: nonEmptyScoreConfigUpdateMessage,
   });
 
 export const PutScoreConfigResponse = APIScoreConfig;

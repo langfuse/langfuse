@@ -1,8 +1,9 @@
-import { api } from "@/src/utils/api";
+import { api, shouldRetryResourceQuery } from "@/src/utils/api";
 import {
   type AnnotationQueueItem,
   AnnotationQueueObjectType,
 } from "@langfuse/shared";
+import { useEventsTraceData, useReadPath } from "@/src/features/events";
 
 export interface ObjectDataHook<TData> {
   data: TData | undefined;
@@ -15,41 +16,53 @@ export const useAnnotationObjectData = (
   item: (AnnotationQueueItem & { parentTraceId?: string | null }) | null,
   projectId: string,
 ): ObjectDataHook<any> => {
+  const { isV4 } = useReadPath();
   const traceId = item?.parentTraceId ?? item?.objectId;
 
+  const isTraceOrObservation =
+    !!item &&
+    (item.objectType === AnnotationQueueObjectType.TRACE ||
+      item.objectType === AnnotationQueueObjectType.OBSERVATION);
+
+  // Old path: fetch from traces table (beta OFF)
   const traceQuery = api.traces.byIdWithObservationsAndScores.useQuery(
     { traceId: traceId as string, projectId },
     {
-      enabled:
-        !!item &&
-        (item.objectType === AnnotationQueueObjectType.TRACE ||
-          item.objectType === AnnotationQueueObjectType.OBSERVATION),
-      retry(failureCount, error) {
-        if (
-          error.data?.code === "UNAUTHORIZED" ||
-          error.data?.code === "NOT_FOUND"
-        )
-          return false;
-        return failureCount < 3;
-      },
+      enabled: isTraceOrObservation && !isV4,
+      retry: shouldRetryResourceQuery,
     },
   );
 
+  const eventsData = useEventsTraceData({
+    projectId,
+    traceId: traceId ?? "",
+    enabled: isTraceOrObservation && isV4,
+  });
+
+  const isSession =
+    !!item && item.objectType === AnnotationQueueObjectType.SESSION;
+
+  // Old path: fetch from traces table (beta OFF)
   const sessionQuery = api.sessions.byIdWithScores.useQuery(
     {
       sessionId: item?.objectId as string,
       projectId,
     },
     {
-      enabled: !!item && item.objectType === AnnotationQueueObjectType.SESSION,
-      retry(failureCount, error) {
-        if (
-          error.data?.code === "UNAUTHORIZED" ||
-          error.data?.code === "NOT_FOUND"
-        )
-          return false;
-        return failureCount < 3;
-      },
+      enabled: isSession && !isV4,
+      retry: shouldRetryResourceQuery,
+    },
+  );
+
+  // New path: fetch from events table (beta ON)
+  const sessionEventsQuery = api.sessions.byIdWithScoresFromEvents.useQuery(
+    {
+      sessionId: item?.objectId as string,
+      projectId,
+    },
+    {
+      enabled: isSession && isV4,
+      retry: shouldRetryResourceQuery,
     },
   );
 
@@ -64,6 +77,14 @@ export const useAnnotationObjectData = (
   switch (item.objectType) {
     case AnnotationQueueObjectType.TRACE:
     case AnnotationQueueObjectType.OBSERVATION:
+      if (isV4) {
+        return {
+          data: eventsData.data,
+          isLoading: eventsData.isLoading,
+          isError: !!eventsData.error,
+          errorCode: (eventsData.error as any)?.data?.code,
+        };
+      }
       return {
         data: traceQuery.data,
         isLoading: traceQuery.isLoading,
@@ -71,6 +92,14 @@ export const useAnnotationObjectData = (
         errorCode: traceQuery.error?.data?.code,
       };
     case AnnotationQueueObjectType.SESSION:
+      if (isV4) {
+        return {
+          data: sessionEventsQuery.data,
+          isLoading: sessionEventsQuery.isLoading,
+          isError: sessionEventsQuery.isError,
+          errorCode: sessionEventsQuery.error?.data?.code,
+        };
+      }
       return {
         data: sessionQuery.data,
         isLoading: sessionQuery.isLoading,

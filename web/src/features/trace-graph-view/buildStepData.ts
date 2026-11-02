@@ -5,16 +5,15 @@ import {
   LANGFUSE_END_NODE_NAME,
 } from "./types";
 
-function buildStepGroups(
+function takeNextStepGroup(
   observations: AgentGraphDataResponse[],
   timestampCache: Map<string, { start: number; end: number }>,
-): AgentGraphDataResponse[][] {
-  if (observations.length === 0) return [];
-
-  const stepGroups: AgentGraphDataResponse[][] = [];
-
+): {
+  cleanedGroup: AgentGraphDataResponse[];
+  unprocessed: AgentGraphDataResponse[];
+} {
   // create observation group and put the beginning observation in it
-  let currentGroup = [observations[0]];
+  const currentGroup = [observations[0]];
   const remainingObs = observations.slice(1);
 
   // Track max end time for early termination optimization
@@ -66,15 +65,43 @@ function buildStepGroups(
     }
   });
 
-  stepGroups.push(cleanedGroup);
+  // Inverted or otherwise invalid time ranges can cause cleanup to remove every
+  // observation. Keep the original group so grouping always makes progress.
+  if (cleanedGroup.length === 0) {
+    cleanedGroup.push(...currentGroup);
+    currentGroup.forEach((o) => processedIds.add(o.id));
+  }
 
-  // Optimization: use incrementally built processedIds set
-  const unprocessed = observations.filter((obs) => !processedIds.has(obs.id));
+  return {
+    cleanedGroup,
+    unprocessed: observations.filter((obs) => !processedIds.has(obs.id)),
+  };
+}
 
-  // process remaining observations in recursion
-  if (unprocessed.length > 0) {
-    const remainingStepGroups = buildStepGroups(unprocessed, timestampCache);
-    stepGroups.push(...remainingStepGroups);
+function buildStepGroups(
+  observations: AgentGraphDataResponse[],
+  timestampCache: Map<string, { start: number; end: number }>,
+): AgentGraphDataResponse[][] {
+  const stepGroups: AgentGraphDataResponse[][] = [];
+  let remaining = observations;
+
+  // Iterative so a long sequential chain (one group per observation) cannot
+  // overflow the call stack.
+  while (remaining.length > 0) {
+    const remainingCount = remaining.length;
+    const { cleanedGroup, unprocessed } = takeNextStepGroup(
+      remaining,
+      timestampCache,
+    );
+
+    if (cleanedGroup.length === 0 || unprocessed.length >= remainingCount) {
+      stepGroups.push([remaining[0]]);
+      remaining = remaining.slice(1);
+      continue;
+    }
+
+    stepGroups.push(cleanedGroup);
+    remaining = unprocessed;
   }
 
   return stepGroups;
@@ -137,8 +164,12 @@ function assignGlobalTimingSteps(
       const ancestors = new Set<string>();
       let current = obsMap.get(obsId);
       while (current?.parentObservationId) {
-        ancestors.add(current.parentObservationId);
-        current = obsMap.get(current.parentObservationId);
+        const parentId = current.parentObservationId;
+        // Cycle guard: parent pointers are acyclic by DB schema, but a malformed
+        // chain (parent already seen) would otherwise loop this walk forever.
+        if (ancestors.has(parentId)) break;
+        ancestors.add(parentId);
+        current = obsMap.get(parentId);
       }
       return ancestors;
     };

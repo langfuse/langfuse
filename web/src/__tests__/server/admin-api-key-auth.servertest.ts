@@ -1,5 +1,5 @@
 import { type NextApiRequest } from "next";
-import { verifyAuth } from "@/src/features/public-api/server/createAuthedProjectAPIRoute";
+import { verifyAuth } from "@/src/features/public-api/server/verifyProjectApiKeyAuth";
 import { prisma } from "@langfuse/shared/src/db";
 import { env } from "@/src/env.mjs";
 import {
@@ -46,7 +46,7 @@ describe("Admin API Key Authentication", () => {
         headers: {
           authorization: auth,
         },
-      } as NextApiRequest;
+      } as unknown as NextApiRequest;
 
       const result = await verifyAuth(mockReq, false);
 
@@ -60,7 +60,7 @@ describe("Admin API Key Authentication", () => {
         headers: {
           authorization: "Basic invalid",
         },
-      } as NextApiRequest;
+      } as unknown as NextApiRequest;
 
       await expect(verifyAuth(mockReq, false)).rejects.toEqual({
         status: 401,
@@ -75,6 +75,7 @@ describe("Admin API Key Authentication", () => {
       const publicKey = `pk-org-key-${timestamp}`;
       const secretKey = `sk-org-key-${timestamp}`;
 
+      // eslint-disable-next-line @repo/no-restricted-prisma-writes -- needs a project-scoped key without a projectId, which createApiKey never produces.
       await prisma.apiKey.create({
         data: {
           id: uniqueId,
@@ -94,7 +95,7 @@ describe("Admin API Key Authentication", () => {
             "Basic " +
             Buffer.from(`${publicKey}:${secretKey}`).toString("base64"),
         },
-      } as NextApiRequest;
+      } as unknown as NextApiRequest;
 
       await expect(verifyAuth(mockReq, false)).rejects.toMatchObject({
         status: 401,
@@ -104,31 +105,34 @@ describe("Admin API Key Authentication", () => {
   });
 
   describe("Admin API Key Auth (isAdminApiKeyAuthAllowed = true)", () => {
-    it("should successfully authenticate with valid admin API key", async () => {
-      const mockReq = {
-        headers: {
-          authorization: `Bearer ${ADMIN_API_KEY}`,
-          "x-langfuse-admin-api-key": ADMIN_API_KEY,
-          "x-langfuse-project-id": projectId,
-        },
-      } as NextApiRequest;
+    it.each(["x-langfuse-project-id", "langfuse-project-id"])(
+      "should authenticate an admin API key with %s",
+      async (projectIdHeader) => {
+        const mockReq = {
+          headers: {
+            authorization: `Bearer ${ADMIN_API_KEY}`,
+            "x-langfuse-admin-api-key": ADMIN_API_KEY,
+            [projectIdHeader]: projectId,
+          },
+        } as unknown as NextApiRequest;
 
-      const result = await verifyAuth(mockReq, true);
+        const result = await verifyAuth(mockReq, true);
 
-      expect(result.validKey).toBe(true);
-      expect(result.scope.projectId).toBe(projectId);
-      expect(result.scope.orgId).toBe(orgId);
-      expect(result.scope.apiKeyId).toBe("ADMIN_API_KEY");
-      expect(result.scope.publicKey).toBe("ADMIN_API_KEY");
-      expect(result.scope.accessLevel).toBe("project");
-    });
+        expect(result.validKey).toBe(true);
+        expect(result.scope.projectId).toBe(projectId);
+        expect(result.scope.orgId).toBe(orgId);
+        expect(result.scope.apiKeyId).toBe("ADMIN_API_KEY");
+        expect(result.scope.publicKey).toBe("ADMIN_API_KEY");
+        expect(result.scope.accessLevel).toBe("project");
+      },
+    );
 
     it("should fall back to basic auth when no Bearer header", async () => {
       const mockReq = {
         headers: {
           authorization: auth,
         },
-      } as NextApiRequest;
+      } as unknown as NextApiRequest;
 
       const result = await verifyAuth(mockReq, true);
 
@@ -142,7 +146,7 @@ describe("Admin API Key Authentication", () => {
         headers: {
           authorization: auth,
         },
-      } as NextApiRequest;
+      } as unknown as NextApiRequest;
 
       const result = await verifyAuth(mockReq, true);
 
@@ -159,7 +163,7 @@ describe("Admin API Key Authentication", () => {
           "x-langfuse-admin-api-key": ADMIN_API_KEY,
           "x-langfuse-project-id": projectId,
         },
-      } as NextApiRequest;
+      } as unknown as NextApiRequest;
 
       await expect(verifyAuth(mockReq, true)).rejects.toEqual({
         status: 403,
@@ -178,7 +182,7 @@ describe("Admin API Key Authentication", () => {
           "x-langfuse-admin-api-key": "some-key",
           "x-langfuse-project-id": projectId,
         },
-      } as NextApiRequest;
+      } as unknown as NextApiRequest;
 
       await expect(verifyAuth(mockReq, true)).rejects.toEqual({
         status: 500,
@@ -195,7 +199,7 @@ describe("Admin API Key Authentication", () => {
           "x-langfuse-admin-api-key": ADMIN_API_KEY,
           "x-langfuse-project-id": projectId,
         },
-      } as NextApiRequest;
+      } as unknown as NextApiRequest;
 
       await expect(verifyAuth(mockReq, true)).rejects.toEqual({
         status: 401,
@@ -210,7 +214,7 @@ describe("Admin API Key Authentication", () => {
           "x-langfuse-admin-api-key": "wrong-key",
           "x-langfuse-project-id": projectId,
         },
-      } as NextApiRequest;
+      } as unknown as NextApiRequest;
 
       await expect(verifyAuth(mockReq, true)).rejects.toEqual({
         status: 401,
@@ -225,7 +229,7 @@ describe("Admin API Key Authentication", () => {
           "x-langfuse-admin-api-key": "different-key-2",
           "x-langfuse-project-id": projectId,
         },
-      } as NextApiRequest;
+      } as unknown as NextApiRequest;
 
       await expect(verifyAuth(mockReq, true)).rejects.toEqual({
         status: 401,
@@ -233,18 +237,18 @@ describe("Admin API Key Authentication", () => {
       });
     });
 
-    it("should fail without x-langfuse-project-id header", async () => {
+    it("should fail without either project ID header", async () => {
       const mockReq = {
         headers: {
           authorization: `Bearer ${ADMIN_API_KEY}`,
           "x-langfuse-admin-api-key": ADMIN_API_KEY,
         },
-      } as NextApiRequest;
+      } as unknown as NextApiRequest;
 
       await expect(verifyAuth(mockReq, true)).rejects.toEqual({
         status: 400,
         message:
-          "x-langfuse-project-id header is required for admin API key authentication",
+          "langfuse-project-id header is required for admin API key authentication",
       });
     });
 
@@ -255,7 +259,7 @@ describe("Admin API Key Authentication", () => {
           "x-langfuse-admin-api-key": ADMIN_API_KEY,
           "x-langfuse-project-id": "non-existent-project",
         },
-      } as NextApiRequest;
+      } as unknown as NextApiRequest;
 
       await expect(verifyAuth(mockReq, true)).rejects.toEqual({
         status: 404,
@@ -269,7 +273,7 @@ describe("Admin API Key Authentication", () => {
           authorization: auth,
           "x-langfuse-project-id": projectId,
         },
-      } as NextApiRequest;
+      } as unknown as NextApiRequest;
 
       const result = await verifyAuth(mockReq, true);
 

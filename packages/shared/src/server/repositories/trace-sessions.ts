@@ -1,6 +1,17 @@
-import z from "zod/v4";
+import z from "zod";
 import { prisma } from "../../db";
 import { singleFilter } from "../../interfaces/filters";
+
+/**
+ * Session ids come from ClickHouse, whose strings may contain NUL bytes.
+ * Postgres text cannot, and rejects any query that binds one, so such a
+ * session can never have a trace_sessions row. Check before querying.
+ */
+export const isStorableTraceSessionId = (sessionId: string) =>
+  !sessionId.includes("\u0000");
+
+export const storableTraceSessionIds = (sessionIds: string[]) =>
+  sessionIds.filter(isStorableTraceSessionId);
 
 export const getPublicSessionsFilter = async (
   projectId: string,
@@ -68,9 +79,7 @@ export const getPublicSessionsFilter = async (
 
   return filter
     ? [
-        ...filter.filter(
-          (f) => f.column !== "⭐️" && f.column !== "bookmarked",
-        ),
+        ...filter.filter((f) => f.column !== "⭐️" && f.column !== "bookmarked"),
         ...additionalBookmarkFilter,
       ]
     : [...additionalBookmarkFilter];

@@ -1,18 +1,58 @@
-/** @jest-environment node */
-
-import { makeZodVerifiedAPICall } from "@/src/__tests__/test-utils";
+import { randomUUID } from "crypto";
+import {
+  makeAPICall,
+  makeZodVerifiedAPICall,
+} from "@/src/__tests__/test-utils";
 import {
   GetCommentsV1Response,
   GetCommentV1Response,
   PostCommentsV1Response,
 } from "@/src/features/public-api/types/comments";
 import { prisma } from "@langfuse/shared/src/db";
-import { z } from "zod/v4";
+import { z } from "zod";
 import {
   createObservationsCh,
   createTracesCh,
+  createObservation,
+  createTrace,
+  createEvent,
+  createEventsCh,
 } from "@langfuse/shared/src/server";
-import { createObservation, createTrace } from "@langfuse/shared/src/server";
+
+const seedProjectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
+
+// POST /api/public/comments only accepts an authorUserId that belongs to a
+// member of the project's organization. CI provisions the seed project through
+// LANGFUSE_INIT_* instead of the Postgres seeder, so seeded ids such as
+// "user-1" do not exist there. Create a member of the project's organization
+// and use its id wherever a valid comment author is needed.
+let orgMemberUserId: string;
+
+beforeAll(async () => {
+  const project = await prisma.project.findUniqueOrThrow({
+    where: { id: seedProjectId },
+    select: { orgId: true },
+  });
+
+  const user = await prisma.user.create({
+    data: {
+      name: "Comments API Author",
+      email: `comments-api-author-${randomUUID()}@langfuse.com`,
+    },
+  });
+  orgMemberUserId = user.id;
+
+  await prisma.organizationMembership.create({
+    data: { orgId: project.orgId, userId: orgMemberUserId, role: "MEMBER" },
+  });
+});
+
+afterAll(async () => {
+  await prisma.organizationMembership.deleteMany({
+    where: { userId: orgMemberUserId },
+  });
+  await prisma.user.delete({ where: { id: orgMemberUserId } });
+});
 
 describe("Create and get comments", () => {
   beforeAll(async () => {
@@ -37,7 +77,7 @@ describe("Create and get comments", () => {
         objectId: "1234",
         objectType: "TRACE",
         projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
-        authorUserId: "user-1",
+        authorUserId: orgMemberUserId,
       },
     );
 
@@ -56,11 +96,132 @@ describe("Create and get comments", () => {
       objectId: "1234",
       objectType: "TRACE",
       content: "hello",
-      authorUserId: "user-1",
+      authorUserId: orgMemberUserId,
+    });
+  });
+
+  it("should create an observation comment when objectStartTime is in the observation's minute", async () => {
+    const startTime = new Date("2024-05-15T12:00:00.000Z");
+    // Same minute, different second: the lookup floors to the minute, so this
+    // still resolves the observation.
+    const sameMinuteStartTime = new Date("2024-05-15T12:00:45.000Z");
+    const observationId = randomUUID();
+    // Seed both tables so the lookup resolves regardless of the v4 write-mode
+    // routing the test environment happens to use.
+    await Promise.all([
+      createEventsCh([
+        createEvent({
+          id: observationId,
+          span_id: observationId,
+          project_id: seedProjectId,
+          start_time: startTime,
+          type: "GENERATION",
+        }),
+      ]),
+      createObservationsCh([
+        createObservation({
+          id: observationId,
+          project_id: seedProjectId,
+          start_time: startTime,
+          type: "GENERATION",
+        }),
+      ]),
+    ]);
+
+    const commentResponse = await makeZodVerifiedAPICall(
+      PostCommentsV1Response,
+      "POST",
+      "/api/public/comments",
+      {
+        content: "bounded observation comment",
+        objectId: observationId,
+        objectType: "OBSERVATION",
+        projectId: seedProjectId,
+        objectStartTime: sameMinuteStartTime.toISOString(),
+        authorUserId: orgMemberUserId,
+      },
+    );
+
+    const { id: commentId } = commentResponse.body;
+
+    const response = await makeZodVerifiedAPICall(
+      GetCommentV1Response,
+      "GET",
+      `/api/public/comments/${commentId}`,
+    );
+
+    expect(response.status).toBe(200);
+    expect(response.body).toMatchObject({
+      id: commentId,
+      projectId: seedProjectId,
+      objectId: observationId,
+      objectType: "OBSERVATION",
+      content: "bounded observation comment",
+    });
+  });
+
+  it("should still create an observation comment when objectStartTime is a wrong/stale hint", async () => {
+    const actualStartTime = new Date("2024-05-15T12:00:00.000Z");
+    // A different minute than the observation: the bounded lookup misses, but the
+    // hint falls back to an unbounded lookup, so the comment is still created.
+    const wrongStartTime = new Date("2024-05-15T12:02:00.000Z");
+    const observationId = randomUUID();
+    // Seed both tables so the lookup resolves regardless of the v4 write-mode
+    // routing the test environment happens to use.
+    await Promise.all([
+      createEventsCh([
+        createEvent({
+          id: observationId,
+          span_id: observationId,
+          project_id: seedProjectId,
+          start_time: actualStartTime,
+          type: "GENERATION",
+        }),
+      ]),
+      createObservationsCh([
+        createObservation({
+          id: observationId,
+          project_id: seedProjectId,
+          start_time: actualStartTime,
+          type: "GENERATION",
+        }),
+      ]),
+    ]);
+
+    const commentResponse = await makeZodVerifiedAPICall(
+      PostCommentsV1Response,
+      "POST",
+      "/api/public/comments",
+      {
+        content: "wrong-hint observation comment",
+        objectId: observationId,
+        objectType: "OBSERVATION",
+        projectId: seedProjectId,
+        objectStartTime: wrongStartTime.toISOString(),
+        authorUserId: orgMemberUserId,
+      },
+    );
+
+    const { id: commentId } = commentResponse.body;
+
+    const response = await makeZodVerifiedAPICall(
+      GetCommentV1Response,
+      "GET",
+      `/api/public/comments/${commentId}`,
+    );
+
+    expect(response.status).toBe(200);
+    expect(response.body).toMatchObject({
+      id: commentId,
+      projectId: seedProjectId,
+      objectId: observationId,
+      objectType: "OBSERVATION",
+      content: "wrong-hint observation comment",
     });
   });
 
   it("should fail to create comment if reference object does not exist", async () => {
+    expect.assertions(2); // Ensure that we confirm two things
     try {
       await makeZodVerifiedAPICall(
         z.object({
@@ -77,8 +238,11 @@ describe("Create and get comments", () => {
         },
       );
     } catch (error) {
-      expect((error as Error).message).toBe(
-        `API call did not return 200, returned status 404, body {\"message\":\"Reference object, TRACE: invalid-trace-id not found in Clickhouse. Skipping creating comment.\",\"error\":\"LangfuseNotFoundError\"}`,
+      expect((error as Error).message).toContain(
+        `API call did not return 200, returned status 404`,
+      );
+      expect((error as Error).message).toContain(
+        `TRACE: invalid-trace-id not found`,
       );
     }
   });
@@ -152,7 +316,9 @@ describe("GET /api/public/comments API Endpoint", () => {
 
     await createObservationsCh([observation]);
 
-    await prisma.comment.deleteMany();
+    await prisma.comment.deleteMany({
+      where: { projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a" },
+    });
     await prisma.comment.createMany({
       data: [
         {
@@ -362,7 +528,7 @@ describe("Public API does NOT process mentions", () => {
         objectId: "no-mention-processing-trace",
         objectType: "TRACE",
         projectId: "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
-        authorUserId: "user-1",
+        authorUserId: orgMemberUserId,
       },
     );
 
@@ -379,5 +545,142 @@ describe("Public API does NOT process mentions", () => {
     expect(response.body.content).toBe(
       "Hey @[FakeAdmin](user:user-1) and @[InvalidUser](user:invalid-id), check this!",
     );
+  });
+});
+
+describe("POST /api/public/comments authorUserId scoping", () => {
+  const projectId = seedProjectId;
+  const objectId = "author-scoping-trace";
+  let otherOrgId: string;
+  let otherOrgUserId: string;
+
+  beforeAll(async () => {
+    await createTracesCh([
+      createTrace({
+        name: "trace-for-author-scoping",
+        project_id: projectId,
+        id: objectId,
+      }),
+    ]);
+
+    const otherOrg = await prisma.organization.create({
+      data: { name: `Comment Author Scoping Org ${randomUUID()}` },
+    });
+    otherOrgId = otherOrg.id;
+
+    const otherOrgUser = await prisma.user.create({
+      data: {
+        name: "Other Org User",
+        email: `comment-author-scoping-${randomUUID()}@langfuse.com`,
+      },
+    });
+    otherOrgUserId = otherOrgUser.id;
+
+    await prisma.organizationMembership.create({
+      data: { orgId: otherOrgId, userId: otherOrgUserId, role: "MEMBER" },
+    });
+  });
+
+  afterAll(async () => {
+    await prisma.comment.deleteMany({ where: { projectId, objectId } });
+    await prisma.organizationMembership.deleteMany({
+      where: { userId: otherOrgUserId },
+    });
+    await prisma.organization.delete({ where: { id: otherOrgId } });
+    await prisma.user.delete({ where: { id: otherOrgUserId } });
+  });
+
+  it("should reject an authorUserId that is not a member of the project's organization", async () => {
+    const response = await makeAPICall<{ message: string; error: string }>(
+      "POST",
+      "/api/public/comments",
+      {
+        content: "spoofed comment",
+        objectId,
+        objectType: "TRACE",
+        projectId,
+        authorUserId: otherOrgUserId,
+      },
+    );
+
+    expect(response.status).toBe(400);
+    expect(response.body.error).toBe("InvalidRequestError");
+
+    const comments = await prisma.comment.findMany({
+      where: { projectId, authorUserId: otherOrgUserId },
+    });
+    expect(comments).toHaveLength(0);
+  });
+
+  it("should not disclose whether a rejected authorUserId exists", async () => {
+    const crossOrgResponse = await makeAPICall<{ message: string }>(
+      "POST",
+      "/api/public/comments",
+      {
+        content: "spoofed comment",
+        objectId,
+        objectType: "TRACE",
+        projectId,
+        authorUserId: otherOrgUserId,
+      },
+    );
+
+    const unknownUserResponse = await makeAPICall<{ message: string }>(
+      "POST",
+      "/api/public/comments",
+      {
+        content: "spoofed comment",
+        objectId,
+        objectType: "TRACE",
+        projectId,
+        authorUserId: `does-not-exist-${randomUUID()}`,
+      },
+    );
+
+    expect(crossOrgResponse.status).toBe(400);
+    expect(unknownUserResponse.status).toBe(400);
+    expect(crossOrgResponse.body.message).toBe(
+      unknownUserResponse.body.message,
+    );
+  });
+
+  it("should accept an authorUserId of an organization member without project-level ownership", async () => {
+    // orgMemberUserId has an organization membership but no project membership.
+    const commentResponse = await makeZodVerifiedAPICall(
+      PostCommentsV1Response,
+      "POST",
+      "/api/public/comments",
+      {
+        content: "comment by org member",
+        objectId,
+        objectType: "TRACE",
+        projectId,
+        authorUserId: orgMemberUserId,
+      },
+    );
+
+    const comment = await prisma.comment.findUnique({
+      where: { id: commentResponse.body.id },
+    });
+    expect(comment?.authorUserId).toBe(orgMemberUserId);
+  });
+
+  it("should still create comments without an authorUserId", async () => {
+    const commentResponse = await makeZodVerifiedAPICall(
+      PostCommentsV1Response,
+      "POST",
+      "/api/public/comments",
+      {
+        content: "comment without author",
+        objectId,
+        objectType: "TRACE",
+        projectId,
+      },
+    );
+
+    const comment = await prisma.comment.findUnique({
+      where: { id: commentResponse.body.id },
+    });
+    expect(comment?.authorUserId).toBeNull();
   });
 });

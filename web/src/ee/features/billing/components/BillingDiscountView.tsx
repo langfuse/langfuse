@@ -1,18 +1,17 @@
 import { api } from "@/src/utils/api";
-import { Badge } from "@/src/components/ui/badge";
-import { useBillingInformation } from "@/src/ee/features/billing/components/useBillingInformation";
+import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { BillingDiscountCodeButton } from "@/src/ee/features/billing/components/BillingDiscountCodeButton";
 
-export const BillingDiscountView = () => {
-  const { organization } = useBillingInformation();
-
-  const shouldRenderComponent = Boolean(
-    organization?.cloudConfig?.stripe?.customerId,
-  );
-
+export const BillingDiscountView = ({
+  orgId,
+  hasStripeCustomer,
+}: {
+  orgId: string;
+  hasStripeCustomer: boolean;
+}) => {
   const { data } = api.cloudBilling.getSubscriptionInfo.useQuery(
-    { orgId: organization?.id ?? "" },
-    { enabled: Boolean(organization?.id && shouldRenderComponent) },
+    { orgId },
+    { enabled: hasStripeCustomer },
   );
 
   const discounts = data?.discounts ?? [];
@@ -31,23 +30,17 @@ export const BillingDiscountView = () => {
     }
   };
 
-  // Hide promotion code view and button when user is on Hobby Plan
-  // Hobby plan users don't have an active subscription ID
-  if (!organization?.cloudConfig?.stripe?.activeSubscriptionId) {
-    return null;
-  }
-
-  if (!shouldRenderComponent) {
+  if (!hasStripeCustomer) {
     return (
       <div className="flex items-center">
-        <BillingDiscountCodeButton orgId={organization?.id} />
+        <BillingDiscountCodeButton orgId={orgId} />
       </div>
     );
   }
 
   return (
     <div className="flex flex-col gap-2">
-      <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+      <div className="text-muted-foreground flex flex-wrap items-center gap-2 text-sm">
         <span className="mr-1">Discounts:</span>
         {discounts.map((d) => {
           const labelParts: string[] = [];
@@ -58,12 +51,10 @@ export const BillingDiscountView = () => {
           else labelParts.push(`${formatAmount(d.value, d.currency)} off`);
 
           return (
-            <Badge key={d.id} variant="secondary" className="font-normal">
-              {labelParts.join(" · ")}
-            </Badge>
+            <Badge key={d.id} color="filled" text={labelParts.join(" · ")} />
           );
         })}
-        <BillingDiscountCodeButton orgId={organization?.id} />
+        <BillingDiscountCodeButton orgId={orgId} />
       </div>
     </div>
   );

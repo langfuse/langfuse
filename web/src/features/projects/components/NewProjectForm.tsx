@@ -1,5 +1,5 @@
 import { Button } from "@/src/components/ui/button";
-import type * as z from "zod/v4";
+import type * as z from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import {
@@ -11,11 +11,10 @@ import {
   FormMessage,
 } from "@/src/components/ui/form";
 import { Input } from "@/src/components/ui/input";
-import { api } from "@/src/utils/api";
-import { useRouter } from "next/router";
+import { api, reportTrpcErrorWithoutToast } from "@/src/utils/api";
 import { useSession } from "next-auth/react";
-import { projectNameSchema } from "@/src/features/auth/lib/projectNameSchema";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { projectNameSchema } from "@/src/features/auth";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 
 export const NewProjectForm = ({
   orgId,
@@ -33,11 +32,9 @@ export const NewProjectForm = ({
       name: "",
     },
   });
-  const router = useRouter();
   const createProjectMutation = api.projects.create.useMutation({
-    onSuccess: (newProject) => {
-      void updateSession();
-      void router.push(`/project/${newProject.id}/settings`);
+    onSuccess: () => {
+      updateSession();
     },
     onError: (error) => form.setError("name", { message: error.message }),
   });
@@ -53,9 +50,7 @@ export const NewProjectForm = ({
         onSuccess(project.id);
         form.reset();
       })
-      .catch((error) => {
-        console.error(error);
-      });
+      .catch((error) => reportTrpcErrorWithoutToast(error, "projects"));
   }
   return (
     <Form {...form}>
@@ -66,7 +61,7 @@ export const NewProjectForm = ({
         onKeyDown={(e) => {
           if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
             e.preventDefault();
-            void form.handleSubmit(onSubmit)();
+            form.handleSubmit(onSubmit)();
           }
         }}
       >

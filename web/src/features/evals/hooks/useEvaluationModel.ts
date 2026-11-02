@@ -1,4 +1,5 @@
 import { api } from "@/src/utils/api";
+import { getEnabledModelParamState } from "@/src/utils/getFinalModelParams";
 import {
   type ModelParams,
   ZodModelConfig,
@@ -32,19 +33,9 @@ export function useEvaluationModel(
         return;
       }
 
-      const modelConfig = Object.entries(parsedModelParams.data).reduce(
-        (acc, [key, value]) => {
-          return {
-            ...acc,
-            [key]: { value, enabled: true },
-          };
-        },
-        {} as UIModelParams,
-      );
-
       setModelParams((prev: UIModelParams) => ({
         ...prev,
-        ...modelConfig,
+        ...getEnabledModelParamState(parsedModelParams.data),
         provider: { value: provider, enabled: true },
         model: { value: model, enabled: true },
       }));

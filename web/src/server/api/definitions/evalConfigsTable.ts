@@ -1,24 +1,81 @@
-import { type ColumnDefinition, JobConfigState } from "@langfuse/shared";
+import {
+  EvalTargetObject,
+  type ColumnDefinition,
+  type JobConfigState,
+  JobTimeScopeZod,
+} from "@langfuse/shared";
+
+const evalConfigTargetOptions = Object.values(EvalTargetObject).map(
+  (value) => ({
+    value,
+  }),
+);
+
+export const evalConfigTargetValues = evalConfigTargetOptions.map(
+  (option) => option.value,
+);
+
+export const evalConfigTimeScopeValues = JobTimeScopeZod.options;
+
+// Client-safe mirror of the Prisma enum. Vite/Storybook resolve shared from
+// source and cannot turn `export * from "@prisma/client"` into named ESM
+// exports; this file is imported by client filter hooks.
+const JOB_CONFIG_STATES = [
+  "ACTIVE",
+  "INACTIVE",
+] as const satisfies readonly JobConfigState[];
+
+const evaluatorDisplayStatusSql = `CASE
+  WHEN jc."status" = 'INACTIVE' THEN 'INACTIVE'
+  WHEN jc."blocked_at" IS NOT NULL THEN 'PAUSED'
+  ELSE jc."status"::text
+END`;
+
+const evaluatorStatusSortRankSql = `CASE
+  WHEN jc."status" = 'INACTIVE' THEN 2
+  WHEN jc."blocked_at" IS NOT NULL THEN 1
+  ELSE 0
+END`;
 
 export const evalConfigFilterColumns: ColumnDefinition[] = [
   {
     name: "Status",
     id: "status",
     type: "stringOptions",
-    internal: 'jc."status"::text',
-    options: Object.values(JobConfigState).map((value) => ({ value })),
+    internal: evaluatorDisplayStatusSql,
+    options: [...JOB_CONFIG_STATES, "PAUSED"].map((value) => ({
+      value,
+    })),
   },
   {
     name: "Target",
     id: "target",
     type: "stringOptions",
     internal: 'jc."target_object"',
-    options: [{ value: "trace" }, { value: "dataset" }],
+    options: evalConfigTargetOptions,
+  },
+  {
+    name: "Time Scope",
+    id: "timeScope",
+    type: "arrayOptions",
+    internal: 'jc."time_scope"',
+    options: evalConfigTimeScopeValues.map((value) => ({ value })),
   },
 ];
 
 export const evalConfigsTableCols: ColumnDefinition[] = [
-  ...evalConfigFilterColumns,
+  {
+    ...evalConfigFilterColumns[0],
+    internal: evaluatorStatusSortRankSql,
+  },
+  evalConfigFilterColumns[1],
+  evalConfigFilterColumns[2],
+  {
+    name: "Generated Score Name",
+    id: "scoreName",
+    type: "string",
+    internal: 'jc."score_name"',
+  },
   {
     name: "Updated At",
     id: "updatedAt",

@@ -1,4 +1,4 @@
-import { z } from "zod/v4";
+import { z } from "zod";
 import {
   LLMAdapter,
   LLMJSONSchema,
@@ -18,7 +18,7 @@ const ModelParamsSchema = z.object({
   providerOptions: JSONObjectSchema.optional(),
 });
 
-export const ChatCompletionBodySchema = z.object({
+const ChatCompletionBodySchema = z.object({
   projectId: z.string(),
   messages: z.array(ChatMessageSchema),
   modelParams: ModelParamsSchema,
@@ -30,7 +30,3 @@ export const ChatCompletionBodySchema = z.object({
 export const validateChatCompletionBody = (input: unknown) => {
   return ChatCompletionBodySchema.parse(input);
 };
-
-export type ValidatedChatCompletionBody = z.infer<
-  typeof ChatCompletionBodySchema
->;

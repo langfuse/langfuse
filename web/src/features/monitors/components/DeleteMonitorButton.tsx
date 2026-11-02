@@ -1,0 +1,51 @@
+/* eslint-disable @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
+import { useState } from "react";
+import { Trash2 } from "@langfuse/icons";
+
+import { Button } from "@/src/components/ui/button";
+import { ConfirmDialog } from "@/src/components/ui/ConfirmDialog";
+
+export function DeleteMonitorButton({
+  monitorName,
+  deleting,
+  onDelete,
+}: {
+  monitorName: string;
+  deleting: boolean;
+  onDelete: () => Promise<void>;
+}) {
+  const [open, setOpen] = useState(false);
+
+  const handleDelete = async () => {
+    try {
+      await onDelete();
+      setOpen(false);
+    } catch {
+      // The mutation reports the error while the dialog remains open for retry.
+    }
+  };
+
+  return (
+    <ConfirmDialog
+      open={open}
+      onOpenChange={setOpen}
+      title="Delete alert"
+      description={`This permanently deletes "${monitorName}". This action cannot be undone.`}
+      confirmLabel="Delete alert"
+      loading={deleting}
+      loadingText="Deleting alert..."
+      onConfirm={handleDelete}
+      trigger={
+        <Button
+          type="button"
+          variant="outline"
+          size="icon"
+          title="Delete alert"
+          aria-label="Delete alert"
+        >
+          <Trash2 size="base" color="destructive" />
+        </Button>
+      }
+    />
+  );
+}

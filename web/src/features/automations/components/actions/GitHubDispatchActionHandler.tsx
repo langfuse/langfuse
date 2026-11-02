@@ -7,15 +7,18 @@ import {
   type ActionCreate,
   type ActionDomain,
 } from "@langfuse/shared";
-import { z } from "zod/v4";
+import { z } from "zod";
+import { areDestinationUrlsEquivalent } from "@/src/features/automations/destinationUrl";
 
 // Define the form schema for GitHub dispatch actions
-export const GitHubDispatchActionFormSchema = z.object({
+// eslint-disable-next-line @typescript-eslint/no-unused-vars -- Used via z.infer
+const GitHubDispatchActionFormSchema = z.object({
   githubDispatch: z.object({
-    url: z.string().url("Invalid URL"),
+    url: z.url("Invalid URL"),
     eventType: z.string().min(1, "Event type is required").max(100),
     githubToken: z.string(),
     displayGitHubToken: z.string().optional(), // Display value for existing token
+    originalUrl: z.string().optional(),
   }),
 });
 
@@ -23,9 +26,7 @@ type GitHubDispatchActionFormData = z.infer<
   typeof GitHubDispatchActionFormSchema
 >;
 
-export class GitHubDispatchActionHandler
-  implements BaseActionHandler<GitHubDispatchActionFormData>
-{
+export class GitHubDispatchActionHandler implements BaseActionHandler<GitHubDispatchActionFormData> {
   actionType = "GITHUB_DISPATCH" as const;
 
   getDefaultValues(
@@ -52,6 +53,12 @@ export class GitHubDispatchActionHandler
           "displayGitHubToken" in automation.action.config
             ? automation.action.config.displayGitHubToken
             : undefined,
+        originalUrl:
+          automation?.action?.type === "GITHUB_DISPATCH" &&
+          automation?.action?.config &&
+          "url" in automation.action.config
+            ? automation.action.config.url
+            : undefined,
       },
     };
   }
@@ -72,9 +79,15 @@ export class GitHubDispatchActionHandler
       errors.push("Event type must be 100 characters or less");
     }
 
-    // Token is required only if there's no existing token (displayGitHubToken)
-    if (
-      !formData.githubDispatch?.githubToken &&
+    const existingUrl = formData.githubDispatch?.originalUrl;
+    const isUrlChanged =
+      existingUrl !== undefined &&
+      !areDestinationUrlsEquivalent(formData.githubDispatch.url, existingUrl);
+
+    if (isUrlChanged && !formData.githubDispatch?.githubToken.trim()) {
+      errors.push("GitHub token is required when changing the dispatch URL");
+    } else if (
+      !formData.githubDispatch?.githubToken.trim() &&
       !formData.githubDispatch?.displayGitHubToken
     ) {
       errors.push("GitHub token is required");

@@ -1,7 +1,6 @@
 import { useState, useEffect } from "react";
 import { api } from "@/src/utils/api";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-
+import { useHasProjectAccess } from "@/src/features/rbac";
 interface UseUserSearchProps {
   projectId: string;
   excludeUserIds?: string[];

@@ -1,24 +1,30 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { type FilterState, getGenerationLikeTypes } from "@langfuse/shared";
+import type { MissingBucketValue } from "@/src/features/widgets";
 
 export type TimeSeriesChartDataPoint = {
   ts: number;
   values: { label: string; value?: number }[];
 };
 import { type DatabaseRow } from "@/src/server/api/services/sqlInterface";
-import { api } from "@/src/utils/api";
-import {
-  type ViewVersion,
-  mapLegacyUiTableFilterToView,
-} from "@/src/features/query";
+import { type ViewVersion } from "@langfuse/shared/query";
+import { mapLegacyUiTableFilterToView } from "@/src/features/dashboard/lib/dashboardUiTableToViewMapping";
+import { useScheduledDashboardExecuteQuery } from "@/src/features/dashboard/hooks/DashboardQuerySchedulerProvider";
 
-export const getAllModels = (
+type UseAllModelsOptions = {
+  enabled?: boolean;
+  queryId: string;
+};
+
+export const useAllModels = (
   projectId: string,
   globalFilterState: FilterState,
   fromTimestamp: Date,
   toTimestamp: Date,
-  metricsVersion?: ViewVersion,
+  metricsVersion: ViewVersion,
+  options?: UseAllModelsOptions,
 ) => {
-  const allModels = api.dashboard.executeQuery.useQuery(
+  const allModels = useScheduledDashboardExecuteQuery(
     {
       projectId,
       version: metricsVersion,
@@ -47,6 +53,8 @@ export const getAllModels = (
           skipBatch: true,
         },
       },
+      enabled: options?.enabled ?? true,
+      queryId: `${options?.queryId ?? "dashboard:all-models"}:models`,
     },
   );
 
@@ -140,16 +148,22 @@ export function extractTimeSeriesData(
 export function fillMissingValuesAndTransform(
   inputMap: Map<number, ChartData[]>,
   labelsToAdd: string[] = [],
+  missingValue: MissingBucketValue = "zero",
 ): TimeSeriesChartDataPoint[] {
   const result: TimeSeriesChartDataPoint[] = [];
 
   inputMap.forEach((chartDataArray, timestamp) => {
     const existingLabels = chartDataArray.map((value) => value.label);
 
-    // For each label in labelsToAdd, add a default value of 0
+    // For each missing label, add the metric's honest no-data value: a real 0
+    // for additive metrics ("zero"), no value at all for non-additive ones
+    // ("gap") — an average over zero events has no honest value, and a
+    // fabricated 0 draws a fake drop to zero. (LFE-10694)
     labelsToAdd.forEach((label) => {
       if (!existingLabels.includes(label)) {
-        chartDataArray.push({ label: label, value: 0 });
+        chartDataArray.push(
+          missingValue === "zero" ? { label, value: 0 } : { label },
+        );
       }
     });
 
@@ -175,7 +189,10 @@ export const isEmptyTimeSeries = ({
         item.values.length === 0 ||
         (isNullValueAllowed
           ? false
-          : item.values.every((value) => value.value === 0)),
+          : // A gap-filled entry (no value) is as empty as a zero-filled one.
+            item.values.every(
+              (value) => value.value === 0 || value.value == null,
+            )),
     )
   );
 };

@@ -1,21 +1,20 @@
-import { api } from "@/src/utils/api";
+/* eslint-disable @repo/no-style-props */
 import { type FilterState, getGenerationLikeTypes } from "@langfuse/shared";
 import { DashboardCard } from "@/src/features/dashboard/components/cards/DashboardCard";
-import { compactNumberFormatter } from "@/src/utils/numbers";
-import { TabComponent } from "@/src/features/dashboard/components/TabsComponent";
+import { compactNumberFormatter, costFormatter } from "@/src/utils/numbers";
+import { TabComponent } from "@/src/features/dashboard/components/TabComponent";
 import { TotalMetric } from "@/src/features/dashboard/components/TotalMetric";
-import { ExpandListButton } from "@/src/features/dashboard/components/cards/ChevronButton";
-import { useState } from "react";
-import { totalCostDashboardFormatted } from "@/src/features/dashboard/lib/dashboard-utils";
 import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
-import {
-  type QueryType,
-  type ViewVersion,
-  mapLegacyUiTableFilterToView,
-} from "@/src/features/query";
-import { Chart } from "@/src/features/widgets/chart-library/Chart";
-import { barListToDataPoints } from "@/src/features/dashboard/lib/chart-data-adapters";
+import { type QueryType, type ViewVersion } from "@langfuse/shared/query";
+import { mapLegacyUiTableFilterToView } from "@/src/features/dashboard/lib/dashboardUiTableToViewMapping";
+import { BarListChartArea } from "@/src/features/dashboard/components/cards/BarListChartArea";
 import { traceViewQuery } from "@/src/features/dashboard/lib/dashboard-utils";
+import { useScheduledDashboardExecuteQuery } from "@/src/features/dashboard/hooks/DashboardQuerySchedulerProvider";
+import { cn } from "@/src/utils/tailwind";
+
+// Cap on bars fetched and rendered; matches TracesBarListChart. The top list
+// scrolls within the tile when they don't all fit.
+const MAX_BARS = 20;
 
 type BarChartDataPoint = {
   name: string;
@@ -30,6 +29,7 @@ export const UserChart = ({
   toTimestamp,
   isLoading = false,
   metricsVersion,
+  schedulerId,
 }: {
   className?: string;
   projectId: string;
@@ -37,9 +37,9 @@ export const UserChart = ({
   fromTimestamp: Date;
   toTimestamp: Date;
   isLoading?: boolean;
-  metricsVersion?: ViewVersion;
+  metricsVersion: ViewVersion;
+  schedulerId?: string;
 }) => {
-  const [isExpanded, setIsExpanded] = useState(false);
   const userCostQuery: QueryType = {
     view: "observations",
     dimensions: [{ field: "userId" }],
@@ -59,10 +59,14 @@ export const UserChart = ({
     timeDimension: null,
     fromTimestamp: fromTimestamp.toISOString(),
     toTimestamp: toTimestamp.toISOString(),
-    orderBy: null,
+    orderBy: [{ field: "sum_totalCost", direction: "desc" }],
+    chartConfig: {
+      type: "HORIZONTAL_BAR",
+      row_limit: MAX_BARS,
+    },
   };
 
-  const user = api.dashboard.executeQuery.useQuery(
+  const user = useScheduledDashboardExecuteQuery(
     {
       projectId,
       query: userCostQuery,
@@ -74,6 +78,7 @@ export const UserChart = ({
           skipBatch: true,
         },
       },
+      queryId: `${schedulerId ?? "home:users"}:cost`,
       enabled: !isLoading,
     },
   );
@@ -81,16 +86,30 @@ export const UserChart = ({
   const isV2 = metricsVersion === "v2";
   const countField = isV2 ? "uniq_traceId" : "count_count";
 
+  const traceViewBase = traceViewQuery({ metricsVersion, globalFilterState });
+  const traceMetric = traceViewBase.metrics[0] ?? {
+    aggregation: "count",
+    measure: "count",
+  };
   const traceCountQuery: QueryType = {
-    ...traceViewQuery({ metricsVersion, globalFilterState }),
+    ...traceViewBase,
     dimensions: [{ field: "userId" }],
     timeDimension: null,
     fromTimestamp: fromTimestamp.toISOString(),
     toTimestamp: toTimestamp.toISOString(),
-    orderBy: null,
+    orderBy: [
+      {
+        field: `${traceMetric.aggregation}_${traceMetric.measure}`,
+        direction: "desc",
+      },
+    ],
+    chartConfig: {
+      type: "HORIZONTAL_BAR",
+      row_limit: MAX_BARS,
+    },
   };
 
-  const traces = api.dashboard.executeQuery.useQuery(
+  const traces = useScheduledDashboardExecuteQuery(
     {
       projectId,
       query: traceCountQuery,
@@ -102,6 +121,7 @@ export const UserChart = ({
           skipBatch: true,
         },
       },
+      queryId: `${schedulerId ?? "home:users"}:traces`,
       enabled: !isLoading,
     },
   );
@@ -138,39 +158,34 @@ export const UserChart = ({
     0,
   );
 
-  const maxNumberOfEntries = { collapsed: 5, expanded: 20 } as const;
-
-  const BAR_ROW_HEIGHT = 36;
-  const CHART_AXIS_PADDING = 32;
-
-  const localUsdFormatter = (value: number) =>
-    totalCostDashboardFormatted(value);
-
   const data = [
     {
       tabTitle: "Token cost",
-      data: isExpanded
-        ? transformedCost.slice(0, maxNumberOfEntries.expanded)
-        : transformedCost.slice(0, maxNumberOfEntries.collapsed),
-      totalMetric: totalCostDashboardFormatted(totalCost),
+      data: transformedCost,
+      totalMetric: costFormatter(totalCost),
       metricDescription: "Total cost",
-      formatter: localUsdFormatter,
+      chartMetricLabel: "USD",
+      chartUnit: "USD",
     },
     {
       tabTitle: "Count of Traces",
-      data: isExpanded
-        ? transformedNumberOfTraces.slice(0, maxNumberOfEntries.expanded)
-        : transformedNumberOfTraces.slice(0, maxNumberOfEntries.collapsed),
+      data: transformedNumberOfTraces,
       totalMetric: totalTraces
         ? compactNumberFormatter(totalTraces)
         : compactNumberFormatter(0),
       metricDescription: "Total traces",
+      chartMetricLabel: "Traces",
+      chartUnit: "traces",
     },
-  ];
+  ] as const;
 
   return (
     <DashboardCard
-      className={className}
+      // h-full pins the card to the tile so the chart area gets the AVAILABLE
+      // height, not its own content; min-h-0 lets the flex column shrink so
+      // the top list scrolls internally.
+      className={cn(className, "h-full")}
+      cardContentClassName="min-h-0"
       title="User consumption"
       isLoading={isLoading || user.isPending}
     >
@@ -178,61 +193,30 @@ export const UserChart = ({
         tabs={data.map((item) => {
           return {
             tabTitle: item.tabTitle,
-            content: (
-              <>
-                {item.data.length > 0 ? (
-                  <div className="flex flex-col">
-                    <TotalMetric
-                      metric={item.totalMetric}
-                      description={item.metricDescription}
-                    />
-                    <div
-                      className="mt-4 w-full"
-                      style={{
-                        minHeight: 200,
-                        height: Math.max(
-                          200,
-                          item.data.length * BAR_ROW_HEIGHT +
-                            CHART_AXIS_PADDING,
-                        ),
-                      }}
-                    >
-                      <Chart
-                        chartType="HORIZONTAL_BAR"
-                        data={barListToDataPoints(item.data)}
-                        rowLimit={maxNumberOfEntries.expanded}
-                        chartConfig={{
-                          type: "HORIZONTAL_BAR",
-                          row_limit: maxNumberOfEntries.expanded,
-                          show_value_labels: true,
-                          subtle_fill: true,
-                        }}
-                        valueFormatter={item.formatter}
-                      />
-                    </div>
-                  </div>
-                ) : (
-                  <NoDataOrLoading
-                    isLoading={isLoading || user.isPending}
-                    description="Consumption per user is tracked by passing their ids on traces."
-                    href="https://langfuse.com/docs/observability/features/users"
+            content:
+              item.data.length > 0 ? (
+                <div className="flex min-h-0 grow flex-col">
+                  <TotalMetric
+                    metric={item.totalMetric}
+                    description={item.metricDescription}
                   />
-                )}
-              </>
-            ),
+                  <BarListChartArea
+                    data={item.data}
+                    maxBars={MAX_BARS}
+                    metricLabel={item.chartMetricLabel}
+                    unit={item.chartUnit}
+                  />
+                </div>
+              ) : (
+                <NoDataOrLoading
+                  isLoading={isLoading || user.isPending}
+                  description="Consumption per user is tracked by passing their ids on traces."
+                  href="https://langfuse.com/docs/observability/features/users"
+                  className="h-auto grow"
+                />
+              ),
           };
         })}
-      />
-      <ExpandListButton
-        isExpanded={isExpanded}
-        setExpanded={setIsExpanded}
-        totalLength={transformedCost.length}
-        maxLength={maxNumberOfEntries.collapsed}
-        expandText={
-          transformedCost.length > maxNumberOfEntries.expanded
-            ? `Show top ${maxNumberOfEntries.expanded}`
-            : "Show all"
-        }
       />
     </DashboardCard>
   );

@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import {
   Card,
   CardContent,
@@ -5,7 +6,6 @@ import {
   CardHeader,
   CardTitle,
 } from "@/src/components/ui/card";
-import { Loader2 } from "lucide-react";
 import { useScoreAnalytics } from "../ScoreAnalyticsProvider";
 import { Heatmap } from "../charts/Heatmap";
 import { HeatmapLegend } from "../charts/HeatmapLegend";
@@ -15,6 +15,7 @@ import { type HeatmapCell } from "@/src/features/score-analytics/lib/heatmap-uti
 import { useCallback } from "react";
 import { SamplingDetailsHoverCard } from "../SamplingDetailsHoverCard";
 import { type ScoreDataTypeType } from "@langfuse/shared";
+import { Spinner } from "@/src/components/design-system/Spinner/Spinner";
 
 interface HeatmapTooltipContentProps {
   cell: HeatmapCell;
@@ -47,8 +48,8 @@ function HeatmapTooltipContent({
   return (
     <div className="space-y-2">
       {/* Header Section */}
-      <div className="border-b border-border pb-2">
-        <p className="text-sm font-medium text-muted-foreground">
+      <div className="border-border border-b pb-2">
+        <p className="text-muted-foreground text-sm font-bold">
           {dataType === "NUMERIC"
             ? `Bin ${cell.row}×${cell.col}`
             : `${cell.metadata?.rowCategory as string} → ${cell.metadata?.colCategory as string}`}
@@ -57,41 +58,41 @@ function HeatmapTooltipContent({
 
       {/* Primary Metrics Section */}
       <div className="space-y-1">
-        <p className="text-base font-semibold text-foreground">
+        <p className="text-foreground text-base font-bold">
           {cell.value.toLocaleString()} observations
         </p>
-        <p className="text-xs text-muted-foreground">
+        <p className="text-muted-foreground text-xs">
           {percentage.toFixed(1)}% of {totalMatchedPairs.toLocaleString()}{" "}
           matched pairs
         </p>
       </div>
 
       {/* Secondary Info Section */}
-      <div className="space-y-1 border-t border-border pt-2">
+      <div className="border-border space-y-1 border-t pt-2">
         {dataType === "NUMERIC" ? (
           <>
             <div className="flex items-center gap-2">
               <div
-                className="h-3 w-3 flex-shrink-0 rounded-sm"
+                className="h-3 w-3 shrink-0 rounded-sm"
                 style={{ backgroundColor: score1Color }}
               />
-              <span className="flex-1 text-xs text-muted-foreground">
+              <span className="text-muted-foreground flex-1 text-xs">
                 {score1.name} ({score1.source})
               </span>
-              <span className="text-xs text-muted-foreground">
+              <span className="text-muted-foreground text-xs">
                 {(cell.metadata?.yRange as [number, number])?.[0]?.toFixed(2)} -{" "}
                 {(cell.metadata?.yRange as [number, number])?.[1]?.toFixed(2)}
               </span>
             </div>
             <div className="flex items-center gap-2">
               <div
-                className="h-3 w-3 flex-shrink-0 rounded-sm"
+                className="h-3 w-3 shrink-0 rounded-sm"
                 style={{ backgroundColor: score2Color }}
               />
-              <span className="flex-1 text-xs text-muted-foreground">
+              <span className="text-muted-foreground flex-1 text-xs">
                 {score2?.name} ({score2?.source})
               </span>
-              <span className="text-xs text-muted-foreground">
+              <span className="text-muted-foreground text-xs">
                 {(cell.metadata?.xRange as [number, number])?.[0]?.toFixed(2)} -{" "}
                 {(cell.metadata?.xRange as [number, number])?.[1]?.toFixed(2)}
               </span>
@@ -101,19 +102,19 @@ function HeatmapTooltipContent({
           <>
             <div className="flex items-center gap-2">
               <div
-                className="h-3 w-3 flex-shrink-0 rounded-sm"
+                className="h-3 w-3 shrink-0 rounded-sm"
                 style={{ backgroundColor: score1Color }}
               />
-              <span className="text-xs text-muted-foreground">
+              <span className="text-muted-foreground text-xs">
                 {score1.name} ({score1.source})
               </span>
             </div>
             <div className="flex items-center gap-2">
               <div
-                className="h-3 w-3 flex-shrink-0 rounded-sm"
+                className="h-3 w-3 shrink-0 rounded-sm"
                 style={{ backgroundColor: score2Color }}
               />
-              <span className="text-xs text-muted-foreground">
+              <span className="text-muted-foreground text-xs">
                 {score2?.name} ({score2?.source})
               </span>
             </div>
@@ -166,7 +167,7 @@ export function HeatmapCard() {
           <CardDescription>Loading heatmap...</CardDescription>
         </CardHeader>
         <CardContent className="flex flex-1 flex-col items-center justify-center pl-1">
-          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+          <Spinner size="xl" variant="muted" />
         </CardContent>
       </Card>
     );
@@ -180,7 +181,7 @@ export function HeatmapCard() {
           <CardTitle>Score Comparison</CardTitle>
           <CardDescription>No data available</CardDescription>
         </CardHeader>
-        <CardContent className="flex flex-1 flex-col items-center justify-center pl-0 text-sm text-muted-foreground">
+        <CardContent className="text-muted-foreground flex flex-1 flex-col items-center justify-center pl-0 text-sm">
           Select a score to view comparison
         </CardContent>
       </Card>
@@ -197,14 +198,18 @@ export function HeatmapCard() {
   const title =
     dataType === "NUMERIC" ? "Score Comparison Heatmap" : "Confusion Matrix";
 
-  const description =
-    mode === "single"
-      ? dataType === "NUMERIC"
-        ? "Distribution of matched score pairs showing correlation patterns"
-        : "Agreement matrix between categorical scores"
-      : dataType === "NUMERIC"
-        ? `${totalMatchedPairs.toLocaleString()} matched pairs showing correlation patterns`
-        : `${totalMatchedPairs.toLocaleString()} matched pairs showing agreement`;
+  const description = (() => {
+    if (mode === "single") {
+      if (dataType === "NUMERIC") {
+        return "Distribution of matched score pairs showing correlation patterns";
+      }
+      return "Agreement matrix between categorical scores";
+    }
+    if (dataType === "NUMERIC") {
+      return `${totalMatchedPairs.toLocaleString()} matched pairs showing correlation patterns`;
+    }
+    return `${totalMatchedPairs.toLocaleString()} matched pairs showing agreement`;
+  })();
 
   // Single score mode - show placeholder
   if (mode === "single") {
@@ -222,7 +227,7 @@ export function HeatmapCard() {
             showLabels={true}
             showAxisLabels={true}
           />
-          <p className="text-center text-sm font-light text-muted-foreground">
+          <p className="text-muted-foreground text-center text-sm">
             Select a second score to view comparison heatmap
           </p>
         </CardContent>
@@ -236,12 +241,15 @@ export function HeatmapCard() {
   // Calculate dynamic cell height based on available space
   // Magic number 230px represents approximate available height for grid
   // (card height minus header, labels, legend, gaps)
-  const numRows =
-    dataType === "NUMERIC"
-      ? 10
-      : heatmap && "rows" in heatmap
-        ? heatmap.rows
-        : 10;
+  const numRows = (() => {
+    if (dataType === "NUMERIC") {
+      return 10;
+    }
+    if (heatmap && "rows" in heatmap) {
+      return heatmap.rows;
+    }
+    return 10;
+  })();
   const calculatedCellHeight = Math.floor(200 / numRows);
 
   return (

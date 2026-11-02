@@ -1,3 +1,5 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
+import { shouldSkipScoresDedup } from "../queries/clickhouse-sql/query-options";
 import {
   parseClickhouseUTCDateTimeFormat,
   queryClickhouse,
@@ -64,7 +66,7 @@ export const getScoreAggregate = async (
       avg(s.value) as avg_value,
       s.source,
       s.data_type
-    FROM scores s FINAL 
+    FROM scores s ${shouldSkipScoresDedup(projectId) ? "" : "FINAL"} 
      ${hasTraceFilter ? "JOIN traces t FINAL ON t.id = s.trace_id AND t.project_id = s.project_id" : ""}
     WHERE s.project_id = {projectId: String}
     AND ${chFilterApplied.query}
@@ -90,12 +92,8 @@ export const getScoreAggregate = async (
         ? { tracesTimestamp: convertDateToClickhouseDateTime(timeFilter.value) }
         : {}),
     },
-    tags: {
-      feature: "dashboard",
-      type: "scoreAggregate",
-      kind: "analytic",
-      projectId,
-    },
+    tags: { projectId },
+    preferredClickhouseService: "ReadOnly",
   });
 
   return result;
@@ -173,12 +171,7 @@ export const getObservationCostByTypeByTime = async (
         ? { traceTimestamp: convertDateToClickhouseDateTime(timeFilter.value) }
         : {}),
     },
-    tags: {
-      feature: "dashboard",
-      type: "observationCostByTypeByTime",
-      kind: "analytic",
-      projectId,
-    },
+    tags: { projectId },
   });
 
   const types = result.flatMap((row) => {
@@ -271,12 +264,7 @@ export const getObservationUsageByTypeByTime = async (
         ? { traceTimestamp: convertDateToClickhouseDateTime(timeFilter.value) }
         : {}),
     },
-    tags: {
-      feature: "dashboard",
-      type: "observationUsageByTime",
-      kind: "analytic",
-      projectId,
-    },
+    tags: { projectId },
   });
 
   const types = result.flatMap((row) => {

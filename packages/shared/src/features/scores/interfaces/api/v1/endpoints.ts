@@ -1,10 +1,11 @@
-import { z } from "zod/v4";
+import { z } from "zod";
 import { paginationMetaResponseZod } from "../../../../../utils/zod";
 import {
   DeleteScoreQuery,
   DeleteScoreResponse,
   GetScoreQuery,
   GetScoresQuery,
+  PostScoreBody,
   PostScoresBody,
   PostScoresResponse,
 } from "../shared";
@@ -39,6 +40,8 @@ export const GetScoresResponseV1 = z.object({
 });
 
 // POST /scores
+export const PostScoreBodyV1 = PostScoreBody;
+
 export const PostScoresBodyV1 = PostScoresBody;
 
 export const PostScoresResponseV1 = PostScoresResponse;

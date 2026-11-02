@@ -1,14 +1,16 @@
 import {
   NumericConfigFields,
+  SCORE_CONFIG_NAME_MAX_LENGTH,
   CategoricalConfigFields,
   BooleanConfigFields,
+  TextConfigFields,
   validateNumericRangeFields,
 } from "@langfuse/shared";
-import { z } from "zod/v4";
+import { z } from "zod";
 import { type CreateConfig, type UpdateConfig } from "./upsertFormTypes";
 
 const ScoreConfigBaseSchema = z.object({
-  name: z.string().min(1).max(35),
+  name: z.string().min(1).max(SCORE_CONFIG_NAME_MAX_LENGTH),
   description: z.string().optional(),
 });
 
@@ -19,6 +21,7 @@ const ScoreConfigValidationSchema = ScoreConfigBaseSchema.and(
       NumericConfigFields,
       CategoricalConfigFields,
       BooleanConfigFields,
+      TextConfigFields,
     ])
     .superRefine(validateNumericRangeFields),
 );

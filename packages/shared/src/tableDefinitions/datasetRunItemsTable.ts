@@ -17,11 +17,19 @@ export const datasetRunItemsTableCols: ColumnDefinition[] = [
     options: [], // to be filled in at runtime
     nullable: true,
   },
+  {
+    name: "Scores (boolean)",
+    id: "agg_score_booleans",
+    type: "booleanObject",
+    internal: "agg_score_booleans",
+    nullable: true,
+  },
 ];
 
 export type DatasetRunItemsOptions = {
   agg_scores_avg?: Array<string>;
   agg_score_categories?: Array<MultiValueOption>;
+  agg_score_booleans?: Array<string>;
 };
 
 export function datasetRunItemsTableColsWithOptions(
@@ -34,6 +42,9 @@ export function datasetRunItemsTableColsWithOptions(
     }
     if (col.id === "agg_score_categories") {
       return formatColumnOptions(col, options?.agg_score_categories ?? []);
+    }
+    if (col.id === "agg_score_booleans") {
+      return formatColumnOptions(col, options?.agg_score_booleans ?? []);
     }
     return col;
   });

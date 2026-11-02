@@ -1,10 +1,6 @@
 import { QueueName, TQueueJobTypes } from "../queues";
 import { Queue } from "bullmq";
-import {
-  createNewRedisInstance,
-  redisQueueRetryOptions,
-  getQueuePrefix,
-} from "./redis";
+import { createBullMQQueueOptionsWithRedis } from "./redis";
 import { logger } from "../logger";
 
 export class CreateEvalQueue {
@@ -17,17 +13,14 @@ export class CreateEvalQueue {
   > | null {
     if (CreateEvalQueue.instance) return CreateEvalQueue.instance;
 
-    const newRedis = createNewRedisInstance({
-      enableOfflineQueue: false,
-      ...redisQueueRetryOptions,
-    });
-
-    CreateEvalQueue.instance = newRedis
+    const queueOptionsWithRedis = createBullMQQueueOptionsWithRedis(
+      QueueName.CreateEvalQueue,
+    );
+    CreateEvalQueue.instance = queueOptionsWithRedis
       ? new Queue<TQueueJobTypes[QueueName.CreateEvalQueue]>(
           QueueName.CreateEvalQueue,
           {
-            connection: newRedis,
-            prefix: getQueuePrefix(QueueName.CreateEvalQueue),
+            ...queueOptionsWithRedis,
             defaultJobOptions: {
               removeOnComplete: 100, // Important: If not true, new jobs for that ID would be ignored as jobs in the complete set are still considered as part of the queue
               removeOnFail: 100_000,

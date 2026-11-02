@@ -1,0 +1,386 @@
+import { createHash, randomUUID } from "crypto";
+import { Queue } from "bullmq";
+
+import {
+  QueueName,
+  convertQueueNameToMetricName,
+  flushMetricsToCloudWatch,
+  recordGauge,
+  redis,
+  updateActiveIngestFailureProjectsMetric,
+  logger,
+} from "@langfuse/shared/src/server";
+
+import { PeriodicRunner } from "../../utils/PeriodicRunner";
+import { env } from "../../env";
+import { WorkerManager } from "../../queues/workerManager";
+import {
+  SHARDED_QUEUES,
+  SHARDED_QUEUE_BASE_NAMES,
+  resolveQueueInstance,
+} from "../../queues/shardedQueueRegistry";
+import { emitV4LegacyApiUsageFreshnessMetrics } from "../v4/v4LegacyApiUsageMetrics";
+import { emitTopicStagingMetrics } from "@langfuse/shared/topics/server";
+
+type DepthType = "waiting" | "failed" | "active" | "delayed";
+const INTERVAL_CLAIM_KEY_PREFIX = "langfuse:queue-metrics-runner:claim";
+/** Claim TTL as a fraction of the interval, below 1 so a single worker never skips its own tick */
+const CLAIM_TTL_INTERVAL_FRACTION = 0.9;
+/** Minimum gap between this runner's CloudWatch flushes, so a short interval does not send one PutMetricData request per tick */
+const CLOUDWATCH_FLUSH_FLOOR_MS = 10_000;
+const TOPICS_QUEUES = new Set([
+  QueueName.Topics,
+  QueueName.TopicsUpdate,
+  QueueName.TopicsEmbedding,
+  QueueName.TopicsAutomation,
+]);
+
+async function emitPendingHeadAge(
+  queue: Queue,
+  metricBase: string,
+): Promise<void> {
+  // Read at most one ID per state and only its timestamp, never the job payload.
+  // Retries can re-enter behind newer jobs; this is head age, not a global minimum timestamp.
+  const ids = await queue.getRanges(
+    ["wait", "paused", "delayed", "active"],
+    0,
+    0,
+    true,
+  );
+  const client = await queue.client;
+  const timestamps = await Promise.all(
+    ids.map((id) => client.hget(queue.toKey(id), "timestamp")),
+  );
+  const now = Date.now();
+  const ages = timestamps.flatMap((timestamp) =>
+    timestamp !== null && Number.isFinite(Number(timestamp))
+      ? [now - Number(timestamp)]
+      : [],
+  );
+  recordGauge(metricBase + ".pending_head_age_ms", Math.max(0, ...ages), {
+    unit: "milliseconds",
+  });
+}
+
+async function collectDepth(
+  queue: Queue,
+): Promise<Record<DepthType, number> | null> {
+  // Include "paused" to match getWaitingCount() semantics (which sums waiting + paused)
+  const counts = await queue.getJobCounts(
+    "waiting",
+    "paused",
+    "failed",
+    "active",
+    "delayed",
+  );
+  return {
+    waiting: (counts.waiting ?? 0) + (counts.paused ?? 0),
+    failed: counts.failed ?? 0,
+    active: counts.active ?? 0,
+    delayed: counts.delayed ?? 0,
+  };
+}
+
+function emitDepth(
+  metricBase: string,
+  depths: Record<DepthType, number>,
+  tags?: Record<string, string>,
+): void {
+  for (const type of ["waiting", "failed", "active", "delayed"] as const) {
+    recordGauge(metricBase + ".depth", depths[type], {
+      ...tags,
+      type,
+      unit: "records",
+    });
+  }
+}
+
+export class QueueMetricsRunner extends PeriodicRunner {
+  private readonly instanceId = randomUUID();
+  private lastCloudWatchFlushAt = 0;
+
+  constructor() {
+    super("queue_metrics_runner");
+  }
+
+  protected get name(): string {
+    return "queue-metrics-runner";
+  }
+
+  protected get defaultIntervalMs(): number {
+    return env.LANGFUSE_QUEUE_METRICS_INTERVAL_MS;
+  }
+
+  protected async execute(): Promise<void> {
+    // Only poll queues that have registered workers. This avoids calling
+    // getInstance() on queues this worker doesn't consume, which would
+    // create unnecessary Redis connections and can trigger side effects
+    // (e.g. CloudUsageMeteringQueue.getInstance() enqueues cron jobs).
+    const registeredNames = new Set(WorkerManager.getRegisteredQueueNames());
+    if (!(await this.claimInterval(registeredNames))) {
+      this.markRunSkipped();
+      return;
+    }
+
+    const promises: Promise<void>[] = [];
+
+    if (registeredNames.has(QueueName.Topics)) {
+      promises.push(
+        emitTopicStagingMetrics().catch((err) => {
+          this.markRunFailed(err);
+          logger.error(
+            "Queue metrics: failed to collect Topics staging expiry",
+            err,
+          );
+        }),
+      );
+    }
+
+    promises.push(
+      updateActiveIngestFailureProjectsMetric()
+        .then(() => undefined)
+        .catch((err) => {
+          this.markRunFailed(err);
+          logger.error(
+            "Queue metrics: failed to record active ingestion failure projects",
+            err,
+          );
+        }),
+    );
+
+    // Heartbeat/cursor freshness for the v4 legacy API usage pipeline. Only
+    // when this worker consumes that queue so self-hosted deployments without
+    // the job do not emit a permanent "not fresh" signal.
+    if (registeredNames.has(QueueName.V4LegacyApiUsageQueue)) {
+      promises.push(
+        emitV4LegacyApiUsageFreshnessMetrics()
+          .then(() => undefined)
+          .catch((err) => {
+            this.markRunFailed(err);
+            logger.error(
+              "Queue metrics: failed to record v4 legacy API usage freshness",
+              err,
+            );
+          }),
+      );
+    }
+
+    // Non-sharded queues: only poll queues with registered workers
+    for (const queueName of Object.values(QueueName)) {
+      if (SHARDED_QUEUE_BASE_NAMES.has(queueName)) continue;
+      if (!registeredNames.has(queueName)) continue;
+
+      const queue = resolveQueueInstance(queueName);
+      if (!queue) continue;
+
+      const metricBase = convertQueueNameToMetricName(queueName);
+
+      if (TOPICS_QUEUES.has(queueName)) {
+        promises.push(
+          emitPendingHeadAge(queue, metricBase).catch((err) => {
+            this.markRunFailed(err);
+            logger.error(
+              `Queue metrics: failed to collect pending head age for ${queueName}`,
+              err,
+            );
+          }),
+        );
+      }
+
+      promises.push(
+        queue
+          .getFailed(-1, -1)
+          .then((jobs) => {
+            recordGauge(
+              metricBase + ".dlq_oldest_age",
+              WorkerManager.computeDlqOldestAgeMs(jobs, Date.now()),
+              { unit: "milliseconds" },
+            );
+          })
+          .catch((err) => {
+            this.markRunFailed(err);
+            logger.error(
+              `Queue metrics: failed to collect dlq oldest age for ${queueName}`,
+              err,
+            );
+          }),
+      );
+
+      promises.push(
+        collectDepth(queue)
+          .then((depths) => {
+            if (depths) {
+              emitDepth(metricBase, depths);
+            }
+          })
+          .catch((err) => {
+            this.markRunFailed(err);
+            logger.error(
+              `Queue metrics: failed to collect depth for ${queueName}`,
+              err,
+            );
+          }),
+      );
+    }
+
+    // Sharded queues: only poll shards with registered workers
+    for (const config of SHARDED_QUEUES) {
+      const shardNames = config
+        .getShardNames()
+        .filter((name) => registeredNames.has(name));
+      if (shardNames.length === 0) continue;
+
+      const metricBase = convertQueueNameToMetricName(config.baseQueueName);
+
+      const agePromises = shardNames.map((shardName) => {
+        const queue = config.getInstance(shardName);
+        if (!queue) return Promise.resolve(null);
+
+        return queue
+          .getFailed(-1, -1)
+          .then((jobs) => {
+            const age = WorkerManager.computeDlqOldestAgeMs(jobs, Date.now());
+            recordGauge(metricBase + ".dlq_oldest_age", age, {
+              shard: shardName,
+              unit: "milliseconds",
+            });
+            return age;
+          })
+          .catch((err) => {
+            this.markRunFailed(err);
+            logger.error(
+              `Queue metrics: failed to collect dlq oldest age for ${shardName}`,
+              err,
+            );
+            return null;
+          });
+      });
+
+      // Aggregate is the max across shards (the oldest job overall); unlike
+      // depth there is nothing to extrapolate for failed shards.
+      promises.push(
+        Promise.allSettled(agePromises).then((results) => {
+          const ages: number[] = [];
+          for (const result of results) {
+            if (result.status === "fulfilled" && result.value !== null) {
+              ages.push(result.value);
+            }
+          }
+          if (ages.length === 0) return;
+
+          recordGauge(metricBase + ".dlq_oldest_age", Math.max(...ages), {
+            shard: "all",
+            unit: "milliseconds",
+          });
+        }),
+      );
+
+      const shardPromises = shardNames.map((shardName) => {
+        const queue = config.getInstance(shardName);
+        if (!queue) return Promise.resolve(null);
+
+        return collectDepth(queue)
+          .then((depths) => {
+            if (depths) {
+              emitDepth(metricBase, depths, {
+                shard: shardName,
+              });
+            }
+            return depths;
+          })
+          .catch((err) => {
+            this.markRunFailed(err);
+            logger.error(
+              `Queue metrics: failed to collect depth for ${shardName}`,
+              err,
+            );
+            return null;
+          });
+      });
+
+      // Emit aggregate depth across all shards (shard:"all") once per-shard collection settles.
+      // If some shards failed, extrapolate from the successful ones to avoid under-reporting.
+      promises.push(
+        Promise.allSettled(shardPromises).then((results) => {
+          const aggregate: Record<DepthType, number> = {
+            waiting: 0,
+            failed: 0,
+            active: 0,
+            delayed: 0,
+          };
+
+          let succeededCount = 0;
+          for (const result of results) {
+            if (result.status === "fulfilled" && result.value) {
+              aggregate.waiting += result.value.waiting;
+              aggregate.failed += result.value.failed;
+              aggregate.active += result.value.active;
+              aggregate.delayed += result.value.delayed;
+              succeededCount++;
+            }
+          }
+
+          if (succeededCount === 0) return;
+
+          if (succeededCount < results.length) {
+            const scale = results.length / succeededCount;
+            aggregate.waiting = Math.round(aggregate.waiting * scale);
+            aggregate.failed = Math.round(aggregate.failed * scale);
+            aggregate.active = Math.round(aggregate.active * scale);
+            aggregate.delayed = Math.round(aggregate.delayed * scale);
+          }
+
+          emitDepth(metricBase, aggregate, { shard: "all" });
+        }),
+      );
+    }
+
+    await Promise.allSettled(promises);
+
+    this.flushToCloudWatch();
+  }
+
+  /**
+   * Queue depth and DLQ age read the same from every worker, so workers that
+   * consume the same queues share one poll per interval. The claim is never
+   * released: it expires, and the next worker whose timer fires polls. Workers
+   * that consume different queues hold separate claims. A failed claim still
+   * polls, because Redis can reject writes (e.g. full under `noeviction`)
+   * while serving the reads that produce these gauges.
+   */
+  private async claimInterval(registeredNames: Set<string>): Promise<boolean> {
+    if (!redis) return true;
+
+    const queueSetHash = createHash("sha256")
+      .update([...registeredNames].sort().join(","))
+      .digest("hex")
+      .slice(0, 16);
+
+    try {
+      const result = await redis.set(
+        `${INTERVAL_CLAIM_KEY_PREFIX}:${queueSetHash}`,
+        this.instanceId,
+        "PX",
+        Math.floor(this.defaultIntervalMs * CLAIM_TTL_INTERVAL_FRACTION),
+        "NX",
+      );
+      return result === "OK";
+    } catch (err) {
+      this.markRunFailed(err);
+      logger.error(
+        "Queue metrics: failed to claim the polling interval, polling without a claim",
+        err,
+      );
+      return true;
+    }
+  }
+
+  /** Publishes this tick's gauges without waiting for the 30s CloudWatch batch, since the next tick may run on another worker */
+  private flushToCloudWatch(): void {
+    const now = Date.now();
+    if (now - this.lastCloudWatchFlushAt < CLOUDWATCH_FLUSH_FLOOR_MS) return;
+
+    this.lastCloudWatchFlushAt = now;
+    flushMetricsToCloudWatch();
+  }
+}

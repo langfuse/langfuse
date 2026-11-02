@@ -1,14 +1,14 @@
 import {
   checkTraceExistsAndGetTimestamp,
   createTracesCh,
-} from "@langfuse/shared/src/server";
-import {
   getTraceById,
+  getTraceByIdFromTracesTable,
   getTracesBySessionId,
+  createObservation,
+  createTrace,
+  createObservationsCh,
 } from "@langfuse/shared/src/server";
 import { v4 } from "uuid";
-import { createObservation, createTrace } from "@langfuse/shared/src/server";
-import { createObservationsCh } from "@langfuse/shared/src/server";
 
 const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
 
@@ -135,6 +135,37 @@ describe("Clickhouse Traces Repository Test", () => {
       new Date(trace.updated_at).getTime(),
       -2, // Up to 50ms precision
     );
+  });
+
+  it("should return empty metadata and IO when excluded from the fetch", async () => {
+    const traceId = v4();
+
+    const trace = createTrace({
+      id: traceId,
+      project_id: projectId,
+      metadata: { key: "value" },
+      input: "some input",
+      output: "some output",
+      timestamp: Date.now(),
+    });
+
+    await createTracesCh([trace]);
+
+    const result = await getTraceByIdFromTracesTable({
+      traceId,
+      projectId,
+      timestamp: new Date(trace.timestamp),
+      excludeInputOutput: true,
+      excludeMetadata: true,
+    });
+    expect(result).not.toBeNull();
+    if (!result) {
+      return;
+    }
+    expect(result.id).toEqual(trace.id);
+    expect(result.metadata).toEqual({});
+    expect(result.input).toBeNull();
+    expect(result.output).toBeNull();
   });
 
   it("should retrieve traces by session ID", async () => {

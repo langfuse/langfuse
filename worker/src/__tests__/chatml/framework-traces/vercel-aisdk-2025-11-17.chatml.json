@@ -1,0 +1,116 @@
+{
+  "1dc6768109615657": {
+    "input": {
+      "success": false,
+      "error": {
+        "name": "ZodError",
+        "message": "[\n  {\n    \"expected\": \"array\",\n    \"code\": \"invalid_type\",\n    \"path\": [],\n    \"message\": \"Invalid input: expected array, received object\"\n  }\n]"
+      }
+    },
+    "output": {
+      "success": true,
+      "data": [
+        {
+          "role": "assistant",
+          "content": "",
+          "tool_calls": [
+            {
+              "id": "call_DgKARp7a7IhJPDczfifMp6Ra",
+              "name": "getWeather",
+              "arguments": "{\"location\":\"San Francisco\"}",
+              "type": "function"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "91a17a2274bfd23f": {
+    "input": {
+      "success": true,
+      "data": [
+        {
+          "role": "user",
+          "content": "What is the weather like today in San Francisco?",
+          "tools": [
+            {
+              "name": "getWeather",
+              "description": "Get the weather in a location",
+              "parameters": {
+                "$schema": "http://json-schema.org/draft-07/schema#",
+                "type": "object",
+                "properties": {
+                  "location": {
+                    "description": "The location to get the weather for",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "location"
+                ],
+                "additionalProperties": false
+              }
+            }
+          ]
+        }
+      ]
+    },
+    "output": {
+      "success": true,
+      "data": [
+        {
+          "role": "assistant",
+          "content": "",
+          "tools": [
+            {
+              "name": "getWeather",
+              "description": "Get the weather in a location",
+              "parameters": {
+                "$schema": "http://json-schema.org/draft-07/schema#",
+                "type": "object",
+                "properties": {
+                  "location": {
+                    "description": "The location to get the weather for",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "location"
+                ],
+                "additionalProperties": false
+              }
+            }
+          ],
+          "tool_calls": [
+            {
+              "id": "call_DgKARp7a7IhJPDczfifMp6Ra",
+              "name": "getWeather",
+              "arguments": "{\"location\":\"San Francisco\"}",
+              "type": "function"
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "e9bb8c191e1e4706": {
+    "input": {
+      "success": false,
+      "error": {
+        "name": "ZodError",
+        "message": "[\n  {\n    \"expected\": \"array\",\n    \"code\": \"invalid_type\",\n    \"path\": [],\n    \"message\": \"Invalid input: expected array, received object\"\n  }\n]"
+      }
+    },
+    "output": {
+      "success": true,
+      "data": [
+        {
+          "json": {
+            "location": "San Francisco",
+            "temperature": 64
+          }
+        }
+      ]
+    }
+  }
+}

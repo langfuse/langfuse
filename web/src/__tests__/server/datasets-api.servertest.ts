@@ -1,4 +1,3 @@
-/** @jest-environment node */
 // Set environment variable before any imports to ensure it's picked up by env module
 process.env.LANGFUSE_DATASET_SERVICE_READ_FROM_VERSIONED_IMPLEMENTATION =
   "true";
@@ -6,10 +5,14 @@ process.env.LANGFUSE_DATASET_SERVICE_WRITE_TO_VERSIONED_IMPLEMENTATION = "true";
 
 import { prisma } from "@langfuse/shared/src/db";
 import {
+  buildStableDatasetRunItemResponseEventsOnly,
+  createStableExperimentId,
+} from "@/src/features/datasets/server/publicDatasetService";
+import {
   makeAPICall,
   makeZodVerifiedAPICall,
 } from "@/src/__tests__/test-utils";
-import { v4 } from "uuid";
+import { v4, v4 as uuidv4 } from "uuid";
 import {
   GetDatasetItemV1Response,
   GetDatasetItemsV1Response,
@@ -27,7 +30,6 @@ import {
   DeleteDatasetRunV1Response,
   GetDatasetRunItemsV1Response,
 } from "@/src/features/public-api/types/datasets";
-import { v4 as uuidv4 } from "uuid";
 import {
   createObservation,
   createObservationsCh,
@@ -171,6 +173,10 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
     });
     expect(getDatasetV2.body).not.toHaveProperty("items");
     expect(getDatasetV2.body).not.toHaveProperty("runs");
+    // Remote experiment fields should not be exposed in public API
+    expect(getDatasetV2.body).not.toHaveProperty("remoteExperimentEnabled");
+    expect(getDatasetV2.body).not.toHaveProperty("remoteExperimentUrl");
+    expect(getDatasetV2.body).not.toHaveProperty("remoteExperimentPayload");
   });
 
   it("should not return ARCHIVED dataset items when getting a dataset", async () => {
@@ -230,6 +236,171 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
     expect(getDataset.body.items[0].id).toEqual("active-item-id");
   });
 
+  it("should not return ARCHIVED dataset items when getting dataset items list", async () => {
+    const datasetName = `dataset-items-archived-${v4()}`;
+
+    // Create dataset
+    await makeZodVerifiedAPICall(
+      PostDatasetsV1Response,
+      "POST",
+      "/api/public/datasets",
+      {
+        name: datasetName,
+        description: "dataset for testing archived items filtering",
+      },
+      auth,
+    );
+
+    // Create multiple archived dataset items
+    for (let i = 0; i < 3; i++) {
+      await makeZodVerifiedAPICall(
+        PostDatasetItemsV1Response,
+        "POST",
+        "/api/public/dataset-items",
+        {
+          datasetName,
+          id: `archived-item-${i}`,
+          input: { key: `archived-value-${i}` },
+          status: "ARCHIVED",
+        },
+        auth,
+      );
+    }
+
+    // Create multiple active dataset items
+    for (let i = 0; i < 2; i++) {
+      await makeZodVerifiedAPICall(
+        PostDatasetItemsV1Response,
+        "POST",
+        "/api/public/dataset-items",
+        {
+          datasetName,
+          id: `active-item-${i}`,
+          input: { key: `active-value-${i}` },
+          status: "ACTIVE",
+        },
+        auth,
+      );
+    }
+
+    // Get all dataset items (without filtering by dataset)
+    const getAllItems = await makeZodVerifiedAPICall(
+      GetDatasetItemsV1Response,
+      "GET",
+      `/api/public/dataset-items`,
+      undefined,
+      auth,
+    );
+
+    expect(getAllItems.status).toBe(200);
+    // Should only include active items
+    const itemsForDataset = getAllItems.body.data.filter(
+      (item) => item.datasetName === datasetName,
+    );
+    expect(itemsForDataset).toHaveLength(2);
+    expect(itemsForDataset.every((item) => item.status === "ACTIVE")).toBe(
+      true,
+    );
+    expect(
+      itemsForDataset.every((item) => item.id.startsWith("active-item-")),
+    ).toBe(true);
+
+    // Get dataset items filtered by datasetName
+    const getFilteredItems = await makeZodVerifiedAPICall(
+      GetDatasetItemsV1Response,
+      "GET",
+      `/api/public/dataset-items?datasetName=${encodeURIComponent(datasetName)}`,
+      undefined,
+      auth,
+    );
+
+    expect(getFilteredItems.status).toBe(200);
+    expect(getFilteredItems.body.data).toHaveLength(2);
+    expect(
+      getFilteredItems.body.data.every((item) => item.status === "ACTIVE"),
+    ).toBe(true);
+    expect(
+      getFilteredItems.body.data.every((item) =>
+        item.id.startsWith("active-item-"),
+      ),
+    ).toBe(true);
+  });
+
+  it("should return archived dataset item when getting by id", async () => {
+    const datasetName = `dataset-archived-by-id-${v4()}`;
+
+    await makeZodVerifiedAPICall(
+      PostDatasetsV1Response,
+      "POST",
+      "/api/public/datasets",
+      { name: datasetName },
+      auth,
+    );
+
+    const archivedItem = await makeZodVerifiedAPICall(
+      PostDatasetItemsV1Response,
+      "POST",
+      "/api/public/dataset-items",
+      {
+        datasetName,
+        id: "archived-item-by-id",
+        input: { key: "archived-value" },
+        status: "ARCHIVED",
+      },
+      auth,
+    );
+    expect(archivedItem.status).toBe(200);
+    expect(archivedItem.body.status).toBe("ARCHIVED");
+
+    const getArchivedItem = await makeZodVerifiedAPICall(
+      GetDatasetItemV1Response,
+      "GET",
+      `/api/public/dataset-items/archived-item-by-id`,
+      undefined,
+      auth,
+    );
+    expect(getArchivedItem.status).toBe(200);
+    expect(getArchivedItem.body.id).toBe("archived-item-by-id");
+    expect(getArchivedItem.body.status).toBe("ARCHIVED");
+  });
+
+  it("should return active dataset item when getting by id", async () => {
+    const datasetName = `dataset-active-by-id-${v4()}`;
+
+    await makeZodVerifiedAPICall(
+      PostDatasetsV1Response,
+      "POST",
+      "/api/public/datasets",
+      { name: datasetName },
+      auth,
+    );
+
+    const activeItem = await makeZodVerifiedAPICall(
+      PostDatasetItemsV1Response,
+      "POST",
+      "/api/public/dataset-items",
+      {
+        datasetName,
+        id: "active-item-by-id",
+        input: { key: "active-value" },
+        status: "ACTIVE",
+      },
+      auth,
+    );
+    expect(activeItem.status).toBe(200);
+
+    const getActiveItem = await makeZodVerifiedAPICall(
+      GetDatasetItemV1Response,
+      "GET",
+      `/api/public/dataset-items/active-item-by-id`,
+      undefined,
+      auth,
+    );
+    expect(getActiveItem.status).toBe(200);
+    expect(getActiveItem.body.id).toBe("active-item-by-id");
+    expect(getActiveItem.body.status).toBe("ACTIVE");
+  });
+
   it("should correctly update dataset items", async () => {
     const datasetItemId = v4();
     const datasetName = v4();
@@ -286,7 +457,7 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
     });
   });
 
-  it("should return 404 when trying to update dataset item that exists in different dataset of the same project", async () => {
+  it("should return 409 when trying to update dataset item that exists in different dataset of the same project", async () => {
     const dataset = await prisma.dataset.create({
       data: {
         name: "dataset-name-1",
@@ -323,7 +494,10 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
       auth,
     );
 
-    expect(response.status).toBe(404);
+    expect(response.status).toBe(409);
+    expect(JSON.stringify(response.body)).toContain(
+      `Dataset item id ${datasetItemId} already exists in another dataset (id ${dataset.id})`,
+    );
   });
 
   it("GET datasets (v1 & v2)", async () => {
@@ -441,6 +615,12 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
         page: 1,
       }),
     });
+    // Remote experiment fields should not be exposed in public API
+    for (const dataset of getDatasetsV2.body.data) {
+      expect(dataset).not.toHaveProperty("remoteExperimentEnabled");
+      expect(dataset).not.toHaveProperty("remoteExperimentUrl");
+      expect(dataset).not.toHaveProperty("remoteExperimentPayload");
+    }
   });
 
   it("should create and get a dataset items (via datasets (v1), individually, and as a list)", async () => {
@@ -903,6 +1083,87 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
     expect(runItemBoth.status).toBe(200);
   }, 90000);
 
+  // The experiment id is what the SDK reuses across every item POST of a run,
+  // so it must be identical for the same (projectId, datasetId, runName) and
+  // carry the SDK's seeded id shape (16 hex chars).
+  it("createStableExperimentId is deterministic and matches the SDK id shape", () => {
+    const args = {
+      projectId: "p-1",
+      datasetId: "d-1",
+      runName: "run-1",
+    };
+    const id = createStableExperimentId(args);
+
+    expect(id).toMatch(/^[0-9a-f]{16}$/);
+    expect(createStableExperimentId(args)).toBe(id);
+    expect(createStableExperimentId({ ...args, runName: "run-2" })).not.toBe(
+      id,
+    );
+    expect(createStableExperimentId({ ...args, datasetId: "d-2" })).not.toBe(
+      id,
+    );
+  });
+
+  // events_only is exercised against the helper directly: makeAPICall hits a
+  // real HTTP server whose write mode we cannot flip from the test process.
+  it("events_only returns a stable experiment id per run without persisting", async () => {
+    const datasetId = v4();
+    await prisma.dataset.create({
+      data: { id: datasetId, name: "events-only-dataset", projectId },
+    });
+    const itemResult = await createDatasetItem({
+      projectId,
+      datasetId,
+      input: { key: "value" },
+      validateOpts: { normalizeUndefinedToNull: true },
+    });
+    if (!itemResult.success) throw new Error(itemResult.message);
+    const datasetItemId = itemResult.datasetItem.id;
+
+    const runName = "events-only-run";
+    // The helper only reads auth.scope.projectId.
+    const helperAuth = { scope: { projectId } } as any;
+
+    const first = await buildStableDatasetRunItemResponseEventsOnly({
+      auth: helperAuth,
+      body: {
+        datasetItemId,
+        traceId,
+        runName,
+        metadata: { key: "value" },
+      } as any,
+    });
+
+    expect(first.datasetRunName).toBe(runName);
+    expect(first.datasetItemId).toBe(datasetItemId);
+    expect(first.traceId).toBe(traceId);
+    expect(first.datasetRunId).toBe(
+      createStableExperimentId({ projectId, datasetId, runName }),
+    );
+
+    // Stable across separate POSTs of the same run, even with a different trace.
+    const second = await buildStableDatasetRunItemResponseEventsOnly({
+      auth: helperAuth,
+      body: { datasetItemId, traceId: v4(), runName } as any,
+    });
+    expect(second.datasetRunId).toBe(first.datasetRunId);
+
+    // Nothing is persisted: no dataset run row is created in Postgres.
+    const dbRun = await prisma.datasetRuns.findFirst({
+      where: { projectId, name: runName },
+    });
+    expect(dbRun).toBeNull();
+
+    // A genuinely missing dataset item still 404s (not the "endpoint
+    // unavailable" 404 we removed).
+    await expect(
+      buildStableDatasetRunItemResponseEventsOnly({
+        auth: helperAuth,
+        body: { datasetItemId: "does-not-exist", traceId, runName } as any,
+      }),
+    ).rejects.toThrow("Dataset item not found");
+  });
+
   it("GET /api/public/datasets/{datasetName}/runs", async () => {
     // create multiple runs
     await makeZodVerifiedAPICall(
@@ -1151,21 +1412,10 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
     });
     expect(dbRunAfterDelete).toBeNull();
 
-    // Verify run items are also deleted
-    await waitForExpect(async () => {
-      const dbRunItems = await getDatasetRunItemsByDatasetIdCh({
-        projectId: dataset.body.projectId,
-        datasetId: dataset.body.id,
-        filter: [],
-        orderBy: {
-          column: "createdAt",
-          order: "DESC",
-        },
-        limit: 10,
-      });
-      expect(dbRunItems).toHaveLength(0);
-    }, 30000);
-  }, 90000);
+    // ClickHouse run-item deletion propagates asynchronously via the worker
+    // queue; it is covered deterministically in
+    // worker/src/__tests__/datasetDelete.test.ts.
+  });
 
   it("dataset-run-items should fail when neither trace nor observation provided", async () => {
     const response = await makeAPICall(
@@ -1725,6 +1975,22 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
     expect(updatedItem?.input).toEqual({ value: "version 2" });
     expect(updatedItem?.expectedOutput).toEqual({ result: "v2" });
 
+    // Each response carries the version of the item it returns
+    expect(new Date(item1Updated.body.version).getTime()).toBeGreaterThan(
+      new Date(item1.body.version).getTime(),
+    );
+    expect(itemsV1.body.data[0].version).toEqual(item1.body.version);
+    expect(updatedItem?.version).toEqual(item1Updated.body.version);
+
+    const itemById = await makeZodVerifiedAPICall(
+      GetDatasetItemV1Response,
+      "GET",
+      "/api/public/dataset-items/versioned-item-1",
+      undefined,
+      auth,
+    );
+    expect(itemById.body.version).toEqual(item1Updated.body.version);
+
     // Test 4: Verify version parameter requires datasetName
     const invalidVersion = await makeAPICall(
       "GET",
@@ -1811,4 +2077,143 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
       dataset_version: experimentVersion.toISOString(),
     });
   }, 90000);
+
+  it("should return createdAt timestamp when creating a dataset run item", async () => {
+    const datasetName = `dataset-createdAt-test-${v4()}`;
+
+    // Create dataset
+    const dataset = await makeZodVerifiedAPICall(
+      PostDatasetsV2Response,
+      "POST",
+      "/api/public/v2/datasets",
+      {
+        name: datasetName,
+        description: "Dataset for createdAt test",
+      },
+      auth,
+    );
+    expect(dataset.status).toBe(200);
+
+    // Create dataset item
+    const datasetItem = await makeZodVerifiedAPICall(
+      PostDatasetItemsV1Response,
+      "POST",
+      "/api/public/dataset-items",
+      {
+        datasetName,
+        input: { key: "value" },
+      },
+      auth,
+    );
+    expect(datasetItem.status).toBe(200);
+
+    // Test 1: Create run item with custom createdAt
+    const customCreatedAt = new Date("2024-01-15T10:30:00.000Z");
+    const runItemWithCustomTimestamp = await makeZodVerifiedAPICall(
+      PostDatasetRunItemsV1Response,
+      "POST",
+      "/api/public/dataset-run-items",
+      {
+        runName: "test-run-with-timestamp",
+        datasetItemId: datasetItem.body.id,
+        traceId: traceId,
+        createdAt: customCreatedAt.toISOString(),
+      },
+      auth,
+    );
+
+    expect(runItemWithCustomTimestamp.status).toBe(200);
+    expect(runItemWithCustomTimestamp.body).toHaveProperty("createdAt");
+    expect(new Date(runItemWithCustomTimestamp.body.createdAt)).toEqual(
+      customCreatedAt,
+    );
+
+    // Test 2: Create run item without custom createdAt (should use current time)
+    const beforeCreate = new Date();
+    const runItemWithoutTimestamp = await makeZodVerifiedAPICall(
+      PostDatasetRunItemsV1Response,
+      "POST",
+      "/api/public/dataset-run-items",
+      {
+        runName: "test-run-without-timestamp",
+        datasetItemId: datasetItem.body.id,
+        traceId: traceId,
+      },
+      auth,
+    );
+    const afterCreate = new Date();
+
+    expect(runItemWithoutTimestamp.status).toBe(200);
+    expect(runItemWithoutTimestamp.body).toHaveProperty("createdAt");
+    const returnedCreatedAt = new Date(runItemWithoutTimestamp.body.createdAt);
+    expect(returnedCreatedAt.getTime()).toBeGreaterThanOrEqual(
+      beforeCreate.getTime(),
+    );
+    expect(returnedCreatedAt.getTime()).toBeLessThanOrEqual(
+      afterCreate.getTime(),
+    );
+  });
+
+  it("should propagate createdAt to dataset run only when creating new run", async () => {
+    const datasetName = `dataset-run-createdAt-${v4()}`;
+    const runName = `run-createdAt-test-${v4()}`;
+
+    // Create dataset and item
+    await makeZodVerifiedAPICall(
+      PostDatasetsV2Response,
+      "POST",
+      "/api/public/v2/datasets",
+      { name: datasetName },
+      auth,
+    );
+    const item = await makeZodVerifiedAPICall(
+      PostDatasetItemsV1Response,
+      "POST",
+      "/api/public/dataset-items",
+      { datasetName, input: { key: "value" } },
+      auth,
+    );
+
+    // Create first run item with custom createdAt - should create run with that timestamp
+    const customCreatedAt = new Date("2024-06-15T12:00:00.000Z");
+    await makeZodVerifiedAPICall(
+      PostDatasetRunItemsV1Response,
+      "POST",
+      "/api/public/dataset-run-items",
+      {
+        runName,
+        datasetItemId: item.body.id,
+        traceId: traceId,
+        createdAt: customCreatedAt.toISOString(),
+      },
+      auth,
+    );
+
+    // Verify the run was created with the custom timestamp
+    const runAfterFirst = await prisma.datasetRuns.findFirst({
+      where: { name: runName, projectId },
+    });
+    expect(runAfterFirst?.createdAt).toEqual(customCreatedAt);
+
+    // Create second run item with different createdAt - run already exists, should NOT update
+    const differentCreatedAt = new Date("2025-01-01T00:00:00.000Z");
+    await makeZodVerifiedAPICall(
+      PostDatasetRunItemsV1Response,
+      "POST",
+      "/api/public/dataset-run-items",
+      {
+        runName,
+        datasetItemId: item.body.id,
+        traceId: traceId,
+        createdAt: differentCreatedAt.toISOString(),
+      },
+      auth,
+    );
+
+    // Verify the run's createdAt was NOT updated
+    const runAfterSecond = await prisma.datasetRuns.findFirst({
+      where: { name: runName, projectId },
+    });
+    expect(runAfterSecond?.createdAt).toEqual(customCreatedAt); // Still original timestamp
+  });
 });

@@ -1,5 +1,3 @@
-import { api } from "@/src/utils/api";
-
 import {
   type ScoreSourceType,
   type FilterState,
@@ -17,14 +15,11 @@ import {
 } from "@/src/utils/date-range-utils";
 import React, { useMemo } from "react";
 import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
-import {
-  type QueryType,
-  type ViewVersion,
-  mapLegacyUiTableFilterToView,
-} from "@/src/features/query";
+import { type QueryType, type ViewVersion } from "@langfuse/shared/query";
+import { mapLegacyUiTableFilterToView } from "@/src/features/dashboard/lib/dashboardUiTableToViewMapping";
 import { type DatabaseRow } from "@/src/server/api/services/sqlInterface";
-import { Chart } from "@/src/features/widgets/chart-library/Chart";
-import { timeSeriesToDataPoints } from "@/src/features/dashboard/lib/chart-data-adapters";
+import { DashboardLineTimeSeriesChart } from "@/src/features/dashboard/components/DashboardLineTimeSeriesChart";
+import { useScheduledDashboardExecuteQuery } from "@/src/features/dashboard/hooks/DashboardQuerySchedulerProvider";
 
 export function NumericScoreTimeSeriesChart(props: {
   projectId: string;
@@ -35,7 +30,14 @@ export function NumericScoreTimeSeriesChart(props: {
   globalFilterState: FilterState;
   fromTimestamp: Date;
   toTimestamp: Date;
-  metricsVersion?: ViewVersion;
+  metricsVersion: ViewVersion;
+  schedulerId?: string;
+  /** Shared hover-sync group so this chart joins the dashboard crosshair. */
+  syncId?: string;
+  sync?: {
+    activeKey: string | undefined;
+    onActiveKeyChange: (key: string | undefined) => void;
+  };
 }) {
   const scoresQuery: QueryType = {
     view: "scores-numeric",
@@ -74,7 +76,7 @@ export function NumericScoreTimeSeriesChart(props: {
     orderBy: null,
   };
 
-  const scores = api.dashboard.executeQuery.useQuery(
+  const scores = useScheduledDashboardExecuteQuery(
     {
       projectId: props.projectId,
       query: scoresQuery,
@@ -86,6 +88,7 @@ export function NumericScoreTimeSeriesChart(props: {
           skipBatch: true,
         },
       },
+      queryId: `${props.schedulerId ?? "home:score-analytics"}:numeric:${props.source}:${props.name}`,
     },
   );
 
@@ -111,16 +114,10 @@ export function NumericScoreTimeSeriesChart(props: {
     isNullValueAllowed: true,
   }) ? (
     <div className="h-80 w-full shrink-0">
-      <Chart
-        chartType="LINE_TIME_SERIES"
-        data={timeSeriesToDataPoints(extractedScores, props.agg)}
-        rowLimit={100}
-        chartConfig={{
-          type: "LINE_TIME_SERIES",
-          show_data_point_dots: false,
-          subtle_fill: true,
-        }}
-        legendPosition="above"
+      <DashboardLineTimeSeriesChart
+        data={extractedScores}
+        syncId={props.syncId}
+        sync={props.sync}
       />
     </div>
   ) : (

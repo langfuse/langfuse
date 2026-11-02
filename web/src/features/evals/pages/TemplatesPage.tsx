@@ -1,0 +1,76 @@
+import Page from "@/src/components/layouts/Page";
+import { useRouter } from "next/router";
+import { Button } from "@/src/components/ui/button";
+import Link from "next/link";
+import { useHasProjectAccess } from "@/src/features/rbac";
+import { Lock, Plus } from "@langfuse/icons";
+import EvalsTemplateTable from "@/src/features/evals/components/EvalsTemplateTable";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { getEvalsTabs, EVALS_TABS } from "@/src/features/navigation";
+import { ManageDefaultEvalModel } from "@/src/features/evals/components/ManageDefaultEvalModel";
+import { V4MigrationUpdateRequiredBadge } from "@/src/features/v4-migration/V4MigrationDelayBadge";
+
+export default function TemplatesPage() {
+  const router = useRouter();
+  const projectId = router.query.projectId as string;
+  const capture = usePostHogClientCapture();
+  const hasWriteAccess = useHasProjectAccess({
+    projectId,
+    scope: "evaluator:CUD",
+  });
+
+  const hasReadAccess = useHasProjectAccess({
+    projectId,
+    scope: "evaluator:read",
+  });
+
+  if (!hasReadAccess) {
+    return <div>You do not have access to this page.</div>;
+  }
+
+  return (
+    <Page
+      headerProps={{
+        title: "Evaluators",
+        titleBadges: <V4MigrationUpdateRequiredBadge />,
+        help: {
+          description: "View all langfuse managed and custom evaluators.",
+          href: "https://langfuse.com/docs/evaluation/evaluation-methods/llm-as-a-judge",
+        },
+        tabsProps: {
+          tabs: getEvalsTabs(projectId),
+          activeTab: EVALS_TABS.TEMPLATES,
+        },
+        actionButtonsRight: (
+          <>
+            <ManageDefaultEvalModel projectId={projectId} />
+            <Button
+              disabled={!hasWriteAccess}
+              onClick={() => capture("eval_templates:new_form_open")}
+              asChild
+              variant="default"
+            >
+              <Link
+                href={
+                  hasWriteAccess
+                    ? `/project/${projectId}/evals/templates/new`
+                    : "#"
+                }
+              >
+                {hasWriteAccess ? (
+                  <Plus size="base" color="default" __rawClassName="mr-2" />
+                ) : (
+                  <Lock size="base" color="default" __rawClassName="mr-2" />
+                )}
+                Custom Evaluator
+              </Link>
+            </Button>
+          </>
+        ),
+        actionButtonsRightClassName: "justify-end",
+      }}
+    >
+      <EvalsTemplateTable projectId={projectId} />
+    </Page>
+  );
+}

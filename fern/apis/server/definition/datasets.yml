@@ -33,39 +33,6 @@ service:
       path: /v2/datasets
       request: CreateDatasetRequest
       response: commons.Dataset
-    getRun:
-      method: GET
-      docs: Get a dataset run and its items
-      path: /datasets/{datasetName}/runs/{runName}
-      path-parameters:
-        datasetName: string
-        runName: string
-      response: commons.DatasetRunWithItems
-    deleteRun:
-      method: DELETE
-      docs: Delete a dataset run and all its run items. This action is irreversible.
-      path: /datasets/{datasetName}/runs/{runName}
-      path-parameters:
-        datasetName: string
-        runName: string
-      response: DeleteDatasetRunResponse
-    getRuns:
-      method: GET
-      docs: Get dataset runs
-      path: /datasets/{datasetName}/runs
-      path-parameters:
-        datasetName: string
-      request:
-        name: GetDatasetRunsRequest
-        query-parameters:
-          page:
-            type: optional<integer>
-            docs: page number, starts at 1
-          limit:
-            type: optional<integer>
-            docs: limit of items per page
-      response: PaginatedDatasetRuns
-
 types:
   PaginatedDatasets:
     properties:
@@ -82,10 +49,3 @@ types:
       expectedOutputSchema:
         type: optional<unknown>
         docs: JSON Schema for validating dataset item expected outputs. When set, all new and existing dataset items will be validated against this schema.
-  PaginatedDatasetRuns:
-    properties:
-      data: list<commons.DatasetRun>
-      meta: pagination.MetaResponse
-  DeleteDatasetRunResponse:
-    properties:
-      message: string

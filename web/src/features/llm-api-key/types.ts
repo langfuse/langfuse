@@ -1,29 +1,32 @@
-import { z } from "zod/v4";
+import { z } from "zod";
 import {
   LLMAdapter,
   BedrockConfigSchema,
+  OpenAIConfigSchema,
   VertexAIConfigSchema,
 } from "@langfuse/shared";
 
-export const LlmApiKeySchema = z.object({
+const LlmApiKeyInputSchema = z.object({
   projectId: z.string(),
   provider: z
     .string()
     .min(1)
     .regex(/^[^:]+$/, "Provider name cannot contain colons"),
   adapter: z.enum(LLMAdapter),
-  baseURL: z.string().url().optional(),
+  baseURL: z.url().nullish(),
   withDefaultModels: z.boolean().optional(),
   customModels: z.array(z.string().min(1)).optional(),
-  config: z.union([VertexAIConfigSchema, BedrockConfigSchema]).optional(),
+  config: z
+    .union([VertexAIConfigSchema, BedrockConfigSchema, OpenAIConfigSchema])
+    .optional(),
   extraHeaders: z.record(z.string(), z.string()).optional(),
 });
 
-export const CreateLlmApiKey = LlmApiKeySchema.extend({
+export const CreateLlmApiKey = LlmApiKeyInputSchema.extend({
   secretKey: z.string().min(1),
 });
 
-export const UpdateLlmApiKey = LlmApiKeySchema.extend({
+export const UpdateLlmApiKey = LlmApiKeyInputSchema.extend({
   secretKey: z
     .string()
     .optional()
@@ -33,3 +36,29 @@ export const UpdateLlmApiKey = LlmApiKeySchema.extend({
     ),
   id: z.string(),
 });
+
+export const CreateOrganizationLlmApiKey = CreateLlmApiKey.omit({
+  projectId: true,
+}).extend({
+  orgId: z.string(),
+});
+
+export const UpdateOrganizationLlmApiKey = UpdateLlmApiKey.omit({
+  projectId: true,
+}).extend({
+  orgId: z.string(),
+});
+
+export const AuthMethod = {
+  ApiKey: "api-key",
+  AccessKeys: "access-keys",
+  DefaultCredentials: "default-credentials",
+} as const;
+
+export const BedrockAuthMethodSchema = z.enum([
+  AuthMethod.ApiKey,
+  AuthMethod.AccessKeys,
+  AuthMethod.DefaultCredentials,
+]);
+
+export type BedrockAuthMethod = z.infer<typeof BedrockAuthMethodSchema>;

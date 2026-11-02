@@ -1,5 +1,6 @@
+/* eslint-disable no-nested-ternary, @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 import React, { useState } from "react";
-import { api } from "@/src/utils/api";
+import { api, type RouterOutputs } from "@/src/utils/api";
 import {
   Dialog,
   DialogContent,
@@ -9,14 +10,36 @@ import {
   DialogBody,
 } from "@/src/components/ui/dialog";
 import { Button } from "@/src/components/ui/button";
-import {
-  Table,
-  TableHeader,
-  TableRow,
-  TableHead,
-  TableBody,
-  TableCell,
-} from "@/src/components/ui/table";
+import { Table } from "@/src/components/design-system/table/Table";
+import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
+import { type LangfuseColumnDef } from "@/src/components/table/types";
+
+type Dashboard =
+  RouterOutputs["dashboard"]["allDashboards"]["dashboards"][number];
+
+const columns: LangfuseColumnDef<Dashboard>[] = [
+  createTextTableColumn<Dashboard>({
+    accessorKey: "name",
+    header: "Name",
+  }),
+  {
+    accessorKey: "description",
+    header: "Description",
+    cell: ({ getValue }) => {
+      const description = getValue<string>();
+      return (
+        <span className="block truncate" title={description}>
+          {description}
+        </span>
+      );
+    },
+  },
+  {
+    accessorKey: "updatedAt",
+    header: "Updated",
+    cell: ({ getValue }) => getValue<Date>().toLocaleString(),
+  },
+];
 
 export interface SelectDashboardDialogProps {
   open: boolean;
@@ -75,44 +98,31 @@ export function SelectDashboardDialog({
             {dashboards.isLoading ? (
               <div className="py-8 text-center">Loading dashboards...</div>
             ) : dashboards.isError ? (
-              <div className="py-8 text-center text-destructive">
+              <div className="text-destructive py-8 text-center">
                 Error: {dashboards.error.message}
               </div>
             ) : dashboards.data?.dashboards.length === 0 ? (
-              <div className="py-8 text-center text-muted-foreground">
+              <div className="text-muted-foreground py-8 text-center">
                 No dashboards found.
               </div>
             ) : (
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Name</TableHead>
-                    <TableHead>Description</TableHead>
-                    <TableHead>Updated</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {dashboards.data?.dashboards
-                    .filter((d) => d.owner === "PROJECT")
-                    .map((d) => (
-                      <TableRow
-                        key={d.id}
-                        onClick={() => setSelectedDashboardId(d.id)}
-                        className={`cursor-pointer hover:bg-muted ${
-                          selectedDashboardId === d.id ? "bg-muted" : ""
-                        }`}
-                      >
-                        <TableCell className="font-medium">{d.name}</TableCell>
-                        <TableCell className="truncate" title={d.description}>
-                          {d.description}
-                        </TableCell>
-                        <TableCell>
-                          {new Date(d.updatedAt).toLocaleString()}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                </TableBody>
-              </Table>
+              <Table
+                tableName="Dashboards"
+                columns={columns}
+                data={{
+                  status: "success",
+                  data:
+                    dashboards.data?.dashboards.filter(
+                      (dashboard: Dashboard) => dashboard.owner === "PROJECT",
+                    ) ?? [],
+                }}
+                noResultsMessage={null}
+                selectedRowId={selectedDashboardId}
+                onRowClick={(dashboard) => setSelectedDashboardId(dashboard.id)}
+                getRowLabel={(dashboard) =>
+                  `Select dashboard ${dashboard.name}`
+                }
+              />
             )}
           </div>
         </DialogBody>

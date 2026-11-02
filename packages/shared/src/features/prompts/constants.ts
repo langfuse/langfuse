@@ -5,6 +5,15 @@ export const COMMIT_MESSAGE_MAX_LENGTH = 500;
 // Prompt name validation
 export const PROMPT_NAME_MAX_LENGTH = 255;
 export const RESERVED_PROMPT_NAME_NEW = "new";
+// Static sibling pages of the /prompts/[[...folder]] catch-all route
+// (web/src/pages/project/[projectId]/prompts/). Next.js resolves static
+// routes before the catch-all, so a prompt with one of these exact names
+// would have every link to it render the static page instead.
+export const RESERVED_PROMPT_NAMES = [
+  RESERVED_PROMPT_NAME_NEW,
+  "metrics",
+  "prompt-detail",
+] as const;
 export const PROMPT_NAME_PIPE_RESTRICTION_REGEX = /^[^|]*$/;
 export const PROMPT_NAME_PIPE_RESTRICTION_ERROR =
   "Prompt name cannot contain '|' character";

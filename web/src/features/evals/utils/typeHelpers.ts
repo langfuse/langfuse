@@ -1,21 +1,18 @@
 import {
-  type EvalTemplate,
   EvalTargetObject,
   type EvalTargetObject as EvalTargetObjectType,
 } from "@langfuse/shared";
 
-export const partnerIdentifierToName = new Map([["ragas", "Ragas"]]);
+const partnerIdentifierToName = new Map([["ragas", "Ragas"]]);
 
 const getPartnerName = (partner: string) => {
   return partnerIdentifierToName.get(partner) ?? "Unknown";
 };
 
-export const getMaintainer = (
-  evalTemplate: Partial<EvalTemplate> & {
-    partner?: string | null;
-    projectId: string | null;
-  },
-) => {
+export const getMaintainer = (evalTemplate: {
+  partner?: string | null;
+  projectId: string | null;
+}) => {
   if (evalTemplate.projectId === null) {
     if (evalTemplate.partner) {
       return `${getPartnerName(evalTemplate.partner)} maintained`;
@@ -38,9 +35,35 @@ export const isLegacyEvalTarget = (targetObject: string): boolean => {
   );
 };
 
+/**
+ * True when the legacy-migration nag (deprecated badge, callout, migration
+ * dialog count) should show: the evaluator targets a legacy object AND is
+ * actively evaluating new data. Inactive or backfill-only (EXISTING) legacy
+ * evaluators keep working and need no action, so they get no label.
+ */
+export const requiresLegacyMigrationAction = (evaluator: {
+  targetObject: string;
+  status: string;
+  timeScope: string[];
+}): boolean =>
+  isLegacyEvalTarget(evaluator.targetObject) &&
+  evaluator.status === "ACTIVE" &&
+  evaluator.timeScope.includes("NEW");
+
 export const isTraceTarget = (targetObject: string): boolean => {
   return targetObject === EvalTargetObject.TRACE;
 };
+
+export const isTraceTargetOnV4 = (
+  targetObject: string,
+  isV4: boolean,
+): boolean => isTraceTarget(targetObject) && isV4;
+
+export const shouldShowLegacyTracePreview = (
+  targetObject: string,
+  isV4: boolean,
+): boolean =>
+  isTraceTarget(targetObject) && !isTraceTargetOnV4(targetObject, isV4);
 
 export const isEventTarget = (targetObject: string): boolean => {
   return targetObject === EvalTargetObject.EVENT;
@@ -52,13 +75,6 @@ export const isDatasetTarget = (targetObject: string): boolean => {
 
 export const isExperimentTarget = (targetObject: string): boolean => {
   return targetObject === EvalTargetObject.EXPERIMENT;
-};
-
-export const isTraceOrEventTarget = (targetObject: string): boolean => {
-  return (
-    targetObject === EvalTargetObject.TRACE ||
-    targetObject === EvalTargetObject.EVENT
-  );
 };
 
 export const isTraceOrDatasetObject = (object: string): boolean => {

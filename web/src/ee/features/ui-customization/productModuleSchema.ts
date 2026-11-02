@@ -1,9 +1,9 @@
-import { z } from "zod/v4";
+import { z } from "zod";
 
 /**
  * All available product modules in Langfuse
  */
-export const PRODUCT_MODULES = [
+const PRODUCT_MODULES = [
   "dashboards",
   "tracing",
   "evaluation",

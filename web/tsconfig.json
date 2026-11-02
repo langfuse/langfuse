@@ -3,22 +3,27 @@
   "compilerOptions": {
     "declaration": false,
     "declarationMap": false,
-    "outDir": "dist",
-    "plugins": [
-      {
-        "name": "next"
-      }
-    ],
     "paths": {
-      "@/*": [
-        "./*"
-      ]
+      "@/*": ["./*"]
     },
-    "strictNullChecks": true
+    "strictNullChecks": true,
+    "types": ["node"]
   },
   "exclude": [
     "node_modules",
-    "sdk"
+    "sdk",
+    "storybook-static",
+    ".storybook",
+    "**/__tests__/**",
+    "**/__e2e__/**",
+    "**/*.test.*",
+    "**/*.spec.*",
+    "**/*.clienttest.*",
+    "**/*.servertest.*",
+    "**/*.story.*",
+    "**/*.stories.*",
+    "vitest.config.mts",
+    "playwright.config.ts"
   ],
   "include": [
     "**/*.cjs",
@@ -28,9 +33,7 @@
     ".eslintrc.js",
     ".next/types/**/*.ts",
     "next-env.d.ts",
-    "next-env.d.ts",
     "src",
-    "types/global.d.ts",
-    ".next-check/types/**/*.ts"
+    "types/**/*.d.ts"
   ]
 }

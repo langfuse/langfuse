@@ -1,4 +1,4 @@
-![Langfuse GitHub Banner](https://langfuse.com/images/docs/github-readme/github-banner.png)
+![Langfuse GitHub Banner](.github/readme-banner.png)
 
 <div align="center">
    <div>
@@ -28,7 +28,7 @@
    <br/>
    <span>Langfuse는 지원 및 기능 요청을 위해 <a href="https://github.com/orgs/langfuse/discussions"><strong>GitHub Discussions</strong></a>를 사용합니다.</span>
    <br/>
-   <span><b>채용 중입니다.</b> <a href="https://langfuse.com/careers"><strong>함께 하세요</strong></a> – 제품 엔지니어링 및 기술 go-to-market 역할의 인재를 찾고 있습니다.</span>
+   <span><b>채용 중입니다.</b> 원격으로 근무하며 베를린, 샌프란시스코, 암스테르담, 뉴욕에 오피스가 있습니다. <a href="https://langfuse.com/careers"><strong>함께 하세요</strong></a></span>
    <br/>
    <br/>
    <div>
@@ -73,7 +73,7 @@ Langfuse는 **오픈 소스 LLM 엔지니어링** 플랫폼입니다.
 팀이 협업하여 AI 애플리케이션을 **개발, 모니터링, 평가** 및 **디버그**할 수 있도록 도와줍니다.  
 Langfuse는 몇 분 안에 셀프 호스팅할 수 있으며, 검증된(battle-tested) 솔루션입니다.
 
-[![Langfuse Overview Video](https://github.com/user-attachments/assets/3926b288-ff61-4b95-8aa1-45d041c70866)](https://langfuse.com/watch-demo)
+<a href="https://langfuse.com/watch-demo"><img width="37.5%" alt="Langfuse Overview Video" src=".github/watch-demo.png"></a>
 
 ## ✨ 주요 기능
 
@@ -336,6 +336,6 @@ _[Langfuse의 공개 예제 trace](https://cloud.langfuse.com/project/cloramnkj0
 1. Langfuse가 어떻게 사용되는지 이해하고, 가장 관련성 높은 기능을 개선할 수 있습니다.
 2. 내부 및 외부(예: 자금 조달) 보고를 위한 전체 사용량을 추적할 수 있습니다.
 
-수집된 데이터는 제3자와 공유되지 않으며 민감한 정보를 포함하지 않습니다. 이에 대해 매우 투명하게 공개하고 있으며, 수집되는 정확한 데이터는 [여기](/web/src/features/telemetry/index.ts)에서 확인할 수 있습니다.
+텔레메트리에는 원시 traces, prompts, observations, scores 또는 데이터셋 내용이 포함되지 않습니다. 수집되는 정확한 필드, 전송 대상, 그리고 구현 참조는 [텔레메트리 문서](https://langfuse.com/self-hosting/security/telemetry)에 문서화되어 있습니다.
 
-환경 변수 `TELEMETRY_ENABLED=false`를 설정하여 옵트아웃할 수 있습니다.
+Langfuse OSS에서는 환경 변수 `TELEMETRY_ENABLED=false`를 설정하여 옵트아웃할 수 있습니다.

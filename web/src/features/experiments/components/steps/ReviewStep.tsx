@@ -5,19 +5,16 @@ import {
   CardHeader,
   CardTitle,
 } from "@/src/components/ui/card";
-import { Badge } from "@/src/components/ui/badge";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/src/components/ui/tooltip";
-import { InfoIcon } from "lucide-react";
+import { Badge } from "@/src/components/design-system/Badge/Badge";
+import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
+import { InfoIcon } from "@langfuse/icons";
 import { type ReviewStepProps } from "@/src/features/experiments/types/stepProps";
 import { StepHeader } from "@/src/features/experiments/components/shared/StepHeader";
 
 export const ReviewStep: React.FC<ReviewStepProps> = ({
   formState,
   navigationState,
+  errorMessage,
   summary,
 }) => {
   const { form } = formState;
@@ -39,13 +36,14 @@ export const ReviewStep: React.FC<ReviewStepProps> = ({
       <StepHeader
         title="Review & Run"
         description="Review your experiment configuration before running it. You can go back to any step to make changes."
+        errorMessage={errorMessage}
       />
 
       {/* Two-column grid layout */}
       <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
         {/* Prompt Card - Top Left */}
         <Card
-          className="cursor-pointer transition-colors hover:bg-accent"
+          className="hover:bg-accent cursor-pointer transition-colors"
           onClick={() => setActiveStep("prompt")}
         >
           <CardHeader className="pb-3">
@@ -54,18 +52,18 @@ export const ReviewStep: React.FC<ReviewStepProps> = ({
           <CardContent className="space-y-2 text-sm">
             <div className="flex gap-2">
               <span className="text-muted-foreground">Name:</span>
-              <span className="font-medium">{selectedPromptName}</span>
+              <span className="font-bold">{selectedPromptName}</span>
             </div>
             <div className="flex gap-2">
               <span className="text-muted-foreground">Version:</span>
-              <span className="font-medium">v{selectedPromptVersion}</span>
+              <span className="font-bold">v{selectedPromptVersion}</span>
             </div>
           </CardContent>
         </Card>
 
         {/* Model Card - Top Right */}
         <Card
-          className="cursor-pointer transition-colors hover:bg-accent"
+          className="hover:bg-accent cursor-pointer transition-colors"
           onClick={() => setActiveStep("prompt")}
         >
           <CardHeader className="pb-3">
@@ -105,7 +103,7 @@ export const ReviewStep: React.FC<ReviewStepProps> = ({
 
         {/* Dataset Card - Middle Left */}
         <Card
-          className="cursor-pointer transition-colors hover:bg-accent"
+          className="hover:bg-accent cursor-pointer transition-colors"
           onClick={() => setActiveStep("dataset")}
         >
           <CardHeader className="pb-3">
@@ -114,7 +112,7 @@ export const ReviewStep: React.FC<ReviewStepProps> = ({
           <CardContent className="space-y-2 text-sm">
             <div className="flex gap-2">
               <span className="text-muted-foreground">Name:</span>
-              <span className="font-medium">{selectedDataset?.name}</span>
+              <span className="font-bold">{selectedDataset?.name}</span>
             </div>
             {validationResult?.isValid && (
               <div className="flex gap-2">
@@ -128,7 +126,7 @@ export const ReviewStep: React.FC<ReviewStepProps> = ({
         {/* Evaluators Card - Middle Right (only if there are evaluators) */}
         {activeEvaluatorNames.length > 0 && (
           <Card
-            className="cursor-pointer transition-colors hover:bg-accent"
+            className="hover:bg-accent cursor-pointer transition-colors"
             onClick={() => setActiveStep("evaluators")}
           >
             <CardHeader className="pb-3">
@@ -139,9 +137,7 @@ export const ReviewStep: React.FC<ReviewStepProps> = ({
             <CardContent>
               <div className="flex flex-wrap gap-2">
                 {activeEvaluatorNames.map((name) => (
-                  <Badge key={name} variant="secondary" className="text-xs">
-                    {name}
-                  </Badge>
+                  <Badge key={name} color="filled" text={name} />
                 ))}
               </div>
             </CardContent>
@@ -150,7 +146,7 @@ export const ReviewStep: React.FC<ReviewStepProps> = ({
 
         {/* Run Details Card - Bottom (Full Width) */}
         <Card
-          className="cursor-pointer transition-colors hover:bg-accent md:col-span-2"
+          className="hover:bg-accent cursor-pointer transition-colors md:col-span-2"
           onClick={() => setActiveStep("details")}
         >
           <CardHeader className="pb-3">
@@ -159,20 +155,15 @@ export const ReviewStep: React.FC<ReviewStepProps> = ({
           <CardContent className="space-y-2 text-sm">
             <div className="flex gap-2">
               <span className="text-muted-foreground">Experiment Name:</span>
-              <span className="font-medium">{formValues.name}</span>
+              <span className="font-bold">{formValues.name}</span>
             </div>
             <div className="flex items-center gap-2">
               <span className="text-muted-foreground">Run Name:</span>
-              <span className="font-medium">{formValues.runName}</span>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <InfoIcon className="h-3.5 w-3.5 text-muted-foreground" />
-                </TooltipTrigger>
-                <TooltipContent className="max-w-[300px]">
-                  This run name is auto-generated from the experiment name and
-                  can be used to fetch the resulting experiment run via the
-                  public API.
-                </TooltipContent>
+              <span className="font-bold">{formValues.runName}</span>
+              <Tooltip label="This run name is auto-generated from the experiment name and can be used to fetch the resulting experiment run via the public API.">
+                {({ getTriggerProps }) => (
+                  <InfoIcon {...getTriggerProps()} size="base" color="muted" />
+                )}
               </Tooltip>
             </div>
             {formValues.description && (

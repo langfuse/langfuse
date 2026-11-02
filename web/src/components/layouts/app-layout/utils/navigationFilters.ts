@@ -3,29 +3,41 @@
  * Each filter is a pure function that can be tested in isolation
  */
 
-import type { Route } from "@/src/components/layouts/routes";
+import { RouteGroup, type Route } from "@/src/components/layouts/routes";
 import type { NavigationFilterContext } from "./navigationFilters.types";
-import { hasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import { hasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
-import type { User } from "next-auth";
-import type { Flag } from "@/src/features/feature-flags/types";
+import { hasProjectAccess, hasOrganizationAccess } from "@/src/features/rbac";
+import type { Session } from "next-auth";
+import { isAdminOnlyFeaturePreviewFlag } from "@/src/features/feature-flags/available-flags";
+import { getContextualFeatureFlags } from "@/src/features/feature-flags/utils";
+import { canViewTopics } from "@/src/features/topics/topicsAccess";
 
 /** Organization type from user session (can be null when not in project/org context) */
-type Organization = User["organizations"][number] | null | undefined;
+type Organization =
+  | NonNullable<Session["user"]>["organizations"][number]
+  | null
+  | undefined;
 
-// Admin-only flags that don't respect experimental features
-const adminOnlyFlags: Flag[] = ["experimentsV4Enabled"];
+function canRecoverV4(ctx: NavigationFilterContext): boolean {
+  return (
+    ctx.isLangfuseCloud &&
+    Boolean(ctx.routerProjectId) &&
+    ctx.forceV3Experience !== true &&
+    ctx.session?.environment?.v4WriteMode === "dual" &&
+    ctx.session?.user?.canToggleV4 === false &&
+    ctx.session?.user?.v4BetaEnabled === false
+  );
+}
 
 /**
  * Individual filter functions - each handles one concern
  * Exported for testing and composition
  */
-export const filters = {
+const filters = {
   /**
    * Filter routes that require a project ID when none is available
    */
   projectScope: (route: Route, ctx: NavigationFilterContext): Route | null => {
-    if (!ctx.routerProjectId && route.pathname.includes("[projectId]")) {
+    if (!ctx.routerProjectId && route.href.includes("[projectId]")) {
       return null;
     }
     return route;
@@ -38,10 +50,7 @@ export const filters = {
     route: Route,
     ctx: NavigationFilterContext,
   ): Route | null => {
-    if (
-      !ctx.routerOrganizationId &&
-      route.pathname.includes("[organizationId]")
-    ) {
+    if (!ctx.routerOrganizationId && route.href.includes("[organizationId]")) {
       return null;
     }
     return route;
@@ -72,40 +81,46 @@ export const filters = {
    * - Experimental features enabled
    * - User is cloud admin
    * - User has specific feature flag
-   * - For v4Beta: also show when user email ends with @langfuse.com, feature flag is set and we are in a cloud environment
    */
   featureFlags: (route: Route, ctx: NavigationFilterContext): Route | null => {
     if (route.featureFlag === undefined) return route;
 
-    if (route.featureFlag && adminOnlyFlags.includes(route.featureFlag)) {
-      if (!ctx.isLangfuseCloud) return null;
+    if (
+      route.featureFlag === "skillManagement" &&
+      ctx.session?.user?.v4BetaEnabled !== true
+    ) {
+      return null;
+    }
 
-      // Only check admin and user flag, skip experimental features
-      return ctx.cloudAdmin ||
-        ctx.session?.user?.featureFlags?.[route.featureFlag] === true
+    if (isAdminOnlyFeaturePreviewFlag(route.featureFlag)) {
+      return ctx.session?.user?.featureFlags?.[route.featureFlag] === true
+        ? route
+        : null;
+    }
+
+    if (route.featureFlag === "internalFeatures") {
+      return ctx.internalFeaturesEnabled ? route : null;
+    }
+
+    if (route.featureFlag === "experimentsV4Enabled") {
+      return ctx.session?.user?.v4BetaEnabled === true ? route : null;
+    }
+
+    if (route.featureFlag === "v4BetaToggleVisible") {
+      return ctx.session?.user?.canToggleV4 === true || canRecoverV4(ctx)
         ? route
         : null;
     }
 
     const hasFlag =
       ctx.enableExperimentalFeatures ||
-      ctx.cloudAdmin ||
-      ctx.session?.user?.featureFlags?.[route.featureFlag] === true;
-    // TODO: remove when v4 beta is GA
-    // v4 beta toggle special cases
-    const isV4BetaRoute = route.featureFlag === "v4BetaToggleVisible";
-    const isLangfuseTeam =
-      ctx.isLangfuseCloud &&
-      ctx.session?.user?.email?.endsWith("@langfuse.com") === true;
-    const hasCloudFlag =
-      ctx.isLangfuseCloud &&
-      ctx.session?.user?.featureFlags?.[route.featureFlag] === true;
-    // ungated: opted-in users must see toggle to turn it off regardless of env
-    const hasOptedIn = ctx.session?.user?.v4BetaEnabled === true;
-    const isV4BetaVisible =
-      isV4BetaRoute && (isLangfuseTeam || hasOptedIn || hasCloudFlag);
+      (ctx.cloudAdmin && route.featureFlag !== "skillManagement") ||
+      getContextualFeatureFlags(ctx.session?.user, {
+        projectId: ctx.routerProjectId,
+        organizationId: ctx.routerOrganizationId,
+      })?.[route.featureFlag] === true;
 
-    return hasFlag || isV4BetaVisible ? route : null;
+    return hasFlag ? route : null;
   },
 
   /**
@@ -178,12 +193,28 @@ export const filters = {
    */
   customShow: (
     route: Route,
-    _ctx: NavigationFilterContext,
+    ctx: NavigationFilterContext,
     organization: Organization,
   ): Route | null => {
     if (!route.show) return route;
     // Convert null to undefined for route.show compatibility
-    return route.show({ organization: organization ?? undefined })
+    return route.show({
+      organization: organization ?? undefined,
+      projectId: ctx.routerProjectId,
+      canViewTopics: canViewTopics(
+        ctx.session,
+        organization?.projects.find(
+          (project) => project.id === ctx.routerProjectId,
+        ),
+      ),
+      isLangfuseCloud: ctx.isLangfuseCloud,
+      hasActiveCloudIncident: ctx.hasActiveCloudIncident,
+      canToggleV4: ctx.session?.user?.canToggleV4 === true,
+      canRecoverV4: canRecoverV4(ctx),
+      forceV3Experience: ctx.forceV3Experience,
+      v4WriteMode: ctx.session?.environment?.v4WriteMode,
+      v4UpgradeUiAvailable: ctx.session?.user?.v4UpgradeUiAvailable === true,
+    })
       ? route
       : null;
   },
@@ -250,5 +281,10 @@ export function applyNavigationFilters(
 ): Route[] {
   return routes
     .map((route) => applyFiltersToRoute(route, ctx, organization))
-    .filter((route): route is Route => route !== null);
+    .filter((route): route is Route => route !== null)
+    .map((route) =>
+      ctx.internalFeaturesEnabled && route.group === RouteGroup.PromptManagement
+        ? { ...route, group: RouteGroup.ContextManagement }
+        : route,
+    );
 }

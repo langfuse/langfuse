@@ -44,21 +44,20 @@ describe("Generic Adapter", () => {
 
   it("should not display non-ChatML formats as chat", () => {
     const input = {
-      new_message: {
-        parts: [{ text: "hi" }],
-        role: "user",
+      job_request: {
+        steps: [{ name: "fetch" }],
+        priority: "high",
       },
-      run_config: {
-        streaming_mode: "StreamingMode.NONE",
+      retry_policy: {
+        max_attempts: 3,
       },
     };
 
     const output = {
-      content: {
-        parts: [{ text: "Hello!" }],
-        role: "model",
+      status: "completed",
+      metrics: {
+        duration_ms: 12,
       },
-      finish_reason: "STOP",
     };
 
     const inResult = normalizeInput(input);

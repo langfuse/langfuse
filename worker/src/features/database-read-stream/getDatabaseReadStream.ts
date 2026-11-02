@@ -13,8 +13,11 @@ import {
   FullObservationsWithScores,
   DatabaseReadStream,
   getScoresUiTable,
+  getScoresUiTableFromEvents,
+  getTraceMetadataByIdsFromEvents,
   getPublicSessionsFilter,
   getSessionsWithMetrics,
+  getSessionsTableFromEvents,
   getDistinctScoreNames,
   getObservationsTableWithModelData,
   getScoresForObservations,
@@ -25,6 +28,8 @@ import {
   getTracesByIds,
   getScoresForTraces,
   getDatasetItems,
+  storableTraceSessionIds,
+  type PreferredClickhouseService,
 } from "@langfuse/shared/src/server";
 import Decimal from "decimal.js";
 import { env } from "../../env";
@@ -41,6 +46,7 @@ const tableNameToTimeFilterColumn: Record<BatchTableNames, string> = {
   traces: "timestamp",
   observations: "startTime",
   events: "startTime",
+  datasets: "createdAt",
   dataset_run_items: "createdAt",
   dataset_items: "createdAt", // TODO: flip to validFrom once we write in new format
   audit_logs: "createdAt",
@@ -51,6 +57,7 @@ const tableNameToTimeFilterColumnCh: Record<BatchTableNames, string> = {
   traces: "timestamp",
   observations: "startTime",
   events: "startTime",
+  datasets: "createdAt",
   dataset_run_items: "createdAt",
   dataset_items: "createdAt",
   audit_logs: "createdAt",
@@ -85,13 +92,120 @@ export const getChunkWithFlattenedScores = <
           ...acc,
           [key]: value,
         };
-      } else {
-        return acc;
       }
+
+      return acc;
     }, emptyScoreColumns);
     return {
       ...data,
       ...scoreColumns,
+    };
+  });
+};
+
+/**
+ * Keyset pagination over a timestamp sort. Each page reads rows at or beyond
+ * the last emitted timestamp and excludes the ids already emitted at exactly
+ * that timestamp, so a page costs the same however deep into the export it is
+ * (unlike OFFSET, which re-reads every earlier row) and no row is skipped or
+ * repeated, whatever order the database returns timestamp ties in.
+ */
+class TimestampKeyset {
+  private boundary: Date | undefined;
+  private idsAtBoundary: string[] = [];
+
+  constructor(readonly order: "ASC" | "DESC") {}
+
+  get after(): { timestamp: Date; excludeIds: string[] } | undefined {
+    return this.boundary
+      ? { timestamp: this.boundary, excludeIds: this.idsAtBoundary }
+      : undefined;
+  }
+
+  advance(rows: { id: string; timestamp: Date }[]) {
+    for (const row of rows) {
+      if (this.boundary?.getTime() === row.timestamp.getTime()) {
+        this.idsAtBoundary.push(row.id);
+      } else {
+        this.boundary = row.timestamp;
+        this.idsAtBoundary = [row.id];
+      }
+    }
+  }
+}
+
+// Exports sorted by anything other than the time column keep OFFSET paging.
+const getTimestampKeysetOrder = (
+  orderBy: OrderByState,
+  timeColumn: string,
+): "ASC" | "DESC" | null => {
+  if (!orderBy) return "DESC";
+  return orderBy.column.toLowerCase() === timeColumn.toLowerCase()
+    ? orderBy.order
+    : null;
+};
+
+const keysetFilter = (
+  keyset: TimestampKeyset,
+  timeColumn: string,
+): FilterCondition[] => {
+  const after = keyset.after;
+  if (!after) return [];
+  return [
+    {
+      type: "datetime",
+      column: timeColumn,
+      operator: keyset.order === "DESC" ? "<=" : ">=",
+      value: after.timestamp,
+    },
+    {
+      type: "stringOptions",
+      column: "id",
+      operator: "none of",
+      value: after.excludeIds,
+    },
+  ];
+};
+
+// Events-backed replacement for the legacy getScoresUiTable traces JOIN:
+// loads score rows without trace enrichment, then fills traceName /
+// traceUserId / traceTags from the events table for the page's trace ids.
+const getScoresWithTraceMetadataFromEvents = async (props: {
+  projectId: string;
+  filter: FilterCondition[];
+  orderBy: OrderByState;
+  limit: number;
+  offset: number;
+  clickhouseConfigs: Parameters<
+    typeof getScoresUiTableFromEvents
+  >[0]["clickhouseConfigs"];
+}) => {
+  const scores = await getScoresUiTableFromEvents({
+    ...props,
+    excludeMetadata: false,
+  });
+
+  const traceMetadata = await getTraceMetadataByIdsFromEvents({
+    projectId: props.projectId,
+    traceIds: [
+      ...new Set(
+        scores
+          .map((score) => score.traceId)
+          .filter((traceId): traceId is string => Boolean(traceId)),
+      ),
+    ],
+    clickhouseConfigs: props.clickhouseConfigs,
+  });
+
+  return scores.map((score) => {
+    const trace = traceMetadata.find((t) => t.id === score.traceId);
+    // `?? null` (not `|| null`): preserve explicit empty strings/arrays so
+    // rows serialize the same as the legacy traces-JOIN export path.
+    return {
+      ...score,
+      traceName: trace?.name ?? null,
+      traceUserId: trace?.user_id ?? null,
+      traceTags: trace?.tags ?? null,
     };
   });
 };
@@ -104,13 +218,18 @@ export const getDatabaseReadStreamPaginated = async ({
   cutoffCreatedAt,
   searchQuery,
   searchType,
+  useEventsTable,
+  preferredClickhouseService,
   rowLimit = env.BATCH_EXPORT_ROW_LIMIT,
+  pageSize = env.BATCH_EXPORT_PAGE_SIZE,
 }: {
   projectId: string;
   cutoffCreatedAt: Date;
   searchQuery?: string;
   searchType?: TracingSearchType[];
   rowLimit?: number;
+  pageSize?: number;
+  preferredClickhouseService?: PreferredClickhouseService;
 } & BatchExportQueryType): Promise<DatabaseReadStream<unknown>> => {
   // Set createdAt cutoff to prevent exporting data that was created after the job was queued
   const createdAtCutoffFilter: FilterCondition = {
@@ -139,18 +258,45 @@ export const getDatabaseReadStreamPaginated = async ({
 
   switch (tableName) {
     case "scores": {
+      const timeColumn = tableNameToTimeFilterColumn[tableName];
+      const keysetOrder = getTimestampKeysetOrder(orderBy, timeColumn);
+      const keyset = keysetOrder ? new TimestampKeyset(keysetOrder) : null;
+
       return new DatabaseReadStream<unknown>(
         async (pageSize: number, offset: number) => {
-          const scores = await getScoresUiTable({
-            projectId,
-            filter: filter
-              ? [...filter, createdAtCutoffFilter]
-              : [createdAtCutoffFilter],
-            orderBy,
-            limit: pageSize,
-            offset,
-            clickhouseConfigs,
-          });
+          const scoresFilter = [
+            ...(filter ?? []),
+            createdAtCutoffFilter,
+            ...(keyset ? keysetFilter(keyset, timeColumn) : []),
+          ];
+          const page = keyset
+            ? {
+                orderBy: { column: timeColumn, order: keyset.order },
+                offset: 0,
+              }
+            : { orderBy, offset };
+
+          // v4-enabled users (snapshotted as useEventsTable at dispatch) read
+          // scores without the legacy traces JOIN; trace metadata (name,
+          // userId, tags) is loaded from the events table instead, mirroring
+          // the scores UI (scores.allFromEvents + scores.metricsFromEvents).
+          const scores = useEventsTable
+            ? await getScoresWithTraceMetadataFromEvents({
+                projectId,
+                filter: scoresFilter,
+                limit: pageSize,
+                ...page,
+                clickhouseConfigs,
+              })
+            : await getScoresUiTable({
+                projectId,
+                filter: scoresFilter,
+                limit: pageSize,
+                ...page,
+                clickhouseConfigs,
+                preferredClickhouseService,
+              });
+          keyset?.advance(scores);
 
           // Get author user info for scores
           // Only users that have valid project write access may write scores
@@ -193,7 +339,7 @@ export const getDatabaseReadStreamPaginated = async ({
             };
           });
         },
-        env.BATCH_EXPORT_PAGE_SIZE,
+        pageSize,
         rowLimit,
       );
     }
@@ -209,19 +355,45 @@ export const getDatabaseReadStreamPaginated = async ({
             projectId,
             finalFilter ?? [],
           );
-          const sessions = await getSessionsWithMetrics({
-            projectId: projectId,
-            filter: sessionsFilter,
-            orderBy: orderBy,
-            limit: pageSize,
-            page: Math.floor(offset / pageSize),
-            clickhouseConfigs,
-          });
+          // v4-enabled users (snapshotted as useEventsTable at dispatch) read
+          // sessions from the ClickHouse events table. Both readers apply the
+          // same filter (incl. the createdAt cutoff) and clickhouseConfigs, and
+          // expose the same field names, so the row mapping below is shared.
+          const sessions = useEventsTable
+            ? await getSessionsTableFromEvents({
+                projectId: projectId,
+                filter: sessionsFilter,
+                fields: [
+                  "session_id",
+                  "user_ids",
+                  "trace_count",
+                  "duration",
+                  "session_input_cost",
+                  "session_output_cost",
+                  "session_total_cost",
+                  "session_total_usage",
+                  "trace_tags",
+                  "min_timestamp",
+                ],
+                orderBy: orderBy,
+                limit: pageSize,
+                page: Math.floor(offset / pageSize),
+                clickhouseConfigs,
+              })
+            : await getSessionsWithMetrics({
+                projectId: projectId,
+                filter: sessionsFilter,
+                orderBy: orderBy,
+                limit: pageSize,
+                page: Math.floor(offset / pageSize),
+                clickhouseConfigs,
+                preferredClickhouseService,
+              });
 
           const prismaSessionInfo = await prisma.traceSession.findMany({
             where: {
               id: {
-                in: sessions.map((s) => s.session_id),
+                in: storableTraceSessionIds(sessions.map((s) => s.session_id)),
               },
               projectId: projectId,
             },
@@ -235,7 +407,7 @@ export const getDatabaseReadStreamPaginated = async ({
             const row: BatchExportSessionsRow = {
               id: s.session_id,
               userIds: s.user_ids,
-              countTraces: s.trace_ids.length,
+              countTraces: s.trace_count,
               sessionDuration: Number(s.duration) / 1000,
               inputCost: new Decimal(s.session_input_cost),
               outputCost: new Decimal(s.session_output_cost),
@@ -258,7 +430,7 @@ export const getDatabaseReadStreamPaginated = async ({
           const sessionComments = await fetchCommentsForExport(
             projectId,
             "SESSION",
-            sessions.map((s) => s.session_id),
+            storableTraceSessionIds(sessions.map((s) => s.session_id)),
           );
 
           // Add comments to each session
@@ -267,7 +439,7 @@ export const getDatabaseReadStreamPaginated = async ({
             comments: sessionComments.get(row.id) ?? [],
           }));
         },
-        env.BATCH_EXPORT_PAGE_SIZE,
+        pageSize,
         rowLimit,
       );
     case "observations": {
@@ -341,7 +513,7 @@ export const getDatabaseReadStreamPaginated = async ({
             comments: observationComments.get(obs.id) ?? [],
           }));
         },
-        env.BATCH_EXPORT_PAGE_SIZE,
+        pageSize,
         rowLimit,
       );
     }
@@ -464,7 +636,7 @@ export const getDatabaseReadStreamPaginated = async ({
             emptyScoreColumns,
           );
         },
-        env.BATCH_EXPORT_PAGE_SIZE,
+        pageSize,
         rowLimit,
       );
     }
@@ -484,6 +656,7 @@ export const getDatabaseReadStreamPaginated = async ({
             },
             offset,
             clickhouseConfigs,
+            preferredClickhouseService,
           });
 
           // fetch all project dataset names
@@ -514,7 +687,7 @@ export const getDatabaseReadStreamPaginated = async ({
             };
           });
         },
-        env.BATCH_EXPORT_PAGE_SIZE,
+        pageSize,
         rowLimit,
       );
     }
@@ -544,27 +717,34 @@ export const getDatabaseReadStreamPaginated = async ({
               : "",
           }));
         },
-        env.BATCH_EXPORT_PAGE_SIZE,
+        pageSize,
         rowLimit,
       );
     }
 
     case "audit_logs": {
+      const keyset = new TimestampKeyset("DESC");
+
       return new DatabaseReadStream<unknown>(
-        async (pageSize: number, offset: number) => {
+        async (pageSize: number) => {
+          const after = keyset.after;
           const auditLogs = await prisma.auditLog.findMany({
             where: {
               projectId: projectId,
               createdAt: {
                 lt: cutoffCreatedAt,
+                ...(after ? { lte: after.timestamp } : {}),
               },
+              ...(after ? { id: { notIn: after.excludeIds } } : {}),
             },
             orderBy: {
               createdAt: "desc",
             },
-            skip: offset,
             take: pageSize,
           });
+          keyset.advance(
+            auditLogs.map((log) => ({ id: log.id, timestamp: log.createdAt })),
+          );
 
           return auditLogs.map((log) => ({
             id: log.id,
@@ -584,7 +764,7 @@ export const getDatabaseReadStreamPaginated = async ({
             after: log.after,
           }));
         },
-        env.BATCH_EXPORT_PAGE_SIZE,
+        pageSize,
         rowLimit,
       );
     }

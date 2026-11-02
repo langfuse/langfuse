@@ -1,4 +1,4 @@
-import { AlertCircle } from "lucide-react";
+import { AlertCircle } from "@langfuse/icons";
 
 type DatasetError = {
   datasetId: string;
@@ -18,24 +18,22 @@ type DatasetItemFieldSchemaErrorsProps = {
 export const DatasetItemFieldSchemaErrors: React.FC<
   DatasetItemFieldSchemaErrorsProps
 > = ({ errors, showDatasetName = false }) => {
-  if (errors.length === 0) return null;
-
   return (
-    <div className="rounded-md border border-destructive/50 bg-destructive/10 p-3">
+    <div className="border-destructive/50 bg-destructive/10 rounded-md border p-3">
       <div className="flex items-start gap-2">
-        <AlertCircle className="mt-0.5 h-4 w-4 text-destructive" />
+        <AlertCircle size="base" color="destructive" __rawClassName="mt-0.5" />
         <div className="flex-1 space-y-2">
-          <p className="text-sm font-medium text-destructive">
+          <p className="text-destructive text-sm font-bold">
             Schema validation failed
           </p>
           {errors.map((error, idx) => (
             <div key={`${error.datasetId}-${idx}`} className="space-y-1">
               {showDatasetName && (
-                <p className="text-xs font-medium text-muted-foreground">
+                <p className="text-muted-foreground text-xs font-bold">
                   {error.datasetName}
                 </p>
               )}
-              <ul className="space-y-1 text-sm text-destructive">
+              <ul className="text-destructive space-y-1 text-sm">
                 {error.errors.map((err, errIdx) => (
                   <li key={errIdx}>
                     {err.path === "/" ? (

@@ -1,14 +1,15 @@
+/* eslint-disable @repo/no-style-props */
 import { useState, useCallback, useMemo } from "react";
 import CodeMirror, { EditorView } from "@uiw/react-codemirror";
-import { StreamLanguage } from "@codemirror/language";
-import type { StringStream } from "@codemirror/language";
+import { StreamLanguage, type StringStream } from "@codemirror/language";
 import { useTheme } from "next-themes";
 import { lightTheme } from "@/src/components/editor/light-theme";
 import { darkTheme } from "@/src/components/editor/dark-theme";
+import { tolerateUnstableViewportPosAtCoords } from "@/src/components/editor/tolerateUnstableViewportPosAtCoords";
 import { cn } from "@/src/utils/tailwind";
 import { evaluateJsonPath } from "@langfuse/shared";
 
-// JSON path language mode for syntax highlighting
+// JSONPath language mode for syntax highlighting
 const jsonPathLanguage = StreamLanguage.define({
   name: "jsonpath",
   startState: () => ({ inBracket: false }),
@@ -101,14 +102,14 @@ export function JsonPathInput({
     (newValue: string) => {
       onChange(newValue);
 
-      // Try to resolve the JSON path
+      // Try to resolve the JSONPath
       if (newValue && newValue.startsWith("$") && parsedSourceData) {
         try {
           const result = evaluateJsonPath(parsedSourceData, newValue);
           setResolveError(null);
           setNoMatchWarning(result === undefined);
         } catch (e) {
-          setResolveError(e instanceof Error ? e.message : "Invalid JSON path");
+          setResolveError(e instanceof Error ? e.message : "Invalid JSONPath");
           setNoMatchWarning(false);
         }
       } else {
@@ -133,6 +134,7 @@ export function JsonPathInput({
           highlightActiveLine: false,
         }}
         extensions={[
+          tolerateUnstableViewportPosAtCoords,
           EditorView.theme({
             "&.cm-focused": {
               outline: "none",
@@ -155,14 +157,14 @@ export function JsonPathInput({
         onBlur={onBlur}
         placeholder={placeholder}
         className={cn(
-          "overflow-hidden rounded-md border text-sm",
+          "ph-no-capture overflow-hidden rounded-md border text-sm",
           displayError && "border-destructive",
           showWarning && "border-amber-500/50",
           className,
         )}
       />
       {displayError && (
-        <p className="text-xs text-destructive">{displayError}</p>
+        <p className="text-destructive text-xs">{displayError}</p>
       )}
       {showWarning && (
         <p className="text-xs text-amber-600 dark:text-amber-500">

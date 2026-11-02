@@ -1,17 +1,12 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 // This file exports the prisma db connection, the Prisma Object, and the Typescript types.
 // This is not imported in the index.ts file of this package, as we must not import this into FE code.
 
 import { Prisma, PrismaClient } from "@prisma/client";
 import { env } from "process";
-import kyselyExtension from "prisma-extension-kysely";
-import {
-  Kysely,
-  PostgresAdapter,
-  PostgresIntrospector,
-  PostgresQueryCompiler,
-} from "kysely";
-import { DB } from ".";
 import { logger } from "./server";
+import { withPostgresApplicationName } from "./server/postgresApplicationName";
+import { postgresConnectionRetryExtension } from "./dbConnectionRetry";
 
 export class PrismaClientSingleton {
   private static instance: PrismaClient;
@@ -32,11 +27,23 @@ const createPrismaInstance = () => {
     Prisma.PrismaClientOptions,
     "warn" | "error" | "query"
   >({
+    datasourceUrl: withPostgresApplicationName(env.DATABASE_URL),
     log: [
       { emit: "event", level: "query" },
       { emit: "event", level: "error" },
       { emit: "event", level: "warn" },
     ],
+    // Secret-bearing columns are excluded from every query result by default.
+    // Delivery paths that need them must opt back in with an explicit `select`.
+    omit: {
+      dataset: {
+        remoteExperimentSecretKey: true,
+        remoteExperimentRequestHeaders: true,
+      },
+      gatewayAiConnection: {
+        encryptedCredential: true,
+      },
+    },
   });
 
   if (env.NODE_ENV === "development") {
@@ -52,65 +59,26 @@ const createPrismaInstance = () => {
   client.$on("error", (event) => {
     logger.error(`prisma:error ${event.message}`);
   });
-  return client;
+
+  // A query extension leaves model and result types untouched, so the
+  // extended client is still a PrismaClient for every caller.
+  return client.$extends(
+    postgresConnectionRetryExtension,
+  ) as unknown as PrismaClient;
 };
-
-export class KyselySingleton {
-  private static instance: { $kysely: Kysely<DB> };
-
-  public static getInstance() {
-    if (KyselySingleton.instance) {
-      return KyselySingleton.instance;
-    }
-
-    KyselySingleton.instance = PrismaClientSingleton.getInstance().$extends(
-      kyselyExtension({
-        kysely: (driver) =>
-          new Kysely<DB>({
-            dialect: {
-              // This is where the magic happens!
-              createDriver: () => driver,
-              // Don't forget to customize these to match your database!
-              createAdapter: () => new PostgresAdapter(),
-              createIntrospector: (db) => new PostgresIntrospector(db),
-              createQueryCompiler: () => new PostgresQueryCompiler(),
-            },
-          }),
-      }),
-    );
-
-    return KyselySingleton.instance;
-  }
-}
 
 declare const globalThis: {
   prismaGlobal: PrismaClient | undefined;
-  kyselyPrismaGlobal: { $kysely: Kysely<DB> } | undefined;
 } & typeof global;
 
 // eslint-disable-next-line turbo/no-undeclared-env-vars
 if (process.env.NODE_ENV === "development") {
-  globalThis.prismaGlobal ??= createPrismaInstance(); // regular instantiation
-  globalThis.kyselyPrismaGlobal ??= globalThis.prismaGlobal.$extends(
-    kyselyExtension({
-      kysely: (driver) =>
-        new Kysely<DB>({
-          dialect: {
-            // This is where the magic happens!
-            createDriver: () => driver,
-            // Don't forget to customize these to match your database!
-            createAdapter: () => new PostgresAdapter(),
-            createIntrospector: (db) => new PostgresIntrospector(db),
-            createQueryCompiler: () => new PostgresQueryCompiler(),
-          },
-        }),
-    }),
-  );
+  if (globalThis.prismaGlobal === undefined) {
+    globalThis.prismaGlobal = createPrismaInstance();
+  }
 }
 
 export const prisma =
   globalThis.prismaGlobal ?? PrismaClientSingleton.getInstance();
-export const kyselyPrisma =
-  globalThis.kyselyPrismaGlobal ?? KyselySingleton.getInstance();
 
 export * from "@prisma/client";

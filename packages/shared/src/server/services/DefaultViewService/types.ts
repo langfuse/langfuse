@@ -1,4 +1,4 @@
-import z from "zod/v4";
+import z from "zod";
 
 export const DefaultViewScope = z.enum(["user", "project"]);
 export type DefaultViewScope = z.infer<typeof DefaultViewScope>;
@@ -23,6 +23,14 @@ export const GetDefaultViewInput = z.object({
   viewName: z.string(),
 });
 export type GetDefaultViewInput = z.infer<typeof GetDefaultViewInput>;
+
+export const DefaultViewAssignmentsSchema = z.object({
+  userDefaultViewId: z.string().nullable(),
+  projectDefaultViewId: z.string().nullable(),
+});
+export type DefaultViewAssignments = z.infer<
+  typeof DefaultViewAssignmentsSchema
+>;
 
 export interface ResolvedDefault {
   viewId: string;

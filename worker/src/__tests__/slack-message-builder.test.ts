@@ -1,8 +1,17 @@
-import { describe, it, expect } from "vitest";
+import { afterEach, describe, it, expect } from "vitest";
 import { SlackMessageBuilder } from "../features/slack/slackMessageBuilder";
 import type { WebhookInput } from "@langfuse/shared/src/server";
+import { env } from "../env";
 
 describe("SlackMessageBuilder", () => {
+  const originalNextAuthUrl = env.NEXTAUTH_URL;
+  const originalBasePath = env.NEXT_PUBLIC_BASE_PATH;
+
+  afterEach(() => {
+    (env as any).NEXTAUTH_URL = originalNextAuthUrl;
+    (env as any).NEXT_PUBLIC_BASE_PATH = originalBasePath;
+  });
+
   const mockPromptPayload: WebhookInput["payload"] = {
     action: "created",
     type: "prompt-version",
@@ -22,14 +31,49 @@ describe("SlackMessageBuilder", () => {
       prompt: { text: "Hello {{name}}" },
       config: { temperature: 0.7 },
     },
+    user: {
+      id: "user-123",
+      name: "Test User",
+      email: "test@example.com",
+    },
   };
+
+  it("renders skill version notifications with a version-specific skill link", () => {
+    const payload: WebhookInput["payload"] = {
+      type: "skill-version",
+      action: "created",
+      skill: {
+        id: "skill-id",
+        projectId: "project-456",
+        name: "test-skill",
+        version: 2,
+        description: "Test skill",
+        frontmatter: {},
+        tags: [],
+        labels: ["latest"],
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        createdBy: "test-user",
+        commitMessage: null,
+        files: [],
+      },
+    };
+    const message = SlackMessageBuilder.buildMessage(payload);
+    expect(message.blocks[2]).toMatchObject({
+      text: {
+        text: expect.stringContaining(
+          "/project/project-456/skills/test-skill?version=2",
+        ),
+      },
+    });
+  });
 
   describe("buildPromptVersionMessage", () => {
     it("should build complete prompt-version message with all fields", () => {
       const blocks =
         SlackMessageBuilder.buildPromptVersionMessage(mockPromptPayload);
 
-      expect(blocks).toHaveLength(6); // header, main, details, commit, actions, footer
+      expect(blocks).toHaveLength(5); // header, main, details, commit, link
 
       // Check header block
       expect(blocks[0]).toMatchObject({
@@ -54,6 +98,10 @@ describe("SlackMessageBuilder", () => {
       expect(blocks[2]).toMatchObject({
         type: "section",
         fields: [
+          {
+            type: "mrkdwn",
+            text: "*Change author:*\nTest User",
+          },
           {
             type: "mrkdwn",
             text: "*Type:*\ntext",
@@ -82,34 +130,14 @@ describe("SlackMessageBuilder", () => {
         },
       });
 
-      // Check action buttons
       expect(blocks[4]).toMatchObject({
-        type: "actions",
-        elements: [
-          {
-            type: "button",
-            text: {
-              type: "plain_text",
-              text: "View Prompt",
-              emoji: true,
-            },
-            url: expect.stringContaining(
-              "/project/project-456/prompts/test-prompt?version=2",
-            ),
-            style: "primary",
-          },
-        ],
-      });
-
-      // Check footer
-      expect(blocks[5]).toMatchObject({
-        type: "context",
-        elements: [
-          {
-            type: "mrkdwn",
-            text: expect.stringMatching(/🕒 .+ \| Langfuse/),
-          },
-        ],
+        type: "section",
+        text: {
+          type: "mrkdwn",
+          text: expect.stringMatching(
+            /<[^|]*\/project\/project-456\/prompts\/test-prompt\?version=2\|View Prompt>/,
+          ),
+        },
       });
     });
 
@@ -133,22 +161,89 @@ describe("SlackMessageBuilder", () => {
           prompt: null,
           config: null,
         },
+        user: {
+          id: "user-123",
+          name: null,
+          email: "test@example.com",
+        },
       };
 
       const blocks =
         SlackMessageBuilder.buildPromptVersionMessage(minimalPayload);
 
-      expect(blocks).toHaveLength(5); // No commit message section
+      expect(blocks).toHaveLength(4); // No commit message section
+
+      // Check "Change author" falls back to email when name is null
+      const detailsSection = blocks[2];
+      expect(detailsSection.fields[0].text).toBe(
+        "*Change author:*\ntest@example.com",
+      );
 
       // Check labels and tags show "None"
-      const detailsSection = blocks[2];
-      expect(detailsSection.fields[2].text).toBe("*Labels:*\nNone");
-      expect(detailsSection.fields[3].text).toBe("*Tags:*\nNone");
+      expect(detailsSection.fields[3].text).toBe("*Labels:*\nNone");
+      expect(detailsSection.fields[4].text).toBe("*Tags:*\nNone");
 
       // Ensure no commit message section
       expect(
         blocks.find((block) => block.text?.text?.includes("*Commit Message:*")),
       ).toBeUndefined();
+    });
+
+    it("should show 'API User' when user is not provided", () => {
+      const apiPayload: WebhookInput["payload"] = {
+        action: "created",
+        type: "prompt-version",
+        prompt: {
+          ...mockPromptPayload.prompt,
+        },
+      };
+
+      const blocks = SlackMessageBuilder.buildPromptVersionMessage(apiPayload);
+
+      const detailsSection = blocks[2];
+      expect(detailsSection.fields[0].text).toBe("*Change author:*\nAPI User");
+    });
+
+    it("should escape Slack mrkdwn special characters in user name", () => {
+      const injectionPayload: WebhookInput["payload"] = {
+        action: "created",
+        type: "prompt-version",
+        prompt: { ...mockPromptPayload.prompt },
+        user: {
+          id: "user-123",
+          name: "<!channel>",
+          email: "attacker@example.com",
+        },
+      };
+
+      const blocks =
+        SlackMessageBuilder.buildPromptVersionMessage(injectionPayload);
+
+      const detailsSection = blocks[2];
+      expect(detailsSection.fields[0].text).toBe(
+        "*Change author:*\n&lt;!channel&gt;",
+      );
+    });
+
+    it("should fall back to email when name is empty string", () => {
+      const emptyNamePayload: WebhookInput["payload"] = {
+        action: "created",
+        type: "prompt-version",
+        prompt: { ...mockPromptPayload.prompt },
+        user: {
+          id: "user-123",
+          name: "",
+          email: "alice@example.com",
+        },
+      };
+
+      const blocks =
+        SlackMessageBuilder.buildPromptVersionMessage(emptyNamePayload);
+
+      const detailsSection = blocks[2];
+      expect(detailsSection.fields[0].text).toBe(
+        "*Change author:*\nalice@example.com",
+      );
     });
 
     it("should generate correct action emojis for different actions", () => {
@@ -168,10 +263,33 @@ describe("SlackMessageBuilder", () => {
     });
 
     it("should generate correct URLs for different environments", () => {
-      let blocks =
+      const blocks =
         SlackMessageBuilder.buildPromptVersionMessage(mockPromptPayload);
-      expect(blocks[4].elements[0].url).toContain(
+      expect(blocks[4].text.text).toContain(
         "http://localhost:3000/project/project-456/prompts/test-prompt?version=2",
+      );
+    });
+
+    it("should strip the auth route from prompt URLs", () => {
+      (env as any).NEXTAUTH_URL = "https://example.com/langfuse/api/auth";
+
+      const blocks =
+        SlackMessageBuilder.buildPromptVersionMessage(mockPromptPayload);
+
+      expect(blocks[4].text.text).toContain(
+        "<https://example.com/langfuse/project/project-456/prompts/test-prompt?version=2|",
+      );
+    });
+
+    it("should include the configured base path in prompt URLs", () => {
+      (env as any).NEXTAUTH_URL = "https://example.com";
+      (env as any).NEXT_PUBLIC_BASE_PATH = "/langfuse";
+
+      const blocks =
+        SlackMessageBuilder.buildPromptVersionMessage(mockPromptPayload);
+
+      expect(blocks[4].text.text).toContain(
+        "<https://example.com/langfuse/project/project-456/prompts/test-prompt?version=2|",
       );
     });
   });
@@ -187,7 +305,7 @@ describe("SlackMessageBuilder", () => {
         unknownPayload as any,
       );
 
-      expect(blocks).toHaveLength(2);
+      expect(blocks).toHaveLength(1);
 
       expect(blocks[0]).toMatchObject({
         type: "section",
@@ -196,26 +314,18 @@ describe("SlackMessageBuilder", () => {
           text: "*Langfuse Notification*\nunknown-event event: *triggered*",
         },
       });
-
-      expect(blocks[1]).toMatchObject({
-        type: "context",
-        elements: [
-          {
-            type: "mrkdwn",
-            text: expect.stringMatching(/🕒 .+ \| Langfuse/),
-          },
-        ],
-      });
     });
   });
 
   describe("buildMessage", () => {
     it("should route prompt-version events to prompt message builder", () => {
-      const blocks = SlackMessageBuilder.buildMessage(mockPromptPayload);
+      const { blocks, attachments } =
+        SlackMessageBuilder.buildMessage(mockPromptPayload);
 
-      // Should be a full prompt message (6 blocks with commit message)
-      expect(blocks).toHaveLength(6);
+      // Should be a full prompt message (5 blocks with commit message)
+      expect(blocks).toHaveLength(5);
       expect(blocks[0].text.text).toContain("Prompt created");
+      expect(attachments).toBeUndefined();
     });
 
     it("should route unknown events to fallback message builder", () => {
@@ -224,10 +334,12 @@ describe("SlackMessageBuilder", () => {
         type: "trace-evaluation" as any,
       };
 
-      const blocks = SlackMessageBuilder.buildMessage(unknownPayload as any);
+      const { blocks } = SlackMessageBuilder.buildMessage(
+        unknownPayload as any,
+      );
 
-      // Should be a fallback message (2 blocks)
-      expect(blocks).toHaveLength(2);
+      // Should be a fallback message (1 block)
+      expect(blocks).toHaveLength(1);
       expect(blocks[0].text.text).toContain("Langfuse Notification");
     });
 
@@ -239,10 +351,10 @@ describe("SlackMessageBuilder", () => {
         prompt: null, // This should cause an error
       } as any;
 
-      const blocks = SlackMessageBuilder.buildMessage(malformedPayload);
+      const { blocks } = SlackMessageBuilder.buildMessage(malformedPayload);
 
       // Should fallback to simple message
-      expect(blocks).toHaveLength(2);
+      expect(blocks).toHaveLength(1);
       expect(blocks[0].text.text).toContain("Langfuse Notification");
     });
   });

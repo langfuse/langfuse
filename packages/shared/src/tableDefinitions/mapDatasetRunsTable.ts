@@ -25,4 +25,10 @@ export const datasetRunsTableUiColumnDefinitions: UiColumnMappings = [
     clickhouseTableName: "dataset_run_items_rmt",
     clickhouseSelect: "sa.score_categories",
   },
+  {
+    uiTableName: "Scores (boolean)",
+    uiTableId: "agg_score_booleans",
+    clickhouseTableName: "dataset_run_items_rmt",
+    clickhouseSelect: "sa.score_booleans",
+  },
 ];

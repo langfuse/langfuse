@@ -3,7 +3,7 @@ import { withFolderPathValidation } from "../folders/validation";
 import {
   PROMPT_NAME_PIPE_RESTRICTION_REGEX,
   PROMPT_NAME_PIPE_RESTRICTION_ERROR,
-  RESERVED_PROMPT_NAME_NEW,
+  RESERVED_PROMPT_NAMES,
 } from "./constants";
 
 /**
@@ -15,8 +15,10 @@ export const PromptNameSchema = withFolderPathValidation(
     // Note: pipe character is used for prompt composition
     PROMPT_NAME_PIPE_RESTRICTION_ERROR,
   ),
-  // Note: we use "new" as a special name for the new prompt form
 ).refine(
-  (name) => name !== RESERVED_PROMPT_NAME_NEW,
-  `Prompt name cannot be '${RESERVED_PROMPT_NAME_NEW}'`,
+  // Reserved: names of the static /prompts/* pages (see RESERVED_PROMPT_NAMES).
+  // Only the exact name collides — "metrics/foo" or "foo/metrics" route
+  // through the [[...folder]] catch-all.
+  (name) => !(RESERVED_PROMPT_NAMES as readonly string[]).includes(name),
+  { error: (issue) => `Prompt name cannot be '${issue.input}'` },
 );

@@ -1,0 +1,254 @@
+import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
+import { randomUUID } from "crypto";
+import type { Session } from "next-auth";
+import { describe, expect, it } from "vitest";
+
+import { prisma } from "@langfuse/shared/src/db";
+import { env } from "@/src/env.mjs";
+import { appRouter } from "@/src/server/api/root";
+import { createInnerTRPCContext } from "@/src/server/api/trpc";
+
+describe("in-app agent router", () => {
+  it("soft-deletes an owned conversation", async () => {
+    const { caller, projectId, userId } = await createCaller();
+    const conversation = await createConversation({
+      projectId,
+      userId,
+      providerSessionId: "session-1",
+    });
+
+    await caller.inAppAgent.deleteConversation({
+      projectId,
+      conversationId: conversation.id,
+    });
+
+    const deletedConversation =
+      await prisma.inAppAgentConversation.findUniqueOrThrow({
+        where: {
+          id_projectId: {
+            id: conversation.id,
+            projectId,
+          },
+        },
+      });
+
+    expect(deletedConversation.deletedAt).toBeInstanceOf(Date);
+    expect(deletedConversation.providerSessionId).toBeNull();
+  });
+
+  it("excludes deleted conversations from list and get", async () => {
+    const { caller, projectId, userId } = await createCaller();
+    const keptConversation = await createConversation({
+      projectId,
+      userId,
+      title: "Kept conversation",
+    });
+    const deletedConversation = await createConversation({
+      projectId,
+      userId,
+      title: "Deleted conversation",
+    });
+
+    await caller.inAppAgent.deleteConversation({
+      projectId,
+      conversationId: deletedConversation.id,
+    });
+
+    const listedConversations = await caller.inAppAgent.listConversations({
+      projectId,
+    });
+
+    expect(listedConversations.conversations.map(({ id }) => id)).toContain(
+      keptConversation.id,
+    );
+    expect(listedConversations.conversations.map(({ id }) => id)).not.toContain(
+      deletedConversation.id,
+    );
+    await expect(
+      caller.inAppAgent.getConversation({
+        projectId,
+        conversationId: deletedConversation.id,
+      }),
+    ).rejects.toThrow("Agent conversation not found");
+  });
+
+  it("does not delete another user's conversation", async () => {
+    const fixture = await createProjectFixture();
+    const ownerCaller = createCallerForFixture(fixture, fixture.ownerUserId);
+    const otherCaller = createCallerForFixture(fixture, fixture.otherUserId);
+    const conversation = await createConversation({
+      projectId: fixture.projectId,
+      userId: fixture.ownerUserId,
+    });
+
+    await expect(
+      otherCaller.inAppAgent.deleteConversation({
+        projectId: fixture.projectId,
+        conversationId: conversation.id,
+      }),
+    ).rejects.toThrow("Agent conversation not found");
+
+    await ownerCaller.inAppAgent.getConversation({
+      projectId: fixture.projectId,
+      conversationId: conversation.id,
+    });
+  });
+
+  it("exposes the telemetry project to internal users only", async () => {
+    const fixture = await createProjectFixture();
+    const userCaller = createCallerForFixture(fixture, fixture.ownerUserId);
+    const adminCaller = createCallerForFixture(fixture, fixture.ownerUserId, {
+      admin: true,
+    });
+    const originalAiFeaturesProjectId = env.LANGFUSE_AI_FEATURES_PROJECT_ID;
+
+    try {
+      (
+        env as { LANGFUSE_AI_FEATURES_PROJECT_ID?: string }
+      ).LANGFUSE_AI_FEATURES_PROJECT_ID = "ai-features-project";
+
+      await expect(
+        userCaller.inAppAgent.telemetryProject({
+          projectId: fixture.projectId,
+        }),
+      ).rejects.toThrow("internal surface");
+      await expect(
+        adminCaller.inAppAgent.telemetryProject({
+          projectId: fixture.projectId,
+        }),
+      ).resolves.toEqual({ projectId: "ai-features-project" });
+    } finally {
+      (
+        env as { LANGFUSE_AI_FEATURES_PROJECT_ID?: string }
+      ).LANGFUSE_AI_FEATURES_PROJECT_ID = originalAiFeaturesProjectId;
+    }
+  });
+});
+
+async function createCaller() {
+  const fixture = await createProjectFixture();
+
+  return {
+    ...fixture,
+    userId: fixture.ownerUserId,
+    caller: createCallerForFixture(fixture, fixture.ownerUserId),
+  };
+}
+
+async function createProjectFixture() {
+  const id = randomUUID();
+  const orgId = `org-${id}`;
+  const projectId = `project-${id}`;
+  const ownerUserId = `owner-${id}`;
+  const otherUserId = `other-${id}`;
+
+  const org = await prisma.organization.create({
+    data: {
+      id: orgId,
+      name: `In-app Agent Router Test Org ${id}`,
+      aiFeaturesEnabled: true,
+    },
+  });
+  const project = await prisma.project.create({
+    data: {
+      id: projectId,
+      orgId,
+      name: `In-app Agent Router Test Project ${id}`,
+    },
+  });
+
+  await prisma.user.createMany({
+    data: [
+      {
+        id: ownerUserId,
+        email: `${ownerUserId}@example.com`,
+        name: "In-app Agent Router Test Owner",
+      },
+      {
+        id: otherUserId,
+        email: `${otherUserId}@example.com`,
+        name: "In-app Agent Router Test Other User",
+      },
+    ],
+  });
+
+  return {
+    orgId: org.id,
+    orgName: org.name,
+    projectId: project.id,
+    projectName: project.name,
+    ownerUserId,
+    otherUserId,
+  };
+}
+
+function createCallerForFixture(
+  fixture: Awaited<ReturnType<typeof createProjectFixture>>,
+  userId: string,
+  { admin = false }: { admin?: boolean } = {},
+) {
+  const session: Session = {
+    expires: "1",
+    user: {
+      id: userId,
+      email: `${userId}@example.com`,
+      name: "In-app Agent Router Test User",
+      canCreateOrganizations: true,
+      organizations: [
+        {
+          id: fixture.orgId,
+          name: fixture.orgName,
+          role: "OWNER",
+          plan: "cloud:hobby",
+          cloudConfig: undefined,
+          metadata: {},
+          aiFeaturesEnabled: true,
+          aiTelemetryEnabled: true,
+          projects: [
+            {
+              id: fixture.projectId,
+              name: fixture.projectName,
+              role: "ADMIN",
+              deletedAt: null,
+              retentionDays: null,
+              hasTraces: false,
+              metadata: {},
+              createdAt: new Date().toISOString(),
+            },
+          ],
+        },
+      ],
+      featureFlags: testFeatureFlags(),
+      admin,
+    },
+    environment: {
+      enableExperimentalFeatures: false,
+      selfHostedInstancePlan: "cloud:enterprise",
+    },
+  };
+  const ctx = createInnerTRPCContext({ session, headers: {} });
+
+  return appRouter.createCaller({ ...ctx, prisma });
+}
+
+async function createConversation({
+  projectId,
+  userId,
+  title = "Test conversation",
+  providerSessionId,
+}: {
+  projectId: string;
+  userId: string;
+  title?: string;
+  providerSessionId?: string;
+}) {
+  return prisma.inAppAgentConversation.create({
+    data: {
+      id: `conv-${randomUUID()}`,
+      projectId,
+      createdByUserId: userId,
+      title,
+      providerSessionId,
+    },
+  });
+}

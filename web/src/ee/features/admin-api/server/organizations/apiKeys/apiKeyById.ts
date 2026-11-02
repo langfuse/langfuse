@@ -1,9 +1,9 @@
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { prisma } from "@langfuse/shared/src/db";
 import { logger, redis } from "@langfuse/shared/src/server";
-import { auditLog } from "@/src/features/audit-logs/auditLog";
-import { z } from "zod/v4";
-import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
+import { auditLog } from "@/src/features/audit-logs/server";
+import { z } from "zod";
+import { ApiAuthService } from "@/src/features/public-api/server";
 
 export const validateQueryParams = (
   query: unknown,
@@ -31,6 +31,7 @@ export async function handleDeleteApiKey(
       id: apiKeyId,
       orgId: organizationId,
       scope: "ORGANIZATION",
+      isInAppAgentKey: false,
     },
   });
 

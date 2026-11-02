@@ -8,83 +8,89 @@ const t2 = new Date("2024-01-01T02:00:00Z");
 const t3 = new Date("2024-01-01T03:00:00Z");
 const t4 = new Date("2024-01-01T04:00:00Z");
 
+// The migration processes projects in lexicographic order. Use IDs that sort
+// before UUIDs from concurrently running tests so these fixtures are processed first.
+const projectIdA = "00000000-0000-0000-0000-00000000000a";
+const projectIdB = "00000000-0000-0000-0000-00000000000b";
+const orgIdA = "00000000-0000-0000-0000-0000000000a0";
+const orgIdB = "00000000-0000-0000-0000-0000000000b0";
 const datasetId1 = "dataset-1";
 const datasetId2 = "dataset-2";
 
 const items = [
   {
     id: "1",
-    projectId: "A",
+    projectId: projectIdA,
     validFrom: t0,
     validTo: null,
     datasetId: datasetId1,
   },
   {
     id: "1",
-    projectId: "A",
+    projectId: projectIdA,
     validFrom: t1,
     validTo: null,
     datasetId: datasetId1,
   },
   {
     id: "1",
-    projectId: "A",
+    projectId: projectIdA,
     validFrom: t4,
     validTo: null,
     datasetId: datasetId1,
   },
   {
     id: "2",
-    projectId: "A",
+    projectId: projectIdA,
     validFrom: t2,
     validTo: null,
     datasetId: datasetId1,
   },
   {
     id: "3",
-    projectId: "A",
+    projectId: projectIdA,
     validFrom: t0,
     validTo: null,
     datasetId: datasetId1,
   },
   {
     id: "3",
-    projectId: "A",
+    projectId: projectIdA,
     validFrom: t3,
     validTo: null,
     datasetId: datasetId1,
   },
   {
     id: "4",
-    projectId: "B",
+    projectId: projectIdB,
     validFrom: t4,
     validTo: null,
     datasetId: datasetId2,
   },
   {
     id: "5",
-    projectId: "B",
+    projectId: projectIdB,
     validFrom: t4,
     validTo: null,
     datasetId: datasetId2,
   },
   {
     id: "6",
-    projectId: "B",
+    projectId: projectIdB,
     validFrom: t4,
     validTo: null,
     datasetId: datasetId2,
   },
   {
     id: "4",
-    projectId: "B",
+    projectId: projectIdB,
     validFrom: t1,
     validTo: null,
     datasetId: datasetId2,
   },
   {
     id: "1",
-    projectId: "B",
+    projectId: projectIdB,
     validFrom: t2,
     validTo: null,
     datasetId: datasetId2,
@@ -93,18 +99,18 @@ const items = [
 
 describe("BackfillValidToForDatasetItems", () => {
   beforeAll(async () => {
-    // Clean up ALL dataset items to ensure isolated test environment
-    await prisma.datasetItem.deleteMany({});
-
     // Clean up our test projects if they exist
+    await prisma.datasetItem.deleteMany({
+      where: { projectId: { in: [projectIdA, projectIdB] } },
+    });
     await prisma.dataset.deleteMany({
-      where: { projectId: { in: ["A", "B"] } },
+      where: { projectId: { in: [projectIdA, projectIdB] } },
     });
     await prisma.project.deleteMany({
-      where: { id: { in: ["A", "B"] } },
+      where: { id: { in: [projectIdA, projectIdB] } },
     });
     await prisma.organization.deleteMany({
-      where: { id: { in: ["org-A", "org-B"] } },
+      where: { id: { in: [orgIdA, orgIdB] } },
     });
 
     // Create projects first (foreign key requirement)
@@ -112,14 +118,14 @@ describe("BackfillValidToForDatasetItems", () => {
     await prisma.organization.createMany({
       data: [
         {
-          id: "org-A",
+          id: orgIdA,
           name: "Org A",
           cloudConfig: {
             plan: "Team",
           },
         },
         {
-          id: "org-B",
+          id: orgIdB,
           name: "Org B",
           cloudConfig: {
             plan: "Team",
@@ -130,14 +136,14 @@ describe("BackfillValidToForDatasetItems", () => {
     await prisma.project.createMany({
       data: [
         {
-          id: "A",
+          id: projectIdA,
           name: "Project A",
-          orgId: "org-A",
+          orgId: orgIdA,
         },
         {
-          id: "B",
+          id: projectIdB,
           name: "Project B",
-          orgId: "org-B",
+          orgId: orgIdB,
         },
       ],
     });
@@ -145,8 +151,8 @@ describe("BackfillValidToForDatasetItems", () => {
     // Create datasets
     await prisma.dataset.createMany({
       data: [
-        { id: datasetId1, name: "dataset-1", projectId: "A" },
-        { id: datasetId2, name: "dataset-2", projectId: "B" },
+        { id: datasetId1, name: "dataset-1", projectId: projectIdA },
+        { id: datasetId2, name: "dataset-2", projectId: projectIdB },
       ],
     });
   });
@@ -155,7 +161,7 @@ describe("BackfillValidToForDatasetItems", () => {
     // Clean up dataset items after each test for fresh state
     await prisma.datasetItem.deleteMany({
       where: {
-        projectId: { in: ["A", "B"] },
+        projectId: { in: [projectIdA, projectIdB] },
       },
     });
   });
@@ -168,7 +174,7 @@ describe("BackfillValidToForDatasetItems", () => {
     // First batch: Process 2 items from project A
     const result1 = await backfillValidToForDatasetItems("", "", 2);
     expect(result1.completed).toBe(false);
-    expect(result1.lastProcessedProjectId).toBe("A");
+    expect(result1.lastProcessedProjectId).toBe(projectIdA);
 
     // Second batch: Process remaining item from project A
     const result2 = await backfillValidToForDatasetItems(
@@ -176,7 +182,7 @@ describe("BackfillValidToForDatasetItems", () => {
       result1.lastProcessedId!,
       2,
     );
-    expect(result2.lastProcessedProjectId).toBe("A");
+    expect(result2.lastProcessedProjectId).toBe(projectIdA);
 
     // Third batch: Should move to project B
     const result3 = await backfillValidToForDatasetItems(
@@ -184,7 +190,7 @@ describe("BackfillValidToForDatasetItems", () => {
       result2.lastProcessedId!,
       2,
     );
-    expect(result3.lastProcessedProjectId).toBe("B");
+    expect(result3.lastProcessedProjectId).toBe(projectIdB);
   });
 
   it("should not get stuck on a single project", async () => {
@@ -198,7 +204,7 @@ describe("BackfillValidToForDatasetItems", () => {
     let iterations = 0;
     const maxIterations = 10;
 
-    while (iterations < maxIterations) {
+    while (iterations < maxIterations && lastProjectId !== projectIdB) {
       const result = await backfillValidToForDatasetItems(
         lastProjectId,
         lastId,
@@ -213,18 +219,19 @@ describe("BackfillValidToForDatasetItems", () => {
       iterations++;
     }
 
-    // Should have completed all items without getting stuck
+    // Should have advanced from project A to project B without getting stuck.
+    expect(lastProjectId).toBe(projectIdB);
     expect(iterations).toBeLessThan(maxIterations);
 
     // Verify all items in project A were processed
     const projectAItems = await prisma.datasetItem.findMany({
-      where: { projectId: "A", validTo: null },
+      where: { projectId: projectIdA, validTo: null },
     });
 
     // Only current versions should have validTo = null
     const projectAVersionCounts = await prisma.datasetItem.groupBy({
       by: ["id"],
-      where: { projectId: "A" },
+      where: { projectId: projectIdA },
       _count: true,
     });
 
@@ -235,7 +242,9 @@ describe("BackfillValidToForDatasetItems", () => {
   it("should use LEAD() correctly - validate version chain order", async () => {
     // Item with 3 versions at different times
     await prisma.datasetItem.createMany({
-      data: items.filter((item) => item.id === "1" && item.projectId === "A"),
+      data: items.filter(
+        (item) => item.id === "1" && item.projectId === projectIdA,
+      ),
     });
 
     // Run migration
@@ -243,7 +252,7 @@ describe("BackfillValidToForDatasetItems", () => {
 
     // Verify the chain
     const versions = await prisma.datasetItem.findMany({
-      where: { id: "1", projectId: "A" },
+      where: { id: "1", projectId: projectIdA },
       orderBy: { validFrom: "asc" },
     });
 
@@ -269,7 +278,7 @@ describe("BackfillValidToForDatasetItems", () => {
     let lastId = "";
     let iterations = 0;
 
-    while (iterations < 20) {
+    while (iterations < 20 && lastProjectId <= projectIdB) {
       const result = await backfillValidToForDatasetItems(
         lastProjectId,
         lastId,
@@ -286,11 +295,12 @@ describe("BackfillValidToForDatasetItems", () => {
     // Count unique (projectId, id) pairs
     const uniqueItems = await prisma.datasetItem.groupBy({
       by: ["projectId", "id"],
+      where: { projectId: { in: [projectIdA, projectIdB] } },
     });
 
     // Count rows with valid_to = null (current versions)
     const currentVersions = await prisma.datasetItem.count({
-      where: { validTo: null },
+      where: { projectId: { in: [projectIdA, projectIdB] }, validTo: null },
     });
 
     // Should have exactly one current version per unique item
@@ -317,7 +327,7 @@ describe("BackfillValidToForDatasetItems", () => {
     // Items with single version (should not change)
     const singleVersionItems = items.filter(
       (item) =>
-        item.projectId === "B" &&
+        item.projectId === projectIdB &&
         (item.id === "5" || item.id === "6" || item.id === "1"),
     );
 
@@ -331,7 +341,7 @@ describe("BackfillValidToForDatasetItems", () => {
     // Verify single-version items remain unchanged (valid_to = null)
     const unchangedItems = await prisma.datasetItem.findMany({
       where: {
-        projectId: "B",
+        projectId: projectIdB,
         id: { in: ["5", "6", "1"] },
       },
     });
@@ -350,28 +360,28 @@ describe("BackfillValidToForDatasetItems", () => {
       // Item "100": 3 old versions with NULL valid_to (need backfill)
       {
         id: "100",
-        projectId: "A",
+        projectId: projectIdA,
         validFrom: t0,
         validTo: null, // Should be backfilled to t1
         datasetId: datasetId1,
       },
       {
         id: "100",
-        projectId: "A",
+        projectId: projectIdA,
         validFrom: t1,
         validTo: null, // Should be backfilled to t2
         datasetId: datasetId1,
       },
       {
         id: "100",
-        projectId: "A",
+        projectId: projectIdA,
         validFrom: t2,
         validTo: t5, // Already set by new write path
         datasetId: datasetId1,
       },
       {
         id: "100",
-        projectId: "A",
+        projectId: projectIdA,
         validFrom: t5,
         validTo: null, // Current version - should stay NULL
         datasetId: datasetId1,
@@ -379,21 +389,21 @@ describe("BackfillValidToForDatasetItems", () => {
       // Item "200": mix of old NULL and already-set valid_to
       {
         id: "200",
-        projectId: "A",
+        projectId: projectIdA,
         validFrom: t0,
         validTo: null, // Should be backfilled to t3
         datasetId: datasetId1,
       },
       {
         id: "200",
-        projectId: "A",
+        projectId: projectIdA,
         validFrom: t3,
         validTo: t6, // Already set by new write path
         datasetId: datasetId1,
       },
       {
         id: "200",
-        projectId: "A",
+        projectId: projectIdA,
         validFrom: t6,
         validTo: null, // Current version - should stay NULL
         datasetId: datasetId1,
@@ -409,7 +419,7 @@ describe("BackfillValidToForDatasetItems", () => {
 
     // Verify item "100" chain
     const item100Versions = await prisma.datasetItem.findMany({
-      where: { projectId: "A", id: "100" },
+      where: { projectId: projectIdA, id: "100" },
       orderBy: { validFrom: "asc" },
     });
 
@@ -421,7 +431,7 @@ describe("BackfillValidToForDatasetItems", () => {
 
     // Verify item "200" chain
     const item200Versions = await prisma.datasetItem.findMany({
-      where: { projectId: "A", id: "200" },
+      where: { projectId: projectIdA, id: "200" },
       orderBy: { validFrom: "asc" },
     });
 

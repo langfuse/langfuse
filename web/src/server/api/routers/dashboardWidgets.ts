@@ -1,23 +1,25 @@
-import { z } from "zod/v4";
+import { z } from "zod";
 import {
   createTRPCRouter,
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
-import { orderBy, singleFilter, optionalPaginationZod } from "@langfuse/shared";
-import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import {
-  DashboardWidgetChartType,
-  DashboardWidgetViews,
-} from "@langfuse/shared/src/db";
+  orderBy,
+  singleFilterList,
+  optionalPaginationZod,
+} from "@langfuse/shared";
+import { throwIfNoProjectAccess } from "@/src/features/rbac";
+import { DashboardWidgetChartType } from "@langfuse/shared/src/db";
 import {
   DashboardService,
   DimensionSchema,
   MetricSchema,
   ChartConfigSchema,
+  dashboardWidgetViewToQueryView,
+  queryViewToDashboardWidgetView,
 } from "@langfuse/shared/src/server";
-import { views } from "@/src/features/query";
+import { views } from "@langfuse/shared/query";
 import { TRPCError } from "@trpc/server";
-import { LangfuseConflictError } from "@langfuse/shared";
 
 const CreateDashboardWidgetInput = z.object({
   projectId: z.string(),
@@ -26,7 +28,7 @@ const CreateDashboardWidgetInput = z.object({
   view: views,
   dimensions: z.array(DimensionSchema),
   metrics: z.array(MetricSchema),
-  filters: z.array(singleFilter),
+  filters: singleFilterList,
   chartType: z.enum(DashboardWidgetChartType),
   chartConfig: ChartConfigSchema,
 });
@@ -40,7 +42,7 @@ const UpdateDashboardWidgetInput = z.object({
   view: views,
   dimensions: z.array(DimensionSchema),
   metrics: z.array(MetricSchema),
-  filters: z.array(singleFilter),
+  filters: singleFilterList,
   chartType: z.enum(DashboardWidgetChartType),
   chartConfig: ChartConfigSchema,
 });
@@ -58,21 +60,6 @@ const GetDashboardWidgetInput = z.object({
   widgetId: z.string(),
 });
 
-const viewMapping: Record<string, DashboardWidgetViews> = {
-  traces: DashboardWidgetViews.TRACES,
-  observations: DashboardWidgetViews.OBSERVATIONS,
-  "scores-numeric": DashboardWidgetViews.SCORES_NUMERIC,
-  "scores-categorical": DashboardWidgetViews.SCORES_CATEGORICAL,
-};
-
-// Reverse mapping for client-side use
-const reverseViewMapping: Record<DashboardWidgetViews, string> = {
-  [DashboardWidgetViews.TRACES]: "traces",
-  [DashboardWidgetViews.OBSERVATIONS]: "observations",
-  [DashboardWidgetViews.SCORES_NUMERIC]: "scores-numeric",
-  [DashboardWidgetViews.SCORES_CATEGORICAL]: "scores-categorical",
-};
-
 export const dashboardWidgetRouter = createTRPCRouter({
   create: protectedProjectProcedure
     .input(CreateDashboardWidgetInput)
@@ -86,7 +73,10 @@ export const dashboardWidgetRouter = createTRPCRouter({
       // Create the widget using the DashboardService
       const widget = await DashboardService.createWidget(
         input.projectId,
-        { ...input, view: viewMapping[input.view] },
+        {
+          ...input,
+          view: queryViewToDashboardWidgetView[input.view],
+        },
         ctx.session.user?.id,
       );
 
@@ -138,7 +128,8 @@ export const dashboardWidgetRouter = createTRPCRouter({
 
       return {
         ...widget,
-        view: reverseViewMapping[widget.view],
+        view: dashboardWidgetViewToQueryView[widget.view],
+        metrics: widget.metrics,
         owner: widget.owner,
       };
     }),
@@ -159,7 +150,7 @@ export const dashboardWidgetRouter = createTRPCRouter({
         {
           name: input.name,
           description: input.description,
-          view: viewMapping[input.view],
+          view: queryViewToDashboardWidgetView[input.view],
           dimensions: input.dimensions,
           metrics: input.metrics,
           filters: input.filters,
@@ -217,25 +208,10 @@ export const dashboardWidgetRouter = createTRPCRouter({
         scope: "dashboards:CUD",
       });
 
-      try {
-        // Delete the widget using the DashboardService
-        await DashboardService.deleteWidget(input.widgetId, input.projectId);
+      await DashboardService.deleteWidget(input.widgetId, input.projectId);
 
-        return {
-          success: true,
-        };
-      } catch (error) {
-        // If the widget is still referenced in dashboards, throw a CONFLICT error
-        if (error instanceof LangfuseConflictError) {
-          throw new TRPCError({
-            code: "CONFLICT",
-            message: error.message,
-          });
-        }
-        throw new TRPCError({
-          code: "INTERNAL_SERVER_ERROR",
-          message: (error as Error)?.message,
-        });
-      }
+      return {
+        success: true,
+      };
     }),
 });

@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import Decimal from "decimal.js";
 
 export const compactNumberFormatter = (
@@ -11,56 +12,58 @@ export const compactNumberFormatter = (
   }).format(number ?? 0);
 };
 
-/**
- * Specialized formatter for very small numbers (10^-3 to 10^-15 range)
- * Uses scientific notation for compact representation with ~3 significant digits
- */
-export const compactSmallNumberFormatter = (
-  number?: number | bigint,
-  significantDigits: number = 3,
-) => {
-  const num = Number(number ?? 0);
-
-  if (num === 0) return "0";
-
-  const absNum = Math.abs(num);
-
-  // For numbers >= 1e-3, use standard compact formatting
-  if (absNum >= 1e-3) {
-    return compactNumberFormatter(num, significantDigits);
-  }
-
-  // For very small numbers, use scientific notation
-  return num.toExponential(significantDigits - 1);
-};
-
 export const numberFormatter = (
   number?: number | bigint,
   fractionDigits?: number,
+  maxFractionDigits?: number,
 ) => {
   return Intl.NumberFormat("en-US", {
     notation: "standard",
     useGrouping: true,
     minimumFractionDigits: fractionDigits ?? 2,
-    maximumFractionDigits: fractionDigits ?? 2,
+    maximumFractionDigits: maxFractionDigits ?? fractionDigits ?? 2,
   }).format(number ?? 0);
 };
 
-export const latencyFormatter = (milliseconds?: number) => {
-  return Intl.NumberFormat("en-US", {
+const durationDivisors = [1, 1_000, 60_000, 3_600_000, 86_400_000] as const;
+
+const durationFormatters = [
+  "millisecond",
+  "second",
+  "minute",
+  "hour",
+  "day",
+].map((unit) =>
+  Intl.NumberFormat("en-US", {
     style: "unit",
-    unit: "second",
+    unit: unit,
     unitDisplay: "narrow",
     notation: "compact",
-    minimumFractionDigits: 2,
+    minimumFractionDigits: 0,
     maximumFractionDigits: 2,
-  }).format((milliseconds ?? 0) / 1000);
+  }),
+);
+
+const selectDurationFormatter = (
+  milliseconds: number | bigint,
+): [Intl.NumberFormat, number] => {
+  const ms = Number(milliseconds);
+  const tier = durationDivisors.reduce(
+    (acc, divisor, i) => (Math.abs(ms) >= divisor ? i : acc),
+    0,
+  );
+  return [durationFormatters[tier], ms / durationDivisors[tier]!];
+};
+
+export const latencyFormatter = (milliseconds?: number): string => {
+  const [fmt, value] = selectDurationFormatter(milliseconds ?? 0);
+  return fmt.format(value ?? 0);
 };
 
 export const usdFormatter = (
   number?: number | bigint | Decimal,
-  minimumFractionDigits: number = 2,
-  maximumFractionDigits: number = 6,
+  minimumFractionDigits = 2,
+  maximumFractionDigits = 6,
 ) => {
   const numberToFormat = number instanceof Decimal ? number.toNumber() : number;
   return new Intl.NumberFormat("en-US", {
@@ -74,6 +77,41 @@ export const usdFormatter = (
   }).format(numberToFormat ?? 0);
 };
 
+/** Below this, two fraction digits would render a real cost as "$0.00". */
+const SUB_CENT_THRESHOLD = 0.01;
+/** Upper bound on the widening, so a dust value cannot stretch a table cell. */
+const MAX_SUB_CENT_FRACTION_DIGITS = 10;
+
+export const costFormatter = (totalCost?: number) => {
+  const cost = totalCost ?? 0;
+
+  if (
+    typeof cost === "number" &&
+    cost !== 0 &&
+    Math.abs(cost) < SUB_CENT_THRESHOLD
+  ) {
+    return usdFormatter(cost, 2, subCentFractionDigits(cost));
+  }
+
+  return usdFormatter(cost, 2, 2);
+};
+
+/** Cent precision; a non-zero cost that would round to $0.00 reads "<$0.01". */
+export const centCostFormatter = (cost: number) => {
+  if (cost !== 0 && Math.abs(cost) < SUB_CENT_THRESHOLD / 2) {
+    return `${cost < 0 ? "-" : ""}<${usdFormatter(SUB_CENT_THRESHOLD, 2, 2)}`;
+  }
+
+  return usdFormatter(cost, 2, 2);
+};
+
+/** Returns the fraction digits that render a sub-cent cost to ~3 significant digits. */
+const subCentFractionDigits = (cost: number) =>
+  Math.min(
+    2 + Math.ceil(-Math.log10(Math.abs(cost))),
+    MAX_SUB_CENT_FRACTION_DIGITS,
+  );
+
 export const formatTokenCounts = (
   inputUsage?: number | null,
   outputUsage?: number | null,
@@ -86,7 +124,3 @@ export const formatTokenCounts = (
     ? `${numberFormatter(inputUsage ?? 0, 0)} prompt → ${numberFormatter(outputUsage ?? 0, 0)} completion (∑ ${numberFormatter(totalUsage ?? 0, 0)})`
     : `${numberFormatter(inputUsage ?? 0, 0)} → ${numberFormatter(outputUsage ?? 0, 0)} (∑ ${numberFormatter(totalUsage ?? 0, 0)})`;
 };
-
-export function randomIntFromInterval(min: number, max: number) {
-  return Math.floor(Math.random() * (max - min + 1) + min);
-}

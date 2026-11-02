@@ -1,16 +1,22 @@
 import { useMemo } from "react";
-import { api } from "@/src/utils/api";
+import { keepPreviousData } from "@tanstack/react-query";
+import {
+  api,
+  sendAsPostOption,
+  shouldRetryResourceQuery,
+} from "@/src/utils/api";
+import { useLatched } from "@/src/hooks/useLatched";
 import {
   adaptEventsToTraceFormat,
   type AdaptedTraceData,
+  type EventsTraceObservation,
 } from "@/src/features/events/lib/eventsToTraceAdapter";
 import {
   filterAndValidateDbScoreList,
-  AGGREGATABLE_SCORE_TYPES,
+  ScoreDataTypeArray,
   ScoreDataTypeEnum,
   type ScoreDomain,
 } from "@langfuse/shared";
-import type { FullEventsObservations } from "@langfuse/shared/src/server";
 import {
   type WithStringifiedMetadata,
   toDomainArrayWithStringifiedMetadata,
@@ -34,7 +40,14 @@ interface UseEventsTraceDataResult {
     | undefined;
   isLoading: boolean;
   error: unknown;
-  cutoffObservationsAfterMaxCount: boolean;
+  /**
+   * The observation cap this trace was loaded under, set ONLY when the trace hit
+   * it (so the list is missing its chronological tail). The number comes from the
+   * server response — never a client-side copy of the constant.
+   */
+  truncatedAtObservations: number | undefined;
+  /** `data` is the previously loaded trace, kept on screen while this one loads. */
+  isPlaceholderData: boolean;
 }
 
 /**
@@ -62,23 +75,33 @@ export function useEventsTraceData(
     },
     {
       enabled: enabled && !!traceId,
-      retry(failureCount, error) {
-        if (error.data?.code === "UNAUTHORIZED") return false;
-        return failureCount < 3;
-      },
+      retry: shouldRetryResourceQuery,
       staleTime: 60 * 1000, // 1 minute
+      placeholderData: keepPreviousData,
     },
   );
 
   // Step 2: Find root observation and calculate time range for batchIO
   const observations = eventsQuery.data?.observations as
-    | FullEventsObservations
+    | EventsTraceObservation[]
     | undefined;
 
   const rootObservation = useMemo(() => {
     if (!observations?.length) return null;
     return observations.find((o) => !o.parentObservationId);
   }, [observations]);
+
+  // Prefer the root observation when present, otherwise fall back to the earliest one.
+  const primaryObservation = useMemo(() => {
+    if (!observations?.length) return null;
+    if (rootObservation) return rootObservation;
+    // Fallback to earliest observation
+    return (
+      [...observations].sort(
+        (a, b) => a.startTime.getTime() - b.startTime.getTime(),
+      )[0] ?? null
+    );
+  }, [observations, rootObservation]);
 
   const timeRange = useMemo(() => {
     if (!observations?.length) return null;
@@ -89,19 +112,28 @@ export function useEventsTraceData(
     };
   }, [observations]);
 
-  // Step 3: Fetch I/O for root observation (for trace-level I/O display)
+  // Step 3: Fetch I/O for the primary trace observation.
   const rootIOQuery = api.events.batchIO.useQuery(
     {
       projectId,
-      observations: rootObservation
-        ? [{ id: rootObservation.id, traceId }]
+      traceId,
+      observations: primaryObservation
+        ? [{ id: primaryObservation.id, traceId }]
         : [],
       minStartTime: timeRange?.min ?? new Date(),
       maxStartTime: timeRange?.max ?? new Date(),
+      truncated: false,
     },
     {
+      ...sendAsPostOption,
+      // Not while the observations are the previous trace's: the request would
+      // pair its root with the new trace id.
       enabled:
-        enabled && !!rootObservation && !!timeRange && !!eventsQuery.data,
+        enabled &&
+        !!primaryObservation &&
+        !!timeRange &&
+        !!eventsQuery.data &&
+        !eventsQuery.isPlaceholderData,
       staleTime: 60 * 1000,
     },
   );
@@ -112,6 +144,7 @@ export function useEventsTraceData(
     {
       enabled: enabled && !!traceId,
       staleTime: 60 * 1000,
+      placeholderData: keepPreviousData,
     },
   );
 
@@ -122,7 +155,7 @@ export function useEventsTraceData(
     // Validate and partition scores
     const validatedScores = filterAndValidateDbScoreList({
       scores: scoresQuery.data ?? [],
-      dataTypes: [...AGGREGATABLE_SCORE_TYPES, ScoreDataTypeEnum.CORRECTION],
+      dataTypes: [...ScoreDataTypeArray],
       onParseError: (e) => {
         console.error("[useEventsTraceData] Score validation error:", e);
       },
@@ -142,7 +175,11 @@ export function useEventsTraceData(
       events: observations,
       traceId,
       rootIO: rootIO
-        ? { input: rootIO.input, output: rootIO.output }
+        ? {
+            input: rootIO.input,
+            output: rootIO.output,
+            metadata: rootIO.metadata,
+          }
         : undefined,
     });
 
@@ -154,13 +191,26 @@ export function useEventsTraceData(
     };
   }, [observations, traceId, rootIOQuery.data, scoresQuery.data]);
 
-  const cutoffObservationsAfterMaxCount =
-    eventsQuery.data?.cutoffObservationsAfterMaxCount ?? false;
+  // After a trace switch the two queries resolve independently, so the previous
+  // trace stays whole (observations, I/O, scores) until both carry the new one.
+  const isPlaceholderData =
+    eventsQuery.isPlaceholderData || scoresQuery.isPlaceholderData;
+  const live = useMemo(
+    () => ({
+      data: transformed ?? undefined,
+      truncatedAtObservations: eventsQuery.data?.cutoffObservationsAfterMaxCount
+        ? eventsQuery.data.maxObservationsPerTrace
+        : undefined,
+    }),
+    [transformed, eventsQuery.data],
+  );
+  const shown = useLatched(live, isPlaceholderData);
 
   return {
-    data: transformed ?? undefined,
+    data: shown.data,
     isLoading: eventsQuery.isLoading || scoresQuery.isLoading,
     error: eventsQuery.error || scoresQuery.error,
-    cutoffObservationsAfterMaxCount,
+    truncatedAtObservations: shown.truncatedAtObservations,
+    isPlaceholderData,
   };
 }

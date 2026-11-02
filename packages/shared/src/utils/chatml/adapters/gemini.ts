@@ -3,8 +3,9 @@ import {
   parseMetadata,
   stringifyToolResultContent,
   isRichToolResult,
+  getNestedProperty,
 } from "../helpers";
-import { z } from "zod/v4";
+import { z } from "zod";
 
 /**
  * Detection schemas for Gemini/VertexAI formats
@@ -31,6 +32,17 @@ const GeminiADKOutputSchema = z.looseObject({
   content: z.looseObject({
     parts: z.array(z.any()),
     role: z.string(),
+  }),
+});
+
+// ADK invocation input format (root span of the OpenInference ADK
+// instrumentation): {user_id, session_id, new_message: {parts, role}, run_config}
+const GeminiADKInvocationInputSchema = z.looseObject({
+  user_id: z.string(),
+  session_id: z.string(),
+  new_message: z.looseObject({
+    parts: z.array(z.any()),
+    role: z.string().optional(),
   }),
 });
 
@@ -328,10 +340,10 @@ function normalizeGeminiMessage(msg: unknown): Record<string, unknown> {
       // Rich object: spread for table rendering
       const { content, ...rest } = normalized;
       return { ...rest, ...content };
-    } else {
-      // Simple object: stringify for text rendering
-      normalized.content = stringifyToolResultContent(normalized.content);
     }
+
+    // Simple object: stringify for text rendering
+    normalized.content = stringifyToolResultContent(normalized.content);
   }
 
   return normalized;
@@ -377,7 +389,20 @@ function preprocessData(data: unknown): unknown {
   }
 
   // ========================================
-  // STEP 3: Handle ADK input format
+  // STEP 3: Unwrap ADK invocation input format (root invocation span)
+  // ========================================
+  // {new_message: {parts, role}, user_id, session_id, run_config, ...} → [{parts, role}]
+  if (GeminiADKInvocationInputSchema.safeParse(data).success) {
+    const obj = data as Record<string, unknown>;
+    const newMessage = obj.new_message as Record<string, unknown>;
+    if ("parts" in newMessage && Array.isArray(newMessage.parts)) {
+      // new_message is the user's request to the agent; default the role
+      return normalizeMessages([{ role: "user", ...newMessage }]);
+    }
+  }
+
+  // ========================================
+  // STEP 4: Handle ADK input format
   // ========================================
   // {config: {tools, system_instruction}, contents: [...]}
   if (GeminiADKInputSchema.safeParse(data).success) {
@@ -403,7 +428,9 @@ function preprocessData(data: unknown): unknown {
 
       messages.push(...contents);
 
-      // Extract and attach tools if present
+      // Extract and attach Gemini ADK config tools if present. Top-level
+      // normalized input.tools are extracted separately, without changing
+      // normalized ChatML for existing traces.
       if ("tools" in config && Array.isArray(config.tools)) {
         const extractedTools = extractToolDeclarations(config.tools);
 
@@ -421,7 +448,7 @@ function preprocessData(data: unknown): unknown {
   }
 
   // ========================================
-  // STEP 4: Handle simple request format
+  // STEP 5: Handle simple request format
   // ========================================
   // {contents: [{parts, role}], model: "..."}
   if (GeminiRequestSchema.safeParse(data).success) {
@@ -430,14 +457,14 @@ function preprocessData(data: unknown): unknown {
   }
 
   // ========================================
-  // STEP 5: Handle arrays
+  // STEP 6: Handle arrays
   // ========================================
   if (Array.isArray(data)) {
     return normalizeMessages(data);
   }
 
   // ========================================
-  // STEP 6: Handle messages wrapper
+  // STEP 7: Handle messages wrapper
   // ========================================
   if (typeof data === "object" && "messages" in data) {
     const obj = data as Record<string, unknown>;
@@ -458,8 +485,19 @@ export const geminiAdapter: ProviderAdapter = {
   detect(ctx: NormalizerContext): boolean {
     const meta = parseMetadata(ctx.metadata);
 
-    // HINTS: Fast checks for explicit Gemini indicators
     if (ctx.framework === "gemini") return true;
+
+    // EXCLUSIONS: Fast checks for explicit non-Gemini indicators
+    const scopeName = getNestedProperty(meta, "scope", "name");
+    if (scopeName === "pydantic-ai") return false;
+    if (scopeName === "agent_framework") return false;
+    if (
+      typeof scopeName === "string" &&
+      scopeName.includes("Microsoft.Extensions.AI")
+    )
+      return false;
+
+    // HINTS: Fast checks for explicit Gemini indicators
     if (ctx.observationName?.toLowerCase().includes("gemini")) return true;
     if (ctx.observationName?.toLowerCase().includes("vertex")) return true;
     if (meta?.ls_provider === "google_vertexai") return true;
@@ -480,12 +518,15 @@ export const geminiAdapter: ProviderAdapter = {
     // STRUCTURAL: Schema-based detection on metadata (check metadata first for performance)
     if (GeminiRequestSchema.safeParse(ctx.metadata).success) return true;
     if (GeminiADKInputSchema.safeParse(ctx.metadata).success) return true;
+    if (GeminiADKInvocationInputSchema.safeParse(ctx.metadata).success)
+      return true;
     if (GeminiRawAPISchema.safeParse(ctx.metadata).success) return true;
     if (GeminiADKOutputSchema.safeParse(ctx.metadata).success) return true;
 
     // Schema-based detection on data (slower, do last)
     if (GeminiRequestSchema.safeParse(ctx.data).success) return true;
     if (GeminiADKInputSchema.safeParse(ctx.data).success) return true;
+    if (GeminiADKInvocationInputSchema.safeParse(ctx.data).success) return true;
     if (GeminiRawAPISchema.safeParse(ctx.data).success) return true;
     if (GeminiADKOutputSchema.safeParse(ctx.data).success) return true;
 

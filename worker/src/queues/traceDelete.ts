@@ -1,9 +1,11 @@
 import { Job, Processor } from "bullmq";
 import {
+  formatActor,
+  getActorLogMetadata,
   getCurrentSpan,
   logger,
   QueueName,
-  shouldSkipTraceDeletionFor,
+  shouldSkipDeletionFor,
   TQueueJobTypes,
 } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
@@ -20,6 +22,22 @@ export const traceDeleteProcessor: Processor = async (
     "traceIds" in job.data.payload
       ? job.data.payload.traceIds
       : [job.data.payload.traceId];
+
+  const actor =
+    "actor" in job.data.payload ? job.data.payload.actor : undefined;
+
+  if (actor) {
+    // The job may also pick up pending deletions requested by other actors;
+    // the actor applies to the trace ids from this event only.
+    logger.info(
+      `Trace deletion job for ${eventTraceIds.length} traces in project ${projectId} requested by ${formatActor(actor)}`,
+      {
+        projectId,
+        traceIds: eventTraceIds,
+        actor: getActorLogMetadata(actor),
+      },
+    );
+  }
 
   const span = getCurrentSpan();
 
@@ -91,7 +109,7 @@ export const traceDeleteProcessor: Processor = async (
   }
 
   try {
-    if (await shouldSkipTraceDeletionFor(projectId, traceIdsToDelete)) {
+    if (await shouldSkipDeletionFor(projectId, traceIdsToDelete, "trace")) {
       return;
     }
 

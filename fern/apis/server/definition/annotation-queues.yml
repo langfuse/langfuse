@@ -150,7 +150,7 @@ types:
     properties:
       id: string
       name: string
-      description: optional<string>
+      description: nullable<string>
       scoreConfigIds: list<string>
       createdAt: datetime
       updatedAt: datetime
@@ -179,7 +179,7 @@ types:
   CreateAnnotationQueueRequest:
     properties:
       name: string
-      description: optional<string>
+      description: optional<nullable<string>>
       scoreConfigIds: list<string>
 
   CreateAnnotationQueueItemRequest:

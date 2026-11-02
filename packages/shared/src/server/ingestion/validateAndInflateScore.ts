@@ -1,4 +1,6 @@
 import {
+  ANNOTATION_SCORE_REQUIRES_CONFIG_ID_MESSAGE,
+  isAnnotationScoreMissingConfigId,
   ScoreBodyWithoutConfig,
   ScoreConfigDomain,
   type ScoreDataTypeType,
@@ -22,6 +24,13 @@ export async function validateAndInflateScore(
   params: ValidateAndInflateScoreParams,
 ) {
   const { body, projectId, scoreId } = params;
+
+  // Central choke point: both POST /api/public/scores and
+  // POST /api/public/ingestion enqueue events that run through this function
+  // in the worker, so enforcing here covers both entry points.
+  if (isAnnotationScoreMissingConfigId(body)) {
+    throw new InvalidRequestError(ANNOTATION_SCORE_REQUIRES_CONFIG_ID_MESSAGE);
+  }
 
   if (body.configId) {
     const config = await prisma.scoreConfig.findFirst({
@@ -64,7 +73,7 @@ export async function validateAndInflateScore(
 
   if (!validation.success) {
     throw new InvalidRequestError(
-      `Ingested score value type not valid against provided data type. Provide numeric values for numeric and boolean scores, and string values for categorical scores.`,
+      `Ingested score value type not valid against provided data type. Provide numeric values for numeric and boolean scores, string values for categorical scores, and string values of 1-500 characters for text scores.`,
     );
   }
 
@@ -141,6 +150,15 @@ function inflateScoreBody(
     };
   }
 
+  if (relevantDataType === ScoreDataTypeEnum.TEXT) {
+    return {
+      ...scoreProps,
+      value: 0,
+      stringValue: body.value,
+      dataType: ScoreDataTypeEnum.TEXT,
+    };
+  }
+
   return {
     ...scoreProps,
     value: config ? mapStringValueToNumericValue(config, body.value) : 0,
@@ -173,6 +191,7 @@ function resolveScoreValueAnnotation(
     case ScoreDataTypeEnum.BOOLEAN:
       return body.value;
     case ScoreDataTypeEnum.CATEGORICAL:
+    case ScoreDataTypeEnum.TEXT:
       return body.stringValue;
     case ScoreDataTypeEnum.CORRECTION:
       throw new Error("CORRECTION type not supported in annotation drawer");

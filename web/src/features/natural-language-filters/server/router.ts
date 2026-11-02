@@ -6,33 +6,38 @@ import { TRPCError } from "@trpc/server";
 import {
   type ChatMessage,
   ChatMessageType,
-  fetchLLMCompletion,
   logger,
-  type TraceSinkParams,
+  generateLangfuseAIText,
+  getClientInitiatedNonStreamingLlmTimeoutMs,
+  getLangfuseAITraceSinkParams,
+  isLangfuseAITracingConfigured,
 } from "@langfuse/shared/src/server";
+import {
+  getInAppAgentModelConfig,
+  LANGFUSE_AI_MODEL_UNCONFIGURED_MESSAGE,
+} from "@langfuse/shared/in-app-agent/server/modelProvider";
 import { env } from "@/src/env.mjs";
 import { CreateNaturalLanguageFilterCompletion } from "./validation";
-import {
-  getDefaultModelParams,
-  parseFiltersFromCompletion,
-  getLangfuseClient,
-} from "./utils";
-import { randomBytes } from "crypto";
-import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-import { BEDROCK_USE_DEFAULT_CREDENTIALS } from "@langfuse/shared";
-import { encrypt } from "@langfuse/shared/encryption";
+import { parseFiltersFromCompletion, getLangfuseClient } from "./utils";
+import { throwIfNoProjectAccess } from "@/src/features/rbac";
 
 export const naturalLanguageFilterRouter = createTRPCRouter({
   createCompletion: protectedProjectProcedure
     .input(CreateNaturalLanguageFilterCompletion)
     .mutation(async ({ input, ctx }) => {
       try {
+        // Generating a filter reads nothing a project member cannot already
+        // read by hand, so membership is the right bar; whether the org uses
+        // AI at all is governed by `aiFeaturesEnabled` below.
         throwIfNoProjectAccess({
           session: ctx.session,
           projectId: input.projectId,
-          scope: "prompts:CUD",
+          scope: "project:read",
         });
 
+        // Leftover table-wand path: still Cloud-only. It needs the managed
+        // `get-filter-conditions-from-query` prompt and has no bundled fallback.
+        // v4 Ask AI (`searchBar.generateFilter`) is the self-hosted path.
         if (!env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) {
           throw new TRPCError({
             code: "PRECONDITION_FAILED",
@@ -41,11 +46,40 @@ export const naturalLanguageFilterRouter = createTRPCRouter({
           });
         }
 
-        if (!env.LANGFUSE_AWS_BEDROCK_MODEL) {
+        const project = await ctx.prisma.project.findUnique({
+          where: { id: input.projectId },
+          select: {
+            organization: {
+              select: {
+                aiFeaturesEnabled: true,
+                aiTelemetryEnabled: true,
+              },
+            },
+          },
+        });
+
+        if (!project) {
+          logger.warn("Project not found when resolving AI telemetry setting", {
+            projectId: input.projectId,
+          });
+          throw new TRPCError({
+            code: "NOT_FOUND",
+            message: "Project not found.",
+          });
+        }
+
+        if (!project.organization.aiFeaturesEnabled) {
+          throw new TRPCError({
+            code: "FORBIDDEN",
+            message:
+              "Natural language filtering is not enabled for this organization.",
+          });
+        }
+
+        if (!getInAppAgentModelConfig()) {
           throw new TRPCError({
             code: "PRECONDITION_FAILED",
-            message:
-              "Bedrock environment variables not configured. Please set LANGFUSE_AWS_BEDROCK_* variables.",
+            message: LANGFUSE_AI_MODEL_UNCONFIGURED_MESSAGE,
           });
         }
 
@@ -60,23 +94,11 @@ export const naturalLanguageFilterRouter = createTRPCRouter({
           });
         }
 
-        const getEnvironment = (): string => {
-          switch (env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) {
-            case "US":
-            case "EU":
-            case "HIPAA":
-              return "prod";
-            case "STAGING":
-              return "staging";
-            default:
-              return "dev";
-          }
-        };
-
         const client = getLangfuseClient(
-          env.LANGFUSE_AI_FEATURES_PUBLIC_KEY as string,
-          env.LANGFUSE_AI_FEATURES_SECRET_KEY as string,
+          env.LANGFUSE_AI_FEATURES_PUBLIC_KEY,
+          env.LANGFUSE_AI_FEATURES_SECRET_KEY,
           env.LANGFUSE_AI_FEATURES_HOST,
+          false,
         );
 
         const promptResponse = await client.getPrompt(
@@ -85,25 +107,12 @@ export const naturalLanguageFilterRouter = createTRPCRouter({
           { type: "chat" },
         );
 
-        if (!env.LANGFUSE_AI_FEATURES_PROJECT_ID) {
-          throw new TRPCError({
-            code: "INTERNAL_SERVER_ERROR",
-            message: "Langfuse AI Features not configured.",
-          });
-        }
-
-        const traceSinkParams: TraceSinkParams = {
-          environment: getEnvironment(),
-          traceName: "natural-language-filter",
-          traceId: randomBytes(16).toString("hex"),
-          targetProjectId: env.LANGFUSE_AI_FEATURES_PROJECT_ID,
-          userId: ctx.session.user.id,
-          metadata: {
-            langfuse_user_id: ctx.session.user.id,
-            langfuse_project_id: ctx.session.projectId,
-          },
-          prompt: promptResponse,
-        };
+        // Tracing is optional: skip it when the AI-features project is not
+        // configured (the default self-hosted case) rather than failing the
+        // generation. Self-hosted cannot toggle `aiTelemetryEnabled` off.
+        const aiTelemetryEnabled =
+          project.organization.aiTelemetryEnabled &&
+          isLangfuseAITracingConfigured();
 
         // Get current datetime in ISO format with day of week for AI context
         const now = new Date();
@@ -114,29 +123,37 @@ export const naturalLanguageFilterRouter = createTRPCRouter({
           userPrompt: input.prompt,
           currentDatetime,
         });
-        const modelParams = getDefaultModelParams();
-
-        const llmCompletion = await fetchLLMCompletion({
+        const llmCompletion = await generateLangfuseAIText({
           messages: messages.map((m: ChatMessage) => ({
             ...m,
             type: ChatMessageType.PublicAPICreated,
           })),
-          modelParams,
-          llmConnection: {
-            secretKey: encrypt(BEDROCK_USE_DEFAULT_CREDENTIALS),
-          },
-          streaming: false,
-          traceSinkParams,
-          shouldUseLangfuseAPIKey: true,
+          maxTokens: 1000,
+          timeout: getClientInitiatedNonStreamingLlmTimeoutMs(),
+          traceSinkParams: aiTelemetryEnabled
+            ? getLangfuseAITraceSinkParams({
+                feature: "natural-language-filter",
+                projectId: ctx.session.projectId,
+                traceName: "natural-language-filter",
+                userId: ctx.session.user.id,
+                metadata: {
+                  langfuse_user_id: ctx.session.user.id,
+                  ...(ctx.session.user.email
+                    ? { langfuse_user_email: ctx.session.user.email }
+                    : {}),
+                  langfuse_user_project_role: ctx.session.projectRole,
+                  langfuse_cloud_region: env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
+                },
+                prompt: promptResponse,
+              })
+            : undefined,
         });
 
         logger.info(
           `LLM completion received: ${JSON.stringify(llmCompletion, null, 2)}`,
         );
 
-        const parsedFilters = parseFiltersFromCompletion(
-          llmCompletion as string,
-        );
+        const parsedFilters = parseFiltersFromCompletion(llmCompletion);
 
         return {
           filters: parsedFilters,

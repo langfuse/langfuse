@@ -1,9 +1,29 @@
-import { filterOperators } from "../../../interfaces/filters";
+import {
+  FTS_MATCH_OPERATOR,
+  type FtsMatchOperator,
+  filterOperators,
+} from "../../../interfaces/filters";
+import { InvalidRequestError } from "../../../errors";
+import { convertDateToClickhouseDateTime } from "../../clickhouse/client";
 import { clickhouseCompliantRandomCharacters } from "../../repositories";
+import { escapeSqlLikePattern } from "../../utils/sqlLike";
+import {
+  assertValidFtsMatchFilter,
+  bareFtsField,
+  FTS_OPERATOR_DESCRIPTORS,
+  hasFtsSearchToken,
+  isFtsEventsTable,
+  isFtsMetadataField,
+  isFtsTextField,
+  isFtsTextTarget,
+  isNgramSubstringTarget,
+} from "./fts";
+import { metadataFilterIsEventsCoreSafe } from "./events-core-truncation";
 
 export type ClickhouseOperator =
   | (typeof filterOperators)[keyof typeof filterOperators][number]
-  | "!=";
+  | "!="
+  | FtsMatchOperator;
 export interface Filter {
   apply(): ClickhouseFilter;
   clickhouseTable: string;
@@ -11,60 +31,172 @@ export interface Filter {
   operator: ClickhouseOperator;
   field: string;
 }
-type ClickhouseFilter = {
+export type ClickhouseFilter = {
   query: string;
   params: { [x: string]: any } | {};
 };
+
+const NGRAM_ACCELERATED_METADATA_OPERATORS = new Set<
+  (typeof filterOperators)["stringObject"][number]
+>(["contains", "starts with", "ends with"]);
+
+// ClickHouse `lower()` (used by the events_full ngram indexes) lowercases ASCII
+// A-Z only, byte-wise, leaving multi-byte UTF-8 untouched. Mirror that exactly
+// so a JS-lowered IN set matches the index and never prunes a real match. Full
+// String.toLowerCase() would diverge on non-ASCII and is unsafe here.
+const clickhouseAsciiLower = (value: string): string =>
+  value.replace(/[A-Z]/g, (c) => c.toLowerCase());
+
+// Substring operators with an empty value skip the ngram prefilter and degrade
+// to a full-scan "does this key exist" over the whole time window — a confirmed
+// events_full timeout vector. Callers who want key existence must use the
+// `is set` / `is not set` presence operators instead.
+const NON_EMPTY_VALUE_METADATA_OPERATORS = new Set<
+  (typeof filterOperators)["stringObject"][number]
+>(["contains", "starts with", "ends with"]);
+
+// Event tables expose these computed map aliases while storing each map as a
+// pair of physical arrays. Null checks must target the corresponding names
+// array because the qualified map aliases are not physical columns.
+const EVENTS_METADATA_MAP_FIELDS = new Set([
+  "metadata",
+  "experiment_metadata",
+  "experiment_item_metadata",
+]);
 
 export class StringFilter implements Filter {
   public clickhouseTable: string;
   public field: string;
   public value: string;
-  public operator: (typeof filterOperators)["string"][number];
+  public operator:
+    | (typeof filterOperators)["string"][number]
+    | FtsMatchOperator;
   public tablePrefix?: string;
+  public emptyEqualsNull?: boolean;
 
   constructor(opts: {
     clickhouseTable: string;
     field: string;
-    operator: (typeof filterOperators)["string"][number];
+    operator: (typeof filterOperators)["string"][number] | FtsMatchOperator;
     value: string;
     tablePrefix?: string;
+    emptyEqualsNull?: boolean;
   }) {
     this.clickhouseTable = opts.clickhouseTable;
     this.field = opts.field;
     this.value = opts.value;
     this.operator = opts.operator;
     this.tablePrefix = opts.tablePrefix;
+    this.emptyEqualsNull = opts.emptyEqualsNull;
   }
 
   apply(): ClickhouseFilter {
     const varName = `stringFilter${clickhouseCompliantRandomCharacters()}`;
 
     const fieldWithPrefix = `${this.tablePrefix ? this.tablePrefix + "." : ""}${this.field}`;
+
+    // events_full carries an ngrambf_v1 skip index on lower(<col>) for these
+    // columns. Emit a lower() conjunct so the index can prune; the exact
+    // predicate below keeps the original (case-sensitive) semantics.
+    const ngramTarget = isNgramSubstringTarget(
+      this.clickhouseTable,
+      this.field,
+    );
+    const ngramParams: Record<string, string> = {};
+    const ngramLikeConjunct = (pattern: string): string => {
+      const p = `stringFilterNgram${clickhouseCompliantRandomCharacters()}`;
+      ngramParams[p] = pattern;
+      return `lower(${fieldWithPrefix}) LIKE lower({${p}: String}) AND `;
+    };
+
+    // '' ≡ NULL: when filtering with empty value, match both '' and NULL.
+    // ClickHouse functions like startsWith/endsWith/position return NULL (not true)
+    // for NULL inputs, so we need an explicit OR IS NULL guard.
+    if (this.emptyEqualsNull && this.value === "") {
+      if (
+        this.operator === "=" ||
+        this.operator === "contains" ||
+        this.operator === "starts with" ||
+        this.operator === "ends with"
+      ) {
+        return {
+          query: `(${fieldWithPrefix} = '' OR ${fieldWithPrefix} IS NULL)`,
+          params: {},
+        };
+      }
+    }
+
     let query: string;
     switch (this.operator) {
       case "=":
         query = `${fieldWithPrefix} = {${varName}: String}`;
+        if (isFtsTextTarget(this.clickhouseTable, this.field, this.operator)) {
+          query = FTS_OPERATOR_DESCRIPTORS["="].textCondition(
+            fieldWithPrefix,
+            `{${varName}: String}`,
+            query,
+            hasFtsSearchToken(this.value),
+          );
+        } else if (ngramTarget) {
+          query = `(lower(${fieldWithPrefix}) = lower({${varName}: String}) AND ${query})`;
+        }
         break;
       case "contains":
         query = `position(${fieldWithPrefix}, {${varName}: String}) > 0`;
+        if (ngramTarget && this.value.length > 0) {
+          query = `(${ngramLikeConjunct(`%${escapeSqlLikePattern(this.value)}%`)}${query})`;
+        }
         break;
       case "does not contain":
         query = `position(${fieldWithPrefix}, {${varName}: String}) = 0`;
         break;
       case "starts with":
         query = `startsWith(${fieldWithPrefix}, {${varName}: String})`;
+        if (ngramTarget && this.value.length > 0) {
+          query = `(${ngramLikeConjunct(`${escapeSqlLikePattern(this.value)}%`)}${query})`;
+        }
         break;
       case "ends with":
         query = `endsWith(${fieldWithPrefix}, {${varName}: String})`;
+        if (ngramTarget && this.value.length > 0) {
+          query = `(${ngramLikeConjunct(`%${escapeSqlLikePattern(this.value)}`)}${query})`;
+        }
+        break;
+      case "is not empty":
+        query = `(${fieldWithPrefix} != '' AND ${fieldWithPrefix} IS NOT NULL)`;
+        break;
+      case FTS_MATCH_OPERATOR:
+        assertValidFtsMatchFilter({
+          filterType: "string",
+          clickhouseTable: this.clickhouseTable,
+          field: this.field,
+          value: this.value,
+        });
+        query = FTS_OPERATOR_DESCRIPTORS[FTS_MATCH_OPERATOR].textCondition(
+          fieldWithPrefix,
+          `{${varName}: String}`,
+          // `matches` shares the descriptor signature with exact filters but
+          // does not need a base exact predicate, and always has a token
+          // (guaranteed by assertValidFtsMatchFilter above).
+          "",
+          true,
+        );
         break;
       default:
         throw new Error(`Unsupported operator: ${this.operator}`);
     }
 
+    // '' ≡ NULL: "does not contain" would match '' — guard against it
+    if (this.emptyEqualsNull && this.operator === "does not contain") {
+      query = `(${fieldWithPrefix} != '' AND ${query})`;
+    }
+
     return {
-      query: query,
-      params: { [varName]: this.value },
+      query,
+      params:
+        this.operator === "is not empty"
+          ? {}
+          : { [varName]: this.value, ...ngramParams },
     };
   }
 }
@@ -104,6 +236,11 @@ export class NumberFilter implements Filter {
   }
 }
 
+export const bindUtcDateTimeParam = (name: string, value: Date) => ({
+  placeholder: `{${name}: DateTime64(3, 'UTC')}`,
+  value: convertDateToClickhouseDateTime(value),
+});
+
 export class DateTimeFilter implements Filter {
   public clickhouseTable: string;
   public field: string;
@@ -128,9 +265,17 @@ export class DateTimeFilter implements Filter {
   apply(): ClickhouseFilter {
     const uid = clickhouseCompliantRandomCharacters();
     const varName = `dateTimeFilter${uid}`;
+    const dateTimeParam = bindUtcDateTimeParam(varName, new Date(this.value));
+    // Use ClickHouse DateTime string encoding rather than epoch millis.
+    // ClickHouse rejects query parameter value 0 for DateTime64(3), which is
+    // exactly what Date#getTime() returns for 1970-01-01T00:00:00.000Z. The
+    // converter emits UTC calendar time, so declare UTC explicitly rather than
+    // relying on the ClickHouse server or session timezone.
     return {
-      query: `${this.tablePrefix ? this.tablePrefix + "." : ""}${this.field} ${this.operator} {${varName}: DateTime64(3)}`,
-      params: { [varName]: new Date(this.value).getTime() },
+      query: `${this.tablePrefix ? this.tablePrefix + "." : ""}${this.field} ${this.operator} ${dateTimeParam.placeholder}`,
+      params: {
+        [varName]: dateTimeParam.value,
+      },
     };
   }
 }
@@ -141,6 +286,7 @@ export class StringOptionsFilter implements Filter {
   public values: string[];
   public operator: (typeof filterOperators.stringOptions)[number];
   public tablePrefix?: string;
+  public emptyEqualsNull?: boolean;
 
   constructor(opts: {
     clickhouseTable: string;
@@ -148,23 +294,60 @@ export class StringOptionsFilter implements Filter {
     operator: (typeof filterOperators.stringOptions)[number];
     values: string[];
     tablePrefix?: string;
+    emptyEqualsNull?: boolean;
   }) {
     this.clickhouseTable = opts.clickhouseTable;
     this.field = opts.field;
     this.values = opts.values;
     this.operator = opts.operator;
     this.tablePrefix = opts.tablePrefix;
+    this.emptyEqualsNull = opts.emptyEqualsNull;
   }
 
   apply(): ClickhouseFilter {
     const uid = clickhouseCompliantRandomCharacters();
     const varName = `stringOptionsFilter${uid}`;
+    const fieldWithPrefix = `${this.tablePrefix ? this.tablePrefix + "." : ""}${this.field}`;
+    const hasEmpty = this.emptyEqualsNull && this.values.includes("");
+
+    // events_full ngram index prefilter for the positive (any of) set. `none of`
+    // (NOT IN) cannot be pruned by a presence bloom, so it is left untouched.
+    const ngramParams: Record<string, string[]> = {};
+    let ngramConjunct = "";
+    if (
+      this.operator === "any of" &&
+      isNgramSubstringTarget(this.clickhouseTable, this.field) &&
+      this.values.length > 0
+    ) {
+      const loweredVar = `stringOptionsFilterNgram${clickhouseCompliantRandomCharacters()}`;
+      ngramParams[loweredVar] = this.values.map(clickhouseAsciiLower);
+      ngramConjunct = `lower(${fieldWithPrefix}) IN ({${loweredVar}: Array(String)}) AND `;
+    }
+
+    let query = (() => {
+      if (this.operator === "any of") {
+        if (ngramConjunct) {
+          return `(${ngramConjunct}${fieldWithPrefix} IN ({${varName}: Array(String)}))`;
+        }
+        return `${fieldWithPrefix} IN ({${varName}: Array(String)})`;
+      }
+      return `${fieldWithPrefix} NOT IN ({${varName}: Array(String)})`;
+    })();
+
+    if (hasEmpty && this.operator === "any of") {
+      // '' ≡ NULL: also match NULL when '' is in the list
+      query = `(${query} OR ${fieldWithPrefix} IS NULL)`;
+    } else if (this.emptyEqualsNull && this.operator === "none of") {
+      // '' ≡ NULL: exclude empty/null (which are equivalent)
+      const guard = hasEmpty
+        ? `${fieldWithPrefix} IS NOT NULL`
+        : `${fieldWithPrefix} != ''`;
+      query = `(${query} AND ${guard})`;
+    }
+
     return {
-      query:
-        this.operator === "any of"
-          ? `${this.tablePrefix ? this.tablePrefix + "." : ""}${this.field} IN ({${varName}: Array(String)})`
-          : `${this.tablePrefix ? this.tablePrefix + "." : ""}${this.field} NOT IN ({${varName}: Array(String)})`,
-      params: { [varName]: this.values },
+      query,
+      params: { [varName]: this.values, ...ngramParams },
     };
   }
 }
@@ -231,13 +414,17 @@ export class StringObjectFilter implements Filter {
   public field: string;
   public key: string;
   public value: string;
-  public operator: (typeof filterOperators)["stringObject"][number];
+  public operator:
+    | (typeof filterOperators)["stringObject"][number]
+    | FtsMatchOperator;
   public tablePrefix?: string;
 
   constructor(opts: {
     clickhouseTable: string;
     field: string;
-    operator: (typeof filterOperators)["stringObject"][number];
+    operator:
+      | (typeof filterOperators)["stringObject"][number]
+      | FtsMatchOperator;
     key: string;
     value: string;
     tablePrefix?: string;
@@ -251,63 +438,138 @@ export class StringObjectFilter implements Filter {
   }
 
   apply(): ClickhouseFilter {
+    if (
+      this.operator !== FTS_MATCH_OPERATOR &&
+      NON_EMPTY_VALUE_METADATA_OPERATORS.has(this.operator) &&
+      this.value.length === 0
+    ) {
+      throw new InvalidRequestError(
+        `Empty value is not allowed for metadata '${this.operator}' filters. Use the 'is set' / 'is not set' operators to filter on key presence.`,
+      );
+    }
+
     const varKeyName = `stringObjectKeyFilter${clickhouseCompliantRandomCharacters()}`;
     const varValueName = `stringObjectValueFilter${clickhouseCompliantRandomCharacters()}`;
     const prefix = this.tablePrefix ? this.tablePrefix + "." : "";
 
-    // Events tables use array columns (metadata_names/metadata_values)
-    // Observations/traces tables use Map column (metadata)
-    const isEventsTable = [
-      "events_proto",
-      "events_core",
-      "events_full",
-    ].includes(this.clickhouseTable);
-
+    // Events tables use array columns (metadata_names/metadata_values);
+    // observations/traces tables use a Map column (metadata).
     let query: string;
-    if (isEventsTable) {
-      // For events tables, use array access: metadata_values[indexOf(metadata_names, key)]
-      const namesColumn = `${prefix}metadata_names`;
-      const valuesColumn = `${prefix}metadata_values`;
+    if (isFtsEventsTable(this.clickhouseTable)) {
+      // ClickHouse's index analyzer cannot extract `has(names, k)` from
+      // `values[indexOf(names, k)] OP v` (cross-array arrayElement form), so a
+      // bloom_filter skipping index on `names` would never prune granules.
+      // Emitting an explicit `has(names, k) AND (...)` prefix conjunct makes
+      // the index actionable and corrects the absent-key matching semantic
+      // (Otherwise `arr[0] = ''` causes some predicates to match rows that never
+      // had the key — including `does not contain`).
+      const namesColumn = `${prefix}${this.field}_names`;
+      const valuesColumn = `${prefix}${this.field}_values`;
       const valueAccessor = `${valuesColumn}[indexOf(${namesColumn}, {${varKeyName}: String})]`;
+      const hasKey = `has(${namesColumn}, {${varKeyName}: String})`;
+      const valueParam = `{${varValueName}: String}`;
+      const ngramPrefilterParamName = `stringObjectNgramFilter${clickhouseCompliantRandomCharacters()}`;
+      const shouldUseNgramPrefilter =
+        this.operator !== FTS_MATCH_OPERATOR &&
+        isFtsMetadataField(this.field) &&
+        NGRAM_ACCELERATED_METADATA_OPERATORS.has(this.operator) &&
+        this.value.length > 0;
+      const ngramPrefilter = shouldUseNgramPrefilter
+        ? `like(arrayStringConcat(${valuesColumn}), {${ngramPrefilterParamName}: String})`
+        : undefined;
+      const ngramConjunct = ngramPrefilter ? ` AND ${ngramPrefilter}` : "";
 
       switch (this.operator) {
         case "=":
-          query = `${valueAccessor} = {${varValueName}: String}`;
+          query = FTS_OPERATOR_DESCRIPTORS["="].metadataArrayCondition({
+            hasKey,
+            valuesColumn,
+            valueAccessor,
+            valueParam,
+            hasToken: hasFtsSearchToken(this.value),
+          });
           break;
         case "contains":
-          query = `position(${valueAccessor}, {${varValueName}: String}) > 0`;
+          query = `${hasKey}${ngramConjunct} AND (position(${valueAccessor}, ${valueParam}) > 0)`;
           break;
         case "does not contain":
-          query = `position(${valueAccessor}, {${varValueName}: String}) = 0`;
+          query = `${hasKey} AND (position(${valueAccessor}, ${valueParam}) = 0)`;
           break;
         case "starts with":
-          query = `startsWith(${valueAccessor}, {${varValueName}: String})`;
+          query = `${hasKey}${ngramConjunct} AND (startsWith(${valueAccessor}, ${valueParam}))`;
           break;
         case "ends with":
-          query = `endsWith(${valueAccessor}, {${varValueName}: String})`;
+          query = `${hasKey}${ngramConjunct} AND (endsWith(${valueAccessor}, ${valueParam}))`;
+          break;
+        case "is set":
+          query = hasKey;
+          break;
+        case "is not set":
+          query = `NOT (${hasKey})`;
+          break;
+        case FTS_MATCH_OPERATOR:
+          assertValidFtsMatchFilter({
+            filterType: "stringObject",
+            clickhouseTable: this.clickhouseTable,
+            field: this.field,
+            value: this.value,
+          });
+          query = FTS_OPERATOR_DESCRIPTORS[
+            FTS_MATCH_OPERATOR
+          ].metadataArrayCondition({
+            hasKey,
+            valuesColumn,
+            valueAccessor,
+            valueParam,
+            hasToken: true,
+          });
           break;
         default:
           throw new Error(`Unsupported operator: ${this.operator}`);
       }
+
+      if (ngramPrefilter) {
+        return {
+          query,
+          params: {
+            [varKeyName]: this.key,
+            [varValueName]: this.value,
+            [ngramPrefilterParamName]: `%${escapeSqlLikePattern(this.value)}%`,
+          },
+        };
+      }
     } else {
       // For observations/traces tables, use Map access: metadata[key]
       const column = `${prefix}${this.field}`;
+      const valueAccessor = `${column}[{${varKeyName}: String}]`;
+      // A missing key resolves the Map access to the empty-string default,
+      // which would otherwise make `contains ""` (and every other operator's
+      // empty-value comparison) incorrectly match rows that never had the
+      // key. Require the key to exist first, mirroring the events-table fix
+      // in PR #13369.
+      const hasKey = `mapContains(${column}, {${varKeyName}: String})`;
 
       switch (this.operator) {
         case "=":
-          query = `${column}[{${varKeyName}: String}] = {${varValueName}: String}`;
+          query = `${hasKey} AND (${valueAccessor} = {${varValueName}: String})`;
           break;
         case "contains":
-          query = `position(${column}[{${varKeyName}: String}], {${varValueName}: String}) > 0`;
+          query = `${hasKey} AND (position(${valueAccessor}, {${varValueName}: String}) > 0)`;
           break;
         case "does not contain":
-          query = `position(${column}[{${varKeyName}: String}], {${varValueName}: String}) = 0`;
+          query = `${hasKey} AND (position(${valueAccessor}, {${varValueName}: String}) = 0)`;
           break;
         case "starts with":
-          query = `startsWith(${column}[{${varKeyName}: String}], {${varValueName}: String})`;
+          query = `${hasKey} AND (startsWith(${valueAccessor}, {${varValueName}: String}))`;
           break;
         case "ends with":
-          query = `endsWith(${column}[{${varKeyName}: String}], {${varValueName}: String})`;
+          query = `${hasKey} AND (endsWith(${valueAccessor}, {${varValueName}: String}))`;
+          break;
+        case "is set":
+          query = hasKey;
+          break;
+        case "is not set":
+          query = `NOT (${hasKey})`;
           break;
         default:
           throw new Error(`Unsupported operator: ${this.operator}`);
@@ -374,22 +636,54 @@ export class NullFilter implements Filter {
   public field: string;
   public operator: (typeof filterOperators)["null"][number];
   public tablePrefix?: string;
+  public emptyEqualsNull?: boolean;
 
   constructor(opts: {
     clickhouseTable: string;
     field: string;
     operator: (typeof filterOperators)["null"][number];
     tablePrefix?: string;
+    emptyEqualsNull?: boolean;
   }) {
     this.clickhouseTable = opts.clickhouseTable;
     this.field = opts.field;
     this.operator = opts.operator;
     this.tablePrefix = opts.tablePrefix;
+    this.emptyEqualsNull = opts.emptyEqualsNull;
   }
 
   apply(): ClickhouseFilter {
+    const fieldWithPrefix = `${this.tablePrefix ? this.tablePrefix + "." : ""}${this.field}`;
+
+    // Event metadata aliases are computed maps. Their physical names arrays
+    // are non-nullable, so emptiness represents a null/absent map.
+    if (
+      isFtsEventsTable(this.clickhouseTable) &&
+      EVENTS_METADATA_MAP_FIELDS.has(bareFtsField(this.field))
+    ) {
+      const metadataNames = `${fieldWithPrefix}_names`;
+      return {
+        query:
+          this.operator === "is null"
+            ? `empty(${metadataNames})`
+            : `notEmpty(${metadataNames})`,
+        params: {},
+      };
+    }
+
+    // '' ≡ NULL: treat empty string and NULL as the same value
+    if (this.emptyEqualsNull) {
+      const isNull = this.operator === "is null";
+      return {
+        query: isNull
+          ? `(${fieldWithPrefix} = '' OR ${fieldWithPrefix} IS NULL)`
+          : `(${fieldWithPrefix} != '' AND ${fieldWithPrefix} IS NOT NULL)`,
+        params: {},
+      };
+    }
+
     return {
-      query: `${this.tablePrefix ? this.tablePrefix + "." : ""}${this.field} ${this.operator}`,
+      query: `${fieldWithPrefix} ${this.operator}`,
       params: {},
     };
   }
@@ -426,6 +720,54 @@ export class NumberObjectFilter implements Filter {
     return {
       query: `empty(arrayFilter(x -> (((x.1) = {${varKeyName}: String}) AND ((x.2) ${this.operator} {${varValueName}: Decimal64(12)})), ${column})) = 0`,
       params: { [varKeyName]: this.key, [varValueName]: this.value },
+    };
+  }
+}
+
+/**
+ * Encodes one boolean-score entry the way the `score_booleans` ClickHouse
+ * aggregation stores it (`scoreBooleansAggregation` in query-fragments.ts:
+ * `concat(name, ':', lowerUTF8(string_value))`). BooleanObjectFilter and
+ * InMemoryFilterService must build lookup targets through this helper so the
+ * two filter paths and the SQL producer cannot drift apart.
+ */
+export const encodeBooleanScoreEntry = (key: string, value: boolean): string =>
+  `${key}:${value ? "true" : "false"}`;
+
+export class BooleanObjectFilter implements Filter {
+  public clickhouseTable: string;
+  public field: string;
+  public key: string;
+  public value: boolean;
+  public operator: (typeof filterOperators)["booleanObject"][number];
+  public tablePrefix?: string;
+
+  constructor(opts: {
+    clickhouseTable: string;
+    field: string;
+    operator: (typeof filterOperators)["booleanObject"][number];
+    key: string;
+    value: boolean;
+    tablePrefix?: string;
+  }) {
+    this.clickhouseTable = opts.clickhouseTable;
+    this.field = opts.field;
+    this.value = opts.value;
+    this.operator = opts.operator;
+    this.tablePrefix = opts.tablePrefix;
+    this.key = opts.key;
+  }
+
+  apply(): ClickhouseFilter {
+    const uid = clickhouseCompliantRandomCharacters();
+    const varName = `booleanObjectFilter${uid}`;
+    const column = `${this.tablePrefix ? this.tablePrefix + "." : ""}${this.field}`;
+    const value = encodeBooleanScoreEntry(this.key, this.value);
+    const predicate = `has(${column}, {${varName}: String})`;
+
+    return {
+      query: this.operator === "<>" ? `NOT ${predicate}` : predicate,
+      params: { [varName]: value },
     };
   }
 }
@@ -518,3 +860,48 @@ export class FilterList {
     };
   }
 }
+
+/**
+ * Whether a metadata string filter on events_full emits a conjunct that an
+ * events_full skip index can prune on: the ngram conjunct for substring
+ * operators, or the text-index token conjunct for `=` / `matches`. Negations
+ * and token-less values cannot skip granules.
+ */
+export const metadataFilterCanPruneEventsFull = (
+  operator: string,
+  value: string,
+): boolean => {
+  if (
+    NGRAM_ACCELERATED_METADATA_OPERATORS.has(
+      operator as (typeof filterOperators)["stringObject"][number],
+    )
+  ) {
+    return value.length > 0;
+  }
+  if (operator === "=" || operator === FTS_MATCH_OPERATOR) {
+    return hasFtsSearchToken(value);
+  }
+  return false;
+};
+
+// events_core stores input/output/metadata_values truncated to 200 chars
+// (events_core_mv). A filter must read events_full when truncation could change
+// its result: input/output always (truncated, and events_core lacks the I/O FTS
+// indices); metadata only when the operator/value is truncation-sensitive.
+const filterRequiresEventsFull = (filter: Filter): boolean => {
+  if (!isFtsEventsTable(filter.clickhouseTable)) {
+    return false;
+  }
+  if (isFtsTextField(filter.field)) {
+    return true;
+  }
+  if (isFtsMetadataField(filter.field)) {
+    const value =
+      "value" in filter ? (filter as { value: unknown }).value : undefined;
+    return !metadataFilterIsEventsCoreSafe(filter.operator, value);
+  }
+  return false;
+};
+
+export const filtersRequireEventsFull = (filters: FilterList): boolean =>
+  filters.some(filterRequiresEventsFull);

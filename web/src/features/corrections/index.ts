@@ -1,0 +1,8 @@
+// The corrections feature's public client surface (RFC rule 8). Named
+// re-exports only — exactly what other features already imported.
+export {
+  CorrectionCacheProvider,
+  useCorrectionCache,
+  useCorrectionCacheOptional,
+} from "@/src/features/corrections/contexts/CorrectionCacheProvider";
+export { getMostRecentCorrection } from "@/src/features/corrections/utils/getMostRecentCorrection";

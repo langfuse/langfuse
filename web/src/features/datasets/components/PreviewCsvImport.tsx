@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary, @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 import { CsvColumnsCard } from "./CsvColumnsCard";
 import { MappingCard } from "./MappingCard";
 import {
@@ -9,18 +10,18 @@ import {
 import { useState, useEffect } from "react";
 import { Button } from "@/src/components/ui/button";
 import { api } from "@/src/utils/api";
-import { Progress } from "@/src/components/ui/progress";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { Progress } from "@/src/components/design-system/Progress/Progress";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { DialogBody, DialogFooter } from "@/src/components/ui/dialog";
 import { CsvImportValidationError } from "./CsvImportValidationError";
-import { Checkbox } from "@/src/components/ui/checkbox";
+import { Checkbox } from "@/src/components/design-system/Checkbox/Checkbox";
 import { Label } from "@/src/components/ui/label";
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
 } from "@/src/components/ui/tooltip";
-import { InfoIcon, GripVertical } from "lucide-react";
+import { InfoIcon, GripVertical } from "@langfuse/icons";
 import { useCsvMapping } from "@/src/features/datasets/hooks/useCsvMapping";
 import { useCsvDragAndDrop } from "@/src/features/datasets/hooks/useCsvDragAndDrop";
 import { useCsvImport } from "@/src/features/datasets/hooks/useCsvImport";
@@ -167,7 +168,7 @@ export function PreviewCsvImport({
               },
             }}
           >
-            <div className="grid min-h-0 flex-1 grid-cols-[1fr,2fr] gap-4">
+            <div className="grid min-h-0 flex-1 grid-cols-[1fr_2fr] gap-4">
               <CsvColumnsCard
                 columns={preview.columns}
                 columnCount={preview.totalColumns}
@@ -195,17 +196,23 @@ export function PreviewCsvImport({
               <DragOverlay dropAnimation={null} adjustScale={false}>
                 {dragAndDrop.activeColumn ? (
                   dragAndDrop.activeColumn.startsWith("mapped-") ? (
-                    <div className="cursor-grabbing rounded-md bg-accent-dark-blue px-2 py-1 text-sm font-medium text-muted-foreground shadow-xl">
+                    <div className="bg-accent-dark-blue text-muted-foreground cursor-grabbing rounded-md px-2 py-1 text-sm font-bold shadow-xl">
                       {dragAndDrop.activeColumn.replace("mapped-", "")}
                     </div>
                   ) : (
-                    <div className="flex cursor-grabbing items-center gap-2 rounded-md border bg-background p-2 shadow-xl">
-                      <GripVertical className="h-4 w-4 shrink-0 text-muted-foreground/70" />
+                    <div className="bg-background flex cursor-grabbing items-center gap-2 rounded-md border p-2 shadow-xl">
+                      <GripVertical
+                        size="base"
+                        __rawClassName="text-muted-foreground/70"
+                      />
                       <div className="flex min-w-0 flex-1 items-center justify-between gap-2">
-                        <span className="truncate text-sm">
+                        <span
+                          className="truncate text-sm"
+                          title={dragAndDrop.activeColumn}
+                        >
                           {dragAndDrop.activeColumn}
                         </span>
-                        <span className="shrink-0 text-xs text-muted-foreground">
+                        <span className="text-muted-foreground shrink-0 text-xs">
                           {
                             preview.columns.find(
                               (col) => col.name === dragAndDrop.activeColumn,
@@ -246,7 +253,7 @@ export function PreviewCsvImport({
             </Label>
             <Tooltip>
               <TooltipTrigger asChild>
-                <InfoIcon className="h-3.5 w-3.5 text-muted-foreground" />
+                <InfoIcon size="base" color="muted" />
               </TooltipTrigger>
               <TooltipContent className="max-w-[300px]">
                 When a single csv column is mapped to a dataset item field, wrap
@@ -278,7 +285,6 @@ export function PreviewCsvImport({
                   csvImport.progress.totalItems) *
                 100
               }
-              className="w-full"
             />
           </div>
         )}

@@ -1,12 +1,9 @@
+/* eslint-disable @repo/no-style-props */
 import { useMemo, useLayoutEffect, useState, useRef } from "react";
 import { type HeatmapCell } from "@/src/features/score-analytics/lib/heatmap-utils";
 import { HeatmapCellComponent } from "./HeatmapCell";
 import { TooltipProvider } from "@/src/components/ui/tooltip";
-import {
-  HoverCard,
-  HoverCardContent,
-  HoverCardTrigger,
-} from "@/src/components/ui/hover-card";
+import { HoverCard } from "@/src/components/design-system/HoverCard/HoverCard";
 import { cn } from "@/src/utils/tailwind";
 
 export interface HeatmapProps {
@@ -148,7 +145,7 @@ export function Heatmap({
           {yAxisLabel && (
             <div className="flex items-center justify-center">
               <span
-                className="text-xs font-normal text-muted-foreground"
+                className="text-muted-foreground text-xs font-normal"
                 style={{
                   writingMode: "vertical-rl",
                   transform: "rotate(180deg)",
@@ -163,7 +160,7 @@ export function Heatmap({
             <div
               ref={rowLabelsRef}
               className={cn(
-                "pr-1 text-right text-[10px] text-muted-foreground sm:pr-2 sm:text-xs",
+                "text-muted-foreground pr-1 text-right text-[10px] sm:pr-2 sm:text-xs",
                 isDivisionPointMode
                   ? "flex flex-col justify-between self-stretch"
                   : "grid gap-1",
@@ -199,21 +196,25 @@ export function Heatmap({
                     )}
                   >
                     {shouldTruncate ? (
-                      <HoverCard>
-                        <HoverCardTrigger asChild>
-                          <span className="cursor-help text-right">
+                      <HoverCard
+                        placement="left"
+                        content={
+                          <div className="w-auto p-3">
+                            <div className="space-y-1">
+                              <p className="font-bold">{label}</p>
+                            </div>
+                          </div>
+                        }
+                      >
+                        {({ getTriggerProps }) => (
+                          <span
+                            className="cursor-help text-right"
+                            tabIndex={0}
+                            {...getTriggerProps()}
+                          >
                             {truncated}
                           </span>
-                        </HoverCardTrigger>
-                        <HoverCardContent
-                          side="left"
-                          align="center"
-                          className="w-auto"
-                        >
-                          <div className="space-y-1">
-                            <p className="font-semibold">{label}</p>
-                          </div>
-                        </HoverCardContent>
+                        )}
                       </HoverCard>
                     ) : (
                       <span>{label}</span>
@@ -268,7 +269,7 @@ export function Heatmap({
 
             <div
               className={cn(
-                "w-full flex-1 text-center text-[10px] text-muted-foreground sm:text-xs",
+                "text-muted-foreground w-full flex-1 text-center text-[10px] sm:text-xs",
                 isDivisionPointMode ? "flex justify-between" : "grid gap-1",
               )}
               style={
@@ -301,19 +302,24 @@ export function Heatmap({
                     )}
                   >
                     {shouldTruncate ? (
-                      <HoverCard>
-                        <HoverCardTrigger asChild>
-                          <span className="cursor-help">{truncated}</span>
-                        </HoverCardTrigger>
-                        <HoverCardContent
-                          side="bottom"
-                          align="center"
-                          className="w-auto"
-                        >
-                          <div className="space-y-1">
-                            <p className="text-xs">{label}</p>
+                      <HoverCard
+                        content={
+                          <div className="w-auto p-3">
+                            <div className="space-y-1">
+                              <p className="text-xs">{label}</p>
+                            </div>
                           </div>
-                        </HoverCardContent>
+                        }
+                      >
+                        {({ getTriggerProps }) => (
+                          <span
+                            className="cursor-help"
+                            tabIndex={0}
+                            {...getTriggerProps()}
+                          >
+                            {truncated}
+                          </span>
+                        )}
                       </HoverCard>
                     ) : (
                       <span>{label}</span>
@@ -332,7 +338,7 @@ export function Heatmap({
 
         {/* X-axis label */}
         {xAxisLabel && (
-          <div className="text-center text-xs font-normal text-muted-foreground">
+          <div className="text-muted-foreground text-center text-xs font-normal">
             {xAxisLabel}
           </div>
         )}

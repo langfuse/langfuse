@@ -1,36 +1,138 @@
+import { fixupPluginRules } from "@eslint/compat";
+import nextPlugin from "@next/eslint-plugin-next";
+import importPlugin from "eslint-plugin-import";
+import jsxA11yPlugin from "eslint-plugin-jsx-a11y";
+import reactPlugin from "eslint-plugin-react";
+import reactHooksPlugin from "eslint-plugin-react-hooks";
+import globals from "globals";
 import tseslint from "typescript-eslint";
-import { FlatCompat } from "@eslint/eslintrc";
-import { fileURLToPath } from "node:url";
-import path from "node:path";
-import eslintPluginPrettierRecommended from "eslint-plugin-prettier/recommended";
-import turboConfig from "eslint-config-turbo/flat";
-import "eslint-plugin-only-warn";
+import sharedConfig from "./shared.js";
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
-const compat = new FlatCompat({
-  baseDirectory: __dirname,
-});
-
-export default tseslint.config(
+export default [
   // Global ignores - include config files
   {
     name: "langfuse/ignores",
-    ignores: [
-      "**/node_modules/",
-      "**/dist/",
-      "**/.next/",
-      "**/coverage/",
-      "eslint.config.mjs",
-    ],
+    ignores: ["**/.next/"],
   },
 
-  // Next.js rules via FlatCompat (applies to all files)
-  ...compat.extends("next/core-web-vitals"),
+  // Use the plugins directly because this repo owns its parser and import resolver setup.
+  {
+    name: "langfuse/next/base",
+    files: ["**/*.{js,jsx,mjs,ts,tsx,mts,cts}"],
+    plugins: {
+      react: fixupPluginRules(reactPlugin),
+      "react-hooks": fixupPluginRules(reactHooksPlugin),
+      import: fixupPluginRules(importPlugin),
+      "jsx-a11y": fixupPluginRules(jsxA11yPlugin),
+      "@next/next": nextPlugin,
+    },
+    languageOptions: {
+      parserOptions: {
+        ecmaFeatures: {
+          jsx: true,
+        },
+      },
+      globals: {
+        ...globals.browser,
+        ...globals.node,
+      },
+    },
+    settings: {
+      react: {
+        version: "detect",
+      },
+      "import/parsers": {
+        "@typescript-eslint/parser": [".ts", ".mts", ".cts", ".tsx", ".d.ts"],
+      },
+      "import/resolver": {
+        node: {
+          extensions: [".js", ".jsx", ".ts", ".tsx"],
+        },
+        typescript: {
+          alwaysTryTypes: true,
+        },
+      },
+    },
+    rules: {
+      ...nextPlugin.configs["core-web-vitals"].rules,
+      "import/no-anonymous-default-export": "warn",
+      "import/no-duplicates": ["error", { "prefer-inline": true }],
+      "jsx-a11y/alt-text": ["warn", { elements: ["img"], img: ["Image"] }],
+      "jsx-a11y/aria-props": "warn",
+      "jsx-a11y/aria-proptypes": "warn",
+      "jsx-a11y/aria-unsupported-elements": "warn",
+      "jsx-a11y/role-has-required-aria-props": "warn",
+      "jsx-a11y/role-supports-aria-props": "warn",
+    },
+  },
 
-  // Turbo rules
-  ...turboConfig,
+  {
+    name: "langfuse/next/react",
+    files: ["**/*.{js,jsx,mjs,ts,tsx,mts,cts}"],
+    ignores: ["**/*.servertest.{ts,tsx}"],
+    rules: {
+      ...reactPlugin.configs.recommended.rules,
+      ...reactHooksPlugin.configs.recommended.rules,
+      "react/no-unknown-property": "off",
+      "react/react-in-jsx-scope": "off",
+      "react/prop-types": "off",
+      "react/jsx-no-target-blank": "off",
+      "react/jsx-no-useless-fragment": "error",
+      "react/no-unstable-nested-components": "error",
+      "react-hooks/static-components": "error",
+    },
+  },
+
+  {
+    name: "langfuse/next/typescript-parser",
+    files: ["**/*.ts", "**/*.tsx", "**/*.mts", "**/*.cts"],
+    plugins: {
+      "@typescript-eslint": tseslint.plugin,
+    },
+    languageOptions: {
+      parser: tseslint.parser,
+      parserOptions: {
+        sourceType: "module",
+      },
+    },
+  },
+
+  {
+    name: "langfuse/next/ignores",
+    ignores: [".next/**", "out/**", "build/**", "next-env.d.ts"],
+  },
+
+  // Keep the pre-React-Compiler hooks baseline used by this repo.
+  {
+    name: "langfuse/next/react-hooks-overrides",
+    ignores: ["**/*.servertest.{ts,tsx}"],
+    rules: {
+      "react-hooks/component-hook-factories": "off",
+      "react-hooks/config": "off",
+      "react-hooks/error-boundaries": "off",
+      "react-hooks/gating": "off",
+      "react-hooks/globals": "off",
+      "react-hooks/immutability": "off",
+      "react-hooks/incompatible-library": "off",
+      "react-hooks/preserve-manual-memoization": "off",
+      "react-hooks/purity": "off",
+      "react-hooks/refs": "off",
+      "react-hooks/set-state-in-effect": "off",
+      "react-hooks/set-state-in-render": "off",
+      "react-hooks/unsupported-syntax": "off",
+      "react-hooks/use-memo": "off",
+    },
+  },
+
+  ...sharedConfig,
+
+  {
+    name: "langfuse/next/no-let-assign-in-react",
+    files: ["**/*.{js,jsx,mjs,ts,tsx,mts,cts}"],
+    rules: {
+      "@repo/no-let-assign-in-react": "error",
+    },
+  },
 
   // Disable noisy turbo env var rule - project has many env vars not in turbo.json
   {
@@ -40,20 +142,16 @@ export default tseslint.config(
     },
   },
 
-  // Prettier (last)
-  eslintPluginPrettierRecommended,
-
-  // TypeScript config for TS files
-  // Note: The old config had a bug (duplicate extends) that prevented TS rules from applying
-  // Only adding parser + plugin + custom rules to match old behavior
+  // Layer repo-specific TS rules on top of Next's built-in flat TS config.
+  // Next already provides the parser and @typescript-eslint plugin here.
   {
     name: "langfuse/next/typescript",
-    files: ["**/*.ts", "**/*.tsx"],
-    plugins: {
-      "@typescript-eslint": tseslint.plugin,
-    },
+    files: ["**/*.ts", "**/*.tsx", "**/*.mts", "**/*.cts"],
+    ignores: ["**/vitest.config.mts"],
     languageOptions: {
-      parser: tseslint.parser,
+      parserOptions: {
+        projectService: true,
+      },
       globals: {
         React: "readonly",
         JSX: "readonly",
@@ -67,7 +165,7 @@ export default tseslint.config(
       },
     },
     rules: {
-      "no-unused-vars": "off", // Use @typescript-eslint/no-unused-vars instead
+      "@repo/no-tailwind-overflow-scroll": "warn",
       // Custom rules from old config
       "@typescript-eslint/consistent-type-imports": [
         "warn",
@@ -76,17 +174,44 @@ export default tseslint.config(
           fixStyle: "inline-type-imports",
         },
       ],
-      "@typescript-eslint/no-unused-vars": [
+      "@typescript-eslint/no-deprecated": "warn",
+    },
+  },
+  {
+    name: "langfuse/next/typescript-react",
+    files: ["**/*.{ts,tsx,mts,cts}"],
+    ignores: ["**/*.servertest.{ts,tsx}"],
+    rules: {
+      "react/jsx-curly-brace-presence": [
         "warn",
         {
-          argsIgnorePattern: "^_",
-          varsIgnorePattern: "^_",
-          caughtErrorsIgnorePattern: "^_",
-          destructuredArrayIgnorePattern: "^_",
-          ignoreRestSiblings: true,
+          props: "never",
+          children: "ignore",
+          propElementValues: "always",
         },
       ],
       "react/jsx-key": ["error", { warnOnDuplicates: true }],
+      "react/no-unused-prop-types": "warn",
     },
   },
-);
+  {
+    name: "langfuse/next/tests-and-stories",
+    files: [
+      "**/*.clienttest.{ts,tsx}",
+      "**/*.servertest.{ts,tsx}",
+      "**/*.test.{ts,tsx}",
+      "**/*.story.{ts,tsx}",
+      "**/*.stories.{ts,tsx}",
+    ],
+    rules: {
+      "@repo/no-tailwind-overflow-scroll": "off",
+    },
+  },
+  {
+    name: "langfuse/next/prefer-stories-over-client-tests",
+    files: ["**/*.clienttest.{ts,tsx}"],
+    rules: {
+      "@repo/prefer-stories-over-client-tests": "warn",
+    },
+  },
+];

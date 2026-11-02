@@ -3,8 +3,7 @@ import Link from "next/link";
 import { Label } from "@/src/components/ui/label";
 import { api } from "@/src/utils/api";
 import { type UIModelParams } from "@langfuse/shared";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
-
+import { useHasProjectAccess } from "@/src/features/rbac";
 export const LLMApiKeyComponent = (p: {
   projectId: string;
   modelParams: UIModelParams;
@@ -17,23 +16,23 @@ export const LLMApiKeyComponent = (p: {
   if (!hasAccess) {
     return (
       <div>
-        <Label className="text-xs font-semibold">API key</Label>
-        <p className="text-sm text-muted-foreground">
+        <Label className="text-xs font-bold">API key</Label>
+        <p className="text-muted-foreground text-sm">
           LLM API Key only visible to Owner and Admin roles.
         </p>
       </div>
     );
   }
 
-  const apiKeys = api.llmApiKey.all.useQuery({
+  const apiKeys = api.llmApiKey.effective.useQuery({
     projectId: p.projectId,
   });
 
   if (apiKeys.isPending) {
     return (
       <div>
-        <Label className="text-xs font-semibold">API key</Label>
-        <p className="text-sm text-muted-foreground">Loading...</p>
+        <Label className="text-xs font-bold">API key</Label>
+        <p className="text-muted-foreground text-sm">Loading...</p>
       </div>
     );
   }
@@ -43,11 +42,11 @@ export const LLMApiKeyComponent = (p: {
 
   return (
     <div className="space-y-2 text-xs">
-      <Label className="text-xs font-semibold">API key</Label>
+      <Label className="text-xs font-bold">API key</Label>
       <div>
         {apiKey ? (
           <Link href={`/project/${p.projectId}/settings/llm-connections`}>
-            <span className="mr-2 rounded-sm bg-input p-1 text-xs">
+            <span className="bg-input mr-2 rounded-sm p-1 text-xs">
               {apiKey.displaySecretKey}
             </span>
           </Link>

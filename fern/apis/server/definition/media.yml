@@ -71,13 +71,23 @@ types:
         docs: The time in milliseconds it took to upload the media record
 
   GetMediaUploadUrlRequest:
+    docs: >-
+      Request a presigned media upload URL. Provide exactly one context: a trace
+      (traceId, optionally observationId) or a dataset item (datasetId +
+      datasetItemId). field is required and must match the chosen context.
     properties:
       traceId:
-        type: string
-        docs: The trace ID associated with the media record
+        type: optional<string>
+        docs: The trace the media is associated with. Null for dataset item media uploads.
       observationId:
         type: optional<string>
         docs: The observation ID associated with the media record. If the media record is associated directly with a trace, this will be null.
+      datasetId:
+        type: optional<string>
+        docs: The dataset the media belongs to. Null for trace/observation media uploads.
+      datasetItemId:
+        type: optional<string>
+        docs: The dataset item the media is associated with (need not exist yet). Null for trace/observation media uploads.
       contentType: MediaContentType
       contentLength:
         type: integer
@@ -87,7 +97,7 @@ types:
         docs: The SHA-256 hash of the media record
       field:
         type: string
-        docs: The trace / observation field the media record is associated with. This can be one of `input`, `output`, `metadata`
+        docs: "The item field the media is in: `input`/`output`/`metadata` (trace) or `input`/`expectedOutput`/`metadata` (dataset item)."
 
   GetMediaUploadUrlResponse:
     properties:

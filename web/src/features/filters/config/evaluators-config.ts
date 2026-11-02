@@ -21,5 +21,10 @@ export const evaluatorFilterConfig: FilterConfig = {
       column: "target",
       label: "Target",
     },
+    {
+      type: "categorical" as const,
+      column: "timeScope",
+      label: "Time Scope",
+    },
   ],
 };

@@ -1,10 +1,19 @@
-import { type z } from "zod/v4";
-import { singleFilter, timeFilter } from "./interfaces/filters";
+import { type z } from "zod";
+import {
+  eventsTableFilterState,
+  eventsTableSingleFilter,
+  singleFilter,
+  timeFilter,
+} from "./interfaces/filters";
 
 // to be sent to the server
 export type TimeFilter = z.infer<typeof timeFilter>;
 export type FilterCondition = z.infer<typeof singleFilter>;
 export type FilterState = FilterCondition[];
+export type EventsTableFilterCondition = z.infer<
+  typeof eventsTableSingleFilter
+>;
+export type EventsTableFilterState = z.infer<typeof eventsTableFilterState>;
 
 // to be used in the client during editing
 export type MakeOptional<T> = {
@@ -40,4 +49,6 @@ export type TableName =
   | "dataset_items"
   | "job_executions"
   | "dataset_runs"
-  | "dataset_run_items_by_run";
+  | "dataset_run_items_by_run"
+  | "experiments"
+  | "experiment-items";

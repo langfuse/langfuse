@@ -15,6 +15,43 @@ import { env } from "../../env";
 const LAST_PROCESSED_PARTITION_KEY =
   "langfuse:event-propagation:last-processed-partition";
 
+const LAST_RUN_STARTED_AT_KEY =
+  "langfuse:event-propagation:last-run-started-at";
+
+/**
+ * Record (in Redis) that a propagation run just started. Written at the top of
+ * every job invocation — including the no-op "nothing to process" path — and
+ * refreshed per-chunk as the experiment backfill progresses (both run under the
+ * same global-concurrency-1 slot), so its freshness reflects "the slot is still
+ * being worked / the queue is still being drained", independent of whether the
+ * cursor advanced. The health check uses staleness of this value to detect a
+ * wedged global-concurrency slot. Stored as epoch millis.
+ */
+export const updateLastRunStartedAt = async (): Promise<void> => {
+  try {
+    await redis!.set(LAST_RUN_STARTED_AT_KEY, Date.now().toString());
+  } catch (error) {
+    // Don't throw - a failed heartbeat write must not fail the job itself.
+    logger.error("[DUAL WRITE] Failed to update last run started at", error);
+  }
+};
+
+/**
+ * Read the last-run-started-at heartbeat (epoch millis) from Redis.
+ * Returns null if the job has never run yet or if Redis is unavailable.
+ */
+export const getLastRunStartedAt = async (): Promise<number | null> => {
+  try {
+    const value = await redis!.get(LAST_RUN_STARTED_AT_KEY);
+    if (value === null) return null;
+    const parsed = Number(value);
+    return Number.isNaN(parsed) ? null : parsed;
+  } catch (error) {
+    logger.error("[DUAL WRITE] Failed to get last run started at", error);
+    return null;
+  }
+};
+
 /**
  * Get the last processed partition timestamp from Redis.
  * Returns null if no partition has been processed yet or if Redis is unavailable.
@@ -32,7 +69,7 @@ export const getLastProcessedPartition = async (): Promise<string | null> => {
  * Update the last processed partition timestamp in Redis.
  * This is called after successfully processing a partition.
  */
-export const updateLastProcessedPartition = async (
+const updateLastProcessedPartition = async (
   partition: string,
 ): Promise<void> => {
   try {
@@ -63,12 +100,9 @@ export const handleEventPropagationJob = async (
     job.data.id,
   );
 
-  if (env.LANGFUSE_EXPERIMENT_EARLY_EXIT_EVENT_BATCH_JOB === "true") {
-    logger.info(
-      "[DUAL WRITE] Early exit for event propagation job due to experiment flag",
-    );
-    return;
-  }
+  // Heartbeat: record that a run started so the health check can detect a wedged
+  // (never-invoked) job even when the cursor legitimately has nothing to advance.
+  await updateLastRunStartedAt();
 
   try {
     // Step 1: Get the last processed partition from Redis and find the next one to process
@@ -96,16 +130,13 @@ export const handleEventPropagationJob = async (
         SELECT DISTINCT partition
         FROM system.parts
         WHERE table = 'observations_batch_staging'
+          AND database = currentDatabase()
           AND active = 1
           AND toDateTime(partition) < now() - INTERVAL ${env.LANGFUSE_EXPERIMENT_EVENT_PROPAGATION_PARTITION_DELAY_MINUTES} MINUTE
           ${lastProcessedPartition ? `AND partition > {lastProcessedPartition: String}` : ""}
         ORDER BY partition ASC
       `,
       params: lastProcessedPartition ? { lastProcessedPartition } : undefined,
-      tags: {
-        feature: "ingestion",
-        operation_name: "getNextPartition",
-      },
     });
 
     recordGauge(
@@ -131,16 +162,23 @@ export const handleEventPropagationJob = async (
     // for the same span, this may create duplicates in the new events table. Deduplicating in this query
     // will significantly affect run-time. This may be an accepted degradation and we test the outcome
     // to check the likelihood of this happening in practice.
+    const excludeProjectIds =
+      env.LANGFUSE_EVENT_PROPAGATION_EXCLUDE_PROJECT_IDS;
+    const excludeProjectIdsInClause =
+      excludeProjectIds.length > 0
+        ? `NOT IN (${excludeProjectIds.map((id) => `'${id}'`).join(",")})`
+        : "";
     await commandClickhouse({
       query: `
         with batch_stats as (
           select
             groupUniqArray(project_id) as project_ids,
             groupUniqArray(trace_id) as trace_ids,
-            min(start_time) as min_start_time,
+            minIf(start_time, start_time > now() - interval 1 day) as min_start_time,
             max(start_time) as max_start_time
           from observations_batch_staging
           where _partition_value = tuple('${partitionToProcess}')
+          ${excludeProjectIdsInClause ? `AND project_id ${excludeProjectIdsInClause}` : ""}
         ), experiment_traces_to_exclude as (
           select distinct
             project_id,
@@ -168,15 +206,14 @@ export const handleEventPropagationJob = async (
               -- For some reason clickhouse detects any "date >= '1969-12-31'" as false.
               -- Therefore, we add a fallback condition that limits actively to last 7 days.
               -- This means that 7 days becomes the maximum trace data propagation interval.
-              t.timestamp >= (select min(min_start_time) - interval 1 day from batch_stats) OR
-              t.timestamp >= now() - interval 7 day
+              t.timestamp >= greatest((select min(min_start_time) - interval 1 day from batch_stats), now() - interval 7 day)
             )
             and t.timestamp <= (select max(max_start_time) + interval 1 day from batch_stats)
-          order by t.event_ts desc
+          order by t.project_id, t.id, t.event_ts desc
           limit 1 by t.project_id, t.id
         )
 
-        INSERT INTO events (
+        INSERT INTO events_full (
           project_id,
           trace_id,
           span_id,
@@ -215,16 +252,18 @@ export const handleEventPropagationJob = async (
 
           input,
           output,
-          metadata,
           metadata_names,
-          metadata_raw_values,
+          metadata_values,
           source,
           blob_storage_file_path,
           event_bytes,
           created_at,
           updated_at,
           event_ts,
-          is_deleted
+          is_deleted,
+          ingestion_api_key,
+          ingestion_sdk_name,
+          ingestion_sdk_version
         )
         SELECT
           obs.project_id,
@@ -272,16 +311,18 @@ export const handleEventPropagationJob = async (
           coalesce(obs.input, '') AS input,
           coalesce(obs.output, '') AS output,
           -- Merge trace and observation metadata, with observation taking precedence (first map wins)
-          CAST(mapConcat(obs.metadata, coalesce(t.metadata, map())), 'JSON(max_dynamic_paths=0)') AS metadata,
           mapKeys(mapConcat(obs.metadata, coalesce(t.metadata, map()))) AS metadata_names,
-          mapValues(mapConcat(obs.metadata, coalesce(t.metadata, map()))) AS metadata_raw_values,
+          mapValues(mapConcat(obs.metadata, coalesce(t.metadata, map()))) AS metadata_values,
           multiIf(mapContains(obs.metadata, 'resourceAttributes'), 'otel-dual-write', 'ingestion-api-dual-write') AS source,
           '' AS blob_storage_file_path,
           byteSize(*) AS event_bytes,
           obs.created_at,
           obs.updated_at,
           obs.event_ts,
-          obs.is_deleted
+          obs.is_deleted,
+          obs.ingestion_api_key AS ingestion_api_key,
+          obs.ingestion_sdk_name AS ingestion_sdk_name,
+          obs.ingestion_sdk_version AS ingestion_sdk_version
         FROM observations_batch_staging obs FINAL
         LEFT JOIN relevant_traces t
         ON (
@@ -294,16 +335,31 @@ export const handleEventPropagationJob = async (
           excl.trace_id = obs.trace_id
         )
         WHERE obs._partition_value = tuple('${partitionToProcess}')
+        ${excludeProjectIdsInClause ? `AND obs.project_id ${excludeProjectIdsInClause}` : ""}
       `,
-      tags: {
-        feature: "ingestion",
-        partition: partitionToProcess,
-        operation_name: "propagateObservationsToEvents",
-      },
       clickhouseConfigs: {
-        request_timeout: 600000, // 10 minutes timeout
+        request_timeout: 1_800_000, // 30 minutes timeout
       },
       clickhouseSettings: {
+        parallel_view_processing: 1,
+        max_insert_threads: String(
+          env.LANGFUSE_EVENT_PROPAGATION_MAX_INSERT_THREADS,
+        ),
+        ...(env.LANGFUSE_EVENT_PROPAGATION_MAX_BLOCK_SIZE !== undefined && {
+          max_block_size: String(env.LANGFUSE_EVENT_PROPAGATION_MAX_BLOCK_SIZE),
+        }),
+        ...(env.LANGFUSE_EVENT_PROPAGATION_MIN_INSERT_BLOCK_SIZE_ROWS !==
+          undefined && {
+          min_insert_block_size_rows: String(
+            env.LANGFUSE_EVENT_PROPAGATION_MIN_INSERT_BLOCK_SIZE_ROWS,
+          ),
+        }),
+        ...(env.LANGFUSE_EVENT_PROPAGATION_MIN_INSERT_BLOCK_SIZE_BYTES !==
+          undefined && {
+          min_insert_block_size_bytes: String(
+            env.LANGFUSE_EVENT_PROPAGATION_MIN_INSERT_BLOCK_SIZE_BYTES,
+          ),
+        }),
         type_json_skip_duplicated_paths: true,
       },
     });

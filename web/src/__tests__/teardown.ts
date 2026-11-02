@@ -1,14 +1,12 @@
 export default async function teardown() {
-  const { redis, logger } = await import("@langfuse/shared/src/server");
+  // Redis records the existing non-production singleton on globalThis.
+  // Importing its module here would create a connection for otherwise pure tests.
+  const redis = globalThis.redis;
+  if (redis && redis.status !== "end" && redis.status !== "close") {
+    redis.disconnect();
+  }
 
-  logger.debug(`Redis status ${redis?.status}`);
-  if (!redis) {
-    return;
-  }
-  if (redis.status === "end" || redis.status === "close") {
-    logger.debug("Redis connection already closed");
-    return;
-  }
-  redis?.disconnect();
-  logger.debug("Teardown complete");
+  const { ClickHouseClientManager } =
+    await import("@langfuse/shared/src/server/clickhouse");
+  await ClickHouseClientManager.getInstance().closeAllConnections();
 }

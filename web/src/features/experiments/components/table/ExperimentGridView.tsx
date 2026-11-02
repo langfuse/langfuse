@@ -1,0 +1,387 @@
+/* eslint-disable react/no-unstable-nested-components */
+import { ExperimentInputCell } from "./ExperimentInputCell";
+import { ExperimentGridSummaryValues } from "./ExperimentGridSummaryValues";
+import { DataTable } from "@/src/components/table/data-table";
+import { shouldIgnoreRowClickTarget } from "@/src/components/table/shouldIgnoreRowClickTarget";
+import { type LangfuseColumnDef } from "@/src/components/table/types";
+import { createIOTableColumn } from "@/src/components/design-system/table/columns/createIOTableColumn";
+import { ExperimentRunBadge } from "../ExperimentRunBadge";
+import {
+  ExperimentGridCell,
+  ExperimentGridCellEmpty,
+} from "./ExperimentGridCell";
+import {
+  type ExperimentItemsTableRow,
+  getExperimentColorStyles,
+} from "./types";
+import { useMemo, useState, type ReactNode } from "react";
+import { type RowHeight } from "@/src/components/table/data-table-row-height-switch";
+import {
+  type OnChangeFn,
+  type PaginationState,
+  type VisibilityState,
+  type RowSelectionState,
+} from "@tanstack/react-table";
+import { useExperimentNames } from "@/src/features/experiments/hooks/useExperimentNames";
+import { cn } from "@/src/utils/tailwind";
+import { type DataTablePeekViewProps } from "@/src/components/table/peek";
+
+import { useHasProjectAccess } from "@/src/features/rbac";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+
+// Grid view row heights (matching DatasetCompareRunsTable)
+export const GRID_VIEW_ROW_HEIGHTS = {
+  s: "h-48", // 192px
+  m: "h-64", // 256px
+  l: "h-96", // 384px
+};
+
+type ExperimentGridViewProps = {
+  projectId: string;
+  baselineExperimentId?: string;
+  comparisonExperimentIds: string[];
+  useExperimentColors?: boolean;
+  /** Whether cells carry a delta against the baseline (the diff mode). */
+  showDiff: boolean;
+  /** Render I/O cells as single-line text (true) or JSON tree (false). */
+  singleLine: boolean;
+  rows: ExperimentItemsTableRow[];
+  isLoading: boolean;
+  /**
+   * Whether the item I/O query is still in flight. Separate from `isLoading`:
+   * the rows arrive from one query and their I/O from a second, so a cell that
+   * read row-loading would show an empty payload as if it were the answer.
+   */
+  ioLoading: boolean;
+  rowHeight: RowHeight;
+  /** Free height in pixels. Null while a preset is active. */
+  customRowHeightPx?: number | null;
+  /** Dragging a row edge sets one height for every run column. */
+  onCustomRowHeightChange?: (heightPx: number) => void;
+  /** Selects a preset when a drag lands on that preset's height. */
+  onSelectRowHeight?: (rowHeight: RowHeight) => void;
+  /** Whether any item in view has an expected output worth a column. */
+  showExpectedOutput: boolean;
+  observationScoreOrder: string[];
+  traceScoreOrder: string[];
+  showScoreLevelLabels: boolean;
+  columnVisibility: VisibilityState;
+  pagination: {
+    totalCount: number | null;
+    onChange: OnChangeFn<PaginationState>;
+    state: PaginationState;
+  };
+  noResultsMessage?: ReactNode;
+  peekView?: DataTablePeekViewProps;
+  // Selection props
+  selectActionColumn?: LangfuseColumnDef<ExperimentItemsTableRow>;
+  rowSelection: RowSelectionState;
+  setRowSelection: OnChangeFn<RowSelectionState>;
+  highlightAllRows?: boolean;
+};
+
+/**
+ * Grid view for experiment comparison.
+ * Shows one column per experiment with output and scores in each cell.
+ */
+export const ExperimentGridView = ({
+  projectId,
+  baselineExperimentId,
+  comparisonExperimentIds,
+  useExperimentColors = true,
+  showDiff,
+  singleLine,
+  rows,
+  isLoading,
+  ioLoading,
+  rowHeight,
+  customRowHeightPx,
+  onCustomRowHeightChange,
+  onSelectRowHeight,
+  showExpectedOutput,
+  observationScoreOrder,
+  traceScoreOrder,
+  showScoreLevelLabels,
+  columnVisibility,
+  pagination,
+  noResultsMessage,
+  peekView,
+  selectActionColumn,
+  rowSelection,
+  setRowSelection,
+  highlightAllRows,
+}: ExperimentGridViewProps) => {
+  const canAnnotate = useHasProjectAccess({ projectId, scope: "scores:save" });
+  const capture = usePostHogClientCapture();
+  const [summaryExpanded, setSummaryExpanded] = useState(true);
+  // Keep the explicit baseline separate from the comparison list. A baseline
+  // is optional, so c-only URLs render every selected experiment here.
+  const allExperimentIds = useMemo(
+    () => [
+      ...(baselineExperimentId ? [baselineExperimentId] : []),
+      ...comparisonExperimentIds,
+    ],
+    [baselineExperimentId, comparisonExperimentIds],
+  );
+
+  const { experimentNames } = useExperimentNames({ projectId });
+
+  const selectedExperiments = useMemo(
+    () =>
+      allExperimentIds
+        .map((id) =>
+          experimentNames.find((experiment) => experiment.experimentId === id),
+        )
+        .filter((experiment) => experiment?.datasetId != null),
+    [allExperimentIds, experimentNames],
+  );
+
+  // Build dynamic columns for each experiment
+  const experimentColumns = useMemo(() => {
+    return allExperimentIds.map((expId, index) => {
+      const isBaseline =
+        Boolean(baselineExperimentId) && expId === baselineExperimentId;
+      const expInfo = experimentNames.find((e) => e.experimentId === expId);
+      const expName = expInfo?.experimentName ?? expId.slice(0, 8);
+      const colorStyles = useExperimentColors
+        ? getExperimentColorStyles(expId, allExperimentIds)
+        : undefined;
+
+      return {
+        accessorKey: `exp_${index}`, // Avoid nested path syntax that confuses TanStack
+        // Keep the table column id stable by position. Experiment ids are UUIDs
+        // and were causing the shared table header to fall back to 150px while
+        // the body used the configured column size.
+        id: `experiment_${index}`,
+        headerBlock: true,
+        headerLabel: expName,
+        headerClassName: "align-top",
+        header: () => (
+          <div>
+            <div className="flex h-9 items-center gap-2">
+              <span
+                className={cn("truncate font-bold", colorStyles?.textClass)}
+                title={expName}
+              >
+                {expName}
+              </span>
+              {useExperimentColors && (
+                <ExperimentRunBadge colorClass={colorStyles?.badgeClass} strong>
+                  {isBaseline ? "Baseline" : "Comp"}
+                </ExperimentRunBadge>
+              )}
+            </div>
+            <ExperimentGridSummaryValues
+              expanded={summaryExpanded}
+              showScoreNames={index === 0}
+              onToggle={() => setSummaryExpanded((expanded) => !expanded)}
+              rows={rows}
+              experimentId={expId}
+              baselineExperimentId={baselineExperimentId}
+              observationScoreOrder={observationScoreOrder}
+              traceScoreOrder={traceScoreOrder}
+              columnVisibility={columnVisibility}
+              showScoreLevelLabels={showScoreLevelLabels}
+              isLoading={isLoading}
+            />
+          </div>
+        ),
+        size: 400,
+        minSize: 280,
+        cell: ({ row }) => {
+          // Find this experiment's data
+          const expData = row.original.experiments.find(
+            (e) => e.experimentId === expId,
+          );
+          const outputData = row.original.outputs?.find(
+            (o) => o.experimentId === expId,
+          );
+
+          if (!expData) {
+            return <ExperimentGridCellEmpty />;
+          }
+
+          // Get baseline data for diff calculation
+          const baselineData =
+            isBaseline || !useExperimentColors
+              ? undefined
+              : row.original.experiments.find(
+                  (e) => e.experimentId === baselineExperimentId,
+                );
+
+          return (
+            <ExperimentGridCell
+              projectId={projectId}
+              itemId={row.original.itemId}
+              output={outputData?.output}
+              isLoading={ioLoading}
+              level={expData.level}
+              startTime={expData.startTime}
+              totalCost={expData.totalCost}
+              latencyMs={expData.latencyMs}
+              baselineTotalCost={baselineData?.totalCost}
+              baselineLatencyMs={baselineData?.latencyMs}
+              observationId={expData.observationId}
+              traceId={expData.traceId}
+              singleLine={singleLine}
+              scores={expData.observationScores ?? {}}
+              traceScores={expData.traceScores ?? {}}
+              observationScoreOrder={observationScoreOrder}
+              traceScoreOrder={traceScoreOrder}
+              showScoreLevelLabels={showScoreLevelLabels}
+              isBaseline={isBaseline}
+              showDiff={showDiff}
+              baselineScores={baselineData?.observationScores}
+              baselineTraceScores={baselineData?.traceScores}
+              baselineExperimentName={
+                experimentNames.find(
+                  (e) => e.experimentId === baselineExperimentId,
+                )?.experimentName
+              }
+              columnVisibility={columnVisibility}
+              markerClassName={colorStyles?.markerClass}
+              onAnnotate={
+                canAnnotate &&
+                peekView?.openPeek &&
+                expData.traceId &&
+                expData.observationId
+                  ? () => {
+                      capture("annotation:entry_click", {
+                        type: "trace",
+                        source: "DatasetCompare",
+                        isV4: true,
+                        targetType: "observation",
+                        entryPoint: "annotate_button",
+                      });
+                      peekView.openPeek?.(
+                        row.original.itemId,
+                        { ...row.original, clickedExperimentId: expId },
+                        { queryParams: { annotation: "open" } },
+                      );
+                    }
+                  : undefined
+              }
+              onExperimentClick={
+                peekView?.openPeek
+                  ? (event) => {
+                      if (shouldIgnoreRowClickTarget(event.target)) return;
+                      event.stopPropagation();
+                      peekView.openPeek?.(row.original.itemId, {
+                        ...row.original,
+                        clickedExperimentId: expId,
+                      });
+                    }
+                  : undefined
+              }
+            />
+          );
+        },
+      } as LangfuseColumnDef<ExperimentItemsTableRow>;
+    });
+  }, [
+    rows,
+    isLoading,
+    summaryExpanded,
+    allExperimentIds,
+    experimentNames,
+    baselineExperimentId,
+    ioLoading,
+    projectId,
+    observationScoreOrder,
+    traceScoreOrder,
+    showScoreLevelLabels,
+    columnVisibility,
+    useExperimentColors,
+    showDiff,
+    singleLine,
+    peekView,
+    canAnnotate,
+    capture,
+  ]);
+
+  // Build all columns: Select, Input, Expected Output, then experiment columns
+  const columns: LangfuseColumnDef<ExperimentItemsTableRow>[] = useMemo(
+    () => [
+      // Include select column if provided
+      ...(selectActionColumn
+        ? [{ ...selectActionColumn, headerClassName: "align-top pt-3" }]
+        : []),
+      {
+        accessorKey: "input",
+        header: "Input",
+        headerClassName: "align-top pt-3",
+        cellPadding: "none",
+        size: 200,
+        cell: ({ row }) => (
+          <ExperimentInputCell
+            projectId={projectId}
+            datasetId={
+              selectedExperiments.find((experiment) =>
+                row.original.experiments.some(
+                  (item) => item.experimentId === experiment?.experimentId,
+                ),
+              )?.datasetId ?? null
+            }
+            itemId={row.original.itemId}
+            input={row.original.input}
+            isLoading={ioLoading}
+            singleLine={singleLine}
+          />
+        ),
+      },
+      // Gated: an empty expected output used to render as two literal quote
+      // characters, and a whole column of them is worse than no column.
+      ...(showExpectedOutput
+        ? [
+            createIOTableColumn<ExperimentItemsTableRow>({
+              accessorKey: "expectedOutput",
+              header: "Expected Output",
+              headerClassName: "align-top pt-3",
+              size: 200,
+              getCell: (value) =>
+                ioLoading ? { type: "loading" } : value || undefined,
+              // Display chooses text or JSON. Row height does not.
+              followRowHeight: false,
+              singleLine,
+              variant: "output",
+            }),
+          ]
+        : []),
+      ...experimentColumns,
+    ],
+    [
+      experimentColumns,
+      projectId,
+      selectedExperiments,
+      ioLoading,
+      selectActionColumn,
+      showExpectedOutput,
+      singleLine,
+    ],
+  );
+
+  return (
+    <DataTable
+      tableName="experiment-grid"
+      columns={columns}
+      data={
+        isLoading
+          ? { isLoading: true, isError: false }
+          : { isLoading: false, isError: false, data: rows }
+      }
+      noResultsMessage={noResultsMessage}
+      pagination={pagination}
+      rowHeight={rowHeight}
+      customRowHeights={GRID_VIEW_ROW_HEIGHTS}
+      customRowHeightPx={customRowHeightPx}
+      onCustomRowHeightChange={onCustomRowHeightChange}
+      onSelectRowHeight={onSelectRowHeight}
+      topAlignCells
+      peekView={peekView}
+      columnVisibility={columnVisibility}
+      rowSelection={rowSelection}
+      setRowSelection={setRowSelection}
+      highlightAllRows={highlightAllRows}
+    />
+  );
+};

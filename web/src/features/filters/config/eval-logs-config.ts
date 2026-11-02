@@ -23,21 +23,8 @@ export const evalLogFilterConfig: FilterConfig = {
     },
     {
       type: "string" as const,
-      column: "sessionId",
-      label: "Session ID",
-    },
-    {
-      type: "string" as const,
       column: "executionTraceId",
       label: "Execution Trace ID",
-    },
-    {
-      type: "numeric" as const,
-      column: "scoreValue",
-      label: "Score Value",
-      min: 0,
-      max: 1,
-      step: 0.01,
     },
   ],
 };

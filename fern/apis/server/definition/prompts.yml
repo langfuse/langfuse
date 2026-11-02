@@ -26,6 +26,9 @@ service:
           label:
             type: optional<string>
             docs: Label of the prompt to be retrieved. Defaults to "production" if no label or version is set.
+          resolve:
+            type: optional<boolean>
+            docs: Resolve prompt dependencies before returning the prompt. Defaults to `true`. Set to `false` to return the raw stored prompt with dependency tags intact. This bypasses prompt caching and is intended for debugging or one-off jobs, not production runtime fetches.
       response: Prompt
 
     list:
@@ -35,7 +38,8 @@ service:
       request:
         name: ListPromptsMetaRequest
         query-parameters:
-          name: optional<string>
+          name:
+            type: optional<string>
           label: optional<string>
           tag: optional<string>
           page:
@@ -50,6 +54,33 @@ service:
           toUpdatedAt:
             type: optional<datetime>
             docs: Optional filter to only include prompt versions created/updated before a certain datetime (ISO 8601)
+          filter:
+            type: optional<string>
+            docs: |
+              JSON string containing an array of filter conditions, combined with AND.
+              When provided, this takes precedence over name, version,
+              label, tag, fromUpdatedAt, and toUpdatedAt. An empty array applies no
+              filters. Project scoping and pagination always apply.
+
+              Each condition requires `type`, `column`, `operator`, and `value`.
+              Supported types and columns:
+              - `string`: `id`, `name`, `type`. Operators: `=`, `contains`, `does not contain`, `starts with`, `ends with`, `is not empty`.
+              - `stringOptions`: `id`, `name`, `type`. Operators: `any of`, `none of`. Value: non-empty string array.
+              - `number`: `version`. Operators: `=`, `>`, `<`, `>=`, `<=`. Value: number.
+              - `datetime`: `createdAt`, `updatedAt`. Operators: `>`, `<`, `>=`, `<=`. Value: ISO 8601 timestamp.
+              - `arrayOptions`: `labels`, `tags`. Operators: `any of`, `all of`, `none of`. Value: non-empty string array.
+              - `stringObject`: `config`. Requires an additional `key` field. Operators: `=`, `contains`, `does not contain`, `starts with`, `ends with`, `is set`, `is not set`. Value: string (use an empty string for key-presence operators).
+
+              String equality is case-sensitive. String search operators use
+              case-insensitive SQL pattern matching: `%` matches any sequence and
+              `_` matches a single character. A backslash escapes these characters;
+              JSON-escape the backslash in the filter value. Asterisks are literal.
+              For config, an empty search value is treated as `is set`.
+
+              Filters apply to prompt versions before aggregation: returned versions,
+              labels, and lastConfig reflect only matching versions.
+
+              Example: [{"type":"string","column":"name","operator":"starts with","value":"tools/"},{"type":"string","column":"name","operator":"ends with","value":"/description"}]
 
       response: PromptMetaListResponse
 
@@ -99,15 +130,19 @@ types:
         docs: Config object of the most recent prompt version that matches the filters (if any are provided)
 
   CreatePromptRequest:
+    discriminated: false
     union:
-      chat: CreateChatPromptRequest
-      text: CreateTextPromptRequest
+      - CreateChatPromptRequest
+      - CreateTextPromptRequest
 
   CreateChatPromptRequest:
     properties:
-      name: string
+      name:
+        type: string
+        docs: The full prompt name, including any folder path, with at most 255 characters.
       prompt: list<ChatMessageWithPlaceholders>
       config: optional<unknown>
+      type: CreateChatPromptType
       labels:
         type: optional<list<string>>
         docs: List of deployment labels of this prompt version.
@@ -120,9 +155,12 @@ types:
 
   CreateTextPromptRequest:
     properties:
-      name: string
+      name:
+        type: string
+        docs: The full prompt name, including any folder path, with at most 255 characters.
       prompt: string
       config: optional<unknown>
+      type: optional<CreateTextPromptType>
       labels:
         type: optional<list<string>>
         docs: List of deployment labels of this prompt version.
@@ -159,12 +197,13 @@ types:
         docs: Commit message for this prompt version.
       resolutionGraph:
         type: optional<map<string, unknown>>
-        docs: The dependency resolution graph for the current prompt. Null if prompt has no dependencies.
+        docs: The dependency resolution graph for the current prompt. Null if the prompt has no dependencies or if `resolve=false` was used.
 
   ChatMessageWithPlaceholders:
+    discriminated: false
     union:
-      chatmessage: ChatMessage
-      placeholder: PlaceholderMessage
+      - ChatMessage
+      - PlaceholderMessage
 
   ChatMessage:
     properties:
@@ -172,11 +211,22 @@ types:
         type: string
       content:
         type: string
+      type:
+        type: optional<ChatMessageType>
+
+  ChatMessageType:
+    enum:
+      - chatmessage
 
   PlaceholderMessage:
     properties:
       name:
         type: string
+      type: optional<PlaceholderMessageType>
+
+  PlaceholderMessageType:
+    enum:
+      - placeholder
 
   TextPrompt:
     extends: BasePrompt
@@ -187,3 +237,11 @@ types:
     extends: BasePrompt
     properties:
       prompt: list<ChatMessageWithPlaceholders>
+
+  CreateChatPromptType:
+    enum:
+      - chat
+
+  CreateTextPromptType:
+    enum:
+      - text

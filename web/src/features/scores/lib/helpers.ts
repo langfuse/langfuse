@@ -16,6 +16,9 @@ export const isCategoricalDataType = (dataType: ScoreDataTypeType) =>
 export const isBooleanDataType = (dataType: ScoreDataTypeType) =>
   dataType === ScoreDataTypeEnum.BOOLEAN;
 
+export const isTextDataType = (dataType: ScoreDataTypeType) =>
+  dataType === ScoreDataTypeEnum.TEXT;
+
 export const isScoreUnsaved = (scoreId?: string | null): boolean => !scoreId;
 
 export const toOrderedScoresList = (list: ScoreData[]): ScoreData[] =>
@@ -38,3 +41,13 @@ export const formatAnnotateDescription = <Target extends ScoreTarget>(
   }
   return `Annotate ${sourceEntity} with scores to capture human evaluation across different dimensions.`;
 };
+
+export function formatScoreRange(
+  min: number | null | undefined,
+  max: number | null | undefined,
+) {
+  if (min != null && max != null) return `${min} – ${max}`;
+  if (min != null) return `Min ${min}`;
+  if (max != null) return `Max ${max}`;
+  return "Enter a number";
+}

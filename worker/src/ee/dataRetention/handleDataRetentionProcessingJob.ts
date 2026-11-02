@@ -1,16 +1,19 @@
 import {
   deleteEventsOlderThanDays,
+  deleteMediaFiles,
   deleteObservationsOlderThanDays,
   deleteScoresOlderThanDays,
   deleteTracesOlderThanDays,
-  logger,
+  findExpiredMediaByProjectId,
   getS3MediaStorageClient,
+  logger,
   removeIngestionEventsFromS3AndDeleteClickhouseRefsForProject,
   getCurrentSpan,
 } from "@langfuse/shared/src/server";
 import { Job } from "bullmq";
 import { prisma } from "@langfuse/shared/src/db";
-import { env } from "../../env";
+import { isEnterpriseLicenseAvailable } from "@langfuse/shared/src/server/ee/licenseCheck";
+import { env, v4WritesToEventsTable } from "../../env";
 
 export const handleDataRetentionProcessingJob = async (job: Job) => {
   const { projectId, retention } = job.data.payload;
@@ -19,6 +22,14 @@ export const handleDataRetentionProcessingJob = async (job: Job) => {
   if (span) {
     span.setAttribute("messaging.bullmq.job.input.jobId", job.data.id);
     span.setAttribute("messaging.bullmq.job.input.projectId", projectId);
+  }
+
+  // Data retention is an enterprise feature, and the license is read from the
+  // environment at startup. Jobs enqueued while licensed survive in Redis
+  // across the restart that removes the key, so the license has to be checked
+  // here as well as at scheduling time.
+  if (!isEnterpriseLicenseAvailable()) {
+    return;
   }
 
   // CRITICAL FIX: Re-fetch current retention setting from database
@@ -62,39 +73,19 @@ export const handleDataRetentionProcessingJob = async (job: Job) => {
     logger.info(
       `[Data Retention] Deleting media files older than ${currentRetention} days for project ${projectId}`,
     );
-    const mediaFilesToDelete = await prisma.media.findMany({
-      select: {
-        id: true,
-        projectId: true,
-        createdAt: true,
-        bucketPath: true,
-        bucketName: true,
-      },
-      where: {
-        projectId,
-        createdAt: {
-          lte: cutoffDate,
-        },
-      },
+    const mediaFilesToDelete = await findExpiredMediaByProjectId({
+      projectId,
+      cutoffDate,
     });
-    const mediaStorageClient = getS3MediaStorageClient(
-      env.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET,
-    );
-    // Delete from Cloud Storage
-    await mediaStorageClient.deleteFiles(
-      mediaFilesToDelete.map((f) => f.bucketPath),
-    );
-    // Delete from postgres. We should automatically remove the corresponding traceMedia and observationMedia
-    await prisma.media.deleteMany({
-      where: {
-        id: {
-          in: mediaFilesToDelete.map((f) => f.id),
-        },
-        projectId,
-      },
+    const deletedMediaCount = await deleteMediaFiles({
+      projectId,
+      mediaFiles: mediaFilesToDelete,
+      storageClient: getS3MediaStorageClient(
+        env.LANGFUSE_S3_MEDIA_UPLOAD_BUCKET,
+      ),
     });
     logger.info(
-      `[Data Retention] Deleted ${mediaFilesToDelete.length} media files for project ${projectId}`,
+      `[Data Retention] Deleted ${deletedMediaCount} media files for project ${projectId}`,
     );
   }
 
@@ -112,7 +103,7 @@ export const handleDataRetentionProcessingJob = async (job: Job) => {
     deleteTracesOlderThanDays(projectId, cutoffDate),
     deleteObservationsOlderThanDays(projectId, cutoffDate),
     deleteScoresOlderThanDays(projectId, cutoffDate),
-    env.LANGFUSE_EXPERIMENT_INSERT_INTO_EVENTS_TABLE === "true"
+    v4WritesToEventsTable(env)
       ? deleteEventsOlderThanDays(projectId, cutoffDate)
       : Promise.resolve(),
   ]);

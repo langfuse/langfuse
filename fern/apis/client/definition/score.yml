@@ -5,12 +5,34 @@ service:
   base-path: /api/public
   endpoints:
     create:
-      docs: Add a score to the database, upserts on id
+      docs: >
+        Create scores asynchronously. Single score: 200 with ID. Batch: 202 if accepted,
+        or 207 with accepted/rejected counts and error messages. Do not automatically retry a 207 batch.
+        The generated reference shows only 200; batches return 202 or 207.
       method: POST
       path: /scores
-      request: CreateScoreRequest
+      request: CreateScoresRequest
+      response: CreateScoresResponse
 
 types:
+  CreateScoresRequest:
+    discriminated: false
+    union:
+      - CreateScoreRequest
+      - CreateScoreBatchRequest
+
+  CreateScoreBatchRequest:
+    type: list<CreateScoreRequest>
+    examples:
+      - value:
+          - name: "accuracy"
+            value: 0.9
+            traceId: "cdef-1234-5678-90ab"
+          - name: "helpfulness"
+            value: 1
+            dataType: "BOOLEAN"
+            traceId: "cdef-1234-5678-90ab"
+
   CreateScoreRequest:
     properties:
       id: optional<string>
@@ -32,6 +54,9 @@ types:
       configId:
         type: optional<string>
         docs: Reference a score config on a score. When set, the score name must equal the config name and scores must comply with the config's range and data type. For categorical scores, the value must map to a config category. Numeric scores might be constrained by the score config's max and min values
+      source:
+        type: optional<CreateScoreSource>
+        docs: The source of the score. Defaults to API. Set to ANNOTATION to prefill scores (e.g. from an LLM) for a human reviewer to verify in an annotation queue. When source is ANNOTATION, a configId is required unless dataType is CORRECTION. EVAL is reserved for internal evaluator outputs and is not accepted on this endpoint.
     examples:
       - value:
           name: "novelty"
@@ -77,6 +102,22 @@ types:
           name: "hallucination"
           value: 0
           datasetRunId: "7891-5678-90ab-hijk"
+      - value:
+          name: "accuracy"
+          value: 0.9
+          dataType: "NUMERIC"
+          configId: "9203-4567-89ab-cdef"
+          traceId: "cdef-1234-5678-90ab"
+          source: "ANNOTATION"
+
+  CreateScoreSource:
+    docs: |
+      Source values accepted when creating a score via the public API.
+      EVAL is reserved for internal evaluator outputs and is intentionally not
+      exposed here.
+    enum:
+      - API
+      - ANNOTATION
 
   ScoreDataType:
     enum:
@@ -91,3 +132,35 @@ types:
       - double
       - string
     docs: The value of the score. Must be passed as string for categorical scores, and numeric for boolean and numeric scores. For corrections pass value as string and set data type to CORRECTION
+
+  CreateScoresResponse:
+    discriminated: false
+    # Undiscriminated unions match in order. CreateScoreBatchResponse must stay
+    # last: its literal `message` is defaulted in generated clients, so it would
+    # also match 207 bodies and hide rejected scores.
+    union:
+      - CreateScoreBatchResults
+      - CreateScoreResponse
+      - CreateScoreBatchResponse
+
+  CreateScoreBatchResponse:
+    docs: Batch accepted (HTTP 202).
+    properties:
+      message: literal<"Accepted">
+
+  CreateScoreResponse:
+    properties:
+      id:
+        type: string
+        docs: The id of the created object in Langfuse
+
+  CreateScoreBatchResults:
+    docs: Acceptance counts and errors (HTTP 207).
+    properties:
+      accepted: integer
+      rejected: integer
+      errors: list<CreateScoreBatchError>
+
+  CreateScoreBatchError:
+    properties:
+      message: string

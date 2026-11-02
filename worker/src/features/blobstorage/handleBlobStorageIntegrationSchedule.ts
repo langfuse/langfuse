@@ -5,26 +5,44 @@ import {
   logger,
 } from "@langfuse/shared/src/server";
 import { randomUUID } from "crypto";
+import {
+  recordExportStaleness,
+  windowClassFromBlobFrequency,
+} from "../../services/exportStalenessMetric";
+
+let legacyJobsDrained = false;
 
 export const handleBlobStorageIntegrationSchedule = async () => {
   const now = new Date();
 
-  const blobStorageIntegrationProjects =
-    await prisma.blobStorageIntegration.findMany({
-      select: {
-        lastSyncAt: true,
-        projectId: true,
-      },
-      where: {
-        enabled: true,
-        OR: [
-          // Never synced before
-          { lastSyncAt: null },
-          // Next sync is due
-          { nextSyncAt: { lte: now } },
-        ],
-      },
-    });
+  const enabledIntegrations = await prisma.blobStorageIntegration.findMany({
+    select: {
+      lastSyncAt: true,
+      backfill: true,
+      nextSyncAt: true,
+      exportFrequency: true,
+      projectId: true,
+    },
+    where: {
+      enabled: true,
+    },
+  });
+
+  recordExportStaleness({
+    integration: "blob_storage",
+    now,
+    integrations: enabledIntegrations.map((integration) => ({
+      lastSyncAt: integration.lastSyncAt,
+      window: windowClassFromBlobFrequency(integration.exportFrequency),
+      backfill: integration.backfill,
+    })),
+  });
+
+  const blobStorageIntegrationProjects = enabledIntegrations.filter(
+    (integration) =>
+      integration.lastSyncAt === null ||
+      (integration.nextSyncAt !== null && integration.nextSyncAt <= now),
+  );
 
   if (blobStorageIntegrationProjects.length === 0) {
     logger.info("No blob storage integrations ready for sync");
@@ -41,6 +59,17 @@ export const handleBlobStorageIntegrationSchedule = async () => {
     `Scheduling ${blobStorageIntegrationProjects.length} blob storage integrations for sync`,
   );
 
+  if (!legacyJobsDrained) {
+    // One-time cleanup: remove failed jobs left over from before the
+    // removeOnFail: true fix. These jobs block re-queuing due to jobId
+    // deduplication.
+    await blobStorageIntegrationProcessingQueue.clean(0, 0, "failed");
+    legacyJobsDrained = true;
+    logger.info(
+      "[BLOB INTEGRATION] Drained legacy failed jobs from processing queue",
+    );
+  }
+
   await blobStorageIntegrationProcessingQueue.addBulk(
     blobStorageIntegrationProjects.map((integration) => ({
       name: QueueJobs.BlobStorageIntegrationProcessingJob,
@@ -53,8 +82,11 @@ export const handleBlobStorageIntegrationSchedule = async () => {
         },
       },
       opts: {
-        // Use projectId and last sync as jobId to prevent duplicate jobs.
+        // Deduplicate by projectId + lastSyncAt so the same project isn't queued
+        // twice for the same sync window. removeOnFail ensures failed jobs are
+        // immediately cleaned up so they don't block re-queuing on the next cycle.
         jobId: `${integration.projectId}-${integration.lastSyncAt?.toISOString() ?? ""}`,
+        removeOnFail: true,
       },
     })),
   );

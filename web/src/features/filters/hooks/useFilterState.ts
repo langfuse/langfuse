@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import {
   type FilterState,
   type TableName,
@@ -10,6 +11,10 @@ import {
   datasetItemFilterColumns,
   datasetRunItemsTableCols,
   usersTableCols,
+  escapePipeInValue,
+  splitOnUnescapedPipe,
+  unescapePipeInValue,
+  normalizeLegacySessionPositionInTraceKey,
 } from "@langfuse/shared";
 import { scoresTableCols } from "@/src/server/api/definitions/scoresTable";
 import {
@@ -21,12 +26,9 @@ import {
 import useSessionStorage from "@/src/components/useSessionStorage";
 import { evalConfigFilterColumns } from "@/src/server/api/definitions/evalConfigsTable";
 import { evalExecutionsFilterCols } from "@/src/server/api/definitions/evalExecutionsTable";
-import {
-  escapePipeInValue,
-  splitOnUnescapedPipe,
-  unescapePipeInValue,
-} from "../lib/filter-query-encoding";
-import { usePeekTableState } from "@/src/components/table/peek/contexts/PeekTableStateContext";
+import { experimentsTableCols } from "@/src/features/experiments/components/table/filter-config";
+import { experimentItemsTableCols } from "@/src/features/experiments/config/experiment-items-filter-config";
+import { usePeekTableState } from "@/src/components/table/peek/contexts/PeekTableStateProvider";
 
 const DEBUG_QUERY_STATE = false;
 
@@ -47,6 +49,7 @@ const getCommaArrayParam = (table: TableName) => ({
           const stringified = `${columnId};${f.type};${
             f.type === "numberObject" ||
             f.type === "stringObject" ||
+            f.type === "booleanObject" ||
             f.type === "categoryOptions" ||
             f.type === "positionInTrace"
               ? f.key
@@ -81,31 +84,43 @@ const getCommaArrayParam = (table: TableName) => ({
         if (DEBUG_QUERY_STATE)
           console.log("values", [column, type, key, operator, value]);
         const decodedValue = value ? decodeURIComponent(value) : undefined;
-        const parsedValue =
-          decodedValue === undefined || type === undefined
-            ? undefined
-            : type === "datetime"
-              ? new Date(decodedValue)
-              : type === "number" || type === "numberObject"
-                ? Number(decodedValue)
-                : type === "positionInTrace"
-                  ? decodedValue === ""
-                    ? undefined
-                    : Number(decodedValue)
-                  : type === "stringOptions" ||
-                      type === "arrayOptions" ||
-                      type === "categoryOptions"
-                    ? splitOnUnescapedPipe(decodedValue).map(
-                        unescapePipeInValue,
-                      )
-                    : type === "boolean"
-                      ? decodedValue === "true"
-                      : decodedValue;
+        const normalizedKey =
+          type === "positionInTrace"
+            ? normalizeLegacySessionPositionInTraceKey(key)
+            : key;
+        const parsedValue = (() => {
+          if (decodedValue === undefined || type === undefined) {
+            return undefined;
+          }
+          if (type === "datetime") {
+            return new Date(decodedValue);
+          }
+          if (type === "number" || type === "numberObject") {
+            return Number(decodedValue);
+          }
+          if (type === "positionInTrace") {
+            if (decodedValue === "") {
+              return undefined;
+            }
+            return Number(decodedValue);
+          }
+          if (
+            type === "stringOptions" ||
+            type === "arrayOptions" ||
+            type === "categoryOptions"
+          ) {
+            return splitOnUnescapedPipe(decodedValue).map(unescapePipeInValue);
+          }
+          if (type === "boolean" || type === "booleanObject") {
+            return decodedValue === "true";
+          }
+          return decodedValue;
+        })();
 
         if (DEBUG_QUERY_STATE) console.log("parsedValue", parsedValue);
         const parsed = singleFilter.safeParse({
           column: getColumnName(table, column),
-          key: key !== "" ? key : undefined,
+          key: normalizedKey !== "" ? normalizedKey : undefined,
           operator,
           value: parsedValue,
           type,
@@ -182,6 +197,8 @@ const tableCols = {
   dataset_items: datasetItemFilterColumns,
   dataset_runs: datasetRunsTableCols,
   dataset_run_items_by_run: datasetRunItemsTableCols,
+  experiments: experimentsTableCols,
+  "experiment-items": experimentItemsTableCols,
   widgets: [
     { id: "environment", name: "Environment" },
     { id: "traceName", name: "Trace Name" },

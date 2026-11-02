@@ -9,7 +9,9 @@ migrate
 
 # testing
 /coverage
+**/coverage/
 /certs/
+.playwright-mcp/*
 
 # database
 /prisma/db.sqlite
@@ -23,6 +25,9 @@ next-env.d.ts
 
 # production
 /build
+
+# claude worktrees
+.claude/worktrees
 
 # idea
 .idea
@@ -46,12 +51,17 @@ yarn-error.log*
 !.env.dev-redis-cluster.example
 !.env.prod.example
 !.env.test.example
+!.env.dev-oci.example
 
 # vercel
 .vercel
 
 # typescript
 *.tsbuildinfo
+
+# python
+__pycache__/
+*.py[cod]
 
 /generated
 
@@ -72,12 +82,54 @@ node_modules
 .turbo
 
 web/test-results/*
+.codex-artifacts/
+
+# Local DeepSec workspace and generated scan state
+.deepsec/
+
+.mcp.json
+.claude/settings.json
+.claude/skills/
+.claude/launch.json
+.cursor/mcp.json
+.vscode/mcp.json
+.codex/config.toml
+.codex/environments/environment.toml
 
 # local config files
 *.local.*
 
 # claude meta files
 .claude/tsc-cache
+.claude/worktrees
 
 # Refactoring planning files (local only)
 **/.refactor/
+**/.pi-lens/
+
+# Serena MCP server config (local only)
+.serena/
+
+# Local overrides for AGENTS.md
+**/AGENTS.override.md
+
+# Local agent scratch (never commit)
+.langfuse/
+
+# Superset config
+.superset/
+
+# design-sync (claude.ai/design) - build artifacts and machine-local state
+.design-sync/sb-reference/
+.design-sync/learnings/
+.design-sync/.cache/
+.design-sync/node_modules
+.design-sync/*.log
+.ds-sync/
+ds-bundle/
+.design-sync/ds-package/storybook-compiled.css
+.design-sync/ds-package/index.ts
+.design-sync/ds-package/process-shim.js
+.design-sync/ds-package/public-assets.js
+.design-sync/upload-*.txt
+.design-sync/chunk-*.json

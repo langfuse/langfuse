@@ -1,10 +1,11 @@
+/* eslint-disable @repo/no-abstracted-overlay-trigger */
 import { Button } from "@/src/components/ui/button";
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from "@/src/components/ui/popover";
-import { SmilePlusIcon } from "lucide-react";
+import { SmilePlusIcon } from "@langfuse/icons";
 import { useState } from "react";
 import { EmojiPicker } from "@ferrucc-io/emoji-picker";
 
@@ -29,7 +30,7 @@ export function ReactionPicker({
           className="h-6 gap-1 px-1.5 text-xs opacity-50 transition-opacity hover:opacity-100"
           disabled={disabled}
         >
-          <SmilePlusIcon className="h-3.5 w-3.5" />
+          <SmilePlusIcon size="base" color="default" />
         </Button>
       </PopoverTrigger>
       <PopoverContent
@@ -46,7 +47,7 @@ export function ReactionPicker({
           <EmojiPicker.Header className="border-b px-2 py-2">
             <EmojiPicker.Input
               placeholder="Search emoji..."
-              className="w-full rounded border py-1 text-sm outline-none focus:border-primary"
+              className="focus:border-primary w-full rounded border py-1 text-sm outline-hidden"
             />
           </EmojiPicker.Header>
           <EmojiPicker.Group className="overflow-y-auto overscroll-contain">

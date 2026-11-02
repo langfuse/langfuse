@@ -40,55 +40,22 @@
             "message": "What is currently trending on Twitter?"
           },
           "session.id": "35cc6c90-b657-4819-b66c-c931c03ad569",
-          "agno{key_suffix}.tools": [
-            "duckduckgo_search",
-            "duckduckgo_news"
-          ],
+          "agno{key_suffix}.tools": ["duckduckgo_search", "duckduckgo_news"],
           "output.value": {
             "content": "To find out what's currently trending on Twitter, you can visit the following resources:\n\n1. **[Twitter Explore](https://twitter.com/explore/tabs/trending/)**: Explore trending topics, hashtags, and conversations directly on Twitter.\n\n2. **[Trends24](https://trends24.in/united-states/)**: This site lists today's top X (Twitter) trends and hashtags in the United States, including topics like National Guard, Los Angeles, and more.\n\n3. **[Get Day Trends](https://getdaytrends.com/top/tweeted/day/)**: This platform analyzes Twitter data to provide insights on current trending topics and hashtags.\n\n4. **[91 Trends](https://91trends.com/twitter/united-states/)**: Get real-time updates on what's trending on Twitter in the United States.\n\n5. **[Global Twitter Trends](https://globaltwittertrends.com/united-states/)**: Check out what's trending specifically in the United States and view tweets based on those trends.\n\nFeel free to explore these links for the most up-to-date trending topics!",
             "content_type": "str",
             "event": "RunResponse",
             "metrics": {
-              "input_tokens": [
-                163,
-                663
-              ],
-              "output_tokens": [
-                20,
-                225
-              ],
-              "total_tokens": [
-                183,
-                888
-              ],
-              "audio_tokens": [
-                0,
-                0
-              ],
-              "input_audio_tokens": [
-                0,
-                0
-              ],
-              "output_audio_tokens": [
-                0,
-                0
-              ],
-              "cached_tokens": [
-                0,
-                0
-              ],
-              "reasoning_tokens": [
-                0,
-                0
-              ],
-              "prompt_tokens": [
-                163,
-                663
-              ],
-              "completion_tokens": [
-                20,
-                225
-              ],
+              "input_tokens": [163, 663],
+              "output_tokens": [20, 225],
+              "total_tokens": [183, 888],
+              "audio_tokens": [0, 0],
+              "input_audio_tokens": [0, 0],
+              "output_audio_tokens": [0, 0],
+              "cached_tokens": [0, 0],
+              "reasoning_tokens": [0, 0],
+              "prompt_tokens": [163, 663],
+              "completion_tokens": [20, 225],
               "prompt_tokens_details": [
                 {
                   "audio_tokens": 0,
@@ -113,10 +80,7 @@
                   "rejected_prediction_tokens": 0
                 }
               ],
-              "time": [
-                0.9596867079999356,
-                4.799381209000785
-              ]
+              "time": [0.9596867079999356, 4.799381209000785]
             },
             "model": "gpt-4o-mini",
             "model_provider": "OpenAI",
@@ -344,46 +308,16 @@
         "content_type": "str",
         "event": "RunResponse",
         "metrics": {
-          "input_tokens": [
-            163,
-            663
-          ],
-          "output_tokens": [
-            20,
-            225
-          ],
-          "total_tokens": [
-            183,
-            888
-          ],
-          "audio_tokens": [
-            0,
-            0
-          ],
-          "input_audio_tokens": [
-            0,
-            0
-          ],
-          "output_audio_tokens": [
-            0,
-            0
-          ],
-          "cached_tokens": [
-            0,
-            0
-          ],
-          "reasoning_tokens": [
-            0,
-            0
-          ],
-          "prompt_tokens": [
-            163,
-            663
-          ],
-          "completion_tokens": [
-            20,
-            225
-          ],
+          "input_tokens": [163, 663],
+          "output_tokens": [20, 225],
+          "total_tokens": [183, 888],
+          "audio_tokens": [0, 0],
+          "input_audio_tokens": [0, 0],
+          "output_audio_tokens": [0, 0],
+          "cached_tokens": [0, 0],
+          "reasoning_tokens": [0, 0],
+          "prompt_tokens": [163, 663],
+          "completion_tokens": [20, 225],
           "prompt_tokens_details": [
             {
               "audio_tokens": 0,
@@ -408,10 +342,7 @@
               "rejected_prediction_tokens": 0
             }
           ],
-          "time": [
-            0.9596867079999356,
-            4.799381209000785
-          ]
+          "time": [0.9596867079999356, 4.799381209000785]
         },
         "model": "gpt-4o-mini",
         "model_provider": "OpenAI",
@@ -629,9 +560,7 @@
                         "description": "(optional, default=5) The maximum number of results to return."
                       }
                     },
-                    "required": [
-                      "query"
-                    ]
+                    "required": ["query"]
                   },
                   "requires_confirmation": false,
                   "external_execution": false
@@ -654,9 +583,7 @@
                         "description": "(optional, default=5) The maximum number of results to return."
                       }
                     },
-                    "required": [
-                      "query"
-                    ]
+                    "required": ["query"]
                   },
                   "requires_confirmation": false,
                   "external_execution": false
@@ -713,9 +640,7 @@
                     "description": "(optional, default=5) The maximum number of results to return."
                   }
                 },
-                "required": [
-                  "query"
-                ]
+                "required": ["query"]
               },
               "requires_confirmation": false,
               "external_execution": false
@@ -738,9 +663,7 @@
                     "description": "(optional, default=5) The maximum number of results to return."
                   }
                 },
-                "required": [
-                  "query"
-                ]
+                "required": ["query"]
               },
               "requires_confirmation": false,
               "external_execution": false
@@ -858,9 +781,7 @@
                     "description": "(optional, default=5) The maximum number of results to return."
                   }
                 },
-                "required": [
-                  "query"
-                ]
+                "required": ["query"]
               },
               "requires_confirmation": false,
               "external_execution": false
@@ -883,9 +804,7 @@
                     "description": "(optional, default=5) The maximum number of results to return."
                   }
                 },
-                "required": [
-                  "query"
-                ]
+                "required": ["query"]
               },
               "requires_confirmation": false,
               "external_execution": false
@@ -954,7 +873,7 @@
           "name": "langfuse-sdk",
           "version": "3.0.1",
           "attributes": {
-            "public_key": "pk-lf-5855d85e-3943-497e-bd10-f50ad414bcba"
+            "public_key": "pk-lf-5855d85e-3943-497e-bd10-f50ad414bccc"
           }
         }
       },
@@ -1140,7 +1059,7 @@
           "name": "langfuse-sdk",
           "version": "3.0.1",
           "attributes": {
-            "public_key": "pk-lf-5855d85e-3943-497e-bd10-f50ad414bcba"
+            "public_key": "pk-lf-5855d85e-3943-497e-bd10-f50ad414bccc"
           }
         }
       },
@@ -1225,9 +1144,7 @@
                         "description": "(optional, default=5) The maximum number of results to return."
                       }
                     },
-                    "required": [
-                      "query"
-                    ]
+                    "required": ["query"]
                   },
                   "requires_confirmation": false,
                   "external_execution": false
@@ -1250,9 +1167,7 @@
                         "description": "(optional, default=5) The maximum number of results to return."
                       }
                     },
-                    "required": [
-                      "query"
-                    ]
+                    "required": ["query"]
                   },
                   "requires_confirmation": false,
                   "external_execution": false
@@ -1281,9 +1196,7 @@
                     "description": "(optional, default=5) The maximum number of results to return."
                   }
                 },
-                "required": [
-                  "query"
-                ]
+                "required": ["query"]
               },
               "requires_confirmation": false,
               "external_execution": false
@@ -1306,9 +1219,7 @@
                     "description": "(optional, default=5) The maximum number of results to return."
                   }
                 },
-                "required": [
-                  "query"
-                ]
+                "required": ["query"]
               },
               "requires_confirmation": false,
               "external_execution": false
@@ -1435,9 +1346,7 @@
                     "description": "(optional, default=5) The maximum number of results to return."
                   }
                 },
-                "required": [
-                  "query"
-                ]
+                "required": ["query"]
               },
               "requires_confirmation": false,
               "external_execution": false
@@ -1460,9 +1369,7 @@
                     "description": "(optional, default=5) The maximum number of results to return."
                   }
                 },
-                "required": [
-                  "query"
-                ]
+                "required": ["query"]
               },
               "requires_confirmation": false,
               "external_execution": false

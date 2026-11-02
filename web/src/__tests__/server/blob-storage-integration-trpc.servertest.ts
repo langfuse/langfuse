@@ -1,0 +1,1737 @@
+import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
+import type { Mock } from "vitest";
+import type { Session } from "next-auth";
+
+import { appRouter } from "@/src/server/api/root";
+import { createInnerTRPCContext } from "@/src/server/api/trpc";
+import { decrypt, encrypt } from "@langfuse/shared/encryption";
+import { prisma } from "@langfuse/shared/src/db";
+import {
+  BlobStorageIntegrationProcessingQueue,
+  createOrgProjectAndApiKey,
+  logger,
+  QueueJobs,
+  StorageServiceFactory,
+} from "@langfuse/shared/src/server";
+import {
+  OBSERVATION_FIELD_GROUPS_FULL,
+  LEGACY_EXPORT_PROJECT_CUTOFF,
+  LEGACY_BLOB_EXPORTER_CUTOFF,
+  GCS_USE_DEFAULT_CREDENTIALS,
+  type Plan,
+} from "@langfuse/shared";
+import { env } from "@/src/env.mjs";
+import { env as sharedEnv } from "@langfuse/shared/src/env";
+
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
+const PRE_CUTOFF = new Date(
+  LEGACY_EXPORT_PROJECT_CUTOFF.getTime() - MS_PER_DAY,
+);
+const POST_CUTOFF = new Date(
+  LEGACY_EXPORT_PROJECT_CUTOFF.getTime() + MS_PER_DAY,
+);
+// Integration-level cutoff applied to BlobStorageIntegration.createdAt.
+const INTEGRATION_PRE_CUTOFF = new Date(
+  LEGACY_BLOB_EXPORTER_CUTOFF.getTime() - MS_PER_DAY,
+);
+const INTEGRATION_POST_CUTOFF = new Date(
+  LEGACY_BLOB_EXPORTER_CUTOFF.getTime() + MS_PER_DAY,
+);
+
+vi.mock("@langfuse/shared/src/server", async () => {
+  const actual = await vi.importActual("@langfuse/shared/src/server");
+  return {
+    ...actual,
+    BlobStorageIntegrationProcessingQueue: {
+      getInstance: vi.fn(),
+    },
+    StorageServiceFactory: {
+      getInstance: vi.fn(),
+    },
+  };
+});
+
+const __orgIds: string[] = [];
+
+const prepare = async ({
+  admin = true,
+  plan = "cloud:hobby",
+}: {
+  admin?: boolean;
+  plan?: Plan;
+} = {}) => {
+  const { project, org } = await createOrgProjectAndApiKey();
+
+  const session: Session = {
+    expires: "1",
+    user: {
+      id: "user-1",
+      canCreateOrganizations: true,
+      name: "Demo User",
+      organizations: [
+        {
+          id: org.id,
+          name: org.name,
+          role: "OWNER",
+          plan,
+          cloudConfig: undefined,
+          metadata: {},
+          aiFeaturesEnabled: false,
+          aiTelemetryEnabled: false,
+          projects: [
+            {
+              id: project.id,
+              role: "ADMIN",
+              retentionDays: 30,
+              deletedAt: null,
+              hasTraces: false,
+              name: project.name,
+              metadata: {},
+              createdAt: new Date().toISOString(),
+            },
+          ],
+        },
+      ],
+      featureFlags: testFeatureFlags(),
+      admin,
+    },
+    environment: {
+      enableExperimentalFeatures: false,
+      selfHostedInstancePlan: plan,
+    },
+  };
+
+  const ctx = createInnerTRPCContext({ session, headers: {} });
+  const caller = appRouter.createCaller({ ...ctx, prisma });
+
+  __orgIds.push(org.id);
+
+  return { project, org, session, ctx, caller };
+};
+
+const createIntegration = async ({
+  projectId,
+  enabled = true,
+  exportSource,
+}: {
+  projectId: string;
+  enabled?: boolean;
+  exportSource?:
+    | "TRACES_OBSERVATIONS"
+    | "TRACES_OBSERVATIONS_EVENTS"
+    | "EVENTS";
+}) =>
+  prisma.blobStorageIntegration.create({
+    data: {
+      projectId,
+      type: "S3",
+      bucketName: "test-bucket",
+      region: "us-east-1",
+      accessKeyId: "test-access-key",
+      secretAccessKey: encrypt("test-secret-key"),
+      prefix: "test/",
+      exportFrequency: "daily",
+      enabled,
+      forcePathStyle: false,
+      fileType: "JSONL",
+      exportMode: "FULL_HISTORY",
+      ...(exportSource ? { exportSource } : {}),
+    },
+  });
+
+const findAuditLog = async ({
+  projectId,
+  action,
+}: {
+  projectId: string;
+  action: string;
+}) =>
+  prisma.auditLog.findFirst({
+    where: {
+      projectId,
+      resourceType: "blobStorageIntegration",
+      resourceId: projectId,
+      action,
+    },
+    orderBy: {
+      createdAt: "desc",
+    },
+  });
+
+const parseAuditLogAfter = (after: string | null) =>
+  after ? (JSON.parse(after) as Record<string, unknown>) : null;
+
+// Base config for tRPC update calls (exportFieldGroups tests).
+// exportSource EVENTS triggers field-group validation.
+const baseConfig = {
+  type: "S3" as const,
+  bucketName: "test-bucket",
+  endpoint: null,
+  region: "us-east-1",
+  accessKeyId: "AKIA123456789",
+  secretAccessKey: "secret123456789",
+  prefix: "exports/",
+  exportFrequency: "daily" as const,
+  enabled: true,
+  forcePathStyle: false,
+  fileType: "JSONL" as const,
+  exportMode: "FULL_HISTORY" as const,
+  exportStartDate: null,
+  compressed: true,
+  exportSource: "EVENTS" as const,
+};
+
+describe("Blob Storage Integration tRPC Router", () => {
+  afterAll(async () => {
+    await prisma.auditLog.deleteMany({
+      where: {
+        orgId: { in: __orgIds },
+      },
+    });
+    await prisma.organization.deleteMany({
+      where: {
+        id: { in: __orgIds },
+      },
+    });
+  });
+
+  describe("scheduled-blob-exports entitlement", () => {
+    it("blocks a non-admin OWNER on cloud:hobby from all blobStorageIntegration procedures", async () => {
+      const { caller, project } = await prepare({
+        admin: false,
+        plan: "cloud:hobby",
+      });
+      await createIntegration({ projectId: project.id });
+
+      await expect(
+        caller.blobStorageIntegration.get({ projectId: project.id }),
+      ).rejects.toMatchObject({
+        code: "FORBIDDEN",
+        message: expect.stringContaining("scheduled-blob-exports"),
+      });
+
+      await expect(
+        caller.blobStorageIntegration.update({
+          projectId: project.id,
+          ...baseConfig,
+        }),
+      ).rejects.toMatchObject({ code: "FORBIDDEN" });
+
+      await expect(
+        caller.blobStorageIntegration.runNow({ projectId: project.id }),
+      ).rejects.toMatchObject({ code: "FORBIDDEN" });
+
+      await expect(
+        caller.blobStorageIntegration.validate({ projectId: project.id }),
+      ).rejects.toMatchObject({ code: "FORBIDDEN" });
+
+      await expect(
+        caller.blobStorageIntegration.delete({ projectId: project.id }),
+      ).rejects.toMatchObject({ code: "FORBIDDEN" });
+
+      const stillThere = await prisma.blobStorageIntegration.findUnique({
+        where: { projectId: project.id },
+      });
+      expect(stillThere).not.toBeNull();
+    });
+
+    it("allows a non-admin OWNER on cloud:team to read the integration", async () => {
+      const { caller, project } = await prepare({
+        admin: false,
+        plan: "cloud:team",
+      });
+      await createIntegration({ projectId: project.id });
+
+      const result = await caller.blobStorageIntegration.get({
+        projectId: project.id,
+      });
+      expect(result.config?.projectId).toBe(project.id);
+    });
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.clearAllMocks();
+  });
+
+  describe("GOOGLE_CLOUD_STORAGE", () => {
+    const original = {
+      buckets: sharedEnv.LANGFUSE_BLOB_STORAGE_GCS_ALLOWED_BUCKETS,
+      region: sharedEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
+    };
+    // Schema-valid but fake: never sent to Google (StorageServiceFactory is mocked).
+    const fakeServiceAccountKey = JSON.stringify({
+      type: "service_account",
+      project_id: "test-project",
+      private_key_id: "kid",
+      private_key:
+        "-----BEGIN PRIVATE KEY-----\nfake\n-----END PRIVATE KEY-----\n",
+      client_email: "exporter@test-project.iam.gserviceaccount.com",
+      client_id: "1",
+      auth_uri: "https://accounts.google.com/o/oauth2/auth",
+      token_uri: "https://oauth2.googleapis.com/token",
+      auth_provider_x509_cert_url: "https://www.googleapis.com/oauth2/v1/certs",
+      client_x509_cert_url:
+        "https://www.googleapis.com/robot/v1/metadata/x509/x",
+    });
+    const gcsAdcConfig = {
+      ...baseConfig,
+      type: "GOOGLE_CLOUD_STORAGE" as const,
+      bucketName: "allowed-bucket",
+      accessKeyId: "ignored-key",
+      secretAccessKey: GCS_USE_DEFAULT_CREDENTIALS,
+    };
+    const gcsKeyConfig = {
+      ...gcsAdcConfig,
+      bucketName: "customer-bucket",
+      secretAccessKey: fakeServiceAccountKey,
+    };
+    const findIntegration = (projectId: string) =>
+      prisma.blobStorageIntegration.findUnique({ where: { projectId } });
+
+    beforeEach(() => {
+      sharedEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = undefined;
+      sharedEnv.LANGFUSE_BLOB_STORAGE_GCS_ALLOWED_BUCKETS = ["allowed-bucket"];
+    });
+
+    afterEach(() => {
+      sharedEnv.LANGFUSE_BLOB_STORAGE_GCS_ALLOWED_BUCKETS = original.buckets;
+      sharedEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = original.region;
+    });
+
+    describe("default credentials (ADC)", () => {
+      it("saves an allowlisted bucket without storing any keys", async () => {
+        const { caller, project } = await prepare({
+          plan: "self-hosted:enterprise",
+        });
+
+        await caller.blobStorageIntegration.update({
+          projectId: project.id,
+          ...gcsAdcConfig,
+        });
+
+        expect(await findIntegration(project.id)).toMatchObject({
+          type: "GOOGLE_CLOUD_STORAGE",
+          bucketName: "allowed-bucket",
+          accessKeyId: null,
+          secretAccessKey: null,
+        });
+      });
+
+      it("rejects a bucket outside LANGFUSE_BLOB_STORAGE_GCS_ALLOWED_BUCKETS", async () => {
+        const { caller, project } = await prepare({
+          plan: "self-hosted:enterprise",
+        });
+
+        await expect(
+          caller.blobStorageIntegration.update({
+            projectId: project.id,
+            ...gcsAdcConfig,
+            bucketName: "someone-elses-bucket",
+          }),
+        ).rejects.toThrow(/LANGFUSE_BLOB_STORAGE_GCS_ALLOWED_BUCKETS/);
+      });
+
+      it("clears stored S3 keys when an integration switches to GCS", async () => {
+        const { caller, project } = await prepare({
+          plan: "self-hosted:enterprise",
+        });
+        await createIntegration({ projectId: project.id });
+
+        await caller.blobStorageIntegration.update({
+          projectId: project.id,
+          ...gcsAdcConfig,
+        });
+
+        const integration = await findIntegration(project.id);
+        expect(integration?.accessKeyId).toBeNull();
+        expect(integration?.secretAccessKey).toBeNull();
+      });
+
+      it("does not store an endpoint left over from another provider", async () => {
+        const { caller, project } = await prepare({
+          plan: "self-hosted:enterprise",
+        });
+
+        // The form keeps the hidden endpoint value across a provider switch.
+        await caller.blobStorageIntegration.update({
+          projectId: project.id,
+          ...gcsAdcConfig,
+          endpoint: "http://minio.internal:9000",
+        });
+
+        expect((await findIntegration(project.id))?.endpoint).toBeNull();
+      });
+
+      it("treats switching from S3 with no new secret as keyless (allowlist applies)", async () => {
+        const { caller, project } = await prepare({
+          plan: "self-hosted:enterprise",
+        });
+        await createIntegration({ projectId: project.id });
+
+        // The stored S3 secret must not be reused as a GCS key.
+        await expect(
+          caller.blobStorageIntegration.update({
+            projectId: project.id,
+            ...gcsAdcConfig,
+            bucketName: "someone-elses-bucket",
+            secretAccessKey: null,
+          }),
+        ).rejects.toThrow(/LANGFUSE_BLOB_STORAGE_GCS_ALLOWED_BUCKETS/);
+      });
+
+      it("does not save the sentinel as a secret after switching to Azure", async () => {
+        const { caller, project } = await prepare({
+          plan: "self-hosted:enterprise",
+        });
+        await caller.blobStorageIntegration.update({
+          projectId: project.id,
+          ...gcsAdcConfig,
+        });
+
+        // The form keeps the sentinel in the secret field across a provider switch.
+        await expect(
+          caller.blobStorageIntegration.update({
+            projectId: project.id,
+            ...baseConfig,
+            type: "AZURE_BLOB_STORAGE",
+            secretAccessKey: GCS_USE_DEFAULT_CREDENTIALS,
+          }),
+        ).rejects.toThrow(/Secret access key is required/);
+        expect((await findIntegration(project.id))?.type).toBe(
+          "GOOGLE_CLOUD_STORAGE",
+        );
+      });
+
+      it("validates with a plain upload (no signed URL)", async () => {
+        const uploadFile = vi.fn().mockResolvedValue(undefined);
+        const uploadWithSignedUrl = vi.fn();
+        (StorageServiceFactory.getInstance as Mock).mockReturnValue({
+          uploadFile,
+          uploadWithSignedUrl,
+        });
+        const { caller, project } = await prepare({
+          plan: "self-hosted:enterprise",
+        });
+        await caller.blobStorageIntegration.update({
+          projectId: project.id,
+          ...gcsAdcConfig,
+        });
+
+        const result = await caller.blobStorageIntegration.validate({
+          projectId: project.id,
+        });
+
+        expect(result.success).toBe(true);
+        expect(StorageServiceFactory.getInstance).toHaveBeenLastCalledWith(
+          expect.objectContaining({
+            useGoogleCloudStorage: true,
+            bucketName: "allowed-bucket",
+            googleCloudCredentials: undefined,
+            accessKeyId: undefined,
+            secretAccessKey: undefined,
+          }),
+        );
+        expect(uploadFile).toHaveBeenCalledWith(
+          expect.objectContaining({ fileName: result.testFileName }),
+        );
+        expect(uploadWithSignedUrl).not.toHaveBeenCalled();
+      });
+
+      it("is unavailable on Langfuse Cloud", async () => {
+        sharedEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "US";
+        const { caller, project } = await prepare({ plan: "cloud:team" });
+
+        await expect(
+          caller.blobStorageIntegration.update({
+            projectId: project.id,
+            ...gcsAdcConfig,
+          }),
+        ).rejects.toThrow(/self-hosted/);
+      });
+    });
+
+    describe("service account key", () => {
+      it("stores the key encrypted and needs no allowlist", async () => {
+        const { caller, project } = await prepare({
+          plan: "self-hosted:enterprise",
+        });
+
+        await caller.blobStorageIntegration.update({
+          projectId: project.id,
+          ...gcsKeyConfig,
+        });
+
+        const integration = await findIntegration(project.id);
+        expect(integration?.bucketName).toBe("customer-bucket");
+        expect(integration?.accessKeyId).toBeNull();
+        expect(integration?.secretAccessKey).toBeTruthy();
+        expect(integration?.secretAccessKey).not.toContain("service_account");
+        expect(decrypt(integration!.secretAccessKey!)).toBe(
+          fakeServiceAccountKey,
+        );
+      });
+
+      it("rejects a secret that is not a service account JSON key", async () => {
+        const { caller, project } = await prepare({
+          plan: "self-hosted:enterprise",
+        });
+
+        await expect(
+          caller.blobStorageIntegration.update({
+            projectId: project.id,
+            ...gcsKeyConfig,
+            secretAccessKey: "/etc/passwd",
+          }),
+        ).rejects.toThrow(/service account JSON key/);
+      });
+
+      it("keeps the stored key when an update omits the secret", async () => {
+        const { caller, project } = await prepare({
+          plan: "self-hosted:enterprise",
+        });
+        await caller.blobStorageIntegration.update({
+          projectId: project.id,
+          ...gcsKeyConfig,
+        });
+
+        await caller.blobStorageIntegration.update({
+          projectId: project.id,
+          ...gcsKeyConfig,
+          secretAccessKey: null,
+          prefix: "renamed/",
+        });
+
+        const integration = await findIntegration(project.id);
+        expect(integration?.prefix).toBe("renamed/");
+        expect(decrypt(integration!.secretAccessKey!)).toBe(
+          fakeServiceAccountKey,
+        );
+      });
+
+      it("drops the stored key when switched to default credentials", async () => {
+        const { caller, project } = await prepare({
+          plan: "self-hosted:enterprise",
+        });
+        await caller.blobStorageIntegration.update({
+          projectId: project.id,
+          ...gcsKeyConfig,
+        });
+
+        await caller.blobStorageIntegration.update({
+          projectId: project.id,
+          ...gcsAdcConfig,
+        });
+
+        expect((await findIntegration(project.id))?.secretAccessKey).toBeNull();
+      });
+
+      it("validates with the key and a signed URL", async () => {
+        const uploadWithSignedUrl = vi
+          .fn()
+          .mockResolvedValue({ signedUrl: "https://signed.example/gcs" });
+        (StorageServiceFactory.getInstance as Mock).mockReturnValue({
+          uploadWithSignedUrl,
+        });
+        const { caller, project } = await prepare({
+          plan: "self-hosted:enterprise",
+        });
+        await caller.blobStorageIntegration.update({
+          projectId: project.id,
+          ...gcsKeyConfig,
+        });
+
+        const result = await caller.blobStorageIntegration.validate({
+          projectId: project.id,
+        });
+
+        expect(result.success).toBe(true);
+        expect(StorageServiceFactory.getInstance).toHaveBeenLastCalledWith(
+          expect.objectContaining({
+            useGoogleCloudStorage: true,
+            bucketName: "customer-bucket",
+            googleCloudCredentials: fakeServiceAccountKey,
+            secretAccessKey: undefined,
+          }),
+        );
+        expect(uploadWithSignedUrl).toHaveBeenCalled();
+      });
+
+      it("works on Langfuse Cloud", async () => {
+        sharedEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "US";
+        const { caller, project } = await prepare({ plan: "cloud:team" });
+
+        await caller.blobStorageIntegration.update({
+          projectId: project.id,
+          ...gcsKeyConfig,
+        });
+
+        expect((await findIntegration(project.id))?.type).toBe(
+          "GOOGLE_CLOUD_STORAGE",
+        );
+      });
+
+      it("never reuses a stored GCS key as an S3/Azure secret", async () => {
+        const { caller, project } = await prepare({
+          plan: "self-hosted:enterprise",
+        });
+        await caller.blobStorageIntegration.update({
+          projectId: project.id,
+          ...gcsKeyConfig,
+        });
+
+        await expect(
+          caller.blobStorageIntegration.update({
+            projectId: project.id,
+            ...baseConfig,
+            type: "AZURE_BLOB_STORAGE",
+            secretAccessKey: null,
+          }),
+        ).rejects.toThrow(/Secret access key is required/);
+      });
+
+      it("reports hasSecretAccessKey without exposing the key", async () => {
+        const { caller, project } = await prepare({
+          plan: "self-hosted:enterprise",
+        });
+        await caller.blobStorageIntegration.update({
+          projectId: project.id,
+          ...gcsKeyConfig,
+        });
+
+        const { config } = await caller.blobStorageIntegration.get({
+          projectId: project.id,
+        });
+        expect(config?.hasSecretAccessKey).toBe(true);
+        expect(config).not.toHaveProperty("secretAccessKey");
+      });
+    });
+  });
+
+  describe("stored secret reuse", () => {
+    it("never reuses a stored S3 secret as an Azure key", async () => {
+      const { caller, project } = await prepare();
+      await createIntegration({ projectId: project.id });
+
+      await expect(
+        caller.blobStorageIntegration.update({
+          projectId: project.id,
+          ...baseConfig,
+          type: "AZURE_BLOB_STORAGE",
+          secretAccessKey: null,
+        }),
+      ).rejects.toThrow(/Secret access key is required/);
+    });
+  });
+
+  describe("region normalization", () => {
+    it("persists a trimmed region", async () => {
+      const { caller, project } = await prepare();
+
+      await caller.blobStorageIntegration.update({
+        projectId: project.id,
+        ...baseConfig,
+        region: " us-west-2",
+      });
+
+      const integration = await prisma.blobStorageIntegration.findUnique({
+        where: { projectId: project.id },
+        select: { region: true },
+      });
+      expect(integration?.region).toBe("us-west-2");
+    });
+  });
+
+  describe("backfill", () => {
+    it("marks backfill on create, re-enable and export-mode change, not on a plain save", async () => {
+      const { caller, project } = await prepare();
+      const save = (
+        overrides: Partial<
+          Parameters<typeof caller.blobStorageIntegration.update>[0]
+        >,
+      ) =>
+        caller.blobStorageIntegration.update({
+          projectId: project.id,
+          ...baseConfig,
+          ...overrides,
+        });
+      const backfill = async () =>
+        (
+          await prisma.blobStorageIntegration.findUniqueOrThrow({
+            where: { projectId: project.id },
+          })
+        ).backfill;
+      const catchUp = () =>
+        prisma.blobStorageIntegration.update({
+          where: { projectId: project.id },
+          data: { backfill: false },
+        });
+
+      await save({});
+      expect(await backfill()).toBe(true);
+
+      await catchUp();
+      await save({ bucketName: "renamed-bucket" });
+      expect(await backfill()).toBe(false);
+
+      await save({ enabled: false });
+      await save({ enabled: true });
+      expect(await backfill()).toBe(true);
+
+      await catchUp();
+      await save({ exportMode: "FROM_TODAY" });
+      expect(await backfill()).toBe(true);
+    });
+  });
+
+  describe("runNow", () => {
+    it("creates a success audit log when a manual run is queued", async () => {
+      const add = vi.fn().mockResolvedValue(undefined);
+      (
+        BlobStorageIntegrationProcessingQueue.getInstance as Mock
+      ).mockReturnValue({ add });
+
+      const { caller, project } = await prepare();
+      await createIntegration({ projectId: project.id });
+
+      const result = await caller.blobStorageIntegration.runNow({
+        projectId: project.id,
+      });
+
+      expect(result.success).toBe(true);
+      expect(add).toHaveBeenCalledWith(
+        QueueJobs.BlobStorageIntegrationProcessingJob,
+        expect.objectContaining({
+          name: QueueJobs.BlobStorageIntegrationProcessingJob,
+          payload: {
+            projectId: project.id,
+          },
+        }),
+        expect.objectContaining({
+          jobId: result.jobId,
+        }),
+      );
+
+      const auditLog = await findAuditLog({
+        projectId: project.id,
+        action: "runNow",
+      });
+      expect(auditLog).toBeDefined();
+      expect(parseAuditLogAfter(auditLog?.after ?? null)).toMatchObject({
+        outcome: "success",
+        jobId: result.jobId,
+      });
+    });
+
+    it("creates a failure audit log when a manual run cannot be queued", async () => {
+      (
+        BlobStorageIntegrationProcessingQueue.getInstance as Mock
+      ).mockReturnValue(null);
+
+      const { caller, project } = await prepare();
+      await createIntegration({ projectId: project.id });
+
+      await expect(
+        caller.blobStorageIntegration.runNow({ projectId: project.id }),
+      ).rejects.toThrow();
+
+      const auditLog = await findAuditLog({
+        projectId: project.id,
+        action: "runNow",
+      });
+      expect(auditLog).toBeDefined();
+      expect(parseAuditLogAfter(auditLog?.after ?? null)).toMatchObject({
+        outcome: "failure",
+        error: "INTERNAL_SERVER_ERROR",
+      });
+    });
+
+    it("does not fail a queued manual run when success audit logging fails", async () => {
+      const add = vi.fn().mockResolvedValue(undefined);
+      (
+        BlobStorageIntegrationProcessingQueue.getInstance as Mock
+      ).mockReturnValue({ add });
+      const auditLogCreateSpy = vi
+        .spyOn(prisma.auditLog, "create")
+        .mockRejectedValueOnce(new Error("audit log unavailable"));
+
+      const { caller, project } = await prepare();
+      await createIntegration({ projectId: project.id });
+
+      const result = await caller.blobStorageIntegration.runNow({
+        projectId: project.id,
+      });
+
+      expect(result.success).toBe(true);
+      expect(add).toHaveBeenCalledTimes(1);
+      expect(auditLogCreateSpy).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe("validate", () => {
+    it("creates a success audit log when validation uploads a test file", async () => {
+      const uploadWithSignedUrl = vi.fn().mockResolvedValue({
+        signedUrl: "https://signed.example/upload",
+      });
+      const deleteFiles = vi.fn().mockResolvedValue(undefined);
+      (StorageServiceFactory.getInstance as Mock).mockReturnValue({
+        uploadWithSignedUrl,
+        deleteFiles,
+      });
+
+      const { caller, project } = await prepare();
+      await createIntegration({ projectId: project.id });
+
+      const result = await caller.blobStorageIntegration.validate({
+        projectId: project.id,
+      });
+
+      expect(result.success).toBe(true);
+      expect(uploadWithSignedUrl).toHaveBeenCalledWith(
+        expect.objectContaining({
+          fileName: result.testFileName,
+          fileType: "text/plain",
+          expiresInSeconds: 3600,
+        }),
+      );
+      expect(result.testFileName).toMatch(/^test\/langfuse-validation-test-/);
+      expect(deleteFiles).toHaveBeenCalledWith([result.testFileName]);
+
+      const auditLog = await findAuditLog({
+        projectId: project.id,
+        action: "validate",
+      });
+      expect(auditLog).toBeDefined();
+      const after = parseAuditLogAfter(auditLog?.after ?? null);
+      expect(after).toMatchObject({
+        outcome: "success",
+        testFileName: result.testFileName,
+      });
+      expect(JSON.stringify(after)).not.toContain("signed.example");
+    });
+
+    it("succeeds when the test file cannot be deleted", async () => {
+      const deleteError = new Error("AccessDenied: s3:DeleteObject");
+      (StorageServiceFactory.getInstance as Mock).mockReturnValue({
+        uploadWithSignedUrl: vi.fn().mockResolvedValue({
+          signedUrl: "https://signed.example/upload",
+        }),
+        deleteFiles: vi.fn().mockRejectedValue(deleteError),
+      });
+      const warnSpy = vi.spyOn(logger, "warn");
+
+      const { caller, project } = await prepare();
+      await createIntegration({ projectId: project.id });
+
+      const result = await caller.blobStorageIntegration.validate({
+        projectId: project.id,
+      });
+
+      expect(result.success).toBe(true);
+      expect(warnSpy).toHaveBeenCalledWith(
+        expect.stringContaining(result.testFileName),
+        deleteError,
+      );
+
+      const auditLog = await findAuditLog({
+        projectId: project.id,
+        action: "validate",
+      });
+      expect(parseAuditLogAfter(auditLog?.after ?? null)).toMatchObject({
+        outcome: "success",
+        testFileName: result.testFileName,
+      });
+    });
+
+    it("creates a failure audit log when validation upload fails", async () => {
+      (StorageServiceFactory.getInstance as Mock).mockReturnValue({
+        uploadWithSignedUrl: vi
+          .fn()
+          .mockRejectedValue(new Error("provider rejected the upload")),
+      });
+
+      const { caller, project } = await prepare();
+      await createIntegration({ projectId: project.id });
+
+      await expect(
+        caller.blobStorageIntegration.validate({ projectId: project.id }),
+      ).rejects.toThrow("Validation failed");
+
+      const auditLog = await findAuditLog({
+        projectId: project.id,
+        action: "validate",
+      });
+      expect(auditLog).toBeDefined();
+      const after = parseAuditLogAfter(auditLog?.after ?? null);
+      expect(after).toMatchObject({
+        outcome: "failure",
+        error: "Error",
+      });
+      expect(JSON.stringify(after)).not.toContain("provider rejected");
+    });
+
+    it("does not fail validation when success audit logging fails", async () => {
+      const uploadWithSignedUrl = vi.fn().mockResolvedValue({
+        signedUrl: "https://signed.example/upload",
+      });
+      (StorageServiceFactory.getInstance as Mock).mockReturnValue({
+        uploadWithSignedUrl,
+      });
+      const auditLogCreateSpy = vi
+        .spyOn(prisma.auditLog, "create")
+        .mockRejectedValueOnce(new Error("audit log unavailable"));
+
+      const { caller, project } = await prepare();
+      await createIntegration({ projectId: project.id });
+
+      const result = await caller.blobStorageIntegration.validate({
+        projectId: project.id,
+      });
+
+      expect(result.success).toBe(true);
+      expect(uploadWithSignedUrl).toHaveBeenCalledTimes(1);
+      expect(auditLogCreateSpy).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe("endpoint validation", () => {
+    const originalAllowedIps =
+      sharedEnv.LANGFUSE_BLOB_STORAGE_ENDPOINT_WHITELISTED_IPS;
+    const originalSharedCloudRegion =
+      sharedEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
+
+    beforeEach(() => {
+      sharedEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = undefined;
+    });
+
+    afterEach(() => {
+      sharedEnv.LANGFUSE_BLOB_STORAGE_ENDPOINT_WHITELISTED_IPS =
+        originalAllowedIps;
+      sharedEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = originalSharedCloudRegion;
+    });
+
+    it("rejects endpoints that target blocked IP ranges when validation is enabled", async () => {
+      const { env: validationEnv } =
+        await import("../../../../packages/shared/src/env");
+      const { validateBlobStorageEndpoint } =
+        await import("../../../../packages/shared/src/server/services/blobStorageEndpointValidation");
+      const originalValidationCloudRegion =
+        validationEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
+      const originalValidationAllowedIps =
+        validationEnv.LANGFUSE_BLOB_STORAGE_ENDPOINT_WHITELISTED_IPS;
+
+      try {
+        validationEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = undefined;
+        validationEnv.LANGFUSE_BLOB_STORAGE_ENDPOINT_WHITELISTED_IPS = [
+          "203.0.113.10",
+        ];
+
+        await expect(
+          validateBlobStorageEndpoint("http://127.0.0.1:9000"),
+        ).rejects.toThrow();
+      } finally {
+        validationEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION =
+          originalValidationCloudRegion;
+        validationEnv.LANGFUSE_BLOB_STORAGE_ENDPOINT_WHITELISTED_IPS =
+          originalValidationAllowedIps;
+      }
+    });
+
+    it("allows endpoints when their IP is whitelisted", async () => {
+      const { env: validationEnv } =
+        await import("../../../../packages/shared/src/env");
+      const { validateBlobStorageEndpoint } =
+        await import("../../../../packages/shared/src/server/services/blobStorageEndpointValidation");
+      const originalValidationCloudRegion =
+        validationEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
+      const originalValidationAllowedIps =
+        validationEnv.LANGFUSE_BLOB_STORAGE_ENDPOINT_WHITELISTED_IPS;
+
+      try {
+        validationEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = undefined;
+        validationEnv.LANGFUSE_BLOB_STORAGE_ENDPOINT_WHITELISTED_IPS = [
+          "127.0.0.1",
+        ];
+
+        await expect(
+          validateBlobStorageEndpoint("http://127.0.0.1:9000"),
+        ).resolves.not.toThrow();
+      } finally {
+        validationEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION =
+          originalValidationCloudRegion;
+        validationEnv.LANGFUSE_BLOB_STORAGE_ENDPOINT_WHITELISTED_IPS =
+          originalValidationAllowedIps;
+      }
+    });
+
+    it("allows HTTP endpoints when Cloud region is DEV", async () => {
+      const { env: validationEnv } =
+        await import("../../../../packages/shared/src/env");
+      const { validateBlobStorageEndpoint } =
+        await import("../../../../packages/shared/src/server/services/blobStorageEndpointValidation");
+      const originalValidationCloudRegion =
+        validationEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
+
+      try {
+        validationEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "DEV";
+
+        await expect(
+          validateBlobStorageEndpoint("http://127.0.0.1:9000"),
+        ).resolves.not.toThrow();
+      } finally {
+        validationEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION =
+          originalValidationCloudRegion;
+      }
+    });
+
+    it("rejects HTTP endpoints on Langfuse Cloud outside local development", async () => {
+      const { env: validationEnv } =
+        await import("../../../../packages/shared/src/env");
+      const { validateBlobStorageEndpoint } =
+        await import("../../../../packages/shared/src/server/services/blobStorageEndpointValidation");
+      const originalValidationCloudRegion =
+        validationEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
+
+      try {
+        validationEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "eu";
+
+        await expect(
+          validateBlobStorageEndpoint("http://127.0.0.1:9000"),
+        ).rejects.toThrow(
+          "Only HTTPS blob storage endpoints are allowed on Langfuse Cloud",
+        );
+      } finally {
+        validationEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION =
+          originalValidationCloudRegion;
+      }
+    });
+  });
+
+  describe("exportFieldGroups", () => {
+    it("stores a custom subset and round-trips via get", async () => {
+      const { caller, project } = await prepare();
+
+      await caller.blobStorageIntegration.update({
+        projectId: project.id,
+        ...baseConfig,
+        exportFieldGroups: ["core", "io"],
+      });
+
+      const result = await caller.blobStorageIntegration.get({
+        projectId: project.id,
+      });
+      expect(result?.config?.exportFieldGroups).toStrictEqual(["core", "io"]);
+    });
+
+    it("defaults to all groups when exportFieldGroups is omitted", async () => {
+      const { caller, project } = await prepare();
+
+      await caller.blobStorageIntegration.update({
+        projectId: project.id,
+        ...baseConfig,
+      });
+
+      const stored = await prisma.blobStorageIntegration.findUnique({
+        where: { projectId: project.id },
+      });
+      expect(stored?.exportFieldGroups).toStrictEqual([
+        ...OBSERVATION_FIELD_GROUPS_FULL,
+      ]);
+    });
+
+    it("rejects submission when core group is absent (exportSource EVENTS)", async () => {
+      const { caller, project } = await prepare();
+
+      await expect(
+        caller.blobStorageIntegration.update({
+          projectId: project.id,
+          ...baseConfig,
+          exportFieldGroups: ["basic", "io"],
+        }),
+      ).rejects.toThrow();
+    });
+
+    it("rejects empty exportFieldGroups when exportSource is TRACES_OBSERVATIONS_EVENTS", async () => {
+      const { caller, project } = await prepare();
+      await prisma.project.update({
+        where: { id: project.id },
+        data: { createdAt: PRE_CUTOFF },
+      });
+
+      await expect(
+        caller.blobStorageIntegration.update({
+          projectId: project.id,
+          ...baseConfig,
+          exportSource: "TRACES_OBSERVATIONS_EVENTS" as const,
+          exportFieldGroups: [],
+        }),
+      ).rejects.toThrow();
+    });
+
+    it("rejects empty exportFieldGroups when exportSource is TRACES_OBSERVATIONS", async () => {
+      const { caller, project } = await prepare();
+      await prisma.project.update({
+        where: { id: project.id },
+        data: { createdAt: PRE_CUTOFF },
+      });
+      // Pre-cutoff integration row (legacy exporter) so the integration-cutoff
+      // gate allows the legacy source; this test only exercises field-group
+      // handling, not the cutoff.
+      await createIntegration({ projectId: project.id });
+      await prisma.blobStorageIntegration.update({
+        where: { projectId: project.id },
+        data: { createdAt: INTEGRATION_PRE_CUTOFF },
+      });
+
+      await expect(
+        caller.blobStorageIntegration.update({
+          projectId: project.id,
+          ...baseConfig,
+          exportSource: "TRACES_OBSERVATIONS" as const,
+          exportFieldGroups: [],
+        }),
+      ).rejects.toThrow();
+    });
+
+    it("accepts a custom subset including core when exportSource is TRACES_OBSERVATIONS", async () => {
+      const { caller, project } = await prepare();
+      await prisma.project.update({
+        where: { id: project.id },
+        data: { createdAt: PRE_CUTOFF },
+      });
+      // Pre-cutoff integration row (legacy exporter) so the integration-cutoff
+      // gate allows the legacy source; this test only exercises field-group
+      // handling, not the cutoff.
+      await createIntegration({ projectId: project.id });
+      await prisma.blobStorageIntegration.update({
+        where: { projectId: project.id },
+        data: { createdAt: INTEGRATION_PRE_CUTOFF },
+      });
+
+      await caller.blobStorageIntegration.update({
+        projectId: project.id,
+        ...baseConfig,
+        exportSource: "TRACES_OBSERVATIONS" as const,
+        exportFieldGroups: ["core", "io"],
+      });
+
+      const result = await caller.blobStorageIntegration.get({
+        projectId: project.id,
+      });
+      expect(result?.config?.exportFieldGroups).toStrictEqual(["core", "io"]);
+    });
+
+    it("overwrites stored subset when a new subset is submitted", async () => {
+      const { caller, project } = await prepare();
+
+      await caller.blobStorageIntegration.update({
+        projectId: project.id,
+        ...baseConfig,
+        exportFieldGroups: ["core", "basic"],
+      });
+
+      await caller.blobStorageIntegration.update({
+        projectId: project.id,
+        ...baseConfig,
+        exportFieldGroups: ["core", "io", "metrics"],
+      });
+
+      const result = await caller.blobStorageIntegration.get({
+        projectId: project.id,
+      });
+      expect(result?.config?.exportFieldGroups).toStrictEqual([
+        "core",
+        "io",
+        "metrics",
+      ]);
+    });
+  });
+
+  describe("legacy blob export source cutoff gate", () => {
+    afterEach(() => {
+      vi.restoreAllMocks();
+    });
+
+    it("Cloud + pre-cutoff project + pre-cutoff legacy row + legacy source → allow", async () => {
+      const originalRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
+      (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "us";
+      try {
+        const { caller, project } = await prepare();
+        await prisma.project.update({
+          where: { id: project.id },
+          data: { createdAt: PRE_CUTOFF },
+        });
+        // The project-level gate allows pre-cutoff projects, but the
+        // integration-cutoff gate also applies: a legacy source is only allowed
+        // when an existing pre-cutoff row classifies the exporter as legacy.
+        await createIntegration({ projectId: project.id });
+        await prisma.blobStorageIntegration.update({
+          where: { projectId: project.id },
+          data: { createdAt: INTEGRATION_PRE_CUTOFF },
+        });
+        await expect(
+          caller.blobStorageIntegration.update({
+            projectId: project.id,
+            ...baseConfig,
+            exportSource: "TRACES_OBSERVATIONS" as const,
+          }),
+        ).resolves.not.toThrow();
+      } finally {
+        (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = originalRegion;
+      }
+    });
+
+    it("Cloud + post-cutoff project + legacy source → BAD_REQUEST", async () => {
+      const originalRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
+      (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "us";
+      try {
+        const { caller, project } = await prepare();
+        await prisma.project.update({
+          where: { id: project.id },
+          data: { createdAt: POST_CUTOFF },
+        });
+        await expect(
+          caller.blobStorageIntegration.update({
+            projectId: project.id,
+            ...baseConfig,
+            exportSource: "TRACES_OBSERVATIONS" as const,
+          }),
+        ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+      } finally {
+        (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = originalRegion;
+      }
+    });
+
+    it("Cloud + post-cutoff project + EVENTS → allow", async () => {
+      const originalRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
+      (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "us";
+      try {
+        const { caller, project } = await prepare();
+        await prisma.project.update({
+          where: { id: project.id },
+          data: { createdAt: POST_CUTOFF },
+        });
+        await expect(
+          caller.blobStorageIntegration.update({
+            projectId: project.id,
+            ...baseConfig,
+            exportSource: "EVENTS" as const,
+          }),
+        ).resolves.not.toThrow();
+      } finally {
+        (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = originalRegion;
+      }
+    });
+
+    it("self-hosted + post-cutoff project + legacy source → allow (bypass)", async () => {
+      const originalRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
+      (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = undefined;
+      try {
+        const { caller, project } = await prepare();
+        await prisma.project.update({
+          where: { id: project.id },
+          data: { createdAt: POST_CUTOFF },
+        });
+        await expect(
+          caller.blobStorageIntegration.update({
+            projectId: project.id,
+            ...baseConfig,
+            exportSource: "TRACES_OBSERVATIONS" as const,
+          }),
+        ).resolves.not.toThrow();
+      } finally {
+        (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = originalRegion;
+      }
+    });
+  });
+
+  // The write mode is server-only, so the settings page can only learn it
+  // from this response. This is the durable half of the contract — the
+  // derived booleans next to it go away once their consumers read writeMode.
+  describe("get: writeMode", () => {
+    const originalRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
+    const originalWriteMode = env.LANGFUSE_MIGRATION_V4_WRITE_MODE;
+    const originalPreviewOptIn = env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN;
+
+    afterEach(() => {
+      (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = originalRegion;
+      (env as any).LANGFUSE_MIGRATION_V4_WRITE_MODE = originalWriteMode;
+      (env as any).LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN =
+        originalPreviewOptIn;
+    });
+
+    it.each(["legacy", "dual", "events_only"] as const)(
+      "returns the active write mode %s, independent of the preview opt-in",
+      async (writeMode) => {
+        (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = undefined;
+        (env as any).LANGFUSE_MIGRATION_V4_WRITE_MODE = writeMode;
+        (env as any).LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN = "false";
+        const { caller, project } = await prepare();
+        const result = await caller.blobStorageIntegration.get({
+          projectId: project.id,
+        });
+        expect(result.writeMode).toBe(writeMode);
+      },
+    );
+  });
+
+  describe("update: enriched export source guard", () => {
+    const originalRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
+    const originalWriteMode = env.LANGFUSE_MIGRATION_V4_WRITE_MODE;
+    const originalPreviewOptIn = env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN;
+
+    afterEach(() => {
+      (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = originalRegion;
+      (env as any).LANGFUSE_MIGRATION_V4_WRITE_MODE = originalWriteMode;
+      (env as any).LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN =
+        originalPreviewOptIn;
+    });
+
+    it("rejects EVENTS under the legacy write mode even with the preview opt-in enabled", async () => {
+      (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = undefined;
+      (env as any).LANGFUSE_MIGRATION_V4_WRITE_MODE = "legacy";
+      (env as any).LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN = "true";
+      const { caller, project } = await prepare();
+      await expect(
+        caller.blobStorageIntegration.update({
+          projectId: project.id,
+          ...baseConfig,
+          exportSource: "EVENTS" as const,
+        }),
+      ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    });
+
+    it("allows EVENTS under the dual write mode even with the preview opt-in disabled", async () => {
+      (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = undefined;
+      (env as any).LANGFUSE_MIGRATION_V4_WRITE_MODE = "dual";
+      (env as any).LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN = "false";
+      const { caller, project } = await prepare();
+      await expect(
+        caller.blobStorageIntegration.update({
+          projectId: project.id,
+          ...baseConfig,
+          exportSource: "EVENTS" as const,
+        }),
+      ).resolves.not.toThrow();
+    });
+
+    it("rejects EVENTS under the legacy write mode", async () => {
+      (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = undefined;
+      (env as any).LANGFUSE_MIGRATION_V4_WRITE_MODE = "legacy";
+      const { caller, project } = await prepare();
+      await expect(
+        caller.blobStorageIntegration.update({
+          projectId: project.id,
+          ...baseConfig,
+          exportSource: "EVENTS" as const,
+        }),
+      ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    });
+
+    it("rejects TRACES_OBSERVATIONS_EVENTS under the legacy write mode", async () => {
+      (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = undefined;
+      (env as any).LANGFUSE_MIGRATION_V4_WRITE_MODE = "legacy";
+      const { caller, project } = await prepare();
+      await prisma.project.update({
+        where: { id: project.id },
+        data: { createdAt: PRE_CUTOFF },
+      });
+      await expect(
+        caller.blobStorageIntegration.update({
+          projectId: project.id,
+          ...baseConfig,
+          exportSource: "TRACES_OBSERVATIONS_EVENTS" as const,
+        }),
+      ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    });
+
+    it("rejects TRACES_OBSERVATIONS_EVENTS under the events_only write mode", async () => {
+      (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = undefined;
+      (env as any).LANGFUSE_MIGRATION_V4_WRITE_MODE = "events_only";
+      const { caller, project } = await prepare();
+      await prisma.project.update({
+        where: { id: project.id },
+        data: { createdAt: PRE_CUTOFF },
+      });
+      await expect(
+        caller.blobStorageIntegration.update({
+          projectId: project.id,
+          ...baseConfig,
+          exportSource: "TRACES_OBSERVATIONS_EVENTS" as const,
+        }),
+      ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    });
+
+    it("allows TRACES_OBSERVATIONS_EVENTS under the dual write mode", async () => {
+      (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = undefined;
+      (env as any).LANGFUSE_MIGRATION_V4_WRITE_MODE = "dual";
+      const { caller, project } = await prepare();
+      await prisma.project.update({
+        where: { id: project.id },
+        data: { createdAt: PRE_CUTOFF },
+      });
+      await expect(
+        caller.blobStorageIntegration.update({
+          projectId: project.id,
+          ...baseConfig,
+          exportSource: "TRACES_OBSERVATIONS_EVENTS" as const,
+        }),
+      ).resolves.not.toThrow();
+    });
+
+    it("allows EVENTS under the events_only write mode", async () => {
+      (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = undefined;
+      (env as any).LANGFUSE_MIGRATION_V4_WRITE_MODE = "events_only";
+      const { caller, project } = await prepare();
+      await expect(
+        caller.blobStorageIntegration.update({
+          projectId: project.id,
+          ...baseConfig,
+          exportSource: "EVENTS" as const,
+        }),
+      ).resolves.not.toThrow();
+    });
+
+    it("allows EVENTS on Cloud under the dual write mode", async () => {
+      (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "us";
+      (env as any).LANGFUSE_MIGRATION_V4_WRITE_MODE = "dual";
+      const { caller, project } = await prepare();
+      await expect(
+        caller.blobStorageIntegration.update({
+          projectId: project.id,
+          ...baseConfig,
+          exportSource: "EVENTS" as const,
+        }),
+      ).resolves.not.toThrow();
+    });
+  });
+
+  describe("legacy blob exporter (integration createdAt) cutoff gate", () => {
+    afterEach(() => {
+      vi.restoreAllMocks();
+    });
+
+    // All cases use a pre-cutoff project so the project-level delegate gate
+    // allows and the integration-level cutoff is isolated.
+
+    it("(a) Cloud + pre-cutoff project + no row + legacy → BAD_REQUEST", async () => {
+      const originalRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
+      (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "us";
+      try {
+        const { caller, project } = await prepare();
+        await prisma.project.update({
+          where: { id: project.id },
+          data: { createdAt: PRE_CUTOFF },
+        });
+        await expect(
+          caller.blobStorageIntegration.update({
+            projectId: project.id,
+            ...baseConfig,
+            exportSource: "TRACES_OBSERVATIONS" as const,
+            exportFieldGroups: ["core"],
+          }),
+        ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+      } finally {
+        (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = originalRegion;
+      }
+    });
+
+    it("(b) Cloud + pre-cutoff project + row (createdAt < CUTOFF) + legacy → succeeds", async () => {
+      const originalRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
+      (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "us";
+      try {
+        const { caller, project } = await prepare();
+        await prisma.project.update({
+          where: { id: project.id },
+          data: { createdAt: PRE_CUTOFF },
+        });
+        await createIntegration({ projectId: project.id });
+        // Backdate the row to before the integration cutoff (legacy exporter).
+        await prisma.blobStorageIntegration.update({
+          where: { projectId: project.id },
+          data: { createdAt: INTEGRATION_PRE_CUTOFF },
+        });
+        await expect(
+          caller.blobStorageIntegration.update({
+            projectId: project.id,
+            ...baseConfig,
+            exportSource: "TRACES_OBSERVATIONS" as const,
+            exportFieldGroups: ["core"],
+          }),
+        ).resolves.not.toThrow();
+      } finally {
+        (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = originalRegion;
+      }
+    });
+
+    it("(c) Cloud + pre-cutoff project + no row + EVENTS → succeeds", async () => {
+      const originalRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
+      (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "us";
+      try {
+        const { caller, project } = await prepare();
+        await prisma.project.update({
+          where: { id: project.id },
+          data: { createdAt: PRE_CUTOFF },
+        });
+        await expect(
+          caller.blobStorageIntegration.update({
+            projectId: project.id,
+            ...baseConfig,
+            exportSource: "EVENTS" as const,
+          }),
+        ).resolves.not.toThrow();
+      } finally {
+        (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = originalRegion;
+      }
+    });
+
+    it("(d) Cloud + pre-cutoff project + row (createdAt >= CUTOFF, reset-recreated) + legacy → BAD_REQUEST", async () => {
+      const originalRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
+      (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "us";
+      try {
+        const { caller, project } = await prepare();
+        await prisma.project.update({
+          where: { id: project.id },
+          data: { createdAt: PRE_CUTOFF },
+        });
+        await createIntegration({ projectId: project.id });
+        // Post-date the row to on/after the integration cutoff (not legacy).
+        await prisma.blobStorageIntegration.update({
+          where: { projectId: project.id },
+          data: { createdAt: INTEGRATION_POST_CUTOFF },
+        });
+        await expect(
+          caller.blobStorageIntegration.update({
+            projectId: project.id,
+            ...baseConfig,
+            exportSource: "TRACES_OBSERVATIONS" as const,
+            exportFieldGroups: ["core"],
+          }),
+        ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+      } finally {
+        (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = originalRegion;
+      }
+    });
+  });
+
+  // An update that omits exportSource must preserve the persisted
+  // value (parity with the public REST handler) — never rewrite it to the
+  // legacy default — and must be rejected when preserving would keep a stale
+  // enriched source alive on a deployment without the enriched export path.
+  describe("update: omitted exportSource", () => {
+    const originalRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
+    const originalWriteMode = env.LANGFUSE_MIGRATION_V4_WRITE_MODE;
+
+    afterEach(() => {
+      (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = originalRegion;
+      (env as any).LANGFUSE_MIGRATION_V4_WRITE_MODE = originalWriteMode;
+    });
+
+    const { exportSource: _ignored, ...configWithoutExportSource } = baseConfig;
+
+    it("preserves a persisted enriched source when enriched export is available", async () => {
+      (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = undefined;
+      (env as any).LANGFUSE_MIGRATION_V4_WRITE_MODE = "dual";
+      const { caller, project } = await prepare();
+      await createIntegration({
+        projectId: project.id,
+        exportSource: "EVENTS",
+      });
+
+      await caller.blobStorageIntegration.update({
+        projectId: project.id,
+        ...configWithoutExportSource,
+      });
+
+      const row = await prisma.blobStorageIntegration.findUniqueOrThrow({
+        where: { projectId: project.id },
+      });
+      expect(row.exportSource).toBe("EVENTS");
+    });
+
+    it("rejects an omitted exportSource over a stale enriched row on a legacy-write-mode deployment", async () => {
+      (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = undefined;
+      (env as any).LANGFUSE_MIGRATION_V4_WRITE_MODE = "legacy";
+      const { caller, project } = await prepare();
+      await createIntegration({
+        projectId: project.id,
+        exportSource: "EVENTS",
+      });
+
+      await expect(
+        caller.blobStorageIntegration.update({
+          projectId: project.id,
+          ...configWithoutExportSource,
+        }),
+      ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+
+      const row = await prisma.blobStorageIntegration.findUniqueOrThrow({
+        where: { projectId: project.id },
+      });
+      expect(row.exportSource).toBe("EVENTS");
+    });
+
+    it("preserves a persisted legacy source on a legacy-write-mode deployment", async () => {
+      (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = undefined;
+      (env as any).LANGFUSE_MIGRATION_V4_WRITE_MODE = "legacy";
+      const { caller, project } = await prepare();
+      await createIntegration({
+        projectId: project.id,
+        exportSource: "TRACES_OBSERVATIONS",
+      });
+
+      await caller.blobStorageIntegration.update({
+        projectId: project.id,
+        ...configWithoutExportSource,
+      });
+
+      const row = await prisma.blobStorageIntegration.findUniqueOrThrow({
+        where: { projectId: project.id },
+      });
+      expect(row.exportSource).toBe("TRACES_OBSERVATIONS");
+    });
+
+    it("creates with EVENTS when exportSource is omitted for a post-cutoff Cloud project", async () => {
+      // The legacy gate only checks explicit values, so an omitted
+      // exportSource on CREATE must not fall through to the Prisma column
+      // default (TRACES_OBSERVATIONS) — mirror of the REST handler's resolved
+      // create default.
+      (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "us";
+      (env as any).LANGFUSE_MIGRATION_V4_WRITE_MODE = "dual";
+      const { caller, project } = await prepare();
+      await prisma.project.update({
+        where: { id: project.id },
+        data: { createdAt: POST_CUTOFF },
+      });
+
+      await caller.blobStorageIntegration.update({
+        projectId: project.id,
+        ...configWithoutExportSource,
+      });
+
+      const row = await prisma.blobStorageIntegration.findUniqueOrThrow({
+        where: { projectId: project.id },
+      });
+      expect(row.exportSource).toBe("EVENTS");
+    });
+
+    it("creates with EVENTS when exportSource is omitted on a self-hosted dual deployment", async () => {
+      // No Cloud cutoff applies here, so nothing forces enriched — the shared
+      // default does, because dual writes the enriched table. This is the case
+      // where the routers used to create TRACES_OBSERVATIONS while the settings
+      // page offered EVENTS.
+      (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = undefined;
+      (env as any).LANGFUSE_MIGRATION_V4_WRITE_MODE = "dual";
+      const { caller, project } = await prepare();
+
+      await caller.blobStorageIntegration.update({
+        projectId: project.id,
+        ...configWithoutExportSource,
+      });
+
+      const row = await prisma.blobStorageIntegration.findUniqueOrThrow({
+        where: { projectId: project.id },
+      });
+      expect(row.exportSource).toBe("EVENTS");
+    });
+
+    it("still allows an explicit downgrade to a legacy source on a legacy-write-mode deployment", async () => {
+      (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = undefined;
+      (env as any).LANGFUSE_MIGRATION_V4_WRITE_MODE = "legacy";
+      const { caller, project } = await prepare();
+      await createIntegration({
+        projectId: project.id,
+        exportSource: "EVENTS",
+      });
+
+      await caller.blobStorageIntegration.update({
+        projectId: project.id,
+        ...configWithoutExportSource,
+        exportSource: "TRACES_OBSERVATIONS" as const,
+      });
+
+      const row = await prisma.blobStorageIntegration.findUniqueOrThrow({
+        where: { projectId: project.id },
+      });
+      expect(row.exportSource).toBe("TRACES_OBSERVATIONS");
+    });
+  });
+
+  describe("parquet fileType", () => {
+    it("persists PARQUET for any project", async () => {
+      const { caller, project } = await prepare();
+
+      await caller.blobStorageIntegration.update({
+        projectId: project.id,
+        ...baseConfig,
+        fileType: "PARQUET" as const,
+      });
+
+      const row = await prisma.blobStorageIntegration.findUniqueOrThrow({
+        where: { projectId: project.id },
+      });
+      expect(row.fileType).toBe("PARQUET");
+    });
+
+    it("saves edits alongside a persisted PARQUET fileType", async () => {
+      const { caller, project } = await prepare();
+      await createIntegration({ projectId: project.id });
+      await prisma.blobStorageIntegration.update({
+        where: { projectId: project.id },
+        data: { fileType: "PARQUET" },
+      });
+
+      await caller.blobStorageIntegration.update({
+        projectId: project.id,
+        ...baseConfig,
+        fileType: "PARQUET" as const,
+        enabled: false,
+      });
+
+      const row = await prisma.blobStorageIntegration.findUniqueOrThrow({
+        where: { projectId: project.id },
+      });
+      expect(row.fileType).toBe("PARQUET");
+      expect(row.enabled).toBe(false);
+    });
+
+    it("preserves persisted PARQUET when fileType is omitted from the update input", async () => {
+      // The router-level .optional() drops the base default so an omitted
+      // fileType preserves the persisted value instead of rewriting it.
+      const { caller, project } = await prepare();
+      await createIntegration({ projectId: project.id });
+      await prisma.blobStorageIntegration.update({
+        where: { projectId: project.id },
+        data: { fileType: "PARQUET" },
+      });
+
+      const { fileType: _fileType, ...configWithoutFileType } = baseConfig;
+      await caller.blobStorageIntegration.update({
+        projectId: project.id,
+        ...configWithoutFileType,
+        enabled: false,
+      });
+
+      const row = await prisma.blobStorageIntegration.findUniqueOrThrow({
+        where: { projectId: project.id },
+      });
+      expect(row.fileType).toBe("PARQUET");
+      expect(row.enabled).toBe(false);
+    });
+
+    it("defaults to PARQUET when fileType is omitted on CREATE", async () => {
+      const { caller, project } = await prepare();
+
+      const { fileType: _fileType, ...configWithoutFileType } = baseConfig;
+      await caller.blobStorageIntegration.update({
+        projectId: project.id,
+        ...configWithoutFileType,
+      });
+
+      const row = await prisma.blobStorageIntegration.findUniqueOrThrow({
+        where: { projectId: project.id },
+      });
+      expect(row.fileType).toBe("PARQUET");
+    });
+  });
+});

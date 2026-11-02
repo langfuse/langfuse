@@ -1,10 +1,63 @@
-import { describe, expect, it, vi, type Mock } from "vitest";
+import { beforeEach, describe, expect, it, vi, type Mock } from "vitest";
 import { JobExecutionStatus } from "@prisma/client";
+import z from "zod";
+
+const observabilityMocks = vi.hoisted(() => ({
+  spans: [] as Array<{
+    name: string;
+    attributes: Record<string, unknown>;
+  }>,
+  blockEvaluator: vi.fn().mockResolvedValue({ blockedEvaluatorIds: [] }),
+  recordIncrement: vi.fn(),
+}));
+
+vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import("@langfuse/shared/src/server")>();
+
+  return {
+    ...actual,
+    blockEvaluator: observabilityMocks.blockEvaluator,
+    recordIncrement: observabilityMocks.recordIncrement,
+    instrumentAsync: vi.fn(
+      async (
+        { name }: { name: string },
+        callback: (span: {
+          setAttribute: (key: string, value: unknown) => unknown;
+          setAttributes: (attributes: Record<string, unknown>) => unknown;
+        }) => Promise<unknown>,
+      ) => {
+        const captured = { name, attributes: {} as Record<string, unknown> };
+        const span = {
+          setAttribute(key: string, value: unknown) {
+            captured.attributes[key] = value;
+            return span;
+          },
+          setAttributes(attributes: Record<string, unknown>) {
+            Object.assign(captured.attributes, attributes);
+            return span;
+          },
+        };
+        observabilityMocks.spans.push(captured);
+        return callback(span);
+      },
+    ),
+  };
+});
+
 import { executeLLMAsJudgeEvaluation } from "./evalService";
 import { createMockEvalExecutionDeps } from "./evalExecutionDeps";
 import { UnrecoverableError } from "../../errors/UnrecoverableError";
-import { ExtractedVariable } from "./observationEval/extractObservationVariables";
-import { EvalTargetObject } from "@langfuse/shared";
+import {
+  LLMValidationError,
+  recordIncrement,
+  type ExtractedVariable,
+} from "@langfuse/shared/src/server";
+import {
+  EvalTargetObject,
+  type PersistedEvalOutputDefinition,
+  ScoreDataTypeEnum,
+} from "@langfuse/shared";
 
 /**
  * Unit tests for executeLLMAsJudgeEvaluation with mocked dependencies.
@@ -21,6 +74,18 @@ import { EvalTargetObject } from "@langfuse/shared";
 describe("executeLLMAsJudgeEvaluation", () => {
   const projectId = "test-project-123";
   const jobExecutionId = "test-job-execution-456";
+  const getScorePersistenceMetricCalls = () =>
+    vi
+      .mocked(recordIncrement)
+      .mock.calls.filter(
+        ([metric]) => metric === "langfuse.evaluation.score_persistence",
+      );
+
+  beforeEach(() => {
+    observabilityMocks.spans.length = 0;
+    observabilityMocks.blockEvaluator.mockClear();
+    observabilityMocks.recordIncrement.mockClear();
+  });
 
   // ============================================================================
   // Test Fixtures
@@ -62,7 +127,20 @@ describe("executeLLMAsJudgeEvaluation", () => {
     timeScope: ["NEW" as const],
   };
 
-  const mockEvalTemplate = {
+  const mockEvalTemplate: {
+    id: string;
+    createdAt: Date;
+    updatedAt: Date;
+    name: string;
+    version: number;
+    prompt: string;
+    model: string;
+    provider: string;
+    modelParams: Record<string, unknown>;
+    outputDefinition: PersistedEvalOutputDefinition;
+    vars: string[];
+    projectId: string;
+  } = {
     id: "template-xyz",
     createdAt: new Date(),
     updatedAt: new Date(),
@@ -72,7 +150,7 @@ describe("executeLLMAsJudgeEvaluation", () => {
     model: "gpt-4",
     provider: "openai",
     modelParams: {},
-    outputSchema: {
+    outputDefinition: {
       score: "A number between 0 and 1",
       reasoning: "Explain your reasoning",
     },
@@ -97,6 +175,7 @@ describe("executeLLMAsJudgeEvaluation", () => {
     provider: "openai",
     model: "gpt-4",
     apiKey: { adapter: "openai", secretKey: "test-key" },
+    adapter: "openai",
     modelParams: {},
   };
 
@@ -108,8 +187,10 @@ describe("executeLLMAsJudgeEvaluation", () => {
     });
 
   /** Creates a mock for callLLM with a successful response */
-  const mockSuccessfulLLMCall = (score: number, reasoning: string) =>
-    vi.fn().mockResolvedValue({ score, reasoning });
+  const mockSuccessfulLLMCall = (
+    score: number | boolean | string | string[],
+    reasoning: string,
+  ) => vi.fn().mockResolvedValue({ score, reasoning });
 
   /** Creates standard deps with all mocks for a successful execution flow */
   const createSuccessfulDeps = (
@@ -179,6 +260,17 @@ describe("executeLLMAsJudgeEvaluation", () => {
         }),
       );
       expect(enqueueScoreIngestion).toHaveBeenCalledTimes(1);
+      expect(getScorePersistenceMetricCalls()).toEqual([
+        [
+          "langfuse.evaluation.score_persistence",
+          1,
+          {
+            evaluator_type: "llm_as_judge",
+            outcome: "success",
+            score_count_bucket: "1",
+          },
+        ],
+      ]);
       expect(updateJobExecution).toHaveBeenCalledWith(
         expect.objectContaining({
           id: jobExecutionId,
@@ -191,6 +283,31 @@ describe("executeLLMAsJudgeEvaluation", () => {
           }),
         }),
       );
+
+      const executeSpan = observabilityMocks.spans.find(
+        ({ name }) => name === "eval.execute-llm-as-judge",
+      );
+      const callSpan = observabilityMocks.spans.find(
+        ({ name }) => name === "eval.call-llm",
+      );
+
+      expect(executeSpan?.attributes).toMatchObject({
+        "langfuse.project.id": projectId,
+        "eval.job_execution.id": jobExecutionId,
+        "eval.execution.trace_id": expect.any(String),
+        "eval.execution.stage": "completed",
+        "eval.execution.outcome": "success",
+        "eval.model.provider": "openai",
+        "eval.model.name": "gpt-4",
+        "eval.model.adapter": "openai",
+      });
+      expect(callSpan?.attributes).toMatchObject({
+        "langfuse.project.id": projectId,
+        "eval.job_execution.id": jobExecutionId,
+        "eval.execution.trace_id":
+          executeSpan?.attributes["eval.execution.trace_id"],
+        "eval.llm.outcome": "success",
+      });
     });
 
     it("should include observation ID in score when present", async () => {
@@ -282,10 +399,10 @@ describe("executeLLMAsJudgeEvaluation", () => {
       ).rejects.toThrow(UnrecoverableError);
     });
 
-    it("should throw UnrecoverableError if output schema invalid", async () => {
+    it("should throw UnrecoverableError if output definition is invalid", async () => {
       const templateWithBadSchema = {
         ...mockEvalTemplate,
-        outputSchema: { invalidKey: "value" },
+        outputDefinition: { invalidKey: "value" },
       };
 
       await expect(
@@ -340,6 +457,17 @@ describe("executeLLMAsJudgeEvaluation", () => {
       await expect(
         executeLLMAsJudgeEvaluation(createExecutionParams({ deps })),
       ).rejects.toThrow("Failed to write score");
+      expect(getScorePersistenceMetricCalls()).toEqual([
+        [
+          "langfuse.evaluation.score_persistence",
+          1,
+          {
+            evaluator_type: "llm_as_judge",
+            outcome: "failure",
+            score_count_bucket: "1",
+          },
+        ],
+      ]);
     });
 
     it("should throw error if score ingestion queue fails", async () => {
@@ -429,11 +557,13 @@ describe("executeLLMAsJudgeEvaluation", () => {
             traceId: expect.any(String),
             traceName: `Execute evaluator: ${mockEvalTemplate.name}`,
             environment: "langfuse-llm-as-a-judge",
+            evaluationContext: {
+              evaluationRuleId: mockJobExecution.jobConfigurationId,
+              evaluatorExecutionIsTest: false,
+            },
             metadata: expect.objectContaining({
               job_execution_id: jobExecutionId,
-              job_configuration_id: mockJobExecution.jobConfigurationId,
               target_trace_id: mockJobExecution.jobInputTraceId,
-              score_id: expect.any(String),
             }),
           }),
         }),
@@ -444,18 +574,184 @@ describe("executeLLMAsJudgeEvaluation", () => {
       const callLLM = mockSuccessfulLLMCall(0.8, "Good response");
       const deps = createSuccessfulDeps({ callLLM });
 
-      await executeLLMAsJudgeEvaluation(createExecutionParams({ deps }));
-
-      expect(callLLM).toHaveBeenCalledWith(
-        expect.objectContaining({
-          structuredOutputSchema: expect.objectContaining({
-            shape: expect.objectContaining({
-              reasoning: expect.any(Object),
-              score: expect.any(Object),
-            }),
-          }),
+      await executeLLMAsJudgeEvaluation(
+        createExecutionParams({
+          deps,
+          template: {
+            ...mockEvalTemplate,
+            outputDefinition: {
+              version: 2,
+              dataType: ScoreDataTypeEnum.NUMERIC,
+              reasoning: { description: "Explain the score" },
+              score: {
+                description: "Return a score between 0 and 1",
+                minValue: 0,
+                maxValue: 1,
+              },
+            },
+          },
         }),
       );
+
+      const structuredOutputSchema = callLLM.mock.calls[0][0]
+        .structuredOutputSchema as z.ZodTypeAny;
+
+      expect(
+        structuredOutputSchema.safeParse({
+          score: 0.8,
+          reasoning: "Good response",
+        }).success,
+      ).toBe(true);
+      expect(
+        structuredOutputSchema.safeParse({
+          score: 1.1,
+          reasoning: "Outside the configured range",
+        }).success,
+      ).toBe(false);
+      expect(z.toJSONSchema(structuredOutputSchema)).toMatchObject({
+        properties: {
+          score: {
+            minimum: 0,
+            maximum: 1,
+          },
+        },
+      });
+    });
+
+    it("should pass categorical structured output schema to LLM", async () => {
+      const callLLM = mockSuccessfulLLMCall("correct", "Fully supported");
+      const deps = createSuccessfulDeps({ callLLM });
+
+      await executeLLMAsJudgeEvaluation(
+        createExecutionParams({
+          deps,
+          template: {
+            ...mockEvalTemplate,
+            outputDefinition: {
+              version: 2,
+              dataType: ScoreDataTypeEnum.CATEGORICAL,
+              reasoning: {
+                description: "Explain the selected category",
+              },
+              score: {
+                description: "Choose the best matching category",
+                categories: ["correct", "partial"],
+              },
+            },
+          },
+        }),
+      );
+
+      const structuredOutputSchema = callLLM.mock.calls[0][0]
+        .structuredOutputSchema as z.ZodTypeAny;
+
+      expect(
+        structuredOutputSchema.safeParse({
+          score: "correct",
+          reasoning: "Fully supported",
+        }).success,
+      ).toBe(true);
+      expect(
+        structuredOutputSchema.safeParse({
+          score: "incorrect",
+          reasoning: "Not part of the allowed categories",
+        }).success,
+      ).toBe(false);
+    });
+
+    it("should pass categorical multi-match structured output schema to LLM", async () => {
+      const callLLM = mockSuccessfulLLMCall(
+        ["correct", "partial"],
+        "Both categories apply.",
+      );
+      const deps = createSuccessfulDeps({ callLLM });
+
+      await executeLLMAsJudgeEvaluation(
+        createExecutionParams({
+          deps,
+          template: {
+            ...mockEvalTemplate,
+            outputDefinition: {
+              version: 2,
+              dataType: ScoreDataTypeEnum.CATEGORICAL,
+              reasoning: {
+                description: "Explain the selected categories",
+              },
+              score: {
+                description: "Choose all matching categories",
+                categories: ["correct", "partial"],
+                shouldAllowMultipleMatches: true,
+              },
+            },
+          },
+        }),
+      );
+
+      const structuredOutputSchema = callLLM.mock.calls[0][0]
+        .structuredOutputSchema as z.ZodTypeAny;
+
+      expect(
+        structuredOutputSchema.safeParse({
+          score: ["correct", "partial"],
+          reasoning: "Both categories apply.",
+        }).success,
+      ).toBe(true);
+      expect(
+        structuredOutputSchema.safeParse({
+          score: "correct",
+          reasoning: "Single values should be rejected for multi-match.",
+        }).success,
+      ).toBe(false);
+      expect(
+        structuredOutputSchema.safeParse({
+          score: ["correct", "correct"],
+          reasoning: "Duplicates should be rejected.",
+        }).success,
+      ).toBe(false);
+    });
+
+    it("should pass boolean structured output schema to LLM", async () => {
+      const callLLM = mockSuccessfulLLMCall(
+        false,
+        "The answer does not satisfy the criteria.",
+      );
+      const deps = createSuccessfulDeps({ callLLM });
+
+      await executeLLMAsJudgeEvaluation(
+        createExecutionParams({
+          deps,
+          template: {
+            ...mockEvalTemplate,
+            outputDefinition: {
+              version: 2,
+              dataType: ScoreDataTypeEnum.BOOLEAN,
+              reasoning: {
+                description: "Explain the verdict",
+              },
+              score: {
+                description:
+                  "Return true if the answer satisfies the criteria, otherwise false",
+              },
+            },
+          },
+        }),
+      );
+
+      const structuredOutputSchema = callLLM.mock.calls[0][0]
+        .structuredOutputSchema as z.ZodTypeAny;
+
+      expect(
+        structuredOutputSchema.safeParse({
+          score: true,
+          reasoning: "The answer satisfies the criteria.",
+        }).success,
+      ).toBe(true);
+      expect(
+        structuredOutputSchema.safeParse({
+          score: "true",
+          reasoning: "String values should be rejected.",
+        }).success,
+      ).toBe(false);
     });
 
     it("should pass model config to LLM", async () => {
@@ -583,9 +879,8 @@ describe("executeLLMAsJudgeEvaluation", () => {
         createExecutionParams({ job: fullJob, deps }),
       );
 
-      const expectedMetadata = {
+      const expectedTraceMetadata = {
         job_execution_id: jobExecutionId,
-        job_configuration_id: fullJob.jobConfigurationId,
         target_trace_id: fullJob.jobInputTraceId,
         target_observation_id: "obs-full",
         target_dataset_item_id: "dataset-full",
@@ -594,7 +889,11 @@ describe("executeLLMAsJudgeEvaluation", () => {
       expect(callLLM).toHaveBeenCalledWith(
         expect.objectContaining({
           traceSinkParams: expect.objectContaining({
-            metadata: expect.objectContaining(expectedMetadata),
+            evaluationContext: {
+              evaluationRuleId: fullJob.jobConfigurationId,
+              evaluatorExecutionIsTest: false,
+            },
+            metadata: expect.objectContaining(expectedTraceMetadata),
           }),
         }),
       );
@@ -603,7 +902,13 @@ describe("executeLLMAsJudgeEvaluation", () => {
         expect.objectContaining({
           event: expect.objectContaining({
             body: expect.objectContaining({
-              metadata: expect.objectContaining(expectedMetadata),
+              evaluationRuleId: fullJob.jobConfigurationId,
+              metadata: expect.objectContaining({
+                job_execution_id: jobExecutionId,
+                target_trace_id: fullJob.jobInputTraceId,
+                target_observation_id: "obs-full",
+                target_dataset_item_id: "dataset-full",
+              }),
             }),
           }),
         }),
@@ -636,12 +941,14 @@ describe("executeLLMAsJudgeEvaluation", () => {
             name: mockJobConfiguration.scoreName,
             value: 0.88,
             comment: "Well structured response",
+            configId: undefined,
             source: "EVAL",
             environment: "production",
             executionTraceId: expect.any(String),
+            evaluatorId: undefined,
+            evaluationRuleId: mockJobExecution.jobConfigurationId,
             metadata: expect.objectContaining({
               job_execution_id: jobExecutionId,
-              job_configuration_id: mockJobExecution.jobConfigurationId,
               target_trace_id: mockJobExecution.jobInputTraceId,
             }),
             dataType: "NUMERIC",
@@ -695,6 +1002,326 @@ describe("executeLLMAsJudgeEvaluation", () => {
         }),
       );
     });
+
+    it("should persist categorical eval scores", async () => {
+      const uploadScore = vi.fn();
+      const deps = createSuccessfulDeps({
+        callLLM: mockSuccessfulLLMCall(
+          "correct",
+          "The answer is fully supported by the context.",
+        ),
+        uploadScore,
+      });
+
+      await executeLLMAsJudgeEvaluation(
+        createExecutionParams({
+          deps,
+          template: {
+            ...mockEvalTemplate,
+            outputDefinition: {
+              version: 2,
+              dataType: ScoreDataTypeEnum.CATEGORICAL,
+              reasoning: {
+                description: "Explain the selected category",
+              },
+              score: {
+                description: "Choose the best matching category",
+                categories: ["correct", "partial"],
+              },
+            },
+          },
+        }),
+      );
+
+      expect(uploadScore).toHaveBeenCalledWith(
+        expect.objectContaining({
+          event: expect.objectContaining({
+            body: expect.objectContaining({
+              value: "correct",
+              comment: "The answer is fully supported by the context.",
+              dataType: "CATEGORICAL",
+            }),
+          }),
+        }),
+      );
+    });
+
+    it("should persist boolean eval scores", async () => {
+      const uploadScore = vi.fn();
+      const deps = createSuccessfulDeps({
+        callLLM: mockSuccessfulLLMCall(
+          true,
+          "The answer satisfies the criteria.",
+        ),
+        uploadScore,
+      });
+
+      await executeLLMAsJudgeEvaluation(
+        createExecutionParams({
+          deps,
+          template: {
+            ...mockEvalTemplate,
+            outputDefinition: {
+              version: 2,
+              dataType: ScoreDataTypeEnum.BOOLEAN,
+              reasoning: {
+                description: "Explain the verdict",
+              },
+              score: {
+                description:
+                  "Return true if the answer satisfies the criteria, otherwise false",
+              },
+            },
+          },
+        }),
+      );
+
+      expect(uploadScore).toHaveBeenCalledWith(
+        expect.objectContaining({
+          event: expect.objectContaining({
+            body: expect.objectContaining({
+              value: 1,
+              comment: "The answer satisfies the criteria.",
+              dataType: "BOOLEAN",
+            }),
+          }),
+        }),
+      );
+    });
+
+    it("should fail boolean evals when the model returns a string", async () => {
+      const deps = createSuccessfulDeps({
+        callLLM: mockSuccessfulLLMCall(
+          "true",
+          "Strings should not be accepted for boolean evaluators.",
+        ),
+      });
+
+      await expect(
+        executeLLMAsJudgeEvaluation(
+          createExecutionParams({
+            deps,
+            template: {
+              ...mockEvalTemplate,
+              outputDefinition: {
+                version: 2,
+                dataType: ScoreDataTypeEnum.BOOLEAN,
+                reasoning: {
+                  description: "Explain the verdict",
+                },
+                score: {
+                  description:
+                    "Return true if the answer satisfies the criteria, otherwise false",
+                },
+              },
+            },
+          }),
+        ),
+      ).rejects.toThrow(UnrecoverableError);
+    });
+
+    it("should fail categorical evals when the model returns a category outside the allowed set", async () => {
+      const deps = createSuccessfulDeps({
+        callLLM: mockSuccessfulLLMCall(
+          "incorrect",
+          "This category is not configured on the evaluator.",
+        ),
+      });
+
+      await expect(
+        executeLLMAsJudgeEvaluation(
+          createExecutionParams({
+            deps,
+            template: {
+              ...mockEvalTemplate,
+              outputDefinition: {
+                version: 2,
+                dataType: ScoreDataTypeEnum.CATEGORICAL,
+                reasoning: {
+                  description: "Explain the selected category",
+                },
+                score: {
+                  description: "Choose the best matching category",
+                  categories: ["correct", "partial"],
+                },
+              },
+            },
+          }),
+        ),
+      ).rejects.toThrow(UnrecoverableError);
+    });
+
+    it("should fail categorical evals when the model returns multiple matches for a single-match evaluator", async () => {
+      const deps = createSuccessfulDeps({
+        callLLM: mockSuccessfulLLMCall(
+          ["correct", "partial"],
+          "This should fail because only one match is allowed.",
+        ),
+      });
+
+      await expect(
+        executeLLMAsJudgeEvaluation(
+          createExecutionParams({
+            deps,
+            template: {
+              ...mockEvalTemplate,
+              outputDefinition: {
+                version: 2,
+                dataType: ScoreDataTypeEnum.CATEGORICAL,
+                reasoning: {
+                  description: "Explain the selected category",
+                },
+                score: {
+                  description: "Choose the best matching category",
+                  categories: ["correct", "partial"],
+                },
+              },
+            },
+          }),
+        ),
+      ).rejects.toThrow(UnrecoverableError);
+    });
+
+    it("should persist one score per categorical match", async () => {
+      const uploadScore = vi.fn();
+      const enqueueScoreIngestion = vi.fn();
+      const updateJobExecution = vi.fn();
+      const deps = createSuccessfulDeps({
+        callLLM: mockSuccessfulLLMCall(
+          ["correct", "partial"],
+          "Both categories apply to the answer.",
+        ),
+        uploadScore,
+        enqueueScoreIngestion,
+        updateJobExecution,
+      });
+
+      await executeLLMAsJudgeEvaluation(
+        createExecutionParams({
+          deps,
+          template: {
+            ...mockEvalTemplate,
+            outputDefinition: {
+              version: 2,
+              dataType: ScoreDataTypeEnum.CATEGORICAL,
+              reasoning: {
+                description: "Explain the selected categories",
+              },
+              score: {
+                description: "Choose all matching categories",
+                categories: ["correct", "partial"],
+                shouldAllowMultipleMatches: true,
+              },
+            },
+          },
+        }),
+      );
+
+      expect(uploadScore).toHaveBeenCalledTimes(2);
+      expect(enqueueScoreIngestion).toHaveBeenCalledTimes(2);
+      expect(getScorePersistenceMetricCalls()).toEqual([
+        [
+          "langfuse.evaluation.score_persistence",
+          1,
+          {
+            evaluator_type: "llm_as_judge",
+            outcome: "success",
+            score_count_bucket: "2",
+          },
+        ],
+      ]);
+
+      const firstUploadCall = uploadScore.mock.calls[0][0];
+      const secondUploadCall = uploadScore.mock.calls[1][0];
+
+      expect(firstUploadCall.event.body.value).toBe("correct");
+      expect(secondUploadCall.event.body.value).toBe("partial");
+      expect(firstUploadCall.event.body.comment).toBe(
+        "Both categories apply to the answer.",
+      );
+      expect(secondUploadCall.event.body.comment).toBe(
+        "Both categories apply to the answer.",
+      );
+      expect(firstUploadCall.scoreId).not.toBe(secondUploadCall.scoreId);
+      expect(firstUploadCall.event.body.executionTraceId).toBe(
+        secondUploadCall.event.body.executionTraceId,
+      );
+      expect(firstUploadCall.event.body.metadata).toEqual(
+        secondUploadCall.event.body.metadata,
+      );
+
+      expect(updateJobExecution).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            jobOutputScoreId: firstUploadCall.scoreId,
+          }),
+        }),
+      );
+    });
+
+    it("should fail multi-match categorical evals when the model returns a scalar", async () => {
+      const deps = createSuccessfulDeps({
+        callLLM: mockSuccessfulLLMCall(
+          "correct",
+          "This should fail because multi-match expects an array.",
+        ),
+      });
+
+      await expect(
+        executeLLMAsJudgeEvaluation(
+          createExecutionParams({
+            deps,
+            template: {
+              ...mockEvalTemplate,
+              outputDefinition: {
+                version: 2,
+                dataType: ScoreDataTypeEnum.CATEGORICAL,
+                reasoning: {
+                  description: "Explain the selected categories",
+                },
+                score: {
+                  description: "Choose all matching categories",
+                  categories: ["correct", "partial"],
+                  shouldAllowMultipleMatches: true,
+                },
+              },
+            },
+          }),
+        ),
+      ).rejects.toThrow(UnrecoverableError);
+    });
+
+    it("should fail multi-match categorical evals when the model returns duplicate matches", async () => {
+      const deps = createSuccessfulDeps({
+        callLLM: mockSuccessfulLLMCall(
+          ["correct", "correct"],
+          "This should fail because duplicates are not allowed.",
+        ),
+      });
+
+      await expect(
+        executeLLMAsJudgeEvaluation(
+          createExecutionParams({
+            deps,
+            template: {
+              ...mockEvalTemplate,
+              outputDefinition: {
+                version: 2,
+                dataType: ScoreDataTypeEnum.CATEGORICAL,
+                reasoning: {
+                  description: "Explain the selected categories",
+                },
+                score: {
+                  description: "Choose all matching categories",
+                  categories: ["correct", "partial"],
+                  shouldAllowMultipleMatches: true,
+                },
+              },
+            },
+          }),
+        ),
+      ).rejects.toThrow(UnrecoverableError);
+    });
   });
 
   describe("LLM errors", () => {
@@ -724,6 +1351,60 @@ describe("executeLLMAsJudgeEvaluation", () => {
       await expect(
         executeLLMAsJudgeEvaluation(createExecutionParams({ deps })),
       ).rejects.toThrow("Rate limit exceeded");
+    });
+
+    it("records native error policy and blocks the evaluator", async () => {
+      const llmError = new LLMValidationError({
+        code: "endpoint-unreachable",
+        message: "Cannot reach custom endpoint",
+      });
+      const deps = createMockEvalExecutionDeps({
+        fetchModelConfig: mockValidFetchModelConfig(),
+        callLLM: vi.fn().mockRejectedValue(llmError),
+      });
+
+      await expect(
+        executeLLMAsJudgeEvaluation({
+          ...createExecutionParams({ deps }),
+          evaluatorId: "evaluator-123",
+        }),
+      ).rejects.toBe(llmError);
+
+      const executeSpan = observabilityMocks.spans.find(
+        ({ name }) => name === "eval.execute-llm-as-judge",
+      );
+      const callSpan = observabilityMocks.spans.find(
+        ({ name }) => name === "eval.call-llm",
+      );
+      const expectedErrorAttributes = {
+        "eval.llm.error.kind": "validation",
+        "eval.llm.error.retryable": false,
+        "eval.llm.error.status_code": 400,
+        "eval.llm.blocked": true,
+        "eval.llm.block.reason": "LLM_CONNECTION_ENDPOINT_UNREACHABLE",
+        "eval.llm.block.source": "llm_completion_error",
+      };
+
+      expect(callSpan?.attributes).toMatchObject({
+        ...expectedErrorAttributes,
+        "eval.llm.outcome": "blocked",
+      });
+      expect(executeSpan?.attributes).toMatchObject({
+        ...expectedErrorAttributes,
+        "eval.llm.block.applied": true,
+        "eval.execution.stage": "call_llm",
+        "eval.execution.outcome": "blocked",
+      });
+      expect(callSpan?.attributes).not.toHaveProperty(
+        "http.response.status_code",
+      );
+      expect(observabilityMocks.blockEvaluator).toHaveBeenCalledWith(
+        expect.objectContaining({
+          evaluatorId: "evaluator-123",
+          blockReason: "LLM_CONNECTION_ENDPOINT_UNREACHABLE",
+          source: "llm_completion_error",
+        }),
+      );
     });
   });
 

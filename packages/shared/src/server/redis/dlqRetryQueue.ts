@@ -1,10 +1,7 @@
 import { Queue } from "bullmq";
 import { QueueName, QueueJobs } from "../queues";
-import {
-  createNewRedisInstance,
-  redisQueueRetryOptions,
-  getQueuePrefix,
-} from "./redis";
+import { createBullMQQueueOptionsWithRedis } from "./redis";
+import { scheduleRecurringJob } from "./scheduleRecurringJob";
 import { logger } from "../logger";
 
 export class DeadLetterRetryQueue {
@@ -15,15 +12,12 @@ export class DeadLetterRetryQueue {
       return DeadLetterRetryQueue.instance;
     }
 
-    const newRedis = createNewRedisInstance({
-      enableOfflineQueue: false,
-      ...redisQueueRetryOptions,
-    });
-
-    DeadLetterRetryQueue.instance = newRedis
+    const queueOptionsWithRedis = createBullMQQueueOptionsWithRedis(
+      QueueName.DeadLetterRetryQueue,
+    );
+    DeadLetterRetryQueue.instance = queueOptionsWithRedis
       ? new Queue(QueueName.DeadLetterRetryQueue, {
-          connection: newRedis,
-          prefix: getQueuePrefix(QueueName.DeadLetterRetryQueue),
+          ...queueOptionsWithRedis,
           defaultJobOptions: {
             removeOnComplete: true,
             removeOnFail: 100,
@@ -42,17 +36,11 @@ export class DeadLetterRetryQueue {
 
     if (DeadLetterRetryQueue.instance) {
       logger.debug("Scheduling jobs for DeadLetterRetryQueue");
-      DeadLetterRetryQueue.instance
-        .add(
-          QueueJobs.DeadLetterRetryJob,
-          { timestamp: new Date() },
-          {
-            repeat: { pattern: "0 */10 * * * *" }, // every 10 minutes (with seconds precision)
-          },
-        )
-        .catch((err) => {
-          logger.error("Error adding DeadLetterRetryQueue schedule", err);
-        });
+      scheduleRecurringJob(DeadLetterRetryQueue.instance, {
+        jobName: QueueJobs.DeadLetterRetryJob,
+        pattern: "0 */10 * * * *", // every 10 minutes (with seconds precision)
+        data: { timestamp: new Date() },
+      });
     }
 
     return DeadLetterRetryQueue.instance;

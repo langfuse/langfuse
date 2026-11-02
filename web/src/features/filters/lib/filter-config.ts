@@ -1,28 +1,35 @@
 import type React from "react";
-import type { ColumnDefinition } from "@langfuse/shared";
+import type { ColumnDefinition, FilterState } from "@langfuse/shared";
 
 interface BaseFacet {
   column: string;
   label: string;
   tooltip?: string;
+  help?: {
+    description: React.ReactNode;
+    href?: string;
+  };
   isDisabled?: boolean;
   disabledReason?: string;
-  // Mutually exclusive with these facet columns. If both are active,
-  // the last added filter wins and the other facet is disabled.
-  mutuallyExclusiveWith?: string[];
 }
 
 interface CategoricalFacet extends BaseFacet {
   type: "categorical";
   /** Optional function to render an icon next to filter option labels */
   renderIcon?: (value: string) => React.ReactNode;
+  /** Optional content rendered after a filter option label */
+  renderOptionSuffix?: (value: string) => React.ReactNode;
+  /** Optional browser hover title for a filter option. */
+  getOptionTitle?: (value: string, displayLabel: string) => string;
+  /** When true, the sidebar hides the contains/does-not-contain text filter mode for this facet. */
+  disableTextFilter?: boolean;
 }
 
 interface BooleanFacet extends BaseFacet {
   type: "boolean";
   trueLabel?: string;
   falseLabel?: string;
-  invertValue?: boolean; // When true, "True" label maps to filter value=false, used for parent_observation_id filter for is Root?
+  invertValue?: boolean; // When true, "True" maps to filter value=false.
 }
 
 interface NumericFacet extends BaseFacet {
@@ -47,13 +54,14 @@ interface NumericKeyValueFacet extends BaseFacet {
   keyOptions?: string[];
 }
 
-interface StringKeyValueFacet extends BaseFacet {
-  type: "stringKeyValue";
+interface BooleanKeyValueFacet extends BaseFacet {
+  type: "booleanKeyValue";
   keyOptions?: string[];
 }
 
-interface PositionInTraceFacet extends BaseFacet {
-  type: "positionInTrace";
+interface StringKeyValueFacet extends BaseFacet {
+  type: "stringKeyValue";
+  keyOptions?: string[];
 }
 
 export type Facet =
@@ -63,8 +71,10 @@ export type Facet =
   | StringFacet
   | KeyValueFacet
   | NumericKeyValueFacet
-  | StringKeyValueFacet
-  | PositionInTraceFacet;
+  | BooleanKeyValueFacet
+  | StringKeyValueFacet;
+
+export type FilterStateMigration = (filters: FilterState) => FilterState;
 
 export interface FilterConfig {
   tableName: string;
@@ -72,4 +82,37 @@ export interface FilterConfig {
   defaultExpanded?: string[];
   defaultSidebarCollapsed?: boolean;
   facets: Facet[];
+  /** Runs after display-name normalization and before filter validation. */
+  migrateFilterState?: FilterStateMigration;
+  /**
+   * Columns this surface offers no facet for because the page already bounds
+   * them (a user-detail traces table). Filters on them are never applied: a
+   * constraint the sidebar cannot show must not silently narrow the rows
+   * (LFE-14824). Set by `omitFilterFacets`.
+   */
+  omittedFilterColumns?: string[];
+}
+
+export function omitFilterFacets(
+  config: FilterConfig,
+  omittedColumns: string[],
+): FilterConfig {
+  if (omittedColumns.length === 0) {
+    return config;
+  }
+
+  const omittedColumnSet = new Set(omittedColumns);
+
+  return {
+    ...config,
+    defaultExpanded: config.defaultExpanded?.filter(
+      (column) => !omittedColumnSet.has(column),
+    ),
+    facets: config.facets.filter(
+      (facet) => !omittedColumnSet.has(facet.column),
+    ),
+    omittedFilterColumns: Array.from(
+      new Set([...(config.omittedFilterColumns ?? []), ...omittedColumns]),
+    ),
+  };
 }

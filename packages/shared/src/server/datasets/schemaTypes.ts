@@ -1,4 +1,4 @@
-import { z } from "zod/v4";
+import { z } from "zod";
 import type { Dataset } from "../../db";
 import { jsonSchemaNullable } from "../../utils/zod";
 import {

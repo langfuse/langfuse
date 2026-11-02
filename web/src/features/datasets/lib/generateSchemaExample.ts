@@ -1,4 +1,4 @@
-import jsf from "json-schema-faker";
+import { generateJson, type JsonSchema } from "json-schema-faker";
 import type { Prisma } from "@langfuse/shared";
 
 /**
@@ -6,24 +6,22 @@ import type { Prisma } from "@langfuse/shared";
  * @param schema - JSON Schema to generate example from
  * @returns Formatted JSON string of the generated example, or empty string on error
  */
-export function generateSchemaExample(schema: Prisma.JsonValue): string {
+export async function generateSchemaExample(
+  schema: Prisma.JsonValue,
+): Promise<string> {
   try {
     if (!schema || typeof schema !== "object") {
-      console.error("Invalid schema: must be an object", schema);
-
       return "";
     }
-    jsf.option({
+
+    return await generateJson(schema as JsonSchema, {
       alwaysFakeOptionals: true,
       useDefaultValue: true,
       useExamplesValue: true,
+      pretty: true,
     });
-
-    const generated = jsf.generate(schema);
-
-    return JSON.stringify(generated, null, 2);
   } catch (error) {
-    console.error("Failed to generate schema example:", error);
+    console.warn("Failed to generate schema example:", error);
 
     return "";
   }

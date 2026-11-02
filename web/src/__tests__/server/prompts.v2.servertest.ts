@@ -1,7 +1,8 @@
-/** @jest-environment node */
-
-import { prisma } from "@langfuse/shared/src/db";
+/* eslint-disable @typescript-eslint/no-use-before-define */
+import { prisma, Role } from "@langfuse/shared/src/db";
 import { disconnectQueues, makeAPICall } from "@/src/__tests__/test-utils";
+import type { NextApiRequest, NextApiResponse } from "next";
+import { createMocks } from "node-mocks-http";
 import { v4 as uuidv4, v4 } from "uuid";
 import {
   PromptSchema,
@@ -9,23 +10,43 @@ import {
   type ChatMessage,
   type Prompt,
   PromptType,
+  parsePromptDependencyTags,
 } from "@langfuse/shared";
-import { parsePromptDependencyTags } from "@langfuse/shared";
-import { generateId, nanoid } from "ai";
+import { nanoid } from "nanoid";
 
 import { type PromptsMetaResponse } from "@/src/features/prompts/server/actions/getPromptsMeta";
 import {
+  createApiKey,
+  createBasicAuthHeader,
   createOrgProjectAndApiKey,
   getObservationById,
   MAX_PROMPT_NESTING_DEPTH,
   ChatMessageType,
+  PromptService,
+  redis,
 } from "@langfuse/shared/src/server";
+import {
+  OrganizationId,
+  ProjectId,
+  SystemRoleId,
+  UserId,
+} from "@langfuse/shared/rbac";
+import {
+  createUserWithOrgRole,
+  protectPromptLabel,
+} from "@/src/__tests__/server/mcp-helpers";
 import { randomUUID } from "node:crypto";
 import waitForExpect from "wait-for-expect";
 import { createPrompt } from "@/src/features/prompts/server/actions/createPrompt";
+import { promptNameHandler } from "@/src/features/prompts/server/handlers/promptNameHandler";
+import { promptsHandler } from "@/src/features/prompts/server/handlers/promptsHandler";
 
 const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
 const baseURI = "/api/public/v2/prompts";
+
+afterAll(async () => {
+  await disconnectQueues();
+});
 
 type CreatePromptInDBParams = {
   promptId?: string;
@@ -69,7 +90,7 @@ const setupTriggerAndAction = async (projectId: string) => {
       id: v4(),
       projectId: projectId,
       eventSource: "prompt",
-      eventActions: ["updated"],
+      eventActions: [],
       filter: [],
       status: "ACTIVE",
     },
@@ -107,9 +128,13 @@ const setupTriggerAndAction = async (projectId: string) => {
   };
 };
 
+// The v2 prompts API returns the prompt with its dependency resolution graph
+// attached, which the Prisma-derived Prompt type does not carry.
+type PromptWithResolutionGraph = Prompt & { resolutionGraph?: unknown };
+
 const testPromptEquality = (
   promptParams: CreatePromptInDBParams,
-  prompt: Prompt,
+  prompt: PromptWithResolutionGraph,
 ) => {
   if (promptParams.promptId) {
     expect(prompt.id).toBe(promptParams.promptId);
@@ -126,9 +151,6 @@ const testPromptEquality = (
 };
 
 describe("/api/public/v2/prompts API Endpoint", () => {
-  afterAll(async () => {
-    await disconnectQueues();
-  });
   describe("when fetching a prompt", () => {
     it("should return a 401 if key is invalid", async () => {
       const projectId = uuidv4();
@@ -295,7 +317,7 @@ describe("/api/public/v2/prompts API Endpoint", () => {
       testPromptEquality(createPromptParams, fetchedPrompt.body);
     });
 
-    (it("should fetch the latest prompt if label is latest", async () => {
+    it("should fetch the latest prompt if label is latest", async () => {
       const { projectId, auth } = await createOrgProjectAndApiKey();
       const promptName = "latestPrompt_" + nanoid();
 
@@ -353,51 +375,51 @@ describe("/api/public/v2/prompts API Endpoint", () => {
       }
 
       testPromptEquality(productionPromptParams, fetchedDefaultPrompt.body);
-    }),
-      it("should fetch the production prompt if no version or label set", async () => {
-        const { projectId, auth } = await createOrgProjectAndApiKey();
-        const promptName = "prompt_" + nanoid();
+    });
+    it("should fetch the production prompt if no version or label set", async () => {
+      const { projectId, auth } = await createOrgProjectAndApiKey();
+      const promptName = "prompt_" + nanoid();
 
-        const nonProductionPromptParams: CreatePromptInDBParams = {
-          name: promptName,
-          prompt: "prompt",
-          labels: ["staging"],
-          version: 1,
-          config: {
-            temperature: 0.1,
-          },
-          projectId,
-          createdBy: "user-1",
-        };
+      const nonProductionPromptParams: CreatePromptInDBParams = {
+        name: promptName,
+        prompt: "prompt",
+        labels: ["staging"],
+        version: 1,
+        config: {
+          temperature: 0.1,
+        },
+        projectId,
+        createdBy: "user-1",
+      };
 
-        const productionPromptParams: CreatePromptInDBParams = {
-          name: promptName,
-          prompt: "prompt",
-          labels: ["production"],
-          version: 2,
-          config: {
-            temperature: 0.1,
-          },
-          projectId,
-          createdBy: "user-1",
-        };
+      const productionPromptParams: CreatePromptInDBParams = {
+        name: promptName,
+        prompt: "prompt",
+        labels: ["production"],
+        version: 2,
+        config: {
+          temperature: 0.1,
+        },
+        projectId,
+        createdBy: "user-1",
+      };
 
-        await createPromptInDB(productionPromptParams);
-        await createPromptInDB(nonProductionPromptParams);
+      await createPromptInDB(productionPromptParams);
+      await createPromptInDB(nonProductionPromptParams);
 
-        const fetchedPrompt = await makeAPICall<Prompt>(
-          "GET",
-          `${baseURI}/${encodeURIComponent(promptName)}`,
-          undefined,
-          auth,
-        );
+      const fetchedPrompt = await makeAPICall<Prompt>(
+        "GET",
+        `${baseURI}/${encodeURIComponent(promptName)}`,
+        undefined,
+        auth,
+      );
 
-        if (!isPrompt(fetchedPrompt.body)) {
-          throw new Error("Expected body to be a prompt");
-        }
+      if (!isPrompt(fetchedPrompt.body)) {
+        throw new Error("Expected body to be a prompt");
+      }
 
-        testPromptEquality(productionPromptParams, fetchedPrompt.body);
-      }));
+      testPromptEquality(productionPromptParams, fetchedPrompt.body);
+    });
 
     it("should return a 404 if prompt does not exist", async () => {
       const fetchedPrompt = await makeAPICall<Prompt>(
@@ -544,7 +566,7 @@ describe("/api/public/v2/prompts API Endpoint", () => {
 
     it("should create and fetch a chat prompt with message placeholders", async () => {
       const { auth } = await createOrgProjectAndApiKey();
-      const promptName = `prompt-name-message-placeholders${generateId()}`;
+      const promptName = `prompt-name-message-placeholders${nanoid()}`;
       const commitMessage = "feat: add message placeholders support";
       const chatMessages = [
         {
@@ -593,7 +615,7 @@ describe("/api/public/v2/prompts API Endpoint", () => {
 
       // Verify the placeholder message structure is preserved
       const messages = validatedPrompt.prompt as ChatMessage[];
-      const placeholderMessage = messages[1] as {
+      const placeholderMessage = messages[1] as unknown as {
         type: ChatMessageType.Placeholder;
         name: string;
       };
@@ -911,7 +933,7 @@ describe("/api/public/v2/prompts API Endpoint", () => {
         expectedError: string,
         auth?: string,
       ) => {
-        const response = await makeAPICall(
+        const response = await makeAPICall<{ message: string; error: unknown }>(
           "POST",
           baseURI,
           {
@@ -1000,9 +1022,7 @@ describe("/api/public/v2/prompts API Endpoint", () => {
           "angled[brac]es]",
         ];
 
-        for (const name of validNames) {
-          await testValidName(name, auth);
-        }
+        await Promise.all(validNames.map((name) => testValidName(name, auth)));
       });
     });
 
@@ -1204,13 +1224,195 @@ describe("/api/public/v2/prompts API Endpoint", () => {
     });
   });
 
+  describe("when filtering a prompt list with structured filters", () => {
+    let projectId: string;
+    let auth: string;
+
+    const request = async (query: Record<string, string>) => {
+      const { req, res } = createMocks<NextApiRequest, NextApiResponse>({
+        method: "GET",
+        query,
+        headers: { authorization: auth },
+      });
+      await promptsHandler(req, res);
+      return res;
+    };
+
+    const list = async (
+      filter: unknown[],
+      query: Record<string, string> = {},
+    ) => {
+      const res = await request({ ...query, filter: JSON.stringify(filter) });
+      expect(res._getStatusCode()).toBe(200);
+      return res._getJSONData() as PromptsMetaResponse;
+    };
+
+    beforeAll(async () => {
+      ({ projectId, auth } = await createOrgProjectAndApiKey());
+      const { projectId: otherProjectId } = await createOrgProjectAndApiKey();
+      await Promise.all(
+        [
+          { name: "tools/a/description", version: 1, labels: ["production"] },
+          { name: "tools/a/description", version: 2, labels: ["latest"] },
+          { name: "tools/b/description", version: 1, labels: ["production"] },
+          { name: "tools/c/instructions", version: 1 },
+          { name: "other/description", version: 1 },
+          {
+            name: "tools/foreign/description",
+            version: 1,
+            projectId: otherProjectId,
+          },
+        ].map((prompt) =>
+          createPromptInDB({
+            prompt: "test",
+            labels: [],
+            tags: ["tool"],
+            config: { model: "test-model", version: prompt.version },
+            projectId,
+            createdBy: "user-test",
+            type: PromptType.Text,
+            createdAt: new Date("2026-01-01T00:00:00Z"),
+            updatedAt: new Date("2026-01-02T00:00:00Z"),
+            ...prompt,
+          }),
+        ),
+      );
+    });
+
+    it("combines name operators before pagination and preserves project isolation", async () => {
+      const filters = [
+        {
+          type: "string",
+          column: "name",
+          operator: "starts with",
+          value: "tools/",
+        },
+        {
+          type: "string",
+          column: "name",
+          operator: "ends with",
+          value: "/description",
+        },
+      ];
+      const first = await list(filters, {
+        limit: "1",
+        name: "ignored",
+        label: "ignored",
+        tag: "ignored",
+        version: "999",
+        fromUpdatedAt: "2030-01-01T00:00:00Z",
+        toUpdatedAt: "2020-01-01T00:00:00Z",
+      });
+      expect(first.data.map((prompt) => prompt.name)).toEqual([
+        "tools/a/description",
+      ]);
+      expect(first.data[0].versions).toEqual([1, 2]);
+      expect(first.data[0].lastConfig).toEqual({
+        model: "test-model",
+        version: 2,
+      });
+      expect(first.meta).toEqual({
+        page: 1,
+        limit: 1,
+        totalItems: 2,
+        totalPages: 2,
+      });
+      expect(first.pagination).toEqual(first.meta);
+      const second = await list(filters, { limit: "1", page: "2" });
+      expect(second.data.map((prompt) => prompt.name)).toEqual([
+        "tools/b/description",
+      ]);
+      expect(second.meta).toEqual({ ...first.meta, page: 2 });
+    });
+
+    it("filters versions, arrays, timestamps, type, and config before aggregating metadata", async () => {
+      const result = await list([
+        { type: "string", column: "name", operator: "contains", value: "/a/" },
+        { type: "number", column: "version", operator: "<=", value: 1 },
+        {
+          type: "arrayOptions",
+          column: "labels",
+          operator: "any of",
+          value: ["production"],
+        },
+        {
+          type: "arrayOptions",
+          column: "tags",
+          operator: "all of",
+          value: ["tool"],
+        },
+        {
+          type: "datetime",
+          column: "createdAt",
+          operator: ">=",
+          value: "2026-01-01T00:00:00Z",
+        },
+        {
+          type: "datetime",
+          column: "updatedAt",
+          operator: "<",
+          value: "2026-01-03T00:00:00Z",
+        },
+        {
+          type: "stringOptions",
+          column: "type",
+          operator: "any of",
+          value: ["text"],
+        },
+        {
+          type: "stringObject",
+          column: "config",
+          key: "model",
+          operator: "=",
+          value: "test-model",
+        },
+      ]);
+      expect(result.data).toEqual([
+        expect.objectContaining({
+          name: "tools/a/description",
+          versions: [1],
+          labels: ["production"],
+          lastConfig: { model: "test-model", version: 1 },
+        }),
+      ]);
+      expect(result.meta.totalItems).toBe(1);
+    });
+  });
+
+  describe("when counting a prompt list across prompt writes", () => {
+    it("serves the cached count per filter until the epoch rotates", async () => {
+      // CI disables the prompt cache via env, so enable it explicitly.
+      const promptService = new PromptService(prisma, redis, undefined, true);
+      const projectId = randomUUID();
+      const computeCount = vi.fn();
+      const count = (filterKey: string) =>
+        promptService.getPromptListCount({
+          projectId,
+          filterKey,
+          computeCount,
+        });
+
+      computeCount.mockResolvedValueOnce(1).mockResolvedValueOnce(5);
+      expect(await count("all")).toBe(1);
+      expect(await count("all")).toBe(1);
+      expect(await count("tag=a")).toBe(5);
+      expect(computeCount).toHaveBeenCalledTimes(2);
+
+      await promptService.invalidateCache({ projectId });
+
+      computeCount.mockResolvedValueOnce(2);
+      expect(await count("all")).toBe(2);
+      expect(computeCount).toHaveBeenCalledTimes(3);
+    });
+  });
+
   describe("when fetching a prompt list", () => {
     const otherProjectPromptName = "prompt-5";
     let otherProjectId: string;
     let projectId: string;
     let auth: string;
 
-    beforeEach(async () => {
+    beforeAll(async () => {
       // Create a prompt in a different project
       ({ projectId: projectId, auth: auth } =
         await createOrgProjectAndApiKey());
@@ -1668,7 +1870,7 @@ describe("/api/public/v2/prompts API Endpoint", () => {
       );
 
       expect(response.status).toBe(200);
-      const body = response.body as Prompt;
+      const body = response.body as unknown as PromptWithResolutionGraph;
       // Should be resolved (no @@@langfusePrompt tags)
       expect(body.prompt).not.toContain("@@@langfusePrompt");
       expect(body.prompt).toContain("I am a child prompt");
@@ -1712,7 +1914,7 @@ describe("/api/public/v2/prompts API Endpoint", () => {
       );
 
       expect(response.status).toBe(200);
-      const body = response.body as Prompt;
+      const body = response.body as unknown as PromptWithResolutionGraph;
       expect(body.prompt).not.toContain("@@@langfusePrompt");
       expect(body.prompt).toContain("Child content");
     });
@@ -1755,7 +1957,7 @@ describe("/api/public/v2/prompts API Endpoint", () => {
       );
 
       expect(response.status).toBe(200);
-      const body = response.body as Prompt;
+      const body = response.body as unknown as PromptWithResolutionGraph;
       // Should be unresolved (keep @@@langfusePrompt tags)
       expect(body.prompt).toContain("@@@langfusePrompt");
       expect(body.prompt).toContain(
@@ -1809,7 +2011,7 @@ describe("/api/public/v2/prompts API Endpoint", () => {
       );
 
       expect(response.status).toBe(200);
-      const body = response.body as Prompt;
+      const body = response.body as unknown as PromptWithResolutionGraph;
       expect(body.type).toBe("chat");
       // Verify the chat messages still contain unresolved tags
       const messages = body.prompt as Array<{ role: string; content: string }>;
@@ -1857,9 +2059,85 @@ describe("/api/public/v2/prompts API Endpoint", () => {
       );
 
       expect(response.status).toBe(200);
-      const body = response.body as Prompt;
+      const body = response.body as unknown as PromptWithResolutionGraph;
       expect(body.labels).toContain("production");
       expect(body.prompt).toContain("@@@langfusePrompt");
+      expect(body.resolutionGraph).toBeNull();
+    });
+
+    it("should return the raw prompt when resolve=false even if a dependency is missing", async () => {
+      const { projectId, auth } = await createOrgProjectAndApiKey();
+
+      const parentPromptName = "parent-prompt-" + nanoid();
+      const parentContent =
+        "Parent: @@@langfusePrompt:name=missing-child-prompt|version=1@@@";
+
+      await createPromptInDB({
+        name: parentPromptName,
+        prompt: parentContent,
+        labels: ["production"],
+        version: 1,
+        config: {},
+        projectId,
+        createdBy: "user-1",
+      });
+
+      const response = await makeAPICall(
+        "GET",
+        `${baseURI}/${encodeURIComponent(parentPromptName)}?version=1&resolve=false`,
+        undefined,
+        auth,
+      );
+
+      expect(response.status).toBe(200);
+      const body = response.body as unknown as PromptWithResolutionGraph;
+      expect(body.prompt).toBe(parentContent);
+      expect(body.resolutionGraph).toBeNull();
+    });
+
+    it("should return 409 when resolve=true and a stored dependency is missing", async () => {
+      const { projectId, auth } = await createOrgProjectAndApiKey();
+
+      const parentPromptName = "parent-prompt-" + nanoid();
+      const missingChildName = "missing-child-prompt-" + nanoid();
+      const parentContent = `Parent: @@@langfusePrompt:name=${missingChildName}|version=1@@@`;
+
+      const parentPrompt = await createPromptInDB({
+        name: parentPromptName,
+        prompt: parentContent,
+        labels: ["production"],
+        version: 1,
+        config: {},
+        projectId,
+        createdBy: "user-1",
+      });
+
+      await prisma.promptDependency.create({
+        data: {
+          projectId,
+          parentId: parentPrompt.id,
+          childName: missingChildName,
+          childVersion: 1,
+        },
+      });
+
+      const { req, res } = createMocks<NextApiRequest, NextApiResponse>({
+        method: "GET",
+        query: {
+          promptName: parentPromptName,
+          version: "1",
+        },
+        headers: {
+          authorization: auth,
+        },
+      });
+
+      await promptNameHandler(req, res);
+
+      expect(res._getStatusCode()).toBe(409);
+      expect(JSON.stringify(res._getJSONData())).toContain(
+        "Prompt dependency not found",
+      );
     });
   });
 });
@@ -1867,10 +2145,6 @@ describe("/api/public/v2/prompts API Endpoint", () => {
 describe("PATCH api/public/v2/prompts/[promptName]/versions/[version]", () => {
   let triggerId: string;
   let actionId: string;
-
-  afterAll(async () => {
-    await disconnectQueues();
-  });
 
   it("should update the labels of a prompt", async () => {
     const { projectId: newProjectId, auth: newAuth } =
@@ -2117,7 +2391,8 @@ describe("PATCH api/public/v2/prompts/[promptName]/versions/[version]", () => {
       );
 
       expect(getResponse.status).toBe(200);
-      const responseBody = getResponse.body as unknown as Prompt;
+      const responseBody =
+        getResponse.body as unknown as PromptWithResolutionGraph;
       const parsedPrompt = responseBody.prompt as string;
 
       // Verify the resolution graph is returned with the correct structure
@@ -2169,7 +2444,7 @@ describe("PATCH api/public/v2/prompts/[promptName]/versions/[version]", () => {
 
       expect(getResponseAfterUpdate.status).toBe(200);
       const responseBodyAfterUpdate =
-        getResponseAfterUpdate.body as unknown as Prompt;
+        getResponseAfterUpdate.body as unknown as PromptWithResolutionGraph;
       const parsedPromptAfterUpdate = responseBodyAfterUpdate.prompt as string;
 
       expect(parsedPromptAfterUpdate).toBe(
@@ -3049,6 +3324,186 @@ describe("PATCH api/public/v2/prompts/[promptName]/versions/[version]", () => {
   });
 
   describe("DELETE /api/public/v2/prompts/:promptName", () => {
+    it("returns a bodyless 204", async () => {
+      const { projectId, auth } = await createOrgProjectAndApiKey();
+      const name = "deletePromptBodyless" + uuidv4();
+      await prisma.prompt.create({
+        data: {
+          id: uuidv4(),
+          name,
+          prompt: "p1",
+          labels: [],
+          version: 1,
+          projectId,
+          createdBy: "user",
+          config: {},
+          type: "TEXT",
+        },
+      });
+
+      const { req, res } = createMocks<NextApiRequest, NextApiResponse>({
+        method: "DELETE",
+        query: { promptName: name },
+        headers: { authorization: auth },
+      });
+
+      await promptNameHandler(req, res);
+
+      expect(res._getStatusCode()).toBe(204);
+      expect(res._getData()).toBe("");
+    });
+
+    it("rejects a MEMBER in-app-agent key deleting a production-labeled prompt", async () => {
+      const { projectId, orgId } = await createOrgProjectAndApiKey();
+      await protectPromptLabel({ projectId, label: "production" });
+      const { userId } = await createUserWithOrgRole({
+        orgId,
+        role: Role.MEMBER,
+      });
+      const apiKey = await createApiKey(prisma, {
+        tenant: OrganizationId(orgId),
+        scope: ProjectId(projectId),
+        role: SystemRoleId("LEGACY_PROJECT_API_KEY"),
+        createdBy: UserId(userId),
+        isInAppAgentKey: true,
+      });
+      const name = "deleteProtectedAgent" + uuidv4();
+      await prisma.prompt.create({
+        data: {
+          id: uuidv4(),
+          name,
+          prompt: "p1",
+          labels: ["production"],
+          version: 1,
+          projectId,
+          createdBy: "user",
+          config: {},
+          type: "TEXT",
+        },
+      });
+
+      const { req, res } = createMocks<NextApiRequest, NextApiResponse>({
+        method: "DELETE",
+        query: { promptName: name },
+        headers: {
+          authorization: createBasicAuthHeader(
+            apiKey.publicKey,
+            apiKey.secretKey,
+          ),
+        },
+      });
+
+      await promptNameHandler(req, res);
+
+      expect(res._getStatusCode()).toBe(403);
+      expect(res._getJSONData().message).toContain(
+        "delete a prompt with a protected label",
+      );
+
+      const remaining = await prisma.prompt.findMany({
+        where: { projectId, name },
+      });
+      expect(remaining.length).toBe(1);
+    });
+
+    it("lets an ordinary project key delete a production-labeled prompt", async () => {
+      const { projectId, auth } = await createOrgProjectAndApiKey();
+      await protectPromptLabel({ projectId, label: "production" });
+      const name = "deleteProtectedProjectKey" + uuidv4();
+      await prisma.prompt.create({
+        data: {
+          id: uuidv4(),
+          name,
+          prompt: "p1",
+          labels: ["production"],
+          version: 1,
+          projectId,
+          createdBy: "user",
+          config: {},
+          type: "TEXT",
+        },
+      });
+
+      const { req, res } = createMocks<NextApiRequest, NextApiResponse>({
+        method: "DELETE",
+        query: { promptName: name },
+        headers: { authorization: auth },
+      });
+
+      await promptNameHandler(req, res);
+
+      expect(res._getStatusCode()).toBe(204);
+
+      const remaining = await prisma.prompt.findMany({
+        where: { projectId, name },
+      });
+      expect(remaining.length).toBe(0);
+    });
+
+    it("lets a MEMBER in-app-agent key delete an unlabeled version when a sibling version is production", async () => {
+      const { projectId, orgId } = await createOrgProjectAndApiKey();
+      await protectPromptLabel({ projectId, label: "production" });
+      const { userId } = await createUserWithOrgRole({
+        orgId,
+        role: Role.MEMBER,
+      });
+      const apiKey = await createApiKey(prisma, {
+        tenant: OrganizationId(orgId),
+        scope: ProjectId(projectId),
+        role: SystemRoleId("LEGACY_PROJECT_API_KEY"),
+        createdBy: UserId(userId),
+        isInAppAgentKey: true,
+      });
+      const name = "deleteUnlabeledSibling" + uuidv4();
+      await prisma.prompt.createMany({
+        data: [
+          {
+            id: uuidv4(),
+            name,
+            prompt: "p1",
+            labels: ["production"],
+            version: 1,
+            projectId,
+            createdBy: "user",
+            config: {},
+            type: "TEXT",
+          },
+          {
+            id: uuidv4(),
+            name,
+            prompt: "p2",
+            labels: [],
+            version: 2,
+            projectId,
+            createdBy: "user",
+            config: {},
+            type: "TEXT",
+          },
+        ],
+      });
+
+      const { req, res } = createMocks<NextApiRequest, NextApiResponse>({
+        method: "DELETE",
+        query: { promptName: name, version: "2" },
+        headers: {
+          authorization: createBasicAuthHeader(
+            apiKey.publicKey,
+            apiKey.secretKey,
+          ),
+        },
+      });
+
+      await promptNameHandler(req, res);
+
+      expect(res._getStatusCode()).toBe(204);
+
+      const remaining = await prisma.prompt.findMany({
+        where: { projectId, name },
+      });
+      expect(remaining).toHaveLength(1);
+      expect(remaining[0]?.version).toBe(1);
+    });
+
     it("deletes all versions of a prompt", async () => {
       const { projectId, auth } = await createOrgProjectAndApiKey();
       const name = "deletePrompt" + uuidv4();

@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-abstracted-overlay-trigger, @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 // Langfuse Cloud only
 import { useState } from "react";
 import Link from "next/link";
@@ -13,7 +14,8 @@ import {
   DialogTrigger,
   DialogBody,
 } from "@/src/components/ui/dialog";
-import { toast } from "sonner";
+import { showToast } from "@/src/features/notifications";
+import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
 
 // planLabels used inside StripeSwitchPlanButton
 import {
@@ -21,7 +23,7 @@ import {
   isUpgrade,
 } from "@/src/ee/features/billing/utils/stripeCatalogue";
 import { ActionButton } from "@/src/components/ActionButton";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { useBillingInformation } from "@/src/ee/features/billing/components/useBillingInformation";
 import { api } from "@/src/utils/api";
 import { StripeCancellationButton } from "./StripeCancellationButton";
@@ -43,6 +45,7 @@ export const BillingSwitchPlanDialog = ({
     scheduledPlanSwitch,
     isLegacySubscription,
     hasValidPaymentMethod,
+    currentProductId,
   } = useBillingInformation();
   const capture = usePostHogClientCapture();
 
@@ -53,10 +56,14 @@ export const BillingSwitchPlanDialog = ({
         setProcessingPlanId(null);
         setOpId(null);
       },
-      onError: () => {
+      onError: (error) => {
         setProcessingPlanId(null);
         setOpId(null);
-        toast.error("Failed to start checkout session");
+        showToast({
+          type: "ERROR",
+          title: "Failed to start checkout session",
+          analytics: classifyTrpcToastError(error, "billing_checkout.start"),
+        });
       },
     });
 
@@ -79,7 +86,7 @@ export const BillingSwitchPlanDialog = ({
               variant="secondary"
               href="https://langfuse.com/pricing"
             >
-              Comparison of plans ↗
+              Comparison of plans
             </ActionButton>
           </div>
         </DialogHeader>
@@ -88,8 +95,6 @@ export const BillingSwitchPlanDialog = ({
             {stripeProducts
               .filter((product) => Boolean(product.checkout))
               .map((product) => {
-                const currentProductId =
-                  organization?.cloudConfig?.stripe?.activeProductId;
                 const isThisUpgrade = currentProductId
                   ? isUpgrade(currentProductId, product.stripeProductId)
                   : true;
@@ -99,11 +104,11 @@ export const BillingSwitchPlanDialog = ({
                 return (
                   <div
                     key={product.stripeProductId}
-                    className="relative flex flex-col rounded-xl border bg-card p-4 shadow-sm transition-all hover:shadow-md"
+                    className="bg-card relative flex flex-col rounded-xl border p-4 shadow-xs transition-all hover:shadow-md"
                   >
                     <div className="mb-4">
                       {/* Labels above plan title */}
-                      <div className="mb-1 h-5 text-xs font-medium text-blue-700">
+                      <div className="mb-1 h-5 text-xs font-bold text-blue-700">
                         {isCurrentPlan && <span>Current Plan</span>}
                         {scheduledPlanSwitch &&
                           scheduledPlanSwitch.newPlanId ===
@@ -111,14 +116,12 @@ export const BillingSwitchPlanDialog = ({
                             <span className="ml-1">Starts next period</span>
                           )}
                         {scheduledPlanSwitch &&
-                          organization?.cloudConfig?.stripe?.activeProductId ===
-                            product.stripeProductId && (
+                          currentProductId === product.stripeProductId && (
                             <span className="ml-1">(Until next period)</span>
                           )}
                         {!scheduledPlanSwitch &&
                           cancellation?.isCancelled &&
-                          organization?.cloudConfig?.stripe?.activeProductId ===
-                            product.stripeProductId && (
+                          currentProductId === product.stripeProductId && (
                             <span className="ml-1">(Until next period)</span>
                           )}
                       </div>
@@ -126,10 +129,10 @@ export const BillingSwitchPlanDialog = ({
                         {product.checkout?.title}
                       </h3>
                       <div className="mt-4 space-y-1">
-                        <div className="text-2xl font-bold text-primary">
+                        <div className="text-primary text-2xl font-bold">
                           {product.checkout?.price}
                         </div>
-                        <div className="text-sm text-muted-foreground">
+                        <div className="text-muted-foreground text-sm">
                           + {product.checkout?.usagePrice},{" "}
                           <a
                             href="https://langfuse.com/pricing#pricing-calculator"
@@ -142,12 +145,12 @@ export const BillingSwitchPlanDialog = ({
                         </div>
                       </div>
                     </div>
-                    <div className="mb-4 text-sm text-muted-foreground">
+                    <div className="text-muted-foreground mb-4 text-sm">
                       {product.checkout?.description}
                     </div>
                     <div className="space-y-2">
-                      <div className="text-sm font-medium">Main features:</div>
-                      <ul className="list-inside list-disc space-y-1 text-sm text-muted-foreground">
+                      <div className="text-sm font-bold">Main features:</div>
+                      <ul className="text-muted-foreground list-inside list-disc space-y-1 text-sm">
                         {product.checkout?.mainFeatures.map(
                           (feature, index) => (
                             <li key={index}>{feature}</li>
@@ -155,31 +158,35 @@ export const BillingSwitchPlanDialog = ({
                         )}
                       </ul>
                     </div>
+                    <p className="text-muted-foreground mt-auto pt-4 text-xs">
+                      *price per 100k drops with increasing usage
+                    </p>
                     <Link
                       href="https://langfuse.com/pricing"
                       target="_blank"
-                      className="mt-auto block py-4 text-sm text-muted-foreground hover:text-foreground"
+                      className="text-muted-foreground hover:text-foreground block py-4 text-sm"
                     >
-                      Learn more about plan →
+                      Learn more about this plan →
                     </Link>
                     {/* The default behavior the user is on a paid plan.*/}
-                    {organization?.cloudConfig?.stripe?.activeProductId ? (
+                    {currentProductId ? (
                       // Change plan view
                       <div className="mt-2 space-y-2">
                         {isCurrentPlan && (
                           <>
                             {/* Reactivate button when cancellation is scheduled on current plan */}
-                            {cancellation?.isCancelled && (
+                            {cancellation?.isCancelled && organization?.id && (
                               <StripeCancellationButton
-                                orgId={organization?.id}
+                                orgId={organization.id}
                                 variant="default"
                                 className="w-full"
                               />
                             )}
                             {!cancellation?.isCancelled &&
-                              scheduledPlanSwitch && (
+                              scheduledPlanSwitch &&
+                              organization?.id && (
                                 <StripeKeepPlanButton
-                                  orgId={organization?.id}
+                                  orgId={organization.id}
                                   stripeProductId={product.stripeProductId}
                                   onProcessing={setProcessingPlanId}
                                   processing={
@@ -213,18 +220,20 @@ export const BillingSwitchPlanDialog = ({
                           scheduledPlanSwitch.newPlanId !==
                             product.stripeProductId &&
                           (hasValidPaymentMethod ? (
-                            <StripeSwitchPlanButton
-                              orgId={organization?.id}
-                              currentPlan={organization?.plan}
-                              newPlanTitle={product.checkout?.title}
-                              isLegacySubscription={isLegacySubscription}
-                              isUpgrade={isThisUpgrade}
-                              stripeProductId={product.stripeProductId}
-                              onProcessing={setProcessingPlanId}
-                              processing={
-                                processingPlanId === product.stripeProductId
-                              }
-                            />
+                            organization?.id && (
+                              <StripeSwitchPlanButton
+                                orgId={organization.id}
+                                currentPlan={organization?.plan}
+                                newPlanTitle={product.checkout?.title}
+                                isLegacySubscription={isLegacySubscription}
+                                isUpgrade={isThisUpgrade}
+                                stripeProductId={product.stripeProductId}
+                                onProcessing={setProcessingPlanId}
+                                processing={
+                                  processingPlanId === product.stripeProductId
+                                }
+                              />
+                            )
                           ) : (
                             <Button className="w-full" disabled>
                               Payment method required
@@ -235,18 +244,20 @@ export const BillingSwitchPlanDialog = ({
                         {!isCurrentPlan &&
                           !scheduledPlanSwitch &&
                           (hasValidPaymentMethod ? (
-                            <StripeSwitchPlanButton
-                              orgId={organization?.id}
-                              currentPlan={organization?.plan}
-                              newPlanTitle={product.checkout?.title}
-                              isLegacySubscription={isLegacySubscription}
-                              isUpgrade={isThisUpgrade}
-                              stripeProductId={product.stripeProductId}
-                              onProcessing={setProcessingPlanId}
-                              processing={
-                                processingPlanId === product.stripeProductId
-                              }
-                            />
+                            organization?.id && (
+                              <StripeSwitchPlanButton
+                                orgId={organization.id}
+                                currentPlan={organization?.plan}
+                                newPlanTitle={product.checkout?.title}
+                                isLegacySubscription={isLegacySubscription}
+                                isUpgrade={isThisUpgrade}
+                                stripeProductId={product.stripeProductId}
+                                onProcessing={setProcessingPlanId}
+                                processing={
+                                  processingPlanId === product.stripeProductId
+                                }
+                              />
+                            )
                           ) : (
                             <Button className="w-full" disabled>
                               Payment method required
@@ -256,43 +267,46 @@ export const BillingSwitchPlanDialog = ({
                     ) : (
                       // The default behavior when the user is not on a paid plan.
                       <div className="mt-2 flex gap-1">
-                        <ActionButton
-                          onClick={() => {
-                            if (organization) {
-                              setProcessingPlanId(product.stripeProductId);
+                        <div className="grid w-full">
+                          <ActionButton
+                            onClick={() => {
+                              if (organization) {
+                                setProcessingPlanId(product.stripeProductId);
 
-                              // idempotency key for mutation operations with the stripe api
-                              let opId = _opId;
-                              if (!opId) {
-                                opId = nanoid();
-                                setOpId(opId);
+                                // idempotency key for mutation operations with the stripe api
+                                let opId = _opId;
+                                if (!opId) {
+                                  opId = nanoid();
+                                  setOpId(opId);
+                                }
+
+                                mutCreateCheckoutSession.mutate({
+                                  orgId: organization.id,
+                                  stripeProductId: product.stripeProductId,
+                                  opId: opId,
+                                });
                               }
-
-                              mutCreateCheckoutSession.mutate({
-                                orgId: organization.id,
-                                stripeProductId: product.stripeProductId,
-                                opId: opId,
-                              });
+                            }}
+                            disabled={
+                              currentProductId === product.stripeProductId
                             }
-                          }}
-                          disabled={
-                            organization?.cloudConfig?.stripe
-                              ?.activeProductId === product.stripeProductId
-                          }
-                          className="w-full"
-                          loading={processingPlanId === product.stripeProductId}
-                        >
-                          {product.checkout?.cta ? "Select" : "Select plan"}
-                        </ActionButton>
+                            loading={
+                              processingPlanId === product.stripeProductId
+                            }
+                          >
+                            {product.checkout?.cta ? "Select" : "Select plan"}
+                          </ActionButton>
+                        </div>
                         {/* Optional checkout CTA button for non-paid plan users */}
                         {product.checkout?.cta && (
-                          <ActionButton
-                            variant="secondary"
-                            href={product.checkout.cta.href}
-                            className="w-full"
-                          >
-                            {product.checkout.cta.label}
-                          </ActionButton>
+                          <div className="grid w-full">
+                            <ActionButton
+                              variant="secondary"
+                              href={product.checkout.cta.href}
+                            >
+                              {product.checkout.cta.label}
+                            </ActionButton>
+                          </div>
                         )}
                       </div>
                     )}

@@ -31,6 +31,12 @@ describe("LangGraph Adapter", () => {
         metadata: { scope: { name: "langfuse-sdk" } },
       }),
     ).toBe(false);
+
+    // Regression: a null scope must not throw (typeof null === "object")
+    expect(() =>
+      langgraphAdapter.detect({ metadata: { scope: null } }),
+    ).not.toThrow();
+    expect(langgraphAdapter.detect({ metadata: { scope: null } })).toBe(false);
   });
 
   it("should normalize LangGraph messages with type-to-role conversion and tool_calls", () => {
@@ -146,6 +152,60 @@ describe("LangGraph Adapter", () => {
     );
     expect(result.data?.[1].tools).toBeDefined();
     expect(result.data?.[1].tools?.[0].name).toBe("Web-Search");
+  });
+
+  it("should attach root tools from normalized wrapped LangGraph input", () => {
+    const input = {
+      messages: [
+        {
+          role: "system",
+          content: "You are a helpful assistant.",
+        },
+        {
+          role: "user",
+          content: "What's the weather in Tokyo?",
+        },
+      ],
+      tools: [
+        {
+          type: "function",
+          name: "get_weather",
+          description: "Get the weather for a given location.",
+          inputSchema: {
+            type: "object",
+            properties: {
+              location: {
+                type: "string",
+                description: "The location to get the weather for.",
+              },
+            },
+            required: ["location"],
+          },
+        },
+      ],
+    };
+
+    const result = normalizeInput(input, { framework: "langgraph" });
+
+    expect(result.success).toBe(true);
+    expect(result.data).toHaveLength(2);
+    expect(result.data?.[0].tools).toEqual([
+      {
+        name: "get_weather",
+        description: "Get the weather for a given location.",
+        parameters: {
+          type: "object",
+          properties: {
+            location: {
+              type: "string",
+              description: "The location to get the weather for.",
+            },
+          },
+          required: ["location"],
+        },
+      },
+    ]);
+    expect(result.data?.[1].tools?.[0].name).toBe("get_weather");
   });
 
   it("should skip null entries in tool_calls arrays", () => {

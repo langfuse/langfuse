@@ -9,13 +9,6 @@ type VariableMapping = {
   jsonSelector?: string;
 };
 
-// Observation variable mapping (for event/experiment evaluators)
-type ObservationVariableMapping = {
-  templateVariable: string;
-  selectedColumnId: string;
-  jsonSelector?: string;
-};
-
 const defaultMappings = new Map<string, Partial<VariableMapping>>([
   // Common input variables (trace doesn't need objectName)
   [
@@ -112,29 +105,6 @@ const defaultMappings = new Map<string, Partial<VariableMapping>>([
   ],
 ]);
 
-// Default mappings for observation-based evaluators (event/experiment)
-const observationDefaultMappings = new Map<
-  string,
-  Partial<ObservationVariableMapping>
->([
-  // Common input variables
-  ["input", { selectedColumnId: "input" }],
-  ["query", { selectedColumnId: "input" }],
-  ["question", { selectedColumnId: "input" }],
-  ["prompt", { selectedColumnId: "input" }],
-
-  // Common output variables
-  ["output", { selectedColumnId: "output" }],
-  ["response", { selectedColumnId: "output" }],
-  ["answer", { selectedColumnId: "output" }],
-  ["completion", { selectedColumnId: "output" }],
-
-  // Common ground truth variables (from experiment item)
-  ["expected_output", { selectedColumnId: "experimentItemExpectedOutput" }],
-  ["ground_truth", { selectedColumnId: "experimentItemExpectedOutput" }],
-  ["reference", { selectedColumnId: "experimentItemExpectedOutput" }],
-]);
-
 /**
  * Creates default variable mappings for an evaluator template.
  * Used for trace/dataset evaluators (legacy).
@@ -169,42 +139,6 @@ export function createDefaultVariableMappings(
       selectedColumnId: "expected_output",
       objectName: undefined,
       jsonSelector: undefined,
-    };
-  });
-}
-
-/**
- * Creates default variable mappings for observation-based evaluators (event/experiment).
- * Uses simplified schema without langfuseObject.
- *
- * @param template - The evaluation template containing variables
- * @returns Array of observation variable mappings
- */
-export function createDefaultObservationVariableMappings(
-  template: EvalTemplate,
-): ObservationVariableMapping[] {
-  if (!template.vars || template.vars.length === 0) {
-    return [];
-  }
-
-  return template.vars.map((variable) => {
-    // Check if we have a default mapping for this variable name
-    const defaultMapping = observationDefaultMappings.get(
-      variable.toLowerCase(),
-    );
-
-    if (defaultMapping) {
-      return {
-        templateVariable: variable,
-        selectedColumnId:
-          defaultMapping.selectedColumnId || "experimentItemExpectedOutput",
-        jsonSelector: defaultMapping.jsonSelector,
-      };
-    }
-
-    return {
-      templateVariable: variable,
-      selectedColumnId: "experimentItemExpectedOutput",
     };
   });
 }

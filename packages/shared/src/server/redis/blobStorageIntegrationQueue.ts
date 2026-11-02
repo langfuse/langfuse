@@ -1,10 +1,7 @@
 import { Queue } from "bullmq";
 import { QueueName, QueueJobs } from "../queues";
-import {
-  createNewRedisInstance,
-  redisQueueRetryOptions,
-  getQueuePrefix,
-} from "./redis";
+import { createBullMQQueueOptionsWithRedis } from "./redis";
+import { scheduleRecurringJob } from "./scheduleRecurringJob";
 import { logger } from "../logger";
 
 export class BlobStorageIntegrationQueue {
@@ -15,18 +12,15 @@ export class BlobStorageIntegrationQueue {
       return BlobStorageIntegrationQueue.instance;
     }
 
-    const newRedis = createNewRedisInstance({
-      enableOfflineQueue: false,
-      ...redisQueueRetryOptions,
-    });
-
-    BlobStorageIntegrationQueue.instance = newRedis
+    const queueOptionsWithRedis = createBullMQQueueOptionsWithRedis(
+      QueueName.BlobStorageIntegrationQueue,
+    );
+    BlobStorageIntegrationQueue.instance = queueOptionsWithRedis
       ? new Queue(QueueName.BlobStorageIntegrationQueue, {
-          connection: newRedis,
-          prefix: getQueuePrefix(QueueName.BlobStorageIntegrationQueue),
+          ...queueOptionsWithRedis,
           defaultJobOptions: {
             removeOnComplete: true,
-            removeOnFail: 100,
+            removeOnFail: { age: 7 * 24 * 3600, count: 1000 },
             attempts: 5,
             backoff: {
               type: "exponential",
@@ -42,17 +36,11 @@ export class BlobStorageIntegrationQueue {
 
     if (BlobStorageIntegrationQueue.instance) {
       logger.debug("Scheduling jobs for BlobStorageIntegrationQueue");
-      BlobStorageIntegrationQueue.instance
-        .add(
-          QueueJobs.BlobStorageIntegrationJob,
-          {},
-          {
-            repeat: { pattern: "20 * * * *" }, // every hour at 20 minutes past
-          },
-        )
-        .catch((err) => {
-          logger.error("Error adding BlobStorageIntegrationJob schedule", err);
-        });
+      scheduleRecurringJob(BlobStorageIntegrationQueue.instance, {
+        jobName: QueueJobs.BlobStorageIntegrationJob,
+        pattern: "*/20 * * * *", // every 20 minutes
+        previousPatterns: ["20 * * * *"], // old hourly schedule
+      });
     }
 
     return BlobStorageIntegrationQueue.instance;

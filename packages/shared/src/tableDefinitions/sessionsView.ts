@@ -45,6 +45,7 @@ export const sessionsViewCols: ColumnDefinition[] = [
     name: "Traces Count",
     id: "countTraces",
     type: "number",
+    step: 1,
     internal: 't."countTraces"',
   },
   {
@@ -69,24 +70,28 @@ export const sessionsViewCols: ColumnDefinition[] = [
     name: "Input Tokens",
     id: "inputTokens",
     type: "number",
+    step: 1,
     internal: 'o."promptTokens"',
   },
   {
     name: "Output Tokens",
     id: "outputTokens",
     type: "number",
+    step: 1,
     internal: 'o."completionTokens"',
   },
   {
     name: "Total Tokens",
     id: "totalTokens",
     type: "number",
+    step: 1,
     internal: 'o."totalTokens"',
   },
   {
     name: "Usage",
     id: "usage",
     type: "number",
+    step: 1,
     internal: 'o."totalTokens"',
   },
   {
@@ -111,9 +116,17 @@ export const sessionsViewCols: ColumnDefinition[] = [
     nullable: true,
   },
   {
+    name: "Scores (boolean)",
+    id: "score_booleans",
+    type: "booleanObject",
+    internal: "score_booleans",
+    nullable: true,
+  },
+  {
     name: "Comment Count",
     id: "commentCount",
     type: "number",
+    step: 1,
     internal: "", // handled by comment filter helpers
   },
   {
@@ -124,12 +137,44 @@ export const sessionsViewCols: ColumnDefinition[] = [
   },
 ];
 
+export const sessionsEventsViewCols: ColumnDefinition[] =
+  sessionsViewCols.concat(
+    {
+      name: "Available Tool Names",
+      id: "toolNames",
+      type: "arrayOptions",
+      internal: "st.tool_names",
+      options: [],
+    },
+    {
+      name: "Called Tool Names",
+      id: "calledToolNames",
+      type: "arrayOptions",
+      internal: "st.called_tool_names",
+      options: [],
+    },
+    {
+      name: "Tool Calls",
+      id: "toolCalls",
+      type: "number",
+      step: 1,
+      internal: "st.tool_calls_count",
+    },
+    {
+      name: "Metadata",
+      id: "metadata",
+      type: "stringObject",
+      internal: 's."metadata"',
+    },
+  );
+
 export type SessionOptions = {
   userIds: Array<SingleValueOption>;
   environment: Array<SingleValueOption>;
   tags: Array<SingleValueOption>;
   scores_avg?: Array<string>;
   score_categories?: Array<MultiValueOption>;
+  score_booleans?: Array<string>;
 };
 
 export function sessionsTableColsWithOptions(
@@ -150,6 +195,9 @@ export function sessionsTableColsWithOptions(
     }
     if (col.id === "score_categories") {
       return formatColumnOptions(col, options?.score_categories ?? []);
+    }
+    if (col.id === "score_booleans") {
+      return formatColumnOptions(col, options?.score_booleans ?? []);
     }
     return col;
   });

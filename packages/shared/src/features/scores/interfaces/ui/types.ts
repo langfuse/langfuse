@@ -1,11 +1,12 @@
 import {
-  AggregatableScoreDataType,
+  ListableScoreDataType,
   MetadataDomain,
   ScoreSourceType,
 } from "../../../../domain";
 
 export type BaseAggregate = {
   comment?: string | null;
+  executionTraceId?: string | null;
   id?: string | null;
   hasMetadata?: boolean | null;
   timestamp?: Date | null;
@@ -30,10 +31,11 @@ export type ScoreAggregate = Record<string, AggregatedScoreData>;
 export type ScoreSimplified = {
   id: string;
   name: string;
-  dataType: AggregatableScoreDataType;
+  dataType: ListableScoreDataType;
   source: ScoreSourceType;
   value?: number | null;
   comment?: string | null;
+  executionTraceId?: string | null;
   metadata?: MetadataDomain | null;
   stringValue?: string | null;
   timestamp: Date;

@@ -1,11 +1,16 @@
-import z from "zod/v4";
-import { orderBy, singleFilter } from "../../..";
+import z from "zod";
+import {
+  orderBy,
+  singleFilterList,
+  SystemTableViewPresetCategory,
+  TableViewPresetTableName,
+} from "../../..";
 
 export const CreateTableViewPresetsInput = z.object({
   projectId: z.string(),
   name: z.string().min(1, "View name is required"),
-  tableName: z.string(),
-  filters: z.array(singleFilter),
+  tableName: z.enum(TableViewPresetTableName),
+  filters: singleFilterList,
   columnOrder: z.array(z.string()),
   columnVisibility: z.record(z.string(), z.boolean()),
   searchQuery: z.string().optional(),
@@ -19,7 +24,7 @@ export const UpdateTableViewPresetsInput = CreateTableViewPresetsInput.extend({
 export const UpdateTableViewPresetsNameInput = z.object({
   id: z.string(),
   name: z.string(),
-  tableName: z.string(),
+  tableName: z.enum(TableViewPresetTableName),
   projectId: z.string(),
 });
 
@@ -37,13 +42,25 @@ export const TableViewPresetsNamesCreatorListSchema = z.array(
   z.object({
     id: z.string(),
     name: z.string(),
-    createdBy: z.string(),
+    tableName: z.enum(TableViewPresetTableName),
+    description: z.string().optional(),
+    isSystem: z.boolean().optional(),
+    // Present on categorized system presets that surface as quick-access chips
+    // beneath the search bar; undefined for user views and uncategorized presets.
+    category: z.enum(SystemTableViewPresetCategory).optional(),
+    createdBy: z.string().nullable(),
     createdByUser: z
       .object({
         image: z.string().nullish(),
         name: z.string().nullish(),
+        email: z.string().nullish(),
       })
       .nullish(),
+    filters: singleFilterList,
+    columnOrder: z.array(z.string()),
+    columnVisibility: z.record(z.string(), z.boolean()),
+    searchQuery: z.string().nullish(),
+    orderBy: orderBy,
   }),
 );
 

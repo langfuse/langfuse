@@ -1,10 +1,9 @@
 import { DropdownMenuItem } from "@/src/components/ui/dropdown-menu";
-import { RESOURCE_METRICS } from "@/src/features/dashboard/lib/score-analytics-utils";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import { MultiSelectKeyValues } from "@/src/features/scores/components/multi-select-key-values";
+import { RESOURCE_METRICS } from "@/src/features/dashboard";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { MultiSelectKeyValues } from "@/src/features/scores";
 
 export function DatasetAnalytics(props: {
-  projectId: string;
   scoreOptions: { key: string; value: string }[];
   selectedMetrics: string[];
   setSelectedMetrics: (metrics: string[]) => void;
@@ -12,7 +11,7 @@ export function DatasetAnalytics(props: {
   const capture = usePostHogClientCapture();
   return (
     <MultiSelectKeyValues
-      className="max-w-fit focus:!ring-0 focus:!ring-offset-0"
+      className="max-w-fit focus:ring-0! focus:ring-offset-0!"
       placeholder="Search..."
       title="Charts"
       variant="outline"

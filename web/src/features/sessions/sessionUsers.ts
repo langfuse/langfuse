@@ -1,0 +1,2 @@
+export const INITIAL_SESSION_USERS_DISPLAY_COUNT = 3;
+export const SESSION_USERS_PER_PAGE = 50;

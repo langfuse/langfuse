@@ -1,5 +1,53 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+import { context as otelContext, type Context } from "@opentelemetry/api";
+
+const telemetry = vi.hoisted(() => ({
+  contextWithLangfuseProps: vi.fn(),
+  recordDistribution: vi.fn(),
+  recordGauge: vi.fn(),
+  recordIncrement: vi.fn(),
+  span: { setAttribute: vi.fn() },
+  traceException: vi.fn(),
+}));
+
+vi.mock("@langfuse/shared/src/server", () => ({
+  contextWithLangfuseProps: telemetry.contextWithLangfuseProps,
+  getCurrentSpan: vi.fn(() => telemetry.span),
+  instrumentAsync: vi.fn(
+    (
+      _options: unknown,
+      callback: (span: typeof telemetry.span) => Promise<unknown>,
+    ) => callback(telemetry.span),
+  ),
+  logger: {
+    debug: vi.fn(),
+    error: vi.fn(),
+    info: vi.fn(),
+    warn: vi.fn(),
+  },
+  recordDistribution: telemetry.recordDistribution,
+  recordGauge: telemetry.recordGauge,
+  recordIncrement: telemetry.recordIncrement,
+  redis: null,
+  traceException: telemetry.traceException,
+}));
+
 import { PeriodicRunner } from "../utils/PeriodicRunner";
+import { PeriodicExclusiveRunner } from "../utils/PeriodicExclusiveRunner";
+
+// Tracks the context `otelContext.with` activates, so a test can tell whether
+// `execute()` runs inside it.
+const activeContexts: Context[] = [];
+vi.spyOn(otelContext, "with").mockImplementation(
+  (ctx, fn, thisArg, ...args) => {
+    activeContexts.push(ctx);
+    try {
+      return fn.call(thisArg, ...args);
+    } finally {
+      activeContexts.pop();
+    }
+  },
+);
 
 /**
  * Helper to flush microtasks without advancing timers
@@ -22,11 +70,27 @@ import { PeriodicRunner } from "../utils/PeriodicRunner";
  */
 const flushMicrotasks = () => new Promise((r) => queueMicrotask(r));
 
+const expectCompleted = (
+  outcome: "success" | "failed" | "skipped",
+  tags: Record<string, string>,
+) =>
+  expect(telemetry.recordIncrement).toHaveBeenCalledWith(
+    "langfuse.periodic_runner.completed",
+    1,
+    { outcome, ...tags },
+  );
+
 // Test subclass that tracks execution
 class TestRunner extends PeriodicRunner {
   public callCount = 0;
   public shouldThrow = false;
   public returnInterval: number | undefined = undefined;
+  public initialDelayMsForTest = 0;
+  public executeContext: Context | undefined;
+
+  constructor() {
+    super("test_runner");
+  }
 
   protected get name(): string {
     return "test-runner";
@@ -36,8 +100,13 @@ class TestRunner extends PeriodicRunner {
     return 1000;
   }
 
+  protected get initialDelayMs(): number {
+    return this.initialDelayMsForTest;
+  }
+
   protected async execute(): Promise<number | void> {
     this.callCount++;
+    this.executeContext = activeContexts.at(-1);
     if (this.shouldThrow) {
       this.shouldThrow = false; // Only throw once
       throw new Error("Test error");
@@ -46,21 +115,111 @@ class TestRunner extends PeriodicRunner {
   }
 }
 
+class TestExclusiveRunner extends PeriodicExclusiveRunner {
+  public callCount = 0;
+  public failNext = false;
+  public lockAcquired = true;
+  public lockNotAcquiredCount = 0;
+  public readonly operationError = new Error("Caught operation error");
+
+  constructor(lockMode: "stub" | "unavailable" | "release_failure" = "stub") {
+    super({
+      name: "test-exclusive-runner",
+      metricName: "test_exclusive_runner",
+      metricScope: "test_scope",
+      lockKey: "test-exclusive-runner-lock",
+      lockTtlSeconds: 60,
+      onUnavailable: "fail",
+    });
+    if (lockMode !== "unavailable") {
+      this.lock.acquire = async () =>
+        this.lockAcquired ? "acquired" : "held_by_other";
+    }
+    if (lockMode !== "release_failure") {
+      this.lock.release = async () => true;
+    }
+  }
+
+  protected get defaultIntervalMs(): number {
+    return 1000;
+  }
+
+  protected async execute(): Promise<void> {
+    await this.withLock(
+      async () => {
+        this.callCount++;
+        if (this.failNext) {
+          this.failNext = false;
+          throw this.operationError;
+        }
+      },
+      undefined,
+      () => {
+        this.lockNotAcquiredCount++;
+      },
+    );
+  }
+}
+
 describe("PeriodicRunner", () => {
   beforeEach(() => {
     vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-07-23T08:00:00.000Z"));
+    vi.clearAllMocks();
   });
 
   afterEach(() => {
     vi.useRealTimers();
   });
 
-  it("should call execute on start", async () => {
+  it("should call execute on start and record canonical metrics", async () => {
+    const clickHouseContext = {} as Context;
+    telemetry.contextWithLangfuseProps.mockReturnValue(clickHouseContext);
     const runner = new TestRunner();
 
     runner.start();
     await flushMicrotasks();
 
+    expect(runner.callCount).toBe(1);
+    expect(runner.executeContext).toBe(clickHouseContext);
+    expect(telemetry.contextWithLangfuseProps).toHaveBeenCalledWith({
+      clickhouse: {
+        surface: "worker",
+        route: "langfuse.periodic_runner.test_runner",
+      },
+    });
+    expect(telemetry.recordIncrement).toHaveBeenCalledWith(
+      "langfuse.periodic_runner.started",
+      1,
+      { runner: "test_runner" },
+    );
+    expectCompleted("success", { runner: "test_runner" });
+    expect(telemetry.recordDistribution).toHaveBeenCalledWith(
+      "langfuse.periodic_runner.duration_ms",
+      0,
+      {
+        outcome: "success",
+        runner: "test_runner",
+        unit: "milliseconds",
+      },
+    );
+    expect(telemetry.recordGauge).toHaveBeenCalledWith(
+      "langfuse.periodic_runner.last_healthy_timestamp_seconds",
+      Date.now() / 1000,
+      { runner: "test_runner", unit: "seconds" },
+    );
+    runner.stop();
+  });
+
+  it("should delay the initial execution when configured", async () => {
+    const runner = new TestRunner();
+    runner.initialDelayMsForTest = 250;
+
+    runner.start();
+    await vi.advanceTimersByTimeAsync(249);
+    expect(runner.callCount).toBe(0);
+
+    await vi.advanceTimersByTimeAsync(1);
     expect(runner.callCount).toBe(1);
     runner.stop();
   });
@@ -136,4 +295,60 @@ describe("PeriodicRunner", () => {
     expect(runner.callCount).toBe(1);
     runner.stop();
   });
+
+  it("marks a caught error failed and keeps the loop running", async () => {
+    const runner = new TestExclusiveRunner();
+    runner.failNext = true;
+
+    runner.start();
+    await vi.advanceTimersByTimeAsync(0);
+
+    expect(telemetry.traceException).toHaveBeenCalledWith(
+      runner.operationError,
+    );
+    expectCompleted("failed", {
+      runner: "test_exclusive_runner",
+      scope: "test_scope",
+    });
+    expect(telemetry.recordGauge).not.toHaveBeenCalled();
+
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(runner.callCount).toBe(2);
+    runner.stop();
+  });
+
+  it("records a lock miss as skipped", async () => {
+    const runner = new TestExclusiveRunner();
+    runner.lockAcquired = false;
+
+    runner.start();
+    await vi.advanceTimersByTimeAsync(0);
+
+    expectCompleted("skipped", {
+      runner: "test_exclusive_runner",
+      scope: "test_scope",
+    });
+    expect(telemetry.traceException).not.toHaveBeenCalled();
+    expect(telemetry.recordGauge).not.toHaveBeenCalled();
+    expect(runner.lockNotAcquiredCount).toBe(1);
+    runner.stop();
+  });
+
+  it.each(["unavailable", "release_failure"] as const)(
+    "records a %s lock as failed",
+    async (lockMode) => {
+      const runner = new TestExclusiveRunner(lockMode);
+
+      runner.start();
+      await vi.advanceTimersByTimeAsync(0);
+
+      expect(telemetry.traceException).toHaveBeenCalledWith(expect.any(Error));
+      expectCompleted("failed", {
+        runner: "test_exclusive_runner",
+        scope: "test_scope",
+      });
+      expect(telemetry.recordGauge).not.toHaveBeenCalled();
+      runner.stop();
+    },
+  );
 });

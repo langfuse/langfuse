@@ -4,6 +4,7 @@ import {
   type ObservationLevelType,
   type SingleValueOption,
 } from "..";
+import { EvalExecutionMetadataKey } from "../features/evals/evalExecutionMetadata";
 import { formatColumnOptions } from "./typeHelpers";
 
 export const tracesOnlyCols: ColumnDefinition[] = [
@@ -16,11 +17,12 @@ export const tracesOnlyCols: ColumnDefinition[] = [
   { name: "ID", id: "id", type: "string", internal: "t.id" },
   {
     name: "Name",
-    id: "name",
+    id: "traceName",
     type: "stringOptions",
     internal: 't."name"',
     options: [], // to be filled in at runtime
     nullable: true,
+    aliases: ["name"],
   },
   {
     name: "Environment",
@@ -56,6 +58,20 @@ export const tracesOnlyCols: ColumnDefinition[] = [
     internal: 't."metadata"',
   },
   {
+    name: "Evaluator ID",
+    id: "evaluatorId",
+    type: "stringOptions",
+    internal: `t.metadata['${EvalExecutionMetadataKey.EVALUATOR_ID}']`,
+    options: [],
+  },
+  {
+    name: "Rule ID",
+    id: "ruleId",
+    type: "stringOptions",
+    internal: `if(notEmpty(t.metadata['${EvalExecutionMetadataKey.EVALUATION_RULE_ID}']), t.metadata['${EvalExecutionMetadataKey.EVALUATION_RULE_ID}'], t.metadata['${EvalExecutionMetadataKey.JOB_CONFIGURATION_ID}'])`,
+    options: [],
+  },
+  {
     name: "Version",
     id: "version",
     type: "string",
@@ -70,7 +86,7 @@ export const tracesOnlyCols: ColumnDefinition[] = [
     nullable: true,
   },
   {
-    name: "Level",
+    name: "Status",
     id: "level",
     type: "stringOptions",
     internal: '"level"',
@@ -80,13 +96,15 @@ export const tracesOnlyCols: ColumnDefinition[] = [
       { value: "WARNING" },
       { value: "ERROR" },
     ] as { value: ObservationLevelType }[],
+    aliases: ["Level"],
   },
   {
     name: "Tags",
-    id: "tags",
+    id: "traceTags",
     type: "arrayOptions",
     internal: 't."tags"',
     options: [], // to be filled in at runtime
+    aliases: ["tags"],
   },
 ];
 export const tracesTableCols: ColumnDefinition[] = [
@@ -95,6 +113,7 @@ export const tracesTableCols: ColumnDefinition[] = [
     name: "Input Tokens",
     id: "inputTokens",
     type: "number",
+    step: 1,
     internal: 'generation_metrics."promptTokens"',
     nullable: true,
   },
@@ -102,6 +121,7 @@ export const tracesTableCols: ColumnDefinition[] = [
     name: "Output Tokens",
     id: "outputTokens",
     type: "number",
+    step: 1,
     internal: 'generation_metrics."completionTokens"',
     nullable: true,
   },
@@ -109,30 +129,35 @@ export const tracesTableCols: ColumnDefinition[] = [
     name: "Error Level Count",
     id: "errorCount",
     type: "number",
+    step: 1,
     internal: 'generation_metrics."errorCount"',
   },
   {
     name: "Warning Level Count",
     id: "warningCount",
     type: "number",
+    step: 1,
     internal: 'generation_metrics."warningCount"',
   },
   {
     name: "Default Level Count",
     id: "defaultCount",
     type: "number",
+    step: 1,
     internal: 'generation_metrics."defaultCount"',
   },
   {
     name: "Debug Level Count",
     id: "debugCount",
     type: "number",
+    step: 1,
     internal: 'generation_metrics."debugCount"',
   },
   {
     name: "Total Tokens",
     id: "totalTokens",
     type: "number",
+    step: 1,
     internal: 'generation_metrics."totalTokens"',
     nullable: true,
   },
@@ -140,6 +165,7 @@ export const tracesTableCols: ColumnDefinition[] = [
     name: "Tokens",
     id: "tokens",
     type: "number",
+    step: 1,
     internal: 'generation_metrics."totalTokens"',
     nullable: true,
   },
@@ -155,6 +181,13 @@ export const tracesTableCols: ColumnDefinition[] = [
     type: "categoryOptions",
     internal: "score_categories",
     options: [], // to be filled in at runtime
+    nullable: true,
+  },
+  {
+    name: "Scores (boolean)",
+    id: "score_booleans",
+    type: "booleanObject",
+    internal: "score_booleans",
     nullable: true,
   },
   {
@@ -188,6 +221,7 @@ export const tracesTableCols: ColumnDefinition[] = [
     name: "Comment Count",
     id: "commentCount",
     type: "number",
+    step: 1,
     internal: "", // handled by comment filter helpers
   },
   {
@@ -209,14 +243,17 @@ export const datasetCol: ColumnDefinition = {
 // Used only for dataset evaluator, not on dataset table
 export const datasetOnlyCols: ColumnDefinition[] = [datasetCol];
 
+/** @alias */
 export const evalTraceTableCols: ColumnDefinition[] = tracesOnlyCols;
+/** @alias */
 export const evalDatasetFormFilterCols: ColumnDefinition[] = datasetOnlyCols;
 
 export type TraceOptions = {
   scores_avg?: Array<string>;
   score_categories?: Array<MultiValueOption>;
-  name?: Array<SingleValueOption>;
-  tags?: Array<SingleValueOption>;
+  score_booleans?: Array<string>;
+  traceName?: Array<SingleValueOption>;
+  traceTags?: Array<SingleValueOption>;
   environment?: Array<SingleValueOption>;
 };
 export type DatasetOptions = {
@@ -244,17 +281,20 @@ export function tracesTableColsWithOptions(
     if (col.id === "scores_avg") {
       return formatColumnOptions(col, options?.scores_avg ?? []);
     }
-    if (col.id === "name") {
-      return formatColumnOptions(col, options?.name ?? []);
+    if (col.id === "traceName") {
+      return formatColumnOptions(col, options?.traceName ?? []);
     }
-    if (col.id === "tags") {
-      return formatColumnOptions(col, options?.tags ?? []);
+    if (col.id === "traceTags") {
+      return formatColumnOptions(col, options?.traceTags ?? []);
     }
     if (col.id === "environment") {
       return formatColumnOptions(col, options?.environment ?? []);
     }
     if (col.id === "score_categories") {
       return formatColumnOptions(col, options?.score_categories ?? []);
+    }
+    if (col.id === "score_booleans") {
+      return formatColumnOptions(col, options?.score_booleans ?? []);
     }
     return col;
   });

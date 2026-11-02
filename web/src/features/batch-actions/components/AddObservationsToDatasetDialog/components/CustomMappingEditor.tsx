@@ -1,8 +1,9 @@
 import { Button } from "@/src/components/ui/button";
 import { Input } from "@/src/components/ui/input";
 import { Label } from "@/src/components/ui/label";
-import { Tabs, TabsList, TabsTrigger } from "@/src/components/ui/tabs";
-import { Plus, Trash2 } from "lucide-react";
+import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
+import { Plus, Trash2 } from "@langfuse/icons";
+import { v4 as uuidv4 } from "uuid";
 import { JsonPathInput } from "./JsonPathInput";
 import { SourceFieldSelector } from "./SourceFieldSelector";
 import type {
@@ -13,6 +14,7 @@ import type {
   MappingTarget,
 } from "../types";
 import { isJsonPath } from "@langfuse/shared";
+import { cn } from "@/src/utils/tailwind";
 
 type CustomMappingEditorProps = {
   config: CustomMappingConfig;
@@ -44,7 +46,7 @@ export function CustomMappingEditor({
         keyValueMapConfig: config.keyValueMapConfig ?? {
           entries: [
             {
-              id: crypto.randomUUID(),
+              id: uuidv4(),
               key: "value",
               sourceField: defaultSourceField,
               value: "$.",
@@ -88,7 +90,7 @@ export function CustomMappingEditor({
         entries: [
           ...entries,
           {
-            id: crypto.randomUUID(),
+            id: uuidv4(),
             key: newKey,
             sourceField: defaultSourceField,
             value: "$.",
@@ -141,25 +143,26 @@ export function CustomMappingEditor({
   };
 
   return (
-    <div className="space-y-2 rounded-md border bg-muted/30 p-4">
+    <div className="bg-muted/30 space-y-2 rounded-md border p-4">
       <div>
-        <Label className="text-sm font-medium">Target</Label>
-        <Tabs
-          value={config.type}
-          onValueChange={(v) => handleTypeChange(v as MappingTarget)}
-          className="mt-2"
-        >
-          <TabsList className="grid w-full grid-cols-2">
-            <TabsTrigger value="root">Root</TabsTrigger>
-            <TabsTrigger value="keyValueMap">Key-value map</TabsTrigger>
-          </TabsList>
-        </Tabs>
+        <Label className="text-sm font-bold">Target</Label>
+        <div className="mt-2">
+          <Tabs
+            value={config.type}
+            onValueChange={(v) => handleTypeChange(v as MappingTarget)}
+          >
+            <Tabs.List variant="inset" size="md" layout="full">
+              <Tabs.Trigger value="root" label="Root" />
+              <Tabs.Trigger value="keyValueMap" label="Key-value map" />
+            </Tabs.List>
+          </Tabs>
+        </div>
       </div>
 
       {config.type === "root" && (
         <div className="space-y-4">
           <div>
-            <Label className="text-sm font-medium">Source</Label>
+            <Label className="text-sm font-bold">Source</Label>
             <div className="mt-1">
               <SourceFieldSelector
                 value={config.rootConfig?.sourceField ?? defaultSourceField}
@@ -168,7 +171,7 @@ export function CustomMappingEditor({
             </div>
           </div>
           <div>
-            <Label className="text-sm font-medium">JSON Path</Label>
+            <Label className="text-sm font-bold">JSONPath</Label>
             <div className="mt-1">
               <JsonPathInput
                 value={config.rootConfig?.jsonPath ?? "$."}
@@ -179,8 +182,8 @@ export function CustomMappingEditor({
                 placeholder="$.path.to.field"
               />
             </div>
-            <p className="p-1 text-xs text-muted-foreground">
-              Start with $. to use a JSON path (e.g., $.field)
+            <p className="text-muted-foreground p-1 text-xs">
+              Start with $. to use a JSONPath (e.g., $.field)
             </p>
           </div>
         </div>
@@ -188,10 +191,10 @@ export function CustomMappingEditor({
 
       {config.type === "keyValueMap" && (
         <div className="max-h-[35vh] space-y-3 overflow-auto">
-          <Label className="text-sm font-medium">Key-value mappings</Label>
-          <p className="text-xs text-muted-foreground">
+          <Label className="text-sm font-bold">Key-value mappings</Label>
+          <p className="text-muted-foreground text-xs">
             Build an object with custom keys. Values starting with $ are treated
-            as JSON paths.
+            as JSONPaths.
           </p>
 
           <div className="space-y-3">
@@ -228,7 +231,7 @@ export function CustomMappingEditor({
             onClick={handleAddEntry}
             className="w-full"
           >
-            <Plus className="mr-2 h-4 w-4" />
+            <Plus size="base" color="default" __rawClassName="mr-2" />
             Add field
           </Button>
         </div>
@@ -262,17 +265,17 @@ function KeyValueEntryRow({
 
   return (
     <div
-      className={`space-y-2 rounded-md border bg-background p-3 ${
+      className={`bg-background space-y-2 rounded-md border p-3 ${
         isSchemaField ? "border-primary/30" : ""
       }`}
     >
-      <div className="grid grid-cols-[1fr,auto] gap-2">
+      <div className="grid grid-cols-[1fr_auto] gap-2">
         <div>
-          <Label className="text-xs text-muted-foreground">
+          <Label className="text-muted-foreground text-xs">
             Key
-            {isRequired && <span className="ml-1 text-destructive">*</span>}
+            {isRequired && <span className="text-destructive ml-1">*</span>}
             {isSchemaField && (
-              <span className="ml-2 text-primary">(from schema)</span>
+              <span className="text-primary ml-2">(from schema)</span>
             )}
           </Label>
           <Input
@@ -299,19 +302,20 @@ function KeyValueEntryRow({
             }
           >
             <Trash2
-              className={`h-4 w-4 ${
-                !canRemove
-                  ? "text-muted-foreground/30"
-                  : "text-muted-foreground"
-              }`}
+              size="base"
+              __rawClassName={cn(
+                canRemove
+                  ? "text-muted-foreground"
+                  : "text-muted-foreground/30",
+              )}
             />
           </Button>
         </div>
       </div>
 
-      <div className="grid grid-cols-[38fr,62fr] gap-2">
+      <div className="grid grid-cols-[38fr_62fr] gap-2">
         <div>
-          <Label className="text-xs text-muted-foreground">Source</Label>
+          <Label className="text-muted-foreground text-xs">Source</Label>
           <div className="mt-1">
             <SourceFieldSelector
               value={entry.sourceField}
@@ -321,7 +325,7 @@ function KeyValueEntryRow({
           </div>
         </div>
         <div>
-          <Label className="text-xs text-muted-foreground">
+          <Label className="text-muted-foreground text-xs">
             Value {!isPath && "(literal)"}
           </Label>
           <div className="mt-1">
@@ -342,8 +346,8 @@ function KeyValueEntryRow({
               />
             )}
 
-            <p className="pt-1 text-xs text-muted-foreground">
-              Start with $. to use a JSON path (e.g., $.field)
+            <p className="text-muted-foreground pt-1 text-xs">
+              Start with $. to use a JSONPath (e.g., $.field)
             </p>
           </div>
         </div>

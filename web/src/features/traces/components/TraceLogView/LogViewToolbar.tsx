@@ -1,0 +1,310 @@
+/* eslint-disable no-nested-ternary, @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
+/**
+ * LogViewToolbar - Controls for log view search and actions.
+ *
+ * Provides:
+ * - Search input for filtering observations (hidden in JSON view)
+ * - Action buttons: expand/collapse all, copy JSON
+ * - Large Trace indicator for virtualized mode
+ */
+
+import { memo, useState } from "react";
+import {
+  FoldVertical,
+  UnfoldVertical,
+  Copy,
+  Check,
+  IndentIncrease,
+  Timer,
+} from "@langfuse/icons";
+import { Button } from "@/src/components/ui/button";
+import { Command, CommandInput } from "@/src/components/ui/command";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/src/components/ui/tooltip";
+import { HoverCard } from "@/src/components/design-system/HoverCard/HoverCard";
+import { cn } from "@/src/utils/tailwind";
+import { Spinner } from "@/src/components/design-system/Spinner/Spinner";
+import { type JsonViewPreference } from "@/src/components/ui/jsonViewPreference";
+
+export interface LogViewToolbarProps {
+  /** Current search query */
+  searchQuery: string;
+  /** Callback when search query changes */
+  onSearchChange: (query: string) => void;
+  /** Callback when the search input gains focus (analytics: once per focus) */
+  onSearchFocus?: () => void;
+  /** Whether virtualization is active (for large traces) */
+  isVirtualized?: boolean;
+  /** Total number of observations (shown in Large Trace indicator) */
+  observationCount?: number;
+  /** Number of observations with loaded I/O data (for cache-only mode) */
+  loadedObservationCount?: number;
+  /** Callback to toggle expand/collapse all (non-virtualized only) */
+  onToggleExpandAll?: () => void;
+  /** Whether all rows are expanded */
+  allRowsExpanded?: boolean;
+  /** Whether copy/download action is currently loading */
+  isCopyOrDownloadLoading?: boolean;
+  /** Whether copy/download uses cached I/O only (doesn't load all) */
+  isCopyOrDownloadCacheOnly?: boolean;
+  /** Callback to copy JSON */
+  onCopyJson?: () => void;
+  currentView?: JsonViewPreference;
+  /** Whether indent visualization is enabled */
+  indentEnabled?: boolean;
+  /** Whether indent toggle is disabled (tree too deep) */
+  indentDisabled?: boolean;
+  /** Callback to toggle indent visualization */
+  onToggleIndent?: () => void;
+  /** Whether milliseconds are shown in time values */
+  showMilliseconds?: boolean;
+  /** Callback to toggle milliseconds display */
+  onToggleMilliseconds?: () => void;
+}
+
+/**
+ * Toolbar for log view controls.
+ */
+export const LogViewToolbar = memo(function LogViewToolbar({
+  searchQuery,
+  onSearchChange,
+  onSearchFocus,
+  isVirtualized = true,
+  observationCount,
+  loadedObservationCount,
+  onToggleExpandAll,
+  allRowsExpanded,
+  onCopyJson,
+  isCopyOrDownloadLoading = false,
+  isCopyOrDownloadCacheOnly = false,
+  currentView = "pretty",
+  indentEnabled = false,
+  indentDisabled = false,
+  onToggleIndent,
+  showMilliseconds = false,
+  onToggleMilliseconds,
+}: LogViewToolbarProps) {
+  const [isCopied, setIsCopied] = useState(false);
+
+  const handleCopyClick = () => {
+    if (isCopyOrDownloadLoading) return;
+
+    setIsCopied(true);
+    onCopyJson?.();
+    setTimeout(() => setIsCopied(false), 1000);
+  };
+
+  return (
+    <div className="bg-background flex h-9 shrink-0 items-center gap-1.5 border-b px-2">
+      {/* Large Trace indicator - only shown for virtualized mode */}
+      {isVirtualized && (
+        <HoverCard
+          openDelay={200}
+          placement="bottom-start"
+          sideOffset={8}
+          content={
+            <div className="w-72 p-3 text-sm">
+              <p className="font-bold">Optimized for performance</p>
+              <p className="text-muted-foreground mt-1.5">
+                This trace has {observationCount?.toLocaleString() ?? "many"}{" "}
+                observations. To keep things smooth:
+              </p>
+              <ul className="text-muted-foreground mt-1.5 list-inside list-disc space-y-0.5">
+                <li>Content loads as you scroll</li>
+                <li>JSON view is disabled</li>
+                <li>Download/copy includes I/O for cached observations only</li>
+              </ul>
+            </div>
+          }
+        >
+          {({ getTriggerProps }) => (
+            <span
+              className="cursor-help rounded bg-yellow-100 px-1.5 py-0.5 text-xs font-bold text-yellow-700 dark:bg-yellow-900 dark:text-yellow-300"
+              tabIndex={0}
+              {...getTriggerProps()}
+            >
+              Large Trace
+            </span>
+          )}
+        </HoverCard>
+      )}
+
+      {/* Search input or spacer (hidden in JSON dump view) */}
+      {currentView === "json" ? (
+        <div className="flex-1" />
+      ) : (
+        <Command className="flex-1 rounded-none border-0 bg-transparent">
+          <CommandInput
+            showBorder={false}
+            variant="toolbar"
+            placeholder="Search observations..."
+            className="border-0 focus:ring-0"
+            value={searchQuery}
+            onValueChange={onSearchChange}
+            onFocus={onSearchFocus}
+          />
+        </Command>
+      )}
+
+      {/* Action buttons */}
+      <div className="flex items-center gap-0.5">
+        {/* Indent Toggle - only in table view (pretty or json-beta) */}
+        {currentView !== "json" && onToggleIndent && (
+          <HoverCard
+            openDelay={200}
+            enabled={indentDisabled}
+            sideOffset={8}
+            content={
+              <div className="w-56 p-3 text-sm">
+                <p className="font-bold">Indentation unavailable</p>
+                <p className="text-muted-foreground mt-1">
+                  Disabled for deeply nested trees to maintain readability.
+                </p>
+              </div>
+            }
+          >
+            {({ getTriggerProps }) => (
+              <span
+                tabIndex={indentDisabled ? 0 : undefined}
+                {...getTriggerProps()}
+              >
+                <Button
+                  variant={indentEnabled ? "default" : "ghost"}
+                  size="icon"
+                  className={cn(
+                    "h-7 w-7",
+                    indentEnabled && "bg-primary text-primary-foreground",
+                    indentDisabled && "cursor-not-allowed opacity-50",
+                  )}
+                  onClick={indentDisabled ? undefined : onToggleIndent}
+                  disabled={indentDisabled}
+                  title={
+                    indentDisabled
+                      ? undefined
+                      : indentEnabled
+                        ? "Hide indentation"
+                        : "Show indentation"
+                  }
+                >
+                  <IndentIncrease size="base" />
+                </Button>
+              </span>
+            )}
+          </HoverCard>
+        )}
+
+        {/* Milliseconds Toggle - only in table view (pretty or json-beta) */}
+        {currentView !== "json" && onToggleMilliseconds && (
+          <Button
+            variant={showMilliseconds ? "default" : "ghost"}
+            size="icon"
+            className={cn(
+              "h-7 w-7",
+              showMilliseconds && "bg-primary text-primary-foreground",
+            )}
+            onClick={onToggleMilliseconds}
+            title={showMilliseconds ? "Hide milliseconds" : "Show milliseconds"}
+          >
+            <Timer size="base" />
+          </Button>
+        )}
+
+        {/* Expand/Collapse All - show disabled with tooltip when virtualized */}
+        {currentView !== "json" && onToggleExpandAll && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <span>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className={cn(
+                    "h-7 w-7",
+                    isVirtualized && "cursor-not-allowed opacity-50",
+                  )}
+                  onClick={isVirtualized ? undefined : onToggleExpandAll}
+                  disabled={isVirtualized}
+                >
+                  {allRowsExpanded && !isVirtualized ? (
+                    <FoldVertical size="base" color="default" />
+                  ) : (
+                    <UnfoldVertical size="base" color="default" />
+                  )}
+                </Button>
+              </span>
+            </TooltipTrigger>
+            <TooltipContent>
+              {isVirtualized
+                ? "Disabled for large traces"
+                : allRowsExpanded
+                  ? "Collapse all"
+                  : "Expand all"}
+            </TooltipContent>
+          </Tooltip>
+        )}
+
+        {/* Copy JSON */}
+        {onCopyJson && (
+          <HoverCard
+            openDelay={200}
+            enabled={isCopyOrDownloadCacheOnly && !isCopyOrDownloadLoading}
+            sideOffset={8}
+            content={
+              <div className="w-64 p-3 text-sm">
+                <p className="font-bold">Cache-only mode</p>
+                <p className="text-muted-foreground mt-1">
+                  For large traces, only expanded observations include full I/O
+                  data.
+                </p>
+                {loadedObservationCount !== undefined &&
+                  observationCount !== undefined && (
+                    <p className="text-muted-foreground mt-1.5">
+                      <span className="font-bold">
+                        {loadedObservationCount} of {observationCount}
+                      </span>{" "}
+                      observations loaded
+                    </p>
+                  )}
+              </div>
+            }
+          >
+            {({ getTriggerProps }) => (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7"
+                    {...getTriggerProps({
+                      onClick: isCopyOrDownloadLoading
+                        ? undefined
+                        : handleCopyClick,
+                    })}
+                    disabled={isCopyOrDownloadLoading}
+                  >
+                    {isCopyOrDownloadLoading ? (
+                      <Spinner size="xs" />
+                    ) : isCopied ? (
+                      <Check size="base" color="default" />
+                    ) : (
+                      <Copy size="base" color="default" />
+                    )}
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  {isCopyOrDownloadLoading
+                    ? "Loading data..."
+                    : isCopyOrDownloadCacheOnly
+                      ? "Copy as JSON (cache only)"
+                      : "Copy as JSON"}
+                </TooltipContent>
+              </Tooltip>
+            )}
+          </HoverCard>
+        )}
+      </div>
+    </div>
+  );
+});

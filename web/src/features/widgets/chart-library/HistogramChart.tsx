@@ -1,120 +1,71 @@
-import React from "react";
-import { type DataPoint } from "@/src/features/widgets/chart-library/chart-props";
-import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer } from "recharts";
+import { HistogramChart as DesignSystemHistogramChart } from "@/src/components/design-system/charts/HistogramChart/HistogramChart";
 import {
-  ChartContainer,
-  ChartTooltip,
-  ChartTooltipContent,
-} from "@/src/components/ui/chart";
-import { compactSmallNumberFormatter } from "@/src/utils/numbers";
-
-interface HistogramDataPoint {
-  binLabel: string;
-  count: number;
-  lower?: number;
-  upper?: number;
-  height?: number;
-}
+  type DataPoint,
+  type MetricFormatterFunction,
+  type ChartProps,
+} from "@/src/features/widgets/chart-library/chart-props";
+import {
+  formatMetric,
+  toFullMetricString,
+} from "@/src/features/widgets/chart-library/utils";
 
 const HistogramChart = ({
   data,
-  subtleFill = false,
+  config = {
+    count: {
+      label: "Count",
+      color: "hsl(var(--chart-fill-1))",
+    },
+  },
+  metricFormatter = (value, options) => formatMetric(value, options),
 }: {
   data: DataPoint[];
-  subtleFill?: boolean;
+  config?: ChartProps["config"];
+  metricFormatter?: MetricFormatterFunction;
 }) => {
-  const transformHistogramData = (data: DataPoint[]): HistogramDataPoint[] => {
+  const formatBinEdge = (value: number) =>
+    toFullMetricString(metricFormatter(value, { style: "compact" }));
+
+  const transformHistogramData = (data: DataPoint[]) => {
     if (!data.length) return [];
 
-    // Check if this is ClickHouse histogram format (array of tuples)
     const firstDataPoint = data[0];
     if (firstDataPoint?.metric && Array.isArray(firstDataPoint.metric)) {
-      // ClickHouse histogram format: [(lower, upper, height), ...]
       return (firstDataPoint.metric as [number, number, number][]).map(
         ([lower, upper, height]) => ({
-          binLabel: `[${compactSmallNumberFormatter(lower)}, ${compactSmallNumberFormatter(upper)}]`,
-          count: height,
-          lower,
-          upper,
-          height,
+          label: `[${formatBinEdge(lower)}, ${formatBinEdge(upper)}]`,
+          value: height,
         }),
       );
     }
 
-    // Fallback: treat as regular data points with binLabel
-    return data.map((item) => ({
-      binLabel: item.dimension || `Bin ${data.indexOf(item) + 1}`,
-      count: (item.metric as number) || 0,
+    return data.map((item, index) => ({
+      label: item.dimension || `Bin ${index + 1}`,
+      value: (item.metric as number) || 0,
     }));
   };
 
   const histogramData = transformHistogramData(data);
 
-  // Chart configuration
-  const config = {
-    count: {
-      label: "Count",
-      color: "hsl(var(--chart-1))",
-    },
-  };
-
   if (!histogramData.length) {
     return (
-      <div className="flex h-full items-center justify-center text-muted-foreground">
+      <div className="text-muted-foreground flex h-full items-center justify-center">
         No data available
       </div>
     );
   }
 
   return (
-    <ChartContainer
-      config={config}
-      className="[&_.recharts-bar-rectangle:hover]:opacity-30 dark:[&_.recharts-bar-rectangle:hover]:opacity-100 dark:[&_.recharts-bar-rectangle:hover]:brightness-[3]"
-    >
-      <ResponsiveContainer width="100%" height="100%">
-        <BarChart
-          data={histogramData}
-          margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
-        >
-          <XAxis
-            dataKey="binLabel"
-            stroke="hsl(var(--chart-grid))"
-            fontSize={12}
-            tickLine={false}
-            axisLine={false}
-            angle={-45}
-            textAnchor="end"
-            height={90}
-          />
-          <YAxis
-            stroke="hsl(var(--chart-grid))"
-            fontSize={12}
-            tickLine={false}
-            axisLine={false}
-          />
-          <Bar
-            dataKey="count"
-            fill="hsl(var(--chart-1))"
-            radius={[2, 2, 0, 0]}
-            fillOpacity={subtleFill ? 0.3 : 1}
-          />
-          <ChartTooltip
-            cursor={false}
-            contentStyle={{ backgroundColor: "hsl(var(--background))" }}
-            content={({ active, payload, label }) => (
-              <ChartTooltipContent
-                active={active}
-                payload={payload}
-                label={label}
-                valueFormatter={(v) => compactSmallNumberFormatter(Number(v))}
-                nameFormatter={(name) => (name === "count" ? "Count" : name)}
-                labelFormatter={(label) => `Bin: ${label}`}
-              />
-            )}
-          />
-        </BarChart>
-      </ResponsiveContainer>
-    </ChartContainer>
+    <DesignSystemHistogramChart
+      data={histogramData}
+      color={config.count?.color ?? "hsl(var(--chart-fill-1))"}
+      valueFormatter={(value) =>
+        toFullMetricString(formatMetric(value, { style: "compact" }))
+      }
+      ariaLabel="Histogram"
+      tooltipHeading={(label) => `Bin: ${label}`}
+      tooltipValueLabel="Count"
+    />
   );
 };
 

@@ -1,0 +1,53 @@
+# cargo-deny configuration: https://embarkstudios.github.io/cargo-deny/
+# Shared by the Rust crates in this repository, ai-gateway and packages/native;
+# cargo-deny finds it by searching parent directories of the crate. Run with
+# `pnpm --filter ai-gateway run rust:deny` or
+# `pnpm --filter @langfuse/native run rust:deny`.
+
+[graph]
+all-features = true
+
+[advisories]
+# RustSec advisories. Vulnerabilities and unsound crates fail the check; add an
+# entry with a reason here only after confirming an advisory does not apply.
+yanked = "deny"
+ignore = []
+
+[licenses]
+confidence-threshold = 0.93
+# Same policy as .github/workflows/licencecheck.yml for pnpm packages: no weak,
+# strong, or network copyleft (LGPL, MPL, EPL, GPL, AGPL, SSPL, ...), since both
+# crates are open source and ship to self-hosters as binaries: the gateway as a
+# statically linked executable, the native addon inside the worker image.
+# This is an allow-list, so source-available or non-commercial licenses (BUSL,
+# Elastic, CC-BY-NC, ...) and unknown licenses also fail. A dual-licensed crate
+# passes when one of its options is listed here.
+allow = [
+    "0BSD",
+    "Apache-2.0",
+    "Apache-2.0 WITH LLVM-exception",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "CC0-1.0",
+    "CDLA-Permissive-2.0",
+    "ISC",
+    "MIT",
+    "MIT-0",
+    "Unicode-3.0",
+    "Unlicense",
+    "Zlib",
+]
+
+[licenses.private]
+ignore = true
+
+[bans]
+multiple-versions = "warn"
+wildcards = "deny"
+allow-wildcard-paths = true
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]
+allow-git = ["https://github.com/ClickHouse/ch-core-rs.git"]

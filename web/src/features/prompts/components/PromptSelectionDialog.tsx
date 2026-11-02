@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import {
@@ -9,17 +10,12 @@ import {
   DialogBody,
 } from "@/src/components/ui/dialog";
 import { Button } from "@/src/components/ui/button";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/src/components/ui/select";
+import { SelectInput } from "@/src/components/design-system/SelectInput/SelectInput";
 import { Label } from "@/src/components/ui/label";
 import { api } from "@/src/utils/api";
-import { CopyIcon, ExternalLinkIcon } from "lucide-react";
+import { CopyIcon, ExternalLinkIcon } from "@langfuse/icons";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
+import { getPromptDetailHref } from "@/src/features/prompts/utils";
 
 type PromptSelectionDialogProps = {
   isOpen: boolean;
@@ -106,7 +102,7 @@ export function PromptSelectionDialog({
         </DialogHeader>
         <DialogBody>
           <div className="flex flex-col gap-4">
-            <p className="text-sm text-muted-foreground">
+            <p className="text-muted-foreground text-sm">
               Referenced prompts are dynamically resolved and inserted when
               fetched via API/SDK. This enables modular design—create complex
               prompts from reusable, independently maintained components.
@@ -114,25 +110,22 @@ export function PromptSelectionDialog({
 
             <div className="flex flex-col gap-2">
               <Label htmlFor="prompt-name">Prompt name</Label>
-              <Select
+              <SelectInput
+                id="prompt-name"
                 value={selectedPromptName}
                 onValueChange={(value) => {
                   setSelectedPromptName(value);
                   setSelectedVersionOrLabel("");
                 }}
-              >
-                <SelectTrigger id="prompt-name">
-                  <SelectValue placeholder="Select a text prompt" />
-                </SelectTrigger>
-                <SelectContent>
-                  {promptOptions?.map((prompt) => (
-                    <SelectItem key={prompt.name} value={prompt.name}>
-                      {prompt.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <p className="text-xs text-muted-foreground">
+                placeholder="Select a text prompt"
+                options={
+                  promptOptions?.map((prompt) => ({
+                    value: prompt.name,
+                    label: prompt.name,
+                  })) ?? []
+                }
+              />
+              <p className="text-muted-foreground text-xs">
                 Only text prompts can be referenced inline.
               </p>
             </div>
@@ -140,21 +133,19 @@ export function PromptSelectionDialog({
             {selectedPromptName && (
               <div className="flex flex-col gap-2">
                 <Label htmlFor="selection-type">Reference by</Label>
-                <Select
+                <SelectInput
+                  id="selection-type"
                   value={selectionType}
                   onValueChange={(value: "version" | "label") => {
                     setSelectionType(value);
                     setSelectedVersionOrLabel("");
                   }}
-                >
-                  <SelectTrigger id="selection-type">
-                    <SelectValue placeholder="Select link type" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="label">Label</SelectItem>
-                    <SelectItem value="version">Version</SelectItem>
-                  </SelectContent>
-                </Select>
+                  placeholder="Select link type"
+                  options={[
+                    { value: "label", label: "Label" },
+                    { value: "version", label: "Version" },
+                  ]}
+                />
               </div>
             )}
 
@@ -164,44 +155,35 @@ export function PromptSelectionDialog({
                   {selectionType === "version" ? "Version" : "Label"}
                 </Label>
                 <div className="flex gap-2">
-                  <Select
+                  <SelectInput
+                    id="version-or-label"
                     value={selectedVersionOrLabel}
                     onValueChange={setSelectedVersionOrLabel}
-                  >
-                    <SelectTrigger id="version-or-label">
-                      <SelectValue
-                        placeholder={
-                          selectionType === "version"
-                            ? "Select a version"
-                            : "Select a label"
-                        }
-                      />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {selectionType === "version"
-                        ? selectedPrompt?.versions.map((version) => (
-                            <SelectItem
-                              key={version.toString()}
-                              value={version.toString()}
-                            >
-                              {version}
-                            </SelectItem>
-                          ))
-                        : selectedPrompt?.labels.map((label) => (
-                            <SelectItem key={label} value={label}>
-                              {label}
-                            </SelectItem>
-                          ))}
-                    </SelectContent>
-                  </Select>
+                    placeholder={
+                      selectionType === "version"
+                        ? "Select a version"
+                        : "Select a label"
+                    }
+                    options={
+                      selectionType === "version"
+                        ? (selectedPrompt?.versions.map((version) => ({
+                            value: version.toString(),
+                            label: version.toString(),
+                          })) ?? [])
+                        : (selectedPrompt?.labels.map((label) => ({
+                            value: label,
+                            label,
+                          })) ?? [])
+                    }
+                  />
                   {selectedVersionOrLabel && (
                     <Link
-                      href={`/project/${projectId}/prompts/${selectedPromptName}?${selectionType}=${selectedVersionOrLabel}`}
+                      href={`${getPromptDetailHref(projectId, selectedPromptName)}?${selectionType}=${encodeURIComponent(selectedVersionOrLabel)}`}
                       target="_blank"
                       passHref
                     >
                       <Button type="button" variant="outline" size="icon">
-                        <ExternalLinkIcon className="h-4 w-4" />
+                        <ExternalLinkIcon size="base" color="default" />
                       </Button>
                     </Link>
                   )}
@@ -214,20 +196,20 @@ export function PromptSelectionDialog({
             <div className="space-y-2">
               <Label>Tag preview</Label>
               <div className="relative">
-                <div className="rounded-md border bg-muted p-3 pr-10 font-mono text-xs">
+                <div className="bg-muted rounded-md border p-3 pr-10 font-mono text-xs">
                   {selectedTag}
                 </div>
                 <Button
                   type="button"
                   variant="ghost"
                   size="icon"
-                  className="absolute right-2 top-2 bg-opacity-70"
+                  className="absolute top-2 right-2"
                   onClick={copySelectedTag}
                 >
-                  <CopyIcon className="h-4 w-4" />
+                  <CopyIcon size="base" color="default" />
                 </Button>
               </div>
-              <p className="text-xs text-muted-foreground">
+              <p className="text-muted-foreground text-xs">
                 {onSelect
                   ? "This tag will be inserted into the prompt content."
                   : "This tag will be copied to clipboard to be then inserted into the prompt"}

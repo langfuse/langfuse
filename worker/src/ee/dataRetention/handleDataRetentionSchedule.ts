@@ -3,9 +3,18 @@ import {
   DataRetentionProcessingQueue,
   QueueJobs,
 } from "@langfuse/shared/src/server";
+import { isEnterpriseLicenseAvailable } from "@langfuse/shared/src/server/ee/licenseCheck";
 import { randomUUID } from "crypto";
 
 export const handleDataRetentionSchedule = async () => {
+  // Data retention is an enterprise feature. Without a license the setting
+  // cannot be viewed or changed, so stored policies must not be enforced
+  // either: a deployment that loses its license would otherwise keep deleting
+  // data under a policy its operators can no longer reach.
+  if (!isEnterpriseLicenseAvailable()) {
+    return;
+  }
+
   const projectsWithRetention = await prisma.project.findMany({
     select: {
       id: true,

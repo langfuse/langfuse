@@ -1,3 +1,5 @@
+/* eslint-disable no-nested-ternary, @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
+/* eslint-disable @repo/no-abstracted-overlay-trigger */
 import { useState } from "react";
 import { Button } from "@/src/components/ui/button";
 import {
@@ -13,11 +15,11 @@ import {
 import { ActionButton } from "@/src/components/ActionButton";
 import { planLabels } from "@langfuse/shared";
 import { api } from "@/src/utils/api";
-import { toast } from "sonner";
+import { showSuccessToast, showToast } from "@/src/features/notifications";
+import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
 import { nanoid } from "nanoid";
 
 export const StripeSwitchPlanButton = ({
-  className,
   orgId,
   currentPlan,
   newPlanTitle,
@@ -27,7 +29,7 @@ export const StripeSwitchPlanButton = ({
   onProcessing,
   processing,
 }: {
-  orgId: string | undefined;
+  orgId: string;
   currentPlan: keyof typeof planLabels | undefined;
   newPlanTitle: string | undefined;
   isLegacySubscription: boolean;
@@ -35,26 +37,31 @@ export const StripeSwitchPlanButton = ({
   stripeProductId: string;
   onProcessing: (id: string | null) => void;
   processing: boolean;
-  className?: string;
 }) => {
   const [_opId, setOpId] = useState<string | null>(null);
 
   const mutChangePlan =
     api.cloudBilling.changeStripeSubscriptionProduct.useMutation({
       onSuccess: () => {
-        toast.success("Plan changed successfully");
+        showSuccessToast({
+          operation: "billing_plan.change",
+          title: "Plan changed successfully",
+          description: "",
+        });
         onProcessing(null);
         setOpId(null);
         setTimeout(() => window.location.reload(), 500);
       },
-      onError: () => {
+      onError: (error) => {
         onProcessing(null);
         setOpId(null);
-        toast.error("Failed to change plan");
+        showToast({
+          type: "ERROR",
+          title: "Failed to change plan",
+          analytics: classifyTrpcToastError(error, "billing_plan.change"),
+        });
       },
     });
-
-  if (!orgId) return null;
 
   return (
     <Dialog>
@@ -135,7 +142,6 @@ export const StripeSwitchPlanButton = ({
               mutChangePlan.mutate({ orgId, stripeProductId, opId });
             }}
             loading={processing}
-            className={className}
           >
             Confirm
           </ActionButton>

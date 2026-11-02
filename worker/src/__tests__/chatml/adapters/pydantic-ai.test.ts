@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   pydanticAIAdapter,
   selectAdapter,
-  SimpleChatMlArraySchema,
+  mapToChatMl,
   type NormalizerContext,
 } from "@langfuse/shared";
 
@@ -14,7 +14,7 @@ function normalizeInput(input: unknown, ctx: NormalizerContext = {}) {
     data: input,
   });
   const preprocessed = adapter.preprocess(input, "input", ctx);
-  return SimpleChatMlArraySchema.safeParse(preprocessed);
+  return mapToChatMl(preprocessed);
 }
 
 describe("Pydantic AI Adapter", () => {
@@ -152,6 +152,67 @@ describe("Pydantic AI Adapter", () => {
       expect(result.data?.[3].tools).toHaveLength(2); // Available tools attached
     });
 
+    it("should select pydantic-ai for tool response messages without metadata", () => {
+      const input = [
+        {
+          role: "user",
+          parts: [
+            {
+              type: "text",
+              content: "Look up the sample record",
+            },
+          ],
+        },
+        {
+          role: "assistant",
+          parts: [
+            {
+              type: "tool_call",
+              id: "tooluse_123",
+              name: "lookup_sample_record",
+              arguments: '{"record_id":"record-123"}',
+            },
+          ],
+        },
+        {
+          role: "user",
+          parts: [
+            {
+              type: "tool_call_response",
+              id: "tooluse_123",
+              name: "lookup_sample_record",
+              result: {
+                status: "not_found",
+                message: "No record found",
+              },
+            },
+          ],
+        },
+      ];
+
+      const adapter = selectAdapter({ data: input });
+      expect(adapter.id).toBe("pydantic-ai");
+
+      const result = normalizeInput(input);
+
+      expect(result.success).toBe(true);
+      expect(result.data?.[0]).toMatchObject({
+        role: "user",
+        content: "Look up the sample record",
+      });
+      expect(result.data?.[1].tool_calls?.[0]).toMatchObject({
+        id: "tooluse_123",
+        name: "lookup_sample_record",
+        arguments: '{"record_id":"record-123"}',
+        type: "function",
+      });
+      expect(result.data?.[2]).toMatchObject({
+        role: "tool",
+        tool_call_id: "tooluse_123",
+        content: '{"status":"not_found","message":"No record found"}',
+      });
+    });
+
     it("should extract thinking parts", () => {
       const output = [
         {
@@ -198,6 +259,61 @@ describe("Pydantic AI Adapter", () => {
       expect(result.data?.[0].thinking?.[0].content).toContain("NYC");
       expect(result.data?.[0].tool_calls?.[0].name).toBe("get_weather");
       expect(result.data?.[0].tools?.[0].name).toBe("get_weather");
+    });
+
+    it("should attach tools from wrapped input tools", () => {
+      const input = {
+        messages: [
+          {
+            role: "user",
+            parts: [
+              {
+                type: "text",
+                content: "Tell me a joke about programming.",
+              },
+            ],
+          },
+        ],
+        tools: [
+          {
+            name: "get_pun_suggestion",
+            description: "Get a pun-style joke suggestion",
+            parameters_json_schema: {
+              type: "object",
+              properties: {
+                topic: { type: "string" },
+              },
+            },
+          },
+        ],
+      };
+
+      const result = normalizeInput(input, {
+        metadata: {
+          scope: {
+            name: "pydantic-ai",
+            version: "1.26.0",
+          },
+          attributes: {},
+        },
+      });
+
+      expect(result.success).toBe(true);
+      expect(result.data?.[0].content).toBe(
+        "Tell me a joke about programming.",
+      );
+      expect(result.data?.[0].tools).toEqual([
+        {
+          name: "get_pun_suggestion",
+          description: "Get a pun-style joke suggestion",
+          parameters: {
+            type: "object",
+            properties: {
+              topic: { type: "string" },
+            },
+          },
+        },
+      ]);
     });
   });
 });

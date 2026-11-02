@@ -1,4 +1,4 @@
-import { CommentList } from "@/src/features/comments/CommentList";
+import { CommentList } from "@/src/features/comments";
 import { type AnnotationQueueObjectType } from "@langfuse/shared";
 
 interface CommentsSectionProps {
@@ -19,7 +19,6 @@ export const CommentsSection: React.FC<CommentsSectionProps> = ({
       projectId={projectId}
       objectId={objectId}
       objectType={objectType}
-      className="border-transparent p-2"
       cardView
       onDraftChange={onDraftChange}
     />

@@ -1,6 +1,6 @@
-import { type z } from "zod/v4";
-import { type ChatMlMessageSchema } from "@langfuse/shared";
+import { type z } from "zod";
 import {
+  type ChatMlMessageSchema,
   ChatMessageRole,
   ChatMessageType,
   isOpenAITextContentPart,

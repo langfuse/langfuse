@@ -1,14 +1,13 @@
 import { Card } from "@/src/components/ui/card";
-import { type ScoreTarget } from "@/src/features/scores/types";
+import { AnnotationForm, type ScoreTarget } from "@/src/features/scores";
 import {
   type AnnotationQueueItem,
   type ScoreDomain,
   isPresent,
   type ScoreConfigDomain,
 } from "@langfuse/shared";
-import { TriangleAlertIcon } from "lucide-react";
+import { TriangleAlertIcon } from "@langfuse/icons";
 import { useSession } from "next-auth/react";
-import { AnnotationForm } from "@/src/features/scores/components/AnnotationForm";
 import { type WithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes";
 
 interface AnnotationDrawerSectionProps {
@@ -20,11 +19,12 @@ interface AnnotationDrawerSectionProps {
   scores: WithStringifiedMetadata<ScoreDomain>[];
   configs: ScoreConfigDomain[];
   environment?: string;
+  isV4: boolean;
 }
 
 export const AnnotationDrawerSection: React.FC<
   AnnotationDrawerSectionProps
-> = ({ item, scoreTarget, scores, configs, environment }) => {
+> = ({ item, scoreTarget, scores, configs, environment, isV4 }) => {
   const session = useSession();
 
   const isLockedByOtherUser = item.lockedByUserId !== session.data?.user?.id;
@@ -34,7 +34,7 @@ export const AnnotationDrawerSection: React.FC<
   );
 
   return (
-    <Card className="col-span-2 flex h-full flex-col overflow-y-auto p-3">
+    <Card className="col-span-2 flex h-full flex-col overflow-y-auto border-none p-3 [--annotation-surface:var(--card)]">
       <AnnotationForm
         key={"annotation-drawer-content" + item.objectId}
         scoreTarget={scoreTarget}
@@ -48,12 +48,16 @@ export const AnnotationDrawerSection: React.FC<
         analyticsData={{
           type: scoreTarget.type,
           source: "AnnotationQueue",
+          isV4,
         }}
         actionButtons={
           isLockedByOtherUser && isPresent(item.lockedByUser?.name) ? (
-            <div className="flex items-center justify-center rounded-sm border border-dark-red bg-light-red p-1">
-              <TriangleAlertIcon className="mr-1 h-4 w-4 text-dark-red" />
-              <span className="text-xs text-dark-red">
+            <div className="border-dark-red bg-light-red flex items-center justify-center rounded-sm border p-1">
+              <TriangleAlertIcon
+                size="base"
+                __rawClassName="text-dark-red mr-1"
+              />
+              <span className="text-dark-red text-xs">
                 Currently edited by {item.lockedByUser.name}
               </span>
             </div>
@@ -61,7 +65,7 @@ export const AnnotationDrawerSection: React.FC<
         }
       />
       {hasNonAnnotationScores && (
-        <div className="mt-4 text-xs text-muted-foreground">
+        <div className="text-muted-foreground mt-4 text-xs">
           API and eval scores visible when toggling on the detailed view. Add
           manual annotations above.
         </div>

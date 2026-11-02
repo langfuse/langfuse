@@ -1,0 +1,196 @@
+/* eslint-disable @repo/no-style-props */
+/**
+ * TreeNodeWrapper - Generic tree structure renderer.
+ *
+ * Responsibilities:
+ * - Render tree visual structure (indents, connector lines)
+ * - Render collapse/expand button
+ * - Handle selection state and click events
+ *
+ * Does NOT know about:
+ * - Domain-specific content (that's passed as children)
+ * - What kind of data is being displayed
+ *
+ * This component wraps arbitrary content, making it reusable for any tree view.
+ */
+
+import { type ReactNode } from "react";
+import { Button } from "@/src/components/ui/button";
+import {
+  ItemTypeIcon,
+  type LangfuseItemType,
+} from "@/src/components/ItemBadge";
+import { Skeleton } from "@/src/components/ui/skeleton";
+import { ChevronRight } from "@langfuse/icons";
+import { cn } from "@/src/utils/tailwind";
+
+export interface TreeNodeMetadata {
+  depth: number;
+  treeLines: boolean[];
+  isLastSibling: boolean;
+  /**
+   * Deepest level to render indentation for; nodes beyond it render flat at
+   * this level so extremely deep trees never push content off-viewport
+   * (LFE-10959). Defaults to unbounded for callers that don't measure.
+   */
+  maxVisualDepth?: number;
+}
+
+interface TreeNodeWrapperProps {
+  isLoading?: false;
+  // Tree structure data
+  metadata: TreeNodeMetadata;
+  nodeType: LangfuseItemType; // For the icon badge (e.g., "SPAN", "GENERATION", "TRACE")
+  hasChildren: boolean;
+  isCollapsed: boolean;
+  onToggleCollapse: () => void;
+
+  // Selection/interaction
+  isSelected: boolean;
+  onSelect: () => void;
+  /** Mirrors the row's `hover:` surface so content can restyle with it. */
+  onHoverChange?: (isHovered: boolean) => void;
+
+  // Content to render (fully decoupled from tree structure)
+  children: ReactNode;
+
+  // Optional customization
+  className?: string;
+}
+
+/** Placeholder row: same geometry, a skeleton in the icon slot, no actions. */
+interface TreeNodeWrapperLoadingProps {
+  isLoading: true;
+  metadata: TreeNodeMetadata;
+  hasChildren?: boolean;
+  children: ReactNode;
+}
+
+export function VirtualizedTreeNodeWrapper(
+  props: TreeNodeWrapperProps | TreeNodeWrapperLoadingProps,
+) {
+  const loaded = props.isLoading === true ? null : props;
+  const { metadata, children } = props;
+  const hasChildren = props.hasChildren ?? false;
+  const isCollapsed = loaded?.isCollapsed ?? false;
+  const isSelected = loaded?.isSelected ?? false;
+  const { depth, treeLines, isLastSibling } = metadata;
+  const maxVisualDepth = metadata.maxVisualDepth ?? Infinity;
+  // Visual depth: real depth, capped so indentation never exceeds the
+  // container. Rows past the cap render flat at the cap level.
+  const visualDepth = Math.min(depth, maxVisualDepth);
+  // A capped node's children render at the SAME indent (not one level right),
+  // so its child spine would dangle next to nothing — suppress it.
+  const childrenAreCapped = depth >= maxVisualDepth;
+
+  return (
+    <div
+      className={cn(
+        "group relative flex w-full px-0",
+        loaded && "cursor-pointer",
+        // Dim unselected rows in dark only — in light the gray read as washed
+        // out, an accepted light/dark inconsistency.
+        loaded &&
+          (isSelected
+            ? "bg-muted text-foreground"
+            : "hover:bg-accent dark:text-muted-foreground"),
+        loaded?.className,
+      )}
+      style={{
+        paddingTop: 0,
+        paddingBottom: 0,
+      }}
+      onClick={
+        loaded
+          ? (e) => {
+              if (!e.currentTarget?.closest("[data-expand-button]")) {
+                loaded.onSelect();
+              }
+            }
+          : undefined
+      }
+      onMouseEnter={loaded ? () => loaded.onHoverChange?.(true) : undefined}
+      onMouseLeave={loaded ? () => loaded.onHoverChange?.(false) : undefined}
+    >
+      <div className="flex w-full pl-2">
+        {/* 1. Indents: ancestor level indicators (capped at visualDepth) */}
+        {visualDepth > 0 && (
+          <div className="flex shrink-0">
+            {/* Math.max floors the length at 0 so a stray non-positive/NaN depth
+                can never reach Array.from as a value that throws RangeError. */}
+            {Array.from({ length: Math.max(0, visualDepth - 1) }, (_, i) => (
+              <div key={i} className="relative w-5">
+                {treeLines[i] && (
+                  <div className="bg-border-contrast absolute top-0 bottom-0 left-3 w-px" />
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* 2. Current element bars: up/down/horizontal connectors */}
+        {visualDepth > 0 && (
+          <div className="relative w-5 shrink-0">
+            {/* Spine continuing to the next sibling */}
+            {!isLastSibling && (
+              <div className="bg-border-contrast absolute top-0 bottom-0 left-3 w-px" />
+            )}
+            {/* Rounded elbow into the icon */}
+            <div className="border-border-contrast absolute top-0 left-3 z-20 h-3.5 w-3 rounded-bl-md border-b border-l mask-r-from-40%" />
+          </div>
+        )}
+
+        {/* 3. Icon + child connector: fixed width container */}
+        <div className="relative flex w-6 shrink-0 flex-col py-1.5">
+          <div className="relative z-10 flex h-4 items-center justify-center">
+            {loaded ? (
+              <ItemTypeIcon type={loaded.nodeType} className="icon-base" />
+            ) : (
+              <Skeleton className="size-4 rounded-sm" />
+            )}
+          </div>
+          {/* Vertical bar downwards if there are expanded children (skipped
+              when children render capped at this same indent — the spine
+              would point at nothing) */}
+          {hasChildren && !isCollapsed && !childrenAreCapped && (
+            <div className="bg-border-contrast absolute top-5.5 bottom-0 left-1/2 w-px mask-t-from-[calc(100%-var(--spacing)*2)]" />
+          )}
+          {/* Root node downward connector */}
+          {depth === 0 && hasChildren && !isCollapsed && !childrenAreCapped && (
+            <div className="bg-border-contrast absolute top-5.5 bottom-0 left-1/2 w-px mask-t-from-[calc(100%-var(--spacing)*2)]" />
+          )}
+        </div>
+
+        {/* 4. Content area (passed as children - completely decoupled) */}
+        <div className="flex min-w-0 flex-1">{children}</div>
+
+        {/* 5. Expand/Collapse button. Leaf rows keep the slot so right-aligned
+            content lines up across rows. */}
+        <div className="flex w-7 shrink-0 items-start justify-end py-0.5 pr-1">
+          {loaded && hasChildren && (
+            <Button
+              aria-expanded={!isCollapsed}
+              data-expand-button
+              size="icon"
+              variant="ghost"
+              onClick={(ev) => {
+                ev.stopPropagation();
+                loaded.onToggleCollapse();
+              }}
+              className="text-muted-foreground hover:text-foreground hover:bg-primary/10 h-6 w-6 shrink-0"
+            >
+              <span
+                className={cn(
+                  "inline-block h-4 w-4 transform transition-transform duration-200 ease-in-out",
+                  isCollapsed ? "rotate-0" : "rotate-90",
+                )}
+              >
+                <ChevronRight size="base" color="default" />
+              </span>
+            </Button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}

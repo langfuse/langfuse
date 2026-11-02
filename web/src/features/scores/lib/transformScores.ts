@@ -1,5 +1,8 @@
-import { type ScoreDomain, type ScoreConfigDomain } from "@langfuse/shared";
-import { type ScoreAggregate } from "@langfuse/shared";
+import {
+  type ScoreDomain,
+  type ScoreConfigDomain,
+  type ScoreAggregate,
+} from "@langfuse/shared";
 import {
   ANNOTATION_SCORE_DATA_TYPES_ARRAY,
   type AnnotationScoreDataType,
@@ -109,11 +112,17 @@ function transformAggregates(
   const scores: AnnotationScore[] = [];
 
   Object.entries(mergedAggregates).forEach(([key, aggregate]) => {
-    const { name, source, dataType } = decomposeAggregateScoreKey(key);
+    const {
+      name,
+      source,
+      dataType: rawDataType,
+    } = decomposeAggregateScoreKey(key);
 
     // Only ANNOTATION source can be edited, and must have single ID
     // Multi-value aggregates (no id) are child observation scores - skip them
     if (source !== "ANNOTATION" || !aggregate.id) return;
+
+    const dataType = rawDataType as AnnotationScoreDataType;
 
     const config = configs.find(
       (c) => normalizeScoreName(c.name) === name && c.dataType === dataType,

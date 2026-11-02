@@ -1,10 +1,11 @@
+/* eslint-disable @repo/no-style-props */
 import { useMemo } from "react";
 import {
   Combobox,
   type ComboboxOptionGroup,
-} from "@/src/components/ui/combobox";
+} from "@/src/components/ui/Combobox";
 import { Button } from "@/src/components/ui/button";
-import { X } from "lucide-react";
+import { X } from "@langfuse/icons";
 
 export interface ScoreOption {
   value: string; // "name-dataType-source"
@@ -103,7 +104,7 @@ export function ScoreCombobox({
           title="Clear selection"
           className="h-6 w-6 shrink-0"
         >
-          <X className="h-3 w-3" />
+          <X size="base" color="default" />
         </Button>
       )}
     </div>

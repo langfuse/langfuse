@@ -2,7 +2,8 @@
 
 # Development-only ClickHouse table creation script
 # This script is for creating experimental/development tables that are not yet
-# ready to be part of the official migration system.
+# ready to be part of the official migration system, and for seeding the v4
+# events tables with local sample data.
 #
 # Usage:
 #   pnpm run ch:dev-tables  (from packages/shared/)
@@ -11,6 +12,10 @@
 #   - pnpm run dx
 #   - pnpm run dx-f
 #   - pnpm run ch:reset
+#
+# When making changes below, treat them like migrations, i.e. DO NOT modify the
+# column inline. Instead add a table mutation adding a net new column. Core
+# events-table schema changes belong in a new ClickHouse migration, not here.
 
 # Load environment variables
 [ -f ../../.env ] && source ../../.env
@@ -70,621 +75,183 @@ clickhouse client \
   --user="${CLICKHOUSE_USER}" \
   --password="${CLICKHOUSE_PASSWORD}" \
   --database="${CLICKHOUSE_DB}" \
-  --multiquery <<EOF
+  --multiquery <<'EOF'
 
--- Create observations_batch_staging table for batch processing
--- This table uses 3-minute partitions to efficiently process observations in batches
--- and merge them with traces data into the events table.
--- Partitions are automatically expired after 12 hours via TTL (ttl_only_drop_parts=1
--- ensures only complete partitions are dropped, not individual rows).
--- See LFE-7122 for implementation details.
-CREATE TABLE IF NOT EXISTS observations_batch_staging
-(
-    id String,
-    trace_id String,
-    project_id String,
-    type LowCardinality(String),
-    parent_observation_id Nullable(String),
-    start_time DateTime64(3),
-    end_time Nullable(DateTime64(3)),
-    name String,
-    metadata Map(LowCardinality(String), String),
-    level LowCardinality(String),
-    status_message Nullable(String),
-    version Nullable(String),
-    input Nullable(String) CODEC(ZSTD(3)),
-    output Nullable(String) CODEC(ZSTD(3)),
-    provided_model_name Nullable(String),
-    internal_model_id Nullable(String),
-    model_parameters Nullable(String),
-    provided_usage_details Map(LowCardinality(String), UInt64),
-    usage_details Map(LowCardinality(String), UInt64),
-    provided_cost_details Map(LowCardinality(String), Decimal64(12)),
-    cost_details Map(LowCardinality(String), Decimal64(12)),
-    total_cost Nullable(Decimal64(12)),
-    usage_pricing_tier_id Nullable(String),
-    usage_pricing_tier_name Nullable(String),
-    tool_definitions Map(String, String),
-    tool_calls Array(String),
-    tool_call_names Array(String),
-    completion_start_time Nullable(DateTime64(3)),
-    prompt_id Nullable(String),
-    prompt_name Nullable(String),
-    prompt_version Nullable(UInt16),
-    created_at DateTime64(3) DEFAULT now(),
-    updated_at DateTime64(3) DEFAULT now(),
-    event_ts DateTime64(3),
-    is_deleted UInt8,
-    s3_first_seen_timestamp DateTime64(3),
-    environment LowCardinality(String) DEFAULT 'default',
-) ENGINE = ReplacingMergeTree(event_ts, is_deleted)
-PARTITION BY toStartOfInterval(s3_first_seen_timestamp, INTERVAL 3 MINUTE)
-PRIMARY KEY (project_id, toDate(s3_first_seen_timestamp))
-ORDER BY (
-    project_id,
-    toDate(s3_first_seen_timestamp),
-    trace_id,
-    id
-)
-TTL s3_first_seen_timestamp + INTERVAL 12 HOUR
-SETTINGS ttl_only_drop_parts = 1;
-
--- Create original events table for development setups.
-CREATE TABLE IF NOT EXISTS events
-  (
-      project_id String,
-      trace_id String,
-      span_id String,
-      parent_span_id String,
-
-      start_time DateTime64(6),
-      end_time Nullable(DateTime64(6)),
-
-      -- Core properties
-      name String,
-      type LowCardinality(String),
-      environment LowCardinality(String) DEFAULT 'default',
-      version String,
-      release String,
-
-      trace_name String,
-      user_id String,
-      session_id String,
-
-      tags Array(String),
-      bookmarked Bool DEFAULT false,
-      public Bool DEFAULT false,
-
-      level LowCardinality(String),
-      status_message String, -- Threat '' and null the same for search
-      completion_start_time Nullable(DateTime64(6)),
-
-      -- Prompt
-      prompt_id String,
-      prompt_name String,
-      prompt_version Nullable(UInt16),
-
-      -- Model
-      model_id String,
-      provided_model_name String,
-      model_parameters String,
-      model_parameters_json JSON MATERIALIZED model_parameters::JSON,
-
-      -- Usage
-      provided_usage_details Map(LowCardinality(String), UInt64),
-      provided_usage_details_json JSON(max_dynamic_paths=64, max_dynamic_types=8) MATERIALIZED provided_usage_details::JSON,
-      usage_details Map(LowCardinality(String), UInt64),
-      usage_details_json JSON(
-        max_dynamic_paths=64,
-        max_dynamic_types=8,
-        input UInt64,
-        output UInt64,
-        total UInt64,
-      ) MATERIALIZED usage_details::JSON,
-      provided_cost_details Map(LowCardinality(String), Decimal(18,12)),
-      provided_cost_details_json JSON(max_dynamic_paths=64, max_dynamic_types=8) MATERIALIZED provided_cost_details::JSON,
-      cost_details Map(LowCardinality(String), Decimal(18,12)),
-      cost_details_json JSON(
-        max_dynamic_paths=64,
-        max_dynamic_types=8,
-        input Decimal(18,12),
-        output Decimal(18,12),
-        total Decimal(18,12),
-      ) MATERIALIZED cost_details::JSON,
-
-      calculated_input_cost Decimal(18, 12) MATERIALIZED arraySum(mapValues(mapFilter(x -> positionCaseInsensitive(x.1, 'input') > 0, cost_details))),
-      calculated_output_cost Decimal(18, 12) MATERIALIZED arraySum(mapValues(mapFilter(x -> positionCaseInsensitive(x.1, 'output') > 0, cost_details))),
-      calculated_total_cost Decimal(18, 12) MATERIALIZED arraySum(mapValues(mapFilter(x -> positionCaseInsensitive(x.1, 'input') > 0 OR positionCaseInsensitive(x.1, 'output') > 0, cost_details))),
-      total_cost Decimal(18, 12) ALIAS cost_details_json.total,
-      usage_pricing_tier_id Nullable(String),
-      usage_pricing_tier_name Nullable(String),
-
-      -- Tools
-      tool_definitions Map(String, String),
-      tool_calls Array(String),
-      tool_call_names Array(String),
-
-      -- I/O
-      input String CODEC(ZSTD(3)),
-      input_truncated String MATERIALIZED leftUTF8(input, 1024),
-      input_length UInt64 MATERIALIZED lengthUTF8(input),
-      output String CODEC(ZSTD(3)),
-      output_truncated String MATERIALIZED leftUTF8(output, 1024),
-      output_length UInt64 MATERIALIZED lengthUTF8(output),
-
-      -- Metadata
-      -- Keep raw JSON to benefit from future ClickHouse improvements.
-      -- For now, store things as "German Strings" with fast prefix matches based on https://www.uber.com/en-DE/blog/logging/.
-      metadata JSON(max_dynamic_paths=0),
-      metadata_names Array(String),
-      metadata_raw_values Array(String), -- should not be used on retrieval, only for materializing other columns
-      metadata_prefixes Array(String) MATERIALIZED arrayMap(v -> leftUTF8(CAST(v, 'String'), 200), metadata_raw_values),
-      metadata_hashes Array(Nullable(UInt32)) MATERIALIZED arrayMap(v -> if(lengthUTF8(CAST(v, 'String')) > 200, xxHash32(CAST(v, 'String')), NULL), metadata_raw_values),
-      metadata_long_values Map(UInt32, String) MATERIALIZED mapFromArrays(
-        arrayMap(v -> xxHash32(CAST(v, 'String')), arrayFilter(v -> lengthUTF8(CAST(v, 'String')) > 200, metadata_raw_values)),
-        arrayMap(v -> CAST(v, 'String'), arrayFilter(v -> lengthUTF8(CAST(v, 'String')) > 200, metadata_raw_values))
-      ),
-
-      -- Experiment properties
-      experiment_id String,
-      experiment_name String,
-      experiment_metadata_names Array(String),
-      experiment_metadata_values Array(String), -- We will restrict this to 200 characters on the client.
-      experiment_description String,
-      experiment_dataset_id String,
-      experiment_item_id String,
-      experiment_item_version Nullable(DateTime64(6)),
-      experiment_item_expected_output String,
-      experiment_item_metadata_names Array(String),
-      experiment_item_metadata_values Array(String), -- We will restrict this to 200 characters on the client.
-      experiment_item_root_span_id String,
-
-      -- Source metadata (Instrumentation)
-      source LowCardinality(String),
-      service_name String,
-      service_version String,
-      scope_name String,
-      scope_version String,
-      telemetry_sdk_language LowCardinality(String),
-      telemetry_sdk_name String,
-      telemetry_sdk_version String,
-
-      -- Generic props
-      blob_storage_file_path String,
-      event_bytes UInt64,
-      created_at DateTime64(6) DEFAULT now(),
-      updated_at DateTime64(6) DEFAULT now(),
-      event_ts DateTime64(6),
-      is_deleted UInt8,
-
-      -- Indexes
-      INDEX idx_span_id span_id TYPE bloom_filter(0.01) GRANULARITY 1,
-      INDEX idx_trace_id trace_id TYPE bloom_filter(0.01) GRANULARITY 1,
-      INDEX idx_type type TYPE set(50) GRANULARITY 1,
-      INDEX idx_created_at created_at TYPE minmax GRANULARITY 1,
-      INDEX idx_updated_at updated_at TYPE minmax GRANULARITY 1,
-
-      -- Full Text Search Indexes (We should try different index sizes, e.g. 2048, 4096, or 8192)
-      -- Add after backfill as they limit backfill throughput performance
-      -- INDEX idx_fts_input_1 input TYPE ngrambf_v1(1, 1024, 1, 0) GRANULARITY 1,
-      -- INDEX idx_fts_input_2 input TYPE ngrambf_v1(2, 1024, 1, 0) GRANULARITY 1,
-      -- INDEX idx_fts_input_4 input TYPE ngrambf_v1(4, 1024, 1, 0) GRANULARITY 1,
-      -- INDEX idx_fts_input_8 input TYPE ngrambf_v1(8, 1024, 1, 0) GRANULARITY 1,
-
-      -- INDEX idx_fts_output_1 output TYPE ngrambf_v1(1, 1024, 1, 0) GRANULARITY 1,
-      -- INDEX idx_fts_output_2 output TYPE ngrambf_v1(2, 1024, 1, 0) GRANULARITY 1,
-      -- INDEX idx_fts_output_4 output TYPE ngrambf_v1(4, 1024, 1, 0) GRANULARITY 1,
-      -- INDEX idx_fts_output_8 output TYPE ngrambf_v1(8, 1024, 1, 0) GRANULARITY 1,
-  )
-  ENGINE = ReplacingMergeTree(event_ts, is_deleted)
-  -- ENGINE = (Replicated)ReplacingMergeTree(event_ts, is_deleted)
-  PARTITION BY toYYYYMM(start_time)
-  PRIMARY KEY (project_id, start_time, xxHash32(trace_id))
-  ORDER BY (project_id, start_time, xxHash32(trace_id), span_id)
-  SAMPLE BY xxHash32(trace_id)
-  SETTINGS
-    index_granularity = 8192,
-    index_granularity_bytes = '64Mi', -- Default 10MiB. Avoid small granules due to large rows.
-    enable_block_number_column = 1,
-    enable_block_offset_column = 1,
-    dynamic_serialization_version='v3',
-    object_serialization_version='v3',
-    object_shared_data_serialization_version='advanced',
-    object_shared_data_serialization_version_for_zero_level_parts='map_with_buckets'
-    -- Try without, but re-enable if recent row performance is bad
-    -- min_rows_for_wide_part = 0,
-    -- min_bytes_for_wide_part = 0
-  ;
-
--- Create new events table for development setups.
--- We expect this to be fully immutable and eventually replace observations.
--- Remove IF NOT EXISTS when moving this to prod migrations.
-CREATE TABLE IF NOT EXISTS events_full
-  (
-      project_id String,
-      trace_id String,
-      span_id String,
-      parent_span_id String,
-
-      start_time DateTime64(6),
-      end_time Nullable(DateTime64(6)),
-
-      -- Core properties
-      name String,
-      type LowCardinality(String),
-      environment LowCardinality(String) DEFAULT 'default',
-      version String,
-      release String,
-      trace_name String,
-      user_id String,
-      session_id String,
-      tags Array(String),
-      level LowCardinality(String),
-      status_message String, -- Threat '' and null the same for search
-      completion_start_time Nullable(DateTime64(6)),
-
-      -- Updateable properties
-      bookmarked Bool DEFAULT false,
-      public Bool DEFAULT false,
-
-      -- Prompt
-      prompt_id String,
-      prompt_name String,
-      prompt_version Nullable(UInt16),
-
-      -- Model
-      model_id String,
-      provided_model_name String,
-      model_parameters String,
-
-      -- Usage and Cost
-      provided_usage_details Map(LowCardinality(String), UInt64),
-      usage_details Map(LowCardinality(String), UInt64),
-      provided_cost_details Map(LowCardinality(String), Decimal(18,12)),
-      cost_details Map(LowCardinality(String), Decimal(18,12)),
-      calculated_input_cost Decimal(18, 12) MATERIALIZED arraySum(mapValues(mapFilter(x -> positionCaseInsensitive(x.1, 'input') > 0, cost_details))),
-      calculated_output_cost Decimal(18, 12) MATERIALIZED arraySum(mapValues(mapFilter(x -> positionCaseInsensitive(x.1, 'output') > 0, cost_details))),
-      calculated_total_cost Decimal(18, 12) MATERIALIZED arraySum(mapValues(mapFilter(x -> positionCaseInsensitive(x.1, 'input') > 0 OR positionCaseInsensitive(x.1, 'output') > 0, cost_details))),
-      total_cost Decimal(18, 12) ALIAS cost_details['total'],
-
-      usage_pricing_tier_id Nullable(String),
-      usage_pricing_tier_name Nullable(String),
-
-      -- Tools
-      tool_definitions Map(String, String),
-      tool_calls Array(String),
-      tool_call_names Array(String),
-
-      -- I/O
-      input String CODEC(ZSTD(3)),
-      input_length UInt64 MATERIALIZED lengthUTF8(input),
-      output String CODEC(ZSTD(3)),
-      output_length UInt64 MATERIALIZED lengthUTF8(output),
-
-      -- Metadata
-      metadata_names Array(String),
-      metadata_values Array(String),
-
-      -- Experiment properties
-      experiment_id String,
-      experiment_name String,
-      experiment_metadata_names Array(String),
-      experiment_metadata_values Array(String), -- We will restrict this to 200 characters on the client.
-      experiment_description String,
-      experiment_dataset_id String,
-      experiment_item_id String,
-      experiment_item_version Nullable(DateTime64(6)),
-      experiment_item_expected_output String,
-      experiment_item_metadata_names Array(String),
-      experiment_item_metadata_values Array(String), -- We will restrict this to 200 characters on the client.
-      experiment_item_root_span_id String,
-
-      -- Source metadata (Instrumentation)
-      source LowCardinality(String),
-      service_name String,
-      service_version String,
-      scope_name String,
-      scope_version String,
-      telemetry_sdk_language LowCardinality(String),
-      telemetry_sdk_name String,
-      telemetry_sdk_version String,
-
-      -- Generic props
-      blob_storage_file_path String,
-      event_bytes UInt64,
-      created_at DateTime64(6) DEFAULT now(),
-      updated_at DateTime64(6) DEFAULT now(),
-      event_ts DateTime64(6),
-      is_deleted UInt8,
-
-      -- Indexes
-      INDEX idx_span_id span_id TYPE bloom_filter(0.01) GRANULARITY 1,
-      INDEX idx_trace_id trace_id TYPE bloom_filter(0.01) GRANULARITY 1,
-      INDEX idx_user_id user_id TYPE bloom_filter(0.01) GRANULARITY 1,
-      INDEX idx_session_id session_id TYPE bloom_filter(0.01) GRANULARITY 1,
-      INDEX idx_created_at created_at TYPE minmax GRANULARITY 1,
-      INDEX idx_updated_at updated_at TYPE minmax GRANULARITY 1,
-
-      -- Full Text Search Indexes (We should try different index sizes, e.g. 2048, 4096, or 8192)
-      -- Add after backfill as they limit backfill throughput performance
-      -- INDEX idx_fts_input_1 input TYPE ngrambf_v1(1, 1024, 1, 0) GRANULARITY 1,
-      -- INDEX idx_fts_input_2 input TYPE ngrambf_v1(2, 1024, 1, 0) GRANULARITY 1,
-      -- INDEX idx_fts_input_4 input TYPE ngrambf_v1(4, 1024, 1, 0) GRANULARITY 1,
-      -- INDEX idx_fts_input_8 input TYPE ngrambf_v1(8, 1024, 1, 0) GRANULARITY 1,
-
-      -- INDEX idx_fts_output_1 output TYPE ngrambf_v1(1, 1024, 1, 0) GRANULARITY 1,
-      -- INDEX idx_fts_output_2 output TYPE ngrambf_v1(2, 1024, 1, 0) GRANULARITY 1,
-      -- INDEX idx_fts_output_4 output TYPE ngrambf_v1(4, 1024, 1, 0) GRANULARITY 1,
-      -- INDEX idx_fts_output_8 output TYPE ngrambf_v1(8, 1024, 1, 0) GRANULARITY 1,
-  )
-  ENGINE = ReplacingMergeTree(event_ts, is_deleted)
-  -- ENGINE = (Replicated)ReplacingMergeTree(event_ts, is_deleted)
-  PARTITION BY toYYYYMM(start_time)
-  PRIMARY KEY (project_id, toStartOfMinute(start_time), xxHash32(trace_id))
-  ORDER BY (project_id, toStartOfMinute(start_time), xxHash32(trace_id), span_id, start_time)
-  SAMPLE BY xxHash32(trace_id)
-  SETTINGS
-    index_granularity_bytes = '64Mi', -- Default 10MiB. Avoid small granules due to large rows.
-    merge_max_block_size_bytes = '64Mi',
-    enable_block_number_column = 1,
-    enable_block_offset_column = 1
-  ;
-
--- Create events_core table - lightweight version with truncated input/output/metadata for fast queries
--- This table is populated via materialized view from the events_full table.
-CREATE TABLE IF NOT EXISTS events_core
-(
+-- Diagnostic table to track event size distributions across projects.
+-- Every insert (including updates) produces a row — no deduplication.
+-- See LFE-9402 for context.
+CREATE TABLE IF NOT EXISTS ingestion_size_stats (
     project_id String,
     trace_id String,
     span_id String,
-    parent_span_id String,
+    created_at DateTime64(3),
+    input_size UInt64,
+    output_size UInt64,
+    metadata_size UInt64,
+    total_size UInt64
+) ENGINE = MergeTree
+PRIMARY KEY (toStartOfHour(created_at), project_id)
+ORDER BY (toStartOfHour(created_at), project_id, trace_id, span_id, created_at);
 
-    start_time DateTime64(6),
-    end_time Nullable(DateTime64(6)),
-
-    -- Core properties
-    name String,
-    type LowCardinality(String),
-    environment LowCardinality(String) DEFAULT 'default',
-    version String,
-    release String,
-    trace_name String,
-    user_id String,
-    session_id String,
-    tags Array(String),
-    level LowCardinality(String),
-    status_message String,
-    completion_start_time Nullable(DateTime64(6)),
-
-    -- Updateable properties
-    bookmarked Bool DEFAULT false,
-    public Bool DEFAULT false,
-
-    -- Prompt
-    prompt_id String,
-    prompt_name String,
-    prompt_version Nullable(UInt16),
-
-    -- Model
-    model_id String,
-    provided_model_name String,
-    model_parameters String,
-
-    -- Usage
-    provided_usage_details Map(LowCardinality(String), UInt64),
-    usage_details Map(LowCardinality(String), UInt64),
-    provided_cost_details Map(LowCardinality(String), Decimal(18,12)),
-    cost_details Map(LowCardinality(String), Decimal(18,12)),
-    calculated_input_cost Decimal(18, 12) MATERIALIZED arraySum(mapValues(mapFilter(x -> positionCaseInsensitive(x.1, 'input') > 0, cost_details))),
-    calculated_output_cost Decimal(18, 12) MATERIALIZED arraySum(mapValues(mapFilter(x -> positionCaseInsensitive(x.1, 'output') > 0, cost_details))),
-    calculated_total_cost Decimal(18, 12) MATERIALIZED arraySum(mapValues(mapFilter(x -> positionCaseInsensitive(x.1, 'input') > 0 OR positionCaseInsensitive(x.1, 'output') > 0, cost_details))),
-    total_cost Decimal(18, 12) ALIAS cost_details['total'],
-
-    usage_pricing_tier_id Nullable(String),
-    usage_pricing_tier_name Nullable(String),
-
-    -- Tools
-    tool_definitions Map(String, String),
-    tool_calls Array(String),
-    tool_call_names Array(String),
-
-    -- I/O
-    input String,
-    input_length UInt64 MATERIALIZED lengthUTF8(input),
-    output String,
-    output_length UInt64 MATERIALIZED lengthUTF8(output),
-
-    -- Metadata
-    metadata_names Array(String),
-    metadata_values Array(String),
-
-    -- Experiment properties
-    experiment_id String,
-    experiment_name String,
-    experiment_metadata_names Array(String),
-    experiment_metadata_values Array(String),
-    experiment_description String,
-    experiment_dataset_id String,
-    experiment_item_id String,
-    experiment_item_version Nullable(DateTime64(6)),
-    experiment_item_expected_output String,
-    experiment_item_metadata_names Array(String),
-    experiment_item_metadata_values Array(String),
-    experiment_item_root_span_id String,
-
-    -- Source metadata (Instrumentation)
-    source LowCardinality(String),
-    service_name String,
-    service_version String,
-    scope_name String,
-    scope_version String,
-    telemetry_sdk_language LowCardinality(String),
-    telemetry_sdk_name String,
-    telemetry_sdk_version String,
-
-    -- Generic props
-    blob_storage_file_path String,
-    event_bytes UInt64,
-    created_at DateTime64(6) DEFAULT now(),
-    updated_at DateTime64(6) DEFAULT now(),
-    event_ts DateTime64(6),
-    is_deleted UInt8,
-
-    -- Indexes
-    INDEX idx_span_id span_id TYPE bloom_filter(0.01) GRANULARITY 1,
-    INDEX idx_trace_id trace_id TYPE bloom_filter(0.01) GRANULARITY 1,
-    INDEX idx_user_id user_id TYPE bloom_filter(0.01) GRANULARITY 1,
-    INDEX idx_session_id session_id TYPE bloom_filter(0.01) GRANULARITY 1,
-    INDEX idx_created_at created_at TYPE minmax GRANULARITY 1,
-    INDEX idx_updated_at updated_at TYPE minmax GRANULARITY 1
-)
-ENGINE = ReplacingMergeTree(event_ts, is_deleted)
-PARTITION BY toYYYYMM(start_time)
-PRIMARY KEY (project_id, toStartOfMinute(start_time), xxHash32(trace_id))
-ORDER BY (project_id, toStartOfMinute(start_time), xxHash32(trace_id), span_id, start_time)
-SAMPLE BY xxHash32(trace_id)
-SETTINGS
-    enable_block_number_column = 1,
-    enable_block_offset_column = 1;
-
--- Materialized view to populate events_core from events_full table
-CREATE MATERIALIZED VIEW IF NOT EXISTS events_core_mv TO events_core AS
+-- MV: observations -> ingestion_size_stats
+CREATE MATERIALIZED VIEW IF NOT EXISTS ingestion_size_stats_observations_mv
+TO ingestion_size_stats AS
 SELECT
     project_id,
     trace_id,
-    span_id,
-    parent_span_id,
-    start_time,
-    end_time,
-    name,
-    type,
-    environment,
-    version,
-    release,
-    trace_name,
-    user_id,
-    session_id,
-    tags,
-    level,
-    status_message,
-    completion_start_time,
-    bookmarked,
-    public,
-    prompt_id,
-    prompt_name,
-    prompt_version,
-    model_id,
-    provided_model_name,
-    model_parameters,
-    provided_usage_details,
-    usage_details,
-    provided_cost_details,
-    cost_details,
-    usage_pricing_tier_id,
-    usage_pricing_tier_name,
-    tool_definitions,
-    tool_calls,
-    tool_call_names,
-    leftUTF8(input, 200) as input,
-    leftUTF8(output, 200) as output,
-    metadata_names,
-    arrayMap(v -> leftUTF8(v, 200), metadata_values) as metadata_values,
-    experiment_id,
-    experiment_name,
-    experiment_metadata_names,
-    experiment_metadata_values,
-    experiment_description,
-    experiment_dataset_id,
-    experiment_item_id,
-    experiment_item_version,
-    experiment_item_expected_output,
-    experiment_item_metadata_names,
-    experiment_item_metadata_values,
-    experiment_item_root_span_id,
-    source,
-    service_name,
-    service_version,
-    scope_name,
-    scope_version,
-    telemetry_sdk_language,
-    telemetry_sdk_name,
-    telemetry_sdk_version,
-    blob_storage_file_path,
-    event_bytes,
+    id AS span_id,
     created_at,
-    updated_at,
-    event_ts,
-    is_deleted
-FROM events_full;
+    length(coalesce(input, '')) AS input_size,
+    length(coalesce(output, '')) AS output_size,
+    arraySum(arrayMap(k -> length(k), mapKeys(metadata)))
+      + arraySum(arrayMap(v -> length(v), mapValues(metadata))) AS metadata_size,
+    byteSize(*) AS total_size
+FROM observations;
 
-CREATE MATERIALIZED VIEW IF NOT EXISTS events_full_mv TO events_full AS
+-- MV: traces -> ingestion_size_stats
+CREATE MATERIALIZED VIEW IF NOT EXISTS ingestion_size_stats_traces_mv
+TO ingestion_size_stats AS
 SELECT
     project_id,
-    trace_id,
-    span_id,
-    parent_span_id,
-    start_time,
-    end_time,
-    name,
-    type,
-    environment,
-    version,
-    release,
-    trace_name,
-    user_id,
-    session_id,
-    tags,
-    level,
-    status_message,
-    completion_start_time,
-    bookmarked,
-    public,
-    prompt_id,
-    prompt_name,
-    prompt_version,
-    model_id,
-    provided_model_name,
-    model_parameters,
-    provided_usage_details,
-    usage_details,
-    provided_cost_details,
-    cost_details,
-    usage_pricing_tier_id,
-    usage_pricing_tier_name,
-    tool_definitions,
-    tool_calls,
-    tool_call_names,
-    input,
-    output,
-    metadata_names,
-    metadata_raw_values as metadata_values,
-    experiment_id,
-    experiment_name,
-    experiment_metadata_names,
-    experiment_metadata_values,
-    experiment_description,
-    experiment_dataset_id,
-    experiment_item_id,
-    experiment_item_version,
-    experiment_item_expected_output,
-    experiment_item_metadata_names,
-    experiment_item_metadata_values,
-    experiment_item_root_span_id,
-    source,
-    service_name,
-    service_version,
-    scope_name,
-    scope_version,
-    telemetry_sdk_language,
-    telemetry_sdk_name,
-    telemetry_sdk_version,
-    blob_storage_file_path,
-    event_bytes,
+    id AS trace_id,
+    concat('t-', id) AS span_id,
     created_at,
-    updated_at,
-    event_ts,
-    is_deleted
-FROM events;
+    length(coalesce(input, '')) AS input_size,
+    length(coalesce(output, '')) AS output_size,
+    arraySum(arrayMap(k -> length(k), mapKeys(metadata)))
+      + arraySum(arrayMap(v -> length(v), mapValues(metadata))) AS metadata_size,
+    byteSize(*) AS total_size
+FROM traces;
+
+-- Billing ledger: one row per billable unit (observation, trace, score) each
+-- time it is ingested. A unit is billed once in a billing window of
+-- ingested_at when its id appears there and not in the 24 hours before the
+-- window starts (getBillableUnitCountsByProjectInWindow).
+-- Most reads are scoped to a project or an org, so project_id leads the key.
+-- Weekly partitions bound what a cross-project window scan reads: granules
+-- where one project ends and the next begins cannot be skipped by time.
+-- event_id is not in PRIMARY KEY because it never narrows a read and would
+-- dominate the in-memory index of a table that is never trimmed.
+CREATE TABLE IF NOT EXISTS billable_events (
+    ingested_at DateTime('UTC') DEFAULT now(),
+    project_id String,
+    event_type LowCardinality(String),
+    event_id String,
+    event_time DateTime64(3),
+    event_bytes UInt64
+) ENGINE = MergeTree
+PARTITION BY toMonday(ingested_at)
+PRIMARY KEY (project_id, toStartOfFifteenMinutes(ingested_at))
+ORDER BY (project_id, toStartOfFifteenMinutes(ingested_at), event_type, event_id);
+
+-- The billing MVs only take rows created in the last 48 hours, so re-inserts
+-- of historic rows that keep their created_at (v4 backfills, updates) are not
+-- new usage. Rows with is_deleted = 1 are tombstones, not usage.
+
+-- MV: events_full -> billable_events (observations). A trace span that an
+-- internal writer derived from a trace only
+-- counts as a trace. Span ids are only unique within their trace, and ingestion API
+-- clients choose them, so event_id is '<length(trace_id)>:<trace_id>:<span_id>'.
+-- The length prefix keeps distinct (trace_id, span_id) pairs from
+-- concatenating to the same id.
+CREATE MATERIALIZED VIEW IF NOT EXISTS billable_events_observations_mv
+TO billable_events AS
+SELECT
+    now() AS ingested_at,
+    project_id,
+    'observation' AS event_type,
+    concat(toString(length(trace_id)), ':', trace_id, ':', span_id) AS event_id,
+    start_time AS event_time,
+    event_bytes
+FROM events_full
+WHERE is_deleted = 0
+  AND NOT (
+    span_id = concat('t-', trace_id)
+    AND (source LIKE '%-dual-write%' OR source LIKE '%-backfill')
+  )
+  AND created_at >= now() - INTERVAL 48 HOUR;
+
+-- MV: events_full -> billable_events (traces), one row per trace per insert
+-- block. event_bytes carries the derived trace span, which has no observation
+-- row, so event_bytes over all rows adds up to events_full.
+CREATE MATERIALIZED VIEW IF NOT EXISTS billable_events_traces_mv
+TO billable_events AS
+SELECT
+    now() AS ingested_at,
+    project_id,
+    'trace' AS event_type,
+    trace_id AS event_id,
+    min(start_time) AS event_time,
+    sumIf(
+        event_bytes,
+        span_id = concat('t-', trace_id)
+          AND (source LIKE '%-dual-write%' OR source LIKE '%-backfill')
+    ) AS event_bytes
+FROM events_full
+WHERE is_deleted = 0
+  AND trace_id != ''
+  AND created_at >= now() - INTERVAL 48 HOUR
+GROUP BY project_id, trace_id;
+
+-- MV: scores -> billable_events.
+CREATE MATERIALIZED VIEW IF NOT EXISTS billable_events_scores_mv
+TO billable_events AS
+SELECT
+    now() AS ingested_at,
+    project_id,
+    'score' AS event_type,
+    id AS event_id,
+    timestamp AS event_time,
+    byteSize(*) AS event_bytes
+FROM scores
+WHERE is_deleted = 0
+  AND created_at >= now() - INTERVAL 48 HOUR;
+
+-- PROD ROLLOUT: unlike analytics_scores (managed via numbered migrations),
+-- this view is NOT migration-managed because it is a Cloud-only diagnostic
+-- over events_core. Any change here must be applied manually as DROP VIEW IF
+-- EXISTS followed by CREATE VIEW in every cloud region (eu, us, hipaa, jp)
+-- and recorded in the migrations doc
+-- (https://docs.google.com/document/d/1bvz3FUFn3T4rfJ_U1qIh36FcJGfUVQwdAIOAHa3wPnA)
+-- — otherwise the DWH S3 export silently misses the new columns.
+DROP VIEW IF EXISTS analytics_events_core;
+CREATE VIEW analytics_events_core AS
+SELECT
+  project_id,
+  toStartOfHour(start_time) AS hour,
+  sumMap(map(type, toUInt64(1))) AS count_types,
+  uniq(trace_id) AS count_traces,
+  uniq(span_id) AS count_spans,
+  uniqIf(trace_name, trace_name != '') AS count_trace_names,
+  max(user_id != '') AS has_users,
+  uniqIf(user_id, user_id != '') AS count_users,
+  max(session_id != '') AS has_sessions,
+  uniqIf(session_id, session_id != '') AS count_sessions,
+  max(if(environment != 'default', 1, 0)) AS has_environments,
+  uniq(environment) as count_environments,
+  max(length(tags) > 0) AS has_tags,
+  uniqArray(tags) AS count_unique_tags,
+  max(level != 'DEFAULT') AS has_level,
+  max(provided_model_name != '') AS has_provided_model_name,
+  uniqIf(provided_model_name, provided_model_name != '') AS count_models,
+  max(length(provided_usage_details) > 0) AS has_provided_usage_details,
+  max(length(provided_cost_details) > 0) AS has_provided_cost_details,
+  max(prompt_name != '') AS has_prompt_name,
+  max(length(tool_definitions) > 0) AS has_tool_definitions,
+  max(length(tool_calls) > 0) AS has_tool_calls,
+  uniqArray(metadata_names) AS count_unique_metadata_names,
+  max(experiment_name != '') AS has_experiment_names,
+  uniqIf(experiment_name, experiment_name != '') AS count_unique_experiment_names,
+  sum(event_bytes) AS sum_event_bytes,
+  sumMap(map(if(source = '', '-', source), toUInt64(1))) AS count_sources,
+  uniqIf(service_name, service_name != '') as count_service_names,
+  sumMap(map(if(scope_name = '', '-', concat(scope_name, '-', scope_version)), toUInt64(1))) AS count_scopes,
+  sumMap(map(if(telemetry_sdk_language = '', '-', telemetry_sdk_language), toUInt64(1))) AS count_telemetry_sdk_languages,
+  sumMap(map(if(telemetry_sdk_name = '', '-', concat(telemetry_sdk_language, '-', telemetry_sdk_name, '-', telemetry_sdk_version)), toUInt64(1))) AS count_sdk_telemetry_sdks,
+  sumMap(map(concat(if(ingestion_sdk_name = '', 'unknown', ingestion_sdk_name), '@', if(ingestion_sdk_version = '', 'unknown', ingestion_sdk_version)), toUInt64(1))) AS ingested_sdks
+FROM events_core
+WHERE toStartOfHour(start_time) <= toStartOfHour(subtractHours(now(), 1))
+GROUP BY project_id, hour;
 
 EOF
 
@@ -696,25 +263,29 @@ clickhouse client \
   --user="${CLICKHOUSE_USER}" \
   --password="${CLICKHOUSE_PASSWORD}" \
   --database="${CLICKHOUSE_DB}" \
-  --multiquery <<EOF
+  --multiquery <<'EOF'
   SET type_json_skip_duplicated_paths = 1;
-  TRUNCATE events;
   TRUNCATE events_core;
   TRUNCATE events_full;
+  -- The inserts below fire the billing MVs, so reset their target as well.
+  TRUNCATE billable_events;
 
-  -- Note: production excludes experiment traces here (LEFT ANTI JOIN dataset_run_items_rmt)
-  -- and re-inserts them with experiment metadata via handleExperimentBackfill.
-  -- For dev seeding, we include all traces directly to ensure events_core and
-  -- traces/observations tables have matching row counts for dashboard testing.
-  INSERT INTO events (project_id, trace_id, span_id, parent_span_id, start_time, end_time, name, type,
+  -- Insert observations into events_full (experiment metadata included when dataset_run_items match)
+  INSERT INTO events_full (project_id, trace_id, span_id, parent_span_id, start_time, end_time, name, type,
                       environment, version, release, tags, trace_name, user_id, session_id, public, bookmarked, level, status_message, completion_start_time, prompt_id,
                       prompt_name, prompt_version, model_id, provided_model_name, model_parameters,
                       provided_usage_details, usage_details, provided_cost_details, cost_details,
                       usage_pricing_tier_id, usage_pricing_tier_name,
                       tool_definitions, tool_calls, tool_call_names, input,
-                      output, metadata, metadata_names, metadata_raw_values,
+                      output, metadata_names, metadata_values,
+                      experiment_id, experiment_name, experiment_description, experiment_dataset_id,
+                      experiment_item_id, experiment_item_expected_output,
+                      experiment_metadata_names, experiment_metadata_values,
+                      experiment_item_metadata_names, experiment_item_metadata_values,
+                      experiment_item_root_span_id,
                       source, blob_storage_file_path, event_bytes,
-                      created_at, updated_at, event_ts, is_deleted)
+                      created_at, updated_at, event_ts, is_deleted,
+                      ingestion_api_key, ingestion_sdk_name, ingestion_sdk_version)
   SELECT o.project_id,
          o.trace_id,
          o.id                                                                            AS span_id,
@@ -755,31 +326,52 @@ clickhouse client \
          o.tool_call_names,
          coalesce(o.input, '')                                                           AS input,
          coalesce(o.output, '')                                                          AS output,
-         CAST(mapConcat(o.metadata, coalesce(t.metadata, map())), 'JSON(max_dynamic_paths=0)') AS metadata,
          mapKeys(mapConcat(o.metadata, coalesce(t.metadata, map())))                     AS metadata_names,
-         mapValues(mapConcat(o.metadata, coalesce(t.metadata, map())))                   AS metadata_raw_values,
-         multiIf(mapContains(o.metadata, 'resourceAttributes'), 'otel-dual-write', 'ingestion-api-dual-write') AS source,
+         mapValues(mapConcat(o.metadata, coalesce(t.metadata, map())))                   AS metadata_values,
+         coalesce(dri.dataset_run_id, '')                                                AS experiment_id,
+         coalesce(dri.dataset_run_name, '')                                              AS experiment_name,
+         coalesce(dri.dataset_run_description, '')                                       AS experiment_description,
+         coalesce(dri.dataset_id, '')                                                    AS experiment_dataset_id,
+         coalesce(dri.dataset_item_id, '')                                               AS experiment_item_id,
+         coalesce(dri.dataset_item_expected_output, '')                                  AS experiment_item_expected_output,
+         if(dri.dataset_run_id != '', mapKeys(dri.dataset_run_metadata), [])             AS experiment_metadata_names,
+         if(dri.dataset_run_id != '', mapValues(dri.dataset_run_metadata), [])           AS experiment_metadata_values,
+         if(dri.dataset_run_id != '', mapKeys(dri.dataset_item_metadata), [])            AS experiment_item_metadata_names,
+         if(dri.dataset_run_id != '', mapValues(dri.dataset_item_metadata), [])          AS experiment_item_metadata_values,
+         if(dri.dataset_run_id != '', o.id, '')                                          AS experiment_item_root_span_id,
+         multiIf(dri.dataset_run_id != '', 'ingestion-api-dual-write-experiments', mapContains(o.metadata, 'resourceAttributes'), 'otel-dual-write', 'ingestion-api-dual-write') AS source,
          ''                                                                              AS blob_storage_file_path,
          byteSize(*)                                                                     AS event_bytes,
          o.created_at,
          o.updated_at,
          o.event_ts,
-         o.is_deleted
+         o.is_deleted,
+         ''                                                                              AS ingestion_api_key,
+         'unknown'                                                                       AS ingestion_sdk_name,
+         'unknown'                                                                       AS ingestion_sdk_version
   FROM observations o FINAL
   LEFT JOIN traces t ON o.project_id = t.project_id AND o.trace_id = t.id
+  LEFT JOIN dataset_run_items_rmt dri ON o.project_id = dri.project_id AND o.trace_id = dri.trace_id
   WHERE (o.is_deleted = 0);
-  -- Backfill events from traces table as well
+
+  -- Backfill events from traces table as well (experiment metadata included when dataset_run_items match)
   -- Traces are converted to synthetic observations with id = 't-' + trace_id
   -- (matching convertTraceToStagingObservation in the ingestion pipeline)
-  INSERT INTO events (project_id, trace_id, span_id, parent_span_id, start_time, name, type,
+  INSERT INTO events_full (project_id, trace_id, span_id, parent_span_id, start_time, name, type,
                       environment, version, release, tags, trace_name, user_id, session_id, public, bookmarked, level,
                       model_parameters, provided_usage_details, usage_details, provided_cost_details, cost_details,
                       usage_pricing_tier_id, usage_pricing_tier_name,
                       tool_definitions, tool_calls, tool_call_names,
                       input, output,
-                      metadata, metadata_names, metadata_raw_values,
+                      metadata_names, metadata_values,
+                      experiment_id, experiment_name, experiment_description, experiment_dataset_id,
+                      experiment_item_id, experiment_item_expected_output,
+                      experiment_metadata_names, experiment_metadata_values,
+                      experiment_item_metadata_names, experiment_item_metadata_values,
+                      experiment_item_root_span_id,
                       source, blob_storage_file_path, event_bytes,
-                      created_at, updated_at, event_ts, is_deleted)
+                      created_at, updated_at, event_ts, is_deleted,
+                      ingestion_api_key, ingestion_sdk_name, ingestion_sdk_version)
   SELECT t.project_id,
          t.id,
          concat('t-', t.id)                                                              AS span_id,
@@ -809,17 +401,31 @@ clickhouse client \
          [],
          coalesce(t.input, '')                                                           AS input,
          coalesce(t.output, '')                                                          AS output,
-         CAST(t.metadata, 'JSON(max_dynamic_paths=0)'),
          mapKeys(t.metadata)                                                             AS metadata_names,
-         mapValues(t.metadata)                                                           AS metadata_raw_values,
-         multiIf(mapContains(t.metadata, 'resourceAttributes'), 'otel-dual-write', 'ingestion-api-dual-write') AS source,
+         mapValues(t.metadata)                                                           AS metadata_values,
+         coalesce(dri.dataset_run_id, '')                                                AS experiment_id,
+         coalesce(dri.dataset_run_name, '')                                              AS experiment_name,
+         coalesce(dri.dataset_run_description, '')                                       AS experiment_description,
+         coalesce(dri.dataset_id, '')                                                    AS experiment_dataset_id,
+         coalesce(dri.dataset_item_id, '')                                               AS experiment_item_id,
+         coalesce(dri.dataset_item_expected_output, '')                                  AS experiment_item_expected_output,
+         if(dri.dataset_run_id != '', mapKeys(dri.dataset_run_metadata), [])             AS experiment_metadata_names,
+         if(dri.dataset_run_id != '', mapValues(dri.dataset_run_metadata), [])           AS experiment_metadata_values,
+         if(dri.dataset_run_id != '', mapKeys(dri.dataset_item_metadata), [])            AS experiment_item_metadata_names,
+         if(dri.dataset_run_id != '', mapValues(dri.dataset_item_metadata), [])          AS experiment_item_metadata_values,
+         if(dri.dataset_run_id != '', concat('t-', t.id), '')                            AS experiment_item_root_span_id,
+         multiIf(dri.dataset_run_id != '', 'ingestion-api-dual-write-experiments', mapContains(t.metadata, 'resourceAttributes'), 'otel-dual-write', 'ingestion-api-dual-write') AS source,
          ''                                                                              AS blob_storage_file_path,
          byteSize(*)                                                                     AS event_bytes,
          t.created_at,
          t.updated_at,
          t.event_ts,
-         t.is_deleted
+         t.is_deleted,
+         ''                                                                              AS ingestion_api_key,
+         'unknown'                                                                       AS ingestion_sdk_name,
+         'unknown'                                                                       AS ingestion_sdk_version
   FROM traces t FINAL
+  LEFT JOIN dataset_run_items_rmt dri ON t.project_id = dri.project_id AND t.id = dri.trace_id
   WHERE (t.is_deleted = 0);
 
 EOF

@@ -1,21 +1,50 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { type Redis, type Cluster } from "ioredis";
-import { type z } from "zod/v4";
+import { type z } from "zod";
 import { RateLimiterRedis, RateLimiterRes } from "rate-limiter-flexible";
 import { env } from "@/src/env.mjs";
 import {
+  InvalidRequestError,
   type RateLimitResult,
   type RateLimitResource,
   type RateLimitConfig,
   type Plan,
 } from "@langfuse/shared";
 import {
+  ClickHouseResourceError,
   recordIncrement,
-  type ApiAccessScope,
+  type ApiAccessScopeWithOptionalApiKeyId,
   logger,
   createNewRedisInstance,
   redisQueueRetryOptions,
 } from "@langfuse/shared/src/server";
+import { env as sharedEnv } from "@langfuse/shared/src/env";
 import { type NextApiResponse } from "next";
+import {
+  createStructuredPublicApiRateLimitError,
+  sendStructuredPublicApiErrorResponse,
+  type PublicApiErrorContract,
+} from "./structuredPublicApiErrorContract";
+import { type RateLimitUpgradePath } from "@/src/features/public-api/server/rateLimitUpgradePaths";
+
+export const RATE_LIMIT_REDIS_KEY_PREFIX = "rate-limit";
+
+export type RateLimitResponseOptions = {
+  errorContract?: PublicApiErrorContract | undefined;
+  upgradePath?: RateLimitUpgradePath | undefined;
+};
+
+export type RateLimitResponseOptionsInput =
+  | PublicApiErrorContract
+  | RateLimitResponseOptions;
+
+const normalizeRateLimitResponseOptions = (
+  options?: RateLimitResponseOptionsInput,
+): RateLimitResponseOptions => {
+  return typeof options === "string"
+    ? { errorContract: options }
+    : (options ?? {});
+};
 
 // Business Logic
 // - rate limit strategy is based on org-id, org plan, and resources. Rate limits are applied in buckets of minutes.
@@ -32,6 +61,7 @@ export class RateLimitService {
       RateLimitService.redis =
         redis ??
         createNewRedisInstance({
+          keyPrefix: sharedEnv.REDIS_KEY_PREFIX ?? undefined, // For multi-tenant Redis isolation
           enableAutoPipelining: false, // This may help avoid https://github.com/redis/ioredis/issues/1931
           enableOfflineQueue: false,
           lazyConnect: true, // Connect when first command is sent
@@ -51,7 +81,7 @@ export class RateLimitService {
   }
 
   async rateLimitRequest(
-    scope: ApiAccessScope,
+    scope: ApiAccessScopeWithOptionalApiKeyId,
     resource: z.infer<typeof RateLimitResource>,
   ) {
     // if cloud config is not present, we don't apply rate limits and just return
@@ -72,7 +102,7 @@ export class RateLimitService {
   }
 
   async checkRateLimit(
-    scope: ApiAccessScope,
+    scope: ApiAccessScopeWithOptionalApiKeyId,
     resource: z.infer<typeof RateLimitResource>,
   ) {
     const effectiveConfig = getRateLimitConfig(scope, resource);
@@ -100,7 +130,12 @@ export class RateLimitService {
       points: effectiveConfig.points, // Number of points
       duration: effectiveConfig.durationInSec, // Per second(s)
 
-      keyPrefix: this.rateLimitPrefix(resource), // must be unique for limiters with different purpose
+      // Legacy reads include the window so a 60s config and a 3600s config
+      // do not increment the same counter.
+      keyPrefix:
+        resource === "public-api-legacy"
+          ? `${this.rateLimitPrefix(resource)}:${effectiveConfig.durationInSec}`
+          : this.rateLimitPrefix(resource),
       storeClient: RateLimitService.redis,
       rejectIfRedisNotReady: true,
     });
@@ -149,11 +184,52 @@ export class RateLimitService {
   }
 
   rateLimitPrefix(resource: string) {
-    return `rate-limit:${resource}`;
+    return `${RATE_LIMIT_REDIS_KEY_PREFIX}:${resource}`;
+  }
+
+  async withMcpQueryCooldown<T>(projectId: string, query: () => Promise<T>) {
+    const redis = RateLimitService.redis;
+    if (
+      !env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION ||
+      env.LANGFUSE_RATE_LIMITS_ENABLED === "false" ||
+      !redis
+    ) {
+      return query();
+    }
+
+    const key = `${this.rateLimitPrefix("mcp-query-cooldown")}:${projectId}`;
+    const cooldownError = (seconds: number) =>
+      new InvalidRequestError(
+        `MCP observation searches for this project are paused after a query exceeded resource limits. Retry in ${Math.max(1, seconds)}s with a shorter date range or more specific filters, and run searches sequentially.`,
+      );
+    const onRedisError = (error: unknown) => {
+      logger.warn("MCP query cooldown Redis operation failed", error);
+      return null;
+    };
+    if (redis.status === "wait") await redis.connect().catch(onRedisError);
+    if (redis.status !== "ready") return query();
+    const ttl = await redis.ttl(key).catch(onRedisError);
+    if (ttl !== null && ttl >= 0) throw cooldownError(ttl);
+
+    try {
+      return await query();
+    } catch (error) {
+      if (ClickHouseResourceError.is(error)) {
+        const blocked = await redis.set(key, "1", "EX", 30).catch(onRedisError);
+        if (blocked) {
+          logger.warn("MCP ClickHouse resource limit exceeded", {
+            errorType: error.errorType,
+            tags: error.tags,
+          });
+          throw cooldownError(30);
+        }
+      }
+      throw error;
+    }
   }
 }
 
-export class RateLimitHelper {
+class RateLimitHelper {
   res: RateLimitResult | undefined;
 
   constructor(res: RateLimitResult | undefined) {
@@ -164,28 +240,36 @@ export class RateLimitHelper {
     return this.res ? this.res.remainingPoints < 1 : false;
   }
 
-  sendRestResponseIfLimited(nextResponse: NextApiResponse) {
+  sendRestResponseIfLimited(
+    nextResponse: NextApiResponse,
+    options?: RateLimitResponseOptionsInput,
+  ) {
     if (!this.res || !this.isRateLimited()) {
       logger.error("Trying to send rate limit response without being limited.");
       throw new Error(
         "Trying to send rate limit response without being limited.",
       );
     }
-    return sendRateLimitResponse(nextResponse, this.res);
+    return sendRateLimitResponse(nextResponse, this.res, options);
   }
 }
 
 export const sendRateLimitResponse = (
   res: NextApiResponse,
   rateLimitRes: RateLimitResult,
+  options?: RateLimitResponseOptionsInput,
 ) => {
+  const responseOptions = normalizeRateLimitResponseOptions(options);
   const httpHeader = createHttpHeaderFromRateLimit(rateLimitRes);
 
   for (const [header, value] of Object.entries(httpHeader)) {
     res.setHeader(header, value);
   }
 
-  res.status(429).end("429 - rate limit exceeded");
+  return sendStructuredPublicApiErrorResponse(
+    res,
+    createStructuredPublicApiRateLimitError(rateLimitRes, responseOptions),
+  );
 };
 
 export const createHttpHeaderFromRateLimit = (res: RateLimitResult) => {
@@ -193,12 +277,12 @@ export const createHttpHeaderFromRateLimit = (res: RateLimitResult) => {
     "Retry-After": Math.ceil(res.msBeforeNext / 1000),
     "X-RateLimit-Limit": res.points,
     "X-RateLimit-Remaining": res.remainingPoints,
-    "X-RateLimit-Reset": new Date(Date.now() + res.msBeforeNext).toString(),
+    "X-RateLimit-Reset": Math.ceil((Date.now() + res.msBeforeNext) / 1000),
   };
 };
 
 const getRateLimitConfig = (
-  scope: ApiAccessScope,
+  scope: ApiAccessScopeWithOptionalApiKeyId,
   resource: z.infer<typeof RateLimitResource>,
 ) => {
   const planBasedConfig = getPlanBasedRateLimitConfig(scope.plan, resource);
@@ -217,6 +301,7 @@ const getPlanBasedRateLimitConfig = (
     case "oss":
     case "self-hosted:pro":
     case "self-hosted:enterprise":
+    case "self-hosted:gov":
       return {
         resource,
         points: null,
@@ -227,6 +312,12 @@ const getPlanBasedRateLimitConfig = (
         case "ingestion":
           return {
             resource: "ingestion",
+            points: 1000,
+            durationInSec: 60,
+          };
+        case "media-upload":
+          return {
+            resource: "media-upload",
             points: 1000,
             durationInSec: 60,
           };
@@ -248,15 +339,33 @@ const getPlanBasedRateLimitConfig = (
             points: 30,
             durationInSec: 60,
           };
+        case "public-api-legacy":
+          return {
+            resource: "public-api-legacy",
+            points: 150,
+            durationInSec: 3600, // 150 requests per hour
+          };
         case "datasets":
           return {
             resource: "datasets",
             points: 100,
             durationInSec: 60,
           };
+        case "annotation-queues":
+          return {
+            resource: "annotation-queues",
+            points: 100,
+            durationInSec: 60,
+          };
         case "public-api-metrics":
           return {
             resource: "public-api-metrics",
+            points: 100,
+            durationInSec: 86400, // 100 requests per day
+          };
+        case "public-api-v2-metrics":
+          return {
+            resource,
             points: 100,
             durationInSec: 86400, // 100 requests per day
           };
@@ -272,12 +381,30 @@ const getPlanBasedRateLimitConfig = (
             points: 50,
             durationInSec: 86400, // 50 requests per day
           };
+        case "score-delete":
+          return {
+            resource: "score-delete",
+            points: 50,
+            durationInSec: 86400, // 50 requests per day
+          };
+        case "in-app-agent-run":
+          return {
+            resource: "in-app-agent-run",
+            points: 100,
+            durationInSec: 86400,
+          };
+        case "feedback":
+          return {
+            resource: "feedback",
+            points: 20,
+            durationInSec: 86400, // 20 submissions per day
+          };
         default:
           const exhaustiveCheck: never = resource;
           throw new Error(`Unhandled resource case: ${exhaustiveCheck}`);
       }
     case "cloud:core":
-      // TEMPORARY: Expanded core plan rate limits to pro limits to enable legacy pro -> core migration
+      // TEMPORARY: Expanded selected core plan rate limits to pro limits to enable legacy pro -> core migration
       // Original core limits (commented out):
       // ingestion: 4000, public-api: 100, datasets: 200, public-api-metrics: 200, public-api-daily-metrics-legacy: 20
       switch (resource) {
@@ -286,6 +413,12 @@ const getPlanBasedRateLimitConfig = (
             resource: "ingestion",
             // points: 4000, // original core limit
             points: 20_000, // temporary: using pro limit
+            durationInSec: 60,
+          };
+        case "media-upload":
+          return {
+            resource: "media-upload",
+            points: 4_000,
             durationInSec: 60,
           };
         case "legacy-ingestion":
@@ -307,11 +440,23 @@ const getPlanBasedRateLimitConfig = (
             points: 1000, // temporary: using pro limit
             durationInSec: 60,
           };
+        case "public-api-legacy":
+          return {
+            resource: "public-api-legacy",
+            points: 450,
+            durationInSec: 3600, // 450 requests per hour
+          };
         case "datasets":
           return {
             resource: "datasets",
             // points: 200, // original core limit
             points: 1000, // temporary: using pro limit
+            durationInSec: 60,
+          };
+        case "annotation-queues":
+          return {
+            resource: "annotation-queues",
+            points: 1000,
             durationInSec: 60,
           };
         case "public-api-metrics":
@@ -320,6 +465,12 @@ const getPlanBasedRateLimitConfig = (
             // points: 200, // original core limit
             points: 2000, // temporary: using pro limit
             durationInSec: 86400, // 2000 requests per day
+          };
+        case "public-api-v2-metrics":
+          return {
+            resource,
+            points: 100,
+            durationInSec: 3600, // 100 requests per hour
           };
         case "public-api-daily-metrics-legacy":
           return {
@@ -334,6 +485,24 @@ const getPlanBasedRateLimitConfig = (
             points: 200,
             durationInSec: 86400, // 200 requests per day
           };
+        case "score-delete":
+          return {
+            resource: "score-delete",
+            points: 200,
+            durationInSec: 86400, // 200 requests per day
+          };
+        case "in-app-agent-run":
+          return {
+            resource: "in-app-agent-run",
+            points: 1000,
+            durationInSec: 86400,
+          };
+        case "feedback":
+          return {
+            resource: "feedback",
+            points: 20,
+            durationInSec: 86400, // 20 submissions per day
+          };
         default:
           const exhaustiveCheck: never = resource;
           throw new Error(`Unhandled resource case: ${exhaustiveCheck}`);
@@ -345,6 +514,12 @@ const getPlanBasedRateLimitConfig = (
         case "ingestion":
           return {
             resource: "ingestion",
+            points: 20_000,
+            durationInSec: 60,
+          };
+        case "media-upload":
+          return {
+            resource: "media-upload",
             points: 20_000,
             durationInSec: 60,
           };
@@ -366,9 +541,21 @@ const getPlanBasedRateLimitConfig = (
             points: 1000,
             durationInSec: 60,
           };
+        case "public-api-legacy":
+          return {
+            resource: "public-api-legacy",
+            points: 1_200,
+            durationInSec: 3600, // 1,200 requests per hour
+          };
         case "datasets":
           return {
             resource: "datasets",
+            points: 1000,
+            durationInSec: 60,
+          };
+        case "annotation-queues":
+          return {
+            resource: "annotation-queues",
             points: 1000,
             durationInSec: 60,
           };
@@ -377,6 +564,12 @@ const getPlanBasedRateLimitConfig = (
             resource: "public-api-metrics",
             points: 2000,
             durationInSec: 86400, // 2000 requests per day
+          };
+        case "public-api-v2-metrics":
+          return {
+            resource,
+            points: 500,
+            durationInSec: 3600, // 500 requests per hour
           };
         case "public-api-daily-metrics-legacy":
           return {
@@ -389,6 +582,24 @@ const getPlanBasedRateLimitConfig = (
             resource: "trace-delete",
             points: 1000,
             durationInSec: 86400, // 1000 requests per day
+          };
+        case "score-delete":
+          return {
+            resource: "score-delete",
+            points: 1000,
+            durationInSec: 86400, // 1000 requests per day
+          };
+        case "in-app-agent-run":
+          return {
+            resource: "in-app-agent-run",
+            points: 1000,
+            durationInSec: 86400,
+          };
+        case "feedback":
+          return {
+            resource: "feedback",
+            points: 20,
+            durationInSec: 86400, // 20 submissions per day
           };
         default:
           const exhaustiveCheck: never = resource;

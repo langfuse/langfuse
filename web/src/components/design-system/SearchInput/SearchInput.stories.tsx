@@ -1,0 +1,127 @@
+import { useState, type ComponentProps } from "react";
+import { expect, fn, userEvent, within } from "storybook/test";
+import preview from "../../../../.storybook/preview";
+import {
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+} from "@/src/components/ui/dropdown-menu";
+import { SearchInput } from "./SearchInput";
+
+function InteractiveSearchInput(props: ComponentProps<typeof SearchInput>) {
+  const [value, setValue] = useState(props.value);
+
+  return (
+    <SearchInput
+      {...props}
+      value={value}
+      onChange={(newValue) => {
+        setValue(newValue);
+        props.onChange(newValue);
+      }}
+    />
+  );
+}
+
+const dropdown = {
+  label: "Names, Tags",
+  content: (
+    <DropdownMenuRadioGroup value="metadata">
+      <DropdownMenuRadioItem value="metadata">
+        Names, Tags
+      </DropdownMenuRadioItem>
+      <DropdownMenuRadioItem value="content">Full Text</DropdownMenuRadioItem>
+    </DropdownMenuRadioGroup>
+  ),
+};
+
+const meta = preview.meta({
+  component: SearchInput,
+  render: (args) => <InteractiveSearchInput {...args} />,
+  args: {
+    disabled: false,
+    onSubmit: fn(),
+    onChange: fn(),
+    placeholder: "Search...",
+    value: "",
+  },
+});
+
+export const Default = meta.story({});
+
+/** The clear button appears only while the field has a value. */
+export const WithValue = meta.story({
+  args: {
+    value: "Prompt name",
+  },
+});
+
+/** `default` for embedded toolbars, `large` for full-page lists. */
+export const Sizes = meta.story({
+  render: (args) => (
+    <div className="flex flex-col gap-3">
+      <InteractiveSearchInput {...args} size="default" />
+      <InteractiveSearchInput {...args} size="large" />
+    </div>
+  ),
+});
+
+export const WithDropdown = meta.story({
+  args: {
+    dropdown,
+  },
+});
+
+export const Disabled = meta.story({
+  args: {
+    disabled: true,
+    value: "Prompt name",
+    dropdown,
+  },
+});
+
+export const TestSubmitsOnEnter = meta.story({
+  name: "(Test) Submits on Enter",
+  play: async ({ args, canvasElement }) => {
+    const canvas = within(canvasElement);
+    const input = canvas.getByRole("searchbox");
+    await userEvent.type(input, "Prompt name{enter}");
+    await expect(input).toHaveValue("Prompt name");
+    await expect(args.onSubmit).toHaveBeenCalledWith("Prompt name");
+  },
+});
+
+export const TestOpensDropdown = meta.story({
+  name: "(Test) Opens Dropdown",
+  args: {
+    dropdown,
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const trigger = canvas.getByRole("button", { name: "Names, Tags" });
+    await userEvent.click(trigger);
+    await expect(trigger).toHaveAttribute("data-state", "open");
+  },
+});
+
+export const TestClearsTheValue = meta.story({
+  name: "(Test) Clears the Value",
+  args: {
+    value: "Prompt name",
+  },
+  play: async ({ args, canvasElement }) => {
+    const canvas = within(canvasElement);
+    const input = canvas.getByRole("searchbox");
+    await userEvent.click(canvas.getByRole("button", { name: "Clear search" }));
+    await expect(input).toHaveValue("");
+    await expect(args.onChange).toHaveBeenCalledWith("");
+    await expect(
+      canvas.queryByRole("button", { name: "Clear search" }),
+    ).not.toBeInTheDocument();
+    // Clearing is a draft change, like typing — applying it stays with Enter
+    // and the search button.
+    await expect(args.onSubmit).not.toHaveBeenCalled();
+    // The field keeps focus so the next query can be typed straight away,
+    // even though the button that was clicked has gone.
+    await expect(input).toHaveFocus();
+  },
+});

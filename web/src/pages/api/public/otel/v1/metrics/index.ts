@@ -1,6 +1,6 @@
 import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
 import { createAuthedProjectAPIRoute } from "@/src/features/public-api/server/createAuthedProjectAPIRoute";
-import { z } from "zod/v4";
+import { z } from "zod";
 
 export const config = {
   api: {
@@ -11,6 +11,7 @@ export const config = {
 export default withMiddlewares({
   POST: createAuthedProjectAPIRoute({
     name: "OTel Metrics",
+    action: "traces:create",
     querySchema: z.any(),
     responseSchema: z.any(),
     rateLimitResource: "ingestion",

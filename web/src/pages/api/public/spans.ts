@@ -6,7 +6,9 @@ import {
 } from "@/src/features/public-api/types/spans";
 import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
 import { createAuthedProjectAPIRoute } from "@/src/features/public-api/server/createAuthedProjectAPIRoute";
+import { LEGACY_WRITES_DEPRECATION } from "@/src/features/public-api/server/deprecations";
 import {
+  createIngestionAttribution,
   eventTypes,
   logger,
   processEventBatch,
@@ -16,9 +18,15 @@ import { v4 } from "uuid";
 export default withMiddlewares({
   POST: createAuthedProjectAPIRoute({
     name: "Create Span (Legacy)",
+    action: "traces:create",
     bodySchema: PostSpansV1Body,
     responseSchema: PostSpansV1Response,
-    fn: async ({ body, auth, res }) => {
+    // Writes an observation-create event that lands in the legacy observations
+    // ClickHouse table; events_only deployments expect OTel ingestion.
+    rejectInEventsOnlyMode: true,
+    isLegacyTraceWrite: true,
+    deprecation: LEGACY_WRITES_DEPRECATION,
+    fn: async ({ body, auth, req, res }) => {
       const event = {
         id: v4(),
         type: eventTypes.OBSERVATION_CREATE,
@@ -31,7 +39,12 @@ export default withMiddlewares({
       if (!event.body.id) {
         event.body.id = v4();
       }
-      const result = await processEventBatch([event], auth);
+      const result = await processEventBatch([event], auth, {
+        attribution: createIngestionAttribution({
+          headers: req.headers,
+          authCheck: auth,
+        }),
+      });
       if (result.errors.length > 0) {
         const error = result.errors[0];
         res
@@ -48,9 +61,13 @@ export default withMiddlewares({
   }),
   PATCH: createAuthedProjectAPIRoute({
     name: "Update Span (Legacy)",
+    action: "traces:create",
     bodySchema: PatchSpansV1Body,
     responseSchema: PatchSpansV1Response,
-    fn: async ({ body, auth, res }) => {
+    rejectInEventsOnlyMode: true,
+    isLegacyTraceWrite: true,
+    deprecation: LEGACY_WRITES_DEPRECATION,
+    fn: async ({ body, auth, req, res }) => {
       const event = {
         id: v4(),
         type: eventTypes.OBSERVATION_UPDATE,
@@ -61,7 +78,12 @@ export default withMiddlewares({
           type: "SPAN",
         },
       };
-      const result = await processEventBatch([event], auth);
+      const result = await processEventBatch([event], auth, {
+        attribution: createIngestionAttribution({
+          headers: req.headers,
+          authCheck: auth,
+        }),
+      });
       if (result.errors.length > 0) {
         const error = result.errors[0];
         res

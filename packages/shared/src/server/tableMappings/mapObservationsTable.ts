@@ -2,6 +2,7 @@
 // The frontend only sends the column names to the backend. This needs to be changed in the future to send column IDs.
 
 import { UiColumnMappings } from "../../tableDefinitions";
+import { tokenCountFilterClickhouseType } from "./tokenCountFilterType";
 
 export const observationsTableTraceUiColumnDefinitions: UiColumnMappings = [
   {
@@ -14,13 +15,15 @@ export const observationsTableTraceUiColumnDefinitions: UiColumnMappings = [
     uiTableName: "User ID",
     uiTableId: "userId",
     clickhouseTableName: "traces",
-    clickhouseSelect: 't."user_id"',
+    clickhouseSelect: "user_id",
+    queryPrefix: "t",
   },
   {
     uiTableName: "Session ID",
     uiTableId: "sessionId",
     clickhouseTableName: "traces",
-    clickhouseSelect: 't."session_id"',
+    clickhouseSelect: "session_id",
+    queryPrefix: "t",
   },
   {
     uiTableName: "Trace Name",
@@ -42,13 +45,15 @@ export const observationsTableUiColumnDefinitions: UiColumnMappings = [
     uiTableName: "Environment",
     uiTableId: "environment",
     clickhouseTableName: "observations",
-    clickhouseSelect: 'o."environment"',
+    clickhouseSelect: "environment",
+    queryPrefix: "o",
   },
   {
     uiTableName: "type",
     uiTableId: "type",
     clickhouseTableName: "observations",
-    clickhouseSelect: 'o."type"',
+    clickhouseSelect: "type",
+    queryPrefix: "o",
   },
   {
     uiTableName: "ID",
@@ -60,32 +65,37 @@ export const observationsTableUiColumnDefinitions: UiColumnMappings = [
     uiTableName: "Type",
     uiTableId: "type",
     clickhouseTableName: "observations",
-    clickhouseSelect: 'o."type"',
+    clickhouseSelect: "type",
+    queryPrefix: "o",
   },
   {
     uiTableName: "Name",
     uiTableId: "name",
     clickhouseTableName: "observations",
-    clickhouseSelect: 'o."name"',
+    clickhouseSelect: "name",
+    queryPrefix: "o",
   },
   {
     uiTableName: "Trace ID",
     uiTableId: "traceId",
     clickhouseTableName: "observations",
-    clickhouseSelect: 'o."trace_id"',
+    clickhouseSelect: "trace_id",
+    queryPrefix: "o",
   },
   {
     uiTableName: "Parent Observation ID",
     uiTableId: "parentObservationId",
     clickhouseTableName: "observations",
-    clickhouseSelect: 'o."parent_observation_id"',
+    clickhouseSelect: "parent_observation_id",
+    queryPrefix: "o",
   },
 
   {
     uiTableName: "Start Time",
     uiTableId: "startTime",
     clickhouseTableName: "observations",
-    clickhouseSelect: 'o."start_time"',
+    clickhouseSelect: "start_time",
+    queryPrefix: "o",
   },
   {
     uiTableName: "End Time",
@@ -140,10 +150,12 @@ export const observationsTableUiColumnDefinitions: UiColumnMappings = [
       "if(mapExists((k, v) -> (k = 'total'), cost_details), cost_details['total'], NULL)",
   },
   {
-    uiTableName: "Level",
+    uiTableName: "Status",
     uiTableId: "level",
+    aliases: ["Level"],
     clickhouseTableName: "observations",
-    clickhouseSelect: 'o."level"',
+    clickhouseSelect: "level",
+    queryPrefix: "o",
   },
   {
     uiTableName: "Status Message",
@@ -169,7 +181,7 @@ export const observationsTableUiColumnDefinitions: UiColumnMappings = [
     clickhouseTableName: "observations",
     clickhouseSelect:
       "arraySum(mapValues(mapFilter(x -> positionCaseInsensitive(x.1, 'input') > 0, usage_details)))",
-    clickhouseTypeOverwrite: "Decimal64(3)",
+    clickhouseTypeOverwrite: tokenCountFilterClickhouseType,
   },
   {
     uiTableName: "Output Tokens",
@@ -177,7 +189,7 @@ export const observationsTableUiColumnDefinitions: UiColumnMappings = [
     clickhouseTableName: "observations",
     clickhouseSelect:
       "arraySum(mapValues(mapFilter(x -> positionCaseInsensitive(x.1, 'output') > 0, usage_details)))",
-    clickhouseTypeOverwrite: "Decimal64(3)",
+    clickhouseTypeOverwrite: tokenCountFilterClickhouseType,
   },
   {
     uiTableName: "Total Tokens",
@@ -185,7 +197,7 @@ export const observationsTableUiColumnDefinitions: UiColumnMappings = [
     clickhouseTableName: "observations",
     clickhouseSelect:
       "if(mapExists((k, v) -> (k = 'total'), usage_details), usage_details['total'], NULL)",
-    clickhouseTypeOverwrite: "Decimal64(3)",
+    clickhouseTypeOverwrite: tokenCountFilterClickhouseType,
   },
   {
     uiTableName: "Tokens",
@@ -193,7 +205,7 @@ export const observationsTableUiColumnDefinitions: UiColumnMappings = [
     clickhouseTableName: "observations",
     clickhouseSelect:
       "if(mapExists((k, v) -> (k = 'total'), usage_details), usage_details['total'], NULL)",
-    clickhouseTypeOverwrite: "Decimal64(3)",
+    clickhouseTypeOverwrite: tokenCountFilterClickhouseType,
   },
   {
     uiTableName: "Metadata",
@@ -222,10 +234,17 @@ export const observationsTableUiColumnDefinitions: UiColumnMappings = [
     clickhouseSelect: "s.score_categories",
   },
   {
+    uiTableName: "Scores (boolean)",
+    uiTableId: "score_booleans",
+    clickhouseTableName: "scores",
+    clickhouseSelect: "s.score_booleans",
+  },
+  {
     uiTableName: "Version",
     uiTableId: "version",
     clickhouseTableName: "observations",
-    clickhouseSelect: 'o."version"',
+    clickhouseSelect: "version",
+    queryPrefix: "o",
   },
   {
     uiTableName: "Prompt Name",

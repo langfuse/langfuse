@@ -1,11 +1,23 @@
-import { z } from "zod/v4";
+import { z } from "zod";
 import { jsonSchema } from "../utils/zod";
+import { SkillVersionSchema } from "../features/skills/types";
 import { EventActionSchema } from "./automations";
 
+export const WebhookContentTypeHeader = "content-type";
+export const WebhookSignatureHeader = "x-langfuse-signature";
+export const WebhookUserAgentHeader = "user-agent";
+export const LangfuseUserAgent = "Langfuse/1.0";
+
 export const WebhookDefaultHeaders = {
-  "content-type": "application/json",
-  "user-agent": "Langfuse/1.0",
+  [WebhookContentTypeHeader]: "application/json",
+  [WebhookUserAgentHeader]: LangfuseUserAgent,
 };
+
+// Headers controlled by Langfuse cannot be overridden by custom headers.
+export const WebhookProtectedHeaders = [
+  ...Object.keys(WebhookDefaultHeaders),
+  WebhookSignatureHeader,
+];
 
 export const WebhookOutboundBaseSchema = z.object({
   id: z.string(),
@@ -32,14 +44,31 @@ export const PromptWebhookOutboundSchema = z
       createdAt: z.coerce.date(),
       updatedAt: z.coerce.date(),
     }),
+    user: z
+      .object({
+        name: z.string().nullable(),
+        email: z.string().nullable(),
+      })
+      .optional(),
   })
   .and(WebhookOutboundBaseSchema);
 
 export type PromptWebhookOutput = z.infer<typeof PromptWebhookOutboundSchema>;
 
+export const SkillWebhookOutboundSchema = WebhookOutboundBaseSchema.extend({
+  type: z.literal("skill-version"),
+  skill: SkillVersionSchema,
+  user: z
+    .object({ name: z.string().nullable(), email: z.string().nullable() })
+    .optional(),
+});
+
 export const GitHubDispatchWebhookOutboundSchema = z.object({
   event_type: z.string(),
-  client_payload: PromptWebhookOutboundSchema,
+  client_payload: z.union([
+    PromptWebhookOutboundSchema,
+    SkillWebhookOutboundSchema,
+  ]),
 });
 
 export type GitHubDispatchWebhookOutput = z.infer<

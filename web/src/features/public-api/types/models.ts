@@ -4,15 +4,13 @@ import {
   type Model as PrismaModel,
   jsonSchema,
   publicApiPaginationZod,
-} from "@langfuse/shared";
-import { z } from "zod/v4";
-import { type Decimal } from "decimal.js";
-import {
   validatePricingTiers,
   PricingTierConditionSchema,
   PricingTierInputSchema,
   type PricingTierCondition,
 } from "@langfuse/shared";
+import { z } from "zod";
+import { type Decimal } from "decimal.js";
 
 /**
  * Objects
@@ -165,7 +163,7 @@ export const PostModelsV1Body = z
     // Validation 1: Must provide either flat prices OR pricing tiers (not both, not neither)
     if (hasFlatPrices && hasTiers) {
       ctx.addIssue({
-        code: z.ZodIssueCode.custom,
+        code: "custom",
         message:
           "Must provide either flat prices (inputPrice/outputPrice/totalPrice) OR pricingTiers, not both",
       });
@@ -174,7 +172,7 @@ export const PostModelsV1Body = z
 
     if (!hasFlatPrices && !hasTiers) {
       ctx.addIssue({
-        code: z.ZodIssueCode.custom,
+        code: "custom",
         message:
           "Must provide either flat prices (inputPrice/outputPrice/totalPrice) OR pricingTiers",
       });
@@ -183,9 +181,12 @@ export const PostModelsV1Body = z
 
     // Validation 2: If using flat prices, validate totalPrice constraint
     if (hasFlatPrices) {
-      if ((data.inputPrice || data.outputPrice) && data.totalPrice) {
+      if (
+        (data.inputPrice != null || data.outputPrice != null) &&
+        data.totalPrice != null
+      ) {
         ctx.addIssue({
-          code: z.ZodIssueCode.custom,
+          code: "custom",
           path: ["totalPrice"],
           message:
             "If input and/or output price is set, total price must be null",
@@ -198,7 +199,7 @@ export const PostModelsV1Body = z
       const result = validatePricingTiers(data.pricingTiers!);
       if (!result.valid) {
         ctx.addIssue({
-          code: z.ZodIssueCode.custom,
+          code: "custom",
           path: ["pricingTiers"],
           message: result.error,
         });
@@ -212,6 +213,9 @@ export const GetModelV1Query = z.object({
   modelId: z.string(),
 });
 export const GetModelV1Response = APIModelDefinition.strict();
+
+// PUT /models/{modelId}
+export const PutModelV1Response = APIModelDefinition.strict();
 
 // DELETE /models/{modelId}
 export const DeleteModelV1Query = z.object({

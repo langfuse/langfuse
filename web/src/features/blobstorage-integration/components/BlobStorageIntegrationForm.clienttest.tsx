@@ -1,0 +1,240 @@
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
+import {
+  BlobStorageIntegrationFileType,
+  BlobStorageIntegrationType,
+  LEGACY_EXPORT_PROJECT_CUTOFF,
+  type BlobStorageIntegration,
+  type ExportSourceContext,
+} from "@langfuse/shared";
+import { TooltipProvider } from "@/src/components/ui/tooltip";
+import { BlobStorageIntegrationForm } from "./BlobStorageIntegrationForm";
+import {
+  buildBlobStorageFormValues,
+  type BlobStorageFormValues,
+} from "./formValues";
+
+// EVENTS-only context (post-cutoff Cloud project, new row): single selectable
+// source, selector hidden — keeps the rendered tree small and the submit
+// payload valid.
+const exportSourceCtx: ExportSourceContext = {
+  isCloud: true,
+  enrichedAvailable: true,
+  legacyWritesActive: true,
+  projectCreatedAt: new Date(LEGACY_EXPORT_PROJECT_CUTOFF.getTime() + 1),
+  integrationCreatedAt: null,
+};
+
+const savedConfig: Partial<BlobStorageIntegration> = {
+  type: BlobStorageIntegrationType.S3,
+  bucketName: "seed-bucket",
+  region: "us-east-1",
+  accessKeyId: "AKIA-SEED",
+  fileType: BlobStorageIntegrationFileType.JSONL,
+  enabled: true,
+};
+
+const ui = (
+  key: string,
+  initialValues: BlobStorageFormValues,
+  onSubmit: (values: unknown, onSaved: () => void) => void = () => {},
+) => (
+  <TooltipProvider>
+    <BlobStorageIntegrationForm
+      key={key}
+      initialValues={initialValues}
+      exportSourceCtx={exportSourceCtx}
+      persistedExportSource={null}
+      isSaving={false}
+      onSubmit={onSubmit}
+    >
+      {({ isDirty }) => (
+        <span data-testid="dirty-state">{isDirty ? "dirty" : "clean"}</span>
+      )}
+    </BlobStorageIntegrationForm>
+  </TooltipProvider>
+);
+
+const dirtyState = () => screen.getByTestId("dirty-state").textContent;
+
+const bucketInput = () =>
+  screen.getByLabelText("Bucket Name") as HTMLInputElement;
+
+describe("BlobStorageIntegrationForm draft lifetime (keyed remount)", () => {
+  beforeAll(() => {
+    vi.stubGlobal(
+      "ResizeObserver",
+      class {
+        observe() {}
+        unobserve() {}
+        disconnect() {}
+      },
+    );
+    Element.prototype.scrollIntoView = vi.fn();
+    Element.prototype.hasPointerCapture = vi.fn();
+    Element.prototype.releasePointerCapture = vi.fn();
+  });
+
+  it("delete flow: dirty configured form + key flip to 'new' renders blank defaults", () => {
+    const { rerender } = render(
+      ui(
+        "p1:configured",
+        buildBlobStorageFormValues(savedConfig, exportSourceCtx),
+      ),
+    );
+    fireEvent.change(bucketInput(), { target: { value: "edited-bucket" } });
+    expect(bucketInput()).toHaveValue("edited-bucket");
+
+    // Container behavior after delete: config becomes null → key flips.
+    rerender(
+      ui("p1:new", buildBlobStorageFormValues(undefined, exportSourceCtx)),
+    );
+
+    expect(bucketInput()).toHaveValue("");
+    expect(screen.getByLabelText("Region")).toHaveValue("auto");
+  });
+
+  it("project switch: key change discards unsaved input from the previous project", () => {
+    const { rerender } = render(
+      ui("p1:new", buildBlobStorageFormValues(undefined, exportSourceCtx)),
+    );
+    fireEvent.change(bucketInput(), {
+      target: { value: "project-a-secret-bucket" },
+    });
+    fireEvent.change(screen.getByLabelText(/Access Key ID/), {
+      target: { value: "AKIA-PROJECT-A" },
+    });
+
+    rerender(
+      ui("p2:new", buildBlobStorageFormValues(undefined, exportSourceCtx)),
+    );
+
+    expect(bucketInput()).toHaveValue("");
+    expect(screen.getByLabelText(/Access Key ID/)).toHaveValue("");
+  });
+
+  it("post-create: key flip to 'configured' initializes from the saved config", () => {
+    const { rerender } = render(
+      ui("p1:new", buildBlobStorageFormValues(undefined, exportSourceCtx)),
+    );
+    fireEvent.change(bucketInput(), { target: { value: "typed-before-save" } });
+
+    rerender(
+      ui(
+        "p1:configured",
+        buildBlobStorageFormValues(savedConfig, exportSourceCtx),
+      ),
+    );
+
+    expect(bucketInput()).toHaveValue("seed-bucket");
+    expect(screen.getByLabelText("Region")).toHaveValue("us-east-1");
+  });
+
+  it("same key: rerender with new initialValues does NOT touch the mounted draft", () => {
+    // Container behavior during the 5s status poll: same entity refetches
+    // keep the key stable, so a draft in progress is never wiped.
+    const { rerender } = render(
+      ui(
+        "p1:configured",
+        buildBlobStorageFormValues(savedConfig, exportSourceCtx),
+      ),
+    );
+    fireEvent.change(bucketInput(), { target: { value: "mid-save-typing" } });
+
+    rerender(
+      ui(
+        "p1:configured",
+        buildBlobStorageFormValues(
+          { ...savedConfig, bucketName: "refetched-bucket" },
+          exportSourceCtx,
+        ),
+      ),
+    );
+
+    expect(bucketInput()).toHaveValue("mid-save-typing");
+  });
+
+  it("switching from GCS to S3 drops a typed GCS service account key", async () => {
+    render(
+      ui(
+        "p1:new",
+        buildBlobStorageFormValues(
+          { type: BlobStorageIntegrationType.GOOGLE_CLOUD_STORAGE },
+          exportSourceCtx,
+        ),
+      ),
+    );
+    fireEvent.change(screen.getByLabelText("GCP Service Account Key (JSON)"), {
+      target: { value: '{"type":"service_account"}' },
+    });
+
+    fireEvent.click(screen.getByRole("combobox", { name: "Storage Provider" }));
+    fireEvent.click(await screen.findByRole("option", { name: "Amazon S3" }));
+
+    expect(await screen.findByLabelText(/Secret Access Key/)).toHaveValue("");
+  });
+
+  it("submit passes the draft values through unchanged", async () => {
+    const onSubmit = vi.fn();
+    render(
+      ui(
+        "p1:new",
+        buildBlobStorageFormValues(undefined, exportSourceCtx),
+        onSubmit,
+      ),
+    );
+    fireEvent.change(bucketInput(), { target: { value: "my-new-bucket" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
+    expect(onSubmit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: BlobStorageIntegrationType.S3,
+        bucketName: "my-new-bucket",
+        region: "auto",
+        exportFrequency: "daily",
+        fileType: BlobStorageIntegrationFileType.PARQUET,
+        enabled: true,
+      }),
+      expect.any(Function),
+    );
+  });
+
+  it("dirty state: cleared only by a successful save", async () => {
+    // Same-entity saves do not remount (key stays "configured"), so the
+    // form itself must rebase dirty tracking once the save is confirmed.
+    const onSubmit = vi.fn();
+    render(
+      ui(
+        "p1:configured",
+        buildBlobStorageFormValues(savedConfig, exportSourceCtx),
+        onSubmit,
+      ),
+    );
+    expect(dirtyState()).toBe("clean");
+
+    fireEvent.change(bucketInput(), { target: { value: "edited-bucket" } });
+    await waitFor(() => expect(dirtyState()).toBe("dirty"));
+
+    // Failed save: the container never calls onSaved.
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
+    expect(dirtyState()).toBe("dirty");
+
+    // Successful save: the submitted values become the clean baseline.
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(2));
+    act(() => onSubmit.mock.calls[1][1]());
+    await waitFor(() => expect(dirtyState()).toBe("clean"));
+    expect(bucketInput()).toHaveValue("edited-bucket");
+
+    // Later edits are dirty again against the new baseline.
+    fireEvent.change(bucketInput(), { target: { value: "edited-again" } });
+    await waitFor(() => expect(dirtyState()).toBe("dirty"));
+  });
+});

@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { Input } from "@/src/components/ui/input";
 import {
   FormControl,
@@ -9,8 +10,9 @@ import {
 } from "@/src/components/ui/form";
 import { type UseFormReturn } from "react-hook-form";
 import { type ActionDomain } from "@langfuse/shared";
-import { ExternalLink } from "lucide-react";
+import { ExternalLink } from "@langfuse/icons";
 import Link from "next/link";
+import { areDestinationUrlsEquivalent } from "@/src/features/automations/destinationUrl";
 
 interface GitHubDispatchActionFormProps {
   form: UseFormReturn<any>;
@@ -23,6 +25,11 @@ export const GitHubDispatchActionForm: React.FC<
   GitHubDispatchActionFormProps
 > = ({ form, disabled }) => {
   const displayGitHubToken = form.watch("githubDispatch.displayGitHubToken");
+  const currentUrl = form.watch("githubDispatch.url");
+  const originalUrl = form.watch("githubDispatch.originalUrl");
+  const isUrlChanged =
+    originalUrl !== undefined &&
+    !areDestinationUrlsEquivalent(currentUrl, originalUrl);
 
   return (
     <div className="space-y-4">
@@ -34,7 +41,7 @@ export const GitHubDispatchActionForm: React.FC<
           <FormItem>
             <FormLabel className="flex items-center">
               Repository Dispatch URL{" "}
-              <span className="ml-1 text-destructive">*</span>
+              <span className="text-destructive ml-1">*</span>
             </FormLabel>
             <FormControl>
               <Input
@@ -49,9 +56,9 @@ export const GitHubDispatchActionForm: React.FC<
                 href="https://docs.github.com/en/rest/repos/repos#create-a-repository-dispatch-event"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center text-primary hover:underline"
+                className="text-primary inline-flex items-center hover:underline"
               >
-                Learn more <ExternalLink className="ml-1 h-3 w-3" />
+                Learn more <ExternalLink size="sm" __rawClassName="ml-1" />
               </Link>
             </FormDescription>
             <FormMessage />
@@ -66,7 +73,7 @@ export const GitHubDispatchActionForm: React.FC<
         render={({ field }) => (
           <FormItem>
             <FormLabel className="flex items-center">
-              Event Type <span className="ml-1 text-destructive">*</span>
+              Event Type <span className="text-destructive ml-1">*</span>
             </FormLabel>
             <FormControl>
               <Input
@@ -93,8 +100,8 @@ export const GitHubDispatchActionForm: React.FC<
           <FormItem>
             <FormLabel className="flex items-center">
               GitHub Personal Access Token
-              {!displayGitHubToken && (
-                <span className="ml-1 text-destructive">*</span>
+              {(!displayGitHubToken || isUrlChanged) && (
+                <span className="text-destructive ml-1">*</span>
               )}
             </FormLabel>
             <FormControl>
@@ -108,16 +115,18 @@ export const GitHubDispatchActionForm: React.FC<
             <FormDescription>
               GitHub PAT with <code className="text-xs">repo</code> scope for
               repository dispatch.
-              {displayGitHubToken
-                ? " Leave empty to keep existing token."
-                : ""}{" "}
+              {isUrlChanged
+                ? " Enter a new token when changing the dispatch URL."
+                : displayGitHubToken
+                  ? " Leave empty to keep existing token."
+                  : ""}{" "}
               <Link
                 href="https://github.com/settings/tokens/new?scopes=repo&description=Langfuse%20Automation"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center text-primary hover:underline"
+                className="text-primary inline-flex items-center hover:underline"
               >
-                Create token <ExternalLink className="ml-1 h-3 w-3" />
+                Create token <ExternalLink size="sm" __rawClassName="ml-1" />
               </Link>
             </FormDescription>
             <FormMessage />
@@ -126,11 +135,4 @@ export const GitHubDispatchActionForm: React.FC<
       />
     </div>
   );
-};
-
-// Schema exported for use in automationForm.tsx
-export const githubDispatchSchema = {
-  url: "",
-  eventType: "",
-  githubToken: "",
 };

@@ -1,4 +1,4 @@
-import { z } from "zod/v4";
+import { z } from "zod";
 import { jsonSchemaNullable } from "../utils/zod";
 
 export const PromptDomainSchema = z.object({

@@ -1,7 +1,12 @@
 import { v4 } from "uuid";
 import { prisma } from "../../db";
-import { hashSecretKey, getDisplaySecretKey } from "../auth/apiKeys";
+import {
+  OrganizationId,
+  ProjectId,
+  SystemRoleId,
+} from "../../features/rbac/types";
 import { CloudConfigSchema } from "../../interfaces/cloudConfigSchema";
+import { createApiKey } from "../auth/apiKeys";
 
 export function createBasicAuthHeader(
   username: string,
@@ -17,6 +22,7 @@ export type CreateOrgProjectAndApiKeyOptions = {
   projectId?: string;
   plan?: "Team" | "Hobby" | "Core" | "Pro" | "Enterprise";
 };
+
 export const createOrgProjectAndApiKey = async (
   props?: CreateOrgProjectAndApiKeyOptions,
 ) => {
@@ -37,20 +43,13 @@ export const createOrgProjectAndApiKey = async (
       orgId: org.id,
     },
   });
-  const publicKey = v4();
-  const secretKey = v4();
-
-  const auth = createBasicAuthHeader(publicKey, secretKey);
-  await prisma.apiKey.create({
-    data: {
-      id: v4(),
-      projectId: projectId,
-      publicKey: publicKey,
-      hashedSecretKey: await hashSecretKey(secretKey),
-      displaySecretKey: getDisplaySecretKey(secretKey),
-      scope: "PROJECT",
-    },
+  const { publicKey, secretKey } = await createApiKey(prisma, {
+    tenant: OrganizationId(org.id),
+    scope: ProjectId(projectId),
+    role: SystemRoleId("LEGACY_PROJECT_API_KEY"),
+    createdBy: "system",
   });
+  const auth = createBasicAuthHeader(publicKey, secretKey);
 
   return { projectId, orgId: org.id, publicKey, secretKey, auth, org, project };
 };

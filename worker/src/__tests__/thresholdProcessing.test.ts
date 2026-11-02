@@ -43,6 +43,7 @@ const createMockOrg = (
   cloudCurrentCycleUsage: null,
   cloudFreeTierUsageThresholdState: null,
   aiFeaturesEnabled: false,
+  aiTelemetryEnabled: false,
   createdAt: new Date("2024-01-01T00:00:00Z"),
   updatedAt: new Date("2024-01-01T00:00:00Z"),
   ...overrides,
@@ -328,9 +329,8 @@ describe("processThresholds", () => {
 
       // Need to reload the module to pick up the new env var
       vi.resetModules();
-      const { processThresholds: processThresholdsDisabled } = await import(
-        "../ee/usageThresholds/thresholdProcessing"
-      );
+      const { processThresholds: processThresholdsDisabled } =
+        await import("../ee/usageThresholds/thresholdProcessing");
 
       const org = createMockOrg({ cloudCurrentCycleUsage: 0 });
 
@@ -365,9 +365,8 @@ describe("processThresholds", () => {
 
       // Need to reload the module to pick up the new env var
       vi.resetModules();
-      const { processThresholds: processThresholdsDisabled } = await import(
-        "../ee/usageThresholds/thresholdProcessing"
-      );
+      const { processThresholds: processThresholdsDisabled } =
+        await import("../ee/usageThresholds/thresholdProcessing");
 
       const org = createMockOrg({
         cloudCurrentCycleUsage: 250_000,
@@ -399,9 +398,8 @@ describe("processThresholds", () => {
         "true";
 
       vi.resetModules();
-      const { processThresholds: processThresholdsEnabled } = await import(
-        "../ee/usageThresholds/thresholdProcessing"
-      );
+      const { processThresholds: processThresholdsEnabled } =
+        await import("../ee/usageThresholds/thresholdProcessing");
 
       const org = createMockOrg({ cloudCurrentCycleUsage: 0 });
 
@@ -432,9 +430,8 @@ describe("processThresholds", () => {
         "true";
 
       vi.resetModules();
-      const { processThresholds: processThresholdsEnabled } = await import(
-        "../ee/usageThresholds/thresholdProcessing"
-      );
+      const { processThresholds: processThresholdsEnabled } =
+        await import("../ee/usageThresholds/thresholdProcessing");
 
       const org = createMockOrg({
         cloudCurrentCycleUsage: 0,
@@ -605,6 +602,34 @@ describe("processThresholds", () => {
         cloudBillingCycleUpdatedAt: expect.any(Date),
         cloudFreeTierUsageThresholdState: null,
         shouldInvalidateCache: true,
+      });
+
+      expect(result.actionTaken).toBe("PAID_PLAN");
+      expect(result.emailSent).toBe(false);
+    });
+  });
+
+  describe("CHB-billed orgs", () => {
+    it("skips enforcement for orgs with a CHB attached plan (paid gate covers clickhouse.attachedPlanId)", async () => {
+      const org = createMockOrg({
+        cloudCurrentCycleUsage: 0,
+        cloudConfig: {
+          clickhouse: {
+            organizationId: "0d5e6f7a-1b2c-4d3e-8f9a-0b1c2d3e4f5a",
+            attachedPlanId: "ap_123",
+            planCode: "core",
+          },
+        },
+      });
+
+      const result = await processThresholds(org, 250_000);
+
+      expect(result.updateData).toEqual({
+        orgId: "org-1",
+        cloudCurrentCycleUsage: 250_000,
+        cloudBillingCycleUpdatedAt: expect.any(Date),
+        cloudFreeTierUsageThresholdState: null,
+        shouldInvalidateCache: false,
       });
 
       expect(result.actionTaken).toBe("PAID_PLAN");

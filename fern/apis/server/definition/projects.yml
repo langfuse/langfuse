@@ -81,9 +81,18 @@ service:
         name: CreateApiKeyRequest
         body:
           properties:
+            name:
+              type: optional<string>
+              docs: Optional name for the API key. Cannot be provided together with note, even if either value is an empty string.
             note:
               type: optional<string>
-              docs: Optional note for the API key
+              availability:
+                status: deprecated
+                message: Use name instead.
+              docs: Deprecated alias for name. Cannot be provided together with name, even if either value is an empty string.
+            expiresAt:
+              type: optional<nullable<datetime>>
+              docs: Optional expiration timestamp in ISO 8601 format. Must be in the future. Omit or set to null for a key that does not expire.
             publicKey:
               type: optional<string>
               docs: Optional predefined public key. Must start with 'pk-lf-'. If provided, secretKey must also be provided.
@@ -144,9 +153,19 @@ types:
     properties:
       id: string
       createdAt: datetime
-      expiresAt: optional<datetime>
+      expiresAt:
+        type: optional<datetime>
+        docs: Expiration timestamp. Null if the key does not expire.
       lastUsedAt: optional<datetime>
-      note: optional<string>
+      name:
+        type: optional<nullable<string>>
+        docs: Name of the API key. Contains the same value as note; null if no name was provided.
+      note:
+        type: optional<string>
+        availability:
+          status: deprecated
+          message: Use name instead.
+        docs: Deprecated alias for name. Contains the same value as name.
       publicKey: string
       displaySecretKey: string
 
@@ -155,10 +174,21 @@ types:
     properties:
       id: string
       createdAt: datetime
+      expiresAt:
+        type: optional<nullable<datetime>>
+        docs: Expiration timestamp. Null if the key does not expire.
       publicKey: string
       secretKey: string
       displaySecretKey: string
-      note: optional<string>
+      name:
+        type: optional<nullable<string>>
+        docs: Name of the API key. Contains the same value as note; null if no name was provided.
+      note:
+        type: optional<string>
+        availability:
+          status: deprecated
+          message: Use name instead.
+        docs: Deprecated alias for name. Contains the same value as name.
 
   ApiKeyDeletionResponse:
     docs: Response for API key deletion

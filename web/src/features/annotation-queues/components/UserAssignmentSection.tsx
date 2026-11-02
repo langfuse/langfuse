@@ -1,11 +1,11 @@
 import { api } from "@/src/utils/api";
-import { MoreHorizontal, X } from "lucide-react";
-import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { MoreHorizontal, X } from "@langfuse/icons";
+import { useHasProjectAccess } from "@/src/features/rbac";
 import { Button } from "@/src/components/ui/button";
-import { MultiSelectCombobox } from "@/src/components/ui/multi-select-combobox";
+import { MultiSelectCombobox } from "@/src/components/ui/MultiSelectCombobox";
 import { useUserSearch } from "@/src/hooks/useUserSearch";
 import { useSelectedUsers } from "@/src/features/annotation-queues/hooks/useSelectedUsers";
-import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
+import { showSuccessToast } from "@/src/features/notifications";
 import { useRef } from "react";
 
 interface UserAssignmentSectionProps {
@@ -45,6 +45,7 @@ export const UserAssignmentSection = ({
         utils.annotationQueueAssignments.invalidate();
         utils.annotationQueues.invalidate();
         showSuccessToast({
+          operation: "annotation_queue_assignment.remove",
           title: "Removed assignment",
           description: "User removed from queue successfully",
         });
@@ -112,86 +113,109 @@ export const UserAssignmentSection = ({
             }, 100);
           }
         }}
-        renderSelectedItem={(user, onRemove) => (
-          <div className="flex flex-shrink-0 items-center gap-1 rounded-md bg-muted px-2 py-1 text-xs">
-            <span className="max-w-32 truncate">{user.name || user.email}</span>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-4 w-4 p-0 hover:bg-muted-foreground/20"
-              onClick={onRemove}
-            >
-              <X className="h-3 w-3" />
-            </Button>
-          </div>
-        )}
-        renderItem={(user, isSelected, onToggle) => (
-          <div
-            className="flex cursor-pointer items-center gap-3 px-3 py-2 transition-colors hover:bg-muted/50"
-            onClick={onToggle}
-          >
-            <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-3">
-                <p className="truncate text-xs font-medium">
-                  {user.name || "Unnamed User"}
-                </p>
-                <p className="truncate text-xs text-muted-foreground">
-                  {user.email}
-                </p>
-              </div>
+        renderSelectedItem={(user, onRemove) => {
+          const userLabel = user.name || user.email;
+
+          return (
+            <div className="bg-muted flex shrink-0 items-center gap-1 rounded-md px-2 py-1 text-xs">
+              <span className="max-w-32 truncate" title={userLabel}>
+                {userLabel}
+              </span>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="hover:bg-muted-foreground/20 h-4 w-4 p-0"
+                onClick={onRemove}
+              >
+                <X size="base" color="default" />
+              </Button>
             </div>
-            {isSelected && (
-              <div className="text-xs text-muted-foreground">✓</div>
-            )}
-          </div>
-        )}
+          );
+        }}
+        renderItem={(user, isSelected, onToggle) => {
+          const userName = user.name || "Unnamed User";
+
+          return (
+            <div
+              className="hover:bg-muted/50 flex cursor-pointer items-center gap-3 px-3 py-2 transition-colors"
+              onClick={onToggle}
+            >
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-3">
+                  <p className="truncate text-xs font-bold" title={userName}>
+                    {userName}
+                  </p>
+                  <p
+                    className="text-muted-foreground truncate text-xs"
+                    title={user.email}
+                  >
+                    {user.email}
+                  </p>
+                </div>
+              </div>
+              {isSelected && (
+                <div className="text-muted-foreground text-xs">✓</div>
+              )}
+            </div>
+          );
+        }}
       />
 
       {/* Assigned Users Section */}
       {queueAssignmentsQuery.data &&
         queueAssignmentsQuery.data?.totalCount > 0 && (
           <div className="space-y-2">
-            <h4 className="text-sm text-muted-foreground">
+            <h4 className="text-muted-foreground text-sm">
               Assigned to ({queueAssignmentsQuery.data?.totalCount})
             </h4>
-            <div className="max-h-32 overflow-y-auto rounded-md border bg-background">
+            <div className="bg-background max-h-32 overflow-y-auto rounded-md border">
               {queueAssignmentsQuery.data?.assignments.map(
-                (user: any, index: number) => (
-                  <div key={user.id}>
-                    <div className="flex items-center justify-between gap-3 px-3 py-2">
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-3">
-                          <p className="truncate text-xs font-medium">
-                            {user.name || "Unnamed User"}
-                          </p>
-                          <p className="truncate text-xs text-muted-foreground">
-                            {user.email}
-                          </p>
+                (user: any, index: number) => {
+                  const userName = user.name || "Unnamed User";
+
+                  return (
+                    <div key={user.id}>
+                      <div className="flex items-center justify-between gap-3 px-3 py-2">
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-3">
+                            <p
+                              className="truncate text-xs font-bold"
+                              title={userName}
+                            >
+                              {userName}
+                            </p>
+                            <p
+                              className="text-muted-foreground truncate text-xs"
+                              title={user.email}
+                            >
+                              {user.email}
+                            </p>
+                          </div>
                         </div>
+                        <Button
+                          variant="ghost"
+                          size="icon-sm"
+                          disabled={
+                            !hasQueueAssignmentWriteAccess ||
+                            deleteQueueAssignmentMutation.isPending
+                          }
+                          onClick={() => handleUserRemove(user.id)}
+                        >
+                          <X size="base" color="default" />
+                        </Button>
                       </div>
-                      <Button
-                        variant="ghost"
-                        size="icon-sm"
-                        disabled={
-                          !hasQueueAssignmentWriteAccess ||
-                          deleteQueueAssignmentMutation.isPending
-                        }
-                        onClick={() => handleUserRemove(user.id)}
-                      >
-                        <X className="h-3 w-3" />
-                      </Button>
+                      {(index <
+                        queueAssignmentsQuery.data?.assignments.length - 1 ||
+                        hasMoreAssignedUsers) && (
+                        <div className="border-border/50 border-b" />
+                      )}
                     </div>
-                    {(index <
-                      queueAssignmentsQuery.data?.assignments.length - 1 ||
-                      hasMoreAssignedUsers) && (
-                      <div className="border-b border-border/50" />
-                    )}
-                  </div>
-                ),
+                  );
+                },
               )}
               {hasMoreAssignedUsers && (
-                <div className="flex items-center gap-3 px-3 py-2 text-muted-foreground">
-                  <MoreHorizontal className="h-4 w-4" />
+                <div className="text-muted-foreground flex items-center gap-3 px-3 py-2">
+                  <MoreHorizontal size="base" />
                   <div className="min-w-0 flex-1">
                     <p className="text-xs italic">
                       {queueAssignmentsQuery.data.totalCount -
