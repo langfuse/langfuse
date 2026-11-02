@@ -996,10 +996,10 @@ export async function readLatestTopicAssignments(
   return rows.map(assignmentResult);
 }
 
-/** Source time span of one trace's summaries, served by the latest_source_versions projection; null when never summarized. */
+/** Source time span of the traces' summaries, served by the latest_source_versions projection; null when none was summarized. */
 export async function getTopicTraceUnitTimeRange(
   projectId: string,
-  traceId: string,
+  traceIds: string[],
   timeRange: TopicTimeRange,
 ): Promise<TopicTimeRange | null> {
   const [row] = await queryClickhouse<{
@@ -1011,8 +1011,8 @@ export async function getTopicTraceUnitTimeRange(
       toUnixTimestamp64Milli(min(unit_start_time)) AS fromMs,
       toUnixTimestamp64Milli(max(unit_start_time)) AS toMs
       FROM topic_facet_summaries
-      WHERE project_id = {projectId:String} AND ${unitTimeFilterSql} AND trace_id = {traceId:String}`,
-    params: { projectId, ...timeRangeParams(timeRange), traceId },
+      WHERE project_id = {projectId:String} AND ${unitTimeFilterSql} AND trace_id IN {traceIds:Array(String)}`,
+    params: { projectId, ...timeRangeParams(timeRange), traceIds },
     tags: { route: "topics-trace-unit-time", projectId },
   });
   if (!row || Number(row.found) === 0) return null;

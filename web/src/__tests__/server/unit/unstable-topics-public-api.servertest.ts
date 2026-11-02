@@ -10,6 +10,7 @@ const mocks = vi.hoisted(() => ({
   readLatestTopicAssignments: vi.fn(),
   getLatestFacetSummaries: vi.fn(),
   getTopicRuns: vi.fn(),
+  getTopicTraceUnitTimeRange: vi.fn(),
 }));
 vi.mock("@langfuse/shared/topics/server", () => mocks);
 const listCurrentTopicTraces = vi.hoisted(() => vi.fn());
@@ -533,7 +534,7 @@ describe("unstable Topics public API", () => {
       );
     });
 
-    it.each<[string, FilterState[number], string[]]>([
+    it.each<[string, FilterState[number], string[], string[]]>([
       [
         "topic name",
         {
@@ -542,6 +543,7 @@ describe("unstable Topics public API", () => {
           operator: "any of",
           value: ["tool call timeouts"],
         },
+        ["custom", "issues"],
         ["custom", "issues"],
       ],
       [
@@ -553,6 +555,7 @@ describe("unstable Topics public API", () => {
           value: ["timeouts"],
         },
         ["custom", "issues"],
+        ["custom"],
       ],
       [
         "topic id outside the published maps",
@@ -563,10 +566,11 @@ describe("unstable Topics public API", () => {
           value: ["retired"],
         },
         ["custom", "issues"],
+        ["custom", "issues"],
       ],
     ])(
       "scans the facets owning an unkeyed %s filter",
-      async (_, condition, facetIds) => {
+      async (_, condition, facetIds, memberFacetIds) => {
         await listPublicTopicTraces({
           ...traceQuery,
           facets: ["custom"],
@@ -576,10 +580,85 @@ describe("unstable Topics public API", () => {
           expect.objectContaining({
             facetIds,
             projectedFacetIds: ["custom"],
+            memberFacetIds,
           }),
         );
       },
     );
+
+    it("lists traces through negated facets only when they are projected", async () => {
+      await listPublicTopicTraces({
+        ...traceQuery,
+        facets: ["custom"],
+        filter: [
+          {
+            type: "categoryOptions",
+            column: "topicStatus",
+            key: "issues",
+            operator: "none of",
+            value: ["assigned"],
+          },
+          {
+            type: "stringObject",
+            column: "summary",
+            key: "issues",
+            operator: "does not contain",
+            value: "refund",
+          },
+        ],
+      });
+      expect(listCurrentTopicTraces).toHaveBeenCalledWith(
+        expect.objectContaining({
+          facetIds: ["custom", "issues"],
+          memberFacetIds: ["custom"],
+        }),
+      );
+    });
+
+    it("reads a trace id lookup without a window at the traces' own time", async () => {
+      const now = new Date("2026-10-20T00:00:00Z");
+      vi.useFakeTimers({ now, toFake: ["Date"] });
+      const traceRange = {
+        from: new Date("2026-08-01T10:00:00Z"),
+        to: new Date("2026-08-01T10:00:00.001Z"),
+      };
+      mocks.getTopicTraceUnitTimeRange.mockResolvedValue(traceRange);
+      const traceIdFilter: FilterState = [
+        {
+          type: "stringOptions",
+          column: "traceId",
+          operator: "any of",
+          value: ["old-trace"],
+        },
+      ];
+      try {
+        const result = await listPublicTopicTraces({
+          ...traceQuery,
+          fromTimestamp: undefined,
+          toTimestamp: undefined,
+          filter: traceIdFilter,
+        });
+        expect(mocks.getTopicTraceUnitTimeRange).toHaveBeenCalledWith(
+          projectId,
+          ["old-trace"],
+          { from: new Date(now.getTime() - 93 * 86_400_000), to: now },
+        );
+        expect(listCurrentTopicTraces).toHaveBeenCalledWith(
+          expect.objectContaining({ window: traceRange }),
+        );
+        expect(result.window).toEqual(traceRange);
+
+        await listPublicTopicTraces({ ...traceQuery, filter: traceIdFilter });
+        expect(mocks.getTopicTraceUnitTimeRange).toHaveBeenCalledTimes(1);
+        expect(listCurrentTopicTraces).toHaveBeenLastCalledWith(
+          expect.objectContaining({
+            window: { from: window.fromTimestamp, to: window.toTimestamp },
+          }),
+        );
+      } finally {
+        vi.useRealTimers();
+      }
+    });
 
     it("returns no traces without reading when a topic name matches nothing", async () => {
       const result = await listPublicTopicTraces({

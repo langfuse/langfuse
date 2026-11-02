@@ -358,6 +358,20 @@ describe("listCurrentTopicTraces", () => {
     ).toEqual([]);
   });
 
+  it("lists a trace only through a member facet's result", async () => {
+    const noneOf: TopicTraceCondition = {
+      column: "topicId",
+      match: { operator: "none of", values: ["topic-other"] },
+    };
+    const result = await list([noneOf], {
+      projectedFacetIds: [intent],
+      memberFacetIds: [intent],
+      includeTotal: true,
+    });
+    expect(ids(result)).toEqual([traces.assigned]);
+    expect(result.total).toBe(1);
+  });
+
   it("pages with a keyset cursor and projects facets", async () => {
     const first = await list([], { limit: 2 });
     expect(ids(first)).toEqual([traces.assigned, traces.stale]);

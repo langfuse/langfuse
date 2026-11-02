@@ -116,7 +116,7 @@ export const [getTopicsForTracesTool, handleGetTopicsForTraces] = defineTool({
   name: "getTopicsForTraces",
   description: [
     "Get the current Topics result of traces, one row per trace with a result per facet: state, summary and assigned topic.",
-    "For specific traces (such as the trace the user is viewing) filter traceId with `any of`.",
+    "For specific traces (such as the trace the user is viewing) filter traceId with `any of`; without a window, that lookup covers the traces' own start time within the last 93 days.",
     "topicStatus values: assigned (in a topic of the current map), outlier (summarized, no topic fits), awaiting_map (summarized, not yet assigned), not_applicable, insufficient_input.",
     "Use meta.cursor to fetch the next page.",
   ].join(" "),

@@ -17,6 +17,7 @@ import {
 import {
   getPublishedTopicRun,
   getTopicRuns,
+  getTopicTraceUnitTimeRange,
   isTopicsProjectEnabled,
   listTopicFacets,
   listTopicRules,
@@ -441,18 +442,53 @@ function topicOwnerFacetIds(
     : lookup.facets.map(({ id }) => id);
 }
 
+/** Conditions only a result in their facet can meet; negated ones also match traces without one. */
+function requiresResult(condition: TopicTraceCondition) {
+  switch (condition.column) {
+    case "topicId":
+      return condition.match.operator === "any of";
+    case "topicStatus":
+      return (
+        condition.match.operator === "any of" &&
+        !condition.match.values.includes("not_processed")
+      );
+    case "summary":
+      return (
+        condition.match.operator !== "is not set" &&
+        condition.match.operator !== "does not contain"
+      );
+    case "facetVersion":
+      return true;
+    default:
+      return false;
+  }
+}
+
 /**
- * Translates the public filter into reader conditions. Returns `null` when a
+ * Translates the public filter into reader conditions, the facets they scan,
+ * and the scanned facets whose result can list a trace. Returns `null` when a
  * condition can match nothing (an unknown topic name in `any of`).
  */
 async function topicTraceConditions(
   projectId: string,
   filter: FilterState,
   lookup: FacetLookup,
-): Promise<{ conditions: TopicTraceCondition[]; facetIds: string[] } | null> {
+): Promise<{
+  conditions: TopicTraceCondition[];
+  facetIds: string[];
+  memberFacetIds: string[];
+} | null> {
   checkFilterLimits(filter);
   const conditions: TopicTraceCondition[] = [];
   const facetIds = new Set<string>();
+  const memberFacetIds = new Set<string>();
+  const add = (condition: TopicTraceCondition, scanned: string[] = []) => {
+    conditions.push(condition);
+    for (const id of scanned) {
+      facetIds.add(id);
+      if (requiresResult(condition)) memberFacetIds.add(id);
+    }
+  };
   const facetFor = (column: string, key: string) => {
     const facet = lookup.find(key);
     if (!facet)
@@ -461,7 +497,6 @@ async function topicTraceConditions(
         column,
         lookup.choices,
       );
-    facetIds.add(facet.id);
     return facet.id;
   };
   const stringMatch = (column: string, operator: string, value: string) => {
@@ -518,21 +553,23 @@ async function topicTraceConditions(
         if (condition.operator === "any of") return null;
         continue;
       }
-      for (const match of matches) facetIds.add(match.facetId);
       const topicIds = [...new Set(matches.map((match) => match.topicId))];
-      conditions.push({
-        column: "topicId",
-        facetId,
-        match: { operator: condition.operator, values: topicIds },
-      });
+      add(
+        {
+          column: "topicId",
+          facetId,
+          match: { operator: condition.operator, values: topicIds },
+        },
+        matches.map((match) => match.facetId),
+      );
       continue;
     }
 
+    let ownerFacetIds: string[] = [];
     if (column === "topicId" && condition.type === "stringOptions") {
       if (!topics)
         topics = await publishedTopicsByFacet(projectId, lookup.facets);
-      for (const id of topicOwnerFacetIds(topics, lookup, condition.value))
-        facetIds.add(id);
+      ownerFacetIds = topicOwnerFacetIds(topics, lookup, condition.value);
     }
 
     if (
@@ -548,41 +585,54 @@ async function topicTraceConditions(
 
     switch (condition.type) {
       case "stringOptions":
-        conditions.push({
-          column,
-          match: { operator: condition.operator, values: condition.value },
-        } as TopicTraceCondition);
+        add(
+          {
+            column,
+            match: { operator: condition.operator, values: condition.value },
+          } as TopicTraceCondition,
+          ownerFacetIds,
+        );
         break;
       case "string":
-        conditions.push({
+        add({
           column,
           match: stringMatch(column, condition.operator, condition.value),
         } as TopicTraceCondition);
         break;
       case "datetime":
-        conditions.push({
+        add({
           column,
           match: { operator: condition.operator, value: condition.value },
         } as TopicTraceCondition);
         break;
-      case "numberObject":
-        conditions.push({
-          column: "facetVersion",
-          facetId: facetFor(column, condition.key),
-          match: { operator: condition.operator, value: condition.value },
-        });
+      case "numberObject": {
+        const facetId = facetFor(column, condition.key);
+        add(
+          {
+            column: "facetVersion",
+            facetId,
+            match: { operator: condition.operator, value: condition.value },
+          },
+          [facetId],
+        );
         break;
-      case "stringObject":
-        conditions.push({
-          column: "summary",
-          facetId: facetFor(column, condition.key),
-          match:
-            condition.operator === "is set" ||
-            condition.operator === "is not set"
-              ? { operator: condition.operator }
-              : stringMatch(column, condition.operator, condition.value),
-        });
+      }
+      case "stringObject": {
+        const facetId = facetFor(column, condition.key);
+        add(
+          {
+            column: "summary",
+            facetId,
+            match:
+              condition.operator === "is set" ||
+              condition.operator === "is not set"
+                ? { operator: condition.operator }
+                : stringMatch(column, condition.operator, condition.value),
+          },
+          [facetId],
+        );
         break;
+      }
       case "categoryOptions": {
         const invalid = condition.value.filter(
           (value) => !TOPIC_TRACE_STATUSES.includes(value as TopicTraceStatus),
@@ -593,19 +643,27 @@ async function topicTraceConditions(
             column,
             [...TOPIC_TRACE_STATUSES],
           );
-        conditions.push({
-          column: "topicStatus",
-          facetId: facetFor(column, condition.key),
-          match: {
-            operator: condition.operator,
-            values: condition.value as TopicTraceStatus[],
+        const facetId = facetFor(column, condition.key);
+        add(
+          {
+            column: "topicStatus",
+            facetId,
+            match: {
+              operator: condition.operator,
+              values: condition.value as TopicTraceStatus[],
+            },
           },
-        });
+          [facetId],
+        );
         break;
       }
     }
   }
-  return { conditions, facetIds: [...facetIds] };
+  return {
+    conditions,
+    facetIds: [...facetIds],
+    memberFacetIds: [...memberFacetIds],
+  };
 }
 
 function publicTopicTraceFacet(
@@ -681,6 +739,36 @@ async function topicNamesForResults(
   );
 }
 
+/**
+ * Without an explicit window, a `traceId` `any of` lookup reads the traces'
+ * own source time within the longest window, as the trace page does.
+ */
+async function topicTracesWindow(params: {
+  projectId: string;
+  fromTimestamp?: Date;
+  toTimestamp?: Date;
+  filter?: FilterState;
+}) {
+  const window = resolveWindow(params.fromTimestamp, params.toTimestamp);
+  if (params.fromTimestamp || params.toTimestamp) return window;
+  const traceIds = params.filter?.find(
+    (condition) =>
+      condition.column === "traceId" &&
+      condition.type === "stringOptions" &&
+      condition.operator === "any of",
+  )?.value;
+  if (!Array.isArray(traceIds) || traceIds.length === 0) return window;
+  const traceRange = await getTopicTraceUnitTimeRange(
+    params.projectId,
+    traceIds.map(String),
+    {
+      from: new Date(window.to.getTime() - TOPICS_MAX_TIME_RANGE_MS),
+      to: window.to,
+    },
+  );
+  return traceRange ?? window;
+}
+
 /** Lists traces with each projected facet's current result; filtering and pagination run in ClickHouse. */
 export async function listPublicTopicTraces(params: {
   projectId: string;
@@ -695,7 +783,6 @@ export async function listPublicTopicTraces(params: {
   cursor?: { timestamp: Date; traceId: string };
 }) {
   assertTopicsApiAvailable(params.projectId);
-  const window = resolveWindow(params.fromTimestamp, params.toTimestamp);
   const [facets, isActive] = await Promise.all([
     listTopicFacets(params.projectId),
     isFacetActive(params.projectId),
@@ -721,6 +808,7 @@ export async function listPublicTopicTraces(params: {
     params.filter ?? [],
     lookup,
   );
+  const window = await topicTracesWindow(params);
   if (!translated)
     return {
       window,
@@ -733,6 +821,9 @@ export async function listPublicTopicTraces(params: {
     window,
     facetIds: [...new Set([...projectedIds, ...translated.facetIds])],
     projectedFacetIds: [...projectedIds],
+    memberFacetIds: [
+      ...new Set([...projectedIds, ...translated.memberFacetIds]),
+    ],
     conditions: translated.conditions,
     orderBy: params.orderBy,
     limit: params.limit,

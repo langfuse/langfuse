@@ -7856,10 +7856,18 @@ paths:
 
         The window applies to the trace start time. It defaults to the last
 
-        7 days and can span at most 93 days.
+        7 days and can span at most 93 days. Without `fromTimestamp` and
+
+        `toTimestamp`, a `traceId` `any of` filter reads the listed traces at
+
+        their own start time within the last 93 days.
 
 
         `filter` is a JSON array of filter conditions combined with AND.
+
+        Negated conditions (`none of`, `does not contain`, `is not set`) on a
+
+        facet that is not requested do not list additional traces.
 
         Facet-keyed conditions use `categoryOptions`, `stringObject` or
 

@@ -318,6 +318,7 @@ function buildQuery(input: {
   window: TopicTimeRange;
   facetIds: string[];
   projectedFacetIds: string[];
+  memberFacetIds?: string[];
   conditions: TopicTraceCondition[];
   publishedRunIds: string[];
 }) {
@@ -335,6 +336,14 @@ function buildQuery(input: {
     const sql = groupConditionSql(condition, params);
     return sql ? [sql] : [];
   });
+  const memberFacetIds = input.memberFacetIds;
+  if (
+    memberFacetIds &&
+    input.facetIds.some((id) => !memberFacetIds.includes(id))
+  )
+    groupConditions.push(
+      `countIf(facet_id IN ${params.add("Array(String)", memberFacetIds)}) > 0`,
+    );
   return {
     withSql: `WITH ${currentResultsSql(rowConditions, traceIdConditions)}`,
     groupConditions,
@@ -435,14 +444,16 @@ async function loadDetails(
 /**
  * Lists traces with their current Topics result per facet, newest first by
  * trace start. A trace appears when it has a result for any facet in
- * `facetIds`; `results` are limited to `projectedFacetIds`. Older facet
- * versions remain current until the trace is summarized with a newer one.
+ * `memberFacetIds` (default: `facetIds`); the other scanned facets only
+ * evaluate conditions. `results` are limited to `projectedFacetIds`. Older
+ * facet versions remain current until the trace is summarized with a newer one.
  */
 export async function listCurrentTopicTraces(input: {
   projectId: string;
   window: TopicTimeRange;
   facetIds: string[];
   projectedFacetIds: string[];
+  memberFacetIds?: string[];
   conditions: TopicTraceCondition[];
   orderBy: "timestamp.desc" | "timestamp.asc";
   limit: number;
