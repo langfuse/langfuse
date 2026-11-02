@@ -44,7 +44,7 @@ import {
 // `needsVirtualization` note below.
 const VIRTUALIZATION_THRESHOLD = JSON_VIEW_RENDER_ROW_LIMIT;
 
-// Light values are Tailwind red-50 / yellow-50, matching StatusMessageSection.
+// Light values are Tailwind red-50 / yellow-50, matching status IOSection tones.
 function statusMessageBackgroundColor(
   level: ObservationStatusMessage["level"],
   isDark: boolean,

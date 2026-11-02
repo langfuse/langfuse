@@ -1,10 +1,16 @@
 /* eslint-disable @repo/prefer-stories-over-client-tests */
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import {
   MarkdownView,
   prependBasePathToInternalHref,
-} from "@/src/components/ui/MarkdownViewer";
+} from "@/src/components/ui/MarkdownView";
+import { MarkdownViewContent } from "./MarkdownViewContent";
 import { MarkdownJsonView } from "@/src/components/ui/MarkdownJsonView";
+import { MarkdownViewController } from "./MarkdownViewController";
+import { IOSection } from "./IOSection";
+import { copyTextToClipboard } from "@/src/utils/clipboard";
+
+vi.mock("@/src/utils/clipboard", () => ({ copyTextToClipboard: vi.fn() }));
 
 vi.mock("next/router", () => ({
   useRouter: () => ({ query: { projectId: "project-1" } }),
@@ -42,6 +48,76 @@ vi.mock("@/src/features/feature-flags", () => ({
 
 const renderMarkdown = (markdown: string) =>
   render(<MarkdownView markdown={markdown} />);
+
+describe("MarkdownView composition", () => {
+  it("renders content without a section header", () => {
+    renderMarkdown("A **content-only** message");
+    expect(screen.getByText("content-only")).toBeInTheDocument();
+    expect(screen.queryByTitle("Copy to clipboard")).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /Collapse/ }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("lets a host own the section and copy prepared content", () => {
+    render(
+      <MarkdownViewController
+        markdown={[
+          { type: "text", text: "First" },
+          { type: "text", text: "Second" },
+        ]}
+      >
+        {(state) => (
+          <IOSection title="Host" onCopy={state.copy}>
+            <MarkdownViewContent state={state} />
+          </IOSection>
+        )}
+      </MarkdownViewController>,
+    );
+    expect(screen.getByText("First")).toBeInTheDocument();
+    expect(screen.getByText("Second")).toBeInTheDocument();
+    fireEvent.click(screen.getByTitle("Copy to clipboard"));
+    expect(copyTextToClipboard).toHaveBeenLastCalledWith("First\nSecond");
+  });
+
+  it("renders MarkdownJsonView without section controls", () => {
+    render(<MarkdownJsonView content="Message body" />);
+    expect(screen.getByText("Message body")).toBeInTheDocument();
+    expect(screen.queryByTitle("Copy to clipboard")).not.toBeInTheDocument();
+  });
+
+  it("renders multimodal content without a section", () => {
+    render(
+      <MarkdownJsonView
+        content={[
+          { type: "text", text: "Short instruction" },
+          {
+            type: "image_url",
+            image_url: { url: `data:image/png;base64,${"A".repeat(1_000)}` },
+          },
+        ]}
+      />,
+    );
+    expect(
+      screen.queryByRole("button", { name: "Collapse system" }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByText("Short instruction")).toBeInTheDocument();
+  });
+
+  it("does not collapse long content without a section caller", () => {
+    render(
+      <MarkdownJsonView content={"Long system instruction. ".repeat(30)} />,
+    );
+    expect(
+      screen.getByText("Long system instruction. ".repeat(30).trim()),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", {
+        name: /(?:Expand|Collapse) Named prompt/,
+      }),
+    ).not.toBeInTheDocument();
+  });
+});
 
 describe("MarkdownView external S3 media", () => {
   it("renders a standalone S3 media URI as external media", () => {

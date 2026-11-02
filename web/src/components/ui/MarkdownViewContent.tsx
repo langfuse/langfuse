@@ -1,6 +1,7 @@
-/* eslint-disable no-nested-ternary, @repo/component-file-structure */
+/* eslint-disable no-nested-ternary */
 /* eslint-disable @repo/no-style-props */
 import { cn } from "@/src/utils/tailwind";
+import { useTheme } from "next-themes";
 import {
   type FC,
   type ReactNode,
@@ -19,16 +20,13 @@ import ReactMarkdown, {
 import remarkGfm from "remark-gfm";
 import { Codeblock as CodeBlock } from "@/src/components/design-system/Codeblock/Codeblock";
 import { normalizeCodeblockLanguage } from "@/src/utils/normalizeCodeblockLanguage";
-import { useTheme } from "next-themes";
-import { ImageOff, Info, type IconComponent } from "@langfuse/icons";
+import { ImageOff, Info } from "@langfuse/icons";
 import { MentionBadge } from "@/src/features/comments/components/MentionBadge";
 import {
   OpenAIUrlImageUrl,
   MediaReferenceStringSchema,
   PromptDependencyRegex,
   type OpenAIContentParts,
-  type OpenAIContentSchema,
-  type OpenAIOutputAudioType,
   isOpenAITextContentPart,
   isMediaReferencePart,
   isAiSdkFileContentPart,
@@ -36,12 +34,9 @@ import {
 import { type z } from "zod";
 import { ResizableImage } from "@/src/components/ui/ResizableImage";
 import { LangfuseMediaView } from "@/src/components/ui/LangfuseMediaView";
-import { type MediaReturnType } from "@/src/features/media";
 import { JSONView } from "@/src/components/ui/CodeJsonViewer";
-import { IOSection, type IOSectionAction } from "@/src/components/ui/IOSection";
-import { copyTextToClipboard } from "@/src/utils/clipboard";
+import { type MarkdownViewState } from "./MarkdownViewController";
 import { MENTION_USER_PREFIX } from "@/src/features/comments/lib/mentionParser";
-import { useCollapsibleSystemPrompt } from "@/src/hooks/useCollapsibleSystemPrompt";
 import { getSafeImageUrl, getSafeLinkUrl } from "@/src/components/ui/safe-url";
 import { env } from "@/src/env.mjs";
 import {
@@ -52,18 +47,9 @@ import {
   PromptReferenceButton,
   usePromptReferenceProjectId,
 } from "@/src/components/ui/PromptReferences";
-import {
-  filterAlreadyRenderedMedia,
-  getRenderedInlineMediaIds,
-  getStandaloneMediaReferenceStrings,
-} from "@/src/components/ui/markdown-media.utils";
 import { exceedsMarkdownRenderLimits } from "@/src/components/ui/markdown-render-limits";
 import { useMarkdownRenderCharacterLimit } from "@/src/hooks/useMarkdownRenderCharacterLimit";
-import {
-  classifyMediaValue,
-  splitStringByMediaReferences,
-  type MediaDescriptor,
-} from "@/src/components/ui/media/mediaUtils";
+import { classifyMediaValue } from "@/src/components/ui/media/mediaUtils";
 import { MediaReferenceTag } from "@/src/components/ui/media/MediaReferenceTag";
 
 type ReactMarkdownNode = ReactMarkdownExtraProps["node"];
@@ -491,104 +477,15 @@ function MarkdownRenderer({
     );
   }
 }
-const parseOpenAIContentParts = (
-  content: z.input<typeof OpenAIContentParts> | null,
-): string => {
-  return (content ?? [])
-    .map((item) => {
-      if (typeof item === "string") {
-        return item;
-      } else if (item.type === "text") {
-        return item.text;
-      } else if (item.type === "image_url") {
-        return `![image](${item.image_url.url})`;
-      } else if (item.type === "input_audio") {
-        return `![audio](${item.input_audio.data})`;
-      }
-    })
-    .join("\n");
-};
-
-export function MarkdownView({
-  markdown,
-  title,
-  titleIcon,
-  audio,
-  media,
-  className,
-  actions,
-  beforeContent,
-  afterContent,
-  isSystemPrompt,
-  defaultCollapsed,
-  collapsed,
-  onCollapsedChange,
-}: {
-  /** The UNPARSED content shape — see `canRenderContentAsMarkdown`. Media
-      reference strings must still be strings when they reach the part guards. */
-  markdown: string | z.input<typeof OpenAIContentSchema>;
-  title?: string;
-  titleIcon?: IconComponent;
-  audio?: OpenAIOutputAudioType;
-  media?: MediaReturnType[];
-  className?: string;
-  /** Section header actions. */
-  actions?: IOSectionAction[];
-  /** Rendered inside the section box above the content (e.g. thinking blocks). */
-  beforeContent?: React.ReactNode;
-  /** Rendered inside the section box below the content (e.g. tool calls). */
-  afterContent?: React.ReactNode;
-  /** Long system prompts start collapsed. Pass the raw message role check
-      (`role === "system"`) — the title can be a message `name` instead of the
-      role. Falls back to matching the title for callers without role data. */
-  isSystemPrompt?: boolean;
-  /** Initial collapsed state of the section; system prompts use their own rule. */
-  defaultCollapsed?: boolean;
-  /** Controlled collapsed state; long system prompts still follow their rule. */
-  collapsed?: boolean;
-  onCollapsedChange?: (collapsed: boolean) => void;
-}) {
-  const { forcedTheme, resolvedTheme } = useTheme();
-  const theme = forcedTheme ?? resolvedTheme;
-
-  const markdownContent =
-    typeof markdown === "string" ? markdown : parseOpenAIContentParts(markdown);
-  const standaloneMediaDescriptor: MediaDescriptor | null =
-    typeof markdown === "string" ? classifyMediaValue(markdown) : null;
-
-  // Length is judged on text parts only: serialized image/audio parts
-  // (media-reference strings, base64 data URIs) must not make a prompt long.
-  const textContent =
-    typeof markdown === "string"
-      ? splitStringByMediaReferences(markdown)
-          .filter((s) => s.type === "text")
-          .map((s) => s.value)
-          .join("")
-          .trim()
-      : (markdown ?? [])
-          .filter(isOpenAITextContentPart)
-          .map((part) => part.text)
-          .join("\n");
-
-  const systemPrompt = useCollapsibleSystemPrompt({
-    isSystemPrompt: Boolean(title) && (isSystemPrompt ?? title === "system"),
-    content: textContent,
-  });
-
-  const handleOnCopy = () => {
-    copyTextToClipboard(markdownContent);
-  };
-
-  const inlineMediaReferenceStrings =
-    typeof markdown === "string"
-      ? getStandaloneMediaReferenceStrings(markdown)
-      : [];
-  const remainingMedia = filterAlreadyRenderedMedia(
-    media,
-    getRenderedInlineMediaIds({ markdown, audio }),
-  );
-
-  const body = (
+export function MarkdownViewContent({ state }: { state: MarkdownViewState }) {
+  const {
+    markdown,
+    audio,
+    standaloneMediaDescriptor,
+    inlineMediaReferenceStrings,
+    remainingMedia,
+  } = state;
+  return (
     <div className="text-foreground-secondary grid grid-flow-row gap-2">
       {typeof markdown === "string" ? (
         // plain string
@@ -635,41 +532,6 @@ export function MarkdownView({
         </>
       )}
     </div>
-  );
-
-  if (!title) {
-    return (
-      <div
-        className={cn(
-          "io-message-content ph-no-capture px-1 pt-1 pb-2",
-          className,
-        )}
-        key={theme}
-      >
-        {body}
-      </div>
-    );
-  }
-
-  return (
-    <IOSection
-      key={theme}
-      title={title}
-      titleIcon={titleIcon}
-      onCopy={handleOnCopy}
-      actions={actions}
-      defaultCollapsed={defaultCollapsed}
-      collapsed={collapsed}
-      onCollapsedChange={onCollapsedChange}
-      {...(systemPrompt.shouldBeCollapsible && {
-        collapsed: systemPrompt.isCollapsed,
-        onCollapsedChange: systemPrompt.toggleCollapsed,
-      })}
-    >
-      {beforeContent}
-      {body}
-      {afterContent}
-    </IOSection>
   );
 
   function renderContentPart(
