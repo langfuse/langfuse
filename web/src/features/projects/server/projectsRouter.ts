@@ -7,6 +7,7 @@ import {
 } from "@/src/server/api/trpc";
 import * as z from "zod";
 import {
+  hasOrganizationAccess,
   throwIfNoOrganizationAccess,
   throwIfNoProjectAccess,
 } from "@/src/features/rbac";
@@ -211,24 +212,18 @@ export const projectsRouter = createTRPCRouter({
         projectId: ctx.session.projectId,
         scope: "project:delete",
       });
-      const isGatewayIngestion = await new GatewayConfigService(
+      await new ProjectService(
         ctx.prisma,
-      ).isIngestionProject({
-        organizationId: ctx.session.orgId,
-        projectId: input.projectId,
-      });
-      if (isGatewayIngestion) {
-        throwIfNoOrganizationAccess({
-          session: ctx.session,
-          organizationId: ctx.session.orgId,
-          scope: "gateway:manage",
-        });
-      }
-
-      await new ProjectService(ctx.prisma).delete({
+        new ApiAuthService(ctx.prisma, redis),
+      ).delete({
         organizationId: ctx.session.orgId,
         projectId: input.projectId,
         actor: { session: ctx.session },
+        canManageGateway: hasOrganizationAccess({
+          session: ctx.session,
+          organizationId: ctx.session.orgId,
+          scope: "gateway:manage",
+        }),
       });
 
       return true;
