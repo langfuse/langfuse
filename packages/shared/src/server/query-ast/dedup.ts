@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 /**
  * Per-table dedup lowering. Always-on: every compile walks this pass.
  * The physical idiom is the one already used in production SQL for that

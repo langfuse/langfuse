@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { MAX_EXPERIMENT_CHARTS } from "../constants/charts";
 import { type ReactNode } from "react";
 import { Plus } from "@langfuse/icons";

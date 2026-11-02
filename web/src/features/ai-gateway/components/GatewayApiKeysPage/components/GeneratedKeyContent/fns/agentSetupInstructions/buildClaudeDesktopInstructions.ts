@@ -16,7 +16,7 @@ export function buildClaudeDesktopInstructions(
     docsUrl: AGENT_SETUP_DOCS_URLS["claude-desktop"],
     warning: context.providers.includes("ANTHROPIC")
       ? undefined
-      : "Claude Desktop needs an Anthropic provider connection, and none is enabled yet.",
+      : "Claude Desktop needs an Anthropic provider credential, and none is enabled yet.",
     steps: [
       {
         title: "Open the third-party inference settings",
@@ -42,18 +42,6 @@ export function buildClaudeDesktopInstructions(
         title: "Add your gateway key",
         description:
           "Set Credential kind to Static API key, paste your gateway key as Gateway API key, and select Bearer as the auth scheme.",
-      },
-      {
-        title: "Add the user header",
-        description: "Under Custom headers, add a header with this name.",
-        language: "text",
-        code: "langfuse-user-id",
-      },
-      {
-        title: "Set the header value",
-        description: "Enter your email or handle as its value.",
-        language: "text",
-        code: context.userId,
       },
       {
         title: "Allow egress hosts",

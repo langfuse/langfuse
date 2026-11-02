@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import {
   OtelIngestionProcessor,
   createIngestionEventSchema,
@@ -9121,6 +9120,99 @@ describe("OTel Resource Span Mapping", () => {
       expect(usageDetails["cache_creation.input_tokens"]).toBeUndefined();
       expect(usageDetails["cache_creation_input_tokens"]).toBeUndefined();
     });
+
+    it.each([
+      {
+        name: "5m-only breakdown covering the whole cache write",
+        attributes: {
+          "gen_ai.usage.input_tokens": 8756,
+          "gen_ai.usage.output_tokens": 665,
+          "gen_ai.usage.cache_read.input_tokens": 4842,
+          "gen_ai.usage.cache_creation.input_tokens": 3910,
+          "gen_ai.usage.cache_creation.5m_input_tokens": 3910,
+        },
+        expected: {
+          input: 4,
+          input_cached_tokens: 4842,
+          input_cache_creation: 0,
+          input_cache_creation_5m: 3910,
+          output: 665,
+        },
+      },
+      {
+        name: "5m and 1h breakdown with an unattributed remainder",
+        attributes: {
+          "gen_ai.usage.input_tokens": 6000,
+          "gen_ai.usage.cache_creation.input_tokens": 5000,
+          "gen_ai.usage.cache_creation.5m_input_tokens": 3000,
+          "gen_ai.usage.cache_creation.1h_input_tokens": 1500,
+        },
+        expected: {
+          input: 1000,
+          input_cache_creation: 500,
+          input_cache_creation_5m: 3000,
+          input_cache_creation_1h: 1500,
+        },
+      },
+    ])(
+      "should split the cache-write TTL breakdown out of input_cache_creation ($name)",
+      async ({ attributes, expected }) => {
+        const traceId = "abcdef1234567890abcdef1234567898";
+
+        const span = {
+          resource: {
+            attributes: [
+              {
+                key: "service.name",
+                value: { stringValue: "test-service" },
+              },
+            ],
+          },
+          scopeSpans: [
+            {
+              scope: {
+                name: "@mastra/langfuse",
+                version: "1.0.0",
+              },
+              spans: [
+                {
+                  traceId: Buffer.from(traceId, "hex"),
+                  spanId: Buffer.from("1234567890abcde6", "hex"),
+                  name: "cache-write-ttl-breakdown",
+                  kind: 1,
+                  startTimeUnixNano: {
+                    low: 1000000,
+                    high: 406528574,
+                    unsigned: true,
+                  },
+                  endTimeUnixNano: {
+                    low: 2000000,
+                    high: 406528574,
+                    unsigned: true,
+                  },
+                  attributes: Object.entries(attributes).map(
+                    ([key, value]) => ({
+                      key,
+                      value: {
+                        intValue: { low: value, high: 0, unsigned: false },
+                      },
+                    }),
+                  ),
+                  status: {},
+                },
+              ],
+            },
+          ],
+        };
+
+        const events = await convertOtelSpanToIngestionEvent(span, new Set());
+        const observationEvent = events.find(
+          (e) => e.type === "generation-create" || e.type === "span-create",
+        );
+
+        expect(observationEvent?.body.usageDetails).toEqual(expected);
+      },
+    );
 
     it("should let a dotted cache value of 0 shadow the flat spelling (?? alias chain)", async () => {
       // pins pre-existing ??-chain behavior: a dotted 0 shadows the flat spelling

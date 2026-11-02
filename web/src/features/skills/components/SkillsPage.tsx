@@ -1,4 +1,4 @@
-/* eslint-disable react/no-unstable-nested-components, @typescript-eslint/no-use-before-define */
+/* eslint-disable react/no-unstable-nested-components */
 import { useMemo } from "react";
 import Link from "next/link";
 import {
@@ -11,6 +11,7 @@ import {
   Plus,
   Terminal,
   Trash,
+  Zap,
 } from "@langfuse/icons";
 import {
   NumberParam,
@@ -145,6 +146,10 @@ function SkillsHeaderActions({
   closeMenu,
 }: SkillsHeaderActionsProps) {
   const capture = usePostHogClientCapture();
+  const canReadAutomations = useHasProjectAccess({
+    projectId,
+    scope: "automations:read",
+  });
 
   function handleInstall() {
     closeMenu?.();
@@ -153,6 +158,14 @@ function SkillsHeaderActions({
 
   return (
     <div className="flex max-w-full flex-wrap items-center gap-2">
+      {canReadAutomations && (
+        <DesignSystemButton
+          href={`/project/${projectId}/automations`}
+          text="Automations"
+          icon={Zap}
+          variant="secondary"
+        />
+      )}
       <DropdownMenu
         ariaLabel="Use skill"
         items={[

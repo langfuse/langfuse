@@ -26,6 +26,8 @@ import {
   SafeWebhookActionConfigSchema,
   SlackActionConfigSchema,
   SafeGitHubDispatchActionConfigSchema,
+  isPagerDutyActionConfig,
+  SafePagerDutyActionConfigSchema,
 } from "../../domain/automations";
 import { InternalServerError } from "../../errors";
 import { FilterState } from "../../types";
@@ -78,7 +80,7 @@ export const getActionByIdWithSecrets = async ({
     };
   }
 
-  // SLACK and GITHUB_DISPATCH need no header decryption, so the stored config
+  // SLACK, GITHUB_DISPATCH and PAGERDUTY need no header decryption, so the stored config
   // is returned verbatim. Secrets are included by design here - callers that
   // hand configs to a client must use getActionById instead.
   return actionConfig as ActionDomainWithSecrets;
@@ -239,6 +241,19 @@ const convertToSafeActionConfig = (action: Action): SafeActionConfig => {
         action.config,
         actionType,
         Object.keys(SafeGitHubDispatchActionConfigSchema.shape),
+      );
+    case "PAGERDUTY":
+      if (isPagerDutyActionConfig(action.config)) {
+        return {
+          type: action.config.type,
+          displayRoutingKey: action.config.displayRoutingKey,
+          region: action.config.region,
+        };
+      }
+      return pickSafeConfigFields(
+        action.config,
+        actionType,
+        Object.keys(SafePagerDutyActionConfigSchema.shape),
       );
     default: {
       const unhandledActionType: never = actionType;

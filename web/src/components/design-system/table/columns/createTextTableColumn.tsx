@@ -1,4 +1,4 @@
-/* eslint-disable boundaries/dependencies, @typescript-eslint/no-use-before-define */
+/* eslint-disable boundaries/dependencies */
 import { type CellContext, type RowData } from "@tanstack/react-table";
 import { Check, Copy, InfoIcon, type IconComponent } from "@langfuse/icons";
 import { type ReactNode } from "react";

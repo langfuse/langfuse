@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { showErrorToast } from "@/src/features/notifications";
 import React, {
   createContext,

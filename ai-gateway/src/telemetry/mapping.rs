@@ -38,6 +38,7 @@ pub(super) fn span(facts: InferenceFacts, context: &GenerationContext) -> Value 
     }));
     if let Some((source, user_id)) = user_id_source(&facts, context) {
         if let Some(user_id) = user_id {
+            attributes.retain(|attribute| attribute["key"] != USER_ID_ATTRIBUTE);
             attributes.push(attribute(USER_ID_ATTRIBUTE, user_id));
         }
         metadata.insert("langfuse.gateway.user_id_source".into(), json!(source));
@@ -112,23 +113,37 @@ pub(super) fn span(facts: InferenceFacts, context: &GenerationContext) -> Value 
     span
 }
 
-/// The caller's user ID wins. A caller's trace may already name its user, so
-/// only a trace the gateway starts defaults to the key owner.
+/// A key bound to a user always attributes to that user's email, or to their
+/// internal user ID when the email is unknown, even inside a caller's trace.
+/// Keys without a bound user, such as service account keys, take the caller's
+/// user ID. Only when the gateway starts the trace do they fall back to the
+/// key's name, so a caller's trace keeps the user set on its own spans.
 fn user_id_source<'a>(
     facts: &'a InferenceFacts,
     context: &GenerationContext,
 ) -> Option<(&'static str, Option<&'a str>)> {
+    if let Some(owner) = facts
+        .metadata
+        .get("key_owner_user_id")
+        .and_then(Value::as_str)
+    {
+        let email = facts
+            .metadata
+            .get("key_owner_email")
+            .and_then(Value::as_str);
+        return Some(("api_key_owner", Some(email.unwrap_or(owner))));
+    }
     if context.attributes.contains_key(USER_ID_ATTRIBUTE) {
         return Some(("client", None));
     }
     if context.parent_span_id.is_some() {
         return None;
     }
-    let owner = facts
+    facts
         .metadata
-        .get("key_owner_user_id")
-        .and_then(Value::as_str)?;
-    Some(("api_key_owner", Some(owner)))
+        .get("key_name")
+        .and_then(Value::as_str)
+        .map(|name| ("api_key_name", Some(name)))
 }
 
 pub(super) fn omit_input(span: &mut Value, reason: InputOmissionReason) -> bool {
@@ -530,6 +545,39 @@ mod tests {
         assert!(!attrs.contains_key("langfuse.trace.metadata"));
     }
 
+    // Langfuse stores this metadata key as the span's ingestion API key for
+    // gateway uploads, so callers must never be able to set it.
+    #[test]
+    fn caller_headers_never_supply_the_gateway_key_id() {
+        let mut headers = axum::http::HeaderMap::new();
+        headers.insert(
+            "langfuse-metadata",
+            "langfuse.gateway.api_key.id:header-key".parse().unwrap(),
+        );
+        headers.insert(
+            "baggage",
+            "langfuse_metadata_langfuse.gateway.api_key.id=baggage-key"
+                .parse()
+                .unwrap(),
+        );
+        let context = GenerationContext {
+            trace_id: "0123456789abcdef0123456789abcdef".into(),
+            observation_id: "0123456789abcdef".into(),
+            ..GenerationContext::from_headers(&headers)
+        };
+        assert!(context.metadata.contains_key("langfuse.gateway.api_key.id"));
+
+        let mut unattributed = facts();
+        unattributed.metadata["key_id"] = Value::Null;
+        for (facts, expected) in [(facts(), Some("key")), (unattributed, None)] {
+            let metadata = metadata(&attributes(&span(facts, &context)));
+            assert_eq!(
+                metadata.get("langfuse.gateway.api_key.id"),
+                expected.map(Value::from).as_ref()
+            );
+        }
+    }
+
     #[test]
     fn full_generation_preserves_native_content_attribution_and_completion_time() {
         let span = span(facts(), &context());
@@ -710,22 +758,73 @@ mod tests {
     }
 
     #[test]
-    fn user_id_defaults_to_the_key_owner_only_on_gateway_rooted_traces() {
-        let mut owned = facts();
-        owned.metadata["key_owner_user_id"] = json!("owner");
+    fn user_bound_keys_always_attribute_to_the_key_owner() {
+        let mut caller_in_child = context();
+        caller_in_child.parent_span_id = Some("fedcba9876543210".into());
+        caller_in_child
+            .attributes
+            .insert("user.id".into(), json!("caller"));
+        for context in [context(), caller_in_child] {
+            for (email, expected) in [
+                (json!("owner@example.com"), "owner@example.com"),
+                (Value::Null, "owner"),
+            ] {
+                let mut owned = facts();
+                owned.metadata["key_owner_user_id"] = json!("owner");
+                owned.metadata["key_owner_email"] = email;
+                let span = span(owned, &context);
+                let user_ids: Vec<_> = span["attributes"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .filter(|attribute| attribute["key"] == "user.id")
+                    .map(|attribute| attribute["value"]["stringValue"].clone())
+                    .collect();
+                assert_eq!(user_ids, [json!(expected)]);
+                let metadata = metadata(&attributes(&span));
+                assert_eq!(metadata["langfuse.gateway.user_id_source"], "api_key_owner");
+                assert_eq!(metadata["langfuse.gateway.api_key.owner.user_id"], "owner");
+            }
+        }
+    }
 
-        let attrs = attributes(&span(owned, &context()));
-        assert_eq!(attrs["user.id"], "owner");
+    #[test]
+    fn keys_without_a_bound_user_take_the_callers_user_id() {
+        let mut caller = context();
+        caller.parent_span_id = Some("fedcba9876543210".into());
+        caller.attributes.insert("user.id".into(), json!("caller"));
+        let attrs = attributes(&span(facts(), &caller));
+        assert_eq!(attrs["user.id"], "caller");
         assert_eq!(
             metadata(&attrs)["langfuse.gateway.user_id_source"],
-            "api_key_owner"
+            "client"
+        );
+
+        let attrs = attributes(&span(facts(), &context()));
+        assert!(!attrs.contains_key("user.id"));
+        assert!(
+            metadata(&attrs)
+                .get("langfuse.gateway.user_id_source")
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn keys_without_a_bound_user_default_to_the_key_name() {
+        let mut named = facts();
+        named.metadata["key_name"] = json!("checkout-agent");
+        let attrs = attributes(&span(named, &context()));
+        assert_eq!(attrs["user.id"], "checkout-agent");
+        assert_eq!(
+            metadata(&attrs)["langfuse.gateway.user_id_source"],
+            "api_key_name"
         );
 
         let mut caller = context();
         caller.attributes.insert("user.id".into(), json!("caller"));
-        let mut owned = facts();
-        owned.metadata["key_owner_user_id"] = json!("owner");
-        let attrs = attributes(&span(owned, &caller));
+        let mut named = facts();
+        named.metadata["key_name"] = json!("checkout-agent");
+        let attrs = attributes(&span(named, &caller));
         assert_eq!(attrs["user.id"], "caller");
         assert_eq!(
             metadata(&attrs)["langfuse.gateway.user_id_source"],
@@ -734,17 +833,9 @@ mod tests {
 
         let mut child = context();
         child.parent_span_id = Some("fedcba9876543210".into());
-        let mut owned = facts();
-        owned.metadata["key_owner_user_id"] = json!("owner");
-        let attrs = attributes(&span(owned, &child));
-        assert!(!attrs.contains_key("user.id"));
-        assert!(
-            metadata(&attrs)
-                .get("langfuse.gateway.user_id_source")
-                .is_none()
-        );
-
-        let attrs = attributes(&span(facts(), &context()));
+        let mut named = facts();
+        named.metadata["key_name"] = json!("checkout-agent");
+        let attrs = attributes(&span(named, &child));
         assert!(!attrs.contains_key("user.id"));
         assert!(
             metadata(&attrs)
