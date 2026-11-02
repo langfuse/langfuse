@@ -1,7 +1,8 @@
 import { z } from "zod";
 import {
   AnalyticsIntegrationExportSource,
-  EXPORT_FIELD_GROUPS,
+  OBSERVATION_FIELD_GROUPS_FULL,
+  SCORE_EXPORT_FIELD_GROUPS,
   BLOB_STORAGE_REGION_INVALID_MESSAGE,
   BLOB_STORAGE_REGION_REGEX,
 } from "@langfuse/shared";
@@ -89,7 +90,23 @@ export const toPublicExportSource = (
 ): z.infer<typeof BlobStorageExportSource> =>
   INTERNAL_TO_PUBLIC_EXPORT_SOURCE[internalValue];
 
-const BlobStorageExportFieldGroup = z.enum(EXPORT_FIELD_GROUPS);
+// Trace groups are configurable in the UI only and never cross the public API,
+// so SDKs never receive a value outside this enum.
+const PUBLIC_EXPORT_FIELD_GROUPS = [
+  ...OBSERVATION_FIELD_GROUPS_FULL,
+  ...SCORE_EXPORT_FIELD_GROUPS,
+] as const;
+
+const BlobStorageExportFieldGroup = z.enum(PUBLIC_EXPORT_FIELD_GROUPS);
+
+type PublicExportFieldGroup = z.infer<typeof BlobStorageExportFieldGroup>;
+
+export const toPublicExportFieldGroups = (
+  groups: readonly string[],
+): PublicExportFieldGroup[] =>
+  groups.filter((group): group is PublicExportFieldGroup =>
+    (PUBLIC_EXPORT_FIELD_GROUPS as readonly string[]).includes(group),
+  );
 
 /**
  * Request/Response Types

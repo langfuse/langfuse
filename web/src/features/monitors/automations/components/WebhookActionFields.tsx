@@ -14,7 +14,6 @@ import { Input } from "@/src/components/design-system/Input/Input";
 import { type MonitorAutomationFormValues } from "../helpers/monitorAutomationFormSchema";
 import { stripUrlScheme } from "../helpers/stripUrlScheme";
 import { FieldGroup } from "./FieldGroup";
-import { PrefixedInput } from "./PrefixedInput";
 
 const defaultHeaders = [
   {
@@ -49,32 +48,17 @@ function WebhookUrlField({
   form: UseFormReturn<MonitorAutomationFormValues>;
 }) {
   return (
-    <Form.Field
+    <Form.InputField
       control={form.control}
       name="webhook.url"
       label="Webhook URL"
       description="Called whenever the severity changes."
-    >
-      {(field) => (
-        <PrefixedInput
-          id={field.id}
-          name={field.name}
-          value={field.value}
-          onChange={(event) =>
-            field.onChange(stripUrlScheme(event.target.value))
-          }
-          onBlur={field.onBlur}
-          ref={field.ref}
-          addon="POST"
-          prefix="https://"
-          inputMode="url"
-          placeholder="example.com/webhook"
-          aria-describedby={field.inputDescribedById}
-          aria-invalid={!!field.error}
-          error={!!field.error}
-        />
-      )}
-    </Form.Field>
+      transformValue={stripUrlScheme}
+      prefix={{ label: "POST" }}
+      valuePrefix="https://"
+      inputMode="url"
+      placeholder="example.com/webhook"
+    />
   );
 }
 

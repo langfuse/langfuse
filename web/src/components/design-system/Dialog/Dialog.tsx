@@ -221,9 +221,21 @@ function DialogRoot({
   );
 }
 
-function DialogBody({ children }: { children: React.ReactNode }) {
+function DialogBody({
+  children,
+  separators = "none",
+}: {
+  children: React.ReactNode;
+  /** Separates the scrolling body from the header and footer with borders. */
+  separators?: "none" | "both";
+}) {
   return (
-    <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-4 text-sm leading-relaxed">
+    <div
+      className={cn(
+        "flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-4 text-sm leading-relaxed",
+        separators === "both" && "border-y",
+      )}
+    >
       {children}
     </div>
   );

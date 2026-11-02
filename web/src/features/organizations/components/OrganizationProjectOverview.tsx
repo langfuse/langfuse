@@ -609,6 +609,9 @@ const pageBanner = ({
       />
     );
   }
+  // The v4 banner takes precedence once its checks finish, so showing the
+  // gateway banner before then would flash it and swap it out.
+  if (v4UpgradeUiEnabled && v4MigrationBannerState.isChecking) return null;
   if (gatewayBanner) return gatewayBanner;
   return v4UpgradeUiEnabled ? null : <AgentToolsBanner />;
 };

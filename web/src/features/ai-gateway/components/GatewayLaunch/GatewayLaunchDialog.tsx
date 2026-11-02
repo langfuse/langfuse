@@ -19,11 +19,12 @@ import { GatewayHero } from "@/src/features/ai-gateway/components/GatewayLaunch/
 const copy = {
   admin: {
     title: "Introducing Langfuse AI Gateway",
-    lead: "Point Claude Code, Codex or your SDK at one Langfuse endpoint. See what every member spends.",
+    lead: "Route Claude Code, Codex, OpenCode, and your own apps through Langfuse. Each call becomes a full trace, along with who made it and what it cost.",
     points: [
-      "A key for every member, cost attributed per person",
-      "Turn models on or off for your org",
-      "Every call traced in Langfuse",
+      "Use one key for Anthropic and OpenAI",
+      "Track spend by person, team, and key",
+      "Approve and remove models for entire company",
+      "Record full traces, not just token counts",
     ],
   },
   member: {

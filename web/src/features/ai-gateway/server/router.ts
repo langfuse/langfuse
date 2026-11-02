@@ -477,6 +477,25 @@ export const aiGatewayRouter = createTRPCRouter({
       });
     }),
 
+  /** Loaded after listApiKeys for the visible page, so ClickHouse never delays the key list. */
+  getApiKeysLastUsed: protectedOrganizationProcedure
+    .input(
+      organizationInput.extend({
+        apiKeyIds: z.array(z.string()).max(100),
+      }),
+    )
+    .query(async ({ input, ctx }) => {
+      const { ownerUserId } = requireGatewayInvoke({
+        session: ctx.session,
+        orgId: input.orgId,
+      });
+      return new GatewayApiKeyService(ctx.prisma, redis).getLastUsed({
+        organizationId: input.orgId,
+        ownerUserId,
+        apiKeyIds: input.apiKeyIds,
+      });
+    }),
+
   // Returns the plaintext secret key once, so the procedure must not be traced.
   createApiKey: protectedOrganizationProcedureWithoutTracing
     .input(

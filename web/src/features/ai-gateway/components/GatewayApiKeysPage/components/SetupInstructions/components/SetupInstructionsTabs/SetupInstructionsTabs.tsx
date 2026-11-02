@@ -5,11 +5,11 @@ import { SiClaude, SiGithubcopilot, SiOpenai } from "@langfuse/icons/si";
 import { Button } from "@/src/components/design-system/Button/Button";
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import type { AgentSetupInstructions } from "@/src/features/ai-gateway/types/agentSetupInstructions";
-import { AgentInstructionsPanel } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/GeneratedKeyContent/components/AgentInstructionsPanel";
+import { AgentInstructionsPanel } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/SetupInstructions/components/AgentInstructionsPanel";
 import {
   AgentVariantTabs,
   type AgentVariant,
-} from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/GeneratedKeyContent/components/AgentVariantTabs";
+} from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/SetupInstructions/components/AgentVariantTabs";
 
 type AgentId = AgentSetupInstructions["id"];
 type VariantTabId = "claude" | "copilot";
@@ -57,11 +57,14 @@ function isVariantTabId(value: string): value is VariantTabId {
 type SetupInstructionsTabsProps = {
   organizationId: string;
   instructions: AgentSetupInstructions[];
+  /** Shows every step without the "Show all steps" peek. */
+  defaultExpanded?: boolean;
 };
 
 export function SetupInstructionsTabs({
   organizationId,
   instructions,
+  defaultExpanded,
 }: SetupInstructionsTabsProps) {
   const [activeTab, setActiveTab] = useState<string>(DEFAULT_TAB);
   const [activeVariants, setActiveVariants] = useState<
@@ -122,6 +125,7 @@ export function SetupInstructionsTabs({
                     organizationId={organizationId}
                     instructions={instructions}
                     {...VARIANT_TABS[variantTabId]}
+                    defaultExpanded={defaultExpanded}
                     value={activeVariants[variantTabId]}
                     onValueChange={(next) =>
                       setActiveVariants((current) => ({
@@ -141,6 +145,7 @@ export function SetupInstructionsTabs({
                 <AgentInstructionsPanel
                   organizationId={organizationId}
                   instructions={entry}
+                  defaultExpanded={defaultExpanded}
                 />
               </div>
             </Tabs.Content>

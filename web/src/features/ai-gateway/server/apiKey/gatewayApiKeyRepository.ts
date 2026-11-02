@@ -48,6 +48,23 @@ export class GatewayApiKeyRepository {
     return { data, totalCount };
   }
 
+  /** The subset of apiKeyIds that are gateway keys visible under the same scoping as the key list. */
+  async filterVisibleGatewayApiKeyIds(params: {
+    organizationId: string;
+    ownerUserId?: string;
+    apiKeyIds: string[];
+  }) {
+    if (params.apiKeyIds.length === 0) return [];
+    const rows = await this.prisma.gatewayApiKeyAssociation.findMany({
+      where: {
+        apiKeyId: { in: params.apiKeyIds },
+        apiKey: gatewayApiKeyWhere(params),
+      },
+      select: { apiKeyId: true },
+    });
+    return rows.map((row) => row.apiKeyId);
+  }
+
   getGatewayApiKey(params: {
     organizationId: string;
     ownerUserId?: string;
