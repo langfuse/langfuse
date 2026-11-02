@@ -2,6 +2,7 @@ import { describe, it, expect, vi } from "vitest";
 import { type Job } from "bullmq";
 import type { EarlyOtelBatch } from "@langfuse/native";
 import {
+  createEvent,
   getS3EventStorageClient,
   markProjectIngestFailure,
   OtelIngestionProcessor,
@@ -14,7 +15,20 @@ import * as otelPreparation from "../../features/otel-ingestion/prepareOtelBatch
 import * as mediaRestoration from "../../features/otel-media/resolveExtractedMedia";
 import { IngestionService } from "../../services/IngestionService";
 import { ClickhouseWriter } from "../../services/ClickhouseWriter";
-import { fetchObservationEvalRules } from "../../features/evaluation/observationEval";
+import {
+  fetchObservationEvalRules,
+  fetchIngestionEvalRules,
+  scheduleObservationEvals,
+  createObservationEvalSchedulerDeps,
+} from "../../features/evaluation/observationEval";
+import { Prisma } from "@langfuse/shared/src/db";
+import { TopicsTargetObject } from "@langfuse/shared";
+import { processOtelEvents } from "../../features/otel-ingestion/processOtelEvents";
+import { recordTraceRuleMatches } from "../../features/traceBatching/traceRuleRecording";
+import {
+  createTestEvalConfig,
+  createMockSchedulerDeps,
+} from "../../features/evaluation/observationEval/__tests__/fixtures";
 import { trackTraceBatchActivity } from "../../features/traceBatching/traceBatching";
 import {
   batchContainsLangfuseScope,
@@ -31,6 +45,8 @@ import {
 
 vi.mock("@langfuse/shared/src/server", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@langfuse/shared/src/server")>()),
+  // Queue construction requires Redis; its service methods are mocked below.
+  redis: {},
   getS3EventStorageClient: vi.fn(),
   markProjectIngestFailure: vi.fn(),
 }));
@@ -41,11 +57,150 @@ vi.mock(
       typeof import("../../features/evaluation/observationEval")
     >()),
     fetchObservationEvalRules: vi.fn(),
+    fetchIngestionEvalRules: vi.fn(),
+    scheduleObservationEvals: vi.fn(),
+    createObservationEvalSchedulerDeps: vi.fn(),
   }),
 );
 vi.mock("../../features/traceBatching/traceBatching", () => ({
   trackTraceBatchActivity: vi.fn(),
 }));
+
+vi.mock("../../features/traceBatching/traceRuleRecording", () => ({
+  recordTraceRuleMatches: vi.fn(),
+}));
+
+describe("trace-rule recording at the evaluation stage", () => {
+  it.each([false, true])(
+    "records matches and nonmatches independently of span failures and direct writes (%s)",
+    async (shouldWriteToEventsTable) => {
+      const original = { ...env };
+      env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "DEV";
+      env.LANGFUSE_TRACE_RULE_RECORDING_ENABLED = "true";
+      env.LANGFUSE_TRACE_BATCH_INGESTION_ENABLED = "false";
+      env.LANGFUSE_OTEL_MEDIA_UPLOAD_ENABLED = "false";
+      const projectId = "recording-test";
+      const observationRule = createTestEvalConfig({ projectId });
+      const inputs = ["match", "other", "internal"].map((spanId) => ({
+        projectId,
+        traceId: "trace",
+        spanId,
+        startTimeISO: "2026-10-29T10:00:00.000Z",
+      }));
+      const createEventRecord = vi.fn(async (input: { spanId: string }) =>
+        createEvent({
+          project_id: projectId,
+          trace_id: "trace",
+          span_id: input.spanId,
+          name: input.spanId,
+          environment:
+            input.spanId === "internal"
+              ? "langfuse-llm-as-a-judge"
+              : "production",
+        }),
+      );
+      const writeEventRecord = vi
+        .fn()
+        .mockRejectedValue(new Error("write unavailable"));
+      try {
+        vi.mocked(fetchIngestionEvalRules).mockResolvedValue({
+          observationRules: [observationRule],
+          traceRules: [
+            {
+              id: "trace-rule",
+              ruleId: "trace-rule",
+              projectId,
+              targetObject: TopicsTargetObject,
+              status: "ACTIVE",
+              sampling: new Prisma.Decimal(1),
+              filter: [
+                {
+                  column: "name",
+                  type: "string",
+                  operator: "=",
+                  value: "match",
+                },
+              ],
+              assignments: [
+                {
+                  id: "assignment",
+                  evaluatorId: "evaluator",
+                  variableMapping: null,
+                  evaluator: {
+                    id: "evaluator",
+                    projectId,
+                    type: "LLM_AS_JUDGE",
+                  },
+                },
+              ],
+            },
+          ],
+        });
+        vi.mocked(createObservationEvalSchedulerDeps).mockReturnValue(
+          createMockSchedulerDeps(),
+        );
+        vi.mocked(scheduleObservationEvals).mockRejectedValue(
+          new Error("span scheduling unavailable"),
+        );
+        vi.mocked(recordTraceRuleMatches).mockRejectedValue(
+          new Error("Redis unavailable"),
+        );
+        await expect(
+          processOtelEvents({
+            processor: {
+              processToEvent: () => inputs,
+            } as unknown as OtelIngestionProcessor,
+            ingestionService: {
+              createEventRecord,
+              writeEventRecord,
+            } as unknown as IngestionService,
+            resourceSpans: [],
+            projectId,
+            fileKey: "test.json",
+            shouldWriteToEventsTable,
+          }),
+        ).resolves.toBeUndefined();
+        expect(recordTraceRuleMatches).toHaveBeenCalledExactlyOnceWith(
+          projectId,
+          [
+            {
+              traceId: "trace",
+              startTimeISO: inputs[0].startTimeISO,
+              ruleIds: ["trace-rule"],
+            },
+            {
+              traceId: "trace",
+              startTimeISO: inputs[1].startTimeISO,
+              ruleIds: [],
+            },
+            {
+              traceId: "trace",
+              startTimeISO: inputs[2].startTimeISO,
+              ruleIds: [],
+            },
+          ],
+        );
+        expect(scheduleObservationEvals).toHaveBeenCalledTimes(2);
+        expect(
+          vi
+            .mocked(scheduleObservationEvals)
+            .mock.calls.every(
+              ([args]) =>
+                args.configs.length === 1 &&
+                args.configs[0] === observationRule,
+            ),
+        ).toBe(true);
+        expect(writeEventRecord).toHaveBeenCalledTimes(
+          shouldWriteToEventsTable ? 3 : 0,
+        );
+        expect(fetchObservationEvalRules).not.toHaveBeenCalled();
+      } finally {
+        Object.assign(env, original);
+        vi.clearAllMocks();
+      }
+    },
+  );
+});
 
 describe("direct-v4 trace batch tracking", () => {
   it("tracks accepted writes together and excludes failed writes, disabled intake, and legacy writes", async () => {
@@ -53,6 +208,8 @@ describe("direct-v4 trace batch tracking", () => {
       NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
       LANGFUSE_TRACE_BATCH_INGESTION_ENABLED:
         env.LANGFUSE_TRACE_BATCH_INGESTION_ENABLED,
+      LANGFUSE_TRACE_RULE_RECORDING_ENABLED:
+        env.LANGFUSE_TRACE_RULE_RECORDING_ENABLED,
       LANGFUSE_MIGRATION_V4_WRITE_MODE: env.LANGFUSE_MIGRATION_V4_WRITE_MODE,
       LANGFUSE_OTEL_MEDIA_UPLOAD_ENABLED:
         env.LANGFUSE_OTEL_MEDIA_UPLOAD_ENABLED,
@@ -63,6 +220,7 @@ describe("direct-v4 trace batch tracking", () => {
     };
     env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "DEV";
     env.LANGFUSE_TRACE_BATCH_INGESTION_ENABLED = "true";
+    env.LANGFUSE_TRACE_RULE_RECORDING_ENABLED = "false";
     env.LANGFUSE_MIGRATION_V4_WRITE_MODE = "events_only";
     env.LANGFUSE_OTEL_MEDIA_UPLOAD_ENABLED = "false";
     env.LANGFUSE_OTEL_EARLY_MEDIA_EXTRACTION_ENABLED = "true";
@@ -147,6 +305,8 @@ describe("direct-v4 trace batch tracking", () => {
         inputs,
       ]);
       expect(write).toHaveBeenCalledTimes(3);
+      expect(recordTraceRuleMatches).not.toHaveBeenCalled();
+      expect(fetchIngestionEvalRules).not.toHaveBeenCalled();
       expect(trackTraceBatchActivity).toHaveBeenCalledExactlyOnceWith(
         "project",
         inputs.slice(0, 2).map(({ traceId, startTimeISO }, index) => ({

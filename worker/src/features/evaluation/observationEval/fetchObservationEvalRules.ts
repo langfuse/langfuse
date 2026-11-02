@@ -2,6 +2,7 @@ import {
   EvalTemplateType,
   EvalTargetObject,
   JobConfigState,
+  TopicsTargetObject,
   coerceLegacyEmptyMetadataFilters,
   normalizeEvaluationRuleTarget,
   type FilterState,
@@ -12,58 +13,97 @@ import {
   hasNoEvalConfigsCache,
   setNoEvalConfigsCache,
 } from "@langfuse/shared/src/server";
-import { type ObservationEvalRule } from "./types";
+import type {
+  EvaluationRuleWithAssignments,
+  ObservationEvalRule,
+  TraceTranscriptEvalRule,
+} from "./types";
 
-const runnableEvaluatorTypes = [
+const runnableObservationEvaluatorTypes: EvalTemplateType[] = [
   EvalTemplateType.LLM_AS_JUDGE,
   EvalTemplateType.CODE,
   EvalTemplateType.DECISION_MODEL,
 ];
+const runnableTraceEvaluatorTypes = runnableObservationEvaluatorTypes.concat(
+  EvalTemplateType.FACET,
+);
 
-/**
- * Fetches the runnable observation evaluation rules for a project.
- *
- * This runs per ingested observation, so it stays as narrow as possible:
- * inactive rules and non-runnable evaluators are excluded in SQL rather than
- * filtered in the scheduler, and evaluator versions are not joined at all —
- * dispatch only needs the evaluator's identity and type, and the executor
- * resolves the definition when it picks the job up.
- *
- * Uses a cache to avoid unnecessary database queries:
- * - If cached as "no rules", returns empty array immediately
- * - If cache miss, queries database and caches result if empty
- *
- * @param projectId - The project ID to fetch rules for
- * @returns Array of runnable evaluation rules (empty if none exist)
- */
+/** Fetch only observation rules for callers that schedule individual spans. */
 export async function fetchObservationEvalRules(
   projectId: string,
 ): Promise<ObservationEvalRule[]> {
-  // Check cache first
-  const hasNoRules = await hasNoEvalConfigsCache(projectId, "eventBased");
-  if (hasNoRules) {
-    logger.debug(
-      `Skipping observation eval rule fetch - no rules cached for project ${projectId}`,
-    );
+  const rules = await fetchRules(projectId, "eventBased");
+  return rules.map(normalizeObservationRule);
+}
 
-    return [];
+/** Fetch both ingestion targets once, keeping transcript rules out of span scheduling. */
+export async function fetchIngestionEvalRules(projectId: string): Promise<{
+  observationRules: ObservationEvalRule[];
+  traceRules: TraceTranscriptEvalRule[];
+}> {
+  const rules = await fetchRules(projectId, "ingestionBased");
+  const observationRules: ObservationEvalRule[] = [];
+  const traceRules: TraceTranscriptEvalRule[] = [];
+  for (const rule of rules) {
+    if (rule.targetObject === TopicsTargetObject) {
+      traceRules.push({
+        ...rule,
+        ruleId: rule.id,
+        targetObject: TopicsTargetObject,
+        filter: coerceLegacyEmptyMetadataFilters(rule.filter) as FilterState,
+      });
+    } else {
+      observationRules.push(normalizeObservationRule(rule));
+    }
   }
+  return { observationRules, traceRules };
+}
 
+async function fetchRules(
+  projectId: string,
+  scope: "eventBased" | "ingestionBased",
+) {
+  // Observation-only cache entries say nothing about transcript rules.
+  if (await hasNoEvalConfigsCache(projectId, scope)) return [];
+
+  const observationAssignments = {
+    projectId,
+    evaluator: {
+      projectId,
+      blockedAt: null,
+      type: { in: runnableObservationEvaluatorTypes },
+    },
+  };
+  const traceAssignments = {
+    projectId,
+    evaluator: {
+      projectId,
+      blockedAt: null,
+      type: { in: runnableTraceEvaluatorTypes },
+    },
+  };
+  const observationTargets = {
+    targetObject: {
+      in: [EvalTargetObject.EVENT, EvalTargetObject.EXPERIMENT],
+    },
+    assignments: { some: observationAssignments },
+  };
   const rules = await prisma.evaluationRule.findMany({
     where: {
       projectId,
-      targetObject: {
-        in: [EvalTargetObject.EVENT, EvalTargetObject.EXPERIMENT],
-      },
       status: JobConfigState.ACTIVE,
-      // A rule without runnable assignments schedules nothing, so it must not
-      // keep the project out of the "no rules" cache below.
-      assignments: {
-        some: {
-          projectId,
-          evaluator: { blockedAt: null, type: { in: runnableEvaluatorTypes } },
-        },
-      },
+      // Rules without runnable assignments must not defeat negative caching.
+      ...(scope === "ingestionBased"
+        ? {
+            OR: [
+              observationTargets,
+              {
+                targetObject: TopicsTargetObject,
+                assignments: { some: traceAssignments },
+              },
+            ],
+          }
+        : observationTargets),
     },
     select: {
       id: true,
@@ -73,10 +113,10 @@ export async function fetchObservationEvalRules(
       status: true,
       targetObject: true,
       assignments: {
-        where: {
-          projectId,
-          evaluator: { blockedAt: null, type: { in: runnableEvaluatorTypes } },
-        },
+        where:
+          scope === "ingestionBased"
+            ? traceAssignments
+            : observationAssignments,
         select: {
           id: true,
           evaluatorId: true,
@@ -93,33 +133,32 @@ export async function fetchObservationEvalRules(
     },
   });
 
-  // Cache if no rules found
   if (rules.length === 0) {
-    logger.debug(
-      `No observation eval rules found for project ${projectId}, caching`,
-    );
-    await setNoEvalConfigsCache(projectId, "eventBased");
-
-    return [];
+    await setNoEvalConfigsCache(projectId, scope);
   }
-
   logger.debug(
-    `Found ${rules.length} observation eval rules for project ${projectId}`,
+    `Found ${rules.length} ${scope} eval rules for project ${projectId}`,
   );
+  return rules;
+}
 
-  // Canonicalize here so the scheduler only ever sees `event` rules: the
-  // legacy `experiment` target is expressed as its root-span filter instead.
-  return rules.map((rule) => {
-    const normalized = normalizeEvaluationRuleTarget({
-      targetObject: rule.targetObject as
-        | typeof EvalTargetObject.EVENT
-        | typeof EvalTargetObject.EXPERIMENT,
-      filter: coerceLegacyEmptyMetadataFilters(rule.filter) as FilterState,
-    });
-    return {
-      ...rule,
-      ...normalized,
-      ruleId: rule.id,
-    };
+function normalizeObservationRule(
+  rule: Awaited<ReturnType<typeof fetchRules>>[number],
+): EvaluationRuleWithAssignments {
+  // The experiment target is represented by its root-span filter at scheduling.
+  const normalized = normalizeEvaluationRuleTarget({
+    targetObject: rule.targetObject as
+      | typeof EvalTargetObject.EVENT
+      | typeof EvalTargetObject.EXPERIMENT,
+    filter: coerceLegacyEmptyMetadataFilters(rule.filter) as FilterState,
   });
+  return {
+    ...rule,
+    ...normalized,
+    ruleId: rule.id,
+    // Combined fetches also select facets, which cannot run on individual spans.
+    assignments: rule.assignments.filter((assignment) =>
+      runnableObservationEvaluatorTypes.includes(assignment.evaluator.type),
+    ),
+  };
 }

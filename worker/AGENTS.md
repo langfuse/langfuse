@@ -48,6 +48,13 @@
   `src/features/otel-ingestion/processOtelEvents.ts`; the OTEL queue calls this
   after its legacy persistence path for event normalization, evaluation
   scheduling, direct events-table writes, and trace-batch accounting.
+- Trace-rule recording: `src/features/traceBatching/traceBatchRules.ts` matches
+  enriched observations at the OTel evaluation stage;
+  `src/features/traceBatching/traceRuleRecording.ts`
+  atomically records `bounds`, `dispatch`, and `due` in a separate shard namespace.
+  `LANGFUSE_TRACE_RULE_RECORDING_ENABLED` is cloud-only and defaults off. Dispatch
+  contains only revision, selected rules, and failed_cnt. There is no consumer or
+  cleanup yet; keep continuous production recording disabled until retention exists.
 - Internal cloud trace batching: `src/features/traceBatching/traceBatching.ts` and
   `src/queues/traceBatchQueue.ts`; controls and Redis lifecycle are documented in
   `src/features/traceBatching/README.md`. Keep producer, dispatcher, consumer and reads

@@ -187,6 +187,8 @@
   `stringifyForCsv` in `src/utils/stringify.ts`) used by both the server
   trace-download route and client-side download/copy paths; the server barrel
   re-exports them for compatibility.
+  `traceTranscriptFilterDefinition` exports the transcript rule columns/operators
+  for validation and ingestion matching; it does not expose a new UI control.
 - `@langfuse/shared/src/server` via `src/server/index.ts`: server-only barrel
   for shared backend services, repositories, queue helpers/contracts, Redis and
   ClickHouse helpers, auth helpers, logger/instrumentation, ingestion helpers,

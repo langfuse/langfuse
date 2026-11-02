@@ -16,10 +16,8 @@ import { isEqual } from "lodash";
 import { getTopicDefinitions, writeTopicDefinitions } from "./clickhouse";
 import { InvalidRequestError } from "../../errors";
 import { TopicsTargetObject } from "../../features/evals/types";
-import {
-  invalidateTopicsProcessingActive,
-  topicRuleWhere,
-} from "./processing-gate";
+import { topicRuleWhere } from "./processing-gate";
+import { invalidateProjectEvalConfigCaches } from "../evalJobConfigCache";
 
 type FacetVersionRow = Prisma.EvaluatorVersionGetPayload<object>;
 type FacetRow = Prisma.EvaluatorGetPayload<{ include: { versions: true } }>;
@@ -226,7 +224,7 @@ export type TopicRuleInput = Omit<
 
 export async function saveTopicRule(input: TopicRuleInput): Promise<TopicRule> {
   const rule = await prisma.$transaction((tx) => writeTopicRule(tx, input));
-  await invalidateTopicsProcessingActive(input.projectId);
+  await invalidateProjectEvalConfigCaches(input.projectId);
   return rule;
 }
 
