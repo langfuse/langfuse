@@ -509,6 +509,31 @@ describe("Blob Storage Integration tRPC Router", () => {
         );
       });
 
+      it("requires the key again when the bucket changes", async () => {
+        const { caller, project } = await prepare({
+          plan: "self-hosted:enterprise",
+        });
+        await caller.blobStorageIntegration.update({
+          projectId: project.id,
+          ...gcsKeyConfig,
+        });
+
+        await expect(
+          caller.blobStorageIntegration.update({
+            projectId: project.id,
+            ...gcsKeyConfig,
+            bucketName: "allowed-bucket",
+            secretAccessKey: null,
+          }),
+        ).rejects.toThrow(/Secret access key is required when changing/);
+
+        const integration = await findIntegration(project.id);
+        expect(integration?.bucketName).toBe("customer-bucket");
+        expect(decrypt(integration!.secretAccessKey!)).toBe(
+          fakeServiceAccountKey,
+        );
+      });
+
       it("drops the stored key when switched to default credentials", async () => {
         const { caller, project } = await prepare({
           plan: "self-hosted:enterprise",
@@ -622,6 +647,36 @@ describe("Blob Storage Integration tRPC Router", () => {
         }),
       ).rejects.toThrow(/Secret access key is required/);
     });
+
+    it.each([
+      ["bucket", { bucketName: "other-bucket" }],
+      ["access key ID", { accessKeyId: "other-access-key" }],
+    ])(
+      "requires the secret again when the %s changes",
+      async (_case, change) => {
+        const { caller, project } = await prepare();
+        await createIntegration({ projectId: project.id });
+
+        await expect(
+          caller.blobStorageIntegration.update({
+            projectId: project.id,
+            ...baseConfig,
+            bucketName: "test-bucket",
+            accessKeyId: "test-access-key",
+            secretAccessKey: null,
+            ...change,
+          }),
+        ).rejects.toThrow(
+          "Secret access key is required when changing the storage provider, bucket, endpoint, or access key ID",
+        );
+
+        const integration = await prisma.blobStorageIntegration.findUnique({
+          where: { projectId: project.id },
+        });
+        expect(integration?.bucketName).toBe("test-bucket");
+        expect(decrypt(integration!.secretAccessKey!)).toBe("test-secret-key");
+      },
+    );
   });
 
   describe("region normalization", () => {

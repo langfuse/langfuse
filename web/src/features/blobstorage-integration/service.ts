@@ -12,6 +12,7 @@ import {
   GCS_USE_DEFAULT_CREDENTIALS,
 } from "@langfuse/shared";
 import { assertPersistedExportSourceAllowed } from "@/src/features/analytics-integrations/server";
+import { areDestinationUrlsEquivalent } from "@/src/features/automations/destinationUrl";
 import { encrypt } from "@langfuse/shared/encryption";
 import { env } from "@/src/env.mjs";
 import {
@@ -73,6 +74,30 @@ function secretFamily(type: BlobStorageIntegrationType) {
       return null;
     }
   }
+}
+
+type StorageDestination = {
+  type: BlobStorageIntegrationType;
+  bucketName: string;
+  endpoint: string | null;
+  accessKeyId: string | null;
+};
+
+function isSameStorageDestination(
+  existing: StorageDestination,
+  next: StorageDestination,
+) {
+  const isSameEndpoint =
+    existing.endpoint === null || next.endpoint === null
+      ? existing.endpoint === next.endpoint
+      : areDestinationUrlsEquivalent(existing.endpoint, next.endpoint);
+
+  return (
+    isSameEndpoint &&
+    existing.type === next.type &&
+    existing.bucketName === next.bucketName &&
+    existing.accessKeyId === next.accessKeyId
+  );
 }
 
 function resolveExportStartDate(params: {
@@ -184,8 +209,9 @@ export async function upsertBlobStorageIntegration(params: {
   return prisma.$transaction(async (tx) => {
     const existing = await tx.blobStorageIntegration.findUnique({
       where: { projectId },
-      // createdAt/exportSource feed the post-upsert backstop below;
-      // type/secretAccessKey decide whether an update keeps a stored secret.
+      // createdAt/exportSource feed the post-upsert backstop below; the
+      // destination fields and secretAccessKey decide whether an update keeps
+      // a stored secret.
       select: {
         enabled: true,
         exportMode: true,
@@ -194,14 +220,40 @@ export async function upsertBlobStorageIntegration(params: {
         createdAt: true,
         exportSource: true,
         type: true,
+        bucketName: true,
+        endpoint: true,
+        accessKeyId: true,
         secretAccessKey: true,
       },
     });
 
-    // A stored secret is only reusable within the same credential family.
-    const canKeepStoredSecret =
+    // A stored secret is only reusable within the same credential family, and
+    // only for the destination it was entered for.
+    const hasStoredSecretOfFamily =
       !!existing?.secretAccessKey &&
       secretFamily(existing.type) === secretFamily(data.type);
+    const canKeepStoredSecret =
+      hasStoredSecretOfFamily &&
+      isSameStorageDestination(existing, {
+        type: data.type,
+        bucketName: data.bucketName,
+        endpoint,
+        accessKeyId,
+      });
+    // Switching a self-hosted S3 integration to host credentials drops the
+    // stored secret instead of asking for it again.
+    const isSwitchingToHostCredentials = canUseHostCredentials && !accessKeyId;
+    if (
+      hasStoredSecretOfFamily &&
+      !canKeepStoredSecret &&
+      !secretAccessKey &&
+      !isKeylessGcs &&
+      !isSwitchingToHostCredentials
+    ) {
+      throw new InvalidRequestError(
+        "Secret access key is required when changing the storage provider, bucket, endpoint, or access key ID",
+      );
+    }
     // A GCS integration that will run keyless: explicitly requested, or an
     // update that sends no secret and has no stored GCS key to keep. Keyless
     // runs as the deployment identity, so it is gated by the bucket allowlist.

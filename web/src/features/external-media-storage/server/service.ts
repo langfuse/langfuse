@@ -18,6 +18,7 @@ import {
 
 import { getDisplayCredential } from "@/src/features/analytics-integrations/server";
 import { auditLog } from "@/src/features/audit-logs/server";
+import { areDestinationUrlsEquivalent } from "@/src/features/automations/destinationUrl";
 import { type ExternalMediaStorageFormValues } from "@/src/features/external-media-storage/types";
 import {
   createExternalMediaStorageRepository,
@@ -52,6 +53,28 @@ async function auditConfigurationChange({
     "session" in actor
       ? { ...event, session: actor.session }
       : { ...event, ...actor, projectId },
+  );
+}
+
+type StorageDestination = Pick<
+  ExternalMediaStorageRecord,
+  "type" | "endpoint" | "bucketName" | "accessKeyId"
+>;
+
+function isSameStorageDestination(
+  existing: StorageDestination,
+  next: StorageDestination,
+) {
+  const isSameEndpoint =
+    existing.endpoint === null || next.endpoint === null
+      ? existing.endpoint === next.endpoint
+      : areDestinationUrlsEquivalent(existing.endpoint, next.endpoint);
+
+  return (
+    isSameEndpoint &&
+    existing.type === next.type &&
+    existing.bucketName === next.bucketName &&
+    existing.accessKeyId === next.accessKeyId
   );
 }
 
@@ -161,8 +184,26 @@ export function createExternalMediaStorageService(prisma: PrismaClient) {
       }
 
       const existing = await repository.findByProjectId(projectId);
+      const bucketName = values.bucketName.trim();
       const accessKeyId = values.accessKeyId?.trim() || null;
       const secretAccessKey = values.secretAccessKey?.trim() || null;
+
+      // A stored secret is only used with the storage it was entered for.
+      if (
+        !secretAccessKey &&
+        existing?.secretAccessKey &&
+        !isSameStorageDestination(existing, {
+          type: values.type,
+          endpoint,
+          bucketName,
+          accessKeyId,
+        })
+      ) {
+        throw new InvalidRequestError(
+          "Secret Access Key is required when changing the storage provider, bucket, endpoint, or Access Key ID",
+        );
+      }
+
       const encryptedSecretAccessKey = secretAccessKey
         ? encrypt(secretAccessKey)
         : existing?.secretAccessKey;
@@ -177,7 +218,7 @@ export function createExternalMediaStorageService(prisma: PrismaClient) {
         projectId,
         data: {
           type: values.type,
-          bucketName: values.bucketName.trim(),
+          bucketName,
           prefix: values.prefix?.trim() || null,
           accessKeyId,
           secretAccessKey: encryptedSecretAccessKey ?? null,

@@ -1,8 +1,9 @@
+import dns from "node:dns/promises";
 import { randomUUID } from "crypto";
 import type { Mock } from "vitest";
 
 import { InvalidRequestError } from "@langfuse/shared";
-import { encrypt } from "@langfuse/shared/encryption";
+import { decrypt, encrypt } from "@langfuse/shared/encryption";
 import { prisma } from "@langfuse/shared/src/db";
 import {
   createOrgProjectAndApiKey,
@@ -114,7 +115,7 @@ describe("external media storage service", () => {
         endpoint: "https://stale.example.com",
         region: "us-east-1",
         accessKeyId: "access-key",
-        secretAccessKey: "",
+        secretAccessKey: "new-secret-key",
         prefix: "",
         forcePathStyle: true,
       },
@@ -126,6 +127,94 @@ describe("external media storage service", () => {
         select: { endpoint: true, forcePathStyle: true },
       }),
     ).resolves.toEqual({ endpoint: null, forcePathStyle: false });
+  });
+
+  describe("stored secret reuse", () => {
+    const savedValues = {
+      type: "S3_COMPATIBLE" as const,
+      bucketName: "media-bucket",
+      endpoint: "https://storage.example.com",
+      region: "us-east-1",
+      accessKeyId: "access-key",
+      secretAccessKey: "",
+      prefix: "",
+      forcePathStyle: true,
+    };
+
+    beforeEach(() => {
+      vi.spyOn(dns, "resolve4").mockResolvedValue(["1.1.1.1"]);
+      vi.spyOn(dns, "resolve6").mockRejectedValue(new Error("ENODATA"));
+      vi.spyOn(dns, "lookup").mockResolvedValue([
+        { address: "1.1.1.1", family: 4 },
+      ] as never);
+    });
+
+    afterEach(() => {
+      vi.restoreAllMocks();
+    });
+
+    async function prepareS3CompatibleIntegration() {
+      const project = await prepareIntegration({ prefix: null });
+      await prisma.externalMediaStorageIntegration.update({
+        where: { projectId: project.id },
+        data: {
+          type: savedValues.type,
+          endpoint: savedValues.endpoint,
+          accessKeyId: savedValues.accessKeyId,
+          forcePathStyle: true,
+        },
+      });
+      return project;
+    }
+
+    const findStored = (projectId: string) =>
+      prisma.externalMediaStorageIntegration.findUniqueOrThrow({
+        where: { projectId },
+        select: {
+          type: true,
+          bucketName: true,
+          endpoint: true,
+          accessKeyId: true,
+          secretAccessKey: true,
+        },
+      });
+
+    it("keeps the stored secret when the destination is unchanged", async () => {
+      const project = await prepareS3CompatibleIntegration();
+
+      await createExternalMediaStorageService(prisma).saveConfiguration({
+        actor: { apiKeyId: "test-api-key", orgId: project.orgId },
+        projectId: project.id,
+        values: { ...savedValues, prefix: "customer/" },
+      });
+
+      const stored = await findStored(project.id);
+      expect(decrypt(stored.secretAccessKey!)).toBe("test-secret-key");
+    });
+
+    it.each([
+      ["endpoint", { endpoint: "https://other-storage.example.com" }],
+      ["bucket", { bucketName: "other-bucket" }],
+      ["access key ID", { accessKeyId: "other-access-key" }],
+      ["storage type", { type: "S3" as const, endpoint: null }],
+    ])(
+      "requires the secret again when the %s changes",
+      async (_case, change) => {
+        const project = await prepareS3CompatibleIntegration();
+        const before = await findStored(project.id);
+
+        await expect(
+          createExternalMediaStorageService(prisma).saveConfiguration({
+            actor: { apiKeyId: "test-api-key", orgId: project.orgId },
+            projectId: project.id,
+            values: { ...savedValues, ...change },
+          }),
+        ).rejects.toThrow(
+          "Secret Access Key is required when changing the storage provider, bucket, endpoint, or Access Key ID",
+        );
+        await expect(findStored(project.id)).resolves.toEqual(before);
+      },
+    );
   });
 
   it("signs an object within the configured bucket and prefix", async () => {
