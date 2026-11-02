@@ -180,6 +180,7 @@ export async function processOtelEvents({
 
   if (schedulerDeps) {
     try {
+      // Flush this invocation's local buffer; Redis merges activity across workers.
       await schedulerDeps.flushTraceActivity();
     } catch (error) {
       traceException(error);

@@ -1,23 +1,25 @@
 import { createHash, randomUUID } from "node:crypto";
-import {
-  getShardIndex,
-  getTracingReadinessSettings,
-  logger,
-  redis,
-} from "@langfuse/shared/src/server";
+import { getShardIndex, redis } from "@langfuse/shared/src/server";
 import { env } from "../../env";
+import { resolveTraceIdleMs } from "./traceBatchReadiness";
 
 const REDIS_BATCH_SIZE = 50;
 const CLEANUP_SIZE = 100;
 
 function getRecordingKeys(shard: number) {
   const tag = `{trace-dispatch:${shard}}`;
-  return [`${tag}:bounds`, `${tag}:record`, `${tag}:due`];
+  return {
+    bounds: `${tag}:bounds`,
+    record: `${tag}:record`,
+    due: `${tag}:due`,
+  };
 }
 
 const RECORD_SCRIPT = `
+  local boundsKey, recordKey, dueKey = KEYS[1], KEYS[2], KEYS[3]
   local clock = redis.call('TIME')
   local now = clock[1] * 1000 + math.floor(clock[2] / 1000)
+  -- Readiness uses recording time plus idle interval, not the spans' start times.
   local due = now + tonumber(ARGV[1])
   local boundsExpiry = now + tonumber(ARGV[2])
   local pendingTtl = tonumber(ARGV[3])
@@ -27,7 +29,9 @@ const RECORD_SCRIPT = `
     local minStart = tonumber(ARGV[i + 1])
     local maxStart = tonumber(ARGV[i + 2])
     local incomingRules = cjson.decode(ARGV[i + 4])
-    local previousBounds = redis.call('HGET', KEYS[1], member)
+
+    -- 1. Merge the event-time bounds, even when no rule selected this activity.
+    local previousBounds = redis.call('HGET', boundsKey, member)
     if previousBounds then
       local bounds = cjson.decode(previousBounds)
       if bounds.expiresAt and bounds.expiresAt > now then
@@ -35,17 +39,18 @@ const RECORD_SCRIPT = `
         maxStart = math.max(maxStart, bounds.maxStart)
       end
     end
-    redis.call('HSET', KEYS[1], member, cjson.encode({
+    redis.call('HSET', boundsKey, member, cjson.encode({
       minStart = minStart, maxStart = maxStart, expiresAt = boundsExpiry
     }))
 
-    local previousRecord = redis.call('HGET', KEYS[2], member)
+    -- 2. Preserve live pending selections; expired selections cannot be revived.
+    local previousRecord = redis.call('HGET', recordKey, member)
     local record = previousRecord and cjson.decode(previousRecord)
-    local priorDue = tonumber(redis.call('ZSCORE', KEYS[3], member))
+    local priorDue = tonumber(redis.call('ZSCORE', dueKey, member))
     if (record or priorDue) and (not priorDue or priorDue + pendingTtl <= now) then
       record = nil
-      redis.call('HDEL', KEYS[2], member)
-      redis.call('ZREM', KEYS[3], member)
+      redis.call('HDEL', recordKey, member)
+      redis.call('ZREM', dueKey, member)
     end
     if record or #incomingRules > 0 then
       local rules = {}
@@ -56,11 +61,12 @@ const RECORD_SCRIPT = `
       for _, id in ipairs(incomingRules) do
         if not seen[id] then table.insert(rules, id); seen[id] = true end
       end
-      redis.call('HSET', KEYS[2], member, cjson.encode({
+      redis.call('HSET', recordKey, member, cjson.encode({
         revision = ARGV[i + 3], rules = rules,
         failed_cnt = record and record.failed_cnt or 0
       }))
-      redis.call('ZADD', KEYS[3], due, member)
+      -- 3. Any activity postpones a pending trace, including nonmatching spans.
+      redis.call('ZADD', dueKey, due, member)
       wroteRecord = true
     end
   end
@@ -70,29 +76,30 @@ const RECORD_SCRIPT = `
       redis.call('PEXPIREAT', key, deadline)
     end
   end
-  extendExpiry(KEYS[1], boundsExpiry)
+  extendExpiry(boundsKey, boundsExpiry)
   if wroteRecord then
-    extendExpiry(KEYS[2], due + pendingTtl)
-    extendExpiry(KEYS[3], due + pendingTtl)
+    extendExpiry(recordKey, due + pendingTtl)
+    extendExpiry(dueKey, due + pendingTtl)
   end
 `;
 
 const CLEANUP_SCRIPT = `
+  local boundsKey, recordKey, dueKey = KEYS[1], KEYS[2], KEYS[3]
   local clock = redis.call('TIME')
   local now = clock[1] * 1000 + math.floor(clock[2] / 1000)
-  local expired = redis.call('ZRANGE', KEYS[3], '-inf', now - tonumber(ARGV[1]),
+  local expired = redis.call('ZRANGE', dueKey, '-inf', now - tonumber(ARGV[1]),
     'BYSCORE', 'LIMIT', 0, ${CLEANUP_SIZE})
   for _, member in ipairs(expired) do
-    redis.call('HDEL', KEYS[2], member)
-    redis.call('ZREM', KEYS[3], member)
+    redis.call('HDEL', recordKey, member)
+    redis.call('ZREM', dueKey, member)
   end
   for i = 2, #ARGV do
-    local value = redis.call('HGET', KEYS[1], ARGV[i])
+    local value = redis.call('HGET', boundsKey, ARGV[i])
     if value then
       local bounds = cjson.decode(value)
       -- The scan is only a candidate list; an arrival may have refreshed this field.
       if not bounds.expiresAt or bounds.expiresAt <= now then
-        redis.call('HDEL', KEYS[1], ARGV[i])
+        redis.call('HDEL', boundsKey, ARGV[i])
       end
     end
   end
@@ -108,22 +115,23 @@ const scriptHashes = new Map(
 
 async function evalRecording(
   script: string,
-  keys: string[],
+  keys: ReturnType<typeof getRecordingKeys>,
   args: (string | number)[],
 ) {
   if (!redis) throw new Error("Trace rule recording requires Redis");
+  const scriptKeys = [keys.bounds, keys.record, keys.due];
   try {
     return await redis.evalsha(
       scriptHashes.get(script)!,
-      keys.length,
-      ...keys,
+      scriptKeys.length,
+      ...scriptKeys,
       ...args,
     );
   } catch (error) {
     // A cache miss cannot have applied any updates; other failures propagate.
     if (!(error instanceof Error) || !error.message.startsWith("NOSCRIPT"))
       throw error;
-    return redis.eval(script, keys.length, ...keys, ...args);
+    return redis.eval(script, scriptKeys.length, ...scriptKeys, ...args);
   }
 }
 
@@ -132,7 +140,7 @@ export async function cleanupTraceRuleRecording(shard: number, cursor: string) {
   if (!redis) throw new Error("Trace rule recording requires Redis");
   const keys = getRecordingKeys(shard);
   const [nextCursor, fields] = await redis.hscan(
-    keys[0],
+    keys.bounds,
     cursor,
     "COUNT",
     CLEANUP_SIZE,
@@ -155,58 +163,55 @@ export async function cleanupTraceRuleRecording(shard: number, cursor: string) {
   return { cursor: nextCursor, pendingRemaining: expired === CLEANUP_SIZE };
 }
 
-/** Retain observed bounds and record sampled rule matches for later dispatch. */
-export async function recordTraceRuleMatches(
+export type TraceSpanActivity = {
+  traceId: string;
+  spanStartTimeISO: string;
+  /** Rule IDs already selected by filtering and sampling; empty still records activity. */
+  ruleIds: readonly string[];
+};
+
+/** Merge bounds, selected rules, and readiness for one batch; this writer does not sample. */
+export async function recordTraceActivity(
   projectId: string,
-  events: readonly {
-    traceId: string;
-    startTimeISO: string;
-    ruleIds: readonly string[];
-  }[],
+  activity: readonly TraceSpanActivity[],
 ): Promise<void> {
-  const traces = new Map<
+  // Aggregate this batch locally; Lua merges it with other batches and workers.
+  const updatesByTrace = new Map<
     string,
     { minStart: number; maxStart: number; rules: Set<string> }
   >();
-  for (const event of events) {
-    const start = Date.parse(event.startTimeISO);
+  for (const span of activity) {
+    const start = Date.parse(span.spanStartTimeISO);
     if (!Number.isFinite(start)) continue;
-    const previous = traces.get(event.traceId);
+    const previous = updatesByTrace.get(span.traceId);
     if (previous) {
       previous.minStart = Math.min(previous.minStart, start);
       previous.maxStart = Math.max(previous.maxStart, start);
-      for (const ruleId of event.ruleIds) previous.rules.add(ruleId);
+      for (const ruleId of span.ruleIds) previous.rules.add(ruleId);
     } else {
-      traces.set(event.traceId, {
+      updatesByTrace.set(span.traceId, {
         minStart: start,
         maxStart: start,
-        rules: new Set(event.ruleIds),
+        rules: new Set(span.ruleIds),
       });
     }
   }
-  if (traces.size === 0) return;
+  if (updatesByTrace.size === 0) return;
   if (!redis) throw new Error("Trace rule recording requires Redis");
 
-  let idleMs = env.LANGFUSE_TRACE_BATCH_IDLE_MS;
-  try {
-    const settings = await getTracingReadinessSettings(projectId);
-    idleMs = settings.traceIdleMs ?? idleMs;
-  } catch (error) {
-    logger.warn("Failed to read trace idle time, using the default", {
-      projectId,
-      error,
-    });
-  }
+  const idleMs = await resolveTraceIdleMs(projectId);
+  if (!Number.isSafeInteger(idleMs) || idleMs <= 0)
+    throw new Error("Trace batch idle time must be a positive integer");
 
   const shards = new Map<
     number,
     { member: string; minStart: number; maxStart: number; rules: Set<string> }[]
   >();
-  for (const [traceId, bounds] of traces) {
+  for (const [traceId, update] of updatesByTrace) {
     const member = JSON.stringify([projectId, traceId]);
     const shard = getShardIndex(member, env.LANGFUSE_TRACE_BATCH_SHARD_COUNT);
     const entries = shards.get(shard) ?? [];
-    entries.push({ member, ...bounds });
+    entries.push({ member, ...update });
     shards.set(shard, entries);
   }
 

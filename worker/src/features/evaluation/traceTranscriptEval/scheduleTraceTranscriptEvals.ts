@@ -19,11 +19,12 @@ export async function scheduleTraceTranscriptEvals({
   const rules = await schedulerDeps.traceTranscriptRules;
   if (rules.length === 0) return;
 
-  // Non-matching observations still extend bounds and existing readiness.
+  // Select rules using filters and trace-ID sampling; recording does not sample again.
   const ruleIds = getMatchingTraceBatchRuleIds(observation, rules);
-  schedulerDeps.recordTraceActivity({
+  // Non-matching observations still extend bounds and existing readiness.
+  schedulerDeps.collectTraceActivity({
     traceId: observation.trace_id,
-    startTimeISO,
+    spanStartTimeISO: startTimeISO,
     ruleIds,
   });
 }

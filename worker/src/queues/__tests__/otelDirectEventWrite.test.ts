@@ -22,7 +22,7 @@ import { Prisma } from "@langfuse/shared/src/db";
 import { TopicsTargetObject } from "@langfuse/shared";
 import { isTopicsProjectEnabled } from "@langfuse/shared/topics/server";
 import { processOtelEvents } from "../../features/otel-ingestion/processOtelEvents";
-import { recordTraceRuleMatches } from "../../features/traceBatching/traceRuleRecording";
+import { recordTraceActivity } from "../../features/traceBatching/traceRuleRecording";
 import {
   createTestEvalConfig,
   createMockSchedulerDeps,
@@ -74,7 +74,7 @@ vi.mock("../../features/traceBatching/traceBatching", () => ({
 }));
 
 vi.mock("../../features/traceBatching/traceRuleRecording", () => ({
-  recordTraceRuleMatches: vi.fn(),
+  recordTraceActivity: vi.fn(),
 }));
 
 vi.mock("@langfuse/shared/topics/server", async (importOriginal) => ({
@@ -154,7 +154,7 @@ describe("trace-rule recording at the evaluation stage", () => {
         vi.mocked(scheduleObservationEvals).mockRejectedValue(
           new Error("span scheduling unavailable"),
         );
-        vi.mocked(recordTraceRuleMatches).mockRejectedValue(
+        vi.mocked(recordTraceActivity).mockRejectedValue(
           new Error("Redis unavailable"),
         );
         await expect(
@@ -172,21 +172,18 @@ describe("trace-rule recording at the evaluation stage", () => {
             shouldWriteToEventsTable,
           }),
         ).resolves.toBeUndefined();
-        expect(recordTraceRuleMatches).toHaveBeenCalledExactlyOnceWith(
-          projectId,
-          [
-            {
-              traceId: "trace",
-              startTimeISO: inputs[0].startTimeISO,
-              ruleIds: ["trace-rule"],
-            },
-            {
-              traceId: "trace",
-              startTimeISO: inputs[1].startTimeISO,
-              ruleIds: [],
-            },
-          ],
-        );
+        expect(recordTraceActivity).toHaveBeenCalledExactlyOnceWith(projectId, [
+          {
+            traceId: "trace",
+            spanStartTimeISO: inputs[0].startTimeISO,
+            ruleIds: ["trace-rule"],
+          },
+          {
+            traceId: "trace",
+            spanStartTimeISO: inputs[1].startTimeISO,
+            ruleIds: [],
+          },
+        ]);
         expect(
           vi
             .mocked(scheduleObservationEvals)
@@ -309,7 +306,7 @@ describe("direct-v4 trace batch tracking", () => {
         inputs,
       ]);
       expect(write).toHaveBeenCalledTimes(3);
-      expect(recordTraceRuleMatches).not.toHaveBeenCalled();
+      expect(recordTraceActivity).not.toHaveBeenCalled();
       expect(fetchEvalRules).toHaveBeenCalledExactlyOnceWith("project");
       expect(trackTraceBatchActivity).toHaveBeenCalledExactlyOnceWith(
         "project",

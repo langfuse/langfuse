@@ -11,6 +11,11 @@ templates. The local dev template sets the idle time below.
 
 Topics-enabled projects record selections under `{trace-dispatch:<shard>}`,
 keyed by JSON `[projectId, traceId]`. These selections are not consumed yet.
+Each ingestion invocation collects span activity in its own worker and awaits
+the flush before returning. `recordTraceActivity` combines span starts into
+per-trace min/max bounds; Lua merges bounds and selected rule IDs across workers.
+Filtering and sampling happen before collection. Both trace writers resolve
+project idle time through `resolveTraceIdleMs`.
 
 | Map | Contents | Retention |
 | --- | --- | --- |

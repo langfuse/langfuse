@@ -28,7 +28,7 @@ vi.mock("../observationEval/createSchedulerDeps", () => ({
   createObservationEvalSchedulerDeps: mocks.createObservationDeps,
 }));
 vi.mock("../../traceBatching/traceRuleRecording", () => ({
-  recordTraceRuleMatches: async (projectId: string, events: unknown) =>
+  recordTraceActivity: async (projectId: string, events: unknown) =>
     mocks.record(projectId, structuredClone(events)),
 }));
 
@@ -88,12 +88,12 @@ describe("scheduleEvals", () => {
         expect(mocks.record).toHaveBeenCalledExactlyOnceWith(projectId, [
           {
             traceId: observation.trace_id,
-            startTimeISO,
+            spanStartTimeISO: startTimeISO,
             ruleIds: [facetRule.id],
           },
           {
             traceId: observation.trace_id,
-            startTimeISO: "2026-11-02T08:01:00.000Z",
+            spanStartTimeISO: "2026-11-02T08:01:00.000Z",
             ruleIds: [],
           },
         ]);
@@ -122,7 +122,53 @@ describe("scheduleEvals", () => {
     ).rejects.toThrow("Failed to schedule evaluations");
     await schedulerDeps.flushTraceActivity();
     expect(mocks.record).toHaveBeenCalledExactlyOnceWith(projectId, [
-      { traceId: observation.trace_id, startTimeISO, ruleIds: [facetRule.id] },
+      {
+        traceId: observation.trace_id,
+        spanStartTimeISO: startTimeISO,
+        ruleIds: [facetRule.id],
+      },
+    ]);
+  });
+
+  it("keeps activity local to each ingestion batch until that batch flushes", async () => {
+    mocks.createObservationDeps.mockImplementation(createMockSchedulerDeps);
+    const rules: EvalRules = {
+      observationRules: [],
+      traceTranscriptRules: [facetRule],
+    };
+    const firstBatch = createEvalSchedulerDeps(projectId, rules);
+    const secondBatch = createEvalSchedulerDeps(projectId, rules);
+    const observation = createTestObservation({ name: "selected" });
+    await Promise.all(
+      [firstBatch, secondBatch].map((schedulerDeps, index) =>
+        scheduleEvals({
+          observation: { ...observation, trace_id: `trace-${index}` },
+          startTimeISO,
+          rules,
+          schedulerDeps,
+        }),
+      ),
+    );
+    expect(mocks.record).not.toHaveBeenCalled();
+
+    await firstBatch.flushTraceActivity();
+    expect(mocks.record).toHaveBeenCalledExactlyOnceWith(projectId, [
+      {
+        traceId: "trace-0",
+        spanStartTimeISO: startTimeISO,
+        ruleIds: [facetRule.id],
+      },
+    ]);
+    await firstBatch.flushTraceActivity();
+    expect(mocks.record).toHaveBeenCalledTimes(1);
+
+    await secondBatch.flushTraceActivity();
+    expect(mocks.record).toHaveBeenNthCalledWith(2, projectId, [
+      {
+        traceId: "trace-1",
+        spanStartTimeISO: startTimeISO,
+        ruleIds: [facetRule.id],
+      },
     ]);
   });
 

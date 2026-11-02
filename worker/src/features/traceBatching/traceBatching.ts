@@ -1,6 +1,5 @@
 import { createHash, randomUUID } from "node:crypto";
 import {
-  getTracingReadinessSettings,
   logger,
   QueueJobs,
   redis,
@@ -27,6 +26,7 @@ import {
   getTraceBatchShard,
   HYDRATE_SCRIPT,
   readinessScriptHashes,
+  resolveTraceIdleMs,
   SNAPSHOT_SCRIPT,
   TRACK_SCRIPT,
 } from "./traceBatchReadiness";
@@ -262,25 +262,6 @@ async function resolveTopicsProcessingActive(
     });
     return isTopicsProjectEnabled(projectId);
   }
-}
-
-async function resolveTraceIdleMs(projectId: string): Promise<number> {
-  let traceIdleMs: number | null = null;
-  try {
-    ({ traceIdleMs } = await getTracingReadinessSettings(projectId));
-  } catch (error) {
-    recordIncrement("langfuse.trace_batch.idle_time_read_failures", 1);
-    logger.warn("Failed to read trace idle time, using the default", {
-      projectId,
-      error,
-    });
-  }
-  if (traceIdleMs === null) return env.LANGFUSE_TRACE_BATCH_IDLE_MS;
-  // A due time past the pending TTL would expire the trace before dispatch.
-  const cap =
-    env.LANGFUSE_TRACE_BATCH_PENDING_TTL_MS -
-    env.LANGFUSE_TRACE_BATCH_DISPATCH_INTERVAL_MS;
-  return cap > 0 ? Math.min(traceIdleMs, cap) : traceIdleMs;
 }
 
 export class TraceBatchDispatcher extends PeriodicExclusiveRunner {

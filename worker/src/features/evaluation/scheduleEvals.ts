@@ -9,17 +9,15 @@ import type { ObservationForEval } from "./observationEval/types";
 import type { EvalRules } from "./fetchEvalRules";
 import { scheduleTraceTranscriptEvals } from "./traceTranscriptEval/scheduleTraceTranscriptEvals";
 import { prepareTraceBatchRules } from "../traceBatching/traceBatchRules";
-import { recordTraceRuleMatches } from "../traceBatching/traceRuleRecording";
-
-type TraceActivity = {
-  traceId: string;
-  startTimeISO: string;
-  ruleIds: string[];
-};
+import {
+  recordTraceActivity,
+  type TraceSpanActivity,
+} from "../traceBatching/traceRuleRecording";
 
 /** Create once per batch; prepare trace rules once and flush collected activity together. */
 export function createEvalSchedulerDeps(projectId: string, rules: EvalRules) {
-  const traceEvents: TraceActivity[] = [];
+  // This buffer belongs to one ingestion invocation, which awaits its flush before returning.
+  const traceActivity: TraceSpanActivity[] = [];
   const traceTranscriptRules = isTopicsProjectEnabled(projectId)
     ? prepareTraceBatchRules(projectId, rules.traceTranscriptRules).catch(
         (error) => {
@@ -36,13 +34,13 @@ export function createEvalSchedulerDeps(projectId: string, rules: EvalRules) {
   return {
     ...createObservationEvalSchedulerDeps(),
     traceTranscriptRules,
-    recordTraceActivity: (event: TraceActivity): void => {
-      traceEvents.push(event);
+    collectTraceActivity: (activity: TraceSpanActivity): void => {
+      traceActivity.push(activity);
     },
     flushTraceActivity: async (): Promise<void> => {
-      if (traceEvents.length === 0) return;
-      await recordTraceRuleMatches(projectId, traceEvents);
-      traceEvents.length = 0;
+      if (traceActivity.length === 0) return;
+      await recordTraceActivity(projectId, traceActivity);
+      traceActivity.length = 0;
     },
   };
 }
