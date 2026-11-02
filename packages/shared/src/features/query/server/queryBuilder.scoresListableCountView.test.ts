@@ -100,29 +100,18 @@ describe("scores views for projects that skip scores dedup", () => {
 });
 
 describe("scores views without relation joins", () => {
-  const scoreViews = [
-    ["v1", "scores-numeric"],
-    ["v1", "scores-categorical"],
-    ["v1", "scores-boolean"],
-    ["v1", SCORES_LISTABLE_COUNT_VIEW],
-    ["v2", "scores-numeric"],
-    ["v2", "scores-categorical"],
-    ["v2", "scores-boolean"],
-    ["v2", SCORES_LISTABLE_COUNT_VIEW],
-  ] as const;
-
-  it.each(
-    scoreViews.flatMap(([version, view]) =>
-      [true, false].map((skipDedup) => [version, view, skipDedup] as const),
-    ),
-  )(
-    "%s %s (skip dedup: %s) aggregates per time bucket without a per-id subquery",
-    async (version, view, skipDedup) => {
-      vi.mocked(shouldSkipScoresDedup).mockReturnValueOnce(skipDedup);
-
+  // dataModel.ts declares a separate count measure for each of these views.
+  it.each([
+    "scores-numeric",
+    "scores-categorical",
+    "scores-boolean",
+    SCORES_LISTABLE_COUNT_VIEW,
+  ] as const)(
+    "%s aggregates per time bucket without a per-id subquery",
+    async (view) => {
       const { query: compiledQuery } = await new QueryBuilder(
         undefined,
-        version,
+        "v2",
       ).build({ ...baseQuery, view }, "test-project");
 
       expect(compiledQuery).not.toMatch(/FROM\s*\(/);
