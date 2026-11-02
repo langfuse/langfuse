@@ -13,17 +13,21 @@ export async function clearGatewayIngestionProject(params: {
   projectId: string;
   session: OrgAuthedContext["session"];
 }) {
-  const before = await params.tx.gatewayConfig.findFirst({
-    where: {
-      organizationId: params.organizationId,
-      defaultIngestionProjectId: params.projectId,
-    },
-  });
+  const where = {
+    organizationId: params.organizationId,
+    defaultIngestionProjectId: params.projectId,
+  };
+  const before = await params.tx.gatewayConfig.findFirst({ where });
   if (!before) return;
 
-  const after = await params.tx.gatewayConfig.update({
-    where: { organizationId: params.organizationId },
+  // Conditional so a concurrently selected replacement project is not cleared.
+  const { count } = await params.tx.gatewayConfig.updateMany({
+    where,
     data: { defaultIngestionProjectId: null },
+  });
+  if (count === 0) return;
+  const after = await params.tx.gatewayConfig.findUnique({
+    where: { organizationId: params.organizationId },
   });
   await auditLog(
     {

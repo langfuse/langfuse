@@ -4,6 +4,7 @@ import { createHash, generateKeyPairSync, randomUUID } from "node:crypto";
 import type { Session } from "next-auth";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import * as SharedServer from "@langfuse/shared/src/server";
+import type * as BillingServer from "@/src/ee/features/billing/server";
 import { z } from "zod/v4";
 
 const { addNotificationJobs, getNotificationJob } = vi.hoisted(() => ({
@@ -28,6 +29,17 @@ vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
       }),
     },
   };
+});
+
+// organizations.delete cancels Stripe on Cloud, which the test env cannot reach.
+const { isCloudBillingEnabled } = vi.hoisted(() => ({
+  isCloudBillingEnabled: vi.fn<() => boolean>(),
+}));
+
+vi.mock("@/src/ee/features/billing/server", async (importOriginal) => {
+  const actual = await importOriginal<typeof BillingServer>();
+  isCloudBillingEnabled.mockImplementation(actual.isCloudBillingEnabled);
+  return { ...actual, isCloudBillingEnabled };
 });
 
 function queuedNotifications(): SharedServer.NotificationEventType[] {
@@ -2375,7 +2387,7 @@ describe("AI gateway control plane", () => {
       projectOwnerWithoutGatewayManage.projects.delete({
         projectId: project.id,
       }),
-    ).rejects.toThrow("user does not have access");
+    ).rejects.toMatchObject({ code: "FORBIDDEN" });
 
     await expect(
       caller.projects.deletionProtection({ projectId: project.id }),
@@ -2392,6 +2404,7 @@ describe("AI gateway control plane", () => {
 
     // The project delete worker hard-deletes soft-deleted projects.
     await prisma.project.delete({ where: { id: project.id } });
+    isCloudBillingEnabled.mockReturnValueOnce(false);
     await expect(caller.organizations.delete({ orgId: org.id })).resolves.toBe(
       true,
     );
