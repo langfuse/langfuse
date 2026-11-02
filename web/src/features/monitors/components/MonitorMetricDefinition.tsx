@@ -30,7 +30,7 @@ import { aggregationLabel } from "../helpers/renderMonitorLabels";
 /** countMeasure is the row-count measure, shown as "All" and only offered with the count aggregation. */
 const countMeasure = "count";
 
-/** MonitorMetricDefinition picks a monitor's metric as "[aggregation]", then "[view] [measure]", then filters. */
+/** MonitorMetricDefinition picks a monitor's metric as "[view]", then "[aggregation] [measure]", then filters. */
 export const MonitorMetricDefinition = ({
   form,
   view,
@@ -85,18 +85,15 @@ export const MonitorMetricDefinition = ({
         <div className="flex items-start gap-1.5">
           <FormField
             control={form.control}
-            name="metric.aggregation"
+            name="view"
             render={({ field }) => (
               <FormItem className="min-w-0 flex-1 space-y-0">
                 <FormControl>
                   <SelectDropdown
-                    value={field.value}
-                    onValueChange={changeAggregation}
-                    options={[...measuresByAggregation.keys()].map((a) => ({
-                      value: a,
-                      label: aggregationLabel(a),
-                    }))}
-                    aria-label="Aggregation"
+                    value={field.value as MonitorView}
+                    onValueChange={changeView}
+                    options={MonitorViewSchema.options.map(viewOption)}
+                    aria-label="View"
                     disabled={disabled}
                   >
                     {({ getTriggerProps, selectedLabel }) => (
@@ -114,15 +111,18 @@ export const MonitorMetricDefinition = ({
         <CompactConnectorRow indent="field" align="start">
           <FormField
             control={form.control}
-            name="view"
+            name="metric.aggregation"
             render={({ field }) => (
               <FormItem className="min-w-0 flex-1 space-y-0">
                 <FormControl>
                   <SelectDropdown
-                    value={field.value as MonitorView}
-                    onValueChange={changeView}
-                    options={MonitorViewSchema.options.map(viewOption)}
-                    aria-label="View"
+                    value={field.value}
+                    onValueChange={changeAggregation}
+                    options={[...measuresByAggregation.keys()].map((a) => ({
+                      value: a,
+                      label: aggregationLabel(a),
+                    }))}
+                    aria-label="Aggregation"
                     disabled={disabled}
                   >
                     {({ getTriggerProps, selectedLabel }) => (
