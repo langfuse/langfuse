@@ -10,8 +10,7 @@ The Langfuse docs own this content. These builders are a condensed copy:
 - Claude Code: https://langfuse.com/docs/ai-gateway/coding-agents/claude-code
 - Codex: https://langfuse.com/docs/ai-gateway/coding-agents/codex
 - OpenCode: https://langfuse.com/docs/ai-gateway/coding-agents/opencode
-- GitHub Copilot CLI and app:
-  https://langfuse.com/docs/ai-gateway/coding-agents/github-copilot
+- GitHub Copilot CLI and app: https://langfuse.com/docs/ai-gateway/coding-agents/github-copilot
 
 Change the docs first (`langfuse/langfuse-docs`), then mirror the change here.
 Do not add steps, paths or env vars that the docs do not describe.
