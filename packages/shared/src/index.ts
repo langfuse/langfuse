@@ -101,6 +101,7 @@ export * from "./features/prompts/constants";
 export * from "./features/skills/types";
 export * from "./features/skills/trace";
 export * from "./features/skills/constants";
+export * from "./features/skills/toolArguments";
 
 // ai gateway
 export * from "./features/ai-gateway/constants";

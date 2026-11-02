@@ -385,6 +385,7 @@ export function IOPreviewPretty({
       ? Array.from(skillGroups.values(), ({ skill }) => skill)
       : [],
     toolCallsByName,
+    parsedMetadata,
   );
   const requestedSkillGroups = Array.from(skillGroups.values()).filter(
     ({ skill }) => skillLoadRequests.has(skill),
