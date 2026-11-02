@@ -1,6 +1,7 @@
 import { useState } from "react";
 
 import Header from "@/src/components/layouts/header";
+import { Button } from "@/src/components/design-system/Button/Button";
 import { GatewayCredentialsOverview } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/GatewayCredentialsOverview/GatewayCredentialsOverview";
 import { ConnectedGatewaySetupGuide } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/ConnectedGatewaySetupGuide";
 import { GATEWAY_SETUP } from "@/src/features/ai-gateway/components/GatewaySetupPage/constants/gatewaySetup";
@@ -53,7 +54,12 @@ export function GatewaySetupContent({
       <div>
         <Header title={GATEWAY_SETUP.title} />
         <p className="text-muted-foreground text-sm">
-          {GATEWAY_SETUP.description}
+          {GATEWAY_SETUP.description}{" "}
+          <Button
+            variant="text"
+            text="How to set up the gateway"
+            href={GATEWAY_SETUP.docsUrl}
+          />
         </p>
       </div>
       <ConnectedGatewaySetupGuide
