@@ -48,32 +48,17 @@ function WebhookUrlField({
   form: UseFormReturn<MonitorAutomationFormValues>;
 }) {
   return (
-    <Form.Field
+    <Form.InputField
       control={form.control}
       name="webhook.url"
       label="Webhook URL"
       description="Called whenever the severity changes."
-    >
-      {(field) => (
-        <Input
-          id={field.id}
-          name={field.name}
-          value={field.value}
-          onChange={(event) =>
-            field.onChange(stripUrlScheme(event.target.value))
-          }
-          onBlur={field.onBlur}
-          ref={field.ref}
-          prefix={{ label: "POST" }}
-          valuePrefix="https://"
-          inputMode="url"
-          placeholder="example.com/webhook"
-          aria-describedby={field.inputDescribedById}
-          aria-invalid={!!field.error}
-          error={!!field.error}
-        />
-      )}
-    </Form.Field>
+      transformValue={stripUrlScheme}
+      prefix={{ label: "POST" }}
+      valuePrefix="https://"
+      inputMode="url"
+      placeholder="example.com/webhook"
+    />
   );
 }
 

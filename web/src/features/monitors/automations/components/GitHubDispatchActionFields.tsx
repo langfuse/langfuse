@@ -3,7 +3,6 @@ import { type UseFormReturn } from "react-hook-form";
 import { Form } from "@/src/components/design-system/Form/Form";
 import { type MonitorAutomationFormValues } from "../helpers/monitorAutomationFormSchema";
 import { stripUrlScheme } from "../helpers/stripUrlScheme";
-import { Input } from "@/src/components/design-system/Input/Input";
 
 const dispatchDocsUrl =
   "https://docs.github.com/en/rest/repos/repos#create-a-repository-dispatch-event";
@@ -18,10 +17,14 @@ export function GitHubDispatchActionFields({
 }) {
   return (
     <>
-      <Form.Field
+      <Form.InputField
         control={form.control}
         name="githubDispatch.url"
         label="Repository dispatch URL"
+        transformValue={stripUrlScheme}
+        valuePrefix="https://"
+        inputMode="url"
+        placeholder="api.github.com/repos/owner/repo/dispatches"
         description={[
           {
             type: "text",
@@ -29,26 +32,7 @@ export function GitHubDispatchActionFields({
           },
           { type: "link", text: "Learn more", href: dispatchDocsUrl },
         ]}
-      >
-        {(field) => (
-          <Input
-            id={field.id}
-            name={field.name}
-            value={field.value}
-            onChange={(event) =>
-              field.onChange(stripUrlScheme(event.target.value))
-            }
-            onBlur={field.onBlur}
-            ref={field.ref}
-            valuePrefix="https://"
-            inputMode="url"
-            placeholder="api.github.com/repos/owner/repo/dispatches"
-            aria-describedby={field.inputDescribedById}
-            aria-invalid={!!field.error}
-            error={!!field.error}
-          />
-        )}
-      </Form.Field>
+      />
       <Form.InputField
         control={form.control}
         name="githubDispatch.eventType"

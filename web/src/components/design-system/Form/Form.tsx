@@ -91,6 +91,7 @@ function FormInputField<
   registerLabelTooltip,
   required,
   "aria-describedby": describedBy,
+  transformValue,
   ...inputProps
 }: Omit<FormFieldProps<TFieldValues, TName, TTransformedValues>, "children"> &
   Omit<
@@ -104,7 +105,10 @@ function FormInputField<
     | "ref"
     | "error"
     | "aria-invalid"
-  >) {
+  > & {
+    /** Normalizes incoming text before updating form state. */
+    transformValue?: (value: string) => string;
+  }) {
   return (
     <FormField
       control={control}
@@ -120,7 +124,10 @@ function FormInputField<
           id={field.id}
           name={field.name}
           value={field.value}
-          onChange={field.onChange}
+          onChange={(event) => {
+            const value = event.target.value;
+            field.onChange(transformValue ? transformValue(value) : value);
+          }}
           onBlur={field.onBlur}
           ref={field.ref}
           required={required}

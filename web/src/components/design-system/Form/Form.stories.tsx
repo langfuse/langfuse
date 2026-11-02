@@ -74,6 +74,46 @@ export const Submits = meta.story({
 
 const selectSubmit = fn();
 
+const transformedSubmit = fn();
+
+function TransformedInputFieldExample() {
+  const form = useForm<{ code: string }>({ defaultValues: { code: "" } });
+  return (
+    <Form
+      onSubmit={form.handleSubmit(transformedSubmit)}
+      actions={[{ id: "save", type: "submit", text: "Save" }]}
+    >
+      <Form.InputField
+        control={form.control}
+        name="code"
+        label="Code"
+        transformValue={(value) => value.toUpperCase()}
+      />
+    </Form>
+  );
+}
+
+export const TransformedInputField = meta.story({
+  name: "(Test) Input value transformation",
+  render: () => <TransformedInputFieldExample />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const input = canvas.getByLabelText("Code");
+    transformedSubmit.mockClear();
+    await userEvent.type(input, "abc");
+    await expect(input).toHaveValue("ABC");
+    await userEvent.clear(input);
+    await expect(input).toHaveValue("");
+    await userEvent.paste("def");
+    await expect(input).toHaveValue("DEF");
+    await userEvent.click(canvas.getByRole("button", { name: "Save" }));
+    await expect(transformedSubmit).toHaveBeenCalledWith(
+      { code: "DEF" },
+      expect.anything(),
+    );
+  },
+});
+
 const passwordSubmit = fn();
 
 function PasswordInputFieldExample() {
