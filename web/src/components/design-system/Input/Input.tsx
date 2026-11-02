@@ -1,6 +1,46 @@
 import { type ComponentProps, type InputHTMLAttributes, type Ref } from "react";
-import { cn } from "@/src/utils/tailwind";
+import { cva } from "class-variance-authority";
 import { InputControl } from "../internal/InputControl/InputControl";
+
+const inputVariants = cva(
+  "placeholder:text-muted-foreground text-sm disabled:cursor-not-allowed",
+  {
+    variants: {
+      valuePrefixed: {
+        true: "h-full min-w-0 flex-1 border-0 bg-transparent p-0 shadow-none outline-hidden focus:ring-0",
+        false: null,
+      },
+      layout: {
+        block: null,
+        inline: "field-sizing-content",
+      },
+    },
+  },
+);
+
+const valuePrefixControlVariants = cva(
+  "flex min-w-0 cursor-text items-center overflow-hidden px-3",
+  {
+    variants: {
+      standalone: {
+        true: "focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2",
+        false: null,
+      },
+      error: {
+        true: null,
+        false: null,
+      },
+    },
+    compoundVariants: [
+      {
+        standalone: true,
+        error: true,
+        className:
+          "focus-within:ring-destructive/40 focus-within:ring-offset-0",
+      },
+    ],
+  },
+);
 
 type InputProps = Pick<
   InputHTMLAttributes<HTMLInputElement>,
@@ -58,37 +98,52 @@ export function Input({
   disabled,
   ...props
 }: InputProps) {
-  const input = (
-    <input
-      {...props}
-      className={cn(
-        valuePrefix !== undefined &&
-          "placeholder:text-muted-foreground h-full min-w-0 flex-1 border-0 bg-transparent p-0 text-sm shadow-none outline-hidden focus:ring-0 disabled:cursor-not-allowed",
-        layout === "inline" && "field-sizing-content",
-      )}
-      {...(!allowPasswordManager && { "data-1p-ignore": true })}
-      ref={ref}
-      disabled={disabled}
-    />
-  );
+  if (valuePrefix === undefined) {
+    return (
+      <InputControl
+        contentLayout="text"
+        error={error}
+        disabled={disabled}
+        prefix={prefix}
+      >
+        <input
+          {...props}
+          className={inputVariants({ valuePrefixed: false, layout })}
+          {...(!allowPasswordManager && { "data-1p-ignore": true })}
+          ref={ref}
+          disabled={disabled}
+        />
+      </InputControl>
+    );
+  }
 
   return (
     <InputControl
-      contentLayout={valuePrefix !== undefined ? "composite" : "text"}
+      contentLayout="none"
       error={error}
       disabled={disabled}
       prefix={prefix}
     >
-      {valuePrefix !== undefined ? (
-        <div>
-          <span className="text-foreground-secondary shrink-0 pr-0.5">
-            {valuePrefix}
-          </span>
-          {input}
-        </div>
-      ) : (
-        input
-      )}
+      <div
+        className={valuePrefixControlVariants({ error, standalone: !prefix })}
+        onMouseDown={(event) => {
+          const input = event.currentTarget.querySelector("input");
+          if (event.target === input) return;
+          event.preventDefault();
+          input?.focus();
+        }}
+      >
+        <span className="text-foreground-secondary shrink-0 pr-0.5">
+          {valuePrefix}
+        </span>
+        <input
+          {...props}
+          className={inputVariants({ valuePrefixed: true, layout })}
+          {...(!allowPasswordManager && { "data-1p-ignore": true })}
+          ref={ref}
+          disabled={disabled}
+        />
+      </div>
     </InputControl>
   );
 }
