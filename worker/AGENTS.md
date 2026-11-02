@@ -61,8 +61,8 @@
 - Trace-rule recording: `src/features/traceBatching/traceBatchRules.ts` matches
   enriched observations at the OTel evaluation stage;
   `src/features/traceBatching/traceRuleRecording.ts`
-  atomically records `bounds`, `dispatch`, and `due` in a separate shard namespace.
-  Recording uses the existing cloud Topics project gate. Dispatch contains only
+  atomically records `bounds`, `record`, and `due` in a separate shard namespace.
+  Recording uses the existing cloud Topics project gate. Each record contains only
   revision, selected rules, and failed_cnt; selections are not consumed yet.
   Bounds expire 24 hours after the latest arrival, pending selections two hours
   past due, using the existing retention settings. The dispatcher scans bounds

@@ -12,7 +12,7 @@ const CLEANUP_SIZE = 100;
 
 function getRecordingKeys(shard: number) {
   const tag = `{trace-dispatch:${shard}}`;
-  return [`${tag}:bounds`, `${tag}:dispatch`, `${tag}:due`];
+  return [`${tag}:bounds`, `${tag}:record`, `${tag}:due`];
 }
 
 const RECORD_SCRIPT = `
@@ -21,7 +21,7 @@ const RECORD_SCRIPT = `
   local due = now + tonumber(ARGV[1])
   local boundsExpiry = now + tonumber(ARGV[2])
   local pendingTtl = tonumber(ARGV[3])
-  local wroteDispatch = false
+  local wroteRecord = false
   for i = 4, #ARGV, 5 do
     local member = ARGV[i]
     local minStart = tonumber(ARGV[i + 1])
@@ -39,18 +39,18 @@ const RECORD_SCRIPT = `
       minStart = minStart, maxStart = maxStart, expiresAt = boundsExpiry
     }))
 
-    local previousDispatch = redis.call('HGET', KEYS[2], member)
-    local dispatch = previousDispatch and cjson.decode(previousDispatch)
+    local previousRecord = redis.call('HGET', KEYS[2], member)
+    local record = previousRecord and cjson.decode(previousRecord)
     local priorDue = tonumber(redis.call('ZSCORE', KEYS[3], member))
-    if (dispatch or priorDue) and (not priorDue or priorDue + pendingTtl <= now) then
-      dispatch = nil
+    if (record or priorDue) and (not priorDue or priorDue + pendingTtl <= now) then
+      record = nil
       redis.call('HDEL', KEYS[2], member)
       redis.call('ZREM', KEYS[3], member)
     end
-    if dispatch or #incomingRules > 0 then
+    if record or #incomingRules > 0 then
       local rules = {}
       local seen = {}
-      for _, id in ipairs(dispatch and dispatch.rules or {}) do
+      for _, id in ipairs(record and record.rules or {}) do
         if not seen[id] then table.insert(rules, id); seen[id] = true end
       end
       for _, id in ipairs(incomingRules) do
@@ -58,10 +58,10 @@ const RECORD_SCRIPT = `
       end
       redis.call('HSET', KEYS[2], member, cjson.encode({
         revision = ARGV[i + 3], rules = rules,
-        failed_cnt = dispatch and dispatch.failed_cnt or 0
+        failed_cnt = record and record.failed_cnt or 0
       }))
       redis.call('ZADD', KEYS[3], due, member)
-      wroteDispatch = true
+      wroteRecord = true
     end
   end
   -- Whole-key expiry reclaims inactive shards without shortening another trace's deadline.
@@ -71,7 +71,7 @@ const RECORD_SCRIPT = `
     end
   end
   extendExpiry(KEYS[1], boundsExpiry)
-  if wroteDispatch then
+  if wroteRecord then
     extendExpiry(KEYS[2], due + pendingTtl)
     extendExpiry(KEYS[3], due + pendingTtl)
   end

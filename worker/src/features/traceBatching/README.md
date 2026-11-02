@@ -15,7 +15,7 @@ keyed by JSON `[projectId, traceId]`. These selections are not consumed yet.
 | Map | Contents | Retention |
 | --- | --- | --- |
 | `bounds` | `{ minStart, maxStart, expiresAt }`, including observations before a match. | 24 hours after the latest arrival. |
-| `dispatch` | Only `{ revision, rules, failed_cnt }`; rule IDs are deduplicated. | Two hours past due. |
+| `record` | Only `{ revision, rules, failed_cnt }`; rule IDs are deduplicated. | Two hours past due. |
 | `due` | Selected traces ordered by Redis arrival time plus project idle interval. | Two hours past due. |
 
 After scheduling existing work, each dispatcher pass scans `bounds` and cleans

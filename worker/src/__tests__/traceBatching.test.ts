@@ -585,7 +585,7 @@ describe("trace micro-batch scheduling with Redis", () => {
   const { due: dueKey, state: stateKey } = getTraceBatchReadinessKeys(0);
   const recordingKeys = {
     bounds: "{trace-dispatch:0}:bounds",
-    dispatch: "{trace-dispatch:0}:dispatch",
+    record: "{trace-dispatch:0}:record",
     due: "{trace-dispatch:0}:due",
   };
   const originalEnabled = env.LANGFUSE_TRACE_BATCH_INGESTION_ENABLED;
@@ -727,14 +727,14 @@ describe("trace micro-batch scheduling with Redis", () => {
     expect(
       JSON.parse((await client().hget(recordingKeys.bounds, identity))!),
     ).toMatchObject({ minStart: 2_000_000, maxStart: 2_000_000 });
-    expect(await client().hget(recordingKeys.dispatch, identity)).toBeNull();
+    expect(await client().hget(recordingKeys.record, identity)).toBeNull();
     expect(await client().zscore(recordingKeys.due, identity)).toBeNull();
 
     await recordTraceRuleMatches("project", [
       { ...event("recorded", 3_000_000), ruleIds: ["new-rule"] },
     ]);
     expect(
-      JSON.parse((await client().hget(recordingKeys.dispatch, identity))!),
+      JSON.parse((await client().hget(recordingKeys.record, identity))!),
     ).toEqual({
       revision: expect.any(String),
       rules: ["new-rule"],
@@ -782,7 +782,7 @@ describe("trace micro-batch scheduling with Redis", () => {
     env.LANGFUSE_TRACE_BATCH_INGESTION_ENABLED = "false";
     topicsProjects.clear();
     await runner().processBatch();
-    expect(await client().hkeys(recordingKeys.dispatch)).toEqual([
+    expect(await client().hkeys(recordingKeys.record)).toEqual([
       member("project", "refreshed"),
     ]);
     expect(await client().zrange(recordingKeys.due, 0, -1)).toEqual([
@@ -818,7 +818,7 @@ describe("trace micro-batch scheduling with Redis", () => {
       deadline,
     );
     expect(
-      Number(await client().call("PEXPIRETIME", recordingKeys.dispatch)),
+      Number(await client().call("PEXPIRETIME", recordingKeys.record)),
     ).toBe(deadline);
     await vi.waitFor(async () => {
       expect(await client().exists(...Object.values(recordingKeys))).toBe(0);
