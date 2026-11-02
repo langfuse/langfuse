@@ -2,6 +2,7 @@ import { type Prisma, type ProjectMembership, type Role } from "@prisma/client";
 
 import { LangfuseNotFoundError } from "../../errors";
 import { withTransaction } from "../../server/utils/withTransaction";
+import { invalidateCachedUserApiKeys } from "../../server/auth/invalidateApiKeys";
 import { rethrowIfMembershipExists } from "./rethrowIfMembershipExists";
 import {
   replaceRolesForPrincipal,
@@ -21,7 +22,7 @@ export async function saveProjectMembership(
   prisma: Prisma.TransactionClient,
   { orgId, ...data }: ProjectMembershipInput,
 ): Promise<ProjectMembership> {
-  return await withTransaction(prisma, async (tx) => {
+  const membership = await withTransaction(prisma, async (tx) => {
     await assertProjectInOrg(tx, { orgId, projectId: data.projectId });
     const membership = await tx.projectMembership.upsert({
       where: {
@@ -33,6 +34,8 @@ export async function saveProjectMembership(
     await replaceProjectRole(tx, { ...membership, orgId });
     return membership;
   });
+  await invalidateCachedUserApiKeys(prisma, { orgId, userId: data.userId });
+  return membership;
 }
 
 /** createProjectMembership creates a project membership, failing on duplicates, and mirrors it into role assignments. */
@@ -78,7 +81,7 @@ export async function deleteProjectMembership(
     userId,
   }: { orgId: string; projectId: string; userId: string },
 ): Promise<ProjectMembership> {
-  return await withTransaction(prisma, async (tx) => {
+  const membership = await withTransaction(prisma, async (tx) => {
     const membership = await tx.projectMembership.delete({
       where: { projectId_userId: { projectId, userId } },
     });
@@ -89,6 +92,8 @@ export async function deleteProjectMembership(
     });
     return membership;
   });
+  await invalidateCachedUserApiKeys(prisma, { orgId, userId });
+  return membership;
 }
 
 /** deleteProjectMemberships deletes every membership on a project and revokes their role assignments. */

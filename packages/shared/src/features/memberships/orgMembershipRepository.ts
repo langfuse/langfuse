@@ -5,6 +5,7 @@ import {
 } from "@prisma/client";
 
 import { withTransaction } from "../../server/utils/withTransaction";
+import { invalidateCachedUserApiKeys } from "../../server/auth/invalidateApiKeys";
 import { rethrowIfMembershipExists } from "./rethrowIfMembershipExists";
 import {
   replaceRolesForPrincipal,
@@ -22,7 +23,7 @@ export async function saveOrgMembership(
   prisma: Prisma.TransactionClient,
   { orgId, userId, role }: { orgId: string; userId: string; role: Role },
 ): Promise<OrganizationMembership> {
-  return await withTransaction(prisma, async (tx) => {
+  const membership = await withTransaction(prisma, async (tx) => {
     const membership = await tx.organizationMembership.upsert({
       where: { orgId_userId: { orgId, userId } },
       update: { role },
@@ -31,6 +32,8 @@ export async function saveOrgMembership(
     await replaceOrgRole(tx, membership);
     return membership;
   });
+  await invalidateCachedUserApiKeys(prisma, { orgId, userId });
+  return membership;
 }
 
 /** updateOrgMembership changes an existing organization membership's role, failing when it is missing, and mirrors it into role assignments. */
@@ -38,7 +41,7 @@ export async function updateOrgMembership(
   prisma: Prisma.TransactionClient,
   { orgId, userId, role }: { orgId: string; userId: string; role: Role },
 ): Promise<OrganizationMembership> {
-  return await withTransaction(prisma, async (tx) => {
+  const membership = await withTransaction(prisma, async (tx) => {
     const membership = await tx.organizationMembership.update({
       where: { orgId_userId: { orgId, userId } },
       data: { role },
@@ -46,6 +49,8 @@ export async function updateOrgMembership(
     await replaceOrgRole(tx, membership);
     return membership;
   });
+  await invalidateCachedUserApiKeys(prisma, { orgId, userId });
+  return membership;
 }
 
 /** createOrgMembership creates an organization membership, failing on duplicates, and mirrors it into role assignments. */

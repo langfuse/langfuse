@@ -166,13 +166,6 @@ export class ApiAuthService {
               logger.info(`Expired api key: ${finalApiKey.publicKey}`);
               throw new UnauthorizedError("Invalid credentials");
             }
-            // This path cannot check a user key against its user's current
-            // roles, so it would grant the key organization access even after
-            // the user is demoted.
-            if (finalApiKey.userId) {
-              logger.info(`User-bound api key: ${finalApiKey.publicKey}`);
-              throw new UnauthorizedError("Invalid credentials");
-            }
             const plan = finalApiKey.plan;
 
             if (!isPlan(plan)) {
