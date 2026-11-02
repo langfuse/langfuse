@@ -10,7 +10,7 @@ import { stripUrlScheme } from "../helpers/stripUrlScheme";
 import { FieldHelp } from "./FieldHelp";
 import { FieldWithHelp } from "./FieldWithHelp";
 import { HelpLink } from "./HelpLink";
-import { PrefixedInput } from "@/src/components/design-system/PrefixedInput/PrefixedInput";
+import { Input } from "@/src/components/design-system/Input/Input";
 
 const dispatchDocsUrl =
   "https://docs.github.com/en/rest/repos/repos#create-a-repository-dispatch-event";
@@ -36,7 +36,7 @@ export function GitHubDispatchActionFields({
           label="Repository dispatch URL"
         >
           {(field) => (
-            <PrefixedInput
+            <Input
               id={field.id}
               name={field.name}
               value={field.value}
@@ -45,7 +45,7 @@ export function GitHubDispatchActionFields({
               }
               onBlur={field.onBlur}
               ref={field.ref}
-              prefix="https://"
+              valuePrefix="https://"
               inputMode="url"
               placeholder="api.github.com/repos/owner/repo/dispatches"
               aria-describedby={describedBy(

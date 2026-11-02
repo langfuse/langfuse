@@ -11,7 +11,7 @@ const inputControlVariants = cva(
         none: null,
         text: "min-w-14 px-3 py-2",
         spread: "flex min-w-0 items-center justify-between gap-1 px-3 py-2",
-        prefixed:
+        composite:
           "flex min-w-0 cursor-text items-center overflow-hidden focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2",
       },
       trailingAction: {
@@ -32,7 +32,7 @@ const inputControlVariants = cva(
     },
     compoundVariants: [
       {
-        contentLayout: "prefixed",
+        contentLayout: "composite",
         error: true,
         className:
           "focus-within:ring-destructive/40 focus-within:ring-offset-0",
@@ -43,13 +43,14 @@ const inputControlVariants = cva(
 
 type InputControlProps = Omit<
   ComponentPropsWithoutRef<typeof Slot>,
-  "className"
+  "className" | "prefix"
 > & {
-  contentLayout: "none" | "text" | "spread";
+  contentLayout: "none" | "text" | "spread" | "composite";
   error?: boolean;
   disabled?: boolean;
-  prefix?: string;
-  addon?: string;
+  prefix?:
+    | { label: string; icon?: IconComponent }
+    | { label?: never; icon: IconComponent };
   trailingAction?: {
     label: string;
     icon: IconComponent;
@@ -60,7 +61,7 @@ type InputControlProps = Omit<
 };
 
 /**
- * Owns shared form-control styling and optional prefix, addon, and action layout.
+ * Owns shared form-control styling and optional prefix and action layout.
  * Specialized inputs own the interactive child's behavior.
  */
 export function InputControl({
@@ -69,12 +70,12 @@ export function InputControl({
   disabled,
   trailingAction,
   prefix,
-  addon,
   ...props
 }: InputControlProps) {
-  const hasPrefix = prefix !== undefined || addon !== undefined;
+  const isComposite = prefix !== undefined || contentLayout === "composite";
+  const PrefixIcon = prefix?.icon;
   const controlClassName = inputControlVariants({
-    contentLayout: hasPrefix ? "prefixed" : contentLayout,
+    contentLayout: isComposite ? "composite" : contentLayout,
     error,
     disabled,
     trailingAction: Boolean(trailingAction),
@@ -82,14 +83,14 @@ export function InputControl({
   const input = (
     <Slot
       className={
-        hasPrefix
-          ? "placeholder:text-muted-foreground h-full min-w-0 flex-1 border-0 bg-transparent py-0 pr-3 pl-0 text-sm shadow-none outline-hidden focus:ring-0 disabled:cursor-not-allowed"
+        isComposite
+          ? "placeholder:text-muted-foreground flex h-full min-w-0 flex-1 items-center border-0 bg-transparent px-3 py-0 text-sm shadow-none outline-hidden focus:ring-0 disabled:cursor-not-allowed"
           : controlClassName
       }
       {...props}
     />
   );
-  const control = hasPrefix ? (
+  const control = isComposite ? (
     <div
       className={controlClassName}
       onMouseDown={(event) => {
@@ -99,14 +100,14 @@ export function InputControl({
         input?.focus();
       }}
     >
-      {addon && (
-        <span className="bg-muted text-muted-foreground border-input flex h-full shrink-0 items-center border-r px-2.5 font-mono text-xs">
-          {addon}
+      {prefix && (
+        <span className="bg-muted text-muted-foreground border-input flex h-full shrink-0 items-center gap-1.5 border-r px-2.5 font-mono text-xs">
+          {PrefixIcon && (
+            <PrefixIcon aria-hidden="true" size="base" color="muted" />
+          )}
+          {prefix.label}
         </span>
       )}
-      <span className="text-foreground-secondary shrink-0 pr-0.5 pl-3">
-        {prefix}
-      </span>
       {input}
     </div>
   ) : (
