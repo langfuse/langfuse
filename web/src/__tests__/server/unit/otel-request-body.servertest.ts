@@ -38,6 +38,10 @@ vi.mock("@langfuse/shared/src/server", () => ({
   recordIncrement: vi.fn(),
   redis: { disconnect: vi.fn(), status: "end" },
   validateOtelSpanIds: vi.fn(),
+  classifyLangfuseOtelSdkFromHeaders: () => ({ action: "allow" as const }),
+  legacyLangfuseSdkScopeRejection: () => null,
+  sanitizeSdkMetricTagValue: (value: string | null | undefined) =>
+    value || "unknown",
 }));
 
 import {
