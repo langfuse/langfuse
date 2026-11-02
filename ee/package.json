@@ -1,6 +1,7 @@
 {
   "name": "@langfuse/ee",
   "version": "1.0.0",
+  "license": "LicenseRef-Langfuse-Enterprise",
   "private": true,
   "main": "./dist/src/index.js",
   "types": "./dist/src/index.d.ts",
