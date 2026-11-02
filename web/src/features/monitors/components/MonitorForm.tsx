@@ -551,6 +551,7 @@ export const MonitorForm = ({
                         <FormControl>
                           <ThresholdInput
                             unit={thresholdUnitLabel}
+                            placeholder="0"
                             value={field.value ?? ""}
                             onChange={(e) => {
                               const raw = e.target.value;
