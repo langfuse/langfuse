@@ -7,7 +7,7 @@ const badgeBaseClassName =
 
 /** severityVariantClassName maps each MonitorSeverity to its base badge chrome. */
 const severityVariantClassName: Record<MonitorSeverity, string> = {
-  UNKNOWN: "border-border text-foreground-secondary",
+  UNKNOWN: "border-transparent text-foreground-secondary",
   NO_DATA:
     "border-transparent bg-secondary text-secondary-foreground hover:bg-secondary/80",
   PAUSED:
