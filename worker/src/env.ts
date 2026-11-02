@@ -359,6 +359,8 @@ const EnvSchema = z.object({
     .int()
     .positive()
     .default(24 * 60 * 60),
+  // Deletes finished llm_batch_requests rows only; the batch input and output
+  // files in Cloud Storage need a bucket lifecycle rule.
   LANGFUSE_LLM_BATCH_RETENTION_DAYS: z.coerce
     .number()
     .int()

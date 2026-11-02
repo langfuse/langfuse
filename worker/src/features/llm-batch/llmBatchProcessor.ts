@@ -1,4 +1,5 @@
 import { Processor, type Queue } from "bullmq";
+import { JobExecutionStatus } from "@prisma/client";
 import { prisma } from "@langfuse/shared/src/db";
 import { decrypt } from "@langfuse/shared/encryption";
 import {
@@ -48,13 +49,26 @@ function resolveEvalQueue(queueName: string): Queue | null {
   return null;
 }
 
+/**
+ * Re-enqueues a deferred evaluation. Idempotent: the queue job id is stable
+ * per row, and an evaluation that is no longer DELAYED (it already ran, or
+ * was cancelled or deleted) is not enqueued again.
+ */
 async function resume(row: LlmBatchRow): Promise<void> {
   if (!row.resumeQueueName || !row.resumeJobName) return;
+  const jobExecution = await prisma.jobExecution.findUnique({
+    where: { id: row.jobExecutionId, projectId: row.projectId },
+    select: { status: true },
+  });
+  if (jobExecution?.status !== JobExecutionStatus.DELAYED) return;
+
   const queue = resolveEvalQueue(row.resumeQueueName);
   if (!queue) {
     throw new Error(`Unknown eval queue ${row.resumeQueueName}`);
   }
-  await queue.add(row.resumeJobName, row.resumeJobData);
+  await queue.add(row.resumeJobName, row.resumeJobData, {
+    jobId: `llm-batch-resume-${row.id}`,
+  });
 }
 
 export const llmBatchProcessor: Processor = async (job) => {

@@ -23,7 +23,10 @@ export type LlmBatchRow = Pick<
   | "resumeJobData"
 >;
 
-/** Claimed rows carry this prefix in providerJobId until their job exists. */
+/**
+ * Claimed rows carry this prefix plus the submission id in providerJobId
+ * until the provider job id is saved.
+ */
 export const CLAIM_PREFIX = "claim:";
 
 /**
@@ -52,7 +55,11 @@ export interface LlmBatchStore {
   pendingGroups(): Promise<
     { llmApiKeyId: string; model: string; count: number; oldest: Date }[]
   >;
-  /** Atomically claims up to `limit` pending rows of one group. */
+  /**
+   * Atomically claims up to `limit` pending rows of one group. The claim id
+   * is also the provider submission id, so a claim whose job id was never
+   * saved can be matched to its provider job later.
+   */
   claimPending(params: {
     llmApiKeyId: string;
     model: string;
@@ -64,9 +71,15 @@ export interface LlmBatchStore {
     providerJobId: string,
     at: Date,
   ): Promise<void>;
+  /** Returns the rows of a claim to PENDING. */
   releaseClaim(claimId: string): Promise<void>;
-  /** Returns claims older than `before` to PENDING (worker died mid-submit). */
-  releaseStaleClaims(before: Date): Promise<number>;
+  /**
+   * Claims last changed before `before`: the submit failed, or the worker
+   * died or lost the database between submit and saving the job id.
+   */
+  staleClaims(
+    before: Date,
+  ): Promise<{ claimId: string; llmApiKeyId: string }[]>;
 
   openProviderJobs(): Promise<{ providerJobId: string; llmApiKeyId: string }[]>;
   rowsOfProviderJob(providerJobId: string): Promise<LlmBatchRow[]>;
@@ -77,8 +90,18 @@ export interface LlmBatchStore {
   /** Open rows (pending or submitted) of a connection. */
   openRowsOfConnection(llmApiKeyId: string): Promise<LlmBatchRow[]>;
 
-  /** Atomically claims finished rows whose evaluation was not resumed yet. */
-  claimResumable(limit: number, at: Date): Promise<LlmBatchRow[]>;
+  /**
+   * Atomically claims finished rows whose evaluation was not resumed yet.
+   * A resume claim older than `staleBefore` (the worker died before
+   * `markResumed`) is claimed again.
+   */
+  claimResumable(params: {
+    limit: number;
+    at: Date;
+    staleBefore: Date;
+  }): Promise<LlmBatchRow[]>;
+  /** The resume job was enqueued. */
+  markResumed(id: string, at: Date): Promise<void>;
   unclaimResume(id: string): Promise<void>;
   deleteFinishedBefore(before: Date): Promise<number>;
 }
@@ -177,16 +200,26 @@ export function createPrismaLlmBatchStore(): LlmBatchStore {
       });
     },
 
-    releaseStaleClaims: async (before) => {
-      const res = await prisma.llmBatchRequest.updateMany({
+    staleClaims: async (before) => {
+      const claims = await prisma.llmBatchRequest.findMany({
         where: {
           status: LlmBatchRequestStatus.SUBMITTED,
           providerJobId: { startsWith: CLAIM_PREFIX },
           updatedAt: { lt: before },
         },
-        data: { status: LlmBatchRequestStatus.PENDING, providerJobId: null },
+        distinct: ["providerJobId"],
+        select: { providerJobId: true, llmApiKeyId: true },
       });
-      return res.count;
+      return claims.flatMap((c) =>
+        c.providerJobId
+          ? [
+              {
+                claimId: c.providerJobId.slice(CLAIM_PREFIX.length),
+                llmApiKeyId: c.llmApiKeyId,
+              },
+            ]
+          : [],
+      );
     },
 
     openProviderJobs: async () => {
@@ -242,22 +275,27 @@ export function createPrismaLlmBatchStore(): LlmBatchStore {
         take: 1000,
       }),
 
-    claimResumable: async (limit, at) => {
+    claimResumable: async ({ limit, at, staleBefore }) => {
       const candidates = await prisma.llmBatchRequest.findMany({
         where: {
           status: { in: FINISHED_STATUSES },
           resumedAt: null,
           resumeQueueName: { not: null },
+          OR: [
+            { resumeClaimedAt: null },
+            { resumeClaimedAt: { lt: staleBefore } },
+          ],
         },
         orderBy: { completedAt: "asc" },
         take: limit,
-        select: { id: true },
+        select: { id: true, resumeClaimedAt: true },
       });
       const claimed: LlmBatchRow[] = [];
-      for (const { id } of candidates) {
+      for (const { id, resumeClaimedAt } of candidates) {
+        // Conditional on the claim we read: two workers never both win.
         const res = await prisma.llmBatchRequest.updateMany({
-          where: { id, resumedAt: null },
-          data: { resumedAt: at },
+          where: { id, resumedAt: null, resumeClaimedAt },
+          data: { resumeClaimedAt: at },
         });
         if (res.count === 1) {
           const row = await prisma.llmBatchRequest.findUnique({
@@ -269,10 +307,17 @@ export function createPrismaLlmBatchStore(): LlmBatchStore {
       return claimed;
     },
 
-    unclaimResume: async (id) => {
+    markResumed: async (id, at) => {
       await prisma.llmBatchRequest.updateMany({
         where: { id },
-        data: { resumedAt: null },
+        data: { resumedAt: at },
+      });
+    },
+
+    unclaimResume: async (id) => {
+      await prisma.llmBatchRequest.updateMany({
+        where: { id, resumedAt: null },
+        data: { resumeClaimedAt: null },
       });
     },
 

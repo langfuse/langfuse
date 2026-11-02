@@ -291,18 +291,20 @@ export function createProductionEvalExecutionDeps(): EvalExecutionDeps {
         return result.output;
       };
 
-      if (
-        isBatchInferenceEnabled({
-          adapter: params.modelConfig.apiKey.adapter,
-          config: params.modelConfig.apiKey.config,
-          model: params.modelConfig.model,
-        })
-      ) {
+      // Always through the batch path when the call has a job execution: a
+      // call that already waits for a batch result must not run online, even
+      // if batch inference was turned off or the model changed since.
+      if (params.jobExecutionId) {
         return callLLMViaBatch({
           projectId: params.traceSinkParams.targetProjectId,
           jobExecutionId: params.jobExecutionId,
           llmApiKeyId: String(params.modelConfig.apiKey.id),
           model: params.modelConfig.model,
+          batchEnabled: isBatchInferenceEnabled({
+            adapter: params.modelConfig.apiKey.adapter,
+            config: params.modelConfig.apiKey.config,
+            model: params.modelConfig.model,
+          }),
           run,
           store: createPrismaLlmBatchStore(),
         });

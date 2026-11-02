@@ -1539,6 +1539,9 @@ export function CreateLLMApiKeyForm({
                             minutes to hours later. The service account of this
                             connection and Vertex AI need read and write access
                             to the bucket. Playground and test runs stay online.
+                            Langfuse does not delete the batch files; set a
+                            lifecycle rule on the bucket to remove them (e.g.
+                            after 7 days).
                           </FormDescription>
                           <FormControl>
                             <Input

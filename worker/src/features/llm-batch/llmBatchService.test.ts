@@ -16,6 +16,7 @@ type Row = LlmBatchRow & {
   submittedAt: Date | null;
   completedAt: Date | null;
   resumedAt: Date | null;
+  resumeClaimedAt: Date | null;
   updatedAt: Date;
 };
 
@@ -49,6 +50,7 @@ function createMemoryStore(clock: () => Date) {
         submittedAt: null,
         completedAt: null,
         resumedAt: null,
+        resumeClaimedAt: null,
         resumeQueueName: null,
         resumeJobName: null,
         resumeJobData: null,
@@ -117,22 +119,21 @@ function createMemoryStore(clock: () => Date) {
         }
       }
     },
-    releaseStaleClaims: async (before) => {
-      let n = 0;
+    staleClaims: async (before) => {
+      const claims = new Map<string, string>();
       for (const r of rows.values()) {
         if (
           r.status === LlmBatchRequestStatus.SUBMITTED &&
           r.providerJobId?.startsWith(CLAIM_PREFIX) &&
           r.updatedAt < before
         ) {
-          touch(r, {
-            status: LlmBatchRequestStatus.PENDING,
-            providerJobId: null,
-          });
-          n++;
+          claims.set(r.providerJobId.slice(CLAIM_PREFIX.length), r.llmApiKeyId);
         }
       }
-      return n;
+      return [...claims].map(([claimId, llmApiKeyId]) => ({
+        claimId,
+        llmApiKeyId,
+      }));
     },
     openProviderJobs: async () => {
       const jobs = new Map<string, string>();
@@ -185,17 +186,25 @@ function createMemoryStore(clock: () => Date) {
       [...rows.values()].filter(
         (r) => open(r) && r.llmApiKeyId === llmApiKeyId,
       ),
-    claimResumable: async (limit, at) => {
+    claimResumable: async ({ limit, at, staleBefore }) => {
       const claimed = [...rows.values()]
         .filter(
-          (r) => !open(r) && r.resumedAt === null && r.resumeQueueName !== null,
+          (r) =>
+            !open(r) &&
+            r.resumedAt === null &&
+            r.resumeQueueName !== null &&
+            (r.resumeClaimedAt === null || r.resumeClaimedAt < staleBefore),
         )
         .slice(0, limit);
-      for (const r of claimed) touch(r, { resumedAt: at });
+      for (const r of claimed) touch(r, { resumeClaimedAt: at });
       return claimed;
     },
+    markResumed: async (id, at) => {
+      touch(rows.get(id)!, { resumedAt: at });
+    },
     unclaimResume: async (id) => {
-      touch(rows.get(id)!, { resumedAt: null });
+      const r = rows.get(id)!;
+      if (r.resumedAt === null) touch(r, { resumeClaimedAt: null });
     },
     deleteFinishedBefore: async (before) => {
       let n = 0;
@@ -225,13 +234,14 @@ const REQUEST_BODY = {
 };
 
 /** Stands in for generateLlmEvaluatorOutput: one provider call via transport. */
-function createRun(url = GEMINI_URL) {
+function createRun(url = GEMINI_URL, body: unknown = REQUEST_BODY) {
   const calls: Parameters<RunWithTransport>[0][] = [];
   const run: RunWithTransport = async (params) => {
     calls.push(params);
-    const res = await params.transport!(url, {
+    if (!params.transport) return { online: true };
+    const res = await params.transport(url, {
       method: "POST",
-      body: JSON.stringify(REQUEST_BODY),
+      body: JSON.stringify(body),
     });
     return { parsed: await res.json() };
   };
@@ -259,13 +269,17 @@ function setup() {
     poll: vi.fn<LlmBatchProvider["poll"]>(async () => ({
       state: "running" as const,
     })),
+    findJob: vi.fn<LlmBatchProvider["findJob"]>(async () => null),
   };
   const resume = vi.fn(async (_row: LlmBatchRow) => {});
   const tick = (
-    overrides: { getProvider?: () => Promise<LlmBatchProvider | null> } = {},
+    overrides: {
+      getProvider?: () => Promise<LlmBatchProvider | null>;
+      store?: LlmBatchStore;
+    } = {},
   ) =>
     runLlmBatchTick({
-      store,
+      store: overrides.store ?? store,
       getProvider: overrides.getProvider ?? (async () => provider),
       resume,
       settings,
@@ -278,6 +292,7 @@ function setup() {
       jobExecutionId,
       llmApiKeyId: "conn",
       model: "gemini-4-argon",
+      batchEnabled: true,
       run,
       store,
     }).catch((e) => e);
@@ -340,6 +355,7 @@ describe("callLLMViaBatch", () => {
       jobExecutionId: "exec1",
       llmApiKeyId: "conn",
       model: "gemini-4-argon",
+      batchEnabled: true,
       run,
       store,
     }).catch((e) => e);
@@ -368,6 +384,7 @@ describe("callLLMViaBatch", () => {
       jobExecutionId: "exec1",
       llmApiKeyId: "conn",
       model: "gemini-4-argon",
+      batchEnabled: true,
       run,
       store,
     }).catch((e) => e);
@@ -389,14 +406,99 @@ describe("callLLMViaBatch", () => {
       jobExecutionId: "exec1",
       llmApiKeyId: "conn",
       model: "gemini-4-argon",
+      batchEnabled: true,
       run,
       store,
     });
 
     expect(output).toEqual({ parsed: response });
-    expect(calls).toHaveLength(1);
-    expect(calls[0].traced).toBe(true);
-    expect(calls[0].metadata).toEqual({ llm_batch_request_id: id });
+    // An untraced capture to check the request, then the traced replay.
+    expect(calls.map((c) => c.traced)).toEqual([false, true]);
+    expect(calls[1].metadata).toEqual({ llm_batch_request_id: id });
+  });
+
+  it("matches the stored request regardless of JSON key order", async () => {
+    const { store, defer, clock } = setup();
+    const id = await defer("exec1");
+    await store.complete(id, { candidates: [] }, clock());
+    const { run } = createRun(GEMINI_URL, {
+      generationConfig: { responseMimeType: "application/json" },
+      contents: [{ parts: [{ text: "Judge this" }], role: "user" }],
+    });
+
+    await expect(
+      callLLMViaBatch({
+        projectId: "project",
+        jobExecutionId: "exec1",
+        llmApiKeyId: "conn",
+        model: "gemini-4-argon",
+        batchEnabled: true,
+        run,
+        store,
+      }),
+    ).resolves.toEqual({ parsed: { candidates: [] } });
+  });
+
+  it("does not replay a result for a request that changed while it waited", async () => {
+    const { store, defer, clock } = setup();
+    const id = await defer("exec1");
+    await store.complete(id, { candidates: [] }, clock());
+    const { run, calls } = createRun(GEMINI_URL, {
+      ...REQUEST_BODY,
+      contents: [{ role: "user", parts: [{ text: "Edited prompt" }] }],
+    });
+
+    const error = await callLLMViaBatch({
+      projectId: "project",
+      jobExecutionId: "exec1",
+      llmApiKeyId: "conn",
+      model: "gemini-4-argon",
+      batchEnabled: true,
+      run,
+      store,
+    }).catch((e) => e);
+
+    expect(error).toBeInstanceOf(UnrecoverableError);
+    expect(error.message).toMatch(/model request changed/);
+    expect(calls.map((c) => c.traced)).toEqual([false]);
+  });
+
+  it("runs online when batch is off and the call has no batch row", async () => {
+    const { store, rows } = setup();
+    const { run, calls } = createRun();
+
+    const output = await callLLMViaBatch({
+      projectId: "project",
+      jobExecutionId: "exec1",
+      llmApiKeyId: "conn",
+      model: "gemini-4-argon",
+      batchEnabled: false,
+      run,
+      store,
+    });
+
+    expect(output).toEqual({ online: true });
+    expect(calls).toEqual([{ transport: undefined, traced: true }]);
+    expect(rows.size).toBe(0);
+  });
+
+  it("keeps a waiting call on the batch path after batch was turned off", async () => {
+    const { store, defer } = setup();
+    await defer("exec1");
+    const { run, calls } = createRun();
+
+    const error = await callLLMViaBatch({
+      projectId: "project",
+      jobExecutionId: "exec1",
+      llmApiKeyId: "conn",
+      model: "gemini-4-argon",
+      batchEnabled: false,
+      run,
+      store,
+    }).catch((e) => e);
+
+    expect(isLlmBatchDeferredError(error)).toBe(true);
+    expect(calls).toHaveLength(0);
   });
 
   it("turns a failed batch row into a terminal evaluation error", async () => {
@@ -410,6 +512,7 @@ describe("callLLMViaBatch", () => {
       jobExecutionId: "exec1",
       llmApiKeyId: "conn",
       model: "gemini-4-argon",
+      batchEnabled: true,
       run,
       store,
     }).catch((e) => e);
@@ -429,6 +532,7 @@ describe("callLLMViaBatch", () => {
       jobExecutionId: "exec1",
       llmApiKeyId: "conn",
       model: "claude",
+      batchEnabled: true,
       run,
       store,
     }).catch((e) => e);
@@ -449,6 +553,7 @@ describe("callLLMViaBatch", () => {
         jobExecutionId: "exec1",
         llmApiKeyId: "conn",
         model: "gemini-4-argon",
+        batchEnabled: true,
         run,
         store,
       }),
@@ -471,8 +576,10 @@ describe("runLlmBatchTick", () => {
 
     expect(result.submittedJobs).toBe(1);
     expect(provider.submit).toHaveBeenCalledTimes(1);
-    const [{ model, items }] = provider.submit.mock.calls[0];
+    const [{ model, items, submissionId }] = provider.submit.mock.calls[0];
     expect(model).toBe("gemini-4-argon");
+    // Valid as a Vertex AI label value, for findJob.
+    expect(submissionId).toMatch(/^[a-z0-9_-]{1,63}$/);
     expect(items.map((i) => i.request)).toEqual([REQUEST_BODY, REQUEST_BODY]);
     for (const row of rows.values()) {
       expect(row.status).toBe(LlmBatchRequestStatus.SUBMITTED);
@@ -492,18 +599,73 @@ describe("runLlmBatchTick", () => {
     expect(provider.submit.mock.calls[0][0].items).toHaveLength(3);
   });
 
-  it("returns rows to pending when the submit fails", async () => {
+  it("resubmits after a failed submit once the provider has no job for it", async () => {
     const { tick, defer, provider, advance, rows } = setup();
     await defer("exec1");
     advance(settings.flushAfterSeconds);
     provider.submit.mockRejectedValueOnce(new Error("GCS 403"));
 
     await tick();
-    expect([...rows.values()][0].status).toBe(LlmBatchRequestStatus.PENDING);
+    const [row] = rows.values();
+    expect(row.providerJobId).toMatch(new RegExp(`^${CLAIM_PREFIX}`));
+    const submissionId = provider.submit.mock.calls[0][0].submissionId;
 
+    // The claim is kept until it is stale, then checked with the provider.
     await tick();
+    expect(provider.submit).toHaveBeenCalledTimes(1);
+
+    advance(11 * 60);
+    await tick();
+    expect(provider.findJob).toHaveBeenCalledWith(submissionId);
     expect(provider.submit).toHaveBeenCalledTimes(2);
-    expect([...rows.values()][0].status).toBe(LlmBatchRequestStatus.SUBMITTED);
+    expect(row.status).toBe(LlmBatchRequestStatus.SUBMITTED);
+    expect(row.submittedAt).not.toBeNull();
+  });
+
+  it("recovers a submitted job whose id was not saved instead of submitting again", async () => {
+    const { tick, defer, provider, advance, rows, store } = setup();
+    for (const id of ["a", "b", "c"]) await defer(id);
+    const jobName = "projects/p/locations/global/batchPredictionJobs/1";
+    // The provider accepted the job, then saving its id failed.
+    const failingStore: LlmBatchStore = {
+      ...store,
+      markSubmitted: async () => {
+        throw new Error("database unavailable");
+      },
+    };
+    await tick({ store: failingStore });
+    expect(provider.submit).toHaveBeenCalledTimes(1);
+    for (const row of rows.values()) expect(row.submittedAt).toBeNull();
+
+    provider.findJob.mockResolvedValueOnce(jobName);
+    advance(11 * 60);
+    await tick();
+
+    expect(provider.submit).toHaveBeenCalledTimes(1);
+    for (const row of rows.values()) {
+      expect(row).toMatchObject({
+        status: LlmBatchRequestStatus.SUBMITTED,
+        providerJobId: jobName,
+      });
+    }
+    expect(provider.poll).toHaveBeenCalledWith(jobName);
+  });
+
+  it("keeps a stale claim when the provider lookup fails", async () => {
+    const { tick, defer, provider, advance, rows } = setup();
+    await defer("exec1");
+    advance(settings.flushAfterSeconds);
+    provider.submit.mockRejectedValueOnce(new Error("timeout"));
+    await tick();
+
+    provider.findJob.mockRejectedValueOnce(new Error("503"));
+    advance(11 * 60);
+    await tick();
+
+    expect(provider.submit).toHaveBeenCalledTimes(1);
+    expect([...rows.values()][0].providerJobId).toMatch(
+      new RegExp(`^${CLAIM_PREFIX}`),
+    );
   });
 
   it("stores results, fails rows without one and resumes each evaluation once", async () => {
@@ -602,6 +764,53 @@ describe("runLlmBatchTick", () => {
       error:
         "The LLM connection was deleted or no longer has batch inference enabled",
     });
+  });
+
+  it("skips a connection whose provider fails to load, without failing its rows", async () => {
+    const { tick, defer, provider, advance, rows } = setup();
+    for (const id of ["a", "b", "c"]) await defer(id);
+    await tick();
+    advance(settings.flushAfterSeconds);
+    await defer("d");
+    advance(settings.flushAfterSeconds);
+
+    await tick({
+      getProvider: async () => {
+        throw new Error("database unavailable");
+      },
+    });
+
+    for (const row of rows.values()) {
+      expect(row.status).not.toBe(LlmBatchRequestStatus.FAILED);
+    }
+    expect(provider.submit).toHaveBeenCalledTimes(1);
+
+    await tick();
+    expect(provider.submit).toHaveBeenCalledTimes(2);
+  });
+
+  it("resumes again when a worker died between claiming and enqueueing", async () => {
+    const { tick, defer, resume, clock, store, advance, rows } = setup();
+    const id = await defer("exec1");
+    await store.complete(id, { candidates: [] }, clock());
+    // A worker claimed the row and died before markResumed.
+    await store.claimResumable({
+      limit: 10,
+      at: clock(),
+      staleBefore: clock(),
+    });
+
+    await tick();
+    expect(resume).not.toHaveBeenCalled();
+
+    advance(11 * 60);
+    await tick();
+    expect(resume).toHaveBeenCalledTimes(1);
+    expect(rows.get(id)?.resumedAt).not.toBeNull();
+
+    advance(11 * 60);
+    await tick();
+    expect(resume).toHaveBeenCalledTimes(1);
   });
 
   it("retries a resume that failed on the next tick", async () => {

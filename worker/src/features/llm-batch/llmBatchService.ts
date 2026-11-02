@@ -48,6 +48,35 @@ export type RunWithTransport = (params: {
   metadata?: Record<string, string>;
 }) => Promise<unknown>;
 
+/** JSON with object keys sorted; Postgres JSONB does not keep key order. */
+const canonicalJson = (value: unknown): string =>
+  JSON.stringify(value, (_key, v: unknown) =>
+    v && typeof v === "object" && !Array.isArray(v)
+      ? Object.fromEntries(
+          Object.entries(v).sort(([a], [b]) => a.localeCompare(b, "en")),
+        )
+      : v,
+  );
+
+/** Builds the provider request without sending it. */
+async function captureRequest(
+  run: RunWithTransport,
+): Promise<CapturedProviderRequest> {
+  const { transport, getCaptured } = createCaptureTransport();
+  try {
+    await run({ transport, traced: false });
+  } catch (e) {
+    // The capture transport always throws once it has the request; any
+    // error before that is a real one (e.g. invalid media) and propagates.
+    if (!getCaptured()) throw e;
+  }
+  const captured = getCaptured();
+  if (!captured) {
+    throw new Error("Batch inference: the model call sent no request");
+  }
+  return captured;
+}
+
 const isGeminiGenerateContent = (captured: CapturedProviderRequest) =>
   /\/publishers\/google\/models\/[^/:]+:generateContent(\?|$)/.test(
     captured.url,
@@ -58,14 +87,20 @@ const isGeminiGenerateContent = (captured: CapturedProviderRequest) =>
  *
  * First run: builds the request through the AI SDK with a capturing transport,
  * stores it and throws `LlmBatchDeferredError`. Nothing is sent and nothing is
- * traced. After the batch job answered: runs the same call again with a
+ * traced. After the batch job answered: builds the request again, checks
+ * that it is the one the batch job answered, and runs the call with a
  * transport that returns the stored response, traced like an online call.
+ *
+ * A call that already has a batch row stays on the batch path even if batch
+ * inference was turned off since, so it never runs online a second time.
  */
 export async function callLLMViaBatch(params: {
   projectId: string;
   jobExecutionId: string;
   llmApiKeyId: string;
   model: string;
+  /** Whether a call without a batch row should go to a batch job. */
+  batchEnabled: boolean;
   run: RunWithTransport;
   store: LlmBatchStore;
 }): Promise<unknown> {
@@ -73,18 +108,10 @@ export async function callLLMViaBatch(params: {
   const existing = await store.find(projectId, jobExecutionId);
 
   if (!existing) {
-    const { transport, getCaptured } = createCaptureTransport();
-    try {
-      await params.run({ transport, traced: false });
-    } catch (e) {
-      // The capture transport always throws once it has the request; any
-      // error before that is a real one (e.g. invalid media) and propagates.
-      if (!getCaptured()) throw e;
+    if (!params.batchEnabled) {
+      return params.run({ transport: undefined, traced: true });
     }
-    const captured = getCaptured();
-    if (!captured) {
-      throw new Error("Batch inference: the model call sent no request");
-    }
+    const captured = await captureRequest(params.run);
     if (!isGeminiGenerateContent(captured)) {
       throw new UnrecoverableError(
         "Batch inference supports Gemini models on Vertex AI only",
@@ -108,7 +135,15 @@ export async function callLLMViaBatch(params: {
       throw new UnrecoverableError(
         `Batch inference failed: ${existing.error ?? "unknown error"}`,
       );
-    case LlmBatchRequestStatus.SUCCEEDED:
+    case LlmBatchRequestStatus.SUCCEEDED: {
+      // The evaluator's prompt, model or settings may have changed while the
+      // call waited. The stored answer belongs to the stored request only.
+      const current = await captureRequest(params.run);
+      if (canonicalJson(current.body) !== canonicalJson(existing.request)) {
+        throw new UnrecoverableError(
+          "Batch inference: the evaluator's model request changed while it waited for its batch result (prompt, model or settings were edited). Run the evaluation again.",
+        );
+      }
       return params.run({
         transport: createReplayTransport(existing.response),
         traced: true,
@@ -119,6 +154,7 @@ export async function callLLMViaBatch(params: {
             : {}),
         },
       });
+    }
   }
 }
 
@@ -135,9 +171,16 @@ export type LlmBatchSettings = {
 
 export type LlmBatchTickDeps = {
   store: LlmBatchStore;
-  /** Null when the connection is gone or no longer has batch enabled. */
+  /**
+   * Null when the connection is gone or no longer has batch enabled. Throws
+   * on transient errors (database, decryption, credentials); the tick then
+   * skips the connection and tries again next time.
+   */
   getProvider: (llmApiKeyId: string) => Promise<LlmBatchProvider | null>;
-  /** Re-enqueues the evaluation of a finished row. */
+  /**
+   * Re-enqueues the evaluation of a finished row. Must be idempotent per row:
+   * after a crash the same row can be resumed again.
+   */
   resume: (row: LlmBatchRow) => Promise<void>;
   settings: LlmBatchSettings;
   now?: () => Date;
@@ -152,6 +195,14 @@ export type LlmBatchTickResult = {
 };
 
 const STALE_CLAIM_MS = 10 * 60 * 1000;
+const STALE_RESUME_MS = 10 * 60 * 1000;
+const CONNECTION_GONE =
+  "The LLM connection was deleted or no longer has batch inference enabled";
+
+type ProviderLookup =
+  | { kind: "ok"; provider: LlmBatchProvider }
+  | { kind: "gone" }
+  | { kind: "unavailable" };
 const RESUME_LIMIT = 500;
 
 /**
@@ -172,18 +223,23 @@ export async function runLlmBatchTick(
     resumed: 0,
   };
 
-  // Providers are resolved once per connection and tick.
-  const providers = new Map<string, Promise<LlmBatchProvider | null>>();
+  // Providers are resolved once per connection and tick. Only an explicit
+  // null means the connection is gone; an error skips it for this tick.
+  const providers = new Map<string, Promise<ProviderLookup>>();
   const providerFor = (llmApiKeyId: string) => {
-    let provider = providers.get(llmApiKeyId);
-    if (!provider) {
-      provider = deps.getProvider(llmApiKeyId).catch((e) => {
-        log("error", `Batch provider for ${llmApiKeyId} unavailable: ${e}`);
-        return null;
-      });
-      providers.set(llmApiKeyId, provider);
+    let lookup = providers.get(llmApiKeyId);
+    if (!lookup) {
+      lookup = deps.getProvider(llmApiKeyId).then(
+        (provider): ProviderLookup =>
+          provider ? { kind: "ok", provider } : { kind: "gone" },
+        (e): ProviderLookup => {
+          log("error", `Batch provider for ${llmApiKeyId} unavailable: ${e}`);
+          return { kind: "unavailable" };
+        },
+      );
+      providers.set(llmApiKeyId, lookup);
     }
-    return provider;
+    return lookup;
   };
   const failRows = async (rows: LlmBatchRow[], error: string) => {
     await store.fail(
@@ -194,7 +250,29 @@ export async function runLlmBatchTick(
     result.failed += rows.length;
   };
 
-  await store.releaseStaleClaims(new Date(now().getTime() - STALE_CLAIM_MS));
+  // A stale claim may belong to a job the provider accepted (the job id was
+  // not saved). Releasing it would submit the rows, and bill them, twice.
+  for (const claim of await store.staleClaims(
+    new Date(now().getTime() - STALE_CLAIM_MS),
+  )) {
+    const lookup = await providerFor(claim.llmApiKeyId);
+    if (lookup.kind === "unavailable") continue;
+    if (lookup.kind === "gone") {
+      await store.releaseClaim(claim.claimId);
+      continue;
+    }
+    try {
+      const providerJobId = await lookup.provider.findJob(claim.claimId);
+      if (providerJobId) {
+        await store.markSubmitted(claim.claimId, providerJobId, now());
+        log("info", `Recovered batch job ${providerJobId} of ${claim.claimId}`);
+      } else {
+        await store.releaseClaim(claim.claimId);
+      }
+    } catch (e) {
+      log("warn", `Recovering batch claim ${claim.claimId} failed: ${e}`);
+    }
+  }
 
   const expired = await store.openRowsCreatedBefore(
     new Date(now().getTime() - settings.maxAgeSeconds * 1000),
@@ -213,16 +291,23 @@ export async function runLlmBatchTick(
         settings.flushAfterSeconds * 1000;
     if (!isDue) continue;
 
-    const provider = await providerFor(group.llmApiKeyId);
-    if (!provider) {
+    const lookup = await providerFor(group.llmApiKeyId);
+    if (lookup.kind === "unavailable") continue;
+    if (lookup.kind === "gone") {
       await failRows(
         await store.openRowsOfConnection(group.llmApiKeyId),
-        "The LLM connection was deleted or no longer has batch inference enabled",
+        CONNECTION_GONE,
       );
       continue;
     }
 
-    const claimId = randomUUID();
+    // Lowercase, as Vertex AI label values must be.
+    const stamp = now()
+      .toISOString()
+      .replace(/[-:.]/g, "")
+      .slice(0, 15)
+      .toLowerCase();
+    const claimId = `${stamp}-${randomUUID()}`;
     const rows = await store.claimPending({
       llmApiKeyId: group.llmApiKeyId,
       model: group.model,
@@ -232,14 +317,13 @@ export async function runLlmBatchTick(
     if (rows.length === 0) continue;
 
     try {
-      const stamp = now().toISOString().replace(/[-:.]/g, "").slice(0, 15);
-      const providerJobId = await provider.submit({
+      const providerJobId = await lookup.provider.submit({
         model: group.model,
         items: rows.map((r) => ({
           id: r.id,
           request: r.request as Record<string, unknown>,
         })),
-        submissionId: `${stamp}-${claimId.slice(0, 8)}`,
+        submissionId: claimId,
       });
       await store.markSubmitted(claimId, providerJobId, now());
       result.submittedJobs += 1;
@@ -248,24 +332,26 @@ export async function runLlmBatchTick(
         `Submitted ${rows.length} ${group.model} requests as ${providerJobId}`,
       );
     } catch (e) {
-      // Rows go back to PENDING; the next tick tries again until they expire.
-      await store.releaseClaim(claimId);
-      log("warn", `Batch submit for ${group.model} failed: ${e}`);
+      // The provider may have accepted the job before the error (a timeout,
+      // or saving the job id failed). The rows stay claimed; once the claim
+      // is stale, the tick looks the job up and only then releases them.
+      log("warn", `Batch submit ${claimId} for ${group.model} failed: ${e}`);
     }
   }
 
   for (const job of await store.openProviderJobs()) {
-    const provider = await providerFor(job.llmApiKeyId);
-    if (!provider) {
+    const lookup = await providerFor(job.llmApiKeyId);
+    if (lookup.kind === "unavailable") continue;
+    if (lookup.kind === "gone") {
       await failRows(
         await store.rowsOfProviderJob(job.providerJobId),
-        "The LLM connection was deleted or no longer has batch inference enabled",
+        CONNECTION_GONE,
       );
       continue;
     }
     let poll;
     try {
-      poll = await provider.poll(job.providerJobId);
+      poll = await lookup.provider.poll(job.providerJobId);
     } catch (e) {
       log("warn", `Polling ${job.providerJobId} failed: ${e}`);
       continue;
@@ -293,9 +379,14 @@ export async function runLlmBatchTick(
     }
   }
 
-  for (const row of await store.claimResumable(RESUME_LIMIT, now())) {
+  for (const row of await store.claimResumable({
+    limit: RESUME_LIMIT,
+    at: now(),
+    staleBefore: new Date(now().getTime() - STALE_RESUME_MS),
+  })) {
     try {
       await deps.resume(row);
+      await store.markResumed(row.id, now());
       result.resumed += 1;
     } catch (e) {
       await store.unclaimResume(row.id);

@@ -5,6 +5,7 @@ import {
   parseVertexBatchOutput,
   stripBatchUnsafeKeys,
   VERTEX_BATCH_ID_LABEL,
+  VERTEX_SUBMISSION_ID_LABEL,
   type GoogleApiRequest,
 } from "./vertexBatchProvider";
 
@@ -58,7 +59,7 @@ describe("Vertex AI batch provider", () => {
 
     const jobName = await provider.submit({
       model: "gemini-4-argon",
-      submissionId: "20261102T100000-abcd1234",
+      submissionId: "20261102t100000-abcd1234",
       items: [
         { id: "row1", request: { contents: [{ parts: [{ text: "a" }] }] } },
         {
@@ -71,7 +72,7 @@ describe("Vertex AI batch provider", () => {
     expect(jobName).toBe(JOB_NAME);
     const [upload, create] = request.mock.calls.map(([opts]) => opts);
     expect(upload.url).toBe(
-      "https://storage.googleapis.com/upload/storage/v1/b/my-bucket/o?uploadType=media&name=langfuse%2Fbatch%2F20261102T100000-abcd1234%2Finput.jsonl",
+      "https://storage.googleapis.com/upload/storage/v1/b/my-bucket/o?uploadType=media&name=langfuse%2Fbatch%2F20261102t100000-abcd1234%2Finput.jsonl",
     );
     expect(upload.method).toBe("POST");
     const lines = upload
@@ -97,13 +98,14 @@ describe("Vertex AI batch provider", () => {
       "https://aiplatform.googleapis.com/v1/projects/my-project/locations/global/batchPredictionJobs",
     );
     expect(JSON.parse(create.body!)).toEqual({
-      displayName: "langfuse-20261102T100000-abcd1234",
+      displayName: "langfuse-20261102t100000-abcd1234",
       model: "publishers/google/models/gemini-4-argon",
+      labels: { [VERTEX_SUBMISSION_ID_LABEL]: "20261102t100000-abcd1234" },
       inputConfig: {
         instancesFormat: "jsonl",
         gcsSource: {
           uris: [
-            "gs://my-bucket/langfuse/batch/20261102T100000-abcd1234/input.jsonl",
+            "gs://my-bucket/langfuse/batch/20261102t100000-abcd1234/input.jsonl",
           ],
         },
       },
@@ -111,7 +113,7 @@ describe("Vertex AI batch provider", () => {
         predictionsFormat: "jsonl",
         gcsDestination: {
           outputUriPrefix:
-            "gs://my-bucket/langfuse/batch/20261102T100000-abcd1234/output",
+            "gs://my-bucket/langfuse/batch/20261102t100000-abcd1234/output",
         },
       },
     });
@@ -131,6 +133,43 @@ describe("Vertex AI batch provider", () => {
     expect(request.mock.calls[1][0].url).toBe(
       "https://europe-west4-aiplatform.googleapis.com/v1/projects/p/locations/europe-west4/batchPredictionJobs",
     );
+  });
+
+  it("rejects submission ids that are not valid Vertex label values", async () => {
+    const { request, provider } = setup();
+    for (const submissionId of ["Upper", "a/b", "x".repeat(64), ""]) {
+      await expect(
+        provider.submit({ model: "m", submissionId, items: [] }),
+      ).rejects.toThrow("Invalid batch submission id");
+      await expect(provider.findJob(submissionId)).rejects.toThrow(
+        "Invalid batch submission id",
+      );
+    }
+    expect(request).not.toHaveBeenCalled();
+  });
+
+  it("finds a submitted job by its submission label", async () => {
+    const { request, provider } = setup({
+      "https://aiplatform.googleapis.com/": {
+        batchPredictionJobs: [{ name: JOB_NAME }],
+      },
+    });
+
+    await expect(provider.findJob("sub-1")).resolves.toBe(JOB_NAME);
+    const url = new URL(request.mock.calls[0][0].url);
+    expect(url.pathname).toBe(
+      "/v1/projects/my-project/locations/global/batchPredictionJobs",
+    );
+    expect(url.searchParams.get("filter")).toBe(
+      `labels.${VERTEX_SUBMISSION_ID_LABEL}="sub-1"`,
+    );
+  });
+
+  it("returns null when no job has the submission label", async () => {
+    const { provider } = setup({
+      "https://aiplatform.googleapis.com/": {},
+    });
+    await expect(provider.findJob("sub-1")).resolves.toBeNull();
   });
 
   it("reports running jobs without reading output", async () => {

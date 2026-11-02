@@ -12183,8 +12183,9 @@ components:
             `{"location":"us-central1"}`) and `batchGcsUri` (e.g.,
             `{"batchGcsUri":"gs://my-bucket/langfuse"}`). With `batchGcsUri`,
             LLM-as-a-judge evaluators on Gemini models run as Vertex AI batch
-            prediction jobs with input and output files under that URI. -
-            **Other adapters**: Not supported. Omit this field or set to null.
+            prediction jobs with input and output files under that URI. Langfuse
+            does not delete these files; use a bucket lifecycle rule. - **Other
+            adapters**: Not supported. Omit this field or set to null.
       required:
         - provider
         - adapter

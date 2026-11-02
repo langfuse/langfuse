@@ -26,8 +26,14 @@ export interface LlmBatchProvider {
   submit(params: {
     model: string;
     items: LlmBatchItem[];
-    /** Unique, URL-safe name for this submission (used for object paths). */
+    /**
+     * Unique name for this submission: lowercase letters, digits, "-" and
+     * "_", at most 63 characters. Used for object paths and stored on the
+     * provider job, so `findJob` can recover a job whose id was never saved.
+     */
     submissionId: string;
   }): Promise<string>;
+  /** The provider id of the job submitted as `submissionId`, if any. */
+  findJob(submissionId: string): Promise<string | null>;
   poll(providerJobId: string): Promise<LlmBatchPollResult>;
 }

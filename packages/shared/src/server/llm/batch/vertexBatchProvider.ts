@@ -17,6 +17,18 @@ import type {
 /** Label that carries our row id through a Vertex batch job. */
 export const VERTEX_BATCH_ID_LABEL = "langfuse_batch_request_id";
 
+/** Job label that carries the submission id, for `findJob`. */
+export const VERTEX_SUBMISSION_ID_LABEL = "langfuse_submission_id";
+
+/** Vertex AI label values: lowercase letters, digits, "-", "_"; max 63. */
+const SUBMISSION_ID_PATTERN = /^[a-z0-9_-]{1,63}$/;
+
+const assertValidSubmissionId = (submissionId: string) => {
+  if (!SUBMISSION_ID_PATTERN.test(submissionId)) {
+    throw new Error(`Invalid batch submission id: ${submissionId}`);
+  }
+};
+
 const TERMINAL_STATES = new Set([
   "JOB_STATE_SUCCEEDED",
   "JOB_STATE_PARTIALLY_SUCCEEDED",
@@ -165,6 +177,7 @@ export function createVertexBatchProviderWithRequest(params: {
 
   return {
     async submit({ model, items, submissionId }) {
+      assertValidSubmissionId(submissionId);
       const base = joinPath(prefix, submissionId);
       const inputObject = joinPath(base, "input.jsonl");
       await request({
@@ -182,6 +195,7 @@ export function createVertexBatchProviderWithRequest(params: {
         body: JSON.stringify({
           displayName: `langfuse-${submissionId}`.slice(0, 128),
           model: `publishers/google/models/${model}`,
+          labels: { [VERTEX_SUBMISSION_ID_LABEL]: submissionId },
           inputConfig: {
             instancesFormat: "jsonl",
             gcsSource: { uris: [`gs://${bucket}/${inputObject}`] },
@@ -199,6 +213,16 @@ export function createVertexBatchProviderWithRequest(params: {
         throw new Error("Vertex AI did not return a batch job name");
       }
       return job.name;
+    },
+
+    async findJob(submissionId) {
+      assertValidSubmissionId(submissionId);
+      const filter = `labels.${VERTEX_SUBMISSION_ID_LABEL}="${submissionId}"`;
+      const page = (await request({
+        url: `https://${host}/v1/projects/${encodeURIComponent(project)}/locations/${location}/batchPredictionJobs?filter=${encodeURIComponent(filter)}&pageSize=1`,
+        responseType: "json",
+      })) as { batchPredictionJobs?: { name?: string }[] };
+      return page.batchPredictionJobs?.[0]?.name ?? null;
     },
 
     async poll(providerJobId): Promise<LlmBatchPollResult> {

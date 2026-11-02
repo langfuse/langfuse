@@ -1417,7 +1417,8 @@ model LlmBatchRequest {
   resumeQueueName String?   @map("resume_queue_name")
   resumeJobName   String?   @map("resume_job_name")
   resumeJobData   Json?     @map("resume_job_data")
-  resumedAt       DateTime? @map("resumed_at")
+  resumeClaimedAt DateTime? @map("resume_claimed_at") // a worker is enqueueing the resume job
+  resumedAt       DateTime? @map("resumed_at") // the resume job was enqueued
 
   @@unique([projectId, jobExecutionId])
   @@index([status, llmApiKeyId, model, createdAt])

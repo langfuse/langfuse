@@ -60,13 +60,13 @@ describe("Prisma LLM batch store", () => {
         llmApiKeyId,
         model: "gemini-4-argon",
         limit: 10,
-        claimId: "a",
+        claimId: randomUUID(),
       }),
       store.claimPending({
         llmApiKeyId,
         model: "gemini-4-argon",
         limit: 10,
-        claimId: "b",
+        claimId: randomUUID(),
       }),
     ]);
 
@@ -105,8 +105,8 @@ describe("Prisma LLM batch store", () => {
             (await store.openProviderJobs()).filter(
               (j) => j.llmApiKeyId === llmApiKeyId,
             ),
-          claimResumable: async (limit, at) =>
-            (await store.claimResumable(limit, at)).filter(
+          claimResumable: async (params) =>
+            (await store.claimResumable(params)).filter(
               (r) => r.llmApiKeyId === llmApiKeyId,
             ),
           openRowsCreatedBefore: async () => [],
@@ -119,6 +119,7 @@ describe("Prisma LLM batch store", () => {
             );
             return jobName;
           },
+          findJob: async () => null,
           poll: async () => {
             polls += 1;
             return polls === 1
@@ -166,22 +167,71 @@ describe("Prisma LLM batch store", () => {
     expect(resumed.sort()).toEqual(rows.map((r) => r.id).sort());
   });
 
-  it("returns stale claims to pending", async () => {
-    const { llmApiKeyId, rows } = await createRows(1);
+  it("lists stale claims and returns released ones to pending", async () => {
+    const { llmApiKeyId, rows } = await createRows(2);
+    const claimId = randomUUID();
     await store.claimPending({
       llmApiKeyId,
       model: "gemini-4-argon",
       limit: 10,
-      claimId: "stale",
+      claimId,
     });
 
-    await store.releaseStaleClaims(new Date(Date.now() + 1000));
+    expect(await store.staleClaims(new Date(Date.now() - 60_000))).not.toEqual(
+      expect.arrayContaining([expect.objectContaining({ claimId })]),
+    );
+    const stale = await store.staleClaims(new Date(Date.now() + 1000));
+    expect(stale.filter((c) => c.claimId === claimId)).toEqual([
+      { claimId, llmApiKeyId },
+    ]);
 
-    const row = await prisma.llmBatchRequest.findUniqueOrThrow({
-      where: { id: rows[0].id },
+    await store.releaseClaim(claimId);
+
+    const after = await prisma.llmBatchRequest.findMany({
+      where: { id: { in: rows.map((r) => r.id) } },
     });
-    expect(row.status).toBe(LlmBatchRequestStatus.PENDING);
-    expect(row.providerJobId).toBeNull();
+    for (const row of after) {
+      expect(row.status).toBe(LlmBatchRequestStatus.PENDING);
+      expect(row.providerJobId).toBeNull();
+    }
+  });
+
+  it("claims a finished row for resume once, and again only when the claim is stale", async () => {
+    const { projectId, rows } = await createRows(1);
+    const [row] = rows;
+    await store.setResumeTarget({
+      id: row.id,
+      projectId,
+      queueName: "llm-as-a-judge-execution-queue",
+      jobName: "llm-as-a-judge-execution-job",
+      jobData: {},
+    });
+    await store.complete(row.id, { candidates: [] }, new Date());
+    const claimFor = async (at: Date, staleBefore: Date) =>
+      (await store.claimResumable({ limit: 500, at, staleBefore })).filter(
+        (r) => r.id === row.id,
+      );
+
+    const t0 = new Date();
+    const [first, second] = await Promise.all([
+      claimFor(t0, new Date(t0.getTime() - 600_000)),
+      claimFor(t0, new Date(t0.getTime() - 600_000)),
+    ]);
+    expect(first.length + second.length).toBe(1);
+
+    // Fresh claim: not claimed again.
+    await expect(
+      claimFor(new Date(), new Date(t0.getTime() - 600_000)),
+    ).resolves.toHaveLength(0);
+    // Stale claim (the worker died): claimed again.
+    await expect(
+      claimFor(new Date(), new Date(t0.getTime() + 1000)),
+    ).resolves.toHaveLength(1);
+
+    await store.markResumed(row.id, new Date());
+    await expect(
+      claimFor(new Date(), new Date(Date.now() + 1000)),
+    ).resolves.toHaveLength(0);
   });
 
   it("deletes rows with their project", async () => {

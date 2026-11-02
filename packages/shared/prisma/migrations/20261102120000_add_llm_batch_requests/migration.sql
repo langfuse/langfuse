@@ -20,6 +20,7 @@ CREATE TABLE "llm_batch_requests" (
     "resume_queue_name" TEXT,
     "resume_job_name" TEXT,
     "resume_job_data" JSONB,
+    "resume_claimed_at" TIMESTAMP(3),
     "resumed_at" TIMESTAMP(3),
 
     CONSTRAINT "llm_batch_requests_pkey" PRIMARY KEY ("id")
