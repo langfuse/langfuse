@@ -16,6 +16,8 @@ import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import {
   ListToolsRequestSchema,
   CallToolRequestSchema,
+  McpError,
+  ErrorCode,
 } from "@modelcontextprotocol/sdk/types.js";
 import { isProductFeedbackAvailable } from "@/src/features/feedback/server";
 import { shadowAuthorize } from "@/src/features/public-api/server";
@@ -105,13 +107,13 @@ export function createMcpServer(context: ServerContext): Server {
     const registeredTool = await toolRegistry.getEnabledTool(name, context);
 
     if (!registeredTool) {
-      throw new Error(`Unknown tool: ${name}`);
+      throw new McpError(ErrorCode.InvalidParams, `Unknown tool: ${name}`);
     }
 
     assertToolAuthorized(registeredTool.definition, context);
 
     // Execute handler with context
-    // Handler performs validation and error handling via defineTool wrapper
+    // Handler validates input; errors are formatted only at this boundary.
     const clickHouseCtx = contextWithLangfuseProps({
       projectId: context.projectId,
       apiKeyId: context.apiKeyId,
@@ -120,21 +122,29 @@ export function createMcpServer(context: ServerContext): Server {
         route: name,
       },
     });
-    const result = await otelContext.with(clickHouseCtx, () =>
-      registeredTool.handler(args, context),
-    );
+    try {
+      const result = await otelContext.with(clickHouseCtx, () =>
+        registeredTool.handler(args, context),
+      );
 
-    return {
-      content: [
-        {
-          type: "text",
-          text:
-            typeof result === "string"
-              ? result
-              : JSON.stringify(result, null, 2),
-        },
-      ],
-    };
+      return {
+        content: [
+          {
+            type: "text",
+            text:
+              typeof result === "string"
+                ? result
+                : JSON.stringify(result, null, 2),
+          },
+        ],
+      };
+    } catch (error) {
+      const { message } = formatErrorForUser(error);
+      return {
+        content: [{ type: "text", text: message }],
+        isError: true,
+      };
+    }
   });
 
   return server;
@@ -154,7 +164,10 @@ function assertToolAuthorized(
       scope: { accessLevel: context.accessLevel },
     },
   });
-  if (!decision.success) throw formatErrorForUser(decision.error);
+  if (!decision.success) {
+    const { code, message } = formatErrorForUser(decision.error);
+    throw new McpError(code, message);
+  }
 }
 
 export const __test = { assertToolAuthorized };
