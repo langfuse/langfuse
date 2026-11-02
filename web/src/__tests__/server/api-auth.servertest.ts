@@ -436,6 +436,42 @@ describe("Authenticate API calls", () => {
       warnSpy.mockRestore();
     });
 
+    it.each([
+      { kind: "USER", scope: "USER" as const },
+      { kind: "legacy organization", scope: "ORGANIZATION" as const },
+    ])(
+      "rejects a $kind key bound to a user, whose roles it cannot check",
+      async ({ scope }) => {
+        const user = await prisma.user.create({
+          data: { email: `apikey-user-${v4()}@example.com` },
+        });
+        const apiKey = await createApiKey(prisma, {
+          tenant: OrganizationId(testApiKey.orgId),
+          scope: UserId(user.id),
+          role: SystemRoleId("AI_GATEWAY"),
+          createdBy: UserId(user.id),
+        });
+        // Keys bound before the USER scope existed are organization-scoped.
+        await prisma.apiKey.update({
+          where: { id: apiKey.id },
+          data: { scope },
+        });
+
+        const auth = await new ApiAuthService(
+          prisma,
+          null,
+        ).verifyAuthHeaderAndReturnScope(
+          createBasicAuthHeader(apiKey.publicKey, apiKey.secretKey),
+        );
+
+        expect(auth).toEqual({
+          validKey: false,
+          error:
+            "Invalid credentials. Confirm that you've configured the correct host.",
+        });
+      },
+    );
+
     it("accepts a key that has not expired yet", async () => {
       await prisma.apiKey.update({
         where: { id: testApiKey.id },
