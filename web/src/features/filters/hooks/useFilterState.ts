@@ -83,7 +83,8 @@ const getCommaArrayParam = (table: TableName) => ({
 
         if (DEBUG_QUERY_STATE)
           console.log("values", [column, type, key, operator, value]);
-        const decodedValue = value ? decodeURIComponent(value) : undefined;
+        const decodedValue =
+          value !== undefined ? decodeURIComponent(value) : undefined;
         const normalizedKey =
           type === "positionInTrace"
             ? normalizeLegacySessionPositionInTraceKey(key)
