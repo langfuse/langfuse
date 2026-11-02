@@ -108,6 +108,7 @@ describe("V4MigrationBanner", () => {
     expect(result.current).toEqual({
       projectsNeedingMigration: 0,
       totalProjects: 1,
+      isChecking: false,
     });
   });
 
@@ -120,6 +121,7 @@ describe("V4MigrationBanner", () => {
     const { result } = renderHook(() => useV4MigrationBannerState(true));
 
     expect(result.current.projectsNeedingMigration).toBe(0);
+    expect(result.current.isChecking).toBe(true);
   });
 
   it("excludes the demo org and deleted projects from the queried scope", () => {
