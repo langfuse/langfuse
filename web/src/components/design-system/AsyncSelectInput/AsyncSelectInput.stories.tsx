@@ -24,6 +24,7 @@ export const ExternalResults = meta.story({
           onSelect(next);
         }}
         placeholder="Select a channel"
+        loading={!search ? { message: "Loading options…" } : undefined}
         search={{
           placeholder: "Search channels",
           value: search,
@@ -44,15 +45,19 @@ export const ExternalResults = meta.story({
     const trigger = canvas.getByRole("combobox");
     await expect(trigger).toHaveTextContent("Saved channel");
     await userEvent.click(trigger);
-    await waitFor(() =>
-      expect(body.getByText("No options available.")).toBeVisible(),
+    await expect(body.getByRole("status")).toHaveTextContent(
+      "Loading options…",
     );
+    await expect(
+      body.queryByText("No options available."),
+    ).not.toBeInTheDocument();
     await userEvent.type(
       body.getByPlaceholderText("Search channels"),
       "unrelated query",
     );
     const result = await body.findByRole("option", { name: "Server result" });
     await expect(result).toBeVisible();
+    await expect(body.queryByRole("status")).not.toBeInTheDocument();
     await userEvent.keyboard("{ArrowDown}{Enter}");
     await expect(onSelect).toHaveBeenCalledWith({
       value: "result",
@@ -63,32 +68,6 @@ export const ExternalResults = meta.story({
     await userEvent.click(trigger);
     await expect(body.getByPlaceholderText("Search channels")).toHaveValue("");
     await expect(trigger).toHaveTextContent("Server result");
-  },
-});
-
-export const Loading = meta.story({
-  name: "(Test) Loading",
-  args: {
-    value: null,
-    onValueChange: fn(),
-    placeholder: "Select an option",
-    search: { placeholder: "Search", value: "", onValueChange: fn() },
-    options: [],
-    loading: { message: "Loading options…" },
-  },
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement);
-    const body = within(canvasElement.ownerDocument.body);
-    await expect(canvas.getByRole("combobox")).toHaveTextContent(
-      "Select an option",
-    );
-    await userEvent.click(canvas.getByRole("combobox"));
-    await expect(body.getByRole("status")).toHaveTextContent(
-      "Loading options…",
-    );
-    await expect(
-      body.queryByText("No options available."),
-    ).not.toBeInTheDocument();
   },
 });
 

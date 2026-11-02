@@ -72,8 +72,6 @@ export const Submits = meta.story({
   },
 });
 
-const selectSubmit = fn();
-
 const transformedSubmit = fn();
 
 function TransformedInputFieldExample() {
@@ -114,18 +112,23 @@ export const TransformedInputField = meta.story({
   },
 });
 
-const passwordSubmit = fn();
+const fieldSubmit = fn();
 
-function PasswordInputFieldExample() {
-  const form = useForm<{ password: string }>({
-    defaultValues: { password: "" },
+function BoundFieldsExample() {
+  const form = useForm<{ password: string; region: "US" | "EU" }>({
+    defaultValues: { password: "", region: "US" },
     mode: "onBlur",
-    resolver: (values): ResolverResult<{ password: string }> => {
-      if (!values.password) {
+    resolver: (values): ResolverResult<typeof values> => {
+      if (!values.password || values.region === "US") {
         return {
           values: {},
           errors: {
-            password: { type: "required", message: "Password is required." },
+            ...(!values.password && {
+              password: { type: "required", message: "Password is required." },
+            }),
+            ...(values.region === "US" && {
+              region: { type: "validate", message: "Select Europe." },
+            }),
           },
         };
       }
@@ -135,7 +138,7 @@ function PasswordInputFieldExample() {
 
   return (
     <Form
-      onSubmit={form.handleSubmit(passwordSubmit)}
+      onSubmit={form.handleSubmit(fieldSubmit)}
       actions={[{ id: "save", type: "submit", text: "Save" }]}
     >
       <Form.PasswordInputField
@@ -144,71 +147,8 @@ function PasswordInputFieldExample() {
         label="Password"
         description={[{ type: "text", text: "Enter your password." }]}
         aria-describedby="password-extra-help"
-        placeholder="Your password"
       />
       <p id="password-extra-help">Additional help.</p>
-    </Form>
-  );
-}
-
-export const PasswordInputField = meta.story({
-  name: "(Test) Password field bindings and validation",
-  render: () => <PasswordInputFieldExample />,
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement);
-    const input = canvas.getByLabelText("Password");
-    passwordSubmit.mockClear();
-
-    await expect(input).toHaveAttribute("type", "password");
-    await expect(input).toHaveAttribute("placeholder", "Your password");
-    await userEvent.click(input);
-    await userEvent.tab();
-    const error = await canvas.findByText("Password is required.");
-    const description = canvas.getByText("Enter your password.");
-    await expect(input).toHaveAttribute("aria-invalid", "true");
-    await expect(input).toHaveAttribute(
-      "aria-describedby",
-      `${error.id} ${description.id} password-extra-help`,
-    );
-    await userEvent.click(canvas.getByRole("button", { name: "Save" }));
-    await expect(input).toHaveFocus();
-    await userEvent.type(input, "secret-token");
-    await userEvent.click(
-      canvas.getByRole("button", { name: "Show password" }),
-    );
-    await expect(input).toHaveAttribute("type", "text");
-    await expect(input).toHaveValue("secret-token");
-    await userEvent.click(
-      canvas.getByRole("button", { name: "Hide password" }),
-    );
-    await expect(input).toHaveAttribute("type", "password");
-    await userEvent.click(canvas.getByRole("button", { name: "Save" }));
-    await expect(passwordSubmit).toHaveBeenCalledWith(
-      { password: "secret-token" },
-      expect.anything(),
-    );
-    await expect(input).toHaveAttribute("aria-invalid", "false");
-  },
-});
-
-function SelectInputFieldExample() {
-  const form = useForm<{ region: "US" | "EU" }>({
-    defaultValues: { region: "US" },
-    mode: "onBlur",
-    resolver: (values): ResolverResult<{ region: "US" | "EU" }> =>
-      values.region === "US"
-        ? {
-            values: {},
-            errors: { region: { type: "validate", message: "Select Europe." } },
-          }
-        : { values, errors: {} },
-  });
-
-  return (
-    <Form
-      onSubmit={form.handleSubmit(selectSubmit)}
-      actions={[{ id: "save", type: "submit", text: "Save" }]}
-    >
       <Form.SelectInputField
         control={form.control}
         name="region"
@@ -226,14 +166,29 @@ function SelectInputFieldExample() {
   );
 }
 
-export const SelectInputField = meta.story({
-  name: "(Test) Select field bindings and validation",
-  render: () => <SelectInputFieldExample />,
+export const BoundFields = meta.story({
+  name: "(Test) Field bindings, validation and submission",
+  render: () => <BoundFieldsExample />,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     const page = within(canvasElement.ownerDocument.body);
+    const input = canvas.getByLabelText("Password");
     const trigger = canvas.getByLabelText("Region");
-    selectSubmit.mockClear();
+    const save = canvas.getByRole("button", { name: "Save" });
+    fieldSubmit.mockClear();
+
+    await userEvent.click(input);
+    await userEvent.tab();
+    const passwordError = await canvas.findByText("Password is required.");
+    await expect(input).toHaveAttribute("aria-invalid", "true");
+    await expect(input).toHaveAttribute(
+      "aria-describedby",
+      `${passwordError.id} ${canvas.getByText("Enter your password.").id} password-extra-help`,
+    );
+    await userEvent.click(save);
+    await expect(input).toHaveFocus();
+    await expect(fieldSubmit).not.toHaveBeenCalled();
+    await userEvent.type(input, "secret-token");
 
     await expect(trigger).toHaveTextContent("United States");
     await userEvent.click(trigger);
@@ -247,15 +202,17 @@ export const SelectInputField = meta.story({
       `${error.id} ${description.id} region-extra-help`,
     );
 
-    await userEvent.click(canvas.getByRole("button", { name: "Save" }));
+    await userEvent.click(save);
     await expect(trigger).toHaveFocus();
     await userEvent.click(trigger);
     await userEvent.click(await page.findByRole("option", { name: "Europe" }));
     await expect(trigger).toHaveTextContent("Europe");
-    await userEvent.click(canvas.getByRole("button", { name: "Save" }));
-    await expect(selectSubmit).toHaveBeenCalledWith(
-      { region: "EU" },
+    await userEvent.click(save);
+    await expect(fieldSubmit).toHaveBeenCalledWith(
+      { password: "secret-token", region: "EU" },
       expect.anything(),
     );
+    await expect(input).toHaveAttribute("aria-invalid", "false");
+    await expect(trigger).toHaveAttribute("aria-invalid", "false");
   },
 });

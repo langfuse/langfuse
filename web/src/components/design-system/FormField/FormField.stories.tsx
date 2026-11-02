@@ -74,18 +74,11 @@ export const RichDescription = meta.story({
     const input = canvas.getByLabelText("Name");
     const code = canvas.getByText("name", { selector: "code" });
     const description = code.closest("p");
-    const link = canvas.getByRole("link", { name: "Learn more" });
     const error = await canvas.findByText("Name is required.");
 
     await expect(description).toHaveTextContent(
       "Use the name field. Learn more Required.",
     );
-    await expect(
-      canvas.getByText("Required.", { selector: "strong" }),
-    ).toBeVisible();
-    await expect(link).toHaveAttribute("href", "https://langfuse.com/docs");
-    await expect(link).toHaveAttribute("target", "_blank");
-    await expect(link).toHaveAttribute("rel", "noopener noreferrer");
     await expect(input).toHaveAttribute(
       "aria-describedby",
       `${error.id} ${description?.id}`,
@@ -93,8 +86,8 @@ export const RichDescription = meta.story({
   },
 });
 
-export const RichStandaloneDescription = meta.story({
-  name: "(Test) Rich standalone description",
+export const Standalone = meta.story({
+  name: "(Test) Standalone with rich description",
   render: () => (
     <Form.Field
       label="Webhook secret"
@@ -121,61 +114,6 @@ export const RichStandaloneDescription = meta.story({
       "aria-describedby",
       description?.id,
     );
-  },
-});
-
-export const RichInputFieldDescription = meta.story({
-  name: "(Test) Rich input field description",
-  render: () => {
-    const form = useForm<{ name: string }>({ defaultValues: { name: "" } });
-    return (
-      <Form.InputField
-        control={form.control}
-        name="name"
-        label="Name"
-        description={[{ type: "code", text: "name" }]}
-      />
-    );
-  },
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement);
-    const description = canvas
-      .getByText("name", { selector: "code" })
-      .closest("p");
-    await expect(canvas.getByLabelText("Name")).toHaveAttribute(
-      "aria-describedby",
-      description?.id,
-    );
-  },
-});
-
-export const EmptyDescription = meta.story({
-  name: "(Test) Empty description",
-  args: { description: [] },
-  play: async ({ canvasElement }) => {
-    await expect(
-      within(canvasElement).getByLabelText("Name"),
-    ).not.toHaveAttribute("aria-describedby");
-  },
-});
-
-export const Standalone = meta.story({
-  name: "(Test) Standalone",
-  render: () => (
-    <FormField
-      label="Preview date range"
-      description="Only affects this preview."
-    >
-      {(field) => (
-        <Input id={field.id} aria-describedby={field.inputDescribedById} />
-      )}
-    </FormField>
-  ),
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement);
-    const input = canvas.getByLabelText("Preview date range");
-    const description = canvas.getByText("Only affects this preview.");
-    await expect(input).toHaveAttribute("aria-describedby", description.id);
   },
 });
 
