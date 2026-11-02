@@ -130,12 +130,7 @@ export class RateLimitService {
       points: effectiveConfig.points, // Number of points
       duration: effectiveConfig.durationInSec, // Per second(s)
 
-      // Legacy reads include the window so a 60s config and a 3600s config
-      // do not increment the same counter.
-      keyPrefix:
-        resource === "public-api-legacy"
-          ? `${this.rateLimitPrefix(resource)}:${effectiveConfig.durationInSec}`
-          : this.rateLimitPrefix(resource),
+      keyPrefix: this.rateLimitPrefix(resource), // must be unique for limiters with different purpose
       storeClient: RateLimitService.redis,
       rejectIfRedisNotReady: true,
     });
@@ -172,7 +167,8 @@ export class RateLimitService {
       }
     }
 
-    if (res.remainingPoints < 1) {
+    // Library floors remainingPoints at 0; reject only when consumedPoints > points.
+    if (res.consumedPoints > res.points) {
       recordIncrement("langfuse.rate_limit.exceeded", 1, {
         orgId: scope.orgId,
         plan: scope.plan,
@@ -237,7 +233,7 @@ class RateLimitHelper {
   }
 
   isRateLimited() {
-    return this.res ? this.res.remainingPoints < 1 : false;
+    return this.res ? this.res.consumedPoints > this.res.points : false;
   }
 
   sendRestResponseIfLimited(
@@ -342,8 +338,8 @@ const getPlanBasedRateLimitConfig = (
         case "public-api-legacy":
           return {
             resource: "public-api-legacy",
-            points: 150,
-            durationInSec: 3600, // 150 requests per hour
+            points: 2,
+            durationInSec: 60, // 2 requests per minute (nominal 120/hour)
           };
         case "datasets":
           return {
@@ -443,8 +439,8 @@ const getPlanBasedRateLimitConfig = (
         case "public-api-legacy":
           return {
             resource: "public-api-legacy",
-            points: 450,
-            durationInSec: 3600, // 450 requests per hour
+            points: 7,
+            durationInSec: 60, // 7 requests per minute (nominal 420/hour)
           };
         case "datasets":
           return {
@@ -544,8 +540,8 @@ const getPlanBasedRateLimitConfig = (
         case "public-api-legacy":
           return {
             resource: "public-api-legacy",
-            points: 1_200,
-            durationInSec: 3600, // 1,200 requests per hour
+            points: 20,
+            durationInSec: 60, // 20 requests per minute (nominal 1,200/hour)
           };
         case "datasets":
           return {
