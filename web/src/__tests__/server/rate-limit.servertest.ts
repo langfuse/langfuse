@@ -218,8 +218,17 @@ describe("RateLimitService", () => {
 
     const rateLimitService = RateLimitService.getInstance(redis as Redis);
 
-    for (let i = 0; i < 5; i++) {
-      await rateLimitService.rateLimitRequest(asScope(scope), "public-api");
+    // Every one of the N allowed requests, including the Nth, must resolve
+    // as not rate-limited. rate-limiter-flexible floors remainingPoints at
+    // 0 for the Nth request too, so asserting only on the final (N+1)th
+    // call would miss a regression that flags the Nth request itself.
+    for (let i = 1; i <= 5; i++) {
+      const allowedResult = await rateLimitService.rateLimitRequest(
+        asScope(scope),
+        "public-api",
+      );
+      expect(allowedResult?.res?.consumedPoints).toBe(i);
+      expect(allowedResult?.isRateLimited()).toBe(false);
     }
 
     const result = await rateLimitService.rateLimitRequest(
