@@ -12,7 +12,7 @@ import { type UseFormReturn } from "react-hook-form";
 import { type ActionDomain } from "@langfuse/shared";
 import { ExternalLink } from "@langfuse/icons";
 import Link from "next/link";
-import { areGitHubDispatchUrlsEquivalent } from "../../githubDispatchUrl";
+import { areDestinationUrlsEquivalent } from "@/src/features/automations/destinationUrl";
 
 interface GitHubDispatchActionFormProps {
   form: UseFormReturn<any>;
@@ -29,7 +29,7 @@ export const GitHubDispatchActionForm: React.FC<
   const originalUrl = form.watch("githubDispatch.originalUrl");
   const isUrlChanged =
     originalUrl !== undefined &&
-    !areGitHubDispatchUrlsEquivalent(currentUrl, originalUrl);
+    !areDestinationUrlsEquivalent(currentUrl, originalUrl);
 
   return (
     <div className="space-y-4">

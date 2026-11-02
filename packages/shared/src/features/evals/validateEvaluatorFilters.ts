@@ -5,13 +5,14 @@ import {
   evalTraceTableCols,
 } from "../../tableDefinitions/tracesTable";
 import type { FilterCondition, FilterState } from "../../types";
-import {
-  eventsEvalFilterColumns,
-  experimentEvalFilterColumns,
-} from "./observationForEval";
+import type { EvalFilterDefinition } from "./filterFields";
+import { eventsEvalFilterColumns } from "./spanFilters";
+import { experimentEvalFilterColumns } from "./experimentFilters";
+import { traceTranscriptFilterDefinition } from "./traceTranscriptFilters";
 import { COMPATIBLE_FILTER_TYPES } from "../../server/queries/clickhouse-sql/filterTypeCompatibility";
 import {
   EvalTargetObject,
+  TopicsTargetObject,
   type EvalTargetObject as EvalTargetObjectType,
 } from "./types";
 
@@ -37,18 +38,20 @@ export type EvaluatorFilterValidationResult = {
 
 const parsedFilterSchema = singleFilterList.nullable();
 
-const getSupportedColumnsForTarget = (
-  targetObject: EvalTargetObjectType,
-): ColumnDefinition[] => {
+const getFilterDefinitionForTarget = (
+  targetObject: EvalTargetObjectType | typeof TopicsTargetObject,
+): EvalFilterDefinition => {
   switch (targetObject) {
     case EvalTargetObject.TRACE:
-      return evalTraceTableCols;
+      return { columns: evalTraceTableCols };
     case EvalTargetObject.DATASET:
-      return evalDatasetFormFilterCols;
+      return { columns: evalDatasetFormFilterCols };
+    case TopicsTargetObject:
+      return traceTranscriptFilterDefinition;
     case EvalTargetObject.EVENT:
-      return eventsEvalFilterColumns;
+      return { columns: eventsEvalFilterColumns };
     case EvalTargetObject.EXPERIMENT:
-      return experimentEvalFilterColumns;
+      return { columns: experimentEvalFilterColumns };
   }
 };
 
@@ -64,10 +67,10 @@ const findMatchingColumnDefinition = (
   );
 
 export function validateEvaluatorFiltersForTarget(params: {
-  targetObject: EvalTargetObjectType;
+  targetObject: EvalTargetObjectType | typeof TopicsTargetObject;
   filter: unknown;
 }): EvaluatorFilterValidationResult {
-  const columns = getSupportedColumnsForTarget(params.targetObject);
+  const definition = getFilterDefinitionForTarget(params.targetObject);
   const parsedFilter = parsedFilterSchema.safeParse(params.filter);
 
   if (!parsedFilter.success) {
@@ -91,13 +94,31 @@ export function validateEvaluatorFiltersForTarget(params: {
 
   const issues: EvaluatorFilterValidationIssue[] = filters.flatMap(
     (filter, index): EvaluatorFilterValidationIssue[] => {
-      const column = findMatchingColumnDefinition(filter.column, columns);
+      const column = findMatchingColumnDefinition(
+        filter.column,
+        definition.columns,
+      );
 
       if (!column) {
         return [
           {
             code: "unsupported_column" as const,
             message: `Filter column "${filter.column}" is not supported for target "${params.targetObject}".`,
+            index,
+            column: filter.column,
+            filterType: filter.type,
+          },
+        ];
+      }
+
+      if (
+        definition.operators &&
+        !definition.operators[filter.type]?.includes(filter.operator)
+      ) {
+        return [
+          {
+            code: "invalid_filter_shape",
+            message: `Filter operator "${filter.operator}" is not supported for target "${params.targetObject}".`,
             index,
             column: filter.column,
             filterType: filter.type,

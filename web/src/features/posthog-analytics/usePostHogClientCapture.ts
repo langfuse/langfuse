@@ -3,6 +3,7 @@ import { usePostHog } from "posthog-js/react";
 import { useCallback } from "react";
 import type { AnnotationEventMap } from "@/src/features/scores/lib/annotationAnalytics";
 import type { EvalOnboardingEventMap } from "@/src/features/evals/v2/types/evalOnboardingAnalytics";
+import type { AiGatewayEventMap } from "@/src/features/ai-gateway/types/aiGatewayAnalytics";
 import type {
   ToastInteractionEventProperties,
   ToastShownEventProperties,
@@ -461,8 +462,37 @@ const events = {
     "quick_action_started",
     "tool_approval_decided",
   ],
+  // AI Gateway setup and adoption. Props are typed in AiGatewayEventMap and
+  // carry `orgId` on every event: metadata only, never emails, names,
+  // credentials, key metadata or model ids.
+  ai_gateway: [
+    "setup_guide_viewed",
+    "setup_step_completed",
+    "ingestion_settings_saved",
+    "provider_credential_added",
+    "provider_credential_updated",
+    "provider_credential_deleted",
+    "team_invite_sent",
+    "api_key_created",
+    "api_key_revoked",
+    "api_key_secret_copied",
+    "api_key_secret_revealed",
+    "model_access_changed",
+    "model_name_copied",
+    "agent_setup_instructions_viewed",
+    "agent_setup_instructions_copied",
+  ],
   cmd_k_menu: ["opened", "search_entered", "navigated"],
   spend_alert: ["created", "updated", "deleted"],
+  // Launch surfaces answer "which entry point and state lead people into
+  // gateway setup or key creation?" Props are state enums and counts only.
+  ai_gateway_launch: [
+    "banner_cta_clicked",
+    "banner_dismissed",
+    "dialog_setup_clicked",
+    "dialog_get_key_clicked",
+    "dialog_learn_more_clicked",
+  ],
   sidebar: [
     "book_a_call_clicked",
     "v4_beta_toggled",
@@ -529,6 +559,7 @@ type EventName = {
 
 type TypedEventMap = AnnotationEventMap &
   EvalOnboardingEventMap &
+  AiGatewayEventMap &
   ToastEventMap;
 
 type EventProperties = TypedEventMap & {

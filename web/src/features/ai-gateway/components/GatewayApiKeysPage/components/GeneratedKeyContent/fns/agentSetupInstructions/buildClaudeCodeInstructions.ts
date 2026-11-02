@@ -19,7 +19,7 @@ export function buildClaudeCodeInstructions(
     docsUrl: AGENT_SETUP_DOCS_URLS["claude-code"],
     warning: context.providers.includes("ANTHROPIC")
       ? undefined
-      : "Claude Code needs an Anthropic provider connection, and none is enabled yet.",
+      : "Claude Code needs an Anthropic provider credential, and none is enabled yet.",
     steps: [
       {
         title: "Log out of any existing session",
@@ -29,14 +29,12 @@ export function buildClaudeCodeInstructions(
       },
       {
         title: "Point Claude Code at the gateway",
-        description:
-          "No /v1 in the base URL. Claude Code appends it. Leave ANTHROPIC_API_KEY unset.",
+        description: "Leave ANTHROPIC_API_KEY unset.",
         language: "sh",
         code: [
           `export ANTHROPIC_BASE_URL="${context.gatewayOrigin}/anthropic"`,
           `export ANTHROPIC_AUTH_TOKEN="${GATEWAY_KEY_PLACEHOLDER}"`,
           "unset ANTHROPIC_API_KEY",
-          `export ANTHROPIC_CUSTOM_HEADERS="langfuse-user-id: ${context.userId}"`,
         ].join("\n"),
       },
       {

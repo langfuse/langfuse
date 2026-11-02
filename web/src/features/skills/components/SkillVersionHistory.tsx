@@ -1,7 +1,7 @@
 import { type MouseEvent, useState } from "react";
 import { FileDiffIcon, PanelLeftClose, PanelLeftOpen } from "@langfuse/icons";
 import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
-import { Badge } from "@/src/components/ui/badge";
+import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { Button } from "@/src/components/ui/button";
 import { Timeline } from "@/src/components/design-system/Timeline/Timeline";
 import { cn } from "@/src/utils/tailwind";
@@ -108,16 +108,12 @@ export function SkillVersionHistory(
                         await props.onSelectDraft();
                     }}
                   >
-                    <Badge variant="outline" className="w-fit">
-                      Draft
-                    </Badge>
+                    <Badge color="primary" text="Draft" />
                     <Badge
-                      variant="secondary"
-                      className="h-5 w-fit max-w-full truncate px-1.5 text-[10px]"
-                      title="Unreleased local changes"
-                    >
-                      Unreleased local changes
-                    </Badge>
+                      color="filled"
+                      size="md"
+                      text="Unreleased local changes"
+                    />
                   </button>
                   {props.kind === "versions" ? (
                     <SkillVersionComparisonController {...props}>
@@ -166,11 +162,10 @@ export function SkillVersionHistory(
                           onClick={() => selectVersion(version)}
                         >
                           <Badge
-                            variant="outline"
-                            className="bg-background/50 h-6 shrink-0"
-                          >
-                            # {version}
-                          </Badge>
+                            color="primary"
+                            size="lg"
+                            text={`# ${version}`}
+                          />
                         </button>
                         <SkillLabelsSelect
                           showOnlyOnHover

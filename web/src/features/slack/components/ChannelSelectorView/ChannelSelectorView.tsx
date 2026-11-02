@@ -38,8 +38,8 @@ export interface ChannelSelectorViewProps {
   /** Callback when a channel is selected */
   onChannelSelect: (channel: SlackChannel) => void;
   onRefresh: () => void;
-  /** Reconnects Slack to grant missing scopes */
-  onReauthenticate: () => void;
+  /** Reconnects Slack to grant missing scopes; omitted for users who may not manage the integration */
+  onReauthenticate?: () => void;
   /** Whether the component is disabled */
   disabled?: boolean;
   /** Placeholder text for the selector */
@@ -296,15 +296,21 @@ export const ChannelSelectorView: React.FC<ChannelSelectorViewProps> = ({
         <Alert icon={AlertTriangle} variant="warning" size="sm">
           <Alert.Title>Private channels are not visible</Alert.Title>
           <Alert.Description>
-            To access private channels,{" "}
-            <button
-              type="button"
-              className="font-bold underline"
-              onClick={onReauthenticate}
-            >
-              re-authenticate your Slack integration
-            </button>{" "}
-            to grant the required permissions.
+            {onReauthenticate ? (
+              <>
+                To access private channels,{" "}
+                <button
+                  type="button"
+                  className="font-bold underline"
+                  onClick={onReauthenticate}
+                >
+                  re-authenticate your Slack integration
+                </button>{" "}
+                to grant the required permissions.
+              </>
+            ) : (
+              "To access private channels, ask a project admin to re-authenticate the Slack integration."
+            )}
           </Alert.Description>
         </Alert>
       )}

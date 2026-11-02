@@ -1,16 +1,22 @@
 /* eslint-disable @repo/no-style-props */
-import { Badge, type BadgeProps } from "@/src/components/ui/badge";
 import { cn } from "@/src/utils/tailwind";
 import { type MonitorSeverity } from "@langfuse/shared/monitors";
 
-/** severityVariant maps each MonitorSeverity to the underlying Badge variant. */
-const severityVariant: Record<MonitorSeverity, BadgeProps["variant"]> = {
-  UNKNOWN: "outline",
-  NO_DATA: "secondary",
-  PAUSED: "default",
-  OK: "default",
-  WARNING: "default",
-  ALERT: "default",
+const badgeBaseClassName =
+  "inline-flex h-5.5 items-center gap-1.5 rounded-sm border pr-1.5 pl-2 text-xs leading-none font-normal transition-colors focus:outline-hidden focus:ring-2 focus:ring-ring focus:ring-offset-2";
+
+/** severityVariantClassName maps each MonitorSeverity to its base badge chrome. */
+const severityVariantClassName: Record<MonitorSeverity, string> = {
+  UNKNOWN: "border-border text-foreground-secondary",
+  NO_DATA:
+    "border-transparent bg-secondary text-secondary-foreground hover:bg-secondary/80",
+  PAUSED:
+    "border-transparent bg-primary text-primary-foreground hover:bg-primary/80",
+  OK: "border-transparent bg-primary text-primary-foreground hover:bg-primary/80",
+  WARNING:
+    "border-transparent bg-primary text-primary-foreground hover:bg-primary/80",
+  ALERT:
+    "border-transparent bg-primary text-primary-foreground hover:bg-primary/80",
 };
 
 /** severityClassName maps each MonitorSeverity to its badge tailwind classes. */
@@ -42,9 +48,10 @@ export function MonitorSeverityBadge({
   className?: string;
 }) {
   return (
-    <Badge
-      variant={severityVariant[severity]}
+    <div
       className={cn(
+        badgeBaseClassName,
+        severityVariantClassName[severity],
         "w-20 justify-center py-1",
         severityClassName[severity],
         className,
@@ -61,6 +68,6 @@ export function MonitorSeverityBadge({
       ) : (
         severityLabel[severity]
       )}
-    </Badge>
+    </div>
   );
 }

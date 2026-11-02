@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { showErrorToast, showSuccessToast } from "@/src/features/notifications";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";

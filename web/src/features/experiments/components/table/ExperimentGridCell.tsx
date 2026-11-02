@@ -1,11 +1,11 @@
 /* The experiment marker's colour is data — which run this is, out of the N
    selected (`getExperimentColorStyles`) — so it arrives as a class rather than
-   as a variant, the same way `DiffLabel` takes one. */
+   as a variant. */
 /* eslint-disable @repo/no-style-props, @repo/component-file-structure, react/no-unstable-nested-components */
 import { EmptyValue } from "@/src/components/design-system/table/components/EmptyValue/EmptyValue";
 import { EMPTY_VALUE_PLACEHOLDER } from "@/src/components/design-system/table/constants";
 import { ConnectedIOTableCell } from "@/src/components/table/ConnectedIOTableCell";
-import { Badge } from "@/src/components/ui/badge";
+import { Badge } from "@/src/components/design-system/Badge/Badge";
 import {
   type ScoreAggregate,
   type AggregatedScoreData,
@@ -261,13 +261,7 @@ const ScoreItem = ({
                   <EmptyValue />
                 </span>
               ) : (
-                <Badge
-                  variant="secondary"
-                  className="min-w-0 truncate text-xs font-bold"
-                  title=""
-                >
-                  {displayValue}
-                </Badge>
+                <Badge color="filled" text={displayValue} title="" />
               )}
             </span>
             {diff?.type === "CATEGORICAL" && (
@@ -282,7 +276,6 @@ const ScoreItem = ({
             {diff?.type === "NUMERIC" && (
               <DiffLabel
                 variant="ghost"
-                className="px-0"
                 diff={diff}
                 formatValue={(value) => value.toFixed(2)}
               />
@@ -366,7 +359,6 @@ const CellMetadataFooter = ({
               {data.latencyDiff && (
                 <DiffLabel
                   variant="ghost"
-                  className="px-0"
                   diff={data.latencyDiff}
                   preferNegativeDiff
                   formatValue={formatLatency}
@@ -390,7 +382,6 @@ const CellMetadataFooter = ({
             {data.totalCostDiff && (
               <DiffLabel
                 variant="ghost"
-                className="px-0"
                 diff={data.totalCostDiff}
                 preferNegativeDiff
                 formatValue={formatCost}
@@ -403,9 +394,7 @@ const CellMetadataFooter = ({
         <div className="flex items-center justify-between gap-2">
           <span className="text-muted-foreground">Status</span>
           <div className={valueColumnsClass(data.showBaselineDelta)}>
-            <Badge variant="ghost" className="px-0">
-              {data.level}
-            </Badge>
+            <Badge color="ghost" text={data.level} />
           </div>
         </div>
       )}

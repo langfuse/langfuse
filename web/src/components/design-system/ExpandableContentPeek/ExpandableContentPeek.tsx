@@ -27,6 +27,8 @@ type ExpandableContentPeekProps = PropsWithChildren<{
   /** Label of the button that reveals the rest, e.g. "Show all steps". */
   expandLabel: string;
   collapsedHeight?: "sm" | "md" | "lg";
+  /** Called once when the clamped content is revealed. */
+  onAfterExpand?: () => void;
 }>;
 
 function useIsOverflowing(
@@ -65,6 +67,7 @@ export function ExpandableContentPeek({
   children,
   expandLabel,
   collapsedHeight = "md",
+  onAfterExpand,
 }: ExpandableContentPeekProps) {
   const [isExpanded, setIsExpanded] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -72,7 +75,10 @@ export function ExpandableContentPeek({
   const isOverflowing = useIsOverflowing(containerRef, contentRef, !isExpanded);
   const isClamped = !isExpanded && isOverflowing;
 
-  const expand = () => setIsExpanded(true);
+  const expand = () => {
+    setIsExpanded(true);
+    onAfterExpand?.();
+  };
 
   return (
     <div className="relative">

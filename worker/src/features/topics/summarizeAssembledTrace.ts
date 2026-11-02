@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import {
   listTopicSummaries,
   TOPICS_TRANSCRIPT_VERSION,

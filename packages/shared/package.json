@@ -135,6 +135,14 @@
       "import": "./dist/src/features/monitors/server.js",
       "require": "./dist/src/features/monitors/server.js"
     },
+    "./pagerduty": {
+      "import": "./dist/src/features/pagerduty/index.js",
+      "require": "./dist/src/features/pagerduty/index.js"
+    },
+    "./pagerduty/server": {
+      "import": "./dist/src/features/pagerduty/server.js",
+      "require": "./dist/src/features/pagerduty/server.js"
+    },
     "./in-app-agent": {
       "import": "./dist/src/in-app-agent/index.js",
       "require": "./dist/src/in-app-agent/index.js"
@@ -258,7 +266,7 @@
     "bcryptjs": "^2.4.3",
     "bullmq": "^5.76.3",
     "date-fns": "^3.6.0",
-    "dd-trace": "5.109.0",
+    "dd-trace": "5.131.1",
     "decimal.js": "^10.4.3",
     "exponential-backoff": "^3.1.2",
     "google-auth-library": "^10.6.2",
@@ -270,7 +278,7 @@
     "lossless-json": "^4.1.1",
     "lru-cache": "^11.2.7",
     "next-auth": "^4.24.14",
-    "nodemailer": "^10.0.13",
+    "nodemailer": "^10.1.7",
     "oci-common": "^2.140.0",
     "oci-objectstorage": "^2.140.0",
     "safe-regex2": "^5.0.0",

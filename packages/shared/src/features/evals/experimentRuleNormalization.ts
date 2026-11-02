@@ -1,5 +1,5 @@
 import type { FilterState } from "../../types";
-import { eventsEvalFilterColumns } from "./observationForEval";
+import { eventsEvalFilterColumns } from "./spanFilters";
 import {
   EvalTargetObject,
   type EvalTargetObject as EvalTargetObjectType,

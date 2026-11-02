@@ -4,7 +4,7 @@ import { Archive, Component, Search } from "@langfuse/icons";
 import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 
 import { cn } from "@/src/utils/tailwind";
-import { Badge } from "@/src/components/ui/badge";
+import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { Button, type ButtonProps } from "@/src/components/ui/button";
 import { Input } from "@/src/components/ui/input";
 import {
@@ -189,33 +189,29 @@ export function MultiSelectKeyValues<
           {selectedValueKeys.size > 0 && (
             <>
               <Separator orientation="vertical" className="mx-2 h-4" />
-              <Badge
-                variant="secondary"
-                className="rounded-sm px-1 font-normal lg:hidden"
-              >
-                {selectedValueKeys.size}
-              </Badge>
+              <span className="lg:hidden">
+                <Badge
+                  color="filled"
+                  size="md"
+                  text={String(selectedValueKeys.size)}
+                />
+              </span>
               <div className="hidden space-x-1 overflow-x-auto lg:flex">
                 {selectedValueKeys.size > 2 || !showSelectedValueStrings ? (
                   <Badge
-                    variant="secondary"
-                    className="rounded-sm px-1 font-normal"
-                  >
-                    {selectedValueKeys.size}
-                  </Badge>
+                    color="filled"
+                    size="md"
+                    text={String(selectedValueKeys.size)}
+                  />
                 ) : (
                   options
                     .filter((option) =>
                       selectedValueKeys.has(option.key ?? option.value),
                     )
                     .map((option) => (
-                      <Badge
-                        variant="secondary"
-                        key={option.key}
-                        className="rounded-sm px-1 font-normal capitalize"
-                      >
-                        {option.value}
-                      </Badge>
+                      <span key={option.key} className="capitalize">
+                        <Badge color="filled" size="md" text={option.value} />
+                      </span>
                     ))
                 )}
               </div>

@@ -79,7 +79,7 @@ import { MonitorChartPreview } from "./MonitorChartPreview";
 import { getMonitorFilterOptionsLookbackFrom } from "../helpers/monitorTimeRanges";
 import { MonitorAutomationsPanel } from "./MonitorAutomationsPanel";
 import { MonitorSeverityBadge } from "./MonitorSeverityBadge";
-import { Badge } from "@/src/components/ui/badge";
+import { Badge } from "@/src/components/design-system/Badge/Badge";
 import {
   operatorLabels,
   operatorSymbol,
@@ -1065,12 +1065,7 @@ const NoDataField = ({
         <SelectItem value={MonitorNoDataModeSchema.enum.LAST_SEVERITY}>
           <span className="inline-flex items-center gap-1.5">
             Keep the previous
-            <Badge
-              variant="secondary"
-              className="bg-muted-foreground text-background hover:bg-muted-foreground w-20 justify-center py-1"
-            >
-              SEVERITY
-            </Badge>
+            <Badge color="inverted" text="SEVERITY" />
           </span>
         </SelectItem>
         <SelectItem value={MonitorNoDataModeSchema.enum.SHOW_NO_DATA}>

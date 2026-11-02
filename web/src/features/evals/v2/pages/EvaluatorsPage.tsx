@@ -24,7 +24,7 @@ import {
 } from "@/src/components/table/data-table-controls";
 import { SearchableTableFilterLayout } from "@/src/components/table/resizable-filter-layout";
 import type { LangfuseColumnDef } from "@/src/components/table/types";
-import { Badge } from "@/src/components/ui/badge";
+import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { Button } from "@/src/components/ui/button";
 import { EvaluatorsEmptyState } from "../components/EvaluatorsEmptyState/EvaluatorsEmptyState";
 import { PopoverTrigger } from "@/src/components/ui/popover";
@@ -226,7 +226,7 @@ export default function EvaluatorsPage() {
               ...facet,
               renderOptionSuffix: (model: string) =>
                 model === projectDefaultModel.defaultModel?.model ? (
-                  <Badge variant="secondary">Project default</Badge>
+                  <Badge color="filled" text="Project default" />
                 ) : null,
             }
           : facet,

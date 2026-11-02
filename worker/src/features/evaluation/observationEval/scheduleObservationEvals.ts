@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import type { ObservationVariableMapping } from "@langfuse/shared";
 import {
   type ObservationForEval,
@@ -44,6 +43,8 @@ interface ScheduleObservationEvalsParams {
    * stable while a second run gets its own executions.
    */
   executionScopeId?: string;
+  /** Batch action of a manual batch run, recorded on each execution. */
+  batchActionId?: string;
 }
 
 /**
@@ -106,6 +107,7 @@ export async function scheduleObservationEvals(
     schedulerDeps,
     executionMode,
     executionScopeId,
+    batchActionId,
   } = params;
 
   // Early return if no configs
@@ -193,6 +195,7 @@ export async function scheduleObservationEvals(
         schedulerDeps,
         executionMode,
         executionScopeId,
+        batchActionId,
       }),
     ),
   );
@@ -235,6 +238,7 @@ interface ProcessConfigParams {
   schedulerDeps: ObservationEvalSchedulerDeps;
   executionMode?: EvalExecutionMode;
   executionScopeId?: string;
+  batchActionId?: string;
 }
 
 async function processMatchingConfig(
@@ -248,6 +252,7 @@ async function processMatchingConfig(
     schedulerDeps,
     executionMode,
     executionScopeId,
+    batchActionId,
   } = params;
 
   const jobIdentity: string[] =
@@ -304,6 +309,7 @@ async function processMatchingConfig(
     ...(assignment.variableMapping != null
       ? { variableMapping: assignment.variableMapping }
       : {}),
+    ...(batchActionId ? { batchActionId } : {}),
   });
 
   logger.debug("Scheduled observation eval job", {

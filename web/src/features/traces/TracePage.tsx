@@ -10,7 +10,7 @@ import { useIsAuthenticatedAndProjectMember } from "@/src/features/auth";
 import { Button } from "@/src/components/ui/button";
 import Link from "next/link";
 import { stripBasePath } from "@/src/utils/redirect";
-import { Badge } from "@/src/components/ui/badge";
+import { Badge } from "@/src/components/design-system/Badge/Badge";
 
 export function TracePage({
   traceId,
@@ -90,9 +90,7 @@ export function TracePage({
   })();
   const traceContext = router.query.peek !== undefined ? "peek" : "fullscreen";
   const sharedBadge = showPublicIndicators ? (
-    <Badge variant="outline" className="text-xs font-bold">
-      Public
-    </Badge>
+    <Badge color="primary" text="Public" />
   ) : undefined;
 
   return (

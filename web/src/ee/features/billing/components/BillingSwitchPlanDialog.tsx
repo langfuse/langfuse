@@ -86,7 +86,7 @@ export const BillingSwitchPlanDialog = ({
               variant="secondary"
               href="https://langfuse.com/pricing"
             >
-              Comparison of plans ↗
+              Comparison of plans
             </ActionButton>
           </div>
         </DialogHeader>

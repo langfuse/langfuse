@@ -24,9 +24,13 @@ export const CLICKHOUSE_QUERY_OUTCOME_METRIC =
 export const CLICKHOUSE_QUERY_ELAPSED_MS_METRIC =
   "langfuse.clickhouse.query.elapsed_ms";
 
+/**
+ * `client_closed` is not a ClickHouse failure: the caller aborted or stopped
+ * reading a streamed result, e.g. a browser closing a dashboard stream.
+ */
 export type ClickHouseQueryOutcome =
   | "success"
-  | "cancelled"
+  | "client_closed"
   | "timeout"
   | "memory_limit"
   | "overcommit"

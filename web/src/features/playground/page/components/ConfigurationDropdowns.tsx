@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { Button } from "@/src/components/ui/button";
-import { Badge } from "@/src/components/ui/badge";
+import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { Wrench, Braces, Variable, type IconComponent } from "@langfuse/icons";
 import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 import {
@@ -110,9 +110,7 @@ export const ConfigurationDropdowns: React.FC = () => {
             <Button variant="outline" size="sm" className="h-8 gap-2">
               {getResponsiveContent("Tools", Wrench)}
               {toolsCount > 0 && (
-                <Badge variant="secondary" className="h-4 text-xs">
-                  {toolsCount}
-                </Badge>
+                <Badge color="filled" size="sm" text={String(toolsCount)} />
               )}
               <DropdownIndicator size="sm" nudge />
             </Button>
@@ -168,9 +166,7 @@ export const ConfigurationDropdowns: React.FC = () => {
             <Button variant="outline" size="sm" className="h-8 gap-2">
               {getResponsiveContent("Schema", Braces)}
               {hasSchema > 0 && (
-                <Badge variant="secondary" className="h-4 text-xs">
-                  {hasSchema}
-                </Badge>
+                <Badge color="filled" size="sm" text={String(hasSchema)} />
               )}
               <DropdownIndicator size="sm" nudge />
             </Button>
@@ -221,9 +217,7 @@ export const ConfigurationDropdowns: React.FC = () => {
             <Button variant="outline" size="sm" className="h-8 gap-2">
               {getResponsiveContent("Variables", Variable, "Vars")}
               {variablesCount > 0 && (
-                <Badge variant="secondary" className="h-4 text-xs">
-                  {variablesCount}
-                </Badge>
+                <Badge color="filled" size="sm" text={String(variablesCount)} />
               )}
               <DropdownIndicator size="sm" nudge />
             </Button>

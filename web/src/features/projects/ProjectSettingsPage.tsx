@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-use-before-define */
 import Header from "@/src/components/layouts/header";
 import { ApiKeyList } from "@/src/features/public-api/components/ApiKeyList";
-import { DeleteProjectDialogController } from "@/src/features/projects/components/DeleteProjectDialogController";
+import { DeleteProjectDialogController } from "@/src/features/projects/components/DeleteProjectDialogController/DeleteProjectDialogController";
 import { HostNameProject } from "@/src/features/projects/components/HostNameProject";
 import RenameProject from "@/src/features/projects/components/RenameProject";
 import { Button } from "@/src/components/ui/button";
@@ -51,7 +51,7 @@ import { usePostHogIntegration } from "@/src/features/posthog-integration/usePos
 import { useMixpanelIntegration } from "@/src/features/mixpanel-integration/useMixpanelIntegration";
 import { useBlobStorageIntegration } from "@/src/features/blobstorage-integration/useBlobStorageIntegration";
 import { useExternalMediaStorage } from "@/src/features/external-media-storage/useExternalMediaStorage";
-import { useSlackIntegration } from "@/src/features/slack/useSlackIntegration";
+import { useSlackIntegration } from "@/src/features/slack/hooks/useSlackIntegration";
 
 type ProjectSettingsPageEntry = {
   title: string;

@@ -1,4 +1,4 @@
-/* eslint-disable @repo/component-file-structure, @typescript-eslint/no-deprecated, @typescript-eslint/no-use-before-define -- Legacy UI usage retained during migration to design-system components. */
+/* eslint-disable @repo/component-file-structure, @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 import { useState, type ComponentProps, type ReactNode } from "react";
 import { useStore } from "zustand";
 import { useRouter } from "next/router";

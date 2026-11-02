@@ -133,6 +133,7 @@ export const Empty = meta.story({
   args: {
     data: { status: "success", data: [] },
     ...actions,
+    pagination: { ...actions.pagination, totalCount: 0 },
   },
 });
 

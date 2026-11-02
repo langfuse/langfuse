@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { encrypt } from "@langfuse/shared/encryption";
 import {
   type ActionCreate,
@@ -12,7 +11,7 @@ import {
   validateWebhookURL,
 } from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
-import { areGitHubDispatchUrlsEquivalent } from "../githubDispatchUrl";
+import { areDestinationUrlsEquivalent } from "@/src/features/automations/destinationUrl";
 
 interface GitHubDispatchConfigOptions {
   actionConfig: ActionCreate;
@@ -61,15 +60,6 @@ export async function processGitHubDispatchActionConfig({
     });
   }
 
-  try {
-    await validateWebhookURL(urlToUse);
-  } catch (error) {
-    throw new TRPCError({
-      code: "BAD_REQUEST",
-      message: `Invalid webhook URL: ${error instanceof Error ? error.message : "Unknown error"}`,
-    });
-  }
-
   // Validate GitHub API URL format
   const urlPattern =
     /^https:\/\/api\.github\.com\/repos\/[^\/]+\/[^\/]+\/dispatches$/;
@@ -84,9 +74,18 @@ export async function processGitHubDispatchActionConfig({
     });
   }
 
+  try {
+    await validateWebhookURL(urlToUse);
+  } catch (error) {
+    throw new TRPCError({
+      code: "BAD_REQUEST",
+      message: `Invalid webhook URL: ${error instanceof Error ? error.message : "Unknown error"}`,
+    });
+  }
+
   const isUrlChanged =
     existingActionConfig !== undefined &&
-    !areGitHubDispatchUrlsEquivalent(urlToUse, existingActionConfig.url);
+    !areDestinationUrlsEquivalent(urlToUse, existingActionConfig.url);
   const newGithubToken =
     typeof gitHubDispatchConfig.githubToken === "string" &&
     gitHubDispatchConfig.githubToken.trim() !== ""

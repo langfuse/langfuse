@@ -6,6 +6,7 @@ import {
   topicIdSchema,
   topicTraceSelectionCriteriaSchema,
   topicTraceSelectionSnapshotSchema,
+  TOPICS_MAX_TIME_RANGE_MS,
 } from "@langfuse/shared/topics";
 import type { PrismaClient } from "@langfuse/shared/src/db";
 import { selectTopicTraceRows } from "@langfuse/shared/topics/server";
@@ -43,7 +44,7 @@ export const topicTriggerInputSchema = z
     (input) =>
       input.operation !== "update" ||
       input.timeRange.to.getTime() - input.timeRange.from.getTime() <=
-        93 * 86_400_000,
+        TOPICS_MAX_TIME_RANGE_MS,
     "Select a time range of at most 93 days.",
   );
 

@@ -37,6 +37,9 @@ const allColors = Object.keys({
   orangeTint: true,
   limeTint: true,
   fuchsiaTint: true,
+  violetHighlight: true,
+  blueHighlight: true,
+  amberHighlight: true,
   inverted: true,
 } satisfies Record<Color, true>) as Color[];
 

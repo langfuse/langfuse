@@ -12,7 +12,8 @@ import type { GatewayProvider } from "@/src/features/ai-gateway/types/gatewayPro
 const LIST_MODELS_STEPS: Record<GatewayProvider, AgentSetupStep> = {
   OPENAI: {
     title: "List models through the OpenAI route",
-    description: "A model list means the key and the provider connection work.",
+    description:
+      "A model list means the gateway key and the provider credential work.",
     language: "sh",
     code: [
       'curl -s "$LANGFUSE_GATEWAY_HOST/openai/v1/models" \\',
@@ -21,7 +22,8 @@ const LIST_MODELS_STEPS: Record<GatewayProvider, AgentSetupStep> = {
   },
   ANTHROPIC: {
     title: "List models through the Anthropic route",
-    description: "A model list means the key and the provider connection work.",
+    description:
+      "A model list means the gateway key and the provider credential work.",
     language: "sh",
     code: [
       'curl -s "$LANGFUSE_GATEWAY_HOST/anthropic/v1/models?limit=1000" \\',
@@ -46,7 +48,7 @@ export function buildApiInstructions(
     docsUrl: AGENT_SETUP_DOCS_URLS.api,
     warning:
       context.providers.length === 0
-        ? "No provider connection is enabled yet. Requests fail until an organization admin adds one."
+        ? "No provider credential is enabled yet. Requests fail until an organization admin adds one."
         : undefined,
     steps: [
       {

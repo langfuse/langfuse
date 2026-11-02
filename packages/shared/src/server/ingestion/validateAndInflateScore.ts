@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import {
   ANNOTATION_SCORE_REQUIRES_CONFIG_ID_MESSAGE,
   isAnnotationScoreMissingConfigId,

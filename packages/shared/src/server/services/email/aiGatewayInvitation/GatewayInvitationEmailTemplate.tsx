@@ -56,14 +56,15 @@ export const GatewayInvitationEmailTemplate = ({
       <Preview>{previewText}</Preview>
       <Tailwind>
         <Body className="mx-auto my-auto bg-background font-sans">
-          <Container className="mx-auto my-10 w-[465px] rounded border border-solid border-[#eaeaea] p-5">
+          {/* Stay on the same 465px card as the other invites. Long links wrap inside it so the card cannot grow and get clipped. */}
+          <Container className="mx-auto my-10 w-[465px] max-w-[465px] table-fixed rounded border border-solid border-[#eaeaea] p-5 [overflow-wrap:anywhere]">
             <Section className="mt-8">
               <Img
                 src="https://static.langfuse.com/langfuse_logo_transactional_email.png"
                 width="40"
                 height="26"
                 alt="Langfuse"
-                className="mx-auto my-0"
+                className="mx-auto my-0 h-[26px] w-[40px] max-w-full"
               />
             </Section>
             <Heading className="mx-0 my-[30px] p-0 text-center text-2xl font-normal text-black">
@@ -106,7 +107,9 @@ export const GatewayInvitationEmailTemplate = ({
             </Section>
             <Text className="text-sm leading-6 text-black">
               or copy and paste this URL into your browser:{" "}
-              <span className="text-blue-600 no-underline">{link}</span>
+              <span className="break-all text-blue-600 no-underline">
+                {link}
+              </span>
             </Text>
             <Hr className="mx-0 my-[26px] w-full border border-solid border-[#eaeaea]" />
             <Text className="text-xs leading-6 text-[#666666]">

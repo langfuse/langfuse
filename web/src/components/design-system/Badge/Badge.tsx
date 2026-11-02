@@ -34,6 +34,13 @@ const badgeVariants = cva(
         /** `filled` for a chip on a muted or accent surface, e.g. a selected or hovered row, where `bg-muted` vanishes. */
         filledOnMuted:
           "border-transparent bg-background text-foreground-secondary",
+        /** Category highlight tints, as used by treemap tiles. */
+        violetHighlight:
+          "border-transparent bg-category-violet-highlight/35 text-foreground-secondary",
+        blueHighlight:
+          "border-transparent bg-category-blue-highlight/35 text-foreground-secondary",
+        amberHighlight:
+          "border-transparent bg-category-amber-highlight/35 text-foreground-secondary",
         violetTint:
           "border-category-violet/40 bg-category-violet/10 text-foreground-secondary",
         skyTint:

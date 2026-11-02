@@ -32,6 +32,9 @@
   `clickhouse/scripts/dev-tables.sh`, applied by hand on Cloud, not
   migration-managed) read via `src/server/repositories/billable-events.ts`.
   Keep it out of every delete, retention and cleaner path.
+  `src/server/billing/billingLedgerShadow.ts` compares legacy billing counts
+  with the ledger and only reports (metrics plus one log line); it never
+  throws. Callers gate it on `LANGFUSE_BILLING_LEDGER_SHADOW_ENABLED`.
 - Queue payload schemas: `src/server/queues.ts`
 - Queue helpers: `src/server/redis/*`
   `getShardIndex` from `src/server/redis/sharding.ts` is exported by the server

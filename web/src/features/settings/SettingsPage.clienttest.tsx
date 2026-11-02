@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import { PagedSettingsContainer } from "@/src/components/PagedSettingsContainer";
 import { buildSettingsPages } from "@/src/features/settings/SettingsPage";
 
@@ -139,14 +139,14 @@ describe("buildSettingsPages", () => {
       />,
     );
 
-    expect(screen.getAllByRole("link", { name: "General" })).toHaveLength(1);
+    expect(screen.getAllByRole("link", { name: "General" })).toHaveLength(2);
     expect(screen.getByRole("link", { name: "Billing" })).toHaveAttribute(
       "href",
       "/organization/org-1/settings/billing",
     );
   });
 
-  it("drops table query params when switching pages", () => {
+  it("renders in-page entries as focusable links and drops table query params", () => {
     router.asPath = "/organization/org-1/settings/members?search=alice";
     render(
       <PagedSettingsContainer
@@ -156,13 +156,22 @@ describe("buildSettingsPages", () => {
           accountPages,
           organizationPages,
         })}
+        activeSlug="billing"
       />,
     );
 
-    fireEvent.click(screen.getByText("Billing"));
-
-    expect(router.push).toHaveBeenCalledWith(
+    const billing = screen.getByRole("link", { name: "Billing" });
+    expect(billing).toHaveAttribute(
+      "href",
       "/organization/org-1/settings/billing",
     );
+    expect(billing).toHaveAttribute("aria-current", "page");
+    billing.focus();
+    expect(billing).toHaveFocus();
+    expect(
+      screen
+        .getAllByRole("link", { name: "General" })
+        .map((link) => link.getAttribute("href")),
+    ).toContain("/organization/org-1/settings");
   });
 });

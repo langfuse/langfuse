@@ -1,4 +1,4 @@
-/* eslint-disable @typescript-eslint/no-deprecated, @typescript-eslint/no-use-before-define -- Keep the MCP low-level Server API for now; migration to McpServer needs endpoint-level coverage. */
+/* eslint-disable @typescript-eslint/no-deprecated -- Keep the MCP low-level Server API for now; migration to McpServer needs endpoint-level coverage. */
 /**
  * MCP Server Instance
  *

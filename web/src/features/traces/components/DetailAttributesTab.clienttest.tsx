@@ -1,19 +1,23 @@
 /** @vitest-environment jsdom */
 import { cleanup, render } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
+import { JsonViewController } from "@/src/components/ui/JsonViewController";
 import { DetailAttributesTab } from "./DetailAttributesTab";
 import { MediaContentType } from "@langfuse/shared";
 import { MediaEnabledFields } from "@/src/features/media/validation";
 
-vi.mock("@/src/components/ui/PrettyJsonView", () => ({
-  PrettyJsonView: vi.fn(() => null),
+vi.mock("@/src/components/ui/JsonViewController", () => ({
+  JsonViewController: vi.fn(() => null),
 }));
 vi.mock("@/src/features/feature-flags", () => ({
   useInternalFeaturesEnabled: () => false,
 }));
 vi.mock("next/router", () => ({
-  useRouter: () => ({ asPath: "/project/project/traces", push: vi.fn() }),
+  useRouter: () => ({
+    asPath: "/project/project/traces",
+    query: { projectId: "project" },
+    push: vi.fn(),
+  }),
 }));
 vi.mock("@/src/features/posthog-analytics", () => ({
   usePostHogClientCapture: () => vi.fn(),
@@ -50,7 +54,7 @@ describe("DetailAttributesTab metadata expansion", () => {
         ]}
       />,
     );
-    expect(vi.mocked(PrettyJsonView).mock.calls[0]?.[0].media).toEqual([
+    expect(vi.mocked(JsonViewController).mock.calls[0]?.[0].media).toEqual([
       attachment,
     ]);
   });
@@ -72,7 +76,7 @@ describe("DetailAttributesTab metadata expansion", () => {
           onJsonMetadataExpandedChange={onJsonMetadataExpandedChange}
         />,
       );
-      const props = vi.mocked(PrettyJsonView).mock.calls[0]?.[0];
+      const props = vi.mocked(JsonViewController).mock.calls[0]?.[0];
       if (!props) throw new Error("Metadata viewer was not rendered");
       expect(props.externalExpansionState).toEqual(
         currentView === "pretty" ? metadataExpansionState : false,
