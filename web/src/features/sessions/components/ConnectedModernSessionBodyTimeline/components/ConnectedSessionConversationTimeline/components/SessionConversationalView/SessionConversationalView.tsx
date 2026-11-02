@@ -5,7 +5,11 @@ import {
   useRef,
   useState,
 } from "react";
-import { Search } from "@langfuse/icons";
+import { PanelLeftOpen, Search } from "@langfuse/icons";
+import { Button } from "@/src/components/ui/button";
+import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
+import useSessionStorage from "@/src/components/useSessionStorage";
+import { ResizableSplitLayout } from "@/src/components/ui/ResizableSplitLayout";
 import { Input } from "@/src/components/ui/input";
 import {
   ResizableHandle,
@@ -38,7 +42,7 @@ export function SessionConversationalView(
           ComponentProps<typeof SessionConversationSidebar>,
           { state: "loaded" }
         >,
-        "traces" | "activeTraceId"
+        "traces" | "activeTraceId" | "sidebarToggle"
       > & {
         searchQuery: string;
         isSearchPending: boolean;
@@ -48,6 +52,7 @@ export function SessionConversationalView(
       typeof SessionConversationTimeline
     >["traces"][number] & { trace: EventSessionTrace })[];
     controller: SessionConversationTimelineController;
+    sidebarMode?: "fixed" | "collapsible";
   },
 ) {
   const transcriptRef = useRef<HTMLDivElement>(null);
@@ -56,6 +61,10 @@ export function SessionConversationalView(
   );
   const [workspaceRef, workspaceSize] = useElementSize<HTMLDivElement>();
   const showSidebar = (workspaceSize?.width ?? 0) >= 768;
+  const [isSidebarOpen, setIsSidebarOpen] = useSessionStorage(
+    "annotation-session-conversation-sidebar:open",
+    true,
+  );
   const { defaultLayout, onLayoutChanged } = useDefaultLayout({
     id: "session-conversation-sidebar",
     panelIds: ["sidebar", "timeline"],
@@ -278,6 +287,22 @@ export function SessionConversationalView(
             props.onSelect(...args);
           },
         };
+  const sidebarToggle = {
+    open: isSidebarOpen,
+    onToggle: () => setIsSidebarOpen((open) => !open),
+  };
+  const timeline = (
+    <div
+      ref={transcriptRef}
+      className="bg-card dark:bg-background relative h-full min-h-0 min-w-0"
+    >
+      <style>{`::highlight(${highlightName}) { background-color: ${searchQuery ? "hsl(var(--find-match-background))" : "transparent"}; color: ${searchQuery ? "hsl(var(--foreground))" : "inherit"}; }`}</style>
+      <SessionConversationTimeline
+        traces={timelineItems}
+        controller={props.controller}
+      />
+    </div>
+  );
   return (
     <div
       ref={workspaceRef}
@@ -356,42 +381,86 @@ export function SessionConversationalView(
           </DialogController>
         </div>
       )}
-      <ResizablePanelGroup
-        orientation="horizontal"
-        className="min-h-0 min-w-0 flex-1"
-        defaultLayout={showSidebar ? defaultLayout : undefined}
-        onLayoutChanged={showSidebar ? onLayoutChanged : undefined}
-      >
-        {showSidebar && (
-          <ResizablePanel
-            id="sidebar"
-            defaultSize="24%"
-            minSize="200px"
-            maxSize="50%"
-            className="h-full min-h-0"
-          >
-            <SessionConversationSidebar {...sidebarProps} />
-          </ResizablePanel>
-        )}
-        {showSidebar && (
-          <ResizableHandle
-            withHandle
-            aria-label="Resize conversation sidebar"
+      {/* The timeline must keep its DOM identity across sidebar breakpoints for scroll and search highlights. */}
+      {props.sidebarMode === "collapsible" ? (
+        <div className="min-h-0 flex-1">
+          <ResizableSplitLayout
+            primaryContent={timeline}
+            secondaryContent={
+              <div className="bg-surface flex h-full flex-col overflow-hidden">
+                {showSidebar && !isSidebarOpen && (
+                  <div className="box-content flex h-7 shrink-0 items-center justify-center border-b py-4">
+                    <Tooltip label="Show session sidebar" placement="right">
+                      {({ getTriggerProps }) => (
+                        <Button
+                          {...getTriggerProps()}
+                          variant="ghost"
+                          size="icon"
+                          onClick={sidebarToggle.onToggle}
+                          aria-label="Show session sidebar"
+                          aria-expanded={false}
+                          className="h-6 w-6 shrink-0"
+                        >
+                          <PanelLeftOpen size="base" color="default" />
+                        </Button>
+                      )}
+                    </Tooltip>
+                  </div>
+                )}
+                <div
+                  className={
+                    showSidebar && isSidebarOpen ? "min-h-0 flex-1" : "hidden"
+                  }
+                >
+                  <SessionConversationSidebar
+                    {...sidebarProps}
+                    sidebarToggle={sidebarToggle}
+                  />
+                </div>
+              </div>
+            }
+            open={showSidebar && isSidebarOpen}
+            onOpenChange={showSidebar ? setIsSidebarOpen : undefined}
+            showHandle={showSidebar}
+            defaultPrimarySize={76}
+            defaultSecondarySize={24}
+            minPrimarySize={50}
+            maxSecondarySize={50}
+            collapsedSecondarySize={showSidebar ? "40px" : "0%"}
+            minSecondarySize="200px"
+            secondaryPosition="left"
+            persistId="annotation-session-conversation-sidebar"
           />
-        )}
-        <ResizablePanel id="timeline" minSize={showSidebar ? "300px" : "0%"}>
-          <div
-            ref={transcriptRef}
-            className="bg-card dark:bg-background relative h-full min-h-0 min-w-0"
-          >
-            <style>{`::highlight(${highlightName}) { background-color: ${searchQuery ? "hsl(var(--find-match-background))" : "transparent"}; color: ${searchQuery ? "hsl(var(--foreground))" : "inherit"}; }`}</style>
-            <SessionConversationTimeline
-              traces={timelineItems}
-              controller={props.controller}
+        </div>
+      ) : (
+        <ResizablePanelGroup
+          orientation="horizontal"
+          className="min-h-0 min-w-0 flex-1"
+          defaultLayout={showSidebar ? defaultLayout : undefined}
+          onLayoutChanged={showSidebar ? onLayoutChanged : undefined}
+        >
+          {showSidebar && (
+            <ResizablePanel
+              id="sidebar"
+              defaultSize="24%"
+              minSize="200px"
+              maxSize="50%"
+              className="h-full min-h-0"
+            >
+              <SessionConversationSidebar {...sidebarProps} />
+            </ResizablePanel>
+          )}
+          {showSidebar && (
+            <ResizableHandle
+              withHandle
+              aria-label="Resize conversation sidebar"
             />
-          </div>
-        </ResizablePanel>
-      </ResizablePanelGroup>
+          )}
+          <ResizablePanel id="timeline" minSize={showSidebar ? "300px" : "0%"}>
+            {timeline}
+          </ResizablePanel>
+        </ResizablePanelGroup>
+      )}
     </div>
   );
 }

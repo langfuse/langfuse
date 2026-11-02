@@ -858,7 +858,7 @@ export const sessionRouter = createTRPCRouter({
     }),
   observationsForTraceFromEvents: protectedGetSessionProcedure
     .input(SessionTraceObservationsInput)
-    .query(async ({ input }) => {
+    .query(async ({ input, ctx }) => {
       const positionFilter = (input.filter ?? []).find(
         (filter) => filter.type === "positionInTrace",
       );
@@ -874,13 +874,18 @@ export const sessionRouter = createTRPCRouter({
           operator: "=",
           value: input.traceId,
         },
-        {
+      ];
+
+      // Project members can read the entire trace, even when its observations
+      // lack session IDs. Public-session access must remain session-scoped.
+      if (!ctx.session.projectRole) {
+        filterState.push({
           column: "sessionId",
           type: "string",
           operator: "=",
           value: input.sessionId,
-        },
-      ];
+        });
+      }
 
       let orderBy: OrderByState = { column: "startTime", order: "ASC" };
       // One extra row is returned as the "more observations exist" sentinel

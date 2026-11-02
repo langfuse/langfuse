@@ -124,6 +124,20 @@ const commonArgs = {
   onOpenObservation: () => {},
   scrollTarget: null,
 };
+export const QueueAnnotationActions = meta.story({
+  name: "Queue corrections and trace comments",
+  args: {
+    ...commonArgs,
+    onOpenTrace: fn(),
+    state: { type: "transcript", result },
+    annotationActions: {
+      commentCount: 3,
+      commentsDisabled: false,
+      onOpenComments: fn(),
+      onOpenCorrections: fn(),
+    },
+  },
+});
 function transcriptState({
   messages,
   history,

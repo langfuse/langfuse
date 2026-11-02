@@ -53,7 +53,7 @@ const parseMetadata = (metadata: string | null) =>
 maybe("sessions observations bounded I/O (events)", () => {
   const projectId = "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a";
 
-  const session: Session = {
+  const session = {
     expires: "1",
     user: {
       id: "user-1",
@@ -87,13 +87,14 @@ maybe("sessions observations bounded I/O (events)", () => {
       admin: true,
     },
     environment: {} as any,
-  };
+  } satisfies Session;
 
   const ctx = createInnerTRPCContext({ session, headers: {} });
   const caller = appRouter.createCaller({ ...ctx, prisma });
 
   const seedObservations = async (
     events: Array<{
+      sessionId?: string;
       input?: string;
       output?: string;
       metadataValues?: string[];
@@ -113,7 +114,7 @@ maybe("sessions observations bounded I/O (events)", () => {
           project_id: projectId,
           parent_span_id: index === 0 ? "" : `${traceId}-o0`,
           type: "GENERATION",
-          session_id: sessionId,
+          session_id: event.sessionId ?? sessionId,
           user_id: "user-a",
           start_time: (baseTime + index * 100) * 1000,
           input: event.input ?? "small input",
@@ -144,6 +145,66 @@ maybe("sessions observations bounded I/O (events)", () => {
 
     return { sessionId, traceId, baseTime };
   };
+
+  it("returns observations without session IDs to project members", async () => {
+    const { sessionId, traceId } = await seedObservations([
+      { input: "session root" },
+      { sessionId: "", output: "output without a session ID" },
+    ]);
+    const memberCaller = appRouter.createCaller({
+      ...createInnerTRPCContext({
+        session: { ...session, user: { ...session.user, admin: false } },
+        headers: {},
+      }),
+      prisma,
+    });
+
+    const observations =
+      await memberCaller.sessions.observationsForTraceFromEvents({
+        projectId,
+        sessionId,
+        traceId,
+        filter: [],
+      });
+
+    expect(observations.map((observation) => observation.id)).toEqual([
+      `${traceId}-o0`,
+      `${traceId}-o1`,
+    ]);
+  });
+
+  it("keeps public-session observation queries scoped to the session", async () => {
+    const { sessionId, traceId } = await seedObservations([
+      { output: "public output" },
+      { sessionId: "", output: "output outside the public session" },
+      { sessionId: randomUUID(), output: "another session's output" },
+    ]);
+    await prisma.traceSession.create({
+      data: { id: sessionId, projectId, public: true },
+    });
+    const publicCaller = appRouter.createCaller({
+      ...createInnerTRPCContext({ session: null, headers: {} }),
+      prisma,
+    });
+
+    try {
+      const observations =
+        await publicCaller.sessions.observationsForTraceFromEvents({
+          projectId,
+          sessionId,
+          traceId,
+          filter: [],
+        });
+
+      expect(observations.map((observation) => observation.id)).toEqual([
+        `${traceId}-o0`,
+      ]);
+    } finally {
+      await prisma.traceSession.deleteMany({
+        where: { projectId, id: sessionId },
+      });
+    }
+  });
 
   it("returns under-cap fields whole and over-cap fields as preview heads with true lengths", async () => {
     const bigInput = "a".repeat(INLINE_LIMIT + 100);
