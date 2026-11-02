@@ -7,7 +7,6 @@ import {
 } from "@langfuse/shared/memberships";
 import {
   deleteUserBoundApiKeys,
-  deleteUserBoundApiKeysForRole,
   evictRevokedApiKeys,
 } from "@/src/features/ai-gateway/server/apiKey/userBoundApiKeys";
 import { Prisma, prisma, type User, type Role } from "@langfuse/shared/src/db";
@@ -103,16 +102,10 @@ async function provisionMembership({
           userId,
           role: targetRole,
         });
-        const revokedKeys = await deleteUserBoundApiKeysForRole(tx, {
-          userId,
-          orgId,
-          role: targetRole,
-        });
         return {
           t: "updated" as const,
           before: current,
           after: updated,
-          revokedKeys,
         };
       });
 
@@ -123,7 +116,6 @@ async function provisionMembership({
         return { kind: "unchanged", role: result.role };
       }
 
-      await evictRevokedApiKeys(result.revokedKeys, { apiKeyId });
       await auditLog({
         resourceType: "orgMembership",
         resourceId: result.after.id,

@@ -53,7 +53,7 @@ export class GatewayApiKeyService {
     name: string;
     metadata: GatewayMetadata;
     expiresAt?: Date | null;
-    /** `user` keys are revoked with the creator's gateway access; `serviceAccount` keys belong to the organization. */
+    /** `user` keys are USER-scoped and also need their creator's roles to allow each call; `serviceAccount` keys belong to the organization. */
     issuedAs: GatewayApiKeyIssuedAs;
     session: OrgAuthedContext["session"];
   }) {

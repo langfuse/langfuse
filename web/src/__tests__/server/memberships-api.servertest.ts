@@ -937,13 +937,9 @@ describe("Organization membership safeguards", () => {
       expect(await keyExists(key.id)).toBe(false);
     });
 
-    it.each([
-      [Role.MEMBER, true],
-      [Role.VIEWER, false],
-      [Role.NONE, false],
-    ])(
-      "keeps gateway keys of an OWNER moved to %s only while the role can invoke the gateway",
-      async (role, kept) => {
+    it.each([Role.MEMBER, Role.VIEWER, Role.NONE])(
+      "keeps gateway keys of an OWNER moved to %s, since a user key acts with its user's current roles",
+      async (role) => {
         await prisma.organizationMembership.update({
           where: { orgId_userId: { orgId, userId: memberId } },
           data: { role: Role.OWNER },
@@ -958,7 +954,7 @@ describe("Organization membership safeguards", () => {
         ).toBe(200);
 
         expect((await membership(memberId))?.role).toBe(role);
-        expect(await keyExists(key.id)).toBe(kept);
+        expect(await keyExists(key.id)).toBe(true);
       },
     );
   });

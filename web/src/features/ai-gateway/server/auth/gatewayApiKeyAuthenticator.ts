@@ -168,9 +168,8 @@ export class GatewayApiKeyAuthenticator {
       })),
     };
 
-    // Runs on cache misses only, so a role change that does not revoke the key
-    // takes effect within LANGFUSE_AI_GATEWAY_CACHE_RESOLVE_TTL_SECONDS.
-    // Demotions through the app revoke user-bound keys and evict them at once.
+    // Runs on cache misses only, so a role change takes effect within
+    // LANGFUSE_AI_GATEWAY_CACHE_RESOLVE_TTL_SECONDS.
     if (row.userId) {
       const ownerRole = row.user?.organizationMemberships.find(
         (membership) => membership.orgId === organizationId,

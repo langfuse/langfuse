@@ -1203,13 +1203,9 @@ describe("membersRouter - gateway key revocation", () => {
     expect(await keyExists(key.id)).toBe(false);
   });
 
-  it.each([
-    [Role.MEMBER, true],
-    [Role.VIEWER, false],
-    [Role.NONE, false],
-  ])(
-    "updateOrgMembership from OWNER to %s keeps the bound gateway key: %s",
-    async (role, kept) => {
+  it.each([Role.MEMBER, Role.VIEWER, Role.NONE])(
+    "updateOrgMembership from OWNER to %s keeps the bound gateway key",
+    async (role) => {
       const { org, caller } = await prepare("cloud:core");
       const otherOwner = await createTestUser();
       const membership = await prisma.organizationMembership.create({
@@ -1223,7 +1219,7 @@ describe("membersRouter - gateway key revocation", () => {
         role,
       });
 
-      expect(await keyExists(key.id)).toBe(kept);
+      expect(await keyExists(key.id)).toBe(true);
     },
   );
 });
