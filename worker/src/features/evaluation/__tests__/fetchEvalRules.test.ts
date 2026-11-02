@@ -118,26 +118,32 @@ describe("evaluation rule fetching", () => {
     }
   });
 
-  it("ignores old observation-only negative cache entries and does not cache transcript-only projects as empty", async () => {
-    mocks.hasNoRules.mockImplementation(
-      async (_projectId, scope) => scope === "eventBased",
-    );
-    mocks.findMany.mockResolvedValue([
-      rule("transcript", TopicsTargetObject, [EvalTemplateType.FACET]),
-    ]);
+  it.each([
+    ["eventBased", TopicsTargetObject, "traceTranscriptRules"],
+    ["traceTranscriptBased", EvalTargetObject.EVENT, "observationRules"],
+  ] as const)(
+    "a cached absence in %s does not hide the other target or refresh its own TTL",
+    async (cachedScope, targetObject, resultKey) => {
+      mocks.hasNoRules.mockImplementation(
+        async (_projectId, scope) => scope === cachedScope,
+      );
+      mocks.findMany.mockResolvedValue([rule("active", targetObject)]);
 
-    for (let attempt = 0; attempt < 2; attempt++) {
       const result = await fetchEvalRules(projectId);
-      expect(result.observationRules).toEqual([]);
-      expect(result.traceTranscriptRules.map(({ id }) => id)).toEqual([
-        "transcript",
-      ]);
-    }
-    expect(mocks.findMany).toHaveBeenCalledTimes(2);
-    expect(mocks.setNoRules).not.toHaveBeenCalled();
-  });
+      expect(result[resultKey].map(({ id }) => id)).toEqual(["active"]);
+      expect(mocks.findMany).toHaveBeenCalledTimes(1);
+      const targets = mocks.findMany.mock.calls[0][0].where.OR;
+      expect(targets).toHaveLength(1);
+      expect(targets[0].targetObject).toEqual(
+        targetObject === TopicsTargetObject
+          ? TopicsTargetObject
+          : { in: [EvalTargetObject.EVENT, EvalTargetObject.EXPERIMENT] },
+      );
+      expect(mocks.setNoRules).not.toHaveBeenCalled();
+    },
+  );
 
-  it("skips the database after caching an empty combined result", async () => {
+  it("caches each empty target and lets existing observation invalidation expose an activated rule", async () => {
     const emptyScopes = new Set<string>();
     mocks.hasNoRules.mockImplementation(async (_projectId, scope) =>
       emptyScopes.has(scope),
@@ -152,7 +158,20 @@ describe("evaluation rule fetching", () => {
     });
     await fetchEvalRules(projectId);
     expect(mocks.findMany).toHaveBeenCalledTimes(1);
-    expect(emptyScopes).toEqual(new Set(["evalRules"]));
+    expect(emptyScopes).toEqual(
+      new Set(["eventBased", "traceTranscriptBased"]),
+    );
+
+    // An older web instance clears the observation cache when a rule is activated.
+    emptyScopes.delete("eventBased");
+    mocks.findMany.mockResolvedValue([
+      rule("activated", EvalTargetObject.EVENT),
+    ]);
+    const result = await fetchEvalRules(projectId);
+    expect(result.observationRules.map(({ id }) => id)).toEqual(["activated"]);
+    expect(result.traceTranscriptRules).toEqual([]);
+    expect(mocks.findMany).toHaveBeenCalledTimes(2);
+    expect(emptyScopes).toEqual(new Set(["traceTranscriptBased"]));
   });
 
   it("does not cache a failed combined query as an empty project", async () => {

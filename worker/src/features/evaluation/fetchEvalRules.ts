@@ -7,7 +7,7 @@ import {
   normalizeEvaluationRuleTarget,
   type FilterState,
 } from "@langfuse/shared";
-import { prisma } from "@langfuse/shared/src/db";
+import { prisma, type Prisma } from "@langfuse/shared/src/db";
 import {
   logger,
   hasNoEvalConfigsCache,
@@ -32,9 +32,13 @@ const observationEvaluatorTypes: EvalTemplateType[] = [
 /** Fetch active observation and transcript rules for ingestion and experiments. */
 export async function fetchEvalRules(projectId: string): Promise<EvalRules> {
   const rules: EvalRules = { observationRules: [], traceTranscriptRules: [] };
-  // A cached absence covers both targets, independently of feature enablement.
-  const hasNoRules = await hasNoEvalConfigsCache(projectId, "evalRules");
-  if (hasNoRules) {
+  // Keep the observation cache key so older deployments still invalidate it.
+  // Transcript absence is cached separately and cannot suppress observation evals.
+  const [hasNoObservationRules, hasNoTranscriptRules] = await Promise.all([
+    hasNoEvalConfigsCache(projectId, "eventBased"),
+    hasNoEvalConfigsCache(projectId, "traceTranscriptBased"),
+  ]);
+  if (hasNoObservationRules && hasNoTranscriptRules) {
     logger.debug(
       `Skipping eval rule fetch - no rules cached for project ${projectId}`,
     );
@@ -57,23 +61,28 @@ export async function fetchEvalRules(projectId: string): Promise<EvalRules> {
     },
   };
 
+  const targets: Prisma.EvaluationRuleWhereInput[] = [];
+  if (!hasNoObservationRules) {
+    targets.push({
+      targetObject: {
+        in: [EvalTargetObject.EVENT, EvalTargetObject.EXPERIMENT],
+      },
+      assignments: { some: observationAssignments },
+    });
+  }
+  if (!hasNoTranscriptRules) {
+    targets.push({
+      targetObject: TopicsTargetObject,
+      assignments: { some: transcriptAssignments },
+    });
+  }
+
   const rows = await prisma.evaluationRule.findMany({
     where: {
       projectId,
       status: JobConfigState.ACTIVE,
       // Only rules with runnable assignments should prevent negative caching.
-      OR: [
-        {
-          targetObject: {
-            in: [EvalTargetObject.EVENT, EvalTargetObject.EXPERIMENT],
-          },
-          assignments: { some: observationAssignments },
-        },
-        {
-          targetObject: TopicsTargetObject,
-          assignments: { some: transcriptAssignments },
-        },
-      ],
+      OR: targets,
     },
     select: {
       id: true,
@@ -94,10 +103,17 @@ export async function fetchEvalRules(projectId: string): Promise<EvalRules> {
     },
   });
 
-  if (rows.length === 0) {
-    logger.debug(`No eval rules found for project ${projectId}, caching`);
-    await setNoEvalConfigsCache(projectId, "evalRules");
-    return rules;
+  if (!hasNoObservationRules && rules.observationRules.length === 0) {
+    logger.debug(
+      `No observation eval rules found for project ${projectId}, caching`,
+    );
+    await setNoEvalConfigsCache(projectId, "eventBased");
+  }
+  if (!hasNoTranscriptRules && rules.traceTranscriptRules.length === 0) {
+    logger.debug(
+      `No transcript eval rules found for project ${projectId}, caching`,
+    );
+    await setNoEvalConfigsCache(projectId, "traceTranscriptBased");
   }
 
   for (const rule of rows) {
