@@ -1,4 +1,4 @@
-import { Plus, Trash, UserPlus } from "@langfuse/icons";
+import { BookOpen, Plus, Trash, UserPlus } from "@langfuse/icons";
 import { formatDistanceToNowStrict } from "date-fns";
 
 import { SettingsTable } from "@/src/components/SettingsTable/SettingsTable";
@@ -51,6 +51,7 @@ export function GatewayApiKeysTable({
   lastUsed,
   createAction,
   inviteAction,
+  usageInstructionsAction,
   onRevoke,
   pagination,
   search,
@@ -62,6 +63,7 @@ export function GatewayApiKeysTable({
   createAction: () => void;
   /** Omit for callers who cannot invite people to the organization. */
   inviteAction?: () => void;
+  usageInstructionsAction: () => void;
   onRevoke: (apiKeyId: string) => void;
   pagination: PaginationBarProps;
   search: { value: string; onChange: (value: string) => void };
@@ -180,6 +182,13 @@ export function GatewayApiKeysTable({
               },
             ]
           : []),
+        {
+          id: "usage-instructions",
+          label: "Usage instructions",
+          variant: "outline",
+          icon: <BookOpen size="base" aria-hidden="true" />,
+          onClick: usageInstructionsAction,
+        },
         {
           id: "create-key",
           label: "Create key",

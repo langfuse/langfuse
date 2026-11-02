@@ -1,7 +1,7 @@
 import { expect, userEvent, within } from "storybook/test";
 
 import preview from "@/.storybook/preview";
-import { buildAgentSetupInstructions } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/GeneratedKeyContent/fns/agentSetupInstructions/buildAgentSetupInstructions";
+import { buildAgentSetupInstructions } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/SetupInstructions/fns/agentSetupInstructions/buildAgentSetupInstructions";
 import { SetupInstructionsTabs } from "./SetupInstructionsTabs";
 
 const context = {

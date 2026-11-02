@@ -43,7 +43,9 @@ export function SettingsPage({ scope }: SettingsPageProps) {
     typeof router.query.page === "string" ? router.query.page : undefined;
   const fullHeight =
     scope === "organization" &&
-    (activeSlug === "ai-gateway-models" || activeSlug === "ai-gateway");
+    (activeSlug === "ai-gateway-models" ||
+      activeSlug === "ai-gateway" ||
+      activeSlug === "ai-gateway-api-keys");
 
   if (scope === "organization" && !organization) {
     return (

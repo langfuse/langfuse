@@ -1,4 +1,4 @@
-import { buildAgentSetupInstructions } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/GeneratedKeyContent/fns/agentSetupInstructions/buildAgentSetupInstructions";
+import { buildAgentSetupInstructions } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/SetupInstructions/fns/agentSetupInstructions/buildAgentSetupInstructions";
 import { api } from "@/src/utils/api";
 
 export function useAgentSetupInstructions(organizationId: string) {
