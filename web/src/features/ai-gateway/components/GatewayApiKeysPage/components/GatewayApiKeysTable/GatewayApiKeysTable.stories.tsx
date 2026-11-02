@@ -102,7 +102,7 @@ export const LastUsedRecently = meta.story({
   },
   play: async ({ canvas }) => {
     const timestamp = lastUsedCell(canvas).querySelector("[title]")!;
-    await expect(timestamp).toHaveTextContent("about 2 hours ago");
+    await expect(timestamp).toHaveTextContent(/^2 hours ago$/);
     await expect(timestamp.getAttribute("title")).toMatch(/\d{4}-\d{2}-\d{2}/);
   },
 });
@@ -114,9 +114,7 @@ export const LastUsedNotInWindow = meta.story({
     ...actions,
   },
   play: async ({ canvas }) => {
-    await expect(lastUsedCell(canvas)).toHaveTextContent(
-      "Not used in last 7 days",
-    );
+    await expect(lastUsedCell(canvas)).toHaveTextContent("Not used (7d)");
   },
 });
 

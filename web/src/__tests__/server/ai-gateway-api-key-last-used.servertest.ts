@@ -18,6 +18,10 @@ const cleanupUsers: string[] = [];
 const originalGatewayOrganizationAllowlist = [
   ...env.LANGFUSE_AI_GATEWAY_ORGANIZATION_ID_ALLOWLIST,
 ];
+const originalDeploymentEnv = {
+  NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
+  LANGFUSE_AI_GATEWAY_DEPLOYED: env.LANGFUSE_AI_GATEWAY_DEPLOYED,
+};
 
 afterEach(async () => {
   await prisma.organization.deleteMany({
@@ -31,6 +35,7 @@ afterEach(async () => {
     env.LANGFUSE_AI_GATEWAY_ORGANIZATION_ID_ALLOWLIST.length,
     ...originalGatewayOrganizationAllowlist,
   );
+  Object.assign(env, originalDeploymentEnv);
 });
 
 async function prepareOrganization() {
@@ -117,11 +122,11 @@ describe("aiGateway.getApiKeysLastUsed", () => {
         defaultIngestionProjectId: ingestionProject.id,
       },
     });
-    const [recentKey, staleKey, sdkOnlyKey] = await Promise.all(
-      ["Recent", "Stale", "SDK only"].map((name) =>
-        owner.aiGateway.createApiKey({ orgId: org.id, name, metadata: {} }),
-      ),
-    );
+    const createKey = (name: string) =>
+      owner.aiGateway.createApiKey({ orgId: org.id, name, metadata: {} });
+    const recentKey = await createKey("Recent");
+    const staleKey = await createKey("Stale");
+    const sdkOnlyKey = await createKey("SDK only");
     const now = Date.now();
     const latest = new Date(now - HOUR_MS);
     await createEventsCh([
@@ -216,7 +221,7 @@ describe("aiGateway.getApiKeysLastUsed", () => {
     ).rejects.toMatchObject({ code: "FORBIDDEN" });
   });
 
-  it("reports usage as untracked without an active ingestion project", async () => {
+  it("reports usage as untracked in ingestion mode NONE or without an active ingestion project", async () => {
     const { org, ingestionProject } = await prepareOrganization();
     const owner = await callerFor(org, Role.OWNER);
     const key = await owner.aiGateway.createApiKey({
@@ -238,11 +243,31 @@ describe("aiGateway.getApiKeysLastUsed", () => {
       untracked,
     );
 
+    // NONE keeps a linked project. Cloud runs a stored NONE as USAGE, so
+    // traffic is still recorded there; self-hosted sends none.
     await prisma.gatewayConfig.create({
       data: {
         organizationId: org.id,
         defaultIngestionProjectId: ingestionProject.id,
+        ingestionMode: "NONE",
       },
+    });
+    Object.assign(env, { NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: "DEV" });
+    await expect(
+      owner.aiGateway.getApiKeysLastUsed(input),
+    ).resolves.toMatchObject({ isTracked: true, apiKeys: [{ id: key.id }] });
+
+    Object.assign(env, {
+      NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: undefined,
+      LANGFUSE_AI_GATEWAY_DEPLOYED: "true",
+    });
+    await expect(owner.aiGateway.getApiKeysLastUsed(input)).resolves.toEqual(
+      untracked,
+    );
+
+    await prisma.gatewayConfig.update({
+      where: { organizationId: org.id },
+      data: { ingestionMode: "USAGE" },
     });
     await prisma.project.update({
       where: { id: ingestionProject.id },

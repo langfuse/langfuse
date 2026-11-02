@@ -1,4 +1,5 @@
 import { Plus, Trash, UserPlus } from "@langfuse/icons";
+import { formatDistanceToNowStrict } from "date-fns";
 
 import { SettingsTable } from "@/src/components/SettingsTable/SettingsTable";
 import type { PaginationBarProps } from "@/src/components/design-system/PaginationBar/PaginationBar";
@@ -6,6 +7,9 @@ import { createDateTableColumn } from "@/src/components/design-system/table/colu
 import { createBadgeListTableColumn } from "@/src/components/design-system/table/columns/createBadgeListTableColumn";
 import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
 import { createUserTableColumn } from "@/src/components/design-system/table/columns/createUserTableColumn";
+import { createTableColumn } from "@/src/components/design-system/table/columns/utils/createTableColumn";
+import { Skeleton } from "@/src/components/ui/skeleton";
+import { buildLocalIsoDatePresentation } from "@/src/utils/dates";
 import type { AsyncTableData } from "@/src/components/design-system/table/Table";
 import type { LangfuseColumnDef } from "@/src/components/table/types";
 import { isApiKeyExpired } from "@/src/features/apiKey";
@@ -31,7 +35,9 @@ type GatewayApiKey = {
   lastUsedAt?: Date;
 };
 
-/** `isTracked` is false when the organization has no gateway ingestion project to record traffic into. */
+const lastUsedSkeleton = <Skeleton className="h-4 w-1/2" />;
+
+/** `isTracked` is false when gateway traffic is not recorded (ingestion mode `NONE` or no active ingestion project). */
 type GatewayApiKeysLastUsedState =
   | { status: "loading" }
   | { status: "error" }
@@ -98,21 +104,33 @@ export function GatewayApiKeysTable({
       getPrefix: (expiresAt) =>
         isApiKeyExpired(expiresAt) ? "Expired on " : null,
     }),
-    createDateTableColumn<GatewayApiKey>({
+    createTableColumn<GatewayApiKey, Date>({
       accessorFn: (row) => row.lastUsedAt,
       id: "lastUsedAt",
       header: "Last used",
-      mode: "relative",
       hideBelowMd: true,
       enableResizing: false,
-      emptyValue:
-        lastUsed.status === "success" && lastUsed.isTracked
-          ? `Not used in last ${GATEWAY_API_KEY_LAST_USED_WINDOW_DAYS} days`
-          : "Unavailable",
-      getValue: (lastUsedAt) =>
-        lastUsed.status === "loading"
-          ? { type: "loading" }
-          : (lastUsedAt ?? undefined),
+      loadingCell: lastUsedSkeleton,
+      renderCell: (lastUsedAt) => {
+        if (lastUsed.status === "loading") return lastUsedSkeleton;
+        if (!lastUsedAt) {
+          return (
+            <span className="text-muted-foreground">
+              {lastUsed.status === "success" && lastUsed.isTracked
+                ? `Not used (${GATEWAY_API_KEY_LAST_USED_WINDOW_DAYS}d)`
+                : "Unavailable"}
+            </span>
+          );
+        }
+        return (
+          <span
+            className="block w-full truncate"
+            title={buildLocalIsoDatePresentation({ date: lastUsedAt })?.title}
+          >
+            {formatDistanceToNowStrict(lastUsedAt, { addSuffix: true })}
+          </span>
+        );
+      },
     }),
     createBadgeListTableColumn<GatewayApiKey>({
       accessorFn: (row) => getMetadataEntries(row.metadata),

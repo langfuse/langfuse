@@ -23,6 +23,7 @@ import type { OrgAuthedContext } from "@/src/server/api/trpc";
 import { invalidateGatewayResolveCacheForApiKey } from "@/src/features/ai-gateway/server/resolve/gatewayResolveCache";
 import { hasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import { GATEWAY_API_KEY_LAST_USED_WINDOW_DAYS } from "@/src/features/ai-gateway/constants/gatewayApiKeyLastUsed";
+import { getEffectiveGatewayIngestionMode } from "@/src/features/ai-gateway/fns/gatewayIngestionModePolicy";
 import { GatewayConfigRepository } from "@/src/features/ai-gateway/server/config/gatewayConfigRepository";
 import { GatewayApiKeyRepository } from "./gatewayApiKeyRepository";
 import { getGatewayApiKeysLastUsedAt } from "./gatewayApiKeyLastUsedRepository";
@@ -31,12 +32,14 @@ type GatewayApiKeyIssuedAs = "user" | "serviceAccount";
 
 export class GatewayApiKeyService {
   private readonly repository: GatewayApiKeyRepository;
+  private readonly configRepository: GatewayConfigRepository;
 
   constructor(
     private readonly prisma: PrismaClient,
     private readonly redis?: Redis | Cluster | null,
   ) {
     this.repository = new GatewayApiKeyRepository(prisma);
+    this.configRepository = new GatewayConfigRepository(prisma);
   }
 
   /** Without ownerUserId, lists every gateway key in the organization. */
@@ -54,19 +57,19 @@ export class GatewayApiKeyService {
    * Latest gateway request per key in the last
    * GATEWAY_API_KEY_LAST_USED_WINDOW_DAYS days, read from the organization's
    * gateway ingestion project. Ids the caller cannot list are dropped.
-   * `isTracked` is false without an active ingestion project, since gateway
-   * traffic is then not recorded anywhere.
+   * `isTracked` is false when gateway traffic is not recorded: ingestion mode
+   * `NONE` (which may keep a linked project) or no active ingestion project.
    */
   async getLastUsed(params: {
     organizationId: string;
     ownerUserId?: string;
     apiKeyIds: string[];
   }) {
-    const config = await new GatewayConfigRepository(this.prisma).getConfig(
-      params.organizationId,
-    );
+    const config = await this.configRepository.getConfig(params.organizationId);
     const project = config?.defaultIngestionProject;
     if (
+      !config ||
+      getEffectiveGatewayIngestionMode(config.ingestionMode) === "NONE" ||
       !project ||
       project.deletedAt ||
       project.orgId !== params.organizationId
