@@ -74,6 +74,83 @@ export const Submits = meta.story({
 
 const selectSubmit = fn();
 
+const passwordSubmit = fn();
+
+function PasswordInputFieldExample() {
+  const form = useForm<{ password: string }>({
+    defaultValues: { password: "" },
+    mode: "onBlur",
+    resolver: (values): ResolverResult<{ password: string }> => {
+      if (!values.password) {
+        return {
+          values: {},
+          errors: {
+            password: { type: "required", message: "Password is required." },
+          },
+        };
+      }
+      return { values, errors: {} };
+    },
+  });
+
+  return (
+    <Form
+      onSubmit={form.handleSubmit(passwordSubmit)}
+      actions={[{ id: "save", type: "submit", text: "Save" }]}
+    >
+      <Form.PasswordInputField
+        control={form.control}
+        name="password"
+        label="Password"
+        description={[{ type: "text", text: "Enter your password." }]}
+        aria-describedby="password-extra-help"
+        placeholder="Your password"
+      />
+      <p id="password-extra-help">Additional help.</p>
+    </Form>
+  );
+}
+
+export const PasswordInputField = meta.story({
+  name: "(Test) Password field bindings and validation",
+  render: () => <PasswordInputFieldExample />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const input = canvas.getByLabelText("Password");
+    passwordSubmit.mockClear();
+
+    await expect(input).toHaveAttribute("type", "password");
+    await expect(input).toHaveAttribute("placeholder", "Your password");
+    await userEvent.click(input);
+    await userEvent.tab();
+    const error = await canvas.findByText("Password is required.");
+    const description = canvas.getByText("Enter your password.");
+    await expect(input).toHaveAttribute("aria-invalid", "true");
+    await expect(input).toHaveAttribute(
+      "aria-describedby",
+      `${error.id} ${description.id} password-extra-help`,
+    );
+    await userEvent.click(canvas.getByRole("button", { name: "Save" }));
+    await expect(input).toHaveFocus();
+    await userEvent.type(input, "secret-token");
+    await userEvent.click(
+      canvas.getByRole("button", { name: "Show password" }),
+    );
+    await expect(input).toHaveAttribute("type", "text");
+    await expect(input).toHaveValue("secret-token");
+    await userEvent.click(
+      canvas.getByRole("button", { name: "Hide password" }),
+    );
+    await expect(input).toHaveAttribute("type", "password");
+    await userEvent.click(canvas.getByRole("button", { name: "Save" }));
+    await expect(passwordSubmit).toHaveBeenCalledWith(
+      { password: "secret-token" },
+      expect.anything(),
+    );
+    await expect(input).toHaveAttribute("aria-invalid", "false");
+  },
+});
+
 function SelectInputFieldExample() {
   const form = useForm<{ region: "US" | "EU" }>({
     defaultValues: { region: "US" },

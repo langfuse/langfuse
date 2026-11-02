@@ -1,7 +1,6 @@
 import { type UseFormReturn } from "react-hook-form";
 
 import { Form } from "@/src/components/design-system/Form/Form";
-import { PasswordInput } from "@/src/components/design-system/PasswordInput/PasswordInput";
 import { type MonitorAutomationFormValues } from "../helpers/monitorAutomationFormSchema";
 import { stripUrlScheme } from "../helpers/stripUrlScheme";
 import { Input } from "@/src/components/design-system/Input/Input";
@@ -61,32 +60,18 @@ export function GitHubDispatchActionFields({
           { type: "text", text: " filter in your workflow." },
         ]}
       />
-      <Form.Field
+      <Form.PasswordInputField
         control={form.control}
         name="githubDispatch.githubToken"
         label="GitHub personal access token"
+        placeholder="ghp_..."
         description={[
           { type: "text", text: "GitHub PAT with " },
           { type: "code", text: "repo" },
           { type: "text", text: " scope for repository dispatch. " },
           { type: "link", text: "Create token", href: createTokenUrl },
         ]}
-      >
-        {(field) => (
-          <PasswordInput
-            id={field.id}
-            name={field.name}
-            value={field.value}
-            onChange={field.onChange}
-            onBlur={field.onBlur}
-            ref={field.ref}
-            placeholder="ghp_..."
-            aria-describedby={field.inputDescribedById}
-            aria-invalid={!!field.error}
-            error={!!field.error}
-          />
-        )}
-      </Form.Field>
+      />
     </>
   );
 }

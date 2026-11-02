@@ -6,7 +6,6 @@ import {
   type PagerDutyTestEventState,
 } from "@/src/features/pagerduty";
 import { Form } from "@/src/components/design-system/Form/Form";
-import { PasswordInput } from "@/src/components/design-system/PasswordInput/PasswordInput";
 import { type MonitorAutomationFormValues } from "../helpers/monitorAutomationFormSchema";
 
 const integrationDocsUrl =
@@ -30,10 +29,11 @@ export function PagerDutyActionFields({
 
   return (
     <>
-      <Form.Field
+      <Form.PasswordInputField
         control={form.control}
         name="pagerDuty.routingKey"
         label="Integration Key"
+        placeholder="e.g. R0212P1QXGEIQE2NMTQ7L7WXD00DWHIN"
         description={[
           {
             type: "text",
@@ -41,22 +41,7 @@ export function PagerDutyActionFields({
           },
           { type: "link", text: "Learn more", href: integrationDocsUrl },
         ]}
-      >
-        {(field) => (
-          <PasswordInput
-            id={field.id}
-            name={field.name}
-            value={field.value}
-            onChange={field.onChange}
-            onBlur={field.onBlur}
-            ref={field.ref}
-            placeholder="e.g. R0212P1QXGEIQE2NMTQ7L7WXD00DWHIN"
-            aria-describedby={field.inputDescribedById}
-            aria-invalid={!!field.error}
-            error={!!field.error}
-          />
-        )}
-      </Form.Field>
+      />
       <Form.SelectInputField
         control={form.control}
         name="pagerDuty.region"

@@ -16,6 +16,7 @@ import {
   type FormFieldProps,
 } from "@/src/components/design-system/FormField/FormField";
 import { Input } from "@/src/components/design-system/Input/Input";
+import { PasswordInput } from "@/src/components/design-system/PasswordInput/PasswordInput";
 import { SelectInput } from "@/src/components/design-system/SelectInput/SelectInput";
 
 /** Wraps Form.Field with SelectInput and its form bindings. */
@@ -135,6 +136,64 @@ function FormInputField<
   );
 }
 
+/** Wraps Form.Field with PasswordInput and its form bindings. */
+function FormPasswordInputField<
+  TFieldValues extends FieldValues,
+  TName extends FieldPath<TFieldValues>,
+  TTransformedValues extends FieldValues = TFieldValues,
+>({
+  control,
+  name,
+  label,
+  description,
+  registerLabelTooltip,
+  required,
+  "aria-describedby": describedBy,
+  ...inputProps
+}: Omit<FormFieldProps<TFieldValues, TName, TTransformedValues>, "children"> &
+  Omit<
+    ComponentProps<typeof PasswordInput>,
+    | "id"
+    | "name"
+    | "value"
+    | "defaultValue"
+    | "onChange"
+    | "onBlur"
+    | "ref"
+    | "error"
+    | "aria-invalid"
+  >) {
+  return (
+    <FormField
+      control={control}
+      name={name}
+      label={label}
+      description={description}
+      registerLabelTooltip={registerLabelTooltip}
+      required={required}
+    >
+      {(field) => (
+        <PasswordInput
+          {...inputProps}
+          id={field.id}
+          name={field.name}
+          value={field.value}
+          onChange={field.onChange}
+          onBlur={field.onBlur}
+          ref={field.ref}
+          required={required}
+          aria-describedby={
+            [field.inputDescribedById, describedBy].filter(Boolean).join(" ") ||
+            undefined
+          }
+          aria-invalid={Boolean(field.error)}
+          error={Boolean(field.error)}
+        />
+      )}
+    </FormField>
+  );
+}
+
 export type FormAction = {
   id: string;
   text: string;
@@ -213,5 +272,6 @@ function FormRoot({
 export const Form = Object.assign(FormRoot, {
   Field: FormField,
   InputField: FormInputField,
+  PasswordInputField: FormPasswordInputField,
   SelectInputField: FormSelectInputField,
 });
