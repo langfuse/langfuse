@@ -138,7 +138,10 @@ export async function sendResetPasswordVerificationRequest(
 
   const result = await transport.sendMail({
     to: identifier,
-    from: provider.from,
+    // "Acme <noreply@acme.com>" goes as is: wrapping it breaks MAIL FROM (501)
+    from: provider.from.includes("<")
+      ? provider.from
+      : { name: "Langfuse", address: provider.from },
     subject,
     text: textBody,
     html: htmlTemplate,
