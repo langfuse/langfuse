@@ -9,8 +9,7 @@ templates. The local dev template sets the idle time below.
 
 ## Recording trace-rule selections
 
-`LANGFUSE_TRACE_RULE_RECORDING_ENABLED` defaults to `false` and requires a cloud
-region. When enabled, OTel processing fetches active `trace_transcript` rules in
+OTel processing fetches active `trace_transcript` rules in
 the same query as observation rules. Matching uses the enriched observation at
 the evaluation stage, independently of direct event writes. Facet-only rules
 also require the existing Topics allowlist and active-processing gate.
@@ -34,21 +33,7 @@ The recorder writes three keys per shard under `{trace-dispatch:<shard>}`:
 - `due`: a sorted set of those identities, scored by Redis time plus the project's
   idle interval. Only selected traces enter it; later observations refresh it.
 
-Lua updates all three structures atomically in batches of at most 50 traces.
-The shard hash tag keeps each script within a single Redis Cluster slot.
-These keys are independent of the existing Topics readiness keys; this recorder
-has no consumer, changes no queue payload, and uploads no evaluation inputs.
 A failed rule lookup or Redis write is logged without failing normal ingestion.
-
-Deploy with recording disabled. Enable it only for bounded validation until
-retention and cleanup are implemented: these hashes and the sorted set have no
-expiry and otherwise grow indefinitely. Disabling recording stops new writes;
-it does not delete existing records. Existing Topics processing and sampling
-continue through their current path. Consumer cutover, retained-bounds expiry,
-and the additional Redis lifecycle/concurrency tests belong to the next step.
-Topics may be paused for that cutover; consumers must then use the recorded rule
-IDs without sampling again. There is no migration of `state`/`first` into the new
-keys.
 
 ## Readiness requirements
 
