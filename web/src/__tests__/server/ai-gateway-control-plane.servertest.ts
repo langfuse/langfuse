@@ -2375,7 +2375,7 @@ describe("AI gateway control plane", () => {
       projectOwnerWithoutGatewayManage.projects.delete({
         projectId: project.id,
       }),
-    ).rejects.toThrow("User does not have access");
+    ).rejects.toThrow("user does not have access");
 
     await expect(
       caller.projects.deletionProtection({ projectId: project.id }),
