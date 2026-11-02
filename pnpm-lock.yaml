@@ -299,6 +299,9 @@ importers:
       prettier:
         specifier: ^3.8.3
         version: 3.8.3
+      yaml:
+        specifier: ^2.9.0
+        version: 2.9.0
 
   packages/native:
     devDependencies:
@@ -717,6 +720,9 @@ importers:
       '@radix-ui/react-tooltip':
         specifier: ^1.2.8
         version: 1.2.8(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
+      '@repo/langfuse-skills':
+        specifier: workspace:*
+        version: link:../packages/langfuse-skills
       '@scalar/api-reference':
         specifier: 1.66.1
         version: 1.66.1(axios@1.20.0(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1))(supports-color@8.1.1)(tailwindcss@4.2.2)(typescript@7.0.2)(zod@4.6.6)

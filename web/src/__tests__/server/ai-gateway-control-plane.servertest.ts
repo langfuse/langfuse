@@ -4,6 +4,7 @@ import { createHash, generateKeyPairSync, randomUUID } from "node:crypto";
 import type { Session } from "next-auth";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import * as SharedServer from "@langfuse/shared/src/server";
+import type * as BillingServer from "@/src/ee/features/billing/server";
 import { z } from "zod/v4";
 
 const { addNotificationJobs, getNotificationJob } = vi.hoisted(() => ({
@@ -30,6 +31,17 @@ vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
   };
 });
 
+// organizations.delete cancels Stripe on Cloud, which the test env cannot reach.
+const { isCloudBillingEnabled } = vi.hoisted(() => ({
+  isCloudBillingEnabled: vi.fn<() => boolean>(),
+}));
+
+vi.mock("@/src/ee/features/billing/server", async (importOriginal) => {
+  const actual = await importOriginal<typeof BillingServer>();
+  isCloudBillingEnabled.mockImplementation(actual.isCloudBillingEnabled);
+  return { ...actual, isCloudBillingEnabled };
+});
+
 function queuedNotifications(): SharedServer.NotificationEventType[] {
   return addNotificationJobs.mock.calls.flatMap(([jobs]) =>
     jobs.map((job) => job.data.payload),
@@ -37,6 +49,7 @@ function queuedNotifications(): SharedServer.NotificationEventType[] {
 }
 
 import { env } from "@/src/env.mjs";
+import * as sfdc from "@/src/ee/features/sfdc-sync/server";
 import { appRouter } from "@/src/server/api/root";
 import {
   createInnerTRPCContext,
@@ -220,6 +233,7 @@ async function prepare(role: Role = Role.OWNER) {
 async function createCallerForOrganizationRole(
   setup: Awaited<ReturnType<typeof prepare>>,
   role: Role,
+  projectRole: Role = role,
 ) {
   const suffix = randomUUID();
   const user = await prisma.user.create({
@@ -246,7 +260,7 @@ async function createCallerForOrganizationRole(
               role,
               projects: organization.projects.map((project) => ({
                 ...project,
-                role,
+                role: projectRole,
               })),
             }
           : organization,
@@ -664,6 +678,36 @@ describe("AI gateway control plane", () => {
     );
   });
 
+  it("adds invitees with an account without waiting for their SFDC sync", async () => {
+    const owner = await prepare();
+    const user = await prisma.user.create({
+      data: { email: `gateway-account-${randomUUID()}@example.test` },
+    });
+    cleanupUsers.push(user.id);
+    const setUserRole = vi.fn(() => new Promise<boolean>(() => {}));
+    const getSfdcService = vi
+      .spyOn(sfdc, "getSfdcService")
+      .mockReturnValue({ setUserRole } as never);
+
+    try {
+      const result = await owner.caller.aiGateway.inviteTeam({
+        orgId: owner.org.id,
+        emails: [user.email!],
+        notifyMembers: false,
+      });
+
+      expect(result).toMatchObject({ invitedCount: 1, failed: [] });
+      expect(setUserRole).toHaveBeenCalledWith({
+        orgId: owner.org.id,
+        userId: user.id,
+        email: user.email,
+        role: Role.AI_GATEWAY,
+      });
+    } finally {
+      getSfdcService.mockRestore();
+    }
+  });
+
   it("reports typed members who cannot use the gateway and skips the sender", async () => {
     const owner = await prepare();
     Object.assign(env, {
@@ -782,9 +826,6 @@ describe("AI gateway control plane", () => {
       await expect(
         caller.projects.deletionProtection({ projectId: project.id }),
       ).resolves.toEqual({ isGatewayIngestionProject: true });
-      await expect(
-        caller.projects.delete({ projectId: project.id }),
-      ).rejects.toThrow("Select another ingestion project before deleting it");
     } finally {
       Object.assign(env, {
         NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: originalCloudRegion,
@@ -1492,6 +1533,34 @@ describe("AI gateway control plane", () => {
         ),
       ),
     ).toEqual(new Set(["First", "Second", "Third"]));
+  });
+
+  it("sorts gateway keys by expiration with never-expiring keys as the latest", async () => {
+    const { caller, org } = await prepare();
+    const day = 24 * 60 * 60 * 1000;
+
+    for (const [name, expiresAt] of [
+      ["Never", null],
+      ["Later", new Date(Date.now() + 30 * day)],
+      ["Sooner", new Date(Date.now() + day)],
+    ] as const) {
+      await caller.aiGateway.createApiKey({
+        orgId: org.id,
+        name,
+        metadata: {},
+        expiresAt,
+      });
+    }
+
+    const listNames = async (order: "ASC" | "DESC") =>
+      (
+        await caller.aiGateway.listApiKeys({
+          orgId: org.id,
+          orderBy: { column: "expiresAt", order },
+        })
+      ).data.map(({ apiKey }) => apiKey.note);
+    expect(await listNames("ASC")).toEqual(["Sooner", "Later", "Never"]);
+    expect(await listNames("DESC")).toEqual(["Never", "Later", "Sooner"]);
   });
 
   it("rejects gateway page limits above 100", async () => {
@@ -2363,23 +2432,53 @@ describe("AI gateway control plane", () => {
     }
   });
 
-  it("blocks deletion of the default ingestion project", async () => {
-    const { caller, org, project } = await prepare();
+  it("turns the gateway off when its ingestion project is deleted, so the organization can be deleted", async () => {
+    const setup = await prepare();
+    const { caller, org, project } = setup;
     await caller.aiGateway.updateConfig({
       orgId: org.id,
       defaultIngestionProjectId: project.id,
       ingestionMode: "USAGE",
     });
+    const projectOwnerWithoutGatewayManage =
+      await createCallerForOrganizationRole(setup, Role.MEMBER, Role.OWNER);
+    await expect(
+      projectOwnerWithoutGatewayManage.projects.delete({
+        projectId: project.id,
+      }),
+    ).rejects.toMatchObject({ code: "FORBIDDEN" });
 
     await expect(
       caller.projects.deletionProtection({ projectId: project.id }),
     ).resolves.toEqual({ isGatewayIngestionProject: true });
     await expect(
       caller.projects.delete({ projectId: project.id }),
-    ).rejects.toThrow("Select another ingestion project");
+    ).resolves.toBe(true);
     await expect(
-      prisma.project.findUnique({ where: { id: project.id } }),
-    ).resolves.toMatchObject({ deletedAt: null });
+      caller.aiGateway.getSetupStatus({ orgId: org.id }),
+    ).resolves.toEqual({ isConfigured: false });
+    await expect(
+      prisma.gatewayConfig.findUnique({ where: { organizationId: org.id } }),
+    ).resolves.toMatchObject({ defaultIngestionProjectId: null });
+    // The org audit log only lists entries without a project.
+    await expect(
+      prisma.auditLog.findFirst({
+        where: {
+          orgId: org.id,
+          resourceType: "gatewayConfig",
+          action: "update",
+        },
+        select: { projectId: true },
+        orderBy: { createdAt: "desc" },
+      }),
+    ).resolves.toEqual({ projectId: null });
+
+    // The project delete worker hard-deletes soft-deleted projects.
+    await prisma.project.delete({ where: { id: project.id } });
+    isCloudBillingEnabled.mockReturnValueOnce(false);
+    await expect(caller.organizations.delete({ orgId: org.id })).resolves.toBe(
+      true,
+    );
   });
 
   it("allows deleting the linked ingestion project while ingestion is NONE on self-hosted", async () => {

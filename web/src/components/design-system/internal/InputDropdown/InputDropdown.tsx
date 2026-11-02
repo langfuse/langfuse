@@ -1,5 +1,5 @@
 import { Slot } from "@radix-ui/react-slot";
-import { Check, Search as SearchIcon } from "@langfuse/icons";
+import { Check, LoaderCircle, Search as SearchIcon } from "@langfuse/icons";
 import { type ComponentPropsWithoutRef, type ReactNode, useMemo } from "react";
 
 import { useScrollGradients } from "@/src/hooks/useScrollGradients";
@@ -102,6 +102,25 @@ function Option({
   );
 }
 
+function Loading({ message }: { message: string }) {
+  return (
+    <Option highlight="aria-selected">
+      <div aria-disabled="true">
+        <span role="status" className="contents">
+          <span className="flex w-3.5 shrink-0 items-center justify-center">
+            <LoaderCircle
+              size="base"
+              aria-hidden
+              __rawClassName="animate-spin"
+            />
+          </span>
+          {message}
+        </span>
+      </div>
+    </Option>
+  );
+}
+
 function OptionContent({
   label,
   secondaryLabel,
@@ -197,6 +216,7 @@ export const InputDropdown = {
   Content,
   Empty,
   List,
+  Loading,
   Option,
   OptionContent,
   Root,

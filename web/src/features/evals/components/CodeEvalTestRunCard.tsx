@@ -1,3 +1,4 @@
+import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
 import { CodeMirrorEditor } from "@/src/components/editor";
 import { TablePeekViewTraceDetail } from "@/src/components/table/peek/TablePeekViewTraceDetail";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
@@ -5,7 +6,7 @@ import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { Button } from "@/src/components/ui/button";
 import { Card } from "@/src/components/ui/card";
 import { Skeleton } from "@/src/components/ui/skeleton";
-import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
+
 import {
   type PreviewData,
   usePreviewData,
@@ -289,16 +290,16 @@ function CodeEvalTestRunInputCards({
           Evaluator input
         </span>
       </div>
-      <PrettyJsonView
-        json={inputPreviewJson}
-        currentView="pretty"
-        isLoading={false}
-        showNullValues={true}
-        stickyTopLevelKey={false}
-        showObservationTypeBadge={false}
-        scrollable={true}
-        className="max-h-[40dvh] [&_.border]:border-0 [&_.rounded-sm]:rounded-none"
-      />
+      <div className="max-h-[40dvh] overflow-y-auto">
+        <PrettyJsonView
+          json={inputPreviewJson}
+          currentView="pretty"
+          showNullValues
+          stickyTopLevelKey={false}
+          showObservationTypeBadge={false}
+          borderless
+        />
+      </div>
     </div>
   );
 }
