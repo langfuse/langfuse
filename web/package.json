@@ -96,6 +96,7 @@
     "@radix-ui/react-tabs": "^1.1.13",
     "@radix-ui/react-toggle": "^1.1.10",
     "@radix-ui/react-tooltip": "^1.2.8",
+    "@repo/langfuse-skills": "workspace:*",
     "@scalar/api-reference": "1.66.1",
     "@sentry/nextjs": "^11.8.0",
     "@t3-oss/env-nextjs": "^0.11.1",

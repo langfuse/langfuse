@@ -12,6 +12,11 @@
       "types": "./src/index.d.ts",
       "import": "./src/index.js",
       "require": "./src/index.js"
+    },
+    "./mcp": {
+      "types": "./src/mcp.d.ts",
+      "import": "./src/mcp.js",
+      "require": "./src/mcp.js"
     }
   },
   "scripts": {
@@ -19,6 +24,7 @@
     "sync:check": "node scripts/sync-skills.mjs --check"
   },
   "devDependencies": {
-    "prettier": "^3.8.3"
+    "prettier": "^3.8.3",
+    "yaml": "^2.9.0"
   }
 }
