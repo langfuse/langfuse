@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
-# TEMPORARY(node-24.22.1-security): remove scripts/docker/nodejs-rpm/ once Red
-# Hat ships a nodejs:24 errata for RHEL 9 that passes test-node-security-fixes.js.
+# Disabled: Red Hat's nodejs:24 errata for RHEL 9 passes
+# test-node-security-fixes.js, so the images install it instead. README.md
+# describes how to rebase and revive this build.
 #
 # Rebuilds Red Hat's nodejs:24 module RPMs from their source RPM with these
 # fixes from Node 24.22.1, vendored verbatim from its v24.x branch:
