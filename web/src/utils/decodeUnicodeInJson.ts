@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { decodeUnicodeEscapesOnly } from "@/src/utils/unicode";
 
 // Guards to keep decoding bounded on very large payloads. Exceeding either

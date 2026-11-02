@@ -78,6 +78,7 @@ import {
   isAiGatewayGenerationEvent,
   overwriteObject,
 } from "./utils";
+import { resolveAiGatewayAttribution } from "./aiGatewayAttribution";
 import { randomUUID } from "crypto";
 import { SpanKind } from "@opentelemetry/api";
 import { ClickhouseReadSkipCache } from "../../utils/clickhouseReadSkipCache";
@@ -329,6 +330,13 @@ export class IngestionService {
       eventData.modelParameters,
     );
     const metadata = eventData.metadata ?? {};
+    const spanAttribution = resolveAiGatewayAttribution({
+      ingestionApiKey: eventData.ingestionApiKey,
+      metadata,
+      serviceName: eventData.serviceName,
+      serviceVersion: eventData.serviceVersion,
+      scopeVersion: eventData.scopeVersion,
+    });
 
     // Runs outside the modelName gate below so model-less events with provided
     // usage are still checked.
@@ -483,11 +491,11 @@ export class IngestionService {
 
       // Source/instrumentation metadata
       source: eventData.source,
-      ingestion_api_key: eventData.ingestionApiKey ?? "",
+      ingestion_api_key: spanAttribution.ingestionApiKey,
       ingestion_sdk_name: eventData.ingestionSdkName ?? "",
       ingestion_sdk_version: eventData.ingestionSdkVersion ?? "",
-      service_name: eventData.serviceName,
-      service_version: eventData.serviceVersion,
+      service_name: spanAttribution.serviceName,
+      service_version: spanAttribution.serviceVersion,
       scope_name: eventData.scopeName,
       scope_version: eventData.scopeVersion,
       telemetry_sdk_language: eventData.telemetrySdkLanguage,

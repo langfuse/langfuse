@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { stringifyValue } from "../../utils/stringChecks";
 import type { EvalExecutionContext } from "../../features/evals/evalExecutionMetadata";
 import {

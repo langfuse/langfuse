@@ -111,3 +111,43 @@ it.each([
     );
   },
 );
+
+it.each([
+  { role: "AI_GATEWAY", projects: [], visible: false },
+  { role: "AI_GATEWAY", projects: [{ id: "project-1" }], visible: true },
+  { role: "NONE", projects: [], visible: true },
+])(
+  "shows Projects to $role members with $projects.length projects: $visible",
+  ({ role, projects, visible }) => {
+    const route = ROUTES.find((route) => route.title === "Projects")!;
+    const organization = {
+      id: "org-1",
+      role,
+      projects,
+    } as unknown as NonNullable<Session["user"]>["organizations"][number];
+    const context: NavigationFilterContext = {
+      routerProjectId: undefined,
+      routerOrganizationId: "org-1",
+      session: {
+        user: {
+          admin: false,
+          featureFlags: testFeatureFlags({}),
+          organizations: [organization],
+        },
+      } as Session,
+      enableExperimentalFeatures: false,
+      internalFeaturesEnabled: false,
+      cloudAdmin: false,
+      entitlements: [],
+      uiCustomization: null,
+      isLangfuseCloud: false,
+      hasActiveCloudIncident: false,
+      forceV3Experience: false,
+      currentPath: "/organization/org-1",
+    };
+
+    expect(applyNavigationFilters([route], context, organization)).toEqual(
+      visible ? [route] : [],
+    );
+  },
+);

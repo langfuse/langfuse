@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { useCallback, useMemo, useState, type ComponentProps } from "react";
 import Header from "@/src/components/layouts/header";
 import { Alert } from "@/src/components/design-system/Alert/Alert";
@@ -133,9 +132,11 @@ export function ConnectedGatewayModelsTable({
 
       {failedProviderCount > 0 ? (
         <Alert variant="warning">
-          <Alert.Title>Some providers could not be reached</Alert.Title>
+          <Alert.Title>
+            Some provider credentials could not be synced
+          </Alert.Title>
           <Alert.Description>
-            Showing models from successful providers. {failedProviderCount} of{" "}
+            Showing models from the other credentials. {failedProviderCount} of{" "}
             {providerCount} credentials failed to sync.
           </Alert.Description>
         </Alert>
@@ -218,6 +219,6 @@ function getEmptyMessage({
 }) {
   if (hasActiveFilters)
     return "No models match the current search and filters.";
-  if (hasSynced) return "No models were returned by the configured providers.";
-  return "Models will appear here after provider discovery completes.";
+  if (hasSynced) return "No models were returned by your provider credentials.";
+  return "Models will appear here after model discovery completes.";
 }

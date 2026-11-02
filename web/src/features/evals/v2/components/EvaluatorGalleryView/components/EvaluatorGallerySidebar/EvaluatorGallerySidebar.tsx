@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { Button } from "@/src/components/ui/button";
 import { SearchInput } from "@/src/components/design-system/SearchInput/SearchInput";
 import {

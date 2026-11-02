@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 // trpc/supportRouter.ts
 import {
   createTRPCRouter,

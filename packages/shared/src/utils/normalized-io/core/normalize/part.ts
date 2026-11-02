@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { claimed } from "../../conventions";
 import type {
   PartHandler,

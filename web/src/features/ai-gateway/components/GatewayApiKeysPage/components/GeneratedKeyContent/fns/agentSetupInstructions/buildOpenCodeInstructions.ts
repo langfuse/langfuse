@@ -32,7 +32,6 @@ export function buildOpenCodeInstructions(
             baseURL: `${context.gatewayOrigin}${OPENCODE_PROVIDERS[provider].path}`,
             apiKey: "{env:LANGFUSE_GATEWAY_KEY}",
           },
-          headers: { "langfuse-user-id": context.userId },
         },
       ]),
     ),
@@ -47,7 +46,7 @@ export function buildOpenCodeInstructions(
     docsUrl: AGENT_SETUP_DOCS_URLS.opencode,
     warning:
       context.providers.length === 0
-        ? "OpenCode needs an Anthropic or OpenAI provider connection, and none is enabled yet."
+        ? "OpenCode needs an Anthropic or OpenAI provider credential, and none is enabled yet."
         : undefined,
     steps: [
       {

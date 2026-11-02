@@ -232,7 +232,7 @@ impl ControlPlaneClient {
             .header(CONTENT_TYPE, "application/json")
             .body(body);
         let body = self
-            .execute(request, self.config.resolve_limits, &mut |_| Ok(()))
+            .execute_retrying_once(request, self.config.resolve_limits)
             .await?;
         contracts::decode(
             &body,
@@ -285,6 +285,55 @@ impl ControlPlaneClient {
         })
         .await
         .map_err(|_| ResolutionError::Timeout)?
+    }
+
+    /// Like [`Self::execute`], but resends once, immediately, when no usable response
+    /// arrived. Resolve is read-only on Web, so a duplicate is harmless. Both attempts
+    /// share one deadline, so a timeout is never retried.
+    async fn execute_retrying_once(
+        &self,
+        request: RequestBuilder,
+        limits: ControlPlaneLimits,
+    ) -> Result<Vec<u8>, ResolutionError> {
+        tokio::time::timeout(limits.timeout, async {
+            let retry = request.try_clone();
+            let mut sent = request.send().await;
+            if let Some(retry) = retry
+                && let Some(reason) = retry_reason(&sent)
+            {
+                tracing::warn!(reason, "gateway resolution retrying once");
+                tracing::Span::current().record("gateway.resolution.retry", reason);
+                sent = retry.send().await;
+            }
+            let response = sent.map_err(|_| ResolutionError::Transport)?;
+            read_response(response, limits.max_response_bytes, &mut |_| Ok(())).await
+        })
+        .await
+        .map_err(|_| ResolutionError::Timeout)?
+    }
+}
+
+/// Retry only failures where Web never answered: connect and send errors (including a
+/// connection closed or reset under the request, or an HTTP/2 GOAWAY or refused stream),
+/// and 502, which Web never returns itself, so it comes from the load balancer. Web's
+/// 503 asks callers to back off, and 504 or a timeout has already spent the budget.
+fn retry_reason(
+    sent: &Result<reqwest::Response, reqwest_middleware::Error>,
+) -> Option<&'static str> {
+    match sent {
+        Ok(response) if response.status() == reqwest::StatusCode::BAD_GATEWAY => {
+            Some("bad_gateway")
+        }
+        Err(reqwest_middleware::Error::Reqwest(error)) if !error.is_timeout() => {
+            if error.is_connect() {
+                Some("connect")
+            } else if error.is_request() {
+                Some("send")
+            } else {
+                None
+            }
+        }
+        _ => None,
     }
 }
 

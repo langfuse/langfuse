@@ -122,7 +122,7 @@ RUN npm install -g --prefix /opt/prisma-cli --no-package-lock --no-save prisma@6
 ARG NEXT_PUBLIC_LANGFUSE_CLOUD_REGION
 RUN mkdir -p /opt/dd/node_modules && \
     if [ -n "$NEXT_PUBLIC_LANGFUSE_CLOUD_REGION" ]; then \
-    cd /opt/dd && npm install --no-package-lock --no-save dd-trace@5.109.0; \
+    cd /opt/dd && npm install --no-package-lock --no-save dd-trace@5.131.1; \
     fi
 
 FROM --platform=${BUILDPLATFORM} golang:1.26 AS migrate-builder

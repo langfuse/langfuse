@@ -260,7 +260,7 @@ async fn model_catalogs_have_a_larger_response_limit_than_resolution() {
 
 #[tokio::test]
 async fn denied_and_failed_resolutions_are_classified_without_retries_or_body_leaks() {
-    for status in [400, 401, 403, 404, 500, 503] {
+    for status in [400, 401, 403, 404, 429, 500, 503, 504] {
         let web = FakeWeb::start(move |_| async move {
             Response::builder()
                 .status(status)
@@ -289,6 +289,118 @@ async fn denied_and_failed_resolutions_are_classified_without_retries_or_body_le
         assert!(!format!("{error:?} {error}").contains("private-upstream-error"));
         assert_eq!(web.calls(), 1);
     }
+}
+
+async fn resolve_against(web: &FakeWeb) -> Result<ResolvedRequestContext, ResolutionError> {
+    web.control_plane()
+        .resolve_at(
+            GATEWAY_KEY,
+            ApiFormat::OpenAiResponses,
+            "primary:gpt-4.1",
+            NOW_TIME,
+            REQUEST_ID,
+        )
+        .await
+}
+
+#[tokio::test]
+async fn retries_a_bad_gateway_once_and_then_gives_up() {
+    let attempts = Arc::new(AtomicUsize::new(0));
+    let seen = attempts.clone();
+    let web = FakeWeb::start(move |_| {
+        let attempt = seen.fetch_add(1, Ordering::SeqCst);
+        async move {
+            if attempt == 0 {
+                Response::builder()
+                    .status(StatusCode::BAD_GATEWAY)
+                    .body(Body::empty())
+                    .unwrap()
+            } else {
+                response(success("project-1", "private-provider-token"))
+            }
+        }
+    })
+    .await;
+    let context = resolve_against(&web).await.unwrap();
+    assert_eq!(context.connection().id(), "connection-1");
+    assert_eq!(web.calls(), 2);
+
+    let web = FakeWeb::start(|_| async {
+        Response::builder()
+            .status(StatusCode::BAD_GATEWAY)
+            .body(Body::empty())
+            .unwrap()
+    })
+    .await;
+    assert_eq!(
+        resolve_against(&web).await.unwrap_err(),
+        ResolutionError::Unavailable
+    );
+    assert_eq!(web.calls(), 2);
+}
+
+#[tokio::test]
+async fn retries_once_when_web_closes_the_connection_without_answering() {
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+
+    let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let url = format!("http://{}", listener.local_addr().unwrap());
+    let connections = Arc::new(AtomicUsize::new(0));
+    let accepted = connections.clone();
+    let body = success("project-1", "private-provider-token").to_string();
+    let server = tokio::spawn(async move {
+        loop {
+            let (mut socket, _) = listener.accept().await.unwrap();
+            let connection = accepted.fetch_add(1, Ordering::SeqCst);
+            let mut request = vec![0; 16 * 1024];
+            let _ = socket.read(&mut request).await.unwrap();
+            if connection == 0 {
+                continue;
+            }
+            let reply = format!(
+                "HTTP/1.1 200 OK\r\ncontent-type: application/json\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{body}",
+                body.len()
+            );
+            socket.write_all(reply.as_bytes()).await.unwrap();
+        }
+    });
+    let config = ControlPlaneConfig::new(&url, SERVICE_KEY).unwrap();
+    let context = ControlPlaneClient::new(config)
+        .unwrap()
+        .resolve_at(
+            GATEWAY_KEY,
+            ApiFormat::OpenAiResponses,
+            "primary:gpt-4.1",
+            NOW_TIME,
+            REQUEST_ID,
+        )
+        .await
+        .unwrap();
+    server.abort();
+    assert_eq!(context.connection().id(), "connection-1");
+    assert_eq!(connections.load(Ordering::SeqCst), 2);
+}
+
+#[tokio::test]
+async fn timeouts_are_not_retried() {
+    let web = FakeWeb::start(|_| async {
+        tokio::time::sleep(Duration::from_secs(1)).await;
+        response(success("project-1", "private-provider-token"))
+    })
+    .await;
+    let error = web
+        .control_plane_with_resolve_limits(Duration::from_millis(100), 256 * 1024)
+        .resolve_at(
+            GATEWAY_KEY,
+            ApiFormat::OpenAiResponses,
+            "primary:gpt-4.1",
+            NOW_TIME,
+            REQUEST_ID,
+        )
+        .await
+        .unwrap_err();
+    assert_eq!(error, ResolutionError::Timeout);
+    assert_eq!(web.calls(), 1);
 }
 
 #[tokio::test]
@@ -776,6 +888,7 @@ async fn accepts_unknown_response_fields_outside_provider_auth() {
     body["ingestion"]["unexpected"] = json!(1);
     body["attribution"]["key_name"] = json!("CI key");
     body["attribution"]["user_name"] = json!("Alice");
+    body["attribution"]["user_email"] = json!("alice@example.com");
     let web = FakeWeb::start(move |_| {
         let body = body.clone();
         async move { response(body) }
@@ -796,6 +909,7 @@ async fn accepts_unknown_response_fields_outside_provider_auth() {
     assert_eq!(attribution.key_name(), Some("CI key"));
     assert_eq!(attribution.user_id(), Some("user-1"));
     assert_eq!(attribution.user_name(), Some("Alice"));
+    assert_eq!(attribution.user_email(), Some("alice@example.com"));
 }
 
 #[tokio::test]
@@ -803,7 +917,7 @@ async fn treats_missing_or_blank_key_snapshots_as_absent() {
     for value in [None, Some(json!("")), Some(json!("  ")), Some(Value::Null)] {
         let mut body = success("project-1", "provider-token");
         if let Some(value) = value {
-            for field in ["key_name", "user_name"] {
+            for field in ["key_name", "user_name", "user_email"] {
                 body["attribution"][field] = value.clone();
             }
         }
@@ -826,6 +940,7 @@ async fn treats_missing_or_blank_key_snapshots_as_absent() {
         let attribution = context.attribution();
         assert_eq!(attribution.key_name(), None);
         assert_eq!(attribution.user_name(), None);
+        assert_eq!(attribution.user_email(), None);
     }
 }
 

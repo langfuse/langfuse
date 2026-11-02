@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
 import { Tag, TagShell } from "@/src/components/design-system/Tag/Tag";
 import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";

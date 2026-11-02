@@ -23,6 +23,8 @@ import {
   generateWebhookSecret,
 } from "@langfuse/shared/encryption";
 import { TRPCError } from "@trpc/server";
+import { type MockInstance } from "vitest";
+import { env } from "@/src/env.mjs";
 
 // Fake Slack workspace: the bot is in private channels "G_PRIVATE" and archived
 // "G_ARCHIVED". Slack API calls are faked; the access logic is real.
@@ -3385,6 +3387,329 @@ describe("automations trpc", () => {
       expect(config).not.toHaveProperty("githubToken");
       expect(config.type).toBe("GITHUB_DISPATCH");
       expect(config.eventType).toBe("langfuse-prompt-created");
+    });
+  });
+  describe("PagerDuty actions", () => {
+    const routingKey = "R0abcdefghijklmnopqrstuvwxyz9xYz";
+    const newRoutingKey = "N3wkeyabcdefghijklmnopqrstuv7uVw";
+    const mutableEnv = env as { NEXT_PUBLIC_LANGFUSE_CLOUD_REGION?: string };
+    const originalCloudRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
+
+    beforeAll(() => {
+      mutableEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "STAGING";
+    });
+
+    afterAll(() => {
+      mutableEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = originalCloudRegion;
+    });
+
+    const createInput = (
+      projectId: string,
+      actionConfig: {
+        routingKey?: string;
+        region: "US" | "EU";
+      } = { routingKey, region: "US" },
+    ) => ({
+      projectId,
+      name: "Page on-call",
+      eventSource: TriggerEventSource.Monitor,
+      eventAction: [],
+      filter: [],
+      status: JobConfigState.ACTIVE,
+      actionType: "PAGERDUTY" as const,
+      actionConfig: { type: "PAGERDUTY" as const, ...actionConfig },
+    });
+
+    async function storedConfig(actionId: string) {
+      const action = await prisma.action.findUniqueOrThrow({
+        where: { id: actionId },
+      });
+      return action.config as Record<string, string>;
+    }
+
+    function viewerCaller(session: Session) {
+      const viewerSession: Session = {
+        ...session,
+        user: {
+          ...session.user!,
+          admin: false,
+          organizations: [
+            {
+              ...session.user!.organizations[0],
+              role: "MEMBER",
+              projects: [
+                {
+                  ...session.user!.organizations[0].projects[0],
+                  role: "VIEWER",
+                },
+              ],
+            },
+          ],
+        },
+      };
+      return appRouter.createCaller({
+        ...createInnerTRPCContext({ session: viewerSession, headers: {} }),
+        prisma,
+      });
+    }
+
+    it("encrypts the routing key and returns only the masked key", async () => {
+      const { project, caller } = await prepare();
+
+      const result = await caller.automations.createAutomation(
+        createInput(project.id, { routingKey, region: "EU" }),
+      );
+
+      const config = await storedConfig(result.action.id);
+      expect(config.routingKey).not.toBe(routingKey);
+      expect(decrypt(config.routingKey)).toBe(routingKey);
+      expect(config.displayRoutingKey).toBe("R0ab...9xYz");
+      expect(config.region).toBe("EU");
+      expect(result.action.config).toEqual({
+        type: "PAGERDUTY",
+        displayRoutingKey: "R0ab...9xYz",
+        region: "EU",
+      });
+    });
+
+    function callerWithUser(session: Session, user: Partial<Session["user"]>) {
+      return appRouter.createCaller({
+        ...createInnerTRPCContext({
+          session: { ...session, user: { ...session.user!, ...user } },
+          headers: {},
+        }),
+        prisma,
+      });
+    }
+
+    it("rejects users who are not Langfuse Cloud admins", async () => {
+      const { project, session } = await prepare();
+      const owner = callerWithUser(session, { admin: false });
+
+      await expect(
+        owner.automations.createAutomation(createInput(project.id)),
+      ).rejects.toMatchObject({ code: "FORBIDDEN" });
+      await expect(
+        owner.automations.sendPagerDutyTestEvent({
+          projectId: project.id,
+          region: "US",
+          routingKey,
+          step: "trigger",
+        }),
+      ).rejects.toMatchObject({ code: "FORBIDDEN" });
+    });
+
+    it("rejects admins on self-hosted instances", async () => {
+      const { project, caller } = await prepare();
+      mutableEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = undefined;
+
+      try {
+        await expect(
+          caller.automations.createAutomation(createInput(project.id)),
+        ).rejects.toMatchObject({ code: "FORBIDDEN" });
+      } finally {
+        mutableEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "STAGING";
+      }
+    });
+
+    it("rejects a create without a routing key", async () => {
+      const { project, caller } = await prepare();
+
+      await expect(
+        caller.automations.createAutomation(
+          createInput(project.id, { region: "US" }),
+        ),
+      ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    });
+
+    it("rejects a malformed routing key", async () => {
+      const { project, caller } = await prepare();
+
+      await expect(
+        caller.automations.createAutomation(
+          createInput(project.id, { routingKey: "too-short", region: "US" }),
+        ),
+      ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    });
+
+    it("keeps the stored key when an update omits it", async () => {
+      const { project, caller } = await prepare();
+      const created = await caller.automations.createAutomation(
+        createInput(project.id),
+      );
+
+      await caller.automations.updateAutomation({
+        ...createInput(project.id, { region: "EU" }),
+        automationId: created.automation.id,
+      });
+
+      const config = await storedConfig(created.action.id);
+      expect(decrypt(config.routingKey)).toBe(routingKey);
+      expect(config.displayRoutingKey).toBe("R0ab...9xYz");
+      expect(config.region).toBe("EU");
+    });
+
+    it("replaces the key when an update sends a new one", async () => {
+      const { project, caller } = await prepare();
+      const created = await caller.automations.createAutomation(
+        createInput(project.id),
+      );
+
+      await caller.automations.updateAutomation({
+        ...createInput(project.id, {
+          routingKey: newRoutingKey,
+          region: "US",
+        }),
+        automationId: created.automation.id,
+      });
+
+      const config = await storedConfig(created.action.id);
+      expect(decrypt(config.routingKey)).toBe(newRoutingKey);
+      expect(config.displayRoutingKey).toBe("N3wk...7uVw");
+    });
+
+    it("never returns the routing key on any read path to a project VIEWER", async () => {
+      const { project, session, caller } = await prepare();
+      const created = await caller.automations.createAutomation(
+        createInput(project.id),
+      );
+      const storedKey = (await storedConfig(created.action.id)).routingKey;
+      const viewer = viewerCaller(session);
+
+      const responses = [
+        await viewer.automations.getAutomations({ projectId: project.id }),
+        await viewer.automations.getAutomation({
+          projectId: project.id,
+          automationId: created.automation.id,
+        }),
+      ];
+
+      for (const response of responses) {
+        const serialized = JSON.stringify(response);
+        expect(serialized).not.toContain(routingKey);
+        expect(serialized).not.toContain(storedKey);
+        expect(serialized).not.toContain("routingKey");
+      }
+    });
+
+    describe("sendPagerDutyTestEvent", () => {
+      let fetchSpy: MockInstance<typeof fetch>;
+
+      beforeEach(() => {
+        fetchSpy = vi
+          .spyOn(global, "fetch")
+          .mockResolvedValue(new Response("{}", { status: 202 }));
+      });
+
+      afterEach(() => {
+        fetchSpy.mockRestore();
+      });
+
+      function sentEvents() {
+        return fetchSpy.mock.calls.map(([url, init]) => ({
+          url: String(url),
+          body: JSON.parse(String((init as RequestInit).body)),
+        }));
+      }
+
+      it.each([
+        ["trigger", "trigger", "critical"],
+        ["resolve", "resolve", undefined],
+      ] as const)(
+        "sends the %s step as one %s under the project's test key",
+        async (step, eventAction, severity) => {
+          const { project, caller } = await prepare();
+
+          await caller.automations.sendPagerDutyTestEvent({
+            projectId: project.id,
+            region: "EU",
+            routingKey,
+            step,
+          });
+
+          const [event, ...rest] = sentEvents();
+          expect(rest).toEqual([]);
+          expect(event.url).toBe("https://events.eu.pagerduty.com/v2/enqueue");
+          expect(event.body).toMatchObject({
+            routing_key: routingKey,
+            event_action: eventAction,
+            dedup_key: `langfuse-${project.id}-test`,
+          });
+          expect(event.body.payload?.severity).toBe(severity);
+        },
+      );
+
+      it("falls back to the stored key of the action", async () => {
+        const { project, caller } = await prepare();
+        const created = await caller.automations.createAutomation(
+          createInput(project.id),
+        );
+
+        await caller.automations.sendPagerDutyTestEvent({
+          projectId: project.id,
+          region: "US",
+          actionId: created.action.id,
+          step: "trigger",
+        });
+
+        expect(sentEvents()[0]).toMatchObject({
+          url: "https://events.pagerduty.com/v2/enqueue",
+          body: { routing_key: routingKey },
+        });
+      });
+
+      it("rejects a stored key of another project", async () => {
+        const { project: otherProject, caller: otherCaller } = await prepare();
+        const otherAction = await otherCaller.automations.createAutomation(
+          createInput(otherProject.id),
+        );
+        const { project, caller } = await prepare();
+
+        await expect(
+          caller.automations.sendPagerDutyTestEvent({
+            projectId: project.id,
+            region: "US",
+            actionId: otherAction.action.id,
+            step: "trigger",
+          }),
+        ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+        expect(fetchSpy).not.toHaveBeenCalled();
+      });
+
+      it("maps a PagerDuty rejection to BAD_REQUEST", async () => {
+        fetchSpy.mockResolvedValue(
+          new Response("invalid key", { status: 400 }),
+        );
+        const { project, caller } = await prepare();
+
+        await expect(
+          caller.automations.sendPagerDutyTestEvent({
+            projectId: project.id,
+            region: "US",
+            routingKey,
+            step: "trigger",
+          }),
+        ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+      });
+
+      it.each([
+        [429, "TOO_MANY_REQUESTS"],
+        [502, "BAD_GATEWAY"],
+        [503, "SERVICE_UNAVAILABLE"],
+      ])("returns a PagerDuty %i as %s after retries", async (status, code) => {
+        fetchSpy.mockResolvedValue(new Response("busy", { status }));
+        const { project, caller } = await prepare();
+
+        await expect(
+          caller.automations.sendPagerDutyTestEvent({
+            projectId: project.id,
+            region: "US",
+            routingKey,
+            step: "trigger",
+          }),
+        ).rejects.toMatchObject({ code });
+        expect(fetchSpy).toHaveBeenCalledTimes(4);
+      });
     });
   });
 });

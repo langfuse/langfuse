@@ -1,4 +1,4 @@
-/* eslint-disable @repo/no-null-render, @typescript-eslint/no-use-before-define */
+/* eslint-disable @repo/no-null-render */
 import { api } from "@/src/utils/api";
 import { useMemo } from "react";
 

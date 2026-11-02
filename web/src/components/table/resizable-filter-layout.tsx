@@ -1,4 +1,4 @@
-/* eslint-disable @repo/component-file-structure, @typescript-eslint/no-use-before-define */
+/* eslint-disable @repo/component-file-structure */
 "use client";
 
 import {

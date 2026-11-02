@@ -1,4 +1,4 @@
-/* eslint-disable no-nested-ternary, @typescript-eslint/no-use-before-define */
+/* eslint-disable no-nested-ternary */
 // Grammar-aware search composer.
 //
 // The per-mount store owns draft/committed query state. This component owns

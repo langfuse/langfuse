@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 /**
  * TraceDetailView - Shows trace-level details when no observation is selected
  */

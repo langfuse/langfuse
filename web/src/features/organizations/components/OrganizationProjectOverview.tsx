@@ -6,6 +6,7 @@ import {
   Settings,
   Users,
   PlusIcon,
+  Waypoints,
 } from "@langfuse/icons";
 import {
   Card,
@@ -21,9 +22,12 @@ import { Button } from "@/src/components/ui/button";
 import Link from "next/link";
 import { StringParam, useQueryParams } from "use-query-params";
 import { Input } from "@/src/components/ui/input";
-import { useHasOrganizationAccess } from "@/src/features/rbac";
+import {
+  hasOrganizationAccess,
+  useHasOrganizationAccess,
+} from "@/src/features/rbac";
 import { env } from "@/src/env.mjs";
-import { Fragment } from "react";
+import { Fragment, type ReactNode } from "react";
 import { useRouter } from "next/router";
 import { useSession } from "next-auth/react";
 import {
@@ -46,6 +50,24 @@ import { useV4UpgradeUiEnabled } from "@/src/features/v4-migration/useV4UpgradeU
 import { useAccountV4MigrationData } from "@/src/features/v4-migration/hooks/useV4MigrationData";
 import { getProjectMigrationReadiness } from "@/src/features/v4-migration/migrationData";
 import { ErrorPage } from "@/src/components/error-page";
+import { GatewayLaunchBanner } from "@/src/features/ai-gateway/components/GatewayLaunch/GatewayLaunchBanner";
+import { useGatewayKeyReminder } from "@/src/features/ai-gateway/hooks/useGatewayKeyReminder";
+import { useGatewayLaunchTarget } from "@/src/features/ai-gateway/hooks/useGatewayLaunchEligibility";
+import { useGatewaySettingsAccess } from "@/src/features/ai-gateway/hooks/useGatewaySettingsAccess";
+import { getContextualFeatureFlags } from "@/src/features/feature-flags/utils";
+import { gatewayOnlyLanding } from "@/src/features/organizations/utils/gatewayOnlyLanding";
+
+const lastTraceLabel = (lastTraceAt: Date | string | null | undefined) =>
+  lastTraceAt
+    ? `Last trace ${formatCompactRelativeTime(new Date(lastTraceAt))}`
+    : "No traces in the last 30d";
+
+/** Marks the project that receives the org's AI Gateway traces. */
+const GatewayProjectMark = () => (
+  <span className="flex shrink-0" title="Receives AI Gateway traces">
+    <Waypoints size="base" color="default" aria-label="AI Gateway project" />
+  </span>
+);
 
 const OrganizationProjectTiles = ({
   org,
@@ -55,6 +77,17 @@ const OrganizationProjectTiles = ({
   search?: string;
 }) => {
   const v4UpgradeUiEnabled = useV4UpgradeUiEnabled();
+  const gatewayAccess = useGatewaySettingsAccess(org.id);
+  // Gateway managers see which project receives the gateway's traces.
+  const markGatewayProject =
+    gatewayAccess.showManagement &&
+    gatewayAccess.isIngestionConfigured === true;
+  const gatewayConfigQuery = api.aiGateway.getConfig.useQuery(
+    { orgId: org.id },
+    { enabled: markGatewayProject },
+  );
+  const gatewayProjectId =
+    gatewayConfigQuery.data?.config?.defaultIngestionProjectId;
   const lastTraceQuery = api.organizations.lastTraceByProject.useQuery(
     { orgId: org.id },
     { enabled: v4UpgradeUiEnabled },
@@ -97,12 +130,17 @@ const OrganizationProjectTiles = ({
               )}
               <CardHeader>
                 <div className="flex items-start justify-between gap-2">
-                  <CardTitle
-                    className="truncate text-base"
-                    title={project.name}
-                  >
-                    {project.name}
-                  </CardTitle>
+                  <div className="flex min-w-0 items-center gap-2">
+                    {markGatewayProject && project.id === gatewayProjectId && (
+                      <GatewayProjectMark />
+                    )}
+                    <CardTitle
+                      className="truncate text-base"
+                      title={project.name}
+                    >
+                      {project.name}
+                    </CardTitle>
+                  </div>
                   {!project.deletedAt &&
                     (migrationReadiness === "action-needed" ||
                       migrationReadiness === "partner-managed") && (
@@ -117,14 +155,11 @@ const OrganizationProjectTiles = ({
                 <CardContent className="min-h-7 pb-3">
                   <p className="text-muted-foreground text-xs">
                     {lastTraceQuery.isSuccess
-                      ? (() => {
-                          const lastTraceAt = lastTraceQuery.data?.find(
+                      ? lastTraceLabel(
+                          lastTraceQuery.data?.find(
                             (t) => t.projectId === project.id,
-                          )?.lastTraceAt;
-                          return lastTraceAt
-                            ? `Last trace ${formatCompactRelativeTime(new Date(lastTraceAt))}`
-                            : "No traces in the last 30d";
-                        })()
+                          )?.lastTraceAt,
+                        )
                       : null}
                   </p>
                 </CardContent>
@@ -138,9 +173,17 @@ const OrganizationProjectTiles = ({
           ) : (
             <Card key={project.id}>
               <CardHeader>
-                <CardTitle className="truncate text-base" title={project.name}>
-                  {project.name}
-                </CardTitle>
+                <div className="flex min-w-0 items-center gap-2">
+                  {markGatewayProject && project.id === gatewayProjectId && (
+                    <GatewayProjectMark />
+                  )}
+                  <CardTitle
+                    className="truncate text-base"
+                    title={project.name}
+                  >
+                    {project.name}
+                  </CardTitle>
+                </div>
               </CardHeader>
               {!project.deletedAt ? (
                 <CardFooter className="gap-2">
@@ -210,12 +253,26 @@ const OrganizationActionButtons = ({
     organizationId: orgId,
     scope: "projects:create",
   });
+  const gatewayKeyReminder = useGatewayKeyReminder(orgId);
 
   return (
     <>
-      <Button asChild variant="ghost">
-        <Link href={`/organization/${orgId}/settings`}>
+      <Button asChild variant="ghost" className="relative">
+        <Link
+          href={`/organization/${orgId}/settings`}
+          aria-label={
+            gatewayKeyReminder
+              ? "Organization settings: get your AI Gateway API key"
+              : "Organization settings"
+          }
+        >
           <Settings size="base" color="default" />
+          {gatewayKeyReminder && (
+            <span
+              aria-hidden="true"
+              className="absolute top-1.5 right-1.5 size-1.75 rounded-full bg-orange-400"
+            />
+          )}
         </Link>
       </Button>
       {membersViewAccess && (
@@ -319,9 +376,68 @@ const SingleOrganizationProjectOverviewTile = ({
           />
         }
       />
-      <OrganizationProjectTiles org={org} search={search} />
+      <OrganizationProjects org={org} search={search} />
     </div>
   );
+};
+
+/** OrganizationProjects lists the org's projects, or points to its settings when the user has none */
+const OrganizationProjects = ({
+  org,
+  search,
+}: {
+  org: Organization;
+  search?: string;
+}) => {
+  if (org.projects.length === 0) {
+    return <OrganizationSettingsTile orgId={org.id} />;
+  }
+  return <OrganizationProjectTiles org={org} search={search} />;
+};
+
+/** OrganizationSettingsTile links to the org's settings, and to project creation when allowed */
+const OrganizationSettingsTile = ({ orgId }: { orgId: string }) => {
+  const canCreateProject = useHasOrganizationAccess({
+    organizationId: orgId,
+    scope: "projects:create",
+  });
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base">No projects</CardTitle>
+        <CardDescription>
+          <NoProjectsDescription canCreateProject={canCreateProject} />
+        </CardDescription>
+      </CardHeader>
+      <CardFooter className="gap-2">
+        {canCreateProject && (
+          <Button asChild>
+            <Link href={createProjectRoute(orgId)}>
+              <PlusIcon size="base" __rawClassName="mr-2" aria-hidden="true" />
+              New project
+            </Link>
+          </Button>
+        )}
+        <Button asChild variant="secondary">
+          <Link href={`/organization/${orgId}/settings`}>
+            <Settings size="base" __rawClassName="mr-2" aria-hidden="true" />
+            Organization settings
+          </Link>
+        </Button>
+      </CardFooter>
+    </Card>
+  );
+};
+
+/** NoProjectsDescription explains an empty project list by whether the user can create projects */
+const NoProjectsDescription = ({
+  canCreateProject,
+}: {
+  canCreateProject: boolean;
+}) => {
+  if (canCreateProject) return <>This organization has no projects yet.</>;
+  return <>You don&apos;t have access to any projects in this organization.</>;
 };
 
 export const OrganizationProjectOverview = () => {
@@ -333,6 +449,40 @@ export const OrganizationProjectOverview = () => {
   const organizations = session.data?.user?.organizations;
   const [{ search }, setQueryParams] = useQueryParams({ search: StringParam });
   const v4MigrationBannerState = useV4MigrationBannerState(v4UpgradeUiEnabled);
+  const landing = gatewayOnlyLanding(session.data, queryOrgId);
+  const gatewayLaunchCandidates = (organizations ?? [])
+    .filter(
+      (org) =>
+        org.id !== env.NEXT_PUBLIC_DEMO_ORG_ID &&
+        getContextualFeatureFlags(session.data?.user, {
+          organizationId: org.id,
+        })?.aiGateway === true &&
+        hasOrganizationAccess({
+          session: session.data,
+          organizationId: org.id,
+          scope: "gateway:invoke",
+        }),
+    )
+    .map((org) => ({
+      organizationId: org.id,
+      organizationName: org.name,
+      canManage: hasOrganizationAccess({
+        session: session.data,
+        organizationId: org.id,
+        scope: "gateway:manage",
+      }),
+    }));
+  const gatewayLaunchTarget = useGatewayLaunchTarget(gatewayLaunchCandidates);
+  const userId = session.data?.user?.id;
+
+  if (landing && !landing.canUseGateway) {
+    return (
+      <ErrorPage
+        title="No access to this organization"
+        message="AI Gateway is not enabled for this organization. Ask an organization admin to change your role."
+      />
+    );
+  }
 
   if (organizations === undefined) {
     return "loading...";
@@ -380,7 +530,11 @@ export const OrganizationProjectOverview = () => {
               onChange={(e) => setQueryParams({ search: e.target.value })}
             />
             {canCreateOrg && (
-              <Button data-testid="create-organization-btn" asChild>
+              <Button
+                data-testid="create-organization-btn"
+                variant="secondary"
+                asChild
+              >
                 <Link href={createOrganizationRoute}>
                   <PlusIcon
                     size="base"
@@ -396,18 +550,14 @@ export const OrganizationProjectOverview = () => {
         ),
       }}
     >
-      {v4UpgradeUiEnabled ? (
-        v4MigrationBannerState.projectsNeedingMigration > 0 && (
-          <V4MigrationBanner
-            projectsNeedingMigration={
-              v4MigrationBannerState.projectsNeedingMigration
-            }
-            totalProjects={v4MigrationBannerState.totalProjects}
-          />
-        )
-      ) : (
-        <AgentToolsBanner />
-      )}
+      {pageBanner({
+        v4UpgradeUiEnabled,
+        v4MigrationBannerState,
+        gatewayBanner:
+          gatewayLaunchTarget && userId ? (
+            <GatewayLaunchBanner target={gatewayLaunchTarget} userId={userId} />
+          ) : null,
+      })}
       {showOnboarding && <Onboarding />}
       {organizations
         .map((org) => {
@@ -434,6 +584,33 @@ export const OrganizationProjectOverview = () => {
         })}
     </ContainerPage>
   );
+};
+
+/** One banner at a time: v4 migration work first, then the gateway launch. */
+const pageBanner = ({
+  v4UpgradeUiEnabled,
+  v4MigrationBannerState,
+  gatewayBanner,
+}: {
+  v4UpgradeUiEnabled: boolean;
+  v4MigrationBannerState: ReturnType<typeof useV4MigrationBannerState>;
+  gatewayBanner: ReactNode;
+}): ReactNode => {
+  if (
+    v4UpgradeUiEnabled &&
+    v4MigrationBannerState.projectsNeedingMigration > 0
+  ) {
+    return (
+      <V4MigrationBanner
+        projectsNeedingMigration={
+          v4MigrationBannerState.projectsNeedingMigration
+        }
+        totalProjects={v4MigrationBannerState.totalProjects}
+      />
+    );
+  }
+  if (gatewayBanner) return gatewayBanner;
+  return v4UpgradeUiEnabled ? null : <AgentToolsBanner />;
 };
 
 const Onboarding = () => {
@@ -482,3 +659,5 @@ const Onboarding = () => {
     </Card>
   );
 };
+
+type Organization = NonNullable<Session["user"]>["organizations"][number];

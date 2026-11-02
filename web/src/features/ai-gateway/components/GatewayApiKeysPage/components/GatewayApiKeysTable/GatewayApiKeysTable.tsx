@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { Plus, Trash, UserPlus } from "@langfuse/icons";
 
 import { SettingsTable } from "@/src/components/SettingsTable/SettingsTable";
@@ -65,7 +64,7 @@ export function GatewayApiKeysTable({
     createTextTableColumn<GatewayApiKey>({
       accessorFn: (row) => row.apiKey.note,
       id: "description",
-      header: "Description",
+      header: "Name",
       nullValue: "-",
       enableResizing: false,
     }),
@@ -135,8 +134,8 @@ export function GatewayApiKeysTable({
       ]}
       noResultsMessage={
         hasSearch
-          ? "No gateway API keys match the current search."
-          : "No gateway API keys created."
+          ? "No gateway keys match the current search."
+          : "No gateway keys created."
       }
       emptyState={hasNoKeys ? <GatewayApiKeysEmptyState /> : undefined}
     />
