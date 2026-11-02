@@ -422,19 +422,21 @@ describe("RateLimitService", () => {
 
   it("should apply public-api-legacy rate limits by cloud plan", async () => {
     const cases = [
-      { plan: "cloud:hobby" as const, points: 5 },
-      { plan: "cloud:core" as const, points: 15 },
-      { plan: "cloud:pro" as const, points: 40 },
-      { plan: "cloud:team" as const, points: 40 },
-      { plan: "cloud:enterprise" as const, points: 40 },
+      { plan: "cloud:hobby" as const, points: 150, durationInSec: 3600 },
+      { plan: "cloud:core" as const, points: 450, durationInSec: 3600 },
+      { plan: "cloud:pro" as const, points: 1_200, durationInSec: 3600 },
+      { plan: "cloud:team" as const, points: 1_200, durationInSec: 3600 },
+      { plan: "cloud:enterprise" as const, points: 1_200, durationInSec: 3600 },
     ];
 
     const rateLimitService = RateLimitService.getInstance(redis as Redis);
 
     for (const testCase of cases) {
-      await redis.del(
-        `${RATE_LIMIT_REDIS_KEY_PREFIX}:public-api-legacy:${orgId}`,
-      );
+      const activeKey = `${RATE_LIMIT_REDIS_KEY_PREFIX}:public-api-legacy:${testCase.durationInSec}:${orgId}`;
+      const previousWindowKey = `${RATE_LIMIT_REDIS_KEY_PREFIX}:public-api-legacy:${orgId}`;
+
+      await redis.del(activeKey);
+      await redis.set(previousWindowKey, "1", "EX", 60);
 
       const scope = {
         orgId: orgId,
@@ -459,6 +461,16 @@ describe("RateLimitService", () => {
         isFirstInDuration: true,
       });
       expect(result?.isRateLimited()).toBe(false);
+
+      const ttlInSec = await redis.ttl(activeKey);
+
+      expect(ttlInSec).toBeGreaterThan(0);
+      expect(ttlInSec).toBeLessThanOrEqual(testCase.durationInSec);
+      expect(ttlInSec).toBeGreaterThan(testCase.durationInSec - 60);
+
+      const previousWindowTtl = await redis.ttl(previousWindowKey);
+      expect(previousWindowTtl).toBeGreaterThan(0);
+      expect(previousWindowTtl).toBeLessThanOrEqual(60);
     }
   });
 
