@@ -25,7 +25,7 @@ import {
 import { env } from "@/src/env.mjs";
 import { createProjectMembershipsOnSignup } from "@/src/features/auth/lib/createProjectMembershipsOnSignup";
 import { getSessionLoginAt } from "@/src/features/auth/lib/sessionExpiration";
-import { type AdClickIds } from "@/src/features/auth/lib/signupAttribution";
+import { type SignupAttribution } from "@/src/features/auth/lib/signupAttribution";
 import {
   type AdapterUser,
   type Adapter,
@@ -641,12 +641,9 @@ if (env.AUTH_WORDPRESS_CLIENT_ID && env.AUTH_WORDPRESS_CLIENT_SECRET)
 // Extend Prisma Adapter
 const prismaAdapter = PrismaAdapter(prisma);
 const ignoredAccountFields = env.AUTH_IGNORE_ACCOUNT_FIELDS?.split(",") ?? [];
-// Factory instead of a static adapter so that per-request signup attribution
-// (ad-platform click ids from first-party cookies) can reach the signup event
-// captured for new SSO users.
-const createExtendedPrismaAdapter = (signupAttribution?: {
-  adClickIds?: AdClickIds;
-}): Adapter => ({
+const createExtendedPrismaAdapter = (
+  signupAttribution?: SignupAttribution,
+): Adapter => ({
   ...prismaAdapter,
   async createUser(profile: Omit<AdapterUser, "id">) {
     if (!prismaAdapter.createUser)
@@ -668,7 +665,7 @@ const createExtendedPrismaAdapter = (signupAttribution?: {
 
     await createProjectMembershipsOnSignup(user, {
       userWasJustCreated: true,
-      adClickIds: signupAttribution?.adClickIds,
+      ...signupAttribution,
     });
 
     return user;
@@ -711,9 +708,7 @@ const createExtendedPrismaAdapter = (signupAttribution?: {
       select: { id: true, email: true, name: true },
     });
     if (user) {
-      await createProjectMembershipsOnSignup(user, {
-        adClickIds: signupAttribution?.adClickIds,
-      });
+      await createProjectMembershipsOnSignup(user, signupAttribution);
     }
   },
 
@@ -732,18 +727,15 @@ const createExtendedPrismaAdapter = (signupAttribution?: {
 /**
  * Options for NextAuth.js used to configure adapters, providers, callbacks, etc.
  *
- * @param signupAttribution - per-request marketing attribution (ad-platform
- * click ids) attached to the signup analytics event if the request results
- * in a new user. Only passed by the NextAuth API route.
+ * @param signupAttribution - the request's sign-up attribution, for the event
+ * of a user it creates. Only the NextAuth API route passes it.
  * @param requestContext - captcha material for this request. The email
  * sign-in route passes the password-reset token; other callers omit it.
  *
  * @see https://next-auth.js.org/configuration/options
  */
 export async function getAuthOptions(
-  signupAttribution?: {
-    adClickIds?: AdClickIds;
-  },
+  signupAttribution?: SignupAttribution,
   requestContext?: {
     turnstileToken?: unknown;
     turnstileRemoteIp?: string;

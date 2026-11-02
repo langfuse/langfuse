@@ -1,5 +1,5 @@
 import { getAuthOptions } from "@/src/server/auth";
-import { getAdClickIdsFromRequest } from "@/src/features/auth/lib/signupAttribution";
+import { getSignupAttributionFromRequest } from "@/src/features/auth/lib/signupAttribution";
 import { getTurnstileRemoteIp } from "@/src/features/auth/server/verifyTurnstile";
 import { getCookieName } from "@/src/server/utils/cookies";
 import { isValidCallbackUrl } from "@/src/server/utils/nextAuthCallbackUrl";
@@ -168,8 +168,8 @@ export default async function auth(req: NextApiRequest, res: NextApiResponse) {
   }
 
   // Do whatever you want here, before the request is passed down to `NextAuth`
-  // Pass Google Ads click attribution from first-party cookies so that new
-  // SSO signups can be attributed to ad clicks (cloud_signup_complete event).
+  // Users are only created on callback/<provider>, whose segment is the
+  // sign-up's provider id.
   // Password reset asks NextAuth's email provider for a code. The sign-in
   // callback verifies this token before that email is sent.
   //
@@ -184,9 +184,7 @@ export default async function auth(req: NextApiRequest, res: NextApiResponse) {
     nextAuthAction === "signin" &&
     nextAuthProvider === "email";
   const authOptions = await getAuthOptions(
-    {
-      adClickIds: getAdClickIdsFromRequest(req),
-    },
+    getSignupAttributionFromRequest(req, nextAuthProvider),
     isPasswordResetEmailRequest
       ? {
           turnstileToken: req.body?.turnstileToken,

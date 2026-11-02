@@ -10,7 +10,7 @@ import { canCreateOrganizations } from "@/src/features/organizations/server/canC
 import { provisionStarterOrganizationForNewUser } from "@/src/features/onboarding/server/onboardingService";
 import { isGatewayEnabledForOrganization } from "@/src/features/ai-gateway/server/availability";
 import { projectRoleAccessRights } from "@langfuse/shared";
-import { type AdClickIds } from "@/src/features/auth/lib/signupAttribution";
+import { type SignupAttribution } from "@/src/features/auth/lib/signupAttribution";
 
 export async function createProjectMembershipsOnSignup(
   user: {
@@ -18,10 +18,8 @@ export async function createProjectMembershipsOnSignup(
     email: string | null;
     name: string | null;
   },
-  options?: {
+  options?: SignupAttribution & {
     userWasJustCreated?: boolean;
-    /** Ad-platform click ids, see getAdClickIdsFromRequest */
-    adClickIds?: AdClickIds;
   },
 ) {
   try {
