@@ -739,23 +739,19 @@ describe("trace micro-batch scheduling with Redis", () => {
       JSON.stringify({
         minStart: 1_000_000,
         maxStart: 1_000_000,
-        serializedEventBytes: 100,
+        eventUpdateCount: 1,
       }),
     );
     await client().pexpireat(originalKey, expiry);
 
     await recordTraceActivity("project", [
-      {
-        ...spanActivity("recorded", 2_000_000),
-        ruleIds: ["rule"],
-        serializedEventBytes: 200,
-      },
+      { ...spanActivity("recorded", 2_000_000), ruleIds: ["rule"] },
     ]);
 
     expect(JSON.parse((await client().hget(originalKey, identity))!)).toEqual({
       minStart: 1_000_000,
       maxStart: 2_000_000,
-      serializedEventBytes: 300,
+      eventUpdateCount: 2,
     });
     expect(Number(await client().pexpiretime(originalKey))).toBe(expiry);
     expect(await client().hget(currentKey, identity)).toBeNull();
@@ -807,36 +803,24 @@ describe("trace micro-batch scheduling with Redis", () => {
     });
     const identity = member("project", "recorded");
     await recordTraceActivity("project", [
-      { ...spanActivity("recorded"), ruleIds: [], serializedEventBytes: 100 },
+      { ...spanActivity("recorded"), ruleIds: [] },
     ]);
     expect(await client().hget(recordingKeys.record, identity)).toBeNull();
     expect(await client().zscore(recordingKeys.due, identity)).toBeNull();
 
     await Promise.all([
       recordTraceActivity("project", [
-        {
-          ...spanActivity("recorded", 2_000_000),
-          ruleIds: ["rule-a"],
-          serializedEventBytes: 200,
-        },
-        {
-          ...spanActivity("recorded", 4_000_000),
-          ruleIds: ["rule-a"],
-          serializedEventBytes: 300,
-        },
+        { ...spanActivity("recorded", 2_000_000), ruleIds: ["rule-a"] },
+        { ...spanActivity("recorded", 4_000_000), ruleIds: ["rule-a"] },
       ]),
       recordTraceActivity("project", [
-        {
-          ...spanActivity("recorded", 500_000),
-          ruleIds: ["rule-b", "rule-a"],
-          serializedEventBytes: 400,
-        },
+        { ...spanActivity("recorded", 500_000), ruleIds: ["rule-b", "rule-a"] },
       ]),
     ]);
     expect((await readRecordedBounds(identity)).value).toMatchObject({
       minStart: 500_000,
       maxStart: 4_000_000,
-      serializedEventBytes: 1_000,
+      eventUpdateCount: 4,
     });
     const record = JSON.parse(
       (await client().hget(recordingKeys.record, identity))!,
@@ -845,30 +829,26 @@ describe("trace micro-batch scheduling with Redis", () => {
     expect(await client().zscore(recordingKeys.due, identity)).not.toBeNull();
   });
 
-  it("keeps incomplete byte estimates unknown across later updates", async () => {
+  it("counts one event update per recorded span across later batches", async () => {
     vi.mocked(shared.getTracingReadinessSettings).mockResolvedValue({
       traceIdleMs: null,
     });
     const identity = member("project", "recorded");
     const readBounds = async () => (await readRecordedBounds(identity)).value;
     await recordTraceActivity("project", [
-      {
-        ...spanActivity("recorded"),
-        ruleIds: ["rule"],
-        serializedEventBytes: 100,
-      },
+      { ...spanActivity("recorded"), ruleIds: ["rule"] },
     ]);
-    expect((await readBounds()).serializedEventBytes).toBe(100);
+    expect((await readBounds()).eventUpdateCount).toBe(1);
 
     await recordTraceActivity("project", [
-      { ...spanActivity("recorded"), ruleIds: [], serializedEventBytes: 200 },
+      { ...spanActivity("recorded"), ruleIds: [] },
+      { ...spanActivity("recorded", 2_000_000), ruleIds: [] },
+    ]);
+    expect((await readBounds()).eventUpdateCount).toBe(3);
+    await recordTraceActivity("project", [
       { ...spanActivity("recorded"), ruleIds: [] },
     ]);
-    expect((await readBounds()).serializedEventBytes).toBeUndefined();
-    await recordTraceActivity("project", [
-      { ...spanActivity("recorded"), ruleIds: [], serializedEventBytes: 300 },
-    ]);
-    expect((await readBounds()).serializedEventBytes).toBeUndefined();
+    expect((await readBounds()).eventUpdateCount).toBe(4);
   });
 
   it.each(["bounds", "pending"])(
@@ -889,20 +869,15 @@ describe("trace micro-batch scheduling with Redis", () => {
       }
 
       await recordTraceActivity("project", [
-        {
-          ...spanActivity("recorded", 2_000_000),
-          ruleIds: [],
-          serializedEventBytes: 400,
-        },
+        { ...spanActivity("recorded", 2_000_000), ruleIds: [] },
       ]);
       const bounds = (await readRecordedBounds(identity)).value;
+      // Expired bounds restart the count; pending expiry alone keeps the history.
       expect(bounds).toMatchObject({
         minStart: expired === "bounds" ? 2_000_000 : 1_000_000,
         maxStart: 2_000_000,
+        eventUpdateCount: expired === "bounds" ? 1 : 2,
       });
-      expect(bounds.serializedEventBytes).toBe(
-        expired === "bounds" ? 400 : undefined,
-      );
       expect(await client().hget(recordingKeys.record, identity)).toBeNull();
       expect(await client().zscore(recordingKeys.due, identity)).toBeNull();
     },

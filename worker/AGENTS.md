@@ -60,9 +60,9 @@
   experiments. The direct internal writer retains its root-only ready callback.
 - Trace-rule recording: `src/features/traceBatching/traceBatchRules.ts` matches
   at the OTel eval stage; `traceRuleRecording.ts` records without consuming.
-  Require the existing ingestion switch and cloud Topics project gate. Reuse shard
-  and idle helpers; attach accepted-write byte sizes before flushing, never raw
-  OTel sizes or reserialized payloads. Unknown estimates remain unknown.
+  Require the existing ingestion switch and cloud Topics project gate, and record
+  only batches that write the events table directly. Reuse shard and idle helpers.
+  Bounds count one event update per recorded span; sizes are not recorded.
   Bounds update in fixed first-arrival buckets; do not extend their expiry.
   Records contain only revision, rules, and failed_cnt. Pending cleanup runs during
   recording and dispatch. Map schemas, retention, and missing-bounds behavior:

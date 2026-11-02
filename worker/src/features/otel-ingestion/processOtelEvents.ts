@@ -70,8 +70,10 @@ export async function processOtelEvents({
     logger.warn(`Failed to fetch eval rules for project ${projectId}`, error);
     return { observationRules: [], traceTranscriptRules: [] };
   });
+  // Trace rules record only direct event writes, like existing trace batching.
   const hasRules =
-    rules.observationRules.length > 0 || rules.traceTranscriptRules.length > 0;
+    rules.observationRules.length > 0 ||
+    (rules.traceTranscriptRules.length > 0 && shouldWriteToEventsTable);
 
   // Early exit if no processing needed
   if (!hasRules && !shouldWriteToEventsTable) {
@@ -135,14 +137,15 @@ export async function processOtelEvents({
       }
 
       // Step 2: Schedule evaluations independently of event writes.
-      let traceActivity: TraceSpanActivity | undefined;
       if (schedulerDeps) {
-        // The collector keeps this reference; the accepted write fills its size before flush.
-        traceActivity = {
-          traceId: eventInput.traceId,
-          spanStartTimeISO: eventInput.startTimeISO,
-          ruleIds: [],
-        };
+        const traceActivity: TraceSpanActivity | undefined =
+          shouldWriteToEventsTable
+            ? {
+                traceId: eventInput.traceId,
+                spanStartTimeISO: eventInput.startTimeISO,
+                ruleIds: [],
+              }
+            : undefined;
         try {
           await scheduleEvals({
             observation: convertEventRecordToObservationForEval(eventRecord),
@@ -165,9 +168,6 @@ export async function processOtelEvents({
         try {
           const serializedEventBytes =
             await ingestionService.writeEventRecord(eventRecord);
-          if (traceActivity) {
-            traceActivity.serializedEventBytes = serializedEventBytes;
-          }
           if (
             env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION &&
             env.LANGFUSE_TRACE_BATCH_INGESTION_ENABLED === "true"

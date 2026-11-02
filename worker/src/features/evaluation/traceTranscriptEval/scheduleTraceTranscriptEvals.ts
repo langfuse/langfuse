@@ -11,11 +11,14 @@ export async function scheduleTraceTranscriptEvals({
   schedulerDeps,
 }: {
   observation: ObservationForEval;
-  traceActivity: TraceSpanActivity;
+  /** Absent when the batch does not write the events table directly. */
+  traceActivity?: TraceSpanActivity;
   schedulerDeps: EvalSchedulerDeps;
 }): Promise<void> {
-  // Topics excludes internal traces, including prompt experiments.
-  if (isInternalEvalEnvironment(observation.environment)) return;
+  // Only directly written events reach the trace-batch worker; Topics also
+  // excludes internal traces, including prompt experiments.
+  if (!traceActivity || isInternalEvalEnvironment(observation.environment))
+    return;
 
   const rules = await schedulerDeps.traceTranscriptRules;
   if (rules.length === 0) return;

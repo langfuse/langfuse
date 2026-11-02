@@ -62,8 +62,7 @@ const RECORD_SCRIPT = `
     local minStart = tonumber(ARGV[i + 1])
     local maxStart = tonumber(ARGV[i + 2])
     local incomingRules = cjson.decode(ARGV[i + 4])
-    local serializedEventBytes = tonumber(ARGV[i + 5])
-    if serializedEventBytes < 0 then serializedEventBytes = nil end
+    local eventUpdateCount = tonumber(ARGV[i + 5])
 
     -- 1. Merge the event-time bounds, even when no rule selected this activity.
     -- Keep each trace in its first-arrival bucket for a fixed retention window.
@@ -76,16 +75,10 @@ const RECORD_SCRIPT = `
       local bounds = cjson.decode(previousBounds)
       minStart = math.min(minStart, bounds.minStart)
       maxStart = math.max(maxStart, bounds.maxStart)
-      -- A missing historical estimate cannot be recovered from later spans.
-      if serializedEventBytes and bounds.serializedEventBytes then
-        serializedEventBytes = serializedEventBytes + bounds.serializedEventBytes
-      else
-        serializedEventBytes = nil
-      end
+      eventUpdateCount = eventUpdateCount + bounds.eventUpdateCount
     end
     redis.call('HSET', KEYS[boundsIndex], member, cjson.encode({
-      minStart = minStart, maxStart = maxStart,
-      serializedEventBytes = serializedEventBytes
+      minStart = minStart, maxStart = maxStart, eventUpdateCount = eventUpdateCount
     }))
     local boundsExpiry = (firstBucket + boundsIndex - 2) * width + boundsTtl
     redis.call('PEXPIREAT', KEYS[boundsIndex], string.format('%.0f', boundsExpiry))
@@ -179,16 +172,15 @@ export async function cleanupTraceRuleRecording(shard: number) {
   return expired === CLEANUP_SIZE;
 }
 
+/** One directly written span; each span counts as one event update of its trace. */
 export type TraceSpanActivity = {
   traceId: string;
   spanStartTimeISO: string;
-  /** Filled from the accepted event write before flushing; absent when size is unknown. */
-  serializedEventBytes?: number;
   /** Rule IDs already selected by filtering and sampling; empty still records activity. */
   ruleIds: readonly string[];
 };
 
-/** Merge bounds, selected rules, and readiness for one batch; this writer does not sample. */
+/** Merge bounds, event counts, selected rules, and readiness for one batch; this writer does not sample. */
 export async function recordTraceActivity(
   projectId: string,
   activity: readonly TraceSpanActivity[],
@@ -199,7 +191,7 @@ export async function recordTraceActivity(
     {
       minStart: number;
       maxStart: number;
-      serializedEventBytes: number | undefined;
+      eventUpdateCount: number;
       rules: Set<string>;
     }
   >();
@@ -210,17 +202,13 @@ export async function recordTraceActivity(
     if (previous) {
       previous.minStart = Math.min(previous.minStart, start);
       previous.maxStart = Math.max(previous.maxStart, start);
-      previous.serializedEventBytes =
-        previous.serializedEventBytes !== undefined &&
-        span.serializedEventBytes !== undefined
-          ? previous.serializedEventBytes + span.serializedEventBytes
-          : undefined;
+      previous.eventUpdateCount += 1;
       for (const ruleId of span.ruleIds) previous.rules.add(ruleId);
     } else {
       updatesByTrace.set(span.traceId, {
         minStart: start,
         maxStart: start,
-        serializedEventBytes: span.serializedEventBytes,
+        eventUpdateCount: 1,
         rules: new Set(span.ruleIds),
       });
     }
@@ -238,7 +226,7 @@ export async function recordTraceActivity(
       member: string;
       minStart: number;
       maxStart: number;
-      serializedEventBytes: number | undefined;
+      eventUpdateCount: number;
       rules: Set<string>;
     }[]
   >();
@@ -266,13 +254,13 @@ export async function recordTraceActivity(
         ...entries
           .slice(offset, offset + REDIS_BATCH_SIZE)
           .flatMap(
-            ({ member, minStart, maxStart, rules, serializedEventBytes }) => [
+            ({ member, minStart, maxStart, rules, eventUpdateCount }) => [
               member,
               minStart,
               maxStart,
               randomUUID(),
               JSON.stringify([...rules]),
-              serializedEventBytes ?? -1,
+              eventUpdateCount,
             ],
           ),
       ];

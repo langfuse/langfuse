@@ -92,7 +92,7 @@ describe("trace-rule recording at the evaluation stage", () => {
       writeFails: false,
     },
   ])(
-    "records matches and nonmatches with $mode despite span scheduling failures",
+    "records matches and nonmatches only for direct-write batches ($mode) despite span scheduling failures",
     async ({ shouldWriteToEventsTable, writeFails }) => {
       const original = { ...env };
       env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "DEV";
@@ -181,24 +181,25 @@ describe("trace-rule recording at the evaluation stage", () => {
             shouldWriteToEventsTable,
           }),
         ).resolves.toBeUndefined();
-        expect(recordTraceActivity).toHaveBeenCalledExactlyOnceWith(projectId, [
-          {
-            traceId: "trace",
-            spanStartTimeISO: inputs[0].startTimeISO,
-            ruleIds: ["trace-rule"],
-            ...(shouldWriteToEventsTable && !writeFails
-              ? { serializedEventBytes: 123 }
-              : {}),
-          },
-          {
-            traceId: "trace",
-            spanStartTimeISO: inputs[1].startTimeISO,
-            ruleIds: [],
-            ...(shouldWriteToEventsTable && !writeFails
-              ? { serializedEventBytes: 456 }
-              : {}),
-          },
-        ]);
+        if (shouldWriteToEventsTable) {
+          expect(recordTraceActivity).toHaveBeenCalledExactlyOnceWith(
+            projectId,
+            [
+              {
+                traceId: "trace",
+                spanStartTimeISO: inputs[0].startTimeISO,
+                ruleIds: ["trace-rule"],
+              },
+              {
+                traceId: "trace",
+                spanStartTimeISO: inputs[1].startTimeISO,
+                ruleIds: [],
+              },
+            ],
+          );
+        } else {
+          expect(recordTraceActivity).not.toHaveBeenCalled();
+        }
         expect(
           vi
             .mocked(scheduleObservationEvals)

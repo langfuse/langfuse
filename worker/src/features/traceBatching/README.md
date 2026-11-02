@@ -12,11 +12,12 @@ templates. The local dev template sets the idle time below.
 Default-off; requires `LANGFUSE_TRACE_BATCH_INGESTION_ENABLED=true` and the cloud
 Topics feature/project gates. Ingestion matches and samples rules, then atomically
 records activity under `{trace-dispatch:<shard>}`, keyed by `[projectId, traceId]`.
-These maps are not consumed yet.
+Only batches that write the events table directly are recorded, like existing trace
+batching; dual-path batches record nothing. These maps are not consumed yet.
 
 | Map             | Contents                                                                  | Retention                                                                 |
 | --------------- | ------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
-| `bounds:<hour>` | `{ minStart, maxStart, serializedEventBytes? }`, including nonmatches.    | First-arrival bucket expires after 24–25 hours; updates do not extend it. |
+| `bounds:<hour>` | `{ minStart, maxStart, eventUpdateCount }`, including nonmatches.         | First-arrival bucket expires after 24–25 hours; updates do not extend it. |
 | `record`        | Only `{ revision, rules, failed_cnt }`; rule IDs are deduplicated.        | Two hours past due.                                                       |
 | `due`           | Selected traces ordered by Redis arrival time plus project idle interval. | Two hours past due.                                                       |
 
@@ -25,8 +26,8 @@ new arrivals start fresh and discard old selections; consumers must handle missi
 bounds. Recording and dispatcher passes clean pending entries in batches of 100;
 key TTLs reclaim inactive maps.
 
-Bytes come from accepted event writes. Missing estimates stay unknown until bounds
-expire; ingestion retries can overcount. Each ingestion invocation awaits its own
+Each recorded span counts as one event update of its trace; ingestion retries can
+overcount. Serialized sizes are not recorded. Each ingestion invocation awaits its own
 buffer flush; Lua merges across workers using the shared shard and idle helpers.
 
 ## Readiness requirements
