@@ -53,6 +53,20 @@ describe("agent setup instructions", () => {
     }
   });
 
+  it("keeps shell lines that carry the key out of shell history", () => {
+    for (const instructions of buildAgentSetupInstructions(context)) {
+      const shellLines = instructions.steps
+        .filter((step) => step.language === "sh")
+        .flatMap((step) => step.code?.split("\n") ?? []);
+
+      for (const line of shellLines.filter(
+        (line) => line.includes("export ") || line.includes("cat >>"),
+      )) {
+        expect(line).toMatch(/^ \S/);
+      }
+    }
+  });
+
   it("copies markdown with a heading and docs link", () => {
     for (const instructions of buildAgentSetupInstructions(context)) {
       const markdown = formatAgentSetupMarkdown(instructions);

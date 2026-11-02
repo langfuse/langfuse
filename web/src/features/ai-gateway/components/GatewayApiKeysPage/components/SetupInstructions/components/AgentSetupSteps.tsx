@@ -1,8 +1,8 @@
 import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { Button } from "@/src/components/design-system/Button/Button";
-import { CodeSection } from "@/src/components/design-system/CodeSection/CodeSection";
 import { Stepper } from "@/src/components/design-system/Stepper/Stepper";
 import type { AgentSetupInstructions } from "@/src/features/ai-gateway/types/agentSetupInstructions";
+import { StepCodeSection } from "./StepCodeSection";
 
 type AgentSetupStepsProps = {
   instructions: AgentSetupInstructions;
@@ -46,11 +46,9 @@ export function AgentSetupSteps({
             compactBottomSpacing
           >
             {step.code === undefined ? null : (
-              <CodeSection
-                variant="outline"
-                content={step.code}
+              <StepCodeSection
+                code={step.code}
                 language={step.language}
-                shouldWrapLines={false}
                 onAfterCopy={() => onAfterStepCopy?.(index + 1)}
               />
             )}

@@ -31,7 +31,10 @@ export function GeneratedKeyContent({
         }
       />
       <hr className="-mx-4" />
-      <SetupInstructions organizationId={organizationId} />
+      <SetupInstructions
+        organizationId={organizationId}
+        secretKey={secretKey}
+      />
     </Dialog.Body>
   );
 }

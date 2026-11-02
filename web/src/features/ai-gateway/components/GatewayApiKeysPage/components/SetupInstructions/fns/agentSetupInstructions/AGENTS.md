@@ -17,8 +17,13 @@ Do not add steps, paths or env vars that the docs do not describe.
 
 ## Rules
 
-- Never put the secret key into a snippet. Use `GATEWAY_KEY_PLACEHOLDER`; the
-  key is shown and copied only by the key field above the tabs.
+- Builders never receive the secret key; they emit `GATEWAY_KEY_PLACEHOLDER`.
+  Right after creation, `StepCodeSection` swaps it for the key at render time
+  (masked until revealed, copied in full). "Copy for agent" keeps the
+  placeholder.
+- Prefix shell lines that set or write the key (`export`, the Codex heredoc)
+  with a space so shells with `ignorespace` / `HIST_IGNORE_SPACE` skip them in
+  history.
 - Paths differ per tool (`/anthropic` vs `/anthropic/v1`); keep them as the
   docs list them under "Base URLs at a glance".
 - Builders are pure: `(context: AgentSetupContext) => AgentSetupInstructions`.
