@@ -41,17 +41,7 @@ export function useGatewayLaunchTarget(
       ),
     ),
   );
-  // A partial answer picks a different org or state than the final one, so
-  // the banner would swap while queries settle.
-  const isSettled = candidates.every((candidate, index) => {
-    const status = statuses[index];
-    if (status?.data === undefined) return status?.isError === true;
-    if (candidate.canManage || !status.data.isConfigured) return true;
-    return (
-      ownKeys[index]?.data !== undefined || ownKeys[index]?.isError === true
-    );
-  });
-  if (!isSettled) return null;
+  if (!isLaunchTargetSettled(candidates, statuses, ownKeys)) return null;
   const unconfigured = candidates.filter(
     (_, index) => statuses[index]?.data?.isConfigured === false,
   );
@@ -83,3 +73,24 @@ export function useGatewayLaunchTarget(
     setupOptions: [],
   };
 }
+
+/**
+ * A partial answer picks a different org or state than the final one, so the
+ * banner would swap while queries settle.
+ */
+function isLaunchTargetSettled(
+  candidates: ReadonlyArray<GatewayLaunchCandidate>,
+  statuses: ReadonlyArray<SettleQuery<{ isConfigured: boolean }>>,
+  ownKeys: ReadonlyArray<SettleQuery<unknown>>,
+) {
+  return candidates.every((candidate, index) => {
+    const status = statuses[index];
+    if (status?.data === undefined) return status?.isError === true;
+    if (candidate.canManage || !status.data.isConfigured) return true;
+    return (
+      ownKeys[index]?.data !== undefined || ownKeys[index]?.isError === true
+    );
+  });
+}
+
+type SettleQuery<TData> = { data?: TData; isError: boolean } | undefined;
