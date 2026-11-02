@@ -15,6 +15,7 @@ import {
 } from "@/src/features/ai-gateway/hooks/useGatewayLaunchEligibility";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { GatewayHero } from "@/src/features/ai-gateway/components/GatewayLaunch/GatewayHero";
+import { GATEWAY_DOCS_URL } from "@/src/features/ai-gateway/constants/gatewayDocsUrls";
 
 const copy = {
   admin: {
@@ -92,7 +93,7 @@ export function GatewayLaunchDialog({
             </div>
             <div className="flex shrink-0 items-center justify-between border-t px-8 py-4">
               <Link
-                href="https://langfuse.com/docs/ai-gateway"
+                href={GATEWAY_DOCS_URL}
                 target="_blank"
                 rel="noopener noreferrer"
                 onClick={() =>
