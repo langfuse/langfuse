@@ -375,13 +375,14 @@ describe("expansion table: scope USER, privateKey", () => {
     );
   });
 
-  it("throws an internal server error for a user key without a user", async () => {
-    await expect(
-      contextFor({
-        authorization: "privateKey",
-        apiKey: userKey({ userId: null }),
-      }),
-    ).rejects.toThrow(InternalServerError);
+  it("denies a user key without a user", async () => {
+    const ctx = await contextFor({
+      authorization: "privateKey",
+      apiKey: userKey({ userId: null }),
+    });
+    expect(authorize(ctx, TENANT, "prompts:read", ProjectId(PRJ)).success).toBe(
+      false,
+    );
   });
 
   it("collapses a user key with a null orgId to an InternalServerError", async () => {
@@ -479,7 +480,7 @@ describe("a verified key with no org is a 500 invariant break", () => {
 });
 
 describe("role lookup", () => {
-  it("throws an internal server error when backfill leaves no roles", async () => {
+  it("denies a key that backfill leaves without roles", async () => {
     const prisma = mockPrisma(orgRow());
     prisma.roleAssignment.findMany = vi.fn().mockResolvedValue([]);
     prisma.$transaction = vi.fn().mockResolvedValue(undefined);
@@ -487,10 +488,16 @@ describe("role lookup", () => {
       new OrganizationRepository(prisma),
       prisma,
     );
-    await expect(
-      resolver.resolve({ authorization: "privateKey", apiKey: apiKey() }),
-    ).rejects.toThrow(InternalServerError);
-    expect(prisma.roleAssignment.findMany).toHaveBeenCalledTimes(2);
+    const resolved = await resolver.resolve({
+      authorization: "privateKey",
+      apiKey: apiKey(),
+    });
+    if (!resolved.success) throw resolved.error;
+    expect(resolved.context.policies).toEqual([[]]);
+    expect(
+      authorize(resolved.context, TENANT, "prompts:read", ProjectId(PRJ))
+        .success,
+    ).toBe(false);
   });
 
   it("allows a stored role that grants no actions", async () => {

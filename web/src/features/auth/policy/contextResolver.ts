@@ -1,9 +1,11 @@
 import {
   type ApiKey,
+  type ApiKeyScope,
+  type Prisma,
   type PrismaClient,
   prisma as defaultPrisma,
 } from "@langfuse/shared/src/db";
-import { CloudConfigSchema, InternalServerError } from "@langfuse/shared";
+import { CloudConfigSchema, type InternalServerError } from "@langfuse/shared";
 import {
   ApiKeyId,
   OrganizationId,
@@ -119,35 +121,38 @@ async function materialize(
 
   const context = {
     principal,
-    policies: await getPolicySets(),
+    policies: await getPoliciesForApiKey(prisma, {
+      apiKeyId: apiKey.id,
+      userId: apiKey.userId,
+      scope: apiKey.scope,
+    }),
   };
   if (authorization === "publicKey") {
     // eslint-disable-next-line @typescript-eslint/no-deprecated -- Compatibility until the next major version.
     return { principal, policies: publicBearerPolicies(context, apiKey, org) };
   }
   return context;
+}
 
-  /** getPolicySets loads one policy set per principal the key acts as: its user's for a user key, then its own. */
-  async function getPolicySets(): Promise<Policy[][]> {
-    const keyPolicies = toPolicies(await getRolesForApiKey(apiKey.id));
-    if (apiKey.scope !== "USER") return [keyPolicies];
-    if (apiKey.userId === null) {
-      throw new InternalServerError(`user key ${apiKey.id} has no userId`);
-    }
-    const userRoles = await getRolesForPrincipal(prisma, UserId(apiKey.userId));
-    return [toPolicies(userRoles), keyPolicies];
-  }
-
-  /** getRolesForApiKey loads the key's roles and rejects a key left without any. */
-  async function getRolesForApiKey(apiKeyId: string): Promise<Role[]> {
-    const roles = await getRolesForPrincipal(prisma, ApiKeyId(apiKeyId));
-    if (roles.length === 0) {
-      throw new InternalServerError(
-        `API key ${apiKeyId} has no role assignments after backfill`,
-      );
-    }
-    return roles;
-  }
+/** getPoliciesForApiKey loads one policy set per principal an api key acts as: its user's for a user key, then its own. */
+export async function getPoliciesForApiKey(
+  prisma: Prisma.TransactionClient,
+  {
+    apiKeyId,
+    userId,
+    scope,
+  }: { apiKeyId: string; userId?: string | null; scope: ApiKeyScope },
+): Promise<Policy[][]> {
+  const keyPolicies = toPolicies(
+    await getRolesForPrincipal(prisma, ApiKeyId(apiKeyId)),
+  );
+  if (scope !== "USER") return [keyPolicies];
+  // An empty user set denies a user key whose user is gone.
+  if (!userId) return [[], keyPolicies];
+  const userPolicies = toPolicies(
+    await getRolesForPrincipal(prisma, UserId(userId)),
+  );
+  return [userPolicies, keyPolicies];
 }
 
 /**
