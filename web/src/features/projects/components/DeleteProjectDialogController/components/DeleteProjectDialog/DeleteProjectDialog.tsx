@@ -1,8 +1,10 @@
 import { zodResolver } from "@hookform/resolvers/zod";
+import { AlertTriangle } from "@langfuse/icons";
 import { useId } from "react";
 import { useForm } from "react-hook-form";
 import * as z from "zod";
 
+import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
 import {
   Form,
@@ -21,6 +23,8 @@ export type DeleteProjectDialogProps = {
   confirmMessage: string;
   isPending: boolean;
   onSubmit: () => void;
+  /** Set when the project receives this organization's AI Gateway traces. */
+  gatewayOrganizationName?: string;
 };
 
 export function DeleteProjectDialog(props: DeleteProjectDialogProps) {
@@ -54,6 +58,14 @@ export function DeleteProjectDialog(props: DeleteProjectDialogProps) {
       <Form {...form}>
         <form id={formId} onSubmit={form.handleSubmit(props.onSubmit)}>
           <Dialog.Body>
+            {props.gatewayOrganizationName ? (
+              <Alert variant="warning" icon={AlertTriangle}>
+                <Alert.Title>This turns off the AI Gateway</Alert.Title>
+                <Alert.Description>
+                  {`This project receives the AI Gateway traces of ${props.gatewayOrganizationName}. Deleting it turns off the AI Gateway for the organization until you select a new ingestion project.`}
+                </Alert.Description>
+              </Alert>
+            ) : null}
             <p>
               Deletion takes time and scales with project size. For very large
               projects, it can take multiple days. If deletion is slower than

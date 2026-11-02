@@ -29,9 +29,3 @@ export function getCapturingGatewayIngestionModes() {
     (mode) => getEffectiveGatewayIngestionMode(mode) !== "NONE",
   );
 }
-
-export function getGatewayIngestionProjectDeletionMessage() {
-  return isGatewayIngestionModeAvailable("NONE")
-    ? "This project is used as the AI Gateway ingestion project. Select another ingestion project or set the ingestion mode to None before deleting it."
-    : "This project is used as the AI Gateway ingestion project. Select another ingestion project before deleting it.";
-}

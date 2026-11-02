@@ -1,4 +1,3 @@
-import { getGatewayIngestionProjectDeletionMessage } from "@/src/features/ai-gateway/fns/gatewayIngestionModePolicy";
 import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import { LLMAdapter, type Plan, Role } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
@@ -372,67 +371,6 @@ describe("API-key cache invalidation on project/org lifecycle", () => {
     await caller.organizations.delete({ orgId });
 
     expect(await survivingKeys(keys)).toEqual([]);
-  });
-
-  it("admin project deletion keeps the ingestion project and its keys", async () => {
-    const orgId = await createOrg();
-    const projectId = await createProject(orgId);
-    const keys = await seedOrgScopedKey(orgId);
-    await prisma.gatewayConfig.create({
-      data: { organizationId: orgId, defaultIngestionProjectId: projectId },
-    });
-
-    const res = makeRes();
-    await handleDeleteProject({} as any, res, projectId, {
-      orgId,
-      apiKeyId: "ADMIN_KEY",
-    } as any);
-
-    expect(res.statusCode).toBe(409);
-    expect(res.body).toEqual({
-      message: getGatewayIngestionProjectDeletionMessage(),
-    });
-    expect(await survivingKeys(keys)).toEqual(keys);
-    await expect(
-      prisma.project.findUnique({ where: { id: projectId } }),
-    ).resolves.toMatchObject({ deletedAt: null });
-  });
-
-  it("admin project deletion keeps a Cloud project whose stored ingestion mode is NONE", async () => {
-    const orgId = await createOrg();
-    const projectId = await createProject(orgId);
-    const keys = await seedOrgScopedKey(orgId);
-    // A legacy Cloud row can still store NONE. It runs as USAGE, so deletion stays blocked.
-    const originalCloudRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
-    Object.assign(env, { NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: "EU" });
-    try {
-      await prisma.gatewayConfig.create({
-        data: {
-          organizationId: orgId,
-          defaultIngestionProjectId: projectId,
-          ingestionMode: "NONE",
-        },
-      });
-
-      const res = makeRes();
-      await handleDeleteProject({} as any, res, projectId, {
-        orgId,
-        apiKeyId: "ADMIN_KEY",
-      } as any);
-
-      expect(res.statusCode).toBe(409);
-      expect(res.body).toEqual({
-        message: getGatewayIngestionProjectDeletionMessage(),
-      });
-      expect(await survivingKeys(keys)).toEqual(keys);
-      await expect(
-        prisma.project.findUnique({ where: { id: projectId } }),
-      ).resolves.toMatchObject({ deletedAt: null });
-    } finally {
-      Object.assign(env, {
-        NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: originalCloudRegion,
-      });
-    }
   });
 
   it("admin project soft deletion preserves user permissions and evicts cached keys", async () => {
