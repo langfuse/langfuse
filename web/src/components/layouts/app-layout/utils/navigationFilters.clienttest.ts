@@ -4,7 +4,7 @@ import { ROUTES, type Route } from "@/src/components/layouts/routes";
 import { applyNavigationFilters } from "./navigationFilters";
 import type { NavigationFilterContext } from "./navigationFilters.types";
 
-it("keeps Topics hidden without explicit opt-in despite admin and experimental overrides", () => {
+it("keeps Topics hidden without explicit opt-in despite experimental overrides", () => {
   const route: Route = {
     title: "Topics",
     href: "/topics",
@@ -18,7 +18,6 @@ it("keeps Topics hidden without explicit opt-in despite admin and experimental o
     } as Session,
     enableExperimentalFeatures: true,
     internalFeaturesEnabled: false,
-    cloudAdmin: true,
     entitlements: [],
     uiCustomization: null,
     isLangfuseCloud: true,
@@ -54,7 +53,6 @@ it.each([
       } as Session,
       enableExperimentalFeatures: false,
       internalFeaturesEnabled: false,
-      cloudAdmin: false,
       entitlements: [],
       uiCustomization: null,
       isLangfuseCloud: true,
@@ -90,14 +88,12 @@ it.each([
       routerOrganizationId: undefined,
       session: {
         user: {
-          admin: false,
           featureFlags: testFeatureFlags({ langfuseTopics: true }),
           organizations: [organization],
         },
       } as Session,
       enableExperimentalFeatures: false,
       internalFeaturesEnabled: false,
-      cloudAdmin: false,
       entitlements: [],
       uiCustomization: null,
       isLangfuseCloud: true,

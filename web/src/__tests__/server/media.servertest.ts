@@ -68,7 +68,6 @@ describe("Media Upload API", () => {
         },
       ],
       featureFlags: testFeatureFlags(),
-      admin: true,
     },
     environment: {} as any,
   };

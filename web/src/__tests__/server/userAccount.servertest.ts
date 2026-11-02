@@ -19,17 +19,20 @@ import { getAuthOptions } from "@/src/server/auth";
 
 describe("userAccountRouter.setFeaturePreviewEnabled", () => {
   const originalCloudRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
+  const originalExperimental = env.LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES;
 
   beforeEach(() => {
     (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "DEV";
+    (env as any).LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES = "false";
   });
 
   afterEach(() => {
     (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = originalCloudRegion;
+    (env as any).LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES = originalExperimental;
   });
 
   it.each([true, false])(
-    "rejects a non-platform-admin Topics toggle to %s",
+    "rejects a Topics toggle without internal access to %s",
     async (enabled) => {
       const { caller, userId } = await createCaller();
       await expect(
@@ -45,9 +48,10 @@ describe("userAccountRouter.setFeaturePreviewEnabled", () => {
     },
   );
 
-  it("lets a platform admin opt into and out of Topics locally without changing other flags", async () => {
-    const { caller, userId } = await createCaller({ admin: true });
+  it("lets an internal user opt into and out of Topics locally without changing other flags", async () => {
+    const { caller, userId } = await createCaller();
     (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = undefined;
+    (env as any).LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES = "true";
     await caller.userAccount.setFeaturePreviewEnabled({
       flag: "langfuseTopics",
       enabled: true,
@@ -161,8 +165,8 @@ describe("userAccountRouter.setViewMode", () => {
   });
 
   it("persists only the external override and preserves other preferences", async () => {
+    testEnv.LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES = "true";
     const { caller, userId } = await createCaller({
-      admin: true,
       featureFlags: ["sessionViewV2"],
     });
     await caller.userAccount.setViewMode({ mode: "EXTERNAL" });
@@ -278,14 +282,12 @@ describe("userAccountRouter.delete", () => {
 });
 
 async function createCaller({
-  admin = false,
   plan = "cloud:hobby",
   aiFeaturesEnabled = true,
   featureFlags = ["templateFlag"],
   includeProjectInSession = true,
   emailDomain = "example.com",
 }: {
-  admin?: boolean;
   plan?: Plan;
   aiFeaturesEnabled?: boolean;
   featureFlags?: string[];
@@ -319,7 +321,6 @@ async function createCaller({
       email: `${userId}@${emailDomain}`,
       name: "User Account Test User",
       featureFlags,
-      admin,
     },
   });
 
@@ -363,7 +364,6 @@ async function createCaller({
         searchBar: featureFlags.includes("searchBar"),
         templateFlag: featureFlags.includes("templateFlag"),
       }),
-      admin,
     },
     environment: {
       enableExperimentalFeatures: false,

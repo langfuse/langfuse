@@ -1,6 +1,6 @@
 import { useSession } from "next-auth/react";
 import {
-  isAdminOnlyFeaturePreviewFlag,
+  isInternalOnlyFeaturePreviewFlag,
   isInternalFlag,
   isRestrictedFlag,
 } from "../available-flags";
@@ -14,18 +14,14 @@ import {
 export default function useIsFeatureEnabled(
   feature: Flag,
   {
-    enableForAdmins = true,
     projectId,
     organizationId,
   }: {
-    enableForAdmins?: boolean;
     projectId?: string;
     organizationId?: string;
   } = {},
 ): boolean {
   const session = useSession();
-
-  const isAdmin = session.data?.user?.admin ?? false;
 
   const isExperimentalFeaturesEnabled =
     session.data?.environment.enableExperimentalFeatures ?? false;
@@ -40,14 +36,12 @@ export default function useIsFeatureEnabled(
     return isInternalViewEnabled(session.data);
   }
 
-  if (isRestrictedFlag(feature) || isAdminOnlyFeaturePreviewFlag(feature)) {
+  if (isRestrictedFlag(feature) || isInternalOnlyFeaturePreviewFlag(feature)) {
     return isFeatureEnabledOnUser;
   }
 
   return (
-    hasInternalAccess({
-      isAdmin: enableForAdmins && isAdmin,
-      isExperimentalFeaturesEnabled,
-    }) || isFeatureEnabledOnUser
+    hasInternalAccess({ isExperimentalFeaturesEnabled }) ||
+    isFeatureEnabledOnUser
   );
 }

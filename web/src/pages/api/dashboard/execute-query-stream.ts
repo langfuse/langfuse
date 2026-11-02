@@ -12,7 +12,6 @@ import { RESOURCE_LIMIT_ERROR_MESSAGE } from "@langfuse/shared";
 
 import { getServerAuthSession } from "@/src/server/auth";
 import { sendAdminAccessWebhook } from "@/src/server/adminAccessWebhook";
-import { prisma } from "@langfuse/shared/src/db";
 import {
   prepareExecuteQuery,
   toClickhouseQueryOpts,
@@ -81,25 +80,11 @@ export default async function handler(
     .find((project) => project.id === projectId);
 
   if (!sessionProject) {
-    if (session.user.admin === true) {
-      const dbProject = await prisma.project.findFirst({
-        select: { orgId: true },
-        where: { id: projectId, deletedAt: null },
-      });
-      if (!dbProject) {
-        res.status(404).json({ message: "Project not found" });
-        return;
-      }
-      await sendAdminAccessWebhook({
-        email: session.user.email,
-        projectId,
-        orgId: dbProject.orgId,
-      });
-    } else {
-      res.status(403).json({ message: "Not a member of this project" });
-      return;
-    }
-  } else if (session.user.admin === true) {
+    res.status(403).json({ message: "Not a member of this project" });
+    return;
+  }
+
+  if (sessionProject.organization.supportAccess === true) {
     await sendAdminAccessWebhook({
       email: session.user.email,
       projectId,

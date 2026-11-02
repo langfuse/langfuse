@@ -130,7 +130,7 @@ describe("in-app agent public API route auth", () => {
       filterInAppAgentAvailableLangfuseMcpTools({
         tools,
         policy: createInAppAgentToolPolicy({
-          userAccess: { projectRole: "MEMBER", isAdmin: false },
+          userAccess: { projectRole: "MEMBER" },
         }),
       }),
     ).toEqual({
@@ -142,7 +142,7 @@ describe("in-app agent public API route auth", () => {
       filterInAppAgentAvailableLangfuseMcpTools({
         tools,
         policy: createInAppAgentToolPolicy({
-          userAccess: { projectRole: "OWNER", isAdmin: false },
+          userAccess: { projectRole: "OWNER" },
         }),
       }),
     ).toEqual(tools);
@@ -366,7 +366,6 @@ function createInAppAgentSession(params: {
       name: "Test User",
       email: "test@example.com",
       image: null,
-      admin: false,
       featureFlags: testFeatureFlags({ templateFlag: false }),
       organizations:
         (params.includeProjectMembership ?? true)

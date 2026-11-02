@@ -92,7 +92,6 @@ function caller(role: "ADMIN" | "VIEWER" = "ADMIN", langfuseTopics = true) {
     expires: "1",
     user: {
       id: "user-a",
-      admin: false,
       featureFlags: testFeatureFlags({ langfuseTopics }),
       organizations: [
         {
@@ -300,13 +299,11 @@ describe("Topics project allowlist", () => {
 
 describe("Topics visibility gate", () => {
   const session = ({
-    admin = false,
     langfuseTopics = true,
     internalFeatures = true,
     enableExperimentalFeatures = false,
     role = "VIEWER",
   }: {
-    admin?: boolean;
     langfuseTopics?: boolean;
     internalFeatures?: boolean;
     enableExperimentalFeatures?: boolean;
@@ -317,7 +314,6 @@ describe("Topics visibility gate", () => {
       environment: { enableExperimentalFeatures },
       user: {
         id: "user-a",
-        admin,
         featureFlags: testFeatureFlags({ langfuseTopics, internalFeatures }),
         organizations: role
           ? [{ id: "org-a", role, projects: [{ id: projectId, role }] }]
@@ -336,20 +332,24 @@ describe("Topics visibility gate", () => {
       false,
     ],
     [
-      "internal view without the Topics flag",
-      { admin: true, langfuseTopics: false, role: null },
+      "internal view without a project membership",
+      { enableExperimentalFeatures: true, langfuseTopics: false, role: null },
       true,
-      true,
+      false,
     ],
     [
       "internal view opted out without the Topics flag",
-      { admin: true, internalFeatures: false, langfuseTopics: false },
+      {
+        enableExperimentalFeatures: true,
+        internalFeatures: false,
+        langfuseTopics: false,
+      },
       true,
       false,
     ],
     [
       "internal view opted out with the Topics flag",
-      { admin: true, internalFeatures: false },
+      { enableExperimentalFeatures: true, internalFeatures: false },
       true,
       true,
     ],
@@ -366,8 +366,8 @@ describe("Topics visibility gate", () => {
       false,
     ],
     [
-      "an admin outside a non-allowlisted project",
-      { admin: true, langfuseTopics: false, role: null },
+      "internal view on a non-allowlisted project",
+      { enableExperimentalFeatures: true, langfuseTopics: false },
       false,
       false,
     ],

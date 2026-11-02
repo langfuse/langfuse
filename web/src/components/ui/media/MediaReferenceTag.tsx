@@ -54,7 +54,6 @@ function S3MediaTag({
 }) {
   const projectId = useProjectIdFromURL();
   const isFeatureEnabled = useIsFeatureEnabled("externalMediaStorage", {
-    enableForAdmins: false,
     projectId,
   });
   const peek = useMediaPeek();

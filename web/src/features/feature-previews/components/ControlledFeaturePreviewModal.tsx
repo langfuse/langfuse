@@ -5,6 +5,7 @@ import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { useReadPath, V4_PREVIEW_LABEL } from "@/src/features/events";
 import {
   featurePreviewLabels,
+  hasInternalAccess,
   useInternalFeaturesEnabled,
 } from "@/src/features/feature-flags";
 import { api } from "@/src/utils/api";
@@ -27,6 +28,10 @@ export function ControlledFeaturePreviewModal({
 }: ControlledFeaturePreviewModalProps) {
   const authSession = useSession();
   const internalViewEnabled = useInternalFeaturesEnabled();
+  const internalAccessAvailable = hasInternalAccess({
+    isExperimentalFeaturesEnabled:
+      authSession.data?.environment.enableExperimentalFeatures === true,
+  });
   const { isV4 } = useReadPath();
   const capture = usePostHogClientCapture();
   const setFeaturePreviewEnabled =
@@ -77,12 +82,12 @@ export function ControlledFeaturePreviewModal({
       onToggle: onToggle("skillManagement"),
       isToggling: setFeaturePreviewEnabled.isPending,
     },
-    ...(authSession.data?.user?.admin === true
+    ...(internalAccessAvailable
       ? {
           langfuseTopics: {
             enabled:
               internalViewEnabled ||
-              authSession.data.user.featureFlags.langfuseTopics === true,
+              authSession.data?.user?.featureFlags.langfuseTopics === true,
             disabled: internalViewEnabled,
             warningReason: internalViewEnabled
               ? "Topics is enabled by Internal view. Switch to External view to manage this preview separately."

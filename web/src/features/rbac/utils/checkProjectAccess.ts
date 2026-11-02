@@ -6,7 +6,7 @@ import { useSession } from "next-auth/react";
 import { hasOwnRole } from "./hasOwnRole";
 import { env } from "@/src/env.mjs";
 
-/** LLM execution scopes require an internal admin in the demo project. */
+/** LLM execution scopes are unavailable in the demo project. */
 const demoProjectLlmScopes = new Set<ProjectScope>([
   "playground:execute",
   "topics:CUD",
@@ -22,7 +22,6 @@ type HasProjectAccessParams = (
   | {
       role: Role;
       scope: ProjectScope;
-      admin?: boolean; // prop user.admin
     }
   | {
       session: null | Session;
@@ -56,7 +55,6 @@ export const useHasProjectAccess = (p: {
   const { scope, projectId } = p;
   const session = useSession();
 
-  if (session.data?.user?.admin) return true;
   if (!projectId) return false;
 
   return hasProjectAccess({ session: session.data, scope, projectId });
@@ -64,9 +62,6 @@ export const useHasProjectAccess = (p: {
 
 // For use in UI components as function, if session is already available
 export function hasProjectAccess(p: HasProjectAccessParams): boolean {
-  const isAdmin = hasOwnRole(p) ? p.admin : p.session?.user?.admin;
-  if (isAdmin) return true;
-
   if (isDemoProjectLlmScope(p)) return false;
 
   const projectRole: Role | undefined = hasOwnRole(p)

@@ -15,8 +15,6 @@ type InAppAgentMcpToolApproval = "auto" | "approval";
 
 export type InAppAgentUserAccess = {
   projectRole?: Role;
-  // Global Langfuse admin flag. This bypasses project membership checks.
-  isAdmin: boolean;
 };
 
 type InAppAgentMcpToolPolicy = {
@@ -535,7 +533,6 @@ function isInAppAgentLangfuseMcpToolAvailable(params: {
 
   return hasProjectAccessByRole({
     role: params.userAccess.projectRole ?? Role.MEMBER,
-    admin: params.userAccess.isAdmin,
     scope: policy.availability.scope,
   });
 }

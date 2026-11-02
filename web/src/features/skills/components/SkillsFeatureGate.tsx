@@ -9,7 +9,6 @@ export function SkillsFeatureGate({ children }: { children: ReactNode }) {
   const { isV4 } = useReadPath();
   const enabled = useIsFeatureEnabled("skillManagement", {
     projectId,
-    enableForAdmins: false,
   });
 
   return isV4 && enabled ? (

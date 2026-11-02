@@ -11,7 +11,7 @@ import { V4_PREVIEW_LABEL } from "@/src/features/events/lib/v4PreviewLabel";
 import { env } from "@/src/env.mjs";
 import { getSfdcService } from "@/src/ee/features/sfdc-sync/server";
 import {
-  isAdminOnlyFeaturePreviewFlag,
+  isInternalOnlyFeaturePreviewFlag,
   personalFeaturePreviewFlags,
   setUserFeaturePreview,
   hasInternalAccess,
@@ -94,7 +94,6 @@ export const userAccountRouter = createTRPCRouter({
 
       if (
         !hasInternalAccess({
-          isAdmin: ctx.session.user.admin === true,
           isExperimentalFeaturesEnabled:
             env.LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES === "true",
         }) ||
@@ -155,11 +154,14 @@ export const userAccountRouter = createTRPCRouter({
       const userId = ctx.session.user.id;
 
       if (
-        isAdminOnlyFeaturePreviewFlag(input.flag) &&
-        !ctx.session.user.admin
+        isInternalOnlyFeaturePreviewFlag(input.flag) &&
+        !hasInternalAccess({
+          isExperimentalFeaturesEnabled:
+            env.LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES === "true",
+        })
       ) {
         throw new ForbiddenError(
-          "Only administrators can change this feature preview.",
+          "This feature preview requires internal access.",
         );
       }
 
@@ -169,7 +171,7 @@ export const userAccountRouter = createTRPCRouter({
 
       if (
         input.enabled &&
-        !isAdminOnlyFeaturePreviewFlag(input.flag) &&
+        !isInternalOnlyFeaturePreviewFlag(input.flag) &&
         !canEnableFeaturePreviews
       ) {
         throw new TRPCError({
@@ -343,21 +345,18 @@ export const userAccountRouter = createTRPCRouter({
         });
       }
 
-      const userCanToggleV4 = canToggleV4(
-        {
-          userCreatedAt: userRolloutState.createdAt,
-          organizations: userRolloutState.organizationMemberships.map(
-            (membership) => ({
-              id: membership.organization.id,
-              createdAt: membership.organization.createdAt,
-            }),
-          ),
-          excludedOrganizationIds: env.NEXT_PUBLIC_DEMO_ORG_ID
-            ? [env.NEXT_PUBLIC_DEMO_ORG_ID]
-            : [],
-        },
-        { isLangfuseCloudAdmin: ctx.session.user.admin === true },
-      );
+      const userCanToggleV4 = canToggleV4({
+        userCreatedAt: userRolloutState.createdAt,
+        organizations: userRolloutState.organizationMemberships.map(
+          (membership) => ({
+            id: membership.organization.id,
+            createdAt: membership.organization.createdAt,
+          }),
+        ),
+        excludedOrganizationIds: env.NEXT_PUBLIC_DEMO_ORG_ID
+          ? [env.NEXT_PUBLIC_DEMO_ORG_ID]
+          : [],
+      });
 
       // Rollout-locked users may recover a missing opt-in, but cannot opt out.
       if (!userCanToggleV4 && !input.enabled) {

@@ -13,13 +13,11 @@ vi.mock("next-auth/react", () => ({
 const mockSession = ({
   aiGateway,
   langfuseTopics = false,
-  admin = false,
   enableExperimentalFeatures = false,
   internalFeatures,
 }: {
   aiGateway: boolean;
   langfuseTopics?: boolean;
-  admin?: boolean;
   enableExperimentalFeatures?: boolean;
   internalFeatures?: boolean;
 }) => {
@@ -27,7 +25,6 @@ const mockSession = ({
     data: {
       environment: { enableExperimentalFeatures },
       user: {
-        admin,
         featureFlags: testFeatureFlags({
           aiGateway: false,
           langfuseTopics,
@@ -48,25 +45,27 @@ const mockSession = ({
 describe("useIsFeatureEnabled", () => {
   it.each([
     {
-      admin: true,
       internalFeatures: false,
       enableExperimentalFeatures: true,
       expected: false,
     },
     {
-      admin: true,
       internalFeatures: true,
-      enableExperimentalFeatures: false,
+      enableExperimentalFeatures: true,
       expected: true,
     },
     {
-      admin: false,
+      internalFeatures: undefined,
+      enableExperimentalFeatures: true,
+      expected: true,
+    },
+    {
       internalFeatures: true,
       enableExperimentalFeatures: false,
       expected: false,
     },
   ])(
-    "resolves internal view as $expected for $admin admin / $internalFeatures preference",
+    "resolves internal view as $expected for experimental=$enableExperimentalFeatures / $internalFeatures preference",
     ({ expected, ...options }) => {
       mockSession({ aiGateway: false, ...options });
       const { result } = renderHook(() => useInternalFeaturesEnabled());
@@ -74,10 +73,9 @@ describe("useIsFeatureEnabled", () => {
     },
   );
 
-  it("requires explicit opt-in for restricted and admin-only flags despite admin and experimental overrides", () => {
+  it("requires explicit opt-in for restricted and internal-only flags despite experimental overrides", () => {
     mockSession({
       aiGateway: false,
-      admin: true,
       enableExperimentalFeatures: true,
     });
     const { result, rerender } = renderHook(() => ({

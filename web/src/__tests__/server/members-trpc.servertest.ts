@@ -95,7 +95,6 @@ function createSession(
         },
       ],
       featureFlags: testFeatureFlags(),
-      admin: false, // Not admin to test actual limits
     },
     environment: {
       enableExperimentalFeatures: false,

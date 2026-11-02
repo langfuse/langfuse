@@ -31,20 +31,21 @@ export const isOrganizationOnlyFeaturePreviewFlag = (
     (organizationFlag) => organizationFlag === flag,
   );
 
-const adminOnlyFeaturePreviewFlags = ["langfuseTopics"] as const;
+// Personal previews that only users with internal access may toggle.
+const internalOnlyFeaturePreviewFlags = ["langfuseTopics"] as const;
 
 export const personalFeaturePreviewFlags = [
   ...userFeaturePreviewFlags,
-  ...adminOnlyFeaturePreviewFlags,
+  ...internalOnlyFeaturePreviewFlags,
 ] as const;
 
 export type PersonalFeaturePreviewFlag =
   (typeof personalFeaturePreviewFlags)[number];
 
-export const isAdminOnlyFeaturePreviewFlag = (
+export const isInternalOnlyFeaturePreviewFlag = (
   flag: string,
-): flag is (typeof adminOnlyFeaturePreviewFlags)[number] =>
-  adminOnlyFeaturePreviewFlags.some((adminFlag) => adminFlag === flag);
+): flag is (typeof internalOnlyFeaturePreviewFlags)[number] =>
+  internalOnlyFeaturePreviewFlags.some((adminFlag) => adminFlag === flag);
 
 const restrictedFlags = ["aiGateway"] as const;
 
@@ -108,7 +109,7 @@ export const isFeaturePreviewAvailable = (
 
 export const availableFlags = [
   ...featurePreviewFlags,
-  ...adminOnlyFeaturePreviewFlags,
+  ...internalOnlyFeaturePreviewFlags,
   ...restrictedFlags,
   INTERNAL_FEATURE_FLAG,
   "searchBar",

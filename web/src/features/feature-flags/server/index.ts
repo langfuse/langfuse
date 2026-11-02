@@ -3,7 +3,7 @@ export {
   featurePreviewFlags,
   userFeaturePreviewFlags,
   personalFeaturePreviewFlags,
-  isAdminOnlyFeaturePreviewFlag,
+  isInternalOnlyFeaturePreviewFlag,
   isOrganizationOnlyFeaturePreviewFlag,
   INTERNAL_FEATURE_FLAG,
 } from "@/src/features/feature-flags/available-flags";

@@ -146,7 +146,6 @@ export function AuthenticatedLayout({
     useQueryProjectOrOrganization();
   const customerDataWarning = getCustomerDataWarning({
     email: user.email,
-    isAdmin: user.admin === true,
     isLangfuseCloud,
     projectId:
       typeof router.query.projectId === "string"
@@ -197,7 +196,6 @@ export function AuthenticatedLayout({
   const hasFeaturePreviews = canOpenPersonalFeaturePreviews({
     isLangfuseCloud,
     v4BetaEnabled: user.v4BetaEnabled === true,
-    isAdmin: user.admin === true,
   });
 
   // User navigation items for sidebar dropdown

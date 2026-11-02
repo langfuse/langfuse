@@ -124,7 +124,6 @@ export function useFilteredNavigation(
       session,
       enableExperimentalFeatures:
         session?.environment?.enableExperimentalFeatures ?? false,
-      cloudAdmin: Boolean(session?.user?.admin && isLangfuseCloud),
       entitlements,
       uiCustomization,
       isLangfuseCloud,

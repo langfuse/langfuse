@@ -97,30 +97,35 @@ describe("in-app agent router", () => {
   it("exposes the telemetry project to internal users only", async () => {
     const fixture = await createProjectFixture();
     const userCaller = createCallerForFixture(fixture, fixture.ownerUserId);
-    const adminCaller = createCallerForFixture(fixture, fixture.ownerUserId, {
-      admin: true,
-    });
+    const mutableEnv = env as {
+      LANGFUSE_AI_FEATURES_PROJECT_ID?: string;
+      LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES?: string;
+    };
     const originalAiFeaturesProjectId = env.LANGFUSE_AI_FEATURES_PROJECT_ID;
+    const originalExperimentalFeatures =
+      env.LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES;
 
     try {
-      (
-        env as { LANGFUSE_AI_FEATURES_PROJECT_ID?: string }
-      ).LANGFUSE_AI_FEATURES_PROJECT_ID = "ai-features-project";
+      mutableEnv.LANGFUSE_AI_FEATURES_PROJECT_ID = "ai-features-project";
+      mutableEnv.LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES = undefined;
 
       await expect(
         userCaller.inAppAgent.telemetryProject({
           projectId: fixture.projectId,
         }),
       ).rejects.toThrow("internal surface");
+
+      mutableEnv.LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES = "true";
+
       await expect(
-        adminCaller.inAppAgent.telemetryProject({
+        userCaller.inAppAgent.telemetryProject({
           projectId: fixture.projectId,
         }),
       ).resolves.toEqual({ projectId: "ai-features-project" });
     } finally {
-      (
-        env as { LANGFUSE_AI_FEATURES_PROJECT_ID?: string }
-      ).LANGFUSE_AI_FEATURES_PROJECT_ID = originalAiFeaturesProjectId;
+      mutableEnv.LANGFUSE_AI_FEATURES_PROJECT_ID = originalAiFeaturesProjectId;
+      mutableEnv.LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES =
+        originalExperimentalFeatures;
     }
   });
 });
@@ -185,7 +190,6 @@ async function createProjectFixture() {
 function createCallerForFixture(
   fixture: Awaited<ReturnType<typeof createProjectFixture>>,
   userId: string,
-  { admin = false }: { admin?: boolean } = {},
 ) {
   const session: Session = {
     expires: "1",
@@ -219,7 +223,6 @@ function createCallerForFixture(
         },
       ],
       featureFlags: testFeatureFlags(),
-      admin,
     },
     environment: {
       enableExperimentalFeatures: false,

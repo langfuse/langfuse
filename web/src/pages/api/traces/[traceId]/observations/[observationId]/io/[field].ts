@@ -74,7 +74,6 @@ function toTraceAccessSession(
   return {
     user: {
       email: user.email,
-      admin: user.admin,
       organizations: user.organizations,
     },
   };

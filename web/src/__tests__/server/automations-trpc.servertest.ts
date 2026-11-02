@@ -127,7 +127,6 @@ async function prepare() {
         },
       ],
       featureFlags: testFeatureFlags(),
-      admin: true,
     },
     environment: {
       enableExperimentalFeatures: false,
@@ -346,7 +345,6 @@ describe("automations trpc", () => {
         ...session,
         user: {
           ...session.user!,
-          admin: false,
           organizations: [
             {
               ...session.user!.organizations[0],
@@ -1105,7 +1103,6 @@ describe("automations trpc", () => {
         ...session,
         user: {
           ...session.user!,
-          admin: false,
           organizations: [
             {
               ...session.user!.organizations[0],
@@ -2878,7 +2875,6 @@ describe("automations trpc", () => {
         ...session,
         user: {
           ...session.user!,
-          admin: false,
           organizations: [
             {
               ...session.user!.organizations[0],
@@ -3307,7 +3303,6 @@ describe("automations trpc", () => {
         ...session,
         user: {
           ...session.user!,
-          admin: false,
           organizations: [
             {
               ...session.user!.organizations[0],
@@ -3392,15 +3387,23 @@ describe("automations trpc", () => {
   describe("PagerDuty actions", () => {
     const routingKey = "R0abcdefghijklmnopqrstuvwxyz9xYz";
     const newRoutingKey = "N3wkeyabcdefghijklmnopqrstuv7uVw";
-    const mutableEnv = env as { NEXT_PUBLIC_LANGFUSE_CLOUD_REGION?: string };
+    const mutableEnv = env as {
+      NEXT_PUBLIC_LANGFUSE_CLOUD_REGION?: string;
+      LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES?: string;
+    };
     const originalCloudRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
+    const originalExperimentalFeatures =
+      env.LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES;
 
     beforeAll(() => {
       mutableEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "STAGING";
+      mutableEnv.LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES = "true";
     });
 
     afterAll(() => {
       mutableEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = originalCloudRegion;
+      mutableEnv.LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES =
+        originalExperimentalFeatures;
     });
 
     const createInput = (
@@ -3432,7 +3435,6 @@ describe("automations trpc", () => {
         ...session,
         user: {
           ...session.user!,
-          admin: false,
           organizations: [
             {
               ...session.user!.organizations[0],
@@ -3472,34 +3474,28 @@ describe("automations trpc", () => {
       });
     });
 
-    function callerWithUser(session: Session, user: Partial<Session["user"]>) {
-      return appRouter.createCaller({
-        ...createInnerTRPCContext({
-          session: { ...session, user: { ...session.user!, ...user } },
-          headers: {},
-        }),
-        prisma,
-      });
-    }
+    it("rejects deployments without internal access", async () => {
+      const { project, caller } = await prepare();
+      mutableEnv.LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES = undefined;
 
-    it("rejects users who are not Langfuse Cloud admins", async () => {
-      const { project, session } = await prepare();
-      const owner = callerWithUser(session, { admin: false });
-
-      await expect(
-        owner.automations.createAutomation(createInput(project.id)),
-      ).rejects.toMatchObject({ code: "FORBIDDEN" });
-      await expect(
-        owner.automations.sendPagerDutyTestEvent({
-          projectId: project.id,
-          region: "US",
-          routingKey,
-          step: "trigger",
-        }),
-      ).rejects.toMatchObject({ code: "FORBIDDEN" });
+      try {
+        await expect(
+          caller.automations.createAutomation(createInput(project.id)),
+        ).rejects.toMatchObject({ code: "FORBIDDEN" });
+        await expect(
+          caller.automations.sendPagerDutyTestEvent({
+            projectId: project.id,
+            region: "US",
+            routingKey,
+            step: "trigger",
+          }),
+        ).rejects.toMatchObject({ code: "FORBIDDEN" });
+      } finally {
+        mutableEnv.LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES = "true";
+      }
     });
 
-    it("rejects admins on self-hosted instances", async () => {
+    it("rejects self-hosted instances", async () => {
       const { project, caller } = await prepare();
       mutableEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = undefined;
 

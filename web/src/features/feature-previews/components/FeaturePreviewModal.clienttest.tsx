@@ -39,13 +39,12 @@ describe("FeaturePreviewModal", () => {
   it("locks Topics on in internal view and restores the personal toggle after opting out", () => {
     const session = {
       user: {
-        admin: true,
         featureFlags: testFeatureFlags({
           internalFeatures: true,
           langfuseTopics: false,
         }),
       },
-      environment: { enableExperimentalFeatures: false },
+      environment: { enableExperimentalFeatures: true },
     } as Session;
     vi.mocked(useSession).mockReturnValue({
       data: session,

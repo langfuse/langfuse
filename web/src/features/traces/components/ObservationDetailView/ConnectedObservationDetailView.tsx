@@ -101,7 +101,6 @@ export function ConnectedObservationDetailView({
   const internalFeaturesEnabled = useInternalFeaturesEnabled();
   const skillManagementEnabled = useIsFeatureEnabled("skillManagement", {
     projectId,
-    enableForAdmins: false,
   });
   const {
     observations,

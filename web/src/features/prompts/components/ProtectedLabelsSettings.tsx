@@ -60,7 +60,6 @@ export default function ProtectedLabelsSettings({
   const { isV4 } = useReadPath();
   const skillManagementEnabled = useIsFeatureEnabled("skillManagement", {
     projectId,
-    enableForAdmins: false,
   });
   const skillsEnabled = isV4 && skillManagementEnabled;
 

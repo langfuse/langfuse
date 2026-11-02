@@ -405,45 +405,6 @@ describe("organization member feature preview overrides", () => {
     });
   });
 
-  it("allows a platform administrator across organizations and writes a minimal audit entry", async () => {
-    const { caller, org } = await prepare("cloud:core", Role.OWNER, true);
-    const target = await createUser();
-    const currentMembership = await prisma.organizationMembership.create({
-      data: { orgId: org.id, userId: target.id, role: Role.MEMBER },
-    });
-    const otherOrg = await createOrganization();
-    await prisma.organizationMembership.create({
-      data: { orgId: otherOrg.id, userId: target.id, role: Role.VIEWER },
-    });
-
-    await caller.members.setUserFeaturePreviewEnabled({
-      orgId: org.id,
-      userId: target.id,
-      flag: "sessionViewV2",
-      enabled: true,
-    });
-
-    const auditEntry = await prisma.auditLog.findFirstOrThrow({
-      where: {
-        orgId: org.id,
-        resourceType: "orgMembership",
-        resourceId: currentMembership.id,
-        action: "updateUserFeatureFlag",
-      },
-      orderBy: { createdAt: "desc" },
-    });
-    expect(JSON.parse(auditEntry.before!)).toEqual({
-      flag: "sessionViewV2",
-      override: "inherit",
-      scope: "global",
-    });
-    expect(JSON.parse(auditEntry.after!)).toEqual({
-      flag: "sessionViewV2",
-      override: "enabled",
-      scope: "global",
-    });
-  });
-
   it("denies a targeted change unless the actor administers every real target organization", async () => {
     const { actor, caller, org } = await prepare();
     const target = await createUser();
@@ -601,7 +562,6 @@ async function createOrganization({
 async function prepare(
   plan: Plan = "cloud:core",
   actorRole: Role = Role.OWNER,
-  actorIsPlatformAdmin = false,
 ) {
   const id = randomUUID();
   const org = await createOrganization();
@@ -623,7 +583,6 @@ async function prepare(
       id: actor.id,
       email: actor.email,
       name: actor.name,
-      admin: actorIsPlatformAdmin,
       canCreateOrganizations: true,
       featureFlags: testFeatureFlags({ templateFlag: false }),
       organizations: [

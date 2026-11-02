@@ -842,7 +842,6 @@ function buildOwnerSession(orgId: string): Session {
         },
       ],
       featureFlags: testFeatureFlags(),
-      admin: false,
     },
     environment: {
       enableExperimentalFeatures: false,

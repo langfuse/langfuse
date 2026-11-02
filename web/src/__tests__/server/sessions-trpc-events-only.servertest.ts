@@ -88,7 +88,6 @@ maybe("sessions trpc (events_only write mode)", () => {
         },
       ],
       featureFlags: testFeatureFlags(),
-      admin: true,
     },
     environment: {} as any,
   };

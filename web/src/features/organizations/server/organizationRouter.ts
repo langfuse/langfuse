@@ -22,7 +22,6 @@ import {
   resolveBillingService,
 } from "@/src/ee/features/billing/server";
 import { shouldAutoEnableV4 } from "@/src/features/events/server";
-import { buildAdminOrgContext } from "@/src/features/organizations/server/adminOrgContext";
 import { getSfdcService } from "@/src/ee/features/sfdc-sync/server";
 import {
   featurePreviewFlags,
@@ -34,30 +33,12 @@ import {
 import { env } from "@/src/env.mjs";
 
 export const organizationsRouter = createTRPCRouter({
-  // Admin-only fallback for useOrganization: returns the org in the same shape
-  // as session.user.organizations[number], since admins are not members of
-  // customer orgs and have no session entry.
-  byId: protectedOrganizationProcedure
-    .input(z.object({ orgId: z.string() }))
-    .query(async ({ ctx }) => {
-      const organization = await buildAdminOrgContext(ctx);
-      if (!organization) {
-        throw new TRPCError({
-          code: "NOT_FOUND",
-          message: "Organization not found",
-        });
-      }
-      return organization;
-    }),
   lastTraceByProject: protectedOrganizationProcedure
     .input(z.object({ orgId: z.string() }))
     .query(async ({ ctx }) => {
-      const organization =
-        ctx.session.user.admin === true
-          ? await buildAdminOrgContext(ctx)
-          : ctx.session.user.organizations.find(
-              (org) => org.id === ctx.session.orgId,
-            );
+      const organization = ctx.session.user.organizations.find(
+        (org) => org.id === ctx.session.orgId,
+      );
 
       return getLastTraceTimestampsByProjects({
         projectIds: organization?.projects.map((project) => project.id) ?? [],

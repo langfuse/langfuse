@@ -116,13 +116,12 @@ describe("ModernSessionHeaderActionsController", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockInternalFeaturesEnabled.mockReturnValue(true);
-    mockUseSession.mockReturnValue({ data: { user: { admin: false } } });
+    mockUseSession.mockReturnValue({ data: { user: {} } });
   });
 
   it.each(["events_full", "events_core"])(
     "copies all session rows from %s with escaped identifiers",
     (table) => {
-      mockUseSession.mockReturnValue({ data: { user: { admin: true } } });
       render(
         <ModernSessionHeaderActionsController
           projectId={"project'\\id"}
@@ -159,9 +158,10 @@ describe("ModernSessionHeaderActionsController", () => {
     },
   );
 
-  it.each([{ user: { admin: false } }, { user: {} }, null])(
-    "hides query copying without an instance admin (%j)",
+  it.each([{ user: {} }, null])(
+    "hides query copying outside the internal view (session %j)",
     (data) => {
+      mockInternalFeaturesEnabled.mockReturnValue(false);
       mockUseSession.mockReturnValue({ data });
       render(
         <ModernSessionHeaderActionsController

@@ -15,7 +15,6 @@ export type ExternalMediaViewProps = {
 export function ExternalMediaView({ descriptor }: ExternalMediaViewProps) {
   const projectId = useProjectIdFromURL();
   const isFeatureEnabled = useIsFeatureEnabled("externalMediaStorage", {
-    enableForAdmins: false,
     projectId,
   });
   if (!isFeatureEnabled) return <ExternalMediaFallback uri={descriptor.uri} />;

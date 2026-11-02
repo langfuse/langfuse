@@ -445,7 +445,6 @@ const session: Session = {
       },
     ],
     featureFlags: testFeatureFlags({ templateFlag: false }),
-    admin: false,
   },
   environment: {
     enableExperimentalFeatures: false,

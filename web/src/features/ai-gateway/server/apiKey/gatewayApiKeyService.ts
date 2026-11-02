@@ -176,7 +176,6 @@ async function assertCreatorCanInvokeGateway(
       AND user_id = ${params.session.user.id}
     FOR SHARE
   `;
-  if (params.session.user.admin) return;
   const allowed =
     membership !== undefined &&
     gatewayApiKeyCreatorScopes(params.issuedAs).every((scope) =>

@@ -3,8 +3,8 @@
 // feature's client modules.
 //
 // `server/` is a separate door. organizationsRouter stays a direct import
-// from the tRPC root. canCreateOrganizations, organizationNameSchema, and
-// buildAdminOrgContext live on `server/index.ts` so this client barrel
+// from the tRPC root. canCreateOrganizations and organizationNameSchema
+// live on `server/index.ts` so this client barrel
 // never reaches auth/onboarding.
 //
 // ConnectedNewOrganizationForm, OrganizationProjectOverview, and

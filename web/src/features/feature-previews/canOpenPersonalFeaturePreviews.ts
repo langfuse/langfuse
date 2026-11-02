@@ -2,11 +2,9 @@
 export function canOpenPersonalFeaturePreviews({
   isLangfuseCloud,
   v4BetaEnabled,
-  isAdmin,
 }: {
   isLangfuseCloud: boolean;
   v4BetaEnabled: boolean;
-  isAdmin: boolean;
 }): boolean {
-  return isLangfuseCloud || v4BetaEnabled || isAdmin;
+  return isLangfuseCloud || v4BetaEnabled;
 }

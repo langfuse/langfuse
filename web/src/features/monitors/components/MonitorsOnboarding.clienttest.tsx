@@ -24,9 +24,19 @@ vi.mock("@/src/env.mjs", async (importOriginal) => {
   };
 });
 
-/** signIn sets the session user's admin flag and the deployment's Cloud region. */
-const signIn = ({ admin, region }: { admin: boolean; region?: string }) => {
-  sessionMock.data = { expires: "1", user: { admin } } as unknown as Session;
+/** signIn sets the deployment's experimental-features flag and Cloud region. */
+const signIn = ({
+  experimental,
+  region,
+}: {
+  experimental: boolean;
+  region?: string;
+}) => {
+  sessionMock.data = {
+    expires: "1",
+    user: {},
+    environment: { enableExperimentalFeatures: experimental },
+  } as unknown as Session;
   cloudRegion.value = region;
 };
 
@@ -99,8 +109,8 @@ describe("MonitorsOnboarding", () => {
     }
   });
 
-  it("hides the PagerDuty CTA from users who are not admins", () => {
-    signIn({ admin: false, region: "EU" });
+  it("hides the PagerDuty CTA without internal access", () => {
+    signIn({ experimental: false, region: "EU" });
     render(<MonitorsOnboarding projectId={PROJECT_ID} hasCUDAccess={true} />);
 
     expect(
@@ -108,8 +118,8 @@ describe("MonitorsOnboarding", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("hides the PagerDuty CTA from admins on self-hosted instances", () => {
-    signIn({ admin: true });
+  it("hides the PagerDuty CTA on self-hosted instances with internal access", () => {
+    signIn({ experimental: true });
     render(<MonitorsOnboarding projectId={PROJECT_ID} hasCUDAccess={true} />);
 
     expect(
@@ -117,8 +127,8 @@ describe("MonitorsOnboarding", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("shows the PagerDuty CTA to Langfuse Cloud admins", () => {
-    signIn({ admin: true, region: "EU" });
+  it("shows the PagerDuty CTA on Langfuse Cloud with internal access", () => {
+    signIn({ experimental: true, region: "EU" });
     render(<MonitorsOnboarding projectId={PROJECT_ID} hasCUDAccess={true} />);
 
     const link = screen.getByRole("link", { name: /Connect PagerDuty/i });

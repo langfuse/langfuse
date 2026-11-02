@@ -1,4 +1,3 @@
-import { type Session } from "next-auth";
 import {
   BaseError,
   ForbiddenError,
@@ -19,10 +18,17 @@ import {
 } from "@langfuse/shared/pagerduty/server";
 import { getProductBaseUrl, logger } from "@langfuse/shared/src/server";
 import { env } from "@/src/env.mjs";
+import { hasInternalAccess } from "@/src/features/feature-flags/server";
 
-/** throwIfPagerDutyUnavailable limits PagerDuty actions to Langfuse Cloud admins. */
-export function throwIfPagerDutyUnavailable(session: Session): void {
-  if (env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION && session.user?.admin === true)
+/** throwIfPagerDutyUnavailable limits PagerDuty actions to Langfuse Cloud deployments with internal access. */
+export function throwIfPagerDutyUnavailable(): void {
+  if (
+    env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION &&
+    hasInternalAccess({
+      isExperimentalFeaturesEnabled:
+        env.LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES === "true",
+    })
+  )
     return;
   throw new ForbiddenError("PagerDuty actions are not available yet");
 }

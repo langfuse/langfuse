@@ -10,7 +10,7 @@ import {
   isFeaturePreviewFlag,
   isOrganizationOnlyFeaturePreviewFlag,
   isFeaturePreviewAvailable,
-  isAdminOnlyFeaturePreviewFlag,
+  isInternalOnlyFeaturePreviewFlag,
   INTERNAL_FEATURE_FLAG,
   type FeaturePreviewAvailabilityContext,
   type UserFeatureFlag,
@@ -21,20 +21,18 @@ export const getFeaturePreviewOptOutFlag = (flag: UserFeatureFlag) =>
   `feature-preview:${flag}:disabled`;
 
 /**
- * Langfuse admins and deployments with experimental features enabled see
- * internal surfaces. Client and server gates share this rule.
+ * Deployments with experimental features enabled see internal surfaces.
+ * Client and server gates share this rule; it is the single place to extend
+ * when another signal should grant internal access.
  */
 export const hasInternalAccess = ({
-  isAdmin,
   isExperimentalFeaturesEnabled,
 }: {
-  isAdmin: boolean;
   isExperimentalFeaturesEnabled: boolean;
-}) => isExperimentalFeaturesEnabled || isAdmin;
+}) => isExperimentalFeaturesEnabled;
 
 export const isInternalViewEnabled = (session: Session | null | undefined) =>
   hasInternalAccess({
-    isAdmin: session?.user?.admin === true,
     isExperimentalFeaturesEnabled:
       session?.environment?.enableExperimentalFeatures === true,
   }) && session?.user?.featureFlags[INTERNAL_FEATURE_FLAG] !== false;
@@ -80,7 +78,7 @@ export const parseFlags = (
     }
 
     if (
-      (isFeaturePreviewFlag(flag) || isAdminOnlyFeaturePreviewFlag(flag)) &&
+      (isFeaturePreviewFlag(flag) || isInternalOnlyFeaturePreviewFlag(flag)) &&
       dbFlags.includes(getFeaturePreviewOptOutFlag(flag))
     ) {
       parsedFlags[flag] = false;

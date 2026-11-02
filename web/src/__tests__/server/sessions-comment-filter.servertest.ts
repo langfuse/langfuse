@@ -49,7 +49,6 @@ describe("Sessions Comment Filtering", () => {
           },
         ],
         featureFlags: testFeatureFlags(),
-        admin: true,
       },
       environment: {} as any,
     };

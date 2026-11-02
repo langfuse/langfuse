@@ -190,7 +190,6 @@ function makeCaller({
           : [],
       })),
       featureFlags: testFeatureFlags(),
-      admin: false,
     },
     environment: {} as any,
   };
