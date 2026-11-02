@@ -335,12 +335,12 @@ export class TraceBatchDispatcher extends PeriodicExclusiveRunner {
   private async cleanupRecordedRules(): Promise<void> {
     if (!redis) throw new Error("Trace batching requires Redis");
     for (let shard = 0; shard < env.LANGFUSE_TRACE_BATCH_SHARD_COUNT; shard++) {
-      let cleanup = { cursor: "0", pendingRemaining: false };
+      let pendingRemaining = false;
       do {
         if (this.stopping) return;
         await this.extendLockOnProgress();
         try {
-          cleanup = await cleanupTraceRuleRecording(shard, cleanup.cursor);
+          pendingRemaining = await cleanupTraceRuleRecording(shard);
         } catch (error) {
           logger.warn("Failed to clean up recorded trace rules", {
             shard,
@@ -348,7 +348,7 @@ export class TraceBatchDispatcher extends PeriodicExclusiveRunner {
           });
           break;
         }
-      } while (cleanup.cursor !== "0" || cleanup.pendingRemaining);
+      } while (pendingRemaining);
     }
   }
 

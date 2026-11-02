@@ -83,13 +83,21 @@ vi.mock("@langfuse/shared/topics/server", async (importOriginal) => ({
 }));
 
 describe("trace-rule recording at the evaluation stage", () => {
-  it.each([false, true])(
-    "records matches and nonmatches independently of span failures and direct writes (%s)",
-    async (shouldWriteToEventsTable) => {
+  it.each([
+    { mode: "eval-only", shouldWriteToEventsTable: false, writeFails: false },
+    { mode: "failed write", shouldWriteToEventsTable: true, writeFails: true },
+    {
+      mode: "accepted write",
+      shouldWriteToEventsTable: true,
+      writeFails: false,
+    },
+  ])(
+    "records matches and nonmatches with $mode despite span scheduling failures",
+    async ({ shouldWriteToEventsTable, writeFails }) => {
       const original = { ...env };
       env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "DEV";
       vi.mocked(isTopicsProjectEnabled).mockReturnValue(true);
-      env.LANGFUSE_TRACE_BATCH_INGESTION_ENABLED = "false";
+      env.LANGFUSE_TRACE_BATCH_INGESTION_ENABLED = "true";
       env.LANGFUSE_OTEL_MEDIA_UPLOAD_ENABLED = "false";
       const projectId = "recording-test";
       const observationRule = createTestEvalConfig({ projectId });
@@ -111,9 +119,10 @@ describe("trace-rule recording at the evaluation stage", () => {
               : "production",
         }),
       );
-      const writeEventRecord = vi
-        .fn()
-        .mockRejectedValue(new Error("write unavailable"));
+      const writeEventRecord = vi.fn(async (record: { span_id: string }) => {
+        if (writeFails) throw new Error("write unavailable");
+        return record.span_id === "match" ? 123 : 456;
+      });
       try {
         vi.mocked(fetchEvalRules).mockResolvedValue({
           observationRules: [observationRule],
@@ -177,11 +186,17 @@ describe("trace-rule recording at the evaluation stage", () => {
             traceId: "trace",
             spanStartTimeISO: inputs[0].startTimeISO,
             ruleIds: ["trace-rule"],
+            ...(shouldWriteToEventsTable && !writeFails
+              ? { serializedEventBytes: 123 }
+              : {}),
           },
           {
             traceId: "trace",
             spanStartTimeISO: inputs[1].startTimeISO,
             ruleIds: [],
+            ...(shouldWriteToEventsTable && !writeFails
+              ? { serializedEventBytes: 456 }
+              : {}),
           },
         ]);
         expect(

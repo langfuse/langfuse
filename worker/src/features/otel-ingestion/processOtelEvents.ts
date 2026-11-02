@@ -13,6 +13,7 @@ import {
   createEvalSchedulerDeps,
 } from "../evaluation/scheduleEvals";
 import { trackTraceBatchActivity } from "../traceBatching/traceBatching";
+import type { TraceSpanActivity } from "../traceBatching/traceRuleRecording";
 import {
   createDirectOtelMediaTargets,
   processOtelEventMedia,
@@ -134,11 +135,18 @@ export async function processOtelEvents({
       }
 
       // Step 2: Schedule evaluations independently of event writes.
+      let traceActivity: TraceSpanActivity | undefined;
       if (schedulerDeps) {
+        // The collector keeps this reference; the accepted write fills its size before flush.
+        traceActivity = {
+          traceId: eventInput.traceId,
+          spanStartTimeISO: eventInput.startTimeISO,
+          ruleIds: [],
+        };
         try {
           await scheduleEvals({
             observation: convertEventRecordToObservationForEval(eventRecord),
-            startTimeISO: eventInput.startTimeISO,
+            traceActivity,
             rules,
             schedulerDeps,
           });
@@ -157,6 +165,9 @@ export async function processOtelEvents({
         try {
           const serializedEventBytes =
             await ingestionService.writeEventRecord(eventRecord);
+          if (traceActivity) {
+            traceActivity.serializedEventBytes = serializedEventBytes;
+          }
           if (
             env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION &&
             env.LANGFUSE_TRACE_BATCH_INGESTION_ENABLED === "true"

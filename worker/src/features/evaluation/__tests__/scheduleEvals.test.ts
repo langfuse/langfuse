@@ -14,12 +14,14 @@ import {
 } from "../observationEval/__tests__/fixtures";
 
 const mocks = vi.hoisted(() => ({
+  env: { LANGFUSE_TRACE_BATCH_INGESTION_ENABLED: "true" },
   topicsEnabled: vi.fn(),
   topicsActive: vi.fn(),
   createObservationDeps: vi.fn(),
   record: vi.fn(),
 }));
 
+vi.mock("../../../env", () => ({ env: mocks.env }));
 vi.mock("@langfuse/shared/topics/server", () => ({
   isTopicsProjectEnabled: mocks.topicsEnabled,
   isTopicsProcessingActive: mocks.topicsActive,
@@ -34,6 +36,14 @@ vi.mock("../../traceBatching/traceRuleRecording", () => ({
 
 const projectId = "test-project-123";
 const startTimeISO = "2026-11-02T08:00:00.000Z";
+const createTraceActivity = (
+  traceId: string,
+  spanStartTimeISO = startTimeISO,
+) => ({
+  traceId,
+  spanStartTimeISO,
+  ruleIds: [],
+});
 const facetRule: EvalRules["traceTranscriptRules"][number] = {
   id: "facet-rule",
   ruleId: "facet-rule",
@@ -57,15 +67,21 @@ const facetRule: EvalRules["traceTranscriptRules"][number] = {
 describe("scheduleEvals", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mocks.env.LANGFUSE_TRACE_BATCH_INGESTION_ENABLED = "true";
     mocks.topicsEnabled.mockReturnValue(true);
     mocks.topicsActive.mockResolvedValue(true);
     mocks.record.mockResolvedValue(undefined);
   });
 
-  it.each([true, false])(
-    "preserves observation scheduling with Topics enabled=%s",
-    async (enabled) => {
-      mocks.topicsEnabled.mockReturnValue(enabled);
+  it.each([
+    { topicsEnabled: true, ingestionEnabled: "true" },
+    { topicsEnabled: false, ingestionEnabled: "true" },
+    { topicsEnabled: true, ingestionEnabled: "false" },
+  ])(
+    "preserves observation scheduling with Topics=$topicsEnabled and trace ingestion=$ingestionEnabled",
+    async ({ topicsEnabled, ingestionEnabled }) => {
+      mocks.topicsEnabled.mockReturnValue(topicsEnabled);
+      mocks.env.LANGFUSE_TRACE_BATCH_INGESTION_ENABLED = ingestionEnabled;
       const observationDeps = createMockSchedulerDeps();
       mocks.createObservationDeps.mockReturnValue(observationDeps);
       const rules: EvalRules = {
@@ -74,17 +90,25 @@ describe("scheduleEvals", () => {
       };
       const schedulerDeps = createEvalSchedulerDeps(projectId, rules);
       const observation = createTestObservation({ name: "selected" });
-      await scheduleEvals({ observation, startTimeISO, rules, schedulerDeps });
+      await scheduleEvals({
+        observation,
+        traceActivity: createTraceActivity(observation.trace_id),
+        rules,
+        schedulerDeps,
+      });
       await scheduleEvals({
         observation: { ...observation, span_id: "child", name: "unmatched" },
-        startTimeISO: "2026-11-02T08:01:00.000Z",
+        traceActivity: createTraceActivity(
+          observation.trace_id,
+          "2026-11-02T08:01:00.000Z",
+        ),
         rules,
         schedulerDeps,
       });
       await schedulerDeps.flushTraceActivity();
 
       expect(observationDeps.enqueueEvalJob).toHaveBeenCalledTimes(2);
-      if (enabled) {
+      if (topicsEnabled && ingestionEnabled === "true") {
         expect(mocks.record).toHaveBeenCalledExactlyOnceWith(projectId, [
           {
             traceId: observation.trace_id,
@@ -104,32 +128,6 @@ describe("scheduleEvals", () => {
     },
   );
 
-  it("retains trace recording when observation scheduling fails", async () => {
-    const observationDeps = createMockSchedulerDeps();
-    observationDeps.uploadObservationToS3.mockRejectedValueOnce(
-      new Error("S3 unavailable"),
-    );
-    mocks.createObservationDeps.mockReturnValue(observationDeps);
-    const rules: EvalRules = {
-      observationRules: [createTestEvalConfig()],
-      traceTranscriptRules: [facetRule],
-    };
-    const schedulerDeps = createEvalSchedulerDeps(projectId, rules);
-    const observation = createTestObservation({ name: "selected" });
-
-    await expect(
-      scheduleEvals({ observation, startTimeISO, rules, schedulerDeps }),
-    ).rejects.toThrow("Failed to schedule evaluations");
-    await schedulerDeps.flushTraceActivity();
-    expect(mocks.record).toHaveBeenCalledExactlyOnceWith(projectId, [
-      {
-        traceId: observation.trace_id,
-        spanStartTimeISO: startTimeISO,
-        ruleIds: [facetRule.id],
-      },
-    ]);
-  });
-
   it("keeps activity local to each ingestion batch until that batch flushes", async () => {
     mocks.createObservationDeps.mockImplementation(createMockSchedulerDeps);
     const rules: EvalRules = {
@@ -143,7 +141,7 @@ describe("scheduleEvals", () => {
       [firstBatch, secondBatch].map((schedulerDeps, index) =>
         scheduleEvals({
           observation: { ...observation, trace_id: `trace-${index}` },
-          startTimeISO,
+          traceActivity: createTraceActivity(`trace-${index}`),
           rules,
           schedulerDeps,
         }),
@@ -193,7 +191,7 @@ describe("scheduleEvals", () => {
         for (const span_id of ["root", "child"]) {
           await scheduleEvals({
             observation: { ...observation, span_id },
-            startTimeISO,
+            traceActivity: createTraceActivity(observation.trace_id),
             rules,
             schedulerDeps,
           });

@@ -59,15 +59,14 @@
   recording preserves Topics' exclusion of internal environments, including prompt
   experiments. The direct internal writer retains its root-only ready callback.
 - Trace-rule recording: `src/features/traceBatching/traceBatchRules.ts` matches
-  enriched observations at the OTel evaluation stage;
-  `src/features/traceBatching/traceRuleRecording.ts`
-  atomically records `bounds`, `record`, and `due` in a separate shard namespace.
-  Recording uses the existing cloud Topics project gate. Each record contains only
-  revision, selected rules, and failed_cnt; selections are not consumed yet.
-  Bounds expire 24 hours after the latest arrival, pending selections two hours
-  past due, using the existing retention settings. The dispatcher scans bounds
-  and removes expired entries in bounded Lua batches, rechecking expiry atomically;
-  whole-key TTLs reclaim inactive shards. Recording must not revive expired data.
+  at the OTel eval stage; `traceRuleRecording.ts` records without consuming.
+  Require the existing ingestion switch and cloud Topics project gate. Reuse shard
+  and idle helpers; attach accepted-write byte sizes before flushing, never raw
+  OTel sizes or reserialized payloads. Unknown estimates remain unknown.
+  Bounds update in fixed first-arrival buckets; do not extend their expiry.
+  Records contain only revision, rules, and failed_cnt. Pending cleanup runs during
+  recording and dispatch. Map schemas, retention, and missing-bounds behavior:
+  `src/features/traceBatching/README.md` → Recording trace-rule selections.
 - Internal cloud trace batching: `src/features/traceBatching/traceBatching.ts` and
   `src/queues/traceBatchQueue.ts`; controls and Redis lifecycle are documented in
   `src/features/traceBatching/README.md`. Keep producer, dispatcher, consumer and reads

@@ -1,5 +1,6 @@
 import { logger, traceException } from "@langfuse/shared/src/server";
 import { isTopicsProjectEnabled } from "@langfuse/shared/topics/server";
+import { env } from "../../env";
 import { createObservationEvalSchedulerDeps } from "./observationEval/createSchedulerDeps";
 import {
   isObservationAllowedForQueuedObservationEvals,
@@ -18,18 +19,20 @@ import {
 export function createEvalSchedulerDeps(projectId: string, rules: EvalRules) {
   // This buffer belongs to one ingestion invocation, which awaits its flush before returning.
   const traceActivity: TraceSpanActivity[] = [];
-  const traceTranscriptRules = isTopicsProjectEnabled(projectId)
-    ? prepareTraceBatchRules(projectId, rules.traceTranscriptRules).catch(
-        (error) => {
-          traceException(error);
-          logger.warn("Failed to prepare trace transcript rules", {
-            projectId,
-            error,
-          });
-          return [];
-        },
-      )
-    : Promise.resolve([]);
+  const traceTranscriptRules =
+    env.LANGFUSE_TRACE_BATCH_INGESTION_ENABLED === "true" &&
+    isTopicsProjectEnabled(projectId)
+      ? prepareTraceBatchRules(projectId, rules.traceTranscriptRules).catch(
+          (error) => {
+            traceException(error);
+            logger.warn("Failed to prepare trace transcript rules", {
+              projectId,
+              error,
+            });
+            return [];
+          },
+        )
+      : Promise.resolve([]);
 
   return {
     ...createObservationEvalSchedulerDeps(),
@@ -50,12 +53,12 @@ export type EvalSchedulerDeps = ReturnType<typeof createEvalSchedulerDeps>;
 /** Schedule both evaluation targets without one target's failure suppressing the other. */
 export async function scheduleEvals({
   observation,
-  startTimeISO,
+  traceActivity,
   rules,
   schedulerDeps,
 }: {
   observation: ObservationForEval;
-  startTimeISO: string;
+  traceActivity: TraceSpanActivity;
   rules: EvalRules;
   schedulerDeps: EvalSchedulerDeps;
 }): Promise<void> {
@@ -67,7 +70,7 @@ export async function scheduleEvals({
         : [],
       schedulerDeps,
     }),
-    scheduleTraceTranscriptEvals({ observation, startTimeISO, schedulerDeps }),
+    scheduleTraceTranscriptEvals({ observation, traceActivity, schedulerDeps }),
   ]);
   const failures = results.flatMap((result) =>
     result.status === "rejected" ? [result.reason] : [],

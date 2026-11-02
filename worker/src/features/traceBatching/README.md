@@ -9,23 +9,25 @@ templates. The local dev template sets the idle time below.
 
 ## Recording trace-rule selections
 
-Topics-enabled projects record selections under `{trace-dispatch:<shard>}`,
-keyed by JSON `[projectId, traceId]`. These selections are not consumed yet.
-Each ingestion invocation collects span activity in its own worker and awaits
-the flush before returning. `recordTraceActivity` combines span starts into
-per-trace min/max bounds; Lua merges bounds and selected rule IDs across workers.
-Filtering and sampling happen before collection. Both trace writers resolve
-project idle time through `resolveTraceIdleMs`.
+Default-off; requires `LANGFUSE_TRACE_BATCH_INGESTION_ENABLED=true` and the cloud
+Topics feature/project gates. Ingestion matches and samples rules, then atomically
+records activity under `{trace-dispatch:<shard>}`, keyed by `[projectId, traceId]`.
+These maps are not consumed yet.
 
 | Map | Contents | Retention |
 | --- | --- | --- |
-| `bounds` | `{ minStart, maxStart, expiresAt }`, including observations before a match. | 24 hours after the latest arrival. |
+| `bounds:<hour>` | `{ minStart, maxStart, serializedEventBytes? }`, including nonmatches. | First-arrival bucket expires after 24–25 hours; updates do not extend it. |
 | `record` | Only `{ revision, rules, failed_cnt }`; rule IDs are deduplicated. | Two hours past due. |
 | `due` | Selected traces ordered by Redis arrival time plus project idle interval. | Two hours past due. |
 
-After scheduling existing work, each dispatcher pass scans `bounds` and cleans
-these maps in bounded Lua batches using the existing retention settings.
-Key TTLs also reclaim inactive shards.
+Bucket TTL works on Redis 7.2; hash-field TTL requires 7.4+. After bounds expire,
+new arrivals start fresh and discard old selections; consumers must handle missing
+bounds. Recording and dispatcher passes clean pending entries in batches of 100;
+key TTLs reclaim inactive maps.
+
+Bytes come from accepted event writes. Missing estimates stay unknown until bounds
+expire; ingestion retries can overcount. Each ingestion invocation awaits its own
+buffer flush; Lua merges across workers using the shared shard and idle helpers.
 
 ## Readiness requirements
 

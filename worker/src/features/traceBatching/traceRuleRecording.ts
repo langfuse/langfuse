@@ -1,7 +1,7 @@
 import { createHash, randomUUID } from "node:crypto";
-import { getShardIndex, redis } from "@langfuse/shared/src/server";
+import { redis } from "@langfuse/shared/src/server";
 import { env } from "../../env";
-import { resolveTraceIdleMs } from "./traceBatchReadiness";
+import { getTraceBatchShard, resolveTraceIdleMs } from "./traceBatchReadiness";
 
 const REDIS_BATCH_SIZE = 50;
 const CLEANUP_SIZE = 100;
@@ -9,45 +9,92 @@ const CLEANUP_SIZE = 100;
 function getRecordingKeys(shard: number) {
   const tag = `{trace-dispatch:${shard}}`;
   return {
-    bounds: `${tag}:bounds`,
     record: `${tag}:record`,
     due: `${tag}:due`,
   };
 }
 
+// Include the next hour in case Redis crosses a bucket boundary before EVAL.
+export function getRecordingBoundsKeys(shard: number, now: number) {
+  const ttl = env.LANGFUSE_TRACE_BATCH_FIRST_SEEN_TTL_MS;
+  const width = Math.min(3_600_000, ttl);
+  const firstBucket = Math.floor((now - ttl) / width);
+  const lastBucket = Math.floor(now / width) + 1;
+  return {
+    width,
+    firstBucket,
+    keys: Array.from(
+      { length: lastBucket - firstBucket + 1 },
+      (_, index) => `{trace-dispatch:${shard}}:bounds:${firstBucket + index}`,
+    ),
+  };
+}
+
+const EXPIRE_PENDING_SCRIPT = `
+  local function expirePending(recordKey, dueKey, now, retention)
+    local expired = redis.call('ZRANGE', dueKey, '-inf', now - retention,
+      'BYSCORE', 'LIMIT', 0, ${CLEANUP_SIZE})
+    for _, member in ipairs(expired) do
+      redis.call('HDEL', recordKey, member)
+      redis.call('ZREM', dueKey, member)
+    end
+    return #expired
+  end
+`;
+
 const RECORD_SCRIPT = `
-  local boundsKey, recordKey, dueKey = KEYS[1], KEYS[2], KEYS[3]
+  ${EXPIRE_PENDING_SCRIPT}
+  local recordKey, dueKey = KEYS[1], KEYS[2]
   local clock = redis.call('TIME')
   local now = clock[1] * 1000 + math.floor(clock[2] / 1000)
   -- Readiness uses recording time plus idle interval, not the spans' start times.
   local due = now + tonumber(ARGV[1])
-  local boundsExpiry = now + tonumber(ARGV[2])
+  local boundsTtl = tonumber(ARGV[2])
   local pendingTtl = tonumber(ARGV[3])
+  local width, firstBucket = tonumber(ARGV[4]), tonumber(ARGV[5])
+  local current = math.floor(now / width) - firstBucket + 3
+  if current < 3 or current > #KEYS then
+    return redis.error_reply('Trace recording bucket clock changed; retry intake')
+  end
   local wroteRecord = false
-  for i = 4, #ARGV, 5 do
+  for i = 6, #ARGV, 6 do
     local member = ARGV[i]
     local minStart = tonumber(ARGV[i + 1])
     local maxStart = tonumber(ARGV[i + 2])
     local incomingRules = cjson.decode(ARGV[i + 4])
+    local serializedEventBytes = tonumber(ARGV[i + 5])
+    if serializedEventBytes < 0 then serializedEventBytes = nil end
 
     -- 1. Merge the event-time bounds, even when no rule selected this activity.
-    local previousBounds = redis.call('HGET', boundsKey, member)
+    -- Keep each trace in its first-arrival bucket for a fixed retention window.
+    local boundsIndex, previousBounds = current, nil
+    for key = 3, #KEYS do
+      previousBounds = redis.call('HGET', KEYS[key], member)
+      if previousBounds then boundsIndex = key; break end
+    end
     if previousBounds then
       local bounds = cjson.decode(previousBounds)
-      if bounds.expiresAt and bounds.expiresAt > now then
-        minStart = math.min(minStart, bounds.minStart)
-        maxStart = math.max(maxStart, bounds.maxStart)
+      minStart = math.min(minStart, bounds.minStart)
+      maxStart = math.max(maxStart, bounds.maxStart)
+      -- A missing historical estimate cannot be recovered from later spans.
+      if serializedEventBytes and bounds.serializedEventBytes then
+        serializedEventBytes = serializedEventBytes + bounds.serializedEventBytes
+      else
+        serializedEventBytes = nil
       end
     end
-    redis.call('HSET', boundsKey, member, cjson.encode({
-      minStart = minStart, maxStart = maxStart, expiresAt = boundsExpiry
+    redis.call('HSET', KEYS[boundsIndex], member, cjson.encode({
+      minStart = minStart, maxStart = maxStart,
+      serializedEventBytes = serializedEventBytes
     }))
+    local boundsExpiry = (firstBucket + boundsIndex - 2) * width + boundsTtl
+    redis.call('PEXPIREAT', KEYS[boundsIndex], string.format('%.0f', boundsExpiry))
 
     -- 2. Preserve live pending selections; expired selections cannot be revived.
     local previousRecord = redis.call('HGET', recordKey, member)
     local record = previousRecord and cjson.decode(previousRecord)
     local priorDue = tonumber(redis.call('ZSCORE', dueKey, member))
-    if (record or priorDue) and (not priorDue or priorDue + pendingTtl <= now) then
+    if (record or priorDue) and (not previousBounds or not priorDue or priorDue + pendingTtl <= now) then
       record = nil
       redis.call('HDEL', recordKey, member)
       redis.call('ZREM', dueKey, member)
@@ -73,10 +120,11 @@ const RECORD_SCRIPT = `
   -- Whole-key expiry reclaims inactive shards without shortening another trace's deadline.
   local function extendExpiry(key, deadline)
     if redis.call('PEXPIRETIME', key) < deadline then
-      redis.call('PEXPIREAT', key, deadline)
+      redis.call('PEXPIREAT', key, string.format('%.0f', deadline))
     end
   end
-  extendExpiry(boundsKey, boundsExpiry)
+  -- Bound pending storage even when the dispatcher is paused during recording.
+  expirePending(recordKey, dueKey, now, pendingTtl)
   if wroteRecord then
     extendExpiry(recordKey, due + pendingTtl)
     extendExpiry(dueKey, due + pendingTtl)
@@ -84,26 +132,10 @@ const RECORD_SCRIPT = `
 `;
 
 const CLEANUP_SCRIPT = `
-  local boundsKey, recordKey, dueKey = KEYS[1], KEYS[2], KEYS[3]
+  ${EXPIRE_PENDING_SCRIPT}
   local clock = redis.call('TIME')
   local now = clock[1] * 1000 + math.floor(clock[2] / 1000)
-  local expired = redis.call('ZRANGE', dueKey, '-inf', now - tonumber(ARGV[1]),
-    'BYSCORE', 'LIMIT', 0, ${CLEANUP_SIZE})
-  for _, member in ipairs(expired) do
-    redis.call('HDEL', recordKey, member)
-    redis.call('ZREM', dueKey, member)
-  end
-  for i = 2, #ARGV do
-    local value = redis.call('HGET', boundsKey, ARGV[i])
-    if value then
-      local bounds = cjson.decode(value)
-      -- The scan is only a candidate list; an arrival may have refreshed this field.
-      if not bounds.expiresAt or bounds.expiresAt <= now then
-        redis.call('HDEL', boundsKey, ARGV[i])
-      end
-    end
-  end
-  return #expired
+  return expirePending(KEYS[1], KEYS[2], now, tonumber(ARGV[1]))
 `;
 
 const scriptHashes = new Map(
@@ -115,57 +147,43 @@ const scriptHashes = new Map(
 
 async function evalRecording(
   script: string,
-  keys: ReturnType<typeof getRecordingKeys>,
+  keys: string[],
   args: (string | number)[],
 ) {
   if (!redis) throw new Error("Trace rule recording requires Redis");
-  const scriptKeys = [keys.bounds, keys.record, keys.due];
   try {
     return await redis.evalsha(
       scriptHashes.get(script)!,
-      scriptKeys.length,
-      ...scriptKeys,
+      keys.length,
+      ...keys,
       ...args,
     );
   } catch (error) {
     // A cache miss cannot have applied any updates; other failures propagate.
     if (!(error instanceof Error) || !error.message.startsWith("NOSCRIPT"))
       throw error;
-    return redis.eval(script, scriptKeys.length, ...scriptKeys, ...args);
+    return redis.eval(script, keys.length, ...keys, ...args);
   }
 }
 
-/** Advance one bounds scan page and reclaim abandoned selections in bounded Lua calls. */
-export async function cleanupTraceRuleRecording(shard: number, cursor: string) {
-  if (!redis) throw new Error("Trace rule recording requires Redis");
-  const keys = getRecordingKeys(shard);
-  const [nextCursor, fields] = await redis.hscan(
-    keys.bounds,
-    cursor,
-    "COUNT",
-    CLEANUP_SIZE,
+/** Reclaim one batch of abandoned selections; bounds expire through bucket TTLs. */
+export async function cleanupTraceRuleRecording(shard: number) {
+  const { record, due } = getRecordingKeys(shard);
+  const expired = Number(
+    await evalRecording(
+      CLEANUP_SCRIPT,
+      [record, due],
+      [env.LANGFUSE_TRACE_BATCH_PENDING_TTL_MS],
+    ),
   );
-  const members = fields.filter((_, index) => index % 2 === 0);
-  let expired = 0;
-  // HSCAN's COUNT is a hint; cap deletion batches even when a page is larger.
-  for (
-    let offset = 0;
-    offset < Math.max(1, members.length);
-    offset += CLEANUP_SIZE
-  ) {
-    expired = Number(
-      await evalRecording(CLEANUP_SCRIPT, keys, [
-        env.LANGFUSE_TRACE_BATCH_PENDING_TTL_MS,
-        ...members.slice(offset, offset + CLEANUP_SIZE),
-      ]),
-    );
-  }
-  return { cursor: nextCursor, pendingRemaining: expired === CLEANUP_SIZE };
+  return expired === CLEANUP_SIZE;
 }
 
 export type TraceSpanActivity = {
   traceId: string;
   spanStartTimeISO: string;
+  /** Filled from the accepted event write before flushing; absent when size is unknown. */
+  serializedEventBytes?: number;
   /** Rule IDs already selected by filtering and sampling; empty still records activity. */
   ruleIds: readonly string[];
 };
@@ -178,7 +196,12 @@ export async function recordTraceActivity(
   // Aggregate this batch locally; Lua merges it with other batches and workers.
   const updatesByTrace = new Map<
     string,
-    { minStart: number; maxStart: number; rules: Set<string> }
+    {
+      minStart: number;
+      maxStart: number;
+      serializedEventBytes: number | undefined;
+      rules: Set<string>;
+    }
   >();
   for (const span of activity) {
     const start = Date.parse(span.spanStartTimeISO);
@@ -187,11 +210,17 @@ export async function recordTraceActivity(
     if (previous) {
       previous.minStart = Math.min(previous.minStart, start);
       previous.maxStart = Math.max(previous.maxStart, start);
+      previous.serializedEventBytes =
+        previous.serializedEventBytes !== undefined &&
+        span.serializedEventBytes !== undefined
+          ? previous.serializedEventBytes + span.serializedEventBytes
+          : undefined;
       for (const ruleId of span.ruleIds) previous.rules.add(ruleId);
     } else {
       updatesByTrace.set(span.traceId, {
         minStart: start,
         maxStart: start,
+        serializedEventBytes: span.serializedEventBytes,
         rules: new Set(span.ruleIds),
       });
     }
@@ -205,32 +234,47 @@ export async function recordTraceActivity(
 
   const shards = new Map<
     number,
-    { member: string; minStart: number; maxStart: number; rules: Set<string> }[]
+    {
+      member: string;
+      minStart: number;
+      maxStart: number;
+      serializedEventBytes: number | undefined;
+      rules: Set<string>;
+    }[]
   >();
   for (const [traceId, update] of updatesByTrace) {
     const member = JSON.stringify([projectId, traceId]);
-    const shard = getShardIndex(member, env.LANGFUSE_TRACE_BATCH_SHARD_COUNT);
+    const shard = getTraceBatchShard(member);
     const entries = shards.get(shard) ?? [];
     entries.push({ member, ...update });
     shards.set(shard, entries);
   }
 
+  const clock = await redis.time();
+  const now = Number(clock[0]) * 1_000 + Math.floor(Number(clock[1]) / 1_000);
   for (const [shard, entries] of shards) {
-    const keys = getRecordingKeys(shard);
+    const { record, due } = getRecordingKeys(shard);
+    const bounds = getRecordingBoundsKeys(shard, now);
+    const keys = [record, due, ...bounds.keys];
     for (let offset = 0; offset < entries.length; offset += REDIS_BATCH_SIZE) {
       const args = [
         idleMs,
         env.LANGFUSE_TRACE_BATCH_FIRST_SEEN_TTL_MS,
         env.LANGFUSE_TRACE_BATCH_PENDING_TTL_MS,
+        bounds.width,
+        bounds.firstBucket,
         ...entries
           .slice(offset, offset + REDIS_BATCH_SIZE)
-          .flatMap(({ member, minStart, maxStart, rules }) => [
-            member,
-            minStart,
-            maxStart,
-            randomUUID(),
-            JSON.stringify([...rules]),
-          ]),
+          .flatMap(
+            ({ member, minStart, maxStart, rules, serializedEventBytes }) => [
+              member,
+              minStart,
+              maxStart,
+              randomUUID(),
+              JSON.stringify([...rules]),
+              serializedEventBytes ?? -1,
+            ],
+          ),
       ];
       await evalRecording(RECORD_SCRIPT, keys, args);
     }
