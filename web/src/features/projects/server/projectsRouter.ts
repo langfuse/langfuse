@@ -1,4 +1,4 @@
-import { isGatewayIngestionProject } from "@/src/features/ai-gateway/server";
+import { GatewayConfigService } from "@/src/features/ai-gateway/server";
 import { softDeleteProject } from "@/src/features/projects/server/softDeleteProject";
 import {
   createTRPCRouter,
@@ -193,8 +193,9 @@ export const projectsRouter = createTRPCRouter({
         scope: "project:delete",
       });
       return {
-        isGatewayIngestionProject: await isGatewayIngestionProject({
-          prisma: ctx.prisma,
+        isGatewayIngestionProject: await new GatewayConfigService(
+          ctx.prisma,
+        ).isIngestionProject({
           organizationId: ctx.session.orgId,
           projectId: input.projectId,
         }),
@@ -213,8 +214,9 @@ export const projectsRouter = createTRPCRouter({
         projectId: ctx.session.projectId,
         scope: "project:delete",
       });
-      const isGatewayIngestion = await isGatewayIngestionProject({
-        prisma: ctx.prisma,
+      const isGatewayIngestion = await new GatewayConfigService(
+        ctx.prisma,
+      ).isIngestionProject({
         organizationId: ctx.session.orgId,
         projectId: input.projectId,
       });

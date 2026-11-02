@@ -1,4 +1,4 @@
-import { isGatewayIngestionProject } from "@/src/features/ai-gateway/server";
+import { GatewayConfigService } from "@/src/features/ai-gateway/server";
 import { type AuthorizationContext } from "@/src/features/auth/policy/types";
 import { softDeleteProject } from "@/src/features/projects/server";
 import { type NextApiRequest, type NextApiResponse } from "next";
@@ -129,8 +129,7 @@ export async function handleDeleteProject(
 ) {
   try {
     if (
-      await isGatewayIngestionProject({
-        prisma,
+      await new GatewayConfigService(prisma).isIngestionProject({
         organizationId: scope.orgId,
         projectId,
       })

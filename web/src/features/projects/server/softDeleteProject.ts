@@ -1,6 +1,6 @@
 import type { PrismaClient } from "@langfuse/shared/src/db";
 import {
-  clearGatewayIngestionProject,
+  GatewayConfigService,
   invalidateGatewayResolveCacheForOrganization,
 } from "@/src/features/ai-gateway/server";
 import type { AuditLogActor } from "@/src/features/audit-logs/server";
@@ -18,8 +18,9 @@ export async function softDeleteProject(params: {
 }) {
   const { project, clearedGateway } = await params.prisma.$transaction(
     async (tx) => {
-      const clearedGateway = await clearGatewayIngestionProject({
+      const clearedGateway = await new GatewayConfigService(
         tx,
+      ).clearIngestionProject({
         organizationId: params.organizationId,
         projectId: params.projectId,
         actor: params.actor,
