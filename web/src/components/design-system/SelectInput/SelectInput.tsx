@@ -63,7 +63,7 @@ function SelectInputInner<V extends string>(
               const items = node.options
                 .filter((option) => rank(option) > 0)
                 .sort((a, b) => rank(b) - rank(a));
-              return items.length ? [{ ...node, options: items }] : [];
+              return items.length > 0 ? [{ ...node, options: items }] : [];
             }
             return rank(node) > 0 ? [node] : [];
           })

@@ -194,7 +194,10 @@ export function FormField<
   const descriptionId = `${id}-description`;
   const errorId = `${id}-error`;
   const { label, registerLabelTooltip, required } = props;
-  const description = props.description?.length ? props.description : undefined;
+  const description =
+    props.description !== undefined && props.description.length > 0
+      ? props.description
+      : undefined;
 
   if (props.control) {
     const { control, name, children } = props;
