@@ -10,7 +10,10 @@ import { createUserTableColumn } from "@/src/components/design-system/table/colu
 import { createTableColumn } from "@/src/components/design-system/table/columns/utils/createTableColumn";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { buildLocalIsoDatePresentation } from "@/src/utils/dates";
-import type { AsyncTableData } from "@/src/components/design-system/table/Table";
+import type {
+  AsyncTableData,
+  TableProps,
+} from "@/src/components/design-system/table/Table";
 import type { LangfuseColumnDef } from "@/src/components/table/types";
 import { isApiKeyExpired } from "@/src/features/apiKey";
 import { GATEWAY_API_KEY_LAST_USED_WINDOW_DAYS } from "@/src/features/ai-gateway/constants/gatewayApiKeyLastUsed";
@@ -51,7 +54,9 @@ export function GatewayApiKeysTable({
   onRevoke,
   pagination,
   search,
-}: {
+  orderBy,
+  setOrderBy,
+}: Pick<TableProps<GatewayApiKey>, "orderBy" | "setOrderBy"> & {
   data: AsyncTableData<GatewayApiKey[]>;
   lastUsed: GatewayApiKeysLastUsedState;
   createAction: () => void;
@@ -70,6 +75,7 @@ export function GatewayApiKeysTable({
       id: "createdAt",
       header: "Created",
       enableResizing: false,
+      enableSorting: true,
     }),
     createTextTableColumn<GatewayApiKey>({
       accessorFn: (row) => row.apiKey.displaySecretKey,
@@ -84,6 +90,7 @@ export function GatewayApiKeysTable({
       header: "Name",
       nullValue: "-",
       enableResizing: false,
+      enableSorting: true,
     }),
     createUserTableColumn<GatewayApiKey>({
       accessorFn: (row) => row.apiKey.user,
@@ -100,6 +107,7 @@ export function GatewayApiKeysTable({
       header: "Expiration",
       hideBelowMd: true,
       enableResizing: false,
+      enableSorting: true,
       emptyValue: "No expiration",
       getPrefix: (expiresAt) =>
         isApiKeyExpired(expiresAt) ? "Expired on " : null,
@@ -146,6 +154,8 @@ export function GatewayApiKeysTable({
       tableName="gatewayApiKeys"
       columns={columns}
       data={data}
+      orderBy={orderBy}
+      setOrderBy={setOrderBy}
       actions={(row) => [
         {
           id: "revoke",

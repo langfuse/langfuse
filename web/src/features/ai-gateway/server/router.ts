@@ -21,6 +21,7 @@ import {
   GatewayProvider,
 } from "@langfuse/shared/src/db";
 import { redis } from "@langfuse/shared/src/server";
+import { orderBy } from "@langfuse/shared";
 
 import {
   GatewayApiKeyService,
@@ -461,6 +462,7 @@ export const aiGatewayRouter = createTRPCRouter({
     .input(
       offsetPaginatedOrganizationInput.extend({
         searchQuery: z.string().trim().optional(),
+        orderBy: orderBy.optional(),
       }),
     )
     .query(async ({ input, ctx }) => {
@@ -472,6 +474,7 @@ export const aiGatewayRouter = createTRPCRouter({
         organizationId: input.orgId,
         ownerUserId,
         searchQuery: input.searchQuery,
+        orderBy: input.orderBy,
         page: input.page,
         limit: input.limit,
       });

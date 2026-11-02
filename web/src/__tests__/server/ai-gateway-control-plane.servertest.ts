@@ -1535,6 +1535,34 @@ describe("AI gateway control plane", () => {
     ).toEqual(new Set(["First", "Second", "Third"]));
   });
 
+  it("sorts gateway keys by expiration with never-expiring keys as the latest", async () => {
+    const { caller, org } = await prepare();
+    const day = 24 * 60 * 60 * 1000;
+
+    for (const [name, expiresAt] of [
+      ["Never", null],
+      ["Later", new Date(Date.now() + 30 * day)],
+      ["Sooner", new Date(Date.now() + day)],
+    ] as const) {
+      await caller.aiGateway.createApiKey({
+        orgId: org.id,
+        name,
+        metadata: {},
+        expiresAt,
+      });
+    }
+
+    const listNames = async (order: "ASC" | "DESC") =>
+      (
+        await caller.aiGateway.listApiKeys({
+          orgId: org.id,
+          orderBy: { column: "expiresAt", order },
+        })
+      ).data.map(({ apiKey }) => apiKey.note);
+    expect(await listNames("ASC")).toEqual(["Sooner", "Later", "Never"]);
+    expect(await listNames("DESC")).toEqual(["Never", "Later", "Sooner"]);
+  });
+
   it("rejects gateway page limits above 100", async () => {
     const { caller, org } = await prepare();
 
