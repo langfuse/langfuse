@@ -5,10 +5,13 @@ mod openai_responses;
 mod response;
 mod sse;
 
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::{
+    collections::BTreeMap,
+    time::{SystemTime, UNIX_EPOCH},
+};
 
 use axum::http::{HeaderMap, header};
-use serde_json::{Map, Value, json};
+use serde_json::{Map, Value, json, value::RawValue};
 use tokio::time::Instant;
 
 use crate::{
@@ -26,6 +29,7 @@ pub(crate) const MAX_INPUT_CAPTURE_BYTES: usize = 5 * 1024 * 1024;
 pub(crate) const MAX_OUTPUT_CAPTURE_BYTES: usize = 1024 * 1024;
 const MAX_ITEMS: usize = 256;
 const MAX_FACT_STRING: usize = 512;
+const MAX_PROJECTED_MEMBER_BYTES: usize = 64 * 1024;
 
 enum ProtocolCapture {
     OpenAiResponses(OpenAiResponsesCapture),
@@ -288,13 +292,46 @@ impl Drop for ExecutionCapture {
     }
 }
 
-fn parse_request(headers: &HeaderMap, body: &[u8]) -> Result<Map<String, Value>, InputOmission> {
+/// The request's top-level members, each kept as its original bytes. A parsed
+/// `Value` tree can take about 100x the bytes of adversarial JSON such as
+/// `[{"":0},...]`, so only small projected members are ever parsed.
+struct RawRequest(BTreeMap<String, Box<RawValue>>);
+
+impl RawRequest {
+    /// Remove and parse a member of at most `MAX_PROJECTED_MEMBER_BYTES`.
+    /// Larger members stay in the request and so in the recorded input.
+    fn take(&mut self, key: &str) -> Option<Value> {
+        self.take_where(key, |raw| {
+            if raw.get().len() > MAX_PROJECTED_MEMBER_BYTES {
+                return None;
+            }
+            serde_json::from_str(raw.get()).ok()
+        })
+    }
+
+    /// Remove a member only when `parse` accepts it.
+    fn take_where<T>(
+        &mut self,
+        key: &str,
+        parse: impl FnOnce(&RawValue) -> Option<T>,
+    ) -> Option<T> {
+        let value = parse(self.0.get(key)?)?;
+        self.0.remove(key);
+        Some(value)
+    }
+
+    fn into_input(self) -> Option<Box<RawValue>> {
+        serde_json::value::to_raw_value(&self.0).ok()
+    }
+}
+
+fn parse_request(headers: &HeaderMap, body: &[u8]) -> Result<RawRequest, InputOmission> {
     let reason = if !identity_encoding(headers) {
         InputOmissionReason::ContentEncoding
     } else if body.len() > MAX_INPUT_CAPTURE_BYTES {
         InputOmissionReason::SizeLimit
-    } else if let Ok(Value::Object(request)) = serde_json::from_slice(body) {
-        return Ok(request);
+    } else if let Ok(members) = serde_json::from_slice(body) {
+        return Ok(RawRequest(members));
     } else {
         InputOmissionReason::InvalidJson
     };
