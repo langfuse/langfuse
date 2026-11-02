@@ -63,9 +63,10 @@ export function GatewayLaunchBanner({
               </div>
               <p
                 className="text-muted-foreground truncate text-base"
-                title="One gateway key for full visibility into what your agents cost."
+                title="Trace and monitor your AI usage by installing the Langfuse AI Gateway in 2 minutes."
               >
-                One gateway key for full visibility into what your agents cost.
+                Trace and monitor your AI usage by installing the Langfuse AI
+                Gateway in 2 minutes.
               </p>
             </div>
             <div className="mr-12 hidden h-full w-72 shrink-0 xl:block">
