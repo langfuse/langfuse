@@ -1,26 +1,16 @@
 import { GatewayConfigService } from "@/src/features/ai-gateway/server";
 import { type AuthorizationContext } from "@/src/features/auth/policy/types";
-import { softDeleteProject } from "@/src/features/projects/server";
+import { ProjectService } from "@/src/features/projects/server";
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { prisma } from "@langfuse/shared/src/db";
-import {
-  logger,
-  redis,
-  QueueJobs,
-  ProjectDeleteQueue,
-  type ApiAccessScope,
-} from "@langfuse/shared/src/server";
-import { randomUUID } from "crypto";
+import { logger, type ApiAccessScope } from "@langfuse/shared/src/server";
 import { projectNameSchema } from "@/src/features/auth/lib/projectNameSchema";
 import { projectRetentionSchema } from "@/src/features/auth/lib/projectRetentionSchema";
 import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server";
 import {
-  ApiAuthService,
   shadowAuthorize,
   writeProjectError,
 } from "@/src/features/public-api/server";
-import { auditLog } from "@/src/features/audit-logs/server";
-import { emitChbProjectEvent } from "@/src/ee/features/billing/server";
 
 export async function handleUpdateProject(
   req: NextApiRequest,
@@ -145,67 +135,10 @@ export async function handleDeleteProject(
       }
     }
 
-    // API keys need to be deleted from cache. Otherwise, they will still be valid.
-    await new ApiAuthService(prisma, redis).invalidateCachedProjectApiKeys(
-      projectId,
-    );
-
-    // Delete API keys from DB
-    await prisma.apiKey.deleteMany({
-      where: {
-        projectId: projectId,
-        scope: "PROJECT",
-      },
-    });
-
-    const project = await softDeleteProject({
-      prisma,
+    await new ProjectService(prisma).delete({
       organizationId: scope.orgId,
       projectId,
-      actor: { apiKeyId: scope.apiKeyId, orgId: scope.orgId },
-    });
-
-    // Create audit log entry
-    await auditLog({
-      apiKeyId: scope.apiKeyId,
-      orgId: scope.orgId,
-      projectId,
-      resourceType: "project",
-      resourceId: projectId,
-      before: project,
-      action: "delete",
-    });
-
-    // Refresh org-scoped keys' baked projectIds now that a project is gone.
-    await new ApiAuthService(prisma, redis).invalidateCachedOrgApiKeys(
-      scope.orgId,
-    );
-
-    // Soft-delete is the billing-relevant moment: the customer stops being
-    // billable now, not when the async hard-delete worker finishes.
-    emitChbProjectEvent({
-      type: "LANGFUSE_PROJECT_DELETED",
-      orgId: scope.orgId,
-      projectId,
-    });
-
-    // Queue project deletion job
-    const projectDeleteQueue = ProjectDeleteQueue.getInstance();
-    if (!projectDeleteQueue) {
-      logger.error("ProjectDeleteQueue is not available");
-      return res.status(500).json({
-        message: "Internal server error",
-      });
-    }
-
-    await projectDeleteQueue.add(QueueJobs.ProjectDelete, {
-      timestamp: new Date(),
-      id: randomUUID(),
-      payload: {
-        projectId: projectId,
-        orgId: scope.orgId,
-      },
-      name: QueueJobs.ProjectDelete,
+      actor: { apiKeyId: scope.apiKeyId, orgId: scope.orgId, projectId },
     });
 
     return res.status(202).json({

@@ -1,5 +1,5 @@
 import { GatewayConfigService } from "@/src/features/ai-gateway/server";
-import { softDeleteProject } from "@/src/features/projects/server/softDeleteProject";
+import { ProjectService } from "@/src/features/projects/server/projectService";
 import {
   createTRPCRouter,
   protectedOrganizationProcedure,
@@ -16,16 +16,13 @@ import { projectNameSchema } from "@/src/features/auth/lib/projectNameSchema";
 import { auditLog } from "@/src/features/audit-logs/server";
 import { ApiAuthService } from "@/src/features/public-api/server";
 import {
-  QueueJobs,
   redis,
-  ProjectDeleteQueue,
   DefaultEvalModelService,
   getEnvironmentsForProject,
   invalidateCachedOrgApiKeys,
 } from "@langfuse/shared/src/server";
 import { transferRoleAssignments } from "@langfuse/shared/rbac/server";
 import { reconcileTopicsConnectionsForProject } from "@langfuse/shared/topics/server";
-import { randomUUID } from "crypto";
 import { StringNoHTMLNonEmpty } from "@langfuse/shared";
 import { buildAdminOrgContext } from "@/src/features/organizations/server";
 import { emitChbProjectEvent } from "@/src/ee/features/billing/server";
@@ -228,63 +225,10 @@ export const projectsRouter = createTRPCRouter({
         });
       }
 
-      // API keys need to be deleted from cache. Otherwise, they will still be valid.
-      await new ApiAuthService(
-        ctx.prisma,
-        redis,
-      ).invalidateCachedProjectApiKeys(input.projectId);
-
-      // Delete API keys from DB
-      await ctx.prisma.apiKey.deleteMany({
-        where: {
-          projectId: input.projectId,
-          scope: "PROJECT",
-        },
-      });
-
-      const project = await softDeleteProject({
-        prisma: ctx.prisma,
+      await new ProjectService(ctx.prisma).delete({
         organizationId: ctx.session.orgId,
         projectId: input.projectId,
         actor: { session: ctx.session },
-      });
-
-      await auditLog({
-        session: ctx.session,
-        resourceType: "project",
-        resourceId: input.projectId,
-        before: project,
-        action: "delete",
-      });
-
-      // Refresh org-scoped keys' baked projectIds now that a project is gone.
-      await invalidateCachedOrgApiKeys(ctx.session.orgId);
-
-      // Soft-delete is the billing-relevant moment: the customer stops being
-      // billable now, not when the async hard-delete worker finishes.
-      emitChbProjectEvent({
-        type: "LANGFUSE_PROJECT_DELETED",
-        orgId: ctx.session.orgId,
-        projectId: input.projectId,
-      });
-
-      const projectDeleteQueue = ProjectDeleteQueue.getInstance();
-      if (!projectDeleteQueue) {
-        throw new TRPCError({
-          code: "INTERNAL_SERVER_ERROR",
-          message:
-            "ProjectDeleteQueue is not available. Please try again later.",
-        });
-      }
-
-      await projectDeleteQueue.add(QueueJobs.ProjectDelete, {
-        timestamp: new Date(),
-        id: randomUUID(),
-        payload: {
-          projectId: input.projectId,
-          orgId: ctx.session.orgId,
-        },
-        name: QueueJobs.ProjectDelete,
       });
 
       return true;
