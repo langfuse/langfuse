@@ -41,7 +41,7 @@ export async function fetchIngestionEvalRules(projectId: string): Promise<{
   observationRules: ObservationEvalRule[];
   traceRules: TraceTranscriptEvalRule[];
 }> {
-  const rules = await fetchRules(projectId, "ingestionBased");
+  const rules = await fetchRules(projectId, "traceTranscriptBased");
   const observationRules: ObservationEvalRule[] = [];
   const traceRules: TraceTranscriptEvalRule[] = [];
   for (const rule of rules) {
@@ -61,7 +61,7 @@ export async function fetchIngestionEvalRules(projectId: string): Promise<{
 
 async function fetchRules(
   projectId: string,
-  scope: "eventBased" | "ingestionBased",
+  scope: "eventBased" | "traceTranscriptBased",
 ) {
   // Observation-only cache entries say nothing about transcript rules.
   if (await hasNoEvalConfigsCache(projectId, scope)) return [];
@@ -93,7 +93,7 @@ async function fetchRules(
       projectId,
       status: JobConfigState.ACTIVE,
       // Rules without runnable assignments must not defeat negative caching.
-      ...(scope === "ingestionBased"
+      ...(scope === "traceTranscriptBased"
         ? {
             OR: [
               observationTargets,
@@ -114,7 +114,7 @@ async function fetchRules(
       targetObject: true,
       assignments: {
         where:
-          scope === "ingestionBased"
+          scope === "traceTranscriptBased"
             ? traceAssignments
             : observationAssignments,
         select: {

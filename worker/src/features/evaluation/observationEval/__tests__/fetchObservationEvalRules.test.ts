@@ -143,14 +143,16 @@ describe("evaluation rule fetching", () => {
     });
     await fetchers.fetchIngestionEvalRules(projectId);
     expect(mocks.findMany).toHaveBeenCalledTimes(1);
-    expect(emptyScopes).toEqual(new Set(["ingestionBased"]));
+    expect(emptyScopes).toEqual(new Set(["traceTranscriptBased"]));
 
     await fetchers.fetchObservationEvalRules(projectId);
     expect(mocks.findMany).toHaveBeenCalledTimes(2);
     const query = mocks.findMany.mock.calls[1][0];
     expect(JSON.stringify(query.where)).not.toContain(TopicsTargetObject);
     expect(JSON.stringify(query)).not.toContain(EvalTemplateType.FACET);
-    expect(emptyScopes).toEqual(new Set(["ingestionBased", "eventBased"]));
+    expect(emptyScopes).toEqual(
+      new Set(["traceTranscriptBased", "eventBased"]),
+    );
   });
 
   it("does not cache a failed combined query as an empty project", async () => {
