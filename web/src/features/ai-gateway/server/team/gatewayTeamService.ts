@@ -13,6 +13,10 @@ import {
 
 import { env } from "@/src/env.mjs";
 import {
+  getSfdcService,
+  type SetUserRoleInput,
+} from "@/src/ee/features/sfdc-sync/server";
+import {
   inviteOrganizationMember,
   OrganizationMembersService,
 } from "@/src/features/rbac/server";
@@ -157,6 +161,7 @@ export class GatewayTeamService {
       inviterEmail: ctx.session.user.email ?? "",
     } as const;
     const emailJobs: GatewayInvitationEmail[] = [];
+    const sfdcUserRoles: SetUserRoleInput[] = [];
 
     const emails = normalizeEmails(params.emails);
     const existingMembers = new Map(
@@ -210,6 +215,9 @@ export class GatewayTeamService {
               to,
               audience: { kind: "invitee", hasAccount: userExists },
             });
+          },
+          syncSfdcUserRole: async (input) => {
+            sfdcUserRoles.push(input);
           },
         });
         invited.add(email);
@@ -268,6 +276,7 @@ export class GatewayTeamService {
       );
       await queue.addBulk(jobs);
     }
+    this.syncSfdcUserRoles(sfdcUserRoles);
 
     return {
       invitedCount: invited.size,
@@ -276,5 +285,20 @@ export class GatewayTeamService {
       failed,
       notifiedCount: notified.size,
     };
+  }
+
+  /**
+   * Each sync is a Mulesoft round trip of seconds, so a large team would hold
+   * the response for minutes. They run in the background instead; each sync
+   * logs its own delivery failures.
+   */
+  private syncSfdcUserRoles(inputs: SetUserRoleInput[]) {
+    const sfdc = getSfdcService();
+    if (!sfdc) return;
+    Promise.all(inputs.map((input) => sfdc.setUserRole(input))).catch(
+      (error) => {
+        logger.error("Failed to sync AI Gateway invitees to SFDC", { error });
+      },
+    );
   }
 }

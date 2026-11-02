@@ -37,6 +37,7 @@ function queuedNotifications(): SharedServer.NotificationEventType[] {
 }
 
 import { env } from "@/src/env.mjs";
+import * as sfdc from "@/src/ee/features/sfdc-sync/server";
 import { appRouter } from "@/src/server/api/root";
 import {
   createInnerTRPCContext,
@@ -662,6 +663,36 @@ describe("AI gateway control plane", () => {
     expect(removeFailedJob.mock.invocationCallOrder[0]).toBeLessThan(
       addNotificationJobs.mock.invocationCallOrder[0]!,
     );
+  });
+
+  it("adds invitees with an account without waiting for their SFDC sync", async () => {
+    const owner = await prepare();
+    const user = await prisma.user.create({
+      data: { email: `gateway-account-${randomUUID()}@example.test` },
+    });
+    cleanupUsers.push(user.id);
+    const setUserRole = vi.fn(() => new Promise<boolean>(() => {}));
+    const getSfdcService = vi
+      .spyOn(sfdc, "getSfdcService")
+      .mockReturnValue({ setUserRole } as never);
+
+    try {
+      const result = await owner.caller.aiGateway.inviteTeam({
+        orgId: owner.org.id,
+        emails: [user.email!],
+        notifyMembers: false,
+      });
+
+      expect(result).toMatchObject({ invitedCount: 1, failed: [] });
+      expect(setUserRole).toHaveBeenCalledWith({
+        orgId: owner.org.id,
+        userId: user.id,
+        email: user.email,
+        role: Role.AI_GATEWAY,
+      });
+    } finally {
+      getSfdcService.mockRestore();
+    }
   });
 
   it("reports typed members who cannot use the gateway and skips the sender", async () => {

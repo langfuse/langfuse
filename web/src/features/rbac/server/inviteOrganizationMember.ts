@@ -2,7 +2,10 @@ import { TRPCError } from "@trpc/server";
 import { Prisma, type PrismaClient, Role } from "@langfuse/shared";
 
 import { auditLog } from "@/src/features/audit-logs/server";
-import { getSfdcService } from "@/src/ee/features/sfdc-sync/server";
+import {
+  getSfdcService,
+  type SetUserRoleInput,
+} from "@/src/ee/features/sfdc-sync/server";
 import {
   createWithinEntitlementLimit,
   hasEntitlement,
@@ -84,6 +87,12 @@ type InviteOrganizationMemberParams = {
     orgName: string;
     userExists: boolean;
   }) => Promise<void>;
+  /**
+   * Links an existing user to the org in SFDC, one Mulesoft round trip that
+   * can take seconds. Defaults to syncing before returning; batch callers
+   * collect the syncs and run them outside their invite loop.
+   */
+  syncSfdcUserRole?: (input: SetUserRoleInput) => Promise<unknown>;
 };
 
 /**
@@ -94,6 +103,7 @@ export async function inviteOrganizationMember({
   ctx,
   input,
   sendInvitationEmail,
+  syncSfdcUserRole = syncSfdcUserRoleNow,
 }: InviteOrganizationMemberParams) {
   /**
    * Create a new organization membership
@@ -327,7 +337,7 @@ export async function inviteOrganizationMember({
       after: orgMembership,
     });
     // SFDC: link existing lead to org as a member.
-    await getSfdcService()?.setUserRole({
+    await syncSfdcUserRole({
       orgId: input.orgId,
       userId: user.id,
       email: user.email,
@@ -405,4 +415,8 @@ export async function inviteOrganizationMember({
       }
     }
   }
+}
+
+function syncSfdcUserRoleNow(input: SetUserRoleInput) {
+  return getSfdcService()?.setUserRole(input) ?? Promise.resolve(false);
 }
