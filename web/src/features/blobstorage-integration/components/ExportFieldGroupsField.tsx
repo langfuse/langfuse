@@ -1,4 +1,6 @@
 import { useFormState, useWatch } from "react-hook-form";
+import { AlertTriangle } from "lucide-react";
+import { Alert, AlertDescription } from "@/src/components/ui/alert";
 import { Checkbox } from "@/src/components/ui/checkbox";
 import {
   FormDescription,
@@ -11,7 +13,8 @@ import {
   AnalyticsIntegrationExportSource,
   BlobStorageIntegrationFileType,
   EXPORT_FIELD_GROUP_OPTIONS,
-  type ObservationFieldGroupFull,
+  TRACE_EXPORT_FIELD_GROUP_OPTIONS,
+  type ExportFieldGroup,
 } from "@langfuse/shared";
 import { type BlobStorageFormControl } from "@/src/features/blobstorage-integration/components/formValues";
 
@@ -50,16 +53,83 @@ export const ExportFieldGroupsField = ({
         <FormItem>
           <FormLabel>Export Field Groups</FormLabel>
           <FormDescription>
-            Choose which field groups to include in the observation exports.
-            Deselect large groups (e.g. Input / Output) to reduce export size,
-            or privacy-sensitive groups (e.g. Metadata) to avoid storing user
-            data.
+            Choose which field groups to include in the trace and observation
+            exports. Deselect large groups (e.g. Input / Output) to reduce
+            export size, or privacy-sensitive groups (e.g. Metadata) to avoid
+            storing user data. Scores are always exported in full.
             {includesLegacyExport
               ? isLegacyOnlyExport
-                ? " Traces and scores are always exported in full. Field groups that only exist on the enriched observations (e.g. Trace Context) are not available for this export source."
-                : " Traces and scores are always exported in full. Fields that only exist on the enriched observations (e.g. Trace Context) are omitted from the legacy observations export."
-              : " Scores are always exported in full."}
+                ? " Field groups that only exist on the enriched observations (e.g. Trace Context) are not available for this export source."
+                : " Fields that only exist on the enriched observations (e.g. Trace Context) are omitted from the legacy observations export."
+              : ""}
           </FormDescription>
+          {includesLegacyExport && (
+            <>
+              <div className="text-sm font-bold">Traces</div>
+              <div className="mt-2 space-y-2">
+                {TRACE_EXPORT_FIELD_GROUP_OPTIONS.map((option) => {
+                  const isCore = option.value === "trace_core";
+                  return (
+                    <div key={option.value} className="flex items-start gap-2">
+                      <Checkbox
+                        id={`field-group-${option.value}`}
+                        checked={
+                          isCore
+                            ? true
+                            : (field.value ?? []).includes(option.value)
+                        }
+                        disabled={isCore}
+                        onCheckedChange={
+                          isCore
+                            ? undefined
+                            : (checked) => {
+                                const current = field.value ?? [];
+                                const next =
+                                  checked === true
+                                    ? current.includes(option.value)
+                                      ? current
+                                      : [...current, option.value]
+                                    : current.filter(
+                                        (v: ExportFieldGroup) =>
+                                          v !== option.value,
+                                      );
+                                field.onChange(next);
+                              }
+                        }
+                      />
+                      <label
+                        htmlFor={`field-group-${option.value}`}
+                        className={
+                          isCore ? "space-y-0.5" : "cursor-pointer space-y-0.5"
+                        }
+                      >
+                        <div className="text-sm leading-none font-bold">
+                          {option.label}
+                          {isCore && (
+                            <span className="text-muted-foreground ml-1 font-normal">
+                              (required)
+                            </span>
+                          )}
+                        </div>
+                        <div className="text-muted-foreground text-xs">
+                          {option.description}
+                        </div>
+                      </label>
+                    </div>
+                  );
+                })}
+              </div>
+              <Alert>
+                <AlertTriangle className="h-4 w-4" />
+                <AlertDescription>
+                  Trace field groups can only be set here. The public API
+                  doesn&apos;t show them, and updating field groups through the
+                  API keeps this selection.
+                </AlertDescription>
+              </Alert>
+              <div className="text-sm font-bold">Observations</div>
+            </>
+          )}
           <div className="mt-2 space-y-2">
             {EXPORT_FIELD_GROUP_OPTIONS.filter(
               // Hide no-op groups (no legacy columns) for legacy-only
@@ -87,8 +157,7 @@ export const ExportFieldGroupsField = ({
                                   ? current
                                   : [...current, option.value]
                                 : current.filter(
-                                    (v: ObservationFieldGroupFull) =>
-                                      v !== option.value,
+                                    (v: ExportFieldGroup) => v !== option.value,
                                   );
                             field.onChange(next);
                           }

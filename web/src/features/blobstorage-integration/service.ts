@@ -7,7 +7,7 @@ import {
   areLegacyWritesActive,
   validateExportSource,
   BlobStorageIntegrationFileType,
-  type ObservationFieldGroupFull,
+  type ExportFieldGroup,
 } from "@langfuse/shared";
 import { encrypt } from "@langfuse/shared/encryption";
 import { env } from "@/src/env.mjs";
@@ -30,7 +30,7 @@ type UpsertBlobStorageIntegrationInput = {
   exportMode: BlobStorageExportMode;
   exportStartDate: Date | null;
   exportSource?: AnalyticsIntegrationExportSource;
-  exportFieldGroups?: ObservationFieldGroupFull[];
+  exportFieldGroups?: ExportFieldGroup[];
   compressed?: boolean;
 };
 

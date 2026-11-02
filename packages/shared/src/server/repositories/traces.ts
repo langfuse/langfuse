@@ -15,6 +15,11 @@ import { orderByToClickhouseSql } from "../queries";
 import { scoreBooleansAggregation } from "../queries/clickhouse-sql/query-fragments";
 import { shouldSkipObservationsFinal } from "../queries/clickhouse-sql/query-options";
 import { LISTABLE_SCORE_TYPES } from "../../domain/scores";
+import {
+  TRACE_EXPORT_FIELDS,
+  TRACE_EXPORT_FIELD_GROUPS,
+  type TraceExportFieldGroup,
+} from "../../domain/export-field-groups";
 import { OrderByState } from "../../interfaces/orderBy";
 import snakeCase from "lodash/snakeCase";
 import { FilterState } from "../../types";
@@ -1298,33 +1303,22 @@ export const getUserMetrics = async (
 };
 
 // Shared query for both the standard (parsed) and Parquet (`exec` binary)
-// trace export paths, so the SELECT/WHERE stays in one place.
+// trace export paths, so the SELECT/WHERE stays in one place. Deselected
+// field group columns are dropped; the remaining columns keep their order.
 const buildTracesForBlobStorageExportQuery = (
   projectId: string,
   minTimestamp: Date,
   maxTimestamp: Date,
+  fieldGroups: TraceExportFieldGroup[],
 ) => {
   const traceTable = "traces";
+  const columns = TRACE_EXPORT_FIELDS.filter(({ group }) =>
+    fieldGroups.includes(group),
+  ).map(({ field }) => field);
 
   const query = `
     SELECT
-      id,
-      timestamp,
-      name,
-      environment,
-      project_id,
-      metadata,
-      user_id,
-      session_id,
-      release,
-      version,
-      public as public,
-      bookmarked as bookmarked,
-      tags,
-      input as input,
-      output as output,
-      created_at,
-      updated_at
+      ${columns.join(",\n      ")}
     FROM ${traceTable} FINAL
     WHERE project_id = {projectId: String}
     AND timestamp >= {minTimestamp: DateTime64(3)}
@@ -1350,9 +1344,15 @@ export const getTracesForBlobStorageExport = function (
   projectId: string,
   minTimestamp: Date,
   maxTimestamp: Date,
+  fieldGroups: TraceExportFieldGroup[] = [...TRACE_EXPORT_FIELD_GROUPS],
 ) {
   return queryClickhouseStream<Record<string, unknown>>(
-    buildTracesForBlobStorageExportQuery(projectId, minTimestamp, maxTimestamp),
+    buildTracesForBlobStorageExportQuery(
+      projectId,
+      minTimestamp,
+      maxTimestamp,
+      fieldGroups,
+    ),
   );
 };
 
@@ -1362,12 +1362,14 @@ export const getTracesForBlobStorageExportParquet = function (
   projectId: string,
   minTimestamp: Date,
   maxTimestamp: Date,
+  fieldGroups: TraceExportFieldGroup[] = [...TRACE_EXPORT_FIELD_GROUPS],
 ) {
   return queryClickhouseExecRaw({
     ...buildTracesForBlobStorageExportQuery(
       projectId,
       minTimestamp,
       maxTimestamp,
+      fieldGroups,
     ),
     format: "Parquet",
     clickhouseSettings: BLOB_EXPORT_PARQUET_CLICKHOUSE_SETTINGS,

@@ -87,9 +87,20 @@ export const toPublicExportSource = (
 ): z.infer<typeof BlobStorageExportSource> =>
   INTERNAL_TO_PUBLIC_EXPORT_SOURCE[internalValue];
 
+// Trace groups are configurable in the UI only and never cross the public API,
+// so SDKs never receive a value outside this enum.
 export const BlobStorageExportFieldGroup = z.enum(
   OBSERVATION_FIELD_GROUPS_FULL,
 );
+
+type PublicExportFieldGroup = z.infer<typeof BlobStorageExportFieldGroup>;
+
+export const toPublicExportFieldGroups = (
+  groups: readonly string[],
+): PublicExportFieldGroup[] =>
+  groups.filter((group): group is PublicExportFieldGroup =>
+    (OBSERVATION_FIELD_GROUPS_FULL as readonly string[]).includes(group),
+  );
 
 /**
  * Request/Response Types
