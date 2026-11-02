@@ -164,7 +164,7 @@ export function SettingsTable<TData extends object>({
             ))}
           </div>
 
-          <div className="ml-auto flex items-center gap-2">
+          <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
             {columnVisibilityKey && (
               <DataTableColumnVisibilityFilter
                 columns={columns}
