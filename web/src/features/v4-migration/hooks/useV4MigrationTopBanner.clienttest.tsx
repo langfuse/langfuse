@@ -1,8 +1,20 @@
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  renderHook,
+  screen,
+} from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { LEGACY_API_SHUTDOWN_SCHEDULE } from "@/src/features/public-api/server/legacyApiShutdownSchedule";
-import { type ProjectMigrationStatus } from "./migrationData";
-import { V4MigrationTopBanner } from "./V4MigrationTopBanner";
+import { type ProjectMigrationStatus } from "@/src/features/v4-migration/migrationData";
+import { V4MigrationTopBannerView } from "@/src/features/v4-migration/V4MigrationTopBannerView";
+import { useV4MigrationTopBanner } from "./useV4MigrationTopBanner";
+
+function ConnectedBanner() {
+  const banner = useV4MigrationTopBanner();
+  return banner ? <V4MigrationTopBannerView {...banner} /> : <div />;
+}
 
 const mocks = vi.hoisted(() => ({
   capture: vi.fn(),
@@ -115,9 +127,9 @@ beforeEach(() => {
   sessionStorage.clear();
 });
 
-describe("V4MigrationTopBanner", () => {
+describe("useV4MigrationTopBanner", () => {
   it("counts the org's active projects and opens the first one needing action", () => {
-    render(<V4MigrationTopBanner />);
+    render(<ConnectedBanner />);
 
     expect(screen.getByText("Action needed before Nov 16")).toBeVisible();
     expect(
@@ -148,7 +160,7 @@ describe("V4MigrationTopBanner", () => {
 
   it("shows members the admin hint instead of the fix action", () => {
     mocks.canManage = false;
-    render(<V4MigrationTopBanner />);
+    render(<ConnectedBanner />);
 
     expect(
       screen.queryByRole("button", { name: "Review what to update" }),
@@ -167,7 +179,7 @@ describe("V4MigrationTopBanner", () => {
   });
 
   it("closes the amber banner for the browser session only", () => {
-    const { unmount } = render(<V4MigrationTopBanner />);
+    const { unmount } = render(<ConnectedBanner />);
     act(() => {
       fireEvent.click(screen.getByRole("button", { name: "Close" }));
     });
@@ -189,7 +201,7 @@ describe("V4MigrationTopBanner", () => {
   it("cannot be closed in the red phases, even after an amber close", () => {
     sessionStorage.setItem("v4-migration-top-banner:closed", "true");
     mocks.serverPhase = "cut";
-    render(<V4MigrationTopBanner />);
+    render(<ConnectedBanner />);
 
     expect(screen.getByText("Legacy APIs are off")).toBeVisible();
     expect(
@@ -202,16 +214,16 @@ describe("V4MigrationTopBanner", () => {
 
   it("stays hidden when the server hides it or no project needs action", () => {
     mocks.serverPhase = "hidden";
-    const { container, rerender } = render(<V4MigrationTopBanner />);
-    expect(container).toBeEmptyDOMElement();
+    const { result, rerender } = renderHook(() => useV4MigrationTopBanner());
+    expect(result.current).toBeNull();
 
     mocks.serverPhase = "cut";
     mocks.statusByProjectId = new Map([
       ["project-ok", status()],
       ["project-legacy", status()],
     ]);
-    rerender(<V4MigrationTopBanner />);
-    expect(container).toBeEmptyDOMElement();
+    rerender();
+    expect(result.current).toBeNull();
     expect(mocks.capture).not.toHaveBeenCalled();
   });
 });

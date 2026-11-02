@@ -67,7 +67,8 @@ import {
   usePaymentBanner,
 } from "@/src/features/payment-banner";
 import { useTopBannerHeight } from "@/src/features/top-banner";
-import { V4MigrationTopBanner } from "@/src/features/v4-migration/V4MigrationTopBanner";
+import { useV4MigrationTopBanner } from "@/src/features/v4-migration/hooks/useV4MigrationTopBanner";
+import { V4MigrationTopBannerView } from "@/src/features/v4-migration/V4MigrationTopBannerView";
 
 const DISMISSED_SIDEBAR_NOTIFICATIONS_KEY = "dismissed-sidebar-notifications";
 
@@ -140,6 +141,7 @@ export function AuthenticatedLayout({
   const uiCustomization = useUiCustomization();
   const versionUpdatePrompt = useVersionUpdatePrompt();
   const paymentBanner = usePaymentBanner();
+  const v4MigrationTopBanner = useV4MigrationTopBanner();
   const topBannerRef = useTopBannerHeight();
   // Account-level entry: use the raw flag (same as account settings tabs), not
   // project-scoped force-v3 suppression.
@@ -325,7 +327,9 @@ export function AuthenticatedLayout({
                   severity={paymentBanner.severity}
                 />
               )}
-              <V4MigrationTopBanner />
+              {v4MigrationTopBanner && (
+                <V4MigrationTopBannerView {...v4MigrationTopBanner} />
+              )}
               {env.NEXT_PUBLIC_PREVIEW_PR_URL && (
                 <PreviewDeploymentBanner
                   prUrl={env.NEXT_PUBLIC_PREVIEW_PR_URL}
