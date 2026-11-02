@@ -1,4 +1,3 @@
-/* eslint-disable no-nested-ternary */
 import { showSuccessToast, showErrorToast } from "@/src/features/notifications";
 import React from "react";
 import {
@@ -462,29 +461,41 @@ export const AutomationForm = ({
       parsedPrefill.eventSource ??
       TriggerEventSource.Prompt;
 
-    const resolvedEventAction: string[] =
-      automation?.trigger.eventActions ??
-      (resolvedEventSource === TriggerEventSource.Prompt ||
-      resolvedEventSource === TriggerEventSource.Skill
-        ? versionEventActionDefaults
-        : resolvedEventSource === TriggerEventSource.ProjectNotification
-          ? // New channels start with every event enabled; the per-event
-            // toggles in the settings section manage them afterwards.
-            [...ProjectNotificationEventTypeSchema.options]
-          : []);
+    const resolvedEventAction: string[] = (() => {
+      if (automation?.trigger.eventActions) {
+        return automation.trigger.eventActions;
+      }
+      if (
+        resolvedEventSource === TriggerEventSource.Prompt ||
+        resolvedEventSource === TriggerEventSource.Skill
+      ) {
+        return versionEventActionDefaults;
+      }
+      if (resolvedEventSource === TriggerEventSource.ProjectNotification) {
+        // New channels start with every event enabled; the per-event toggles
+        // in the settings section manage them afterwards.
+        return [...ProjectNotificationEventTypeSchema.options];
+      }
+      return [];
+    })();
 
     const resolvedFilter: FilterState =
       automation?.trigger.filter ?? parsedPrefill.filter ?? [];
 
+    const defaultAutomationName = (() => {
+      if (isEditing && automation) {
+        return automation.name;
+      }
+      if (resolvedEventSource === TriggerEventSource.ProjectNotification) {
+        return "Project notification";
+      }
+      return "";
+    })();
+
     const baseValues = {
       // Project-notification names are auto-generated at submit; seed a
       // non-empty placeholder so the hidden field passes validation.
-      name:
-        isEditing && automation
-          ? automation.name
-          : resolvedEventSource === TriggerEventSource.ProjectNotification
-            ? "Project notification"
-            : "",
+      name: defaultAutomationName,
       eventSource: resolvedEventSource,
       eventAction: resolvedEventAction,
       status: (isEditing && automation
@@ -786,9 +797,10 @@ export const AutomationForm = ({
                   disabled={!hasAccess || !isEditing}
                 />
               )}
-              {watchedEventSource === TriggerEventSource.Monitor ? (
+              {watchedEventSource === TriggerEventSource.Monitor && (
                 <MonitorTriggerFields projectId={projectId} />
-              ) : (
+              )}
+              {watchedEventSource !== TriggerEventSource.Monitor && (
                 <VersionTriggerFields
                   key={watchedEventSource}
                   projectId={projectId}
