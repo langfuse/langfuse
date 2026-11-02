@@ -430,22 +430,28 @@ describe("RateLimitService", () => {
   });
 
   it("should apply public-api-legacy rate limits by cloud plan", async () => {
+    // Hobby and Core round their nominal hourly equivalent down (120 and
+    // 420, versus the previous release's 150 and 450); Pro/Team/Enterprise
+    // keep the same nominal 1,200/hour, now enforced over a 60s window.
     const cases = [
-      { plan: "cloud:hobby" as const, points: 150, durationInSec: 3600 },
-      { plan: "cloud:core" as const, points: 450, durationInSec: 3600 },
-      { plan: "cloud:pro" as const, points: 1_200, durationInSec: 3600 },
-      { plan: "cloud:team" as const, points: 1_200, durationInSec: 3600 },
-      { plan: "cloud:enterprise" as const, points: 1_200, durationInSec: 3600 },
+      { plan: "cloud:hobby" as const, points: 2, durationInSec: 60 },
+      { plan: "cloud:core" as const, points: 7, durationInSec: 60 },
+      { plan: "cloud:pro" as const, points: 20, durationInSec: 60 },
+      { plan: "cloud:team" as const, points: 20, durationInSec: 60 },
+      { plan: "cloud:enterprise" as const, points: 20, durationInSec: 60 },
     ];
 
     const rateLimitService = RateLimitService.getInstance(redis as Redis);
 
     for (const testCase of cases) {
       const activeKey = `${RATE_LIMIT_REDIS_KEY_PREFIX}:public-api-legacy:${testCase.durationInSec}:${orgId}`;
-      const previousWindowKey = `${RATE_LIMIT_REDIS_KEY_PREFIX}:public-api-legacy:${orgId}`;
+      // Simulates a pod still running the previous release's hourly window
+      // mid-rollout: duration-qualified keys mean it writes to its own
+      // counter and must not interact with the new per-minute counter.
+      const previousReleaseHourlyKey = `${RATE_LIMIT_REDIS_KEY_PREFIX}:public-api-legacy:3600:${orgId}`;
 
       await redis.del(activeKey);
-      await redis.set(previousWindowKey, "1", "EX", 60);
+      await redis.set(previousReleaseHourlyKey, "1", "EX", 3600);
 
       const scope = {
         orgId: orgId,
@@ -475,12 +481,297 @@ describe("RateLimitService", () => {
 
       expect(ttlInSec).toBeGreaterThan(0);
       expect(ttlInSec).toBeLessThanOrEqual(testCase.durationInSec);
-      expect(ttlInSec).toBeGreaterThan(testCase.durationInSec - 60);
+      expect(ttlInSec).toBeGreaterThan(testCase.durationInSec - 10);
 
-      const previousWindowTtl = await redis.ttl(previousWindowKey);
-      expect(previousWindowTtl).toBeGreaterThan(0);
-      expect(previousWindowTtl).toBeLessThanOrEqual(60);
+      // The leftover hourly-window key from the previous release is
+      // untouched: this request neither incremented nor reset it.
+      const previousReleaseValue = await redis.get(previousReleaseHourlyKey);
+      expect(previousReleaseValue).toBe("1");
+      const previousReleaseTtl = await redis.ttl(previousReleaseHourlyKey);
+      expect(previousReleaseTtl).toBeGreaterThan(0);
     }
+  });
+
+  it("should admit exactly N requests and reject only the (N+1)th request (off-by-one regression)", async () => {
+    // rate-limiter-flexible floors remainingPoints at 0 for both the Nth
+    // (allowed) and (N+1)th (rejected) request, so remainingPoints alone
+    // cannot decide rejection. Cover public-api-legacy plus other resources
+    // to confirm the fix in checkRateLimit/isRateLimited is not limited to
+    // one resource.
+    const rateLimitService = RateLimitService.getInstance(redis as Redis);
+
+    const cases: Array<{
+      resource: "public-api" | "public-api-legacy" | "score-delete";
+      points: number;
+    }> = [
+      { resource: "public-api-legacy", points: 3 },
+      { resource: "public-api", points: 4 },
+      { resource: "score-delete", points: 2 },
+    ];
+
+    for (const testCase of cases) {
+      const scope = {
+        orgId: orgId,
+        plan: "cloud:hobby" as const,
+        projectId,
+        accessLevel: "project" as const,
+        rateLimitOverrides: [
+          {
+            resource: testCase.resource,
+            points: testCase.points,
+            durationInSec: 60,
+          },
+        ],
+      };
+
+      for (let i = 1; i <= testCase.points; i++) {
+        const result = await rateLimitService.rateLimitRequest(
+          asScope(scope),
+          testCase.resource,
+        );
+        expect(result?.res?.consumedPoints).toBe(i);
+        expect(result?.res?.remainingPoints).toBe(testCase.points - i);
+        expect(result?.isRateLimited()).toBe(false);
+      }
+
+      const rejected = await rateLimitService.rateLimitRequest(
+        asScope(scope),
+        testCase.resource,
+      );
+
+      expect(rejected?.res?.consumedPoints).toBe(testCase.points + 1);
+      expect(rejected?.res?.remainingPoints).toBe(0);
+      expect(rejected?.isRateLimited()).toBe(true);
+    }
+  });
+
+  it("should admit exactly N concurrent requests and reject the rest", async () => {
+    const points = 5;
+    const extraRequests = 4;
+    const scope = {
+      orgId: orgId,
+      plan: "cloud:hobby" as const,
+      projectId,
+      accessLevel: "project" as const,
+      rateLimitOverrides: [
+        { resource: "public-api-legacy" as const, points, durationInSec: 60 },
+      ],
+    };
+
+    const rateLimitService = RateLimitService.getInstance(redis as Redis);
+
+    const results = await Promise.all(
+      Array.from({ length: points + extraRequests }, () =>
+        rateLimitService.rateLimitRequest(asScope(scope), "public-api-legacy"),
+      ),
+    );
+
+    const allowed = results.filter(
+      (result) => result?.isRateLimited() === false,
+    );
+    const rejected = results.filter(
+      (result) => result?.isRateLimited() === true,
+    );
+
+    expect(allowed).toHaveLength(points);
+    expect(rejected).toHaveLength(extraRequests);
+
+    // Redis's atomic increment must still hand out unique, sequential
+    // consumedPoints values under concurrency.
+    const consumedPointsSeen = results
+      .map((result) => result?.res?.consumedPoints)
+      .filter((value): value is number => typeof value === "number")
+      .toSorted((a, b) => a - b);
+    expect(consumedPointsSeen).toEqual(
+      Array.from({ length: points + extraRequests }, (_, i) => i + 1),
+    );
+  });
+
+  it("should admit requests again once the window has actually expired", async () => {
+    const points = 2;
+    const durationInSec = 1;
+    const scope = {
+      orgId: orgId,
+      plan: "cloud:hobby" as const,
+      projectId,
+      accessLevel: "project" as const,
+      rateLimitOverrides: [
+        { resource: "public-api-legacy" as const, points, durationInSec },
+      ],
+    };
+
+    const rateLimitService = RateLimitService.getInstance(redis as Redis);
+
+    for (let i = 1; i <= points; i++) {
+      const result = await rateLimitService.rateLimitRequest(
+        asScope(scope),
+        "public-api-legacy",
+      );
+      expect(result?.isRateLimited()).toBe(false);
+    }
+
+    const rejected = await rateLimitService.rateLimitRequest(
+      asScope(scope),
+      "public-api-legacy",
+    );
+    expect(rejected?.isRateLimited()).toBe(true);
+
+    // Wait for the real Redis TTL to expire rather than deleting the key,
+    // so this exercises the actual window-expiry behavior.
+    await new Promise((resolve) =>
+      setTimeout(resolve, (durationInSec + 1) * 1000),
+    );
+
+    const afterExpiry = await rateLimitService.rateLimitRequest(
+      asScope(scope),
+      "public-api-legacy",
+    );
+
+    expect(afterExpiry?.res).toEqual({
+      scope: scope,
+      resource: "public-api-legacy",
+      points,
+      remainingPoints: points - 1,
+      msBeforeNext: expect.any(Number),
+      consumedPoints: 1,
+      isFirstInDuration: true,
+    });
+    expect(afterExpiry?.isRateLimited()).toBe(false);
+  }, 10_000);
+
+  it("should share the public-api-legacy bucket across legacy routes within an org, and isolate it between organizations", async () => {
+    const otherOrgId = `rate-limit-test-org-${randomUUID()}`;
+    const otherOrgPattern = `${RATE_LIMIT_REDIS_KEY_PREFIX}:*:${otherOrgId}`;
+
+    try {
+      const points = 3;
+      const makeScope = (org: string) => ({
+        orgId: org,
+        plan: "cloud:hobby" as const,
+        projectId,
+        accessLevel: "project" as const,
+        rateLimitOverrides: [
+          {
+            resource: "public-api-legacy" as const,
+            points,
+            durationInSec: 60,
+          },
+        ],
+      });
+
+      const rateLimitService = RateLimitService.getInstance(redis as Redis);
+
+      // Legacy trace, observation, and session reads all call
+      // checkRateLimit with the same "public-api-legacy" resource, so they
+      // share one organization-level bucket regardless of which legacy
+      // route issued the call. There is no per-route key to isolate here.
+      const traceRead = await rateLimitService.rateLimitRequest(
+        asScope(makeScope(orgId)),
+        "public-api-legacy",
+      );
+      const observationRead = await rateLimitService.rateLimitRequest(
+        asScope(makeScope(orgId)),
+        "public-api-legacy",
+      );
+      const sessionRead = await rateLimitService.rateLimitRequest(
+        asScope(makeScope(orgId)),
+        "public-api-legacy",
+      );
+
+      expect(traceRead?.res?.consumedPoints).toBe(1);
+      expect(observationRead?.res?.consumedPoints).toBe(2);
+      expect(sessionRead?.res?.consumedPoints).toBe(3);
+      expect(sessionRead?.isRateLimited()).toBe(false);
+
+      // The organization's shared bucket is now exhausted...
+      const exhausted = await rateLimitService.rateLimitRequest(
+        asScope(makeScope(orgId)),
+        "public-api-legacy",
+      );
+      expect(exhausted?.isRateLimited()).toBe(true);
+
+      // ...but a different organization has its own, unaffected bucket.
+      const otherOrgRead = await rateLimitService.rateLimitRequest(
+        asScope(makeScope(otherOrgId)),
+        "public-api-legacy",
+      );
+      expect(otherOrgRead?.res?.consumedPoints).toBe(1);
+      expect(otherOrgRead?.isRateLimited()).toBe(false);
+    } finally {
+      await clearRedisKeysByPatternSafely(redis, otherOrgPattern);
+    }
+  });
+
+  it("should key a custom public-api-legacy override by its own duration, separate from the plan-default and any leftover hourly counter", async () => {
+    const overridePoints = 2;
+    const overrideDurationInSec = 5;
+
+    const overrideScope = {
+      orgId: orgId,
+      plan: "cloud:hobby" as const,
+      projectId,
+      accessLevel: "project" as const,
+      rateLimitOverrides: [
+        {
+          resource: "public-api-legacy" as const,
+          points: overridePoints,
+          durationInSec: overrideDurationInSec,
+        },
+      ],
+    };
+    const defaultScope = { ...overrideScope, rateLimitOverrides: [] };
+
+    // A leftover key from a pod still running the previous release's hourly
+    // window; neither the override nor the plan default should touch it.
+    const previousReleaseHourlyKey = `${RATE_LIMIT_REDIS_KEY_PREFIX}:public-api-legacy:3600:${orgId}`;
+    await redis.set(previousReleaseHourlyKey, "999", "EX", 3600);
+
+    const rateLimitService = RateLimitService.getInstance(redis as Redis);
+
+    for (let i = 0; i < overridePoints; i++) {
+      await rateLimitService.rateLimitRequest(
+        asScope(overrideScope),
+        "public-api-legacy",
+      );
+    }
+    const overrideRejected = await rateLimitService.rateLimitRequest(
+      asScope(overrideScope),
+      "public-api-legacy",
+    );
+    expect(overrideRejected?.isRateLimited()).toBe(true);
+
+    // The plan-default (60s) counter for the same org/resource lives at a
+    // different, duration-qualified Redis key, so it is untouched by the
+    // override's consumption.
+    const defaultResult = await rateLimitService.rateLimitRequest(
+      asScope(defaultScope),
+      "public-api-legacy",
+    );
+    expect(defaultResult?.res).toEqual({
+      scope: defaultScope,
+      resource: "public-api-legacy",
+      points: 2, // cloud:hobby default
+      remainingPoints: 1,
+      msBeforeNext: expect.any(Number),
+      consumedPoints: 1,
+      isFirstInDuration: true,
+    });
+    expect(defaultResult?.isRateLimited()).toBe(false);
+
+    const overrideKey = `${RATE_LIMIT_REDIS_KEY_PREFIX}:public-api-legacy:${overrideDurationInSec}:${orgId}`;
+    const defaultKey = `${RATE_LIMIT_REDIS_KEY_PREFIX}:public-api-legacy:60:${orgId}`;
+
+    const overrideTtl = await redis.ttl(overrideKey);
+    const defaultTtl = await redis.ttl(defaultKey);
+
+    expect(overrideTtl).toBeGreaterThan(0);
+    expect(overrideTtl).toBeLessThanOrEqual(overrideDurationInSec);
+    expect(defaultTtl).toBeGreaterThan(0);
+    expect(defaultTtl).toBeLessThanOrEqual(60);
+
+    // The simulated leftover hourly counter is still untouched.
+    const previousReleaseValue = await redis.get(previousReleaseHourlyKey);
+    expect(previousReleaseValue).toBe("999");
   });
 
   it("should apply public-api-v2-metrics rate limits by cloud plan", async () => {

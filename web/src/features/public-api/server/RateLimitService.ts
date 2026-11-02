@@ -130,8 +130,12 @@ export class RateLimitService {
       points: effectiveConfig.points, // Number of points
       duration: effectiveConfig.durationInSec, // Per second(s)
 
-      // Legacy reads include the window so a 60s config and a 3600s config
-      // do not increment the same counter.
+      // Legacy reads key the window into the Redis key so a 60s config and a
+      // 3600s config never share a counter. During a mixed-version rollout of
+      // this resource's duration (e.g. some pods still enforcing the previous
+      // 3600s window while others enforce the current 60s window), each
+      // duration keeps its own independent quota until the rollout
+      // completes; this divergence is expected and temporary.
       keyPrefix:
         resource === "public-api-legacy"
           ? `${this.rateLimitPrefix(resource)}:${effectiveConfig.durationInSec}`
@@ -352,8 +356,8 @@ const getPlanBasedRateLimitConfig = (
         case "public-api-legacy":
           return {
             resource: "public-api-legacy",
-            points: 150,
-            durationInSec: 3600, // 150 requests per hour
+            points: 2,
+            durationInSec: 60, // 2 requests per minute (nominal 120/hour)
           };
         case "datasets":
           return {
@@ -453,8 +457,8 @@ const getPlanBasedRateLimitConfig = (
         case "public-api-legacy":
           return {
             resource: "public-api-legacy",
-            points: 450,
-            durationInSec: 3600, // 450 requests per hour
+            points: 7,
+            durationInSec: 60, // 7 requests per minute (nominal 420/hour)
           };
         case "datasets":
           return {
@@ -554,8 +558,8 @@ const getPlanBasedRateLimitConfig = (
         case "public-api-legacy":
           return {
             resource: "public-api-legacy",
-            points: 1_200,
-            durationInSec: 3600, // 1,200 requests per hour
+            points: 20,
+            durationInSec: 60, // 20 requests per minute (nominal 1,200/hour)
           };
         case "datasets":
           return {
