@@ -30,13 +30,17 @@ export function useV4MigrationBannerState(enabled: boolean) {
     organizations,
     enabled: enabled && organizations.length > 0,
   });
-  const statuses = Array.from(migrationStatusByProjectId.values());
+  const readiness = Array.from(
+    migrationStatusByProjectId.values(),
+    getProjectMigrationReadiness,
+  );
 
   return {
-    projectsNeedingMigration: statuses.filter(
-      (status) => getProjectMigrationReadiness(status) === "action-needed",
+    projectsNeedingMigration: readiness.filter(
+      (value) => value === "action-needed",
     ).length,
-    totalProjects: statuses.length,
+    totalProjects: readiness.length,
+    isChecking: enabled && readiness.includes("checking"),
   };
 }
 

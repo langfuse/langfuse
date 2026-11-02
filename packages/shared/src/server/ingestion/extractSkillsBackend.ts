@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import {
   MAX_SKILLS_PER_OBSERVATION,
   SkillsAvailableInputSchema,

@@ -1,0 +1,143 @@
+name: Build nodejs RPM
+
+# TEMPORARY(node-24.22.1-security): builds Red Hat's nodejs:24 RPMs with fixes
+# from Node 24.22.1 (scripts/docker/nodejs-rpm/) and publishes them as a multi-arch image for
+# web/Dockerfile and worker/Dockerfile. Delete together with that directory.
+#
+# Pull requests build and verify without publishing. Pushes to main and manual
+# runs publish ghcr.io/langfuse/langfuse-nodejs-rpm; pin the digest from the
+# job summary in both Dockerfiles' NODEJS_RPM_IMAGE.
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - scripts/docker/nodejs-rpm/**
+      - .github/workflows/nodejs-rpm.yml
+  push:
+    branches:
+      - main
+    paths:
+      - scripts/docker/nodejs-rpm/**
+      - .github/workflows/nodejs-rpm.yml
+
+permissions: {}
+
+concurrency:
+  group: nodejs-rpm-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  IMAGE: ghcr.io/langfuse/langfuse-nodejs-rpm
+  TAG: 24.21.0-1.lf1
+
+jobs:
+  build:
+    name: build (${{ matrix.platform_tag }})
+    # A cold build compiles Node and V8 and runs the spec's %check suite.
+    timeout-minutes: 240
+    runs-on: ${{ matrix.runner }}
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: linux/amd64
+            platform_tag: amd64
+            runner: blacksmith-32vcpu-ubuntu-2404
+          - platform: linux/arm64
+            platform_tag: arm64
+            runner: blacksmith-32vcpu-ubuntu-2404-arm
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Log in to the GitHub Container registry
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Setup Blacksmith Builder
+        uses: useblacksmith/setup-docker-builder@1e75355f81cbb3f93cba1eb5dd5e5b05110ca8f9 # v2.0.1
+        with:
+          cache-key: langfuse/nodejs-rpm-${{ matrix.platform_tag }}
+      - name: Build, verify and push by digest (${{ matrix.platform_tag }})
+        id: build
+        uses: useblacksmith/build-push-action@fb9e3e6a9299c78462bfadd0d93352c316adc9b8 # v2.2.0
+        with:
+          context: scripts/docker/nodejs-rpm
+          platforms: ${{ matrix.platform }}
+          # ~1.5 GB RAM per compile job; leaves headroom on 32 vCPU / 64 GB.
+          build-args: |
+            NODE_BUILD_JOBS=24
+          outputs: ${{ github.event_name == 'pull_request' && 'type=cacheonly' || format('type=image,name={0},push-by-digest=true,name-canonical=true,push=true', env.IMAGE) }}
+          provenance: false
+          sbom: false
+      - name: Record pushed digest
+        if: github.event_name != 'pull_request'
+        env:
+          DIGEST: ${{ steps.build.outputs.digest }}
+          PLATFORM_TAG: ${{ matrix.platform_tag }}
+        run: |
+          if [ -z "$DIGEST" ]; then
+            echo "Missing digest output" >&2
+            exit 1
+          fi
+          mkdir -p "$RUNNER_TEMP/digests"
+          echo "$DIGEST" > "$RUNNER_TEMP/digests/${PLATFORM_TAG}.txt"
+      - name: Upload digest
+        if: github.event_name != 'pull_request'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: nodejs-rpm-digest-${{ matrix.platform_tag }}
+          path: ${{ runner.temp }}/digests/${{ matrix.platform_tag }}.txt
+          if-no-files-found: error
+          retention-days: 7
+
+  publish:
+    needs: build
+    if: github.event_name != 'pull_request'
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Log in to the GitHub Container registry
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Download digests
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: nodejs-rpm-digest-*
+          merge-multiple: true
+          path: ${{ runner.temp }}/digests
+      - name: Publish multi-platform manifest
+        run: |
+          sources=()
+          for digest_file in "$RUNNER_TEMP"/digests/*.txt; do
+            sources+=("${IMAGE}@$(cat "$digest_file")")
+          done
+          if [ "${#sources[@]}" -ne 2 ]; then
+            echo "Expected amd64 and arm64 digests, got ${#sources[@]}" >&2
+            exit 1
+          fi
+          docker buildx imagetools create -t "${IMAGE}:${TAG}" "${sources[@]}"
+          digest="$(docker buildx imagetools inspect "${IMAGE}:${TAG}" --format '{{json .Manifest}}' | jq -r .digest)"
+          {
+            echo "## nodejs RPM image"
+            echo
+            echo "Pin in web/Dockerfile and worker/Dockerfile:"
+            echo
+            echo '```dockerfile'
+            echo "ARG NODEJS_RPM_IMAGE=${IMAGE}:${TAG}@${digest}"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"

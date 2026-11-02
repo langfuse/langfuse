@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 /**
  * Soft-delete filtering. Always-on: every compile walks this pass.
  *

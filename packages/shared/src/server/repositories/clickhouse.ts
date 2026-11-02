@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { type Readable } from "stream";
 import { env } from "../../env";
 import {

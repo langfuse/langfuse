@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import type { ClickhouseOperator } from "./clickhouse-filter";
 
 // events_core_mv truncates each metadata_values element (and input/output) to

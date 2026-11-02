@@ -123,6 +123,8 @@ impl ProviderTransport {
             // provider generates before sending headers. The relay bounds stalls instead.
             .connect_timeout(Duration::from_secs(5))
             .pool_max_idle_per_host(16)
+            // reqwest's http2 feature is for Web-bound clients (resolver, telemetry); provider calls stay on HTTP/1.1.
+            .http1_only()
             .build()
             .map_err(|_| ProviderError::Configuration)?;
         Ok(Self {

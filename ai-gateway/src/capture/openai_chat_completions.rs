@@ -355,7 +355,6 @@ impl OpenAiChatCompletionsCapture {
             .as_ref()
             .and_then(Value::as_str)
             .and_then(bounded_string);
-        self.facts.model.clone_from(&self.facts.requested_model);
         for key in SCALAR_PARAMETERS {
             if let Some(value) = request.remove(key).filter(|v| {
                 self.mode == IngestionMode::Full

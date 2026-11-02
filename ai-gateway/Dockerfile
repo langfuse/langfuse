@@ -2,9 +2,9 @@
 # The gateway is not FIPS 140-3 validated. It serves plain HTTP, but its
 # outbound HTTPS (provider APIs, OTLP export) uses rustls with the aws-lc-rs
 # backend, statically linked in its non-FIPS build. The binary links no system
-# libcrypto, so the OpenSSL FIPS provider in the runtime image does not cover
-# it. Validated TLS would need aws-lc-rs's `fips` feature or an OpenSSL-backed
-# client.
+# libcrypto, and the runtime image ships no OpenSSL. Validated TLS would need
+# aws-lc-rs's `fips` feature or an OpenSSL-backed client (which would also need
+# openssl-libs added back to the runtime packages).
 # The defaults are Red Hat's public UBI9 images, so the build needs no
 # credentials. Iron Bank serves the same content from an authenticated registry
 # with DoD provenance and scan attestations. Release builds opt in by overriding
@@ -105,15 +105,16 @@ RUN cargo about generate --frozen --fail about.hbs -o THIRD_PARTY_LICENSES.txt
 FROM --platform=${TARGETPLATFORM:-linux/amd64} ${BASE_IMAGE} AS rpm-installer
 
 # glibc and libgcc are the binary's dynamic dependencies (libgcc_s for panics).
-# openssl-libs ships the OpenSSL FIPS provider module and crypto-policies the
-# system policy it reads; the gateway binary links neither today, they are
-# there for an OpenSSL-backed client. ca-certificates is the trust store rustls
-# reads for outbound TLS. wget serves the ECS container health command
+# ca-certificates is the trust store rustls reads for outbound TLS. wget serves
+# the ECS container health command
 # (`sh -c 'wget -qO /dev/null http://localhost:8080/health'`, exercised by
-# scripts/smoke-image.sh); ubi9-micro already provides the shell.
+# scripts/smoke-image.sh); ubi9-micro already provides the shell. crypto-policies
+# is the system policy wget's GnuTLS reads. coreutils-single satisfies the
+# packages' `coreutils` requirement, which dnf would otherwise resolve to the
+# much larger full coreutils (same pin as worker/Dockerfile).
 RUN dnf -y --installroot /mnt/rootfs --releasever 9 --setopt=install_weak_deps=0 \
     --setopt=tsflags=nodocs --disableexcludes=all \
-    install glibc libgcc ca-certificates crypto-policies openssl-libs wget && \
+    install glibc libgcc coreutils-single ca-certificates crypto-policies wget && \
     dnf --installroot /mnt/rootfs clean all && \
     rm -rf /mnt/rootfs/var/cache /mnt/rootfs/var/log/dnf*
 

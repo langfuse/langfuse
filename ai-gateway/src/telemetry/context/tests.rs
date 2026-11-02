@@ -613,3 +613,48 @@ fn python_string_parser_accepts_escapes_but_no_expressions() {
         assert!(parse_tags(invalid).is_none(), "{invalid}");
     }
 }
+
+#[test]
+fn user_agent_is_kept_raw_and_bounded_even_when_trace_headers_are_rejected() {
+    let mut headers = HeaderMap::new();
+    headers.insert("user-agent", " Codex_CLI_rs/0.1 (Mac OS) ".parse().unwrap());
+    assert_eq!(
+        GenerationContext::from_headers(&headers)
+            .user_agent
+            .as_deref(),
+        Some("Codex_CLI_rs/0.1 (Mac OS)")
+    );
+
+    headers.insert(
+        "user-agent",
+        HeaderValue::from_str(&"a".repeat(MAX_USER_AGENT_BYTES + 10)).unwrap(),
+    );
+    headers.insert(
+        "baggage",
+        HeaderValue::from_str(&"a".repeat(MAX_HEADER_BYTES + 1)).unwrap(),
+    );
+    assert_eq!(
+        GenerationContext::from_headers(&headers)
+            .user_agent
+            .map(|value| value.len()),
+        Some(MAX_USER_AGENT_BYTES)
+    );
+
+    for value in ["", "   ", "agent\tname"] {
+        let mut headers = HeaderMap::new();
+        headers.insert("user-agent", value.parse().unwrap());
+        assert!(
+            GenerationContext::from_headers(&headers)
+                .user_agent
+                .is_none()
+        );
+    }
+    let mut headers = HeaderMap::new();
+    headers.append("user-agent", "one".parse().unwrap());
+    headers.append("user-agent", "two".parse().unwrap());
+    assert!(
+        GenerationContext::from_headers(&headers)
+            .user_agent
+            .is_none()
+    );
+}

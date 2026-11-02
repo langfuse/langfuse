@@ -23,7 +23,10 @@ export function IngestionDialogController({
   projects,
   children,
 }: IngestionDialogControllerProps) {
-  const { saveIngestion, isSaving } = useSaveGatewayIngestion(organizationId);
+  const { saveIngestion, isSaving } = useSaveGatewayIngestion(
+    organizationId,
+    "overview",
+  );
 
   async function handleSave(settings: GatewayIngestionSettings) {
     const isSaved = await saveIngestion(settings);

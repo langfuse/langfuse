@@ -1,0 +1,28 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "types": [
+      "node",
+      "vitest/globals",
+      "vitest/importMeta",
+      "@testing-library/jest-dom"
+    ]
+  },
+  "exclude": ["node_modules", "sdk", "storybook-static"],
+  "include": [
+    "**/__tests__/**/*",
+    "**/__e2e__/**/*",
+    "**/*.test.*",
+    "**/*.spec.*",
+    "**/*.clienttest.*",
+    "**/*.servertest.*",
+    "**/*.story.*",
+    "**/*.stories.*",
+    ".storybook/**/*",
+    "vitest.config.mts",
+    "playwright.config.ts",
+    "next-env.d.ts",
+    "types/**/*.d.ts",
+    "src/**/*.d.ts"
+  ]
+}

@@ -690,6 +690,25 @@ describe("Slack Integration", () => {
           caller.slack.disconnect({ projectId: project.id }),
         ).rejects.toThrow("Slack integration not found");
       });
+
+      it("should reject MEMBER, who may not manage integrations", async () => {
+        const { caller, project } = await prepare({
+          projectRole: "MEMBER",
+          admin: false,
+        });
+        await createIntegration(project.id, null);
+        mockSlackService.deleteIntegration.mockClear();
+
+        await expect(
+          caller.slack.disconnect({ projectId: project.id }),
+        ).rejects.toMatchObject({ code: "FORBIDDEN" });
+        expect(mockSlackService.deleteIntegration).not.toHaveBeenCalled();
+        expect(
+          await prisma.slackIntegration.findUnique({
+            where: { projectId: project.id },
+          }),
+        ).not.toBeNull();
+      });
     });
   });
 

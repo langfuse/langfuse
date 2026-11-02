@@ -4132,19 +4132,19 @@ export const capturedTraceFixtures: NormalizedIOFixture[] = [
       output:
         '[{"content":[],"encrypted_content":"anonymized-encrypted-reasoning","id":"rs_01989159bdac1f03016aaac3e381b887d2ab6730f292a7a587","summary":[{"text":"**Inspecting the implementation**\\n\\nI will search the sample project for the retry decorator and its tests, then explain how it handles failed calls.","type":"summary_text"}],"type":"reasoning"},{"arguments":"{\\"command\\":\\"rg -n \\\\\\"def retry|retry\\\\\\" example_sdk tests/unit | head -80\\",\\"timeout\\":10}","call_id":"call_0mE4wfJ7mEy41Nj9HfXjidem","id":"fc_01989159bdac1f03016aaac3e49de487d29427a84b52330077","name":"bash","status":"completed","type":"function_call"}]',
       metadata: {
-        "langfuse.gateway.provider.response_id":
+        "langfuse.gateway.upstream.response.id":
           "resp_01989159bdac1f03016aaac3e2b53887d2bf05419f5a5c9409",
-        "langfuse.gateway.provider.request_id":
+        "langfuse.gateway.upstream.request.id":
           "req_3bc6e7143cb747cc80876011ee0ac473",
-        "langfuse.gateway.provider.request.prompt_cache_key":
+        "langfuse.gateway.client.request.prompt_cache_key":
           "01a0ab0a-84b2-7775-866d-e0a8ddf0e3b8",
-        "langfuse.gateway.provider.connection_id": "cmu3uqinh0004ad0ld88jrfe9",
-        "langfuse.gateway.project_id": "cmtvtpilr0004ad0lxphzbd5i",
-        "langfuse.gateway.organization_id": "cmtvmaywg0000ad0ly0x9tono",
-        "langfuse.gateway.ingestion_mode": "full",
-        "langfuse.gateway.api_format": "openai.responses",
-        "langfuse.gateway.api-key.id": "cmu3uqwsb0007ad0lwaua4ezv",
-        http_status: 200,
+        "langfuse.gateway.connection.id": "cmu3uqinh0004ad0ld88jrfe9",
+        "langfuse.gateway.connection.provider": "openai",
+        "langfuse.gateway.organization.id": "cmtvmaywg0000ad0ly0x9tono",
+        "langfuse.gateway.ingestion.mode": "full",
+        "langfuse.gateway.request.api_format": "openai.responses",
+        "langfuse.gateway.api_key.id": "cmu3uqwsb0007ad0lwaua4ezv",
+        "langfuse.gateway.response.status_code": 200,
         "scope.version": "0.1.0",
         "scope.name": "langfuse-ai-gateway",
         "resourceAttributes.service.name": "langfuse-ai-gateway",

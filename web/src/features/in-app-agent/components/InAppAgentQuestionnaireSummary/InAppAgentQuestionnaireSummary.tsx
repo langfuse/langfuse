@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import type { InAppAgentQuestionnaireResult } from "@langfuse/shared/in-app-agent";
 
 export type InAppAgentQuestionnaireSummaryProps = {

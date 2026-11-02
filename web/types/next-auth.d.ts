@@ -38,6 +38,7 @@ declare module "next-auth" {
             id: PrismaOrganization["id"];
             name: PrismaOrganization["name"];
             role: Role;
+            supportAccess?: boolean; // granted through a ConductorOne support access request, not a real membership
             cloudConfig: CloudConfigSchema | undefined;
             plan: Plan;
             metadata: Record<string, unknown>;

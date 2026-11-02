@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { jsonSchema } from "../utils/zod";
+import { SkillVersionSchema } from "../features/skills/types";
 import { EventActionSchema } from "./automations";
 
 export const WebhookContentTypeHeader = "content-type";
@@ -54,9 +55,20 @@ export const PromptWebhookOutboundSchema = z
 
 export type PromptWebhookOutput = z.infer<typeof PromptWebhookOutboundSchema>;
 
+export const SkillWebhookOutboundSchema = WebhookOutboundBaseSchema.extend({
+  type: z.literal("skill-version"),
+  skill: SkillVersionSchema,
+  user: z
+    .object({ name: z.string().nullable(), email: z.string().nullable() })
+    .optional(),
+});
+
 export const GitHubDispatchWebhookOutboundSchema = z.object({
   event_type: z.string(),
-  client_payload: PromptWebhookOutboundSchema,
+  client_payload: z.union([
+    PromptWebhookOutboundSchema,
+    SkillWebhookOutboundSchema,
+  ]),
 });
 
 export type GitHubDispatchWebhookOutput = z.infer<

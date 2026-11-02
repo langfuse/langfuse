@@ -5,7 +5,7 @@ import {
 import { prisma } from "@langfuse/shared/src/db";
 import { z } from "zod";
 import { randomUUID } from "crypto";
-import { Role } from "@langfuse/shared";
+import { ForbiddenError, Role } from "@langfuse/shared";
 import projectMembershipRoute from "@/src/pages/api/public/projects/[projectId]/memberships";
 import { env } from "@/src/env.mjs";
 import { createMocks } from "node-mocks-http";
@@ -959,6 +959,66 @@ describe("Organization membership safeguards", () => {
         expect(await keyExists(key.id)).toBe(kept);
       },
     );
+  });
+
+  describe("AI_GATEWAY role", () => {
+    const originalGatewayAvailability = {
+      NODE_ENV: env.NODE_ENV,
+      LANGFUSE_AI_GATEWAY_ENABLED: env.LANGFUSE_AI_GATEWAY_ENABLED,
+      NEXT_PUBLIC_PREVIEW_PR_URL: env.NEXT_PUBLIC_PREVIEW_PR_URL,
+      LANGFUSE_AI_GATEWAY_ORGANIZATION_ID_ALLOWLIST:
+        env.LANGFUSE_AI_GATEWAY_ORGANIZATION_ID_ALLOWLIST,
+    };
+    const putRole = async (role: Role) => {
+      const { req, res } = createMocks<NextApiRequest, NextApiResponse>({
+        method: "PUT",
+        body: { userId: memberId, role },
+      });
+      await handleUpdateMembership(req, res, orgId, apiKeyId, ownerContext);
+      return res.statusCode;
+    };
+
+    // Only the org allowlist enables the gateway in these tests.
+    beforeEach(() => {
+      Object.assign(env, {
+        NODE_ENV: "test",
+        LANGFUSE_AI_GATEWAY_ENABLED: "false",
+        NEXT_PUBLIC_PREVIEW_PR_URL: undefined,
+        LANGFUSE_AI_GATEWAY_ORGANIZATION_ID_ALLOWLIST: [],
+      });
+    });
+
+    afterEach(() => {
+      Object.assign(env, originalGatewayAvailability);
+    });
+
+    it("rejects setting AI_GATEWAY while the AI Gateway is off", async () => {
+      await expect(putRole(Role.AI_GATEWAY)).rejects.toThrow(ForbiddenError);
+
+      expect((await membership(memberId))?.role).toBe(Role.MEMBER);
+      expect(await logs()).toEqual([]);
+    });
+
+    it("keeps an existing AI_GATEWAY member re-sent while the AI Gateway is off", async () => {
+      await prisma.organizationMembership.update({
+        where: { orgId_userId: { orgId, userId: memberId } },
+        data: { role: Role.AI_GATEWAY },
+      });
+
+      expect(await putRole(Role.AI_GATEWAY)).toBe(200);
+
+      expect((await membership(memberId))?.role).toBe(Role.AI_GATEWAY);
+    });
+
+    it("sets AI_GATEWAY while the AI Gateway is on for the org", async () => {
+      Object.assign(env, {
+        LANGFUSE_AI_GATEWAY_ORGANIZATION_ID_ALLOWLIST: [orgId],
+      });
+
+      expect(await putRole(Role.AI_GATEWAY)).toBe(200);
+
+      expect((await membership(memberId))?.role).toBe(Role.AI_GATEWAY);
+    });
   });
 });
 
