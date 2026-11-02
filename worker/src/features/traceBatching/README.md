@@ -14,13 +14,13 @@ Topics feature/project gates. Ingestion matches and samples rules, then atomical
 records activity under `{trace-dispatch:<shard>}`, keyed by `[projectId, traceId]`.
 These maps are not consumed yet.
 
-| Map | Contents | Retention |
-| --- | --- | --- |
-| `bounds:<hour>` | `{ minStart, maxStart, serializedEventBytes? }`, including nonmatches. | First-arrival bucket expires after 24–25 hours; updates do not extend it. |
-| `record` | Only `{ revision, rules, failed_cnt }`; rule IDs are deduplicated. | Two hours past due. |
-| `due` | Selected traces ordered by Redis arrival time plus project idle interval. | Two hours past due. |
+| Map             | Contents                                                                  | Retention                                                                 |
+| --------------- | ------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
+| `bounds:<hour>` | `{ minStart, maxStart, serializedEventBytes? }`, including nonmatches.    | First-arrival bucket expires after 24–25 hours; updates do not extend it. |
+| `record`        | Only `{ revision, rules, failed_cnt }`; rule IDs are deduplicated.        | Two hours past due.                                                       |
+| `due`           | Selected traces ordered by Redis arrival time plus project idle interval. | Two hours past due.                                                       |
 
-Bucket TTL works on Redis 7.2; hash-field TTL requires 7.4+. After bounds expire,
+After bounds expire,
 new arrivals start fresh and discard old selections; consumers must handle missing
 bounds. Recording and dispatcher passes clean pending entries in batches of 100;
 key TTLs reclaim inactive maps.
