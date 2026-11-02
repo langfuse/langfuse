@@ -1,7 +1,8 @@
+import { getCapturingGatewayIngestionModes } from "@/src/features/ai-gateway/fns/gatewayIngestionModePolicy";
 import {
-  getCapturingGatewayIngestionModes,
-  getGatewayIngestionProjectDeletionMessage,
-} from "@/src/features/ai-gateway/fns/gatewayIngestionModePolicy";
+  clearGatewayIngestionProject,
+  invalidateGatewayResolveCacheForOrganization,
+} from "@/src/features/ai-gateway/server";
 import {
   createTRPCRouter,
   protectedOrganizationProcedure,
@@ -28,7 +29,7 @@ import {
 import { transferRoleAssignments } from "@langfuse/shared/rbac/server";
 import { reconcileTopicsConnectionsForProject } from "@langfuse/shared/topics/server";
 import { randomUUID } from "crypto";
-import { LangfuseConflictError, StringNoHTMLNonEmpty } from "@langfuse/shared";
+import { StringNoHTMLNonEmpty } from "@langfuse/shared";
 import type { PrismaClient } from "@langfuse/shared/src/db";
 import { buildAdminOrgContext } from "@/src/features/organizations/server";
 import { emitChbProjectEvent } from "@/src/ee/features/billing/server";
@@ -216,11 +217,18 @@ export const projectsRouter = createTRPCRouter({
         projectId: ctx.session.projectId,
         scope: "project:delete",
       });
-      await throwIfGatewayIngestionProject({
+      const isGatewayIngestion = await isGatewayIngestionProject({
         prisma: ctx.prisma,
         organizationId: ctx.session.orgId,
         projectId: input.projectId,
       });
+      if (isGatewayIngestion) {
+        throwIfNoOrganizationAccess({
+          session: ctx.session,
+          organizationId: ctx.session.orgId,
+          scope: "gateway:manage",
+        });
+      }
 
       // API keys need to be deleted from cache. Otherwise, they will still be valid.
       await new ApiAuthService(
@@ -236,15 +244,28 @@ export const projectsRouter = createTRPCRouter({
         },
       });
 
-      const project = await ctx.prisma.project.update({
-        where: {
-          id: input.projectId,
-          orgId: ctx.session.orgId,
-        },
-        data: {
-          deletedAt: new Date(),
-        },
+      const project = await ctx.prisma.$transaction(async (tx) => {
+        if (isGatewayIngestion) {
+          await clearGatewayIngestionProject({
+            tx,
+            organizationId: ctx.session.orgId,
+            projectId: input.projectId,
+            session: ctx.session,
+          });
+        }
+        return tx.project.update({
+          where: {
+            id: input.projectId,
+            orgId: ctx.session.orgId,
+          },
+          data: {
+            deletedAt: new Date(),
+          },
+        });
       });
+      if (isGatewayIngestion) {
+        await invalidateGatewayResolveCacheForOrganization(ctx.session.orgId);
+      }
 
       await auditLog({
         session: ctx.session,
@@ -425,16 +446,4 @@ async function isGatewayIngestionProject(params: {
     select: { organizationId: true },
   });
   return config !== null;
-}
-
-async function throwIfGatewayIngestionProject(params: {
-  prisma: PrismaClient;
-  organizationId: string;
-  projectId: string;
-}) {
-  if (await isGatewayIngestionProject(params)) {
-    throw new LangfuseConflictError(
-      getGatewayIngestionProjectDeletionMessage(),
-    );
-  }
 }
