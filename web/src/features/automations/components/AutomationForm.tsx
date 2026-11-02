@@ -54,7 +54,6 @@ import { useLangfuseCloudRegion } from "@/src/features/organizations";
 import { useHasProjectAccess } from "@/src/features/rbac";
 import { ActionHandlerRegistry } from "./actions";
 import { actionTypeLabel } from "@/src/features/automations/actionTypeLabels";
-import { useAvailableActionTypes } from "@/src/features/automations/useAvailableActionTypes";
 import { webhookSchema } from "./actions/WebhookActionForm";
 import { Alert } from "@/src/components/design-system/Alert/Alert";
 import Link from "next/link";
@@ -417,9 +416,8 @@ export const AutomationForm = ({
     projectId,
     scope: "automations:CUD",
   });
-  const availableActionTypes = useAvailableActionTypes(
-    allowedActionTypes ?? ActionHandlerRegistry.getAllActionTypes(),
-  );
+  const availableActionTypes =
+    allowedActionTypes ?? ActionHandlerRegistry.getAllActionTypes();
 
   const utils = api.useUtils();
 
