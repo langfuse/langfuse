@@ -107,4 +107,43 @@ describe("postgresConnectionRetryExtension", () => {
     ).rejects.toThrow("Can't reach database server");
     expect(retryWarnings()).toHaveLength(0);
   });
+
+  it.each(["batch", "interactive"] as const)(
+    "does not retry reads inside %s transactions",
+    async (kind) => {
+      const error = unreachable();
+      const run = vi.fn().mockRejectedValue(error);
+      const failingClient = client.$extends({
+        query: {
+          project: {
+            findFirst: () => run(),
+          },
+        },
+      });
+
+      // Stub only transaction lifecycle calls; Prisma still supplies the real
+      // transaction metadata to the query extensions without needing Postgres.
+      const engine = (
+        base as unknown as {
+          _engine: { transaction: (action: string) => Promise<unknown> };
+        }
+      )._engine;
+      const transaction = vi
+        .spyOn(engine, "transaction")
+        .mockResolvedValue({ id: "connection-retry-test" });
+
+      try {
+        const result =
+          kind === "batch"
+            ? failingClient.$transaction([failingClient.project.findFirst()])
+            : failingClient.$transaction((tx) => tx.project.findFirst());
+
+        await expect(result).rejects.toBe(error);
+        expect(run).toHaveBeenCalledTimes(1);
+        expect(retryWarnings()).toHaveLength(0);
+      } finally {
+        transaction.mockRestore();
+      }
+    },
+  );
 });

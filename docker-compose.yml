@@ -145,7 +145,7 @@ services:
       LANGFUSE_IN_APP_AGENT_MAX_ACTIVE_RUNS_PER_ORG: ${LANGFUSE_IN_APP_AGENT_MAX_ACTIVE_RUNS_PER_ORG:-}
 
   clickhouse:
-    image: docker.io/clickhouse/clickhouse-server:25.12
+    image: docker.io/clickhouse/clickhouse-server:26.3.62.3
     restart: always
     user: "101:101"
     environment:

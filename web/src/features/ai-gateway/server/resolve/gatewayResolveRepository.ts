@@ -22,7 +22,13 @@ export class GatewayResolveRepository {
         userId: true,
         expiresAt: true,
         note: true,
-        user: { select: { name: true, email: true } },
+        user: {
+          select: {
+            name: true,
+            email: true,
+            organizationMemberships: { select: { orgId: true, role: true } },
+          },
+        },
         gatewayAssociation: { select: { metadata: true } },
         organization: {
           select: {

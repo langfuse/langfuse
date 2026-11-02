@@ -79,6 +79,11 @@ export type FormatMetricOptions = {
   unit?: string;
   style: "full" | "compact";
   maxCharacters?: number;
+  /**
+   * `"cents"` rounds USD to two decimals and shows non-zero values below one
+   * cent as `<$0.01`. By default values under $5 keep up to six decimals.
+   */
+  usdPrecision?: "cents";
 };
 
 export type MetricFormatterFunction = (

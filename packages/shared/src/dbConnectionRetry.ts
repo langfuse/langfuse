@@ -47,8 +47,7 @@ const isConnectionError = (error: unknown): boolean => {
 // Retries cover a Postgres restart (e.g. an Aurora minor-version upgrade or
 // failover), which refuses connections for one to two seconds.
 // Writes and raw queries are never retried: a dropped connection may already
-// have committed them, and a retried operation from a batch $transaction would
-// run outside that transaction.
+// have committed them.
 const isRetryable = (error: unknown, operation: string): boolean =>
   READ_OPERATIONS.has(operation) && isConnectionError(error);
 
@@ -79,7 +78,16 @@ export const withPostgresConnectionRetry = <T>(
 export const postgresConnectionRetryExtension = Prisma.defineExtension({
   name: "postgresConnectionRetry",
   query: {
-    $allOperations({ model, operation, args, query }) {
+    $allOperations(params) {
+      const { model, operation, args, query } = params;
+      // Prisma exposes transaction membership only through undocumented runtime
+      // metadata. Batch read retries can escape the transaction; interactive
+      // read retries cannot recover a transaction whose connection is gone.
+      const { __internalParams } = params as typeof params & {
+        __internalParams?: { transaction?: unknown };
+      };
+      if (__internalParams?.transaction !== undefined) return query(args);
+
       return withPostgresConnectionRetry({ model, operation }, () =>
         query(args),
       );
