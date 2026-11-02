@@ -3,7 +3,10 @@ export {
   withGatewayModelsSignatureVerification,
   withGatewayResolveSignatureVerification,
 } from "./auth";
-export { clearGatewayIngestionProject } from "./config/clearGatewayIngestionProject";
+export {
+  clearGatewayIngestionProject,
+  isGatewayIngestionProject,
+} from "./config/clearGatewayIngestionProject";
 export { gatewayModelsApiHandler } from "./provider/models/gatewayModelsApiHandler";
 export { gatewayResolveApiHandler } from "./resolve/gatewayResolveApiHandler";
 export {

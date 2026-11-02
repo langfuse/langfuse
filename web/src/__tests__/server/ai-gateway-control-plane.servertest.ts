@@ -2401,6 +2401,18 @@ describe("AI gateway control plane", () => {
     await expect(
       prisma.gatewayConfig.findUnique({ where: { organizationId: org.id } }),
     ).resolves.toMatchObject({ defaultIngestionProjectId: null });
+    // The org audit log only lists entries without a project.
+    await expect(
+      prisma.auditLog.findFirst({
+        where: {
+          orgId: org.id,
+          resourceType: "gatewayConfig",
+          action: "update",
+        },
+        select: { projectId: true },
+        orderBy: { createdAt: "desc" },
+      }),
+    ).resolves.toEqual({ projectId: null });
 
     // The project delete worker hard-deletes soft-deleted projects.
     await prisma.project.delete({ where: { id: project.id } });

@@ -1,7 +1,6 @@
-import {
-  getCapturingGatewayIngestionModes,
-  getGatewayIngestionProjectDeletionMessage,
-} from "@/src/features/ai-gateway/fns/gatewayIngestionModePolicy";
+import { isGatewayIngestionProject } from "@/src/features/ai-gateway/server";
+import { type AuthorizationContext } from "@/src/features/auth/policy/types";
+import { softDeleteProject } from "@/src/features/projects/server";
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { prisma } from "@langfuse/shared/src/db";
 import {
@@ -15,7 +14,11 @@ import { randomUUID } from "crypto";
 import { projectNameSchema } from "@/src/features/auth/lib/projectNameSchema";
 import { projectRetentionSchema } from "@/src/features/auth/lib/projectRetentionSchema";
 import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server";
-import { ApiAuthService } from "@/src/features/public-api/server";
+import {
+  ApiAuthService,
+  shadowAuthorize,
+  writeProjectError,
+} from "@/src/features/public-api/server";
 import { auditLog } from "@/src/features/audit-logs/server";
 import { emitChbProjectEvent } from "@/src/ee/features/billing/server";
 
@@ -122,21 +125,25 @@ export async function handleDeleteProject(
   res: NextApiResponse,
   projectId: string,
   scope: ApiAccessScope,
+  ctx?: AuthorizationContext,
 ) {
   try {
-    const gatewayConfig = await prisma.gatewayConfig.findFirst({
-      where: {
+    if (
+      await isGatewayIngestionProject({
+        prisma,
         organizationId: scope.orgId,
-        defaultIngestionProjectId: projectId,
-        // With ingestion NONE the project is only remembered, not written to.
-        ingestionMode: { in: getCapturingGatewayIngestionModes() },
-      },
-      select: { organizationId: true },
-    });
-    if (gatewayConfig) {
-      return res.status(409).json({
-        message: getGatewayIngestionProjectDeletionMessage(),
+        projectId,
+      })
+    ) {
+      const decision = shadowAuthorize({
+        ctx,
+        action: "gateway:manage",
+        resource: { orgId: scope.orgId },
+        legacyDecision: { success: true, scope },
       });
+      if (!decision.success) {
+        return writeProjectError(res, decision.error);
+      }
     }
 
     // API keys need to be deleted from cache. Otherwise, they will still be valid.
@@ -152,15 +159,11 @@ export async function handleDeleteProject(
       },
     });
 
-    // Mark project as deleted
-    const project = await prisma.project.update({
-      where: {
-        id: projectId,
-        orgId: scope.orgId,
-      },
-      data: {
-        deletedAt: new Date(),
-      },
+    const project = await softDeleteProject({
+      prisma,
+      organizationId: scope.orgId,
+      projectId,
+      actor: { apiKeyId: scope.apiKeyId, orgId: scope.orgId },
     });
 
     // Create audit log entry
