@@ -85,19 +85,16 @@
   previous generic text as a comparison, then renders Topics text and its block
   metrics. Token estimates run sequentially;
   tool-response size uses comparable character counts over message parts.
-  Allowlisted projects are then summarized from that assembled transcript.
-  Optional `src/features/traceBatching/storeInputs.ts` capture runs after Topics
-  eligibility/sampling, within the same concurrency limit, using the queued
-  revision. The queue creates `createTraceBatchInputStorage()` once and injects
-  its `TraceBatchInputStorage` object into `storeInputs`. Store
-  `{ transcript, traceContext }` using the same metadata selection
-  as Topics; preserve nullable session ID/name in storage and apply the Topics
-  name fallback only at its call site. The shared orchestration checks the latest
-  event's environment before capture or Topics; internal eval environments skip both.
-  `LANGFUSE_TRACE_BATCH_TRANSCRIPT_STORAGE_ENABLED` defaults off; each S3 upload
-  request is bounded by `LANGFUSE_TRACE_BATCH_TRANSCRIPT_STORAGE_REQUEST_TIMEOUT_MS`.
-  Oversized inputs and exhausted storage errors leave in-memory Topics running;
-  file-dependent consumers must require successful storage before scheduling.
+  For allowlisted projects, each trace sampled by at least one Topics rule has
+  its `{ transcript, executionIssues, traceContext }` stored with
+  `createTraceBatchInputStorage().put` under the queued revision, then one
+  `topics-trace-queue` job carries `{ projectId, traceId, revision, rules }`,
+  deduplicated per revision for the batch's lifetime. Trace-batch makes no
+  model calls; `src/features/topics/processTopicsTrace.ts` summarizes, embeds
+  and assigns. Storage is required: oversized inputs or failed uploads count
+  the trace as failed instead of enqueueing. Internal eval environments skip
+  both. Each S3 upload request is bounded by
+  `LANGFUSE_TRACE_BATCH_TRANSCRIPT_STORAGE_REQUEST_TIMEOUT_MS`.
   Allow one pending tokenization promise per batch while
   buffering completed traces behind the serial summary chain. Pause reads only
   above the configured queued-payload threshold, then resume as soon as completed

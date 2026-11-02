@@ -1,8 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { z } from "zod";
 import type { TopicFacet, TopicSummary } from "@langfuse/shared/topics";
 import { listTopicFacets } from "@langfuse/shared/topics/server";
 import { processTopicsTrace } from "./processTopicsTrace";
-import { summarizeTraceFacetVersions } from "./summarizeAssembledTrace";
+import { summarizeAssembledTrace } from "./summarizeAssembledTrace";
 import { getServingTopicRun } from "./servingRuns";
 import { signalTopicsDiscovery } from "./topicsAutomation";
 import {
@@ -38,7 +39,7 @@ vi.mock("../../services/ClickhouseWriter", () => ({
   },
 }));
 vi.mock("./summarizeAssembledTrace", () => ({
-  summarizeTraceFacetVersions: vi.fn(),
+  summarizeAssembledTrace: vi.fn(),
 }));
 vi.mock("./servingRuns", () => ({ getServingTopicRun: vi.fn() }));
 vi.mock("./topicsAutomation", () => ({ signalTopicsDiscovery: vi.fn() }));
@@ -78,18 +79,28 @@ const event = {
   projectId: "project",
   traceId: "trace",
   revision: "revision",
-  transcriptS3Key: "key",
-  facets: [
-    { facetId: "intent", version: 2 },
-    { facetId: "tone", version: 2 },
+  rules: [
+    {
+      ruleId: "rule",
+      facets: [
+        { facetId: "intent", version: 2 },
+        { facetId: "tone", version: 2 },
+      ],
+    },
   ],
 };
 
-const scheduleRetry = vi.fn(async () => true);
+const scheduleRetry = vi.fn(
+  async (): Promise<"scheduled" | "skipped" | "queue_unavailable"> =>
+    "scheduled",
+);
 
 describe("processTopicsTrace", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    // Expires the per-pod settings cache between tests.
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(Date.now() + 60_000);
     vi.mocked(listTopicFacets).mockResolvedValue([
       facet("intent", 2),
       facet("tone", 2),
@@ -106,23 +117,30 @@ describe("processTopicsTrace", () => {
     });
   });
 
-  it("summarizes current facet versions, assigns to the serving map, and signals discovery without one", async () => {
+  it("summarizes each current facet once across rules, assigns to the serving map, and signals discovery without one", async () => {
     vi.mocked(listTopicFacets).mockResolvedValue([
       facet("intent", 2),
       facet("tone", 3),
     ]);
-    vi.mocked(summarizeTraceFacetVersions).mockResolvedValue({
+    vi.mocked(summarizeAssembledTrace).mockResolvedValue({
       outcome: "summarized",
       rows: [row("intent", "complete")],
     });
     vi.mocked(getServingTopicRun).mockResolvedValueOnce(null);
+    const twoRules = {
+      ...event,
+      rules: [
+        ...event.rules,
+        { ruleId: "other", facets: [{ facetId: "intent", version: 2 }] },
+      ],
+    };
 
-    await expect(processTopicsTrace(event, { scheduleRetry })).resolves.toEqual(
-      { outcome: "summarized" },
-    );
-    expect(
-      vi.mocked(summarizeTraceFacetVersions).mock.calls[0][0].facets,
-    ).toEqual([expect.objectContaining({ name: "intent" })]);
+    await expect(
+      processTopicsTrace(twoRules, { scheduleRetry }),
+    ).resolves.toEqual({ outcome: "summarized" });
+    expect(vi.mocked(summarizeAssembledTrace).mock.calls[0][0].facets).toEqual([
+      expect.objectContaining({ name: "intent" }),
+    ]);
     expect(mocks.addToQueue).toHaveBeenCalledWith(
       "topic_facet_summaries",
       expect.anything(),
@@ -145,8 +163,8 @@ describe("processTopicsTrace", () => {
     expect(mocks.getInputs).not.toHaveBeenCalled();
   });
 
-  it("requeues only the facets that failed with a retryable provider error", async () => {
-    vi.mocked(summarizeTraceFacetVersions).mockResolvedValue({
+  it("requeues only the facets that failed with a retryable provider error, falling back to BullMQ when the requeue fails", async () => {
+    vi.mocked(summarizeAssembledTrace).mockResolvedValue({
       outcome: "summarized",
       rows: [row("intent", "not_applicable")],
       failure: new TopicsProviderUnavailable("slow", "rate_limit"),
@@ -156,18 +174,23 @@ describe("processTopicsTrace", () => {
       { outcome: "retry_scheduled" },
     );
     expect(scheduleRetry).toHaveBeenCalledWith([
-      { facetId: "tone", version: 2 },
+      { ruleId: "rule", facets: [{ facetId: "tone", version: 2 }] },
     ]);
     expect(mocks.addToQueue).toHaveBeenCalledOnce();
 
-    scheduleRetry.mockResolvedValueOnce(false);
+    scheduleRetry.mockResolvedValueOnce("skipped");
     await expect(processTopicsTrace(event, { scheduleRetry })).resolves.toEqual(
       { outcome: "failed", reason: "rate_limit" },
+    );
+
+    scheduleRetry.mockResolvedValueOnce("queue_unavailable");
+    await expect(processTopicsTrace(event, { scheduleRetry })).rejects.toThrow(
+      "slow",
     );
   });
 
   it("pauses the project without retrying when the connection is rejected", async () => {
-    vi.mocked(summarizeTraceFacetVersions).mockRejectedValue(
+    vi.mocked(summarizeAssembledTrace).mockRejectedValue(
       new TopicsProviderUnavailable("denied", "authentication"),
     );
     await expect(processTopicsTrace(event, { scheduleRetry })).resolves.toEqual(
@@ -187,11 +210,11 @@ describe("processTopicsTrace", () => {
     await expect(processTopicsTrace(event, { scheduleRetry })).rejects.toThrow(
       "socket hang up",
     );
-    expect(summarizeTraceFacetVersions).not.toHaveBeenCalled();
+    expect(summarizeAssembledTrace).not.toHaveBeenCalled();
   });
 
-  it("stores valid rows before rethrowing an internal error", async () => {
-    vi.mocked(summarizeTraceFacetVersions).mockResolvedValue({
+  it("stores valid rows before rethrowing an internal error, but fails schema-invalid output without retrying", async () => {
+    vi.mocked(summarizeAssembledTrace).mockResolvedValue({
       outcome: "summarized",
       rows: [row("intent", "not_applicable")],
       failure: new Error("unexpected"),
@@ -200,5 +223,13 @@ describe("processTopicsTrace", () => {
       "unexpected",
     );
     expect(mocks.addToQueue).toHaveBeenCalledOnce();
+
+    vi.mocked(summarizeAssembledTrace).mockRejectedValue(
+      z.object({ summary: z.string() }).safeParse({}).error,
+    );
+    await expect(processTopicsTrace(event, { scheduleRetry })).resolves.toEqual(
+      { outcome: "failed", reason: "invalid_output" },
+    );
+    expect(scheduleRetry).not.toHaveBeenCalled();
   });
 });

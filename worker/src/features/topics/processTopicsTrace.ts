@@ -13,8 +13,9 @@ import {
   listTopicFacets,
   topicAssignmentRecord,
   topicSummaryRecord,
+  type TopicsModels,
 } from "@langfuse/shared/topics/server";
-import type { TopicFacetRef, TopicSummary } from "@langfuse/shared/topics";
+import type { TopicFacet, TopicSummary } from "@langfuse/shared/topics";
 import { ClickhouseWriter, TableName } from "../../services/ClickhouseWriter";
 import { topicAssignmentRows } from "./assignments";
 import { TopicInputTooLarge } from "./models";
@@ -24,10 +25,7 @@ import {
   TopicsProviderUnavailable,
 } from "./provider-error";
 import { getServingTopicRun } from "./servingRuns";
-import {
-  summarizeTraceFacetVersions,
-  type TraceFacet,
-} from "./summarizeAssembledTrace";
+import { summarizeAssembledTrace } from "./summarizeAssembledTrace";
 import { signalTopicsDiscovery } from "./topicsAutomation";
 
 const inputStorage = createTraceBatchInputStorage();
@@ -37,20 +35,62 @@ export type TopicsTraceOutcome =
   | { outcome: "failed"; reason: string };
 
 export type TopicsTraceDeps = {
-  /** Requeues the event with only these facets; false once the retry budget is spent. */
-  scheduleRetry: (facets: TopicFacetRef[]) => Promise<boolean>;
+  /** Requeues the event with only these rules' pending facets. */
+  scheduleRetry: (
+    rules: TopicsTraceEventType["rules"],
+  ) => Promise<"scheduled" | "skipped" | "queue_unavailable">;
 };
 
-/** Facets whose current version is the one trace-batch selected; older versions are skipped. */
+// Bounds Postgres reads per trace; a pause on another pod takes effect within this window.
+const SETTINGS_TTL_MS = 15_000;
+const MAX_SETTINGS_KEYS = 10_000;
+type ProjectSettings = {
+  models: TopicsModels | undefined;
+  facets: TopicFacet[];
+};
+const settingsCache = new Map<
+  string,
+  { settings: Promise<ProjectSettings>; expiresAt: number }
+>();
+
+function projectSettings(projectId: string): Promise<ProjectSettings> {
+  const now = Date.now();
+  const cached = settingsCache.get(projectId);
+  if (cached && cached.expiresAt > now) return cached.settings;
+  if (settingsCache.size >= MAX_SETTINGS_KEYS) settingsCache.clear();
+  const settings = Promise.all([
+    getEnabledTopicsModels([projectId]),
+    listTopicFacets(projectId),
+  ]).then(([models, facets]) => ({ models: models.get(projectId), facets }));
+  settingsCache.set(projectId, { settings, expiresAt: now + SETTINGS_TTL_MS });
+  settings.catch(() => settingsCache.delete(projectId));
+  return settings;
+}
+
+function facetKey(row: { facetId: string; facetVersion: number }): string {
+  return JSON.stringify([row.facetId, row.facetVersion]);
+}
+
+/** Facets any rule selected at their current version, in listing order; older versions are skipped. */
 function currentFacets(
   event: TopicsTraceEventType,
-  facets: Awaited<ReturnType<typeof listTopicFacets>>,
-): TraceFacet[] {
-  return event.facets.flatMap((ref) => {
-    const facet = facets.find((candidate) => candidate.id === ref.facetId);
-    const version = facet?.versions[0];
-    if (!facet || version?.version !== ref.version) return [];
-    return [{ name: facet.name, version, builtIn: facet.isBuiltIn }];
+  facets: TopicFacet[],
+): TopicFacet[] {
+  const selected = new Set(
+    event.rules.flatMap((rule) =>
+      rule.facets.map((ref) =>
+        facetKey({ facetId: ref.facetId, facetVersion: ref.version }),
+      ),
+    ),
+  );
+  return facets.filter((facet) => {
+    const version = facet.versions[0];
+    return (
+      version !== undefined &&
+      selected.has(
+        facetKey({ facetId: facet.id, facetVersion: version.version }),
+      )
+    );
   });
 }
 
@@ -69,7 +109,7 @@ async function readInputs(
       logger.warn("Stored Topics trace input is invalid", {
         projectId: event.projectId,
         traceId: event.traceId,
-        transcriptS3Key: event.transcriptS3Key,
+        revision: event.revision,
         error: error.message,
       });
       return null;
@@ -155,19 +195,16 @@ function isRetryableProviderError(error: unknown): boolean {
   );
 }
 
-function facetKey(row: { facetId: string; facetVersion: number }): string {
-  return JSON.stringify([row.facetId, row.facetVersion]);
-}
-
 async function processEvent(
   event: TopicsTraceEventType,
   deps: TopicsTraceDeps,
 ): Promise<TopicsTraceOutcome> {
   const { projectId, traceId } = event;
   if (!isTopicsProjectEnabled(projectId)) return { outcome: "disabled" };
-  const models = (await getEnabledTopicsModels([projectId])).get(projectId);
+  const settings = await projectSettings(projectId);
+  const models = settings.models;
   if (!models) return { outcome: "disabled" };
-  const facets = currentFacets(event, await listTopicFacets(projectId));
+  const facets = currentFacets(event, settings.facets);
   if (facets.length === 0) return { outcome: "stale" };
 
   const inputs = await readInputs(event);
@@ -176,7 +213,7 @@ async function processEvent(
   let rows: TopicSummary[] = [];
   let failure: unknown;
   try {
-    const result = await summarizeTraceFacetVersions({
+    const result = await summarizeAssembledTrace({
       projectId,
       traceId,
       ...inputs.traceContext,
@@ -205,22 +242,35 @@ async function processEvent(
     error: failure instanceof Error ? failure.message : String(failure),
   });
   if (isRejectedConnection(failure)) {
+    settingsCache.delete(projectId);
     await pauseForRejectedConnection(projectId, failure);
     return { outcome: "failed", reason };
   }
   if (isRetryableProviderError(failure)) {
     const done = new Set(rows.map(facetKey));
-    const pending = event.facets.filter(
-      (facet) => !done.has(facetKey({ ...facet, facetVersion: facet.version })),
-    );
-    if (pending.length > 0 && (await deps.scheduleRetry(pending)))
-      return { outcome: "retry_scheduled" };
+    const pending = event.rules.flatMap((rule) => {
+      const facets = rule.facets.filter(
+        (facet) =>
+          !done.has(
+            facetKey({ facetId: facet.facetId, facetVersion: facet.version }),
+          ),
+      );
+      return facets.length > 0 ? [{ ruleId: rule.ruleId, facets }] : [];
+    });
+    if (pending.length === 0) return { outcome: "failed", reason };
+    const retry = await deps.scheduleRetry(pending);
+    if (retry === "scheduled") return { outcome: "retry_scheduled" };
+    // Without a scheduled retry, BullMQ's attempts are the fallback.
+    if (retry === "queue_unavailable") throw failure;
     return { outcome: "failed", reason };
   }
   if (failure instanceof TopicsProviderUnavailable)
     return { outcome: "failed", reason };
   if (failure instanceof TopicInputTooLarge)
     return { outcome: "failed", reason: "input_too_large" };
+  // Output that fails the facet schema would fail again; retrying only repeats the paid call.
+  if (failure instanceof ZodError)
+    return { outcome: "failed", reason: "invalid_output" };
   throw failure;
 }
 

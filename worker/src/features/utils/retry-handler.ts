@@ -43,17 +43,21 @@ const getLLMQueueRetryDelaySeconds = ({
   elapsedSeconds,
   maxRetryAttempts,
   maxAgeSeconds,
+  offsetsSeconds,
 }: {
   attempt: number;
   elapsedSeconds: number;
   maxRetryAttempts: number;
   maxAgeSeconds: number;
+  offsetsSeconds?: readonly number[];
 }) => {
-  const targetOffsetSeconds = getLLMQueueRetryTargetOffsetSeconds({
-    attempt,
-    maxRetryAttempts,
-    maxAgeSeconds,
-  });
+  const targetOffsetSeconds =
+    offsetsSeconds?.[attempt - 1] ??
+    getLLMQueueRetryTargetOffsetSeconds({
+      attempt,
+      maxRetryAttempts,
+      maxAgeSeconds,
+    });
   const delaySeconds = Math.max(0, targetOffsetSeconds - elapsedSeconds);
   const jitterMultiplier =
     1 -
@@ -91,6 +95,8 @@ type RetryConfig = (
   queueName: string;
   /** Job name for the retry job */
   jobName: string;
+  /** Replaces the LLM-as-judge budget: one retry per offset from the window start. */
+  schedule?: { offsetsSeconds: readonly number[]; maxAgeSeconds: number };
 };
 
 export type RetryScheduleResult =
@@ -152,8 +158,12 @@ export async function retryLLMRateLimitError(
 ): Promise<RetryScheduleResult> {
   try {
     const jobId = job.data.payload[config.idField];
-    const maxRetryAttempts = env.LANGFUSE_LLM_AS_JUDGE_QUEUE_RETRY_MAX_ATTEMPTS;
-    const maxAgeSeconds = env.LANGFUSE_LLM_AS_JUDGE_QUEUE_RETRY_MAX_AGE_SECONDS;
+    const maxRetryAttempts =
+      config.schedule?.offsetsSeconds.length ??
+      env.LANGFUSE_LLM_AS_JUDGE_QUEUE_RETRY_MAX_ATTEMPTS;
+    const maxAgeSeconds =
+      config.schedule?.maxAgeSeconds ??
+      env.LANGFUSE_LLM_AS_JUDGE_QUEUE_RETRY_MAX_AGE_SECONDS;
 
     const retryWindowStartTimeMs = await getRetryWindowStartTimeMs(
       job,
@@ -191,6 +201,7 @@ export async function retryLLMRateLimitError(
       elapsedSeconds,
       maxRetryAttempts,
       maxAgeSeconds,
+      offsetsSeconds: config.schedule?.offsetsSeconds,
     });
     const delayMs = Math.round(delaySeconds * 1000);
 

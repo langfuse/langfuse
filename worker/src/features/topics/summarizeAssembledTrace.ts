@@ -1,5 +1,4 @@
 import {
-  listTopicSummaries,
   TOPICS_TRANSCRIPT_VERSION,
   type TopicsModels,
 } from "@langfuse/shared/topics/server";
@@ -62,7 +61,7 @@ type TraceFacetResult =
   | { output: FacetOutput }
   | { error: TopicsProviderUnavailable };
 
-type TraceSummaryInput = {
+type AssembledTraceInput = {
   projectId: string;
   traceId: string;
   sessionId: string | null;
@@ -71,10 +70,6 @@ type TraceSummaryInput = {
   traceName: string;
   transcript: Transcript | null;
   models: TopicsModels;
-};
-
-type AssembledTraceInput = TraceSummaryInput & {
-  jobEnqueuedAt: Date;
   facets: TopicFacet[];
 };
 
@@ -86,37 +81,15 @@ type AssembledTraceResult = {
 };
 
 /**
- * Summarizes one trace from the transcript the batch job already assembled,
- * with one model call for all of its configured facets. Does not load
- * observations again or write; the batch job stores the returned rows.
+ * Summarizes one stored transcript with one model call for all given facets.
+ * Does not write; rewriting a stored key replaces the row.
  */
 export async function summarizeAssembledTrace(
   input: AssembledTraceInput,
 ): Promise<AssembledTraceResult> {
-  return instrumentTraceSummary(input, (metrics) =>
-    summarizeEnabledTrace(input, metrics),
-  );
-}
-
-/**
- * Summarizes exactly the given facets of one stored transcript, without
- * checking for stored summaries; rewriting the same key replaces the row.
- */
-export async function summarizeTraceFacetVersions(
-  input: TraceSummaryInput & { facets: TraceFacet[] },
-): Promise<AssembledTraceResult> {
-  return instrumentTraceSummary(input, (metrics) =>
-    summarizePendingFacets(input, input.facets, metrics),
-  );
-}
-
-async function instrumentTraceSummary(
-  input: TraceSummaryInput,
-  summarize: (metrics: TopicMetrics) => Promise<AssembledTraceResult>,
-): Promise<AssembledTraceResult> {
   if (isInternalEvalEnvironment(input.environment))
     return { outcome: "disabled", rows: [] };
-  // Trace-batch jobs span projects; the baggage tags this trace's spans and logs.
+  // The baggage tags this trace's spans and logs with its project.
   const projectContext = contextWithLangfuseProps({
     projectId: input.projectId,
   });
@@ -129,7 +102,7 @@ async function instrumentTraceSummary(
         let result: AssembledTraceResult | undefined;
         try {
           await metrics.measure("trace", async () => {
-            result = await summarize(metrics);
+            result = await summarizeEnabledTrace(input, metrics);
             if (result.failure !== undefined) throw result.failure;
           });
           span.setAttribute("langfuse.topics.trace_outcome", result!.outcome);
@@ -149,53 +122,24 @@ async function summarizeEnabledTrace(
   input: AssembledTraceInput,
   metrics: TopicMetrics,
 ): Promise<AssembledTraceResult> {
-  const { facets } = input;
+  const { models, facets } = input;
+  const embeddingModel = models.embedding.model;
+  const config = topicProcessingConfigSchema.parse({
+    summaryModel: models.summary.model,
+  });
   const pending: TraceFacet[] = [];
   // Built-in facets first, each group in listing order, so the cached prompt prefix stays stable.
   const ordered = [
     ...facets.filter((facet) => facet.isBuiltIn),
     ...facets.filter((facet) => !facet.isBuiltIn),
   ];
-  const timestamp = Date.parse(input.traceTimestamp);
-  const timeRange = {
-    from: new Date(timestamp),
-    to: new Date(timestamp + 1),
-  };
   for (const facet of ordered) {
     const version = facet.versions[0];
     if (facet.projectId !== input.projectId || !version) continue;
-    const stored = await listTopicSummaries(
-      input.projectId,
-      {
-        traceIds: [input.traceId],
-        facetId: version.facetId,
-        facetVersion: version.version,
-      },
-      timeRange,
-    );
-    if (
-      stored.some(
-        (summary) =>
-          Date.parse(summary.processedAt) >= input.jobEnqueuedAt.getTime(),
-      )
-    )
-      continue;
     pending.push({ name: facet.name, version, builtIn: facet.isBuiltIn });
   }
   if (pending.length === 0) return { outcome: "unchanged", rows: [] };
-  return summarizePendingFacets(input, pending, metrics);
-}
 
-async function summarizePendingFacets(
-  input: TraceSummaryInput,
-  pending: TraceFacet[],
-  metrics: TopicMetrics,
-): Promise<AssembledTraceResult> {
-  const { models } = input;
-  const embeddingModel = models.embedding.model;
-  const config = topicProcessingConfigSchema.parse({
-    summaryModel: models.summary.model,
-  });
   const bases = pending.map(({ version }) =>
     baseTopicSummary({
       projectId: input.projectId,

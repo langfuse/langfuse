@@ -293,19 +293,20 @@ rather than accepting partial results. Beyond the dispatcher's weight budgets
 and trace exclusion, this does not cap observation count, query memory or
 dispatcher snapshot memory.
 
-## Optional input storage
+## Input storage
 
-`LANGFUSE_TRACE_BATCH_TRANSCRIPT_STORAGE_ENABLED=false` controls writes only.
-When enabled, `storeInputs.ts` captures the assembled transcript for traces that
-pass the internal-environment exclusion, Topics settings and rule sampling gate.
-The latest event's environment determines eligibility for both capture and Topics.
-It runs inside the
-Topics concurrency limit alongside in-memory summarization. Both operations must
-settle before releasing the slot, including when summarization fails. Each S3
-request is bounded by `LANGFUSE_TRACE_BATCH_TRANSCRIPT_STORAGE_REQUEST_TIMEOUT_MS`
-(default 10 seconds) so a stalled request cannot hold a slot indefinitely; the
-SDK attempt budget stays at its default. It does not capture every trace admitted
-by experimental batching.
+Trace-batch stores the assembled transcript for traces that pass the
+internal-environment exclusion, Topics settings and at least one rule's sampling
+gate, then enqueues one `topics-trace-queue` job per trace with every rule that
+sampled it. The per-trace job reads the object back; trace-batch makes no model
+calls. The latest event's environment determines eligibility. Storage and
+enqueue run inside the Topics concurrency limit. Each S3 request is bounded by
+`LANGFUSE_TRACE_BATCH_TRANSCRIPT_STORAGE_REQUEST_TIMEOUT_MS` (default 10
+seconds) so a stalled request cannot hold a slot indefinitely; the SDK attempt
+budget stays at its default. An oversized input or failed upload counts the
+trace as failed and enqueues nothing. Jobs are deduplicated per
+`(projectId, traceId, revision)` for the batch's two-hour lifetime, so a retried
+batch does not summarize a revision twice.
 
 The shared `server/traceBatch` module uses the event-upload bucket and credentials:
 
@@ -335,10 +336,9 @@ Objects contain a versioned envelope:
 }
 ```
 
-The queue creates `inputStorage` with `createTraceBatchInputStorage()` and passes
-it into `storeInputs`. The factory returns the `TraceBatchInputStorage` interface
-with `put` and `get`; all instances share one lazily initialized provider client.
-Feature gating, instrumentation and tolerated failures remain in `storeInputs`.
+The queue creates `inputStorage` with `createTraceBatchInputStorage()`. The
+factory returns the `TraceBatchInputStorage` interface with `put` and `get`; all
+instances share one lazily initialized provider client.
 
 `inputStorage.put(reference, { transcript, traceContext })` requires all context
 fields, with null for an absent session ID or name. Context fields mirror the

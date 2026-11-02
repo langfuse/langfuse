@@ -519,17 +519,24 @@ export const TraceBatchTraceSchema = z.object({
   revision: z.string(),
 });
 
-/** One trace's Topics summary, from the transcript trace-batch stored for this revision. */
+/** One trace's Topics summaries, from the transcript trace-batch stored for this revision. */
 export const TopicsTraceEventSchema = z.object({
   projectId: z.string().min(1),
   traceId: z.string().min(1),
   revision: z.string().min(1),
-  transcriptS3Key: z.string().min(1),
-  facets: z
+  // Each matching rule with the facet versions it selected; a facet shared by rules is summarized once.
+  rules: z
     .array(
       z.object({
-        facetId: z.string().min(1),
-        version: z.number().int().positive(),
+        ruleId: z.string().min(1),
+        facets: z
+          .array(
+            z.object({
+              facetId: z.string().min(1),
+              version: z.number().int().positive(),
+            }),
+          )
+          .min(1),
       }),
     )
     .min(1),

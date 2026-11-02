@@ -371,6 +371,28 @@ describe("Topics naming boundary", () => {
   );
 
   it.each([
+    [404, "EVAL_MODEL_UNAVAILABLE"],
+    [403, "LLM_CONNECTION_AUTH_INVALID"],
+    [429, null],
+  ])(
+    "pauses Topics like evaluators for HTTP %i provider errors",
+    async (statusCode, blockReason) => {
+      state.call.mockRejectedValue(
+        Object.assign(new Error("provider error"), {
+          [Symbol.for("vercel.ai.error")]: true,
+          [Symbol.for("vercel.ai.error.AI_APICallError")]: true,
+          name: "AI_APICallError",
+          statusCode,
+          isRetryable: statusCode === 429,
+        }),
+      );
+      await expect(
+        nameTopicGroup(topicsModels(), evidence),
+      ).rejects.toMatchObject({ blockReason });
+    },
+  );
+
+  it.each([
     ["other", "refusal", "invalid_output"],
     ["content-filter", "content_filtered", "content_filter"],
   ])(

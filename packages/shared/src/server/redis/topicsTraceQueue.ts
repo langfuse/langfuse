@@ -61,7 +61,8 @@ export class TopicsTraceQueue {
           defaultJobOptions: {
             removeOnComplete: true,
             removeOnFail: 10_000,
-            attempts: 10,
+            // Infrastructure failures only; provider failures follow the Topics retry schedule.
+            attempts: 4,
             backoff: {
               type: "exponential",
               delay: 1000,

@@ -11,8 +11,8 @@ import type {
 // A trace summarized within this window of a publish is assigned to the previous map.
 const SERVING_RUN_TTL_MS = 60_000;
 const MAX_SERVING_RUN_KEYS = 10_000;
-// Completed runs never change; about 1–4 MB each at 100 topics.
-const MAX_CACHED_RUNS = 256;
+// Completed runs never change; about 1–4 MB each at 100 topics, so at most ~128 MB per pod.
+const MAX_CACHED_RUNS = 32;
 
 const servingRunIds = new Map<
   string,

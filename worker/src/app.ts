@@ -341,7 +341,10 @@ if (env.QUEUE_CONSUMER_CODE_EVAL_EXECUTION_QUEUE_IS_ENABLED === "true") {
   });
 }
 
-if (env.QUEUE_CONSUMER_TOPICS_TRACE_QUEUE_IS_ENABLED === "true") {
+if (
+  isTopicsEnabled() &&
+  env.QUEUE_CONSUMER_TOPICS_TRACE_QUEUE_IS_ENABLED === "true"
+) {
   TopicsTraceQueue.getShardNames().forEach((shardName) => {
     WorkerManager.register(
       shardName as QueueName,

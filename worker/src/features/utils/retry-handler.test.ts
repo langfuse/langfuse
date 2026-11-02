@@ -471,6 +471,44 @@ describe("retryLLMRateLimitError", () => {
     );
   });
 
+  it("follows a fixed schedule's offsets and stops after its last retry", async () => {
+    const add = vi.fn().mockResolvedValue(undefined);
+    const config = {
+      table: null,
+      idField: "traceId",
+      queue: { add },
+      queueName: "topics-trace-queue",
+      jobName: "topics-trace-job",
+      schedule: { offsetsSeconds: [60, 360, 960], maxAgeSeconds: 1800 },
+    } as const;
+    const retry = (attempt: number, elapsedSeconds: number) =>
+      retryLLMRateLimitError(
+        {
+          data: {
+            timestamp: new Date(),
+            payload: { projectId: "project-id", traceId: "trace-id" },
+            retryBaggage: {
+              originalJobTimestamp: new Date(
+                Date.now() - elapsedSeconds * 1000,
+              ),
+              attempt,
+            },
+          },
+        },
+        config,
+      );
+
+    // The second retry targets 6 minutes after the first attempt.
+    await expect(retry(1, 70)).resolves.toMatchObject({
+      outcome: "scheduled",
+      delaySeconds: 290,
+    });
+    await expect(retry(3, 970)).resolves.toEqual({
+      outcome: "skipped",
+      reason: "max_attempts",
+    });
+  });
+
   it("stops retrying once the first job is older than the retry age", async () => {
     const result = await retryLLMRateLimitError(
       {
