@@ -9,31 +9,18 @@ templates. The local dev template sets the idle time below.
 
 ## Recording trace-rule selections
 
-OTel processing fetches active `trace_transcript` rules in
-the same query as observation rules. Matching uses the enriched observation at
-the evaluation stage, independently of direct event writes. Facet-only rules
-also require the existing Topics allowlist and active-processing gate.
+Topics-enabled projects record selections under `{trace-dispatch:<shard>}`,
+keyed by JSON `[projectId, traceId]`. These selections are not consumed yet.
 
-Every condition must match one observation. Sampling uses the existing evaluation
-hash with the trace ID, so every observation and rule with the same trace ID and
-rate has the same sampling outcome. Span evaluations continue to sample by span ID.
-Internal evaluation environments cannot select rules, except experiment item
-roots, but their observations still extend bounds and existing readiness.
-Unsupported persisted filters are skipped with a warning.
+| Map | Contents | Retention |
+| --- | --- | --- |
+| `bounds` | `{ minStart, maxStart, expiresAt }`, including observations before a match. | 24 hours after the latest arrival. |
+| `dispatch` | Only `{ revision, rules, failed_cnt }`; rule IDs are deduplicated. | Two hours past due. |
+| `due` | Selected traces ordered by Redis arrival time plus project idle interval. | Two hours past due. |
 
-The recorder writes three keys per shard under `{trace-dispatch:<shard>}`:
-
-- `bounds`: a hash keyed by `[projectId, traceId]`, containing minimum and maximum
-  observed start times, in milliseconds. Updated for all normalized observations in
-  projects with prepared transcript rules, even before a rule selects the trace.
-- `dispatch`: a hash with the same field identity, containing only
-  `{ revision, rules, failed_cnt }`. A sampled match creates it; subsequent
-  observations atomically union rule IDs and replace the revision, preserving
-  `failed_cnt`. Nonmatching observations only update an existing dispatch record.
-- `due`: a sorted set of those identities, scored by Redis time plus the project's
-  idle interval. Only selected traces enter it; later observations refresh it.
-
-A failed rule lookup or Redis write is logged without failing normal ingestion.
+After scheduling existing work, each dispatcher pass scans `bounds` and cleans
+these maps in bounded Lua batches using the existing retention settings.
+Key TTLs also reclaim inactive shards.
 
 ## Readiness requirements
 

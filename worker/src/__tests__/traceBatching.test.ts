@@ -38,6 +38,7 @@ import {
   trackTraceBatchActivity,
   TraceBatchDispatcher,
 } from "../features/traceBatching/traceBatching";
+import { recordTraceRuleMatches } from "../features/traceBatching/traceRuleRecording";
 import {
   prepareLocalityPartials,
   selectTraceBatches,
@@ -582,6 +583,11 @@ describe("trace batch selection", () => {
 
 describe("trace micro-batch scheduling with Redis", () => {
   const { due: dueKey, state: stateKey } = getTraceBatchReadinessKeys(0);
+  const recordingKeys = {
+    bounds: "{trace-dispatch:0}:bounds",
+    dispatch: "{trace-dispatch:0}:dispatch",
+    due: "{trace-dispatch:0}:due",
+  };
   const originalEnabled = env.LANGFUSE_TRACE_BATCH_INGESTION_ENABLED;
   const originalCloudRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
   const originalDispatcherEnabled = env.LANGFUSE_TRACE_BATCH_DISPATCHER_ENABLED;
@@ -632,6 +638,7 @@ describe("trace micro-batch scheduling with Redis", () => {
   }
 
   async function clearReadiness() {
+    await client().del(...Object.values(recordingKeys));
     for (let shard = 0; shard < env.LANGFUSE_TRACE_BATCH_SHARD_COUNT; shard++) {
       const keys = getTraceBatchReadinessKeys(shard);
       await client().del(
@@ -694,6 +701,129 @@ describe("trace micro-batch scheduling with Redis", () => {
     connection.disconnect();
   });
   afterAll(() => client().disconnect());
+
+  it("does not revive expired recorded bounds or rule selections on a late arrival", async () => {
+    vi.spyOn(shared, "getTracingReadinessSettings").mockResolvedValue({
+      traceIdleMs: null,
+    });
+    const identity = member("project", "recorded");
+    await recordTraceRuleMatches("project", [
+      { ...event("recorded"), ruleIds: ["old-rule"] },
+    ]);
+    await client().hset(
+      recordingKeys.bounds,
+      identity,
+      JSON.stringify({
+        minStart: 1_000_000,
+        maxStart: 1_000_000,
+        expiresAt: 1,
+      }),
+    );
+    await client().zadd(recordingKeys.due, 1, identity);
+
+    await recordTraceRuleMatches("project", [
+      { ...event("recorded", 2_000_000), ruleIds: [] },
+    ]);
+    expect(
+      JSON.parse((await client().hget(recordingKeys.bounds, identity))!),
+    ).toMatchObject({ minStart: 2_000_000, maxStart: 2_000_000 });
+    expect(await client().hget(recordingKeys.dispatch, identity)).toBeNull();
+    expect(await client().zscore(recordingKeys.due, identity)).toBeNull();
+
+    await recordTraceRuleMatches("project", [
+      { ...event("recorded", 3_000_000), ruleIds: ["new-rule"] },
+    ]);
+    expect(
+      JSON.parse((await client().hget(recordingKeys.dispatch, identity))!),
+    ).toEqual({
+      revision: expect.any(String),
+      rules: ["new-rule"],
+      failed_cnt: 0,
+    });
+  });
+
+  it("cleans recorded selections and unmatched bounds in the dispatcher without consuming them", async () => {
+    vi.spyOn(shared, "getTracingReadinessSettings").mockResolvedValue({
+      traceIdleMs: null,
+    });
+    const expired = Array.from({ length: 205 }, (_, i) => ({
+      ...event(`recorded-${i}`),
+      ruleIds: ["rule"],
+    }));
+    await recordTraceRuleMatches("project", [
+      ...expired,
+      { ...event("unmatched"), ruleIds: [] },
+      { ...event("refreshed"), ruleIds: ["rule"] },
+    ]);
+    await client().zadd(
+      recordingKeys.due,
+      ...expired.flatMap(({ traceId }) => [1, member("project", traceId)]),
+    );
+    for (const traceId of ["unmatched", "refreshed"]) {
+      await client().hset(
+        recordingKeys.bounds,
+        member("project", traceId),
+        JSON.stringify({
+          minStart: 1_000_000,
+          maxStart: 1_000_000,
+          expiresAt: 1,
+        }),
+      );
+    }
+    const hscan = client().hscan.bind(client());
+    vi.spyOn(client(), "hscan").mockImplementationOnce(async (...args) => {
+      const page = await hscan(...args);
+      // Arrival between the scan and deletion must survive the expiry recheck.
+      await recordTraceRuleMatches("project", [
+        { ...event("refreshed", 2_000_000), ruleIds: [] },
+      ]);
+      return page;
+    });
+    env.LANGFUSE_TRACE_BATCH_INGESTION_ENABLED = "false";
+    topicsProjects.clear();
+    await runner().processBatch();
+    expect(await client().hkeys(recordingKeys.dispatch)).toEqual([
+      member("project", "refreshed"),
+    ]);
+    expect(await client().zrange(recordingKeys.due, 0, -1)).toEqual([
+      member("project", "refreshed"),
+    ]);
+    expect(
+      await client().hget(recordingKeys.bounds, member("project", "unmatched")),
+    ).toBeNull();
+    // Pending expiry does not shorten the independent bounds retention.
+    expect(await client().hlen(recordingKeys.bounds)).toBe(206);
+    expect(await queue.getWaitingCount()).toBe(0);
+  });
+
+  it("expires recording keys without a dispatcher and preserves later pending deadlines", async () => {
+    vi.spyOn(shared, "getTracingReadinessSettings").mockResolvedValue({
+      traceIdleMs: null,
+    });
+    env.LANGFUSE_TRACE_BATCH_IDLE_MS = 200;
+    env.LANGFUSE_TRACE_BATCH_PENDING_TTL_MS = 100;
+    env.LANGFUSE_TRACE_BATCH_FIRST_SEEN_TTL_MS = 100;
+    await recordTraceRuleMatches("project", [
+      { ...event("first"), ruleIds: ["rule"] },
+    ]);
+    const deadline = Number(
+      await client().call("PEXPIRETIME", recordingKeys.due),
+    );
+    expect(deadline).toBeGreaterThan(Date.now());
+    env.LANGFUSE_TRACE_BATCH_IDLE_MS = 1;
+    await recordTraceRuleMatches("project", [
+      { ...event("second"), ruleIds: ["rule"] },
+    ]);
+    expect(Number(await client().call("PEXPIRETIME", recordingKeys.due))).toBe(
+      deadline,
+    );
+    expect(
+      Number(await client().call("PEXPIRETIME", recordingKeys.dispatch)),
+    ).toBe(deadline);
+    await vi.waitFor(async () => {
+      expect(await client().exists(...Object.values(recordingKeys))).toBe(0);
+    });
+  });
 
   it("re-dispatches late arrivals with the earliest start of the whole trace", async () => {
     env.LANGFUSE_TRACE_BATCH_FIRST_SEEN_TTL_MS = 600;

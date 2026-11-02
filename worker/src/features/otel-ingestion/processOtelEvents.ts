@@ -10,6 +10,7 @@ import {
   traceException,
 } from "@langfuse/shared/src/server";
 import { env } from "../../env";
+import { isTopicsProjectEnabled } from "@langfuse/shared/topics/server";
 import {
   fetchObservationEvalRules,
   fetchIngestionEvalRules,
@@ -76,7 +77,7 @@ export async function processOtelEvents({
 
   const recordingEnabled =
     Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) &&
-    env.LANGFUSE_TRACE_RULE_RECORDING_ENABLED === "true";
+    isTopicsProjectEnabled(projectId);
   const rules = await (
     recordingEnabled
       ? fetchIngestionEvalRules(projectId)

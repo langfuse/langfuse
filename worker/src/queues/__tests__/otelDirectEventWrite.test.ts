@@ -23,6 +23,7 @@ import {
 } from "../../features/evaluation/observationEval";
 import { Prisma } from "@langfuse/shared/src/db";
 import { TopicsTargetObject } from "@langfuse/shared";
+import { isTopicsProjectEnabled } from "@langfuse/shared/topics/server";
 import { processOtelEvents } from "../../features/otel-ingestion/processOtelEvents";
 import { recordTraceRuleMatches } from "../../features/traceBatching/traceRuleRecording";
 import {
@@ -56,7 +57,7 @@ vi.mock(
     ...(await importOriginal<
       typeof import("../../features/evaluation/observationEval")
     >()),
-    fetchObservationEvalRules: vi.fn(),
+    fetchObservationEvalRules: vi.fn().mockResolvedValue([]),
     fetchIngestionEvalRules: vi.fn(),
     scheduleObservationEvals: vi.fn(),
     createObservationEvalSchedulerDeps: vi.fn(),
@@ -70,13 +71,18 @@ vi.mock("../../features/traceBatching/traceRuleRecording", () => ({
   recordTraceRuleMatches: vi.fn(),
 }));
 
+vi.mock("@langfuse/shared/topics/server", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@langfuse/shared/topics/server")>()),
+  isTopicsProjectEnabled: vi.fn().mockReturnValue(false),
+}));
+
 describe("trace-rule recording at the evaluation stage", () => {
   it.each([false, true])(
     "records matches and nonmatches independently of span failures and direct writes (%s)",
     async (shouldWriteToEventsTable) => {
       const original = { ...env };
       env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "DEV";
-      env.LANGFUSE_TRACE_RULE_RECORDING_ENABLED = "true";
+      vi.mocked(isTopicsProjectEnabled).mockReturnValue(true);
       env.LANGFUSE_TRACE_BATCH_INGESTION_ENABLED = "false";
       env.LANGFUSE_OTEL_MEDIA_UPLOAD_ENABLED = "false";
       const projectId = "recording-test";
@@ -196,6 +202,7 @@ describe("trace-rule recording at the evaluation stage", () => {
         expect(fetchObservationEvalRules).not.toHaveBeenCalled();
       } finally {
         Object.assign(env, original);
+        vi.mocked(isTopicsProjectEnabled).mockReturnValue(false);
         vi.clearAllMocks();
       }
     },
@@ -208,8 +215,6 @@ describe("direct-v4 trace batch tracking", () => {
       NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
       LANGFUSE_TRACE_BATCH_INGESTION_ENABLED:
         env.LANGFUSE_TRACE_BATCH_INGESTION_ENABLED,
-      LANGFUSE_TRACE_RULE_RECORDING_ENABLED:
-        env.LANGFUSE_TRACE_RULE_RECORDING_ENABLED,
       LANGFUSE_MIGRATION_V4_WRITE_MODE: env.LANGFUSE_MIGRATION_V4_WRITE_MODE,
       LANGFUSE_OTEL_MEDIA_UPLOAD_ENABLED:
         env.LANGFUSE_OTEL_MEDIA_UPLOAD_ENABLED,
@@ -220,7 +225,6 @@ describe("direct-v4 trace batch tracking", () => {
     };
     env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "DEV";
     env.LANGFUSE_TRACE_BATCH_INGESTION_ENABLED = "true";
-    env.LANGFUSE_TRACE_RULE_RECORDING_ENABLED = "false";
     env.LANGFUSE_MIGRATION_V4_WRITE_MODE = "events_only";
     env.LANGFUSE_OTEL_MEDIA_UPLOAD_ENABLED = "false";
     env.LANGFUSE_OTEL_EARLY_MEDIA_EXTRACTION_ENABLED = "true";
