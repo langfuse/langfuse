@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { keepPreviousData } from "@tanstack/react-query";
 
 import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { Button } from "@/src/components/ui/button";
@@ -8,6 +7,7 @@ import { TeamInviteDialogController } from "@/src/features/ai-gateway/components
 import { ConfirmationDialogController } from "@/src/components/design-system/ConfirmationDialogController/ConfirmationDialogController";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { usePaginationState } from "@/src/hooks/usePaginationState";
+import { useGatewayApiKeysTableData } from "@/src/features/ai-gateway/hooks/useGatewayApiKeysTableData";
 import { api } from "@/src/utils/api";
 import { GatewayApiKeysTable } from "./GatewayApiKeysTable";
 
@@ -24,15 +24,12 @@ export function ConnectedGatewayApiKeysTable({
     limit: "pageSize",
   });
   const [searchQuery, setSearchQuery] = useState("");
-  const apiKeysQuery = api.aiGateway.listApiKeys.useQuery(
-    {
-      orgId: organizationId,
-      searchQuery,
-      page: paginationState.pageIndex,
-      limit: paginationState.pageSize,
-    },
-    { placeholderData: keepPreviousData },
-  );
+  const { apiKeysQuery, rows, lastUsed } = useGatewayApiKeysTableData({
+    organizationId,
+    searchQuery,
+    pageIndex: paginationState.pageIndex,
+    pageSize: paginationState.pageSize,
+  });
   const utils = api.useUtils();
   const capture = usePostHogClientCapture();
   const revoke = api.aiGateway.revokeApiKey.useMutation();
@@ -95,13 +92,11 @@ export function ConnectedGatewayApiKeysTable({
                 return (
                   <GatewayApiKeysTable
                     data={
-                      apiKeysQuery.isPending
+                      rows === undefined
                         ? { status: "loading" }
-                        : {
-                            status: "success",
-                            data: apiKeysQuery.data.data,
-                          }
+                        : { status: "success", data: rows }
                     }
+                    lastUsed={lastUsed}
                     pagination={{
                       mode: "offset",
                       totalCount: apiKeysQuery.data?.totalCount ?? null,
