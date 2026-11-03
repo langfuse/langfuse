@@ -15,9 +15,9 @@ export type LegacyUiBannerViewProps = {
 
 /**
  * Full-width top strip for users who opted back to the legacy (v3) UI.
- * Uses the blue preview-banner tokens so the primary CTA contrasts cleanly.
- * Below `sm` the actions drop to their own row (PaymentBanner pattern). Not
- * dismissible.
+ * Uses the blue preview-banner tokens. Enable CTA is DS Button outline/sm
+ * (bordered gray, quietest box variant). Below `sm` the actions drop to their
+ * own row (PaymentBanner pattern). Not dismissible.
  */
 export function LegacyUiBannerView({
   hasDeadline,
@@ -39,7 +39,7 @@ export function LegacyUiBannerView({
       <div className="flex shrink-0 items-center gap-3 self-end sm:self-auto">
         <Button
           size="sm"
-          variant="primary"
+          variant="outline"
           text="Switch to latest UI"
           loading={isSwitching}
           disabled={isSwitching}
