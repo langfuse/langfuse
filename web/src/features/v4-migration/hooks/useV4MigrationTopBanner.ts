@@ -1,5 +1,4 @@
 import { useEffect, useRef } from "react";
-import { useRouter } from "next/router";
 import { useSession } from "next-auth/react";
 import { env } from "@/src/env.mjs";
 import { useLangfuseCloudRegion } from "@/src/features/organizations";
@@ -10,23 +9,20 @@ import { useAccountV4MigrationData } from "@/src/features/v4-migration/hooks/use
 import { useOpenV4MigrationPanel } from "@/src/features/v4-migration/hooks/useOpenV4MigrationPanel";
 import { getProjectMigrationReadiness } from "@/src/features/v4-migration/migrationData";
 import {
-  getV4MigrationTopBannerContent,
-  getV4MigrationTopBannerPhase,
-  type V4MigrationTopBannerPhase,
+  isV4MigrationTopBannerVisible,
+  renderV4BannerMessage,
+  type V4MigrationTopBannerSeverity,
 } from "@/src/features/v4-migration/topBannerContent";
 import { useV4UpgradeUiEnabled } from "@/src/features/v4-migration/useV4UpgradeUiEnabled";
 import type { V4MigrationTopBannerViewProps } from "@/src/features/v4-migration/V4MigrationTopBannerView";
 import { api } from "@/src/utils/api";
 
-// The phase flips at schedule boundaries; poll the cheap server clock query.
-const STATE_REFETCH_INTERVAL_MS = 60 * 1000;
-
 /**
- * Org-wide legacy API shutdown banner for Langfuse Cloud. Returns null when it
- * is hidden. The strip stays up for the whole phase; there is no dismiss.
+ * Org-wide legacy v3 banner for Langfuse Cloud. Returns null when it is
+ * hidden. Copy and color come from env; the strip stays up while the org
+ * still has legacy usage. There is no dismiss.
  */
 export function useV4MigrationTopBanner(): V4MigrationTopBannerViewProps | null {
-  const router = useRouter();
   const session = useSession();
   const capture = usePostHogClientCapture();
   const openPanel = useOpenV4MigrationPanel();
@@ -44,16 +40,11 @@ export function useV4MigrationTopBanner(): V4MigrationTopBannerViewProps | null 
       ? organization.id
       : null;
   const enabled = Boolean(orgId) && isLangfuseCloud && v4UpgradeUiEnabled;
-  const nowOverride =
-    typeof router.query.v4BannerNow === "string"
-      ? router.query.v4BannerNow
-      : undefined;
 
   const stateQuery = api.v4Transition.legacyApiBannerState.useQuery(
-    { orgId: orgId ?? "", nowOverride },
+    { orgId: orgId ?? "" },
     {
       enabled,
-      refetchInterval: STATE_REFETCH_INTERVAL_MS,
       throwOnError: false,
       meta: { silentHttpCodes: [401, 403, 404] },
     },
@@ -73,7 +64,7 @@ export function useV4MigrationTopBanner(): V4MigrationTopBannerViewProps | null 
       enabled &&
       orgProjects.length > 0 &&
       state !== undefined &&
-      state.phase !== "hidden",
+      state.severity !== "off",
   });
 
   const actionNeededProjects = orgProjects.filter((orgProject) => {
@@ -85,43 +76,48 @@ export function useV4MigrationTopBanner(): V4MigrationTopBannerViewProps | null 
     const status = statusByProjectId.get(orgProject.id);
     return !status || getProjectMigrationReadiness(status) === "checking";
   });
-  const phase = getV4MigrationTopBannerPhase({
-    serverPhase: enabled ? state?.phase : undefined,
+  const severity = state?.severity;
+  const visible = isV4MigrationTopBannerVisible({
+    severity: enabled ? severity : undefined,
+    message: enabled ? state?.message : undefined,
     v4UpgradeUiEnabled,
     isLangfuseCloud,
     actionNeededCount,
     isChecking,
   });
+  const bannerSeverity: V4MigrationTopBannerSeverity | null =
+    visible && (severity === "warning" || severity === "critical")
+      ? severity
+      : null;
   const role = canManageIntegrations ? "admin" : "member";
 
   // Exposure denominator for the CTA funnel; PostHog is the external system.
-  // Fires once per phase the viewer sees, not on every refetch.
-  const shownPhaseRef = useRef<V4MigrationTopBannerPhase | null>(null);
+  // Fires once per severity the viewer sees, not on every refetch.
+  const shownSeverityRef = useRef<V4MigrationTopBannerSeverity | null>(null);
   useEffect(() => {
-    if (!phase || shownPhaseRef.current === phase) return;
-    shownPhaseRef.current = phase;
+    if (!bannerSeverity || shownSeverityRef.current === bannerSeverity) return;
+    shownSeverityRef.current = bannerSeverity;
     capture("v4_migration:top_banner_shown", {
-      phase,
+      severity: bannerSeverity,
       role,
       actionNeededCount,
     });
-  }, [phase, role, actionNeededCount, capture]);
+  }, [bannerSeverity, role, actionNeededCount, capture]);
 
-  if (!phase || !state) return null;
+  if (!bannerSeverity || !state?.message) return null;
 
-  const content = getV4MigrationTopBannerContent({
-    phase,
-    state,
+  const analytics = {
+    severity: bannerSeverity,
+    role,
     actionNeededCount,
-    canManageIntegrations,
-  });
-  const analytics = { phase, role, actionNeededCount };
+  };
   const firstActionNeededProject = actionNeededProjects[0];
 
   return {
-    phase,
-    content,
-    onPrimaryClick: () => {
+    severity: bannerSeverity,
+    message: renderV4BannerMessage(state.message, actionNeededCount),
+    showUpdate: canManageIntegrations,
+    onUpdateClick: () => {
       if (!firstActionNeededProject) return;
       capture("v4_migration:top_banner_cta_clicked", {
         ...analytics,
@@ -136,10 +132,5 @@ export function useV4MigrationTopBanner(): V4MigrationTopBannerViewProps | null 
         "top_banner",
       );
     },
-    onSecondaryClick: () =>
-      capture("v4_migration:top_banner_cta_clicked", {
-        ...analytics,
-        cta: "docs",
-      }),
   };
 }

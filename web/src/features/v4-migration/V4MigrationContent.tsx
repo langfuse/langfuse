@@ -60,12 +60,6 @@ import { useHasProjectAccess } from "@/src/features/rbac";
 import { api } from "@/src/utils/api";
 import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
 import { encodeFiltersGeneric, type FilterState } from "@langfuse/shared";
-import {
-  formatLegacyScheduleDate,
-  LEGACY_API_SHUTDOWN_SCHEDULE,
-  LEGACY_EVALS_EXPORTS_STOP_DATE,
-  LEGACY_FULL_CUT_DATE,
-} from "@/src/features/public-api/server/legacyApiShutdownSchedule";
 import { EvaluatorMigrationDialog } from "@/src/features/v4-migration/EvaluatorMigrationDialog";
 import { buildDeprecatedRulesUrl } from "@/src/features/v4-migration/evaluatorMigrationUrls";
 import {
@@ -79,21 +73,12 @@ import {
 
 const V4_DOCS_URL = "https://langfuse.com/docs/v4";
 const V4_TIMELINE_URL = `${V4_DOCS_URL}#timeline`;
-// Consumed by the status page deadline copy: legacy evaluators and exports
-// stop on this date, legacy ingestion and APIs on the cut date.
-export const V4_MIGRATION_DEADLINE = formatLegacyScheduleDate(
-  LEGACY_EVALS_EXPORTS_STOP_DATE,
-  "long",
-);
-export const V4_LEGACY_API_CUT_DATE = formatLegacyScheduleDate(
-  LEGACY_FULL_CUT_DATE,
-  "long",
-);
+// Consumed by the status page deadline copy.
+export const V4_MIGRATION_DEADLINE = "November 16, 2026";
+// Later date the status page quotes for legacy ingestion and APIs.
+export const V4_LEGACY_API_CUT_DATE = "November 19, 2026";
 // Headline form of the deadline; the year is noise in a title.
-const V4_MIGRATION_DEADLINE_SHORT = V4_MIGRATION_DEADLINE.replace(
-  /, \d{4}$/,
-  "",
-);
+const V4_MIGRATION_DEADLINE_SHORT = "November 16";
 const SDK_UPGRADE_URL =
   "https://langfuse.com/docs/observability/sdk/upgrade-path";
 const OTEL_V4_MIGRATION_URL =
@@ -1304,29 +1289,6 @@ export function useV4MigrationTitle(): string {
     : "Ensure compatibility";
 }
 
-const BERLIN_TIME_ZONE = "Europe/Berlin";
-
-/** Brownout windows as announced: "Nov 16 16:00–17:00, … Europe/Berlin". */
-function formatBerlinBrownoutSchedule(): string {
-  const clock = (date: Date) =>
-    date.toLocaleTimeString("en-GB", {
-      timeZone: BERLIN_TIME_ZONE,
-      hour: "2-digit",
-      minute: "2-digit",
-      hourCycle: "h23",
-    });
-  const windows = LEGACY_API_SHUTDOWN_SCHEDULE.brownoutWindows.map((window) => {
-    const day = window.startsAt.toLocaleDateString("en-US", {
-      timeZone: BERLIN_TIME_ZONE,
-      month: "short",
-      day: "numeric",
-    });
-    return `${day} ${clock(window.startsAt)}\u2013${clock(window.endsAt)}`;
-  });
-  if (windows.length <= 1) return windows[0] ?? "";
-  return `${windows.slice(0, -1).join(", ")} and ${windows[windows.length - 1]}`;
-}
-
 export function V4MigrationDeadlineNote() {
   const hasDeadline = useHasV4MigrationDeadline();
 
@@ -1341,17 +1303,14 @@ export function V4MigrationDeadlineNote() {
 
   return (
     <p>
-      Legacy evaluators and exports stop on{" "}
+      After{" "}
       <ExternalLink
         href={V4_TIMELINE_URL}
         analytics={{ section: "header", link: "v4_timeline" }}
       >
         {V4_MIGRATION_DEADLINE}
-      </ExternalLink>
-      . Legacy ingestion and APIs shut off on {V4_LEGACY_API_CUT_DATE}.
-      Ingestion and APIs also pause {formatBerlinBrownoutSchedule()}{" "}
-      Europe/Berlin. Counts use the last {V4_MIGRATION_LOOKBACK_DAYS} days of
-      traffic.
+      </ExternalLink>{" "}
+      some features may stop working if you don&apos;t update integrations.
     </p>
   );
 }

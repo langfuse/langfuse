@@ -1,212 +1,68 @@
 import { describe, expect, it } from "vitest";
-import { LEGACY_API_SHUTDOWN_SCHEDULE } from "@/src/features/public-api/server/legacyApiShutdownSchedule";
 import {
-  getV4MigrationTopBannerContent,
-  getV4MigrationTopBannerPhase,
-  type V4MigrationTopBannerContent,
+  isV4MigrationTopBannerVisible,
+  renderV4BannerMessage,
 } from "./topBannerContent";
 
-const [day1, day2, day3] = LEGACY_API_SHUTDOWN_SCHEDULE.brownoutWindows;
-
 const visible = {
-  serverPhase: "before_stop",
+  severity: "warning",
+  message: "{projects} still use legacy v3 ingestion, APIs and evals.",
   v4UpgradeUiEnabled: true,
   isLangfuseCloud: true,
   actionNeededCount: 2,
   isChecking: false,
 } as const;
 
-describe("getV4MigrationTopBannerPhase", () => {
-  it("maps the server phases to banner phases", () => {
-    expect(getV4MigrationTopBannerPhase(visible)).toBe("amber");
-    for (const serverPhase of [
-      "brownout_day",
-      "brownout_active",
-      "cut",
-    ] as const) {
-      expect(getV4MigrationTopBannerPhase({ ...visible, serverPhase })).toBe(
-        serverPhase,
-      );
-    }
+describe("isV4MigrationTopBannerVisible", () => {
+  it("shows warning and critical when the org still has legacy usage", () => {
+    expect(isV4MigrationTopBannerVisible(visible)).toBe(true);
+    expect(
+      isV4MigrationTopBannerVisible({ ...visible, severity: "critical" }),
+    ).toBe(true);
   });
 
   it.each([
-    ["the server hides it (exempt or self-hosted)", { serverPhase: "hidden" }],
-    ["the server state is loading", { serverPhase: undefined }],
+    ["severity is off", { severity: "off" }],
+    [
+      "the server state is loading",
+      { severity: undefined, message: undefined },
+    ],
+    ["the message is empty", { message: "  " }],
     ["the v4 upgrade UI is off", { v4UpgradeUiEnabled: false }],
     ["the deployment is self-hosted", { isLangfuseCloud: false }],
     ["no project needs action", { actionNeededCount: 0 }],
     ["project checks are still loading", { isChecking: true }],
   ] as const)("is hidden when %s", (_, override) => {
-    expect(getV4MigrationTopBannerPhase({ ...visible, ...override })).toBe(
-      null,
+    expect(isV4MigrationTopBannerVisible({ ...visible, ...override })).toBe(
+      false,
     );
   });
 });
 
-const content = (
-  params: Partial<Parameters<typeof getV4MigrationTopBannerContent>[0]>,
-) =>
-  getV4MigrationTopBannerContent({
-    phase: "amber",
-    state: {
-      serverNow: new Date("2026-11-02T12:00:00Z"),
-      activeWindow: null,
-      nextWindow: day1!,
-    },
-    actionNeededCount: 2,
-    canManageIntegrations: true,
-    timeZone: "Europe/Berlin",
-    ...params,
-  });
-
-const sentence = (value: V4MigrationTopBannerContent) =>
-  value.parts
-    .map((part) => (typeof part === "string" ? part : part.label))
-    .join("");
-
-const panelLabel = (value: V4MigrationTopBannerContent) =>
-  value.parts.find((part) => typeof part !== "string" && part.kind === "panel");
-
-const docsLink = (value: V4MigrationTopBannerContent) =>
-  value.parts.find((part) => typeof part !== "string" && part.kind === "docs");
-
-describe("getV4MigrationTopBannerContent", () => {
-  it("amber: one sentence with a docs word and an update word", () => {
-    const amber = content({});
-    expect(amber.severity).toBe("warning");
-    expect(sentence(amber)).toBe(
-      "2 projects still use legacy v3 features like ingestion, APIs, evals and exports. Update before Nov 16.",
+describe("renderV4BannerMessage", () => {
+  it("replaces {projects} with the org-wide count", () => {
+    const template =
+      "{projects} still use legacy v3 ingestion, APIs and evals.";
+    expect(renderV4BannerMessage(template, 1)).toBe(
+      "1 project still use legacy v3 ingestion, APIs and evals.",
     );
-    expect(docsLink(amber)).toEqual({
-      kind: "docs",
-      label: "legacy v3 features like ingestion, APIs, evals and exports",
-      href: "https://langfuse.com/docs/v4",
-    });
-    expect(panelLabel(amber)).toEqual({ kind: "panel", label: "Update" });
-    expect(sentence(content({ actionNeededCount: 1 }))).toBe(
-      "1 project still uses legacy v3 features like ingestion, APIs, evals and exports. Update before Nov 16.",
+    expect(renderV4BannerMessage(template, 3)).toBe(
+      "3 projects still use legacy v3 ingestion, APIs and evals.",
     );
   });
 
-  it("brownout day: names the next pause in the viewer's timezone", () => {
-    const berlin = content({
-      phase: "brownout_day",
-      state: {
-        serverNow: new Date("2026-11-17T09:30:00Z"),
-        activeWindow: null,
-        nextWindow: day2!,
-      },
-    });
-    expect(berlin.severity).toBe("warning");
-    expect(sentence(berlin)).toBe(
-      "Legacy v3 ingestion and APIs pause today 15:00 to 18:00 GMT+1. Evals and exports are already off. Update now.",
-    );
-    expect(docsLink(berlin)).toMatchObject({
-      kind: "docs",
-      label: "Legacy v3 ingestion and APIs",
-      href: "https://langfuse.com/docs/v4",
-    });
-
-    const newYork = content({
-      phase: "brownout_day",
-      timeZone: "America/New_York",
-      state: {
-        serverNow: new Date("2026-11-17T09:30:00Z"),
-        activeWindow: null,
-        nextWindow: day2!,
-      },
-    });
-    expect(sentence(newYork)).toBe(
-      "Legacy v3 ingestion and APIs pause today 09:00 to 12:00 EST. Evals and exports are already off. Update now.",
+  it("leaves a message without the placeholder unchanged, including markup", () => {
+    const message =
+      "Legacy v3 ingestion, APIs and evals are paused today 16:00 to 17:00 CET.";
+    expect(renderV4BannerMessage(message, 3)).toBe(message);
+    expect(renderV4BannerMessage("Use <b>v4</b> now.", 2)).toBe(
+      "Use <b>v4</b> now.",
     );
   });
 
-  it("brownout day: says tomorrow after the day's window has passed", () => {
-    expect(
-      sentence(
-        content({
-          phase: "brownout_day",
-          state: {
-            serverNow: day1!.endsAt,
-            activeWindow: null,
-            nextWindow: day2!,
-          },
-        }),
-      ),
-    ).toBe(
-      "Legacy v3 ingestion and APIs pause tomorrow 15:00 to 18:00 GMT+1. Evals and exports are already off. Update now.",
+  it("replaces every {projects} token and no other brace", () => {
+    expect(renderV4BannerMessage("{projects} and {projects}, {other}", 2)).toBe(
+      "2 projects and 2 projects, {other}",
     );
   });
-
-  it("brownout day: points at the cut once the last window has passed", () => {
-    expect(
-      sentence(
-        content({
-          phase: "brownout_day",
-          state: {
-            serverNow: day3!.endsAt,
-            activeWindow: null,
-            nextWindow: null,
-          },
-        }),
-      ),
-    ).toBe(
-      "Legacy v3 ingestion and APIs shut off Nov 19. Evals and exports are already off. Update now.",
-    );
-  });
-
-  it("brownout active: names when the pause ends", () => {
-    const active = content({
-      phase: "brownout_active",
-      actionNeededCount: 1,
-      state: {
-        serverNow: new Date("2026-11-18T15:00:00Z"),
-        activeWindow: day3!,
-        nextWindow: null,
-      },
-    });
-    expect(active.severity).toBe("critical");
-    expect(sentence(active)).toBe(
-      "Legacy v3 ingestion and APIs are paused until 20:00 GMT+1. Evals and exports stay off. Update now.",
-    );
-  });
-
-  it("cut: names the projects still sending failing requests", () => {
-    const cut = content({ phase: "cut", actionNeededCount: 3 });
-    expect(cut.severity).toBe("critical");
-    expect(sentence(cut)).toBe(
-      "Legacy v3 ingestion, APIs, evals and exports are turned off. Update now.",
-    );
-    expect(sentence(content({ phase: "cut", actionNeededCount: 1 }))).toBe(
-      "Legacy v3 ingestion, APIs, evals and exports are turned off. Update now.",
-    );
-    expect(docsLink(cut)).toMatchObject({
-      href: "https://langfuse.com/docs/v4",
-    });
-  });
-
-  it.each(["amber", "brownout_day", "brownout_active", "cut"] as const)(
-    "%s: members get no panel link and are pointed at an admin",
-    (phase) => {
-      const member = content({
-        phase,
-        canManageIntegrations: false,
-        state: {
-          serverNow: new Date("2026-11-18T15:00:00Z"),
-          activeWindow: day3!,
-          nextWindow: day3!,
-        },
-      });
-      expect(panelLabel(member)).toBeUndefined();
-      expect(sentence(member)).toMatch(
-        phase === "amber"
-          ? /Ask an admin before Nov 16\.$/
-          : /Ask an admin now\.$/,
-      );
-      expect(docsLink(member)).toMatchObject({
-        href: expect.stringMatching(/^https:\/\/langfuse\.com/),
-      });
-    },
-  );
 });

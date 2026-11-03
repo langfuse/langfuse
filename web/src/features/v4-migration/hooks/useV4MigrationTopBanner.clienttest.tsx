@@ -1,6 +1,5 @@
 import { fireEvent, render, renderHook, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { LEGACY_API_SHUTDOWN_SCHEDULE } from "@/src/features/public-api/server/legacyApiShutdownSchedule";
 import { type ProjectMigrationStatus } from "@/src/features/v4-migration/migrationData";
 import { V4MigrationTopBannerView } from "@/src/features/v4-migration/V4MigrationTopBannerView";
 import { useV4MigrationTopBanner } from "./useV4MigrationTopBanner";
@@ -14,13 +13,13 @@ const mocks = vi.hoisted(() => ({
   capture: vi.fn(),
   openPanel: vi.fn(),
   canManage: true,
-  serverPhase: "before_stop" as string,
+  severity: "warning" as "off" | "warning" | "critical",
+  message:
+    "{projects} still use legacy v3 ingestion, APIs and evals. They stop on Nov 16." as
+      | string
+      | null,
   statusByProjectId: new Map<string, ProjectMigrationStatus>(),
   queryInput: undefined as unknown,
-}));
-
-vi.mock("next/router", () => ({
-  useRouter: () => ({ query: { v4BannerNow: "2026-11-19T10:00:00Z" } }),
 }));
 
 vi.mock("next-auth/react", () => ({
@@ -76,14 +75,9 @@ vi.mock("@/src/utils/api", () => ({
           mocks.queryInput = input;
           return {
             data: {
-              phase: mocks.serverPhase,
+              severity: mocks.severity,
+              message: mocks.message,
               exempt: false,
-              serverNow: new Date("2026-11-02T12:00:00Z"),
-              evalsExportsStopAt:
-                LEGACY_API_SHUTDOWN_SCHEDULE.evalsExportsStopAt,
-              fullCutAt: LEGACY_API_SHUTDOWN_SCHEDULE.fullCutAt,
-              activeWindow: null,
-              nextWindow: LEGACY_API_SHUTDOWN_SCHEDULE.brownoutWindows[0],
             },
           };
         },
@@ -91,6 +85,10 @@ vi.mock("@/src/utils/api", () => ({
     },
   },
 }));
+
+const WARNING_MESSAGE =
+  "{projects} still use legacy v3 ingestion, APIs and evals. They stop on Nov 16.";
+const CRITICAL_MESSAGE = "Legacy v3 ingestion, APIs and evals are turned off.";
 
 const status = (
   overrides?: Partial<ProjectMigrationStatus>,
@@ -113,7 +111,8 @@ beforeEach(() => {
   mocks.capture.mockReset();
   mocks.openPanel.mockReset();
   mocks.canManage = true;
-  mocks.serverPhase = "before_stop";
+  mocks.severity = "warning";
+  mocks.message = WARNING_MESSAGE;
   mocks.statusByProjectId = new Map([
     ["project-ok", status()],
     ["project-legacy", status({ apis: { status: "loaded", count: 2 } })],
@@ -126,15 +125,12 @@ describe("useV4MigrationTopBanner", () => {
     render(<ConnectedBanner />);
 
     expect(screen.getByRole("status")).toHaveTextContent(
-      "1 project still uses legacy v3 features like ingestion, APIs, evals and exports. Update before Nov 16.",
+      "1 project still use legacy v3 ingestion, APIs and evals. They stop on Nov 16. Update",
     );
-    expect(mocks.queryInput).toEqual({
-      orgId: "org-1",
-      nowOverride: "2026-11-19T10:00:00Z",
-    });
+    expect(mocks.queryInput).toEqual({ orgId: "org-1" });
     expect(mocks.capture).toHaveBeenCalledWith(
       "v4_migration:top_banner_shown",
-      { phase: "amber", role: "admin", actionNeededCount: 1 },
+      { severity: "warning", role: "admin", actionNeededCount: 1 },
     );
 
     fireEvent.click(screen.getByRole("button", { name: "Update" }));
@@ -145,17 +141,12 @@ describe("useV4MigrationTopBanner", () => {
     );
     expect(mocks.capture).toHaveBeenCalledWith(
       "v4_migration:top_banner_cta_clicked",
-      { phase: "amber", role: "admin", actionNeededCount: 1, cta: "primary" },
-    );
-
-    fireEvent.click(
-      screen.getByRole("link", {
-        name: "legacy v3 features like ingestion, APIs, evals and exports",
-      }),
-    );
-    expect(mocks.capture).toHaveBeenCalledWith(
-      "v4_migration:top_banner_cta_clicked",
-      { phase: "amber", role: "admin", actionNeededCount: 1, cta: "docs" },
+      {
+        severity: "warning",
+        role: "admin",
+        actionNeededCount: 1,
+        cta: "primary",
+      },
     );
   });
 
@@ -167,16 +158,11 @@ describe("useV4MigrationTopBanner", () => {
       screen.queryByRole("button", { name: "Update" }),
     ).not.toBeInTheDocument();
     expect(screen.getByRole("status")).toHaveTextContent(
-      "1 project still uses legacy v3 features like ingestion, APIs, evals and exports. Ask an admin before Nov 16.",
+      "1 project still use legacy v3 ingestion, APIs and evals. They stop on Nov 16. Ask an admin to update.",
     );
-    expect(
-      screen.getByRole("link", {
-        name: "legacy v3 features like ingestion, APIs, evals and exports",
-      }),
-    ).toHaveAttribute("href", "https://langfuse.com/docs/v4");
     expect(mocks.capture).toHaveBeenCalledWith(
       "v4_migration:top_banner_shown",
-      { phase: "amber", role: "member", actionNeededCount: 1 },
+      { severity: "warning", role: "member", actionNeededCount: 1 },
     );
   });
 
@@ -194,13 +180,18 @@ describe("useV4MigrationTopBanner", () => {
     );
   });
 
-  it("stays up in the red phases with the same inline update", () => {
+  it("shows the critical message as plain text with the same update link", () => {
     sessionStorage.setItem("v4-migration-top-banner:closed", "true");
-    mocks.serverPhase = "cut";
+    mocks.severity = "critical";
+    mocks.message = CRITICAL_MESSAGE;
     render(<ConnectedBanner />);
 
     expect(screen.getByRole("status")).toHaveTextContent(
-      "Legacy v3 ingestion, APIs, evals and exports are turned off. Update now.",
+      "Legacy v3 ingestion, APIs and evals are turned off. Update",
+    );
+    expect(screen.getByRole("status")).toHaveAttribute(
+      "data-severity",
+      "critical",
     );
     expect(
       screen.queryByRole("button", { name: "Close" }),
@@ -208,12 +199,14 @@ describe("useV4MigrationTopBanner", () => {
     expect(screen.getByRole("button", { name: "Update" })).toBeVisible();
   });
 
-  it("stays hidden when the server hides it or no project needs action", () => {
-    mocks.serverPhase = "hidden";
+  it("stays hidden when the server turns it off or no project needs action", () => {
+    mocks.severity = "off";
+    mocks.message = null;
     const { result, rerender } = renderHook(() => useV4MigrationTopBanner());
     expect(result.current).toBeNull();
 
-    mocks.serverPhase = "cut";
+    mocks.severity = "critical";
+    mocks.message = CRITICAL_MESSAGE;
     mocks.statusByProjectId = new Map([
       ["project-ok", status()],
       ["project-legacy", status()],

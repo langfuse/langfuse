@@ -1393,9 +1393,9 @@ describe("V4MigrationHeaderContent", () => {
       "https://langfuse.com/docs/v4",
     );
     expect(
-      screen.getByText(/Legacy evaluators and exports stop on/),
+      screen.getByText(/some features may stop working/),
     ).toHaveTextContent(
-      "Legacy evaluators and exports stop on November 16, 2026. Legacy ingestion and APIs shut off on November 19, 2026. Ingestion and APIs also pause Nov 16 16:00–17:00, Nov 17 15:00–18:00 and Nov 18 14:00–20:00 Europe/Berlin. Counts use the last 3 days of traffic.",
+      "After November 16, 2026 some features may stop working if you don't update integrations.",
     );
     expect(
       screen.getByRole("link", { name: "November 16, 2026" }),

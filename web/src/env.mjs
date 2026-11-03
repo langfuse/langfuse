@@ -715,10 +715,16 @@ export const env = createEnv({
     LANGFUSE_MIGRATION_V4_WRITE_MODE: z
       .enum(["legacy", "dual", "events_only"])
       .default("events_only"),
-    // Langfuse Cloud only, temporary: comma-separated organization ids that
-    // never see the legacy API shutdown top banner. Read only by
-    // features/v4-migration/server/legacyApiBannerSource.ts. Remove once the
-    // per-organization brownout allowlist replaces it as the banner source.
+    // Langfuse Cloud only, temporary. The legacy v3 top banner. "off" (or an
+    // empty message) hides it. Read only by
+    // features/v4-migration/server/legacyApiBannerSource.ts.
+    LANGFUSE_V4_BANNER_SEVERITY: z
+      .enum(["off", "warning", "critical"])
+      .default("off"),
+    // One line of plain text. `{projects}` is replaced with the org-wide
+    // action-needed count ("1 project" / "3 projects").
+    LANGFUSE_V4_BANNER_MESSAGE: z.string().optional(),
+    // Comma-separated organization ids that never see the banner.
     LANGFUSE_V4_BANNER_EXEMPT_ORG_IDS: z
       .string()
       .optional()
@@ -1341,6 +1347,8 @@ export const env = createEnv({
       process.env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN,
     LANGFUSE_MIGRATION_V4_WRITE_MODE:
       process.env.LANGFUSE_MIGRATION_V4_WRITE_MODE,
+    LANGFUSE_V4_BANNER_SEVERITY: process.env.LANGFUSE_V4_BANNER_SEVERITY,
+    LANGFUSE_V4_BANNER_MESSAGE: process.env.LANGFUSE_V4_BANNER_MESSAGE,
     LANGFUSE_V4_BANNER_EXEMPT_ORG_IDS:
       process.env.LANGFUSE_V4_BANNER_EXEMPT_ORG_IDS,
     LANGFUSE_MARKDOWN_RENDER_CHARACTER_LIMIT:
