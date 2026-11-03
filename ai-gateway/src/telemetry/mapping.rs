@@ -450,7 +450,10 @@ mod tests {
             .inference
             .model_parameters
             .insert("service_tier".into(), json!("priority"));
-        facts.inference.input = Some(json!({"input": "hello", "tools": [{"type": "function"}]}));
+        facts.inference.input = serde_json::value::to_raw_value(
+            &json!({"input": "hello", "tools": [{"type": "function"}]}),
+        )
+        .ok();
         facts.inference.output = Some(json!([{ "type": "message", "content": "world" }]));
         facts.inference.capture_complete = true;
         facts.inference.output_complete = true;

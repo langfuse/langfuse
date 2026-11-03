@@ -13,7 +13,7 @@ import {
 } from "@langfuse/shared/rbac";
 
 import { getRolesForPrincipal } from "@/src/features/rbac/getRolesForPrincipal";
-import { getOrganizationPlanServerSide } from "@/src/features/entitlements/server";
+import { getOrganizationPlanServerSide } from "@/src/features/entitlements/server/getPlan";
 import {
   OrganizationRepository,
   type GetOrganizationResult,
@@ -206,6 +206,7 @@ function toPrincipalOrganization(
     rateLimitOverrides: cloudConfig?.rateLimitOverrides ?? [],
     projectIds: org.projects.map((p) => p.id),
     isIngestionSuspended: org.cloudFreeTierUsageThresholdState === "BLOCKED",
+    accessAuditLogEnabled: org.accessAuditLogEnabled,
   };
 }
 

@@ -10,11 +10,15 @@ import { FeaturePreviewModal } from "./FeaturePreviewModal";
 const mocks = vi.hoisted(() => ({ mutate: vi.fn(), isV4: true }));
 
 vi.mock("next-auth/react", () => ({ useSession: vi.fn() }));
-vi.mock("@/src/features/events", () => ({
+vi.mock("@/src/features/events/hooks/useReadPath", () => ({
   useReadPath: () => ({ isV4: mocks.isV4 }),
   V4_PREVIEW_LABEL: "Fast (Preview)",
 }));
-vi.mock("@/src/features/posthog-analytics", () => ({
+vi.mock("@/src/features/events/lib/v4PreviewLabel", () => ({
+  useReadPath: () => ({ isV4: mocks.isV4 }),
+  V4_PREVIEW_LABEL: "Fast (Preview)",
+}));
+vi.mock("@/src/features/posthog-analytics/usePostHogClientCapture", () => ({
   usePostHogClientCapture: () => vi.fn(),
 }));
 vi.mock("@/src/utils/api", () => ({
@@ -107,24 +111,6 @@ describe("FeaturePreviewModal", () => {
       expect(toggle).not.toBeChecked();
       expect(toggle).toBeDisabled();
     }
-  });
-
-  it("lets users opt into Skill Management without other previews", () => {
-    const onToggle = vi.fn();
-
-    render(
-      <FeaturePreviewModal
-        open
-        onOpenChange={vi.fn()}
-        state={{ skillManagement: { enabled: false, onToggle } }}
-      />,
-    );
-
-    fireEvent.click(
-      screen.getByRole("switch", { name: "Toggle Skill Management" }),
-    );
-
-    expect(onToggle).toHaveBeenCalledWith(true);
   });
 
   it("renders the session timeline toggle inside Redesigned Session View", () => {

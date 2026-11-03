@@ -1,6 +1,10 @@
 import type { ApiKey, Prisma, Role } from "@langfuse/shared/src/db";
 import { invalidateCachedApiKeys, logger } from "@langfuse/shared/src/server";
-import { auditLog, type AuditLogActor } from "@/src/features/audit-logs/server";
+import {
+  auditLog,
+  type AuditLogActor,
+} from "@/src/features/audit-logs/auditLog";
+
 import { invalidateGatewayResolveCacheForApiKey } from "@/src/features/ai-gateway/server/resolve/gatewayResolveCache";
 import { hasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 

@@ -11,7 +11,7 @@ import {
   type LlmApiKeyListItem,
   type LlmConnectionFormOwner,
 } from "./CreateLLMApiKeyForm";
-import { useUiCustomization } from "@/src/ee/features/ui-customization";
+import { useUiCustomization } from "@/src/ee/features/ui-customization/useUiCustomization";
 
 export function UpdateLLMApiKeyDialog({
   owner,

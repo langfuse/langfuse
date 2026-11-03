@@ -7,7 +7,8 @@ import { GatewayControlPlaneError } from "@/src/features/ai-gateway/server/gatew
 import {
   type GatewayApiFormat,
   GatewayModelsResponseSchema,
-} from "@/src/features/ai-gateway/server/provider";
+} from "@/src/features/ai-gateway/server/provider/registry";
+
 import { GatewayModelsService } from "./gatewayModelsService";
 
 export async function gatewayModelsApiHandler({

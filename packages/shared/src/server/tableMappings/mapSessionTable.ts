@@ -1,4 +1,4 @@
-import { UiColumnMappings } from "../../tableDefinitions";
+import { UiColumnMappings } from "../../tableDefinitions/types";
 import { tokenCountFilterClickhouseType } from "./tokenCountFilterType";
 
 export const sessionCols: UiColumnMappings = [

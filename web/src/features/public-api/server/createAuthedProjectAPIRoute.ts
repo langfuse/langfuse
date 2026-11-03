@@ -17,7 +17,7 @@ import {
   type RateLimitResource,
   type ApiDeprecationInfo,
 } from "@langfuse/shared";
-import { verifyGatewayIngestionAuthorization } from "@/src/features/ai-gateway/server";
+import { verifyGatewayIngestionAuthorization } from "@/src/features/ai-gateway/server/auth/ingestionTokenVerifier";
 import { RateLimitService } from "@/src/features/public-api/server/RateLimitService";
 import { type RateLimitUpgradePath } from "@/src/features/public-api/server/rateLimitUpgradePaths";
 import * as opentelemetry from "@opentelemetry/api";

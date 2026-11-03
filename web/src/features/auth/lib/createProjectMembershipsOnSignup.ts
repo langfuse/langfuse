@@ -7,14 +7,12 @@ import {
 } from "@langfuse/shared/src/db";
 import { logger } from "@langfuse/shared/src/server";
 import { ServerPosthog } from "@/src/features/posthog-analytics/ServerPosthog";
-import {
-  getOrganizationPlanServerSide,
-  hasEntitlementBasedOnPlan,
-} from "@/src/features/entitlements/server";
+import { getOrganizationPlanServerSide } from "@/src/features/entitlements/server/getPlan";
+import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server/hasEntitlement";
 import { shouldAutoEnableV4 } from "@/src/features/events/lib/v4Rollout";
-import { getSfdcService } from "@/src/ee/features/sfdc-sync/server";
-import { canCreateOrganizations } from "@/src/features/organizations/server";
-import { provisionStarterOrganizationForNewUser } from "@/src/features/onboarding/server";
+import { getSfdcService } from "@/src/ee/features/sfdc-sync/server/sfdcService";
+import { canCreateOrganizations } from "@/src/features/organizations/server/canCreateOrganizations";
+import { provisionStarterOrganizationForNewUser } from "@/src/features/onboarding/server/onboardingService";
 import {
   LangfuseNotFoundError,
   projectRoleAccessRights,

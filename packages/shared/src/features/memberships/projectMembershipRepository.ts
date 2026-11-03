@@ -1,6 +1,6 @@
 import { type Prisma, type ProjectMembership, type Role } from "@prisma/client";
 
-import { LangfuseNotFoundError } from "../../errors";
+import { LangfuseNotFoundError } from "../../errors/NotFoundError";
 import { withTransaction } from "../../server/utils/withTransaction";
 import { rethrowIfMembershipExists } from "./rethrowIfMembershipExists";
 import {

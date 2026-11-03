@@ -1,14 +1,12 @@
-import { getGatewayIngestionProjectDeletionMessage } from "@/src/features/ai-gateway/fns/gatewayIngestionModePolicy";
-import { ExternalLink } from "@langfuse/icons";
 import { type ReactNode } from "react";
-import { useRouter } from "next/router";
 
 import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
 import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
 import { env } from "@/src/env.mjs";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useQueryProject } from "@/src/features/projects/hooks";
-import { useHasProjectAccess } from "@/src/features/rbac";
+import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { api, reportNonTrpcError } from "@/src/utils/api";
 import { DeleteProjectDialog } from "@/src/features/projects/components/DeleteProjectDialogController/components/DeleteProjectDialog/DeleteProjectDialog";
 
@@ -22,7 +20,6 @@ type DeleteProjectDialogControllerProps = {
 export function DeleteProjectDialogController({
   children,
 }: DeleteProjectDialogControllerProps) {
-  const router = useRouter();
   const capture = usePostHogClientCapture();
   const { project, organization } = useQueryProject();
   const confirmMessage = `${organization?.name}/${project?.name}`
@@ -31,6 +28,10 @@ export function DeleteProjectDialogController({
   const hasAccess = useHasProjectAccess({
     projectId: project?.id,
     scope: "project:delete",
+  });
+  const canManageGateway = useHasOrganizationAccess({
+    organizationId: organization?.id,
+    scope: "gateway:manage",
   });
   const deletionProtection = api.projects.deletionProtection.useQuery(
     { projectId: project?.id ?? "" },
@@ -55,24 +56,13 @@ export function DeleteProjectDialogController({
   return (
     <DialogController
       renderDialog={() => {
-        if (
-          deletionProtection.data?.isGatewayIngestionProject &&
-          organization
-        ) {
+        const isGatewayIngestionProject =
+          deletionProtection.data?.isGatewayIngestionProject === true;
+        if (isGatewayIngestionProject && !canManageGateway) {
           return (
             <Dialog
               title="Project cannot be deleted"
-              text={getGatewayIngestionProjectDeletionMessage()}
-              actions={[
-                {
-                  label: "Open AI Gateway settings",
-                  icon: ExternalLink,
-                  onClick: () =>
-                    router.push(
-                      `/organization/${organization.id}/settings/ai-gateway`,
-                    ),
-                },
-              ]}
+              text="This project receives the organization's AI Gateway traces. Only members who can manage the AI Gateway can delete it."
             />
           );
         }
@@ -82,6 +72,9 @@ export function DeleteProjectDialogController({
             confirmMessage={confirmMessage}
             isPending={deleteProject.isPending}
             onSubmit={handleDelete}
+            gatewayOrganizationName={
+              isGatewayIngestionProject ? organization?.name : undefined
+            }
           />
         );
       }}

@@ -1,6 +1,7 @@
 /* eslint-disable no-nested-ternary, @typescript-eslint/no-use-before-define */
 /* eslint-disable @repo/no-style-props */
-import { showSuccessToast, showErrorToast } from "@/src/features/notifications";
+import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
+import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import React, { useMemo, useRef } from "react";
 import * as AccordionPrimitive from "@radix-ui/react-accordion";
 import { useRouter } from "next/router";
@@ -8,14 +9,12 @@ import { type IconComponent, Plus } from "@langfuse/icons";
 import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { startCase } from "lodash";
 
 import { api } from "@/src/utils/api";
 import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
 import { AIAssistedInput } from "@/src/components/ui/AIAssistedInput";
 import { Button } from "@/src/components/ui/button";
 import {
-  Card,
   CardContent,
   CardDescription,
   CardFooter,
@@ -40,13 +39,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/src/components/ui/select";
-import { useHasProjectAccess } from "@/src/features/rbac";
-import { useLangfuseCloudRegion } from "@/src/features/organizations";
-import { useProject } from "@/src/features/projects";
-import { WidgetPropertySelectItem } from "@/src/features/widgets";
-import { ConnectedMetricsFilterBuilder } from "@/src/features/metrics";
-import { partitionWidgetUiTableFiltersToView } from "@/src/features/dashboard";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
+import { useProject } from "@/src/features/projects/hooks";
+import { partitionWidgetUiTableFiltersToView } from "@/src/features/dashboard/lib/dashboardUiTableToViewMapping";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import {
   resolveMonitorNameForSave,
   type MonitorNameResolution,
@@ -56,7 +53,6 @@ import { cn } from "@/src/utils/tailwind";
 import {
   CreateMonitorSchema,
   type CreateMonitor,
-  getValidMonitorAggregationsForMeasure,
   type Monitor,
   type MonitorNoData,
   MonitorNoDataModeSchema,
@@ -66,7 +62,6 @@ import {
   type MonitorThresholdOperator,
   MonitorThresholdOperatorSchema,
   type MonitorView,
-  MonitorViewSchema,
   type MonitorWindow,
   MonitorWindowSchema,
   UpdateMonitorSchema,
@@ -74,22 +69,29 @@ import {
 } from "@langfuse/shared/monitors";
 import { viewDeclarations, type FilterState } from "@langfuse/shared";
 
-import { TagManager } from "@/src/features/tag";
+import { default as TagManager } from "@/src/features/tag/components/TagManager";
 import { MonitorChartPreview } from "./MonitorChartPreview";
 import { getMonitorFilterOptionsLookbackFrom } from "../helpers/monitorTimeRanges";
 import { MonitorAutomationsPanel } from "./MonitorAutomationsPanel";
+import { MonitorMetricDefinition } from "./MonitorMetricDefinition";
 import { MonitorSeverityBadge } from "./MonitorSeverityBadge";
 import { Badge } from "@/src/components/design-system/Badge/Badge";
+import { ConfirmationDialogController } from "@/src/components/design-system/ConfirmationDialogController/ConfirmationDialogController";
 import {
   operatorLabels,
   operatorSymbol,
-  viewLabels,
   windowLabels,
 } from "../helpers/monitorLabels";
-import {
-  aggregationLabel,
-  renderNamePlaceholder,
-} from "../helpers/renderMonitorLabels";
+import { renderNamePlaceholder } from "../helpers/renderMonitorLabels";
+
+/** numericMeasureTypes are the measure types whose values carry their own unit. */
+const numericMeasureTypes = new Set(["integer", "decimal", "number"]);
+
+/** unitLabels spells out measure units that read better pluralized. */
+const unitLabels: Record<string, string> = { millisecond: "milliseconds" };
+
+/** unitlessMeasureLabels names the unit of measures declared without one. */
+const unitlessMeasureLabels: Record<string, string> = { value: "score value" };
 
 /** createDefaults returns the form defaults for a brand-new monitor. */
 const createDefaults = (
@@ -132,18 +134,6 @@ const monitorToDefaults = (monitor: Monitor): UpdateMonitor => ({
   // status omitted: the pause/resume toolbar owns it.
 });
 
-/** resolveViewChangePatch returns the form fields that must change when the view changes. */
-const resolveViewChangePatch = (
-  nextView: keyof (typeof viewDeclarations)["v2"],
-  currentMeasure: string,
-): Partial<Pick<CreateMonitor, "metric">> => {
-  const measures = viewDeclarations.v2[nextView]?.measures ?? {};
-  // Filters are never patched; MetricsFilterBuilder drops rows the view cannot render.
-  return currentMeasure in measures
-    ? {}
-    : { metric: { measure: "count", aggregation: "count" } };
-};
-
 /** nameOrPlaceholder falls back to the placeholder when the name is blank. */
 const nameOrPlaceholder = (
   name: string | undefined,
@@ -175,6 +165,7 @@ export const MonitorForm = ({
   analyticsSource = "alerts",
   initialTriggerIds = [],
   onNameChange,
+  secondaryAction,
 }: {
   projectId: string;
   monitor?: Monitor;
@@ -185,6 +176,8 @@ export const MonitorForm = ({
   initialTriggerIds?: string[];
   /** onNameChange fires on every form change so the host (e.g. the edit page header) can mirror the live name. */
   onNameChange?: (name: string) => void;
+  /** secondaryAction renders left of the submit button, e.g. the edit page's delete button. */
+  secondaryAction?: React.ReactNode;
 }) => {
   /** router is the Next router used to redirect after a successful create. */
   const router = useRouter();
@@ -402,23 +395,6 @@ export const MonitorForm = ({
     { staleTime: Infinity, refetchOnWindowFocus: false },
   );
 
-  /** measureOptions is the list of measure names available on the currently picked view. */
-  const measureOptions = useMemo(() => {
-    const view = (watched.view ??
-      "observations") as keyof (typeof viewDeclarations)["v2"];
-    const measures = viewDeclarations.v2[view]?.measures ?? {};
-    return Object.keys(measures);
-  }, [watched.view]);
-
-  /** aggregationOptions is the set of valid aggregations for the picked (view, measure) pair. */
-  const aggregationOptions = useMemo(() => {
-    const view = (watched.view ??
-      "observations") as keyof (typeof viewDeclarations)["v2"];
-    const measureName = watched.metric?.measure ?? "count";
-    const measureDef = viewDeclarations.v2[view]?.measures[measureName];
-    return getValidMonitorAggregationsForMeasure(measureDef);
-  }, [watched.view, watched.metric?.measure]);
-
   /** namePlaceholder builds an auto-suggested name from the current view + metric + threshold (e.g. "Sum of Observations Latency is below 100"). */
   const namePlaceholder = useMemo(
     () =>
@@ -466,176 +442,43 @@ export const MonitorForm = ({
     createMutation.isPending ||
     updateMutation.isPending ||
     suggestName.isPending;
+  /** thresholdUnitLabel names the unit the thresholds are compared in, e.g. "milliseconds". */
+  const thresholdUnitLabel = thresholdUnit(
+    (watched.view ?? "observations") as MonitorView,
+    watched.metric?.measure ?? "count",
+    watched.metric?.aggregation ?? "count",
+  );
+  /** isIncomplete is true while a new alert is missing required fields. */
+  const isIncomplete = !isEdit && !form.formState.isValid;
 
   return (
     <Form {...form}>
       <form onSubmit={onSubmit} className="flex h-full gap-4 overflow-hidden">
-        <div className="h-full min-h-0 w-full min-w-107.5 md:w-1/3">
-          <Card className="flex h-full flex-col">
+        <div className="@container h-full min-h-0 w-full min-w-0 md:w-1/3 md:min-w-80">
+          <div className="flex h-full flex-col">
             <CardHeader>
-              <CardTitle>Alert Configuration</CardTitle>
-              <CardDescription>
-                Receive notifications when a metric crosses a threshold. (eg.
-                &ldquo;sudden cost increase&rdquo;, &ldquo;accuracy has
-                dropped&rdquo;)
-              </CardDescription>
+              <FormHeading
+                isEdit={isEdit}
+                name={nameOrPlaceholder(watched.name, namePlaceholder)}
+              />
             </CardHeader>
             <CardContent className="min-h-0 flex-1 overflow-y-auto overscroll-contain py-0">
-              <Section title="Metric Definition" step={1}>
-                <FormField
-                  control={form.control}
-                  name="view"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>View</FormLabel>
-                      <Select
-                        value={field.value}
-                        onValueChange={(next) => {
-                          field.onChange(next);
-                          const patch = resolveViewChangePatch(
-                            next as keyof (typeof viewDeclarations)["v2"],
-                            form.getValues("metric.measure"),
-                          );
-                          if (patch.metric) {
-                            form.setValue("metric", patch.metric, {
-                              shouldValidate: true,
-                            });
-                          }
-                        }}
-                        disabled={!hasAccess}
-                      >
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          {MonitorViewSchema.options.map((v) => (
-                            <WidgetPropertySelectItem
-                              key={v}
-                              value={v}
-                              label={viewLabels[v]}
-                              description={
-                                viewDeclarations.v2[v]?.description ?? undefined
-                              }
-                            />
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-                <FormField
-                  control={form.control}
-                  name="metric.measure"
-                  render={({ field }) => {
-                    const view = (watched.view ??
-                      "observations") as keyof (typeof viewDeclarations)["v2"];
-                    const measures = viewDeclarations.v2[view]?.measures ?? {};
-                    return (
-                      <FormItem>
-                        <FormLabel>Measure</FormLabel>
-                        <Select
-                          value={field.value}
-                          onValueChange={(next) => {
-                            field.onChange(next);
-                            // The aggregation dropdown filters by the new
-                            // measure, but the stored value can stay stale
-                            // (e.g. "sum" against a string measure, or "p95"
-                            // against `count`). Snap it to the first valid
-                            // option whenever the current one isn't supported.
-                            const validAggs =
-                              getValidMonitorAggregationsForMeasure(
-                                measures[next],
-                              );
-                            const currentAgg =
-                              form.getValues("metric.aggregation");
-                            if (!validAggs.includes(currentAgg)) {
-                              form.setValue(
-                                "metric.aggregation",
-                                validAggs[0] ?? "count",
-                                { shouldValidate: true },
-                              );
-                            }
-                          }}
-                          disabled={!hasAccess}
-                        >
-                          <FormControl>
-                            <SelectTrigger>
-                              <SelectValue />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            {measureOptions.map((m) => {
-                              const meta = measures[m];
-                              return (
-                                <WidgetPropertySelectItem
-                                  key={m}
-                                  value={m}
-                                  label={startCase(m)}
-                                  description={meta?.description}
-                                  unit={meta?.unit}
-                                  type={meta?.type}
-                                />
-                              );
-                            })}
-                          </SelectContent>
-                        </Select>
-                        <FormMessage />
-                      </FormItem>
-                    );
-                  }}
-                />
-                {watched.metric?.measure !== "count" && (
-                  <FormField
-                    control={form.control}
-                    name="metric.aggregation"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Aggregation</FormLabel>
-                        <Select
-                          value={field.value}
-                          onValueChange={field.onChange}
-                          disabled={!hasAccess}
-                        >
-                          <FormControl>
-                            <SelectTrigger>
-                              <SelectValue />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            {aggregationOptions.map((a) => (
-                              <SelectItem key={a} value={a}>
-                                {aggregationLabel(a)}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                )}
-                <FormField
-                  control={form.control}
-                  name="filters"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Filters</FormLabel>
-                      <FormControl>
-                        <ConnectedMetricsFilterBuilder
-                          version="v2"
-                          view={(watched.view ?? "observations") as MonitorView}
-                          projectId={projectId}
-                          dateRange={{ from: filterOptionsLookbackFrom }}
-                          filters={(field.value ?? []) as FilterState}
-                          onChange={(next: FilterState) => field.onChange(next)}
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
+              {/* Fades content out as it slides under the form header. */}
+              <div
+                aria-hidden
+                className="from-background pointer-events-none sticky top-0 z-20 -mb-3 h-3 bg-linear-to-b to-transparent"
+              />
+              <Section title="Metric Definition" step={1} hasNextStep>
+                <MonitorMetricDefinition
+                  form={form}
+                  view={(watched.view ?? "observations") as MonitorView}
+                  aggregation={
+                    (watched.metric?.aggregation ??
+                      "count") as CreateMonitor["metric"]["aggregation"]
+                  }
+                  projectId={projectId}
+                  filterOptionsLookbackFrom={filterOptionsLookbackFrom}
+                  disabled={!hasAccess}
                 />
                 {formError.query && (
                   <p className="text-destructive text-xs">
@@ -644,7 +487,7 @@ export const MonitorForm = ({
                 )}
               </Section>
 
-              <Section title="Alert Conditions" step={2}>
+              <Section title="Alert Conditions" step={2} hasNextStep>
                 <FormField
                   control={form.control}
                   name="thresholdOperator"
@@ -694,7 +537,7 @@ export const MonitorForm = ({
                         <MonitorSeverityBadge
                           severity={MonitorSeveritySchema.enum.ALERT}
                         />
-                        <span className="text-sm whitespace-nowrap">
+                        <span className="hidden text-sm whitespace-nowrap @sm:inline">
                           Threshold
                         </span>
                         <span className="mr-1.5 ml-1 font-mono text-xs font-bold">
@@ -707,9 +550,8 @@ export const MonitorForm = ({
                           }
                         </span>
                         <FormControl>
-                          <Input
-                            type="number"
-                            className="flex-1"
+                          <ThresholdInput
+                            unit={thresholdUnitLabel}
                             placeholder="0"
                             value={field.value ?? ""}
                             onChange={(e) => {
@@ -738,7 +580,7 @@ export const MonitorForm = ({
                         <MonitorSeverityBadge
                           severity={MonitorSeveritySchema.enum.WARNING}
                         />
-                        <span className="text-sm whitespace-nowrap">
+                        <span className="hidden text-sm whitespace-nowrap @sm:inline">
                           Threshold
                         </span>
                         <span className="mr-1.5 ml-1 font-mono text-xs font-bold">
@@ -751,9 +593,8 @@ export const MonitorForm = ({
                           }
                         </span>
                         <FormControl>
-                          <Input
-                            type="number"
-                            className="flex-1"
+                          <ThresholdInput
+                            unit={thresholdUnitLabel}
                             placeholder="optional"
                             value={field.value ?? ""}
                             onChange={(e) => {
@@ -846,7 +687,7 @@ export const MonitorForm = ({
                 </AccordionPrimitive.Root>
               </Section>
 
-              <Section title="Notifications" step={3} className="pb-2">
+              <Section title="Notifications" step={3}>
                 <FormField
                   control={form.control}
                   name="name"
@@ -941,23 +782,54 @@ export const MonitorForm = ({
                   )}
                 />
               </Section>
+              {/* Fades content out as it slides under the action bar. */}
+              <div
+                aria-hidden
+                className="from-background pointer-events-none sticky bottom-0 z-20 -mt-3 h-3 bg-linear-to-t to-transparent"
+              />
             </CardContent>
             <CardFooter className="mt-auto">
-              <div className="w-full items-center pt-4">
+              <div className="flex w-full items-center justify-end gap-2 pt-4">
+                {!isEdit && (
+                  <ConfirmationDialogController
+                    title="Discard this alert?"
+                    text="Your changes to this alert will be lost."
+                    confirmLabel="Discard"
+                    variant="destructive"
+                    onConfirm={async () => {
+                      await router.push(`/project/${projectId}/alerts`);
+                    }}
+                  >
+                    {({ openDialog }) => (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={openDialog}
+                      >
+                        Cancel
+                      </Button>
+                    )}
+                  </ConfirmationDialogController>
+                )}
+                {secondaryAction}
+                {/* Looks disabled while incomplete but stays clickable, so a click still reveals the field errors. */}
                 <Button
                   type="submit"
-                  size="lg"
-                  className="w-full"
+                  className={cn(
+                    isIncomplete &&
+                      "hover:bg-primary cursor-not-allowed opacity-50",
+                  )}
+                  aria-disabled={isIncomplete || undefined}
                   disabled={!hasAccess || submitting}
                 >
                   {isEdit ? "Save Alert" : "Create Alert"}
                 </Button>
               </div>
             </CardFooter>
-          </Card>
+          </div>
         </div>
 
-        <div className="hidden h-full w-2/3 min-w-107.5 flex-col gap-6 overflow-y-auto overscroll-contain md:flex">
+        <div className="hidden h-full w-2/3 min-w-56 flex-col gap-6 overflow-y-auto overscroll-contain md:flex">
           <MonitorChartPreview
             projectId={projectId}
             view={(watched.view ?? "observations") as MonitorView}
@@ -981,6 +853,22 @@ export const MonitorForm = ({
   );
 };
 
+/** FormHeading titles the form: the alert being edited, or a description of a new one. */
+function FormHeading({ isEdit, name }: { isEdit: boolean; name: string }) {
+  if (isEdit) {
+    return <CardTitle>Edit Alert &ldquo;{name}&rdquo;</CardTitle>;
+  }
+  return (
+    <>
+      <CardTitle>Alert Configuration</CardTitle>
+      <CardDescription>
+        Receive notifications when a metric crosses a threshold. (eg.
+        &ldquo;sudden cost increase&rdquo;, &ldquo;accuracy has dropped&rdquo;)
+      </CardDescription>
+    </>
+  );
+}
+
 /** Header pins a section title to the top of the scrolling CardContent. */
 const Header = ({
   title,
@@ -991,8 +879,8 @@ const Header = ({
   step?: number;
   icon?: IconComponent;
 }) => (
-  <div className="bg-card sticky top-0 z-10">
-    <h3 className="flex items-center gap-2 py-2 text-lg font-bold">
+  <div className="sticky top-0 z-10">
+    <h3 className="bg-background flex items-center gap-2 pt-2 text-lg font-bold">
       {step != null ? (
         <span className="bg-foreground text-background flex h-6 w-6 items-center justify-center rounded-full text-sm font-bold">
           {step}
@@ -1001,26 +889,63 @@ const Header = ({
       {Icon ? <Icon size="lg" aria-hidden="true" /> : null}
       {title}
     </h3>
+    {/* Fades content out as it slides under the pinned title. */}
+    <div
+      aria-hidden
+      className="from-background h-3 bg-linear-to-b to-transparent"
+    />
   </div>
 );
 
-/** Section wraps a Header and its body in the layout used by every MonitorForm section. */
+/** Section wraps a Header and its body in the layout used by every MonitorForm section, linking its step to the next one. */
 const Section = ({
   title,
   step,
   icon,
+  hasNextStep = false,
   children,
   className,
 }: {
   title: string;
   step?: number;
   icon?: IconComponent;
+  hasNextStep?: boolean;
   children: React.ReactNode;
   className?: string;
 }) => (
-  <div>
+  <div className="relative">
+    {hasNextStep && (
+      <div
+        aria-hidden
+        className="bg-border absolute top-9 bottom-0 left-3 w-px -translate-x-1/2"
+      />
+    )}
     <Header title={title} step={step} icon={icon} />
-    <div className={cn("space-y-4 px-2 pb-4", className)}>{children}</div>
+    <div className={cn("space-y-4 pr-2 pb-4 pl-8", className)}>{children}</div>
+  </div>
+);
+
+/** ThresholdInput is a number input with the threshold's unit as a muted suffix inside the same box. */
+const ThresholdInput = ({
+  unit,
+  ...props
+}: Omit<React.ComponentProps<typeof Input>, "type" | "className"> & {
+  unit?: string;
+}) => (
+  <div className="border-input bg-background focus-within:ring-ring flex h-8 min-w-0 flex-1 items-center rounded-md border pr-2 focus-within:ring-1">
+    <Input
+      type="number"
+      className="h-full min-w-10 flex-1 appearance-none border-0 bg-transparent"
+      {...props}
+    />
+    {unit && (
+      <span
+        className="text-muted-foreground min-w-0 truncate pl-1 text-sm"
+        title={unit}
+      >
+        {unit}
+      </span>
+    )}
   </div>
 );
 
@@ -1164,11 +1089,26 @@ const RenotifyField = ({
   </div>
 );
 
+/** thresholdUnit returns the unit a metric's value is in, or undefined when it has none. */
+function thresholdUnit(
+  view: MonitorView,
+  measure: string,
+  aggregation: string,
+): string | undefined {
+  const measures = viewDeclarations.v2[view]?.measures ?? {};
+  const definition = measures[measure];
+  const isNumeric = numericMeasureTypes.has(definition?.type ?? "");
+  if (aggregation === "count" && isNumeric) return measures.count?.unit;
+  if (aggregation === "uniq" && isNumeric) return undefined;
+  if (!definition?.unit) return unitlessMeasureLabels[measure];
+  return unitLabels[definition.unit] ?? definition.unit;
+}
+
 /** __test exposes private helpers to co-located tests without widening the module API. */
 export const __test = {
   createDefaults,
+  thresholdUnit,
   monitorToDefaults,
   nameOrPlaceholder,
-  resolveViewChangePatch,
   monitorCreateAnalyticsProperties,
 };

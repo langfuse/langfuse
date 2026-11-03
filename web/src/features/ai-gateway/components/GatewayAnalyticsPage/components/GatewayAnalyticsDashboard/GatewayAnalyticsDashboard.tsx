@@ -8,7 +8,7 @@ import { GATEWAY_ANALYTICS_WIDGETS } from "@/src/features/ai-gateway/components/
 import { useGatewayAnalyticsFilters } from "@/src/features/ai-gateway/components/GatewayAnalyticsPage/hooks/useGatewayAnalyticsFilters";
 import { useGatewayAnalyticsLabels } from "@/src/features/ai-gateway/components/GatewayAnalyticsPage/hooks/useGatewayAnalyticsLabels";
 import { useGatewayUnpricedUsage } from "@/src/features/ai-gateway/components/GatewayAnalyticsPage/hooks/useGatewayUnpricedUsage";
-import { MultiSelect } from "@/src/features/filters";
+import { MultiSelect } from "@/src/features/filters/components/MultiSelect";
 import {
   toAbsoluteTimeRange,
   type TimeRange,
@@ -81,10 +81,15 @@ function GatewayAnalyticsWidgets({
     timeRange,
     filters,
   });
-  const hasUnpricedUsage = (unpricedUsage?.requests ?? 0) > 0;
 
   return (
     <>
+      {unpricedUsage && unpricedUsage.models.length > 0 ? (
+        <GatewayUnpricedUsageAlert
+          projectId={projectId}
+          usage={unpricedUsage}
+        />
+      ) : null}
       <div className="grid grid-cols-1 gap-3 lg:grid-cols-6">
         {GATEWAY_ANALYTICS_WIDGETS.map((widget) => (
           <GatewayAnalyticsWidgetCard
@@ -99,17 +104,9 @@ function GatewayAnalyticsWidgets({
             isWaitingForLabels={
               Boolean(widget.dimensionLabels) && labelsPending
             }
-            unpricedUsage={hasUnpricedUsage ? unpricedUsage : undefined}
           />
         ))}
       </div>
-      {/* Below the grid: it loads after the widgets and must not push them down. */}
-      {unpricedUsage && hasUnpricedUsage ? (
-        <GatewayUnpricedUsageAlert
-          projectId={projectId}
-          usage={unpricedUsage}
-        />
-      ) : null}
     </>
   );
 }

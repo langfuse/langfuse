@@ -1,4 +1,4 @@
-import { useId, useState } from "react";
+import { useState } from "react";
 import { Check, Copy } from "@langfuse/icons";
 
 import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
@@ -6,11 +6,6 @@ import { Form } from "@/src/components/design-system/Form/Form";
 import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
 import { Input } from "@/src/components/design-system/Input/Input";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
-import { DividedDialogBody } from "./DividedDialogBody";
-import { InlineCode } from "./InlineCode";
-import { describedBy } from "../helpers/describedBy";
-import { FieldHelp } from "./FieldHelp";
-import { FieldWithHelp } from "./FieldWithHelp";
 
 /** WebhookSecretDialog shows a just-created webhook automation's signing secret, which is never shown again. */
 export function WebhookSecretDialog({
@@ -20,7 +15,6 @@ export function WebhookSecretDialog({
   automationName: string;
   webhookSecret: string;
 }) {
-  const secretHelpId = useId();
   const [copyStatus, setCopyStatus] = useState<CopyStatus>("idle");
 
   return (
@@ -28,47 +22,46 @@ export function WebhookSecretDialog({
       title={`Automation "${automationName}" was created`}
       closeLabel="Done"
     >
-      <DividedDialogBody>
-        <FieldWithHelp>
-          <Form.Field label="Webhook secret">
-            {(field) => (
-              <div className="flex flex-col gap-1">
-                <div className="ph-no-capture grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2">
-                  <Input
-                    id={field.id}
-                    value={webhookSecret}
-                    aria-describedby={describedBy(
-                      field.inputDescribedById,
-                      secretHelpId,
-                    )}
-                    readOnly
-                  />
-                  <IconButton
-                    icon={copyIcon(copyStatus)}
-                    label={copyLabel(copyStatus)}
-                    variant="outline"
-                    onClick={async () =>
-                      setCopyStatus(await copySecret(webhookSecret))
-                    }
-                  />
-                </div>
-                {copyStatus === "failed" && (
-                  <p role="alert" className="text-destructive text-sm">
-                    Copy failed. Select the secret and copy it manually.
-                  </p>
-                )}
+      <Dialog.Body separators="both">
+        <Form.Field
+          label="Webhook secret"
+          description={[
+            {
+              type: "text",
+              text: "Use this secret to verify webhook signatures. It is included in the ",
+            },
+            { type: "code", text: "x-langfuse-signature" },
+            { type: "text", text: " header. " },
+            { type: "strong", text: "This will not be shown again." },
+          ]}
+        >
+          {(field) => (
+            <div className="flex flex-col gap-1">
+              <div className="ph-no-capture grid grid-cols-[minmax(0,1fr)_auto] items-center gap-2">
+                <Input
+                  id={field.id}
+                  value={webhookSecret}
+                  aria-describedby={field.inputDescribedById}
+                  readOnly
+                />
+                <IconButton
+                  icon={copyIcon(copyStatus)}
+                  label={copyLabel(copyStatus)}
+                  variant="outline"
+                  onClick={async () =>
+                    setCopyStatus(await copySecret(webhookSecret))
+                  }
+                />
               </div>
-            )}
-          </Form.Field>
-          <FieldHelp id={secretHelpId}>
-            Use this secret to verify webhook signatures. It is included in the{" "}
-            <InlineCode isShaded>x-langfuse-signature</InlineCode> header.{" "}
-            <strong className="text-foreground font-bold">
-              This will not be shown again.
-            </strong>
-          </FieldHelp>
-        </FieldWithHelp>
-      </DividedDialogBody>
+              {copyStatus === "failed" && (
+                <p role="alert" className="text-destructive text-sm">
+                  Copy failed. Select the secret and copy it manually.
+                </p>
+              )}
+            </div>
+          )}
+        </Form.Field>
+      </Dialog.Body>
     </Dialog>
   );
 }

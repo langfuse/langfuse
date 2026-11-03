@@ -116,19 +116,17 @@ export function ConnectedGatewayModelsTable({
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-4">
-      <Header
-        title="Gateway models"
-        actionButtons={
+      <div>
+        <Header title="Gateway models" />
+        <p className="text-muted-foreground text-sm">
+          These models are enabled and available to use through the AI Gateway.{" "}
           <Button
-            variant="secondary"
-            text="Docs"
+            variant="text"
+            text="How model management works"
             href={GATEWAY_MODELS_DOCS_URL}
           />
-        }
-      />
-      <p className="text-muted-foreground text-sm">
-        These models are enabled and available to use through the AI Gateway.
-      </p>
+        </p>
+      </div>
 
       {failedProviderCount > 0 ? (
         <Alert variant="warning">
