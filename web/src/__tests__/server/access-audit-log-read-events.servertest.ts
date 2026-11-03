@@ -63,6 +63,7 @@ function trpcCaller(params: {
   orgId: string;
   projectId: string;
   accessAuditLogEnabled: boolean;
+  supportAccess?: boolean;
 }) {
   const session: Session = {
     expires: "1",
@@ -75,7 +76,8 @@ function trpcCaller(params: {
         {
           id: params.orgId,
           name: "Access Audit Org",
-          role: Role.MEMBER,
+          role: params.supportAccess ? Role.VIEWER : Role.MEMBER,
+          supportAccess: params.supportAccess,
           plan: "cloud:enterprise",
           cloudConfig: undefined,
           metadata: {},
@@ -227,6 +229,7 @@ maybe("access events on tRPC events.byTraceId", () => {
         ...observationIds.map((id) => `observation:${id}`),
       ]),
     );
+    expect(events[0]?.actor).not.toHaveProperty("supportAccess");
   });
 
   it("records nothing for an org that has not opted in", async () => {
@@ -242,6 +245,34 @@ maybe("access events on tRPC events.byTraceId", () => {
     await caller.events.byTraceId({ projectId, traceId });
 
     expect(await accessEvents(orgId)).toEqual([]);
+  });
+
+  it("records a support access read as such in an org that has not opted in", async () => {
+    const { orgId, projectId } = await setupOrg(false);
+    const { traceId } = await seedEventsTrace(projectId);
+    const userId = randomUUID();
+    const caller = trpcCaller({
+      userId,
+      orgId,
+      projectId,
+      accessAuditLogEnabled: false,
+      supportAccess: true,
+    });
+
+    await caller.events.byTraceId({ projectId, traceId });
+
+    expect(await accessEvents(orgId)).toEqual([
+      expect.objectContaining({
+        route: "events.byTraceId",
+        resourceId: traceId,
+        actor: expect.objectContaining({
+          type: "USER",
+          userId,
+          orgRole: Role.VIEWER,
+          supportAccess: true,
+        }),
+      }),
+    ]);
   });
 
   it("fails the read when the event cannot be recorded", async () => {

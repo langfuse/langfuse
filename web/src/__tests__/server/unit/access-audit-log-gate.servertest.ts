@@ -99,4 +99,32 @@ describe("isAccessAuditLogEnabled", () => {
       );
     },
   );
+
+  it.each([
+    [true, true],
+    [false, false],
+  ])(
+    "records a read with support access %s while access logging is disabled: %s",
+    (supportAccess, expected) => {
+      mocks.mode = "disabled";
+      mocks.cloudRegion = "EU";
+      expect(
+        isAccessAuditLogEnabled(
+          { plan: "cloud:hobby", accessAuditLogEnabled: false },
+          { supportAccess },
+        ),
+      ).toBe(expected);
+    },
+  );
+
+  it("records no support access read while the staging kill switch is off", () => {
+    mocks.stagingEnabled = "false";
+    mocks.cloudRegion = "EU";
+    expect(
+      isAccessAuditLogEnabled(
+        { plan: "cloud:enterprise", accessAuditLogEnabled: true },
+        { supportAccess: true },
+      ),
+    ).toBe(false);
+  });
 });

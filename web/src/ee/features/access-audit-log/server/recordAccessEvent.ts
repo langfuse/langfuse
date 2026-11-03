@@ -96,6 +96,7 @@ export async function recordTrpcAccess(
     o.projects.some((p) => p.id === projectId),
   );
   const project = org?.projects.find((p) => p.id === projectId);
+  const supportAccess = org?.supportAccess === true;
   // Admins and viewers of public resources read projects outside their session.
   const auditOrg = org
     ? {
@@ -104,7 +105,9 @@ export async function recordTrpcAccess(
         accessAuditLogEnabled: org.accessAuditLogEnabled ?? false,
       }
     : await loadAccessAuditOrg({ projects: { some: { id: projectId } } });
-  if (!auditOrg || !isAccessAuditLogEnabled(auditOrg)) return;
+  if (!auditOrg || !isAccessAuditLogEnabled(auditOrg, { supportAccess })) {
+    return;
+  }
 
   await recordAccessEvent({
     ...read,
@@ -113,6 +116,7 @@ export async function recordTrpcAccess(
     actor: toUserActor(user, {
       orgRole: org?.role,
       projectRole: project?.role,
+      supportAccess,
     }),
     surface: "trpc",
     request: getAuditRequestContext(ctx.headers),
