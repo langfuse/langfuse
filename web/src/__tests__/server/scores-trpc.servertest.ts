@@ -20,6 +20,7 @@ vi.mock("@langfuse/shared/src/server", async () => {
     BatchActionQueue: {
       getInstance: vi.fn(() => ({
         add: mockAddBatchAction,
+        getJob: vi.fn(async () => undefined),
       })),
     },
     getEventsExactFilterOptionsForColumns:
