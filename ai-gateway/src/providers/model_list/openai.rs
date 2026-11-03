@@ -1,7 +1,7 @@
 use chrono::DateTime;
 use serde::Serialize;
 
-use super::CatalogEntry;
+use super::{CatalogEntry, CatalogProvider};
 use crate::resolution::ResolutionError;
 
 // API contract: https://developers.openai.com/api/reference/resources/models/methods/list
@@ -16,7 +16,7 @@ struct Model<'a> {
     id: &'a str,
     object: &'static str,
     created: i64,
-    owned_by: &'static str,
+    owned_by: &'a str,
 }
 
 pub(super) fn response(entries: &[CatalogEntry]) -> Result<Vec<u8>, ResolutionError> {
@@ -33,7 +33,12 @@ pub(super) fn response(entries: &[CatalogEntry]) -> Result<Vec<u8>, ResolutionEr
                 id: &entry.id,
                 object: "model",
                 created,
-                owned_by: "openai",
+                owned_by: match entry.provider {
+                    CatalogProvider::OpenAi => "openai",
+                    // Self-hosted catalogs are the operator's own models.
+                    CatalogProvider::Custom => "custom",
+                    CatalogProvider::Anthropic => "anthropic",
+                },
             })
         })
         .collect::<Result<Vec<_>, _>>()?;

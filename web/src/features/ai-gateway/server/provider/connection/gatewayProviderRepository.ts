@@ -6,16 +6,19 @@ import {
 } from "@langfuse/shared/src/db";
 
 import { parseGatewayAllowedModels } from "@/src/features/ai-gateway/fns/parseGatewayAllowedModels";
+import { parseGatewaySupportedRoutes } from "@/src/features/ai-gateway/fns/parseGatewaySupportedRoutes";
 
 const safeConnectionSelect = {
   id: true,
   organizationId: true,
   name: true,
   provider: true,
+  baseUrl: true,
   displaySecret: true,
   createdById: true,
   status: true,
   allowedModels: true,
+  supportedRoutes: true,
   createdAt: true,
   updatedAt: true,
 } satisfies Prisma.GatewayAiConnectionSelect;
@@ -28,6 +31,7 @@ function toSafeConnection<T extends SafeConnectionRow>(connection: T) {
   return {
     ...connection,
     allowedModels: parseGatewayAllowedModels(connection.allowedModels),
+    supportedRoutes: parseGatewaySupportedRoutes(connection.supportedRoutes),
   };
 }
 
@@ -107,13 +111,21 @@ export class GatewayProviderRepository {
     organizationId: string;
     name: string;
     provider: GatewayProvider;
+    baseUrl?: string | null;
     encryptedCredential: string;
     displaySecret: string;
     createdById: string | null;
     status: GatewayConnectionStatus;
+    supportedRoutes?: string[] | null;
   }) {
+    const { supportedRoutes, ...data } = params;
     const connection = await this.prisma.gatewayAiConnection.create({
-      data: params,
+      data: {
+        ...data,
+        ...(supportedRoutes === undefined
+          ? {}
+          : { supportedRoutes: supportedRoutes as Prisma.InputJsonValue }),
+      },
       select: safeConnectionSelect,
     });
     return toSafeConnection(connection);
@@ -123,14 +135,28 @@ export class GatewayProviderRepository {
     organizationId: string;
     id: string;
     name?: string;
+    baseUrl?: string | null;
     encryptedCredential?: string;
     displaySecret?: string;
     status?: GatewayConnectionStatus;
+    supportedRoutes?: string[] | null;
+    /** When set, the update applies only if the row is unchanged since then. */
+    expectedUpdatedAt?: Date;
   }) {
-    const { organizationId, id, ...data } = params;
+    const { organizationId, id, supportedRoutes, expectedUpdatedAt, ...data } =
+      params;
     const connection = await this.prisma.gatewayAiConnection.update({
-      where: { id, organizationId },
-      data,
+      where: {
+        id,
+        organizationId,
+        ...(expectedUpdatedAt ? { updatedAt: expectedUpdatedAt } : {}),
+      },
+      data: {
+        ...data,
+        ...(supportedRoutes === undefined
+          ? {}
+          : { supportedRoutes: supportedRoutes as Prisma.InputJsonValue }),
+      },
       select: safeConnectionSelect,
     });
     return toSafeConnection(connection);

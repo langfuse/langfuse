@@ -10,11 +10,13 @@ const connection = {
   id: "connection-openai",
   name: "OpenAI production",
   provider: "OPENAI",
+  baseUrl: null,
   displaySecret: "sk-proj-...7d3a",
   status: "ENABLED",
   organizationId: "org-1",
   createdById: "user-1",
   allowedModels: null,
+  supportedRoutes: null,
   createdAt: new Date("2026-09-07T12:00:00.000Z"),
   updatedAt: new Date("2026-09-07T12:00:00.000Z"),
 } satisfies NonNullable<ComponentProps<typeof ConnectionSummary>["connection"]>;

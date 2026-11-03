@@ -338,6 +338,7 @@ enum GatewayIngestionMode {
 enum GatewayProvider {
   OPENAI    @map("openai")
   ANTHROPIC @map("anthropic")
+  CUSTOM    @map("custom")
 }
 
 enum GatewayConnectionStatus {
@@ -364,11 +365,13 @@ model GatewayAiConnection {
   organization        Organization            @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   name                String
   provider            GatewayProvider
+  baseUrl             String?                 @map("base_url")
   encryptedCredential String                  @map("encrypted_credentials")
   displaySecret       String                  @map("display_secret_key")
   createdById         String?                 @map("created_by_id")
   status              GatewayConnectionStatus @default(ENABLED)
   allowedModels       Json?                   @map("allowed_models") @db.JsonB
+  supportedRoutes     Json?                   @map("supported_routes") @db.JsonB
   createdAt           DateTime                @default(now()) @map("created_at")
   updatedAt           DateTime                @default(now()) @updatedAt @map("updated_at")
 

@@ -1166,3 +1166,34 @@ fn plain_http_web_configuration_only_relaxes_the_https_requirement() {
         Err(ResolutionError::Configuration)
     ));
 }
+
+#[tokio::test]
+async fn accepts_keyless_custom_connections_with_empty_bearer_token() {
+    // Web sends token "" for a keyless custom connection.
+    let mut body = success("project-1", "private-provider-token");
+    body["connection"]["provider"] = json!("custom");
+    body["connection"]["api_format"] = json!("openai.chat-completions");
+    body["connection"]["base_url"] = json!("http://10.3.24.39:8000/v1");
+    body["connection"]["auth"] = json!({"type": "Bearer", "token": ""});
+    let web = FakeWeb::start(move |_| {
+        let body = body.clone();
+        async move { response(body) }
+    })
+    .await;
+    let context = web
+        .control_plane()
+        .resolve_at(
+            GATEWAY_KEY,
+            ApiFormat::OpenAiChatCompletions,
+            "glm-5.3",
+            NOW_TIME,
+            REQUEST_ID,
+        )
+        .await
+        .unwrap();
+    assert_eq!(context.connection().provider(), Provider::Custom);
+    assert!(matches!(
+        context.connection().credential(),
+        ProviderCredential::Bearer("")
+    ));
+}

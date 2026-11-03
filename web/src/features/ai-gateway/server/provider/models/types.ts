@@ -16,11 +16,19 @@ export type ModelDiscoveryError =
 
 type ModelDiscoveryResult =
   | { success: true; models: GatewayModelCatalogEntry[] }
-  | { success: false; error: ModelDiscoveryError };
+  | {
+      success: false;
+      error: ModelDiscoveryError;
+      /** The host answered successfully but its `/models` body is not a
+       * catalog: not JSON, or not the expected shape. */
+      invalidBody?: true;
+    };
 
 export interface ModelDiscoveryAdapter {
   fetchCatalog(params: {
     credential: string;
+    /** Registry origin for fixed providers; the connection origin for CUSTOM. */
+    baseUrl?: string;
     fetcher: typeof fetch;
   }): Promise<ModelDiscoveryResult>;
 }

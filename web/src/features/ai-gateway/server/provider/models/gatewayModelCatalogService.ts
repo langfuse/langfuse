@@ -113,12 +113,15 @@ export class GatewayModelCatalogService {
       organizationId,
       "ENABLED",
     );
-    return connections.map(({ id, name, provider, allowedModels }) => ({
-      id,
-      name,
-      provider,
-      allowedModels,
-    }));
+    return connections.map(
+      ({ id, name, provider, allowedModels, supportedRoutes }) => ({
+        id,
+        name,
+        provider,
+        allowedModels,
+        supportedRoutes,
+      }),
+    );
   }
 
   async refreshModels(params: {
@@ -293,9 +296,13 @@ export class GatewayModelCatalogService {
     params: CatalogRefreshParams,
   ): Promise<ModelCatalogRefreshResult> {
     const provider = connection.provider as GatewayProviderName;
-    const credential = decrypt(connection.encryptedCredential);
+    // Keyless connections store an empty column and send no Authorization.
+    const credential = connection.encryptedCredential
+      ? decrypt(connection.encryptedCredential)
+      : "";
     const models = await getModelDiscoveryAdapter(provider).fetchCatalog({
       credential,
+      baseUrl: connection.baseUrl ?? undefined,
       fetcher: this.fetcher,
     });
     if (!models.success) {

@@ -18,7 +18,7 @@ use crate::{
     config::ExecutionLimits,
     correlation::{RequestCorrelation, UpstreamTarget},
     observability::{ErrorOrigin, RequestObservation, Wait, provider_status_reason},
-    resolution::{ApiFormat, IngestionMode, Provider, ProviderCredential, ResolvedRequestContext},
+    resolution::{ApiFormat, IngestionMode, ProviderCredential, ResolvedRequestContext},
     transport,
 };
 
@@ -32,22 +32,11 @@ pub(crate) enum Route {
 }
 
 impl Route {
-    pub(crate) fn provider(self) -> Provider {
-        match self {
-            Self::OpenAiResponses | Self::OpenAiResponsesCompact | Self::OpenAiChatCompletions => {
-                Provider::OpenAi
-            }
-            Self::AnthropicMessages | Self::AnthropicCountTokens => Provider::Anthropic,
-        }
-    }
-
     pub(crate) fn api_format(self) -> ApiFormat {
         match self {
             Self::OpenAiChatCompletions => ApiFormat::OpenAiChatCompletions,
-            _ => match self.provider() {
-                Provider::OpenAi => ApiFormat::OpenAiResponses,
-                Provider::Anthropic => ApiFormat::AnthropicMessages,
-            },
+            Self::OpenAiResponses | Self::OpenAiResponsesCompact => ApiFormat::OpenAiResponses,
+            Self::AnthropicMessages | Self::AnthropicCountTokens => ApiFormat::AnthropicMessages,
         }
     }
 
@@ -241,8 +230,7 @@ impl ProviderTransport {
             reservation,
         } = request;
         let api_format = route.api_format();
-        let (credential_name, mut credential) = provider_credential(&context)?;
-        credential.set_sensitive(true);
+        let credential = provider_credential(&context)?;
         let provider_model = context.connection().provider_model();
         let mut capture = if route.captures_generation() {
             let mut capture = ExecutionCapture::for_request(api_format, &context, headers, &body);
@@ -274,21 +262,23 @@ impl ProviderTransport {
         let upstream_target =
             UpstreamTarget::for_connection(context.connection(), Some(provider_model.to_owned()));
         correlation.record_upstream(upstream_target);
-        let upstream = self
+        let mut upstream = self
             .client
             .post(self.request_url(route, base_url))
             .with_extension(DisableOtelPropagation)
             .headers(transport::request_headers(headers, api_format))
-            .header(header::ACCEPT_ENCODING, "identity")
-            .header(credential_name, credential)
-            .body(body);
+            .header(header::ACCEPT_ENCODING, "identity");
+        // A keyless custom connection's credential is None: no header at all.
+        if let Some((name, value)) = credential {
+            upstream = upstream.header(name, value);
+        }
+        let upstream = upstream.body(body);
         let started = Instant::now();
         // A stream, or a call that does not generate, that goes quiet before its
         // headers is stalled; a non-streamed generation sends nothing until done.
+        let stall_deadline = Instant::now() + self.limits.execution.stall_timeout;
         let headers_deadline = if streaming || !route.captures_generation() {
-            permit
-                .deadline
-                .min(Instant::now() + self.limits.execution.stall_timeout)
+            permit.deadline.min(stall_deadline)
         } else {
             permit.deadline
         };
@@ -463,15 +453,18 @@ pub(crate) fn model_range(body: &[u8]) -> Result<Range<usize>, ProviderError> {
     Ok(start..end)
 }
 
+/// The credential header, or none for a keyless custom connection.
 fn provider_credential(
     context: &ResolvedRequestContext,
-) -> Result<(HeaderName, HeaderValue), ProviderError> {
+) -> Result<Option<(HeaderName, HeaderValue)>, ProviderError> {
     let (name, value) = match context.connection().credential() {
+        ProviderCredential::Bearer("") => return Ok(None),
         ProviderCredential::Bearer(token) => (header::AUTHORIZATION, format!("Bearer {token}")),
         ProviderCredential::XApiKey(key) => (HeaderName::from_static("x-api-key"), key.to_owned()),
     };
-    let value = HeaderValue::from_str(&value).map_err(|_| ProviderError::Configuration)?;
-    Ok((name, value))
+    let mut value = HeaderValue::from_str(&value).map_err(|_| ProviderError::Configuration)?;
+    value.set_sensitive(true);
+    Ok(Some((name, value)))
 }
 
 #[cfg(test)]

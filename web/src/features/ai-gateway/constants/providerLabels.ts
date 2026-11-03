@@ -3,4 +3,5 @@ import type { GatewayProvider } from "@/src/features/ai-gateway/types/gatewayPro
 export const providerLabels: Record<GatewayProvider, string> = {
   OPENAI: "OpenAI",
   ANTHROPIC: "Anthropic",
+  CUSTOM: "Custom (OpenAI-compatible)",
 };

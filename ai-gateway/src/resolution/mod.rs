@@ -400,6 +400,16 @@ fn valid_token(value: &str) -> bool {
     !value.is_empty() && value.bytes().all(|byte| byte.is_ascii_graphic())
 }
 
+/// A custom connection's credential; Web sends an empty token when keyless.
+fn valid_optional_token(credential: ProviderCredential<'_>) -> bool {
+    match credential {
+        // Empty means keyless; anything else must be printable.
+        ProviderCredential::Bearer(token) => token.bytes().all(|byte| byte.is_ascii_graphic()),
+        // Web never sends x-api-key for a custom connection.
+        ProviderCredential::XApiKey(_) => false,
+    }
+}
+
 /// Sanitized failure categories. Upstream bodies and transport errors are never retained.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
 pub enum ResolutionError {

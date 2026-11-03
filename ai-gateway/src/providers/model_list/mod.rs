@@ -22,11 +22,13 @@ struct CatalogEntry {
 }
 
 #[derive(Clone, Copy, Deserialize, PartialEq, Eq)]
-enum CatalogProvider {
+pub(super) enum CatalogProvider {
     #[serde(rename = "OPENAI")]
     OpenAi,
     #[serde(rename = "ANTHROPIC")]
     Anthropic,
+    #[serde(rename = "CUSTOM")]
+    Custom,
 }
 
 pub(crate) fn provider_response(
@@ -35,15 +37,20 @@ pub(crate) fn provider_response(
 ) -> Result<Vec<u8>, ResolutionError> {
     let catalog: Catalog =
         serde_json::from_slice(body).map_err(|_| ResolutionError::InvalidResponse)?;
+    // Custom catalogs are listed under the OpenAI namespace.
     let provider = match api_format {
         ApiFormat::OpenAiResponses | ApiFormat::OpenAiChatCompletions => CatalogProvider::OpenAi,
         ApiFormat::AnthropicMessages => CatalogProvider::Anthropic,
     };
-    if catalog.data.iter().any(|entry| entry.provider != provider) {
+    if catalog
+        .data
+        .iter()
+        .any(|entry| entry.provider != provider && entry.provider != CatalogProvider::Custom)
+    {
         return Err(ResolutionError::InvalidResponse);
     }
     match provider {
-        CatalogProvider::OpenAi => openai::response(&catalog.data),
+        CatalogProvider::OpenAi | CatalogProvider::Custom => openai::response(&catalog.data),
         CatalogProvider::Anthropic => anthropic::response(&catalog.data),
     }
 }

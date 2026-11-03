@@ -1,5 +1,5 @@
 /* eslint-disable no-nested-ternary, @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
-import { useState, type ReactNode } from "react";
+import { useRef, useState, type ReactNode } from "react";
 import { Info, TriangleAlert } from "@langfuse/icons";
 
 import { Alert } from "@/src/components/design-system/Alert/Alert";
@@ -28,11 +28,21 @@ import {
   api,
   reportNonTrpcError,
   reportTrpcErrorWithoutToast,
+  type RouterOutputs,
 } from "@/src/utils/api";
 import type { GatewayCredentialSurface } from "@/src/features/ai-gateway/types/aiGatewayAnalytics";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { getLiveConnectionNameError } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/ProviderDialogController/fns/getLiveConnectionNameError";
 import { useExistingConnectionNames } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/ProviderDialogController/hooks/useExistingConnectionNames";
+
+const ROUTE_LABELS: Record<string, string> = {
+  "openai.chat-completions": "Chat Completions",
+  "openai.responses": "Responses",
+  "anthropic.messages": "Messages",
+};
+
+/** Routes this client does not know yet show their raw id. */
+const routeLabel = (route: string) => ROUTE_LABELS[route] ?? route;
 
 export function ProviderDialogController({
   organizationId,
@@ -58,6 +68,9 @@ export function ProviderDialogController({
     connection?.name ?? null,
   );
   const [credential, setCredential] = useState("");
+  const [baseUrl, setBaseUrl] = useState(connection?.baseUrl ?? "");
+  const [probeRoutes, setProbeRoutes] =
+    useState<RouterOutputs["aiGateway"]["testConnection"]["routes"]>(null);
   const utils = api.useUtils();
   const capture = usePostHogClientCapture();
   const existingNames = useExistingConnectionNames(organizationId);
@@ -100,8 +113,17 @@ export function ProviderDialogController({
           existingNames,
         }) ?? serverNameError);
 
-  const resetMutations = () => {
+  /** Bumped whenever the tested inputs change, so a result from an earlier
+   * run is dropped. */
+  const testRun = useRef(0);
+  const clearTestResult = () => {
+    testRun.current += 1;
     test.reset();
+    setProbeRoutes(null);
+  };
+
+  const resetMutations = () => {
+    clearTestResult();
     create.reset();
     update.reset();
   };
@@ -110,6 +132,7 @@ export function ProviderDialogController({
     setProvider("OPENAI");
     setNameDraft(null);
     setCredential("");
+    setBaseUrl("");
     resetMutations();
   };
 
@@ -121,7 +144,13 @@ export function ProviderDialogController({
 
   const updateProvider = (value: GatewayProvider) => {
     setProvider(value);
+    clearTestResult();
     clearSaveError();
+  };
+
+  const updateCredential = (value: string) => {
+    setCredential(value);
+    clearTestResult();
   };
 
   const updateName = (value: string) => {
@@ -129,15 +158,27 @@ export function ProviderDialogController({
     clearSaveError();
   };
 
+  const isCustom = provider === "CUSTOM";
+
   const testCredential = async (
     selectedConnection: GatewayConnection | null,
   ) => {
+    const run = testRun.current;
     try {
-      await test.mutateAsync({
+      const result = await test.mutateAsync({
         orgId: organizationId,
         provider: selectedConnection?.provider ?? provider,
         credential,
+        // With an empty credential the server tests the stored key.
+        ...(selectedConnection ? { id: selectedConnection.id } : {}),
+        ...(selectedConnection?.provider === "CUSTOM" ||
+        (!selectedConnection && isCustom)
+          ? // The edited input wins over the stored URL, so Test reports
+            // the host that Save would store.
+            { baseUrl: baseUrl || selectedConnection?.baseUrl || "" }
+          : {}),
       });
+      if (run === testRun.current) setProbeRoutes(result.routes);
     } catch (error) {
       reportNonTrpcError(error, "ai-gateway-providers");
     }
@@ -154,6 +195,9 @@ export function ProviderDialogController({
           id: selectedConnection.id,
           name,
           ...(credential ? { credential } : {}),
+          ...(selectedConnection.provider === "CUSTOM"
+            ? { baseUrl: baseUrl || undefined }
+            : {}),
         });
         capture("ai_gateway:provider_credential_updated", {
           orgId: organizationId,
@@ -167,6 +211,7 @@ export function ProviderDialogController({
           provider,
           name,
           credential,
+          ...(isCustom ? { baseUrl } : {}),
         });
         capture("ai_gateway:provider_credential_added", {
           orgId: organizationId,
@@ -233,6 +278,22 @@ export function ProviderDialogController({
               ) : (
                 <ProviderSelect value={provider} onChange={updateProvider} />
               )}
+              {isCustom || selectedConnection?.provider === "CUSTOM" ? (
+                <div>
+                  <Label htmlFor="gateway-base-url">Base URL</Label>
+                  <Input
+                    id="gateway-base-url"
+                    className="mt-1.5"
+                    placeholder="http://ai02.example:8000/v1"
+                    value={baseUrl}
+                    onChange={(event) => {
+                      setBaseUrl(event.target.value);
+                      clearTestResult();
+                      clearSaveError();
+                    }}
+                  />
+                </div>
+              ) : null}
               <CredentialFields
                 name={name}
                 nameError={nameError}
@@ -243,8 +304,17 @@ export function ProviderDialogController({
                     : "Enter secret key"
                 }
                 onNameChange={updateName}
-                onCredentialChange={setCredential}
+                onCredentialChange={updateCredential}
               />
+              {probeRoutes && probeRoutes.length > 0 ? (
+                <Alert variant="info" icon={Info}>
+                  <Alert.Title>Routes detected</Alert.Title>
+                  <Alert.Description>
+                    This host serves: {probeRoutes.map(routeLabel).join(", ")}.
+                    Clients that need another route cannot use this connection.
+                  </Alert.Description>
+                </Alert>
+              ) : null}
               {selectedConnection && name.trim() !== selectedConnection.name ? (
                 <Alert variant="warning" icon={TriangleAlert}>
                   <Alert.Title>Renaming changes model slugs</Alert.Title>
@@ -264,6 +334,14 @@ export function ProviderDialogController({
                       "The credential could not be saved or validated. Check the key and try again."}
                   </Alert.Description>
                 </Alert>
+              ) : test.isSuccess && probeRoutes?.length === 0 ? (
+                <Alert variant="warning" icon={TriangleAlert}>
+                  <Alert.Title>No supported routes detected</Alert.Title>
+                  <Alert.Description>
+                    The host answered but serves no Chat Completions, Responses
+                    or Messages route. Check the base URL.
+                  </Alert.Description>
+                </Alert>
               ) : test.isSuccess ? (
                 <Alert>
                   <Alert.Title>Provider credential is valid</Alert.Title>
@@ -274,7 +352,12 @@ export function ProviderDialogController({
             <DialogFooter>
               <Button
                 variant="secondary"
-                disabled={!credential || isPending}
+                disabled={
+                  isPending ||
+                  (isCustom || selectedConnection?.provider === "CUSTOM"
+                    ? !(baseUrl || selectedConnection?.baseUrl || "").trim()
+                    : !credential)
+                }
                 loading={test.isPending}
                 onClick={() => testCredential(selectedConnection)}
               >
@@ -284,7 +367,8 @@ export function ProviderDialogController({
                 disabled={
                   !name.trim() ||
                   Boolean(nameError) ||
-                  (!selectedConnection && !credential) ||
+                  (!selectedConnection &&
+                    (isCustom ? !baseUrl.trim() : !credential)) ||
                   isPending ||
                   isSaved
                 }
@@ -304,6 +388,7 @@ export function ProviderDialogController({
             setProvider(connection?.provider ?? "OPENAI");
             setNameDraft(connection?.name ?? null);
             setCredential("");
+            setBaseUrl("");
             resetMutations();
             openDialog(connection ?? null);
           },
@@ -311,6 +396,7 @@ export function ProviderDialogController({
             setProvider(selectedConnection.provider);
             setNameDraft(selectedConnection.name);
             setCredential("");
+            setBaseUrl(selectedConnection.baseUrl ?? "");
             resetMutations();
             openDialog(selectedConnection);
           },

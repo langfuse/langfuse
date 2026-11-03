@@ -6,6 +6,7 @@ import {
   getGatewayProviderDefinition,
   providerSupportsApiFormat,
 } from ".";
+import { requestJson } from "./models/adapters/shared";
 import type { PrismaClient } from "@langfuse/shared/src/db";
 import { encrypt } from "@langfuse/shared/encryption";
 import type { Redis } from "ioredis";
@@ -81,8 +82,10 @@ describe("AI gateway provider registry", () => {
           id: "connection-1",
           organizationId: "org-1",
           provider: "OPENAI",
+          baseUrl: null,
           encryptedCredential: "unused",
           allowedModels: null,
+          supportedRoutes: null,
         }),
       },
     } as unknown as PrismaClient;
@@ -135,7 +138,9 @@ describe("AI gateway provider registry", () => {
         provider: "OPENAI",
         encryptedCredential: encrypt("sk-old"),
         status: "ENABLED",
+        baseUrl: null,
         allowedModels: null,
+        supportedRoutes: null,
         updatedAt: new Date(0),
       })
       .mockResolvedValueOnce(null);
@@ -192,7 +197,9 @@ describe("AI gateway provider registry", () => {
           provider: "OPENAI",
           encryptedCredential: encrypt("sk-test"),
           status: "ENABLED",
+          baseUrl: null,
           allowedModels: null,
+          supportedRoutes: null,
         }),
       },
     } as unknown as PrismaClient;
@@ -255,9 +262,11 @@ describe("AI gateway provider registry", () => {
           id: "connection-1",
           organizationId: "org-1",
           provider: "ANTHROPIC",
+          baseUrl: null,
           encryptedCredential: encrypt("sk-test"),
           status: "ENABLED",
           allowedModels: null,
+          supportedRoutes: null,
         }),
       },
     } as unknown as PrismaClient;
@@ -304,9 +313,11 @@ describe("AI gateway provider registry", () => {
           id: "connection-1",
           organizationId: "org-1",
           provider: "OPENAI",
+          baseUrl: null,
           encryptedCredential: encrypt("sk-test"),
           status: "ENABLED",
           allowedModels: null,
+          supportedRoutes: null,
         }),
       },
     } as unknown as PrismaClient;
@@ -346,9 +357,11 @@ describe("AI gateway provider registry", () => {
           id: "connection-1",
           organizationId: "org-1",
           provider: "OPENAI",
+          baseUrl: null,
           encryptedCredential: encrypt("sk-test"),
           status: "ENABLED",
           allowedModels: null,
+          supportedRoutes: null,
         }),
       },
     } as unknown as PrismaClient;
@@ -406,9 +419,11 @@ describe("AI gateway provider registry", () => {
           id: "connection-1",
           organizationId: "org-1",
           provider: "OPENAI",
+          baseUrl: null,
           encryptedCredential: encrypt("sk-test"),
           status: "ENABLED",
           allowedModels: null,
+          supportedRoutes: null,
         }),
       },
     } as unknown as PrismaClient;
@@ -420,5 +435,30 @@ describe("AI gateway provider registry", () => {
         connectionId: "connection-1",
       }),
     ).resolves.toMatchObject({ models: ["codex-auto-review", "gpt-5"] });
+  });
+
+  it("cancels the body of a catalog that declares more than the size cap", async () => {
+    let cancelled = false;
+    const body = new ReadableStream<Uint8Array>({
+      cancel() {
+        cancelled = true;
+      },
+    });
+    const fetcher = vi.fn(
+      async () =>
+        new Response(body, {
+          status: 200,
+          headers: { "content-length": String(64 * 1024 * 1024) },
+        }),
+    ) as unknown as typeof fetch;
+
+    await expect(
+      requestJson({
+        fetcher,
+        url: new URL("https://api.openai.com/v1/models"),
+        headers: {},
+      }),
+    ).resolves.toEqual({ success: false, error: "provider_error" });
+    expect(cancelled).toBe(true);
   });
 });

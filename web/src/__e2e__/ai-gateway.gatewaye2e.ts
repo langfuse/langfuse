@@ -53,6 +53,11 @@ const PROVIDER_CREDENTIALS: Partial<Record<GatewayProviderName, string>> = {
 };
 const ENABLED_PROVIDERS = Object.values(GatewayProvider);
 
+// CUSTOM has no CI upstream; the control-plane suite covers it.
+const CI_REQUIRED_PROVIDERS = ENABLED_PROVIDERS.filter(
+  (provider) => provider in PROVIDER_CREDENTIALS,
+);
+
 // Public catalog routes. Chat completions has no separate models route; the
 // OpenAI route lists the responses catalog.
 const GATEWAY_MODEL_ROUTES = [
@@ -276,7 +281,7 @@ describe("AI gateway live end-to-end", () => {
       );
     }
     if (process.env.CI) {
-      const missingProviders = ENABLED_PROVIDERS.filter(
+      const missingProviders = CI_REQUIRED_PROVIDERS.filter(
         (provider) => !PROVIDER_CREDENTIALS[provider],
       );
       if (missingProviders.length > 0) {

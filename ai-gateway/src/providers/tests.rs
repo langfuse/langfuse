@@ -1280,3 +1280,10 @@ fn egress_blocks_every_spelling_of_a_private_ip_literal() {
     }
     assert!(transport.enforce_egress("http://93.184.216.34/v1").is_ok());
 }
+
+#[tokio::test]
+async fn provider_credentials_are_marked_sensitive() {
+    let context = resolved_request_context("provider-secret").await;
+    let (_, value) = provider_credential(&context).unwrap().unwrap();
+    assert!(value.is_sensitive());
+}

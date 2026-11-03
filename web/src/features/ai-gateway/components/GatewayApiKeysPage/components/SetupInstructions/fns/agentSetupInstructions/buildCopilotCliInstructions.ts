@@ -24,6 +24,14 @@ const COPILOT_PROVIDERS: Record<
       'export COPILOT_PROVIDER_WIRE_API="responses"',
     ],
   },
+  // Copilot CLI needs Responses, which only some custom hosts serve.
+  CUSTOM: {
+    path: "/openai/v1",
+    env: [
+      'export COPILOT_PROVIDER_TYPE="openai"',
+      'export COPILOT_PROVIDER_WIRE_API="responses"',
+    ],
+  },
 };
 
 export function buildCopilotCliInstructions(

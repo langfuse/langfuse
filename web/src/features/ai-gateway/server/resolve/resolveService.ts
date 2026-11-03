@@ -97,7 +97,24 @@ export class GatewayResolveService {
       const provider = getGatewayProviderDefinition(
         context.connection.provider,
       );
-      const credential = decrypt(context.connection.encryptedCredential);
+      // CUSTOM origins live on the connection; the other providers use the
+      // registry's official origin.
+      const baseUrl =
+        context.connection.provider === "CUSTOM"
+          ? (context.connection.baseUrl ?? null)
+          : provider.baseUrl;
+      if (!baseUrl) {
+        throw new GatewayResolveError(
+          "Gateway connection has no base URL",
+          404,
+        );
+      }
+      // A keyless CUSTOM connection stores an empty column; decrypt cannot
+      // parse an empty ciphertext, and the empty Bearer token is the wire
+      // shape the gateway reads as "no credential".
+      const credential = context.connection.encryptedCredential
+        ? decrypt(context.connection.encryptedCredential)
+        : "";
       return {
         version: 1 as const,
         connection: {
@@ -107,7 +124,7 @@ export class GatewayResolveService {
             context.connection.provider.toLowerCase() as GatewayProviderId,
           provider_model: context.providerModel,
           api_format: params.apiFormat,
-          base_url: provider.baseUrl,
+          base_url: baseUrl,
           auth:
             provider.authType === "bearer"
               ? ({ type: "Bearer", token: credential } as const)

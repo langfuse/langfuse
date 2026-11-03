@@ -231,6 +231,11 @@ async fn relay(
         )
         .await
         .map_err(InferenceHttpError::Resolution)?;
+    // Re-record the provider once resolved: a custom connection can serve any
+    // namespace, so the namespace's provider may be wrong.
+    correlation
+        .observation()
+        .record_provider(context.connection().provider().as_str());
     inference
         .forward(
             permit,

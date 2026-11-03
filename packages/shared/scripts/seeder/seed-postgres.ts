@@ -599,6 +599,18 @@ async function seedAiGateway(params: {
           createdById: params.userId,
           status: "ENABLED",
         },
+        {
+          id: "seed-gateway-custom",
+          organizationId: params.organizationId,
+          name: "self-hosted vllm",
+          provider: "CUSTOM",
+          baseUrl: "http://10.3.24.39:8000/v1",
+          encryptedCredential: encrypt("sk-seed-custom-not-valid"),
+          displaySecret: getDisplaySecretKey("sk-seed-custom-not-valid"),
+          createdById: params.userId,
+          status: "ENABLED",
+          supportedRoutes: ["openai.chat-completions"],
+        },
       ],
     });
   }

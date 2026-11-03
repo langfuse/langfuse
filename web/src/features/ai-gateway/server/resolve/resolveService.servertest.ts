@@ -50,10 +50,11 @@ const serviceWith = (findFirst: () => Promise<unknown>, keyOrgId = "org-1") => {
     resolve: async (params: {
       fastHashedSecretKey: string;
       apiFormat: GatewayApiFormat;
+      model?: string;
     }) => {
       const context = await contextResolver.authenticateRequest({
         ...params,
-        model: "Production OpenAI:gpt-4o",
+        model: params.model ?? "Production OpenAI:gpt-4o",
       });
       return service.resolve({ context, apiFormat: params.apiFormat });
     },
@@ -100,6 +101,7 @@ const row = (overrides: {
         id: "connection-1",
         name: "Production OpenAI",
         provider: "OPENAI",
+        baseUrl: null,
         encryptedCredential: "encrypted-credential",
         allowedModels: null,
       },
@@ -179,6 +181,49 @@ describe("GatewayResolveService", () => {
       });
     },
   );
+
+  it("sends a custom connection's own origin as base_url", async () => {
+    const service = serviceWith(() =>
+      Promise.resolve({
+        ...row({ metadata: {} }),
+        organization: {
+          gatewayConfig: {
+            defaultIngestionProjectId: "project-1",
+            ingestionMode: "USAGE",
+            defaultIngestionProject: {
+              id: "project-1",
+              orgId: "org-1",
+              deletedAt: null,
+            },
+          },
+          gatewayAiConnections: [
+            {
+              id: "connection-2",
+              name: "self-hosted vllm",
+              provider: "CUSTOM",
+              baseUrl: "http://10.3.24.39:8000/v1",
+              encryptedCredential: "encrypted-credential",
+              allowedModels: null,
+            },
+          ],
+        },
+      }),
+    );
+
+    await expect(
+      service.resolve({
+        fastHashedSecretKey: "hashed-secret-key",
+        apiFormat: "openai.chat-completions",
+        model: "self-hosted vllm:GLM-5.3",
+      }),
+    ).resolves.toMatchObject({
+      connection: {
+        provider: "custom",
+        base_url: "http://10.3.24.39:8000/v1",
+        auth: { type: "Bearer", token: "sk-test" },
+      },
+    });
+  });
 
   it("drops key metadata that is not a flat object of scalars", async () => {
     const service = serviceWith(() =>

@@ -158,10 +158,14 @@ export class GatewayApiKeyAuthenticator {
         ? (gatewayConfig?.defaultIngestionProjectId ?? null)
         : null,
       ingestionMode: gatewayConfig?.ingestionMode ?? null,
-      connections: organization.gatewayAiConnections.map((connection) => ({
-        ...connection,
-        allowedModels: parseGatewayAllowedModels(connection.allowedModels),
-      })),
+      connections: organization.gatewayAiConnections
+        .filter((connection) =>
+          connectionServesApiFormat(connection, params.apiFormat),
+        )
+        .map(({ supportedRoutes: _supportedRoutes, ...connection }) => ({
+          ...connection,
+          allowedModels: parseGatewayAllowedModels(connection.allowedModels),
+        })),
     };
 
     // Runs on cache misses only, so a role change that does not revoke the key
@@ -229,6 +233,18 @@ async function assertCanInvokeGateway(
       403,
     );
   }
+}
+
+/** A CUSTOM connection serves only its probed routes: `null` (never probed)
+ * allows every format, `[]` none. */
+function connectionServesApiFormat(
+  connection: { provider: GatewayProvider; supportedRoutes: unknown },
+  apiFormat: GatewayApiFormat,
+): boolean {
+  if (connection.provider !== "CUSTOM") return true;
+  const routes = connection.supportedRoutes;
+  if (routes === null || routes === undefined) return true;
+  return Array.isArray(routes) && routes.includes(apiFormat);
 }
 
 function supportedProviders(apiFormat: GatewayApiFormat): GatewayProvider[] {

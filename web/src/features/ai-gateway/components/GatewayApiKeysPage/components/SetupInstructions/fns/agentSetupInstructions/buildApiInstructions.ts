@@ -9,8 +9,17 @@ import type {
 } from "@/src/features/ai-gateway/types/agentSetupInstructions";
 import type { GatewayProvider } from "@/src/features/ai-gateway/types/gatewayProvider";
 
-const LIST_MODELS_STEPS: Record<GatewayProvider, AgentSetupStep> = {
-  OPENAI: {
+type GatewayRoute = "openai" | "anthropic";
+
+/** Custom connections are OpenAI-compatible and listed on the OpenAI route. */
+const PROVIDER_ROUTES: Record<GatewayProvider, GatewayRoute> = {
+  OPENAI: "openai",
+  ANTHROPIC: "anthropic",
+  CUSTOM: "openai",
+};
+
+const LIST_MODELS_STEPS: Record<GatewayRoute, AgentSetupStep> = {
+  openai: {
     title: "List models through the OpenAI route",
     description:
       "A model list means the gateway key and the provider credential work.",
@@ -20,7 +29,7 @@ const LIST_MODELS_STEPS: Record<GatewayProvider, AgentSetupStep> = {
       '  -H "Authorization: Bearer $LANGFUSE_GATEWAY_KEY"',
     ].join("\n"),
   },
-  ANTHROPIC: {
+  anthropic: {
     title: "List models through the Anthropic route",
     description:
       "A model list means the gateway key and the provider credential work.",
@@ -38,6 +47,9 @@ export function buildApiInstructions(
 ): AgentSetupInstructions {
   const providers: GatewayProvider[] =
     context.providers.length > 0 ? context.providers : ["OPENAI", "ANTHROPIC"];
+  const routes = [
+    ...new Set(providers.map((provider) => PROVIDER_ROUTES[provider])),
+  ];
 
   return {
     id: "api",
@@ -60,7 +72,7 @@ export function buildApiInstructions(
           `export LANGFUSE_GATEWAY_KEY="${GATEWAY_KEY_PLACEHOLDER}"`,
         ].join("\n"),
       },
-      ...providers.map((provider) => LIST_MODELS_STEPS[provider]),
+      ...routes.map((route) => LIST_MODELS_STEPS[route]),
     ],
   };
 }

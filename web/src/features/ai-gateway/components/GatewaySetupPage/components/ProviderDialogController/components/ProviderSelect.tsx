@@ -8,9 +8,11 @@ import {
 } from "@/src/components/ui/select";
 import { providerIcons } from "@/src/features/ai-gateway/constants/providerIcons";
 import { providerLabels } from "@/src/features/ai-gateway/constants/providerLabels";
+import { isCustomGatewayProviderAvailable } from "@/src/features/ai-gateway/fns/isCustomGatewayProviderAvailable";
 import type { GatewayProvider } from "@/src/features/ai-gateway/types/gatewayProvider";
+import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
 
-const providers = Object.keys(providerLabels) as GatewayProvider[];
+const allProviders = Object.keys(providerLabels) as GatewayProvider[];
 
 export function ProviderSelect({
   value,
@@ -19,6 +21,10 @@ export function ProviderSelect({
   value: GatewayProvider;
   onChange: (provider: GatewayProvider) => void;
 }) {
+  const { region } = useLangfuseCloudRegion();
+  const providers = isCustomGatewayProviderAvailable(region)
+    ? allProviders
+    : allProviders.filter((provider) => provider !== "CUSTOM");
   return (
     <div>
       <Label htmlFor="gateway-provider">Provider</Label>

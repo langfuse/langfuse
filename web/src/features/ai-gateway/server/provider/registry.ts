@@ -6,7 +6,7 @@ export const gatewayApiFormats = [
   "anthropic.messages",
 ] as const;
 
-export const gatewayProviders = ["OPENAI", "ANTHROPIC"] as const;
+export const gatewayProviders = ["OPENAI", "ANTHROPIC", "CUSTOM"] as const;
 
 export type GatewayApiFormat = (typeof gatewayApiFormats)[number];
 export type GatewayProviderName = (typeof gatewayProviders)[number];
@@ -16,7 +16,7 @@ const metadataValueSchema = z.union([z.string(), z.number(), z.boolean()]);
 export const GatewayMetadataSchema = z.record(z.string(), metadataValueSchema);
 export type GatewayMetadata = z.infer<typeof GatewayMetadataSchema>;
 
-const gatewayProviderIds = ["openai", "anthropic"] as const;
+const gatewayProviderIds = ["openai", "anthropic", "custom"] as const;
 export type GatewayProviderId = (typeof gatewayProviderIds)[number];
 
 export const GatewayResolveResponseSchema = z
@@ -91,10 +91,13 @@ export const GatewayModelsResponseSchema = z
   .strict();
 
 type ProviderDefinition = {
-  baseUrl: string;
+  /** Official origin. `null` for CUSTOM, whose origin lives on the connection. */
+  baseUrl: string | null;
   modelsPath: string;
   authType: "bearer" | "x-api-key";
-  validationModel: string;
+  /** A representative model for a real generation probe. Null for CUSTOM,
+   * whose Test connection probes routes instead of generating. */
+  validationModel: string | null;
   apiFormats: readonly GatewayApiFormat[];
 };
 
@@ -112,6 +115,22 @@ const PROVIDER_REGISTRY: Record<GatewayProviderName, ProviderDefinition> = {
     authType: "x-api-key",
     validationModel: "claude-haiku-4-5-20251001",
     apiFormats: ["anthropic.messages"],
+  },
+  CUSTOM: {
+    // The connection's own baseUrl, required at save time.
+    baseUrl: null,
+    modelsPath: "/models",
+    // vLLM, SGLang, and OpenAI-compatible servers authenticate with Bearer;
+    // an absent credential sends no Authorization header.
+    authType: "bearer",
+    validationModel: null,
+    // Served routes vary per host: CUSTOM advertises every format and the
+    // probe records what the host serves.
+    apiFormats: [
+      "openai.responses",
+      "openai.chat-completions",
+      "anthropic.messages",
+    ],
   },
 };
 

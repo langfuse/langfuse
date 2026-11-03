@@ -10,10 +10,12 @@ function connection(id: string) {
     organizationId: "org-1",
     name: id,
     provider: "OPENAI" as const,
+    baseUrl: null,
     displaySecret: "sk-...",
     createdById: null,
     status: "ENABLED" as const,
     allowedModels: null,
+    supportedRoutes: null,
     createdAt: new Date(0),
     updatedAt: new Date(0),
   };

@@ -1,5 +1,6 @@
-use super::{ResolutionError, valid_token};
+use super::{ResolutionError, valid_optional_token, valid_token};
 use base64::{Engine, engine::general_purpose::URL_SAFE_NO_PAD};
+use reqwest::Url;
 use secrecy::{ExposeSecret, SecretString};
 use serde::{
     Deserialize, Deserializer, Serialize,
@@ -39,6 +40,7 @@ impl ApiFormat {
 pub enum Provider {
     OpenAi,
     Anthropic,
+    Custom,
 }
 
 impl Provider {
@@ -47,32 +49,42 @@ impl Provider {
         match self {
             Self::OpenAi => "openai",
             Self::Anthropic => "anthropic",
+            Self::Custom => "custom",
         }
     }
 
-    pub fn official_origin(self) -> &'static str {
+    /// The only origin an official provider's connection may dial; none for custom.
+    fn official_origin(self) -> Option<&'static str> {
         match self {
-            Self::OpenAi => "https://api.openai.com/v1",
-            Self::Anthropic => "https://api.anthropic.com/v1",
+            Self::OpenAi => Some("https://api.openai.com/v1"),
+            Self::Anthropic => Some("https://api.anthropic.com/v1"),
+            Self::Custom => None,
         }
     }
 
     fn supports(self, api_format: ApiFormat) -> bool {
-        matches!(
-            (self, api_format),
-            (
-                Self::OpenAi,
+        match self {
+            Self::OpenAi => matches!(
+                api_format,
                 ApiFormat::OpenAiResponses | ApiFormat::OpenAiChatCompletions
-            ) | (Self::Anthropic, ApiFormat::AnthropicMessages)
-        )
+            ),
+            Self::Anthropic => matches!(api_format, ApiFormat::AnthropicMessages),
+            // Web's route probe decides which formats a custom host serves.
+            Self::Custom => matches!(
+                api_format,
+                ApiFormat::OpenAiResponses
+                    | ApiFormat::OpenAiChatCompletions
+                    | ApiFormat::AnthropicMessages
+            ),
+        }
     }
 
     fn accepts(self, credential: ProviderCredential<'_>) -> bool {
-        matches!(
-            (self, credential),
-            (Self::OpenAi, ProviderCredential::Bearer(_))
-                | (Self::Anthropic, ProviderCredential::XApiKey(_))
-        )
+        match self {
+            // OpenAI-compatible servers authenticate with Bearer.
+            Self::OpenAi | Self::Custom => matches!(credential, ProviderCredential::Bearer(_)),
+            Self::Anthropic => matches!(credential, ProviderCredential::XApiKey(_)),
+        }
     }
 }
 
@@ -415,9 +427,18 @@ pub(super) fn decode(
     if response.version != 1
         || connection.api_format != expected_format
         || !provider.supports(connection.api_format)
-        || connection.base_url != provider.official_origin()
-        || !provider.accepts(connection.credential())
-        || !valid_token(connection.credential().secret())
+        || !match provider.official_origin() {
+            // An official provider's credential only ever goes to its own origin.
+            Some(origin) => connection.base_url == origin,
+            None => valid_connection_origin(&connection.base_url),
+        }
+        // A custom connection may omit its key entirely; the other providers
+        // always carry one.
+        || (provider != Provider::Custom
+            && (!provider.accepts(connection.credential())
+                || !valid_token(connection.credential().secret())))
+        || (provider == Provider::Custom
+            && !valid_optional_token(connection.credential()))
         || !valid_ingestion(&response, now)
         || [
             connection.id.as_str(),
@@ -434,4 +455,18 @@ pub(super) fn decode(
         return Err(ResolutionError::InvalidResponse);
     }
     Ok(ResolvedRequestContext(response))
+}
+
+/// A custom connection's origin must be a plain http(s) URL; the egress policy
+/// decides reachability at connect time.
+fn valid_connection_origin(base_url: &str) -> bool {
+    let Ok(url) = Url::parse(base_url) else {
+        return false;
+    };
+    (url.scheme() == "https" || url.scheme() == "http")
+        && url.host_str().is_some_and(|host| !host.is_empty())
+        && url.username().is_empty()
+        && url.password().is_none()
+        && url.query().is_none()
+        && url.fragment().is_none()
 }

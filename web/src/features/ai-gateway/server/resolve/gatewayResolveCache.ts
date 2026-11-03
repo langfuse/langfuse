@@ -38,7 +38,9 @@ export const CachedResolveContext = z.object({
     z.object({
       id: z.string(),
       name: z.string(),
-      provider: z.enum(["OPENAI", "ANTHROPIC"]),
+      provider: z.enum(["OPENAI", "ANTHROPIC", "CUSTOM"]),
+      // Set for CUSTOM connections; null for registry origins.
+      baseUrl: z.string().nullable().default(null),
       encryptedCredential: z.string(),
       allowedModels: z.array(z.string()).nullable(),
     }),

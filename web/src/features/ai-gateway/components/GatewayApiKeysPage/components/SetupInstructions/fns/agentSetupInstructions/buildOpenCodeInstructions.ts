@@ -8,20 +8,28 @@ import type {
 } from "@/src/features/ai-gateway/types/agentSetupInstructions";
 import type { GatewayProvider } from "@/src/features/ai-gateway/types/gatewayProvider";
 
-/** OpenCode appends only `/messages`, so its Anthropic base URL keeps `/v1`. */
+type OpenCodeProvider = Extract<GatewayProvider, "ANTHROPIC" | "OPENAI">;
+
+/** OpenCode appends only `/messages`, so its Anthropic base URL keeps `/v1`.
+ * Custom connections have no built-in OpenCode provider to override. */
 const OPENCODE_PROVIDERS: Record<
-  GatewayProvider,
+  OpenCodeProvider,
   { id: string; path: string }
 > = {
   ANTHROPIC: { id: "anthropic", path: "/anthropic/v1" },
   OPENAI: { id: "openai", path: "/openai/v1" },
 };
 
+const isOpenCodeProvider = (
+  provider: GatewayProvider,
+): provider is OpenCodeProvider => provider !== "CUSTOM";
+
 export function buildOpenCodeInstructions(
   context: AgentSetupContext,
 ): AgentSetupInstructions {
-  const providers: GatewayProvider[] =
-    context.providers.length > 0 ? context.providers : ["ANTHROPIC", "OPENAI"];
+  const enabledProviders = context.providers.filter(isOpenCodeProvider);
+  const providers: OpenCodeProvider[] =
+    enabledProviders.length > 0 ? enabledProviders : ["ANTHROPIC", "OPENAI"];
   const config = {
     $schema: "https://opencode.ai/config.json",
     providers: Object.fromEntries(
@@ -45,7 +53,7 @@ export function buildOpenCodeInstructions(
       "Override OpenCode's built-in providers so every model call is recorded in Langfuse.",
     docsUrl: AGENT_SETUP_DOCS_URLS.opencode,
     warning:
-      context.providers.length === 0
+      enabledProviders.length === 0
         ? "OpenCode needs an Anthropic or OpenAI provider credential, and none is enabled yet."
         : undefined,
     steps: [
