@@ -15,13 +15,13 @@ const COPILOT_PROVIDERS: Record<
 > = {
   ANTHROPIC: {
     path: "/anthropic",
-    env: ['export COPILOT_PROVIDER_TYPE="anthropic"'],
+    env: [' export COPILOT_PROVIDER_TYPE="anthropic"'],
   },
   OPENAI: {
     path: "/openai/v1",
     env: [
-      'export COPILOT_PROVIDER_TYPE="openai"',
-      'export COPILOT_PROVIDER_WIRE_API="responses"',
+      ' export COPILOT_PROVIDER_TYPE="openai"',
+      ' export COPILOT_PROVIDER_WIRE_API="responses"',
     ],
   },
 };
@@ -49,13 +49,13 @@ export function buildCopilotCliInstructions(
       {
         title: "Point Copilot CLI at the gateway",
         description:
-          "Replace the placeholders with your gateway key and a model from your provider credential. If ~/.copilot/providers.json lists providers, it takes precedence over these variables.",
+          "Replace <model> with a model from your provider credential. If ~/.copilot/providers.json lists providers, it takes precedence over these variables.",
         language: "sh",
         code: [
           ...env,
-          `export COPILOT_PROVIDER_BASE_URL="${context.gatewayOrigin}${path}"`,
-          `export COPILOT_PROVIDER_API_KEY="${GATEWAY_KEY_PLACEHOLDER}"`,
-          'export COPILOT_MODEL="<model>"',
+          ` export COPILOT_PROVIDER_BASE_URL="${context.gatewayOrigin}${path}"`,
+          ` export COPILOT_PROVIDER_API_KEY="${GATEWAY_KEY_PLACEHOLDER}"`,
+          ' export COPILOT_MODEL="<model>"',
         ].join("\n"),
       },
       {

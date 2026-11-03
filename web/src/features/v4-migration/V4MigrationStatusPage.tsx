@@ -19,7 +19,7 @@ import {
   V4_LEGACY_API_CUT_DATE,
   V4_MIGRATION_DEADLINE,
 } from "@/src/features/v4-migration/V4MigrationContent";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { api } from "@/src/utils/api";
 import { formatCompactRelativeTime } from "@/src/utils/dates";
 import { V4MigrationStatusDot } from "@/src/features/v4-migration/V4MigrationBadgeContent";
@@ -38,7 +38,8 @@ import {
 } from "@/src/features/v4-migration/migrationData";
 import { PARTNER_INTEGRATION_FAQ_URL } from "@/src/features/v4-migration/partnerIntegrationDocs";
 import { V4MigrationLoadingState } from "@/src/features/v4-migration/V4MigrationLoadingState";
-import { useReadPath, V4PreviewToggleRow } from "@/src/features/events";
+import { useReadPath } from "@/src/features/events/hooks/useReadPath";
+import { V4PreviewToggleRow } from "@/src/features/events/components/V4SidebarToggle";
 
 const V4_DOCS_URL = "https://langfuse.com/docs/v4";
 const SDK_UPGRADE_URL =

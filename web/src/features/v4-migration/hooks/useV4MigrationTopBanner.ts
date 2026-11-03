@@ -1,10 +1,10 @@
 import { useEffect, useRef } from "react";
 import { useSession } from "next-auth/react";
 import { env } from "@/src/env.mjs";
-import { useLangfuseCloudRegion } from "@/src/features/organizations";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
-import { useQueryProjectOrOrganization } from "@/src/features/projects";
-import { useHasOrganizationAccess } from "@/src/features/rbac";
+import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
+import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import { useAccountV4MigrationData } from "@/src/features/v4-migration/hooks/useV4MigrationData";
 import { useOpenV4MigrationPanel } from "@/src/features/v4-migration/hooks/useOpenV4MigrationPanel";
 import { getProjectMigrationReadiness } from "@/src/features/v4-migration/migrationData";

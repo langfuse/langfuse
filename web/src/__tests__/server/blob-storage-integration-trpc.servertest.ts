@@ -509,6 +509,36 @@ describe("Blob Storage Integration tRPC Router", () => {
         );
       });
 
+      it("requires the key again when the bucket changes", async () => {
+        const { caller, project } = await prepare({
+          plan: "self-hosted:enterprise",
+        });
+        await caller.blobStorageIntegration.update({
+          projectId: project.id,
+          ...gcsKeyConfig,
+        });
+
+        await expect(
+          caller.blobStorageIntegration.update({
+            projectId: project.id,
+            ...gcsKeyConfig,
+            bucketName: "allowed-bucket",
+            secretAccessKey: null,
+          }),
+        ).rejects.toMatchObject({
+          code: "BAD_REQUEST",
+          message: expect.stringContaining(
+            "Secret access key is required when changing",
+          ),
+        });
+
+        const integration = await findIntegration(project.id);
+        expect(integration?.bucketName).toBe("customer-bucket");
+        expect(decrypt(integration!.secretAccessKey!)).toBe(
+          fakeServiceAccountKey,
+        );
+      });
+
       it("drops the stored key when switched to default credentials", async () => {
         const { caller, project } = await prepare({
           plan: "self-hosted:enterprise",
@@ -621,6 +651,92 @@ describe("Blob Storage Integration tRPC Router", () => {
           secretAccessKey: null,
         }),
       ).rejects.toThrow(/Secret access key is required/);
+    });
+
+    const storedS3 = {
+      type: "S3",
+      endpoint: null,
+      forcePathStyle: false,
+    } as const;
+    const storedS3Compatible = {
+      type: "S3_COMPATIBLE",
+      endpoint: "https://storage.example.com",
+      forcePathStyle: true,
+    } as const;
+
+    const createStoredIntegration = async (
+      projectId: string,
+      destination: typeof storedS3 | typeof storedS3Compatible,
+    ) => {
+      await createIntegration({ projectId });
+      await prisma.blobStorageIntegration.update({
+        where: { projectId },
+        data: destination,
+      });
+    };
+
+    const updateWithoutSecret = {
+      ...baseConfig,
+      bucketName: "test-bucket",
+      accessKeyId: "test-access-key",
+      secretAccessKey: null,
+    };
+
+    it.each([
+      ["bucket", storedS3, { bucketName: "other-bucket" }],
+      ["access key ID", storedS3, { accessKeyId: "other-access-key" }],
+      [
+        "endpoint",
+        storedS3Compatible,
+        { endpoint: "https://other-storage.example.com" },
+      ],
+      ["storage provider", storedS3, storedS3Compatible],
+    ])(
+      "requires the secret again when the %s changes",
+      async (_case, stored, change) => {
+        const { caller, project } = await prepare();
+        await createStoredIntegration(project.id, stored);
+
+        await expect(
+          caller.blobStorageIntegration.update({
+            projectId: project.id,
+            ...updateWithoutSecret,
+            ...stored,
+            ...change,
+          }),
+        ).rejects.toMatchObject({
+          code: "BAD_REQUEST",
+          message:
+            "Secret access key is required when changing the storage provider, bucket, endpoint, or access key ID",
+        });
+
+        const integration = await prisma.blobStorageIntegration.findUnique({
+          where: { projectId: project.id },
+        });
+        expect(integration).toMatchObject({
+          bucketName: "test-bucket",
+          accessKeyId: "test-access-key",
+          ...stored,
+        });
+        expect(decrypt(integration!.secretAccessKey!)).toBe("test-secret-key");
+      },
+    );
+
+    it("keeps the stored secret for an equivalent endpoint URL", async () => {
+      const { caller, project } = await prepare();
+      await createStoredIntegration(project.id, storedS3Compatible);
+
+      await caller.blobStorageIntegration.update({
+        projectId: project.id,
+        ...updateWithoutSecret,
+        ...storedS3Compatible,
+        endpoint: "https://STORAGE.example.com/",
+      });
+
+      const integration = await prisma.blobStorageIntegration.findUnique({
+        where: { projectId: project.id },
+      });
+      expect(decrypt(integration!.secretAccessKey!)).toBe("test-secret-key");
     });
   });
 

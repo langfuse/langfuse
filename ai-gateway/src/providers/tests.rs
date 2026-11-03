@@ -112,6 +112,7 @@ async fn missing_provider_model_fails_resolution() {
             "gateway-secret",
             ApiFormat::OpenAiResponses,
             "Production key:gpt-4o",
+            0,
             "test-request-id",
         )
         .await;

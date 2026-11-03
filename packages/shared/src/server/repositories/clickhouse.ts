@@ -700,11 +700,26 @@ function isRetryableError(error: unknown): boolean {
   );
 }
 
+/** `cause` is the abort signal's reason. */
 export class ClickHouseQueryAbortedError extends Error {
   constructor(cause?: unknown) {
     super("ClickHouse query aborted", { cause });
     this.name = "ClickHouseQueryAbortedError";
   }
+
+  /** Aborted by a deadline such as `AbortSignal.timeout()`, not by a client leaving. */
+  get isClientTimeout(): boolean {
+    return this.cause instanceof Error && this.cause.name === "TimeoutError";
+  }
+}
+
+function isResourceError(error: unknown): boolean {
+  return (
+    error instanceof ClickHouseResourceError ||
+    (error instanceof Error &&
+      ClickHouseResourceError.wrapIfResourceError(error) instanceof
+        ClickHouseResourceError)
+  );
 }
 
 export async function queryClickhouse<T>(
@@ -883,8 +898,14 @@ async function* runClickHouseProgressAttempts<T>(
         return;
       } catch (error) {
         if (opts.abortSignal?.aborted) {
-          const aborted = new ClickHouseQueryAbortedError(error);
-          if (!outcomeRecorded) recordError(aborted, queryId);
+          const aborted = new ClickHouseQueryAbortedError(
+            opts.abortSignal.reason,
+          );
+          // A deadline reason reads like a CH timeout, so only a different error is checked.
+          const resourceError =
+            error !== opts.abortSignal.reason && isResourceError(error);
+          if (!outcomeRecorded)
+            recordError(resourceError ? error : aborted, queryId);
           throw aborted;
         }
         if (outcomeRecorded) throw error;
@@ -910,8 +931,19 @@ async function* runClickHouseProgressAttempts<T>(
       }
     }
   } finally {
-    /** Consumer return()/break closes the stream without reaching EOF or catch. */
-    if (!outcomeRecorded) recordError(new ClickHouseQueryAbortedError());
+    /**
+     * Consumer return()/break, or a throw in its loop body, closes the stream
+     * without reaching EOF or catch. A consumer that stops on purpose aborts
+     * its signal first; without an abort this path counts as an error.
+     */
+    if (!outcomeRecorded)
+      recordError(
+        opts.abortSignal?.aborted
+          ? new ClickHouseQueryAbortedError(opts.abortSignal.reason)
+          : new Error(
+              "ClickHouse stream closed by its consumer without an abort",
+            ),
+      );
   }
 }
 
@@ -1068,7 +1100,9 @@ function recordClickHouseProgressError(
           context.normalizedTags,
         );
   const fallbackOutcome =
-    error instanceof ClickHouseQueryAbortedError ? "client_closed" : "error";
+    error instanceof ClickHouseQueryAbortedError && !error.isClientTimeout
+      ? "client_closed"
+      : "error";
   recordClickHouseQueryOutcome(
     wrapped instanceof ClickHouseResourceError
       ? CLICKHOUSE_RESOURCE_ERROR_OUTCOMES[wrapped.errorType]

@@ -37,6 +37,7 @@ describeWithClickhouse("golden: sessions simple aggregates family", () => {
     await getSessionTracesFromEvents({
       projectId: "golden-project",
       sessionId: "golden-session",
+      filter: [],
     });
     expect(normalizeCapturedQueries(capturedQueries)).toMatchSnapshot();
   });

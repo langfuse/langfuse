@@ -43,19 +43,19 @@ vi.mock("next-auth/react", () => ({
 }));
 
 vi.mock("@/src/env.mjs", () => ({ env: {} }));
-vi.mock("@/src/features/posthog-analytics", () => ({
+vi.mock("@/src/features/posthog-analytics/usePostHogClientCapture", () => ({
   usePostHogClientCapture: () => mocks.capture,
 }));
-vi.mock("@/src/features/organizations", () => ({
+vi.mock("@/src/features/organizations/hooks", () => ({
   useLangfuseCloudRegion: () => ({ isLangfuseCloud: true, region: "EU" }),
 }));
-vi.mock("@/src/features/projects", () => ({
+vi.mock("@/src/features/projects/hooks", () => ({
   useQueryProjectOrOrganization: () => ({
     organization: { id: "org-1", name: "Org 1" },
     project: null,
   }),
 }));
-vi.mock("@/src/features/rbac", () => ({
+vi.mock("@/src/features/rbac/utils/checkOrganizationAccess", () => ({
   useHasOrganizationAccess: () => mocks.canManage,
 }));
 vi.mock("@/src/features/v4-migration/useV4UpgradeUiEnabled", () => ({

@@ -3,7 +3,7 @@ import {
   CreateLlmApiKey,
   UpdateLlmApiKey,
 } from "@/src/features/llm-api-key/types";
-import { throwIfNoProjectAccess } from "@/src/features/rbac";
+import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import {
   createTRPCRouter,
   protectedProjectProcedure,

@@ -1,15 +1,13 @@
 import { TRPCError } from "@trpc/server";
 import { Prisma, type PrismaClient, Role } from "@langfuse/shared";
 
-import { auditLog } from "@/src/features/audit-logs/server";
+import { auditLog } from "@/src/features/audit-logs/auditLog";
 import {
   getSfdcService,
   type SetUserRoleInput,
-} from "@/src/ee/features/sfdc-sync/server";
-import {
-  createWithinEntitlementLimit,
-  hasEntitlement,
-} from "@/src/features/entitlements/server";
+} from "@/src/ee/features/sfdc-sync/server/sfdcService";
+import { createWithinEntitlementLimit } from "@/src/features/entitlements/server/createWithinEntitlementLimit";
+import { hasEntitlement } from "@/src/features/entitlements/server/hasEntitlement";
 import { throwIfNoOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { throwIfHigherProjectRole } from "@/src/features/rbac/server/throwIfHigherProjectRole";

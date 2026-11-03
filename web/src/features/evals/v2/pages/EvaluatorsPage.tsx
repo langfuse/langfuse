@@ -1,5 +1,5 @@
 /* eslint-disable no-nested-ternary, react/no-unstable-nested-components */
-import { showSuccessToast } from "@/src/features/notifications";
+import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { formatDistanceToNowStrict } from "date-fns";
 import {
   type OrderByState,
@@ -35,17 +35,16 @@ import { EvaluatorGalleryDialog } from "../components/EvaluatorGalleryDialog/Eva
 import { EvaluatorStatusBadge } from "../components/Evaluators/EvaluatorStatusBadge/EvaluatorStatusBadge";
 import { EvaluatorTypeBadge } from "../components/Evaluators/EvaluatorTypeBadge/EvaluatorTypeBadge";
 import { OverviewSelectionBar } from "@/src/components/table/OverviewSelectionBar/OverviewSelectionBar";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
-import {
-  useColumnOrder,
-  useColumnVisibility,
-} from "@/src/features/column-visibility";
-import { useHasProjectAccess } from "@/src/features/rbac";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { default as useColumnOrder } from "@/src/features/column-visibility/hooks/useColumnOrder";
+import { default as useColumnVisibility } from "@/src/features/column-visibility/hooks/useColumnVisibility";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { useEvaluatorAlerts } from "@/src/features/evals/v2/hooks/useEvaluatorAlerts";
-import { TableSelectionManager } from "@/src/features/table";
+import { TableSelectionManager } from "@/src/features/table/components/TableSelectionManager";
 import { usePaginationState } from "@/src/hooks/usePaginationState";
-import { useSidebarFilterState } from "@/src/features/filters";
-import { TableSearchBar, toObservedOptions } from "@/src/features/search-bar";
+import { useSidebarFilterState } from "@/src/features/filters/hooks/useSidebarFilterState";
+import { TableSearchBar } from "@/src/features/search-bar/components/TableSearchBar";
+import { toObservedOptions } from "@/src/features/search-bar/lib/observed-options";
 
 import { EVALUATORS_LIST_FIELD_REGISTRY } from "../constants/tableSearchRegistry";
 import { useTableViewManager } from "@/src/components/table/table-view-presets/hooks/useTableViewManager";
@@ -60,7 +59,10 @@ import {
   evaluatorExecutionsUrl,
   evaluatorScoresUrl,
 } from "../fns/evaluators/evaluatorScoresUrl";
-import { EVALS_V2_TABS, getEvalsV2Tabs } from "@/src/features/navigation";
+import {
+  EVALS_V2_TABS,
+  getEvalsV2Tabs,
+} from "@/src/features/navigation/utils/evals-v2-tabs";
 import { DefaultModelChangeConfirmationDialog } from "../components/Evaluators/ProjectDefaultModel/DefaultModelChangeConfirmationDialog";
 import { useProjectDefaultModel } from "@/src/features/evals/v2/hooks/useProjectDefaultModel";
 import {
@@ -76,7 +78,7 @@ import {
 import type { GalleryTemplate } from "../types/templateGallery";
 import { V4MigrationUpdateRequiredBadge } from "@/src/features/v4-migration/V4MigrationDelayBadge";
 import { createNumberTableColumn } from "@/src/components/design-system/table/columns/createNumberTableColumn";
-import { useOrderByState } from "@/src/features/orderBy";
+import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import { createUserTableColumn } from "@/src/components/design-system/table/columns/createUserTableColumn";
 import { EvaluatorAlertButton } from "@/src/features/evals/v2/components/Evaluators/EvaluatorAlertButton/EvaluatorAlertButton";
 

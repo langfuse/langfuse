@@ -15,7 +15,12 @@ export type ModelDiscoveryError =
   | "timeout";
 
 type ModelDiscoveryResult =
-  | { success: true; models: GatewayModelCatalogEntry[] }
+  | {
+      success: true;
+      models: GatewayModelCatalogEntry[];
+      /** Epoch ms of the earliest scheduled shutdown among `models`, by which the catalog must be rediscovered. */
+      expiresAt?: number;
+    }
   | { success: false; error: ModelDiscoveryError };
 
 export interface ModelDiscoveryAdapter {
