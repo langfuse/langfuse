@@ -1,5 +1,6 @@
 import {
   getSkillLoadRequestsFromArguments,
+  isSkillLoadTool,
   parseSkillToolArguments,
   SkillSelectorSchema,
   type SkillsAvailable,
@@ -32,6 +33,7 @@ export function getSkillLoadRequests(
 
   const availableNames = skills.map((skill) => skill.skillName);
   for (const [toolName, calls] of toolCallsByName) {
+    if (!isSkillLoadTool(toolName, metadata)) continue;
     for (const call of calls) {
       const args = parseSkillToolArguments(call.arguments);
       if (args === undefined) continue;

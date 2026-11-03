@@ -12,6 +12,7 @@ import {
 } from "../../features/skills/constants";
 import {
   getSkillLoadRequestsFromArguments,
+  isSkillLoadTool,
   parseSkillToolArguments,
 } from "../../features/skills/toolArguments";
 import { ObservationType } from "../../domain/observations";
@@ -41,7 +42,10 @@ export function extractSkillsFromObservation({
 } {
   if (
     observationType !== ObservationType.GENERATION &&
-    (observationType !== ObservationType.TOOL || output == null || isError)
+    (observationType !== ObservationType.TOOL ||
+      output == null ||
+      isError ||
+      !isSkillLoadTool(name, metadata))
   ) {
     return {};
   }

@@ -2,6 +2,26 @@ import { asRecord } from "../../utils/objects";
 import { MAX_SKILL_TOOL_ARGS_JSON_BYTES } from "./constants";
 import { MAX_SKILLS_PER_OBSERVATION } from "./trace";
 
+const SKILL_TOOL_NAMES = new Set([
+  "skill",
+  "Skill",
+  "loadSkill",
+  "langfuse_loadSkill",
+  "skill_read",
+  "loadSkillResource",
+  "langfuse_loadSkillResource",
+  "readFile",
+  "Read",
+]);
+
+/** Filters unsupported tools before decoding their arguments or skill catalog. */
+export function isSkillLoadTool(toolName: string, metadata?: unknown): boolean {
+  return (
+    SKILL_TOOL_NAMES.has(toolName) ||
+    (isCodexShellTool(toolName) && isCodexMetadata(metadata))
+  );
+}
+
 type SkillToolArguments = Record<string, unknown> | string;
 
 type SkillLoadRequest = {
