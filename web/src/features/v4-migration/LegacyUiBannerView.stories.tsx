@@ -14,9 +14,8 @@ const meta = preview.meta({
 });
 
 /**
- * Cloud: retirement date included. Same amber tokens as the staff
- * customer-data strip; primary action enables v4, secondary opens migration
- * status.
+ * Cloud: retirement date included. Blue preview-banner tokens; primary
+ * enables v4; secondary is an underlined link to the migration guide.
  */
 export const WithDeadline = meta.story({});
 
