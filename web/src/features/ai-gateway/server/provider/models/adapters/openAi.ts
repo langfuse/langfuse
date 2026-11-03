@@ -32,23 +32,32 @@ export const openAiModelDiscoveryAdapter: ModelDiscoveryAdapter = {
     const parsed = responseSchema.safeParse(result.value);
     if (!parsed.success) return { success: false, error: "provider_error" };
     const now = Date.now();
+    const available = parsed.data.data
+      .map((model) => ({
+        model,
+        shutdownAt: parseShutdownDate(model.shutdown_date),
+      }))
+      .filter(({ shutdownAt }) => shutdownAt === null || shutdownAt > now);
+    const shutdowns = available.flatMap(({ shutdownAt }) =>
+      shutdownAt === null ? [] : [shutdownAt],
+    );
     return {
       success: true,
-      models: parsed.data.data
-        .filter((model) => !isShutDown(model.shutdown_date, now))
-        .map((model) => ({
-          id: model.id,
-          provider: "OPENAI" as const,
-          canonicalSlug: model.id,
-          displayName: model.id,
-          createdAt: new Date(model.created * 1000).toISOString(),
-        })),
+      models: available.map(({ model }) => ({
+        id: model.id,
+        provider: "OPENAI" as const,
+        canonicalSlug: model.id,
+        displayName: model.id,
+        createdAt: new Date(model.created * 1000).toISOString(),
+      })),
+      expiresAt: shutdowns.length > 0 ? Math.min(...shutdowns) : undefined,
     };
   },
 };
 
-/** OpenAI keeps listing models past their shutdown date. An unparsable date keeps the model. */
-function isShutDown(shutdownDate: string | null | undefined, now: number) {
-  if (!shutdownDate) return false;
-  return Date.parse(`${shutdownDate}T00:00:00Z`) <= now;
+/** OpenAI keeps listing models past their shutdown date. Returns null for a missing or unparsable date. */
+function parseShutdownDate(shutdownDate: string | null | undefined) {
+  if (!shutdownDate) return null;
+  const shutdownAt = Date.parse(`${shutdownDate}T00:00:00Z`);
+  return Number.isNaN(shutdownAt) ? null : shutdownAt;
 }

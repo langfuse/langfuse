@@ -336,6 +336,7 @@ export class GatewayModelCatalogService {
         params.organizationId,
         params.connectionId,
         catalog,
+        models.expiresAt,
       );
     }
     if (unchanged && params.explicitRetry && connection.status === "ERROR") {
@@ -402,12 +403,21 @@ export class GatewayModelCatalogService {
     organizationId: string,
     connectionId: string,
     models: GatewayModelCatalogEntry[],
+    expiresAt: number | undefined,
   ) {
     if (!this.redis) return;
+    // A model must leave the cached catalog at its shutdown, not up to a full TTL later.
+    const ttlSeconds =
+      expiresAt === undefined
+        ? MODEL_CACHE_TTL_SECONDS
+        : Math.min(
+            MODEL_CACHE_TTL_SECONDS,
+            Math.max(1, Math.ceil((expiresAt - Date.now()) / 1000)),
+          );
     try {
       await this.redis.setex(
         this.modelCacheKey(organizationId, connectionId),
-        MODEL_CACHE_TTL_SECONDS,
+        ttlSeconds,
         JSON.stringify(models),
       );
     } catch {
