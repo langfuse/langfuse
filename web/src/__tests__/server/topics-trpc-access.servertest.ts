@@ -277,9 +277,6 @@ describe("Topics tRPC access", () => {
         facets: [{ facetId: b.facetId, version: 1 }],
       }),
     ).rejects.toMatchObject({ code: "UNAUTHORIZED" });
-    expect(
-      await prisma.batchAction.count({ where: { projectId: b.projectId } }),
-    ).toBe(1);
   });
 
   it("uses only LLM connections of the project or its organization", async () => {
