@@ -431,6 +431,7 @@ function AnnotationQueueRunContent({
             data={objectData.data}
             configs={configs}
             projectId={projectId}
+            annotationQueueId={annotationQueueId}
           />
         );
       default:
