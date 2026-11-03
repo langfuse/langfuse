@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { transcriptFixtures } from "./index";
-import { createObservation } from "../../test-utils";
+import { createObservation } from "../../test-utils/tracing-factory";
 import { convertObservation } from "../../repositories/observations_converters";
 import { orderObservations } from "../ordering";
 import { assembleTranscript } from "../transcript";

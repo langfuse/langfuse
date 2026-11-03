@@ -291,7 +291,7 @@ async fn request_configuration_and_metadata_are_projected_out_of_input_by_mode()
             .cloned()
             .unwrap()
     );
-    let input = facts.input.as_ref().unwrap();
+    let input = facts.input_json().unwrap();
     assert_eq!(input["system"][0]["text"], json!("system-canary"));
     assert_eq!(
         input["system"][0]["cache_control"]["type"],

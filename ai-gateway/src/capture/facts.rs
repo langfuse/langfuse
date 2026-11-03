@@ -1,6 +1,6 @@
 //! Owned facts at the capture/telemetry boundary. Content and usage remain native JSON.
 use serde::Serialize;
-use serde_json::{Map, Value};
+use serde_json::{Map, Value, value::RawValue};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
@@ -70,7 +70,7 @@ pub(crate) struct ProviderFacts {
     pub request_metadata: Map<String, Value>,
     pub error_message: Option<String>,
     pub usage_details: Option<Value>,
-    pub input: Option<Value>,
+    pub input: Option<Box<RawValue>>,
     pub input_omission: Option<InputOmission>,
     pub output: Option<Value>,
     pub provider_response_id: Option<String>,
@@ -79,4 +79,13 @@ pub(crate) struct ProviderFacts {
     pub input_complete: bool,
     pub output_complete: bool,
     pub capture_complete: bool,
+}
+
+#[cfg(test)]
+impl ProviderFacts {
+    pub(crate) fn input_json(&self) -> Option<Value> {
+        self.input
+            .as_ref()
+            .map(|raw| serde_json::from_str(raw.get()).unwrap())
+    }
 }

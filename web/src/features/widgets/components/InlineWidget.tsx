@@ -10,7 +10,10 @@ import {
 } from "@langfuse/shared/query";
 import { useScheduledDashboardExecuteQuery } from "@/src/features/dashboard/hooks/DashboardQuerySchedulerProvider";
 import { Chart } from "@/src/features/widgets/chart-library/Chart";
-import { type LegendPosition } from "@/src/features/widgets/chart-library/chart-props";
+import {
+  type FormatMetricOptions,
+  type LegendPosition,
+} from "@/src/features/widgets/chart-library/chart-props";
 import { ChartLoadingState } from "@/src/features/widgets/chart-library/ChartLoadingState";
 import {
   getChartLoadingProgress,
@@ -24,7 +27,7 @@ import {
   type WidgetChartConfig,
 } from "@/src/features/widgets/utils";
 import { isTimeSeriesChart } from "@/src/features/widgets/chart-library/utils";
-import { useReadPath } from "@/src/features/events";
+import { useReadPath } from "@/src/features/events/hooks/useReadPath";
 import { cn } from "@/src/utils/tailwind";
 
 // ============================================================================
@@ -79,6 +82,11 @@ export interface WidgetContentProps {
    */
   entityDimensionLabelMap?: Record<string, string>;
   /**
+   * Optional presentation-only labels for the first dimension's values, e.g.
+   * names for ID breakdowns. Values without a label keep their raw value.
+   */
+  dimensionLabelMap?: ReadonlyMap<string, string>;
+  /**
    * Hide x-axis tick labels on a categorical (entity-name) axis; the full name
    * stays in the hover tooltip. Off by default. Opt in on entity-dimension
    * charts whose long names clutter the axis.
@@ -101,6 +109,7 @@ export interface WidgetContentProps {
    * short for it. Pass a stable node (see `Chart`).
    */
   emptyState?: ReactNode;
+  usdPrecision?: FormatMetricOptions["usdPrecision"];
 }
 
 // ============================================================================
@@ -146,11 +155,13 @@ export function WidgetContent({
   onSortChange,
   className,
   entityDimensionLabelMap,
+  dimensionLabelMap,
   hideXAxisLabels,
   colorBarsByCategory,
   legendPosition,
   zeroBaseline,
   emptyState,
+  usdPrecision,
 }: WidgetContentProps) {
   // Transport-only: `version` is a prop here, so an unresolved session can
   // never change WHAT is queried — only whether it streams (SSE) or not.
@@ -276,7 +287,7 @@ export function WidgetContent({
         if (val === null || val === undefined || val === "") {
           seriesDimension = "n/a";
         } else if (typeof val === "string") {
-          seriesDimension = val;
+          seriesDimension = dimensionLabelMap?.get(val) ?? val;
         } else if (Array.isArray(val)) {
           seriesDimension = val.join(", ");
         } else {
@@ -331,6 +342,7 @@ export function WidgetContent({
     metrics,
     dimensions,
     entityDimensionLabelMap,
+    dimensionLabelMap,
   ]);
 
   // Chart presentation (label and formatter)
@@ -344,8 +356,9 @@ export function WidgetContent({
       metric,
       view,
       version,
+      usdPrecision,
     });
-  }, [chartType, metrics, view, version]);
+  }, [chartType, metrics, view, version, usdPrecision]);
 
   // Loading state
   const chartLoadingState = getChartLoadingStateProps({

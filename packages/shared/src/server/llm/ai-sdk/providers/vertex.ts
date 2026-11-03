@@ -94,6 +94,7 @@ async function resolveVertexConnection(params: {
     : GCPServiceAccountKeySchema.parse(JSON.parse(apiKey));
   const googleAuthOptions: GoogleAuthOptions | undefined = serviceAccountKey
     ? {
+        // eslint-disable-next-line @typescript-eslint/no-deprecated
         credentials: serviceAccountKey,
         projectId: serviceAccountKey.project_id,
       }

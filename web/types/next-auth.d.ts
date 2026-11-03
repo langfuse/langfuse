@@ -38,11 +38,15 @@ declare module "next-auth" {
             id: PrismaOrganization["id"];
             name: PrismaOrganization["name"];
             role: Role;
+            supportAccess?: boolean; // granted through a ConductorOne support access request, not a real membership
             cloudConfig: CloudConfigSchema | undefined;
             plan: Plan;
             metadata: Record<string, unknown>;
             aiFeaturesEnabled: boolean;
             aiTelemetryEnabled: boolean;
+            // Optional so existing session mocks need not set it; the session
+            // callback and the admin org fallback always populate it.
+            accessAuditLogEnabled?: boolean;
             featureFlags?: Flags;
             projects: {
               id: PrismaProject["id"];
@@ -87,6 +91,9 @@ declare module "next-auth" {
       // Role selection requires API_AUTH_MIGRATION=enforce and the scope's rollout flag.
       apiKeyProjectRoleSelectionEnabled?: boolean;
       apiKeyOrgRoleSelectionEnabled?: boolean;
+      // Mirrors LANGFUSE_AUDIT_LOG_ACCESS_EVENTS. Optional so existing session
+      // mocks need not set it.
+      accessAuditLogMode?: "org" | "enforced" | "disabled";
     };
   }
 

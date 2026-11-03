@@ -1,6 +1,6 @@
 import { ChevronRight, ChevronDown, MessageSquare } from "@langfuse/icons";
 import type { SectionContext } from "../types";
-import { type MediaReturnType } from "@/src/features/media";
+import type { MediaReturnType } from "@/src/features/media/validation";
 import { MediaButtonGroup } from "./MediaButtonGroup";
 
 export interface MultiSectionJsonViewerHeaderProps {

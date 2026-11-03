@@ -6,7 +6,7 @@ export function GatewayProvidersEmptyState() {
   return (
     <GatewaySetupEmptyState
       icon={Plug}
-      title="No providers set up yet"
+      title="No provider credentials yet"
       description="Add an OpenAI or Anthropic credential so the gateway can route requests and discover models."
     />
   );

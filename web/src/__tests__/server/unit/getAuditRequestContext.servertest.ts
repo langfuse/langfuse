@@ -8,7 +8,7 @@ const mockEnv = vi.hoisted(() => ({
 
 vi.mock("@/src/env.mjs", () => mockEnv);
 
-import { getAuditRequestContext } from "@/src/features/audit-logs/server";
+import { getAuditRequestContext } from "@/src/features/audit-logs/server/getAuditRequestContext";
 
 describe("getAuditRequestContext client IP", () => {
   it.each([

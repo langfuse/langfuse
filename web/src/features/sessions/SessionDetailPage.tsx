@@ -2,7 +2,7 @@ import {
   SessionEventsPage,
   SessionPage,
 } from "@/src/features/sessions/SessionPages";
-import { useReadPath } from "@/src/features/events";
+import { useReadPath } from "@/src/features/events/hooks/useReadPath";
 import { RouteParamsPendingFallback } from "@/src/components/RouteParamsPendingFallback/RouteParamsPendingFallback";
 import { useReadyRouteParams } from "@/src/hooks/useReadyRouteParams";
 

@@ -39,6 +39,10 @@ const STORY_TITLE_GROUPS: StoryTitleGroup[] = [
     titlePrefix: "Features/In-App Agent",
   },
   {
+    directory: "src/features/monitors/automations",
+    titlePrefix: "Features/Monitors",
+  },
+  {
     directory: "src/features/traces/components",
     titlePrefix: "Features/Traces",
   },
@@ -219,6 +223,11 @@ const config: StorybookConfig = {
           replacement: replacement as string,
         }));
     viteConfig.resolve.alias = [
+      // Story importers are excluded from the production tsconfig.
+      {
+        find: /^@\//,
+        replacement: fileURLToPath(new URL("../", import.meta.url)),
+      },
       // The package also exposes a few named subpath exports (e.g.
       // `@langfuse/shared/query`, imported transitively via the chart-library's
       // PivotTable → widgets/utils). Those aren't under `src/`, so the two rules

@@ -16,7 +16,7 @@ import {
   TEXT_SCORE_MAX_LENGTH,
 } from "../../../../domain/scores";
 import { singleFilterList } from "../../../../interfaces/filters";
-import { InvalidRequestError } from "../../../../errors";
+import { InvalidRequestError } from "../../../../errors/InvalidRequestError";
 
 const operators = ["<", ">", "<=", ">=", "!=", "="] as const;
 

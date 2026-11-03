@@ -29,7 +29,7 @@ import {
   isPagerDutyActionConfig,
   SafePagerDutyActionConfigSchema,
 } from "../../domain/automations";
-import { InternalServerError } from "../../errors";
+import { InternalServerError } from "../../errors/InternalServerError";
 import { FilterState } from "../../types";
 import {
   createDisplayHeaders,

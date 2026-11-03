@@ -12,7 +12,7 @@ vi.mock("next-auth/react", () => ({
   useSession: () => ({ data: { user: { email: mocks.email } } }),
 }));
 
-vi.mock("@/src/features/organizations", () => ({
+vi.mock("@/src/features/organizations/hooks", () => ({
   useLangfuseCloudRegion: () =>
     mocks.region === undefined
       ? ({ isLangfuseCloud: false, region: undefined } as const)

@@ -16,8 +16,9 @@ import { $root } from "@/src/pages/api/public/otel/otlp-proto/generated/root";
 import {
   type GatewayApiFormat,
   GatewayResolveResponseSchema,
-} from "@/src/features/ai-gateway/server/provider";
-import type { GatewayProviderName } from "@/src/features/ai-gateway/server/provider/registry";
+  type GatewayProviderName,
+} from "@/src/features/ai-gateway/server/provider/registry";
+
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import { signHmacSha256 } from "@/src/server/utils/hmac";
@@ -610,6 +611,7 @@ describe("AI gateway live end-to-end", () => {
               user_id: admin.userId,
               key_name: `Gateway E2E ${provider} ${apiFormat}`,
               user_name: admin.userName || null,
+              user_email: admin.userEmail || null,
               key_metadata: {
                 test: true,
                 provider,
@@ -758,7 +760,7 @@ async function createGatewayAdmin() {
     }),
     prisma.user.findUniqueOrThrow({
       where: { id: membership.userId },
-      select: { id: true, name: true },
+      select: { id: true, name: true, email: true },
     }),
   ]);
   const session: Session = {
@@ -789,6 +791,7 @@ async function createGatewayAdmin() {
     caller: appRouter.createCaller({ ...context, prisma }),
     userId: user.id,
     userName: user.name,
+    userEmail: user.email,
   };
 }
 
@@ -841,7 +844,11 @@ async function gatewayControlPlaneRequest(input: {
       "Content-Type": "application/json",
       "Langfuse-Gateway-Authorization": gatewayAuthorization,
     },
-    body: JSON.stringify({ apiFormat: input.apiFormat, model: input.model }),
+    body: JSON.stringify({
+      apiFormat: input.apiFormat,
+      model: input.model,
+      requestBytes: 0,
+    }),
   });
   return readJsonResponse(response, 200, RESOLVE_PATH);
 }

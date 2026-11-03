@@ -8,7 +8,9 @@ import {
   parseDatasetJson,
 } from "./parseDatasetJson";
 
-vi.mock("@/src/features/notifications", () => ({ showErrorToast: vi.fn() }));
+vi.mock("@/src/features/notifications/showErrorToast", () => ({
+  showErrorToast: vi.fn(),
+}));
 
 describe("dataset item JSON round trip", () => {
   it.each([0, false, ""])("preserves the scalar %j", (value) => {
