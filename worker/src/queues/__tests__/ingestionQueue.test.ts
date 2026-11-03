@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { type Job } from "bullmq";
 import {
   getS3EventStorageClient,
@@ -9,7 +9,13 @@ import {
   StorageServiceFactory,
   type TQueueJobTypes,
 } from "@langfuse/shared/src/server";
+import { env } from "../../env";
 import { ingestionQueueProcessorBuilder } from "../ingestionQueue";
+
+const { addToQueueMock, redisMock } = vi.hoisted(() => ({
+  addToQueueMock: vi.fn(),
+  redisMock: { exists: vi.fn(), set: vi.fn() },
+}));
 
 vi.mock("@langfuse/shared/src/server", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@langfuse/shared/src/server")>()),
@@ -17,11 +23,14 @@ vi.mock("@langfuse/shared/src/server", async (importOriginal) => ({
   hasS3SlowdownFlag: vi.fn(),
   markProjectS3Slowdown: vi.fn(),
   markProjectIngestFailure: vi.fn(),
+  redis: redisMock,
 }));
 
 vi.mock("../../services/ClickhouseWriter", () => ({
-  ClickhouseWriter: { getInstance: vi.fn(() => ({})) },
-  TableName: {},
+  ClickhouseWriter: {
+    getInstance: vi.fn(() => ({ addToQueue: addToQueueMock })),
+  },
+  TableName: { BlobStorageFileLog: "blob_storage_file_log" },
 }));
 
 const projectId = "slowdown-project";
@@ -52,6 +61,7 @@ describe("ingestion queue S3 SlowDown handling", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(hasS3SlowdownFlag).mockResolvedValue(false);
+    redisMock.exists.mockResolvedValue(0);
 
     const storage = StorageServiceFactory.getInstance({
       bucketName: "events",
@@ -87,5 +97,39 @@ describe("ingestion queue S3 SlowDown handling", () => {
       source: "ingestion_queue",
       reason: "s3_slowdown",
     });
+  });
+});
+
+describe("ingestion queue recently-processed cache", () => {
+  const originalSeenEventCache = env.LANGFUSE_ENABLE_REDIS_SEEN_EVENT_CACHE;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    (env as any).LANGFUSE_ENABLE_REDIS_SEEN_EVENT_CACHE = "true";
+  });
+
+  afterEach(() => {
+    (env as any).LANGFUSE_ENABLE_REDIS_SEEN_EVENT_CACHE =
+      originalSeenEventCache;
+  });
+
+  it("logs the file of a skipped job so deletions can find it", async () => {
+    redisMock.exists.mockResolvedValue(1);
+    const processor = ingestionQueueProcessorBuilder(true);
+
+    await processor(ingestionJob);
+
+    expect(getS3EventStorageClient).not.toHaveBeenCalled();
+    expect(addToQueueMock).toHaveBeenCalledWith(
+      "blob_storage_file_log",
+      expect.objectContaining({
+        project_id: projectId,
+        entity_type: "trace",
+        entity_id: "trace-1",
+        event_id: "file-1",
+        bucket_path: expect.stringMatching(/trace-1\/file-1\.json$/),
+        is_deleted: 0,
+      }),
+    );
   });
 });

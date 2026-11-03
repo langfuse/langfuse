@@ -55,8 +55,8 @@ const getS3StorageServiceClient = (bucketName: string): StorageService => {
 };
 
 /**
- * Get the delay for the event based on the event type. Uses delay if set, 0 if current UTC timestamp is not between
- * 23:45 and 00:15, and env.LANGFUSE_INGESTION_QUEUE_DELAY_MS otherwise.
+ * Get the delay for the event based on the event type. Uses delay if set, env.LANGFUSE_OTEL_TRACE_INGESTION_QUEUE_DELAY_MS
+ * for OTel events, 0 if current UTC timestamp is not between 23:45 and 00:15, and env.LANGFUSE_INGESTION_QUEUE_DELAY_MS otherwise.
  * We need the delay around date boundaries to avoid duplicates for out-of-order processing of events.
  * @param delay - Delay overwrite. Used if non-null.
  */
@@ -64,16 +64,18 @@ const getDelay = (delay: number | null, source: "api" | "otel") => {
   if (delay !== null) {
     return delay;
   }
+
+  // OTel events skip the date boundary delay.
+  if (source === "otel") {
+    return env.LANGFUSE_OTEL_TRACE_INGESTION_QUEUE_DELAY_MS;
+  }
+
   const now = new Date();
   const hours = now.getUTCHours();
   const minutes = now.getUTCMinutes();
 
   if ((hours === 23 && minutes >= 45) || (hours === 0 && minutes <= 15)) {
     return env.LANGFUSE_INGESTION_QUEUE_DELAY_MS;
-  }
-
-  if (source === "otel") {
-    return 0;
   }
 
   // Use 5s here to avoid duplicate processing on the worker. If the ingestion delay is set to a lower value,

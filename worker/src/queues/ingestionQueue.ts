@@ -91,6 +91,31 @@ export const ingestionQueueProcessorBuilder = (
           rawEntityIdSegment: job.data.payload.data.eventBodyId,
         });
 
+      // Deletions find ingestion files only through blob_storage_file_log, so
+      // every job logs its file, including jobs skipped as recently processed.
+      const addFileToBlobStorageFileLog = (entityId: string) => {
+        if (
+          env.LANGFUSE_ENABLE_BLOB_STORAGE_FILE_LOG !== "true" ||
+          !job.data.payload.data.fileKey
+        ) {
+          return;
+        }
+        const fileName = `${job.data.payload.data.fileKey}.json`;
+        clickhouseWriter.addToQueue(TableName.BlobStorageFileLog, {
+          id: randomUUID(),
+          project_id: job.data.payload.authCheck.scope.projectId,
+          entity_type: getClickhouseEntityType(job.data.payload.data.type),
+          entity_id: entityId,
+          event_id: job.data.payload.data.fileKey,
+          bucket_name: env.LANGFUSE_S3_EVENT_UPLOAD_BUCKET,
+          bucket_path: `${bucketPrefix}${fileName}`,
+          created_at: toClickhouseDateTime(),
+          updated_at: toClickhouseDateTime(),
+          event_ts: toClickhouseDateTime(),
+          is_deleted: 0,
+        });
+      };
+
       // If fileKey was processed within the last minutes, i.e. has a match in redis, we skip processing.
       // `eventBodyId` is the raw (un-sanitized) ID; for legacy pre-fix data
       // it may contain "/" which is unusual but valid in a Redis key.
@@ -106,6 +131,9 @@ export const ingestionQueueProcessorBuilder = (
             type: job.data.payload.data.type,
             skipped: "true",
           });
+          // The job that processed this file logged only its own fileKey.
+          // The producer sets eventBodyId to the raw entity id.
+          addFileToBlobStorageFileLog(job.data.payload.data.eventBodyId);
           logger.debug(
             `Skipping ingestion event ${job.data.payload.data.fileKey} for project ${job.data.payload.authCheck.scope.projectId}`,
           );
@@ -306,25 +334,7 @@ export const ingestionQueueProcessorBuilder = (
       const canonicalEntityId =
         events[0].body?.id ?? job.data.payload.data.eventBodyId;
 
-      if (
-        env.LANGFUSE_ENABLE_BLOB_STORAGE_FILE_LOG === "true" &&
-        job.data.payload.data.fileKey
-      ) {
-        const fileName = `${job.data.payload.data.fileKey}.json`;
-        clickhouseWriter.addToQueue(TableName.BlobStorageFileLog, {
-          id: randomUUID(),
-          project_id: job.data.payload.authCheck.scope.projectId,
-          entity_type: clickhouseEntityType,
-          entity_id: canonicalEntityId,
-          event_id: job.data.payload.data.fileKey,
-          bucket_name: env.LANGFUSE_S3_EVENT_UPLOAD_BUCKET,
-          bucket_path: `${bucketPrefix}${fileName}`,
-          created_at: toClickhouseDateTime(),
-          updated_at: toClickhouseDateTime(),
-          event_ts: toClickhouseDateTime(),
-          is_deleted: 0,
-        });
-      }
+      addFileToBlobStorageFileLog(canonicalEntityId);
 
       await new IngestionService(
         redis,

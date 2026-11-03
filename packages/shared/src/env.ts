@@ -226,6 +226,15 @@ const EnvSchema = z.object({
     .number()
     .nonnegative()
     .default(15_000),
+  // Delay for ingestion jobs of OTel trace events. OTel exporters send a trace
+  // update with every span batch, and every job re-reads all files of the
+  // trace. With a delay and LANGFUSE_ENABLE_REDIS_SEEN_EVENT_CACHE, the first
+  // job reads the files of the whole window and the cache skips the other jobs.
+  // 0 processes each job immediately.
+  LANGFUSE_OTEL_TRACE_INGESTION_QUEUE_DELAY_MS: z.coerce
+    .number()
+    .nonnegative()
+    .default(0),
   LANGFUSE_INGESTION_QUEUE_SHARD_COUNT: z.coerce.number().positive().default(1),
   LANGFUSE_INGESTION_SECONDARY_QUEUE_SHARD_COUNT: z.coerce
     .number()

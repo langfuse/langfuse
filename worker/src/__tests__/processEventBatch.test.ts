@@ -24,6 +24,7 @@ vi.mock("../../../packages/shared/src/env", () => ({
   env: {
     LANGFUSE_INGESTION_PROCESSING_SAMPLED_PROJECTS: new Map(),
     LANGFUSE_INGESTION_QUEUE_DELAY_MS: 5000,
+    LANGFUSE_OTEL_TRACE_INGESTION_QUEUE_DELAY_MS: 3000,
     LANGFUSE_S3_EVENT_UPLOAD_BUCKET: "event-upload",
     LANGFUSE_S3_EVENT_UPLOAD_PREFIX: "",
     LANGFUSE_S3_EVENT_UPLOAD_FORCE_PATH_STYLE: "false",
@@ -151,6 +152,49 @@ describe("processEventBatch", () => {
       ingestionSdkVersion: UNKNOWN_INGESTION_SDK_VALUE,
     });
   });
+
+  it("delays OTel trace jobs by the configured OTel delay", async () => {
+    const authCheck = {
+      validKey: true as const,
+      scope: {
+        projectId: "project-id",
+        accessLevel: "project" as const,
+        publicKey: "pk-lf-public",
+      },
+    };
+
+    await processEventBatch([createTraceCreateEvent()], authCheck, {
+      source: "otel",
+      attribution: createUnknownSdkIngestionAttribution({ authCheck }),
+    });
+
+    expect(queueAddMock).toHaveBeenCalledTimes(1);
+    expect(queueAddMock.mock.calls[0][1].payload.data).toMatchObject({
+      fileKey: "event-id",
+      skipS3List: false,
+    });
+    expect(queueAddMock.mock.calls[0][2]).toEqual({ delay: 3000 });
+  });
+
+  it("lets an explicit delay override the OTel delay", async () => {
+    const authCheck = {
+      validKey: true as const,
+      scope: {
+        projectId: "project-id",
+        accessLevel: "project" as const,
+        publicKey: "pk-lf-public",
+      },
+    };
+
+    await processEventBatch([createTraceCreateEvent()], authCheck, {
+      delay: 0,
+      source: "otel",
+      attribution: createUnknownSdkIngestionAttribution({ authCheck }),
+    });
+
+    expect(queueAddMock.mock.calls[0][2]).toEqual({ delay: 0 });
+  });
+
   it("rejects with a retryable 503 when S3 throttles the upload", async () => {
     const authCheck = {
       validKey: true as const,
