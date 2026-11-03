@@ -219,7 +219,7 @@ export function GatewayConnectionModelsTable({
           onDisableAll={onDisableAll}
           onSearchChange={handleSearchChange}
         />
-        <div className="min-h-0 flex-1 overflow-hidden rounded-md border">
+        <div className="flex min-h-0 flex-col overflow-hidden rounded-md border">
           <DataTable
             tableName="gateway-connection-models"
             columns={columns}
