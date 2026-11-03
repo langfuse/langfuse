@@ -42,6 +42,7 @@ export async function enforceGatewayRateLimits({
     apiKeyId: context.apiKeyId,
     publicKey: context.apiKeyId,
     isIngestionSuspended: false,
+    accessAuditLogEnabled: null,
   };
   const service = RateLimitService.getInstance();
   const [requests, bytes] = await Promise.all([
