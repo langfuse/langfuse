@@ -181,6 +181,18 @@ export async function buildTraceExport({
     session,
   });
 
+  return buildTraceExportFromTrace({ trace, projectId });
+}
+
+/** Builds the JSON download payload after the caller has authorized the trace. */
+export async function buildTraceExportFromTrace({
+  trace,
+  projectId,
+}: {
+  trace: Awaited<ReturnType<typeof getAuthorizedTrace>>;
+  projectId: string;
+}) {
+  const traceId = trace.id;
   const observationRecordCount = await getObservationRecordCountForTrace({
     traceId,
     projectId,
