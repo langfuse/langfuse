@@ -34,9 +34,13 @@ runs:
         set +e
         set +o pipefail
 
+        # Cancelled jobs are included because a job that exceeds its
+        # timeout-minutes concludes as `cancelled`, not `failure`. Failed jobs
+        # sort first so the MAX_JOBS cap below keeps them.
         FAILED_JOBS_JSON="$(gh api "repos/$REPOSITORY/actions/runs/$RUN_ID/jobs?per_page=100" --paginate \
           | jq -sc --arg self_job "$GITHUB_JOB" \
-            '[.[].jobs[] | select(.conclusion == "failure" and .name != $self_job)]')"
+            '[.[].jobs[] | select((.conclusion == "failure" or .conclusion == "cancelled") and .name != $self_job)]
+             | sort_by(.conclusion != "failure")')"
         FAILED_COUNT=$(jq 'length' <<<"$FAILED_JOBS_JSON")
         MAX_JOBS=3
         MAX_EXCERPT_LEN=250
@@ -53,7 +57,8 @@ runs:
         while IFS= read -r job; do
           JOB_ID=$(jq -r '.id' <<<"$job")
           JOB_NAME=$(jq -r '.name' <<<"$job")
-          FAILED_STEPS=$(jq -r '[.steps[]? | select(.conclusion == "failure") | .name] | join(", ")' <<<"$job")
+          [ "$(jq -r '.conclusion' <<<"$job")" = "cancelled" ] && JOB_NAME="$JOB_NAME (cancelled, e.g. timed out)"
+          FAILED_STEPS=$(jq -r '[.steps[]? | select(.conclusion == "failure" or .conclusion == "cancelled") | .name] | join(", ")' <<<"$job")
 
           JOB_LOG="$(gh api "repos/$REPOSITORY/actions/jobs/$JOB_ID/logs" 2>/dev/null || true)"
 
@@ -110,11 +115,11 @@ runs:
         done < <(jq -c ".[0:$MAX_JOBS][]" <<<"$FAILED_JOBS_JSON")
 
         if [ "$FAILED_COUNT" -gt "$MAX_JOBS" ]; then
-          REASON="$(printf '%s\n\n…and %s more failed job(s)' "$REASON" "$((FAILED_COUNT - MAX_JOBS))")"
+          REASON="$(printf '%s\n\n…and %s more failed or cancelled job(s)' "$REASON" "$((FAILED_COUNT - MAX_JOBS))")"
         fi
 
         if [ -z "$REASON" ]; then
-          REASON="Unknown (no failed job found via the Actions API — check the workflow run)"
+          REASON="Unknown (no failed or cancelled job found via the Actions API — check the workflow run)"
         fi
 
         max_len=1200

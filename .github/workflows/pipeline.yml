@@ -1761,15 +1761,14 @@ jobs:
         if: ${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') }}
         run: exit 1
         working-directory: .
-      # The gate above also fails on cancelled jobs, so failure() alone is true
-      # for runs that were only cancelled (e.g. superseded). Alert only when a
-      # needed job actually failed, so the message has a failed job to name.
+      # Skip the alert when the whole run was cancelled. A single cancelled job
+      # still alerts: that is how GitHub reports a job that hit timeout-minutes.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        if: failure() && contains(needs.*.result, 'failure') && github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/v3' || startsWith(github.ref, 'refs/tags/'))
+        if: failure() && !cancelled() && github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/v3' || startsWith(github.ref, 'refs/tags/'))
         with:
           persist-credentials: false
       - name: Notify Slack
-        if: failure() && contains(needs.*.result, 'failure') && github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/v3' || startsWith(github.ref, 'refs/tags/'))
+        if: failure() && !cancelled() && github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/v3' || startsWith(github.ref, 'refs/tags/'))
         uses: ./.github/actions/notify-slack-failure
         with:
           message: "❌ CI failed on ${{ github.ref_name }}"
@@ -2268,13 +2267,13 @@ jobs:
       - name: Fail when a release image job failed
         if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')
         run: exit 1
-      # Alert only on a real failure, not on cancelled-only runs; see all-ci-passed.
+      # Skip the alert when the whole run was cancelled; see all-ci-passed.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        if: failure() && contains(needs.*.result, 'failure')
+        if: failure() && !cancelled()
         with:
           persist-credentials: false
       - name: Notify Slack
-        if: failure() && contains(needs.*.result, 'failure')
+        if: failure() && !cancelled()
         uses: ./.github/actions/notify-slack-failure
         with:
           message: "❌ Docker release failed on ${{ github.ref_name }}"
