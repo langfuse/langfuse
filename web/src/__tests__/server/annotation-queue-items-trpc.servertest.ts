@@ -6,6 +6,8 @@ import { prisma } from "@langfuse/shared/src/db";
 import {
   createEvent,
   createEventsCh,
+  createObservation,
+  createObservationsCh,
   createOrgProjectAndApiKey,
   createScoresCh,
   createTrace,
@@ -329,7 +331,7 @@ describe("annotation queues trpc", () => {
         ]),
       );
       expect(scoredItem?.scores).toHaveLength(2);
-      expect(scoredItem?.trace).toEqual({
+      expect(scoredItem?.trace).toMatchObject({
         id: scoredTraceId,
         userId: "user-1",
         tags: ["inbound"],
@@ -337,6 +339,88 @@ describe("annotation queues trpc", () => {
       });
       expect(unscoredItem?.scores).toEqual([]);
       expect(unscoredItem?.trace).toBeNull();
+    });
+
+    it("shows the parent trace's summary for observation items", async () => {
+      const setup = await createOrgProjectAndApiKey();
+      orgIds.push(setup.org.id);
+      const projectId = setup.project.id;
+      const { caller } = createCallerForProjectRole(setup);
+
+      const queue = await prisma.annotationQueue.create({
+        data: {
+          name: `queue-${uuidv4().slice(0, 8)}`,
+          scoreConfigIds: [],
+          projectId,
+          displayColumns: [
+            { source: "trace", key: "userId", label: "User", format: "text" },
+          ],
+        },
+      });
+      const traceId = uuidv4();
+      const observationId = uuidv4();
+      await prisma.annotationQueueItem.create({
+        data: {
+          queueId: queue.id,
+          objectId: observationId,
+          objectType: AnnotationQueueObjectType.OBSERVATION,
+          projectId,
+        },
+      });
+
+      const traceTimestamp = new Date("2026-03-01T09:30:00.000Z");
+      // Write the trace and observation to both stores so the test holds for
+      // every write mode.
+      await createTracesCh([
+        createTrace({
+          id: traceId,
+          project_id: projectId,
+          user_id: "user-2",
+          tags: ["outbound"],
+          timestamp: traceTimestamp.getTime(),
+        }),
+      ]);
+      await createObservationsCh([
+        createObservation({
+          id: observationId,
+          trace_id: traceId,
+          project_id: projectId,
+          start_time: traceTimestamp.getTime(),
+        }),
+      ]);
+      await createEventsCh([
+        createEvent({
+          project_id: projectId,
+          trace_id: traceId,
+          user_id: "user-2",
+          tags: ["outbound"],
+          start_time: traceTimestamp.getTime(),
+        }),
+        createEvent({
+          project_id: projectId,
+          trace_id: traceId,
+          span_id: observationId,
+          user_id: "user-2",
+          tags: ["outbound"],
+          start_time: traceTimestamp.getTime(),
+        }),
+      ]);
+
+      const result = await caller.annotationQueueItems.itemsByQueueId({
+        projectId,
+        queueId: queue.id,
+        page: 0,
+        limit: 100,
+      });
+
+      const [item] = result.queueItems;
+      expect(item?.parentTraceId).toBe(traceId);
+      expect(item?.trace).toMatchObject({
+        id: traceId,
+        userId: "user-2",
+        tags: ["outbound"],
+      });
+      expect(Object.values(item?.traceFields ?? {})).toEqual(["user-2"]);
     });
 
     it("returns and filters on the queue's trace columns", async () => {
@@ -439,7 +523,7 @@ describe("annotation queues trpc", () => {
             column: "Location",
             type: "string",
             operator: "contains",
-            value: "monica",
+            value: "paris",
           },
         ],
         page: 0,

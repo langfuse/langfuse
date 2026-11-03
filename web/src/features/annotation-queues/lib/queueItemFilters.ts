@@ -46,16 +46,32 @@ const traceColumnFilterType = (column: QueueTraceColumn) => {
 };
 
 /**
+ * The filter toolbar stores a filter by column name, so names must be unique
+ * within a queue: a name already taken by an earlier column (a trace column
+ * labelled "Status", two score configs with one name) gets a " (2)", " (3)"…
+ * suffix.
+ */
+const withUniqueNames = (columns: ColumnDefinition[]): ColumnDefinition[] => {
+  const taken = new Set<string>();
+  return columns.map((column) => {
+    let name = column.name;
+    for (let n = 2; taken.has(name); n++) name = `${column.name} (${n})`;
+    taken.add(name);
+    return name === column.name ? column : { ...column, name };
+  });
+};
+
+/**
  * Filter columns for a queue: the configured trace columns first, then status,
- * the trace's user id and one column per score config. Score filters apply to
- * the value shown in the table, i.e. the reviewer's annotation, or the
- * source's value while nobody has reviewed it.
+ * the trace's user id and one column per score config, each with a unique
+ * name. Score filters apply to the value shown in the table, i.e. the
+ * reviewer's annotation, or the source's value while nobody has reviewed it.
  */
 export function buildQueueItemFilterColumns(
   configs: QueueItemFilterConfig[],
   traceColumns: QueueTraceColumn[] = [],
 ): ColumnDefinition[] {
-  return [
+  return withUniqueNames([
     ...traceColumns.map(
       (column): ColumnDefinition => ({
         id: column.id,
@@ -92,7 +108,7 @@ export function buildQueueItemFilterColumns(
           };
       }
     }),
-  ];
+  ]);
 }
 
 const matchesString = (
@@ -184,9 +200,9 @@ const matchesValue = (
 };
 
 /**
- * Whether a queue item passes every filter. A filter is matched against a
- * column by id or by name; filters for columns the queue no longer has are
- * ignored.
+ * Whether a queue item passes every filter. A filter is resolved to exactly
+ * one column of `buildQueueItemFilterColumns`, by its unique name or else by
+ * id; filters for columns the queue no longer has are ignored.
  */
 export function queueItemMatchesFilters(
   row: QueueItemFilterRow,
@@ -194,15 +210,17 @@ export function queueItemMatchesFilters(
   configs: QueueItemFilterConfig[],
   traceColumns: QueueTraceColumn[] = [],
 ): boolean {
-  const isColumn = (
-    column: { id: string; name: string },
-    filterColumn: string,
-  ) => filterColumn === column.id || filterColumn === column.name;
+  const filterColumns = buildQueueItemFilterColumns(configs, traceColumns);
+  const findColumnId = (filterColumn: string) =>
+    (
+      filterColumns.find((column) => column.name === filterColumn) ??
+      filterColumns.find((column) => column.id === filterColumn)
+    )?.id;
 
   return filters.every((filter) => {
-    const traceColumn = traceColumns.find((column) =>
-      isColumn({ id: column.id, name: column.label }, filter.column),
-    );
+    const columnId = findColumnId(filter.column);
+    if (!columnId) return true;
+    const traceColumn = traceColumns.find((column) => column.id === columnId);
     if (traceColumn) {
       const raw = row.traceFields?.[traceColumn.id] ?? null;
       if (filter.type === "number") {
@@ -228,17 +246,14 @@ export function queueItemMatchesFilters(
         ? values.every((value) => matchesValue({ string: value }, filter))
         : values.some((value) => matchesValue({ string: value }, filter));
     }
-    if (isColumn(STATUS_COLUMN, filter.column)) {
+    if (columnId === STATUS_COLUMN.id) {
       return matchesValue({ string: row.status }, filter);
     }
-    if (isColumn(USER_ID_COLUMN, filter.column)) {
+    if (columnId === USER_ID_COLUMN.id) {
       return matchesValue({ string: row.traceUserId }, filter);
     }
-    const config = configs.find((candidate) =>
-      isColumn(
-        { id: scoreColumnId(candidate.id), name: candidate.name },
-        filter.column,
-      ),
+    const config = configs.find(
+      (candidate) => scoreColumnId(candidate.id) === columnId,
     );
     if (!config) return true;
     const resolved = resolveQueueItemScore(row.scores, config);

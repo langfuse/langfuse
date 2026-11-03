@@ -61,6 +61,17 @@ function sameIds(
   );
 }
 
+/**
+ * Message for the `displayColumns` list as a whole (e.g. too many columns).
+ * React Hook Form keeps it under `root` when rows have errors too.
+ */
+function toColumnListError(error: unknown): string | undefined {
+  const listError = error as
+    | { message?: string; root?: { message?: string } }
+    | undefined;
+  return listError?.message ?? listError?.root?.message;
+}
+
 /** Per-row messages from the `displayColumns` field error. */
 function toColumnErrors(error: unknown): QueueDisplayColumnErrors {
   if (!Array.isArray(error)) return [];
@@ -308,6 +319,7 @@ export function AnnotationQueueSetupForm({
                       }
                       disabled={disabled}
                       errors={toColumnErrors(fieldState.error)}
+                      listError={toColumnListError(fieldState.error)}
                     />
                   )}
                 />

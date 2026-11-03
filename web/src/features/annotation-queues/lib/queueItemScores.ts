@@ -45,7 +45,11 @@ const pickLatestScoreForConfig = (
   config: Pick<ScoreConfigDomain, "id" | "name">,
 ) =>
   latestScore(scores.filter((score) => score.configId === config.id)) ??
-  latestScore(scores.filter((score) => score.name === config.name));
+  latestScore(
+    scores.filter(
+      (score) => score.configId == null && score.name === config.name,
+    ),
+  );
 
 /** Latest annotation score for a config. */
 export function pickLatestAnnotationScore(

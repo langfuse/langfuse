@@ -2,6 +2,7 @@ import { Plus, X } from "@langfuse/icons";
 import { arrayMove } from "@dnd-kit/sortable";
 import {
   ANNOTATION_QUEUE_TRACE_FIELDS,
+  MAX_ANNOTATION_QUEUE_DISPLAY_COLUMNS,
   type AnnotationQueueDisplayColumn,
 } from "@langfuse/shared";
 import { Button } from "@/src/components/design-system/Button/Button";
@@ -41,19 +42,24 @@ export type QueueDisplayColumnErrors = Array<
 /**
  * Editor for a queue's extra trace columns: each row picks where the value
  * comes from (trace field, metadata key or tag prefix), the column label and
- * how the value is formatted. Rows can be reordered by dragging.
+ * how the value is formatted. Rows can be reordered by dragging. Adding stops
+ * at the schema's column limit.
  */
 export function QueueDisplayColumnsFields({
   value,
   onChange,
   disabled,
   errors = [],
+  listError,
 }: {
   value: AnnotationQueueDisplayColumn[];
   onChange: (columns: AnnotationQueueDisplayColumn[]) => void;
   disabled: boolean;
   errors?: QueueDisplayColumnErrors;
+  listError?: string;
 }) {
+  const atLimit = value.length >= MAX_ANNOTATION_QUEUE_DISPLAY_COLUMNS;
+
   const update = (
     index: number,
     patch: Partial<AnnotationQueueDisplayColumn>,
@@ -162,12 +168,17 @@ export function QueueDisplayColumnsFields({
           )}
         />
       )}
-      <div>
+      {listError && (
+        <p role="alert" className="text-destructive text-xs">
+          {listError}
+        </p>
+      )}
+      <div className="flex items-center gap-2">
         <Button
           text="Add column"
           variant="secondary"
           icon={Plus}
-          disabled={disabled}
+          disabled={disabled || atLimit}
           onClick={() =>
             onChange([
               ...value,
@@ -175,6 +186,12 @@ export function QueueDisplayColumnsFields({
             ])
           }
         />
+        {atLimit && !listError && (
+          <span className="text-muted-foreground text-xs">
+            A queue can have at most {MAX_ANNOTATION_QUEUE_DISPLAY_COLUMNS}{" "}
+            extra columns.
+          </span>
+        )}
       </div>
     </div>
   );

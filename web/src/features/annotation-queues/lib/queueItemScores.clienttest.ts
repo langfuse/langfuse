@@ -52,6 +52,14 @@ describe("pickLatestAnnotationScore", () => {
     );
     expect(pickLatestAnnotationScore([otherConfig], config)).toBeUndefined();
   });
+
+  it("ignores a same-name score that belongs to another config", () => {
+    const sameNameOtherConfig = score({ configId: "config-other" });
+
+    expect(
+      pickLatestAnnotationScore([sameNameOtherConfig], config),
+    ).toBeUndefined();
+  });
 });
 
 describe("resolveQueueItemScore", () => {

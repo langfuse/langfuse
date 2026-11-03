@@ -6,7 +6,10 @@ import {
   parseQueueTraceColumns,
   readQueueTraceField,
 } from "./queueTraceColumns";
-import { queueItemMatchesFilters } from "./queueItemFilters";
+import {
+  buildQueueItemFilterColumns,
+  queueItemMatchesFilters,
+} from "./queueItemFilters";
 
 describe("parseQueueTraceColumns", () => {
   it("adds ids, defaults the format and skips invalid entries", () => {
@@ -34,6 +37,22 @@ describe("parseQueueTraceColumns", () => {
       },
     ]);
     expect(parseQueueTraceColumns(null)).toEqual([]);
+  });
+
+  it("gives every column its own id", () => {
+    const ids = parseQueueTraceColumns([
+      { source: "metadata", key: "customer.name", label: "A" },
+      { source: "metadata", key: "customer_name", label: "B" },
+      { source: "metadata", key: "customer-name", label: "C" },
+      { source: "metadata", key: "customer_name", label: "D", format: "badge" },
+    ]).map((column) => column.id);
+
+    expect(ids).toEqual([
+      "traceField-metadata-customer-2e-name",
+      "traceField-metadata-customer_name",
+      "traceField-metadata-customer-2d-name",
+      "traceField-metadata-customer_name~2",
+    ]);
   });
 });
 
@@ -163,6 +182,72 @@ describe("queueItemMatchesFilters with trace columns", () => {
     expect(queueItemMatchesFilters(row, [contains("212")], [], [phone])).toBe(
       false,
     );
+  });
+
+  it("keeps filters on their own column when names repeat", () => {
+    const [statusColumn] = parseQueueTraceColumns([
+      { source: "metadata", key: "status", label: "Status" },
+    ]);
+    const configs = [
+      {
+        id: "a",
+        name: "quality",
+        dataType: "NUMERIC" as const,
+        categories: null,
+      },
+      {
+        id: "b",
+        name: "quality",
+        dataType: "NUMERIC" as const,
+        categories: null,
+      },
+    ];
+    expect(
+      buildQueueItemFilterColumns(configs, [statusColumn]).map((c) => c.name),
+    ).toEqual(["Status", "Status (2)", "User ID", "quality", "quality (2)"]);
+
+    const item = {
+      status: "PENDING",
+      traceFields: { [statusColumn.id]: "open" },
+      scores: [
+        {
+          id: "s",
+          name: "quality",
+          source: "ANNOTATION" as const,
+          configId: "b",
+          dataType: "NUMERIC" as const,
+          value: 1,
+          stringValue: null,
+          timestamp: new Date("2026-01-01T00:00:00Z"),
+        },
+      ],
+    };
+    const matches = (filter: Parameters<typeof queueItemMatchesFilters>[1]) =>
+      queueItemMatchesFilters(item, filter, configs, [statusColumn]);
+
+    expect(
+      matches([
+        { column: "Status", type: "string", operator: "=", value: "open" },
+      ]),
+    ).toBe(true);
+    expect(
+      matches([
+        {
+          column: "Status (2)",
+          type: "stringOptions",
+          operator: "any of",
+          value: ["PENDING"],
+        },
+      ]),
+    ).toBe(true);
+    expect(
+      matches([{ column: "quality", type: "number", operator: "=", value: 1 }]),
+    ).toBe(false);
+    expect(
+      matches([
+        { column: "quality (2)", type: "number", operator: "=", value: 1 },
+      ]),
+    ).toBe(true);
   });
 
   it("requires both forms to miss for does not contain", () => {

@@ -16,23 +16,38 @@ import { getValueBadgeColor } from "@/src/features/annotation-queues/lib/queueIt
  */
 export type QueueTraceColumn = DisplayColumn & { id: string };
 
+/**
+ * Column id for a source and key. Characters other than letters, digits and
+ * `_` are escaped as `-<hex code>-`, so different keys (`a.b`, `a_b`) never
+ * share an id.
+ */
 export const getQueueTraceColumnId = (
   column: Pick<DisplayColumn, "source" | "key">,
-) => `traceField-${column.source}-${column.key.replace(/[^a-zA-Z0-9_]/g, "_")}`;
+) =>
+  `traceField-${column.source}-${column.key.replace(
+    /[^a-zA-Z0-9_]/g,
+    (char) => `-${char.codePointAt(0)!.toString(16)}-`,
+  )}`;
 
 /**
  * The queue's stored columns. Entries that no longer validate are skipped
- * rather than breaking the table.
+ * rather than breaking the table. A repeated source and key gets a `~2`, `~3`…
+ * suffix so every column keeps its own id.
  */
 export function parseQueueTraceColumns(stored: unknown): QueueTraceColumn[] {
   if (!Array.isArray(stored)) return [];
+  const seen = new Map<string, number>();
   return stored.flatMap((entry) => {
     const parsed = AnnotationQueueDisplayColumn.safeParse(
       entry && typeof entry === "object" ? { format: "text", ...entry } : entry,
     );
-    return parsed.success
-      ? [{ ...parsed.data, id: getQueueTraceColumnId(parsed.data) }]
-      : [];
+    if (!parsed.success) return [];
+    const baseId = getQueueTraceColumnId(parsed.data);
+    const count = (seen.get(baseId) ?? 0) + 1;
+    seen.set(baseId, count);
+    return [
+      { ...parsed.data, id: count === 1 ? baseId : `${baseId}~${count}` },
+    ];
   });
 }
 

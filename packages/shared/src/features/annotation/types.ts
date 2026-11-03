@@ -154,9 +154,13 @@ export type AnnotationQueueDisplayColumn = z.infer<
   typeof AnnotationQueueDisplayColumn
 >;
 
+export const MAX_ANNOTATION_QUEUE_DISPLAY_COLUMNS = 20;
+
 export const AnnotationQueueDisplayColumns = z
   .array(AnnotationQueueDisplayColumn)
-  .max(20, { message: "A queue can have at most 20 extra columns" });
+  .max(MAX_ANNOTATION_QUEUE_DISPLAY_COLUMNS, {
+    message: `A queue can have at most ${MAX_ANNOTATION_QUEUE_DISPLAY_COLUMNS} extra columns`,
+  });
 
 export const CreateQueueData = z.object({
   name: StringNoHTMLNonEmpty.max(35),
