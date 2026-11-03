@@ -7,7 +7,7 @@ vi.mock("../logger", () => ({
   logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
 }));
 vi.mock("../instrumentation", () => ({}));
-vi.mock("../repositories", () => ({
+vi.mock("../repositories/clickhouse", () => ({
   OBSERVATIONS_TO_TRACE_INTERVAL: "INTERVAL 2 DAY",
   SCORE_TO_TRACE_OBSERVATIONS_INTERVAL: "INTERVAL 1 HOUR",
   clickhouseCompliantRandomCharacters: mocks.random,
