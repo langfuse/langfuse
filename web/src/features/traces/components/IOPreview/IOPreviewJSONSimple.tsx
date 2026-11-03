@@ -2,7 +2,7 @@ import { JsonViewController } from "@/src/components/ui/JsonViewController";
 import { useMemo, useState } from "react";
 import { type Prisma, type ScoreDomain, deepParseJson } from "@langfuse/shared";
 import { PrettyJsonViewContent } from "@/src/components/ui/PrettyJsonViewContent";
-import { type MediaReturnType } from "@/src/features/media";
+import { type MediaReturnType } from "@/src/features/media/validation";
 import {
   CorrectedOutputField,
   useCorrectOutputAction,

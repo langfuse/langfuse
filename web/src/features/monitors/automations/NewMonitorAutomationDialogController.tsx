@@ -2,7 +2,7 @@ import { type ReactNode } from "react";
 
 import { type ActionTypes } from "@langfuse/shared";
 import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
-import { showSuccessToast } from "@/src/features/notifications";
+import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { WebhookSecretDialog } from "./components/WebhookSecretDialog";
 import {
   ConnectedNewMonitorAutomationDialog,

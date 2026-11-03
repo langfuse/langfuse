@@ -791,6 +791,81 @@ describe("RateLimitService", () => {
     }
   });
 
+  it("should apply AI Gateway request and request-byte limits by cloud plan", async () => {
+    const MiB = 1024 * 1024;
+    const GiB = 1024 * MiB;
+    const cases = [
+      { plan: "cloud:hobby" as const, requests: 100, requestBytes: 64 * MiB },
+      { plan: "cloud:core" as const, requests: 500, requestBytes: 256 * MiB },
+      { plan: "cloud:pro" as const, requests: 10_000, requestBytes: 5 * GiB },
+      { plan: "cloud:team" as const, requests: 10_000, requestBytes: 5 * GiB },
+      {
+        plan: "cloud:enterprise" as const,
+        requests: 10_000,
+        requestBytes: 5 * GiB,
+      },
+    ];
+
+    const rateLimitService = RateLimitService.getInstance(redis as Redis);
+
+    for (const testCase of cases) {
+      await redis.del(
+        `${RATE_LIMIT_REDIS_KEY_PREFIX}:ai-gateway-requests:${orgId}`,
+      );
+      await redis.del(
+        `${RATE_LIMIT_REDIS_KEY_PREFIX}:ai-gateway-request-bytes:${orgId}`,
+      );
+      const scope = asScope({
+        orgId,
+        plan: testCase.plan,
+        projectId,
+        accessLevel: "organization",
+        rateLimitOverrides: [],
+      });
+
+      const requests = await rateLimitService.rateLimitRequest(
+        scope,
+        "ai-gateway-requests",
+      );
+      const bytes = await rateLimitService.rateLimitRequest(
+        scope,
+        "ai-gateway-request-bytes",
+        4096,
+      );
+
+      expect(requests?.res).toMatchObject({
+        points: testCase.requests,
+        consumedPoints: 1,
+      });
+      expect(bytes?.res).toMatchObject({
+        points: testCase.requestBytes,
+        consumedPoints: 4096,
+        remainingPoints: testCase.requestBytes - 4096,
+      });
+      const ttlInSec = await redis.ttl(
+        `${RATE_LIMIT_REDIS_KEY_PREFIX}:ai-gateway-request-bytes:${orgId}`,
+      );
+      expect(ttlInSec).toBeGreaterThan(0);
+      expect(ttlInSec).toBeLessThanOrEqual(60);
+
+      const atLimit = await rateLimitService.rateLimitRequest(
+        scope,
+        "ai-gateway-request-bytes",
+        testCase.requestBytes - 4096,
+      );
+      expect(atLimit?.res?.consumedPoints).toBe(testCase.requestBytes);
+      expect(atLimit?.isRateLimited()).toBe(false);
+
+      const overLimit = await rateLimitService.rateLimitRequest(
+        scope,
+        "ai-gateway-request-bytes",
+        1,
+      );
+      expect(overLimit?.res?.consumedPoints).toBe(testCase.requestBytes + 1);
+      expect(overLimit?.isRateLimited()).toBe(true);
+    }
+  });
+
   it("should apply media-upload rate limits separately from ingestion", async () => {
     const scope = {
       orgId: orgId,

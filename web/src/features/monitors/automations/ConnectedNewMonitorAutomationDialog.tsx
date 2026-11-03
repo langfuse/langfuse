@@ -1,11 +1,9 @@
 import { type ActionTypes } from "@langfuse/shared";
-import { usePagerDutyTestEvent } from "@/src/features/pagerduty";
-import { useHasProjectAccess } from "@/src/features/rbac";
-import {
-  useChannelSelectorData,
-  useSlackConnect,
-  useSlackTestMessage,
-} from "@/src/features/slack";
+import { usePagerDutyTestEvent } from "@/src/features/pagerduty/hooks/usePagerDutyTestEvent";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { useChannelSelectorData } from "@/src/features/slack/hooks/useChannelSelectorData";
+import { useSlackConnect } from "@/src/features/slack/hooks/useSlackConnect";
+import { useSlackTestMessage } from "@/src/features/slack/hooks/useSlackTestMessage";
 import { api, reportTrpcErrorWithoutToast } from "@/src/utils/api";
 import { type SlackFieldsState } from "./components/SlackActionFields";
 import { buildCreateMonitorAutomationInput } from "./helpers/buildCreateMonitorAutomationInput";

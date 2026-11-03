@@ -1,4 +1,4 @@
-import { VERSION } from "@/src/constants";
+import { VERSION } from "@/src/constants/VERSION";
 import { ServerPosthog } from "@/src/features/posthog-analytics/ServerPosthog";
 import { Prisma, prisma } from "@langfuse/shared/src/db";
 import { v4 as uuidv4 } from "uuid";
@@ -12,10 +12,8 @@ import {
   logger,
 } from "@langfuse/shared/src/server";
 import { env } from "@/src/env.mjs";
-import {
-  getSelfHostedInstancePlanServerSide,
-  hasEntitlementBasedOnPlan,
-} from "@/src/features/entitlements/server";
+import { getSelfHostedInstancePlanServerSide } from "@/src/features/entitlements/server/getPlan";
+import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server/hasEntitlement";
 
 // Interval between jobs in minutes
 const JOB_INTERVAL_MINUTES = Prisma.raw("720"); // 12 hours

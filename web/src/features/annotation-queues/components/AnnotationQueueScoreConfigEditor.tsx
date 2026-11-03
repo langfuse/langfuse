@@ -2,7 +2,7 @@
 import { Info, Pencil, Plus, X } from "@langfuse/icons";
 import { arrayMove } from "@dnd-kit/sortable";
 import { type ScoreConfigDomain } from "@langfuse/shared";
-import { formatScoreRange } from "@/src/features/scores";
+import { formatScoreRange } from "@/src/features/scores/lib/helpers";
 import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
 import { DropdownMenu } from "@/src/components/design-system/DropdownMenu/DropdownMenu";

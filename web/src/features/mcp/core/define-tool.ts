@@ -6,7 +6,7 @@
  */
 
 import { z } from "zod";
-import type { ApiAction } from "@/src/features/public-api/server";
+import type { ApiAction } from "@/src/features/public-api/server/enforceAuth";
 import type { ServerContext } from "../types";
 
 /**
