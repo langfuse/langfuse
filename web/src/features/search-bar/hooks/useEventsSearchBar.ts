@@ -403,9 +403,18 @@ export function useEventsSearchBar({
       // Ordinary grammar edits preserve filters the grammar cannot represent.
       // Complete-query replacements can explicitly clear those hidden filters
       // instead of silently carrying old scope.
-      const committedFilters = options.replaceHidden
-        ? result.filters
-        : mergeWithSkipped(result.filters);
+      const committedFilters = (() => {
+        if (options.replaceHidden) return result.filters;
+        // Unchanged text must not rewrite legacy filters into a different shape
+        // and make a saved view look edited.
+        if (draftText.trim() === committedTextRef.current.trim()) {
+          return (
+            pendingCommitRef.current?.next.filters ??
+            appliedStateRef.current.filters
+          );
+        }
+        return mergeWithSkipped(result.filters);
+      })();
       // Register the full write before the optimistic filter setter can render
       // ahead of the URL-backed search query or scope setters.
       const committed = beginCommit({

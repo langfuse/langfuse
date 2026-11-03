@@ -1,5 +1,9 @@
 import { renderHook } from "@testing-library/react";
-import { encodeFiltersGeneric, type FilterState } from "@langfuse/shared";
+import {
+  decodeFiltersGeneric,
+  encodeFiltersGeneric,
+  type FilterState,
+} from "@langfuse/shared";
 import { applyCheckboxSelection } from "../lib/sidebar-filter-actions";
 import { useQueryFilterState } from "./useFilterState";
 
@@ -38,7 +42,10 @@ describe("legacy prompt filter decoding", () => {
         useQueryFilterState([], "prompts", "project"),
       );
       expect(result.current[0]).toEqual(
-        filters.map((filter) => ({ ...filter, column: name })),
+        decodeFiltersGeneric(url.filter).map((filter) => ({
+          ...filter,
+          column: name,
+        })),
       );
     },
   );

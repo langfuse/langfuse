@@ -105,6 +105,9 @@ const getCommaArrayParam = (table: TableName) => ({
             }
             return Number(decodedValue);
           }
+          if (type === "arrayOptions" && decodedValue === "") {
+            return [];
+          }
           if (
             type === "stringOptions" ||
             type === "arrayOptions" ||
