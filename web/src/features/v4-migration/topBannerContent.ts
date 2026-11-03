@@ -2,13 +2,10 @@ import {
   formatLegacyScheduleDate,
   LEGACY_EVALS_EXPORTS_STOP_DATE,
   LEGACY_FULL_CUT_DATE,
-  type LegacyApiBrownoutWindow,
 } from "@/src/features/public-api/server/legacyApiShutdownSchedule";
-import { V4_MIGRATION_LOOKBACK_DAYS } from "@/src/features/v4-migration/migrationData";
 import type { RouterOutputs } from "@/src/utils/api";
 
 const V4_DOCS_URL = "https://langfuse.com/docs/v4";
-const V4_TIMELINE_URL = `${V4_DOCS_URL}#timeline`;
 
 type LegacyApiBannerState =
   RouterOutputs["v4Transition"]["legacyApiBannerState"];
@@ -51,19 +48,32 @@ export function getV4MigrationTopBannerPhase(params: {
   return serverPhase === "before_stop" ? "amber" : serverPhase;
 }
 
+/** Docs link, or the word that opens the migration panel. */
+type V4MigrationTopBannerLink =
+  | { kind: "docs"; label: string; href: string }
+  | { kind: "panel"; label: string };
+
+/** A sentence broken into plain text and the one or two inline links. */
+type V4MigrationTopBannerPart = string | V4MigrationTopBannerLink;
+
 export type V4MigrationTopBannerContent = {
   severity: "warning" | "critical";
-  title: string;
-  body: string;
-  /** Opens the migration panel; null for members who cannot fix integrations. */
-  primaryCtaLabel: string | null;
-  secondaryLink: { label: string; href: string };
-  /** Only the amber phase may be closed, and only for the browser session. */
-  closable: boolean;
+  parts: V4MigrationTopBannerPart[];
 };
 
-const projects = (count: number) =>
-  `${count} ${count === 1 ? "project" : "projects"}`;
+const docs = (label: string): V4MigrationTopBannerLink => ({
+  kind: "docs",
+  label,
+  href: V4_DOCS_URL,
+});
+
+const panel = (label: string): V4MigrationTopBannerLink => ({
+  kind: "panel",
+  label,
+});
+
+const stillUse = (count: number) =>
+  `${count} ${count === 1 ? "project still uses" : "projects still use"}`;
 
 /** formatWindowTime renders "16:00" in the viewer's timezone (or `timeZone`). */
 function formatWindowTime(date: Date, timeZone: string | undefined) {
@@ -83,11 +93,17 @@ function formatTimeZoneName(date: Date, timeZone: string | undefined) {
   );
 }
 
+function formatClock(date: Date, timeZone: string | undefined) {
+  const time = formatWindowTime(date, timeZone);
+  const zone = formatTimeZoneName(date, timeZone);
+  return zone ? `${time} ${zone}` : time;
+}
+
 function localDayKey(date: Date, timeZone: string | undefined) {
   return date.toLocaleDateString("en-CA", { timeZone });
 }
 
-/** formatWindowDay says "today", "tomorrow" or "on Nov 17" relative to `now`, in the viewer's timezone. */
+/** formatWindowDay says "today", "tomorrow" or "on Nov 17" relative to `now`. */
 function formatWindowDay(start: Date, now: Date, timeZone: string | undefined) {
   const startDay = localDayKey(start, timeZone);
   if (startDay === localDayKey(now, timeZone)) return "today";
@@ -96,22 +112,22 @@ function formatWindowDay(start: Date, now: Date, timeZone: string | undefined) {
   return `on ${start.toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone })}`;
 }
 
-function brownoutTitle(
-  window: LegacyApiBrownoutWindow,
-  now: Date,
-  timeZone: string | undefined,
-) {
-  const day = formatWindowDay(window.startsAt, now, timeZone);
-  const start = formatWindowTime(window.startsAt, timeZone);
-  const end = formatWindowTime(window.endsAt, timeZone);
-  const zone = formatTimeZoneName(window.endsAt, timeZone);
-  return `Legacy APIs are paused ${day} ${start} to ${end}${zone ? ` ${zone}` : ""}`;
+/**
+ * The fix word opens the panel for owners and admins. Members get the same
+ * sentence with that word replaced by a pointer at an admin.
+ */
+function fix(
+  canManageIntegrations: boolean,
+  adminTail: V4MigrationTopBannerPart[],
+  memberTail: string,
+): V4MigrationTopBannerPart[] {
+  return canManageIntegrations ? adminTail : [memberTail];
 }
 
 /**
- * getV4MigrationTopBannerContent builds the copy per phase. Calendar dates come
- * from the schedule as announced; brownout times render in the viewer's local
- * timezone (`timeZone` pins it in tests).
+ * getV4MigrationTopBannerContent builds one short sentence per phase. Dates,
+ * the detection window and the brownout schedule live in the migration panel.
+ * Brownout times render in the viewer's local timezone (`timeZone` pins tests).
  */
 export function getV4MigrationTopBannerContent(params: {
   phase: V4MigrationTopBannerPhase;
@@ -120,61 +136,89 @@ export function getV4MigrationTopBannerContent(params: {
     "serverNow" | "activeWindow" | "nextWindow"
   >;
   actionNeededCount: number;
-  totalProjects: number;
   canManageIntegrations: boolean;
   timeZone?: string;
 }): V4MigrationTopBannerContent {
-  const {
-    phase,
-    state,
-    actionNeededCount,
-    totalProjects,
-    canManageIntegrations,
-    timeZone,
-  } = params;
+  const { phase, state, actionNeededCount, canManageIntegrations, timeZone } =
+    params;
   const stopDate = formatLegacyScheduleDate(
     LEGACY_EVALS_EXPORTS_STOP_DATE,
     "short",
   );
   const cutDate = formatLegacyScheduleDate(LEGACY_FULL_CUT_DATE, "short");
-  const memberNote = canManageIntegrations
-    ? ""
-    : " Ask an admin to update integrations.";
-  const cta = (label: string) => (canManageIntegrations ? label : null);
-  const upgradeGuide = { label: "Upgrade guide", href: V4_DOCS_URL };
 
   if (phase === "amber") {
     return {
       severity: "warning",
-      title: `Action needed before ${stopDate}`,
-      body: `${actionNeededCount} of ${projects(totalProjects)} still ${actionNeededCount === 1 ? "uses" : "use"} legacy APIs. Legacy evaluators and exports stop ${stopDate}. Legacy ingestion and APIs shut off ${cutDate}. Based on the last ${V4_MIGRATION_LOOKBACK_DAYS} days of traffic.${memberNote}`,
-      primaryCtaLabel: cta("Review what to update"),
-      secondaryLink: upgradeGuide,
-      closable: true,
+      parts: [
+        `${stillUse(actionNeededCount)} `,
+        docs("legacy APIs"),
+        ". ",
+        ...fix(
+          canManageIntegrations,
+          [panel("Update"), ` before ${stopDate}.`],
+          `Ask an admin before ${stopDate}.`,
+        ),
+      ],
     };
   }
 
   if (phase === "cut") {
     return {
       severity: "critical",
-      title: "Legacy APIs are off",
-      body: `${projects(actionNeededCount)} ${actionNeededCount === 1 ? "is" : "are"} sending requests that fail. Update SDKs (Python 4+, JS 5+) or switch to OpenTelemetry.${memberNote}`,
-      primaryCtaLabel: cta("See failing projects"),
-      secondaryLink: upgradeGuide,
-      closable: false,
+      parts: [
+        docs("Legacy APIs"),
+        " are off. ",
+        ...fix(
+          canManageIntegrations,
+          [
+            panel("Update"),
+            ` ${actionNeededCount === 1 ? "the project" : `${actionNeededCount} projects`} still using them.`,
+          ],
+          "Ask an admin.",
+        ),
+      ],
     };
   }
 
   const window =
     phase === "brownout_active" ? state.activeWindow : state.nextWindow;
+  if (!window) {
+    return {
+      severity: "critical",
+      parts: [
+        docs("Legacy APIs"),
+        ` shut off ${cutDate}. `,
+        ...fix(
+          canManageIntegrations,
+          [panel("Update"), " before then."],
+          "Ask an admin.",
+        ),
+      ],
+    };
+  }
+
   return {
     severity: "critical",
-    title: window
-      ? brownoutTitle(window, state.serverNow, timeZone)
-      : `Legacy APIs shut off ${cutDate}`,
-    body: `Legacy evaluators and exports have stopped. Requests from ${projects(actionNeededCount)} will fail ${window ? "during this window" : "from then on"}.${memberNote}`,
-    primaryCtaLabel: cta("Fix now"),
-    secondaryLink: { label: "Brownout schedule", href: V4_TIMELINE_URL },
-    closable: false,
+    parts:
+      phase === "brownout_active"
+        ? [
+            docs("Legacy APIs"),
+            ` are paused until ${formatClock(window.endsAt, timeZone)}. `,
+            ...fix(
+              canManageIntegrations,
+              [panel("Update"), " now."],
+              "Ask an admin.",
+            ),
+          ]
+        : [
+            docs("Legacy APIs"),
+            ` pause ${formatWindowDay(window.startsAt, state.serverNow, timeZone)} at ${formatClock(window.startsAt, timeZone)}. `,
+            ...fix(
+              canManageIntegrations,
+              [panel("Update"), " before then."],
+              "Ask an admin.",
+            ),
+          ],
   };
 }

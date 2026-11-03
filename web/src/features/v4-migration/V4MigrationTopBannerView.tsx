@@ -1,67 +1,90 @@
-import { CalendarClock, Clock, Unplug } from "@langfuse/icons";
-import { Button } from "@/src/components/ui/button";
-import { TopBannerActions } from "@/src/features/top-banner/TopBannerActions";
-import { TopBannerView } from "@/src/features/top-banner/TopBannerView";
+import { cn } from "@/src/utils/tailwind";
 import type {
   V4MigrationTopBannerContent,
   V4MigrationTopBannerPhase,
 } from "@/src/features/v4-migration/topBannerContent";
 
-const PHASE_ICON: Record<V4MigrationTopBannerPhase, typeof Clock> = {
-  amber: CalendarClock,
-  brownout_day: Clock,
-  brownout_active: Clock,
-  cut: Unplug,
+const STRIP_CLASS: Record<V4MigrationTopBannerContent["severity"], string> = {
+  warning:
+    "border-migration-banner-warning-border bg-migration-banner-warning text-migration-banner-warning-foreground",
+  critical:
+    "border-migration-banner-critical-border bg-migration-banner-critical text-migration-banner-critical-foreground",
+};
+
+const LINK_CLASS: Record<V4MigrationTopBannerContent["severity"], string> = {
+  warning:
+    "text-migration-banner-warning-link hover:text-migration-banner-warning-link-hover font-bold hover:underline",
+  critical:
+    "text-migration-banner-critical-link hover:text-migration-banner-critical-link-hover font-bold hover:underline",
 };
 
 export type V4MigrationTopBannerViewProps = {
   phase: V4MigrationTopBannerPhase;
   content: V4MigrationTopBannerContent;
-  /** Opens the migration panel; rendered only with a primary CTA label. */
+  /** Opens the migration panel from the inline “Update” word. */
   onPrimaryClick: () => void;
+  /** Fires when the docs word is followed. */
   onSecondaryClick: () => void;
-  /** Set only while the banner may be closed. */
-  onClose?: () => void;
 };
 
-/** Legacy API shutdown strip for the top-banner stack; all copy comes from `content`. */
+/**
+ * One-line legacy API shutdown strip for the top-banner stack. Words in the
+ * sentence are the actions; there is no separate button and no dismiss.
+ */
 export function V4MigrationTopBannerView({
   phase,
   content,
   onPrimaryClick,
   onSecondaryClick,
-  onClose,
 }: V4MigrationTopBannerViewProps) {
-  const Icon = PHASE_ICON[phase];
+  const linkClassName = LINK_CLASS[content.severity];
+  const fullText = content.parts
+    .map((part) => (typeof part === "string" ? part : part.label))
+    .join("");
 
   return (
-    <TopBannerView
-      severity={content.severity}
-      role={phase === "amber" ? "status" : "alert"}
-      icon={<Icon size="base" __rawClassName="mt-0.5 sm:mt-0" />}
-      title={content.title}
-      actions={
-        <TopBannerActions>
-          {content.primaryCtaLabel && (
-            <Button size="sm" variant="secondary" onClick={onPrimaryClick}>
-              {content.primaryCtaLabel}
-            </Button>
-          )}
-          <Button size="sm" variant="ghost" asChild>
-            <a
-              href={content.secondaryLink.href}
-              target="_blank"
-              rel="noopener noreferrer"
-              onClick={onSecondaryClick}
-            >
-              {content.secondaryLink.label}
-            </a>
-          </Button>
-        </TopBannerActions>
-      }
-      onClose={onClose}
+    <div
+      role="status"
+      data-phase={phase}
+      className={cn(
+        "flex w-full items-center justify-center border-b px-4 py-1",
+        STRIP_CLASS[content.severity],
+      )}
     >
-      {content.body}
-    </TopBannerView>
+      <p className="max-w-full min-w-0 truncate text-sm" title={fullText}>
+        {content.parts.map((part, index) => {
+          if (typeof part === "string") {
+            return <span key={index}>{part}</span>;
+          }
+          if (part.kind === "docs") {
+            return (
+              <a
+                key={index}
+                href={part.href}
+                target="_blank"
+                rel="noopener noreferrer"
+                className={linkClassName}
+                onClick={onSecondaryClick}
+              >
+                {part.label}
+              </a>
+            );
+          }
+          return (
+            <button
+              key={index}
+              type="button"
+              className={cn(
+                linkClassName,
+                "inline cursor-pointer border-0 bg-transparent p-0 align-baseline text-sm",
+              )}
+              onClick={onPrimaryClick}
+            >
+              {part.label}
+            </button>
+          );
+        })}
+      </p>
+    </div>
   );
 }

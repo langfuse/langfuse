@@ -3,6 +3,7 @@ import { LEGACY_API_SHUTDOWN_SCHEDULE } from "@/src/features/public-api/server/l
 import {
   getV4MigrationTopBannerContent,
   getV4MigrationTopBannerPhase,
+  type V4MigrationTopBannerContent,
 } from "./topBannerContent";
 
 const [day1, day2, day3] = LEGACY_API_SHUTDOWN_SCHEDULE.brownoutWindows;
@@ -54,31 +55,41 @@ const content = (
       nextWindow: day1!,
     },
     actionNeededCount: 2,
-    totalProjects: 5,
     canManageIntegrations: true,
     timeZone: "Europe/Berlin",
     ...params,
   });
 
+const sentence = (value: V4MigrationTopBannerContent) =>
+  value.parts
+    .map((part) => (typeof part === "string" ? part : part.label))
+    .join("");
+
+const panelLabel = (value: V4MigrationTopBannerContent) =>
+  value.parts.find((part) => typeof part !== "string" && part.kind === "panel");
+
+const docsLink = (value: V4MigrationTopBannerContent) =>
+  value.parts.find((part) => typeof part !== "string" && part.kind === "docs");
+
 describe("getV4MigrationTopBannerContent", () => {
-  it("amber: warns ahead of both dates and may be closed", () => {
-    expect(content({})).toEqual({
-      severity: "warning",
-      title: "Action needed before Nov 16",
-      body: "2 of 5 projects still use legacy APIs. Legacy evaluators and exports stop Nov 16. Legacy ingestion and APIs shut off Nov 19. Based on the last 3 days of traffic.",
-      primaryCtaLabel: "Review what to update",
-      secondaryLink: {
-        label: "Upgrade guide",
-        href: "https://langfuse.com/docs/v4",
-      },
-      closable: true,
+  it("amber: one sentence with a docs word and an update word", () => {
+    const amber = content({});
+    expect(amber.severity).toBe("warning");
+    expect(sentence(amber)).toBe(
+      "2 projects still use legacy APIs. Update before Nov 16.",
+    );
+    expect(docsLink(amber)).toEqual({
+      kind: "docs",
+      label: "legacy APIs",
+      href: "https://langfuse.com/docs/v4",
     });
-    expect(content({ actionNeededCount: 1, totalProjects: 1 }).body).toMatch(
-      /^1 of 1 project still uses legacy APIs\./,
+    expect(panelLabel(amber)).toEqual({ kind: "panel", label: "Update" });
+    expect(sentence(content({ actionNeededCount: 1 }))).toBe(
+      "1 project still uses legacy APIs. Update before Nov 16.",
     );
   });
 
-  it("brownout day: names the next window in the viewer's timezone", () => {
+  it("brownout day: names the next pause in the viewer's timezone", () => {
     const berlin = content({
       phase: "brownout_day",
       state: {
@@ -87,16 +98,14 @@ describe("getV4MigrationTopBannerContent", () => {
         nextWindow: day2!,
       },
     });
-    expect(berlin).toMatchObject({
-      severity: "critical",
-      title: "Legacy APIs are paused today 15:00 to 18:00 GMT+1",
-      body: "Legacy evaluators and exports have stopped. Requests from 2 projects will fail during this window.",
-      primaryCtaLabel: "Fix now",
-      secondaryLink: {
-        label: "Brownout schedule",
-        href: "https://langfuse.com/docs/v4#timeline",
-      },
-      closable: false,
+    expect(berlin.severity).toBe("critical");
+    expect(sentence(berlin)).toBe(
+      "Legacy APIs pause today at 15:00 GMT+1. Update before then.",
+    );
+    expect(docsLink(berlin)).toMatchObject({
+      kind: "docs",
+      label: "Legacy APIs",
+      href: "https://langfuse.com/docs/v4",
     });
 
     const newYork = content({
@@ -108,75 +117,73 @@ describe("getV4MigrationTopBannerContent", () => {
         nextWindow: day2!,
       },
     });
-    expect(newYork.title).toBe(
-      "Legacy APIs are paused today 09:00 to 12:00 EST",
+    expect(sentence(newYork)).toBe(
+      "Legacy APIs pause today at 09:00 EST. Update before then.",
     );
   });
 
   it("brownout day: says tomorrow after the day's window has passed", () => {
     expect(
-      content({
-        phase: "brownout_day",
-        state: {
-          serverNow: day1!.endsAt,
-          activeWindow: null,
-          nextWindow: day2!,
-        },
-      }).title,
-    ).toBe("Legacy APIs are paused tomorrow 15:00 to 18:00 GMT+1");
+      sentence(
+        content({
+          phase: "brownout_day",
+          state: {
+            serverNow: day1!.endsAt,
+            activeWindow: null,
+            nextWindow: day2!,
+          },
+        }),
+      ),
+    ).toBe("Legacy APIs pause tomorrow at 15:00 GMT+1. Update before then.");
   });
 
   it("brownout day: points at the cut once the last window has passed", () => {
     expect(
-      content({
-        phase: "brownout_day",
-        state: {
-          serverNow: day3!.endsAt,
-          activeWindow: null,
-          nextWindow: null,
-        },
-      }),
-    ).toMatchObject({
-      title: "Legacy APIs shut off Nov 19",
-      body: "Legacy evaluators and exports have stopped. Requests from 2 projects will fail from then on.",
-    });
+      sentence(
+        content({
+          phase: "brownout_day",
+          state: {
+            serverNow: day3!.endsAt,
+            activeWindow: null,
+            nextWindow: null,
+          },
+        }),
+      ),
+    ).toBe("Legacy APIs shut off Nov 19. Update before then.");
   });
 
-  it("brownout active: names the current window", () => {
-    expect(
-      content({
-        phase: "brownout_active",
-        actionNeededCount: 1,
-        state: {
-          serverNow: new Date("2026-11-18T15:00:00Z"),
-          activeWindow: day3!,
-          nextWindow: null,
-        },
-      }),
-    ).toMatchObject({
-      severity: "critical",
-      title: "Legacy APIs are paused today 14:00 to 20:00 GMT+1",
-      body: "Legacy evaluators and exports have stopped. Requests from 1 project will fail during this window.",
-      closable: false,
-    });
-  });
-
-  it("cut: reports failing projects and cannot be closed", () => {
-    expect(content({ phase: "cut", actionNeededCount: 3 })).toEqual({
-      severity: "critical",
-      title: "Legacy APIs are off",
-      body: "3 projects are sending requests that fail. Update SDKs (Python 4+, JS 5+) or switch to OpenTelemetry.",
-      primaryCtaLabel: "See failing projects",
-      secondaryLink: {
-        label: "Upgrade guide",
-        href: "https://langfuse.com/docs/v4",
+  it("brownout active: names when the pause ends", () => {
+    const active = content({
+      phase: "brownout_active",
+      actionNeededCount: 1,
+      state: {
+        serverNow: new Date("2026-11-18T15:00:00Z"),
+        activeWindow: day3!,
+        nextWindow: null,
       },
-      closable: false,
+    });
+    expect(active.severity).toBe("critical");
+    expect(sentence(active)).toBe(
+      "Legacy APIs are paused until 20:00 GMT+1. Update now.",
+    );
+  });
+
+  it("cut: names the projects still sending failing requests", () => {
+    const cut = content({ phase: "cut", actionNeededCount: 3 });
+    expect(cut.severity).toBe("critical");
+    expect(sentence(cut)).toBe(
+      "Legacy APIs are off. Update 3 projects still using them.",
+    );
+    expect(sentence(content({ phase: "cut", actionNeededCount: 1 }))).toBe(
+      "Legacy APIs are off. Update the project still using them.",
+    );
+    expect(docsLink(cut)).toMatchObject({
+      href: "https://langfuse.com/docs/v4",
     });
   });
 
   it.each(["amber", "brownout_day", "brownout_active", "cut"] as const)(
-    "%s: members get no fix action and are pointed at an admin",
+    "%s: members get no panel link and are pointed at an admin",
     (phase) => {
       const member = content({
         phase,
@@ -187,9 +194,13 @@ describe("getV4MigrationTopBannerContent", () => {
           nextWindow: day3!,
         },
       });
-      expect(member.primaryCtaLabel).toBeNull();
-      expect(member.body).toMatch(/ Ask an admin to update integrations\.$/);
-      expect(member.secondaryLink.href).toMatch(/^https:\/\/langfuse\.com/);
+      expect(panelLabel(member)).toBeUndefined();
+      expect(sentence(member)).toMatch(
+        phase === "amber" ? /Ask an admin before Nov 16\.$/ : /Ask an admin\.$/,
+      );
+      expect(docsLink(member)).toMatchObject({
+        href: expect.stringMatching(/^https:\/\/langfuse\.com/),
+      });
     },
   );
 });

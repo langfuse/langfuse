@@ -62,6 +62,7 @@ import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
 import { encodeFiltersGeneric, type FilterState } from "@langfuse/shared";
 import {
   formatLegacyScheduleDate,
+  LEGACY_API_SHUTDOWN_SCHEDULE,
   LEGACY_EVALS_EXPORTS_STOP_DATE,
   LEGACY_FULL_CUT_DATE,
 } from "@/src/features/public-api/server/legacyApiShutdownSchedule";
@@ -1303,6 +1304,29 @@ export function useV4MigrationTitle(): string {
     : "Ensure compatibility";
 }
 
+const BERLIN_TIME_ZONE = "Europe/Berlin";
+
+/** Brownout windows as announced: "Nov 16 16:00–17:00, … Europe/Berlin". */
+function formatBerlinBrownoutSchedule(): string {
+  const clock = (date: Date) =>
+    date.toLocaleTimeString("en-GB", {
+      timeZone: BERLIN_TIME_ZONE,
+      hour: "2-digit",
+      minute: "2-digit",
+      hourCycle: "h23",
+    });
+  const windows = LEGACY_API_SHUTDOWN_SCHEDULE.brownoutWindows.map((window) => {
+    const day = window.startsAt.toLocaleDateString("en-US", {
+      timeZone: BERLIN_TIME_ZONE,
+      month: "short",
+      day: "numeric",
+    });
+    return `${day} ${clock(window.startsAt)}\u2013${clock(window.endsAt)}`;
+  });
+  if (windows.length <= 1) return windows[0] ?? "";
+  return `${windows.slice(0, -1).join(", ")} and ${windows[windows.length - 1]}`;
+}
+
 export function V4MigrationDeadlineNote() {
   const hasDeadline = useHasV4MigrationDeadline();
 
@@ -1317,14 +1341,16 @@ export function V4MigrationDeadlineNote() {
 
   return (
     <p>
-      After{" "}
+      Legacy evaluators and exports stop on{" "}
       <ExternalLink
         href={V4_TIMELINE_URL}
         analytics={{ section: "header", link: "v4_timeline" }}
       >
         {V4_MIGRATION_DEADLINE}
-      </ExternalLink>{" "}
-      some features may stop working if you don&apos;t update integrations.
+      </ExternalLink>
+      . Legacy ingestion and APIs shut off on {V4_LEGACY_API_CUT_DATE}. Legacy
+      APIs pause {formatBerlinBrownoutSchedule()} Europe/Berlin. Counts use the
+      last {V4_MIGRATION_LOOKBACK_DAYS} days of traffic.
     </p>
   );
 }

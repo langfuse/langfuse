@@ -32,7 +32,7 @@ export type TopBannerViewProps = VariantProps<typeof topBannerVariants> & {
   title: ReactNode;
   /** Message following the title in the same paragraph. */
   children: ReactNode;
-  /** Trailing controls; wrap several in `TopBannerActions`. */
+  /** Trailing controls, such as a billing action. */
   actions?: ReactNode;
   /** Renders a close button when set. */
   onClose?: () => void;

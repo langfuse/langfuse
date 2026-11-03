@@ -516,10 +516,9 @@ const events = {
     "status_row_clicked",
     "update_required_badge_clicked",
     "migrate_evals_with_agent_clicked",
-    // Legacy API shutdown strip in the top-banner stack; all three carry
-    // { phase, role, actionNeededCount } (cta_clicked also carries `cta`).
+    // Legacy API shutdown strip in the top-banner stack. Both carry
+    // { phase, role, actionNeededCount }; cta_clicked also carries `cta`.
     "top_banner_shown",
-    "top_banner_closed",
     "top_banner_cta_clicked",
     "panel_docs_link_clicked",
     "create_project_keys_clicked",

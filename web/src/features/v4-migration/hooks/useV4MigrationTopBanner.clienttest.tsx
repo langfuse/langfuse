@@ -1,10 +1,4 @@
-import {
-  act,
-  fireEvent,
-  render,
-  renderHook,
-  screen,
-} from "@testing-library/react";
+import { fireEvent, render, renderHook, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { LEGACY_API_SHUTDOWN_SCHEDULE } from "@/src/features/public-api/server/legacyApiShutdownSchedule";
 import { type ProjectMigrationStatus } from "@/src/features/v4-migration/migrationData";
@@ -131,10 +125,9 @@ describe("useV4MigrationTopBanner", () => {
   it("counts the org's active projects and opens the first one needing action", () => {
     render(<ConnectedBanner />);
 
-    expect(screen.getByText("Action needed before Nov 16")).toBeVisible();
-    expect(
-      screen.getByText(/^1 of 2 projects still uses legacy APIs\./),
-    ).toBeVisible();
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "1 project still uses legacy APIs. Update before Nov 16.",
+    );
     expect(mocks.queryInput).toEqual({
       orgId: "org-1",
       nowOverride: "2026-11-19T10:00:00Z",
@@ -144,9 +137,7 @@ describe("useV4MigrationTopBanner", () => {
       { phase: "amber", role: "admin", actionNeededCount: 1 },
     );
 
-    fireEvent.click(
-      screen.getByRole("button", { name: "Review what to update" }),
-    );
+    fireEvent.click(screen.getByRole("button", { name: "Update" }));
 
     expect(mocks.openPanel).toHaveBeenCalledWith(
       { id: "project-legacy", name: "Legacy", readiness: "action-needed" },
@@ -156,6 +147,12 @@ describe("useV4MigrationTopBanner", () => {
       "v4_migration:top_banner_cta_clicked",
       { phase: "amber", role: "admin", actionNeededCount: 1, cta: "primary" },
     );
+
+    fireEvent.click(screen.getByRole("link", { name: "legacy APIs" }));
+    expect(mocks.capture).toHaveBeenCalledWith(
+      "v4_migration:top_banner_cta_clicked",
+      { phase: "amber", role: "admin", actionNeededCount: 1, cta: "docs" },
+    );
   });
 
   it("shows members the admin hint instead of the fix action", () => {
@@ -163,12 +160,12 @@ describe("useV4MigrationTopBanner", () => {
     render(<ConnectedBanner />);
 
     expect(
-      screen.queryByRole("button", { name: "Review what to update" }),
+      screen.queryByRole("button", { name: "Update" }),
     ).not.toBeInTheDocument();
-    expect(
-      screen.getByText(/Ask an admin to update integrations\.$/),
-    ).toBeVisible();
-    expect(screen.getByRole("link", { name: "Upgrade guide" })).toHaveAttribute(
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "1 project still uses legacy APIs. Ask an admin before Nov 16.",
+    );
+    expect(screen.getByRole("link", { name: "legacy APIs" })).toHaveAttribute(
       "href",
       "https://langfuse.com/docs/v4",
     );
@@ -178,38 +175,32 @@ describe("useV4MigrationTopBanner", () => {
     );
   });
 
-  it("closes the amber banner for the browser session only", () => {
-    const { unmount } = render(<ConnectedBanner />);
-    act(() => {
-      fireEvent.click(screen.getByRole("button", { name: "Close" }));
-    });
+  it("ignores a leftover session dismiss and has no close control", () => {
+    sessionStorage.setItem("v4-migration-top-banner:closed", "true");
+    render(<ConnectedBanner />);
 
+    expect(screen.getByRole("button", { name: "Update" })).toBeVisible();
     expect(
-      screen.queryByText("Action needed before Nov 16"),
+      screen.queryByRole("button", { name: "Close" }),
     ).not.toBeInTheDocument();
-    expect(mocks.capture).toHaveBeenCalledWith(
+    expect(mocks.capture).not.toHaveBeenCalledWith(
       "v4_migration:top_banner_closed",
-      { phase: "amber", role: "admin", actionNeededCount: 1 },
+      expect.anything(),
     );
-    expect(sessionStorage.getItem("v4-migration-top-banner:closed")).toBe(
-      "true",
-    );
-    unmount();
-    expect(localStorage.length).toBe(0);
   });
 
-  it("cannot be closed in the red phases, even after an amber close", () => {
+  it("stays up in the red phases with the same inline update", () => {
     sessionStorage.setItem("v4-migration-top-banner:closed", "true");
     mocks.serverPhase = "cut";
     render(<ConnectedBanner />);
 
-    expect(screen.getByText("Legacy APIs are off")).toBeVisible();
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "Legacy APIs are off. Update the project still using them.",
+    );
     expect(
       screen.queryByRole("button", { name: "Close" }),
     ).not.toBeInTheDocument();
-    expect(
-      screen.getByRole("button", { name: "See failing projects" }),
-    ).toBeVisible();
+    expect(screen.getByRole("button", { name: "Update" })).toBeVisible();
   });
 
   it("stays hidden when the server hides it or no project needs action", () => {
