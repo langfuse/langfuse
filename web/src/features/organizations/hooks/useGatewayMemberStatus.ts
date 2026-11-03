@@ -1,4 +1,5 @@
 import { useGatewaySettingsAccess } from "@/src/features/ai-gateway/hooks/useGatewaySettingsAccess";
+import { isApiKeyExpired } from "@/src/features/apiKey/helpers/isApiKeyExpired";
 import { type OrganizationSettingsTileState } from "@/src/features/organizations/components/OrganizationSettingsTile/OrganizationSettingsTile";
 import { api } from "@/src/utils/api";
 
@@ -6,14 +7,31 @@ import { api } from "@/src/utils/api";
 export function useGatewayMemberStatus(
   organizationId: string,
 ): OrganizationSettingsTileState {
-  const { isIngestionConfigured } = useGatewaySettingsAccess(organizationId);
-  // Members only see their own keys, so one row answers "has a key".
-  const ownKeys = api.aiGateway.listApiKeys.useQuery(
-    { orgId: organizationId, page: 0, limit: 1 },
+  const { isIngestionConfigured, isSetupStatusPending } =
+    useGatewaySettingsAccess(organizationId);
+  // Members only see their own keys. Sorted by expiry descending (no expiry
+  // first), the first row is live exactly when the member has a live key.
+  const longestLivedKey = api.aiGateway.listApiKeys.useQuery(
+    {
+      orgId: organizationId,
+      page: 0,
+      limit: 1,
+      orderBy: { column: "expiresAt", order: "DESC" },
+    },
     { enabled: isIngestionConfigured === true },
   );
 
   if (isIngestionConfigured === false) return "gatewaySetupPending";
-  if (ownKeys.data === undefined) return "gatewayLoading";
-  return ownKeys.data.totalCount === 0 ? "gatewayNoKey" : "gatewayHasKey";
+  // On a failed status query, still offer key creation; the keys page reports the error.
+  if (
+    longestLivedKey.isError ||
+    (!isSetupStatusPending && isIngestionConfigured === undefined)
+  ) {
+    return "gatewayNoKey";
+  }
+  if (longestLivedKey.data === undefined) return "gatewayLoading";
+  const key = longestLivedKey.data.data[0];
+  return key === undefined || isApiKeyExpired(key.apiKey.expiresAt)
+    ? "gatewayNoKey"
+    : "gatewayHasKey";
 }
