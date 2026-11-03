@@ -41,6 +41,10 @@ import {
   GatewayModelCatalogService,
   GatewayProviderService,
 } from "./provider";
+import {
+  GatewayAliasService,
+  upsertAliasInputSchema,
+} from "./alias/gatewayAliasService";
 
 const organizationInput = z.object({ orgId: z.string() });
 /** Naming rules live in `parseGatewayConnectionName` so the dialog can show them on the field. */
@@ -172,6 +176,9 @@ export const aiGatewayRouter = createTRPCRouter({
         input.orgId,
         GatewayConnectionStatus.ENABLED,
       );
+      const aliases = await new GatewayAliasService(ctx.prisma).list(
+        input.orgId,
+      );
       return {
         gatewayBaseUrl: getGatewayBaseUrl(
           getProductBaseUrl(),
@@ -180,6 +187,10 @@ export const aiGatewayRouter = createTRPCRouter({
         providers: [
           ...new Set(connections.map((connection) => connection.provider)),
         ],
+        /** Enabled alias names a client can use as the model name. */
+        aliases: aliases
+          .filter((alias) => alias.status === "ENABLED")
+          .map((alias) => alias.name),
       };
     }),
 
@@ -401,6 +412,47 @@ export const aiGatewayRouter = createTRPCRouter({
       return new GatewayModelCatalogService(ctx.prisma).listModelConnections(
         input.orgId,
       );
+    }),
+
+  listAliases: protectedOrganizationProcedure
+    .input(organizationInput)
+    .query(async ({ input, ctx }) => {
+      requireGatewayRead({ session: ctx.session, orgId: input.orgId });
+      return new GatewayAliasService(ctx.prisma).list(input.orgId);
+    }),
+
+  upsertAlias: protectedOrganizationProcedureWithoutTracing
+    .input(
+      upsertAliasInputSchema.omit({ organizationId: true }).extend({
+        orgId: z.string(),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      requireGatewayAdmin({ session: ctx.session, orgId: input.orgId });
+      return new GatewayAliasService(ctx.prisma).upsert({
+        organizationId: input.orgId,
+        id: input.id,
+        name: input.name,
+        status: input.status,
+        targets: input.targets,
+        session: ctx.session,
+      });
+    }),
+
+  deleteAlias: protectedOrganizationProcedure
+    .input(
+      organizationInput.extend({
+        id: z.string(),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      requireGatewayAdmin({ session: ctx.session, orgId: input.orgId });
+      await new GatewayAliasService(ctx.prisma).delete({
+        organizationId: input.orgId,
+        id: input.id,
+        session: ctx.session,
+      });
+      return { success: true };
     }),
 
   refreshModels: protectedOrganizationProcedure

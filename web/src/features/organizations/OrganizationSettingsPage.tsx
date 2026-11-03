@@ -26,6 +26,7 @@ import { OrgAuditLogsSettingsPage } from "@/src/ee/features/audit-log-viewer";
 import { useV4UpgradeUiFlag } from "@/src/features/v4-migration/useV4UpgradeUiEnabled";
 import { OrganizationFeaturePreviewsSettings } from "@/src/features/feature-flags/components/OrganizationFeaturePreviewsSettings";
 import {
+  GatewayAliasesPage,
   GatewayAnalyticsPage,
   GatewayApiKeysPage,
   GatewayModelsPage,
@@ -388,6 +389,15 @@ const getOrganizationSettingsPages = ({
     content: <GatewayApiKeysPage organizationId={organization.id} />,
     show: showAiGatewayApiKeys,
     indicator: gatewayKeyReminder,
+    disabledReason: gatewaySetupDisabledReason,
+  },
+  {
+    title: "Model aliases",
+    slug: "ai-gateway-aliases",
+    section: "AI Gateway",
+    cmdKKeywords: ["gateway", "alias", "aliases", "fallback", "routing"],
+    content: <GatewayAliasesPage organizationId={organization.id} />,
+    show: showAiGatewayManagement,
     disabledReason: gatewaySetupDisabledReason,
   },
   {

@@ -8,6 +8,12 @@ describe("suggestGatewayConnectionName", () => {
     );
   });
 
+  it("folds a multi-word label to the connection-name pattern", () => {
+    expect(suggestGatewayConnectionName("CUSTOM", [])).toBe(
+      "custom-openai-compatible",
+    );
+  });
+
   it("appends the first free numeric suffix, ignoring case", () => {
     expect(
       suggestGatewayConnectionName("OPENAI", [

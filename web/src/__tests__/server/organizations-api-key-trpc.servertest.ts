@@ -469,6 +469,7 @@ describe("organization API keys trpc", () => {
           ingestionProjectId: null,
           ingestionMode: null,
           connections: [],
+          aliases: [],
         },
       });
       expect(await cache.get(cacheEntry)).not.toBeNull();
@@ -636,6 +637,7 @@ describe("organization API keys trpc", () => {
           ingestionProjectId: null,
           ingestionMode: null,
           connections: [],
+          aliases: [],
         },
       });
       expect(await cache.get(cacheEntry)).not.toBeNull();

@@ -11,6 +11,7 @@ import { createShaHash } from "@langfuse/shared/src/server/auth/apiKeys";
 import { GatewayApiFormatSchema, type GatewayApiFormat } from "../provider";
 import { GatewayControlPlaneError } from "@/src/features/ai-gateway/server/gatewayControlPlaneError";
 import { GatewayModelRoutingService } from "@/src/features/ai-gateway/server/routing/gatewayModelRoutingService";
+import { GatewayAliasNameSchema } from "@/src/features/ai-gateway/types/gatewayAlias";
 
 const RESOLVE_METHOD = "POST";
 const MODELS_METHOD = "GET";
@@ -20,9 +21,15 @@ const modelRoutingService = new GatewayModelRoutingService();
 const resolveBodySchema = z
   .object({
     apiFormat: GatewayApiFormatSchema,
+    // Syntax only, so a malformed model fails with 400 before authentication.
+    // Whether an alias exists depends on the key's organization.
     model: z
       .string()
-      .refine((model) => modelRoutingService.resolve(model, []) !== null),
+      .refine(
+        (model) =>
+          modelRoutingService.resolve(model, []) !== null ||
+          GatewayAliasNameSchema.safeParse(model).success,
+      ),
   })
   .strict();
 const modelsQuerySchema = z

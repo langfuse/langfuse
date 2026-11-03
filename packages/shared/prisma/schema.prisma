@@ -142,6 +142,7 @@ model Organization {
   verifiedDomains                  VerifiedDomain[]
   gatewayConfig                    GatewayConfig?
   gatewayAiConnections             GatewayAiConnection[]
+  gatewayAiAliases                 GatewayAiAlias[]
   organizationLlmApiKeys           LlmApiKeys[]             @relation("OrganizationLlmApiKeys")
   roleAssignments                  RoleAssignment[]         @relation("RoleAssignmentTenant")
 
@@ -375,11 +376,52 @@ model GatewayAiConnection {
   createdAt           DateTime                @default(now()) @map("created_at")
   updatedAt           DateTime                @default(now()) @updatedAt @map("updated_at")
 
+  aliasTargets GatewayAiAliasTarget[]
+
   @@unique([organizationId, name])
   @@index([organizationId, createdAt, id], map: "gateway_ai_conn_org_created_at_id_idx")
   @@index([organizationId, status, createdAt, id], map: "gateway_ai_conn_org_status_created_at_id_idx")
   @@map("gateway_ai_connections")
 }
+
+model GatewayAiAlias {
+  id             String   @id @default(cuid())
+  organizationId String   @map("organization_id")
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  name           String
+  status         GatewayAliasStatus @default(ENABLED)
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @default(now()) @updatedAt @map("updated_at")
+
+  targets GatewayAiAliasTarget[]
+
+  @@unique([organizationId, name])
+  @@index([organizationId, createdAt, id], map: "gateway_ai_alias_org_created_at_id_idx")
+  @@map("gateway_ai_aliases")
+}
+
+model GatewayAiAliasTarget {
+  id            String   @id @default(cuid())
+  aliasId       String   @map("alias_id")
+  alias         GatewayAiAlias @relation(fields: [aliasId], references: [id], onDelete: Cascade)
+  connectionId  String   @map("connection_id")
+  connection    GatewayAiConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+  /// Upstream model name on that connection; `--served-model-name` may differ per host.
+  providerModel String   @map("provider_model")
+  position      Int
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @default(now()) @updatedAt @map("updated_at")
+
+  @@unique([aliasId, position])
+  @@index([connectionId], map: "gateway_ai_alias_target_connection_id_idx")
+  @@map("gateway_ai_alias_targets")
+}
+
+enum GatewayAliasStatus {
+  ENABLED  @map("enabled")
+  DISABLED @map("disabled")
+}
+
 
 model GatewayApiKeyAssociation {
   apiKeyId String @id @map("api_key_id")

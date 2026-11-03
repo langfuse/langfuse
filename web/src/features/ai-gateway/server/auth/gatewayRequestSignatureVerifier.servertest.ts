@@ -154,6 +154,28 @@ describe("withGatewayResolveSignatureVerification", () => {
     },
   );
 
+  it.each(["glm-5.3", "my_alias", "GLM-5.3"])(
+    "passes alias-shaped model %j through to the authenticator",
+    async (model) => {
+      vi.useFakeTimers();
+      vi.setSystemTime(now);
+      const body = JSON.stringify({ apiFormat: "openai.responses", model });
+      const req = request({
+        authorization: "Bearer sk-gateway",
+        gatewayAuthorization: gatewayAuthorization({
+          secret: "current-service-secret",
+        }),
+        body,
+      });
+      const res = response();
+      const handler = vi.fn().mockResolvedValue(undefined);
+
+      await withGatewayResolveSignatureVerification(handler)(req, res);
+
+      expect(handler).toHaveBeenCalledWith(expect.objectContaining({ model }));
+    },
+  );
+
   it("rejects a missing Bearer token on the models endpoint", async () => {
     const handler = vi.fn();
     const res = response();

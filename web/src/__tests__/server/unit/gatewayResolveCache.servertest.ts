@@ -24,6 +24,7 @@ const context: CachedResolveContext = {
   ingestionProjectId: null,
   ingestionMode: null,
   connections: [],
+  aliases: [],
 };
 
 function createStatefulRedis(): Redis {
@@ -119,6 +120,7 @@ describe("GatewayResolveCache", () => {
       ingestionProjectId: null,
       ingestionMode: null,
       connections: [],
+      aliases: [],
     };
     await cache.set({
       fastHashedSecretKey: "hashed-key",

@@ -57,12 +57,16 @@ export class GatewayApiKeyAuthenticator {
     const route = this.modelRoutingService.resolve(
       params.model,
       context.connections,
+      context.aliases,
     );
     if (!route) {
       throw new GatewayControlPlaneError("Invalid gateway model", 400);
     }
+    // Aliases name their upstream model explicitly, so only slug and
+    // implicit routing check allowedModels.
     if (
       route.connection &&
+      !route.viaAlias &&
       !isGatewayModelAllowed(
         route.connection.allowedModels,
         route.providerModel,
@@ -166,6 +170,14 @@ export class GatewayApiKeyAuthenticator {
           ...connection,
           allowedModels: parseGatewayAllowedModels(connection.allowedModels),
         })),
+      aliases: organization.gatewayAiAliases.map((alias) => ({
+        name: alias.name,
+        status: alias.status,
+        targets: alias.targets.map((target) => ({
+          connectionId: target.connectionId,
+          providerModel: target.providerModel,
+        })),
+      })),
     };
 
     // Runs on cache misses only, so a role change that does not revoke the key

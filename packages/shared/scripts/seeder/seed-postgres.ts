@@ -572,48 +572,44 @@ async function seedAiGateway(params: {
     },
   });
 
-  if (
-    (await prisma.gatewayAiConnection.count({
-      where: { organizationId: params.organizationId },
-    })) === 0
-  ) {
-    await prisma.gatewayAiConnection.createMany({
-      data: [
-        {
-          id: "seed-gateway-openai",
-          organizationId: params.organizationId,
-          name: "OpenAI production",
-          provider: "OPENAI",
-          encryptedCredential: encrypt("sk-seed-openai-not-valid"),
-          displaySecret: getDisplaySecretKey("sk-seed-openai-not-valid"),
-          createdById: params.userId,
-          status: "ENABLED",
-        },
-        {
-          id: "seed-gateway-anthropic",
-          organizationId: params.organizationId,
-          name: "Anthropic production",
-          provider: "ANTHROPIC",
-          encryptedCredential: encrypt("sk-ant-seed-not-valid"),
-          displaySecret: getDisplaySecretKey("sk-ant-seed-not-valid"),
-          createdById: params.userId,
-          status: "ENABLED",
-        },
-        {
-          id: "seed-gateway-custom",
-          organizationId: params.organizationId,
-          name: "self-hosted vllm",
-          provider: "CUSTOM",
-          baseUrl: "http://10.3.24.39:8000/v1",
-          encryptedCredential: encrypt("sk-seed-custom-not-valid"),
-          displaySecret: getDisplaySecretKey("sk-seed-custom-not-valid"),
-          createdById: params.userId,
-          status: "ENABLED",
-          supportedRoutes: ["openai.chat-completions"],
-        },
-      ],
-    });
-  }
+  // Fixed ids keep re-seeding idempotent; existing rows are skipped.
+  await prisma.gatewayAiConnection.createMany({
+    skipDuplicates: true,
+    data: [
+      {
+        id: "seed-gateway-openai",
+        organizationId: params.organizationId,
+        name: "OpenAI production",
+        provider: "OPENAI",
+        encryptedCredential: encrypt("sk-seed-openai-not-valid"),
+        displaySecret: getDisplaySecretKey("sk-seed-openai-not-valid"),
+        createdById: params.userId,
+        status: "ENABLED",
+      },
+      {
+        id: "seed-gateway-anthropic",
+        organizationId: params.organizationId,
+        name: "Anthropic production",
+        provider: "ANTHROPIC",
+        encryptedCredential: encrypt("sk-ant-seed-not-valid"),
+        displaySecret: getDisplaySecretKey("sk-ant-seed-not-valid"),
+        createdById: params.userId,
+        status: "ENABLED",
+      },
+      {
+        id: "seed-gateway-custom",
+        organizationId: params.organizationId,
+        name: "self-hosted vllm",
+        provider: "CUSTOM",
+        baseUrl: "http://vllm.internal.example:8000/v1",
+        encryptedCredential: encrypt("sk-seed-custom-not-valid"),
+        displaySecret: getDisplaySecretKey("sk-seed-custom-not-valid"),
+        createdById: params.userId,
+        status: "ENABLED",
+        supportedRoutes: ["openai.chat-completions"],
+      },
+    ],
+  });
 
   const publicKey = "pk-lf-gateway-seed";
   const existingKey = await prisma.apiKey.findUnique({
@@ -641,6 +637,44 @@ async function seedAiGateway(params: {
     },
     update: {},
   });
+
+  const aliasTargetIds = ["seed-gateway-custom", "seed-gateway-openai"];
+  const aliasTargetsExist =
+    (await prisma.gatewayAiConnection.count({
+      where: {
+        organizationId: params.organizationId,
+        id: { in: aliasTargetIds },
+      },
+    })) === aliasTargetIds.length;
+  const aliasName = "default-chat";
+  const aliasExists =
+    (await prisma.gatewayAiAlias.count({
+      where: { organizationId: params.organizationId, name: aliasName },
+    })) > 0;
+  if (aliasTargetsExist && !aliasExists) {
+    // Fake credentials: the alias UI and routing need no working upstream.
+    await prisma.gatewayAiAlias.create({
+      data: {
+        organizationId: params.organizationId,
+        name: aliasName,
+        status: "ENABLED",
+        targets: {
+          create: [
+            {
+              connectionId: "seed-gateway-custom",
+              providerModel: "glm-4.6",
+              position: 0,
+            },
+            {
+              connectionId: "seed-gateway-openai",
+              providerModel: "gpt-4.1-mini",
+              position: 1,
+            },
+          ],
+        },
+      },
+    });
+  }
 }
 
 async function createDashboardsAndWidgets(projects: Project[]) {

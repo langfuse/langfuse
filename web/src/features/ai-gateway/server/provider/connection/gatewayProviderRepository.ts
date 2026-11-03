@@ -186,12 +186,25 @@ export class GatewayProviderRepository {
     });
   }
 
-  async deleteConnection(params: { organizationId: string; id: string }) {
-    const connection = await this.prisma.gatewayAiConnection.delete({
-      where: { id: params.id, organizationId: params.organizationId },
-      select: safeConnectionSelect,
+  /** Runs `beforeDelete` and the delete under a row lock, so a row that
+   * references the connection cannot be added in between. */
+  async deleteConnection(
+    params: { organizationId: string; id: string },
+    beforeDelete: (tx: Prisma.TransactionClient) => Promise<void>,
+  ) {
+    return this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`
+        SELECT id FROM gateway_ai_connections
+        WHERE id = ${params.id} AND organization_id = ${params.organizationId}
+        FOR UPDATE
+      `;
+      await beforeDelete(tx);
+      const connection = await tx.gatewayAiConnection.delete({
+        where: { id: params.id, organizationId: params.organizationId },
+        select: safeConnectionSelect,
+      });
+      return toSafeConnection(connection);
     });
-    return toSafeConnection(connection);
   }
 
   /** Returns false when the connection changed since `expectedUpdatedAt`, leaving the newer state in place. */

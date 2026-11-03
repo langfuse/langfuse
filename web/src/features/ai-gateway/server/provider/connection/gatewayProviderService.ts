@@ -330,10 +330,12 @@ export class GatewayProviderService {
   }) {
     // Only the two identifiers, never the whole params object: the extra
     // `session` field would land in the Prisma `where` and fail validation.
-    const deleted = await this.repository.deleteConnection({
-      organizationId: params.organizationId,
-      id: params.id,
-    });
+    const ids = { organizationId: params.organizationId, id: params.id };
+    // Alias targets cascade with their connection, so deleting a referenced
+    // connection would silently empty those aliases.
+    const deleted = await this.repository.deleteConnection(ids, (tx) =>
+      assertNoAliasTargets(tx, ids),
+    );
     await this.modelCatalogService.clearModelCache(
       params.organizationId,
       params.id,
@@ -401,6 +403,27 @@ export class GatewayProviderService {
       this.prisma,
     );
     return updated;
+  }
+}
+
+async function assertNoAliasTargets(
+  tx: Prisma.TransactionClient,
+  params: { organizationId: string; id: string },
+) {
+  const referencingAliases = await tx.gatewayAiAlias.findMany({
+    where: {
+      organizationId: params.organizationId,
+      targets: { some: { connectionId: params.id } },
+    },
+    orderBy: { name: "asc" },
+    select: { name: true },
+  });
+  if (referencingAliases.length > 0) {
+    throw new LangfuseConflictError(
+      `This connection is a target of the model aliases ${referencingAliases
+        .map(({ name }) => `"${name}"`)
+        .join(", ")}. Remove it from those aliases before deleting it.`,
+    );
   }
 }
 

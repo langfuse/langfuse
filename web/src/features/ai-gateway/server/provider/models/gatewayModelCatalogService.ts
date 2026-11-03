@@ -113,14 +113,20 @@ export class GatewayModelCatalogService {
       organizationId,
       "ENABLED",
     );
-    return connections.map(
-      ({ id, name, provider, allowedModels, supportedRoutes }) => ({
-        id,
-        name,
-        provider,
-        allowedModels,
-        supportedRoutes,
-      }),
+    return Promise.all(
+      connections.map(
+        async ({ id, name, provider, allowedModels, supportedRoutes }) => {
+          const cachedModels = await this.getCachedModels(organizationId, id);
+          return {
+            id,
+            name,
+            provider,
+            allowedModels,
+            supportedRoutes,
+            models: cachedModels?.models.map(({ id }) => id) ?? [],
+          };
+        },
+      ),
     );
   }
 
@@ -306,19 +312,20 @@ export class GatewayModelCatalogService {
       fetcher: this.fetcher,
     });
     if (!models.success) {
-      if (
-        !params.readOnly &&
-        models.error === "unauthorized" &&
-        connection.status === "ENABLED"
-      ) {
+      // Demote only what a retry cannot fix: a rejected credential, or a CUSTOM
+      // host that does not return a catalog. Transient failures stay routable.
+      const structural =
+        models.error === "unauthorized" ||
+        (provider === "CUSTOM" && models.invalidBody === true);
+      if (!params.readOnly && structural && connection.status === "ENABLED") {
         const marked = await this.repository.updateConnectionStatus({
           organizationId: params.organizationId,
           id: connection.id,
           status: "ERROR",
           expectedUpdatedAt: connection.updatedAt,
         });
-        // A connection that just failed authorization must stop being handed
-        // to the data plane.
+        // A connection that just failed must stop being handed to the data
+        // plane.
         if (marked) {
           await invalidateGatewayResolveCacheForOrganization(
             params.organizationId,

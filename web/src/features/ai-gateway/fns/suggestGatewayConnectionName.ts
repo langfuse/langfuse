@@ -5,7 +5,12 @@ export function suggestGatewayConnectionName(
   provider: GatewayProvider,
   existingNames: Iterable<string>,
 ) {
-  const base = providerLabels[provider].toLowerCase();
+  /** Folds display labels like "Custom (OpenAI-compatible)" into the
+   * `<name>:` slug pattern. */
+  const base = providerLabels[provider]
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
   /** Case-insensitive so suggestions never near-duplicate an existing name. */
   const taken = new Set(
     Array.from(existingNames, (name) => name.toLowerCase()),

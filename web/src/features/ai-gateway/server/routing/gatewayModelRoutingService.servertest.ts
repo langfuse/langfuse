@@ -83,12 +83,14 @@ describe("GatewayModelRoutingService", () => {
     expect(routingService.resolve("Unknown:gpt-4o", connections)).toEqual({
       connection: null,
       providerModel: "gpt-4o",
+      viaAlias: false,
     });
     expect(
       routingService.resolve("claude-sonnet-4-5", connections.slice(0, 1)),
     ).toEqual({
       connection: null,
       providerModel: "claude-sonnet-4-5",
+      viaAlias: false,
     });
   });
 
@@ -108,6 +110,7 @@ describe("GatewayModelRoutingService", () => {
     ).toEqual({
       connection: ftConnection,
       providerModel: "claude-sonnet-4-5",
+      viaAlias: false,
     });
   });
 
@@ -130,6 +133,7 @@ describe("GatewayModelRoutingService", () => {
     expect(routingService.resolve("gpt-6-sol", restrictedConnections)).toEqual({
       connection: restrictedConnections[1],
       providerModel: "gpt-6-sol",
+      viaAlias: false,
     });
   });
 
@@ -154,6 +158,7 @@ describe("GatewayModelRoutingService", () => {
     ).toEqual({
       connection: unrestrictedConnection,
       providerModel: "gpt-6-sol",
+      viaAlias: false,
     });
   });
 
@@ -178,7 +183,119 @@ describe("GatewayModelRoutingService", () => {
       expect(routingService.resolve(model, restrictedConnections)).toEqual({
         connection: restrictedConnections[0],
         providerModel: model,
+        viaAlias: false,
       });
     },
   );
+
+  describe("aliases", () => {
+    const aliasConnections = [
+      {
+        id: "ai01",
+        name: "ai01",
+        provider: "CUSTOM",
+        allowedModels: null,
+      },
+      {
+        id: "ai02",
+        name: "ai02",
+        provider: "CUSTOM",
+        allowedModels: null,
+      },
+    ] as const;
+
+    it("resolves an alias to its first enabled target", () => {
+      expect(
+        routingService.resolve("glm-5.3", aliasConnections, [
+          {
+            name: "glm-5.3",
+            status: "ENABLED",
+            targets: [
+              { connectionId: "ai01", providerModel: "GLM-5.3" },
+              { connectionId: "ai02", providerModel: "GLM-5.3" },
+            ],
+          },
+        ]),
+      ).toEqual({
+        connection: aliasConnections[0],
+        providerModel: "GLM-5.3",
+        viaAlias: true,
+      });
+    });
+
+    it("falls through a disabled or missing target connection to the next target", () => {
+      expect(
+        routingService.resolve("glm-5.3", aliasConnections.slice(1), [
+          {
+            name: "glm-5.3",
+            status: "ENABLED",
+            targets: [
+              { connectionId: "ai01", providerModel: "GLM-5.3" },
+              { connectionId: "ai02", providerModel: "GLM-5.3" },
+            ],
+          },
+        ]),
+      ).toEqual({
+        connection: aliasConnections[1],
+        providerModel: "GLM-5.3",
+        viaAlias: true,
+      });
+    });
+
+    it("ignores a disabled alias and falls back to regular routing", () => {
+      expect(
+        routingService.resolve("glm-5.3", aliasConnections, [
+          {
+            name: "glm-5.3",
+            status: "DISABLED",
+            targets: [{ connectionId: "ai01", providerModel: "GLM-5.3" }],
+          },
+        ]),
+      ).toBeNull();
+    });
+
+    it("resolves to null when no alias target connection supports the format", () => {
+      expect(
+        routingService.resolve(
+          "glm-5.3",
+          [],
+          [
+            {
+              name: "glm-5.3",
+              status: "ENABLED",
+              targets: [{ connectionId: "ai01", providerModel: "GLM-5.3" }],
+            },
+          ],
+        ),
+      ).toBeNull();
+    });
+
+    it("an alias wins over a connection with the same name", () => {
+      const namedConnection = {
+        id: "glm-5.3",
+        name: "glm-5.3",
+        provider: "OPENAI",
+        allowedModels: null,
+      } as const;
+      // Without the alias, "glm-5.3" matches no prefix heuristic and no slug,
+      // so it would return null; with it, the alias target wins.
+      expect(
+        routingService.resolve(
+          "glm-5.3",
+          [namedConnection],
+          [
+            {
+              name: "glm-5.3",
+              status: "ENABLED",
+              targets: [{ connectionId: "glm-5.3", providerModel: "GLM-5.3" }],
+            },
+          ],
+        ),
+      ).toEqual({
+        connection: namedConnection,
+        providerModel: "GLM-5.3",
+        viaAlias: true,
+      });
+    });
+  });
 });

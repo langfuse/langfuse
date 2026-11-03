@@ -1,7 +1,7 @@
 mod capture;
 pub mod config;
 mod correlation;
-mod egress;
+pub mod egress;
 pub mod http;
 pub mod inference;
 pub mod observability;

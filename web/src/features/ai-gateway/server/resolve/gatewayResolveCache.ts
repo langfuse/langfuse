@@ -45,6 +45,22 @@ export const CachedResolveContext = z.object({
       allowedModels: z.array(z.string()).nullable(),
     }),
   ),
+  // Ordered alias targets per alias. Defaulted so entries cached before
+  // aliases existed still parse.
+  aliases: z
+    .array(
+      z.object({
+        name: z.string(),
+        status: z.enum(["ENABLED", "DISABLED"]),
+        targets: z.array(
+          z.object({
+            connectionId: z.string(),
+            providerModel: z.string(),
+          }),
+        ),
+      }),
+    )
+    .default([]),
 });
 export type CachedResolveContext = z.infer<typeof CachedResolveContext>;
 

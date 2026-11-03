@@ -123,6 +123,7 @@ vi.mock("@/src/utils/api", () => ({
 }));
 
 vi.mock("@/src/features/ai-gateway", () => ({
+  GatewayAliasesPage: () => null,
   GatewayAnalyticsPage: () => null,
   GatewayApiKeysPage: () => null,
   GatewayModelsPage: () => null,
@@ -297,6 +298,7 @@ describe("useOrganizationSettingsPages", () => {
       "ai-gateway",
       "ai-gateway-models",
       "ai-gateway-api-keys",
+      "ai-gateway-aliases",
       "ai-gateway-analytics",
     ]);
     expect(gatewayPages.every((page) => page.show === true)).toBe(true);
@@ -326,6 +328,7 @@ describe("useOrganizationSettingsPages", () => {
       ["ai-gateway", false],
       ["ai-gateway-models", true],
       ["ai-gateway-api-keys", true],
+      ["ai-gateway-aliases", true],
       ["ai-gateway-analytics", true],
     ]);
   });

@@ -4,7 +4,31 @@ export class GatewayModelRoutingService {
   resolve<Connection extends GatewayRouteConnection>(
     model: string,
     connections: readonly Connection[],
-  ): { connection: Connection | null; providerModel: string } | null {
+    aliases: readonly GatewayRouteAlias[] = [],
+  ): {
+    connection: Connection | null;
+    providerModel: string;
+    viaAlias: boolean;
+  } | null {
+    // Aliases win over every other match: an alias name may also collide with
+    // a connection name or a prefix heuristic, and the alias is explicit.
+    const alias = aliases.find((candidate) => candidate.name === model);
+    if (alias && alias.status === "ENABLED") {
+      for (const target of alias.targets) {
+        const connection = connections.find(
+          (candidate) => candidate.id === target.connectionId,
+        );
+        // Connections are pre-filtered to enabled ones serving this format, so
+        // a miss falls through to the next target.
+        if (!connection) continue;
+        return {
+          connection,
+          providerModel: target.providerModel,
+          viaAlias: true,
+        };
+      }
+    }
+
     const modelSlug = parseGatewayModelSlug(model);
     const explicitConnection = modelSlug
       ? (connections.find(
@@ -15,6 +39,7 @@ export class GatewayModelRoutingService {
       return {
         connection: explicitConnection,
         providerModel: modelSlug.providerModel,
+        viaAlias: false,
       };
     }
 
@@ -22,6 +47,7 @@ export class GatewayModelRoutingService {
       return {
         connection: findImplicitConnection(model, connections, "OPENAI"),
         providerModel: model,
+        viaAlias: false,
       };
     }
 
@@ -29,6 +55,7 @@ export class GatewayModelRoutingService {
       return {
         connection: null,
         providerModel: modelSlug.providerModel,
+        viaAlias: false,
       };
     }
 
@@ -44,6 +71,7 @@ export class GatewayModelRoutingService {
     return {
       connection: findImplicitConnection(model, connections, provider),
       providerModel: model,
+      viaAlias: false,
     };
   }
 }
@@ -79,7 +107,14 @@ function parseGatewayModelSlug(model: string) {
 }
 
 type GatewayRouteConnection = {
+  id: string;
   name: string;
   provider: string;
   allowedModels: Set<string> | readonly string[] | null;
+};
+
+export type GatewayRouteAlias = {
+  name: string;
+  status: "ENABLED" | "DISABLED";
+  targets: { connectionId: string; providerModel: string }[];
 };

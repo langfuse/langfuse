@@ -319,6 +319,20 @@ describe("AI gateway provider registry", () => {
           allowedModels: null,
           supportedRoutes: null,
         }),
+        // A malformed catalog is a structural failure, so the service also
+        // demotes the connection before returning.
+        update: vi.fn().mockImplementation(({ where }) =>
+          Promise.resolve({
+            id: where.id,
+            organizationId: "org-1",
+            provider: "OPENAI",
+            baseUrl: null,
+            encryptedCredential: encrypt("sk-test"),
+            status: "ERROR",
+            allowedModels: null,
+            supportedRoutes: null,
+          }),
+        ),
       },
     } as unknown as PrismaClient;
     const service = new GatewayModelCatalogService(prisma, fetcher, redis);
