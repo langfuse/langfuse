@@ -8,6 +8,7 @@ import {
   Download,
   FileCode2,
   GitBranch,
+  TriangleAlert,
   Plus,
   Terminal,
   Trash,
@@ -20,6 +21,7 @@ import {
   withDefault,
 } from "use-query-params";
 import Page from "@/src/components/layouts/Page";
+import { useReadPath } from "@/src/features/events";
 import { Button } from "@/src/components/ui/button";
 import { Button as DesignSystemButton } from "@/src/components/design-system/Button/Button";
 import { DropdownMenu } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
@@ -69,6 +71,7 @@ import {
 type SkillRow = RouterOutput["skills"]["all"]["data"][number];
 
 export function SkillsPage() {
+  const { isV3Legacy } = useReadPath();
   const projectId = useProjectIdFromURL() ?? "";
   const canCreate = useHasProjectAccess({ projectId, scope: "skills:CUD" });
   const { query: filterOptions } = useSkillInstallOptions(projectId, "");
@@ -94,11 +97,24 @@ export function SkillsPage() {
         <Page
           headerProps={{
             title: "Skills",
-            titleBadges: <Badge text="Beta" color="blue" size="sm" />,
+            titleBadges: (
+              <>
+                <Badge text="Beta" color="blue" size="sm" />
+                {isV3Legacy && (
+                  <Badge
+                    text="Skill tracing requires v4"
+                    title="You can still create and use skills in the legacy view."
+                    color="yellow"
+                    size="md"
+                    leadingIcon={TriangleAlert}
+                  />
+                )}
+              </>
+            ),
             help: {
               description:
                 "Create, version, and distribute reusable agent skills from one place.",
-              href: "https://langfuse.com/docs",
+              href: "https://langfuse.com/docs/skill-management/get-started",
             },
             actionButtonsRight: (
               <SkillsHeaderActions

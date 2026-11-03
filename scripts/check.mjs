@@ -90,7 +90,6 @@ export function parseOptions(args) {
     base: "origin/main",
     all: false,
     dryRun: false,
-    cpus: Math.max(1, Math.floor(availableParallelism() / 2)),
   };
   for (let index = 0; index < args.length; index++) {
     const arg = args[index];
@@ -110,14 +109,6 @@ export function parseOptions(args) {
       }
       const key = arg === "--only" || arg === "-o" ? "only" : "skip";
       options[key] = [...new Set([...(options[key] ?? []), ...names])];
-    } else if (arg === "--cpus") {
-      const value = args[++index];
-      if (
-        !/^[1-9]\d*$/.test(value ?? "") ||
-        !Number.isSafeInteger(Number(value))
-      )
-        throw new Error("--cpus requires a positive integer");
-      options.cpus = Number(value);
     } else if (arg === "--base") {
       const base = args[++index];
       if (!base || base.startsWith("-"))
@@ -199,7 +190,6 @@ export function createPlan(
     taskGraph,
     exists,
     changes,
-    options.cpus ?? parseOptions([]).cpus,
   );
   return [
     ...planRepositoryChecks(
@@ -304,7 +294,6 @@ function planPackageChecks(
   taskGraph,
   exists,
   changes,
-  cpus,
 ) {
   const selected = selectPackageChecks(
     codeFiles,
@@ -422,8 +411,8 @@ function planPackageChecks(
     for (const [task, names] of full) schedule(task, names);
   }
   if (targets.size > 0) {
-    // One graph lets Turbo deduplicate prerequisite work and schedule compatible
-    // checks concurrently. File-specific commands wait for successful preparation.
+    // One graph lets Turbo deduplicate prerequisite work while running tasks
+    // sequentially. File-specific commands wait for successful preparation.
     const checks = [
       ...new Set(
         checkTasks
@@ -453,7 +442,7 @@ function planPackageChecks(
         "--output-logs=errors-only",
         "--ui=stream",
         "--log-prefix=none",
-        `--concurrency=${Math.max(1, cpus - 1)}`,
+        "--concurrency=1",
         ...targets,
         "--continue=dependencies-successful",
       ],
@@ -987,7 +976,7 @@ async function main() {
   const options = parseOptions(process.argv.slice(2));
   if (options.help) {
     console.log(
-      "--cpus <n>: concurrent task budget (default: half available CPUs, minimum 1).\nNested worker pools are limited to one worker during check. This is not a hard CPU quota.\n",
+      "Turbo tasks run sequentially. Nested worker pools are limited to one worker during check.\n",
     );
     console.log(
       "Usage: pnpm check [--branch] [--base <ref>] [--all] [--only <checks> | --skip <checks>] [--dry-run]\n\nDefault: all applicable checks for staged, unstaged, and untracked changes.\n--branch: changes since merge-base with origin/main, plus local changes.\n--base: override branch target (implies --branch).\n--all: check every package within the selected checks.\n--only, -o: run only the comma-separated checks.\n--skip, -s: exclude the comma-separated checks. Cannot combine with --only.\nChecks: format, typecheck, lint, knip, tests. Build/generation prerequisites still run.\n--dry-run: print checks without running them.",
@@ -1004,7 +993,8 @@ async function main() {
     : git(["rev-parse", "HEAD"]).trim();
   const files = collectChanges(git, base);
   const output = createOutput();
-  console.log(`Task concurrency budget: ${options.cpus}`);
+  const cpus = Math.max(1, Math.floor(availableParallelism() / 2));
+  console.log(`Task concurrency budget: ${cpus}`);
   printHeader(files, options, output);
   const { packages, taskGraph } = loadWorkspace(base);
   const plan = createPlan(files, packages, options, base, taskGraph);
@@ -1016,7 +1006,7 @@ async function main() {
     printPlan(plan);
     return;
   }
-  const results = await executePlan(plan, output, options.cpus);
+  const results = await executePlan(plan, output, cpus);
   if (results.interrupted) {
     process.exitCode = 1;
     return;

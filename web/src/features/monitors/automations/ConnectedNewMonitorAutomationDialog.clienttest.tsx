@@ -24,9 +24,6 @@ vi.mock("@/src/utils/api", () => ({
     },
   },
 }));
-vi.mock("@/src/features/automations", () => ({
-  useAvailableActionTypes: (types: string[]) => types,
-}));
 vi.mock("@/src/features/pagerduty", () => ({
   usePagerDutyTestEvent: () => ({}),
 }));

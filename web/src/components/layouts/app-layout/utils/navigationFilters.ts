@@ -85,13 +85,6 @@ const filters = {
   featureFlags: (route: Route, ctx: NavigationFilterContext): Route | null => {
     if (route.featureFlag === undefined) return route;
 
-    if (
-      route.featureFlag === "skillManagement" &&
-      ctx.session?.user?.v4BetaEnabled !== true
-    ) {
-      return null;
-    }
-
     if (isAdminOnlyFeaturePreviewFlag(route.featureFlag)) {
       return ctx.session?.user?.featureFlags?.[route.featureFlag] === true
         ? route
@@ -114,7 +107,7 @@ const filters = {
 
     const hasFlag =
       ctx.enableExperimentalFeatures ||
-      (ctx.cloudAdmin && route.featureFlag !== "skillManagement") ||
+      ctx.cloudAdmin ||
       getContextualFeatureFlags(ctx.session?.user, {
         projectId: ctx.routerProjectId,
         organizationId: ctx.routerOrganizationId,

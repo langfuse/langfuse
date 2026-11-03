@@ -2,7 +2,15 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { createPlan, runPlan } from "./check.mjs";
+import { createPlan, parseOptions, runPlan } from "./check.mjs";
+
+test("check no longer accepts a CPU budget argument", () => {
+  assert.equal(Object.hasOwn(parseOptions([]), "cpus"), false);
+  assert.throws(
+    () => parseOptions(["--cpus", "2"]),
+    /Unknown argument: --cpus/,
+  );
+});
 
 test("failed Turbo run reads successful and cached prerequisites from its summary", async () => {
   const directory = mkdtempSync(resolve(".check-test-"));
@@ -74,10 +82,11 @@ test("split-out lint records transitive prerequisites, excluding scriptless task
         dependencies: [],
       },
     ],
-    { all: true, only: ["lint"], cpus: 2 },
+    { all: true, only: ["lint"] },
     "HEAD",
     { tasks, affected: new Set() },
   );
+  assert.ok(plan[0].args.includes("--concurrency=1"));
   assert.deepEqual(plan[1].prerequisites, [
     "plugin#build",
     "shared#build",

@@ -54,13 +54,10 @@ import { useLangfuseCloudRegion } from "@/src/features/organizations";
 import { useHasProjectAccess } from "@/src/features/rbac";
 import { ActionHandlerRegistry } from "./actions";
 import { actionTypeLabel } from "@/src/features/automations/actionTypeLabels";
-import { useAvailableActionTypes } from "@/src/features/automations/useAvailableActionTypes";
 import { webhookSchema } from "./actions/WebhookActionForm";
 import { Alert } from "@/src/components/design-system/Alert/Alert";
 import Link from "next/link";
 import { Info } from "@langfuse/icons";
-import { useIsFeatureEnabled } from "@/src/features/feature-flags";
-import { useReadPath } from "@/src/features/events";
 import { useVersionFilterOptions } from "../hooks/useVersionFilterOptions";
 
 // Define Slack action schema
@@ -209,22 +206,15 @@ type FormValues = z.infer<typeof formSchema>;
 
 /** EventSourceField renders the trigger source picker and routes changes through onSourceChange so the parent can reset dependent fields. */
 const EventSourceField = ({
-  projectId,
   control,
   onSourceChange,
   disabled,
 }: {
-  projectId: string;
   control: Control<FormValues>;
   onSourceChange: (value: TriggerEventSource) => void;
   disabled: boolean;
 }) => {
   const { isLangfuseCloud } = useLangfuseCloudRegion();
-  const { isV4 } = useReadPath();
-  const skillsEnabled = useIsFeatureEnabled("skillManagement", {
-    projectId,
-    enableForAdmins: false,
-  });
   return (
     <FormField
       control={control}
@@ -246,10 +236,7 @@ const EventSourceField = ({
             </FormControl>
             <SelectContent>
               <SelectItem value={TriggerEventSource.Prompt}>Prompt</SelectItem>
-              {((isV4 && skillsEnabled) ||
-                field.value === TriggerEventSource.Skill) && (
-                <SelectItem value={TriggerEventSource.Skill}>Skill</SelectItem>
-              )}
+              <SelectItem value={TriggerEventSource.Skill}>Skill</SelectItem>
               {(isLangfuseCloud ||
                 field.value === TriggerEventSource.Monitor) && (
                 <SelectItem value={TriggerEventSource.Monitor}>
@@ -417,9 +404,8 @@ export const AutomationForm = ({
     projectId,
     scope: "automations:CUD",
   });
-  const availableActionTypes = useAvailableActionTypes(
-    allowedActionTypes ?? ActionHandlerRegistry.getAllActionTypes(),
-  );
+  const availableActionTypes =
+    allowedActionTypes ?? ActionHandlerRegistry.getAllActionTypes();
 
   const utils = api.useUtils();
 
@@ -780,7 +766,6 @@ export const AutomationForm = ({
             <CardContent className="space-y-4">
               {!lockedEventSource && (
                 <EventSourceField
-                  projectId={projectId}
                   control={form.control}
                   onSourceChange={handleEventSourceChange}
                   disabled={!hasAccess || !isEditing}
