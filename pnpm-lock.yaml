@@ -1144,6 +1144,9 @@ importers:
       '@aws-sdk/client-lambda-microvms':
         specifier: 'catalog:'
         version: 3.1074.0
+      '@clickhouse/client':
+        specifier: 1.23.1
+        version: 1.23.1
       '@langfuse/native':
         specifier: workspace:*
         version: link:../packages/native
@@ -1162,6 +1165,9 @@ importers:
       '@opentelemetry/api':
         specifier: ^1.9.1
         version: 1.9.1
+      '@opentelemetry/core':
+        specifier: 2.9.0
+        version: 2.9.0(@opentelemetry/api@1.9.1)
       '@opentelemetry/exporter-trace-otlp-proto':
         specifier: ^0.220.0
         version: 0.220.0(@opentelemetry/api@1.9.1)
@@ -1280,6 +1286,9 @@ importers:
         specifier: 4.6.6
         version: 4.6.6
     devDependencies:
+      '@opentelemetry/context-async-hooks':
+        specifier: 2.9.0
+        version: 2.9.0(@opentelemetry/api@1.9.1)
       '@repo/eslint-config':
         specifier: workspace:*
         version: link:../packages/config-eslint

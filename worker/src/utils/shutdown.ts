@@ -10,6 +10,7 @@ import { getTokenCountWorkerManager } from "../features/tokenisation/async-usage
 import { WorkerManager } from "../queues/workerManager";
 import { logInFlightBlobExportsOnShutdown } from "../features/blobstorage/inFlightExports";
 import { abortActiveInAppAgentRuns } from "../features/in-app-agent/executeInAppAgentRun";
+import { stopTopicEmbeddingShadow } from "../features/topics/embeddingShadow";
 import { prisma } from "@langfuse/shared/src/db";
 import { BackgroundMigrationManager } from "../backgroundMigrations/backgroundMigrationManager";
 import {
@@ -51,6 +52,7 @@ export const drainAndClose = (): Promise<void> => {
 
 const runDrainAndClose = async () => {
   setSigtermReceived();
+  stopTopicEmbeddingShadow();
 
   server?.close();
   logger.info("Server has been closed.");

@@ -196,6 +196,22 @@ const EnvSchema = z.object({
     .int()
     .positive()
     .default(20),
+  LANGFUSE_TOPICS_AIEMBED_SHADOW_ENABLED: z
+    .enum(["true", "false"])
+    .default("false"),
+  LANGFUSE_TOPICS_AIEMBED_SHADOW_MODEL: z.string().trim().default(""),
+  LANGFUSE_TOPICS_AIEMBED_SHADOW_CREDENTIALS: z.string().trim().default(""),
+  LANGFUSE_TOPICS_AIEMBED_SHADOW_MAX_CONCURRENCY: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(2),
+  LANGFUSE_TOPICS_AIEMBED_SHADOW_TIMEOUT_MS: z.coerce
+    .number()
+    .int()
+    .positive()
+    .max(60_000)
+    .default(30_000),
   // Admission policy for full-cohort fitting; excludes child-process and runtime overhead.
   LANGFUSE_TOPICS_MAX_CLUSTERING_ROWS: z.coerce
     .number()

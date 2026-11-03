@@ -38,6 +38,7 @@
     "@ag-ui/mastra": "1.1.1",
     "@repo/langfuse-skills": "workspace:*",
     "@appsignal/opentelemetry-instrumentation-bullmq": "^0.8.0",
+    "@clickhouse/client": "1.23.1",
     "@langfuse/native": "workspace:*",
     "@langfuse/shared": "workspace:*",
     "@node-rs/xxhash": "1.7.7",
@@ -45,6 +46,7 @@
     "@mastra/core": "1.46.0",
     "@mastra/mcp": "1.8.1",
     "@opentelemetry/api": "^1.9.1",
+    "@opentelemetry/core": "2.9.0",
     "@opentelemetry/exporter-trace-otlp-proto": "^0.220.0",
     "@opentelemetry/instrumentation-aws-sdk": "^0.75.0",
     "@opentelemetry/instrumentation-express": "^0.68.0",
@@ -85,6 +87,7 @@
     "zod": "^4.6.6"
   },
   "devDependencies": {
+    "@opentelemetry/context-async-hooks": "2.9.0",
     "@repo/eslint-config": "workspace:*",
     "@repo/typescript-config": "workspace:*",
     "@types/cors": "^2.8.17",

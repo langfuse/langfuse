@@ -1,11 +1,30 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { encrypt } from "@langfuse/shared/encryption";
+import { ClickHouseLogLevel } from "@clickhouse/client";
+import { context } from "@opentelemetry/api";
+import { AsyncLocalStorageContextManager } from "@opentelemetry/context-async-hooks";
+import { isTracingSuppressed } from "@opentelemetry/core";
 
 const state = vi.hoisted(() => ({
   env: { LANGFUSE_TOPICS_TRACING_ENABLED_PROJECT_IDS: ["project"] },
+  workerEnv: {
+    CLICKHOUSE_URL: "http://clickhouse.test:8123",
+    CLICKHOUSE_USER: "test-user",
+    CLICKHOUSE_PASSWORD: "test-password",
+    CLICKHOUSE_DB: "default",
+    LANGFUSE_TOPICS_AIEMBED_SHADOW_ENABLED: "false",
+    LANGFUSE_TOPICS_AIEMBED_SHADOW_MODEL: "shadow-model",
+    LANGFUSE_TOPICS_AIEMBED_SHADOW_CREDENTIALS: "shadow-credentials",
+    LANGFUSE_TOPICS_AIEMBED_SHADOW_MAX_CONCURRENCY: 2,
+    LANGFUSE_TOPICS_AIEMBED_SHADOW_TIMEOUT_MS: 30_000,
+  },
   call: vi.fn(),
   embed: vi.fn(),
+  createClickhouse: vi.fn(),
+  query: vi.fn(),
+  close: vi.fn(),
   increment: vi.fn(),
+  distribution: vi.fn(),
   project: vi.fn(),
   traceSink: vi.fn(),
   responseMetadata: vi.fn(),
@@ -24,12 +43,18 @@ vi.mock("tiktoken", async (importOriginal) => {
   };
 });
 vi.mock("@langfuse/shared/src/env", () => ({ env: state.env }));
+vi.mock("../../env", () => ({ env: state.workerEnv }));
+vi.mock("@clickhouse/client", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@clickhouse/client")>()),
+  createClient: (...args: unknown[]) => state.createClickhouse(...args),
+}));
 vi.mock("@langfuse/shared/src/server", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@langfuse/shared/src/server")>()),
   getLangfuseAITraceSinkParams: state.traceSink,
   LangfuseInternalTraceEnvironment: { Topics: "langfuse-topics" },
   logger: { warn: vi.fn() },
   recordIncrement: state.increment,
+  recordDistribution: state.distribution,
   instrumentAsync: async (
     _options: unknown,
     call: (span: { setAttributes: typeof state.spanAttributes }) => unknown,
@@ -120,9 +145,23 @@ const evidence = {
 
 beforeEach(() => {
   state.env.LANGFUSE_TOPICS_TRACING_ENABLED_PROJECT_IDS = ["project"];
+  Object.assign(state.workerEnv, {
+    LANGFUSE_TOPICS_AIEMBED_SHADOW_ENABLED: "false",
+    LANGFUSE_TOPICS_AIEMBED_SHADOW_MODEL: "shadow-model",
+    LANGFUSE_TOPICS_AIEMBED_SHADOW_CREDENTIALS: "shadow-credentials",
+    LANGFUSE_TOPICS_AIEMBED_SHADOW_MAX_CONCURRENCY: 2,
+    LANGFUSE_TOPICS_AIEMBED_SHADOW_TIMEOUT_MS: 30_000,
+  });
   state.call.mockReset();
   state.embed.mockReset();
+  state.query.mockReset();
+  state.close.mockReset().mockResolvedValue(undefined);
+  state.createClickhouse.mockReset().mockReturnValue({
+    query: state.query,
+    close: state.close,
+  });
   state.increment.mockReset();
+  state.distribution.mockReset();
   state.responseMetadata.mockReset();
   state.spanAttributes.mockReset();
   vi.mocked(logger.warn).mockClear();
@@ -145,6 +184,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  vi.useRealTimers();
   vi.unstubAllGlobals();
 });
 
@@ -1000,8 +1040,15 @@ describe("Topics naming boundary", () => {
     },
   );
 
-  it("records embedding input usage even when the returned vector is invalid", async () => {
-    state.embed.mockResolvedValue({ embeddings: [[]], tokens: 12 });
+  it("records embedding input usage and a failed comparison when Float32 output is invalid", async () => {
+    state.workerEnv.LANGFUSE_TOPICS_AIEMBED_SHADOW_ENABLED = "true";
+    state.embed.mockResolvedValue({
+      embeddings: [Array(256).fill(1e100)],
+      tokens: 12,
+    });
+    state.query.mockResolvedValue({
+      json: async () => [{ index: 0, embedding: Array(256).fill(0.5) }],
+    });
     await expect(
       embedTopicSummaries(
         topicsModels().embedding,
@@ -1019,6 +1066,16 @@ describe("Topics naming boundary", () => {
         { stage: "embedding", direction: "input" },
       ],
     ]);
+    expect(state.increment).toHaveBeenCalledWith(
+      "langfuse.topics.embedding_batches",
+      1,
+      { path: "worker", outcome: "failed" },
+    );
+    expect(state.increment).not.toHaveBeenCalledWith(
+      "langfuse.topics.embedding_batches",
+      1,
+      { path: "worker", outcome: "success" },
+    );
   });
 
   it.each([undefined, -1, Number.NaN])(
@@ -1043,4 +1100,272 @@ describe("Topics naming boundary", () => {
       ]);
     },
   );
+});
+
+describe("Topics embedding shadow", () => {
+  const summaries = ["Fix O'Reilly's invoice.", "Explain a € refund."];
+  const primary = () =>
+    embedTopicSummaries(topicsModels().embedding, summaries, 256, "project");
+  const response = () => ({
+    json: async () =>
+      summaries.map((_, index) => ({
+        index,
+        embedding: Array(256).fill(0.5),
+      })),
+  });
+  const freshShadow = async () => {
+    vi.resetModules();
+    return import("./embeddingShadow");
+  };
+  const batchFinished = (outcome: "success" | "failed") =>
+    expect(state.increment).toHaveBeenCalledWith(
+      "langfuse.topics.embedding_batches",
+      1,
+      { path: "aiembed_shadow", outcome },
+    );
+
+  beforeEach(() => {
+    state.embed.mockResolvedValue({
+      embeddings: summaries.map(() => Array(256).fill(0.25)),
+      tokens: 12,
+    });
+  });
+
+  it("does no shadow work or comparison measurement while disabled", async () => {
+    await primary();
+
+    expect(state.query).not.toHaveBeenCalled();
+    expect(state.createClickhouse).not.toHaveBeenCalled();
+    expect(state.distribution).not.toHaveBeenCalledWith(
+      "langfuse.topics.embedding_duration_ms",
+      expect.anything(),
+      expect.anything(),
+    );
+  });
+
+  it("keeps the primary result and usage independent of a pending or failed shadow", async () => {
+    const expected = await primary();
+    const pending = Promise.withResolvers<ReturnType<typeof response>>();
+    state.query.mockReturnValue(pending.promise);
+    state.workerEnv.LANGFUSE_TOPICS_AIEMBED_SHADOW_ENABLED = "true";
+
+    const actual = await primary();
+    expect(actual).toEqual(expected);
+    expect(state.query).toHaveBeenCalledOnce();
+    const request = state.query.mock.calls[0][0];
+    expect(request.query_params).toMatchObject({
+      summaries,
+      model: "shadow-model",
+      credentials: "shadow-credentials",
+      dimensions: "256",
+    });
+    expect(request.use_multipart_params).toBe(true);
+    expect(request.clickhouse_settings.log_query_parameters).toBe(0);
+    for (const text of [...summaries, "shadow-credentials"])
+      expect(request.query).not.toContain(text);
+
+    pending.reject(new Error("Secret summary or credential in provider error"));
+    await vi.waitFor(() => batchFinished("failed"));
+    expect(actual).toEqual(expected);
+    expect(JSON.stringify(vi.mocked(logger.warn).mock.calls)).not.toContain(
+      "Secret summary or credential",
+    );
+  });
+
+  it("records comparable outcomes while suppressing only shadow request and response tracing", async () => {
+    context.setGlobalContextManager(
+      new AsyncLocalStorageContextManager().enable(),
+    );
+    const suppressed = { worker: [] as boolean[], shadow: [] as boolean[] };
+    state.workerEnv.LANGFUSE_TOPICS_AIEMBED_SHADOW_ENABLED = "true";
+    state.embed.mockImplementation(async () => {
+      suppressed.worker.push(isTracingSuppressed(context.active()));
+      await Promise.resolve();
+      suppressed.worker.push(isTracingSuppressed(context.active()));
+      return {
+        embeddings: summaries.map(() => Array(256).fill(0.25)),
+        tokens: 12,
+      };
+    });
+    state.query.mockImplementation(async () => {
+      suppressed.shadow.push(isTracingSuppressed(context.active()));
+      return {
+        json: async () => {
+          await Promise.resolve();
+          suppressed.shadow.push(isTracingSuppressed(context.active()));
+          return response().json();
+        },
+      };
+    });
+    try {
+      const result = await primary();
+      await vi.waitFor(() => batchFinished("success"));
+      expect(suppressed).toEqual({
+        worker: [false, false],
+        shadow: [true, true],
+      });
+      expect(result.embeddings).toEqual(
+        summaries.map(() => Array(256).fill(0.25)),
+      );
+      for (const path of ["worker", "aiembed_shadow"]) {
+        expect(state.increment).toHaveBeenCalledWith(
+          "langfuse.topics.embedding_texts",
+          summaries.length,
+          { path, outcome: "success" },
+        );
+      }
+      const sizes = state.distribution.mock.calls
+        .filter(([name]) => name === "langfuse.topics.embedding_input_bytes")
+        .map(([, bytes, tags]) => ({ bytes, path: tags.path }));
+      expect(sizes).toHaveLength(2);
+      expect(sizes[0].bytes).toBeGreaterThan(0);
+      expect(sizes[1].bytes).toBe(sizes[0].bytes);
+      expect(sizes.map(({ path }) => path).sort()).toEqual([
+        "aiembed_shadow",
+        "worker",
+      ]);
+    } finally {
+      context.disable();
+    }
+  });
+
+  it("skips missing configuration and saturated capacity, then admits work after completion", async () => {
+    const { startTopicEmbeddingShadow } = await freshShadow();
+    state.workerEnv.LANGFUSE_TOPICS_AIEMBED_SHADOW_ENABLED = "true";
+    state.workerEnv.LANGFUSE_TOPICS_AIEMBED_SHADOW_MODEL = "";
+    startTopicEmbeddingShadow(summaries, 256);
+    expect(state.query).not.toHaveBeenCalled();
+    expect(state.increment).toHaveBeenCalledWith(
+      "langfuse.topics.embedding_shadow_skipped",
+      1,
+      { reason: "configuration" },
+    );
+
+    state.workerEnv.LANGFUSE_TOPICS_AIEMBED_SHADOW_MODEL = "shadow-model";
+    state.workerEnv.LANGFUSE_TOPICS_AIEMBED_SHADOW_MAX_CONCURRENCY = 1;
+    const pending = Promise.withResolvers<ReturnType<typeof response>>();
+    state.query.mockReturnValueOnce(pending.promise);
+    startTopicEmbeddingShadow(summaries, 256);
+    startTopicEmbeddingShadow(summaries, 256);
+    await Promise.resolve();
+    expect(state.query).toHaveBeenCalledOnce();
+    expect(state.createClickhouse).toHaveBeenCalledWith(
+      expect.objectContaining({ log: { level: ClickHouseLogLevel.OFF } }),
+    );
+    expect(state.increment).toHaveBeenCalledWith(
+      "langfuse.topics.embedding_shadow_skipped",
+      1,
+      { reason: "capacity" },
+    );
+
+    pending.resolve(response());
+    await vi.waitFor(() => batchFinished("success"));
+    state.query.mockResolvedValue(response());
+    startTopicEmbeddingShadow(summaries, 256);
+    await Promise.resolve();
+    expect(state.query).toHaveBeenCalledTimes(2);
+    await vi.waitFor(() =>
+      expect(
+        state.increment.mock.calls.filter(
+          ([name]) => name === "langfuse.topics.embedding_batches",
+        ),
+      ).toHaveLength(2),
+    );
+  });
+
+  it("counts malformed shadow vectors as failed without changing the primary result", async () => {
+    state.workerEnv.LANGFUSE_TOPICS_AIEMBED_SHADOW_ENABLED = "true";
+    state.query.mockResolvedValue({
+      json: async () => [{ index: 0, embedding: [] }],
+    });
+
+    const result = await primary();
+    await vi.waitFor(() => batchFinished("failed"));
+    expect(result.embeddings).toEqual(
+      summaries.map(() => Array(256).fill(0.25)),
+    );
+  });
+
+  it("aborts timed-out queries and releases their capacity", async () => {
+    const { startTopicEmbeddingShadow } = await freshShadow();
+    vi.useFakeTimers();
+    state.workerEnv.LANGFUSE_TOPICS_AIEMBED_SHADOW_ENABLED = "true";
+    state.workerEnv.LANGFUSE_TOPICS_AIEMBED_SHADOW_MAX_CONCURRENCY = 1;
+    state.workerEnv.LANGFUSE_TOPICS_AIEMBED_SHADOW_TIMEOUT_MS = 10;
+    state.query.mockImplementation(
+      ({ abort_signal }: { abort_signal: AbortSignal }) =>
+        new Promise((_, reject) => {
+          abort_signal.addEventListener("abort", () =>
+            reject(new Error("aborted")),
+          );
+        }),
+    );
+    startTopicEmbeddingShadow(summaries, 256);
+    await Promise.resolve();
+    const signal = state.query.mock.calls[0][0].abort_signal;
+    await vi.advanceTimersByTimeAsync(10);
+    expect(signal.aborted).toBe(true);
+    batchFinished("failed");
+
+    state.query.mockResolvedValue(response());
+    startTopicEmbeddingShadow(summaries, 256);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(state.query).toHaveBeenCalledTimes(2);
+    batchFinished("success");
+  });
+
+  it("aborts and closes on shutdown without admitting new shadow work", async () => {
+    const { startTopicEmbeddingShadow, stopTopicEmbeddingShadow } =
+      await freshShadow();
+    state.workerEnv.LANGFUSE_TOPICS_AIEMBED_SHADOW_ENABLED = "true";
+    state.query.mockImplementation(
+      ({ abort_signal }: { abort_signal: AbortSignal }) =>
+        new Promise((_, reject) => {
+          abort_signal.addEventListener("abort", () =>
+            reject(new Error("shutdown")),
+          );
+        }),
+    );
+    startTopicEmbeddingShadow(summaries, 256);
+    await Promise.resolve();
+    const signal = state.query.mock.calls[0][0].abort_signal;
+    stopTopicEmbeddingShadow();
+    startTopicEmbeddingShadow(summaries, 256);
+
+    expect(signal.aborted).toBe(true);
+    expect(state.close).toHaveBeenCalledOnce();
+    expect(state.query).toHaveBeenCalledOnce();
+    await vi.waitFor(() => batchFinished("failed"));
+  });
+
+  it("closes a stalled response body on timeout and releases capacity", async () => {
+    const { startTopicEmbeddingShadow } = await freshShadow();
+    vi.useFakeTimers();
+    state.workerEnv.LANGFUSE_TOPICS_AIEMBED_SHADOW_ENABLED = "true";
+    state.workerEnv.LANGFUSE_TOPICS_AIEMBED_SHADOW_MAX_CONCURRENCY = 1;
+    state.workerEnv.LANGFUSE_TOPICS_AIEMBED_SHADOW_TIMEOUT_MS = 10;
+    const body = Promise.withResolvers<unknown>();
+    const stalled = {
+      json: vi.fn(() => body.promise),
+      close: vi.fn(() => body.reject(new Error("Response body closed"))),
+    };
+    state.query.mockResolvedValue(stalled);
+    startTopicEmbeddingShadow(summaries, 256);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(stalled.json).toHaveBeenCalledOnce();
+    try {
+      await vi.advanceTimersByTimeAsync(10);
+      expect(stalled.close).toHaveBeenCalledOnce();
+      batchFinished("failed");
+
+      state.query.mockResolvedValue(response());
+      startTopicEmbeddingShadow(summaries, 256);
+      await vi.advanceTimersByTimeAsync(0);
+      expect(state.query).toHaveBeenCalledTimes(2);
+      batchFinished("success");
+    } finally {
+      body.reject(new Error("Test cleanup"));
+      await vi.advanceTimersByTimeAsync(0);
+    }
+  });
 });

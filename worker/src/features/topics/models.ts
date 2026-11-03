@@ -24,7 +24,13 @@ import {
   type TopicProcessingConfig,
 } from "@langfuse/shared/topics";
 import { createEventLoopYielder } from "./event-loop";
-import { recordTopicModelCall, recordTopicTokenUsage } from "./metrics";
+import {
+  recordTopicEmbeddingMeasurement,
+  recordTopicModelCall,
+  recordTopicTokenUsage,
+} from "./metrics";
+import { startTopicEmbeddingShadow } from "./embeddingShadow";
+import { env as workerEnv } from "../../env";
 import {
   llmRequestEgressBytes,
   recordExportVolume,
@@ -717,49 +723,69 @@ export async function embedTopicSummaries(
       "Topics embeddings require non-empty text and 64 to 4,096 dimensions.",
       "invalid_input",
     );
-  const result = await topicModelCall(
-    "embedding",
-    model,
-    projectId,
-    llmRequestEgressBytes(summaries),
-    {},
-    () => generateTopicEmbeddings({ model, summaries, dimensions }),
-  );
-  recordTopicTokenUsage("embedding", { input: result.tokens });
-  // ClickHouse stores Float32; calibration and future classification must use those same vectors.
-  const embeddings = result.embeddings.map((vector) =>
-    Array.from(new Float32Array(vector)),
-  );
-  if (
-    embeddings.length !== summaries.length ||
-    embeddings.some(
-      (embedding) =>
-        embedding.length !== dimensions ||
-        !embedding.every(Number.isFinite) ||
-        !embedding.some((value) => value !== 0),
-    )
-  )
-    throw new TopicsProviderUnavailable(
-      "Topics embedding provider returned an invalid vector.",
-      "invalid_output",
+  let startedAt: number | undefined;
+  let outcome: "success" | "failed" = "failed";
+  try {
+    const result = await topicModelCall(
+      "embedding",
+      model,
+      projectId,
+      llmRequestEgressBytes(summaries),
+      {},
+      async () => {
+        if (workerEnv.LANGFUSE_TOPICS_AIEMBED_SHADOW_ENABLED === "true") {
+          startTopicEmbeddingShadow(summaries, dimensions);
+          startedAt = performance.now();
+        }
+        return generateTopicEmbeddings({ model, summaries, dimensions });
+      },
     );
-  const usageDetails: Record<string, number> = {};
-  const costDetails: Record<string, number> = {};
-  if (Number.isSafeInteger(result.tokens) && result.tokens >= 0) {
-    usageDetails.embedding_input = usageDetails.total = result.tokens;
-    if (TOPICS_EMBEDDING_COST_MODELS.has(model.model))
-      costDetails.embedding_input = costDetails.total =
-        (result.tokens * 0.12) / 1_000_000;
-  } else {
-    logger.warn("Topics embedding response omitted token usage", {
-      model: model.model,
-    });
+    recordTopicTokenUsage("embedding", { input: result.tokens });
+    // ClickHouse stores Float32; calibration and future classification must use those same vectors.
+    const embeddings = result.embeddings.map((vector) =>
+      Array.from(new Float32Array(vector)),
+    );
+    if (
+      embeddings.length !== summaries.length ||
+      embeddings.some(
+        (embedding) =>
+          embedding.length !== dimensions ||
+          !embedding.every(Number.isFinite) ||
+          !embedding.some((value) => value !== 0),
+      )
+    )
+      throw new TopicsProviderUnavailable(
+        "Topics embedding provider returned an invalid vector.",
+        "invalid_output",
+      );
+    const usageDetails: Record<string, number> = {};
+    const costDetails: Record<string, number> = {};
+    if (Number.isSafeInteger(result.tokens) && result.tokens >= 0) {
+      usageDetails.embedding_input = usageDetails.total = result.tokens;
+      if (TOPICS_EMBEDDING_COST_MODELS.has(model.model))
+        costDetails.embedding_input = costDetails.total =
+          (result.tokens * 0.12) / 1_000_000;
+    } else {
+      logger.warn("Topics embedding response omitted token usage", {
+        model: model.model,
+      });
+    }
+    outcome = "success";
+    return {
+      embeddings,
+      providedUsageDetails: usageDetails,
+      usageDetails,
+      providedCostDetails: {},
+      costDetails,
+    };
+  } finally {
+    if (startedAt !== undefined)
+      recordTopicEmbeddingMeasurement(
+        "worker",
+        startedAt,
+        summaries.length,
+        summaries.reduce((bytes, text) => bytes + Buffer.byteLength(text), 0),
+        outcome,
+      );
   }
-  return {
-    embeddings,
-    providedUsageDetails: usageDetails,
-    usageDetails,
-    providedCostDetails: {},
-    costDetails,
-  };
 }

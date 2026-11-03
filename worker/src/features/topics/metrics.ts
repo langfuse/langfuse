@@ -44,6 +44,31 @@ type TopicErrorReason =
 // Statuses with their own operational meaning; exact codes are on the span.
 const COUNTED_HTTP_STATUSES = new Set([400, 401, 403, 429]);
 
+/** Batch timings for the opt-in embedding experiment; no tenant or model tags. */
+export function recordTopicEmbeddingMeasurement(
+  path: "worker" | "aiembed_shadow",
+  startedAt: number,
+  texts: number,
+  inputBytes: number,
+  outcome: "success" | "failed",
+): void {
+  try {
+    const tags = { path, outcome };
+    recordDistribution(
+      "langfuse.topics.embedding_duration_ms",
+      performance.now() - startedAt,
+      { ...tags, unit: "milliseconds" },
+    );
+    recordIncrement("langfuse.topics.embedding_batches", 1, tags);
+    recordIncrement("langfuse.topics.embedding_texts", texts, tags);
+    recordDistribution("langfuse.topics.embedding_input_bytes", inputBytes, {
+      path,
+    });
+  } catch {
+    // Experiment telemetry must not change the primary result or retry behavior.
+  }
+}
+
 /** Provider usage is counted per call, before local validation or persistence. */
 export function recordTopicTokenUsage(
   stage: "summary" | "embedding" | "naming",

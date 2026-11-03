@@ -27,6 +27,73 @@ Topics table. Configure Topics upserts the per-project idle time in
 Idle time is per project, not per rule: see
 `tracing_readiness_settings` in `worker/src/features/traceBatching/README.md`.
 
+## aiEmbed shadow experiment
+
+The worker can mirror each actual `embedTopicSummaries` provider invocation to
+ClickHouse `aiEmbed`. Both automatic processing and manual embedding jobs use
+this hook. Cached/staged vectors that are reused make no shadow call. There is
+no polling, new table, Redis state, or change to clustering inputs.
+
+Configure an embedding named collection on the same ClickHouse service as
+`CLICKHOUSE_URL`, using an operator-approved provider endpoint and credentials
+for that region. The collection must not contain a `model` key; `aiEmbed`
+takes the model separately. Provider keys stay in ClickHouse, not environment
+variables or SQL parameters. Then set on the worker and restart it:
+
+```sh
+LANGFUSE_TOPICS_AIEMBED_SHADOW_ENABLED=true
+LANGFUSE_TOPICS_AIEMBED_SHADOW_MODEL=text-embedding-3-small
+LANGFUSE_TOPICS_AIEMBED_SHADOW_CREDENTIALS=topics_shadow_embeddings
+LANGFUSE_TOPICS_AIEMBED_SHADOW_MAX_CONCURRENCY=2
+LANGFUSE_TOPICS_AIEMBED_SHADOW_TIMEOUT_MS=30000
+```
+
+The example model is illustrative. Use the intended provider/model and confirm
+support for the live project's embedding dimensions. The shadow receives the
+same summary strings and dimension request, but its configured model/connection
+is independent of the project's live model. This tests transport performance and
+vector validity, not semantic equivalence. Provider-specific clustering task
+options are not forwarded by this experiment. See the
+[aiEmbed reference](https://clickhouse.com/docs/reference/functions/regular-functions/ai-functions#aiEmbed)
+for version, provider and Cloud availability requirements.
+
+The flag defaults off, with no shadow client or comparison metrics created.
+When enabled, each live provider invocation starts a best-effort shadow copy.
+Missing model/collection configuration and full capacity skip that copy and
+increment a reason-tagged counter. There is no waiting queue or sampling.
+Capacity is per worker process; multiply it by worker count when budgeting.
+The dedicated client pool, client/server deadlines and disabled shadow retries
+bound work. Shutdown aborts outstanding copies and stops admission. Disabling
+the flag requires a worker restart. ClickHouse/provider resources and additional
+paid embedding calls still need capacity despite separate client connections.
+
+Only a parameterized `SELECT` over the supplied strings runs. Inputs use a
+multipart body, parameter/query logging is disabled, and automatic tracing is
+suppressed for shadow requests and response reads. Failures log a bounded reason
+without the raw exception. Returned vectors must match input count,
+indexes and dimensions and contain finite, nonzero values, then are discarded.
+Shadow failure never retries or pauses the live pipeline, and shadow usage is
+excluded from normal Topics costs and token counters.
+
+With the flag enabled, Datadog comparison metrics use bounded `path` tags
+(`worker`, `aiembed_shadow`) and `outcome` tags (`success`, `failed`):
+
+- `langfuse.topics.embedding_duration_ms`: provider batch elapsed time, including
+  response consumption for the shadow. Live provider retries remain included.
+- `langfuse.topics.embedding_batches` and `langfuse.topics.embedding_texts`:
+  completed batch outcomes and their input text counts. They are not underlying
+  HTTP request or token counts.
+- `langfuse.topics.embedding_input_bytes`: UTF-8 summary bytes, excluding transport
+  and JSON overhead, for comparing workload sizes across the two paths.
+- `langfuse.topics.embedding_shadow_skipped`: copies omitted due to
+  `configuration` or `capacity`.
+
+The Topics Datadog dashboard includes these comparisons. Successful texts/sec
+and avg/max batch latency are aggregate measurements, not a paired latency or
+embedding-quality benchmark. Overload skips can bias the shadow population;
+inspect them and input sizes before comparing throughput. Only enable this on
+projects whose summaries may be sent to the configured shadow provider.
+
 ## Setup
 
 Use the normal local Postgres, ClickHouse, Redis, web, and worker stack. Apply the

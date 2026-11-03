@@ -40,6 +40,10 @@
   to exclude internal sources.
   Model failures add shared response diagnostics to the existing warning/span;
   preserve one warning per failed call and bounded metric tags.
+  `src/features/topics/embeddingShadow.ts` optionally mirrors actual embedding
+  calls through ClickHouse `aiEmbed`. Keep it default-off, bounded and unawaited;
+  shadow results/errors/usage must not change live processing. Abort shadow
+  requests at the start of shutdown. Setup and telemetry: Topics README.
   Pass models explicitly; never put them on execution or batch state, which is
   persisted. Trace-batch jobs load enabled settings for all allowlisted batch
   projects in one query (`getEnabledTopicsModels`) and pause a project on
