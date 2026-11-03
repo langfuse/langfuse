@@ -31,6 +31,26 @@ const config: OxlintConfig = {
       ],
       rules: { "@repo/no-internal-barrel-files": "off" },
     },
+    {
+      files: ["**/*"],
+      rules: {
+        // The native rule (unlike the eslint-js port web uses) also checks
+        // dynamic imports and supports allowTypeImports.
+        "no-restricted-imports": [
+          "error",
+          {
+            patterns: [
+              {
+                regex: "^next-auth(/|$)",
+                allowTypeImports: true,
+                message:
+                  "next-auth is a devDependency of @langfuse/shared, so `pnpm deploy --prod` leaves it out of the worker image. Use `import type`; a value import crashes the worker at startup.",
+              },
+            ],
+          },
+        ],
+      },
+    },
   ],
 };
 

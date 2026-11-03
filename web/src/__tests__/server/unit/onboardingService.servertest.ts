@@ -142,6 +142,25 @@ describe("resolveOnboardingRedirectTarget", () => {
       redirectTo: "/project/project-1",
     });
   });
+
+  it("lands AI Gateway members on the overview when no org has a usable project", async () => {
+    const result = await resolveOnboardingRedirectTarget({
+      prisma: makePrisma([
+        makeMembership({ orgId: "none-org", role: Role.NONE, projects: [] }),
+        makeMembership({
+          orgId: "gateway-org",
+          role: Role.AI_GATEWAY,
+          projects: [{ id: "project-1" }],
+        }),
+      ]),
+      userId: "user-1",
+    });
+
+    expect(result).toEqual({
+      redirectTo: "/",
+      orgId: "gateway-org",
+    });
+  });
 });
 
 describe("getSignupOnboardingStatus", () => {

@@ -13,6 +13,7 @@ import { shouldAutoEnableV4 } from "@/src/features/events/lib/v4Rollout";
 import { getSfdcService } from "@/src/ee/features/sfdc-sync/server/sfdcService";
 import { canCreateOrganizations } from "@/src/features/organizations/server/canCreateOrganizations";
 import { provisionStarterOrganizationForNewUser } from "@/src/features/onboarding/server/onboardingService";
+import { isGatewayEnabledForOrganization } from "@/src/features/ai-gateway/server/availability";
 import {
   LangfuseNotFoundError,
   projectRoleAccessRights,
@@ -306,14 +307,19 @@ async function processMembershipInvitations(email: string, userId: string) {
   });
   if (invitationsForUser.length === 0) return false;
 
-  const joinedReadableRealProjectViaInvitation = invitationsForUser.some(
+  const joinedRealOrganizationViaInvitation = invitationsForUser.some(
     (invitation) => {
+      if (invitation.orgId === env.NEXT_PUBLIC_DEMO_ORG_ID) return false;
+      // Gateway-only members see no projects but belong in the inviting org,
+      // where they create their AI Gateway keys, as long as it still has the
+      // gateway enabled.
       if (
-        invitation.orgId === env.NEXT_PUBLIC_DEMO_ORG_ID ||
-        !invitation.projectId
+        invitation.orgRole === Role.AI_GATEWAY &&
+        isGatewayEnabledForOrganization(invitation.orgId)
       ) {
-        return false;
+        return true;
       }
+      if (!invitation.projectId) return false;
 
       const projectRole = invitation.projectRole ?? invitation.orgRole;
       return projectRoleAccessRights[projectRole].includes("project:read");
@@ -346,7 +352,7 @@ async function processMembershipInvitations(email: string, userId: string) {
     ),
   );
 
-  return joinedReadableRealProjectViaInvitation;
+  return joinedRealOrganizationViaInvitation;
 }
 
 /** acceptInvitation creates an invitation's org and project memberships with their role assignments. */

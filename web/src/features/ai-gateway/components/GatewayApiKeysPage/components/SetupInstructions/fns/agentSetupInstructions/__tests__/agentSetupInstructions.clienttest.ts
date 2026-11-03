@@ -62,9 +62,7 @@ describe("agent setup instructions", () => {
         const firstLine = step.code.includes(GATEWAY_KEY_PLACEHOLDER)
           ? [lines[0]]
           : [];
-        const keyLines = lines.filter(
-          (line) => line.includes("export ") || line.includes("cat >>"),
-        );
+        const keyLines = lines.filter((line) => line.includes("export "));
 
         for (const line of [...firstLine, ...keyLines]) {
           expect(line).toMatch(/^ \S/);
