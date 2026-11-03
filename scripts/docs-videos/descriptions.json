@@ -23,6 +23,10 @@
     "title": "Add an LLM connection",
     "description": "Project Settings > \"LLM Connections\". Click \"+ Project Connection\", choose the LLM adapter (openai), enter a provider name (openai-support) and an API key, then click \"Create connection\"; Langfuse checks the key and the new connection appears under Project connections. \"Show advanced settings\" holds the base URL and custom models."
   },
+  "2026-03-10-demo-saved-views": {
+    "title": "Save a table view",
+    "description": "Tracing table. Search name:draft-reply latency:>2 to filter to slow replies, then open \"My Views\" > \"Create Custom View\", name it \"Slow support replies\" and click \"Save View\". Clear the search, and opening the saved view from \"My Views\" brings the filters back."
+  },
   "2026-06-17-create-multimodal-dataset-item": {
     "title": "Add an image to a dataset item",
     "description": "Datasets > support-screenshots. Click \"New item\", type the input JSON, then use the attach (paperclip) button of the Input editor to upload a checkout screenshot; the editor inserts a media reference with an image preview. Click \"Add to dataset\" and the item appears in the list."
@@ -50,6 +54,14 @@
   "250210-trace-log-level-filter": {
     "title": "Show and hide DEBUG observations",
     "description": "Trace detail of a LangGraph trace. The tree notes \"5 hidden observations below DEFAULT level\"; click \"Show all\" to reveal the DEBUG spans. Open the tree's \"⋯\" menu > \"Min Level\" and choose DEFAULT to hide them again."
+  },
+  "250402-protected-prompt-labels": {
+    "title": "Protect prompt labels",
+    "description": "Project Settings > \"Protected Labels\". Pick production in \"Select or enter a label\" and click \"Add\", then do the same for staging. Only admins and owners can now set or remove these labels on prompts. Enterprise feature."
+  },
+  "create-api-keys": {
+    "title": "Create API keys",
+    "description": "Project Settings > \"API Keys\" > \"Create new API keys\". Name the key, keep \"Full access\" and click \"Create API key\". The dialog shows the secret key (only shown once), the public key and the .env snippet with LANGFUSE_SECRET_KEY, LANGFUSE_PUBLIC_KEY and LANGFUSE_BASE_URL. After closing it, the key appears in the list."
   },
   "create-dashboard": {
     "title": "Create a dashboard",
@@ -103,6 +115,10 @@
     "title": "See traces and scores per user",
     "description": "Users list with each user's first and last event, trace count, tokens and cost. Click a user to open their page with total observations, tokens and cost, their traces, and the \"Scores\" tab with every score on their traces."
   },
+  "pipecat-trace-16-9": {
+    "title": "Trace a Pipecat voice agent",
+    "description": "Trace of a Pipecat phone call: a conversation span with one turn per exchange, each with stt, llm and tts steps. Select the second turn's llm generation to see the call history and reply, then its tts step, then switch to \"Timeline\" to see the three turns in sequence."
+  },
   "playground-open-generation": {
     "title": "Open a generation in the playground",
     "description": "Trace detail with a qa-answer generation selected. Click \"Add to\" in the observation header > \"Playground\" > \"Fresh playground\"; the playground opens with the generation's system and user messages and model settings. Click \"Submit\" to rerun it."
@@ -118,6 +134,10 @@
   "playground-side-by-side-comparison": {
     "title": "Compare prompts side by side in the playground",
     "description": "Playground with one window. Click \"New split window\" to copy it, open the copy's \"Variables\" and change language from typescript to go, then click \"Run All\" to run both windows at once and compare their outputs. Close the copy with \"Remove window\"."
+  },
+  "playground-tool-calling": {
+    "title": "Call a tool from the playground",
+    "description": "Playground with a support system message and a customer question. Open \"Tools\" > \"Create new tool\", define get_order_status with a description and a JSON schema for order_id, and save it; the tool is attached to the window. Click \"Submit\": the Output shows the tool call with order_id A-21007."
   },
   "project_menu": {
     "title": "Switch organizations and projects",

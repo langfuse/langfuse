@@ -34,7 +34,8 @@ import { countRows, traceLink, tracesListLink } from "./verify";
  * `links` order (stable): qa-answer (RAG walkthrough), summarize-call (PII
  * redaction), triage-graph (DEBUG-level spans), route-ticket (generation with
  * an unpriced model), then the background traffic for the traces table and
- * the four turns of one support-chat session; the last link is the traces list.
+ * the four turns of one support-chat session, then a Pipecat voice-agent call;
+ * the last link is the traces list.
  *
  * Re-running also deletes the project-level `grok-4-fast` model definition so
  * the "create a custom model from a generation" flow starts clean.
@@ -821,6 +822,117 @@ const chatSessionTraces: TraceSpec[] = CHAT_TURNS.map((turn, i) => {
   };
 });
 
+// ---------------------------------------------------------------------------
+// 7. A Pipecat voice-agent call (Pipecat integration video)
+// ---------------------------------------------------------------------------
+
+const VOICE_SYSTEM =
+  "You are Acme Robotics' phone assistant. Keep answers to one or two short sentences.";
+const VOICE_TURNS: { user: string; assistant: string; ms: number }[] = [
+  {
+    user: "Hi, I'd like to check on my order.",
+    assistant: "Sure! What's your order number?",
+    ms: 0,
+  },
+  {
+    user: "It's A as in apple, two one zero zero seven.",
+    assistant:
+      "Thanks. Order A-21007 is on its way and arrives on Friday at 1840 Harbor Road.",
+    ms: 6_400,
+  },
+  {
+    user: "Great, that's all I needed.",
+    assistant: "Happy to help. Have a great day!",
+    ms: 15_800,
+  },
+];
+
+const voiceObservations: ObsSpec[] = [];
+VOICE_TURNS.forEach((turn, i) => {
+  const history = VOICE_TURNS.slice(0, i).flatMap((t) => [
+    { role: "user", content: t.user },
+    { role: "assistant", content: t.assistant },
+  ]);
+  const stt = 420 + turn.user.length * 6;
+  const llm = 640 + turn.assistant.length * 7;
+  const tts = 260 + turn.assistant.length * 4;
+  const key = `turn-${i + 1}`;
+  voiceObservations.push(
+    {
+      key,
+      parentKey: "conversation",
+      type: "SPAN",
+      name: "turn",
+      start: turn.ms,
+      end: turn.ms + stt + llm + tts + 40,
+      input: { transcript: turn.user },
+      output: { speech: turn.assistant },
+    },
+    {
+      key: `${key}-stt`,
+      parentKey: key,
+      type: "SPAN",
+      name: "stt",
+      start: turn.ms,
+      end: turn.ms + stt,
+      metadata: { service: "deepgram", model: "nova-3" },
+      output: { transcript: turn.user },
+    },
+    {
+      key: `${key}-llm`,
+      parentKey: key,
+      type: "GENERATION",
+      name: "llm",
+      start: turn.ms + stt + 10,
+      end: turn.ms + stt + 10 + llm,
+      model: "gpt-4.1-mini",
+      usage: {
+        input: 180 + history.length * 22,
+        output: 6 + Math.round(turn.assistant.length / 4),
+      },
+      ttft: 210,
+      input: [
+        { role: "system", content: VOICE_SYSTEM },
+        ...history,
+        { role: "user", content: turn.user },
+      ],
+      output: { role: "assistant", content: turn.assistant },
+    },
+    {
+      key: `${key}-tts`,
+      parentKey: key,
+      type: "SPAN",
+      name: "tts",
+      start: turn.ms + stt + llm + 20,
+      end: turn.ms + stt + llm + 20 + tts,
+      metadata: { service: "cartesia", voice: "sonic-2" },
+      input: { text: turn.assistant },
+    },
+  );
+});
+
+const pipecatTrace: TraceSpec = {
+  key: "pipecat-call",
+  name: "pipecat-voice-agent",
+  minute: 36,
+  userId: "caller-+1-415-555-0142",
+  tags: ["voice", "pipecat"],
+  metadata: { transport: "daily", pipeline: "stt-llm-tts" },
+  input: { call_sid: "CA8f21c4e9b07d", from: "+1 415 555 0142" },
+  output: { turns: VOICE_TURNS.length, ended_by: "caller" },
+  observations: [
+    {
+      key: "conversation",
+      parentKey: null,
+      type: "SPAN",
+      name: "conversation",
+      start: 0,
+      end: 18_900,
+    },
+    ...voiceObservations,
+  ],
+};
+
 const TRACES: TraceSpec[] = [
   qaTrace,
   piiTrace,
@@ -828,6 +940,7 @@ const TRACES: TraceSpec[] = [
   routeTrace,
   ...TRAFFIC,
   ...chatSessionTraces,
+  pipecatTrace,
 ];
 
 // ---------------------------------------------------------------------------
