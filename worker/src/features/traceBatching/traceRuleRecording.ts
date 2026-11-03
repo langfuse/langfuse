@@ -81,8 +81,6 @@ const RECORD_SCRIPT = `
       minStart = minStart, maxStart = maxStart, eventUpdateCount = eventUpdateCount
     }))
     if boundsIndex ~= current then redis.call('HDEL', KEYS[boundsIndex], member) end
-    local boundsExpiry = (firstBucket + current - 2) * width + boundsTtl
-    redis.call('PEXPIREAT', KEYS[current], string.format('%.0f', boundsExpiry))
 
     -- 2. Preserve live pending selections; expired selections cannot be revived.
     local previousRecord = redis.call('HGET', recordKey, member)
@@ -111,6 +109,9 @@ const RECORD_SCRIPT = `
       wroteRecord = true
     end
   end
+  -- Every trace in this batch shares the current bounds bucket and its expiry.
+  local boundsExpiry = (firstBucket + current - 2) * width + boundsTtl
+  redis.call('PEXPIREAT', KEYS[current], string.format('%.0f', boundsExpiry))
   -- Whole-key expiry reclaims inactive shards without shortening another trace's deadline.
   local function extendExpiry(key, deadline)
     if redis.call('PEXPIRETIME', key) < deadline then
