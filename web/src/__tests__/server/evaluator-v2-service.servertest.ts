@@ -1317,6 +1317,124 @@ describe("EvaluatorService", () => {
     );
   });
 
+  it("rejects every write to a built-in evaluator and leaves it unchanged", async () => {
+    const audit = vi.fn(async () => undefined);
+    const service = new EvaluatorService(prisma, audit);
+    const input = llmInput("Built-in evaluator");
+    const builtIn = await service.create(input, null);
+    const blockedAt = new Date("2026-01-01T00:00:00.000Z");
+    await prisma.evaluator.update({
+      where: { id: builtIn.id },
+      data: {
+        isBuiltIn: true,
+        blockedAt,
+        blockReason: "DEFAULT_EVAL_MODEL_MISSING",
+        blockMessage: "Blocked for test",
+      },
+    });
+    audit.mockClear();
+    const changedDefinition = {
+      ...input.definition,
+      promptMessages: [
+        { role: "user" as const, content: "Changed {{output}}" },
+      ],
+    };
+
+    const writes = [
+      () =>
+        service.update(
+          {
+            ...input,
+            evaluatorId: builtIn.id,
+            name: "Renamed built-in",
+            definition: changedDefinition,
+          },
+          null,
+        ),
+      () =>
+        service.patch(
+          { projectId, evaluatorId: builtIn.id, name: "Renamed built-in" },
+          null,
+        ),
+      () =>
+        service.upsertByName({ ...input, definition: changedDefinition }, null),
+      () => service.reactivate({ projectId, evaluatorId: builtIn.id }),
+      () => service.delete(projectId, builtIn.id),
+      () => service.deleteMany({ projectId, evaluatorIds: [builtIn.id] }),
+    ];
+    for (const write of writes) {
+      await expect(write()).rejects.toThrow(
+        "Built-in evaluators cannot be edited",
+      );
+    }
+
+    await expect(
+      prisma.evaluator.findUnique({
+        where: { id: builtIn.id },
+        select: {
+          name: true,
+          blockedAt: true,
+          _count: { select: { versions: true } },
+        },
+      }),
+    ).resolves.toEqual({
+      name: input.name,
+      blockedAt,
+      _count: { versions: 1 },
+    });
+    expect(audit).not.toHaveBeenCalled();
+  });
+
+  it("treats FACET evaluators as missing on every write path", async () => {
+    const service = createService();
+    const blockedAt = new Date("2026-01-01T00:00:00.000Z");
+    const facet = await prisma.evaluator.create({
+      data: {
+        projectId,
+        name: "Internal facet",
+        type: "FACET",
+        blockedAt,
+        blockReason: "DEFAULT_EVAL_MODEL_MISSING",
+        blockMessage: "Blocked for test",
+        versions: { create: { version: 1 } },
+      },
+    });
+    const input = { ...llmInput(facet.name), evaluatorId: facet.id };
+
+    const writes = [
+      () => service.update(input, null),
+      () =>
+        service.patch(
+          { projectId, evaluatorId: facet.id, name: "Renamed facet" },
+          null,
+        ),
+      () => service.reactivate({ projectId, evaluatorId: facet.id }),
+      () => service.delete(projectId, facet.id),
+      () => service.deleteMany({ projectId, evaluatorIds: [facet.id] }),
+    ];
+    for (const write of writes) {
+      await expect(write()).rejects.toThrow("Evaluator not found");
+    }
+    const upserted = await service.upsertByName(llmInput(facet.name), null);
+    expect(upserted.action).toBe("create");
+    expect(upserted.evaluator.id).not.toBe(facet.id);
+
+    await expect(
+      prisma.evaluator.findUnique({
+        where: { id: facet.id },
+        select: {
+          name: true,
+          blockedAt: true,
+          _count: { select: { versions: true } },
+        },
+      }),
+    ).resolves.toEqual({
+      name: facet.name,
+      blockedAt,
+      _count: { versions: 1 },
+    });
+  });
+
   it("returns execution summaries by evaluator id, including evaluators without runs", async () => {
     const service = createService();
     const evaluatorIds = [crypto.randomUUID(), crypto.randomUUID()];

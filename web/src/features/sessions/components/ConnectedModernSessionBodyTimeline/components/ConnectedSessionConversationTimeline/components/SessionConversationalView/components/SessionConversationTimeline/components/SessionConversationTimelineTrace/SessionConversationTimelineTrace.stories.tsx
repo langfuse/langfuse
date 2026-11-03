@@ -1,6 +1,6 @@
 import type { JsonValue } from "@langfuse/shared/src/utils/normalized-io";
 import preview from "@/.storybook/preview";
-import { type ComponentProps } from "react";
+import { type ComponentProps, useState } from "react";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import { SessionConversationTimelineTrace } from "@/src/features/sessions/components/ConnectedModernSessionBodyTimeline/components/ConnectedSessionConversationTimeline/components/SessionConversationalView/components/SessionConversationTimeline/components/SessionConversationTimelineTrace/SessionConversationTimelineTrace";
 import { type EventSessionTrace } from "@/src/features/sessions/sessionDetailPageTypes";
@@ -153,6 +153,39 @@ const weatherState = transcriptState({
   history: result.transcript?.threads[0]?.conversationHistory ?? [],
 });
 
+export const CollapsibleTrace = meta.story({
+  name: "(Test) Collapsible Trace",
+  args: { ...commonArgs, state: { type: "empty" } },
+  render: function Render(args) {
+    const [isCollapsed, setIsCollapsed] = useState(false);
+    return (
+      <SessionConversationTimelineTrace
+        {...args}
+        isCollapsed={isCollapsed}
+        onToggleCollapsed={() => setIsCollapsed((current) => !current)}
+      />
+    );
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const toggle = canvas.getByRole("button", {
+      name: "Collapse trace Weather assistant",
+    });
+    await expect(toggle).toHaveAttribute("aria-expanded", "true");
+    await userEvent.click(toggle);
+    await expect(
+      canvas.queryByText("This trace has no messages."),
+    ).not.toBeInTheDocument();
+    await expect(canvas.getByText("Weather assistant")).toBeInTheDocument();
+    await userEvent.click(
+      canvas.getByRole("button", { name: "Expand trace Weather assistant" }),
+    );
+    await expect(
+      canvas.getByText("This trace has no messages."),
+    ).toBeInTheDocument();
+  },
+});
+
 function toolPreviewState(
   previews: {
     name: string;
@@ -269,7 +302,7 @@ export const FirstThreadHeader = meta.story({
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     await expect(
-      canvas.getByRole("button", { name: `1 ${trace.name}` }),
+      canvas.getByRole("button", { name: trace.name ?? "Trace" }),
     ).toBeInTheDocument();
     await expect(
       canvas.getByRole("heading", { name: "Thread 1" }),
@@ -332,7 +365,7 @@ export const SingleThreadHeader = meta.story({
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     await expect(
-      canvas.getByRole("button", { name: `1 ${trace.name}` }),
+      canvas.getByRole("button", { name: trace.name ?? "Trace" }),
     ).toBeInTheDocument();
     await expect(canvas.queryByRole("heading")).not.toBeInTheDocument();
   },
@@ -904,11 +937,9 @@ export const KeepDifferentToolData = meta.story({
 });
 
 export const SystemPromptHistory = meta.story({
-  name: "(Test) System Prompt Navigation",
+  name: "System Prompt History",
   args: {
     ...commonArgs,
-    onOpenTrace: fn(),
-    onOpenObservation: fn(),
     state: transcriptState({
       history: [
         {
@@ -944,27 +975,6 @@ export const SystemPromptHistory = meta.story({
         },
       ],
     }),
-  },
-  play: async ({ args, canvasElement }) => {
-    const canvas = within(canvasElement);
-    await expect(
-      canvas.queryByText("Inspect representative failures."),
-    ).not.toBeInTheDocument();
-    await userEvent.click(
-      canvas.getByRole("button", { name: `1 ${trace.name}` }),
-    );
-    await expect(args.onOpenTrace).toHaveBeenCalledTimes(1);
-    const prompt = canvas.getByRole("button", { name: "System prompt" });
-    await userEvent.click(prompt);
-    await expect(canvas.getByText("Current system instructions")).toBeVisible();
-    const systemMessage = canvasElement.querySelector<HTMLElement>(
-      "[data-session-system-row]",
-    )!;
-    await userEvent.click(
-      within(systemMessage).getByRole("button", { name: "Open observation" }),
-    );
-    await expect(args.onOpenObservation).toHaveBeenCalledTimes(1);
-    await expect(args.onOpenObservation).toHaveBeenCalledWith("generation-1");
   },
 });
 

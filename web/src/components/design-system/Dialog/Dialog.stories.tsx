@@ -12,6 +12,7 @@ type Size = NonNullable<React.ComponentProps<typeof Dialog>["size"]>;
 const allSizes = Object.keys({
   sm: true,
   default: true,
+  md: true,
   lg: true,
   xxl: true,
 } satisfies Record<Size, true>) as Size[];
@@ -89,6 +90,68 @@ export const Autofocus = meta.story({
     await userEvent.click(canvas.getByRole("button", { name: "Open dialog" }));
     await waitFor(() =>
       expect(body.getByRole("button", { name: "Continue" })).toHaveFocus(),
+    );
+  },
+});
+
+export const CloseOnly = meta.story({
+  render: () => (
+    <DialogController
+      renderDialog={() => (
+        <Dialog
+          title="Import finished"
+          text="All prompts were imported."
+          closeLabel="Done"
+        />
+      )}
+    >
+      {({ openDialog }) => (
+        <button type="button" onClick={() => openDialog()}>
+          Open dialog
+        </button>
+      )}
+    </DialogController>
+  ),
+});
+
+export const DividedBody = meta.story({
+  name: "(Test) Divided body",
+  render: () => (
+    <DialogController
+      renderDialog={() => (
+        <Dialog title="Divided dialog" closeLabel="Done">
+          <Dialog.Body separators="both">
+            {Array.from({ length: 30 }, (_, index) => (
+              <p key={index}>Review instruction {index + 1}.</p>
+            ))}
+          </Dialog.Body>
+        </Dialog>
+      )}
+    >
+      {({ openDialog }) => <Button text="Open dialog" onClick={openDialog} />}
+    </DialogController>
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const body = within(canvasElement.ownerDocument.body);
+    await userEvent.click(canvas.getByRole("button", { name: "Open dialog" }));
+    const scrollBody = body.getByText("Review instruction 1.").parentElement!;
+    const footer = body.getByRole("button", { name: "Done" }).parentElement!;
+    await expect(scrollBody).toHaveStyle({
+      borderTopWidth: "1px",
+      borderBottomWidth: "1px",
+    });
+    await expect(scrollBody.scrollHeight).toBeGreaterThan(
+      scrollBody.clientHeight,
+    );
+    await expect(scrollBody.getBoundingClientRect().bottom).toBeLessThanOrEqual(
+      footer.getBoundingClientRect().top + 1,
+    );
+    body.getByText("Review instruction 30.").scrollIntoView();
+    await waitFor(() => expect(scrollBody.scrollTop).toBeGreaterThan(0));
+    await userEvent.click(body.getByRole("button", { name: "Done" }));
+    await waitFor(() =>
+      expect(body.queryByRole("dialog")).not.toBeInTheDocument(),
     );
   },
 });

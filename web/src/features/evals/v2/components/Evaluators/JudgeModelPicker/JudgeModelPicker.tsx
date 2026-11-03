@@ -11,7 +11,7 @@ import { DropdownIndicator } from "@/src/components/design-system/DropdownIndica
 import { forwardRef, type ReactNode } from "react";
 
 import { Spinner } from "@/src/components/design-system/Spinner/Spinner";
-import { Badge } from "@/src/components/ui/badge";
+import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { Button, type ButtonProps } from "@/src/components/ui/button";
 import {
   Command,
@@ -154,9 +154,7 @@ export const JudgeModelPickerTrigger = forwardRef<
               >
                 {defaultModel.provider} / {defaultModel.model}
               </span>
-              <Badge variant="secondary" className="shrink-0">
-                Project default
-              </Badge>
+              <Badge color="filled" text="Project default" />
             </span>
           ) : (
             <span className="flex items-center gap-1.5">
@@ -173,9 +171,7 @@ export const JudgeModelPickerTrigger = forwardRef<
               {customSelectionLabel}
             </span>
             {customSelectionIsDefault ? (
-              <Badge variant="secondary" className="shrink-0">
-                Project default
-              </Badge>
+              <Badge color="filled" text="Project default" />
             ) : null}
           </span>
         )}
@@ -261,9 +257,9 @@ export function JudgeModelPicker(props: JudgeModelPickerProps) {
                     >
                       {props.defaultModel.provider} / {props.defaultModel.model}
                     </span>
-                    <Badge variant="secondary" className="ml-auto shrink-0">
-                      Project default
-                    </Badge>
+                    <span className="ml-auto flex shrink-0">
+                      <Badge color="filled" text="Project default" />
+                    </span>
                   </CommandItem>
                 </CommandGroup>
                 <CommandSeparator />
@@ -307,12 +303,9 @@ export function JudgeModelPicker(props: JudgeModelPickerProps) {
                         {model}
                       </span>
                       {isProjectDefault ? (
-                        <Badge
-                          variant="outline"
-                          className="text-muted-foreground font-regular ml-auto shrink-0"
-                        >
-                          default
-                        </Badge>
+                        <span className="ml-auto flex shrink-0">
+                          <Badge color="primary" text="default" />
+                        </span>
                       ) : null}
                     </CommandItem>
                   );

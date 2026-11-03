@@ -9,11 +9,11 @@ const mocks = vi.hoisted(() => ({
   setSupportDrawerOpen: vi.fn(),
 }));
 
-vi.mock("@/src/features/posthog-analytics", () => ({
+vi.mock("@/src/features/posthog-analytics/usePostHogClientCapture", () => ({
   usePostHogClientCapture: () => mocks.capture,
 }));
 
-vi.mock("@/src/features/support-chat", () => ({
+vi.mock("@/src/features/support-chat/SupportDrawerProvider", () => ({
   useSupportDrawer: () => ({ setOpen: mocks.setSupportDrawerOpen }),
 }));
 

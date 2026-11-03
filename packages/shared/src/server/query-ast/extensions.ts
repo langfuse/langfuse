@@ -401,6 +401,11 @@ export function arrayLength(
   return functionCall("length", [array]);
 }
 
+/** ClickHouse `arraySort(array)`: the elements in ascending order. */
+export function arraySort<T>(array: Expression<T[]>): ChExpression<T[]> {
+  return functionCall("arraySort", [array]);
+}
+
 /** ClickHouse `notEmpty(array)`. */
 export function notEmpty(array: Expression<unknown[]>): ChExpression<SqlBool> {
   return functionCall("notEmpty", [array]);

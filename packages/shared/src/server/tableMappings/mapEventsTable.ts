@@ -1,7 +1,7 @@
 // This structure is maintained to relate the frontend table definitions with the clickhouse table definitions.
 // The frontend only sends the column names to the backend. This needs to be changed in the future to send column IDs.
 
-import { UiColumnMappings } from "../../tableDefinitions";
+import { UiColumnMappings } from "../../tableDefinitions/types";
 import {
   eventsTableHasParentObservationSql,
   eventsTableIsRootObservationSql,
@@ -390,6 +390,14 @@ export const eventsTableNativeUiColumnDefinitions: UiColumnMappings = [
     uiTableId: "skillsVersionsLoaded",
     clickhouseTableName: "events_proto",
     clickhouseSelect: eventsTableLoadedSkillVersionsSql,
+  },
+  {
+    uiTableName: "Loaded Skill Files",
+    uiTableId: "skillFilesLoaded",
+    clickhouseTableName: "events_proto",
+    // Pair each path with its immutable skill-version ID to keep matches within one loaded resource.
+    clickhouseSelect:
+      "arrayMap(skill -> concat(skill.langfuseSkillId, '/', skill.filePath), e.skills_resource_loaded)",
   },
   {
     uiTableName: "Available Skill Names",

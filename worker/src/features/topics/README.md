@@ -480,6 +480,9 @@ Naming calls use short member labels; accepted evidence references store typed
 facet-version and trace-or-session fields under the definition's project.
 A trace reference omits its parent session. Those references identify the current
 source result, not a historical summary snapshot.
+
+Summary embeddings are stored as `Array(BFloat16)` (migration `0054_update_topic_tables`). JSON inserts truncate each element to BFloat16 and reads return plain numbers, so vectors loaded from storage differ slightly from the model output that online assignment classified. Classifier inputs are normalized and compared by cosine distance, which this rounding barely moves. Topic reuse is stricter: `sameTopicGeometry` only tolerates Float64 roundoff, so centroids recomputed from summaries written as Float32 before the BFloat16 migration never match, and the first update of such a map names every topic again and creates new topic versions.
+
 Definitions use RowBinary inserts with `Float64` geometry to preserve classifier precision and
 `ReplacingMergeTree(created_at)` partitioned by creation month and ordered by
 project, creation date and version ID to deduplicate identical retry writes.

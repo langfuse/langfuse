@@ -40,7 +40,6 @@ catalog:
   "@aws-sdk/credential-providers": 3.1074.0
   "@aws-sdk/lib-storage": 3.1074.0
   "@aws-sdk/s3-request-presigner": 3.1074.0
-  eslint: ^10.8.0
   # The official TS 6 side-by-side wrapper (resolves to typescript 6.0.3):
   # provides the JS compiler API for tooling that still needs it but
   # ships no `tsc` bin, so package scripts fall through to the workspace-root
@@ -113,14 +112,13 @@ overrides:
   "undici@7": 7.30.1
   zod: 4.6.6
   nanoid: 3.3.18
-  katex: ^0.16.21
   tar-fs: ^2.1.2
   rollup@^4.0.0: ^4.22.4
   "@types/node-fetch": ^2.6.13
   "@types/react-dom": 19.2.3
   fast-xml-builder: 1.1.7
   glob: ^10.5.0
-  qs: 6.16.1
+  qs: 6.17.0
   path-to-regexp@0.1.12: 0.1.13
   # ReDoS only affects the 8.x line (CVE-2026-4926/-4923, >=8.0.0 <8.4.0).
   path-to-regexp@8.3.0: 8.4.0
@@ -135,14 +133,13 @@ overrides:
   "@ai-sdk/vue@3.0.33>ai": 6.0.230
   # CVE-2026-45820: fflate infinite loop DoS in unzipSync (GHSA-px8p-9vwx-vf98)
   fflate@0.8.1: 0.8.3
+  # CVE-2026-104844: quadratic flat-selector parsing, fixed in 6.1.5.
+  # @tailwindcss/typography pins exactly 6.0.10, including at its latest release.
+  "@tailwindcss/typography>postcss-selector-parser": 6.1.5
   # @ag-ui/mastra imports parsePartialJson from @ai-sdk/ui-utils, whose module
   # evaluation needs exports (validatorSymbol) that only exist in its own
   # provider-utils 2.x line — exempt it from the blanket 4.0.33 lift above.
   "@ai-sdk/ui-utils>@ai-sdk/provider-utils": 2.2.8
-  # addon-vitest accepts any @vitest/browser ^3 || ^4 as an optional peer, so
-  # pnpm keeps the already-resolved 4.1.10 copy, which pulls in a vulnerable
-  # @vitest/mocker 4.1.10 (CVE-2026-84373). Pin it to the fixed patch.
-  "@storybook/addon-vitest>@vitest/browser": 4.1.11
   # Hono's dependents allow these security fixes: XSS in 4.13.7 and
   # double decoding in 4.13.11 (GHSA-5r4p-p66f-jhc7).
   hono: 4.13.11
@@ -165,7 +162,7 @@ overrides:
   # nodemailer imports (we pass a custom sendVerificationRequest); without this
   # pnpm auto-installs a second, unused nodemailer@7 instance for web.
   # Remove once next-auth allows nodemailer ^10.
-  "next-auth>nodemailer": "^10.0.13"
+  "next-auth>nodemailer": "^10.1.7"
 patchedDependencies:
   # focusFirst crashes on null item refs (items unmounting while entry focus
   # runs), e.g. opening a row-actions dropdown while a table re-renders.
@@ -190,7 +187,6 @@ minimumReleaseAgeExclude:
   # Next.js security upgrade; eligible after 2026-10-20 20:58 UTC.
   - next@16.4.2
   - "@next/env@16.4.2"
-  - "@next/eslint-plugin-next@16.4.2"
   - "@next/swc-darwin-arm64@16.4.2"
   - "@next/swc-darwin-x64@16.4.2"
   - "@next/swc-linux-arm64-gnu@16.4.2"
@@ -201,7 +197,6 @@ minimumReleaseAgeExclude:
   - "@next/swc-win32-x64-msvc@16.4.2"
   # Companion toolchain upgrade; eligible after 2026-10-21 19:10 UTC.
   - turbo@2.11.9
-  - eslint-config-turbo@2.11.9
   - eslint-plugin-turbo@2.11.9
   - "@turbo/darwin-64@2.11.9"
   - "@turbo/darwin-arm64@2.11.9"
@@ -212,9 +207,13 @@ minimumReleaseAgeExclude:
   # Undici security fixes; eligible after 2026-10-20 14:20 UTC.
   - undici@6.29.1
   - undici@7.30.1
-  # qs security fix; eligible after 2026-10-19 22:06 UTC.
-  - qs@6.16.1
+  # qs security fix; eligible after 2026-11-01 06:23 UTC.
+  - qs@6.17.0
+  # follow-redirects security fix; eligible after 2026-10-30 21:32 UTC.
+  - follow-redirects@1.16.2
   # Handlebars security fixes; eligible after 2026-10-10 22:37 UTC.
   - handlebars@4.7.10
   # fast-uri security fixes; eligible after 2026-10-24 23:05 UTC.
   - fast-uri@3.1.9
+  # body-parser security fix; eligible after 2026-10-27 11:39 UTC.
+  - body-parser@2.4.0

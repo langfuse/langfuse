@@ -23,6 +23,10 @@ const longCode = Array.from(
     `line ${index + 1}: const value${index + 1} = compute(${index + 1});`,
 ).join("\n");
 
+const shellCode = `# List the models the key can reach
+curl -s "$LANGFUSE_GATEWAY_HOST/openai/v1/models" \\
+  -H "Authorization: Bearer $LANGFUSE_GATEWAY_KEY"`;
+
 const longLine =
   "Authorization: Basic cGstbGYtMDAwMDAwMDAtMDAwMC0wMDAwLTAwMDAtMDAwMDAwMDAwMDAwOnNrLWxmLTAwMDAwMDAwLTAwMDAtMDAwMC0wMDAwLTAwMDAwMDAwMDAwMA==";
 
@@ -107,6 +111,15 @@ export const LongLineWithoutWrap = meta.story({
     variant: "outline",
     shouldWrapLines: false,
     content: longLine,
+  },
+});
+
+export const WithLanguage = meta.story({
+  args: {
+    variant: "outline",
+    language: "sh",
+    shouldWrapLines: false,
+    content: shellCode,
   },
 });
 

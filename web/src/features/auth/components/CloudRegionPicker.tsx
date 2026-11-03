@@ -1,4 +1,4 @@
-/* eslint-disable @repo/no-abstracted-overlay-trigger, @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
+/* eslint-disable @repo/no-abstracted-overlay-trigger, @typescript-eslint/no-deprecated, @typescript-eslint/no-use-before-define -- Legacy UI usage retained during migration to design-system components. */
 import {
   Dialog,
   DialogBody,
@@ -14,7 +14,7 @@ import {
   SelectItem,
   SelectTrigger,
 } from "@/src/components/ui/select";
-import type { CloudRegion } from "@/src/features/organizations";
+import type { CloudRegion } from "@/src/features/organizations/cloudRegions";
 
 export function CloudRegionPicker({
   regions,

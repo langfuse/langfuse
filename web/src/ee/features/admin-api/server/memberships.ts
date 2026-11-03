@@ -1,13 +1,14 @@
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { z } from "zod";
 
-import { getSfdcService } from "@/src/ee/features/sfdc-sync/server";
+import { getSfdcService } from "@/src/ee/features/sfdc-sync/server/sfdcService";
 import {
   deleteUserBoundApiKeys,
   deleteUserBoundApiKeysForRole,
   evictRevokedApiKeys,
 } from "@/src/features/ai-gateway/server/apiKey/userBoundApiKeys";
-import { auditLog } from "@/src/features/audit-logs/server";
+import { requireGatewayEnabledForRole } from "@/src/features/ai-gateway/server/availability";
+import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { type AuthorizationContext } from "@/src/features/auth/policy/types";
 import { authorize } from "@/src/features/rbac/authorize";
 import { ForbiddenError, Role } from "@langfuse/shared";
@@ -97,6 +98,9 @@ export async function handleUpdateMembership(
       from: before?.role,
       to: validatedBody.data.role,
     });
+    if (before?.role !== validatedBody.data.role) {
+      requireGatewayEnabledForRole(orgId, validatedBody.data.role);
+    }
     const after = await tx.organizationMembership.upsert({
       where: { orgId_userId: { orgId, userId: validatedBody.data.userId } },
       update: { role: validatedBody.data.role },

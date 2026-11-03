@@ -5,7 +5,8 @@ import { KeyboardShortcut } from "@/src/components/design-system/KeyboardShortcu
 import {
   useInAppAiAgent,
   type InAppAgentEntryPoint,
-} from "@/src/features/in-app-agent";
+} from "@/src/features/in-app-agent/components/InAppAiAgentProvider";
+
 import { HaloIcon } from "@/src/features/in-app-agent/components/HaloIcon";
 import { cn } from "@/src/utils/tailwind";
 

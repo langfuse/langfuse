@@ -1,4 +1,4 @@
-import { Role } from "@langfuse/shared";
+import { hasProjectAccessByRole, type Role } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import {
   getLangfuseAIAwsProfile,
@@ -67,7 +67,7 @@ import {
   createInAppAgentSandboxProvider,
   getDefaultInAppAgentSandboxProviderType,
 } from "./runtime/sandbox/config";
-import { createInAppAgentSandbox } from "./runtime/sandbox";
+import { createInAppAgentSandbox } from "./runtime/sandbox/service";
 import { createAgUiStream } from "./runtime/agent";
 import { getInAppAgentPromptClient } from "./runtime/promptClient";
 import { loadInAppAgentSkills } from "./runtime/skills";
@@ -631,6 +631,7 @@ export async function executeInAppAgentRun(params: {
           projectId,
           conversationId: conversation.id,
           runId,
+          runStartedAt: run.claimedAt ?? run.createdAt,
           user: {
             id: run.triggeredByUserId,
             email: access.email,
@@ -734,7 +735,8 @@ async function resolveUserProjectAccess(params: {
 
   const projectRole = projectMembership?.role ?? orgMembership.role;
 
-  if (projectRole === Role.NONE) return null;
+  if (!hasProjectAccessByRole({ role: projectRole, scope: "project:read" }))
+    return null;
 
   return {
     projectRole,
@@ -805,6 +807,7 @@ function buildTracingConfig(params: {
   projectId: string;
   conversationId: string;
   runId: string;
+  runStartedAt: Date;
   user: {
     id: string;
     email: string | null;
@@ -838,6 +841,7 @@ function buildTracingConfig(params: {
         targetProjectId: traceSinkParams.targetProjectId,
         environment: traceSinkParams.environment,
         runId: params.runId,
+        runStartedAt: params.runStartedAt,
         user: {
           id: params.user.id,
           email: params.user.email,

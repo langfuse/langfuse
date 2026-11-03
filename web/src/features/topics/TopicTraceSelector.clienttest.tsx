@@ -44,9 +44,13 @@ vi.mock("@/src/features/events/hooks/useEventsFilterOptions", () => ({
     };
   },
 }));
-vi.mock("@/src/features/search-bar", () => ({
+vi.mock("@/src/features/search-bar/components/TableSearchBar", () => ({
   TableSearchBar: mocks.searchBar,
+}));
+vi.mock("@/src/features/search-bar/lib/observed-options", () => ({
   toObservedOptions: (options: unknown) => options,
+}));
+vi.mock("@/src/features/search-bar/lib/fields", () => ({
   fieldRegistryFromColumns: () => ({ fields: [], columns: [] }),
 }));
 vi.mock(

@@ -9,7 +9,7 @@ import {
 } from "@/src/components/ui/sheet";
 import type { JudgeModel } from "@/src/features/evals/v2/judgeModel";
 import { Spinner } from "@/src/components/design-system/Spinner/Spinner";
-import { ConfirmDialog } from "@/src/components/ui/confirm-dialog";
+import { ConfirmDialog } from "@/src/components/ui/ConfirmDialog";
 import { EvaluatorVersionHistoryList } from "./components/EvaluatorVersionHistoryList/EvaluatorVersionHistoryList";
 import type { EvaluatorVersion } from "./types";
 

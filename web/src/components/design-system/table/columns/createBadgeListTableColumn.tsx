@@ -1,12 +1,11 @@
 import { type CellContext, type RowData } from "@tanstack/react-table";
-import { type IconProps } from "@langfuse/icons";
+import { type IconComponent } from "@langfuse/icons";
 
+import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { CustomTooltip } from "@/src/components/design-system/CustomTooltip/CustomTooltip";
 // eslint-disable-next-line boundaries/dependencies
 import { SingleLineOverflowList } from "@/src/components/SingleLineOverflowList";
 import { EmptyValue } from "@/src/components/design-system/table/components/EmptyValue/EmptyValue";
-// eslint-disable-next-line boundaries/dependencies
-import { Badge, type BadgeProps } from "@/src/components/ui/badge";
 // eslint-disable-next-line boundaries/dependencies
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { cn } from "@/src/utils/tailwind";
@@ -14,8 +13,11 @@ import {
   createTableColumn,
   type TableColumnOptions,
 } from "./utils/createTableColumn";
+import {
+  badgeVariantToColor,
+  type BadgeVariant,
+} from "./utils/badgeVariantColor";
 
-type BadgeVariant = NonNullable<BadgeProps["variant"]>;
 type SemanticBadgeVariant = Extract<
   BadgeVariant,
   "destructive" | "error" | "success" | "warning"
@@ -37,15 +39,11 @@ type NeutralBadgeVariant = Extract<
   "default" | "secondary" | "tertiary"
 >;
 
-type BadgeIcon = React.ComponentType<
-  Pick<IconProps, "size" | "__rawClassName" | "aria-hidden">
->;
-
 /** One chip treatment, shared by the item chips and the overflow chip. */
 type Chip = {
   value: string;
   variant: BadgeVariant;
-  icon?: BadgeIcon;
+  icon?: IconComponent;
   ariaLabel?: string;
   title?: string;
 };
@@ -56,7 +54,7 @@ type GetBadge<TData extends RowData, TItem, TVariant extends BadgeVariant> = (
 ) => {
   value: string;
   variant: TVariant;
-  icon?: BadgeIcon;
+  icon?: IconComponent;
   ariaLabel?: string;
 } & ([TItem] extends [string] ? { key?: string } : { key: string });
 
@@ -102,7 +100,7 @@ export function createBadgeListTableColumn<
               });
 
         // An item label can be clipped by truncation, so it also travels in a
-        // native tooltip. The overflow chip never truncates and omits it.
+        // native tooltip.
         return { key: String(index), title: badge.value, ...badge };
       });
       // The overflow chip stands in for chips of this same row, so both go
@@ -110,21 +108,18 @@ export function createBadgeListTableColumn<
       const renderBadge = ({
         value,
         variant,
-        icon: Icon,
+        icon,
         ariaLabel,
         title,
       }: Chip) => (
         <Badge
-          variant={variant}
-          className="max-w-fit gap-1 truncate rounded-sm px-1 font-normal"
+          color={badgeVariantToColor(variant)}
+          size="md"
+          text={value}
+          leadingIcon={icon}
           title={title}
           aria-label={ariaLabel}
-        >
-          {Icon && <Icon size="sm" aria-hidden />}
-          <span className="truncate leading-normal" title={title}>
-            {value}
-          </span>
-        </Badge>
+        />
       );
 
       return (

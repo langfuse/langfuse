@@ -1,4 +1,4 @@
-import { Button } from "@/src/components/design-system/Button/Button";
+import { ExpandToggle } from "@/src/components/design-system/ExpandToggle/ExpandToggle";
 
 import { InfoTooltip } from "@/src/components/ui/InfoTooltip/InfoTooltip";
 import { EvaluatorGallerySectionHeader } from "@/src/features/evals/v2/components/EvaluatorGallerySectionHeader/EvaluatorGallerySectionHeader";
@@ -96,11 +96,15 @@ function GalleryShowAllToggle({
   isProjectRows,
   onToggle,
 }: GalleryShowAllToggleProps) {
-  const label = expanded ? "Show fewer" : `Show all ${totalCount} templates`;
-
   return (
     <div className={isProjectRows ? "-mt-3" : undefined}>
-      <Button variant="text" size="sm" text={label} onClick={onToggle} />
+      <ExpandToggle
+        variant="underline"
+        expanded={expanded}
+        label={`Show all ${totalCount} templates`}
+        expandedLabel="Show fewer"
+        onExpandedChange={onToggle}
+      />
     </div>
   );
 }

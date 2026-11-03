@@ -12,6 +12,8 @@ import { MAX_SKILL_FILES } from "@langfuse/shared";
 import { useStore } from "zustand";
 import {
   Download,
+  ChevronDown,
+  ExternalLink,
   Loader2,
   Pencil,
   TriangleAlert,
@@ -23,13 +25,15 @@ import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import { SkillLinkedTraces } from "@/src/features/skills/components/SkillLinkedTraces";
-import Page from "@/src/components/layouts/page";
+import { DropdownMenu } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
+import Page from "@/src/components/layouts/Page";
 import { Button } from "@/src/components/ui/button";
 import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
 import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
 import { Button as DesignSystemButton } from "@/src/components/design-system/Button/Button";
 import { InstallSkillDialog } from "@/src/features/skills/components/InstallSkillDialog";
-import { showErrorToast, showSuccessToast } from "@/src/features/notifications";
+import { showErrorToast } from "@/src/features/notifications/showErrorToast";
+import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { createSkillVersionFromDraft } from "@/src/features/skills/actions/createSkillVersion";
 import { downloadSkillVersion } from "@/src/features/skills/actions/downloadSkillVersion";
@@ -63,6 +67,7 @@ import { SkillVersionHistory } from "@/src/features/skills/components/SkillVersi
 import { SkillFileView } from "@/src/features/skills/components/SkillFileView";
 import { useSkillFileContents } from "@/src/features/skills/hooks/useSkillFileContents";
 import { useLangfuseV4WriteMode } from "@/src/features/organizations/hooks";
+import { useReadPath } from "@/src/features/events/hooks/useReadPath";
 import {
   parseSkillFrontmatterMetadata,
   SKILL_NAME_RULES,
@@ -187,6 +192,7 @@ export function SkillEditor({
   const [isSaving, setIsSaving] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
   const isDraft = view.kind === "draft";
+  const { isV4 } = useReadPath();
   const v4WriteMode = useLangfuseV4WriteMode();
   const canReadMetrics = v4WriteMode !== null && v4WriteMode !== "legacy";
   const [selectedTab, setSelectedTab] = useQueryParam(
@@ -194,10 +200,10 @@ export function SkillEditor({
     withDefault(StringParam, "files"),
   );
   const activeTab =
+    isV4 &&
     !isDraft &&
-    (selectedTab === "linked-traces" ||
-      (selectedTab === "metrics" && canReadMetrics))
-      ? selectedTab
+    ["usage", "linked-traces", "metrics"].includes(selectedTab)
+      ? "usage"
       : "files";
   const canEditFiles = isDraft && canCreate && !isSaving;
   const isDesktop = useMediaQuery({ query: "(min-width: 768px)" });
@@ -373,6 +379,32 @@ export function SkillEditor({
     }
   };
 
+  const downloadTitle = isDownloading
+    ? "Downloading…"
+    : `Download v${baseVersion} as ZIP`;
+  const downloadDisabled = isDownloading
+    ? { reason: "Download in progress" }
+    : undefined;
+  const usageTab = isV4 && view.kind === "version" && baseVersion !== null && (
+    <Tabs.Content value="usage" layout="fill">
+      {canReadMetrics ? (
+        <SkillAnalytics
+          projectId={projectId}
+          skillId={view.skillId}
+          name={name}
+          version={baseVersion}
+          paths={Object.keys(store.getState().files).toSorted()}
+        />
+      ) : (
+        <SkillLinkedTraces
+          projectId={projectId}
+          name={name}
+          version={baseVersion}
+        />
+      )}
+    </Tabs.Content>
+  );
+
   const renderHeaderActions = (
     openDialog: (
       state:
@@ -401,36 +433,47 @@ export function SkillEditor({
           <div className="bg-border hidden h-6 w-px sm:block" />
         </>
       ) : null}
-      {baseVersion !== null ? (
-        <Button
-          type="button"
-          variant="outline"
-          onClick={download}
-          disabled={isDownloading}
-          aria-label={`Download version ${baseVersion}`}
+      {baseVersion !== null && !isDraft ? (
+        <DropdownMenu
+          ariaLabel="Use skill"
+          items={[
+            {
+              type: "item",
+              id: "install",
+              title: "Install with CLI",
+              icon: Terminal,
+              onClick: () => {
+                closeMenu?.();
+                openDialog({ kind: "install" });
+              },
+            },
+            {
+              type: "item",
+              id: "download",
+              title: downloadTitle,
+              icon: Download,
+              disabled: downloadDisabled,
+              onClick: download,
+            },
+            {
+              type: "item",
+              id: "api",
+              title: "API",
+              icon: ExternalLink,
+              href: "https://api.reference.langfuse.com/#tag/skills",
+              linkTarget: "_blank",
+            },
+          ]}
         >
-          {isDownloading ? (
-            <Loader2
-              size="base"
-              color="default"
-              __rawClassName="mr-1.5 animate-spin"
+          {({ getTriggerProps }) => (
+            <DesignSystemButton
+              text="Use skill"
+              variant="secondary"
+              icon={ChevronDown}
+              {...getTriggerProps()}
             />
-          ) : (
-            <Download size="base" color="default" __rawClassName="mr-1.5" />
           )}
-          Download
-        </Button>
-      ) : null}
-      {!isDraft && baseVersion !== null ? (
-        <DesignSystemButton
-          text="Install with CLI"
-          variant="secondary"
-          icon={Terminal}
-          onClick={() => {
-            closeMenu?.();
-            openDialog({ kind: "install" });
-          }}
-        />
+        </DropdownMenu>
       ) : null}
       {nameWarning ? (
         <Tooltip label={nameWarning}>
@@ -685,36 +728,17 @@ export function SkillEditor({
                     <Tabs.List variant="underline">
                       <Tabs.Trigger value="files" label="Files" />
                       <Tabs.Trigger
-                        value="metrics"
-                        label="Metrics"
-                        disabled={isDraft || !canReadMetrics}
-                      />
-                      <Tabs.Trigger
-                        value="linked-traces"
-                        label="Observations"
-                        disabled={isDraft}
+                        value="usage"
+                        label="Usage"
+                        disabled={isDraft || !isV4}
+                        tooltip={
+                          !isV4
+                            ? "Skill tracing is only supported in Langfuse v4."
+                            : undefined
+                        }
                       />
                     </Tabs.List>
-                    {canReadMetrics &&
-                    view.kind === "version" &&
-                    baseVersion !== null ? (
-                      <Tabs.Content value="metrics" layout="fill">
-                        <SkillAnalytics
-                          projectId={projectId}
-                          skillId={view.skillId}
-                          paths={Object.keys(store.getState().files).toSorted()}
-                        />
-                      </Tabs.Content>
-                    ) : null}
-                    {!isDraft && baseVersion !== null ? (
-                      <Tabs.Content value="linked-traces" layout="fill">
-                        <SkillLinkedTraces
-                          projectId={projectId}
-                          name={name}
-                          version={baseVersion}
-                        />
-                      </Tabs.Content>
-                    ) : null}
+                    {usageTab}
                     <Tabs.Content value="files" layout="fill">
                       <ResizablePanelGroup
                         key={isDesktop ? "desktop" : "mobile"}

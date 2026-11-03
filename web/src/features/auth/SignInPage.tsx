@@ -30,8 +30,8 @@ import Link from "next/link";
 import { useState, useEffect, useRef } from "react";
 import { useForm } from "react-hook-form";
 import * as z from "zod";
-import { CloudPrivacyNotice } from "@/src/features/auth/components/AuthCloudPrivacyNotice";
-import { CloudRegionSwitch } from "@/src/features/auth/components/AuthCloudRegionSwitch";
+import { CloudPrivacyNotice } from "@/src/features/auth/components/CloudPrivacyNotice";
+import { CloudRegionSwitch } from "@/src/features/auth/components/CloudRegionSwitch";
 import { PasswordInput } from "@/src/components/design-system/PasswordInput/PasswordInput";
 import { Code, Key } from "@langfuse/icons";
 import { useRouter } from "next/router";
@@ -42,11 +42,11 @@ import {
   isJsonParseSyntaxError,
 } from "@/src/features/auth/lib/expectedAuthErrors";
 import { captureUnknownError } from "@/src/utils/captureUnknownError";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import useLocalStorage from "@/src/components/useLocalStorage";
 import { AuthProviderButton } from "@/src/features/auth/components/AuthProviderButton";
 import { cn } from "@/src/utils/tailwind";
-import { useLangfuseCloudRegion } from "@/src/features/organizations";
+import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
 import { getSafeRedirectPath } from "@/src/utils/redirect";
 import { Spinner } from "@/src/components/layouts/Spinner";
 import {
@@ -511,12 +511,10 @@ export default function SignInPage({
 
   // handle NextAuth error codes: https://next-auth.js.org/configuration/pages#sign-in-page
   const nextAuthError =
-    typeof router.query.error === "string"
-      ? decodeURIComponent(router.query.error)
-      : null;
+    typeof router.query.error === "string" ? router.query.error : null;
   const nextAuthErrorDescription =
     typeof router.query.error_description === "string"
-      ? decodeURIComponent(router.query.error_description)
+      ? router.query.error_description
       : null;
 
   // Use error_description from IdP if available, otherwise use mapped error or error code

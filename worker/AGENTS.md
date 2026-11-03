@@ -86,6 +86,18 @@
   metrics. Token estimates run sequentially;
   tool-response size uses comparable character counts over message parts.
   Allowlisted projects are then summarized from that assembled transcript.
+  Optional `src/features/traceBatching/storeInputs.ts` capture runs after Topics
+  eligibility/sampling, within the same concurrency limit, using the queued
+  revision. The queue creates `createTraceBatchInputStorage()` once and injects
+  its `TraceBatchInputStorage` object into `storeInputs`. Store
+  `{ transcript, traceContext }` using the same metadata selection
+  as Topics; preserve nullable session ID/name in storage and apply the Topics
+  name fallback only at its call site. The shared orchestration checks the latest
+  event's environment before capture or Topics; internal eval environments skip both.
+  `LANGFUSE_TRACE_BATCH_TRANSCRIPT_STORAGE_ENABLED` defaults off; each S3 upload
+  request is bounded by `LANGFUSE_TRACE_BATCH_TRANSCRIPT_STORAGE_REQUEST_TIMEOUT_MS`.
+  Oversized inputs and exhausted storage errors leave in-memory Topics running;
+  file-dependent consumers must require successful storage before scheduling.
   Allow one pending tokenization promise per batch while
   buffering completed traces behind the serial summary chain. Pause reads only
   above the configured queued-payload threshold, then resume as soon as completed

@@ -3,7 +3,7 @@ import { type ScoreAggregate } from "@langfuse/shared";
 import {
   useScoreCache,
   type CachedScore,
-} from "@/src/features/scores/contexts/ScoreCacheContext";
+} from "@/src/features/scores/contexts/ScoreCacheProvider";
 import { composeAggregateScoreKey } from "@/src/features/scores/lib/aggregateScores";
 import { mergeAggregatesWithCache } from "@/src/features/scores/lib/mergeScoresWithCache";
 import { type ExperimentItemsTableRow } from "../components/table/types";

@@ -3,7 +3,7 @@ import {
   type ScoreTarget,
   type AnnotationScore,
 } from "@/src/features/scores/types";
-import { useScoreCache } from "@/src/features/scores/contexts/ScoreCacheContext";
+import { useScoreCache } from "@/src/features/scores/contexts/ScoreCacheProvider";
 import { mergeAnnotationScoresWithCache } from "@/src/features/scores/lib/mergeScoresWithCache";
 import { filterScoresByTarget } from "@/src/features/scores/lib/filterScoresByTarget";
 

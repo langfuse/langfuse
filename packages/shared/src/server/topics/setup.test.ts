@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { InvalidRequestError } from "../../errors";
+import { InvalidRequestError } from "../../errors/InvalidRequestError";
 import { DEFAULT_TOPIC_FACETS } from "../../topics";
 
 const mocks = vi.hoisted(() => ({
@@ -44,10 +44,10 @@ const facets = DEFAULT_TOPIC_FACETS.map((facet, index) => ({
 }));
 
 const setup = {
-  summary: { llmApiKeyId: "key", model: "gpt" },
-  embedding: { llmApiKeyId: "key", model: "embed" },
+  summary: { provider: "key", model: "gpt" },
+  embedding: { provider: "key", model: "embed" },
   embeddingDimensions: 1024,
-  clustering: { llmApiKeyId: "key", model: "cluster" },
+  clustering: { provider: "key", model: "cluster" },
   facets: facets.map((facet) => ({
     name: facet.name,
     enabled: facet.enabled,

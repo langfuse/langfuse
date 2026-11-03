@@ -878,6 +878,55 @@ describe("scores trpc", () => {
     });
   });
 
+  describe("scores.updateAnnotationScore", () => {
+    it("bumps updated_at and keeps created_at when editing an existing score", async () => {
+      const originalTime = new Date(Date.now() - 60 * 60 * 1000);
+      const configId = randomUUID();
+      const scoreName = `numeric-annotation-score-${configId.slice(0, 8)}`;
+      await prisma.scoreConfig.create({
+        data: {
+          id: configId,
+          projectId,
+          name: scoreName,
+          dataType: ScoreConfigDataType.NUMERIC,
+        },
+      });
+      const existing = createTraceScore({
+        project_id: projectId,
+        source: "ANNOTATION",
+        name: scoreName,
+        config_id: configId,
+        value: 1,
+        timestamp: originalTime.getTime(),
+        created_at: originalTime.getTime(),
+        updated_at: originalTime.getTime(),
+      });
+      await createScoresCh([existing]);
+
+      await caller.scores.updateAnnotationScore({
+        id: existing.id,
+        projectId,
+        name: scoreName,
+        value: 2,
+        stringValue: null,
+        dataType: "NUMERIC",
+        scoreTarget: { type: "trace", traceId: existing.trace_id! },
+        configId,
+        environment: "default",
+      });
+
+      const updated = await getScoreById({
+        projectId,
+        scoreId: existing.id,
+      });
+      expect(updated?.value).toBe(2);
+      expect(updated?.createdAt.getTime()).toBe(originalTime.getTime());
+      expect(updated?.updatedAt.getTime()).toBeGreaterThan(
+        originalTime.getTime(),
+      );
+    });
+  });
+
   describe("scores.deleteAnnotationScore", () => {
     it("deletes a correction ingested via the API", async () => {
       const correction = createTraceScore({

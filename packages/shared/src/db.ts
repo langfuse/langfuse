@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 // This file exports the prisma db connection, the Prisma Object, and the Typescript types.
 // This is not imported in the index.ts file of this package, as we must not import this into FE code.
 
@@ -5,6 +6,7 @@ import { Prisma, PrismaClient } from "@prisma/client";
 import { env } from "process";
 import { logger } from "./server";
 import { withPostgresApplicationName } from "./server/postgresApplicationName";
+import { postgresConnectionRetryExtension } from "./dbConnectionRetry";
 
 export class PrismaClientSingleton {
   private static instance: PrismaClient;
@@ -57,7 +59,12 @@ const createPrismaInstance = () => {
   client.$on("error", (event) => {
     logger.error(`prisma:error ${event.message}`);
   });
-  return client;
+
+  // A query extension leaves model and result types untouched, so the
+  // extended client is still a PrismaClient for every caller.
+  return client.$extends(
+    postgresConnectionRetryExtension,
+  ) as unknown as PrismaClient;
 };
 
 declare const globalThis: {

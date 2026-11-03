@@ -1,9 +1,10 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import {
   FTS_MATCH_OPERATOR,
   type FtsMatchOperator,
   filterOperators,
 } from "../../../interfaces/filters";
-import { InvalidRequestError } from "../../../errors";
+import { InvalidRequestError } from "../../../errors/InvalidRequestError";
 import { EVENTS_TABLE_NAMES } from "../../clickhouse/schema";
 
 export { FTS_MATCH_OPERATOR } from "../../../interfaces/filters";

@@ -7,12 +7,13 @@ import {
   Loader2,
 } from "@langfuse/icons";
 import { type DashboardWidgetChartType } from "@langfuse/shared/src/db";
-import type { DataPoint } from "@/src/features/widgets";
+import type { DataPoint } from "@/src/features/widgets/chart-library/chart-props";
 import { Button } from "@/src/components/ui/button";
 
 // Chart type picker is view-agnostic (only depends on `DashboardWidgetChartType`),
 // so it's reused as-is rather than duplicated.
-import { ChartTypePicker, ChartCanvas } from "@/src/features/chart-view";
+import { ChartTypePicker } from "@/src/features/chart-view/components/ConfigControls";
+import { ChartCanvas } from "@/src/features/chart-view/components/ChartCanvas";
 import { type AggregationFn } from "@/src/features/chart-view/types";
 import { isTimeSeriesChartType } from "@/src/features/chart-view/vocab";
 import {

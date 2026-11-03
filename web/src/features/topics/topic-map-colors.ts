@@ -1,19 +1,24 @@
 /** Canvas colors match the category tokens in styles/globals.css. */
 const COLORS = [
-  "#7c3aed",
-  "#0284c7",
-  "#059669",
-  "#d97706",
-  "#db2777",
-  "#4f46e5",
-  "#0d9488",
-  "#c2410c",
-  "#65a30d",
-  "#a21caf",
+  { color: "#7c3aed", badgeColor: "violetTint" },
+  { color: "#0284c7", badgeColor: "skyTint" },
+  { color: "#059669", badgeColor: "emeraldTint" },
+  { color: "#d97706", badgeColor: "amberTint" },
+  { color: "#db2777", badgeColor: "pinkTint" },
+  { color: "#4f46e5", badgeColor: "indigoTint" },
+  { color: "#0d9488", badgeColor: "tealTint" },
+  { color: "#c2410c", badgeColor: "orangeTint" },
+  { color: "#65a30d", badgeColor: "limeTint" },
+  { color: "#a21caf", badgeColor: "fuchsiaTint" },
 ] as const;
 
 export const topicColor = (index: number) =>
-  index < 0 ? "#94a3b8" : COLORS[index % COLORS.length];
+  index < 0 ? "#94a3b8" : COLORS[index % COLORS.length].color;
+
+export const topicBadgeColor = (
+  index: number,
+): (typeof COLORS)[number]["badgeColor"] | "primary" =>
+  index < 0 ? "primary" : COLORS[index % COLORS.length].badgeColor;
 
 const TREEMAP_HUES = [
   {
@@ -47,6 +52,14 @@ export const treemapTileClasses = (rank: number, big: boolean) => {
 
 export const treemapSwatchColor = (rank: number) =>
   `var(--category-${["violet", "blue", "amber"][Math.max(0, rank) % 3]}-highlight)`;
+
+/** Topic chip color for a treemap rank; grey when the topic is not in the current results. */
+export const treemapBadgeColor = (rank: number) =>
+  rank < 0
+    ? ("filled" as const)
+    : (["violetHighlight", "blueHighlight", "amberHighlight"] as const)[
+        rank % 3
+      ];
 
 /** Grey tile for traces without a topic. */
 export const unassignedTileClasses = {

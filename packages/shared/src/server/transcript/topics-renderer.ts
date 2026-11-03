@@ -1,11 +1,13 @@
-import type { Observation } from "../../domain";
+/* eslint-disable @typescript-eslint/no-use-before-define */
+import type { Observation } from "../../domain/observations";
 import type {
   NormalizedMessage,
   NormalizedMessagePart,
 } from "../../utils/normalized-io";
-import { normalizeIO } from "../normalized-io";
+import { normalizeIO } from "../normalized-io/parser";
 import { orderObservations } from "./ordering";
 import { assembleTranscript } from "./transcript";
+import { isExecutionIssue } from "./context";
 import type { Transcript } from "./types";
 import {
   transcriptRenderConfigSchema,
@@ -448,10 +450,7 @@ export function renderTranscript(
   }
   if (config.errors.include) {
     observations.forEach((observation, observationIndex) => {
-      if (
-        observation.level === "ERROR" ||
-        (observation.level === "WARNING" && observation.statusMessage)
-      )
+      if (isExecutionIssue(observation))
         currentWithErrors.push({
           kind: "error",
           observation,

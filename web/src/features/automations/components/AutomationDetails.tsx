@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { api } from "@/src/utils/api";
 import { Button } from "@/src/components/ui/button";
 import { Edit } from "@langfuse/icons";
-import { AutomationForm } from "./automationForm";
+import { AutomationForm } from "./AutomationForm";
 import { AutomationExecutionsTable } from "./AutomationExecutionsTable";
 import { AutomationFailureBanner } from "./AutomationFailureBanner";
 import {

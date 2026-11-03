@@ -4,7 +4,7 @@ import { v4 as uuidv4 } from "uuid";
 import { PlusIcon } from "@langfuse/icons";
 
 import { Button } from "@/src/components/ui/button";
-import { ChatMessages } from "@/src/components/ChatMessages";
+import { ChatMessages } from "@/src/components/ChatMessages/ChatMessages";
 import { createEmptyMessage } from "@/src/components/ChatMessages/utils/createEmptyMessage";
 import {
   ChatMessageRole,
@@ -19,9 +19,9 @@ import { PromptSelectionDialog } from "../PromptSelectionDialog";
 import {
   MessageSearchPageProvider,
   MessageSearchProvider,
-  MessageSearchToolbar,
   useSyncMessageSearchMessages,
-} from "@/src/components/ChatMessages/MessageSearch";
+} from "@/src/components/ChatMessages/messageSearch/context";
+import { MessageSearchToolbar } from "@/src/components/ChatMessages/messageSearch/toolbar";
 
 import type { ControllerRenderProps } from "react-hook-form";
 import type { MessagesContext } from "@/src/components/ChatMessages/types";

@@ -7,7 +7,7 @@ import {
 } from "@prisma/client";
 import { z } from "zod";
 
-import { InvalidRequestError } from "../../errors";
+import { InvalidRequestError } from "../../errors/InvalidRequestError";
 import { singleFilterList } from "../../interfaces/filters";
 import { granularities, metric as MetricSchema, viewsV2 } from "../query/types";
 
@@ -312,5 +312,12 @@ export const MonitorAlertSchema = z.object({
   view: MonitorViewSchema,
   filters: MonitorFiltersSchema,
   window: MonitorWindowSchema,
+  monitorName: z.string().optional(),
+  metric: MetricSchema.optional(),
+  metricValue: z.number().nullable().optional(),
+  thresholdOperator: MonitorThresholdOperatorSchema.optional(),
+  alertThreshold: z.number().optional(),
+  warningThreshold: z.number().nullable().optional(),
+  alertedAt: z.coerce.date().optional(),
 });
 export type MonitorAlert = z.infer<typeof MonitorAlertSchema>;

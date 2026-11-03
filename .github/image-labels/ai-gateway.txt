@@ -1,0 +1,8 @@
+name=langfuse/ai-gateway
+summary=Langfuse AI Gateway
+description=Langfuse AI Gateway: proxies LLM provider APIs and ingests their generations into Langfuse.
+io.k8s.display-name=Langfuse AI Gateway
+io.k8s.description=Langfuse AI Gateway: proxies LLM provider APIs and ingests their generations into Langfuse.
+org.opencontainers.image.title=ai-gateway
+org.opencontainers.image.description=Langfuse AI Gateway: proxies LLM provider APIs and ingests their generations into Langfuse.
+org.opencontainers.image.licenses=MIT

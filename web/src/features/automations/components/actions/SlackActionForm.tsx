@@ -10,14 +10,15 @@ import {
 import { type UseFormReturn } from "react-hook-form";
 import { type ActionDomain, isSlackActionConfig } from "@langfuse/shared";
 import { api } from "@/src/utils/api";
+import { SlackConnectionCard } from "@/src/features/slack/components/SlackConnectionCard";
 import {
-  SlackConnectionCard,
   ChannelSelector,
   type SlackChannel,
-  SlackTestMessageButton,
-} from "@/src/features/slack";
+} from "@/src/features/slack/components/ChannelSelector";
+
+import { SlackTestMessageButton } from "@/src/features/slack/components/SlackTestMessageButton";
 import { useState } from "react";
-import { useHasProjectAccess } from "@/src/features/rbac";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 
 interface SlackActionFormProps {
   form: UseFormReturn<any>;

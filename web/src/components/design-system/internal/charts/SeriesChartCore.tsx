@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 "use client";
 
 import { useId, useMemo, useState, type PointerEvent } from "react";
@@ -61,6 +62,8 @@ type CommonLineChartProps = {
     onActiveKeyChange: (key: string | undefined) => void;
   };
   legend?: LineChartLegend;
+  /** compactYAxis shrinks the y-axis gutter to fit short tick labels. */
+  compactYAxis?: boolean;
 };
 
 type LineChartProps = CommonLineChartProps &
@@ -304,6 +307,7 @@ export function SeriesChartCore(
                 props.xAxis.type !== "category" ||
                 props.xAxis.labels !== "hidden"
               }
+              compactYAxis={props.compactYAxis}
             >
               {(layout) => (
                 <LineChartContent

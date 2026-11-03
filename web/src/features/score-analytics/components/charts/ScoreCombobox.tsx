@@ -3,7 +3,7 @@ import { useMemo } from "react";
 import {
   Combobox,
   type ComboboxOptionGroup,
-} from "@/src/components/ui/combobox";
+} from "@/src/components/ui/Combobox";
 import { Button } from "@/src/components/ui/button";
 import { X } from "@langfuse/icons";
 
