@@ -1,5 +1,6 @@
 import { TRPCError } from "@trpc/server";
 
+import { areDestinationUrlsEquivalent } from "@/src/features/automations/destinationUrl";
 import {
   type WebCalloutEndpointInput,
   type WebCalloutInvokeInput,
@@ -109,14 +110,19 @@ export const upsertWebCalloutEndpoint = async ({
     });
   }
 
+  // Stored header values are only sent to the URL they were entered for.
+  const isUrlChanged =
+    !!existingEndpoint &&
+    !areDestinationUrlsEquivalent(existingEndpoint.url, input.url);
   const shouldMergeExistingHeaders =
-    Object.keys(input.requestHeaders).length > 0;
+    !isUrlChanged && Object.keys(input.requestHeaders).length > 0;
   const headers = processHeadersForStorage({
     inputHeaders: input.requestHeaders,
     existingHeaders:
       existingEndpoint && shouldMergeExistingHeaders
         ? decryptWebCalloutHeaders(existingEndpoint.requestHeaders)
         : {},
+    isUrlChanged,
   });
 
   const data = {
