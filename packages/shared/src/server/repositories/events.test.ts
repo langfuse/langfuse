@@ -55,6 +55,7 @@ const inputContainsFilter: EventsTableFilterState = [
 
 const captureQuery = () => {
   const call = mockQueryClickhouse.mock.calls.at(0);
+  // eslint-disable-next-line no-unsafe-optional-chaining
   return (call?.[0] as { query: string }).query;
 };
 

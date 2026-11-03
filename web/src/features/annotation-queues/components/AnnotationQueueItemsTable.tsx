@@ -458,6 +458,7 @@ export function AnnotationQueueItemsTable({
         customRowHeight={customRowHeightMenu(rowHeights)}
         actionButtons={[
           selectedItems.length > 0 ? (
+            // eslint-disable-next-line react/jsx-key
             <QueueItemTableMultiSelectAction
               selectedItems={selectedItems}
               projectId={projectId}

@@ -135,4 +135,29 @@ describe("accessAuditLog.setEnabled", () => {
     ).rejects.toMatchObject({ code: "FORBIDDEN" });
     expect(await accessAuditLogEnabled(orgId)).toBe(false);
   });
+
+  it("rejects owners of another organization", async () => {
+    (env as any).LANGFUSE_AUDIT_LOG_ACCESS_EVENTS = "org";
+    const { caller: outsider } = await setup({
+      role: Role.OWNER,
+      plan: "cloud:enterprise",
+    });
+    const { orgId: targetOrgId } = await setup({
+      role: Role.OWNER,
+      plan: "cloud:enterprise",
+    });
+
+    await expect(
+      outsider.accessAuditLog.setEnabled({
+        orgId: targetOrgId,
+        enabled: true,
+      }),
+    ).rejects.toMatchObject({ code: "UNAUTHORIZED" });
+    expect(await accessAuditLogEnabled(targetOrgId)).toBe(false);
+    expect(
+      await prisma.auditLog.count({
+        where: { resourceType: "organization", resourceId: targetOrgId },
+      }),
+    ).toBe(0);
+  });
 });

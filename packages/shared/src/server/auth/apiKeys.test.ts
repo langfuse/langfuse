@@ -271,6 +271,7 @@ describe("createApiKey assignment rows", () => {
         scope: OrganizationId(ORG_ID),
         role: SystemRoleId("LEGACY_ORGANIZATION_API_KEY"),
         createdBy: "system",
+        // eslint-disable-next-line @typescript-eslint/no-deprecated
         note,
       });
 
