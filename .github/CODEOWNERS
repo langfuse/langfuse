@@ -5,10 +5,10 @@
 /web/src/components/design-system/ @bezbac
 /web/.storybook/ @bezbac
 
-# ESLint
-/packages/config-eslint/ @bezbac
+# Linting
+/packages/config-oxlint/ @bezbac
 /packages/eslint-plugin/ @bezbac
-**/eslint.config.mjs @bezbac
+**/oxlint.config.mts @bezbac
 
 # Skills for langfuse assistant
 /packages/langfuse-skills/ @LysanderKie @bezbac

@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-use-before-define */
 import { type FilterState, getGenerationLikeTypes } from "@langfuse/shared";
-import type { MissingBucketValue } from "@/src/features/widgets";
+import type { MissingBucketValue } from "@/src/features/widgets/chart-library/chart-props";
 
 export type TimeSeriesChartDataPoint = {
   ts: number;

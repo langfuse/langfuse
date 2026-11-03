@@ -4,7 +4,7 @@ import {
   ScoreDataTypeEnum,
   type ScoreDomain,
 } from "@langfuse/shared";
-import { getMostRecentCorrection } from "@/src/features/corrections";
+import { getMostRecentCorrection } from "@/src/features/corrections/utils/getMostRecentCorrection";
 import { type SessionTraceObservation } from "./SessionObservationIO";
 import { api } from "@/src/utils/api";
 

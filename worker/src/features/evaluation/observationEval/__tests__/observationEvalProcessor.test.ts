@@ -48,7 +48,7 @@ vi.mock("../../evalService", () => ({
   runLLMAsJudgeEvaluation: vi.fn(),
 }));
 
-vi.mock("../../codeBased", () => ({
+vi.mock("../../codeBased/executeCodeBasedEvaluation", () => ({
   executeCodeBasedEvaluation: vi.fn(),
 }));
 
@@ -74,7 +74,7 @@ vi.mock("@langfuse/shared/src/server", async () => {
 });
 
 import { prisma } from "@langfuse/shared/src/db";
-import { executeCodeBasedEvaluation } from "../../codeBased";
+import { executeCodeBasedEvaluation } from "../../codeBased/executeCodeBasedEvaluation";
 import {
   createMockEvalExecutionDeps,
   type EvalExecutionDeps,

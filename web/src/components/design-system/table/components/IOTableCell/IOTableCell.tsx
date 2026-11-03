@@ -19,7 +19,7 @@ import {
   type ReactNode,
 } from "react";
 import { ControlledHoverCard } from "@/src/components/design-system/ControlledHoverCard/ControlledHoverCard";
-import { decodeUnicodeEscapesOnly } from "@/src/utils/unicode";
+import { decodeUnicodeEscapesOnly } from "@langfuse/shared";
 import { EmptyValue } from "@/src/components/design-system/table/components/EmptyValue/EmptyValue";
 
 export type IOTableCellVariant = "default" | "input" | "output";

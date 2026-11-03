@@ -8,7 +8,7 @@ import { z } from "zod";
 import { defineTool } from "@/src/features/mcp/core/define-tool";
 import { createMcpServer } from "@/src/features/mcp/server/mcpServer";
 import { toolRegistry } from "@/src/features/mcp/server/registry";
-import { __dangerouslySkipAuthz } from "@/src/features/public-api/server";
+import { __dangerouslySkipAuthz } from "@/src/features/public-api/server/enforceAuth";
 import type { ServerContext } from "@/src/features/mcp/types";
 
 vi.mock("@/src/features/mcp/server/registry", () => ({

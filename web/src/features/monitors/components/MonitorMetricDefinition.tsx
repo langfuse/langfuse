@@ -11,11 +11,9 @@ import {
 } from "@/src/components/ui/form";
 import { Label } from "@/src/components/ui/label";
 import { SelectDropdown } from "@/src/components/design-system/SelectDropdown/SelectDropdown";
-import {
-  CompactConnectorRow,
-  CompactPickerButton,
-} from "@/src/features/filters";
-import { ConnectedMetricsFilterBuilder } from "@/src/features/metrics";
+import { CompactConnectorRow } from "@/src/features/filters/components/CompactConnectorRow";
+import { CompactPickerButton } from "@/src/features/filters/components/CompactPickerButton";
+import { ConnectedMetricsFilterBuilder } from "@/src/features/metrics/components/ConnectedMetricsFilterBuilder";
 import { viewDeclarations, type FilterState } from "@langfuse/shared";
 import {
   type CreateMonitor,

@@ -5,7 +5,7 @@ import {
   createStructuredPublicApiRateLimitError,
   structuredPublicApiErrorContract,
   toStructuredPublicApiError,
-} from "@/src/features/public-api/server";
+} from "@/src/features/public-api/server/structuredPublicApiErrorContract";
 
 describe("structured public api error contract", () => {
   it("uses one contract marker", () => {
