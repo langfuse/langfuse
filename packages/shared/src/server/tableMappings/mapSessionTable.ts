@@ -1,4 +1,8 @@
-import { UiColumnMappings } from "../../tableDefinitions";
+import { type OrderByState } from "../../interfaces/orderBy";
+import {
+  findUiColumnMapping,
+  type UiColumnMappings,
+} from "../../tableDefinitions";
 import { tokenCountFilterClickhouseType } from "./tokenCountFilterType";
 
 export const sessionCols: UiColumnMappings = [
@@ -31,6 +35,7 @@ export const sessionCols: UiColumnMappings = [
   {
     uiTableName: "Session Duration",
     uiTableId: "sessionDuration",
+    aliases: ["latency"],
     clickhouseTableName: "traces",
     clickhouseSelect: "duration",
     // If we use the default of Decimal64(12), we cannot filter for more than ~40min due to an overflow
@@ -192,3 +197,27 @@ export const sessionEventsCols: UiColumnMappings = sessionCols.concat(
 
 export const sessionEventsOrderByCols: UiColumnMappings =
   sessionEventsCols.filter((column) => column.uiTableId !== "metadata");
+
+/**
+ * Map a sessions table orderBy onto a canonical column id.
+ * Unknown columns (leaked from traces/events URL state) fall back to createdAt.
+ */
+export const canonicalizeSessionOrderBy = (
+  orderBy: OrderByState | undefined,
+  columns: UiColumnMappings,
+): OrderByState | undefined => {
+  if (!orderBy) {
+    return orderBy;
+  }
+
+  const mapped = findUiColumnMapping(columns, orderBy.column);
+  if (!mapped) {
+    return { column: "createdAt", order: "DESC" };
+  }
+
+  if (mapped.uiTableId === orderBy.column) {
+    return orderBy;
+  }
+
+  return { ...orderBy, column: mapped.uiTableId };
+};
