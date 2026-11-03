@@ -1,6 +1,12 @@
-import { PlusIcon, Settings } from "@langfuse/icons";
-import Link from "next/link";
+import {
+  BookOpen,
+  KeyRound,
+  PlusIcon,
+  Settings,
+  Waypoints,
+} from "@langfuse/icons";
 
+import { Button } from "@/src/components/design-system/Button/Button";
 import {
   Card,
   CardDescription,
@@ -8,43 +14,139 @@ import {
   CardHeader,
   CardTitle,
 } from "@/src/components/ui/card";
-import { Button } from "@/src/components/ui/button";
+import { Skeleton } from "@/src/components/ui/skeleton";
+import { GATEWAY_OVERVIEW_DOCS_URL } from "@/src/features/ai-gateway/constants/gatewayDocsUrls";
 import { createProjectRoute } from "@/src/features/setup/setupRoutes";
+
+export type OrganizationSettingsTileState =
+  | "noProjects"
+  | "noProjectAccess"
+  | "gatewayLoading"
+  | "gatewaySetupPending"
+  | "gatewayNoKey"
+  | "gatewayHasKey";
 
 export type OrganizationSettingsTileProps = {
   orgId: string;
-  canCreateProject: boolean;
+  orgName: string;
+  state: OrganizationSettingsTileState;
 };
 
-/** OrganizationSettingsTile links to the org's settings, and to project creation when allowed */
-export const OrganizationSettingsTile = ({
+/** OrganizationSettingsTile shows a member without projects their next step in the org */
+export function OrganizationSettingsTile({
   orgId,
-  canCreateProject,
-}: OrganizationSettingsTileProps) => (
-  <Card>
-    <CardHeader>
-      <CardTitle className="text-base">No projects</CardTitle>
-      <CardDescription>
-        {canCreateProject
-          ? "This organization has no projects yet."
-          : "You don't have access to any projects in this organization."}
-      </CardDescription>
-    </CardHeader>
-    <CardFooter className="gap-2">
-      {canCreateProject && (
-        <Button asChild>
-          <Link href={createProjectRoute(orgId)}>
-            <PlusIcon size="base" __rawClassName="mr-2" aria-hidden="true" />
-            New project
-          </Link>
-        </Button>
-      )}
-      <Button asChild variant="secondary">
-        <Link href={`/organization/${orgId}/settings`}>
-          <Settings size="base" __rawClassName="mr-2" aria-hidden="true" />
-          Organization settings
-        </Link>
-      </Button>
-    </CardFooter>
-  </Card>
-);
+  orgName,
+  state,
+}: OrganizationSettingsTileProps) {
+  const actions = tileActions(state, orgId);
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2 text-base">
+          {isGatewayState(state) && (
+            <Waypoints size="base" color="default" aria-hidden="true" />
+          )}
+          {isGatewayState(state) ? "AI Gateway" : "No projects"}
+        </CardTitle>
+        <CardDescription>
+          {state === "gatewayLoading" ? (
+            <Skeleton className="h-5 w-2/3" />
+          ) : (
+            tileDescription(state, orgName)
+          )}
+        </CardDescription>
+      </CardHeader>
+      {actions !== null && <CardFooter className="gap-2">{actions}</CardFooter>}
+    </Card>
+  );
+}
+
+function isGatewayState(state: OrganizationSettingsTileState) {
+  return state.startsWith("gateway");
+}
+
+function tileDescription(
+  state: Exclude<OrganizationSettingsTileState, "gatewayLoading">,
+  orgName: string,
+) {
+  switch (state) {
+    case "noProjects":
+      return "This organization has no projects yet.";
+    case "noProjectAccess":
+      return "You don't have access to any projects in this organization.";
+    case "gatewaySetupPending":
+      return `The AI Gateway of ${orgName} isn't ready yet. Your admin is still setting it up, so check back soon.`;
+    case "gatewayNoKey":
+      return `You've been invited to use the AI Gateway of ${orgName}. Create your personal gateway key to start using your team's AI models.`;
+    case "gatewayHasKey":
+      return `You're set up with the AI Gateway of ${orgName}. Manage your gateway keys or see which AI models you can use.`;
+  }
+}
+
+function tileActions(state: OrganizationSettingsTileState, orgId: string) {
+  const settingsButton = (
+    <Button
+      variant="secondary"
+      href={`/organization/${orgId}/settings`}
+      icon={Settings}
+      text="Organization settings"
+    />
+  );
+  const keysHref = `/organization/${orgId}/settings/ai-gateway-api-keys`;
+  const docsButton = (
+    <Button
+      variant="ghost"
+      href={GATEWAY_OVERVIEW_DOCS_URL}
+      icon={BookOpen}
+      text="What's the AI Gateway?"
+    />
+  );
+
+  switch (state) {
+    case "noProjects":
+      return (
+        <>
+          <Button
+            href={createProjectRoute(orgId)}
+            icon={PlusIcon}
+            text="New project"
+          />
+          {settingsButton}
+        </>
+      );
+    case "noProjectAccess":
+      return settingsButton;
+    case "gatewayLoading":
+      return null;
+    case "gatewaySetupPending":
+      return docsButton;
+    case "gatewayNoKey":
+      return (
+        <>
+          <Button
+            variant="secondary"
+            href={keysHref}
+            icon={KeyRound}
+            text="Create your gateway key"
+          />
+          {docsButton}
+        </>
+      );
+    case "gatewayHasKey":
+      return (
+        <>
+          <Button
+            variant="secondary"
+            href={keysHref}
+            icon={KeyRound}
+            text="Manage gateway keys"
+          />
+          <Button
+            variant="secondary"
+            href={`/organization/${orgId}/settings/ai-gateway-models`}
+            text="View models"
+          />
+        </>
+      );
+  }
+}
