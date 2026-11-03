@@ -3,17 +3,19 @@ import { useReadPath } from "@/src/features/events/hooks/useReadPath";
 import { useV4PreviewToggle } from "@/src/features/events/hooks/useV4PreviewToggle";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { LegacyUiBannerView } from "@/src/features/v4-migration/LegacyUiBannerView";
-import { useForceV3Experience } from "@/src/features/v4-migration/useForceV3Experience";
+import { useV4UpgradeUiEnabled } from "@/src/features/v4-migration/useV4UpgradeUiEnabled";
 import { useHasV4MigrationDeadline } from "@/src/features/v4-migration/V4MigrationContent";
 
 /**
- * Whether the legacy-UI migration strip should render. Opted-out users
- * (`isV3Legacy`) see it on every page; force-v3 projects never do.
+ * Whether the legacy-UI migration strip should render. Only for users who
+ * are on the legacy read path *and* whose deployment/project still exposes
+ * the v4 migration UI (so enable + `/v4-migration` are real actions). That
+ * gate also excludes force-v3 projects.
  */
 export function useLegacyUiBannerVisible(projectId?: string): boolean {
   const { isV3Legacy, isResolved } = useReadPath();
-  const forceV3 = useForceV3Experience(projectId);
-  return isResolved && isV3Legacy && !forceV3;
+  const v4UpgradeUiEnabled = useV4UpgradeUiEnabled(projectId);
+  return isResolved && isV3Legacy && v4UpgradeUiEnabled;
 }
 
 /**

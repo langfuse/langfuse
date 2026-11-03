@@ -29,3 +29,21 @@ export const WithoutDeadline = meta.story({
 export const Switching = meta.story({
   args: { isSwitching: true },
 });
+
+/**
+ * Phone width: actions drop under the message (PaymentBanner pattern) so the
+ * copy keeps the full row instead of squeezing beside non-wrapping buttons.
+ */
+export const Narrow = meta.story({
+  globals: { viewport: { value: "legacy-ui-banner-phone", isRotated: false } },
+  parameters: {
+    viewport: {
+      options: {
+        "legacy-ui-banner-phone": {
+          name: "Phone",
+          styles: { width: "390px", height: "844px" },
+        },
+      },
+    },
+  },
+});

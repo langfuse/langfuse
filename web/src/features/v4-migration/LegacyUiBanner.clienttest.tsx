@@ -6,7 +6,7 @@ import { LegacyUiBanner, useLegacyUiBannerVisible } from "./LegacyUiBanner";
 const mocks = vi.hoisted(() => ({
   isV3Legacy: true,
   isResolved: true,
-  forceV3: false,
+  v4UpgradeUiEnabled: true,
   hasDeadline: true,
   isLoading: false,
   handleToggle: vi.fn(),
@@ -26,8 +26,8 @@ vi.mock("@/src/features/events/hooks/useReadPath", () => ({
   }),
 }));
 
-vi.mock("@/src/features/v4-migration/useForceV3Experience", () => ({
-  useForceV3Experience: () => mocks.forceV3,
+vi.mock("@/src/features/v4-migration/useV4UpgradeUiEnabled", () => ({
+  useV4UpgradeUiEnabled: () => mocks.v4UpgradeUiEnabled,
 }));
 
 vi.mock("@/src/features/v4-migration/V4MigrationContent", () => ({
@@ -58,16 +58,16 @@ describe("useLegacyUiBannerVisible", () => {
   beforeEach(() => {
     mocks.isV3Legacy = true;
     mocks.isResolved = true;
-    mocks.forceV3 = false;
+    mocks.v4UpgradeUiEnabled = true;
   });
 
-  it("is true for opted-out users outside force-v3 projects", () => {
+  it("is true for opted-out users when the migration UI is available", () => {
     const { result } = renderHook(() => useLegacyUiBannerVisible("proj-1"));
     expect(result.current).toBe(true);
   });
 
-  it("is false for force-v3 projects", () => {
-    mocks.forceV3 = true;
+  it("is false when the migration UI is unavailable (legacy / no opt-in)", () => {
+    mocks.v4UpgradeUiEnabled = false;
     const { result } = renderHook(() => useLegacyUiBannerVisible("proj-1"));
     expect(result.current).toBe(false);
   });

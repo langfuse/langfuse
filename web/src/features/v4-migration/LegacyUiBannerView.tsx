@@ -15,8 +15,9 @@ export type LegacyUiBannerViewProps = {
 
 /**
  * Full-width top strip for users who opted back to the legacy (v3) UI.
- * Same placement and amber tokens as the staff customer-data warning strip;
- * layout is justify-between (copy left, actions right). Not dismissible.
+ * Same amber tokens as the staff customer-data warning strip. Below `sm`
+ * the actions drop to their own row (PaymentBanner pattern) so the message
+ * keeps the full width. Not dismissible.
  */
 export function LegacyUiBannerView({
   hasDeadline,
@@ -26,11 +27,11 @@ export function LegacyUiBannerView({
 }: LegacyUiBannerViewProps) {
   return (
     <div
-      className="border-customer-data-banner-border bg-customer-data-banner text-customer-data-banner-foreground flex w-full items-center justify-between gap-3 border-b px-4 py-1"
+      className="border-customer-data-banner-border bg-customer-data-banner text-customer-data-banner-foreground flex w-full flex-col gap-1 border-b px-4 py-1.5 sm:flex-row sm:items-center sm:justify-between sm:gap-3 sm:py-1"
       role="status"
     >
-      <div className="flex min-w-0 items-center gap-2">
-        <AlertCircle size="sm" __rawClassName="shrink-0" />
+      <div className="flex min-w-0 flex-1 items-start gap-2 sm:items-center">
+        <AlertCircle size="sm" __rawClassName="mt-0.5 shrink-0 sm:mt-0" />
         <p className="min-w-0 text-sm wrap-break-word">
           <span className="font-bold">{"You're on the legacy UI."}</span>{" "}
           {hasDeadline
@@ -39,7 +40,7 @@ export function LegacyUiBannerView({
           Switch to the latest UI (v4) anytime.
         </p>
       </div>
-      <div className="flex shrink-0 items-center gap-2">
+      <div className="flex shrink-0 items-center gap-2 self-end sm:self-auto">
         <Button
           size="sm"
           variant="secondary"
