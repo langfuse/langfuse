@@ -23,14 +23,15 @@ export function buildCodexInstructions(
     steps: [
       {
         title: "Export the gateway key",
-        description: "Codex reads the key from this variable when it starts.",
+        description:
+          "Codex reads the key from this variable on every start. Add the line to your shell profile (for example ~/.zshrc or ~/.bashrc) so new terminals have it too.",
         language: "sh",
         code: ` export LANGFUSE_GATEWAY_KEY="${GATEWAY_KEY_PLACEHOLDER}"`,
       },
       {
         title: "Add the gateway provider",
         description:
-          "Add this to the top of ~/.codex/config.toml, before any [table] section, so model_provider stays a top-level key.",
+          "Add this to the top of ~/.codex/config.toml ($CODEX_HOME/config.toml if you set CODEX_HOME), before any [table] section, so model_provider stays a top-level key.",
         language: "toml",
         code: [
           'model_provider = "langfuse"',
