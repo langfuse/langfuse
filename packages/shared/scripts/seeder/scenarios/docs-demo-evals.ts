@@ -32,7 +32,7 @@ type Category = { label: string; value: number };
 const SCORE_CONFIGS: {
   key: string;
   name: string;
-  dataType: "CATEGORICAL" | "NUMERIC" | "BOOLEAN";
+  dataType: "CATEGORICAL" | "NUMERIC" | "BOOLEAN" | "TEXT";
   categories?: Category[];
   minValue?: number;
   maxValue?: number;
@@ -77,6 +77,22 @@ const SCORE_CONFIGS: {
       { label: "Saved for Later", value: 2 },
     ],
     description: "Quick triage label for error analysis.",
+  },
+  {
+    key: "cites-help-article",
+    name: "Cites Help Article",
+    dataType: "BOOLEAN",
+    categories: [
+      { label: "True", value: 1 },
+      { label: "False", value: 0 },
+    ],
+    description: "Does the reply link the help article it was given?",
+  },
+  {
+    key: "reviewer-notes",
+    name: "Reviewer Notes",
+    dataType: "TEXT",
+    description: "What the reviewer would change about the reply.",
   },
 ];
 
@@ -256,7 +272,7 @@ function summary(
 export const docsDemoEvalsScenario: ScenarioDefinition = {
   name: "docs-demo-evals",
   description:
-    "Docs-video data for evaluation pages: score configs (Accuracy, Helpfulness 1-5, Toxicity, First Pass), two existing annotation queues and seven support-chat traces with payload.message root input. Each run resets the queue, annotation scores and evaluators the docs scenes create. Use --project docs-demo.",
+    "Docs-video data for evaluation pages: score configs (Accuracy, Helpfulness 1-5, Toxicity, First Pass, Cites Help Article, Reviewer Notes), two existing annotation queues and seven support-chat traces with payload.message root input. Each run resets the queue, annotation scores and evaluators the docs scenes create. Use --project docs-demo.",
   supportsV4: true,
   flags: [
     {
@@ -433,6 +449,17 @@ export const docsDemoEvalsScenario: ScenarioDefinition = {
 
     // --- Score configs and existing queues (Postgres) ---------------------
     const configIds: Record<string, string> = {};
+    // Configs this scenario used to seed are removed, so renames do not
+    // leave stale entries in the Add score menu.
+    await prisma.scoreConfig.deleteMany({
+      where: {
+        projectId: ctx.projectId,
+        id: {
+          startsWith: "docs-demo-cfg-",
+          notIn: SCORE_CONFIGS.map((def) => `docs-demo-cfg-${def.key}`),
+        },
+      },
+    });
     for (const def of SCORE_CONFIGS) {
       const id = `docs-demo-cfg-${def.key}`;
       configIds[def.key] = id;

@@ -198,5 +198,69 @@
   "user-feedback-scores": {
     "title": "Review user feedback scores",
     "description": "Scores page. Search name:user-feedback value:<0.5 to list the thumbs-down feedback the chat widget sent through the API, with the customer's comment such as \"Still charged twice.\" Click a row's trace to open the conversation in a side panel."
+  },
+  "session-view": {
+    "title": "Read a session as one conversation",
+    "description": "Session detail view of a four-turn support chat. Click a turn's User message in the sidebar to jump to it, search the session for \"pickup\" and click the match, then click a turn's trace name to open that trace in a side panel."
+  },
+  "chart-any-table": {
+    "title": "Chart the observations table",
+    "description": "Tracing table. Search type:GENERATION, switch from Table to Chart, set Metric to Latency, Aggregation to p95 and the chart type to Ranked to compare models, then click \"Add to dashboard\" to pick a dashboard for the chart."
+  },
+  "filter-sidebar": {
+    "title": "Filter tables from the sidebar",
+    "description": "Tracing table. In the filter sidebar, hover draft-reply under Name and click \"Only\". Type \"model\" into Search filters, open Provided Model Name and click \"Only\" next to claude-sonnet-4-5. Each choice is added to the search bar and the counts update."
+  },
+  "environments": {
+    "title": "Filter by environment",
+    "description": "Home dashboard. Open the Env filter and select production so every chart shows production data only. Then open Tracing and click \"Only\" next to staging under Environment in the filter sidebar."
+  },
+  "monitors": {
+    "title": "Create a latency monitor",
+    "description": "Alerts page. Click \"Create Alert\", set Measure to Latency and Aggregation to p95, enter 8000 as the ALERT threshold (milliseconds) and choose \"1 hour\" for Over the past. The live preview marks the threshold. The project's webhook automation is ticked under Automations; click \"Create Alert\" to add the monitor to the alerts list."
+  },
+  "inline-comments": {
+    "title": "Comment on selected output text",
+    "description": "Trace view with the Raw, Optimized JSON view of the output. Select the text \"600 requests per minute\" and click \"Comment\". In the comment box, type @Ma and pick Maya Chen, finish the question and click \"Comment\". Then add a reaction to the comment."
+  },
+  "corrections": {
+    "title": "Correct an output",
+    "description": "Trace view of a support reply that used the customer's old address. Click the pencil next to Output to open Corrected Output, prefilled with the original. Replace \"your original address\" with the new address; the correction saves as you type. Click the diff button to compare original and corrected output."
+  },
+  "web-callouts": {
+    "title": "Set up and trigger a web callout",
+    "description": "Project Settings > Integrations > Web Callouts. Click \"Add endpoint\", enter a name, the endpoint URL and a toast message, and click \"Save endpoint\". Then open a trace, open the options menu of the trace header and click the callout. The toast confirms the backend request succeeded."
+  },
+  "observation-types": {
+    "title": "Observation types in an agent trace",
+    "description": "LangGraph agent trace. The tree shows the agent, its chain steps, model generations and the lookup_order tool, each with its own icon. Click the agent and the tool to see their inputs and outputs, switch to Graph, then open Tracing and click \"Only\" next to TOOL under Type in the filter sidebar."
+  },
+  "score-types": {
+    "title": "Add boolean and text scores",
+    "description": "Observation of a support reply. Click \"Annotate\", then \"Add score\" and pick Cites Help Article (Boolean); click False. Add Reviewer Notes (Text) and type a note. Both scores are listed on the observation's Scores tab."
+  },
+  "data-retention": {
+    "title": "Set data retention",
+    "description": "Project Settings > General > Data Retention. Enter 30 and click \"Save\"; the project now keeps data for 30 days."
+  },
+  "audit-logs": {
+    "title": "Review audit logs",
+    "description": "Project Settings > Audit Logs lists who changed what and when. Click \"Compare\" on an entry to see the resource before and after the change."
+  },
+  "add-observations-to-dataset": {
+    "title": "Add observations to a dataset",
+    "description": "Tracing table. Click \"Only\" next to order-status under Name, tick three rows and click \"Add to Dataset\". Pick support-replies as the target dataset; the default mapping uses the observation input as input and its output as expected output. Click \"Add 3 observations\", then \"Go to Dataset\" to see the new items."
+  },
+  "compare-experiments": {
+    "title": "Compare two experiments",
+    "description": "Experiment comparison of a baseline and a newer run. The summary shows exact_match and similarity dropped. Search \"directly-ask\".scores.similarity:<0.2 to keep only items whose similarity fell below 0.2, then click \"Annotate\" on one and add an Accuracy score without leaving the comparison."
+  },
+  "evaluator-backfill": {
+    "title": "Backfill an evaluator",
+    "description": "New evaluator form. Click \"Create evaluator\". In the dialog, turn on \"Run evaluator on past observations matching these filters\", score the newest 20 matches from the last 30 days and click \"Execute\". The Scores page then lists the backfilled scores."
+  },
+  "skill-management": {
+    "title": "Create and version a skill",
+    "description": "Skills page. Click \"New skill\", replace the SKILL.md template with the refund rules and click \"Publish\"; add a version note and click \"Create skill\". Then click \"Edit\", change 30 days to 45 days, click \"Publish\" and review the file diff before \"Create version\". The Versions list shows both versions."
   }
 }

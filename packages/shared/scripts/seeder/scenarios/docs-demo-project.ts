@@ -1,5 +1,5 @@
 import { prisma } from "../../../src/db";
-import { encrypt } from "../../../src/encryption";
+import { encrypt, generateWebhookSecret } from "../../../src/encryption";
 import {
   OrganizationId,
   ProjectId,
@@ -26,6 +26,14 @@ const DOCS_DEMO_API_KEYS = {
 };
 /** The user created by `pnpm --filter=shared run db:seed`. */
 const DEMO_USER_EMAIL = "demo@langfuse.com";
+const ONCALL_AUTOMATION = {
+  id: "docs-demo-oncall-webhook",
+  triggerId: "docs-demo-oncall-webhook-trigger",
+  actionId: "docs-demo-oncall-webhook-action",
+  name: "On-call webhook",
+};
+/** A teammate to @mention in comment videos; never signs in. */
+const TEAMMATE = { email: "maya.chen@acme.example", name: "Maya Chen" };
 
 function summary(
   ctx: Parameters<ScenarioDefinition["run"]>[0],
@@ -52,7 +60,7 @@ function summary(
 export const docsDemoProjectScenario: ScenarioDefinition = {
   name: "docs-demo-project",
   description:
-    "Creates the clean 'Acme Corp' org with project 'customer-support' (id docs-demo) plus two sibling projects, makes the demo user OWNER, adds project API keys pk-lf-docs-demo / sk-lf-docs-demo, and — when DOCS_DEMO_LLM_API_KEY is set — an OpenAI-adapter LLM connection (base URL from DOCS_DEMO_LLM_BASE_URL); re-runs remove any other project LLM connection, extra API keys, saved table views, playground tools and exports. Run once before the other docs-demo-* scenarios, which take --project docs-demo.",
+    "Creates the clean 'Acme Corp' org with project 'customer-support' (id docs-demo) plus two sibling projects, makes the demo user OWNER, adds project API keys pk-lf-docs-demo / sk-lf-docs-demo, and — when DOCS_DEMO_LLM_API_KEY is set — an OpenAI-adapter LLM connection (base URL from DOCS_DEMO_LLM_BASE_URL); adds teammate Maya Chen as MEMBER and an 'On-call webhook' monitor automation; re-runs remove any other project LLM connection, extra API keys, saved table views, playground tools, exports, monitors, comments, web callouts and skills, and clear the retention setting. Run once before the other docs-demo-* scenarios, which take --project docs-demo.",
   supportsV4: false,
   flags: [],
   run: async (ctx) => {
@@ -137,6 +145,84 @@ export const docsDemoProjectScenario: ScenarioDefinition = {
     });
     await prisma.batchExport.deleteMany({
       where: { projectId: DOCS_DEMO_PROJECT_ID },
+    });
+    // Monitors, comments (with their reactions), web callouts, skills and
+    // the retention setting the settings, tracing and skill videos create.
+    await prisma.monitor.deleteMany({
+      where: { projectId: DOCS_DEMO_PROJECT_ID },
+    });
+    await prisma.comment.deleteMany({
+      where: { projectId: DOCS_DEMO_PROJECT_ID },
+    });
+    await prisma.webCalloutEndpoint.deleteMany({
+      where: { projectId: DOCS_DEMO_PROJECT_ID },
+    });
+    await prisma.skill.deleteMany({
+      where: { projectId: DOCS_DEMO_PROJECT_ID },
+    });
+    await prisma.project.update({
+      where: { id: DOCS_DEMO_PROJECT_ID },
+      data: { retentionDays: null },
+    });
+
+    // A webhook automation the alerts video sends its monitor to. The URL is
+    // a placeholder: monitors in this project never fire during a take.
+    await prisma.trigger.upsert({
+      where: { id: ONCALL_AUTOMATION.triggerId },
+      update: {},
+      create: {
+        id: ONCALL_AUTOMATION.triggerId,
+        projectId: DOCS_DEMO_PROJECT_ID,
+        eventSource: "monitor",
+        eventActions: [],
+        filter: [],
+      },
+    });
+    const existingAction = await prisma.action.findUnique({
+      where: { id: ONCALL_AUTOMATION.actionId },
+    });
+    if (!existingAction) {
+      const { secretKey, displaySecretKey } = generateWebhookSecret();
+      await prisma.action.create({
+        data: {
+          id: ONCALL_AUTOMATION.actionId,
+          projectId: DOCS_DEMO_PROJECT_ID,
+          type: "WEBHOOK",
+          config: {
+            type: "WEBHOOK",
+            url: "https://hooks.acme.example/langfuse/on-call",
+            apiVersion: { monitor: "v1" },
+            requestHeaders: {},
+            displayHeaders: {},
+            secretKey: encrypt(secretKey),
+            displaySecretKey,
+          },
+        },
+      });
+    }
+    await prisma.automation.upsert({
+      where: { id: ONCALL_AUTOMATION.id },
+      update: { name: ONCALL_AUTOMATION.name },
+      create: {
+        id: ONCALL_AUTOMATION.id,
+        name: ONCALL_AUTOMATION.name,
+        projectId: DOCS_DEMO_PROJECT_ID,
+        triggerId: ONCALL_AUTOMATION.triggerId,
+        actionId: ONCALL_AUTOMATION.actionId,
+      },
+    });
+
+    const teammate = await prisma.user.upsert({
+      where: { email: TEAMMATE.email },
+      update: { name: TEAMMATE.name },
+      create: TEAMMATE,
+    });
+    await prisma.organizationMembership.upsert({
+      where: {
+        orgId_userId: { orgId: DOCS_DEMO_ORG_ID, userId: teammate.id },
+      },
+      create: { orgId: DOCS_DEMO_ORG_ID, userId: teammate.id, role: "MEMBER" },
+      update: { role: "MEMBER" },
     });
 
     // The key only ever comes from the environment, never from this file.

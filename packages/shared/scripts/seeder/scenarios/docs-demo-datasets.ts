@@ -712,6 +712,20 @@ export const docsDemoDatasetsScenario: ScenarioDefinition = {
       }
     }
 
+    // Annotations the comparison video adds to experiment traces.
+    const annotations = await countRows(
+      "scores",
+      "project_id = {projectId: String} AND trace_id IN {traceIds: Array(String)} AND source = 'ANNOTATION'",
+      { projectId: ctx.projectId, traceIds: allTraceIds },
+    );
+    if (annotations > 0) {
+      await clickhouseClient().command({
+        query: `DELETE FROM scores WHERE project_id = {projectId: String} AND trace_id IN {traceIds: Array(String)} AND source = 'ANNOTATION'`,
+        query_params: { projectId: ctx.projectId, traceIds: allTraceIds },
+        clickhouse_settings: { wait_end_of_query: 1 },
+      });
+    }
+
     await prisma.$transaction(async (tx) => {
       for (const [index, d] of datasets.entries()) {
         const data = {
