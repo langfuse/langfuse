@@ -1247,9 +1247,7 @@ describe("automations trpc", () => {
             ),
           ).rejects.toMatchObject({
             code: "BAD_REQUEST",
-            message: expect.stringMatching(
-              new RegExp(`^Invalid webhook URL: .*${message}`),
-            ),
+            message: expect.stringContaining(`Invalid webhook URL: ${message}`),
           });
           await expectNothingPersisted(project.id);
         },
@@ -1272,7 +1270,9 @@ describe("automations trpc", () => {
           ),
         ).rejects.toMatchObject({
           code: "BAD_REQUEST",
-          message: expect.stringContaining("Blocked IP address"),
+          message: expect.stringContaining(
+            "Invalid webhook URL: Blocked IP address",
+          ),
         });
         expect(dns.resolve4).toHaveBeenCalledWith("hooks.internal.example.com");
         await expectNothingPersisted(project.id);
