@@ -9,6 +9,7 @@ import {
   BlobStorageIntegrationFileType,
   type ExportFieldGroup,
 } from "@langfuse/shared";
+import { isSameStorageDestination } from "@/src/features/automations/destinationUrl";
 import { encrypt } from "@langfuse/shared/encryption";
 import { env } from "@/src/env.mjs";
 import { validateBlobStorageEndpoint } from "@langfuse/shared/src/server";
@@ -120,7 +121,18 @@ export async function upsertBlobStorageIntegration(params: {
   return prisma.$transaction(async (tx) => {
     const existing = await tx.blobStorageIntegration.findUnique({
       where: { projectId },
-      select: { exportMode: true, lastError: true, runStartedAt: true },
+      // The destination fields and secretAccessKey decide whether an update
+      // keeps a stored secret.
+      select: {
+        exportMode: true,
+        lastError: true,
+        runStartedAt: true,
+        type: true,
+        bucketName: true,
+        endpoint: true,
+        accessKeyId: true,
+        secretAccessKey: true,
+      },
     });
 
     // Require secret key for new integrations (unless using host credentials)
@@ -134,8 +146,39 @@ export async function upsertBlobStorageIntegration(params: {
       }
     }
 
+    // A stored secret is only reusable for the destination it was entered for.
+    const hasStoredSecret = !!existing?.secretAccessKey;
+    const canKeepStoredSecret =
+      hasStoredSecret &&
+      isSameStorageDestination(existing, {
+        type: data.type,
+        bucketName: data.bucketName,
+        endpoint: data.endpoint,
+        accessKeyId,
+      });
+    // Switching a self-hosted S3 integration to host credentials drops the
+    // stored secret instead of asking for it again.
+    const isSwitchingToHostCredentials = canUseHostCredentials && !accessKeyId;
+    if (
+      hasStoredSecret &&
+      !canKeepStoredSecret &&
+      !secretAccessKey &&
+      !isSwitchingToHostCredentials
+    ) {
+      throw new InvalidRequestError(
+        "Secret access key is required when changing the storage provider, bucket, endpoint, or access key ID",
+      );
+    }
+
     const modeChanged = existing && existing.exportMode !== data.exportMode;
     const encryptedSecret = secretAccessKey ? encrypt(secretAccessKey) : null;
+    // An update without a new secret writes back the stored secret checked
+    // above, never omits the column: a concurrent save that changed the secret
+    // in between must not end up paired with this request's destination. A
+    // destination the stored secret was not entered for clears it.
+    const nextSecretAccessKey =
+      encryptedSecret ??
+      (canKeepStoredSecret ? existing.secretAccessKey : null);
 
     // exportSource for the CREATE payload. The !existing guard was previously
     // here, but it created a residual TOCTOU: READ COMMITTED isolation means
@@ -172,9 +215,7 @@ export async function upsertBlobStorageIntegration(params: {
       },
       update: {
         ...writeData,
-        // Only overwrite secretAccessKey when a new value is provided,
-        // so partial updates don't wipe the existing encrypted secret.
-        ...(encryptedSecret ? { secretAccessKey: encryptedSecret } : {}),
+        secretAccessKey: nextSecretAccessKey,
         // Schedule an immediate retry when saving an errored integration
         // so the scheduler picks it up via the nextSyncAt clause.
         ...(existing?.lastError && data.enabled && !modeChanged
