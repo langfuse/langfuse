@@ -893,7 +893,7 @@ describe("AI gateway control plane", () => {
     },
   );
 
-  it("lists models for a MEMBER on a cold cache without marking a rejected credential ERROR", async () => {
+  it("calls a rejecting provider once per window for a MEMBER and shows the allowlist without marking ERROR", async () => {
     const setup = await prepare();
     const connection = await setup.caller.aiGateway.createConnection({
       orgId: setup.org.id,
@@ -901,36 +901,33 @@ describe("AI gateway control plane", () => {
       provider: "OPENAI",
       credential: "sk-test-openai",
     });
+    await setup.caller.aiGateway.updateConnectionModels({
+      orgId: setup.org.id,
+      id: connection.id,
+      allowedModels: ["gpt-5"],
+      expectedUpdatedAt: connection.updatedAt,
+    });
     const memberCaller = await createCallerForOrganizationRole(
       setup,
       Role.MEMBER,
     );
     const fetchSpy = vi
       .spyOn(globalThis, "fetch")
-      .mockResolvedValueOnce(
-        Response.json({ data: [{ id: "gpt-5", created: 10 }] }),
-      )
-      .mockResolvedValueOnce(new Response(null, { status: 401 }));
-    const catalogService = new GatewayModelCatalogService(prisma);
+      .mockResolvedValue(new Response(null, { status: 401 }));
 
     try {
-      await catalogService.clearModelCache(setup.org.id, connection.id);
-      await expect(
-        memberCaller.aiGateway.refreshModels({ orgId: setup.org.id }),
-      ).resolves.toEqual([
-        {
-          connectionId: connection.id,
-          success: true,
-          models: ["gpt-5", "codex-auto-review"],
-        },
-      ]);
-
-      await catalogService.clearModelCache(setup.org.id, connection.id);
-      await expect(
-        memberCaller.aiGateway.refreshModels({ orgId: setup.org.id }),
-      ).resolves.toEqual([
-        { connectionId: connection.id, success: false, error: "unauthorized" },
-      ]);
+      await new GatewayModelCatalogService(prisma).clearModelCache(
+        setup.org.id,
+        connection.id,
+      );
+      for (let load = 0; load < 2; load++) {
+        await expect(
+          memberCaller.aiGateway.refreshModels({ orgId: setup.org.id }),
+        ).resolves.toEqual([
+          { connectionId: connection.id, success: true, models: ["gpt-5"] },
+        ]);
+      }
+      expect(fetchSpy).toHaveBeenCalledTimes(1);
       await expect(
         prisma.gatewayAiConnection.findUniqueOrThrow({
           where: { id: connection.id },

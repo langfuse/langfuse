@@ -83,13 +83,13 @@ export class GatewayModelCatalogService {
           connectionId: connection.id,
           forceRefresh,
           explicitRetry: false,
-          updateConnectionStatus: true,
+          readOnly: false,
         }),
       ),
     );
   }
 
-  /** Discovers models without ever changing a connection's status, so read-only roles may call it. */
+  /** Discovers models without changing connection status and with bounded provider calls, so read-only roles may call it. */
   async listAllModels(organizationId: string): Promise<ModelRefreshResult[]> {
     const connections = await this.listAllConnections(
       organizationId,
@@ -102,7 +102,7 @@ export class GatewayModelCatalogService {
           connectionId: connection.id,
           forceRefresh: false,
           explicitRetry: false,
-          updateConnectionStatus: false,
+          readOnly: true,
         }),
       ),
     );
@@ -130,7 +130,7 @@ export class GatewayModelCatalogService {
       ...params,
       forceRefresh: params.forceRefresh ?? false,
       explicitRetry: false,
-      updateConnectionStatus: true,
+      readOnly: false,
     });
   }
 
@@ -144,7 +144,7 @@ export class GatewayModelCatalogService {
       connectionId: params.connectionId,
       forceRefresh: true,
       explicitRetry: true,
-      updateConnectionStatus: true,
+      readOnly: false,
     });
     if (result.success) {
       await auditLog(
@@ -168,7 +168,7 @@ export class GatewayModelCatalogService {
       ...params,
       forceRefresh: false,
       explicitRetry: false,
-      updateConnectionStatus: true,
+      readOnly: false,
     });
   }
 
@@ -241,7 +241,31 @@ export class GatewayModelCatalogService {
       }
     }
 
-    return this.discoverModels(connection, params);
+    return params.readOnly
+      ? this.discoverModelsReadOnly(connection, params)
+      : this.discoverModels(connection, params);
+  }
+
+  /**
+   * Read-only roles reach the provider at most once per refresh window, even when discovery fails,
+   * because a failure keeps the connection ENABLED and is not cached. Otherwise they see the allowlist.
+   */
+  private async discoverModelsReadOnly(
+    connection: ConnectionWithCredential,
+    params: CatalogRefreshParams,
+  ): Promise<ModelCatalogRefreshResult> {
+    const allowedModels = {
+      connectionId: connection.id,
+      success: true as const,
+      models: (connection.allowedModels ?? []).map((id) =>
+        toCatalogEntry(connection.provider as GatewayProviderName, id),
+      ),
+    };
+    if (!(await this.claimRefresh(params.organizationId, connection.id))) {
+      return allowedModels;
+    }
+    const result = await this.discoverModels(connection, params);
+    return result.success ? result : allowedModels;
   }
 
   private async refreshInBackground(
@@ -274,7 +298,7 @@ export class GatewayModelCatalogService {
     });
     if (!models.success) {
       if (
-        params.updateConnectionStatus &&
+        !params.readOnly &&
         models.error === "unauthorized" &&
         connection.status === "ENABLED"
       ) {
@@ -334,17 +358,22 @@ export class GatewayModelCatalogService {
     }
   }
 
-  /** Cross-instance guard so concurrent requests near expiry trigger a single provider call. */
+  /** Cross-instance guard so concurrent requests trigger a single provider call per refresh window. */
   private async claimRefresh(organizationId: string, connectionId: string) {
-    if (!this.redis) return false;
-    const claimed = await this.redis.set(
-      `${MODEL_CACHE_REFRESH_LOCK_PREFIX}:${organizationId}:${connectionId}`,
-      "1",
-      "EX",
-      MODEL_CACHE_REFRESH_WINDOW_SECONDS,
-      "NX",
-    );
-    return claimed === "OK";
+    if (!this.redis) return true;
+    try {
+      const claimed = await this.redis.set(
+        `${MODEL_CACHE_REFRESH_LOCK_PREFIX}:${organizationId}:${connectionId}`,
+        "1",
+        "EX",
+        MODEL_CACHE_REFRESH_WINDOW_SECONDS,
+        "NX",
+      );
+      return claimed === "OK";
+    } catch {
+      // Redis is optional. Without it discovery proceeds without deduplication.
+      return true;
+    }
   }
 
   private async cacheModels(
@@ -372,14 +401,21 @@ function addCustomModels(
   const discoveredIds = new Set(models.map(({ id }) => id));
   const customModels = (CUSTOM_MODELS[provider] ?? [])
     .filter((id) => !discoveredIds.has(id))
-    .map((id) => ({
-      id,
-      provider,
-      canonicalSlug: id,
-      displayName: id,
-      createdAt: new Date(0).toISOString(),
-    }));
+    .map((id) => toCatalogEntry(provider, id));
   return models.concat(customModels);
+}
+
+function toCatalogEntry(
+  provider: GatewayProviderName,
+  id: string,
+): GatewayModelCatalogEntry {
+  return {
+    id,
+    provider,
+    canonicalSlug: id,
+    displayName: id,
+    createdAt: new Date(0).toISOString(),
+  };
 }
 
 function isGatewayModelCatalog(
@@ -410,7 +446,7 @@ type CatalogRefreshParams = {
   connectionId: string;
   forceRefresh: boolean;
   explicitRetry: boolean;
-  updateConnectionStatus: boolean;
+  readOnly: boolean;
 };
 
 type ConnectionWithCredential = NonNullable<
