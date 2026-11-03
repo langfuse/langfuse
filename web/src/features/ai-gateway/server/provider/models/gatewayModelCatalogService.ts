@@ -264,7 +264,9 @@ export class GatewayModelCatalogService {
       return allowedModels;
     }
     const result = await this.discoverModels(connection, params);
-    return result.success ? result : allowedModels;
+    if (result.success) return result;
+    logDiscoveryFailure(params, result.error);
+    return allowedModels;
   }
 
   private async refreshInBackground(params: CatalogRefreshParams) {
@@ -278,13 +280,11 @@ export class GatewayModelCatalogService {
         organizationId: params.organizationId,
         id: params.connectionId,
       });
-      if (connection) await this.discoverModels(connection, params);
+      if (!connection) return;
+      const result = await this.discoverModels(connection, params);
+      if (!result.success) logDiscoveryFailure(params, result.error);
     } catch (error) {
-      logger.warn("Failed to refresh AI Gateway model catalog", {
-        organizationId: params.organizationId,
-        connectionId: params.connectionId,
-        error,
-      });
+      logDiscoveryFailure(params, error);
     }
   }
 
@@ -425,6 +425,14 @@ function addCustomModels(
     .filter((id) => !discoveredIds.has(id))
     .map((id) => toCatalogEntry(provider, id));
   return models.concat(customModels);
+}
+
+function logDiscoveryFailure(params: CatalogRefreshParams, error: unknown) {
+  logger.warn("Failed to refresh AI Gateway model catalog", {
+    organizationId: params.organizationId,
+    connectionId: params.connectionId,
+    error,
+  });
 }
 
 function toCatalogEntry(
