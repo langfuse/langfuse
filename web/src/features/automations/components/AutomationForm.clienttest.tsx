@@ -61,7 +61,7 @@ vi.mock("@/src/features/rbac/utils/checkProjectAccess", () => ({
 }));
 
 vi.mock("@/src/features/feature-flags/hooks/useIsFeatureEnabled", () => ({
-  default: () => true,
+  default: () => false,
 }));
 
 // Cloud-only: the Alert option in the event-source picker is gated on this.
@@ -70,9 +70,10 @@ vi.mock("@/src/features/organizations/hooks", () => ({
 }));
 
 vi.mock("@/src/features/events", () => ({
-  useReadPath: () => ({ isV4: true }),
+  useReadPath: vi.fn(() => ({ isV4: true })),
 }));
 
+import { useReadPath } from "@/src/features/events";
 import { AutomationForm } from "./AutomationForm";
 
 describe("AutomationForm handleActionTypeChange", () => {
@@ -92,7 +93,26 @@ describe("AutomationForm handleActionTypeChange", () => {
 
   beforeEach(() => {
     createAutomationMutateAsync.mockClear();
+    vi.mocked(useReadPath).mockReturnValue({
+      isV4: true,
+    } as ReturnType<typeof useReadPath>);
   });
+
+  it.each([true, false])(
+    "offers Skill events without a preview opt-in only in v4 (v4: %s)",
+    async (isV4) => {
+      vi.mocked(useReadPath).mockReturnValue({
+        isV4,
+      } as ReturnType<typeof useReadPath>);
+      render(<AutomationForm projectId="p1" isEditing={true} />);
+
+      fireEvent.click(screen.getAllByRole("combobox")[0]);
+      await screen.findByRole("option", { name: "Prompt" });
+      expect(screen.queryByRole("option", { name: "Skill" }) !== null).toBe(
+        isV4,
+      );
+    },
+  );
 
   it("monitor-source trigger: switching action type away and back to WEBHOOK keeps apiVersion monitor", async () => {
     render(

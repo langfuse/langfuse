@@ -13,7 +13,6 @@ import {
 import Header from "@/src/components/layouts/header";
 import { useHasProjectAccess } from "@/src/features/rbac";
 import { useHasEntitlement } from "@/src/features/entitlements";
-import { useIsFeatureEnabled } from "@/src/features/feature-flags";
 import { useReadPath } from "@/src/features/events";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -58,11 +57,6 @@ export default function ProtectedLabelsSettings({
   });
   const hasEntitlement = useHasEntitlement("prompt-protected-labels");
   const { isV4 } = useReadPath();
-  const skillManagementEnabled = useIsFeatureEnabled("skillManagement", {
-    projectId,
-    enableForAdmins: false,
-  });
-  const skillsEnabled = isV4 && skillManagementEnabled;
 
   const form = useForm({
     resolver: zodResolver(AddLabelFormSchema),
@@ -122,7 +116,7 @@ export default function ProtectedLabelsSettings({
         <p className="text-primary mb-4 text-sm">
           Protected labels can only be modified by users with admin or owner
           access. This prevents other users from changing or removing these
-          labels from {skillsEnabled ? "prompts and skills" : "prompts"}.
+          labels from {isV4 ? "prompts and skills" : "prompts"}.
         </p>
         <div className="mb-4 flex flex-wrap gap-2">
           {protectedLabels.map((label) => (

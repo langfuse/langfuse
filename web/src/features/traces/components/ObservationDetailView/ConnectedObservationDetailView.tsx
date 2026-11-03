@@ -67,10 +67,7 @@ import { useHasProjectAccess } from "@/src/features/rbac";
 import { useSession } from "next-auth/react";
 import { ObservationPreview } from "./ObservationPreview";
 import type { IOPreviewPretty } from "../IOPreview/IOPreviewPretty";
-import {
-  useInternalFeaturesEnabled,
-  useIsFeatureEnabled,
-} from "@/src/features/feature-flags";
+import { useInternalFeaturesEnabled } from "@/src/features/feature-flags";
 import { DetailAttributesTab } from "../DetailAttributesTab";
 import { buildModelParameters } from "@/src/features/traces/fns/buildModelParameters";
 import { buildObservationAttributes } from "@/src/features/traces/fns/buildObservationAttributes";
@@ -99,10 +96,6 @@ export function ConnectedObservationDetailView({
   // V4 beta mode and observations for log tab
   const { isV4: isV4Enabled } = useReadPath();
   const internalFeaturesEnabled = useInternalFeaturesEnabled();
-  const skillManagementEnabled = useIsFeatureEnabled("skillManagement", {
-    projectId,
-    enableForAdmins: false,
-  });
   const {
     observations,
     roots,
@@ -342,7 +335,7 @@ export function ConnectedObservationDetailView({
   }, [observation.latency, observation.startTime, observation.endTime]);
 
   const previewSkills = getPreviewSkills({
-    skillManagementEnabled: isV4Enabled && skillManagementEnabled,
+    skillManagementEnabled: isV4Enabled,
     observationType: observation.type,
     skillsAvailable: observationWithIO?.skillsAvailable,
     skillsResourceLoaded: observationWithIO?.skillsResourceLoaded,

@@ -85,13 +85,6 @@ const filters = {
   featureFlags: (route: Route, ctx: NavigationFilterContext): Route | null => {
     if (route.featureFlag === undefined) return route;
 
-    if (
-      route.featureFlag === "skillManagement" &&
-      ctx.session?.user?.v4BetaEnabled !== true
-    ) {
-      return null;
-    }
-
     if (isAdminOnlyFeaturePreviewFlag(route.featureFlag)) {
       return ctx.session?.user?.featureFlags?.[route.featureFlag] === true
         ? route
@@ -114,7 +107,7 @@ const filters = {
 
     const hasFlag =
       ctx.enableExperimentalFeatures ||
-      (ctx.cloudAdmin && route.featureFlag !== "skillManagement") ||
+      ctx.cloudAdmin ||
       getContextualFeatureFlags(ctx.session?.user, {
         projectId: ctx.routerProjectId,
         organizationId: ctx.routerOrganizationId,
@@ -210,6 +203,7 @@ const filters = {
       isLangfuseCloud: ctx.isLangfuseCloud,
       hasActiveCloudIncident: ctx.hasActiveCloudIncident,
       canToggleV4: ctx.session?.user?.canToggleV4 === true,
+      v4BetaEnabled: ctx.session?.user?.v4BetaEnabled === true,
       canRecoverV4: canRecoverV4(ctx),
       forceV3Experience: ctx.forceV3Experience,
       v4WriteMode: ctx.session?.environment?.v4WriteMode,

@@ -98,7 +98,7 @@ export function SkillsPage() {
             help: {
               description:
                 "Create, version, and distribute reusable agent skills from one place.",
-              href: "https://langfuse.com/docs",
+              href: "https://langfuse.com/docs/skill-management/get-started",
             },
             actionButtonsRight: (
               <SkillsHeaderActions
