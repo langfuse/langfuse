@@ -84,9 +84,9 @@ export function ConnectedSessionMessagesView({
           query: {
             ...query,
             aggregation: "session",
-            traceId: row.id,
-            timestamp: row.timestamp.toISOString(),
-            observation: observationId ?? traceNodeId(row.id),
+            observation: observationId
+              ? `${row.id}:${observationId}`
+              : traceNodeId(row.id),
           },
         },
         undefined,
@@ -142,7 +142,7 @@ export function ConnectedSessionMessagesView({
         Loading session messages…
       </div>
     );
-  if (!traces.length)
+  if (traces.length === 0)
     return (
       <div className="text-muted-foreground p-3 text-sm">
         This session has no messages.

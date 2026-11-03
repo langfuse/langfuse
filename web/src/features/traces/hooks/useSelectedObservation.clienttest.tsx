@@ -82,6 +82,44 @@ describe("useSelectedObservation", () => {
     expect(queryEnabled()).toBe(false);
   });
 
+  it("fetches a capped session observation using its own trace and raw observation id", () => {
+    mockByIdQuery.mockImplementation(
+      (input: { traceId: string; observationId: string }) => ({
+        data:
+          input.traceId === "other-trace" && input.observationId === "past-cap"
+            ? { ...observation("past-cap"), traceId: null }
+            : undefined,
+        error: null,
+      }),
+    );
+
+    expect(render("other-trace:past-cap")).toMatchObject({
+      kind: "observation",
+      observation: { id: "past-cap", traceId: "other-trace" },
+      isOutsideLoadedList: true,
+    });
+    expect(queryEnabled()).toBe(true);
+  });
+
+  it("preserves loaded observation ids containing a colon", () => {
+    const row = observation("custom:id");
+    const { result } = renderHook(() =>
+      useSelectedObservation({
+        selectedNodeId: row.id,
+        traceId: "t",
+        projectId: "p",
+        observations: [row],
+      }),
+    );
+
+    expect(result.current).toEqual({
+      kind: "observation",
+      observation: row,
+      isOutsideLoadedList: false,
+    });
+    expect(queryEnabled()).toBe(false);
+  });
+
   it("serves a loaded observation from the list without firing a request", () => {
     const result = render("in-list");
 

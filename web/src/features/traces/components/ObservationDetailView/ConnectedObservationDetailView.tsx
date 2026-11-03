@@ -187,6 +187,7 @@ export function ConnectedObservationDetailView({
       projectId,
       traceId,
     });
+    utils.sessions.observationsForSessionFromEvents.invalidate({ projectId });
   }, [projectId, traceId, utils]);
 
   const setSelectedTab = (tab: DetailTab) => {

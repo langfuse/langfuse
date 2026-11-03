@@ -67,7 +67,7 @@ export function useSessionScopeData({
       observations: [...observations.values()],
       scores: [
         ...new Map(
-          [...scores, ...sessionQuery.data.scores].map((score) => [
+          [...sessionQuery.data.scores, ...scores].map((score) => [
             score.id,
             score,
           ]),
@@ -75,7 +75,7 @@ export function useSessionScopeData({
       ],
       corrections: [
         ...new Map(
-          [...corrections, ...sessionQuery.data.corrections].map((score) => [
+          [...sessionQuery.data.corrections, ...corrections].map((score) => [
             score.id,
             score,
           ]),

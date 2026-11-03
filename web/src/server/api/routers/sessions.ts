@@ -66,10 +66,8 @@ import {
   toDomainArrayWithStringifiedMetadata,
   toDomainWithStringifiedMetadata,
 } from "@/src/utils/clientSideDomainTypes";
-import {
-  AgentGraphDataSchema,
-  type AgentGraphDataResponse,
-} from "@/src/features/trace-graph-view/types";
+import { type AgentGraphDataResponse } from "@/src/features/trace-graph-view/types";
+import { mapAgentGraphRecord } from "@/src/features/trace-graph-view/fns/mapAgentGraphRecord";
 
 const storableSessionIdInput = z.string().refine(isStorableTraceSessionId, {
   message:
@@ -935,26 +933,9 @@ export const sessionRouter = createTRPCRouter({
           maxStartTime: new Date(input.maxStartTime),
         });
         return records.flatMap((record) => {
-          const parsed = AgentGraphDataSchema.safeParse(record);
-          if (!parsed.success) return [];
-          const data = parsed.data;
-          const traceId = data.trace_id;
-          if (!traceId) return [];
-          const hasLangGraphData = data.step != null && data.node != null;
-          if (!hasLangGraphData && data.type === "EVENT") return [];
-          return [
-            {
-              id: data.id,
-              traceId,
-              node: hasLangGraphData ? (data.node ?? null) : data.name,
-              step: hasLangGraphData ? (data.step ?? null) : 0,
-              parentObservationId: data.parent_observation_id || null,
-              name: data.name,
-              startTime: data.start_time,
-              endTime: data.end_time || undefined,
-              observationType: data.type,
-            },
-          ];
+          const mapped = mapAgentGraphRecord(record);
+          if (!mapped?.traceId) return [];
+          return [{ ...mapped, traceId: mapped.traceId }];
         });
       },
     ),

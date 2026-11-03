@@ -618,9 +618,8 @@ export function buildTraceUiData(
           node.startTime.getTime() + (node.latency ?? 0) * 1000,
       );
     }
-    metricEmphasis.totals.traceTotalDurationMs = nodeMap.size
-      ? last - first
-      : undefined;
+    metricEmphasis.totals.traceTotalDurationMs =
+      nodeMap.size > 0 ? last - first : undefined;
   }
 
   // Handle empty roots case

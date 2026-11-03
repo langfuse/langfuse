@@ -82,7 +82,7 @@ function LoadedTraceHeader() {
   );
   const latency = useMemo(() => {
     if (!sessionTraces) return trace.latency;
-    if (!observations.length) return undefined;
+    if (observations.length === 0) return undefined;
     let first = Infinity;
     let last = -Infinity;
     for (const observation of observations) {

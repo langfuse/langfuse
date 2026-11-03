@@ -14,6 +14,7 @@ import { getTraceScopeTabs } from "@/src/features/traces/fns/getTraceScopeTabs";
 import { getTraceScopeQuery } from "@/src/features/traces/fns/getTraceScopeQuery";
 import { useInternalFeaturesEnabled } from "@/src/features/feature-flags/hooks/useInternalFeaturesEnabled";
 import { resolveTraceScope } from "@/src/features/traces/fns/resolveTraceScope";
+import { useReadPath } from "@/src/features/events/hooks/useReadPath";
 
 export const TablePeekViewTraceDetail = (
   props: Omit<
@@ -28,6 +29,7 @@ export const TablePeekViewTraceDetail = (
 
   const router = useRouter();
   const internalFeaturesEnabled = useInternalFeaturesEnabled();
+  const { isV4 } = useReadPath();
   const { traceId, timestamp } = resolvePeekTraceParams({
     reader: "trace",
     peek: router.query.peek as string | undefined,
@@ -51,7 +53,7 @@ export const TablePeekViewTraceDetail = (
   const { canSelectSession, isSessionScope, showScopeToggle } =
     resolveTraceScope({
       internalFeaturesEnabled,
-      isV4: !!props.isV4,
+      isV4,
       isProjectMember,
       sessionId,
       aggregation: router.query.aggregation,

@@ -259,6 +259,7 @@ function LoadedTraceDetailView({
       projectId,
       traceId: trace.id,
     });
+    utils.sessions.observationsForSessionFromEvents.invalidate({ projectId });
   }, [projectId, trace.id, utils]);
 
   // Handle tab change

@@ -69,12 +69,29 @@ export function useSelectedObservation({
       ? null
       : selectedNodeId;
 
+  const { queryTraceId, queryObservationId } = (() => {
+    const separatorIndex = observationId?.indexOf(":") ?? -1;
+    // Session links qualify observation IDs even when the session cap omits the row.
+    if (
+      !loadedRow &&
+      observationId &&
+      separatorIndex > 0 &&
+      separatorIndex < observationId.length - 1
+    ) {
+      return {
+        queryTraceId: observationId.slice(0, separatorIndex),
+        queryObservationId: observationId.slice(separatorIndex + 1),
+      };
+    }
+    return { queryTraceId: traceId, queryObservationId: observationId ?? "" };
+  })();
+
   // `compact` keeps this row lean — the detail view fetches full I/O separately
   // (useParsedObservation) once it has the row.
   const byId = api.observations.byId.useQuery(
     {
-      observationId: observationId ?? "",
-      traceId,
+      observationId: queryObservationId,
+      traceId: queryTraceId,
       projectId,
       verbosity: "compact",
     },
@@ -109,7 +126,10 @@ export function useSelectedObservation({
         kind: "observation",
         // traceId is nullable on the by-id row; the fetch was scoped to this
         // trace, so the selected observation belongs to it by construction.
-        observation: { ...byId.data, traceId: byId.data.traceId ?? traceId },
+        observation: {
+          ...byId.data,
+          traceId: byId.data.traceId ?? queryTraceId,
+        },
         isOutsideLoadedList: true,
       };
     // A transient failure is not a missing observation — mislabeling it would
@@ -128,6 +148,6 @@ export function useSelectedObservation({
     byId.data,
     hasError,
     isNotFound,
-    traceId,
+    queryTraceId,
   ]);
 }
