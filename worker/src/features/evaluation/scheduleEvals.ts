@@ -45,28 +45,9 @@ export function createEvalSchedulerDeps(projectId: string, rules: EvalRules) {
 
 export type EvalSchedulerDeps = ReturnType<typeof createEvalSchedulerDeps>;
 
-type HeldTraceMatch = AggregateError & {
-  /** Undefined when matching itself failed or the span is not recorded. */
-  matchedRuleIds: readonly string[] | undefined;
-};
-
-/** Rule IDs selected before a scheduling failure. Undefined when matching did not finish. */
-export function heldTraceRuleIds(
-  error: unknown,
-): readonly string[] | undefined {
-  if (
-    error instanceof AggregateError &&
-    "matchedRuleIds" in error &&
-    (error.matchedRuleIds === undefined || Array.isArray(error.matchedRuleIds))
-  ) {
-    return (error as HeldTraceMatch).matchedRuleIds;
-  }
-  return undefined;
-}
-
 /**
- * Schedule observation evals and match transcript rules.
- * Returns the held rule IDs. Undefined means this span is not recorded.
+ * Match transcript rules, then schedule observation evals.
+ * Returns the selected rule ids. Undefined means this span is not recorded.
  * Does not buffer transcript activity.
  */
 export async function scheduleEvals({
@@ -81,31 +62,17 @@ export async function scheduleEvals({
   rules: EvalRules;
   schedulerDeps: EvalSchedulerDeps;
 }): Promise<readonly string[] | undefined> {
-  const [observationResult, transcriptResult] = await Promise.allSettled([
-    scheduleObservationEvals({
-      observation,
-      configs: isObservationAllowedForQueuedObservationEvals(observation)
-        ? rules.observationRules
-        : [],
-      schedulerDeps,
-    }),
-    scheduleTraceTranscriptEvals({ observation, traceActivity, schedulerDeps }),
-  ]);
-  const matchedRuleIds =
-    transcriptResult.status === "fulfilled"
-      ? transcriptResult.value
-      : undefined;
-  const failures = [observationResult, transcriptResult].flatMap((result) =>
-    result.status === "rejected" ? [result.reason] : [],
-  );
-  if (failures.length > 0) {
-    // Observation failure must not drop a match that already succeeded.
-    const error = new AggregateError(
-      failures,
-      "Failed to schedule evaluations",
-    ) as HeldTraceMatch;
-    error.matchedRuleIds = matchedRuleIds;
-    throw error;
-  }
+  const matchedRuleIds = await scheduleTraceTranscriptEvals({
+    observation,
+    traceActivity,
+    schedulerDeps,
+  });
+  await scheduleObservationEvals({
+    observation,
+    configs: isObservationAllowedForQueuedObservationEvals(observation)
+      ? rules.observationRules
+      : [],
+    schedulerDeps,
+  });
   return matchedRuleIds;
 }

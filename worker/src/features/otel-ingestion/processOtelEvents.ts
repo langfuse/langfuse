@@ -8,11 +8,12 @@ import {
 } from "@langfuse/shared/src/server";
 import { env } from "../../env";
 import { fetchEvalRules } from "../evaluation/fetchEvalRules";
+import { createEvalSchedulerDeps } from "../evaluation/scheduleEvals";
 import {
-  scheduleEvals,
-  createEvalSchedulerDeps,
-  heldTraceRuleIds,
-} from "../evaluation/scheduleEvals";
+  isObservationAllowedForQueuedObservationEvals,
+  scheduleObservationEvals,
+} from "../evaluation/observationEval/scheduleObservationEvals";
+import { scheduleTraceTranscriptEvals } from "../evaluation/traceTranscriptEval/scheduleTraceTranscriptEvals";
 import { trackTraceBatchActivity } from "../traceBatching/traceBatching";
 import {
   isTraceBatchSampled,
@@ -148,8 +149,9 @@ export async function processOtelEvents({
         return;
       }
 
-      // Step 2: Schedule observation evals and match transcript rules.
-      // Matching does not buffer activity. The result is held until the write.
+      // Step 2: Match transcript rules, then schedule observation evals.
+      // The selection stays in this local when observation scheduling throws.
+      // Nothing is buffered until the events write below returns.
       const traceActivity = isTraceBatchSampled(
         eventInput.traceId,
         traceBatchSamplingRate,
@@ -164,21 +166,34 @@ export async function processOtelEvents({
         schedulerDeps &&
         (rules.observationRules.length > 0 || traceActivity)
       ) {
+        const observation = convertEventRecordToObservationForEval(eventRecord);
         try {
-          matchedRuleIds = await scheduleEvals({
-            observation: convertEventRecordToObservationForEval(eventRecord),
+          matchedRuleIds = await scheduleTraceTranscriptEvals({
+            observation,
             traceActivity,
-            rules,
             schedulerDeps,
           });
         } catch (error) {
           traceException(error);
-
+          logger.error(
+            `Failed to match trace transcript rules for project ${eventInput.projectId} and observation ${eventInput.spanId}`,
+            { error, fileKey },
+          );
+        }
+        try {
+          await scheduleObservationEvals({
+            observation,
+            configs: isObservationAllowedForQueuedObservationEvals(observation)
+              ? rules.observationRules
+              : [],
+            schedulerDeps,
+          });
+        } catch (error) {
+          traceException(error);
           logger.error(
             `Failed to schedule evals for project ${eventInput.projectId} and observation ${eventInput.spanId}`,
             { error, fileKey },
           );
-          matchedRuleIds = heldTraceRuleIds(error);
         }
       }
 
