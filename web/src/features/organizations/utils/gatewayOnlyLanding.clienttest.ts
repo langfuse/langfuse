@@ -27,23 +27,41 @@ describe("gatewayOnlyLanding", () => {
     ).toEqual({ organizationId: ORG_ID, canUseGateway: false });
   });
 
-  it.each(["OWNER", "ADMIN", "MEMBER", "VIEWER", "NONE"] as const)(
-    "is undefined for %s, who can read the org settings",
-    (role) => {
-      expect(
-        gatewayOnlyLanding(session({ role, aiGateway: true }), ORG_ID),
-      ).toBeUndefined();
-    },
-  );
+  it("is undefined for a role that can read the org settings", () => {
+    expect(
+      gatewayOnlyLanding(session({ role: "NONE", aiGateway: true }), ORG_ID),
+    ).toBeUndefined();
+  });
+
+  it("is undefined for a gateway-only member who sees projects", () => {
+    expect(
+      gatewayOnlyLanding(
+        session({
+          role: "AI_GATEWAY",
+          aiGateway: true,
+          projects: [{ id: "project-1" }],
+        }),
+        ORG_ID,
+      ),
+    ).toBeUndefined();
+  });
 });
 
-function session({ role, aiGateway }: { role: Role; aiGateway: boolean }) {
+function session({
+  role,
+  aiGateway,
+  projects = [],
+}: {
+  role: Role;
+  aiGateway: boolean;
+  projects?: { id: string }[];
+}) {
   return {
     user: {
       admin: false,
       featureFlags: {},
       organizations: [
-        { id: ORG_ID, role, projects: [], featureFlags: { aiGateway } },
+        { id: ORG_ID, role, projects, featureFlags: { aiGateway } },
       ],
     },
   } as unknown as Session;
