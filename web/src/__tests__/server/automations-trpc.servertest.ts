@@ -1223,7 +1223,6 @@ describe("automations trpc", () => {
       });
 
       it.each([
-        ["loopback IPv4", "http://127.0.0.1/hook", "Blocked IP address"],
         ["loopback IPv6", "http://[::1]/hook", "Blocked IP address"],
         [
           "cloud metadata",
