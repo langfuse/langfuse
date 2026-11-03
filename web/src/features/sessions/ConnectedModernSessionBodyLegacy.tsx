@@ -5,7 +5,6 @@ import { type FilterState } from "@langfuse/shared";
 import { LazySessionTraceEventsRow } from "@/src/features/sessions/LazySessionTraceEventsRow";
 import { SessionVirtualizedRow } from "@/src/features/sessions/SessionVirtualizedRow";
 import { type EventSessionTrace } from "@/src/features/sessions/sessionDetailPageTypes";
-import { computeIdleGapSeconds } from "@/src/features/sessions/sessionIdleGap";
 import { useElementSize } from "@/src/hooks/useElementSize";
 import { useSessionSidebarData } from "@/src/features/sessions/hooks/useSessionSidebarData";
 import { useSessionObservationNavigation } from "@/src/features/sessions/hooks/useSessionObservationNavigation";
@@ -13,7 +12,6 @@ import { useVirtualizedScrollSpy } from "@/src/hooks/useVirtualizedScrollSpy";
 import {
   ModernSessionSidebar,
   type ModernSessionSidebarFilterControls,
-  type ModernSessionSidebarTrace,
 } from "@/src/features/sessions/ModernSessionSidebar";
 
 const MODERN_SESSION_OVERSCAN = 5;
@@ -64,8 +62,7 @@ export function ConnectedModernSessionBodyLegacy({
     searchQuery,
     isSearchPending,
     expandedTraceIds,
-    observationQueries,
-    traceQueryStates,
+    sidebarTraces,
     hasMoreObservations,
     isLoadingMoreObservations,
     observationLoadError,
@@ -81,93 +78,8 @@ export function ConnectedModernSessionBodyLegacy({
     sessionMaxTimestamp,
     filterState,
     filterMeasurementKey,
+    includeTraceLevelObservations: false,
   });
-  const filtersRequireIO = filterState.some(
-    (filter) =>
-      (filter.column === "hasInput" || filter.column === "hasOutput") &&
-      filter.type === "boolean" &&
-      filter.operator === "=" &&
-      filter.value,
-  );
-
-  const observationsByTraceId = new Map<
-    string,
-    NonNullable<ModernSessionSidebarTrace["observations"]>
-  >();
-  const observationIdsByTraceId = new Map<string, Set<string>>();
-  const traceIdsWithMatchingTraceLevelIO = new Set<string>();
-  for (const query of observationQueries) {
-    for (const observation of query.data?.observations ?? []) {
-      if (!observation.traceId) {
-        continue;
-      }
-      if (observation.id === `t-${observation.traceId}`) {
-        traceIdsWithMatchingTraceLevelIO.add(observation.traceId);
-        continue;
-      }
-      const observationIds = observationIdsByTraceId.get(observation.traceId);
-      if (observationIds?.has(observation.id)) {
-        continue;
-      }
-      if (observationIds) observationIds.add(observation.id);
-      else {
-        observationIdsByTraceId.set(
-          observation.traceId,
-          new Set([observation.id]),
-        );
-      }
-      const observations = observationsByTraceId.get(observation.traceId);
-      const row = {
-        id: observation.id,
-        name: observation.name,
-        type: observation.type,
-        latency: observation.latency,
-      };
-      if (observations) observations.push(row);
-      else observationsByTraceId.set(observation.traceId, [row]);
-    }
-  }
-
-  const sidebarTraces: ModernSessionSidebarTrace[] = [];
-  for (const {
-    trace,
-    index,
-    isPending,
-    isError,
-    mayHaveMoreObservations,
-  } of traceQueryStates) {
-    const hasLoadedObservations = observationsByTraceId.has(trace.id);
-    const observations = (() => {
-      if (isPending && !hasLoadedObservations) {
-        return undefined;
-      }
-      if (isError) {
-        return null;
-      }
-      if (mayHaveMoreObservations && !hasLoadedObservations) {
-        return undefined;
-      }
-      return observationsByTraceId.get(trace.id) ?? [];
-    })();
-
-    if (
-      searchQuery &&
-      !observationsByTraceId.has(trace.id) &&
-      !traceIdsWithMatchingTraceLevelIO.has(trace.id)
-    ) {
-      continue;
-    }
-
-    sidebarTraces.push({
-      trace,
-      turnNumber: index + 1,
-      idleGapSeconds:
-        index === 0 ? null : computeIdleGapSeconds(traces[index - 1]!, trace),
-      observations,
-      hasMatchingTraceLevelIO:
-        filtersRequireIO && traceIdsWithMatchingTraceLevelIO.has(trace.id),
-    });
-  }
 
   const [feedRef, feedSize] = useElementSize<HTMLDivElement>();
   const virtualizer = useVirtualizer({

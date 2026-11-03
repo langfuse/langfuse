@@ -138,6 +138,9 @@ export function ModernSession({
           showInlineToolCalls={true}
           showSystemPrompt={true}
           onCustomizeView={customization?.onCustomizeView}
+          activeFilterCount={
+            customization?.activeFilterCount ?? filterState.length
+          }
         />
       )}
       {isTimelineEnabled && viewMode === "conversational" && (

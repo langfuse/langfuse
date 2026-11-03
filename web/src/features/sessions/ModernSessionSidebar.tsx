@@ -348,6 +348,7 @@ export function ModernSessionSidebar(
       }
   ) & {
     onCustomizeView?: () => void;
+    activeFilterCount?: number;
     observationLayout?: "flat" | "grouped";
   },
 ) {
@@ -508,113 +509,97 @@ export function ModernSessionSidebar(
   const hasFilterRepresentation = Boolean(
     activeFilterQuery.text || activeFilterQuery.skippedFilters.length > 0,
   );
+  const activeFilterCount =
+    props.activeFilterCount ?? filterControls?.activeFilterCount ?? 0;
+  const customization = props.onCustomizeView
+    ? { activeFilterCount, onCustomizeView: props.onCustomizeView }
+    : undefined;
+  const sidebarSearch =
+    props.observationLayout === "flat"
+      ? { search, onSearchChange: handleSearchChange, customization }
+      : undefined;
+  const emptyListMessage = (() => {
+    if (props.isLoadingMoreObservations) return "Loading observations...";
+    if (props.observationLoadError) return "Failed to load observations";
+    if (props.observationLayout === "flat") return "No matching observations";
+    if (search) return "No matching turns";
+    return "No turns";
+  })();
 
   return (
-    <SessionSidebar
-      label="Session observations"
-      search={
-        props.observationLayout === "flat"
-          ? {
-              search,
-              onSearchChange: handleSearchChange,
-              customization: props.onCustomizeView
-                ? {
-                    activeFilterCount: filterControls?.activeFilterCount ?? 0,
-                    onCustomizeView: props.onCustomizeView,
-                  }
-                : undefined,
-            }
-          : undefined
-      }
-      header={
-        props.observationLayout !== "flat" && (
-          <div className="shrink-0 border-b">
-            <div className="flex items-center gap-1 px-2 py-2.5">
-              <div className="relative min-w-0 flex-1">
-                <Search
-                  size="base"
-                  color="tertiary"
-                  __rawClassName="absolute top-1/2 left-2 -translate-y-1/2"
-                />
-                <Input
-                  value={search}
-                  onChange={(event) => handleSearchChange(event.target.value)}
-                  aria-label="Search turns and observations"
-                  placeholder="Search turns and observations"
-                  className="h-7 rounded-sm bg-transparent pl-7 font-mono text-xs"
-                />
-              </div>
-              {filterControls && (
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button
-                      id={SESSION_DETAIL_VIEW_TRIGGER_ID}
-                      type="button"
-                      variant="outline"
-                      size="icon"
-                      className="relative h-7 w-7 shrink-0 rounded-sm"
-                      aria-label="Filter observations"
-                    >
-                      <ListFilter size="base" color="default" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <ModernSessionViewDropdownMenu controls={filterControls} />
-                </DropdownMenu>
-              )}
+    <SessionSidebar label="Session observations" search={sidebarSearch}>
+      {props.observationLayout !== "flat" && (
+        <div className="shrink-0 border-b">
+          <div className="flex items-center gap-1 px-2 py-2.5">
+            <div className="relative min-w-0 flex-1">
+              <Search
+                size="base"
+                color="tertiary"
+                __rawClassName="absolute top-1/2 left-2 -translate-y-1/2"
+              />
+              <Input
+                value={search}
+                onChange={(event) => handleSearchChange(event.target.value)}
+                aria-label="Search turns and observations"
+                placeholder="Search turns and observations"
+                className="h-7 rounded-sm bg-transparent pl-7 font-mono text-xs"
+              />
             </div>
-            {filterControls && showFilterSummary ? (
-              <div className="border-t px-2 py-2.5">
-                <div className="border-border/80 bg-muted/30 grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-1.5 rounded-md border py-2 pr-1 pl-2.5">
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <span
-                        className="text-muted-foreground min-w-0 overflow-hidden font-mono text-[10px] text-ellipsis whitespace-nowrap"
-                        tabIndex={0}
-                      >
-                        {filterSummaryLabel}
+            {filterControls && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    id={SESSION_DETAIL_VIEW_TRIGGER_ID}
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    className="relative h-7 w-7 shrink-0 rounded-sm"
+                    aria-label="Filter observations"
+                  >
+                    <ListFilter size="base" color="default" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <ModernSessionViewDropdownMenu controls={filterControls} />
+              </DropdownMenu>
+            )}
+          </div>
+          {filterControls && showFilterSummary ? (
+            <div className="border-t px-2 py-2.5">
+              <div className="border-border/80 bg-muted/30 grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-x-1.5 rounded-md border py-2 pr-1 pl-2.5">
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span
+                      className="text-muted-foreground min-w-0 overflow-hidden font-mono text-[10px] text-ellipsis whitespace-nowrap"
+                      tabIndex={0}
+                    >
+                      {filterSummaryLabel}
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent side="bottom" className="max-w-80 p-2">
+                    {hasFilterRepresentation ? (
+                      <div className="flex flex-wrap gap-1">
+                        {activeFilterQuery.text ? (
+                          <span className="min-w-0 font-mono text-xs leading-6">
+                            <ComposerTokens
+                              draft={activeFilterQuery.text}
+                              showDiagnostics={false}
+                            />
+                          </span>
+                        ) : null}
+                        <InlineFilterState
+                          filterState={activeFilterQuery.skippedFilters}
+                          className="m-0"
+                        />
+                      </div>
+                    ) : (
+                      <span className="text-muted-foreground text-xs">
+                        No filters
                       </span>
-                    </TooltipTrigger>
-                    <TooltipContent side="bottom" className="max-w-80 p-2">
-                      {hasFilterRepresentation ? (
-                        <div className="flex flex-wrap gap-1">
-                          {activeFilterQuery.text ? (
-                            <span className="min-w-0 font-mono text-xs leading-6">
-                              <ComposerTokens
-                                draft={activeFilterQuery.text}
-                                showDiagnostics={false}
-                              />
-                            </span>
-                          ) : null}
-                          <InlineFilterState
-                            filterState={activeFilterQuery.skippedFilters}
-                            className="m-0"
-                          />
-                        </div>
-                      ) : (
-                        <span className="text-muted-foreground text-xs">
-                          No filters
-                        </span>
-                      )}
-                    </TooltipContent>
-                  </Tooltip>
-                  <div className="flex shrink-0 items-center">
-                    {!filterControls.activeViewName ? (
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon-xs"
-                            className="text-muted-foreground hover:text-foreground h-5 w-5"
-                            aria-label="Save filters as view"
-                            onClick={filterControls.onOpenFilterDialog}
-                          >
-                            <Save size="sm" color="default" />
-                          </Button>
-                        </TooltipTrigger>
-                        <TooltipContent>Save as view</TooltipContent>
-                      </Tooltip>
-                    ) : null}
+                    )}
+                  </TooltipContent>
+                </Tooltip>
+                <div className="flex shrink-0 items-center">
+                  {!filterControls.activeViewName ? (
                     <Tooltip>
                       <TooltipTrigger asChild>
                         <Button
@@ -622,37 +607,51 @@ export function ModernSessionSidebar(
                           variant="ghost"
                           size="icon-xs"
                           className="text-muted-foreground hover:text-foreground h-5 w-5"
-                          aria-label="Edit filters"
+                          aria-label="Save filters as view"
                           onClick={filterControls.onOpenFilterDialog}
                         >
-                          <Pencil size="sm" color="default" />
+                          <Save size="sm" color="default" />
                         </Button>
                       </TooltipTrigger>
-                      <TooltipContent>Edit filters</TooltipContent>
+                      <TooltipContent>Save as view</TooltipContent>
                     </Tooltip>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon-xs"
-                          className="text-muted-foreground hover:text-foreground h-5 w-5"
-                          aria-label="Clear filters"
-                          onClick={filterControls.onClearFilters}
-                        >
-                          <X size="sm" color="default" />
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent>Clear filters</TooltipContent>
-                    </Tooltip>
-                  </div>
+                  ) : null}
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon-xs"
+                        className="text-muted-foreground hover:text-foreground h-5 w-5"
+                        aria-label="Edit filters"
+                        onClick={filterControls.onOpenFilterDialog}
+                      >
+                        <Pencil size="sm" color="default" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>Edit filters</TooltipContent>
+                  </Tooltip>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon-xs"
+                        className="text-muted-foreground hover:text-foreground h-5 w-5"
+                        aria-label="Clear filters"
+                        onClick={filterControls.onClearFilters}
+                      >
+                        <X size="sm" color="default" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>Clear filters</TooltipContent>
+                  </Tooltip>
                 </div>
               </div>
-            ) : null}
-          </div>
-        )
-      }
-    >
+            </div>
+          ) : null}
+        </div>
+      )}
       <div
         ref={setListElement}
         role="region"
@@ -676,15 +675,7 @@ export function ModernSessionSidebar(
       >
         {traces.length === 0 ? (
           <div className="text-muted-foreground px-3 py-6 text-center text-xs">
-            {props.isLoadingMoreObservations
-              ? "Loading observations..."
-              : props.observationLoadError
-                ? "Failed to load observations"
-                : props.observationLayout === "flat"
-                  ? "No matching observations"
-                  : search
-                    ? "No matching turns"
-                    : "No turns"}
+            {emptyListMessage}
           </div>
         ) : (
           <div
@@ -733,7 +724,7 @@ export function ModernSessionSidebar(
                         onSelect={() => onSelect(sidebarTrace.turnNumber - 1)}
                       >
                         <div className="mt-2">
-                          {sidebarTrace.observations?.length === 0 ? (
+                          {sidebarTrace.observations?.length === 0 && (
                             <ObservationListRows
                               state={
                                 sidebarTrace.hasMatchingTraceLevelIO
@@ -742,36 +733,34 @@ export function ModernSessionSidebar(
                                       type: "empty",
                                       hasFilters:
                                         search.trim() !== "" ||
-                                        (filterControls?.activeFilterCount ??
-                                          0) > 0,
+                                        activeFilterCount > 0,
                                     }
                               }
                             />
-                          ) : sidebarTrace.observations ? (
-                            <ObservationListRows
-                              state={{
-                                type: "loaded",
-                                rows: sidebarTrace.observations,
-                              }}
-                              onSelectObservation={(observationId) =>
-                                onSelect(
-                                  sidebarTrace.turnNumber - 1,
-                                  observationId,
-                                )
-                              }
-                              onFilterObservationByName={
-                                onFilterObservationByName
-                              }
-                            />
-                          ) : (
-                            <ObservationListRows
-                              state={{
-                                type:
-                                  sidebarTrace.observations === null
-                                    ? "error"
-                                    : "loading",
-                              }}
-                            />
+                          )}
+                          {sidebarTrace.observations &&
+                            sidebarTrace.observations.length > 0 && (
+                              <ObservationListRows
+                                state={{
+                                  type: "loaded",
+                                  rows: sidebarTrace.observations,
+                                }}
+                                onSelectObservation={(observationId) =>
+                                  onSelect(
+                                    sidebarTrace.turnNumber - 1,
+                                    observationId,
+                                  )
+                                }
+                                onFilterObservationByName={
+                                  onFilterObservationByName
+                                }
+                              />
+                            )}
+                          {sidebarTrace.observations === null && (
+                            <ObservationListRows state={{ type: "error" }} />
+                          )}
+                          {sidebarTrace.observations === undefined && (
+                            <ObservationListRows state={{ type: "loading" }} />
                           )}
                         </div>
                       </SessionSidebarTraceCard>

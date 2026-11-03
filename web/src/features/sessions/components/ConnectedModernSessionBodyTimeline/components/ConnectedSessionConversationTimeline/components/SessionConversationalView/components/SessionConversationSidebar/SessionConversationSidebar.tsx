@@ -10,7 +10,6 @@ import {
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { SessionSidebar } from "@/src/features/sessions/components/SessionSidebar/SessionSidebar";
 import { SessionSidebarTraceCard } from "@/src/features/sessions/components/SessionSidebarTraceCard/SessionSidebarTraceCard";
-import { ChevronDown } from "@langfuse/icons";
 import { type Observation } from "@langfuse/shared";
 import { SessionToolTooltip } from "@/src/features/sessions/components/ConnectedModernSessionBodyTimeline/components/ConnectedSessionConversationTimeline/components/SessionConversationalView/components/SessionToolTooltip/SessionToolTooltip";
 import { SessionToolStatusCountBadge } from "@/src/features/sessions/components/ConnectedModernSessionBodyTimeline/components/ConnectedSessionConversationTimeline/components/SessionConversationalView/components/SessionToolStatusCountBadge/SessionToolStatusCountBadge";
@@ -373,45 +372,12 @@ export function SessionConversationSidebar(
                       isActive={isActive}
                       number={sidebarTrace.displayNumber ?? turnNumber}
                       onSelect={() => props.onSelect(targetIndex)}
-                      action={
-                        <button
-                          type="button"
-                          aria-label={
-                            isCollapsed ? "Expand turn" : "Collapse turn"
-                          }
-                          onClick={() => props.onToggleTraceExpanded(itemId)}
-                          className="text-muted-foreground -my-2 -mr-2.5 -ml-2 flex h-8 w-8 shrink-0 items-center justify-center"
-                        >
-                          <ChevronDown
-                            size="sm"
-                            __rawClassName={cn(
-                              "transition-transform duration-150",
-                              isCollapsed ? "-rotate-90" : "rotate-0",
-                            )}
-                          />
-                        </button>
-                      }
-                      titleContent={
-                        <HighlightedText
-                          text={trace.name ?? "Trace"}
-                          query={searchQuery}
-                        >
-                          {(parts) =>
-                            parts.map(({ text, isMatch }, index) =>
-                              isMatch ? (
-                                <mark
-                                  key={index}
-                                  className="bg-find-match-background text-foreground"
-                                >
-                                  {text}
-                                </mark>
-                              ) : (
-                                text
-                              ),
-                            )
-                          }
-                        </HighlightedText>
-                      }
+                      collapse={{
+                        isCollapsed,
+                        label: isCollapsed ? "Expand turn" : "Collapse turn",
+                        onToggle: () => props.onToggleTraceExpanded(itemId),
+                      }}
+                      highlightQuery={searchQuery}
                     >
                       {!isCollapsed && (
                         <div

@@ -4,10 +4,15 @@ export function useSessionObservationNavigation({
   feedRef,
   selectTrace,
   onObservationNotFound,
+  getObservationState,
 }: {
   feedRef: RefObject<HTMLDivElement | null>;
   selectTrace: (index: number) => void;
   onObservationNotFound?: (index: number, observationId: string) => void;
+  getObservationState?: (
+    index: number,
+    observationId: string,
+  ) => "loading" | "visible" | "missing";
 }) {
   const observationScrollCleanupRef = useRef<(() => void) | null>(null);
   useEffect(() => () => observationScrollCleanupRef.current?.(), []);
@@ -22,6 +27,10 @@ export function useSessionObservationNavigation({
     if (!feed) return;
 
     const scrollToObservation = () => {
+      if (getObservationState?.(index, observationId) === "missing") {
+        onObservationNotFound?.(index, observationId);
+        return true;
+      }
       const observation = Array.from(
         feed.querySelectorAll<HTMLElement>("[data-session-observation-id]"),
       ).find(

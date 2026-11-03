@@ -3,6 +3,8 @@ import { type FilterState } from "@langfuse/shared";
 import { type EventSessionTrace } from "@/src/features/sessions/sessionDetailPageTypes";
 import { useDebounce } from "@/src/hooks/useDebounce";
 import { api } from "@/src/utils/api";
+import { type ModernSessionSidebarTrace } from "@/src/features/sessions/ModernSessionSidebar";
+import { computeIdleGapSeconds } from "@/src/features/sessions/sessionIdleGap";
 
 const SIDEBAR_TRACE_CHUNK_SIZE = 20;
 const SIDEBAR_OBSERVATION_PAGE_SIZE = 100;
@@ -15,6 +17,7 @@ export function useSessionSidebarData({
   sessionMaxTimestamp,
   filterState,
   filterMeasurementKey,
+  includeTraceLevelObservations,
 }: {
   traces: EventSessionTrace[];
   projectId: string;
@@ -23,6 +26,7 @@ export function useSessionSidebarData({
   sessionMaxTimestamp: Date;
   filterState: FilterState;
   filterMeasurementKey: string;
+  includeTraceLevelObservations: boolean;
 }) {
   const [search, setSearch] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
@@ -95,9 +99,10 @@ export function useSessionSidebarData({
 
   const observationQueries = api.useQueries((t) =>
     queryDescriptors.map((descriptor) =>
-      t.events.all(
+      t.events.sessionAll(
         {
           projectId,
+          sessionId,
           filter: descriptor.traceIds
             ? [
                 ...baseFilters,
@@ -146,6 +151,78 @@ export function useSessionSidebarData({
       ),
     };
   });
+
+  const filtersRequireIO = filterState.some(
+    (filter) =>
+      (filter.column === "hasInput" || filter.column === "hasOutput") &&
+      filter.type === "boolean" &&
+      filter.operator === "=" &&
+      filter.value,
+  );
+  const observationsByTraceId = new Map<
+    string,
+    NonNullable<ModernSessionSidebarTrace["observations"]>
+  >();
+  const observationIdsByTraceId = new Map<string, Set<string>>();
+  const traceIdsWithMatchingTraceLevelIO = new Set<string>();
+  for (const query of observationQueries) {
+    for (const observation of query.data?.observations ?? []) {
+      if (!observation.traceId) continue;
+      if (observation.id === `t-${observation.traceId}`) {
+        traceIdsWithMatchingTraceLevelIO.add(observation.traceId);
+        if (!includeTraceLevelObservations) continue;
+      }
+      const observationIds = observationIdsByTraceId.get(observation.traceId);
+      if (observationIds?.has(observation.id)) continue;
+      if (observationIds) observationIds.add(observation.id);
+      else {
+        observationIdsByTraceId.set(
+          observation.traceId,
+          new Set([observation.id]),
+        );
+      }
+      const observations = observationsByTraceId.get(observation.traceId);
+      const row = {
+        id: observation.id,
+        name: observation.name,
+        type: observation.type,
+        latency: observation.latency,
+      };
+      if (observations) observations.push(row);
+      else observationsByTraceId.set(observation.traceId, [row]);
+    }
+  }
+  const sidebarTraces: ModernSessionSidebarTrace[] = [];
+  for (const {
+    trace,
+    index,
+    isPending,
+    isError,
+    mayHaveMoreObservations,
+  } of traceQueryStates) {
+    const hasLoadedObservations = observationsByTraceId.has(trace.id);
+    const observations = (() => {
+      if (isPending && !hasLoadedObservations) return undefined;
+      if (isError) return null;
+      if (mayHaveMoreObservations && !hasLoadedObservations) return undefined;
+      return observationsByTraceId.get(trace.id) ?? [];
+    })();
+    if (
+      searchQuery &&
+      !hasLoadedObservations &&
+      !traceIdsWithMatchingTraceLevelIO.has(trace.id)
+    )
+      continue;
+    sidebarTraces.push({
+      trace,
+      turnNumber: index + 1,
+      idleGapSeconds:
+        index === 0 ? null : computeIdleGapSeconds(traces[index - 1]!, trace),
+      observations,
+      hasMatchingTraceLevelIO:
+        filtersRequireIO && traceIdsWithMatchingTraceLevelIO.has(trace.id),
+    });
+  }
 
   const lastQueryByKey = new Map<string, number>();
   queryDescriptors.forEach((descriptor, queryIndex) => {
@@ -202,8 +279,7 @@ export function useSessionSidebarData({
     searchQuery,
     isSearchPending,
     expandedTraceIds,
-    observationQueries,
-    traceQueryStates,
+    sidebarTraces,
     hasMoreObservations,
     isLoadingMoreObservations,
     observationLoadError,

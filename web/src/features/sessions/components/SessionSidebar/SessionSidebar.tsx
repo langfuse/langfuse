@@ -7,14 +7,12 @@ import { Input } from "@/src/components/ui/input";
 export function SessionSidebar({
   label,
   isLoading,
-  header,
   children,
   search,
   isListScrolled,
 }: {
   label: string;
   isLoading?: boolean;
-  header?: ReactNode;
   children?: ReactNode;
   search?: {
     search: string;
@@ -75,7 +73,6 @@ export function SessionSidebar({
           )}
         </div>
       )}
-      {header}
       {isLoading ? (
         <div className="flex min-h-0 flex-1 flex-col gap-2 px-4 pt-0.5 pb-4">
           {[0, 1, 2].map((index) => (

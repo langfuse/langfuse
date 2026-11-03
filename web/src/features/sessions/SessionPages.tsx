@@ -1237,7 +1237,12 @@ const LoadedSessionEventsPage: React.FC<{
     "sessionView",
     StringParam,
   );
-  const viewMode = viewModeQuery === "list" ? "list" : "conversational";
+  const viewMode =
+    isInternalFeaturesEnabled &&
+    isSessionTimelineEnabled &&
+    viewModeQuery === "list"
+      ? "list"
+      : "conversational";
   const showRedesignBanner =
     isModernSessionEnabled &&
     isSessionTimelineEnabled &&
