@@ -166,8 +166,6 @@ export const applicationToastOperations = [
   "support_request.submit",
   "topics.load",
   "trace.add_to_annotation_queue",
-  "trace.bulk_delete",
-  "trace.delete",
   "trace.download",
   "trace.parse",
   "trace_log.copy",

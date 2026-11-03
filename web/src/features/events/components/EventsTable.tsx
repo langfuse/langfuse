@@ -160,7 +160,6 @@ import {
   AddObservationsToDatasetDialog,
 } from "@/src/features/batch-actions";
 import { useHasEntitlement } from "@/src/features/entitlements";
-import { showSuccessToast } from "@/src/features/notifications";
 import { MobileFullTextSearch } from "@/src/features/events/components/MobileFullTextSearch";
 import { CategoryPresetChips } from "@/src/features/events/components/CategoryPresetChips";
 import { TableViewPresetsDrawer } from "@/src/components/table/table-view-presets/components/data-table-view-presets-drawer";
@@ -1086,14 +1085,6 @@ export default function ObservationsEventsTable({
   });
 
   const traceDeleteMutation = api.traces.deleteMany.useMutation({
-    onSuccess: () => {
-      showSuccessToast({
-        operation: "trace.bulk_delete",
-        title: "Traces deleted",
-        description:
-          "Selected traces will be deleted. Traces are removed asynchronously and may continue to be visible for up to 15 minutes.",
-      });
-    },
     onSettled: () => {
       utils.events.all.invalidate();
       utils.events.countAll.invalidate();

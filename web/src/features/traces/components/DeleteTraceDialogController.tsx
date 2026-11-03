@@ -3,7 +3,6 @@ import { type ReactNode, useMemo, useState } from "react";
 
 import { ConfirmationDialogController } from "@/src/components/design-system/ConfirmationDialogController/ConfirmationDialogController";
 import { useHasEntitlement } from "@/src/features/entitlements";
-import { showSuccessToast } from "@/src/features/notifications";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { useHasProjectAccess } from "@/src/features/rbac";
 import { api } from "@/src/utils/api";
@@ -47,7 +46,7 @@ export function DeleteTraceDialogController({
   return (
     <ConfirmationDialogController
       title="Delete trace?"
-      text="This action cannot be undone. It removes all the data associated with this trace. If this is the project default, it will be deleted for all users."
+      text="This action cannot be undone. It removes all the data associated with this trace. Trace deletion happens asynchronously and may take up to 24 hours."
       confirmationText={traceName || undefined}
       confirmLabel="Delete trace"
       variant="destructive"
@@ -56,12 +55,6 @@ export function DeleteTraceDialogController({
       onConfirm={async () => {
         await deleteMutation.mutateAsync({ traceIds: [traceId], projectId });
         setIsDeleted(true);
-        showSuccessToast({
-          operation: "trace.delete",
-          title: "Trace deleted",
-          description:
-            "Selected trace will be deleted. Traces are removed asynchronously and may continue to be visible for up to 24 hours.",
-        });
         capture("trace:delete", { source: "trace" });
         if (redirectUrl) {
           router.push(redirectUrl).catch(() => undefined);

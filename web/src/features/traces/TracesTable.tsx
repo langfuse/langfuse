@@ -613,14 +613,6 @@ function TracesTableInternal({
   });
 
   const traceDeleteMutation = api.traces.deleteMany.useMutation({
-    onSuccess: () => {
-      showSuccessToast({
-        operation: "trace.bulk_delete",
-        title: "Traces deleted",
-        description:
-          "Selected traces will be deleted. Traces are removed asynchronously and may continue to be visible for up to 15 minutes.",
-      });
-    },
     onSettled: () => {
       utils.traces.all.invalidate();
     },
@@ -1704,12 +1696,6 @@ export default function TracesTable(props: TracesTableProps) {
   const traceMutation = api.traces.deleteMany.useMutation({
     onSuccess: () => {
       capture("trace:delete", { source: "table-single-row" });
-      showSuccessToast({
-        operation: "trace.delete",
-        title: "Trace deleted",
-        description:
-          "Selected trace will be deleted. Traces are removed asynchronously and may continue to be visible for up to 24 hours.",
-      });
       utils.traces.all.invalidate();
     },
   });
@@ -1717,7 +1703,7 @@ export default function TracesTable(props: TracesTableProps) {
   return (
     <ConfirmationDialogController
       title="Please confirm"
-      text="This action cannot be undone. It removes all the data associated with this trace."
+      text="This action cannot be undone. It removes all the data associated with this trace. Trace deletion happens asynchronously and may take up to 24 hours."
       confirmLabel="Delete trace"
       variant="destructive"
       loading={traceMutation.isPending}
