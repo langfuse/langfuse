@@ -46,7 +46,7 @@ describe("OpenAI model discovery", () => {
   });
 
   it("drops a model from the start of its shutdown day", async () => {
-    vi.setSystemTime(new Date("2027-01-06T00:00:01Z"));
+    vi.setSystemTime(new Date("2027-01-06T00:00:00.000Z"));
 
     const result = await fetchCatalog();
 
