@@ -437,9 +437,10 @@ export function EventsOutlierStrip({
       // measurement would flash a skeleton sized for nothing.
       measured={size !== undefined}
       status={status}
-      // Dim held-over bins during a refetch (filter change, saved-view
-      // switch, drill-in) — stale data must not read as current.
-      stale={queryResult.isPlaceholderData && queryResult.isFetching}
+      // Dim held-over bins while waiting for rows or refetching the strip.
+      stale={
+        queryResult.isPlaceholderData && (!enabled || queryResult.isFetching)
+      }
       header={header}
       // Ready height (header + plot + time labels), so loading doesn't jump.
       contentHeightClass="h-22.25"

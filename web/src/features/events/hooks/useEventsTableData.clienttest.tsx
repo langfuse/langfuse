@@ -1,4 +1,4 @@
-import { act, renderHook, waitFor } from "@testing-library/react";
+import { act, render, renderHook, waitFor } from "@testing-library/react";
 import {
   QueryClient,
   QueryClientProvider,
@@ -11,6 +11,7 @@ import { type TableDataScope } from "@/src/components/table/utils/tablePlacehold
 import { api } from "@/src/utils/api";
 import { usePaginationWindowPin } from "@/src/components/table/hooks/usePaginationWindowPin";
 import { refreshEventsTable } from "../lib/refreshEventsTable";
+import { EventsOutlierStrip } from "../components/outlier-strip/EventsOutlierStrip";
 import { useEventsFilterOptions } from "./useEventsFilterOptions";
 import { useEventsTableData } from "./useEventsTableData";
 
@@ -20,6 +21,14 @@ const queryHandlers = vi.hoisted(
 
 vi.mock("@/src/features/notifications/showSuccessToast", () => ({
   showSuccessToast: vi.fn(),
+}));
+
+vi.mock("@/src/features/posthog-analytics", () => ({
+  usePostHogClientCapture: () => vi.fn(),
+}));
+
+vi.mock("@/src/hooks/useElementSize", () => ({
+  useElementSize: () => [null, { width: 1048, height: 120 }],
 }));
 
 vi.mock("@/src/utils/api", async () => {
@@ -32,7 +41,7 @@ vi.mock("@/src/utils/api", async () => {
       options: Omit<UseQueryOptions, "queryKey" | "queryFn">,
     ) =>
       useActualQuery({
-        queryKey: [name, input],
+        queryKey: [name, name === "dashboard.executeQuery" ? { input } : input],
         queryFn: () =>
           queryHandlers[name]?.(input) ?? new Promise<never>(() => {}),
         ...options,
@@ -631,6 +640,50 @@ describe("auxiliary queries wired as in the events table", () => {
       },
     );
   }
+
+  it("dims the previous filter's strip while deferred and fetching, then restores current data", async () => {
+    const from = new Date("2026-01-01T00:00:00.000Z");
+    const to = new Date("2026-01-02T00:00:00.000Z");
+    const stripRows = (count: number) => [
+      { time_dimension: from.toISOString(), count_count: count },
+    ];
+    const filtered = createDeferred();
+    const fetchStrip = vi
+      .fn()
+      .mockResolvedValueOnce(stripRows(3))
+      .mockReturnValueOnce(filtered.promise);
+    queryHandlers["dashboard.executeQuery"] = fetchStrip;
+
+    const strip = (enabled: boolean, filterState = ROWS_SCOPE.filter) => (
+      <QueryClientProvider client={client}>
+        <EventsOutlierStrip
+          projectId="project-a"
+          filterState={filterState}
+          fromTimestamp={from}
+          toTimestamp={to}
+          enabled={enabled}
+          onSelectRange={() => {}}
+        />
+      </QueryClientProvider>
+    );
+    const view = render(strip(true));
+    const bandContent = () =>
+      view.container.querySelector(".transition-opacity");
+    await waitFor(() => expect(bandContent()).not.toBeNull());
+    expect(bandContent()).not.toHaveClass("opacity-60");
+
+    view.rerender(strip(false, FILTERED_SCOPE.filter));
+    expect(fetchStrip).toHaveBeenCalledTimes(1);
+    expect(client.isFetching({ queryKey: ["dashboard.executeQuery"] })).toBe(0);
+    expect(bandContent()).toHaveClass("opacity-60");
+
+    view.rerender(strip(true, FILTERED_SCOPE.filter));
+    await waitFor(() => expect(fetchStrip).toHaveBeenCalledTimes(2));
+    expect(bandContent()).toHaveClass("opacity-60");
+
+    await act(async () => filtered.resolve(stripRows(7)));
+    await waitFor(() => expect(bandContent()).not.toHaveClass("opacity-60"));
+  });
 
   const paint = () => {
     frames.runFrame();
