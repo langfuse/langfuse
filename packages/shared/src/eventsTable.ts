@@ -10,6 +10,32 @@ export const eventsTableIsRootObservationSql =
 export const eventsTableTraceNameSqlForAlias = (alias: string) =>
   `COALESCE(nullIf(${alias}.trace_name, ''), if(${eventsTableIsRootObservationSqlForAlias(alias)}, nullIf(${alias}.name, ''), NULL))`;
 export const eventsTableTraceNameSql = eventsTableTraceNameSqlForAlias("e");
+
+// events_full carries ngrambf_v1 skip indexes on lower(name) and
+// lower(trace_name). A trace_name filter targets the COALESCE expression above,
+// which no index can prune directly, so callers accelerate it with an OR
+// prefilter over the two raw lower()-indexed columns (a correctness-safe
+// superset, trimmed by the exact COALESCE predicate). The key is derived from
+// the same helper the column definition uses so it cannot drift from the SQL a
+// filter actually carries; add another alias here if it ever needs acceleration.
+const eventsTraceNameNgramEntry = (
+  alias: string,
+): [string, { traceName: string; name: string }] => {
+  const prefix = alias ? `${alias}.` : "";
+  return [
+    eventsTableTraceNameSqlForAlias(alias),
+    { traceName: `${prefix}trace_name`, name: `${prefix}name` },
+  ];
+};
+
+const eventsTraceNameNgramColumnsByExpr = new Map([
+  eventsTraceNameNgramEntry("e"),
+]);
+
+export const eventsTraceNameNgramColumns = (
+  field: string,
+): { traceName: string; name: string } | undefined =>
+  eventsTraceNameNgramColumnsByExpr.get(field);
 // Row-projection variant. The fallback above is Nullable(String), but
 // events_core.trace_name is a non-null String. Projecting the nullable
 // expression under the column's own name while a filter reads the physical
