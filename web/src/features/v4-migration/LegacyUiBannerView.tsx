@@ -31,16 +31,16 @@ export function LegacyUiBannerView({
       role="status"
     >
       <p className="min-w-0 flex-1 text-sm wrap-break-word">
-        <span className="font-bold">You are viewing legacy UI.</span>{" "}
+        <span className="font-bold">You are viewing legacy UI.</span>
         {hasDeadline
-          ? `It will be retired on ${V4_MIGRATION_DEADLINE}.`
-          : "It will be retired."}{" "}
+          ? ` It will be retired on ${V4_MIGRATION_DEADLINE}.`
+          : null}{" "}
         <Link
           href="/v4-migration"
           onClick={onMigrationStatusClick}
           className="text-preview-banner-link hover:text-preview-banner-link-hover underline underline-offset-2"
         >
-          Why will legacy UI be retired?
+          Why do I need to switch?
         </Link>
       </p>
       <div className="flex shrink-0 self-end sm:self-auto">

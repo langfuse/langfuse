@@ -19,7 +19,7 @@ const meta = preview.meta({
  */
 export const WithDeadline = meta.story({});
 
-/** Self-hosted / no Cloud deadline — why-link still follows the lead. */
+/** Off-Cloud: lead + why-link only (no retirement sentence). */
 export const WithoutDeadline = meta.story({
   args: { hasDeadline: false },
 });
