@@ -7,13 +7,14 @@ import {
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
 import { TRPCError } from "@trpc/server";
-import {
-  type MediaContentType,
-  type MediaReturnType,
-} from "@/src/features/media/server";
-import { type MediaEnabledFields } from "@/src/features/media/validation";
-import { createExternalMediaStorageService } from "@/src/features/external-media-storage/server";
-import { throwIfNoProjectAccess } from "@/src/features/rbac";
+import type {
+  MediaContentType,
+  MediaReturnType,
+  MediaEnabledFields,
+} from "@/src/features/media/validation";
+
+import { createExternalMediaStorageService } from "@/src/features/external-media-storage/server/service";
+import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { InvalidRequestError } from "@langfuse/shared";
 import { logger } from "@langfuse/shared/src/server";
 

@@ -32,6 +32,7 @@ export class GatewayResolveRepository {
         gatewayAssociation: { select: { metadata: true } },
         organization: {
           select: {
+            cloudConfig: true,
             gatewayConfig: {
               select: {
                 defaultIngestionProjectId: true,

@@ -9,7 +9,7 @@ import { TeamInviteDialogController } from "@/src/features/ai-gateway/components
 import { ConfirmationDialogController } from "@/src/components/design-system/ConfirmationDialogController/ConfirmationDialogController";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { usePaginationState } from "@/src/hooks/usePaginationState";
-import { useOrderByState } from "@/src/features/orderBy";
+import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import { useGatewayApiKeysTableData } from "@/src/features/ai-gateway/hooks/useGatewayApiKeysTableData";
 import { api } from "@/src/utils/api";
 import { GatewayApiKeysTable } from "./GatewayApiKeysTable";

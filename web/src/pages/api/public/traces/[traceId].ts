@@ -28,10 +28,10 @@ import {
   traceDeletionProcessor,
 } from "@langfuse/shared/src/server";
 import Decimal from "decimal.js";
-import { auditLog } from "@/src/features/audit-logs/server";
+import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { legacyPublicApiRateLimitUpgradePaths } from "@/src/features/public-api/server/rateLimitUpgradePaths";
 import { TRACES_DEPRECATION } from "@/src/features/public-api/server/deprecations";
-import { recordPublicApiAccess } from "@/src/ee/features/access-audit-log/server";
+import { recordPublicApiAccess } from "@/src/ee/features/access-audit-log/server/recordAccessEvent";
 
 export default withMiddlewares(
   {

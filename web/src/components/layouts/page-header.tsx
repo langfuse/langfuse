@@ -8,7 +8,7 @@ import { PageHeaderControlsSlotTarget } from "@/src/components/layouts/page-head
 import { InAppAiAgentButton } from "@/src/components/nav/InAppAiAgentButton";
 import { TopbarBrand } from "@/src/components/nav/TopbarBrand";
 import { useHasAppSidebar } from "@/src/components/nav/SidebarPresenceProvider";
-import { useIsInAppAgentLauncherVisible } from "@/src/features/in-app-agent";
+import { useIsInAppAgentLauncherVisible } from "@/src/features/in-app-agent/components/InAppAiAgentProvider";
 import { SidebarTrigger } from "@/src/components/ui/sidebar";
 import {
   PageTabs,

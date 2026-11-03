@@ -51,10 +51,9 @@ export function buildOpenCodeInstructions(
     steps: [
       {
         title: "Export the gateway key",
-        description:
-          "Replace the placeholder with your gateway key. After changing it, run opencode service restart.",
+        description: "After changing the key, run opencode service restart.",
         language: "sh",
-        code: `export LANGFUSE_GATEWAY_KEY="${GATEWAY_KEY_PLACEHOLDER}"`,
+        code: ` export LANGFUSE_GATEWAY_KEY="${GATEWAY_KEY_PLACEHOLDER}"`,
       },
       {
         title: "Add the gateway providers",

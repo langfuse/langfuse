@@ -2,7 +2,7 @@
 import Link from "next/link";
 import DocPopup from "@/src/components/layouts/doc-popup";
 import { Badge } from "@/src/components/design-system/Badge/Badge";
-import { InternalFeatureBadge } from "@/src/features/feature-flags";
+import { InternalFeatureBadge } from "@/src/features/feature-flags/components/InternalFeatureBadge";
 import {
   type Status,
   StatusBadge,

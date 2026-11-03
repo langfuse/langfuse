@@ -17,7 +17,7 @@ import {
 import {
   parseFlags,
   parseFlagsWithOrganizationDefaults,
-} from "@/src/features/feature-flags/server";
+} from "@/src/features/feature-flags/server/parseFlags";
 import {
   isGatewayDeployedOnInstance,
   isGatewayEnabledForOrganization,
@@ -59,7 +59,7 @@ import {
   findMultiTenantSsoConfig,
   getSsoAuthProviderIdForDomain,
   loadSsoProviders,
-} from "@/src/ee/features/multi-tenant-sso/server";
+} from "@/src/ee/features/multi-tenant-sso/utils";
 import { getSupportAccessMemberships } from "@/src/ee/features/support-access/server/supportAccess";
 import {
   ENTERPRISE_SSO_REQUIRED_MESSAGE,
@@ -95,9 +95,9 @@ import { createSupportEmailHash } from "@/src/features/support-chat/createSuppor
 import {
   canToggleV4,
   isV4UpgradeUiAvailable,
-} from "@/src/features/events/server";
-import { canCreateOrganizations } from "@/src/features/organizations/server";
-import { isSignupOnboardingEnabled } from "@/src/features/onboarding/server";
+} from "@/src/features/events/lib/v4Rollout";
+import { canCreateOrganizations } from "@/src/features/organizations/server/canCreateOrganizations";
+import { isSignupOnboardingEnabled } from "@/src/features/onboarding/server/onboardingService";
 
 const staticProviders: Provider[] = [
   CredentialsProvider({

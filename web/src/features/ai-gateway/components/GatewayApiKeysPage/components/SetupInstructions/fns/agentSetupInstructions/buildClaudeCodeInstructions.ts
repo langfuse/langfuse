@@ -32,8 +32,8 @@ export function buildClaudeCodeInstructions(
         description: "Leave ANTHROPIC_API_KEY unset.",
         language: "sh",
         code: [
-          `export ANTHROPIC_BASE_URL="${context.gatewayOrigin}/anthropic"`,
-          `export ANTHROPIC_AUTH_TOKEN="${GATEWAY_KEY_PLACEHOLDER}"`,
+          ` export ANTHROPIC_BASE_URL="${context.gatewayOrigin}/anthropic"`,
+          ` export ANTHROPIC_AUTH_TOKEN="${GATEWAY_KEY_PLACEHOLDER}"`,
           "unset ANTHROPIC_API_KEY",
         ].join("\n"),
       },

@@ -53,6 +53,26 @@ describe("agent setup instructions", () => {
     }
   });
 
+  it("keeps shell lines that carry the key out of shell history", () => {
+    for (const instructions of buildAgentSetupInstructions(context)) {
+      for (const step of instructions.steps) {
+        if (step.language !== "sh") continue;
+        const lines = step.code.split("\n");
+        // A bracketed multi-line paste is one history entry, judged by its first character.
+        const firstLine = step.code.includes(GATEWAY_KEY_PLACEHOLDER)
+          ? [lines[0]]
+          : [];
+        const keyLines = lines.filter(
+          (line) => line.includes("export ") || line.includes("cat >>"),
+        );
+
+        for (const line of [...firstLine, ...keyLines]) {
+          expect(line).toMatch(/^ \S/);
+        }
+      }
+    }
+  });
+
   it("copies markdown with a heading and docs link", () => {
     for (const instructions of buildAgentSetupInstructions(context)) {
       const markdown = formatAgentSetupMarkdown(instructions);

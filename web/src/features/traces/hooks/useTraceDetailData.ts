@@ -1,6 +1,7 @@
 import { api, shouldRetryResourceQuery } from "@/src/utils/api";
 import { keepPreviousData } from "@tanstack/react-query";
-import { useEventsTraceData, useReadPath } from "@/src/features/events";
+import { useEventsTraceData } from "@/src/features/events/hooks/useEventsTraceData";
+import { useReadPath } from "@/src/features/events/hooks/useReadPath";
 import { useSession } from "next-auth/react";
 
 /**

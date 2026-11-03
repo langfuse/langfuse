@@ -23,9 +23,9 @@ import { RequestResetPasswordEmailButton } from "@/src/features/auth-credentials
 import { TRPCClientError } from "@trpc/client";
 import Link from "next/link";
 import { ErrorPage } from "@/src/components/error-page";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
-import { passwordSchema } from "@/src/features/auth";
-import { useLangfuseCloudRegion } from "@/src/features/organizations";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { passwordSchema } from "@/src/features/auth/lib/signupSchema";
+import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
 import { PASSWORD_SETUP_EMAIL_STORAGE_KEY } from "@/src/features/auth-credentials/lib/credentialsUtils";
 import { getOnboardingTargetPath } from "@/src/features/onboarding/lib/demoCallbackRedirect";
 import { env } from "@/src/env.mjs";
