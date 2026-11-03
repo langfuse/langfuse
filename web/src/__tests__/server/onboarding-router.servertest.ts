@@ -138,7 +138,7 @@ describe("onboarding router", () => {
     const result = await caller.onboarding.complete();
 
     expect(result).toEqual({
-      redirectTo: "/",
+      redirectTo: `/project/${starterProjectId}/traces`,
       surveyCreated: true,
     });
     expect(organizationMembership.role).toBe(Role.OWNER);
@@ -438,7 +438,7 @@ describe("onboarding router", () => {
       "My Project",
     );
     expect(result).toEqual({
-      redirectTo: "/",
+      redirectTo: `/project/${starterOrganizationMembership?.organization.projects[0]?.id}/traces`,
       surveyCreated: true,
     });
   });

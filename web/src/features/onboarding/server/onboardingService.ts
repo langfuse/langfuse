@@ -184,7 +184,7 @@ const getRedirectTargetForMemberships = (
 
     if (projectRoleAccessRights[starterProjectRole].includes("project:read")) {
       return {
-        redirectTo: "/",
+        redirectTo: `/project/${starterProject.id}/traces`,
         orgId: starterOrganizationMembership.organization.id,
         canConfigureAiFeatures: true,
       };

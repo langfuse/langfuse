@@ -104,7 +104,7 @@ const makeCompletionPrisma = ({
 };
 
 describe("resolveOnboardingRedirectTarget", () => {
-  it("routes starter organization owners to the overview", async () => {
+  it("routes the auto-created starter project to tracing", async () => {
     const result = await resolveOnboardingRedirectTarget({
       prisma: makePrisma([
         makeMembership({
@@ -122,7 +122,7 @@ describe("resolveOnboardingRedirectTarget", () => {
     });
 
     expect(result).toMatchObject({
-      redirectTo: "/",
+      redirectTo: "/project/project-1/traces",
       orgId: "org-1",
     });
   });
@@ -317,7 +317,7 @@ describe("completeSignupOnboarding", () => {
         aiFeaturesEnabled: true,
       }),
     ).resolves.toEqual({
-      redirectTo: "/",
+      redirectTo: "/project/project-1/traces",
       surveyCreated: true,
     });
 
