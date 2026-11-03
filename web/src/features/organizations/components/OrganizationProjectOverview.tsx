@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/no-use-before-define */
 import {
   BookOpen,
+  KeyRound,
   LockIcon,
   MessageSquareText,
   Settings,
@@ -395,12 +396,15 @@ const OrganizationProjects = ({
   return <OrganizationProjectTiles org={org} search={search} />;
 };
 
-/** OrganizationSettingsTile links to the org's settings, and to project creation when allowed */
+/** OrganizationSettingsTile links to project creation when allowed, and to the org's settings or, for gateway-only members, their gateway keys */
 const OrganizationSettingsTile = ({ orgId }: { orgId: string }) => {
+  const session = useSession();
   const canCreateProject = useHasOrganizationAccess({
     organizationId: orgId,
     scope: "projects:create",
   });
+  const isGatewayOnlyMember =
+    gatewayOnlyLanding(session.data, orgId)?.canUseGateway === true;
 
   return (
     <Card>
@@ -419,12 +423,21 @@ const OrganizationSettingsTile = ({ orgId }: { orgId: string }) => {
             </Link>
           </Button>
         )}
-        <Button asChild variant="secondary">
-          <Link href={`/organization/${orgId}/settings`}>
-            <Settings size="base" __rawClassName="mr-2" aria-hidden="true" />
-            Organization settings
-          </Link>
-        </Button>
+        {isGatewayOnlyMember ? (
+          <Button asChild>
+            <Link href={`/organization/${orgId}/settings/ai-gateway-api-keys`}>
+              <KeyRound size="base" __rawClassName="mr-2" aria-hidden="true" />
+              Set up gateway key
+            </Link>
+          </Button>
+        ) : (
+          <Button asChild variant="secondary">
+            <Link href={`/organization/${orgId}/settings`}>
+              <Settings size="base" __rawClassName="mr-2" aria-hidden="true" />
+              Organization settings
+            </Link>
+          </Button>
+        )}
       </CardFooter>
     </Card>
   );
