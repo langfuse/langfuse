@@ -241,6 +241,20 @@ const ACCESS_ROUTES: AccessRoutes = {
         ...scoreRefs(output.scores),
       ],
     },
+    previewTree: {
+      resourceType: "trace",
+      action: "list",
+      resourceRefs: (input, output) => [
+        ref("session", input.sessionId),
+        ...output.flatMap((trace) => [
+          ref("trace", trace.id),
+          ...trace.observations.map((observation) =>
+            ref("observation", observation.id),
+          ),
+        ]),
+      ],
+      resultCount: (output) => output.length,
+    },
     tracesFromEvents: {
       resourceType: "trace",
       action: "list",
