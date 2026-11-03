@@ -24,9 +24,15 @@ type PlaygroundGeneration = Extract<
   { source: "generation" }
 >["generation"];
 
+type TriggerControls = Parameters<
+  ComponentProps<typeof DropdownMenu>["children"]
+>[0];
+
 type MenuPresentation =
   | {
-      children: ComponentProps<typeof DropdownMenu>["children"];
+      children: (
+        controls: TriggerControls & { totalCount: number },
+      ) => ReactNode;
       renderMenu?: never;
     }
   | {
@@ -85,10 +91,11 @@ export function ConnectedTraceObservationAddToDropdownMenuController(
               objectType={objectType}
               analyticsData={props.analyticsData}
             >
-              {({ item: annotationQueueItem }) => (
+              {({ item: annotationQueueItem, totalCount }) => (
                 <ConnectedTraceObservationAddToDropdownMenuControllerContent
                   {...props}
                   annotationQueueItem={annotationQueueItem}
+                  totalCount={totalCount}
                   createDatasetDisabled={createDatasetDisabled}
                   openDatasetDialog={openDatasetDialog}
                   openDatasetItemDialog={openDatasetItemDialog}
@@ -115,11 +122,13 @@ function ConnectedTraceObservationAddToDropdownMenuControllerContent({
   children,
   renderMenu,
   annotationQueueItem,
+  totalCount,
   createDatasetDisabled,
   openDatasetDialog,
   openDatasetItemDialog,
 }: ConnectedTraceObservationAddToDropdownMenuControllerProps & {
   annotationQueueItem: DropdownMenuItemDefinition;
+  totalCount: number;
   createDatasetDisabled: { reason: string } | undefined;
   openDatasetDialog: () => void;
   openDatasetItemDialog: Parameters<
@@ -275,7 +284,7 @@ function ConnectedTraceObservationAddToDropdownMenuControllerContent({
 
   return (
     <DropdownMenu items={items} maxHeight="24rem" placement="bottom-start">
-      {children}
+      {(controls) => children({ ...controls, totalCount })}
     </DropdownMenu>
   );
 }
