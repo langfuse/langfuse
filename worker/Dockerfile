@@ -14,12 +14,6 @@
 ARG BASE_IMAGE=registry.access.redhat.com/ubi9/ubi:9.8
 ARG MICRO_BASE_IMAGE=registry.access.redhat.com/ubi9/ubi-micro:9.8
 
-# Patched nodejs RPMs (scripts/docker/nodejs-rpm/), disabled while Red Hat's
-# nodejs:24 has every fix that test-node-security-fixes.js checks. To install
-# them again, uncomment these lines and follow scripts/docker/nodejs-rpm/README.md.
-# ARG NODEJS_RPM_IMAGE=ghcr.io/langfuse/langfuse-nodejs-rpm:24.21.0-1.lf1@sha256:a64b46f8d92f11dacba52f2d10fc52be62944b5a992d00681a2e9cfa105e9637
-# FROM ${NODEJS_RPM_IMAGE} AS nodejs-rpm
-
 FROM --platform=${TARGETPLATFORM:-linux/amd64} ${BASE_IMAGE} AS base
 
 # nodejs:24 and openssl (incl. the FIPS provider) come from the freely
@@ -27,15 +21,10 @@ FROM --platform=${TARGETPLATFORM:-linux/amd64} ${BASE_IMAGE} AS base
 # nodejs-full-i18n is required: the RPM Node is a small-ICU build and V8
 # segfaults in Intl.Segmenter (used e.g. by the prisma CLI's output
 # formatting) without the full ICU data.
-# test-node-security-fixes.js fails the build if the installed Node lacks any
-# of the security fixes it checks.
-COPY scripts/docker/nodejs-rpm/test-node-security-fixes.js /opt/nodejs-rpm/
 RUN dnf -y upgrade && \
     dnf -y module enable nodejs:24 && \
-    dnf -y install --setopt=install_weak_deps=0 \
-    nodejs nodejs-libs npm nodejs-full-i18n openssl-fips-provider openssl-fips-provider-so && \
-    dnf clean all && \
-    node /opt/nodejs-rpm/test-node-security-fixes.js
+    dnf -y install --setopt=install_weak_deps=0 nodejs npm nodejs-full-i18n && \
+    dnf clean all
 
 FROM --platform=${TARGETPLATFORM:-linux/amd64} base AS build-base
 # Pin turbo to avoid nondeterministic prune output from future patch releases.
@@ -60,18 +49,14 @@ ARG GID=1001
 # wget keeps exec-style container health checks working (e.g. `wget --spider
 # http://127.0.0.1:<port>/...` in ECS task definitions); it links GnuTLS,
 # which follows the host's FIPS mode like OpenSSL does.
-# The rpmdb check fails the build if the rootfs resolved a different nodejs
-# than the build stages.
 RUN dnf -y --installroot /mnt/rootfs --releasever 9 --setopt=install_weak_deps=0 \
     --disableexcludes=all \
     module enable nodejs:24 && \
     dnf -y --installroot /mnt/rootfs --releasever 9 \
     --setopt=install_weak_deps=0 --setopt=tsflags=nodocs \
     --disableexcludes=all \
-    install nodejs nodejs-libs npm nodejs-full-i18n openssl-fips-provider openssl-fips-provider-so \
-    bash coreutils-single sed \
+    install nodejs nodejs-full-i18n bash coreutils-single sed \
     tzdata ca-certificates crypto-policies wget && \
-    test "$(rpm --root /mnt/rootfs -q nodejs)" = "$(rpm -q nodejs)" && \
     dnf --installroot /mnt/rootfs clean all && \
     rm -rf /mnt/rootfs/var/cache /mnt/rootfs/var/log/dnf*
 

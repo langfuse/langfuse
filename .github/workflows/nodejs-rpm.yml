@@ -4,9 +4,8 @@ name: Build nodejs RPM
 # (scripts/docker/nodejs-rpm/) and publishes them as a multi-arch image for
 # web/Dockerfile and worker/Dockerfile.
 #
-# Disabled while the images install Red Hat's own nodejs:24: only manual runs
-# start it. Uncomment the pull_request and push triggers when reviving the
-# patched RPMs (scripts/docker/nodejs-rpm/README.md).
+# Disabled: only manual runs start it. To revive, uncomment the triggers below
+# (scripts/docker/nodejs-rpm/README.md).
 #
 # Pull requests build and verify without publishing. Pushes to main and manual
 # runs publish ghcr.io/langfuse/langfuse-nodejs-rpm; pin the digest from the

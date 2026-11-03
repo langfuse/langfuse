@@ -1,7 +1,5 @@
 #!/usr/bin/env bash
-# Disabled: Red Hat's nodejs:24 errata for RHEL 9 passes
-# test-node-security-fixes.js, so the images install it instead. README.md
-# describes how to rebase and revive this build.
+# Disabled; see README.md.
 #
 # Rebuilds Red Hat's nodejs:24 module RPMs from their source RPM with these
 # fixes from a newer Node release, vendored verbatim from its release branch:

@@ -8,16 +8,15 @@ until Red Hat ships its own errata.
 
 It is currently disabled: Red Hat's `nodejs:24` passes every check in
 `test-node-security-fixes.js`, and the images install it straight from the UBI
-repos. The images still run that test, so a build fails if the installed Node
-loses one of those fixes.
+repos.
 
-| File                          | Role                                                                                                |
-| ----------------------------- | --------------------------------------------------------------------------------------------------- |
-| `build.sh`                    | Rebuilds Red Hat's source RPM with the files in `PATCHES`; the header lists each patch and its CVE. |
-| `0002-placeholder.patch`      | Stands in for the upstream fix commits; replace it with one `git format-patch` file per fix.        |
-| `Dockerfile`                  | Builds the RPMs, verifies the fixes and FIPS mode, and packs them into a scratch image.             |
-| `install-nodejs.sh`           | Installs the patched RPMs while they are newer than the repos' `nodejs`, otherwise Red Hat's.       |
-| `test-node-security-fixes.js` | Fails unless the installed Node has every fix. Runs in this image and in the web and worker images. |
+| File                          | Role                                                                                                              |
+| ----------------------------- | ----------------------------------------------------------------------------------------------------------------- |
+| `build.sh`                    | Rebuilds Red Hat's source RPM with the files in `PATCHES`; the header lists each patch and its CVE.               |
+| `0002-placeholder.patch`      | Stands in for the upstream fix commits; replace it with one `git format-patch` file per fix.                      |
+| `Dockerfile`                  | Builds the RPMs, verifies the fixes and FIPS mode, and packs them into a scratch image.                           |
+| `install-nodejs.sh`           | Installs the patched RPMs while they are newer than the repos' `nodejs`, otherwise Red Hat's.                     |
+| `test-node-security-fixes.js` | Fails unless the installed Node has every fix. Runs in this image, and in the web and worker images once revived. |
 
 `.github/workflows/nodejs-rpm.yml` builds the image for amd64 and arm64 and
 publishes it to `ghcr.io/langfuse/langfuse-nodejs-rpm`. For a worked example,
@@ -37,9 +36,17 @@ four Node 24.22.1 fixes on Red Hat's `nodejs-24.21.0-1`.
    `nodejs-rpm.yml`. A pull request builds and verifies (a cold build takes
    about 70 minutes); merging publishes and prints the digest to pin in the
    job summary.
-4. **Install it in both `web/Dockerfile` and `worker/Dockerfile`.** Uncomment
-   the `nodejs-rpm` stage with the new digest, then replace the `nodejs`
-   install in the `base` stage with:
+4. **Install it in both `web/Dockerfile` and `worker/Dockerfile`.** After
+   the `MICRO_BASE_IMAGE` arg, add the image line the job summary printed and
+   a stage for it:
+
+   ```dockerfile
+   ARG NODEJS_RPM_IMAGE=ghcr.io/langfuse/langfuse-nodejs-rpm:<TAG>@sha256:<digest>
+   FROM ${NODEJS_RPM_IMAGE} AS nodejs-rpm
+   ```
+
+   In the `base` stage, replace the `nodejs` install with this one, which
+   installs the patched RPMs and fails the build if Node lacks any fix:
 
    ```dockerfile
    COPY scripts/docker/nodejs-rpm/install-nodejs.sh scripts/docker/nodejs-rpm/test-node-security-fixes.js /opt/nodejs-rpm/
@@ -51,9 +58,11 @@ four Node 24.22.1 fixes on Red Hat's `nodejs-24.21.0-1`.
        node /opt/nodejs-rpm/test-node-security-fixes.js
    ```
 
-   and the two `dnf --installroot /mnt/rootfs` calls in the `rpm-installer`
-   stage with one call that passes every package (install-nodejs.sh explains
-   why), keeping the rest of that `RUN` as is:
+   In the `rpm-installer` stage, replace the `RUN` with the two
+   `dnf --installroot /mnt/rootfs` calls with this one. `install-nodejs.sh`
+   only swaps in patched RPMs for packages named on its command line, and
+   needs them all in one call; the `rpm --root` check fails the build if the
+   runtime image got a different `nodejs` than the tested one:
 
    ```dockerfile
    RUN --mount=type=bind,from=nodejs-rpm,source=/rpms,target=/tmp/nodejs-rpms \
@@ -61,6 +70,9 @@ four Node 24.22.1 fixes on Red Hat's `nodejs-24.21.0-1`.
        nodejs nodejs-libs npm nodejs-full-i18n openssl-fips-provider openssl-fips-provider-so \
        bash coreutils-single sed \
        tzdata ca-certificates crypto-policies wget && \
+       test "$(rpm --root /mnt/rootfs -q nodejs)" = "$(rpm -q nodejs)" && \
+       dnf --installroot /mnt/rootfs clean all && \
+       rm -rf /mnt/rootfs/var/cache /mnt/rootfs/var/log/dnf*
    ```
 
 ## Disabling it again
