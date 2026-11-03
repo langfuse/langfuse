@@ -95,7 +95,7 @@ function tileActions(state: OrganizationSettingsTileState, orgId: string) {
   const keysHref = `/organization/${orgId}/settings/ai-gateway-api-keys`;
   const docsButton = (
     <Button
-      variant="ghost"
+      variant="secondary"
       href={GATEWAY_OVERVIEW_DOCS_URL}
       icon={BookOpen}
       text="What's the AI Gateway?"
@@ -123,12 +123,7 @@ function tileActions(state: OrganizationSettingsTileState, orgId: string) {
     case "gatewayNoKey":
       return (
         <>
-          <Button
-            variant="secondary"
-            href={keysHref}
-            icon={KeyRound}
-            text="Create your gateway key"
-          />
+          <Button href={keysHref} icon={KeyRound} text="Create gateway key" />
           {docsButton}
         </>
       );
