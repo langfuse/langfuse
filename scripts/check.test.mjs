@@ -78,7 +78,7 @@ test("split-out lint records transitive prerequisites, excluding scriptless task
       {
         name: "web",
         path: "web",
-        scripts: { lint: "eslint" },
+        scripts: { lint: "oxlint --max-warnings 0" },
         dependencies: [],
       },
     ],
@@ -91,6 +91,38 @@ test("split-out lint records transitive prerequisites, excluding scriptless task
     "plugin#build",
     "shared#build",
     "base#build",
+  ]);
+});
+
+test("Oxlint narrows source changes without ESLint-only flags", () => {
+  const plan = createPlan(
+    ["web/src/example.ts"],
+    [
+      {
+        name: "web",
+        path: "web",
+        scripts: { lint: "dotenv -e ../.env -- oxlint --max-warnings 0" },
+        dependencies: [],
+      },
+    ],
+    { only: ["lint"] },
+    "HEAD",
+    {
+      tasks: new Map([
+        ["web#lint", { dependencies: [], inputFiles: new Set() }],
+      ]),
+      affected: new Set(["web#lint"]),
+    },
+    () => true,
+  );
+  assert.equal(plan.length, 1);
+  assert.deepEqual(plan[0].args, [
+    "--filter",
+    "web",
+    "run",
+    "lint",
+    "--no-error-on-unmatched-pattern",
+    "./src/example.ts",
   ]);
 });
 

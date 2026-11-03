@@ -128,7 +128,9 @@ describe("ModernSessionHeaderActionsController", () => {
       mockUseSession.mockReturnValue({ data: { user: { admin: true } } });
       render(
         <ModernSessionHeaderActionsController
+          // eslint-disable-next-line react/jsx-curly-brace-presence
           projectId={"project'\\id"}
+          // eslint-disable-next-line react/jsx-curly-brace-presence
           sessionId={"session'\\id"}
           isPublic={false}
         />,

@@ -327,7 +327,7 @@ console.log();
 
 // --- language service over a mutable in-memory layout ------------------------
 const t0 = Date.now();
-const projects = ["tsconfig.json", "tsconfig.tests.json"].map((configName) => {
+  const projects = ["tsconfig.json"].map((configName) => {
   const parsed = ts.getParsedCommandLineOfConfigFile(
     `${webRoot}/${configName}`,
     {},

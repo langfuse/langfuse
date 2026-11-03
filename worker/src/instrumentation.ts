@@ -17,6 +17,7 @@ import { env } from "./env";
 
 dd.init({
   runtimeMetrics: true,
+  // eslint-disable-next-line @typescript-eslint/no-deprecated
   plugins: false,
 });
 
