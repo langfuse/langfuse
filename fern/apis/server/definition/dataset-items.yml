@@ -38,6 +38,11 @@ service:
               ISO 8601 timestamp (RFC 3339, Section 5.6) in UTC (e.g., "2026-01-21T14:35:42Z").
               If provided, returns state of dataset at this timestamp.
               If not provided, returns the latest version. Requires datasetName to be specified.
+          includeArchived:
+            type: optional<boolean>
+            docs: |
+              Include archived dataset items in the response. Defaults to `false`,
+              which returns only active items.
           page:
             type: optional<integer>
             docs: page number, starts at 1

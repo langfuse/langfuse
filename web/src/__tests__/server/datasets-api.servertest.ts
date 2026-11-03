@@ -28,6 +28,7 @@ import {
   PostDatasetsV2Response,
   DeleteDatasetItemV1Response,
   DeleteDatasetRunV1Response,
+  DeleteDatasetV2Response,
   GetDatasetRunItemsV1Response,
 } from "@/src/features/public-api/types/datasets";
 import {
@@ -324,6 +325,90 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
         item.id.startsWith("active-item-"),
       ),
     ).toBe(true);
+  });
+
+  it("should return archived dataset items when includeArchived=true", async () => {
+    const datasetName = `dataset-items-include-archived-${v4()}`;
+
+    await makeZodVerifiedAPICall(
+      PostDatasetsV1Response,
+      "POST",
+      "/api/public/datasets",
+      { name: datasetName },
+      auth,
+    );
+
+    for (let i = 0; i < 2; i++) {
+      await makeZodVerifiedAPICall(
+        PostDatasetItemsV1Response,
+        "POST",
+        "/api/public/dataset-items",
+        {
+          datasetName,
+          id: `archived-item-${i}`,
+          input: { key: `archived-value-${i}` },
+          status: "ARCHIVED",
+        },
+        auth,
+      );
+    }
+
+    await makeZodVerifiedAPICall(
+      PostDatasetItemsV1Response,
+      "POST",
+      "/api/public/dataset-items",
+      {
+        datasetName,
+        id: "active-item",
+        input: { key: "active-value" },
+        status: "ACTIVE",
+      },
+      auth,
+    );
+
+    const activeItems = await makeZodVerifiedAPICall(
+      GetDatasetItemsV1Response,
+      "GET",
+      `/api/public/dataset-items?datasetName=${encodeURIComponent(datasetName)}`,
+      undefined,
+      auth,
+    );
+    expect(activeItems.body.data).toHaveLength(1);
+    expect(activeItems.body.data[0]?.status).toBe("ACTIVE");
+    expect(activeItems.body.meta.totalItems).toBe(1);
+
+    const allItems = await makeZodVerifiedAPICall(
+      GetDatasetItemsV1Response,
+      "GET",
+      `/api/public/dataset-items?datasetName=${encodeURIComponent(datasetName)}&includeArchived=true`,
+      undefined,
+      auth,
+    );
+    expect(allItems.body.data).toHaveLength(3);
+    expect(allItems.body.data.map((item) => item.status).sort()).toEqual([
+      "ACTIVE",
+      "ARCHIVED",
+      "ARCHIVED",
+    ]);
+    expect(allItems.body.meta.totalItems).toBe(3);
+
+    const explicitlyActiveItems = await makeZodVerifiedAPICall(
+      GetDatasetItemsV1Response,
+      "GET",
+      `/api/public/dataset-items?datasetName=${encodeURIComponent(datasetName)}&includeArchived=false`,
+      undefined,
+      auth,
+    );
+    expect(explicitlyActiveItems.body.data).toHaveLength(1);
+    expect(explicitlyActiveItems.body.data[0]?.status).toBe("ACTIVE");
+
+    const invalid = await makeAPICall(
+      "GET",
+      `/api/public/dataset-items?datasetName=${encodeURIComponent(datasetName)}&includeArchived=yes-please`,
+      undefined,
+      auth,
+    );
+    expect(invalid.status).toBe(400);
   });
 
   it("should return archived dataset item when getting by id", async () => {
@@ -1411,6 +1496,113 @@ describe("/api/public/datasets and /api/public/dataset-items API Endpoints", () 
       },
     });
     expect(dbRunAfterDelete).toBeNull();
+
+    // ClickHouse run-item deletion propagates asynchronously via the worker
+    // queue; it is covered deterministically in
+    // worker/src/__tests__/datasetDelete.test.ts.
+  });
+
+  it("should delete a dataset with its items and runs", async () => {
+    const datasetName = `dataset-delete-${uuidv4()}`;
+    const runName = `run-${uuidv4()}`;
+
+    const dataset = await makeZodVerifiedAPICall(
+      PostDatasetsV2Response,
+      "POST",
+      "/api/public/v2/datasets",
+      { name: datasetName },
+      auth,
+    );
+    const datasetProjectId = dataset.body.projectId;
+
+    const datasetItem = await makeZodVerifiedAPICall(
+      PostDatasetItemsV1Response,
+      "POST",
+      "/api/public/dataset-items",
+      {
+        datasetName,
+        id: uuidv4(),
+        input: { key: "value" },
+      },
+      auth,
+    );
+
+    await makeZodVerifiedAPICall(
+      PostDatasetRunItemsV1Response,
+      "POST",
+      "/api/public/dataset-run-items",
+      {
+        datasetItemId: datasetItem.body.id,
+        traceId,
+        runName,
+      },
+      auth,
+    );
+
+    // Another project's API key cannot delete the dataset.
+    const { auth: otherAuth } = await createOrgProjectAndApiKey();
+    const deleteWithWrongAuth = await makeAPICall(
+      "DELETE",
+      `/api/public/v2/datasets/${encodeURIComponent(datasetName)}`,
+      undefined,
+      otherAuth,
+    );
+    expect(deleteWithWrongAuth.status).toBe(404);
+
+    const deleteNonExistent = await makeAPICall(
+      "DELETE",
+      `/api/public/v2/datasets/${encodeURIComponent(
+        `non-existent-${uuidv4()}`,
+      )}`,
+      undefined,
+      auth,
+    );
+    expect(deleteNonExistent.status).toBe(404);
+
+    expect(
+      await prisma.dataset.findFirst({
+        where: { name: datasetName, projectId: datasetProjectId },
+      }),
+    ).not.toBeNull();
+    expect(
+      await prisma.datasetItem.findFirst({
+        where: { id: datasetItem.body.id, projectId: datasetProjectId },
+      }),
+    ).not.toBeNull();
+    expect(
+      await prisma.datasetRuns.findFirst({
+        where: { name: runName, projectId: datasetProjectId },
+      }),
+    ).not.toBeNull();
+
+    const deleteResponse = await makeZodVerifiedAPICall(
+      DeleteDatasetV2Response,
+      "DELETE",
+      `/api/public/v2/datasets/${encodeURIComponent(datasetName)}`,
+      undefined,
+      auth,
+    );
+    expect(deleteResponse.status).toBe(200);
+    expect(deleteResponse.body).toEqual({
+      message: "Dataset successfully deleted",
+    });
+
+    // Prisma cascades dataset items and dataset runs.
+    expect(
+      await prisma.dataset.findFirst({
+        where: { name: datasetName, projectId: datasetProjectId },
+      }),
+    ).toBeNull();
+    expect(
+      await prisma.datasetItem.findFirst({
+        where: { id: datasetItem.body.id, projectId: datasetProjectId },
+      }),
+    ).toBeNull();
+    expect(
+      await prisma.datasetRuns.findFirst({
+        where: { name: runName, projectId: datasetProjectId },
+      }),
+    ).toBeNull();
 
     // ClickHouse run-item deletion propagates asynchronously via the worker
     // queue; it is covered deterministically in
