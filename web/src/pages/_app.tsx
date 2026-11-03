@@ -139,6 +139,7 @@ if (typeof window !== "undefined" && postHogClientConfig) {
       },
     },
     autocapture: false,
+    // eslint-disable-next-line @typescript-eslint/no-deprecated
     enable_heatmaps: true,
     persistence: "cookie",
   });

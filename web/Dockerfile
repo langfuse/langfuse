@@ -222,6 +222,9 @@ ENV SENTRY_RELEASE=$NEXT_PUBLIC_BUILD_ID
 # Copy source code of isolated subworkspace
 COPY --from=pruner /app/out/full/ .
 
+# The web tsconfig includes Vitest config, whose reporter lives outside the pruned workspace.
+COPY scripts/vitest/ci-reporter.ts ./scripts/vitest/ci-reporter.ts
+
 # Keep the documented direct golang-migrate recovery paths available in the
 # production image while maintaining canonical/ as the only authored tree.
 RUN set -eu; \

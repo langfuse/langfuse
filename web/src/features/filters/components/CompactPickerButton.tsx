@@ -27,6 +27,7 @@ export const CompactPickerButton = ({
 }) => (
   <Button
     variant="outline"
+    // eslint-disable-next-line jsx-a11y/role-has-required-aria-props
     role="combobox"
     type="button"
     className={pickerVariants({ minWidth })}

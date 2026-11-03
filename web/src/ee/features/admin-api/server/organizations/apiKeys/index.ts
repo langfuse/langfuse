@@ -73,6 +73,7 @@ export async function handleCreateApiKey(
     role: SystemRoleId(role),
     createdBy: "system",
     name,
+    // eslint-disable-next-line @typescript-eslint/no-deprecated
     note,
     expiresAt,
   });

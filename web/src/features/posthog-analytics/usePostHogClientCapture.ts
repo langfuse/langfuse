@@ -18,7 +18,6 @@ type ToastEventMap = {
 };
 
 // resource:action, only use snake_case
-// eslint-disable-next-line @typescript-eslint/no-unused-vars -- Used via typeof
 const events = {
   table: [
     "filter_builder_open",
