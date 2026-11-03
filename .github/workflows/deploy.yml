@@ -48,13 +48,7 @@ jobs:
         uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         with:
           script: |
-            const services = ["web", "web-ingestion", "web-iso", "worker", "worker-cpu"];
-            // Prod ai-gateway deploys run only via explicit dispatch until its
-            // prod ECS services are bootstrapped.
-            const isStaging = context.eventName === "workflow_dispatch"
-              ? context.payload.inputs.environment === "staging"
-              : context.ref === "refs/heads/main";
-            if (isStaging) services.push("ai-gateway");
+            const services = ["web", "web-ingestion", "web-iso", "worker", "worker-cpu", "ai-gateway"];
 
             if (context.eventName === "workflow_dispatch") {
               const service = context.payload.inputs.service;

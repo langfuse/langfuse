@@ -5,7 +5,7 @@ import {
   GetExperimentItemsV1ParsedQueryBase,
   GetExperimentItemsV1ParsedQuery,
   GetExperimentsV1ParsedQuery,
-} from "@/src/features/public-api/server";
+} from "@/src/features/public-api/types/experiments";
 import { z } from "zod";
 import { McpAdvancedFilterBaseSchema } from "../../core/filter-schema";
 

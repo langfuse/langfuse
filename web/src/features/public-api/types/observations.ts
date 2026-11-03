@@ -434,6 +434,7 @@ export const GetObservationsV2Response = z
     data: z.array(APIObservationV2),
     meta: z.object({
       cursor: EncodedObservationsCursorV2String.optional(),
+      comment: z.string().optional(),
     }),
   })
   .strict();

@@ -1,6 +1,6 @@
-import { ObservationLevel, ObservationType } from "../../domain";
+import { ObservationLevel, ObservationType } from "../../domain/observations";
 import { isRootObservation } from "../../eventsTable";
-import type { ColumnDefinition } from "../../tableDefinitions";
+import type { ColumnDefinition } from "../../tableDefinitions/types";
 import type { FilterCondition } from "../../types";
 import type { ObservationForEval } from "./observationForEval";
 

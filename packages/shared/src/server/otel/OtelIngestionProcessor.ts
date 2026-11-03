@@ -655,6 +655,7 @@ export class OtelIngestionProcessor {
                     input,
                     output,
                     isError: level === ObservationLevel.ERROR,
+                    metadata,
                     projectId: this.projectId,
                   }),
                   promptName: canLinkPrompt
@@ -1356,6 +1357,7 @@ export class OtelIngestionProcessor {
         input,
         output,
         isError: level === ObservationLevel.ERROR,
+        metadata,
         projectId: this.projectId,
       }),
       promptName: canLinkPrompt

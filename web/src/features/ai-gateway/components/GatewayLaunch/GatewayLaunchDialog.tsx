@@ -15,15 +15,17 @@ import {
 } from "@/src/features/ai-gateway/hooks/useGatewayLaunchEligibility";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { GatewayHero } from "@/src/features/ai-gateway/components/GatewayLaunch/GatewayHero";
+import { GATEWAY_OVERVIEW_DOCS_URL } from "@/src/features/ai-gateway/constants/gatewayDocsUrls";
 
 const copy = {
   admin: {
     title: "Introducing Langfuse AI Gateway",
-    lead: "Point Claude Code, Codex or your SDK at one Langfuse endpoint. See what every member spends.",
+    lead: "Route Claude Code, Codex, OpenCode, and your own apps through Langfuse. Each call becomes a full trace, along with who made it and what it cost.",
     points: [
-      "A key for every member, cost attributed per person",
-      "Turn models on or off for your org",
-      "Every call traced in Langfuse",
+      "Use one key for Anthropic and OpenAI",
+      "Track spend by person, team, and key",
+      "Approve and remove models for entire company",
+      "Record full traces, not just token counts",
     ],
   },
   member: {
@@ -91,7 +93,7 @@ export function GatewayLaunchDialog({
             </div>
             <div className="flex shrink-0 items-center justify-between border-t px-8 py-4">
               <Link
-                href="https://langfuse.com/docs/ai-gateway"
+                href={GATEWAY_OVERVIEW_DOCS_URL}
                 target="_blank"
                 rel="noopener noreferrer"
                 onClick={() =>
@@ -150,7 +152,7 @@ export function GatewayLaunchDialog({
                 >
                   <Button
                     variant="primary"
-                    text="Get API key"
+                    text="Get gateway key"
                     href={`/organization/${organizationId}/settings/ai-gateway-api-keys`}
                   />
                 </span>

@@ -49,10 +49,34 @@ vi.mock("@langfuse/shared/src/server", async (importOriginal) => ({
 }));
 
 vi.mock(
-  "../../features/evaluation/observationEval",
+  "../../features/evaluation/observationEval/fetchObservationEvalRules",
   async (importOriginal) => ({
     ...(await importOriginal<
-      typeof import("../../features/evaluation/observationEval")
+      typeof import("../../features/evaluation/observationEval/fetchObservationEvalRules")
+    >()),
+    fetchObservationEvalRules: otelReplayMocks.fetchObservationEvalRules,
+    createObservationEvalSchedulerDeps:
+      otelReplayMocks.createObservationEvalSchedulerDeps,
+    scheduleObservationEvals: otelReplayMocks.scheduleObservationEvals,
+  }),
+);
+vi.mock(
+  "../../features/evaluation/observationEval/createSchedulerDeps",
+  async (importOriginal) => ({
+    ...(await importOriginal<
+      typeof import("../../features/evaluation/observationEval/createSchedulerDeps")
+    >()),
+    fetchObservationEvalRules: otelReplayMocks.fetchObservationEvalRules,
+    createObservationEvalSchedulerDeps:
+      otelReplayMocks.createObservationEvalSchedulerDeps,
+    scheduleObservationEvals: otelReplayMocks.scheduleObservationEvals,
+  }),
+);
+vi.mock(
+  "../../features/evaluation/observationEval/scheduleObservationEvals",
+  async (importOriginal) => ({
+    ...(await importOriginal<
+      typeof import("../../features/evaluation/observationEval/scheduleObservationEvals")
     >()),
     fetchObservationEvalRules: otelReplayMocks.fetchObservationEvalRules,
     createObservationEvalSchedulerDeps:

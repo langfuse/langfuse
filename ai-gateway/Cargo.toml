@@ -17,7 +17,7 @@ opentelemetry-http = "0.33"
 opentelemetry = { version = "0.33", default-features = false, features = ["trace", "metrics", "internal-logs"] }
 opentelemetry_sdk = { version = "0.33", default-features = false, features = ["trace", "metrics", "internal-logs"] }
 opentelemetry-otlp = { version = "0.33", default-features = false, features = ["trace", "metrics", "http-proto", "reqwest-blocking-client", "internal-logs"] }
-reqwest = { version = "0.13.5", default-features = false, features = ["rustls", "stream"] }
+reqwest = { version = "0.13.5", default-features = false, features = ["http2", "rustls", "stream"] }
 reqwest-middleware = "0.5"
 reqwest-tracing = { version = "0.7", default-features = false }
 serde = { version = "1", features = ["derive"] }

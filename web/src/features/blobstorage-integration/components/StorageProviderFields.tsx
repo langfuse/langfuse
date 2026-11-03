@@ -16,7 +16,7 @@ import {
   BlobStorageIntegrationType,
   GCS_USE_DEFAULT_CREDENTIALS,
 } from "@langfuse/shared";
-import { useLangfuseCloudRegion } from "@/src/features/organizations";
+import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
 import {
   type BlobStorageFormControl,
   type BlobStorageFormValues,
@@ -230,8 +230,8 @@ export const StorageProviderFields = ({
                 />
               </FormControl>
               <FormDescription>
-                Stored encrypted. Leave empty to keep the saved key. The key
-                needs write access to the bucket.
+                Stored encrypted. Leave empty to keep the saved key, unless you
+                change the bucket. The key needs write access to the bucket.
               </FormDescription>
               <FormMessage />
             </FormItem>

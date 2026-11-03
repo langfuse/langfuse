@@ -1,23 +1,91 @@
 import { InvalidRequestError } from "@langfuse/shared";
 import type {
   GatewayIngestionMode,
+  Prisma,
   PrismaClient,
 } from "@langfuse/shared/src/db";
-import { auditLog } from "@/src/features/audit-logs/server";
+import {
+  auditLog,
+  type AuditLogActor,
+} from "@/src/features/audit-logs/auditLog";
 import type { OrgAuthedContext } from "@/src/server/api/trpc";
 import { invalidateGatewayResolveCacheForOrganization } from "@/src/features/ai-gateway/server/resolve/gatewayResolveCache";
 import { isGatewayIngestionConfigured } from "@/src/features/ai-gateway/fns/isGatewayIngestionConfigured";
+import {
+  getEffectiveGatewayIngestionMode,
+  isGatewayIngestionModeAvailable,
+} from "@/src/features/ai-gateway/fns/gatewayIngestionModePolicy";
 import { GatewayConfigRepository } from "./gatewayConfigRepository";
+
+/** The gateway config is org-level; the org audit log only lists entries without a project. */
+function withoutProjectContext(actor: AuditLogActor): AuditLogActor {
+  if ("session" in actor) {
+    return {
+      session: {
+        ...actor.session,
+        projectId: undefined,
+        projectRole: undefined,
+      },
+    };
+  }
+  return { ...actor, projectId: undefined };
+}
 
 export class GatewayConfigService {
   private readonly repository: GatewayConfigRepository;
 
-  constructor(private readonly prisma: PrismaClient) {
+  constructor(
+    private readonly prisma: PrismaClient | Prisma.TransactionClient,
+  ) {
     this.repository = new GatewayConfigRepository(prisma);
   }
 
-  getConfig(organizationId: string) {
-    return this.repository.getConfig(organizationId);
+  /** isIngestionProject reports whether the gateway writes its traces into the project. */
+  async isIngestionProject(params: {
+    organizationId: string;
+    projectId: string;
+  }) {
+    return (await this.repository.getConfigWritingToProject(params)) !== null;
+  }
+
+  /**
+   * clearIngestionProject unlinks a project from the gateway, which turns the
+   * gateway off until another ingestion project is selected. It returns
+   * whether it cleared the link. Run it inside the deleting transaction, then
+   * invalidate the gateway resolve cache once that transaction commits.
+   */
+  async clearIngestionProject(params: {
+    organizationId: string;
+    projectId: string;
+    actor: AuditLogActor;
+  }): Promise<boolean> {
+    const before = await this.repository.getConfigWritingToProject(params);
+    if (!before) return false;
+    if (!(await this.repository.clearIngestionProject(params))) return false;
+
+    const after = await this.repository.getConfig(params.organizationId);
+    await auditLog(
+      {
+        ...withoutProjectContext(params.actor),
+        resourceType: "gatewayConfig",
+        resourceId: params.organizationId,
+        action: "update",
+        before,
+        after,
+      },
+      this.prisma,
+    );
+    return true;
+  }
+
+  async getConfig(organizationId: string) {
+    const config = await this.repository.getConfig(organizationId);
+    return (
+      config && {
+        ...config,
+        ingestionMode: getEffectiveGatewayIngestionMode(config.ingestionMode),
+      }
+    );
   }
 
   async getSetupStatus(organizationId: string) {
@@ -38,6 +106,11 @@ export class GatewayConfigService {
     ingestionMode: GatewayIngestionMode;
     session: OrgAuthedContext["session"];
   }) {
+    if (!isGatewayIngestionModeAvailable(params.ingestionMode)) {
+      throw new InvalidRequestError(
+        "Ingestion mode NONE is not available on Langfuse Cloud",
+      );
+    }
     if (
       !isGatewayIngestionConfigured({
         ingestionMode: params.ingestionMode,
@@ -49,7 +122,7 @@ export class GatewayConfigService {
       );
     }
 
-    const before = await this.getConfig(params.organizationId);
+    const before = await this.repository.getConfig(params.organizationId);
 
     if (params.defaultIngestionProjectId) {
       const project = await this.repository.getActiveOrganizationProject({

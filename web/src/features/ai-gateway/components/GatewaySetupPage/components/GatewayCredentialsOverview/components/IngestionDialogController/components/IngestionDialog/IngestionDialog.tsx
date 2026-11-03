@@ -3,6 +3,7 @@ import { useState } from "react";
 import { Button } from "@/src/components/design-system/Button/Button";
 import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
 import { IngestionSettingsFields } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/IngestionSettingsFields/IngestionSettingsFields";
+import { IngestionProjectAccessAlert } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/GatewayCredentialsOverview/components/IngestionDialogController/components/IngestionDialog/components/IngestionProjectAccessAlert";
 import { GATEWAY_SETUP } from "@/src/features/ai-gateway/components/GatewaySetupPage/constants/gatewaySetup";
 import { getInitialIngestionSettings } from "@/src/features/ai-gateway/components/GatewaySetupPage/fns/getInitialIngestionSettings";
 import { isIngestionSettingsValid } from "@/src/features/ai-gateway/components/GatewaySetupPage/fns/isIngestionSettingsValid";
@@ -63,6 +64,9 @@ export function IngestionDialog({
           projects={projects}
           onChange={setSettings}
         />
+        {settings.ingestionMode === "NONE" ? null : (
+          <IngestionProjectAccessAlert ingestionMode={settings.ingestionMode} />
+        )}
       </Dialog.Body>
     </Dialog>
   );

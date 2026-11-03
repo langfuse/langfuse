@@ -50,7 +50,8 @@ export function buildPagerDutyEvent(args: {
     case "project-notification":
       return buildProjectNotificationEvent(args.envelope.event, context);
     case "prompt-version":
-      return buildPromptChangeEvent(args.envelope, context);
+    case "skill-version":
+      return buildVersionChangeEvent(args.envelope, context);
   }
 }
 
@@ -250,12 +251,17 @@ function buildProjectNotificationEvent(
   };
 }
 
-/** buildPromptChangeEvent records a prompt version change as a PagerDuty change event, which never pages anyone. */
-function buildPromptChangeEvent(
-  envelope: Extract<PagerDutyEnvelope, { type: "prompt-version" }>,
+/** buildVersionChangeEvent records a prompt or skill version change without paging anyone. */
+function buildVersionChangeEvent(
+  envelope: Extract<
+    PagerDutyEnvelope,
+    { type: "prompt-version" | "skill-version" }
+  >,
   context: EventContext,
 ): PagerDutyEvent {
-  const { prompt } = envelope;
+  const entity = envelope.type === "prompt-version" ? "prompt" : "skill";
+  const version =
+    envelope.type === "prompt-version" ? envelope.prompt : envelope.skill;
   return {
     kind: "change",
     event: {
@@ -263,28 +269,33 @@ function buildPromptChangeEvent(
       links: compactLinks([
         {
           href: safeUrl(() =>
-            buildPromptUrl({
-              projectId: context.projectId,
-              name: prompt.name,
-              version: prompt.version,
-            }),
+            envelope.type === "prompt-version"
+              ? buildPromptUrl({
+                  projectId: context.projectId,
+                  name: version.name,
+                  version: version.version,
+                })
+              : new URL(
+                  `project/${encodeURIComponent(context.projectId)}/skills/${encodeURIComponent(version.name)}?version=${version.version}`,
+                  getProductBaseUrl(),
+                ).toString(),
           ),
-          text: "View prompt in Langfuse",
+          text: `View ${entity} in Langfuse`,
         },
       ]),
       payload: {
         summary: truncatePagerDutySummary(
-          `Langfuse prompt "${prompt.name}" version ${prompt.version} ${envelope.action}`,
+          `Langfuse ${entity} "${version.name}" version ${version.version} ${envelope.action}`,
         ),
         source: source(context.projectName),
         timestamp: new Date().toISOString(),
         custom_details: {
-          prompt_name: prompt.name,
-          prompt_version: prompt.version,
+          [`${entity}_name`]: version.name,
+          [`${entity}_version`]: version.version,
           action: envelope.action,
-          labels: prompt.labels,
-          tags: prompt.tags,
-          commit_message: prompt.commitMessage,
+          labels: version.labels,
+          tags: version.tags,
+          commit_message: version.commitMessage,
         },
       },
     },
@@ -309,14 +320,22 @@ type PagerDutyEnvelope =
   | {
       type: "prompt-version";
       action: string;
-      prompt: {
-        name: string;
-        version: number;
-        labels: string[];
-        tags: string[];
-        commitMessage: string | null;
-      };
+      prompt: VersionChange;
+    }
+  | {
+      type: "skill-version";
+      action: string;
+      skill: VersionChange;
     };
+
+/** VersionChange is the prompt or skill metadata included in a PagerDuty change event. */
+type VersionChange = {
+  name: string;
+  version: number;
+  labels: string[];
+  tags: string[];
+  commitMessage: string | null;
+};
 
 /** ProjectNotificationEvent is the subset of a project notification PagerDuty needs. */
 type ProjectNotificationEvent = {

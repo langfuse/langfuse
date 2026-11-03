@@ -4,8 +4,9 @@ import {
   LangfuseConflictError,
   LangfuseNotFoundError,
   type OrderByState,
+  singleFilter,
 } from "../../../";
-import { InvalidRequestError } from "../../../errors";
+import { InvalidRequestError } from "../../../errors/InvalidRequestError";
 import { env } from "../../../env";
 import {
   CreateWidgetInput,
@@ -19,7 +20,7 @@ import {
   dashboardWidgetViewToQueryView,
 } from "./types";
 import { z } from "zod";
-import { singleFilter } from "../../../";
+
 import {
   getValidAggregationsForMeasureType,
   getViewDeclaration,

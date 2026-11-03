@@ -7,7 +7,7 @@ import {
   type SafePagerDutyActionConfig,
 } from "@langfuse/shared";
 import { type PagerDutyRegion } from "@langfuse/shared/pagerduty";
-import { PagerDutyActionForm } from "@/src/features/pagerduty";
+import { PagerDutyActionForm } from "@/src/features/pagerduty/components/PagerDutyActionForm";
 import { type BaseActionHandler } from "./BaseActionHandler";
 
 /** PagerDutyActionHandler wires the PagerDuty action into the automation form. */
