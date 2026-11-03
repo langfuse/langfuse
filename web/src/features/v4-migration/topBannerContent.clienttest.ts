@@ -1,13 +1,10 @@
 import { describe, expect, it } from "vitest";
-import {
-  isV4MigrationTopBannerVisible,
-  renderV4BannerMessage,
-} from "./topBannerContent";
+import { isV4MigrationTopBannerVisible } from "./topBannerContent";
 
 const visible = {
   severity: "warning",
   message:
-    "Legacy v3 is still in use in {projects}. Trace-level evals and exports stop on November 16.",
+    "Action required: After November 16, 2026, some features may stop working for at least one of your projects.",
   v4UpgradeUiEnabled: true,
   isLangfuseCloud: true,
   actionNeededCount: 2,
@@ -36,19 +33,6 @@ describe("isV4MigrationTopBannerVisible", () => {
   ] as const)("is hidden when %s", (_, override) => {
     expect(isV4MigrationTopBannerVisible({ ...visible, ...override })).toBe(
       false,
-    );
-  });
-});
-
-describe("renderV4BannerMessage", () => {
-  it("replaces {projects} with the org-wide count", () => {
-    const template =
-      "Legacy v3 is still in use in {projects}. Trace-level evals and exports stop on November 16.";
-    expect(renderV4BannerMessage(template, 1)).toBe(
-      "Legacy v3 is still in use in 1 project. Trace-level evals and exports stop on November 16.",
-    );
-    expect(renderV4BannerMessage(template, 3)).toBe(
-      "Legacy v3 is still in use in 3 projects. Trace-level evals and exports stop on November 16.",
     );
   });
 });

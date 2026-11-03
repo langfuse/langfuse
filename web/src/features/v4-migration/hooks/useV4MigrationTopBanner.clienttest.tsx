@@ -11,11 +11,9 @@ function ConnectedBanner() {
 
 const mocks = vi.hoisted(() => ({
   capture: vi.fn(),
-  openPanel: vi.fn(),
-  canManage: true,
   severity: "warning" as "off" | "warning" | "critical",
   message:
-    "Legacy v3 is still in use in {projects}. Trace-level evals and exports stop on November 16. SDKs and APIs stop on November 19." as
+    "Action required: After November 16, 2026, some features may stop working for at least one of your projects." as
       | string
       | null,
   statusByProjectId: new Map<string, ProjectMigrationStatus>(),
@@ -55,14 +53,8 @@ vi.mock("@/src/features/projects/hooks", () => ({
     project: null,
   }),
 }));
-vi.mock("@/src/features/rbac/utils/checkOrganizationAccess", () => ({
-  useHasOrganizationAccess: () => mocks.canManage,
-}));
 vi.mock("@/src/features/v4-migration/useV4UpgradeUiEnabled", () => ({
   useV4UpgradeUiEnabled: () => true,
-}));
-vi.mock("@/src/features/v4-migration/hooks/useOpenV4MigrationPanel", () => ({
-  useOpenV4MigrationPanel: () => mocks.openPanel,
 }));
 vi.mock("@/src/features/v4-migration/hooks/useV4MigrationData", () => ({
   useAccountV4MigrationData: () => mocks.statusByProjectId,
@@ -87,7 +79,7 @@ vi.mock("@/src/utils/api", () => ({
 }));
 
 const WARNING_MESSAGE =
-  "Legacy v3 is still in use in {projects}. Trace-level evals and exports stop on November 16. SDKs and APIs stop on November 19.";
+  "Action required: After November 16, 2026, some features may stop working for at least one of your projects.";
 
 const status = (
   overrides?: Partial<ProjectMigrationStatus>,
@@ -108,8 +100,6 @@ const status = (
 
 beforeEach(() => {
   mocks.capture.mockReset();
-  mocks.openPanel.mockReset();
-  mocks.canManage = true;
   mocks.severity = "warning";
   mocks.message = WARNING_MESSAGE;
   mocks.statusByProjectId = new Map([
@@ -119,48 +109,29 @@ beforeEach(() => {
 });
 
 describe("useV4MigrationTopBanner", () => {
-  it("counts the org's active projects and opens the first one needing action", () => {
+  it("links affected orgs to migration status and records the count", () => {
     render(<ConnectedBanner />);
 
     expect(screen.getByRole("status")).toHaveTextContent(
-      "Legacy v3 is still in use in 1 project. Trace-level evals and exports stop on November 16. SDKs and APIs stop on November 19. Update",
+      `${WARNING_MESSAGE} Check migration status`,
     );
     expect(mocks.queryInput).toEqual({ orgId: "org-1" });
     expect(mocks.capture).toHaveBeenCalledWith(
       "v4_migration:top_banner_shown",
-      { severity: "warning", role: "admin", actionNeededCount: 1 },
+      { severity: "warning", actionNeededCount: 1 },
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "Update" }));
-
-    expect(mocks.openPanel).toHaveBeenCalledWith(
-      { id: "project-legacy", name: "Legacy", readiness: "action-needed" },
-      "top_banner",
-    );
+    const link = screen.getByRole("link", { name: "Check migration status" });
+    expect(link).toHaveAttribute("href", "/v4-migration");
+    link.addEventListener("click", (event) => event.preventDefault());
+    fireEvent.click(link);
     expect(mocks.capture).toHaveBeenCalledWith(
       "v4_migration:top_banner_cta_clicked",
       {
         severity: "warning",
-        role: "admin",
         actionNeededCount: 1,
         cta: "primary",
       },
-    );
-  });
-
-  it("shows members the admin hint instead of the fix action", () => {
-    mocks.canManage = false;
-    render(<ConnectedBanner />);
-
-    expect(
-      screen.queryByRole("button", { name: "Update" }),
-    ).not.toBeInTheDocument();
-    expect(screen.getByRole("status")).toHaveTextContent(
-      "Legacy v3 is still in use in 1 project. Trace-level evals and exports stop on November 16. SDKs and APIs stop on November 19. Ask an admin to update.",
-    );
-    expect(mocks.capture).toHaveBeenCalledWith(
-      "v4_migration:top_banner_shown",
-      { severity: "warning", role: "member", actionNeededCount: 1 },
     );
   });
 

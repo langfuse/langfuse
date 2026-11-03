@@ -30,20 +30,3 @@ export function isV4MigrationTopBannerVisible(params: {
     actionNeededCount > 0
   );
 }
-
-const PROJECTS_PLACEHOLDER = "{projects}";
-
-/**
- * renderV4BannerMessage substitutes the optional `{projects}` token with the
- * org-wide count ("1 project" / "3 projects"). Put the token where a noun
- * phrase fits ("in {projects}") so the sentence agrees for one project and
- * for many. Anything else, including HTML, stays literal text.
- */
-export function renderV4BannerMessage(
-  message: string,
-  actionNeededCount: number,
-): string {
-  if (!message.includes(PROJECTS_PLACEHOLDER)) return message;
-  const projects = `${actionNeededCount} ${actionNeededCount === 1 ? "project" : "projects"}`;
-  return message.replaceAll(PROJECTS_PLACEHOLDER, projects);
-}

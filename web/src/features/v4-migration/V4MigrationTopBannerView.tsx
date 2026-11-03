@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { cn } from "@/src/utils/tailwind";
 import type { V4MigrationTopBannerSeverity } from "@/src/features/v4-migration/topBannerContent";
 
@@ -15,32 +16,25 @@ const LINK_CLASS: Record<V4MigrationTopBannerSeverity, string> = {
     "text-migration-banner-critical-link hover:text-migration-banner-critical-link-hover font-bold hover:underline",
 };
 
-const MEMBER_HINT = "Ask an admin to update.";
-
 export type V4MigrationTopBannerViewProps = {
   severity: V4MigrationTopBannerSeverity;
-  /** Plain text, with `{projects}` already replaced. */
+  /** Plain text configured by the operator. */
   message: string;
-  /** Owners and admins get the Update link. Members get the hint instead. */
-  showUpdate: boolean;
-  /** Opens the migration panel from the inline “Update” word. */
-  onUpdateClick: () => void;
+  /** Records clicks on the migration status link. */
+  onStatusClick: () => void;
 };
 
 /**
  * One-line legacy v3 strip for the top-banner stack. The message comes from
- * env; the only action is the inline Update word. There is no dismiss.
+ * env; the status link is available to every role. There is no dismiss.
  */
 export function V4MigrationTopBannerView({
   severity,
   message,
-  showUpdate,
-  onUpdateClick,
+  onStatusClick,
 }: V4MigrationTopBannerViewProps) {
   const linkClassName = LINK_CLASS[severity];
-  const fullText = showUpdate
-    ? `${message} Update`
-    : `${message} ${MEMBER_HINT}`;
+  const fullText = `${message} Check migration status`;
 
   return (
     <div
@@ -53,20 +47,13 @@ export function V4MigrationTopBannerView({
     >
       <p className="max-w-full min-w-0 truncate text-sm" title={fullText}>
         <span>{message} </span>
-        {showUpdate ? (
-          <button
-            type="button"
-            className={cn(
-              linkClassName,
-              "inline cursor-pointer border-0 bg-transparent p-0 align-baseline text-sm",
-            )}
-            onClick={onUpdateClick}
-          >
-            Update
-          </button>
-        ) : (
-          <span>{MEMBER_HINT}</span>
-        )}
+        <Link
+          href="/v4-migration"
+          className={linkClassName}
+          onClick={onStatusClick}
+        >
+          Check migration status
+        </Link>
       </p>
     </div>
   );

@@ -721,8 +721,7 @@ export const env = createEnv({
     LANGFUSE_V4_BANNER_SEVERITY: z
       .enum(["off", "warning", "critical"])
       .default("off"),
-    // One line of plain text. `{projects}` is replaced with the org-wide
-    // action-needed count ("1 project" / "3 projects").
+    // One line of plain text shown before the migration status link.
     LANGFUSE_V4_BANNER_MESSAGE: z.string().optional(),
     // Comma-separated organization ids that never see the banner.
     LANGFUSE_V4_BANNER_EXEMPT_ORG_IDS: z
