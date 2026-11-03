@@ -7,6 +7,7 @@ import type { FieldRegistry } from "@/src/features/search-bar/lib/fields";
 
 /** Per-view: the examples have to name fields the view actually has. */
 export function composerPlaceholder(registry: FieldRegistry): string {
+  if (registry.searchPlaceholder) return registry.searchPlaceholder;
   return registry.searchExamples.length > 0
     ? `Search — e.g. ${registry.searchExamples.join(", ")}`
     : "Search";

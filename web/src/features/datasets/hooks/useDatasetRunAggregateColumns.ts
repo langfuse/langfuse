@@ -5,7 +5,7 @@ import {
   datasetRunItemsTableColsWithOptions,
   type FilterState,
 } from "@langfuse/shared";
-import { scoreFilters } from "@/src/features/scores";
+import { scoreFilters } from "@/src/features/scores/lib/scoreColumns";
 
 export function useDatasetRunAggregateColumns({
   projectId,

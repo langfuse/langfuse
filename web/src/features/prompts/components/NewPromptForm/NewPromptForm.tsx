@@ -28,7 +28,7 @@ import {
   getIsCharOrUnderscore,
 } from "@langfuse/shared";
 import { PromptChatMessages } from "./PromptChatMessages";
-import { ReviewPromptDialog } from "./ReviewPromptDialog";
+import { ReviewPromptDialogController } from "./ReviewPromptDialogController";
 import {
   NewPromptFormSchema,
   type NewPromptFormSchemaType,
@@ -41,8 +41,8 @@ import { SquareArrowOutUpRight } from "@langfuse/icons";
 import { PromptVariableListPreview } from "@/src/features/prompts/components/PromptVariableListPreview";
 import { CodeMirrorEditor } from "@/src/components/editor/CodeMirrorEditor";
 import { PromptLinkingEditor } from "@/src/components/editor/PromptLinkingEditor";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
-import { usePlaygroundCache } from "@/src/features/playground";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { default as usePlaygroundCache } from "@/src/features/playground/page/hooks/usePlaygroundCache";
 import { useQueryParam } from "use-query-params";
 import { usePromptNameValidation } from "@/src/features/prompts/hooks/usePromptNameValidation";
 import { getPromptDetailHref } from "@/src/features/prompts/utils";
@@ -458,20 +458,24 @@ export const NewPromptForm: React.FC<NewPromptFormProps> = (props) => {
 
         {initialPrompt ? (
           <div className="flex flex-col gap-2">
-            <ReviewPromptDialog
+            <ReviewPromptDialogController
               initialPrompt={initialPrompt}
               getNewPromptValues={form.getValues}
               isLoading={createPromptMutation.isPending}
               onConfirm={form.handleSubmit(onSubmit)}
             >
-              <Button
-                disabled={!form.formState.isValid}
-                variant="secondary"
-                className="w-full"
-              >
-                Review changes
-              </Button>
-            </ReviewPromptDialog>
+              {({ openDialog }) => (
+                <Button
+                  type="button"
+                  disabled={!form.formState.isValid}
+                  variant="secondary"
+                  className="w-full"
+                  onClick={openDialog}
+                >
+                  Review changes
+                </Button>
+              )}
+            </ReviewPromptDialogController>
 
             <Button
               type="submit"

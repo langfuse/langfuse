@@ -4,7 +4,23 @@ const mockQueryClickhouse = vi.hoisted(() => vi.fn());
 const mockShouldSkipObservationsFinal = vi.hoisted(() => vi.fn());
 const mockClickhouseCompliantRandomCharacters = vi.hoisted(() => vi.fn());
 
-vi.mock("../repositories", () => ({
+vi.mock("../repositories/constants", () => ({
+  OBSERVATIONS_TO_TRACE_INTERVAL: "INTERVAL 2 DAY",
+  SCORE_TO_TRACE_OBSERVATIONS_INTERVAL: "INTERVAL 1 HOUR",
+  clickhouseCompliantRandomCharacters: mockClickhouseCompliantRandomCharacters,
+  parseClickhouseUTCDateTimeFormat: (date: string) => new Date(date),
+  queryClickhouse: mockQueryClickhouse,
+  reduceUsageOrCostDetails: (details: Record<string, number>) => details,
+}));
+vi.mock("../repositories/clickhouse", () => ({
+  OBSERVATIONS_TO_TRACE_INTERVAL: "INTERVAL 2 DAY",
+  SCORE_TO_TRACE_OBSERVATIONS_INTERVAL: "INTERVAL 1 HOUR",
+  clickhouseCompliantRandomCharacters: mockClickhouseCompliantRandomCharacters,
+  parseClickhouseUTCDateTimeFormat: (date: string) => new Date(date),
+  queryClickhouse: mockQueryClickhouse,
+  reduceUsageOrCostDetails: (details: Record<string, number>) => details,
+}));
+vi.mock("../repositories/observations_converters", () => ({
   OBSERVATIONS_TO_TRACE_INTERVAL: "INTERVAL 2 DAY",
   SCORE_TO_TRACE_OBSERVATIONS_INTERVAL: "INTERVAL 1 HOUR",
   clickhouseCompliantRandomCharacters: mockClickhouseCompliantRandomCharacters,

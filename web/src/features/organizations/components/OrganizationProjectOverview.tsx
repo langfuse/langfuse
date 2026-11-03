@@ -25,7 +25,7 @@ import { Input } from "@/src/components/ui/input";
 import {
   hasOrganizationAccess,
   useHasOrganizationAccess,
-} from "@/src/features/rbac";
+} from "@/src/features/rbac/utils/checkOrganizationAccess";
 import { env } from "@/src/env.mjs";
 import { Fragment, type ReactNode } from "react";
 import { useRouter } from "next/router";
@@ -33,12 +33,12 @@ import { useSession } from "next-auth/react";
 import {
   createOrganizationRoute,
   createProjectRoute,
-} from "@/src/features/setup";
+} from "@/src/features/setup/setupRoutes";
 import { isCloudPlan, planLabels } from "@langfuse/shared";
 import ContainerPage from "@/src/components/layouts/ContainerPage";
 import { type Session } from "next-auth";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
-import { AgentToolsBanner } from "@/src/features/developer-tools";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { AgentToolsBanner } from "@/src/features/developer-tools/components/AgentToolsBanner";
 import {
   V4MigrationBanner,
   useV4MigrationBannerState,
@@ -55,6 +55,7 @@ import { useGatewayKeyReminder } from "@/src/features/ai-gateway/hooks/useGatewa
 import { useGatewayLaunchTarget } from "@/src/features/ai-gateway/hooks/useGatewayLaunchEligibility";
 import { useGatewaySettingsAccess } from "@/src/features/ai-gateway/hooks/useGatewaySettingsAccess";
 import { getContextualFeatureFlags } from "@/src/features/feature-flags/utils";
+import { gatewayOnlyLanding } from "@/src/features/organizations/utils/gatewayOnlyLanding";
 
 const lastTraceLabel = (lastTraceAt: Date | string | null | undefined) =>
   lastTraceAt
@@ -375,9 +376,68 @@ const SingleOrganizationProjectOverviewTile = ({
           />
         }
       />
-      <OrganizationProjectTiles org={org} search={search} />
+      <OrganizationProjects org={org} search={search} />
     </div>
   );
+};
+
+/** OrganizationProjects lists the org's projects, or points to its settings when the user has none */
+const OrganizationProjects = ({
+  org,
+  search,
+}: {
+  org: Organization;
+  search?: string;
+}) => {
+  if (org.projects.length === 0) {
+    return <OrganizationSettingsTile orgId={org.id} />;
+  }
+  return <OrganizationProjectTiles org={org} search={search} />;
+};
+
+/** OrganizationSettingsTile links to the org's settings, and to project creation when allowed */
+const OrganizationSettingsTile = ({ orgId }: { orgId: string }) => {
+  const canCreateProject = useHasOrganizationAccess({
+    organizationId: orgId,
+    scope: "projects:create",
+  });
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base">No projects</CardTitle>
+        <CardDescription>
+          <NoProjectsDescription canCreateProject={canCreateProject} />
+        </CardDescription>
+      </CardHeader>
+      <CardFooter className="gap-2">
+        {canCreateProject && (
+          <Button asChild>
+            <Link href={createProjectRoute(orgId)}>
+              <PlusIcon size="base" __rawClassName="mr-2" aria-hidden="true" />
+              New project
+            </Link>
+          </Button>
+        )}
+        <Button asChild variant="secondary">
+          <Link href={`/organization/${orgId}/settings`}>
+            <Settings size="base" __rawClassName="mr-2" aria-hidden="true" />
+            Organization settings
+          </Link>
+        </Button>
+      </CardFooter>
+    </Card>
+  );
+};
+
+/** NoProjectsDescription explains an empty project list by whether the user can create projects */
+const NoProjectsDescription = ({
+  canCreateProject,
+}: {
+  canCreateProject: boolean;
+}) => {
+  if (canCreateProject) return <>This organization has no projects yet.</>;
+  return <>You don&apos;t have access to any projects in this organization.</>;
 };
 
 export const OrganizationProjectOverview = () => {
@@ -389,6 +449,7 @@ export const OrganizationProjectOverview = () => {
   const organizations = session.data?.user?.organizations;
   const [{ search }, setQueryParams] = useQueryParams({ search: StringParam });
   const v4MigrationBannerState = useV4MigrationBannerState(v4UpgradeUiEnabled);
+  const landing = gatewayOnlyLanding(session.data, queryOrgId);
   const gatewayLaunchCandidates = (organizations ?? [])
     .filter(
       (org) =>
@@ -413,6 +474,15 @@ export const OrganizationProjectOverview = () => {
     }));
   const gatewayLaunchTarget = useGatewayLaunchTarget(gatewayLaunchCandidates);
   const userId = session.data?.user?.id;
+
+  if (landing && !landing.canUseGateway) {
+    return (
+      <ErrorPage
+        title="No access to this organization"
+        message="AI Gateway is not enabled for this organization. Ask an organization admin to change your role."
+      />
+    );
+  }
 
   if (organizations === undefined) {
     return "loading...";
@@ -528,7 +598,8 @@ const pageBanner = ({
 }): ReactNode => {
   if (
     v4UpgradeUiEnabled &&
-    v4MigrationBannerState.projectsNeedingMigration > 0
+    v4MigrationBannerState.projectsNeedingMigration > 0 &&
+    !v4MigrationBannerState.isDismissed
   ) {
     return (
       <V4MigrationBanner
@@ -539,6 +610,9 @@ const pageBanner = ({
       />
     );
   }
+  // The v4 banner takes precedence once its checks finish, so showing the
+  // gateway banner before then would flash it and swap it out.
+  if (v4UpgradeUiEnabled && v4MigrationBannerState.isChecking) return null;
   if (gatewayBanner) return gatewayBanner;
   return v4UpgradeUiEnabled ? null : <AgentToolsBanner />;
 };
@@ -589,3 +663,5 @@ const Onboarding = () => {
     </Card>
   );
 };
+
+type Organization = NonNullable<Session["user"]>["organizations"][number];

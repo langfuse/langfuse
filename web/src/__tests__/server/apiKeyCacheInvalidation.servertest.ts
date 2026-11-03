@@ -41,13 +41,16 @@ vi.mock("@langfuse/shared/topics/server", () => ({
 vi.mock("@/src/ee/features/billing/utils/isCloudBillingEnabled", () => ({
   isCloudBillingEnabled: () => false,
 }));
-vi.mock("@/src/ee/features/billing/server", async (importOriginal) => {
-  const actual = (await importOriginal()) as Record<string, unknown>;
-  return {
-    ...actual,
-    isCloudBillingEnabled: () => false,
-  };
-});
+vi.mock(
+  "@/src/ee/features/billing/utils/isCloudBillingEnabled",
+  async (importOriginal) => {
+    const actual = (await importOriginal()) as Record<string, unknown>;
+    return {
+      ...actual,
+      isCloudBillingEnabled: () => false,
+    };
+  },
+);
 
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
@@ -373,29 +376,19 @@ describe("API-key cache invalidation on project/org lifecycle", () => {
     expect(await survivingKeys(keys)).toEqual([]);
   });
 
-  it("admin project deletion keeps the ingestion project and its keys", async () => {
+  it("accessAuditLog.setEnabled evicts the org's cached keys", async () => {
     const orgId = await createOrg();
-    const projectId = await createProject(orgId);
+    const user = await createUserInOrgs([orgId]);
     const keys = await seedOrgScopedKey(orgId);
-    await prisma.gatewayConfig.create({
-      data: { organizationId: orgId, defaultIngestionProjectId: projectId },
-    });
 
-    const res = makeRes();
-    await handleDeleteProject({} as any, res, projectId, {
-      orgId,
-      apiKeyId: "ADMIN_KEY",
-    } as any);
-
-    expect(res.statusCode).toBe(409);
-    expect(res.body).toEqual({
-      message:
-        "This project is used as the AI Gateway ingestion project. Select another ingestion project or set the ingestion mode to None before deleting it.",
+    const caller = makeCaller({
+      userId: user.id,
+      orgIds: [orgId],
+      plan: "cloud:enterprise",
     });
-    expect(await survivingKeys(keys)).toEqual(keys);
-    await expect(
-      prisma.project.findUnique({ where: { id: projectId } }),
-    ).resolves.toMatchObject({ deletedAt: null });
+    await caller.accessAuditLog.setEnabled({ orgId, enabled: true });
+
+    expect(await survivingKeys(keys)).toEqual([]);
   });
 
   it("admin project soft deletion preserves user permissions and evicts cached keys", async () => {

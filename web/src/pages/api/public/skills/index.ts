@@ -5,11 +5,9 @@ import {
   ListSkillsResponseSchema,
   SkillVersionSchema,
 } from "@langfuse/shared";
-import {
-  createAuthedProjectAPIRoute,
-  withMiddlewares,
-} from "@/src/features/public-api/server";
-import { SkillService } from "@/src/features/skills/server";
+import { createAuthedProjectAPIRoute } from "@/src/features/public-api/server/createAuthedProjectAPIRoute";
+import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
+import { SkillService } from "@/src/features/skills/server/skill-service";
 
 export const config = {
   api: {

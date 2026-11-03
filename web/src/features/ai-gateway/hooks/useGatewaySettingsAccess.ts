@@ -2,8 +2,8 @@ import { useSession } from "next-auth/react";
 
 import { env } from "@/src/env.mjs";
 import { canReadGatewayModels } from "@/src/features/ai-gateway/fns/canReadGatewayModels";
-import { useIsFeatureEnabled } from "@/src/features/feature-flags";
-import { useHasOrganizationAccess } from "@/src/features/rbac";
+import { default as useIsFeatureEnabled } from "@/src/features/feature-flags/hooks/useIsFeatureEnabled";
+import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import { api } from "@/src/utils/api";
 
 /**

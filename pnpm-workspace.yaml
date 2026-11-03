@@ -40,7 +40,6 @@ catalog:
   "@aws-sdk/credential-providers": 3.1074.0
   "@aws-sdk/lib-storage": 3.1074.0
   "@aws-sdk/s3-request-presigner": 3.1074.0
-  eslint: ^10.8.0
   # The official TS 6 side-by-side wrapper (resolves to typescript 6.0.3):
   # provides the JS compiler API for tooling that still needs it but
   # ships no `tsc` bin, so package scripts fall through to the workspace-root
@@ -188,7 +187,6 @@ minimumReleaseAgeExclude:
   # Next.js security upgrade; eligible after 2026-10-20 20:58 UTC.
   - next@16.4.2
   - "@next/env@16.4.2"
-  - "@next/eslint-plugin-next@16.4.2"
   - "@next/swc-darwin-arm64@16.4.2"
   - "@next/swc-darwin-x64@16.4.2"
   - "@next/swc-linux-arm64-gnu@16.4.2"
@@ -199,7 +197,6 @@ minimumReleaseAgeExclude:
   - "@next/swc-win32-x64-msvc@16.4.2"
   # Companion toolchain upgrade; eligible after 2026-10-21 19:10 UTC.
   - turbo@2.11.9
-  - eslint-config-turbo@2.11.9
   - eslint-plugin-turbo@2.11.9
   - "@turbo/darwin-64@2.11.9"
   - "@turbo/darwin-arm64@2.11.9"

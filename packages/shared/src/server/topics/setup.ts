@@ -1,5 +1,5 @@
 import type { z } from "zod";
-import { InvalidRequestError } from "../../errors";
+import { InvalidRequestError } from "../../errors/InvalidRequestError";
 import {
   TOPICS_REFIT_INTERVAL_HOURS,
   topicRuleFilterError,

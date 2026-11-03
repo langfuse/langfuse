@@ -6,8 +6,9 @@ import { type ViewVersion } from "@langfuse/shared/query";
 import { type TimeFilter, ObservationLevelDomain } from "@langfuse/shared";
 import { api, type RouterOutputs } from "@/src/utils/api";
 import { Button } from "@/src/components/ui/button";
-import { normalizeSingleValueOptions } from "@/src/features/filters";
-import { showErrorToast, showSuccessToast } from "@/src/features/notifications";
+import { normalizeSingleValueOptions } from "@/src/features/filters/lib/filter-transform";
+import { showErrorToast } from "@/src/features/notifications/showErrorToast";
+import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import {
   importWidgetFile,
   type ImportedWidgetFormSnapshot,

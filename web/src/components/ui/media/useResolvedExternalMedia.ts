@@ -1,6 +1,6 @@
 import { api } from "@/src/utils/api";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
-import { getSignedUrlState } from "@/src/features/media";
+import { getSignedUrlState } from "@/src/features/media/fns/getSignedUrlState";
 import { type MediaDescriptor } from "./mediaUtils";
 
 export function useResolvedExternalMedia(

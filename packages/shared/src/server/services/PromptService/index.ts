@@ -3,7 +3,7 @@ import { createHash, randomBytes } from "crypto";
 import { env } from "../../../env";
 import { logger } from "../../logger";
 import { escapeRegex } from "./utils";
-import { LangfuseConflictError } from "../../../errors";
+import { LangfuseConflictError } from "../../../errors/ConflictError";
 import { type Prisma, type PrismaClient, type Prompt } from "../../../db";
 import {
   PromptGraph,

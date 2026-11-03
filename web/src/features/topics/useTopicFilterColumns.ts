@@ -10,7 +10,7 @@ import {
   TOPICS_RULE_FILTER_COLUMNS,
   type TopicTimeRange,
 } from "@langfuse/shared/topics";
-import { toObservedOptions } from "@/src/features/search-bar";
+import { toObservedOptions } from "@/src/features/search-bar/lib/observed-options";
 import { useEventsFilterOptions } from "@/src/features/events/hooks/useEventsFilterOptions";
 
 /**

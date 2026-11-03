@@ -1,27 +1,14 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
-import React, { useState, useMemo, useCallback, useEffect } from "react";
-import { RefreshCw, Search, Hash, Lock, AlertTriangle } from "@langfuse/icons";
-import { Button } from "@/src/components/ui/button";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/src/components/ui/popover";
+import React, { useState, useMemo } from "react";
+import { RefreshCw, Hash, Lock, AlertTriangle } from "@langfuse/icons";
+import { AsyncSelectInput } from "@/src/components/design-system/AsyncSelectInput/AsyncSelectInput";
 import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
-import {
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-  CommandList,
-} from "@/src/components/ui/command";
-import { useVirtualizer } from "@tanstack/react-virtual";
 import { type SlackChannel } from "@langfuse/shared/src/server";
-const ITEM_HEIGHT = 32;
 
 export interface ChannelSelectorViewProps {
+  id?: string;
+  "aria-describedby"?: string;
+  "aria-invalid"?: React.AriaAttributes["aria-invalid"];
   /** Loaded channels and private channel flags; null until the first page loads */
   channelsData: {
     channels: SlackChannel[];
@@ -58,6 +45,9 @@ export interface ChannelSelectorViewProps {
  * Items are virtualized with @tanstack/react-virtual to handle large channel lists (~5k).
  */
 export const ChannelSelectorView: React.FC<ChannelSelectorViewProps> = ({
+  id,
+  "aria-describedby": describedBy,
+  "aria-invalid": invalid,
   channelsData,
   isLoading,
   hasError,
@@ -73,9 +63,7 @@ export const ChannelSelectorView: React.FC<ChannelSelectorViewProps> = ({
   filterChannels,
   showRefreshButton = true,
 }) => {
-  const [open, setOpen] = useState(false);
   const [searchValue, setSearchValue] = useState("");
-  const [scrollNode, setScrollNode] = useState<HTMLDivElement | null>(null);
   const trimmedSearch = searchValue.trim();
   const effectiveName = trimmedSearch.replace(/^#/, "");
 
@@ -112,13 +100,6 @@ export const ChannelSelectorView: React.FC<ChannelSelectorViewProps> = ({
     });
   }, [channelsData?.channels, memberOnly, filterChannels, effectiveName]);
 
-  const virtualizer = useVirtualizer({
-    count: filteredChannels.length,
-    getScrollElement: () => scrollNode,
-    estimateSize: () => ITEM_HEIGHT,
-    overscan: 20,
-  });
-
   // Get selected channel info — fall back to the prop for manual entries
   const selectedChannel = useMemo(() => {
     if (!selectedChannelId) return null;
@@ -128,39 +109,6 @@ export const ChannelSelectorView: React.FC<ChannelSelectorViewProps> = ({
     return fromList ?? selectedChannelProp ?? null;
   }, [selectedChannelId, channelsData?.channels, selectedChannelProp]);
 
-  const selectAndClose = useCallback(
-    (channel: SlackChannel) => {
-      onChannelSelect(channel);
-      setOpen(false);
-      setSearchValue("");
-    },
-    [onChannelSelect],
-  );
-
-  const handleSelectByName = useCallback(() => {
-    const name = searchValue.trim().replace(/^#/, "");
-    if (!name) return;
-    selectAndClose({
-      id: `#${name}`,
-      name,
-      isPrivate: false,
-      isMember: false,
-    });
-  }, [searchValue, selectAndClose]);
-
-  const handleOpenChange = (newOpen: boolean) => {
-    setOpen(newOpen);
-    if (!newOpen) {
-      setSearchValue("");
-    }
-  };
-
-  useEffect(() => {
-    if (scrollNode) {
-      scrollNode.scrollTop = 0;
-    }
-  }, [effectiveName, scrollNode]);
-
   const hasExactMatch = filteredChannels.some(
     (channel) => channel.name.toLowerCase() === effectiveName.toLowerCase(),
   );
@@ -169,107 +117,66 @@ export const ChannelSelectorView: React.FC<ChannelSelectorViewProps> = ({
   return (
     <div className="space-y-2">
       <div className="flex items-center gap-2">
-        <Popover open={open} onOpenChange={handleOpenChange}>
-          <PopoverTrigger asChild>
-            <Button
-              variant="outline"
-              role="combobox"
-              aria-expanded={open}
-              className="w-full justify-between"
-              disabled={disabled}
-            >
-              {selectedChannel ? (
-                <ChannelLabel channel={selectedChannel} />
-              ) : (
-                <span className="text-muted-foreground">{placeholder}</span>
-              )}
-              <Search
-                size="base"
-                color="default"
-                __rawClassName="ml-2 opacity-50"
-              />
-            </Button>
-          </PopoverTrigger>
-          <PopoverContent className="w-full p-0" align="start">
-            <Command shouldFilter={false}>
-              <CommandInput
-                placeholder="Search channels..."
-                value={searchValue}
-                onValueChange={setSearchValue}
-              />
-              <CommandList ref={setScrollNode}>
-                {canUseTypedName && (
-                  <CommandGroup className="p-0">
-                    <CommandItem
-                      value={`use-${effectiveName}`}
-                      onSelect={handleSelectByName}
-                      className="cursor-pointer"
-                    >
-                      <Hash size="base" color="muted" />
-                      <span
-                        className="flex-1 truncate"
-                        title={`Use &quot; ${effectiveName} &quot;`}
-                      >
-                        Use &quot;{effectiveName}&quot;
-                      </span>
-                    </CommandItem>
-                  </CommandGroup>
-                )}
-                {!isLoading &&
-                  !canUseTypedName &&
-                  filteredChannels.length === 0 && (
-                    <CommandEmpty>No channels available.</CommandEmpty>
-                  )}
-                <CommandGroup
-                  className="p-0"
-                  style={{
-                    height: virtualizer.getTotalSize(),
-                    position: "relative",
-                  }}
-                >
-                  {virtualizer.getVirtualItems().map((virtualRow) => {
-                    const channel = filteredChannels[virtualRow.index];
-                    return (
-                      <CommandItem
-                        key={channel.id}
-                        value={channel.id}
-                        onSelect={() => selectAndClose(channel)}
-                        className="cursor-pointer"
-                        style={{
-                          position: "absolute",
-                          top: virtualRow.start,
-                          left: 0,
-                          width: "100%",
-                          height: ITEM_HEIGHT,
-                        }}
-                      >
-                        <ChannelLabel channel={channel} />
-                      </CommandItem>
-                    );
-                  })}
-                </CommandGroup>
-                {isLoading && (
-                  <CommandGroup className="p-0">
-                    <CommandItem
-                      value="loading-slack-channels"
-                      disabled
-                      className="text-muted-foreground"
-                    >
-                      <RefreshCw size="base" __rawClassName="animate-spin" />
-                      <span
-                        className="flex-1 truncate"
-                        title="Loading Slack channels. This can take a while for large workspaces."
-                      >
-                        Loading Slack channels. This can take a while for large
-                        workspaces.
-                      </span>
-                    </CommandItem>
-                  </CommandGroup>
-                )}
-              </CommandList>
-            </Command>
-          </PopoverContent>
-        </Popover>
+        <div className="min-w-0 flex-1">
+          <AsyncSelectInput
+            id={id}
+            aria-describedby={describedBy}
+            aria-invalid={invalid}
+            disabled={disabled}
+            error={invalid === true || invalid === "true"}
+            placeholder={placeholder}
+            value={
+              selectedChannel
+                ? {
+                    value: selectedChannel.id,
+                    label: selectedChannel.name,
+                    icon: selectedChannel.isPrivate ? Lock : Hash,
+                  }
+                : null
+            }
+            callToActionOption={
+              canUseTypedName
+                ? {
+                    position: "first",
+                    label: `Use "${effectiveName}"`,
+                    onSelect: () =>
+                      onChannelSelect({
+                        id: `#${effectiveName}`,
+                        name: effectiveName,
+                        isPrivate: false,
+                        isMember: false,
+                      }),
+                  }
+                : undefined
+            }
+            options={filteredChannels.map((channel) => ({
+              value: channel.id,
+              label: channel.name,
+              icon: channel.isPrivate ? Lock : Hash,
+            }))}
+            onValueChange={(option) => {
+              const channel = filteredChannels.find(
+                (item) => item.id === option.value,
+              );
+              if (channel) onChannelSelect(channel);
+            }}
+            search={{
+              placeholder: "Search channels...",
+              value: searchValue,
+              onValueChange: setSearchValue,
+            }}
+            emptyMessage="No channels available."
+            loading={
+              isLoading
+                ? {
+                    message:
+                      "Loading Slack channels. This can take a while for large workspaces.",
+                  }
+                : undefined
+            }
+            virtualized
+          />
+        </div>
 
         {showRefreshButton && (
           <IconButton
@@ -317,16 +224,3 @@ export const ChannelSelectorView: React.FC<ChannelSelectorViewProps> = ({
     </div>
   );
 };
-
-const ChannelLabel = ({ channel }: { channel: SlackChannel }) => (
-  <div className="flex w-full items-center gap-2">
-    {channel.isPrivate ? (
-      <Lock size="base" color="muted" />
-    ) : (
-      <Hash size="base" color="muted" />
-    )}
-    <span className="flex-1 truncate" title={channel.name}>
-      {channel.name}
-    </span>
-  </div>
-);

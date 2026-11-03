@@ -1,7 +1,7 @@
 import { type GetServerSideProps } from "next";
 import { prisma } from "@langfuse/shared/src/db";
 
-import { SettingsPage } from "@/src/features/settings";
+import { SettingsPage } from "@/src/features/settings/SettingsPage";
 import { getGatewaySetupRedirect } from "@/src/features/ai-gateway/server/gatewaySetupRedirect";
 import { getServerAuthSession } from "@/src/server/auth";
 
