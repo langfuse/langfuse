@@ -25,14 +25,14 @@ excluded from execution when the consumer is added.
 | Map             | Contents                                                                  | Retention                                                                 |
 | --------------- | ------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
 | `bounds:<hour>` | MessagePack `[minStart, maxStart, eventUpdateCount]`, including nonmatches. | Configured bounds TTL after the latest activity's bucket ends (24–25 hours by default). |
-| `record`        | Only `{ revision, rules, failed_cnt }`; rule IDs are deduplicated.        | Two hours past due.                                                       |
-| `due`           | Selected traces ordered by Redis arrival time plus project idle interval. | Two hours past due.                                                       |
+| `record`        | Only `{ revision, rules, failed_cnt }`; rule IDs are deduplicated.        | Eligible for cleanup two hours past due.                                  |
+| `due`           | Selected traces ordered by Redis arrival time plus project idle interval. | Eligible for cleanup two hours past due.                                  |
 
 Activity atomically moves merged bounds into the current bucket and removes the old
 entry. `LANGFUSE_TRACE_BATCH_FIRST_SEEN_TTL_MS` controls the bounds TTL. After bounds expire,
 new arrivals start fresh and discard old selections; consumers must handle missing
-bounds. Recording and dispatcher passes clean pending entries in batches of 100;
-key TTLs reclaim inactive maps.
+bounds. Each recording call removes up to 100 expired pending entries; sparse
+traffic can delay removal. Key TTLs reclaim inactive maps.
 
 Each recorded span counts as one event update of its trace; ingestion retries can
 overcount. Serialized sizes are not recorded. Each ingestion invocation awaits its own

@@ -131,29 +131,18 @@ const RECORD_SCRIPT = `
   end
 `;
 
-const CLEANUP_SCRIPT = `
-  ${EXPIRE_PENDING_SCRIPT}
-  local clock = redis.call('TIME')
-  local now = clock[1] * 1000 + math.floor(clock[2] / 1000)
-  return expirePending(KEYS[1], KEYS[2], now, tonumber(ARGV[1]))
-`;
-
-const scriptHashes = new Map(
-  [RECORD_SCRIPT, CLEANUP_SCRIPT].map((script) => [
-    script,
-    createHash("sha1").update(script).digest("hex"),
-  ]),
-);
+const RECORD_SCRIPT_HASH = createHash("sha1")
+  .update(RECORD_SCRIPT)
+  .digest("hex");
 
 async function evalRecording(
-  script: string,
   keys: string[],
   args: (string | number | Buffer)[],
 ) {
   if (!redis) throw new Error("Trace rule recording requires Redis");
   try {
     return await redis.evalsha(
-      scriptHashes.get(script)!,
+      RECORD_SCRIPT_HASH,
       keys.length,
       ...keys,
       ...args,
@@ -162,21 +151,8 @@ async function evalRecording(
     // A cache miss cannot have applied any updates; other failures propagate.
     if (!(error instanceof Error) || !error.message.startsWith("NOSCRIPT"))
       throw error;
-    return redis.eval(script, keys.length, ...keys, ...args);
+    return redis.eval(RECORD_SCRIPT, keys.length, ...keys, ...args);
   }
-}
-
-/** Reclaim one batch of abandoned selections; bounds expire through bucket TTLs. */
-export async function cleanupTraceRuleRecording(shard: number) {
-  const { record, due } = getRecordingKeys(shard);
-  const expired = Number(
-    await evalRecording(
-      CLEANUP_SCRIPT,
-      [record, due],
-      [env.LANGFUSE_TRACE_BATCH_PENDING_TTL_MS],
-    ),
-  );
-  return expired === CLEANUP_SIZE;
 }
 
 /** One directly written span; each span counts as one event update of its trace. */
@@ -272,7 +248,7 @@ export async function recordTraceActivity(
             ],
           ),
       ];
-      await evalRecording(RECORD_SCRIPT, keys, args);
+      await evalRecording(keys, args);
     }
   }
 }

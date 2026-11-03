@@ -70,8 +70,9 @@
   record/due keep full JSON identities for dispatch.
   Activity atomically moves merged bounds into the current bucket and removes the
   old entry, retaining history and pending selections while a trace stays active.
-  Records contain only revision, rules, and failed_cnt. Pending cleanup runs during
-  recording and dispatch. Map schemas, retention, and missing-bounds behavior:
+  Records contain only revision, rules, and failed_cnt. Recording cleans up to 100
+  expired pending entries per call; key TTLs reclaim inactive maps. Map schemas,
+  retention, and missing-bounds behavior:
   `src/features/traceBatching/README.md` → Recording trace-rule selections.
 - Internal cloud trace batching: `src/features/traceBatching/traceBatching.ts` and
   `src/queues/traceBatchQueue.ts`; controls and Redis lifecycle are documented in

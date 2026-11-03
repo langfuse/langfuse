@@ -11,7 +11,6 @@ import {
 } from "@langfuse/shared/src/server";
 import { env } from "../../env";
 import { PeriodicExclusiveRunner } from "../../utils/PeriodicExclusiveRunner";
-import { cleanupTraceRuleRecording } from "./traceRuleRecording";
 import {
   ACKNOWLEDGE_SCRIPT,
   CLEANUP_SIZE,
@@ -282,10 +281,7 @@ export class TraceBatchDispatcher extends PeriodicExclusiveRunner {
     )
       return;
     const startedAt = Date.now();
-    const dispatch = this.withLock(async () => {
-      await this.dispatchDue();
-      await this.cleanupRecordedRules();
-    }).then(() => {});
+    const dispatch = this.withLock(() => this.dispatchDue()).then(() => {});
     this.activeDispatch = dispatch;
     try {
       await dispatch;
@@ -295,26 +291,6 @@ export class TraceBatchDispatcher extends PeriodicExclusiveRunner {
     // PeriodicRunner waits this delay after completion. Account for work time
     // to maintain the configured start cadence without overlapping runs.
     return Math.max(0, this.defaultIntervalMs - (Date.now() - startedAt));
-  }
-
-  private async cleanupRecordedRules(): Promise<void> {
-    if (!redis) throw new Error("Trace batching requires Redis");
-    for (let shard = 0; shard < env.LANGFUSE_TRACE_BATCH_SHARD_COUNT; shard++) {
-      let pendingRemaining = false;
-      do {
-        if (this.stopping) return;
-        await this.extendLockOnProgress();
-        try {
-          pendingRemaining = await cleanupTraceRuleRecording(shard);
-        } catch (error) {
-          logger.warn("Failed to clean up recorded trace rules", {
-            shard,
-            error,
-          });
-          break;
-        }
-      } while (pendingRemaining);
-    }
   }
 
   private async dispatchDue(): Promise<void> {

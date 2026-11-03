@@ -927,50 +927,41 @@ describe("trace micro-batch scheduling with Redis", () => {
     },
   );
 
-  it.each(["dispatcher", "ingestion"])(
-    "cleans abandoned selections during %s without consuming them",
-    async (cleanupSource) => {
-      vi.spyOn(shared, "getTracingReadinessSettings").mockResolvedValue({
-        traceIdleMs: null,
-      });
-      const expired = Array.from({ length: 101 }, (_, i) => ({
-        ...spanActivity(`recorded-${i}`),
-        ruleIds: ["rule"],
-      }));
+  it("cleans abandoned selections during ingestion without consuming them", async () => {
+    vi.spyOn(shared, "getTracingReadinessSettings").mockResolvedValue({
+      traceIdleMs: null,
+    });
+    const expired = Array.from({ length: 101 }, (_, i) => ({
+      ...spanActivity(`recorded-${i}`),
+      ruleIds: ["rule"],
+    }));
+    await recordTraceActivity("project", [
+      ...expired,
+      { ...spanActivity("refreshed"), ruleIds: ["rule"] },
+    ]);
+    await client().zadd(
+      recordingKeys.due,
+      ...expired.flatMap(({ traceId }) => [1, member("project", traceId)]),
+    );
+    env.LANGFUSE_TRACE_BATCH_DISPATCHER_ENABLED = "false";
+    // Each write reclaims at most 100 pending entries.
+    for (let i = 0; i < 2; i++) {
       await recordTraceActivity("project", [
-        ...expired,
-        { ...spanActivity("refreshed"), ruleIds: ["rule"] },
+        { ...spanActivity("refreshed", 2_000_000), ruleIds: [] },
       ]);
-      await client().zadd(
-        recordingKeys.due,
-        ...expired.flatMap(({ traceId }) => [1, member("project", traceId)]),
-      );
-      if (cleanupSource === "dispatcher") {
-        env.LANGFUSE_TRACE_BATCH_INGESTION_ENABLED = "false";
-        topicsProjects.clear();
-        await runner().processBatch();
-      } else {
-        env.LANGFUSE_TRACE_BATCH_DISPATCHER_ENABLED = "false";
-        // Each write reclaims at most 100 pending entries.
-        for (let i = 0; i < 2; i++) {
-          await recordTraceActivity("project", [
-            { ...spanActivity("refreshed", 2_000_000), ruleIds: [] },
-          ]);
-        }
-      }
-      expect(await client().hkeys(recordingKeys.record)).toEqual([
-        member("project", "refreshed"),
-      ]);
-      expect(await client().zrange(recordingKeys.due, 0, -1)).toEqual([
-        member("project", "refreshed"),
-      ]);
-      // Cleaning a pending selection must preserve its bounds for late arrivals.
-      expect(
-        (await readRecordedBounds(member("project", expired[0].traceId))).value,
-      ).toMatchObject({ minStart: 1_000_000 });
-      expect(await queue.getWaitingCount()).toBe(0);
-    },
-  );
+    }
+    expect(await client().hkeys(recordingKeys.record)).toEqual([
+      member("project", "refreshed"),
+    ]);
+    expect(await client().zrange(recordingKeys.due, 0, -1)).toEqual([
+      member("project", "refreshed"),
+    ]);
+    // Cleaning a pending selection must preserve its bounds for late arrivals.
+    expect(
+      (await readRecordedBounds(member("project", expired[0].traceId))).value,
+    ).toMatchObject({ minStart: 1_000_000 });
+    expect(await queue.getWaitingCount()).toBe(0);
+  });
 
   it("expires recording keys without a dispatcher and preserves later pending deadlines", async () => {
     vi.spyOn(shared, "getTracingReadinessSettings").mockResolvedValue({
