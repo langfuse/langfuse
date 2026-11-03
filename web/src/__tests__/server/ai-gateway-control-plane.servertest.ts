@@ -849,18 +849,20 @@ describe("AI gateway control plane", () => {
       await setup.caller.aiGateway.updateConnectionModels({
         orgId: setup.org.id,
         id: connection.id,
-        allowedModels: ["enabled-model"],
+        allowedModels: ["enabled-model", "unlisted-model"],
         expectedUpdatedAt: connection.updatedAt,
       });
       const readCaller = await createCallerForOrganizationRole(setup, readRole);
-      const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
-        Response.json({
-          data: [
-            { id: "disabled-model", created: 10 },
-            { id: "enabled-model", created: 20 },
-          ],
-        }),
-      );
+      const fetchSpy = vi
+        .spyOn(globalThis, "fetch")
+        .mockImplementation(async () =>
+          Response.json({
+            data: [
+              { id: "disabled-model", created: 10 },
+              { id: "enabled-model", created: 20 },
+            ],
+          }),
+        );
 
       try {
         await expect(
