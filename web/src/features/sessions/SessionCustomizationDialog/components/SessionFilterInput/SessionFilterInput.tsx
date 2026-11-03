@@ -1,11 +1,9 @@
 import { useMemo, useSyncExternalStore } from "react";
 import { type FilterState } from "@langfuse/shared";
-import {
-  EventsSearchBarRow,
-  filterStateToQueryText,
-  planCommit,
-  useEventsSearchBar,
-} from "@/src/features/search-bar";
+import { EventsSearchBarRow } from "@/src/features/search-bar/components/EventsSearchBarRow";
+import { filterStateToQueryText } from "@/src/features/search-bar/lib/filter-state-to-query";
+import { planCommit } from "@/src/features/search-bar/lib/commit";
+import { useEventsSearchBar } from "@/src/features/search-bar/hooks/useEventsSearchBar";
 import { usePrevious } from "@/src/hooks/usePrevious";
 import { SESSION_TRACE_FIELD_REGISTRY } from "../../../sessionTraceSearchRegistry";
 

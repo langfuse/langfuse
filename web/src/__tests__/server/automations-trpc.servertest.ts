@@ -1,8 +1,10 @@
+import dns from "node:dns/promises";
 import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import type * as SharedServer from "@langfuse/shared/src/server";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import { type Prisma, prisma } from "@langfuse/shared/src/db";
+import { env as sharedEnv } from "@langfuse/shared/src/env";
 import {
   createOrgProjectAndApiKey,
   SLACK_CHANNEL_NOT_FOUND_MESSAGE,
@@ -24,7 +26,6 @@ import {
 } from "@langfuse/shared/encryption";
 import { TRPCError } from "@trpc/server";
 import { type MockInstance } from "vitest";
-import { env } from "@/src/env.mjs";
 
 // Fake Slack workspace: the bot is in private channels "G_PRIVATE" and archived
 // "G_ARCHIVED". Slack API calls are faked; the access logic is real.
@@ -1166,6 +1167,115 @@ describe("automations trpc", () => {
           },
         }),
       ).rejects.toThrow("Name is required");
+    });
+
+    describe("monitor webhook destination validation", () => {
+      const original = {
+        hosts: sharedEnv.LANGFUSE_WEBHOOK_WHITELISTED_HOST,
+        ips: sharedEnv.LANGFUSE_WEBHOOK_WHITELISTED_IPS,
+        ipSegments: sharedEnv.LANGFUSE_WEBHOOK_WHITELISTED_IP_SEGMENTS,
+        allowedHosts: sharedEnv.LANGFUSE_WEBHOOK_ALLOWED_HOSTS,
+      };
+
+      const monitorWebhookInput = (projectId: string, url: string) => ({
+        projectId,
+        name: "Monitor webhook",
+        eventSource: TriggerEventSource.Monitor,
+        eventAction: [],
+        filter: null,
+        status: JobConfigState.ACTIVE,
+        actionType: "WEBHOOK" as const,
+        actionConfig: {
+          type: "WEBHOOK" as const,
+          url,
+          requestHeaders: {},
+          apiVersion: { monitor: "v1" as const },
+        },
+      });
+
+      async function expectNothingPersisted(projectId: string) {
+        const [automations, triggers, actions] = await Promise.all([
+          prisma.automation.count({ where: { projectId } }),
+          prisma.trigger.count({ where: { projectId } }),
+          prisma.action.count({ where: { projectId } }),
+        ]);
+        expect({ automations, triggers, actions }).toEqual({
+          automations: 0,
+          triggers: 0,
+          actions: 0,
+        });
+      }
+
+      beforeEach(() => {
+        sharedEnv.LANGFUSE_WEBHOOK_WHITELISTED_HOST = [];
+        sharedEnv.LANGFUSE_WEBHOOK_WHITELISTED_IPS = [];
+        sharedEnv.LANGFUSE_WEBHOOK_WHITELISTED_IP_SEGMENTS = [];
+        sharedEnv.LANGFUSE_WEBHOOK_ALLOWED_HOSTS = [];
+      });
+
+      afterEach(() => {
+        vi.restoreAllMocks();
+        sharedEnv.LANGFUSE_WEBHOOK_WHITELISTED_HOST = original.hosts;
+        sharedEnv.LANGFUSE_WEBHOOK_WHITELISTED_IPS = original.ips;
+        sharedEnv.LANGFUSE_WEBHOOK_WHITELISTED_IP_SEGMENTS =
+          original.ipSegments;
+        sharedEnv.LANGFUSE_WEBHOOK_ALLOWED_HOSTS = original.allowedHosts;
+      });
+
+      it.each([
+        ["loopback IPv6", "http://[::1]/hook", "Blocked IP address"],
+        [
+          "cloud metadata",
+          "http://169.254.169.254/latest/meta-data",
+          "Blocked hostname",
+        ],
+        ["RFC1918", "http://10.0.0.1/hook", "Blocked IP address"],
+        [
+          "embedded credentials",
+          "https://user:pass@hooks.example.com/hook",
+          "URL credentials are not allowed",
+        ],
+      ])(
+        "rejects a %s destination without persisting it",
+        async (_case, url, message) => {
+          const { project, caller } = await prepare();
+
+          await expect(
+            caller.automations.createAutomation(
+              monitorWebhookInput(project.id, url),
+            ),
+          ).rejects.toMatchObject({
+            code: "BAD_REQUEST",
+            message: expect.stringContaining(`Invalid webhook URL: ${message}`),
+          });
+          await expectNothingPersisted(project.id);
+        },
+      );
+
+      it("rejects a hostname that resolves to a private address", async () => {
+        vi.spyOn(dns, "resolve4").mockResolvedValue(["10.0.0.5"]);
+        vi.spyOn(dns, "resolve6").mockRejectedValue(new Error("ENODATA"));
+        vi.spyOn(dns, "lookup").mockResolvedValue([
+          { address: "10.0.0.5", family: 4 },
+        ] as never);
+        const { project, caller } = await prepare();
+
+        await expect(
+          caller.automations.createAutomation(
+            monitorWebhookInput(
+              project.id,
+              "https://hooks.internal.example.com",
+            ),
+          ),
+        ).rejects.toMatchObject({
+          code: "BAD_REQUEST",
+          message: expect.stringContaining(
+            "Invalid webhook URL: Blocked IP address",
+          ),
+        });
+        expect(dns.resolve4).toHaveBeenCalledWith("hooks.internal.example.com");
+        await expectNothingPersisted(project.id);
+      });
     });
 
     it("should create a new Slack automation", async () => {
@@ -3392,17 +3502,6 @@ describe("automations trpc", () => {
   describe("PagerDuty actions", () => {
     const routingKey = "R0abcdefghijklmnopqrstuvwxyz9xYz";
     const newRoutingKey = "N3wkeyabcdefghijklmnopqrstuv7uVw";
-    const mutableEnv = env as { NEXT_PUBLIC_LANGFUSE_CLOUD_REGION?: string };
-    const originalCloudRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
-
-    beforeAll(() => {
-      mutableEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "STAGING";
-    });
-
-    afterAll(() => {
-      mutableEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = originalCloudRegion;
-    });
-
     const createInput = (
       projectId: string,
       actionConfig: {
@@ -3482,34 +3581,15 @@ describe("automations trpc", () => {
       });
     }
 
-    it("rejects users who are not Langfuse Cloud admins", async () => {
+    it("lets project owners who are not admins create PagerDuty automations", async () => {
       const { project, session } = await prepare();
       const owner = callerWithUser(session, { admin: false });
 
-      await expect(
-        owner.automations.createAutomation(createInput(project.id)),
-      ).rejects.toMatchObject({ code: "FORBIDDEN" });
-      await expect(
-        owner.automations.sendPagerDutyTestEvent({
-          projectId: project.id,
-          region: "US",
-          routingKey,
-          step: "trigger",
-        }),
-      ).rejects.toMatchObject({ code: "FORBIDDEN" });
-    });
+      const result = await owner.automations.createAutomation(
+        createInput(project.id),
+      );
 
-    it("rejects admins on self-hosted instances", async () => {
-      const { project, caller } = await prepare();
-      mutableEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = undefined;
-
-      try {
-        await expect(
-          caller.automations.createAutomation(createInput(project.id)),
-        ).rejects.toMatchObject({ code: "FORBIDDEN" });
-      } finally {
-        mutableEnv.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "STAGING";
-      }
+      expect(result.action.type).toBe("PAGERDUTY");
     });
 
     it("rejects a create without a routing key", async () => {

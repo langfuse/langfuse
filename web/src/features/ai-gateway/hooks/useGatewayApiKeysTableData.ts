@@ -1,3 +1,4 @@
+import type { OrderByState } from "@langfuse/shared";
 import { keepPreviousData } from "@tanstack/react-query";
 
 import { joinTableCoreAndMetrics } from "@/src/components/table/utils/joinTableCoreAndMetrics";
@@ -11,16 +12,24 @@ import { api } from "@/src/utils/api";
 export function useGatewayApiKeysTableData({
   organizationId,
   searchQuery,
+  orderBy,
   pageIndex,
   pageSize,
 }: {
   organizationId: string;
   searchQuery: string;
+  orderBy: OrderByState;
   pageIndex: number;
   pageSize: number;
 }) {
   const apiKeysQuery = api.aiGateway.listApiKeys.useQuery(
-    { orgId: organizationId, searchQuery, page: pageIndex, limit: pageSize },
+    {
+      orgId: organizationId,
+      searchQuery,
+      orderBy,
+      page: pageIndex,
+      limit: pageSize,
+    },
     { placeholderData: keepPreviousData },
   );
   const lastUsedQuery = api.aiGateway.getApiKeysLastUsed.useQuery(

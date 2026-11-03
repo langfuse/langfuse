@@ -1,5 +1,5 @@
 import { sessionTraceFilterColumns } from "@langfuse/shared";
-import { fieldRegistryFromColumns } from "@/src/features/search-bar";
+import { fieldRegistryFromColumns } from "@/src/features/search-bar/lib/fields";
 
 export const SESSION_TRACE_FIELD_REGISTRY = fieldRegistryFromColumns(
   sessionTraceFilterColumns.filter((column) =>

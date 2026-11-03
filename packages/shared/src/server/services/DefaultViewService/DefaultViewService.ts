@@ -3,7 +3,7 @@ import { TableViewPresetTableName } from "../../../domain/table-view-presets";
 import {
   getSystemTableViewPresetById,
   isSystemTableViewPresetId,
-} from "../TableViewService/systemPresets";
+} from "../../../domain/table-view-presets-catalog";
 import type {
   DefaultViewAssignments,
   DefaultViewScope,

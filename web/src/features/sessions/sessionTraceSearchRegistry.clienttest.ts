@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { sessionTraceFilterSchema } from "@langfuse/shared";
-import { filterStateToQueryText, planCommit } from "@/src/features/search-bar";
+import { filterStateToQueryText } from "@/src/features/search-bar/lib/filter-state-to-query";
+import { planCommit } from "@/src/features/search-bar/lib/commit";
 import { SESSION_TRACE_FIELD_REGISTRY } from "./sessionTraceSearchRegistry";
 
 describe("session trace search registry", () => {

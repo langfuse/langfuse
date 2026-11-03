@@ -1,4 +1,4 @@
-import { GatewayConfigService } from "@/src/features/ai-gateway/server";
+import { GatewayConfigService } from "@/src/features/ai-gateway/server/config/gatewayConfigService";
 import { ProjectService } from "@/src/features/projects/server/projectService";
 import {
   createTRPCRouter,
@@ -9,13 +9,13 @@ import * as z from "zod";
 import {
   hasOrganizationAccess,
   throwIfNoOrganizationAccess,
-  throwIfNoProjectAccess,
-} from "@/src/features/rbac";
-import { throwIfNoEntitlement } from "@/src/features/entitlements/server";
+} from "@/src/features/rbac/utils/checkOrganizationAccess";
+import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { throwIfNoEntitlement } from "@/src/features/entitlements/server/hasEntitlement";
 import { TRPCError } from "@trpc/server";
 import { projectNameSchema } from "@/src/features/auth/lib/projectNameSchema";
-import { auditLog } from "@/src/features/audit-logs/server";
-import { ApiAuthService } from "@/src/features/public-api/server";
+import { auditLog } from "@/src/features/audit-logs/auditLog";
+import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
 import {
   redis,
   DefaultEvalModelService,
@@ -25,8 +25,8 @@ import {
 import { transferRoleAssignments } from "@langfuse/shared/rbac/server";
 import { reconcileTopicsConnectionsForProject } from "@langfuse/shared/topics/server";
 import { StringNoHTMLNonEmpty } from "@langfuse/shared";
-import { buildAdminOrgContext } from "@/src/features/organizations/server";
-import { emitChbProjectEvent } from "@/src/ee/features/billing/server";
+import { buildAdminOrgContext } from "@/src/features/organizations/server/adminOrgContext";
+import { emitChbProjectEvent } from "@/src/ee/features/billing/server/chb/chbProjectEvents";
 
 export const projectsRouter = createTRPCRouter({
   create: protectedOrganizationProcedure

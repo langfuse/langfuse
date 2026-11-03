@@ -2,6 +2,7 @@ import {
   ForbiddenError,
   InternalServerError,
   LangfuseNotFoundError,
+  type OrderByState,
 } from "@langfuse/shared";
 import { Prisma, type PrismaClient, type Role } from "@langfuse/shared/src/db";
 import {
@@ -17,8 +18,8 @@ import {
 import type { Cluster, Redis } from "ioredis";
 
 import { env } from "@/src/env.mjs";
-import { auditLog } from "@/src/features/audit-logs/server";
-import type { GatewayMetadata } from "@/src/features/ai-gateway/server/provider";
+import { auditLog } from "@/src/features/audit-logs/auditLog";
+import type { GatewayMetadata } from "@/src/features/ai-gateway/server/provider/registry";
 import type { OrgAuthedContext } from "@/src/server/api/trpc";
 import { invalidateGatewayResolveCacheForApiKey } from "@/src/features/ai-gateway/server/resolve/gatewayResolveCache";
 import { hasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
@@ -47,6 +48,7 @@ export class GatewayApiKeyService {
     organizationId: string;
     ownerUserId?: string;
     searchQuery?: string;
+    orderBy?: OrderByState;
     page: number;
     limit: number;
   }) {

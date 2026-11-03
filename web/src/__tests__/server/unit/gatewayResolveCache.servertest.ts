@@ -23,6 +23,8 @@ const context: CachedResolveContext = {
   keyMetadata: {},
   ingestionProjectId: null,
   ingestionMode: null,
+  plan: "cloud:hobby",
+  rateLimitOverrides: [],
   connections: [],
 };
 
@@ -118,6 +120,8 @@ describe("GatewayResolveCache", () => {
       keyMetadata: {},
       ingestionProjectId: null,
       ingestionMode: null,
+      plan: "cloud:hobby",
+      rateLimitOverrides: [],
       connections: [],
     };
     await cache.set({
@@ -137,6 +141,28 @@ describe("GatewayResolveCache", () => {
       userName: null,
       userEmail: null,
     });
+  });
+
+  it("refetches entries cached before the plan was part of the context", async () => {
+    const redis = createStatefulRedis();
+    const cache = new GatewayResolveCache(redis);
+    const {
+      plan: _plan,
+      rateLimitOverrides: _overrides,
+      ...withoutPlan
+    } = context;
+    await cache.set({
+      fastHashedSecretKey: "hashed-key",
+      apiFormat: "openai.responses",
+      context: withoutPlan as unknown as CachedResolveContext,
+    });
+
+    await expect(
+      cache.get({
+        fastHashedSecretKey: "hashed-key",
+        apiFormat: "openai.responses",
+      }),
+    ).resolves.toBeNull();
   });
 
   it("invalidates cached contexts for an organization", async () => {

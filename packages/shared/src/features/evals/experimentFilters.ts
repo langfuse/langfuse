@@ -1,7 +1,7 @@
 import type {
   ColumnDefinition,
   SingleValueOption,
-} from "../../tableDefinitions";
+} from "../../tableDefinitions/types";
 import { formatColumnOptions } from "../../tableDefinitions/typeHelpers";
 import {
   evalFilterFields,

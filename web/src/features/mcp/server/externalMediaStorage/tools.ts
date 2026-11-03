@@ -1,7 +1,7 @@
 import { prisma } from "@langfuse/shared/src/db";
 import { z } from "zod";
 
-import { createExternalMediaStorageService } from "@/src/features/external-media-storage/server";
+import { createExternalMediaStorageService } from "@/src/features/external-media-storage/server/service";
 import { externalMediaStorageFormSchema } from "@/src/features/external-media-storage/types";
 import { defineTool } from "@/src/features/mcp/core/define-tool";
 import { runMcpTool } from "@/src/features/mcp/core/run-mcp-tool";
@@ -59,7 +59,7 @@ export const [
 ] = defineTool({
   name: "configureExternalMediaStorage",
   description:
-    "Create or update the S3 external media storage configuration for the current project. Leave secretAccessKey empty to retain the saved secret.",
+    "Create or update the S3 external media storage configuration for the current project. Leave secretAccessKey empty to retain the saved secret; it is required again when type, endpoint, bucketName, or accessKeyId changes.",
   action: "integrations:CRUD",
   baseSchema: ExternalMediaStorageBaseSchema,
   inputSchema: externalMediaStorageFormSchema,

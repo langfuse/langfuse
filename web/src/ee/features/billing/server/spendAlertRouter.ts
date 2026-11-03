@@ -1,14 +1,14 @@
 import * as z from "zod";
 
-import { throwIfNoEntitlement } from "@/src/features/entitlements/server";
+import { throwIfNoEntitlement } from "@/src/features/entitlements/server/hasEntitlement";
 
 import {
   createTRPCRouter,
   protectedOrganizationProcedure,
 } from "@/src/server/api/trpc";
 import { TRPCError } from "@trpc/server";
-import { throwIfNoOrganizationAccess } from "@/src/features/rbac";
-import { auditLog } from "@/src/features/audit-logs/server";
+import { throwIfNoOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
+import { auditLog } from "@/src/features/audit-logs/auditLog";
 
 export const spendAlertRouter = createTRPCRouter({
   getSpendAlerts: protectedOrganizationProcedure

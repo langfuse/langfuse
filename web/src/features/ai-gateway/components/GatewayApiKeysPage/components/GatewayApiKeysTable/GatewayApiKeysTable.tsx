@@ -1,4 +1,4 @@
-import { Plus, Trash, UserPlus } from "@langfuse/icons";
+import { BookOpen, Plus, Trash, UserPlus } from "@langfuse/icons";
 import { formatDistanceToNowStrict } from "date-fns";
 
 import { SettingsTable } from "@/src/components/SettingsTable/SettingsTable";
@@ -10,9 +10,12 @@ import { createUserTableColumn } from "@/src/components/design-system/table/colu
 import { createTableColumn } from "@/src/components/design-system/table/columns/utils/createTableColumn";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { buildLocalIsoDatePresentation } from "@/src/utils/dates";
-import type { AsyncTableData } from "@/src/components/design-system/table/Table";
+import type {
+  AsyncTableData,
+  TableProps,
+} from "@/src/components/design-system/table/Table";
 import type { LangfuseColumnDef } from "@/src/components/table/types";
-import { isApiKeyExpired } from "@/src/features/apiKey";
+import { isApiKeyExpired } from "@/src/features/apiKey/helpers/isApiKeyExpired";
 import { GATEWAY_API_KEY_LAST_USED_WINDOW_DAYS } from "@/src/features/ai-gateway/constants/gatewayApiKeyLastUsed";
 import { GatewayApiKeysEmptyState } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/GatewayApiKeysTable/components/GatewayApiKeysEmptyState/GatewayApiKeysEmptyState";
 
@@ -48,15 +51,19 @@ export function GatewayApiKeysTable({
   lastUsed,
   createAction,
   inviteAction,
+  usageInstructionsAction,
   onRevoke,
   pagination,
   search,
-}: {
+  orderBy,
+  setOrderBy,
+}: Pick<TableProps<GatewayApiKey>, "orderBy" | "setOrderBy"> & {
   data: AsyncTableData<GatewayApiKey[]>;
   lastUsed: GatewayApiKeysLastUsedState;
   createAction: () => void;
   /** Omit for callers who cannot invite people to the organization. */
   inviteAction?: () => void;
+  usageInstructionsAction: () => void;
   onRevoke: (apiKeyId: string) => void;
   pagination: PaginationBarProps;
   search: { value: string; onChange: (value: string) => void };
@@ -70,6 +77,7 @@ export function GatewayApiKeysTable({
       id: "createdAt",
       header: "Created",
       enableResizing: false,
+      enableSorting: true,
     }),
     createTextTableColumn<GatewayApiKey>({
       accessorFn: (row) => row.apiKey.displaySecretKey,
@@ -84,6 +92,7 @@ export function GatewayApiKeysTable({
       header: "Name",
       nullValue: "-",
       enableResizing: false,
+      enableSorting: true,
     }),
     createUserTableColumn<GatewayApiKey>({
       accessorFn: (row) => row.apiKey.user,
@@ -100,6 +109,7 @@ export function GatewayApiKeysTable({
       header: "Expiration",
       hideBelowMd: true,
       enableResizing: false,
+      enableSorting: true,
       emptyValue: "No expiration",
       getPrefix: (expiresAt) =>
         isApiKeyExpired(expiresAt) ? "Expired on " : null,
@@ -146,6 +156,8 @@ export function GatewayApiKeysTable({
       tableName="gatewayApiKeys"
       columns={columns}
       data={data}
+      orderBy={orderBy}
+      setOrderBy={setOrderBy}
       actions={(row) => [
         {
           id: "revoke",
@@ -170,6 +182,13 @@ export function GatewayApiKeysTable({
               },
             ]
           : []),
+        {
+          id: "usage-instructions",
+          label: "Usage instructions",
+          variant: "outline",
+          icon: <BookOpen size="base" aria-hidden="true" />,
+          onClick: usageInstructionsAction,
+        },
         {
           id: "create-key",
           label: "Create key",

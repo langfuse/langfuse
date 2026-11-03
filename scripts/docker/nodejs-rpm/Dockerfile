@@ -1,4 +1,4 @@
-# TEMPORARY(node-24.22.1-security): see build.sh.
+# Disabled; see README.md.
 #
 # Builds the patched nodejs:24 RPMs and publishes them as a scratch image of
 # /rpms, which web/Dockerfile and worker/Dockerfile pull by digest. Built and

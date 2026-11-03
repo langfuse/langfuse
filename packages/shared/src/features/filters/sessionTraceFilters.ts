@@ -7,7 +7,7 @@ import {
   stringObjectFilter,
   booleanFilter,
 } from "../../interfaces/filters";
-import { type ColumnDefinition } from "../../tableDefinitions";
+import { type ColumnDefinition } from "../../tableDefinitions/types";
 
 export const sessionTraceFilterColumns: ColumnDefinition[] = [
   {

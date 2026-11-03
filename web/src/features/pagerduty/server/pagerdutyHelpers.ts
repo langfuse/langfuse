@@ -1,7 +1,5 @@
-import { type Session } from "next-auth";
 import {
   BaseError,
-  ForbiddenError,
   InvalidRequestError,
   isPagerDutyActionConfig,
   type ActionCreate,
@@ -18,14 +16,6 @@ import {
   type PagerDutyTestEventStep,
 } from "@langfuse/shared/pagerduty/server";
 import { getProductBaseUrl, logger } from "@langfuse/shared/src/server";
-import { env } from "@/src/env.mjs";
-
-/** throwIfPagerDutyUnavailable limits PagerDuty actions to Langfuse Cloud admins. */
-export function throwIfPagerDutyUnavailable(session: Session): void {
-  if (env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION && session.user?.admin === true)
-    return;
-  throw new ForbiddenError("PagerDuty actions are not available yet");
-}
 
 /** processPagerDutyActionConfig encrypts a new routing key, or keeps the stored one when the update omits it. */
 export async function processPagerDutyActionConfig({
