@@ -22,7 +22,7 @@ export function CliSetupAccordion({
             <div className="w-full min-w-0">
               <Codeblock
                 language="bash"
-                value="npm install -g @langfuse/cli@beta"
+                value="npm install -g @langfuse/cli"
                 variant="read-only"
               />
             </div>
@@ -44,8 +44,7 @@ export function CliSetupAccordion({
               />
             </div>
             <p className="text-muted-foreground text-xs">
-              If LANGFUSE_BASE_URL is already set, use the same host. The CLI is
-              in beta.
+              If LANGFUSE_BASE_URL is already set, use the same host.
             </p>
           </div>
         </Accordion.Content>

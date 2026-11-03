@@ -1,5 +1,5 @@
-import { listExperimentItemsForPublicApi } from "@/src/features/experiments/server";
-import { GetExperimentItemsV1Response } from "@/src/features/public-api/server";
+import { listExperimentItemsForPublicApi } from "@/src/features/experiments/server/public/service";
+import { GetExperimentItemsV1Response } from "@/src/features/public-api/types/experiments";
 import { buildObservationUrl } from "@langfuse/shared/src/server";
 import { defineTool } from "../../../core/define-tool";
 import { runMcpTool } from "../../../core/run-mcp-tool";
@@ -7,7 +7,7 @@ import {
   ListExperimentItemsBaseSchema,
   ListExperimentItemsInputSchema,
 } from "../schema";
-import { clampToDataAccessDays } from "@/src/features/entitlements/server";
+import { clampToDataAccessDays } from "@/src/features/entitlements/server/hasEntitlementLimit";
 
 export const [listExperimentItemsTool, handleListExperimentItems] = defineTool({
   name: "listExperimentItems",

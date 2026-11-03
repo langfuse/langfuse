@@ -3,9 +3,10 @@ import type { NormalizedIO, SpanIO } from "./types";
 import {
   collectMetadata,
   collectIO,
-  createAccumulator,
   type ParsedIOValue,
-} from "./core/accumulator";
+} from "./core/accumulator/collect";
+import { createAccumulator } from "./core/accumulator/interface";
+
 import { createParserContext } from "./core/parser-context";
 
 type ParsedSpanIO = {

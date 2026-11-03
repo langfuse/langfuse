@@ -9,7 +9,7 @@ import {
 
 import { Button } from "@/src/components/ui/button";
 import { DropdownMenu } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
 export function EvaluatorActionsCell({
   canViewExecutions,

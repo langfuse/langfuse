@@ -9,7 +9,10 @@ import {
 } from "vitest";
 import { Job } from "bullmq";
 import { EvalTemplateType } from "@prisma/client";
-import { UnrecoverableError } from "../../errors/UnrecoverableError";
+import {
+  UnrecoverableError,
+  isUnrecoverableError,
+} from "../../errors/UnrecoverableError";
 
 const QueueName = {
   CodeEvalExecution: "code-eval-execution-queue",
@@ -27,13 +30,19 @@ vi.mock("@langfuse/shared/src/db", () => ({
   },
 }));
 
-vi.mock("../../features/evaluation/observationEval", () => ({
-  processObservationEval: vi.fn(),
-}));
+vi.mock(
+  "../../features/evaluation/observationEval/observationEvalProcessor",
+  () => ({
+    processObservationEval: vi.fn(),
+  }),
+);
 
-vi.mock("../../features/evaluation/codeBased", () => ({
-  executeCodeBasedEvaluation: vi.fn(),
-}));
+vi.mock(
+  "../../features/evaluation/codeBased/executeCodeBasedEvaluation",
+  () => ({
+    executeCodeBasedEvaluation: vi.fn(),
+  }),
+);
 
 vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
   const actual =
@@ -60,7 +69,7 @@ vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
   };
 });
 
-vi.mock("../../features/utils", () => ({
+vi.mock("../../features/utils/utilities", () => ({
   createW3CTraceId: vi.fn().mockReturnValue("test-trace-id"),
 }));
 
@@ -73,7 +82,7 @@ vi.mock("../../errors/UnrecoverableError", async () => {
 });
 
 import { prisma } from "@langfuse/shared/src/db";
-import { processObservationEval } from "../../features/evaluation/observationEval";
+import { processObservationEval } from "../../features/evaluation/observationEval/observationEvalProcessor";
 import {
   recordDistribution,
   recordIncrement,
@@ -81,7 +90,6 @@ import {
 } from "@langfuse/shared/src/server";
 import { CodeEvalDispatcherErrorCodes } from "../../../../packages/shared/src/server/evals/codeEvalDispatcherTypes";
 import { CodeEvalExecutionError } from "../../../../packages/shared/src/server/evals/codeEvalExecution";
-import { isUnrecoverableError } from "../../errors/UnrecoverableError";
 
 describe("codeEvalExecutionQueueProcessor", () => {
   const projectId = "test-project-123";

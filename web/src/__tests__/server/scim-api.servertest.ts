@@ -2160,4 +2160,73 @@ describe("SCIM ownership boundary", () => {
       },
     );
   });
+
+  describe("AI_GATEWAY role", () => {
+    const originalGatewayAvailability = {
+      NODE_ENV: env.NODE_ENV,
+      LANGFUSE_AI_GATEWAY_ENABLED: env.LANGFUSE_AI_GATEWAY_ENABLED,
+      NEXT_PUBLIC_PREVIEW_PR_URL: env.NEXT_PUBLIC_PREVIEW_PR_URL,
+      LANGFUSE_AI_GATEWAY_ORGANIZATION_ID_ALLOWLIST:
+        env.LANGFUSE_AI_GATEWAY_ORGANIZATION_ID_ALLOWLIST,
+    };
+
+    // Only the org allowlist enables the gateway in these tests.
+    beforeEach(() => {
+      Object.assign(env, {
+        NODE_ENV: "test",
+        LANGFUSE_AI_GATEWAY_ENABLED: "false",
+        NEXT_PUBLIC_PREVIEW_PR_URL: undefined,
+        LANGFUSE_AI_GATEWAY_ORGANIZATION_ID_ALLOWLIST: [],
+      });
+    });
+
+    afterEach(() => {
+      Object.assign(env, originalGatewayAvailability);
+    });
+
+    it("rejects creating an AI_GATEWAY user via POST while the AI Gateway is off", async () => {
+      const email = `${randomUUID()}@example.com`;
+      createdEmails.push(email);
+
+      const status = await call(scimUsersRoute, "POST", {
+        schemas: ["urn:ietf:params:scim:schemas:core:2.0:User"],
+        userName: email,
+        roles: ["AI_GATEWAY"],
+      });
+
+      expect(status).toBe(403);
+      expect(
+        await prisma.organizationMembership.count({
+          where: { orgId, user: { email } },
+        }),
+      ).toBe(0);
+    });
+
+    it("rejects moving a member to AI_GATEWAY via PUT while the AI Gateway is off", async () => {
+      expect(await putUser(memberId, ["AI_GATEWAY"])).toBe(403);
+
+      expect(await roleOf(memberId)).toBe("MEMBER");
+    });
+
+    it("keeps an existing AI_GATEWAY member through a sync while the AI Gateway is off", async () => {
+      await prisma.organizationMembership.update({
+        where: { orgId_userId: { orgId, userId: memberId } },
+        data: { role: "AI_GATEWAY" },
+      });
+
+      expect(await putUser(memberId, ["AI_GATEWAY"])).toBe(200);
+
+      expect(await roleOf(memberId)).toBe("AI_GATEWAY");
+    });
+
+    it("moves a member to AI_GATEWAY via PUT while the AI Gateway is on for the org", async () => {
+      Object.assign(env, {
+        LANGFUSE_AI_GATEWAY_ORGANIZATION_ID_ALLOWLIST: [orgId],
+      });
+
+      expect(await putUser(memberId, ["AI_GATEWAY"])).toBe(200);
+
+      expect(await roleOf(memberId)).toBe("AI_GATEWAY");
+    });
+  });
 });

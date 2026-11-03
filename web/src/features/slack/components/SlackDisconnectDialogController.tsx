@@ -1,6 +1,7 @@
 import React from "react";
 import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
-import { showSuccessToast, showErrorToast } from "@/src/features/notifications";
+import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
+import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { api, reportTrpcErrorWithoutToast } from "@/src/utils/api";
 import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
 import { SlackDisconnectDialog } from "@/src/features/slack/components/SlackDisconnectDialog/SlackDisconnectDialog";

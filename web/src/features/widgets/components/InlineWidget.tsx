@@ -10,7 +10,10 @@ import {
 } from "@langfuse/shared/query";
 import { useScheduledDashboardExecuteQuery } from "@/src/features/dashboard/hooks/DashboardQuerySchedulerProvider";
 import { Chart } from "@/src/features/widgets/chart-library/Chart";
-import { type LegendPosition } from "@/src/features/widgets/chart-library/chart-props";
+import {
+  type FormatMetricOptions,
+  type LegendPosition,
+} from "@/src/features/widgets/chart-library/chart-props";
 import { ChartLoadingState } from "@/src/features/widgets/chart-library/ChartLoadingState";
 import {
   getChartLoadingProgress,
@@ -24,7 +27,7 @@ import {
   type WidgetChartConfig,
 } from "@/src/features/widgets/utils";
 import { isTimeSeriesChart } from "@/src/features/widgets/chart-library/utils";
-import { useReadPath } from "@/src/features/events";
+import { useReadPath } from "@/src/features/events/hooks/useReadPath";
 import { cn } from "@/src/utils/tailwind";
 
 // ============================================================================
@@ -106,6 +109,7 @@ export interface WidgetContentProps {
    * short for it. Pass a stable node (see `Chart`).
    */
   emptyState?: ReactNode;
+  usdPrecision?: FormatMetricOptions["usdPrecision"];
 }
 
 // ============================================================================
@@ -157,6 +161,7 @@ export function WidgetContent({
   legendPosition,
   zeroBaseline,
   emptyState,
+  usdPrecision,
 }: WidgetContentProps) {
   // Transport-only: `version` is a prop here, so an unresolved session can
   // never change WHAT is queried — only whether it streams (SSE) or not.
@@ -351,8 +356,9 @@ export function WidgetContent({
       metric,
       view,
       version,
+      usdPrecision,
     });
-  }, [chartType, metrics, view, version]);
+  }, [chartType, metrics, view, version, usdPrecision]);
 
   // Loading state
   const chartLoadingState = getChartLoadingStateProps({

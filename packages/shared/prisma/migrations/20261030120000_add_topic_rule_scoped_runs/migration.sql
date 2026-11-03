@@ -1,5 +1,4 @@
--- Topic maps belong to a Topics rule (continuous) or to a one-off analysis execution.
--- Existing runs keep both columns null and stay attributed to the project's oldest rule.
+-- Topics rule of a continuous map, or the batch action of a one-off analysis. Nullable: existing runs and writers that predate the columns leave them null.
 ALTER TABLE "topic_clustering_runs" ADD COLUMN "rule_id" TEXT;
 ALTER TABLE "topic_clustering_runs" ADD COLUMN "batch_action_id" TEXT;
 

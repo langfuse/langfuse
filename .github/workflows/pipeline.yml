@@ -294,10 +294,8 @@ jobs:
         run: |
           cp .env.dev.example .env
       - name: lint web
-        # Three packages with four ESLint workers leave headroom on 16 vCPUs.
-        run: pnpm turbo run lint --filter=!ai-gateway --filter=!@langfuse/native --concurrency=3 -- --concurrency=4
-      # Rust packages lint with cargo, which rejects the trailing ESLint flag
-      # above, so they run outside that invocation (ai-gateway in its own job).
+        run: pnpm turbo run lint --filter=!ai-gateway --filter=!@langfuse/native --concurrency=3 -- --threads=4
+      # Rust packages lint separately (ai-gateway in its own job).
       - name: lint native addon (rustfmt, clippy)
         run: pnpm --filter @langfuse/native run lint
       - name: Install Rust dependency checkers
@@ -1735,7 +1733,6 @@ jobs:
     if: always()
     permissions:
       contents: read
-      actions: read
     outputs:
       success: ${{ steps.set-success-output.outputs.success }}
     steps:
@@ -1755,21 +1752,33 @@ jobs:
         if: ${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') }}
         run: exit 1
         working-directory: .
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        if: failure() && github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/v3' || startsWith(github.ref, 'refs/tags/'))
-        with:
-          persist-credentials: false
-      - name: Notify Slack
-        if: failure() && github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/v3' || startsWith(github.ref, 'refs/tags/'))
-        uses: ./.github/actions/notify-slack-failure
-        with:
-          message: "❌ CI failed on ${{ github.ref_name }}"
-          webhook-url: ${{ secrets.SLACK_CI_FAILURE_WORKFLOW_WEBHOOK_URL }}
       - name: Output job results
         run: |
           echo "Job results: ${STEPS_SET_SUCCESS_OUTPUT_OUTPUTS_SUCCESS}"
         env:
           STEPS_SET_SUCCESS_OUTPUT_OUTPUTS_SUCCESS: ${{ steps.set-success-output.outputs.success }}
+
+  # The alert lives in its own job because only a job-level `cancelled()` tells
+  # whether the run was cancelled. Inside a step of the always() gate it reads
+  # the gate's own status, which never becomes cancelled. A job that exceeds
+  # timeout-minutes is cancelled without cancelling the run, so it still alerts.
+  notify-ci-failure:
+    needs: all-ci-passed
+    if: ${{ !cancelled() && needs.all-ci-passed.result == 'failure' && github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/v3' || startsWith(github.ref, 'refs/tags/')) }}
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Notify Slack
+        uses: ./.github/actions/notify-slack-failure
+        with:
+          message: "❌ CI failed on ${{ github.ref_name }}"
+          webhook-url: ${{ secrets.SLACK_CI_FAILURE_WORKFLOW_WEBHOOK_URL }}
+          ignore-job: all-ci-passed
 
   # A merge-queue run that only went green because a step was retried still hides
   # a real flake, and the retry means nobody is forced to look at it. Collect the
@@ -2250,21 +2259,17 @@ jobs:
     needs:
       - build-docker-image-release
       - publish-docker-image-release
-    if: always() && github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
+    # Job-level `!cancelled()` skips whole-run cancels; see notify-ci-failure.
+    if: ${{ !cancelled() && github.event_name == 'push' && startsWith(github.ref, 'refs/tags/') && (contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')) }}
     runs-on: blacksmith-4vcpu-ubuntu-2404
     permissions:
       contents: read
       actions: read
     steps:
-      - name: Fail when a release image job failed
-        if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')
-        run: exit 1
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        if: failure()
         with:
           persist-credentials: false
       - name: Notify Slack
-        if: failure()
         uses: ./.github/actions/notify-slack-failure
         with:
           message: "❌ Docker release failed on ${{ github.ref_name }}"

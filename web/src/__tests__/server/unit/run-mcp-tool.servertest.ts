@@ -50,6 +50,7 @@ const context: ServerContext = {
   publicKey: "pk-lf-test",
   plan: "oss",
   rateLimitOverrides: [],
+  accessAuditLogEnabled: false,
 };
 
 describe("runMcpTool outcome telemetry", () => {
@@ -175,9 +176,7 @@ describe("MCP observation search cooldown", () => {
       );
       await expect(
         handleListObservations(input, context),
-      ).rejects.toMatchObject({
-        code: ErrorCode.InvalidRequest,
-      });
+      ).rejects.toBeInstanceOf(InvalidRequestError);
 
       await expect(handleListObservations(input, context)).rejects.toThrow(
         /retry in 30s/i,
@@ -221,8 +220,8 @@ describe("MCP observation search cooldown", () => {
         new Error("private query details"),
       ),
     );
-    await expect(handleListObservations(input, context)).rejects.toThrow(
-      /query timed out/i,
+    await expect(handleListObservations(input, context)).rejects.toBeInstanceOf(
+      ClickHouseResourceError,
     );
     await expect(handleListObservations(input, context)).resolves.toBeDefined();
 

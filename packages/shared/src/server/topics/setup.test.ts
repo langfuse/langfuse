@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { InvalidRequestError } from "../../errors";
+import { InvalidRequestError } from "../../errors/InvalidRequestError";
 import { DEFAULT_TOPIC_FACETS } from "../../topics";
 
 const mocks = vi.hoisted(() => ({

@@ -87,7 +87,7 @@ export const GATEWAY_ANALYTICS_WIDGETS: readonly GatewayAnalyticsWidget[] = [
   },
   {
     id: "cost-by-api-key",
-    name: "Cost by API key",
+    name: "Cost by gateway key",
     description: `Top ${BREAKDOWN_ROW_LIMIT} gateway keys by cost`,
     view: "observations",
     dimensions: [{ field: "aiGatewayKeyId" }],
@@ -111,3 +111,21 @@ export const GATEWAY_ANALYTICS_WIDGETS: readonly GatewayAnalyticsWidget[] = [
     size: "medium",
   },
 ];
+
+/** Not rendered: a per-model breakdown that finds usage without a model price. */
+export const GATEWAY_UNPRICED_USAGE_QUERY: GatewayAnalyticsWidget = {
+  id: "unpriced-usage",
+  name: "Unpriced usage",
+  description: "Requests and tokens of models without a price",
+  view: "observations",
+  dimensions: [{ field: "providedModelName" }],
+  metrics: [
+    { measure: "count", agg: "count" },
+    { measure: "totalTokens", agg: "sum" },
+    { measure: "totalCost", agg: "sum" },
+  ],
+  filters: [],
+  chartType: "HORIZONTAL_BAR",
+  chartConfig: { type: "HORIZONTAL_BAR", row_limit: 1000 },
+  size: "full",
+};

@@ -1,6 +1,6 @@
 import { prisma } from "@langfuse/shared/src/db";
 
-import { createExternalMediaStorageService } from "@/src/features/external-media-storage/server";
+import { createExternalMediaStorageService } from "@/src/features/external-media-storage/server/service";
 import { type McpFeatureModule } from "@/src/features/mcp/server/registry";
 
 import {

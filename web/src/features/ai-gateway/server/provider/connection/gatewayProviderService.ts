@@ -13,7 +13,7 @@ import { encrypt } from "@langfuse/shared/encryption";
 import { LLMAdapter, testModelCall } from "@langfuse/shared/src/server";
 import { getDisplaySecretKey } from "@langfuse/shared/src/server/auth/apiKeys";
 
-import { auditLog } from "@/src/features/audit-logs/server";
+import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { GATEWAY_CONNECTION_NAME_ERRORS } from "@/src/features/ai-gateway/constants/gatewayConnection";
 import type { OrgAuthedContext } from "@/src/server/api/trpc";
 import {
@@ -45,7 +45,7 @@ export class GatewayProviderService {
 
   async get(params: { organizationId: string; id: string }) {
     const connection = await this.repository.getSafeConnection(params);
-    if (!connection) throw new LangfuseNotFoundError("Gateway connection");
+    if (!connection) throw new LangfuseNotFoundError("Provider credential");
     return connection;
   }
 
@@ -125,7 +125,7 @@ export class GatewayProviderService {
       organizationId: params.organizationId,
       id: params.id,
     });
-    if (!existing) throw new LangfuseNotFoundError("Gateway connection");
+    if (!existing) throw new LangfuseNotFoundError("Provider credential");
     /** Unchanged names skip validation so pre-existing names stay editable. */
     const name =
       params.name === undefined || params.name.trim() === existing.name
@@ -144,7 +144,7 @@ export class GatewayProviderService {
       !params.credential
     ) {
       throw new InvalidRequestError(
-        "Errored gateway connections require a credential update or successful retry",
+        "Errored provider credentials need a credential update or a successful retry",
       );
     }
     if (params.credential) {
