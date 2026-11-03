@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { TopicProcessBatchState } from "../topics";
 import { eventTypes } from "./ingestion/types";
 import {
   ActionId,
@@ -6,10 +7,15 @@ import {
   BatchActionType,
 } from "../features/batchAction/types";
 import { BatchTableNames } from "../interfaces/tableNames";
-import { EventActionSchema } from "../domain";
+import { EventActionSchema } from "../domain/automations";
+import { SkillVersionSchema } from "../features/skills/types";
 import { PromptDomainSchema } from "../domain/prompts";
 import { ObservationAddToDatasetConfigSchema } from "../features/batchAction/addToDatasetTypes";
-import { EvalTargetObjectSchema } from "../features/evals/types";
+import {
+  BatchEvalEvaluatorMappingSchema,
+  EvalTargetObjectSchema,
+  observationVariableMappingList,
+} from "../features/evals/types";
 import { EvalExecutionMode } from "../features/evals/evalConfigBlocking";
 import {
   type MonitorQueueEvent,
@@ -96,9 +102,19 @@ export const TraceQueueEventSchema = z.object({
   exactTimestamp: z.date().optional(),
   traceEnvironment: z.string().optional(), // Optional to maintain backward compatibility with existing jobs in queue during deployment. 'optional()' can be removed after queue was exhausted
 });
+// Who triggered a queued job (e.g. a deletion). Only used for logging; optional
+// on payloads so that jobs enqueued before this field existed still parse.
+export const ActorSchema = z.object({
+  type: z.enum(["USER", "API_KEY"]),
+  userId: z.string().optional(),
+  apiKeyId: z.string().optional(),
+  publicKey: z.string().optional(),
+});
+export type Actor = z.infer<typeof ActorSchema>;
 export const TracesQueueEventSchema = z.object({
   projectId: z.string(),
   traceIds: z.array(z.string()),
+  actor: ActorSchema.optional(),
 });
 export const ScoresQueueEventSchema = z.object({
   projectId: z.string(),
@@ -157,6 +173,13 @@ export const ObservationEvalExecutionEventSchema = z.object({
   // which the executor resolves on pickup and records on the execution.
   evaluatorId: z.string().optional(),
   evaluationRuleId: z.string().optional(),
+  // Ruleless manual batch runs have no assignment row to hold a mapping
+  // override. Optional for jobs queued before this field existed; those
+  // inherit the evaluator version mapping.
+  variableMapping: observationVariableMappingList.optional(),
+  // Manual batch runs record their batch action on the execution trace and
+  // scores so a run's outputs can be found together.
+  batchActionId: z.string().optional(),
 });
 export const PostHogIntegrationProcessingEventSchema = z.object({
   projectId: z.string(),
@@ -177,62 +200,38 @@ export const DataRetentionProcessingEventSchema = z.object({
   projectId: z.string(),
   retention: z.number(),
 });
+// Fields shared by the batch actions that select rows from a table and apply
+// one action to them.
+const BatchActionTableEventBaseSchema = z.object({
+  projectId: z.string(),
+  query: BatchActionQuerySchema,
+  tableName: z.enum(BatchTableNames),
+  cutoffCreatedAt: z.date(),
+  targetId: z.string().optional(),
+  type: z.enum(BatchActionType),
+  userId: z.string().optional(), // Requesting user, for logging only
+});
+
 export const BatchActionProcessingEventSchema = z.discriminatedUnion(
   "actionId",
   [
-    z.object({
+    BatchActionTableEventBaseSchema.extend({
       actionId: z.literal("score-delete"),
-      projectId: z.string(),
-      query: BatchActionQuerySchema,
-      tableName: z.enum(BatchTableNames),
-      cutoffCreatedAt: z.date(),
-      targetId: z.string().optional(),
-      type: z.enum(BatchActionType),
     }),
-    z.object({
+    BatchActionTableEventBaseSchema.extend({
       actionId: z.literal("dataset-delete"),
-      projectId: z.string(),
-      query: BatchActionQuerySchema,
-      tableName: z.enum(BatchTableNames),
-      cutoffCreatedAt: z.date(),
-      targetId: z.string().optional(),
-      type: z.enum(BatchActionType),
     }),
-    z.object({
+    BatchActionTableEventBaseSchema.extend({
       actionId: z.literal("trace-delete"),
-      projectId: z.string(),
-      query: BatchActionQuerySchema,
-      tableName: z.enum(BatchTableNames),
-      cutoffCreatedAt: z.date(),
-      targetId: z.string().optional(),
-      type: z.enum(BatchActionType),
     }),
-    z.object({
+    BatchActionTableEventBaseSchema.extend({
       actionId: z.literal("trace-add-to-annotation-queue"),
-      projectId: z.string(),
-      query: BatchActionQuerySchema,
-      tableName: z.enum(BatchTableNames),
-      cutoffCreatedAt: z.date(),
-      targetId: z.string().optional(),
-      type: z.enum(BatchActionType),
     }),
-    z.object({
+    BatchActionTableEventBaseSchema.extend({
       actionId: z.literal("session-add-to-annotation-queue"),
-      projectId: z.string(),
-      query: BatchActionQuerySchema,
-      tableName: z.enum(BatchTableNames),
-      cutoffCreatedAt: z.date(),
-      targetId: z.string().optional(),
-      type: z.enum(BatchActionType),
     }),
-    z.object({
+    BatchActionTableEventBaseSchema.extend({
       actionId: z.literal("observation-add-to-annotation-queue"),
-      projectId: z.string(),
-      query: BatchActionQuerySchema,
-      tableName: z.enum(BatchTableNames),
-      cutoffCreatedAt: z.date(),
-      targetId: z.string().optional(),
-      type: z.enum(BatchActionType),
     }),
     z.object({
       actionId: z.literal("eval-create"),
@@ -260,6 +259,9 @@ export const BatchActionProcessingEventSchema = z.discriminatedUnion(
       batchActionId: z.string(),
       evaluatorIds: z.array(z.string()),
       evalVersion: z.literal("v2").optional(),
+      evaluatorMappings: z.array(BatchEvalEvaluatorMappingSchema).optional(),
+      sampling: z.number().min(0).max(1).optional(),
+      rowLimit: z.number().int().positive().optional(),
     }),
   ],
 );
@@ -290,25 +292,47 @@ export const NotificationEventSchema = z.discriminatedUnion("type", [
     projectId: z.string(),
     mentionedUserIds: z.array(z.string()),
   }),
+  /** One AI Gateway invitation or announcement email, rendered as-is by the worker. */
+  z.object({
+    type: z.literal("AI_GATEWAY_INVITATION"),
+    orgId: z.string(),
+    orgName: z.string(),
+    to: z.string(),
+    receiverName: z.string().optional(),
+    audience: z.discriminatedUnion("kind", [
+      z.object({ kind: z.literal("invitee"), hasAccount: z.boolean() }),
+      z.object({ kind: z.literal("member") }),
+    ]),
+    inviterName: z.string(),
+    inviterEmail: z.string(),
+  }),
   // Future notification types can be added here
 ]);
+
+const entityChangeUserSchema = z.object({
+  id: z.string(),
+  name: z.string().nullable(),
+  email: z.string().nullable(),
+});
 
 export const promptVersionWebhookEnvelopeSchema = z.object({
   type: z.literal("prompt-version"),
   prompt: PromptDomainSchema,
   action: EventActionSchema,
-  user: z
-    .object({
-      id: z.string(),
-      name: z.string().nullable(),
-      email: z.string().nullable(),
-    })
-    .optional(),
+  user: entityChangeUserSchema.optional(),
+});
+
+export const skillVersionWebhookEnvelopeSchema = z.object({
+  type: z.literal("skill-version"),
+  skill: SkillVersionSchema,
+  action: EventActionSchema,
+  user: entityChangeUserSchema.optional(),
 });
 
 /** WebhookOutboundEnvelopeSchema is the WebhookInput.payload contract: a discriminated union over `type`. The monitor-alert and system variants are unified envelopes (queue payload = HTTP outbound body); the prompt-version variant keeps its original dispatch-time wrap. */
 export const WebhookOutboundEnvelopeSchema = z.discriminatedUnion("type", [
   promptVersionWebhookEnvelopeSchema,
+  skillVersionWebhookEnvelopeSchema,
   MonitorWebhookQueueEventSchema,
   ProjectNotificationWebhookQueueEventSchema,
 ]);
@@ -328,13 +352,15 @@ export const EntityChangeEventSchema = z.discriminatedUnion("entityType", [
     promptId: z.string(),
     action: EventActionSchema,
     prompt: PromptDomainSchema,
-    user: z
-      .object({
-        id: z.string(),
-        name: z.string().nullable(),
-        email: z.string().nullable(),
-      })
-      .optional(),
+    user: entityChangeUserSchema.optional(),
+  }),
+  z.object({
+    entityType: z.literal("skill-version"),
+    projectId: z.string(),
+    skillId: z.string(),
+    action: EventActionSchema,
+    skill: SkillVersionSchema,
+    user: entityChangeUserSchema.optional(),
   }),
   // Add other entity types here in the future
 ]);
@@ -393,6 +419,11 @@ export const RetryBaggage = z.object({
 export type RetryBaggage = z.infer<typeof RetryBaggage>;
 
 export enum QueueName {
+  Topics = "topics",
+  TopicsUpdate = "topics-update",
+  TopicsEmbedding = "topics-embedding",
+  TopicsAutomation = "topics-automation",
+  TraceBatch = "trace-batch",
   TraceUpsert = "trace-upsert", // Ingestion pipeline adds events on each Trace upsert
   TraceDelete = "trace-delete",
   ProjectDelete = "project-delete",
@@ -435,6 +466,10 @@ export enum QueueName {
 }
 
 export enum QueueJobs {
+  Topics = "topics",
+  TopicsEmbedding = "topics-embedding",
+  TopicsAutomation = "topics-automation",
+  TraceBatch = "trace-batch",
   TraceUpsert = "trace-upsert",
   TraceDelete = "trace-delete",
   ProjectDelete = "project-delete",
@@ -445,6 +480,7 @@ export enum QueueJobs {
   BatchExportJob = "batch-export-job",
   CloudUsageMeteringJob = "cloud-usage-metering-job",
   CloudSpendAlertJob = "cloud-spend-alert-job",
+  CloudSpendAlertFanOutJob = "cloud-spend-alert-fan-out-job",
   CloudFreeTierUsageThresholdJob = "cloud-free-tier-usage-threshold-job",
   OtelIngestionJob = "otel-ingestion-job",
   IngestionJob = "ingestion-job",
@@ -473,7 +509,100 @@ export enum QueueJobs {
   V4LegacyApiUsageJob = "v4-legacy-api-usage-job",
 }
 
+export const TraceBatchTraceSchema = z.object({
+  projectId: z.string(),
+  traceId: z.string(),
+  minStart: z.number(),
+  maxStart: z.number(),
+  revision: z.string(),
+});
+
+export const TopicEmbeddingBatchSchema = z.object({
+  projectId: z.string().min(1),
+  executionId: z.string().min(1),
+  batchId: z.string().min(1),
+  summaries: z
+    .array(
+      z.object({
+        facetId: z.string().min(1),
+        facetVersion: z.number().int().positive(),
+        traceId: z.string().min(1),
+      }),
+    )
+    .min(1),
+});
+
+// Summaries one trace batch stored for a project, with the facets and vector space they used.
+export const TopicAutomationBatchSchema = z.object({
+  projectId: z.string().min(1),
+  traceIds: z.array(z.string().min(1)).min(1).max(100),
+  facets: z
+    .array(
+      z.object({
+        facetId: z.string().min(1),
+        version: z.number().int().positive(),
+      }),
+    )
+    .min(1),
+  embeddingConfig: z.object({
+    embeddingModel: z.string().min(1),
+    embeddingDimensions: z.number().int().positive(),
+  }),
+  timeRange: z.object({ from: z.coerce.date(), to: z.coerce.date() }),
+});
+
+export const TraceBatchEventSchema = z.object({
+  timestamp: z.coerce.date(),
+  id: z.string(),
+  name: z.literal(QueueJobs.TraceBatch),
+  payload: z.union([
+    z
+      .object({
+        traces: z.array(TraceBatchTraceSchema).min(1),
+      })
+      .strict(),
+    // Persisted single-project jobs must remain readable while consumers drain.
+    z
+      .object({
+        projectId: z.string(),
+        traces: z
+          .array(TraceBatchTraceSchema.omit({ projectId: true }).strict())
+          .min(1),
+      })
+      .strict()
+      .transform(({ projectId, traces }) => ({
+        traces: traces.map((trace) => ({ ...trace, projectId })),
+      })),
+  ]),
+});
+
 export type TQueueJobTypes = {
+  [QueueName.Topics]: {
+    timestamp: Date;
+    id: string;
+    name: QueueJobs.Topics;
+    payload: {
+      projectId: string;
+      executionId: string;
+      traceIds?: string[];
+      batchId?: string;
+    };
+    batchState?: TopicProcessBatchState;
+  };
+  [QueueName.TopicsUpdate]: TQueueJobTypes[QueueName.Topics];
+  [QueueName.TopicsEmbedding]: {
+    timestamp: Date;
+    id: string;
+    name: QueueJobs.TopicsEmbedding;
+    payload: z.infer<typeof TopicEmbeddingBatchSchema>;
+  };
+  [QueueName.TopicsAutomation]: {
+    timestamp: Date;
+    id: string;
+    name: QueueJobs.TopicsAutomation;
+    payload: z.infer<typeof TopicAutomationBatchSchema>;
+  };
+  [QueueName.TraceBatch]: z.infer<typeof TraceBatchEventSchema>;
   [QueueName.TraceUpsert]: {
     timestamp: Date;
     id: string;
@@ -630,12 +759,21 @@ export type TQueueJobTypes = {
     payload: EntityChangeEventType;
     name: QueueJobs.EntityChangeJob;
   };
-  [QueueName.CloudSpendAlertQueue]: {
-    timestamp: Date;
-    id: string;
-    payload: CloudSpendAlertJobType;
-    name: QueueJobs.CloudSpendAlertJob;
-  };
+  // Per-org evaluation, plus the recurring fan-out that produces those jobs
+  // for ClickHouse-billed orgs (Stripe-billed ones are enqueued by the usage
+  // metering job, which only iterates Stripe customers).
+  [QueueName.CloudSpendAlertQueue]:
+    | {
+        timestamp: Date;
+        id: string;
+        payload: CloudSpendAlertJobType;
+        name: QueueJobs.CloudSpendAlertJob;
+      }
+    | {
+        timestamp: Date;
+        id: string;
+        name: QueueJobs.CloudSpendAlertFanOutJob;
+      };
   [QueueName.CloudFreeTierUsageThresholdQueue]: {
     timestamp: Date;
     id: string;

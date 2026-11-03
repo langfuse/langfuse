@@ -78,6 +78,12 @@ Do not add a new model as the first entry in one of these arrays. The first
 entry is used as a default model in some test or evaluation paths, and newer
 models may not be available to all users yet.
 
+These arrays feed the model picker in the playground, evaluator, and default
+model settings. When a provider shuts down a model, remove it from the arrays
+so users are not offered a model that fails, but keep its pricing entry so
+historical traces keep their costs. See "Selectable Model Availability" in
+[automated-audit.md](automated-audit.md) for the removal criteria.
+
 ### 5. Validate the Result
 
 Run the bundled validator:

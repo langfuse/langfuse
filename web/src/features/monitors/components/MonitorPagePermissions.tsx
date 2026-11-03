@@ -29,5 +29,5 @@ export function MonitorPagePermissions({
     return <SupportOrUpgradePage />;
   }
 
-  return <>{children}</>;
+  return children;
 }

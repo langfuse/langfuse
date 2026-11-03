@@ -9,7 +9,8 @@ const GetEvaluatorInput = z.object({ evaluatorId: z.string() });
 export const [getEvaluatorTool, handleGetEvaluator] = defineTool({
   name: "getEvaluator",
   description:
-    "Fetch a single evaluator by id, including its prompt or source code, output definition, and how many evaluation rules reference it.",
+    "Fetch a single evaluator by id, including its LLM prompt, code, or decision-model questions and state mapping, plus how many evaluation rules reference it.",
+  action: "evaluator:read",
   baseSchema: GetEvaluatorInput,
   inputSchema: GetEvaluatorInput,
   handler: async (input, context) =>

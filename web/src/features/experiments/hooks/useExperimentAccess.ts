@@ -1,7 +1,7 @@
-import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
+import { useReadPath } from "@/src/features/events/hooks/useReadPath";
 
 export function useExperimentAccess() {
-  const { isBetaEnabled: isV4BetaEnabled, isInitializing } = useV4Beta();
+  const { isV4: isV4BetaEnabled, isResolved } = useReadPath();
 
   return {
     canAccessExperiments: isV4BetaEnabled,
@@ -9,7 +9,7 @@ export function useExperimentAccess() {
     // Experiments beta now follows the v4 / fast-preview beta flag directly.
     // There is no separate opt-in toggle anymore.
     isExperimentsBetaActive: isV4BetaEnabled,
-    isInitializing,
+    isInitializing: !isResolved,
     isV4BetaEnabled,
   };
 }

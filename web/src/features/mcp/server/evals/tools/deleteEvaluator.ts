@@ -8,6 +8,7 @@ const DeleteEvaluatorInput = z.object({ evaluatorId: z.string() });
 export const [deleteEvaluatorTool, handleDeleteEvaluator] = defineTool({
   name: "deleteEvaluator",
   description: "Delete an evaluator. This cannot be undone.",
+  action: "evaluator:CUD",
   baseSchema: DeleteEvaluatorInput,
   inputSchema: DeleteEvaluatorInput,
   handler: async (input, context) =>

@@ -114,6 +114,8 @@ describe("execute-query-stream handler", () => {
   function makeBody(queryOverrides?: Record<string, unknown>) {
     return {
       projectId,
+      // The suite's fixture data lives in the v3 traces table.
+      version: "v1" as const,
       query: {
         view: "traces" as const,
         dimensions: [],
@@ -127,6 +129,14 @@ describe("execute-query-stream handler", () => {
       },
     };
   }
+
+  it("should return 400 when version is missing (no implicit default)", async () => {
+    mockGetServerAuthSession.mockResolvedValue(makeSession());
+    const { version: _version, ...bodyWithoutVersion } = makeBody();
+    const { req, res } = createPostMocks(bodyWithoutVersion);
+    await handler(req, res);
+    expect(res._getStatusCode()).toBe(400);
+  });
 
   it("should return 400 when v4 beta is disabled", async () => {
     mockGetServerAuthSession.mockResolvedValue(

@@ -1,6 +1,15 @@
 import { useSession } from "next-auth/react";
+import {
+  isAdminOnlyFeaturePreviewFlag,
+  isInternalFlag,
+  isRestrictedFlag,
+} from "../available-flags";
 import type { Flag } from "../types";
-import { getContextualFeatureFlags } from "../utils";
+import {
+  getContextualFeatureFlags,
+  hasInternalAccess,
+  isInternalViewEnabled,
+} from "../utils";
 
 export default function useIsFeatureEnabled(
   feature: Flag,
@@ -27,9 +36,18 @@ export default function useIsFeatureEnabled(
       organizationId,
     })?.[feature] ?? false;
 
+  if (isInternalFlag(feature)) {
+    return isInternalViewEnabled(session.data);
+  }
+
+  if (isRestrictedFlag(feature) || isAdminOnlyFeaturePreviewFlag(feature)) {
+    return isFeatureEnabledOnUser;
+  }
+
   return (
-    isExperimentalFeaturesEnabled ||
-    (enableForAdmins && isAdmin) ||
-    isFeatureEnabledOnUser
+    hasInternalAccess({
+      isAdmin: enableForAdmins && isAdmin,
+      isExperimentalFeaturesEnabled,
+    }) || isFeatureEnabledOnUser
   );
 }

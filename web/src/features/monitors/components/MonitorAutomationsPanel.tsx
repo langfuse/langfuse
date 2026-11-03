@@ -1,33 +1,20 @@
-/* eslint-disable @repo/no-style-props */
-import { useMemo, useCallback, useRef, useState } from "react";
+/* eslint-disable @repo/no-style-props, @typescript-eslint/no-use-before-define -- Legacy UI usage retained during migration to design-system components. */
+import { useMemo, useCallback, useRef } from "react";
 import {
   Check,
   Github,
   Plus,
   Slack,
   Webhook as WebhookIcon,
-} from "lucide-react";
+} from "@langfuse/icons";
+import { SiPagerduty } from "@langfuse/icons/si";
 
 import { api } from "@/src/utils/api";
 import { Button } from "@/src/components/ui/button";
 import { Card, CardContent } from "@/src/components/ui/card";
-import {
-  Dialog,
-  DialogBody,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/src/components/ui/dialog";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/src/components/ui/dropdown-menu";
-import { AutomationForm } from "@/src/features/automations/components/automationForm";
-import { WebhookSecretRender } from "@/src/features/automations/components/WebhookSecretRender";
+import { DropdownMenu } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
+import { actionTypeLabel } from "@/src/features/automations/actionTypeLabels";
+import { NewMonitorAutomationDialogController } from "@/src/features/monitors/automations/NewMonitorAutomationDialogController";
 import { cn } from "@/src/utils/tailwind";
 import {
   ActionTypeSchema,
@@ -36,12 +23,12 @@ import {
   TriggerEventSource,
 } from "@langfuse/shared";
 
-/** actionLabel maps each automation action type to its display name. */
-const actionLabel: Record<ActionTypes, string> = {
-  WEBHOOK: "Webhook",
-  SLACK: "Slack",
-  GITHUB_DISPATCH: "GitHub Dispatch",
-};
+const actionIcon = {
+  WEBHOOK: WebhookIcon,
+  SLACK: Slack,
+  GITHUB_DISPATCH: Github,
+  PAGERDUTY: SiPagerduty,
+} satisfies Record<ActionTypes, typeof WebhookIcon>;
 
 /** MonitorAutomationsPanel lets the user select which automations fire for a monitor via explicit trigger IDs. */
 export const MonitorAutomationsPanel = ({
@@ -225,7 +212,7 @@ const MonitorAutomationsListRow = ({
     <RowCheckbox checked={isSelected} />
     <ActionIcon
       type={automation.action.type as ActionTypes}
-      className="h-3.5 w-3.5 shrink-0"
+      className="icon-base shrink-0"
     />
     <span className="truncate" title={automation.name}>
       {automation.name}
@@ -242,15 +229,9 @@ const RowCheckbox = ({ checked }: { checked: boolean }) => (
       checked && "bg-primary text-primary-foreground",
     )}
   >
-    {checked && <Check className="h-3.5 w-3.5" />}
+    {checked && <Check size="base" />}
   </span>
 );
-
-/** NewAutomationDraft is the pending create-automation dialog; an absent actionType lets the form pick its own default. */
-type NewAutomationDraft = { actionType?: ActionTypes };
-
-/** CreatedWebhookSecret is the signing secret of a just-created webhook automation, shown once before the dialog closes. */
-type CreatedWebhookSecret = { automationId: string; webhookSecret: string };
 
 /**
  * AddAutomationDropdown renders the "+ Automation" CTA for the empty state and
@@ -268,115 +249,41 @@ const AddAutomationDropdown = ({
   isDisabled?: boolean;
   onAutomationCreated: (automationId: string) => void;
 }) => {
-  const [draft, setDraft] = useState<NewAutomationDraft | null>(null);
-  const [createdSecret, setCreatedSecret] =
-    useState<CreatedWebhookSecret | null>(null);
-
-  /** closeDialog dismisses both dialog phases, selecting the automation when one was created. */
-  const closeDialog = (createdAutomationId?: string) => {
-    setDraft(null);
-    setCreatedSecret(null);
-    if (createdAutomationId) onAutomationCreated(createdAutomationId);
-  };
+  const actionTypes = ActionTypeSchema.options;
 
   return (
-    <>
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button
-            variant="outline"
-            size="lg"
-            disabled={isDisabled}
-            className={fullWidth ? "w-full" : undefined}
-          >
-            <Plus className="mr-2 h-4 w-4" />
-            Automation
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="w-48">
-          <DropdownMenuItem onSelect={() => setDraft({})}>
-            <Plus className="mr-2 h-3.5 w-3.5" />
-            New automation
-          </DropdownMenuItem>
-          {ActionTypeSchema.options.map((t) => (
-            <DropdownMenuItem
-              key={t}
-              onSelect={() => setDraft({ actionType: t })}
-            >
-              <ActionIcon type={t} className="mr-2 h-3.5 w-3.5" />
-              {actionLabel[t]}
-            </DropdownMenuItem>
-          ))}
-        </DropdownMenuContent>
-      </DropdownMenu>
-      <Dialog
-        open={draft !== null}
-        onOpenChange={(open) => {
-          if (!open) closeDialog(createdSecret?.automationId);
-        }}
-      >
-        <DialogContent
-          size="lg"
-          // The dialog portals out of the monitor <form>, but React events still
-          // bubble through the REACT tree: without this, saving the automation
-          // would submit the monitor too. Mirrors DialogContent's own onClick.
-          onSubmit={(e) => e.stopPropagation()}
+    <NewMonitorAutomationDialogController
+      projectId={projectId}
+      onCreated={onAutomationCreated}
+    >
+      {({ openDialog }) => (
+        <DropdownMenu
+          disabled={isDisabled}
+          placement="bottom-end"
+          matchTriggerWidth={fullWidth}
+          items={actionTypes.map((actionType) => ({
+            type: "item" as const,
+            id: actionType,
+            title: actionTypeLabel[actionType],
+            icon: actionIcon[actionType],
+            onClick: () => openDialog({ actionType }),
+          }))}
         >
-          {createdSecret ? (
-            <>
-              <DialogHeader>
-                <DialogTitle>Webhook secret created</DialogTitle>
-                <DialogDescription>
-                  Copy the webhook secret below — it will only be shown once.
-                </DialogDescription>
-              </DialogHeader>
-              <DialogBody>
-                <WebhookSecretRender
-                  webhookSecret={createdSecret.webhookSecret}
-                />
-              </DialogBody>
-              <DialogFooter>
-                <Button onClick={() => closeDialog(createdSecret.automationId)}>
-                  {"I've saved the secret"}
-                </Button>
-              </DialogFooter>
-            </>
-          ) : (
-            <>
-              <DialogHeader>
-                <DialogTitle>New automation</DialogTitle>
-                <DialogDescription>
-                  This automation stays available to every alert in the project.
-                </DialogDescription>
-              </DialogHeader>
-              <DialogBody>
-                <AutomationForm
-                  projectId={projectId}
-                  isEditing
-                  lockedEventSource={TriggerEventSource.Monitor}
-                  prefill={{
-                    eventSource: TriggerEventSource.Monitor,
-                    actionType: draft?.actionType,
-                  }}
-                  onSuccess={(automationId, webhookSecret, actionType) => {
-                    if (
-                      automationId &&
-                      webhookSecret &&
-                      actionType === "WEBHOOK"
-                    ) {
-                      setCreatedSecret({ automationId, webhookSecret });
-                      return;
-                    }
-                    closeDialog(automationId);
-                  }}
-                  onCancel={() => closeDialog()}
-                />
-              </DialogBody>
-            </>
+          {({ getTriggerProps }) => (
+            <Button
+              variant="outline"
+              size="lg"
+              disabled={isDisabled}
+              className={fullWidth ? "w-full" : undefined}
+              {...getTriggerProps()}
+            >
+              <Plus size="base" color="default" __rawClassName="mr-2" />
+              Automation
+            </Button>
           )}
-        </DialogContent>
-      </Dialog>
-    </>
+        </DropdownMenu>
+      )}
+    </NewMonitorAutomationDialogController>
   );
 };
 
@@ -390,12 +297,12 @@ const ActionIcon = ({
 }) => {
   switch (type) {
     case "WEBHOOK":
-      return <WebhookIcon className={className} />;
+      return <WebhookIcon __rawClassName={className} />;
     case "SLACK":
-      // eslint-disable-next-line @typescript-eslint/no-deprecated -- see import note.
-      return <Slack className={className} />;
+      return <Slack __rawClassName={className} />;
     case "GITHUB_DISPATCH":
-      // eslint-disable-next-line @typescript-eslint/no-deprecated -- see import note.
-      return <Github className={className} />;
+      return <Github __rawClassName={className} />;
+    case "PAGERDUTY":
+      return <SiPagerduty __rawClassName={className} />;
   }
 };

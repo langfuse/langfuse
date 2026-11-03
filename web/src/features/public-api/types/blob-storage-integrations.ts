@@ -2,6 +2,9 @@ import { z } from "zod";
 import {
   AnalyticsIntegrationExportSource,
   OBSERVATION_FIELD_GROUPS_FULL,
+  SCORE_EXPORT_FIELD_GROUPS,
+  BLOB_STORAGE_REGION_INVALID_MESSAGE,
+  BLOB_STORAGE_REGION_REGEX,
 } from "@langfuse/shared";
 import {
   validateAzureContainerName,
@@ -9,7 +12,6 @@ import {
   exportStartDateNotInFuture,
   EXPORT_START_DATE_FUTURE_ERROR,
 } from "@/src/features/blobstorage-integration/validation";
-
 /**
  * Enums
  */
@@ -18,6 +20,7 @@ const BlobStorageIntegrationType = z.enum([
   "S3",
   "S3_COMPATIBLE",
   "AZURE_BLOB_STORAGE",
+  "GOOGLE_CLOUD_STORAGE",
 ]);
 
 const BlobStorageIntegrationFileType = z.enum([
@@ -87,7 +90,23 @@ export const toPublicExportSource = (
 ): z.infer<typeof BlobStorageExportSource> =>
   INTERNAL_TO_PUBLIC_EXPORT_SOURCE[internalValue];
 
-const BlobStorageExportFieldGroup = z.enum(OBSERVATION_FIELD_GROUPS_FULL);
+// Trace groups are configurable in the UI only and never cross the public API,
+// so SDKs never receive a value outside this enum.
+const PUBLIC_EXPORT_FIELD_GROUPS = [
+  ...OBSERVATION_FIELD_GROUPS_FULL,
+  ...SCORE_EXPORT_FIELD_GROUPS,
+] as const;
+
+const BlobStorageExportFieldGroup = z.enum(PUBLIC_EXPORT_FIELD_GROUPS);
+
+type PublicExportFieldGroup = z.infer<typeof BlobStorageExportFieldGroup>;
+
+export const toPublicExportFieldGroups = (
+  groups: readonly string[],
+): PublicExportFieldGroup[] =>
+  groups.filter((group): group is PublicExportFieldGroup =>
+    (PUBLIC_EXPORT_FIELD_GROUPS as readonly string[]).includes(group),
+  );
 
 /**
  * Request/Response Types
@@ -99,7 +118,9 @@ export const CreateBlobStorageIntegrationRequest = z
     type: BlobStorageIntegrationType,
     bucketName: z.string().min(1),
     endpoint: z.string().nullable().optional(),
-    region: z.string(),
+    region: z.string().trim().min(1).regex(BLOB_STORAGE_REGION_REGEX, {
+      message: BLOB_STORAGE_REGION_INVALID_MESSAGE,
+    }),
     accessKeyId: z.string().nullable().optional(),
     secretAccessKey: z.string().nullable().optional(),
     prefix: z

@@ -6,6 +6,7 @@ import {
 } from "@/src/features/public-api/types/generations";
 import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
 import { createAuthedProjectAPIRoute } from "@/src/features/public-api/server/createAuthedProjectAPIRoute";
+import { LEGACY_WRITES_DEPRECATION } from "@/src/features/public-api/server/deprecations";
 import {
   createIngestionAttribution,
   eventTypes,
@@ -17,12 +18,15 @@ import { v4 } from "uuid";
 export default withMiddlewares({
   POST: createAuthedProjectAPIRoute({
     name: "Create Generation (Legacy)",
+    action: "traces:create",
     bodySchema: PostGenerationsV1Body,
     responseSchema: PostGenerationsV1Response,
     rateLimitResource: "legacy-ingestion",
     // Writes an observation-create event that lands in the legacy observations
     // ClickHouse table; events_only deployments expect OTel ingestion.
     rejectInEventsOnlyMode: true,
+    isLegacyTraceWrite: true,
+    deprecation: LEGACY_WRITES_DEPRECATION,
     fn: async ({ body, auth, req, res }) => {
       const { prompt, completion, ...rest } = body;
       const event = {
@@ -61,10 +65,13 @@ export default withMiddlewares({
   }),
   PATCH: createAuthedProjectAPIRoute({
     name: "Patch Generation (Legacy)",
+    action: "traces:create",
     bodySchema: PatchGenerationsV1Body,
     responseSchema: PatchGenerationsV1Response,
     rateLimitResource: "legacy-ingestion",
     rejectInEventsOnlyMode: true,
+    isLegacyTraceWrite: true,
+    deprecation: LEGACY_WRITES_DEPRECATION,
     fn: async ({ body, auth, req, res }) => {
       const { generationId, prompt, completion, ...rest } = body;
       const event = {

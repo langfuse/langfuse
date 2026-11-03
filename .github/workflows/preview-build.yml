@@ -1,22 +1,21 @@
 name: AWS preview build
 
-# Build the PR's web + worker images and push them to ECR as pr-<n>-<sha>.
-# The Argo CD ApplicationSet in the infrastructure repo deploys whichever image
-# tag exists for a labeled PR; this workflow only builds and pushes, then posts
-# the preview URL on the PR — as the marker-tagged status comment, as a native
-# GitHub deployment (the "View deployment" button), and as a machine-managed
-# block pinned atop the PR description. All PR deployments
-# share one GitHub environment; Argo CD still owns the real preview lifecycle.
+# Build the PR's web, worker, and AI gateway images and push them to ECR as
+# pr-<n>-<sha>. The Argo CD ApplicationSet in the infrastructure repo deploys
+# all three tags for a labeled PR. This workflow does not wait for the gateway
+# build before posting the preview URL: that URL is the web app, and a gateway
+# failure must not replace it. This workflow posts that URL on the PR — as the
+# marker-tagged status comment, as a native GitHub deployment (the "View
+# deployment" button), and as a machine-managed block pinned atop the PR
+# description. All PR deployments share one GitHub environment; Argo CD still
+# owns the real preview lifecycle.
 #
-# The two images are independent artifacts pushed to two independent ECR repos
-# under the same tag, with no ordering dependency between them. They therefore
-# build in PARALLEL: a `meta` job resolves the tags and posts the "building"
-# comment once, a matrix `build` job builds web and worker concurrently on
-# separate runners (so each gets a full runner's CPU/memory rather than sharing
-# one — their heavy stages, turbo prune/pnpm install/turbo build, are
-# scope-specific and share no layer cache anyway, so serializing them bought
-# nothing), and a `notify` job posts the single success/failure comment once
-# both builds finish. Wall-clock is now ~max(web, worker) instead of the sum.
+# Web and worker are independent artifacts pushed to independent ECR repos
+# under the same tag. They build in PARALLEL: a `meta` job resolves the tags
+# and posts the "building" comment once, a matrix `build` job builds web and
+# worker concurrently, and a `notify` job posts the single success/failure
+# comment once those two finish. The gateway builds beside them in its own
+# job. Wall-clock for the preview URL is ~max(web, worker).
 #
 # Builds every SAME-REPO PR on open/update (write access is the gate — opening a
 # same-repo PR requires push access). It deliberately does NOT trigger on the
@@ -74,6 +73,7 @@ jobs:
       commit_sha: ${{ steps.meta.outputs.commit_sha }}
       web_image: ${{ steps.meta.outputs.web_image }}
       worker_image: ${{ steps.meta.outputs.worker_image }}
+      ai_gateway_image: ${{ steps.meta.outputs.ai_gateway_image }}
       preview_host: ${{ steps.meta.outputs.preview_host }}
       namespace: ${{ steps.meta.outputs.namespace }}
       login_email: ${{ steps.meta.outputs.login_email }}
@@ -102,6 +102,7 @@ jobs:
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           WEB_REPO: ${{ vars.AWS_PREVIEW_WEB_ECR_REPOSITORY_URL }}
           WORKER_REPO: ${{ vars.AWS_PREVIEW_WORKER_ECR_REPOSITORY_URL }}
+          AI_GATEWAY_REPO: ${{ vars.AWS_PREVIEW_AI_GATEWAY_ECR_REPOSITORY_URL }}
           DOMAIN_NAME: ${{ vars.AWS_PREVIEW_DOMAIN_NAME }}
         run: |
           set -euo pipefail
@@ -114,6 +115,7 @@ jobs:
             echo "commit_sha=${commit_sha}"
             echo "web_image=${WEB_REPO}:${image_tag}"
             echo "worker_image=${WORKER_REPO}:${image_tag}"
+            echo "ai_gateway_image=${AI_GATEWAY_REPO}:${image_tag}"
             echo "preview_host=pr-${PR_NUMBER}.${DOMAIN_NAME}"
             # k8s namespace/release for this PR (web+worker deploys are
             # <namespace>-web / <namespace>-worker) — used for the log commands
@@ -141,12 +143,13 @@ jobs:
             ### 🟡 AWS preview building
 
             Building images for `${{ steps.meta.outputs.commit_sha }}` (~5 min).
-            Argo CD deploys the preview once both images finish pushing; it may
-            briefly show `ImagePullBackOff` until they propagate.
+            Argo CD deploys web and worker once those images finish pushing; it
+            may briefly show `ImagePullBackOff` until they propagate.
 
   # web and worker build concurrently, each on its own runner. fail-fast: false
-  # so one failing build does not cancel the other — the notify job below reports
-  # the aggregate result.
+  # so one failing build does not cancel the other — the notify job below
+  # reports the aggregate result. The gateway is a separate job and does not
+  # gate this result.
   build:
     name: Build and push ${{ matrix.target }}
     needs: meta
@@ -166,17 +169,19 @@ jobs:
           - target: web
             image: ${{ needs.meta.outputs.web_image }}
             dockerfile: web/Dockerfile
-            # web disables sign-up on previews; worker has no such arg.
-            # The cloud region must be baked at build time (NEXT_PUBLIC_* is
-            # inlined into the client bundle) so previews render the cloud-only
-            # AI features; the worker reads it from runtime env instead.
+            context: .
+            # Signup is on (Mailpit catches mail and does not relay). The cloud
+            # region must be baked at build time (NEXT_PUBLIC_* is inlined into
+            # the client bundle) so previews render the cloud-only AI features;
+            # the worker reads it from runtime env instead.
             # Auto sign-in with the shared seeded demo identity — previews are
             # disposable, synthetic-data-only environments with an intentionally
             # public login, so visitors should not have to type it.
-            extra_build_args: --build-arg NEXT_PUBLIC_SIGN_UP_DISABLED=true --build-arg NEXT_PUBLIC_LANGFUSE_CLOUD_REGION=DEV --build-arg NEXT_PUBLIC_PREVIEW_DEMO_AUTO_SIGN_IN=true
+            extra_build_args: --build-arg NEXT_PUBLIC_SIGN_UP_DISABLED=false --build-arg NEXT_PUBLIC_LANGFUSE_CLOUD_REGION=DEV --build-arg NEXT_PUBLIC_PREVIEW_DEMO_AUTO_SIGN_IN=true
           - target: worker
             image: ${{ needs.meta.outputs.worker_image }}
             dockerfile: worker/Dockerfile
+            context: .
             extra_build_args: ""
     steps:
       # The PR head is the Docker build context — the exact commit the image tag
@@ -202,6 +207,7 @@ jobs:
           COMMIT_SHA: ${{ needs.meta.outputs.commit_sha }}
           IMAGE: ${{ matrix.image }}
           DOCKERFILE: ${{ matrix.dockerfile }}
+          CONTEXT: ${{ matrix.context }}
           # Static, workflow-defined literal (per-target flags) — no user input.
           EXTRA_BUILD_ARGS: ${{ matrix.extra_build_args }}
           TARGET: ${{ matrix.target }}
@@ -264,10 +270,142 @@ jobs:
             "${preview_meta_args[@]}" \
             -f "${DOCKERFILE}" \
             -t "${IMAGE}" \
-            .
+            "${CONTEXT:-.}"
           docker push "${IMAGE}"
 
-  # Single authoritative status comment once both builds settle, updating the
+  # Argo deploys this image. This job does not wait for it: a gateway failure
+  # must not replace the preview URL, deployment record, or description pin,
+  # and a PR head from before the crate existed must still publish web and
+  # worker. continue-on-error keeps that failure off the workflow conclusion;
+  # the job still reports it in its own comment. -f is a path from the repo
+  # root: Docker resolves a relative Dockerfile against the working directory,
+  # not the context.
+  build-gateway:
+    name: Build and push ai-gateway
+    needs: meta
+    if: >-
+      vars.AWS_PREVIEW_ECR_PUSH_ROLE_ARN != '' &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.event.pull_request.state == 'open' &&
+      (github.event.action != 'labeled' || github.event.label.name == 'preview')
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    continue-on-error: true
+    permissions:
+      contents: read
+      id-token: write
+      pull-requests: write
+    steps:
+      - name: Checkout PR head (build context)
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Skip when the repository or crate is absent
+        id: gate
+        env:
+          IMAGE: ${{ needs.meta.outputs.ai_gateway_image }}
+        run: |
+          set -euo pipefail
+          # An unset repository variable renders the image as ":<tag>".
+          if [ -z "${IMAGE%%:*}" ]; then
+            echo "AWS_PREVIEW_AI_GATEWAY_ECR_REPOSITORY_URL is unset — skipping gateway image."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if [ ! -f ai-gateway/Dockerfile ]; then
+            echo "PR head has no ai-gateway/Dockerfile — skipping gateway image."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "skip=false" >> "$GITHUB_OUTPUT"
+
+      - name: Configure AWS credentials
+        if: steps.gate.outputs.skip != 'true'
+        uses: aws-actions/configure-aws-credentials@e6de054238d6b7531b4efff3b6587d9aade6a06c # v6.2.3
+        with:
+          aws-region: ${{ vars.AWS_PREVIEW_REGION }}
+          role-to-assume: ${{ vars.AWS_PREVIEW_ECR_PUSH_ROLE_ARN }}
+
+      - name: Login to AWS ECR
+        if: steps.gate.outputs.skip != 'true'
+        uses: aws-actions/amazon-ecr-login@d539f0932e70871a027e9d5a9d8fc38589180a64 # v2.1.6
+
+      - name: Build and push ai-gateway image
+        if: steps.gate.outputs.skip != 'true'
+        env:
+          COMMIT_SHA: ${{ needs.meta.outputs.commit_sha }}
+          IMAGE: ${{ needs.meta.outputs.ai_gateway_image }}
+        run: |
+          set -euo pipefail
+
+          # Same immutable-tag skip as web and worker. Only ImageNotFoundException
+          # means "absent -> build"; any other describe failure is inconclusive.
+          repo="${IMAGE%:*}"; repo="${repo#*/}"
+          tag="${IMAGE##*:}"
+
+          if describe_out="$(aws ecr describe-images --repository-name "${repo}" \
+                --image-ids imageTag="${tag}" 2>&1)"; then
+            echo "${IMAGE} already present — skipping."
+            exit 0
+          fi
+          if ! grep -q 'ImageNotFoundException' <<<"${describe_out}"; then
+            echo "::error::Cannot confirm ${IMAGE} in ECR — describe-images failed" \
+                 "for a reason other than ImageNotFound; refusing to build+push" \
+                 "against the tag-immutable repo. ${describe_out}"
+            exit 1
+          fi
+
+          echo "${IMAGE} not found — building and pushing."
+          docker build \
+            --target runtime \
+            --build-arg "BUILD_ID=${COMMIT_SHA}" \
+            -f ai-gateway/Dockerfile \
+            -t "${IMAGE}" \
+            ai-gateway
+          docker push "${IMAGE}"
+
+      # Own marker, not <!-- aws-preview -->, so this cannot replace the
+      # preview URL comment the notify job owns.
+      - name: Report gateway build failure
+        if: failure()
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        with:
+          script: |
+            const marker = "<!-- aws-preview-gateway -->";
+            const { owner, repo } = context.repo;
+            const issue_number = context.payload.pull_request.number;
+            const runUrl = `${process.env.GITHUB_SERVER_URL}/${owner}/${repo}/actions/runs/${process.env.GITHUB_RUN_ID}`;
+            const body = [
+              marker,
+              "### ⚠️ AI gateway image failed to build",
+              "",
+              "The preview URL is unaffected — web and worker still deploy.",
+              `Gateway build: ${runUrl}`,
+            ].join("\n");
+            const comments = await github.paginate(github.rest.issues.listComments, {
+              owner,
+              repo,
+              issue_number,
+              per_page: 100,
+            });
+            const previous = comments.find(
+              (comment) =>
+                comment.user?.login === "github-actions[bot]" &&
+                comment.body?.includes(marker),
+            );
+            if (previous) {
+              await github.rest.issues.updateComment({
+                owner,
+                repo,
+                comment_id: previous.id,
+                body,
+              });
+            } else {
+              await github.rest.issues.createComment({ owner, repo, issue_number, body });
+            }
+
+  # Single authoritative status comment once web and worker settle, updating the
   # same marker-tagged comment the meta job posted. Runs on always() so it still
   # reports after a failure, but each step keys on a definite success/failure
   # result (see the per-step guards) so a cancelled run — e.g. superseded by a
@@ -328,6 +466,7 @@ jobs:
             ```sh
             kubectl -n ${{ needs.meta.outputs.namespace }} logs -f deploy/${{ needs.meta.outputs.namespace }}-web      # web
             kubectl -n ${{ needs.meta.outputs.namespace }} logs -f deploy/${{ needs.meta.outputs.namespace }}-worker   # worker
+            kubectl -n ${{ needs.meta.outputs.namespace }} port-forward svc/preview-mailpit 8025:8025                  # captured email UI → http://localhost:8025
             ```
             Add `--previous` for a crashed container, `--tail=200` to limit, or
             `kubectl -n ${{ needs.meta.outputs.namespace }} get pods` to inspect status.
@@ -349,6 +488,8 @@ jobs:
           PREVIEW_SHA: ${{ needs.meta.outputs.commit_sha }}
           PREVIEW_HOST: ${{ needs.meta.outputs.preview_host }}
           PREVIEW_TASK: preview-pr-${{ github.event.pull_request.number }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          LEGACY_ENVIRONMENT: pr-${{ github.event.pull_request.number }}
         with:
           script: |
             const { owner, repo } = context.repo;
@@ -359,10 +500,40 @@ jobs:
             const environment = "PR Preview";
             const task = process.env.PREVIEW_TASK;
 
-            const previousDeployments = await github.paginate(
-              github.rest.repos.listDeployments,
-              { owner, repo, environment, task, per_page: 100 },
-            );
+            // The job `if` gates on the EVENT payload's state, which is a
+            // snapshot from when the build started — a PR closed during the
+            // build still reads `open` there. Re-check live, or this records a
+            // deployment Argo will never serve and nothing will ever reap
+            // (preview-deactivate already fired on close; the stale sweep only
+            // scans open PRs).
+            const { data: livePr } = await github.rest.pulls.get({
+              owner,
+              repo,
+              pull_number: Number(process.env.PR_NUMBER),
+            });
+            if (livePr.state !== "open") {
+              core.info(`PR closed during the build; not recording a deployment.`);
+              return;
+            }
+
+            // TRANSITIONAL (drop with the sibling query in
+            // preview-deactivate.yml): also retire the pre-migration `pr-<n>`
+            // record, else a rebuild leaves it active alongside the new one.
+            const previousDeployments = [
+              ...(await github.paginate(github.rest.repos.listDeployments, {
+                owner,
+                repo,
+                environment,
+                task,
+                per_page: 100,
+              })),
+              ...(await github.paginate(github.rest.repos.listDeployments, {
+                owner,
+                repo,
+                environment: process.env.LEGACY_ENVIRONMENT,
+                per_page: 100,
+              })),
+            ];
 
             const { data: deployment } = await github.rest.repos.createDeployment({
               owner,

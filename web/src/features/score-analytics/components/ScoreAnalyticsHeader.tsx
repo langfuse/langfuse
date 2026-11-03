@@ -1,5 +1,5 @@
 import { useCallback } from "react";
-import { ExternalLink } from "lucide-react";
+import { ExternalLink } from "@langfuse/icons";
 import { ScoreCombobox, type ScoreOption } from "./charts/ScoreCombobox";
 import { ObjectTypeFilter } from "./charts/ObjectTypeFilter";
 import { TimeRangePicker } from "@/src/components/date-picker";
@@ -8,12 +8,8 @@ import {
   type TimeRange,
 } from "@/src/utils/date-range-utils";
 import { useAnalyticsUrlState } from "@/src/features/score-analytics/lib/analytics-url-state";
-import { Badge } from "@/src/components/ui/badge";
-import {
-  HoverCard,
-  HoverCardContent,
-  HoverCardTrigger,
-} from "@/src/components/ui/hover-card";
+import { Badge } from "@/src/components/design-system/Badge/Badge";
+import { HoverCard } from "@/src/components/design-system/HoverCard/HoverCard";
 
 export interface ScoreAnalyticsHeaderProps {
   scoreOptions: ScoreOption[];
@@ -80,30 +76,36 @@ export function ScoreAnalyticsHeader({
           disabled={!urlState.score1}
           className="h-8 w-[200px]"
         />
-        <HoverCard>
-          <HoverCardTrigger asChild>
-            <Badge variant="warning" className="cursor-help">
-              Beta Feature
-            </Badge>
-          </HoverCardTrigger>
-          <HoverCardContent className="w-80">
-            <div className="space-y-2">
-              <h4 className="text-sm font-bold">Beta Feature</h4>
-              <p className="text-muted-foreground text-sm">
-                Score analytics is currently in beta. We&apos;re actively
-                improving this feature and would love to hear your feedback.
-              </p>
-              <a
-                href="https://langfuse.com/discussions"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-primary inline-flex items-center gap-1 text-sm font-bold hover:underline"
-              >
-                Share feedback on GitHub Discussions
-                <ExternalLink className="h-3 w-3" />
-              </a>
+        <HoverCard
+          content={
+            <div className="w-80 p-3">
+              <div className="space-y-2">
+                <h4 className="text-sm font-bold">Beta Feature</h4>
+                <p className="text-muted-foreground text-sm">
+                  Score analytics is currently in beta. We&apos;re actively
+                  improving this feature and would love to hear your feedback.
+                </p>
+                <a
+                  href="https://langfuse.com/discussions"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-primary inline-flex items-center gap-1 text-sm font-bold hover:underline"
+                >
+                  Share feedback on GitHub Discussions
+                  <ExternalLink size="sm" />
+                </a>
+              </div>
             </div>
-          </HoverCardContent>
+          }
+        >
+          {({ getTriggerProps }) => (
+            <Badge
+              color="yellow"
+              text="Beta Feature"
+              tabIndex={0}
+              {...getTriggerProps()}
+            />
+          )}
         </HoverCard>
       </div>
 

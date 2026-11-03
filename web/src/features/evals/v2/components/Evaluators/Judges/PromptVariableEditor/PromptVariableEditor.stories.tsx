@@ -1,7 +1,7 @@
-import { ChevronDown, MoreVertical } from "lucide-react";
-import { fn } from "storybook/test";
+import { ChevronDown, MoreVertical } from "@langfuse/icons";
+import { expect, fn, userEvent, within } from "storybook/test";
 
-import { Badge } from "@/src/components/ui/badge";
+import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { Button } from "@/src/components/ui/button";
 import preview from "../../../../../../../../.storybook/preview";
 import { PromptVariableEditor } from "./PromptVariableEditor";
@@ -113,15 +113,9 @@ export const MessageHeader = meta.story({
           size="icon-xs"
           className="shrink-0"
         >
-          <ChevronDown className="h-3.5 w-3.5 shrink-0" />
+          <ChevronDown size="sm" color="default" />
         </Button>
-        <Badge
-          variant="tertiary"
-          size="sm"
-          className="h-5 shrink-0 leading-none"
-        >
-          User
-        </Badge>
+        <Badge color="filled" size="md" text="User" />
       </>
     ),
     toolbarActions: (
@@ -131,7 +125,7 @@ export const MessageHeader = meta.story({
         size="icon-xs"
         aria-label="Prompt message settings"
       >
-        <MoreVertical className="h-3.5 w-3.5" />
+        <MoreVertical size="sm" color="default" />
       </Button>
     ),
   },
@@ -154,15 +148,13 @@ export const CollapsedMessage = meta.story({
           size="icon-xs"
           className="shrink-0"
         >
-          <ChevronDown className="h-3.5 w-3.5 shrink-0 -translate-x-0.5 -rotate-90" />
+          <ChevronDown
+            size="sm"
+            color="default"
+            __rawClassName="-translate-x-0.5 -rotate-90"
+          />
         </Button>
-        <Badge
-          variant="tertiary"
-          size="sm"
-          className="h-5 shrink-0 leading-none"
-        >
-          User
-        </Badge>
+        <Badge color="filled" size="md" text="User" />
         <span className="text-muted-foreground min-w-0 flex-1 truncate px-1 text-xs leading-none">
           Evaluate whether the response is correct and follows the rubric.
         </span>
@@ -175,7 +167,7 @@ export const CollapsedMessage = meta.story({
         size="icon-xs"
         aria-label="Prompt message settings"
       >
-        <MoreVertical className="h-3.5 w-3.5" />
+        <MoreVertical size="sm" color="default" />
       </Button>
     ),
   },
@@ -188,5 +180,40 @@ export const ReadOnly = meta.story({
     variableStatus: { output: { status: "valid" } },
     variableMappings: { output: "Observation output" },
     readOnly: true,
+  },
+});
+
+export const SearchPanel = meta.story({
+  name: "(Test) Search Panel",
+  args: {
+    value:
+      "Return only valid JSON. Do not add markdown or an explanation around the JSON object.",
+    onChange: fn(),
+    showPreviewToggle: true,
+    previewEnabled: false,
+    onPreviewEnabledChange: fn(),
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const editor = canvasElement.querySelector<HTMLElement>(".cm-content");
+    if (!editor) throw new Error("Prompt editor not found");
+
+    await userEvent.click(editor);
+    const isMac = /Mac|iPhone|iPad/.test(navigator.platform);
+    editor.dispatchEvent(
+      new KeyboardEvent("keydown", {
+        key: "f",
+        code: "KeyF",
+        metaKey: isMac,
+        ctrlKey: !isMac,
+        bubbles: true,
+      }),
+    );
+
+    const findInput = await canvas.findByRole("textbox", { name: "Find" });
+    await userEvent.type(findInput, "JSON");
+    await expect(
+      canvasElement.querySelector(".cm-panels-top .cm-search"),
+    ).toBeInTheDocument();
   },
 });

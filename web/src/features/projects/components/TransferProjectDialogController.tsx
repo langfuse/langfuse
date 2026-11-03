@@ -1,13 +1,13 @@
-import { type ReactNode, useState } from "react";
+import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
+import { type ReactNode } from "react";
 
-import { Dialog } from "@/src/components/ui/dialog";
-import { TransferProjectDialogContent } from "@/src/features/projects/components/TransferProjectDialogContent";
+import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
+import { TransferProjectDialog } from "@/src/features/projects/components/TransferProjectDialog";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import {
   hasOrganizationAccess,
   useHasOrganizationAccess,
 } from "@/src/features/rbac/utils/checkOrganizationAccess";
-import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { api } from "@/src/utils/api";
 import { useSession } from "next-auth/react";
 
@@ -31,7 +31,6 @@ export function TransferProjectDialogController({
   organization,
   children,
 }: TransferProjectDialogControllerProps) {
-  const [open, setOpen] = useState(false);
   const capture = usePostHogClientCapture();
   const session = useSession();
   const hasAccess = useHasOrganizationAccess({
@@ -51,6 +50,7 @@ export function TransferProjectDialogController({
   const transferProject = api.projects.transfer.useMutation({
     onSuccess: async () => {
       showSuccessToast({
+        operation: "project.transfer",
         title: "Project transferred",
         description:
           "The project is successfully transferred to the new organization. Redirecting...",
@@ -67,12 +67,6 @@ export function TransferProjectDialogController({
     ? undefined
     : { reason: "You don't have permission to transfer this project." };
 
-  const openDialog = () => {
-    if (!hasAccess) return;
-
-    setOpen(true);
-  };
-
   const onConfirm = (organizationId: string) => {
     capture("project_settings:project_delete");
     transferProject.mutate({
@@ -82,17 +76,26 @@ export function TransferProjectDialogController({
   };
 
   return (
-    <>
-      {children({ disabled, openDialog })}
-      <Dialog open={hasAccess && open} onOpenChange={setOpen}>
-        <TransferProjectDialogContent
+    <DialogController
+      renderDialog={() => (
+        <TransferProjectDialog
           projectName={project.name}
           organizationName={organization.name}
           organizations={organizationsToTransferTo}
           isPending={transferProject.isPending}
           onConfirm={onConfirm}
         />
-      </Dialog>
-    </>
+      )}
+    >
+      {({ openDialog }) =>
+        children({
+          disabled,
+          openDialog: () => {
+            if (!hasAccess) return;
+            openDialog();
+          },
+        })
+      }
+    </DialogController>
   );
 }

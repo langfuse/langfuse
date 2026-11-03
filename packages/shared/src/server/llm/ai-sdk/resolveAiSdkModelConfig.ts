@@ -41,12 +41,13 @@ export function resolveAiSdkModelConfig(params: {
       credentialSource === "langfuse" &&
       model.adapter !== LLMAdapter.Bedrock &&
       model.adapter !== LLMAdapter.Anthropic &&
-      model.adapter !== LLMAdapter.OpenAI
+      model.adapter !== LLMAdapter.OpenAI &&
+      model.adapter !== LLMAdapter.VertexAI
     ) {
       throw new LLMValidationError({
         code: "invalid-connection",
         message:
-          "Langfuse credentials are only supported for Amazon Bedrock, Anthropic, and OpenAI",
+          "Langfuse credentials are only supported for Amazon Bedrock, Anthropic, OpenAI, and Vertex AI",
       });
     }
 
@@ -97,6 +98,13 @@ export function resolveAiSdkModelConfig(params: {
       case LLMAdapter.Anthropic:
       case LLMAdapter.GoogleAIStudio:
         return { adapter: model.adapter };
+
+      case LLMAdapter.TypeSafe:
+        throw new LLMValidationError({
+          code: "invalid-request",
+          message:
+            "TypeSafe decision models cannot generate text; use a decision-model evaluator",
+        });
 
       default: {
         const _exhaustiveCheck: never = model.adapter;

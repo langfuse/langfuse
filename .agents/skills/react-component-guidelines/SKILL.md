@@ -37,9 +37,17 @@ Components are useful because they act as an encapsulated unit and therefore pro
 - Margin should be applied by the parent component, not contained in a component. The child component should only define the inner spacing of itself and its contents.
 - It's bad practice to have a component that returns `null` or `undefined`. Most of the time this suggests that the condition that leads to this state should be handled by the parent component instead, often this can be done in a way close to the current component by using a hook or a HOC.
 
+## Icons
+
+- Icon sizes come only from the scale: `icon-sm` (12px), `icon-base` (14px), `icon-lg` (20px), `icon-xl` (28px). `icon-lg` is for headers, toasts and illustrations; icons inside buttons and menu rows are `icon-base`. No raw `h-*`/`w-*`/`size-*` classes or `size` props on icons, and no `strokeWidth`; every icon uses the lucide default stroke.
+- Size and colour go on the icon element itself, never on a container through `[&_svg]:` selectors. Every icon carries an `icon-*` class; the lint rule reports icons without one. Components that take an `icon` prop (design-system Button, IconButton, DropdownMenu items) render it with the size and `text-icon-foreground` for their variant; icons written as children of legacy primitives set both at the call site.
+- An icon paired with a short single-line label is centre-aligned with that label, not baseline-aligned. Geometric centring is the start, not the end: some glyphs need a nudge of a pixel or two so the pair reads balanced. Icons beside multi-line text, such as a title with a subtitle, follow the layout of that block.
+- An icon paired with text is the same colour as the text or one step lighter, never darker; `text-icon-foreground` is the default, status colours are the only exception.
+
 ## Overlays
 
 - Compose overlays with `DropdownMenuController`, `PopoverController`, or `DialogController`. Trigger presentation should remain in the caller and not be abstracted. If additional behavior is needed, add a feature-specific wrapper that handles things such as permissions, analytics, mutations, or other workflow behavior that should be shared.
+- When overlay content depends on the action that opened it, let the controller own that transient state. Pass the complete payload to `openDialog(payload)` or `openDrawer(payload)` and render content from the controller state instead of hoisting selection and open state into the parent.
 - Keep the controller components outside transient overlays that can trigger it. A popover or dialog opened from a dropdown item must not be owned by `DropdownMenuContent`, which unmounts when the dropdown closes.
 - Consume the controller's render-prop controls instead of duplicating their shape. Do not move the passed `Trigger` into components. Abstract trigger presentation through a ref-forwarding component with explicit variants, while keeping `<Trigger asChild>` at each call site.
 - Compose `<Trigger asChild>` in the caller around a semantic child that forwards its ref and injected props. For example, use `DropdownMenuItem` directly rather than nesting a `Button` inside it.

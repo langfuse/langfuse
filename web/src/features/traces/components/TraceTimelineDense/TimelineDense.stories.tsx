@@ -656,6 +656,57 @@ export const HoverPeeksTheNames = meta.story({
   },
 });
 
+/**
+ * The peek is a navigation surface, not a caption. Clicking a name selects
+ * the observation the same way clicking the bar does.
+ */
+export const PeekRowClickSelects = meta.story({
+  name: "(Test) Peek Row Click Selects",
+  args: {
+    roots: manySpans(40),
+    box: PHONE,
+    gutter: "auto",
+    pointer: "fine",
+    barColor: "type",
+    compress: false,
+    showReadout: true,
+    selectedId: null,
+    onSelect: fn(),
+    onHover: fn(),
+  },
+  play: async ({ canvasElement, args }) => {
+    const surface = canvasElement.querySelector<HTMLElement>(
+      '[data-testid="timeline-dense-surface"]',
+    );
+    if (!surface) throw new Error("dense surface not found");
+    const rect = surface.getBoundingClientRect();
+    surface.dispatchEvent(
+      new PointerEvent("pointermove", {
+        bubbles: true,
+        pointerType: "mouse",
+        clientX: rect.left + 4,
+        clientY: rect.top + 120,
+      }),
+    );
+    await waitFor(() =>
+      expect(
+        canvasElement.querySelector('[data-testid="timeline-dense-peek-row"]'),
+      ).not.toBeNull(),
+    );
+
+    const peekRow = canvasElement.querySelector<HTMLElement>(
+      '[data-testid="timeline-dense-peek-row"]',
+    );
+    if (!peekRow) throw new Error("expected a peek row to click");
+    peekRow.dispatchEvent(
+      new MouseEvent("click", { bubbles: true, detail: 1 }),
+    );
+
+    await expect(args.onSelect).toHaveBeenCalledTimes(1);
+    await expect(args.onSelect).toHaveBeenCalledWith(expect.any(String));
+  },
+});
+
 export const DoubleClickFocusesBothAxes = meta.story({
   name: "(Test) Double Click Focuses Both Axes",
   args: {
@@ -1148,86 +1199,6 @@ export const TooltipFollowsTheContent = meta.story({
   },
 });
 
-/** A playhead a story can drive by hand, standing in for the shared engine. */
-function makeFakePlayhead() {
-  let sec = 0;
-  const listeners = new Set<(next: number) => void>();
-  return {
-    onSeek: fn(),
-    playhead: {
-      visible: true,
-      getSec: () => sec,
-      subscribe: (listener: (next: number) => void) => {
-        listeners.add(listener);
-        return () => listeners.delete(listener);
-      },
-      onSeek: (next: number) => PLAYBACK.onSeek(next),
-    },
-    tick(next: number) {
-      sec = next;
-      for (const listener of listeners) listener(next);
-    },
-  };
-}
-const PLAYBACK = makeFakePlayhead();
-
-export const PlaybackSweepsAndGlows = meta.story({
-  name: "(Test) Playback Sweeps And Glows",
-  args: {
-    roots: manySpans(150),
-    box: PHONE,
-    gutter: "auto",
-    pointer: "fine",
-    barColor: "type",
-    compress: false,
-    showReadout: true,
-    selectedId: null,
-    onSelect: fn(),
-    onHover: fn(),
-    // The root span of manySpans covers the whole trace, so it is "playing"
-    // throughout — the simplest thing a glow can be asserted against.
-    activeIds: new Set(["n0"]),
-    playhead: PLAYBACK.playhead,
-  },
-  play: async ({ canvasElement }) => {
-    const line = canvasElement.querySelector<HTMLElement>(
-      '[data-testid="timeline-dense-playhead"]',
-    );
-    if (!line) throw new Error("no playhead line");
-
-    // It starts at the origin and is moved by the position feed, not by a
-    // re-render: 600 rows must not re-render to move a 2px line.
-    await expect(line.style.transform).toBe("translateX(0px)");
-    PLAYBACK.tick(12);
-    await waitFor(() =>
-      expect(line.style.transform).not.toBe("translateX(0px)"),
-    );
-
-    // The rows the playhead is over glow up — never the others dimming down.
-    const glowing = canvasElement.querySelectorAll(
-      '[data-testid="timeline-dense-content"] > div.bg-primary\\/20',
-    );
-    await expect(glowing.length).toBe(1);
-
-    // And the axis is the scrub track: press it to place the playhead.
-    const axis = canvasElement.querySelector<HTMLElement>(
-      '[data-testid="timeline-dense-axis"]',
-    );
-    if (!axis) throw new Error("no axis");
-    const axisRect = axis.getBoundingClientRect();
-    axis.setPointerCapture = () => undefined;
-    axis.dispatchEvent(
-      new PointerEvent("pointerdown", {
-        bubbles: true,
-        pointerId: 1,
-        clientX: axisRect.left + axisRect.width / 2,
-        clientY: axisRect.top + 8,
-      }),
-    );
-    await expect(PLAYBACK.onSeek).toHaveBeenCalled();
-  },
-});
-
 /** A selection whose row arrives late, as a deep link's does. */
 function WithLateRows(props: TimelineDenseProps) {
   const [roots, setRoots] = useState<TimelineDenseProps["roots"]>([]);
@@ -1240,60 +1211,6 @@ function WithLateRows(props: TimelineDenseProps) {
     </div>
   );
 }
-
-/**
- * The names floating over the chart are the SAME rows as the chart's. Where the
- * gutter is only a rail, peeking is the one way to read a name during playback —
- * and the peek kept its own copy of the row backgrounds, which knew about
- * selection and hover but had never heard of playback: the row that was playing
- * glowed in the chart and stayed plain in the names beside it.
- */
-export const ThePeekGlowsWithThePlayingRow = meta.story({
-  name: "(Test) The Peek Glows With The Playing Row",
-  args: {
-    // 40 rows in this box are 15px: too short to hold a name in flow, tall
-    // enough that the rail exists to peek at. At the 1px floor there is no rail
-    // by design, so there would be nothing to hover.
-    roots: manySpans(40),
-    box: PHONE,
-    gutter: "auto",
-    pointer: "fine",
-    barColor: "type",
-    compress: false,
-    showReadout: true,
-    selectedId: null,
-    onSelect: fn(),
-    onHover: fn(),
-    // The root covers the whole trace, so it plays throughout.
-    activeIds: new Set(["n0"]),
-    playhead: PLAYBACK.playhead,
-  },
-  play: async ({ canvasElement }) => {
-    const surface = canvasElement.querySelector<HTMLElement>(
-      '[data-testid="timeline-dense-surface"]',
-    );
-    if (!surface) throw new Error("dense surface not found");
-    const rect = surface.getBoundingClientRect();
-    surface.dispatchEvent(
-      new PointerEvent("pointermove", {
-        bubbles: true,
-        pointerType: "mouse",
-        clientX: rect.left + 4,
-        // Well away from the playing row, so the hover wash cannot stand in for
-        // the glow this is looking for.
-        clientY: rect.top + 200,
-      }),
-    );
-    const peek = await waitFor(() => {
-      const el = canvasElement.querySelector<HTMLElement>(
-        '[data-testid="timeline-dense-peek"]',
-      );
-      if (!el) throw new Error("the rail did not peek");
-      return el;
-    });
-    await expect(peek.querySelectorAll("div.bg-primary\\/20").length).toBe(1);
-  },
-});
 
 export const ALateRowIsStillRevealed = meta.story({
   name: "(Test) A Late Row Is Still Revealed",
@@ -1480,11 +1397,11 @@ export const DeepConnectorsStillMeet = meta.story({
     await expect(rows.length).toBeGreaterThan(8);
 
     // A chain, so the row above is the parent: where a row's own spine descends
-    // is exactly where its child's connector must rise to.
+    // is exactly where its child's elbow (its left border) must rise to.
     const spineOf = (row: HTMLElement) =>
       row.querySelector<HTMLElement>('div[class*="bottom-0"][class*="w-px"]');
     const stubOf = (row: HTMLElement) =>
-      row.querySelector<HTMLElement>('div[class*="top-0"][class*="w-px"]');
+      row.querySelector<HTMLElement>('div[class*="top-0"][class*="border-l"]');
 
     let checked = 0;
     for (let index = 1; index < rows.length; index++) {
@@ -1787,7 +1704,7 @@ export const HoverDoesNotRecolourTheBar = meta.story({
 /** A control that can do nothing should say so rather than look broken. */
 export const FitIsDisabledWhenItWouldDoNothing = meta.story({
   name: "(Test) Fit Is Disabled When It Would Do Nothing",
-  args: { ...READABLE, roots: manySpans(40), onSelect: fn(), onHover: fn() },
+  args: { ...READABLE, roots: manySpans(12), onSelect: fn(), onHover: fn() },
   play: async ({ canvasElement }) => {
     const fit = () =>
       canvasElement.querySelector<HTMLButtonElement>(
@@ -1804,6 +1721,389 @@ export const FitIsDisabledWhenItWouldDoNothing = meta.story({
     if (!zoomIn) throw new Error("no zoom button");
     await userEvent.click(zoomIn);
     await waitFor(() => expect(fit()?.disabled).toBe(false));
+  },
+});
+
+/**
+ * A long trace fits as 1px rows — the whole clock, no names. The spent fit
+ * control used to sit there disabled, so there was no obvious way to get the
+ * labels back without also shrinking the duration. "Show labels" grows only
+ * the rows; Fit then takes you back to the overview.
+ */
+export const ShowLabelsKeepsTheWholeClock = meta.story({
+  name: "(Test) Show Labels Keeps The Whole Clock",
+  args: {
+    roots: manySpans(150),
+    box: DESKTOP,
+    gutter: "auto",
+    pointer: "fine",
+    barColor: "type",
+    compress: false,
+    showReadout: true,
+    selectedId: null,
+    onSelect: fn(),
+    onHover: fn(),
+  },
+  play: async ({ canvasElement }) => {
+    const readout = () =>
+      canvasElement.querySelector<HTMLElement>(
+        '[data-testid="timeline-dense-readout"]',
+      )?.textContent ?? "";
+    const toolbar = () =>
+      canvasElement.querySelector<HTMLElement>(
+        '[data-testid="timeline-dense-toolbar"]',
+      );
+    const labels = () =>
+      canvasElement.querySelectorAll('[data-testid="timeline-dense-metrics"]')
+        .length;
+
+    await expect(readout()).toContain("fitted");
+    await expect(readout()).toContain("4.0px rows");
+    await expect(labels()).toBe(0);
+
+    const show = canvasElement.querySelector<HTMLButtonElement>(
+      'button[aria-label="Show labels"]',
+    );
+    if (!show) throw new Error("no show-labels button");
+    await expect(show.disabled).toBe(false);
+    await expect(show.innerText.toLowerCase()).toContain("show labels");
+    const caption = [...(toolbar()?.querySelectorAll("span") ?? [])].find(
+      (el) => el.textContent?.trim().toLowerCase() === "show labels",
+    );
+    if (!caption) throw new Error("Show labels text is not on the button");
+    await expect(show.contains(caption)).toBe(true);
+    await userEvent.click(caption);
+
+    await waitFor(() => expect(readout()).toContain("26.0px rows (labelled)"));
+    await expect(readout()).toContain("zoomed");
+    await expect(labels()).toBeGreaterThan(0);
+
+    const fit = canvasElement.querySelector<HTMLButtonElement>(
+      'button[aria-label="Fit whole trace"]',
+    );
+    if (!fit) throw new Error("no fit button after expanding");
+    await expect(fit.disabled).toBe(false);
+    await userEvent.click(fit);
+
+    await waitFor(() => expect(readout()).toContain("fitted"));
+    await expect(readout()).toContain("4.0px rows");
+    await expect(labels()).toBe(0);
+  },
+});
+
+/**
+ * A box that only slices time must not hide Fit behind Show labels. Growing
+ * the rows would keep that narrow clock; Fit is the way back to the overview.
+ */
+export const FitStaysAfterATimeOnlyBox = meta.story({
+  name: "(Test) Fit Stays After A Time Only Box",
+  args: {
+    roots: manySpans(150),
+    box: DESKTOP,
+    gutter: "auto",
+    pointer: "fine",
+    barColor: "type",
+    compress: false,
+    showReadout: true,
+    selectedId: null,
+    onSelect: fn(),
+    onHover: fn(),
+  },
+  play: async ({ canvasElement }) => {
+    const surface = canvasElement.querySelector<HTMLElement>(
+      '[data-testid="timeline-dense-surface"]',
+    );
+    if (!surface) throw new Error("dense surface not found");
+    surface.setPointerCapture = () => undefined;
+    surface.releasePointerCapture = () => undefined;
+    const readout = () =>
+      canvasElement.querySelector<HTMLElement>(
+        '[data-testid="timeline-dense-readout"]',
+      )?.textContent ?? "";
+
+    await expect(
+      canvasElement.querySelector('button[aria-label="Show labels"]'),
+    ).not.toBeNull();
+
+    const rect = surface.getBoundingClientRect();
+    const drag = (type: string, x: number, y: number) =>
+      surface.dispatchEvent(
+        new PointerEvent(type, {
+          bubbles: true,
+          cancelable: true,
+          pointerId: 1,
+          pointerType: "mouse",
+          buttons: type === "pointerup" ? 0 : 1,
+          clientX: x,
+          clientY: y,
+        }),
+      );
+    // Full height, half the clock: rows stay hairline, time narrows.
+    drag("pointerdown", rect.left + rect.width * 0.25, rect.top + 2);
+    drag("pointermove", rect.left + rect.width * 0.75, rect.bottom - 2);
+    drag("pointerup", rect.left + rect.width * 0.75, rect.bottom - 2);
+    await waitFor(() => expect(readout()).toContain("zoomed"));
+    await expect(readout()).toMatch(/[1-4]\.\dpx rows/);
+
+    await expect(
+      canvasElement.querySelector('button[aria-label="Show labels"]'),
+    ).toBeNull();
+    const fit = canvasElement.querySelector<HTMLButtonElement>(
+      'button[aria-label="Fit whole trace"]',
+    );
+    if (!fit) throw new Error("Fit disappeared after a time-only box");
+    await expect(fit.disabled).toBe(false);
+  },
+});
+
+/**
+ * A short trace on a narrow pane already has readable rows, but auto will not
+ * spend the lane on names. Show labels is still the ask: take the gutter,
+ * even if the bars get thinner.
+ */
+export const ShowLabelsOpensTheGutterOnANarrowPane = meta.story({
+  name: "(Test) Show Labels Opens The Gutter On A Narrow Pane",
+  args: {
+    roots: manySpans(12),
+    box: PHONE,
+    gutter: "auto",
+    pointer: "fine",
+    barColor: "type",
+    compress: false,
+    showReadout: true,
+    selectedId: null,
+    onSelect: fn(),
+    onHover: fn(),
+  },
+  play: async ({ canvasElement }) => {
+    const names = () =>
+      canvasElement.querySelectorAll(
+        '[data-testid="timeline-dense-peek"] span[title], [data-testid="timeline-dense-content"] > div span[title]',
+      ).length;
+    const barLeft = () => {
+      const bar = canvasElement.querySelector<HTMLElement>(
+        '[data-testid="timeline-dense-bar"]',
+      );
+      return bar?.getBoundingClientRect().left ?? 0;
+    };
+
+    await expect(names()).toBe(0);
+    const show = canvasElement.querySelector<HTMLButtonElement>(
+      'button[aria-label="Show labels"]',
+    );
+    if (!show) throw new Error("no show-labels button on a squeezed pane");
+    await expect(show.innerText.toLowerCase()).toContain("show labels");
+    const caption = [...show.querySelectorAll("span")].find(
+      (el) => el.textContent?.trim().toLowerCase() === "show labels",
+    );
+    if (!caption) throw new Error("Show labels text is not on the button");
+    const leftBefore = barLeft();
+
+    await userEvent.click(caption);
+    await waitFor(() => expect(names()).toBeGreaterThan(0));
+    await expect(barLeft()).toBeGreaterThan(leftBefore + 40);
+  },
+});
+
+/**
+ * A pane too narrow to ever commit the gutter still offers Show labels, but
+ * names float as a peek overlay. A second rail tap must be able to dismiss
+ * that peek: committedOpen never becomes true, so the toggle has to look at
+ * the held-open pin, not the committed lane.
+ */
+const TOO_NARROW_TO_COMMIT = { width: 220, height: 400 };
+
+export const ShowLabelsPeekTogglesOffOnATooNarrowPane = meta.story({
+  name: "(Test) Show Labels Peek Toggles Off On A Too Narrow Pane",
+  args: {
+    roots: manySpans(12),
+    box: TOO_NARROW_TO_COMMIT,
+    gutter: "auto",
+    pointer: "coarse",
+    barColor: "type",
+    compress: false,
+    showReadout: true,
+    selectedId: null,
+    onSelect: fn(),
+    onHover: fn(),
+  },
+  play: async ({ canvasElement }) => {
+    const surface = canvasElement.querySelector<HTMLElement>(
+      '[data-testid="timeline-dense-surface"]',
+    );
+    if (!surface) throw new Error("dense surface not found");
+    surface.setPointerCapture = () => undefined;
+    surface.releasePointerCapture = () => undefined;
+    const peekNames = () =>
+      canvasElement.querySelectorAll(
+        '[data-testid="timeline-dense-peek"] span[title]',
+      ).length;
+    const gutterNames = () =>
+      canvasElement.querySelectorAll(
+        '[data-testid="timeline-dense-content"] > div span[title]',
+      ).length;
+    const barLeft = () => {
+      const bar = canvasElement.querySelector<HTMLElement>(
+        '[data-testid="timeline-dense-bar"]',
+      );
+      return bar?.getBoundingClientRect().left ?? 0;
+    };
+    const tapRail = () => {
+      const rect = surface.getBoundingClientRect();
+      touch(surface, "pointerdown", 1, rect.left + 2, rect.top + 80);
+      touch(surface, "pointerup", 1, rect.left + 2, rect.top + 80);
+    };
+
+    const show = canvasElement.querySelector<HTMLButtonElement>(
+      'button[aria-label="Show labels"]',
+    );
+    if (!show) throw new Error("no show-labels button on a peek-only pane");
+    const leftBefore = barLeft();
+
+    await userEvent.click(show);
+    await waitFor(() => expect(peekNames()).toBeGreaterThan(0));
+    await expect(gutterNames()).toBe(0);
+    await expect(Math.abs(barLeft() - leftBefore)).toBeLessThan(20);
+
+    tapRail();
+    await waitFor(() => expect(peekNames()).toBe(0));
+    await expect(gutterNames()).toBe(0);
+
+    tapRail();
+    await waitFor(() => expect(peekNames()).toBeGreaterThan(0));
+    await expect(gutterNames()).toBe(0);
+  },
+});
+
+/**
+ * After a coarse rail tap collapses a committed gutter, Show labels must
+ * clear that leftover override and take the lane again. A stale
+ * override==="collapsed" used to leave names as a peek overlay.
+ */
+export const ShowLabelsRecommitsAfterARailCollapse = meta.story({
+  name: "(Test) Show Labels Recommits After A Rail Collapse",
+  args: {
+    roots: manySpans(12),
+    box: PHONE,
+    gutter: "auto",
+    pointer: "coarse",
+    barColor: "type",
+    compress: false,
+    showReadout: true,
+    selectedId: null,
+    onSelect: fn(),
+    onHover: fn(),
+  },
+  play: async ({ canvasElement }) => {
+    const surface = canvasElement.querySelector<HTMLElement>(
+      '[data-testid="timeline-dense-surface"]',
+    );
+    if (!surface) throw new Error("dense surface not found");
+    surface.setPointerCapture = () => undefined;
+    surface.releasePointerCapture = () => undefined;
+    const peekNames = () =>
+      canvasElement.querySelectorAll(
+        '[data-testid="timeline-dense-peek"] span[title]',
+      ).length;
+    const gutterNames = () =>
+      canvasElement.querySelectorAll(
+        '[data-testid="timeline-dense-content"] > div span[title]',
+      ).length;
+    const barLeft = () => {
+      const bar = canvasElement.querySelector<HTMLElement>(
+        '[data-testid="timeline-dense-bar"]',
+      );
+      return bar?.getBoundingClientRect().left ?? 0;
+    };
+    const tapRail = () => {
+      const rect = surface.getBoundingClientRect();
+      touch(surface, "pointerdown", 1, rect.left + 2, rect.top + 80);
+      touch(surface, "pointerup", 1, rect.left + 2, rect.top + 80);
+    };
+    const clickShowLabels = async () => {
+      const show = canvasElement.querySelector<HTMLButtonElement>(
+        'button[aria-label="Show labels"]',
+      );
+      if (!show) throw new Error("no show-labels button");
+      await userEvent.click(show);
+    };
+
+    const leftClosed = barLeft();
+    await expect(gutterNames()).toBe(0);
+
+    await clickShowLabels();
+    await waitFor(() => expect(gutterNames()).toBeGreaterThan(0));
+    await expect(peekNames()).toBe(0);
+    await expect(barLeft()).toBeGreaterThan(leftClosed + 40);
+
+    tapRail();
+    await waitFor(() => expect(gutterNames()).toBe(0));
+    await expect(peekNames()).toBe(0);
+
+    await clickShowLabels();
+    await waitFor(() => expect(gutterNames()).toBeGreaterThan(0));
+    await expect(peekNames()).toBe(0);
+    await expect(barLeft()).toBeGreaterThan(leftClosed + 40);
+  },
+});
+
+/**
+ * Panning a hairline overview is not a time zoom. Show labels must stay, or
+ * Fit would snap the window back to the top of the tree instead of naming
+ * the rows you just scrolled to.
+ */
+export const ShowLabelsSurvivesAVerticalPan = meta.story({
+  name: "(Test) Show Labels Survives A Vertical Pan",
+  args: {
+    roots: manySpans(800),
+    box: DESKTOP,
+    gutter: "auto",
+    pointer: "fine",
+    barColor: "type",
+    compress: false,
+    showReadout: true,
+    selectedId: null,
+    onSelect: fn(),
+    onHover: fn(),
+  },
+  play: async ({ canvasElement }) => {
+    const surface = canvasElement.querySelector<HTMLElement>(
+      '[data-testid="timeline-dense-surface"]',
+    );
+    if (!surface) throw new Error("dense surface not found");
+    const readout = () =>
+      canvasElement.querySelector<HTMLElement>(
+        '[data-testid="timeline-dense-readout"]',
+      )?.textContent ?? "";
+    const show = () =>
+      canvasElement.querySelector<HTMLButtonElement>(
+        'button[aria-label="Show labels"]',
+      );
+
+    await expect(readout()).toContain("fitted");
+    await expect(show()).not.toBeNull();
+
+    const rect = surface.getBoundingClientRect();
+    surface.dispatchEvent(
+      new WheelEvent("wheel", {
+        bubbles: true,
+        cancelable: true,
+        clientX: rect.left + rect.width / 2,
+        clientY: rect.top + rect.height / 2,
+        deltaY: 240,
+      }),
+    );
+    await waitFor(() => expect(readout()).toContain("zoomed"));
+    await expect(readout()).toMatch(/1\.0px rows/);
+    await expect(show()).not.toBeNull();
+    await expect(
+      canvasElement.querySelector('button[aria-label="Fit whole trace"]'),
+    ).toBeNull();
+
+    if (!show()) throw new Error("Show labels vanished after a vertical pan");
+    await userEvent.click(show()!);
+    await waitFor(() => expect(readout()).toContain("26.0px rows (labelled)"));
+    await expect(readout()).toContain("zoomed");
   },
 });
 
@@ -2017,7 +2317,7 @@ export const TheCursorMatchesTheGesture = meta.story({
  */
 export const TheToolbarDoesNotExplainItself = meta.story({
   name: "(Test) The Toolbar Does Not Explain Itself",
-  args: { ...READABLE, roots: manySpans(40), onSelect: fn(), onHover: fn() },
+  args: { ...READABLE, roots: manySpans(12), onSelect: fn(), onHover: fn() },
   play: async ({ canvasElement }) => {
     const toolbar = canvasElement.querySelector<HTMLElement>(
       '[data-testid="timeline-dense-toolbar"]',

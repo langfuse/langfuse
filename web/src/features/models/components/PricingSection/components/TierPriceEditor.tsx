@@ -1,4 +1,4 @@
-import { MinusCircle, PlusCircle } from "lucide-react";
+import { MinusCircle, PlusCircle } from "@langfuse/icons";
 import {
   useWatch,
   type FieldArrayWithId,
@@ -127,7 +127,7 @@ export function TierPriceEditor({
                 disabled={usageTypeRows.length <= 1}
                 onClick={() => onRemoveUsageType(index)}
               >
-                <MinusCircle className="h-4 w-4" />
+                <MinusCircle size="base" color="default" />
               </Button>
             )}
           </div>
@@ -140,7 +140,7 @@ export function TierPriceEditor({
           onClick={onAddUsageType}
           className="flex items-center gap-1"
         >
-          <PlusCircle className="h-4 w-4" />
+          <PlusCircle size="base" color="default" />
           <span>Add Price</span>
         </Button>
       )}

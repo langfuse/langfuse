@@ -1,9 +1,12 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 // This file exports the prisma db connection, the Prisma Object, and the Typescript types.
 // This is not imported in the index.ts file of this package, as we must not import this into FE code.
 
 import { Prisma, PrismaClient } from "@prisma/client";
 import { env } from "process";
 import { logger } from "./server";
+import { withPostgresApplicationName } from "./server/postgresApplicationName";
+import { postgresConnectionRetryExtension } from "./dbConnectionRetry";
 
 export class PrismaClientSingleton {
   private static instance: PrismaClient;
@@ -24,6 +27,7 @@ const createPrismaInstance = () => {
     Prisma.PrismaClientOptions,
     "warn" | "error" | "query"
   >({
+    datasourceUrl: withPostgresApplicationName(env.DATABASE_URL),
     log: [
       { emit: "event", level: "query" },
       { emit: "event", level: "error" },
@@ -35,6 +39,9 @@ const createPrismaInstance = () => {
       dataset: {
         remoteExperimentSecretKey: true,
         remoteExperimentRequestHeaders: true,
+      },
+      gatewayAiConnection: {
+        encryptedCredential: true,
       },
     },
   });
@@ -52,7 +59,12 @@ const createPrismaInstance = () => {
   client.$on("error", (event) => {
     logger.error(`prisma:error ${event.message}`);
   });
-  return client;
+
+  // A query extension leaves model and result types untouched, so the
+  // extended client is still a PrismaClient for every caller.
+  return client.$extends(
+    postgresConnectionRetryExtension,
+  ) as unknown as PrismaClient;
 };
 
 declare const globalThis: {
@@ -61,7 +73,9 @@ declare const globalThis: {
 
 // eslint-disable-next-line turbo/no-undeclared-env-vars
 if (process.env.NODE_ENV === "development") {
-  globalThis.prismaGlobal ??= createPrismaInstance(); // regular instantiation
+  if (globalThis.prismaGlobal === undefined) {
+    globalThis.prismaGlobal = createPrismaInstance();
+  }
 }
 
 export const prisma =

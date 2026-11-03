@@ -2,6 +2,7 @@ import { env } from "@/src/env.mjs";
 import {
   createShaHash,
   deleteApiKeyFromDb,
+  formatSubmittedPublicKeyForLog,
   recordIncrement,
   verifySecretKey,
   type AuthHeaderVerificationResult,
@@ -26,7 +27,8 @@ import { isPrismaException } from "@/src/utils/exceptions";
 import { type Redis, type Cluster } from "ioredis";
 import { getOrganizationPlanServerSide } from "@/src/features/entitlements/server/getPlan";
 import { type z } from "zod";
-import { CloudConfigSchema, isPlan } from "@langfuse/shared";
+import { CloudConfigSchema, isPlan, UnauthorizedError } from "@langfuse/shared";
+import { isApiKeyExpired } from "@/src/features/apiKey/helpers/isApiKeyExpired";
 
 type VerifyAuthHeaderOptions = {
   allowInAppAgentKey?: boolean;
@@ -113,7 +115,9 @@ export class ApiAuthService {
               });
 
               if (!slowKey) {
-                logger.error("No key found for public key", publicKey);
+                logger.error(
+                  `No key found for public key: ${formatSubmittedPublicKeyForLog(publicKey)}`,
+                );
                 if (this.redis) {
                   logger.info(
                     `No key found, storing ${API_KEY_NON_EXISTENT} in redis`,
@@ -132,7 +136,9 @@ export class ApiAuthService {
               );
 
               if (!isValid) {
-                logger.debug(`Old key is invalid: ${publicKey}`);
+                logger.debug(
+                  `Old key is invalid: ${formatSubmittedPublicKeyForLog(publicKey)}`,
+                );
                 throw new Error("Invalid credentials");
               }
 
@@ -151,14 +157,19 @@ export class ApiAuthService {
             }
 
             if (!finalApiKey) {
-              logger.info("No project id found for key", publicKey);
+              logger.info(
+                `No project id found for key: ${formatSubmittedPublicKeyForLog(publicKey)}`,
+              );
               throw new Error("Invalid credentials");
             }
-
+            if (isApiKeyExpired(finalApiKey.expiresAt)) {
+              logger.info(`Expired api key: ${finalApiKey.publicKey}`);
+              throw new UnauthorizedError("Invalid credentials");
+            }
             const plan = finalApiKey.plan;
 
             if (!isPlan(plan)) {
-              logger.error("Invalid plan type for key", finalApiKey.plan);
+              logger.error(`Invalid plan type for key: ${finalApiKey.plan}`);
               throw new Error("Invalid credentials");
             }
 
@@ -183,7 +194,7 @@ export class ApiAuthService {
             // credential rotation on the client.
             if (publicKey !== finalApiKey.publicKey) {
               logger.warn(
-                `Public key mismatch on basic auth: submitted public key ${publicKey} does not match public key ${finalApiKey.publicKey} of the API key resolved via the secret key (apiKeyId ${finalApiKey.id}, projectId ${finalApiKey.projectId}, orgId ${finalApiKey.orgId})`,
+                `Public key mismatch on basic auth: submitted public key ${formatSubmittedPublicKeyForLog(publicKey)} does not match public key ${finalApiKey.publicKey} of the API key resolved via the secret key (apiKeyId ${finalApiKey.id}, projectId ${finalApiKey.projectId}, orgId ${finalApiKey.orgId})`,
               );
             }
 
@@ -193,6 +204,7 @@ export class ApiAuthService {
                 projectId: finalApiKey.projectId,
                 accessLevel,
                 orgId: finalApiKey.orgId,
+                organizationCreatedAt: finalApiKey.organizationCreatedAt,
                 plan: plan,
                 rateLimitOverrides: finalApiKey.rateLimitOverrides ?? [],
                 apiKeyId: finalApiKey.id,
@@ -200,6 +212,8 @@ export class ApiAuthService {
                 publicKey: finalApiKey.publicKey,
                 isIngestionSuspended: finalApiKey.isIngestionSuspended,
                 isInAppAgentKey: finalApiKey.isInAppAgentKey,
+                accessAuditLogEnabled:
+                  finalApiKey.accessAuditLogEnabled ?? false,
               },
             };
 
@@ -217,8 +231,13 @@ export class ApiAuthService {
               );
             }
 
-            const { orgId, cloudConfig, cloudFreeTierUsageThresholdState } =
-              this.extractOrgIdAndCloudConfig(dbKey);
+            const {
+              orgId,
+              organizationCreatedAt,
+              cloudConfig,
+              cloudFreeTierUsageThresholdState,
+              accessAuditLogEnabled,
+            } = this.extractOrgIdAndCloudConfig(dbKey);
             const plan = getOrganizationPlanServerSide(cloudConfig);
 
             addUserToSpan(
@@ -238,6 +257,7 @@ export class ApiAuthService {
                 projectId: dbKey.projectId,
                 accessLevel: "scores" as const,
                 orgId,
+                organizationCreatedAt: organizationCreatedAt.toISOString(),
                 plan,
                 rateLimitOverrides: cloudConfig?.rateLimitOverrides ?? [],
                 apiKeyId: dbKey.id,
@@ -246,6 +266,7 @@ export class ApiAuthService {
                 isInAppAgentKey: dbKey.isInAppAgentKey,
                 isIngestionSuspended:
                   cloudFreeTierUsageThresholdState === "BLOCKED",
+                accessAuditLogEnabled,
               },
             };
 
@@ -311,8 +332,14 @@ export class ApiAuthService {
       },
     });
     if (!dbKey) {
-      logger.info("No api key found for public key:", publicKey);
+      logger.info(
+        `No api key found for public key: ${formatSubmittedPublicKeyForLog(publicKey)}`,
+      );
       throw new Error("Invalid public key");
+    }
+    if (isApiKeyExpired(dbKey.expiresAt)) {
+      logger.info(`Expired api key: ${dbKey.publicKey}`);
+      throw new UnauthorizedError("Invalid public key");
     }
     return dbKey;
   }
@@ -382,11 +409,12 @@ export class ApiAuthService {
     }
 
     try {
-      const redisApiKey = await this.redis.getex(
-        createApiKeyCacheKey(hash),
-        "EX",
-        env.LANGFUSE_CACHE_API_KEY_TTL_SECONDS, // redis API is in seconds
-      );
+      // A plain GET, not GETEX: an entry expires a fixed TTL after it was
+      // written, never a TTL after it was last read. A sliding TTL lets an entry
+      // that is still being read outlive the API key it caches, so a request
+      // that repopulates the cache while the key is being revoked could keep the
+      // revoked key valid for as long as its holder kept using it.
+      const redisApiKey = await this.redis.get(createApiKeyCacheKey(hash));
 
       if (!redisApiKey) {
         return null;
@@ -423,6 +451,7 @@ export class ApiAuthService {
           updatedAt: Date;
           cloudConfig: Prisma.JsonValue;
           cloudFreeTierUsageThresholdState: string | null;
+          accessAuditLogEnabled: boolean;
         };
       } | null;
     } & {
@@ -433,12 +462,16 @@ export class ApiAuthService {
         updatedAt: Date;
         cloudConfig: Prisma.JsonValue;
         cloudFreeTierUsageThresholdState: string | null;
+        accessAuditLogEnabled: boolean;
       } | null;
     },
   ) {
     const orgId =
       apiKeyAndOrganisation.project?.organization.id ??
       apiKeyAndOrganisation.organization?.id;
+    const organizationCreatedAt =
+      apiKeyAndOrganisation.project?.organization.createdAt ??
+      apiKeyAndOrganisation.organization?.createdAt;
     const rawCloudConfig =
       apiKeyAndOrganisation.project?.organization.cloudConfig ??
       apiKeyAndOrganisation.organization?.cloudConfig;
@@ -446,8 +479,12 @@ export class ApiAuthService {
       apiKeyAndOrganisation.project?.organization
         .cloudFreeTierUsageThresholdState ??
       apiKeyAndOrganisation.organization?.cloudFreeTierUsageThresholdState;
+    const accessAuditLogEnabled =
+      apiKeyAndOrganisation.project?.organization.accessAuditLogEnabled ??
+      apiKeyAndOrganisation.organization?.accessAuditLogEnabled ??
+      false;
 
-    if (!orgId) {
+    if (!orgId || !organizationCreatedAt) {
       logger.error(
         `No organization found for key: ${apiKeyAndOrganisation.publicKey}`,
       );
@@ -460,8 +497,10 @@ export class ApiAuthService {
 
     return {
       orgId,
+      organizationCreatedAt,
       cloudConfig,
       cloudFreeTierUsageThresholdState,
+      accessAuditLogEnabled,
     };
   }
 
@@ -482,6 +521,7 @@ export class ApiAuthService {
           updatedAt: Date;
           cloudConfig: Prisma.JsonValue;
           cloudFreeTierUsageThresholdState: string | null;
+          accessAuditLogEnabled: boolean;
         };
       } | null;
     } & {
@@ -492,19 +532,28 @@ export class ApiAuthService {
         updatedAt: Date;
         cloudConfig: Prisma.JsonValue;
         cloudFreeTierUsageThresholdState: string | null;
+        accessAuditLogEnabled: boolean;
       } | null;
     },
   ) {
-    const { orgId, cloudConfig, cloudFreeTierUsageThresholdState } =
-      this.extractOrgIdAndCloudConfig(apiKeyAndOrganisation);
+    const {
+      orgId,
+      organizationCreatedAt,
+      cloudConfig,
+      cloudFreeTierUsageThresholdState,
+      accessAuditLogEnabled,
+    } = this.extractOrgIdAndCloudConfig(apiKeyAndOrganisation);
 
     const newApiKey = OrgEnrichedApiKey.parse({
       ...apiKeyAndOrganisation,
       createdAt: apiKeyAndOrganisation.createdAt?.toISOString(),
+      expiresAt: apiKeyAndOrganisation.expiresAt?.toISOString() ?? null,
       orgId,
+      organizationCreatedAt: organizationCreatedAt.toISOString(),
       plan: getOrganizationPlanServerSide(cloudConfig),
       rateLimitOverrides: cloudConfig?.rateLimitOverrides,
       isIngestionSuspended: cloudFreeTierUsageThresholdState === "BLOCKED",
+      accessAuditLogEnabled,
     });
 
     if (!orgId) {

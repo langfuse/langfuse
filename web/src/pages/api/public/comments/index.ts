@@ -14,6 +14,7 @@ import {
 export default withMiddlewares({
   POST: createAuthedProjectAPIRoute({
     name: "Create Comment",
+    action: "comments:CUD",
     bodySchema: PostCommentsV1Body,
     responseSchema: PostCommentsV1Response,
     fn: async ({ body, auth }) =>
@@ -21,6 +22,7 @@ export default withMiddlewares({
   }),
   GET: createAuthedProjectAPIRoute({
     name: "Get Comments",
+    action: "comments:read",
     querySchema: GetCommentsV1Query,
     responseSchema: GetCommentsV1Response,
     fn: async ({ query, auth }) =>

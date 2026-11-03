@@ -10,10 +10,10 @@ import {
   createAnnotationQueueForApi,
   listAnnotationQueuesForApi,
 } from "@/src/features/annotation-queues/server/publicAnnotationQueueService";
-
 export default withMiddlewares({
   GET: createAuthedProjectAPIRoute({
     name: "Get annotation queues",
+    action: "annotationQueues:read",
     querySchema: GetAnnotationQueuesQuery,
     responseSchema: GetAnnotationQueuesResponse,
     rateLimitResource: "annotation-queues",
@@ -27,6 +27,7 @@ export default withMiddlewares({
 
   POST: createAuthedProjectAPIRoute({
     name: "Create annotation queue",
+    action: "annotationQueues:CUD",
     bodySchema: CreateAnnotationQueueBody,
     responseSchema: CreateAnnotationQueueResponse,
     rateLimitResource: "annotation-queues",

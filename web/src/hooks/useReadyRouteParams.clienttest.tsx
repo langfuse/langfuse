@@ -63,4 +63,31 @@ describe("useReadyRouteParams", () => {
       params: { projectId: "p1", userId: "u1" },
     });
   });
+
+  test("dataset item detail is not ready until project, dataset, and item ids hydrate", () => {
+    mockQuery({});
+
+    const { result } = renderHook(() =>
+      useReadyRouteParams(["projectId", "datasetId", "itemId"]),
+    );
+
+    expect(result.current).toEqual({ ready: false });
+  });
+
+  test("dataset item detail is ready once all three route ids are strings", () => {
+    mockQuery({
+      projectId: "p1",
+      datasetId: "d1",
+      itemId: "i1",
+    });
+
+    const { result } = renderHook(() =>
+      useReadyRouteParams(["projectId", "datasetId", "itemId"]),
+    );
+
+    expect(result.current).toEqual({
+      ready: true,
+      params: { projectId: "p1", datasetId: "d1", itemId: "i1" },
+    });
+  });
 });

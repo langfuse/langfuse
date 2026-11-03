@@ -3,35 +3,32 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { InAppAgentWidgetComposer } from "./InAppAgentWidgetComposer";
 
 const agentContext = vi.hoisted(() => ({
-  isAvailable: true,
-  isRunning: false,
-  isSubmitting: false,
   openAssistant: vi.fn().mockReturnValue(true),
   submit: vi.fn().mockResolvedValue(true),
 }));
 const { openAssistant, submit } = agentContext;
 
-vi.mock("./InAppAiAgentProvider", () => ({
-  useInAppAiAgent: () => agentContext,
-}));
-
 describe("InAppAgentWidgetComposer", () => {
   beforeEach(() => {
-    agentContext.isRunning = false;
-    agentContext.isSubmitting = false;
     openAssistant.mockClear().mockReturnValue(true);
     submit.mockClear().mockResolvedValue(true);
   });
 
   it("starts a fresh Assistant conversation with the widget request", async () => {
     const onSubmitted = vi.fn();
-    render(<InAppAgentWidgetComposer onSubmitted={onSubmitted} />);
+    render(
+      <InAppAgentWidgetComposer
+        onSubmitted={onSubmitted}
+        openAssistant={openAssistant}
+        submit={submit}
+      />,
+    );
 
     fireEvent.change(screen.getByLabelText("Describe the widget you want"), {
       target: { value: "  Show p95 latency by model  " },
     });
     fireEvent.click(
-      screen.getByRole("button", { name: "Add with Langfuse Assistant" }),
+      screen.getByRole("button", { name: "Add with Langfuse Halo" }),
     );
 
     await waitFor(() => {
@@ -45,28 +42,38 @@ describe("InAppAgentWidgetComposer", () => {
   });
 
   it("disables submit for whitespace-only input", () => {
-    render(<InAppAgentWidgetComposer onSubmitted={vi.fn()} />);
+    render(
+      <InAppAgentWidgetComposer
+        onSubmitted={vi.fn()}
+        openAssistant={openAssistant}
+        submit={submit}
+      />,
+    );
 
     fireEvent.change(screen.getByLabelText("Describe the widget you want"), {
       target: { value: "   " },
     });
 
     expect(
-      screen.getByRole("button", { name: "Add with Langfuse Assistant" }),
+      screen.getByRole("button", { name: "Add with Langfuse Halo" }),
     ).toBeDisabled();
   });
 
   it("starts a new widget conversation while the selected conversation is busy", async () => {
-    agentContext.isRunning = true;
-    agentContext.isSubmitting = true;
     const onSubmitted = vi.fn();
-    render(<InAppAgentWidgetComposer onSubmitted={onSubmitted} />);
+    render(
+      <InAppAgentWidgetComposer
+        onSubmitted={onSubmitted}
+        openAssistant={openAssistant}
+        submit={submit}
+      />,
+    );
 
     fireEvent.change(screen.getByLabelText("Describe the widget you want"), {
       target: { value: "Show p95 latency" },
     });
     const submitButton = screen.getByRole("button", {
-      name: "Add with Langfuse Assistant",
+      name: "Add with Langfuse Halo",
     });
 
     expect(submitButton).toBeEnabled();
@@ -81,12 +88,18 @@ describe("InAppAgentWidgetComposer", () => {
   it("keeps the picker open and preserves the request when submit does not start", async () => {
     submit.mockResolvedValue(false);
     const onSubmitted = vi.fn();
-    render(<InAppAgentWidgetComposer onSubmitted={onSubmitted} />);
+    render(
+      <InAppAgentWidgetComposer
+        onSubmitted={onSubmitted}
+        openAssistant={openAssistant}
+        submit={submit}
+      />,
+    );
 
     const input = screen.getByLabelText("Describe the widget you want");
     fireEvent.change(input, { target: { value: "Show error rate" } });
     fireEvent.click(
-      screen.getByRole("button", { name: "Add with Langfuse Assistant" }),
+      screen.getByRole("button", { name: "Add with Langfuse Halo" }),
     );
 
     await waitFor(() => {

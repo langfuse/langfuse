@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
 import { createEvaluatorSetupStore } from "@/src/features/evals/v2/store/evaluatorSetupStore/evaluatorSetupStore";
+import { getEvaluatorNameStep } from "@/src/features/evals/v2/components/Evaluators/EvaluatorSetupEditor/evaluatorSetupSteps";
 import {
   applyEvaluatorSuggestion,
   getEvaluatorVersionDefinition,
@@ -15,6 +16,16 @@ describe("shouldOfferRuleAttachment", () => {
 
   it("offers rule attachment for an active evaluator", () => {
     expect(shouldOfferRuleAttachment({ blockedAt: null })).toBe(true);
+  });
+});
+
+describe("getEvaluatorNameStep", () => {
+  it.each([
+    ["CODE", 2],
+    ["LLM_AS_JUDGE", 3],
+    ["DECISION_MODEL", 3],
+  ] as const)("%s evaluators use step %i", (type, step) => {
+    expect(getEvaluatorNameStep(type)).toBe(step);
   });
 });
 

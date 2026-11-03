@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { type IncomingMessage } from "http";
 
 import { env } from "@/src/env.mjs";

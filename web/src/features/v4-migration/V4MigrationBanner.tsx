@@ -1,29 +1,27 @@
-import Link from "next/link";
+/* eslint-disable no-nested-ternary */
 import { useSession } from "next-auth/react";
-import { Zap } from "lucide-react";
+import { Zap } from "@langfuse/icons";
 import { Callout } from "@/src/components/design-system/Callout/Callout";
 import { DismissController } from "@/src/components/DismissController";
-import { Button } from "@/src/components/ui/button";
+import { useDismissState } from "@/src/hooks/useDismissState";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useAccountV4MigrationData } from "@/src/features/v4-migration/hooks/useV4MigrationData";
 import { getProjectMigrationReadiness } from "@/src/features/v4-migration/migrationData";
 import { env } from "@/src/env.mjs";
 
 const V4_DOCS_URL = "https://langfuse.com/docs/v4";
+const DISMISS_ID = "v4-migration-banner:v1";
 // Shorter than the Callout default (30d) so the banner resurfaces while the
 // migration deadline approaches.
 const DISMISS_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
-/**
- * Org-overview banner announcing v4 with links to the migration status page
- * and docs. Replaces the agent-tools banner for v4-upgrade users. Only shown
- * while at least one project still needs migration work — the queries are the
- * same ones the project tiles' migration chips use, so react-query dedupes
- * them.
- */
-export function V4MigrationBanner() {
-  const capture = usePostHogClientCapture();
+export function useV4MigrationBannerState(enabled: boolean) {
   const session = useSession();
+  const { isDismissed } = useDismissState({
+    id: DISMISS_ID,
+    family: "callouts",
+    ttlMs: DISMISS_TTL_MS,
+  });
 
   // The demo org is not the user's to migrate, so it never triggers the banner.
   const organizations = (session.data?.user?.organizations ?? [])
@@ -37,67 +35,72 @@ export function V4MigrationBanner() {
     }));
   const migrationStatusByProjectId = useAccountV4MigrationData({
     organizations,
-    enabled: organizations.length > 0,
+    enabled: enabled && organizations.length > 0,
   });
-  const statuses = Array.from(migrationStatusByProjectId.values());
-  const projectsNeedingMigration = statuses.filter(
-    (status) => getProjectMigrationReadiness(status) === "action-needed",
-  ).length;
+  const readiness = Array.from(
+    migrationStatusByProjectId.values(),
+    getProjectMigrationReadiness,
+  );
 
-  if (projectsNeedingMigration === 0) {
-    return null;
-  }
+  return {
+    projectsNeedingMigration: readiness.filter(
+      (value) => value === "action-needed",
+    ).length,
+    totalProjects: readiness.length,
+    isChecking: enabled && readiness.includes("checking"),
+    isDismissed,
+  };
+}
+
+/**
+ * Org-overview banner announcing v4 with links to the migration status page and
+ * docs. The overview owns visibility through useV4MigrationBannerState.
+ */
+export function V4MigrationBanner({
+  projectsNeedingMigration,
+  totalProjects,
+}: {
+  projectsNeedingMigration: number;
+  totalProjects: number;
+}) {
+  const capture = usePostHogClientCapture();
 
   return (
-    <DismissController
-      id="v4-migration-banner:v1"
-      family="callouts"
-      ttlMs={DISMISS_TTL_MS}
-    >
+    <DismissController id={DISMISS_ID} family="callouts" ttlMs={DISMISS_TTL_MS}>
       {({ onDismiss }) => (
         <div className="mb-4">
           <Callout
             variant="info"
             align="middle"
-            actions={
-              <>
-                <Button asChild size="sm" variant="secondary">
-                  <Link
-                    href="/v4-migration"
-                    onClick={() =>
-                      capture("v4_migration:overview_banner_status_clicked")
-                    }
-                  >
-                    Check status
-                  </Link>
-                </Button>
-                <Button asChild size="sm" variant="secondary">
-                  <a
-                    href={V4_DOCS_URL}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    onClick={() =>
-                      capture("v4_migration:overview_banner_docs_clicked")
-                    }
-                  >
-                    Docs
-                  </a>
-                </Button>
-              </>
-            }
+            actions={[
+              {
+                type: "link",
+                label: "Check status",
+                href: "/v4-migration",
+                onClick: () =>
+                  capture("v4_migration:overview_banner_status_clicked"),
+              },
+              {
+                type: "link",
+                label: "Docs",
+                href: V4_DOCS_URL,
+                onClick: () =>
+                  capture("v4_migration:overview_banner_docs_clicked"),
+              },
+            ]}
             onDismiss={onDismiss}
           >
             <div className="flex items-start gap-2 sm:items-center">
-              <Zap className="mt-0.5 h-4 w-4 shrink-0 sm:mt-0" />
+              <Zap size="base" __rawClassName="mt-0.5 sm:mt-0" />
               <span>
                 <span className="font-bold">
                   Langfuse v4 is here: real-time and up to 165× faster.
                 </span>{" "}
-                {projectsNeedingMigration === statuses.length
+                {projectsNeedingMigration === totalProjects
                   ? projectsNeedingMigration === 1
                     ? "Your project needs an upgrade."
                     : "All projects need an upgrade."
-                  : `${projectsNeedingMigration} of your ${statuses.length} projects ${projectsNeedingMigration === 1 ? "needs" : "need"} an upgrade.`}
+                  : `${projectsNeedingMigration} of your ${totalProjects} projects ${projectsNeedingMigration === 1 ? "needs" : "need"} an upgrade.`}
               </span>
             </div>
           </Callout>

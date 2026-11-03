@@ -22,11 +22,11 @@ import {
 import { legacyPublicApiRateLimitUpgradePaths } from "@/src/features/public-api/server/rateLimitUpgradePaths";
 import { OBSERVATIONS_V1_DEPRECATION } from "@/src/features/public-api/server/deprecations";
 import { clampToDataAccessDays } from "@/src/features/entitlements/server/hasEntitlementLimit";
-
 export default withMiddlewares(
   {
     GET: createAuthedProjectAPIRoute({
       name: "Get Observations",
+      action: "traces:read",
       allowInAppAgentKey: true,
       rateLimitResource: "public-api-legacy",
       querySchema: GetObservationsV1Query,

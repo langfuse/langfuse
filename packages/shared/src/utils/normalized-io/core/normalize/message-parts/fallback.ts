@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import { NormalizedMessagePart } from "../../../types";
 import { asRecord, toJsonValue } from "../../utils/json";
 import { toolCallPart } from "./tool-calls";

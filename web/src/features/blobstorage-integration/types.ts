@@ -5,6 +5,9 @@ import {
   BlobStorageExportMode,
   AnalyticsIntegrationExportSource,
   OBSERVATION_FIELD_GROUPS_FULL,
+  EXPORT_FIELD_GROUPS,
+  BLOB_STORAGE_REGION_INVALID_MESSAGE,
+  BLOB_STORAGE_REGION_REGEX,
 } from "@langfuse/shared";
 import {
   validateAzureContainerName,
@@ -17,7 +20,14 @@ export const blobStorageIntegrationFormSchemaBase = z.object({
   type: z.enum(BlobStorageIntegrationType),
   bucketName: z.string().min(1, { message: "Bucket name is required" }),
   endpoint: z.url().optional().nullable(),
-  region: z.string().default("auto"),
+  region: z
+    .string()
+    .trim()
+    .min(1, { message: "Region is required" })
+    .regex(BLOB_STORAGE_REGION_REGEX, {
+      message: BLOB_STORAGE_REGION_INVALID_MESSAGE,
+    })
+    .default("auto"),
   accessKeyId: z.string().optional(),
   secretAccessKey: z.string().nullable().optional(),
   prefix: z
@@ -47,7 +57,7 @@ export const blobStorageIntegrationFormSchemaBase = z.object({
     .enum(AnalyticsIntegrationExportSource)
     .default(AnalyticsIntegrationExportSource.TRACES_OBSERVATIONS),
   exportFieldGroups: z
-    .array(z.enum(OBSERVATION_FIELD_GROUPS_FULL))
+    .array(z.enum(EXPORT_FIELD_GROUPS))
     .default([...OBSERVATION_FIELD_GROUPS_FULL]),
   compressed: z.boolean().default(true),
 });

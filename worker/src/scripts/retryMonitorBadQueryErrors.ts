@@ -37,18 +37,22 @@ async function retryMonitorBadQueryErrors(args: {
     return;
   }
 
-  const reactivated = await prisma.$executeRaw`
-    UPDATE monitors
-    SET status = 'ACTIVE',
-        severity = 'UNKNOWN',
-        severity_changed_at = now(),
-        next_run_at = now() + random() * make_interval(mins => ${args.jitterMinutes}::int),
-        last_published_at = NULL,
-        last_completed_at = NULL,
-        last_claimed_at = NULL,
-        alerted_at = NULL
-    WHERE status = 'ERROR_BAD_QUERY'
-  `;
+  const [, reactivated] = await prisma.$transaction([
+    // tz-naive columns are read back as UTC by Prisma; pin the session so now() stores UTC wall-clock
+    prisma.$executeRawUnsafe(`SET LOCAL TIME ZONE 'UTC'`),
+    prisma.$executeRaw`
+      UPDATE monitors
+      SET status = 'ACTIVE',
+          severity = 'UNKNOWN',
+          severity_changed_at = now(),
+          next_run_at = now() + random() * make_interval(mins => ${args.jitterMinutes}::int),
+          last_published_at = NULL,
+          last_completed_at = NULL,
+          last_claimed_at = NULL,
+          alerted_at = NULL
+      WHERE status = 'ERROR_BAD_QUERY'
+    `,
+  ]);
   logger.info(
     `retryMonitorBadQueryErrors: reactivated ${reactivated} monitors`,
   );

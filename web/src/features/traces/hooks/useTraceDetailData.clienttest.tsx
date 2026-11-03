@@ -5,21 +5,21 @@ import { useTraceDetailData } from "@/src/features/traces/hooks/useTraceDetailDa
 
 // Created via vi.hoisted so they exist before the hoisted vi.mock factories run.
 const {
-  mockUseV4Beta,
+  mockUseReadPath,
   mockUseSession,
   mockUseEventsTraceData,
   mockTracesQuery,
   mockTraceReadConfigQuery,
 } = vi.hoisted(() => ({
-  mockUseV4Beta: vi.fn(),
+  mockUseReadPath: vi.fn(),
   mockUseSession: vi.fn(),
   mockUseEventsTraceData: vi.fn(),
   mockTracesQuery: vi.fn(),
   mockTraceReadConfigQuery: vi.fn(),
 }));
 
-vi.mock("@/src/features/events/hooks/useV4Beta", () => ({
-  useV4Beta: () => mockUseV4Beta(),
+vi.mock("@/src/features/events/hooks/useReadPath", () => ({
+  useReadPath: () => mockUseReadPath(),
 }));
 vi.mock("next-auth/react", () => ({
   useSession: () => mockUseSession(),
@@ -30,6 +30,7 @@ vi.mock("@/src/features/events/hooks/useEventsTraceData", () => ({
 // The traces-table query hook always runs (it's a hook; enabled:false on the
 // beta path), so it only needs to return a query-shaped object.
 vi.mock("@/src/utils/api", () => ({
+  shouldRetryResourceQuery: vi.fn(),
   api: {
     public: {
       traceReadConfig: {
@@ -53,7 +54,7 @@ const render = () =>
 describe("useTraceDetailData (beta / events path)", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockUseV4Beta.mockReturnValue({ isBetaEnabled: true });
+    mockUseReadPath.mockReturnValue({ isV4: true });
     mockUseSession.mockReturnValue({ status: "authenticated" });
     mockTraceReadConfigQuery.mockReturnValue({
       data: undefined,
@@ -111,7 +112,7 @@ describe("useTraceDetailData (beta / events path)", () => {
 describe("useTraceDetailData endpoint routing", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockUseV4Beta.mockReturnValue({ isBetaEnabled: false });
+    mockUseReadPath.mockReturnValue({ isV4: false });
     mockTraceReadConfigQuery.mockReturnValue({
       data: undefined,
       isLoading: false,
@@ -169,7 +170,7 @@ describe("useTraceDetailData endpoint routing", () => {
 
   it("uses events endpoints for authenticated beta users", () => {
     mockUseSession.mockReturnValue({ status: "authenticated" });
-    mockUseV4Beta.mockReturnValue({ isBetaEnabled: true });
+    mockUseReadPath.mockReturnValue({ isV4: true });
 
     render();
 

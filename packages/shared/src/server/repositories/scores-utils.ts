@@ -1,4 +1,9 @@
-import { ScoreDataTypeType, ScoreDomain, ScoreSourceType } from "../../domain";
+import { shouldSkipScoresDedup } from "../queries/clickhouse-sql/query-options";
+import {
+  ScoreDataTypeType,
+  ScoreDomain,
+  ScoreSourceType,
+} from "../../domain/scores";
 import { PreferredClickhouseService } from "../clickhouse/client";
 import { queryClickhouse } from "./clickhouse";
 import { ScoreRecordReadType } from "./definitions";
@@ -35,7 +40,7 @@ export const _handleGetScoreById = async ({
   ${source ? `AND s.source = {source: String}` : ""}
   ${scoreScope === "traces_only" ? "AND s.session_id IS NULL AND s.dataset_run_id IS NULL" : ""}
   ORDER BY s.event_ts DESC
-  LIMIT 1 BY s.id, s.project_id
+  ${shouldSkipScoresDedup(projectId) ? "" : "LIMIT 1 BY s.id, s.project_id"}
   LIMIT 1
 `;
 
@@ -66,12 +71,14 @@ export const _handleGetScoresByIds = async ({
   source,
   scoreScope,
   dataTypes,
+  preferredClickhouseService,
 }: {
   projectId: string;
   scoreId: string[];
   source?: ScoreSourceType;
   scoreScope: "traces_only" | "all";
   dataTypes?: readonly ScoreDataTypeType[];
+  preferredClickhouseService?: PreferredClickhouseService;
 }): Promise<ScoreDomain[]> => {
   const query = `
   SELECT *
@@ -82,7 +89,7 @@ export const _handleGetScoresByIds = async ({
   ${scoreScope === "traces_only" ? "AND s.session_id IS NULL AND s.dataset_run_id IS NULL" : ""}
   ${dataTypes ? `AND s.data_type IN ({dataTypes: Array(String)})` : ""}
   ORDER BY s.event_ts DESC
-  LIMIT 1 BY s.id, s.project_id
+  ${shouldSkipScoresDedup(projectId) ? "" : "LIMIT 1 BY s.id, s.project_id"}
 `;
 
   const rows = await queryClickhouse<ScoreRecordReadType>({
@@ -94,6 +101,7 @@ export const _handleGetScoresByIds = async ({
       ...(source !== undefined ? { source } : {}),
     },
     tags: { projectId },
+    preferredClickhouseService,
   });
   return rows.map((row) => convertClickhouseScoreToDomain(row));
 };

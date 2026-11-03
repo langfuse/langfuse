@@ -4,13 +4,17 @@ import { RightAlignedCell } from "@/src/features/dashboard/components/RightAlign
 import { LeftAlignedCell } from "@/src/features/dashboard/components/LeftAlignedCell";
 import { DashboardCard } from "@/src/features/dashboard/components/cards/DashboardCard";
 import { DashboardTable } from "@/src/features/dashboard/components/cards/DashboardTable";
-import { type FilterState, getGenerationLikeTypes } from "@langfuse/shared";
+import {
+  type FilterState,
+  getGenerationLikeTypes,
+  truncate,
+} from "@langfuse/shared";
 import { compactNumberFormatter, costFormatter } from "@/src/utils/numbers";
 import { TotalMetric } from "./TotalMetric";
-import { truncate } from "@/src/utils/string";
+
 import { type QueryType, type ViewVersion } from "@langfuse/shared/query";
 import { mapLegacyUiTableFilterToView } from "@/src/features/dashboard/lib/dashboardUiTableToViewMapping";
-import { useScheduledDashboardExecuteQuery } from "@/src/hooks/useDashboardQueryScheduler";
+import { useScheduledDashboardExecuteQuery } from "@/src/features/dashboard/hooks/DashboardQuerySchedulerProvider";
 import { cn } from "@/src/utils/tailwind";
 
 export const ModelCostTable = ({
@@ -29,7 +33,7 @@ export const ModelCostTable = ({
   fromTimestamp: Date;
   toTimestamp: Date;
   isLoading?: boolean;
-  metricsVersion?: ViewVersion;
+  metricsVersion: ViewVersion;
   schedulerId?: string;
 }) => {
   const modelCostQuery: QueryType = {

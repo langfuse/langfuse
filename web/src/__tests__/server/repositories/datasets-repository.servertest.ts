@@ -181,6 +181,37 @@ describe("datasets repository", () => {
     expect(datasets).toEqual([{ id: matchingDataset.id }]);
   });
 
+  it("treats SQL LIKE wildcards in the batch deletion search query literally", async () => {
+    const project = await createProject();
+    const underscoreMatch = await createDataset({
+      name: "gpt_4-eval",
+      projectId: project.id,
+    });
+    await createDataset({ name: "gpt-4-eval", projectId: project.id });
+    const percentMatch = await createDataset({
+      name: "save 100% now",
+      projectId: project.id,
+    });
+    await createDataset({ name: "save 1000 now", projectId: project.id });
+    const cutoffCreatedAt = new Date();
+
+    const findIds = async (searchQuery: string) =>
+      (
+        await findDatasetIdsForBatchDeletion({
+          projectId: project.id,
+          cutoffCreatedAt,
+          query: {
+            filter: null,
+            orderBy: { column: "createdAt", order: "DESC" },
+            searchQuery,
+          },
+        })
+      ).map((dataset) => dataset.id);
+
+    expect(await findIds("gpt_4")).toEqual([underscoreMatch.id]);
+    expect(await findIds("100%")).toEqual([percentMatch.id]);
+  });
+
   it("finds selected dataset ids scoped to a project", async () => {
     const project = await createProject();
     const otherProject = await createProject();

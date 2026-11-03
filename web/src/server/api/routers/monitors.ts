@@ -7,6 +7,8 @@ import {
 } from "@/src/server/api/trpc";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { createWithinEntitlementLimit } from "@/src/features/entitlements/server/createWithinEntitlementLimit";
+import { listLinkedEvaluatorAlerts } from "@/src/features/monitors/server/listLinkedEvaluatorAlerts";
+import { suggestMonitorName } from "@/src/features/monitors/server/suggestMonitorName";
 import {
   CreateMonitorSchema,
   DeleteMonitorSchema,
@@ -107,6 +109,55 @@ export const monitorsRouter = createTRPCRouter({
         where: { project: { orgId: ctx.session.orgId, deletedAt: null } },
       });
       return { count };
+    }),
+
+  suggestName: monitorsProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        description: z.string().min(1).max(500),
+      }),
+    )
+    .mutation(async ({ ctx, input }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "alerts:CUD",
+      });
+      return suggestMonitorName({
+        prisma: ctx.prisma,
+        projectId: input.projectId,
+        description: input.description,
+      });
+    }),
+
+  linkedEvaluatorAlerts: monitorsProcedure
+    .input(z.object({ projectId: z.string(), evaluatorId: z.string() }))
+    .query(async ({ ctx, input }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "alerts:read",
+      });
+      return listLinkedEvaluatorAlerts(ctx.prisma, {
+        scope: "evaluator",
+        projectId: input.projectId,
+        evaluatorId: input.evaluatorId,
+      });
+    }),
+
+  linkedAllEvaluatorSpendAlerts: monitorsProcedure
+    .input(z.object({ projectId: z.string() }))
+    .query(async ({ ctx, input }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "alerts:read",
+      });
+      return listLinkedEvaluatorAlerts(ctx.prisma, {
+        scope: "allEvaluators",
+        projectId: input.projectId,
+      });
     }),
 
   /** hasAny reports whether the project owns at least one monitor; drives the list-page onboarding splash. */

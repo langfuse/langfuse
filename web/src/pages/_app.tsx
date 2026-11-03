@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 // Must stay the first import: installs a `crypto.randomUUID` fallback for
 // non-secure (plain-HTTP) origins before any other module can call it
 // (LFE-10858).
@@ -17,11 +18,13 @@ import { CommandMenuProvider } from "@/src/features/command-k-menu/CommandMenuPr
 
 import { api } from "@/src/utils/api";
 
-import { NextAdapterPagesWithReadyGuard } from "@/src/utils/nextAdapterPagesWithReadyGuard";
+import { NextAdapterPagesWithReadyGuard } from "@/src/utils/NextAdapterPagesWithReadyGuard";
 import { QueryParamProvider } from "use-query-params";
 
 import "@/src/styles/globals.css";
-import { AppLayout } from "@/src/components/layouts/app-layout";
+import { plexMono } from "@/src/styles/fonts";
+import { AppLayout } from "@/src/components/layouts/app-layout/AppLayout";
+import { DefaultHead } from "@/src/components/layouts/default-head/DefaultHead";
 import { useEffect, useRef } from "react";
 import { useRouter } from "next/router";
 
@@ -47,6 +50,8 @@ import "streamdown/styles.css";
 // See: https://github.com/facebook/react/issues/11538
 // See also: https://issues.chromium.org/issues/41407169
 if (typeof window !== "undefined") {
+  installStaleChunkReloadListener();
+
   const originalRemoveChild = Element.prototype.removeChild;
   const originalInsertBefore = Element.prototype.insertBefore;
 
@@ -80,17 +85,18 @@ if (typeof window !== "undefined") {
 }
 
 import { ResilientSessionProvider } from "@/src/features/auth/components/ResilientSessionProvider";
-import { DetailPageListsProvider } from "@/src/features/navigate-detail-pages/context";
+import { DetailPageListsProvider } from "@/src/features/navigate-detail-pages/DetailPageListsProvider";
 import { env } from "@/src/env.mjs";
 import { ThemeProvider } from "@/src/features/theming/ThemeProvider";
-import { MarkdownContextProvider } from "@/src/features/theming/useMarkdownContext";
-import { MarkdownRenderCharacterLimitProvider } from "@/src/hooks/useMarkdownRenderCharacterLimit";
+import { MarkdownRenderCharacterLimitProvider } from "@/src/components/MarkdownRenderCharacterLimitProvider/MarkdownRenderCharacterLimitProvider";
 import { SupportDrawerProvider } from "@/src/features/support-chat/SupportDrawerProvider";
 import { V4MigrationPanelProvider } from "@/src/features/v4-migration/V4MigrationPanelProvider";
+import { installStaleChunkReloadListener } from "@/src/features/version-update/reloadOnStaleChunk";
 import { InAppAiAgentProvider } from "@/src/features/in-app-agent/components/InAppAiAgentProvider";
 import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
-import { ScoreCacheProvider } from "@/src/features/scores/contexts/ScoreCacheContext";
-import { CorrectionCacheProvider } from "@/src/features/corrections/contexts/CorrectionCacheContext";
+import { ScoreCacheProvider } from "@/src/features/scores/contexts/ScoreCacheProvider";
+import { CorrectionCacheProvider } from "@/src/features/corrections/contexts/CorrectionCacheProvider";
+import { LayerProvider } from "@/src/context/LayerContext/LayerContext";
 import { V4_BETA_ENABLED_POSTHOG_PROPERTY } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import {
   getPostHogClientConfig,
@@ -170,7 +176,7 @@ const MyApp: AppType<{ session: Session | null }> = ({
   );
 
   return (
-    <>
+    <div className={`${plexMono.variable} contents`}>
       {/* Replaces Next's default `width=device-width` (next/head dedupes by
           name). `maximum-scale=1` stops iOS Safari auto-zooming a focused
           sub-16px field; iOS ignores `user-scalable=no` for user gestures, so
@@ -184,22 +190,23 @@ const MyApp: AppType<{ session: Session | null }> = ({
           content="width=device-width, height=device-height, initial-scale=1, maximum-scale=1, user-scalable=no, shrink-to-fit=no, viewport-fit=cover"
         />
       </Head>
-      <QueryParamProvider
-        adapter={NextAdapterPagesWithReadyGuard}
-        options={{ enableBatching: true }}
-      >
-        <TooltipProvider>
-          <CommandMenuProvider>
-            <PostHogProvider client={posthog}>
-              <SessionProvider
-                session={session}
-                refetchOnWindowFocus={true}
-                refetchInterval={5 * 60} // 5 minutes
-                basePath={authBasePath}
-              >
-                <ResilientSessionProvider basePath={authBasePath}>
-                  <DetailPageListsProvider>
-                    <MarkdownContextProvider>
+      <DefaultHead />
+      <LayerProvider>
+        <QueryParamProvider
+          adapter={NextAdapterPagesWithReadyGuard}
+          options={{ enableBatching: true }}
+        >
+          <TooltipProvider>
+            <CommandMenuProvider>
+              <PostHogProvider client={posthog}>
+                <SessionProvider
+                  session={session}
+                  refetchOnWindowFocus={true}
+                  refetchInterval={5 * 60} // 5 minutes
+                  basePath={authBasePath}
+                >
+                  <ResilientSessionProvider basePath={authBasePath}>
+                    <DetailPageListsProvider>
                       <MarkdownRenderCharacterLimitProvider>
                         <ThemeProvider
                           attribute="class"
@@ -223,15 +230,15 @@ const MyApp: AppType<{ session: Session | null }> = ({
                           </ScoreCacheProvider>
                         </ThemeProvider>
                       </MarkdownRenderCharacterLimitProvider>
-                    </MarkdownContextProvider>
-                  </DetailPageListsProvider>
-                </ResilientSessionProvider>
-              </SessionProvider>
-            </PostHogProvider>
-          </CommandMenuProvider>
-        </TooltipProvider>
-      </QueryParamProvider>
-    </>
+                    </DetailPageListsProvider>
+                  </ResilientSessionProvider>
+                </SessionProvider>
+              </PostHogProvider>
+            </CommandMenuProvider>
+          </TooltipProvider>
+        </QueryParamProvider>
+      </LayerProvider>
+    </div>
   );
 };
 
@@ -312,8 +319,15 @@ if (
   process.env.NEXT_MANUAL_SIG_HANDLE
 ) {
   const { shutdown } = await import("@/src/utils/shutdown");
-  prexit(async (signal) => {
-    console.log("Signal: ", signal);
-    return await shutdown(signal);
-  });
+  // uncaughtException is intentionally omitted: it is handled by
+  // installProcessErrorHandlers (registered in instrumentation.ts), which
+  // drains in-flight requests and then exits, rather than prexit exiting
+  // abruptly without draining.
+  prexit(
+    ["exit", "beforeExit", "SIGTSTP", "SIGQUIT", "SIGHUP", "SIGTERM", "SIGINT"],
+    async (signal) => {
+      console.log("Signal: ", signal);
+      return await shutdown(signal);
+    },
+  );
 }

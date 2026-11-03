@@ -1,9 +1,13 @@
+/* eslint-disable no-nested-ternary, @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
+import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
+import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/router";
 import { TRPCClientError } from "@trpc/client";
-import { History, Trash2 } from "lucide-react";
+import { History, Trash2 } from "@langfuse/icons";
 import {
   observationVariableMappingList,
+  isEvaluatorBlockReasonRecoverableByDefinitionUpdate,
   type EvaluatorBlockReason,
   type EvalTemplateType,
   type FilterState,
@@ -11,28 +15,32 @@ import {
 } from "@langfuse/shared";
 import { useStore } from "zustand";
 import { useShallow } from "zustand/react/shallow";
-import Page from "@/src/components/layouts/page";
+import Page from "@/src/components/layouts/Page";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
-import { TablePeekViewTraceDetail } from "@/src/components/table/peek/peek-trace-detail";
+import { TablePeekViewTraceDetail } from "@/src/components/table/peek/TablePeekViewTraceDetail";
 import { Button } from "@/src/components/ui/button";
-import { ConfirmDialog } from "@/src/components/ui/confirm-dialog";
-import { ResizableSplitLayout } from "@/src/components/ui/resizable-split-layout";
+import { ConfirmDialog } from "@/src/components/ui/ConfirmDialog";
+import useLocalStorage from "@/src/components/useLocalStorage";
+import { ResizableSplitLayout } from "@/src/components/ui/ResizableSplitLayout";
 import { EvaluatorVersionHistorySheet } from "../components/Evaluators/EvaluatorVersionHistorySheet/EvaluatorVersionHistorySheet";
 import type { EvaluatorVersion } from "../components/Evaluators/EvaluatorVersionHistorySheet/types";
 import { EvaluatorVersionConflictDialog } from "../components/Evaluators/EvaluatorVersionConflictDialog/EvaluatorVersionConflictDialog";
 import { EvaluatorSetupEditor } from "@/src/features/evals/v2/components/Evaluators/EvaluatorSetupEditor/EvaluatorSetupEditor";
+import { getEvaluatorNameStep } from "@/src/features/evals/v2/components/Evaluators/EvaluatorSetupEditor/evaluatorSetupSteps";
 import { EvaluatorSetupFooter } from "@/src/features/evals/v2/components/Evaluators/EvaluatorSetupFooter/EvaluatorSetupFooter";
 import { SampleObservationSelectorContainer } from "@/src/features/evals/v2/components/EvaluatorTestPanel/components/SampleObservationSelectorContainer/SampleObservationSelectorContainer";
 import { EvaluatorTestPanelContainer } from "@/src/features/evals/v2/components/EvaluatorTestPanel/components/EvaluatorTestPanelContainer/EvaluatorTestPanelContainer";
+import { applyFallbackDecisionModel } from "@/src/features/evals/v2/fns/evaluators/preferredDecisionModel";
 import { prepareEvaluatorDraft } from "@/src/features/evals/v2/fns/evaluators/prepareEvaluatorDraft";
+import { useFallbackDecisionModel } from "@/src/features/evals/v2/hooks/useFallbackDecisionModel";
+import { draftsToQuestions } from "@/src/features/evals/v2/fns/evaluators/decisionModelQuestions";
 import type { NormalizedEvaluatorDefinition } from "../server/evaluators/evaluatorTypes";
 import { api } from "@/src/utils/api";
 import { trpcErrorToast } from "@/src/utils/trpcErrorToast";
-import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
-import { showErrorToast } from "@/src/features/notifications/showErrorToast";
+import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import { detailPageListKeys } from "@/src/features/navigate-detail-pages/context";
-import { TableHeaderControls } from "@/src/components/table/table-header-controls";
+import { detailPageListKeys } from "@/src/features/navigate-detail-pages/DetailPageListsProvider";
+import { TableHeaderControls } from "@/src/components/table/TableHeaderControls";
 import { useTableDateRange } from "@/src/hooks/useTableDateRange";
 import { toAbsoluteTimeRange } from "@/src/utils/date-range-utils";
 import {
@@ -45,24 +53,35 @@ import { DefaultModelChangeConfirmationDialog } from "@/src/features/evals/v2/co
 import { useProjectDefaultModel } from "@/src/features/evals/v2/hooks/useProjectDefaultModel";
 import { safeRandomUUID } from "@/src/utils/safe-random-uuid";
 import { EvaluatorSavedDialogContainer } from "@/src/features/evals/v2/components/Evaluators/EvaluatorSavedDialogContainer/EvaluatorSavedDialogContainer";
+import { EVALUATOR_FILTER_EXPERIENCE_STORAGE_KEY } from "@/src/features/evals/v2/constants/evaluatorFilterExperience";
+import type { EvaluatorFilterExperience } from "@/src/features/evals/v2/types/evaluatorFilterExperience";
 import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
 import { useProject } from "@/src/features/projects/hooks";
 import { EvaluatorBlockedBanner } from "@/src/features/evals/v2/components/Evaluators/EvaluatorBlockedBanner/EvaluatorBlockedBanner";
 import { useIsMobile } from "@/src/hooks/use-mobile";
 import { prepareEvaluatorMetadataForSave } from "@/src/features/evals/v2/fns/prepareEvaluatorMetadataForSave";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { useEvaluatorAlerts } from "@/src/features/evals/v2/hooks/useEvaluatorAlerts";
 import { useCodeEvalSourceValidation } from "@/src/features/evals/hooks/useCodeEvalSourceValidation";
+import { EvaluatorAlertButton } from "@/src/features/evals/v2/components/Evaluators/EvaluatorAlertButton/EvaluatorAlertButton";
+import { toScoreOutputFormState } from "@/src/features/evals/v2/fns/scoreOutput/toScoreOutputFormState";
+import { getFirstCodeEvaluatorScoreDataType } from "@/src/features/evals/v2/fns/evaluators/getFirstCodeEvaluatorScoreDataType";
 import {
   getEvaluatorCreationAnalyticsProperties,
   getJudgePromptAnalyticsProperties,
   type EvaluatorCreationSource,
 } from "@/src/features/evals/v2/fns/evaluators/getEvaluatorCreationAnalyticsProperties";
+import { getFilterAnalyticsProperties } from "@/src/features/evals/v2/fns/getFilterAnalyticsProperties";
+import { createEvalOnboardingAnalytics } from "@/src/features/evals/v2/fns/createEvalOnboardingAnalytics";
+import { EvalOnboardingAnalyticsProvider } from "@/src/features/evals/v2/contexts/EvalOnboardingAnalyticsProvider";
+import { isJudgeModelAvailable } from "@/src/features/evals/v2/judgeModel";
+import type { SampleObservation } from "@/src/features/evals/v2/components/Evaluators/Testing/components/SampleObservationSelectorBase/SampleObservationSelectorBase";
 
 type InitialEvaluator = {
   id: string;
   name: string;
   description: string | null;
-  type: EvalTemplateType;
+  type: Exclude<EvalTemplateType, "FACET">;
   definition: NormalizedEvaluatorDefinition;
   blockedAt: Date | null;
   blockReason: EvaluatorBlockReason | null;
@@ -88,6 +107,9 @@ export function applyEvaluatorSuggestion(
 export function getEvaluatorVersionDefinition(
   version: EvaluatorVersion,
 ): NormalizedEvaluatorDefinition {
+  if (version.type === "FACET") {
+    throw new Error("Facets cannot be edited as evaluators");
+  }
   if (version.type === "CODE") {
     return {
       type: version.type,
@@ -100,6 +122,22 @@ export function getEvaluatorVersionDefinition(
     NormalizedEvaluatorDefinition,
     { type: "LLM_AS_JUDGE" }
   >;
+
+  if (version.type === "DECISION_MODEL") {
+    type DecisionModelDefinition = Extract<
+      NormalizedEvaluatorDefinition,
+      { type: "DECISION_MODEL" }
+    >;
+    return {
+      type: version.type,
+      questions: version.questions as DecisionModelDefinition["questions"],
+      provider: version.provider ?? "",
+      model: version.model ?? "",
+      vars: version.vars,
+      variableMapping:
+        version.variableMapping as DecisionModelDefinition["variableMapping"],
+    };
+  }
 
   return {
     type: version.type,
@@ -136,7 +174,7 @@ export function EvaluatorSetupPage(
         mode: "create";
         projectId: string;
         initialDraft: EvaluatorSetupDraft | null;
-        initialType: EvalTemplateType;
+        initialType: Exclude<EvalTemplateType, "FACET">;
         creationSource: EvaluatorCreationSource;
       }
     | {
@@ -160,10 +198,32 @@ export function EvaluatorSetupPage(
   const router = useRouter();
   const utils = api.useUtils();
   const capture = usePostHogClientCapture();
+  const [filterExperience] = useLocalStorage<EvaluatorFilterExperience>(
+    EVALUATOR_FILTER_EXPERIENCE_STORAGE_KEY,
+    "query",
+  );
   const canReactivate = useHasProjectAccess({
     projectId,
     scope: "evaluator:CUD",
   });
+  const evaluatorAlerts = useEvaluatorAlerts({
+    scope: "evaluator",
+    projectId,
+    evaluatorId: initialEvaluator?.id ?? null,
+  });
+  const scoreDataType = (() => {
+    if (initialEvaluator?.definition.type === "CODE") {
+      return getFirstCodeEvaluatorScoreDataType(
+        initialEvaluator.definition.sourceCode,
+      );
+    }
+    if (initialEvaluator?.definition.type === "LLM_AS_JUDGE") {
+      return toScoreOutputFormState(
+        initialEvaluator.definition.outputDefinition,
+      ).dataType;
+    }
+    return undefined;
+  })();
   const projectDefaultModel = useProjectDefaultModel({
     projectId,
     source: "editor",
@@ -177,11 +237,48 @@ export function EvaluatorSetupPage(
       mode: props.mode,
     }),
   );
+  const [onboardingAnalytics] = useState(() =>
+    props.mode === "create"
+      ? createEvalOnboardingAnalytics({
+          capture,
+          getEvaluatorType: () => evaluatorSetupStore.getState().type,
+        })
+      : null,
+  );
   useEffect(() => {
     evaluatorSetupStore
       .getState()
       .actions.setDefaultModel(projectDefaultModel.defaultModel);
   }, [evaluatorSetupStore, projectDefaultModel.defaultModel]);
+  const modelDraft = useStore(
+    evaluatorSetupStore,
+    useShallow((state) => ({
+      type: state.type,
+      modelMode: state.modelMode,
+      defaultModel: state.defaultModel,
+      selectedModel: state.selectedModel,
+      hasChangedModelSelection: state.hasChangedModelSelection,
+    })),
+  );
+  const effectiveDraftModel =
+    modelDraft.type === "CODE"
+      ? null
+      : modelDraft.type === "LLM_AS_JUDGE" && modelDraft.modelMode === "default"
+        ? modelDraft.defaultModel
+        : modelDraft.selectedModel;
+  const draftResolvesEvaluatorBlock = Boolean(
+    initialEvaluator?.blockedAt &&
+    isEvaluatorBlockReasonRecoverableByDefinitionUpdate(
+      initialEvaluator.blockReason,
+    ) &&
+    !projectDefaultModel.connectionsPending &&
+    isJudgeModelAvailable(
+      effectiveDraftModel,
+      projectDefaultModel.providerGroups,
+    ) &&
+    (modelDraft.hasChangedModelSelection ||
+      initialEvaluator.blockReason === "DEFAULT_EVAL_MODEL_MISSING"),
+  );
   const codeDraft = useStore(
     evaluatorSetupStore,
     useShallow((state) => ({
@@ -195,6 +292,12 @@ export function EvaluatorSetupPage(
     sourceCode: codeDraft.sourceCode,
     sourceCodeLanguage: codeDraft.sourceCodeLanguage,
   });
+  const fallbackDecisionModel = useFallbackDecisionModel(
+    projectId,
+    modelDraft.type === "DECISION_MODEL",
+  );
+  // The default decision model arrives with the connection list. It is applied
+  // on save, not stored, so it must not count as an edit.
   const getCurrentSnapshot = (state = evaluatorSetupStore.getState()) =>
     JSON.stringify({
       name: state.name.trim(),
@@ -213,6 +316,9 @@ export function EvaluatorSetupPage(
   );
   const [rawResultOpen, setRawResultOpen] = useState(false);
   const hasRequestedName = useRef(false);
+  const saveInFlightRef = useRef(false);
+  const hasCreatedRef = useRef(false);
+  const [saveInFlight, setSaveInFlight] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const [discardOpen, setDiscardOpen] = useState(false);
@@ -237,6 +343,11 @@ export function EvaluatorSetupPage(
     queryParams: ["observation", "display", "timestamp", "traceId"],
     tableName: "evaluators-v2",
     isV4: true,
+    extractParamsValuesFromRow: (observation: SampleObservation) => ({
+      observation: observation.id,
+      traceId: observation.traceId ?? "",
+      timestamp: observation.startTime.toISOString(),
+    }),
     expandConfig: {
       basePath: `/project/${projectId}/traces`,
       reader: "trace",
@@ -268,13 +379,14 @@ export function EvaluatorSetupPage(
     sourceCode: version.sourceCode,
     sourceCodeLanguage: version.sourceCodeLanguage,
     promptMessages:
-      initialEvaluator?.type === "LLM_AS_JUDGE" ? version.promptMessages : null,
+      initialEvaluator?.type === "CODE" ? null : version.promptMessages,
     provider: version.provider,
     model: version.model,
     modelParams: version.modelParams as EvaluatorVersion["modelParams"],
     vars: version.vars,
     variableMapping: version.variableMapping,
     outputDefinition: version.outputDefinition,
+    questions: version.questions,
     createdByUser: version.createdByUser,
   }));
 
@@ -283,6 +395,7 @@ export function EvaluatorSetupPage(
   const reactivate = api.evalsV2.reactivate.useMutation({
     onSuccess: async () => {
       showSuccessToast({
+        operation: "evaluator.reactivate",
         title: "Evaluator reactivated",
         description:
           "The model test succeeded and the evaluator is active again.",
@@ -295,11 +408,15 @@ export function EvaluatorSetupPage(
       }
     },
     onError: (error) => {
-      showErrorToast("Reactivation failed", error.message);
+      showErrorToast(
+        "Reactivation failed",
+        error.message,
+        classifyTrpcToastError(error, "evaluator.reactivate"),
+      );
     },
   });
   const deleteEvaluator = api.evalsV2.delete.useMutation({
-    onError: trpcErrorToast,
+    onError: (error) => trpcErrorToast(error, "evaluator.delete"),
     onSuccess: async () => {
       capture("evaluators:delete", {
         source: "detail",
@@ -307,6 +424,7 @@ export function EvaluatorSetupPage(
         isAllMatching: false,
       });
       showSuccessToast({
+        operation: "evaluator.delete",
         title: "Evaluator deleted",
         description: "The evaluator and all of its versions were deleted.",
       });
@@ -317,6 +435,9 @@ export function EvaluatorSetupPage(
     onSuccess: (result) => {
       setTestResult(result);
       if ("executionTraceId" in result) setHasCompletedTestCall(true);
+      if ("success" in result && result.success) {
+        onboardingAnalytics?.completeStep({ stepName: "evaluator_tested" });
+      }
       setLastTestRunCostUsd(
         "estimatedCostUsd" in result &&
           typeof result.estimatedCostUsd === "number"
@@ -326,7 +447,7 @@ export function EvaluatorSetupPage(
     },
     onError: (error) => {
       setTestResult({ requestError: error.message });
-      trpcErrorToast(error);
+      trpcErrorToast(error, "evaluator.test");
     },
   });
   const suggestName = api.evalsV2.suggestName.useMutation();
@@ -334,9 +455,17 @@ export function EvaluatorSetupPage(
 
   const getSuggestionDefinition = () => {
     const state = evaluatorSetupStore.getState();
-    return state.type === "LLM_AS_JUDGE"
-      ? { type: state.type, promptMessages: state.promptMessages }
-      : { type: state.type, sourceCode: state.sourceCode };
+    switch (state.type) {
+      case "LLM_AS_JUDGE":
+        return { type: state.type, promptMessages: state.promptMessages };
+      case "CODE":
+        return { type: state.type, sourceCode: state.sourceCode };
+      case "DECISION_MODEL":
+        return {
+          type: state.type,
+          questions: draftsToQuestions(state.questions) ?? [],
+        };
+    }
   };
 
   const generateNameSuggestion = async () => {
@@ -367,6 +496,11 @@ export function EvaluatorSetupPage(
         showErrorToast(
           "Couldn't generate an evaluator name",
           "Please enter a name manually.",
+          {
+            operation: "evaluator_name.generate",
+            errorOrigin: "backend",
+            errorCategory: "internal",
+          },
         );
       }
     } catch (error) {
@@ -374,6 +508,7 @@ export function EvaluatorSetupPage(
       showErrorToast(
         "Couldn't generate an evaluator name",
         "Please enter a name manually.",
+        classifyTrpcToastError(error, "evaluator_name.generate"),
       );
     }
   };
@@ -386,19 +521,29 @@ export function EvaluatorSetupPage(
         evaluatorSetupStore.getState().actions.setDescription,
       );
       if (applied) return;
-    } catch {
-      // The field-specific message below is more actionable than the request error.
+    } catch (error) {
+      showErrorToast(
+        "Couldn't generate an evaluator description",
+        "Please enter a description manually.",
+        classifyTrpcToastError(error, "evaluator_description.generate"),
+      );
+      return;
     }
     showErrorToast(
       "Couldn't generate an evaluator description",
       "Please enter a description manually.",
+      {
+        operation: "evaluator_description.generate",
+        errorOrigin: "backend",
+        errorCategory: "internal",
+      },
     );
   };
 
   const setStepOpen = (step: number, open: boolean) => {
     const state = evaluatorSetupStore.getState();
     state.actions.setStepOpen(step, open);
-    const isNameStep = step === (state.type === "LLM_AS_JUDGE" ? 3 : 2);
+    const isNameStep = step === getEvaluatorNameStep(state.type);
     if (
       nameAIAssistanceAvailable &&
       open &&
@@ -406,7 +551,9 @@ export function EvaluatorSetupPage(
       !state.name &&
       !hasRequestedName.current
     ) {
-      requestNameSuggestion().catch(trpcErrorToast);
+      requestNameSuggestion().catch((error) =>
+        trpcErrorToast(error, "evaluator_name.generate"),
+      );
     }
   };
 
@@ -416,10 +563,13 @@ export function EvaluatorSetupPage(
   const requestClose = () => {
     const currentSnapshot = getCurrentSnapshot();
     if (currentSnapshot !== initialSnapshot.current) setDiscardOpen(true);
-    else close().catch(trpcErrorToast);
+    else close().catch((error) => trpcErrorToast(error, "evaluator.navigate"));
   };
 
   const save = async () => {
+    if (saveInFlightRef.current || hasCreatedRef.current) return;
+    saveInFlightRef.current = true;
+    setSaveInFlight(true);
     try {
       let state = evaluatorSetupStore.getState();
       const metadata = await prepareEvaluatorMetadataForSave({
@@ -432,7 +582,7 @@ export function EvaluatorSetupPage(
                 try {
                   return await generateDescriptionSuggestion();
                 } catch (error) {
-                  trpcErrorToast(error);
+                  trpcErrorToast(error, "evaluator_description.generate");
                   return null;
                 }
               }
@@ -444,6 +594,11 @@ export function EvaluatorSetupPage(
         showErrorToast(
           "Evaluator name required",
           "We couldn't generate a name. Please enter one manually and try again.",
+          {
+            operation: "evaluator.save",
+            errorOrigin: "frontend",
+            errorCategory: "user_input",
+          },
         );
         return;
       }
@@ -465,7 +620,9 @@ export function EvaluatorSetupPage(
           return;
         }
       }
-      const { definition } = prepareEvaluatorDraft(state);
+      const { definition } = prepareEvaluatorDraft(
+        applyFallbackDecisionModel(state, fallbackDecisionModel),
+      );
       if (!definition) return;
       const { name, description } = metadata;
 
@@ -479,15 +636,30 @@ export function EvaluatorSetupPage(
         });
         capture("evaluators:update", {
           evaluatorType: state.type,
+          filterExperience,
+          ...getFilterAnalyticsProperties(state.sampleFilter),
           ...(definition.type === "LLM_AS_JUDGE"
             ? getJudgePromptAnalyticsProperties(definition.promptMessages)
             : {}),
         });
         showSuccessToast({
+          operation: "evaluator.save",
           title: "Evaluator saved",
           description: "Your evaluator changes are saved.",
         });
         initialSnapshot.current = getCurrentSnapshot(state);
+        utils.evalsV2.get.setData(
+          { projectId, evaluatorId: evaluator.id },
+          (current) =>
+            current
+              ? {
+                  ...current,
+                  blockedAt: evaluator.blockedAt,
+                  blockReason: evaluator.blockReason,
+                  blockMessage: evaluator.blockMessage,
+                }
+              : current,
+        );
         await utils.evalsV2.filterOptions.invalidate({ projectId });
         await router.push(`/project/${projectId}/evals/${evaluator.id}`);
         return;
@@ -500,9 +672,13 @@ export function EvaluatorSetupPage(
         description,
         definition,
       });
-      capture(
-        "evaluators:create",
-        getEvaluatorCreationAnalyticsProperties({
+      hasCreatedRef.current = true;
+      onboardingAnalytics?.completeStep({
+        stepName: "evaluator_saved",
+        isBlocked: !shouldOfferRuleAttachment(evaluator),
+      });
+      capture("evaluators:create", {
+        ...getEvaluatorCreationAnalyticsProperties({
           evaluatorType: state.type,
           creationSource: props.creationSource,
           sourceCodeLanguage:
@@ -526,7 +702,9 @@ export function EvaluatorSetupPage(
                 }
               : undefined,
         }),
-      );
+        filterExperience,
+        ...getFilterAnalyticsProperties(state.sampleFilter),
+      });
       initialSnapshot.current = getCurrentSnapshot(state);
       await utils.evalsV2.filterOptions.invalidate({ projectId });
       if (!shouldOfferRuleAttachment(evaluator)) {
@@ -539,12 +717,17 @@ export function EvaluatorSetupPage(
         type: state.type,
         defaultVariableMapping: observationVariableMappingList
           .catch([])
-          .parse(definition.variableMapping),
+          .parse(
+            definition.type === "LLM_AS_JUDGE"
+              ? definition.variableMapping
+              : undefined,
+          ),
         sampleFilter: state.sampleFilter,
         hasCompletedTestCall,
         testRunCostUsd: lastTestRunCostUsd,
       });
     } catch (error) {
+      hasCreatedRef.current = false;
       if (
         initialEvaluator &&
         error instanceof TRPCClientError &&
@@ -552,8 +735,11 @@ export function EvaluatorSetupPage(
       ) {
         setVersionConflictOpen(true);
       } else {
-        trpcErrorToast(error);
+        trpcErrorToast(error, "evaluator.save");
       }
+    } finally {
+      saveInFlightRef.current = false;
+      setSaveInFlight(false);
     }
   };
 
@@ -573,7 +759,9 @@ export function EvaluatorSetupPage(
 
   const runTest = () => {
     const state = evaluatorSetupStore.getState();
-    const { definition } = prepareEvaluatorDraft(state);
+    const { definition } = prepareEvaluatorDraft(
+      applyFallbackDecisionModel(state, fallbackDecisionModel),
+    );
     const selectedObservation = state.selectedObservation;
     if (!definition || !selectedObservation?.traceId) return;
     capture("evaluators:test", {
@@ -598,8 +786,15 @@ export function EvaluatorSetupPage(
       defaultModel={projectDefaultModel.defaultModel}
       providerGroups={projectDefaultModel.providerGroups}
       providerAdapters={projectDefaultModel.providerAdapters}
+      connectionsPending={projectDefaultModel.connectionsPending}
       canSetProjectDefault={projectDefaultModel.canUpdate}
-      onConfigureProviders={projectDefaultModel.openProviderSettings}
+      onConfigureProviders={() => {
+        onboardingAnalytics?.track(
+          "eval:onboarding_llm_connection_tab_opened",
+          {},
+        );
+        projectDefaultModel.openProviderSettings();
+      }}
       onSetProjectDefault={projectDefaultModel.update.requestUpdate}
       codeValidationResult={
         codeValidation.isPending ? null : codeValidation.validationResult
@@ -612,8 +807,15 @@ export function EvaluatorSetupPage(
             ? { state: "generating" }
             : {
                 state: "idle",
-                onGenerate: () =>
-                  requestNameSuggestion(true).catch(trpcErrorToast),
+                onGenerate: () => {
+                  onboardingAnalytics?.track(
+                    "eval:onboarding_ai_generate_requested",
+                    { field: "name" },
+                  );
+                  requestNameSuggestion(true).catch((error) =>
+                    trpcErrorToast(error, "evaluator_name.generate"),
+                  );
+                },
               }
       }
       descriptionAIAssistance={
@@ -625,6 +827,10 @@ export function EvaluatorSetupPage(
                 state: "idle",
                 // requestDescriptionSuggestion reports its own failures.
                 onGenerate: () => {
+                  onboardingAnalytics?.track(
+                    "eval:onboarding_ai_generate_requested",
+                    { field: "description" },
+                  );
                   requestDescriptionSuggestion();
                 },
               }
@@ -642,8 +848,12 @@ export function EvaluatorSetupPage(
           projectId={projectId}
           timeRange={absoluteTimeRange}
           onOpenTrace={(observation) => {
+            onboardingAnalytics?.track(
+              "eval:onboarding_sample_observation_previewed",
+              {},
+            );
             if (observation.traceId) {
-              sampleTracePeekNavigation.openPeek(observation.traceId);
+              sampleTracePeekNavigation.openPeek(observation.id, observation);
             }
           }}
         />
@@ -677,6 +887,14 @@ export function EvaluatorSetupPage(
                 initialEvaluator.definition.variableMapping
               }
             />
+            <EvaluatorAlertButton
+              scope="evaluator"
+              projectId={projectId}
+              evaluatorId={initialEvaluator.id}
+              evaluatorType={initialEvaluator.type}
+              scoreDataType={scoreDataType}
+              {...evaluatorAlerts}
+            />
             <Button
               type="button"
               variant="outline"
@@ -688,7 +906,7 @@ export function EvaluatorSetupPage(
                 setHistoryOpen(true);
               }}
             >
-              <History className="mr-2 h-4 w-4" />
+              <History size="base" color="default" __rawClassName="mr-2" />
               Version history
             </Button>
             <Button
@@ -697,86 +915,91 @@ export function EvaluatorSetupPage(
               title="Delete evaluator"
               onClick={() => setDeleteOpen(true)}
             >
-              <Trash2 className="text-destructive h-4 w-4" />
+              <Trash2 size="base" color="destructive" />
             </Button>
           </div>
         ) : undefined,
       }}
     >
-      <div className="flex min-h-0 flex-1 flex-col">
-        <TableHeaderControls
-          timeRange={timeRange}
-          setTimeRange={setTimeRange}
-        />
-        {initialEvaluator?.blockedAt ? (
-          <div className="mx-3 mt-3">
-            <EvaluatorBlockedBanner
-              projectId={projectId}
-              blockedAt={initialEvaluator.blockedAt}
-              blockReason={initialEvaluator.blockReason}
-              blockMessage={initialEvaluator.blockMessage}
-              canReactivate={canReactivate}
-              reactivationPending={reactivate.isPending}
-              onReactivate={() => {
-                capture("evaluators:reactivate", {
-                  blockReason:
-                    initialEvaluator.blockReason ?? "EVAL_MODEL_CONFIG_INVALID",
-                });
-                reactivate.mutate({
-                  projectId,
-                  evaluatorId: initialEvaluator.id,
-                });
-              }}
-            />
-          </div>
-        ) : null}
-        {isMobile ? (
-          <div className="min-h-0 flex-1 overflow-y-auto">
-            <div>{evaluatorEditor}</div>
-            <div className="border-t [&>aside]:h-auto">
-              {evaluatorTestPanel}
-            </div>
-          </div>
-        ) : (
-          <ResizableSplitLayout
-            className="h-auto min-h-0 flex-1"
-            primaryContent={evaluatorEditor}
-            secondaryContent={evaluatorTestPanel}
-            open={testPanelOpen}
-            defaultPrimarySize={60}
-            defaultSecondarySize={40}
-            minPrimarySize={30}
-            minSecondarySize="360px"
-            collapsedSecondarySize="48px"
-            onOpenChange={
-              evaluatorSetupStore.getState().actions.setTestPanelOpen
-            }
-            persistId="evaluator-test-panel"
+      <EvalOnboardingAnalyticsProvider value={onboardingAnalytics}>
+        <div className="flex min-h-0 flex-1 flex-col">
+          <TableHeaderControls
+            timeRange={timeRange}
+            setTimeRange={setTimeRange}
           />
-        )}
-        <EvaluatorSetupFooter
-          store={evaluatorSetupStore}
-          initialSnapshot={initialSnapshot.current}
-          isEditing={Boolean(initialEvaluator)}
-          isSaving={
-            create.isPending ||
-            update.isPending ||
-            suggestName.isPending ||
-            suggestDescription.isPending
-          }
-          nameAIAssistanceAvailable={nameAIAssistanceAvailable}
-          codeValidation={
-            codeDraft.type === "CODE"
-              ? {
-                  isValid: codeValidation.isValid,
-                  isPending: codeValidation.isPending,
-                }
-              : null
-          }
-          onClose={requestClose}
-          onSave={save}
-        />
-      </div>
+          {initialEvaluator?.blockedAt && !draftResolvesEvaluatorBlock ? (
+            <div className="mx-3 mt-3">
+              <EvaluatorBlockedBanner
+                projectId={projectId}
+                blockedAt={initialEvaluator.blockedAt}
+                blockReason={initialEvaluator.blockReason}
+                blockMessage={initialEvaluator.blockMessage}
+                canReactivate={canReactivate}
+                reactivationPending={reactivate.isPending}
+                onReactivate={() => {
+                  capture("evaluators:reactivate", {
+                    blockReason:
+                      initialEvaluator.blockReason ??
+                      "EVAL_MODEL_CONFIG_INVALID",
+                  });
+                  reactivate.mutate({
+                    projectId,
+                    evaluatorId: initialEvaluator.id,
+                  });
+                }}
+              />
+            </div>
+          ) : null}
+          {isMobile ? (
+            <div className="min-h-0 flex-1 overflow-y-auto">
+              <div>{evaluatorEditor}</div>
+              <div className="border-t [&>aside]:h-auto">
+                {evaluatorTestPanel}
+              </div>
+            </div>
+          ) : (
+            <ResizableSplitLayout
+              className="h-auto min-h-0 flex-1"
+              primaryContent={evaluatorEditor}
+              secondaryContent={evaluatorTestPanel}
+              open={testPanelOpen}
+              defaultPrimarySize={60}
+              defaultSecondarySize={40}
+              minPrimarySize={30}
+              minSecondarySize="360px"
+              collapsedSecondarySize="48px"
+              onOpenChange={
+                evaluatorSetupStore.getState().actions.setTestPanelOpen
+              }
+              persistId="evaluator-test-panel"
+            />
+          )}
+          <EvaluatorSetupFooter
+            store={evaluatorSetupStore}
+            initialSnapshot={initialSnapshot.current}
+            isEditing={Boolean(initialEvaluator)}
+            isSaving={
+              saveInFlight ||
+              create.isPending ||
+              update.isPending ||
+              suggestName.isPending ||
+              suggestDescription.isPending
+            }
+            nameAIAssistanceAvailable={nameAIAssistanceAvailable}
+            codeValidation={
+              codeDraft.type === "CODE"
+                ? {
+                    isValid: codeValidation.isValid,
+                    isPending: codeValidation.isPending,
+                  }
+                : null
+            }
+            fallbackDecisionModel={fallbackDecisionModel}
+            onClose={requestClose}
+            onSave={save}
+          />
+        </div>
+      </EvalOnboardingAnalyticsProvider>
       {initialEvaluator ? (
         <EvaluatorVersionHistorySheet
           open={historyOpen}
@@ -850,6 +1073,7 @@ export function EvaluatorSetupPage(
         <EvaluatorSavedDialogContainer
           projectId={projectId}
           evaluator={savedEvaluator}
+          onboardingAnalytics={onboardingAnalytics}
           onDismiss={async () => {
             await router.push(
               `/project/${projectId}/evals/${savedEvaluator.id}`,

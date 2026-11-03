@@ -108,3 +108,10 @@ export function isPathActive(routePath: string, currentPath: string): boolean {
 
   return currentPath.startsWith(routePath + "/");
 }
+
+export function matchesPathname(routePathnames: string[]) {
+  return (pathname: string) =>
+    routePathnames.some((routePathname) =>
+      isPathActive(routePathname, pathname),
+    );
+}

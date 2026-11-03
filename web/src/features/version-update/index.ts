@@ -1,1 +1,0 @@
-export { VersionUpdateBanner } from "./VersionUpdateBanner";

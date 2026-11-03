@@ -1,23 +1,26 @@
+import { GatewayConfigService } from "@/src/features/ai-gateway/server/config/gatewayConfigService";
+import { ProjectService } from "@/src/features/projects/server/projectService";
 import {
   createTRPCRouter,
   protectedOrganizationProcedure,
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
 import * as z from "zod";
+import {
+  hasOrganizationAccess,
+  throwIfNoOrganizationAccess,
+} from "@/src/features/rbac/utils/checkOrganizationAccess";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { throwIfNoEntitlement } from "@/src/features/entitlements/server/hasEntitlement";
 import { TRPCError } from "@trpc/server";
 import { projectNameSchema } from "@/src/features/auth/lib/projectNameSchema";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
-import { throwIfNoOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
 import {
-  QueueJobs,
   redis,
-  ProjectDeleteQueue,
   getEnvironmentsForProject,
+  invalidateCachedOrgApiKeys,
 } from "@langfuse/shared/src/server";
-import { randomUUID } from "crypto";
 import { StringNoHTMLNonEmpty } from "@langfuse/shared";
 import { buildAdminOrgContext } from "@/src/features/organizations/server/adminOrgContext";
 import { emitChbProjectEvent } from "@/src/ee/features/billing/server/chb/chbProjectEvents";
@@ -66,6 +69,9 @@ export const projectsRouter = createTRPCRouter({
         action: "create",
         after: project,
       });
+
+      // Refresh org-scoped keys' baked projectIds now that a project exists.
+      await invalidateCachedOrgApiKeys(input.orgId);
 
       // Best-effort CHB metering signal; no-op unless the org is CHB-billed
       emitChbProjectEvent({
@@ -173,6 +179,24 @@ export const projectsRouter = createTRPCRouter({
       return true;
     }),
 
+  deletionProtection: protectedProjectProcedure
+    .input(z.object({ projectId: z.string() }))
+    .query(async ({ input, ctx }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "project:delete",
+      });
+      return {
+        isGatewayIngestionProject: await new GatewayConfigService(
+          ctx.prisma,
+        ).isIngestionProject({
+          organizationId: ctx.session.orgId,
+          projectId: input.projectId,
+        }),
+      };
+    }),
+
   delete: protectedProjectProcedure
     .input(
       z.object({
@@ -185,64 +209,18 @@ export const projectsRouter = createTRPCRouter({
         projectId: ctx.session.projectId,
         scope: "project:delete",
       });
-
-      // API keys need to be deleted from cache. Otherwise, they will still be valid.
-      await new ApiAuthService(
+      await new ProjectService(
         ctx.prisma,
-        redis,
-      ).invalidateCachedProjectApiKeys(input.projectId);
-
-      // Delete API keys from DB
-      await ctx.prisma.apiKey.deleteMany({
-        where: {
-          projectId: input.projectId,
-          scope: "PROJECT",
-        },
-      });
-
-      const project = await ctx.prisma.project.update({
-        where: {
-          id: input.projectId,
-          orgId: ctx.session.orgId,
-        },
-        data: {
-          deletedAt: new Date(),
-        },
-      });
-
-      await auditLog({
-        session: ctx.session,
-        resourceType: "project",
-        resourceId: input.projectId,
-        before: project,
-        action: "delete",
-      });
-
-      // Soft-delete is the billing-relevant moment: the customer stops being
-      // billable now, not when the async hard-delete worker finishes.
-      emitChbProjectEvent({
-        type: "LANGFUSE_PROJECT_DELETED",
-        orgId: ctx.session.orgId,
+        new ApiAuthService(ctx.prisma, redis),
+      ).delete({
+        organizationId: ctx.session.orgId,
         projectId: input.projectId,
-      });
-
-      const projectDeleteQueue = ProjectDeleteQueue.getInstance();
-      if (!projectDeleteQueue) {
-        throw new TRPCError({
-          code: "INTERNAL_SERVER_ERROR",
-          message:
-            "ProjectDeleteQueue is not available. Please try again later.",
-        });
-      }
-
-      await projectDeleteQueue.add(QueueJobs.ProjectDelete, {
-        timestamp: new Date(),
-        id: randomUUID(),
-        payload: {
-          projectId: input.projectId,
-          orgId: ctx.session.orgId,
-        },
-        name: QueueJobs.ProjectDelete,
+        actor: { session: ctx.session },
+        canManageGateway: hasOrganizationAccess({
+          session: ctx.session,
+          organizationId: ctx.session.orgId,
+          scope: "gateway:manage",
+        }),
       });
 
       return true;
@@ -282,54 +260,14 @@ export const projectsRouter = createTRPCRouter({
         });
       }
 
-      await auditLog({
-        session: ctx.session,
-        resourceType: "project",
-        resourceId: input.projectId,
-        action: "transfer",
-        before: { orgId: ctx.session.orgId },
-        after: { orgId: input.targetOrgId },
-      });
-
-      await ctx.prisma.$transaction([
-        ctx.prisma.projectMembership.deleteMany({
-          where: {
-            projectId: input.projectId,
-          },
-        }),
-        ctx.prisma.project.update({
-          where: {
-            id: input.projectId,
-            orgId: ctx.session.orgId,
-          },
-          data: {
-            orgId: input.targetOrgId,
-          },
-        }),
-      ]);
-
-      // API keys need to be deleted from cache. Otherwise, they will still be valid.
-      // It has to be called after the db is done to prevent new API keys from being cached.
-      await new ApiAuthService(
+      await new ProjectService(
         ctx.prisma,
-        redis,
-      ).invalidateCachedProjectApiKeys(input.projectId);
-
-      // A transfer is a delete for the source org and a create for the
-      // destination one. CHB's registry is keyed by (organizationId,
-      // projectId), so emitting only one side leaves the source org billed for
-      // usage it no longer owns, or the destination org unmetered. Each emit
-      // no-ops unless that org is CHB-billed, so a Stripe-to-Stripe transfer
-      // sends nothing.
-      emitChbProjectEvent({
-        type: "LANGFUSE_PROJECT_DELETED",
-        orgId: ctx.session.orgId,
+        new ApiAuthService(ctx.prisma, redis),
+      ).transfer({
+        organizationId: ctx.session.orgId,
+        targetOrganizationId: input.targetOrgId,
         projectId: input.projectId,
-      });
-      emitChbProjectEvent({
-        type: "LANGFUSE_PROJECT_CREATED",
-        orgId: input.targetOrgId,
-        projectId: input.projectId,
+        actor: { session: ctx.session },
       });
     }),
 

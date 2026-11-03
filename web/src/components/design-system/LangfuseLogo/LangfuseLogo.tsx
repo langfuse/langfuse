@@ -1,7 +1,7 @@
 import { LangfuseIcon } from "@/src/components/design-system/LangfuseIcon/LangfuseIcon";
 import { env } from "@/src/env.mjs";
 import { cn } from "@/src/utils/tailwind";
-import { PlusIcon } from "lucide-react";
+import { PlusIcon } from "@langfuse/icons";
 
 export const LangfuseLogo = ({
   logoLightModeHref,
@@ -32,7 +32,10 @@ export const LangfuseLogo = ({
             "max-h-4 max-w-14",
           )}
         />
-        <PlusIcon size={8} className="group-data-[collapsible=icon]:hidden" />
+        <PlusIcon
+          size="sm"
+          __rawClassName="group-data-[collapsible=icon]:hidden"
+        />
         <LangfuseIcon size={16} />
       </div>
     );
@@ -42,13 +45,13 @@ export const LangfuseLogo = ({
     <div className="flex items-center">
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
-        className="-ml-1.5 h-5 max-w-22 translate-y-px group-data-[collapsible=icon]:hidden dark:hidden"
+        className="-ml-1 h-5 max-w-22 translate-y-px group-data-[collapsible=icon]:hidden dark:hidden"
         src={`${env.NEXT_PUBLIC_BASE_PATH ?? ""}/wordart-black.svg`}
         alt="Langfuse Logo"
       />
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
-        className="-ml-1.5 hidden h-5 max-w-22 translate-y-px group-data-[collapsible=icon]:hidden dark:block"
+        className="-ml-1 hidden h-5 max-w-22 translate-y-px group-data-[collapsible=icon]:hidden dark:block"
         src={`${env.NEXT_PUBLIC_BASE_PATH ?? ""}/wordart-white.svg`}
         alt="Langfuse Logo"
       />

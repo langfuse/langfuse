@@ -1,8 +1,11 @@
-import { EvalTemplateTypeEnum } from "@langfuse/shared";
+import {
+  EvalTemplateTypeEnum,
+  observationVariableMappingList,
+} from "@langfuse/shared";
 import { formatDistanceToNowStrict } from "date-fns";
-import { RotateCcw } from "lucide-react";
+import { RotateCcw } from "@langfuse/icons";
 
-import { Badge } from "@/src/components/ui/badge";
+import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { Button } from "@/src/components/ui/button";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { CollapsibleCard } from "@/src/features/evals/v2/components/CollapsibleCard/CollapsibleCard";
@@ -22,6 +25,21 @@ function toEvaluatorDefinition(
       type: EvalTemplateTypeEnum.CODE,
       sourceCode: version.sourceCode,
       sourceCodeLanguage: version.sourceCodeLanguage,
+    };
+  }
+
+  if (version.type === EvalTemplateTypeEnum.DECISION_MODEL) {
+    const variableMapping = observationVariableMappingList.safeParse(
+      version.variableMapping,
+    );
+    return {
+      type: EvalTemplateTypeEnum.DECISION_MODEL,
+      questions: version.questions,
+      selectedModel:
+        version.provider && version.model
+          ? { provider: version.provider, model: version.model }
+          : null,
+      variableMapping: variableMapping.success ? variableMapping.data : [],
     };
   }
 
@@ -101,9 +119,7 @@ export function EvaluatorVersionHistoryList({
                   Version {version.version}
                 </span>
                 {version.id === currentVersionId ? (
-                  <Badge variant="success" className="shrink-0 px-2">
-                    Current
-                  </Badge>
+                  <Badge color="green" text="Current" />
                 ) : null}
                 <span className="text-muted-foreground flex min-w-0 shrink-0 items-center gap-1 text-xs">
                   <span
@@ -133,7 +149,7 @@ export function EvaluatorVersionHistoryList({
                     title={`Restore version ${version.version}`}
                     onClick={() => onRestoreVersion(version)}
                   >
-                    <RotateCcw className="h-3.5 w-3.5" />
+                    <RotateCcw size="sm" color="default" />
                   </Button>
                 </span>
               )

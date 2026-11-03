@@ -1,11 +1,12 @@
-import { asRecord, parseArray, parseIfString } from "./core/utils/json";
+import { asRecord, parseIfString } from "./core/utils/json";
 import type { NormalizedIO, SpanIO } from "./types";
 import {
   collectMetadata,
   collectIO,
-  createAccumulator,
   type ParsedIOValue,
-} from "./core/accumulator";
+} from "./core/accumulator/collect";
+import { createAccumulator } from "./core/accumulator/interface";
+
 import { createParserContext } from "./core/parser-context";
 
 type ParsedSpanIO = {
@@ -16,17 +17,7 @@ type ParsedSpanIO = {
 
 function parseIOValue(value: unknown): ParsedIOValue {
   const parsed = parseIfString(value);
-  const record = asRecord(parsed);
-
-  return {
-    value: parsed,
-    record,
-    messages: Array.isArray(parsed)
-      ? parsed
-      : record
-        ? parseArray(record.messages)
-        : undefined,
-  };
+  return { value: parsed, record: asRecord(parsed) };
 }
 
 function parseSpanIO(span: SpanIO): ParsedSpanIO {
@@ -51,9 +42,14 @@ export function normalizeSpanIO(span: SpanIO): NormalizedIO {
   collectIO(output, createParserContext("output"), accumulator);
   collectMetadata(metadata, accumulator);
 
+  const additionalInput = accumulator.unparsedKeys.input;
+  const hasAdditionalInput =
+    additionalInput !== undefined && Object.keys(additionalInput).length > 0;
+
   return {
     messages: accumulator.messages,
     toolDefinitions: accumulator.toolDefinitions,
     span,
+    ...(hasAdditionalInput ? { additionalInput } : {}),
   };
 }

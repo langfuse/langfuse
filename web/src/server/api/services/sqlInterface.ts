@@ -1,4 +1,4 @@
-import { singleFilter } from "@langfuse/shared";
+import { singleFilterList } from "@langfuse/shared";
 import { z } from "zod";
 
 export type DatabaseRow = {
@@ -42,7 +42,7 @@ const orderByInterface = z.array(
   }),
 );
 
-export const filterInterface = z.array(singleFilter);
+export const filterInterface = singleFilterList;
 
 export const sqlInterface = z.object({
   from: z.enum([

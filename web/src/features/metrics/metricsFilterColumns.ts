@@ -17,6 +17,8 @@ export type GetMetricsFilterColumnsParams = {
   modelOptions: SingleValueOption[];
   toolNamesOptions: SingleValueOption[];
   calledToolNamesOptions: SingleValueOption[];
+  skillNamesAvailableOptions?: SingleValueOption[];
+  skillsNamesLoadedOptions?: SingleValueOption[];
   observationLevelOptions: SingleValueOption[];
   experimentNameOptions: SingleValueOption[];
   experimentDatasetOptions: SingleValueOption[];
@@ -27,6 +29,7 @@ export type GetMetricsFilterColumnsParams = {
   releaseOptions: SingleValueOption[];
   scoreNameOptions: SingleValueOption[];
   experimentIdOptions: SingleValueOption[];
+  evaluatorOptions: SingleValueOption[];
   metadataKeyOptions: string[];
 };
 
@@ -45,6 +48,8 @@ const getMetricsFilterColumnSpecs = ({
   modelOptions,
   toolNamesOptions,
   calledToolNamesOptions,
+  skillNamesAvailableOptions = [],
+  skillsNamesLoadedOptions = [],
   observationLevelOptions,
   experimentNameOptions,
   experimentDatasetOptions,
@@ -55,6 +60,7 @@ const getMetricsFilterColumnSpecs = ({
   releaseOptions,
   scoreNameOptions,
   experimentIdOptions,
+  evaluatorOptions,
   metadataKeyOptions,
 }: GetMetricsFilterColumnsParams): MetricsFilterColumnSpec[] => {
   // Value suggestions come from the v2 events filter-options; v1 keeps manual
@@ -158,16 +164,36 @@ const getMetricsFilterColumnSpecs = ({
     // "Observation Name" on the observations view filters observations.name
     // (mapped through dashboardUiTableToViewMapping). "Score Name" is omitted
     // here because observations:scores is 1:n -- see LFE-9773.
-    filterColumns.push({
-      column: {
-        name: "Observation Name",
-        id: "observationName",
-        type: "stringOptions",
-        options: observationNameOptions,
-        internal: "internalValue",
+    filterColumns.push(
+      {
+        column: {
+          name: "Observation Name",
+          id: "observationName",
+          type: "stringOptions",
+          options: observationNameOptions,
+          internal: "internalValue",
+        },
+        customSelect: true,
       },
-      customSelect: true,
-    });
+      {
+        column: {
+          name: "Evaluator",
+          id: "evaluatorId",
+          type: "string",
+          internal: "internalValue",
+          options: evaluatorOptions,
+        },
+        customSelect: true,
+      },
+      {
+        column: {
+          name: "Evaluator test run",
+          id: "isEvaluatorTest",
+          type: "boolean",
+          internal: "internalValue",
+        },
+      },
+    );
   }
 
   if (
@@ -187,14 +213,52 @@ const getMetricsFilterColumnSpecs = ({
         },
         customSelect: true,
       },
+      {
+        column: {
+          name: "Evaluator",
+          id: "evaluatorId",
+          type: "string",
+          internal: "internalValue",
+          options: evaluatorOptions,
+        },
+        customSelect: true,
+      },
+      {
+        column: {
+          name: "Evaluator test run",
+          id: "isEvaluatorTest",
+          type: "boolean",
+          internal: "internalValue",
+        },
+      },
     );
   }
 
   if (selectedView === "observations") {
     filterColumns.push(
-      // v2-only filter columns (experiment data only exists in events table)
+      // These filters require the v2 events view.
       ...(viewVersion === "v2"
         ? [
+            {
+              column: {
+                name: "Skill Names (Available)",
+                id: "skillNamesAvailable",
+                type: "arrayOptions",
+                options: skillNamesAvailableOptions,
+                internal: "internalValue",
+              },
+              customSelect: true,
+            } satisfies MetricsFilterColumnSpec,
+            {
+              column: {
+                name: "Skill Names (Loaded)",
+                id: "skillsNamesLoaded",
+                type: "arrayOptions",
+                options: skillsNamesLoadedOptions,
+                internal: "internalValue",
+              },
+              customSelect: true,
+            } satisfies MetricsFilterColumnSpec,
             {
               column: {
                 name: "Experiment Name",

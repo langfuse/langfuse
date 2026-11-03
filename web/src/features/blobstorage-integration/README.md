@@ -125,7 +125,7 @@ worker picks up the job and sets `runStartedAt`.
 configuration form plus sync status display.
 
 **Entry point**:
-`web/src/pages/project/[projectId]/settings/integrations/blobstorage.tsx`
+`web/src/features/blobstorage-integration/BlobStorageIntegrationPage.tsx`
 owns the lifecycle: the tRPC `get` query (with status-driven refetch
 interval), the sync-status badge, and page layout. It mounts the two
 feature components below.

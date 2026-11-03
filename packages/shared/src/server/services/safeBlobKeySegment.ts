@@ -20,7 +20,7 @@ function sliceUtf8Bytes(input: string, maxBytes: number): string {
   // truncate inside a multi-byte sequence.
   let end = maxBytes;
   // skip continuation bytes (0x80–0xBF)
-  while (end > 0 && (buf[end] & 0xc0) === 0x80) end--;
+  while (end > 0 && buf[end] >= 0x80 && buf[end] <= 0xbf) end--;
   return buf.subarray(0, end).toString("utf8");
 }
 

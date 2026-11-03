@@ -16,6 +16,15 @@ import { reportError } from "@/src/utils/reportError";
  * captureConsoleIntegration — which captures the "error" level — does not
  * double-capture a second, opaque event for the same failure).
  *
+ * It also CANCELS the event. Per the HTML spec an uncaught error inside a
+ * dedicated worker fires at the `Worker` object and, when that event is not
+ * canceled, is reported again on the owning document — where Sentry's
+ * `globalHandlers` integration captures it a second time, as an unhandled
+ * error, with none of the context below and a separate issue of its own.
+ * Cancelling is what "this error is handled" means, so it belongs in the one
+ * place that handles it rather than in each `onerror`, where it was missing
+ * from all of them.
+ *
  * One implementation for every worker: each caller supplies its `area` tag, the
  * `source` name the message should read as, and any extra context.
  */
@@ -31,6 +40,8 @@ export function reportWorkerLoadError({
   event: ErrorEvent;
   extra?: Record<string, unknown>;
 }): void {
+  event.preventDefault();
+
   const details = `${event.message || "unknown"} @ ${event.filename || "?"}:${event.lineno ?? "?"}:${event.colno ?? "?"}`;
 
   // Prefer the real Error when the worker threw during init; otherwise

@@ -4,6 +4,7 @@ const envMock = vi.hoisted(() => ({
   env: {
     CLICKHOUSE_DISABLE_LAZY_MATERIALIZATION: "auto",
     CLICKHOUSE_DISABLE_TOP_K_THROUGH_JOIN: "auto",
+    CLICKHOUSE_ENABLE_SKIP_INDEXES_ON_DATA_READ: "auto",
   },
 }));
 
@@ -21,6 +22,7 @@ const disableLazyMaterialization = {
   query_plan_optimize_lazy_materialization: 0,
 };
 const disableTopKThroughJoin = { query_plan_top_k_through_join: 0 };
+const enableSkipIndexesOnDataRead = { use_skip_indexes_on_data_read: 1 };
 
 describe("ClickHouse compatibility version parsing", () => {
   it("parses and compares ClickHouse build components", () => {
@@ -59,29 +61,47 @@ describe("resolveClickHouseCompatibility", () => {
     // Patch-parts lower bound and upstream fix.
     ["25.3.99.9999", noCompatibilitySettings],
     ["25.4.0.0", disableLazyMaterialization],
-    ["26.4.1.1005", noCompatibilitySettings],
+    ["26.4.1.1005", enableSkipIndexesOnDataRead],
+    // Read-time skip-index evaluation, from the release that fixes the
+    // patch-part read. It must stay off on 25.12, the Langfuse v4 minimum,
+    // where it breaks reads of lightweight-update patch parts.
+    ["25.12.11.4", disableLazyMaterialization],
+    ["26.1.99.9999", disableLazyMaterialization],
+    [
+      "26.2.0.0",
+      { ...disableLazyMaterialization, ...enableSkipIndexesOnDataRead },
+    ],
     // Top-K introduction and the exact fix on each release line.
-    ["26.5.1.650", noCompatibilitySettings],
-    ["26.5.1.651", disableTopKThroughJoin],
-    ["26.5.6.70", noCompatibilitySettings],
-    ["26.6.0.0", disableTopKThroughJoin],
-    ["26.6.2.108", noCompatibilitySettings],
-    ["26.7.0.0", disableTopKThroughJoin],
-    ["26.7.1.1334", noCompatibilitySettings],
-    ["26.7.2.0", disableTopKThroughJoin],
-    ["26.7.2.11", noCompatibilitySettings],
+    ["26.5.1.650", enableSkipIndexesOnDataRead],
+    [
+      "26.5.1.651",
+      { ...disableTopKThroughJoin, ...enableSkipIndexesOnDataRead },
+    ],
+    ["26.5.6.70", enableSkipIndexesOnDataRead],
+    ["26.6.0.0", { ...disableTopKThroughJoin, ...enableSkipIndexesOnDataRead }],
+    ["26.6.2.108", enableSkipIndexesOnDataRead],
+    ["26.7.0.0", { ...disableTopKThroughJoin, ...enableSkipIndexesOnDataRead }],
+    ["26.7.1.1334", enableSkipIndexesOnDataRead],
+    ["26.7.2.0", { ...disableTopKThroughJoin, ...enableSkipIndexesOnDataRead }],
+    ["26.7.2.11", enableSkipIndexesOnDataRead],
+    ["26.7.99.9999", enableSkipIndexesOnDataRead],
+    ["26.8.0.0", enableSkipIndexesOnDataRead],
+    ["26.8.1.2041", enableSkipIndexesOnDataRead],
   ])("resolves automatic settings for %s", (version, expectedSettings) => {
     expect(resolveClickHouseCompatibility({ version }).settings).toEqual(
       expectedSettings,
     );
   });
 
-  it("reports both independently computed compatibility flags", () => {
+  it("reports each independently computed compatibility flag", () => {
     const resolved = resolveClickHouseCompatibility({
       version: "26.5.5.8",
     });
 
-    expect(resolved.settings).toEqual(disableTopKThroughJoin);
+    expect(resolved.settings).toEqual({
+      ...disableTopKThroughJoin,
+      ...enableSkipIndexesOnDataRead,
+    });
     expect(resolved.flags).toEqual([
       expect.objectContaining({
         id: "disable-lazy-materialization-for-patch-parts",
@@ -92,6 +112,12 @@ describe("resolveClickHouseCompatibility", () => {
       expect.objectContaining({
         id: "disable-top-k-through-join",
         setting: "query_plan_top_k_through_join",
+        matchesVersionBand: true,
+        applied: true,
+      }),
+      expect.objectContaining({
+        id: "enable-skip-indexes-on-data-read",
+        setting: "use_skip_indexes_on_data_read",
         matchesVersionBand: true,
         applied: true,
       }),
@@ -107,7 +133,10 @@ describe("resolveClickHouseCompatibility", () => {
           CLICKHOUSE_DISABLE_TOP_K_THROUGH_JOIN: "false",
         },
       }).settings,
-    ).toEqual(disableLazyMaterialization);
+    ).toEqual({
+      ...disableLazyMaterialization,
+      ...enableSkipIndexesOnDataRead,
+    });
   });
 });
 

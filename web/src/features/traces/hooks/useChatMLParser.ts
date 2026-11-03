@@ -1,14 +1,15 @@
 import { useMemo } from "react";
 import type { z } from "zod";
-import { type Prisma, deepParseJson } from "@langfuse/shared";
 import {
+  type Prisma,
+  deepParseJson,
   normalizeInput,
   normalizeOutput,
   combineInputOutputMessages,
   cleanLegacyOutput,
   extractAdditionalInput,
-} from "@/src/utils/chatml";
-import type { ChatMlMessageSchema } from "@/src/components/schemas/ChatMlSchema";
+  type ChatMlMessageSchema,
+} from "@langfuse/shared";
 
 // ChatML message type from schema
 export type ChatMlMessage = z.infer<typeof ChatMlMessageSchema>;
@@ -33,7 +34,6 @@ export interface ToolCallBookkeeping {
   toolCallCounts: Map<string, number>;
   toolCallsByName: Map<string, ToolCallInvocation[]>;
   messageToToolCallNumbers: Map<number, number[]>;
-  toolNameToDefinitionNumber: Map<string, number>;
 }
 
 // Result from ChatML parsing hook
@@ -45,7 +45,6 @@ export interface ChatMLParserResult {
   toolCallCounts: Map<string, number>;
   toolCallsByName: Map<string, ToolCallInvocation[]>;
   messageToToolCallNumbers: Map<number, number[]>;
-  toolNameToDefinitionNumber: Map<string, number>;
   inputMessageCount: number;
 }
 
@@ -56,11 +55,13 @@ export interface ChatMLParserResult {
 function parseToolCallsFromMessage(
   message: ReturnType<typeof combineInputOutputMessages>[0],
 ) {
-  return message.tool_calls && Array.isArray(message.tool_calls)
-    ? message.tool_calls
-    : message.json?.tool_calls && Array.isArray(message.json?.tool_calls)
-      ? message.json.tool_calls
-      : [];
+  if (message.tool_calls && Array.isArray(message.tool_calls)) {
+    return message.tool_calls;
+  }
+  if (message.json?.tool_calls && Array.isArray(message.json?.tool_calls)) {
+    return message.json.tool_calls;
+  }
+  return [];
 }
 
 function getToolCallStringField(
@@ -167,17 +168,11 @@ export function computeToolCallBookkeeping(
     return callCountB - callCountA;
   });
 
-  const toolNameToDefinitionNumber = new Map<string, number>();
-  sortedTools.forEach((tool, index) => {
-    toolNameToDefinitionNumber.set(tool.name, index + 1);
-  });
-
   return {
     allTools: sortedTools,
     toolCallCounts,
     toolCallsByName,
     messageToToolCallNumbers,
-    toolNameToDefinitionNumber,
   };
 }
 
@@ -187,32 +182,53 @@ export function computeToolCallBookkeeping(
  * result has any conversation representation without relying on observation
  * types.
  */
+function emptyChatMLParserResult(): ChatMLParserResult {
+  return {
+    canDisplayAsChat: false,
+    allMessages: [],
+    additionalInput: undefined,
+    allTools: [],
+    toolCallCounts: new Map(),
+    toolCallsByName: new Map(),
+    messageToToolCallNumbers: new Map(),
+    inputMessageCount: 0,
+  };
+}
+
 export function parseChatML(
   parsedInput: unknown,
   parsedOutput: unknown,
   parsedMetadata: unknown,
   observationName: string | undefined,
 ): ChatMLParserResult {
-  const ctx = { metadata: parsedMetadata, observationName };
-  const inResult = normalizeInput(parsedInput, ctx);
-  const outResult = normalizeOutput(parsedOutput, ctx);
-  const outputClean = cleanLegacyOutput(parsedOutput, parsedOutput);
-  const messages = combineInputOutputMessages(inResult, outResult, outputClean);
+  try {
+    const ctx = { metadata: parsedMetadata, observationName };
+    const inResult = normalizeInput(parsedInput, ctx);
+    const outResult = normalizeOutput(parsedOutput, ctx);
+    const outputClean = cleanLegacyOutput(parsedOutput, parsedOutput);
+    const messages = combineInputOutputMessages(
+      inResult,
+      outResult,
+      outputClean,
+    );
 
-  const inputMessageCount = inResult.success ? inResult.data.length : 0;
-  const toolBookkeeping = computeToolCallBookkeeping(
-    messages,
-    inputMessageCount,
-  );
+    const inputMessageCount = inResult.success ? inResult.data.length : 0;
+    const toolBookkeeping = computeToolCallBookkeeping(
+      messages,
+      inputMessageCount,
+    );
 
-  return {
-    canDisplayAsChat:
-      (inResult.success || outResult.success) && messages.length > 0,
-    allMessages: messages as ChatMlMessage[],
-    additionalInput: extractAdditionalInput(parsedInput),
-    ...toolBookkeeping,
-    inputMessageCount,
-  };
+    return {
+      canDisplayAsChat:
+        (inResult.success || outResult.success) && messages.length > 0,
+      allMessages: messages as ChatMlMessage[],
+      additionalInput: extractAdditionalInput(parsedInput),
+      ...toolBookkeeping,
+      inputMessageCount,
+    };
+  } catch {
+    return emptyChatMLParserResult();
+  }
 }
 
 /**
@@ -240,21 +256,33 @@ export function useChatMLParser(
 ): ChatMLParserResult {
   // Use pre-parsed data if available (from Web Worker), otherwise parse synchronously
   // This eliminates ~100ms of duplicate parsing when data comes from useParsedObservation
-  const parsedInput = preParsedResult
-    ? undefined
-    : preParsedInput !== undefined
-      ? preParsedInput
-      : deepParseJson(input, { maxSize: 300_000, maxDepth: 25 });
-  const parsedOutput = preParsedResult
-    ? undefined
-    : preParsedOutput !== undefined
-      ? preParsedOutput
-      : deepParseJson(output, { maxSize: 300_000, maxDepth: 25 });
-  const parsedMetadata = preParsedResult
-    ? undefined
-    : preParsedMetadata !== undefined
-      ? preParsedMetadata
-      : deepParseJson(metadata, { maxSize: 100_000, maxDepth: 25 });
+  const parsedInput = (() => {
+    if (preParsedResult) {
+      return undefined;
+    }
+    if (preParsedInput !== undefined) {
+      return preParsedInput;
+    }
+    return deepParseJson(input, { maxSize: 300_000, maxDepth: 25 });
+  })();
+  const parsedOutput = (() => {
+    if (preParsedResult) {
+      return undefined;
+    }
+    if (preParsedOutput !== undefined) {
+      return preParsedOutput;
+    }
+    return deepParseJson(output, { maxSize: 300_000, maxDepth: 25 });
+  })();
+  const parsedMetadata = (() => {
+    if (preParsedResult) {
+      return undefined;
+    }
+    if (preParsedMetadata !== undefined) {
+      return preParsedMetadata;
+    }
+    return deepParseJson(metadata, { maxSize: 100_000, maxDepth: 25 });
+  })();
 
   return useMemo(
     () =>

@@ -1,10 +1,10 @@
+/* eslint-disable @repo/no-null-render */
 "use client";
 
 import { useLayoutEffect, useRef } from "react";
 
-import { ConfirmDialog } from "@/src/components/ui/confirm-dialog";
-import { DialogController } from "@/src/features/in-app-agent/components/dialog-controller";
-import { Layer } from "@/src/components/ui/layer";
+import { ConfirmationDialogController } from "@/src/components/design-system/ConfirmationDialogController/ConfirmationDialogController";
+import { Layer } from "@/src/components/design-system/Layer/Layer";
 import { ControlledInAppAgentWindow } from "@/src/features/in-app-agent/components/ControlledInAppAgentWindow";
 import type { InAppAgentWindowConversation } from "@/src/features/in-app-agent/components/InAppAgentWindow";
 import {
@@ -17,46 +17,6 @@ import {
 } from "@/src/features/in-app-agent/components/InAppAiAgentProvider";
 import { useWatchedPromiseCallback } from "@/src/hooks/useWatchedPromiseCallback";
 
-function DeleteConversationDialog({
-  close,
-  conversation,
-  onDeleteConversation,
-}: {
-  close: () => void;
-  conversation: InAppAgentWindowConversation | null;
-  onDeleteConversation: (conversationId: string) => Promise<void>;
-}) {
-  const [deleteConversation, isDeletingConversation] =
-    useWatchedPromiseCallback(async () => {
-      if (!conversation) {
-        return;
-      }
-
-      try {
-        await onDeleteConversation(conversation.id);
-        close();
-      } catch {
-        // Error is already surfaced by the provider; keep the dialog open for retry.
-      }
-    }, [close, conversation, onDeleteConversation]);
-
-  return (
-    <ConfirmDialog
-      open={conversation !== null}
-      onOpenChange={(open) => {
-        if (!open) {
-          close();
-        }
-      }}
-      title="Delete conversation"
-      description="This removes the conversation from your recent conversations. This action cannot be undone."
-      confirmLabel="Delete conversation"
-      loading={isDeletingConversation}
-      onConfirm={deleteConversation}
-    />
-  );
-}
-
 /**
  * Hosts the floating assistant window and its drag/resize geometry. Must be
  * rendered from a scope that survives route changes (the authenticated
@@ -67,6 +27,8 @@ export function InAppAgentWindowHost() {
   const isInAppAgentLauncherVisible = useIsInAppAgentLauncherVisible();
   const { deleteConversation, open, setOpen, isExpanded, setIsExpanded } =
     useInAppAiAgent();
+  const [deleteConversationWithLoading, isDeletingConversation] =
+    useWatchedPromiseCallback(deleteConversation, [deleteConversation]);
   const panelRef = useRef<HTMLDivElement>(null);
   const previousPanelRectRef = useRef<DOMRect | null>(null);
 
@@ -128,21 +90,22 @@ export function InAppAgentWindowHost() {
   }
 
   return (
-    <DialogController<InAppAgentWindowConversation>
-      dialog={(close, conversation) => (
-        <DeleteConversationDialog
-          close={close}
-          conversation={conversation}
-          onDeleteConversation={deleteConversation}
-        />
-      )}
+    <ConfirmationDialogController<InAppAgentWindowConversation>
+      title="Delete conversation"
+      text="This removes the conversation from your recent conversations. This action cannot be undone."
+      confirmLabel="Delete conversation"
+      variant="destructive"
+      loading={isDeletingConversation}
+      onConfirm={(conversation) =>
+        deleteConversationWithLoading(conversation.id)
+      }
     >
       {(deleteConversationDialog) => (
         // The assistant window lives in the `agent` overlay layer — a
         // <body>-level layer container that floats above page content and
         // panel surfaces, but below true modals and transient overlays by DOM
         // order alone. No z-index: layer ORDER stacks it (see
-        // components/ui/layer.tsx). This replaces the old body portal + z-51,
+        // context/LayerContext/LayerContext.tsx). This replaces the old body portal + z-51,
         // which fought the nav-user dropdown's z-60 at <body> level.
         <Layer name="agent">
           <InAppAgentWindowShell
@@ -160,7 +123,7 @@ export function InAppAgentWindowHost() {
                 isHeaderDragHandleEnabled={isHeaderDragHandleEnabled}
                 isExpanded={isExpanded}
                 onDeleteConversation={(conversation) => {
-                  deleteConversationDialog.open(conversation);
+                  deleteConversationDialog.openDialog(conversation);
                 }}
                 onExpandedChange={handleExpandedChange}
                 onClose={() => {
@@ -171,6 +134,6 @@ export function InAppAgentWindowHost() {
           </InAppAgentWindowShell>
         </Layer>
       )}
-    </DialogController>
+    </ConfirmationDialogController>
   );
 }

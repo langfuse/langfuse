@@ -1,25 +1,29 @@
 /* eslint-disable @repo/no-style-props */
-import { PauseCircle } from "lucide-react";
-
-import { Badge, type BadgeProps } from "@/src/components/ui/badge";
 import { cn } from "@/src/utils/tailwind";
 import { type MonitorSeverity } from "@langfuse/shared/monitors";
 
-/** severityVariant maps each MonitorSeverity to the underlying Badge variant. */
-const severityVariant: Record<MonitorSeverity, BadgeProps["variant"]> = {
-  UNKNOWN: "outline",
-  NO_DATA: "secondary",
-  PAUSED: "outline",
-  OK: "default",
-  WARNING: "default",
-  ALERT: "default",
+const badgeBaseClassName =
+  "inline-flex h-5.5 items-center gap-1.5 rounded-sm border pr-1.5 pl-2 text-xs leading-none font-normal transition-colors focus:outline-hidden focus:ring-2 focus:ring-ring focus:ring-offset-2";
+
+/** severityVariantClassName maps each MonitorSeverity to its base badge chrome. */
+const severityVariantClassName: Record<MonitorSeverity, string> = {
+  UNKNOWN: "border-transparent text-foreground-secondary",
+  NO_DATA:
+    "border-transparent bg-secondary text-secondary-foreground hover:bg-secondary/80",
+  PAUSED:
+    "border-transparent bg-primary text-primary-foreground hover:bg-primary/80",
+  OK: "border-transparent bg-primary text-primary-foreground hover:bg-primary/80",
+  WARNING:
+    "border-transparent bg-primary text-primary-foreground hover:bg-primary/80",
+  ALERT:
+    "border-transparent bg-primary text-primary-foreground hover:bg-primary/80",
 };
 
 /** severityClassName maps each MonitorSeverity to its badge tailwind classes. */
 const severityClassName: Record<MonitorSeverity, string> = {
   UNKNOWN: "text-gray-400",
   NO_DATA: "",
-  PAUSED: "text-gray-400",
+  PAUSED: "bg-gray-500 text-white hover:bg-gray-500",
   OK: "bg-emerald-500 text-white hover:bg-emerald-500",
   WARNING: "bg-amber-600 text-white hover:bg-amber-600",
   ALERT: "bg-orange-600 text-white hover:bg-orange-600",
@@ -44,20 +48,16 @@ export function MonitorSeverityBadge({
   className?: string;
 }) {
   return (
-    <Badge
-      variant={severityVariant[severity]}
+    <div
       className={cn(
+        badgeBaseClassName,
+        severityVariantClassName[severity],
         "w-20 justify-center py-1",
         severityClassName[severity],
         className,
       )}
     >
-      {severity === "PAUSED" ? (
-        <span className="inline-flex items-center gap-1">
-          <PauseCircle className="h-4 w-4" />
-          {severityLabel.PAUSED}
-        </span>
-      ) : severity === "UNKNOWN" ? (
+      {severity === "UNKNOWN" ? (
         <span className="inline-flex items-center gap-1.5">
           <span
             className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-gray-200 border-t-gray-400"
@@ -68,6 +68,6 @@ export function MonitorSeverityBadge({
       ) : (
         severityLabel[severity]
       )}
-    </Badge>
+    </div>
   );
 }

@@ -4,8 +4,8 @@
  * the lifecycle helpers directly, because the contracts worth protecting are
  * the ones a browser can actually reach.
  */
+import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import type { Session } from "next-auth";
-import type { Flags } from "@/src/features/feature-flags/types";
 import { EventType } from "@ag-ui/core";
 import { randomUUID } from "crypto";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -17,8 +17,11 @@ import { LANGFUSE_AI_MODEL_UNCONFIGURED_MESSAGE } from "@langfuse/shared/in-app-
 import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
 import {
   IN_APP_AGENT_APPROVAL_DECISION_EVENT_NAME,
+  IN_APP_AGENT_QUESTIONNAIRE_TOOL_NAME,
   InAppAgentRunErrorCode,
   InAppAgentRunStatus,
+  type InAppAgentQuestionnaireAnswers,
+  type InAppAgentToolInputs,
 } from "@langfuse/shared/in-app-agent";
 import {
   createInAppAgentConversationId,
@@ -196,7 +199,7 @@ describe("in-app agent background runs", () => {
             ],
           },
         ],
-        featureFlags: {} as Flags,
+        featureFlags: testFeatureFlags({ templateFlag: false }),
         admin: false,
       },
       environment: {} as any,
@@ -343,6 +346,8 @@ describe("in-app agent background runs", () => {
     toolCallId: string;
     context?: Array<{ description: string; value: string }>;
     parkedAt?: Date;
+    toolName?: string;
+    args?: unknown;
   }) => {
     const runId = createInAppAgentRunId();
 
@@ -374,8 +379,8 @@ describe("in-app agent background runs", () => {
           value: {
             type: "mastra_suspend",
             toolCallId: params.toolCallId,
-            toolName: "langfuse_createTextPrompt",
-            args: { name: "from-persisted-event" },
+            toolName: params.toolName ?? "langfuse_createTextPrompt",
+            args: params.args ?? { name: "from-persisted-event" },
             runId,
           },
         },
@@ -849,6 +854,98 @@ describe("in-app agent background runs", () => {
         },
       }),
     ).toBe(1);
+  });
+
+  it("validates questionnaire answers against the persisted questions", async () => {
+    const { caller, projectId, userId } = await createCaller();
+    const conversation = await createConversation({ projectId, userId });
+    const parkedRunId = await parkRunForApproval({
+      projectId,
+      conversationId: conversation.id,
+      userId,
+      toolCallId: "tool-call-1",
+      toolName: IN_APP_AGENT_QUESTIONNAIRE_TOOL_NAME,
+      args: {
+        questions: [
+          {
+            question: "Which evaluator type?",
+            options: [
+              {
+                label: "LLM-as-a-judge",
+                description: "Model-graded",
+                recommended: true,
+              },
+              {
+                label: "Code",
+                description: "Deterministic",
+                recommended: false,
+              },
+            ],
+            allowMultiple: false,
+          },
+        ],
+      },
+    });
+    const decide = (toolInputs?: InAppAgentToolInputs) =>
+      caller.decideToolApproval({
+        projectId,
+        conversationId: conversation.id,
+        runId: parkedRunId,
+        toolCallId: "tool-call-1",
+        approved: true,
+        toolInputs,
+      });
+    const withAnswers = (answers: InAppAgentQuestionnaireAnswers) => ({
+      [IN_APP_AGENT_QUESTIONNAIRE_TOOL_NAME]: { answers },
+    });
+
+    await expect(decide()).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    await expect(
+      decide(withAnswers([{ selectedOptionIndexes: [2], otherText: null }])),
+    ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    expect(
+      (
+        await prisma.inAppAgentRun.findFirstOrThrow({
+          where: { id: parkedRunId, projectId },
+        })
+      ).status,
+    ).toBe(InAppAgentRunStatus.AWAITING_APPROVAL);
+
+    const toolInputs = withAnswers([
+      { selectedOptionIndexes: [1], otherText: null },
+    ]);
+    const { runId: continuationRunId } = await decide(toolInputs);
+
+    const continuation = await prisma.inAppAgentRun.findFirstOrThrow({
+      where: { id: continuationRunId, projectId },
+    });
+    expect(continuation.request).toMatchObject({
+      kind: "approvalDecision",
+      approved: true,
+      toolInputs,
+    });
+  });
+
+  it("rejects tool inputs for a tool that does not take input", async () => {
+    const { caller, projectId, userId } = await createCaller();
+    const conversation = await createConversation({ projectId, userId });
+    const parkedRunId = await parkRunForApproval({
+      projectId,
+      conversationId: conversation.id,
+      userId,
+      toolCallId: "tool-call-1",
+    });
+
+    await expect(
+      caller.decideToolApproval({
+        projectId,
+        conversationId: conversation.id,
+        runId: parkedRunId,
+        toolCallId: "tool-call-1",
+        approved: true,
+        toolInputs: { [IN_APP_AGENT_QUESTIONNAIRE_TOOL_NAME]: { answers: [] } },
+      }),
+    ).rejects.toMatchObject({ code: "BAD_REQUEST" });
   });
 
   it("preserves context through an approved then rejected chained continuation", async () => {
@@ -1372,7 +1469,7 @@ describe("in-app agent background runs", () => {
             ],
           },
         ],
-        featureFlags: {} as Flags,
+        featureFlags: testFeatureFlags({ templateFlag: false }),
         admin: false,
       },
       environment: {} as any,

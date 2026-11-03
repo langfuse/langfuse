@@ -7,9 +7,13 @@ import {
   getLangfuseAIBedrockRegion,
 } from "../../server/llm/ai-sdk/providers/bedrock";
 import { toAnthropicBaseURL } from "../../server/llm/ai-sdk/providers/anthropic";
+import {
+  assertValidVertexLocation,
+  getLangfuseAIVertexLocation,
+} from "../../server/llm/ai-sdk/providers/vertex";
 import { processOpenAIBaseURL } from "../../server/llm/utils";
 
-export type LangfuseAIProvider = "bedrock" | "anthropic" | "openai";
+export type LangfuseAIProvider = "bedrock" | "anthropic" | "openai" | "vertex";
 
 type LangfuseAIHttpProviderConfig = {
   modelId: string;
@@ -31,7 +35,13 @@ export type InAppAgentModelConfig =
     } & LangfuseAIHttpProviderConfig)
   | ({
       provider: "openai";
-    } & LangfuseAIHttpProviderConfig);
+    } & LangfuseAIHttpProviderConfig)
+  | {
+      provider: "vertex";
+      modelId: string;
+      titleModelId: string;
+      location?: string;
+    };
 
 export const LANGFUSE_AI_MODEL_UNCONFIGURED_MESSAGE =
   "Langfuse AI is not configured. Set LANGFUSE_AI_PROVIDER and LANGFUSE_AI_MODEL, plus LANGFUSE_AI_API_KEY when LANGFUSE_AI_PROVIDER is anthropic or openai.";
@@ -42,18 +52,23 @@ const extraHeadersRecordSchema = z.record(z.string(), z.string());
  * Resolves the instance-wide Langfuse-operated AI model (Assistant + Ask AI).
  *
  * Callers should not branch on vendor beyond this discriminated config.
- * `LANGFUSE_AI_PROVIDER` selects `bedrock`, `anthropic`, or `openai`. Unset
- * provider is unconfigured, even when model variables and
+ * `LANGFUSE_AI_PROVIDER` selects `bedrock`, `anthropic`, `openai`, or
+ * `vertex`. Unset provider is unconfigured, even when model variables and
  * `NEXT_PUBLIC_LANGFUSE_CLOUD_REGION` are set. Bedrock requires
  * `LANGFUSE_AI_PROVIDER=bedrock`.
  *
- * Region is optional for Bedrock: Cloud web historically omits it and lets
- * the AWS SDK use the task region.
+ * Bedrock and Vertex authenticate through the instance credential chain (the
+ * AWS default chain / GCP application default credentials) and read no key.
+ *
+ * Region and location are optional: Cloud web historically omits the Bedrock
+ * region and lets the AWS SDK use the task region, and an unset Vertex
+ * location falls back to the "global" endpoint.
  *
  * LANGFUSE_AI_MODEL / LANGFUSE_AI_SMALL_MODEL / LANGFUSE_AI_AWS_BEDROCK_REGION
  * apply to all providers. LANGFUSE_AI_API_KEY / LANGFUSE_AI_BASE_URL /
  * LANGFUSE_AI_EXTRA_HEADERS apply to anthropic and openai.
  * LANGFUSE_AI_USE_RESPONSES_API applies to openai only.
+ * LANGFUSE_AI_VERTEX_LOCATION applies to vertex only.
  */
 export function getInAppAgentModelConfig(params?: {
   modelId?: string | null;
@@ -68,11 +83,31 @@ export function getInAppAgentModelConfig(params?: {
   }
 
   const modelId = params?.modelId ?? env.LANGFUSE_AI_MODEL;
-  const region = getLangfuseAIBedrockRegion();
 
   if (!modelId) {
     return undefined;
   }
+
+  if (provider === "vertex") {
+    const location = getLangfuseAIVertexLocation();
+
+    try {
+      assertValidVertexLocation(location);
+    } catch {
+      return undefined;
+    }
+
+    warnIfInstanceCredentialsIgnoreKeyEnv("vertex");
+
+    return {
+      provider: "vertex",
+      modelId,
+      titleModelId: env.LANGFUSE_AI_SMALL_MODEL ?? modelId,
+      location,
+    };
+  }
+
+  const region = getLangfuseAIBedrockRegion();
 
   try {
     assertValidBedrockRegion(region);
@@ -80,7 +115,7 @@ export function getInAppAgentModelConfig(params?: {
     return undefined;
   }
 
-  warnIfBedrockIgnoresNonBedrockEnv();
+  warnIfInstanceCredentialsIgnoreKeyEnv("bedrock");
 
   return {
     provider: "bedrock",
@@ -139,7 +174,11 @@ function parseLangfuseAIExtraHeaders(): Record<string, string> | undefined {
   return Object.keys(headers).length > 0 ? headers : undefined;
 }
 
-function warnIfBedrockIgnoresNonBedrockEnv() {
+/**
+ * Bedrock and Vertex authenticate through the instance credential chain, so the
+ * key-bearing environment variables silently do nothing under them.
+ */
+function warnIfInstanceCredentialsIgnoreKeyEnv(provider: "bedrock" | "vertex") {
   const ignored: string[] = [];
   if (env.LANGFUSE_AI_API_KEY) {
     ignored.push("LANGFUSE_AI_API_KEY");
@@ -157,8 +196,19 @@ function warnIfBedrockIgnoresNonBedrockEnv() {
     return;
   }
 
+  const { label, credentialChain } =
+    provider === "bedrock"
+      ? {
+          label: "Bedrock",
+          credentialChain: "the instance AWS credential chain",
+        }
+      : {
+          label: "Vertex AI",
+          credentialChain: "GCP application default credentials",
+        };
+
   logger.warn(
-    `Ignoring ${ignored.join(" and ")} because the Langfuse AI provider is bedrock. Bedrock uses the instance AWS credential chain, not an API key, base URL, extra headers, or the OpenAI Responses API toggle.`,
+    `Ignoring ${ignored.join(" and ")} because the Langfuse AI provider is ${provider}. ${label} uses ${credentialChain}, not an API key, base URL, extra headers, or the OpenAI Responses API toggle.`,
   );
 }
 

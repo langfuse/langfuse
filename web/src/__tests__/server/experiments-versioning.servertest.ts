@@ -3,6 +3,7 @@ process.env.LANGFUSE_DATASET_SERVICE_READ_FROM_VERSIONED_IMPLEMENTATION =
   "true";
 process.env.LANGFUSE_DATASET_SERVICE_WRITE_TO_VERSIONED_IMPLEMENTATION = "true";
 
+import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import { prisma } from "@langfuse/shared/src/db";
@@ -53,14 +54,7 @@ async function prepare() {
           aiTelemetryEnabled: true,
         },
       ],
-      featureFlags: {
-        searchBar: false,
-        excludeClickhouseRead: false,
-        templateFlag: true,
-        v4BetaToggleVisible: false,
-        observationEvals: false,
-        experimentsV4Enabled: false,
-      },
+      featureFlags: testFeatureFlags(),
       admin: true,
     },
     environment: {
@@ -234,6 +228,174 @@ describe("Experiments with Dataset Versioning", () => {
       expect(validation).toHaveProperty("totalItems");
       if (validation.isValid) {
         expect(validation.totalItems).toBeGreaterThan(0);
+      }
+    });
+
+    it("counts object-key matches per variable without excluding unmatched items from totalItems", async () => {
+      const { project, caller } = await prepare();
+
+      const datasetId = v4();
+      await prisma.dataset.create({
+        data: { id: datasetId, name: v4(), projectId: project.id },
+      });
+
+      const promptId = v4();
+      await prisma.prompt.create({
+        data: {
+          id: promptId,
+          name: v4(),
+          version: 1,
+          projectId: project.id,
+          createdBy: "user-1",
+          prompt: "Hello {{name}} from {{city}}",
+          type: "text",
+        },
+      });
+
+      await createDatasetItem({
+        projectId: project.id,
+        datasetId,
+        input: { name: "Ada", city: "London" },
+        expectedOutput: "ok",
+        normalizeOpts: {},
+        validateOpts: {},
+      });
+      await createDatasetItem({
+        projectId: project.id,
+        datasetId,
+        input: { name: "Grace" },
+        expectedOutput: "ok",
+        normalizeOpts: {},
+        validateOpts: {},
+      });
+      await createDatasetItem({
+        projectId: project.id,
+        datasetId,
+        input: { other: "ignored" },
+        expectedOutput: "ok",
+        normalizeOpts: {},
+        validateOpts: {},
+      });
+      await createDatasetItem({
+        projectId: project.id,
+        datasetId,
+        input: ["not", "an", "object"],
+        expectedOutput: "ok",
+        normalizeOpts: {},
+        validateOpts: {},
+      });
+
+      const validation = await caller.experiments.validateConfig({
+        projectId: project.id,
+        promptId,
+        datasetId,
+      });
+
+      expect(validation.isValid).toBe(true);
+      if (validation.isValid) {
+        expect(validation.totalItems).toBe(4);
+        expect(validation.variablesMap).toEqual({ name: 2, city: 1 });
+      }
+    });
+
+    it("counts non-empty string inputs when the prompt has a single variable", async () => {
+      const { project, caller } = await prepare();
+
+      const datasetId = v4();
+      await prisma.dataset.create({
+        data: { id: datasetId, name: v4(), projectId: project.id },
+      });
+
+      const promptId = v4();
+      await prisma.prompt.create({
+        data: {
+          id: promptId,
+          name: v4(),
+          version: 1,
+          projectId: project.id,
+          createdBy: "user-1",
+          prompt: "Hello {{name}}",
+          type: "text",
+        },
+      });
+
+      await createDatasetItem({
+        projectId: project.id,
+        datasetId,
+        input: "Ada",
+        expectedOutput: "ok",
+        normalizeOpts: {},
+        validateOpts: {},
+      });
+      await createDatasetItem({
+        projectId: project.id,
+        datasetId,
+        input: { name: "Grace" },
+        expectedOutput: "ok",
+        normalizeOpts: {},
+        validateOpts: {},
+      });
+      await createDatasetItem({
+        projectId: project.id,
+        datasetId,
+        input: "",
+        expectedOutput: "ok",
+        normalizeOpts: {},
+        validateOpts: {},
+      });
+
+      const validation = await caller.experiments.validateConfig({
+        projectId: project.id,
+        promptId,
+        datasetId,
+      });
+
+      expect(validation.isValid).toBe(true);
+      if (validation.isValid) {
+        expect(validation.totalItems).toBe(3);
+        expect(validation.variablesMap).toEqual({ name: 2 });
+      }
+    });
+
+    it("returns invalid instead of throwing when a composed prompt cannot be resolved", async () => {
+      const { project, caller } = await prepare();
+
+      const datasetId = v4();
+      await prisma.dataset.create({
+        data: { id: datasetId, name: v4(), projectId: project.id },
+      });
+
+      const promptId = v4();
+      const missingChildName = v4();
+      await prisma.prompt.create({
+        data: {
+          id: promptId,
+          name: v4(),
+          version: 1,
+          projectId: project.id,
+          createdBy: "user-1",
+          prompt: `Hello {{name}} @@@langfusePrompt:name=${missingChildName}|version=1@@@`,
+          type: "text",
+        },
+      });
+      await prisma.promptDependency.create({
+        data: {
+          projectId: project.id,
+          parentId: promptId,
+          childName: missingChildName,
+          childVersion: 1,
+        },
+      });
+
+      const validation = await caller.experiments.validateConfig({
+        projectId: project.id,
+        promptId,
+        datasetId,
+      });
+
+      expect(validation.isValid).toBe(false);
+      if (!validation.isValid) {
+        expect(validation.message).toContain("Prompt dependency not found");
       }
     });
   });

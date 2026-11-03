@@ -14,14 +14,17 @@ const ApiKeyBaseSchema = z.object({
   fastHashedSecretKey: z.string(),
   hashedSecretKey: z.string(),
   orgId: z.string(),
+  organizationCreatedAt: z.iso.datetime(),
   plan: z.enum(plans as unknown as [string, ...string[]]),
   rateLimitOverrides: CloudConfigRateLimit.nullish(),
   isIngestionSuspended: z.boolean().nullish(),
   isInAppAgentKey: z.boolean().default(false),
   // nullish for backward compatibility with cache entries written before
   // these columns existed
+  accessAuditLogEnabled: z.boolean().nullish(),
   createdByUserId: z.string().nullish(),
   createdByApiKeyId: z.string().nullish(),
+  userId: z.string().nullish(),
 });
 
 export const OrgEnrichedApiKey = z.discriminatedUnion("scope", [
@@ -68,15 +71,29 @@ type BaseApiAccessScope = {
 
 type ApiAccessScopeMetadata = {
   orgId: string;
+  organizationCreatedAt?: string | null;
   plan: Plan;
   rateLimitOverrides: z.infer<typeof CloudConfigRateLimit>;
   apiKeyId: string;
   publicKey: string;
   isIngestionSuspended: boolean | null | undefined;
   isInAppAgentKey?: boolean;
+  // The org's opt-in for read-access audit events, carried here so recording
+  // a read needs no extra query. Null for credentials that carry no org, such
+  // as the self-hosted admin key; read it from the org instead.
+  accessAuditLogEnabled: boolean | null;
 };
 
 export type ApiAccessScopeIngestion = BaseApiAccessScope &
   MakeOptional<ApiAccessScopeMetadata>;
 
 export type ApiAccessScope = BaseApiAccessScope & ApiAccessScopeMetadata;
+
+// Gateway ingestion token don't specify the originating API key as they might be
+// batched across users
+export type ApiAccessScopeWithOptionalApiKeyId = Omit<
+  ApiAccessScope,
+  "apiKeyId"
+> & {
+  apiKeyId?: string;
+};

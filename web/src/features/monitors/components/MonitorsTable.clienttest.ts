@@ -5,10 +5,12 @@ import {
   type Monitor,
   MonitorNoDataModeSchema,
   MonitorSeveritySchema,
+  ListMonitorFilterSchema,
   MonitorStatusSchema,
   MonitorThresholdOperatorSchema,
 } from "@langfuse/shared/monitors";
 
+import { getMonitorFilterConfig } from "@/src/features/filters/config/monitors-config";
 import { __test } from "./MonitorsTable";
 
 const { filterStateToListMonitorFilter, buildStatusToggleUpdate } = __test;
@@ -43,7 +45,84 @@ const monitorFixture = (status: Monitor["status"]): Monitor => ({
   lastCompletedAt: null,
 });
 
+describe("getMonitorFilterConfig", () => {
+  it("shows the evaluator facet only when evaluator-specific alerts exist", () => {
+    expect(
+      getMonitorFilterConfig(false).facets.some(
+        (facet) => facet.column === "evaluatorId",
+      ),
+    ).toBe(false);
+    expect(
+      getMonitorFilterConfig(true).facets.some(
+        (facet) => facet.column === "evaluatorId",
+      ),
+    ).toBe(true);
+  });
+
+  it("includes the evaluator ID in the option hover title", () => {
+    const evaluatorFacet = getMonitorFilterConfig(true).facets.find(
+      (facet) => facet.column === "evaluatorId" && facet.type === "categorical",
+    );
+
+    expect(
+      evaluatorFacet?.type === "categorical"
+        ? evaluatorFacet.getOptionTitle?.("evaluator-1", "Answer quality")
+        : undefined,
+    ).toBe("Answer quality (evaluator-1)");
+  });
+});
+
 describe("filterStateToListMonitorFilter", () => {
+  it.each([
+    { column: "severity", type: "stringOptions", value: ["ALERT"] },
+    { column: "evaluatorId", type: "stringOptions", value: ["eval-1"] },
+    { column: "tags", type: "arrayOptions", value: ["prod"] },
+  ] as const)(
+    "matches nothing for an empty $column without losing other facets",
+    ({ column, type, value }) => {
+      const other = (
+        [
+          {
+            column: "severity",
+            type: "stringOptions",
+            operator: "any of",
+            value: ["WARNING"],
+          },
+          {
+            column: "evaluatorId",
+            type: "stringOptions",
+            operator: "any of",
+            value: ["eval-2"],
+          },
+          {
+            column: "tags",
+            type: "arrayOptions",
+            operator: "all of",
+            value: ["critical"],
+          },
+        ] satisfies FilterState
+      ).filter((filter) => filter.column !== column);
+      const state: FilterState = [
+        ...other,
+        { column, type, operator: "any of", value: [...value] },
+        { column, type, operator: "none of", value: [...value] },
+      ];
+      const original = structuredClone(state);
+      const request = filterStateToListMonitorFilter(state);
+      expect(ListMonitorFilterSchema.safeParse(request).success).toBe(true);
+      expect(request).toEqual([
+        ...other.filter((filter) => filter.column !== "severity"),
+        {
+          column: "severity",
+          type: "stringOptions",
+          operator: "none of",
+          value: MonitorSeveritySchema.options,
+        },
+      ]);
+      expect(state).toEqual(original);
+    },
+  );
+
   it("passes severity `any of` through with values intact", () => {
     const state: FilterState = [
       {
@@ -138,6 +217,18 @@ describe("filterStateToListMonitorFilter", () => {
         ],
       },
     ]);
+  });
+
+  it("passes evaluator ID rows through unchanged", () => {
+    const state: FilterState = [
+      {
+        type: "stringOptions",
+        column: "evaluatorId",
+        operator: "any of",
+        value: ["eval-1"],
+      },
+    ];
+    expect(filterStateToListMonitorFilter(state)).toEqual(state);
   });
 
   it("passes tags rows through unchanged", () => {

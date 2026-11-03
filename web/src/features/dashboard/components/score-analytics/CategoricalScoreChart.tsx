@@ -5,8 +5,8 @@ import {
   dashboardDateRangeAggregationSettings,
 } from "@/src/utils/date-range-utils";
 import React, { useMemo } from "react";
-import { DashboardCategoricalScoreAdapter } from "@/src/features/scores/adapters";
-import { type ScoreData } from "@/src/features/scores/types";
+import { DashboardCategoricalScoreAdapter } from "@/src/features/scores/adapters/index";
+import type { ScoreData } from "@/src/features/scores/types";
 import { type QueryType, type ViewVersion } from "@langfuse/shared/query";
 import { mapLegacyUiTableFilterToView } from "@/src/features/dashboard/lib/dashboardUiTableToViewMapping";
 import { type DatabaseRow } from "@/src/server/api/services/sqlInterface";
@@ -14,7 +14,7 @@ import { Chart } from "@/src/features/widgets/chart-library/Chart";
 import { scoreChartDataToDataPoints } from "@/src/features/dashboard/lib/chart-data-adapters";
 import { isEmptyChart } from "@/src/features/dashboard/lib/score-analytics-utils";
 import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
-import { useScheduledDashboardExecuteQuery } from "@/src/hooks/useDashboardQueryScheduler";
+import { useScheduledDashboardExecuteQuery } from "@/src/features/dashboard/hooks/DashboardQuerySchedulerProvider";
 
 export function CategoricalScoreChart(props: {
   projectId: string;
@@ -23,7 +23,7 @@ export function CategoricalScoreChart(props: {
   fromTimestamp: Date;
   toTimestamp: Date;
   agg?: DashboardDateRangeAggregationOption;
-  metricsVersion?: ViewVersion;
+  metricsVersion: ViewVersion;
   schedulerId?: string;
 }) {
   const scoresQuery: QueryType = {
@@ -113,7 +113,6 @@ export function CategoricalScoreChart(props: {
         chartConfig={{
           type: "VERTICAL_BAR",
           row_limit: 100,
-          subtle_fill: true,
         }}
       />
     </div>

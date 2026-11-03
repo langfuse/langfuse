@@ -1,4 +1,14 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { LayerProvider } from "@/src/context/LayerContext/LayerContext";
+
+vi.stubGlobal(
+  "ResizeObserver",
+  class ResizeObserver {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  },
+);
 
 const existingRow = {
   id: "auto-1",
@@ -18,6 +28,10 @@ let automations: (typeof existingRow)[] = [];
 
 /** gateFetch defers the post-create list read so a test can interleave user input. */
 let gateFetch: Promise<unknown> | undefined;
+
+vi.mock("next-auth/react", () => ({
+  useSession: () => ({ data: null, status: "unauthenticated" }),
+}));
 
 vi.mock("@/src/utils/api", () => ({
   api: {
@@ -39,28 +53,31 @@ vi.mock("@/src/utils/api", () => ({
   },
 }));
 
-type SuccessHandler = (
-  automationId?: string,
-  webhookSecret?: string,
-  actionType?: "WEBHOOK" | "GITHUB_DISPATCH",
-) => void;
+type CreatedHandler = (automation: {
+  automationId: string;
+  name: string;
+  webhookSecret?: string;
+}) => void;
 
-/** stubSave stands in for the real form, whose contract with the panel is "prefill in, onSuccess out". */
-let stubSave: (onSuccess: SuccessHandler) => void;
+/** stubSave stands in for the real dialog, whose contract with the panel is "action in, onCreated out". */
+let stubSave: (onCreated: CreatedHandler) => void;
 
-vi.mock("@/src/features/automations/components/automationForm", () => ({
-  AutomationForm: ({ onSuccess }: { onSuccess: SuccessHandler }) => (
-    <button onClick={() => stubSave(onSuccess)}>stub save</button>
-  ),
-}));
+vi.mock(
+  "@/src/features/monitors/automations/ConnectedNewMonitorAutomationDialog",
+  () => ({
+    ConnectedNewMonitorAutomationDialog: ({
+      onCreated,
+    }: {
+      onCreated: CreatedHandler;
+    }) => <button onClick={() => stubSave(onCreated)}>stub save</button>,
+  }),
+);
 
 import { MonitorAutomationsPanel } from "./MonitorAutomationsPanel";
 
 /** openCreateDialog opens the "+ Automation" menu and picks one of its items. */
 const openCreateDialog = async (item: RegExp) => {
-  fireEvent.keyDown(screen.getByRole("button", { name: /^automation$/i }), {
-    key: "Enter",
-  });
+  fireEvent.click(screen.getByRole("button", { name: /^automation$/i }));
   fireEvent.click(await screen.findByRole("menuitem", { name: item }));
 };
 
@@ -71,9 +88,9 @@ describe("MonitorAutomationsPanel automation creation", () => {
 
   it("creates in place and selects the new trigger, never linking away from the monitor form", async () => {
     automations = [existingRow];
-    stubSave = (onSuccess) => {
+    stubSave = (onCreated) => {
       automations = [existingRow, createdRow];
-      onSuccess("auto-2");
+      onCreated({ automationId: "auto-2", name: "Deploy hook" });
     };
     const onTriggerIdsChange = vi.fn();
     render(
@@ -82,9 +99,10 @@ describe("MonitorAutomationsPanel automation creation", () => {
         triggerIds={["trig-1"]}
         onTriggerIdsChange={onTriggerIdsChange}
       />,
+      { wrapper: LayerProvider },
     );
 
-    await openCreateDialog(/new automation/i);
+    await openCreateDialog(/^webhook$/i);
     // Navigating to the automations page unmounted the monitor form (LFE-10982).
     expect(document.querySelector('a[href*="/automations"]')).toBeNull();
 
@@ -97,7 +115,12 @@ describe("MonitorAutomationsPanel automation creation", () => {
 
   it("keeps the open dialog through the empty-state-to-list switch, so the once-only webhook secret still shows", async () => {
     automations = [];
-    stubSave = (onSuccess) => onSuccess("auto-2", "whsec_stub", "WEBHOOK");
+    stubSave = (onCreated) =>
+      onCreated({
+        automationId: "auto-2",
+        name: "Deploy hook",
+        webhookSecret: "whsec_stub",
+      });
     const onTriggerIdsChange = vi.fn();
     // A fresh element per render: React bails out of re-rendering an identical one.
     const panel = () => (
@@ -107,7 +130,7 @@ describe("MonitorAutomationsPanel automation creation", () => {
         onTriggerIdsChange={onTriggerIdsChange}
       />
     );
-    const { rerender } = render(panel());
+    const { rerender } = render(panel(), { wrapper: LayerProvider });
 
     await openCreateDialog(/^webhook$/i);
     // The create invalidates the list, so the first automation lands while the
@@ -116,9 +139,7 @@ describe("MonitorAutomationsPanel automation creation", () => {
     rerender(panel());
 
     fireEvent.click(await screen.findByRole("button", { name: /stub save/i }));
-    expect(await screen.findByText("whsec_stub")).toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole("button", { name: /saved the secret/i }));
+    expect(await screen.findByDisplayValue("whsec_stub")).toBeInTheDocument();
     await waitFor(() =>
       expect(onTriggerIdsChange).toHaveBeenCalledWith(["trig-2"]),
     );
@@ -126,9 +147,9 @@ describe("MonitorAutomationsPanel automation creation", () => {
 
   it("keeps a selection made while the post-create list read is still in flight", async () => {
     automations = [existingRow];
-    stubSave = (onSuccess) => {
+    stubSave = (onCreated) => {
       automations = [existingRow, createdRow];
-      onSuccess("auto-2");
+      onCreated({ automationId: "auto-2", name: "Deploy hook" });
     };
     let releaseFetch = () => {};
     gateFetch = new Promise<void>((resolve) => {
@@ -142,9 +163,9 @@ describe("MonitorAutomationsPanel automation creation", () => {
         onTriggerIdsChange={onTriggerIdsChange}
       />
     );
-    const { rerender } = render(panel([]));
+    const { rerender } = render(panel([]), { wrapper: LayerProvider });
 
-    await openCreateDialog(/new automation/i);
+    await openCreateDialog(/^webhook$/i);
     fireEvent.click(await screen.findByRole("button", { name: /stub save/i }));
 
     // The user ticks another automation before the read resolves.

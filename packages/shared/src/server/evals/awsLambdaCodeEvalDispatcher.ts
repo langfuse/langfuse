@@ -41,7 +41,6 @@ type CodeEvalDispatcherErrorClassification = {
 // this is only consulted if a future runner surfaces one of them via the
 // user-code-error envelope.
 const RETRYABLE_ERROR_CODES = new Set<CodeEvalDispatcherErrorCode>([
-  CodeEvalDispatcherErrorCodes.TIMEOUT,
   CodeEvalDispatcherErrorCodes.LAMBDA_CONCURRENCY_LIMIT,
   CodeEvalDispatcherErrorCodes.LAMBDA_INVOCATION_ERROR,
 ]);
@@ -54,6 +53,7 @@ const USER_ERROR_CODES = new Set<CodeEvalDispatcherErrorCode>([
   CodeEvalDispatcherErrorCodes.PAYLOAD_TOO_LARGE,
   CodeEvalDispatcherErrorCodes.RESULT_TOO_LARGE,
   CodeEvalDispatcherErrorCodes.SOURCE_TOO_LARGE,
+  CodeEvalDispatcherErrorCodes.OUT_OF_MEMORY,
   CodeEvalDispatcherErrorCodes.USER_CODE_ERROR,
 ]);
 
@@ -421,15 +421,31 @@ function classifyLambdaFunctionError(params: {
   if (
     errorType === "Function.TimedOut" ||
     errorType === "Sandbox.Timedout" ||
-    (errorMessage && isTimeoutErrorMessage(errorMessage))
+    (errorMessage && isTimeoutErrorMessage(errorMessage)) ||
+    (errorType === "Runtime.ExitError" &&
+      errorMessage !== null &&
+      /runtime exited without providing a reason/i.test(errorMessage))
   ) {
     return new CodeEvalDispatcherError(
       composedMessage || "Lambda task timed out",
-      { code: CodeEvalDispatcherErrorCodes.TIMEOUT, retryable: true },
+      { code: CodeEvalDispatcherErrorCodes.TIMEOUT, retryable: false },
     );
   }
 
-  // Abnormal runtime exit (OOM kill, segfault, process.exit, SIGKILL).
+  const isOutOfMemoryError =
+    errorType === "Runtime.OutOfMemory" ||
+    (errorType === "Runtime.ExitError" &&
+      errorMessage !== null &&
+      /signal:\s*killed/i.test(errorMessage));
+
+  if (isOutOfMemoryError) {
+    return new CodeEvalDispatcherError(
+      composedMessage || "Evaluator exceeded the available memory",
+      { code: CodeEvalDispatcherErrorCodes.OUT_OF_MEMORY, retryable: false },
+    );
+  }
+
+  // Other abnormal runtime exits (segfault, process.exit, SIGKILL).
   // Retrying never recovers from these.
   if (errorType === "Runtime.ExitError") {
     return new CodeEvalDispatcherError(

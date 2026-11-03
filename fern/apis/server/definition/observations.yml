@@ -1,6 +1,7 @@
 # yaml-language-server: $schema=https://raw.githubusercontent.com/fern-api/fern/main/fern.schema.json
 imports:
   commons: ./commons.yml
+  pagination: ./utils/pagination.yml
 service:
   auth: true
   base-path: /api/public
@@ -9,10 +10,15 @@ service:
       docs: |
         Get a list of observations with cursor-based pagination and flexible field selection.
 
+        Together with OpenTelemetry ingestion and Metrics API v2, this is the only real-time read path. Other public API endpoints can delay data by about 10 minutes.
+
         ## Cursor-based Pagination
         This endpoint uses cursor-based pagination for efficient traversal of large datasets.
         The cursor is returned in the response metadata and should be passed in subsequent requests
-        to retrieve the next page of results.
+        to retrieve the next page of results. The `limit` parameter is a maximum: a page may contain
+        fewer items than the requested limit, including zero items, while `meta.cursor` is present.
+        Continue requesting pages until `meta.cursor` is absent.
+        Requests without a lower start-time bound may search only from January 1, 2020.
 
         ## Field Selection
         Use the `fields` parameter to control which observation fields are returned:
@@ -21,7 +27,7 @@ service:
         - `time` - completionStartTime, createdAt, updatedAt
         - `io` - input, output
         - `metadata` - metadata (truncated to 200 chars by default, use `expandMetadata` to get full values)
-        - `model` - providedModelName, internalModelId, modelParameters
+        - `model` - model, internalModelId, modelParameters
         - `usage` - usageDetails, costDetails, totalCost, usagePricingTierName
         - `prompt` - promptId, promptName, promptVersion
         - `metrics` - latency, timeToFirstToken
@@ -53,7 +59,7 @@ service:
               Example: "key1,key2"
           limit:
             type: optional<integer>
-            docs: Number of items to return per page. Maximum 1000, default 50.
+            docs: Maximum number of items to return per page. A page may contain fewer items, including zero items, while meta.cursor is present. Maximum 1000, default 50.
           cursor:
             type: optional<string>
             docs: Base64-encoded cursor for pagination. Use the cursor from the previous response to get the next page.
@@ -118,7 +124,7 @@ service:
                                             // - categoryOptions: "any of", "none of"
                                             // - arrayOptions: "any of", "none of", "all of"
                                             // - number: "=", ">", "<", ">=", "<="
-                                            // - stringObject: "=", "contains", "does not contain", "starts with", "ends with", "matches"
+                                            // - stringObject: "=", "contains", "does not contain", "starts with", "ends with", "matches", "is set", "is not set"
                                             // - numberObject: "=", ">", "<", ">=", "<="
                                             // - boolean: "=", "<>"
                                             // - null: "is null", "is not null"
@@ -221,7 +227,9 @@ types:
       Response containing observations with field-group-based filtering and cursor-based pagination.
 
       The `data` array contains observation objects with only the requested field groups included.
-      Use the `cursor` in `meta` to retrieve the next page of results.
+      Use the `cursor` in `meta` to retrieve the next page of results. The array may contain fewer
+      than the requested `limit` items, or be empty, while a cursor is present. Continue until the
+      cursor is absent.
     properties:
       data:
         type: list<commons.ObservationV2>
@@ -229,8 +237,10 @@ types:
       meta: ObservationsV2Meta
 
   ObservationsV2Meta:
-    docs: Metadata for cursor-based pagination
+    docs: Metadata for cursor-based pagination.
+    extends:
+      - pagination.CursorMetaResponse
     properties:
-      cursor:
+      comment:
         type: optional<string>
-        docs: Base64-encoded cursor to use for retrieving the next page. If not present, there are no more results.
+        docs: Present when an empty page has a cursor; continue requesting pages until the cursor is absent.

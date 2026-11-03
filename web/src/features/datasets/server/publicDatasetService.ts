@@ -1,9 +1,26 @@
 import type { NextApiResponse } from "next";
 import { createHash } from "node:crypto";
 import { v4 } from "uuid";
+import { omit } from "lodash";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { addDatasetRunItemsToEvalQueue } from "@/src/features/evals/server/addDatasetRunItemsToEvalQueue";
-import { createOrFetchDatasetRun } from "@/src/features/public-api/server/dataset-runs";
+import {
+  createOrFetchDatasetRun,
+  addToDeleteDatasetQueue,
+  createDatasetItemFilterState,
+  createUnknownSdkIngestionAttribution,
+  deleteDatasetItem,
+  escapeSqlLikePattern,
+  eventTypes,
+  getDatasetItemById,
+  getDatasetItems,
+  getDatasetItemsCount,
+  getObservationById,
+  logger,
+  processEventBatch,
+  type AuthHeaderValidVerificationResultIngestion,
+  upsertDatasetItem,
+} from "@langfuse/shared/src/server";
 import {
   generateDatasetRunItemsForPublicApi,
   getDatasetRunItemsCountForPublicApi,
@@ -26,6 +43,7 @@ import {
   transformDbDatasetRunToAPIDatasetRun,
   transformDbDatasetToAPIDataset,
 } from "@/src/features/public-api/types/datasets";
+
 import {
   ApiError,
   type JSONValue,
@@ -41,21 +59,7 @@ import {
   resolveDatasetItemMediaReferences,
 } from "@/src/features/media/server/datasetItemMediaReferences";
 import { upsertDataset } from "./actions/createDataset";
-import {
-  addToDeleteDatasetQueue,
-  createDatasetItemFilterState,
-  createUnknownSdkIngestionAttribution,
-  deleteDatasetItem,
-  eventTypes,
-  getDatasetItemById,
-  getDatasetItems,
-  getDatasetItemsCount,
-  getObservationById,
-  logger,
-  processEventBatch,
-  type AuthHeaderValidVerificationResultIngestion,
-  upsertDatasetItem,
-} from "@langfuse/shared/src/server";
+
 import type { z } from "zod";
 
 type DatasetAuditScope = {
@@ -332,7 +336,9 @@ export const listDatasetsForApi = async ({
 }: ListDatasetsInput) => {
   const where: Prisma.DatasetWhereInput = {
     projectId,
-    ...(name ? { name: { contains: name, mode: "insensitive" } } : {}),
+    ...(name
+      ? { name: { contains: escapeSqlLikePattern(name), mode: "insensitive" } }
+      : {}),
   };
 
   const [datasets, totalItems] = await Promise.all([
@@ -647,8 +653,10 @@ export const createDatasetItemForApi = async ({
         projectId,
         orgId: auditScope.orgId,
         apiKeyId: auditScope.apiKeyId,
-        before: existingDatasetItem ?? undefined,
-        after: datasetItem,
+        before: existingDatasetItem
+          ? omit(existingDatasetItem, ["input", "expectedOutput", "metadata"])
+          : undefined,
+        after: omit(datasetItem, ["input", "expectedOutput", "metadata"]),
       });
     }
 
@@ -716,7 +724,7 @@ export const deleteDatasetItemForApi = async ({
     projectId,
     orgId,
     apiKeyId,
-    before: result.deletedItem,
+    before: omit(result.deletedItem, ["input", "expectedOutput", "metadata"]),
   });
 
   return {

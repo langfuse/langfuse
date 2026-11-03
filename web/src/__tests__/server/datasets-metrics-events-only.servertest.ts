@@ -1,3 +1,4 @@
+import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import { vi } from "vitest";
 
 const eventsTableAvailable = vi.hoisted(() => {
@@ -55,14 +56,7 @@ maybe("datasets.allDatasetsMetrics in events_only write mode", () => {
           ],
         },
       ],
-      featureFlags: {
-        excludeClickhouseRead: false,
-        templateFlag: true,
-        searchBar: false,
-        v4BetaToggleVisible: false,
-        observationEvals: false,
-        experimentsV4Enabled: false,
-      },
+      featureFlags: testFeatureFlags(),
       v4BetaEnabled: true,
       admin: true,
     },

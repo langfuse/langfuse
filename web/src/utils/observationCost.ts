@@ -2,7 +2,12 @@ import { isGenerationLike, type ObservationType } from "@langfuse/shared";
 
 import { usdFormatter } from "@/src/utils/numbers";
 
-export const MISSING_OBSERVATION_COST_PLACEHOLDER = "-";
+/**
+ * Matches EMPTY_VALUE_PLACEHOLDER in the design-system table constants. Held
+ * as a literal rather than imported: this module is a string formatter and
+ * must not depend on the component tree.
+ */
+export const MISSING_OBSERVATION_COST_PLACEHOLDER = "—";
 
 /**
  * Types that ingestion can attach usage/cost to (CreateGenerationBody),

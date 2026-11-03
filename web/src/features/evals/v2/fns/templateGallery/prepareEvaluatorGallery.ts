@@ -3,15 +3,19 @@ import type {
   GalleryNavigationItem,
   GallerySection,
 } from "@/src/features/evals/v2/types/templateGallery";
-import { getGalleryCategoryPresentation } from "@/src/features/evals/v2/fns/templateGallery/galleryCategoryPresentation";
 import { managedEvaluatorTemplateService } from "@/src/features/evals/v2/fns/templateGallery/managedEvaluatorTemplateService";
 import { EVALUATOR_GALLERY_PROJECT_SECTION_KEY } from "@/src/features/evals/v2/constants/evaluatorGallery";
 
 const RECOMMENDED_TEMPLATE_ORDER = [
+  "topic-decision-model",
   "topic-classifier",
   "out-of-scope-request",
   "quality-criterion",
 ] as const;
+
+const RECOMMENDED_TEMPLATE_REPLACEMENTS: Record<string, string> = {
+  "topic-decision-model": "topic-classifier",
+};
 
 const RECOMMENDED_TEMPLATE_RANK = new Map<string, number>(
   RECOMMENDED_TEMPLATE_ORDER.map((key, index) => [key, index]),
@@ -20,10 +24,14 @@ const RECOMMENDED_TEMPLATE_RANK = new Map<string, number>(
 export function prepareEvaluatorGallery({
   customTemplates,
   customTemplateCount,
+  hasCustomTemplates = customTemplateCount > 0,
   search,
 }: {
   customTemplates: CustomEvaluatorTemplate[];
+  /** Saved evaluators matching the current search. */
   customTemplateCount: number;
+  /** Whether the project has any saved evaluators, ignoring the search. */
+  hasCustomTemplates?: boolean;
   search: string;
 }): {
   navigationItems: GalleryNavigationItem[];
@@ -43,15 +51,22 @@ export function prepareEvaluatorGallery({
       const templatesInCategory = managedCatalog.templates.filter((template) =>
         template.categories.includes(category.key),
       );
+      const replacedKeys = new Set(
+        templatesInCategory.flatMap(
+          (template) => RECOMMENDED_TEMPLATE_REPLACEMENTS[template.key] ?? [],
+        ),
+      );
       const orderedTemplates =
         category.key === "recommended"
-          ? templatesInCategory.toSorted(
-              (left, right) =>
-                (RECOMMENDED_TEMPLATE_RANK.get(left.key) ??
-                  Number.MAX_SAFE_INTEGER) -
-                (RECOMMENDED_TEMPLATE_RANK.get(right.key) ??
-                  Number.MAX_SAFE_INTEGER),
-            )
+          ? templatesInCategory
+              .filter((template) => !replacedKeys.has(template.key))
+              .toSorted(
+                (left, right) =>
+                  (RECOMMENDED_TEMPLATE_RANK.get(left.key) ??
+                    Number.MAX_SAFE_INTEGER) -
+                  (RECOMMENDED_TEMPLATE_RANK.get(right.key) ??
+                    Number.MAX_SAFE_INTEGER),
+              )
           : templatesInCategory;
 
       return [
@@ -64,36 +79,25 @@ export function prepareEvaluatorGallery({
     }),
   );
   const navigationItems: GalleryNavigationItem[] = [
-    {
-      key: EVALUATOR_GALLERY_PROJECT_SECTION_KEY,
-      label: "Your templates",
-      icon: getGalleryCategoryPresentation(
-        EVALUATOR_GALLERY_PROJECT_SECTION_KEY,
-      ).icon,
-      count: customTemplateCount,
-    },
     ...managedCatalog.categories.map((category) => ({
       key: category.key,
       label: category.label,
-      icon: getGalleryCategoryPresentation(category.key).icon,
       count: managedByCategory.get(category.key)?.length ?? 0,
     })),
-  ];
-  const sections: GallerySection[] = [
-    ...(filteredCustom.length
+    // Projects without saved evaluators get no empty "Your templates" entry.
+    ...(hasCustomTemplates
       ? [
           {
             key: EVALUATOR_GALLERY_PROJECT_SECTION_KEY,
             label: "Your templates",
-            description: "Start from a template this project already created.",
-            totalCount: customTemplateCount,
-            templates: filteredCustom.map((template) => ({
-              source: "custom" as const,
-              ...template,
-            })),
+            count: customTemplateCount,
           },
         ]
       : []),
+  ];
+
+  // Own templates last: catalog sections lead the browse view.
+  const sections: GallerySection[] = [
     ...managedCatalog.categories.flatMap((category) => {
       const templates = managedByCategory.get(category.key) ?? [];
       return templates.length
@@ -107,6 +111,21 @@ export function prepareEvaluatorGallery({
           ]
         : [];
     }),
+    // Kept while the sidebar lists it, so selecting it lands even at 0 matches.
+    ...(hasCustomTemplates
+      ? [
+          {
+            key: EVALUATOR_GALLERY_PROJECT_SECTION_KEY,
+            label: "Your templates",
+            description: "Start from a template this project already created.",
+            totalCount: customTemplateCount,
+            templates: filteredCustom.map((template) => ({
+              source: "custom" as const,
+              ...template,
+            })),
+          },
+        ]
+      : []),
   ];
 
   return { navigationItems, sections };

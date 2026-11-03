@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 import {
   createTrace,
   createObservation,
@@ -6,7 +7,7 @@ import {
   createEventsCh,
   ObservationRecordInsertType,
 } from "../../../src/server";
-import { ObservationType } from "../../../src/domain";
+import { ObservationType } from "../../../src/domain/observations";
 import { observationToEvent, traceToEvent } from "./event-mirror";
 import { buildPayload, generationUsageCost } from "./payload";
 import { jitter, Rng, utcDayStartMs } from "./rng";

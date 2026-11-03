@@ -80,20 +80,6 @@ export const ruleRouter = createTRPCRouter({
     return serviceForContext(ctx).get(ctx.session.projectId, input.ruleId);
   }),
 
-  recentExecutions: protectedProjectProcedure
-    .input(RuleIdsSchema)
-    .query(({ input, ctx }) => {
-      throwIfNoProjectAccess({
-        session: ctx.session,
-        projectId: ctx.session.projectId,
-        scope: "evalJobExecution:read",
-      });
-      return serviceForContext(ctx).listRecent({
-        ...input,
-        projectId: ctx.session.projectId,
-      });
-    }),
-
   costByRuleIds: protectedProjectProcedure
     .input(RuleIdsSchema)
     .query(({ input, ctx }) => {

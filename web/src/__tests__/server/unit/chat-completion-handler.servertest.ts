@@ -3,7 +3,7 @@ import type * as SharedServer from "@langfuse/shared/src/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
-  authorize: vi.fn(),
+  session: vi.fn(),
   createOutput: vi.fn(),
   createToolSet: vi.fn(),
   findConnection: vi.fn(),
@@ -13,15 +13,14 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock("@/src/env.mjs", () => ({
-  env: { LANGFUSE_BLOCKED_USERIDS_CHATCOMPLETION: new Map() },
+  env: {
+    LANGFUSE_BLOCKED_USERIDS_CHATCOMPLETION: new Map(),
+    NEXT_PUBLIC_DEMO_PROJECT_ID: "demo-project",
+  },
 }));
 
-vi.mock("@/src/features/playground/server/authorizeRequest", () => ({
-  authorizeRequestOrThrow: mocks.authorize,
-}));
-
-vi.mock("@langfuse/shared/src/db", () => ({
-  prisma: { llmApiKeys: { findFirst: mocks.findConnection } },
+vi.mock("@/src/server/auth", () => ({
+  getServerAuthSessionForRequest: mocks.session,
 }));
 
 vi.mock("@opentelemetry/api", () => ({
@@ -43,12 +42,34 @@ vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
     createLLMToolSet: mocks.createToolSet,
     generateLLMText: mocks.generate,
     mapLegacyLLMCompletionParams: mocks.mapLegacyParams,
+    resolveLlmApiKey: mocks.findConnection,
     streamLLMText: mocks.stream,
   };
 });
 
 import chatCompletionHandler from "@/src/features/playground/server/chatCompletionHandler";
 import { LLMValidationError } from "@langfuse/shared/src/server";
+
+const AISDK_ERROR_MARKER = Symbol.for("vercel.ai.error");
+const API_CALL_ERROR_MARKER = Symbol.for("vercel.ai.error.AI_APICallError");
+
+function createAiSdkError(name: string, message: string): Error {
+  const error = new Error(message);
+  error.name = name;
+  Object.assign(error, { [AISDK_ERROR_MARKER]: true });
+  return error;
+}
+
+function createProviderApiError(message: string, statusCode: number): Error {
+  const error = createAiSdkError("AI_APICallError", message);
+  Object.assign(error, {
+    [API_CALL_ERROR_MARKER]: true,
+    statusCode,
+    url: "https://api.example.com/v1/messages",
+    isRetryable: false,
+  });
+  return error;
+}
 
 const baseBody = {
   projectId: "project-1",
@@ -69,10 +90,20 @@ function createRequest(body: Record<string, unknown>) {
   });
 }
 
+function createSession(projectId = baseBody.projectId, admin = false) {
+  return {
+    user: {
+      id: "user-1",
+      admin,
+      organizations: [{ projects: [{ id: projectId, role: "ADMIN" }] }],
+    },
+  };
+}
+
 describe("chatCompletionHandler", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mocks.authorize.mockResolvedValue({ userId: "user-1" });
+    mocks.session.mockResolvedValue(createSession());
     mocks.findConnection.mockResolvedValue({
       id: "connection-1",
       secretKey: "encrypted-key",
@@ -82,6 +113,34 @@ describe("chatCompletionHandler", () => {
       connection: { secretKey: "encrypted-key" },
       messages: [{ role: "user", content: "Hello" }],
     });
+  });
+
+  it("blocks demo project admins before resolving credentials or calling a model", async () => {
+    const projectId = "demo-project";
+    mocks.session.mockResolvedValue(createSession(projectId));
+    mocks.generate.mockResolvedValue({ text: "Hello back", finalStep: {} });
+
+    const response = await chatCompletionHandler(
+      createRequest({ ...baseBody, projectId }),
+    );
+
+    expect(response.status).toBe(403);
+    expect(mocks.findConnection).not.toHaveBeenCalled();
+    expect(mocks.generate).not.toHaveBeenCalled();
+    expect(mocks.stream).not.toHaveBeenCalled();
+  });
+
+  it("allows internal admins to run demo completions", async () => {
+    const projectId = "demo-project";
+    mocks.session.mockResolvedValue(createSession(projectId, true));
+    mocks.generate.mockResolvedValue({ text: "Hello back", finalStep: {} });
+
+    const response = await chatCompletionHandler(
+      createRequest({ ...baseBody, projectId }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(mocks.generate).toHaveBeenCalledOnce();
   });
 
   it("maps a native text result to the existing playground JSON response", async () => {
@@ -234,6 +293,47 @@ describe("chatCompletionHandler", () => {
     await expect(response.json()).resolves.toEqual({
       error: "LLMValidationError",
       message: "Unsupported provider options: unknown_parameter",
+    });
+  });
+
+  it("maps structured-output AI SDK failures to 400 instead of 500", async () => {
+    mocks.createOutput.mockReturnValue({ kind: "object-output" });
+    mocks.generate.mockRejectedValue(
+      createAiSdkError(
+        "AI_NoOutputGeneratedError",
+        "The model did not generate output",
+      ),
+    );
+
+    const response = await chatCompletionHandler(
+      createRequest({
+        ...baseBody,
+        structuredOutputSchema: {
+          type: "object",
+          properties: { answer: { type: "number" } },
+          required: ["answer"],
+        },
+      }),
+    );
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toEqual({
+      error: "AI_NoOutputGeneratedError",
+      message: "The model did not generate output",
+    });
+  });
+
+  it("preserves upstream provider 5xx status codes", async () => {
+    mocks.generate.mockRejectedValue(
+      createProviderApiError("Provider unavailable", 500),
+    );
+
+    const response = await chatCompletionHandler(createRequest(baseBody));
+
+    expect(response.status).toBe(500);
+    await expect(response.json()).resolves.toEqual({
+      error: "AI_APICallError",
+      message: "Provider unavailable",
     });
   });
 });

@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-exotic-operators */
 import { createHash } from "node:crypto";
 
 const SAMPLING_DOMAIN = "langfuse:evaluation-sampling:v1\0";

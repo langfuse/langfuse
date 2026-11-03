@@ -5,16 +5,28 @@ import {
   logger,
 } from "@langfuse/shared/src/server";
 import { randomUUID } from "crypto";
+import { recordExportStaleness } from "../../services/exportStalenessMetric";
 
 export const handlePostHogIntegrationSchedule = async () => {
   const postHogIntegrationProjects = await prisma.posthogIntegration.findMany({
     select: {
       lastSyncAt: true,
+      backfill: true,
       projectId: true,
     },
     where: {
       enabled: true,
     },
+  });
+
+  recordExportStaleness({
+    integration: "posthog",
+    now: new Date(),
+    integrations: postHogIntegrationProjects.map((integration) => ({
+      lastSyncAt: integration.lastSyncAt,
+      window: "1h",
+      backfill: integration.backfill,
+    })),
   });
 
   if (postHogIntegrationProjects.length === 0) {

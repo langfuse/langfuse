@@ -1,19 +1,19 @@
-import { VERSION } from "@/src/constants";
+import { VERSION } from "@/src/constants/VERSION";
 import { ServerPosthog } from "@/src/features/posthog-analytics/ServerPosthog";
 import { Prisma, prisma } from "@langfuse/shared/src/db";
 import { v4 as uuidv4 } from "uuid";
 import {
   getDatasetRunItemCountsByProjectInCreationInterval,
+  getDetectedClickHouseVersion,
   getObservationCountsByProjectInCreationInterval,
   getScoreCountsByProjectInCreationInterval,
   getTraceCountsByProjectInCreationInterval,
+  getTracingCountsByProjectInCreationIntervalFromEventsTable,
   logger,
 } from "@langfuse/shared/src/server";
 import { env } from "@/src/env.mjs";
-import {
-  getInAppAgentModelConfig,
-  isInAppAgentInstanceEnabled,
-} from "@langfuse/shared/in-app-agent/server/modelProvider";
+import { getSelfHostedInstancePlanServerSide } from "@/src/features/entitlements/server/getPlan";
+import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server/hasEntitlement";
 
 // Interval between jobs in minutes
 const JOB_INTERVAL_MINUTES = Prisma.raw("720"); // 12 hours
@@ -27,6 +27,14 @@ export async function telemetry() {
     if (process.env.NODE_ENV !== "production") return;
     // Do not run in Langfuse cloud, separate telemetry is used
     if (env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION !== undefined) return;
+    // Plans with the telemetry opt-out entitlement never send telemetry
+    if (
+      hasEntitlementBasedOnPlan({
+        plan: getSelfHostedInstancePlanServerSide(),
+        entitlement: "self-host-telemetry-opt-out",
+      })
+    )
+      return;
     // Check if telemetry is not disabled, except for EE
     if (
       env.TELEMETRY_ENABLED === "false" &&
@@ -150,6 +158,45 @@ async function jobScheduler(): Promise<
   return { shouldRunJob: true, jobStartedAt, lastRun, clientId };
 }
 
+/**
+ * Counts traces, observations and AI gateway requests created in `[start, end)`
+ * from the tables the worker writes: under `events_only` the legacy
+ * traces/observations tables are empty, so the events table is the only
+ * source. Gateway requests are reported only there: legacy tables do not mark
+ * gateway rows, and in `dual` mode a second full events scan would cost too
+ * much for that one number.
+ */
+async function countTracing({ start, end }: { start: Date; end: Date }) {
+  if (env.LANGFUSE_MIGRATION_V4_WRITE_MODE === "events_only") {
+    const counts =
+      await getTracingCountsByProjectInCreationIntervalFromEventsTable({
+        start,
+        end,
+      });
+    return {
+      countTraces: counts.reduce((acc, curr) => acc + curr.traces, 0),
+      countObservations: counts.reduce(
+        (acc, curr) => acc + curr.observations,
+        0,
+      ),
+      countGatewayRequests: counts.reduce(
+        (acc, curr) => acc + curr.gatewayRequests,
+        0,
+      ),
+    };
+  }
+
+  const [traces, observations] = await Promise.all([
+    getTraceCountsByProjectInCreationInterval({ start, end }),
+    getObservationCountsByProjectInCreationInterval({ start, end }),
+  ]);
+  return {
+    countTraces: traces.reduce((acc, curr) => acc + curr.count, 0),
+    countObservations: observations.reduce((acc, curr) => acc + curr.count, 0),
+    countGatewayRequests: undefined,
+  };
+}
+
 async function posthogTelemetry({
   startTimeframe,
   endTimeframe,
@@ -168,16 +215,12 @@ async function posthogTelemetry({
       },
     });
 
-    // Count traces
-    const countTracesClickhouse =
-      await getTraceCountsByProjectInCreationInterval({
+    // Count traces, observations and AI gateway requests
+    const { countTraces, countObservations, countGatewayRequests } =
+      await countTracing({
         start: startTimeframe ?? new Date(0),
         end: endTimeframe,
       });
-    const countTraces = countTracesClickhouse.reduce(
-      (acc, curr) => acc + curr.count,
-      0,
-    );
 
     // Count scores
     const countScoresClickhouse =
@@ -186,17 +229,6 @@ async function posthogTelemetry({
         end: endTimeframe,
       });
     const countScores = countScoresClickhouse.reduce(
-      (acc, curr) => acc + curr.count,
-      0,
-    );
-
-    // Count observations
-    const countObservationsClickhouse =
-      await getObservationCountsByProjectInCreationInterval({
-        start: startTimeframe ?? new Date(0),
-        end: endTimeframe,
-      });
-    const countObservations = countObservationsClickhouse.reduce(
       (acc, curr) => acc + curr.count,
       0,
     );
@@ -241,14 +273,8 @@ async function posthogTelemetry({
       0,
     );
 
-    // AI features. Organizations opt in individually, so the enabled count
-    // needs the total as its denominator. Runs are counted unconditionally:
-    // zero on an instance that never enabled the Assistant is itself the
-    // answer we are looking for.
-    const totalOrganizations = await prisma.organization.count();
-    const aiFeaturesEnabledOrganizations = await prisma.organization.count({
-      where: { aiFeaturesEnabled: true },
-    });
+    // Count Langfuse Assistant runs. Counted unconditionally: zero on an
+    // instance that never enabled the Assistant is itself the answer.
     const countAssistantRuns = await prisma.inAppAgentRun.count({
       where: {
         createdAt: {
@@ -257,9 +283,6 @@ async function posthogTelemetry({
         },
       },
     });
-    // Resolve through the product config, not env vars, so telemetry cannot
-    // claim an instance is configured when the Assistant refuses to run.
-    const modelConfig = getInAppAgentModelConfig();
 
     // Domains (no PII)
     const domains = await prisma.$queryRaw<Array<{ domain: string }>>`
@@ -287,21 +310,21 @@ async function posthogTelemetry({
         datasetItems: countDatasetItems,
         datasetRuns: countDatasetRuns,
         datasetRunItems: countDatasetRunItems,
+        assistantRuns: countAssistantRuns,
+        gatewayRequests: countGatewayRequests,
         startTimeframe: startTimeframe?.toISOString(),
         endTimeframe: endTimeframe.toISOString(),
         eeLicenseKey: env.LANGFUSE_EE_LICENSE_KEY,
         langfuseCloudRegion: env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
-        totalOrganizations: totalOrganizations,
-        aiFeaturesEnabledOrganizations: aiFeaturesEnabledOrganizations,
-        assistantRuns: countAssistantRuns,
-        assistantInstanceEnabled: isInAppAgentInstanceEnabled(),
-        langfuseAiModelConfigured: modelConfig !== undefined,
-        langfuseAiProvider: modelConfig?.provider ?? null,
+        writeMode: env.LANGFUSE_MIGRATION_V4_WRITE_MODE,
+        clickhouseVersion: getDetectedClickHouseVersion(),
         $set: {
           environment: process.env.NODE_ENV,
           userDomains: domains,
           docker: true,
           langfuseVersion: VERSION,
+          writeMode: env.LANGFUSE_MIGRATION_V4_WRITE_MODE,
+          clickhouseVersion: getDetectedClickHouseVersion(),
         },
       },
     });

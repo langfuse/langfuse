@@ -78,4 +78,35 @@ describe("createObservationEvalSchedulerDeps", () => {
     );
     expect(getLLMQueueInstance).not.toHaveBeenCalled();
   });
+
+  it("includes batch-run fields on the observation eval payload", async () => {
+    const { createObservationEvalSchedulerDeps } =
+      await import("../createSchedulerDeps");
+    const variableMapping = [
+      { templateVariable: "output", selectedColumnId: "input" },
+    ];
+
+    await createObservationEvalSchedulerDeps().enqueueEvalJob({
+      projectId: "project-1",
+      jobExecutionId: "job-3",
+      observationS3Path: "evals/project-1/observations/obs-1.json",
+      delay: 0,
+      evalTemplateType: EvalTemplateType.LLM_AS_JUDGE,
+      evaluatorId: "evaluator-1",
+      variableMapping,
+      batchActionId: "batch-action-1",
+    });
+
+    expect(addToLLMQueue).toHaveBeenCalledWith(
+      "llm-as-a-judge-execution-queue",
+      expect.objectContaining({
+        payload: expect.objectContaining({
+          evaluatorId: "evaluator-1",
+          variableMapping,
+          batchActionId: "batch-action-1",
+        }),
+      }),
+      { delay: 0 },
+    );
+  });
 });

@@ -15,7 +15,8 @@
 // just-added filter on apply.
 
 import * as React from "react";
-import { ArrowLeft, ArrowRight, Loader2 } from "lucide-react";
+import { ArrowLeft, ArrowRight, Loader2 } from "@langfuse/icons";
+import { type ComposerSize } from "@/src/features/search-bar/components/ComposerSurface";
 import { useStore } from "zustand";
 
 import { type FilterState } from "@langfuse/shared";
@@ -40,16 +41,21 @@ function unknownScoresMessage(names: string[]): string {
 export function SearchBarAiPrompt({
   projectId,
   tableName,
+  isV4 = true,
   store,
   dataContext,
   scoreNames,
   registryId = "events",
   onApply,
   onExit,
+  size = "default",
 }: {
   projectId: string;
+  /** Matches the composer's size so switching modes keeps the bar height. */
+  size?: ComposerSize;
   /** Table this bar filters — the `tableName` analytics dimension. */
   tableName: string;
+  isV4?: boolean;
   /** The bar store; its `draft` is read as the live refine context. */
   store: SearchBarStore;
   /** Observed values + metadata keys + result count, so the model maps to the
@@ -59,7 +65,17 @@ export function SearchBarAiPrompt({
    *  model's returned score keys against these (a misspelled name would
    *  otherwise apply as a dead filter that silently matches nothing). */
   scoreNames?: ObservedScoreNames;
-  registryId?: FieldRegistry["id"];
+  registryId?: Extract<
+    FieldRegistry["id"],
+    | "events"
+    | "evaluationRules"
+    | "evaluatorSamples"
+    | "ruleSamples"
+    | "sessions"
+    | "scores"
+    | "experiments"
+    | "users"
+  >;
   /** Apply generated filters via the bar's setFilterState (apply-immediately). */
   onApply: (filters: FilterState) => void;
   /** Leave AI mode and restore the grammar composer. */
@@ -116,13 +132,12 @@ export function SearchBarAiPrompt({
     // mid-request; the model returns the COMPLETE set based on this snapshot.
     const refine = store.getState().draft.trim();
     const refineMode = refine.length > 0;
-    // Analytics (LFE-10781): METADATA ONLY — `promptLength` is a CHAR COUNT, the
-    // prompt text itself is never sent. Ask-AI is a v4-only surface (isV4 true).
+    // Report prompt length, never prompt text. The host supplies its read path.
     capture("filters:ai_generate_requested", {
       tableName,
       refineMode,
       promptLength: prompt.length,
-      isV4: true,
+      isV4,
     });
     try {
       const result = await generateFilter.mutateAsync({
@@ -145,7 +160,7 @@ export function SearchBarAiPrompt({
           tableName,
           refineMode,
           reason: "stale",
-          isV4: true,
+          isV4,
         });
         setError("Filters changed while generating — try again.");
         return;
@@ -155,7 +170,7 @@ export function SearchBarAiPrompt({
           tableName,
           refineMode,
           reason: "empty",
-          isV4: true,
+          isV4,
         });
         // A dropped unknown score name explains the empty result better than
         // the generic rephrase hint ("no such score X" beats a dead filter).
@@ -170,7 +185,7 @@ export function SearchBarAiPrompt({
         tableName,
         refineMode,
         generatedFilterCount: result.filters.length,
-        isV4: true,
+        isV4,
       });
       onApply(result.filters as FilterState);
       if (result.unknownScoreNames.length > 0) {
@@ -179,6 +194,11 @@ export function SearchBarAiPrompt({
         showErrorToast(
           "Score filter skipped",
           unknownScoresMessage(result.unknownScoreNames),
+          {
+            operation: "filter_ai.generate",
+            errorOrigin: "backend",
+            errorCategory: "user_input",
+          },
           "WARNING",
         );
       }
@@ -194,7 +214,7 @@ export function SearchBarAiPrompt({
         tableName,
         refineMode,
         reason: "error",
-        isV4: true,
+        isV4,
       });
       setError("Couldn't reach the AI service. Please try again.");
     }
@@ -204,7 +224,8 @@ export function SearchBarAiPrompt({
     <div className="relative w-full">
       <div
         className={cn(
-          "border-input bg-background rounded-md border px-2 py-1.5",
+          "border-input bg-background rounded-md border px-2",
+          size === "large" ? "min-h-9 py-1.25" : "py-0.5",
           "focus-within:ring-ring focus-within:ring-1",
           error && "border-destructive focus-within:ring-destructive/40",
         )}
@@ -238,7 +259,7 @@ export function SearchBarAiPrompt({
             onClick={onExit}
             className="text-muted-foreground hover:text-foreground hover:bg-accent -ml-0.5 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md"
           >
-            <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+            <ArrowLeft size="base" aria-hidden="true" />
           </button>
           <input
             ref={inputRef}
@@ -254,7 +275,7 @@ export function SearchBarAiPrompt({
             // ring box-shadow (the "blue box"). border-0 + focus:ring-0 drop both
             // (it's `:focus`, not `:focus-visible`), so the only focus indicator
             // is the container's subtle focus-within ring, matching the grammar bar.
-            className="placeholder:text-foreground-tertiary min-w-0 flex-1 border-0 bg-transparent text-xs leading-6 outline-none focus:ring-0 focus:outline-none disabled:opacity-60"
+            className="placeholder:text-muted-foreground min-w-0 flex-1 border-0 bg-transparent text-xs leading-6 outline-none focus:ring-0 focus:outline-none disabled:opacity-60"
             onChange={(event) => {
               setValue(event.target.value);
               if (error) setError(null);
@@ -280,7 +301,8 @@ export function SearchBarAiPrompt({
           {pending ? (
             <span className="text-muted-foreground flex shrink-0 items-center gap-1.5 pr-1 text-xs">
               <Loader2
-                className="h-3.5 w-3.5 animate-spin"
+                size="base"
+                __rawClassName="animate-spin"
                 aria-hidden="true"
               />
               Generating…
@@ -311,7 +333,7 @@ export function SearchBarAiPrompt({
                   "disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent",
                 )}
               >
-                <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
+                <ArrowRight size="base" aria-hidden="true" />
               </button>
             </div>
           )}

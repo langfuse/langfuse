@@ -79,7 +79,17 @@ export function useExtractVariables({
       extractionError.kind === "jsonPath"
         ? "Invalid JSONPath in variable mapping"
         : "Failed to extract variable";
-    showErrorToast(title, extractionError.message, "WARNING");
+    showErrorToast(
+      title,
+      extractionError.message,
+      {
+        operation: "evaluator_variable.extract",
+        errorOrigin: "frontend",
+        errorCategory:
+          extractionError.kind === "jsonPath" ? "user_input" : "internal",
+      },
+      "WARNING",
+    );
   }, [extractionError]);
 
   useEffect(() => {

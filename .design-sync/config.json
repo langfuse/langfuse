@@ -1,0 +1,344 @@
+{
+  "projectId": "31adc942-7274-47d3-8b86-cc9a1ec5e652",
+  "shape": "storybook",
+  "storybookConfigDir": "web/.storybook",
+  "pkg": "@langfuse/design-system",
+  "globalName": "LangfuseDS",
+  "entry": ".design-sync/ds-package/index.ts",
+  "tsconfig": "tsconfig.json",
+  "storybookStatic": ".design-sync/sb-reference",
+  "buildCmd": ".design-sync/ds-package/gen-entry.sh && (cd web && npx dotenv -e ../.env.dev.example -- npx storybook build -c .storybook -o \"$(git rev-parse --show-toplevel)/.design-sync/sb-reference\") && .design-sync/ds-package/copy-css.sh",
+  "libOverrides": {
+    "dts.mjs": "DS ships TS source (no dist/): resolve web @/* paths, @types/react from web/node_modules, in-package = web/src/components/design-system/",
+    "story-imports.mjs": "Storybook 10 CSF factories: redirect web/.storybook/preview imports to ds-package/csf-factories-preview.tsx (flattens preview.meta().story() to CSF3)"
+  },
+  "cssEntry": "storybook-compiled.css",
+  "provider": {
+    "component": "LangfuseProvider"
+  },
+  "overrides": {
+    "Table": {
+      "cardMode": "single",
+      "primaryStory": "Default",
+      "skip": [
+        "design-components-table--sorting",
+        "design-components-table--resize-columns"
+      ]
+    },
+    "Button": {
+      "skip": [
+        "playground-button--default",
+        "playground-button--disabled",
+        "playground-button--keyboard-focus",
+        "playground-button--loading",
+        "playground-button--loading-with-text",
+        "playground-button--variant-matrix",
+        "playground-button--with-icon"
+      ]
+    },
+    "Alert": {
+      "cardMode": "column"
+    },
+    "AreaChart": {
+      "cardMode": "column",
+      "skip": [
+        "design-components-areachart--highlight-legend",
+        "design-components-areachart--stacked-areas"
+      ]
+    },
+    "BarChart": {
+      "cardMode": "column"
+    },
+    "GroupedBarChart": {
+      "cardMode": "column",
+      "skip": [
+        "design-components-groupedbarchart--side-by-side"
+      ]
+    },
+    "HistogramChart": {
+      "cardMode": "column"
+    },
+    "HorizontalBarChart": {
+      "cardMode": "column",
+      "skip": [
+        "design-components-horizontalbarchart--category-colors",
+        "design-components-horizontalbarchart--long-and-duplicate-labels",
+        "design-components-horizontalbarchart--many-rows",
+        "design-components-horizontalbarchart--side-tooltip"
+      ]
+    },
+    "LineChart": {
+      "cardMode": "column",
+      "skip": [
+        "design-components-linechart--many-legend-entries"
+      ]
+    },
+    "LinkBadge": {
+      "cardMode": "column"
+    },
+    "MultiSelectTagInput": {
+      "cardMode": "column",
+      "skip": [
+        "design-components-multiselecttaginput--test-selects-option"
+      ]
+    },
+    "SelectInput": {
+      "cardMode": "column",
+      "skip": [
+        "design-components-selectinput--searchable-with-badges",
+        "design-components-selectinput--empty",
+        "design-components-selectinput--test-forwards-trigger-props",
+        "design-components-selectinput--test-keeps-badged-label-readable",
+        "design-components-selectinput--test-keeps-badged-label-readable-without-search"
+      ]
+    },
+    "StackedBarChart": {
+      "cardMode": "column",
+      "skip": [
+        "design-components-stackedbarchart--legend-toggle",
+        "design-components-stackedbarchart--single-series-initially-hidden"
+      ]
+    },
+    "Tabs": {
+      "cardMode": "column",
+      "skip": [
+        "design-components-tabs--switches-tab",
+        "design-components-tabs--selects-hidden-tab-from-overflow-menu",
+        "design-components-tabs--focuses-tab-selected-from-overflow-menu",
+        "design-components-tabs--tracks-trigger-resize"
+      ]
+    },
+    "ControlledHoverCard": {
+      "cardMode": "single",
+      "skip": [
+        "design-components-controlledhovercard--controlled",
+        "design-components-controlledhovercard--popover-layer"
+      ]
+    },
+    "DialogController": {
+      "cardMode": "single",
+      "skip": [
+        "design-components-dialogcontroller--close-veto",
+        "design-components-dialogcontroller--fresh-content-on-open",
+        "design-components-dialogcontroller--initial-state"
+      ]
+    },
+    "Dialog": {
+      "skip": [
+        "design-components-dialog--autofocus",
+        "design-components-dialog--destructive-autofocus",
+        "design-components-dialog--destructive-only-autofocus",
+        "design-components-dialog--scrollable-body-keeps-controls-above-footer"
+      ]
+    },
+    "Avatar": {
+      "skip": [
+        "design-components-avatar--test-hover-name-and-email"
+      ]
+    },
+    "Codeblock": {
+      "skip": [
+        "design-components-codeblock--json",
+        "design-components-codeblock--large-json",
+        "design-components-codeblock--lossless-json",
+        "design-components-codeblock--invalid-json"
+      ]
+    },
+    "ConfirmationDialogController": {
+      "skip": [
+        "design-components-confirmationdialogcontroller--standard",
+        "design-components-confirmationdialogcontroller--type-to-confirm"
+      ]
+    },
+    "DropdownMenu": {
+      "skip": [
+        "design-components-dropdownmenu--test-actions-remain-independent",
+        "design-components-dropdownmenu--test-checkbox-and-submenu",
+        "design-components-dropdownmenu--test-click-actions",
+        "design-components-dropdownmenu--test-disabled-action",
+        "design-components-dropdownmenu--test-disabled-link",
+        "design-components-dropdownmenu--test-keyboard-activation",
+        "design-components-dropdownmenu--test-nested-menus-stay-within-viewport",
+        "design-components-dropdownmenu--test-search-behavior",
+        "design-components-dropdownmenu--test-secondary-action-layout",
+        "design-components-dropdownmenu--test-trigger-and-items"
+      ]
+    },
+    "HoverCard": {
+      "skip": [
+        "design-components-hovercard--default-surface",
+        "design-components-hovercard--disabled",
+        "design-components-hovercard--hoverable-content",
+        "design-components-hovercard--keyboard-navigation",
+        "design-components-hovercard--trigger-ref-and-click-handler",
+        "design-components-hovercard--trigger-ref-cleanup"
+      ]
+    },
+    "HoverCardController": {
+      "skip": [
+        "design-components-hovercardcontroller--custom-surface"
+      ]
+    },
+    "PieChart": {
+      "skip": [
+        "design-components-piechart--center-text-fits",
+        "design-components-piechart--combined-small-slices",
+        "design-components-piechart--keyboard-focus",
+        "design-components-piechart--oversized-center-text-hidden"
+      ]
+    },
+    "Tooltip": {
+      "skip": [
+        "design-components-tooltip--test-hover-and-focus",
+        "design-components-tooltip--test-pointer-transparent-content",
+        "design-components-tooltip--test-shortcut-renders-keycap"
+      ]
+    },
+    "Input": {
+      "skip": [
+        "design-components-input--test-accepts-text"
+      ]
+    },
+    "SearchInput": {
+      "skip": [
+        "design-components-searchinput--test-submits-on-enter",
+        "design-components-searchinput--test-opens-dropdown"
+      ]
+    },
+    "SwitchInput": {
+      "skip": [
+        "design-components-switchinput--changes-value"
+      ]
+    },
+    "RadioGroup": {
+      "skip": [
+        "design-components-radiogroup--test-selects-option"
+      ]
+    },
+    "Form": {
+      "skip": [
+        "design-components-form--submits"
+      ]
+    },
+    "SelectDropdown": {
+      "skip": [
+        "design-components-selectdropdown--compact-trigger",
+        "design-components-selectdropdown--wrapped-trigger",
+        "design-components-selectdropdown--grouped-disabled-options"
+      ]
+    },
+    "MultiSelectInput": {
+      "skip": [
+        "design-components-multiselectinput--test-selects-multiple-options",
+        "design-components-multiselectinput--test-hides-select-all-while-searching",
+        "design-components-multiselectinput--test-keeps-wheel-inside-popover",
+        "design-components-multiselectinput--test-keeps-overlapping-labels-distinct"
+      ]
+    },
+    "PaginationBar": {
+      "skip": [
+        "design-components-paginationbar--default"
+      ]
+    },
+    "CodeSection": {
+      "skip": [
+        "design-components-codesection--toggles-collapse"
+      ]
+    },
+    "Drawer": {
+      "cardMode": "single",
+      "primaryStory": "Compact"
+    },
+    "ItemBadge": {
+      "cardMode": "column"
+    },
+    "KeyValueFilterBuilder": {
+      "cardMode": "column",
+      "skip": [
+        "playground-keyvaluefilterbuilder--test-observed-key-suggestion-preserves-value"
+      ]
+    },
+    "MediaTag": {
+      "cardMode": "single",
+      "primaryStory": "AllKinds"
+    },
+    "MobilePageActionsContent": {
+      "cardMode": "single",
+      "primaryStory": "MixedPageControls"
+    },
+    "OverviewSelectionBar": {
+      "cardMode": "single",
+      "primaryStory": "Default"
+    },
+    "StatusBadge": {
+      "cardMode": "column"
+    },
+    "AppSidebar": {
+      "cardMode": "single",
+      "primaryStory": "Default"
+    },
+    "GroupedScoreBadges": {
+      "skip": [
+        "playground-groupedscorebadges--with-overflow"
+      ]
+    },
+    "MarkdownView": {
+      "skip": [
+        "playground-markdownviewer--header-controls-on-focus"
+      ]
+    },
+    "DataTable": {
+      "cardMode": "single",
+      "primaryStory": "Default",
+      "skip": [
+        "playground-datatable--pixel-resize-keeps-cells-mounted",
+        "playground-datatable--medium-boundary-updates-only-resized-row",
+        "playground-datatable--equivalent-refresh-keeps-resize-active",
+        "playground-datatable--membership-changes-cancel-resize",
+        "playground-datatable--canceled-pointers-restore-row-height",
+        "playground-datatable--overlapping-pointers-keep-first-resize",
+        "playground-datatable--removed-lower-handle-releases-pending-resize",
+        "playground-datatable--removed-lower-handle-rolls-back-preview",
+        "playground-datatable--removed-keyboard-handle-cancels-resize"
+      ]
+    },
+    "DateRangeInput": {
+      "skip": [
+        "design-components-daterangeinput--test-preset-selection",
+        "design-components-daterangeinput--test-whole-day-selection",
+        "design-components-daterangeinput--test-end-time-outside-rolling-lookback",
+        "design-components-daterangeinput--test-start-time-clamped-to-earliest",
+        "features-evaluations-evaluators-evaluatorbackfillsettings-daterangeinput--default",
+        "features-evaluations-evaluators-evaluatorbackfillsettings-daterangeinput--bounded",
+        "features-evaluations-evaluators-evaluatorbackfillsettings-daterangeinput--disabled"
+      ]
+    },
+    "ExpandToggle": {
+      "cardMode": "column",
+      "skip": [
+        "design-components-expandtoggle--toggles-state"
+      ]
+    }
+  },
+  "extraFonts": [
+    "plex-mono.css"
+  ],
+  "titleMap": {
+    "ChartTooltip": null,
+    "dropdown-menu": null,
+    "mobile-page-actions-content": "MobilePageActionsContent",
+    "MarkdownViewer": "MarkdownView",
+    "drawer": "Drawer",
+    "SortableList": null
+  },
+  "readmeHeader": ".design-sync/conventions.md",
+  "storyImports": {
+    "shim": [
+      "/components/ui/ai-assisted-input.tsx",
+      "/components/ui/sidebar.tsx",
+      "/components/ui/drawer.tsx",
+      "/components/ui/MarkdownViewer.tsx",
+      "/components/grouped-score-badge.tsx"
+    ]
+  }
+}

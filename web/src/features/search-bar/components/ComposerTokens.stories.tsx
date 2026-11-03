@@ -1,5 +1,6 @@
 import preview from "../../../../.storybook/preview";
 import { ComposerTokens } from "./ComposerTokens";
+import { EVENTS_FIELD_REGISTRY } from "../lib/fields";
 
 const meta = preview.meta({
   component: ComposerTokens,
@@ -33,4 +34,21 @@ export const FreeTextAndScopes = meta.story({
 
 export const InvalidRevealed = meta.story({
   args: { draft: "level:ERROR nope:1", showDiagnostics: true },
+});
+
+export const ExperimentTargetPrefix = meta.story({
+  args: {
+    draft: '-"Run: A".scores."Rouge Score":>0.8',
+    showDiagnostics: true,
+    registry: {
+      ...EVENTS_FIELD_REGISTRY,
+      targeting: {
+        defaultTarget: "all",
+        supports: () => true,
+        targets: [
+          { id: "run-a", label: "Run: A", textClassName: "text-pink-500" },
+        ],
+      },
+    },
+  },
 });

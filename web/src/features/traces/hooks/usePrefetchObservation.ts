@@ -1,5 +1,5 @@
 import { api, sendAsPostOption } from "@/src/utils/api";
-import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
+import { useReadPath } from "@/src/features/events/hooks/useReadPath";
 
 export type UsePrefetchObservationParams = {
   projectId: string;
@@ -13,14 +13,14 @@ export function usePrefetchObservation({
   projectId,
 }: UsePrefetchObservationParams) {
   const utils = api.useUtils();
-  const { isBetaEnabled } = useV4Beta();
+  const { isV4 } = useReadPath();
 
   const prefetch = (
     observationId: string,
     traceId: string,
     startTime?: Date,
   ) => {
-    if (isBetaEnabled) {
+    if (isV4) {
       // Beta ON: prefetch from events table via batchIO
       if (!startTime) return;
       utils.events.batchIO.prefetch(

@@ -1,1 +1,0 @@
-export { PaymentBanner } from "./PaymentBanner";

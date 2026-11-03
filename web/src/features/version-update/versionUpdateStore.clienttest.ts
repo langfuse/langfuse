@@ -51,11 +51,26 @@ describe("versionUpdateStore", () => {
     expect(store.getSnapshot()).toBe(false);
     store.reportObservedBuildId("deployed");
     expect(store.getSnapshot()).toBe(true);
+    expect(store.hasObservedVersionMismatch()).toBe(true);
 
     // Unknown running build (self-hosted without a build id) proves nothing.
     const unknown = createVersionUpdateStore(() => undefined, mechanics);
     unknown.reportObservedBuildId("deployed");
     expect(unknown.getSnapshot()).toBe(false);
+    expect(unknown.hasObservedVersionMismatch()).toBe(false);
+  });
+
+  it("hasObservedVersionMismatch is independent of banner 48 h / debounce gates", () => {
+    const store = createVersionUpdateStore(() => "running", {
+      debounceMs: 0,
+      minStalenessMs: VERSION_UPDATE_MIN_STALENESS_MS,
+      getStorage: noStorage,
+      now: () => 0,
+    });
+    expect(store.hasObservedVersionMismatch()).toBe(false);
+    store.reportObservedBuildId("deployed");
+    expect(store.getSnapshot()).toBe(false);
+    expect(store.hasObservedVersionMismatch()).toBe(true);
   });
 
   it("is sticky and flap-free while rolling-deploy pods serve mixed responses", () => {

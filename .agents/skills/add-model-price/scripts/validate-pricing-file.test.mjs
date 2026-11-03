@@ -29,7 +29,23 @@ function model({ id, modelName, matchPattern, tokenizerId = null, prices }) {
   };
 }
 
-async function runValidator(currentModels, baseModels) {
+// Writes prices the way the pricing file stores them (`5e-6`), which
+// JSON.stringify alone would render as `0.000005`.
+function toPricingJson(models) {
+  const json = JSON.stringify(models, (key, value) =>
+    key === "prices"
+      ? Object.fromEntries(
+          Object.entries(value).map(([usageType, price]) => [
+            usageType,
+            `__per_mtok__${Number((price * 1e6).toFixed(6))}`,
+          ]),
+        )
+      : value,
+  );
+  return json.replace(/"__per_mtok__([0-9.]+)"/g, "$1e-6");
+}
+
+async function runValidator(currentModels, baseModels, { rawCurrent } = {}) {
   const temporaryDirectory = await mkdtemp(
     path.join(os.tmpdir(), "pricing-validator-"),
   );
@@ -38,8 +54,8 @@ async function runValidator(currentModels, baseModels) {
 
   try {
     await Promise.all([
-      writeFile(currentPath, JSON.stringify(currentModels)),
-      writeFile(basePath, JSON.stringify(baseModels)),
+      writeFile(currentPath, rawCurrent ?? toPricingJson(currentModels)),
+      writeFile(basePath, toPricingJson(baseModels)),
     ]);
     return spawnSync(
       process.execPath,
@@ -101,6 +117,7 @@ test("accepts complete OpenAI, Anthropic, Gemini, and generic Bedrock entries", 
         cache_read_input_tokens: 0.1e-6,
         input_cache_creation: 1.25e-6,
         cache_write_tokens: 1.25e-6,
+        input_cache_write_tokens: 1.25e-6,
         output: 5e-6,
         output_reasoning_tokens: 5e-6,
         output_reasoning: 5e-6,
@@ -187,6 +204,53 @@ test("rejects unequal prices within a semantic alias family", async () => {
 
   assert.equal(result.status, 1);
   assert.match(result.stderr, /cache-read aliases must have the same price/);
+});
+
+test("requires per-million-token e-6 notation on changed entries", async () => {
+  const entry = model({
+    id: "bedrock-notation",
+    modelName: "amazon-nova-notation",
+    matchPattern: "(?i)^amazon-nova-notation$",
+    prices: { input: 1e-6, output: 5e-6 },
+  });
+  const withCachedInput = (literal) =>
+    toPricingJson([entry]).replace(
+      '"output":5e-6',
+      `"output":5e-6,"input_cached_tokens":${literal}`,
+    );
+
+  const offScale = await runValidator([], [], {
+    rawCurrent: withCachedInput("1e-7"),
+  });
+  assert.equal(offScale.status, 1);
+  assert.match(
+    offScale.stderr,
+    /amazon-nova-notation: price for input_cached_tokens must be written as <USD per 1M tokens>e-6 \(got 1e-7\)/,
+  );
+
+  const plainDecimal = await runValidator([], [], {
+    rawCurrent: withCachedInput("0.0000001"),
+  });
+  assert.equal(plainDecimal.status, 1);
+
+  const perMillion = await runValidator([], [], {
+    rawCurrent: withCachedInput("0.1e-6"),
+  });
+  assert.equal(perMillion.status, 0, perMillion.stderr);
+
+  const legacyEntry = {
+    ...entry,
+    pricingTiers: [
+      {
+        ...entry.pricingTiers[0],
+        prices: { input: 1e-6, output: 5e-6, input_cached_tokens: 1e-7 },
+      },
+    ],
+  };
+  const unchanged = await runValidator([], [legacyEntry], {
+    rawCurrent: withCachedInput("1e-7"),
+  });
+  assert.equal(unchanged.status, 0, unchanged.stderr);
 });
 
 test("rejects an unknown explicitly selected model", () => {

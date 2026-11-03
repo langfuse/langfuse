@@ -7,9 +7,63 @@ export async function register() {
       ? process.env.NEXT_PUBLIC_LANGFUSE_RUN_NEXT_INIT === "true"
       : true;
 
-  if (process.env.NEXT_RUNTIME === "nodejs" && isInitLoadingEnabled) {
+  const isNodeRuntime = process.env.NEXT_RUNTIME === "nodejs";
+
+  // Enforce LANGFUSE_REQUIRE_FIPS before any init script connects, also on
+  // secondary replicas that skip init and when entrypoint.sh is overridden.
+  if (isNodeRuntime) {
+    const { assertFipsMode } =
+      await import("@langfuse/shared/src/server/ee/fips");
+    try {
+      assertFipsMode();
+    } catch (error) {
+      console.error(error instanceof Error ? error.message : String(error));
+      process.exit(1);
+    }
+  }
+
+  if (isNodeRuntime && isInitLoadingEnabled) {
     console.log("Running init scripts...");
     await import("./observability.config");
+  }
+
+  // Install after dd.init when init runs. Keep the dynamic import so AWS SDK
+  // is not loaded before dd-trace wraps it. Install even when init is skipped
+  // (secondary replicas set NEXT_PUBLIC_LANGFUSE_RUN_NEXT_INIT=false). On a
+  // fatal error, drain in-flight requests before exiting instead of dying
+  // abruptly and 5xx-ing them; the drain is imported lazily so its heavy
+  // dependencies load only when a fatal actually fires.
+  if (isNodeRuntime) {
+    const { installProcessErrorHandlers } =
+      await import("@langfuse/shared/src/server");
+    installProcessErrorHandlers({
+      onFatal: async () => {
+        const { drainAndClose } = await import("./utils/shutdown");
+        await drainAndClose();
+      },
+    });
+    const { startEventLoopMetrics } = await import("./utils/eventLoopMetrics");
+    startEventLoopMetrics();
+  }
+
+  if (isNodeRuntime && isInitLoadingEnabled) {
     await import("./initialize");
+  }
+
+  if (isNodeRuntime) {
+    const { env } = await import("./env.mjs");
+    if (env.LANGFUSE_OTEL_INGESTION_WORKER_SHADOW_ENABLED === "true") {
+      const { preloadOtelIngestionWorkerShadow } =
+        await import("./server/otel/otelIngestionWorkerShadow");
+      try {
+        await preloadOtelIngestionWorkerShadow();
+      } catch (error) {
+        const { logger } = await import("@langfuse/shared/src/server");
+        logger.error(
+          "Failed to preload OTel ingestion worker shadow; shadow disabled",
+          error,
+        );
+      }
+    }
   }
 }

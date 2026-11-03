@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { InvalidRequestError } from "../../../errors";
+import { InvalidRequestError } from "../../../errors/InvalidRequestError";
 import type { FilterCondition } from "../../../types";
 import { getViewDeclaration } from "../dataModel";
 import type { QueryType, ViewVersion } from "../types";
@@ -11,6 +11,7 @@ import { QueryBuilder } from "./queryBuilder";
 // Mock it so these validation tests stay unit-level and do not need ClickHouse.
 vi.mock("../../../server/queries/clickhouse-sql/query-options", () => ({
   shouldSkipObservationsFinal: vi.fn().mockResolvedValue(false),
+  shouldSkipScoresDedup: vi.fn().mockReturnValue(false),
 }));
 
 const baseQuery = {
@@ -290,12 +291,80 @@ describe("queryBuilder filter type validation", () => {
         version,
       );
 
-      expect(query).toContain(
-        "coalesce(nullIf(scores_numeric.metadata['evaluator_id'], ''), scores_numeric.metadata['job_configuration_id'])",
-      );
+      expect(query).toContain("scores_numeric.evaluator_id");
       expect(query).toContain("IN ({stringOptionsFilter");
     },
   );
+
+  it.each(["v1", "v2"] as const)(
+    "lowers rule score filters in the %s scores view",
+    async (version) => {
+      const { query } = await buildQueryWithFilter(
+        {
+          column: "ruleId",
+          operator: "any of",
+          value: ["rule-1"],
+          type: "stringOptions",
+        },
+        { view: "scores-numeric" },
+        version,
+      );
+
+      expect(query).toContain("scores_numeric.evaluation_rule_id");
+      expect(query).toContain("IN ({stringOptionsFilter");
+    },
+  );
+
+  it.each(["v1", "v2"] as const)(
+    "lowers evaluator test filters in the %s scores view",
+    async (version) => {
+      const { query } = await buildQueryWithFilter(
+        {
+          column: "isEvaluatorTest",
+          operator: "=",
+          value: false,
+          type: "boolean",
+        },
+        { view: "scores-numeric" },
+        version,
+      );
+
+      expect(query).toContain("scores_numeric.metadata['evaluator_test']");
+      expect(query).toContain(": Boolean}");
+    },
+  );
+
+  it("lowers evaluator identity and test filters in the v2 observations view", async () => {
+    const evaluatorIdQuery = await buildQueryWithFilter(
+      {
+        column: "evaluatorId",
+        operator: "is not empty",
+        value: "",
+        type: "string",
+      },
+      { view: "observations" },
+      "v2",
+    );
+    const evaluatorTestQuery = await buildQueryWithFilter(
+      {
+        column: "isEvaluatorTest",
+        operator: "=",
+        value: false,
+        type: "boolean",
+      },
+      { view: "observations" },
+      "v2",
+    );
+
+    expect(evaluatorIdQuery.query).toContain(
+      "coalesce(nullIf(events_observations.evaluator_id, ''), events_observations.evaluation_rule_id)",
+    );
+    expect(evaluatorTestQuery.query).toContain(
+      "events_observations.evaluator_execution_is_test",
+    );
+    expect(evaluatorIdQuery.query).toContain("!= ''");
+    expect(evaluatorTestQuery.query).toContain(": Boolean}");
+  });
 
   it("lowers the semantic-root observation filter only in the v2 events view", async () => {
     const { query } = await buildQueryWithFilter(
@@ -560,5 +629,39 @@ describe("toolCallInvocations measure", () => {
       "any(events_observations.tool_call_names)",
     );
     expect(compiledQuery.match(/\bSELECT\b/g)).toHaveLength(1);
+  });
+
+  it("honors a stored count aggregation instead of the UI default sum", async () => {
+    const { query: compiledQuery } = await new QueryBuilder(
+      undefined,
+      "v1",
+    ).build(
+      {
+        ...baseQuery,
+        metrics: [{ measure: "toolCallInvocations", aggregation: "count" }],
+      },
+      "test-project",
+    );
+
+    expect(compiledQuery).toContain("count(toolCallInvocations)");
+    expect(compiledQuery).not.toContain("sum(toolCallInvocations)");
+  });
+});
+
+describe("toolCalls stored aggregation", () => {
+  it("compiles count(toolCalls) when the widget stored count, not the UI default sum", async () => {
+    const { query: compiledQuery } = await new QueryBuilder(
+      undefined,
+      "v1",
+    ).build(
+      {
+        ...baseQuery,
+        metrics: [{ measure: "toolCalls", aggregation: "count" }],
+      },
+      "test-project",
+    );
+
+    expect(compiledQuery).toContain("count(toolCalls)");
+    expect(compiledQuery).not.toContain("sum(toolCalls)");
   });
 });

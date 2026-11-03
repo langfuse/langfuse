@@ -179,9 +179,29 @@ const run = async (
   params: Record<string, string | number | boolean>,
 ): Promise<SeedSummary> => {
   const startedAt = Date.now();
-  const coreItems = Math.max(1, Number(params["core-items"] ?? 12));
+  const setupDemo = params["setup-demo"] === true;
+  const scoreConfigCount = Number(
+    params["score-config-count"] ?? CONFIG_DEFS.length,
+  );
+  if (
+    !Number.isInteger(scoreConfigCount) ||
+    scoreConfigCount < CONFIG_DEFS.length ||
+    scoreConfigCount > 500
+  ) {
+    throw new SeedError(
+      "--score-config-count must be an integer from 9 to 500",
+    );
+  }
+  const coreItems = Math.max(
+    setupDemo ? 4 : 1,
+    Number(params["core-items"] ?? 12),
+  );
   const withV4 = params.v4 !== false; // default true — local dev renders v4 events
-  const pfx = ctx.idPrefix && ctx.idPrefix.length > 0 ? ctx.idPrefix : "annoqa";
+  const idPrefix =
+    ctx.idPrefix && ctx.idPrefix.length > 0 ? ctx.idPrefix : "annoqa";
+  const pfx = setupDemo ? `${idPrefix}-setup` : idPrefix;
+  const queueCount = setupDemo ? 3 : 2;
+  const edgeItems = setupDemo ? 7 : 8;
 
   // Deterministic time window (6h before today's UTC midnight); jitter() adds
   // stateless per-row variation so re-runs overwrite in place.
@@ -194,6 +214,13 @@ const run = async (
   // --id-prefix is reused — items must reference its real id, not ours).
   let coreQueueId = `${pfx}-q-core`;
   let edgeQueueId = `${pfx}-q-edge`;
+  let startQueueId = `${pfx}-q-start`;
+
+  const queueLinks = () => [
+    annotationQueueLink(ctx, coreQueueId),
+    annotationQueueLink(ctx, edgeQueueId),
+    ...(setupDemo ? [annotationQueueLink(ctx, startQueueId)] : []),
+  ];
 
   if (ctx.dryRun) {
     return {
@@ -208,27 +235,28 @@ const run = async (
         // Mirror the real-run counts: 8 edge items (partial1/2, stale, 2 obs,
         // session, missing, done), of which 8 have traces (missing has none),
         // 2 carry observations, and 9 pre-existing scores (2+3+1+3) are seeded.
-        scoreConfigs: CONFIG_DEFS.length,
-        queues: 2,
-        items: coreItems + 8,
+        scoreConfigs: scoreConfigCount,
+        queues: queueCount,
+        items: coreItems + edgeItems + (setupDemo ? 4 : 0),
         traces: coreItems + 8,
         observations: 2,
         scores: 9,
         events: withV4 ? coreItems + 10 : 0,
       },
       verified: {},
-      links: [
-        annotationQueueLink(ctx, coreQueueId),
-        annotationQueueLink(ctx, edgeQueueId),
-      ],
+      links: queueLinks(),
       dryRun: true,
       durationMs: Date.now() - startedAt,
     };
   }
 
   // --- 1. Score configs (Postgres) ----------------------------------------
+  const extraConfigs = createExtraConfigDefinitions(
+    scoreConfigCount - CONFIG_DEFS.length,
+  );
+  const scoreConfigs = [...CONFIG_DEFS, ...extraConfigs];
   const configId: Record<string, string> = {};
-  for (const def of CONFIG_DEFS) {
+  for (const def of scoreConfigs) {
     const id = `${pfx}-cfg-${def.key}`;
     configId[def.key] = id;
     const base = {
@@ -248,25 +276,53 @@ const run = async (
   }
 
   // --- 2. Queues (Postgres) -----------------------------------------------
-  const coreConfigIds = CORE_KEYS.map((k) => configId[k]);
-  const edgeConfigIds = CONFIG_DEFS.map((d) => configId[d.key]);
+  const selectedExtraCount = Math.ceil(extraConfigs.length * 0.6);
+  const coreConfigIds = [
+    ...(setupDemo
+      ? ["helpfulness", "accuracy", "quality", "feedback"]
+      : CORE_KEYS),
+    ...extraConfigs.slice(0, selectedExtraCount).map((def) => def.key),
+  ].map((key) => configId[key]);
+  const edgeConfigIds = setupDemo
+    ? [
+        "toxicity",
+        "confidence",
+        "feedback",
+        ...extraConfigs
+          .slice(extraConfigs.length - selectedExtraCount)
+          .reverse()
+          .map((def) => def.key),
+      ].map((key) => configId[key])
+    : scoreConfigs.map((def) => configId[def.key]);
+  const coreQueueName = setupDemo
+    ? "Queue setup demo · Answer quality"
+    : "Keyboard QA · core types";
+  const coreQueueDescription = setupDemo
+    ? "Review answer helpfulness, accuracy, and quality, then leave feedback."
+    : "Every score-field type, fresh items — fast keyboard run.";
+  const edgeQueueName = setupDemo
+    ? "Queue setup demo · Safety review"
+    : "Keyboard QA · edge cases";
+  const edgeQueueDescription = setupDemo
+    ? "Review toxicity and confidence, with the same project-wide feedback config."
+    : "Many fields + partial/stale/archived scores, observation/session/deleted/completed items.";
 
   const coreQueue = await prisma.annotationQueue.upsert({
     where: {
       projectId_name: {
         projectId: ctx.projectId,
-        name: "Keyboard QA · core types",
+        name: coreQueueName,
       },
     },
     update: {
-      description: "Every score-field type, fresh items — fast keyboard run.",
+      description: coreQueueDescription,
       scoreConfigIds: coreConfigIds,
     },
     create: {
       id: coreQueueId,
       projectId: ctx.projectId,
-      name: "Keyboard QA · core types",
-      description: "Every score-field type, fresh items — fast keyboard run.",
+      name: coreQueueName,
+      description: coreQueueDescription,
       scoreConfigIds: coreConfigIds,
     },
   });
@@ -275,24 +331,47 @@ const run = async (
     where: {
       projectId_name: {
         projectId: ctx.projectId,
-        name: "Keyboard QA · edge cases",
+        name: edgeQueueName,
       },
     },
     update: {
-      description:
-        "Many fields + partial/stale/archived scores, observation/session/deleted/completed items.",
+      description: edgeQueueDescription,
       scoreConfigIds: edgeConfigIds,
     },
     create: {
       id: edgeQueueId,
       projectId: ctx.projectId,
-      name: "Keyboard QA · edge cases",
-      description:
-        "Many fields + partial/stale/archived scores, observation/session/deleted/completed items.",
+      name: edgeQueueName,
+      description: edgeQueueDescription,
       scoreConfigIds: edgeConfigIds,
     },
   });
   edgeQueueId = edgeQueue.id;
+
+  if (setupDemo) {
+    // An intentionally unconfigured fixture exercises setup before fields are
+    // selected; the application still requires a config when saving a queue.
+    const startQueue = await prisma.annotationQueue.upsert({
+      where: {
+        projectId_name: {
+          projectId: ctx.projectId,
+          name: "Queue setup demo · Start here",
+        },
+      },
+      update: {
+        description: "Add score configs to start annotating these items.",
+        scoreConfigIds: [],
+      },
+      create: {
+        id: startQueueId,
+        projectId: ctx.projectId,
+        name: "Queue setup demo · Start here",
+        description: "Add score configs to start annotating these items.",
+        scoreConfigIds: [],
+      },
+    });
+    startQueueId = startQueue.id;
+  }
 
   // --- 3. ClickHouse rows + queue items -----------------------------------
   const traces: TraceRecordInsertType[] = [];
@@ -528,12 +607,14 @@ const run = async (
     pushItem(`${pfx}-edge-i-session`, edgeQueueId, sessionId, "SESSION");
   }
   // (v) Deleted/missing object — no trace created → ObjectNotFound card.
-  pushItem(
-    `${pfx}-edge-i-missing`,
-    edgeQueueId,
-    `${pfx}-edge-missing-trace`,
-    "TRACE",
-  );
+  if (!setupDemo) {
+    pushItem(
+      `${pfx}-edge-i-missing`,
+      edgeQueueId,
+      `${pfx}-edge-missing-trace`,
+      "TRACE",
+    );
+  }
   // (vi) An already-completed item, fully scored.
   {
     const { timestamp } = newTrace(`${pfx}-edge-done`);
@@ -570,6 +651,17 @@ const run = async (
     );
   }
 
+  if (setupDemo) {
+    for (let i = 0; i < 4; i++) {
+      pushItem(
+        `${pfx}-start-i${i}`,
+        startQueueId,
+        `${pfx}-core-t${i}`,
+        "TRACE",
+      );
+    }
+  }
+
   // --- 4. Persist queue items (Postgres) ----------------------------------
   for (const it of items) {
     const data = {
@@ -590,7 +682,7 @@ const run = async (
 
   // --- 5. Persist ClickHouse rows -----------------------------------------
   ctx.log(
-    `writing ${CONFIG_DEFS.length} score configs, 2 queues, ${items.length} items, ${traces.length} traces, ${observations.length} observations, ${scores.length} scores${withV4 ? `, ${events.length} events` : ""}`,
+    `writing ${scoreConfigs.length} score configs, ${queueCount} queues, ${items.length} items, ${traces.length} traces, ${observations.length} observations, ${scores.length} scores${withV4 ? `, ${events.length} events` : ""}`,
   );
   for (const batch of chunk(traces, 1000)) await createTracesCh(batch);
   for (const batch of chunk(observations, 1000))
@@ -617,7 +709,9 @@ const run = async (
   const pgItems = await prisma.annotationQueueItem.count({
     where: {
       projectId: ctx.projectId,
-      queueId: { in: [coreQueueId, edgeQueueId] },
+      queueId: {
+        in: [coreQueueId, edgeQueueId, ...(setupDemo ? [startQueueId] : [])],
+      },
     },
   });
   verified.queueItems = pgItems;
@@ -647,8 +741,8 @@ const run = async (
     traceIds: traceIds.slice(0, 5),
     sessionIds: [sessionId],
     counts: {
-      scoreConfigs: CONFIG_DEFS.length,
-      queues: 2,
+      scoreConfigs: scoreConfigs.length,
+      queues: queueCount,
       items: items.length,
       traces: traces.length,
       observations: observations.length,
@@ -656,10 +750,7 @@ const run = async (
       events: events.length,
     },
     verified,
-    links: [
-      annotationQueueLink(ctx, coreQueueId),
-      annotationQueueLink(ctx, edgeQueueId),
-    ],
+    links: queueLinks(),
     dryRun: false,
     durationMs: Date.now() - startedAt,
   };
@@ -678,6 +769,20 @@ export const annotationQueueScenario: ScenarioDefinition = {
       description: "number of fresh trace items on the core-types queue",
     },
     {
+      flag: "setup-demo",
+      type: "boolean",
+      default: false,
+      description:
+        "seed two differently configured demo queues and an unconfigured queue with four pending items (at least four core traces)",
+    },
+    {
+      flag: "score-config-count",
+      type: "number",
+      default: CONFIG_DEFS.length,
+      description:
+        "total project score configs (9–500); extra varied fields are attached in different subsets and orders to exercise long queue editors",
+    },
+    {
       flag: "v4",
       type: "boolean",
       default: true,
@@ -687,3 +792,63 @@ export const annotationQueueScenario: ScenarioDefinition = {
   ],
   run,
 };
+
+function createExtraConfigDefinitions(count: number): ConfigDef[] {
+  const names = [
+    "Response clarity",
+    "Source relevance",
+    "Policy compliance",
+    "Review notes",
+    "Answer completeness",
+    "Citation quality",
+    "Sensitive content",
+    "Improvement suggestions",
+    "Instruction following",
+    "Reasoning quality",
+    "Escalation needed",
+    "Reviewer rationale",
+  ];
+
+  return Array.from({ length: count }, (_, index) => {
+    const key = `additional-${index + 1}`;
+    const name = `${names[index % names.length]} ${index + 1}`;
+    const description =
+      "Synthetic score config for testing long queue field lists.";
+    switch (index % 4) {
+      case 0:
+        return {
+          key,
+          name,
+          description,
+          dataType: "NUMERIC",
+          minValue: 0,
+          maxValue: index % 8 === 0 ? 5 : 100,
+        };
+      case 1:
+        return {
+          key,
+          name,
+          description,
+          dataType: "CATEGORICAL",
+          categories: [
+            { label: "Meets expectations", value: 2 },
+            { label: "Needs improvement", value: 1 },
+            { label: "Does not meet expectations", value: 0 },
+          ],
+        };
+      case 2:
+        return {
+          key,
+          name,
+          description,
+          dataType: "BOOLEAN",
+          categories: [
+            { label: "True", value: 1 },
+            { label: "False", value: 0 },
+          ],
+        };
+      default:
+        return { key, name, description, dataType: "TEXT" };
+    }
+  });
+}

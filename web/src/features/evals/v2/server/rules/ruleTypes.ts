@@ -2,13 +2,13 @@ import {
   EvalTargetObject,
   observationVariableMappingList,
   paginationLimitZod,
-  singleFilter,
+  singleFilterList,
 } from "@langfuse/shared";
 import { z } from "zod";
 
 export const RuleMetadataSchema = z.object({
   name: z.string().trim().min(1),
-  filter: z.array(singleFilter),
+  filter: singleFilterList,
   sampling: z.number().min(0).max(1),
 });
 
@@ -44,8 +44,7 @@ export const ListRulesSchema = z.object({
     .min(1)
     .max(2)
     .optional(),
-  filter: z
-    .array(singleFilter)
+  filter: singleFilterList
     .superRefine((filters, ctx) => {
       for (const [index, filter] of filters.entries()) {
         const valid =

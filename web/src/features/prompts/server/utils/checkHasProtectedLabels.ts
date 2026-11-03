@@ -1,9 +1,9 @@
-import { type PrismaClient } from "@langfuse/shared";
+import { type Prisma } from "@langfuse/shared";
 
 type CheckHasProtectedLabelsParams = {
   labelsToCheck: string[];
   projectId: string;
-  prisma: PrismaClient;
+  prisma: Prisma.TransactionClient;
 };
 
 export async function checkHasProtectedLabels(

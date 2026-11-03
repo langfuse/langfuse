@@ -17,12 +17,14 @@ export function EvaluatorPickerOption({
     : null;
 
   return (
-    <div className="flex min-w-0 flex-1 items-center gap-3">
+    <div className="ph-no-capture flex min-w-0 flex-1 items-center gap-3">
       <div className="flex min-w-0 flex-1 items-center gap-2">
         <span className="min-w-0 truncate" title={evaluator.name}>
           {evaluator.name}
         </span>
-        <EvaluatorTypeBadge type={evaluator.type} />
+        <div className="shrink-0">
+          <EvaluatorTypeBadge type={evaluator.type} />
+        </div>
       </div>
       <div className="text-muted-foreground flex max-w-[45%] min-w-0 shrink-0 items-center justify-end gap-1 text-xs">
         <span className="min-w-0 truncate" title={`Created by ${creator}`}>

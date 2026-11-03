@@ -171,9 +171,11 @@ export class WebCalloutRateLimitService {
       return;
     }
 
-    this.redisConnectPromise ??= redis.connect().finally(() => {
-      this.redisConnectPromise = null;
-    });
+    if (this.redisConnectPromise === null) {
+      this.redisConnectPromise = redis.connect().finally(() => {
+        this.redisConnectPromise = null;
+      });
+    }
 
     await this.redisConnectPromise;
   }

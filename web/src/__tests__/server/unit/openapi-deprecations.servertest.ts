@@ -5,6 +5,7 @@ import { parse } from "yaml";
 
 import {
   getFernDeprecatedOperations,
+  getFernDeprecatedProperties,
   type DeprecatedOperation,
 } from "../../../../scripts/openapi/fern-deprecations";
 import {
@@ -12,6 +13,15 @@ import {
   stampDeprecations,
 } from "../../../../scripts/openapi/stamp-deprecations";
 import {
+  DATASET_RUN_ITEMS_DEPRECATION,
+  DATASET_RUNS_DEPRECATION,
+  INGESTION_DEPRECATION,
+  METRICS_DEPRECATION,
+  OBSERVATIONS_V1_DEPRECATION,
+  SCORES_DEPRECATION,
+  SESSIONS_DEPRECATION,
+  TRACES_DEPRECATION,
+  V3_DELAY_NOTICE,
   V3_SUNSET_DATE,
   V3_SUNSET_HUMAN,
 } from "@/src/features/public-api/server/deprecations";
@@ -21,8 +31,14 @@ type OpenApiOperation = {
   description?: string;
   security?: unknown;
 };
+type OpenApiSchema = {
+  description?: string;
+};
 type OpenApiDocument = {
   paths: Record<string, Record<string, OpenApiOperation>>;
+  components: {
+    schemas: Record<string, OpenApiSchema>;
+  };
 };
 
 const definitionDirectory = path.resolve(
@@ -35,18 +51,6 @@ const openApiPath = path.resolve(
 );
 
 const MESSAGE = "Use `GET /api/public/v2/observations?from=<from>` instead.";
-const UNSTABLE_EVALS_SUNSET_HUMAN = "September 4, 2026";
-const UNSTABLE_EVAL_OPERATIONS = new Set([
-  "POST /api/public/unstable/evaluators",
-  "GET /api/public/unstable/evaluators",
-  "GET /api/public/unstable/evaluators/{evaluatorId}",
-  "DELETE /api/public/unstable/evaluators/{evaluatorId}",
-  "POST /api/public/unstable/evaluation-rules",
-  "GET /api/public/unstable/evaluation-rules",
-  "GET /api/public/unstable/evaluation-rules/{evaluationRuleId}",
-  "PATCH /api/public/unstable/evaluation-rules/{evaluationRuleId}",
-  "DELETE /api/public/unstable/evaluation-rules/{evaluationRuleId}",
-]);
 
 /** Spec fixture in the shape `fern export` produces, aliased `security` included. */
 const SPEC = `openapi: 3.0.1
@@ -105,6 +109,70 @@ function withDefinition(
 }
 
 describe("OpenAPI deprecations", () => {
+  it("finds deprecated named-type and inline-request properties", () => {
+    withDefinition(
+      {
+        "api.yml": "base-path: /api\n",
+        "keys.yml": `types:
+  Key:
+    properties:
+      oldLabel:
+        type: optional<string>
+        availability: deprecated
+      label: optional<string>
+service:
+  base-path: /admin
+  endpoints:
+    create:
+      method: POST
+      path: /keys
+      request:
+        name: CreateKeyRequest
+        body:
+          properties:
+            oldLabel:
+              type: optional<string>
+              availability:
+                status: deprecated
+            label: optional<string>
+`,
+      },
+      (directory) => {
+        expect(getFernDeprecatedProperties(directory)).toEqual([
+          ["components", "schemas", "Key", "properties", "oldLabel"],
+          [
+            "paths",
+            "/api/admin/keys",
+            "post",
+            "requestBody",
+            "content",
+            "application/json",
+            "schema",
+            "properties",
+            "oldLabel",
+          ],
+        ]);
+      },
+    );
+  });
+
+  it("stamps property deprecations without changing their descriptions", () => {
+    const source = `${SPEC}components:\n  schemas:\n    Key:\n      properties:\n        oldLabel:\n          type: string\n          description: Use label instead.\n        label:\n          type: string\n`;
+    const properties = [
+      ["components", "schemas", "Key", "properties", "oldLabel"],
+    ];
+    const stamped = stampDeprecations(source, [], properties);
+    const schemas = parse(stamped).components.schemas;
+
+    expect(schemas.Key.properties.oldLabel).toEqual({
+      type: "string",
+      description: "Use label instead.",
+      deprecated: true,
+    });
+    expect(schemas.Key.properties.label).toEqual({ type: "string" });
+    expect(stampDeprecations(stamped, [], properties)).toBe(stamped);
+  });
+
   it("matches the deprecated endpoints in the Fern definitions", () => {
     const openApi = parseSpec(fs.readFileSync(openApiPath, "utf8"));
     const openApiDeprecatedOperations = Object.entries(openApi.paths).flatMap(
@@ -119,6 +187,16 @@ describe("OpenAPI deprecations", () => {
         .map(({ method, endpointPath }) => `${method} ${endpointPath}`)
         .sort(),
     );
+  });
+
+  // Score writes are the successor the ingestion sunset message points at, so
+  // deprecating them would contradict that guidance.
+  it("keeps the score write endpoint free of a deprecation", () => {
+    const openApi = parseSpec(fs.readFileSync(openApiPath, "utf8"));
+    const scoreCreate = openApi.paths["/api/public/scores"].post;
+
+    expect(scoreCreate.deprecated).toBeUndefined();
+    expect(scoreCreate.description ?? "").not.toContain("Deprecated:");
   });
 
   it("carries every Fern deprecation message into the operation description", () => {
@@ -139,11 +217,10 @@ describe("OpenAPI deprecations", () => {
       definitionDirectory,
     )) {
       const operation = `${method.toUpperCase()} ${endpointPath}`;
-      const sunsetDate = UNSTABLE_EVAL_OPERATIONS.has(operation)
-        ? UNSTABLE_EVALS_SUNSET_HUMAN
-        : V3_SUNSET_HUMAN;
 
-      expect(message, operation).toContain(`will be removed on ${sunsetDate}.`);
+      expect(message, operation).toContain(
+        `will be removed on ${V3_SUNSET_HUMAN}.`,
+      );
     }
   });
 
@@ -169,6 +246,59 @@ describe("OpenAPI deprecations", () => {
         timeZone: "UTC",
       }),
     ).toBe(V3_SUNSET_HUMAN);
+  });
+
+  // Every family that already stamps `_deprecation` shares V3_NOTICE, so a new
+  // family that forgets it would ship without the live-read delay warning.
+  it("puts the live-read delay notice on every legacy `_deprecation.message`", () => {
+    const families = [
+      OBSERVATIONS_V1_DEPRECATION,
+      TRACES_DEPRECATION,
+      SESSIONS_DEPRECATION,
+      SCORES_DEPRECATION,
+      METRICS_DEPRECATION,
+      DATASET_RUN_ITEMS_DEPRECATION,
+      DATASET_RUNS_DEPRECATION,
+      INGESTION_DEPRECATION,
+    ];
+
+    for (const family of families) {
+      expect(family.message).toContain(V3_DELAY_NOTICE);
+    }
+  });
+
+  it("leads with the ingestion sunset and names the write successors", () => {
+    const message = INGESTION_DEPRECATION.message;
+    expect(message).toContain(`shut down on ${V3_SUNSET_HUMAN}`);
+    expect(message).toContain("except for score events");
+    expect(message).toContain("rejects all other event types");
+    expect(message).toContain("POST /api/public/scores");
+    expect(message).toContain(
+      "prefer upgrading to the current Python and JS SDKs",
+    );
+    expect(message).toContain("custom auto-instrumentation");
+    expect(message).toContain("curl");
+    expect(message).toContain("POST /api/public/otel/v1/traces");
+    expect(message).toContain(
+      "The only path to live data is OpenTelemetry ingestion",
+    );
+    expect(message).toContain(
+      "other public APIs may have data delays of several minutes",
+    );
+
+    // Read guidance points at the live v2 surfaces and their docs.
+    expect(INGESTION_DEPRECATION.message).toContain(
+      "GET /api/public/v2/observations",
+    );
+    expect(INGESTION_DEPRECATION.message).toContain(
+      "GET /api/public/v2/metrics",
+    );
+    expect(INGESTION_DEPRECATION.message).toContain(
+      "https://langfuse.com/docs/api-and-data-platform/features/public-api#v3",
+    );
+    expect(INGESTION_DEPRECATION.message).toContain(
+      "https://langfuse.com/docs/api-and-data-platform/features/public-api#v2",
+    );
   });
 
   it("supports deprecated endpoints at a service base path", () => {

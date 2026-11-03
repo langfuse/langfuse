@@ -1,7 +1,8 @@
 # yaml-language-server: $schema=https://raw.githubusercontent.com/fern-api/fern/main/fern.schema.json
 imports:
   commons: ./commons.yml
-  scoresV3: ./scores-v3.yml
+  scores: ./scores.yml
+  pagination: ./utils/pagination.yml
 
 service:
   auth: true
@@ -32,7 +33,11 @@ service:
             docs: Versioned base64url cursor from the previous response page.
           fromStartTime:
             type: datetime
-            docs: Retrieve only experiments on or after this datetime.
+            docs: |
+              Required. Retrieve only experiments with events on or after this
+              datetime. A lower bound is required so the query stays fast on
+              large projects; pair it with an upper bound to select a specific
+              window.
           toStartTime:
             type: optional<datetime>
             docs: Retrieve only experiments before this datetime.
@@ -80,7 +85,11 @@ service:
             docs: Versioned base64url cursor from the previous response page.
           fromStartTime:
             type: datetime
-            docs: Retrieve only experiment items started on or after this datetime.
+            docs: |
+              Required. Retrieve only experiment items started on or after this
+              datetime. A lower bound is required so the query stays fast on
+              large projects; pair it with an upper bound to select a specific
+              window.
           toStartTime:
             type: optional<datetime>
             docs: Retrieve only experiment items started before this datetime.
@@ -111,10 +120,9 @@ types:
       meta: ExperimentsResponseMeta
 
   ExperimentsResponseMeta:
-    properties:
-      cursor:
-        type: optional<string>
-        docs: Versioned base64url cursor for retrieving the next page. Absent when there are no more results.
+    docs: Metadata for cursor-based pagination.
+    extends:
+      - pagination.CursorMetaResponse
 
   Experiment:
     properties:
@@ -142,7 +150,7 @@ types:
         type: optional<nullable<map<string, unknown>>>
         docs: Included only when `fields=metadata` is requested.
       scores:
-        type: optional<list<scoresV3.ScoreV3>>
+        type: optional<list<scores.ScoreV3>>
         docs: Included only when `fields=scores` is requested. Contains scores directly attached to the experiment.
 
   ExperimentItemsResponse:
@@ -189,5 +197,5 @@ types:
         type: optional<nullable<string>>
         docs: Included when `fields=experimentMetadata` is requested.
       scores:
-        type: optional<list<scoresV3.ScoreV3>>
+        type: optional<list<scores.ScoreV3>>
         docs: Included only when `fields=scores` is requested. Contains item and trace scores only; experiment-level scores are returned by the experiments endpoint.

@@ -18,11 +18,13 @@ export type InAppAgentTrpcInvalidationTarget =
   | "datasets"
   | "evals"
   | "experiments"
+  | "externalMediaStorage"
   | "models"
   | "prompts"
   | "scoreAnalytics"
   | "scoreConfigs"
-  | "scores";
+  | "scores"
+  | "skills";
 
 type InAppAgentMcpToolName = `langfuse_${InAppAgentLangfuseMcpToolName}`;
 
@@ -59,6 +61,7 @@ const IN_APP_AGENT_TOOL_TRPC_INVALIDATION_TARGETS = {
   langfuse_listDatasets: [],
   langfuse_getDataset: [],
   langfuse_upsertDatasetItem: ["datasets"],
+  langfuse_batchUpsertDatasetItems: ["datasets"],
   langfuse_listDatasetItems: [],
   langfuse_getDatasetItem: [],
   langfuse_deleteDatasetItem: ["datasets"],
@@ -81,18 +84,24 @@ const IN_APP_AGENT_TOOL_TRPC_INVALIDATION_TARGETS = {
   langfuse_attachEvaluatorToEvaluationRule: ["evals"],
   langfuse_detachEvaluatorFromEvaluationRule: ["evals"],
   langfuse_deleteEvaluationRule: ["evals"],
+  langfuse_runBatchEvaluation: ["evals"],
   langfuse_listExperiments: [],
   langfuse_listExperimentItems: [],
   langfuse_submitFeedback: ["scores", "scoreAnalytics"],
   langfuse_getHealth: [],
   langfuse_getV4MigrationData: [],
   langfuse_getMedia: [],
+  langfuse_getExternalMediaStorage: [],
+  langfuse_configureExternalMediaStorage: ["externalMediaStorage"],
+  langfuse_deleteExternalMediaStorage: ["externalMediaStorage"],
+  langfuse_testExternalMediaStorage: [],
   langfuse_queryMetrics: [],
   langfuse_getMetricsSchema: [],
   langfuse_listModels: [],
   langfuse_createModel: ["models"],
   langfuse_getModel: [],
   langfuse_deleteModel: ["models"],
+  langfuse_listLlmConnections: [],
   langfuse_listObservations: [],
   langfuse_getObservation: [],
   langfuse_getObservationFieldSchema: [],
@@ -106,6 +115,13 @@ const IN_APP_AGENT_TOOL_TRPC_INVALIDATION_TARGETS = {
   langfuse_createTextPrompt: ["prompts"],
   langfuse_createChatPrompt: ["prompts"],
   langfuse_updatePromptLabels: ["prompts"],
+  langfuse_listSkills: [],
+  langfuse_getSkill: [],
+  langfuse_loadSkill: [],
+  langfuse_loadSkillResource: [],
+  langfuse_createSkillVersion: ["skills"],
+  langfuse_updateSkillLabels: ["skills"],
+  langfuse_updateSkillTags: ["skills"],
   langfuse_listScores: [],
   langfuse_getScore: [],
   langfuse_createScore: ["scores", "scoreAnalytics"],
@@ -186,6 +202,9 @@ function performTargetInvalidation(
   if (target === "experiments") {
     return utils.experiments.invalidate();
   }
+  if (target === "externalMediaStorage") {
+    return utils.externalMediaStorage.invalidate();
+  }
   if (target === "models") {
     return utils.models.invalidate();
   }
@@ -200,6 +219,9 @@ function performTargetInvalidation(
   }
   if (target === "scores") {
     return utils.scores.invalidate();
+  }
+  if (target === "skills") {
+    return utils.skills.invalidate();
   }
 
   return assertUnreachable(target);

@@ -8,8 +8,71 @@ import {
   getScoreById,
   getTraceById,
   createOrgProjectAndApiKey,
+  ingestionEvent,
 } from "@langfuse/shared/src/server";
 import { v4 } from "uuid";
+
+describe("ingestion timestamp compatibility", () => {
+  it.each(["2024-02-29T06:15Z", "2024-02-29T06:15:00.123+02:30"])(
+    "accepts %s in both the envelope and body",
+    (timestamp) => {
+      const event = {
+        id: "event-id",
+        type: "trace-create",
+        timestamp,
+        body: { id: "trace-id", timestamp },
+      };
+      expect(ingestionEvent.parse(event)).toMatchObject(event);
+    },
+  );
+});
+
+describe("ingestion modelParameters compatibility", () => {
+  const parseModelParameters = (modelParameters: Record<string, unknown>) =>
+    ingestionEvent.parse({
+      id: "event-id",
+      type: "generation-create",
+      timestamp: new Date().toISOString(),
+      body: { id: "generation-id", modelParameters },
+    }).body;
+
+  it("keeps supported values unchanged", () => {
+    const modelParameters = {
+      temperature: 0.2,
+      stream: false,
+      stop: ["\n"],
+      reasoning: { effort: "high" },
+      seed: null,
+    };
+
+    expect(parseModelParameters(modelParameters)).toMatchObject({
+      modelParameters,
+    });
+  });
+
+  it("serializes nested values instead of rejecting the generation", () => {
+    const responseFormat = {
+      type: "json_schema",
+      json_schema: { name: "answer", strict: true, schema: { type: "object" } },
+    };
+
+    expect(
+      parseModelParameters({
+        temperature: 0,
+        response_format: responseFormat,
+        thinking: { type: "enabled", budget_tokens: 1024 },
+        stop_token_ids: [1, 2],
+      }),
+    ).toMatchObject({
+      modelParameters: {
+        temperature: 0,
+        response_format: JSON.stringify(responseFormat),
+        thinking: '{"type":"enabled","budget_tokens":1024}',
+        stop_token_ids: "[1,2]",
+      },
+    });
+  });
+});
 
 let projectId: string;
 let auth: string;

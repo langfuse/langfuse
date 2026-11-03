@@ -81,6 +81,8 @@ export function toClickhouseQueryOpts(
   return {
     query: prepared.compiledQuery,
     params: prepared.parameters,
+    // Large filter values (e.g. long IN lists) would overflow the URL.
+    useMultipartParamsAuto: true,
     clickhouseSettings: prepared.clickhouseSettings,
     tags: prepared.tags,
     preferredClickhouseService: prepared.preferredClickhouseService,
@@ -92,6 +94,7 @@ export async function executeQuery(
   query: QueryType,
   version: ViewVersion = "v1",
   enableSingleLevelOptimization = false,
+  options?: Pick<ClickhouseQueryOpts, "clickhouseSettings">,
 ): Promise<Array<Record<string, unknown>>> {
   const prepared = await prepareExecuteQuery({
     projectId,
@@ -101,6 +104,10 @@ export async function executeQuery(
   });
 
   const chOpts = toClickhouseQueryOpts(prepared);
+  chOpts.clickhouseSettings = {
+    ...chOpts.clickhouseSettings,
+    ...options?.clickhouseSettings,
+  };
 
   if (!prepared.usesTraceTable) {
     return queryClickhouse<Record<string, unknown>>(chOpts);

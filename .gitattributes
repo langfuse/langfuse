@@ -1,1 +1,4 @@
 .github/workflows/*.lock.yml linguist-generated=true
+# Loader and typings written by `napi build` from the Rust exports.
+packages/native/index.js linguist-generated=true
+packages/native/index.d.ts linguist-generated=true

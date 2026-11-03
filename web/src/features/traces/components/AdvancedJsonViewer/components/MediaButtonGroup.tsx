@@ -1,6 +1,8 @@
+/* eslint-disable @repo/no-null-render */
 import { useMemo, useState, useRef } from "react";
+import { mediaUrlQueryOptions } from "@/src/features/media/constants/mediaUrlQueryOptions";
 import { type MediaReturnType } from "@/src/features/media/validation";
-import { File, Image as ImageIcon, Volume2, Video } from "lucide-react";
+import { File, Image as ImageIcon, Volume2, Video } from "@langfuse/icons";
 import { LangfuseMediaView } from "@/src/components/ui/LangfuseMediaView";
 import {
   Popover,
@@ -89,10 +91,7 @@ function MediaPreview({ mediaItem }: { mediaItem: MediaReturnType }) {
     },
     {
       enabled: Boolean(projectId),
-      refetchOnWindowFocus: false,
-      refetchOnMount: false,
-      refetchOnReconnect: false,
-      staleTime: 55 * 60 * 1000, // 55 minutes, s3 links expire after 1 hour
+      ...mediaUrlQueryOptions,
     },
   );
 
@@ -245,7 +244,7 @@ export function MediaButtonGroup({ media }: MediaButtonGroupProps) {
                 e.preventDefault();
               }}
             >
-              <group.icon className="h-3.5 w-3.5" />
+              <group.icon size="base" />
               {group.items.length > 1 && (
                 <span className="bg-primary text-primary-foreground absolute -top-1 -right-1 flex h-3.5 w-3.5 items-center justify-center rounded-full text-[9px] font-bold">
                   {group.items.length}

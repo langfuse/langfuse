@@ -28,7 +28,7 @@ Design-system files may import other design-system files, shared utilities (`src
 
 ### Structure
 
-- One component per file
+- Only a single component export per file
 - Folder name = component name
 
 ```
@@ -36,6 +36,30 @@ design-system/
   Button/
     Button.tsx
     Button.stories.tsx
+```
+
+Components with subcomponents must expose them through the single exported
+component using `Object.assign`:
+
+```tsx
+// ✅ Single component export with compound subcomponents
+const Alert = Object.assign(AlertRoot, {
+  Title: AlertTitle,
+  Description: AlertDescription,
+});
+
+export { Alert };
+
+<Alert>
+  <Alert.Title>Title</Alert.Title>
+  <Alert.Description>Description</Alert.Description>
+</Alert>
+
+// ❌ Separate component exports
+<Alert>
+  <AlertTitle>Title</AlertTitle>
+  <AlertDescription>Description</AlertDescription>
+</Alert>
 ```
 
 ---
@@ -117,7 +141,7 @@ const PromiseButton = (props: PromiseButtonProps) => {
 
 ## Summary (strict)
 
-- 1 component per file
+- A single component export per file
 - No `className` / `style`
 - No px / hex values as props
 - Use enums + `cva`

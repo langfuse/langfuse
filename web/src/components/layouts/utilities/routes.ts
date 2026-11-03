@@ -1,6 +1,6 @@
 import { type Route } from "../routes";
 
-export type NavigationItem = Omit<Route, "children" | "items"> & {
+export type NavigationItem = Omit<Route, "children" | "items" | "isActive"> & {
   url: string;
   isActive: boolean;
   items?: NavigationItem[];

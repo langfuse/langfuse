@@ -43,6 +43,43 @@ export const TestTogglesVisibility = meta.story({
   },
 });
 
+export const TestPasswordManagerOptIn = meta.story({
+  name: "(Test) Password Manager Opt-In",
+  render: () => (
+    <>
+      <PasswordInput aria-label="API key" />
+      <PasswordInput aria-label="Account password" allowPasswordManager />
+    </>
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+
+    await expect(canvas.getByLabelText("API key")).toHaveAttribute(
+      "data-1p-ignore",
+    );
+    await expect(canvas.getByLabelText("Account password")).not.toHaveAttribute(
+      "data-1p-ignore",
+    );
+  },
+});
+
+export const TestSkipsVisibilityToggleWhenTabbing = meta.story({
+  name: "(Test) Skips Visibility Toggle When Tabbing",
+  args: {
+    "aria-label": "Password",
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const input = canvas.getByLabelText("Password");
+    const toggle = canvas.getByRole("button", { name: "Show password" });
+
+    input.focus();
+    await userEvent.tab();
+
+    await expect(toggle).not.toHaveFocus();
+  },
+});
+
 export const TestDisablesVisibilityToggle = meta.story({
   name: "(Test) Disables Visibility Toggle",
   args: {

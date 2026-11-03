@@ -1,12 +1,19 @@
-import React from "react";
+/* eslint-disable @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 import {
   SplashScreen,
   type ValueProposition,
-} from "@/src/components/ui/splash-screen";
+} from "@/src/components/ui/SplashScreen";
 import { ButtonWithIcon } from "@/src/components/ButtonWithIcon";
 import { DialogTrigger } from "@/src/components/ui/dialog";
 import { CreateDatasetDialogController } from "@/src/features/datasets/components/CreateDatasetDialogController";
-import { Database, Beaker, Zap, Code, LockIcon, PlusIcon } from "lucide-react";
+import {
+  Database,
+  Beaker,
+  Zap,
+  Code,
+  LockIcon,
+  PlusIcon,
+} from "@langfuse/icons";
 
 export function DatasetsOnboarding({ projectId }: { projectId: string }) {
   const valuePropositions: ValueProposition[] = [
@@ -14,24 +21,24 @@ export function DatasetsOnboarding({ projectId }: { projectId: string }) {
       title: "Continuous improvement",
       description:
         "Create datasets from production edge cases to improve your application",
-      icon: <Zap className="h-4 w-4" />,
+      icon: Zap,
     },
     {
       title: "Pre-deployment testing",
       description: "Benchmark new releases before deploying to production",
-      icon: <Beaker className="h-4 w-4" />,
+      icon: Beaker,
     },
     {
       title: "Structured testing",
       description:
         "Run experiments on collections of inputs and expected outputs",
-      icon: <Database className="h-4 w-4" />,
+      icon: Database,
     },
     {
       title: "Custom workflows",
       description:
         "Build custom workflows around your datasets via the API and SDKs, e.g. for fine-tuning, few-shotting",
-      icon: <Code className="h-4 w-4" />,
+      icon: Code,
     },
   ];
 

@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-null-render, @repo/component-file-structure */
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/router";
 import {
@@ -21,7 +22,7 @@ import {
 } from "@/src/features/v4-migration/sdkVersionStatus";
 import { EvaluatorMigrationDialog } from "@/src/features/v4-migration/EvaluatorMigrationDialog";
 import { buildDeprecatedRulesUrl } from "@/src/features/v4-migration/evaluatorMigrationUrls";
-import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
+import { useReadPath } from "@/src/features/events/hooks/useReadPath";
 
 // The pill's description finishes expanding after 300ms (V4MigrationBadgeContent),
 // so a 500ms dwell means the full text was on screen — a drive-by mouse pass
@@ -38,12 +39,12 @@ export function V4MigrationDelayBadge({
   const openMigrationPanel = useOpenV4MigrationPanel();
   const { project } = useQueryProject();
   const forceV3 = useForceV3Experience(project?.id);
-  const { isBetaEnabled } = useV4Beta();
+  const { isV4 } = useReadPath();
   const capture = usePostHogClientCapture();
 
   // Forced-v3 projects still see the data-delay badge, but it points at the
   // partner FAQ instead of the migration panel
-  const enabled = v4UpgradeUiFlagEnabled && (!forceV3 || isBetaEnabled);
+  const enabled = v4UpgradeUiFlagEnabled && (!forceV3 || isV4);
   const sdk = useProjectV4SdkData({
     projectId: project?.id,
     enabled: enabled && Boolean(project),
@@ -151,14 +152,18 @@ export function V4MigrationDelayBadge({
 
   // The hover's action clause echoes the panel section the click opens;
   // multiple delayed paths get the generic clause.
-  const description =
-    actionablePaths > 1
-      ? "Upgrade to v4 for real-time data"
-      : sdkActionable
-        ? "Update your SDK for real-time data"
-        : otelActionable
-          ? "Update your OTel instrumentation for real-time data"
-          : "Upgrade your instrumentation for real-time data";
+  const description = (() => {
+    if (actionablePaths > 1) {
+      return "Upgrade to v4 for real-time data";
+    }
+    if (sdkActionable) {
+      return "Update your SDK for real-time data";
+    }
+    if (otelActionable) {
+      return "Update your OTel instrumentation for real-time data";
+    }
+    return "Upgrade your instrumentation for real-time data";
+  })();
 
   return (
     <V4MigrationBadgeContent

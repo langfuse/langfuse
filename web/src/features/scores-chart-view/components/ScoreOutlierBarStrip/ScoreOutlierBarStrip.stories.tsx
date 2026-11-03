@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-exotic-operators */
 import { fn } from "storybook/test";
 import preview from "../../../../../.storybook/preview";
 import { ScoreOutlierBarStrip } from "@/src/features/scores-chart-view/components/ScoreOutlierBarStrip/ScoreOutlierBarStrip";

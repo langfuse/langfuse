@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 /**
  * Tree-based JSON structure for JIT rendering
  *

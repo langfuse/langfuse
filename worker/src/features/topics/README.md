@@ -1,0 +1,674 @@
+# Topics PoC
+
+Turn selected v4 traces into facet summaries, embeddings, discovered topic maps,
+and assignments to an existing map. Open `/project/<projectId>/topics` on the
+current Langfuse instance (locally, normally `http://localhost:3000`).
+
+## Facets and selection rules
+
+Topics reuses the evaluator and evaluation-rule tables:
+
+- `evaluators` with type `FACET` store facet identity, name and description.
+  `isBuiltIn` marks the immutable Intent, Outcome and Issues presets. Custom
+  facets can have their own instructions.
+- `evaluator_versions` stores immutable prompts keyed by evaluator and numeric
+  version. Saving an unchanged custom prompt does not create a version.
+- `evaluation_rules` stores saved names and observation filters;
+  `evaluation_rule_evaluator_assignments` attaches facets. Editing a rule does
+  not create prompt versions. Random/latest ordering and sample limits belong
+  to each manual processing request, not the saved rule.
+- At trigger, the request freezes the rule ID, resolved trace IDs, selected prompt
+  versions and runtime summary/embedding configuration. A hash identifies the
+  original request, including its selection criteria. Retries never re-evaluate a rule.
+
+Postgres uses normal Prisma migrations; `topic_clustering_runs` is the only new
+Topics table. Configure Topics upserts the per-project idle time in
+`tracing_readiness_settings`; ingestion uses it to schedule trace readiness.
+Idle time is per project, not per rule: see
+`tracing_readiness_settings` in `worker/src/features/traceBatching/README.md`.
+
+## Setup
+
+Use the normal local Postgres, ClickHouse, Redis, web, and worker stack. Apply the
+repository's Postgres and ClickHouse migrations and regenerate/build shared before
+starting the worker. Set `LANGFUSE_TOPICS_ENABLED=true` on both
+web and worker. It defaults to false: Topics routes, effective session flags,
+and queues are disabled. Trace and project deletion always clean Topics data.
+Set `LANGFUSE_TOPICS_ENABLED_PROJECT_IDS=project-a,project-b` on both services to
+allow processing for those project IDs. An unset or empty list admits no projects;
+IDs are comma-separated and whitespace is trimmed. Clear the list to pause
+processing while retaining Topics access.
+Topics environment variables and the trace-batch-to-Topics integration are
+internal PoC controls, not a supported self-hosting configuration surface.
+They are omitted from `.env.prod.example`.
+`LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES` is a separate general flag and does not
+enable Topics; use the dedicated Topics controls for this experiment.
+UI visibility and read/configuration access additionally use the `langfuseTopics`
+feature flag and project permissions. Trigger/retry and both worker processors
+check deployment enablement and the allowlist; rejected queue jobs fail without retrying or running pipeline
+work. Apply changes by restarting web and worker; this does not cancel work that
+is already running. Web and worker use the same databases and Redis. Topics does
+not write to object storage or require a shared filesystem; ingestion storage is unchanged.
+
+Build the numerical addon from the repository root (the normal worker build and
+dev commands also build it):
+
+```sh
+pnpm --filter @langfuse/native run build
+```
+
+Topics runs on the project's own LLM connections (the same connections evals
+and the playground use). Each project stores one `topic_configs` row with
+three slots, each a connection plus a model ID: facet summaries, embeddings (plus
+dimensions), and topic clustering (the model that names and describes topics). Set them on the Topics page under **Models**.
+Processing is unavailable until all three are set. Any connection whose save-time
+test call succeeds can serve summaries and clustering, including Anthropic.
+Embeddings need OpenAI (including OpenAI-compatible base URLs), Azure OpenAI,
+Amazon Bedrock, Google AI Studio or Vertex AI; Anthropic has no embeddings API,
+so its embedding test call fails. Summary and clustering calls normally go through
+`generateLLMText`; embeddings go through `embedLLMText`. Both retry 429 and 5xx
+responses twice with backoff. Cached Bedrock GPT-5.6+ summaries use a single
+InvokeModel request with explicit cache breakpoints. On Cloud, Bedrock and Vertex
+connections need explicit credentials, except operator-provisioned Bedrock
+connections in the runtime-credential allowlist; self-hosted deployments can use
+the default credential chain.
+
+Saving the settings makes one real call per configured slot (structured output
+for summaries and clustering, one embedding whose length must equal the
+configured dimensions) and rejects the save if any call fails. Saves record the
+user in `created_by` / `updated_by` and write `topicConfig` (and, for the rule,
+`job`) audit log entries.
+The embedding model and dimensions cannot change once the project has embedded
+summaries, so existing vectors stay comparable. Summary and clustering model changes apply
+to new work only; an execution frozen on another summary or embedding model
+fails and must be started again. Deleting a connection that a slot uses turns
+automatic processing off and records why. Usage is retained for any model, but
+cost estimates are only available for the model IDs priced in
+[models.ts](models.ts).
+
+Summary and naming calls emit one generation each to the configured internal
+AI-features project (`LANGFUSE_AI_FEATURES_PROJECT_ID`) only when the source
+project is listed in `LANGFUSE_TOPICS_TRACING_ENABLED_PROJECT_IDS` and its
+organization enables AI features and AI analytics. The tracing allowlist is
+comma-separated, trims whitespace, and defaults to empty (tracing off). It is
+independent of the processing allowlist; projects can run Topics without tracing.
+Multi-facet summaries share one generation. Both connection-based SDK calls and
+cached Bedrock InvokeModel calls record inputs, outputs, models, usage, and errors;
+embeddings are untraced.
+Trace costs use the destination project's model catalog. Unmatched connection
+model IDs retain their usage but have no trace cost, independently of Topics'
+own estimates in `models.ts`.
+Traces use `langfuse-topics`. Topics excludes all `langfuse`-prefixed environments
+and `llm-as-a-judge` through the shared eval exclusion predicate, preventing loops
+from these internal traces. Manual selection checks matching root observations
+within the requested time range; workers also check the source environment they
+load. If an OpenRouter connection broadcasts requests back
+to a Topics-enabled project, use a dedicated Topics API key excluded from that
+Broadcast destination. OpenRouter's separate public traces do not retain the
+reserved internal environment and can otherwise trigger more Topics calls.
+
+Numerical fitting uses the worker's existing Node runtime and compiled
+`@langfuse/native` addon, with no extra runtime or service.
+Summary and assignment records use `trace_id` as their source when present;
+`session_id` can also record that trace's parent session. With an empty `trace_id`,
+`session_id` identifies the processed session. At least one ID is required.
+The current pipeline processes traces only. `unit_start_time` (`unitStartTime` in
+TypeScript) is the first observation's start time for the processed source. Summaries set
+`trigger_type` to `automatic` (trace-batch) or `manual` (manual processing); rows written before that split hold `manual_poc`. Each clustering attempt records its own `started_at`. Failed updates start a fresh
+attempt while keeping the previous published map available.
+
+Summaries snapshot source environment and trace name; assignments copy that
+snapshot, including empty environment strings. Reprocessing refreshes metadata
+even when text is reused; session results have no trace name.
+
+For Bedrock summary models, use `us.openai.gpt-6-luna` for US routing or
+`global.openai.gpt-6-luna` for global routing; GPT-6 Luna has no EU geographic
+profile. Both support Bedrock Converse tool-based structured output; OpenAI
+models on Bedrock are called with reasoning effort `none`.
+Summary cost estimates include both GPT-6 Luna profiles and the existing
+`us.openai.gpt-5.6-luna` profile. See the
+[GPT-6 Luna model card](https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-openai-gpt-6-luna.html)
+for supported source regions and pricing. The
+recommended Bedrock clustering model is `us.openai.gpt-5.6-terra`. The AWS model cards for [GPT-5.6 Luna](https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-openai-gpt-56-luna.html)
+and [GPT-5.6 Terra](https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-openai-gpt-56-terra.html)
+currently list `us.` geographic inference profiles in commercial Regions, but
+no `eu.` profiles; these profiles route within the US geography, including when
+invoked from `eu-west-1`.
+On Bedrock, Cohere Embed v4 uses `eu.cohere.embed-v4:0` for EU routing or
+`us.cohere.embed-v4:0` for US routing. Avoid the global profile when geographic
+residency matters. Every provider is asked for clustering vectors of the
+configured size (Cohere `clustering` input type with truncation disabled, Google
+`CLUSTERING` task type, OpenAI `dimensions`). Fixed-size models such as `text-embedding-ada-002` reject
+the size option; a request rejected with HTTP 400 is retried once without it, and
+the vector must still have the configured length. Default: 1,024
+dimensions; any whole number from 64 to 4,096 is accepted, and a provider that
+returns a vector of another length fails the call. Embeddings are batched per trace: each trace's
+applicable facets are embedded in one call, in trace-batch and in embedding jobs
+(which run up to `LANGFUSE_TOPICS_TRACE_CONCURRENCY` traces at once). The call's
+usage is recorded on the trace's first row; one failure fails that trace's call,
+and a retry embeds the traces that are left. Saving the models requires the
+embedding model to embed two texts in one call.
+Embedding settings are independent of immutable facet versions; changing them
+with stored-summary reuse enabled regenerates vectors without summarization inference. This PoC does
+not use `aiEmbed` or change ingestion. It accepts traces already stored in v4
+events; legacy-only traces are unsupported.
+
+Drain existing work before deploying model changes; old-model staged jobs cannot
+resume. Old execution history remains readable.
+After changing the summary model, start a new **Process traces** execution;
+stored-summary reuse cannot reuse results from a different summary model.
+Existing topic names remain until their definitions change during **Update topics**.
+If a provider's content filter blocks naming, the cluster is published with an
+unnamed placeholder and a warning; its assignments are preserved and other groups
+and facets continue. **Update topics** retries placeholder names. Other naming
+failures still interrupt the update.
+
+## Trace-batch connection
+
+After the trace-batch job assembles a transcript, it summarizes that same
+transcript for all current facets of an allowlisted project in one model call:
+the system prompt lists every facet under a key, asks for each to be answered
+independently with short evidence notes, and returns one entry per facet. The
+call's usage is recorded on the first facet's row. It does not load the trace
+from ClickHouse again. Projects outside
+`LANGFUSE_TOPICS_ENABLED_PROJECT_IDS` are skipped. A finished facet version is
+skipped on retry. A failing trace does not stop the batch: every trace is
+processed, up to `LANGFUSE_TOPICS_TRACE_CONCURRENCY` traces at once (default
+20; manual processing uses the same limit per queue job), and outcomes are counted once per job (`langfuse.topics.trace_outcomes`
+by outcome and reason). Failed traces are not retried, because a retry would
+read the shared batch from ClickHouse again. Only a failed batch read fails the
+job. Summaries and embeddings use the same project models as manual
+processing. While the read starts, one Postgres query loads the enabled model
+settings of every allowlisted project in the batch; facets load once per
+project. Projects whose settings are off or incomplete are skipped, and new
+traces that arrive meanwhile are not queued. An authentication or billing error
+(HTTP 401, 402, 403) turns the project's automatic processing off with the
+failing slot as the reason, and the rest of the batch skips that project.
+
+After the write, the batch queues its stored complete summaries on
+`topics-automation`, one job per project and 100 traces; a retried batch reuses
+its job IDs. A failed enqueue is logged and does not fail the batch. The job
+rereads those summaries and assigns the ones not yet assigned to their facet's
+compatible serving map with origin `online`; BullMQ retries a failed job three
+times. Each Topics queue has its own `QUEUE_CONSUMER_<QUEUE>_QUEUE_IS_ENABLED`
+switch (`TOPICS`, `TOPICS_UPDATE`, `TOPICS_EMBEDDING`, `TOPICS_AUTOMATION`); set
+them to `false` on fleets that only run trace batches.
+
+A facet version without any map starts one automatic **Update topics** execution
+once a recent window contains at least 100 compatible summaries, targeting 80%
+of the worker's row and byte limits to leave room for late summaries. The row
+target stays at least 100 when the hard limit permits it. Automatic processing
+must be on with the embedding model those summaries used. It first checks seven
+days, then searches for a smaller recent window using database counts and byte estimates. Metadata-only
+counts narrow row-oversized windows before estimating text payloads; byte
+estimates are projected before sorting. Searches are throttled per facet and
+embedding configuration for 60 seconds. Redis deduplicates deferred checks to
+one pending check per facet/model, including a successor to a running check. The entire
+selected window uses the same clustering and naming pipeline as a manual update.
+It appears in History under the `system:topics` actor. Active discoveries schedule
+a follow-up before dispatch, so a lost queue job or capacity failure is checked
+even without another incoming batch. Each capacity failure can create one new
+request after the cooldown, starting the search at half the failed window's
+duration. Requests keep their selected windows unchanged. If no admissible
+window exists, discovery waits for another summary batch; other failures are
+resumed from History. An existing map or fit in progress for the version, even an
+incompatible one, blocks discovery; replace it with **Update topics**. Summaries
+stored while the first map is being fitted stay unassigned until the next
+**Update topics**.
+
+Required for a local run, in addition to Postgres, ClickHouse, and Redis:
+
+| Variable                                      | Role                                                                                                                                                                                                                                                 |
+| --------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `NEXT_PUBLIC_LANGFUSE_CLOUD_REGION`           | Must be set or the batch job is discarded. Local dev uses `DEV`.                                                                                                                                                                                     |
+| `LANGFUSE_TRACE_BATCH_INGESTION_ENABLED`      | Track accepted writes. Default off.                                                                                                                                                                                                                  |
+| `LANGFUSE_TRACE_BATCH_DISPATCHER_ENABLED`     | Enqueue idle traces. Default off.                                                                                                                                                                                                                    |
+| `QUEUE_CONSUMER_TRACE_BATCH_QUEUE_IS_ENABLED` | Register the batch worker. Default off.                                                                                                                                                                                                              |
+| `LANGFUSE_TRACE_BATCH_READ_ENABLED`           | Allow the ClickHouse read. Default off.                                                                                                                                                                                                              |
+| `LANGFUSE_TRACE_BATCH_IDLE_MS`                | Idle time before a trace is ready. Unset is 2 minutes on `DEV` and 10 minutes otherwise.                                                                                                                                                             |
+| `LANGFUSE_TOPICS_ENABLED_PROJECT_IDS`         | Same allowlist on web and worker. Unset defaults to the demo project. These projects bypass trace-batch sampling at ingestion, so every trace is summarized automatically; set `LANGFUSE_TRACE_BATCH_SAMPLING_RATE=0` to run the flow for them only. |
+
+## Run the experiment
+
+1. Initialize facets and inspect their instructions. `Intent`, `Sentiment`,
+   `Outcome`, and `Issues` are built-in presets with immutable instructions. Create a custom
+   facet for different instructions; a facet is not a list of topic classes.
+2. Choose **Process traces** and select traces through filters or pasted IDs.
+   The request freezes the selection and selected facet versions. It generates
+   summaries and embeddings, then assigns only this batch to the current
+   compatible map. With no compatible map, completed summaries are **Awaiting
+   topics**, not outliers. Processing never clusters or renames topics.
+3. Choose **Update topics** to fit a map from the latest completed compatible
+   summaries whose source started in the last seven days. Initial discovery and later updates use this same
+   operation. It does not load traces, summarize, or generate embeddings.
+4. Inspect the resulting summaries, names, representative examples, and outliers.
+   Non-applicable and insufficient-input results remain separate from outliers.
+5. Process subsequent trace batches as they arrive. Update topics manually when
+   ready to incorporate new evidence into the clustering and names.
+
+**Minimum traces for clustering** applies only to topic updates. It defaults to
+100 applicable summaries per facet, with HDBSCAN minimum cluster size 15 and
+minimum samples 5. Exploratory mode defaults to 10 / 3 / 2. The minimum can be
+set to at least 3; changing it does not change cluster-size or density settings.
+This minimum does not establish cluster quality.
+
+Use the repository seed CLI for synthetic local trace data (`pnpm run seed --
+list`). There is no automatic fixture insertion in this feature.
+
+## Current topics and explicit updates
+
+There is no total trace-count cap; explicit lookups use bounded internal batches.
+Each processing request pins the current compatible published map per facet
+before summarization, including the absence of a map. Retries keep that choice.
+New requests can use a map completed while an earlier request was running.
+The serving map is the completed run with the highest facet version, then newest
+creation time and ID. A newer configured version without a completed map does
+not hide the previous map. Pending, running, failed and skipped runs are ineligible.
+A valid all-outlier map is completed even though it contains no topics.
+
+Current summaries and membership use the last seven days of source start times.
+Each update freezes that window in its execution input and run configuration;
+retries keep the same boundaries. Published map cohorts and continuity reads use
+their run's stored window, even after the current window advances.
+
+Within its window, an update selects the latest summary per trace, then keeps only complete results
+matching the selected facet version and embedding configuration. The attempt uses
+that in-memory population for fitting; a failed update selects it again on retry. Non-applicable or incompatible newer summaries never
+revive older eligible results. A change to embedding dimensions must first be
+processed explicitly; topic updates do not silently re-embed historical data.
+The explicit update always attempts a fit subject to its minimum count. There
+is no conditional-refit heuristic or periodic scheduler in this PoC.
+
+Continuity uses at least 80% reciprocal overlap of trace identities, 10
+anchors (3 exploratory), and 50% old-topic coverage. Compatible centroids must be
+within cosine distance 0.15. Material split/merge branches start new identities.
+These thresholds require quality calibration; they are not universal guarantees.
+
+Summaries and assignments partition by the month of `unit_start_time`, with
+project, source-start minute and facet version leading their sorting keys.
+Summaries replace the same minute/facet/source using `processed_at`; assignments
+retain map and origin in the sorting-key suffix and replace using `assigned_at`.
+Run and origin remain distinct so unpublished attempts and online assignments
+cannot remove a published map's initial membership or coordinates. Assignment
+time is neither a partition key nor a sorting key.
+
+Payload reads have an explicit source-time window. A metadata-only projection
+ordered by project, facet and source validates candidates against their latest
+facet version and processing time, including versions outside that window.
+Late observations can move a source into another minute or month; its earlier
+row remains stored but cannot reappear as current or enter clustering/counts.
+The projection rebuilds during replacement merges and lightweight deletes.
+Manual processing loads the complete trace first and reuses stored
+summaries only at that exact source start; a changed start generates a new summary.
+Accepted Redis payloads still resume without source or ClickHouse result reads.
+
+Assignments contain classification results only. A topic ID means assigned;
+an empty topic ID means outlier. An empty map ID supports future ad-hoc
+classification. Awaiting-map, non-applicable and insufficient-input states come
+from summaries, with no placeholder assignment rows. `summary_processed_at`
+records which summary an assignment classified, so reprocessing can invalidate
+old membership. Current membership considers published-map and ad-hoc assignments;
+topic filtering follows latest selection. Execution pages show current results,
+not exact historical batch membership. A late older job may win by timestamp.
+
+## Algorithm and queue recovery
+
+The worker loads each trace lazily, shares one in-memory transcript across facets,
+and releases it before the next trace.
+Accepted summary references resume without fetching source data; source snapshots,
+transcripts and model request bodies are not persisted.
+
+Processing and fitting use separate `topics` and `topics-update` queues with one
+coordinator slot each. `topics-embedding` has two slots and receives reference-only
+batches of up to 100 traces across facets. This internal batch size is not a
+selected-trace cap.
+
+1. Summarization stages accepted results in Redis with a fixed deadline:
+   `LANGFUSE_TOPICS_REDIS_TTL_SECONDS` defaults to three hours. Retries never extend it.
+2. Embedding saves its vector with the staged summary before the combined
+   ClickHouse insert. A completed embedding job acknowledges that insert;
+   no unfinished summary rows reach ClickHouse.
+3. The coordinator releases its slot while its saved phase is `embedding`.
+   It polls the embedding job for its batch ID in Redis without database work.
+4. After assignment inserts succeed, save terminal BullMQ state before deleting
+   payloads. Cleanup failures leave them to expire. Repeated writes keep their
+   identity. Inserts are bounded by 10,000 rows / 8 MiB and await async acknowledgement.
+
+Normal retries use frozen inputs and accepted references, not summary/assignment
+reads. Missing/expired payloads fail explicitly. A new execution with **Reuse stored
+summaries** can recover persisted results. Redis loss or a crash between a provider
+response and saving it can repeat inference.
+
+Stored-summary reuse is opt-in and requires the same facet version, summary model,
+transcript producer (`transcript_id`) and version; it does not check content freshness. Compatible
+vectors are reused; changed dimensions regenerate only embeddings. Results receive
+the new execution's staging ownership,
+replace previous summaries, record reuse timestamps and count only new usage.
+This is not a cross-execution deduplication cache.
+
+Manual processing and trace-batch share one summary request
+(`summarizeTraceFacets`): the facets of a trace that still need a summary go into
+one call on the same projected transcript. `loadTopicTranscript` uses the shared
+`orderObservations` and `assembleTranscript` producer without a cap, like
+trace-batch. The model receives the projected transcript: threads with
+conversation history and current-turn messages and normalized parts, without
+observation provenance. A null or empty transcript produces `insufficient_input`
+without a summarization or embedding call.
+
+The shared producer defines observation eligibility, tool association and replay
+deduplication. It includes generations and matched tool responses. Root-only
+non-generation traces, unmatched tool observations and observation-level status
+messages are outside that conversation contract. Topics does not add fallbacks,
+coverage fields, custom media handling or a separate transcript projection.
+See `packages/shared/src/server/transcript/README.md` for the producer's semantics
+and limitations.
+
+If transcript plus instructions/schema exceeds the execution's input allowance,
+the worker fails before calling the provider; it does not
+silently change the evidence. Stored summaries record
+`transcript_id` (`trace-batch`; older manual rows used `poc` with a capped transcript)
+and `transcript_version` (`shared-transcript-v3`), plus the models used. Historical summaries from other producer versions are regenerated.
+Accepted Redis payloads retain their recorded version when the same execution
+resumes. Transcripts are regenerated from current observations; original source
+snapshots and content hashes are not retained.
+
+The summary prompt and schema write the summary before deciding applicability.
+Check one trace after changing either prompt or schema before spending on a batch.
+Replaying an accepted summary or embedding does not require its source trace.
+If a retry needs missing facets, it summarizes them together from the current transcript.
+
+UMAP and HDBSCAN propose density clusters. Original-space unit centroids and
+cosine radii form the serving classifier. A radius uses the 95th percentile of
+leave-one-out member distances, capped by the fifth percentile of the nearest
+rival cluster's distances. The closest topic must pass its radius; there is no
+fallback to a farther topic. These are provisional heuristics, particularly
+uncertain for small or rare populations.
+
+UMAP uses `min(15, max(3, floor(n/3)))` neighbors, bounded below the cohort size.
+The pinned Rust backend is `holomap` 0.3.0 plus `hdbscan-rs` 0.6.1. Unit-normalized
+embeddings feed seeded cosine UMAP (random initialization, seed 42), separately
+into at most 10 dimensions for Euclidean HDBSCAN/EOM and 2 dimensions for display.
+The Rust adapter adds one to `minSamples` because the library includes the point
+itself in its neighbor count. Rust owns the fixed reduction and cluster-selection
+defaults; the worker passes only minimum population, cluster size, and samples.
+The numerical backend version is recorded per run.
+Numerical results are held in memory until their assignments and coordinates are
+saved in ClickHouse. An unpublished attempt is rerun from scratch after failure.
+
+The synchronous native fit runs in a credential-free Node child process with a
+120-second kill deadline and output limits proportional to cohort size. Discovery
+admission defaults to 20,000 summaries and a 256 MiB input budget per facet,
+controlled by `LANGFUSE_TOPICS_MAX_CLUSTERING_ROWS` and
+`LANGFUSE_TOPICS_MAX_CLUSTERING_BYTES`. A metadata count rejects excessive rows
+or embedding payload before loading vectors; the streamed read also enforces
+rows and bytes to cover large texts and changes after the count. Exceeding a
+limit fails the update with a smaller-window message. Automatic discovery selects
+a fitting window before queuing; manual updates retain their requested window.
+Neither samples the clustering cohort. These are initial capacity limits, not a guarantee about
+container RSS: parent/child serialization, native fitting, and concurrent queue
+jobs need additional headroom. Exact neighbor search has quadratic cost; admitted
+cohorts can still exceed the deadline. Map coordinates are repeatable on the same platform
+and build, but are not a compatibility contract across backends or architectures.
+Synthetic cohorts do not establish topic quality; validate representative data
+before expanding deployment.
+
+The same classifier determines initial and later memberships. Naming sees its
+effective populations: all full member summaries that fit the naming request,
+plus up to three nearby contrasts. Each group uses one seeded random traversal
+of its members, retaining whole summaries that fit; this is not a sample of
+the numerical fitting population. Variable-length summaries make this a random
+order with a fitting budget, not an equal-probability fixed-size sample. The
+selection is repeatable for the same run/group and reused by the conflict retry.
+Its additional memory is bounded by the selected prompt; no per-trace cache
+survives the request. Vector calculations reuse per-pass scratch space and yield
+between batches so queue timers can run. Each group gets one naming call with no
+tool loop. If the name is
+already taken in the run, one `topics-naming-conflict` call sees the conflicting
+topic and is asked for a distinguishing name; a name that still repeats is kept,
+since topics are keyed by ID. Member evidence references are validated before
+accepting output.
+The provider schema keeps evidence IDs as strings, avoiding the API's enum-size
+limit for large clusters; local validation still requires genuine member IDs. This checks structural grounding, not factual
+or semantic correctness; inspect the examples to judge usefulness.
+
+No informative clusters yields a terminal `no_topics` result and publishes an
+empty map with explicit outlier assignments for the selected cohort. HDBSCAN's single root cluster is disabled, so
+a single overall population is not forced into a topic; validating that case
+needs a future coherence policy. Maps are
+published only after their initial assignments and coordinates are readable in
+ClickHouse. Topic definitions and initial coordinates remain fixed while later
+assignments can extend a map's live membership. Displayed summaries use current
+text. Updates match final memberships to the previous published map for that facet
+version. Changed embedding spaces use membership evidence without comparing
+centroids. Continuing topics retain their stable topic IDs. When the embedding
+space, centroid and radius are unchanged, the existing definition is reused
+without another naming call. Geometry comparisons allow bounded Float64 roundoff;
+reused definitions keep their stored centroid and radius for naming and assignment.
+Changed definitions receive new topic version IDs. Material
+splits/merges receive new IDs with predecessor lineage in topic metadata.
+
+## Cost and recovery
+
+The Topics page renders saved 2D coordinates from the map's initial ClickHouse
+assignments. This view uses the same scale on both axes, with topic filtering,
+summary selection and trace links. It does not recompute clusters or charge a
+model. Later assigned traces remain unpositioned until a new discovery map;
+the numerical worker does not retain a UMAP transform.
+
+The summary prompt distinguishes the requested task from whether that task
+succeeded. Each call receives the shared transcript and facet instruction and
+returns summary text plus applicability status. No citations or block IDs are
+requested from the model. A non-applicable result containing a summary is rejected,
+not silently repaired. Real model
+quality checks remain necessary; mocked tests cannot establish summary accuracy.
+
+Postgres stores one `batch_actions` row per manual request for either operation,
+and one clustering-run row per real attempt. Update admission creates the first
+pending run for each selected facet/version and saves its reference atomically.
+BatchAction owns lifecycle, error and aggregate progress; run config contains
+embedding compatibility and numerical settings. Retry counts for completed maps
+come from initial assignments, excluding later online classifications.
+These contain settings and aggregate progress, not per-trace records or paid outputs.
+BullMQ jobs carry bounded batches of up to 100 trace IDs, accepted summary references,
+and temporary retry state. ClickHouse stores current summary text, embeddings,
+classifications, and map coordinates. Completed summaries can await a map without
+an assignment row.
+ClickHouse stores immutable topic names, descriptions and prototypes, including
+their original creation run. Each Postgres run stores the exact topic-version
+IDs used by its classifier; missing definitions prevent loading that map.
+Naming calls use short member labels; accepted evidence references store typed
+facet-version and trace-or-session fields under the definition's project.
+A trace reference omits its parent session. Those references identify the current
+source result, not a historical summary snapshot.
+Definitions use RowBinary inserts with `Float64` geometry to preserve classifier precision and
+`ReplacingMergeTree(created_at)` partitioned by creation month and ordered by
+project, creation date and version ID to deduplicate identical retry writes.
+Definition lookups use creation-time bounds that include reused definitions:
+an old definition may still be in use by the current map. There is no age-based
+expiry. Transcripts stay in memory.
+There are no Topics object-storage manifests, numerical checkpoints or shared-disk files.
+
+Provider usage and calculated model costs use the events-style
+`provided_usage_details`, `usage_details`, `provided_cost_details` and `cost_details`
+maps. Summary and embedding keys are prefixed by stage; effective maps include
+combined totals.
+Manual processing summaries carry their execution ID in metadata. Run estimates
+sum retained summary and embedding costs with available pricing. They exclude
+topic naming and failed provider calls, and can change after reprocessing or deletion.
+Priced model IDs: global Bedrock text rates per million input/output tokens are $0.20/$1.20 for
+[Luna](https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-openai-gpt-56-luna.html)
+and $2/$12 for
+[Terra](https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-openai-gpt-56-terra.html).
+Naming requests above 272,000 input tokens use $4/$18 for the whole request.
+Embedding costs use Bedrock-reported input tokens at $0.12/million. Missing usage
+is logged and omitted from usage/cost maps, never estimated with an OpenAI tokenizer.
+Model prices and token budgets live in [models.ts](models.ts) and the shared
+Topics contracts. Summary input defaults to 120,000 tokens. Oversized naming
+input is limited to 900,000 estimated tokens and 16 MiB of serialized input.
+The token cap is an application ceiling, not a guarantee that every configured
+model supports that context. Selection reserves bounded space for a conflict
+retry; contrast and conflicting examples are omitted whole when they exceed
+their ancillary budgets. Member text is never truncated, and a group with no
+fitting member fails before inference. Definition metadata records the full
+population and the selected count separately.
+Provider calls retry 429 and 5xx responses twice. Embedding queue jobs retry transient failures
+up to three attempts with exponential backoff; authentication and invalid
+input/output failures stop immediately. A manual resume can retry a failed batch
+while its Redis payload still exists; each manual resume resets the three-attempt
+retry budget.
+
+An interrupted update starts a new attempt from compatible summaries in its frozen time window,
+then fits again and names only new or changed definitions. Partially named failed attempts cannot overwrite
+the previous published map. After publication, an acknowledgement retry recognizes
+the completed attempt without fitting again. Skipped attempts also resume
+without recomputation, using the previously saved cohort count to distinguish
+no applicable summaries from insufficient data.
+
+Automatic processing starts only a facet version's first discovery; there is no
+refit schedule yet. The planned six-hour scheduler should invoke the same update
+path as the manual button.
+Large per-project fitting and distributed stream processing remain follow-up
+work; this is not a 100-million-traces/day throughput validation. The incoming
+trace path uses bounded batches; naming and discovery limits apply to individual
+project/facet updates. No process-wide summary or embedding cache is used.
+
+Trace deletion removes stored facet summaries (including embeddings), assignments
+and map coordinates through the existing batched ClickHouse deletion path.
+It does not cancel in-flight Topics jobs, which can write results after deletion.
+Topic-name/centroid refresh remains separate lifecycle work.
+Project deletion removes summaries, assignments and topic definitions through
+the batch project cleaner.
+
+### Datadog metrics
+
+[metrics.ts](metrics.ts) owns `langfuse.topics.executions`, `.results`,
+`.stage_duration_ms` and `.errors`. Tags are fixed categories without tenant IDs
+or customer content. Counters measure attempts and work, not unique persisted
+rows: resumes can count again and accepted results can precede persistence
+failures. Nested catches count the same error once per attempt; completed replays
+emit no attempt/result metrics. Model durations exclude cache hits.
+
+Metrics are best effort, not an exactly-once ledger or heartbeat. Queue backlog,
+waiting time and BullMQ outcomes use `langfuse.queue.topics.*`,
+`langfuse.queue.topics_update.*` and `langfuse.queue.topics_embedding.*`.
+Queue `.depth` includes `type:delayed`. Topics `.pending_head_age_ms` samples one
+entry from each waiting, paused, delayed and active state without loading job
+payloads. Retries can re-enter behind newer jobs, so this is head age, not the
+oldest creation time anywhere in the backlog.
+
+`.errors` reasons include `input_too_large` (transcript above the summary input
+limit), `trace_too_large` (trace above the transcript load limits) and
+`definition_readback` (a new topic definition did not read back identically; the
+error names the differing fields, never their values).
+
+Summary `.results` carry `source:model|rule` and `facet` (the built-in facet's
+name, or `custom`): the model decides `applicable`, `not_applicable` or
+`insufficient_input`; local rules decide `insufficient_input` (no transcript
+content), `invalid_output` and `input_too_large`.
+
+Every model call counts once in `.llm_calls{stage,adapter,status}`: `ok`,
+`400`, `401`, `403`, `429`, `4xx` or `5xx` for any other code (the exact code is
+on the span), or the failure reason when there is no HTTP status. One
+embedding call can fan out into several provider requests (single-text Bedrock
+models, the retry without dimensions), and AI SDK retries are not counted
+separately. Each successful call adds its egress to the shared
+`langfuse.export.serialized_bytes{integration:topics}`, measured exactly like
+LLM-as-a-judge (`llmRequestEgressBytes`: serialized provider messages plus the
+output JSON Schema, uncompressed); responses (mostly embedding vectors) and
+failed or retried requests are not included.
+
+### Datadog spans and logs
+
+Spans carry tenant and request detail that metrics must not:
+
+- `Worker.run *`: `langfuse.project.id` for every queue; Topics jobs add the
+  execution ID, operation, status and phase. Trace-batch jobs add
+  `langfuse.topics.traces.<outcome>` totals.
+- `topics-trace-summary`: one per summarized trace (both paths), with facet
+  result counts under `langfuse.topics.facets.*`.
+- `topics-facet-update`: one per facet of an update, with its outcome. Children:
+  `topics.clustering` (vectors, dimensions, status), `topics.naming` (one per
+  group) and `topics.assignment` (also used when manual processing assigns).
+  A failed facet marks its enclosing span as an error, although the run handles it.
+- `topics.llm.summary|embedding|naming`: one per provider request, with model,
+  adapter and prompt bytes; on failure, the HTTP status and, when the provider
+  answered, bounded response metadata (`langfuse.topics.response.*`: finish
+  reason, raw finish reason from a fixed list, text length, text and reasoning part counts,
+  output tokens and the output-token cap; never the response text).
+
+A failed provider request logs one `Topics model request failed` warning with the
+same fields. Provider error strings, codes and parameters can echo request or
+response content, so only the HTTP status is kept. A failed facet logs `Topics facet failed`: a warning for provider or
+configuration errors, an error otherwise.
+
+`langfuse.topics.tokens{stage:summary|embedding|naming,direction:input|output}`
+counts available provider-reported usage immediately after each model response,
+before local validation or persistence. Embeddings have input tokens only.
+Cached results and persistence retries do not add tokens; new provider calls do.
+Missing or invalid usage increments `.token_usage_missing` with the same tags;
+configured token budgets are never reported as measured usage. Responses rejected
+inside the provider SDK may not expose usage, so these counters are not a bill.
+Clustering consumes vectors rather than tokens: `.clustering_vectors` counts
+attempted input vectors and `.clustering_cohort_size` records each fit's size,
+both tagged by `dimensions`. Existing stage durations measure elapsed time, not CPU.
+
+The queue metrics runner also reports `.staged_results` (unexpired retained
+payloads), `.staged_expiry_remaining_ms` (earliest remaining Redis TTL, zero when
+empty), and `.staged_expired` (expiry counter). Alert on low remaining TTL only
+while staged results are present. The shared staging helper maintains a best-effort
+Redis index of original deadlines; embedding completion retains tracking until
+assignment acknowledgement removes the payload. Retries never renew its deadline.
+Expiry means a retained payload expired, not necessarily lost work: cleanup may
+have failed after durable persistence. `.staging_tracking_errors{operation:track|release}`
+exposes index failures without rejecting accepted results.
+Telemetry commands have a one-second wait deadline so Redis retries cannot stall
+the paid-result handoff or completion. Timed-out commands may finish later; the
+index and expiry counters remain best effort.
+
+Collection runs independently of consumer progress while Topics and
+`LANGFUSE_QUEUE_METRICS_ENABLED` are enabled. Global snapshot gauges must not be
+summed across worker reporters: use max for counts/age and min for remaining TTL.
+Expired index entries are removed and counted atomically in batches of at most
+1,000, preventing duplicate expiry counts across reporters. Entries older than
+one day past expiry may be discarded during indexing; the index itself expires
+one day after its latest deadline. Existing payloads become visible only when
+staged through the instrumented helper; deployment does not scan/backfill Redis.
+
+## Offline verification
+
+```sh
+pnpm --filter worker run test features/topics
+pnpm --filter @langfuse/native exec cargo test --features napi/dyn-symbols topics
+```
+
+Pipeline tests mock provider calls and storage. `numeric.native.test.ts` runs
+real UMAP/HDBSCAN through the worker's child process on more than 1,000 synthetic
+vectors and checks serving prototypes, cold-start, identical-input and invalid
+vector behavior. Rust tests cover deterministic fitting and validation. Neither
+command calls a paid model.
+
+`storage.integration.test.ts` checks exact definition roundtrips against real
+ClickHouse, including Float64 values affected by decimal parsing. Apply the normal
+Postgres and ClickHouse migrations before running it.
+
+## Default facet extraction
+
+Intent names the goals of the whole run, earliest first, even when execution
+fails; follow-up checks belong to the goal they serve. Sentiment labels the end
+user's attitude toward the interaction (`Positive`, `Negative`, `Mixed`,
+`Neutral`) and what it was directed at; runs without end-user text are not
+applicable. Outcome labels where the run ended (`Completed`, `Partial`,
+`Unconfirmed`, `Needs input`, `Not completed`), judged on results rather than the
+assistant's claims. Issues describes the mistake that did the most damage to the
+result in one sentence (the mistake, the kind of step, and its consequence),
+without a category label, and checks four points before reporting no issue; a
+problem quoted for analysis is not itself an agent defect. Each preset prompt
+defines its facet's semantics; custom facets use their own versioned instructions.
+
+The shared extraction wrapper asks for one English sentence of at most 30 words
+(a second only for a material distinction), preserves meaningful distinctions, and
+omits incidental identifiers, source references and narration. Applicability is
+separate from task success: absent signals and insufficient evidence retain their
+distinct statuses and empty summaries, so they do not become embedded topics.
+With one summary per trace/facet, the Issues default prioritizes the principal
+problem rather than claiming to enumerate every independent issue.

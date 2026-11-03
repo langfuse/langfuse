@@ -11,6 +11,8 @@ import {
   type PropsWithChildren,
 } from "react";
 import Head from "next/head";
+import { useInternalViewMode } from "@/src/features/feature-flags/hooks/useInternalViewMode";
+import { InternalViewModeDialog } from "@/src/features/feature-flags/components/InternalViewModeDialog";
 import { useRouter, type NextRouter } from "next/router";
 import {
   SidebarProvider,
@@ -18,11 +20,11 @@ import {
   useSidebar,
 } from "@/src/components/ui/sidebar";
 import { AppSidebar } from "@/src/components/nav/AppSidebar/AppSidebar";
-import { SidebarPresenceProvider } from "@/src/components/nav/sidebar-presence";
-import { Toaster } from "@/src/components/ui/sonner";
-import { Layer } from "@/src/components/ui/layer";
-import { TopBannerProvider } from "@/src/features/top-banner";
-import { VersionUpdateBanner } from "@/src/features/version-update";
+import { SidebarPresenceProvider } from "@/src/components/nav/SidebarPresenceProvider";
+import { Toaster } from "@/src/components/ui/Toaster";
+import { Layer } from "@/src/components/design-system/Layer/Layer";
+import { VersionUpdateBanner } from "@/src/features/version-update/VersionUpdateBanner";
+import { useVersionUpdatePrompt } from "@/src/features/version-update/useVersionUpdatePrompt";
 import { AppContentWithRightDrawer } from "../right-drawer/AppContentWithRightDrawer";
 import { ThemeToggle } from "@/src/features/theming/ThemeToggle";
 import {
@@ -34,6 +36,7 @@ import type { Session } from "next-auth";
 import type { NavigationItem } from "@/src/components/layouts/utilities/routes";
 import type { RouteGroup } from "@/src/components/layouts/routes";
 import dynamic from "next/dynamic";
+import { canOpenPersonalFeaturePreviews } from "@/src/features/feature-previews/canOpenPersonalFeaturePreviews";
 import { ControlledFeaturePreviewModal } from "@/src/features/feature-previews/components/ControlledFeaturePreviewModal";
 import { InAppAgentWindowHost } from "@/src/features/in-app-agent/components/InAppAgentWindowHost";
 import {
@@ -49,7 +52,17 @@ import useLocalStorage from "@/src/components/useLocalStorage";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useSession } from "next-auth/react";
 import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
+import { CustomerDataWarningBannerView } from "@/src/features/customer-data-warning/CustomerDataWarningBannerView";
+import { getCustomerDataWarning } from "@/src/features/customer-data-warning/getCustomerDataWarning";
+import { accountSettingsPath } from "@/src/features/settings/accountSettingsPath";
+import {
+  LegacyUiBanner,
+  useLegacyUiBannerVisible,
+} from "@/src/features/v4-migration/LegacyUiBanner";
 import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
+import { PaymentBannerView } from "@/src/features/payment-banner/PaymentBannerView";
+import { usePaymentBanner } from "@/src/features/payment-banner/PaymentBanner";
+import { useTopBannerHeight } from "@/src/features/top-banner/useTopBannerHeight";
 
 const DISMISSED_SIDEBAR_NOTIFICATIONS_KEY = "dismissed-sidebar-notifications";
 
@@ -63,21 +76,13 @@ const CommandMenu = dynamic(
   },
 );
 
-const PaymentBanner = dynamic(
-  () =>
-    import("@/src/features/payment-banner").then((mod) => ({
-      default: mod.PaymentBanner,
-    })),
-  {
-    ssr: false,
-  },
-);
-
 const PreviewDeploymentBanner = dynamic(
   () =>
-    import("@/src/features/preview-deployment-banner").then((mod) => ({
-      default: mod.PreviewDeploymentBanner,
-    })),
+    import("@/src/features/preview-deployment-banner/PreviewDeploymentBanner").then(
+      (mod) => ({
+        default: mod.PreviewDeploymentBanner,
+      }),
+    ),
   {
     ssr: false,
   },
@@ -91,7 +96,7 @@ type GroupedNavigation = {
 };
 
 type AuthenticatedLayoutProps = PropsWithChildren<{
-  session: Session;
+  user: NonNullable<Session["user"]>;
   navigation: {
     mainNavigation: GroupedNavigation;
     secondaryNavigation: GroupedNavigation;
@@ -117,27 +122,44 @@ type AuthenticatedLayoutProps = PropsWithChildren<{
  */
 export function AuthenticatedLayout({
   children,
-  session,
+  user,
   navigation,
   metadata,
   onSignOut,
 }: AuthenticatedLayoutProps) {
   const { isLangfuseCloud, region: currentRegion } = useLangfuseCloudRegion();
   const [featurePreviewOpen, setFeaturePreviewOpen] = useState(false);
+  const [internalViewModeOpen, setInternalViewModeOpen] = useState(false);
+  const internalViewMode = useInternalViewMode();
   const router = useRouter();
   useProjectCookie(router);
   const uiCustomization = useUiCustomization();
+  const versionUpdatePrompt = useVersionUpdatePrompt();
+  const paymentBanner = usePaymentBanner();
+  const topBannerRef = useTopBannerHeight();
   // Account-level entry: use the raw flag (same as account settings tabs), not
   // project-scoped force-v3 suppression.
   const showV4Migration = useV4UpgradeUiFlag();
-
-  // Safe assertion: AuthenticatedLayout is only rendered after auth checks pass
-  // in AppLayout, which guarantees session.user exists at this point
-  const user = session.user;
-  if (!user) {
-    // This should never happen due to guards in AppLayout, but TypeScript needs this
-    return null;
-  }
+  const { organization: currentOrganization, project: currentProject } =
+    useQueryProjectOrOrganization();
+  const routerProjectId =
+    typeof router.query.projectId === "string"
+      ? router.query.projectId
+      : undefined;
+  const showLegacyUiBanner = useLegacyUiBannerVisible(routerProjectId);
+  const customerDataWarning = getCustomerDataWarning({
+    email: user.email,
+    isAdmin: user.admin === true,
+    isLangfuseCloud,
+    projectId: routerProjectId ?? null,
+    organizationId:
+      typeof router.query.organizationId === "string"
+        ? router.query.organizationId
+        : null,
+    memberships: user.organizations,
+    organizationName: currentOrganization?.name ?? null,
+    projectName: currentProject?.name ?? null,
+  });
 
   const regionMenuItems = getAvailableCloudRegionOptions(currentRegion).map(
     (region) => ({
@@ -172,7 +194,11 @@ export function AuthenticatedLayout({
     },
   }));
 
-  const hasFeaturePreviews = isLangfuseCloud || user.v4BetaEnabled === true;
+  const hasFeaturePreviews = canOpenPersonalFeaturePreviews({
+    isLangfuseCloud,
+    v4BetaEnabled: user.v4BetaEnabled === true,
+    isAdmin: user.admin === true,
+  });
 
   // User navigation items for sidebar dropdown
   const sidebarUser = {
@@ -181,10 +207,19 @@ export function AuthenticatedLayout({
     avatar: user.image ?? "",
   };
   const userMenuItems = [
+    ...(internalViewMode.available
+      ? [
+          {
+            type: "action" as const,
+            name: "View mode",
+            onClick: () => setInternalViewModeOpen(true),
+          },
+        ]
+      : []),
     {
       type: "link" as const,
-      name: "Account Settings",
-      href: "/account/settings",
+      name: "Settings",
+      href: accountSettingsPath(currentOrganization?.id),
     },
     ...(showV4Migration
       ? [
@@ -251,71 +286,105 @@ export function AuthenticatedLayout({
     <>
       <Head>
         <title>{metadata.title}</title>
-        <link rel="icon" type="image/svg+xml" href={metadata.faviconPath} />
         <link
+          key="favicon-svg"
+          rel="icon"
+          type="image/svg+xml"
+          href={metadata.faviconPath}
+        />
+        <link
+          key="favicon-png"
           rel="icon"
           type="image/png"
           sizes="256x256"
           href={metadata.favicon256Path}
         />
-        <link rel="apple-touch-icon" href={metadata.appleTouchIconPath} />
+        <link
+          key="apple-touch-icon"
+          rel="apple-touch-icon"
+          href={metadata.appleTouchIconPath}
+        />
       </Head>
 
-      <TopBannerProvider>
-        <SidebarPresenceProvider>
-          <SidebarProvider>
-            <div className="flex h-dvh w-full flex-col">
-              <PaymentBanner />
-              <PreviewDeploymentBanner />
-              <VersionUpdateBanner />
-              <div className="pt-banner-offset flex min-h-0 flex-1">
-                <ConnectedAppSidebar
-                  navItems={navigation.mainNavigation}
-                  secondaryNavItems={navigation.secondaryNavigation}
-                  user={sidebarUser}
-                  userMenuItems={userMenuItems}
-                  isLangfuseCloud={isLangfuseCloud}
-                  routerProjectId={
-                    typeof router.query.projectId === "string"
-                      ? router.query.projectId
-                      : undefined
-                  }
+      <SidebarPresenceProvider>
+        <SidebarProvider>
+          <div className="flex h-dvh w-full flex-col">
+            <div
+              ref={topBannerRef}
+              className="fixed top-0 z-51 flex w-full flex-col"
+            >
+              {customerDataWarning && (
+                <CustomerDataWarningBannerView {...customerDataWarning} />
+              )}
+              {showLegacyUiBanner && <LegacyUiBanner />}
+              {paymentBanner && (
+                <PaymentBannerView
+                  organizationName={paymentBanner.organizationName}
+                  billingSettingsHref={paymentBanner.billingSettingsHref}
+                  severity={paymentBanner.severity}
                 />
-                {/* `min-w-0`, not a `100vw`-derived width: viewport units ignore
+              )}
+              {env.NEXT_PUBLIC_PREVIEW_PR_URL && (
+                <PreviewDeploymentBanner
+                  prUrl={env.NEXT_PUBLIC_PREVIEW_PR_URL}
+                />
+              )}
+            </div>
+            {versionUpdatePrompt.isVisible && (
+              <VersionUpdateBanner
+                onReload={versionUpdatePrompt.reload}
+                onDismiss={versionUpdatePrompt.dismiss}
+              />
+            )}
+            <div className="pt-banner-offset flex min-h-0 flex-1">
+              <ConnectedAppSidebar
+                navItems={navigation.mainNavigation}
+                secondaryNavItems={navigation.secondaryNavigation}
+                user={sidebarUser}
+                userMenuItems={userMenuItems}
+                isLangfuseCloud={isLangfuseCloud}
+                routerProjectId={routerProjectId}
+              />
+              {/* `min-w-0`, not a `100vw`-derived width: viewport units ignore
                     scrollbars, and a definite width also floors `min-width:
                     auto`, so on a wide page the inset stayed pinned 15px past
                     the space beside the sidebar once a space-taking vertical
                     scrollbar showed — spawning a horizontal one. Flex already
                     sizes the inset to that space. */}
-                <SidebarInset className="h-screen-with-banner max-w-full min-w-0">
-                  <AppContentWithRightDrawer>
-                    {children}
-                  </AppContentWithRightDrawer>
-                  {/* Toasts render in the `toast` overlay layer — the last layer
+              <SidebarInset className="h-screen-with-banner max-w-full min-w-0">
+                <AppContentWithRightDrawer>
+                  {children}
+                </AppContentWithRightDrawer>
+                {/* Toasts render in the `toast` overlay layer — the last layer
                       in LAYER_ORDER — so they paint above every overlay (incl. a
                       non-modal peek) by DOM order alone, no z-index. Sonner's
                       Toaster is position:fixed, so nesting it in the fixed
                       full-screen layer container is positionally identical. */}
-                  <Layer name="toast">
-                    <Toaster visibleToasts={1} />
-                  </Layer>
-                  <CommandMenu mainNavigation={navigation.navigation} />
-                  {/* Assistant window host lives here (not in PageHeader with
+                <Layer name="toast">
+                  <Toaster visibleToasts={1} />
+                </Layer>
+                <CommandMenu mainNavigation={navigation.navigation} />
+                {/* Assistant window host lives here (not in PageHeader with
                       its launcher button) so the open window and its geometry
                       survive route changes. */}
-                  <InAppAgentWindowHost />
-                </SidebarInset>
-              </div>
-              {hasFeaturePreviews ? (
-                <ControlledFeaturePreviewModal
-                  open={featurePreviewOpen}
-                  onOpenChange={setFeaturePreviewOpen}
-                />
-              ) : null}
+                <InAppAgentWindowHost />
+              </SidebarInset>
             </div>
-          </SidebarProvider>
-        </SidebarPresenceProvider>
-      </TopBannerProvider>
+            {internalViewMode.available && (
+              <InternalViewModeDialog
+                open={internalViewModeOpen}
+                onOpenChange={setInternalViewModeOpen}
+              />
+            )}
+            {hasFeaturePreviews ? (
+              <ControlledFeaturePreviewModal
+                open={featurePreviewOpen}
+                onOpenChange={setFeaturePreviewOpen}
+              />
+            ) : null}
+          </div>
+        </SidebarProvider>
+      </SidebarPresenceProvider>
     </>
   );
 }
@@ -369,7 +438,9 @@ function ConnectedAppSidebar({
   });
 
   const selfHostedPlan =
-    plan === "self-hosted:pro" || plan === "self-hosted:enterprise"
+    plan === "self-hosted:pro" ||
+    plan === "self-hosted:enterprise" ||
+    plan === "self-hosted:gov"
       ? plan
       : "oss";
 

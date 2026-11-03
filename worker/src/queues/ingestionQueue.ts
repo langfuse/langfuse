@@ -1,4 +1,4 @@
-import { Job, Processor } from "bullmq";
+import { Job, Processor, UnrecoverableError } from "bullmq";
 import {
   clickhouseClient,
   getClickhouseEntityType,
@@ -18,9 +18,9 @@ import {
   redis,
   SecondaryIngestionQueue,
   TQueueJobTypes,
-  traceException,
   type IngestionAttribution,
   UNKNOWN_INGESTION_SDK_VALUE,
+  toClickhouseDateTime,
 } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
 
@@ -29,6 +29,16 @@ import { IngestionService } from "../services/IngestionService";
 import { ClickhouseWriter, TableName } from "../services/ClickhouseWriter";
 import { chunk } from "lodash";
 import { randomUUID } from "crypto";
+import {
+  exceedsNonSlowDownAttemptBudget,
+  logRetryableJobFailure,
+} from "./jobFailureLog";
+
+/**
+ * Attempts for secondary-queue failures other than S3 SlowDown. The queue's
+ * larger default budget only exists to outlast throttling.
+ */
+const SECONDARY_QUEUE_NON_SLOWDOWN_ATTEMPTS = 5;
 
 export const ingestionQueueProcessorBuilder = (
   enableRedirectToSecondaryQueue: boolean,
@@ -182,6 +192,12 @@ export const ingestionQueueProcessorBuilder = (
         events.push(...(Array.isArray(parsedFile) ? parsedFile : [parsedFile]));
       } else {
         eventFiles = await s3Client.listFiles(s3Prefix);
+        // Listings are ordered by key (client-supplied event ids), not by
+        // upload time. Sort so arrival order is upload order; score merges
+        // rely on that for same-timestamp re-sends.
+        eventFiles.sort(
+          (a, b) => a.createdAt.getTime() - b.createdAt.getTime(),
+        );
 
         // Process files in batches
         // If a user has 5k events, this will likely take 100 seconds.
@@ -225,11 +241,8 @@ export const ingestionQueueProcessorBuilder = (
         totalS3DownloadSizeBytes,
       );
 
-      const firstS3WriteTime =
-        eventFiles
-          .map((fileRef) => fileRef.createdAt)
-          .sort()
-          .shift() ?? new Date();
+      // eventFiles is sorted by createdAt above.
+      const firstS3WriteTime = eventFiles[0]?.createdAt ?? new Date();
 
       if (events.length === 0) {
         logger.warn(
@@ -306,9 +319,9 @@ export const ingestionQueueProcessorBuilder = (
           event_id: job.data.payload.data.fileKey,
           bucket_name: env.LANGFUSE_S3_EVENT_UPLOAD_BUCKET,
           bucket_path: `${bucketPrefix}${fileName}`,
-          created_at: new Date().getTime(),
-          updated_at: new Date().getTime(),
-          event_ts: new Date().getTime(),
+          created_at: toClickhouseDateTime(),
+          updated_at: toClickhouseDateTime(),
+          event_ts: toClickhouseDateTime(),
           is_deleted: 0,
         });
       }
@@ -347,11 +360,23 @@ export const ingestionQueueProcessorBuilder = (
         });
       }
 
-      logger.error(
-        `Failed job ingestion processing for ${job.data.payload.authCheck.scope.projectId}`,
-        e,
-      );
-      traceException(e);
+      logRetryableJobFailure({
+        message: `Failed job ingestion processing for ${job.data.payload.authCheck.scope.projectId}`,
+        error: e,
+        job,
+      });
+      if (
+        !enableRedirectToSecondaryQueue &&
+        exceedsNonSlowDownAttemptBudget(
+          job,
+          e,
+          SECONDARY_QUEUE_NON_SLOWDOWN_ATTEMPTS,
+        )
+      ) {
+        throw new UnrecoverableError(
+          e instanceof Error ? e.message : String(e),
+        );
+      }
       throw e;
     }
   };

@@ -1,23 +1,21 @@
-import React from "react";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/src/components/ui/table";
-import { Badge } from "@/src/components/ui/badge";
-import { cn } from "@/src/utils/tailwind";
+import React, { type ComponentProps } from "react";
+import { Badge } from "@/src/components/design-system/Badge/Badge";
+import { Table } from "@/src/components/design-system/table/Table";
+import { type LangfuseColumnDef } from "@/src/components/table/types";
+import { createNumberTableColumn } from "@/src/components/design-system/table/columns/createNumberTableColumn";
+import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
 import { type ObservationLevel, type PrototypeEvent } from "../types";
 
 const VISIBLE_ROWS = 14;
 
-const LEVEL_CLASS: Record<ObservationLevel, string> = {
-  ERROR: "bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300",
-  WARNING: "bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300",
-  DEFAULT: "bg-muted text-muted-foreground",
-  DEBUG: "bg-muted text-muted-foreground",
+const LEVEL_COLOR: Record<
+  ObservationLevel,
+  ComponentProps<typeof Badge>["color"]
+> = {
+  ERROR: "red",
+  WARNING: "yellow",
+  DEFAULT: "filled",
+  DEBUG: "filled",
 };
 
 const formatLatency = (ms: number): string =>
@@ -32,6 +30,83 @@ const formatTime = (iso: string): string =>
     minute: "2-digit",
     second: "2-digit",
   });
+
+const compactColumn = {
+  cellPadding: "compact" as const,
+};
+
+const columns: LangfuseColumnDef<PrototypeEvent>[] = [
+  {
+    ...compactColumn,
+    accessorKey: "type",
+    header: "Type",
+    cell: ({ getValue }) =>
+      getValue<PrototypeEvent["type"]>() ? (
+        <Badge
+          color="primary"
+          size="sm"
+          font="mono"
+          text={getValue<PrototypeEvent["type"]>()}
+        />
+      ) : null,
+  },
+  createTextTableColumn<PrototypeEvent>({
+    ...compactColumn,
+    accessorKey: "name",
+    header: "Name",
+    cellClassName: "font-bold",
+  }),
+  createTextTableColumn<PrototypeEvent, PrototypeEvent["model"]>({
+    ...compactColumn,
+    accessorKey: "model",
+    header: "Model",
+    mapValue: (model) => model ?? "–",
+    cellClassName: "text-muted-foreground font-mono",
+  }),
+  {
+    ...compactColumn,
+    accessorKey: "level",
+    header: "Status",
+    cell: ({ getValue }) => {
+      const level = getValue<ObservationLevel>();
+      return level ? (
+        <Badge color={LEVEL_COLOR[level]} size="sm" text={level} />
+      ) : null;
+    },
+  },
+  createNumberTableColumn<PrototypeEvent>({
+    ...compactColumn,
+    accessorKey: "latencyMs",
+    header: "Latency",
+    formatter: formatLatency,
+    headerClassName: "text-right",
+    cellClassName: "text-right font-mono",
+  }),
+  createNumberTableColumn<PrototypeEvent>({
+    ...compactColumn,
+    accessorKey: "totalCost",
+    header: "Cost",
+    formatter: formatCost,
+    headerClassName: "text-right",
+    cellClassName: "text-right font-mono",
+  }),
+  createNumberTableColumn<PrototypeEvent>({
+    ...compactColumn,
+    accessorKey: "totalTokens",
+    header: "Tokens",
+    formatter: (tokens) => tokens.toLocaleString(),
+    headerClassName: "text-right",
+    cellClassName: "text-right font-mono",
+  }),
+  createTextTableColumn<PrototypeEvent>({
+    ...compactColumn,
+    accessorKey: "startTime",
+    header: "Time",
+    mapValue: (time) => (time ? formatTime(time) : undefined),
+    headerClassName: "text-right",
+    cellClassName: "text-muted-foreground text-right font-mono",
+  }),
+];
 
 /**
  * A representative stand-in for the v4 events table — the "table" side of the
@@ -48,58 +123,13 @@ export const MockEventsTable = React.memo(function MockEventsTable({
 
   return (
     <div className="flex h-full flex-col overflow-hidden">
-      <div className="min-h-0 flex-1 overflow-auto">
-        <Table>
-          <TableHeader className="bg-background sticky top-0 z-10">
-            <TableRow>
-              <TableHead className="h-8">Type</TableHead>
-              <TableHead className="h-8">Name</TableHead>
-              <TableHead className="h-8">Model</TableHead>
-              <TableHead className="h-8">Status</TableHead>
-              <TableHead className="h-8 text-right">Latency</TableHead>
-              <TableHead className="h-8 text-right">Cost</TableHead>
-              <TableHead className="h-8 text-right">Tokens</TableHead>
-              <TableHead className="h-8 text-right">Time</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {rows.map((e) => (
-              <TableRow key={e.id} className="text-xs">
-                <TableCell className="py-1.5">
-                  <Badge variant="outline" className="font-mono text-[10px]">
-                    {e.type}
-                  </Badge>
-                </TableCell>
-                <TableCell className="py-1.5 font-bold">{e.name}</TableCell>
-                <TableCell className="text-muted-foreground py-1.5 font-mono">
-                  {e.model ?? "–"}
-                </TableCell>
-                <TableCell className="py-1.5">
-                  <Badge
-                    className={cn(
-                      "border-transparent text-[10px]",
-                      LEVEL_CLASS[e.level],
-                    )}
-                  >
-                    {e.level}
-                  </Badge>
-                </TableCell>
-                <TableCell className="py-1.5 text-right font-mono">
-                  {formatLatency(e.latencyMs)}
-                </TableCell>
-                <TableCell className="py-1.5 text-right font-mono">
-                  {formatCost(e.totalCost)}
-                </TableCell>
-                <TableCell className="py-1.5 text-right font-mono">
-                  {e.totalTokens.toLocaleString()}
-                </TableCell>
-                <TableCell className="text-muted-foreground py-1.5 text-right font-mono">
-                  {formatTime(e.startTime)}
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+      <div className="flex min-h-0 flex-1 flex-col">
+        <Table
+          tableName="Events"
+          columns={columns}
+          data={{ status: "success", data: rows }}
+          noResultsMessage={null}
+        />
       </div>
       <div className="text-muted-foreground border-t px-3 py-1.5 text-xs">
         Showing {rows.length} of {events.length.toLocaleString()} events

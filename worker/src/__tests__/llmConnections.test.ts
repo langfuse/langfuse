@@ -38,7 +38,7 @@ import { z } from "zod";
  * - LANGFUSE_LLM_CONNECTION_ANTHROPIC_KEY
  * - LANGFUSE_LLM_CONNECTION_AZURE_KEY
  * - LANGFUSE_LLM_CONNECTION_AZURE_BASE_URL
- * - LANGFUSE_LLM_CONNECTION_AZURE_MODEL
+ * - LANGFUSE_LLM_CONNECTION_AZURE_MODEL (Azure suite is currently skipped)
  * - LANGFUSE_LLM_CONNECTION_BEDROCK_ACCESS_KEY_ID
  * - LANGFUSE_LLM_CONNECTION_BEDROCK_SECRET_ACCESS_KEY
  * - LANGFUSE_LLM_CONNECTION_BEDROCK_REGION
@@ -657,7 +657,8 @@ describe("LLM Connection Tests", () => {
     }, 30_000);
   });
 
-  describe("Azure", () => {
+  // Skipped until CI has a valid Azure OpenAI key; the current secret is rejected with "Access denied".
+  describe.skip("Azure", () => {
     const checkEnvVars = () => {
       if (!process.env.LANGFUSE_LLM_CONNECTION_AZURE_KEY) {
         throw new Error(

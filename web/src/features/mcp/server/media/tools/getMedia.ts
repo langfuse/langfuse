@@ -6,6 +6,7 @@ import { runMcpTool } from "../../../core/run-mcp-tool";
 export const [getMediaTool, handleGetMedia] = defineTool({
   name: "getMedia",
   description: "Fetch metadata and a signed download URL for one media asset.",
+  action: "media:read",
   baseSchema: GetMediaQuerySchema,
   inputSchema: GetMediaQuerySchema,
   handler: async (input, context) => {

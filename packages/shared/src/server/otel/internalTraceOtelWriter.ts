@@ -18,7 +18,10 @@ import {
 import { ObservationTypeDomain } from "../../domain/observations";
 import type { InternalTraceEventInput } from "../llm/internalTraceEvents";
 import { logger } from "../logger";
-import { LangfuseOtelSpanAttributes } from "./attributes";
+import {
+  buildEvaluationAttributes,
+  LangfuseOtelSpanAttributes,
+} from "./attributes";
 import {
   OtelIngestionProcessor,
   type ResourceSpan,
@@ -62,6 +65,7 @@ export function internalTraceEventToOtelAttributes(
     | "providedCostDetails"
     | "promptName"
     | "promptVersion"
+    | "skillsAvailable"
     | "completionStartTime"
     | "userId"
     | "sessionId"
@@ -69,11 +73,15 @@ export function internalTraceEventToOtelAttributes(
     | "public"
     | "release"
     | "traceName"
+    | "evaluationContext"
   >,
   options: { isRoot: boolean },
 ): Attributes {
   const observationType = observationTypeToOtelAttribute(eventInput.type);
   const metadataJson = asOtelAttributeString(eventInput.metadata);
+  const evaluationAttributes = eventInput.evaluationContext
+    ? buildEvaluationAttributes(eventInput.evaluationContext)
+    : undefined;
   const { isRoot } = options;
 
   return {
@@ -101,6 +109,7 @@ export function internalTraceEventToOtelAttributes(
     ...(metadataJson !== undefined
       ? { [LangfuseOtelSpanAttributes.OBSERVATION_METADATA]: metadataJson }
       : {}),
+    ...(evaluationAttributes ?? {}),
     ...(eventInput.modelName !== undefined
       ? { [LangfuseOtelSpanAttributes.OBSERVATION_MODEL]: eventInput.modelName }
       : {}),
@@ -133,6 +142,12 @@ export function internalTraceEventToOtelAttributes(
       ? {
           [LangfuseOtelSpanAttributes.OBSERVATION_PROMPT_VERSION]:
             eventInput.promptVersion,
+        }
+      : {}),
+    ...(eventInput.skillsAvailable !== undefined
+      ? {
+          [LangfuseOtelSpanAttributes.OBSERVATION_SKILLS_AVAILABLE]:
+            JSON.stringify(eventInput.skillsAvailable),
         }
       : {}),
     ...(eventInput.completionStartTime !== undefined
@@ -252,7 +267,7 @@ export async function publishInternalOtelSpans(params: {
 
 /**
  * Exactly the `InternalTraceEventInput` fields this writer maps onto OTel
- * spans. Narrowed so a caller with richer inputs (usage, prompt, experiment
+ * spans. Narrowed so a caller with richer inputs (cost, prompt, experiment
  * linkage, ...) gets a compile-time surface mismatch instead of silent drops.
  */
 export type InternalOtelSpanInput = Pick<
@@ -271,6 +286,13 @@ export type InternalOtelSpanInput = Pick<
   | "input"
   | "output"
   | "metadata"
+  | "evaluationContext"
+  | "type"
+  | "modelName"
+  | "modelParameters"
+  | "providedUsageDetails"
+  | "userId"
+  | "sessionId"
 >;
 
 /**

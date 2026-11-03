@@ -1,24 +1,22 @@
-import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
 import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
 import { prisma } from "@langfuse/shared/src/db";
-import { redis } from "@langfuse/shared/src/server";
 import { type NextApiRequest, type NextApiResponse } from "next";
-import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server/hasEntitlement";
 import {
   CreateBlobStorageIntegrationRequest,
   toInternalExportSource,
+  toPublicExportFieldGroups,
   toPublicExportSource,
   type BlobStorageIntegrationResponseType,
 } from "@/src/features/public-api/types/blob-storage-integrations";
 import {
-  type ObservationFieldGroupFull,
   LangfuseNotFoundError,
-  UnauthorizedError,
-  ForbiddenError,
+  TRACE_EXPORT_FIELD_GROUPS,
+  type ExportFieldGroup,
 } from "@langfuse/shared";
 import { upsertBlobStorageIntegration } from "@/src/features/blobstorage-integration/service";
 import { resolveExportSource } from "@/src/features/analytics-integrations/server/exportSource";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
+import { authorizeBlobStorageRequest } from "@/src/features/blobstorage-integration/authorizeBlobStorageRequest";
 
 export default withMiddlewares({
   GET: handleGetBlobStorageIntegrations,
@@ -29,40 +27,11 @@ async function handleGetBlobStorageIntegrations(
   req: NextApiRequest,
   res: NextApiResponse,
 ) {
-  // CHECK AUTH
-  const authCheck = await new ApiAuthService(
-    prisma,
-    redis,
-  ).verifyAuthHeaderAndReturnScope(req.headers.authorization);
-  if (!authCheck.validKey) {
-    throw new UnauthorizedError(authCheck.error ?? "Unauthorized");
-  }
-
-  // Check if using an organization API key
-  if (
-    authCheck.scope.accessLevel !== "organization" ||
-    !authCheck.scope.orgId
-  ) {
-    throw new ForbiddenError(
-      "Organization-scoped API key required for this operation.",
-    );
-  }
-
-  // Check scheduled-blob-exports entitlement
-  if (
-    !hasEntitlementBasedOnPlan({
-      plan: authCheck.scope.plan,
-      entitlement: "scheduled-blob-exports",
-    })
-  ) {
-    throw new ForbiddenError(
-      "scheduled-blob-exports entitlement required for this feature.",
-    );
-  }
+  const scope = await authorizeBlobStorageRequest(req);
 
   // Get all projects for the organization
   const projects = await prisma.project.findMany({
-    where: { orgId: authCheck.scope.orgId },
+    where: { orgId: scope.orgId },
     select: { id: true },
   });
 
@@ -92,8 +61,9 @@ async function handleGetBlobStorageIntegrations(
       exportStartDate: integration.exportStartDate,
       compressed: integration.compressed,
       exportSource: toPublicExportSource(integration.exportSource),
-      exportFieldGroups:
-        integration.exportFieldGroups as ObservationFieldGroupFull[],
+      exportFieldGroups: toPublicExportFieldGroups(
+        integration.exportFieldGroups,
+      ),
       nextSyncAt: integration.nextSyncAt,
       lastSyncAt: integration.lastSyncAt,
       lastError: integration.lastError,
@@ -112,36 +82,7 @@ async function handleUpsertBlobStorageIntegration(
   req: NextApiRequest,
   res: NextApiResponse,
 ) {
-  // CHECK AUTH
-  const authCheck = await new ApiAuthService(
-    prisma,
-    redis,
-  ).verifyAuthHeaderAndReturnScope(req.headers.authorization);
-  if (!authCheck.validKey) {
-    throw new UnauthorizedError(authCheck.error ?? "Unauthorized");
-  }
-
-  // Check if using an organization API key
-  if (
-    authCheck.scope.accessLevel !== "organization" ||
-    !authCheck.scope.orgId
-  ) {
-    throw new ForbiddenError(
-      "Organization-scoped API key required for this operation.",
-    );
-  }
-
-  // Check scheduled-blob-exports entitlement
-  if (
-    !hasEntitlementBasedOnPlan({
-      plan: authCheck.scope.plan,
-      entitlement: "scheduled-blob-exports",
-    })
-  ) {
-    throw new ForbiddenError(
-      "scheduled-blob-exports entitlement required for this feature.",
-    );
-  }
+  const scope = await authorizeBlobStorageRequest(req);
 
   // Validate request body
   const validatedData = CreateBlobStorageIntegrationRequest.parse(req.body);
@@ -151,7 +92,7 @@ async function handleUpsertBlobStorageIntegration(
     where: { id: validatedData.projectId },
     select: { id: true, orgId: true, createdAt: true },
   });
-  if (!project || project.orgId !== authCheck.scope.orgId) {
+  if (!project || project.orgId !== scope.orgId) {
     throw new LangfuseNotFoundError("Project not found");
   }
 
@@ -166,7 +107,7 @@ async function handleUpsertBlobStorageIntegration(
   // enriched value is rejected.
   const existingIntegration = await prisma.blobStorageIntegration.findUnique({
     where: { projectId: validatedData.projectId },
-    select: { createdAt: true, exportSource: true },
+    select: { createdAt: true, exportSource: true, exportFieldGroups: true },
   });
 
   // Explicit sources must pass every check; an omitted source keeps the
@@ -183,12 +124,20 @@ async function handleUpsertBlobStorageIntegration(
     existingIntegration,
   });
 
+  // Trace groups are set in the UI only; keep them when the API replaces the
+  // public groups.
+  const storedTraceFieldGroups = (
+    existingIntegration?.exportFieldGroups ?? []
+  ).filter((group): group is ExportFieldGroup =>
+    (TRACE_EXPORT_FIELD_GROUPS as readonly string[]).includes(group),
+  );
+
   await auditLog({
     action: "update",
     resourceType: "blobStorageIntegration",
     resourceId: validatedData.projectId,
-    apiKeyId: authCheck.scope.apiKeyId,
-    orgId: authCheck.scope.orgId,
+    apiKeyId: scope.apiKeyId,
+    orgId: scope.orgId,
   });
 
   const integration = await upsertBlobStorageIntegration({
@@ -211,7 +160,9 @@ async function handleUpsertBlobStorageIntegration(
       exportStartDate: validatedData.exportStartDate ?? null,
       compressed: validatedData.compressed,
       exportSource: internalExportSource,
-      exportFieldGroups: validatedData.exportFieldGroups ?? undefined,
+      exportFieldGroups: validatedData.exportFieldGroups
+        ? [...validatedData.exportFieldGroups, ...storedTraceFieldGroups]
+        : undefined,
     },
   });
 
@@ -233,8 +184,7 @@ async function handleUpsertBlobStorageIntegration(
     exportStartDate: integration.exportStartDate,
     compressed: integration.compressed,
     exportSource: toPublicExportSource(integration.exportSource),
-    exportFieldGroups:
-      integration.exportFieldGroups as ObservationFieldGroupFull[],
+    exportFieldGroups: toPublicExportFieldGroups(integration.exportFieldGroups),
     nextSyncAt: integration.nextSyncAt,
     lastSyncAt: integration.lastSyncAt,
     lastError: integration.lastError,

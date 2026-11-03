@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { useMemo } from "react";
 import { type z } from "zod";
 
@@ -5,7 +6,7 @@ import { api } from "@/src/utils/api";
 import { Card, CardContent } from "@/src/components/ui/card";
 import { Chart } from "@/src/features/widgets/chart-library/Chart";
 import { ChartLoadingState } from "@/src/features/widgets/chart-library/ChartLoadingState";
-import { type DataPoint } from "@/src/features/widgets/chart-library/chart-props";
+import type { DataPoint } from "@/src/features/widgets/chart-library/chart-props";
 import { getWidgetMetricPresentation } from "@/src/features/widgets/utils";
 import {
   type FilterState,
@@ -79,7 +80,7 @@ export const MonitorChartPreview = ({
     },
     {
       trpc: { context: { skipBatch: true } },
-      meta: { silentHttpCodes: [422] },
+      meta: { silentHttpCodes: [412, 422] },
       refetchOnWindowFocus: false,
     },
   );
@@ -103,7 +104,7 @@ export const MonitorChartPreview = ({
     },
     {
       trpc: { context: { skipBatch: true } },
-      meta: { silentHttpCodes: [422] },
+      meta: { silentHttpCodes: [412, 422] },
       refetchOnWindowFocus: false,
     },
   );
@@ -175,21 +176,23 @@ export const MonitorChartPreview = ({
             rowLimit={1000}
             thresholds={thresholds}
             metricFormatter={metricFormatter}
+            compactYAxis
             // Both queries feed `data`; while either is still pending it can
             // be spuriously `[]`, which would otherwise flash "No data"
             // before the real result (or the leading point) arrives.
             isLoading={queryResult.isPending || scalarResult.isPending}
           />
-          <ChartLoadingState
-            isLoading={queryResult.isError}
-            showSpinner={false}
-            showHintImmediately
-            layout="compact"
-            hintText={
-              queryResult.error?.message ?? RESOURCE_LIMIT_ERROR_MESSAGE
-            }
-            className="bg-background/80 absolute inset-0 z-20 backdrop-blur-xs"
-          />
+          {queryResult.isError && (
+            <ChartLoadingState
+              showSpinner={false}
+              showHintImmediately
+              layout="compact"
+              hintText={
+                queryResult.error?.message ?? RESOURCE_LIMIT_ERROR_MESSAGE
+              }
+              className="bg-background/80 absolute inset-0 z-20 backdrop-blur-xs"
+            />
+          )}
         </div>
       </CardContent>
     </Card>

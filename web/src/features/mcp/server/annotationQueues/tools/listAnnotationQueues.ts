@@ -12,6 +12,7 @@ export const [listAnnotationQueuesTool, handleListAnnotationQueues] =
     name: "listAnnotationQueues",
     description:
       "List annotation queues, worklists that collect trace or observation items for human review and scoring, with pagination.",
+    action: "annotationQueues:read",
     baseSchema: GetAnnotationQueuesQuery,
     inputSchema: GetAnnotationQueuesQuery,
     handler: async (input, context) =>

@@ -1,10 +1,10 @@
+import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import type { Session } from "next-auth";
 
 // Session fixture sub-object types; casts keep the runtime fixtures unchanged
 // while satisfying newer required fields on the session user type.
 type SessionUser = NonNullable<Session["user"]>;
 type SessionProjects = SessionUser["organizations"][number]["projects"];
-type SessionFeatureFlags = SessionUser["featureFlags"];
 import * as z from "zod";
 import { env } from "@/src/env.mjs";
 
@@ -78,10 +78,7 @@ const createAdminSession = (
         })) as SessionProjects,
       } as SessionUser["organizations"][number],
     ],
-    featureFlags: {
-      excludeClickhouseRead: false,
-      templateFlag: true,
-    } as SessionFeatureFlags,
+    featureFlags: testFeatureFlags(),
     admin: true,
   },
   environment: {} as any,
@@ -347,5 +344,16 @@ describe("admin access webhook in tRPC authorization middleware", () => {
       project: projectId,
       org: null,
     });
+  });
+
+  it("rejects an empty session id before checking access", async () => {
+    const { caller, mockPrisma } = createTestCaller({
+      session: createAdminSession([]),
+    });
+
+    await expect(
+      caller.session({ sessionId: "", projectId: "project-id" }),
+    ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    expect(mockPrisma.traceSession.findFirst).not.toHaveBeenCalled();
   });
 });

@@ -1,10 +1,12 @@
 import { createAuthedProjectAPIRoute } from "@/src/features/public-api/server/createAuthedProjectAPIRoute";
 import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
 import { GetScoresQueryV3, GetScoresResponseV3 } from "@langfuse/shared";
-import { listScoresV3ForPublicApi } from "@/src/features/public-api/server/scores-api-v3";
-import { EncodedScoresCursorV3 } from "@/src/features/public-api/types/scores";
-import { clampToDataAccessDays } from "@/src/features/entitlements/server/hasEntitlementLimit";
+import {
+  listScoresV3ForPublicApi,
+  EncodedScoresCursorV3,
+} from "@langfuse/shared/src/server";
 
+import { clampToDataAccessDays } from "@/src/features/entitlements/server/hasEntitlementLimit";
 const GetScoresV3Query = GetScoresQueryV3.extend({
   cursor: EncodedScoresCursorV3.optional(),
 }).superRefine((data, ctx) => {
@@ -100,6 +102,7 @@ const GetScoresV3Query = GetScoresQueryV3.extend({
 export default withMiddlewares({
   GET: createAuthedProjectAPIRoute({
     name: "Get Scores V3",
+    action: "scores:read",
     querySchema: GetScoresV3Query,
     responseSchema: GetScoresResponseV3,
     fn: async ({ query, auth }) => {

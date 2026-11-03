@@ -14,6 +14,7 @@ vi.mock("@langfuse/shared/src/server", async () => {
   };
 });
 
+import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import type { Session } from "next-auth";
 import { randomUUID } from "crypto";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -77,14 +78,7 @@ const createCaller = async (opts: { v4BetaEnabled?: boolean } = {}) => {
           ],
         },
       ],
-      featureFlags: {
-        excludeClickhouseRead: false,
-        templateFlag: true,
-        searchBar: false,
-        v4BetaToggleVisible: false,
-        observationEvals: false,
-        experimentsV4Enabled: false,
-      },
+      featureFlags: testFeatureFlags(),
     },
     environment: {} as any,
   };
@@ -595,11 +589,14 @@ describe("traces.deleteMany batch action", () => {
       const { projectId, caller } = await createCaller({
         v4BetaEnabled: true,
       });
+      const queue = await prisma.annotationQueue.create({
+        data: { projectId, name: `queue-${randomUUID()}` },
+      });
 
       await expect(
         caller.annotationQueueItems.createMany({
           projectId,
-          queueId: randomUUID(),
+          queueId: queue.id,
           objectIds: [randomUUID()],
           objectType: AnnotationQueueObjectType.TRACE,
           isBatchAction: true,

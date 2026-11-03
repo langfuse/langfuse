@@ -47,7 +47,7 @@ export function createExampleTableColumn<TData extends RowData>(
 
 ## Rules
 
-- Callers must not be able to override override `cell` or `loadingCell`.
+- Callers must not be able to override `cell` or `loadingCell`.
 - `accessorKey` is constrained to row fields supported by the creator.
 - An `accessorKey` automatically becomes the column ID.
 - Computed values use `accessorFn` with a required `id`.

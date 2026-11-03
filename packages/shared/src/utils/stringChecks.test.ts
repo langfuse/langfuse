@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { truncate } from "./stringChecks";
+import {
+  BLOB_STORAGE_REGION_INVALID_MESSAGE,
+  normalizeBlobStorageRegion,
+  truncate,
+} from "./stringChecks";
 
 function hasLoneSurrogate(s: string): boolean {
   for (let i = 0; i < s.length; i++) {
@@ -15,6 +19,38 @@ function hasLoneSurrogate(s: string): boolean {
   }
   return false;
 }
+
+describe("normalizeBlobStorageRegion", () => {
+  it.each([
+    ["us-west-2", "AWS"],
+    ["europe-west1", "GCP"],
+    ["us-central1", "GCP"],
+    ["US", "GCS multi-region"],
+    ["eastus", "Azure"],
+    ["westeurope", "Azure"],
+    ["germanywestcentral", "Azure"],
+    ["auto", "GCS/R2 signing region"],
+    ["wnam", "Cloudflare R2"],
+    ["us-ashburn-1", "OCI"],
+    ["us-west-004", "Backblaze"],
+  ])("accepts %s (%s)", (region) => {
+    expect(normalizeBlobStorageRegion(` ${region} `)).toBe(region);
+  });
+
+  it.each([
+    "us west-2",
+    "East US",
+    "US-CENTRAL1+US-EAST1",
+    "us_west_2",
+    "-us-west-2",
+    "us-west-2-",
+    "a".repeat(64),
+  ])("rejects %s", (region) => {
+    expect(() => normalizeBlobStorageRegion(region)).toThrow(
+      BLOB_STORAGE_REGION_INVALID_MESSAGE,
+    );
+  });
+});
 
 describe("truncate", () => {
   it("returns the string unchanged when at or under the limit", () => {

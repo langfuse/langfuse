@@ -15,6 +15,7 @@ export default withMiddlewares(
   {
     GET: createAuthedProjectAPIRoute({
       name: "Get Metrics",
+      action: "metrics:read",
       rateLimitResource: "public-api-metrics",
       querySchema: GetMetricsV1Query,
       responseSchema: GetMetricsV1Response,

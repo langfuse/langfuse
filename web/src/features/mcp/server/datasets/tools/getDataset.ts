@@ -9,6 +9,7 @@ export const [getDatasetTool, handleGetDataset] = defineTool({
   name: "getDataset",
   description:
     "Get a dataset, a named collection of input and optional expected-output examples for experiments and evaluations, by ID.",
+  action: "datasets:read",
   baseSchema: GetDatasetMcpInput,
   inputSchema: GetDatasetMcpInput,
   handler: async (input, context) =>

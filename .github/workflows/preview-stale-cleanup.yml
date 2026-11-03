@@ -81,6 +81,7 @@ jobs:
             // (5xx, secondary rate limit, PR locked/closed since pulls.list)
             // would skip every remaining stale PR and the summary.
             let failures = 0;
+            let deploymentFailures = 0;
             for (const pr of stale) {
               const ageDays = ((Date.now() - new Date(pr.updated_at).getTime()) / 86400000).toFixed(1);
               core.info(`PR #${pr.number} stale ${ageDays}d (updated ${pr.updated_at}) — ${pr.html_url}`);
@@ -115,15 +116,34 @@ jobs:
                   // preview-build.yml and preview-deactivate.yml, or
                   // listDeployments matches nothing and dead records pile up.
                   const task = `preview-pr-${pr.number}`;
-                  const deployments = await github.paginate(
-                    github.rest.repos.listDeployments,
-                    { owner, repo, environment: "PR Preview", task, per_page: 100 },
-                  );
+                  // TRANSITIONAL (drop with the sibling queries in
+                  // preview-build.yml / preview-deactivate.yml): a reaped PR
+                  // leaves the labeled set, so no later sweep revisits it — if
+                  // its pre-migration `pr-<n>` record is not retired here it
+                  // stays active until the PR eventually closes.
+                  const deployments = [
+                    ...(await github.paginate(github.rest.repos.listDeployments, {
+                      owner,
+                      repo,
+                      environment: "PR Preview",
+                      task,
+                      per_page: 100,
+                    })),
+                    ...(await github.paginate(github.rest.repos.listDeployments, {
+                      owner,
+                      repo,
+                      environment: `pr-${pr.number}`,
+                      per_page: 100,
+                    })),
+                  ];
                   // Isolate per deployment, like the sibling loops in
                   // preview-build.yml / preview-deactivate.yml: one transient
-                  // 5xx must not skip this PR's remaining records. Not counted
-                  // as a reap failure — the label removal above is the teardown,
-                  // and it already succeeded.
+                  // 5xx must not skip this PR's remaining records. Counted
+                  // separately from the reap counter — the label removal above
+                  // is the teardown and it succeeded, but a leftover record has
+                  // no retry path (this PR is now unlabeled, and a
+                  // GITHUB_TOKEN label removal cannot fire the `unlabeled`
+                  // workflow), so it must not pass silently.
                   for (const deployment of deployments) {
                     try {
                       await github.rest.repos.createDeploymentStatus({
@@ -138,6 +158,7 @@ jobs:
                         deployment_id: deployment.id,
                       });
                     } catch (e) {
+                      deploymentFailures++;
                       core.warning(
                         `PR #${pr.number} deployment ${deployment.id}: ${e.message} — continuing`,
                       );
@@ -153,9 +174,15 @@ jobs:
             core.notice(
               `${dryRun ? "[dry-run] " : ""}${stale.length} stale preview(s) `
               + `(threshold ${staleDays}d) out of ${labeled.length} labeled`
-              + `${failures ? `; ${failures} failed (see warnings)` : ""}.`
+              + `${failures ? `; ${failures} failed (see warnings)` : ""}`
+              + `${deploymentFailures ? `; ${deploymentFailures} deployment record(s) left behind` : ""}.`
             );
             // Surface partial failure as a failed run so it isn't silently green.
-            if (failures) {
-              core.setFailed(`${failures} of ${stale.length} stale preview(s) could not be reaped.`);
+            // Deployment-record failures count too: the reap itself succeeded,
+            // but nothing will retry the leftover record before PR close.
+            if (failures || deploymentFailures) {
+              core.setFailed(
+                `${failures} of ${stale.length} stale preview(s) could not be reaped; `
+                + `${deploymentFailures} deployment record(s) could not be deleted.`
+              );
             }

@@ -7,12 +7,12 @@ import {
   GetExperimentsV1Query,
   GetExperimentsV1Response,
 } from "@/src/features/public-api/types/experiments";
-import { listExperimentsForPublicApi } from "@/src/features/experiments/server/public";
+import { listExperimentsForPublicApi } from "@/src/features/experiments/server/public/service";
 import { clampToDataAccessDays } from "@/src/features/entitlements/server/hasEntitlementLimit";
-
 export default withMiddlewares({
   GET: createAuthedProjectAPIRoute({
     name: "Get Experiments",
+    action: "experiments:read",
     querySchema: GetExperimentsV1Query,
     responseSchema: GetExperimentsV1Response,
     allowInAppAgentKey: true,

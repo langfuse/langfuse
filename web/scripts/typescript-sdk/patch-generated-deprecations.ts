@@ -26,6 +26,10 @@ type FernEndpoint = {
 };
 
 type FernDefinition = {
+  types?: Record<
+    string,
+    string | { properties?: Record<string, FernProperty> }
+  >;
   service?: {
     endpoints?: Record<string, FernEndpoint>;
   };
@@ -161,6 +165,7 @@ function propertyGeneratedPath(resourceRoot: string, typeName: string): string {
   return path.join(resourceRoot, "client", "requests", `${typeName}.ts`);
 }
 
+/** getFernTypeScriptDeprecations maps Fern metadata to generated SDK declarations. */
 export function getFernTypeScriptDeprecations(
   definitionDirectory: string,
 ): FernTypeScriptDeprecation[] {
@@ -236,6 +241,37 @@ export function getFernTypeScriptDeprecations(
           message: readDeprecationMessage(
             property.availability,
             `Deprecated request property "${propertyName}" on endpoint "${endpointName}" in ${definitionPath}`,
+          ),
+        });
+      }
+    }
+
+    for (const [typeName, definitionType] of Object.entries(
+      definition.types ?? {},
+    )) {
+      if (typeof definitionType === "string") continue;
+      for (const [propertyName, property] of Object.entries(
+        definitionType.properties ?? {},
+      )) {
+        if (!isDeprecated(property.availability)) continue;
+        handledAvailabilityPaths.add(
+          availabilityPathKey([
+            "types",
+            typeName,
+            "properties",
+            propertyName,
+            "availability",
+          ]),
+        );
+        deprecations.push({
+          kind: "property",
+          definitionPath,
+          generatedPath: path.join(resourceRoot, "types", `${typeName}.ts`),
+          typeName,
+          propertyName: toLowerCamelCase(propertyName),
+          message: readDeprecationMessage(
+            property.availability,
+            `Deprecated property "${propertyName}" on type "${typeName}" in ${definitionPath}`,
           ),
         });
       }

@@ -1,12 +1,10 @@
+import { ExpandToggle } from "@/src/components/design-system/ExpandToggle/ExpandToggle";
 import { buildLocalIsoDatePresentation } from "@/src/utils/dates";
 import { useState } from "react";
-import { Button } from "@/src/components/ui/button";
 import Link from "next/link";
 import { ExperimentMetadataSection } from "./ExperimentMetadataSection";
-import {
-  ExperimentOverviewField,
-  ExperimentOverviewSectionHeading,
-} from "./ExperimentOverviewField";
+import { ExperimentOverviewField } from "./ExperimentOverviewField";
+import { ExperimentOverviewSectionHeading } from "./ExperimentOverviewSectionHeading";
 
 const isSafeHttpUrl = (value: string | undefined) => {
   if (!value) return false;
@@ -60,6 +58,7 @@ export function ExperimentOverviewPanel({
   }
   if (safePullRequestUrl) delete additionalMetadata["langfuse.pr_url"];
   if (safeGithubJobUrl) delete additionalMetadata["langfuse.github_job_url"];
+  const hasAdditionalMetadata = Object.keys(additionalMetadata).length > 0;
 
   // Get the first prompt name and version from the prompts array
   const [promptName, promptVersion] =
@@ -94,16 +93,13 @@ export function ExperimentOverviewPanel({
                 <ExperimentOverviewField label="Description">
                   <div className="break-words">{displayDescription}</div>
                   {isLongDescription && (
-                    <Button
-                      variant="link"
-                      size="sm"
-                      className="h-auto p-0 text-xs"
-                      onClick={() =>
-                        setIsDescriptionExpanded(!isDescriptionExpanded)
-                      }
-                    >
-                      {isDescriptionExpanded ? "Show less" : "Show more"}
-                    </Button>
+                    <div>
+                      <ExpandToggle
+                        variant="underline"
+                        expanded={isDescriptionExpanded}
+                        onExpandedChange={setIsDescriptionExpanded}
+                      />
+                    </div>
                   )}
                 </ExperimentOverviewField>
               )}
@@ -179,7 +175,9 @@ export function ExperimentOverviewPanel({
             </div>
           </div>
 
-          <ExperimentMetadataSection metadata={additionalMetadata} />
+          {hasAdditionalMetadata && (
+            <ExperimentMetadataSection metadata={additionalMetadata} />
+          )}
         </>
       ) : (
         <p className="text-muted-foreground text-sm">

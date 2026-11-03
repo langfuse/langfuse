@@ -4,11 +4,13 @@ import { useStore } from "zustand";
 import { Button } from "@/src/components/ui/button";
 import {
   createRuleSetupStore,
-  EvaluatorAssignmentsEditor,
   isRuleDraftDirty,
-  type RuleDraft,
-  type RuleEvaluatorOption,
-} from "@/src/features/evals";
+} from "@/src/features/evals/v2/stores/createRuleSetupStore";
+import { EvaluatorAssignmentsEditor } from "@/src/features/evals/v2/components/Rules/EvaluatorAssignmentsEditor/EvaluatorAssignmentsEditor";
+import type {
+  RuleDraft,
+  RuleEvaluatorOption,
+} from "@/src/features/evals/v2/types/rules";
 import type { ExperimentEvaluatorAssignmentsHandle } from "@/src/features/experiments/components/ExperimentEvaluatorAssignments/types/experimentEvaluatorAssignmentsHandle";
 
 export const ExperimentEvaluatorAssignmentsEditor = forwardRef<
@@ -76,6 +78,7 @@ export const ExperimentEvaluatorAssignmentsEditor = forwardRef<
         costEstimates={[]}
         estimatingEvaluatorIds={[]}
         footerTrailing={null}
+        pickerWidth="trigger"
         emptyDescription="Attach an evaluator to score experiments on this dataset."
         sourceUnavailableMessage="No dataset item is available to validate JSON paths."
         disabled={disabled}

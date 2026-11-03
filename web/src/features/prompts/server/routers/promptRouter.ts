@@ -1,6 +1,8 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { z } from "zod";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { hasEntitlementLimit } from "@/src/features/entitlements/server/hasEntitlementLimit";
 import { throwIfNoEntitlement } from "@/src/features/entitlements/server/hasEntitlement";
 import {
   createTRPCRouter,
@@ -27,7 +29,8 @@ import {
   StringNoHTMLNonEmpty,
   TracingSearchType,
   orderBy,
-  singleFilter,
+  singleFilterList,
+  normalizeOrderByForTable,
 } from "@langfuse/shared";
 import {
   orderByToPrismaSql,
@@ -47,7 +50,6 @@ import {
 import { aggregateScores } from "@/src/features/scores/lib/aggregateScores";
 import { TRPCError } from "@trpc/server";
 import { promptChangeEventSourcing } from "@/src/features/prompts/server/promptChangeEventSourcing";
-import { hasEntitlementLimit } from "@/src/features/entitlements/server/hasEntitlementLimit";
 
 const buildPathPrefixFilter = (pathPrefix?: string): Prisma.Sql => {
   if (!pathPrefix) {
@@ -60,7 +62,7 @@ const buildPathPrefixFilter = (pathPrefix?: string): Prisma.Sql => {
 
 const PromptFilterOptions = z.object({
   projectId: z.string(), // Required for protectedProjectProcedure
-  filter: z.array(singleFilter),
+  filter: singleFilterList,
   orderBy: orderBy,
   ...paginationZod,
   pathPrefix: z.string().optional(),
@@ -115,7 +117,10 @@ export const promptRouter = createTRPCRouter({
       });
 
       const orderByCondition = orderByToPrismaSql(
-        input.orderBy,
+        normalizeOrderByForTable({
+          orderBy: input.orderBy ?? { column: "createdAt", order: "DESC" },
+          expectedTimeColumn: "createdAt",
+        }),
         promptsTableCols,
       );
 
@@ -130,7 +135,7 @@ export const promptRouter = createTRPCRouter({
 
       const additionalConditions = input.searchType?.includes("id")
         ? [
-            Prisma.sql`EXISTS (SELECT 1 FROM UNNEST(p.tags) AS tag WHERE tag ILIKE ${`%${input.searchQuery}%`})`,
+            Prisma.sql`EXISTS (SELECT 1 FROM UNNEST(p.tags) AS tag WHERE tag ILIKE ${`%${escapeSqlLikePattern(input.searchQuery ?? "")}%`})`,
           ]
         : [];
 
@@ -200,7 +205,7 @@ export const promptRouter = createTRPCRouter({
         searchQuery: z.string().optional(),
         searchType: z.array(TracingSearchType).optional(),
         pathPrefix: z.string().optional(),
-        filter: z.array(singleFilter).optional(),
+        filter: singleFilterList.optional(),
       }),
     )
     .query(async ({ input, ctx }) => {
@@ -223,7 +228,7 @@ export const promptRouter = createTRPCRouter({
 
       const additionalConditions = input.searchType?.includes("id")
         ? [
-            Prisma.sql`EXISTS (SELECT 1 FROM UNNEST(p.tags) AS tag WHERE tag ILIKE ${`%${input.searchQuery}%`})`,
+            Prisma.sql`EXISTS (SELECT 1 FROM UNNEST(p.tags) AS tag WHERE tag ILIKE ${`%${escapeSqlLikePattern(input.searchQuery ?? "")}%`})`,
           ]
         : [];
 
@@ -261,7 +266,8 @@ export const promptRouter = createTRPCRouter({
       z
         .object({
           projectId: z.string(),
-          promptNames: z.array(z.string()),
+          // Allow longer legacy names when fetching metrics; new names are limited to 255 characters.
+          promptNames: z.array(z.string().max(1500)).max(50),
           ...promptMetricsTimeWindow,
         })
         .refine(isValidPromptMetricsTimeWindow, {
@@ -631,7 +637,15 @@ export const promptRouter = createTRPCRouter({
           },
         });
 
-        promptService.invalidateCache({ projectId });
+        // The deletion has committed; a cache failure must not skip webhooks.
+        try {
+          await promptService.invalidateCache({ projectId });
+        } catch (error) {
+          logger.error(
+            `Failed to invalidate prompt cache after deleting prompts in project ${projectId}`,
+            error,
+          );
+        }
 
         // Trigger webhooks for prompt deletion
         await Promise.all(

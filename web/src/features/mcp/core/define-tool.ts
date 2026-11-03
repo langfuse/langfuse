@@ -6,7 +6,7 @@
  */
 
 import { z } from "zod";
-import { wrapErrorHandling } from "./error-formatting";
+import type { ApiAction } from "@/src/features/public-api/server/enforceAuth";
 import type { ServerContext } from "../types";
 
 /**
@@ -36,6 +36,9 @@ export interface DefineToolOptions<TInput, TName extends string = string> {
   /** Handler function that executes the tool logic */
   handler: ToolHandler<TInput>;
 
+  /** Action the caller must hold to run this tool. */
+  action: ApiAction;
+
   /** Hint: This tool only reads data, does not modify anything */
   readOnlyHint?: boolean;
 
@@ -52,6 +55,7 @@ export interface DefineToolOptions<TInput, TName extends string = string> {
 export interface ToolDefinition<TName extends string = string> {
   name: TName;
   description: string;
+  action: ApiAction;
   inputSchema: Record<string, unknown>;
   annotations?: {
     readOnlyHint?: boolean;
@@ -115,6 +119,7 @@ export function defineTool<TInput, const TName extends string>(
   const {
     name,
     description,
+    action,
     baseSchema,
     inputSchema,
     handler,
@@ -154,6 +159,7 @@ export function defineTool<TInput, const TName extends string>(
   const toolDefinition: ToolDefinition<TName> = {
     name,
     description,
+    action,
     inputSchema: jsonSchemaObject,
   };
 
@@ -166,14 +172,14 @@ export function defineTool<TInput, const TName extends string>(
     };
   }
 
-  // Wrap handler with validation and error handling
-  const wrappedHandler: ToolHandler<TInput> = wrapErrorHandling(
-    async (rawInput: unknown, context: ServerContext) => {
-      // Validate input with the full schema (including refinements)
-      const validatedInput = inputSchema.parse(rawInput);
-      return await handler(validatedInput, context);
-    },
-  );
+  const wrappedHandler: ToolHandler<TInput> = async (
+    rawInput: unknown,
+    context: ServerContext,
+  ) => {
+    // Validate input with the full schema (including refinements)
+    const validatedInput = inputSchema.parse(rawInput);
+    return await handler(validatedInput, context);
+  };
 
   return [toolDefinition, wrappedHandler];
 }

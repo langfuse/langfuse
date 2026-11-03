@@ -27,13 +27,14 @@ const observation = (id: string) =>
 
 const loaded = [observation("in-list")];
 
-const render = (selectedNodeId: string | null) =>
+const render = (selectedNodeId: string | null, enabled?: boolean) =>
   renderHook(() =>
     useSelectedObservation({
       selectedNodeId,
       traceId: "t",
       projectId: "p",
       observations: loaded,
+      enabled,
     }),
   ).result.current;
 
@@ -64,6 +65,21 @@ describe("useSelectedObservation", () => {
     expect(
       result.kind === "observation" ? result.observation.traceId : null,
     ).toBe("t");
+  });
+
+  it("stays loading while disabled, even when the by-id query serves a cached row", () => {
+    mockByIdQuery.mockReturnValue({
+      data: { ...observation("next-trace-row"), traceId: null },
+      error: null,
+    });
+
+    const result = render("next-trace-row", false);
+
+    expect(result).toEqual({
+      kind: "loading",
+      observationId: "next-trace-row",
+    });
+    expect(queryEnabled()).toBe(false);
   });
 
   it("serves a loaded observation from the list without firing a request", () => {

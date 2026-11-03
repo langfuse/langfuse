@@ -1,3 +1,4 @@
+/* eslint-disable @repo/no-exotic-operators */
 /**
  * Cheap, stable React Query cache signatures for parsed-I/O hooks
  * (`useParsedTrace`, `useParsedObservation`) — LFE-10992, part of the

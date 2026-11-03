@@ -1,17 +1,10 @@
 // Never use fixed delays to establish operation ordering in these tests.
 // Synchronize through observable state; timeouts are failure bounds only.
-import { readdir } from "node:fs/promises";
 import { randomUUID } from "node:crypto";
-import path from "node:path";
-import { fileURLToPath } from "node:url";
 
 import Docker from "dockerode";
-import { afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-const PACKAGE_ROOT = path.resolve(
-  path.dirname(fileURLToPath(import.meta.url)),
-  "..",
-);
 const IMAGE_TAG = "langfuse-in-app-agent-sandbox:e2e";
 const MICROVM_HOOKS_ROOT = "/aws/lambda-microvms/runtime/v1";
 const HEALTH_TIMEOUT_MS = 30_000;
@@ -25,10 +18,6 @@ describe("sandbox runtime docker container", () => {
   const docker = new Docker();
   let container: Docker.Container;
   let baseUrl = "";
-
-  beforeAll(async () => {
-    await buildSandboxImage(docker);
-  }, 300_000);
 
   beforeEach(async () => {
     container = await docker.createContainer({
@@ -434,54 +423,6 @@ describe("sandbox runtime docker container", () => {
     },
   );
 });
-
-async function buildSandboxImage(docker: Docker) {
-  const src = [
-    "Dockerfile",
-    "package.json",
-    ...(await listRelativeFiles(path.join(PACKAGE_ROOT, "dist"), "dist")),
-  ];
-  const stream = await docker.buildImage(
-    { context: PACKAGE_ROOT, src },
-    { t: IMAGE_TAG },
-  );
-
-  await new Promise<void>((resolve, reject) => {
-    docker.modem.followProgress(stream, (error) => {
-      if (error) {
-        reject(error);
-        return;
-      }
-
-      resolve();
-    });
-  });
-}
-
-async function listRelativeFiles(
-  absDir: string,
-  relativePrefix: string,
-): Promise<string[]> {
-  const entries = await readdir(absDir, { withFileTypes: true });
-  const files: string[] = [];
-
-  for (const entry of entries) {
-    const relativePath = `${relativePrefix}/${entry.name}`;
-    if (entry.isDirectory()) {
-      files.push(
-        ...(await listRelativeFiles(
-          path.join(absDir, entry.name),
-          relativePath,
-        )),
-      );
-      continue;
-    }
-
-    files.push(relativePath);
-  }
-
-  return files;
-}
 
 async function waitForHealth(baseUrl: string, container: Docker.Container) {
   const startedAt = Date.now();

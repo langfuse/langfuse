@@ -1,0 +1,1 @@
+export const MAX_SKILL_ZIP_UPLOAD_BYTES = 3 * 1024 * 1024;

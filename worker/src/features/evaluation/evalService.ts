@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary, @typescript-eslint/no-use-before-define */
 import { randomUUID } from "crypto";
 import { z } from "zod";
 import {
@@ -32,11 +33,12 @@ import {
   DatasetRunItemUpsertEventType,
   classifyEvaluatorLlmError,
   blockEvaluator,
-  buildEvalExecutionMetadata,
+  buildEvalExecutionData,
   EvaluatorBlockSource,
   executeLlmEvaluator,
   type CodeEvalScoreWithName,
   type EvaluatorLlmErrorClassification,
+  type ExtractedVariable,
 } from "@langfuse/shared/src/server";
 import {
   inMemoryFilterRequiresMetadata,
@@ -45,7 +47,7 @@ import {
 } from "./traceFilterUtils";
 import {
   Prisma,
-  singleFilter,
+  singleFilterList,
   variableMappingList,
   evalDatasetFormFilterCols,
   availableDatasetEvalVariables,
@@ -65,11 +67,16 @@ import {
   type EvalOutputResult,
   extractValueFromObject,
   validateEvaluatorFiltersForTarget,
+  type EvalExecutionContext,
 } from "@langfuse/shared";
 import { env } from "../../env";
 import { prisma } from "@langfuse/shared/src/db";
-import { createW3CTraceId } from "../utils";
+import { createW3CTraceId } from "../utils/utilities";
 import { UnrecoverableError } from "../../errors/UnrecoverableError";
+import {
+  EvalFailureReason,
+  UnrecoverableEvalFailureError,
+} from "./evalFailureErrors";
 import { ObservationNotFoundError } from "../../errors/ObservationNotFoundError";
 import {
   completeEvalExecution,
@@ -83,7 +90,7 @@ import {
   type EvalExecutionDeps,
   createProductionEvalExecutionDeps,
 } from "./evalExecutionDeps";
-import { type ExtractedVariable } from "@langfuse/shared/src/server";
+
 import {
   buildEvalExecutionSpanAttributes,
   buildEvaluatorLlmErrorSpanAttributes,
@@ -396,7 +403,7 @@ export const createEvalJobs = async ({
         if (config.targetObject !== EvalTargetObject.TRACE) {
           return false;
         }
-        const parsedFilter = z.array(singleFilter).safeParse(config.filter);
+        const parsedFilter = singleFilterList.safeParse(config.filter);
         return (
           !parsedFilter.success ||
           inMemoryFilterRequiresMetadata(parsedFilter.data)
@@ -552,7 +559,7 @@ export const createEvalJobs = async ({
     }
 
     logger.debug("Creating eval job for config", config.id);
-    const validatedFilter = z.array(singleFilter).parse(config.filter);
+    const validatedFilter = singleFilterList.parse(config.filter);
 
     const maxTimeStamp =
       "timestamp" in event &&
@@ -944,6 +951,7 @@ export async function runLLMAsJudgeEvaluation({
   template,
   extractedVariables,
   executionMetadata,
+  evaluationContext,
   deps,
   evaluatorId,
 }: {
@@ -954,6 +962,7 @@ export async function runLLMAsJudgeEvaluation({
   template: EvalTemplateLlmAsAJudge;
   extractedVariables: ExtractedVariable[];
   executionMetadata: Record<string, string>;
+  evaluationContext: EvalExecutionContext;
   deps: EvalExecutionDeps;
   /**
    * Evaluator v2 identity, when the execution came from an evaluation rule.
@@ -1058,8 +1067,9 @@ export async function runLLMAsJudgeEvaluation({
         logger.warn(
           `Eval job ${jobExecutionId} will fail. ${modelConfig.error}`,
         );
-        throw new UnrecoverableError(
+        throw new UnrecoverableEvalFailureError(
           `Invalid model configuration for job ${jobExecutionId}: ${modelConfig.error}`,
+          EvalFailureReason.InvalidModelConfig,
         );
       }
 
@@ -1141,9 +1151,8 @@ export async function runLLMAsJudgeEvaluation({
                       traceId: executionTraceId,
                       traceName: `Execute evaluator: ${template.name}`,
                       environment: LangfuseInternalTraceEnvironment.LLMJudge,
-                      metadata: {
-                        ...executionMetadata,
-                      },
+                      metadata: executionMetadata,
+                      evaluationContext,
                     },
                   });
                   llmSpan.setAttribute("eval.llm.outcome", "success");
@@ -1193,8 +1202,9 @@ export async function runLLMAsJudgeEvaluation({
 
       if (!parsedLLMOutput.success) {
         span.setAttribute("eval.execution.outcome", "invalid_model_output");
-        throw new UnrecoverableError(
+        throw new UnrecoverableEvalFailureError(
           `Invalid LLM response format from model ${modelConfig.config.model}. Error: ${parsedLLMOutput.error}`,
+          EvalFailureReason.InvalidModelOutput,
         );
       }
 
@@ -1223,6 +1233,7 @@ export async function runLLMAsJudgeEvaluation({
         scores,
         executionTraceId,
         metadata: executionMetadata,
+        evaluationContext,
       };
     },
   );
@@ -1268,7 +1279,7 @@ function toNormalizedScores(params: {
 export async function executeLLMAsJudgeEvaluation(
   params: Omit<
     Parameters<typeof runLLMAsJudgeEvaluation>[0],
-    "deps" | "executionMetadata"
+    "deps" | "executionMetadata" | "evaluationContext"
   > & {
     environment: string;
     deps?: EvalExecutionDeps;
@@ -1278,7 +1289,7 @@ export async function executeLLMAsJudgeEvaluation(
   },
 ): Promise<void> {
   const deps = params.deps ?? createProductionEvalExecutionDeps();
-  const executionMetadata = buildEvalExecutionMetadata({
+  const executionData = buildEvalExecutionData({
     type: "JOB",
     jobExecutionId: params.jobExecutionId,
     jobConfigurationId: params.job.jobConfigurationId,
@@ -1297,7 +1308,7 @@ export async function executeLLMAsJudgeEvaluation(
   const result = await runLLMAsJudgeEvaluation({
     ...params,
     deps,
-    executionMetadata,
+    ...executionData,
   });
 
   await completeEvalExecution({
@@ -1306,6 +1317,7 @@ export async function executeLLMAsJudgeEvaluation(
     traceId: params.job.jobInputTraceId,
     observationId: params.job.jobInputObservationId,
     environment: params.environment,
+    executionType: EvalTemplateType.LLM_AS_JUDGE,
     deps,
     result,
   });

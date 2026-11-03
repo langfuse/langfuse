@@ -1,5 +1,6 @@
 import type { EvalTemplateType } from "@langfuse/shared";
 import type { TestResultPanelState } from "@/src/features/evals/v2/components/Evaluators/Testing/components/TestResultPanelView/TestResultPanelView";
+import { toDecisionModelResults } from "@/src/features/evals/v2/fns/evaluatorTesting/toDecisionModelResults";
 
 export function toTestResultPanelState(params: {
   type: EvalTemplateType;
@@ -24,6 +25,13 @@ export function toTestResultPanelState(params: {
         typeof error === "object" && error && "message" in error
           ? String(error.message)
           : String(error ?? "Evaluator test failed"),
+    };
+  }
+
+  if (params.type === "DECISION_MODEL") {
+    return {
+      status: "decision-success",
+      results: toDecisionModelResults(response),
     };
   }
 

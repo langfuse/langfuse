@@ -9,8 +9,25 @@ type RootElementCallbacks = {
   onRootElement: (node: TSESTree.JSXElement) => void;
 };
 
+type ResolveReturnExpression = (
+  expression: TSESTree.Expression,
+) => TSESTree.Expression;
+
 type ReturnExpressionCallbacks = {
-  onReturnExpression: (node: TSESTree.Expression) => void;
+  onComponentFunction?: (
+    node:
+      | TSESTree.ArrowFunctionExpression
+      | TSESTree.FunctionDeclaration
+      | TSESTree.FunctionExpression,
+  ) => void;
+  onReturnExpression?: (
+    node: TSESTree.Expression,
+    resolve?: ResolveReturnExpression,
+  ) => void;
+  onComponentReturns?: (
+    expressions: TSESTree.Expression[],
+    resolve: ResolveReturnExpression,
+  ) => void;
 };
 
 const REACT_COMPONENT_TYPES = new Set([
@@ -52,7 +69,12 @@ function expressionReturnsJsxOrNull(
   node: TSESTree.Node | null | undefined,
 ): boolean {
   if (!node) return false;
-  if (isJsxNode(node) || isNullLiteral(node)) return true;
+  if (
+    isJsxNode(node) ||
+    isNullLiteral(node) ||
+    (node.type === AST_NODE_TYPES.Literal && node.value === false)
+  )
+    return true;
 
   switch (node.type) {
     case AST_NODE_TYPES.ConditionalExpression:
@@ -286,15 +308,13 @@ function getForwardRefPropsType(
   return getCallTypeArguments(node)[1] ?? null;
 }
 
-function isComponentWrapperCall(
-  node: TSESTree.Node,
-): node is TSESTree.CallExpression {
-  if (node.type !== AST_NODE_TYPES.CallExpression) return false;
+export function isComponentWrapperCall(node: TSESTree.CallExpression): boolean {
   const callee = node.callee;
   return (
     (callee.type === AST_NODE_TYPES.Identifier &&
       (callee.name === "memo" || callee.name === "forwardRef")) ||
     (callee.type === AST_NODE_TYPES.MemberExpression &&
+      !callee.computed &&
       callee.property.type === AST_NODE_TYPES.Identifier &&
       (callee.property.name === "memo" ||
         callee.property.name === "forwardRef"))
@@ -314,7 +334,11 @@ function unwrapComponentInit(node: TSESTree.Node): TSESTree.Node {
       continue;
     }
 
-    if (isComponentWrapperCall(current) && current.arguments[0]) {
+    if (
+      current.type === AST_NODE_TYPES.CallExpression &&
+      isComponentWrapperCall(current) &&
+      current.arguments[0]
+    ) {
       const firstArg = current.arguments[0];
       if (
         firstArg.type === AST_NODE_TYPES.ArrowFunctionExpression ||
@@ -380,38 +404,67 @@ export function createComponentRootElementVisitors(
 
 function visitReturnExpressionsInStatement(
   statement: TSESTree.Statement | null | undefined,
-  callbacks: ReturnExpressionCallbacks,
+  onReturnExpression: (node: TSESTree.Expression) => void,
 ): void {
   if (!statement) return;
 
   if (statement.type === AST_NODE_TYPES.ReturnStatement) {
-    if (statement.argument) callbacks.onReturnExpression(statement.argument);
+    if (statement.argument) onReturnExpression(statement.argument);
     return;
   }
   if (statement.type === AST_NODE_TYPES.BlockStatement) {
     for (const child of statement.body) {
-      visitReturnExpressionsInStatement(child, callbacks);
+      visitReturnExpressionsInStatement(child, onReturnExpression);
     }
     return;
   }
   if (statement.type === AST_NODE_TYPES.IfStatement) {
-    visitReturnExpressionsInStatement(statement.consequent, callbacks);
-    visitReturnExpressionsInStatement(statement.alternate, callbacks);
+    visitReturnExpressionsInStatement(statement.consequent, onReturnExpression);
+    visitReturnExpressionsInStatement(statement.alternate, onReturnExpression);
     return;
   }
   if (statement.type === AST_NODE_TYPES.SwitchStatement) {
     for (const switchCase of statement.cases) {
       for (const child of switchCase.consequent) {
-        visitReturnExpressionsInStatement(child, callbacks);
+        visitReturnExpressionsInStatement(child, onReturnExpression);
       }
     }
     return;
   }
   if (statement.type === AST_NODE_TYPES.TryStatement) {
-    visitReturnExpressionsInStatement(statement.block, callbacks);
-    visitReturnExpressionsInStatement(statement.handler?.body, callbacks);
-    visitReturnExpressionsInStatement(statement.finalizer, callbacks);
+    visitReturnExpressionsInStatement(statement.block, onReturnExpression);
+    visitReturnExpressionsInStatement(
+      statement.handler?.body,
+      onReturnExpression,
+    );
+    visitReturnExpressionsInStatement(statement.finalizer, onReturnExpression);
+    return;
   }
+  if (
+    statement.type === AST_NODE_TYPES.ForStatement ||
+    statement.type === AST_NODE_TYPES.ForInStatement ||
+    statement.type === AST_NODE_TYPES.ForOfStatement ||
+    statement.type === AST_NODE_TYPES.WhileStatement ||
+    statement.type === AST_NODE_TYPES.DoWhileStatement ||
+    statement.type === AST_NODE_TYPES.LabeledStatement
+  ) {
+    visitReturnExpressionsInStatement(statement.body, onReturnExpression);
+  }
+}
+
+export function visitFunctionReturnExpressions(
+  node:
+    | TSESTree.ArrowFunctionExpression
+    | TSESTree.FunctionExpression
+    | TSESTree.FunctionDeclaration,
+  onReturnExpression: (node: TSESTree.Expression) => void,
+) {
+  if (node.type === AST_NODE_TYPES.ArrowFunctionExpression && node.expression) {
+    onReturnExpression(node.body);
+    return;
+  }
+
+  visitReturnExpressionsInStatement(node.body, onReturnExpression);
 }
 
 /**
@@ -452,8 +505,16 @@ export function createComponentReturnExpressionVisitors(
     expression: TSESTree.Expression,
     initializers: Map<string, TSESTree.Expression>,
   ) {
-    if (expression.type !== AST_NODE_TYPES.Identifier) return expression;
-    return initializers.get(expression.name) ?? expression;
+    const seen = new Set<string>();
+    let current: TSESTree.Expression = expression;
+    while (current.type === AST_NODE_TYPES.Identifier) {
+      if (seen.has(current.name)) return current;
+      seen.add(current.name);
+      const init = initializers.get(current.name);
+      if (!init) return current;
+      current = init;
+    }
+    return current;
   }
 
   function maybeVisitFunctionComponentReturns(
@@ -470,32 +531,34 @@ export function createComponentReturnExpressionVisitors(
       node.expression
     ) {
       if (!expressionReturnsJsxOrNull(node.body)) return;
-      callbacks.onReturnExpression(node.body);
+      callbacks.onComponentFunction?.(node);
+      const resolve = (expression: TSESTree.Expression) => expression;
+      callbacks.onComponentReturns?.([node.body], resolve);
+      callbacks.onReturnExpression?.(node.body, resolve);
       return;
     }
 
     const initializers = getDirectVariableInitializers(node);
+    const resolve = (expression: TSESTree.Expression) =>
+      resolveDirectVariable(expression, initializers);
     const returnExpressions: TSESTree.Expression[] = [];
     for (const statement of (node.body as TSESTree.BlockStatement).body) {
       if (statement.type === AST_NODE_TYPES.ReturnStatement) {
         if (statement.argument) {
-          returnExpressions.push(
-            resolveDirectVariable(statement.argument, initializers),
-          );
+          returnExpressions.push(resolve(statement.argument));
         }
         continue;
       }
-      visitReturnExpressionsInStatement(statement, {
-        onReturnExpression(expression) {
-          returnExpressions.push(
-            resolveDirectVariable(expression, initializers),
-          );
-        },
+      visitReturnExpressionsInStatement(statement, (expression) => {
+        returnExpressions.push(resolve(expression));
       });
     }
     if (!returnExpressions.some(expressionReturnsJsxOrNull)) return;
+    callbacks.onComponentFunction?.(node);
+    callbacks.onComponentReturns?.(returnExpressions, resolve);
+    if (!callbacks.onReturnExpression) return;
     for (const expression of returnExpressions) {
-      callbacks.onReturnExpression(expression);
+      callbacks.onReturnExpression(expression, resolve);
     }
   }
 
@@ -550,7 +613,11 @@ function getWrappedForwardRefPropsType(
       continue;
     }
 
-    if (!isComponentWrapperCall(current)) return null;
+    if (
+      current.type !== AST_NODE_TYPES.CallExpression ||
+      !isComponentWrapperCall(current)
+    )
+      return null;
 
     const propsType = getForwardRefPropsType(current);
     if (propsType) return propsType;

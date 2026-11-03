@@ -819,17 +819,19 @@ describe("/api/public/observations API Endpoint", () => {
             : baseTimestamp;
 
           // Create two traces with different userIds
+          // traces.timestamp is DateTime64(3) millisecond ticks. timeValue is
+          // microseconds when the events table is enabled — do not reuse it here.
           const trace1 = createTrace({
             id: trace1Id,
             project_id: projectId,
-            timestamp: timeValue,
+            timestamp: baseTimestamp,
             user_id: "user-A",
           });
 
           const trace2 = createTrace({
             id: trace2Id,
             project_id: projectId,
-            timestamp: timeValue,
+            timestamp: baseTimestamp,
             user_id: "user-B",
           });
 

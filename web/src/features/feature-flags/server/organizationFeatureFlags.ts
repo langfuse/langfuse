@@ -6,9 +6,12 @@ import {
 } from "@langfuse/shared";
 
 import {
-  filterFeaturePreviewFlags,
+  defaultOnFeaturePreviewFlags,
   featurePreviewFlags,
   type FeaturePreviewFlag,
+  type UserFeaturePreviewFlag,
+  type UserFeatureFlag,
+  INTERNAL_FEATURE_FLAG,
 } from "@/src/features/feature-flags/available-flags";
 import {
   getFeaturePreviewOptOutFlag,
@@ -36,7 +39,7 @@ type FeaturePreviewOverrideChange = {
 
 const getFeaturePreviewOverrideState = (
   flags: string[],
-  flag: FeaturePreviewFlag,
+  flag: UserFeatureFlag,
 ): FeaturePreviewOverrideState => {
   if (flags.includes(getFeaturePreviewOptOutFlag(flag))) return "disabled";
   if (flags.includes(flag)) return "enabled";
@@ -168,7 +171,7 @@ async function setUserFeaturePreviewInTransaction({
 }: {
   tx: Prisma.TransactionClient;
   userId: string;
-  flag: FeaturePreviewFlag;
+  flag: UserFeatureFlag;
   enabled: boolean;
 }): Promise<FeaturePreviewOverrideChange> {
   const rows = await tx.$queryRaw<
@@ -185,14 +188,28 @@ async function setUserFeaturePreviewInTransaction({
   const user = rows[0];
   if (!user) throw new LangfuseNotFoundError("User not found");
 
-  const optOutFlag = getFeaturePreviewOptOutFlag(flag);
+  const affectedFlags: UserFeatureFlag[] = [flag];
+  if (flag === "sessionViewV2Timeline" && enabled) {
+    affectedFlags.push("sessionViewV2");
+  }
+  if (flag === "sessionViewV2" && !enabled) {
+    affectedFlags.push("sessionViewV2Timeline");
+  }
   const nextFeatureFlags = user.featureFlags.filter(
-    (currentFlag) => currentFlag !== flag && currentFlag !== optOutFlag,
+    (currentFlag) =>
+      !affectedFlags.some(
+        (affectedFlag) =>
+          currentFlag === affectedFlag ||
+          currentFlag === getFeaturePreviewOptOutFlag(affectedFlag),
+      ),
   );
   if (enabled) {
-    nextFeatureFlags.push(flag);
+    // Internal features default on; only their opt-out needs persistence.
+    nextFeatureFlags.push(
+      ...affectedFlags.filter((flag) => flag !== INTERNAL_FEATURE_FLAG),
+    );
   } else {
-    nextFeatureFlags.push(optOutFlag);
+    nextFeatureFlags.push(...affectedFlags.map(getFeaturePreviewOptOutFlag));
   }
 
   const before = getFeaturePreviewOverrideState(user.featureFlags, flag);
@@ -221,7 +238,7 @@ export async function setUserFeaturePreview({
 }: {
   prisma: PrismaClient;
   userId: string;
-  flag: FeaturePreviewFlag;
+  flag: UserFeatureFlag;
   enabled: boolean;
 }): Promise<FeaturePreviewOverrideChange> {
   return withSerializableRetry(prisma, (tx) =>
@@ -244,7 +261,7 @@ export async function setUserFeaturePreviewWithAuthorization({
   actorIsPlatformAdmin: boolean;
   currentOrgId: string;
   targetUserId: string;
-  flag: FeaturePreviewFlag;
+  flag: UserFeaturePreviewFlag;
   enabled: boolean;
   demoOrgId?: string;
 }): Promise<
@@ -295,8 +312,8 @@ export async function setOrganizationFeatureFlagDefault({
   flag: FeaturePreviewFlag;
   enabled: boolean;
 }): Promise<{
-  before: FeaturePreviewFlag[];
-  after: FeaturePreviewFlag[];
+  before: string[];
+  after: string[];
 }> {
   return withSerializableRetry(prisma, async (tx) => {
     const organization = await tx.organization.findUnique({
@@ -307,14 +324,40 @@ export async function setOrganizationFeatureFlagDefault({
       throw new LangfuseNotFoundError("Organization not found");
     }
 
-    const before = filterFeaturePreviewFlags(
-      organization.featureFlagOrgDefaults,
+    const storedPreviewFlags = [
+      ...featurePreviewFlags,
+      ...defaultOnFeaturePreviewFlags.map(getFeaturePreviewOptOutFlag),
+    ];
+    const before = organization.featureFlagOrgDefaults.filter((flag) =>
+      storedPreviewFlags.includes(flag),
     );
+    const affectedFlags: FeaturePreviewFlag[] = [flag];
+    if (flag === "sessionViewV2Timeline" && enabled) {
+      affectedFlags.push("sessionViewV2");
+    }
+    if (flag === "sessionViewV2" && !enabled) {
+      affectedFlags.push("sessionViewV2Timeline");
+    }
     const nextStoredDefaults = organization.featureFlagOrgDefaults.filter(
-      (currentFlag) => currentFlag !== flag,
+      (currentFlag) =>
+        !affectedFlags.some(
+          (affectedFlag) =>
+            currentFlag === affectedFlag ||
+            (affectedFlag !== "externalMediaStorage" &&
+              currentFlag === getFeaturePreviewOptOutFlag(affectedFlag)),
+        ),
     );
-    if (enabled) nextStoredDefaults.push(flag);
-    const after = filterFeaturePreviewFlags(nextStoredDefaults);
+    if (enabled) nextStoredDefaults.push(...affectedFlags);
+    else {
+      nextStoredDefaults.push(
+        ...defaultOnFeaturePreviewFlags
+          .filter((flag) => affectedFlags.includes(flag))
+          .map(getFeaturePreviewOptOutFlag),
+      );
+    }
+    const after = nextStoredDefaults.filter((flag) =>
+      storedPreviewFlags.includes(flag),
+    );
 
     await tx.organization.update({
       where: { id: orgId },

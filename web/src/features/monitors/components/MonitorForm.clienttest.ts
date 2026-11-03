@@ -14,9 +14,10 @@ import { __test } from "./MonitorForm";
 
 const {
   createDefaults,
+  thresholdUnit,
   monitorToDefaults,
   nameOrPlaceholder,
-  resolveViewChangePatch,
+  monitorCreateAnalyticsProperties,
 } = __test;
 
 describe("createDefaults", () => {
@@ -72,6 +73,50 @@ describe("createDefaults", () => {
     const defaults = createDefaults("project-1");
     expect(defaults.triggerIds).toEqual([]);
   });
+
+  it("uses a prefilled evaluator score window", () => {
+    expect(createDefaults("project-1", { window: "1d" }).window).toBe("1d");
+  });
+});
+
+describe("thresholdUnit", () => {
+  it("uses the counted rows' unit for a count", () => {
+    expect(thresholdUnit("observations", "count", "count")).toBe(
+      "observations",
+    );
+    expect(thresholdUnit("observations", "latency", "count")).toBe(
+      "observations",
+    );
+  });
+
+  it("uses the measure's spelled-out unit for a value aggregation", () => {
+    expect(thresholdUnit("observations", "latency", "p95")).toBe(
+      "milliseconds",
+    );
+    expect(thresholdUnit("observations", "totalCost", "sum")).toBe("USD");
+  });
+
+  it("names the score value unit, which the view leaves undeclared", () => {
+    expect(thresholdUnit("scores-numeric", "value", "avg")).toBe("score value");
+  });
+});
+
+describe("monitorCreateAnalyticsProperties", () => {
+  it("tracks the selected score window", () => {
+    expect(
+      monitorCreateAnalyticsProperties("evaluator_score", {
+        view: "scores-numeric",
+        metric: { measure: "value", aggregation: "avg" },
+        window: "1d",
+      }),
+    ).toEqual({
+      source: "evaluator_score",
+      view: "scores-numeric",
+      measure: "value",
+      aggregation: "avg",
+      window: "1d",
+    });
+  });
 });
 
 describe("nameOrPlaceholder", () => {
@@ -91,36 +136,6 @@ describe("nameOrPlaceholder", () => {
 
   it("non-blank name: wins over the placeholder", () => {
     expect(nameOrPlaceholder("My Monitor", placeholder)).toBe("My Monitor");
-  });
-});
-
-describe("resolveViewChangePatch", () => {
-  it("view change: never patches filters", () => {
-    expect(
-      resolveViewChangePatch("scores-numeric", "count"),
-    ).not.toHaveProperty("filters");
-    expect(
-      resolveViewChangePatch("scores-numeric", "latency"),
-    ).not.toHaveProperty("filters");
-    expect(resolveViewChangePatch("observations", "value")).not.toHaveProperty(
-      "filters",
-    );
-  });
-
-  it("measure absent on the new view: resets the metric to count", () => {
-    expect(resolveViewChangePatch("scores-numeric", "latency").metric).toEqual({
-      measure: "count",
-      aggregation: "count",
-    });
-  });
-
-  it("measure present on the new view: leaves the metric alone", () => {
-    expect(
-      resolveViewChangePatch("observations", "latency"),
-    ).not.toHaveProperty("metric");
-    expect(
-      resolveViewChangePatch("scores-numeric", "value"),
-    ).not.toHaveProperty("metric");
   });
 });
 

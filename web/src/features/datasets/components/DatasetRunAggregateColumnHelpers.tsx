@@ -8,7 +8,7 @@ import { type EnrichedDatasetRunItem } from "@langfuse/shared/src/server";
 import { type Row } from "@tanstack/react-table";
 import React, { useEffect, useRef, useState } from "react";
 import { useDebounce } from "@/src/hooks/useDebounce";
-import { type ScoreColumn } from "@/src/features/scores/types";
+import type { ScoreColumn } from "@/src/features/scores/types";
 import { Toggle } from "@/src/components/design-system/Toggle/Toggle";
 import { useRouter } from "next/router";
 
@@ -84,15 +84,11 @@ function BaselineToggle({ runId }: { runId: string }) {
     justSetBaselineRef.current = false;
   };
 
-  let text: string;
-  if (!hasBaseline) {
-    text = "Set as baseline";
-  } else if (isBaseline) {
-    text =
-      isHovered && !justSetBaselineRef.current ? "Clear baseline" : "Baseline";
-  } else {
-    text = isHovered ? "Set as baseline" : "Comparison";
-  }
+  const baselineText =
+    isHovered && !justSetBaselineRef.current ? "Clear baseline" : "Baseline";
+  const comparisonText = isHovered ? "Set as baseline" : "Comparison";
+  const selectedText = isBaseline ? baselineText : comparisonText;
+  const text = hasBaseline ? selectedText : "Set as baseline";
 
   return (
     <Toggle

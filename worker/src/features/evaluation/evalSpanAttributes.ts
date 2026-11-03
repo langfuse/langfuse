@@ -1,9 +1,8 @@
 import { type JobConfiguration } from "@prisma/client";
-import { z } from "zod";
 import {
   EvalTargetObject,
   observationVariableMappingList,
-  singleFilter,
+  singleFilterList,
   variableMappingList,
 } from "@langfuse/shared";
 import {
@@ -16,7 +15,7 @@ const dedupeStrings = (values: string[]): string[] => [
 ];
 
 const getFilterDimensions = (filter: JobConfiguration["filter"]): string[] => {
-  const parsedFilter = z.array(singleFilter).safeParse(filter);
+  const parsedFilter = singleFilterList.safeParse(filter);
   if (!parsedFilter.success) return [];
 
   return dedupeStrings(parsedFilter.data.map(({ column }) => column));

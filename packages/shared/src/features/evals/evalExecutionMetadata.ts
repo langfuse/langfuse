@@ -9,7 +9,14 @@ export const EvalExecutionMetadataKey = {
   TARGET_TRACE_ID: "target_trace_id",
   TARGET_OBSERVATION_ID: "target_observation_id",
   TARGET_DATASET_ITEM_ID: "target_dataset_item_id",
+  BATCH_ACTION_ID: "batch_action_id",
 } as const;
 
 export type EvalExecutionMetadataKey =
   (typeof EvalExecutionMetadataKey)[keyof typeof EvalExecutionMetadataKey];
+
+export type EvalExecutionContext = {
+  evaluatorId?: string;
+  evaluationRuleId?: string;
+  evaluatorExecutionIsTest: boolean;
+};

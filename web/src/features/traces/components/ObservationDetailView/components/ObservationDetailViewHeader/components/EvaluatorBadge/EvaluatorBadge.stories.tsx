@@ -6,7 +6,6 @@ const meta = preview.meta({
   args: {
     evaluatorId: "evaluator-id",
     evaluatorName: "Quality check",
-    environment: "langfuse-llm-as-a-judge",
     projectId: "project-id",
   },
 });

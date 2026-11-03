@@ -1,7 +1,6 @@
-import { scoresTableCols } from "@/src/server/api/definitions/scoresTable";
+import { scoresTableCols, type FilterState } from "@langfuse/shared";
 import type { FilterConfig } from "@/src/features/filters/lib/filter-config";
 import type { ColumnToBackendKeyMap } from "@/src/features/filters/lib/filter-transform";
-import { type FilterState } from "@langfuse/shared";
 
 // Maps frontend column IDs to backend-expected column IDs
 // Frontend uses "tags" but backend CH mapping expects "trace_tags" for trace tags on scores table
@@ -47,6 +46,11 @@ const scoreFilterConfig: FilterConfig = {
       type: "categorical" as const,
       column: "source",
       label: "Source",
+    },
+    {
+      type: "boolean" as const,
+      column: "isEvaluatorTest",
+      label: "Evaluator Test",
     },
     {
       type: "categorical" as const,

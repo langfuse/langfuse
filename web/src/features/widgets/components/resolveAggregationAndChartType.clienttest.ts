@@ -1,6 +1,7 @@
 // @vitest-environment node
 
 import { resolveAggregationAndChartType } from "./WidgetForm";
+import { resolveMeasureChangeAggregation } from "./widgetFormSchema";
 
 const allAggs = [
   "sum",
@@ -180,4 +181,90 @@ describe("resolveAggregationAndChartType", () => {
       expect(second).toBeNull();
     },
   );
+});
+
+// --- Measure change jumps a carried-over "count" to the measure's natural
+// aggregation (count of toolCalls counted observations, not calls) ---
+
+describe("resolveMeasureChangeAggregation", () => {
+  it.each([
+    ["v1", "toolCalls", "sum"],
+    ["v2", "toolCalls", "sum"],
+    ["v1", "toolCallInvocations", "sum"],
+    ["v2", "toolCallInvocations", "sum"],
+    ["v1", "totalTokens", "sum"],
+    ["v1", "totalCost", "sum"],
+    ["v1", "latency", "avg"],
+    ["v2", "timeToFirstToken", "avg"],
+  ] as const)(
+    "jumps count to the natural default on %s observations.%s → %s",
+    (viewVersion, newMeasure, expected) => {
+      expect(
+        resolveMeasureChangeAggregation({
+          currentAggregation: "count",
+          newMeasure,
+          view: "observations",
+          viewVersion,
+        }),
+      ).toBe(expected);
+    },
+  );
+
+  it("keeps a deliberately chosen aggregation on measure change", () => {
+    expect(
+      resolveMeasureChangeAggregation({
+        currentAggregation: "p95",
+        newMeasure: "totalTokens",
+        view: "observations",
+        viewVersion: "v1",
+      }),
+    ).toBe("p95");
+  });
+
+  it("does not replace a stored non-count aggregation with the new measure's default", () => {
+    // latency defaults to avg; a widget already on sum must stay on sum.
+    expect(
+      resolveMeasureChangeAggregation({
+        currentAggregation: "sum",
+        newMeasure: "latency",
+        view: "observations",
+        viewVersion: "v1",
+      }),
+    ).toBe("sum");
+  });
+
+  it("keeps count when the new measure declares no default", () => {
+    // uniqueUserIds (v2) deliberately has no default: its stored `count`
+    // contract is remapped to distinct-user semantics via aggregationOverrides.
+    expect(
+      resolveMeasureChangeAggregation({
+        currentAggregation: "count",
+        newMeasure: "uniqueUserIds",
+        view: "observations",
+        viewVersion: "v2",
+      }),
+    ).toBe("count");
+  });
+
+  it("keeps count when switching to the count measure", () => {
+    expect(
+      resolveMeasureChangeAggregation({
+        currentAggregation: "count",
+        newMeasure: "count",
+        view: "observations",
+        viewVersion: "v1",
+      }),
+    ).toBe("count");
+  });
+
+  it("keeps count for an unknown measure", () => {
+    expect(
+      resolveMeasureChangeAggregation({
+        currentAggregation: "count",
+        newMeasure: "doesNotExist",
+        view: "observations",
+        viewVersion: "v1",
+      }),
+    ).toBe("count");
+  });
 });

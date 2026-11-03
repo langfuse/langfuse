@@ -1,4 +1,3 @@
-import { type PropsWithChildren } from "react";
 import {
   Drawer,
   DrawerContent,
@@ -12,7 +11,7 @@ import { useV4MigrationPanel } from "@/src/features/v4-migration/V4MigrationPane
 import { V4MigrationPanel } from "@/src/features/v4-migration/V4MigrationPanel";
 import { useV4MigrationTitle } from "@/src/features/v4-migration/V4MigrationContent";
 
-export function MobileRightDrawer({ children }: PropsWithChildren) {
+export function MobileRightDrawer() {
   const { open: supportOpen, setOpen: setSupportOpen } = useSupportDrawer();
   const { open: migrationOpen, setOpen: setMigrationOpen } =
     useV4MigrationPanel();
@@ -20,10 +19,6 @@ export function MobileRightDrawer({ children }: PropsWithChildren) {
 
   return (
     <>
-      <main className="h-full flex-1" style={{ overscrollBehaviorY: "none" }}>
-        {children}
-      </main>
-
       <Drawer
         open={supportOpen}
         onOpenChange={(open) => {

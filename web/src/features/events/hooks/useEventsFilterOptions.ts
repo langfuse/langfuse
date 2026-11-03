@@ -6,6 +6,7 @@ import {
   splitFacetFilter,
 } from "@/src/features/events/lib/facet-query-plan";
 import { sortOptionValues } from "@/src/features/filters/lib/option-sort";
+import { tablePlaceholderOptions } from "@/src/components/table/utils/tablePlaceholder";
 
 type EventFilterOptionColumnsInput =
   RouterInputs["events"]["filterOptions"]["columns"];
@@ -49,6 +50,8 @@ const ALL_EVENT_FILTER_OPTION_COLUMNS = [
   "isRootObservation",
   "toolNames",
   "calledToolNames",
+  "skillNamesAvailable",
+  "skillsNamesLoaded",
   "scores_avg",
   "score_categories",
   "score_booleans",
@@ -142,6 +145,14 @@ type UseEventsFilterOptionsParams = {
    * typed into.
    */
   lazy?: boolean;
+  /**
+   * Off keeps every query unmounted and reports "settled with nothing". For a
+   * surface that exists on both read paths (Users) and picks its option source
+   * per path: a v3 project must not scan `events_core`, and a disabled query is
+   * `pending` forever in react-query, which would skeleton the sidebar for good
+   * if that flag were passed through unchanged.
+   */
+  enabled?: boolean;
 };
 
 export function useEventsFilterOptions({
@@ -152,6 +163,7 @@ export function useEventsFilterOptions({
   isRootObservation,
   columns,
   lazy = false,
+  enabled = true,
 }: UseEventsFilterOptionsParams) {
   // User-authored start-time conditions (search-bar `startTime:>…`) merge into
   // the authoritative startTimeFilter channel — the server ignores them in
@@ -197,7 +209,9 @@ export function useEventsFilterOptions({
             !EAGER_COLUMN_SET.has(col) &&
             !prev.has(col)
           ) {
-            next ??= new Set(prev);
+            if (next === null) {
+              next = new Set(prev);
+            }
             next.add(col);
           }
         }
@@ -225,6 +239,24 @@ export function useEventsFilterOptions({
     [splitFilter.refiningFilter, lazy, columns, lazyColumns],
   );
 
+  const countPlaceholderOptions = tablePlaceholderOptions({
+    projectId,
+    filter: (plan.bulk.filter ?? []).concat(
+      baseInput.startTimeFilter ?? [],
+      isRootObservation === undefined
+        ? []
+        : [
+            {
+              column: "isRootObservation",
+              type: "boolean",
+              operator: "=",
+              value: isRootObservation,
+            },
+          ],
+    ),
+    timeRange: undefined,
+  });
+
   // Eager bulk query: one ClickHouse scan for the plan's shared columns. Only
   // this query carries includeApproxCount, so the approximate total ("Total ≈
   // X") is computed once here (riding this scan), not per lazy per-column facet.
@@ -236,8 +268,20 @@ export function useEventsFilterOptions({
       includeApproxCount,
     },
     {
+      enabled,
       trpc: { context: { skipBatch: true } },
       ...FILTER_OPTION_QUERY_OPTIONS,
+      meta: countPlaceholderOptions.meta,
+      // Facets remain visible across scopes; counts also require matching scope.
+      placeholderData: (previousData, previousQuery) =>
+        countPlaceholderOptions.placeholderData(previousData, previousQuery) ??
+        (previousData
+          ? {
+              ...previousData,
+              approxTotalCount: null,
+              approxTotalCountIsPartial: false,
+            }
+          : undefined),
     },
   );
 
@@ -285,7 +329,7 @@ export function useEventsFilterOptions({
       perColumnPlan.map(({ column, filter }) =>
         t.events.filterOptions(
           { ...baseInput, filter, columns: [column] },
-          FILTER_OPTION_QUERY_OPTIONS,
+          { enabled, ...FILTER_OPTION_QUERY_OPTIONS },
         ),
       ),
     { combine: combineLazy },
@@ -344,6 +388,8 @@ export function useEventsFilterOptions({
       isRootObservation: rawData.isRootObservation ?? undefined,
       toolNames: rawData.toolNames ?? undefined,
       calledToolNames: rawData.calledToolNames ?? undefined,
+      skillNamesAvailable: rawData.skillNamesAvailable ?? undefined,
+      skillsNamesLoaded: rawData.skillsNamesLoaded ?? undefined,
       toolDefinitions: [],
       toolCalls: [],
       latency: [],
@@ -380,6 +426,9 @@ export function useEventsFilterOptions({
   // Each entry is gated on an in-flight fetch: a skeleton means "loading", not
   // "no data". On a terminal error the column is dropped (no auto-retry, so the
   // facet renders its empty state instead of skeletoning forever).
+  // A disabled query never leaves `pending`, so report it as settled-empty
+  // rather than letting consumers skeleton forever.
+  const isEagerPending = enabled && eagerQuery.isPending;
   const isEagerFetching = eagerQuery.isFetching;
   const bulkColumns = plan.bulk.columns;
   const loadingColumns = useMemo<ReadonlySet<string> | undefined>(() => {
@@ -427,7 +476,7 @@ export function useEventsFilterOptions({
 
   return {
     filterOptions: newFilterOptions,
-    isFilterOptionsPending: eagerQuery.isPending,
+    isFilterOptionsPending: isEagerPending,
     /** Approximate total observation count matching the refined filter, or null. */
     approxTotalCount,
     /** True while the first approximate-count value is still loading. */

@@ -1,5 +1,6 @@
+/* eslint-disable no-nested-ternary, @repo/component-file-structure */
 /* eslint-disable @repo/no-style-props */
-import { useMemo, useState, useCallback } from "react";
+import { useMemo, useState, useCallback, type ReactNode } from "react";
 import { type DashboardWidgetChartType } from "@langfuse/shared/src/db";
 import { type OrderByState } from "@langfuse/shared";
 import {
@@ -7,8 +8,12 @@ import {
   type ViewVersion,
   getResultUnit,
 } from "@langfuse/shared/query";
-import { useScheduledDashboardExecuteQuery } from "@/src/hooks/useDashboardQueryScheduler";
+import { useScheduledDashboardExecuteQuery } from "@/src/features/dashboard/hooks/DashboardQuerySchedulerProvider";
 import { Chart } from "@/src/features/widgets/chart-library/Chart";
+import {
+  type FormatMetricOptions,
+  type LegendPosition,
+} from "@/src/features/widgets/chart-library/chart-props";
 import { ChartLoadingState } from "@/src/features/widgets/chart-library/ChartLoadingState";
 import {
   getChartLoadingProgress,
@@ -22,7 +27,7 @@ import {
   type WidgetChartConfig,
 } from "@/src/features/widgets/utils";
 import { isTimeSeriesChart } from "@/src/features/widgets/chart-library/utils";
-import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
+import { useReadPath } from "@/src/features/events/hooks/useReadPath";
 import { cn } from "@/src/utils/tailwind";
 
 // ============================================================================
@@ -77,11 +82,34 @@ export interface WidgetContentProps {
    */
   entityDimensionLabelMap?: Record<string, string>;
   /**
+   * Optional presentation-only labels for the first dimension's values, e.g.
+   * names for ID breakdowns. Values without a label keep their raw value.
+   */
+  dimensionLabelMap?: ReadonlyMap<string, string>;
+  /**
    * Hide x-axis tick labels on a categorical (entity-name) axis; the full name
    * stays in the hover tooltip. Off by default. Opt in on entity-dimension
-   * charts (experiments) whose long names clutter the axis.
+   * charts whose long names clutter the axis.
    */
   hideXAxisLabels?: boolean;
+  /**
+   * Colour each bar of a categorical (entity) axis. Off by default; opt in on
+   * entity-dimension bar charts such as the experiments strip. See
+   * `prepareCategoryBars`.
+   */
+  colorBarsByCategory?: boolean;
+  legendPosition?: LegendPosition;
+  /**
+   * Measure bars from zero rather than from a fitted domain. Off by default;
+   * see `ChartProps.zeroBaseline`.
+   */
+  zeroBaseline?: boolean;
+  /**
+   * Replaces the chart's default "No data" card — for a widget in a band too
+   * short for it. Pass a stable node (see `Chart`).
+   */
+  emptyState?: ReactNode;
+  usdPrecision?: FormatMetricOptions["usdPrecision"];
 }
 
 // ============================================================================
@@ -127,9 +155,17 @@ export function WidgetContent({
   onSortChange,
   className,
   entityDimensionLabelMap,
+  dimensionLabelMap,
   hideXAxisLabels,
+  colorBarsByCategory,
+  legendPosition,
+  zeroBaseline,
+  emptyState,
+  usdPrecision,
 }: WidgetContentProps) {
-  const { isBetaEnabled } = useV4Beta();
+  // Transport-only: `version` is a prop here, so an unresolved session can
+  // never change WHAT is queried — only whether it streams (SSE) or not.
+  const { isV4 } = useReadPath();
   const [retryCount, setRetryCount] = useState(0);
 
   const handleRetry = useCallback(() => {
@@ -151,11 +187,11 @@ export function WidgetContent({
       },
       queryId: schedulerId,
       meta: {
-        silentHttpCodes: [422],
+        silentHttpCodes: [412, 422],
       },
       refreshKey: retryCount,
       useSSE: shouldUseWidgetSSE({
-        isV4Enabled: isBetaEnabled,
+        isV4Enabled: isV4,
         version,
       }),
       enabled: !isExternalLoading,
@@ -231,15 +267,27 @@ export function WidgetContent({
         };
       }
 
+      // A non-time-series chart draws `dimension` on its categorical axis, and
+      // on an entity query the ENTITY *is* that category — so hand it over as
+      // the dimension rather than the metric's name, which would collapse every
+      // entity into one bar. Only when the query has no breakdown of its own:
+      // that breakdown is the real series (categorical scores).
+      const entityIsCategory =
+        !isTimeSeries &&
+        item["entity_dimension"] !== undefined &&
+        dimensions.length === 0;
+
       // Handle series dimension (for legend)
       let seriesDimension: string;
-      if (dimensionValue !== undefined) {
+      if (entityIsCategory) {
+        seriesDimension = xAxisValue ?? "Unknown";
+      } else if (dimensionValue !== undefined) {
         const val = dimensionValue;
         // Empty first: "" is a string, so the order matters. (LFE-10694)
         if (val === null || val === undefined || val === "") {
           seriesDimension = "n/a";
         } else if (typeof val === "string") {
-          seriesDimension = val;
+          seriesDimension = dimensionLabelMap?.get(val) ?? val;
         } else if (Array.isArray(val)) {
           seriesDimension = val.join(", ");
         } else {
@@ -265,8 +313,9 @@ export function WidgetContent({
 
     // Entity-dimension charts have no meaningful query-side order (the server
     // falls back to first-metric DESC, which differs per chart). Order the
-    // x-axis to match the experiments table order provided via
-    // entityDimensionLabelMap so the same entity lines up across chart slots.
+    // x-axis by the caller's entityDimensionLabelMap insertion order, so the
+    // caller decides what left-to-right means (the experiments strip makes it
+    // chronological). Entities the map doesn't know sort last.
     if (
       chartType !== "PIVOT_TABLE" &&
       entityDimensionLabelMap &&
@@ -281,8 +330,8 @@ export function WidgetContent({
         .slice()
         .sort(
           (a, b) =>
-            (order.get(b.time_dimension ?? "") ?? Number.MAX_SAFE_INTEGER) -
-            (order.get(a.time_dimension ?? "") ?? Number.MAX_SAFE_INTEGER),
+            (order.get(a.time_dimension ?? "") ?? Number.MAX_SAFE_INTEGER) -
+            (order.get(b.time_dimension ?? "") ?? Number.MAX_SAFE_INTEGER),
         );
     }
 
@@ -293,6 +342,7 @@ export function WidgetContent({
     metrics,
     dimensions,
     entityDimensionLabelMap,
+    dimensionLabelMap,
   ]);
 
   // Chart presentation (label and formatter)
@@ -306,8 +356,9 @@ export function WidgetContent({
       metric,
       view,
       version,
+      usdPrecision,
     });
-  }, [chartType, metrics, view, version]);
+  }, [chartType, metrics, view, version, usdPrecision]);
 
   // Loading state
   const chartLoadingState = getChartLoadingStateProps({
@@ -317,7 +368,7 @@ export function WidgetContent({
   });
 
   const usesBackendProgress = shouldUseWidgetSSE({
-    isV4Enabled: isBetaEnabled,
+    isV4Enabled: isV4,
     version,
   });
 
@@ -390,17 +441,22 @@ export function WidgetContent({
         metricFormatter={chartPresentation?.metricFormatter}
         missingValue={getWidgetMissingBucketValue(metrics[0]?.agg ?? "count")}
         hideXAxisLabels={hideXAxisLabels}
+        colorBarsByCategory={colorBarsByCategory}
+        legendPosition={legendPosition}
+        zeroBaseline={zeroBaseline}
+        emptyState={emptyState}
       />
-      <ChartLoadingState
-        isLoading={chartLoadingState.isLoading}
-        showSpinner={chartLoadingState.showSpinner}
-        showHintImmediately={chartLoadingState.showHintImmediately}
-        hintText={chartLoadingState.hintText}
-        onRetry={queryResult.isError ? handleRetry : undefined}
-        progress={loadingProgress}
-        layout={layoutHint}
-        className="bg-background/80 absolute inset-0 z-20 backdrop-blur-xs"
-      />
+      {chartLoadingState.isLoading && (
+        <ChartLoadingState
+          showSpinner={chartLoadingState.showSpinner}
+          showHintImmediately={chartLoadingState.showHintImmediately}
+          hintText={chartLoadingState.hintText}
+          onRetry={queryResult.isError ? handleRetry : undefined}
+          progress={loadingProgress}
+          layout={layoutHint}
+          className="bg-background/80 absolute inset-0 z-20 backdrop-blur-xs"
+        />
+      )}
     </div>
   );
 }

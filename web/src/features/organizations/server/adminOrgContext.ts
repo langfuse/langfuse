@@ -1,4 +1,5 @@
 import { CloudConfigSchema } from "@langfuse/shared";
+import { isTopicsProjectEnabled } from "@langfuse/shared/topics/server";
 import { Role, type PrismaClient } from "@langfuse/shared/src/db";
 import { getOrganizationPlanServerSide } from "@/src/features/entitlements/server/getPlan";
 import { type Session } from "next-auth";
@@ -69,6 +70,7 @@ export async function buildAdminOrgContext(ctx: {
     metadata: (organization.metadata as Record<string, unknown>) ?? {},
     aiFeaturesEnabled: organization.aiFeaturesEnabled,
     aiTelemetryEnabled: organization.aiTelemetryEnabled,
+    accessAuditLogEnabled: organization.accessAuditLogEnabled,
     cloudConfig: parsedCloudConfig.data,
     projects: organization.projects.map((project) => ({
       id: project.id,
@@ -76,6 +78,7 @@ export async function buildAdminOrgContext(ctx: {
       role: Role.OWNER,
       retentionDays: project.retentionDays,
       hasTraces: project.hasTraces,
+      topicsEnabled: isTopicsProjectEnabled(project.id),
       deletedAt: project.deletedAt,
       metadata: (project.metadata as Record<string, unknown>) ?? {},
       createdAt: project.createdAt.toISOString(),

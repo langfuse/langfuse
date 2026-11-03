@@ -1,3 +1,4 @@
+import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import { renderHook } from "@testing-library/react";
 import { useSession } from "next-auth/react";
 import { vi } from "vitest";
@@ -19,7 +20,11 @@ const mockUseForceV3Experience = vi.mocked(useForceV3Experience);
 const mockSessionAvailability = (v4UpgradeUiAvailable: boolean) => {
   mockUseSession.mockReturnValue({
     data: {
-      user: { admin: false, featureFlags: {}, v4UpgradeUiAvailable },
+      user: {
+        admin: false,
+        featureFlags: testFeatureFlags({ templateFlag: false }),
+        v4UpgradeUiAvailable,
+      },
       environment: { enableExperimentalFeatures: false },
     },
   } as never);
@@ -49,7 +54,11 @@ describe("useV4UpgradeUiEnabled", () => {
   it("does not enable the UI for admins or experimental deployments", () => {
     mockUseSession.mockReturnValue({
       data: {
-        user: { admin: true, featureFlags: {}, v4UpgradeUiAvailable: false },
+        user: {
+          admin: true,
+          featureFlags: testFeatureFlags({ templateFlag: false }),
+          v4UpgradeUiAvailable: false,
+        },
         environment: { enableExperimentalFeatures: true },
       },
     } as never);
@@ -64,7 +73,10 @@ describe("useV4UpgradeUiEnabled", () => {
     // than showing migration surfaces a deployment may not support.
     mockUseSession.mockReturnValue({
       data: {
-        user: { admin: false, featureFlags: {} },
+        user: {
+          admin: false,
+          featureFlags: testFeatureFlags({ templateFlag: false }),
+        },
         environment: { enableExperimentalFeatures: false },
       },
     } as never);

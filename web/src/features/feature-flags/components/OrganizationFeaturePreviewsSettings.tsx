@@ -1,3 +1,6 @@
+/* eslint-disable @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
+import { showErrorToast } from "@/src/features/notifications/showErrorToast";
+import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { useState } from "react";
 import { useSession } from "next-auth/react";
 
@@ -13,17 +16,23 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/src/components/ui/alert-dialog";
-import { Alert, AlertDescription, AlertTitle } from "@/src/components/ui/alert";
+import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { Card } from "@/src/components/ui/card";
 import {
   featurePreviewFlags,
   featurePreviewLabels,
+  defaultOnFeaturePreviewFlags,
+  isOrganizationOnlyFeaturePreviewFlag,
   type FeaturePreviewFlag,
 } from "@/src/features/feature-flags/available-flags";
-import { showErrorToast } from "@/src/features/notifications/showErrorToast";
-import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
+import { OrganizationFeaturePreviewIntro } from "./OrganizationFeaturePreviewIntro";
+import { PersonalEnablementWarning } from "./PersonalEnablementWarning";
+import { canOpenPersonalFeaturePreviews } from "@/src/features/feature-previews/canOpenPersonalFeaturePreviews";
+import { ControlledFeaturePreviewModal } from "@/src/features/feature-previews/components/ControlledFeaturePreviewModal";
+import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { api } from "@/src/utils/api";
+import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
 
 type ProposedChange = {
   flag: FeaturePreviewFlag;
@@ -38,8 +47,27 @@ export function OrganizationFeaturePreviewsSettings({
   const [proposedChange, setProposedChange] = useState<ProposedChange | null>(
     null,
   );
+  const [personalPreviewsOpen, setPersonalPreviewsOpen] = useState(false);
   const session = useSession();
+  const { isLangfuseCloud } = useLangfuseCloudRegion();
   const capture = usePostHogClientCapture();
+  const canOpenPersonalPreviews = canOpenPersonalFeaturePreviews({
+    isLangfuseCloud,
+    v4BetaEnabled: session.data?.user?.v4BetaEnabled === true,
+    isAdmin: session.data?.user?.admin === true,
+  });
+  const openPersonalPreviews = (source: "description" | "preview_row") => {
+    capture("organization_settings:personal_feature_previews_opened", {
+      source,
+    });
+    setPersonalPreviewsOpen(true);
+  };
+  const handleOpenFromDescription = () => {
+    openPersonalPreviews("description");
+  };
+  const handleOpenFromPreviewRow = () => {
+    openPersonalPreviews("preview_row");
+  };
   const utils = api.useUtils();
   const defaultsQuery = api.organizations.getFeatureFlagOrgDefaults.useQuery({
     orgId,
@@ -57,6 +85,7 @@ export function OrganizationFeaturePreviewsSettings({
         session.update(),
       ]);
       showSuccessToast({
+        operation: "organization_feature_preview.update",
         title: "Feature preview default updated",
         description: `${featurePreviewLabels[variables.flag]} was ${
           variables.enabled ? "enabled" : "disabled"
@@ -65,15 +94,19 @@ export function OrganizationFeaturePreviewsSettings({
     },
     onError: (error) => {
       setProposedChange(null);
-      showErrorToast("Failed to update feature preview", error.message);
+      showErrorToast(
+        "Failed to update feature preview",
+        error.message,
+        classifyTrpcToastError(error, "organization_feature_preview.update"),
+      );
     },
   });
 
   if (defaultsQuery.isError) {
     return (
       <Alert variant="destructive">
-        <AlertTitle>Feature previews unavailable</AlertTitle>
-        <AlertDescription>{defaultsQuery.error.message}</AlertDescription>
+        <Alert.Title>Feature previews unavailable</Alert.Title>
+        <Alert.Description>{defaultsQuery.error.message}</Alert.Description>
       </Alert>
     );
   }
@@ -87,20 +120,22 @@ export function OrganizationFeaturePreviewsSettings({
     <div className="flex flex-col gap-4">
       <div>
         <Header title="Feature Previews" />
-        <p className="text-muted-foreground text-sm">
-          Enable previews for everyone while they are using this organization.
-          New members inherit these defaults automatically.
-        </p>
+        <OrganizationFeaturePreviewIntro
+          canOpenPersonalPreviews={canOpenPersonalPreviews}
+          onOpenPersonalPreviews={handleOpenFromDescription}
+        />
       </div>
 
       {experimentalFeaturesEnabled ? (
         <Alert>
-          <AlertTitle>Experimental features enabled deployment-wide</AlertTitle>
-          <AlertDescription>
+          <Alert.Title>
+            Experimental features enabled deployment-wide
+          </Alert.Title>
+          <Alert.Description>
             Every preview on this page is enabled by the env variable
             LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES=true. Per-user opt-outs do not
             disable these previews.
-          </AlertDescription>
+          </Alert.Description>
         </Alert>
       ) : null}
 
@@ -109,7 +144,10 @@ export function OrganizationFeaturePreviewsSettings({
           const selected = selectedDefaults.has(flag);
           const enabledForAdmin =
             session.data?.user?.featureFlags[flag] === true;
-          const requiresPersonalEnablement = !selected && !enabledForAdmin;
+          const requiresPersonalEnablement =
+            !isOrganizationOnlyFeaturePreviewFlag(flag) &&
+            !selected &&
+            !enabledForAdmin;
           return (
             <Card
               key={flag}
@@ -117,11 +155,19 @@ export function OrganizationFeaturePreviewsSettings({
             >
               <div className="flex min-w-0 flex-col gap-1">
                 <h3 className="font-bold">{featurePreviewLabels[flag]}</h3>
-                {requiresPersonalEnablement ? (
-                  <p className="text-destructive text-xs">
-                    Enable this preview in your personal Feature Preview
-                    settings before enabling it for the organization.
+                {defaultOnFeaturePreviewFlags.some(
+                  (defaultFlag) => defaultFlag === flag,
+                ) ? (
+                  <p className="text-muted-foreground text-xs">
+                    Enabled by default on the events-backed view. Turn off to
+                    disable it for this organization.
                   </p>
+                ) : null}
+                {requiresPersonalEnablement ? (
+                  <PersonalEnablementWarning
+                    canOpenPersonalPreviews={canOpenPersonalPreviews}
+                    onOpenPersonalPreviews={handleOpenFromPreviewRow}
+                  />
                 ) : null}
               </div>
               <Switch
@@ -143,8 +189,8 @@ export function OrganizationFeaturePreviewsSettings({
       </div>
 
       <p className="text-muted-foreground text-xs">
-        Defaults apply only in this organization. A user&apos;s global personal
-        opt-out always wins.
+        Defaults apply only in this organization. Personal opt-outs apply to
+        user-level previews.
       </p>
 
       <AlertDialog
@@ -168,14 +214,15 @@ export function OrganizationFeaturePreviewsSettings({
               organization defaults.
             </AlertDialogDescription>
           </AlertDialogHeader>
-          {proposedChange?.enabled ? (
+          {proposedChange?.enabled &&
+          !isOrganizationOnlyFeaturePreviewFlag(proposedChange.flag) ? (
             <Alert>
-              <AlertTitle>Already enabled for you</AlertTitle>
-              <AlertDescription>
+              <Alert.Title>Already enabled for you</Alert.Title>
+              <Alert.Description>
                 This preview is already enabled in your personal Feature Preview
                 settings. Make sure you have tested it before enabling it for
                 the organization.
-              </AlertDescription>
+              </Alert.Description>
             </Alert>
           ) : null}
           <AlertDialogFooter>
@@ -194,6 +241,13 @@ export function OrganizationFeaturePreviewsSettings({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {canOpenPersonalPreviews ? (
+        <ControlledFeaturePreviewModal
+          open={personalPreviewsOpen}
+          onOpenChange={setPersonalPreviewsOpen}
+        />
+      ) : null}
     </div>
   );
 }

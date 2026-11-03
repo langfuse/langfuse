@@ -1,4 +1,5 @@
-import { ExpandListButton } from "@/src/features/dashboard/components/cards/ChevronButton";
+/* eslint-disable no-nested-ternary */
+import { ExpandToggle } from "@/src/components/design-system/ExpandToggle/ExpandToggle";
 import { type ReactNode, useState } from "react";
 import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
 import { useFitRowCount } from "@/src/features/dashboard/hooks/useFitRowCount";
@@ -97,18 +98,20 @@ export const DashboardTable = ({
               </table>
             </div>
           </div>
-          {collapse ? (
-            <ExpandListButton
-              isExpanded={isExpanded}
-              setExpanded={setExpanded}
-              totalLength={rows.length}
-              maxLength={collapsedCount ?? collapse.collapsed}
-              expandText={
-                rows.length > collapse.expanded
-                  ? `Show top ${collapse.expanded}`
-                  : "Show all"
-              }
-            />
+          {collapse && rows.length > (collapsedCount ?? collapse.collapsed) ? (
+            <div className="mt-2 flex justify-center">
+              <ExpandToggle
+                variant="icon"
+                expanded={isExpanded}
+                onExpandedChange={setExpanded}
+                label={
+                  rows.length > collapse.expanded
+                    ? `Show top ${collapse.expanded}`
+                    : "Show all"
+                }
+                expandedLabel="See less"
+              />
+            </div>
           ) : null}
         </div>
       ) : (

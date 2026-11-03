@@ -15,13 +15,13 @@ import {
 import {
   DATASET_RUN_ITEMS_DEPRECATION,
   DATASET_RUNS_DEPRECATION,
+  INGESTION_DEPRECATION,
   OBSERVATIONS_V1_DEPRECATION,
   SCORES_DEPRECATION,
   SESSIONS_DEPRECATION,
   TRACES_DEPRECATION,
   V3_SUNSET_DATE,
 } from "@/src/features/public-api/server/deprecations";
-import { OBSERVATIONS_API_V2_DOCS_URL } from "@/src/features/public-api/server/rateLimitUpgradePaths";
 import { randomUUID } from "crypto";
 
 // Legacy (v3-data-model) endpoints attach a top-level `_deprecation`
@@ -53,6 +53,41 @@ describe("public API deprecation signal", () => {
     );
   });
 
+  it("puts the sunset and replacement into `meta.deprecation` on list responses", async () => {
+    const response = await makeZodVerifiedAPICall(
+      GetObservationsV1Response,
+      "GET",
+      "/api/public/observations",
+      undefined,
+      auth,
+    );
+
+    expect(Object.keys(response.body)[0]).toBe("_deprecation");
+    expect(Object.keys(response.body.meta)[0]).toBe("deprecation");
+    expect(response.body.meta.deprecation).toEqual({
+      sunsetAt: V3_SUNSET_DATE,
+      replacement: OBSERVATIONS_V1_DEPRECATION.replacement,
+    });
+  });
+
+  // The 404 is written by withMiddlewares, not by the route.
+  it("attaches `_deprecation` to a 404 from the legacy single GET /observations/{id}", async () => {
+    const response = await makeAPICall(
+      "GET",
+      `/api/public/observations/${randomUUID()}`,
+      undefined,
+      auth,
+    );
+
+    expect(response.status).toBe(404);
+    expect((response.body as Record<string, unknown>)._deprecation).toEqual(
+      OBSERVATIONS_V1_DEPRECATION,
+    );
+    expect((response.body as Record<string, unknown>).message).toMatch(
+      / Use GET \/api\/public\/v2\/observations\?.* instead\.$/,
+    );
+  });
+
   it("carries the docs URL and the committed sunset date", async () => {
     const response = await makeZodVerifiedAPICall(
       GetObservationsV1Response,
@@ -64,7 +99,7 @@ describe("public API deprecation signal", () => {
 
     // docsUrl points at the migration guidance for the endpoint family.
     expect(response.body._deprecation?.docsUrl).toBe(
-      OBSERVATIONS_API_V2_DOCS_URL,
+      "https://langfuse.com/docs/api-and-data-platform/features/public-api#v2",
     );
     // sunsetAt is committed → present.
     expect(response.body._deprecation?.sunsetAt).toBe(V3_SUNSET_DATE);
@@ -208,5 +243,114 @@ describe("public API deprecation signal", () => {
     expect((response.body as Record<string, unknown>)._deprecation).toEqual(
       DATASET_RUNS_DEPRECATION,
     );
+  });
+
+  it("attaches `_deprecation` to POST /ingestion when the batch writes a trace", async () => {
+    const response = await makeAPICall(
+      "POST",
+      "/api/public/ingestion",
+      {
+        batch: [
+          {
+            id: randomUUID(),
+            type: "trace-create",
+            timestamp: new Date().toISOString(),
+            body: {
+              id: randomUUID(),
+              timestamp: new Date().toISOString(),
+            },
+          },
+        ],
+      },
+      auth,
+    );
+
+    expect(response.status).toBe(207);
+    expect((response.body as Record<string, unknown>)._deprecation).toEqual(
+      INGESTION_DEPRECATION,
+    );
+    expect(INGESTION_DEPRECATION.replacement).toBe(
+      "POST /api/public/otel/v1/traces",
+    );
+    expect(INGESTION_DEPRECATION.message).toContain(
+      "prefer upgrading to the current Python and JS SDKs",
+    );
+    expect(INGESTION_DEPRECATION.message).toContain(
+      "custom auto-instrumentation",
+    );
+    expect(INGESTION_DEPRECATION.message).toContain("curl");
+    expect(INGESTION_DEPRECATION.message).toContain("POST /api/public/scores");
+    expect(INGESTION_DEPRECATION.message).toContain(
+      "GET /api/public/v2/observations",
+    );
+    expect(INGESTION_DEPRECATION.message).toContain(
+      "GET /api/public/v2/metrics",
+    );
+  });
+
+  it("attaches `_deprecation` to POST /ingestion when a mixed batch includes an observation", async () => {
+    const response = await makeAPICall(
+      "POST",
+      "/api/public/ingestion",
+      {
+        batch: [
+          {
+            id: randomUUID(),
+            type: "score-create",
+            timestamp: new Date().toISOString(),
+            body: {
+              id: randomUUID(),
+              name: "score-name",
+              traceId: randomUUID(),
+              value: 1,
+            },
+          },
+          {
+            id: randomUUID(),
+            type: "span-create",
+            timestamp: new Date().toISOString(),
+            body: {
+              id: randomUUID(),
+              traceId: randomUUID(),
+              startTime: new Date().toISOString(),
+            },
+          },
+        ],
+      },
+      auth,
+    );
+
+    expect(response.status).toBe(207);
+    expect((response.body as Record<string, unknown>)._deprecation).toEqual(
+      INGESTION_DEPRECATION,
+    );
+  });
+
+  it("omits `_deprecation` from POST /ingestion when the batch is only scores", async () => {
+    const response = await makeAPICall(
+      "POST",
+      "/api/public/ingestion",
+      {
+        batch: [
+          {
+            id: randomUUID(),
+            type: "score-create",
+            timestamp: new Date().toISOString(),
+            body: {
+              id: randomUUID(),
+              name: "score-name",
+              traceId: randomUUID(),
+              value: 1,
+            },
+          },
+        ],
+      },
+      auth,
+    );
+
+    expect(response.status).toBe(207);
+    expect(
+      (response.body as Record<string, unknown>)._deprecation,
+    ).toBeUndefined();
   });
 });

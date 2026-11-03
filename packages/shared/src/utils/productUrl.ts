@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { TableViewPresetTableName } from "../domain/table-view-presets";
 import { type FilterState } from "../types";
 import { encodeFiltersGeneric } from "../features/filters/filterQueryEncoding";
@@ -192,9 +193,14 @@ export const buildExperimentsPath = (params: { projectId: string }) =>
 export const buildExperimentPath = (params: {
   projectId: string;
   experimentId: string;
+  filters?: FilterState;
 }) =>
   appendProductPathQuery(`${buildExperimentsPath(params)}/results`, {
     baseline: params.experimentId,
+    filter:
+      params.filters && params.filters.length > 0
+        ? encodeFiltersGeneric(params.filters)
+        : undefined,
   });
 
 export const buildModelsPath = (params: { projectId: string }) =>

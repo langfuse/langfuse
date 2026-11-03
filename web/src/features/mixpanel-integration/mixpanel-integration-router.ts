@@ -5,7 +5,8 @@ import {
   assertPersistedExportSourceAllowed,
   resolveExportSource,
 } from "@/src/features/analytics-integrations/server/exportSource";
-import { isPrismaRecordNotFoundError } from "@/src/features/analytics-integrations/server/isPrismaRecordNotFoundError";
+import { isPrismaRecordNotFoundError } from "@langfuse/shared/src/server";
+import { getDisplayCredential } from "@/src/features/analytics-integrations/server/displayCredential";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import {
   createTRPCRouter,
@@ -15,7 +16,6 @@ import { decrypt, encrypt } from "@langfuse/shared/encryption";
 import { mixpanelIntegrationFormSchema } from "@/src/features/mixpanel-integration/types";
 import { TRPCError } from "@trpc/server";
 import { env } from "@/src/env.mjs";
-import { getDisplayCredential } from "@/src/features/analytics-integrations/server/displayCredential";
 import {
   AnalyticsIntegrationExportSource,
   LangfuseNotFoundError,
@@ -101,6 +101,7 @@ export const mixpanelIntegrationRouter = createTRPCRouter({
           select: {
             exportSource: true,
             createdAt: true,
+            enabled: true,
             encryptedMixpanelProjectToken: true,
           },
         });
@@ -151,6 +152,12 @@ export const mixpanelIntegrationRouter = createTRPCRouter({
             // undefined → Prisma omits the column → preserves the persisted
             // value on partial updates.
             exportSource: config.exportSource,
+            // A re-enabled integration resumes from its old lastSyncAt; the
+            // worker clears the flag once it reaches the live tail. CREATE gets
+            // it from the column default.
+            ...(config.enabled && !existingIntegration?.enabled
+              ? { backfill: true }
+              : {}),
           },
         });
 

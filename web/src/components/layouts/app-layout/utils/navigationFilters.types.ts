@@ -26,6 +26,11 @@ export type NavigationFilterContext = {
   uiCustomization: { visibleModules: string[] } | null;
   /** Whether the deployment is a Langfuse Cloud environment */
   isLangfuseCloud: boolean;
+  /** Whether Langfuse Cloud currently has a degraded or downtime incident */
+  hasActiveCloudIncident: boolean;
+  /** Whether the current project must remain on v3. */
+  forceV3Experience: boolean;
+  internalFeaturesEnabled: boolean;
   /** Current router path for active state detection */
   currentPath: string;
 };

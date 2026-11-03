@@ -1,5 +1,8 @@
+/* eslint-disable @repo/storybook-play-no-implementation-detail-assertions */
+import { Keyboard, Play } from "@langfuse/icons";
 import { expect, within } from "storybook/test";
 
+import { Button } from "@/src/components/ui/button";
 import preview from "../../../../.storybook/preview";
 import { KeyboardShortcut } from "./KeyboardShortcut";
 
@@ -29,11 +32,57 @@ export const VariantMatrix = meta.story({
         <KeyboardShortcut keys={["K"]} />
         <KeyboardShortcut variant="subtle" keys={["K"]} />
         <KeyboardShortcut variant="inverse" keys={["K"]} />
+        <KeyboardShortcut variant="keycap" keys={["K"]} />
+        <KeyboardShortcut variant="keycap" keys={["Mod", "Enter"]} />
       </div>
       <div className="flex items-center gap-2">
         <KeyboardShortcut size="sm" keys={["K"]} />
         <KeyboardShortcut size="xs" keys={["K"]} />
       </div>
+    </div>
+  ),
+});
+
+/** Shows the chips beside the words, icons and button labels they line up with. */
+export const BesideTextAndIcons = meta.story({
+  render: () => (
+    <div className="flex flex-col items-start gap-4">
+      <span className="text-muted-foreground flex items-center gap-1.5 text-[11px]">
+        <KeyboardShortcut size="sm" keys={["Mod", "Enter"]} />
+        complete + next ·
+        <KeyboardShortcut size="sm" keys={["ArrowRight"]} />
+        skip
+      </span>
+      <span className="text-muted-foreground flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px]">
+        <span className="flex items-center gap-1">
+          <KeyboardShortcut size="sm" keys={["ArrowUp"]} />
+          <KeyboardShortcut size="sm" keys={["ArrowDown"]} />
+          move between fields
+        </span>
+        <span className="flex items-center gap-1">
+          <KeyboardShortcut size="sm" keys={["1"]} />
+          <span>…</span>
+          <KeyboardShortcut size="sm" keys={["9"]} />
+          select option
+        </span>
+      </span>
+      <div className="flex items-center gap-2">
+        <Button variant="outline" size="lg" className="gap-1.5 px-4">
+          <Keyboard size="base" color="default" />
+          Shortcuts
+          <KeyboardShortcut keys={["?"]} />
+        </Button>
+        <Button size="lg" className="gap-1.5">
+          <Play size="base" />
+          <span>Run All</span>
+          <KeyboardShortcut variant="inverse" keys={["Mod", "Enter"]} />
+        </Button>
+      </div>
+      <p className="text-muted-foreground max-w-sm text-xs">
+        Bare <KeyboardShortcut size="sm" keys={["Enter"]} /> inside a text field
+        inserts a new line — use{" "}
+        <KeyboardShortcut size="sm" keys={["Mod", "Enter"]} /> to complete.
+      </p>
     </div>
   ),
 });

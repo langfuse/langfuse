@@ -9,7 +9,7 @@ import { useMemo } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { api, sendAsPostOption } from "@/src/utils/api";
 import { type FlatLogItem } from "./log-view-types";
-import { useV4Beta } from "@/src/features/events/hooks/useV4Beta";
+import { useReadPath } from "@/src/features/events/hooks/useReadPath";
 
 export interface UseLogViewObservationIOParams {
   observationId: string;
@@ -33,7 +33,7 @@ export function useLogViewObservationIO({
   startTime,
   enabled,
 }: UseLogViewObservationIOParams) {
-  const { isBetaEnabled } = useV4Beta();
+  const { isV4 } = useReadPath();
 
   // Old path: fetch from observations table (beta OFF)
   const observationsQuery = api.observations.byId.useQuery(
@@ -44,7 +44,7 @@ export function useLogViewObservationIO({
       startTime,
     },
     {
-      enabled: enabled && !isBetaEnabled,
+      enabled: enabled && !isV4,
       staleTime: Infinity,
       refetchOnWindowFocus: false,
     },
@@ -62,14 +62,14 @@ export function useLogViewObservationIO({
     },
     {
       ...sendAsPostOption,
-      enabled: enabled && isBetaEnabled,
+      enabled: enabled && isV4,
       staleTime: Infinity,
       refetchOnWindowFocus: false,
       select: (data) => data[0], // Extract single result from batch
     },
   );
 
-  if (isBetaEnabled) {
+  if (isV4) {
     return {
       data: eventsQuery.data,
       isLoading: eventsQuery.isLoading,

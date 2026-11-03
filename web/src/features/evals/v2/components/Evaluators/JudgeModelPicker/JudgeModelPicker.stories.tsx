@@ -11,7 +11,7 @@ import {
 
 type EvaluatorJudgeModelPickerProps = Exclude<
   JudgeModelPickerProps,
-  { purpose: "projectDefault" }
+  { purpose: "projectDefault" } | { purpose: "decision" }
 >;
 
 function EvaluatorJudgeModelPicker(props: EvaluatorJudgeModelPickerProps) {

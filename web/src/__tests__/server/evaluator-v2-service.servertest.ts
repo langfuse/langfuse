@@ -36,7 +36,8 @@ import {
 
 const mocks = vi.hoisted(() => ({
   generateLangfuseAIText: vi.fn(),
-  getRecentEvaluatorExecutionTraces: vi.fn(),
+  getEvaluatorExecutionSummaries: vi.fn(),
+  getTotalCostByEvaluatorIds: vi.fn(),
   invalidateProjectEvalConfigCaches: vi.fn(),
   assertEvaluatorConfigurationValid: vi.fn(),
   getEvaluatorDefinitionPreflightError: vi.fn(),
@@ -53,7 +54,8 @@ const mocks = vi.hoisted(() => ({
 vi.mock("@langfuse/shared/src/server", async (importOriginal) => ({
   ...(await importOriginal<typeof SharedServer>()),
   generateLangfuseAIText: mocks.generateLangfuseAIText,
-  getRecentEvaluatorExecutionTraces: mocks.getRecentEvaluatorExecutionTraces,
+  getEvaluatorExecutionSummaries: mocks.getEvaluatorExecutionSummaries,
+  getTotalCostByEvaluatorIds: mocks.getTotalCostByEvaluatorIds,
   invalidateProjectEvalConfigCaches: mocks.invalidateProjectEvalConfigCaches,
 }));
 
@@ -163,7 +165,8 @@ beforeAll(async () => {
 
 beforeEach(() => {
   mocks.generateLangfuseAIText.mockReset();
-  mocks.getRecentEvaluatorExecutionTraces.mockReset();
+  mocks.getEvaluatorExecutionSummaries.mockReset();
+  mocks.getTotalCostByEvaluatorIds.mockReset();
   mocks.invalidateProjectEvalConfigCaches.mockReset();
   mocks.assertEvaluatorConfigurationValid.mockReset();
   mocks.assertEvaluatorConfigurationValid.mockResolvedValue(undefined);
@@ -299,6 +302,77 @@ describe("EvaluatorService", () => {
     );
   });
 
+  it("returns the existing evaluator when create is retried with the same id and content", async () => {
+    const audit = vi.fn();
+    const service = new EvaluatorService(prisma, audit);
+    const evaluatorId = crypto.randomUUID();
+    const input = { ...llmInput("Retry create"), evaluatorId };
+    const created = await service.create(input, null);
+
+    const retried = await service.create(input, null);
+
+    expect(retried).toMatchObject({
+      id: created.id,
+      projectId,
+      name: "Retry create",
+    });
+    expect(audit).toHaveBeenCalledTimes(1);
+    expect(mocks.invalidateProjectEvalConfigCaches).toHaveBeenCalledTimes(1);
+    await expect(
+      prisma.evaluator.count({ where: { id: evaluatorId } }),
+    ).resolves.toBe(1);
+  });
+
+  it.each([
+    ["name", (input: CreateEvaluatorInput) => ({ ...input, name: "Changed" })],
+    [
+      "description",
+      (input: CreateEvaluatorInput) => ({
+        ...input,
+        description: "Changed description",
+      }),
+    ],
+    [
+      "definition",
+      (input: CreateEvaluatorInput) => ({
+        ...input,
+        definition: {
+          ...input.definition,
+          promptMessages: [{ role: "user" as const, content: "Changed" }],
+        },
+      }),
+    ],
+  ])("rejects a same-project retry with changed %s", async (_field, change) => {
+    const service = createService();
+    const evaluatorId = crypto.randomUUID();
+    const input = { ...llmInput("Retry create"), evaluatorId };
+    await service.create(input, null);
+
+    await expect(service.create(change(input), null)).rejects.toThrow(
+      "An evaluator with this id already exists",
+    );
+  });
+
+  it("rejects a client id that already exists in another project", async () => {
+    const service = createService();
+    const evaluatorId = crypto.randomUUID();
+    await service.create(
+      {
+        ...llmInput("Other project evaluator"),
+        projectId: otherProjectId,
+        evaluatorId,
+      },
+      null,
+    );
+
+    await expect(
+      service.create(
+        { ...llmInput("This project evaluator"), evaluatorId },
+        null,
+      ),
+    ).rejects.toThrow("An evaluator with this id already exists");
+  });
+
   it("writes the canonical mapping when creating a code evaluator", async () => {
     const created = await createService().create(
       {
@@ -317,6 +391,64 @@ describe("EvaluatorService", () => {
     expect(created.versions[0]?.variableMapping).toEqual(
       getCodeEvalVariableMapping(),
     );
+  });
+
+  it("persists the state mapping and typed questions of a decision-model evaluator", async () => {
+    const questions = [
+      {
+        id: "readiness",
+        scoreName: "send_readiness",
+        type: "choice" as const,
+        instructions: "Is `reply` ready to send as an answer to `question`?",
+        options: [{ value: "ready" }, { value: "needs_revision" }],
+      },
+      {
+        id: "refund",
+        scoreName: "refund_requested",
+        type: "noul" as const,
+        instructions: "Does `question` request a refund?",
+      },
+    ];
+    const variableMapping = [
+      {
+        templateVariable: "question",
+        selectedColumnId: "input",
+        jsonSelector: "$.messages[-1].content",
+      },
+      {
+        templateVariable: "reply",
+        selectedColumnId: "output",
+        jsonSelector: null,
+      },
+    ];
+
+    const created = await createService().create(
+      {
+        projectId,
+        name: "Send readiness",
+        description: null,
+        definition: {
+          type: "DECISION_MODEL",
+          questions,
+          provider: "typesafe",
+          model: "jev-1.13.0",
+          vars: ["question", "reply"],
+          variableMapping,
+        },
+      },
+      null,
+    );
+
+    expect(created.type).toBe("DECISION_MODEL");
+    expect(created.versions[0]).toMatchObject({
+      provider: "typesafe",
+      model: "jev-1.13.0",
+      vars: ["question", "reply"],
+      variableMapping,
+      questions,
+      promptMessages: null,
+      outputDefinition: null,
+    });
   });
 
   it("returns the filter from the first assigned rule", async () => {
@@ -1185,66 +1317,159 @@ describe("EvaluatorService", () => {
     );
   });
 
-  it("returns recent traces by evaluator execution name", async () => {
-    const service = createService();
-    const [firstEvaluator, secondEvaluator, otherEvaluator] = await Promise.all(
-      [
-        service.create(llmInput("First execution evaluator"), null),
-        service.create(llmInput("Second execution evaluator"), null),
-        service.create(
+  it("rejects every write to a built-in evaluator and leaves it unchanged", async () => {
+    const audit = vi.fn(async () => undefined);
+    const service = new EvaluatorService(prisma, audit);
+    const input = llmInput("Built-in evaluator");
+    const builtIn = await service.create(input, null);
+    const blockedAt = new Date("2026-01-01T00:00:00.000Z");
+    await prisma.evaluator.update({
+      where: { id: builtIn.id },
+      data: {
+        isBuiltIn: true,
+        blockedAt,
+        blockReason: "DEFAULT_EVAL_MODEL_MISSING",
+        blockMessage: "Blocked for test",
+      },
+    });
+    audit.mockClear();
+    const changedDefinition = {
+      ...input.definition,
+      promptMessages: [
+        { role: "user" as const, content: "Changed {{output}}" },
+      ],
+    };
+
+    const writes = [
+      () =>
+        service.update(
           {
-            ...llmInput("Other project execution evaluator"),
-            projectId: otherProjectId,
+            ...input,
+            evaluatorId: builtIn.id,
+            name: "Renamed built-in",
+            definition: changedDefinition,
           },
           null,
         ),
-      ],
-    );
-    mocks.getRecentEvaluatorExecutionTraces.mockResolvedValue([
-      ...[7, 6, 5, 4, 3].map((day) => ({
-        id: `first-${day}`,
-        traceName: "Execute evaluator: First execution evaluator",
-        level: "WARNING",
-        timestamp: new Date(`2026-08-0${day}T00:00:00.000Z`),
-      })),
-      ...[4, 3, 2, 1].map((day) => ({
-        id: `second-${day}`,
-        traceName: "Execute evaluator: Second execution evaluator",
-        level: "DEFAULT",
-        timestamp: new Date(`2026-08-0${day}T00:00:00.000Z`),
-      })),
-    ]);
-    const result = await service.listRecent({
-      projectId,
-      evaluatorIds: [firstEvaluator.id, secondEvaluator.id, otherEvaluator.id],
-    });
+      () =>
+        service.patch(
+          { projectId, evaluatorId: builtIn.id, name: "Renamed built-in" },
+          null,
+        ),
+      () =>
+        service.upsertByName({ ...input, definition: changedDefinition }, null),
+      () => service.reactivate({ projectId, evaluatorId: builtIn.id }),
+      () => service.delete(projectId, builtIn.id),
+      () => service.deleteMany({ projectId, evaluatorIds: [builtIn.id] }),
+    ];
+    for (const write of writes) {
+      await expect(write()).rejects.toThrow(
+        "Built-in evaluators cannot be edited",
+      );
+    }
 
-    expect(mocks.getRecentEvaluatorExecutionTraces).toHaveBeenCalledWith(
+    await expect(
+      prisma.evaluator.findUnique({
+        where: { id: builtIn.id },
+        select: {
+          name: true,
+          blockedAt: true,
+          _count: { select: { versions: true } },
+        },
+      }),
+    ).resolves.toEqual({
+      name: input.name,
+      blockedAt,
+      _count: { versions: 1 },
+    });
+    expect(audit).not.toHaveBeenCalled();
+  });
+
+  it("treats FACET evaluators as missing on every write path", async () => {
+    const service = createService();
+    const blockedAt = new Date("2026-01-01T00:00:00.000Z");
+    const facet = await prisma.evaluator.create({
+      data: {
+        projectId,
+        name: "Internal facet",
+        type: "FACET",
+        blockedAt,
+        blockReason: "DEFAULT_EVAL_MODEL_MISSING",
+        blockMessage: "Blocked for test",
+        versions: { create: { version: 1 } },
+      },
+    });
+    const input = { ...llmInput(facet.name), evaluatorId: facet.id };
+
+    const writes = [
+      () => service.update(input, null),
+      () =>
+        service.patch(
+          { projectId, evaluatorId: facet.id, name: "Renamed facet" },
+          null,
+        ),
+      () => service.reactivate({ projectId, evaluatorId: facet.id }),
+      () => service.delete(projectId, facet.id),
+      () => service.deleteMany({ projectId, evaluatorIds: [facet.id] }),
+    ];
+    for (const write of writes) {
+      await expect(write()).rejects.toThrow("Evaluator not found");
+    }
+    const upserted = await service.upsertByName(llmInput(facet.name), null);
+    expect(upserted.action).toBe("create");
+    expect(upserted.evaluator.id).not.toBe(facet.id);
+
+    await expect(
+      prisma.evaluator.findUnique({
+        where: { id: facet.id },
+        select: {
+          name: true,
+          blockedAt: true,
+          _count: { select: { versions: true } },
+        },
+      }),
+    ).resolves.toEqual({
+      name: facet.name,
+      blockedAt,
+      _count: { versions: 1 },
+    });
+  });
+
+  it("returns execution summaries by evaluator id, including evaluators without runs", async () => {
+    const service = createService();
+    const evaluatorIds = [crypto.randomUUID(), crypto.randomUUID()];
+    mocks.getEvaluatorExecutionSummaries.mockResolvedValue([
+      { evaluatorId: evaluatorIds[0], total: 8, failed: 4 },
+    ]);
+    await expect(
+      service.getExecutionSummaries({ projectId, evaluatorIds }),
+    ).resolves.toEqual({
+      [evaluatorIds[0]]: { total: 8, failed: 4 },
+      [evaluatorIds[1]]: { total: 0, failed: 0 },
+    });
+    expect(mocks.getEvaluatorExecutionSummaries).toHaveBeenCalledWith(
       projectId,
-      expect.any(Array),
+      evaluatorIds,
     );
-    expect(mocks.getRecentEvaluatorExecutionTraces).toHaveBeenCalledTimes(1);
-    expect(
-      new Set(mocks.getRecentEvaluatorExecutionTraces.mock.calls[0]?.[1]),
-    ).toEqual(
-      new Set([
-        "Execute evaluator: First execution evaluator",
-        "Execute evaluator: Second execution evaluator",
-      ]),
+  });
+
+  it("returns total costs by evaluator id", async () => {
+    const service = createService();
+    const evaluatorIds = [crypto.randomUUID(), crypto.randomUUID()];
+    mocks.getTotalCostByEvaluatorIds.mockResolvedValue([
+      { evaluatorId: evaluatorIds[0], totalCost: 1.5 },
+      { evaluatorId: evaluatorIds[1], totalCost: 2.5 },
+    ]);
+
+    await expect(
+      service.getTotalCosts({ projectId, evaluatorIds }),
+    ).resolves.toEqual({
+      [evaluatorIds[0]]: 1.5,
+      [evaluatorIds[1]]: 2.5,
+    });
+    expect(mocks.getTotalCostByEvaluatorIds).toHaveBeenCalledWith(
+      projectId,
+      evaluatorIds,
     );
-    expect(result[firstEvaluator.id]?.map(({ id }) => id)).toEqual([
-      "first-7",
-      "first-6",
-      "first-5",
-      "first-4",
-      "first-3",
-    ]);
-    expect(result[secondEvaluator.id]?.map(({ id }) => id)).toEqual([
-      "second-4",
-      "second-3",
-      "second-2",
-      "second-1",
-    ]);
-    expect(result[otherEvaluator.id]).toEqual([]);
   });
 });

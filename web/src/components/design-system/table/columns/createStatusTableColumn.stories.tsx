@@ -8,21 +8,28 @@ import { createStatusTableColumn } from "./createStatusTableColumn";
 
 type Row = {
   status: string | null;
+  isStatusLoading?: boolean;
 };
 
 function StatusTableColumnStory({
   data,
   isLive = true,
+  emptyValue,
 }: {
   data: AsyncTableData<Row[]>;
   isLive?: boolean;
+  emptyValue?: string;
 }) {
   const columns = [
     createStatusTableColumn<Row, string>({
       accessorKey: "status",
       header: "Status",
-      getStatus: (status) => status ?? undefined,
+      getStatus: (status, { row }) =>
+        row.original.isStatusLoading
+          ? { type: "loading" }
+          : (status ?? undefined),
       isLive,
+      emptyValue,
     }),
   ];
 
@@ -74,6 +81,7 @@ export const EmptyValue = meta.story({
       isError: false,
       data: [{ status: null }],
     },
+    emptyValue: "-",
   },
 });
 
@@ -93,6 +101,20 @@ export const Loading = meta.story({
     data: {
       isLoading: true,
       isError: false,
+    },
+  },
+});
+
+export const MappedValueLoading = meta.story({
+  name: "Mapped Value Loading",
+  args: {
+    data: {
+      isLoading: false,
+      isError: false,
+      data: [
+        { status: "pending-metrics", isStatusLoading: true },
+        { status: "error" },
+      ],
     },
   },
 });

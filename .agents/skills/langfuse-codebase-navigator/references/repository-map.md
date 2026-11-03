@@ -82,7 +82,7 @@ Important areas:
 - `worker/src/queues/**`: queue definitions and processors.
 - `fern/apis/server/definition/**`: server/public API definitions.
 - `fern/apis/client/definition/**`: generated client API definitions.
-- `ee/src/**` and `web/src/ee/**`: enterprise-specific code.
+- `ee/src/**`, `web/src/ee/**`, `worker/src/ee/**`, and `packages/shared/src/server/ee/**`: enterprise-specific code under the Enterprise License (root `LICENSE`).
 
 Repo-local skills in `langfuse/.agents/skills`:
 
@@ -93,7 +93,7 @@ Repo-local skills in `langfuse/.agents/skills`:
 - `changelog-writing`: user-facing release notes.
 - `clickhouse-best-practices`: ClickHouse schema/query/migration review.
 - `code-review`: repo-specific correctness/regression review.
-- `cursor-agents-workflow`: Cursor agent Linear branch names, human test steps, proof of work posted on the GitHub PR, Claude/Greptile/Codex review comments, and review-doubt PR notes.
+- `cursor-agents-workflow`: Cursor agent Linear branch names, the `cursor` GitHub label, human test steps, proof of work posted on the GitHub PR, Claude/Greptile/Codex review comments, and review-doubt PR notes.
 - `datadog-query-recipes`: reusable Datadog query shapes for production research.
 - `debug-issue-with-datadog`: production debugging tied to Langfuse code paths.
 - `frontend-browser-review`: user-visible `web/**` changes and browser verification.

@@ -1,4 +1,5 @@
-import { Badge } from "@/src/components/ui/badge";
+/* eslint-disable no-nested-ternary */
+import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { V4MigrationBadgeContent } from "@/src/features/v4-migration/V4MigrationBadgeContent";
 
 export function RuleNameCell({
@@ -26,7 +27,7 @@ export function RuleNameCell({
             />
           </span>
         ) : (
-          <Badge variant="warning">Legacy</Badge>
+          <Badge color="yellow" text="Legacy" />
         )
       ) : null}
     </div>

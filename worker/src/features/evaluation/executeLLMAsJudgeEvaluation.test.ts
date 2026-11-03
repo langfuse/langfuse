@@ -8,6 +8,7 @@ const observabilityMocks = vi.hoisted(() => ({
     attributes: Record<string, unknown>;
   }>,
   blockEvaluator: vi.fn().mockResolvedValue({ blockedEvaluatorIds: [] }),
+  recordIncrement: vi.fn(),
 }));
 
 vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
@@ -17,6 +18,7 @@ vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
   return {
     ...actual,
     blockEvaluator: observabilityMocks.blockEvaluator,
+    recordIncrement: observabilityMocks.recordIncrement,
     instrumentAsync: vi.fn(
       async (
         { name }: { name: string },
@@ -48,6 +50,7 @@ import { createMockEvalExecutionDeps } from "./evalExecutionDeps";
 import { UnrecoverableError } from "../../errors/UnrecoverableError";
 import {
   LLMValidationError,
+  recordIncrement,
   type ExtractedVariable,
 } from "@langfuse/shared/src/server";
 import {
@@ -71,10 +74,17 @@ import {
 describe("executeLLMAsJudgeEvaluation", () => {
   const projectId = "test-project-123";
   const jobExecutionId = "test-job-execution-456";
+  const getScorePersistenceMetricCalls = () =>
+    vi
+      .mocked(recordIncrement)
+      .mock.calls.filter(
+        ([metric]) => metric === "langfuse.evaluation.score_persistence",
+      );
 
   beforeEach(() => {
     observabilityMocks.spans.length = 0;
     observabilityMocks.blockEvaluator.mockClear();
+    observabilityMocks.recordIncrement.mockClear();
   });
 
   // ============================================================================
@@ -250,6 +260,17 @@ describe("executeLLMAsJudgeEvaluation", () => {
         }),
       );
       expect(enqueueScoreIngestion).toHaveBeenCalledTimes(1);
+      expect(getScorePersistenceMetricCalls()).toEqual([
+        [
+          "langfuse.evaluation.score_persistence",
+          1,
+          {
+            evaluator_type: "llm_as_judge",
+            outcome: "success",
+            score_count_bucket: "1",
+          },
+        ],
+      ]);
       expect(updateJobExecution).toHaveBeenCalledWith(
         expect.objectContaining({
           id: jobExecutionId,
@@ -436,6 +457,17 @@ describe("executeLLMAsJudgeEvaluation", () => {
       await expect(
         executeLLMAsJudgeEvaluation(createExecutionParams({ deps })),
       ).rejects.toThrow("Failed to write score");
+      expect(getScorePersistenceMetricCalls()).toEqual([
+        [
+          "langfuse.evaluation.score_persistence",
+          1,
+          {
+            evaluator_type: "llm_as_judge",
+            outcome: "failure",
+            score_count_bucket: "1",
+          },
+        ],
+      ]);
     });
 
     it("should throw error if score ingestion queue fails", async () => {
@@ -525,9 +557,12 @@ describe("executeLLMAsJudgeEvaluation", () => {
             traceId: expect.any(String),
             traceName: `Execute evaluator: ${mockEvalTemplate.name}`,
             environment: "langfuse-llm-as-a-judge",
+            evaluationContext: {
+              evaluationRuleId: mockJobExecution.jobConfigurationId,
+              evaluatorExecutionIsTest: false,
+            },
             metadata: expect.objectContaining({
               job_execution_id: jobExecutionId,
-              job_configuration_id: mockJobExecution.jobConfigurationId,
               target_trace_id: mockJobExecution.jobInputTraceId,
             }),
           }),
@@ -844,9 +879,8 @@ describe("executeLLMAsJudgeEvaluation", () => {
         createExecutionParams({ job: fullJob, deps }),
       );
 
-      const expectedMetadata = {
+      const expectedTraceMetadata = {
         job_execution_id: jobExecutionId,
-        job_configuration_id: fullJob.jobConfigurationId,
         target_trace_id: fullJob.jobInputTraceId,
         target_observation_id: "obs-full",
         target_dataset_item_id: "dataset-full",
@@ -855,7 +889,11 @@ describe("executeLLMAsJudgeEvaluation", () => {
       expect(callLLM).toHaveBeenCalledWith(
         expect.objectContaining({
           traceSinkParams: expect.objectContaining({
-            metadata: expect.objectContaining(expectedMetadata),
+            evaluationContext: {
+              evaluationRuleId: fullJob.jobConfigurationId,
+              evaluatorExecutionIsTest: false,
+            },
+            metadata: expect.objectContaining(expectedTraceMetadata),
           }),
         }),
       );
@@ -864,7 +902,13 @@ describe("executeLLMAsJudgeEvaluation", () => {
         expect.objectContaining({
           event: expect.objectContaining({
             body: expect.objectContaining({
-              metadata: expect.objectContaining(expectedMetadata),
+              evaluationRuleId: fullJob.jobConfigurationId,
+              metadata: expect.objectContaining({
+                job_execution_id: jobExecutionId,
+                target_trace_id: fullJob.jobInputTraceId,
+                target_observation_id: "obs-full",
+                target_dataset_item_id: "dataset-full",
+              }),
             }),
           }),
         }),
@@ -897,12 +941,14 @@ describe("executeLLMAsJudgeEvaluation", () => {
             name: mockJobConfiguration.scoreName,
             value: 0.88,
             comment: "Well structured response",
+            configId: undefined,
             source: "EVAL",
             environment: "production",
             executionTraceId: expect.any(String),
+            evaluatorId: undefined,
+            evaluationRuleId: mockJobExecution.jobConfigurationId,
             metadata: expect.objectContaining({
               job_execution_id: jobExecutionId,
-              job_configuration_id: mockJobExecution.jobConfigurationId,
               target_trace_id: mockJobExecution.jobInputTraceId,
             }),
             dataType: "NUMERIC",
@@ -1173,6 +1219,17 @@ describe("executeLLMAsJudgeEvaluation", () => {
 
       expect(uploadScore).toHaveBeenCalledTimes(2);
       expect(enqueueScoreIngestion).toHaveBeenCalledTimes(2);
+      expect(getScorePersistenceMetricCalls()).toEqual([
+        [
+          "langfuse.evaluation.score_persistence",
+          1,
+          {
+            evaluator_type: "llm_as_judge",
+            outcome: "success",
+            score_count_bucket: "2",
+          },
+        ],
+      ]);
 
       const firstUploadCall = uploadScore.mock.calls[0][0];
       const secondUploadCall = uploadScore.mock.calls[1][0];

@@ -12,6 +12,7 @@ export const [listAnnotationQueueItemsTool, handleListAnnotationQueueItems] =
     name: "listAnnotationQueueItems",
     description:
       "List annotation queue items, each linking one trace or observation to a queue with a review status, with optional status filtering.",
+    action: "annotationQueues:read",
     baseSchema: GetAnnotationQueueItemsQuery,
     inputSchema: GetAnnotationQueueItemsQuery,
     handler: async (input, context) =>

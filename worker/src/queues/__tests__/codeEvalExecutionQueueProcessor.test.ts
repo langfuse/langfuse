@@ -9,7 +9,10 @@ import {
 } from "vitest";
 import { Job } from "bullmq";
 import { EvalTemplateType } from "@prisma/client";
-import { UnrecoverableError } from "../../errors/UnrecoverableError";
+import {
+  UnrecoverableError,
+  isUnrecoverableError,
+} from "../../errors/UnrecoverableError";
 
 const QueueName = {
   CodeEvalExecution: "code-eval-execution-queue",
@@ -27,13 +30,19 @@ vi.mock("@langfuse/shared/src/db", () => ({
   },
 }));
 
-vi.mock("../../features/evaluation/observationEval", () => ({
-  processObservationEval: vi.fn(),
-}));
+vi.mock(
+  "../../features/evaluation/observationEval/observationEvalProcessor",
+  () => ({
+    processObservationEval: vi.fn(),
+  }),
+);
 
-vi.mock("../../features/evaluation/codeBased", () => ({
-  executeCodeBasedEvaluation: vi.fn(),
-}));
+vi.mock(
+  "../../features/evaluation/codeBased/executeCodeBasedEvaluation",
+  () => ({
+    executeCodeBasedEvaluation: vi.fn(),
+  }),
+);
 
 vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
   const actual =
@@ -60,7 +69,7 @@ vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
   };
 });
 
-vi.mock("../../features/utils", () => ({
+vi.mock("../../features/utils/utilities", () => ({
   createW3CTraceId: vi.fn().mockReturnValue("test-trace-id"),
 }));
 
@@ -73,7 +82,7 @@ vi.mock("../../errors/UnrecoverableError", async () => {
 });
 
 import { prisma } from "@langfuse/shared/src/db";
-import { processObservationEval } from "../../features/evaluation/observationEval";
+import { processObservationEval } from "../../features/evaluation/observationEval/observationEvalProcessor";
 import {
   recordDistribution,
   recordIncrement,
@@ -81,7 +90,6 @@ import {
 } from "@langfuse/shared/src/server";
 import { CodeEvalDispatcherErrorCodes } from "../../../../packages/shared/src/server/evals/codeEvalDispatcherTypes";
 import { CodeEvalExecutionError } from "../../../../packages/shared/src/server/evals/codeEvalExecution";
-import { isUnrecoverableError } from "../../errors/UnrecoverableError";
 
 describe("codeEvalExecutionQueueProcessor", () => {
   const projectId = "test-project-123";
@@ -324,21 +332,19 @@ describe("codeEvalExecutionQueueProcessor", () => {
     );
   });
 
-  it("should preserve retryable code eval timeout messages on the final retry attempt", async () => {
+  it("should treat code eval timeouts as terminal without retrying", async () => {
     const timeoutMessage =
       "Evaluator timed out. Code-based evaluators must complete within the configured runtime limit. Long executions can be caused by network calls, which are forbidden and may never complete. Remove network calls, optimize your evaluator code, and try again. See https://langfuse.com/docs/evaluation/evaluation-methods/code-evaluators for details.";
     const error = new CodeEvalExecutionError({
       code: CodeEvalDispatcherErrorCodes.TIMEOUT,
       message: timeoutMessage,
-      retryable: true,
+      retryable: false,
     });
     (processObservationEval as Mock).mockRejectedValue(error);
 
     await expect(
-      codeEvalExecutionQueueProcessor(
-        createMockJob({ attemptsMade: 9, opts: { attempts: 10 } }),
-      ),
-    ).rejects.toThrow(error);
+      codeEvalExecutionQueueProcessor(createMockJob()),
+    ).resolves.toBeUndefined();
 
     expect(prisma.jobExecution.update).toHaveBeenCalledWith({
       where: {
@@ -352,7 +358,7 @@ describe("codeEvalExecutionQueueProcessor", () => {
         executionTraceId: "test-trace-id",
       },
     });
-    expect(traceException).toHaveBeenCalledWith(error);
+    expect(traceException).not.toHaveBeenCalled();
     expect(recordIncrement).toHaveBeenCalledWith(
       "langfuse.evaluation.execution.terminal",
       1,

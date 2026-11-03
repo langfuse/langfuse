@@ -1,3 +1,4 @@
+/* eslint-disable no-nested-ternary */
 // Reverse adapter: flat Langfuse `FilterState` (+ full-text searchQuery and
 // searchType scopes) → query text.
 //
@@ -25,6 +26,7 @@ import {
 } from "./fields";
 import { serialize } from "./langQ";
 import { quoteIfNeeded } from "./quoting";
+import { supportsFilterTarget, targetReference } from "./targeting";
 
 function filterNode(
   key: string,
@@ -39,7 +41,16 @@ function negate(node: FilterNode): ASTNode {
   return { kind: "not", child: node };
 }
 
-function scorePathOf(column: string, key: string): string | null {
+function scorePathOf(
+  column: string,
+  key: string,
+  registry: FieldRegistry,
+): string | null {
+  // A view can own score filters in its sidebar without exposing them in the
+  // bar. Emitting the path anyway would render text the parser rejects as an
+  // unknown field, so a score space the registry does not expose is left to the
+  // sidebar — reported as skipped, and preserved across commits.
+  //
   // Quote the score name iff it has grammar chars so it re-lexes as one token
   // (`scores."Rouge Score"`); resolveField unquotes it on the way back.
   if (
@@ -47,14 +58,14 @@ function scorePathOf(column: string, key: string): string | null {
     column === SCORE_COLUMNS.observation.categorical ||
     column === SCORE_COLUMNS.observation.boolean
   ) {
-    return `scores.${quoteIfNeeded(key)}`;
+    return registry.scores ? `scores.${quoteIfNeeded(key)}` : null;
   }
   if (
     column === SCORE_COLUMNS.trace.numeric ||
     column === SCORE_COLUMNS.trace.categorical ||
     column === SCORE_COLUMNS.trace.boolean
   ) {
-    return `traceScores.${quoteIfNeeded(key)}`;
+    return registry.traceScores ? `traceScores.${quoteIfNeeded(key)}` : null;
   }
   return null;
 }
@@ -192,10 +203,18 @@ function lowerSingle(
     }
     case "stringObject": {
       const id = registry.columnIdOf(filter.column);
-      if (id !== "metadata") return null;
+      const namespace =
+        Object.entries(registry.metadataNamespaces ?? {}).find(
+          ([, column]) => column === filter.column || column === id,
+        )?.[0] ?? (id === "metadata" && registry.metadata ? "metadata" : null);
+      if (namespace === null) return null;
       // A key with grammar chars (`:`, space, …) is quoted so it re-lexes as one
       // token (`metadata."my key"`); resolveField unquotes it on the way back.
-      const key = `metadata.${quoteIfNeeded(filter.key)}`;
+      const key = `${namespace}.${quoteIfNeeded(filter.key)}`;
+      if (filter.operator === "is set" || filter.operator === "is not set") {
+        const presence = filterNode("has", "=", [key]);
+        return filter.operator === "is not set" ? negate(presence) : presence;
+      }
       if (filter.operator === "does not contain") {
         return negate(filterNode(key, "~", [filter.value]));
       }
@@ -209,19 +228,19 @@ function lowerSingle(
       return filterNode(key, op, [filter.value]);
     }
     case "numberObject": {
-      const path = scorePathOf(filter.column, filter.key);
+      const path = scorePathOf(filter.column, filter.key, registry);
       if (path === null) return null;
       const op = filter.operator === "=" ? "=" : filter.operator;
       return filterNode(path, op, [String(filter.value)]);
     }
     case "booleanObject": {
-      const path = scorePathOf(filter.column, filter.key);
+      const path = scorePathOf(filter.column, filter.key, registry);
       if (path === null) return null;
       const node = filterNode(path, "=", [String(filter.value)]);
       return filter.operator === "<>" ? negate(node) : node;
     }
     case "categoryOptions": {
-      const path = scorePathOf(filter.column, filter.key);
+      const path = scorePathOf(filter.column, filter.key, registry);
       if (path === null || filter.value.length === 0) return null;
       const node = filterNode(path, "=", filter.value);
       return filter.operator === "none of" ? negate(node) : node;
@@ -250,46 +269,17 @@ export type FilterStateToQueryResult = {
 export type FilterStateToQueryOptions = {
   /** Global full-text query — rendered as bare text or a scoped field token. */
   searchQuery?: string | null;
-  /** Search scope — a residual input/output searchType renders as input:/output:;
-   *  the default (`["id","content"]` and any id/content subset) renders as bare
-   *  free text. */
+  /** Exact backend search lanes, projected through the host's registry. */
   searchType?: TracingSearchType[] | null;
 };
 
-// The default full-text scope searches ids, names, input, and output — the
-// `id` and `content` searchType lanes together. There is no scope token for it
-// (the `content:` token was removed), so it renders as bare free text.
-// astToFilterState returns `null` searchType for the bar (no scope tokens); the
-// sync layer maps that back to this default, hence `["id","content"]` (and any
-// subset) must also be recognized as "default" so it round-trips to bare text
-// rather than a stray scope token.
-const DEFAULT_SEARCH_TYPES: ReadonlySet<TracingSearchType> = new Set([
-  "id",
-  "content",
-]);
-
-function isDefaultSearchType(
-  searchType: TracingSearchType[] | null | undefined,
+function sameSearchTypes(
+  a: readonly TracingSearchType[],
+  b: readonly TracingSearchType[],
 ): boolean {
   return (
-    searchType == null ||
-    searchType.length === 0 ||
-    searchType.every((t) => DEFAULT_SEARCH_TYPES.has(t))
+    new Set(a).size === new Set(b).size && a.every((type) => b.includes(type))
   );
-}
-
-// The bar field that expresses a non-default search scope. input/output alone
-// (e.g. from a pre-existing URL or the legacy toolbar) render as their real
-// text columns, which reparse to column filters — the intended convergence.
-// The default (ids+names+input+output) and id/content combos → null (bare text).
-function scopedSearchField(
-  searchType: TracingSearchType[] | null | undefined,
-): "input" | "output" | null {
-  if (isDefaultSearchType(searchType)) return null;
-  const set = new Set(searchType ?? []);
-  if (set.has("input")) return "input";
-  if (set.has("output")) return "output";
-  return null;
 }
 
 export function filterStateToQueryText(
@@ -307,24 +297,48 @@ export function filterStateToQueryText(
       skippedFilters.push(filter);
       continue;
     }
+    let condition: FilterNode | null = null;
+    if (node.kind === "filter") {
+      condition = node;
+    } else if (node.kind === "not" && node.child.kind === "filter") {
+      condition = node.child;
+    }
+    if (condition) {
+      if (registry.targeting && supportsFilterTarget(condition, registry)) {
+        const target = registry.targeting.targets.find(
+          (entry) =>
+            entry.id ===
+            (filter.target ??
+              registry.targeting?.legacyDefaultTarget ??
+              registry.targeting?.defaultTarget),
+        );
+        if (!target) {
+          skipped.push(`${filter.column} (target unavailable)`);
+          skippedFilters.push(filter);
+          continue;
+        }
+        condition.target = targetReference(target);
+      } else if (filter.target) {
+        skipped.push(`${filter.column} (target not supported)`);
+        skippedFilters.push(filter);
+        continue;
+      }
+    }
     nodes.push(node);
   }
 
-  // Full-text search. The default scope (ids+names+input+output) has no scope
-  // token, so it renders as bare free text. A residual input/output searchType
-  // (from a pre-existing URL or the legacy toolbar) bundles the whole query into
-  // one `input:"…"`/`output:"…"` token, which reparses to its real column filter
-  // — so such a searchType normalizes to a column filter on the next commit (the
-  // deliberate canonicalization). The query is a single contiguous-substring
-  // phrase (ILIKE %query%), so it renders as ONE token — quoted iff it has
-  // whitespace via serializeValue. NOT whitespace-split: separate tokens would
-  // misleadingly read as independent AND terms, disagree with the scope-rewrite
-  // suggestions (which serialize the whole phrase), and strip a user's own
-  // quotes on every derive.
-  const searchQuery = options.searchQuery?.trim() ?? "";
-  if (searchQuery.length > 0) {
-    const scopeField = scopedSearchField(options.searchType);
-    if (scopeField !== null) {
+  // One backend phrase can target several columns. Preserve the exact scope
+  // set: a legacy additive scope cannot become a payload-only column filter.
+  const searchQuery = options.searchQuery ?? "";
+  if (searchQuery.trim().length > 0) {
+    const searchType = options.searchType?.length
+      ? options.searchType
+      : registry.defaultSearchType;
+    const isDefault = sameSearchTypes(searchType, registry.defaultSearchType);
+    const scopeField = Object.entries(registry.searchScopes).find(([, scope]) =>
+      sameSearchTypes(searchType, scope.searchType),
+    )?.[0];
+    if (!isDefault && scopeField !== undefined) {
       nodes.push({
         kind: "filter",
         key: scopeField,
@@ -332,6 +346,14 @@ export function filterStateToQueryText(
         values: [searchQuery],
       });
     } else {
+      if (!isDefault) {
+        nodes.push({
+          kind: "filter",
+          key: "in",
+          op: "=",
+          values: [...searchType],
+        });
+      }
       nodes.push({ kind: "text", value: searchQuery });
     }
   }
