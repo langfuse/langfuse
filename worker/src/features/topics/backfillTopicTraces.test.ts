@@ -68,6 +68,7 @@ describe("backfillSelectionFilters", () => {
 
 describe("Topics trace selection and backfill", () => {
   const projectId = randomUUID();
+  const foreignProjectId = randomUUID();
   const addJob = vi.fn();
   beforeAll(async () => {
     await createEventsCh(
@@ -115,6 +116,14 @@ describe("Topics trace selection and backfill", () => {
         name: "finish",
         start_time: new Date("2026-09-24T01:00:00Z"),
       }),
+      ...["2026-09-01T00:00:00Z", "2026-10-30T00:00:00Z"].map((timestamp) =>
+        createEvent({
+          project_id: foreignProjectId,
+          trace_id: "trace-new",
+          name: "fetch_context",
+          start_time: new Date(timestamp),
+        }),
+      ),
     ]);
   });
   beforeEach(() => {
@@ -157,7 +166,7 @@ describe("Topics trace selection and backfill", () => {
     expect(addJob).not.toHaveBeenCalled();
   });
 
-  it("enqueues each selected trace with its full observation time bounds", async () => {
+  it("enqueues each selected trace with its full in-project observation time bounds", async () => {
     const result = await enqueueTopicTraceBackfill({
       projectId,
       selection: {
