@@ -400,7 +400,10 @@ function LoadedTraceDetailViewHeader({
                       />
                     )}
                     <HeaderActionButton
-                      label={commentActionLabel}
+                      label={mobileCommentActionLabel}
+                      count={
+                        commentDrawerControl.disabled ? undefined : commentCount
+                      }
                       icon={
                         commentDrawerControl.disabled ? (
                           <MessageSquareOff size="base" />

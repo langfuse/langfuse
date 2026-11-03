@@ -14,6 +14,70 @@ const TITLE_ACTIONS_GAP_PX = 8;
 const FOCUSABLE_SELECTOR =
   'button:not([disabled]), [href], [tabindex]:not([tabindex="-1"])';
 
+type DetailViewHeaderFocusFollow =
+  | { to: "menu" }
+  | { to: "cluster"; index: number };
+
+function focusableElements(root: ParentNode): HTMLElement[] {
+  return [...root.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR)];
+}
+
+function indexOfFocusable(root: HTMLElement, active: Element): number {
+  return focusableElements(root).findIndex(
+    (element) => element === active || element.contains(active),
+  );
+}
+
+/**
+ * Where keyboard focus should go when the row is about to hide the cluster
+ * that holds it. Folding unmounts both clusters; switching between the
+ * labelled and icon-only clusters hides one in place. Either way the focused
+ * button becomes unfocusable and the browser drops focus to `document.body`.
+ */
+function detailViewHeaderFocusFollow({
+  next,
+  placement,
+  active,
+  labelledCluster,
+  iconOnlyCluster,
+}: {
+  next: DetailViewHeaderActionsPlacement;
+  placement: DetailViewHeaderActionsPlacement;
+  active: Element | null;
+  labelledCluster: HTMLElement | null;
+  iconOnlyCluster: HTMLElement | null;
+}): DetailViewHeaderFocusFollow | null {
+  if (!active) return null;
+
+  if (next === "folded" && placement !== "folded") {
+    const inCluster =
+      (labelledCluster?.contains(active) ?? false) ||
+      (iconOnlyCluster?.contains(active) ?? false);
+    return inCluster ? { to: "menu" } : null;
+  }
+
+  if (
+    next === "icon-only" &&
+    placement !== "icon-only" &&
+    labelledCluster?.contains(active)
+  ) {
+    const index = indexOfFocusable(labelledCluster, active);
+    return index >= 0 ? { to: "cluster", index } : null;
+  }
+
+  if (
+    next !== "icon-only" &&
+    next !== "folded" &&
+    placement === "icon-only" &&
+    iconOnlyCluster?.contains(active)
+  ) {
+    const index = indexOfFocusable(iconOnlyCluster, active);
+    return index >= 0 ? { to: "cluster", index } : null;
+  }
+
+  return null;
+}
+
 export type DetailViewHeaderTitleRowProps = {
   /** The entity title. */
   title: ReactNode;
@@ -71,9 +135,7 @@ export function DetailViewHeaderTitleRow({
   // kept here and goes on feeding the planner until it is back on screen.
   const actionsWidthRef = useRef<number | undefined>(undefined);
   const iconOnlyActionsWidthRef = useRef<number | undefined>(undefined);
-  const followFocusRef = useRef<"folded" | "icon-only" | "beside" | false>(
-    false,
-  );
+  const followFocusRef = useRef<DetailViewHeaderFocusFollow | null>(null);
   const [placement, setPlacement] =
     useState<DetailViewHeaderActionsPlacement>("beside");
 
@@ -115,60 +177,48 @@ export function DetailViewHeaderTitleRow({
       minTitleWidth: MIN_TITLE_PX,
       gap: TITLE_ACTIONS_GAP_PX,
     });
-    // When the cluster that holds the keyboard becomes hidden or unmounted,
-    // follow focus to the cluster or menu that replaces it.
+    // Record the target while the focused button is still connected. The
+    // placement commit hides it, and the effect below moves focus once the
+    // visible control exists.
     if (next !== placement) {
-      const focusInActions = actionsRef.current?.contains(
-        document.activeElement,
-      );
-      const focusInIconOnly = iconOnlyActionsRef.current?.contains(
-        document.activeElement,
-      );
-      if (next === "folded" && (focusInActions || focusInIconOnly)) {
-        // Folding unmounts both clusters — move to the overflow-menu trigger.
-        followFocusRef.current = "folded";
-      } else if (next === "icon-only" && focusInActions) {
-        // Full-label cluster is becoming aria-hidden — move to icon-only.
-        followFocusRef.current = "icon-only";
-      } else if (next === "beside" && focusInIconOnly) {
-        // Icon-only cluster is becoming aria-hidden — move to full-label.
-        followFocusRef.current = "beside";
-      }
+      followFocusRef.current = detailViewHeaderFocusFollow({
+        next,
+        placement,
+        active: document.activeElement,
+        labelledCluster: actionsRef.current,
+        iconOnlyCluster: iconOnlyActionsRef.current,
+      });
     }
     setPlacement((previous) => (previous === next ? previous : next));
   }, [actions, iconOnlyActions, alwaysFold, placement, rowRef, rowSize?.width]);
 
   useLayoutEffect(() => {
-    const mode = followFocusRef.current;
-    if (!mode) return;
-    followFocusRef.current = false;
-    if (mode === "folded") {
-      // The folded presentation ends in the overflow-menu trigger, so the row's
-      // last focusable element is it.
-      const focusable =
-        rowRef.current?.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR);
-      focusable?.[focusable.length - 1]?.focus({ preventScroll: true });
-    } else if (mode === "icon-only") {
-      // Move to the first focusable in the icon-only cluster.
-      const focusable =
-        iconOnlyActionsRef.current?.querySelectorAll<HTMLElement>(
-          FOCUSABLE_SELECTOR,
-        );
-      focusable?.[0]?.focus({ preventScroll: true });
-    } else {
-      // "beside": move to the first focusable in the full-label cluster.
-      const focusable =
-        actionsRef.current?.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR);
-      focusable?.[0]?.focus({ preventScroll: true });
+    const follow = followFocusRef.current;
+    if (!follow) return;
+    followFocusRef.current = null;
+
+    if (follow.to === "menu") {
+      // The folded presentation ends in the overflow-menu trigger, so the
+      // row's last focusable element is it.
+      const focusable = rowRef.current ? focusableElements(rowRef.current) : [];
+      focusable[focusable.length - 1]?.focus({ preventScroll: true });
+      return;
     }
+
+    const cluster =
+      placement === "icon-only"
+        ? iconOnlyActionsRef.current
+        : actionsRef.current;
+    if (!cluster) return;
+    const focusable = focusableElements(cluster);
+    (focusable[follow.index] ?? focusable[focusable.length - 1])?.focus({
+      preventScroll: true,
+    });
   }, [placement, rowRef]);
 
   const actionsFolded = alwaysFold || placement === "folded";
   const actionsBeside = !actionsFolded && placement === "beside";
   const actionsIconOnly = !actionsFolded && placement === "icon-only";
-  const actionsContainerJustify = actionsBeside
-    ? "justify-end"
-    : "justify-start";
 
   return (
     <div
@@ -184,9 +234,12 @@ export function DetailViewHeaderTitleRow({
         {title}
         {actionsFolded ? foldedActions : options}
       </div>
-      {actionsFolded ? null : (
+      {!actionsFolded && (
         <div
-          className={cn("relative flex items-center", actionsContainerJustify)}
+          className={cn(
+            "relative flex items-center",
+            actionsBeside ? "justify-end" : "justify-start",
+          )}
         >
           {/* Full-label cluster — shrink-to-fit and never wrapping, so
               `offsetWidth` above is the cluster's natural width whichever row
