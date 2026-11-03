@@ -110,7 +110,10 @@ retains its 100-trace/20,000-row preview limits and unknown ancestry boundaries.
 
 ## Reproducible walkthrough
 
-Use the official seed CLI and its printed links:
+Use the official seed CLI and its printed links. Complete migrations and any
+`ch:dev-tables` bootstrap before seeding: that bootstrap rebuilds event tables
+from legacy observations and cannot preserve native skill-only fields. Run the
+v4 fixture after it to retain native skill evidence.
 
 ```sh
 NEXTAUTH_URL=http://localhost:3017 LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES=true pnpm --filter web run dev --port 3017
