@@ -9,6 +9,7 @@ import {
   getAppRootSavedViewComparisonFilters,
   getAppRootSuppressionToPersist,
   removeAppRootDefaultFilter,
+  shouldRunAppRootFallbackQuery,
   storedViewOwnsEventsTableState,
   urlOwnsEventsTableState,
 } from "./appRootDefaultFilterPolicy";
@@ -130,6 +131,82 @@ describe("app-root default policy", () => {
       ),
     ).toEqual([levelFilter, APP_ROOT_OBSERVATION_FILTER]);
   });
+
+  describe.each([
+    {
+      name: "neither boolean selected",
+      rootFilters: [
+        APP_ROOT_OBSERVATION_FILTER,
+        { ...APP_ROOT_OBSERVATION_FILTER, value: false },
+      ],
+    },
+    {
+      name: "neither boolean selected in reverse order",
+      rootFilters: [
+        { ...APP_ROOT_OBSERVATION_FILTER, value: false },
+        APP_ROOT_OBSERVATION_FILTER,
+      ],
+    },
+    {
+      name: "duplicate true filters",
+      rootFilters: [APP_ROOT_OBSERVATION_FILTER, APP_ROOT_OBSERVATION_FILTER],
+    },
+    {
+      name: "mixed operators",
+      rootFilters: [
+        APP_ROOT_OBSERVATION_FILTER,
+        { ...APP_ROOT_OBSERVATION_FILTER, operator: "<>" },
+      ],
+    },
+    {
+      name: "false only",
+      rootFilters: [{ ...APP_ROOT_OBSERVATION_FILTER, value: false }],
+    },
+  ] satisfies { name: string; rootFilters: FilterState }[])(
+    "explicit root selection: $name",
+    ({ rootFilters }) => {
+      it("suppresses automatic defaults when replacing the default", () => {
+        expect(
+          getAppRootSuppressionToPersist({
+            origin: "user",
+            wasAutoManaged: true,
+            previousFilters: [levelFilter, APP_ROOT_OBSERVATION_FILTER],
+            nextFilters: [levelFilter, ...rootFilters],
+          }),
+        ).toBe("suppressed");
+      });
+
+      it("preserves the selection during default removal and saved-view comparison", () => {
+        const filters = [levelFilter, ...rootFilters];
+        expect(removeAppRootDefaultFilter(filters)).toEqual(filters);
+        expect(getAppRootSavedViewComparisonFilters(filters, true)).toEqual(
+          filters,
+        );
+      });
+
+      it("does not probe or apply the automatic root fallback", () => {
+        const filters = [levelFilter, ...rootFilters];
+        expect(
+          shouldRunAppRootFallbackQuery({
+            enabled: true,
+            filters,
+            page: 1,
+            rootQuerySucceeded: true,
+            rootQueryIsPlaceholder: false,
+            rootRowCount: 0,
+          }),
+        ).toBe(false);
+        expect(
+          getAppRootFallbackDecision({
+            additionalRowsFound: true,
+            isAutoManaged: true,
+            filters,
+            now,
+          }),
+        ).toMatchObject({ shouldRemoveFilter: false, nextFilters: filters });
+      });
+    },
+  );
 
   it("removes only the root filter and invalidates only a neutral recent probe", () => {
     const now = new Date("2026-07-13T12:00:00Z").getTime();
