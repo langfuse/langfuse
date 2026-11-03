@@ -67,7 +67,7 @@ const RECORD_SCRIPT = `
     -- 1. Merge the event-time bounds, even when no rule selected this activity.
     -- Move active traces to the current bucket so their bounds remain available.
     local boundsIndex, previousBounds = current, nil
-    for key = 3, #KEYS do
+    for key = #KEYS, 3, -1 do
       previousBounds = redis.call('HGET', KEYS[key], member)
       if previousBounds then boundsIndex = key; break end
     end
