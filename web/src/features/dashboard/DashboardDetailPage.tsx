@@ -1,4 +1,3 @@
-/* eslint-disable no-nested-ternary, @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 import { useRouter } from "next/router";
 import { api } from "@/src/utils/api";
 import { useReadPath, type ResolvedReadPath } from "@/src/features/events";
@@ -53,7 +52,7 @@ import {
   DropdownMenuTrigger,
 } from "@/src/components/ui/dropdown-menu";
 import { EditDialogDashboardContent } from "@/src/features/dashboard/components/EditDialogDashboardContent";
-import { DialogController } from "@/src/components/ui/dialog";
+import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
 import { useDashboardDateRange } from "@/src/hooks/useDashboardDateRange";
 import {
   DASHBOARD_AGGREGATION_OPTIONS,
@@ -1251,9 +1250,7 @@ function DashboardDetailView({ readPath }: { readPath: ResolvedReadPath }) {
 
         return (
           <DialogController
-            closeOnInteractionOutside={false}
-            size="default"
-            renderContent={({ closeDialog }) =>
+            renderDialog={({ closeDialog }) =>
               dashboard.data ? (
                 <EditDialogDashboardContent
                   closeDialog={closeDialog}
@@ -1480,13 +1477,17 @@ function DashboardDetailView({ readPath }: { readPath: ResolvedReadPath }) {
                   />
                   {dashboard.isPending || !dashboardDefinition ? (
                     <NoDataOrLoading isLoading={true} />
-                  ) : dashboard.isError ? (
+                  ) : null}
+                  {!(dashboard.isPending || !dashboardDefinition) &&
+                  dashboard.isError ? (
                     <div className="flex h-64 items-center justify-center">
                       <div className="text-destructive">
                         Error: {dashboard.error.message}
                       </div>
                     </div>
-                  ) : (
+                  ) : null}
+                  {!(dashboard.isPending || !dashboardDefinition) &&
+                  !dashboard.isError ? (
                     <div>
                       <DashboardGrid
                         key={gridResetKey}
@@ -1527,7 +1528,7 @@ function DashboardDetailView({ readPath }: { readPath: ResolvedReadPath }) {
                         }
                       />
                     </div>
-                  )}
+                  ) : null}
                 </Page>
               </DashboardQuerySchedulerProvider>
             )}
