@@ -352,6 +352,9 @@ the same PR.
   cron pattern, append the old pattern to `previousPatterns` so the legacy
   md5-keyed schedule is cleaned up on boot.
 - Do not hand-edit generated artifacts under `prisma/generated/*` or `dist/*`.
+- `next-auth` is a devDependency: import it with `import type` only. A runtime
+  import would pull Next.js into the worker image, which `worker/Dockerfile`
+  rejects at build time.
 - `src/server/ee/*` is under the Enterprise License (root `LICENSE`), not MIT.
   Put EE logic there when both `web` and `worker` must import it; keep OSS
   code paths out of it.
