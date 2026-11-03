@@ -483,7 +483,7 @@ export const env = createEnv({
     // migration indicator should light up.
     LANGFUSE_BACKGROUND_MIGRATION_V4_ENABLE_HISTORIC_BACKFILL: z
       .enum(["true", "false"])
-      .default("true"),
+      .default("false"),
     LANGFUSE_BACKGROUND_MIGRATION_V4_DROP_PID_TID_SORTING_TABLES: z
       .enum(["true", "false"])
       .default("false"),
