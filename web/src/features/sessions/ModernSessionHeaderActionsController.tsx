@@ -1,6 +1,5 @@
 import { CopyIcon, MoreVertical } from "@langfuse/icons";
 import { useSession } from "next-auth/react";
-import { useInternalFeaturesEnabled } from "@/src/features/feature-flags/hooks/useInternalFeaturesEnabled";
 
 import { HeaderActionButton } from "@/src/components/HeaderActionButton";
 import { HeaderActionMenuRows } from "@/src/components/HeaderActionMenuRows";
@@ -49,30 +48,20 @@ type DisplaySettingProps = {
   showCorrections?: boolean;
   showInlineToolCalls?: boolean;
   showSystemPrompt?: boolean;
-  useRootIO?: boolean;
   onShowCorrectionsChange?: (isEnabled: boolean) => void;
   onShowInlineToolCallsChange?: (isEnabled: boolean) => void;
   onShowSystemPromptChange?: (isEnabled: boolean) => void;
-  onUseRootIOChange?: (isEnabled: boolean) => void;
 };
 
 function buildDisplayItems({
   showCorrections,
   showInlineToolCalls,
   showSystemPrompt,
-  useRootIO,
   onShowCorrectionsChange,
   onShowInlineToolCallsChange,
   onShowSystemPromptChange,
-  onUseRootIOChange,
 }: DisplaySettingProps): DropdownMenuItemDefinition[] {
   const settings = [
-    {
-      id: "use-root-io",
-      title: "Use root input/output",
-      checked: useRootIO,
-      onChange: onUseRootIOChange,
-    },
     {
       id: "show-corrections",
       title: "Show corrections",
@@ -134,11 +123,7 @@ export function ModernSessionHeaderActionsController({
     objectId: sessionId,
     isPublic,
   });
-  const internalFeaturesEnabled = useInternalFeaturesEnabled();
-  const displayItems = buildDisplayItems({
-    ...displaySettings,
-    useRootIO: internalFeaturesEnabled ? displaySettings.useRootIO : undefined,
-  });
+  const displayItems = buildDisplayItems(displaySettings);
 
   const adminItems: DropdownMenuItemDefinition[] =
     session.data?.user?.admin === true
@@ -181,7 +166,6 @@ export function ModernSessionHeaderActionsController({
                   type: "submenu" as const,
                   id: "display",
                   title: "Display",
-                  internal: displaySettings.useRootIO !== undefined,
                   items: displayItems,
                 },
               ]

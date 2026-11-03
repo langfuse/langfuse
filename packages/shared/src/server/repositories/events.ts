@@ -534,9 +534,11 @@ export const getObservationsForTraceFromEventsTable = async (params: {
   traceId: string;
   timestamp?: Date;
   selectIOAndMetadata?: boolean;
+  selectMetadata?: boolean;
   selectToolData?: boolean;
   /** Restrict to these observation types. All types when omitted. */
   types?: ObservationType[];
+  filter?: FilterState;
   /** Rows read at most; `totalCount` exceeds it when the trace has more. */
   limit?: number;
 }): Promise<{ observations: FullEventsObservations; totalCount: number }> => {
@@ -545,12 +547,14 @@ export const getObservationsForTraceFromEventsTable = async (params: {
     traceId,
     timestamp,
     selectIOAndMetadata = false,
+    selectMetadata = false,
     selectToolData = false,
     types,
     limit = MAX_OBSERVATIONS_PER_TRACE,
   } = params;
 
   const filter: FilterState = [
+    ...(params.filter ?? []),
     {
       column: "traceId",
       operator: "=" as const,
@@ -587,6 +591,7 @@ export const getObservationsForTraceFromEventsTable = async (params: {
       offset: 0,
       select: "rows",
       selectIOAndMetadata,
+      selectMetadata,
       selectToolData,
     });
 
@@ -872,6 +877,7 @@ export const getTraceDeleteCursorPageFromEvents = async (props: {
 
 async function getObservationsFromEventsTableInternal<T>(
   opts: ObservationTableQuery & {
+    selectMetadata?: boolean;
     select:
       | "count"
       | "count-with-unique-traces"
@@ -885,6 +891,7 @@ async function getObservationsFromEventsTableInternal<T>(
     projectId,
     filter,
     selectIOAndMetadata,
+    selectMetadata,
     selectToolData = true,
     renderingProps = DEFAULT_RENDERING_PROPS,
     limit,
@@ -932,20 +939,19 @@ async function getObservationsFromEventsTableInternal<T>(
     );
     if (selectIOAndMetadata) {
       if (opts.ioSizeCap) {
-        queryBuilder
-          .selectIOWithSizeCap(
-            opts.ioSizeCap.inlineChars,
-            opts.ioSizeCap.previewChars,
-          )
-          .selectFieldSet("metadata");
+        queryBuilder.selectIOWithSizeCap(
+          opts.ioSizeCap.inlineChars,
+          opts.ioSizeCap.previewChars,
+        );
       } else {
-        queryBuilder
-          .selectIO(
-            renderingProps.truncated,
-            env.LANGFUSE_SERVER_SIDE_IO_CHAR_LIMIT,
-          )
-          .selectFieldSet("metadata");
+        queryBuilder.selectIO(
+          renderingProps.truncated,
+          env.LANGFUSE_SERVER_SIDE_IO_CHAR_LIMIT,
+        );
       }
+    }
+    if (selectIOAndMetadata || selectMetadata) {
+      queryBuilder.selectFieldSet("metadata");
     }
   }
 
