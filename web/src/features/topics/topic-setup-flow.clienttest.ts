@@ -84,7 +84,7 @@ it("keeps a stored 10 minute idle time and a stored model", () => {
   const draft = initialTopicSetupDraft({
     stored: {
       summary: {
-        llmApiKeyId: "bedrock",
+        provider: "Amazon Bedrock",
         model: "eu.anthropic.claude-sonnet-4-5",
       },
       embedding: null,
