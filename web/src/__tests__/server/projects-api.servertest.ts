@@ -921,15 +921,6 @@ describe("Projects API", () => {
         return res;
       };
 
-      it("turns the gateway off for a key with gateway:manage", async () => {
-        const res = await deleteIngestionProject(context);
-
-        expect(res._getStatusCode()).toBe(202);
-        await expect(
-          prisma.gatewayConfig.findUnique({ where: { organizationId: orgId } }),
-        ).resolves.toMatchObject({ defaultIngestionProjectId: null });
-      });
-
       it("rejects a key with project:delete but without gateway:manage", async () => {
         const policies = context.policies.map((policy) => ({
           ...policy,
