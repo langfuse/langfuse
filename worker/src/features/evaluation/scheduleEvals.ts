@@ -45,7 +45,30 @@ export function createEvalSchedulerDeps(projectId: string, rules: EvalRules) {
 
 export type EvalSchedulerDeps = ReturnType<typeof createEvalSchedulerDeps>;
 
-/** Schedule both evaluation targets without one target's failure suppressing the other. */
+type HeldTraceMatch = AggregateError & {
+  /** Undefined when matching itself failed or the span is not recorded. */
+  matchedRuleIds: readonly string[] | undefined;
+};
+
+/** Rule IDs selected before a scheduling failure. Undefined when matching did not finish. */
+export function heldTraceRuleIds(
+  error: unknown,
+): readonly string[] | undefined {
+  if (
+    error instanceof AggregateError &&
+    "matchedRuleIds" in error &&
+    (error.matchedRuleIds === undefined || Array.isArray(error.matchedRuleIds))
+  ) {
+    return (error as HeldTraceMatch).matchedRuleIds;
+  }
+  return undefined;
+}
+
+/**
+ * Schedule observation evals and match transcript rules.
+ * Returns the held rule IDs. Undefined means this span is not recorded.
+ * Does not buffer transcript activity.
+ */
 export async function scheduleEvals({
   observation,
   traceActivity,
@@ -54,11 +77,11 @@ export async function scheduleEvals({
 }: {
   observation: ObservationForEval;
   /** Omitted when the batch skips direct event writes; nothing is recorded then. */
-  traceActivity?: Omit<TraceSpanActivity, "ruleIds">;
+  traceActivity?: Omit<TraceSpanActivity, "ruleIds" | "serializedEventBytes">;
   rules: EvalRules;
   schedulerDeps: EvalSchedulerDeps;
-}): Promise<void> {
-  const results = await Promise.allSettled([
+}): Promise<readonly string[] | undefined> {
+  const [observationResult, transcriptResult] = await Promise.allSettled([
     scheduleObservationEvals({
       observation,
       configs: isObservationAllowedForQueuedObservationEvals(observation)
@@ -68,10 +91,19 @@ export async function scheduleEvals({
     }),
     scheduleTraceTranscriptEvals({ observation, traceActivity, schedulerDeps }),
   ]);
-  const failures = results.flatMap((result) =>
+  const matchedRuleIds =
+    transcriptResult.status === "fulfilled"
+      ? transcriptResult.value
+      : undefined;
+  const failures = [observationResult, transcriptResult].flatMap((result) =>
     result.status === "rejected" ? [result.reason] : [],
   );
   if (failures.length > 0) {
-    throw new AggregateError(failures, "Failed to schedule evaluations");
+    // Observation failure must not drop a match that already succeeded.
+    throw Object.assign(
+      new AggregateError(failures, "Failed to schedule evaluations"),
+      { matchedRuleIds },
+    );
   }
+  return matchedRuleIds;
 }

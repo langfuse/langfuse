@@ -22,11 +22,11 @@ Env-sampled activity without a rule match records `__trace_batch_experiment__`
 to exercise `record`/`due` storage. This marker has no evaluator and must be
 excluded from execution when the consumer is added.
 
-| Map             | Contents                                                                  | Retention                                                                 |
-| --------------- | ------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
-| `bounds:<hour>` | MessagePack `[minStart, maxStart, eventUpdateCount]`, including nonmatches. | Configured bounds TTL after the latest activity's bucket ends (24–25 hours by default). |
-| `record`        | Only `{ revision, rules, failed_cnt }`; rule IDs are deduplicated.        | Eligible for cleanup two hours past due.                                  |
-| `due`           | Selected traces ordered by Redis arrival time plus project idle interval. | Eligible for cleanup two hours past due.                                  |
+| Map             | Contents                                                                        | Retention                                                                               |
+| --------------- | ------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| `bounds:<hour>` | MessagePack `[minStart, maxStart, serializedEventBytes]`, including nonmatches. | Configured bounds TTL after the latest activity's bucket ends (24–25 hours by default). |
+| `record`        | Only `{ revision, rules, failed_cnt }`; rule IDs are deduplicated.              | Eligible for cleanup two hours past due.                                                |
+| `due`           | Selected traces ordered by Redis arrival time plus project idle interval.       | Eligible for cleanup two hours past due.                                                |
 
 Activity atomically moves merged bounds into the current bucket and removes the old
 entry. `LANGFUSE_TRACE_BATCH_FIRST_SEEN_TTL_MS` controls the bounds TTL. After bounds expire,
@@ -34,9 +34,12 @@ new arrivals start fresh and discard old selections; consumers must handle missi
 bounds. Each recording call removes up to 100 expired pending entries; sparse
 traffic can delay removal. Key TTLs reclaim inactive maps.
 
-Each recorded span counts as one event update of its trace; ingestion retries can
-overcount. Serialized sizes are not recorded. Each ingestion invocation awaits its own
-buffer flush; Lua merges across workers using the shared shard and idle helpers.
+Each recorded span adds the UTF-8 byte length returned by the events write: the
+final row after field overflow, with the size field itself excluded. A failed
+write does not record that span. Ingestion retries can add the same bytes again.
+Acceptance is the writer queue, not a confirmed ClickHouse flush. Each ingestion
+invocation awaits its own buffer flush; Lua merges across workers using the
+shared shard and idle helpers.
 
 ## Readiness requirements
 

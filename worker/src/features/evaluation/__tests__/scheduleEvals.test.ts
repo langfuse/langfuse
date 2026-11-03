@@ -83,7 +83,7 @@ describe("scheduleEvals", () => {
       };
       const schedulerDeps = createEvalSchedulerDeps(projectId, rules);
       const observation = createTestObservation({ name: "selected" });
-      await scheduleEvals({
+      const selected = await scheduleEvals({
         observation,
         traceActivity: recordTraces
           ? Object.freeze(createTraceActivity(observation.trace_id))
@@ -91,7 +91,7 @@ describe("scheduleEvals", () => {
         rules,
         schedulerDeps,
       });
-      await scheduleEvals({
+      const unmatched = await scheduleEvals({
         observation: { ...observation, span_id: "child", name: "unmatched" },
         traceActivity: recordTraces
           ? createTraceActivity(
@@ -105,21 +105,14 @@ describe("scheduleEvals", () => {
       await schedulerDeps.flushTraceActivity();
 
       expect(observationDeps.enqueueEvalJob).toHaveBeenCalledTimes(2);
+      // Matching holds rule IDs. It does not buffer them for Redis.
+      expect(mocks.record).not.toHaveBeenCalled();
       if (recordTraces) {
-        expect(mocks.record).toHaveBeenCalledExactlyOnceWith(projectId, [
-          {
-            traceId: observation.trace_id,
-            spanStartTimeISO: startTimeISO,
-            ruleIds: [facetRule.id],
-          },
-          {
-            traceId: observation.trace_id,
-            spanStartTimeISO: "2026-11-02T08:01:00.000Z",
-            ruleIds: [],
-          },
-        ]);
+        expect(selected).toEqual([facetRule.id]);
+        expect(unmatched).toEqual([]);
       } else {
-        expect(mocks.record).not.toHaveBeenCalled();
+        expect(selected).toBeUndefined();
+        expect(unmatched).toBeUndefined();
         expect(mocks.topicsActive).not.toHaveBeenCalled();
       }
     },
@@ -134,7 +127,7 @@ describe("scheduleEvals", () => {
     const firstBatch = createEvalSchedulerDeps(projectId, rules);
     const secondBatch = createEvalSchedulerDeps(projectId, rules);
     const observation = createTestObservation({ name: "selected" });
-    await Promise.all(
+    const matched = await Promise.all(
       [firstBatch, secondBatch].map((schedulerDeps, index) =>
         scheduleEvals({
           observation: { ...observation, trace_id: `trace-${index}` },
@@ -145,6 +138,16 @@ describe("scheduleEvals", () => {
       ),
     );
     expect(mocks.record).not.toHaveBeenCalled();
+    firstBatch.collectTraceActivity({
+      ...createTraceActivity("trace-0"),
+      ruleIds: matched[0] ?? [],
+      serializedEventBytes: 120,
+    });
+    secondBatch.collectTraceActivity({
+      ...createTraceActivity("trace-1"),
+      ruleIds: matched[1] ?? [],
+      serializedEventBytes: 240,
+    });
 
     await firstBatch.flushTraceActivity();
     expect(mocks.record).toHaveBeenCalledExactlyOnceWith(projectId, [
@@ -152,6 +155,7 @@ describe("scheduleEvals", () => {
         traceId: "trace-0",
         spanStartTimeISO: startTimeISO,
         ruleIds: [facetRule.id],
+        serializedEventBytes: 120,
       },
     ]);
     await firstBatch.flushTraceActivity();
@@ -163,6 +167,7 @@ describe("scheduleEvals", () => {
         traceId: "trace-1",
         spanStartTimeISO: startTimeISO,
         ruleIds: [facetRule.id],
+        serializedEventBytes: 240,
       },
     ]);
   });
@@ -185,15 +190,19 @@ describe("scheduleEvals", () => {
           traceTranscriptRules,
         };
         const schedulerDeps = createEvalSchedulerDeps(projectId, rules);
+        const matchedRuleIds = [];
         for (const span_id of ["root", "child"]) {
-          await scheduleEvals({
-            observation: { ...observation, span_id },
-            traceActivity: createTraceActivity(observation.trace_id),
-            rules,
-            schedulerDeps,
-          });
+          matchedRuleIds.push(
+            await scheduleEvals({
+              observation: { ...observation, span_id },
+              traceActivity: createTraceActivity(observation.trace_id),
+              rules,
+              schedulerDeps,
+            }),
+          );
         }
         await schedulerDeps.flushTraceActivity();
+        expect(matchedRuleIds).toEqual([undefined, undefined]);
         if (hasObservationRule) {
           expect(
             observationDeps.uploadObservationToS3,

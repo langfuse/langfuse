@@ -50,10 +50,12 @@
   scheduling, direct events-table writes, and trace-batch accounting.
 - Automatic evaluation scheduling: OTel ingestion, including prompt-experiment telemetry, uses
   `src/features/evaluation/fetchEvalRules.ts` and `scheduleEvals.ts` for both
-  observation and transcript rules. Create scheduler dependencies once per batch
-  and flush collected trace activity after scheduling, including on observation
-  scheduling failures. Pass the original event start time; normalized evaluation
-  observations do not contain it. Manual observation batches keep their existing
+  observation and transcript rules. Create scheduler dependencies once per batch.
+  Match transcript rules while scheduling observation evals, including when
+  observation scheduling fails, and buffer a span only after its events write
+  returns the serialized byte length. Flush that buffer after the batch. Pass
+  the original event start time; normalized evaluation observations do not
+  contain it. Manual observation batches keep their existing
   scheduler and execution-mode semantics.
   Prompt experiments select observation rules only on their root span. Transcript
   recording preserves Topics' exclusion of internal environments, including prompt
@@ -65,8 +67,9 @@
   Only direct events-table batches record. Env-sampled nonmatches use
   `__trace_batch_experiment__`, a storage-only marker with no evaluator.
   Reuse shard and idle helpers.
-  Bounds count one event update per recorded span; sizes are not recorded.
-  Bounds use the shared 16-byte identity and MessagePack `[minStart, maxStart, eventUpdateCount]`;
+  Bounds store the summed serialized byte length of accepted event rows. They do
+  not store an event count. A failed events write leaves that span unrecorded.
+  Bounds use the shared 16-byte identity and MessagePack `[minStart, maxStart, serializedEventBytes]`;
   record/due keep full JSON identities for dispatch.
   Activity atomically moves merged bounds into the current bucket and removes the
   old entry, retaining history and pending selections while a trace stays active.

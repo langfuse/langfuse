@@ -91,6 +91,12 @@ describe("trace-rule recording at the evaluation stage", () => {
     { mode: "eval-only", shouldWriteToEventsTable: false, writeFails: false },
     { mode: "failed write", shouldWriteToEventsTable: true, writeFails: true },
     {
+      mode: "one write fails",
+      shouldWriteToEventsTable: true,
+      writeFails: false,
+      failedSpanId: "other",
+    },
+    {
       mode: "ingestion disabled",
       shouldWriteToEventsTable: true,
       writeFails: false,
@@ -114,6 +120,7 @@ describe("trace-rule recording at the evaluation stage", () => {
     async ({
       shouldWriteToEventsTable,
       writeFails,
+      failedSpanId,
       ingestionEnabled = true,
       topicsEnabled = true,
       observationRulesEnabled = true,
@@ -150,7 +157,8 @@ describe("trace-rule recording at the evaluation stage", () => {
         }),
       );
       const writeEventRecord = vi.fn(async (record: { span_id: string }) => {
-        if (writeFails) throw new Error("write unavailable");
+        if (writeFails || record.span_id === failedSpanId)
+          throw new Error("write unavailable");
         return record.span_id === "match" ? 123 : 456;
       });
       try {
@@ -211,21 +219,32 @@ describe("trace-rule recording at the evaluation stage", () => {
             shouldWriteToEventsTable,
           }),
         ).resolves.toBeUndefined();
-        if (includeTraceTranscriptRules) {
+        const recordedSpans = [
+          failedSpanId === "match"
+            ? []
+            : [
+                {
+                  traceId: "trace",
+                  spanStartTimeISO: inputs[0].startTimeISO,
+                  ruleIds: ["trace-rule"],
+                  serializedEventBytes: 123,
+                },
+              ],
+          failedSpanId === "other"
+            ? []
+            : [
+                {
+                  traceId: "trace",
+                  spanStartTimeISO: inputs[1].startTimeISO,
+                  ruleIds: [],
+                  serializedEventBytes: 456,
+                },
+              ],
+        ].flat();
+        if (includeTraceTranscriptRules && !writeFails) {
           expect(recordTraceActivity).toHaveBeenCalledExactlyOnceWith(
             projectId,
-            [
-              {
-                traceId: "trace",
-                spanStartTimeISO: inputs[0].startTimeISO,
-                ruleIds: ["trace-rule"],
-              },
-              {
-                traceId: "trace",
-                spanStartTimeISO: inputs[1].startTimeISO,
-                ruleIds: [],
-              },
-            ],
+            recordedSpans,
           );
         } else {
           expect(recordTraceActivity).not.toHaveBeenCalled();
@@ -326,6 +345,7 @@ describe("trace-rule recording at the evaluation stage", () => {
               traceId: selected,
               spanStartTimeISO: input.startTimeISO,
               ruleIds: ["__trace_batch_experiment__"],
+              serializedEventBytes: 123,
             })),
           );
         } else {

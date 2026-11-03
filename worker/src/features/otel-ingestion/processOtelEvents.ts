@@ -11,6 +11,7 @@ import { fetchEvalRules } from "../evaluation/fetchEvalRules";
 import {
   scheduleEvals,
   createEvalSchedulerDeps,
+  heldTraceRuleIds,
 } from "../evaluation/scheduleEvals";
 import { trackTraceBatchActivity } from "../traceBatching/traceBatching";
 import {
@@ -58,11 +59,12 @@ export async function processOtelEvents({
 }: ProcessOtelEventsParams): Promise<OtelMediaPresence | undefined> {
   // Process events for observation evals and direct event writes
   // This phase handles two independent concerns:
-  // 1. Scheduling observation evals and recording trace-rule selections
+  // 1. Scheduling observation evals and matching trace-rule selections
   // 2. Writing directly to events table (if SDK version requirements are met)
   //
-  // Both require enriched event records with trace-level attributes
-  // (userId, sessionId, tags, release) that processToEvent provides.
+  // A matched span is buffered for the trace-rule maps only after that write
+  // returns. Both steps require enriched event records with trace-level
+  // attributes (userId, sessionId, tags, release) that processToEvent provides.
   const eventInputs = processor.processToEvent(resourceSpans);
   if (eventInputs.length === 0) {
     return;
@@ -146,7 +148,8 @@ export async function processOtelEvents({
         return;
       }
 
-      // Step 2: Schedule evaluations independently of event writes.
+      // Step 2: Schedule observation evals and match transcript rules.
+      // Matching does not buffer activity. The result is held until the write.
       const traceActivity = isTraceBatchSampled(
         eventInput.traceId,
         traceBatchSamplingRate,
@@ -156,12 +159,13 @@ export async function processOtelEvents({
             spanStartTimeISO: eventInput.startTimeISO,
           }
         : undefined;
+      let matchedRuleIds: readonly string[] | undefined;
       if (
         schedulerDeps &&
         (rules.observationRules.length > 0 || traceActivity)
       ) {
         try {
-          await scheduleEvals({
+          matchedRuleIds = await scheduleEvals({
             observation: convertEventRecordToObservationForEval(eventRecord),
             traceActivity,
             rules,
@@ -174,6 +178,7 @@ export async function processOtelEvents({
             `Failed to schedule evals for project ${eventInput.projectId} and observation ${eventInput.spanId}`,
             { error, fileKey },
           );
+          matchedRuleIds = heldTraceRuleIds(error);
         }
       }
 
@@ -189,6 +194,14 @@ export async function processOtelEvents({
             traceBatchEvents.push({
               traceId: eventInput.traceId,
               startTimeISO: eventInput.startTimeISO,
+              serializedEventBytes,
+            });
+          }
+          // A thrown write skips this push, so the trace-rule maps stay unchanged.
+          if (traceActivity && schedulerDeps && matchedRuleIds !== undefined) {
+            schedulerDeps.collectTraceActivity({
+              ...traceActivity,
+              ruleIds: matchedRuleIds,
               serializedEventBytes,
             });
           }

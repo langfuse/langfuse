@@ -66,7 +66,7 @@ const RECORD_SCRIPT = `
     local minStart = tonumber(ARGV[i + 1])
     local maxStart = tonumber(ARGV[i + 2])
     local incomingRules = cjson.decode(ARGV[i + 4])
-    local eventUpdateCount = tonumber(ARGV[i + 5])
+    local serializedEventBytes = tonumber(ARGV[i + 5])
     local boundsIdentity = ARGV[i + 6]
 
     -- 1. Merge the event-time bounds, even when no rule selected this activity.
@@ -80,10 +80,10 @@ const RECORD_SCRIPT = `
       local bounds = cmsgpack.unpack(previousBounds)
       minStart = math.min(minStart, bounds[1])
       maxStart = math.max(maxStart, bounds[2])
-      eventUpdateCount = eventUpdateCount + bounds[3]
+      serializedEventBytes = serializedEventBytes + bounds[3]
     end
     redis.call('HSET', KEYS[current], boundsIdentity, cmsgpack.pack({
-      minStart, maxStart, eventUpdateCount
+      minStart, maxStart, serializedEventBytes
     }))
     if boundsIndex ~= current then redis.call('HDEL', KEYS[boundsIndex], boundsIdentity) end
 
@@ -155,15 +155,17 @@ async function evalRecording(
   }
 }
 
-/** One directly written span; each span counts as one event update of its trace. */
+/** One directly written span and the UTF-8 size of its accepted event row. */
 export type TraceSpanActivity = {
   traceId: string;
   spanStartTimeISO: string;
   /** Rule IDs already selected by filtering and sampling; empty still records activity. */
   ruleIds: readonly string[];
+  /** UTF-8 length of the final event row after field overflow, excluding the size field. */
+  serializedEventBytes: number;
 };
 
-/** Merge bounds, event counts, selected rules, and readiness for one batch; this writer does not sample. */
+/** Merge bounds, byte sizes, selected rules, and readiness for one batch; this writer does not sample. */
 export async function recordTraceActivity(
   projectId: string,
   activity: readonly TraceSpanActivity[],
@@ -174,7 +176,7 @@ export async function recordTraceActivity(
     {
       minStart: number;
       maxStart: number;
-      eventUpdateCount: number;
+      serializedEventBytes: number;
       rules: Set<string>;
     }
   >();
@@ -185,13 +187,13 @@ export async function recordTraceActivity(
     if (previous) {
       previous.minStart = Math.min(previous.minStart, start);
       previous.maxStart = Math.max(previous.maxStart, start);
-      previous.eventUpdateCount += 1;
+      previous.serializedEventBytes += span.serializedEventBytes;
       for (const ruleId of span.ruleIds) previous.rules.add(ruleId);
     } else {
       updatesByTrace.set(span.traceId, {
         minStart: start,
         maxStart: start,
-        eventUpdateCount: 1,
+        serializedEventBytes: span.serializedEventBytes,
         rules: new Set(span.ruleIds),
       });
     }
@@ -209,7 +211,7 @@ export async function recordTraceActivity(
       member: string;
       minStart: number;
       maxStart: number;
-      eventUpdateCount: number;
+      serializedEventBytes: number;
       rules: Set<string>;
     }[]
   >();
@@ -237,13 +239,13 @@ export async function recordTraceActivity(
         ...entries
           .slice(offset, offset + REDIS_BATCH_SIZE)
           .flatMap(
-            ({ member, minStart, maxStart, rules, eventUpdateCount }) => [
+            ({ member, minStart, maxStart, rules, serializedEventBytes }) => [
               member,
               minStart,
               maxStart,
               randomUUID(),
               JSON.stringify([...rules]),
-              eventUpdateCount,
+              serializedEventBytes,
               getTraceBatchFirstMember(member),
             ],
           ),

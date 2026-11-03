@@ -9,7 +9,11 @@ import { env } from "../../../env";
 // Load-test marker only; no evaluator is associated with this ID.
 const EXPERIMENT_RULE_ID = "__trace_batch_experiment__";
 
-/** Collect trace selections for readiness; transcript execution happens after dispatch. */
+/**
+ * Match transcript rules for one span. Returns undefined when the span is not
+ * recorded. An empty array still extends bounds. The caller buffers the result
+ * only after the events write succeeds.
+ */
 export async function scheduleTraceTranscriptEvals({
   observation,
   traceActivity,
@@ -17,9 +21,9 @@ export async function scheduleTraceTranscriptEvals({
 }: {
   observation: ObservationForEval;
   /** Absent when the batch does not write the events table directly. */
-  traceActivity?: Omit<TraceSpanActivity, "ruleIds">;
+  traceActivity?: Omit<TraceSpanActivity, "ruleIds" | "serializedEventBytes">;
   schedulerDeps: EvalSchedulerDeps;
-}): Promise<void> {
+}): Promise<readonly string[] | undefined> {
   // Only directly written events reach the trace-batch worker; Topics also
   // excludes internal traces, including prompt experiments.
   if (!traceActivity || isInternalEvalEnvironment(observation.environment))
@@ -38,9 +42,6 @@ export async function scheduleTraceTranscriptEvals({
   ) {
     ruleIds.push(EXPERIMENT_RULE_ID);
   }
-  // Non-matching observations still extend bounds and existing readiness.
-  schedulerDeps.collectTraceActivity({
-    ...traceActivity,
-    ruleIds,
-  });
+  // Non-matching observations still extend bounds once the write succeeds.
+  return ruleIds;
 }
