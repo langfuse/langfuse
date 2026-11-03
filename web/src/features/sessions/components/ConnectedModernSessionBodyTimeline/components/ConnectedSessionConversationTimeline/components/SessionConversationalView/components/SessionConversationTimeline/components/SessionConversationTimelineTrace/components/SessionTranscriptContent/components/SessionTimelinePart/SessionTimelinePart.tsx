@@ -13,7 +13,7 @@ import {
 import { Button } from "@/src/components/ui/button";
 import { useState, type ComponentProps, type ReactNode } from "react";
 import { SessionTimelineCollapsibleRow } from "../SessionTimelineCollapsibleRow/SessionTimelineCollapsibleRow";
-import { assertUnreachable } from "@langfuse/shared";
+import { assertUnreachable, decodeUnicodeEscapesOnly } from "@langfuse/shared";
 import {
   type FilePart,
   type NormalizedMessage,
@@ -30,7 +30,6 @@ import {
 } from "@/src/components/ui/media/mediaUtils";
 import { getSafeImageUrl, getSafeLinkUrl } from "@/src/components/ui/safe-url";
 import { cn } from "@/src/utils/tailwind";
-import { decodeUnicodeEscapesOnly } from "@/src/utils/unicode";
 
 export function SessionTimelinePart({
   part,

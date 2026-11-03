@@ -3,7 +3,7 @@ import {
   countActionableLegacyApiEntrypoints,
   isActionableLegacyApiUsage,
   normalizeLegacyApiEntrypoint,
-} from "@/src/features/v4";
+} from "@/src/features/v4/utils";
 import {
   getLegacyIntegrationLabels,
   getMigrationActionState,

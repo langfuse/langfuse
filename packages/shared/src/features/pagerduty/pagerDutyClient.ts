@@ -1,12 +1,10 @@
 import { backOff } from "exponential-backoff";
 
-import {
-  GatewayTimeoutError,
-  isBaseError,
-  ServiceUnavailableError,
-  TooManyRequestsError,
-  toBaseError,
-} from "../../errors";
+import { GatewayTimeoutError } from "../../errors/GatewayTimeoutError";
+import { isBaseError } from "../../errors/BaseError";
+import { TooManyRequestsError } from "../../errors/TooManyRequestsError";
+import { toBaseError } from "../../errors/toBaseError";
+import { ServiceUnavailableError } from "../../errors/ServiceUnavailableError";
 import { logger } from "../../server/logger";
 import { type PagerDutyRegion } from "./types";
 

@@ -16,10 +16,13 @@ use tracing::Instrument;
 
 use crate::{
     correlation::{RequestCorrelation, assign_request_id},
-    inference::{InferenceService, MemoryReservation, provider_origin, resolution_origin},
+    inference::{
+        InferenceService, MemoryReservation, provider_origin, rate_limited_reason,
+        resolution_origin,
+    },
     observability::{ErrorOrigin, Wait},
     providers::{ProviderError, RequestBody, Route},
-    resolution::{ApiFormat, ResolutionError},
+    resolution::{ApiFormat, RateLimit, ResolutionError},
     server::GatewayLifecycleState,
 };
 
@@ -220,13 +223,17 @@ async fn relay(
         .observation()
         .record_wait(Wait::RequestBody, started.elapsed());
     let (bytes, reservation) = read?;
-    correlation.observation().record_request_bytes(bytes.len());
+    let request_bytes = bytes.len();
+    correlation
+        .observation()
+        .record_request_bytes(request_bytes);
     let request_body = request_body_and_model(bytes)?;
     let (permit, context) = inference
         .resolve_and_admit(
             gateway_key,
             route.api_format(),
             &request_body.model,
+            request_bytes,
             correlation,
         )
         .await
@@ -427,12 +434,12 @@ enum InferenceHttpError {
 
 #[derive(Serialize)]
 struct OpenAiErrorResponse<'a> {
-    error: OpenAiErrorDetail,
+    error: OpenAiErrorDetail<'a>,
     request_id: &'a str,
 }
 #[derive(Serialize)]
-struct OpenAiErrorDetail {
-    message: &'static str,
+struct OpenAiErrorDetail<'a> {
+    message: &'a str,
     #[serde(rename = "type")]
     kind: &'static str,
     param: Option<&'static str>,
@@ -443,14 +450,14 @@ struct OpenAiErrorDetail {
 struct AnthropicErrorResponse<'a> {
     #[serde(rename = "type")]
     kind: &'static str,
-    error: AnthropicErrorDetail,
+    error: AnthropicErrorDetail<'a>,
     request_id: &'a str,
 }
 #[derive(Serialize)]
-struct AnthropicErrorDetail {
+struct AnthropicErrorDetail<'a> {
     #[serde(rename = "type")]
     kind: &'static str,
-    message: &'static str,
+    message: &'a str,
 }
 
 impl InferenceHttpError {
@@ -472,6 +479,7 @@ impl InferenceHttpError {
                     R::Forbidden => "forbidden",
                     R::ModelNotAllowed => "model_not_allowed",
                     R::NoRoute => "no_route",
+                    R::RateLimited(limit) => rate_limited_reason(limit.kind()),
                     R::Busy => "capacity",
                     R::Timeout => "timeout",
                     R::Unavailable => "unavailable",
@@ -518,6 +526,13 @@ impl InferenceHttpError {
                 "Model is not allowed for this provider connection",
                 "permission_error",
                 "model_not_allowed",
+            ),
+            // OpenAI's own rate-limit type and code, so SDKs treat it as a 429 to back off.
+            Self::Resolution(R::RateLimited(_)) => (
+                StatusCode::TOO_MANY_REQUESTS,
+                "Langfuse AI Gateway rate limit exceeded",
+                "requests",
+                "rate_limit_exceeded",
             ),
             Self::Resolution(R::NoRoute) => (
                 StatusCode::NOT_FOUND,
@@ -588,7 +603,7 @@ impl InferenceHttpError {
             Self::RequestTimeout => (ErrorOrigin::Client, "body_timeout"),
             Self::UnsupportedEncoding => (ErrorOrigin::Client, "unsupported_content_encoding"),
             Self::InvalidBody => (ErrorOrigin::Client, "invalid_body"),
-            Self::Resolution(error) => resolution_origin(*error),
+            Self::Resolution(error) => resolution_origin(error),
             Self::Provider(error) => provider_origin(*error),
         }
     }
@@ -601,8 +616,23 @@ impl InferenceHttpError {
         let (phase, reason) = self.category();
         let (origin, _) = self.origin();
         let (status, message, kind, code) = self.classify();
+        let rate_limit = match &self {
+            Self::Resolution(ResolutionError::RateLimited(limit)) => Some(limit.as_ref()),
+            _ => None,
+        };
         // Caller mistakes are routine; only failures that need an operator warn.
-        if status.is_server_error() {
+        if let Some(limit) = rate_limit {
+            tracing::warn!(
+                phase,
+                reason,
+                error.origin = origin.as_str(),
+                status = status.as_u16(),
+                rate_limit = limit.kind().as_str(),
+                retry_after_secs = limit.retry_after_secs(),
+                organization_id = limit.organization_id(),
+                "gateway request rate limited"
+            );
+        } else if status.is_server_error() {
             tracing::warn!(
                 phase,
                 reason,
@@ -620,7 +650,8 @@ impl InferenceHttpError {
             );
         }
         let request_id = correlation.id();
-        match api_format {
+        let message = rate_limit.map_or(message, RateLimit::message);
+        let mut response = match api_format {
             ApiFormat::OpenAiResponses | ApiFormat::OpenAiChatCompletions => (
                 status,
                 Json(OpenAiErrorResponse {
@@ -646,7 +677,13 @@ impl InferenceHttpError {
                 }),
             )
                 .into_response(),
+        };
+        if let Some(limit) = rate_limit {
+            response
+                .headers_mut()
+                .insert(header::RETRY_AFTER, limit.retry_after_secs().into());
         }
+        response
     }
 }
 
@@ -655,6 +692,7 @@ fn anthropic_error_type(status: StatusCode) -> &'static str {
         StatusCode::UNAUTHORIZED => "authentication_error",
         StatusCode::FORBIDDEN => "permission_error",
         StatusCode::NOT_FOUND => "not_found_error",
+        StatusCode::TOO_MANY_REQUESTS => "rate_limit_error",
         StatusCode::PAYLOAD_TOO_LARGE => "request_too_large",
         StatusCode::SERVICE_UNAVAILABLE => "overloaded_error",
         status if status.is_client_error() => "invalid_request_error",

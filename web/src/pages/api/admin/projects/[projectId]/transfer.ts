@@ -1,8 +1,8 @@
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { logger } from "@langfuse/shared/src/server";
-import { AdminApiAuthService } from "@/src/ee/features/admin-api/server";
+import { AdminApiAuthService } from "@/src/ee/features/admin-api/server/adminApiAuth";
 import { handleTransferProject } from "@/src/ee/features/admin-api/server/projects/transferProject";
-import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server";
+import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server/hasEntitlement";
 import { getSelfHostedInstancePlanServerSide } from "@/src/features/entitlements/server/getPlan";
 
 export default async function handler(

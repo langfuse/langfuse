@@ -609,6 +609,7 @@ export type AuditLogRecordInsertType = {
   actor_email: string;
   user_org_role: string;
   user_project_role: string;
+  support_access: boolean;
   resource_type: string;
   resource_id: string;
   resource_refs: string[];

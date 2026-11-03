@@ -41,13 +41,16 @@ vi.mock("@langfuse/shared/topics/server", () => ({
 vi.mock("@/src/ee/features/billing/utils/isCloudBillingEnabled", () => ({
   isCloudBillingEnabled: () => false,
 }));
-vi.mock("@/src/ee/features/billing/server", async (importOriginal) => {
-  const actual = (await importOriginal()) as Record<string, unknown>;
-  return {
-    ...actual,
-    isCloudBillingEnabled: () => false,
-  };
-});
+vi.mock(
+  "@/src/ee/features/billing/utils/isCloudBillingEnabled",
+  async (importOriginal) => {
+    const actual = (await importOriginal()) as Record<string, unknown>;
+    return {
+      ...actual,
+      isCloudBillingEnabled: () => false,
+    };
+  },
+);
 
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
@@ -369,6 +372,21 @@ describe("API-key cache invalidation on project/org lifecycle", () => {
 
     const caller = makeCaller({ userId: user.id, orgIds: [orgId] });
     await caller.organizations.delete({ orgId });
+
+    expect(await survivingKeys(keys)).toEqual([]);
+  });
+
+  it("accessAuditLog.setEnabled evicts the org's cached keys", async () => {
+    const orgId = await createOrg();
+    const user = await createUserInOrgs([orgId]);
+    const keys = await seedOrgScopedKey(orgId);
+
+    const caller = makeCaller({
+      userId: user.id,
+      orgIds: [orgId],
+      plan: "cloud:enterprise",
+    });
+    await caller.accessAuditLog.setEnabled({ orgId, enabled: true });
 
     expect(await survivingKeys(keys)).toEqual([]);
   });

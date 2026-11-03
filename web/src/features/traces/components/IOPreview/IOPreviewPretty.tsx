@@ -32,13 +32,13 @@ import {
   CollapsibleTrigger,
 } from "@/src/components/ui/collapsible";
 import { useMarkdownRenderCharacterLimit } from "@/src/hooks/useMarkdownRenderCharacterLimit";
-import { type MediaReturnType } from "@/src/features/media";
+import type { MediaReturnType } from "@/src/features/media/validation";
 import { type ChatMLParserResult } from "../../hooks/useChatMLParser";
 import {
   hasRenderableChatMessages,
   useIOPreviewParser,
 } from "../../hooks/useIOPreviewParser";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { ChatMessageController } from "./components/ChatMessageController";
 import { ChatMessageContent } from "./components/ChatMessageContent";
 import { SystemPromptCollapseController } from "./components/SystemPromptCollapseController";

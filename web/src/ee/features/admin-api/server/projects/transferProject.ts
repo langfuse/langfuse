@@ -2,8 +2,8 @@ import { type NextApiRequest, type NextApiResponse } from "next";
 import { z } from "zod";
 import { prisma } from "@langfuse/shared/src/db";
 import { logger, redis } from "@langfuse/shared/src/server";
-import { ProjectService } from "@/src/features/projects/server";
-import { ApiAuthService } from "@/src/features/public-api/server";
+import { ProjectService } from "@/src/features/projects/server/projectService";
+import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
 
 const TransferProjectQuery = z.object({ projectId: z.string().min(1) });
 const TransferProjectBody = z.object({

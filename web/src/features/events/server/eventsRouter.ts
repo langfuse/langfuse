@@ -5,7 +5,7 @@ import { env } from "@/src/env.mjs";
 import {
   getContextualFeatureFlags,
   hasInternalAccess,
-} from "@/src/features/feature-flags/server";
+} from "@/src/features/feature-flags/utils";
 import {
   createTRPCRouter,
   protectedProjectProcedure,
@@ -21,6 +21,7 @@ import {
   paginationZod,
   singleFilterList,
   timeFilter,
+  toAuditLogResourceRef,
 } from "@langfuse/shared";
 import {
   toDomainArrayWithStringifiedMetadata,
@@ -38,6 +39,7 @@ import {
   EVENT_FILTER_OPTIONS_COLUMNS,
 } from "./eventsService";
 import { loadTraceTranscript } from "./loadTraceTranscript";
+import { recordTrpcAccess } from "@/src/ee/features/access-audit-log/server/recordAccessEvent";
 import {
   instrumentAsync,
   getCurrentSpan,
@@ -52,7 +54,8 @@ import {
 import {
   AgentGraphDataSchema,
   type AgentGraphDataResponse,
-} from "@/src/features/trace-graph-view/server";
+} from "@/src/features/trace-graph-view/types";
+
 import type * as opentelemetry from "@opentelemetry/api";
 
 const GetAllEventsInput = EventsTableOptions.safeExtend({
@@ -543,6 +546,26 @@ export const eventsRouter = createTRPCRouter({
               // fallback to input in case trace unavailable - shouldn't happen
               timestamp: ctx.trace?.timestamp ?? input.timestamp,
             });
+
+          await recordTrpcAccess(ctx, input.projectId, {
+            route: "events.byTraceId",
+            resourceType: "trace",
+            resourceId: input.traceId,
+            action: "read",
+            resourceRefs: [toAuditLogResourceRef("trace", input.traceId)]
+              .concat(
+                ctx.trace?.sessionId
+                  ? [toAuditLogResourceRef("session", ctx.trace.sessionId)]
+                  : [],
+              )
+              .concat(
+                observations.map((o) =>
+                  toAuditLogResourceRef("observation", o.id),
+                ),
+              ),
+            params: input,
+            resultCount: observations.length,
+          });
 
           return {
             observations: toDomainArrayWithStringifiedMetadata(observations),

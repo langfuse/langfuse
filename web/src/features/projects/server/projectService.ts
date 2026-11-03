@@ -8,13 +8,14 @@ import {
 } from "@langfuse/shared/src/server";
 import { transferRoleAssignments } from "@langfuse/shared/rbac/server";
 import { reconcileTopicsConnectionsForProject } from "@langfuse/shared/topics/server";
+import { GatewayConfigService } from "@/src/features/ai-gateway/server/config/gatewayConfigService";
+import { invalidateGatewayResolveCacheForOrganization } from "@/src/features/ai-gateway/server/resolve/gatewayResolveCache";
 import {
-  GatewayConfigService,
-  invalidateGatewayResolveCacheForOrganization,
-} from "@/src/features/ai-gateway/server";
-import { auditLog, type AuditLogActor } from "@/src/features/audit-logs/server";
-import type { ApiAuthService } from "@/src/features/public-api/server";
-import { emitChbProjectEvent } from "@/src/ee/features/billing/server";
+  auditLog,
+  type AuditLogActor,
+} from "@/src/features/audit-logs/auditLog";
+import type { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
+import { emitChbProjectEvent } from "@/src/ee/features/billing/server/chb/chbProjectEvents";
 
 type DeleteProjectParams = {
   organizationId: string;

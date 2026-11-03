@@ -1,13 +1,13 @@
-import { showSuccessToast } from "@/src/features/notifications";
+import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { type ReactNode } from "react";
 
 import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
 import { TransferProjectDialog } from "@/src/features/projects/components/TransferProjectDialog";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import {
   hasOrganizationAccess,
   useHasOrganizationAccess,
-} from "@/src/features/rbac";
+} from "@/src/features/rbac/utils/checkOrganizationAccess";
 import { api } from "@/src/utils/api";
 import { useSession } from "next-auth/react";
 
