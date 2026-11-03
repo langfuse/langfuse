@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 import { ItemBadge } from "@/src/components/ItemBadge";
+import { EntityTitleTabs } from "@/src/components/EntityTitleTabs";
 import BreadcrumbComponent from "@/src/components/layouts/breadcrumb";
 import { MobilePageActionsContent } from "@/src/components/layouts/MobilePageActionsContent";
 import DocPopup from "@/src/components/layouts/doc-popup";
@@ -40,7 +41,7 @@ export const MobilePageTitle = ({
     titleTooltip,
     help,
     itemType,
-    titleControl,
+    titleTabs,
     actionButtonsLeft,
     actionButtonsRight,
     mobileActionButtons,
@@ -90,8 +91,12 @@ export const MobilePageTitle = ({
       <div className="mt-2 flex min-w-0 items-center gap-2">
         {/* Icon keeps its size — without shrink-0 a long title (e.g. a full
             session id, the common case) squeezes it. */}
-        {titleControl && <div className="shrink-0">{titleControl}</div>}
-        {!titleControl && itemType && (
+        {titleTabs && (
+          <div className="shrink-0">
+            <EntityTitleTabs {...titleTabs} />
+          </div>
+        )}
+        {!titleTabs && itemType && (
           <span className="flex shrink-0 items-center">
             <ItemBadge type={itemType} />
           </span>

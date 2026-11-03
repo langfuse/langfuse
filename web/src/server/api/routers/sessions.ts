@@ -963,13 +963,19 @@ export const sessionRouter = createTRPCRouter({
     .query(async ({ input }) => {
       const { observations, totalCount } =
         await getObservationsForSessionFromEventsTable(input);
-      const traceIds = [
-        ...new Set(
-          observations.flatMap((observation) =>
-            observation.traceId ? [observation.traceId] : [],
+      const traceStartTimes = new Map<string, number>();
+      for (const observation of observations) {
+        if (!observation.traceId) continue;
+        const startTime = observation.startTime.getTime();
+        traceStartTimes.set(
+          observation.traceId,
+          Math.min(
+            traceStartTimes.get(observation.traceId) ?? startTime,
+            startTime,
           ),
-        ),
-      ];
+        );
+      }
+      const traceIds = [...traceStartTimes.keys()];
       const scores: Awaited<
         ReturnType<typeof getScoresAndCorrectionsForTraces>
       > = [];
@@ -980,6 +986,9 @@ export const sessionRouter = createTRPCRouter({
             getScoresAndCorrectionsForTraces({
               projectId: input.projectId,
               traceIds: ids,
+              timestamp: new Date(
+                Math.min(...ids.map((id) => traceStartTimes.get(id)!)),
+              ),
             }),
           ),
         );

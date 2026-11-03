@@ -1,6 +1,7 @@
 import { api } from "@/src/utils/api";
 import { useIsAuthenticatedAndProjectMember } from "@/src/features/auth/hooks";
 import { castToNumberMap } from "@/src/utils/map-utils";
+import { useMemo } from "react";
 
 export type UseTraceCommentsParams = {
   projectId: string;
@@ -53,15 +54,19 @@ export function useTraceComments({
     ? castToNumberMap(traceCommentCounts.data)
     : undefined;
   const traceCount = traceCommentCountMap?.get(traceId) ?? 0;
+  const sessionCounts = useMemo(
+    () =>
+      castToNumberMap(sessionId ? sessionTraceCommentCounts.data : undefined) ??
+      new Map<string, number>(),
+    [sessionId, sessionTraceCommentCounts.data],
+  );
 
   return {
     observationCommentCounts: observationCommentCounts.data
       ? castToNumberMap(observationCommentCounts.data)
       : new Map<string, number>(),
     traceCommentCount: traceCount,
-    sessionTraceCommentCounts:
-      castToNumberMap(sessionId ? sessionTraceCommentCounts.data : undefined) ??
-      new Map<string, number>(),
+    sessionTraceCommentCounts: sessionCounts,
     isLoading:
       observationCommentCounts.isLoading ||
       traceCommentCounts.isLoading ||

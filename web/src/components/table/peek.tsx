@@ -83,7 +83,7 @@ type TablePeekViewProps = Pick<
 > & {
   title?: string;
   /** Replaces the entity icon immediately before the title. */
-  titleControl?: React.ReactNode;
+  titleTabs?: React.ComponentProps<typeof PeekHeader>["titleTabs"];
   defaultWidthTarget?: HTMLElement | null;
   widthStorageKey?: string;
   /**
@@ -284,7 +284,7 @@ function TablePeekViewComponent(props: TablePeekViewProps) {
     <PeekHeader
       itemType={props.itemType}
       title={resolvedTitle}
-      titleControl={props.titleControl}
+      titleTabs={props.titleTabs}
       itemId={itemId}
       detailNavigationKey={props.detailNavigationKey}
       resolveDetailNavigationPath={props.resolveDetailNavigationPath}

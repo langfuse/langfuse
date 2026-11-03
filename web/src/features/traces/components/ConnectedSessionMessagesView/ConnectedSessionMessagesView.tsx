@@ -1,7 +1,8 @@
 import { useMemo, useState, type ComponentProps } from "react";
 import { useRouter } from "next/router";
 import { ErrorBoundary } from "@sentry/nextjs";
-import { api } from "@/src/utils/api";
+import { useSessionMessageTraces } from "@/src/features/traces/hooks/useSessionMessageTraces";
+import { Button } from "@/src/components/design-system/Button/Button";
 import { useSelection } from "@/src/features/traces/contexts/SelectionProvider";
 import { traceNodeId } from "@/src/features/traces/fns/treeBuilding";
 import { useSessionTraceTranscripts } from "@/src/features/sessions/hooks/useSessionTraceTranscripts";
@@ -23,10 +24,11 @@ export function ConnectedSessionMessagesView({
 }) {
   const router = useRouter();
   const { openDetails } = useSelection();
-  const tracesQuery = api.sessions.tracesFromEvents.useQuery(
-    { projectId, sessionId },
-    { enabled, staleTime: 60 * 1_000 },
-  );
+  const tracesQuery = useSessionMessageTraces({
+    projectId,
+    sessionId,
+    enabled,
+  });
   const traces = useMemo(() => tracesQuery.data ?? [], [tracesQuery.data]);
   const [loadedTraceCount, setLoadedTraceCount] = useState(
     TRANSCRIPT_CHUNK_SIZE,
@@ -125,13 +127,11 @@ export function ConnectedSessionMessagesView({
     return (
       <div role="alert" className="p-3 text-sm">
         Could not load session messages.{" "}
-        <button
-          type="button"
-          className="underline"
+        <Button
+          text="Retry"
+          variant="text"
           onClick={() => tracesQuery.refetch()}
-        >
-          Retry
-        </button>
+        />
       </div>
     );
   }

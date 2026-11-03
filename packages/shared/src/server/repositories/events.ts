@@ -529,7 +529,8 @@ const TRACES_ORDER_BY_COLUMNS = TRACES_FROM_EVENTS_UI_COLUMN_DEFINITIONS.filter(
 export const MAX_OBSERVATIONS_PER_TRACE =
   env.LANGFUSE_MAX_OBSERVATIONS_PER_TRACE;
 
-export const MAX_OBSERVATIONS_PER_SESSION = MAX_OBSERVATIONS_PER_TRACE;
+export const MAX_OBSERVATIONS_PER_SESSION =
+  env.LANGFUSE_MAX_OBSERVATIONS_PER_TRACE;
 
 export const getObservationsForSessionFromEventsTable = async (params: {
   projectId: string;
@@ -3163,6 +3164,18 @@ export async function getAgentGraphDataFromEventsTable(
     params.sessionId !== undefined
       ? baseBuilder
           .where("e.session_id", "=", params.sessionId)
+          .orderBy("e.start_time", "asc")
+          .orderBy("e.event_ts", "desc")
+          .$call(
+            limitBy({
+              count: 1,
+              columns: (eb) => [
+                eb.ref("e.span_id"),
+                eb.ref("e.trace_id"),
+                eb.ref("e.project_id"),
+              ],
+            }),
+          )
           .limit(MAX_OBSERVATIONS_PER_SESSION)
       : baseBuilder.where("e.trace_id", "=", params.traceId);
 

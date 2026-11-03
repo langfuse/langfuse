@@ -15,6 +15,10 @@ import {
 } from "@/src/components/ui/tooltip";
 import { type LangfuseItemType } from "@/src/components/ItemBadge";
 import { EntityTitle } from "@/src/components/EntityTitle";
+import {
+  EntityTitleTabs,
+  type EntityTitleTabsProps,
+} from "@/src/components/EntityTitleTabs";
 import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNav";
 import type { ListEntry } from "@/src/features/navigate-detail-pages/DetailPageListsProvider";
 import {
@@ -33,7 +37,7 @@ import {
 type PeekHeaderProps = {
   itemType: LangfuseItemType;
   title: string;
-  titleControl?: React.ReactNode;
+  titleTabs?: EntityTitleTabsProps;
   itemId: string;
   detailNavigationKey?: string;
   resolveDetailNavigationPath?: (entry: ListEntry) => string;
@@ -84,7 +88,7 @@ const FULL: PeekHeaderPlan = {
 export function PeekHeader({
   itemType,
   title,
-  titleControl,
+  titleTabs,
   itemId,
   detailNavigationKey,
   resolveDetailNavigationPath,
@@ -99,7 +103,8 @@ export function PeekHeader({
   // controls settle (or data loads) after the first measurement — observe the
   // control cluster too, whose width does change, to re-trigger the plan.
   const [clusterRef, clusterSize] = useElementSize<HTMLDivElement>();
-  const [titleControlRef, titleControlSize] = useElementSize<HTMLDivElement>();
+  const [titleTabsRef, titleTabsSize] = useElementSize<HTMLDivElement>();
+  const hasTitleTabs = Boolean(titleTabs);
   const actionsRef = useRef<HTMLDivElement>(null);
   const openInTabRef = useRef<HTMLDivElement>(null);
   const navRef = useRef<HTMLDivElement>(null);
@@ -149,9 +154,9 @@ export function PeekHeader({
     const next = planPeekHeaderLayout({
       headerWidth: width,
       minTitle: MIN_TITLE_PX,
-      tileWidth: titleControl
-        ? (titleControlRef.current?.getBoundingClientRect().width ??
-          titleControlSize?.width ??
+      tileWidth: hasTitleTabs
+        ? (titleTabsRef.current?.getBoundingClientRect().width ??
+          titleTabsSize?.width ??
           TILE_PX * 2)
         : TILE_PX,
       navFullWidth: hasNav ? (widthsRef.current.navFull ?? NAV_FALLBACK_PX) : 0,
@@ -174,9 +179,9 @@ export function PeekHeader({
     hasOpenInTab,
     hasNav,
     plan,
-    titleControl,
-    titleControlRef,
-    titleControlSize?.width,
+    hasTitleTabs,
+    titleTabsRef,
+    titleTabsSize?.width,
   ]);
 
   const anyFolded = plan.foldActions || plan.foldOpenInTab;
@@ -188,14 +193,14 @@ export function PeekHeader({
         className="flex min-h-10 shrink-0 flex-row flex-nowrap items-center justify-between gap-2 overflow-hidden pt-3 pr-4 pb-1.5 pl-4"
       >
         <div className="flex min-w-0 items-center gap-2">
-          {titleControl && (
-            <div ref={titleControlRef} className="shrink-0">
-              {titleControl}
+          {titleTabs && (
+            <div ref={titleTabsRef} className="shrink-0">
+              <EntityTitleTabs {...titleTabs} />
             </div>
           )}
           <EntityTitle
             as="span"
-            type={titleControl ? undefined : itemType}
+            type={titleTabs ? undefined : itemType}
             title={title}
             isFocusable
           />

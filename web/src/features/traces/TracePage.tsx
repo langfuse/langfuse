@@ -13,7 +13,8 @@ import { stripBasePath } from "@/src/utils/redirect";
 import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { useReadPath } from "@/src/features/events/hooks/useReadPath";
 import { useInternalFeaturesEnabled } from "@/src/features/feature-flags/hooks/useInternalFeaturesEnabled";
-import { TraceScopeToggle } from "./components/TraceScopeToggle/TraceScopeToggle";
+import { getTraceScopeTabs } from "./fns/getTraceScopeTabs";
+import { getTraceScopeQuery } from "./fns/getTraceScopeQuery";
 import { resolveTraceScope } from "./fns/resolveTraceScope";
 
 export function TracePage({
@@ -115,34 +116,26 @@ export function TracePage({
         // Trace titles follow the route while the previous trace is kept as placeholder.
         title: isSessionScope && sessionId ? sessionId : traceId,
         itemType: isSessionScope ? "SESSION" : "TRACE",
-        titleControl: showScopeToggle ? (
-          <TraceScopeToggle
-            value={isSessionScope ? "session" : "trace"}
-            canSelectSession={canSelectSession}
-            onValueChange={(next) => {
-              const query = { ...router.query };
-              if (next === "session") {
-                query.aggregation = "session";
-              } else {
-                delete query.aggregation;
-                if (
-                  !trace.data?.observations.some(
-                    (observation) => observation.id === query.observation,
-                  )
-                ) {
-                  delete query.observation;
-                }
-              }
-              return router.replace(
-                { pathname: router.pathname, query },
-                undefined,
-                {
-                  shallow: true,
-                },
-              );
-            }}
-          />
-        ) : undefined,
+        titleTabs: showScopeToggle
+          ? getTraceScopeTabs({
+              value: isSessionScope ? "session" : "trace",
+              canSelectSession,
+              onValueChange: (next) => {
+                const query = getTraceScopeQuery(
+                  router.query,
+                  next,
+                  trace.data?.observations,
+                );
+                return router.replace(
+                  { pathname: router.pathname, query },
+                  undefined,
+                  {
+                    shallow: true,
+                  },
+                );
+              },
+            })
+          : undefined,
         divider: false,
         breadcrumb: [
           {

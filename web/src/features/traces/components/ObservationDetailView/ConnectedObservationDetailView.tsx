@@ -258,12 +258,18 @@ export function ConnectedObservationDetailView({
     setAdvancedJsonExpansion,
   } = useJsonExpansion();
   const observationScores = useMemo(
-    () => scores.filter((s) => s.observationId === observation.id),
-    [scores, observation.id],
+    () =>
+      scores.filter(
+        (s) => s.traceId === traceId && s.observationId === observation.id,
+      ),
+    [scores, traceId, observation.id],
   );
   const observationCorrections = useMemo(
-    () => corrections.filter((c) => c.observationId === observation.id),
-    [corrections, observation.id],
+    () =>
+      corrections.filter(
+        (c) => c.traceId === traceId && c.observationId === observation.id,
+      ),
+    [corrections, traceId, observation.id],
   );
 
   const outputCorrection = getMostRecentCorrection(observationCorrections);

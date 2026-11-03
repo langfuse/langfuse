@@ -1,3 +1,5 @@
+import { type TraceProps } from "../components/Trace";
+
 export function resolveTraceScope({
   internalFeaturesEnabled,
   isV4,
@@ -26,4 +28,3 @@ export function resolveTraceScope({
     isSessionScope: canSelectSession && aggregation === "session",
   };
 }
-import { type TraceProps } from "../components/Trace";

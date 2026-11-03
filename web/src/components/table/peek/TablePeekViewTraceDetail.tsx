@@ -10,7 +10,8 @@ import {
 import { resolvePeekTraceParams } from "@/src/components/table/peek/resolvePeekTraceParams";
 import { buildTracePath } from "@langfuse/shared";
 import { useIsAuthenticatedAndProjectMember } from "@/src/features/auth/hooks";
-import { TraceScopeToggle } from "@/src/features/traces/components/TraceScopeToggle/TraceScopeToggle";
+import { getTraceScopeTabs } from "@/src/features/traces/fns/getTraceScopeTabs";
+import { getTraceScopeQuery } from "@/src/features/traces/fns/getTraceScopeQuery";
 import { useInternalFeaturesEnabled } from "@/src/features/feature-flags/hooks/useInternalFeaturesEnabled";
 import { resolveTraceScope } from "@/src/features/traces/fns/resolveTraceScope";
 
@@ -82,35 +83,27 @@ export const TablePeekViewTraceDetail = (
       {...tablePeekViewProps}
       itemType={isSessionScope ? "SESSION" : tablePeekViewProps.itemType}
       title={isSessionScope && sessionId ? sessionId : traceId}
-      titleControl={
-        showScopeToggle ? (
-          <TraceScopeToggle
-            value={isSessionScope ? "session" : "trace"}
-            canSelectSession={canSelectSession}
-            onValueChange={(next) => {
-              const query = { ...router.query };
-              if (next === "session") {
-                query.aggregation = "session";
-              } else {
-                delete query.aggregation;
-                if (
-                  !trace.data?.observations.some(
-                    (observation) => observation.id === query.observation,
-                  )
-                ) {
-                  delete query.observation;
-                }
-              }
-              return router.replace(
-                { pathname: router.pathname, query },
-                undefined,
-                {
-                  shallow: true,
-                },
-              );
-            }}
-          />
-        ) : undefined
+      titleTabs={
+        showScopeToggle
+          ? getTraceScopeTabs({
+              value: isSessionScope ? "session" : "trace",
+              canSelectSession,
+              onValueChange: (next) => {
+                const query = getTraceScopeQuery(
+                  router.query,
+                  next,
+                  trace.data?.observations,
+                );
+                return router.replace(
+                  { pathname: router.pathname, query },
+                  undefined,
+                  {
+                    shallow: true,
+                  },
+                );
+              },
+            })
+          : undefined
       }
       hideExpandToggle
       preserveContentAcrossItems

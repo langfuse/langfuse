@@ -3,6 +3,10 @@ import { EnvLabelBadge } from "@/src/components/EnvLabelBadge";
 import { useEnvLabel } from "@/src/hooks/useEnvLabel";
 import { type LangfuseItemType } from "@/src/components/ItemBadge";
 import { EntityTitle } from "@/src/components/EntityTitle";
+import {
+  EntityTitleTabs,
+  type EntityTitleTabsProps,
+} from "@/src/components/EntityTitleTabs";
 import BreadcrumbComponent from "@/src/components/layouts/breadcrumb";
 import { PageHeaderControlsSlotTarget } from "@/src/components/layouts/page-header-controls-slot";
 import { InAppAiAgentButton } from "@/src/components/nav/InAppAiAgentButton";
@@ -49,7 +53,7 @@ export type PageHeaderProps = {
   titleTooltip?: string;
   itemType?: LangfuseItemType;
   /** Replaces the entity icon immediately before the title. */
-  titleControl?: ReactNode;
+  titleTabs?: EntityTitleTabsProps;
   container?: boolean;
   tabsProps?: PageTabsProps;
   className?: string;
@@ -68,7 +72,7 @@ export type PageHeaderProps = {
 const PageHeader = ({
   title,
   itemType,
-  titleControl,
+  titleTabs,
   actionButtonsLeft,
   actionButtonsRight,
   actionButtonsRightClassName,
@@ -168,11 +172,15 @@ const PageHeader = ({
             {/* Left side content */}
             <div className="flex min-w-0 grow flex-wrap items-center md:grow-0">
               <div className="mr-2 flex min-w-0 items-center gap-2">
-                {titleControl && <div className="shrink-0">{titleControl}</div>}
+                {titleTabs && (
+                  <div className="shrink-0">
+                    <EntityTitleTabs {...titleTabs} />
+                  </div>
+                )}
                 <div className="max-w-md min-w-0 md:max-w-none">
                   <EntityTitle
                     as="h2"
-                    type={titleControl ? undefined : itemType}
+                    type={titleTabs ? undefined : itemType}
                     title={title}
                     tooltip={titleTooltip}
                     help={help}
