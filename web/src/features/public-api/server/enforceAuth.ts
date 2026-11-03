@@ -49,10 +49,10 @@ const projectIdHeader = "langfuse-project-id";
 
 /** projectErrors are the 403 messages for a request whose target project cannot be resolved for the key. */
 export const projectErrors = {
-  missing: `Organization API keys require the 'x-${projectIdHeader}' header to select a project`,
+  missing: `Organization API keys require the '${projectIdHeader}' header to select a project`,
   pathMismatch:
     "The project in the URL does not match the project this API key belongs to",
-  headerMismatch: `The 'x-${projectIdHeader}' header does not match the project this API key belongs to`,
+  headerMismatch: `The '${projectIdHeader}' header does not match the project this API key belongs to`,
 } as const;
 
 /** enforceAuth authenticates the request and authorizes the action for the given endpoint, or only resolves context when the route skips authz (combines authz and authn). */

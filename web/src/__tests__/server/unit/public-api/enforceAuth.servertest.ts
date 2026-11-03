@@ -172,7 +172,7 @@ describe.each(["x-langfuse-project-id", "langfuse-project-id"])(
         error: expect.any(ForbiddenError),
       });
       expect(!result.success && result.error.message).toBe(
-        "The 'x-langfuse-project-id' header does not match the project this API key belongs to",
+        "The 'langfuse-project-id' header does not match the project this API key belongs to",
       );
     });
     it("403s a bound key whose path names another project", () => {
@@ -246,7 +246,7 @@ describe.each(["x-langfuse-project-id", "langfuse-project-id"])(
         error: expect.any(ForbiddenError),
       });
       expect(!result.success && result.error.message).toBe(
-        "Organization API keys require the 'x-langfuse-project-id' header to select a project",
+        "Organization API keys require the 'langfuse-project-id' header to select a project",
       );
     });
   },
