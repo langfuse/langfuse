@@ -59,8 +59,9 @@ export const TOPICS_MODEL_SLOT_DETAILS: Record<
       "Names and describes each topic when topics are updated. Use a stronger model such as GPT-5.6 Terra, or Claude Sonnet through Amazon Bedrock.",
   },
 };
+// Like evals: the provider name picks the project's connection, else its organization's.
 const topicsModelSlotSchema = z.object({
-  llmApiKeyId: z.string().min(1),
+  provider: z.string().min(1),
   model: z.string().trim().min(1).max(256),
 });
 export const topicsModelSettingsSchema = z.object({
