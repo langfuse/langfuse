@@ -59,6 +59,9 @@ import {
   BlobStorageExportMode,
   OBSERVATION_FIELD_GROUPS_FULL,
   type ObservationFieldGroupFull,
+  type ExportFieldGroup,
+  getObservationFieldGroups,
+  getTraceFieldGroups,
   isEnrichedBlobExportAvailable,
   isEnrichedBlobExportSource,
   isLegacyBlobExportSource,
@@ -382,7 +385,7 @@ const processBlobStorageExport = async (config: {
   // when `compressed` is true.
   gzipLevel: number | undefined;
   convertV4LatencyToSeconds: boolean;
-  exportFieldGroups?: ObservationFieldGroupFull[];
+  exportFieldGroups?: ExportFieldGroup[];
   rawPassthrough: boolean;
   // undefined concurrency/attempts => backend keeps its native default.
   partSizeBytes: number;
@@ -510,10 +513,15 @@ const processBlobStorageExport = async (config: {
             ? "application/gzip"
             : blobStorageProps.contentType;
 
-        const exportFieldGroups =
+        // Each table's query only receives its own groups; traces export in
+        // full unless a trace group is stored.
+        const selectedFieldGroups: ExportFieldGroup[] =
           config.exportFieldGroups && config.exportFieldGroups.length > 0
             ? config.exportFieldGroups
             : [...OBSERVATION_FIELD_GROUPS_FULL];
+        const exportFieldGroups =
+          getObservationFieldGroups(selectedFieldGroups);
+        const traceFieldGroups = getTraceFieldGroups(selectedFieldGroups);
 
         // blob.path already encodes parquet (no per-table fallback), so no
         // separate blob.config.parquet attribute is needed.
@@ -592,6 +600,7 @@ const processBlobStorageExport = async (config: {
                   config.projectId,
                   config.minTimestamp,
                   config.maxTimestamp,
+                  traceFieldGroups,
                 )
               ).stream;
               break;
@@ -685,6 +694,7 @@ const processBlobStorageExport = async (config: {
                 config.projectId,
                 config.minTimestamp,
                 config.maxTimestamp,
+                traceFieldGroups,
               );
               break;
             case "observations":
@@ -1349,7 +1359,7 @@ export const handleBlobStorageIntegrationProjectJob = async (
       gzipLevel: exportTuning.gzipLevel,
       convertV4LatencyToSeconds,
       exportFieldGroups:
-        blobStorageIntegration.exportFieldGroups as ObservationFieldGroupFull[],
+        blobStorageIntegration.exportFieldGroups as ExportFieldGroup[],
       rawPassthrough: exportTuning.rawPassthrough,
       partSizeBytes: exportTuning.partSizeBytes,
       maxConcurrentParts: exportTuning.maxConcurrentParts,

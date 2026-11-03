@@ -7,6 +7,11 @@ import {
   OBSERVATION_FIELD_GROUPS_FULL,
   type ObservationFieldGroupFull,
 } from "../../domain/observation-field-groups";
+import {
+  TRACE_EXPORT_FIELDS,
+  TRACE_EXPORT_FIELD_GROUPS,
+  type TraceExportFieldGroup,
+} from "../../domain/export-field-groups";
 
 export * from "./export-source-policy";
 export * from "./blob-export-tuning";
@@ -147,5 +152,21 @@ export const EXPORT_FIELD_GROUP_OPTIONS = OBSERVATION_FIELD_GROUPS_FULL.map(
     // Groups without legacy columns (trace_context) are a no-op for
     // legacy-only exports; the UI hides them for that source.
     includedInLegacyExport: legacyFieldsForGroup(value).length > 0,
+  }),
+);
+
+const TRACE_EXPORT_FIELD_GROUP_LABELS = {
+  trace_core: { label: "Core" },
+  trace_io: { label: "Input / Output" },
+  trace_metadata: { label: "Metadata" },
+} satisfies Record<TraceExportFieldGroup, { label: string }>;
+
+export const TRACE_EXPORT_FIELD_GROUP_OPTIONS = TRACE_EXPORT_FIELD_GROUPS.map(
+  (value) => ({
+    value,
+    ...TRACE_EXPORT_FIELD_GROUP_LABELS[value],
+    description: TRACE_EXPORT_FIELDS.filter((f) => f.group === value)
+      .map((f) => f.field)
+      .join(", "),
   }),
 );
