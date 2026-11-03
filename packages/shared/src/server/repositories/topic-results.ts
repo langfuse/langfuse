@@ -467,7 +467,7 @@ export async function listCurrentTopicSummaries(
     trace_name: string;
     environment: string;
     state: TopicSummaryState;
-    summary: string;
+    summary_text: string;
     summary_truncated: number;
     processed_at: string;
   }>({
@@ -475,8 +475,8 @@ export async function listCurrentTopicSummaries(
     kind: "summaries",
     select: `trace_id, facet_id, facet_version, unit_start_time, trace_name, environment,
       toString(processing_state) AS state,
-      if({truncate:Bool}, leftUTF8(summary, {previewLength:UInt32}), summary) AS summary,
       {truncate:Bool} AND lengthUTF8(summary) > {previewLength:UInt32} AS summary_truncated,
+      if({truncate:Bool}, leftUTF8(summary, {previewLength:UInt32}), summary) AS summary_text,
       processed_at`,
     extraParams: {
       truncate: input.truncateSummaries,
@@ -492,7 +492,7 @@ export async function listCurrentTopicSummaries(
       environment: row.environment,
       timestamp: parseClickhouseUTCDateTimeFormat(row.unit_start_time),
       state: row.state,
-      summary: row.summary,
+      summary: row.summary_text,
       summaryTruncated: Boolean(Number(row.summary_truncated)),
       processedAt: parseClickhouseUTCDateTimeFormat(row.processed_at),
     })),

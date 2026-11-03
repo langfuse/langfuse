@@ -134,7 +134,11 @@ export const topicResultsScenario: ScenarioDefinition = {
       (facet) => facet.isBuiltIn,
     );
     const facetIds = facets.map((facet) => facet.id);
-    const runIds = facetIds.map((_, index) => `${ctx.idPrefix}-run-${index}`);
+    // Run ids are global in Postgres, so they carry the project id.
+    const runIds = facetIds.map(
+      (_, index) => `${ctx.projectId}-${ctx.idPrefix}-run-${index}`,
+    );
+    const definedAt = new Date(utcDayStartMs());
     const topicVersionIds = (facetIndex: number) =>
       Array.from(
         { length: TOPICS_PER_FACET },
@@ -146,7 +150,14 @@ export const topicResultsScenario: ScenarioDefinition = {
         facetId,
         facetVersion: 1,
         status: "completed",
-        finishedAt: new Date(utcDayStartMs()),
+        finishedAt: definedAt,
+        // Published maps load their topic definitions within this range.
+        config: {
+          definitionTimeRange: {
+            from: definedAt.toISOString(),
+            to: new Date(definedAt.getTime() + 1).toISOString(),
+          },
+        },
         topicVersionIds: topicVersionIds(index),
       };
       await prisma.topicClusteringRun.upsert({

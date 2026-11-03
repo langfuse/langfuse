@@ -133,7 +133,9 @@ describe("current Topics summaries and assignments", () => {
     const assigned = summary(traces.assigned, issues, 6);
     const staleOld = summary(traces.stale, issues, 5);
     const stale = { ...staleOld, processedAt: "2026-10-06T00:00:00.000Z" };
-    const outlier = summary(traces.outlier, issues, 4);
+    const outlier = summary(traces.outlier, issues, 4, {
+      summary: "Long summary. ".repeat(50),
+    });
     const unpublished = summary(traces.unpublished, issues, 2);
     await writeTopicSummaries([
       assigned,
@@ -192,6 +194,16 @@ describe("current Topics summaries and assignments", () => {
     expect(
       result.rows.find((row) => row.traceId === traces.insufficient),
     ).toMatchObject({ state: "insufficient_input", traceName: "Überprüfung" });
+  });
+
+  it("truncates long summaries and flags them", async () => {
+    const rows = (await summaries([], { truncateSummaries: true })).rows;
+    const long = rows.find((row) => row.traceId === traces.outlier);
+    expect(long).toMatchObject({ summaryTruncated: true });
+    expect(long?.summary).toHaveLength(500);
+    expect(
+      rows.filter((row) => row.summaryTruncated).map((row) => row.traceId),
+    ).toEqual([traces.outlier]);
   });
 
   it("filters summaries by their current assignment only", async () => {
