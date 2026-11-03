@@ -47,7 +47,7 @@ export const openAiModelDiscoveryAdapter: ModelDiscoveryAdapter = {
   },
 };
 
-/** OpenAI keeps listing models past their shutdown date. An unparseable date keeps the model. */
+/** OpenAI keeps listing models past their shutdown date. An unparsable date keeps the model. */
 function isShutDown(shutdownDate: string | null | undefined, now: number) {
   if (!shutdownDate) return false;
   return Date.parse(`${shutdownDate}T00:00:00Z`) < now;

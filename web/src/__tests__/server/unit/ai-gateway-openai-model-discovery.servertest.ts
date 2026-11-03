@@ -10,7 +10,7 @@ const openAiModels = [
   { id: "gpt-5-chat-latest", created: 1, shutdown_date: "2026-07-23" },
   { id: "gpt-4o-2024-11-20", created: 1, shutdown_date: "2027-01-14" },
   { id: "gpt-4o-mini", created: 1 },
-  { id: "unparseable-shutdown", created: 1, shutdown_date: "soon" },
+  { id: "unparsable-shutdown", created: 1, shutdown_date: "soon" },
   { id: "non-string-shutdown", created: 1, shutdown_date: 20260101 },
 ];
 
@@ -40,7 +40,7 @@ describe("OpenAI model discovery", () => {
       "gpt-5.2-pro",
       "gpt-4o-2024-11-20",
       "gpt-4o-mini",
-      "unparseable-shutdown",
+      "unparsable-shutdown",
       "non-string-shutdown",
     ]);
   });
