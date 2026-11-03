@@ -23,6 +23,7 @@ const resolveBodySchema = z
     model: z
       .string()
       .refine((model) => modelRoutingService.resolve(model, []) !== null),
+    requestBytes: z.number().int().nonnegative(),
   })
   .strict();
 const modelsQuerySchema = z
@@ -43,6 +44,7 @@ type GatewayResolveHandler = (
   params: GatewayControlPlaneHandlerParams & {
     apiFormat: GatewayApiFormat;
     model: string;
+    requestBytes: number;
   },
 ) => Promise<unknown>;
 
@@ -119,6 +121,7 @@ export function withGatewayResolveSignatureVerification(
         ...params,
         apiFormat: body.apiFormat,
         model: body.model,
+        requestBytes: body.requestBytes,
       }),
     resolveBodySchema,
   );
