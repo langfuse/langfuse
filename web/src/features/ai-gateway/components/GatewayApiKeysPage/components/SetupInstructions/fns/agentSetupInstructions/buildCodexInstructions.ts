@@ -24,7 +24,7 @@ export function buildCodexInstructions(
       {
         title: "Export the gateway key",
         description:
-          "Codex reads the key from this variable on every start. Add the line to your shell profile (for example ~/.zshrc or ~/.bashrc) so new terminals have it too.",
+          "Codex reads the key from this variable on every start. Add the line to your shell profile, for example ~/.zshrc, so new terminals have it too.",
         language: "sh",
         code: ` export LANGFUSE_GATEWAY_KEY="${GATEWAY_KEY_PLACEHOLDER}"`,
       },
