@@ -46,12 +46,12 @@ async function grant(
   }
   if (!request.email.endsWith(`@${SUPPORT_EMAIL_DOMAIN}`)) {
     return rejected(
-      `Requester email ${request.email} is not allowed. Only @${SUPPORT_EMAIL_DOMAIN} accounts can request support access; request again with your @${SUPPORT_EMAIL_DOMAIN} identity.`,
+      `Requester email is not allowed. Only @${SUPPORT_EMAIL_DOMAIN} accounts can request support access; request again with your @${SUPPORT_EMAIL_DOMAIN} identity.`,
     );
   }
   if (!user) {
     return rejected(
-      `No Langfuse account for ${request.email} found in this region. Sign up with Google first using your @${SUPPORT_EMAIL_DOMAIN} account, then submit a new request.`,
+      `No Clickhouse account found for the requester in this region. Sign up with Google first using your @${SUPPORT_EMAIL_DOMAIN} account, then submit a new request.`,
     );
   }
 
