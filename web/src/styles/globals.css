@@ -456,21 +456,20 @@
     --customer-data-banner: 48 96% 89%;
     --customer-data-banner-foreground: 21 92% 14%;
     --customer-data-banner-border: 48 97% 77%;
-    /* Legacy-API shutdown strip. Pale orange (pre-cutoff) and pale red
-       (brownout and cut), each with a darker link — the same shape as the
-       preview strip, not a saturated incident fill. Orange-50/950/200/700/800
-       and red-50/900/200/700/800, so it stays distinct from the amber
-       customer-data strip. */
-    --migration-banner-warning: 33 100% 96%;
-    --migration-banner-warning-foreground: 13 81% 14%;
-    --migration-banner-warning-border: 32 98% 83%;
-    --migration-banner-warning-link: 17 88% 40%;
-    --migration-banner-warning-link-hover: 15 79% 34%;
-    --migration-banner-critical: 0 86% 97%;
-    --migration-banner-critical-foreground: 0 63% 24%;
-    --migration-banner-critical-border: 0 96% 89%;
-    --migration-banner-critical-link: 0 74% 42%;
-    --migration-banner-critical-link-hover: 0 70% 35%;
+    /* Legacy v3 shutdown strip. Orange-500 fill until a surface is off
+       (text is orange-950, 5.6:1; links are black, 7.5:1). Red-700 fill once
+       ingestion and APIs are paused or cut (white text, 6.5:1). Same colors
+       in dark mode so the bar stays orange or red. */
+    --migration-banner-warning: 24.6 95% 53.1%;
+    --migration-banner-warning-foreground: 13 81.1% 14.5%;
+    --migration-banner-warning-border: 20.5 90.2% 40%;
+    --migration-banner-warning-link: 0 0% 0%;
+    --migration-banner-warning-link-hover: 0 0% 0%;
+    --migration-banner-critical: 0 73.7% 41.8%;
+    --migration-banner-critical-foreground: 0 0% 100%;
+    --migration-banner-critical-border: 0 70% 32%;
+    --migration-banner-critical-link: 0 0% 100%;
+    --migration-banner-critical-link-hover: 0 86% 97%;
     /* Checked selection controls (checkbox/switch): monochrome in BOTH
        modes — dark fill + light glyph in light, muted-white fill + dark
        glyph in dark. Deliberately dimmer than --primary in dark so checked
@@ -715,18 +714,18 @@
     --customer-data-banner: 32 40% 16%;
     --customer-data-banner-foreground: 48 96% 89%;
     --customer-data-banner-border: 36 35% 28%;
-    /* Legacy-API shutdown strip on the dark canvas: warm and red fills a
-       step above the canvas, light body text, brighter links. */
-    --migration-banner-warning: 24 40% 14%;
-    --migration-banner-warning-foreground: 33 90% 88%;
-    --migration-banner-warning-border: 24 30% 26%;
-    --migration-banner-warning-link: 27 96% 61%;
-    --migration-banner-warning-link-hover: 27 96% 72%;
-    --migration-banner-critical: 0 40% 14%;
-    --migration-banner-critical-foreground: 0 80% 90%;
-    --migration-banner-critical-border: 0 32% 26%;
-    --migration-banner-critical-link: 0 91% 71%;
-    --migration-banner-critical-link-hover: 0 96% 80%;
+    /* Same saturated orange and red as light mode. Pale fills disappear
+       on the dark canvas. */
+    --migration-banner-warning: 24.6 95% 53.1%;
+    --migration-banner-warning-foreground: 13 81.1% 14.5%;
+    --migration-banner-warning-border: 20.5 90.2% 40%;
+    --migration-banner-warning-link: 0 0% 0%;
+    --migration-banner-warning-link-hover: 0 0% 0%;
+    --migration-banner-critical: 0 73.7% 41.8%;
+    --migration-banner-critical-foreground: 0 0% 100%;
+    --migration-banner-critical-border: 0 70% 32%;
+    --migration-banner-critical-link: 0 0% 100%;
+    --migration-banner-critical-link-hover: 0 86% 97%;
     --control-fill: 0 0% 78%;
     --control-track: 0 0% 24%;
     /* Matches --border-contrast: unchecked checkboxes/radios read by their

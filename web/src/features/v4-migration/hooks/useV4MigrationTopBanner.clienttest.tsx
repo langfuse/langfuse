@@ -126,7 +126,7 @@ describe("useV4MigrationTopBanner", () => {
     render(<ConnectedBanner />);
 
     expect(screen.getByRole("status")).toHaveTextContent(
-      "1 project still uses legacy APIs. Update before Nov 16.",
+      "1 project still uses legacy v3 features like ingestion, APIs, evals and exports. Update before Nov 16.",
     );
     expect(mocks.queryInput).toEqual({
       orgId: "org-1",
@@ -148,7 +148,11 @@ describe("useV4MigrationTopBanner", () => {
       { phase: "amber", role: "admin", actionNeededCount: 1, cta: "primary" },
     );
 
-    fireEvent.click(screen.getByRole("link", { name: "legacy APIs" }));
+    fireEvent.click(
+      screen.getByRole("link", {
+        name: "legacy v3 features like ingestion, APIs, evals and exports",
+      }),
+    );
     expect(mocks.capture).toHaveBeenCalledWith(
       "v4_migration:top_banner_cta_clicked",
       { phase: "amber", role: "admin", actionNeededCount: 1, cta: "docs" },
@@ -163,12 +167,13 @@ describe("useV4MigrationTopBanner", () => {
       screen.queryByRole("button", { name: "Update" }),
     ).not.toBeInTheDocument();
     expect(screen.getByRole("status")).toHaveTextContent(
-      "1 project still uses legacy APIs. Ask an admin before Nov 16.",
+      "1 project still uses legacy v3 features like ingestion, APIs, evals and exports. Ask an admin before Nov 16.",
     );
-    expect(screen.getByRole("link", { name: "legacy APIs" })).toHaveAttribute(
-      "href",
-      "https://langfuse.com/docs/v4",
-    );
+    expect(
+      screen.getByRole("link", {
+        name: "legacy v3 features like ingestion, APIs, evals and exports",
+      }),
+    ).toHaveAttribute("href", "https://langfuse.com/docs/v4");
     expect(mocks.capture).toHaveBeenCalledWith(
       "v4_migration:top_banner_shown",
       { phase: "amber", role: "member", actionNeededCount: 1 },
@@ -195,7 +200,7 @@ describe("useV4MigrationTopBanner", () => {
     render(<ConnectedBanner />);
 
     expect(screen.getByRole("status")).toHaveTextContent(
-      "Legacy APIs are off. Update the project still using them.",
+      "Legacy v3 ingestion, APIs, evals and exports are turned off. Update now.",
     );
     expect(
       screen.queryByRole("button", { name: "Close" }),

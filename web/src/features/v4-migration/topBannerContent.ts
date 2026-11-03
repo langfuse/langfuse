@@ -99,6 +99,17 @@ function formatClock(date: Date, timeZone: string | undefined) {
   return zone ? `${time} ${zone}` : time;
 }
 
+/** "15:00 to 18:00 GMT+1" in the viewer's timezone. */
+function formatWindowRange(
+  start: Date,
+  end: Date,
+  timeZone: string | undefined,
+) {
+  const range = `${formatWindowTime(start, timeZone)} to ${formatWindowTime(end, timeZone)}`;
+  const zone = formatTimeZoneName(start, timeZone);
+  return zone ? `${range} ${zone}` : range;
+}
+
 function localDayKey(date: Date, timeZone: string | undefined) {
   return date.toLocaleDateString("en-CA", { timeZone });
 }
@@ -125,9 +136,11 @@ function fix(
 }
 
 /**
- * getV4MigrationTopBannerContent builds one short sentence per phase. Dates,
- * the detection window and the brownout schedule live in the migration panel.
- * Brownout times render in the viewer's local timezone (`timeZone` pins tests).
+ * getV4MigrationTopBannerContent builds one short sentence per phase.
+ * Nov 16 stops evaluators and exports. Brownouts pause ingestion and APIs.
+ * Nov 19 turns ingestion and APIs off. Times render in the viewer's timezone
+ * (`timeZone` pins tests). Orange (`warning`) until a surface is actually off;
+ * red (`critical`) during a brownout and after the cut.
  */
 export function getV4MigrationTopBannerContent(params: {
   phase: V4MigrationTopBannerPhase;
@@ -152,7 +165,7 @@ export function getV4MigrationTopBannerContent(params: {
       severity: "warning",
       parts: [
         `${stillUse(actionNeededCount)} `,
-        docs("legacy APIs"),
+        docs("legacy v3 features like ingestion, APIs, evals and exports"),
         ". ",
         ...fix(
           canManageIntegrations,
@@ -167,15 +180,12 @@ export function getV4MigrationTopBannerContent(params: {
     return {
       severity: "critical",
       parts: [
-        docs("Legacy APIs"),
-        " are off. ",
+        docs("Legacy v3 ingestion, APIs, evals and exports"),
+        " are turned off. ",
         ...fix(
           canManageIntegrations,
-          [
-            panel("Update"),
-            ` ${actionNeededCount === 1 ? "the project" : `${actionNeededCount} projects`} still using them.`,
-          ],
-          "Ask an admin.",
+          [panel("Update"), " now."],
+          "Ask an admin now.",
         ),
       ],
     };
@@ -185,39 +195,40 @@ export function getV4MigrationTopBannerContent(params: {
     phase === "brownout_active" ? state.activeWindow : state.nextWindow;
   if (!window) {
     return {
-      severity: "critical",
+      severity: "warning",
       parts: [
-        docs("Legacy APIs"),
-        ` shut off ${cutDate}. `,
+        docs("Legacy v3 ingestion and APIs"),
+        ` shut off ${cutDate}. Evals and exports are already off. `,
         ...fix(
           canManageIntegrations,
-          [panel("Update"), " before then."],
-          "Ask an admin.",
+          [panel("Update"), " now."],
+          "Ask an admin now.",
         ),
       ],
     };
   }
 
   return {
-    severity: "critical",
+    // Orange until the ingestion and API pause starts. Red while it is on.
+    severity: phase === "brownout_active" ? "critical" : "warning",
     parts:
       phase === "brownout_active"
         ? [
-            docs("Legacy APIs"),
-            ` are paused until ${formatClock(window.endsAt, timeZone)}. `,
+            docs("Legacy v3 ingestion and APIs"),
+            ` are paused until ${formatClock(window.endsAt, timeZone)}. Evals and exports stay off. `,
             ...fix(
               canManageIntegrations,
               [panel("Update"), " now."],
-              "Ask an admin.",
+              "Ask an admin now.",
             ),
           ]
         : [
-            docs("Legacy APIs"),
-            ` pause ${formatWindowDay(window.startsAt, state.serverNow, timeZone)} at ${formatClock(window.startsAt, timeZone)}. `,
+            docs("Legacy v3 ingestion and APIs"),
+            ` pause ${formatWindowDay(window.startsAt, state.serverNow, timeZone)} ${formatWindowRange(window.startsAt, window.endsAt, timeZone)}. Evals and exports are already off. `,
             ...fix(
               canManageIntegrations,
-              [panel("Update"), " before then."],
-              "Ask an admin.",
+              [panel("Update"), " now."],
+              "Ask an admin now.",
             ),
           ],
   };

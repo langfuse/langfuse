@@ -76,7 +76,9 @@ export const AdminPrimaryAction = meta.story({
     const canvas = within(canvasElement);
     await userEvent.click(canvas.getByRole("button", { name: "Update" }));
     await expect(args.onPrimaryClick).toHaveBeenCalled();
-    const docs = canvas.getByRole("link", { name: "legacy APIs" });
+    const docs = canvas.getByRole("link", {
+      name: "legacy v3 features like ingestion, APIs, evals and exports",
+    });
     await expect(docs).toHaveAttribute("href", "https://langfuse.com/docs/v4");
     await userEvent.click(docs);
     await expect(args.onSecondaryClick).toHaveBeenCalled();

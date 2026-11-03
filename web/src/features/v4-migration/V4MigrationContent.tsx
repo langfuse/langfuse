@@ -1348,9 +1348,10 @@ export function V4MigrationDeadlineNote() {
       >
         {V4_MIGRATION_DEADLINE}
       </ExternalLink>
-      . Legacy ingestion and APIs shut off on {V4_LEGACY_API_CUT_DATE}. Legacy
-      APIs pause {formatBerlinBrownoutSchedule()} Europe/Berlin. Counts use the
-      last {V4_MIGRATION_LOOKBACK_DAYS} days of traffic.
+      . Legacy ingestion and APIs shut off on {V4_LEGACY_API_CUT_DATE}.
+      Ingestion and APIs also pause {formatBerlinBrownoutSchedule()}{" "}
+      Europe/Berlin. Counts use the last {V4_MIGRATION_LOOKBACK_DAYS} days of
+      traffic.
     </p>
   );
 }

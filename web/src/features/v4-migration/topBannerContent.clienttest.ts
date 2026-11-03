@@ -76,16 +76,16 @@ describe("getV4MigrationTopBannerContent", () => {
     const amber = content({});
     expect(amber.severity).toBe("warning");
     expect(sentence(amber)).toBe(
-      "2 projects still use legacy APIs. Update before Nov 16.",
+      "2 projects still use legacy v3 features like ingestion, APIs, evals and exports. Update before Nov 16.",
     );
     expect(docsLink(amber)).toEqual({
       kind: "docs",
-      label: "legacy APIs",
+      label: "legacy v3 features like ingestion, APIs, evals and exports",
       href: "https://langfuse.com/docs/v4",
     });
     expect(panelLabel(amber)).toEqual({ kind: "panel", label: "Update" });
     expect(sentence(content({ actionNeededCount: 1 }))).toBe(
-      "1 project still uses legacy APIs. Update before Nov 16.",
+      "1 project still uses legacy v3 features like ingestion, APIs, evals and exports. Update before Nov 16.",
     );
   });
 
@@ -98,13 +98,13 @@ describe("getV4MigrationTopBannerContent", () => {
         nextWindow: day2!,
       },
     });
-    expect(berlin.severity).toBe("critical");
+    expect(berlin.severity).toBe("warning");
     expect(sentence(berlin)).toBe(
-      "Legacy APIs pause today at 15:00 GMT+1. Update before then.",
+      "Legacy v3 ingestion and APIs pause today 15:00 to 18:00 GMT+1. Evals and exports are already off. Update now.",
     );
     expect(docsLink(berlin)).toMatchObject({
       kind: "docs",
-      label: "Legacy APIs",
+      label: "Legacy v3 ingestion and APIs",
       href: "https://langfuse.com/docs/v4",
     });
 
@@ -118,7 +118,7 @@ describe("getV4MigrationTopBannerContent", () => {
       },
     });
     expect(sentence(newYork)).toBe(
-      "Legacy APIs pause today at 09:00 EST. Update before then.",
+      "Legacy v3 ingestion and APIs pause today 09:00 to 12:00 EST. Evals and exports are already off. Update now.",
     );
   });
 
@@ -134,7 +134,9 @@ describe("getV4MigrationTopBannerContent", () => {
           },
         }),
       ),
-    ).toBe("Legacy APIs pause tomorrow at 15:00 GMT+1. Update before then.");
+    ).toBe(
+      "Legacy v3 ingestion and APIs pause tomorrow 15:00 to 18:00 GMT+1. Evals and exports are already off. Update now.",
+    );
   });
 
   it("brownout day: points at the cut once the last window has passed", () => {
@@ -149,7 +151,9 @@ describe("getV4MigrationTopBannerContent", () => {
           },
         }),
       ),
-    ).toBe("Legacy APIs shut off Nov 19. Update before then.");
+    ).toBe(
+      "Legacy v3 ingestion and APIs shut off Nov 19. Evals and exports are already off. Update now.",
+    );
   });
 
   it("brownout active: names when the pause ends", () => {
@@ -164,7 +168,7 @@ describe("getV4MigrationTopBannerContent", () => {
     });
     expect(active.severity).toBe("critical");
     expect(sentence(active)).toBe(
-      "Legacy APIs are paused until 20:00 GMT+1. Update now.",
+      "Legacy v3 ingestion and APIs are paused until 20:00 GMT+1. Evals and exports stay off. Update now.",
     );
   });
 
@@ -172,10 +176,10 @@ describe("getV4MigrationTopBannerContent", () => {
     const cut = content({ phase: "cut", actionNeededCount: 3 });
     expect(cut.severity).toBe("critical");
     expect(sentence(cut)).toBe(
-      "Legacy APIs are off. Update 3 projects still using them.",
+      "Legacy v3 ingestion, APIs, evals and exports are turned off. Update now.",
     );
     expect(sentence(content({ phase: "cut", actionNeededCount: 1 }))).toBe(
-      "Legacy APIs are off. Update the project still using them.",
+      "Legacy v3 ingestion, APIs, evals and exports are turned off. Update now.",
     );
     expect(docsLink(cut)).toMatchObject({
       href: "https://langfuse.com/docs/v4",
@@ -196,7 +200,9 @@ describe("getV4MigrationTopBannerContent", () => {
       });
       expect(panelLabel(member)).toBeUndefined();
       expect(sentence(member)).toMatch(
-        phase === "amber" ? /Ask an admin before Nov 16\.$/ : /Ask an admin\.$/,
+        phase === "amber"
+          ? /Ask an admin before Nov 16\.$/
+          : /Ask an admin now\.$/,
       );
       expect(docsLink(member)).toMatchObject({
         href: expect.stringMatching(/^https:\/\/langfuse\.com/),
