@@ -106,6 +106,7 @@ import {
   isStorableTraceSessionId,
 } from "@langfuse/shared/src/server";
 
+import { recordTrpcProcedureAccess } from "@/src/ee/features/access-audit-log/server/trpcAccessRoutes";
 import { AdminApiAuthService } from "@/src/ee/features/admin-api/server/adminApiAuth";
 import { env } from "@/src/env.mjs";
 import { isBaseError, parseIO } from "@langfuse/shared";
@@ -236,6 +237,24 @@ const withErrorHandling = t.middleware(async ({ ctx, next }) => {
     }
   }
 
+  return res;
+});
+
+// Records reads of trace, observation, session and score data, and refused
+// attempts at them, as audit access events (EE). Runs outside the access
+// checks so it sees their refusals.
+const withAccessAuditLog = t.middleware(async (opts) => {
+  const res = await opts.next();
+  if (opts.type !== "query") return res;
+
+  await recordTrpcProcedureAccess({
+    path: opts.path,
+    ctx: opts.ctx,
+    getRawInput: opts.getRawInput,
+    result: res.ok
+      ? { ok: true, data: res.data }
+      : { ok: false, code: resolveError(res.error).code },
+  });
   return res;
 });
 
@@ -433,6 +452,7 @@ const enforceUserIsAuthedAndProjectMember = t.middleware(async (opts) => {
 
 export const protectedProjectProcedure = withOtelTracingProcedure
   .use(withErrorHandling)
+  .use(withAccessAuditLog)
   .use(enforceUserIsAuthedAndProjectMember);
 
 /** requireV4Writes rejects calls from deployments without v4 event tables */
@@ -445,6 +465,7 @@ export const requireV4Writes = t.middleware(({ next }) => {
 
 export const protectedProjectProcedureWithoutTracing = t.procedure
   .use(withErrorHandling)
+  .use(withAccessAuditLog)
   .use(enforceUserIsAuthedAndProjectMember);
 
 const inputOrganizationSchema = z.object({
@@ -680,10 +701,12 @@ const enforceTraceAccess = (readSource: "v3" | "v4") =>
 
 export const protectedGetTraceProcedure = withOtelTracingProcedure
   .use(withErrorHandling)
+  .use(withAccessAuditLog)
   .use(enforceTraceAccess("v3"));
 
 export const protectedGetEventsTraceProcedure = withOtelTracingProcedure
   .use(withErrorHandling)
+  .use(withAccessAuditLog)
   .use(enforceTraceAccess("v4"));
 
 /*
@@ -768,6 +791,7 @@ const enforceSessionAccess = t.middleware(async (opts) => {
 
 export const protectedGetSessionProcedure = withOtelTracingProcedure
   .use(withErrorHandling)
+  .use(withAccessAuditLog)
   .use(enforceSessionAccess);
 
 const inputAdminSchema = z.object({

@@ -33,6 +33,9 @@ export type AccessRead = {
   resourceRefs: AuditLogResourceRef[];
   params?: unknown;
   resultCount?: number;
+  /** Set when the read was refused; the resource was not returned. */
+  outcome?: "denied";
+  outcomeReason?: string;
 };
 
 type AccessEvent = Omit<
@@ -76,7 +79,8 @@ async function loadAccessAuditOrg(
 /**
  * Records a tRPC read when its org records access events. Call it before
  * returning the data: a failed write fails the read. Anonymous viewers of
- * public resources have no actor and are not recorded.
+ * public resources have no actor and are not recorded. A function `read` is
+ * only called for orgs that record access events.
  */
 export async function recordTrpcAccess(
   ctx: {
@@ -84,7 +88,7 @@ export async function recordTrpcAccess(
     headers: IncomingHttpHeaders;
   },
   projectId: string,
-  read: AccessRead,
+  read: AccessRead | (() => AccessRead),
 ): Promise<void> {
   const user = ctx.session?.user;
   if (!user) return;
@@ -107,7 +111,7 @@ export async function recordTrpcAccess(
   }
 
   await recordAccessEvent({
-    ...read,
+    ...(typeof read === "function" ? read() : read),
     orgId: auditOrg.orgId,
     projectId,
     actor: toUserActor(user, {
