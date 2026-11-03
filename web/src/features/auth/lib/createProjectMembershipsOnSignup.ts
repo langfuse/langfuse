@@ -326,14 +326,13 @@ async function processMembershipInvitations(email: string, userId: string) {
   });
   if (invitationsForUser.length === 0) return false;
 
-  const joinedReadableRealProjectViaInvitation = invitationsForUser.some(
+  const joinedRealOrganizationViaInvitation = invitationsForUser.some(
     (invitation) => {
-      if (
-        invitation.orgId === env.NEXT_PUBLIC_DEMO_ORG_ID ||
-        !invitation.projectId
-      ) {
-        return false;
-      }
+      if (invitation.orgId === env.NEXT_PUBLIC_DEMO_ORG_ID) return false;
+      // Gateway-only members see no projects but belong in the inviting org,
+      // where they create their AI Gateway keys.
+      if (invitation.orgRole === Role.AI_GATEWAY) return true;
+      if (!invitation.projectId) return false;
 
       const projectRole = invitation.projectRole ?? invitation.orgRole;
       return projectRoleAccessRights[projectRole].includes("project:read");
@@ -386,5 +385,5 @@ async function processMembershipInvitations(email: string, userId: string) {
     ),
   );
 
-  return joinedReadableRealProjectViaInvitation;
+  return joinedRealOrganizationViaInvitation;
 }

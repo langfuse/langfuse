@@ -443,6 +443,86 @@ describe("onboarding router", () => {
     });
   });
 
+  it("lands AI Gateway invitees on the inviting org instead of creating starter resources", async () => {
+    const userId = randomUUID();
+    const email = `invited-gateway-${userId}@example.com`;
+    createdUserIds.push(userId);
+
+    const user = await prisma.user.create({
+      data: {
+        id: userId,
+        email,
+        name: "Gale Test",
+      },
+    });
+
+    const organization = await prisma.organization.create({
+      data: {
+        name: `Gateway Org ${userId}`,
+      },
+    });
+    createdOrgIds.push(organization.id);
+
+    await prisma.project.create({
+      data: {
+        name: `Gateway Org Project ${userId}`,
+        orgId: organization.id,
+      },
+    });
+
+    await prisma.membershipInvitation.create({
+      data: {
+        orgId: organization.id,
+        email,
+        orgRole: Role.AI_GATEWAY,
+      },
+    });
+
+    await createProjectMembershipsOnSignup(user, {
+      userWasJustCreated: true,
+    });
+
+    const organizationMemberships =
+      await prisma.organizationMembership.findMany({
+        where: {
+          userId,
+          ...(env.NEXT_PUBLIC_DEMO_ORG_ID
+            ? { orgId: { not: env.NEXT_PUBLIC_DEMO_ORG_ID } }
+            : {}),
+        },
+        select: {
+          orgId: true,
+          role: true,
+        },
+      });
+    createdOrgIds.push(
+      ...organizationMemberships
+        .map((membership) => membership.orgId)
+        .filter((orgId) => orgId !== organization.id),
+    );
+
+    expect(organizationMemberships).toEqual([
+      { orgId: organization.id, role: Role.AI_GATEWAY },
+    ]);
+
+    const caller = appRouter.createCaller({
+      ...createInnerTRPCContext({
+        session: makeSession({
+          userId,
+          email,
+          name: "Gale Test",
+        }),
+        headers: {},
+      }),
+      prisma,
+    });
+
+    expect(await caller.onboarding.complete()).toEqual({
+      redirectTo: `/organization/${organization.id}`,
+      surveyCreated: true,
+    });
+  });
+
   it("falls back to manual project creation when a real org exists without a project", async () => {
     const userId = randomUUID();
     const email = `org-only-${userId}@example.com`;
