@@ -17,8 +17,7 @@ type TransferProjectActor =
 
 /**
  * transferProject moves a project into another organization. The project
- * keeps its data and API keys and loses its memberships. A project that is
- * already in the target organization is left untouched. Callers must check
+ * keeps its data and API keys and loses its memberships. Callers must check
  * `projects:transfer_org` in both organizations.
  */
 export async function transferProject(params: {
@@ -30,8 +29,6 @@ export async function transferProject(params: {
   actor: TransferProjectActor;
 }) {
   const { prisma, organizationId, targetOrganizationId, projectId } = params;
-  if (organizationId === targetOrganizationId) return;
-
   await auditLog({
     ...params.actor,
     resourceType: "project",
