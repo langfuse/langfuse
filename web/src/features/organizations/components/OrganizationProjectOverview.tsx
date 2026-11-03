@@ -57,6 +57,8 @@ import { useGatewaySettingsAccess } from "@/src/features/ai-gateway/hooks/useGat
 import { getContextualFeatureFlags } from "@/src/features/feature-flags/utils";
 import { gatewayOnlyLanding } from "@/src/features/organizations/utils/gatewayOnlyLanding";
 import { OrganizationSettingsTile } from "@/src/features/organizations/components/OrganizationSettingsTile/OrganizationSettingsTile";
+import { GatewayMemberTile } from "@/src/features/organizations/components/GatewayMemberTile/GatewayMemberTile";
+import { useGatewayMemberStatus } from "@/src/features/organizations/hooks/useGatewayMemberStatus";
 
 const lastTraceLabel = (lastTraceAt: Date | string | null | undefined) =>
   lastTraceAt
@@ -382,7 +384,7 @@ const SingleOrganizationProjectOverviewTile = ({
   );
 };
 
-/** OrganizationProjects lists the org's projects, or points to its settings when the user has none */
+/** OrganizationProjects lists the org's projects, or points to its settings (gateway-only members: the gateway) when the user has none */
 const OrganizationProjects = ({
   org,
   search,
@@ -396,18 +398,26 @@ const OrganizationProjects = ({
     scope: "projects:create",
   });
 
-  if (org.projects.length === 0) {
-    return (
-      <OrganizationSettingsTile
-        orgId={org.id}
-        canCreateProject={canCreateProject}
-        isGatewayOnlyMember={
-          gatewayOnlyLanding(session.data, org.id)?.canUseGateway === true
-        }
-      />
-    );
+  if (org.projects.length > 0) {
+    return <OrganizationProjectTiles org={org} search={search} />;
   }
-  return <OrganizationProjectTiles org={org} search={search} />;
+  if (gatewayOnlyLanding(session.data, org.id)?.canUseGateway === true) {
+    return <ConnectedGatewayMemberTile org={org} />;
+  }
+  return (
+    <OrganizationSettingsTile
+      orgId={org.id}
+      canCreateProject={canCreateProject}
+    />
+  );
+};
+
+/** ConnectedGatewayMemberTile loads the member's gateway status into the tile */
+const ConnectedGatewayMemberTile = ({ org }: { org: Organization }) => {
+  const status = useGatewayMemberStatus(org.id);
+  return (
+    <GatewayMemberTile orgId={org.id} orgName={org.name} status={status} />
+  );
 };
 
 export const OrganizationProjectOverview = () => {

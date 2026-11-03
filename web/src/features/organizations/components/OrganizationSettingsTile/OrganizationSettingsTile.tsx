@@ -1,4 +1,4 @@
-import { KeyRound, PlusIcon, Settings } from "@langfuse/icons";
+import { PlusIcon, Settings } from "@langfuse/icons";
 import Link from "next/link";
 
 import {
@@ -14,14 +14,12 @@ import { createProjectRoute } from "@/src/features/setup/setupRoutes";
 export type OrganizationSettingsTileProps = {
   orgId: string;
   canCreateProject: boolean;
-  isGatewayOnlyMember: boolean;
 };
 
-/** OrganizationSettingsTile links to project creation when allowed, and to the org's settings or, for gateway-only members, their gateway keys */
+/** OrganizationSettingsTile links to the org's settings, and to project creation when allowed */
 export const OrganizationSettingsTile = ({
   orgId,
   canCreateProject,
-  isGatewayOnlyMember,
 }: OrganizationSettingsTileProps) => (
   <Card>
     <CardHeader>
@@ -41,21 +39,12 @@ export const OrganizationSettingsTile = ({
           </Link>
         </Button>
       )}
-      {isGatewayOnlyMember ? (
-        <Button asChild>
-          <Link href={`/organization/${orgId}/settings/ai-gateway-api-keys`}>
-            <KeyRound size="base" __rawClassName="mr-2" aria-hidden="true" />
-            Set up gateway key
-          </Link>
-        </Button>
-      ) : (
-        <Button asChild variant="secondary">
-          <Link href={`/organization/${orgId}/settings`}>
-            <Settings size="base" __rawClassName="mr-2" aria-hidden="true" />
-            Organization settings
-          </Link>
-        </Button>
-      )}
+      <Button asChild variant="secondary">
+        <Link href={`/organization/${orgId}/settings`}>
+          <Settings size="base" __rawClassName="mr-2" aria-hidden="true" />
+          Organization settings
+        </Link>
+      </Button>
     </CardFooter>
   </Card>
 );
