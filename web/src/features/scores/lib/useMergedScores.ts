@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { useScoreCache } from "@/src/features/scores/contexts/ScoreCacheContext";
+import { useScoreCache } from "@/src/features/scores/contexts/ScoreCacheProvider";
 import { type ScoreTarget } from "@/src/features/scores/types";
 import { mergeScoresWithCache } from "@/src/features/scores/lib/mergeScoresWithCache";
 import { filterScoresByTarget } from "@/src/features/scores/lib/filterScoresByTarget";

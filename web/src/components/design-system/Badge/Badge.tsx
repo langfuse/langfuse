@@ -27,10 +27,20 @@ const badgeVariants = cva(
         teal: "border-transparent bg-light-teal text-dark-teal",
         green: "border-transparent bg-light-green text-dark-green",
         ghost: "border-0 bg-transparent px-0 text-foreground-secondary",
+        /** `ghost` with the leading icon in the warning colour; the text stays muted. */
+        "ghost-warning":
+          "border-0 bg-transparent px-0 text-foreground-secondary",
         filled: "border-transparent bg-muted text-foreground-secondary",
         /** `filled` for a chip on a muted or accent surface, e.g. a selected or hovered row, where `bg-muted` vanishes. */
         filledOnMuted:
           "border-transparent bg-background text-foreground-secondary",
+        /** Category highlight tints, as used by treemap tiles. */
+        violetHighlight:
+          "border-transparent bg-category-violet-highlight/35 text-foreground-secondary",
+        blueHighlight:
+          "border-transparent bg-category-blue-highlight/35 text-foreground-secondary",
+        amberHighlight:
+          "border-transparent bg-category-amber-highlight/35 text-foreground-secondary",
         violetTint:
           "border-category-violet/40 bg-category-violet/10 text-foreground-secondary",
         skyTint:
@@ -153,9 +163,17 @@ export function Badge({
   trailingIconTone = "default",
   ...props
 }: BadgeProps) {
+  const warningIcon = color === "ghost-warning";
   return (
     <BadgeShell color={color} shouldWrap={shouldWrap} {...props}>
-      {LeadingIcon && <LeadingIcon aria-hidden size="sm" color="tertiary" />}
+      {LeadingIcon && (
+        <LeadingIcon
+          aria-hidden
+          size="sm"
+          color={warningIcon ? "inherit" : "tertiary"}
+          __rawClassName={warningIcon ? "text-dark-yellow" : undefined}
+        />
+      )}
       {label && <span className="shrink-0 py-0.5">{label}:</span>}
       <span
         className={cn(

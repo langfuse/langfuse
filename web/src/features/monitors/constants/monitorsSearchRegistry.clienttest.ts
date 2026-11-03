@@ -1,13 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { getMonitorFilterConfig } from "@/src/features/filters";
+import { getMonitorFilterConfig } from "@/src/features/filters/config/monitors-config";
 import { monitorsFieldRegistry } from "./monitorsSearchRegistry";
-import {
-  astToFilterState,
-  planCommit,
-  parse,
-  validateQuery,
-  createSearchBarStore,
-} from "@/src/features/search-bar";
+import { astToFilterState } from "@/src/features/search-bar/lib/adapter";
+import { planCommit } from "@/src/features/search-bar/lib/commit";
+import { parse } from "@/src/features/search-bar/lib/langQ";
+import { validateQuery } from "@/src/features/search-bar/lib/validate";
+import { createSearchBarStore } from "@/src/features/search-bar/store/searchBarStore";
 
 import { ListMonitorFilterSchema } from "@langfuse/shared/monitors";
 

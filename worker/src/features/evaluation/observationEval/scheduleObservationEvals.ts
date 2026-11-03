@@ -1,5 +1,14 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
-import type { ObservationVariableMapping } from "@langfuse/shared";
+import {
+  type ObservationVariableMapping,
+  EvalTemplateType,
+  JobExecutionStatus,
+  type FilterState,
+  type EvalExecutionMode,
+  canRunEvalRule,
+  coerceLegacyEmptyMetadataFilters,
+  mapEventEvalFilterColumnIdToField,
+  observationVariableMappingList,
+} from "@langfuse/shared";
 import {
   type ObservationForEval,
   type ObservationEvalAssignment,
@@ -15,17 +24,8 @@ import {
   LangfuseInternalTraceEnvironment,
   logger,
 } from "@langfuse/shared/src/server";
-import {
-  EvalTemplateType,
-  JobExecutionStatus,
-  type FilterState,
-  type EvalExecutionMode,
-  canRunEvalRule,
-  coerceLegacyEmptyMetadataFilters,
-  mapEventEvalFilterColumnIdToField,
-  observationVariableMappingList,
-} from "@langfuse/shared";
-import { createW3CTraceId } from "../../utils";
+
+import { createW3CTraceId } from "../../utils/utilities";
 import { isInternalEvalEnvironment } from "../isEvalTargetEnvironmentAllowed";
 
 const OBSERVATION_FILTER_EMPTY_EQUALS_NULL_COLUMNS = new Set([
@@ -44,6 +44,8 @@ interface ScheduleObservationEvalsParams {
    * stable while a second run gets its own executions.
    */
   executionScopeId?: string;
+  /** Batch action of a manual batch run, recorded on each execution. */
+  batchActionId?: string;
 }
 
 /**
@@ -106,6 +108,7 @@ export async function scheduleObservationEvals(
     schedulerDeps,
     executionMode,
     executionScopeId,
+    batchActionId,
   } = params;
 
   // Early return if no configs
@@ -193,6 +196,7 @@ export async function scheduleObservationEvals(
         schedulerDeps,
         executionMode,
         executionScopeId,
+        batchActionId,
       }),
     ),
   );
@@ -235,6 +239,7 @@ interface ProcessConfigParams {
   schedulerDeps: ObservationEvalSchedulerDeps;
   executionMode?: EvalExecutionMode;
   executionScopeId?: string;
+  batchActionId?: string;
 }
 
 async function processMatchingConfig(
@@ -248,6 +253,7 @@ async function processMatchingConfig(
     schedulerDeps,
     executionMode,
     executionScopeId,
+    batchActionId,
   } = params;
 
   const jobIdentity: string[] =
@@ -304,6 +310,7 @@ async function processMatchingConfig(
     ...(assignment.variableMapping != null
       ? { variableMapping: assignment.variableMapping }
       : {}),
+    ...(batchActionId ? { batchActionId } : {}),
   });
 
   logger.debug("Scheduled observation eval job", {

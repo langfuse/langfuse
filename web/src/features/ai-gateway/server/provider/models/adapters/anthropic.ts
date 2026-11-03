@@ -11,6 +11,8 @@ const responseSchema = z.object({
       id: z.string(),
       display_name: z.string(),
       created_at: z.iso.datetime(),
+      // The list omits retired models by default; filtering them too keeps that guarantee if the default changes.
+      lifecycle: z.string().optional().catch(undefined),
     }),
   ),
   has_more: z.boolean(),
@@ -44,13 +46,15 @@ export const anthropicModelDiscoveryAdapter: ModelDiscoveryAdapter = {
       const parsed = responseSchema.safeParse(result.value);
       if (!parsed.success) return { success: false, error: "provider_error" };
       models.push(
-        ...parsed.data.data.map((model) => ({
-          id: model.id,
-          provider: "ANTHROPIC" as const,
-          canonicalSlug: model.id,
-          displayName: model.display_name,
-          createdAt: model.created_at,
-        })),
+        ...parsed.data.data
+          .filter((model) => model.lifecycle !== "retired")
+          .map((model) => ({
+            id: model.id,
+            provider: "ANTHROPIC" as const,
+            canonicalSlug: model.id,
+            displayName: model.display_name,
+            createdAt: model.created_at,
+          })),
       );
 
       if (!parsed.data.has_more) {

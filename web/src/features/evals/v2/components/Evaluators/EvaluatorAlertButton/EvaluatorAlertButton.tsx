@@ -11,7 +11,7 @@ import {
 import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 import type { EvalTemplateType } from "@langfuse/shared";
 
-import { Badge } from "@/src/components/ui/badge";
+import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { Button } from "@/src/components/ui/button";
 import {
   Command,
@@ -25,8 +25,8 @@ import {
   evaluatorAlertsListUrl,
   evaluatorAlertUrl,
 } from "@/src/features/evals/v2/fns/evaluators/evaluatorAlertUrl";
-import { MonitorSeverityBadge } from "@/src/features/monitors";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { MonitorSeverityBadge } from "@/src/features/monitors/components/MonitorSeverityBadge";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { renderEvaluatorAlertLastFired } from "@/src/features/evals/v2/fns/evaluators/renderEvaluatorAlertLastFired";
 import { renderEvaluatorAlertTriggerCondition } from "@/src/features/evals/v2/fns/evaluators/renderEvaluatorAlertTriggerCondition";
 import type { RouterOutputs } from "@/src/utils/api";
@@ -352,9 +352,9 @@ export function EvaluatorAlertButton(props: EvaluatorAlertButtonProps) {
               {alertCount > 0 ? "Alerts" : "Add alert"}
             </span>
             {!isLoading && alertCount > 0 ? (
-              <Badge variant="secondary" className="ml-1 shrink-0">
-                {alertCount}
-              </Badge>
+              <span className="ml-1 flex shrink-0">
+                <Badge color="filled" text={String(alertCount)} />
+              </span>
             ) : null}
             <span className="ml-1 flex">
               <DropdownIndicator />

@@ -13,6 +13,8 @@ export const topicIdSchema = z
   .max(128)
   .regex(/^[a-zA-Z0-9_-]+$/);
 export const topicTraceIdSchema = z.string().min(1).max(1000);
+/** The longest time range any Topics read or update accepts. */
+export const TOPICS_MAX_TIME_RANGE_MS = 93 * 86_400_000;
 export const topicTimeRangeSchema = z
   .object({ from: z.coerce.date(), to: z.coerce.date() })
   .refine(({ from, to }) => from < to, {
@@ -97,10 +99,13 @@ export const topicTraceSelectionCriteriaSchema = topicRuleConfigSchema
     message: "Choose an end time after the start time.",
     path: ["to"],
   })
-  .refine(({ from, to }) => to.getTime() - from.getTime() <= 93 * 86400000, {
-    message: "Select at most 93 days of traces.",
-    path: ["from"],
-  });
+  .refine(
+    ({ from, to }) => to.getTime() - from.getTime() <= TOPICS_MAX_TIME_RANGE_MS,
+    {
+      message: "Select at most 93 days of traces.",
+      path: ["from"],
+    },
+  );
 export const topicTraceSelectionSnapshotSchema =
   topicTraceSelectionCriteriaSchema.safeExtend({
     excludedTraceIds: z.array(topicTraceIdSchema).default([]),

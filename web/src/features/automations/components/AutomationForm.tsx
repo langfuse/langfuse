@@ -1,5 +1,6 @@
 /* eslint-disable no-nested-ternary */
-import { showSuccessToast, showErrorToast } from "@/src/features/notifications";
+import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
+import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import React from "react";
 import {
   Card,
@@ -44,15 +45,22 @@ import {
   TriggerEventSourceSchema,
   webhookActionFilterOptions,
 } from "@langfuse/shared";
-import { InlineFilterBuilder, MultiSelect } from "@/src/features/filters";
+import {
+  PagerDutyRegionSchema,
+  PagerDutyRoutingKeySchema,
+} from "@langfuse/shared/pagerduty";
+import { InlineFilterBuilder } from "@/src/features/filters/components/filter-builder";
+import { MultiSelect } from "@/src/features/filters/components/MultiSelect";
 import { DeleteAutomationDialogController } from "./DeleteAutomationDialogController";
-import { useLangfuseCloudRegion } from "@/src/features/organizations";
-import { useHasProjectAccess } from "@/src/features/rbac";
-import { ActionHandlerRegistry } from "./actions";
+import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { ActionHandlerRegistry } from "@/src/features/automations/components/actions/ActionHandlerRegistry";
+import { actionTypeLabel } from "@/src/features/automations/actionTypeLabels";
 import { webhookSchema } from "./actions/WebhookActionForm";
 import { Alert } from "@/src/components/design-system/Alert/Alert";
 import Link from "next/link";
 import { Info } from "@langfuse/icons";
+import { useVersionFilterOptions } from "../hooks/useVersionFilterOptions";
 
 // Define Slack action schema
 const slackSchema = z.object({
@@ -70,14 +78,22 @@ const githubDispatchSchema = z.object({
   originalUrl: z.string().optional(),
 });
 
-/** promptEventActionDefaults is the default eventAction set for a fresh prompt-source automation. */
-const promptEventActionDefaults: string[] = ["created", "updated", "deleted"];
+// Define PagerDuty action schema; an empty routing key keeps the stored one on edit
+const pagerDutySchema = z.object({
+  routingKey: z.union([z.literal(""), PagerDutyRoutingKeySchema]),
+  displayRoutingKey: z.string().optional(),
+  region: PagerDutyRegionSchema,
+});
+
+/** versionEventActionDefaults is the default eventAction set for a fresh version-source automation. */
+const versionEventActionDefaults: string[] = ["created", "updated", "deleted"];
 
 /** projectNotificationName derives the auto-generated channel name from the destination — the name field is hidden for this source. */
 const projectNotificationName = (data: FormValues): string => {
   // Automation names are visible to every project member, so they must not
   // carry Slack channel names (private ones are only for channel members).
   if (data.actionType === "SLACK") return "Slack";
+  if (data.actionType === "PAGERDUTY") return "PagerDuty";
   if (data.actionType === "WEBHOOK") {
     try {
       return `Webhook ${new URL(data.webhook.url).hostname}`;
@@ -143,35 +159,6 @@ export const parseCreateAutomationPrefill = (
   }
 };
 
-/** serializeCreateAutomationPrefill encodes a typed prefill as a base64url JSON blob for a single URL query param, UTF-8-safe so non-ASCII tags don't throw at btoa. */
-const serializeCreateAutomationPrefill = (
-  prefill: CreateAutomationPrefill,
-): string => {
-  const bytes = new TextEncoder().encode(JSON.stringify(prefill));
-  let binary = "";
-  for (let i = 0; i < bytes.length; i++)
-    binary += String.fromCharCode(bytes[i]);
-  return btoa(binary)
-    .replace(/\+/g, "-")
-    .replace(/\//g, "_")
-    .replace(/=+$/, "");
-};
-
-/** automationCreateHref builds the deep-link to the automations create form, prefilling eventSource as Monitor and (optionally) the chosen actionType + a same-origin redirectUrl to return to after save. */
-export const automationCreateHref = (
-  projectId: string,
-  actionType?: ActionTypes,
-  redirectUrl?: string,
-): string => {
-  const prefill = serializeCreateAutomationPrefill({
-    eventSource: TriggerEventSource.Monitor,
-    ...(actionType ? { actionType } : {}),
-    ...(redirectUrl ? { redirectUrl } : {}),
-  });
-  const params = new URLSearchParams({ view: "create", prefill });
-  return `/project/${projectId}/automations?${params.toString()}`;
-};
-
 // Define schemas for form validation
 const baseFormSchema = z.object({
   name: z.string().min(1, "Name is required").max(100),
@@ -195,13 +182,18 @@ const formSchema = z
       actionType: z.literal("GITHUB_DISPATCH"),
       githubDispatch: githubDispatchSchema,
     }),
+    baseFormSchema.extend({
+      actionType: z.literal("PAGERDUTY"),
+      pagerDuty: pagerDutySchema,
+    }),
   ])
   .superRefine((data, ctx) => {
-    // Prompt-source triggers require at least one event action; monitor and
+    // Prompt and skill triggers require at least one event action; monitor and
     // project-notification sources don't use this field (project-notification
     // triggers are match-all).
     if (
-      data.eventSource === TriggerEventSource.Prompt &&
+      (data.eventSource === TriggerEventSource.Prompt ||
+        data.eventSource === TriggerEventSource.Skill) &&
       data.eventAction.length === 0
     ) {
       ctx.addIssue({
@@ -246,6 +238,7 @@ const EventSourceField = ({
             </FormControl>
             <SelectContent>
               <SelectItem value={TriggerEventSource.Prompt}>Prompt</SelectItem>
+              <SelectItem value={TriggerEventSource.Skill}>Skill</SelectItem>
               {(isLangfuseCloud ||
                 field.value === TriggerEventSource.Monitor) && (
                 <SelectItem value={TriggerEventSource.Monitor}>
@@ -267,22 +260,28 @@ const EventSourceField = ({
   );
 };
 
-/** PromptTriggerFields renders the eventAction picker and inline filter builder for prompt-source automations. */
-const PromptTriggerFields = ({
+/** VersionTriggerFields renders the eventAction picker and inline filter builder for prompt and skill automations. */
+const VersionTriggerFields = ({
   projectId,
+  eventSource,
   control,
   disabled,
 }: {
   projectId: string;
+  eventSource: TriggerEventSource;
   control: Control<FormValues>;
   disabled: boolean;
 }) => {
   const [optionsOpened, setOptionsOpened] = React.useState(false);
-  const { data: filterOptions, isFetching: optionsLoading } =
-    api.prompts.filterOptions.useQuery(
-      { projectId },
-      { enabled: optionsOpened },
-    );
+  const isSkill = eventSource === TriggerEventSource.Skill;
+  const resource = isSkill ? "skill" : "prompt";
+  const { filterOptions, isFetching: optionsLoading } = useVersionFilterOptions(
+    {
+      projectId,
+      eventSource,
+      enabled: optionsOpened,
+    },
+  );
 
   return (
     <>
@@ -301,16 +300,15 @@ const PromptTriggerFields = ({
                 options={[
                   {
                     value: "created",
-                    description: "Whenever a new prompt version is created",
+                    description: `Whenever a new ${resource} version is created`,
                   },
                   {
                     value: "updated",
-                    description:
-                      "Whenever tags or labels on a prompt version are updated",
+                    description: `Whenever tags or labels on a ${resource} version are updated`,
                   },
                   {
                     value: "deleted",
-                    description: "Whenever a prompt version is deleted",
+                    description: `Whenever a ${resource} version is deleted`,
                   },
                 ]}
                 className="my-0 w-auto overflow-hidden"
@@ -408,6 +406,8 @@ export const AutomationForm = ({
     projectId,
     scope: "automations:CUD",
   });
+  const availableActionTypes =
+    allowedActionTypes ?? ActionHandlerRegistry.getAllActionTypes();
 
   const utils = api.useUtils();
 
@@ -452,8 +452,9 @@ export const AutomationForm = ({
 
     const resolvedEventAction: string[] =
       automation?.trigger.eventActions ??
-      (resolvedEventSource === TriggerEventSource.Prompt
-        ? promptEventActionDefaults
+      (resolvedEventSource === TriggerEventSource.Prompt ||
+      resolvedEventSource === TriggerEventSource.Skill
+        ? versionEventActionDefaults
         : resolvedEventSource === TriggerEventSource.ProjectNotification
           ? // New channels start with every event enabled; the per-event
             // toggles in the settings section manage them afterwards.
@@ -490,6 +491,7 @@ export const AutomationForm = ({
         webhook: {
           url: webhookDefaults.webhook.url || "",
           headers: webhookDefaults.webhook.headers || [],
+          originalUrl: webhookDefaults.webhook.originalUrl,
         },
       };
     } else if (actionType === "SLACK") {
@@ -520,6 +522,14 @@ export const AutomationForm = ({
             githubDefaults.githubDispatch.displayGitHubToken || undefined,
           originalUrl: githubDefaults.githubDispatch.originalUrl,
         },
+      };
+    } else if (actionType === "PAGERDUTY") {
+      const handler = ActionHandlerRegistry.getHandler("PAGERDUTY");
+      const pagerDutyDefaults = handler.getDefaultValues(automation);
+      return {
+        ...baseValues,
+        actionType: "PAGERDUTY" as const,
+        pagerDuty: pagerDutyDefaults.pagerDuty,
       };
     }
     throw new Error("Invalid action type");
@@ -644,6 +654,10 @@ export const AutomationForm = ({
       const handler = ActionHandlerRegistry.getHandler("GITHUB_DISPATCH");
       const defaultValues = handler.getDefaultValues();
       form.setValue("githubDispatch", defaultValues.githubDispatch);
+    } else if (value === "PAGERDUTY") {
+      const handler = ActionHandlerRegistry.getHandler("PAGERDUTY");
+      const defaultValues = handler.getDefaultValues();
+      form.setValue("pagerDuty", defaultValues.pagerDuty);
     }
   };
 
@@ -690,7 +704,7 @@ export const AutomationForm = ({
     if (value === TriggerEventSource.Monitor) {
       form.setValue("eventAction", []);
     } else {
-      form.setValue("eventAction", promptEventActionDefaults);
+      form.setValue("eventAction", versionEventActionDefaults);
     }
     form.setValue("filter", []);
   };
@@ -762,8 +776,10 @@ export const AutomationForm = ({
               {watchedEventSource === TriggerEventSource.Monitor ? (
                 <MonitorTriggerFields projectId={projectId} />
               ) : (
-                <PromptTriggerFields
+                <VersionTriggerFields
+                  key={watchedEventSource}
                   projectId={projectId}
+                  eventSource={watchedEventSource}
                   control={form.control}
                   disabled={!hasAccess || !isEditing}
                 />
@@ -797,18 +813,9 @@ export const AutomationForm = ({
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      {(
-                        allowedActionTypes ??
-                        ActionHandlerRegistry.getAllActionTypes()
-                      ).map((actionType) => (
+                      {availableActionTypes.map((actionType) => (
                         <SelectItem key={actionType} value={actionType}>
-                          {actionType === "WEBHOOK"
-                            ? "Webhook"
-                            : actionType === "SLACK"
-                              ? "Slack"
-                              : actionType === "GITHUB_DISPATCH"
-                                ? "GitHub Dispatch"
-                                : "Annotation Queue"}
+                          {actionTypeLabel[actionType]}
                         </SelectItem>
                       ))}
                       <SelectItem disabled={true} value="planned">

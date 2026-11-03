@@ -6,7 +6,9 @@ fn invalid_configuration_exits_without_disclosing_the_value() {
     let listener = TcpListener::bind("127.0.0.1:0").unwrap();
     for name in [
         "LANGFUSE_AI_GATEWAY_AUTO_INCREMENT_LISTEN_PORT",
+        "LANGFUSE_AI_GATEWAY_CONNECTION_DRAIN_TIMEOUT_SECONDS",
         "LANGFUSE_AI_GATEWAY_SHUTDOWN_TIMEOUT_SECONDS",
+        "LANGFUSE_AI_GATEWAY_TELEMETRY_SHUTDOWN_TIMEOUT_SECONDS",
         "LANGFUSE_LOG_LEVEL",
         "LANGFUSE_LOG_FORMAT",
         "LANGFUSE_AI_GATEWAY_WEB_URL",

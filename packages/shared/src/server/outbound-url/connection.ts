@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import dns from "node:dns";
 import { Agent as HttpAgent } from "node:http";
 import { Agent as HttpsAgent } from "node:https";
@@ -264,5 +263,8 @@ function normalizeWhitelist(
     ips: [...whitelist.ips].sort(),
     ip_ranges: [...whitelist.ip_ranges].sort(),
     allowedHosts: [...(whitelist.allowedHosts ?? [])].sort(),
+    allowedBucketHostParents: [
+      ...(whitelist.allowedBucketHostParents ?? []),
+    ].sort(),
   };
 }

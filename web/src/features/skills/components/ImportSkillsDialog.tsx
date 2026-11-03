@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { useRef, useState, type ChangeEvent, type ReactNode } from "react";
 import {
   COMMIT_MESSAGE_MAX_LENGTH,
@@ -11,7 +10,7 @@ import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
 import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
 import { Input } from "@/src/components/design-system/Input/Input";
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
-import { showSuccessToast } from "@/src/features/notifications";
+import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { api, getTrpcErrorCode, type RouterOutputs } from "@/src/utils/api";
 

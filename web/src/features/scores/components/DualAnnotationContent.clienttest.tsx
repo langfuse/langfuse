@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import {
   act,
   fireEvent,
@@ -22,7 +21,7 @@ import { LayerProvider } from "@/src/context/LayerContext/LayerContext";
 import {
   ScoreCacheProvider,
   useScoreCache,
-} from "@/src/features/scores/contexts/ScoreCacheContext";
+} from "@/src/features/scores/contexts/ScoreCacheProvider";
 import { DualAnnotationContent } from "./DualAnnotationContent";
 import { AnnotationForm } from "./AnnotationForm";
 import { cloneElement, createRef } from "react";
@@ -65,14 +64,16 @@ vi.mock("@/src/components/layouts/header", async (importOriginal) => {
   };
 });
 
-vi.mock("@/src/features/rbac", () => ({
+vi.mock("@/src/features/rbac/utils/checkProjectAccess", () => ({
   useHasProjectAccess: () => mocks.hasConfigAccess,
 }));
-vi.mock("@/src/features/notifications", () => ({ showErrorToast: vi.fn() }));
+vi.mock("@/src/features/notifications/showErrorToast", () => ({
+  showErrorToast: vi.fn(),
+}));
 vi.mock("@/src/features/scores/hooks/useScoreEditsDisabled", () => ({
   useScoreEditsDisabled: () => mocks.scoreEditsDisabled,
 }));
-vi.mock("@/src/features/posthog-analytics", () => ({
+vi.mock("@/src/features/posthog-analytics/usePostHogClientCapture", () => ({
   usePostHogClientCapture: () => mocks.capture,
 }));
 vi.mock("@/src/features/posthog-analytics/usePostHogClientCapture", () => ({
@@ -634,6 +635,7 @@ describe("unified annotation targets", () => {
       ).toHaveTextContent("Saved"),
     );
     fireEvent.click(screen.getByTitle("Add or view score comment"));
+    expect(screen.getByRole("dialog")).toHaveClass("ph-no-capture");
     fireEvent.change(screen.getByRole("textbox"), {
       target: { value: "Unsent score comment" },
     });

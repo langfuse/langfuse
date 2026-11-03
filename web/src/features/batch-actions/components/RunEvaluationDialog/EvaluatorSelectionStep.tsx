@@ -7,7 +7,7 @@ import {
 import { type RouterOutputs } from "@/src/utils/api";
 import { Button } from "@/src/components/ui/button";
 import { Card, CardContent } from "@/src/components/ui/card";
-import { Badge } from "@/src/components/ui/badge";
+import { BadgeShell } from "@/src/components/design-system/Badge/Badge";
 import { Checkbox } from "@/src/components/design-system/Checkbox/Checkbox";
 import { Input } from "@/src/components/ui/input";
 import { EvaluatorPromptPreview } from "./EvaluatorPromptPreview";
@@ -143,10 +143,7 @@ export function EvaluatorSelectionStep(props: EvaluatorSelectionStepProps) {
                       previewContent={getPromptPreview(evaluator)}
                       trigger={({ getTriggerProps }) => (
                         <div tabIndex={0} {...getTriggerProps()}>
-                          <Badge
-                            variant="secondary"
-                            className="flex items-center gap-1 pr-1"
-                          >
+                          <BadgeShell color="filled">
                             <span>{evaluator.scoreName}</span>
                             <button
                               type="button"
@@ -156,7 +153,7 @@ export function EvaluatorSelectionStep(props: EvaluatorSelectionStepProps) {
                             >
                               <X size="sm" />
                             </button>
-                          </Badge>
+                          </BadgeShell>
                         </div>
                       )}
                     />

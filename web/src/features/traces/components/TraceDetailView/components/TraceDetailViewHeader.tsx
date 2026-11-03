@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { HeaderActionButton } from "@/src/components/HeaderActionButton";
 import { prepareTraceAnnotation } from "@/src/features/scores/lib/prepareTraceAnnotation";
 /**
@@ -15,7 +14,7 @@ import { prepareTraceAnnotation } from "@/src/features/scores/lib/prepareTraceAn
 
 import { headerActionClassName } from "@/src/features/traces/components/headerActionClassName";
 import { memo, useRef } from "react";
-import { useReadPath } from "@/src/features/events";
+import { useReadPath } from "@/src/features/events/hooks/useReadPath";
 import {
   type TraceDomain,
   type ScoreDomain,
@@ -28,7 +27,7 @@ import { Badge, BadgeShell } from "@/src/components/design-system/Badge/Badge";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { cn } from "@/src/utils/tailwind";
 import { ConnectedDetailHeaderActionsMenuController } from "@/src/features/traces/components/DetailHeaderActionsMenuController";
-import { AnnotateDrawerController } from "@/src/features/scores";
+import { AnnotateDrawerController } from "@/src/features/scores/components/AnnotateDrawerController";
 import { ActionButtonCountBadge } from "@/src/components/ui/ActionButtonCountBadge";
 import { ConnectedTraceObservationAddToDropdownMenuController } from "@/src/features/traces/components/ConnectedTraceObservationAddToDropdownMenuController";
 import {
@@ -38,7 +37,7 @@ import {
   TargetTraceBadge,
 } from "../../TraceMetadataBadges";
 import { resolveEvalExecutionMetadata } from "@/src/features/traces/fns/resolveMetadata";
-import { useViewPreferences } from "@/src/features/traces/contexts/ViewPreferencesContext";
+import { useViewPreferences } from "@/src/features/traces/contexts/ViewPreferencesProvider";
 import { CollapsibleBadgeRow } from "@/src/features/traces/components/CollapsibleBadgeRow";
 import { useIsMobile } from "@/src/hooks/use-mobile";
 import { Button } from "@/src/components/ui/button";

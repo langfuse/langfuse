@@ -34,7 +34,7 @@ import {
   type CustomRowHeightControl,
   type RowHeight,
 } from "@/src/components/table/data-table-row-height-switch";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { TimeRangePicker } from "@/src/components/date-picker";
 import {
   type TimeRange,
@@ -55,7 +55,7 @@ import {
   DropdownMenuSubContent,
 } from "@/src/components/ui/dropdown-menu";
 import { MultiSelect as MultiSelectFilter } from "@/src/features/filters/components/MultiSelect";
-import { DataTableRefreshButton } from "@/src/components/table/data-table-refresh-button";
+import { DataTableRefreshButton } from "@/src/components/table/DataTableRefreshButton";
 import { type RefreshInterval } from "@/src/components/table/utils/refresh-intervals";
 import {
   getSearchButtonLabel,

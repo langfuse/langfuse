@@ -1,6 +1,6 @@
 import { useState, type ReactNode } from "react";
 import { cva } from "class-variance-authority";
-import { ChevronDown } from "@langfuse/icons";
+import { Check, ChevronDown } from "@langfuse/icons";
 
 import { cn } from "@/src/utils/tailwind";
 
@@ -16,6 +16,11 @@ const markerVariants = cva(
       size: {
         default: "size-7 text-sm",
         sm: "size-5 text-xs",
+      },
+      status: {
+        current: null,
+        complete: null,
+        upcoming: "bg-background text-muted-foreground border-border border",
       },
     },
   },
@@ -36,6 +41,11 @@ const titleVariants = cva("font-bold", {
       default: "text-lg",
       sm: "text-sm",
     },
+    status: {
+      current: null,
+      complete: null,
+      upcoming: "text-muted-foreground",
+    },
   },
 });
 
@@ -54,8 +64,10 @@ type StepperProps = {
   description?: ReactNode;
   variant?: "filled" | "outline";
   size?: "default" | "sm";
+  /** Complete swaps the number for a check; upcoming mutes the step. */
+  status?: "current" | "complete" | "upcoming";
   compactBottomSpacing?: boolean;
-  children: ReactNode;
+  children?: ReactNode;
 } & (
   | {
       /** Toggles the body from the step header; on by default. */
@@ -85,6 +97,7 @@ export function Stepper({
   description,
   variant = "filled",
   size = "default",
+  status = "current",
   compactBottomSpacing = false,
   isCollapsible = true,
   defaultOpen = true,
@@ -94,6 +107,7 @@ export function Stepper({
 }: StepperProps) {
   const [internalOpen, setInternalOpen] = useState(defaultOpen);
   const expanded = !isCollapsible || (open ?? internalOpen);
+  const hasBody = Boolean(description) || Boolean(children);
 
   const toggle = () => {
     const nextOpen = !expanded;
@@ -104,7 +118,13 @@ export function Stepper({
   return (
     <div className="group/step flex gap-1.5">
       <div className="flex flex-col items-center">
-        <div className={markerVariants({ variant, size })}>{number}</div>
+        <div className={cn(markerVariants({ variant, size, status }))}>
+          {status === "complete" ? (
+            <Check size="sm" aria-label="Completed" />
+          ) : (
+            number
+          )}
+        </div>
         <div className="bg-border my-1 w-px flex-1 group-last/step:hidden" />
       </div>
 
@@ -130,14 +150,14 @@ export function Stepper({
                 !expanded && "-rotate-90",
               )}
             />
-            <span className={titleVariants({ size })}>{title}</span>
+            <span className={titleVariants({ size, status })}>{title}</span>
           </button>
         ) : (
           <div className={headerVariants({ size })}>
-            <span className={titleVariants({ size })}>{title}</span>
+            <span className={titleVariants({ size, status })}>{title}</span>
           </div>
         )}
-        {expanded && (
+        {expanded && hasBody ? (
           <div
             className={cn(
               "flex flex-col",
@@ -149,7 +169,7 @@ export function Stepper({
             ) : null}
             {children}
           </div>
-        )}
+        ) : null}
       </div>
     </div>
   );

@@ -14,7 +14,7 @@ import {
 } from "@/src/components/ui/form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
-import { Badge } from "@/src/components/ui/badge";
+import { Badge } from "@/src/components/design-system/Badge/Badge";
 import {
   tracesTableColsWithOptions,
   singleFilterList,
@@ -37,13 +37,13 @@ import {
 import { z } from "zod";
 import { useEffect, useMemo, useState, memo, Suspense, lazy } from "react";
 import { api } from "@/src/utils/api";
-import { InlineFilterBuilder } from "@/src/features/filters";
+import { InlineFilterBuilder } from "@/src/features/filters/components/filter-builder";
 import { useRouter } from "next/router";
 import { TRPCClientError } from "@trpc/client";
 import { reportError } from "@/src/utils/reportError";
 import { Slider } from "@/src/components/ui/Slider";
 import { Card } from "@/src/components/ui/card";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { Checkbox } from "@/src/components/design-system/Checkbox/Checkbox";
 import { Switch } from "@/src/components/design-system/Switch/Switch";
 import {
@@ -110,7 +110,7 @@ import {
 } from "@/src/features/evals/utils/evaluator-constants";
 import { useEvalConfigFilterOptions } from "@/src/features/evals/hooks/useEvalConfigFilterOptions";
 import { VariableMappingCard } from "@/src/features/evals/components/VariableMappingCard";
-import { useReadPath } from "@/src/features/events";
+import { useReadPath } from "@/src/features/events/hooks/useReadPath";
 import { useIsCodeEvalEnabled } from "@/src/features/evals/hooks/useIsCodeEvalEnabled";
 import {
   isCodeEvalTemplate,
@@ -119,14 +119,12 @@ import {
 import { CodeEvalTestRunCard } from "@/src/features/evals/components/CodeEvalTestRunCard";
 import { getExperimentEvalPreviewFilters } from "@/src/features/evals/utils/experiment-eval-preview-utils";
 import { cn } from "@/src/utils/tailwind";
-import { PeekTableStateProvider } from "@/src/components/table/peek/contexts/PeekTableStateContext";
+import { PeekTableStateProvider } from "@/src/components/table/peek/contexts/PeekTableStateProvider";
 
 // Lazy load tables
 const TracesTable = lazy(() => import("@/src/features/traces/TracesTable"));
-const ObservationsTable = lazy(() =>
-  import("@/src/features/tracing-tables").then((m) => ({
-    default: m.ObservationsTable,
-  })),
+const ObservationsTable = lazy(
+  () => import("@/src/features/tracing-tables/observations/ObservationsTable"),
 );
 
 const EventsTable = lazy(
@@ -924,12 +922,7 @@ export const InnerEvaluatorForm = (props: {
                                 icon={ListTree}
                               >
                                 Traces
-                                <Badge
-                                  variant="secondary"
-                                  className="border-border border font-normal"
-                                >
-                                  Legacy
-                                </Badge>
+                                <Badge color="filled" text="Legacy" />
                               </Tabs.Trigger>
                             </span>
                           )}
@@ -1009,12 +1002,7 @@ export const InnerEvaluatorForm = (props: {
                           icon={BetweenHorizonalStart}
                         >
                           Low-level SDK methods
-                          <Badge
-                            variant="secondary"
-                            className="border-border border font-normal"
-                          >
-                            Legacy
-                          </Badge>
+                          <Badge color="filled" text="Legacy" />
                         </Tabs.Trigger>
                       </span>
                     </Tabs.List>

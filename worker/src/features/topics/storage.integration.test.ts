@@ -18,6 +18,7 @@ import {
   getTopicClusteringSummaryStats,
   getTopicSummaryCounts,
   getTopicExecutionCosts,
+  getTopicTraceUnitTimeRange,
   createTopicFacet,
   createTopicFacetVersion,
   ensureDefaultTopicFacets,
@@ -654,6 +655,41 @@ describe("Topics definition persistence", () => {
         facetVersion: newerVersion.facetVersion,
         processedAt: newerVersion.processedAt,
       },
+    ]);
+    expect(
+      await Promise.all(
+        [[summary.traceId], ["other-trace"]].map((traceIds) =>
+          getLatestFacetSummaries(
+            projectId,
+            "facet",
+            undefined,
+            oldRange,
+            traceIds,
+          ),
+        ),
+      ),
+    ).toEqual([
+      [
+        {
+          ...displaySummary,
+          facetVersion: newerVersion.facetVersion,
+          processedAt: newerVersion.processedAt,
+        },
+      ],
+      [],
+    ]);
+    expect(
+      await Promise.all(
+        [summary.traceId!, "other-trace"].map((traceId) =>
+          getTopicTraceUnitTimeRange(projectId, traceId, oldRange),
+        ),
+      ),
+    ).toEqual([
+      {
+        from: new Date(summary.unitStartTime),
+        to: new Date(Date.parse(summary.unitStartTime) + 1),
+      },
+      null,
     ]);
     expect(
       await getLatestFacetSummaries(projectId, "facet", undefined, newRange),

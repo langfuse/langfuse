@@ -1,5 +1,7 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
-import { auditLog, type AuditLogActor } from "@/src/features/audit-logs/server";
+import {
+  auditLog,
+  type AuditLogActor,
+} from "@/src/features/audit-logs/auditLog";
 import { env } from "@/src/env.mjs";
 import {
   AuthMethod,

@@ -1,4 +1,4 @@
-/* eslint-disable react/no-unstable-nested-components, @typescript-eslint/no-use-before-define */
+/* eslint-disable react/no-unstable-nested-components */
 import { useCallback, useMemo, type ReactNode } from "react";
 import { Pencil, PlusIcon, Route, Trash } from "@langfuse/icons";
 import { SiAnthropic, SiOpenai } from "@langfuse/icons/si";

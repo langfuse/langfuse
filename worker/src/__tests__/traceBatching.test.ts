@@ -35,12 +35,14 @@ import {
   getTraceBatchShard,
 } from "../features/traceBatching/traceBatchReadiness";
 import {
-  prepareLocalityPartials,
-  selectTraceBatches,
-  type PendingTrace,
   trackTraceBatchActivity,
   TraceBatchDispatcher,
 } from "../features/traceBatching/traceBatching";
+import {
+  prepareLocalityPartials,
+  selectTraceBatches,
+  type PendingTrace,
+} from "../features/traceBatching/traceBatchSelection";
 import { otelIngestionQueueProcessorBuilder } from "../queues/otelIngestionQueue";
 import { traceBatchQueueProcessor } from "../queues/traceBatchQueue";
 import { ClickhouseWriter } from "../services/ClickhouseWriter";
@@ -115,12 +117,15 @@ vi.mock("../features/topics/models", () => ({
   embedTopicSummaries: vi.fn(),
 }));
 
-vi.mock("../features/evaluation/observationEval", async (importOriginal) => ({
-  ...(await importOriginal<
-    typeof import("../features/evaluation/observationEval")
-  >()),
-  fetchObservationEvalRules: vi.fn().mockResolvedValue([]),
-}));
+vi.mock(
+  "../features/evaluation/observationEval/fetchObservationEvalRules",
+  async (importOriginal) => ({
+    ...(await importOriginal<
+      typeof import("../features/evaluation/observationEval/fetchObservationEvalRules")
+    >()),
+    fetchObservationEvalRules: vi.fn().mockResolvedValue([]),
+  }),
+);
 
 describe("trace batch selection", () => {
   const minute = 60_000;

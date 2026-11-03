@@ -1,15 +1,15 @@
-/* eslint-disable no-nested-ternary, @typescript-eslint/no-use-before-define */
-import { useHasProjectAccess } from "@/src/features/rbac";
+/* eslint-disable no-nested-ternary */
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import * as React from "react";
 import { EvalTemplateForm } from "@/src/features/evals/components/EvalTemplateForm";
 import { api } from "@/src/utils/api";
 import { type EvalTemplate } from "@langfuse/shared";
 import { useRouter } from "next/router";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
-import Page from "@/src/components/layouts/page";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import Page from "@/src/components/layouts/Page";
 import { Switch } from "@/src/components/design-system/Switch/Switch";
 import { Command } from "@/src/components/ui/command";
-import { Badge } from "@/src/components/ui/badge";
+import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { StatusBadge } from "@/src/components/ui/StatusBadge/StatusBadge";
 import {
   SidePanel,
@@ -193,12 +193,11 @@ export const EvalTemplateDetail = () => {
                             onClick={(e) => {
                               e.stopPropagation();
                             }}
-                            variant="outline"
-                            className="bg-background/50 h-6 shrink-0"
+                            color="primary"
+                            size="lg"
+                            text={`# ${template.version}`}
                             data-version-trigger="false"
-                          >
-                            # {template.version}
-                          </Badge>
+                          />
                           {index === 0 && (
                             <StatusBadge type="active" key="active" />
                           )}

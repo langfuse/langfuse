@@ -17,8 +17,11 @@ import {
 import {
   parseFlags,
   parseFlagsWithOrganizationDefaults,
-} from "@/src/features/feature-flags/server";
-import { isGatewayEnabledForOrganization } from "@/src/features/ai-gateway/server/availability";
+} from "@/src/features/feature-flags/server/parseFlags";
+import {
+  isGatewayDeployedOnInstance,
+  isGatewayEnabledForOrganization,
+} from "@/src/features/ai-gateway/server/availability";
 import { env } from "@/src/env.mjs";
 import { createProjectMembershipsOnSignup } from "@/src/features/auth/lib/createProjectMembershipsOnSignup";
 import { getSessionLoginAt } from "@/src/features/auth/lib/sessionExpiration";
@@ -56,7 +59,8 @@ import {
   findMultiTenantSsoConfig,
   getSsoAuthProviderIdForDomain,
   loadSsoProviders,
-} from "@/src/ee/features/multi-tenant-sso/server";
+} from "@/src/ee/features/multi-tenant-sso/utils";
+import { getSupportAccessMemberships } from "@/src/ee/features/support-access/server/supportAccess";
 import {
   ENTERPRISE_SSO_REQUIRED_MESSAGE,
   MULTI_TENANT_SSO_DOMAIN_MISMATCH_MESSAGE,
@@ -91,9 +95,9 @@ import { createSupportEmailHash } from "@/src/features/support-chat/createSuppor
 import {
   canToggleV4,
   isV4UpgradeUiAvailable,
-} from "@/src/features/events/server";
-import { canCreateOrganizations } from "@/src/features/organizations/server";
-import { isSignupOnboardingEnabled } from "@/src/features/onboarding/server";
+} from "@/src/features/events/lib/v4Rollout";
+import { canCreateOrganizations } from "@/src/features/organizations/server/canCreateOrganizations";
+import { isSignupOnboardingEnabled } from "@/src/features/onboarding/server/onboardingService";
 
 const staticProviders: Provider[] = [
   CredentialsProvider({
@@ -818,6 +822,7 @@ export async function getAuthOptions(
               featureFlags: true,
               admin: true,
               v4BetaEnabled: true,
+              supportAccess: true,
               organizationMemberships: {
                 // Newest first so demo project is last for the `project/~/` sentinel
                 orderBy: {
@@ -849,6 +854,12 @@ export async function getAuthOptions(
           });
 
           span.setAttribute("langfuse.user.id", dbUser?.id ?? "");
+          // Support engineers with an unexpired ConductorOne grant see the
+          // org as VIEWER.
+          const organizationMemberships = [
+            ...(dbUser?.organizationMemberships ?? []),
+            ...(await getSupportAccessMemberships(dbUser)),
+          ];
           // V4 preview availability is governed by the write mode:
           // - events_only: the legacy traces/observations tables are no longer
           //   written, so the events-aware UI is the only correct read path —
@@ -894,6 +905,7 @@ export async function getAuthOptions(
                 env.LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES === "true",
               inAppAgentEnabled: isInAppAgentInstanceEnabled(),
               aiFeaturesTracingConfigured: isLangfuseAITracingConfigured(),
+              aiGatewayDeployed: isGatewayDeployedOnInstance(),
               // Enables features that are only available under an enterprise license when self-hosting Langfuse
               // If you edit this line, you risk executing code that is not MIT licensed (self-contained in /ee folders otherwise)
               selfHostedInstancePlan: getSelfHostedInstancePlanServerSide(),
@@ -904,6 +916,7 @@ export async function getAuthOptions(
               apiKeyOrgRoleSelectionEnabled:
                 env.API_AUTH_MIGRATION === "enforce" &&
                 env.API_KEY_ORG_ROLES_ENABLE === "true",
+              accessAuditLogMode: env.LANGFUSE_AUDIT_LOG_ACCESS_EVENTS,
             },
             user:
               dbUser !== null
@@ -945,7 +958,7 @@ export async function getAuthOptions(
                     canCreateOrganizations: canCreateOrganizations(
                       dbUser.email,
                     ),
-                    organizations: dbUser.organizationMemberships.map(
+                    organizations: organizationMemberships.map(
                       (orgMembership) => {
                         const parsedCloudConfig = CloudConfigSchema.safeParse(
                           orgMembership.organization.cloudConfig,
@@ -954,6 +967,7 @@ export async function getAuthOptions(
                           id: orgMembership.organization.id,
                           name: orgMembership.organization.name,
                           role: orgMembership.role,
+                          supportAccess: "supportAccess" in orgMembership,
                           metadata:
                             (orgMembership.organization.metadata as Record<
                               string,
@@ -963,6 +977,8 @@ export async function getAuthOptions(
                             orgMembership.organization.aiFeaturesEnabled,
                           aiTelemetryEnabled:
                             orgMembership.organization.aiTelemetryEnabled,
+                          accessAuditLogEnabled:
+                            orgMembership.organization.accessAuditLogEnabled,
                           featureFlags: parseFlagsWithOrganizationDefaults(
                             dbUser.featureFlags,
                             orgMembership.organization.featureFlagOrgDefaults,

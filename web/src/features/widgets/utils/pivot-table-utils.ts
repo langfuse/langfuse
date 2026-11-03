@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 /**
  * @fileoverview Utility functions and type definitions for Pivot Table widget functionality
  *

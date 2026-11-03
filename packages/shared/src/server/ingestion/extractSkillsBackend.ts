@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import {
   MAX_SKILLS_PER_OBSERVATION,
   SkillsAvailableInputSchema,
@@ -36,8 +35,6 @@ export function extractSkillsFromObservation({
   skillsAvailable?: SkillsAvailableInput;
   skillsResourceLoaded?: SkillsResourceLoaded;
 } {
-  // Skill inference is enabled only when an availability attribute is reported.
-  if (!manifest) return {};
   if (
     observationType !== ObservationType.GENERATION &&
     (observationType !== ObservationType.TOOL ||

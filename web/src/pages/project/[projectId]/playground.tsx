@@ -1,1 +1,1 @@
-export { default as default } from "@/src/features/playground/page";
+export { default as default } from "@/src/features/playground/page/PlaygroundPage";

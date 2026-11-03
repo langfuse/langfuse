@@ -1,4 +1,4 @@
-/* eslint-disable @repo/component-file-structure, @typescript-eslint/no-use-before-define */
+/* eslint-disable @repo/component-file-structure */
 import { useRouter } from "next/router";
 import { useSession } from "next-auth/react";
 import { CheckIcon, CopyIcon, Webhook } from "@langfuse/icons";
@@ -10,11 +10,11 @@ import {
 import {
   buildEventsTablePathForObservationType,
   buildEventsTablePathForSpanName,
-} from "@/src/features/events";
+} from "@/src/features/events/lib/eventsTablePaths";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
 import { type ObservationType } from "@langfuse/shared";
-import { InternalFeatureBadge } from "@/src/features/feature-flags";
-import { useWebCalloutAction } from "@/src/features/web-callouts";
+import { InternalFeatureBadge } from "@/src/features/feature-flags/components/InternalFeatureBadge";
+import { useWebCalloutAction } from "@/src/features/web-callouts/components/WebCalloutButton";
 
 type IdItem = {
   name: string;

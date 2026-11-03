@@ -5,7 +5,7 @@ import { env } from "@/src/env.mjs";
 import {
   getContextualFeatureFlags,
   hasInternalAccess,
-} from "@/src/features/feature-flags/server";
+} from "@/src/features/feature-flags/utils";
 import {
   createTRPCRouter,
   protectedProjectProcedure,
@@ -20,7 +20,9 @@ import {
   normalizeOrderByForTable,
   paginationZod,
   singleFilterList,
+  sessionTraceFilterSchema,
   timeFilter,
+  toAuditLogResourceRef,
 } from "@langfuse/shared";
 import {
   toDomainArrayWithStringifiedMetadata,
@@ -39,8 +41,10 @@ import {
 } from "./eventsService";
 import { loadTraceTranscript } from "./loadTraceTranscript";
 import { assertTopicSummarySearchAllowed } from "@/src/features/topics/server/summarySearchAccess";
+import { recordTrpcAccess } from "@/src/ee/features/access-audit-log/server/recordAccessEvent";
 import {
   instrumentAsync,
+  getCurrentSpan,
   getScoresAndCorrectionsForTraces,
   getAgentGraphDataFromEventsTable,
   getObservationsForTraceFromEventsTable,
@@ -52,7 +56,8 @@ import {
 import {
   AgentGraphDataSchema,
   type AgentGraphDataResponse,
-} from "@/src/features/trace-graph-view/server";
+} from "@/src/features/trace-graph-view/types";
+
 import type * as opentelemetry from "@opentelemetry/api";
 
 const GetAllEventsInput = EventsTableOptions.safeExtend({
@@ -151,6 +156,15 @@ export const eventsRouter = createTRPCRouter({
         searchType: input.searchType,
         readsEventsTable: true,
       });
+      const normalizedOrderBy = normalizeOrderByForTable({
+        orderBy: input.orderBy,
+        expectedTimeColumn: "startTime",
+      });
+      const span = getCurrentSpan();
+      if (span) {
+        addAttributesToSpan({ span, input, orderBy: normalizedOrderBy });
+      }
+
       const { filterState, hasNoMatches } = await applyCommentFilters({
         filterState: input.filter ?? [],
         prisma: ctx.prisma,
@@ -167,10 +181,6 @@ export const eventsRouter = createTRPCRouter({
           name: "get-event-list-trpc",
         },
         async (span) => {
-          const normalizedOrderBy = normalizeOrderByForTable({
-            orderBy: input.orderBy,
-            expectedTimeColumn: "startTime",
-          });
           addAttributesToSpan({ span, input, orderBy: normalizedOrderBy });
 
           return getEventList({
@@ -484,7 +494,7 @@ export const eventsRouter = createTRPCRouter({
         traceId: zodSchema.string(),
         timestamp: zodSchema.date().optional(),
         fallbackToRootIO: zodSchema.boolean().default(false),
-        transcriptSource: zodSchema.enum(["generations", "root"]).optional(),
+        filter: sessionTraceFilterSchema.optional(),
       }),
     )
     .query(async ({ input, ctx }) => {
@@ -533,7 +543,7 @@ export const eventsRouter = createTRPCRouter({
             traceId: input.traceId,
             timestamp,
             fallbackToRootIO: input.fallbackToRootIO,
-            transcriptSource: input.transcriptSource,
+            filter: input.filter,
           });
         },
       );
@@ -566,6 +576,26 @@ export const eventsRouter = createTRPCRouter({
               // fallback to input in case trace unavailable - shouldn't happen
               timestamp: ctx.trace?.timestamp ?? input.timestamp,
             });
+
+          await recordTrpcAccess(ctx, input.projectId, {
+            route: "events.byTraceId",
+            resourceType: "trace",
+            resourceId: input.traceId,
+            action: "read",
+            resourceRefs: [toAuditLogResourceRef("trace", input.traceId)]
+              .concat(
+                ctx.trace?.sessionId
+                  ? [toAuditLogResourceRef("session", ctx.trace.sessionId)]
+                  : [],
+              )
+              .concat(
+                observations.map((o) =>
+                  toAuditLogResourceRef("observation", o.id),
+                ),
+              ),
+            params: input,
+            resultCount: observations.length,
+          });
 
           return {
             observations: toDomainArrayWithStringifiedMetadata(observations),

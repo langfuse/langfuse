@@ -1,11 +1,11 @@
 /* eslint-disable react/no-unstable-nested-components */
 import { ExperimentInputCell } from "./ExperimentInputCell";
-import { ExperimentGridSummaryValues } from "./ExperimentGridSummary";
+import { ExperimentGridSummaryValues } from "./ExperimentGridSummaryValues";
 import { DataTable } from "@/src/components/table/data-table";
 import { shouldIgnoreRowClickTarget } from "@/src/components/table/shouldIgnoreRowClickTarget";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { createIOTableColumn } from "@/src/components/design-system/table/columns/createIOTableColumn";
-import { Badge } from "@/src/components/ui/badge";
+import { ExperimentRunBadge } from "../ExperimentRunBadge";
 import {
   ExperimentGridCell,
   ExperimentGridCellEmpty,
@@ -26,8 +26,8 @@ import { useExperimentNames } from "@/src/features/experiments/hooks/useExperime
 import { cn } from "@/src/utils/tailwind";
 import { type DataTablePeekViewProps } from "@/src/components/table/peek";
 
-import { useHasProjectAccess } from "@/src/features/rbac";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
 // Grid view row heights (matching DatasetCompareRunsTable)
 export const GRID_VIEW_ROW_HEIGHTS = {
@@ -166,12 +166,9 @@ export const ExperimentGridView = ({
                 {expName}
               </span>
               {useExperimentColors && (
-                <Badge
-                  variant="outline"
-                  className={cn("shrink-0 font-bold", colorStyles?.badgeClass)}
-                >
+                <ExperimentRunBadge colorClass={colorStyles?.badgeClass} strong>
                   {isBaseline ? "Baseline" : "Comp"}
-                </Badge>
+                </ExperimentRunBadge>
               )}
             </div>
             <ExperimentGridSummaryValues

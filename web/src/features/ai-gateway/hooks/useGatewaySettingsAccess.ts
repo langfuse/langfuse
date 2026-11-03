@@ -1,7 +1,9 @@
+import { useSession } from "next-auth/react";
+
 import { env } from "@/src/env.mjs";
 import { canReadGatewayModels } from "@/src/features/ai-gateway/fns/canReadGatewayModels";
-import { useIsFeatureEnabled } from "@/src/features/feature-flags";
-import { useHasOrganizationAccess } from "@/src/features/rbac";
+import { default as useIsFeatureEnabled } from "@/src/features/feature-flags/hooks/useIsFeatureEnabled";
+import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import { api } from "@/src/utils/api";
 
 /**
@@ -26,6 +28,11 @@ export function useGatewaySettingsAccess(organizationId: string | undefined) {
     enableForAdmins: false,
     organizationId,
   });
+  const session = useSession();
+
+  /** Self-hosted without a gateway: managers get a pointer to the docs. */
+  const showNotDeployedNotice =
+    session.data?.environment.aiGatewayDeployed === false && canManageGateway;
 
   const showManagement = isAiGatewayEnabled && canManageGateway;
   /** Members manage their own gateway keys; managers see every key. */
@@ -51,6 +58,7 @@ export function useGatewaySettingsAccess(organizationId: string | undefined) {
 
   return {
     canManageGateway,
+    showNotDeployedNotice,
     showManagement,
     showModels,
     showApiKeys,

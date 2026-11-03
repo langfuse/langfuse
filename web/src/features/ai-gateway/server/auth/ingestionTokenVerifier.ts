@@ -1,9 +1,9 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { env } from "@/src/env.mjs";
-import { getOrganizationPlanServerSide } from "@/src/features/entitlements/server";
+import { getOrganizationPlanServerSide } from "@/src/features/entitlements/server/getPlan";
 import { CloudConfigSchema, UnauthorizedError } from "@langfuse/shared";
 import { prisma, type PrismaClient } from "@langfuse/shared/src/db";
 import {
+  aiGatewayIngestionApiKey,
   type ApiAccessScopeWithOptionalApiKeyId,
   logger,
 } from "@langfuse/shared/src/server";
@@ -166,6 +166,7 @@ export async function verifyGatewayIngestionAuthorization(
           id: true,
           cloudConfig: true,
           cloudFreeTierUsageThresholdState: true,
+          accessAuditLogEnabled: true,
         },
       },
     },
@@ -192,10 +193,11 @@ export async function verifyGatewayIngestionAuthorization(
       orgId: project.organization.id,
       plan: getOrganizationPlanServerSide(cloudConfig),
       rateLimitOverrides: cloudConfig?.rateLimitOverrides ?? [],
-      publicKey: `gateway:${claims.jti}`,
+      publicKey: aiGatewayIngestionApiKey(claims.jti),
       isIngestionSuspended:
         project.organization.cloudFreeTierUsageThresholdState === "BLOCKED",
       isInAppAgentKey: false,
+      accessAuditLogEnabled: project.organization.accessAuditLogEnabled,
     },
   };
 }

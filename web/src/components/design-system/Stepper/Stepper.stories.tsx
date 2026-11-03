@@ -56,6 +56,36 @@ export const OutlineStatic = meta.story({
   ),
 });
 
+export const Statuses = meta.story({
+  render: () => (
+    <div className="flex max-w-xl flex-col">
+      <Stepper
+        number={1}
+        title="Choose how traffic is recorded"
+        status="complete"
+        size="sm"
+        isCollapsible={false}
+        description="Recording usage only"
+      />
+      <Stepper
+        number={2}
+        title="Add a provider credential"
+        size="sm"
+        isCollapsible={false}
+      >
+        <div className="rounded-md border p-3 text-sm">Add credential</div>
+      </Stepper>
+      <Stepper
+        number={3}
+        title="Invite your team"
+        status="upcoming"
+        size="sm"
+        isCollapsible={false}
+      />
+    </div>
+  ),
+});
+
 export const MultiStep = meta.story({
   render: () => (
     <div className="flex max-w-xl flex-col">

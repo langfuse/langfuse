@@ -1,5 +1,5 @@
 import { TimeRangePicker } from "@/src/components/date-picker";
-import { DataTableRefreshButton } from "@/src/components/table/data-table-refresh-button";
+import { DataTableRefreshButton } from "@/src/components/table/DataTableRefreshButton";
 import { type RefreshInterval } from "@/src/components/table/utils/refresh-intervals";
 import { PageHeaderControlsPortal } from "@/src/components/layouts/page-header-controls-slot";
 import {

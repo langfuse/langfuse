@@ -26,7 +26,7 @@ vi.mock("@/src/features/events/hooks/useReadPath", () => ({
   useReadPath: () => ({ isV4: false, isResolved: true }),
 }));
 
-vi.mock("@/src/features/widgets", () => ({
+vi.mock("@/src/features/widgets/components/ConnectedWidgetForm", () => ({
   ConnectedWidgetForm: ({ projectId }: { projectId: string }) => (
     <div data-testid="widget-form">{projectId}</div>
   ),
@@ -59,7 +59,7 @@ vi.mock("@/src/features/posthog-analytics/usePostHogClientCapture", () => ({
   usePostHogClientCapture: () => vi.fn(),
 }));
 
-vi.mock("@/src/components/layouts/page", () => ({
+vi.mock("@/src/components/layouts/Page", () => ({
   default: ({ children }: { children: ReactNode }) => (
     <div data-testid="page">{children}</div>
   ),
@@ -96,8 +96,8 @@ vi.mock("@/src/features/datasets/components/DatasetRunsTable", () => ({
   ),
 }));
 
-vi.mock("@/src/features/experiments/components/table", () => ({
-  ExperimentsTable: ({ projectId }: { projectId: string }) => (
+vi.mock("@/src/features/experiments/components/table/ExperimentsTable", () => ({
+  default: ({ projectId }: { projectId: string }) => (
     <div data-testid="experiments-table">{projectId}</div>
   ),
 }));

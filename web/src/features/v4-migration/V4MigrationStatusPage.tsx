@@ -1,4 +1,4 @@
-/* eslint-disable no-nested-ternary, react/no-unstable-nested-components, @typescript-eslint/no-use-before-define */
+/* eslint-disable no-nested-ternary, react/no-unstable-nested-components */
 /* eslint-disable @repo/no-null-render */
 import { useState, type ReactNode } from "react";
 import Link from "next/link";
@@ -7,7 +7,7 @@ import { useSession } from "next-auth/react";
 import { ArrowRight } from "@langfuse/icons";
 import ContainerPage from "@/src/components/layouts/ContainerPage";
 import { Card } from "@/src/components/ui/card";
-import { SimpleDataTable } from "@/src/components/table/SimpleDataTable";
+import { Table } from "@/src/components/design-system/table/Table";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
 import {
@@ -18,7 +18,7 @@ import {
   V4MigrationDocsLink,
   V4_MIGRATION_DEADLINE,
 } from "@/src/features/v4-migration/V4MigrationContent";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { api } from "@/src/utils/api";
 import { formatCompactRelativeTime } from "@/src/utils/dates";
 import { V4MigrationStatusDot } from "@/src/features/v4-migration/V4MigrationBadgeContent";
@@ -37,7 +37,8 @@ import {
 } from "@/src/features/v4-migration/migrationData";
 import { PARTNER_INTEGRATION_FAQ_URL } from "@/src/features/v4-migration/partnerIntegrationDocs";
 import { V4MigrationLoadingState } from "@/src/features/v4-migration/V4MigrationLoadingState";
-import { useReadPath, V4PreviewToggleRow } from "@/src/features/events";
+import { useReadPath } from "@/src/features/events/hooks/useReadPath";
+import { V4PreviewToggleRow } from "@/src/features/events/components/V4SidebarToggle";
 
 const V4_DOCS_URL = "https://langfuse.com/docs/v4";
 const SDK_UPGRADE_URL =
@@ -439,16 +440,17 @@ function OrgStatusSection({
       </h3>
       <Card className="overflow-hidden">
         <div className="overflow-x-auto">
-          <SimpleDataTable
-            columns={columns}
-            data={sortedRows}
-            isLoading={false}
-            noResults={null}
-            presentation="wide"
-            rowVariant="review"
-            onRowClick={(row) => handleRowClick(row, row.readiness)}
-            getRowLabel={(row) => `Review ${row.name}`}
-          />
+          <div className="min-w-[60rem]">
+            <Table
+              tableName={`${org.name} migration status`}
+              columns={columns}
+              data={{ status: "success", data: sortedRows }}
+              noResultsMessage={null}
+              topBorder={false}
+              onRowClick={(row) => handleRowClick(row, row.readiness)}
+              getRowLabel={(row) => `Review ${row.name}`}
+            />
+          </div>
         </div>
       </Card>
     </div>

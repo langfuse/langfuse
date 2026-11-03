@@ -393,6 +393,18 @@ describe("scores skip-dedup: plain scan", () => {
     }
   });
 
+  it("orders a timestamp sort by the sort-key day first", async () => {
+    const rows = await captureRowsSql([]);
+    expect(rows.query).toContain(
+      "ORDER BY toDate(s.timestamp) DESC, s.timestamp DESC, s.id DESC",
+    );
+
+    mockShouldSkipScoresDedup.mockReturnValue(false);
+    const deduped = await captureRowsSql([]);
+    expect(deduped.query).toContain("ORDER BY s.timestamp DESC, s.id DESC");
+    expect(deduped.query).not.toContain("toDate(s.timestamp) DESC");
+  });
+
   const scenarios = [
     { name: "no filter", filter: [] as FilterState, predicate: "1" },
     {

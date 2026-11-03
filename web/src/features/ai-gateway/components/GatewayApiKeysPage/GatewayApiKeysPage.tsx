@@ -1,10 +1,11 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import Header from "@/src/components/layouts/header";
-import { InfoTooltip } from "@/src/components/ui/InfoTooltip/InfoTooltip";
+import { Button } from "@/src/components/design-system/Button/Button";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { GatewayNotSetUpNotice } from "@/src/features/ai-gateway/components/GatewayNotSetUpNotice/GatewayNotSetUpNotice";
+import { GATEWAY_API_KEYS_DOCS_URL } from "@/src/features/ai-gateway/constants/gatewayDocsUrls";
 import { useGatewaySettingsAccess } from "@/src/features/ai-gateway/hooks/useGatewaySettingsAccess";
-import { ConnectedGatewayApiKeysTable } from "./components/GatewayApiKeysTable/ConnectedGatewayApiKeysTable";
+import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
+import { ConnectedGatewayApiKeysTable } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/GatewayApiKeysTable/ConnectedGatewayApiKeysTable";
 
 export function GatewayApiKeysPage({
   organizationId,
@@ -13,28 +14,40 @@ export function GatewayApiKeysPage({
 }) {
   const { canManageGateway, isIngestionConfigured, isSetupStatusPending } =
     useGatewaySettingsAccess(organizationId);
+  const canInviteMembers = useHasOrganizationAccess({
+    organizationId,
+    scope: "organizationMembers:CUD",
+  });
 
   if (isSetupStatusPending) {
     return <ApiKeysSkeleton />;
   }
-  /** Managers are redirected to Configuration by the settings route. */
+  /** Managers are redirected to Setup by the settings route. */
   if (!canManageGateway && isIngestionConfigured === false) {
-    return <GatewayNotSetUpNotice title="Gateway API keys" />;
+    return <GatewayNotSetUpNotice title="Gateway keys" />;
   }
   return (
-    <div className="flex flex-col gap-4">
-      <div className="flex items-center gap-1">
-        <Header title="Gateway API keys" className="mb-0!" />
-        <InfoTooltip label="About gateway API keys">
+    <div className="flex h-full min-h-0 flex-col gap-4">
+      <div>
+        <Header title="Gateway keys" />
+        <p className="text-muted-foreground text-sm">
           {canManageGateway
-            ? "These organization keys authenticate requests to the AI Gateway only. Each key belongs to the member who created it and is revoked when they leave the organization."
-            : "Your keys authenticate requests to the AI Gateway only. They are revoked when you leave the organization or lose gateway access."}
-        </InfoTooltip>
+            ? "Gateway keys authenticate requests to the AI Gateway only. User keys are revoked when their owner leaves the organization; service account keys keep working."
+            : "Your gateway keys authenticate requests to the AI Gateway only. They are revoked when you leave the organization or lose gateway access."}{" "}
+          <Button
+            variant="text"
+            text="How gateway keys work"
+            href={GATEWAY_API_KEYS_DOCS_URL}
+          />
+        </p>
       </div>
-      <ConnectedGatewayApiKeysTable
-        key={organizationId}
-        organizationId={organizationId}
-      />
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+        <ConnectedGatewayApiKeysTable
+          key={organizationId}
+          organizationId={organizationId}
+          canInvite={canManageGateway && canInviteMembers}
+        />
+      </div>
     </div>
   );
 }

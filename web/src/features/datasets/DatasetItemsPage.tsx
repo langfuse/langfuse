@@ -1,13 +1,15 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { api } from "@/src/utils/api";
-import { getDatasetTabs, DATASET_TABS } from "@/src/features/navigation";
+import {
+  getDatasetTabs,
+  DATASET_TABS,
+} from "@/src/features/navigation/utils/dataset-tabs";
 import { DatasetItemsTable } from "@/src/features/datasets/components/DatasetItemsTable";
-import { DetailPageNav } from "@/src/features/navigate-detail-pages";
+import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNav";
 import { NewDatasetItemButton } from "@/src/features/datasets/components/NewDatasetItemButton";
 import { UploadDatasetCsvButton } from "@/src/features/datasets/components/UploadDatasetCsvButton";
 import { Button } from "@/src/components/ui/button";
 import { History, MoreVertical } from "@langfuse/icons";
-import Page from "@/src/components/layouts/page";
+import Page from "@/src/components/layouts/Page";
 import { DatasetItemsOnboarding } from "@/src/components/onboarding/DatasetItemsOnboarding";
 import { SidePanel, SidePanelContent } from "@/src/components/ui/side-panel";
 import { DatasetVersionHistoryPanel } from "@/src/features/datasets/components/DatasetVersionHistoryPanel";

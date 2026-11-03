@@ -1,4 +1,4 @@
-import Page from "@/src/components/layouts/page";
+import Page from "@/src/components/layouts/Page";
 import {
   BreadcrumbSeparator,
   BreadcrumbPage,
@@ -12,7 +12,7 @@ import { useRouter } from "next/router";
 import { SelectEvaluatorList } from "@/src/features/evals/components/SelectEvaluatorList";
 import { RunEvaluatorForm } from "@/src/features/evals/components/RunEvaluatorForm";
 import { api } from "@/src/utils/api";
-import { useHasProjectAccess } from "@/src/features/rbac";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { getMaintainer } from "@/src/features/evals/utils/typeHelpers";
 import { MaintainerTooltip } from "@/src/features/evals/components/MaintainerTooltip";
 import { DefaultEvalModelSetup } from "@/src/features/evals/components/default-eval-model-setup";

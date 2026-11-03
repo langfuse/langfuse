@@ -53,6 +53,14 @@ export const treemapTileClasses = (rank: number, big: boolean) => {
 export const treemapSwatchColor = (rank: number) =>
   `var(--category-${["violet", "blue", "amber"][Math.max(0, rank) % 3]}-highlight)`;
 
+/** Topic chip color for a treemap rank; grey when the topic is not in the current results. */
+export const treemapBadgeColor = (rank: number) =>
+  rank < 0
+    ? ("filled" as const)
+    : (["violetHighlight", "blueHighlight", "amberHighlight"] as const)[
+        rank % 3
+      ];
+
 /** Grey tile for traces without a topic. */
 export const unassignedTileClasses = {
   tile: "bg-category-neutral-tint",

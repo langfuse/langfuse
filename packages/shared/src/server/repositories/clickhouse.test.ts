@@ -124,13 +124,13 @@ describe("queryClickhouseWithProgress", () => {
       );
       expect(mocks.query).toHaveBeenCalledOnce();
       expect(mocks.recordOutcome).toHaveBeenCalledOnce();
-      expect(mocks.recordOutcome.mock.calls[0][0]).toBe("cancelled");
+      expect(mocks.recordOutcome.mock.calls[0][0]).toBe("client_closed");
       expect(mocks.recordElapsed).not.toHaveBeenCalled();
     },
   );
 
   it.each([
-    [{ row: { id: "row-1" } }, "cancelled"],
+    [{ row: { id: "row-1" } }, "client_closed"],
     [{ exception: "Code: 159. DB::Exception: Timeout exceeded" }, "timeout"],
   ])("counts early consumer closure once: %j", async (event, outcome) => {
     mocks.query.mockResolvedValueOnce(response([event]));

@@ -23,7 +23,7 @@ import {
   fieldHasJsonSelectorOption,
   getJsonPathCompatibilityWarning,
 } from "@/src/features/evals/utils/evaluator-form-utils";
-import { VariableMappingDescription } from "@/src/features/evals/components/eval-form-descriptions";
+import { VariableMappingDescription } from "@/src/features/evals/components/VariableMappingDescription";
 import {
   EvaluationPromptPreview,
   getVariableColor,
@@ -47,7 +47,7 @@ import {
 import { useFieldArray, type UseFormReturn } from "react-hook-form";
 import { Input } from "@/src/components/ui/input";
 import { Switch } from "@/src/components/design-system/Switch/Switch";
-import { DetailPageNav } from "@/src/features/navigate-detail-pages";
+import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNav";
 import { useEvalConfigMappingData } from "@/src/features/evals/hooks/useEvalConfigMappingData";
 import { useEffect, useState } from "react";
 import { Alert } from "@/src/components/design-system/Alert/Alert";
@@ -56,7 +56,7 @@ import { useVariableMappingSync } from "@/src/features/evals/hooks/useVariableMa
 import { Button } from "@/src/components/ui/button";
 import Link from "next/link";
 import { useRouter } from "next/router";
-import { useReadPath } from "@/src/features/events";
+import { useReadPath } from "@/src/features/events/hooks/useReadPath";
 import {
   type EvalPreviewPointer,
   buildEvalPreviewNavigationPath,

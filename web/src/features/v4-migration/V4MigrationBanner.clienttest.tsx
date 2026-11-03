@@ -1,4 +1,4 @@
-import { render, renderHook, screen } from "@testing-library/react";
+import { fireEvent, render, renderHook, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
@@ -71,6 +71,7 @@ const status = (
 describe("V4MigrationBanner", () => {
   beforeEach(() => {
     mocks.statusByProjectId = new Map();
+    localStorage.clear();
   });
 
   it("shows while the only project still needs migration work", () => {
@@ -108,7 +109,23 @@ describe("V4MigrationBanner", () => {
     expect(result.current).toEqual({
       projectsNeedingMigration: 0,
       totalProjects: 1,
+      isChecking: false,
+      isDismissed: false,
     });
+  });
+
+  it("reports the banner as dismissed once the user closes it", () => {
+    const { result } = renderHook(() => useV4MigrationBannerState(true));
+    render(
+      <V4MigrationBanner projectsNeedingMigration={1} totalProjects={1} />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Dismiss" }));
+
+    expect(
+      screen.queryByText(/Your project needs an upgrade/),
+    ).not.toBeInTheDocument();
+    expect(result.current.isDismissed).toBe(true);
   });
 
   it("returns no migration work while readiness is still being checked", () => {
@@ -120,6 +137,7 @@ describe("V4MigrationBanner", () => {
     const { result } = renderHook(() => useV4MigrationBannerState(true));
 
     expect(result.current.projectsNeedingMigration).toBe(0);
+    expect(result.current.isChecking).toBe(true);
   });
 
   it("excludes the demo org and deleted projects from the queried scope", () => {

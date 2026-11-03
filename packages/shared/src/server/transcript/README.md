@@ -82,6 +82,21 @@ remove that second input. Such an extension should keep conversation assembly
 and trace-level facts distinct, so root I/O and operation metadata do not become
 duplicate conversation messages.
 
+## Execution issues
+
+`assembleTranscriptContext(orderedObservations, options?)` composes
+`assembleTranscript` with execution-issue collection over the same observations
+and returns `{ transcript, executionIssues }`, or `null` when there is no
+transcript. `Transcript` stays purely conversational.
+
+An execution issue is an ERROR observation, or a WARNING observation with a
+status message (`isExecutionIssue`). Issues are collected from all supplied
+observations, including ones that contribute no messages, in observation order.
+Each keeps its observation reference, type, name, level, start time and the
+first 1,000 characters of its status message, so a consumer can place it in the
+matching observation block. `maxCharacters` limits only the transcript; issues
+are not capped.
+
 ## Schema
 
 `schema.ts` owns the current transcript shape and composes the message/part schemas
@@ -284,6 +299,7 @@ transcript/
 ├── ordering.ts            orderObservations, the trace tree walk
 ├── ordering.test.ts       ordering rules
 ├── transcript.ts          assembleTranscript
+├── context.ts             assembleTranscriptContext and execution issues
 ├── limit.ts               optional hard limit on serialized JSON
 ├── comparison.ts          messageKey
 ├── comparison.test.ts     focused equality regressions

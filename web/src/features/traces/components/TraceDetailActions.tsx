@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import {
   Download,
   FileText,
@@ -8,16 +7,14 @@ import {
 } from "@langfuse/icons";
 
 import { HeaderActionButton } from "@/src/components/HeaderActionButton";
-import {
-  HeaderActionMenuRow,
-  HeaderActionMenuRows,
-} from "@/src/components/HeaderActionMenuRow";
+import { HeaderActionMenuRow } from "@/src/components/HeaderActionMenuRow";
+import { HeaderActionMenuRows } from "@/src/components/HeaderActionMenuRows";
 import {
   DropdownMenu,
   type DropdownMenuItemDefinition,
 } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
 import { useShareMenuItems } from "@/src/components/useShareMenuItems";
-import { InternalFeatureBadge } from "@/src/features/feature-flags";
+import { InternalFeatureBadge } from "@/src/features/feature-flags/components/InternalFeatureBadge";
 import { ConnectedDetailHeaderActionsMenuController } from "@/src/features/traces/components/DetailHeaderActionsMenuController";
 import { DeleteTraceDialogController } from "@/src/features/traces/components/DeleteTraceDialogController";
 import { TraceTranscriptDialogController } from "@/src/features/traces/components/TraceTranscriptDialogController";

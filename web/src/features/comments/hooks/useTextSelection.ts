@@ -1,5 +1,5 @@
 import { useEffect, useCallback, useRef } from "react";
-import { useInlineCommentSelectionOptional } from "../contexts/InlineCommentSelectionContext";
+import { useInlineCommentSelectionOptional } from "../contexts/InlineCommentSelectionProvider";
 import { containsNode } from "../lib/containsNode";
 import { selectionToPath } from "../lib/selectionToPath";
 

@@ -1,8 +1,8 @@
 import { Alert } from "@/src/components/design-system/Alert/Alert";
 import Header from "@/src/components/layouts/header";
-import { useHasEntitlement } from "@/src/features/entitlements";
-import { useHasOrganizationAccess } from "@/src/features/rbac";
-import { VerifiedDomainsSettings } from "@/src/ee/features/verified-domains";
+import { useHasEntitlement } from "@/src/features/entitlements/hooks";
+import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
+import { VerifiedDomainsSettings } from "@/src/ee/features/verified-domains/components/VerifiedDomainsSettings";
 import { AlertCircle } from "@langfuse/icons";
 import { ConnectedSsoConfigsTable } from "./SsoConfigsTable/ConnectedSsoConfigsTable";
 

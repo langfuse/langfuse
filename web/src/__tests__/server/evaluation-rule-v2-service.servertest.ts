@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { randomUUID } from "node:crypto";
 import { EvalTargetObject } from "@langfuse/shared";
 import type * as SharedServer from "@langfuse/shared/src/server";

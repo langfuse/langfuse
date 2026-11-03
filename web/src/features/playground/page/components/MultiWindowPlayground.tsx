@@ -1,6 +1,9 @@
-/* eslint-disable @repo/no-null-render, @typescript-eslint/no-deprecated, @typescript-eslint/no-use-before-define -- Legacy UI usage retained during migration to design-system components. */
+/* eslint-disable @repo/no-null-render, @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 import React, { useMemo, useCallback, useRef, useEffect } from "react";
-import { PlaygroundProvider, usePlaygroundContext } from "../context";
+import {
+  PlaygroundProvider,
+  usePlaygroundContext,
+} from "../context/PlaygroundProvider";
 import { SaveToPromptButton } from "./SaveToPromptButton";
 import { SourcePromptHeading } from "./SourcePromptHeading";
 import { Button } from "@/src/components/ui/button";
@@ -9,7 +12,7 @@ import { MULTI_WINDOW_CONFIG, type MultiWindowState } from "../types";
 import { ModelParameters } from "@/src/components/ModelParameters";
 import { Messages } from "@/src/features/playground/page/components/Messages";
 import { ConfigurationDropdowns } from "@/src/features/playground/page/components/ConfigurationDropdowns";
-import { useMessageSearchActions } from "@/src/components/ChatMessages/MessageSearch";
+import { useMessageSearchActions } from "@/src/components/ChatMessages/messageSearch/context";
 import {
   Tooltip,
   TooltipContent,
