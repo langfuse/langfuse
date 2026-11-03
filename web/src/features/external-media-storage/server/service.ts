@@ -18,7 +18,7 @@ import {
 
 import { getDisplayCredential } from "@/src/features/analytics-integrations/server";
 import { auditLog } from "@/src/features/audit-logs/server";
-import { areDestinationUrlsEquivalent } from "@/src/features/automations/destinationUrl";
+import { isSameStorageDestination } from "@/src/features/automations/destinationUrl";
 import { type ExternalMediaStorageFormValues } from "@/src/features/external-media-storage/types";
 import {
   createExternalMediaStorageRepository,
@@ -53,28 +53,6 @@ async function auditConfigurationChange({
     "session" in actor
       ? { ...event, session: actor.session }
       : { ...event, ...actor, projectId },
-  );
-}
-
-type StorageDestination = Pick<
-  ExternalMediaStorageRecord,
-  "type" | "endpoint" | "bucketName" | "accessKeyId"
->;
-
-function isSameStorageDestination(
-  existing: StorageDestination,
-  next: StorageDestination,
-) {
-  const isSameEndpoint =
-    existing.endpoint === null || next.endpoint === null
-      ? existing.endpoint === next.endpoint
-      : areDestinationUrlsEquivalent(existing.endpoint, next.endpoint);
-
-  return (
-    isSameEndpoint &&
-    existing.type === next.type &&
-    existing.bucketName === next.bucketName &&
-    existing.accessKeyId === next.accessKeyId
   );
 }
 

@@ -12,7 +12,7 @@ import {
   GCS_USE_DEFAULT_CREDENTIALS,
 } from "@langfuse/shared";
 import { assertPersistedExportSourceAllowed } from "@/src/features/analytics-integrations/server";
-import { areDestinationUrlsEquivalent } from "@/src/features/automations/destinationUrl";
+import { isSameStorageDestination } from "@/src/features/automations/destinationUrl";
 import { encrypt } from "@langfuse/shared/encryption";
 import { env } from "@/src/env.mjs";
 import {
@@ -74,30 +74,6 @@ function secretFamily(type: BlobStorageIntegrationType) {
       return null;
     }
   }
-}
-
-type StorageDestination = {
-  type: BlobStorageIntegrationType;
-  bucketName: string;
-  endpoint: string | null;
-  accessKeyId: string | null;
-};
-
-function isSameStorageDestination(
-  existing: StorageDestination,
-  next: StorageDestination,
-) {
-  const isSameEndpoint =
-    existing.endpoint === null || next.endpoint === null
-      ? existing.endpoint === next.endpoint
-      : areDestinationUrlsEquivalent(existing.endpoint, next.endpoint);
-
-  return (
-    isSameEndpoint &&
-    existing.type === next.type &&
-    existing.bucketName === next.bucketName &&
-    existing.accessKeyId === next.accessKeyId
-  );
 }
 
 function resolveExportStartDate(params: {
@@ -291,16 +267,16 @@ export async function upsertBlobStorageIntegration(params: {
     const modeChanged = existing && existing.exportMode !== data.exportMode;
     const justEnabled = data.enabled && !existing?.enabled;
     const encryptedSecret = secretAccessKey ? encrypt(secretAccessKey) : null;
-    // Only overwrite secretAccessKey when a new value is provided, so partial
-    // updates don't wipe the existing encrypted secret. Keyless GCS, or a switch
-    // to another credential family, clears it, so a secret is never reused by
-    // the wrong provider.
-    let secretAccessKeyUpdate: { secretAccessKey: string | null } | object = {};
-    if (encryptedSecret) {
-      secretAccessKeyUpdate = { secretAccessKey: encryptedSecret };
-    } else if (willRunKeyless || !canKeepStoredSecret) {
-      secretAccessKeyUpdate = { secretAccessKey: null };
-    }
+    // An update without a new secret writes back the stored secret checked
+    // above, never omits the column: a concurrent save that changed the secret
+    // in between must not end up paired with this request's destination.
+    // Keyless GCS, or a destination the stored secret was not entered for,
+    // clears it.
+    const nextSecretAccessKey =
+      encryptedSecret ??
+      (canKeepStoredSecret && !willRunKeyless
+        ? existing.secretAccessKey
+        : null);
 
     // The CREATE payload always carries a concrete source, resolved by the
     // caller through resolveExportSource. Applying it unconditionally (rather
@@ -326,7 +302,7 @@ export async function upsertBlobStorageIntegration(params: {
       },
       update: {
         ...writeData,
-        ...secretAccessKeyUpdate,
+        secretAccessKey: nextSecretAccessKey,
         // Schedule an immediate retry when saving an errored integration
         // so the scheduler picks it up via the nextSyncAt clause.
         ...(existing?.lastError && data.enabled && !modeChanged

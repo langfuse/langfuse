@@ -203,13 +203,15 @@ describe("external media storage service", () => {
         const project = await prepareS3CompatibleIntegration();
         const before = await findStored(project.id);
 
-        await expect(
-          createExternalMediaStorageService(prisma).saveConfiguration({
-            actor: { apiKeyId: "test-api-key", orgId: project.orgId },
-            projectId: project.id,
-            values: { ...savedValues, ...change },
-          }),
-        ).rejects.toThrow(
+        const rejection = createExternalMediaStorageService(
+          prisma,
+        ).saveConfiguration({
+          actor: { apiKeyId: "test-api-key", orgId: project.orgId },
+          projectId: project.id,
+          values: { ...savedValues, ...change },
+        });
+        await expect(rejection).rejects.toBeInstanceOf(InvalidRequestError);
+        await expect(rejection).rejects.toThrow(
           "Secret Access Key is required when changing the storage provider, bucket, endpoint, or Access Key ID",
         );
         await expect(findStored(project.id)).resolves.toEqual(before);
