@@ -3,6 +3,8 @@
 // server code and reaches it through here.
 export {
   auditLog,
+  toApiKeyActor,
+  toUserActor,
   type AuditLogActor,
 } from "@/src/features/audit-logs/auditLog";
 export { getAuditRequestContext } from "@/src/features/audit-logs/server/getAuditRequestContext";

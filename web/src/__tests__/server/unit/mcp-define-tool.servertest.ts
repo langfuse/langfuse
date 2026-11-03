@@ -94,6 +94,7 @@ describe("defineTool", () => {
       publicKey: "pk-lf-test",
       plan: "oss",
       rateLimitOverrides: [],
+      accessAuditLogEnabled: false,
     };
     const input = {
       id: "score-id",

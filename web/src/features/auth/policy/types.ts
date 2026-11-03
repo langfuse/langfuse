@@ -21,6 +21,8 @@ export type PrincipalOrganization = {
   rateLimitOverrides: z.infer<typeof CloudConfigRateLimit>;
   projectIds: string[];
   isIngestionSuspended: boolean;
+  /** Absent on authz contexts cached before the field existed; no org could have opted in then. */
+  accessAuditLogEnabled?: boolean;
 };
 
 /** Principal is an authorized admin, user, or api key, discriminated on kind. */

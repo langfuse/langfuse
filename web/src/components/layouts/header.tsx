@@ -2,6 +2,7 @@
 import Link from "next/link";
 import DocPopup from "@/src/components/layouts/doc-popup";
 import { Badge } from "@/src/components/design-system/Badge/Badge";
+import { InternalFeatureBadge } from "@/src/features/feature-flags";
 import {
   type Status,
   StatusBadge,
@@ -14,6 +15,8 @@ type HeaderProps = {
   status?: Status;
   /** Plain informational badge next to the title, e.g. "Demo Org". Not a status. */
   labelBadge?: string;
+  /** Marks a surface only internal users can see with the shared internal-feature badge. */
+  internal?: boolean;
   label?: {
     text: string;
     href: string;
@@ -84,6 +87,7 @@ function BaseHeader({ ...props }: HeaderProps & { level: "h3" | "h4" | "h5" }) {
             ) : null}
           </div>
           {props.status && <StatusBadge type={props.status} />}
+          {props.internal && <InternalFeatureBadge />}
           {props.labelBadge && (
             <Badge
               color="filled"
