@@ -20,6 +20,8 @@ import {
 } from "@/src/features/traces/components/ObservationMetadataBadgesTooltip";
 import { CollapsibleBadgeRow } from "@/src/features/traces/components/CollapsibleBadgeRow";
 import { useTraceData } from "@/src/features/traces/contexts/TraceDataProvider";
+import { PendingTraceDeletionBanner } from "@/src/features/traces/components/PendingTraceDeletionBanner";
+import { usePendingTraceDeletionIds } from "@/src/features/traces/pendingTraceDeletions";
 import { useViewPreferences } from "@/src/features/traces/contexts/ViewPreferencesProvider";
 import { aggregateTraceMetrics } from "@/src/features/traces/fns/traceAggregation";
 import { cn } from "@/src/utils/tailwind";
@@ -37,18 +39,30 @@ export function TraceHeader({ isLoading = false }: { isLoading?: boolean }) {
   return <LoadedTraceHeader />;
 }
 
-function TraceHeaderFrame({ children }: { children: ReactNode }) {
+function TraceHeaderFrame({
+  children,
+  notice,
+}: {
+  children: ReactNode;
+  notice?: ReactNode;
+}) {
   const { traceContext } = useViewPreferences();
   return (
     <div
       className={cn(
         "shrink-0 border-b",
-        traceContext === "fullscreen" && "px-4 pt-1 pb-1.5",
-        // Peek's title bar already pads above, so no top padding here.
-        traceContext === "peek" && "pt-0 pr-2 pb-2 pl-4",
-        traceContext !== "fullscreen" && traceContext !== "peek" && "px-2 py-2",
+        notice && "flex flex-col gap-3",
+        // Peek's title bar already pads above, so that case stays tighter.
+        traceContext === "fullscreen" &&
+          (notice ? "px-4 pt-3 pb-2" : "px-4 pt-1 pb-1.5"),
+        traceContext === "peek" &&
+          (notice ? "pt-2 pr-2 pb-2 pl-4" : "pt-0 pr-2 pb-2 pl-4"),
+        traceContext !== "fullscreen" &&
+          traceContext !== "peek" &&
+          (notice ? "px-2 pt-3 pb-2" : "px-2 py-2"),
       )}
     >
+      {notice}
       {children}
     </div>
   );
@@ -90,9 +104,13 @@ function LoadedTraceHeader() {
     ? trace.tags
     : trace.tags.slice(0, MAX_VISIBLE_TAGS);
   const hiddenTagCount = trace.tags.length - visibleTags.length;
+  const pendingTraceIds = usePendingTraceDeletionIds(trace.projectId);
+  const scheduledForDeletion = pendingTraceIds.has(trace.id);
 
   return (
-    <TraceHeaderFrame>
+    <TraceHeaderFrame
+      notice={scheduledForDeletion ? <PendingTraceDeletionBanner /> : undefined}
+    >
       <CollapsibleBadgeRow>
         {trace.latency != null && (
           <LatencyBadge latencySeconds={trace.latency} />

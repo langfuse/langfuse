@@ -1,13 +1,17 @@
-import { AlertTriangle } from "@langfuse/icons";
-
-import { Alert } from "@/src/components/design-system/Alert/Alert";
+import { Info } from "@langfuse/icons";
 
 export function PendingTraceDeletionBanner() {
   return (
-    <Alert variant="warning" icon={AlertTriangle}>
-      <Alert.Description>
-        This trace is scheduled for deletion and may take up to 24 hours.
-      </Alert.Description>
-    </Alert>
+    <p
+      role="status"
+      className="text-foreground-secondary flex items-start gap-1.5 text-xs"
+    >
+      <span className="flex h-4 shrink-0 translate-y-px items-center">
+        <Info size="sm" color="tertiary" aria-hidden />
+      </span>
+      <span>
+        Deletion in progress. This trace will be removed within 24 hours.
+      </span>
+    </p>
   );
 }
