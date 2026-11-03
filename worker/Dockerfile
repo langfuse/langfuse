@@ -201,6 +201,7 @@ FROM --platform=${TARGETPLATFORM:-linux/amd64} builder AS prod-deps
 # previously we copied the --from=builder /app . (includes full node_modules etc)
 # we only need the prod + generated prisma client plus .prisma artifacts
 # pnpm deploy materializes linked workspace packages into the standalone artifact.
+COPY scripts/docker/prune-node-modules.sh /usr/local/bin/prune-node-modules
 RUN pnpm --filter worker deploy --prod /prod/worker && \
     builder_prisma_client_dir="$(find /app/node_modules/.pnpm -path '*/node_modules/@prisma/client' -type d | head -n 1)" && \
     deployed_prisma_client_dir="$(find /prod/worker/node_modules/.pnpm -path '*/node_modules/@prisma/client' -type d | head -n 1)" && \
@@ -208,7 +209,8 @@ RUN pnpm --filter worker deploy --prod /prod/worker && \
     deployed_prisma_runtime_dir="$(dirname "$(dirname "$deployed_prisma_client_dir")")/.prisma" && \
     rm -rf "$deployed_prisma_client_dir" "$deployed_prisma_runtime_dir" && \
     cp -R "$builder_prisma_client_dir" "$deployed_prisma_client_dir" && \
-    cp -R "$builder_prisma_runtime_dir" "$deployed_prisma_runtime_dir"
+    cp -R "$builder_prisma_runtime_dir" "$deployed_prisma_runtime_dir" && \
+    prune-node-modules /prod/worker/node_modules
 
 # Next.js with its SWC compiler and the Prisma CLI with its engines add ~400MB
 # and are never loaded by the worker. They used to arrive through next-auth in

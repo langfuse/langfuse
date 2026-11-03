@@ -108,12 +108,21 @@ COPY --from=rpm-installer /mnt/rootfs /
 # prisma CLI + optional dd-trace are npm-installed here and copied into the
 # package-manager-less runtime image.
 FROM --platform=${TARGETPLATFORM:-linux/amd64} build-base AS web-tools
-RUN npm install -g --prefix /opt/prisma-cli --no-package-lock --no-save prisma@6.19.3
+COPY scripts/docker/prune-node-modules.sh /usr/local/bin/prune-node-modules
+# entrypoint.sh only runs `prisma db execute` and `prisma migrate deploy`, which
+# need neither the client generator nor Studio. Keep @prisma/engines intact:
+# the CLI re-downloads any missing engine at startup, which fails as non-root
+# and without network access.
+RUN npm install -g --prefix /opt/prisma-cli --no-package-lock --no-save prisma@6.19.3 && \
+    rm -rf /opt/prisma-cli/lib/node_modules/prisma/prisma-client \
+    /opt/prisma-cli/lib/node_modules/prisma/build/public && \
+    prune-node-modules /opt/prisma-cli/lib/node_modules
 ARG NEXT_PUBLIC_LANGFUSE_CLOUD_REGION
 RUN mkdir -p /opt/dd/node_modules && \
     if [ -n "$NEXT_PUBLIC_LANGFUSE_CLOUD_REGION" ]; then \
     cd /opt/dd && npm install --no-package-lock --no-save dd-trace@5.131.1; \
-    fi
+    fi && \
+    prune-node-modules /opt/dd/node_modules
 
 FROM --platform=${BUILDPLATFORM} golang:1.26 AS migrate-builder
 ARG TARGETOS
@@ -240,6 +249,12 @@ ENV NEXT_MANUAL_SIG_HANDLE true
 ENV CI true
 
 RUN NODE_OPTIONS='--max-old-space-size-percentage=75' turbo run build --filter=web...
+
+# Next copies .next/server/pages into the standalone output wholesale, including
+# the *.nft.json build traces (~300MB) that server.js never reads.
+COPY scripts/docker/prune-node-modules.sh /usr/local/bin/prune-node-modules
+RUN find ./web/.next/standalone -type f -name '*.nft.json' -delete && \
+    prune-node-modules ./web/.next/standalone/node_modules
 
 # Production image, copy all the files and run next
 FROM --platform=${TARGETPLATFORM:-linux/amd64} runtime-base AS runner
