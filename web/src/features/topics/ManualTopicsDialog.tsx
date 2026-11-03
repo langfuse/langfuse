@@ -55,8 +55,8 @@ export function ManualTopicsDialog({
       `Run ${selectedUpdates.length} ${facetLabel} on ${count.toLocaleString()} ${traceLabel}`
     ) : (
       <>
-        Press <em>Preview traces</em> first, then confirm or adjust the batch
-        before starting the run.
+        Matching traces load automatically. Confirm or adjust the batch before
+        starting the run.
       </>
     );
   const storedSummaryCount = selectedUpdates.every(
@@ -153,7 +153,7 @@ export function ManualTopicsDialog({
               }
               description={
                 operation === "process"
-                  ? "Set your filters or paste trace IDs. Preview matching traces and choose the batch to run. Previewing does not use a model."
+                  ? "Set your filters or paste trace IDs. Review matching traces and choose the batch to run. Previewing does not use a model."
                   : "Use stored summaries of traces that started within this time range for clustering and topic generation."
               }
             >
