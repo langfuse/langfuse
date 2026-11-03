@@ -4,6 +4,34 @@ import { filterStateToQueryText, planCommit } from "@/src/features/search-bar";
 import { SESSION_TRACE_FIELD_REGISTRY } from "./sessionTraceSearchRegistry";
 
 describe("session trace search registry", () => {
+  it.each(["name", "traceName"])(
+    "round-trips exact exclusions for %s",
+    (column) => {
+      const filters = sessionTraceFilterSchema.parse([
+        {
+          column,
+          type: "stringOptions",
+          operator: "none of",
+          value: ["agent"],
+        },
+      ]);
+      const query = filterStateToQueryText(
+        filters,
+        {},
+        SESSION_TRACE_FIELD_REGISTRY,
+      );
+      expect(query.skippedFilters).toEqual([]);
+      const restored = planCommit(
+        query.text,
+        undefined,
+        SESSION_TRACE_FIELD_REGISTRY,
+      );
+      expect(restored.status).toBe("committed");
+      if (restored.status !== "committed") return;
+      expect(restored.filters).toEqual(filters);
+    },
+  );
+
   it("lowers trace and observation syntax into supported filters and round-trips saved views", () => {
     const result = planCommit(
       "traceName:chat name:=agent type:=GENERATION level:=ERROR isRootObservation:true",

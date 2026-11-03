@@ -1,12 +1,12 @@
 import {
   type ComponentProps,
-  useEffect,
   useId,
   useMemo,
   useState,
   useSyncExternalStore,
 } from "react";
 import { type FilterState } from "@langfuse/shared";
+import { usePrevious } from "@/src/hooks/usePrevious";
 import { type RouterOutputs } from "@/src/utils/api";
 import { ListTree, Sparkles } from "@langfuse/icons";
 import { Button } from "@/src/components/ui/button";
@@ -69,13 +69,17 @@ export function SessionCustomizationDialog({
     () => planCommit(query, undefined, SESSION_TRACE_FIELD_REGISTRY),
     [query],
   );
-  const [lastValidFilters, setLastValidFilters] = useState<FilterState>([]);
-  const activeFilters =
-    previewPlan.status === "invalid" ? lastValidFilters : previewPlan.filters;
-  useEffect(() => {
-    if (previewPlan.status !== "invalid")
-      setLastValidFilters(previewPlan.filters);
-  }, [previewPlan]);
+  const lastValidFilters = usePrevious(
+    previewPlan.status === "invalid" ? undefined : previewPlan.filters,
+    previewPlan.status !== "invalid",
+  );
+  const activeFilters = useMemo(
+    () =>
+      previewPlan.status === "invalid"
+        ? (lastValidFilters ?? [])
+        : previewPlan.filters,
+    [previewPlan, lastValidFilters],
+  );
   const matchingTraces = useMemo(
     () =>
       preview.traces?.map((trace) => {
@@ -88,7 +92,8 @@ export function SessionCustomizationDialog({
             ) {
               return (observation.isRootObservation === true) === filter.value;
             }
-            if (filter.type !== "string") return false;
+            if (filter.type !== "string" && filter.type !== "stringOptions")
+              return false;
             const value = (() => {
               if (filter.column === "name") return observation.name;
               if (filter.column === "traceName") return trace.name;
@@ -96,6 +101,11 @@ export function SessionCustomizationDialog({
               return observation.level;
             })();
             if (value === null || value === undefined) return false;
+            if (filter.type === "stringOptions") {
+              const included = filter.value.includes(value);
+              if (filter.operator === "none of") return !included;
+              return included;
+            }
             if (filter.operator === "=") return value === filter.value;
             const contains = value.includes(filter.value);
             if (filter.operator === "contains") return contains;

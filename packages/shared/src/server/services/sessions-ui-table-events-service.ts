@@ -93,6 +93,10 @@ export const getSessionTracesFromEvents = async (props: {
       filter.column,
     ),
   );
+  const sessionTraceIdsQuery = compileClickhouseQuery(
+    builder.clearSelect().select("e.trace_id").clearGroupBy().clearOrderBy(),
+    projectId,
+  );
   const observationQuery =
     observationFilters.length > 0
       ? new EventsQueryBuilder({ projectId: props.projectId })
@@ -102,7 +106,7 @@ export const getSessionTracesFromEvents = async (props: {
             (builder) => builder.forceFullTable(),
           )
           .whereRaw("e.is_deleted = 0")
-          .whereRaw("e.trace_id IN (SELECT id FROM session_traces)")
+          .whereRaw(`e.trace_id IN (${sessionTraceIdsQuery.sql})`)
           .where(
             new FilterList(
               createFilterFromFilterState(
@@ -132,6 +136,7 @@ export const getSessionTracesFromEvents = async (props: {
           ...tracesParams,
           ...traceFilters.params,
           ...observationQuery?.params,
+          ...sessionTraceIdsQuery.params,
           projectId,
         };
 

@@ -27,6 +27,11 @@ export const SESSION_TRACE_FIELD_REGISTRY = fieldRegistryFromColumns(
       filters.every((filter) => {
         if (filter.column === "isRootObservation")
           return filter.type === "boolean" && filter.operator === "=";
+        if (
+          filter.type === "stringOptions" &&
+          (filter.column === "name" || filter.column === "traceName")
+        )
+          return filter.operator === "none of";
         if (filter.type !== "string") return false;
         if (filter.column === "name" || filter.column === "traceName")
           return ["=", "contains", "does not contain"].includes(

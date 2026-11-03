@@ -2,6 +2,7 @@ import { z } from "zod";
 import {
   singleFilterList,
   stringFilter,
+  stringOptionsFilter,
   arrayOptionsFilter,
   stringObjectFilter,
   booleanFilter,
@@ -75,6 +76,7 @@ export const sessionTraceFilterSchema = singleFilterList
     z.array(
       z.discriminatedUnion("type", [
         booleanFilter.extend({ column: z.literal("isRootObservation") }),
+        stringOptionsFilter.extend({ column: z.enum(["name", "traceName"]) }),
         stringFilter.extend({
           column: z.enum([
             "traceName",

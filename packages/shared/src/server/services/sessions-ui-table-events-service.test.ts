@@ -94,7 +94,16 @@ describe("session trace filtering", () => {
     const observationQuery = query.slice(query.indexOf("AND t.id IN ("));
     expect(observationQuery).not.toContain("e.is_app_root = true");
     expect(observationQuery).not.toContain("e.parent_span_id = ''");
-    expect(query).toContain("e.trace_id IN (SELECT id FROM session_traces)");
+    expect(observationQuery).not.toContain("FROM session_traces");
+    expect(observationQuery).toMatch(
+      /e\.trace_id IN \(select e\.trace_id from/i,
+    );
+    const sessionParam = /e\.session_id = \{(\w+):\s*String\}/.exec(
+      observationQuery,
+    )?.[1];
+    assert(sessionParam);
+    expect(params[sessionParam]).toBe("session");
+    expect(observationQuery).not.toMatch(/group by/i);
     expect(query).toContain("e.is_deleted = 0");
     expect(query).toContain("e.name");
     expect(query).toContain("e.level");
@@ -117,7 +126,7 @@ describe("session trace filtering", () => {
     });
     const { query } = capturedQuery();
     expect(query).toContain("AND t.id IN (");
-    expect(query).toContain("e.trace_id IN (SELECT id FROM session_traces)");
+    expect(query).toMatch(/e\.trace_id IN \(select e\.trace_id from/i);
     expect(query).toContain("e.is_app_root");
   });
 

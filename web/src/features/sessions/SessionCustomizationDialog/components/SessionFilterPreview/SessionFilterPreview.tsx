@@ -67,9 +67,9 @@ function PreviewRow({
               if (name !== null)
                 onFilter({
                   column,
-                  type: "string",
-                  operator: "does not contain",
-                  value: name,
+                  type: "stringOptions",
+                  operator: "none of",
+                  value: [name],
                 });
             },
           },
@@ -188,7 +188,7 @@ export function SessionFilterPreview({
   return (
     <section
       aria-label="Filter preview"
-      className="bg-muted/30 min-w-0 border-t md:border-t-0 md:border-l"
+      className="ph-no-capture bg-muted/30 min-w-0 border-t md:border-t-0 md:border-l"
     >
       <header className="bg-modal sticky top-0 z-10 border-b p-4">
         <h3 className="font-bold">Filter preview</h3>

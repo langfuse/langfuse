@@ -1047,9 +1047,13 @@ export const SessionEventsPage: React.FC<{
       return [];
     }
   }, [traceFilterQuery, isInternalFeaturesEnabled]);
-  const [unmatchedTraces, setUnmatchedTraces] = useState<"show" | "hide">(
-    "show",
-  );
+  // Keep shared links and reloads consistent with the applied observation filters.
+  const [tracesWithoutMatchesQuery, setTracesWithoutMatchesQuery] =
+    useQueryParam("tracesWithoutMatches", StringParam);
+  const unmatchedTraces =
+    tracesWithoutMatchesQuery === "hide" ? "hide" : "show";
+  const setUnmatchedTraces = (value: "show" | "hide") =>
+    setTracesWithoutMatchesQuery(value === "hide" ? "hide" : undefined);
   const setTraceFilters = (filters: FilterState) =>
     setTraceFilterQuery(encodeFiltersGeneric(filters) || undefined);
   const session = api.sessions.byIdWithScoresFromEvents.useQuery(
@@ -1063,17 +1067,18 @@ export const SessionEventsPage: React.FC<{
     },
   );
 
+  const traceListFilters =
+    isModernSessionEnabled && isSessionTimelineEnabled
+      ? traceFilters.filter((filter) => {
+          if (filter.column === "traceName") return true;
+          return unmatchedTraces === "hide";
+        })
+      : [];
   const tracesQuery = api.sessions.tracesFromEvents.useQuery(
     {
       projectId,
       sessionId,
-      filter:
-        isModernSessionEnabled && isSessionTimelineEnabled
-          ? traceFilters.filter((filter) => {
-              if (filter.column === "traceName") return true;
-              return unmatchedTraces === "hide";
-            })
-          : undefined,
+      filter: traceListFilters.length > 0 ? traceListFilters : undefined,
     },
     {
       enabled: !!projectId && !!sessionId,
@@ -2224,11 +2229,7 @@ const LoadedSessionEventsPage: React.FC<{
                         <PopoverFilterBuilder
                           key={viewControllers.filterEditorResetKey}
                           columns={filterColumns}
-                          filterState={
-                            isSessionTimelineEnabled
-                              ? traceFilters
-                              : visibleFilterState
-                          }
+                          filterState={visibleFilterState}
                           onChange={queryFilter.setFilterState}
                           columnsWithCustomSelect={
                             filterColumnsWithCustomSelect
