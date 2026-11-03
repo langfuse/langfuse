@@ -7,7 +7,6 @@ import {
   filterStateToQueryText,
   observedScoreNamesFromOptions,
   toObservedOptions,
-  useSearchBarEnabled,
   withMetadataPathOptions,
   useFullTextSearch,
 } from "@/src/features/search-bar";
@@ -770,15 +769,12 @@ export default function ObservationsEventsTable({
 
   // Grammar search bar: an ADDITIONAL editor that coexists with the facet
   // sidebar, and the two stay in sync. Generally available on the v4 events
-  // tables (no longer a per-user Feature Preview opt-in — useSearchBarEnabled()
-  // is now always true). The sidebar's FilterState (+ the table's full-text
+  // tables. The sidebar's FilterState (+ the table's full-text
   // search) remains the single source of truth — the bar reads from and writes
   // to it. Only the legacy toolbar search field is replaced (full-text search —
   // bare text and content:/input:/output: — goes inline in the bar); the
   // sidebar and time/refresh controls stay.
-  const searchBarEnabled = useSearchBarEnabled();
-  const searchBarMode =
-    searchBarEnabled && showSearchBar && !externalFilterState;
+  const searchBarMode = showSearchBar && !externalFilterState;
   const searchRegistry = eventsSearchRegistry(
     [
       ...(eventsFilterConfig.omittedFilterColumns ?? []),

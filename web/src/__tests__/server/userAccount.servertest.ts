@@ -360,7 +360,6 @@ async function createCaller({
         langfuseTopics: featureFlags.includes("langfuseTopics"),
         sessionViewV2: featureFlags.includes("sessionViewV2"),
         sessionViewV2Timeline: featureFlags.includes("sessionViewV2Timeline"),
-        searchBar: featureFlags.includes("searchBar"),
         templateFlag: featureFlags.includes("templateFlag"),
       }),
       admin,
