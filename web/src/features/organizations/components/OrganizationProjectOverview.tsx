@@ -329,7 +329,7 @@ const SingleOrganizationPage = ({
         actionButtonsRight: <OrganizationActionButtons orgId={org.id} />,
       }}
     >
-      <OrganizationProjectTiles org={org} search={search} />
+      <OrganizationProjects org={org} search={search} />
     </ContainerPage>
   );
 };
