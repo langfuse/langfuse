@@ -434,7 +434,15 @@ export const IN_APP_AGENT_LANGFUSE_MCP_TOOL_POLICIES = {
     approval: "auto",
     availability: { scope: "topics:read" },
   },
-  getTopicsForTraces: {
+  listTopicRules: {
+    approval: "auto",
+    availability: { scope: "topics:read" },
+  },
+  listTopicSummaries: {
+    approval: "auto",
+    availability: { scope: "topics:read" },
+  },
+  listTopicAssignments: {
     approval: "auto",
     availability: { scope: "topics:read" },
   },

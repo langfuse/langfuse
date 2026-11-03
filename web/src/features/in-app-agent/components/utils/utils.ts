@@ -76,7 +76,6 @@ const IN_APP_AGENT_TOOL_PROGRESS_LABEL_OVERRIDES: Record<string, string> = {
   getPromptUnresolved: "Inspecting prompt",
   getRequestContext: "Checking request context",
   getSkill: "Inspecting skill",
-  getTopicsForTraces: "Looking up trace topics",
   createSkillVersion: "Creating skill version",
   updateSkillLabels: "Updating skill labels",
   updateSkillTags: "Updating skill tags",

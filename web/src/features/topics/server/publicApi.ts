@@ -1,21 +1,25 @@
 import { LangfuseNotFoundError, type FilterState } from "@langfuse/shared";
 import {
   InMemoryFilterService,
-  listCurrentTopicTraces,
-  TOPIC_TRACE_STATUSES,
-  type TopicTraceCondition,
-  type TopicTraceFacetResult,
-  type TopicTraceStatus,
+  listCurrentTopicAssignments,
+  listCurrentTopicSummaries,
+  TOPIC_ASSIGNMENT_STATUSES,
+  TOPIC_SUMMARY_STATES,
+  type TopicAssignmentRow,
+  type TopicResultCondition,
+  type TopicResultCursor,
 } from "@langfuse/shared/src/server";
 import {
   TOPICS_MAX_TIME_RANGE_MS,
   type TopicDefinition,
   type TopicFacet,
+  type TopicRule,
   type TopicRun,
   type TopicTimeRange,
 } from "@langfuse/shared/topics";
 import {
   getPublishedTopicRun,
+  getTopicRule,
   getTopicRuns,
   getTopicTraceUnitTimeRange,
   isTopicsProjectEnabled,
@@ -23,7 +27,7 @@ import {
   listTopicRules,
 } from "@langfuse/shared/topics/server";
 import { createStructuredPublicApiError } from "@/src/features/public-api/types/structuredPublicApiError";
-import { encodeTopicTraceCursor } from "@/src/features/public-api/types/unstable-topics";
+import { encodeTopicResultCursor } from "@/src/features/public-api/types/unstable-topics";
 import { currentTopicResults } from "./currentResults";
 
 const DEFAULT_WINDOW_MS = 7 * 86_400_000;
@@ -127,20 +131,38 @@ function resolveWindow(from?: Date, to?: Date): TopicTimeRange {
   return { from: start, to: end };
 }
 
-// Matches currentTopicResults: the latest rule's facets, or all facets without a rule (manual runs).
-async function isFacetActive(projectId: string) {
-  const [rule] = await listTopicRules(projectId);
-  return (facetId: string) => !rule || rule.facetIds.includes(facetId);
+/**
+ * A facet is active when a rule uses it, or always without a rule (manual
+ * runs). Until assignments carry their rule (#19553), a facet's results belong
+ * to the rules it is attached to.
+ */
+async function loadRuleScope(projectId: string) {
+  const rules = await listTopicRules(projectId);
+  const ruleIdsFor = (facetId: string) =>
+    rules.filter((rule) => rule.facetIds.includes(facetId)).map(({ id }) => id);
+  return {
+    rules,
+    ruleIdsFor,
+    isActive: (facetId: string) =>
+      rules.length === 0 || ruleIdsFor(facetId).length > 0,
+  };
 }
 
-function publicFacet(facet: TopicFacet, active: boolean, run: TopicRun | null) {
+type RuleScope = Awaited<ReturnType<typeof loadRuleScope>>;
+
+function publicFacet(
+  facet: TopicFacet,
+  scope: RuleScope,
+  run: TopicRun | null,
+) {
   const version = facet.versions[0];
   return {
     id: facet.id,
     name: facet.name,
     description: facet.description,
     isBuiltIn: facet.isBuiltIn,
-    active,
+    active: scope.isActive(facet.id),
+    ruleIds: scope.ruleIdsFor(facet.id),
     version: version?.version ?? 0,
     prompt: version?.prompt ?? "",
     publishedRun: run
@@ -167,19 +189,61 @@ const hasActiveCondition = (filter: FilterState | undefined) =>
   filter?.some((condition) => condition.column === "active") ?? false;
 
 async function loadPublicFacets(projectId: string) {
-  const [facets, isActive] = await Promise.all([
+  const [facets, scope] = await Promise.all([
     listTopicFacets(projectId),
-    isFacetActive(projectId),
+    loadRuleScope(projectId),
   ]);
   return Promise.all(
     facets.map(async (facet) =>
       publicFacet(
         facet,
-        isActive(facet.id),
+        scope,
         await getPublishedTopicRun(projectId, facet.id),
       ),
     ),
   );
+}
+
+function publicRule(rule: TopicRule) {
+  return {
+    id: rule.id,
+    name: rule.name,
+    filter: rule.filter,
+    sampling: rule.sampling,
+    facetIds: rule.facetIds,
+    updatedAt: new Date(rule.updatedAt),
+  };
+}
+
+const ruleColumns: FilterColumns<ReturnType<typeof publicRule>> = {
+  id: { types: ["stringOptions"], value: (row) => row.id },
+  name: { types: ["string", "stringOptions"], value: (row) => row.name },
+};
+
+/** Lists the project's Topics rules; each keeps its own live topic map. */
+export async function listPublicTopicRules(params: {
+  projectId: string;
+  filter?: FilterState;
+  page: number;
+  limit: number;
+}) {
+  assertTopicsApiAvailable(params.projectId);
+  const rules = (await listTopicRules(params.projectId)).map(publicRule);
+  return paginate(
+    applyFilter(rules, params.filter, ruleColumns),
+    params.page,
+    params.limit,
+  );
+}
+
+export async function getPublicTopicRule(params: {
+  projectId: string;
+  ruleId: string;
+}) {
+  assertTopicsApiAvailable(params.projectId);
+  const rule = await getTopicRule(params.projectId, params.ruleId);
+  if (!rule) throw new LangfuseNotFoundError("Topics rule not found.");
+  return publicRule(rule);
 }
 
 /** Lists facets; only active facets unless the filter names `active`. */
@@ -217,12 +281,14 @@ export async function getPublicTopicFacet(params: {
 
 const facetSummaryColumns: FilterColumns<{
   facet: { id: string; name: string };
+  ruleId: string | null;
 }> = {
   facetId: { types: ["stringOptions"], value: (row) => row.facet.id },
   facetName: {
     types: ["string", "stringOptions"],
     value: (row) => row.facet.name,
   },
+  ruleId: { types: ["stringOptions"], value: (row) => row.ruleId },
 };
 
 async function loadPublicTopics(
@@ -230,14 +296,15 @@ async function loadPublicTopics(
   window: TopicTimeRange,
   facetFilter?: FilterState,
 ) {
-  const [facets, isActive] = await Promise.all([
+  const [facets, scope] = await Promise.all([
     listTopicFacets(projectId),
-    isFacetActive(projectId),
+    loadRuleScope(projectId),
   ]);
+  const ruleIdOf = (facetId: string) => scope.ruleIdsFor(facetId)[0] ?? null;
   const facetIds = applyFilter(
     facets
-      .filter(({ id }) => isActive(id))
-      .map(({ id, name }) => ({ facet: { id, name } })),
+      .filter(({ id }) => scope.isActive(id))
+      .map(({ id, name }) => ({ facet: { id, name }, ruleId: ruleIdOf(id) })),
     facetFilter,
     facetSummaryColumns,
   ).map(({ facet }) => facet.id);
@@ -248,6 +315,7 @@ async function loadPublicTopics(
       name: facet.name,
       version: facet.facetVersion ?? 0,
     };
+    const ruleId = ruleIdOf(facet.facetId);
     const traceCounts = new Map(facet.topics.map((topic) => [topic.id, topic]));
     const current = (facet.map?.topics ?? []).map((topic) => ({
       id: topic.id,
@@ -255,6 +323,7 @@ async function loadPublicTopics(
       name: topic.name,
       description: topic.description,
       facet: ref,
+      ruleId,
       runId: topic.runId,
       traceCount: traceCounts.get(topic.id)?.count ?? 0,
     }));
@@ -267,6 +336,7 @@ async function loadPublicTopics(
         name: topic.name,
         description: topic.description,
         facet: ref,
+        ruleId,
         runId: topic.runId,
         traceCount: topic.count,
       }));
@@ -275,6 +345,7 @@ async function loadPublicTopics(
     return {
       summary: {
         facet: ref,
+        ruleId,
         publishedRunId: facet.map?.runId ?? null,
         counts: {
           assigned: count("assigned"),
@@ -340,26 +411,11 @@ export async function listPublicTopics(params: {
   };
 }
 
-const TOPIC_TRACE_FILTER_LIMITS = {
+const TOPIC_RESULT_FILTER_LIMITS = {
   conditions: 20,
   values: 1000,
   stringLength: 1000,
 };
-
-const topicTraceColumns = {
-  traceId: ["stringOptions"],
-  traceName: ["string", "stringOptions"],
-  environment: ["stringOptions"],
-  sessionId: ["string", "stringOptions"],
-  userId: ["stringOptions"],
-  timestamp: ["datetime"],
-  processedAt: ["datetime"],
-  topicId: ["stringOptions"],
-  topicName: ["stringOptions", "categoryOptions"],
-  topicStatus: ["categoryOptions"],
-  summary: ["stringObject"],
-  facetVersion: ["numberObject"],
-} satisfies Record<string, FilterType[]>;
 
 const STRING_MATCH_OPERATORS = [
   "=",
@@ -369,45 +425,56 @@ const STRING_MATCH_OPERATORS = [
   "ends with",
 ] as const;
 
-type FacetLookup = {
-  facets: TopicFacet[];
-  find: (value: string) => TopicFacet | undefined;
-  choices: string[];
-};
+const SUMMARY_COLUMNS = {
+  traceId: ["stringOptions"],
+  facetId: ["stringOptions"],
+  facetName: ["stringOptions"],
+  ruleId: ["stringOptions"],
+  environment: ["stringOptions"],
+  timestamp: ["datetime"],
+  processedAt: ["datetime"],
+  state: ["stringOptions"],
+  summary: ["string"],
+  topicId: ["stringOptions"],
+  topicName: ["stringOptions"],
+  assignmentStatus: ["stringOptions"],
+} satisfies Record<string, FilterType[]>;
 
-function facetLookup(facets: TopicFacet[]): FacetLookup {
-  return {
-    facets,
-    find: (value) =>
-      facets.find(({ id }) => id === value) ??
-      facets.find(({ name }) => name.toLowerCase() === value.toLowerCase()),
-    choices: facets.flatMap(({ id, name }) => [id, name]),
-  };
-}
+const ASSIGNMENT_COLUMNS = {
+  traceId: ["stringOptions"],
+  facetId: ["stringOptions"],
+  facetName: ["stringOptions"],
+  ruleId: ["stringOptions"],
+  environment: ["stringOptions"],
+  timestamp: ["datetime"],
+  topicId: ["stringOptions"],
+  topicName: ["stringOptions"],
+  status: ["stringOptions"],
+} satisfies Record<string, FilterType[]>;
 
 function checkFilterLimits(filter: FilterState) {
-  if (filter.length > TOPIC_TRACE_FILTER_LIMITS.conditions)
+  if (filter.length > TOPIC_RESULT_FILTER_LIMITS.conditions)
     throw createStructuredPublicApiError({
       httpCode: 400,
       code: "invalid_query",
-      message: `At most ${TOPIC_TRACE_FILTER_LIMITS.conditions} filter conditions are allowed.`,
+      message: `At most ${TOPIC_RESULT_FILTER_LIMITS.conditions} filter conditions are allowed.`,
     });
   for (const condition of filter) {
     const values = Array.isArray(condition.value)
       ? condition.value
       : [condition.value];
     if (
-      values.length > TOPIC_TRACE_FILTER_LIMITS.values ||
+      values.length > TOPIC_RESULT_FILTER_LIMITS.values ||
       values.some(
         (value) =>
           typeof value === "string" &&
-          value.length > TOPIC_TRACE_FILTER_LIMITS.stringLength,
+          value.length > TOPIC_RESULT_FILTER_LIMITS.stringLength,
       )
     )
       throw createStructuredPublicApiError({
         httpCode: 400,
         code: "invalid_query",
-        message: `Filter "${condition.column}" allows at most ${TOPIC_TRACE_FILTER_LIMITS.values} values of up to ${TOPIC_TRACE_FILTER_LIMITS.stringLength} characters.`,
+        message: `Filter "${condition.column}" allows at most ${TOPIC_RESULT_FILTER_LIMITS.values} values of up to ${TOPIC_RESULT_FILTER_LIMITS.stringLength} characters.`,
         details: { column: condition.column },
       });
   }
@@ -423,327 +490,195 @@ async function publishedTopicsByFacet(projectId: string, facets: TopicFacet[]) {
   );
 }
 
-/**
- * Facets that must be scanned for a topic id filter: the facets whose published
- * map has the ids, or every facet when an id is not in any map (retired topics).
- */
-function topicOwnerFacetIds(
-  topics: Map<string, TopicDefinition[]>,
-  lookup: FacetLookup,
-  topicIds: string[],
-) {
-  const owners = new Map(
-    [...topics].flatMap(([facetId, definitions]) =>
-      definitions.map((topic) => [topic.topicId, facetId] as const),
-    ),
-  );
-  return topicIds.every((id) => owners.has(id))
-    ? topicIds.flatMap((id) => owners.get(id) ?? [])
-    : lookup.facets.map(({ id }) => id);
-}
-
-/** Conditions only a result in their facet can meet; negated ones also match traces without one. */
-function requiresResult(condition: TopicTraceCondition) {
-  switch (condition.column) {
-    case "topicId":
-      return condition.match.operator === "any of";
-    case "topicStatus":
-      return (
-        condition.match.operator === "any of" &&
-        !condition.match.values.includes("not_processed")
-      );
-    case "summary":
-      return (
-        condition.match.operator !== "is not set" &&
-        condition.match.operator !== "does not contain"
-      );
-    case "facetVersion":
-      return true;
-    default:
-      return false;
-  }
+function checkValues<T extends string>(
+  column: string,
+  values: string[],
+  allowed: readonly T[],
+): T[] {
+  const invalid = values.find((value) => !allowed.includes(value as T));
+  if (invalid !== undefined || values.length === 0)
+    throw invalidFilter(`Unknown ${column} value "${invalid ?? ""}".`, column, [
+      ...allowed,
+    ]);
+  return values as T[];
 }
 
 /**
- * Translates the public filter into reader conditions, the facets they scan,
- * and the scanned facets whose result can list a trace. Returns `null` when a
- * condition can match nothing (an unknown topic name in `any of`).
+ * Translates the public filter into reader conditions and the facets to scan.
+ * Facet and rule conditions narrow the scanned facets; a topic id filter scans
+ * only the facets whose published map has the ids. Returns `null` when the
+ * filter can match nothing (no facet left, or an unknown topic name in `any of`).
  */
-async function topicTraceConditions(
-  projectId: string,
-  filter: FilterState,
-  lookup: FacetLookup,
-): Promise<{
-  conditions: TopicTraceCondition[];
-  facetIds: string[];
-  memberFacetIds: string[];
-} | null> {
-  checkFilterLimits(filter);
-  const conditions: TopicTraceCondition[] = [];
-  const facetIds = new Set<string>();
-  const memberFacetIds = new Set<string>();
-  const add = (condition: TopicTraceCondition, scanned: string[] = []) => {
-    conditions.push(condition);
-    for (const id of scanned) {
-      facetIds.add(id);
-      if (requiresResult(condition)) memberFacetIds.add(id);
-    }
+async function topicResultQuery(params: {
+  projectId: string;
+  filter: FilterState;
+  columns: Record<string, FilterType[]>;
+  facets: TopicFacet[];
+  scope: RuleScope;
+}): Promise<{ conditions: TopicResultCondition[]; facetIds: string[] } | null> {
+  checkFilterLimits(params.filter);
+  let facetIds = params.facets
+    .filter(({ id }) => params.scope.isActive(id))
+    .map(({ id }) => id);
+  const narrow = (ids: string[], operator: "any of" | "none of") => {
+    const set = new Set(ids);
+    facetIds = facetIds.filter((id) =>
+      operator === "any of" ? set.has(id) : !set.has(id),
+    );
   };
-  const facetFor = (column: string, key: string) => {
-    const facet = lookup.find(key);
-    if (!facet)
-      throw invalidFilter(
-        `Unknown facet "${key}" in filter "${column}".`,
-        column,
-        lookup.choices,
-      );
-    return facet.id;
+  const conditions: TopicResultCondition[] = [];
+  let topicsPromise: Promise<Map<string, TopicDefinition[]>> | undefined;
+  const publishedTopics = () => {
+    if (!topicsPromise)
+      topicsPromise = publishedTopicsByFacet(params.projectId, params.facets);
+    return topicsPromise;
   };
-  const stringMatch = (column: string, operator: string, value: string) => {
-    const match = STRING_MATCH_OPERATORS.find((item) => item === operator);
-    if (!match)
-      throw invalidFilter(
-        `Filter column "${column}" does not support operator "${operator}".`,
-        column,
-        [...STRING_MATCH_OPERATORS],
-      );
-    return { operator: match, value };
+  const topicOwners = async (topicIds: string[]) => {
+    const owners = new Map(
+      [...(await publishedTopics())].flatMap(([facetId, definitions]) =>
+        definitions.map((topic) => [topic.topicId, facetId] as const),
+      ),
+    );
+    return topicIds.every((id) => owners.has(id))
+      ? topicIds.flatMap((id) => owners.get(id) ?? [])
+      : null;
   };
-  let topics: Map<string, TopicDefinition[]> | undefined;
 
-  for (const condition of filter) {
-    const column = Object.hasOwn(topicTraceColumns, condition.column)
-      ? (condition.column as keyof typeof topicTraceColumns)
+  for (const condition of params.filter) {
+    const types = Object.hasOwn(params.columns, condition.column)
+      ? params.columns[condition.column]
       : undefined;
-    if (!column)
+    if (!types)
       throw invalidFilter(
         `Unknown filter column "${condition.column}".`,
         condition.column,
-        Object.keys(topicTraceColumns),
+        Object.keys(params.columns),
       );
-    const types: FilterType[] = topicTraceColumns[column];
     if (!types.includes(condition.type))
       throw invalidFilter(
-        `Filter column "${column}" does not support type "${condition.type}".`,
-        column,
+        `Filter column "${condition.column}" does not support type "${condition.type}".`,
+        condition.column,
         types,
       );
+    const column = condition.column;
 
-    if (column === "topicName") {
-      if (
-        condition.type !== "stringOptions" &&
-        condition.type !== "categoryOptions"
-      )
-        continue;
-      const facetId =
-        condition.type === "categoryOptions"
-          ? facetFor(column, condition.key)
-          : undefined;
-      if (!topics)
-        topics = await publishedTopicsByFacet(projectId, lookup.facets);
-      const names = new Set(condition.value.map((name) => name.toLowerCase()));
-      const matches = [...topics]
-        .filter(([id]) => !facetId || id === facetId)
-        .flatMap(([id, definitions]) =>
-          definitions
-            .filter((topic) => names.has(topic.name.toLowerCase()))
-            .map((topic) => ({ facetId: id, topicId: topic.topicId })),
-        );
-      if (matches.length === 0) {
-        if (condition.operator === "any of") return null;
-        continue;
-      }
-      const topicIds = [...new Set(matches.map((match) => match.topicId))];
-      add(
-        {
-          column: "topicId",
-          facetId,
-          match: { operator: condition.operator, values: topicIds },
-        },
-        matches.map((match) => match.facetId),
-      );
+    if (condition.type === "datetime") {
+      conditions.push({
+        column: column as "timestamp" | "processedAt",
+        match: { operator: condition.operator, value: condition.value },
+      });
       continue;
     }
-
-    let ownerFacetIds: string[] = [];
-    if (column === "topicId" && condition.type === "stringOptions") {
-      if (!topics)
-        topics = await publishedTopicsByFacet(projectId, lookup.facets);
-      ownerFacetIds = topicOwnerFacetIds(topics, lookup, condition.value);
-    }
-
-    if (
-      condition.type === "numberObject" &&
-      (!Number.isInteger(condition.value) || condition.value < 0)
-    )
-      throw createStructuredPublicApiError({
-        httpCode: 400,
-        code: "invalid_query",
-        message: `Filter "${column}" requires a non-negative integer version.`,
-        details: { column },
+    if (condition.type === "string") {
+      const operator = STRING_MATCH_OPERATORS.find(
+        (item) => item === condition.operator,
+      );
+      if (!operator)
+        throw invalidFilter(
+          `Filter column "${column}" does not support operator "${condition.operator}".`,
+          column,
+          [...STRING_MATCH_OPERATORS],
+        );
+      conditions.push({
+        column: "summary",
+        match: { operator, value: condition.value },
       });
+      continue;
+    }
+    if (condition.type !== "stringOptions") continue;
+    const { operator, value: values } = condition;
 
-    switch (condition.type) {
-      case "stringOptions":
-        add(
-          {
-            column,
-            match: { operator: condition.operator, values: condition.value },
-          } as TopicTraceCondition,
-          ownerFacetIds,
-        );
+    switch (column) {
+      case "facetId":
+        narrow(values, operator);
         break;
-      case "string":
-        add({
-          column,
-          match: stringMatch(column, condition.operator, condition.value),
-        } as TopicTraceCondition);
-        break;
-      case "datetime":
-        add({
-          column,
-          match: { operator: condition.operator, value: condition.value },
-        } as TopicTraceCondition);
-        break;
-      case "numberObject": {
-        const facetId = facetFor(column, condition.key);
-        add(
-          {
-            column: "facetVersion",
-            facetId,
-            match: { operator: condition.operator, value: condition.value },
-          },
-          [facetId],
+      case "facetName": {
+        const names = new Set(values.map((name) => name.toLowerCase()));
+        narrow(
+          params.facets
+            .filter(({ name }) => names.has(name.toLowerCase()))
+            .map(({ id }) => id),
+          operator,
         );
         break;
       }
-      case "stringObject": {
-        const facetId = facetFor(column, condition.key);
-        add(
-          {
-            column: "summary",
-            facetId,
-            match:
-              condition.operator === "is set" ||
-              condition.operator === "is not set"
-                ? { operator: condition.operator }
-                : stringMatch(column, condition.operator, condition.value),
-          },
-          [facetId],
+      case "ruleId":
+        narrow(
+          params.facets
+            .filter(({ id }) =>
+              params.scope
+                .ruleIdsFor(id)
+                .some((ruleId) => values.includes(ruleId)),
+            )
+            .map(({ id }) => id),
+          operator,
         );
         break;
-      }
-      case "categoryOptions": {
-        const invalid = condition.value.filter(
-          (value) => !TOPIC_TRACE_STATUSES.includes(value as TopicTraceStatus),
-        );
-        if (invalid.length || condition.value.length === 0)
+      case "state":
+        conditions.push({
+          column: "state",
+          match: {
+            operator,
+            values: checkValues(column, values, TOPIC_SUMMARY_STATES),
+          },
+        });
+        break;
+      case "status":
+      case "assignmentStatus": {
+        if (operator !== "any of")
           throw invalidFilter(
-            `Unknown topicStatus value "${invalid[0] ?? ""}".`,
+            `Filter column "${column}" supports only "any of".`,
             column,
-            [...TOPIC_TRACE_STATUSES],
+            ["any of"],
           );
-        const facetId = facetFor(column, condition.key);
-        add(
-          {
-            column: "topicStatus",
-            facetId,
-            match: {
-              operator: condition.operator,
-              values: condition.value as TopicTraceStatus[],
-            },
-          },
-          [facetId],
-        );
+        const allowed =
+          column === "status"
+            ? (["assigned", "outlier"] as const)
+            : TOPIC_ASSIGNMENT_STATUSES;
+        conditions.push({
+          column: "assignmentStatus",
+          match: { operator, values: checkValues(column, values, allowed) },
+        });
         break;
       }
+      case "topicName": {
+        const names = new Set(values.map((name) => name.toLowerCase()));
+        const topicIds = [...(await publishedTopics()).values()]
+          .flat()
+          .filter((topic) => names.has(topic.name.toLowerCase()))
+          .map((topic) => topic.topicId);
+        if (topicIds.length === 0) {
+          if (operator === "any of") return null;
+          break;
+        }
+        if (operator === "any of")
+          narrow((await topicOwners(topicIds)) ?? facetIds, operator);
+        conditions.push({
+          column: "topicId",
+          match: { operator, values: [...new Set(topicIds)] },
+        });
+        break;
+      }
+      case "topicId": {
+        if (operator === "any of")
+          narrow((await topicOwners(values)) ?? facetIds, operator);
+        conditions.push({ column: "topicId", match: { operator, values } });
+        break;
+      }
+      case "traceId":
+      case "environment":
+        conditions.push({ column, match: { operator, values } });
+        break;
     }
   }
-  return {
-    conditions,
-    facetIds: [...facetIds],
-    memberFacetIds: [...memberFacetIds],
-  };
-}
-
-function publicTopicTraceFacet(
-  facet: TopicFacet,
-  result: TopicTraceFacetResult | undefined,
-  topicNames: Map<string, string>,
-) {
-  if (!result)
-    return {
-      facetId: facet.id,
-      facetName: facet.name,
-      facetVersion: null,
-      state: "not_processed" as const,
-      summary: null,
-      summaryTruncated: false,
-      processedAt: null,
-      assignment: null,
-    };
-  const complete =
-    result.status === "assigned" ||
-    result.status === "outlier" ||
-    result.status === "awaiting_map";
-  return {
-    facetId: facet.id,
-    facetName: facet.name,
-    facetVersion: result.facetVersion,
-    state: complete
-      ? ("complete" as const)
-      : (result.status as "not_applicable" | "insufficient_input"),
-    summary: complete ? result.summary : null,
-    summaryTruncated: complete && result.summaryTruncated,
-    processedAt: result.processedAt,
-    assignment: complete
-      ? {
-          status: result.status as "assigned" | "outlier" | "awaiting_map",
-          topic:
-            result.status === "assigned" &&
-            result.topicId &&
-            result.topicVersionId
-              ? {
-                  id: result.topicId,
-                  versionId: result.topicVersionId,
-                  name:
-                    topicNames.get(result.topicVersionId) ??
-                    "Unavailable topic",
-                }
-              : null,
-        }
-      : null,
-  };
-}
-
-/** Topic names by version id, from the runs that assigned them and the current maps. */
-async function topicNamesForResults(
-  projectId: string,
-  facets: TopicFacet[],
-  results: TopicTraceFacetResult[],
-) {
-  const runIds = [
-    ...new Set(results.flatMap(({ runId }) => (runId ? [runId] : []))),
-  ];
-  const [runs, published] = await Promise.all([
-    getTopicRuns(projectId, runIds),
-    results.some(({ topicVersionId, runId }) => topicVersionId && !runId)
-      ? publishedTopicsByFacet(projectId, facets)
-      : Promise.resolve(new Map<string, TopicDefinition[]>()),
-  ]);
-  return new Map(
-    [
-      ...runs.flatMap(({ topics }) => topics),
-      ...[...published.values()].flat(),
-    ].map((topic) => [topic.topicVersionId, topic.name]),
-  );
+  return facetIds.length ? { conditions, facetIds } : null;
 }
 
 /**
  * Without an explicit window, a `traceId` `any of` lookup reads the traces'
  * own source time within the longest window, as the trace page does.
  */
-async function topicTracesWindow(params: {
+async function resultsWindow(params: {
   projectId: string;
   fromTimestamp?: Date;
   toTimestamp?: Date;
@@ -769,73 +704,68 @@ async function topicTracesWindow(params: {
   return traceRange ?? window;
 }
 
-/** Lists traces with each projected facet's current result; filtering and pagination run in ClickHouse. */
-export async function listPublicTopicTraces(params: {
+type ResultListParams = {
   projectId: string;
   fromTimestamp?: Date;
   toTimestamp?: Date;
   filter?: FilterState;
-  facets?: string[];
-  includeTotal: boolean;
-  truncateSummaries: boolean;
   orderBy: "timestamp.desc" | "timestamp.asc";
   limit: number;
-  cursor?: { timestamp: Date; traceId: string };
-}) {
-  assertTopicsApiAvailable(params.projectId);
-  const [facets, isActive] = await Promise.all([
-    listTopicFacets(params.projectId),
-    isFacetActive(params.projectId),
-  ]);
-  const lookup = facetLookup(facets);
-  const projectedIds = new Set(
-    params.facets
-      ? params.facets.map((value) => {
-          const facet = lookup.find(value);
-          if (!facet)
-            throw invalidFilter(
-              `Unknown facet "${value}".`,
-              "facets",
-              lookup.choices,
-            );
-          return facet.id;
-        })
-      : facets.filter(({ id }) => isActive(id)).map(({ id }) => id),
-  );
-  const projected = facets.filter(({ id }) => projectedIds.has(id));
-  const translated = await topicTraceConditions(
-    params.projectId,
-    params.filter ?? [],
-    lookup,
-  );
-  const window = await topicTracesWindow(params);
-  if (!translated)
-    return {
-      window,
-      data: [],
-      meta: { cursor: null, ...(params.includeTotal ? { totalItems: 0 } : {}) },
-    };
+  cursor?: TopicResultCursor;
+};
 
-  const result = await listCurrentTopicTraces({
-    projectId: params.projectId,
+async function prepareResultList(
+  params: ResultListParams,
+  columns: Record<string, FilterType[]>,
+) {
+  assertTopicsApiAvailable(params.projectId);
+  const [facets, scope] = await Promise.all([
+    listTopicFacets(params.projectId),
+    loadRuleScope(params.projectId),
+  ]);
+  const [query, window] = await Promise.all([
+    topicResultQuery({
+      projectId: params.projectId,
+      filter: params.filter ?? [],
+      columns,
+      facets,
+      scope,
+    }),
+    resultsWindow(params),
+  ]);
+  return {
+    facets: new Map(facets.map((facet) => [facet.id, facet])),
+    scope,
     window,
-    facetIds: [...new Set([...projectedIds, ...translated.facetIds])],
-    projectedFacetIds: [...projectedIds],
-    memberFacetIds: [
-      ...new Set([...projectedIds, ...translated.memberFacetIds]),
-    ],
-    conditions: translated.conditions,
-    orderBy: params.orderBy,
-    limit: params.limit,
-    cursor: params.cursor,
-    includeTotal: params.includeTotal,
+    readerInput: query && {
+      projectId: params.projectId,
+      window,
+      facetIds: query.facetIds,
+      conditions: query.conditions,
+      orderBy: params.orderBy,
+      limit: params.limit,
+      cursor: params.cursor,
+    },
+  };
+}
+
+const resultMeta = (next?: TopicResultCursor) => ({
+  cursor: next ? encodeTopicResultCursor(next) : null,
+});
+
+/** Lists the current summary per trace and facet; filtering and pagination run in ClickHouse. */
+export async function listPublicTopicSummaries(
+  params: ResultListParams & { truncateSummaries: boolean },
+) {
+  const { facets, window, readerInput } = await prepareResultList(
+    params,
+    SUMMARY_COLUMNS,
+  );
+  if (!readerInput) return { window, data: [], meta: resultMeta() };
+  const result = await listCurrentTopicSummaries({
+    ...readerInput,
     truncateSummaries: params.truncateSummaries,
   });
-  const topicNames = await topicNamesForResults(
-    params.projectId,
-    projected,
-    result.rows.flatMap(({ results }) => results),
-  );
   return {
     window,
     data: result.rows.map((row) => ({
@@ -843,20 +773,76 @@ export async function listPublicTopicTraces(params: {
       traceName: row.traceName,
       environment: row.environment,
       timestamp: row.timestamp,
-      traceUrl: `/project/${params.projectId}/traces/${encodeURIComponent(row.traceId)}`,
+      facetId: row.facetId,
+      facetName: facets.get(row.facetId)?.name ?? "",
+      facetVersion: row.facetVersion,
+      state: row.state,
+      summary: row.state === "complete" ? row.summary : null,
+      summaryTruncated: row.summaryTruncated,
       processedAt: row.processedAt,
-      facets: projected.map((facet) =>
-        publicTopicTraceFacet(
-          facet,
-          row.results.find(({ facetId }) => facetId === facet.id),
-          topicNames,
-        ),
-      ),
     })),
-    meta: {
-      cursor: result.next ? encodeTopicTraceCursor(result.next) : null,
-      ...(result.total !== undefined ? { totalItems: result.total } : {}),
-    },
+    meta: resultMeta(result.next),
+  };
+}
+
+/** Topic names by version id, from the runs that assigned them and the current maps. */
+async function topicNamesForAssignments(
+  projectId: string,
+  facets: TopicFacet[],
+  rows: TopicAssignmentRow[],
+) {
+  const runIds = [
+    ...new Set(rows.flatMap(({ runId }) => (runId ? [runId] : []))),
+  ];
+  const [runs, published] = await Promise.all([
+    getTopicRuns(projectId, runIds),
+    rows.some(({ topicVersionId, runId }) => topicVersionId && !runId)
+      ? publishedTopicsByFacet(projectId, facets)
+      : Promise.resolve(new Map<string, TopicDefinition[]>()),
+  ]);
+  return new Map(
+    [
+      ...runs.flatMap(({ topics }) => topics),
+      ...[...published.values()].flat(),
+    ].map((topic) => [topic.topicVersionId, topic.name]),
+  );
+}
+
+/** Lists the current assignment (assigned or outlier) per trace, facet and rule. */
+export async function listPublicTopicAssignments(params: ResultListParams) {
+  const { facets, scope, window, readerInput } = await prepareResultList(
+    params,
+    ASSIGNMENT_COLUMNS,
+  );
+  if (!readerInput) return { window, data: [], meta: resultMeta() };
+  const result = await listCurrentTopicAssignments(readerInput);
+  const names = await topicNamesForAssignments(
+    params.projectId,
+    [...facets.values()],
+    result.rows,
+  );
+  return {
+    window,
+    data: result.rows.map((row) => ({
+      traceId: row.traceId,
+      timestamp: row.timestamp,
+      facetId: row.facetId,
+      facetName: facets.get(row.facetId)?.name ?? "",
+      facetVersion: row.facetVersion,
+      ruleId: scope.ruleIdsFor(row.facetId)[0] ?? null,
+      status: row.status,
+      topic:
+        row.topicId && row.topicVersionId
+          ? {
+              id: row.topicId,
+              versionId: row.topicVersionId,
+              name: names.get(row.topicVersionId) ?? "Unavailable topic",
+            }
+          : null,
+      runId: row.runId,
+      assignedAt: row.assignedAt,
+    })),
+    meta: resultMeta(result.next),
   };
 }
 

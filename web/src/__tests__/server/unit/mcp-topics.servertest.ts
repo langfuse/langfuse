@@ -4,7 +4,7 @@ const mocks = vi.hoisted(() => ({
   isTopicsProjectEnabled: vi.fn(),
   listPublicTopicFacets: vi.fn(),
   listPublicTopics: vi.fn(),
-  listPublicTopicTraces: vi.fn(),
+  listPublicTopicSummaries: vi.fn(),
 }));
 
 vi.mock("@langfuse/shared/topics/server", () => ({
@@ -13,7 +13,7 @@ vi.mock("@langfuse/shared/topics/server", () => ({
 vi.mock("@/src/features/topics/server/publicApi", () => ({
   listPublicTopicFacets: mocks.listPublicTopicFacets,
   listPublicTopics: mocks.listPublicTopics,
-  listPublicTopicTraces: mocks.listPublicTopicTraces,
+  listPublicTopicSummaries: mocks.listPublicTopicSummaries,
 }));
 
 import {
@@ -22,10 +22,10 @@ import {
 } from "@langfuse/shared/in-app-agent/server/mcpPolicy";
 import { topicsFeature } from "@/src/features/mcp/server/topics";
 import {
-  handleGetTopicsForTraces,
+  handleListTopicSummaries,
   handleListTopics,
 } from "@/src/features/mcp/server/topics/tools";
-import { encodeTopicTraceCursor } from "@/src/features/public-api/types/unstable-topics";
+import { encodeTopicResultCursor } from "@/src/features/public-api/types/unstable-topics";
 import { createStructuredPublicApiError } from "@/src/features/public-api/types/structuredPublicApiError";
 import { mockServerContext } from "@/src/__tests__/server/mcp-helpers";
 
@@ -36,7 +36,7 @@ const raw = (input: unknown) => input as never;
 describe("Topics MCP tools", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mocks.listPublicTopicTraces.mockResolvedValue({
+    mocks.listPublicTopicSummaries.mockResolvedValue({
       window: { from: new Date(), to: new Date() },
       data: [],
       meta: { cursor: null },
@@ -66,7 +66,7 @@ describe("Topics MCP tools", () => {
     }
   });
 
-  it("reads topics for specific traces with agent-sized defaults", async () => {
+  it("reads summaries of specific traces with agent-sized defaults", async () => {
     const timestamp = new Date("2026-10-19T10:00:00.000Z");
     const filter = [
       {
@@ -77,29 +77,30 @@ describe("Topics MCP tools", () => {
       },
     ];
 
-    await handleGetTopicsForTraces(
+    await handleListTopicSummaries(
       raw({
         filter,
-        facets: ["Issues"],
         fromTimestamp: "2026-10-13T00:00:00.000Z",
-        cursor: encodeTopicTraceCursor({ timestamp, traceId: "t1" }),
+        cursor: encodeTopicResultCursor({
+          timestamp,
+          traceId: "t1",
+          facetId: "issues",
+        }),
       }),
       context,
     );
 
-    expect(mocks.listPublicTopicTraces).toHaveBeenCalledWith({
+    expect(mocks.listPublicTopicSummaries).toHaveBeenCalledWith({
       projectId: "project-1",
       fromTimestamp: new Date("2026-10-13T00:00:00.000Z"),
       filter,
-      facets: ["Issues"],
-      includeTotal: false,
       truncateSummaries: true,
       orderBy: "timestamp.desc",
       limit: 20,
-      cursor: { v: 1, timestamp, traceId: "t1" },
+      cursor: { v: 1, timestamp, traceId: "t1", facetId: "issues" },
     });
     await expect(
-      handleGetTopicsForTraces(raw({ limit: 101 }), context),
+      handleListTopicSummaries(raw({ limit: 101 }), context),
     ).rejects.toThrow();
   });
 

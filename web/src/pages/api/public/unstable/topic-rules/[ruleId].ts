@@ -3,18 +3,18 @@ import {
   withUnstablePublicApiMiddlewares,
 } from "@/src/features/public-api/server/unstable-public-api-route";
 import {
-  GetUnstableTopicTracesQuery,
-  GetUnstableTopicTracesResponse,
+  TopicRuleIdQuery,
+  GetUnstableTopicRuleResponse,
 } from "@/src/features/public-api/types/unstable-topics";
-import { listPublicTopicTraces } from "@/src/features/topics/server/publicApi";
+import { getPublicTopicRule } from "@/src/features/topics/server/publicApi";
 
 export default withUnstablePublicApiMiddlewares({
   GET: createUnstablePublicApiRoute({
-    name: "Get Unstable Topics For Traces",
+    name: "Get Unstable Topic Rule",
     action: "topics:read",
-    querySchema: GetUnstableTopicTracesQuery,
-    responseSchema: GetUnstableTopicTracesResponse,
+    querySchema: TopicRuleIdQuery,
+    responseSchema: GetUnstableTopicRuleResponse,
     fn: ({ query, auth }) =>
-      listPublicTopicTraces({ projectId: auth.scope.projectId, ...query }),
+      getPublicTopicRule({ projectId: auth.scope.projectId, ...query }),
   }),
 });

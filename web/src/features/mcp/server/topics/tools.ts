@@ -5,18 +5,22 @@ import { defineTool } from "@/src/features/mcp/core/define-tool";
 import { McpAdvancedFilterBaseSchema } from "@/src/features/mcp/core/filter-schema";
 import { runMcpTool } from "@/src/features/mcp/core/run-mcp-tool";
 import {
+  GetUnstableTopicAssignmentsQuery,
   GetUnstableTopicFacetsQuery,
+  GetUnstableTopicRulesQuery,
   GetUnstableTopicsQuery,
-  GetUnstableTopicTracesQuery,
+  GetUnstableTopicSummariesQuery,
 } from "@/src/features/public-api/types/unstable-topics";
 import { StructuredPublicApiError } from "@/src/features/public-api/types/structuredPublicApiError";
 import {
+  listPublicTopicAssignments,
   listPublicTopicFacets,
+  listPublicTopicRules,
   listPublicTopics,
-  listPublicTopicTraces,
+  listPublicTopicSummaries,
 } from "@/src/features/topics/server/publicApi";
 
-const MCP_TOPIC_TRACES_MAX_LIMIT = 100;
+const MCP_TOPIC_RESULTS_MAX_LIMIT = 100;
 
 const windowBaseFields = {
   fromTimestamp: z
@@ -112,69 +116,96 @@ export const [listTopicsTool, handleListTopics] = defineTool({
   readOnlyHint: true,
 });
 
-export const [getTopicsForTracesTool, handleGetTopicsForTraces] = defineTool({
-  name: "getTopicsForTraces",
-  description: [
-    "Get the current Topics result of traces, one row per trace with a result per facet: state, summary and assigned topic.",
-    "For specific traces (such as the trace the user is viewing) filter traceId with `any of`; without a window, that lookup covers the traces' own start time within the last 93 days.",
-    "topicStatus values: assigned (in a topic of the current map), outlier (summarized, no topic fits), awaiting_map (summarized, not yet assigned), not_applicable, insufficient_input.",
-    "Use meta.cursor to fetch the next page.",
-  ].join(" "),
+export const [listTopicRulesTool, handleListTopicRules] = defineTool({
+  name: "listTopicRules",
+  description:
+    "List the project's Topics rules. A rule selects traces with an observation filter and sampling rate, runs the facets in facetIds and keeps its own live topic map.",
   action: "topics:read",
   baseSchema: z.object({
-    ...windowBaseFields,
     filter: z
       .array(McpAdvancedFilterBaseSchema)
       .optional()
       .describe(
-        'Filter conditions combined with AND. Columns: traceId (stringOptions), traceName (string, stringOptions), environment (stringOptions), sessionId (string, stringOptions), userId (stringOptions, exact), timestamp (datetime), processedAt (datetime), topicId (stringOptions), topicName (stringOptions, or categoryOptions with key = facet), topicStatus (categoryOptions, key = facet id or name), summary (stringObject, key = facet), facetVersion (numberObject, key = facet). Example: [{"type":"stringOptions","column":"traceId","operator":"any of","value":["<trace id>"]}].',
+        "Filter conditions combined with AND. Columns: id (stringOptions), name (string, stringOptions).",
       ),
-    facets: z
-      .array(z.string())
+    page: z.number().int().positive().optional(),
+    limit: z.number().int().positive().max(100).optional(),
+  }),
+  inputSchema: GetUnstableTopicRulesQuery.extend(filterInput),
+  handler: async (input, context) =>
+    runMcpTool({
+      spanName: "mcp.topics.list_rules",
+      context,
+      fn: () =>
+        withAllowedValues(() =>
+          listPublicTopicRules({ projectId: context.projectId, ...input }),
+        ),
+    }),
+  readOnlyHint: true,
+});
+
+const resultListBaseFields = {
+  ...windowBaseFields,
+  orderBy: z.enum(["timestamp.desc", "timestamp.asc"]).optional(),
+  limit: z
+    .number()
+    .int()
+    .positive()
+    .max(MCP_TOPIC_RESULTS_MAX_LIMIT)
+    .optional()
+    .describe(
+      `Rows per page. Defaults to 20, at most ${MCP_TOPIC_RESULTS_MAX_LIMIT}.`,
+    ),
+  cursor: z.string().optional().describe("meta.cursor of the previous page."),
+};
+
+const resultListInput = {
+  ...filterInput,
+  limit: z
+    .number()
+    .int()
+    .positive()
+    .max(MCP_TOPIC_RESULTS_MAX_LIMIT)
+    .default(20),
+};
+
+const TRACE_ID_HINT =
+  "For specific traces (such as the trace the user is viewing) filter traceId with `any of`; without a window, that lookup covers the traces' own start time within the last 93 days.";
+
+export const [listTopicSummariesTool, handleListTopicSummaries] = defineTool({
+  name: "listTopicSummaries",
+  description: [
+    "List the current Topics summary of traces, one row per trace and facet: what the trace is about from that facet's perspective.",
+    TRACE_ID_HINT,
+    "Filter by topicId, topicName or assignmentStatus to read the summaries of a topic's traces, or of traces no topic fits (outlier) or not yet assigned (awaiting_map).",
+    "Use meta.cursor to fetch the next page.",
+  ].join(" "),
+  action: "topics:read",
+  baseSchema: z.object({
+    ...resultListBaseFields,
+    filter: z
+      .array(McpAdvancedFilterBaseSchema)
       .optional()
       .describe(
-        "Facet ids or names to include on each row. Defaults to all active facets.",
+        'Filter conditions combined with AND. Columns: traceId, facetId, facetName, ruleId, environment (stringOptions), timestamp, processedAt (datetime), state (stringOptions: complete, not_applicable, insufficient_input), summary (string), topicId, topicName (stringOptions), assignmentStatus (stringOptions, any of: assigned, outlier, awaiting_map). Example: [{"type":"stringOptions","column":"traceId","operator":"any of","value":["<trace id>"]}].',
       ),
-    includeTotal: z
-      .boolean()
-      .optional()
-      .describe("Count all matching traces. Defaults to false."),
     truncateSummaries: z
       .boolean()
       .optional()
       .describe("Truncate summaries to 500 characters. Defaults to true."),
-    orderBy: z.enum(["timestamp.desc", "timestamp.asc"]).optional(),
-    limit: z
-      .number()
-      .int()
-      .positive()
-      .max(MCP_TOPIC_TRACES_MAX_LIMIT)
-      .optional()
-      .describe(
-        `Traces per page. Defaults to 20, at most ${MCP_TOPIC_TRACES_MAX_LIMIT}.`,
-      ),
-    cursor: z.string().optional().describe("meta.cursor of the previous page."),
   }),
-  inputSchema: GetUnstableTopicTracesQuery.extend({
-    ...filterInput,
-    facets: z.array(z.string()).optional(),
-    includeTotal: z.boolean().default(false),
+  inputSchema: GetUnstableTopicSummariesQuery.extend({
+    ...resultListInput,
     truncateSummaries: z.boolean().default(true),
-    limit: z
-      .number()
-      .int()
-      .positive()
-      .max(MCP_TOPIC_TRACES_MAX_LIMIT)
-      .default(20),
   }),
   handler: async (input, context) =>
     runMcpTool({
-      spanName: "mcp.topics.get_for_traces",
+      spanName: "mcp.topics.list_summaries",
       context,
       attributes: { "mcp.pagination_limit": input.limit },
       fn: async (span) => {
         const result = await withAllowedValues(() =>
-          listPublicTopicTraces({ projectId: context.projectId, ...input }),
+          listPublicTopicSummaries({ projectId: context.projectId, ...input }),
         );
         span.setAttribute("mcp.result_count", result.data.length);
         return result;
@@ -182,3 +213,42 @@ export const [getTopicsForTracesTool, handleGetTopicsForTraces] = defineTool({
     }),
   readOnlyHint: true,
 });
+
+export const [listTopicAssignmentsTool, handleListTopicAssignments] =
+  defineTool({
+    name: "listTopicAssignments",
+    description: [
+      "List the current topic of traces on each rule's live map, one row per trace, facet and rule. status is assigned (with its topic) or outlier (no topic fits).",
+      TRACE_ID_HINT,
+      "Filter by topicId or topicName to list a topic's traces.",
+      "Use meta.cursor to fetch the next page.",
+    ].join(" "),
+    action: "topics:read",
+    baseSchema: z.object({
+      ...resultListBaseFields,
+      filter: z
+        .array(McpAdvancedFilterBaseSchema)
+        .optional()
+        .describe(
+          "Filter conditions combined with AND. Columns: traceId, facetId, facetName, ruleId, environment, topicId, topicName (stringOptions), status (stringOptions, any of: assigned, outlier), timestamp (datetime).",
+        ),
+    }),
+    inputSchema: GetUnstableTopicAssignmentsQuery.extend(resultListInput),
+    handler: async (input, context) =>
+      runMcpTool({
+        spanName: "mcp.topics.list_assignments",
+        context,
+        attributes: { "mcp.pagination_limit": input.limit },
+        fn: async (span) => {
+          const result = await withAllowedValues(() =>
+            listPublicTopicAssignments({
+              projectId: context.projectId,
+              ...input,
+            }),
+          );
+          span.setAttribute("mcp.result_count", result.data.length);
+          return result;
+        },
+      }),
+    readOnlyHint: true,
+  });

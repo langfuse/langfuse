@@ -33,6 +33,7 @@ const TopicFacetSchema = z
     description: z.string(),
     isBuiltIn: z.boolean(),
     active: z.boolean(),
+    ruleIds: z.array(z.string()),
     version: z.number().int(),
     prompt: z.string(),
     publishedRun: z
@@ -53,6 +54,7 @@ const TopicSchema = z
     name: z.string(),
     description: z.string(),
     facet: FacetRefSchema,
+    ruleId: z.string().nullable(),
     runId: z.string(),
     traceCount: z.number().int(),
   })
@@ -100,6 +102,7 @@ export const GetUnstableTopicsResponse = z
       z
         .object({
           facet: FacetRefSchema,
+          ruleId: z.string().nullable(),
           publishedRunId: z.string().nullable(),
           counts: TopicStatusCountsSchema,
         })
@@ -109,41 +112,51 @@ export const GetUnstableTopicsResponse = z
   })
   .strict();
 
-const TopicTraceCursor = z.object({
+const TopicRuleSchema = z
+  .object({
+    id: z.string(),
+    name: z.string(),
+    filter: singleFilterList,
+    sampling: z.number(),
+    facetIds: z.array(z.string()),
+    updatedAt: z.coerce.date(),
+  })
+  .strict();
+
+export const GetUnstableTopicRulesQuery = pagination.extend({
+  filter: optionalJsonParam(singleFilterList, "filter"),
+});
+export const GetUnstableTopicRulesResponse = z
+  .object({ data: z.array(TopicRuleSchema), meta: paginationMeta })
+  .strict();
+
+export const TopicRuleIdQuery = z.object({ ruleId: z.string() });
+/** @alias */
+export const GetUnstableTopicRuleResponse = TopicRuleSchema;
+
+const TopicResultCursor = z.object({
   v: z.literal(1),
   timestamp: z.coerce.date(),
   traceId: z.string(),
+  facetId: z.string(),
 });
 
-export const encodeTopicTraceCursor = (cursor: {
+export const encodeTopicResultCursor = (cursor: {
   timestamp: Date;
   traceId: string;
+  facetId: string;
 }) =>
   Buffer.from(
     JSON.stringify({
       v: 1,
       timestamp: cursor.timestamp.toISOString(),
       traceId: cursor.traceId,
+      facetId: cursor.facetId,
     }),
   ).toString("base64url");
 
-const booleanParam = z
-  .enum(["true", "false"])
-  .transform((value) => value === "true");
-
-export const GetUnstableTopicTracesQuery = timeWindow.extend({
+const resultListQuery = timeWindow.extend({
   filter: optionalJsonParam(singleFilterList, "filter"),
-  facets: z
-    .string()
-    .optional()
-    .transform((value) =>
-      value
-        ?.split(",")
-        .map((item) => item.trim())
-        .filter(Boolean),
-    ),
-  includeTotal: booleanParam.default(false),
-  truncateSummaries: booleanParam.default(false),
   orderBy: z
     .enum(["timestamp.desc", "timestamp.asc"])
     .default("timestamp.desc"),
@@ -154,7 +167,7 @@ export const GetUnstableTopicTracesQuery = timeWindow.extend({
     .transform((value, ctx) => {
       if (value === undefined) return undefined;
       try {
-        return TopicTraceCursor.parse(
+        return TopicResultCursor.parse(
           JSON.parse(Buffer.from(value, "base64url").toString("utf-8")),
         );
       } catch {
@@ -164,34 +177,15 @@ export const GetUnstableTopicTracesQuery = timeWindow.extend({
     }),
 });
 
-const TopicTraceFacetSchema = z
-  .object({
-    facetId: z.string(),
-    facetName: z.string(),
-    facetVersion: z.number().int().nullable(),
-    state: z.enum([
-      "complete",
-      "not_applicable",
-      "insufficient_input",
-      "not_processed",
-    ]),
-    summary: z.string().nullable(),
-    summaryTruncated: z.boolean(),
-    processedAt: z.coerce.date().nullable(),
-    assignment: z
-      .object({
-        status: z.enum(["assigned", "outlier", "awaiting_map"]),
-        topic: z
-          .object({ id: z.string(), versionId: z.string(), name: z.string() })
-          .strict()
-          .nullable(),
-      })
-      .strict()
-      .nullable(),
-  })
-  .strict();
+const resultListMeta = z.object({ cursor: z.string().nullable() }).strict();
 
-export const GetUnstableTopicTracesResponse = z
+export const GetUnstableTopicSummariesQuery = resultListQuery.extend({
+  truncateSummaries: z
+    .enum(["true", "false"])
+    .transform((value) => value === "true")
+    .default(false),
+});
+export const GetUnstableTopicSummariesResponse = z
   .object({
     window: WindowSchema,
     data: z.array(
@@ -201,18 +195,44 @@ export const GetUnstableTopicTracesResponse = z
           traceName: z.string(),
           environment: z.string(),
           timestamp: z.coerce.date(),
-          traceUrl: z.string(),
-          processedAt: z.coerce.date().nullable(),
-          facets: z.array(TopicTraceFacetSchema),
+          facetId: z.string(),
+          facetName: z.string(),
+          facetVersion: z.number().int(),
+          state: z.enum(["complete", "not_applicable", "insufficient_input"]),
+          summary: z.string().nullable(),
+          summaryTruncated: z.boolean(),
+          processedAt: z.coerce.date(),
         })
         .strict(),
     ),
-    meta: z
-      .object({
-        cursor: z.string().nullable(),
-        totalItems: z.number().int().optional(),
-      })
-      .strict(),
+    meta: resultListMeta,
+  })
+  .strict();
+
+export const GetUnstableTopicAssignmentsQuery = resultListQuery;
+export const GetUnstableTopicAssignmentsResponse = z
+  .object({
+    window: WindowSchema,
+    data: z.array(
+      z
+        .object({
+          traceId: z.string(),
+          timestamp: z.coerce.date(),
+          facetId: z.string(),
+          facetName: z.string(),
+          facetVersion: z.number().int(),
+          ruleId: z.string().nullable(),
+          status: z.enum(["assigned", "outlier"]),
+          topic: z
+            .object({ id: z.string(), versionId: z.string(), name: z.string() })
+            .strict()
+            .nullable(),
+          runId: z.string().nullable(),
+          assignedAt: z.coerce.date(),
+        })
+        .strict(),
+    ),
+    meta: resultListMeta,
   })
   .strict();
 
