@@ -63,6 +63,10 @@ import {
   formatObservationCost,
   isObservationCostDisplayable,
 } from "@/src/utils/observationCost";
+import {
+  formatObservationTokenCount,
+  isObservationTokenCountDisplayable,
+} from "@/src/utils/observationTokenCount";
 import { useOrderByState } from "@/src/features/orderBy";
 import {
   customRowHeightMenu,
@@ -973,6 +977,14 @@ export default function ObservationsTable({
       enableSorting,
       getCell: (value, { row }) => {
         const aggregatedUsage = calculateAggregatedUsage(value ?? {});
+        const type = row.original.type;
+        const hasTokenCount = [
+          aggregatedUsage.input,
+          aggregatedUsage.output,
+          aggregatedUsage.total,
+        ].some((count) => isObservationTokenCountDisplayable(count, type));
+        if (!hasTokenCount) return { type: "empty" };
+
         return {
           type: "usage",
           inputUsage: aggregatedUsage.input,
@@ -1163,7 +1175,8 @@ export default function ObservationsTable({
           enableHiding: true,
           defaultHidden: true,
           enableSorting,
-          formatter: (value) => numberFormatter(value, 0),
+          formatter: (value, { row }) =>
+            formatObservationTokenCount(value, row.original.type),
         }),
         createNumberTableColumn<ObservationsTableRow>({
           accessorFn: (row) => row.usage.outputUsage,
@@ -1173,7 +1186,8 @@ export default function ObservationsTable({
           enableHiding: true,
           defaultHidden: true,
           enableSorting,
-          formatter: (value) => numberFormatter(value, 0),
+          formatter: (value, { row }) =>
+            formatObservationTokenCount(value, row.original.type),
         }),
         createNumberTableColumn<ObservationsTableRow>({
           accessorFn: (row) => row.usage.totalUsage,
@@ -1183,7 +1197,8 @@ export default function ObservationsTable({
           enableHiding: true,
           defaultHidden: true,
           enableSorting,
-          formatter: (value) => numberFormatter(value, 0),
+          formatter: (value, { row }) =>
+            formatObservationTokenCount(value, row.original.type),
         }),
       ] satisfies LangfuseColumnDef<ObservationsTableRow>[],
     },
