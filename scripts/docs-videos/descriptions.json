@@ -95,6 +95,10 @@
     "title": "Download widget data as CSV",
     "description": "Dashboards > Langfuse Cost Dashboard. Open the \"⋯\" menu of the \"Total costs\" widget and click \"Download data as CSV\"."
   },
+  "export-generations-csv": {
+    "title": "Export observations as CSV",
+    "description": "Tracing table. Search name:draft-reply latency:>2 to filter the rows, then click the export button at the top right > \"As CSV\". A toast confirms the export was queued; \"View exports\" opens Project Settings > \"Exports\", where the finished CSV is listed as Completed with a \"Download\" button."
+  },
   "full-text-search-launch": {
     "title": "Find traces with full-text search",
     "description": "Tracing page search bar: type \"cracked bumper\" and pick the full-text suggestion content:\"cracked bumper\" to search inputs and outputs. The table narrows to the matching rows; click one to open the generation in the peek panel."
