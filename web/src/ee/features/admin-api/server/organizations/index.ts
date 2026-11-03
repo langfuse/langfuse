@@ -1,14 +1,88 @@
 import { prisma } from "@langfuse/shared/src/db";
-import { logger } from "@langfuse/shared/src/server";
+import { Role } from "@langfuse/shared";
+import { logger, resolveProjectRole } from "@langfuse/shared/src/server";
 import { organizationNameSchema } from "@/src/features/organizations/utils/organizationNameSchema";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
+import { userEmailFilterSchema } from "@/src/ee/features/admin-api/server/userEmailFilter";
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { z } from "zod";
 
+const organizationProjectSelect = {
+  id: true,
+  name: true,
+  metadata: true,
+  createdAt: true,
+  updatedAt: true,
+} as const;
+
+/**
+ * findUserOrganizations returns the organizations a user belongs to, with the
+ * user's organization role and the projects they can access in each.
+ *
+ * Project roles come from `resolveProjectRole`, the helper the session
+ * callback uses: an explicit project role overrides the organization role, and
+ * projects with an effective role of NONE are omitted.
+ */
+async function findUserOrganizations(email: string) {
+  const memberships = await prisma.organizationMembership.findMany({
+    where: { user: { email } },
+    select: {
+      role: true,
+      ProjectMemberships: true,
+      organization: {
+        select: {
+          id: true,
+          name: true,
+          createdAt: true,
+          metadata: true,
+          projects: {
+            select: organizationProjectSelect,
+            where: { deletedAt: null },
+            orderBy: { name: "asc" },
+          },
+        },
+      },
+    },
+    orderBy: { organization: { name: "asc" } },
+  });
+
+  return memberships.map(({ role, ProjectMemberships, organization }) => ({
+    ...organization,
+    metadata: organization.metadata ?? {},
+    role,
+    projects: organization.projects
+      .map((project) => ({
+        ...project,
+        role: resolveProjectRole({
+          projectId: project.id,
+          projectMemberships: ProjectMemberships,
+          orgMembershipRole: role,
+        }),
+      }))
+      .filter((project) => project.role !== Role.NONE),
+  }));
+}
+
+/**
+ * handleGetOrganizations lists all organizations of the instance. With an
+ * `email` query param, it lists only the organizations that user belongs to.
+ */
 export async function handleGetOrganizations(
   req: NextApiRequest,
   res: NextApiResponse,
 ) {
+  const query = z
+    .object({ email: userEmailFilterSchema.optional() })
+    .safeParse(req.query);
+  if (!query.success) {
+    return res.status(400).json({ error: "Invalid email" });
+  }
+  if (query.data.email !== undefined) {
+    return res.status(200).json({
+      organizations: await findUserOrganizations(query.data.email),
+    });
+  }
+
   const organizations = await prisma.organization.findMany({
     select: {
       id: true,
@@ -16,13 +90,7 @@ export async function handleGetOrganizations(
       createdAt: true,
       metadata: true,
       projects: {
-        select: {
-          id: true,
-          name: true,
-          metadata: true,
-          createdAt: true,
-          updatedAt: true,
-        },
+        select: organizationProjectSelect,
         where: {
           deletedAt: null,
         },
