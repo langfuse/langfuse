@@ -1,7 +1,11 @@
 import { createHash, randomUUID } from "node:crypto";
 import { redis } from "@langfuse/shared/src/server";
 import { env } from "../../env";
-import { getTraceBatchShard, resolveTraceIdleMs } from "./traceBatchReadiness";
+import {
+  getTraceBatchFirstMember,
+  getTraceBatchShard,
+  resolveTraceIdleMs,
+} from "./traceBatchReadiness";
 
 const REDIS_BATCH_SIZE = 50;
 const CLEANUP_SIZE = 100;
@@ -57,30 +61,31 @@ const RECORD_SCRIPT = `
     return redis.error_reply('Trace recording bucket clock changed; retry intake')
   end
   local wroteRecord = false
-  for i = 6, #ARGV, 6 do
+  for i = 6, #ARGV, 7 do
     local member = ARGV[i]
     local minStart = tonumber(ARGV[i + 1])
     local maxStart = tonumber(ARGV[i + 2])
     local incomingRules = cjson.decode(ARGV[i + 4])
     local eventUpdateCount = tonumber(ARGV[i + 5])
+    local boundsIdentity = ARGV[i + 6]
 
     -- 1. Merge the event-time bounds, even when no rule selected this activity.
     -- Move active traces to the current bucket so their bounds remain available.
     local boundsIndex, previousBounds = current, nil
     for key = #KEYS, 3, -1 do
-      previousBounds = redis.call('HGET', KEYS[key], member)
+      previousBounds = redis.call('HGET', KEYS[key], boundsIdentity)
       if previousBounds then boundsIndex = key; break end
     end
     if previousBounds then
-      local bounds = cjson.decode(previousBounds)
-      minStart = math.min(minStart, bounds.minStart)
-      maxStart = math.max(maxStart, bounds.maxStart)
-      eventUpdateCount = eventUpdateCount + bounds.eventUpdateCount
+      local bounds = cmsgpack.unpack(previousBounds)
+      minStart = math.min(minStart, bounds[1])
+      maxStart = math.max(maxStart, bounds[2])
+      eventUpdateCount = eventUpdateCount + bounds[3]
     end
-    redis.call('HSET', KEYS[current], member, cjson.encode({
-      minStart = minStart, maxStart = maxStart, eventUpdateCount = eventUpdateCount
+    redis.call('HSET', KEYS[current], boundsIdentity, cmsgpack.pack({
+      minStart, maxStart, eventUpdateCount
     }))
-    if boundsIndex ~= current then redis.call('HDEL', KEYS[boundsIndex], member) end
+    if boundsIndex ~= current then redis.call('HDEL', KEYS[boundsIndex], boundsIdentity) end
 
     -- 2. Preserve live pending selections; expired selections cannot be revived.
     local previousRecord = redis.call('HGET', recordKey, member)
@@ -143,7 +148,7 @@ const scriptHashes = new Map(
 async function evalRecording(
   script: string,
   keys: string[],
-  args: (string | number)[],
+  args: (string | number | Buffer)[],
 ) {
   if (!redis) throw new Error("Trace rule recording requires Redis");
   try {
@@ -263,6 +268,7 @@ export async function recordTraceActivity(
               randomUUID(),
               JSON.stringify([...rules]),
               eventUpdateCount,
+              getTraceBatchFirstMember(member),
             ],
           ),
       ];

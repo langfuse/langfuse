@@ -32,6 +32,7 @@ import { TraceBatchMetricsRunner } from "../features/traceBatching/TraceBatchMet
 import {
   ACKNOWLEDGE_SCRIPT,
   getTraceBatchFirstKeys,
+  getTraceBatchFirstMember,
   getTraceBatchReadinessKeys,
   getTraceBatchShard,
 } from "../features/traceBatching/traceBatchReadiness";
@@ -619,8 +620,17 @@ describe("trace micro-batch scheduling with Redis", () => {
   };
   async function readRecordedBounds(identity: string) {
     for (const key of recordingBoundsKeys()) {
-      const value = await client().hget(key, identity);
-      if (value) return { key, value: JSON.parse(value) };
+      const value = (await client().eval(
+        `local value = redis.call('HGET', KEYS[1], ARGV[1])
+         if value then return cmsgpack.unpack(value) end`,
+        1,
+        key,
+        getTraceBatchFirstMember(identity),
+      )) as [number, number, number] | null;
+      if (value) {
+        const [minStart, maxStart, eventUpdateCount] = value;
+        return { key, value: { minStart, maxStart, eventUpdateCount } };
+      }
     }
     throw new Error(`Missing recorded bounds for ${identity}`);
   }
@@ -727,20 +737,21 @@ describe("trace micro-batch scheduling with Redis", () => {
       traceIdleMs: null,
     });
     const identity = member("project", "recorded");
+    const boundsIdentity = getTraceBatchFirstMember(identity);
+    const start = Date.parse("2026-11-03T10:00:00.000Z");
     const [seconds] = await client().time();
     const hour = Math.floor(Number(seconds) / 3_600);
     const originalKey = `${recordingKeys.bounds}:${hour - 1}`;
     const currentKey = `${recordingKeys.bounds}:${hour}`;
     const expiry =
       hour * 3_600_000 + env.LANGFUSE_TRACE_BATCH_FIRST_SEEN_TTL_MS;
-    await client().hset(
+    await client().eval(
+      `return redis.call('HSET', KEYS[1], ARGV[1],
+         cmsgpack.pack({tonumber(ARGV[2]), tonumber(ARGV[2]), 1}))`,
+      1,
       originalKey,
-      identity,
-      JSON.stringify({
-        minStart: 1_000_000,
-        maxStart: 1_000_000,
-        eventUpdateCount: 1,
-      }),
+      boundsIdentity,
+      start,
     );
     await client().pexpireat(originalKey, expiry);
     await client().hset(
@@ -755,18 +766,21 @@ describe("trace micro-batch scheduling with Redis", () => {
     await client().zadd(recordingKeys.due, Number(seconds) * 1_000, identity);
 
     await recordTraceActivity("project", [
-      { ...spanActivity("recorded", 2_000_000), ruleIds: [] },
+      { ...spanActivity("recorded", start + 1_000_000), ruleIds: [] },
     ]);
 
-    expect(JSON.parse((await client().hget(currentKey, identity))!)).toEqual({
-      minStart: 1_000_000,
-      maxStart: 2_000_000,
-      eventUpdateCount: 2,
+    expect(await readRecordedBounds(identity)).toEqual({
+      key: currentKey,
+      value: {
+        minStart: start,
+        maxStart: start + 1_000_000,
+        eventUpdateCount: 2,
+      },
     });
     expect(Number(await client().pexpiretime(currentKey))).toBe(
       expiry + 3_600_000,
     );
-    expect(await client().hget(originalKey, identity)).toBeNull();
+    expect(await client().hget(originalKey, boundsIdentity)).toBeNull();
     const record = JSON.parse(
       (await client().hget(recordingKeys.record, identity))!,
     );
@@ -843,11 +857,15 @@ describe("trace micro-batch scheduling with Redis", () => {
         { ...spanActivity("recorded", 500_000), ruleIds: ["rule-b", "rule-a"] },
       ]),
     ]);
-    expect((await readRecordedBounds(identity)).value).toMatchObject({
+    const bounds = await readRecordedBounds(identity);
+    expect(bounds.value).toMatchObject({
       minStart: 500_000,
       maxStart: 4_000_000,
       eventUpdateCount: 4,
     });
+    expect(await client().hkeysBuffer(bounds.key)).toEqual([
+      getTraceBatchFirstMember(identity),
+    ]);
     const record = JSON.parse(
       (await client().hget(recordingKeys.record, identity))!,
     );

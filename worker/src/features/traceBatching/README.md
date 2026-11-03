@@ -13,7 +13,9 @@ Default-off; requires cloud and `LANGFUSE_TRACE_BATCH_INGESTION_ENABLED=true`.
 Both writers admit active Topics projects or traces selected by
 `LANGFUSE_TRACE_BATCH_SAMPLING_RATE`, using the same trace-ID sampler.
 Ingestion matches and samples rules, then atomically
-records activity under `{trace-dispatch:<shard>}`, keyed by `[projectId, traceId]`.
+records activity under `{trace-dispatch:<shard>}`. `record` and `due` keep the full
+JSON `[projectId, traceId]` identity. Bounds use its 16-byte SHA-256 prefix and
+MessagePack values, reusing the existing history identity helper.
 Only batches that write the events table directly are recorded, like existing trace
 batching; dual-path batches record nothing. These maps are not consumed yet.
 Env-sampled activity without a rule match records `__trace_batch_experiment__`
@@ -22,7 +24,7 @@ excluded from execution when the consumer is added.
 
 | Map             | Contents                                                                  | Retention                                                                 |
 | --------------- | ------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
-| `bounds:<hour>` | `{ minStart, maxStart, eventUpdateCount }`, including nonmatches.         | Configured bounds TTL after the latest activity's bucket ends (24–25 hours by default). |
+| `bounds:<hour>` | MessagePack `[minStart, maxStart, eventUpdateCount]`, including nonmatches. | Configured bounds TTL after the latest activity's bucket ends (24–25 hours by default). |
 | `record`        | Only `{ revision, rules, failed_cnt }`; rule IDs are deduplicated.        | Two hours past due.                                                       |
 | `due`           | Selected traces ordered by Redis arrival time plus project idle interval. | Two hours past due.                                                       |
 

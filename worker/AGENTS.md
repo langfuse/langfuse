@@ -66,6 +66,8 @@
   `__trace_batch_experiment__`, a storage-only marker with no evaluator.
   Reuse shard and idle helpers.
   Bounds count one event update per recorded span; sizes are not recorded.
+  Bounds use the shared 16-byte identity and MessagePack `[minStart, maxStart, eventUpdateCount]`;
+  record/due keep full JSON identities for dispatch.
   Activity atomically moves merged bounds into the current bucket and removes the
   old entry, retaining history and pending selections while a trace stays active.
   Records contain only revision, rules, and failed_cnt. Pending cleanup runs during
