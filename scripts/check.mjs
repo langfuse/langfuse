@@ -58,7 +58,7 @@ export function createOutput(
 
 const checkTasks = [
   { name: "typecheck", label: "Types" },
-  { name: "lint", label: "Lint", runner: "eslint" },
+  { name: "lint", label: "Lint", runner: "oxlint" },
   {
     name: "test",
     label: "Tests",
@@ -367,26 +367,17 @@ function planPackageChecks(
         );
       for (const task of checks) {
         if (
-          task.runner === "eslint" &&
-          pkg.scripts[task.name].includes("eslint")
+          task.runner === "oxlint" &&
+          pkg.scripts[task.name].includes("oxlint")
         ) {
-          // Turbo cannot append ESLint-only flags to a mixed task batch.
-          // Keep dependency preparation in Turbo; ESLint retains its own cache.
+          // Keep dependency preparation in Turbo before file-specific linting.
           const prerequisites = prepare(`${pkg.name}#${task.name}`);
           const details = related
             ? planNarrowedCheck(task, pkg, ownFiles, base, exists)
             : { label: `${task.label} · ${pkg.name}`, args: [] };
           packageChecks.push({
             ...details,
-            args: [
-              "--filter",
-              pkg.name,
-              "run",
-              task.name,
-              ...details.args,
-              "--concurrency",
-              "off",
-            ],
+            args: ["--filter", pkg.name, "run", task.name, ...details.args],
             requiresTurbo: true,
             prerequisites,
           });
@@ -551,7 +542,7 @@ function planNarrowedCheck(task, pkg, ownFiles, base, exists) {
   return {
     label: `Lint · ${pkg.name} · ${lintFiles.size} file${lintFiles.size === 1 ? "" : "s"}`,
     args: [
-      "--no-warn-ignored",
+      "--no-error-on-unmatched-pattern",
       ...[...lintFiles].map((file) => `./${relative(pkg.path, file)}`),
     ],
   };

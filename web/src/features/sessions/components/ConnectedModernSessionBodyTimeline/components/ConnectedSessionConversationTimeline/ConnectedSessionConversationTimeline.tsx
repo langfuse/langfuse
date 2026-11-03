@@ -24,6 +24,9 @@ export function ConnectedSessionConversationTimeline(
         "traces" | "controller"
       >
   ) & {
+    customization?: ComponentProps<
+      typeof SessionConversationalView
+    >["customization"];
     traces: readonly ConnectedSessionConversationTimelineItem[];
     projectId: string;
     openPeek: (

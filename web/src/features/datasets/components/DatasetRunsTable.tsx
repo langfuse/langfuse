@@ -735,6 +735,7 @@ function DatasetRunsTableInternal(
           Object.keys(selectedRows).filter((runId) =>
             runs.data?.runs.map((run) => run.id).includes(runId),
           ).length > 0 ? (
+            // eslint-disable-next-line react/jsx-key
             <DatasetRunTableMultiSelectAction
               // Exclude items that are not in the current page
               selectedRunIds={Object.keys(selectedRows).filter((runId) =>

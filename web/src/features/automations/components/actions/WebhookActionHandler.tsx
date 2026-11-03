@@ -14,7 +14,6 @@ import { z } from "zod";
 import { areDestinationUrlsEquivalent } from "@/src/features/automations/destinationUrl";
 
 // Define the form schema for webhook actions
-// eslint-disable-next-line @typescript-eslint/no-unused-vars -- Used via z.infer
 const WebhookActionFormSchema = z.object({
   webhook: z.object({
     url: z.url("Invalid URL"),

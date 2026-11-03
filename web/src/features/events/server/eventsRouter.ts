@@ -20,6 +20,7 @@ import {
   normalizeOrderByForTable,
   paginationZod,
   singleFilterList,
+  sessionTraceFilterSchema,
   timeFilter,
   toAuditLogResourceRef,
 } from "@langfuse/shared";
@@ -464,7 +465,7 @@ export const eventsRouter = createTRPCRouter({
         traceId: zodSchema.string(),
         timestamp: zodSchema.date().optional(),
         fallbackToRootIO: zodSchema.boolean().default(false),
-        transcriptSource: zodSchema.enum(["generations", "root"]).optional(),
+        filter: sessionTraceFilterSchema.optional(),
       }),
     )
     .query(async ({ input, ctx }) => {
@@ -513,7 +514,7 @@ export const eventsRouter = createTRPCRouter({
             traceId: input.traceId,
             timestamp,
             fallbackToRootIO: input.fallbackToRootIO,
-            transcriptSource: input.transcriptSource,
+            filter: input.filter,
           });
         },
       );

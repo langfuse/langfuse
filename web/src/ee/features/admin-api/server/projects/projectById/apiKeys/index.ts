@@ -109,6 +109,7 @@ export async function handleCreateApiKey(
       role: SystemRoleId(role),
       createdBy: ApiKeyId(createdByApiKeyId),
       name,
+      // eslint-disable-next-line @typescript-eslint/no-deprecated
       note,
       expiresAt,
       predefinedKeys:

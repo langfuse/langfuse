@@ -318,6 +318,7 @@ function useLatest<T>(value: T) {
 }
 
 export function SearchComposer({
+  inputId,
   projectId,
   observed,
   erroredColumns,
@@ -330,6 +331,7 @@ export function SearchComposer({
   registry = EVENTS_FIELD_REGISTRY,
   size = "default",
 }: {
+  inputId?: string;
   projectId?: string;
   /** `large` on full-page lists; embedded toolbars keep the default. */
   size?: ComposerSize;
@@ -1443,6 +1445,7 @@ export function SearchComposer({
           <ComposerText>
             <div
               ref={rootRef}
+              id={inputId}
               role="combobox"
               aria-label="Search"
               aria-expanded={plan !== null}

@@ -10,6 +10,7 @@ import {
   getSessionsTableCountFromEvents,
   getSessionMetricsFromEvents,
   getSessionTracesFromEvents,
+  getObservationsForTraceFromEventsTable,
   getObservationsWithModelDataFromEventsTable,
   getObservationFullIOForSessionFromEventsTable,
   getTracesGroupedByTags,
@@ -50,6 +51,7 @@ import {
   type SessionOptions,
   type ScoreDomain,
   LISTABLE_SCORE_TYPES,
+  sessionTraceFilterSchema,
 } from "@langfuse/shared";
 import { TRPCError } from "@trpc/server";
 import Decimal from "decimal.js";
@@ -736,6 +738,52 @@ export const sessionRouter = createTRPCRouter({
         scores: toDomainArrayWithStringifiedMetadata(validatedScores),
       };
     }),
+  previewTree: protectedGetSessionProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        sessionId: z.string(),
+      }),
+    )
+    .query(async ({ input }) => {
+      const traces = await getSessionTracesFromEvents({
+        ...input,
+        filter: [],
+        limit: 5,
+      });
+      if (traces.length === 0) return [];
+      return Promise.all(
+        traces.map(async (trace) => {
+          const source = {
+            projectId: input.projectId,
+            traceId: trace.id,
+            timestamp: trace.timestamp,
+          };
+          const structure = await getObservationsForTraceFromEventsTable({
+            ...source,
+            limit: 200,
+            selectMetadata: true,
+          });
+          return {
+            id: trace.id,
+            name: trace.name,
+            truncated: structure.totalCount > structure.observations.length,
+            observations: structure.observations.map((observation) => ({
+              id: observation.id,
+              parentObservationId: observation.parentObservationId,
+              name: observation.name,
+              type: observation.type,
+              level: observation.level,
+              isRootObservation: observation.isRootObservation,
+              userId: observation.userId,
+              environment: observation.environment,
+              traceTags: observation.traceTags,
+              metadata: observation.metadata,
+            })),
+          };
+        }),
+      );
+    }),
   byIdWithScoresFromEvents: protectedGetSessionProcedure
     .input(
       z.object({
@@ -822,12 +870,14 @@ export const sessionRouter = createTRPCRouter({
       z.object({
         sessionId: z.string(), // used for security check
         projectId: z.string(), // used for security check
+        filter: sessionTraceFilterSchema.optional(),
       }),
     )
     .query(async ({ input }) => {
       const traces = await getSessionTracesFromEvents({
         projectId: input.projectId,
         sessionId: input.sessionId,
+        filter: input.filter ?? [],
       });
 
       const chunks = chunk(traces, 500);

@@ -181,7 +181,9 @@ describe("DataTableColumnVisibilityFilter", () => {
           matches: query.includes("min-width"),
           media: query,
           onchange: null,
+          // eslint-disable-next-line @typescript-eslint/no-deprecated
           addListener: vi.fn(),
+          // eslint-disable-next-line @typescript-eslint/no-deprecated
           removeListener: vi.fn(),
           addEventListener: vi.fn(),
           removeEventListener: vi.fn(),

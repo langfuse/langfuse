@@ -614,9 +614,9 @@ const getPlanBasedRateLimitConfig = (
             durationInSec: 86400, // 20 submissions per day
           };
         case "ai-gateway-requests":
-          return { resource, points: 3_000, durationInSec: 60 };
+          return { resource, points: 10_000, durationInSec: 60 };
         case "ai-gateway-request-bytes":
-          return { resource, points: 2 * GiB, durationInSec: 60 };
+          return { resource, points: 5 * GiB, durationInSec: 60 };
         default:
           const exhaustiveCheck: never = resource;
           throw new Error(`Unhandled resource case: ${exhaustiveCheck}`);

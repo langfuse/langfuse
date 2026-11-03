@@ -2257,7 +2257,12 @@ model TopicClusteringRun {
   startedAt       DateTime?        @map("started_at") @db.Timestamptz(3)
   finishedAt      DateTime?        @map("finished_at") @db.Timestamptz(3)
   topicVersionIds String[]         @default([]) @map("topic_version_ids")
+  // Topics rule of a continuous map, or the batch action of a one-off analysis; null on runs written before either existed.
+  ruleId          String?          @map("rule_id")
+  batchActionId   String?          @map("batch_action_id")
 
   @@index([projectId, facetId, status, facetVersion(sort: Desc), createdAt(sort: Desc), id(sort: Desc)], map: "topic_clustering_runs_serving_map_idx")
+  @@index([projectId, ruleId, facetId, status], map: "topic_clustering_runs_rule_serving_map_idx")
+  @@index([projectId, batchActionId])
   @@map("topic_clustering_runs")
 }

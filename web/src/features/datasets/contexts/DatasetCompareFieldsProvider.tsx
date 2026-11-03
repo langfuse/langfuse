@@ -1,6 +1,5 @@
 import { createContext, useContext, useState, type ReactNode } from "react";
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars -- Used via typeof
 const DATASET_RUN_FIELDS = ["output", "scores", "resourceMetrics"] as const;
 export type DatasetRunField = (typeof DATASET_RUN_FIELDS)[number];
 

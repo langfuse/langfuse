@@ -179,7 +179,6 @@ export const CreateBlobStorageIntegrationRequest = z
     }
   });
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars -- Used via z.infer
 const BlobStorageIntegrationResponse = z
   .object({
     id: z.string(),
@@ -221,7 +220,6 @@ const BlobStorageSyncStatus = z.enum([
   "error",
 ]);
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars -- Used via z.infer
 const BlobStorageIntegrationStatusResponse = z
   .object({
     id: z.string(),
