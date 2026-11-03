@@ -60,8 +60,11 @@
   experiments. The direct internal writer retains its root-only ready callback.
 - Trace-rule recording: `src/features/traceBatching/traceBatchRules.ts` matches
   at the OTel eval stage; `traceRuleRecording.ts` records without consuming.
-  Require the existing ingestion switch and cloud Topics project gate, and record
-  only batches that write the events table directly. Reuse shard and idle helpers.
+  Require the existing cloud/ingestion switches and use `traceBatchSampling.ts`
+  for both writers: active Topics projects bypass the env trace-ID sample.
+  Only direct events-table batches record. Env-sampled nonmatches use
+  `__trace_batch_experiment__`, a storage-only marker with no evaluator.
+  Reuse shard and idle helpers.
   Bounds count one event update per recorded span; sizes are not recorded.
   Activity atomically moves merged bounds into the current bucket and removes the
   old entry, retaining history and pending selections while a trace stays active.

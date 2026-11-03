@@ -20,7 +20,10 @@ import { scheduleObservationEvals } from "../../features/evaluation/observationE
 import { createObservationEvalSchedulerDeps } from "../../features/evaluation/observationEval/createSchedulerDeps";
 import { Prisma } from "@langfuse/shared/src/db";
 import { TopicsTargetObject } from "@langfuse/shared";
-import { isTopicsProjectEnabled } from "@langfuse/shared/topics/server";
+import {
+  isTopicsProcessingActive,
+  isTopicsProjectEnabled,
+} from "@langfuse/shared/topics/server";
 import { processOtelEvents } from "../../features/otel-ingestion/processOtelEvents";
 import { recordTraceActivity } from "../../features/traceBatching/traceRuleRecording";
 import {
@@ -80,6 +83,7 @@ vi.mock("../../features/traceBatching/traceRuleRecording", () => ({
 vi.mock("@langfuse/shared/topics/server", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@langfuse/shared/topics/server")>()),
   isTopicsProjectEnabled: vi.fn().mockReturnValue(false),
+  isTopicsProcessingActive: vi.fn().mockResolvedValue(false),
 }));
 
 describe("trace-rule recording at the evaluation stage", () => {
@@ -117,6 +121,8 @@ describe("trace-rule recording at the evaluation stage", () => {
       const original = { ...env };
       env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "DEV";
       vi.mocked(isTopicsProjectEnabled).mockReturnValue(topicsEnabled);
+      vi.mocked(isTopicsProcessingActive).mockResolvedValue(topicsEnabled);
+      env.LANGFUSE_TRACE_BATCH_SAMPLING_RATE = 0;
       env.LANGFUSE_TRACE_BATCH_INGESTION_ENABLED = ingestionEnabled
         ? "true"
         : "false";
@@ -244,6 +250,89 @@ describe("trace-rule recording at the evaluation stage", () => {
       } finally {
         Object.assign(env, original);
         vi.mocked(isTopicsProjectEnabled).mockReturnValue(false);
+        vi.mocked(isTopicsProcessingActive).mockResolvedValue(false);
+        vi.clearAllMocks();
+      }
+    },
+  );
+
+  it.each([
+    { mode: "sampled", rate: 0.1, ingestionEnabled: true, cloud: true },
+    { mode: "rate zero", rate: 0, ingestionEnabled: true, cloud: true },
+    { mode: "intake off", rate: 0.1, ingestionEnabled: false, cloud: true },
+    { mode: "self-hosted", rate: 0.1, ingestionEnabled: true, cloud: false },
+  ])(
+    "records the stable experiment cohort without evaluation rules ($mode)",
+    async ({ rate, ingestionEnabled, cloud }) => {
+      const original = { ...env };
+      const projectId = "sampled-recording-test";
+      // Existing trace-batch sampler fixtures: 0.0593 is selected at 10%; 0.7116 is not.
+      const selected = "00000000000000000000000000000001";
+      const excluded = "00000000000000000000000000000002";
+      const inputs = [selected, excluded, selected].map((traceId, index) => ({
+        projectId,
+        traceId,
+        spanId: `span-${index}`,
+        startTimeISO: "2026-10-29T10:00:00.000Z",
+      }));
+      let recordedActivity: unknown;
+      try {
+        env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = cloud ? "DEV" : undefined;
+        env.LANGFUSE_TRACE_BATCH_INGESTION_ENABLED = ingestionEnabled
+          ? "true"
+          : "false";
+        env.LANGFUSE_TRACE_BATCH_SAMPLING_RATE = rate;
+        env.LANGFUSE_OTEL_MEDIA_UPLOAD_ENABLED = "false";
+        vi.mocked(fetchEvalRules).mockResolvedValue({
+          observationRules: [],
+          traceTranscriptRules: [],
+        });
+        vi.mocked(createObservationEvalSchedulerDeps).mockReturnValue(
+          createMockSchedulerDeps(),
+        );
+        vi.mocked(recordTraceActivity).mockImplementation(
+          async (_, activity) => {
+            recordedActivity = structuredClone(activity);
+          },
+        );
+
+        await processOtelEvents({
+          processor: {
+            processToEvent: () => inputs,
+          } as unknown as OtelIngestionProcessor,
+          ingestionService: {
+            createEventRecord: async (input: (typeof inputs)[number]) =>
+              createEvent({
+                project_id: projectId,
+                trace_id: input.traceId,
+                span_id: input.spanId,
+                environment: "production",
+              }),
+            writeEventRecord: vi.fn().mockResolvedValue(123),
+          } as unknown as IngestionService,
+          resourceSpans: [],
+          projectId,
+          fileKey: "sampled.json",
+          shouldWriteToEventsTable: true,
+        });
+
+        if (rate > 0 && ingestionEnabled && cloud) {
+          expect(recordTraceActivity).toHaveBeenCalledExactlyOnceWith(
+            projectId,
+            expect.any(Array),
+          );
+          expect(recordedActivity).toEqual(
+            [inputs[0], inputs[2]].map((input) => ({
+              traceId: selected,
+              spanStartTimeISO: input.startTimeISO,
+              ruleIds: ["__trace_batch_experiment__"],
+            })),
+          );
+        } else {
+          expect(recordTraceActivity).not.toHaveBeenCalled();
+        }
+      } finally {
+        Object.assign(env, original);
         vi.clearAllMocks();
       }
     },

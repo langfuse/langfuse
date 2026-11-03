@@ -14,7 +14,7 @@ import {
 } from "../observationEval/__tests__/fixtures";
 
 const mocks = vi.hoisted(() => ({
-  env: { LANGFUSE_TRACE_BATCH_INGESTION_ENABLED: "true" },
+  env: { LANGFUSE_TRACE_BATCH_SAMPLING_RATE: 0 },
   topicsEnabled: vi.fn(),
   topicsActive: vi.fn(),
   createObservationDeps: vi.fn(),
@@ -66,48 +66,46 @@ const facetRule: EvalRules["traceTranscriptRules"][number] = {
 describe("scheduleEvals", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mocks.env.LANGFUSE_TRACE_BATCH_INGESTION_ENABLED = "true";
+    mocks.env.LANGFUSE_TRACE_BATCH_SAMPLING_RATE = 0;
     mocks.topicsEnabled.mockReturnValue(true);
     mocks.topicsActive.mockResolvedValue(true);
     mocks.record.mockResolvedValue(undefined);
   });
 
-  it.each([
-    { topicsEnabled: true, ingestionEnabled: "true" },
-    { topicsEnabled: false, ingestionEnabled: "true" },
-    { topicsEnabled: true, ingestionEnabled: "false" },
-  ])(
-    "preserves observation scheduling with Topics=$topicsEnabled and trace ingestion=$ingestionEnabled",
-    async ({ topicsEnabled, ingestionEnabled }) => {
-      mocks.topicsEnabled.mockReturnValue(topicsEnabled);
-      mocks.env.LANGFUSE_TRACE_BATCH_INGESTION_ENABLED = ingestionEnabled;
+  it.each([true, false])(
+    "preserves observation scheduling with trace recording=%s",
+    async (recordTraces) => {
       const observationDeps = createMockSchedulerDeps();
       mocks.createObservationDeps.mockReturnValue(observationDeps);
       const rules: EvalRules = {
         observationRules: [createTestEvalConfig()],
-        traceTranscriptRules: [facetRule],
+        traceTranscriptRules: recordTraces ? [facetRule] : [],
       };
       const schedulerDeps = createEvalSchedulerDeps(projectId, rules);
       const observation = createTestObservation({ name: "selected" });
       await scheduleEvals({
         observation,
-        traceActivity: Object.freeze(createTraceActivity(observation.trace_id)),
+        traceActivity: recordTraces
+          ? Object.freeze(createTraceActivity(observation.trace_id))
+          : undefined,
         rules,
         schedulerDeps,
       });
       await scheduleEvals({
         observation: { ...observation, span_id: "child", name: "unmatched" },
-        traceActivity: createTraceActivity(
-          observation.trace_id,
-          "2026-11-02T08:01:00.000Z",
-        ),
+        traceActivity: recordTraces
+          ? createTraceActivity(
+              observation.trace_id,
+              "2026-11-02T08:01:00.000Z",
+            )
+          : undefined,
         rules,
         schedulerDeps,
       });
       await schedulerDeps.flushTraceActivity();
 
       expect(observationDeps.enqueueEvalJob).toHaveBeenCalledTimes(2);
-      if (topicsEnabled && ingestionEnabled === "true") {
+      if (recordTraces) {
         expect(mocks.record).toHaveBeenCalledExactlyOnceWith(projectId, [
           {
             traceId: observation.trace_id,

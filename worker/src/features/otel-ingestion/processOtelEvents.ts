@@ -1,7 +1,6 @@
 import { restoreInlineMedia } from "../otel-media/resolveExtractedMedia";
 import type { EarlyOtelBatch } from "@langfuse/native";
 import { convertEventRecordToObservationForEval } from "@langfuse/shared";
-import { isTopicsProjectEnabled } from "@langfuse/shared/topics/server";
 import {
   logger,
   OtelIngestionProcessor,
@@ -14,6 +13,10 @@ import {
   createEvalSchedulerDeps,
 } from "../evaluation/scheduleEvals";
 import { trackTraceBatchActivity } from "../traceBatching/traceBatching";
+import {
+  isTraceBatchSampled,
+  resolveTraceBatchSamplingRate,
+} from "../traceBatching/traceBatchSampling";
 import {
   createDirectOtelMediaTargets,
   processOtelEventMedia,
@@ -66,10 +69,12 @@ export async function processOtelEvents({
   }
 
   // Trace rules record only eligible direct event writes, like existing trace batching.
-  const includeTraceTranscriptRules =
-    shouldWriteToEventsTable &&
-    env.LANGFUSE_TRACE_BATCH_INGESTION_ENABLED === "true" &&
-    isTopicsProjectEnabled(projectId);
+  const traceBatchSamplingRate = shouldWriteToEventsTable
+    ? await resolveTraceBatchSamplingRate(projectId)
+    : 0;
+  const includeTraceTranscriptRules = eventInputs.some(({ traceId }) =>
+    isTraceBatchSampled(traceId, traceBatchSamplingRate),
+  );
   const rules = await fetchEvalRules(projectId, {
     includeTraceTranscriptRules,
   }).catch((error) => {
@@ -77,12 +82,11 @@ export async function processOtelEvents({
     logger.warn(`Failed to fetch eval rules for project ${projectId}`, error);
     return { observationRules: [], traceTranscriptRules: [] };
   });
-  const hasRules =
-    rules.observationRules.length > 0 ||
-    (includeTraceTranscriptRules && rules.traceTranscriptRules.length > 0);
+  const needsEvalScheduling =
+    rules.observationRules.length > 0 || includeTraceTranscriptRules;
 
   // Early exit if no processing needed
-  if (!hasRules && !shouldWriteToEventsTable) {
+  if (!needsEvalScheduling && !shouldWriteToEventsTable) {
     return;
   }
 
@@ -112,7 +116,7 @@ export async function processOtelEvents({
     });
   }
 
-  const schedulerDeps = hasRules
+  const schedulerDeps = needsEvalScheduling
     ? createEvalSchedulerDeps(projectId, rules)
     : null;
 
@@ -143,13 +147,19 @@ export async function processOtelEvents({
       }
 
       // Step 2: Schedule evaluations independently of event writes.
-      if (schedulerDeps) {
-        const traceActivity = includeTraceTranscriptRules
-          ? {
-              traceId: eventInput.traceId,
-              spanStartTimeISO: eventInput.startTimeISO,
-            }
-          : undefined;
+      const traceActivity = isTraceBatchSampled(
+        eventInput.traceId,
+        traceBatchSamplingRate,
+      )
+        ? {
+            traceId: eventInput.traceId,
+            spanStartTimeISO: eventInput.startTimeISO,
+          }
+        : undefined;
+      if (
+        schedulerDeps &&
+        (rules.observationRules.length > 0 || traceActivity)
+      ) {
         try {
           await scheduleEvals({
             observation: convertEventRecordToObservationForEval(eventRecord),

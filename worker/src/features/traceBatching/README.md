@@ -9,11 +9,16 @@ templates. The local dev template sets the idle time below.
 
 ## Recording trace-rule selections
 
-Default-off; requires `LANGFUSE_TRACE_BATCH_INGESTION_ENABLED=true` and the cloud
-Topics feature/project gates. Ingestion matches and samples rules, then atomically
+Default-off; requires cloud and `LANGFUSE_TRACE_BATCH_INGESTION_ENABLED=true`.
+Both writers admit active Topics projects or traces selected by
+`LANGFUSE_TRACE_BATCH_SAMPLING_RATE`, using the same trace-ID sampler.
+Ingestion matches and samples rules, then atomically
 records activity under `{trace-dispatch:<shard>}`, keyed by `[projectId, traceId]`.
 Only batches that write the events table directly are recorded, like existing trace
 batching; dual-path batches record nothing. These maps are not consumed yet.
+Env-sampled activity without a rule match records `__trace_batch_experiment__`
+to exercise `record`/`due` storage. This marker has no evaluator and must be
+excluded from execution when the consumer is added.
 
 | Map             | Contents                                                                  | Retention                                                                 |
 | --------------- | ------------------------------------------------------------------------- | ------------------------------------------------------------------------- |

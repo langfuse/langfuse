@@ -1,6 +1,4 @@
 import { logger, traceException } from "@langfuse/shared/src/server";
-import { isTopicsProjectEnabled } from "@langfuse/shared/topics/server";
-import { env } from "../../env";
 import { createObservationEvalSchedulerDeps } from "./observationEval/createSchedulerDeps";
 import {
   isObservationAllowedForQueuedObservationEvals,
@@ -19,20 +17,17 @@ import {
 export function createEvalSchedulerDeps(projectId: string, rules: EvalRules) {
   // This buffer belongs to one ingestion invocation, which awaits its flush before returning.
   const traceActivity: TraceSpanActivity[] = [];
-  const traceTranscriptRules =
-    env.LANGFUSE_TRACE_BATCH_INGESTION_ENABLED === "true" &&
-    isTopicsProjectEnabled(projectId)
-      ? prepareTraceBatchRules(projectId, rules.traceTranscriptRules).catch(
-          (error) => {
-            traceException(error);
-            logger.warn("Failed to prepare trace transcript rules", {
-              projectId,
-              error,
-            });
-            return [];
-          },
-        )
-      : Promise.resolve([]);
+  const traceTranscriptRules = prepareTraceBatchRules(
+    projectId,
+    rules.traceTranscriptRules,
+  ).catch((error) => {
+    traceException(error);
+    logger.warn("Failed to prepare trace transcript rules", {
+      projectId,
+      error,
+    });
+    return [];
+  });
 
   return {
     ...createObservationEvalSchedulerDeps(),

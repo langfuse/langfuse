@@ -9,10 +9,6 @@ import {
   TraceBatchTraceSchema,
   TraceBatchQueue,
 } from "@langfuse/shared/src/server";
-import {
-  isTopicsProcessingActive,
-  isTopicsProjectEnabled,
-} from "@langfuse/shared/topics/server";
 import { env } from "../../env";
 import { PeriodicExclusiveRunner } from "../../utils/PeriodicExclusiveRunner";
 import { cleanupTraceRuleRecording } from "./traceRuleRecording";
@@ -44,9 +40,9 @@ import {
   type TraceExclusionReason,
 } from "./traceBatchSelection";
 import {
-  getDeterministicSamplingValue,
-  shouldSampleEvaluation,
-} from "../evaluation/deterministicSampling";
+  isTraceBatchSampled,
+  resolveTraceBatchSamplingRate,
+} from "./traceBatchSampling";
 
 const CHUNK_SIZE = 1_000;
 const REDIS_CHUNK_SIZE = 50;
@@ -82,16 +78,8 @@ export async function trackTraceBatchActivity(
   }[],
   idleMs?: number,
 ): Promise<void> {
-  if (
-    !env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION ||
-    env.LANGFUSE_TRACE_BATCH_INGESTION_ENABLED !== "true"
-  )
-    return;
-  const samplingRate = env.LANGFUSE_TRACE_BATCH_SAMPLING_RATE;
-  // Topics summarizes every trace of an active project, so those bypass sampling.
-  const topicsProject = await resolveTopicsProcessingActive(projectId);
-  // Rate 0 admits only Topics projects; skip all tracking work for the rest.
-  if (samplingRate === 0 && !topicsProject) return;
+  const samplingRate = await resolveTraceBatchSamplingRate(projectId);
+  if (samplingRate === 0) return;
 
   const bounds = new Map<
     string,
@@ -118,16 +106,10 @@ export async function trackTraceBatchActivity(
 
   try {
     recordTrackingVolume("eligible", bounds);
-    const admitAll = samplingRate === 1 || topicsProject;
     // Sample by trace ID so later observations and retries keep the same decision.
     // Dispatcher and consumer process admitted work without resampling.
-    const entries = [...bounds].filter(
-      ([traceId]) =>
-        admitAll ||
-        shouldSampleEvaluation({
-          samplingValue: getDeterministicSamplingValue(traceId),
-          samplingRate,
-        }),
+    const entries = [...bounds].filter(([traceId]) =>
+      isTraceBatchSampled(traceId, samplingRate),
     );
     // Counts distinct trace IDs per ingestion batch, not globally unique traces.
     recordIncrement("langfuse.trace_batch.sampling_decisions", entries.length, {
@@ -244,23 +226,6 @@ export async function trackTraceBatchActivity(
     // This optional load experiment must not fail normal event ingestion.
     recordIncrement("langfuse.trace_batch.tracking_errors", 1);
     logger.error("Failed to track trace batch activity", { error });
-  }
-}
-
-async function resolveTopicsProcessingActive(
-  projectId: string,
-): Promise<boolean> {
-  try {
-    return await isTopicsProcessingActive(projectId);
-  } catch (error) {
-    // The allowlist keeps Topics traces during an outage; the consumer still
-    // loads each project's models and skips projects without them.
-    recordIncrement("langfuse.trace_batch.topics_gate_failures", 1);
-    logger.warn("Failed to read Topics processing state, using allowlist", {
-      projectId,
-      error,
-    });
-    return isTopicsProjectEnabled(projectId);
   }
 }
 
