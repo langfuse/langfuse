@@ -88,7 +88,7 @@ export async function recordTrpcAccess(
     headers: IncomingHttpHeaders;
   },
   projectId: string,
-  read: AccessRead | (() => AccessRead),
+  read: AccessRead | (() => AccessRead | Promise<AccessRead>),
 ): Promise<void> {
   const user = ctx.session?.user;
   if (!user) return;
@@ -111,7 +111,7 @@ export async function recordTrpcAccess(
   }
 
   await recordAccessEvent({
-    ...(typeof read === "function" ? read() : read),
+    ...(typeof read === "function" ? await read() : read),
     orgId: auditOrg.orgId,
     projectId,
     actor: toUserActor(user, {

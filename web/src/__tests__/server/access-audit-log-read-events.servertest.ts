@@ -219,6 +219,79 @@ describe("access events on tRPC scores.byId", () => {
       }),
     ]);
   });
+
+  it("stores the input as validated, without keys the procedure strips", async () => {
+    const { orgId, projectId } = await setupOrg(true);
+    const score = createTraceScore({ project_id: projectId });
+    await createScoresCh([score]);
+    const caller = trpcCaller({
+      userId: randomUUID(),
+      orgId,
+      projectId,
+      accessAuditLogEnabled: true,
+    });
+
+    await caller.scores.byId({
+      padding: "x".repeat(4096),
+      projectId,
+      scoreId: score.id,
+    } as Parameters<typeof caller.scores.byId>[0]);
+
+    const [event] = await accessEvents(orgId);
+    expect(JSON.parse(event?.params as string)).toEqual({
+      projectId,
+      scoreId: score.id,
+    });
+  });
+});
+
+describe("refused tRPC reads", () => {
+  it("records the id the route names, without params or ids no resource can have", async () => {
+    const { orgId, projectId } = await setupOrg(true);
+    const scoreId = randomUUID();
+    const caller = trpcCaller({
+      userId: randomUUID(),
+      orgId,
+      projectId,
+      accessAuditLogEnabled: true,
+      member: false,
+    });
+
+    await expect(
+      caller.scores.getScoreMetadataById({
+        projectId,
+        id: scoreId,
+        traceId: "t".repeat(801),
+      } as Parameters<typeof caller.scores.getScoreMetadataById>[0]),
+    ).rejects.toMatchObject({ code: "UNAUTHORIZED" });
+
+    const events = await accessEvents(orgId);
+    expect(events).toEqual([
+      expect.objectContaining({
+        route: "scores.getScoreMetadataById",
+        resourceId: scoreId,
+        outcome: "denied",
+        resourceRefs: [`score:${scoreId}`],
+      }),
+    ]);
+    expect(events[0]).not.toHaveProperty("params");
+  });
+
+  it("keeps the refusal when the event cannot be recorded", async () => {
+    const { orgId, projectId } = await setupOrg(true);
+    const caller = trpcCaller({
+      userId: randomUUID(),
+      orgId,
+      projectId,
+      accessAuditLogEnabled: true,
+      member: false,
+    });
+    staging.fail = true;
+
+    await expect(
+      caller.scores.getScoreMetadataById({ projectId, id: randomUUID() }),
+    ).rejects.toMatchObject({ code: "UNAUTHORIZED" });
+  });
 });
 
 const maybe = eventsTableAvailable ? describe : describe.skip;

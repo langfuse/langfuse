@@ -1,5 +1,5 @@
 import { type IncomingHttpHeaders } from "node:http";
-import { type TRPC_ERROR_CODE_KEY } from "@trpc/server";
+import { type AnyProcedure, type TRPC_ERROR_CODE_KEY } from "@trpc/server";
 import { type Session } from "next-auth";
 import * as z from "zod";
 
@@ -8,8 +8,12 @@ import {
   type AuditLogResourceRef,
   type AuditLogResourceRefType,
 } from "@langfuse/shared";
+import { logger } from "@langfuse/shared/src/server";
 
-import { recordTrpcAccess } from "@/src/ee/features/access-audit-log/server/recordAccessEvent";
+import {
+  recordTrpcAccess,
+  type AccessRead,
+} from "@/src/ee/features/access-audit-log/server/recordAccessEvent";
 import { type RouterInput, type RouterOutput } from "@/src/utils/types";
 
 /**
@@ -357,29 +361,112 @@ const DENIED_CODES = new Set<TRPC_ERROR_CODE_KEY>([
 
 const ProjectInputSchema = z.object({ projectId: z.string().min(1) });
 
-// A refused call's input was never validated, so only ids that are strings
-// are taken from it.
-const optionalId = z.string().min(1).optional().catch(undefined);
+// Longer ids are rejected at ingestion, so they cannot name a resource.
+const MAX_ID_LENGTH = 800;
+// The largest legitimate batch read is one table page.
+const MAX_REQUESTED_OBSERVATIONS = 50;
+
+// A refused call's input was never validated: only ids that are strings of a
+// possible length are taken from it.
+const requestedId = z.string().min(1).max(MAX_ID_LENGTH);
+const optionalId = requestedId.optional().catch(undefined);
 const RequestedIdsSchema = z
   .object({
     traceId: optionalId,
     observationId: optionalId,
     sessionId: optionalId,
     scoreId: optionalId,
+    observations: z
+      .array(z.object({ id: optionalId, traceId: optionalId }).catch({}))
+      .optional()
+      .catch(undefined),
   })
   .catch({});
 
-const requestedResources = (
+const callSafely = <T>(fn: () => T): T | undefined => {
+  try {
+    return fn();
+  } catch {
+    return undefined;
+  }
+};
+
+/** A refused read: the ids it asked for, without its unvalidated params. */
+const deniedRead = (
+  path: string,
+  route: AccessRoute<unknown, unknown>,
   input: unknown,
-): Partial<Record<AuditLogResourceRefType, string>> => {
+  code: TRPC_ERROR_CODE_KEY,
+): AccessRead => {
   const ids = RequestedIdsSchema.parse(input);
+  const resourceId = requestedId.safeParse(
+    callSafely(() => route.resourceId?.(input)),
+  ).data;
   return {
-    trace: ids.traceId,
-    observation: ids.observationId,
-    session: ids.sessionId,
-    score: ids.scoreId,
+    route: path,
+    resourceType: route.resourceType,
+    resourceId,
+    action: route.action,
+    resourceRefs: [
+      ...(route.resourceType === "experiment"
+        ? []
+        : refsIf(route.resourceType, resourceId)),
+      ...refsIf("trace", ids.traceId),
+      ...refsIf("observation", ids.observationId),
+      ...refsIf("session", ids.sessionId),
+      ...refsIf("score", ids.scoreId),
+      ...(ids.observations ?? [])
+        .slice(0, MAX_REQUESTED_OBSERVATIONS)
+        .flatMap((observation) => [
+          ...refsIf("observation", observation.id),
+          ...refsIf("trace", observation.traceId),
+        ]),
+    ],
+    outcome: "denied",
+    outcomeReason: code,
   };
 };
+
+const isPlainObject = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
+
+/**
+ * The request input as the procedure's own input schema returns it, so keys
+ * the schema strips never reach the audit row. Undefined when the input
+ * cannot be re-validated or serialized.
+ */
+async function validatedParams(
+  path: string,
+  rawInput: unknown,
+): Promise<unknown> {
+  // Imported on use: the app router imports this module through trpc.ts.
+  const { appRouter } = await import("@/src/server/api/root");
+  // Holds every procedure by its dotted path; its type describes the nested
+  // router record instead.
+  const procedures = appRouter._def.procedures as unknown as Partial<
+    Record<string, AnyProcedure>
+  >;
+  const procedure = procedures[path];
+  if (!procedure) return undefined;
+  try {
+    let input: unknown = undefined;
+    for (const parser of procedure._def.inputs) {
+      const parsed: unknown = await (parser as z.ZodType).parseAsync(rawInput);
+      input =
+        isPlainObject(input) && isPlainObject(parsed)
+          ? { ...input, ...parsed }
+          : parsed;
+    }
+    if (input === undefined) return undefined;
+    return JSON.parse(
+      JSON.stringify(input, (_key, value: unknown) =>
+        typeof value === "bigint" ? value.toString() : value,
+      ),
+    );
+  } catch {
+    return undefined;
+  }
+}
 
 const findAccessRoute = (
   path: string,
@@ -422,33 +509,26 @@ export async function recordTrpcProcedureAccess({
   const project = ProjectInputSchema.safeParse(input);
   if (!project.success) return;
 
-  await recordTrpcAccess(ctx, project.data.projectId, () => {
-    if (result.ok) {
-      return {
-        route: path,
-        resourceType: route.resourceType,
-        resourceId: route.resourceId?.(input),
-        action: route.action,
-        resourceRefs: route.resourceRefs(input, result.data),
-        params: input,
-        resultCount: route.resultCount?.(result.data),
-      };
-    }
-    const requested = requestedResources(input);
-    return {
+  if (result.ok) {
+    await recordTrpcAccess(ctx, project.data.projectId, async () => ({
       route: path,
       resourceType: route.resourceType,
-      resourceId:
-        route.action === "read" && route.resourceType !== "experiment"
-          ? requested[route.resourceType]
-          : undefined,
+      resourceId: route.resourceId?.(input),
       action: route.action,
-      resourceRefs: Object.entries(requested).flatMap(([type, id]) =>
-        refsIf(type as AuditLogResourceRefType, id),
-      ),
-      params: input,
-      outcome: "denied",
-      outcomeReason: result.code,
-    };
-  });
+      resourceRefs: route.resourceRefs(input, result.data),
+      params: await validatedParams(path, input),
+      resultCount: route.resultCount?.(result.data),
+    }));
+    return;
+  }
+
+  // The caller was refused and receives no data, so a failed write keeps the
+  // refusal instead of turning it into a server error.
+  try {
+    await recordTrpcAccess(ctx, project.data.projectId, () =>
+      deniedRead(path, route, input, result.code),
+    );
+  } catch (error) {
+    logger.warn("Failed to record a refused read", { error, route: path });
+  }
 }
