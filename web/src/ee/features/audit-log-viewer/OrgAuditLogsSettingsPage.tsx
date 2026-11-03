@@ -1,5 +1,9 @@
 import Header from "@/src/components/layouts/header";
 import { Alert } from "@/src/components/design-system/Alert/Alert";
+import {
+  AccessLoggingSwitch,
+  useShowAccessLoggingSetting,
+} from "@/src/ee/features/access-audit-log";
 import { ConnectedAuditLogsTable } from "@/src/ee/features/audit-log-viewer/AuditLogsTable/ConnectedAuditLogsTable";
 import { useHasEntitlement } from "@/src/features/entitlements";
 import { useHasOrganizationAccess } from "@/src/features/rbac";
@@ -10,6 +14,7 @@ export function OrgAuditLogsSettingsPage(props: { orgId: string }) {
     scope: "orgAuditLogs:read",
   });
   const hasEntitlement = useHasEntitlement("audit-logs");
+  const showAccessLogging = useShowAccessLoggingSetting();
 
   const body = (() => {
     if (!hasEntitlement) {
@@ -34,14 +39,22 @@ export function OrgAuditLogsSettingsPage(props: { orgId: string }) {
   })();
 
   return (
-    <>
-      <Header title="Organization Audit Logs" />
-      <p className="text-muted-foreground mb-2 text-sm">
-        Track who changed what in your organization and when. Monitor
-        organization settings, project creation/deletion, and membership changes
-        over time.
-      </p>
-      {body}
-    </>
+    <div className="flex flex-col gap-6">
+      {showAccessLogging && (
+        <div>
+          <Header title="Access Logging" internal />
+          <AccessLoggingSwitch orgId={props.orgId} />
+        </div>
+      )}
+      <div>
+        <Header title="Organization Audit Logs" />
+        <p className="text-muted-foreground mb-2 text-sm">
+          Track who changed what in your organization and when. Monitor
+          organization settings, project creation/deletion, and membership
+          changes over time.
+        </p>
+        {body}
+      </div>
+    </div>
   );
 }

@@ -59,7 +59,7 @@ export const [
 ] = defineTool({
   name: "configureExternalMediaStorage",
   description:
-    "Create or update the S3 external media storage configuration for the current project. Leave secretAccessKey empty to retain the saved secret.",
+    "Create or update the S3 external media storage configuration for the current project. Leave secretAccessKey empty to retain the saved secret; it is required again when type, endpoint, bucketName, or accessKeyId changes.",
   action: "integrations:CRUD",
   baseSchema: ExternalMediaStorageBaseSchema,
   inputSchema: externalMediaStorageFormSchema,

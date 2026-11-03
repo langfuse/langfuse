@@ -207,7 +207,7 @@ export function CreateGatewayApiKeyDialogController({
                         aria-describedby={field.inputDescribedById}
                         maxLength={500}
                         required
-                        placeholder="e.g. Checkout agent, backend service"
+                        placeholder="e.g. claude-local, codex-local, or backend-service"
                         value={name}
                         onChange={(event) => setName(event.target.value)}
                       />

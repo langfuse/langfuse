@@ -53,6 +53,7 @@ const scope = {
   apiKeyId: "api-key-1",
   publicKey: "pk-test",
   isIngestionSuspended: false,
+  accessAuditLogEnabled: false,
 } as ApiAccessScope;
 
 type SlackBlockForTest = {

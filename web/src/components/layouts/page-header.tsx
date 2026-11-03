@@ -59,6 +59,8 @@ export type PageHeaderProps = {
   leadingControl?: ReactNode;
   titleBadges?: ReactNode;
   breadcrumbBadges?: ReactNode;
+  /** hideTitleRow drops the title and actions row, keeping the breadcrumb bar. */
+  hideTitleRow?: boolean;
 };
 
 const PageHeader = ({
@@ -78,6 +80,7 @@ const PageHeader = ({
   leadingControl,
   titleBadges,
   breadcrumbBadges,
+  hideTitleRow = false,
 }: PageHeaderProps) => {
   const hasAppSidebar = useHasAppSidebar();
   const envLabel = useEnvLabel();
@@ -91,7 +94,7 @@ const PageHeader = ({
     <div
       className={cn([
         "top-banner-offset bg-background sticky z-30 w-full",
-        divider && !tabsProps && "border-b",
+        divider && !tabsProps && !hideTitleRow && "border-b",
         className,
       ])}
       id="page-header"
@@ -151,7 +154,7 @@ const PageHeader = ({
         </div>
 
         {/* Bottom Row */}
-        <div>
+        <div className={cn(hideTitleRow && "hidden")}>
           <div
             className={cn(
               "flex w-full flex-wrap items-center justify-between gap-1 px-4 md:flex-nowrap",

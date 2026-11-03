@@ -52,6 +52,7 @@ const PRJ = "prj_1";
 const apiKey = (
   apiKeyId: string,
   boundResource: BoundResource,
+  accessAuditLogEnabled = false,
 ): AuthorizationContext => ({
   principal: {
     kind: "apiKey",
@@ -69,6 +70,7 @@ const apiKey = (
         plan: "oss",
         rateLimitOverrides: [],
         isIngestionSuspended: false,
+        accessAuditLogEnabled,
       },
     ],
     boundResource,
@@ -229,6 +231,51 @@ describe.each(["x-langfuse-project-id", "langfuse-project-id"])(
     });
   },
 );
+
+describe("enforceAuth access-audit opt-in", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(authorize).mockReturnValue({ success: true });
+  });
+
+  it.each([
+    ["organization", apiKey("key_1", { orgId: ORG }, true), "projects:read"],
+    [
+      "project",
+      apiKey("key_2", { orgId: ORG, projectId: PRJ }, true),
+      "traces:read",
+    ],
+  ] as const)(
+    "carries the %s key's org opt-in onto the scope",
+    async (_kind, context, action) => {
+      vi.mocked(authenticator.authenticate).mockResolvedValue({
+        success: true,
+        context,
+      });
+      expect(await enforceAuth({ req: req(), action })).toMatchObject({
+        success: true,
+        scope: { accessAuditLogEnabled: true },
+      });
+    },
+  );
+
+  it("leaves the opt-in unresolved for the admin key, which carries no org", async () => {
+    vi.mocked(authenticator.authenticate).mockResolvedValue({
+      success: true,
+      context: adminKey(),
+    });
+    vi.mocked(prisma.project.findUnique).mockResolvedValue({
+      orgId: ORG,
+    } as Awaited<ReturnType<typeof prisma.project.findUnique>>);
+    expect(
+      await enforceAuth({
+        req: req({}, { "x-langfuse-project-id": PRJ }),
+        action: "traces:read",
+        isAdminApiKeyAuthAllowed: true,
+      }),
+    ).toMatchObject({ success: true, scope: { accessAuditLogEnabled: null } });
+  });
+});
 
 describe("enforceAuth span metadata", () => {
   beforeEach(() => {

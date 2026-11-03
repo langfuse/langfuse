@@ -77,24 +77,27 @@ const EditMonitorFormPage = ({ monitor }: { monitor: Monitor }) => {
       withPadding
       headerProps={{
         ...getHeaderProps(monitor.projectId, liveName),
-        actionButtonsRight: canDelete ? (
-          <DeleteMonitorButton
-            monitorName={monitor.name}
-            deleting={deleteMonitor.isPending}
-            onDelete={async () => {
-              await deleteMonitor.mutateAsync({
-                projectId: monitor.projectId,
-                id: monitor.id,
-              });
-            }}
-          />
-        ) : undefined,
+        hideTitleRow: true,
       }}
     >
       <MonitorForm
         projectId={monitor.projectId}
         monitor={monitor}
         onNameChange={setLiveName}
+        secondaryAction={
+          canDelete && (
+            <DeleteMonitorButton
+              monitorName={monitor.name}
+              deleting={deleteMonitor.isPending}
+              onDelete={async () => {
+                await deleteMonitor.mutateAsync({
+                  projectId: monitor.projectId,
+                  id: monitor.id,
+                });
+              }}
+            />
+          )
+        }
       />
     </Page>
   );
