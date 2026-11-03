@@ -3,7 +3,17 @@ import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import { AnnotationQueueObjectType, type Plan } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
-import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
+import {
+  createEvent,
+  createEventsCh,
+  createObservation,
+  createObservationsCh,
+  createOrgProjectAndApiKey,
+  createScoresCh,
+  createTrace,
+  createTraceScore,
+  createTracesCh,
+} from "@langfuse/shared/src/server";
 import type { Session } from "next-auth";
 import { v4 as uuidv4 } from "uuid";
 
@@ -212,6 +222,457 @@ describe("annotation queues trpc", () => {
         ],
         totalCount: 0,
       });
+    });
+  });
+
+  describe("annotationQueueItems.itemsByQueueId", () => {
+    it("returns each item's scores and trace summary", async () => {
+      const setup = await createOrgProjectAndApiKey();
+      orgIds.push(setup.org.id);
+      const projectId = setup.project.id;
+      const { caller } = createCallerForProjectRole(setup);
+
+      const qualityConfig = await prisma.scoreConfig.create({
+        data: {
+          name: `quality-${uuidv4().slice(0, 8)}`,
+          projectId,
+          dataType: "CATEGORICAL",
+          categories: [
+            { label: "high", value: 0 },
+            { label: "low", value: 1 },
+          ],
+        },
+      });
+      const queue = await prisma.annotationQueue.create({
+        data: {
+          name: `queue-${uuidv4().slice(0, 8)}`,
+          scoreConfigIds: [qualityConfig.id],
+          projectId,
+        },
+      });
+      const scoredTraceId = uuidv4();
+      const unscoredTraceId = uuidv4();
+      for (const objectId of [scoredTraceId, unscoredTraceId]) {
+        await prisma.annotationQueueItem.create({
+          data: {
+            queueId: queue.id,
+            objectId,
+            objectType: AnnotationQueueObjectType.TRACE,
+            projectId,
+          },
+        });
+      }
+
+      const traceTimestamp = new Date("2026-03-01T09:30:00.000Z");
+      // Write the trace to both stores so the test holds for every write mode.
+      await createTracesCh([
+        createTrace({
+          id: scoredTraceId,
+          project_id: projectId,
+          user_id: "user-1",
+          tags: ["inbound"],
+          timestamp: traceTimestamp.getTime(),
+        }),
+      ]);
+      await createEventsCh([
+        createEvent({
+          project_id: projectId,
+          trace_id: scoredTraceId,
+          user_id: "user-1",
+          tags: ["inbound"],
+          start_time: traceTimestamp.getTime(),
+        }),
+      ]);
+      await createScoresCh([
+        createTraceScore({
+          project_id: projectId,
+          trace_id: scoredTraceId,
+          name: qualityConfig.name,
+          config_id: qualityConfig.id,
+          source: "ANNOTATION",
+          data_type: "CATEGORICAL",
+          value: 0,
+          string_value: "high",
+        }),
+        createTraceScore({
+          project_id: projectId,
+          trace_id: scoredTraceId,
+          name: qualityConfig.name,
+          source: "API",
+          data_type: "CATEGORICAL",
+          value: 1,
+          string_value: "low",
+        }),
+      ]);
+
+      const result = await caller.annotationQueueItems.itemsByQueueId({
+        projectId,
+        queueId: queue.id,
+        page: 0,
+        limit: 100,
+      });
+
+      const scoredItem = result.queueItems.find(
+        (item) => item.objectId === scoredTraceId,
+      );
+      const unscoredItem = result.queueItems.find(
+        (item) => item.objectId === unscoredTraceId,
+      );
+
+      expect(scoredItem?.scores).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            source: "ANNOTATION",
+            configId: qualityConfig.id,
+            dataType: "CATEGORICAL",
+            stringValue: "high",
+          }),
+          expect.objectContaining({ source: "API", stringValue: "low" }),
+        ]),
+      );
+      expect(scoredItem?.scores).toHaveLength(2);
+      expect(scoredItem?.trace).toMatchObject({
+        id: scoredTraceId,
+        userId: "user-1",
+        tags: ["inbound"],
+        timestamp: traceTimestamp,
+      });
+      expect(unscoredItem?.scores).toEqual([]);
+      expect(unscoredItem?.trace).toBeNull();
+    });
+
+    it("shows the parent trace's summary for observation items", async () => {
+      const setup = await createOrgProjectAndApiKey();
+      orgIds.push(setup.org.id);
+      const projectId = setup.project.id;
+      const { caller } = createCallerForProjectRole(setup);
+
+      const queue = await prisma.annotationQueue.create({
+        data: {
+          name: `queue-${uuidv4().slice(0, 8)}`,
+          scoreConfigIds: [],
+          projectId,
+          displayColumns: [
+            { source: "trace", key: "userId", label: "User", format: "text" },
+          ],
+        },
+      });
+      const traceId = uuidv4();
+      const observationId = uuidv4();
+      await prisma.annotationQueueItem.create({
+        data: {
+          queueId: queue.id,
+          objectId: observationId,
+          objectType: AnnotationQueueObjectType.OBSERVATION,
+          projectId,
+        },
+      });
+
+      const traceTimestamp = new Date("2026-03-01T09:30:00.000Z");
+      // Write the trace and observation to both stores so the test holds for
+      // every write mode.
+      await createTracesCh([
+        createTrace({
+          id: traceId,
+          project_id: projectId,
+          user_id: "user-2",
+          tags: ["outbound"],
+          timestamp: traceTimestamp.getTime(),
+        }),
+      ]);
+      await createObservationsCh([
+        createObservation({
+          id: observationId,
+          trace_id: traceId,
+          project_id: projectId,
+          start_time: traceTimestamp.getTime(),
+        }),
+      ]);
+      await createEventsCh([
+        createEvent({
+          project_id: projectId,
+          trace_id: traceId,
+          user_id: "user-2",
+          tags: ["outbound"],
+          start_time: traceTimestamp.getTime(),
+        }),
+        createEvent({
+          project_id: projectId,
+          trace_id: traceId,
+          span_id: observationId,
+          user_id: "user-2",
+          tags: ["outbound"],
+          start_time: traceTimestamp.getTime(),
+        }),
+      ]);
+
+      const result = await caller.annotationQueueItems.itemsByQueueId({
+        projectId,
+        queueId: queue.id,
+        page: 0,
+        limit: 100,
+      });
+
+      const [item] = result.queueItems;
+      expect(item?.parentTraceId).toBe(traceId);
+      expect(item?.trace).toMatchObject({
+        id: traceId,
+        userId: "user-2",
+        tags: ["outbound"],
+      });
+      expect(Object.values(item?.traceFields ?? {})).toEqual(["user-2"]);
+    });
+
+    it("returns and filters on the queue's trace columns", async () => {
+      const setup = await createOrgProjectAndApiKey();
+      orgIds.push(setup.org.id);
+      const projectId = setup.project.id;
+      const { caller } = createCallerForProjectRole(setup);
+
+      const config = await createScoreConfig(projectId);
+      const queue = await caller.annotationQueues.create({
+        projectId,
+        name: `queue-${uuidv4().slice(0, 8)}`,
+        scoreConfigIds: [config.id],
+        displayColumns: [
+          { source: "trace", key: "userId", label: "Phone", format: "phone" },
+          {
+            source: "metadata",
+            key: "location_name",
+            label: "Location",
+            format: "text",
+          },
+          { source: "tag", key: "region:", label: "Region", format: "text" },
+        ],
+      });
+      const traces = [
+        { id: uuidv4(), location: "Berlin", region: "eu-west" },
+        { id: uuidv4(), location: "Paris", region: "eu-north" },
+      ];
+      for (const [index, trace] of traces.entries()) {
+        await prisma.annotationQueueItem.create({
+          data: {
+            queueId: queue.id,
+            objectId: trace.id,
+            objectType: AnnotationQueueObjectType.TRACE,
+            projectId,
+            createdAt: new Date(Date.UTC(2026, 0, 1, 0, index)),
+          },
+        });
+      }
+      // Write the traces to both stores so the test holds for every write mode.
+      await createTracesCh(
+        traces.map((trace) =>
+          createTrace({
+            id: trace.id,
+            project_id: projectId,
+            user_id: "+12025550123",
+            tags: [`region:${trace.region}`],
+            metadata: { location_name: trace.location },
+          }),
+        ),
+      );
+      await createEventsCh(
+        traces.map((trace) =>
+          createEvent({
+            project_id: projectId,
+            trace_id: trace.id,
+            user_id: "+12025550123",
+            tags: [`region:${trace.region}`],
+            metadata_names: ["location_name"],
+            metadata_values: [trace.location],
+          }),
+        ),
+      );
+
+      const byId = await caller.annotationQueues.byId({
+        projectId,
+        queueId: queue.id,
+      });
+      expect(byId.displayColumns.map((column) => column.label)).toEqual([
+        "Phone",
+        "Location",
+        "Region",
+      ]);
+      const [phone, location, region] = byId.displayColumns;
+
+      const all = await caller.annotationQueueItems.itemsByQueueId({
+        projectId,
+        queueId: queue.id,
+        page: 0,
+        limit: 50,
+      });
+      expect(all.queueItems.map((item) => item.traceFields)).toEqual([
+        {
+          [phone.id]: "+12025550123",
+          [location.id]: "Berlin",
+          [region.id]: "eu-west",
+        },
+        {
+          [phone.id]: "+12025550123",
+          [location.id]: "Paris",
+          [region.id]: "eu-north",
+        },
+      ]);
+
+      const filtered = await caller.annotationQueueItems.itemsByQueueId({
+        projectId,
+        queueId: queue.id,
+        filter: [
+          {
+            column: "Location",
+            type: "string",
+            operator: "contains",
+            value: "paris",
+          },
+        ],
+        page: 0,
+        limit: 50,
+      });
+      expect(filtered.queueItems.map((item) => item.objectId)).toEqual([
+        traces[1].id,
+      ]);
+    });
+
+    it("filters on the shown value and paginates the matches", async () => {
+      const setup = await createOrgProjectAndApiKey();
+      orgIds.push(setup.org.id);
+      const projectId = setup.project.id;
+      const { caller } = createCallerForProjectRole(setup);
+
+      const qualityConfig = await prisma.scoreConfig.create({
+        data: {
+          name: `quality-${uuidv4().slice(0, 8)}`,
+          projectId,
+          dataType: "CATEGORICAL",
+          categories: [
+            { label: "high", value: 0 },
+            { label: "low", value: 1 },
+          ],
+        },
+      });
+      const queue = await prisma.annotationQueue.create({
+        data: {
+          name: `queue-${uuidv4().slice(0, 8)}`,
+          scoreConfigIds: [qualityConfig.id],
+          projectId,
+        },
+      });
+      // reviewed: API says low, reviewer corrected it to high.
+      // pending: only the API value (high), nobody reviewed it yet.
+      // low: API low, unreviewed. empty: no score at all.
+      const [reviewedId, pendingId, lowId, emptyId] = [
+        uuidv4(),
+        uuidv4(),
+        uuidv4(),
+        uuidv4(),
+      ];
+      for (const [index, objectId] of [
+        reviewedId,
+        pendingId,
+        lowId,
+        emptyId,
+      ].entries()) {
+        await prisma.annotationQueueItem.create({
+          data: {
+            queueId: queue.id,
+            objectId,
+            objectType: AnnotationQueueObjectType.TRACE,
+            projectId,
+            createdAt: new Date(Date.UTC(2026, 0, 1, 0, index)),
+          },
+        });
+      }
+      const qualityScore = (
+        traceId: string,
+        source: "API" | "ANNOTATION",
+        label: "high" | "low",
+      ) =>
+        createTraceScore({
+          project_id: projectId,
+          trace_id: traceId,
+          name: qualityConfig.name,
+          config_id: qualityConfig.id,
+          source,
+          data_type: "CATEGORICAL",
+          value: label === "high" ? 0 : 1,
+          string_value: label,
+        });
+      await createScoresCh([
+        qualityScore(reviewedId, "API", "low"),
+        qualityScore(reviewedId, "ANNOTATION", "high"),
+        qualityScore(pendingId, "API", "high"),
+        qualityScore(lowId, "API", "low"),
+      ]);
+
+      const list = (
+        filter: Parameters<
+          typeof caller.annotationQueueItems.itemsByQueueId
+        >[0]["filter"],
+        page = 0,
+        limit = 50,
+      ) =>
+        caller.annotationQueueItems.itemsByQueueId({
+          projectId,
+          queueId: queue.id,
+          filter,
+          page,
+          limit,
+        });
+
+      const high = await list([
+        {
+          column: qualityConfig.name,
+          type: "stringOptions",
+          operator: "any of",
+          value: ["high"],
+        },
+      ]);
+      expect(high.totalItems).toBe(2);
+      expect(high.queueItems.map((item) => item.objectId)).toEqual([
+        reviewedId,
+        pendingId,
+      ]);
+
+      const secondPage = await list(
+        [
+          {
+            column: qualityConfig.name,
+            type: "stringOptions",
+            operator: "any of",
+            value: ["high"],
+          },
+        ],
+        1,
+        1,
+      );
+      expect(secondPage.totalItems).toBe(2);
+      expect(secondPage.queueItems.map((item) => item.objectId)).toEqual([
+        pendingId,
+      ]);
+
+      const notHigh = await list([
+        {
+          column: `scoreConfig-${qualityConfig.id}`,
+          type: "stringOptions",
+          operator: "none of",
+          value: ["high"],
+        },
+      ]);
+      expect(notHigh.queueItems.map((item) => item.objectId)).toEqual([
+        lowId,
+        emptyId,
+      ]);
+
+      const completed = await list([
+        {
+          column: "Status",
+          type: "stringOptions",
+          operator: "any of",
+          value: ["COMPLETED"],
+        },
+      ]);
+      expect(completed.totalItems).toBe(0);
     });
   });
 

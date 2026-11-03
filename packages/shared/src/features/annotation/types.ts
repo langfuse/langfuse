@@ -94,12 +94,81 @@ export type UpdateAnnotationScoreData = z.infer<
 
 // annotation queues
 
+/** Trace fields an annotation queue column can show. */
+export const ANNOTATION_QUEUE_TRACE_FIELDS = [
+  "userId",
+  "sessionId",
+  "name",
+  "environment",
+  "release",
+  "version",
+] as const;
+
+/**
+ * How a queue column shows its value:
+ * - `text`: as stored
+ * - `phone`: a phone number in its country's format (national format for +1,
+ *   international otherwise); unparsable values are shown as stored
+ * - `link`: a clickable http(s) URL
+ * - `datetime`: an ISO date or Unix timestamp in the viewer's local time
+ * - `number`: a number with digit grouping
+ * - `duration`: a number of seconds as e.g. `2m 05s`
+ * - `badge`: a coloured badge; a value keeps its colour across items
+ */
+export const ANNOTATION_QUEUE_COLUMN_FORMATS = [
+  "text",
+  "phone",
+  "link",
+  "datetime",
+  "number",
+  "duration",
+  "badge",
+] as const;
+
+/**
+ * An extra column of a queue's items table, read from the item's trace:
+ * - `trace`: a trace field, `key` is one of ANNOTATION_QUEUE_TRACE_FIELDS
+ * - `metadata`: a metadata key; a dotted path such as `customer.name` reads
+ *   into a metadata value that holds JSON
+ * - `tag`: the part after `key` of the trace's tags that start with it, e.g.
+ *   key `region:` shows `eu-west` for the tag `region:eu-west`
+ * Each column is also offered as a text filter.
+ */
+export const AnnotationQueueDisplayColumn = z
+  .object({
+    source: z.enum(["trace", "metadata", "tag"]),
+    key: z.string().trim().min(1).max(200),
+    label: StringNoHTMLNonEmpty.max(50),
+    format: z.enum(ANNOTATION_QUEUE_COLUMN_FORMATS),
+  })
+  .refine(
+    (column) =>
+      column.source !== "trace" ||
+      (ANNOTATION_QUEUE_TRACE_FIELDS as readonly string[]).includes(column.key),
+    {
+      message: `Trace field must be one of ${ANNOTATION_QUEUE_TRACE_FIELDS.join(", ")}`,
+      path: ["key"],
+    },
+  );
+export type AnnotationQueueDisplayColumn = z.infer<
+  typeof AnnotationQueueDisplayColumn
+>;
+
+export const MAX_ANNOTATION_QUEUE_DISPLAY_COLUMNS = 20;
+
+export const AnnotationQueueDisplayColumns = z
+  .array(AnnotationQueueDisplayColumn)
+  .max(MAX_ANNOTATION_QUEUE_DISPLAY_COLUMNS, {
+    message: `A queue can have at most ${MAX_ANNOTATION_QUEUE_DISPLAY_COLUMNS} extra columns`,
+  });
+
 export const CreateQueueData = z.object({
   name: StringNoHTMLNonEmpty.max(35),
   description: StringNoHTML.max(1000).optional(),
   scoreConfigIds: z.array(z.string()).min(1, {
     message: "At least 1 score config must be selected",
   }),
+  displayColumns: AnnotationQueueDisplayColumns.optional(),
 });
 
 export const CreateQueueWithAssignmentsData = CreateQueueData.extend({

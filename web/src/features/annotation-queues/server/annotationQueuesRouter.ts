@@ -23,6 +23,7 @@ import {
   logger,
 } from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
+import { parseQueueTraceColumns } from "@/src/features/annotation-queues/lib/queueTraceColumns";
 import { z } from "zod";
 
 const QueueData = CreateQueueData.extend({
@@ -238,6 +239,7 @@ export const queueRouter = createTRPCRouter({
 
         return {
           ...queue,
+          displayColumns: parseQueueTraceColumns(queue?.displayColumns),
           scoreConfigs: Array.from(new Set(queue?.scoreConfigIds ?? []))
             .map((id) => scoreConfigsById.get(id))
             .filter(isPresent),
@@ -382,6 +384,7 @@ export const queueRouter = createTRPCRouter({
                 projectId: input.projectId,
                 description: input.description,
                 scoreConfigIds: input.scoreConfigIds,
+                displayColumns: input.displayColumns,
               },
             });
           },
@@ -488,6 +491,7 @@ export const queueRouter = createTRPCRouter({
             name: input.name,
             description: input.description,
             scoreConfigIds: input.scoreConfigIds,
+            displayColumns: input.displayColumns,
           },
         });
 

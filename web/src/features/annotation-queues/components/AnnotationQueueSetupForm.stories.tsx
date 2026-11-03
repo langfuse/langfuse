@@ -23,6 +23,15 @@ const baseArgs: SetupProps = {
     name: "Review queue",
     description: "Review response quality.",
     scoreConfigIds: ["helpfulness", "accuracy"],
+    displayColumns: [
+      { source: "trace", key: "userId", label: "Phone", format: "phone" },
+      {
+        source: "metadata",
+        key: "location_name",
+        label: "Location",
+        format: "text",
+      },
+    ],
     newAssignmentUserIds: [],
   },
   queueNames: ["Another queue"],

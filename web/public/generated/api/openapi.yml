@@ -185,6 +185,59 @@ paths:
             application/json:
               schema: {}
       security: *ref_0
+    patch:
+      description: |-
+        Update an annotation queue. Fields that are left out keep their value;
+        `displayColumns` replaces the queue's whole column list.
+      operationId: annotationQueues_updateQueue
+      tags:
+        - AnnotationQueues
+      parameters:
+        - name: queueId
+          in: path
+          description: The unique identifier of the annotation queue
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnnotationQueue'
+        '400':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '401':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '403':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '404':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+        '405':
+          description: ''
+          content:
+            application/json:
+              schema: {}
+      security: *ref_0
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateAnnotationQueueRequest'
   /api/public/annotation-queues/{queueId}/items:
     get:
       description: Get items for a specific annotation queue
@@ -7852,6 +7905,59 @@ components:
         - TRACE
         - OBSERVATION
         - SESSION
+    AnnotationQueueDisplayColumnSource:
+      title: AnnotationQueueDisplayColumnSource
+      type: string
+      enum:
+        - trace
+        - metadata
+        - tag
+    AnnotationQueueDisplayColumnFormat:
+      title: AnnotationQueueDisplayColumnFormat
+      type: string
+      enum:
+        - text
+        - phone
+        - link
+        - datetime
+        - number
+        - duration
+        - badge
+    AnnotationQueueDisplayColumn:
+      title: AnnotationQueueDisplayColumn
+      type: object
+      description: |-
+        An extra column of the queue's items table, read from each item's trace.
+        Columns show after the trace timestamp and before the score columns, and
+        are also offered as filters.
+      properties:
+        source:
+          $ref: '#/components/schemas/AnnotationQueueDisplayColumnSource'
+          description: Where the value comes from.
+        key:
+          type: string
+          description: |-
+            For `trace`, one of `userId`, `sessionId`, `name`, `environment`,
+            `release` or `version`. For `metadata`, a metadata key such as
+            `location_name`, or a dotted path such as `customer.name` into a
+            metadata value that holds JSON. For `tag`, a tag prefix such as
+            `region:`; the column shows the rest of the tags that start with it.
+        label:
+          type: string
+          description: Column header, at most 50 characters.
+        format:
+          $ref: '#/components/schemas/AnnotationQueueDisplayColumnFormat'
+          description: |-
+            How the value is shown: `text` as stored; `phone` in the number's
+            national format for +1 and international format otherwise; `link` as
+            a clickable http(s) link; `datetime` (ISO or Unix timestamp) in the
+            viewer's local time; `number` with digit grouping; `duration` as
+            seconds such as `2m 15s`; `badge` as a coloured badge.
+      required:
+        - source
+        - key
+        - label
+        - format
     AnnotationQueue:
       title: AnnotationQueue
       type: object
@@ -7867,6 +7973,11 @@ components:
           type: array
           items:
             type: string
+        displayColumns:
+          type: array
+          items:
+            $ref: '#/components/schemas/AnnotationQueueDisplayColumn'
+          description: Extra trace columns of the queue's items table, in display order.
         createdAt:
           type: string
           format: date-time
@@ -7878,6 +7989,7 @@ components:
         - name
         - description
         - scoreConfigIds
+        - displayColumns
         - createdAt
         - updatedAt
     AnnotationQueueItem:
@@ -7951,9 +8063,37 @@ components:
           type: array
           items:
             type: string
+        displayColumns:
+          type: array
+          items:
+            $ref: '#/components/schemas/AnnotationQueueDisplayColumn'
+          nullable: true
+          description: Extra trace columns of the queue's items table, at most 20.
       required:
         - name
         - scoreConfigIds
+    UpdateAnnotationQueueRequest:
+      title: UpdateAnnotationQueueRequest
+      type: object
+      properties:
+        name:
+          type: string
+          nullable: true
+        description:
+          type: string
+          nullable: true
+        scoreConfigIds:
+          type: array
+          items:
+            type: string
+          nullable: true
+          description: At least one score config when set.
+        displayColumns:
+          type: array
+          items:
+            $ref: '#/components/schemas/AnnotationQueueDisplayColumn'
+          nullable: true
+          description: Replaces the queue's columns; pass an empty list to remove all.
     CreateAnnotationQueueItemRequest:
       title: CreateAnnotationQueueItemRequest
       type: object

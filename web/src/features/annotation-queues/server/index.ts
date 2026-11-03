@@ -12,5 +12,6 @@ export {
   getAnnotationQueueItemForApi,
   listAnnotationQueueItemsForApi,
   listAnnotationQueuesForApi,
+  updateAnnotationQueueForApi,
   updateAnnotationQueueItemForApi,
 } from "@/src/features/annotation-queues/server/publicAnnotationQueueService";

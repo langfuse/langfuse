@@ -68,6 +68,7 @@ vi.mock("@/src/features/scores", () => ({
   isInteractiveTarget: () => false,
   isOpenDialogPresent: () => false,
   isTypingTarget: () => false,
+  useMergedScores: (scores: unknown[]) => scores,
 }));
 vi.mock("@/src/utils/api", async () => {
   const { useQuery } = await import("@tanstack/react-query");
@@ -117,6 +118,9 @@ vi.mock("@/src/utils/api", async () => {
             data: items.get(itemId),
             isPending: false,
           }),
+        },
+        traceFieldsByTraceId: {
+          useQuery: () => ({ data: undefined, isPending: false }),
         },
         unseenPendingItemCountByQueueId: {
           useQuery: ({ seenItemIds }: { seenItemIds: string[] }) => ({

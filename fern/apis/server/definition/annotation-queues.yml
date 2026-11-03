@@ -39,6 +39,19 @@ service:
           docs: The unique identifier of the annotation queue
       response: AnnotationQueue
 
+    updateQueue:
+      docs: |
+        Update an annotation queue. Fields that are left out keep their value;
+        `displayColumns` replaces the queue's whole column list.
+      method: PATCH
+      path: /annotation-queues/{queueId}
+      path-parameters:
+        queueId:
+          type: string
+          docs: The unique identifier of the annotation queue
+      request: UpdateAnnotationQueueRequest
+      response: AnnotationQueue
+
     listQueueItems:
       docs: Get items for a specific annotation queue
       method: GET
@@ -146,12 +159,60 @@ types:
       - OBSERVATION
       - SESSION
 
+  AnnotationQueueDisplayColumnSource:
+    enum:
+      - trace
+      - metadata
+      - tag
+
+  AnnotationQueueDisplayColumnFormat:
+    enum:
+      - text
+      - phone
+      - link
+      - datetime
+      - number
+      - duration
+      - badge
+
+  AnnotationQueueDisplayColumn:
+    docs: |
+      An extra column of the queue's items table, read from each item's trace.
+      Columns show after the trace timestamp and before the score columns, and
+      are also offered as filters.
+    properties:
+      source:
+        type: AnnotationQueueDisplayColumnSource
+        docs: Where the value comes from.
+      key:
+        type: string
+        docs: |
+          For `trace`, one of `userId`, `sessionId`, `name`, `environment`,
+          `release` or `version`. For `metadata`, a metadata key such as
+          `location_name`, or a dotted path such as `customer.name` into a
+          metadata value that holds JSON. For `tag`, a tag prefix such as
+          `region:`; the column shows the rest of the tags that start with it.
+      label:
+        type: string
+        docs: Column header, at most 50 characters.
+      format:
+        type: AnnotationQueueDisplayColumnFormat
+        docs: |
+          How the value is shown: `text` as stored; `phone` in the number's
+          national format for +1 and international format otherwise; `link` as
+          a clickable http(s) link; `datetime` (ISO or Unix timestamp) in the
+          viewer's local time; `number` with digit grouping; `duration` as
+          seconds such as `2m 15s`; `badge` as a coloured badge.
+
   AnnotationQueue:
     properties:
       id: string
       name: string
       description: nullable<string>
       scoreConfigIds: list<string>
+      displayColumns:
+        type: list<AnnotationQueueDisplayColumn>
+        docs: Extra trace columns of the queue's items table, in display order.
       createdAt: datetime
       updatedAt: datetime
 
@@ -181,6 +242,20 @@ types:
       name: string
       description: optional<nullable<string>>
       scoreConfigIds: list<string>
+      displayColumns:
+        type: optional<list<AnnotationQueueDisplayColumn>>
+        docs: Extra trace columns of the queue's items table, at most 20.
+
+  UpdateAnnotationQueueRequest:
+    properties:
+      name: optional<string>
+      description: optional<nullable<string>>
+      scoreConfigIds:
+        type: optional<list<string>>
+        docs: At least one score config when set.
+      displayColumns:
+        type: optional<list<AnnotationQueueDisplayColumn>>
+        docs: Replaces the queue's columns; pass an empty list to remove all.
 
   CreateAnnotationQueueItemRequest:
     properties:

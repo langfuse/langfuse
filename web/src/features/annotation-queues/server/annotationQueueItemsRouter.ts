@@ -17,17 +17,31 @@ import {
   LangfuseNotFoundError,
   paginationZod,
   Prisma,
+  type ScoreConfigCategoryDomain,
+  singleFilter,
 } from "@langfuse/shared";
 import {
   getObservationById,
   getObservationByIdFromEventsTable,
   getObservationsTraceIdsFromEventsTable,
+  getScoresForObservations,
+  getScoresForSessions,
+  getScoresForTraces,
   getTraceIdsForObservations,
+  getTraceSummariesByIds,
   logger,
 } from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { env } from "@/src/env.mjs";
+import { type QueueItemScore } from "@/src/features/annotation-queues/lib/queueItemScores";
+import { queueItemMatchesFilters } from "@/src/features/annotation-queues/lib/queueItemFilters";
+import {
+  getQueueTraceColumnMetadataKeys,
+  parseQueueTraceColumns,
+  type QueueTraceColumn,
+  readQueueTraceField,
+} from "@/src/features/annotation-queues/lib/queueTraceColumns";
 
 const isItemLocked = (item: AnnotationQueueItem) => {
   return (
@@ -35,6 +49,156 @@ const isItemLocked = (item: AnnotationQueueItem) => {
     item.lockedAt &&
     new Date(item.lockedAt) > new Date(Date.now() - 5 * 60 * 1000)
   );
+};
+
+type QueueItemListRow = {
+  id: string;
+  status: AnnotationQueueStatus;
+  objectId: string;
+  objectType: AnnotationQueueObjectType;
+  completedAt: string | null;
+  annotatorUserId: string | null;
+  annotatorUserImage: string | null;
+  annotatorUserName: string | null;
+};
+
+/** Largest queue that `itemsByQueueId` filters in memory. */
+const MAX_FILTERABLE_QUEUE_ITEMS = 20_000;
+/** Ids per ClickHouse read, so query parameters stay small on large queues. */
+const CLICKHOUSE_ID_CHUNK_SIZE = 1_000;
+
+const readInChunks = async <T>(
+  ids: string[],
+  read: (chunk: string[]) => Promise<T[]>,
+): Promise<T[]> => {
+  const chunks: string[][] = [];
+  for (let i = 0; i < ids.length; i += CLICKHOUSE_ID_CHUNK_SIZE) {
+    chunks.push(ids.slice(i, i + CLICKHOUSE_ID_CHUNK_SIZE));
+  }
+  return (await Promise.all(chunks.map(read))).flat();
+};
+
+/**
+ * Loads what the queue items table shows next to each item: its scores from
+ * every source, the parent trace of observations, and a summary of the item's
+ * trace (an observation's parent trace) with the values of the queue's trace
+ * columns. Each object type costs one batched
+ * read per chunk of ids, so a page that only holds traces issues a single
+ * scores query.
+ */
+const loadQueueItemDetails = async (
+  projectId: string,
+  queueItems: QueueItemListRow[],
+  traceColumns: QueueTraceColumn[],
+) => {
+  const objectIdsOfType = (objectType: AnnotationQueueObjectType) =>
+    queueItems
+      .filter((item) => item.objectType === objectType)
+      .map((item) => item.objectId);
+  const observationIds = objectIdsOfType(AnnotationQueueObjectType.OBSERVATION);
+  const itemTraceIds = objectIdsOfType(AnnotationQueueObjectType.TRACE);
+  const sessionIds = objectIdsOfType(AnnotationQueueObjectType.SESSION);
+
+  const traceIdsPromise = readInChunks(observationIds, (chunk) =>
+    env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN === "true"
+      ? getObservationsTraceIdsFromEventsTable({
+          projectId,
+          observationIds: chunk,
+        })
+      : getTraceIdsForObservations(projectId, chunk),
+  );
+  // Observation items show their parent trace, so its summary is read too.
+  const traceSummariesPromise = traceIdsPromise.then((traceIds) =>
+    readInChunks(
+      [
+        ...new Set([
+          ...itemTraceIds,
+          ...traceIds.flatMap((t) => (t.traceId ? [t.traceId] : [])),
+        ]),
+      ],
+      (chunk) =>
+        getTraceSummariesByIds({
+          projectId,
+          traceIds: chunk,
+          metadataKeys: getQueueTraceColumnMetadataKeys(traceColumns),
+        }),
+    ),
+  );
+
+  const [traceIds, scores, traceSummaries] = await Promise.all([
+    traceIdsPromise,
+    Promise.all([
+      readInChunks(itemTraceIds, (chunk) =>
+        getScoresForTraces({
+          projectId,
+          traceIds: chunk,
+          level: "trace",
+          excludeMetadata: true,
+        }),
+      ),
+      readInChunks(observationIds, (chunk) =>
+        getScoresForObservations({
+          projectId,
+          observationIds: chunk,
+          excludeMetadata: true,
+        }),
+      ),
+      readInChunks(sessionIds, (chunk) =>
+        getScoresForSessions({
+          projectId,
+          sessionIds: chunk,
+          excludeMetadata: true,
+        }),
+      ),
+    ]).then((results) => results.flat()),
+    traceSummariesPromise,
+  ]);
+
+  const scoresByObjectId = new Map<string, QueueItemScore[]>();
+  for (const score of scores) {
+    const objectId = score.observationId ?? score.sessionId ?? score.traceId;
+    if (!objectId) continue;
+    const list = scoresByObjectId.get(objectId) ?? [];
+    list.push({
+      id: score.id,
+      name: score.name,
+      source: score.source,
+      configId: score.configId,
+      dataType: score.dataType,
+      value: score.value,
+      stringValue: score.stringValue,
+      timestamp: score.timestamp,
+    });
+    scoresByObjectId.set(objectId, list);
+  }
+  const parentTraceIdById = new Map(traceIds.map((t) => [t.id, t.traceId]));
+  const traceSummaryById = new Map(
+    traceSummaries.map((trace) => [trace.id, trace]),
+  );
+
+  return {
+    inflate: (item: QueueItemListRow) => {
+      const parentTraceId = parentTraceIdById.get(item.objectId) || null;
+      // Only observations have a parent trace; sessions have neither.
+      const traceId =
+        item.objectType === AnnotationQueueObjectType.TRACE
+          ? item.objectId
+          : parentTraceId;
+      const trace = traceId ? (traceSummaryById.get(traceId) ?? null) : null;
+      return {
+        ...item,
+        parentTraceId,
+        scores: scoresByObjectId.get(item.objectId) ?? [],
+        trace,
+        traceFields: Object.fromEntries(
+          traceColumns.map((column) => [
+            column.id,
+            trace ? readQueueTraceField(trace, column) : null,
+          ]),
+        ),
+      };
+    },
+  };
 };
 
 const MAP_OBJECT_TYPE_TO_ACTION_PROPS: Record<
@@ -161,11 +325,49 @@ export const queueItemRouter = createTRPCRouter({
 
       return inflatedItem;
     }),
+  /**
+   * The queue's trace column values for one trace, read the same way as the
+   * items table, so the item page's summary strip shows the same values in
+   * both read paths (the v4 trace view loads metadata lazily).
+   */
+  traceFieldsByTraceId: protectedProjectProcedure
+    .input(
+      z.object({
+        projectId: z.string(),
+        queueId: z.string(),
+        traceId: z.string(),
+      }),
+    )
+    .query(async ({ input, ctx }) => {
+      throwIfNoProjectAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+        scope: "annotationQueues:read",
+      });
+      const queue = await ctx.prisma.annotationQueue.findUnique({
+        where: { id: input.queueId, projectId: input.projectId },
+        select: { displayColumns: true },
+      });
+      const traceColumns = parseQueueTraceColumns(queue?.displayColumns);
+      if (traceColumns.length === 0) return {};
+      const [trace] = await getTraceSummariesByIds({
+        projectId: input.projectId,
+        traceIds: [input.traceId],
+        metadataKeys: getQueueTraceColumnMetadataKeys(traceColumns),
+      });
+      return Object.fromEntries(
+        traceColumns.map((column) => [
+          column.id,
+          trace ? readQueueTraceField(trace, column) : null,
+        ]),
+      );
+    }),
   itemsByQueueId: protectedProjectProcedure
     .input(
       z.object({
         queueId: z.string(),
         projectId: z.string(),
+        filter: z.array(singleFilter).optional(),
         ...paginationZod,
       }),
     )
@@ -176,19 +378,9 @@ export const queueItemRouter = createTRPCRouter({
         scope: "annotationQueues:read",
       });
 
-      const [queueItems, totalItems] = await Promise.all([
-        await ctx.prisma.$queryRaw<
-          Array<{
-            id: string;
-            status: AnnotationQueueStatus;
-            objectId: string;
-            objectType: AnnotationQueueObjectType;
-            completedAt: string | null;
-            annotatorUserId: string | null;
-            annotatorUserImage: string | null;
-            annotatorUserName: string | null;
-          }>
-        >(Prisma.sql`
+      const filters = input.filter ?? [];
+      const selectItems = (paginate: boolean) =>
+        ctx.prisma.$queryRaw<QueueItemListRow[]>(Prisma.sql`
             SELECT
               aqi.id,
               aqi.status,
@@ -196,58 +388,105 @@ export const queueItemRouter = createTRPCRouter({
               aqi.object_type AS "objectType",
               aqi.completed_at AS "completedAt",
               aqi.annotator_user_id AS "annotatorUserId",
-              u.image AS "annotatorUserImage", 
+              u.image AS "annotatorUserImage",
               u.name AS "annotatorUserName"
             FROM
               annotation_queue_items aqi
-            LEFT JOIN 
+            LEFT JOIN
               users u ON u.id = aqi.annotator_user_id AND u.id in (SELECT user_id FROM organization_memberships WHERE org_id = ${ctx.session.orgId})
-            WHERE 
+            WHERE
               aqi.project_id = ${input.projectId} AND aqi.queue_id = ${input.queueId}
-            ORDER BY 
+            ORDER BY
               aqi.created_at ASC,
               aqi.object_id ASC,
               aqi.object_type ASC
-            ${input.limit ? Prisma.sql`LIMIT ${input.limit}` : Prisma.empty}
-            ${input.page && input.limit ? Prisma.sql`OFFSET ${input.page * input.limit}` : Prisma.empty}
-          `),
+            ${paginate && input.limit ? Prisma.sql`LIMIT ${input.limit}` : Prisma.empty}
+            ${paginate && input.page && input.limit ? Prisma.sql`OFFSET ${input.page * input.limit}` : Prisma.empty}
+          `);
+      const countItems = () =>
         ctx.prisma.annotationQueueItem.count({
           where: {
             queueId: input.queueId,
             projectId: input.projectId,
           },
-        }),
-      ]);
+        });
 
-      const observationIds = queueItems
-        .filter(
-          (item) => item.objectType === AnnotationQueueObjectType.OBSERVATION,
-        )
-        .map((item) => item.objectId);
+      const getQueue = () =>
+        ctx.prisma.annotationQueue.findUnique({
+          where: { id: input.queueId, projectId: input.projectId },
+          select: { scoreConfigIds: true, displayColumns: true },
+        });
 
-      const hasQueueItemsReferencingObservations = observationIds.length > 0;
-
-      let traceIds: { id: string; traceId: string }[];
-
-      if (hasQueueItemsReferencingObservations) {
-        traceIds =
-          env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN === "true"
-            ? await getObservationsTraceIdsFromEventsTable({
-                projectId: input.projectId,
-                observationIds,
-              })
-            : await getTraceIdsForObservations(input.projectId, observationIds);
-      } else {
-        traceIds = [];
+      if (filters.length === 0) {
+        const [queueItems, totalItems, queue] = await Promise.all([
+          selectItems(true),
+          countItems(),
+          getQueue(),
+        ]);
+        const details = await loadQueueItemDetails(
+          input.projectId,
+          queueItems,
+          parseQueueTraceColumns(queue?.displayColumns),
+        );
+        return {
+          queueItems: queueItems.map(details.inflate),
+          totalItems,
+        };
       }
 
+      // Score values live in ClickHouse and queue items in Postgres, so a
+      // filtered request loads the whole queue, filters it on the values the
+      // table shows and paginates in memory. The queue size cap keeps it bounded.
+      const queueSize = await countItems();
+      if (queueSize > MAX_FILTERABLE_QUEUE_ITEMS) {
+        throw new TRPCError({
+          code: "BAD_REQUEST",
+          message: `Filtering is available for queues with up to ${MAX_FILTERABLE_QUEUE_ITEMS} items; this queue has ${queueSize}.`,
+        });
+      }
+      const [allItems, queue] = await Promise.all([
+        selectItems(false),
+        getQueue(),
+      ]);
+      const traceColumns = parseQueueTraceColumns(queue?.displayColumns);
+      const configs = queue
+        ? await ctx.prisma.scoreConfig.findMany({
+            where: {
+              projectId: input.projectId,
+              id: { in: queue.scoreConfigIds },
+            },
+            select: { id: true, name: true, dataType: true, categories: true },
+          })
+        : [];
+      const filterConfigs = configs.map((config) => ({
+        ...config,
+        categories: config.categories as ScoreConfigCategoryDomain[] | null,
+      }));
+      const details = await loadQueueItemDetails(
+        input.projectId,
+        allItems,
+        traceColumns,
+      );
+      const matchingItems = allItems.map(details.inflate).filter((item) =>
+        queueItemMatchesFilters(
+          {
+            status: item.status,
+            traceUserId: item.trace?.userId,
+            traceFields: item.traceFields,
+            scores: item.scores,
+          },
+          filters,
+          filterConfigs,
+          traceColumns,
+        ),
+      );
+      const offset = (input.page ?? 0) * (input.limit ?? 0);
+
       return {
-        queueItems: queueItems.map((item) => ({
-          ...item,
-          parentTraceId:
-            traceIds.find((t) => t.id === item.objectId)?.traceId || null,
-        })),
-        totalItems,
+        queueItems: input.limit
+          ? matchingItems.slice(offset, offset + input.limit)
+          : matchingItems,
+        totalItems: matchingItems.length,
       };
     }),
   unseenPendingItemCountByQueueId: protectedProjectProcedure

@@ -254,6 +254,91 @@ export const getTracesByIds = async (
   );
 };
 
+export type TraceSummary = {
+  id: string;
+  name: string | null;
+  userId: string | null;
+  sessionId: string | null;
+  environment: string | null;
+  release: string | null;
+  version: string | null;
+  tags: string[];
+  timestamp: Date;
+  /** Values of the requested top-level metadata keys; missing keys are null. */
+  metadata: Record<string, string | null>;
+};
+
+export type TraceSummaryRow = {
+  id: string;
+  name: string | null;
+  user_id: string | null;
+  session_id: string | null;
+  environment: string | null;
+  release: string | null;
+  version: string | null;
+  tags: string[];
+  timestamp: string;
+  metadata_values: string[];
+};
+
+export const toTraceSummary = (
+  row: TraceSummaryRow,
+  metadataKeys: string[],
+): TraceSummary => ({
+  id: row.id,
+  name: row.name || null,
+  userId: row.user_id || null,
+  sessionId: row.session_id || null,
+  environment: row.environment || null,
+  release: row.release || null,
+  version: row.version || null,
+  tags: row.tags ?? [],
+  timestamp: parseClickhouseUTCDateTimeFormat(row.timestamp),
+  metadata: Object.fromEntries(
+    metadataKeys.map((key, index) => [
+      key,
+      row.metadata_values?.[index] || null,
+    ]),
+  ),
+});
+
+/**
+ * Fetch trace-level fields (name, user, session, environment, release,
+ * version, tags, timestamp) and the requested top-level metadata keys for a
+ * list of trace IDs from the legacy traces table, without reading input,
+ * output or the rest of the metadata.
+ */
+export const getTraceSummariesByIdsFromTracesTable = async ({
+  projectId,
+  traceIds,
+  metadataKeys = [],
+}: {
+  projectId: string;
+  traceIds: string[];
+  metadataKeys?: string[];
+}): Promise<TraceSummary[]> => {
+  if (traceIds.length === 0) return [];
+
+  const query = `
+    SELECT
+      id, name, user_id, session_id, environment, release, version, tags, timestamp,
+      arrayMap(k -> metadata[k], {metadataKeys: Array(String)}) AS metadata_values
+    FROM traces
+    WHERE project_id = {projectId: String}
+    AND id IN ({traceIds: Array(String)})
+    ORDER BY event_ts DESC
+    LIMIT 1 BY id, project_id
+  `;
+  const rows = await queryClickhouse<TraceSummaryRow>({
+    query,
+    params: { projectId, traceIds, metadataKeys },
+    tags: { projectId },
+    preferredClickhouseService: "ReadOnly",
+  });
+
+  return rows.map((row) => toTraceSummary(row, metadataKeys));
+};
+
 export const getTracesBySessionId = async (
   projectId: string,
   sessionIds: string[],
