@@ -19,6 +19,8 @@ pub struct GatewayConfig {
     pub telemetry_buffer_bytes: usize,
     pub request_limits: RequestLimits,
     pub execution_limits: ExecutionLimits,
+    /// Operator-exempt hosts and CIDR ranges for provider egress.
+    pub egress_exemptions: crate::egress::EgressExemptions,
 }
 
 const MIB: usize = 1024 * 1024;
@@ -118,6 +120,8 @@ impl GatewayConfig {
             read_env("LANGFUSE_AI_GATEWAY_MAX_EXECUTION_SECONDS")?.as_deref(),
             read_env("LANGFUSE_AI_GATEWAY_STALL_TIMEOUT_SECONDS")?.as_deref(),
         )?;
+        config.egress_exemptions =
+            egress_exemptions(read_env("LANGFUSE_AI_GATEWAY_WHITELISTED_IP_SEGMENTS")?.as_deref())?;
         config.control_plane = control_plane(
             read_env("LANGFUSE_AI_GATEWAY_WEB_URL")?.as_deref(),
             read_env("LANGFUSE_AI_GATEWAY_SERVICE_KEY")?.as_deref(),
@@ -192,6 +196,7 @@ impl GatewayConfig {
             telemetry_buffer_bytes: crate::telemetry::DEFAULT_RETAINED_BYTES,
             request_limits: RequestLimits::default(),
             execution_limits: ExecutionLimits::default(),
+            egress_exemptions: crate::egress::EgressExemptions::default(),
         })
     }
 }
@@ -309,6 +314,19 @@ fn telemetry_shutdown_timeout(value: Option<&str>) -> Result<Duration, GatewayCo
         "LANGFUSE_AI_GATEWAY_TELEMETRY_SHUTDOWN_TIMEOUT_SECONDS must be an integer from 1 to 300",
     )
     .map(Duration::from_secs)
+}
+
+fn egress_exemptions(
+    value: Option<&str>,
+) -> Result<crate::egress::EgressExemptions, GatewayConfigError> {
+    match value {
+        None => Ok(crate::egress::EgressExemptions::default()),
+        Some(value) => crate::egress::EgressExemptions::parse(value).map_err(|_| {
+            GatewayConfigError(
+                "LANGFUSE_AI_GATEWAY_WHITELISTED_IP_SEGMENTS entries must be hostnames, IP addresses, or CIDR ranges",
+            )
+        }),
+    }
 }
 
 /// An unset value takes `default`. Errors carry only `message`, never the supplied value.

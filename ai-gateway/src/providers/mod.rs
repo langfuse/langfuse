@@ -100,7 +100,13 @@ pub struct ProviderTransport {
     client: ClientWithMiddleware,
     limits: ProviderLimits,
     telemetry: Option<crate::telemetry::Telemetry>,
-    origin_override: Option<String>,
+    /// Gate for IP-literal origins, which hyper-util connects without
+    /// consulting the DNS resolver.
+    egress: Option<crate::egress::EgressPolicy>,
+    /// Test-only: the URL tests use instead of each connection's `base_url`,
+    /// which points at the real provider origin.
+    #[cfg(test)]
+    test_base_url: Option<String>,
 }
 
 impl ProviderTransport {
@@ -131,13 +137,55 @@ impl ProviderTransport {
             client: crate::observability::instrument_client(client, "provider.headers"),
             limits,
             telemetry: None,
-            origin_override: None,
+            egress: None,
+            #[cfg(test)]
+            test_base_url: None,
+        })
+    }
+
+    /// Build a transport that resolves through `resolver` and gates IP literals
+    /// through `egress`.
+    pub(crate) fn with_egress(
+        egress: crate::egress::EgressPolicy,
+        limits: ProviderLimits,
+    ) -> Result<Self, ProviderError> {
+        let client = Client::builder()
+            .redirect(reqwest::redirect::Policy::none())
+            .retry(reqwest::retry::never())
+            .no_proxy()
+            .no_gzip()
+            .no_brotli()
+            .no_deflate()
+            .no_zstd()
+            // No client read timeout: it would also cut a non-streaming call while the
+            // provider generates before sending headers. The relay bounds stalls instead.
+            .connect_timeout(Duration::from_secs(5))
+            .pool_max_idle_per_host(16)
+            // reqwest's http2 feature is for Web-bound clients (resolver, telemetry); provider calls stay on HTTP/1.1.
+            .http1_only()
+            .dns_resolver(crate::egress::EgressResolver::new(egress.clone()))
+            .build()
+            .map_err(|_| ProviderError::Configuration)?;
+        Ok(Self {
+            client: crate::observability::instrument_client(client, "provider.headers"),
+            limits,
+            telemetry: None,
+            egress: Some(egress),
+            #[cfg(test)]
+            test_base_url: None,
         })
     }
 
     pub(crate) fn with_telemetry(mut self, telemetry: crate::telemetry::Telemetry) -> Self {
         self.telemetry = Some(telemetry);
         self
+    }
+
+    #[cfg(test)]
+    pub(crate) fn for_test(base_url: String, limits: ProviderLimits) -> Self {
+        let mut provider = Self::with_limits(limits).unwrap();
+        provider.test_base_url = Some(base_url);
+        provider
     }
 
     /// Start the execution deadline.
@@ -221,22 +269,22 @@ impl ProviderTransport {
             _ => rewrite_model(body, model_range, provider_model)?,
         };
         capture.set_provider_model(provider_model);
-        correlation.record_upstream(UpstreamTarget::for_connection(
-            context.connection(),
-            Some(provider_model.to_owned()),
-        ));
-        let mut upstream = self
+        let base_url = context.connection().base_url();
+        self.enforce_egress(base_url)?;
+        let upstream_target =
+            UpstreamTarget::for_connection(context.connection(), Some(provider_model.to_owned()));
+        correlation.record_upstream(upstream_target);
+        let upstream = self
             .client
-            .post(self.request_url(route))
+            .post(self.request_url(route, base_url))
             .with_extension(DisableOtelPropagation)
             .headers(transport::request_headers(headers, api_format))
             .header(header::ACCEPT_ENCODING, "identity")
-            .header(credential_name, credential);
-        upstream = upstream.body(body);
+            .header(credential_name, credential)
+            .body(body);
         let started = Instant::now();
         // A stream, or a call that does not generate, that goes quiet before its
-        // headers is stalled. A non-streamed generation sends nothing until the whole
-        // response is generated.
+        // headers is stalled; a non-streamed generation sends nothing until done.
         let headers_deadline = if streaming || !route.captures_generation() {
             permit
                 .deadline
@@ -300,24 +348,52 @@ impl ProviderTransport {
         )
     }
 
-    fn request_url(&self, route: Route) -> String {
-        let base = self
-            .origin_override
-            .as_deref()
-            .unwrap_or_else(|| route.provider().official_origin())
-            .trim_end_matches('/');
+    /// The upstream URL for `route` under the connection's origin.
+    #[cfg_attr(
+        not(test),
+        expect(
+            clippy::unused_self,
+            reason = "tests override the origin through the transport; production derives it from the connection"
+        )
+    )]
+    fn request_url(&self, route: Route, base_url: &str) -> String {
+        #[cfg(test)]
+        let base = self.test_base_url.as_deref().unwrap_or(base_url);
+        #[cfg(not(test))]
+        let base = base_url;
+        let base = base.trim_end_matches('/');
         let mut url = String::with_capacity(base.len() + route.path().len());
         url.push_str(base);
         url.push_str(route.path());
         url
     }
 
-    #[cfg(test)]
-    pub(crate) fn for_test(base_url: String, limits: ProviderLimits) -> Self {
-        let mut provider = Self::with_limits(limits).unwrap();
-        provider.origin_override = Some(base_url);
-        provider
+    /// Gate IP-literal origins, which bypass the resolver's filter.
+    ///
+    /// # Errors
+    /// Returns [`ProviderError::Blocked`] when the policy forbids the origin.
+    fn enforce_egress(&self, base_url: &str) -> Result<(), ProviderError> {
+        let Some(egress) = &self.egress else {
+            return Ok(());
+        };
+        if let Some(host) = literal_host(base_url)
+            && !egress.allows_literal(&host)
+        {
+            return Err(ProviderError::Blocked);
+        }
+        Ok(())
     }
+}
+
+/// The host of `base_url` when it is an IP literal, without brackets.
+fn literal_host(base_url: &str) -> Option<String> {
+    // Parse with the parser reqwest dials with, so shorthand, decimal and hex
+    // IPv4 spellings are normalized before the check.
+    let url = reqwest::Url::parse(base_url).ok()?;
+    let host = url.host_str()?.trim_matches(['[', ']']);
+    host.parse::<std::net::IpAddr>()
+        .is_ok()
+        .then(|| host.to_owned())
 }
 
 /// Provider error statuses are relayed unchanged, so the handler's rejection log
