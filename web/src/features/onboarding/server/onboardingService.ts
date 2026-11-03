@@ -213,11 +213,19 @@ const getRedirectTargetForMemberships = (
     };
   }
 
-  // Gateway-only members land in the org where they can create gateway keys.
-  const firstOrganization =
-    organizationMemberships.find(
-      (membership) => membership.role === Role.AI_GATEWAY,
-    ) ?? organizationMemberships[0];
+  // Gateway-only members land on the overview, which shows their gateway setup.
+  const gatewayOrganization = organizationMemberships.find(
+    (membership) => membership.role === Role.AI_GATEWAY,
+  );
+
+  if (gatewayOrganization) {
+    return {
+      redirectTo: "/",
+      orgId: gatewayOrganization.organization.id,
+    };
+  }
+
+  const firstOrganization = organizationMemberships[0];
 
   if (firstOrganization) {
     return {

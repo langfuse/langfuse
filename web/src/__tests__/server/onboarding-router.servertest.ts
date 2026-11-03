@@ -457,7 +457,7 @@ describe("onboarding router", () => {
       Object.assign(env, originalGatewayAvailability);
     });
 
-    it("lands invitees on the inviting org instead of creating starter resources", async () => {
+    it("lands invitees on the overview instead of creating starter resources", async () => {
       const { organization, memberships, complete } =
         await signUpWithGatewayInvitation({ gatewayEnabled: true });
 
@@ -465,7 +465,7 @@ describe("onboarding router", () => {
         { orgId: organization.id, role: Role.AI_GATEWAY },
       ]);
       expect(await complete()).toEqual({
-        redirectTo: `/organization/${organization.id}`,
+        redirectTo: "/",
         surveyCreated: true,
       });
     });
