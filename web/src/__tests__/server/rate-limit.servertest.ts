@@ -798,11 +798,11 @@ describe("RateLimitService", () => {
       { plan: "cloud:hobby" as const, requests: 100, requestBytes: 64 * MiB },
       { plan: "cloud:core" as const, requests: 500, requestBytes: 256 * MiB },
       { plan: "cloud:pro" as const, requests: 3_000, requestBytes: 2 * GiB },
-      { plan: "cloud:team" as const, requests: 5_000, requestBytes: 4 * GiB },
+      { plan: "cloud:team" as const, requests: 3_000, requestBytes: 2 * GiB },
       {
         plan: "cloud:enterprise" as const,
-        requests: 10_000,
-        requestBytes: 8 * GiB,
+        requests: 3_000,
+        requestBytes: 2 * GiB,
       },
     ];
 

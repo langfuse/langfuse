@@ -297,12 +297,6 @@ const getRateLimitConfig = (
 const MiB = 1024 * 1024;
 const GiB = 1024 * MiB;
 
-const aiGatewayLimits = {
-  "cloud:pro": { requests: 3_000, requestBytes: 2 * GiB },
-  "cloud:team": { requests: 5_000, requestBytes: 4 * GiB },
-  "cloud:enterprise": { requests: 10_000, requestBytes: 8 * GiB },
-};
-
 const getPlanBasedRateLimitConfig = (
   plan: Plan,
   resource: z.infer<typeof RateLimitResource>,
@@ -620,17 +614,9 @@ const getPlanBasedRateLimitConfig = (
             durationInSec: 86400, // 20 submissions per day
           };
         case "ai-gateway-requests":
-          return {
-            resource,
-            points: aiGatewayLimits[plan].requests,
-            durationInSec: 60,
-          };
+          return { resource, points: 3_000, durationInSec: 60 };
         case "ai-gateway-request-bytes":
-          return {
-            resource,
-            points: aiGatewayLimits[plan].requestBytes,
-            durationInSec: 60,
-          };
+          return { resource, points: 2 * GiB, durationInSec: 60 };
         default:
           const exhaustiveCheck: never = resource;
           throw new Error(`Unhandled resource case: ${exhaustiveCheck}`);
