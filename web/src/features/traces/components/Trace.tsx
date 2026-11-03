@@ -220,6 +220,7 @@ function TraceWithSelection({
       )?.id ?? trace.id,
     projectId,
     observations: scopedObservations,
+    sessionId: scopeToSession ? (trace.sessionId ?? undefined) : undefined,
     enabled: !isPlaceholderData && (!scopeToSession || !!sessionData),
   });
   const detachedObservation =

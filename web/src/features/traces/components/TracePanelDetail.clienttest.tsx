@@ -28,6 +28,15 @@ vi.mock("@/src/features/traces/contexts/TraceDataProvider", () => ({
 }));
 vi.mock("@/src/utils/api", () => ({
   api: {
+    sessions: {
+      tracesFromEvents: {
+        useQuery: () => ({
+          data: [
+            { id: "other", timestamp: new Date("2026-08-12T00:00:00.000Z") },
+          ],
+        }),
+      },
+    },
     observations: {
       byId: {
         useQuery: (input: unknown, options: unknown) =>
@@ -226,6 +235,28 @@ describe("TracePanelDetail", () => {
       "true",
     );
     expect(screen.queryByText("stale input")).not.toBeInTheDocument();
+  });
+
+  it("loads a message trace missing from the capped session tree", () => {
+    mockUseSelection.mockReturnValue({ selectedNodeId: "trace-other" });
+    mockUseTraceData.mockReturnValue({
+      trace: { id: "anchor", projectId: "p", sessionId: "session" },
+      sessionTraces: [{ id: "anchor", projectId: "p" }],
+      observations: [],
+      serverScores: [],
+      corrections: [],
+    });
+
+    render(<TracePanelDetail />);
+
+    expect(screen.getByTestId("trace-detail")).toHaveAttribute(
+      "data-trace-id",
+      "other",
+    );
+    expect(mockByIdQuery).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ enabled: false }),
+    );
   });
 
   it("shows errors instead of synthetic empty trace details", () => {

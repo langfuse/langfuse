@@ -148,7 +148,14 @@ export function ConnectedObservationDetailView({
   const treeNode =
     nodeMap.get(`${traceId}:${observation.id}`) ?? nodeMap.get(observation.id);
   const isRoot =
-    roots.some((root) => root.id === observation.id) &&
+    !!treeNode &&
+    roots.some(
+      (root) =>
+        root.id === treeNode.id ||
+        (root.type === "TRACE" &&
+          root.traceId === traceId &&
+          root.children.some((child) => child.id === treeNode.id)),
+    ) &&
     !(
       detachedObservationIsMisplaced && observation.id === detachedObservationId
     );

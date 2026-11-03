@@ -14,6 +14,7 @@ import { api } from "@/src/utils/api";
 import { type ObservationReturnTypeWithMetadata } from "@/src/server/api/routers/traces";
 import { traceNodeId } from "@/src/features/traces/fns/treeBuilding";
 import { getSelectedObservation } from "@/src/features/traces/fns/getSelectedObservation";
+import { useSessionMessageTraces } from "./useSessionMessageTraces";
 
 export type SelectedObservation =
   | { kind: "trace" }
@@ -32,12 +33,14 @@ export function useSelectedObservation({
   traceId,
   projectId,
   observations,
+  sessionId,
   enabled = true,
 }: {
   selectedNodeId: string | null;
   traceId: string;
   projectId: string;
   observations: ObservationReturnTypeWithMetadata[];
+  sessionId?: string;
   /**
    * False while `observations` are the previous trace's placeholder: the
    * selected id belongs to the next trace, so a by-id fetch scoped to this
@@ -52,6 +55,17 @@ export function useSelectedObservation({
     () => getSelectedObservation(observations, selectedNodeId, traceId),
     [observations, selectedNodeId, traceId],
   );
+  const needsSessionTraceLookup =
+    !!sessionId &&
+    !!selectedNodeId &&
+    !loadedRow &&
+    selectedNodeId !== traceNodeId(traceId) &&
+    (selectedNodeId.includes(":") || selectedNodeId.startsWith("trace-"));
+  const sessionTraces = useSessionMessageTraces({
+    projectId,
+    sessionId: sessionId ?? "",
+    enabled: enabled && needsSessionTraceLookup,
+  });
 
   // Otherwise derived from the id alone, never from a nodeMap hit: past the cap
   // the lookup misses, and reading that as "the trace is selected" is the bug
@@ -65,22 +79,32 @@ export function useSelectedObservation({
   // instead. Cross-dialect links are a real, documented case
   // (resolvePeekTraceParams); that naming collision is not.
   const observationId =
-    !selectedNodeId || (!loadedRow && selectedNodeId === traceNodeId(traceId))
+    !selectedNodeId ||
+    (!loadedRow &&
+      (selectedNodeId === traceNodeId(traceId) ||
+        (!!sessionId &&
+          sessionTraces.data?.some(
+            (trace) => selectedNodeId === traceNodeId(trace.id),
+          ))))
       ? null
       : selectedNodeId;
 
   const { queryTraceId, queryObservationId } = (() => {
-    const separatorIndex = observationId?.indexOf(":") ?? -1;
+    const sessionTrace = sessionId
+      ? sessionTraces.data?.find((trace) =>
+          observationId?.startsWith(`${trace.id}:`),
+        )
+      : undefined;
     // Session links qualify observation IDs even when the session cap omits the row.
     if (
       !loadedRow &&
       observationId &&
-      separatorIndex > 0 &&
-      separatorIndex < observationId.length - 1
+      sessionTrace &&
+      observationId.length > sessionTrace.id.length + 1
     ) {
       return {
-        queryTraceId: observationId.slice(0, separatorIndex),
-        queryObservationId: observationId.slice(separatorIndex + 1),
+        queryTraceId: sessionTrace.id,
+        queryObservationId: observationId.slice(sessionTrace.id.length + 1),
       };
     }
     return { queryTraceId: traceId, queryObservationId: observationId ?? "" };
@@ -96,7 +120,11 @@ export function useSelectedObservation({
       verbosity: "compact",
     },
     {
-      enabled: enabled && !!observationId && !loadedRow,
+      enabled:
+        enabled &&
+        !!observationId &&
+        !loadedRow &&
+        (!needsSessionTraceLookup || !!sessionTraces.data),
       staleTime: 5 * 60 * 1000,
       // The panel renders the missing-observation state itself; a global error
       // toast on top of it would just be alarming noise.
@@ -108,7 +136,8 @@ export function useSelectedObservation({
   // is not JSON) carry no `data.code`, so the presence of an error — not its
   // code — is what ends the wait. Keying on the code alone left the panel on a
   // skeleton forever.
-  const hasError = !!byId.error;
+  const hasError =
+    !!byId.error || (needsSessionTraceLookup && sessionTraces.isError);
   const isNotFound = byId.error?.data?.code === "NOT_FOUND";
 
   return useMemo(() => {

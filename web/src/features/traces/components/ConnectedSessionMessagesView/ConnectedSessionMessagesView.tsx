@@ -4,6 +4,7 @@ import { ErrorBoundary } from "@sentry/nextjs";
 import { useSessionMessageTraces } from "@/src/features/traces/hooks/useSessionMessageTraces";
 import { Button } from "@/src/components/design-system/Button/Button";
 import { useSelection } from "@/src/features/traces/contexts/SelectionProvider";
+import { useTraceData } from "@/src/features/traces/contexts/TraceDataProvider";
 import { traceNodeId } from "@/src/features/traces/fns/treeBuilding";
 import { useSessionTraceTranscripts } from "@/src/features/sessions/hooks/useSessionTraceTranscripts";
 import { useSessionConversationTimelineController } from "@/src/features/sessions/hooks/useSessionConversationTimelineController";
@@ -23,6 +24,7 @@ export function ConnectedSessionMessagesView({
   enabled: boolean;
 }) {
   const router = useRouter();
+  const { nodeMap } = useTraceData();
   const { openDetails } = useSelection();
   const tracesQuery = useSessionMessageTraces({
     projectId,
@@ -76,6 +78,13 @@ export function ConnectedSessionMessagesView({
     observationId: string | undefined,
   ) => {
     const { traceView, observation, traceTab, ...query } = router.query;
+    const observationNode = observationId
+      ? [...nodeMap.values()].find(
+          (node) =>
+            node.traceId === row.id &&
+            (node.observationId ?? node.id) === observationId,
+        )
+      : undefined;
     // Opening mobile details also writes URL state, so wait for the new route.
     return router
       .replace(
@@ -85,7 +94,7 @@ export function ConnectedSessionMessagesView({
             ...query,
             aggregation: "session",
             observation: observationId
-              ? `${row.id}:${observationId}`
+              ? (observationNode?.id ?? `${row.id}:${observationId}`)
               : traceNodeId(row.id),
           },
         },

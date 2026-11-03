@@ -8,6 +8,11 @@ const { mockByIdQuery } = vi.hoisted(() => ({ mockByIdQuery: vi.fn() }));
 
 vi.mock("@/src/utils/api", () => ({
   api: {
+    sessions: {
+      tracesFromEvents: {
+        useQuery: () => ({ data: [{ id: "other-trace" }] }),
+      },
+    },
     observations: {
       byId: {
         useQuery: (input: unknown, options: unknown) =>
@@ -27,7 +32,11 @@ const observation = (id: string) =>
 
 const loaded = [observation("in-list")];
 
-const render = (selectedNodeId: string | null, enabled?: boolean) =>
+const render = (
+  selectedNodeId: string | null,
+  enabled?: boolean,
+  sessionId?: string,
+) =>
   renderHook(() =>
     useSelectedObservation({
       selectedNodeId,
@@ -35,6 +44,7 @@ const render = (selectedNodeId: string | null, enabled?: boolean) =>
       projectId: "p",
       observations: loaded,
       enabled,
+      sessionId,
     }),
   ).result.current;
 
@@ -93,7 +103,7 @@ describe("useSelectedObservation", () => {
       }),
     );
 
-    expect(render("other-trace:past-cap")).toMatchObject({
+    expect(render("other-trace:past-cap", true, "session")).toMatchObject({
       kind: "observation",
       observation: { id: "past-cap", traceId: "other-trace" },
       isOutsideLoadedList: true,
@@ -118,6 +128,14 @@ describe("useSelectedObservation", () => {
       isOutsideLoadedList: false,
     });
     expect(queryEnabled()).toBe(false);
+  });
+
+  it("preserves unloaded custom ids in trace scope", () => {
+    render("custom:id");
+    expect(mockByIdQuery).toHaveBeenCalledWith(
+      expect.objectContaining({ traceId: "t", observationId: "custom:id" }),
+      expect.objectContaining({ enabled: true }),
+    );
   });
 
   it("serves a loaded observation from the list without firing a request", () => {

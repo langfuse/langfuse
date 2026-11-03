@@ -6,6 +6,7 @@ import { TraceDetailView } from "./TraceDetailView/TraceDetailView";
 import { ConnectedObservationDetailView } from "./ObservationDetailView/ConnectedObservationDetailView";
 import { traceNodeId } from "../fns/treeBuilding";
 import { useTraceDetailData } from "../hooks/useTraceDetailData";
+import { useSessionMessageTraces } from "../hooks/useSessionMessageTraces";
 
 function PanelMessage({ title, body }: { title: string; body: string }) {
   return (
@@ -38,9 +39,23 @@ function TracePanelDetailContent() {
     corrections,
     isPlaceholderData,
   } = useTraceData();
+  const sessionMessageTraces = useSessionMessageTraces({
+    projectId: anchorTrace.projectId,
+    sessionId: anchorTrace.sessionId ?? "",
+    enabled:
+      !!sessionTraces &&
+      !!anchorTrace.sessionId &&
+      !!selectedNodeId?.startsWith("trace-") &&
+      !sessionTraces.some((entry) => traceNodeId(entry.id) === selectedNodeId),
+  });
   const trace =
     sessionTraces?.find((entry) => traceNodeId(entry.id) === selectedNodeId) ??
     anchorTrace;
+  const selectedSessionTrace = sessionTraces
+    ? sessionMessageTraces.data?.find(
+        (entry) => traceNodeId(entry.id) === selectedNodeId,
+      )
+    : undefined;
 
   // Resolved from the selected id, not from the tree: the observation list is
   // capped, so a selected observation may be missing from the tree while its
@@ -50,8 +65,23 @@ function TracePanelDetailContent() {
     traceId: trace.id,
     projectId: trace.projectId,
     observations,
+    sessionId: sessionTraces ? (anchorTrace.sessionId ?? undefined) : undefined,
     enabled: !isPlaceholderData,
   });
+
+  if (
+    selected.kind === "trace" &&
+    selectedSessionTrace &&
+    selectedSessionTrace.id !== anchorTrace.id
+  ) {
+    return (
+      <ConnectedSessionTraceDetail
+        projectId={anchorTrace.projectId}
+        traceId={selectedSessionTrace.id}
+        timestamp={selectedSessionTrace.timestamp}
+      />
+    );
+  }
 
   switch (selected.kind) {
     case "observation":
