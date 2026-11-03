@@ -13,22 +13,24 @@ loses one of those fixes.
 
 | File                          | Role                                                                                                |
 | ----------------------------- | --------------------------------------------------------------------------------------------------- |
-| `build.sh`                    | Rebuilds Red Hat's source RPM with the `000*.patch` files; the header lists each patch and its CVE. |
-| `000*.patch`                  | Upstream fix commits, vendored verbatim with `git format-patch`.                                    |
+| `build.sh`                    | Rebuilds Red Hat's source RPM with the files in `PATCHES`; the header lists each patch and its CVE. |
+| `0002-placeholder.patch`      | Stands in for the upstream fix commits; replace it with one `git format-patch` file per fix.        |
 | `Dockerfile`                  | Builds the RPMs, verifies the fixes and FIPS mode, and packs them into a scratch image.             |
 | `install-nodejs.sh`           | Installs the patched RPMs while they are newer than the repos' `nodejs`, otherwise Red Hat's.       |
 | `test-node-security-fixes.js` | Fails unless the installed Node has every fix. Runs in this image and in the web and worker images. |
 
 `.github/workflows/nodejs-rpm.yml` builds the image for amd64 and arm64 and
-publishes it to `ghcr.io/langfuse/langfuse-nodejs-rpm`. The last published
-patches target Red Hat's `nodejs-24.21.0-1` and are kept as a worked example.
+publishes it to `ghcr.io/langfuse/langfuse-nodejs-rpm`. For a worked example,
+`git show f0f65b838a -- scripts/docker/nodejs-rpm/` has the last patch set:
+four Node 24.22.1 fixes on Red Hat's `nodejs-24.21.0-1`.
 
 ## Reviving it
 
 1. **Rebase the build.** In `build.sh`, point `SRPM_NAME`, `SRPM_SHA256` and
    `DIST` at Red Hat's current `nodejs:24` source RPM (keep the `.lf1` suffix
-   on `DIST`), and replace `PATCHES` and the `000*.patch` files with the new
-   upstream fixes. Update the `%changelog` line and the `TAG` in the workflow.
+   on `DIST`), replace `0002-placeholder.patch` with the new upstream fixes,
+   and list them in `PATCHES` and the header. Update the version in the
+   `%changelog` line and the `TAG` in the workflow.
 2. **Extend the test.** Add a check to `test-node-security-fixes.js` per fix
    that fails on Red Hat's build and passes on the patched one.
 3. **Publish.** Uncomment the `pull_request` and `push` triggers in
