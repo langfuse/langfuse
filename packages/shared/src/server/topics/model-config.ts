@@ -70,24 +70,16 @@ function effectiveConnection(
 }
 
 const storedProvider = { select: { provider: true } } as const;
-const withConnections = {
-  project: {
-    select: {
-      LlmApiKeys: true,
-      organization: { select: { organizationLlmApiKeys: true } },
-    },
-  },
+const withStoredProviders = {
+  project: { select: { orgId: true } },
   summaryLlmApiKey: storedProvider,
   embeddingLlmApiKey: storedProvider,
   clusteringLlmApiKey: storedProvider,
 } as const;
 
 type StoredConnection = { provider: string } | null;
-type ConfigWithConnections = TopicConfig & {
-  project: {
-    LlmApiKeys: LlmApiKeys[];
-    organization: { organizationLlmApiKeys: LlmApiKeys[] };
-  };
+type ConfigWithProviders = TopicConfig & {
+  project: { orgId: string };
   summaryLlmApiKey: StoredConnection;
   embeddingLlmApiKey: StoredConnection;
   clusteringLlmApiKey: StoredConnection;
@@ -116,11 +108,10 @@ function resolveSlot(
 }
 
 /** The stored connection only names the provider; it resolves again on every run, like evals. */
-function resolveModels(row: ConfigWithConnections): TopicsModels | null {
-  const candidates = {
-    projectConnections: row.project.LlmApiKeys,
-    organizationConnections: row.project.organization.organizationLlmApiKeys,
-  };
+function resolveModels(
+  row: ConfigWithProviders,
+  candidates: LlmApiKeyCandidates,
+): TopicsModels | null {
   const slot = (
     name: TopicsModelSlotName,
     stored: StoredConnection,
@@ -153,32 +144,64 @@ function resolveModels(row: ConfigWithConnections): TopicsModels | null {
   };
 }
 
+/** Like evals, loads only the connections of the stored providers, in one query for all configs. */
+async function resolveConfigs(
+  rows: ConfigWithProviders[],
+): Promise<TopicsModels[]> {
+  const providers = [
+    ...new Set(
+      rows.flatMap((row) =>
+        [row.summaryLlmApiKey, row.embeddingLlmApiKey, row.clusteringLlmApiKey]
+          .filter((stored) => stored !== null)
+          .map(({ provider }) => provider),
+      ),
+    ),
+  ];
+  const keys = providers.length
+    ? await prisma.llmApiKeys.findMany({
+        where: {
+          provider: { in: providers },
+          OR: [
+            { projectId: { in: rows.map((row) => row.projectId) } },
+            { organizationId: { in: rows.map((row) => row.project.orgId) } },
+          ],
+        },
+      })
+    : [];
+  return rows.flatMap((row) => {
+    const resolved = resolveModels(row, {
+      projectConnections: keys.filter((key) => key.projectId === row.projectId),
+      organizationConnections: keys.filter(
+        (key) => key.organizationId === row.project.orgId,
+      ),
+    });
+    return resolved ? [resolved] : [];
+  });
+}
+
 /** Returns the configured models of a project, or null while any slot is missing. */
 export async function getTopicsModels(
   projectId: string,
 ): Promise<TopicsModels | null> {
   const row = await prisma.topicConfig.findUnique({
     where: { projectId },
-    include: withConnections,
+    include: withStoredProviders,
   });
-  return row ? resolveModels(row) : null;
+  return row ? ((await resolveConfigs([row]))[0] ?? null) : null;
 }
 
-/** Loads the enabled, fully configured projects of a trace batch in one query. */
+/** Loads the enabled, fully configured projects of a trace batch in two queries. */
 export async function getEnabledTopicsModels(
   projectIds: string[],
 ): Promise<Map<string, TopicsModels>> {
   if (!projectIds.length) return new Map();
   const rows = await prisma.topicConfig.findMany({
     where: { projectId: { in: projectIds }, enabled: true },
-    include: withConnections,
+    include: withStoredProviders,
   });
-  const models = new Map<string, TopicsModels>();
-  for (const row of rows) {
-    const resolved = resolveModels(row);
-    if (resolved) models.set(row.projectId, resolved);
-  }
-  return models;
+  return new Map(
+    (await resolveConfigs(rows)).map((models) => [models.projectId, models]),
+  );
 }
 
 /** Turns automatic processing off and records why, for the Topics page. */

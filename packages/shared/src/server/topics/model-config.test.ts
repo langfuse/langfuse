@@ -292,10 +292,7 @@ describe("getEnabledTopicsModels", () => {
     };
     const row = {
       projectId: "complete",
-      project: {
-        LlmApiKeys: [openai],
-        organization: { organizationLlmApiKeys: [] },
-      },
+      project: { orgId: "organization" },
       enabled: true,
       summaryLlmApiKey: { provider: "openai" },
       summaryModel: "gpt-6-luna",
@@ -305,6 +302,7 @@ describe("getEnabledTopicsModels", () => {
       clusteringLlmApiKey: { provider: "openai" },
       clusteringModel: "gpt-5.6-terra",
     };
+    mocks.keys.mockResolvedValue([openai]);
     mocks.configs.mockResolvedValue([
       row,
       // A deleted connection leaves its slot empty.
