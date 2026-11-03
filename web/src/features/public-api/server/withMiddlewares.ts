@@ -28,7 +28,6 @@ import { setRetryAfterHeader } from "@/src/features/public-api/server/writeError
 import { withDeprecationResponse } from "@/src/features/public-api/server/deprecations";
 import { env } from "@/src/env.mjs";
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars -- Used via typeof
 const httpMethods = ["GET", "POST", "PUT", "DELETE", "PATCH"] as const;
 export type HttpMethod = (typeof httpMethods)[number];
 /** RouteHandler is a method handler; `deprecation` marks it as a deprecated route. */

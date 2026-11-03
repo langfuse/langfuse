@@ -14,14 +14,12 @@ export function useSessionTraceTranscripts({
   projectId,
   traces,
   activeTraceIds,
-  transcriptSource,
+  filter,
 }: {
   projectId: string;
   traces: readonly { trace: EventSessionTrace; turnNumber: number }[];
   activeTraceIds: ReadonlySet<string>;
-  transcriptSource: NonNullable<
-    RouterInputs["events"]["transcriptByTraceId"]["transcriptSource"]
-  >;
+  filter?: RouterInputs["events"]["transcriptByTraceId"]["filter"];
 }): Map<string, SessionTraceTranscriptState> {
   const [queue] = useState(() => new PQueue({ concurrency: 4 }));
   const utils = api.useUtils();
@@ -35,7 +33,7 @@ export function useSessionTraceTranscripts({
         traceId: trace.id,
         timestamp: trace.timestamp,
         fallbackToRootIO: true,
-        transcriptSource,
+        filter,
       };
       return {
         queryKey: getQueryKey(api.events.transcriptByTraceId, input, "query"),

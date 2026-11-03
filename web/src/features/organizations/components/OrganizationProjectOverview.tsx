@@ -25,7 +25,7 @@ import { Input } from "@/src/components/ui/input";
 import {
   hasOrganizationAccess,
   useHasOrganizationAccess,
-} from "@/src/features/rbac";
+} from "@/src/features/rbac/utils/checkOrganizationAccess";
 import { env } from "@/src/env.mjs";
 import { Fragment, type ReactNode } from "react";
 import { useRouter } from "next/router";
@@ -33,12 +33,12 @@ import { useSession } from "next-auth/react";
 import {
   createOrganizationRoute,
   createProjectRoute,
-} from "@/src/features/setup";
+} from "@/src/features/setup/setupRoutes";
 import { isCloudPlan, planLabels } from "@langfuse/shared";
 import ContainerPage from "@/src/components/layouts/ContainerPage";
 import { type Session } from "next-auth";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
-import { AgentToolsBanner } from "@/src/features/developer-tools";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { AgentToolsBanner } from "@/src/features/developer-tools/components/AgentToolsBanner";
 import {
   V4MigrationBanner,
   useV4MigrationBannerState,
@@ -598,7 +598,8 @@ const pageBanner = ({
 }): ReactNode => {
   if (
     v4UpgradeUiEnabled &&
-    v4MigrationBannerState.projectsNeedingMigration > 0
+    v4MigrationBannerState.projectsNeedingMigration > 0 &&
+    !v4MigrationBannerState.isDismissed
   ) {
     return (
       <V4MigrationBanner

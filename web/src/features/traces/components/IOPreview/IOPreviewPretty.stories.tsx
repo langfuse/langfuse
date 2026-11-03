@@ -15,9 +15,12 @@ import { observable } from "@trpc/server/observable";
 import type { AppRouter } from "@/src/server/api/root";
 import { api } from "@/src/utils/api";
 import { MarkdownRenderCharacterLimitContext } from "@/src/components/MarkdownRenderCharacterLimitProvider/MarkdownRenderCharacterLimitContext";
-import { ChatMlMessageSchema } from "@/src/components/schemas/ChatMlSchema";
-import { MediaContentType, type MediaReturnType } from "@/src/features/media";
-import { MediaEnabledFields } from "@/src/features/media/validation";
+import { ChatMlMessageSchema } from "@langfuse/shared";
+import {
+  MediaContentType,
+  type MediaReturnType,
+  MediaEnabledFields,
+} from "@/src/features/media/validation";
 import { useCollapseSystemPromptPreference } from "@/src/hooks/useCollapsibleSystemPrompt";
 
 const TOOLS_COLLAPSED_KEY = "toolsSectionCollapsed";

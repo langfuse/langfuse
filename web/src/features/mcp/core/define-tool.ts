@@ -6,8 +6,7 @@
  */
 
 import { z } from "zod";
-import { wrapErrorHandling } from "./error-formatting";
-import type { ApiAction } from "@/src/features/public-api/server";
+import type { ApiAction } from "@/src/features/public-api/server/enforceAuth";
 import type { ServerContext } from "../types";
 
 /**
@@ -173,14 +172,14 @@ export function defineTool<TInput, const TName extends string>(
     };
   }
 
-  // Wrap handler with validation and error handling
-  const wrappedHandler: ToolHandler<TInput> = wrapErrorHandling(
-    async (rawInput: unknown, context: ServerContext) => {
-      // Validate input with the full schema (including refinements)
-      const validatedInput = inputSchema.parse(rawInput);
-      return await handler(validatedInput, context);
-    },
-  );
+  const wrappedHandler: ToolHandler<TInput> = async (
+    rawInput: unknown,
+    context: ServerContext,
+  ) => {
+    // Validate input with the full schema (including refinements)
+    const validatedInput = inputSchema.parse(rawInput);
+    return await handler(validatedInput, context);
+  };
 
   return [toolDefinition, wrappedHandler];
 }

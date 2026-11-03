@@ -2,11 +2,11 @@ import { ChatMessageRole, ChatMessageType } from "@langfuse/shared";
 import {
   applyCodeMirrorSearchQuery,
   setActiveSearchMarkCodeMirrorRange,
-} from "../../editor";
+} from "@/src/components/editor/CodeMirrorEditor";
 
 import { createMessageSearchController } from "./controller";
 
-vi.mock("../../editor", () => ({
+vi.mock("@/src/components/editor/CodeMirrorEditor", () => ({
   applyCodeMirrorSearchQuery: vi.fn(),
   setActiveSearchMarkCodeMirrorRange: vi.fn(),
   unsetActiveSearchMarkCodeMirrorRange: vi.fn(),

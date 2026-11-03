@@ -3,7 +3,7 @@ import { useForm, useWatch, type UseFormReturn } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 
 import { type ActionTypes } from "@langfuse/shared";
-import { type PagerDutyTestEventState } from "@/src/features/pagerduty";
+import { type PagerDutyTestEventState } from "@/src/features/pagerduty/hooks/usePagerDutyTestEvent";
 import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
 import { Form } from "@/src/components/design-system/Form/Form";
 import { SelectInput } from "@/src/components/design-system/SelectInput/SelectInput";

@@ -1,4 +1,4 @@
-import { PricingTierCondition } from "../../features/model-pricing";
+import { PricingTierCondition } from "../../features/model-pricing/validation";
 import type {
   PricingTierMatchAttributes,
   PricingTierMatchResult,

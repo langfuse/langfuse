@@ -5,22 +5,20 @@ import { createSkill } from "@mastra/core/skills";
 import { MCPClient } from "@mastra/mcp";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { AgUiEvent } from "@langfuse/shared/in-app-agent";
 import {
+  type AgUiEvent,
   IN_APP_AGENT_MCP_TOOL_OVERRIDE_HEADER,
   IN_APP_AGENT_REDIRECT_TOOL_NAME,
   IN_APP_AGENT_TOOL_APPROVAL_EVENT_NAME,
   IN_APP_AGENT_TOOL_REJECTION_ERROR_CODE,
 } from "@langfuse/shared/in-app-agent";
+
 import { createInAppAgentToolPolicy } from "@langfuse/shared/in-app-agent/server/mcpPolicy";
 import { IN_APP_AGENT_MAX_STEPS } from "@langfuse/shared/in-app-agent/server/tunables";
 import { patchMastraApprovalChunks, type createAgUiStream } from "./agent";
 import { loadInAppAgentSkills } from "./skills";
-import {
-  createInAppAgentSandbox,
-  type SandboxProvider,
-  type SandboxSession,
-} from "./sandbox";
+import { createInAppAgentSandbox } from "./sandbox/service";
+import type { SandboxProvider, SandboxSession } from "./sandbox/types";
 import {
   DEFAULT_SIDEBAR_HIDDEN_ENVIRONMENTS,
   decodeFiltersGeneric,

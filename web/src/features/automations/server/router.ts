@@ -18,7 +18,7 @@ import {
   PagerDutyRoutingKeySchema,
   PagerDutyTestEventStepSchema,
 } from "@langfuse/shared/pagerduty";
-import { throwIfNoProjectAccess } from "@/src/features/rbac";
+import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { v4 } from "uuid";
 import {
   convertActionToDomain,
@@ -35,12 +35,11 @@ import { processGitHubDispatchActionConfig } from "./githubDispatchHelpers";
 import {
   processPagerDutyActionConfig,
   sendPagerDutyTestEvent,
-  throwIfPagerDutyUnavailable,
-} from "@/src/features/pagerduty/server";
+} from "@/src/features/pagerduty/server/pagerdutyHelpers";
 import { maskActionForViewer, processSlackActionConfig } from "./slackHelpers";
 import { updateTriggerEventActions } from "./automationService";
 import { TRPCError } from "@trpc/server";
-import { auditLog } from "@/src/features/audit-logs/server";
+import { auditLog } from "@/src/features/audit-logs/auditLog";
 
 const CreateAutomationInputSchema = z.object({
   projectId: z.string(),
@@ -340,7 +339,6 @@ export const automationsRouter = createTRPCRouter({
         finalActionConfig = githubResult.finalActionConfig;
         newUnencryptedWebhookSecret = githubResult.githubToken;
       } else if (input.actionType === "PAGERDUTY") {
-        throwIfPagerDutyUnavailable(ctx.session);
         finalActionConfig = await processPagerDutyActionConfig({
           actionConfig: input.actionConfig,
           projectId: input.projectId,
@@ -457,7 +455,6 @@ export const automationsRouter = createTRPCRouter({
         });
         finalActionConfig = githubResult.finalActionConfig;
       } else if (input.actionType === "PAGERDUTY") {
-        throwIfPagerDutyUnavailable(ctx.session);
         finalActionConfig = await processPagerDutyActionConfig({
           actionConfig: input.actionConfig,
           actionId: existingAutomation.action.id,
@@ -691,7 +688,6 @@ export const automationsRouter = createTRPCRouter({
         scope: "automations:CUD",
       });
 
-      throwIfPagerDutyUnavailable(ctx.session);
       await sendPagerDutyTestEvent(input);
 
       if (input.actionId) {

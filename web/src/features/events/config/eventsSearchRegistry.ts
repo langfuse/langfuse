@@ -1,7 +1,7 @@
 import {
   createFieldRegistry,
   EVENTS_FIELD_REGISTRY,
-} from "@/src/features/search-bar";
+} from "@/src/features/search-bar/lib/fields";
 
 /** `topics` adds the `topics.<facet>:<topic>` syntax; only pass it when canViewTopics passes. */
 export function eventsSearchRegistry(

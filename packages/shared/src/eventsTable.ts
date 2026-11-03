@@ -1,4 +1,4 @@
-import { type ColumnDefinition } from "./tableDefinitions";
+import type { ColumnDefinition } from "./tableDefinitions/types";
 
 export const eventsTableHasParentObservationSql = "e.parent_span_id != ''";
 export const eventsTableIsRootObservationSqlForAlias = (alias: string) => {
