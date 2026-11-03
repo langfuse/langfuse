@@ -28,6 +28,12 @@ export type GatewayApiKeyAuthContext = Omit<
   "connections"
 > & {
   connection: CachedResolveContext["connections"][number] | null;
+  // Alias fallbacks in failover order, primary excluded, each with its own
+  // upstream model. Empty for slug and implicit routing.
+  fallbacks: {
+    connection: CachedResolveContext["connections"][number];
+    providerModel: string;
+  }[];
   providerModel: string | null;
 };
 
@@ -64,12 +70,13 @@ export class GatewayApiKeyAuthenticator {
     }
     // Aliases name their upstream model explicitly, so only slug and
     // implicit routing check allowedModels.
+    const [primary] = route.targets;
     if (
-      route.connection &&
+      primary?.connection &&
       !route.viaAlias &&
       !isGatewayModelAllowed(
-        route.connection.allowedModels,
-        route.providerModel,
+        primary.connection.allowedModels,
+        primary.providerModel,
       )
     ) {
       throw new GatewayControlPlaneError(
@@ -81,8 +88,24 @@ export class GatewayApiKeyAuthenticator {
 
     return {
       ...context,
-      providerModel: route.providerModel,
-      connection: route.connection,
+      providerModel: primary?.providerModel ?? null,
+      connection: primary?.connection ?? null,
+      // Alias fallback targets always carry a resolved connection; a null
+      // connection only occurs on the primary of slug routing.
+      fallbacks: route.targets
+        .slice(1)
+        .map((target) => ({
+          connection: target.connection,
+          providerModel: target.providerModel,
+        }))
+        .filter(
+          (
+            target,
+          ): target is {
+            connection: NonNullable<typeof target.connection>;
+            providerModel: string;
+          } => target.connection !== null,
+        ),
     };
   }
 
@@ -95,6 +118,7 @@ export class GatewayApiKeyAuthenticator {
       ...context,
       providerModel: null,
       connection: null,
+      fallbacks: [],
     };
   }
 

@@ -16,7 +16,9 @@ use tokio::time::Instant;
 
 use crate::{
     correlation::RequestCorrelation,
-    resolution::{ApiFormat, IngestionMode, MetadataValue, ResolvedRequestContext},
+    resolution::{
+        ApiFormat, IngestionMode, MetadataValue, ProviderConnection, ResolvedRequestContext,
+    },
     telemetry,
 };
 use anthropic_messages::AnthropicMessagesCapture;
@@ -221,8 +223,12 @@ impl ExecutionCapture {
         self.delivery = Some((telemetry, delivery));
     }
 
-    pub(crate) fn set_provider_model(&mut self, model: &str) {
-        self.provider_model = bounded_string(model);
+    /// Attributes the generation to the target about to be attempted.
+    pub(crate) fn set_target(&mut self, connection: &ProviderConnection) {
+        self.provider_model = bounded_string(connection.provider_model());
+        self.metadata["provider_connection_id"] = json!(connection.id());
+        self.metadata["connection_name"] = json!(connection.name().and_then(bounded_string));
+        self.metadata["provider"] = json!(connection.provider().as_str());
     }
 
     pub(crate) fn record_response(&mut self, status: u16, headers: &HeaderMap) {

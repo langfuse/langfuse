@@ -4129,6 +4129,7 @@ describe("AI gateway control plane", () => {
           model: "glm-5.3",
         });
         expect(messages.connection).toMatchObject({ id: anthropic.id });
+        expect(messages.fallbacks).toEqual([]);
 
         await expect(
           authenticateRequest({

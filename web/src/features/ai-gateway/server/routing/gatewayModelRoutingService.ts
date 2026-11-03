@@ -6,14 +6,14 @@ export class GatewayModelRoutingService {
     connections: readonly Connection[],
     aliases: readonly GatewayRouteAlias[] = [],
   ): {
-    connection: Connection | null;
-    providerModel: string;
+    targets: { connection: Connection | null; providerModel: string }[];
     viaAlias: boolean;
   } | null {
     // Aliases win over every other match: an alias name may also collide with
     // a connection name or a prefix heuristic, and the alias is explicit.
     const alias = aliases.find((candidate) => candidate.name === model);
     if (alias && alias.status === "ENABLED") {
+      const targets: { connection: Connection; providerModel: string }[] = [];
       for (const target of alias.targets) {
         const connection = connections.find(
           (candidate) => candidate.id === target.connectionId,
@@ -21,12 +21,14 @@ export class GatewayModelRoutingService {
         // Connections are pre-filtered to enabled ones serving this format, so
         // a miss falls through to the next target.
         if (!connection) continue;
-        return {
-          connection,
-          providerModel: target.providerModel,
-          viaAlias: true,
-        };
+        targets.push({ connection, providerModel: target.providerModel });
       }
+      if (targets.length > 0) {
+        return { targets, viaAlias: true };
+      }
+      // No target can serve the request: the alias matched but is unusable,
+      // so slug and implicit routing must not silently pick another route.
+      return null;
     }
 
     const modelSlug = parseGatewayModelSlug(model);
@@ -37,24 +39,31 @@ export class GatewayModelRoutingService {
       : null;
     if (modelSlug && explicitConnection) {
       return {
-        connection: explicitConnection,
-        providerModel: modelSlug.providerModel,
+        targets: [
+          {
+            connection: explicitConnection,
+            providerModel: modelSlug.providerModel,
+          },
+        ],
         viaAlias: false,
       };
     }
 
     if (model.startsWith("ft:")) {
       return {
-        connection: findImplicitConnection(model, connections, "OPENAI"),
-        providerModel: model,
+        targets: [
+          {
+            connection: findImplicitConnection(model, connections, "OPENAI"),
+            providerModel: model,
+          },
+        ],
         viaAlias: false,
       };
     }
 
     if (modelSlug) {
       return {
-        connection: null,
-        providerModel: modelSlug.providerModel,
+        targets: [{ connection: null, providerModel: modelSlug.providerModel }],
         viaAlias: false,
       };
     }
@@ -69,8 +78,12 @@ export class GatewayModelRoutingService {
     if (!provider) return null;
 
     return {
-      connection: findImplicitConnection(model, connections, provider),
-      providerModel: model,
+      targets: [
+        {
+          connection: findImplicitConnection(model, connections, provider),
+          providerModel: model,
+        },
+      ],
       viaAlias: false,
     };
   }

@@ -1,3 +1,4 @@
+mod breaker;
 mod capture;
 pub mod config;
 mod correlation;

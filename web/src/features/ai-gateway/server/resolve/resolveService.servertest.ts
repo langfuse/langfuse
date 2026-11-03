@@ -134,6 +134,8 @@ describe("GatewayResolveService", () => {
         base_url: "https://api.openai.com/v1",
         auth: { type: "Bearer", token: "sk-test" },
       },
+      // Slug routing has no fallbacks: the ordered list is alias-only.
+      fallbacks: [],
       // Metadata stays in its own object, so a metadata key called project_id
       // cannot redirect attribution.
       attribution: {
@@ -267,6 +269,72 @@ describe("GatewayResolveService", () => {
         provider: "custom",
         auth: { type: "Bearer", token: "" },
       },
+    });
+  });
+
+  it("emits ordered fallbacks with per-target upstream models for an alias", async () => {
+    const service = serviceWith((() =>
+      Promise.resolve({
+        ...row({ metadata: {} }),
+        organization: {
+          gatewayConfig: {
+            defaultIngestionProjectId: "project-1",
+            ingestionMode: "USAGE",
+            defaultIngestionProject: {
+              id: "project-1",
+              orgId: "org-1",
+              deletedAt: null,
+            },
+          },
+          gatewayAiAliases: [
+            {
+              name: "glm-5.3",
+              status: "ENABLED",
+              targets: [
+                { connectionId: "connection-1", providerModel: "GLM-5.3" },
+                {
+                  connectionId: "connection-2",
+                  providerModel: "GLM-5.3-Flash",
+                },
+              ],
+            },
+          ],
+          gatewayAiConnections: [
+            {
+              id: "connection-1",
+              name: "ai01",
+              provider: "CUSTOM",
+              baseUrl: "http://10.3.24.39:8000/v1",
+              encryptedCredential: "encrypted-credential",
+              allowedModels: null,
+            },
+            {
+              id: "connection-2",
+              name: "ai02",
+              provider: "CUSTOM",
+              baseUrl: "http://10.3.24.40:8000/v1",
+              encryptedCredential: "encrypted-credential",
+              allowedModels: null,
+            },
+          ],
+        },
+      })) as unknown as Parameters<typeof serviceWith>[0]);
+
+    await expect(
+      service.resolve({
+        fastHashedSecretKey: "hashed-secret-key",
+        apiFormat: "openai.chat-completions",
+        model: "glm-5.3",
+      }),
+    ).resolves.toMatchObject({
+      connection: { id: "connection-1", provider_model: "GLM-5.3" },
+      fallbacks: [
+        {
+          id: "connection-2",
+          provider_model: "GLM-5.3-Flash",
+          base_url: "http://10.3.24.40:8000/v1",
+        },
+      ],
     });
   });
 

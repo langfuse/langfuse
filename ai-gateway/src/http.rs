@@ -219,7 +219,7 @@ async fn relay(
     correlation
         .observation()
         .record_wait(Wait::RequestBody, started.elapsed());
-    let (bytes, reservation) = read?;
+    let (bytes, mut reservation) = read?;
     correlation.observation().record_request_bytes(bytes.len());
     let request_body = request_body_and_model(bytes)?;
     let (permit, context) = inference
@@ -231,6 +231,20 @@ async fn relay(
         )
         .await
         .map_err(InferenceHttpError::Resolution)?;
+    // An alias keeps the caller's body until its last target, next to each
+    // rewritten copy, so it holds two bodies plus the model and usage edits.
+    if !context.fallbacks().is_empty() {
+        reservation
+            .try_reserve_body(
+                request_body
+                    .bytes
+                    .len()
+                    .saturating_mul(2)
+                    .saturating_add(FALLBACK_REWRITE_SLACK_BYTES),
+                "fallback_body",
+            )
+            .map_err(InferenceHttpError::Resolution)?;
+    }
     // Re-record the provider once resolved: a custom connection can serve any
     // namespace, so the namespace's provider may be wrong.
     correlation
@@ -253,6 +267,10 @@ async fn relay(
         .await
         .map_err(InferenceHttpError::Provider)
 }
+
+/// Growth a rewritten body may need over the caller's: the target's model name
+/// and the injected stream usage option.
+const FALLBACK_REWRITE_SLACK_BYTES: usize = 1024;
 
 struct InferenceRequestBody {
     bytes: Bytes,

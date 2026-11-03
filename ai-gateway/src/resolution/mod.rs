@@ -207,7 +207,8 @@ impl ControlPlaneClient {
             .await
     }
 
-    async fn resolve_at(
+    /// Like [`Self::resolve`] with a pinned signing timestamp, for tests.
+    pub(crate) async fn resolve_at(
         &self,
         gateway_key: &str,
         api_format: ApiFormat,

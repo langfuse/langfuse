@@ -63,8 +63,10 @@ describe("GatewayModelRoutingService", () => {
       const route = routingService.resolve(model, connections);
 
       expect(route).not.toBeNull();
-      expect(route?.connection?.id).toBe(connectionId);
-      expect(route?.providerModel).toBe(providerModel);
+      const target = route?.targets[0];
+      expect(target?.connection?.id).toBe(connectionId);
+      expect(target?.providerModel).toBe(providerModel);
+      expect(route?.viaAlias).toBe(false);
     },
   );
 
@@ -81,15 +83,13 @@ describe("GatewayModelRoutingService", () => {
 
   it("returns a valid unresolved route for a missing connection", () => {
     expect(routingService.resolve("Unknown:gpt-4o", connections)).toEqual({
-      connection: null,
-      providerModel: "gpt-4o",
+      targets: [{ connection: null, providerModel: "gpt-4o" }],
       viaAlias: false,
     });
     expect(
       routingService.resolve("claude-sonnet-4-5", connections.slice(0, 1)),
     ).toEqual({
-      connection: null,
-      providerModel: "claude-sonnet-4-5",
+      targets: [{ connection: null, providerModel: "claude-sonnet-4-5" }],
       viaAlias: false,
     });
   });
@@ -108,8 +108,9 @@ describe("GatewayModelRoutingService", () => {
         ftConnection,
       ]),
     ).toEqual({
-      connection: ftConnection,
-      providerModel: "claude-sonnet-4-5",
+      targets: [
+        { connection: ftConnection, providerModel: "claude-sonnet-4-5" },
+      ],
       viaAlias: false,
     });
   });
@@ -131,8 +132,9 @@ describe("GatewayModelRoutingService", () => {
     ] as const;
 
     expect(routingService.resolve("gpt-6-sol", restrictedConnections)).toEqual({
-      connection: restrictedConnections[1],
-      providerModel: "gpt-6-sol",
+      targets: [
+        { connection: restrictedConnections[1], providerModel: "gpt-6-sol" },
+      ],
       viaAlias: false,
     });
   });
@@ -156,8 +158,9 @@ describe("GatewayModelRoutingService", () => {
         unrestrictedConnection,
       ]),
     ).toEqual({
-      connection: unrestrictedConnection,
-      providerModel: "gpt-6-sol",
+      targets: [
+        { connection: unrestrictedConnection, providerModel: "gpt-6-sol" },
+      ],
       viaAlias: false,
     });
   });
@@ -181,8 +184,9 @@ describe("GatewayModelRoutingService", () => {
       ] as const;
 
       expect(routingService.resolve(model, restrictedConnections)).toEqual({
-        connection: restrictedConnections[0],
-        providerModel: model,
+        targets: [
+          { connection: restrictedConnections[0], providerModel: model },
+        ],
         viaAlias: false,
       });
     },
@@ -217,8 +221,10 @@ describe("GatewayModelRoutingService", () => {
           },
         ]),
       ).toEqual({
-        connection: aliasConnections[0],
-        providerModel: "GLM-5.3",
+        targets: [
+          { connection: aliasConnections[0], providerModel: "GLM-5.3" },
+          { connection: aliasConnections[1], providerModel: "GLM-5.3" },
+        ],
         viaAlias: true,
       });
     });
@@ -236,8 +242,9 @@ describe("GatewayModelRoutingService", () => {
           },
         ]),
       ).toEqual({
-        connection: aliasConnections[1],
-        providerModel: "GLM-5.3",
+        targets: [
+          { connection: aliasConnections[1], providerModel: "GLM-5.3" },
+        ],
         viaAlias: true,
       });
     });
@@ -292,8 +299,7 @@ describe("GatewayModelRoutingService", () => {
           ],
         ),
       ).toEqual({
-        connection: namedConnection,
-        providerModel: "GLM-5.3",
+        targets: [{ connection: namedConnection, providerModel: "GLM-5.3" }],
         viaAlias: true,
       });
     });

@@ -1774,3 +1774,54 @@ async fn only_non_streamed_generations_wait_past_the_stall_for_provider_headers(
         assert_eq!(response.unwrap().status(), status, "{path} {body}");
     }
 }
+
+#[tokio::test]
+async fn an_alias_with_fallbacks_reserves_room_for_the_rewritten_body() {
+    let body = r#"{"model":"Production key:test","input":"hello"}"#;
+    let limits = RequestLimits {
+        max_request_bytes: 1024,
+        // The overhead plus one copy of the body, with a little room.
+        memory_budget_bytes: 10 + body.len() + 64,
+        request_overhead_bytes: 10,
+    };
+    let plain_web = FakeServer::start(|_| async { resolution_response("provider") }).await;
+    let alias_web = FakeServer::start(|_| async {
+        let response = resolution_response("provider");
+        let bytes = to_bytes(response.into_body(), 65536).await.unwrap();
+        let mut value: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+        value["fallbacks"] = serde_json::json!([{
+            "id": "connection-2", "name": "Fallback", "provider": "openai",
+            "api_format": "openai.responses", "provider_model": "fallback-model",
+            "base_url": "https://api.openai.com/v1",
+            "auth": {"type": "Bearer", "token": "provider"}
+        }]);
+        Response::builder()
+            .header("content-type", "application/json")
+            .body(Body::from(value.to_string()))
+            .unwrap()
+    })
+    .await;
+    let provider = FakeServer::start(|_| async { Response::new(Body::empty()) }).await;
+    let request = || {
+        Request::post("/openai/v1/responses")
+            .header(header::AUTHORIZATION, "Bearer key")
+            .body(Body::from(body))
+            .unwrap()
+    };
+
+    let plain = Gateway::start(Some(
+        inference(&plain_web, &provider).with_request_limits(limits),
+    ))
+    .await;
+    let response = plain.app.clone().oneshot(request()).await.unwrap();
+    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(provider.calls(), 1);
+
+    let alias = Gateway::start(Some(
+        inference(&alias_web, &provider).with_request_limits(limits),
+    ))
+    .await;
+    let response = alias.app.clone().oneshot(request()).await.unwrap();
+    assert_eq!(response.status(), StatusCode::SERVICE_UNAVAILABLE);
+    assert_eq!(provider.calls(), 1);
+}

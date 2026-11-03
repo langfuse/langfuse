@@ -94,35 +94,33 @@ export class GatewayResolveService {
           404,
         );
       }
-      const provider = getGatewayProviderDefinition(
-        context.connection.provider,
-      );
-      // CUSTOM origins live on the connection; the other providers use the
-      // registry's official origin.
-      const baseUrl =
-        context.connection.provider === "CUSTOM"
-          ? (context.connection.baseUrl ?? null)
-          : provider.baseUrl;
-      if (!baseUrl) {
-        throw new GatewayResolveError(
-          "Gateway connection has no base URL",
-          404,
-        );
-      }
-      // A keyless CUSTOM connection stores an empty column; decrypt cannot
-      // parse an empty ciphertext, and the empty Bearer token is the wire
-      // shape the gateway reads as "no credential".
-      const credential = context.connection.encryptedCredential
-        ? decrypt(context.connection.encryptedCredential)
-        : "";
-      return {
-        version: 1 as const,
-        connection: {
-          id: context.connection.id,
-          name: context.connection.name,
-          provider:
-            context.connection.provider.toLowerCase() as GatewayProviderId,
-          provider_model: context.providerModel,
+      const toWireConnection = (
+        connection: typeof context.connection & { id: string },
+        providerModel: string,
+      ) => {
+        const provider = getGatewayProviderDefinition(connection.provider);
+        // CUSTOM origins live on the connection; the other providers use the
+        // registry's official origin.
+        const baseUrl =
+          connection.provider === "CUSTOM"
+            ? (connection.baseUrl ?? null)
+            : provider.baseUrl;
+        if (!baseUrl) {
+          throw new GatewayResolveError(
+            "Gateway connection has no base URL",
+            404,
+          );
+        }
+        // Keyless connections store an empty column; the gateway reads an empty
+        // Bearer token as no credential.
+        const credential = connection.encryptedCredential
+          ? decrypt(connection.encryptedCredential)
+          : "";
+        return {
+          id: connection.id,
+          name: connection.name,
+          provider: connection.provider.toLowerCase() as GatewayProviderId,
+          provider_model: providerModel,
           api_format: params.apiFormat,
           base_url: baseUrl,
           auth:
@@ -133,7 +131,14 @@ export class GatewayResolveService {
                   header: "x-api-key",
                   value: credential,
                 } as const),
-        },
+        };
+      };
+      return {
+        version: 1 as const,
+        connection: toWireConnection(context.connection, context.providerModel),
+        fallbacks: context.fallbacks.map(({ connection, providerModel }) =>
+          toWireConnection(connection, providerModel),
+        ),
         attribution: {
           organization_id: context.organizationId,
           project_id: ingestionProjectId,

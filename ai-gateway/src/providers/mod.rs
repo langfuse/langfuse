@@ -18,7 +18,9 @@ use crate::{
     config::ExecutionLimits,
     correlation::{RequestCorrelation, UpstreamTarget},
     observability::{ErrorOrigin, RequestObservation, Wait, provider_status_reason},
-    resolution::{ApiFormat, IngestionMode, ProviderCredential, ResolvedRequestContext},
+    resolution::{
+        ApiFormat, IngestionMode, ProviderConnection, ProviderCredential, ResolvedRequestContext,
+    },
     transport,
 };
 
@@ -89,11 +91,11 @@ pub struct ProviderTransport {
     client: ClientWithMiddleware,
     limits: ProviderLimits,
     telemetry: Option<crate::telemetry::Telemetry>,
-    /// Gate for IP-literal origins, which hyper-util connects without
-    /// consulting the DNS resolver.
+    /// Gate for IP-literal origins, which bypass the DNS resolver.
     egress: Option<crate::egress::EgressPolicy>,
-    /// Test-only: the URL tests use instead of each connection's `base_url`,
-    /// which points at the real provider origin.
+    /// Consulted before each attempt of an alias with fallbacks.
+    breakers: crate::breaker::CircuitBreakers,
+    /// Test-only override for each connection's `base_url`.
     #[cfg(test)]
     test_base_url: Option<String>,
 }
@@ -127,6 +129,7 @@ impl ProviderTransport {
             limits,
             telemetry: None,
             egress: None,
+            breakers: crate::breaker::CircuitBreakers::default(),
             #[cfg(test)]
             test_base_url: None,
         })
@@ -160,6 +163,7 @@ impl ProviderTransport {
             limits,
             telemetry: None,
             egress: Some(egress),
+            breakers: crate::breaker::CircuitBreakers::default(),
             #[cfg(test)]
             test_base_url: None,
         })
@@ -230,8 +234,6 @@ impl ProviderTransport {
             reservation,
         } = request;
         let api_format = route.api_format();
-        let credential = provider_credential(&context)?;
-        let provider_model = context.connection().provider_model();
         let mut capture = if route.captures_generation() {
             let mut capture = ExecutionCapture::for_request(api_format, &context, headers, &body);
             if let Some(telemetry) = &self.telemetry
@@ -243,46 +245,157 @@ impl ProviderTransport {
         } else {
             ExecutionCapture::unobserved()
         };
-        // Capture the caller's body shape, but keep upstream-only changes out of the input.
-        let body = match route {
+        // Kept only while a later target may still need it.
+        let mut original_body = Some(body);
+        let original_model_range = model_range;
+        let targets = std::iter::once(context.connection())
+            .chain(context.fallbacks().iter())
+            .collect::<Vec<_>>();
+        // A plain connection executes once, outside the breaker.
+        let breakers = (targets.len() > 1).then_some(&self.breakers);
+        let mut last_error = None;
+        for (index, target) in targets.iter().enumerate() {
+            if index > 0 {
+                // No budget left for a fallback: return the last error.
+                if Instant::now() >= permit.deadline {
+                    break;
+                }
+                tracing::Span::current().record("gateway.attempt", index as u64);
+            }
+            // An open breaker skips the target; a half-open one admits a probe.
+            if breakers.is_some_and(|breakers| !breakers.allows(target.id())) {
+                last_error = Some(ProviderError::Transport);
+                record_failed_attempt(target, "circuit_open");
+                continue;
+            }
+            let credential = provider_credential(target)?;
+            let provider_model = target.provider_model();
+            let source = attempt_body(&mut original_body, index + 1 == targets.len())?;
+            let body = Self::rewrite_body_for_target(
+                route,
+                source,
+                &original_model_range,
+                provider_model,
+            )?;
+            capture.set_target(target);
+            let base_url = target.base_url();
+            if let Err(error) = self.enforce_egress(base_url) {
+                last_error = Some(error);
+                record_failed_attempt(target, "blocked");
+                continue;
+            }
+            let upstream_target =
+                UpstreamTarget::for_connection(target, Some(provider_model.to_owned()));
+            correlation.record_upstream(upstream_target);
+            correlation
+                .observation()
+                .record_provider(target.provider().as_str());
+            let upstream = self.build_upstream_request(credential, headers, route, base_url, body);
+            let started = Instant::now();
+            let response = self
+                .send_until_headers(upstream, streaming, route, permit.deadline)
+                .await;
+            let observation = correlation.observation();
+            observation.record_wait(Wait::ProviderHeaders, started.elapsed());
+            // Only a terminal outcome takes ownership of the execution.
+            let attempt = handle_attempt_response(
+                response,
+                target,
+                index + 1 < targets.len(),
+                observation,
+                api_format,
+                breakers,
+                &mut capture,
+            );
+            match attempt {
+                AttemptOutcome::FailOver(error) => {
+                    last_error = Some(error);
+                }
+                AttemptOutcome::Relay(DownstreamResponse {
+                    mut response,
+                    upstream_response,
+                }) => {
+                    *response.body_mut() = transport::relay(
+                        upstream_response,
+                        api_format.provider().as_str(),
+                        permit.deadline,
+                        self.limits.execution.stall_timeout,
+                        (permit, context, reservation),
+                        capture,
+                    );
+                    return Ok(response);
+                }
+                AttemptOutcome::Done(result) => return result,
+            }
+        }
+        // Every target was skipped or failed over.
+        capture.finish(RelayOutcome::TransportError);
+        Err(last_error.unwrap_or(ProviderError::Transport))
+    }
+
+    /// Each target names its own upstream model, so the body is rewritten per
+    /// attempt from the caller's original.
+    fn rewrite_body_for_target(
+        route: Route,
+        original_body: Bytes,
+        original_model_range: &Range<usize>,
+        provider_model: &str,
+    ) -> Result<Bytes, ProviderError> {
+        match route {
             Route::OpenAiChatCompletions => {
-                match chat_completions::request_stream_usage(&body, provider_model) {
-                    Some(rewritten) => {
-                        drop(body);
-                        rewritten
+                match chat_completions::request_stream_usage(&original_body, provider_model) {
+                    Some(rewritten) => Ok(rewritten),
+                    None => {
+                        rewrite_model(original_body, original_model_range.clone(), provider_model)
                     }
-                    None => rewrite_model(body, model_range, provider_model)?,
                 }
             }
-            _ => rewrite_model(body, model_range, provider_model)?,
-        };
-        capture.set_provider_model(provider_model);
-        let base_url = context.connection().base_url();
-        self.enforce_egress(base_url)?;
-        let upstream_target =
-            UpstreamTarget::for_connection(context.connection(), Some(provider_model.to_owned()));
-        correlation.record_upstream(upstream_target);
-        let mut upstream = self
+            _ => rewrite_model(original_body, original_model_range.clone(), provider_model),
+        }
+    }
+
+    /// Build the POST for one attempt, carrying only that target's credential.
+    fn build_upstream_request(
+        &self,
+        credential: Option<(HeaderName, HeaderValue)>,
+        headers: &HeaderMap,
+        route: Route,
+        base_url: &str,
+        body: Bytes,
+    ) -> reqwest_middleware::RequestBuilder {
+        let upstream = self
             .client
             .post(self.request_url(route, base_url))
             .with_extension(DisableOtelPropagation)
-            .headers(transport::request_headers(headers, api_format))
+            .headers(transport::request_headers(headers, route.api_format()))
             .header(header::ACCEPT_ENCODING, "identity");
-        // A keyless custom connection's credential is None: no header at all.
-        if let Some((name, value)) = credential {
-            upstream = upstream.header(name, value);
-        }
-        let upstream = upstream.body(body);
-        let started = Instant::now();
-        // A stream, or a call that does not generate, that goes quiet before its
-        // headers is stalled; a non-streamed generation sends nothing until done.
+        let upstream = if let Some((name, value)) = credential {
+            upstream.header(name, value)
+        } else {
+            upstream
+        };
+        upstream.body(body)
+    }
+
+    /// Send one attempt and wait for its response headers. Until they arrive
+    /// the attempt can still fail over.
+    async fn send_until_headers(
+        &self,
+        request: reqwest_middleware::RequestBuilder,
+        streaming: bool,
+        route: Route,
+        deadline: Instant,
+    ) -> Result<reqwest::Response, ProviderError> {
+        // A stream, or a call that does not generate, that goes quiet before
+        // its headers is stalled; a non-streamed generation sends nothing
+        // until done.
         let stall_deadline = Instant::now() + self.limits.execution.stall_timeout;
         let headers_deadline = if streaming || !route.captures_generation() {
-            permit.deadline.min(stall_deadline)
+            deadline.min(stall_deadline)
         } else {
-            permit.deadline
+            deadline
         };
-        let response = tokio::time::timeout_at(headers_deadline, upstream.send())
+        tokio::time::timeout_at(headers_deadline, request.send())
             .await
             .map_err(|_| ProviderError::Timeout)
             .and_then(|result| {
@@ -293,38 +406,7 @@ impl ProviderTransport {
                         ProviderError::Transport
                     }
                 })
-            });
-        let observation = correlation.observation();
-        observation.record_wait(Wait::ProviderHeaders, started.elapsed());
-        let response = match response {
-            Ok(response) => response,
-            Err(error) => {
-                capture.finish(if matches!(error, ProviderError::Timeout) {
-                    RelayOutcome::Timeout
-                } else {
-                    RelayOutcome::TransportError
-                });
-                return Err(error);
-            }
-        };
-        if let Some(request_id) = transport::provider_request_id(response.headers(), api_format) {
-            tracing::Span::current().record("provider_request_id", request_id);
-        }
-        let status = response.status();
-        capture.record_response(status.as_u16(), response.headers());
-        record_provider_status(observation, status);
-        let mut downstream = Response::new(Body::empty());
-        *downstream.status_mut() = status;
-        *downstream.headers_mut() = transport::response_headers(response.headers(), api_format);
-        *downstream.body_mut() = transport::relay(
-            response,
-            api_format.provider().as_str(),
-            permit.deadline,
-            self.limits.execution.stall_timeout,
-            (permit, context, reservation),
-            capture,
-        );
-        Ok(downstream)
+            })
     }
 
     /// Relay a gateway-built response body under the execution deadlines, holding
@@ -373,6 +455,118 @@ impl ProviderTransport {
         }
         Ok(())
     }
+}
+
+/// Log a failed attempt with its connection; the span keeps the last target.
+fn record_failed_attempt(target: &ProviderConnection, reason: &'static str) {
+    tracing::warn!(
+        reason,
+        connection_id = target.id(),
+        "upstream attempt failed; failing over to the next target"
+    );
+}
+
+/// What one upstream attempt decided.
+enum AttemptOutcome {
+    FailOver(ProviderError),
+    Relay(DownstreamResponse),
+    Done(Result<Response<Body>, ProviderError>),
+}
+
+/// Headers were accepted; the stream now owns the execution.
+struct DownstreamResponse {
+    response: Response<Body>,
+    upstream_response: reqwest::Response,
+}
+
+/// Classify one attempt. Transport errors, first-byte timeouts, 429 and 5xx
+/// fail over while another target remains; a 4xx is relayed unchanged.
+fn handle_attempt_response(
+    response: Result<reqwest::Response, ProviderError>,
+    target: &ProviderConnection,
+    has_next_target: bool,
+    observation: &RequestObservation,
+    api_format: ApiFormat,
+    breakers: Option<&crate::breaker::CircuitBreakers>,
+    capture: &mut ExecutionCapture,
+) -> AttemptOutcome {
+    // Failover-class outcomes count against the target even on the last one.
+    let record_failure = || {
+        if let Some(breakers) = breakers {
+            breakers.record_failure(target.id());
+        }
+    };
+    match response {
+        Ok(response) => {
+            if let Some(request_id) = transport::provider_request_id(response.headers(), api_format)
+            {
+                tracing::Span::current().record("provider_request_id", request_id);
+            }
+            let status = response.status();
+            // Only the relayed response is recorded on the capture.
+            let failover = status.as_u16() == 429 || status.is_server_error();
+            if failover {
+                record_failure();
+            } else if let Some(breakers) = breakers {
+                breakers.record_success(target.id());
+            }
+            if failover && has_next_target {
+                record_failed_attempt(
+                    target,
+                    if status.as_u16() == 429 {
+                        "rate_limited"
+                    } else {
+                        "server_error"
+                    },
+                );
+                return AttemptOutcome::FailOver(ProviderError::Transport);
+            }
+            capture.record_response(status.as_u16(), response.headers());
+            record_provider_status(observation, status);
+            let mut downstream = Response::new(Body::empty());
+            *downstream.status_mut() = status;
+            *downstream.headers_mut() = transport::response_headers(response.headers(), api_format);
+            AttemptOutcome::Relay(DownstreamResponse {
+                response: downstream,
+                upstream_response: response,
+            })
+        }
+        Err(error) => {
+            // Only the terminal attempt finishes the capture.
+            let failover = matches!(error, ProviderError::Transport | ProviderError::Timeout);
+            if failover {
+                record_failure();
+            }
+            if failover && has_next_target {
+                record_failed_attempt(
+                    target,
+                    if matches!(error, ProviderError::Timeout) {
+                        "timeout"
+                    } else {
+                        "connect_error"
+                    },
+                );
+                return AttemptOutcome::FailOver(error);
+            }
+            capture.finish(if matches!(error, ProviderError::Timeout) {
+                RelayOutcome::Timeout
+            } else {
+                RelayOutcome::TransportError
+            });
+            AttemptOutcome::Done(Err(error))
+        }
+    }
+}
+
+/// The caller's body for one attempt. The last target takes the original, so
+/// it is freed before that attempt is sent.
+fn attempt_body(original: &mut Option<Bytes>, last: bool) -> Result<Bytes, ProviderError> {
+    if last {
+        original.take()
+    } else {
+        original.clone()
+    }
+    .ok_or(ProviderError::Configuration)
 }
 
 /// The host of `base_url` when it is an IP literal, without brackets.
@@ -455,9 +649,9 @@ pub(crate) fn model_range(body: &[u8]) -> Result<Range<usize>, ProviderError> {
 
 /// The credential header, or none for a keyless custom connection.
 fn provider_credential(
-    context: &ResolvedRequestContext,
+    connection: &ProviderConnection,
 ) -> Result<Option<(HeaderName, HeaderValue)>, ProviderError> {
-    let (name, value) = match context.connection().credential() {
+    let (name, value) = match connection.credential() {
         ProviderCredential::Bearer("") => return Ok(None),
         ProviderCredential::Bearer(token) => (header::AUTHORIZATION, format!("Bearer {token}")),
         ProviderCredential::XApiKey(key) => (HeaderName::from_static("x-api-key"), key.to_owned()),

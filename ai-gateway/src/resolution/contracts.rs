@@ -320,6 +320,9 @@ impl IngestionGrant {
 struct ResolutionResponse {
     version: u8,
     connection: ProviderConnection,
+    /// Fallback targets in failover order; Web sends them only for aliases.
+    #[serde(default)]
+    fallbacks: Vec<ProviderConnection>,
     attribution: RequestAttribution,
     #[serde(deserialize_with = "string_enum")]
     ingestion_mode: IngestionMode,
@@ -344,6 +347,10 @@ fn string_enum<'de, D: Deserializer<'de>, T: DeserializeOwned>(
 impl ResolvedRequestContext {
     pub fn connection(&self) -> &ProviderConnection {
         &self.0.connection
+    }
+    /// Ordered fallback targets after the primary; empty for a plain connection.
+    pub fn fallbacks(&self) -> &[ProviderConnection] {
+        &self.0.fallbacks
     }
     pub fn attribution(&self) -> &RequestAttribution {
         &self.0.attribution
@@ -423,22 +430,9 @@ pub(super) fn decode(
         serde_json::from_slice(bytes).map_err(|_| ResolutionError::InvalidResponse)?;
     let connection = &response.connection;
     let attribution = &response.attribution;
-    let provider = connection.provider;
     if response.version != 1
         || connection.api_format != expected_format
-        || !provider.supports(connection.api_format)
-        || !match provider.official_origin() {
-            // An official provider's credential only ever goes to its own origin.
-            Some(origin) => connection.base_url == origin,
-            None => valid_connection_origin(&connection.base_url),
-        }
-        // A custom connection may omit its key entirely; the other providers
-        // always carry one.
-        || (provider != Provider::Custom
-            && (!provider.accepts(connection.credential())
-                || !valid_token(connection.credential().secret())))
-        || (provider == Provider::Custom
-            && !valid_optional_token(connection.credential()))
+        || !valid_target(connection, expected_format)
         || !valid_ingestion(&response, now)
         || [
             connection.id.as_str(),
@@ -454,7 +448,36 @@ pub(super) fn decode(
     {
         return Err(ResolutionError::InvalidResponse);
     }
+    if response
+        .fallbacks
+        .iter()
+        .any(|fallback| !valid_target(fallback, expected_format))
+    {
+        return Err(ResolutionError::InvalidResponse);
+    }
     Ok(ResolvedRequestContext(response))
+}
+
+/// The rules every target must meet: matching format, the provider's origin,
+/// and a credential scheme the provider accepts.
+fn valid_target(connection: &ProviderConnection, expected_format: ApiFormat) -> bool {
+    let provider = connection.provider;
+    connection.api_format == expected_format
+        && provider.supports(connection.api_format)
+        && match provider.official_origin() {
+            // An official provider's credential only ever goes to its own origin.
+            Some(origin) => connection.base_url == origin,
+            None => valid_connection_origin(&connection.base_url),
+        }
+        && match provider {
+            // Only a custom connection may omit its key.
+            Provider::Custom => valid_optional_token(connection.credential()),
+            _ => {
+                provider.accepts(connection.credential())
+                    && valid_token(connection.credential().secret())
+            }
+        }
+        && !connection.provider_model.trim().is_empty()
 }
 
 /// A custom connection's origin must be a plain http(s) URL; the egress policy

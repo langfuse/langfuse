@@ -42,6 +42,34 @@ export const GatewayResolveResponseSchema = z
         ]),
       })
       .strict(),
+    // Ordered fallback targets for the same model, primary excluded.
+    // Defaulted so a Web that predates fallback still parses.
+    fallbacks: z
+      .array(
+        z
+          .object({
+            id: z.string(),
+            name: z.string(),
+            provider: z.enum(gatewayProviderIds),
+            provider_model: z.string(),
+            api_format: GatewayApiFormatSchema,
+            base_url: z.url(),
+            auth: z.union([
+              z
+                .object({ type: z.literal("Bearer"), token: z.string() })
+                .strict(),
+              z
+                .object({
+                  type: z.literal("x-api-key"),
+                  header: z.literal("x-api-key"),
+                  value: z.string(),
+                })
+                .strict(),
+            ]),
+          })
+          .strict(),
+      )
+      .default([]),
     attribution: z
       .object({
         organization_id: z.string(),

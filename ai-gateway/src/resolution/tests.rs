@@ -789,6 +789,21 @@ async fn rejects_connections_whose_provider_format_origin_and_credential_disagre
             "/connection/base_url",
             json!("https://api.anthropic.com/v1/"),
         ),
+        ("/connection/base_url", json!("not a url")),
+        ("/connection/base_url", json!("ftp://api.anthropic.com/v1")),
+        (
+            "/connection/base_url",
+            json!("https://user:pass@api.anthropic.com/v1"),
+        ),
+        (
+            "/connection/base_url",
+            json!("https://api.anthropic.com/v1?x=1"),
+        ),
+        (
+            "/connection/base_url",
+            json!("https://api.anthropic.com/v1#frag"),
+        ),
+        ("/connection/base_url", json!("")),
         (
             "/connection/auth",
             json!({"type": "Bearer", "token": "provider-key"}),
@@ -822,6 +837,119 @@ async fn rejects_connections_whose_provider_format_origin_and_credential_disagre
 }
 
 #[tokio::test]
+async fn accepts_ordered_fallback_connections() {
+    // Each alias target carries its own upstream model.
+    let mut body = success("project-1", "provider-token");
+    body["connection"]["api_format"] = json!("openai.chat-completions");
+    body["fallbacks"] = json!([
+        {"id": "connection-2", "name": "secondary", "provider": "custom",
+         "provider_model": "GLM-5.3-Flash", "api_format": "openai.chat-completions",
+         "base_url": "http://10.3.24.39:8000/v1", "auth": {"type": "Bearer", "token": ""}},
+        {"id": "connection-3", "provider": "openai",
+         "provider_model": "gpt-4.1", "api_format": "openai.chat-completions",
+         "base_url": "https://api.openai.com/v1", "auth": {"type": "Bearer", "token": "k"}}
+    ]);
+    let web = FakeWeb::start(move |_| {
+        let body = body.clone();
+        async move { response(body) }
+    })
+    .await;
+    let context = web
+        .control_plane()
+        .resolve_at(
+            GATEWAY_KEY,
+            ApiFormat::OpenAiChatCompletions,
+            "glm-5.3",
+            NOW_TIME,
+            REQUEST_ID,
+        )
+        .await
+        .unwrap();
+    assert_eq!(context.fallbacks().len(), 2);
+    assert_eq!(context.fallbacks()[0].id(), "connection-2");
+    assert_eq!(context.fallbacks()[1].provider_model(), "gpt-4.1");
+}
+
+#[tokio::test]
+async fn rejects_an_invalid_fallback_target() {
+    // One broken target invalidates the whole resolution.
+    let mutations = [
+        // A wrong format: the fallback would not serve this request.
+        |body: &mut Value| body["fallbacks"][0]["api_format"] = json!("anthropic.messages"),
+        // A non-http(s) origin.
+        |body: &mut Value| body["fallbacks"][0]["base_url"] = json!("ftp://10.3.24.39:8000/v1"),
+        // A credential scheme the provider does not accept.
+        |body: &mut Value| {
+            body["fallbacks"][0]["auth"] =
+                json!({"type": "x-api-key", "header": "x-api-key", "value": "k"});
+        },
+        // An empty upstream model.
+        |body: &mut Value| body["fallbacks"][0]["provider_model"] = json!("  "),
+    ];
+    for mutate in mutations {
+        let mut body = success("project-1", "provider-token");
+        body["connection"]["api_format"] = json!("openai.chat-completions");
+        body["fallbacks"] = json!([
+            {"id": "connection-2", "provider": "custom",
+             "provider_model": "GLM-5.3-Flash", "api_format": "openai.chat-completions",
+             "base_url": "http://10.3.24.39:8000/v1", "auth": {"type": "Bearer", "token": ""}}
+        ]);
+        mutate(&mut body);
+        assert_invalid_context_for(body, ApiFormat::OpenAiChatCompletions).await;
+    }
+}
+
+#[tokio::test]
+async fn pins_official_providers_to_their_official_origin() {
+    // An official connection elsewhere would send its key to that host.
+    for base_url in [
+        "https://attacker.example/v1",
+        "http://10.3.24.39:8000/v1",
+        "http://api.openai.com/v1",
+        "https://api.openai.com.attacker.example/v1",
+        "https://api.openai.com/v1/",
+        "https://api.anthropic.com/v1",
+    ] {
+        let mut body = success("project-1", "provider-token");
+        body["connection"]["base_url"] = json!(base_url);
+        assert_invalid_context_for(body, ApiFormat::OpenAiResponses).await;
+    }
+    // A fallback is held to the same rule.
+    let mut body = success("project-1", "provider-token");
+    body["connection"]["api_format"] = json!("openai.chat-completions");
+    body["fallbacks"] = json!([
+        {"id": "connection-2", "provider": "openai",
+         "provider_model": "gpt-4.1", "api_format": "openai.chat-completions",
+         "base_url": "https://attacker.example/v1", "auth": {"type": "Bearer", "token": "k"}}
+    ]);
+    assert_invalid_context_for(body, ApiFormat::OpenAiChatCompletions).await;
+}
+
+#[tokio::test]
+async fn tolerates_a_web_that_sends_no_fallbacks() {
+    // The field is optional: an older Web keeps resolving single connections.
+    let body = success("project-1", "provider-token");
+
+    let web = FakeWeb::start(move |_| {
+        let body = body.clone();
+        async move { response(body) }
+    })
+    .await;
+    let context = web
+        .control_plane()
+        .resolve_at(
+            GATEWAY_KEY,
+            ApiFormat::OpenAiResponses,
+            "primary:gpt-4.1",
+            NOW_TIME,
+            REQUEST_ID,
+        )
+        .await
+        .unwrap();
+    assert!(context.fallbacks().is_empty());
+}
+
+#[tokio::test]
 async fn rejects_incompatible_or_incomplete_execution_contexts() {
     let mutations = [
         ("/version", json!(2)),
@@ -832,12 +960,8 @@ async fn rejects_incompatible_or_incomplete_execution_contexts() {
         ("/ingestion_mode", json!({"usage": null})),
         ("/connection/provider", json!("anthropic")),
         ("/connection/api_format", json!("openai.chatcompletions")),
-        ("/connection/base_url", json!("https://attacker.example/v1")),
-        (
-            "/connection/base_url",
-            json!("https://api.openai.com.attacker.example/v1"),
-        ),
-        ("/connection/base_url", json!("http://api.openai.com/v1")),
+        ("/connection/base_url", json!("not a url")),
+        ("/connection/base_url", json!("ftp://api.openai.com/v1")),
         (
             "/connection/base_url",
             json!("https://api.openai.com/v1?redirect=elsewhere"),
