@@ -56,6 +56,8 @@ import { useGatewayLaunchTarget } from "@/src/features/ai-gateway/hooks/useGatew
 import { useGatewaySettingsAccess } from "@/src/features/ai-gateway/hooks/useGatewaySettingsAccess";
 import { getContextualFeatureFlags } from "@/src/features/feature-flags/utils";
 import { gatewayOnlyLanding } from "@/src/features/organizations/utils/gatewayOnlyLanding";
+import { OrganizationSettingsTile } from "@/src/features/organizations/components/OrganizationSettingsTile/OrganizationSettingsTile";
+import { useGatewayMemberStatus } from "@/src/features/organizations/hooks/useGatewayMemberStatus";
 
 const lastTraceLabel = (lastTraceAt: Date | string | null | undefined) =>
   lastTraceAt
@@ -381,7 +383,7 @@ const SingleOrganizationProjectOverviewTile = ({
   );
 };
 
-/** OrganizationProjects lists the org's projects, or points to its settings when the user has none */
+/** OrganizationProjects lists the org's projects, or points to its settings (gateway-only members: the gateway) when the user has none */
 const OrganizationProjects = ({
   org,
   search,
@@ -389,55 +391,33 @@ const OrganizationProjects = ({
   org: Organization;
   search?: string;
 }) => {
-  if (org.projects.length === 0) {
-    return <OrganizationSettingsTile orgId={org.id} />;
-  }
-  return <OrganizationProjectTiles org={org} search={search} />;
-};
-
-/** OrganizationSettingsTile links to the org's settings, and to project creation when allowed */
-const OrganizationSettingsTile = ({ orgId }: { orgId: string }) => {
+  const session = useSession();
   const canCreateProject = useHasOrganizationAccess({
-    organizationId: orgId,
+    organizationId: org.id,
     scope: "projects:create",
   });
 
+  if (org.projects.length > 0) {
+    return <OrganizationProjectTiles org={org} search={search} />;
+  }
+  if (gatewayOnlyLanding(session.data, org.id)?.canUseGateway === true) {
+    return <ConnectedGatewayMemberTile org={org} />;
+  }
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="text-base">No projects</CardTitle>
-        <CardDescription>
-          <NoProjectsDescription canCreateProject={canCreateProject} />
-        </CardDescription>
-      </CardHeader>
-      <CardFooter className="gap-2">
-        {canCreateProject && (
-          <Button asChild>
-            <Link href={createProjectRoute(orgId)}>
-              <PlusIcon size="base" __rawClassName="mr-2" aria-hidden="true" />
-              New project
-            </Link>
-          </Button>
-        )}
-        <Button asChild variant="secondary">
-          <Link href={`/organization/${orgId}/settings`}>
-            <Settings size="base" __rawClassName="mr-2" aria-hidden="true" />
-            Organization settings
-          </Link>
-        </Button>
-      </CardFooter>
-    </Card>
+    <OrganizationSettingsTile
+      orgId={org.id}
+      orgName={org.name}
+      state={canCreateProject ? "noProjects" : "noProjectAccess"}
+    />
   );
 };
 
-/** NoProjectsDescription explains an empty project list by whether the user can create projects */
-const NoProjectsDescription = ({
-  canCreateProject,
-}: {
-  canCreateProject: boolean;
-}) => {
-  if (canCreateProject) return <>This organization has no projects yet.</>;
-  return <>You don&apos;t have access to any projects in this organization.</>;
+/** ConnectedGatewayMemberTile loads the member's gateway status into the tile */
+const ConnectedGatewayMemberTile = ({ org }: { org: Organization }) => {
+  const state = useGatewayMemberStatus(org.id);
+  return (
+    <OrganizationSettingsTile orgId={org.id} orgName={org.name} state={state} />
+  );
 };
 
 export const OrganizationProjectOverview = () => {
