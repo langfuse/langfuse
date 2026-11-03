@@ -9,11 +9,13 @@ import {
   type QueryType,
 } from "../types";
 import { QueryBuilder } from "./queryBuilder";
+import { shouldSkipScoresDedup } from "../../../server/queries/clickhouse-sql/query-options";
 
 // QueryBuilder.build checks the OTEL FINAL optimization before filter lowering.
 // Mock it so this stays unit-level and does not need ClickHouse.
 vi.mock("../../../server/queries/clickhouse-sql/query-options", () => ({
   shouldSkipObservationsFinal: vi.fn().mockResolvedValue(false),
+  shouldSkipScoresDedup: vi.fn().mockReturnValue(false),
 }));
 
 const baseQuery = {
@@ -52,13 +54,14 @@ describe("scores-listable-count view (internal-only, powers ScoresOutlierStrip's
     expect(Object.keys(view.measures)).toEqual(["count"]);
   });
 
-  it("compiles a query whose count(*) is unguarded (covers every listable type)", async () => {
+  it("compiles a query whose count is unguarded (covers every listable type)", async () => {
     const { query: compiledQuery, parameters } = await new QueryBuilder(
       undefined,
       "v1",
     ).build(baseQuery, "test-project");
 
-    expect(compiledQuery).toContain("count(*)");
+    expect(compiledQuery).toMatch(/count\(\(1\)\) as count_count/);
+    expect(compiledQuery).not.toContain("countIf");
     expect(compiledQuery).toContain("scores_listable_count.data_type IN");
     // The segment's data_type allow-list is a bound parameter, not inlined SQL.
     const dataTypeParam = Object.values(parameters).find(
@@ -69,4 +72,101 @@ describe("scores-listable-count view (internal-only, powers ScoresOutlierStrip's
     expect(dataTypeParam).toEqual([...LISTABLE_SCORE_TYPES]);
     expect(dataTypeParam).not.toContain("CORRECTION");
   });
+});
+
+describe("scores views for projects that skip scores dedup", () => {
+  it.each([
+    ["v1", "scores-numeric", "scores_numeric"],
+    ["v1", "scores-categorical", "scores_categorical"],
+    ["v1", "scores-boolean", "scores_boolean"],
+    ["v1", SCORES_LISTABLE_COUNT_VIEW, "scores_listable_count"],
+    ["v2", "scores-numeric", "scores_numeric"],
+    ["v2", "scores-categorical", "scores_categorical"],
+    ["v2", "scores-boolean", "scores_boolean"],
+  ] as const)(
+    "%s %s reads the scores table without FINAL",
+    async (version, view, alias) => {
+      vi.mocked(shouldSkipScoresDedup).mockReturnValueOnce(true);
+
+      const { query: compiledQuery } = await new QueryBuilder(
+        undefined,
+        version,
+      ).build({ ...baseQuery, view }, "test-project");
+
+      expect(compiledQuery).toContain(`FROM scores ${alias}`);
+      expect(compiledQuery).not.toMatch(/\bFINAL\b/);
+    },
+  );
+});
+
+describe("scores views without relation joins", () => {
+  // dataModel.ts declares a separate count measure for each of these views.
+  it.each([
+    "scores-numeric",
+    "scores-categorical",
+    "scores-boolean",
+    SCORES_LISTABLE_COUNT_VIEW,
+  ] as const)(
+    "%s aggregates per time bucket without a per-id subquery",
+    async (view) => {
+      const { query: compiledQuery } = await new QueryBuilder(
+        undefined,
+        "v2",
+      ).build({ ...baseQuery, view }, "test-project");
+
+      expect(compiledQuery).not.toMatch(/FROM\s*\(/);
+      expect(compiledQuery).not.toMatch(/GROUP BY\s+\w+\.project_id/);
+      expect(compiledQuery).toContain("GROUP BY time_dimension");
+    },
+  );
+
+  it.each(["v1", "v2"] as const)(
+    "%s scores-numeric aggregates score values directly",
+    async (version) => {
+      const { query: compiledQuery } = await new QueryBuilder(
+        undefined,
+        version,
+      ).build(
+        {
+          ...baseQuery,
+          view: "scores-numeric",
+          metrics: [
+            { measure: "value", aggregation: "avg" },
+            { measure: "value", aggregation: "min" },
+            { measure: "value", aggregation: "max" },
+          ],
+        } as QueryType,
+        "test-project",
+      );
+
+      expect(compiledQuery).not.toMatch(/FROM\s*\(/);
+      expect(compiledQuery).not.toContain("any(");
+      expect(compiledQuery).toMatch(/avg\(\(?value\)?\) as avg_value/);
+      expect(compiledQuery).toMatch(/min\(\(?value\)?\) as min_value/);
+      expect(compiledQuery).toMatch(/max\(\(?value\)?\) as max_value/);
+    },
+  );
+
+  // A join can match several rows per score (events_core is read without
+  // FINAL), so the per-id subquery has to stay to count each score once.
+  it.each(["v1", "v2"] as const)(
+    "%s keeps the per-id subquery when a dimension joins a trace table",
+    async (version) => {
+      const { query: compiledQuery } = await new QueryBuilder(
+        undefined,
+        version,
+      ).build(
+        {
+          ...baseQuery,
+          view: "scores-numeric",
+          dimensions: [{ field: "traceName" }],
+        } as QueryType,
+        "test-project",
+      );
+
+      expect(compiledQuery).toContain("INNER JOIN");
+      expect(compiledQuery).toMatch(/FROM\s*\(/);
+      expect(compiledQuery).toMatch(/GROUP BY\s+\w+\.project_id, \w+\.id/);
+    },
+  );
 });

@@ -3,7 +3,7 @@ import type * as SharedServer from "@langfuse/shared/src/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
-  authorize: vi.fn(),
+  session: vi.fn(),
   createOutput: vi.fn(),
   createToolSet: vi.fn(),
   findConnection: vi.fn(),
@@ -13,11 +13,14 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock("@/src/env.mjs", () => ({
-  env: { LANGFUSE_BLOCKED_USERIDS_CHATCOMPLETION: new Map() },
+  env: {
+    LANGFUSE_BLOCKED_USERIDS_CHATCOMPLETION: new Map(),
+    NEXT_PUBLIC_DEMO_PROJECT_ID: "demo-project",
+  },
 }));
 
-vi.mock("@/src/features/playground/server/authorizeRequest", () => ({
-  authorizeRequestOrThrow: mocks.authorize,
+vi.mock("@/src/server/auth", () => ({
+  getServerAuthSessionForRequest: mocks.session,
 }));
 
 vi.mock("@opentelemetry/api", () => ({
@@ -87,10 +90,20 @@ function createRequest(body: Record<string, unknown>) {
   });
 }
 
+function createSession(projectId = baseBody.projectId, admin = false) {
+  return {
+    user: {
+      id: "user-1",
+      admin,
+      organizations: [{ projects: [{ id: projectId, role: "ADMIN" }] }],
+    },
+  };
+}
+
 describe("chatCompletionHandler", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mocks.authorize.mockResolvedValue({ userId: "user-1" });
+    mocks.session.mockResolvedValue(createSession());
     mocks.findConnection.mockResolvedValue({
       id: "connection-1",
       secretKey: "encrypted-key",
@@ -100,6 +113,34 @@ describe("chatCompletionHandler", () => {
       connection: { secretKey: "encrypted-key" },
       messages: [{ role: "user", content: "Hello" }],
     });
+  });
+
+  it("blocks demo project admins before resolving credentials or calling a model", async () => {
+    const projectId = "demo-project";
+    mocks.session.mockResolvedValue(createSession(projectId));
+    mocks.generate.mockResolvedValue({ text: "Hello back", finalStep: {} });
+
+    const response = await chatCompletionHandler(
+      createRequest({ ...baseBody, projectId }),
+    );
+
+    expect(response.status).toBe(403);
+    expect(mocks.findConnection).not.toHaveBeenCalled();
+    expect(mocks.generate).not.toHaveBeenCalled();
+    expect(mocks.stream).not.toHaveBeenCalled();
+  });
+
+  it("allows internal admins to run demo completions", async () => {
+    const projectId = "demo-project";
+    mocks.session.mockResolvedValue(createSession(projectId, true));
+    mocks.generate.mockResolvedValue({ text: "Hello back", finalStep: {} });
+
+    const response = await chatCompletionHandler(
+      createRequest({ ...baseBody, projectId }),
+    );
+
+    expect(response.status).toBe(200);
+    expect(mocks.generate).toHaveBeenCalledOnce();
   });
 
   it("maps a native text result to the existing playground JSON response", async () => {

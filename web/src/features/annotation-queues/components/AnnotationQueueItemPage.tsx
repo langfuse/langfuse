@@ -1,6 +1,7 @@
+/* eslint-disable @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 import { Card } from "@/src/components/ui/card";
 import { Skeleton } from "@/src/components/ui/skeleton";
-import { useHasProjectAccess } from "@/src/features/rbac";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { api } from "@/src/utils/api";
 import {
   AnnotationQueueStatus,
@@ -33,14 +34,14 @@ import {
   isInteractiveTarget,
   isOpenDialogPresent,
   isTypingTarget,
-} from "@/src/features/scores";
+} from "@/src/features/scores/lib/keyboardShortcuts";
 import { useAnnotationQueueData } from "./shared/hooks/useAnnotationQueueData";
 import { useAnnotationObjectData } from "./shared/hooks/useAnnotationObjectData";
 import { TraceAnnotationProcessor } from "./processors/TraceAnnotationProcessor";
 import { SessionAnnotationProcessor } from "./processors/SessionAnnotationProcessor";
 import { ObjectNotFoundCard } from "@/src/features/annotation-queues/components/ObjectNotFoundCard";
 import { useSession } from "next-auth/react";
-import { SplashScreen } from "@/src/components/ui/splash-screen";
+import { SplashScreen } from "@/src/components/ui/SplashScreen";
 
 // A single row in the keyboard-shortcuts cheatsheet: label on the left, one or
 // more <KeyboardShortcut> glyphs on the right.

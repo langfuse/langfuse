@@ -10,7 +10,7 @@
  * and is wrapped in an outer select that filters on its output instead.
  *
  * Runs before tenancy, so the tenancy pass prepends `project_id` ahead of the
- * flag: `where project_id = … and is_deleted = … and <caller predicates>`.
+ * flag: `where project_id = … and is_deleted = 0 and <caller predicates>`.
  */
 import {
   AliasNode,
@@ -284,7 +284,7 @@ function notDeleted(relation: SoftDeleteRelation): OperationNode {
   return BinaryOperationNode.create(
     qualifiedFlag(relation),
     OperatorNode.create("="),
-    ValueNode.create(0),
+    ValueNode.createImmediate(0),
   );
 }
 

@@ -110,6 +110,16 @@
       "outputLogs": "errors-only",
       "outputs": []
     },
+    "web#typecheck": {
+      "dependsOn": ["db:generate", "^build"],
+      "cache": true,
+      "outputLogs": "errors-only",
+      "outputs": [],
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "$TURBO_ROOT$/scripts/vitest/ci-reporter.ts"
+      ]
+    },
     "test-client": {
       "dependsOn": ["db:generate", "^build"],
       "cache": true
@@ -192,11 +202,11 @@
         "$TURBO_ROOT$/scripts/vitest/ci-reporter.ts"
       ]
     },
-    // ESLint does not load the native addon, so avoid compiling it during lint.
+    // Oxlint does not load the native addon, so avoid compiling it during lint.
     "worker#lint": {
       "dependsOn": [
         "@langfuse/shared#build",
-        "@repo/eslint-config#build",
+        "@repo/oxlint-config#build",
         "@repo/eslint-plugin#build",
         "@repo/langfuse-skills#build",
         "@repo/typescript-config#build"

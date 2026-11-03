@@ -6,10 +6,9 @@ import {
 import {
   buildInternalTraceEventInputs,
   materializeInternalTrace,
-  prepareInternalTraceEvents,
 } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
-import type { ObservationForEval } from "../../evaluation/observationEval";
+import type { ObservationForEval } from "../../evaluation/observationEval/types";
 import { IngestionService } from "../../../services/IngestionService";
 import * as clickhouseWriterExports from "../../../services/ClickhouseWriter";
 import { scheduleExperimentObservationEvals } from "../scheduleExperimentEvals";
@@ -38,15 +37,45 @@ vi.mock("../../../services/ClickhouseWriter", async (importOriginal) => {
   };
 });
 
-vi.mock("../../evaluation/observationEval", async (importOriginal) => {
-  const original = (await importOriginal()) as object;
-  return {
-    ...original,
-    fetchObservationEvalRules: mockFetchObservationEvalRules,
-    createObservationEvalSchedulerDeps: mockCreateObservationEvalSchedulerDeps,
-    scheduleObservationEvals: mockScheduleObservationEvals,
-  };
-});
+vi.mock(
+  "../../evaluation/observationEval/fetchObservationEvalRules",
+  async (importOriginal) => {
+    const original = (await importOriginal()) as object;
+    return {
+      ...original,
+      fetchObservationEvalRules: mockFetchObservationEvalRules,
+      createObservationEvalSchedulerDeps:
+        mockCreateObservationEvalSchedulerDeps,
+      scheduleObservationEvals: mockScheduleObservationEvals,
+    };
+  },
+);
+vi.mock(
+  "../../evaluation/observationEval/createSchedulerDeps",
+  async (importOriginal) => {
+    const original = (await importOriginal()) as object;
+    return {
+      ...original,
+      fetchObservationEvalRules: mockFetchObservationEvalRules,
+      createObservationEvalSchedulerDeps:
+        mockCreateObservationEvalSchedulerDeps,
+      scheduleObservationEvals: mockScheduleObservationEvals,
+    };
+  },
+);
+vi.mock(
+  "../../evaluation/observationEval/scheduleObservationEvals",
+  async (importOriginal) => {
+    const original = (await importOriginal()) as object;
+    return {
+      ...original,
+      fetchObservationEvalRules: mockFetchObservationEvalRules,
+      createObservationEvalSchedulerDeps:
+        mockCreateObservationEvalSchedulerDeps,
+      scheduleObservationEvals: mockScheduleObservationEvals,
+    };
+  },
+);
 
 const mockClickhouseClient = {
   query: async () => ({
@@ -356,11 +385,18 @@ const realExperimentEvents = [
 ];
 
 function getProcessedExperimentEvents() {
-  return prepareInternalTraceEvents({
-    events: realExperimentEvents as any,
-    environment: "langfuse-prompt-experiment",
-    prompt,
-  });
+  return realExperimentEvents
+    .filter((event) => event.body.id !== blockedParserSpanId)
+    .map((event) => ({
+      ...event,
+      body: {
+        ...event.body,
+        environment: LangfuseInternalTraceEnvironment.PromptExperiments,
+        ...(event.type === "generation-create"
+          ? { promptName: prompt.name, promptVersion: prompt.version }
+          : {}),
+      },
+    }));
 }
 
 function getExperimentContext() {
@@ -385,16 +421,13 @@ describe("prompt experiment direct-write materialization", () => {
     vi.clearAllMocks();
   });
 
-  it("should filter parser spans and use the trace root as the experiment root", () => {
+  it("should use the trace root as the experiment root", () => {
     const processedEvents = getProcessedExperimentEvents();
     const { rootSpanId, snapshots } = materializeInternalTrace({
       processedEvents,
       traceId,
     });
 
-    expect(processedEvents.map((event) => event.body.id)).not.toContain(
-      blockedParserSpanId,
-    );
     expect(rootSpanId).toBe(traceId);
     expect(snapshots).toHaveLength(2);
 

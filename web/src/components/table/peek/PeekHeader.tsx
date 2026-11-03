@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 import { useLayoutEffect, useRef, useState } from "react";
 import { HeaderActionButton } from "@/src/components/HeaderActionButton";
 import { Button } from "@/src/components/ui/button";
@@ -14,10 +15,8 @@ import {
 } from "@/src/components/ui/tooltip";
 import { type LangfuseItemType } from "@/src/components/ItemBadge";
 import { EntityTitle } from "@/src/components/EntityTitle";
-import {
-  DetailPageNav,
-  type ListEntry,
-} from "@/src/features/navigate-detail-pages";
+import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNav";
+import type { ListEntry } from "@/src/features/navigate-detail-pages/DetailPageListsProvider";
 import {
   ExternalLink,
   Maximize2,

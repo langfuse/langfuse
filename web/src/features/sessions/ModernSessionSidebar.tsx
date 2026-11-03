@@ -1,4 +1,4 @@
-/* eslint-disable no-nested-ternary */
+/* eslint-disable no-nested-ternary, @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 import React, { useCallback, useMemo, useRef } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import {
@@ -37,11 +37,9 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/src/components/ui/tooltip";
-import { InlineFilterState } from "@/src/features/filters";
-import {
-  ComposerTokens,
-  filterStateToQueryText,
-} from "@/src/features/search-bar";
+import { InlineFilterState } from "@/src/features/filters/components/filter-builder";
+import { ComposerTokens } from "@/src/features/search-bar/components/ComposerTokens";
+import { filterStateToQueryText } from "@/src/features/search-bar/lib/filter-state-to-query";
 
 import { formatIntervalSeconds } from "@/src/utils/dates";
 import { cn } from "@/src/utils/tailwind";

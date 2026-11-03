@@ -6,18 +6,22 @@ import {
 import { TRPCError } from "@trpc/server";
 import { ForbiddenError, StringNoHTML } from "@langfuse/shared";
 import { Role, Prisma, type PrismaClient } from "@langfuse/shared/src/db";
-import { canToggleV4 } from "@/src/features/events/server";
+import { canToggleV4 } from "@/src/features/events/lib/v4Rollout";
 import { V4_PREVIEW_LABEL } from "@/src/features/events/lib/v4PreviewLabel";
 import { env } from "@/src/env.mjs";
-import { getSfdcService } from "@/src/ee/features/sfdc-sync/server";
+import { getSfdcService } from "@/src/ee/features/sfdc-sync/server/sfdcService";
 import {
   isAdminOnlyFeaturePreviewFlag,
   personalFeaturePreviewFlags,
-  setUserFeaturePreview,
-  hasInternalAccess,
   INTERNAL_FEATURE_FLAG,
-} from "@/src/features/feature-flags/server";
+} from "@/src/features/feature-flags/available-flags";
+import { setUserFeaturePreview } from "@/src/features/feature-flags/server/organizationFeatureFlags";
+import { hasInternalAccess } from "@/src/features/feature-flags/utils";
 import { advanceSessionsExpiredAtForUser } from "@/src/features/auth/lib/sessionExpiration";
+import {
+  deleteUserBoundApiKeys,
+  evictRevokedApiKeys,
+} from "@/src/features/ai-gateway/server/apiKey/userBoundApiKeys";
 
 const updateDisplayNameSchema = z.object({
   name: StringNoHTML.min(1, "Name cannot be empty").max(
@@ -195,7 +199,7 @@ export const userAccountRouter = createTRPCRouter({
 
     // Wrap check and delete in a serializable transaction to prevent race conditions
     // when organization owners are removed concurrently
-    const sfdcRemovals = await ctx.prisma.$transaction(
+    const { sfdcRemovals, revokedKeys } = await ctx.prisma.$transaction(
       async (tx) => {
         // Verify user can be deleted
         const { canDelete } = await checkUserCanBeDeleted(userId, tx);
@@ -220,20 +224,27 @@ export const userAccountRouter = createTRPCRouter({
           select: { orgId: true },
         });
 
+        const revokedKeys = await deleteUserBoundApiKeys(tx, { userId });
+
         // Delete the user (cascade will handle related records)
         await tx.user.delete({
           where: { id: userId },
         });
 
-        return memberships.map(({ orgId }) => ({
-          orgId,
-          email: user?.email,
-        }));
+        return {
+          sfdcRemovals: memberships.map(({ orgId }) => ({
+            orgId,
+            email: user?.email,
+          })),
+          revokedKeys,
+        };
       },
       {
         isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
       },
     );
+
+    await evictRevokedApiKeys(revokedKeys, { userId });
 
     // SFDC: remove every org-member bridge the cascade just deleted. After
     // commit so a rolled-back delete never desyncs SFDC; removeUser never

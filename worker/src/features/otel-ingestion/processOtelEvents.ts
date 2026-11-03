@@ -7,12 +7,12 @@ import {
   traceException,
 } from "@langfuse/shared/src/server";
 import { env } from "../../env";
+import { fetchObservationEvalRules } from "../evaluation/observationEval/fetchObservationEvalRules";
 import {
-  fetchObservationEvalRules,
   isObservationAllowedForQueuedObservationEvals,
   scheduleObservationEvals,
-  createObservationEvalSchedulerDeps,
-} from "../evaluation/observationEval";
+} from "../evaluation/observationEval/scheduleObservationEvals";
+import { createObservationEvalSchedulerDeps } from "../evaluation/observationEval/createSchedulerDeps";
 import { trackTraceBatchActivity } from "../traceBatching/traceBatching";
 import {
   createDirectOtelMediaTargets,

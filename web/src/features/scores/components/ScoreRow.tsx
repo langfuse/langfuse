@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 import * as React from "react";
 import {
   type ScoreSourceType,
@@ -13,7 +14,8 @@ import {
 import { api } from "@/src/utils/api";
 import { JSONView } from "@/src/components/ui/CodeJsonViewer";
 import { Skeleton } from "@/src/components/ui/skeleton";
-import { type BaselineDiff, DiffLabel } from "@/src/features/datasets";
+import type { BaselineDiff } from "@/src/features/datasets/lib/calculateBaselineDiff";
+import { DiffLabel } from "@/src/features/datasets/components/DiffLabel";
 
 const resolveScoreValue = (aggregate: AggregatedScoreData): string => {
   if (aggregate.type === "NUMERIC") {

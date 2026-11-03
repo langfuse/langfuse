@@ -13,7 +13,7 @@ vi.mock("@/src/features/projects/hooks", () => ({
 vi.mock("@/src/features/organizations/hooks", () => ({
   useLangfuseCloudRegion: () => ({ isLangfuseCloud: false }),
 }));
-vi.mock("@/src/features/posthog-analytics", () => ({
+vi.mock("@/src/features/posthog-analytics/usePostHogClientCapture", () => ({
   usePostHogClientCapture: () => vi.fn(),
 }));
 vi.mock("@/src/utils/api", () => ({

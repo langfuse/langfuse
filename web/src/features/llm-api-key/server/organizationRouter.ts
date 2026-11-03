@@ -1,7 +1,7 @@
 import { z } from "zod";
 import type { Session } from "next-auth";
 
-import { throwIfNoOrganizationAccess } from "@/src/features/rbac";
+import { throwIfNoOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import {
   CreateOrganizationLlmApiKey,
   UpdateOrganizationLlmApiKey,

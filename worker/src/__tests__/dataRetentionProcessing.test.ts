@@ -31,7 +31,12 @@ import { isEnterpriseLicenseAvailable } from "@langfuse/shared/src/server/ee/lic
 import { handleDataRetentionProcessingJob } from "../ee/dataRetention/handleDataRetentionProcessingJob";
 import { Job } from "bullmq";
 import { createApiKey } from "@langfuse/shared/src/server/auth/apiKeys";
-import { ProjectId, SystemRoleId, UserId } from "@langfuse/shared/rbac";
+import {
+  OrganizationId,
+  ProjectId,
+  SystemRoleId,
+  UserId,
+} from "@langfuse/shared/rbac";
 import { InAppAgentRunStatus } from "@langfuse/shared/in-app-agent";
 import { InAppAgentRetentionCleaner } from "../features/in-app-agent-retention-cleaner";
 
@@ -133,7 +138,8 @@ describe("DataRetentionProcessingJob", () => {
         },
       });
       const key = await createApiKey(prisma, {
-        owner: ProjectId(projectId),
+        tenant: OrganizationId(orgId),
+        scope: ProjectId(projectId),
         role: SystemRoleId("LEGACY_PROJECT_API_KEY"),
         createdBy: UserId(creator.id),
         isInAppAgentKey: true,
@@ -1083,19 +1089,25 @@ describe("DataRetentionProcessingJob", () => {
       expect(trace).toBeDefined();
     });
 
-    it("should delete expired data on a self-hosted enterprise license", async () => {
-      const traceId = `${randomUUID()}-trace-ee`;
-      await seedExpiredTrace(traceId);
+    it.each([
+      ["enterprise", "langfuse_ee_some-key"],
+      ["government", "lf_gov_some-key"],
+    ])(
+      "should delete expired data on a self-hosted %s license",
+      async (label, licenseKey) => {
+        const traceId = `${randomUUID()}-trace-${label}`;
+        await seedExpiredTrace(traceId);
 
-      await withSelfHostedLicense("langfuse_ee_some-key", async () => {
-        await handleDataRetentionProcessingJob({
-          data: { payload: { projectId, retention: 7 } },
-        } as Job);
-      });
+        await withSelfHostedLicense(licenseKey, async () => {
+          await handleDataRetentionProcessingJob({
+            data: { payload: { projectId, retention: 7 } },
+          } as Job);
+        });
 
-      // Pins that the guard is the license and not an unrelated skip.
-      const trace = await getTraceById({ traceId, projectId });
-      expect(trace).toBeUndefined();
-    });
+        // Pins that the guard is the license and not an unrelated skip.
+        const trace = await getTraceById({ traceId, projectId });
+        expect(trace).toBeUndefined();
+      },
+    );
   });
 });

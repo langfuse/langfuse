@@ -2,6 +2,22 @@
 
 import { hasOrganizationAccess } from "./checkOrganizationAccess";
 import { hasProjectAccess } from "./checkProjectAccess";
+import { type ProjectScope } from "@langfuse/shared";
+import { type Role } from "@langfuse/shared/src/db";
+import { type Session } from "next-auth";
+
+vi.mock("@/src/env.mjs", () => ({
+  env: { NEXT_PUBLIC_DEMO_PROJECT_ID: "demo-project" },
+}));
+
+function projectSession(projectId: string, role: Role, admin = false) {
+  return {
+    user: {
+      admin,
+      organizations: [{ projects: [{ id: projectId, role }] }],
+    },
+  } as Session;
+}
 
 describe("RBAC access checks", () => {
   it("ignores inherited role/admin properties for organization access", () => {
@@ -91,6 +107,53 @@ describe("RBAC access checks", () => {
       hasProjectAccess({
         role: "MEMBER",
         scope: "llmTools:CUD",
+      }),
+    ).toBe(true);
+  });
+
+  it("reserves demo LLM operations for internal admins even with project OWNER role", () => {
+    const projectId = "demo-project";
+    const session = projectSession(projectId, "OWNER");
+    const paidScopes: ProjectScope[] = [
+      "playground:execute",
+      "topics:CUD",
+      "evaluator:CUD",
+      "evaluationRule:CUD",
+      "promptExperiments:CUD",
+      "evalDefaultModel:CUD",
+      "llmApiKeys:create",
+      "llmApiKeys:update",
+    ];
+    for (const scope of paidScopes) {
+      expect(hasProjectAccess({ session, projectId, scope }), scope).toBe(
+        false,
+      );
+      expect(
+        hasProjectAccess({
+          session: projectSession(projectId, "OWNER", true),
+          projectId,
+          scope,
+        }),
+        scope,
+      ).toBe(true);
+    }
+  });
+
+  it("preserves demo viewer read access", () => {
+    const projectId = "demo-project";
+    const session = projectSession(projectId, "VIEWER");
+    for (const scope of ["topics:read", "llmApiKeys:read"] as const) {
+      expect(hasProjectAccess({ session, projectId, scope }), scope).toBe(true);
+    }
+  });
+
+  it("preserves normal project LLM permissions", () => {
+    const projectId = "project-1";
+    expect(
+      hasProjectAccess({
+        session: projectSession(projectId, "MEMBER"),
+        projectId,
+        scope: "playground:execute",
       }),
     ).toBe(true);
   });

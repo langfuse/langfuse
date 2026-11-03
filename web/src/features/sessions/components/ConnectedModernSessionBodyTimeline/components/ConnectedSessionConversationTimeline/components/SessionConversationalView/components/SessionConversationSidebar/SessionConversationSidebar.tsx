@@ -8,7 +8,8 @@ import {
   type UIEvent,
 } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { ChevronDown, Search } from "@langfuse/icons";
+import { ChevronDown, Filter, Search } from "@langfuse/icons";
+import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { type Observation } from "@langfuse/shared";
 import { Input } from "@/src/components/ui/input";
 import { SessionToolTooltip } from "@/src/features/sessions/components/ConnectedModernSessionBodyTimeline/components/ConnectedSessionConversationTimeline/components/SessionConversationalView/components/SessionToolTooltip/SessionToolTooltip";
@@ -19,6 +20,7 @@ import {
   IDLE_GAP_THRESHOLD_SECONDS,
 } from "@/src/features/sessions/sessionIdleGap";
 import { cn } from "@/src/utils/tailwind";
+import { HighlightedText } from "@/src/components/HighlightedText/HighlightedText";
 import { groupConsecutiveTools } from "@/src/features/sessions/components/ConnectedModernSessionBodyTimeline/components/ConnectedSessionConversationTimeline/components/SessionConversationalView/fns/groupConsecutiveTools";
 
 export type SessionConversationSidebarTrace = {
@@ -72,8 +74,15 @@ export function SessionConversationSidebar(
         isLoadingTranscripts: boolean;
         transcriptLoadError: boolean;
       }
-  ) & { searchVisibility?: "hidden" },
+  ) & {
+    searchVisibility?: "hidden";
+    customization?: {
+      activeFilterCount: number;
+      onCustomizeView: () => void;
+    };
+  },
 ) {
+  const { customization } = props;
   const traces = props.state === "loaded" ? props.traces : EMPTY_TRACES;
   const activeTraceId =
     props.state === "loaded" ? props.activeTraceId : undefined;
@@ -237,11 +246,11 @@ export function SessionConversationSidebar(
       >
         <div
           className={cn(
-            "shrink-0 p-4",
+            "flex shrink-0 items-center gap-1 p-4",
             props.searchVisibility === "hidden" && "hidden",
           )}
         >
-          <div className="relative min-w-0">
+          <div className="relative min-w-0 flex-1">
             <Search
               size="base"
               color="tertiary"
@@ -255,6 +264,23 @@ export function SessionConversationSidebar(
               className="h-7 rounded-sm bg-transparent pl-7 font-mono text-xs"
             />
           </div>
+          {customization && (
+            <Tooltip
+              label={`Customize view${customization.activeFilterCount > 0 ? ` (${customization.activeFilterCount})` : ""}`}
+            >
+              {({ getTriggerProps }) => (
+                <button
+                  {...getTriggerProps()}
+                  type="button"
+                  className="border-input bg-background hover:bg-accent hover:text-accent-foreground focus-visible:ring-ring inline-flex size-7 shrink-0 items-center justify-center rounded-sm border focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none"
+                  aria-label="Customize view"
+                  onClick={customization.onCustomizeView}
+                >
+                  <Filter size="sm" aria-hidden="true" />
+                </button>
+              )}
+            </Tooltip>
+          )}
         </div>
         <div className="flex min-h-0 flex-1 flex-col gap-2 px-4 pt-0.5 pb-4">
           {[0, 1, 2].map((index) => (
@@ -287,11 +313,11 @@ export function SessionConversationSidebar(
     >
       <div
         className={cn(
-          "relative z-10 shrink-0 p-4",
+          "relative z-10 flex shrink-0 items-center gap-1 p-4",
           props.searchVisibility === "hidden" && "hidden",
         )}
       >
-        <div className="relative min-w-0">
+        <div className="relative min-w-0 flex-1">
           <Search
             size="base"
             color="tertiary"
@@ -308,6 +334,23 @@ export function SessionConversationSidebar(
             className="h-7 rounded-sm bg-transparent pl-7 font-mono text-xs"
           />
         </div>
+        {customization && (
+          <Tooltip
+            label={`Customize view${customization.activeFilterCount > 0 ? ` (${customization.activeFilterCount})` : ""}`}
+          >
+            {({ getTriggerProps }) => (
+              <button
+                {...getTriggerProps()}
+                type="button"
+                className="border-input bg-background hover:bg-accent hover:text-accent-foreground focus-visible:ring-ring inline-flex size-7 shrink-0 items-center justify-center rounded-sm border focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none"
+                aria-label="Customize view"
+                onClick={customization.onCustomizeView}
+              >
+                <Filter size="sm" aria-hidden="true" />
+              </button>
+            )}
+          </Tooltip>
+        )}
         {isListScrolled ? (
           <div
             aria-hidden="true"
@@ -427,7 +470,25 @@ export function SessionConversationSidebar(
                             className="min-w-0 flex-1 truncate text-[13px] font-bold"
                             title={trace.name ?? "Trace"}
                           >
-                            {trace.name ?? "Trace"}
+                            <HighlightedText
+                              text={trace.name ?? "Trace"}
+                              query={searchQuery}
+                            >
+                              {(parts) =>
+                                parts.map(({ text, isMatch }, index) =>
+                                  isMatch ? (
+                                    <mark
+                                      key={index}
+                                      className="bg-find-match-background text-foreground"
+                                    >
+                                      {text}
+                                    </mark>
+                                  ) : (
+                                    text
+                                  ),
+                                )
+                              }
+                            </HighlightedText>
                           </span>
                         </button>
                         <button
@@ -631,34 +692,30 @@ export function SessionConversationSidebar(
                                               ),
                                           );
                                     const text = row.label.slice(start, end);
-                                    const normalizedText = text.toLowerCase();
                                     if (start > 0) excerpt.push("…");
-                                    let position = 0;
-                                    while (position < text.length) {
-                                      const nextMatch = normalizedText.indexOf(
-                                        normalizedQuery,
-                                        position,
-                                      );
-                                      if (nextMatch === -1) {
-                                        excerpt.push(text.slice(position));
-                                        break;
-                                      }
-                                      excerpt.push(
-                                        text.slice(position, nextMatch),
-                                      );
-                                      excerpt.push(
-                                        <mark
-                                          key={nextMatch}
-                                          className="bg-find-match-background text-foreground"
-                                        >
-                                          {text.slice(
-                                            nextMatch,
-                                            nextMatch + searchQuery.length,
-                                          )}
-                                        </mark>,
-                                      );
-                                      position = nextMatch + searchQuery.length;
-                                    }
+                                    excerpt.push(
+                                      <HighlightedText
+                                        key="text"
+                                        text={text}
+                                        query={searchQuery}
+                                      >
+                                        {(parts) =>
+                                          parts.map(
+                                            ({ text, isMatch }, index) =>
+                                              isMatch ? (
+                                                <mark
+                                                  key={index}
+                                                  className="bg-find-match-background text-foreground"
+                                                >
+                                                  {text}
+                                                </mark>
+                                              ) : (
+                                                text
+                                              ),
+                                          )
+                                        }
+                                      </HighlightedText>,
+                                    );
                                     if (end < row.label.length)
                                       excerpt.push("…");
                                   }

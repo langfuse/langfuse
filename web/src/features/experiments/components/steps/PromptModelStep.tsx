@@ -23,7 +23,7 @@ import {
 } from "@/src/components/ui/popover";
 import { CheckIcon, PlusIcon, EyeIcon, TriangleAlert } from "@langfuse/icons";
 import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
-import { CreateOrEditLLMSchemaDialog } from "@/src/features/playground";
+import { CreateOrEditLLMSchemaDialog } from "@/src/features/playground/page/components/CreateOrEditLLMSchemaDialog";
 import {
   hasPromptToolStructuredOutputConflict,
   PROMPT_TOOL_STRUCTURED_OUTPUT_CONFLICT_MESSAGE,
@@ -139,6 +139,7 @@ export const PromptModelStep: React.FC<PromptModelStepProps> = ({
                 <PopoverTrigger asChild>
                   <Button
                     variant="outline"
+                    // eslint-disable-next-line jsx-a11y/role-has-required-aria-props
                     role="combobox"
                     aria-expanded={open}
                     className="w-2/3 justify-between gap-2 px-2 font-normal"
@@ -199,6 +200,7 @@ export const PromptModelStep: React.FC<PromptModelStepProps> = ({
                   <Button
                     disabled={!selectedPromptName}
                     variant="outline"
+                    // eslint-disable-next-line jsx-a11y/role-has-required-aria-props
                     role="combobox"
                     className="w-1/3 justify-between gap-2 px-2 font-normal"
                   >
@@ -337,6 +339,7 @@ export const PromptModelStep: React.FC<PromptModelStepProps> = ({
                       <PopoverTrigger asChild>
                         <Button
                           variant="outline"
+                          // eslint-disable-next-line jsx-a11y/role-has-required-aria-props
                           role="combobox"
                           aria-expanded={schemaPopoverOpen}
                           className="flex-1 justify-between gap-2 px-2 font-normal"

@@ -1,4 +1,3 @@
-/* eslint-disable no-nested-ternary */
 import { type FilterState } from "../../types";
 import {
   coerceLegacyEmptyMetadataFilters,
@@ -190,13 +189,14 @@ export function decodeFiltersGeneric(query: string): FilterState {
       type === "categoryOptions"
     ) {
       // Split on unescaped pipe characters only, then unescape each value
-      parsedValue = decodedValue
-        ? splitOnUnescapedPipe(decodedValue).map(unescapePipeInValue)
-        : type === "arrayOptions"
-          ? [] // Empty array for arrayOptions — empty strings are not valid array values (e.g., tags)
-          : decodedValue === ""
-            ? [""] // allow empty strings for stringOptions (i.e, filter for empty trace name)
-            : [decodedValue];
+      if (decodedValue) {
+        parsedValue =
+          splitOnUnescapedPipe(decodedValue).map(unescapePipeInValue);
+      } else if (type === "arrayOptions") {
+        parsedValue = [];
+      } else {
+        parsedValue = [""];
+      }
     } else if (type === "boolean" || type === "booleanObject") {
       parsedValue = decodedValue === "true";
     } else {

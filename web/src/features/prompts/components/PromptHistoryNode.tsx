@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 import { type RouterOutputs } from "@/src/utils/api";
 import { useRef, useEffect } from "react";
 import { PromptVersionDiffDialogContent } from "./PromptVersionDiffDialogContent";

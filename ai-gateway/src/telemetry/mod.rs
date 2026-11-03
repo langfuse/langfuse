@@ -31,7 +31,7 @@ use crate::{
 };
 use batch::{BatchPolicy, Batches, Pending};
 use context::GenerationContext;
-pub(crate) use context::take_agent_client_metadata;
+pub(crate) use context::agent_client_metadata;
 use otlp::Uploader;
 use retry::RetryPolicy;
 use secrecy::{ExposeSecret, SecretString};
@@ -233,8 +233,7 @@ impl Telemetry {
         }
     }
 
-    /// Stop accepting work, flush open batches, and finish uploads within the existing
-    /// process drain deadline.
+    /// Stop accepting work, flush open batches, and finish uploads before `deadline`.
     pub async fn shutdown(&self, deadline: Instant) {
         let worker = self
             .0

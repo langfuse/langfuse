@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { z } from "zod";
 import {
   DEFAULT_TRACE_ENVIRONMENT,
@@ -5,6 +6,7 @@ import {
   extractObservationVariables,
   logger,
   recordIncrement,
+  buildEvalExecutionData,
 } from "@langfuse/shared/src/server";
 import { isEvalTargetEnvironmentAllowed } from "../isEvalTargetEnvironmentAllowed";
 import {
@@ -29,7 +31,7 @@ import {
   EvalFailureReason,
   UnrecoverableEvalFailureError,
 } from "../evalFailureErrors";
-import { buildEvalExecutionData } from "@langfuse/shared/src/server";
+
 import {
   completeEvalExecution,
   type EvalExecutionResult,
@@ -39,7 +41,7 @@ import {
   type EvalExecutionDeps,
 } from "../evalExecutionDeps";
 import { runLLMAsJudgeEvaluation } from "../evalService";
-import { executeCodeBasedEvaluation } from "../codeBased";
+import { executeCodeBasedEvaluation } from "../codeBased/executeCodeBasedEvaluation";
 import { runDecisionModelEvaluation } from "../decisionModel/runDecisionModelEvaluation";
 import { getEvalS3StorageClient } from "../s3StorageClient";
 import { type ObservationForEval } from "./types";
@@ -267,6 +269,7 @@ export async function processObservationEval(
       targetTraceId: job.jobInputTraceId,
       targetObservationId: job.jobInputObservationId,
       targetDatasetItemId: job.jobInputDatasetItemId,
+      batchActionId: event.batchActionId,
     }),
     deps: deps.evalExecutionDeps,
   };

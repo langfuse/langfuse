@@ -5,8 +5,9 @@ import { CreateProjectMemberDialog } from "@/src/features/rbac/components/Create
 import {
   useEntitlementLimit,
   useHasEntitlement,
-} from "@/src/features/entitlements";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+} from "@/src/features/entitlements/hooks";
+import { default as useIsFeatureEnabled } from "@/src/features/feature-flags/hooks/useIsFeatureEnabled";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { api } from "@/src/utils/api";
@@ -41,7 +42,21 @@ export function CreateProjectMemberDialogController({
     projectId: project?.id,
     scope: "projectMembers:CUD",
   });
+  const canManageOrgOwnership = useHasOrganizationAccess({
+    organizationId: orgId,
+    scope: "organizationMembers:manageOwnership",
+  });
+  // Org owners outrank any project role override they hold.
+  const canManageProjectOwnership =
+    useHasProjectAccess({
+      projectId: project?.id,
+      scope: "projectMembers:manageOwnership",
+    }) || canManageOrgOwnership;
   const hasProjectRoleEntitlement = useHasEntitlement("rbac-project-roles");
+  const isAiGatewayEnabled = useIsFeatureEnabled("aiGateway", {
+    enableForAdmins: false,
+    organizationId: orgId,
+  });
   const hasOnlySingleProjectAccess =
     !hasOrgAccess && hasProjectAccess && hasProjectRoleEntitlement;
   const hasAccess = hasOrgAccess || hasOnlySingleProjectAccess;
@@ -90,6 +105,9 @@ export function CreateProjectMemberDialogController({
           project={project}
           hasOnlySingleProjectAccess={hasOnlySingleProjectAccess}
           hasProjectRoleEntitlement={hasProjectRoleEntitlement}
+          canManageOrgOwnership={canManageOrgOwnership}
+          canManageProjectOwnership={canManageProjectOwnership}
+          isAiGatewayEnabled={isAiGatewayEnabled}
           isPending={createProjectMemberMutation.isPending}
           createProjectMember={(values) => {
             capture(

@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import Link from "next/link";
 import { useMemo } from "react";
 
@@ -26,16 +27,23 @@ export function GatewayModelsTable({
   data,
   noResultsMessage,
   pagination,
+  onAfterModelCopy,
 }: {
   organizationId: string;
   canManageGateway: boolean;
   data: TableProps<GatewayModelRow>["data"];
   noResultsMessage: string;
   pagination: PaginationBarProps;
+  onAfterModelCopy?: (model: GatewayModelRow) => void;
 }) {
   const columns = useMemo(
-    () => createGatewayModelsColumns({ organizationId, canManageGateway }),
-    [canManageGateway, organizationId],
+    () =>
+      createGatewayModelsColumns({
+        organizationId,
+        canManageGateway,
+        onAfterModelCopy,
+      }),
+    [canManageGateway, onAfterModelCopy, organizationId],
   );
 
   return (
@@ -54,16 +62,20 @@ export function GatewayModelsTable({
 function createGatewayModelsColumns({
   organizationId,
   canManageGateway,
-}: {
-  organizationId: string;
-  canManageGateway: boolean;
-}): LangfuseColumnDef<GatewayModelRow>[] {
+  onAfterModelCopy,
+}: Pick<
+  Parameters<typeof GatewayModelsTable>[0],
+  "organizationId" | "canManageGateway" | "onAfterModelCopy"
+>): LangfuseColumnDef<GatewayModelRow>[] {
   return [
     createTextTableColumn<GatewayModelRow>({
       accessorKey: "id",
       header: "Model",
       size: 360,
-      trailingAction: { type: "copy-to-clipboard" },
+      trailingAction: {
+        type: "copy-to-clipboard",
+        onAfterCopy: ({ row }) => onAfterModelCopy?.(row.original),
+      },
     }),
     {
       accessorKey: "connectionName",

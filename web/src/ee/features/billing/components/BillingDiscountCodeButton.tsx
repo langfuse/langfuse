@@ -1,4 +1,4 @@
-/* eslint-disable @repo/no-abstracted-overlay-trigger */
+/* eslint-disable @repo/no-abstracted-overlay-trigger, @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 import { useState } from "react";
 import { Button } from "@/src/components/ui/button";
 import {
@@ -13,7 +13,8 @@ import {
 } from "@/src/components/ui/dialog";
 import { Input } from "@/src/components/ui/input";
 import { api } from "@/src/utils/api";
-import { showSuccessToast, showToast } from "@/src/features/notifications";
+import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
+import { showToast } from "@/src/features/notifications/showToast";
 import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
 import { nanoid } from "nanoid";
 

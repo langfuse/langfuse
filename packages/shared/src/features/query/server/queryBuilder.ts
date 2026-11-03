@@ -1,6 +1,9 @@
 import { randomUUID } from "crypto";
 import { type z } from "zod";
-import { shouldSkipObservationsFinal } from "../../../server/queries/clickhouse-sql/query-options";
+import {
+  shouldSkipObservationsFinal,
+  shouldSkipScoresDedup,
+} from "../../../server/queries/clickhouse-sql/query-options";
 import {
   bindUtcDateTimeParam,
   FilterList,
@@ -8,21 +11,20 @@ import {
   type Filter,
 } from "../../../server/queries/clickhouse-sql/clickhouse-filter";
 import { createFilterFromFilterState } from "../../../server/queries/clickhouse-sql/factory";
-import type {
-  QueryType,
-  ViewDeclarationType,
-  metricAggregations,
-  granularities,
-  ViewVersion,
-  views,
-} from "../types";
 import {
+  type QueryType,
+  type ViewDeclarationType,
+  type metricAggregations,
+  type granularities,
+  type ViewVersion,
+  type views,
   query as queryModel,
   getValidAggregationsForMeasureType,
   SCORES_LISTABLE_COUNT_VIEW,
 } from "../types";
+
 import { getViewDeclaration } from "../dataModel";
-import { InvalidRequestError } from "../../../errors";
+import { InvalidRequestError } from "../../../errors/InvalidRequestError";
 import { env } from "../../../env";
 import { NULL_IF_EMPTY_RE } from "./nullIfEmptyFilter";
 import {
@@ -796,6 +798,7 @@ export class QueryBuilder {
     filterList: FilterList,
     query: QueryType,
     skipObservationsFinal: boolean,
+    skipScoresFinal: boolean,
   ) {
     const relationJoins = [];
     for (const relationTableName of relationTables) {
@@ -809,7 +812,8 @@ export class QueryBuilder {
       // Conditionally add FINAL - skip for observations if flag is set, and respect per-relation useFinal
       const shouldUseFinal =
         (relation.useFinal ?? true) &&
-        !(relation.name === "observations" && skipObservationsFinal);
+        !(relation.name === "observations" && skipObservationsFinal) &&
+        !(relation.name === "scores" && skipScoresFinal);
       const alias =
         relation.name !== relationTableName ? ` AS ${relationTableName}` : "";
       let joinStatement = `INNER JOIN ${relation.name}${alias}${shouldUseFinal ? " FINAL" : ""} ${relation.joinConditionSql}`;
@@ -1564,6 +1568,7 @@ export class QueryBuilder {
 
     // Check if we should skip FINAL modifier for observations (OTEL optimization)
     const skipObservationsFinal = await shouldSkipObservationsFinal(projectId);
+    const skipScoresFinal = shouldSkipScoresDedup(projectId);
     let view = this.getViewDeclaration(query.view);
 
     // Events table never needs FINAL modifier (already deduplicated)
@@ -1576,6 +1581,11 @@ export class QueryBuilder {
       view = {
         ...view,
         baseCte: "observations", // Remove FINAL (was "observations FINAL")
+      };
+    } else if (view.baseCte.startsWith("scores ") && skipScoresFinal) {
+      view = {
+        ...view,
+        baseCte: view.baseCte.replace(/\s+FINAL$/, ""),
       };
     }
 
@@ -1654,6 +1664,7 @@ export class QueryBuilder {
         filterList,
         query,
         skipObservationsFinal,
+        skipScoresFinal,
       );
       fromClause += ` ${relationJoins.join(" ")}`;
     }
@@ -1718,8 +1729,13 @@ export class QueryBuilder {
 
     // Check if single-level optimization is applicable
     // Note: Relation tables are OK as long as measures have aggs configuration
+    // A join can match several rows per score, so scores views with relation
+    // tables need the per-id inner GROUP BY to count each score once.
+    const isScoresView = this.actualTableName(view) === "scores";
     const canOptimize =
-      enableSingleLevelOptimization &&
+      (isScoresView
+        ? relationTables.size === 0
+        : enableSingleLevelOptimization) &&
       this.canUseSingleLevelQuery(appliedDimensions, appliedMetrics);
 
     // Build GROUP BY clause (used by both single-level and two-level queries)

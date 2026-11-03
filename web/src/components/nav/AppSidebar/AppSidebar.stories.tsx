@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import type { ComponentProps } from "react";
 import { Activity, BookOpen, Home, Settings } from "@langfuse/icons";
 import { expect, fn } from "storybook/test";

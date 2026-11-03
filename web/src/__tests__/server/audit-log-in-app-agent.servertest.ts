@@ -1,10 +1,15 @@
 import { randomUUID } from "crypto";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { auditLog } from "@/src/features/audit-logs/server";
+import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { prisma, AuditLogRecordType } from "@langfuse/shared/src/db";
 import { createApiKey } from "@langfuse/shared/src/server/auth/apiKeys";
 import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
-import { ProjectId, SystemRoleId, UserId } from "@langfuse/shared/rbac";
+import {
+  OrganizationId,
+  ProjectId,
+  SystemRoleId,
+  UserId,
+} from "@langfuse/shared/rbac";
 
 describe("in-app agent audit logging", () => {
   afterEach(() => {
@@ -12,7 +17,7 @@ describe("in-app agent audit logging", () => {
   });
 
   it("stores the creator on in-app-agent MCP keys", async () => {
-    const { projectId } = await createOrgProjectAndApiKey();
+    const { orgId, projectId } = await createOrgProjectAndApiKey();
     const user = await prisma.user.create({
       data: {
         email: `${randomUUID()}@test.com`,
@@ -21,7 +26,8 @@ describe("in-app agent audit logging", () => {
     });
 
     const mcpApiKey = await createApiKey(prisma, {
-      owner: ProjectId(projectId),
+      tenant: OrganizationId(orgId),
+      scope: ProjectId(projectId),
       role: SystemRoleId("LEGACY_PROJECT_API_KEY"),
       createdBy: UserId(user.id),
       name: "In-app agent MCP session",
@@ -52,7 +58,8 @@ describe("in-app agent audit logging", () => {
     });
 
     const mcpApiKey = await createApiKey(prisma, {
-      owner: ProjectId(projectId),
+      tenant: OrganizationId(orgId),
+      scope: ProjectId(projectId),
       role: SystemRoleId("LEGACY_PROJECT_API_KEY"),
       createdBy: UserId(user.id),
       name: "In-app agent MCP session",

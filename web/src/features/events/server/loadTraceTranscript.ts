@@ -7,8 +7,9 @@ import {
   normalizeIO,
   type Transcript,
 } from "@langfuse/shared/src/server";
+import { sessionTraceFilterSchema, type FilterState } from "@langfuse/shared";
 
-/** Generations and tools whose I/O one transcript reads at most. */
+/** Bound expensive I/O reads separately from lightweight observation structure. */
 const MAX_TRANSCRIPT_OBSERVATIONS = 1_000;
 const TRANSCRIPT_OBSERVATION_TYPES = new Set(["GENERATION", "TOOL"]);
 
@@ -41,11 +42,60 @@ export async function loadTraceTranscript(trace: {
   timestamp: Date;
   /** Use root observation I/O when no generation/tool transcript exists. */
   fallbackToRootIO?: boolean;
+  filter?: FilterState;
 }): Promise<{ transcript: SessionTranscript | null; cutoff: boolean }> {
+  const filters = sessionTraceFilterSchema.parse(trace.filter ?? []);
+  const { filter: _, ...source } = trace;
+  if (filters.length > 0) {
+    const observationFilters = filters.filter((filter) =>
+      ["name", "type", "level", "metadata", "isRootObservation"].includes(
+        filter.column,
+      ),
+    );
+    const content = await getObservationsForTraceFromEventsTable({
+      ...source,
+      filter: observationFilters,
+      selectIOAndMetadata: true,
+      limit: MAX_TRANSCRIPT_OBSERVATIONS,
+    });
+    const threads = [...content.observations]
+      .sort(
+        (a, b) =>
+          a.startTime.getTime() - b.startTime.getTime() ||
+          a.id.localeCompare(b.id),
+      )
+      .map((observation) => ({
+        conversationHistory: [],
+        currentTurn: {
+          nestingLevel: 0,
+          observations: [{ id: observation.id, traceId: trace.traceId }],
+          messages: normalizeIO({
+            kind: "io",
+            io: {
+              input: observation.input,
+              output: observation.output,
+              metadata: observation.metadata,
+            },
+          }).messages.map((message) => ({
+            ...message,
+            observationId: observation.id,
+            traceId: trace.traceId,
+            startTime: observation.startTime,
+            endTime: observation.endTime,
+            level: observation.level,
+            statusMessage: observation.statusMessage,
+          })),
+        },
+      }));
+    return {
+      transcript: threads.length > 0 ? { threads } : null,
+      cutoff: content.totalCount > MAX_TRANSCRIPT_OBSERVATIONS,
+    };
+  }
   const [structure, content] = await Promise.all([
-    getObservationsForTraceFromEventsTable(trace),
+    getObservationsForTraceFromEventsTable(source),
     getObservationsForTraceFromEventsTable({
-      ...trace,
+      ...source,
       selectIOAndMetadata: true,
       types: ["GENERATION", "TOOL"],
       limit: MAX_TRANSCRIPT_OBSERVATIONS,

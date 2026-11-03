@@ -9,13 +9,13 @@ import { Command, CommandInput } from "@/src/components/ui/command";
 import { Button } from "@/src/components/ui/button";
 import { ChevronUp, ChevronDown, WrapText, Minus, Copy } from "@langfuse/icons";
 import { useJsonViewPreferences } from "@/src/features/traces/components/AdvancedJsonViewer/hooks/useJsonViewPreferences";
-import { type MediaReturnType } from "@/src/features/media";
+import type { MediaReturnType } from "@/src/features/media/validation";
 import { HoverCard } from "@/src/components/design-system/HoverCard/HoverCard";
 import {
   InlineCommentSelectionProvider,
   useInlineCommentSelectionOptional,
   type SelectionData,
-} from "@/src/features/comments/contexts/InlineCommentSelectionContext";
+} from "@/src/features/comments/contexts/InlineCommentSelectionProvider";
 import { CommentableJsonView } from "@/src/features/comments/components/CommentableJsonView";
 import { InlineCommentBubble } from "@/src/features/comments/components/InlineCommentBubble";
 import { type CommentedPathsByField } from "@/src/features/traces/components/AdvancedJsonViewer/utils/commentRanges";
@@ -44,7 +44,7 @@ import {
 // `needsVirtualization` note below.
 const VIRTUALIZATION_THRESHOLD = JSON_VIEW_RENDER_ROW_LIMIT;
 
-// Light values are Tailwind red-50 / yellow-50, matching StatusMessageSection.
+// Light values are Tailwind red-50 / yellow-50, matching status IOSection tones.
 function statusMessageBackgroundColor(
   level: ObservationStatusMessage["level"],
   isDark: boolean,
@@ -53,7 +53,7 @@ function statusMessageBackgroundColor(
     return isDark ? "var(--light-red)" : "oklch(97.1% 0.013 17.38)";
   if (level === "WARNING")
     return isDark ? "var(--light-yellow)" : "oklch(98.7% 0.026 102.212)";
-  return "hsl(var(--surface-output))";
+  return "hsl(var(--surface-section))";
 }
 
 /**
@@ -163,7 +163,7 @@ function IOPreviewJSONInner({
   const { inputBgColor, outputBgColor, metadataBgColor } = useMemo(
     () => ({
       inputBgColor: isDark ? "rgb(15, 23, 42)" : "rgb(249, 252, 255)", // Dark slate vs light blue
-      outputBgColor: "hsl(var(--surface-output))",
+      outputBgColor: "hsl(var(--surface-section))",
       metadataBgColor: isDark ? "rgb(30, 20, 40)" : "rgb(253, 251, 254)", // Dark purple vs light purple
     }),
     [isDark],

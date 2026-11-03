@@ -50,6 +50,7 @@ const ARRAY_JOIN_SQL: Record<ArrayJoinNode["variant"], string> = {
 };
 
 const PLAIN_IDENTIFIER = /^[A-Za-z_][A-Za-z0-9_]*$/;
+const TUPLE_INDEX = /^[1-9][0-9]*$/;
 
 const DATE_WRAPPER_FNS = new Set([
   "toDate",
@@ -292,8 +293,8 @@ export class ClickHouseQueryCompiler extends DefaultQueryCompiler {
 
   // Emit identifiers unquoted. `clickhouse format` normalizes to unquoted
   // identifiers, so returning empty wrappers is what keeps raw compiler output
-  // byte-comparable with the golden snapshots. (Column/table names in this
-  // codebase are plain identifiers, so dropping the quotes is safe here.)
+  // byte-comparable with the golden snapshots. Dropping the quotes is safe
+  // because compileUnwrappedIdentifier accepts plain identifiers only.
   protected override getLeftIdentifierWrapper(): string {
     return "";
   }
@@ -303,17 +304,51 @@ export class ClickHouseQueryCompiler extends DefaultQueryCompiler {
   }
 
   /**
+   * Every identifier (column, table, schema, alias, CTE name, `sql.ref`,
+   * `sql.id`) is written unquoted, so a name that is not a plain identifier
+   * would be raw SQL: the alias `x from scores --` comments out the tenancy
+   * predicate after it.
+   */
+  protected override compileUnwrappedIdentifier(node: IdentifierNode): void {
+    assertPlainName(
+      "Identifier",
+      node.name,
+      "Rename it, or list the columns instead of a star.",
+    );
+    super.compileUnwrappedIdentifier(node);
+  }
+
+  /**
+   * A positive integer after a qualifier is ClickHouse tuple element access,
+   * not a column: `x.1` in `mapFilter(x -> positionCaseInsensitive(x.1, …), m)`
+   * reads the key of map entry `x`. It is written as is; every other column
+   * name goes through {@link compileUnwrappedIdentifier}.
+   */
+  protected override visitReference(node: ReferenceNode): void {
+    if (
+      node.table &&
+      ColumnNode.is(node.column) &&
+      TUPLE_INDEX.test(node.column.column.name)
+    ) {
+      this.visitNode(node.table);
+      this.append(`.${node.column.column.name}`);
+      return;
+    }
+    super.visitReference(node);
+  }
+
+  /**
    * Function and aggregate names are written verbatim, so a name that is not
    * a plain identifier would be raw SQL: `fn("tuple(e.input), f")` emits
    * `tuple(e.input), f(…)`.
    */
   protected override visitFunction(node: FunctionNode): void {
-    assertPlainName("Function", node.func);
+    assertPlainName("Function", node.func, "Rename it.");
     super.visitFunction(node);
   }
 
   protected override visitAggregateFunction(node: AggregateFunctionNode): void {
-    assertPlainName("Aggregate function", node.func);
+    assertPlainName("Aggregate function", node.func, "Rename it.");
     super.visitAggregateFunction(node);
   }
 
@@ -362,7 +397,17 @@ export class ClickHouseQueryCompiler extends DefaultQueryCompiler {
     this.append(")");
   }
 
+  /**
+   * A list of `literal(...)` items is inlined, `('a', 'b')`; a list of bound
+   * values binds as one array. Mixing the two is rejected: one array bind
+   * would carry the code constants as params.
+   */
   protected override visitValueList(node: ValueListNode): void {
+    assertNotMixedValueList(node);
+    if (node.values.some(isImmediateValue)) {
+      super.visitValueList(node);
+      return;
+    }
     const values = node.values.map((v) =>
       ValueNode.is(v) ? v.value : undefined,
     );
@@ -522,7 +567,7 @@ export class ClickHouseQueryCompiler extends DefaultQueryCompiler {
   protected override visitCommonTableExpressionName(
     node: CommonTableExpressionNameNode,
   ): void {
-    assertPlainName("CTE", node.table.table.identifier.name);
+    assertPlainName("CTE", node.table.table.identifier.name, "Rename it.");
     super.visitCommonTableExpressionName(node);
   }
 
@@ -835,12 +880,26 @@ function cteBodyScope(scope: Pick<SelectScope, "cte">): SelectScope {
   return { cte: scope.cte, relations: new Map(), aliases: new Map() };
 }
 
-function assertPlainName(kind: string, name: string): void {
+function assertPlainName(kind: string, name: string, fix: string): void {
   if (!PLAIN_IDENTIFIER.test(name)) {
     throw new QueryCompileError(
-      `${kind} name "${name}" is not a plain identifier; the compiler writes it verbatim into the SQL.`,
+      `${kind} name "${name}" is not a plain identifier ([A-Za-z_][A-Za-z0-9_]*); the compiler writes it verbatim into the SQL. ${fix}`,
     );
   }
+}
+
+function assertNotMixedValueList(node: ValueListNode): void {
+  const hasLiteral = node.values.some(isImmediateValue);
+  const hasBound = node.values.some((v) => ValueNode.is(v) && !v.immediate);
+  if (hasLiteral && hasBound) {
+    throw new QueryCompileError(
+      "An IN list mixes literal(...) items with bound values. Wrap every item in literal(...) or none.",
+    );
+  }
+}
+
+function isImmediateValue(node: OperationNode): boolean {
+  return ValueNode.is(node) && node.immediate === true;
 }
 
 /**

@@ -54,7 +54,7 @@ exports[`golden: events.getEventsExactFilterOptionsForColumns > scope=scoredTrac
                 option -> (tupleElement(option, 2) > 0),
                 [
                     tuple('false', countIf(NOT ((e.parent_span_id = '') OR (e.is_app_root = true))), toUInt64(0)),
-                    tuple('true', countIf((e.parent_span_id = '') OR (e.is_app_root = true)), toUInt64(0))
+                    tuple('true', countIf(((e.parent_span_id = '') OR (e.is_app_root = true))), toUInt64(0))
                 ]
             ) AS isRootObservationTopOptions,
             any(e._sample_factor) AS sample_factor
@@ -191,7 +191,7 @@ exports[`golden: events.getEventsExactFilterOptionsForColumns > scope=unset — 
                 option -> (tupleElement(option, 2) > 0),
                 [
                     tuple('false', countIf(NOT ((e.parent_span_id = '') OR (e.is_app_root = true))), toUInt64(0)),
-                    tuple('true', countIf((e.parent_span_id = '') OR (e.is_app_root = true)), toUInt64(0))
+                    tuple('true', countIf(((e.parent_span_id = '') OR (e.is_app_root = true))), toUInt64(0))
                 ]
             ) AS isRootObservationTopOptions,
             any(e._sample_factor) AS sample_factor

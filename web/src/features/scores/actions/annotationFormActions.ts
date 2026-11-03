@@ -44,6 +44,8 @@ type Dependencies = {
   createScore: (data: CreateAnnotationScoreData) => Promise<unknown>;
   updateScore: (data: UpdateAnnotationScoreData) => Promise<unknown>;
   deleteScore: (data: { id: string; projectId: string }) => Promise<unknown>;
+  /** Saved scores are immutable: value and comment changes to them are ignored. */
+  editsDisabled?: boolean;
 };
 
 const SAVED_STATUS_VISIBLE_MS = 3_000;
@@ -59,6 +61,7 @@ export function createAnnotationFormActions({
   createScore,
   updateScore,
   deleteScore,
+  editsDisabled = false,
 }: Dependencies) {
   const fields = (): AnnotationScoreFormData[] =>
     form
@@ -234,7 +237,7 @@ export function createAnnotationFormActions({
     stringValue: string | null,
   ) => {
     const field = find(key);
-    if (!field) return;
+    if (!field || (editsDisabled && field.id)) return;
     const config = target.configControl.configs.find(
       (config) => config.id === field.configId,
     );
@@ -529,7 +532,7 @@ export function createAnnotationFormActions({
       comment: string | null,
     ) {
       const field = find(key);
-      if (!field?.id) return;
+      if (!field?.id || editsDisabled) return;
       const next = { ...field, comment };
       const tracked = beginSave(
         comment ? "update_comment" : "delete_comment",

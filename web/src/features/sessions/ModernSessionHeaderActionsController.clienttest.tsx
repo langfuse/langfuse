@@ -49,7 +49,10 @@ function FlatMenu({ items }: { items: DropdownMenuItemDefinition[] }) {
         if (item.type === "submenu") {
           return (
             <div key={item.id}>
-              <div>{item.title}</div>
+              <div>
+                {item.title}
+                {item.internal ? " Internal" : null}
+              </div>
               <FlatMenu items={item.items} />
             </div>
           );
@@ -81,7 +84,7 @@ vi.mock("@/src/components/HeaderActionButton", () => ({
   ),
 }));
 
-vi.mock("@/src/components/publish-object-switch", () => ({
+vi.mock("@/src/components/PublishSessionSwitch", () => ({
   getShareUrl: () => "https://example.com",
   usePublishObject: () => ({
     hasAccess: true,
@@ -112,7 +115,9 @@ describe("ModernSessionHeaderActionsController", () => {
       mockUseSession.mockReturnValue({ data: { user: { admin: true } } });
       render(
         <ModernSessionHeaderActionsController
+          // eslint-disable-next-line react/jsx-curly-brace-presence
           projectId={"project'\\id"}
+          // eslint-disable-next-line react/jsx-curly-brace-presence
           sessionId={"session'\\id"}
           isPublic={false}
         />,
@@ -210,5 +215,20 @@ describe("ModernSessionHeaderActionsController", () => {
     );
 
     expect(onShowInlineToolCallsChange).toHaveBeenCalledWith(true);
+  });
+
+  it("hides the Display submenu when no display settings are provided", () => {
+    render(
+      <ModernSessionHeaderActionsController
+        projectId="project-id"
+        sessionId="session-id"
+        isPublic={false}
+      />,
+    );
+
+    expect(screen.queryByText(/Display/)).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("menuitemcheckbox", { name: "Use root input/output" }),
+    ).not.toBeInTheDocument();
   });
 });

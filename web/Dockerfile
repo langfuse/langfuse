@@ -90,6 +90,14 @@ RUN set -eux; \
     echo "${di_sha256}  /mnt/rootfs/usr/bin/dumb-init" | sha256sum -c -; \
     chmod 0755 /mnt/rootfs/usr/bin/dumb-init
 
+# The UBI EULA requires every image derived from UBI to include it unmodified.
+# The magic-byte check rejects an HTML error page served in its place.
+# Keep in sync with worker/Dockerfile and ai-gateway/Dockerfile.
+RUN mkdir -p /mnt/rootfs/usr/share/licenses/redhat-ubi && \
+    curl -fsSL --retry 5 --retry-all-errors -o /mnt/rootfs/usr/share/licenses/redhat-ubi/EULA_Red_Hat_Universal_Base_Image_English_20190422.pdf \
+    https://www.redhat.com/licenses/EULA_Red_Hat_Universal_Base_Image_English_20190422.pdf && \
+    head -c 5 /mnt/rootfs/usr/share/licenses/redhat-ubi/EULA_Red_Hat_Universal_Base_Image_English_20190422.pdf | grep -qx '%PDF-'
+
 # Bake the non-root user into the rootfs (micro has no shadow-utils).
 RUN echo "nodejs:x:${GID}:" >> /mnt/rootfs/etc/group && \
     echo "nextjs:x:${UID}:${GID}::/home/nextjs:/sbin/nologin" >> /mnt/rootfs/etc/passwd
@@ -104,7 +112,7 @@ RUN npm install -g --prefix /opt/prisma-cli --no-package-lock --no-save prisma@6
 ARG NEXT_PUBLIC_LANGFUSE_CLOUD_REGION
 RUN mkdir -p /opt/dd/node_modules && \
     if [ -n "$NEXT_PUBLIC_LANGFUSE_CLOUD_REGION" ]; then \
-    cd /opt/dd && npm install --no-package-lock --no-save dd-trace@5.109.0; \
+    cd /opt/dd && npm install --no-package-lock --no-save dd-trace@5.131.1; \
     fi
 
 FROM --platform=${BUILDPLATFORM} golang:1.26 AS migrate-builder
@@ -213,6 +221,9 @@ ENV SENTRY_RELEASE=$NEXT_PUBLIC_BUILD_ID
 
 # Copy source code of isolated subworkspace
 COPY --from=pruner /app/out/full/ .
+
+# The web tsconfig includes Vitest config, whose reporter lives outside the pruned workspace.
+COPY scripts/vitest/ci-reporter.ts ./scripts/vitest/ci-reporter.ts
 
 # Keep the documented direct golang-migrate recovery paths available in the
 # production image while maintaining canonical/ as the only authored tree.

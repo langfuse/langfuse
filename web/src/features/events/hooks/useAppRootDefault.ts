@@ -19,11 +19,9 @@ import {
   useBrowserStorageValue,
   writeStorage,
 } from "@/src/features/events/lib/appRootDefaultStorage";
-import {
-  getSdkVersionCapability,
-  useProjectSdkVersionInfo,
-  clearProjectSdkVersionInfo,
-} from "@/src/features/sdk-version";
+import { getSdkVersionCapability } from "@/src/features/sdk-version/lib/sdkVersionCapabilities";
+import { useProjectSdkVersionInfo } from "@/src/features/sdk-version/hooks/useProjectSdkVersionInfo";
+import { clearProjectSdkVersionInfo } from "@/src/features/sdk-version/lib/sdkVersionStorage";
 
 export function useAppRootDefault(params: {
   enabled: boolean;

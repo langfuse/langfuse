@@ -1,5 +1,12 @@
-import { type ComponentProps, useLayoutEffect, useId, useRef } from "react";
-import { Search } from "@langfuse/icons";
+import {
+  type ComponentProps,
+  useLayoutEffect,
+  useId,
+  useRef,
+  useState,
+} from "react";
+import { Filter, Search } from "@langfuse/icons";
+import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { Input } from "@/src/components/ui/input";
 import {
   ResizableHandle,
@@ -38,13 +45,20 @@ export function SessionConversationalView(
         isSearchPending: boolean;
       })
   ) & {
+    customization?: ComponentProps<
+      typeof SessionConversationSidebar
+    >["customization"];
     traces: readonly (ComponentProps<
       typeof SessionConversationTimeline
     >["traces"][number] & { trace: EventSessionTrace })[];
     controller: SessionConversationTimelineController;
   },
 ) {
+  const { customization } = props;
   const transcriptRef = useRef<HTMLDivElement>(null);
+  const [collapsedTraceIds, setCollapsedTraceIds] = useState<Set<string>>(
+    new Set(),
+  );
   const [workspaceRef, workspaceSize] = useElementSize<HTMLDivElement>();
   const showSidebar = (workspaceSize?.width ?? 0) >= 768;
   const { defaultLayout, onLayoutChanged } = useDefaultLayout({
@@ -137,6 +151,15 @@ export function SessionConversationalView(
     return {
       ...item,
       ...entry,
+      isCollapsed: collapsedTraceIds.has(item.trace.id),
+      onToggleCollapsed: () => {
+        setCollapsedTraceIds((current) => {
+          const next = new Set(current);
+          if (next.has(item.trace.id)) next.delete(item.trace.id);
+          else next.add(item.trace.id);
+          return next;
+        });
+      },
       scrollTarget:
         item.scrollTarget?.itemId && item.scrollTarget.itemId !== entry.itemId
           ? null
@@ -199,15 +222,21 @@ export function SessionConversationalView(
             ];
           });
       })();
+      const matchesTraceName =
+        props.searchQuery.length > 0 &&
+        (item.trace.name ?? "")
+          .toLowerCase()
+          .includes(props.searchQuery.toLowerCase());
       const matchingRows =
-        props.searchQuery && transcriptRows
+        props.searchQuery && !matchesTraceName && transcriptRows
           ? transcriptRows.filter((row) =>
               `${row.role} ${row.label}`
                 .toLowerCase()
                 .includes(props.searchQuery.toLowerCase()),
             )
           : transcriptRows;
-      if (props.searchQuery && matchingRows?.length === 0) continue;
+      if (props.searchQuery && !matchesTraceName && matchingRows?.length === 0)
+        continue;
       const threadVisibility =
         item.state.type === "transcript"
           ? getSessionTranscriptThreads(item.state.result.transcript)
@@ -241,6 +270,18 @@ export function SessionConversationalView(
           ...props,
           traces: sidebarTraces,
           activeTraceId: props.controller.activeItemId ?? undefined,
+          onSelect: (...args: Parameters<typeof props.onSelect>) => {
+            const item = timelineItems[args[0]];
+            if (item) {
+              setCollapsedTraceIds((current) => {
+                if (!current.has(item.trace.id)) return current;
+                const next = new Set(current);
+                next.delete(item.trace.id);
+                return next;
+              });
+            }
+            props.onSelect(...args);
+          },
         };
   return (
     <div
@@ -248,7 +289,7 @@ export function SessionConversationalView(
       className="bg-background relative flex min-h-0 flex-1 flex-col overflow-hidden"
     >
       {!showSidebar && (
-        <div className="shrink-0 border-b px-2 py-2.5">
+        <div className="flex shrink-0 items-center gap-1 border-b px-2 py-2.5">
           <DialogController
             renderDialog={({ closeDialog }) => (
               <Dialog title="Search session" closeOnInteractionOutside>
@@ -318,6 +359,23 @@ export function SessionConversationalView(
               </DialogTrigger>
             )}
           </DialogController>
+          {customization && (
+            <Tooltip
+              label={`Customize view${customization.activeFilterCount > 0 ? ` (${customization.activeFilterCount})` : ""}`}
+            >
+              {({ getTriggerProps }) => (
+                <button
+                  {...getTriggerProps()}
+                  type="button"
+                  className="border-input bg-background hover:bg-accent hover:text-accent-foreground focus-visible:ring-ring inline-flex size-7 shrink-0 items-center justify-center rounded-sm border focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none"
+                  aria-label="Customize view"
+                  onClick={customization.onCustomizeView}
+                >
+                  <Filter size="sm" aria-hidden="true" />
+                </button>
+              )}
+            </Tooltip>
+          )}
         </div>
       )}
       <ResizablePanelGroup
@@ -334,7 +392,10 @@ export function SessionConversationalView(
             maxSize="50%"
             className="h-full min-h-0"
           >
-            <SessionConversationSidebar {...sidebarProps} />
+            <SessionConversationSidebar
+              {...sidebarProps}
+              customization={props.customization}
+            />
           </ResizablePanel>
         )}
         {showSidebar && (

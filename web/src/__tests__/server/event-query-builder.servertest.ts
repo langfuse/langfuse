@@ -1097,7 +1097,7 @@ describe("ExperimentsAggregationQueryBuilder", () => {
       .buildWithParams();
 
     expect(query).toContain(
-      "uniqIf(e.experiment_item_id, e.level = 'ERROR') AS error_count",
+      "uniqIf(e.experiment_item_id, e.level = 'ERROR') as error_count",
     );
   });
 });

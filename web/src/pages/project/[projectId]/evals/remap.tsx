@@ -1,1 +1,1 @@
-export { default as default } from "@/src/features/evals/pages/remap-evaluator";
+export { default as default } from "@/src/features/evals/pages/RemapEvaluatorPage";

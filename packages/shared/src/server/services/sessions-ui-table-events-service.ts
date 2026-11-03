@@ -1,5 +1,6 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { ClickHouseClientConfigOptions } from "@clickhouse/client";
-import { InvalidRequestError } from "../../errors";
+import { InvalidRequestError } from "../../errors/InvalidRequestError";
 import { OrderByState } from "../../interfaces/orderBy";
 import { FilterState } from "../../types";
 import { convertDateToClickhouseDateTime } from "../clickhouse/client";
@@ -7,16 +8,23 @@ import {
   ALL_SESSION_EVENTS_FIELDS,
   CTEQueryBuilder,
   normalizeSessionCounts,
+  type SessionEventsFields,
+} from "../queries/clickhouse-sql/event-query-builder";
+import {
   DateTimeFilter,
   FilterList,
   StringOptionsFilter,
   filtersRequireEventsFull,
   metadataFilterCanPruneEventsFull,
-  orderByToClickhouseSql,
+} from "../queries/clickhouse-sql/clickhouse-filter";
+import { orderByToClickhouseSql } from "../queries/clickhouse-sql/orderby-factory";
+import {
   type SessionEventsField,
-  type SessionEventsFields,
   type SessionEventsMetricsRow,
-} from "../queries";
+  TRACE_AGGREGATION_FIELDS,
+  traceAggregationSelects,
+} from "../repositories/events-selects";
+
 import { createFilterFromFilterState } from "../queries/clickhouse-sql/factory";
 import { compileClickhouseQuery } from "../query-ast/compile";
 import { getClickhouseKysely } from "../query-ast/dialect";
@@ -24,15 +32,24 @@ import {
   eventsSessionsAggregation,
   eventsSessionScoresAggregation,
 } from "../queries/clickhouse-sql/query-fragments";
-import { queryClickhouse } from "../repositories";
-import { traceAggregationSelects } from "../repositories/events-selects";
+import {
+  queryClickhouse,
+  parseClickhouseUTCDateTimeFormat,
+} from "../repositories/clickhouse";
+
 import {
   sessionEventsCols,
   sessionEventsOrderByCols,
 } from "../tableMappings/mapSessionTable";
 import { sessionsEventsViewCols } from "../../tableDefinitions/sessionsView";
-import { findUiColumnMapping } from "../../tableDefinitions";
-import { parseClickhouseUTCDateTimeFormat } from "../repositories/clickhouse";
+import { findUiColumnMapping } from "../../tableDefinitions/types";
+import {
+  sessionTraceFilterSchema,
+  sessionTraceFilterColumns,
+} from "../../features/filters/sessionTraceFilters";
+import { tracesTableUiColumnDefinitions } from "../tableMappings/mapTracesTable";
+import { eventsTableNativeUiColumnDefinitions } from "../tableMappings/mapEventsTable";
+import { EventsQueryBuilder } from "../queries/clickhouse-sql/event-query-builder";
 
 export type SessionTraceFromEvents = {
   id: string;
@@ -47,15 +64,87 @@ export type SessionTraceFromEvents = {
 export const getSessionTracesFromEvents = async (props: {
   projectId: string;
   sessionId: string;
+  filter: FilterState;
+  limit?: number;
+  traceIds?: string[];
 }) => {
   const { projectId, sessionId } = props;
-  const builder = getClickhouseKysely()
-    .selectFrom("events_full as e")
-    .select(traceAggregationSelects)
+  let builder = getClickhouseKysely()
+    .selectFrom("events as e")
+    .select(traceAggregationSelects(TRACE_AGGREGATION_FIELDS))
     .where("e.session_id", "=", sessionId)
     .groupBy(["trace_id", "project_id"])
     .orderBy("timestamp", "asc");
-  const { sql: query, params } = compileClickhouseQuery(builder, projectId);
+  if (props.traceIds)
+    builder = builder.where("e.trace_id", "in", props.traceIds);
+  const { sql: tracesQuery, params: tracesParams } = compileClickhouseQuery(
+    builder,
+    projectId,
+  );
+  const filters = sessionTraceFilterSchema.parse(props.filter);
+  const traceFilters = new FilterList(
+    createFilterFromFilterState(
+      filters.filter(
+        (filter) =>
+          !["name", "type", "level", "metadata", "isRootObservation"].includes(
+            filter.column,
+          ),
+      ),
+      tracesTableUiColumnDefinitions,
+      sessionTraceFilterColumns,
+    ),
+  ).apply();
+  const observationFilters = filters.filter((filter) =>
+    ["name", "type", "level", "metadata", "isRootObservation"].includes(
+      filter.column,
+    ),
+  );
+  const sessionTraceIdsQuery = compileClickhouseQuery(
+    builder.clearSelect().select("e.trace_id").clearGroupBy().clearOrderBy(),
+    projectId,
+  );
+  const observationQuery =
+    observationFilters.length > 0
+      ? new EventsQueryBuilder({ projectId: props.projectId })
+          .selectRaw("e.trace_id")
+          .when(
+            observationFilters.some((filter) => filter.column === "metadata"),
+            (builder) => builder.forceFullTable(),
+          )
+          .whereRaw("e.is_deleted = 0")
+          .whereRaw(`e.trace_id IN (${sessionTraceIdsQuery.sql})`)
+          .where(
+            new FilterList(
+              createFilterFromFilterState(
+                observationFilters,
+                eventsTableNativeUiColumnDefinitions,
+                sessionTraceFilterColumns,
+              ),
+            ).apply(),
+          )
+          .buildWithParams()
+      : null;
+  const query =
+    filters.length === 0
+      ? tracesQuery
+      : `
+    WITH session_traces AS (${tracesQuery})
+    SELECT t.* FROM session_traces t
+    WHERE 1 = 1 ${traceFilters.query ? `AND ${traceFilters.query}` : ""}
+      ${observationQuery ? `AND t.id IN (${observationQuery.query})` : ""}
+    ORDER BY t.timestamp ASC
+  `;
+
+  const params =
+    filters.length === 0
+      ? tracesParams
+      : {
+          ...tracesParams,
+          ...traceFilters.params,
+          ...observationQuery?.params,
+          ...sessionTraceIdsQuery.params,
+          projectId,
+        };
 
   const rows = await queryClickhouse<{
     id: string;
@@ -66,7 +155,9 @@ export const getSessionTracesFromEvents = async (props: {
     observation_count: number | string;
     latency_milliseconds: number | string | null;
   }>({
-    query,
+    query: props.limit
+      ? `${query} LIMIT ${Math.max(1, Math.floor(props.limit))}`
+      : query,
     params,
     tags: { projectId },
     preferredClickhouseService: "EventsReadOnly",

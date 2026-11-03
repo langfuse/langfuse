@@ -5,10 +5,10 @@ import {
   type ScoreConfigDomain,
 } from "@langfuse/shared";
 import { Button } from "@/src/components/ui/button";
-import { Combobox } from "@/src/components/ui/combobox";
+import { Combobox } from "@/src/components/ui/Combobox";
 import { KeyboardShortcut } from "@/src/components/design-system/KeyboardShortcut/KeyboardShortcut";
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
-import { useHasProjectAccess } from "@/src/features/rbac";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { isCategoricalDataType } from "@/src/features/scores/lib/helpers";
 import { getAddCategoryActionLabel } from "@/src/features/scores/lib/annotationFormHelpers";
 import { AddScoreCategoryDialog } from "@/src/features/scores/components/AddScoreCategoryDialog";

@@ -1,7 +1,7 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { useState } from "react";
 import { type DateRange } from "react-day-picker";
-import { Calendar } from "@/src/components/ui/calendar";
+import { Calendar } from "@/src/components/ui/Calendar";
 import {
   isRangeWithinMaxDuration,
   nextRangeForDayClick,

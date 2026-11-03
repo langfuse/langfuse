@@ -1,3 +1,4 @@
+/* eslint-disable react/no-unstable-nested-components */
 import { computeSelectedValues, type FilterState } from "@langfuse/shared";
 import {
   useEffect,
@@ -146,7 +147,6 @@ export function CurrentTopicsView({
         <TopicEmbeddingMap
           key={facet.map.runId}
           query={mapResult}
-          projectId={projectId}
           topics={facet.map.topics}
           selectedTopic={null}
           matchingTraceIds={matchingTraceIds}
@@ -262,11 +262,13 @@ export function CurrentTopicsView({
   );
 
   return (
-    <TopicsWorkspaceSplit
-      isNarrow={isNarrow}
-      overviewPanel={overviewPanel}
-      tracesPanel={tracesPanel}
-    />
+    <div className="flex min-h-0 min-w-0 flex-1 flex-col p-2">
+      <TopicsWorkspaceSplit
+        isNarrow={isNarrow}
+        overviewPanel={overviewPanel}
+        tracesPanel={tracesPanel}
+      />
+    </div>
   );
 }
 

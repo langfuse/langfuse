@@ -276,7 +276,7 @@ pub(crate) fn execution_finished(facts: &InferenceFacts) {
     let context = tracing::Span::current().context();
     let context_span = context.span();
     let ids = context_span.span_context();
-    tracing::info!(trace_id = %ids.trace_id(), span_id = %ids.span_id(), outcome, duration_ms = facts.duration_ms, "gateway execution finished");
+    tracing::info!(trace_id = %ids.trace_id(), span_id = %ids.span_id(), outcome, duration_ms = facts.duration_ms, output_complete = facts.inference.output_complete, "gateway execution finished");
 }
 
 /// Marks the server span failed when the provider body breaks after headers were

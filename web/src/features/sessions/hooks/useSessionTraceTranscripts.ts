@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useQueries } from "@tanstack/react-query";
 import { getQueryKey } from "@trpc/react-query";
 import PQueue from "p-queue";
-import { api, type RouterOutputs } from "@/src/utils/api";
+import { api, type RouterInputs, type RouterOutputs } from "@/src/utils/api";
 import { type EventSessionTrace } from "@/src/features/sessions/sessionDetailPageTypes";
 
 export type SessionTraceTranscriptState =
@@ -14,10 +14,12 @@ export function useSessionTraceTranscripts({
   projectId,
   traces,
   activeTraceIds,
+  filter,
 }: {
   projectId: string;
   traces: readonly { trace: EventSessionTrace; turnNumber: number }[];
   activeTraceIds: ReadonlySet<string>;
+  filter?: RouterInputs["events"]["transcriptByTraceId"]["filter"];
 }): Map<string, SessionTraceTranscriptState> {
   const [queue] = useState(() => new PQueue({ concurrency: 4 }));
   const utils = api.useUtils();
@@ -31,6 +33,7 @@ export function useSessionTraceTranscripts({
         traceId: trace.id,
         timestamp: trace.timestamp,
         fallbackToRootIO: true,
+        filter,
       };
       return {
         queryKey: getQueryKey(api.events.transcriptByTraceId, input, "query"),

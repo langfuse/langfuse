@@ -19,6 +19,7 @@ export const promptsTableCols: ColumnDefinition[] = [
     name: "Version",
     id: "version",
     type: "number",
+    step: 1,
     internal: 'p."version"',
   },
   {

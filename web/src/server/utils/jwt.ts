@@ -1,4 +1,5 @@
 import {
+  createHash,
   createPrivateKey,
   createPublicKey,
   type KeyObject,
@@ -124,6 +125,28 @@ export function createEs256JwtVerifier<
         claimsSchema: input.claimsSchema,
       }),
   };
+}
+
+/** deriveEs256PublicKey accepts PKCS#8 (`PRIVATE KEY`) and SEC1 (`EC PRIVATE KEY`) PEMs. */
+export function deriveEs256PublicKey(privateKey: string): string {
+  return createPublicKey(parsePrivateKey(privateKey))
+    .export({ type: "spki", format: "pem" })
+    .toString();
+}
+
+/**
+ * deriveEs256KeyId returns the RFC 7638 JWK thumbprint of a public key, so
+ * every holder of the same key agrees on the key ID without configuring one.
+ */
+export function deriveEs256KeyId(publicKey: string): string {
+  const jwk = parsePublicKey(publicKey).export({ format: "jwk" });
+  const canonical = JSON.stringify({
+    crv: jwk.crv,
+    kty: jwk.kty,
+    x: jwk.x,
+    y: jwk.y,
+  });
+  return createHash("sha256").update(canonical).digest("base64url");
 }
 
 function signEs256Jwt<TClaims extends Record<string, unknown>>(input: {

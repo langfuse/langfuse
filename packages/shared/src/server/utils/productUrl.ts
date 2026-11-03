@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { type APIScoreV3 } from "../../features/scores/interfaces/api/v3/schemas";
 import {
   buildDashboardWidgetPath,

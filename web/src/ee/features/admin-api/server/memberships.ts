@@ -1,8 +1,14 @@
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { z } from "zod";
 
-import { getSfdcService } from "@/src/ee/features/sfdc-sync/server";
-import { auditLog } from "@/src/features/audit-logs/server";
+import { getSfdcService } from "@/src/ee/features/sfdc-sync/server/sfdcService";
+import {
+  deleteUserBoundApiKeys,
+  deleteUserBoundApiKeysForRole,
+  evictRevokedApiKeys,
+} from "@/src/features/ai-gateway/server/apiKey/userBoundApiKeys";
+import { requireGatewayEnabledForRole } from "@/src/features/ai-gateway/server/availability";
+import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { type AuthorizationContext } from "@/src/features/auth/policy/types";
 import { authorize } from "@/src/features/rbac/authorize";
 import { ForbiddenError, Role } from "@langfuse/shared";
@@ -80,7 +86,7 @@ export async function handleUpdateMembership(
     });
   }
 
-  const membership = await prisma.$transaction(async (tx) => {
+  const { membership, revokedKeys } = await prisma.$transaction(async (tx) => {
     const before = await tx.organizationMembership.findUnique({
       where: { orgId_userId: { orgId, userId: validatedBody.data.userId } },
     });
@@ -92,6 +98,9 @@ export async function handleUpdateMembership(
       from: before?.role,
       to: validatedBody.data.role,
     });
+    if (before?.role !== validatedBody.data.role) {
+      requireGatewayEnabledForRole(orgId, validatedBody.data.role);
+    }
     const after = await tx.organizationMembership.upsert({
       where: { orgId_userId: { orgId, userId: validatedBody.data.userId } },
       update: { role: validatedBody.data.role },
@@ -113,8 +122,14 @@ export async function handleUpdateMembership(
       },
       tx,
     );
-    return after;
+    const revokedKeys = await deleteUserBoundApiKeysForRole(tx, {
+      userId: validatedBody.data.userId,
+      orgId,
+      role: validatedBody.data.role,
+    });
+    return { membership: after, revokedKeys };
   });
+  await evictRevokedApiKeys(revokedKeys, { apiKeyId });
 
   await getSfdcService()?.setUserRole({
     orgId,
@@ -147,12 +162,12 @@ export async function handleDeleteMembership(
     });
   }
 
-  const deleted = await prisma.$transaction(async (tx) => {
+  const { deleted, revokedKeys } = await prisma.$transaction(async (tx) => {
     const before = await tx.organizationMembership.findUnique({
       where: { orgId_userId: { orgId, userId: validatedBody.data.userId } },
     });
     assertAuthorizeMembershipChange(context, orgId);
-    if (!before) return false;
+    if (!before) return { deleted: false, revokedKeys: [] };
     await assertValidOwnershipChange({
       tx,
       context,
@@ -173,8 +188,13 @@ export async function handleDeleteMembership(
       },
       tx,
     );
-    return true;
+    const revokedKeys = await deleteUserBoundApiKeys(tx, {
+      userId: validatedBody.data.userId,
+      orgId,
+    });
+    return { deleted: true, revokedKeys };
   });
+  await evictRevokedApiKeys(revokedKeys, { apiKeyId });
 
   if (deleted) {
     const user = await prisma.user.findUnique({

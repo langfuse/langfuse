@@ -1,13 +1,11 @@
-/* eslint-disable no-nested-ternary */
+/* eslint-disable no-nested-ternary, @typescript-eslint/no-use-before-define */
 import { randomUUID } from "crypto";
 import { z } from "zod";
 
 import { env } from "../../env";
-import {
-  InvalidRequestError,
-  LangfuseNotFoundError,
-  UnauthorizedError,
-} from "../../errors";
+import { InvalidRequestError } from "../../errors/InvalidRequestError";
+import { LangfuseNotFoundError } from "../../errors/NotFoundError";
+import { UnauthorizedError } from "../../errors/UnauthorizedError";
 import { type AuthHeaderValidVerificationResultIngestion } from "../auth/types";
 import {
   getClickhouseEntityType,

@@ -2,10 +2,10 @@
 import { type AnnotationPanelData } from "@/src/features/scores/types";
 import { type CommentTarget } from "@/src/features/comments/state/commentOverlayStore";
 import { getCommentDrawerInitialStateFromUrl } from "@/src/features/comments/CommentDrawerController";
-import { useHasProjectAccess } from "@/src/features/rbac";
-import { useTraceData } from "../contexts/TraceDataContext";
-import { useSelection } from "../contexts/SelectionContext";
-import { useReadPath } from "@/src/features/events";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { useTraceData } from "../contexts/TraceDataProvider";
+import { useSelection } from "../contexts/SelectionProvider";
+import { useReadPath } from "@/src/features/events/hooks/useReadPath";
 import { prepareTraceAnnotation } from "@/src/features/scores/lib/prepareTraceAnnotation";
 import { useStore } from "zustand";
 import { useEffect, useMemo, useRef, type ReactNode } from "react";
@@ -15,7 +15,7 @@ import { Button } from "@/src/components/ui/button";
 import { CommentList } from "@/src/features/comments/CommentList";
 import { AnnotationPanelContent } from "@/src/features/scores/components/AnnotationPanelContent";
 import { hasBlockingOverlay } from "@/src/features/scores/lib/keyboardShortcuts";
-import { useTraceReviewPanel } from "../contexts/TraceReviewPanelContext";
+import { useTraceReviewPanel } from "../contexts/TraceReviewPanelProvider";
 import { type TraceReviewPanelStore } from "../state/traceReviewPanelStore";
 import { traceNodeId } from "../fns/treeBuilding";
 

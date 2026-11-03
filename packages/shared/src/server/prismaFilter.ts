@@ -1,5 +1,5 @@
 import type { Prisma } from "@prisma/client";
-import { InvalidRequestError } from "../errors";
+import { InvalidRequestError } from "../errors/InvalidRequestError";
 import type { FilterState } from "../types";
 import { escapeSqlLikePattern } from "./utils/sqlLike";
 
@@ -35,11 +35,12 @@ export function stringFilterToPrisma(
   filter: StringFilter,
 ): Prisma.StringFilter {
   const insensitive = { mode: "insensitive" as const };
+  // Postgres runs every insensitive string filter, `equals` included, as an unescaped ILIKE.
   const escapedValue = escapeSqlLikePattern(filter.value);
 
   switch (filter.operator) {
     case "=":
-      return { equals: filter.value, ...insensitive };
+      return { equals: escapedValue, ...insensitive };
     case "contains":
       return { contains: escapedValue, ...insensitive };
     case "does not contain":

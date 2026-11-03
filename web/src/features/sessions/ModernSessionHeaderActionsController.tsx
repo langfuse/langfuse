@@ -2,13 +2,13 @@ import { CopyIcon, MoreVertical } from "@langfuse/icons";
 import { useSession } from "next-auth/react";
 
 import { HeaderActionButton } from "@/src/components/HeaderActionButton";
-import { HeaderActionMenuRows } from "@/src/components/HeaderActionMenuRow";
+import { HeaderActionMenuRows } from "@/src/components/HeaderActionMenuRows";
 import {
   DropdownMenu,
   type DropdownMenuItemDefinition,
 } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
 import { useShareMenuItems } from "@/src/components/useShareMenuItems";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { ConnectedDetailHeaderActionsMenuController } from "@/src/features/traces/components/DetailHeaderActionsMenuController";
 import { useCopyToClipboard } from "@/src/hooks/useCopyToClipboard";
 

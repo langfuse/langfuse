@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import capitalize from "lodash/capitalize";
 import { GripVertical, MinusCircleIcon } from "@langfuse/icons";
 import {
@@ -19,7 +20,7 @@ import {
 } from "@langfuse/shared";
 import { Button } from "@/src/components/ui/button";
 import { Card, CardContent } from "@/src/components/ui/card";
-import { CodeMirrorEditor } from "@/src/components/editor";
+import { CodeMirrorEditor } from "@/src/components/editor/CodeMirrorEditor";
 import type { MessagesContext } from "./types";
 import { useSortable } from "@dnd-kit/sortable";
 import { cn } from "@/src/utils/tailwind";
@@ -32,11 +33,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/src/components/ui/select";
-import { useOptionalPlaygroundContext } from "@/src/features/playground/page/context";
+import { useOptionalPlaygroundContext } from "@/src/features/playground/page/context/PlaygroundProvider";
 import {
   useOptionalMessageSearchActions,
   useOptionalMessageSearchPageId,
-} from "./MessageSearch";
+} from "@/src/components/ChatMessages/messageSearch/context";
 
 export type MessageRowRefs = {
   rowRef: RefObject<HTMLDivElement | null>;

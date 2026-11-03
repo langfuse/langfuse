@@ -25,7 +25,7 @@ import {
 } from "@langfuse/shared/src/server";
 import { v4 } from "uuid";
 import { telemetry } from "@/src/features/telemetry";
-import { auditLog } from "@/src/features/audit-logs/server";
+import { auditLog } from "@/src/features/audit-logs/auditLog";
 import {
   generateTracesForPublicApi,
   getTracesCountForPublicApi,
@@ -36,7 +36,7 @@ import {
   LEGACY_WRITES_DEPRECATION,
   TRACES_DEPRECATION,
 } from "@/src/features/public-api/server/deprecations";
-import { clampToDataAccessDays } from "@/src/features/entitlements/server";
+import { clampToDataAccessDays } from "@/src/features/entitlements/server/hasEntitlementLimit";
 export default withMiddlewares(
   {
     POST: createAuthedProjectAPIRoute({
@@ -48,6 +48,7 @@ export default withMiddlewares(
       // Legacy POST writes a trace-create event that lands in the legacy traces
       // ClickHouse table; events_only deployments expect OTel ingestion.
       rejectInEventsOnlyMode: true,
+      isLegacyTraceWrite: true,
       deprecation: LEGACY_WRITES_DEPRECATION,
       fn: async ({ body, auth, req, res }) => {
         await telemetry();

@@ -583,7 +583,7 @@ The background color of the following component will be `hsl(var(--primary))` an
 | --find-match-selected-foreground | Foreground color for selected search matches                       | CodeMirrorEditor                 |
 | --find-match-background          | Background color for search matches                                | CodeMirrorEditor                 |
 | --surface-sunken                 | Off-white panel behind detail content (99%, lighter than zinc-50)  | Trace detail panel, nav sidebar  |
-| --surface-output                 | Background of output blocks in the trace preview (zinc-100)        | IOPreview, MarkdownViewer, CodeView |
+| --surface-section                | Grey box behind every I/O section body in the trace preview        | IOSection, IOPreview, CodeView   |
 | --line-dotted                    | Dotted connector lines; dimmed in dark                             | dotted-line-y, prompt timeline   |
 | --surface                        | Sticky table chrome fill; follows --surface-context                | Table headers, footers           |
 | --observation-<type>-line        | Observation type colour for stroked icons and borders              | ItemTypeIcon, graph nodes        |
@@ -647,7 +647,7 @@ pnpm dlx fern-api@3.88.0 generate --api server
 
 ## License
 
-Langfuse is MIT licensed, except for `ee/` folder. See [LICENSE](LICENSE) and [docs](https://langfuse.com/docs/open-source) for more details.
+Langfuse is MIT licensed, except for the `ee` folders. See [LICENSE](LICENSE) and [docs](https://langfuse.com/docs/open-source) for more details.
 
 When contributing to the Langfuse codebase, you need to agree to the [Contributor License Agreement](https://cla-assistant.io/langfuse/langfuse). You only need to do this once and the CLA bot will remind you if you haven't signed it yet.
 

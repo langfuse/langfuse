@@ -8,7 +8,7 @@ import {
   ObservationRecordInsertType,
   TraceRecordInsertType,
 } from "../../../src/server";
-import { ObservationType } from "../../../src/domain";
+import { ObservationType } from "../../../src/domain/observations";
 import { observationToEvent, traceToEvent } from "./event-mirror";
 import { generationUsageCost } from "./payload";
 import { utcDayStartMs } from "./rng";
@@ -171,6 +171,13 @@ const SHAPES: Shape[] = [
         name: "chat.turn",
         start: 0,
         end: 8180,
+        // Chat transcript on a SPAN: the preview must keep role titles here.
+        input: [
+          { role: "user", content: "hello" },
+          { role: "assistant", content: "hi, how can I help?" },
+          { role: "user", content: "a nice car" },
+        ],
+        output: [{ role: "assistant", content: "sure" }],
       },
       {
         key: "guard",
@@ -191,6 +198,15 @@ const SHAPES: Shape[] = [
         model: "gpt-5.4",
         usage: [520, 1480],
         ttft: 640,
+        input: {
+          messages: [
+            { role: "system", content: "You are a car-buying assistant." },
+            { role: "user", content: "hello" },
+            { role: "assistant", content: "hi, how can I help?" },
+            { role: "user", content: "a nice car" },
+          ],
+        },
+        output: { role: "assistant", content: "sure" },
       },
       {
         key: "persist",

@@ -1,7 +1,7 @@
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { prisma } from "@langfuse/shared/src/db";
 import { logger } from "@langfuse/shared/src/server";
-import { auditLog } from "@/src/features/audit-logs/server";
+import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { z } from "zod";
 import { createApiKey } from "@langfuse/shared/src/server/auth/apiKeys";
 import { OrganizationId, SystemRoleId } from "@langfuse/shared/rbac";
@@ -68,10 +68,12 @@ export async function handleCreateApiKey(
   const { name, note, expiresAt, role } = validationResult.data;
 
   const apiKeyMeta = await createApiKey(prisma, {
-    owner: OrganizationId(organizationId),
+    tenant: OrganizationId(organizationId),
+    scope: OrganizationId(organizationId),
     role: SystemRoleId(role),
     createdBy: "system",
     name,
+    // eslint-disable-next-line @typescript-eslint/no-deprecated
     note,
     expiresAt,
   });
