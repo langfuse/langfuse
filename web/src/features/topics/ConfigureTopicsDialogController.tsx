@@ -74,6 +74,7 @@ function ConfigureTopicsSettings({
   connections,
   facets,
   rule,
+  ruleCount,
   save,
   closeDialog,
 }: ConfigureTopicsSettingsInput & {
@@ -109,8 +110,10 @@ function ConfigureTopicsSettings({
     embedding: judgeModel(stored.embedding, connections),
     embeddingDimensions: String(stored.embeddingDimensions),
     clustering: judgeModel(stored.clustering, connections),
-    facets: facetDrafts(facets, rule ? new Set(rule.facetIds) : null),
-    filters: [],
+    facets:
+      rule || ruleCount === 0
+        ? facetDrafts(facets, rule ? new Set(rule.facetIds) : null)
+        : null,
     idleSeconds: String((traceIdleMs ?? 600_000) / 1000),
     embeddingLocked: false,
     automaticProcessing: stored.enabled ?? false,
@@ -237,13 +240,16 @@ function ConfigureTopicsSettings({
     try {
       await save.mutateAsync({
         projectId,
-        ...topicsSetupPayload(value, {
-          summary,
-          embedding,
-          embeddingDimensions: parsedDimensions.data,
-          clustering,
-        }),
-        ruleId: rule?.id,
+        ...topicsSetupPayload(
+          value,
+          {
+            summary,
+            embedding,
+            embeddingDimensions: parsedDimensions.data,
+            clustering,
+          },
+          rule?.id,
+        ),
       });
     } catch (error) {
       const message =

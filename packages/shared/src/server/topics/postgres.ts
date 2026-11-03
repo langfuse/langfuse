@@ -1,6 +1,7 @@
 import { prisma, Prisma } from "../../db";
 import {
   DEFAULT_TOPIC_FACETS,
+  TOPICS_MAX_RULES,
   topicRuleSettingsSchema,
   topicTimeRangeSchema,
   sameTopicGeometry,
@@ -177,16 +178,73 @@ const topicRule = (row: RuleRow): TopicRule => ({
   }),
   facetIds: row.assignments.map((assignment) => assignment.evaluatorId),
   updatedAt: row.updatedAt.toISOString(),
+  createdAt: row.createdAt.toISOString(),
+  enabled: row.status === "ACTIVE",
 });
 
+/** Oldest first: the first rule is the project's setup rule and owns pre-rule maps. */
 export async function listTopicRules(projectId: string): Promise<TopicRule[]> {
   return (
     await prisma.evaluationRule.findMany({
       where: topicRuleWhere(projectId),
       include: { assignments: true },
-      orderBy: { updatedAt: "desc" },
+      orderBy: [{ createdAt: "asc" }, { id: "asc" }],
     })
   ).map(topicRule);
+}
+
+export async function setTopicRuleEnabled(
+  projectId: string,
+  id: string,
+  enabled: boolean,
+): Promise<TopicRule> {
+  const updated = await prisma.evaluationRule.updateMany({
+    where: { ...topicRuleWhere(projectId), id },
+    data: { status: enabled ? "ACTIVE" : "INACTIVE" },
+  });
+  if (!updated.count)
+    throw new InvalidRequestError("Topic rule not found in this project.");
+  await invalidateTopicsProcessingActive(projectId);
+  return (await getTopicRule(projectId, id))!;
+}
+
+/**
+ * Serving-map scope of one rule. Runs written before rules carry neither a
+ * rule nor an analysis and belong to the project's oldest rule.
+ */
+export async function topicRuleRunWhere(
+  projectId: string,
+  ruleId: string,
+): Promise<Prisma.TopicClusteringRunWhereInput> {
+  const oldest = await prisma.evaluationRule.findFirst({
+    where: topicRuleWhere(projectId),
+    orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+    select: { id: true },
+  });
+  return oldest?.id === ruleId
+    ? { OR: [{ ruleId }, { ruleId: null, batchActionId: null }] }
+    : { ruleId };
+}
+
+/** Latest finished refit per rule, for "Updated … · next refit in …". */
+export async function getTopicRuleRefits(
+  projectId: string,
+): Promise<Map<string, Date>> {
+  const rules = await listTopicRules(projectId);
+  const refits = new Map<string, Date>();
+  for (const rule of rules) {
+    const run = await prisma.topicClusteringRun.findFirst({
+      where: {
+        projectId,
+        status: "completed",
+        ...(await topicRuleRunWhere(projectId, rule.id)),
+      },
+      orderBy: { finishedAt: "desc" },
+      select: { finishedAt: true },
+    });
+    if (run?.finishedAt) refits.set(rule.id, run.finishedAt);
+  }
+  return refits;
 }
 
 export async function getTopicRule(
@@ -201,11 +259,9 @@ export async function getTopicRule(
 }
 
 /**
- * A project has at most one Topics rule: its trace filter, sampling, and idle
- * time apply to every facet it runs, because trace readiness keeps one idle
- * time per trace. Postgres has no constraint for this, so writers hold this
- * per-project lock while they look up the rule; otherwise two first saves
- * could each find none and create a rule.
+ * A project has at most TOPICS_MAX_RULES Topics rules. Postgres has no
+ * constraint for this, so writers hold this per-project lock while they count
+ * rules; otherwise two concurrent creates could exceed the limit.
  */
 async function lockProjectTopicRule(
   tx: Prisma.TransactionClient,
@@ -250,23 +306,22 @@ export async function writeTopicRule(
     where: topicRuleWhere(input.projectId),
     select: { id: true, name: true, sampling: true },
   });
-  if (rules.length > 1)
-    throw new InvalidRequestError(
-      "This project has more than one Topics rule.",
-    );
-  const ruleId = rules[0]?.id;
-  const name = input.name?.trim() || rules[0]?.name || "Topics";
-  if (ruleId && !input.id)
-    throw new InvalidRequestError(
-      "This project already has a Topics rule. Reload and save that rule instead.",
-    );
-  if (input.id && input.id !== ruleId)
+  const existing = input.id
+    ? rules.find((rule) => rule.id === input.id)
+    : undefined;
+  if (input.id && !existing)
     throw new InvalidRequestError("Topic rule not found in this project.");
+  if (!existing && rules.length >= TOPICS_MAX_RULES)
+    throw new InvalidRequestError(
+      `A project can have at most ${TOPICS_MAX_RULES} Topics rules.`,
+    );
+  const ruleId = existing?.id;
+  const name = input.name?.trim() || existing?.name || "All traces";
   // Sampling belongs to automatic processing; a write without it keeps the rate.
   const config = topicRuleSettingsSchema.parse({
     ...input,
     sampling:
-      input.sampling ?? (rules[0] ? Number(rules[0].sampling) : undefined),
+      input.sampling ?? (existing ? Number(existing.sampling) : undefined),
   });
   const data = {
     name,
@@ -275,7 +330,6 @@ export async function writeTopicRule(
     delay: 0,
     targetObject: TopicsTargetObject,
     timeScope: ["NEW"],
-    status: "ACTIVE" as const,
   };
   const assignments = facetIds.map((evaluatorId) => ({
     projectId: input.projectId,
@@ -293,6 +347,7 @@ export async function writeTopicRule(
     : await tx.evaluationRule.create({
         data: {
           ...data,
+          status: "ACTIVE",
           projectId: input.projectId,
           createdByUserId: input.userId ?? null,
           assignments: { create: assignments },
@@ -317,6 +372,8 @@ function runResult(
     startedAt: row.startedAt?.toISOString() ?? null,
     config: row.config as Record<string, unknown>,
     error: row.error,
+    ruleId: row.ruleId,
+    batchActionId: row.batchActionId,
     topics: row.topicVersionIds.map((id) => {
       const topic = definitions.get(id);
       if (!topic || topic.projectId !== row.projectId)
@@ -378,12 +435,41 @@ const servingMapOrder = [
   { id: "desc" },
 ] satisfies Prisma.TopicClusteringRunOrderByWithRelationInput[];
 
+/** Without a rule, any rule's latest map serves; analyses never do. */
+async function servingRunWhere(
+  projectId: string,
+  ruleId: string | undefined,
+): Promise<Prisma.TopicClusteringRunWhereInput> {
+  return ruleId
+    ? topicRuleRunWhere(projectId, ruleId)
+    : { batchActionId: null };
+}
+
 export async function getPublishedTopicRun(
   projectId: string,
   facetId: string,
+  ruleId?: string,
 ): Promise<TopicRun | null> {
   const row = await prisma.topicClusteringRun.findFirst({
-    where: { projectId, facetId, status: "completed" },
+    where: {
+      projectId,
+      facetId,
+      status: "completed",
+      ...(await servingRunWhere(projectId, ruleId)),
+    },
+    orderBy: servingMapOrder,
+  });
+  return row ? (await hydrateRuns(projectId, [row]))[0] : null;
+}
+
+/** The map one analysis execution built for a facet. */
+export async function getTopicAnalysisRun(
+  projectId: string,
+  executionId: string,
+  facetId: string,
+): Promise<TopicRun | null> {
+  const row = await prisma.topicClusteringRun.findFirst({
+    where: { projectId, batchActionId: executionId, facetId },
     orderBy: servingMapOrder,
   });
   return row ? (await hydrateRuns(projectId, [row]))[0] : null;
@@ -394,6 +480,7 @@ export async function getTopicProcessingMapIds(
   projectId: string,
   facets: TopicFacetRef[],
   embeddingConfig: TopicEmbeddingConfig,
+  ruleId?: string,
 ): Promise<{ facetId: string; facetVersion: number; runId: string | null }[]> {
   if (!facets.length) return [];
   const runs = await prisma.topicClusteringRun.findMany({
@@ -401,6 +488,7 @@ export async function getTopicProcessingMapIds(
       projectId,
       facetId: { in: [...new Set(facets.map((facet) => facet.facetId))] },
       status: "completed",
+      ...(await servingRunWhere(projectId, ruleId)),
     },
     orderBy: servingMapOrder,
     distinct: ["facetId"],
@@ -427,6 +515,8 @@ export async function createTopicRun(input: {
   facetId: string;
   facetVersion: number;
   config: Record<string, unknown>;
+  ruleId?: string | null;
+  batchActionId?: string | null;
 }): Promise<TopicRun> {
   if (
     !(await getTopicFacetVersion(
@@ -442,6 +532,8 @@ export async function createTopicRun(input: {
       facetId: input.facetId,
       facetVersion: input.facetVersion,
       config: input.config as Prisma.InputJsonValue,
+      ruleId: input.ruleId ?? null,
+      batchActionId: input.batchActionId ?? null,
     },
   });
   return runResult(row, new Map());

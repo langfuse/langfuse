@@ -12,7 +12,9 @@ export type ConfigureTopicsSettingsInput = {
   traceIdleMs: number | null;
   connections: Connection[];
   facets: TopicFacet[];
+  /** The project's only rule; null with none or several. */
   rule: TopicRule | null;
+  ruleCount: number;
 };
 
 export type TopicSetupNoticeState = {
@@ -78,6 +80,7 @@ export function useTopicModelSettings({
           connections: connections.data.data,
           facets,
           rule,
+          ruleCount: rules.data.length,
         }
       : null;
 

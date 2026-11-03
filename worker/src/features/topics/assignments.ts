@@ -53,6 +53,7 @@ export function topicAssignmentRows(input: {
       unitStartTime: summary.unitStartTime,
       summaryProcessedAt: summary.processedAt,
       runId: run.id,
+      ruleId: run.ruleId ?? null,
       topicId: topic?.topicId ?? null,
       topicVersionId: topic?.topicVersionId ?? null,
       distance: assigned.distance,

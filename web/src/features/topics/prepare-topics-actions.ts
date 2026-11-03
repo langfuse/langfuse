@@ -1,8 +1,10 @@
 import {
   Eye,
   History,
+  ListChecks,
   Play,
   RefreshCw,
+  ScanSearch,
   Settings,
   type IconComponent,
 } from "@langfuse/icons";
@@ -14,7 +16,13 @@ export type AutomaticProcessingState =
   | { status: "paused"; shortLabel: string };
 
 type TopicAction = {
-  id: "automatic" | "regenerate" | "configure" | "history";
+  id:
+    | "automatic"
+    | "regenerate"
+    | "process"
+    | "rules"
+    | "configure"
+    | "history";
   label: string;
   icon: IconComponent;
   onSelect: () => void;
@@ -51,6 +59,8 @@ export function prepareTopicsActions({
   onConfigure,
   onRegenerate,
   onHistory,
+  onProcessPastTraces,
+  onManageRules,
   showUnassigned,
   onShowUnassignedChange,
 }: {
@@ -63,6 +73,8 @@ export function prepareTopicsActions({
   onConfigure: () => void;
   onRegenerate: () => void;
   onHistory: () => void;
+  onProcessPastTraces?: () => void;
+  onManageRules?: () => void;
   showUnassigned: boolean;
   onShowUnassignedChange: (show: boolean) => void;
 }) {
@@ -90,6 +102,23 @@ export function prepareTopicsActions({
       onSelect: onAutomaticProcessing,
     });
   }
+  if (onProcessPastTraces)
+    menu.push({
+      id: "process",
+      label: "Process past traces",
+      icon: ScanSearch,
+      disabledReason:
+        (canWrite ? undefined : "You need permission to edit Topics.") ??
+        (regenerateAvailable ? undefined : "Configure Topics first."),
+      onSelect: onProcessPastTraces,
+    });
+  if (onManageRules)
+    menu.push({
+      id: "rules",
+      label: "Manage rules",
+      icon: ListChecks,
+      onSelect: onManageRules,
+    });
   menu.push(
     {
       id: "regenerate",
@@ -108,7 +137,7 @@ export function prepareTopicsActions({
     },
     {
       id: "configure",
-      label: "Settings",
+      label: "Configure Topics",
       icon: Settings,
       disabledReason: configureAvailable
         ? undefined

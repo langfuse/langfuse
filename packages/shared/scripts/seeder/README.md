@@ -175,6 +175,26 @@ sample mode** with the default minimum-count settings.
 Seeding makes no model calls. Theme/outcome labels remain outside trace metadata
 and I/O.
 
+`--batch slices` seeds finished Topics state instead of raw input: 600
+`support-agent` and 200 `checkout-agent` traces in `production` over the last
+10 days (`-sup-000`…, `-chk-000`…), a `helpfulness` trace score on support
+traces, summaries for each rule's facets, and:
+
+- rules **Support agent, prod** (environment and trace name, 20% sampling;
+  Intent, Outcome, Issues) and **Checkout agent, prod** (trace name, 100%;
+  Intent, Outcome), each with a published map;
+- analyses **Refunds with low helpfulness** and **Login issues → breakdown**,
+  both compared with the support rule, each with a run over days 10–3 and a
+  rerun over the last 7 days. Theme weights shift with age so the run diff
+  shows new, grown, shrunk and gone topics;
+- one completed **Process past traces** run over the older support traces.
+
+The batch writes these through the Topics storage functions, not the worker,
+so maps exist without model settings. Same-day re-runs overwrite in place; a
+later-day re-run replaces the seeded runs and executions with re-anchored
+ones. A project holds at most five Topics rules; the batch reuses its two by
+name and fails if adding them would exceed the limit.
+
 ## The contract (additive-only)
 
 Scenario names, flag names, JSON summary keys, and exit-code semantics are a

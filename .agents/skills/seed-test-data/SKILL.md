@@ -76,6 +76,8 @@ other than 3000.
 For Topics discovery and later assignment, run `pnpm run seed -- topics`.
 For the 100-trace Intent/Issues evaluation, run
 `pnpm run seed -- topics --batch evaluation --id-prefix topics-eval-s42`.
+For topic rules, analyses and run diffs without model calls, run
+`pnpm run seed -- topics --batch slices`; it prints map deep links.
 Read the [Topics fixture walkthrough](../../../packages/shared/scripts/seeder/README.md#topics)
 for batch IDs, dataset contents, and clustering settings.
 

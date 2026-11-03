@@ -56,7 +56,11 @@ export async function previewTopicTraces(
     ...input,
     limit: input.limit ?? TOPICS_BACKFILL_TRACE_LIMIT,
   };
-  const rows = await selectTopicTraceRows(selection, prisma, "preview");
+  const rows = await selectTopicTraceRows(
+    { ...selection, anyObservation: true },
+    prisma,
+    "preview",
+  );
   const matchedTraceCount = Number(rows[0]?.matchedTraceCount ?? 0);
   return {
     matchedTraceCount,
@@ -81,6 +85,7 @@ export async function resolveTopicTraceSelection(
       ...selection,
       limit: selection.limit ?? TOPICS_BACKFILL_TRACE_LIMIT,
       projectId: input.projectId,
+      anyObservation: true,
     },
     prisma,
     "ids",

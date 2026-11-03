@@ -22,8 +22,21 @@ export function useAutomaticProcessing({
   return {
     state: automaticProcessingState(stored, rule),
     clearPause: () => mutation.mutate({ projectId, enabled: false }),
-    save: (input: { enabled: boolean; sampling: number }) =>
-      mutation.mutateAsync({ projectId, ...input }),
+    // Sampling belongs to a rule; with several rules it is set per rule.
+    save: ({
+      enabled,
+      sampling,
+      ruleId = rule?.id,
+    }: {
+      enabled: boolean;
+      sampling?: number;
+      ruleId?: string;
+    }) =>
+      mutation.mutateAsync(
+        ruleId && sampling !== undefined
+          ? { projectId, enabled, sampling, ruleId }
+          : { projectId, enabled },
+      ),
     saving: mutation.isPending,
   };
 }

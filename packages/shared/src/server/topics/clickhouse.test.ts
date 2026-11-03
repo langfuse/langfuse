@@ -30,12 +30,14 @@ const mocks = vi.hoisted(() => ({
   query: vi.fn(),
   queryStream: vi.fn(),
   publishedRuns: vi.fn(),
+  oldestRule: vi.fn(),
   cacheGet: vi.fn(),
   cacheSet: vi.fn(),
 }));
 vi.mock("../../db", () => ({
   prisma: {
     topicClusteringRun: { findMany: mocks.publishedRuns },
+    evaluationRule: { findFirst: mocks.oldestRule },
   },
 }));
 vi.mock("../redis/redis", () => ({
@@ -227,6 +229,45 @@ describe("Topics clustering capacity", () => {
       expect(mocks.queryStream).not.toHaveBeenCalled();
     },
   );
+
+  it("selects a cohort inside ClickHouse and samples its summarized traces with the cohort seed", async () => {
+    const traces = {
+      query: "SELECT id FROM matching WHERE env = {envFilter:String}",
+      params: { envFilter: "production" },
+    };
+    const sample = { seed: "analysis-seed", limit: 20_000 };
+    await getTopicSummaryCounts(
+      "project-a",
+      [{ facetId: "facet-a", version: 1 }],
+      embedding,
+      timeRange,
+      { traces, sample },
+    );
+    const counts = mocks.query.mock.calls[0][0];
+    expect(counts.query).toContain(`AND trace_id IN (${traces.query})`);
+    expect(counts.query).toMatch(
+      /ORDER BY cityHash64\(trace_id, \{cohortSeed:String\}\), trace_id\s+LIMIT \{cohortLimit:UInt64\} BY facet_id, facet_version/,
+    );
+    expect(counts.query).not.toContain("Array(String)} AND trace_id");
+    expect(counts.params).toMatchObject({
+      envFilter: "production",
+      cohortSeed: "analysis-seed",
+      cohortLimit: 20_000,
+    });
+
+    mocks.queryStream.mockImplementation(async function* () {
+      yield row;
+    });
+    await getTopicClusteringSummaries(...args, limits, { traces, sample });
+    const [{ query, params }] = mocks.queryStream.mock.calls[0];
+    expect(query).toContain(`AND trace_id IN (${traces.query})`);
+    expect(query).toContain("LIMIT {cohortLimit:UInt64}");
+    expect(params).toMatchObject({
+      envFilter: "production",
+      cohortSeed: "analysis-seed",
+    });
+    expect(params).not.toHaveProperty("cohortTraceIds");
+  });
 
   it("returns the complete at-limit cohort and bounds the query result", async () => {
     mocks.queryStream.mockImplementation(async function* () {
@@ -811,6 +852,7 @@ describe("Topics classifications", () => {
           traceId: row.traceId ?? "",
           sessionId: row.sessionId ?? "",
           traceName: inserted.trace_name,
+          ruleId: "",
           topicId: "",
           topicVersionId: "",
           coordinates: [],
@@ -821,14 +863,15 @@ describe("Topics classifications", () => {
       ]);
       expect(
         await readLatestTopicAssignments("project-a", "facet-a", timeRange),
-      ).toEqual([{ ...row, traceName: inserted.trace_name }]);
+      ).toEqual([{ ...row, traceName: inserted.trace_name, ruleId: null }]);
       expect(mocks.publishedRuns).toHaveBeenCalledWith({
         where: {
           projectId: "project-a",
           facetId: "facet-a",
           status: "completed",
+          batchActionId: null,
         },
-        select: { id: true },
+        select: { id: true, ruleId: true },
       });
       const { query, params } = mocks.query.mock.calls[0][0];
       expect(params).toEqual({
@@ -836,11 +879,12 @@ describe("Topics classifications", () => {
         to: timeRange.to.toISOString(),
         projectId: "project-a",
         facetId: "facet-a",
-        publishedRunIds: ["published-run"],
+        ruleRunIds: [],
+        legacyRunIds: ["published-run"],
       });
       expect(query).toContain("facet_id = {facetId:String}");
       expect(query).toContain(
-        "AND (clustering_run_id = '' OR clustering_run_id IN ({publishedRunIds:Array(String)}))",
+        "OR (rule_id = '' AND (clustering_run_id = '' OR clustering_run_id IN ({legacyRunIds:Array(String)})))",
       );
       expect(query).toContain(
         "ORDER BY facet_version DESC, assigned_at DESC, clustering_run_id DESC, origin DESC",
@@ -850,6 +894,52 @@ describe("Topics classifications", () => {
       );
     },
   );
+
+  it("counts only rule assignments as current topics and scopes them to one rule", async () => {
+    mocks.query.mockResolvedValue([]);
+    mocks.publishedRuns.mockResolvedValue([
+      { id: "rule-a-run", ruleId: "rule-a" },
+      { id: "rule-b-run", ruleId: "rule-b" },
+      { id: "legacy-run", ruleId: null },
+    ]);
+    await readLatestTopicAssignments("project-a", "facet-a", timeRange);
+    let { query, params } = mocks.query.mock.calls[0][0];
+    // Analysis runs carry a batch action and are never loaded as serving runs.
+    expect(mocks.publishedRuns.mock.calls[0][0].where).toMatchObject({
+      batchActionId: null,
+    });
+    expect(query).toContain("rule_id != ''");
+    expect(params).toMatchObject({
+      ruleRunIds: ["rule-a-run", "rule-b-run"],
+      legacyRunIds: ["legacy-run"],
+    });
+
+    mocks.oldestRule.mockResolvedValue({ id: "rule-a" });
+    await readLatestTopicAssignments(
+      "project-a",
+      "facet-a",
+      timeRange,
+      undefined,
+      "rule-b",
+    );
+    ({ query, params } = mocks.query.mock.calls[1][0]);
+    expect(query).toContain("AND rule_id = {ruleId:String}");
+    expect(query).not.toContain("legacyRunIds");
+    expect(params).toMatchObject({
+      ruleId: "rule-b",
+      ruleRunIds: ["rule-b-run"],
+    });
+
+    await readLatestTopicAssignments(
+      "project-a",
+      "facet-a",
+      timeRange,
+      undefined,
+      "rule-a",
+    );
+    ({ query } = mocks.query.mock.calls[2][0]);
+    expect(query).toContain("legacyRunIds");
+  });
 
   it("reads latest initial membership including rows with missing coordinates", async () => {
     await readTopicMapAssignments(
