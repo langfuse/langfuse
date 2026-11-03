@@ -886,12 +886,61 @@ describe("AI gateway control plane", () => {
             models: ["enabled-model"],
           },
         ]);
-        expect(fetchSpy).not.toHaveBeenCalled();
+        expect(fetchSpy).toHaveBeenCalledTimes(1);
       } finally {
         fetchSpy.mockRestore();
       }
     },
   );
+
+  it("lists models for a MEMBER on a cold cache without marking a rejected credential ERROR", async () => {
+    const setup = await prepare();
+    const connection = await setup.caller.aiGateway.createConnection({
+      orgId: setup.org.id,
+      name: "OpenAI",
+      provider: "OPENAI",
+      credential: "sk-test-openai",
+    });
+    const memberCaller = await createCallerForOrganizationRole(
+      setup,
+      Role.MEMBER,
+    );
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(
+        Response.json({ data: [{ id: "gpt-5", created: 10 }] }),
+      )
+      .mockResolvedValueOnce(new Response(null, { status: 401 }));
+    const catalogService = new GatewayModelCatalogService(prisma);
+
+    try {
+      await catalogService.clearModelCache(setup.org.id, connection.id);
+      await expect(
+        memberCaller.aiGateway.refreshModels({ orgId: setup.org.id }),
+      ).resolves.toEqual([
+        {
+          connectionId: connection.id,
+          success: true,
+          models: ["gpt-5", "codex-auto-review"],
+        },
+      ]);
+
+      await catalogService.clearModelCache(setup.org.id, connection.id);
+      await expect(
+        memberCaller.aiGateway.refreshModels({ orgId: setup.org.id }),
+      ).resolves.toEqual([
+        { connectionId: connection.id, success: false, error: "unauthorized" },
+      ]);
+      await expect(
+        prisma.gatewayAiConnection.findUniqueOrThrow({
+          where: { id: connection.id },
+          select: { status: true },
+        }),
+      ).resolves.toEqual({ status: "ENABLED" });
+    } finally {
+      fetchSpy.mockRestore();
+    }
+  });
 
   it("blocks an auto-granted demo organization VIEWER from gateway catalog metadata", async () => {
     const setup = await prepare();
