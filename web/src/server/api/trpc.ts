@@ -106,7 +106,10 @@ import {
   isStorableTraceSessionId,
 } from "@langfuse/shared/src/server";
 
-import { recordTrpcProcedureAccess } from "@/src/ee/features/access-audit-log/server/trpcAccessRoutes";
+import {
+  recordRefusedRead,
+  type TrpcMeta,
+} from "@/src/ee/features/access-audit-log/server/auditedQuery";
 import { AdminApiAuthService } from "@/src/ee/features/admin-api/server/adminApiAuth";
 import { env } from "@/src/env.mjs";
 import { isBaseError, parseIO } from "@langfuse/shared";
@@ -116,7 +119,11 @@ setUpSuperjson();
 
 const isLangfuseCloud = Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION);
 
-const t = initTRPC.context<typeof createTRPCContext>().create({
+const trpcBuilder = initTRPC
+  .context<typeof createTRPCContext>()
+  .meta<TrpcMeta>();
+
+const t = trpcBuilder.create({
   transformer: superjson,
   errorFormatter({ shape, error }) {
     return {
@@ -240,20 +247,20 @@ const withErrorHandling = t.middleware(async ({ ctx, next }) => {
   return res;
 });
 
-// Records reads of trace, observation, session and score data, and refused
-// attempts at them, as audit access events (EE). Runs outside the access
-// checks so it sees their refusals.
+// Records refused calls to audited queries (`auditedQuery`, EE) as access
+// events. Runs outside the access checks so it sees their refusals; reads that
+// pass are recorded by the query itself.
 const withAccessAuditLog = t.middleware(async (opts) => {
   const res = await opts.next();
-  if (opts.type !== "query") return res;
+  const accessAudit = opts.meta?.accessAudit;
+  if (res.ok || !accessAudit) return res;
 
-  await recordTrpcProcedureAccess({
+  await recordRefusedRead({
     path: opts.path,
     ctx: opts.ctx,
+    meta: accessAudit,
     getRawInput: opts.getRawInput,
-    result: res.ok
-      ? { ok: true, data: res.data }
-      : { ok: false, code: resolveError(res.error).code },
+    code: resolveError(res.error).code,
   });
   return res;
 });
