@@ -216,12 +216,6 @@ export class GatewayModelCatalogService {
   private async refreshConnectionModelCatalog(
     params: CatalogRefreshParams,
   ): Promise<ModelCatalogRefreshResult> {
-    const connection = await this.repository.getConnectionWithCredential({
-      organizationId: params.organizationId,
-      id: params.connectionId,
-    });
-    if (!connection) throw new LangfuseNotFoundError("Provider credential");
-
     if (params.forceRefresh) {
       await this.clearModelCache(params.organizationId, params.connectionId);
     } else {
@@ -231,16 +225,21 @@ export class GatewayModelCatalogService {
       );
       if (cached) {
         if (cached.expiresInSeconds <= MODEL_CACHE_REFRESH_WINDOW_SECONDS) {
-          this.refreshInBackground(connection, params);
+          this.refreshInBackground(params);
         }
         return {
-          connectionId: connection.id,
+          connectionId: params.connectionId,
           success: true,
           models: cached.models,
         };
       }
     }
 
+    const connection = await this.repository.getConnectionWithCredential({
+      organizationId: params.organizationId,
+      id: params.connectionId,
+    });
+    if (!connection) throw new LangfuseNotFoundError("Provider credential");
     return params.readOnly
       ? this.discoverModelsReadOnly(connection, params)
       : this.discoverModels(connection, params);
@@ -268,19 +267,22 @@ export class GatewayModelCatalogService {
     return result.success ? result : allowedModels;
   }
 
-  private async refreshInBackground(
-    connection: ConnectionWithCredential,
-    params: CatalogRefreshParams,
-  ) {
+  private async refreshInBackground(params: CatalogRefreshParams) {
     try {
-      if (!(await this.claimRefresh(params.organizationId, connection.id))) {
+      if (
+        !(await this.claimRefresh(params.organizationId, params.connectionId))
+      ) {
         return;
       }
-      await this.discoverModels(connection, params);
+      const connection = await this.repository.getConnectionWithCredential({
+        organizationId: params.organizationId,
+        id: params.connectionId,
+      });
+      if (connection) await this.discoverModels(connection, params);
     } catch (error) {
       logger.warn("Failed to refresh AI Gateway model catalog", {
         organizationId: params.organizationId,
-        connectionId: connection.id,
+        connectionId: params.connectionId,
         error,
       });
     }
@@ -302,16 +304,19 @@ export class GatewayModelCatalogService {
         models.error === "unauthorized" &&
         connection.status === "ENABLED"
       ) {
-        await this.repository.updateConnectionStatus({
+        const marked = await this.repository.updateConnectionStatus({
           organizationId: params.organizationId,
           id: connection.id,
           status: "ERROR",
+          expectedUpdatedAt: connection.updatedAt,
         });
         // A connection that just failed authorization must stop being handed
         // to the data plane.
-        await invalidateGatewayResolveCacheForOrganization(
-          params.organizationId,
-        );
+        if (marked) {
+          await invalidateGatewayResolveCacheForOrganization(
+            params.organizationId,
+          );
+        }
       }
       return {
         connectionId: connection.id,
@@ -320,14 +325,31 @@ export class GatewayModelCatalogService {
       };
     }
     const catalog = addCustomModels(provider, models.models);
-    await this.cacheModels(params.organizationId, params.connectionId, catalog);
-    if (params.explicitRetry && connection.status === "ERROR") {
-      await this.repository.updateConnectionStatus({
+    // Discovery can outlast a credential update, whose catalog must not be overwritten by the old one.
+    const unchanged = await this.repository.isConnectionUnchanged({
+      organizationId: params.organizationId,
+      id: connection.id,
+      updatedAt: connection.updatedAt,
+    });
+    if (unchanged) {
+      await this.cacheModels(
+        params.organizationId,
+        params.connectionId,
+        catalog,
+      );
+    }
+    if (unchanged && params.explicitRetry && connection.status === "ERROR") {
+      const enabled = await this.repository.updateConnectionStatus({
         organizationId: params.organizationId,
         id: connection.id,
         status: "ENABLED",
+        expectedUpdatedAt: connection.updatedAt,
       });
-      await invalidateGatewayResolveCacheForOrganization(params.organizationId);
+      if (enabled) {
+        await invalidateGatewayResolveCacheForOrganization(
+          params.organizationId,
+        );
+      }
     }
     return {
       connectionId: connection.id,

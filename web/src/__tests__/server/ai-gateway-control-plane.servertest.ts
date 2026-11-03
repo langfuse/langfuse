@@ -73,7 +73,7 @@ import {
 } from "@/src/features/ai-gateway/server/provider";
 import { createEs256JwtVerifier } from "@/src/server/utils/jwt";
 import { prisma, Role } from "@langfuse/shared/src/db";
-import { decrypt } from "@langfuse/shared/encryption";
+import { decrypt, encrypt } from "@langfuse/shared/encryption";
 import {
   createApiKey,
   createShaHash,
@@ -930,6 +930,45 @@ describe("AI gateway control plane", () => {
         ]);
       }
       expect(fetchSpy).toHaveBeenCalledTimes(1);
+      await expect(
+        prisma.gatewayAiConnection.findUniqueOrThrow({
+          where: { id: connection.id },
+          select: { status: true },
+        }),
+      ).resolves.toEqual({ status: "ENABLED" });
+    } finally {
+      fetchSpy.mockRestore();
+    }
+  });
+
+  it("keeps a connection ENABLED when its credential changes while a rejected discovery runs", async () => {
+    const setup = await prepare();
+    const connection = await setup.caller.aiGateway.createConnection({
+      orgId: setup.org.id,
+      name: "OpenAI",
+      provider: "OPENAI",
+      credential: "sk-revoked-openai",
+    });
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockImplementation(async () => {
+        await prisma.gatewayAiConnection.update({
+          where: { id: connection.id },
+          data: { encryptedCredential: encrypt("sk-replaced-openai") },
+        });
+        return new Response(null, { status: 401 });
+      });
+
+    try {
+      await new GatewayModelCatalogService(prisma).clearModelCache(
+        setup.org.id,
+        connection.id,
+      );
+      await expect(
+        setup.caller.aiGateway.refreshModels({ orgId: setup.org.id }),
+      ).resolves.toEqual([
+        { connectionId: connection.id, success: false, error: "unauthorized" },
+      ]);
       await expect(
         prisma.gatewayAiConnection.findUniqueOrThrow({
           where: { id: connection.id },

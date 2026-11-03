@@ -102,6 +102,64 @@ describe("AI gateway provider registry", () => {
       "ai-gateway:models:org-1:connection-1",
     );
     expect(fetcher).not.toHaveBeenCalled();
+    expect(prisma.gatewayAiConnection.findFirst).not.toHaveBeenCalled();
+  });
+
+  it("does not cache a background refresh that finished after its connection changed", async () => {
+    const fetcher = vi
+      .fn<typeof fetch>()
+      .mockResolvedValue(
+        Response.json({ data: [{ id: "old-credential-model", created: 10 }] }),
+      );
+    const redis = {
+      get: vi.fn().mockResolvedValue(
+        JSON.stringify([
+          {
+            id: "gpt-5-mini",
+            provider: "OPENAI",
+            canonicalSlug: "gpt-5-mini",
+            displayName: "gpt-5-mini",
+            createdAt: "2026-01-01T00:00:00.000Z",
+          },
+        ]),
+      ),
+      ttl: vi.fn().mockResolvedValue(10),
+      set: vi.fn().mockResolvedValue("OK"),
+      setex: vi.fn().mockResolvedValue("OK"),
+    } as unknown as Redis;
+    const findFirst = vi
+      .fn()
+      .mockResolvedValueOnce({
+        id: "connection-1",
+        organizationId: "org-1",
+        provider: "OPENAI",
+        encryptedCredential: encrypt("sk-old"),
+        status: "ENABLED",
+        allowedModels: null,
+        updatedAt: new Date(0),
+      })
+      .mockResolvedValueOnce(null);
+    const prisma = {
+      gatewayAiConnection: { findFirst },
+    } as unknown as PrismaClient;
+    const service = new GatewayModelCatalogService(prisma, fetcher, redis);
+
+    await service.refreshModels({
+      organizationId: "org-1",
+      connectionId: "connection-1",
+    });
+
+    await vi.waitFor(() => expect(findFirst).toHaveBeenCalledTimes(2));
+    expect(findFirst).toHaveBeenLastCalledWith({
+      where: {
+        organizationId: "org-1",
+        id: "connection-1",
+        updatedAt: new Date(0),
+      },
+      select: { id: true },
+    });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(redis.setex).not.toHaveBeenCalled();
   });
 
   it("serves a nearly expired model list while refreshing it once in the background", async () => {
