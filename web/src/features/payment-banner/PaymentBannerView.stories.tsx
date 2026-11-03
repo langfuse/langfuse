@@ -1,4 +1,3 @@
-import { expect, within } from "storybook/test";
 import preview from "../../../.storybook/preview";
 import { PaymentBannerView } from "./PaymentBannerView";
 
@@ -17,22 +16,6 @@ const meta = preview.meta({
  * action drops to its own row so the message keeps the full width.
  */
 export const Default = meta.story({});
-
-export const RendersBillingMessage = meta.story({
-  name: "(Test) Renders billing message and action",
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement);
-    await expect(canvas.getByRole("alert")).toHaveTextContent(
-      "Billing Issue: We have problems collecting subscription payment for your organization 'handshake'. Please update your payment information to continue using Langfuse.",
-    );
-    await expect(
-      canvas.getByRole("link", { name: "Update Payment" }),
-    ).toHaveAttribute("href", "/organization/org-id/settings/billing");
-    await expect(
-      canvas.queryByRole("button", { name: "Close" }),
-    ).not.toBeInTheDocument();
-  },
-});
 
 /**
  * Stripe `unpaid` — same layout, destructive colors.

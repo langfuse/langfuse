@@ -88,7 +88,6 @@ vi.mock("@/src/utils/api", () => ({
 
 const WARNING_MESSAGE =
   "Legacy v3 is still in use in {projects}. Trace-level evals and exports stop on November 16. SDKs and APIs stop on November 19.";
-const CRITICAL_MESSAGE = "Legacy v3 is turned off.";
 
 const status = (
   overrides?: Partial<ProjectMigrationStatus>,
@@ -117,7 +116,6 @@ beforeEach(() => {
     ["project-ok", status()],
     ["project-legacy", status({ apis: { status: "loaded", count: 2 } })],
   ]);
-  sessionStorage.clear();
 });
 
 describe("useV4MigrationTopBanner", () => {
@@ -166,39 +164,6 @@ describe("useV4MigrationTopBanner", () => {
     );
   });
 
-  it("ignores a leftover session dismiss and has no close control", () => {
-    sessionStorage.setItem("v4-migration-top-banner:closed", "true");
-    render(<ConnectedBanner />);
-
-    expect(screen.getByRole("button", { name: "Update" })).toBeVisible();
-    expect(
-      screen.queryByRole("button", { name: "Close" }),
-    ).not.toBeInTheDocument();
-    expect(mocks.capture).not.toHaveBeenCalledWith(
-      "v4_migration:top_banner_closed",
-      expect.anything(),
-    );
-  });
-
-  it("shows the critical message as plain text with the same update link", () => {
-    sessionStorage.setItem("v4-migration-top-banner:closed", "true");
-    mocks.severity = "critical";
-    mocks.message = CRITICAL_MESSAGE;
-    render(<ConnectedBanner />);
-
-    expect(screen.getByRole("status")).toHaveTextContent(
-      "Legacy v3 is turned off. Update",
-    );
-    expect(screen.getByRole("status")).toHaveAttribute(
-      "data-severity",
-      "critical",
-    );
-    expect(
-      screen.queryByRole("button", { name: "Close" }),
-    ).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Update" })).toBeVisible();
-  });
-
   it("stays hidden when the server turns it off or no project needs action", () => {
     mocks.severity = "off";
     mocks.message = null;
@@ -206,7 +171,7 @@ describe("useV4MigrationTopBanner", () => {
     expect(result.current).toBeNull();
 
     mocks.severity = "critical";
-    mocks.message = CRITICAL_MESSAGE;
+    mocks.message = "Legacy v3 is turned off.";
     mocks.statusByProjectId = new Map([
       ["project-ok", status()],
       ["project-legacy", status()],

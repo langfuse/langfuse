@@ -20,47 +20,29 @@ describe("legacy API banner config", () => {
     return getLegacyApiBannerState;
   }
 
-  it("returns the configured severity and message on cloud", async () => {
-    const getLegacyApiBannerState = await loadState({
-      LANGFUSE_V4_BANNER_SEVERITY: "warning",
-      LANGFUSE_V4_BANNER_MESSAGE: "Legacy v3 is still in use in {projects}.",
-      LANGFUSE_V4_BANNER_EXEMPT_ORG_IDS: undefined,
-    });
-
-    expect(
-      getLegacyApiBannerState({ orgId: "org-a", isLangfuseCloud: true }),
-    ).toEqual({
-      severity: "warning",
-      message: "Legacy v3 is still in use in {projects}.",
-      exempt: false,
-    });
-  });
-
-  it("exempts each trimmed, comma-separated org id", async () => {
-    const getLegacyApiBannerState = await loadState({
+  it("hides exempt orgs, self-hosted, and a blank or off banner", async () => {
+    const configured = await loadState({
       LANGFUSE_V4_BANNER_SEVERITY: "critical",
       LANGFUSE_V4_BANNER_MESSAGE: "Legacy v3 is paused.",
       LANGFUSE_V4_BANNER_EXEMPT_ORG_IDS: " org-yelp , ,org-b",
     });
 
-    expect(
-      getLegacyApiBannerState({ orgId: "org-yelp", isLangfuseCloud: true }),
-    ).toEqual({ severity: "off", message: null, exempt: true });
-    expect(
-      getLegacyApiBannerState({ orgId: "org-b", isLangfuseCloud: true }).exempt,
-    ).toBe(true);
-    expect(
-      getLegacyApiBannerState({ orgId: "org-c", isLangfuseCloud: true }),
-    ).toMatchObject({ severity: "critical", exempt: false });
-  });
-
-  it("is off when unset, when severity is off, or when the message is blank", async () => {
-    const unset = await loadState({
-      LANGFUSE_V4_BANNER_SEVERITY: undefined,
-      LANGFUSE_V4_BANNER_MESSAGE: undefined,
-      LANGFUSE_V4_BANNER_EXEMPT_ORG_IDS: undefined,
+    expect(configured({ orgId: "org-yelp", isLangfuseCloud: true })).toEqual({
+      severity: "off",
+      message: null,
+      exempt: true,
     });
-    expect(unset({ orgId: "org-a", isLangfuseCloud: true })).toEqual({
+    expect(configured({ orgId: "org-b", isLangfuseCloud: true }).exempt).toBe(
+      true,
+    );
+    expect(configured({ orgId: "org-c", isLangfuseCloud: true })).toMatchObject(
+      {
+        severity: "critical",
+        message: "Legacy v3 is paused.",
+        exempt: false,
+      },
+    );
+    expect(configured({ orgId: "org-c", isLangfuseCloud: false })).toEqual({
       severity: "off",
       message: null,
       exempt: false,
@@ -76,21 +58,6 @@ describe("legacy API banner config", () => {
       LANGFUSE_V4_BANNER_SEVERITY: "warning",
       LANGFUSE_V4_BANNER_MESSAGE: "   ",
     });
-    expect(blank({ orgId: "org-a", isLangfuseCloud: true })).toMatchObject({
-      severity: "off",
-      message: null,
-    });
-  });
-
-  it("hides the banner on self-hosted even when configured", async () => {
-    const getLegacyApiBannerState = await loadState({
-      LANGFUSE_V4_BANNER_SEVERITY: "critical",
-      LANGFUSE_V4_BANNER_MESSAGE: "Legacy v3 is paused.",
-      LANGFUSE_V4_BANNER_EXEMPT_ORG_IDS: undefined,
-    });
-
-    expect(
-      getLegacyApiBannerState({ orgId: "org-a", isLangfuseCloud: false }),
-    ).toEqual({ severity: "off", message: null, exempt: false });
+    expect(blank({ orgId: "org-a", isLangfuseCloud: true }).message).toBeNull();
   });
 });

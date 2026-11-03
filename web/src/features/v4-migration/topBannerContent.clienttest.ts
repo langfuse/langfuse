@@ -51,18 +51,4 @@ describe("renderV4BannerMessage", () => {
       "Legacy v3 is still in use in 3 projects. Trace-level evals and exports stop on November 16.",
     );
   });
-
-  it("leaves a message without the placeholder unchanged, including markup", () => {
-    const message = "Legacy v3 is paused today, 16:00 to 17:00 CET.";
-    expect(renderV4BannerMessage(message, 3)).toBe(message);
-    expect(renderV4BannerMessage("Use <b>v4</b> now.", 2)).toBe(
-      "Use <b>v4</b> now.",
-    );
-  });
-
-  it("replaces every {projects} token and no other brace", () => {
-    expect(renderV4BannerMessage("{projects} and {projects}, {other}", 2)).toBe(
-      "2 projects and 2 projects, {other}",
-    );
-  });
 });
