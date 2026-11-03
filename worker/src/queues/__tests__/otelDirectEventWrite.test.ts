@@ -97,6 +97,12 @@ describe("trace-rule recording at the evaluation stage", () => {
       failedSpanId: "other",
     },
     {
+      mode: "invalid eval observation",
+      shouldWriteToEventsTable: true,
+      writeFails: false,
+      invalidSpanId: "match",
+    },
+    {
       mode: "ingestion disabled",
       shouldWriteToEventsTable: true,
       writeFails: false,
@@ -121,6 +127,7 @@ describe("trace-rule recording at the evaluation stage", () => {
       shouldWriteToEventsTable,
       writeFails,
       failedSpanId,
+      invalidSpanId,
       ingestionEnabled = true,
       topicsEnabled = true,
       observationRulesEnabled = true,
@@ -144,8 +151,8 @@ describe("trace-rule recording at the evaluation stage", () => {
         spanId,
         startTimeISO: "2026-10-29T10:00:00.000Z",
       }));
-      const createEventRecord = vi.fn(async (input: { spanId: string }) =>
-        createEvent({
+      const createEventRecord = vi.fn(async (input: { spanId: string }) => ({
+        ...createEvent({
           project_id: projectId,
           trace_id: "trace",
           span_id: input.spanId,
@@ -155,7 +162,9 @@ describe("trace-rule recording at the evaluation stage", () => {
               ? "langfuse-llm-as-a-judge"
               : "production",
         }),
-      );
+        // OTel attributes can contain numbers; the eval schema requires a string.
+        version: input.spanId === invalidSpanId ? 123 : "test-version",
+      }));
       const writeEventRecord = vi.fn(async (record: { span_id: string }) => {
         if (writeFails || record.span_id === failedSpanId)
           throw new Error("write unavailable");
@@ -220,7 +229,7 @@ describe("trace-rule recording at the evaluation stage", () => {
           }),
         ).resolves.toBeUndefined();
         const recordedSpans = [
-          failedSpanId === "match"
+          failedSpanId === "match" || invalidSpanId === "match"
             ? []
             : [
                 {
@@ -230,7 +239,7 @@ describe("trace-rule recording at the evaluation stage", () => {
                   serializedEventBytes: 123,
                 },
               ],
-          failedSpanId === "other"
+          failedSpanId === "other" || invalidSpanId === "other"
             ? []
             : [
                 {
@@ -255,7 +264,14 @@ describe("trace-rule recording at the evaluation stage", () => {
             .mock.calls.filter(([args]) => args.configs.length > 0)
             .map(([args]) => args.configs),
         ).toEqual(
-          observationRulesEnabled ? [[observationRule], [observationRule]] : [],
+          observationRulesEnabled
+            ? inputs
+                .filter(
+                  ({ spanId }) =>
+                    spanId !== "internal" && spanId !== invalidSpanId,
+                )
+                .map(() => [observationRule])
+            : [],
         );
         if (!observationRulesEnabled) {
           expect(createObservationEvalSchedulerDeps).not.toHaveBeenCalled();
@@ -263,6 +279,16 @@ describe("trace-rule recording at the evaluation stage", () => {
         expect(writeEventRecord).toHaveBeenCalledTimes(
           shouldWriteToEventsTable ? 3 : 0,
         );
+        if (invalidSpanId) {
+          expect(trackTraceBatchActivity).toHaveBeenCalledExactlyOnceWith(
+            projectId,
+            inputs.map(({ traceId, spanId, startTimeISO }) => ({
+              traceId,
+              startTimeISO,
+              serializedEventBytes: spanId === "match" ? 123 : 456,
+            })),
+          );
+        }
         expect(fetchEvalRules).toHaveBeenCalledExactlyOnceWith(projectId, {
           includeTraceTranscriptRules,
         });

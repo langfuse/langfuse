@@ -166,32 +166,33 @@ export async function processOtelEvents({
         schedulerDeps &&
         (rules.observationRules.length > 0 || traceActivity)
       ) {
-        const observation = convertEventRecordToObservationForEval(eventRecord);
         try {
-          matchedRuleIds = await scheduleTraceTranscriptEvals({
-            observation,
-            traceActivity,
-            schedulerDeps,
-          });
+          const observation =
+            convertEventRecordToObservationForEval(eventRecord);
+          try {
+            matchedRuleIds = await scheduleTraceTranscriptEvals({
+              observation,
+              traceActivity,
+              schedulerDeps,
+            });
+          } catch (error) {
+            traceException(error);
+            logger.error(
+              `Failed to match trace transcript rules for project ${eventInput.projectId} and observation ${eventInput.spanId}`,
+              { error, fileKey },
+            );
+          }
+          if (isObservationAllowedForQueuedObservationEvals(observation)) {
+            await scheduleObservationEvals({
+              observation,
+              configs: rules.observationRules,
+              schedulerDeps,
+            });
+          }
         } catch (error) {
           traceException(error);
           logger.error(
-            `Failed to match trace transcript rules for project ${eventInput.projectId} and observation ${eventInput.spanId}`,
-            { error, fileKey },
-          );
-        }
-        try {
-          await scheduleObservationEvals({
-            observation,
-            configs: isObservationAllowedForQueuedObservationEvals(observation)
-              ? rules.observationRules
-              : [],
-            schedulerDeps,
-          });
-        } catch (error) {
-          traceException(error);
-          logger.error(
-            `Failed to schedule evals for project ${eventInput.projectId} and observation ${eventInput.spanId}`,
+            `Failed to schedule observation evals for project ${eventInput.projectId} and observation ${eventInput.spanId}`,
             { error, fileKey },
           );
         }
