@@ -595,6 +595,7 @@ enum Role {
   MEMBER
   VIEWER
   NONE
+  AI_GATEWAY
 }
 
 model TraceSession {

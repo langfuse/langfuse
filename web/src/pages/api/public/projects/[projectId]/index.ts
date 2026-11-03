@@ -74,6 +74,12 @@ export default async function handler(
   }
 
   if (req.method === "DELETE") {
-    return handleDeleteProject(req, res, projectId, authCheck.scope);
+    return handleDeleteProject(
+      req,
+      res,
+      projectId,
+      authCheck.scope,
+      authCheck.ctx,
+    );
   }
 }

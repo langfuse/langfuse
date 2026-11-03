@@ -54,7 +54,6 @@ import { useLangfuseCloudRegion } from "@/src/features/organizations";
 import { useHasProjectAccess } from "@/src/features/rbac";
 import { ActionHandlerRegistry } from "./actions";
 import { actionTypeLabel } from "@/src/features/automations/actionTypeLabels";
-import { useAvailableActionTypes } from "@/src/features/automations/useAvailableActionTypes";
 import { webhookSchema } from "./actions/WebhookActionForm";
 import { Alert } from "@/src/components/design-system/Alert/Alert";
 import Link from "next/link";
@@ -158,35 +157,6 @@ export const parseCreateAutomationPrefill = (
   } catch {
     return {};
   }
-};
-
-/** serializeCreateAutomationPrefill encodes a typed prefill as a base64url JSON blob for a single URL query param, UTF-8-safe so non-ASCII tags don't throw at btoa. */
-const serializeCreateAutomationPrefill = (
-  prefill: CreateAutomationPrefill,
-): string => {
-  const bytes = new TextEncoder().encode(JSON.stringify(prefill));
-  let binary = "";
-  for (let i = 0; i < bytes.length; i++)
-    binary += String.fromCharCode(bytes[i]);
-  return btoa(binary)
-    .replace(/\+/g, "-")
-    .replace(/\//g, "_")
-    .replace(/=+$/, "");
-};
-
-/** automationCreateHref builds the deep-link to the automations create form, prefilling eventSource as Monitor and (optionally) the chosen actionType + a same-origin redirectUrl to return to after save. */
-export const automationCreateHref = (
-  projectId: string,
-  actionType?: ActionTypes,
-  redirectUrl?: string,
-): string => {
-  const prefill = serializeCreateAutomationPrefill({
-    eventSource: TriggerEventSource.Monitor,
-    ...(actionType ? { actionType } : {}),
-    ...(redirectUrl ? { redirectUrl } : {}),
-  });
-  const params = new URLSearchParams({ view: "create", prefill });
-  return `/project/${projectId}/automations?${params.toString()}`;
 };
 
 // Define schemas for form validation
@@ -446,9 +416,8 @@ export const AutomationForm = ({
     projectId,
     scope: "automations:CUD",
   });
-  const availableActionTypes = useAvailableActionTypes(
-    allowedActionTypes ?? ActionHandlerRegistry.getAllActionTypes(),
-  );
+  const availableActionTypes =
+    allowedActionTypes ?? ActionHandlerRegistry.getAllActionTypes();
 
   const utils = api.useUtils();
 

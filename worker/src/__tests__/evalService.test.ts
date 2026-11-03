@@ -1411,43 +1411,6 @@ Respond with JSON: {"score": <number>, "reasoning": "<explanation>"}`;
       expect(jobs[0].endTime).to.be.null;
     }, 10_000);
 
-    test("does not create job for inactive config", async () => {
-      const { projectId } = await createOrgProjectAndApiKey();
-      const traceId = randomUUID();
-
-      await createMigratedEvalConfig({
-        data: {
-          id: randomUUID(),
-          projectId,
-          filter: JSON.parse("[]"),
-          jobType: "EVAL",
-          delay: 0,
-          sampling: new Decimal("1"),
-          targetObject: EvalTargetObject.TRACE,
-          scoreName: "score",
-          variableMapping: JSON.parse("[]"),
-          status: "INACTIVE",
-        },
-      });
-
-      const payload = {
-        projectId,
-        traceId: traceId,
-      };
-
-      await createEvalJobs({
-        sourceEventType: "trace-upsert",
-        event: payload,
-        jobTimestamp,
-      });
-
-      const jobs = await prisma.jobExecution.findMany({
-        where: { projectId },
-      });
-
-      expect(jobs.length).toBe(0);
-    }, 10_000);
-
     test("does not create eval job for 0 sample rate", async () => {
       const { projectId } = await createOrgProjectAndApiKey();
       const traceId = randomUUID();

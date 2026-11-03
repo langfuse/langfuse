@@ -53,7 +53,7 @@ service:
       response: Project
 
     delete:
-      docs: Delete a project by ID (requires organization-scoped API key). Project deletion is processed asynchronously.
+      docs: Delete a project by ID (requires organization-scoped API key). Project deletion is processed asynchronously. Deleting the AI Gateway ingestion project turns off the AI Gateway for the organization until another ingestion project is selected.
       method: DELETE
       path: /projects/{projectId}
       path-parameters:

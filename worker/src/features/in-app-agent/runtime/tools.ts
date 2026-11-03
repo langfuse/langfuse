@@ -190,9 +190,8 @@ export function withOptionalSilentMcpOutput(params: {
 
           // Rethrow instead of returning a structured failure: the tool-error
           // chunk rewrite already feeds the error back as a tool result the
-          // loop continues from, executeApprovedToolCall classifies
-          // approved-tool failures from the throw, and an aborted run must
-          // unwind rather than look like one more failed tool call.
+          // loop continues from, and an aborted run must unwind rather than
+          // look like one more failed tool call.
           throw error;
         }
 

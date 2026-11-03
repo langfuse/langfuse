@@ -1,7 +1,10 @@
-import { type ComponentProps } from "react";
+import { type ComponentProps, type ReactNode } from "react";
 import { useRouter } from "next/router";
 import { useSession } from "next-auth/react";
-import { PagedSettingsContainer } from "@/src/components/PagedSettingsContainer";
+import {
+  isSettingsPageShown,
+  PagedSettingsContainer,
+} from "@/src/components/PagedSettingsContainer";
 import ContainerPage from "@/src/components/layouts/ContainerPage";
 import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
@@ -40,7 +43,9 @@ export function SettingsPage({ scope }: SettingsPageProps) {
     typeof router.query.page === "string" ? router.query.page : undefined;
   const fullHeight =
     scope === "organization" &&
-    (activeSlug === "ai-gateway-models" || activeSlug === "ai-gateway");
+    (activeSlug === "ai-gateway-models" ||
+      activeSlug === "ai-gateway" ||
+      activeSlug === "ai-gateway-api-keys");
 
   if (scope === "organization" && !organization) {
     return (
@@ -60,9 +65,7 @@ export function SettingsPage({ scope }: SettingsPageProps) {
         activeSlug={activeSlug}
         pages={pages}
         fullHeight={fullHeight}
-        sectionHeaders={{
-          [ORGANIZATION_SECTION]: <OrganizationSectionHeader />,
-        }}
+        sectionHeaders={organizationSectionHeaders(organization?.id, pages)}
         sectionBadges={{
           "AI Gateway": (
             <Badge text="Beta" color="blue" size="sm" font="mono" />
@@ -155,4 +158,17 @@ export function buildSettingsPages({
   });
 
   return [...account, ...organization];
+}
+
+/** organizationSectionHeaders labels the org section unless the selected org shows none of its pages */
+function organizationSectionHeaders(
+  organizationId: string | undefined,
+  pages: SettingsPageEntry[],
+): Record<string, ReactNode> {
+  const showsOrganizationPage = pages.some(
+    (page) =>
+      page.section === ORGANIZATION_SECTION && isSettingsPageShown(page),
+  );
+  if (organizationId && !showsOrganizationPage) return {};
+  return { [ORGANIZATION_SECTION]: <OrganizationSectionHeader /> };
 }

@@ -1,4 +1,4 @@
-![Langfuse GitHub Banner](https://langfuse.com/images/docs/github-readme/github-banner.png)
+![Langfuse GitHub Banner](.github/readme-banner.png)
 
 <div align="center">
   <div>
@@ -28,7 +28,7 @@
   <br/>
   <span>Langfuse 使用 <a href="https://github.com/orgs/langfuse/discussions"><strong>GitHub Discussions</strong></a> 作为支持和功能请求的平台。</span>
   <br/>
-  <span><b>我们正在招聘。</b> <a href="https://langfuse.com/careers"><strong>加入我们</strong></a>，从事产品工程和技术市场职位。</span>
+  <span><b>我们正在招聘。</b> 我们远程办公，在柏林、旧金山、阿姆斯特丹和纽约设有办公室。<a href="https://langfuse.com/careers"><strong>加入我们</strong></a></span>
   <br/>
   <br/>
   <div>
@@ -84,7 +84,7 @@
 
 Langfuse 是一个 **开源 LLM 工程** 平台。它帮助团队协作 **开发、监控、评估** 以及 **调试** AI 应用。Langfuse 可在几分钟内 **自托管**，并且经过 **实战考验**。
 
-[![Langfuse 概览视频](https://github.com/user-attachments/assets/3926b288-ff61-4b95-8aa1-45d041c70866)](https://langfuse.com/watch-demo)
+<a href="https://langfuse.com/watch-demo"><img width="37.5%" alt="Langfuse 概览视频" src=".github/watch-demo.png"></a>
 
 ## ✨ 核心特性
 
