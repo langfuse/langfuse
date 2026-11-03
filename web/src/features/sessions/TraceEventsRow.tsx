@@ -400,7 +400,11 @@ export const TraceEventsRow = React.memo(
                   }
 
                   return (
-                    <div key={observation.id} className="flex flex-col gap-2">
+                    <div
+                      key={observation.id}
+                      data-session-observation-id={observation.id}
+                      className="flex flex-col gap-2"
+                    >
                       <ObservationHeader observation={observation} />
                       <SessionObservationIO
                         observation={observation}

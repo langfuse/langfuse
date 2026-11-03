@@ -20,6 +20,7 @@ const meta = preview.meta({
     projectId: "storybook-project",
     initialFilters: [],
     initialUnmatchedTraces: "show" as const,
+    initialViewMode: "conversational" as const,
     onApply: fn(),
     preview: { traces: [], pending: false, error: undefined },
   },
@@ -52,13 +53,14 @@ export const TestObservationFilters = meta.story({
     ).toBeInTheDocument();
     await userEvent.click(body.getByRole("radio", { name: "Hide" }));
     await expect(args.onApply).not.toHaveBeenCalled();
-    await userEvent.click(body.getByRole("button", { name: "Apply filters" }));
+    await userEvent.click(body.getByRole("button", { name: "Apply changes" }));
     await expect(args.onApply).toHaveBeenCalledWith(
       [
         { column: "traceName", type: "string", operator: "=", value: "chat" },
         { column: "name", type: "string", operator: "=", value: "completion" },
       ],
       "hide",
+      "conversational",
     );
   },
   args: {
@@ -151,7 +153,7 @@ export const TestInvalidDraftKeepsPreview = Default.extend({
     await expect(
       within(agent).getByText("Excluded by filters"),
     ).toBeInTheDocument();
-    await userEvent.click(body.getByRole("button", { name: "Apply filters" }));
+    await userEvent.click(body.getByRole("button", { name: "Apply changes" }));
     await expect(args.onApply).not.toHaveBeenCalled();
 
     await userEvent.clear(input);
@@ -159,10 +161,11 @@ export const TestInvalidDraftKeepsPreview = Default.extend({
     await expect(
       within(completion).getByText("Excluded by filters"),
     ).toBeInTheDocument();
-    await userEvent.click(body.getByRole("button", { name: "Apply filters" }));
+    await userEvent.click(body.getByRole("button", { name: "Apply changes" }));
     await expect(args.onApply).toHaveBeenCalledWith(
       [{ column: "name", type: "string", operator: "=", value: "agent" }],
       "show",
+      "conversational",
     );
   },
 });
@@ -222,19 +225,21 @@ export const TestPreserveSkippedFilters = Default.extend({
     await expect(
       body.queryByText("Excluded by filters"),
     ).not.toBeInTheDocument();
-    await userEvent.click(body.getByRole("button", { name: "Apply filters" }));
+    await userEvent.click(body.getByRole("button", { name: "Apply changes" }));
     await expect(args.onApply).toHaveBeenCalledWith(
       args.initialFilters,
       "show",
+      "conversational",
     );
     await userEvent.click(body.getByRole("button", { name: "Generations" }));
-    await userEvent.click(body.getByRole("button", { name: "Apply filters" }));
+    await userEvent.click(body.getByRole("button", { name: "Apply changes" }));
     await expect(args.onApply).toHaveBeenLastCalledWith(
       [
         { column: "type", type: "string", operator: "=", value: "GENERATION" },
         ...args.initialFilters,
       ],
       "show",
+      "conversational",
     );
   },
 });
@@ -247,7 +252,7 @@ export const TestConfirmAllObservationsExcluded = Default.extend({
   },
   play: async ({ args }) => {
     const body = within(document.body);
-    await userEvent.click(body.getByRole("button", { name: "Apply filters" }));
+    await userEvent.click(body.getByRole("button", { name: "Apply changes" }));
     const confirmation = await body.findByRole("dialog", {
       name: "Apply filters with no matching observations?",
     });
@@ -259,7 +264,7 @@ export const TestConfirmAllObservationsExcluded = Default.extend({
     await expect(
       await body.findByRole("dialog", { name: "Customize session view" }),
     ).toBeInTheDocument();
-    await userEvent.click(body.getByRole("button", { name: "Apply filters" }));
+    await userEvent.click(body.getByRole("button", { name: "Apply changes" }));
     await userEvent.click(
       await body.findByRole("button", { name: "Apply filters anyway" }),
     );
@@ -267,6 +272,7 @@ export const TestConfirmAllObservationsExcluded = Default.extend({
     await expect(args.onApply).toHaveBeenCalledWith(
       args.initialFilters,
       "show",
+      "conversational",
     );
   },
 });
