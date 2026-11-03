@@ -1,6 +1,6 @@
 import { type FilterState } from "../../types";
 import { isTopicFilter, TOPICS_MAX_TIME_RANGE_MS } from "../../topics";
-import { InvalidRequestError } from "../../errors";
+import { InvalidRequestError } from "../../errors/InvalidRequestError";
 import { isTopicsProjectEnabled } from "./config";
 import {
   currentTopicTraceIdsCondition,
