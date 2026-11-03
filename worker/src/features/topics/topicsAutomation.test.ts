@@ -222,7 +222,7 @@ describe("automatic Topics assignment", () => {
     expect(createTopicExecution).not.toHaveBeenCalled();
   });
 
-  it("groups traces by matched rules and assigns each matched rule's map with its rule ID", async () => {
+  it("groups traces by matched rules and assigns each matched rule's map through that rule's run", async () => {
     await enqueueTopicsAutomation(
       "batch",
       [summary("support", [1, 0]), summary("checkout", [1, 0])],
@@ -264,8 +264,8 @@ describe("automatic Topics assignment", () => {
     expect(
       vi
         .mocked(writeTopicAssignments)
-        .mock.calls.map(([rows]) => rows.map((row) => [row.runId, row.ruleId])),
-    ).toEqual([[["run-rule-a", "rule-a"]], [["run-rule-b", "rule-b"]]]);
+        .mock.calls.map(([rows]) => rows.map((row) => row.runId)),
+    ).toEqual([["run-rule-a"], ["run-rule-b"]]);
   });
 
   it("waits for enough summaries and rechecks a deferred batch after the cooldown", async () => {

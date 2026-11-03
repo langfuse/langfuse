@@ -391,8 +391,6 @@ export type TopicAssignment = z.infer<typeof topicSourceSchema> & {
   runnerUpDistance: number | null;
   origin: "initial" | "online" | "backfill";
   assignedAt: string;
-  /** Rule the assignment serves; null for analysis rows and rows written before rules. */
-  ruleId?: string | null;
 };
 export interface TopicDefinition {
   topicVersionId: string;

@@ -858,7 +858,6 @@ function topicAssignmentRecord(row: TopicAssignment) {
     environment: row.environment,
     trace_name: row.traceId ? row.traceName : "",
     clustering_run_id: row.runId ?? "",
-    rule_id: row.ruleId ?? "",
     topic_id: row.topicId ?? "",
     topic_version_id: row.topicVersionId ?? "",
     distance: row.distance,
@@ -881,7 +880,7 @@ const assignmentColumns = `project_id AS projectId, facet_id AS facetId,
       toUnixTimestamp64Milli(unit_start_time) AS unitStartTimeMs,
       coordinates,
       toUnixTimestamp64Milli(summary_processed_at) AS summaryProcessedAtMs,
-      clustering_run_id AS runId, rule_id AS ruleId,
+      clustering_run_id AS runId,
       topic_id AS topicId, topic_version_id AS topicVersionId, distance,
       runner_up_distance AS runnerUpDistance, origin,
       toUnixTimestamp64Milli(assigned_at) AS assignedAtMs`;
@@ -891,14 +890,12 @@ type AssignmentRow = Omit<
   | "assignedAt"
   | "summaryProcessedAt"
   | "runId"
-  | "ruleId"
   | "coordinates"
 > & {
   unitStartTimeMs: string;
   summaryProcessedAtMs: string;
   assignedAtMs: string;
   runId: string;
-  ruleId: string;
   coordinates: number[];
 };
 function assignmentResult({
@@ -914,7 +911,6 @@ function assignmentResult({
       sessionId: row.sessionId || null,
     }),
     runId: row.runId || null,
-    ruleId: row.ruleId || null,
     topicId: row.topicId || null,
     topicVersionId: row.topicVersionId || null,
     coordinates:
@@ -1050,18 +1046,15 @@ export async function readLatestTopicAssignments(
       : null,
   ]);
   const includeLegacy = !ruleId || oldestRule?.id === ruleId;
-  const ruleRunIds = runs
-    .filter((run) => run.ruleId && (!ruleId || run.ruleId === ruleId))
+  const runIds = runs
+    .filter((run) =>
+      run.ruleId ? !ruleId || run.ruleId === ruleId : includeLegacy,
+    )
     .map(({ id }) => id);
-  const legacyRunIds = runs.filter((run) => !run.ruleId).map(({ id }) => id);
   const rows = await queryClickhouse<AssignmentRow>({
     query: `SELECT ${assignmentColumns} FROM topic_assignments
       WHERE project_id = {projectId:String} AND ${unitTimeFilterSql} AND facet_id = {facetId:String}
-        AND (
-          (rule_id != '' ${ruleId ? "AND rule_id = {ruleId:String}" : ""}
-            AND (clustering_run_id = '' OR clustering_run_id IN ({ruleRunIds:Array(String)})))
-          ${includeLegacy ? "OR (rule_id = '' AND (clustering_run_id = '' OR clustering_run_id IN ({legacyRunIds:Array(String)})))" : ""}
-        )
+        AND (clustering_run_id IN {runIds:Array(String)}${includeLegacy ? " OR clustering_run_id = ''" : ""})
         ${traceIds ? "AND trace_id IN {traceIds:Array(String)}" : ""}
       ORDER BY facet_version DESC, assigned_at DESC, clustering_run_id DESC, origin DESC
       LIMIT 1 BY project_id, facet_id, trace_id, if(trace_id = '', session_id, '')`,
@@ -1069,9 +1062,7 @@ export async function readLatestTopicAssignments(
       projectId,
       ...timeRangeParams(timeRange),
       facetId,
-      ruleRunIds,
-      legacyRunIds,
-      ...(ruleId ? { ruleId } : {}),
+      runIds,
       ...(traceIds ? { traceIds } : {}),
     },
     tags: { route: "topics-current-assignments", projectId },

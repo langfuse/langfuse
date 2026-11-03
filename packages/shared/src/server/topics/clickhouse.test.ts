@@ -852,7 +852,6 @@ describe("Topics classifications", () => {
           traceId: row.traceId ?? "",
           sessionId: row.sessionId ?? "",
           traceName: inserted.trace_name,
-          ruleId: "",
           topicId: "",
           topicVersionId: "",
           coordinates: [],
@@ -863,7 +862,7 @@ describe("Topics classifications", () => {
       ]);
       expect(
         await readLatestTopicAssignments("project-a", "facet-a", timeRange),
-      ).toEqual([{ ...row, traceName: inserted.trace_name, ruleId: null }]);
+      ).toEqual([{ ...row, traceName: inserted.trace_name }]);
       expect(mocks.publishedRuns).toHaveBeenCalledWith({
         where: {
           projectId: "project-a",
@@ -879,12 +878,11 @@ describe("Topics classifications", () => {
         to: timeRange.to.toISOString(),
         projectId: "project-a",
         facetId: "facet-a",
-        ruleRunIds: [],
-        legacyRunIds: ["published-run"],
+        runIds: ["published-run"],
       });
       expect(query).toContain("facet_id = {facetId:String}");
       expect(query).toContain(
-        "OR (rule_id = '' AND (clustering_run_id = '' OR clustering_run_id IN ({legacyRunIds:Array(String)})))",
+        "AND (clustering_run_id IN {runIds:Array(String)} OR clustering_run_id = '')",
       );
       expect(query).toContain(
         "ORDER BY facet_version DESC, assigned_at DESC, clustering_run_id DESC, origin DESC",
@@ -908,10 +906,9 @@ describe("Topics classifications", () => {
     expect(mocks.publishedRuns.mock.calls[0][0].where).toMatchObject({
       batchActionId: null,
     });
-    expect(query).toContain("rule_id != ''");
+    expect(query).not.toContain("rule_id");
     expect(params).toMatchObject({
-      ruleRunIds: ["rule-a-run", "rule-b-run"],
-      legacyRunIds: ["legacy-run"],
+      runIds: ["rule-a-run", "rule-b-run", "legacy-run"],
     });
 
     mocks.oldestRule.mockResolvedValue({ id: "rule-a" });
@@ -923,12 +920,9 @@ describe("Topics classifications", () => {
       "rule-b",
     );
     ({ query, params } = mocks.query.mock.calls[1][0]);
-    expect(query).toContain("AND rule_id = {ruleId:String}");
-    expect(query).not.toContain("legacyRunIds");
-    expect(params).toMatchObject({
-      ruleId: "rule-b",
-      ruleRunIds: ["rule-b-run"],
-    });
+    // Another rule's runs and rows written before runs never count for this rule.
+    expect(query).not.toContain("clustering_run_id = ''");
+    expect(params.runIds).toEqual(["rule-b-run"]);
 
     await readLatestTopicAssignments(
       "project-a",
@@ -937,8 +931,10 @@ describe("Topics classifications", () => {
       undefined,
       "rule-a",
     );
-    ({ query } = mocks.query.mock.calls[2][0]);
-    expect(query).toContain("legacyRunIds");
+    ({ query, params } = mocks.query.mock.calls[2][0]);
+    // The oldest rule also owns runs written before rules.
+    expect(query).toContain("OR clustering_run_id = ''");
+    expect(params.runIds).toEqual(["rule-a-run", "legacy-run"]);
   });
 
   it("reads latest initial membership including rows with missing coordinates", async () => {
