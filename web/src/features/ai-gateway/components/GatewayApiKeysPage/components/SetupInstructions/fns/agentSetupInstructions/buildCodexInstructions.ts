@@ -23,14 +23,13 @@ export function buildCodexInstructions(
     steps: [
       {
         title: "Store the key in Codex's .env",
-        description:
-          "Codex loads this file every time it starts. Replace the placeholder with your gateway key.",
+        description: "Codex loads this file every time it starts.",
         language: "sh",
         code: [
-          'CODEX_DIR="${CODEX_HOME:-$HOME/.codex}"',
+          ' CODEX_DIR="${CODEX_HOME:-$HOME/.codex}"',
           'mkdir -p -m 700 "$CODEX_DIR"',
           'touch "$CODEX_DIR/.env" && chmod 600 "$CODEX_DIR/.env"',
-          `cat >> "$CODEX_DIR/.env" <<'EOF'`,
+          ` cat >> "$CODEX_DIR/.env" <<'EOF'`,
           `LANGFUSE_GATEWAY_KEY=${GATEWAY_KEY_PLACEHOLDER}`,
           "EOF",
         ].join("\n"),
