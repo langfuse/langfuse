@@ -445,6 +445,8 @@ describe("onboarding router", () => {
 
   describe("AI Gateway invitations", () => {
     const originalGatewayAvailability = {
+      NODE_ENV: env.NODE_ENV,
+      NEXT_PUBLIC_PREVIEW_PR_URL: env.NEXT_PUBLIC_PREVIEW_PR_URL,
       LANGFUSE_AI_GATEWAY_DEPLOYED: env.LANGFUSE_AI_GATEWAY_DEPLOYED,
       LANGFUSE_AI_GATEWAY_ENABLED: env.LANGFUSE_AI_GATEWAY_ENABLED,
       LANGFUSE_AI_GATEWAY_ORGANIZATION_ID_ALLOWLIST:
@@ -507,7 +509,11 @@ describe("onboarding router", () => {
         data: { orgId: organization.id, email, orgRole: Role.AI_GATEWAY },
       });
 
+      // Development and preview enable the gateway everywhere, so only the
+      // org allowlist decides here.
       Object.assign(env, {
+        NODE_ENV: "test",
+        NEXT_PUBLIC_PREVIEW_PR_URL: undefined,
         LANGFUSE_AI_GATEWAY_DEPLOYED: "true",
         LANGFUSE_AI_GATEWAY_ENABLED: "false",
         LANGFUSE_AI_GATEWAY_ORGANIZATION_ID_ALLOWLIST: gatewayEnabled

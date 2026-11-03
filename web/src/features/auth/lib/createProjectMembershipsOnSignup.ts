@@ -333,8 +333,11 @@ async function processMembershipInvitations(email: string, userId: string) {
       // Gateway-only members see no projects but belong in the inviting org,
       // where they create their AI Gateway keys, as long as it still has the
       // gateway enabled.
-      if (invitation.orgRole === Role.AI_GATEWAY) {
-        return isGatewayEnabledForOrganization(invitation.orgId);
+      if (
+        invitation.orgRole === Role.AI_GATEWAY &&
+        isGatewayEnabledForOrganization(invitation.orgId)
+      ) {
+        return true;
       }
       if (!invitation.projectId) return false;
 
