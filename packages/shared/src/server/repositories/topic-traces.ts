@@ -28,7 +28,7 @@ export const TOPIC_TRACE_STATUSES = [
 ] as const;
 export type TopicTraceStatus = (typeof TOPIC_TRACE_STATUSES)[number];
 
-export const TOPIC_TRACE_SUMMARY_PREVIEW_LENGTH = 500;
+const TOPIC_TRACE_SUMMARY_PREVIEW_LENGTH = 500;
 
 type StringMatch = {
   operator: "=" | "contains" | "does not contain" | "starts with" | "ends with";
