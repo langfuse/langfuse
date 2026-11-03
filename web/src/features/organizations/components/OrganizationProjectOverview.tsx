@@ -598,7 +598,8 @@ const pageBanner = ({
 }): ReactNode => {
   if (
     v4UpgradeUiEnabled &&
-    v4MigrationBannerState.projectsNeedingMigration > 0
+    v4MigrationBannerState.projectsNeedingMigration > 0 &&
+    !v4MigrationBannerState.isDismissed
   ) {
     return (
       <V4MigrationBanner
