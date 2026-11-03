@@ -18,12 +18,9 @@ import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
 import {
   redis,
-  DefaultEvalModelService,
   getEnvironmentsForProject,
   invalidateCachedOrgApiKeys,
 } from "@langfuse/shared/src/server";
-import { transferRoleAssignments } from "@langfuse/shared/rbac/server";
-import { reconcileTopicsConnectionsForProject } from "@langfuse/shared/topics/server";
 import { StringNoHTMLNonEmpty } from "@langfuse/shared";
 import { buildAdminOrgContext } from "@/src/features/organizations/server/adminOrgContext";
 import { emitChbProjectEvent } from "@/src/ee/features/billing/server/chb/chbProjectEvents";
@@ -263,67 +260,15 @@ export const projectsRouter = createTRPCRouter({
         });
       }
 
-      await auditLog({
-        session: ctx.session,
-        resourceType: "project",
-        resourceId: input.projectId,
-        action: "transfer",
-        before: { orgId: ctx.session.orgId },
-        after: { orgId: input.targetOrgId },
-      });
-
-      await ctx.prisma.$transaction(async (tx) => {
-        await tx.projectMembership.deleteMany({
-          where: {
-            projectId: input.projectId,
-          },
-        });
-        await tx.project.update({
-          where: {
-            id: input.projectId,
-            orgId: ctx.session.orgId,
-          },
-          data: {
-            orgId: input.targetOrgId,
-          },
-        });
-        // Move the project's api-key assignments to the destination org and
-        // drop its user assignments, matching the membership wipe above.
-        await transferRoleAssignments(tx, input.projectId, input.targetOrgId);
-      });
-
-      // API keys need to be deleted from cache. Otherwise, they will still be valid.
-      // It has to be called after the db is done to prevent new API keys from being cached.
-      await new ApiAuthService(
+      await new ProjectService(
         ctx.prisma,
-        redis,
-      ).invalidateCachedProjectApiKeys(input.projectId);
-
-      // Both orgs' org-scoped keys bake a projectId set that just changed.
-      await invalidateCachedOrgApiKeys(ctx.session.orgId);
-      await invalidateCachedOrgApiKeys(input.targetOrgId);
-
-      // A transfer is a delete for the source org and a create for the
-      // destination one. CHB's registry is keyed by (organizationId,
-      // projectId), so emitting only one side leaves the source org billed for
-      // usage it no longer owns, or the destination org unmetered. Each emit
-      // no-ops unless that org is CHB-billed, so a Stripe-to-Stripe transfer
-      // sends nothing.
-      emitChbProjectEvent({
-        type: "LANGFUSE_PROJECT_DELETED",
-        orgId: ctx.session.orgId,
+        new ApiAuthService(ctx.prisma, redis),
+      ).transfer({
+        organizationId: ctx.session.orgId,
+        targetOrganizationId: input.targetOrgId,
         projectId: input.projectId,
+        actor: { session: ctx.session },
       });
-      emitChbProjectEvent({
-        type: "LANGFUSE_PROJECT_CREATED",
-        orgId: input.targetOrgId,
-        projectId: input.projectId,
-      });
-
-      await Promise.all([
-        DefaultEvalModelService.reconcileConnectionForProject(input.projectId),
-        reconcileTopicsConnectionsForProject(input.projectId),
-      ]);
     }),
 
   environmentFilterOptions: protectedProjectProcedure
