@@ -797,12 +797,12 @@ describe("RateLimitService", () => {
     const cases = [
       { plan: "cloud:hobby" as const, requests: 100, requestBytes: 64 * MiB },
       { plan: "cloud:core" as const, requests: 500, requestBytes: 256 * MiB },
-      { plan: "cloud:pro" as const, requests: 3_000, requestBytes: 2 * GiB },
-      { plan: "cloud:team" as const, requests: 3_000, requestBytes: 2 * GiB },
+      { plan: "cloud:pro" as const, requests: 10_000, requestBytes: 5 * GiB },
+      { plan: "cloud:team" as const, requests: 10_000, requestBytes: 5 * GiB },
       {
         plan: "cloud:enterprise" as const,
-        requests: 3_000,
-        requestBytes: 2 * GiB,
+        requests: 10_000,
+        requestBytes: 5 * GiB,
       },
     ];
 
@@ -847,6 +847,22 @@ describe("RateLimitService", () => {
       );
       expect(ttlInSec).toBeGreaterThan(0);
       expect(ttlInSec).toBeLessThanOrEqual(60);
+
+      const atLimit = await rateLimitService.rateLimitRequest(
+        scope,
+        "ai-gateway-request-bytes",
+        testCase.requestBytes - 4096,
+      );
+      expect(atLimit?.res?.consumedPoints).toBe(testCase.requestBytes);
+      expect(atLimit?.isRateLimited()).toBe(false);
+
+      const overLimit = await rateLimitService.rateLimitRequest(
+        scope,
+        "ai-gateway-request-bytes",
+        1,
+      );
+      expect(overLimit?.res?.consumedPoints).toBe(testCase.requestBytes + 1);
+      expect(overLimit?.isRateLimited()).toBe(true);
     }
   });
 
