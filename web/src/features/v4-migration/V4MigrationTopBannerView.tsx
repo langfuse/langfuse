@@ -1,19 +1,11 @@
 import Link from "next/link";
+import { TriangleAlert } from "@langfuse/icons";
 import { cn } from "@/src/utils/tailwind";
 import type { V4MigrationTopBannerSeverity } from "@/src/features/v4-migration/topBannerContent";
 
 const STRIP_CLASS: Record<V4MigrationTopBannerSeverity, string> = {
-  warning:
-    "border-migration-banner-warning-border bg-migration-banner-warning text-migration-banner-warning-foreground",
-  critical:
-    "border-migration-banner-critical-border bg-migration-banner-critical text-migration-banner-critical-foreground",
-};
-
-const LINK_CLASS: Record<V4MigrationTopBannerSeverity, string> = {
-  warning:
-    "text-migration-banner-warning-link hover:text-migration-banner-warning-link-hover font-bold hover:underline",
-  critical:
-    "text-migration-banner-critical-link hover:text-migration-banner-critical-link-hover font-bold hover:underline",
+  warning: "bg-orange-500 text-orange-950",
+  critical: "bg-red-700 text-white",
 };
 
 export type V4MigrationTopBannerViewProps = {
@@ -33,28 +25,33 @@ export function V4MigrationTopBannerView({
   message,
   onStatusClick,
 }: V4MigrationTopBannerViewProps) {
-  const linkClassName = LINK_CLASS[severity];
   const fullText = `${message} Check migration status`;
 
   return (
     <div
       role="status"
       data-severity={severity}
+      title={fullText}
       className={cn(
-        "flex w-full items-center justify-center border-b px-4 py-1",
+        "flex w-full items-center justify-center gap-1.5 border-b border-current/15 px-4 py-1",
         STRIP_CLASS[severity],
       )}
     >
-      <p className="max-w-full min-w-0 truncate text-sm" title={fullText}>
-        <span>{message} </span>
-        <Link
-          href="/v4-migration"
-          className={linkClassName}
-          onClick={onStatusClick}
-        >
-          Check migration status
-        </Link>
-      </p>
+      <TriangleAlert size="sm" __rawClassName="shrink-0" aria-hidden="true" />
+      <span
+        className="hidden min-w-0 truncate text-sm sm:inline"
+        title={message}
+      >
+        {message}{" "}
+      </span>
+      <span className="text-sm sm:hidden">Action required:</span>
+      <Link
+        href="/v4-migration"
+        className="shrink-0 text-sm font-bold underline decoration-current/50 underline-offset-2 hover:decoration-current"
+        onClick={onStatusClick}
+      >
+        Check migration status
+      </Link>
     </div>
   );
 }

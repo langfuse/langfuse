@@ -112,9 +112,7 @@ describe("useV4MigrationTopBanner", () => {
   it("links affected orgs to migration status and records the count", () => {
     render(<ConnectedBanner />);
 
-    expect(screen.getByRole("status")).toHaveTextContent(
-      `${WARNING_MESSAGE} Check migration status`,
-    );
+    expect(screen.getByText(WARNING_MESSAGE)).toBeInTheDocument();
     expect(mocks.queryInput).toEqual({ orgId: "org-1" });
     expect(mocks.capture).toHaveBeenCalledWith(
       "v4_migration:top_banner_shown",
