@@ -9,15 +9,15 @@ export type LegacyUiBannerViewProps = {
   /** True while the enable-v4 mutation / session refresh is in flight. */
   isSwitching: boolean;
   onSwitchToLatestUi: () => void;
-  /** Fires on the secondary link click (analytics). */
+  /** Fires on the inline why-link click (analytics). */
   onMigrationStatusClick?: () => void;
 };
 
 /**
  * Full-width top strip for users who opted back to the legacy (v3) UI.
- * Uses the blue preview-banner tokens. Enable CTA is DS Button outline/sm
- * (bordered gray, quietest box variant). Below `sm` the actions drop to their
- * own row (PaymentBanner pattern). Not dismissible.
+ * Blue preview-banner tokens. Copy + why-link on the left; enable CTA alone
+ * on the right (DS Button outline/sm). Below `sm` the CTA drops under the
+ * message. Not dismissible.
  */
 export function LegacyUiBannerView({
   hasDeadline,
@@ -31,12 +31,19 @@ export function LegacyUiBannerView({
       role="status"
     >
       <p className="min-w-0 flex-1 text-sm wrap-break-word">
-        <span className="font-bold">You are viewing legacy UI.</span>{" "}
+        <span className="font-bold">You are viewing legacy UI.</span>
         {hasDeadline
-          ? `It will be retired on ${V4_MIGRATION_DEADLINE}.`
-          : "It will be retired."}
+          ? ` It will be retired on ${V4_MIGRATION_DEADLINE}.`
+          : null}{" "}
+        <Link
+          href="/v4-migration"
+          onClick={onMigrationStatusClick}
+          className="text-preview-banner-link hover:text-preview-banner-link-hover underline underline-offset-2"
+        >
+          Why do I need to switch?
+        </Link>
       </p>
-      <div className="flex shrink-0 items-center gap-3 self-end sm:self-auto">
+      <div className="flex shrink-0 self-end sm:self-auto">
         <Button
           size="sm"
           variant="outline"
@@ -45,13 +52,6 @@ export function LegacyUiBannerView({
           disabled={isSwitching}
           onClick={onSwitchToLatestUi}
         />
-        <Link
-          href="/v4-migration"
-          onClick={onMigrationStatusClick}
-          className="text-preview-banner-link hover:text-preview-banner-link-hover text-sm underline underline-offset-2"
-        >
-          View migration guide
-        </Link>
       </div>
     </div>
   );
