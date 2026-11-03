@@ -150,6 +150,7 @@ async function prepare() {
 
 describe("automations trpc", () => {
   afterAll(async () => {
+    await prisma.auditLog.deleteMany({ where: { orgId: { in: __orgIds } } });
     await prisma.organization.deleteMany({
       where: {
         id: { in: __orgIds },
