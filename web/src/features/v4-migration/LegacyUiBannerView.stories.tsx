@@ -14,24 +14,23 @@ const meta = preview.meta({
 });
 
 /**
- * Cloud: retirement date included. Blue preview-banner tokens; primary
- * enables v4; secondary is an underlined link to the migration guide.
+ * Cloud: retirement date plus inline why-link on the left; enable CTA alone
+ * on the right.
  */
 export const WithDeadline = meta.story({});
 
-/** Self-hosted / no Cloud deadline — date clause omitted. */
+/** Self-hosted / no Cloud deadline — why-link still follows the lead. */
 export const WithoutDeadline = meta.story({
   args: { hasDeadline: false },
 });
 
-/** Primary CTA while the enable mutation / session refresh is in flight. */
+/** Enable CTA while the mutation / session refresh is in flight. */
 export const Switching = meta.story({
   args: { isSwitching: true },
 });
 
 /**
- * Phone width: actions drop under the message (PaymentBanner pattern) so the
- * copy keeps the full row instead of squeezing beside non-wrapping buttons.
+ * Phone width: CTA drops under the message (PaymentBanner pattern).
  */
 export const Narrow = meta.story({
   globals: { viewport: { value: "legacy-ui-banner-phone", isRotated: false } },
