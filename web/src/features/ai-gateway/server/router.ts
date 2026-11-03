@@ -397,7 +397,7 @@ export const aiGatewayRouter = createTRPCRouter({
       const catalogService = new GatewayModelCatalogService(ctx.prisma);
       const results = canManageGateway
         ? await catalogService.refreshAllModels(input.orgId)
-        : await catalogService.listCachedModels(input.orgId);
+        : await catalogService.listAllModels(input.orgId);
       if (canManageGateway) return results;
 
       const readableConnections = await catalogService.listModelConnections(

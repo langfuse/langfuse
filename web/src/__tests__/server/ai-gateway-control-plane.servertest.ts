@@ -73,7 +73,7 @@ import {
 } from "@/src/features/ai-gateway/server/provider";
 import { createEs256JwtVerifier } from "@/src/server/utils/jwt";
 import { prisma, Role } from "@langfuse/shared/src/db";
-import { decrypt } from "@langfuse/shared/encryption";
+import { decrypt, encrypt } from "@langfuse/shared/encryption";
 import {
   createApiKey,
   createShaHash,
@@ -849,18 +849,20 @@ describe("AI gateway control plane", () => {
       await setup.caller.aiGateway.updateConnectionModels({
         orgId: setup.org.id,
         id: connection.id,
-        allowedModels: ["enabled-model"],
+        allowedModels: ["enabled-model", "unlisted-model"],
         expectedUpdatedAt: connection.updatedAt,
       });
       const readCaller = await createCallerForOrganizationRole(setup, readRole);
-      const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
-        Response.json({
-          data: [
-            { id: "disabled-model", created: 10 },
-            { id: "enabled-model", created: 20 },
-          ],
-        }),
-      );
+      const fetchSpy = vi
+        .spyOn(globalThis, "fetch")
+        .mockImplementation(async () =>
+          Response.json({
+            data: [
+              { id: "disabled-model", created: 10 },
+              { id: "enabled-model", created: 20 },
+            ],
+          }),
+        );
 
       try {
         await expect(
@@ -886,12 +888,97 @@ describe("AI gateway control plane", () => {
             models: ["enabled-model"],
           },
         ]);
-        expect(fetchSpy).not.toHaveBeenCalled();
+        expect(fetchSpy).toHaveBeenCalledTimes(1);
       } finally {
         fetchSpy.mockRestore();
       }
     },
   );
+
+  it("calls a rejecting provider once per window for a MEMBER and shows the allowlist without marking ERROR", async () => {
+    const setup = await prepare();
+    const connection = await setup.caller.aiGateway.createConnection({
+      orgId: setup.org.id,
+      name: "OpenAI",
+      provider: "OPENAI",
+      credential: "sk-test-openai",
+    });
+    await setup.caller.aiGateway.updateConnectionModels({
+      orgId: setup.org.id,
+      id: connection.id,
+      allowedModels: ["gpt-5"],
+      expectedUpdatedAt: connection.updatedAt,
+    });
+    const memberCaller = await createCallerForOrganizationRole(
+      setup,
+      Role.MEMBER,
+    );
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(new Response(null, { status: 401 }));
+
+    try {
+      await new GatewayModelCatalogService(prisma).clearModelCache(
+        setup.org.id,
+        connection.id,
+      );
+      for (let load = 0; load < 2; load++) {
+        await expect(
+          memberCaller.aiGateway.refreshModels({ orgId: setup.org.id }),
+        ).resolves.toEqual([
+          { connectionId: connection.id, success: true, models: ["gpt-5"] },
+        ]);
+      }
+      expect(fetchSpy).toHaveBeenCalledTimes(1);
+      await expect(
+        prisma.gatewayAiConnection.findUniqueOrThrow({
+          where: { id: connection.id },
+          select: { status: true },
+        }),
+      ).resolves.toEqual({ status: "ENABLED" });
+    } finally {
+      fetchSpy.mockRestore();
+    }
+  });
+
+  it("keeps a connection ENABLED when its credential changes while a rejected discovery runs", async () => {
+    const setup = await prepare();
+    const connection = await setup.caller.aiGateway.createConnection({
+      orgId: setup.org.id,
+      name: "OpenAI",
+      provider: "OPENAI",
+      credential: "sk-revoked-openai",
+    });
+    const fetchSpy = vi
+      .spyOn(globalThis, "fetch")
+      .mockImplementation(async () => {
+        await prisma.gatewayAiConnection.update({
+          where: { id: connection.id },
+          data: { encryptedCredential: encrypt("sk-replaced-openai") },
+        });
+        return new Response(null, { status: 401 });
+      });
+
+    try {
+      await new GatewayModelCatalogService(prisma).clearModelCache(
+        setup.org.id,
+        connection.id,
+      );
+      await expect(
+        setup.caller.aiGateway.refreshModels({ orgId: setup.org.id }),
+      ).resolves.toEqual([
+        { connectionId: connection.id, success: false, error: "unauthorized" },
+      ]);
+      await expect(
+        prisma.gatewayAiConnection.findUniqueOrThrow({
+          where: { id: connection.id },
+          select: { status: true },
+        }),
+      ).resolves.toEqual({ status: "ENABLED" });
+    } finally {
+      fetchSpy.mockRestore();
+    }
+  });
 
   it("blocks an auto-granted demo organization VIEWER from gateway catalog metadata", async () => {
     const setup = await prepare();
