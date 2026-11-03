@@ -18,10 +18,11 @@ import {
 import { FilterToggleButton } from "@/src/components/table/FilterToggleButton";
 import { ResizableFilterLayout } from "@/src/components/table/resizable-filter-layout";
 import { TableHeaderControls } from "@/src/components/table/TableHeaderControls";
-import { TableSearchBar, toObservedOptions } from "@/src/features/search-bar";
+import { TableSearchBar } from "@/src/features/search-bar/components/TableSearchBar";
+import { toObservedOptions } from "@/src/features/search-bar/lib/observed-options";
 import { AGENTS_FIELD_REGISTRY } from "../constants/agentsFilterConfig";
 import { AgentsTable } from "../AgentsTable";
-import { PrototypeOptions } from "../prototype-options";
+import { PrototypeOptions } from "../prototype-options/PrototypeOptions";
 import { AgentOverviewCards } from "./AgentOverviewCards";
 import { AgentAttention } from "./AgentAttention";
 import { AgentActivity } from "./AgentActivity";

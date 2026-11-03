@@ -1,4 +1,4 @@
-import { type AgentSessionProjection } from "@langfuse/shared";
+import { type AgentSessionProjection } from "@langfuse/shared/agents";
 import { Badge } from "@/src/components/design-system/Badge/Badge";
 
 export function AgentSkillsContext({

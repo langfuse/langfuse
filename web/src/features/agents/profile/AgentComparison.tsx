@@ -1,6 +1,6 @@
-import { type AgentSessionProjection } from "@langfuse/shared";
+import { type AgentSessionProjection } from "@langfuse/shared/agents";
 import { AgentComparisonSparkline } from "../overview/AgentComparisonSparkline";
-import { useAgentAppearance } from "../appearance";
+import { useAgentAppearance } from "../appearance/appearanceStore";
 import { AgentComparisonView } from "./AgentComparisonView";
 
 export function AgentComparison({

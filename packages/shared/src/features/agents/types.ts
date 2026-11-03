@@ -1,4 +1,4 @@
-import type { ObservationType } from "../../domain";
+import type { ObservationType } from "../../domain/observations";
 
 export type AgentMetrics = {
   agentName: string;

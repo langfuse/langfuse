@@ -61,7 +61,7 @@ import {
 import { cn } from "@/src/utils/tailwind";
 import { CompactConnectorRow } from "@/src/features/filters/components/CompactConnectorRow";
 import { CompactPickerButton } from "@/src/features/filters/components/CompactPickerButton";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import {
   InputCommand,
   InputCommandEmpty,
@@ -70,11 +70,9 @@ import {
   InputCommandItem,
   InputCommandList,
 } from "@/src/components/ui/input-command";
-import { useQueryProject } from "@/src/features/projects";
-import {
-  useLangfuseCloudRegion,
-  openAIFeaturesSettings,
-} from "@/src/features/organizations";
+import { useQueryProject } from "@/src/features/projects/hooks";
+import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
+import { openAIFeaturesSettings } from "@/src/features/organizations/components/AIFeaturesDisabledNotice";
 
 /**
  * Extended ColumnDefinition with optional alert for UI display.

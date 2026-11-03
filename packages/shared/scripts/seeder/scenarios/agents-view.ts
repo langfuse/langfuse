@@ -7,7 +7,7 @@ import {
   type ObservationRecordInsertType,
   type TraceRecordInsertType,
 } from "../../../src/server";
-import { type ObservationType } from "../../../src/domain";
+import { type ObservationType } from "../../../src/domain/observations";
 import {
   AGENT_NAME_METADATA_KEY,
   SKILL_TOOL_NAMES,

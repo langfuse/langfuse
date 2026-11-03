@@ -2,10 +2,9 @@ import { z } from "zod";
 import {
   MAX_AGENT_NAME_LENGTH,
   AGENT_PROJECTION_LIMITS,
-  singleFilterList,
   type AgentListResult,
-  type FilterCondition,
-} from "@langfuse/shared";
+} from "@langfuse/shared/agents";
+import { singleFilterList, type FilterCondition } from "@langfuse/shared";
 import {
   getAgentMapSkeleton,
   getAgentSessionProjectionFromEventsTable,
@@ -15,7 +14,7 @@ import {
   getAgentsCountFromEventsTable,
   getAgentsFromEventsTable,
   hasAnyAgentFromEventsTable,
-} from "@langfuse/shared/src/server";
+} from "@langfuse/shared/agents/server";
 import {
   createTRPCRouter,
   protectedProjectProcedure,

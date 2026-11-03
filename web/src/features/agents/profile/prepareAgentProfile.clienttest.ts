@@ -1,7 +1,7 @@
 import {
   type AgentProjectionActivity,
   type AgentProjectionSession,
-} from "@langfuse/shared";
+} from "@langfuse/shared/agents";
 import {
   prepareAgentProfileChart,
   prepareAgentSessionRows,

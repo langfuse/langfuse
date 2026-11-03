@@ -1,4 +1,4 @@
-import { type AgentMapSkeletonRow } from "@langfuse/shared";
+import { type AgentMapSkeletonRow } from "@langfuse/shared/agents";
 import { type GraphCanvasData } from "@/src/features/trace-graph-view/types";
 
 type AgentMapNode = GraphCanvasData["nodes"][number] & {

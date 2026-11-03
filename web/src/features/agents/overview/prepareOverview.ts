@@ -1,10 +1,9 @@
+import { buildTracePath, type FilterState } from "@langfuse/shared";
 import {
-  buildTracePath,
   type AgentSessionProjection,
   type AgentProjectionSummary,
   type AgentProjectionSession,
-  type FilterState,
-} from "@langfuse/shared";
+} from "@langfuse/shared/agents";
 import { buildAgentProfilePath } from "../lib/buildAgentProfilePath";
 import {
   type AgentCardMetric,

@@ -1,11 +1,9 @@
 import Link from "next/link";
 import { ArrowUpRight, CircleAlert, Moon } from "@langfuse/icons";
 import { HoverCard } from "@/src/components/design-system/HoverCard/HoverCard";
-import {
-  AgentIdentity,
-  AgentAppearancePicker,
-  useAgentAppearance,
-} from "../appearance";
+import { AgentIdentity } from "../appearance/AgentIdentity";
+import { AgentAppearancePicker } from "../appearance/AgentAppearancePicker";
+import { useAgentAppearance } from "../appearance/appearanceStore";
 import { AgentComparisonSparkline } from "./AgentComparisonSparkline";
 import { AgentPreview } from "./AgentPreview";
 import {

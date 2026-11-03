@@ -5,11 +5,9 @@ import {
   TableViewPresetTableName,
   type TableViewPresetDomain,
 } from "../../../domain/table-view-presets";
-import {
-  InvalidRequestError,
-  LangfuseConflictError,
-  LangfuseNotFoundError,
-} from "../../../errors";
+import { InvalidRequestError } from "../../../errors/InvalidRequestError";
+import { LangfuseConflictError } from "../../../errors/ConflictError";
+import { LangfuseNotFoundError } from "../../../errors/NotFoundError";
 import {
   TableViewPresetsNamesCreatorList,
   TableViewPresetsNamesCreatorListSchema,
@@ -22,7 +20,7 @@ import {
   getSystemTableViewPresetByTableAndId,
   getSystemTableViewPresets,
   isSystemTableViewPresetId,
-} from "./systemPresets";
+} from "../../../domain/table-view-presets-catalog";
 
 const TABLE_NAME_TO_URL_MAP: Partial<Record<TableViewPresetTableName, string>> =
   {

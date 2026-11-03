@@ -1,7 +1,7 @@
 import {
   type AgentProjectionTool,
   type AgentSessionProjection,
-} from "@langfuse/shared";
+} from "@langfuse/shared/agents";
 import { Table } from "@/src/components/design-system/table/Table";
 import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
 import { createNumberTableColumn } from "@/src/components/design-system/table/columns/createNumberTableColumn";

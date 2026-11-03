@@ -6,11 +6,11 @@ import {
   type keepPreviousData,
 } from "@tanstack/react-query";
 import { type ReactNode } from "react";
+import { type FilterState } from "@langfuse/shared";
 import {
   type AgentListResult,
   type AgentMetrics,
-  type FilterState,
-} from "@langfuse/shared";
+} from "@langfuse/shared/agents";
 import { AgentsTable } from "./AgentsTable";
 
 const mocks = vi.hoisted(() => ({
@@ -69,8 +69,10 @@ vi.mock("@/src/hooks/useTableDateRange", () => ({
     setTimeRange: vi.fn(),
   }),
 }));
-vi.mock("@/src/features/filters", () => ({
+vi.mock("@/src/features/filters/lib/persistedSidebarFilterQuery", () => ({
   buildSidebarFilterSessionContextId: () => "project",
+}));
+vi.mock("@/src/features/filters/hooks/useSidebarFilterState", () => ({
   useSidebarFilterState: () => ({
     effectiveFilterState: mocks.filter,
     explicitFilterState: mocks.filter,
@@ -93,8 +95,10 @@ vi.mock("@/src/components/table/FilterToggleButton", () => ({
 vi.mock("@/src/components/table/TableHeaderControls", () => ({
   TableHeaderControls: () => null,
 }));
-vi.mock("@/src/features/search-bar", () => ({
+vi.mock("@/src/features/search-bar/components/TableSearchBar", () => ({
   TableSearchBar: () => null,
+}));
+vi.mock("@/src/features/search-bar/lib/observed-options", () => ({
   toObservedOptions: () => ({}),
 }));
 vi.mock("@/src/components/layouts/doc-popup", () => ({ default: () => null }));

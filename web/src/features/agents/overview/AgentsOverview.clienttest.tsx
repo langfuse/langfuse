@@ -19,7 +19,9 @@ const mocks = vi.hoisted(() => ({
 vi.mock("./useAgentsOverview", () => ({
   useAgentsOverview: () => mocks.state,
 }));
-vi.mock("../prototype-options", () => ({ PrototypeOptions: () => null }));
+vi.mock("../prototype-options/PrototypeOptions", () => ({
+  PrototypeOptions: () => null,
+}));
 vi.mock("@/src/components/table/data-table-controls", () => ({
   DataTableControlsProvider: ({ children }: { children: ReactNode }) =>
     children,
@@ -34,8 +36,10 @@ vi.mock("@/src/components/table/FilterToggleButton", () => ({
 vi.mock("@/src/components/table/TableHeaderControls", () => ({
   TableHeaderControls: () => null,
 }));
-vi.mock("@/src/features/search-bar", () => ({
+vi.mock("@/src/features/search-bar/components/TableSearchBar", () => ({
   TableSearchBar: () => null,
+}));
+vi.mock("@/src/features/search-bar/lib/observed-options", () => ({
   toObservedOptions: () => ({}),
 }));
 vi.mock("@/src/components/layouts/doc-popup", () => ({ default: () => null }));

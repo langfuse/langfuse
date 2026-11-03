@@ -1,7 +1,7 @@
 import {
   type AgentProjectionTool,
   type AgentSessionProjection,
-} from "@langfuse/shared";
+} from "@langfuse/shared/agents";
 import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { BarChart } from "@/src/components/design-system/charts/BarChart/BarChart";
 

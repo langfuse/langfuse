@@ -29,11 +29,10 @@ import {
 import { FilterToggleButton } from "@/src/components/table/FilterToggleButton";
 import { ResizableFilterLayout } from "@/src/components/table/resizable-filter-layout";
 import { TableHeaderControls } from "@/src/components/table/TableHeaderControls";
-import {
-  useSidebarFilterState,
-  buildSidebarFilterSessionContextId,
-} from "@/src/features/filters";
-import { TableSearchBar, toObservedOptions } from "@/src/features/search-bar";
+import { useSidebarFilterState } from "@/src/features/filters/hooks/useSidebarFilterState";
+import { buildSidebarFilterSessionContextId } from "@/src/features/filters/lib/persistedSidebarFilterQuery";
+import { TableSearchBar } from "@/src/features/search-bar/components/TableSearchBar";
+import { toObservedOptions } from "@/src/features/search-bar/lib/observed-options";
 import { useTableDateRange } from "@/src/hooks/useTableDateRange";
 import { useLiveTableDateRange } from "@/src/hooks/useLiveTableDateRange";
 import { api } from "@/src/utils/api";

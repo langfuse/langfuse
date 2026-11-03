@@ -40,7 +40,7 @@ vi.mock("@/src/components/layouts/Page", () => ({
 vi.mock("./AgentsFeatureGate", () => ({
   AgentsFeatureGate: ({ children }: { children: ReactNode }) => children,
 }));
-vi.mock("@/src/features/feature-flags", () => ({
+vi.mock("@/src/features/feature-flags/components/InternalFeatureBadge", () => ({
   InternalFeatureBadge: () => <span>Internal</span>,
 }));
 vi.mock("@/src/components/table/TableHeaderControls", () => ({
@@ -126,8 +126,10 @@ vi.mock("@/src/utils/api", () => ({
     },
   },
 }));
-vi.mock("./appearance", () => ({
+vi.mock("./appearance/AgentIdentity", () => ({
   AgentIdentity: () => <span>Identity</span>,
+}));
+vi.mock("./appearance/AgentAppearancePicker", () => ({
   AgentAppearancePicker: () => <span>Appearance</span>,
 }));
 vi.mock("@/src/features/global-time-range/globalDateRangeStore", () => ({
@@ -142,8 +144,10 @@ vi.mock("@/src/features/global-time-range/globalDateRangeStore", () => ({
     }),
   },
 }));
-vi.mock("./prototype-options", () => ({
+vi.mock("./prototype-options/PrototypeOptions", () => ({
   PrototypeOptions: () => <span>Options</span>,
+}));
+vi.mock("./prototype-options/useAgentsPrototypeOptions", () => ({
   useAgentsPrototypeOptions: () => ({
     options: {
       ...DEFAULT_AGENT_OPTIONS,
@@ -201,8 +205,8 @@ vi.mock("./agent-map/AgentMap", () => ({
     );
   },
 }));
-vi.mock("@/src/features/events/components", () => ({
-  ObservationsEventsTable: (props: unknown) => {
+vi.mock("@/src/features/events/components/EventsTable", () => ({
+  default: (props: unknown) => {
     mocks.table(props);
     return <span>Rows</span>;
   },

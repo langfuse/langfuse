@@ -2,7 +2,7 @@ import { type Plan } from "@langfuse/shared";
 
 import { env } from "@/src/env.mjs";
 import { isAuditLogEnabled } from "@/src/features/audit-logs/isAuditLogEnabled";
-import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server";
+import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server/hasEntitlement";
 
 /** The org facts the gate reads. The session and API-key scopes carry them, so checking a read needs no query. */
 export type AccessAuditOrg = {
@@ -17,13 +17,18 @@ export type AccessAuditOrg = {
  * org's plan: every org on Langfuse Cloud, every org on a self-hosted instance
  * with an enterprise license, and none without one.
  *
+ * A read through a ConductorOne support access grant is always recorded, in
+ * every mode and whatever the org's setting.
+ *
  * The staging kill switch LANGFUSE_AUDIT_LOG_STAGING_ENABLED turns recording
  * off in every mode. Reads then succeed unrecorded rather than fail.
  */
 export function isAccessAuditLogEnabled(
   org: Pick<AccessAuditOrg, "plan" | "accessAuditLogEnabled">,
+  { supportAccess = false }: { supportAccess?: boolean } = {},
 ): boolean {
   if (env.LANGFUSE_AUDIT_LOG_STAGING_ENABLED !== "true") return false;
+  if (supportAccess) return true;
 
   switch (env.LANGFUSE_AUDIT_LOG_ACCESS_EVENTS) {
     case "disabled":

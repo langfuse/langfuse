@@ -1,4 +1,4 @@
-import { type AgentSessionProjection } from "@langfuse/shared";
+import { type AgentSessionProjection } from "@langfuse/shared/agents";
 import { compactNumberFormatter, usdFormatter } from "@/src/utils/numbers";
 import { formatAgentDuration } from "./profile/prepareAgentProfile";
 

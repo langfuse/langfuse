@@ -1,4 +1,4 @@
-import { type AgentProjectionTool } from "@langfuse/shared";
+import { type AgentProjectionTool } from "@langfuse/shared/agents";
 import preview from "../../../../.storybook/preview";
 import { projection, TO } from "../overview/testFixtures";
 import { AgentToolsContext } from "./AgentToolsContext";

@@ -1,4 +1,4 @@
-import { type AgentSessionProjection } from "@langfuse/shared";
+import { type AgentSessionProjection } from "@langfuse/shared/agents";
 import preview from "../../../../.storybook/preview";
 import { AgentCoverage } from "./AgentCoverage";
 

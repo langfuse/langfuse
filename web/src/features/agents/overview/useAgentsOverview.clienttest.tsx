@@ -5,11 +5,11 @@ import {
   useQuery,
 } from "@tanstack/react-query";
 import { type ReactNode } from "react";
+import { type FilterState } from "@langfuse/shared";
 import {
   type AgentListResult,
   type AgentSessionProjection,
-  type FilterState,
-} from "@langfuse/shared";
+} from "@langfuse/shared/agents";
 import { useAgentsOverview } from "./useAgentsOverview";
 import { resolveAgentOptions } from "../prototype-options/options";
 import { agent, FROM, projection, TO } from "./testFixtures";
@@ -35,8 +35,10 @@ vi.mock("@/src/hooks/useTableDateRange", () => ({
     setTimeRange: vi.fn(),
   }),
 }));
-vi.mock("@/src/features/filters", () => ({
+vi.mock("@/src/features/filters/lib/persistedSidebarFilterQuery", () => ({
   buildSidebarFilterSessionContextId: () => "p",
+}));
+vi.mock("@/src/features/filters/hooks/useSidebarFilterState", () => ({
   useSidebarFilterState: () => ({
     effectiveFilterState: mocks.filter,
     explicitFilterState: mocks.filter,
@@ -44,7 +46,7 @@ vi.mock("@/src/features/filters", () => ({
     setFilterState: vi.fn(),
   }),
 }));
-vi.mock("../prototype-options", () => ({
+vi.mock("../prototype-options/useAgentsPrototypeOptions", () => ({
   useAgentsPrototypeOptions: () => ({
     options: resolveAgentOptions(mocks.query),
     setOptions: vi.fn(),

@@ -1,7 +1,7 @@
 import {
   type AgentSessionProjection,
   type AgentProjectionRelationship,
-} from "@langfuse/shared";
+} from "@langfuse/shared/agents";
 import { type AgentsPrototypeOptions } from "../prototype-options/options";
 export type RelationshipMode = AgentsPrototypeOptions["relationshipView"];
 export const RELATIONSHIP_LABELS: Record<RelationshipMode, string> = {

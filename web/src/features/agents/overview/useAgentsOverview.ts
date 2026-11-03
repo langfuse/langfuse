@@ -6,12 +6,10 @@ import { api } from "@/src/utils/api";
 import { useTableDateRange } from "@/src/hooks/useTableDateRange";
 import { useLiveTableDateRange } from "@/src/hooks/useLiveTableDateRange";
 import { rangeToString } from "@/src/utils/date-range-utils";
-import {
-  useSidebarFilterState,
-  buildSidebarFilterSessionContextId,
-} from "@/src/features/filters";
+import { useSidebarFilterState } from "@/src/features/filters/hooks/useSidebarFilterState";
+import { buildSidebarFilterSessionContextId } from "@/src/features/filters/lib/persistedSidebarFilterQuery";
 import { agentsFilterConfig } from "../constants/agentsFilterConfig";
-import { useAgentsPrototypeOptions } from "../prototype-options";
+import { useAgentsPrototypeOptions } from "../prototype-options/useAgentsPrototypeOptions";
 import { prepareAgents, type AgentSort } from "./prepareOverview";
 
 const EMPTY_DATE = new Date(0);

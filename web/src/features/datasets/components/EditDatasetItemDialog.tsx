@@ -14,7 +14,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/src/components/ui/dialog";
-import { useHasProjectAccess } from "@/src/features/rbac";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { useDatasetItemValidation } from "../hooks/useDatasetItemValidation";
 import {
   useDatasetItemMediaUpload,

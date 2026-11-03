@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { describe, expect, it } from "vitest";
-import { type AgentMapSkeletonRow } from "@langfuse/shared";
+import { type AgentMapSkeletonRow } from "@langfuse/shared/agents";
 import { buildAgentMapData } from "./buildAgentMapData";
 
 const row = (

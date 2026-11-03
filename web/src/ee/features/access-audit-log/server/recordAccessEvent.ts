@@ -20,12 +20,9 @@ import {
   isAccessAuditLogEnabled,
   type AccessAuditOrg,
 } from "@/src/ee/features/access-audit-log/server/isAccessAuditLogEnabled";
-import {
-  getAuditRequestContext,
-  toApiKeyActor,
-  toUserActor,
-} from "@/src/features/audit-logs/server";
-import { getOrganizationPlanServerSide } from "@/src/features/entitlements/server";
+import { getAuditRequestContext } from "@/src/features/audit-logs/server/getAuditRequestContext";
+import { toApiKeyActor, toUserActor } from "@/src/features/audit-logs/auditLog";
+import { getOrganizationPlanServerSide } from "@/src/features/entitlements/server/getPlan";
 
 /** What a route returned: the resource it read, typed refs to every resource in the response, and the validated request input. */
 export type AccessRead = {
@@ -96,6 +93,7 @@ export async function recordTrpcAccess(
     o.projects.some((p) => p.id === projectId),
   );
   const project = org?.projects.find((p) => p.id === projectId);
+  const supportAccess = org?.supportAccess === true;
   // Admins and viewers of public resources read projects outside their session.
   const auditOrg = org
     ? {
@@ -104,7 +102,9 @@ export async function recordTrpcAccess(
         accessAuditLogEnabled: org.accessAuditLogEnabled ?? false,
       }
     : await loadAccessAuditOrg({ projects: { some: { id: projectId } } });
-  if (!auditOrg || !isAccessAuditLogEnabled(auditOrg)) return;
+  if (!auditOrg || !isAccessAuditLogEnabled(auditOrg, { supportAccess })) {
+    return;
+  }
 
   await recordAccessEvent({
     ...read,
@@ -113,6 +113,7 @@ export async function recordTrpcAccess(
     actor: toUserActor(user, {
       orgRole: org?.role,
       projectRole: project?.role,
+      supportAccess,
     }),
     surface: "trpc",
     request: getAuditRequestContext(ctx.headers),

@@ -3,11 +3,12 @@ import { ZoomIn, ZoomOut, CalendarDays } from "@langfuse/icons";
 import {
   type AgentSessionProjection,
   type AgentProjectionSession,
-} from "@langfuse/shared";
+} from "@langfuse/shared/agents";
 import { Button } from "@/src/components/design-system/Button/Button";
 import { HoverCard } from "@/src/components/design-system/HoverCard/HoverCard";
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
-import { AgentIdentity, useAgentAppearance } from "../appearance";
+import { AgentIdentity } from "../appearance/AgentIdentity";
+import { useAgentAppearance } from "../appearance/appearanceStore";
 import {
   activityBuckets,
   formatDuration,

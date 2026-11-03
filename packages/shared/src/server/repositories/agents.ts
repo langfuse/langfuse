@@ -1,5 +1,5 @@
-import type { ObservationType } from "../../domain";
-import { InvalidRequestError } from "../../errors";
+import type { ObservationType } from "../../domain/observations";
+import { InvalidRequestError } from "../../errors/InvalidRequestError";
 import {
   AGENT_NAME_METADATA_KEY,
   SKILL_TOOL_NAMES,
@@ -9,7 +9,7 @@ import type {
   AgentMetrics,
   AgentSkillsResult,
 } from "../../features/agents/types";
-import type { UiColumnMappings } from "../../tableDefinitions";
+import type { UiColumnMappings } from "../../tableDefinitions/types";
 import type { FilterState } from "../../types";
 import {
   bindUtcDateTimeParam,
@@ -29,8 +29,8 @@ import {
 export { getAgentSessionProjectionFromEventsTable } from "./agents-projection";
 
 // The identity projection is the replacement seam for dedicated agent columns.
-export const AGENT_NAME_EXPR = `e.metadata_values[indexOf(e.metadata_names, '${AGENT_NAME_METADATA_KEY}')]`;
-export const HAS_AGENT_EXPR = `has(e.metadata_names, '${AGENT_NAME_METADATA_KEY}')`;
+const AGENT_NAME_EXPR = `e.metadata_values[indexOf(e.metadata_names, '${AGENT_NAME_METADATA_KEY}')]`;
+const HAS_AGENT_EXPR = `has(e.metadata_names, '${AGENT_NAME_METADATA_KEY}')`;
 
 type AgentQueryScope = {
   projectId: string;

@@ -71,13 +71,7 @@ spelling and only breaks on Linux CI.
 Flags: `--dry-run` (print the plan and every rewrite, change nothing),
 `--no-siblings`, `--no-verify` (skip the closing `tsc` + `--diff`), `--no-color`.
 
-The rewrites come from TypeScript's own
-`LanguageService.getEditsForFileRename` over the combined roots of
-`web/tsconfig.json` and `web/tsconfig.tests.json` — the exact
-primitive VS Code's "move file" uses — so `@/src/...` aliases, extension-less
-specifiers, index resolution and literal dynamic `import()` are the compiler's
-problem, not ours. Booting the service costs ~5–15s and every move after that
-is instant, which is why the CLI is batch-shaped.
+The rewrites come from TypeScript's own `LanguageService.getEditsForFileRename` over the roots of `web/tsconfig.json` — the exact primitive VS Code's "move file" uses — so `@/src/...` aliases, extension-less specifiers, index resolution and literal dynamic `import()` are the compiler's problem, not ours. Booting the service costs ~5–15s and every move after that is instant, which is why the CLI is batch-shaped.
 
 - **Batch moves need a live layout.** The host is mutable: each rename bumps the
   affected script versions and the project version, so move #2 computes its

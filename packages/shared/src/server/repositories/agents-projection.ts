@@ -1,5 +1,5 @@
-import type { ObservationType } from "../../domain";
-import { InvalidRequestError } from "../../errors";
+import type { ObservationType } from "../../domain/observations";
+import { InvalidRequestError } from "../../errors/InvalidRequestError";
 import {
   AGENT_NAME_METADATA_KEY,
   AGENT_PROJECTION_LIMITS as limits,

@@ -3,7 +3,7 @@ import {
   type AgentProjectionSummary,
   type AgentProjectionSession,
   type AgentProjectionStats,
-} from "@langfuse/shared";
+} from "@langfuse/shared/agents";
 export const FROM = new Date("2026-10-14T16:00:00Z"),
   TO = new Date("2026-10-14T20:00:00Z");
 export function stats(

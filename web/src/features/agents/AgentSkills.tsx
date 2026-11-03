@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { buildTracePath, type AgentSessionProjection } from "@langfuse/shared";
+import { buildTracePath } from "@langfuse/shared";
+import { type AgentSessionProjection } from "@langfuse/shared/agents";
 import { api } from "@/src/utils/api";
 import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { Table } from "@/src/components/design-system/table/Table";

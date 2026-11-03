@@ -16,7 +16,7 @@ import {
   Text,
 } from "@react-email/components";
 import { render } from "@react-email/render";
-import { type SendVerificationRequestParams } from "next-auth/providers/email";
+import type { SendVerificationRequestParams } from "next-auth/providers/email";
 import { createMailTransport } from "../transport";
 
 interface ResetPasswordTemplateProps {

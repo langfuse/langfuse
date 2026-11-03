@@ -1,6 +1,6 @@
 import { type ReactNode } from "react";
 import { ErrorPage } from "@/src/components/error-page";
-import { useInternalFeaturesEnabled } from "@/src/features/feature-flags";
+import { useInternalFeaturesEnabled } from "@/src/features/feature-flags/hooks/useInternalFeaturesEnabled";
 
 export function AgentsFeatureGate({ children }: { children: ReactNode }) {
   const enabled = useInternalFeaturesEnabled();

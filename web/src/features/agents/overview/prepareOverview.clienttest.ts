@@ -1,8 +1,5 @@
-import {
-  decodeFiltersGeneric,
-  type AgentProjectionTool,
-  type FilterState,
-} from "@langfuse/shared";
+import { decodeFiltersGeneric, type FilterState } from "@langfuse/shared";
+import { type AgentProjectionTool } from "@langfuse/shared/agents";
 import {
   activityBuckets,
   agentPath,

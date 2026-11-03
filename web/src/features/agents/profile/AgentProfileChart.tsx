@@ -1,4 +1,4 @@
-import { type AgentSessionProjection } from "@langfuse/shared";
+import { type AgentSessionProjection } from "@langfuse/shared/agents";
 import { MetricStripBand } from "@/src/components/metric-strip/MetricStripBand";
 import { OutlierBarStrip } from "@/src/features/events/components/outlier-strip/OutlierBarStrip";
 import { useElementSize } from "@/src/hooks/useElementSize";

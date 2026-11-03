@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Session } from "next-auth";
-import type * as SharedServer from "@langfuse/shared/src/server";
+import type * as SharedServer from "@langfuse/shared/agents/server";
 import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import { agentsRouter } from "@/src/features/agents/server/agents-router";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
@@ -20,7 +20,7 @@ vi.mock("@/src/server/auth", () => ({ getServerAuthSession: vi.fn() }));
 vi.mock("@/src/features/posthog-analytics/server/backendActivity", () => ({
   recordBackendActivity: vi.fn().mockResolvedValue(undefined),
 }));
-vi.mock("@langfuse/shared/src/server", async (importOriginal) => ({
+vi.mock("@langfuse/shared/agents/server", async (importOriginal) => ({
   ...(await importOriginal<typeof SharedServer>()),
   getAgentsFromEventsTable: mocks.list,
   getAgentsCountFromEventsTable: mocks.count,

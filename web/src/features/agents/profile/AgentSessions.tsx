@@ -1,10 +1,10 @@
 import { useRouter } from "next/router";
 import { NumberParam, StringParam, useQueryParams } from "use-query-params";
+import { buildTracePath } from "@langfuse/shared";
 import {
-  buildTracePath,
   type AgentSessionProjection,
   type AgentProjectionSession,
-} from "@langfuse/shared";
+} from "@langfuse/shared/agents";
 import { Table } from "@/src/components/design-system/table/Table";
 import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
 import { createNumberTableColumn } from "@/src/components/design-system/table/columns/createNumberTableColumn";

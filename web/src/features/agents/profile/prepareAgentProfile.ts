@@ -2,7 +2,7 @@ import {
   type AgentProjectionActivity,
   type AgentProjectionSession,
   type AgentProjectionWindow,
-} from "@langfuse/shared";
+} from "@langfuse/shared/agents";
 import {
   prepareOutlierSeries,
   type OutlierStripBin,

@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
-import { type AgentMapSkeletonRow } from "@langfuse/shared";
+import { type AgentMapSkeletonRow } from "@langfuse/shared/agents";
 import { type GraphCanvasData } from "@/src/features/trace-graph-view/types";
 import { AgentMap } from "./AgentMap";
 

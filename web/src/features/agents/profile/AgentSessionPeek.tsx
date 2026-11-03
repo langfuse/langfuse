@@ -8,8 +8,8 @@ import { ModernSessionHeader } from "@/src/features/sessions/ModernSessionHeader
 import { SessionMetadataJsonPathControl } from "@/src/features/sessions/SessionMetadataJsonPathControl";
 import { ConnectedModernSessionBodyTimeline } from "@/src/features/sessions/components/ConnectedModernSessionBodyTimeline/ConnectedModernSessionBodyTimeline";
 import { api } from "@/src/utils/api";
-import { AgentIdentity } from "../appearance";
-import { useAgentsPrototypeOptions } from "../prototype-options";
+import { AgentIdentity } from "../appearance/AgentIdentity";
+import { useAgentsPrototypeOptions } from "../prototype-options/useAgentsPrototypeOptions";
 
 export function AgentSessionPeek({
   projectId,
@@ -173,7 +173,6 @@ function AgentSessionContent({
         )}
       </SessionMetadataJsonPathControl>
       <ConnectedModernSessionBodyTimeline
-        transcriptSource="generations"
         projectId={projectId}
         sessionId={sessionId}
         tracesState={tracesState}

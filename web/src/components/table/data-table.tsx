@@ -44,7 +44,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/src/components/ui/table";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { cn } from "@/src/utils/tailwind";
 import {
   type ColumnOrderState,

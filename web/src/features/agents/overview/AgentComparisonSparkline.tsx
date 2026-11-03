@@ -1,7 +1,7 @@
 import {
   type AgentSessionProjection,
   type AgentProjectionSummary,
-} from "@langfuse/shared";
+} from "@langfuse/shared/agents";
 import { LineChart } from "@/src/components/design-system/charts/LineChart/LineChart";
 import { comparisonSeries } from "./prepareOverview";
 export function AgentComparisonSparkline({

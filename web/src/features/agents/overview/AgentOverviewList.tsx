@@ -3,7 +3,7 @@ import { Table } from "@/src/components/design-system/table/Table";
 import { createTableColumn } from "@/src/components/design-system/table/columns/utils/createTableColumn";
 import { createNumberTableColumn } from "@/src/components/design-system/table/columns/createNumberTableColumn";
 import { HoverCard } from "@/src/components/design-system/HoverCard/HoverCard";
-import { AgentAppearancePicker } from "../appearance";
+import { AgentAppearancePicker } from "../appearance/AgentAppearancePicker";
 import { AgentPreview } from "./AgentPreview";
 import {
   agentPath,

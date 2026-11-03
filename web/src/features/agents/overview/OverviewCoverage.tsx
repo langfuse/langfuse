@@ -1,4 +1,4 @@
-import { type AgentSessionProjection } from "@langfuse/shared";
+import { type AgentSessionProjection } from "@langfuse/shared/agents";
 import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { coverageIncomplete } from "./prepareOverview";
 export function OverviewCoverage({

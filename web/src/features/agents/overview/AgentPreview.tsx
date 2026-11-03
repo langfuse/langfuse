@@ -1,6 +1,7 @@
 import Link from "next/link";
-import { type AgentSessionProjection } from "@langfuse/shared";
-import { AgentIdentity, useAgentAppearance } from "../appearance";
+import { type AgentSessionProjection } from "@langfuse/shared/agents";
+import { AgentIdentity } from "../appearance/AgentIdentity";
+import { useAgentAppearance } from "../appearance/appearanceStore";
 import { AgentComparisonSparkline } from "./AgentComparisonSparkline";
 import {
   agentPath,

@@ -2,7 +2,7 @@ import { useState, type ReactNode } from "react";
 import {
   type AgentProjectionSummary,
   type AgentProjectionWindow,
-} from "@langfuse/shared";
+} from "@langfuse/shared/agents";
 import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { Button } from "@/src/components/design-system/Button/Button";
 import { Accordion } from "@/src/components/design-system/Accordion/Accordion";

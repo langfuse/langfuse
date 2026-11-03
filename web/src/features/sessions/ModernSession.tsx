@@ -1,4 +1,5 @@
 import { type ComponentProps } from "react";
+import { SessionFiltersBanner } from "@/src/features/sessions/SessionFiltersBanner";
 import { type FilterState } from "@langfuse/shared";
 
 import { ConnectedModernSessionBodyLegacy } from "@/src/features/sessions/ConnectedModernSessionBodyLegacy";
@@ -13,11 +14,13 @@ import {
 } from "@/src/features/sessions/sessionDetailPageTypes";
 
 type ModernSessionProps = {
+  customization?: NonNullable<
+    ComponentProps<typeof ConnectedModernSessionBodyTimeline>["customization"]
+  > & {
+    onClearFilters: () => void;
+  };
   headerDividerTone?: ComponentProps<typeof ModernSessionHeader>["dividerTone"];
   isTimelineEnabled: boolean;
-  transcriptSource: ComponentProps<
-    typeof ConnectedModernSessionBodyTimeline
-  >["transcriptSource"];
   session: Pick<
     EventSession,
     | "countTraces"
@@ -53,9 +56,9 @@ type ModernSessionProps = {
 };
 
 export function ModernSession({
+  customization,
   headerDividerTone,
   isTimelineEnabled,
-  transcriptSource,
   session,
   tracesState,
   projectId,
@@ -115,13 +118,20 @@ export function ModernSession({
           </SessionReviewLeading>
         )}
       </SessionMetadataJsonPathControl>
+      {customization && customization.activeFilterCount > 0 && (
+        <SessionFiltersBanner
+          onEdit={customization.onCustomizeView}
+          onClear={customization.onClearFilters}
+        />
+      )}
       {isTimelineEnabled ? (
         <ConnectedModernSessionBodyTimeline
-          transcriptSource={transcriptSource}
+          customization={customization}
           tracesState={tracesState}
           projectId={projectId}
           sessionId={sessionId}
           openPeek={openPeek}
+          filterState={filterState}
         />
       ) : (
         <ModernSessionFilterControls {...filterControlsProps}>

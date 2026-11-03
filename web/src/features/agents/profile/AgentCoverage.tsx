@@ -1,4 +1,4 @@
-import { type AgentSessionProjection } from "@langfuse/shared";
+import { type AgentSessionProjection } from "@langfuse/shared/agents";
 import { Accordion } from "@/src/components/design-system/Accordion/Accordion";
 import { Badge } from "@/src/components/design-system/Badge/Badge";
 

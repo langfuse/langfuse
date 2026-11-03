@@ -16,12 +16,14 @@ import {
   CircleAlert,
 } from "@langfuse/icons";
 import {
-  AGENT_NAME_METADATA_KEY,
-  MAX_AGENT_NAME_LENGTH,
   encodeFiltersGeneric,
   decodeFiltersGeneric,
   type FilterState,
 } from "@langfuse/shared";
+import {
+  AGENT_NAME_METADATA_KEY,
+  MAX_AGENT_NAME_LENGTH,
+} from "@langfuse/shared/agents";
 import Page from "@/src/components/layouts/Page";
 import { Button } from "@/src/components/design-system/Button/Button";
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
@@ -29,9 +31,9 @@ import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { TableHeaderControls } from "@/src/components/table/TableHeaderControls";
-import { ObservationsEventsTable } from "@/src/features/events/components";
+import ObservationsEventsTable from "@/src/features/events/components/EventsTable";
 import { EventsOutlierStrip } from "@/src/features/events/components/outlier-strip/EventsOutlierStrip";
-import { InternalFeatureBadge } from "@/src/features/feature-flags";
+import { InternalFeatureBadge } from "@/src/features/feature-flags/components/InternalFeatureBadge";
 import { useTableDateRange } from "@/src/hooks/useTableDateRange";
 import { useLiveTableDateRange } from "@/src/hooks/useLiveTableDateRange";
 import { useReadyRouteParams } from "@/src/hooks/useReadyRouteParams";
@@ -46,11 +48,10 @@ import { AgentStats } from "./AgentStats";
 import { AgentSkills } from "./AgentSkills";
 import { AgentSkillsContext } from "./AgentSkillsContext";
 import { AgentMap } from "./agent-map/AgentMap";
-import { AgentIdentity, AgentAppearancePicker } from "./appearance";
-import {
-  PrototypeOptions,
-  useAgentsPrototypeOptions,
-} from "./prototype-options";
+import { AgentIdentity } from "./appearance/AgentIdentity";
+import { AgentAppearancePicker } from "./appearance/AgentAppearancePicker";
+import { PrototypeOptions } from "./prototype-options/PrototypeOptions";
+import { useAgentsPrototypeOptions } from "./prototype-options/useAgentsPrototypeOptions";
 import { AgentSessions } from "./profile/AgentSessions";
 import { AgentTools } from "./profile/AgentTools";
 import { AgentToolsContext } from "./profile/AgentToolsContext";

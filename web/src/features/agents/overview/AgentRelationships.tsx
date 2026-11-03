@@ -3,9 +3,10 @@ import Link from "next/link";
 import {
   type AgentProjectionRelationship,
   type AgentSessionProjection,
-} from "@langfuse/shared";
+} from "@langfuse/shared/agents";
 import { SelectInput } from "@/src/components/design-system/SelectInput/SelectInput";
-import { AgentIdentity, useAgentAppearance } from "../appearance";
+import { AgentIdentity } from "../appearance/AgentIdentity";
+import { useAgentAppearance } from "../appearance/appearanceStore";
 import {
   agentPath,
   type OverviewAgent,

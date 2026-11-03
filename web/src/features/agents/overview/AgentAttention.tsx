@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { CircleAlert, TrendingUp } from "@langfuse/icons";
-import { type AgentSessionProjection } from "@langfuse/shared";
-import { AgentIdentity } from "../appearance";
+import { type AgentSessionProjection } from "@langfuse/shared/agents";
+import { AgentIdentity } from "../appearance/AgentIdentity";
 import { agentPath, type OverviewScope } from "./prepareOverview";
 export function AgentAttention({
   projection,

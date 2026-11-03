@@ -41,13 +41,16 @@ vi.mock("@langfuse/shared/topics/server", () => ({
 vi.mock("@/src/ee/features/billing/utils/isCloudBillingEnabled", () => ({
   isCloudBillingEnabled: () => false,
 }));
-vi.mock("@/src/ee/features/billing/server", async (importOriginal) => {
-  const actual = (await importOriginal()) as Record<string, unknown>;
-  return {
-    ...actual,
-    isCloudBillingEnabled: () => false,
-  };
-});
+vi.mock(
+  "@/src/ee/features/billing/utils/isCloudBillingEnabled",
+  async (importOriginal) => {
+    const actual = (await importOriginal()) as Record<string, unknown>;
+    return {
+      ...actual,
+      isCloudBillingEnabled: () => false,
+    };
+  },
+);
 
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";

@@ -5,7 +5,7 @@ import { GATEWAY_ANALYTICS_WIDGET_SIZE_CLASSES } from "@/src/features/ai-gateway
 import { buildGatewayAnalyticsQuery } from "@/src/features/ai-gateway/components/GatewayAnalyticsPage/fns/buildGatewayAnalyticsQuery";
 import type { GatewayAnalyticsWidget } from "@/src/features/ai-gateway/components/GatewayAnalyticsPage/types/gatewayAnalyticsWidget";
 import { DashboardCard } from "@/src/features/dashboard/components/cards/DashboardCard";
-import { WidgetContent } from "@/src/features/widgets";
+import { WidgetContent } from "@/src/features/widgets/components/InlineWidget";
 import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { cn } from "@/src/utils/tailwind";
