@@ -70,12 +70,11 @@ export class ProjectService {
    * transfer moves a project into another organization. The project keeps its
    * data and API keys, loses its memberships and user role assignments, and
    * rebinds its default eval model and topics connections to the destination
-   * organization. A project that is already in the target organization is left
-   * untouched. Callers must check `projects:transfer_org` in both organizations.
+   * organization. Callers must check `projects:transfer_org` in both
+   * organizations.
    */
   async transfer(params: TransferProjectParams) {
     const { organizationId, targetOrganizationId, projectId } = params;
-    if (organizationId === targetOrganizationId) return;
 
     await auditLog({
       ...params.actor,

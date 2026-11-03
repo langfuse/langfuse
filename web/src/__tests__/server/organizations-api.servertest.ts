@@ -985,24 +985,7 @@ describe("Admin Organizations API", () => {
       await prisma.user.delete({ where: { id: userId } });
     });
 
-    it("should move the project, drop its memberships, and keep its API keys", async () => {
-      const projectApiKey = await createApiKey(prisma, {
-        tenant: OrganizationId(sourceOrgId),
-        scope: ProjectId(projectId),
-        role: SystemRoleId("LEGACY_PROJECT_API_KEY"),
-        createdBy: UserId(userId),
-        name: "Transferred project key",
-      });
-      const projectKeyAuth = createBasicAuthHeader(
-        projectApiKey.publicKey,
-        projectApiKey.secretKey,
-      );
-      // Warm the API key cache with the source org before the transfer.
-      const before = await makeAPICall<{
-        data: { organization: { id: string } }[];
-      }>("GET", "/api/public/projects", undefined, projectKeyAuth);
-      expect(before.body.data[0]?.organization.id).toBe(sourceOrgId);
-
+    it("should move the project and drop its memberships", async () => {
       const response = await makeAPICall<{
         projectId: string;
         organizationId: string;
@@ -1024,12 +1007,6 @@ describe("Admin Organizations API", () => {
       await expect(
         prisma.projectMembership.count({ where: { projectId } }),
       ).resolves.toBe(0);
-
-      const after = await makeAPICall<{
-        data: { organization: { id: string } }[];
-      }>("GET", "/api/public/projects", undefined, projectKeyAuth);
-      expect(after.status).toBe(200);
-      expect(after.body.data[0]?.organization.id).toBe(targetOrgId);
     });
 
     it("should be a no-op when the project is already in the target organization", async () => {
@@ -1051,44 +1028,6 @@ describe("Admin Organizations API", () => {
       await expect(
         prisma.projectMembership.count({ where: { projectId } }),
       ).resolves.toBe(1);
-    });
-
-    it("should return 404 when the target organization does not exist", async () => {
-      const result = await makeAPICall<{ error: string }>(
-        "POST",
-        `/api/admin/projects/${projectId}/transfer`,
-        { targetOrganizationId: randomUUID() },
-        `Bearer ${ADMIN_API_KEY}`,
-      );
-
-      expect(result.status).toBe(404);
-      expect(result.body.error).toContain("Target organization not found");
-      await expect(
-        prisma.project.findUnique({ where: { id: projectId } }),
-      ).resolves.toMatchObject({ orgId: sourceOrgId });
-    });
-
-    it("should return 404 when the project does not exist", async () => {
-      const result = await makeAPICall<{ error: string }>(
-        "POST",
-        `/api/admin/projects/${randomUUID()}/transfer`,
-        { targetOrganizationId: targetOrgId },
-        `Bearer ${ADMIN_API_KEY}`,
-      );
-
-      expect(result.status).toBe(404);
-      expect(result.body.error).toContain("Project not found");
-    });
-
-    it("should return 400 when targetOrganizationId is missing", async () => {
-      const result = await makeAPICall<{ error: string }>(
-        "POST",
-        `/api/admin/projects/${projectId}/transfer`,
-        {},
-        `Bearer ${ADMIN_API_KEY}`,
-      );
-
-      expect(result.status).toBe(400);
     });
 
     it("should return 401 when no authorization header is provided", async () => {

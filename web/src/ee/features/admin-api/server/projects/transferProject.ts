@@ -40,6 +40,9 @@ export async function handleTransferProject(
   if (!project) {
     return res.status(404).json({ error: "Project not found" });
   }
+  if (project.orgId === targetOrganizationId) {
+    return res.status(200).json({ projectId, organizationId: project.orgId });
+  }
 
   const targetOrganization = await prisma.organization.findUnique({
     where: { id: targetOrganizationId },
