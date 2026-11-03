@@ -1,7 +1,6 @@
 /* eslint-disable @typescript-eslint/no-use-before-define */
 import {
   BookOpen,
-  KeyRound,
   LockIcon,
   MessageSquareText,
   Settings,
@@ -57,6 +56,7 @@ import { useGatewayLaunchTarget } from "@/src/features/ai-gateway/hooks/useGatew
 import { useGatewaySettingsAccess } from "@/src/features/ai-gateway/hooks/useGatewaySettingsAccess";
 import { getContextualFeatureFlags } from "@/src/features/feature-flags/utils";
 import { gatewayOnlyLanding } from "@/src/features/organizations/utils/gatewayOnlyLanding";
+import { OrganizationSettingsTile } from "@/src/features/organizations/components/OrganizationSettingsTile/OrganizationSettingsTile";
 
 const lastTraceLabel = (lastTraceAt: Date | string | null | undefined) =>
   lastTraceAt
@@ -390,67 +390,24 @@ const OrganizationProjects = ({
   org: Organization;
   search?: string;
 }) => {
-  if (org.projects.length === 0) {
-    return <OrganizationSettingsTile orgId={org.id} />;
-  }
-  return <OrganizationProjectTiles org={org} search={search} />;
-};
-
-/** OrganizationSettingsTile links to project creation when allowed, and to the org's settings or, for gateway-only members, their gateway keys */
-const OrganizationSettingsTile = ({ orgId }: { orgId: string }) => {
   const session = useSession();
   const canCreateProject = useHasOrganizationAccess({
-    organizationId: orgId,
+    organizationId: org.id,
     scope: "projects:create",
   });
-  const isGatewayOnlyMember =
-    gatewayOnlyLanding(session.data, orgId)?.canUseGateway === true;
 
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="text-base">No projects</CardTitle>
-        <CardDescription>
-          <NoProjectsDescription canCreateProject={canCreateProject} />
-        </CardDescription>
-      </CardHeader>
-      <CardFooter className="gap-2">
-        {canCreateProject && (
-          <Button asChild>
-            <Link href={createProjectRoute(orgId)}>
-              <PlusIcon size="base" __rawClassName="mr-2" aria-hidden="true" />
-              New project
-            </Link>
-          </Button>
-        )}
-        {isGatewayOnlyMember ? (
-          <Button asChild>
-            <Link href={`/organization/${orgId}/settings/ai-gateway-api-keys`}>
-              <KeyRound size="base" __rawClassName="mr-2" aria-hidden="true" />
-              Set up gateway key
-            </Link>
-          </Button>
-        ) : (
-          <Button asChild variant="secondary">
-            <Link href={`/organization/${orgId}/settings`}>
-              <Settings size="base" __rawClassName="mr-2" aria-hidden="true" />
-              Organization settings
-            </Link>
-          </Button>
-        )}
-      </CardFooter>
-    </Card>
-  );
-};
-
-/** NoProjectsDescription explains an empty project list by whether the user can create projects */
-const NoProjectsDescription = ({
-  canCreateProject,
-}: {
-  canCreateProject: boolean;
-}) => {
-  if (canCreateProject) return <>This organization has no projects yet.</>;
-  return <>You don&apos;t have access to any projects in this organization.</>;
+  if (org.projects.length === 0) {
+    return (
+      <OrganizationSettingsTile
+        orgId={org.id}
+        canCreateProject={canCreateProject}
+        isGatewayOnlyMember={
+          gatewayOnlyLanding(session.data, org.id)?.canUseGateway === true
+        }
+      />
+    );
+  }
+  return <OrganizationProjectTiles org={org} search={search} />;
 };
 
 export const OrganizationProjectOverview = () => {
