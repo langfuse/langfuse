@@ -67,6 +67,10 @@ import {
   usePaymentBanner,
 } from "@/src/features/payment-banner";
 import { useTopBannerHeight } from "@/src/features/top-banner";
+import {
+  LegacyUiBanner,
+  useLegacyUiBannerVisible,
+} from "@/src/features/v4-migration/LegacyUiBanner";
 
 const DISMISSED_SIDEBAR_NOTIFICATIONS_KEY = "dismissed-sidebar-notifications";
 
@@ -144,14 +148,16 @@ export function AuthenticatedLayout({
   const showV4Migration = useV4UpgradeUiFlag();
   const { organization: currentOrganization, project: currentProject } =
     useQueryProjectOrOrganization();
+  const routerProjectId =
+    typeof router.query.projectId === "string"
+      ? router.query.projectId
+      : undefined;
+  const showLegacyUiBanner = useLegacyUiBannerVisible(routerProjectId);
   const customerDataWarning = getCustomerDataWarning({
     email: user.email,
     isAdmin: user.admin === true,
     isLangfuseCloud,
-    projectId:
-      typeof router.query.projectId === "string"
-        ? router.query.projectId
-        : null,
+    projectId: routerProjectId ?? null,
     organizationId:
       typeof router.query.organizationId === "string"
         ? router.query.organizationId
@@ -316,6 +322,7 @@ export function AuthenticatedLayout({
               {customerDataWarning && (
                 <CustomerDataWarningBannerView {...customerDataWarning} />
               )}
+              {showLegacyUiBanner && <LegacyUiBanner />}
               {paymentBanner && (
                 <PaymentBannerView
                   organizationName={paymentBanner.organizationName}
@@ -342,11 +349,7 @@ export function AuthenticatedLayout({
                 user={sidebarUser}
                 userMenuItems={userMenuItems}
                 isLangfuseCloud={isLangfuseCloud}
-                routerProjectId={
-                  typeof router.query.projectId === "string"
-                    ? router.query.projectId
-                    : undefined
-                }
+                routerProjectId={routerProjectId}
               />
               {/* `min-w-0`, not a `100vw`-derived width: viewport units ignore
                     scrollbars, and a definite width also floors `min-width:

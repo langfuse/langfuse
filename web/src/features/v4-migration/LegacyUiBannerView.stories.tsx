@@ -1,0 +1,31 @@
+import { fn } from "storybook/test";
+
+import preview from "../../../.storybook/preview";
+import { LegacyUiBannerView } from "./LegacyUiBannerView";
+
+const meta = preview.meta({
+  component: LegacyUiBannerView,
+  args: {
+    hasDeadline: true,
+    isSwitching: false,
+    onSwitchToLatestUi: fn(),
+    onMigrationStatusClick: fn(),
+  },
+});
+
+/**
+ * Cloud: retirement date included. Same amber tokens as the staff
+ * customer-data strip; primary action enables v4, secondary opens migration
+ * status.
+ */
+export const WithDeadline = meta.story({});
+
+/** Self-hosted / no Cloud deadline — date clause omitted. */
+export const WithoutDeadline = meta.story({
+  args: { hasDeadline: false },
+});
+
+/** Primary CTA while the enable mutation / session refresh is in flight. */
+export const Switching = meta.story({
+  args: { isSwitching: true },
+});
