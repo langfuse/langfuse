@@ -249,6 +249,14 @@ describe("Topics tRPC access", () => {
         embeddingConfig: topicEmbeddingConfigSchema.parse({}),
       }),
     ).rejects.toThrow("Facet version not found in this project.");
+    await expect(
+      admin.startSetup({
+        projectId,
+        requestId: randomUUID(),
+        sampling: 1,
+        facets: [{ facetId: b.facetId, version: 1 }],
+      }),
+    ).rejects.toThrow("Facet version not found in this project.");
 
     // Project B is untouched.
     expect(
@@ -261,6 +269,27 @@ describe("Topics tRPC access", () => {
         where: { projectId: a.projectId, name: "Hijacked" },
       }),
     ).toBe(0);
+  });
+
+  it("rejects first-run setup reads and writes for a project the caller is not a member of", async () => {
+    const memberOfA = caller(userId, [[a.orgId, a.projectId, "ADMIN"]]);
+
+    // Positive control: the caller's own project answers.
+    await expect(
+      memberOfA.setupTraceCounts({ projectId: a.projectId }),
+    ).resolves.toBeDefined();
+
+    await expect(
+      memberOfA.setupTraceCounts({ projectId: b.projectId }),
+    ).rejects.toMatchObject({ code: "UNAUTHORIZED" });
+    await expect(
+      memberOfA.startSetup({
+        projectId: b.projectId,
+        requestId: randomUUID(),
+        sampling: 1,
+        facets: [{ facetId: b.facetId, version: 1 }],
+      }),
+    ).rejects.toMatchObject({ code: "UNAUTHORIZED" });
   });
 
   it("resolves LLM connections by provider within the project, then its organization", async () => {
