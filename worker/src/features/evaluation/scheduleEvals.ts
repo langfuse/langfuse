@@ -100,10 +100,12 @@ export async function scheduleEvals({
   );
   if (failures.length > 0) {
     // Observation failure must not drop a match that already succeeded.
-    throw Object.assign(
-      new AggregateError(failures, "Failed to schedule evaluations"),
-      { matchedRuleIds },
-    );
+    const error = new AggregateError(
+      failures,
+      "Failed to schedule evaluations",
+    ) as HeldTraceMatch;
+    error.matchedRuleIds = matchedRuleIds;
+    throw error;
   }
   return matchedRuleIds;
 }
