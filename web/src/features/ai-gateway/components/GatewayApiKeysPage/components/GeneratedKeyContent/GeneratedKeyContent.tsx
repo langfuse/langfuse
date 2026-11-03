@@ -14,6 +14,11 @@ export function GeneratedKeyContent({
 }: GeneratedKeyContentProps) {
   const capture = usePostHogClientCapture();
 
+  const handleAfterSecretCopy = () =>
+    capture("ai_gateway:api_key_secret_copied", { orgId: organizationId });
+  const handleAfterSecretReveal = () =>
+    capture("ai_gateway:api_key_secret_revealed", { orgId: organizationId });
+
   return (
     <Dialog.Body>
       <p className="text-muted-foreground">
@@ -21,19 +26,17 @@ export function GeneratedKeyContent({
       </p>
       <MaskedGatewayKey
         secretKey={secretKey}
-        onAfterCopy={() =>
-          capture("ai_gateway:api_key_secret_copied", { orgId: organizationId })
-        }
-        onAfterReveal={() =>
-          capture("ai_gateway:api_key_secret_revealed", {
-            orgId: organizationId,
-          })
-        }
+        onAfterCopy={handleAfterSecretCopy}
+        onAfterReveal={handleAfterSecretReveal}
       />
       <hr className="-mx-4" />
       <SetupInstructions
         organizationId={organizationId}
-        secretKey={secretKey}
+        secretKey={{
+          value: secretKey,
+          onAfterCopy: handleAfterSecretCopy,
+          onAfterReveal: handleAfterSecretReveal,
+        }}
       />
     </Dialog.Body>
   );

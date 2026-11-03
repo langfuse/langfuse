@@ -34,23 +34,34 @@ export function StepCodeSection({
     );
   }
 
-  const displayedKey = isRevealed ? secretKey : maskSecretKey(secretKey);
-  const revealLabel = isRevealed ? "Hide key" : "Show key";
-  const toggleReveal = () => setIsRevealed(!isRevealed);
+  const displayedKey = isRevealed
+    ? secretKey.value
+    : maskSecretKey(secretKey.value);
+
+  const toggleReveal = () => {
+    if (!isRevealed) secretKey.onAfterReveal?.();
+    setIsRevealed(!isRevealed);
+  };
+
+  const handleAfterCopy = () => {
+    onAfterCopy?.();
+    secretKey.onAfterCopy?.();
+  };
 
   return (
     <CodeSection
       variant="outline"
-      content={code.replaceAll(GATEWAY_KEY_PLACEHOLDER, secretKey)}
+      content={code.replaceAll(GATEWAY_KEY_PLACEHOLDER, secretKey.value)}
       shouldWrapLines={false}
       actions={[
         {
+          id: "reveal-key",
           icon: isRevealed ? EyeOff : Eye,
-          label: revealLabel,
+          label: isRevealed ? "Hide key" : "Show key",
           onClick: toggleReveal,
         },
       ]}
-      onAfterCopy={onAfterCopy}
+      onAfterCopy={handleAfterCopy}
     >
       <SyntaxHighlight
         code={code.replaceAll(GATEWAY_KEY_PLACEHOLDER, displayedKey)}

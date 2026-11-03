@@ -40,6 +40,14 @@ const codeVariants = cva(
         true: "line-clamp-6",
         false: "block",
       },
+      // Keeps text clear of the floating body actions; unwrapped lines can scroll out from under them.
+      reservedButtons: {
+        0: null,
+        1: "pr-10",
+        2: "pr-17",
+        3: "pr-24",
+        4: "pr-31",
+      },
     },
     defaultVariants: {
       wrap: true,
@@ -82,6 +90,8 @@ const actionGroupVariants = cva(
 );
 
 type CodeSectionAction = {
+  /** Stable React key; set it when `label` changes so focus survives the change. */
+  id?: string;
   icon: IconComponent;
   label: string;
   onClick: () => void;
@@ -138,6 +148,11 @@ export function CodeSection({
     }
   };
 
+  const bodyButtonCount = Math.min(
+    actions.length + (isCollapsible ? 1 : 0) + 1,
+    4,
+  ) as 1 | 2 | 3 | 4;
+
   const actionGroup = (
     <div
       className={actionGroupVariants({
@@ -155,7 +170,7 @@ export function CodeSection({
         </span>
       ) : null}
       {actions.map((action) => (
-        <Tooltip key={action.label} label={action.label}>
+        <Tooltip key={action.id ?? action.label} label={action.label}>
           {({ getTriggerProps }) => (
             <IconButton
               {...getTriggerProps()}
@@ -213,6 +228,7 @@ export function CodeSection({
           className={codeVariants({
             wrap: shouldWrapLines,
             collapsed: isCollapsed,
+            reservedButtons: title ? 0 : bodyButtonCount,
           })}
           dir="auto"
           style={{ unicodeBidi: "plaintext" }}

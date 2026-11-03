@@ -1,14 +1,17 @@
 import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { SetupInstructionsTabs } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/SetupInstructions/components/SetupInstructionsTabs/SetupInstructionsTabs";
-import { GatewaySecretKeyContext } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/SetupInstructions/contexts/gatewaySecretKeyContext";
+import {
+  type GatewaySecretKey,
+  GatewaySecretKeyContext,
+} from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/SetupInstructions/contexts/gatewaySecretKeyContext";
 import { useAgentSetupInstructions } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/SetupInstructions/hooks/useAgentSetupInstructions";
 
 type SetupInstructionsProps = {
   organizationId: string;
   defaultExpanded?: boolean;
   /** Fills the snippets with this key instead of the placeholder. */
-  secretKey?: string;
+  secretKey?: GatewaySecretKey;
 };
 
 export function SetupInstructions({

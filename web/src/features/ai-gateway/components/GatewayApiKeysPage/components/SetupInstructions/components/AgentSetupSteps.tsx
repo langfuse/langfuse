@@ -22,7 +22,7 @@ export function AgentSetupSteps({
   instructions,
   onAfterStepCopy,
 }: AgentSetupStepsProps) {
-  const secretKey = use(GatewaySecretKeyContext);
+  const secretKey = use(GatewaySecretKeyContext)?.value;
 
   return (
     <div className="flex flex-col gap-3">
