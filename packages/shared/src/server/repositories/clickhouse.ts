@@ -934,11 +934,15 @@ async function* runClickHouseProgressAttempts<T>(
     /**
      * Consumer return()/break, or a throw in its loop body, closes the stream
      * without reaching EOF or catch. A consumer that stops on purpose aborts
-     * its signal first, so this path counts as an error.
+     * its signal first; without an abort this path counts as an error.
      */
     if (!outcomeRecorded)
       recordError(
-        new Error("ClickHouse stream closed by its consumer without an abort"),
+        opts.abortSignal?.aborted
+          ? new ClickHouseQueryAbortedError(opts.abortSignal.reason)
+          : new Error(
+              "ClickHouse stream closed by its consumer without an abort",
+            ),
       );
   }
 }
