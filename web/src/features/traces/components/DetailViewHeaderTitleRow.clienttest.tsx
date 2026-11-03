@@ -118,6 +118,48 @@ describe("DetailViewHeaderTitleRow", () => {
     expect(screen.getByTestId("cluster-marker")).toBeInTheDocument();
   });
 
+  it("follows the keyboard from the full-label cluster to icon-only when the header narrows", () => {
+    headerWidth = 900;
+    clusterWidth = 312;
+    iconOnlyClusterWidth = 100;
+
+    const { rerender } = render(<Row actionsKey="a" withIconOnly />);
+    // Start with focus in the full-label cluster (wide header → beside placement).
+    screen.getByLabelText("Annotate").focus();
+    expect(document.activeElement).toBe(screen.getByLabelText("Annotate"));
+
+    // Header narrows: full cluster overflows but icon-only fits → "icon-only".
+    headerWidth = PANE_FLOOR_HEADER_WIDTH;
+    clusterWidth = 344;
+    rerender(<Row actionsKey="a" withIconOnly />);
+
+    expect(screen.getByLabelText("Annotate icon-only")).toBeInTheDocument();
+    expect(document.activeElement).toBe(
+      screen.getByLabelText("Annotate icon-only"),
+    );
+  });
+
+  it("follows the keyboard from the icon-only cluster to full-label when the header widens", () => {
+    headerWidth = PANE_FLOOR_HEADER_WIDTH;
+    clusterWidth = 344;
+    iconOnlyClusterWidth = 100;
+
+    const { rerender } = render(<Row actionsKey="a" withIconOnly />);
+    // Start with focus in the icon-only cluster.
+    screen.getByLabelText("Annotate icon-only").focus();
+    expect(document.activeElement).toBe(
+      screen.getByLabelText("Annotate icon-only"),
+    );
+
+    // Header widens: full cluster now fits → "beside".
+    headerWidth = 900;
+    clusterWidth = 312;
+    rerender(<Row actionsKey="a" withIconOnly />);
+
+    expect(screen.getByLabelText("Annotate")).toBeInTheDocument();
+    expect(document.activeElement).toBe(screen.getByLabelText("Annotate"));
+  });
+
   it("follows the keyboard from a cluster it folds to the menu that replaces it", () => {
     headerWidth = 900;
     clusterWidth = 312;

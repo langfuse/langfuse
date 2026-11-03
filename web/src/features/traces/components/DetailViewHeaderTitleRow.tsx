@@ -67,7 +67,9 @@ export function DetailViewHeaderTitleRow({
   // kept here and goes on feeding the planner until it is back on screen.
   const actionsWidthRef = useRef<number | undefined>(undefined);
   const iconOnlyActionsWidthRef = useRef<number | undefined>(undefined);
-  const followFocusRef = useRef(false);
+  const followFocusRef = useRef<"folded" | "icon-only" | "beside" | false>(
+    false,
+  );
   const [placement, setPlacement] =
     useState<DetailViewHeaderActionsPlacement>("beside");
 
@@ -109,32 +111,60 @@ export function DetailViewHeaderTitleRow({
       minTitleWidth: MIN_TITLE_PX,
       gap: TITLE_ACTIONS_GAP_PX,
     });
-    // Folding unmounts both clusters. If the keyboard was in either, follow it
-    // to the menu that now holds the same actions rather than dropping to <body>.
-    if (
-      next === "folded" &&
-      placement !== "folded" &&
-      (actionsRef.current?.contains(document.activeElement) ||
-        iconOnlyActionsRef.current?.contains(document.activeElement))
-    ) {
-      followFocusRef.current = true;
+    // When the cluster that holds the keyboard becomes hidden or unmounted,
+    // follow focus to the cluster or menu that replaces it.
+    if (next !== placement) {
+      const focusInActions = actionsRef.current?.contains(
+        document.activeElement,
+      );
+      const focusInIconOnly = iconOnlyActionsRef.current?.contains(
+        document.activeElement,
+      );
+      if (next === "folded" && (focusInActions || focusInIconOnly)) {
+        // Folding unmounts both clusters — move to the overflow-menu trigger.
+        followFocusRef.current = "folded";
+      } else if (next === "icon-only" && focusInActions) {
+        // Full-label cluster is becoming aria-hidden — move to icon-only.
+        followFocusRef.current = "icon-only";
+      } else if (next === "beside" && focusInIconOnly) {
+        // Icon-only cluster is becoming aria-hidden — move to full-label.
+        followFocusRef.current = "beside";
+      }
     }
     setPlacement((previous) => (previous === next ? previous : next));
   }, [actions, iconOnlyActions, alwaysFold, placement, rowRef, rowSize?.width]);
 
   useLayoutEffect(() => {
-    if (!followFocusRef.current) return;
+    const mode = followFocusRef.current;
+    if (!mode) return;
     followFocusRef.current = false;
-    // The folded presentation ends in the overflow-menu trigger, so the row's
-    // last focusable element is it.
-    const focusable =
-      rowRef.current?.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR);
-    focusable?.[focusable.length - 1]?.focus({ preventScroll: true });
+    if (mode === "folded") {
+      // The folded presentation ends in the overflow-menu trigger, so the row's
+      // last focusable element is it.
+      const focusable =
+        rowRef.current?.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR);
+      focusable?.[focusable.length - 1]?.focus({ preventScroll: true });
+    } else if (mode === "icon-only") {
+      // Move to the first focusable in the icon-only cluster.
+      const focusable =
+        iconOnlyActionsRef.current?.querySelectorAll<HTMLElement>(
+          FOCUSABLE_SELECTOR,
+        );
+      focusable?.[0]?.focus({ preventScroll: true });
+    } else {
+      // "beside": move to the first focusable in the full-label cluster.
+      const focusable =
+        actionsRef.current?.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR);
+      focusable?.[0]?.focus({ preventScroll: true });
+    }
   }, [placement, rowRef]);
 
   const actionsFolded = alwaysFold || placement === "folded";
   const actionsBeside = !actionsFolded && placement === "beside";
   const actionsIconOnly = !actionsFolded && placement === "icon-only";
+  const actionsContainerJustify = actionsBeside
+    ? "justify-end"
+    : "justify-start";
 
   return (
     <div
@@ -152,10 +182,7 @@ export function DetailViewHeaderTitleRow({
       </div>
       {actionsFolded ? null : (
         <div
-          className={cn(
-            "relative flex items-center",
-            actionsBeside ? "justify-end" : "justify-start",
-          )}
+          className={cn("relative flex items-center", actionsContainerJustify)}
         >
           {/* Full-label cluster — shrink-to-fit and never wrapping, so
               `offsetWidth` above is the cluster's natural width whichever row
