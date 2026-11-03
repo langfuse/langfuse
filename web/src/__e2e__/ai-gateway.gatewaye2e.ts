@@ -16,8 +16,9 @@ import { $root } from "@/src/pages/api/public/otel/otlp-proto/generated/root";
 import {
   type GatewayApiFormat,
   GatewayResolveResponseSchema,
-} from "@/src/features/ai-gateway/server/provider";
-import type { GatewayProviderName } from "@/src/features/ai-gateway/server/provider/registry";
+  type GatewayProviderName,
+} from "@/src/features/ai-gateway/server/provider/registry";
+
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import { signHmacSha256 } from "@/src/server/utils/hmac";
@@ -843,7 +844,11 @@ async function gatewayControlPlaneRequest(input: {
       "Content-Type": "application/json",
       "Langfuse-Gateway-Authorization": gatewayAuthorization,
     },
-    body: JSON.stringify({ apiFormat: input.apiFormat, model: input.model }),
+    body: JSON.stringify({
+      apiFormat: input.apiFormat,
+      model: input.model,
+      requestBytes: 0,
+    }),
   });
   return readJsonResponse(response, 200, RESOLVE_PATH);
 }

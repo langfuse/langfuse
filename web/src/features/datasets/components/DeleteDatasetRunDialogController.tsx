@@ -1,6 +1,6 @@
-import { useHasProjectAccess } from "@/src/features/rbac";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { ConfirmationDialogController } from "@/src/components/design-system/ConfirmationDialogController/ConfirmationDialogController";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { api } from "@/src/utils/api";
 import { useRouter } from "next/router";
 import type * as React from "react";

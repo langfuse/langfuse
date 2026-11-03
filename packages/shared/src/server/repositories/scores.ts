@@ -17,7 +17,8 @@ import {
   SCORE_EXPORT_GROUP_FIELDS,
   type ScoreExportFieldGroup,
 } from "../../domain/export-field-groups";
-import { InvalidRequestError, InternalServerError } from "../../errors";
+import { InvalidRequestError } from "../../errors/InvalidRequestError";
+import { InternalServerError } from "../../errors/InternalServerError";
 import {
   eventsTableIsRootObservationSql,
   eventsTableTraceNameSql,
@@ -39,23 +40,23 @@ import {
 } from "./clickhouse";
 import {
   FilterList,
-  orderByToClickhouseSql,
   StringOptionsFilter,
   DateTimeFilter,
   NumberFilter,
-  scoreOnlyFiltersAreSeekEligible,
-} from "../queries";
+} from "../queries/clickhouse-sql/clickhouse-filter";
+import { orderByToClickhouseSql } from "../queries/clickhouse-sql/orderby-factory";
+import { scoreOnlyFiltersAreSeekEligible } from "../queries/clickhouse-sql/score-seek-eligibility";
 import { FilterCondition, FilterState, TimeFilter } from "../../types";
 import {
   createFilterFromFilterState,
   getProjectIdDefaultFilter,
 } from "../queries/clickhouse-sql/factory";
 import { OrderByState } from "../../interfaces/orderBy";
+import { dashboardColumnDefinitions } from "../../tableDefinitions/mapDashboards";
 import {
-  dashboardColumnDefinitions,
   scoresTableUiColumnDefinitions,
   scoresTableUiColumnDefinitionsFromEvents,
-} from "../tableMappings";
+} from "../tableMappings/mapScoresTable";
 import {
   convertScoreAggregation,
   convertClickhouseScoreToDomain,
@@ -95,7 +96,7 @@ import { promptGenerationEvents } from "./prompt-events";
 import {
   findUiColumnMapping,
   matchesUiColumnMapping,
-} from "../../tableDefinitions";
+} from "../../tableDefinitions/types";
 
 const FILTER_OPTION_SCORE_NAME_LIMIT = 200;
 const FILTER_OPTION_CATEGORICAL_VALUE_LIMIT = 20;

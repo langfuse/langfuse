@@ -133,6 +133,7 @@ export function Combobox<T extends string | number | boolean | { id: string }>({
       <PopoverTrigger asChild>
         <Button
           variant="outline"
+          // eslint-disable-next-line jsx-a11y/role-has-required-aria-props
           role="combobox"
           aria-expanded={!disabled && open}
           className={cn(

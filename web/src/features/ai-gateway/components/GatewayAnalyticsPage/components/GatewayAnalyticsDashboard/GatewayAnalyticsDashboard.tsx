@@ -8,7 +8,7 @@ import { GATEWAY_ANALYTICS_WIDGETS } from "@/src/features/ai-gateway/components/
 import { useGatewayAnalyticsFilters } from "@/src/features/ai-gateway/components/GatewayAnalyticsPage/hooks/useGatewayAnalyticsFilters";
 import { useGatewayAnalyticsLabels } from "@/src/features/ai-gateway/components/GatewayAnalyticsPage/hooks/useGatewayAnalyticsLabels";
 import { useGatewayUnpricedUsage } from "@/src/features/ai-gateway/components/GatewayAnalyticsPage/hooks/useGatewayUnpricedUsage";
-import { MultiSelect } from "@/src/features/filters";
+import { MultiSelect } from "@/src/features/filters/components/MultiSelect";
 import {
   toAbsoluteTimeRange,
   type TimeRange,

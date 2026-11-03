@@ -1,5 +1,5 @@
 import { ActionButton } from "@/src/components/ActionButton";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { BadgeCheck, X } from "@langfuse/icons";
 import { useRef } from "react";
 import type { ToastOperation } from "./toastAnalytics";
