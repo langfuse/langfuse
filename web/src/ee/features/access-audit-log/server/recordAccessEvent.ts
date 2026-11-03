@@ -20,12 +20,9 @@ import {
   isAccessAuditLogEnabled,
   type AccessAuditOrg,
 } from "@/src/ee/features/access-audit-log/server/isAccessAuditLogEnabled";
-import {
-  getAuditRequestContext,
-  toApiKeyActor,
-  toUserActor,
-} from "@/src/features/audit-logs/server";
-import { getOrganizationPlanServerSide } from "@/src/features/entitlements/server";
+import { getAuditRequestContext } from "@/src/features/audit-logs/server/getAuditRequestContext";
+import { toApiKeyActor, toUserActor } from "@/src/features/audit-logs/auditLog";
+import { getOrganizationPlanServerSide } from "@/src/features/entitlements/server/getPlan";
 
 /** What a route returned: the resource it read, typed refs to every resource in the response, and the validated request input. */
 export type AccessRead = {

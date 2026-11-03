@@ -4,7 +4,7 @@ import { createHash, generateKeyPairSync, randomUUID } from "node:crypto";
 import type { Session } from "next-auth";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import * as SharedServer from "@langfuse/shared/src/server";
-import type * as BillingServer from "@/src/ee/features/billing/server";
+import type * as BillingServer from "@/src/ee/features/billing/utils/isCloudBillingEnabled";
 import { z } from "zod/v4";
 
 const { addNotificationJobs, getNotificationJob } = vi.hoisted(() => ({
@@ -36,11 +36,14 @@ const { isCloudBillingEnabled } = vi.hoisted(() => ({
   isCloudBillingEnabled: vi.fn<() => boolean>(),
 }));
 
-vi.mock("@/src/ee/features/billing/server", async (importOriginal) => {
-  const actual = await importOriginal<typeof BillingServer>();
-  isCloudBillingEnabled.mockImplementation(actual.isCloudBillingEnabled);
-  return { ...actual, isCloudBillingEnabled };
-});
+vi.mock(
+  "@/src/ee/features/billing/utils/isCloudBillingEnabled",
+  async (importOriginal) => {
+    const actual = await importOriginal<typeof BillingServer>();
+    isCloudBillingEnabled.mockImplementation(actual.isCloudBillingEnabled);
+    return { ...actual, isCloudBillingEnabled };
+  },
+);
 
 function queuedNotifications(): SharedServer.NotificationEventType[] {
   return addNotificationJobs.mock.calls.flatMap(([jobs]) =>
@@ -49,7 +52,7 @@ function queuedNotifications(): SharedServer.NotificationEventType[] {
 }
 
 import { env } from "@/src/env.mjs";
-import * as sfdc from "@/src/ee/features/sfdc-sync/server";
+import * as sfdc from "@/src/ee/features/sfdc-sync/server/sfdcService";
 import { appRouter } from "@/src/server/api/root";
 import {
   createInnerTRPCContext,
@@ -67,10 +70,8 @@ import { GatewayModelsService } from "@/src/features/ai-gateway/server/provider/
 import { GatewayApiKeyService } from "@/src/features/ai-gateway/server/apiKey/gatewayApiKeyService";
 import { GatewayConfigService } from "@/src/features/ai-gateway/server/config/gatewayConfigService";
 import { getGatewaySetupRedirect } from "@/src/features/ai-gateway/server/gatewaySetupRedirect";
-import {
-  GatewayModelCatalogService,
-  GatewayProviderService,
-} from "@/src/features/ai-gateway/server/provider";
+import { GatewayModelCatalogService } from "@/src/features/ai-gateway/server/provider/models/gatewayModelCatalogService";
+import { GatewayProviderService } from "@/src/features/ai-gateway/server/provider/connection/gatewayProviderService";
 import { createEs256JwtVerifier } from "@/src/server/utils/jwt";
 import { prisma, Role } from "@langfuse/shared/src/db";
 import { decrypt, encrypt } from "@langfuse/shared/encryption";

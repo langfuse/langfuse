@@ -5,7 +5,8 @@
 
 import { RouteGroup, type Route } from "@/src/components/layouts/routes";
 import type { NavigationFilterContext } from "./navigationFilters.types";
-import { hasProjectAccess, hasOrganizationAccess } from "@/src/features/rbac";
+import { hasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { hasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import type { Session } from "next-auth";
 import { isAdminOnlyFeaturePreviewFlag } from "@/src/features/feature-flags/available-flags";
 import { getContextualFeatureFlags } from "@/src/features/feature-flags/utils";

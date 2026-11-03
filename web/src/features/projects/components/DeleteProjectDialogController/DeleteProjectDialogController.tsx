@@ -3,12 +3,10 @@ import { type ReactNode } from "react";
 import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
 import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
 import { env } from "@/src/env.mjs";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useQueryProject } from "@/src/features/projects/hooks";
-import {
-  useHasOrganizationAccess,
-  useHasProjectAccess,
-} from "@/src/features/rbac";
+import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { api, reportNonTrpcError } from "@/src/utils/api";
 import { DeleteProjectDialog } from "@/src/features/projects/components/DeleteProjectDialogController/components/DeleteProjectDialog/DeleteProjectDialog";
 

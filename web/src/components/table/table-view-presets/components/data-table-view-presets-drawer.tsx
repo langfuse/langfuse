@@ -71,11 +71,12 @@ import {
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { showErrorToast, showSuccessToast } from "@/src/features/notifications";
+import { showErrorToast } from "@/src/features/notifications/showErrorToast";
+import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
 import { useUniqueNameValidation } from "@/src/hooks/useUniqueNameValidation";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
-import { useHasProjectAccess } from "@/src/features/rbac";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { useDefaultViewMutations } from "../hooks/useDefaultViewMutations";
 import { summarizeTableViewPreset } from "../lib/viewPreview";
 import { TableViewPresetsButton } from "./TableViewPresetsButton";

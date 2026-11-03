@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-use-before-define */
 import { toast, type ExternalToast } from "sonner";
 import { useRef, type ReactNode } from "react";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import {
   getToastErrorProperties,
   type ToastErrorAnalytics,

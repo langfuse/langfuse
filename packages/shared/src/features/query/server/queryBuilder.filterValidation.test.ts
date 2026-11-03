@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { InvalidRequestError } from "../../../errors";
+import { InvalidRequestError } from "../../../errors/InvalidRequestError";
 import type { FilterCondition } from "../../../types";
 import { getViewDeclaration } from "../dataModel";
 import type { QueryType, ViewVersion } from "../types";

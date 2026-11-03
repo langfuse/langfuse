@@ -1,6 +1,6 @@
 import { ListMonitorFilterSchema } from "@langfuse/shared/monitors";
-import type { FilterConfig } from "@/src/features/filters";
-import { fieldRegistryFromColumns } from "@/src/features/search-bar";
+import type { FilterConfig } from "@/src/features/filters/lib/filter-config";
+import { fieldRegistryFromColumns } from "@/src/features/search-bar/lib/fields";
 
 export function monitorsFieldRegistry(config: FilterConfig) {
   const facetColumns = new Set(config.facets.map((facet) => facet.column));

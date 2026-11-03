@@ -1,6 +1,6 @@
 import { ArrowUpRight, X } from "@langfuse/icons";
 import { Button } from "@/src/components/ui/button";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
 export function SessionRedesignBanner({
   onDismiss,

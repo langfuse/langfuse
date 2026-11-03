@@ -22,7 +22,7 @@ import { createMocks } from "node-mocks-http";
 import projectApiKeysHandler from "@/src/pages/api/public/projects/[projectId]/apiKeys";
 import projectApiKeyHandler from "@/src/pages/api/public/projects/[projectId]/apiKeys/[apiKeyId]";
 import projectByIdHandler from "@/src/pages/api/public/projects/[projectId]";
-import { authenticator } from "@/src/features/apiKey/server";
+import { authenticator } from "@/src/features/apiKey/authenticator";
 import { type AuthorizationContext } from "@/src/features/auth/policy/types";
 import {
   organizationApiKeyCreationSchema,

@@ -21,8 +21,8 @@ import { useEvalCapabilities } from "@/src/features/evals/hooks/useEvalCapabilit
 import {
   useIsInAppAgentLauncherVisible,
   useInAppAiAgent,
-} from "@/src/features/in-app-agent";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+} from "@/src/features/in-app-agent/components/InAppAiAgentProvider";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useEvalUpgradeAssistantPlan } from "@/src/features/v4-migration/useV4UpgradeAssistantSupport";
 import { useV4UpgradeUiEnabled } from "@/src/features/v4-migration/useV4UpgradeUiEnabled";
 import { useProjectV4SdkData } from "@/src/features/v4-migration/hooks/useV4MigrationData";
@@ -31,7 +31,7 @@ import {
   DEFAULT_OBSERVATION_FILTER_WHEN_REMAPPING,
 } from "@/src/features/evals/utils/evaluator-constants";
 import { buildModernEvaluatorsUrl } from "@/src/features/v4-migration/evaluatorMigrationUrls";
-import { useReadPath } from "@/src/features/events";
+import { useReadPath } from "@/src/features/events/hooks/useReadPath";
 
 const V4_DOCS_URL = "https://langfuse.com/docs/v4";
 const EVAL_MIGRATION_DOCS_URL =

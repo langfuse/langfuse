@@ -13,8 +13,8 @@ import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import {
   type MediaContentType,
   type MediaReturnType,
-  mediaUrlQueryOptions,
-} from "@/src/features/media";
+} from "@/src/features/media/validation";
+import { mediaUrlQueryOptions } from "@/src/features/media/constants/mediaUrlQueryOptions";
 import { MediaReferenceTag } from "@/src/components/ui/media/MediaReferenceTag";
 import { MediaFileView } from "@/src/components/ui/media/MediaFileView";
 

@@ -2,7 +2,7 @@ import { type Plan } from "@langfuse/shared";
 
 import { env } from "@/src/env.mjs";
 import { isAuditLogEnabled } from "@/src/features/audit-logs/isAuditLogEnabled";
-import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server";
+import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server/hasEntitlement";
 
 /** The org facts the gate reads. The session and API-key scopes carry them, so checking a read needs no query. */
 export type AccessAuditOrg = {

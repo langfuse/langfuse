@@ -16,7 +16,7 @@ import {
   BlobStorageIntegrationType,
   GCS_USE_DEFAULT_CREDENTIALS,
 } from "@langfuse/shared";
-import { useLangfuseCloudRegion } from "@/src/features/organizations";
+import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
 import {
   type BlobStorageFormControl,
   type BlobStorageFormValues,

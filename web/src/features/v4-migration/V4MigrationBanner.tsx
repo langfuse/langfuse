@@ -4,7 +4,7 @@ import { Zap } from "@langfuse/icons";
 import { Callout } from "@/src/components/design-system/Callout/Callout";
 import { DismissController } from "@/src/components/DismissController";
 import { useDismissState } from "@/src/hooks/useDismissState";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useAccountV4MigrationData } from "@/src/features/v4-migration/hooks/useV4MigrationData";
 import { getProjectMigrationReadiness } from "@/src/features/v4-migration/migrationData";
 import { env } from "@/src/env.mjs";

@@ -34,7 +34,7 @@ import {
   type AuditLogRecordInsertType,
 } from "@langfuse/shared/src/server";
 import { createApiKey } from "@langfuse/shared/src/server/auth/apiKeys";
-import { auditLog } from "@/src/features/audit-logs/server";
+import { auditLog } from "@/src/features/audit-logs/auditLog";
 import {
   createDatasetItemForApi,
   deleteDatasetItemForApi,
