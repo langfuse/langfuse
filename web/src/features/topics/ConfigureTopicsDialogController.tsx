@@ -22,9 +22,9 @@ import {
 } from "./ConfigureTopicsDialog";
 import { type ConfigureTopicsSettingsInput } from "./TopicModelSettings";
 import { topicsSetupPayload } from "./topics-setup";
+import { resolveTopicModelSlot } from "./topic-setup-flow";
 
 type Connection = RouterOutputs["llmApiKey"]["effective"]["data"][number];
-type SlotValue = { llmApiKeyId: string; model: string } | null;
 
 type ConfigureTopicsDialogControllerProps = {
   projectId: string;
@@ -99,16 +99,16 @@ function ConfigureTopicsSettings({
     modelsFor(
       connection,
       "embedding",
-      stored.embedding?.llmApiKeyId === connection.id
+      stored.embedding?.provider === connection.provider
         ? stored.embedding.model
         : null,
     ),
   ]);
   const draft = {
-    summary: judgeModel(stored.summary, connections),
-    embedding: judgeModel(stored.embedding, connections),
+    summary: stored.summary,
+    embedding: stored.embedding,
     embeddingDimensions: String(stored.embeddingDimensions),
-    clustering: judgeModel(stored.clustering, connections),
+    clustering: stored.clustering,
     facets: facetDrafts(facets, rule ? new Set(rule.facetIds) : null),
     filters: [],
     idleSeconds: String((traceIdleMs ?? 600_000) / 1000),
@@ -146,19 +146,13 @@ function ConfigureTopicsSettings({
       }));
       return;
     }
-    const preferred = {
-      summary: stored.summary?.llmApiKeyId,
-      embedding: stored.embedding?.llmApiKeyId,
-      clustering: stored.clustering?.llmApiKeyId,
-    }[slot];
-    const llmApiKeyId = connectionId(
+    const value = resolveTopicModelSlot(
       model,
       connections,
-      preferred,
       slot === "embedding" ? "embedding" : "chat",
-      slot === "embedding" ? stored.embedding?.model : null,
+      slot === "embedding" ? stored.embedding : null,
     );
-    if (!llmApiKeyId) {
+    if (!value) {
       setChecks((current) => ({
         ...current,
         [slot]: {
@@ -170,7 +164,6 @@ function ConfigureTopicsSettings({
     }
     const request = ++requests.current[slot];
     setChecks((current) => ({ ...current, [slot]: { status: "testing" } }));
-    const value = { llmApiKeyId, model: model.model };
     test
       .mutateAsync({
         projectId,
@@ -213,23 +206,16 @@ function ConfigureTopicsSettings({
         parsedDimensions.error.issues[0]?.message ??
           "Check the embedding dimensions.",
       );
-    const summary = slotValue(
-      value.summary,
-      connections,
-      stored.summary?.llmApiKeyId,
-      "chat",
-    );
-    const embedding = slotValue(
+    const summary = resolveTopicModelSlot(value.summary, connections, "chat");
+    const embedding = resolveTopicModelSlot(
       value.embedding,
       connections,
-      stored.embedding?.llmApiKeyId,
       "embedding",
-      stored.embedding?.model,
+      stored.embedding,
     );
-    const clustering = slotValue(
+    const clustering = resolveTopicModelSlot(
       value.clustering,
       connections,
-      stored.clustering?.llmApiKeyId,
       "chat",
     );
     if (stored.enabled && (!summary || !embedding || !clustering))
@@ -330,59 +316,6 @@ function modelsFor(
       ),
     ),
   );
-}
-
-function judgeModel(
-  slot: SlotValue,
-  connections: Connection[],
-): JudgeModel | null {
-  if (!slot) return null;
-  const connection = connections.find((item) => item.id === slot.llmApiKeyId);
-  return {
-    provider: connection?.provider ?? "Missing connection",
-    model: slot.model,
-  };
-}
-
-function connectionId(
-  model: JudgeModel,
-  connections: Connection[],
-  preferredId: string | undefined,
-  kind: "chat" | "embedding",
-  savedModel?: string | null,
-) {
-  const matches = connections.filter(
-    (connection) =>
-      connection.provider === model.provider &&
-      modelsFor(
-        connection,
-        kind,
-        connection.id === preferredId ? savedModel : null,
-      ).includes(model.model),
-  );
-  return (
-    matches.find((connection) => connection.id === preferredId)?.id ??
-    matches[0]?.id ??
-    null
-  );
-}
-
-function slotValue(
-  model: JudgeModel | null,
-  connections: Connection[],
-  preferredId: string | undefined,
-  kind: "chat" | "embedding",
-  savedModel?: string | null,
-) {
-  if (!model) return null;
-  const llmApiKeyId = connectionId(
-    model,
-    connections,
-    preferredId,
-    kind,
-    savedModel,
-  );
-  return llmApiKeyId ? { llmApiKeyId, model: model.model } : null;
 }
 
 function facetDrafts(

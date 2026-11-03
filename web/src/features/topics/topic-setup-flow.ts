@@ -154,47 +154,29 @@ function compareModelVersions(a: string, b: string) {
   return 0;
 }
 
-function topicJudgeModel(
-  slot: { llmApiKeyId: string; model: string } | null,
-  connections: Array<{ id: string; provider: string }>,
-): JudgeModel | null {
-  if (!slot) return null;
-  const connection = connections.find((item) => item.id === slot.llmApiKeyId);
-  return {
-    provider: connection?.provider ?? "Missing connection",
-    model: slot.model,
-  };
-}
-
+/** The slot to save when the project's connection for the provider offers the model; `saved` keeps a stored model selectable. */
 export function resolveTopicModelSlot(
   model: JudgeModel | null,
   connections: TopicSetupConnection[],
-  preferredId: string | undefined,
   kind: "chat" | "embedding",
-  savedModel?: string | null,
-) {
+  saved?: JudgeModel | null,
+): JudgeModel | null {
   if (!model) return null;
-  const matches = connections.filter(
-    (connection) =>
-      connection.provider === model.provider &&
-      topicModelsFor(
-        connection,
-        kind,
-        connection.id === preferredId ? savedModel : null,
-      ).includes(model.model),
+  const connection = connections.find(
+    (item) => item.provider === model.provider,
   );
-  const llmApiKeyId =
-    matches.find((connection) => connection.id === preferredId)?.id ??
-    matches[0]?.id ??
-    null;
-  return llmApiKeyId ? { llmApiKeyId, model: model.model } : null;
+  const savedModel = saved?.provider === model.provider ? saved.model : null;
+  return connection &&
+    topicModelsFor(connection, kind, savedModel).includes(model.model)
+    ? { provider: model.provider, model: model.model }
+    : null;
 }
 
 export function initialTopicSetupDraft(input: {
   stored: {
-    summary: { llmApiKeyId: string; model: string } | null;
-    embedding: { llmApiKeyId: string; model: string } | null;
-    clustering: { llmApiKeyId: string; model: string } | null;
+    summary: JudgeModel | null;
+    embedding: JudgeModel | null;
+    clustering: JudgeModel | null;
   };
   connections: TopicSetupConnection[];
   facets: Array<{
@@ -239,13 +221,13 @@ export function initialTopicSetupDraft(input: {
       };
     }),
     summary:
-      topicJudgeModel(input.stored.summary, input.connections) ??
+      input.stored.summary ??
       pickRecommendedTopicModel("summary", summaryGroups),
     embedding:
-      topicJudgeModel(input.stored.embedding, input.connections) ??
+      input.stored.embedding ??
       pickRecommendedTopicModel("embedding", embeddingGroups),
     clustering:
-      topicJudgeModel(input.stored.clustering, input.connections) ??
+      input.stored.clustering ??
       pickRecommendedTopicModel("clustering", clusteringGroups),
     waitMinutes: setupWaitMinutes(input.traceIdleMs),
     advancedOpen: false,

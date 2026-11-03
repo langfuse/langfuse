@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type { Session } from "next-auth";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { LLMAdapter } from "@langfuse/shared";
 import { env as sharedEnv } from "@langfuse/shared/src/env";
 import { prisma } from "@langfuse/shared/src/db";
@@ -16,6 +16,17 @@ import {
   createTopicRun,
   getTopicsModels,
 } from "@langfuse/shared/topics/server";
+// Only the LLM transport is faked, to see which connection a test call used.
+const generateTopicText = vi.hoisted(() =>
+  vi.fn(async () => ({
+    output: { summary: "Account access", status: "applicable" },
+    usage: {},
+  })),
+);
+vi.mock("@langfuse/shared/src/server/topics/text", () => ({
+  generateTopicText,
+}));
+
 import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
@@ -44,11 +55,13 @@ function caller(userId: string, memberships: [string, string, Role][]) {
 
 function llmConnection(
   owner: { projectId: string } | { organizationId: string },
+  provider = `openai-${randomUUID()}`,
 ) {
   return prisma.llmApiKeys.create({
     data: {
       ...owner,
-      provider: `openai-${randomUUID()}`,
+      provider,
+      baseURL: `https://${randomUUID()}.example.com`,
       adapter: LLMAdapter.OpenAI,
       secretKey: "encrypted",
       displaySecretKey: "...key",
@@ -250,33 +263,42 @@ describe("Topics tRPC access", () => {
     ).toBe(0);
   });
 
-  it("uses only LLM connections of the project or its organization", async () => {
+  it("resolves LLM connections by provider within the project, then its organization", async () => {
     const admin = caller(userId, [
       [a.orgId, a.projectId, "ADMIN"],
       [b.orgId, b.projectId, "ADMIN"],
     ]);
     const projectId = a.projectId;
-    const ownOrgKey = await llmConnection({ organizationId: a.orgId });
+    const shared = `openai-${randomUUID()}`;
+    const overriddenOrgKey = await llmConnection(
+      { organizationId: a.orgId },
+      shared,
+    );
+    const overridingProjectKey = await llmConnection({ projectId }, shared);
+    const inheritedOrgKey = await llmConnection({ organizationId: a.orgId });
     const otherOrgKey = await llmConnection({ organizationId: b.orgId });
+    const otherProjectKey = await prisma.llmApiKeys.findUniqueOrThrow({
+      where: { id: b.llmKeyId },
+    });
     const config = await prisma.topicConfig.findUniqueOrThrow({
       where: { projectId },
     });
-    const settings = (llmApiKeyId: string) => ({
+    const settings = (provider: string) => ({
       projectId,
-      summary: { llmApiKeyId, model: "summary-model" },
+      summary: { provider, model: "summary-model" },
       embedding: null,
       embeddingDimensions: 1024,
       clustering: null,
     });
 
-    // Saving or testing: another project's or another org's connection is refused.
-    for (const foreignKeyId of [b.llmKeyId, otherOrgKey.id]) {
-      await expect(
-        admin.testModelSettings(settings(foreignKeyId)),
-      ).rejects.toThrow("LLM connection not found in this project.");
+    // Saving or testing: providers only another project or org has are refused.
+    for (const { provider } of [otherProjectKey, otherOrgKey]) {
+      await expect(admin.testModelSettings(settings(provider))).rejects.toThrow(
+        "LLM connection not found in this project.",
+      );
       await expect(
         admin.saveSetup({
-          ...settings(foreignKeyId),
+          ...settings(provider),
           facets: DEFAULT_TOPIC_FACETS.map(({ name }) => ({
             name,
             enabled: true,
@@ -290,17 +312,34 @@ describe("Topics tRPC access", () => {
       await prisma.topicConfig.findUniqueOrThrow({ where: { projectId } }),
     ).toEqual(config);
 
-    // Running: a stored foreign connection resolves to no models; the own org's does.
-    const resolveWithSummaryKey = async (summaryLlmApiKeyId: string) => {
+    // The project's connection overrides its organization's for the same provider.
+    await admin.testModelSettings(settings(shared));
+    expect(generateTopicText).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        model: expect.objectContaining({
+          connection: expect.objectContaining({
+            baseURL: overridingProjectKey.baseURL,
+          }),
+        }),
+      }),
+    );
+
+    // Running: the stored connection's provider resolves again in this project.
+    const summaryBaseUrl = async (summaryLlmApiKeyId: string) => {
       await prisma.topicConfig.update({
         where: { projectId },
         data: { summaryLlmApiKeyId },
       });
-      return getTopicsModels(projectId);
+      return (await getTopicsModels(projectId))?.summary.connection.baseURL;
     };
-    expect(await resolveWithSummaryKey(ownOrgKey.id)).not.toBeNull();
-    expect(await resolveWithSummaryKey(otherOrgKey.id)).toBeNull();
-    expect(await resolveWithSummaryKey(b.llmKeyId)).toBeNull();
+    expect(await summaryBaseUrl(overriddenOrgKey.id)).toBe(
+      overridingProjectKey.baseURL,
+    );
+    expect(await summaryBaseUrl(inheritedOrgKey.id)).toBe(
+      inheritedOrgKey.baseURL,
+    );
+    expect(await summaryBaseUrl(otherOrgKey.id)).toBeUndefined();
+    expect(await summaryBaseUrl(otherProjectKey.id)).toBeUndefined();
     await prisma.topicConfig.update({
       where: { projectId },
       data: { summaryLlmApiKeyId: config.summaryLlmApiKeyId },
