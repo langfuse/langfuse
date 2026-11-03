@@ -222,68 +222,71 @@ export const ObservationDetailViewHeader = memo(
 
     return (
       <DetailViewHeaderShell>
-        <DetailViewHeaderTitleRow
-          alwaysFold={isMobile}
-          actionsKey={`${observation.id}|${commentCount ?? 0}|${commentDrawerControl.disabled}|${isAnnotationMode}|${Boolean(observationWithIO)}`}
-          title={
-            <EntityTitle
-              as="span"
-              type={observation.type as ObservationType}
-              title={observation.name || observation.id}
-              level={observation.level}
-            />
+        <ConnectedTraceObservationAddToDropdownMenuController
+          key={observation.id}
+          analyticsData={{ source: "TraceDetail", isV4: isV4Enabled }}
+          projectId={projectId}
+          traceId={traceId}
+          variant="observation"
+          observationId={observation.id}
+          input={observationWithIO?.input ?? null}
+          output={observationWithIO?.output ?? null}
+          metadata={observationWithIO?.metadata ?? null}
+          generation={
+            observationWithIO && isGenerationLike(observationWithIO.type)
+              ? observationWithIO
+              : undefined
           }
-          options={
-            <ConnectedDetailHeaderActionsMenuController
-              idItems={[
-                { id: traceId, name: "Trace ID" },
-                { id: observation.id, name: "Observation ID" },
-              ]}
-              observationType={observation.type}
-              projectId={projectId}
-              observation={
-                isV4Enabled
-                  ? {
-                      id: observation.id,
-                      traceId,
-                      startTime: observation.startTime,
-                    }
-                  : undefined
-              }
-              spanName={observation.name ?? ""}
-              webCallout={{
-                traceId,
-                observationId: observation.id,
-                sessionId: observation.sessionId ?? null,
-              }}
-            >
-              {({ getTriggerProps }) => (
-                <HeaderActionButton
-                  label="Options"
-                  icon={<EllipsisVertical size="base" color="default" />}
-                  {...getTriggerProps()}
-                />
-              )}
-            </ConnectedDetailHeaderActionsMenuController>
-          }
-          foldedActions={
-            <ConnectedTraceObservationAddToDropdownMenuController
-              analyticsData={{ source: "TraceDetail", isV4: isV4Enabled }}
-              projectId={projectId}
-              traceId={traceId}
-              variant="observation"
-              observationId={observation.id}
-              input={observationWithIO?.input ?? null}
-              output={observationWithIO?.output ?? null}
-              metadata={observationWithIO?.metadata ?? null}
-              generation={
-                observationWithIO && isGenerationLike(observationWithIO.type)
-                  ? observationWithIO
-                  : undefined
-              }
-              renderMenu={(addToItems) => (
-                <AnnotateDrawerController projectId={projectId}>
-                  {({ disabled: annotationDisabled, openDrawer }) => (
+          renderMenu={(addToItems) => (
+            <AnnotateDrawerController projectId={projectId}>
+              {({ disabled: annotationDisabled, openDrawer }) => (
+                <DetailViewHeaderTitleRow
+                  alwaysFold={isMobile}
+                  actionsKey={`${observation.id}|${commentCount ?? 0}|${commentDrawerControl.disabled}|${isAnnotationMode}|${Boolean(observationWithIO)}`}
+                  title={
+                    <EntityTitle
+                      as="span"
+                      type={observation.type as ObservationType}
+                      title={observation.name || observation.id}
+                      level={observation.level}
+                    />
+                  }
+                  options={
+                    <ConnectedDetailHeaderActionsMenuController
+                      idItems={[
+                        { id: traceId, name: "Trace ID" },
+                        { id: observation.id, name: "Observation ID" },
+                      ]}
+                      observationType={observation.type}
+                      projectId={projectId}
+                      observation={
+                        isV4Enabled
+                          ? {
+                              id: observation.id,
+                              traceId,
+                              startTime: observation.startTime,
+                            }
+                          : undefined
+                      }
+                      spanName={observation.name ?? ""}
+                      webCallout={{
+                        traceId,
+                        observationId: observation.id,
+                        sessionId: observation.sessionId ?? null,
+                      }}
+                    >
+                      {({ getTriggerProps }) => (
+                        <HeaderActionButton
+                          label="Options"
+                          icon={
+                            <EllipsisVertical size="base" color="default" />
+                          }
+                          {...getTriggerProps()}
+                        />
+                      )}
+                    </ConnectedDetailHeaderActionsMenuController>
+                  }
+                  foldedActions={
                     <ConnectedDetailHeaderActionsMenuController
                       idItems={[
                         { id: traceId, name: "Trace ID" },
@@ -399,169 +402,140 @@ export const ObservationDetailViewHeader = memo(
                         </DropdownMenu>
                       )}
                     />
-                  )}
-                </AnnotateDrawerController>
-              )}
-            />
-          }
-          actions={
-            <>
-              {observationWithIO ? (
-                <ConnectedTraceObservationAddToDropdownMenuController
-                  analyticsData={{ source: "TraceDetail", isV4: isV4Enabled }}
-                  projectId={projectId}
-                  key={observation.id}
-                  traceId={traceId}
-                  variant="observation"
-                  observationId={observation.id}
-                  input={observationWithIO.input}
-                  output={observationWithIO.output}
-                  metadata={observationWithIO.metadata}
-                  generation={
-                    isGenerationLike(observationWithIO.type)
-                      ? observationWithIO
-                      : undefined
                   }
-                >
-                  {({ getTriggerProps }) =>
-                    renderAddToButton(getTriggerProps())
-                  }
-                </ConnectedTraceObservationAddToDropdownMenuController>
-              ) : (
-                renderAddToButton({ disabled: true })
-              )}
-              {/* Hide annotation buttons in annotation mode (panel shown separately) */}
-              {!isAnnotationMode && (
-                <AnnotateDrawerController projectId={projectId}>
-                  {({ disabled, openDrawer }) => (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className={headerActionClassName}
-                      disabled={disabled}
-                      onClick={() =>
-                        openDrawer({
-                          ...prepareTraceAnnotation({
-                            traceId,
-                            projectId,
-                            environment: observation.environment,
-                            observationId: observation.id,
-                            scores: observationScores,
-                            isV4: isV4Enabled,
-                          }),
-                          companionTrace,
-                        })
-                      }
-                    >
-                      {disabled ? (
-                        <LockIcon size="base" color="default" />
+                  actions={
+                    <>
+                      {observationWithIO ? (
+                        <DropdownMenu
+                          items={addToItems}
+                          maxHeight="24rem"
+                          placement="bottom-start"
+                        >
+                          {({ getTriggerProps }) =>
+                            renderAddToButton(getTriggerProps())
+                          }
+                        </DropdownMenu>
                       ) : (
-                        <SquarePen size="base" color="default" />
+                        renderAddToButton({ disabled: true })
                       )}
-                      <span>Annotate</span>
-                    </Button>
-                  )}
-                </AnnotateDrawerController>
-              )}
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                disabled={commentDrawerControl.disabled}
-                onClick={commentDrawerControl.openDrawer}
-                className={headerActionClassName}
-              >
-                {commentDrawerControl.disabled ? (
-                  <MessageSquareOff size="base" color="muted" />
-                ) : (
-                  <>
-                    <MessageSquare size="base" color="default" />
-                    <span>{commentActionLabel}</span>
-                    {!!commentCount ? (
-                      <ActionButtonCountBadge count={commentCount} />
-                    ) : null}
-                  </>
-                )}
-              </Button>
-            </>
-          }
-          iconOnlyActions={
-            <>
-              {observationWithIO ? (
-                <ConnectedTraceObservationAddToDropdownMenuController
-                  analyticsData={{ source: "TraceDetail", isV4: isV4Enabled }}
-                  projectId={projectId}
-                  traceId={traceId}
-                  variant="observation"
-                  observationId={observation.id}
-                  input={observationWithIO.input}
-                  output={observationWithIO.output}
-                  metadata={observationWithIO.metadata}
-                  generation={
-                    isGenerationLike(observationWithIO.type)
-                      ? observationWithIO
-                      : undefined
+                      {/* Hide annotation buttons in annotation mode (panel shown separately) */}
+                      {!isAnnotationMode && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className={headerActionClassName}
+                          disabled={annotationDisabled}
+                          onClick={() =>
+                            openDrawer({
+                              ...prepareTraceAnnotation({
+                                traceId,
+                                projectId,
+                                environment: observation.environment,
+                                observationId: observation.id,
+                                scores: observationScores,
+                                isV4: isV4Enabled,
+                              }),
+                              companionTrace,
+                            })
+                          }
+                        >
+                          {annotationDisabled ? (
+                            <LockIcon size="base" color="default" />
+                          ) : (
+                            <SquarePen size="base" color="default" />
+                          )}
+                          <span>Annotate</span>
+                        </Button>
+                      )}
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        disabled={commentDrawerControl.disabled}
+                        onClick={commentDrawerControl.openDrawer}
+                        className={headerActionClassName}
+                      >
+                        {commentDrawerControl.disabled ? (
+                          <MessageSquareOff size="base" color="muted" />
+                        ) : (
+                          <>
+                            <MessageSquare size="base" color="default" />
+                            <span>{commentActionLabel}</span>
+                            {!!commentCount ? (
+                              <ActionButtonCountBadge count={commentCount} />
+                            ) : null}
+                          </>
+                        )}
+                      </Button>
+                    </>
                   }
-                >
-                  {({ getTriggerProps }) => (
-                    <HeaderActionButton
-                      label="Add to"
-                      icon={<PlusIcon size="base" />}
-                      {...getTriggerProps()}
-                    />
-                  )}
-                </ConnectedTraceObservationAddToDropdownMenuController>
-              ) : (
-                <HeaderActionButton
-                  label="Add to"
-                  icon={<PlusIcon size="base" />}
-                  disabled
+                  iconOnlyActions={
+                    <>
+                      {observationWithIO ? (
+                        <DropdownMenu
+                          items={addToItems}
+                          maxHeight="24rem"
+                          placement="bottom-start"
+                        >
+                          {({ getTriggerProps }) => (
+                            <HeaderActionButton
+                              label="Add to"
+                              icon={<PlusIcon size="base" />}
+                              {...getTriggerProps()}
+                            />
+                          )}
+                        </DropdownMenu>
+                      ) : (
+                        <HeaderActionButton
+                          label="Add to"
+                          icon={<PlusIcon size="base" />}
+                          disabled
+                        />
+                      )}
+                      {!isAnnotationMode && (
+                        <HeaderActionButton
+                          label="Annotate"
+                          icon={
+                            annotationDisabled ? (
+                              <LockIcon size="base" />
+                            ) : (
+                              <SquarePen size="base" />
+                            )
+                          }
+                          disabled={annotationDisabled}
+                          onClick={() =>
+                            openDrawer({
+                              ...prepareTraceAnnotation({
+                                traceId,
+                                projectId,
+                                environment: observation.environment,
+                                observationId: observation.id,
+                                scores: observationScores,
+                                isV4: isV4Enabled,
+                              }),
+                              companionTrace,
+                            })
+                          }
+                        />
+                      )}
+                      <HeaderActionButton
+                        label={commentActionLabel}
+                        icon={
+                          commentDrawerControl.disabled ? (
+                            <MessageSquareOff size="base" />
+                          ) : (
+                            <MessageSquare size="base" />
+                          )
+                        }
+                        disabled={commentDrawerControl.disabled}
+                        onClick={commentDrawerControl.openDrawer}
+                      />
+                    </>
+                  }
                 />
               )}
-              {!isAnnotationMode && (
-                <AnnotateDrawerController projectId={projectId}>
-                  {({ disabled, openDrawer }) => (
-                    <HeaderActionButton
-                      label="Annotate"
-                      icon={
-                        disabled ? (
-                          <LockIcon size="base" />
-                        ) : (
-                          <SquarePen size="base" />
-                        )
-                      }
-                      disabled={disabled}
-                      onClick={() =>
-                        openDrawer({
-                          ...prepareTraceAnnotation({
-                            traceId,
-                            projectId,
-                            environment: observation.environment,
-                            observationId: observation.id,
-                            scores: observationScores,
-                            isV4: isV4Enabled,
-                          }),
-                          companionTrace,
-                        })
-                      }
-                    />
-                  )}
-                </AnnotateDrawerController>
-              )}
-              <HeaderActionButton
-                label={commentActionLabel}
-                icon={
-                  commentDrawerControl.disabled ? (
-                    <MessageSquareOff size="base" />
-                  ) : (
-                    <MessageSquare size="base" />
-                  )
-                }
-                disabled={commentDrawerControl.disabled}
-                onClick={commentDrawerControl.openDrawer}
-              />
-            </>
-          }
+            </AnnotateDrawerController>
+          )}
         />
 
         {/* Metadata line */}

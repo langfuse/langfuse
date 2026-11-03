@@ -21,7 +21,11 @@ export type DetailViewHeaderTitleRowProps = {
   options: ReactNode;
   /** Takes the place of `options` once the actions fold, and holds them. */
   foldedActions: ReactNode;
-  /** The inline action cluster (full labels). Mounted only while it is not folded. */
+  /**
+   * The inline action cluster (full labels). Mounted only while it is not
+   * folded, so it holds triggers only: a dialog or drawer an action opens is
+   * owned above the row, where folding cannot unmount it.
+   */
   actions: ReactNode;
   /**
    * Icon-only variant of the action cluster (icons with tooltips, no labels).
