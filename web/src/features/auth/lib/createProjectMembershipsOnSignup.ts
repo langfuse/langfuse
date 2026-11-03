@@ -8,6 +8,7 @@ import { shouldAutoEnableV4 } from "@/src/features/events/lib/v4Rollout";
 import { getSfdcService } from "@/src/ee/features/sfdc-sync/server/sfdcService";
 import { canCreateOrganizations } from "@/src/features/organizations/server/canCreateOrganizations";
 import { provisionStarterOrganizationForNewUser } from "@/src/features/onboarding/server/onboardingService";
+import { isGatewayEnabledForOrganization } from "@/src/features/ai-gateway/server/availability";
 import { projectRoleAccessRights } from "@langfuse/shared";
 import { type AdClickIds } from "@/src/features/auth/lib/signupAttribution";
 
@@ -330,8 +331,11 @@ async function processMembershipInvitations(email: string, userId: string) {
     (invitation) => {
       if (invitation.orgId === env.NEXT_PUBLIC_DEMO_ORG_ID) return false;
       // Gateway-only members see no projects but belong in the inviting org,
-      // where they create their AI Gateway keys.
-      if (invitation.orgRole === Role.AI_GATEWAY) return true;
+      // where they create their AI Gateway keys, as long as it still has the
+      // gateway enabled.
+      if (invitation.orgRole === Role.AI_GATEWAY) {
+        return isGatewayEnabledForOrganization(invitation.orgId);
+      }
       if (!invitation.projectId) return false;
 
       const projectRole = invitation.projectRole ?? invitation.orgRole;

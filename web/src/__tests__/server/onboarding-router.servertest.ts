@@ -138,7 +138,7 @@ describe("onboarding router", () => {
     const result = await caller.onboarding.complete();
 
     expect(result).toEqual({
-      redirectTo: `/project/${starterProjectId}/traces`,
+      redirectTo: "/",
       surveyCreated: true,
     });
     expect(organizationMembership.role).toBe(Role.OWNER);
@@ -438,89 +438,115 @@ describe("onboarding router", () => {
       "My Project",
     );
     expect(result).toEqual({
-      redirectTo: `/project/${starterOrganizationMembership?.organization.projects[0]?.id}/traces`,
+      redirectTo: "/",
       surveyCreated: true,
     });
   });
 
-  it("lands AI Gateway invitees on the inviting org instead of creating starter resources", async () => {
-    const userId = randomUUID();
-    const email = `invited-gateway-${userId}@example.com`;
-    createdUserIds.push(userId);
+  describe("AI Gateway invitations", () => {
+    const originalGatewayAvailability = {
+      LANGFUSE_AI_GATEWAY_DEPLOYED: env.LANGFUSE_AI_GATEWAY_DEPLOYED,
+      LANGFUSE_AI_GATEWAY_ENABLED: env.LANGFUSE_AI_GATEWAY_ENABLED,
+      LANGFUSE_AI_GATEWAY_ORGANIZATION_ID_ALLOWLIST:
+        env.LANGFUSE_AI_GATEWAY_ORGANIZATION_ID_ALLOWLIST,
+    };
 
-    const user = await prisma.user.create({
-      data: {
-        id: userId,
-        email,
-        name: "Gale Test",
-      },
+    afterEach(() => {
+      Object.assign(env, originalGatewayAvailability);
     });
 
-    const organization = await prisma.organization.create({
-      data: {
-        name: `Gateway Org ${userId}`,
-      },
-    });
-    createdOrgIds.push(organization.id);
+    it("lands invitees on the inviting org instead of creating starter resources", async () => {
+      const { organization, memberships, complete } =
+        await signUpWithGatewayInvitation({ gatewayEnabled: true });
 
-    await prisma.project.create({
-      data: {
-        name: `Gateway Org Project ${userId}`,
+      expect(memberships).toEqual([
+        { orgId: organization.id, role: Role.AI_GATEWAY },
+      ]);
+      expect(await complete()).toEqual({
+        redirectTo: `/organization/${organization.id}`,
+        surveyCreated: true,
+      });
+    });
+
+    it("creates starter resources when the gateway was turned off for the inviting org", async () => {
+      const { organization, memberships } = await signUpWithGatewayInvitation({
+        gatewayEnabled: false,
+      });
+
+      expect(memberships).toHaveLength(2);
+      expect(memberships).toContainEqual({
         orgId: organization.id,
-      },
+        role: Role.AI_GATEWAY,
+      });
+      expect(memberships).toContainEqual(
+        expect.objectContaining({ role: Role.OWNER }),
+      );
     });
 
-    await prisma.membershipInvitation.create({
-      data: {
-        orgId: organization.id,
-        email,
-        orgRole: Role.AI_GATEWAY,
-      },
-    });
+    /** signUpWithGatewayInvitation signs up a user holding an AI_GATEWAY invitation for a fresh org */
+    async function signUpWithGatewayInvitation({
+      gatewayEnabled,
+    }: {
+      gatewayEnabled: boolean;
+    }) {
+      const userId = randomUUID();
+      const email = `invited-gateway-${userId}@example.com`;
+      createdUserIds.push(userId);
 
-    await createProjectMembershipsOnSignup(user, {
-      userWasJustCreated: true,
-    });
+      const user = await prisma.user.create({
+        data: { id: userId, email, name: "Gale Test" },
+      });
+      const organization = await prisma.organization.create({
+        data: { name: `Gateway Org ${userId}` },
+      });
+      createdOrgIds.push(organization.id);
+      await prisma.project.create({
+        data: { name: `Gateway Org Project ${userId}`, orgId: organization.id },
+      });
+      await prisma.membershipInvitation.create({
+        data: { orgId: organization.id, email, orgRole: Role.AI_GATEWAY },
+      });
 
-    const organizationMemberships =
-      await prisma.organizationMembership.findMany({
+      Object.assign(env, {
+        LANGFUSE_AI_GATEWAY_DEPLOYED: "true",
+        LANGFUSE_AI_GATEWAY_ENABLED: "false",
+        LANGFUSE_AI_GATEWAY_ORGANIZATION_ID_ALLOWLIST: gatewayEnabled
+          ? [organization.id]
+          : [],
+      });
+      await createProjectMembershipsOnSignup(user, {
+        userWasJustCreated: true,
+      });
+
+      const memberships = await prisma.organizationMembership.findMany({
         where: {
           userId,
           ...(env.NEXT_PUBLIC_DEMO_ORG_ID
             ? { orgId: { not: env.NEXT_PUBLIC_DEMO_ORG_ID } }
             : {}),
         },
-        select: {
-          orgId: true,
-          role: true,
-        },
+        select: { orgId: true, role: true },
       });
-    createdOrgIds.push(
-      ...organizationMemberships
-        .map((membership) => membership.orgId)
-        .filter((orgId) => orgId !== organization.id),
-    );
+      createdOrgIds.push(
+        ...memberships
+          .map((membership) => membership.orgId)
+          .filter((orgId) => orgId !== organization.id),
+      );
 
-    expect(organizationMemberships).toEqual([
-      { orgId: organization.id, role: Role.AI_GATEWAY },
-    ]);
-
-    const caller = appRouter.createCaller({
-      ...createInnerTRPCContext({
-        session: makeSession({
-          userId,
-          email,
-          name: "Gale Test",
+      const caller = appRouter.createCaller({
+        ...createInnerTRPCContext({
+          session: makeSession({ userId, email, name: "Gale Test" }),
+          headers: {},
         }),
-        headers: {},
-      }),
-      prisma,
-    });
+        prisma,
+      });
 
-    expect(await caller.onboarding.complete()).toEqual({
-      redirectTo: `/organization/${organization.id}`,
-      surveyCreated: true,
-    });
+      return {
+        organization,
+        memberships,
+        complete: () => caller.onboarding.complete(),
+      };
+    }
   });
 
   it("falls back to manual project creation when a real org exists without a project", async () => {

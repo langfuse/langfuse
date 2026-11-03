@@ -184,7 +184,7 @@ const getRedirectTargetForMemberships = (
 
     if (projectRoleAccessRights[starterProjectRole].includes("project:read")) {
       return {
-        redirectTo: `/project/${starterProject.id}/traces`,
+        redirectTo: "/",
         orgId: starterOrganizationMembership.organization.id,
         canConfigureAiFeatures: true,
       };
@@ -213,7 +213,11 @@ const getRedirectTargetForMemberships = (
     };
   }
 
-  const firstOrganization = organizationMemberships[0];
+  // Gateway-only members land in the org where they can create gateway keys.
+  const firstOrganization =
+    organizationMemberships.find(
+      (membership) => membership.role === Role.AI_GATEWAY,
+    ) ?? organizationMemberships[0];
 
   if (firstOrganization) {
     return {

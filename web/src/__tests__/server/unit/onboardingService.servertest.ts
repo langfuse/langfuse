@@ -104,7 +104,7 @@ const makeCompletionPrisma = ({
 };
 
 describe("resolveOnboardingRedirectTarget", () => {
-  it("routes the auto-created starter project to tracing", async () => {
+  it("routes starter organization owners to the overview", async () => {
     const result = await resolveOnboardingRedirectTarget({
       prisma: makePrisma([
         makeMembership({
@@ -122,7 +122,7 @@ describe("resolveOnboardingRedirectTarget", () => {
     });
 
     expect(result).toMatchObject({
-      redirectTo: "/project/project-1/traces",
+      redirectTo: "/",
       orgId: "org-1",
     });
   });
@@ -140,6 +140,25 @@ describe("resolveOnboardingRedirectTarget", () => {
 
     expect(result).toMatchObject({
       redirectTo: "/project/project-1",
+    });
+  });
+
+  it("prefers the AI Gateway org when no org has a usable project", async () => {
+    const result = await resolveOnboardingRedirectTarget({
+      prisma: makePrisma([
+        makeMembership({ orgId: "none-org", role: Role.NONE, projects: [] }),
+        makeMembership({
+          orgId: "gateway-org",
+          role: Role.AI_GATEWAY,
+          projects: [{ id: "project-1" }],
+        }),
+      ]),
+      userId: "user-1",
+    });
+
+    expect(result).toEqual({
+      redirectTo: "/organization/gateway-org",
+      orgId: "gateway-org",
     });
   });
 });
@@ -298,7 +317,7 @@ describe("completeSignupOnboarding", () => {
         aiFeaturesEnabled: true,
       }),
     ).resolves.toEqual({
-      redirectTo: "/project/project-1/traces",
+      redirectTo: "/",
       surveyCreated: true,
     });
 
