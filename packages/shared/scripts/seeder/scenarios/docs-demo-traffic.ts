@@ -1,5 +1,6 @@
 import { prisma } from "../../../src/db";
 import {
+  clickhouseClient,
   createEventsCh,
   createObservation,
   createObservationsCh,
@@ -167,6 +168,19 @@ const refundOutcome = (
 };
 
 const SENTIMENTS = ["positive", "neutral", "negative"];
+// Same length, so one index picks from either list.
+const FEEDBACK_UP = [
+  "Refund showed up right away, thanks!",
+  "Exactly what I needed.",
+  "Quick and clear answer.",
+  "Fixed my login issue in one step.",
+];
+const FEEDBACK_DOWN = [
+  "Still charged twice.",
+  "Didn't answer my question.",
+  "Link in the answer was broken.",
+  "Too generic, I needed my specific invoice.",
+];
 const USERS = Array.from({ length: 16 }, (_, i) => `cust-${2041 + i * 37}`);
 
 // Relative traffic per UTC hour: quiet nights, a long business-day plateau.
@@ -668,6 +682,31 @@ const run = async (
             source: "ANNOTATION",
           }),
         );
+        // Thumbs up/down from the chat widget on a share of conversations,
+        // sent through the public API like a real frontend would.
+        if (jitter(ctx.seed, g * 107, 99) < 55) {
+          const liked = !failed && helpfulness >= 0.7;
+          // Unhappy customers explain themselves more often than happy ones.
+          const comment =
+            jitter(ctx.seed, g * 109, 99) < (liked ? 30 : 75)
+              ? (liked ? FEEDBACK_UP : FEEDBACK_DOWN)[g % FEEDBACK_UP.length]
+              : null;
+          scores.push(
+            createTraceScore({
+              ...scoreBase,
+              id: `${traceId}-user-feedback`,
+              name: "user-feedback",
+              value: liked ? 1 : 0,
+              data_type: "NUMERIC",
+              source: "API",
+              comment,
+              timestamp: clock + 45_000,
+              created_at: clock + 45_000,
+              updated_at: clock + 45_000,
+              event_ts: clock + 45_000,
+            }),
+          );
+        }
         if (reply) {
           scores.push(
             createTraceScore({
@@ -715,11 +754,49 @@ const run = async (
     (Object.keys(counts) as (keyof typeof counts)[]).every(
       (key) => found[key] >= counts[key],
     );
-  // Every scene re-runs this scenario; when the deterministic rows are all
-  // there already, skip the ~25k-row rewrite (pass --rewrite after changing
-  // row contents).
+  // Ids count days back from today, so on a later day the same ids belong to
+  // different timestamps. Rows count as present only when the newest trace
+  // is today's and no id has a second copy.
+  // Trace rows hold ClickHouse UTC strings ("YYYY-MM-DD HH:MM:SS.mmm").
+  const newestTs = Math.max(
+    ...traces.map((t) => Date.parse(`${t.timestamp.replace(" ", "T")}Z`)),
+  );
+  const newestFound = await countRows(
+    "traces",
+    where,
+    q,
+    "toUnixTimestamp64Milli(max(timestamp))",
+  );
+  // An earlier day's copies sit next to today's rows under the same ids.
+  const copies =
+    (await countRows("traces FINAL", where, q)) -
+    (await countRows("traces", where, q, "uniqExact(id)"));
+  const current =
+    Math.abs(newestFound - newestTs) < 60 * 60 * 1000 && copies === 0;
+  // Every scene re-runs this scenario; when today's deterministic rows are
+  // all there already, skip the ~25k-row rewrite (pass --rewrite after
+  // changing row contents).
   let verified = await readBack();
-  if (params["rewrite"] || !complete(verified)) {
+  if (params["rewrite"] || !current || !complete(verified)) {
+    // Rows are keyed by timestamp as well as id: remove the previous rows,
+    // or they stay next to the new ones.
+    for (const table of [
+      "events_full",
+      "events_core",
+      "observations",
+      "scores",
+    ]) {
+      await clickhouseClient().command({
+        query: `DELETE FROM ${table} WHERE project_id = {projectId: String} AND trace_id LIKE {like: String}`,
+        query_params: q,
+        clickhouse_settings: { wait_end_of_query: 1 },
+      });
+    }
+    await clickhouseClient().command({
+      query: `DELETE FROM traces WHERE ${where}`,
+      query_params: q,
+      clickhouse_settings: { wait_end_of_query: 1 },
+    });
     ctx.log(
       `inserting ${traces.length} traces, ${observations.length} observations, ${events.length} events, ${scores.length} scores`,
     );

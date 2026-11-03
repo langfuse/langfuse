@@ -2,6 +2,7 @@ import crypto from "crypto";
 import { prisma } from "../../../src/db";
 import { ObservationType } from "../../../src/domain";
 import {
+  clickhouseClient,
   convertCallsToArrays,
   convertDefinitionsToMap,
   createEventsCh,
@@ -32,8 +33,8 @@ import { countRows, traceLink, tracesListLink } from "./verify";
  *
  * `links` order (stable): qa-answer (RAG walkthrough), summarize-call (PII
  * redaction), triage-graph (DEBUG-level spans), route-ticket (generation with
- * an unpriced model), then the background traffic for the traces table; the
- * last link is the traces list.
+ * an unpriced model), then the background traffic for the traces table and
+ * the four turns of one support-chat session; the last link is the traces list.
  *
  * Re-running also deletes the project-level `grok-4-fast` model definition so
  * the "create a custom model from a generation" flow starts clean.
@@ -715,12 +716,118 @@ const TRAFFIC: TraceSpec[] = [
   ),
 ];
 
+// ---------------------------------------------------------------------------
+// 6. One support conversation as a session (sessions overview video)
+// ---------------------------------------------------------------------------
+
+const CHAT_SESSION_ID = "chat-7f3a9c2e41";
+const CHAT_USER_ID = "cus_9Vb4Tx";
+const CHAT_SYSTEM =
+  "You are Acme Robotics' support assistant. Use the order tools for order questions and keep answers short.";
+const CHAT_TURNS: {
+  user: string;
+  tool: string;
+  toolInput: Record<string, string>;
+  toolOutput: Record<string, string>;
+  assistant: string;
+}[] = [
+  {
+    user: "Hi, the replacement for my RB-0042 was supposed to arrive yesterday. Order #A-21007.",
+    tool: "get-order-status",
+    toolInput: { orderId: "A-21007" },
+    toolOutput: {
+      status: "in_transit",
+      carrier: "UPS",
+      tracking: "1Z84A2W90312345678",
+      eta: "Friday",
+    },
+    assistant:
+      "Sorry for the wait! Order #A-21007 shipped on Tuesday with UPS (tracking 1Z84A2W90312345678) and is now due on Friday.",
+  },
+  {
+    user: "Can you send it to our second warehouse instead? 1840 Harbor Rd, Oakland.",
+    tool: "update-shipping-address",
+    toolInput: { orderId: "A-21007", address: "1840 Harbor Rd, Oakland, CA" },
+    toolOutput: { updated: "true", eta: "Friday" },
+    assistant:
+      "Done. Order #A-21007 now ships to 1840 Harbor Rd, Oakland, and still arrives on Friday.",
+  },
+  {
+    user: "Will the courier still pick up the damaged unit on Monday?",
+    tool: "get-return-pickup",
+    toolInput: { orderId: "A-21007" },
+    toolOutput: { pickup: "Monday 9:00-12:00", address: "original address" },
+    assistant:
+      "Yes. The pickup of the damaged unit is still booked for Monday between 9:00 and 12:00 at your original address.",
+  },
+  {
+    user: "Perfect, thanks for the quick help!",
+    tool: "close-conversation",
+    toolInput: { reason: "resolved" },
+    toolOutput: { closed: "true" },
+    assistant:
+      "You're welcome! Reply here any time if the replacement doesn't arrive on Friday.",
+  },
+];
+
+const chatSessionTraces: TraceSpec[] = CHAT_TURNS.map((turn, i) => {
+  const history = CHAT_TURNS.slice(0, i).flatMap((t) => [
+    { role: "user", content: t.user },
+    { role: "assistant", content: t.assistant },
+  ]);
+  const toolEnd = 180 + i * 20;
+  const genEnd = toolEnd + 900 + turn.assistant.length * 9;
+  return {
+    key: `chat-${i}`,
+    name: "support-chat",
+    minute: 40 + i * 2,
+    userId: CHAT_USER_ID,
+    sessionId: CHAT_SESSION_ID,
+    tags: ["chat"],
+    input: { message: turn.user },
+    output: { reply: turn.assistant },
+    observations: [
+      {
+        key: "tool",
+        parentKey: null,
+        type: "TOOL",
+        name: turn.tool,
+        start: 12,
+        end: toolEnd,
+        input: turn.toolInput,
+        output: turn.toolOutput,
+      },
+      {
+        key: "generation",
+        parentKey: null,
+        type: "GENERATION",
+        name: "answer",
+        start: toolEnd + 8,
+        end: genEnd,
+        model: "gpt-4.1",
+        usage: {
+          input: 620 + history.length * 48,
+          output: 20 + Math.round(turn.assistant.length / 4),
+        },
+        ttft: 240,
+        input: [
+          { role: "system", content: CHAT_SYSTEM },
+          ...history,
+          { role: "user", content: turn.user },
+        ],
+        output: { role: "assistant", content: turn.assistant },
+      },
+    ],
+  };
+});
+
 const TRACES: TraceSpec[] = [
   qaTrace,
   piiTrace,
   triageTrace,
   routeTrace,
   ...TRAFFIC,
+  ...chatSessionTraces,
 ];
 
 // ---------------------------------------------------------------------------
@@ -941,6 +1048,23 @@ const run = async (
         ...b.observations.map((o) => observationToEvent(o, b.trace)),
       ])
     : [];
+
+  // Rows are keyed by timestamp as well as id, so a run on a later day would
+  // add a second copy of every trace next to the previous day's. Remove the
+  // previous rows first.
+  const ids = traces.map((t) => t.id);
+  for (const table of ["events_full", "events_core", "observations"]) {
+    await clickhouseClient().command({
+      query: `DELETE FROM ${table} WHERE project_id = {projectId: String} AND trace_id IN {ids: Array(String)}`,
+      query_params: { projectId: ctx.projectId, ids },
+      clickhouse_settings: { wait_end_of_query: 1 },
+    });
+  }
+  await clickhouseClient().command({
+    query: `DELETE FROM traces WHERE project_id = {projectId: String} AND id IN {ids: Array(String)}`,
+    query_params: { projectId: ctx.projectId, ids },
+    clickhouse_settings: { wait_end_of_query: 1 },
+  });
 
   ctx.log(
     `writing ${traces.length} traces, ${observations.length} observations, ${events.length} events`,

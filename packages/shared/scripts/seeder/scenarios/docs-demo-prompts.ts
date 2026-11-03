@@ -35,7 +35,7 @@ type PromptDef = {
 const DEMO_USER_EMAIL = "demo@langfuse.com";
 
 /** Prompts that videos create through the UI and the seed removes again. */
-const SCRATCH_PROMPT_NAMES = ["onboarding/welcome-email"];
+const SCRATCH_PROMPT_NAMES = ["onboarding/welcome-email", "order-status-reply"];
 
 const SUPPORT_SYSTEM =
   "You are Acme's customer support assistant. Be concise, friendly and accurate. Only answer questions about Acme products, orders and accounts.";

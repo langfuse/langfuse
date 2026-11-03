@@ -87,6 +87,22 @@
     "title": "Find traces with full-text search",
     "description": "Tracing page search bar: type \"cracked bumper\" and pick the full-text suggestion content:\"cracked bumper\" to search inputs and outputs. The table narrows to the matching rows; click one to open the generation in the peek panel."
   },
+  "overview-dashboard": {
+    "title": "Monitor traces, costs and scores on the dashboard",
+    "description": "Home dashboard with traces by name, model costs and scores. Change the time range from \"Past 1 day\" to \"Past 7 days\", then scroll through observations by level, model usage and cost, user consumption, score trends and latency percentiles."
+  },
+  "overview-sessions": {
+    "title": "Follow a conversation as a session",
+    "description": "Trace detail of one support-chat turn. Click the \"session\" badge in the trace header to open the session: every turn of the conversation in one view, with the user and assistant messages in order. Click the last turn in the list on the left to jump to it."
+  },
+  "overview-timeline": {
+    "title": "Find slow steps in the timeline",
+    "description": "Trace detail of an agent trace. Switch from \"Tree\" to \"Timeline\" to see each step as a bar on a time axis with its duration and cost, so the slowest steps stand out. Click one of the llm.chat calls to open it, then switch back to \"Tree\"."
+  },
+  "overview-users": {
+    "title": "See traces and scores per user",
+    "description": "Users list with each user's first and last event, trace count, tokens and cost. Click a user to open their page with total observations, tokens and cost, their traces, and the \"Scores\" tab with every score on their traces."
+  },
   "playground-open-generation": {
     "title": "Open a generation in the playground",
     "description": "Trace detail with a qa-answer generation selected. Click \"Add to\" in the observation header > \"Playground\" > \"Fresh playground\"; the playground opens with the generation's system and user messages and model settings. Click \"Submit\" to rerun it."
@@ -115,6 +131,10 @@
     "title": "Reference another prompt",
     "description": "Prompts > qa-answer-with-context-chat > \"New version\". Click \"Add prompt reference\", choose the prompt guidelines, reference it by label production and click \"Copy and close\". Paste the copied @@@langfusePrompt tag into the user message, save the version, and open \"Resolved prompt\" to see the guidelines inlined."
   },
+  "prompt-create": {
+    "title": "Create a prompt",
+    "description": "Prompts > \"New prompt\". Enter the name order-status-reply and a text prompt with the variables {{customer_name}} and {{order_id}}; Langfuse lists the detected variables below the editor. Keep \"Set the production label\" checked and click \"Create prompt\": version 1 opens with the production and latest labels."
+  },
   "prompt-experiments": {
     "title": "Run a prompt experiment from the UI",
     "description": "Datasets > capital-cities > \"Run experiment\" > \"via User Interface\" > Configure. Select prompt answer-question, version 3, and model gpt-4.1, keep the dataset capital-cities, skip evaluators, name the run and click \"Run Experiment\". A toast confirms the experiment was triggered."
@@ -131,6 +151,14 @@
     "title": "Compare prompt versions by metrics",
     "description": "Prompts > qa-answer-with-context-chat > \"Metrics\" tab: one row per version with median latency, input and output tokens, cost, generation count and score columns such as accuracy and helpfulness. Switch back with the \"Versions\" tab."
   },
+  "prompt-new-version": {
+    "title": "Save a new prompt version",
+    "description": "Prompts > support-reply > \"New version\". Edit the system message, add the commit message \"Confirm order numbers\" and click \"Save new prompt version\". The new version appears on top of the version list with its commit message and the latest label."
+  },
+  "score-analytics": {
+    "title": "Analyze scores",
+    "description": "Scores > \"Analytics\". Pick helpfulness as the first score to see its statistics, trend over time and distribution, then pick faithfulness as the second score to compare both: means, matched pairs, correlation and a side-by-side distribution."
+  },
   "security-pii-redaction": {
     "title": "Trace PII redaction around an LLM call",
     "description": "Trace detail of a call-summary trace. Select the anonymize span to see names, emails and phone numbers replaced by placeholders, select the summarize generation that only sees the placeholders, then select the deanonymize span that restores the original values in the final output."
@@ -142,5 +170,9 @@
   "trace-new-ui": {
     "title": "Inspect a trace",
     "description": "Trace detail of a RAG answer with the generation selected. Hover the cost and token values in the generation header to see the cost and usage breakdowns, expand the collapsed chat history, then select the retrieval span in the tree to see the context it returned."
+  },
+  "user-feedback-scores": {
+    "title": "Review user feedback scores",
+    "description": "Scores page. Search name:user-feedback value:<0.5 to list the thumbs-down feedback the chat widget sent through the API, with the customer's comment such as \"Still charged twice.\" Click a row's trace to open the conversation in a side panel."
   }
 }
