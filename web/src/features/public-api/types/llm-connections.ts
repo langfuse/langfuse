@@ -130,7 +130,7 @@ export const PutLlmConnectionV1Body = PutLlmConnectionV1BodyBase.superRefine(
         if (!result.success) {
           ctx.addIssue({
             code: "custom",
-            message: `Invalid VertexAI config: ${result.error.issues.map((e) => e.message).join(", ")}. Expected: { location: string }`,
+            message: `Invalid VertexAI config: ${result.error.issues.map((e) => e.message).join(", ")}. Expected: { location?: string, batchGcsUri?: "gs://bucket/prefix" }`,
             path: ["config"],
           });
         }

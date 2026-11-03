@@ -2,6 +2,17 @@ import { describe, expect, it, vi, beforeEach } from "vitest";
 import { z } from "zod";
 import { createProductionEvalExecutionDeps } from "../evalExecutionDeps";
 import { EXPORT_VOLUME_METRIC } from "../../../services/exportVolumeMetric";
+import { LlmBatchDeferredError } from "../../llm-batch/errors";
+
+const batchStoreMocks = vi.hoisted(() => ({
+  find: vi.fn(),
+  createPending: vi.fn(),
+}));
+
+vi.mock("../../llm-batch/store", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("../../llm-batch/store")>()),
+  createPrismaLlmBatchStore: () => batchStoreMocks,
+}));
 
 const { mockGenerateLlmEvaluatorOutput, mockRecordIncrement } = vi.hoisted(
   () => ({
@@ -166,5 +177,168 @@ describe("createProductionEvalExecutionDeps", () => {
       } as any),
     ).rejects.toThrow("boom");
     expect(mockRecordIncrement).not.toHaveBeenCalled();
+  });
+});
+
+describe("createProductionEvalExecutionDeps with a batch connection", () => {
+  const batchModelConfig = {
+    provider: "vertex",
+    model: "gemini-4-argon",
+    apiKey: {
+      id: "conn-1",
+      adapter: "google-vertex-ai",
+      secretKey: "secret",
+      config: { location: "global", batchGcsUri: "gs://bucket/prefix" },
+    },
+    adapter: "google-vertex-ai" as any,
+    modelParams: {},
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    batchStoreMocks.find.mockResolvedValue(null);
+    batchStoreMocks.createPending.mockImplementation(async (p) => ({
+      id: "batch-row-1",
+      ...p,
+    }));
+  });
+
+  it("captures the request untraced and defers the call", async () => {
+    mockGenerateLlmEvaluatorOutput.mockImplementationOnce(
+      async ({ transport }: { transport: typeof fetch }) => {
+        await transport(
+          "https://aiplatform.googleapis.com/v1beta1/projects/p/locations/global/publishers/google/models/gemini-4-argon:generateContent",
+          { method: "POST", body: JSON.stringify({ contents: [] }) },
+        );
+      },
+    );
+    const deps = createProductionEvalExecutionDeps();
+
+    const error = await deps
+      .callLLM({
+        jobExecutionId: "exec-1",
+        messages: [{ role: "user", type: "user", content: "Judge this" }],
+        modelConfig: batchModelConfig,
+        structuredOutputSchema,
+        traceSinkParams,
+      } as any)
+      .catch((e) => e);
+
+    expect(error).toBeInstanceOf(LlmBatchDeferredError);
+    const call = mockGenerateLlmEvaluatorOutput.mock.calls[0][0];
+    expect(call.trace).toBeUndefined();
+    expect(call.transport).toEqual(expect.any(Function));
+    expect(batchStoreMocks.createPending).toHaveBeenCalledWith({
+      projectId: "project-123",
+      jobExecutionId: "exec-1",
+      llmApiKeyId: "conn-1",
+      model: "gemini-4-argon",
+      request: { contents: [] },
+    });
+    expect(mockRecordIncrement).not.toHaveBeenCalled();
+  });
+
+  const GEMINI_URL =
+    "https://aiplatform.googleapis.com/v1beta1/projects/p/locations/global/publishers/google/models/gemini-4-argon:generateContent";
+
+  // Sends the request through the transport like the AI SDK, then returns
+  // the evaluator output. Keeps what the transport answered.
+  const transportAnswers: unknown[] = [];
+  const sendThroughTransport = async ({
+    transport,
+  }: {
+    transport?: typeof fetch;
+  }) => {
+    if (transport) {
+      const res = await transport(GEMINI_URL, {
+        method: "POST",
+        body: JSON.stringify({ contents: [] }),
+      });
+      transportAnswers.push(await res.json());
+    }
+    return {
+      output: { score: 0.8, reasoning: "Good response" },
+      usage: {},
+      providerMessages: [],
+      modelFacingOutputSchema: structuredOutputSchema,
+    };
+  };
+
+  it("replays a finished batch call with the batch ids in the trace metadata", async () => {
+    mockGenerateLlmEvaluatorOutput.mockImplementation(sendThroughTransport);
+    batchStoreMocks.find.mockResolvedValue({
+      id: "batch-row-1",
+      status: "SUCCEEDED",
+      request: { contents: [] },
+      response: { candidates: [] },
+      providerJobId: "projects/p/locations/global/batchPredictionJobs/9",
+    });
+    const deps = createProductionEvalExecutionDeps();
+
+    const result = await deps.callLLM({
+      jobExecutionId: "exec-1",
+      messages: [{ role: "user", type: "user", content: "Judge this" }],
+      modelConfig: batchModelConfig,
+      structuredOutputSchema,
+      traceSinkParams,
+    } as any);
+
+    expect(result).toEqual({ score: 0.8, reasoning: "Good response" });
+    // First an untraced capture to check the request, then the replay.
+    expect(mockGenerateLlmEvaluatorOutput).toHaveBeenCalledTimes(2);
+    expect(mockGenerateLlmEvaluatorOutput.mock.calls[0][0].trace).toBe(
+      undefined,
+    );
+    const call = mockGenerateLlmEvaluatorOutput.mock.calls[1][0];
+    expect(call.trace.metadata).toEqual({
+      score_id: "score-123",
+      llm_batch_request_id: "batch-row-1",
+      llm_batch_job_id: "projects/p/locations/global/batchPredictionJobs/9",
+    });
+    expect(transportAnswers).toEqual([{ candidates: [] }]);
+  });
+
+  const withoutBatch = {
+    ...batchModelConfig,
+    apiKey: { ...batchModelConfig.apiKey, config: { location: "global" } },
+  };
+
+  it("keeps a waiting call on the batch path after batch inference was turned off", async () => {
+    batchStoreMocks.find.mockResolvedValue({
+      id: "batch-row-1",
+      status: "SUBMITTED",
+    });
+    const deps = createProductionEvalExecutionDeps();
+
+    const error = await deps
+      .callLLM({
+        jobExecutionId: "exec-1",
+        messages: [{ role: "user", type: "user", content: "Judge this" }],
+        modelConfig: withoutBatch,
+        structuredOutputSchema,
+        traceSinkParams,
+      } as any)
+      .catch((e) => e);
+
+    expect(error).toBeInstanceOf(LlmBatchDeferredError);
+    expect(mockGenerateLlmEvaluatorOutput).not.toHaveBeenCalled();
+  });
+
+  it("runs online when batch inference is off and the call has no batch row", async () => {
+    const deps = createProductionEvalExecutionDeps();
+
+    const result = await deps.callLLM({
+      jobExecutionId: "exec-1",
+      messages: [{ role: "user", type: "user", content: "Judge this" }],
+      modelConfig: withoutBatch,
+      structuredOutputSchema,
+      traceSinkParams,
+    } as any);
+
+    expect(result).toEqual({ score: 0.8, reasoning: "Good response" });
+    const call = mockGenerateLlmEvaluatorOutput.mock.calls[0][0];
+    expect(call.transport).toBeUndefined();
+    expect(call.trace).toBeDefined();
+    expect(batchStoreMocks.createPending).not.toHaveBeenCalled();
   });
 });

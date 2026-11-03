@@ -26,6 +26,12 @@ import { UnrecoverableError } from "../../errors/UnrecoverableError";
 import { getEvalScoreS3StorageClient } from "./s3StorageClient";
 import { createInternalEventsWriter } from "../internal-tracing/createInternalEventsWriter";
 import {
+  callLLMViaBatch,
+  createPrismaLlmBatchStore,
+  isBatchInferenceEnabled,
+  type RunWithTransport,
+} from "../llm-batch";
+import {
   llmRequestEgressBytes,
   recordExportVolume,
 } from "../../services/exportVolumeMetric";
@@ -61,6 +67,8 @@ type ModelConfigResult =
  * Parameters for calling the LLM.
  */
 interface LLMCallParams {
+  /** Keys a deferred batch call to its job execution. */
+  jobExecutionId: string;
   messages: ChatMessage[];
   modelConfig: Extract<ModelConfigResult, { valid: true }>["config"];
   structuredOutputSchema: StructuredOutputSchema;
@@ -238,41 +246,71 @@ export function createProductionEvalExecutionDeps(): EvalExecutionDeps {
         typeof mapLegacyLLMCompletionParams
       >[0]["modelParams"]["adapter"];
 
-      const result = await generateLlmEvaluatorOutput({
-        projectId: params.traceSinkParams.targetProjectId,
-        connection,
-        modelParams: {
-          provider: params.modelConfig.provider,
+      const run: RunWithTransport = async ({ transport, traced, metadata }) => {
+        const result = await generateLlmEvaluatorOutput({
+          projectId: params.traceSinkParams.targetProjectId,
+          connection,
+          modelParams: {
+            provider: params.modelConfig.provider,
+            model: params.modelConfig.model,
+            adapter,
+            ...params.modelConfig.modelParams,
+          },
+          messages: params.messages,
+          outputResultSchema: params.structuredOutputSchema,
+          transport,
+          // A batch capture sends nothing, so it writes no execution trace.
+          trace: traced
+            ? {
+                targetProjectId: params.traceSinkParams.targetProjectId,
+                traceId: params.traceSinkParams.traceId,
+                traceName: params.traceSinkParams.traceName,
+                environment: params.traceSinkParams.environment,
+                metadata: { ...params.traceSinkParams.metadata, ...metadata },
+                evaluationContext: params.traceSinkParams.evaluationContext,
+                eventsWriter: createInternalEventsWriter(),
+              }
+            : undefined,
+        });
+
+        if (traced) {
+          // llmaj egress: provider-bound messages (including base64-expanded
+          // inline media) plus schema, uncompressed. Recorded only after a
+          // successful send (for batch: once the result is replayed), like
+          // the other integrations.
+          recordExportVolume({
+            integration: "llmaj",
+            bytes: llmRequestEgressBytes(
+              result.providerMessages,
+              result.modelFacingOutputSchema,
+            ),
+            projectId: params.traceSinkParams.targetProjectId,
+          });
+        }
+
+        return result.output;
+      };
+
+      // Always through the batch path when the call has a job execution: a
+      // call that already waits for a batch result must not run online, even
+      // if batch inference was turned off or the model changed since.
+      if (params.jobExecutionId) {
+        return callLLMViaBatch({
+          projectId: params.traceSinkParams.targetProjectId,
+          jobExecutionId: params.jobExecutionId,
+          llmApiKeyId: String(params.modelConfig.apiKey.id),
           model: params.modelConfig.model,
-          adapter,
-          ...params.modelConfig.modelParams,
-        },
-        messages: params.messages,
-        outputResultSchema: params.structuredOutputSchema,
-        trace: {
-          targetProjectId: params.traceSinkParams.targetProjectId,
-          traceId: params.traceSinkParams.traceId,
-          traceName: params.traceSinkParams.traceName,
-          environment: params.traceSinkParams.environment,
-          metadata: params.traceSinkParams.metadata,
-          evaluationContext: params.traceSinkParams.evaluationContext,
-          eventsWriter: createInternalEventsWriter(),
-        },
-      });
+          batchEnabled: isBatchInferenceEnabled({
+            adapter: params.modelConfig.apiKey.adapter,
+            config: params.modelConfig.apiKey.config,
+            model: params.modelConfig.model,
+          }),
+          run,
+          store: createPrismaLlmBatchStore(),
+        });
+      }
 
-      // llmaj egress: provider-bound messages (including base64-expanded inline
-      // media) plus schema, uncompressed. Recorded only after a successful
-      // send, like the other integrations.
-      recordExportVolume({
-        integration: "llmaj",
-        bytes: llmRequestEgressBytes(
-          result.providerMessages,
-          result.modelFacingOutputSchema,
-        ),
-        projectId: params.traceSinkParams.targetProjectId,
-      });
-
-      return result.output;
+      return run({ transport: undefined, traced: true });
     },
 
     fetchModelConfig: async ({ projectId, provider, model, modelParams }) => {

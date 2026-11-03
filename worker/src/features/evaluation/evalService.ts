@@ -71,6 +71,7 @@ import {
 import { env } from "../../env";
 import { prisma } from "@langfuse/shared/src/db";
 import { createW3CTraceId } from "../utils";
+import { isLlmBatchDeferredError } from "../llm-batch/errors";
 import { UnrecoverableError } from "../../errors/UnrecoverableError";
 import {
   EvalFailureReason,
@@ -1141,6 +1142,7 @@ export async function runLLMAsJudgeEvaluation({
 
                 try {
                   const output = await deps.callLLM({
+                    jobExecutionId,
                     messages,
                     modelConfig: modelConfig.config,
                     structuredOutputSchema:
@@ -1157,6 +1159,10 @@ export async function runLLMAsJudgeEvaluation({
                   llmSpan.setAttribute("eval.llm.outcome", "success");
                   return output;
                 } catch (e) {
+                  if (isLlmBatchDeferredError(e)) {
+                    llmSpan.setAttribute("eval.llm.outcome", "batch_deferred");
+                    throw e;
+                  }
                   llmErrorClassification = classifyEvaluatorLlmError(e);
                   llmSpan.setAttributes(
                     buildEvaluatorLlmErrorSpanAttributes(
@@ -1174,6 +1180,10 @@ export async function runLLMAsJudgeEvaluation({
           },
         });
       } catch (e) {
+        if (isLlmBatchDeferredError(e)) {
+          span.setAttribute("eval.execution.outcome", "batch_deferred");
+          throw e;
+        }
         const classification =
           llmErrorClassification ?? classifyEvaluatorLlmError(e);
         span.setAttributes(

@@ -18,6 +18,10 @@ import { createEvalJobs, evaluate } from "../features/evaluation/evalService";
 import { processObservationEval } from "../features/evaluation/observationEval";
 import { createW3CTraceId, retryLLMRateLimitError } from "../features/utils";
 import { isUnrecoverableError } from "../errors/UnrecoverableError";
+import {
+  deferEvalJobToBatch,
+  isLlmBatchDeferredError,
+} from "../features/llm-batch";
 import { retryObservationNotFound } from "../features/evaluation/retryObservationNotFound";
 import { isObservationNotFoundError } from "../errors/ObservationNotFoundError";
 import { env } from "../env";
@@ -181,6 +185,17 @@ export const evalJobExecutorQueueProcessorBuilder = (
       await evaluate({ event: job.data.payload });
       return true;
     } catch (e) {
+      if (isLlmBatchDeferredError(e)) {
+        await deferEvalJobToBatch({
+          error: e,
+          jobExecutionId: job.data.payload.jobExecutionId,
+          queueName,
+          jobName: QueueJobs.EvaluationExecution,
+          jobData: job.data,
+        });
+        return;
+      }
+
       const llmError = classifyEvaluatorLlmError(e);
       // ┌─────────────────────────┐
       // │   Job Fails with Error  │
@@ -329,6 +344,17 @@ export const llmAsJudgeExecutionQueueProcessorBuilder =
 
       return true;
     } catch (e) {
+      if (isLlmBatchDeferredError(e)) {
+        await deferEvalJobToBatch({
+          error: e,
+          jobExecutionId: job.data.payload.jobExecutionId,
+          queueName,
+          jobName: QueueJobs.LLMAsJudgeExecution,
+          jobData: job.data,
+        });
+        return true;
+      }
+
       const llmError = classifyEvaluatorLlmError(e);
       // Media may still be uploading when evaluation starts after ingestion.
       // Retry only this evaluator job instead of making the error globally retryable.

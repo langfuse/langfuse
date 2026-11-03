@@ -175,6 +175,7 @@ model Project {
   EvalTemplate                      EvalTemplate[]
   JobConfiguration                  JobConfiguration[]
   JobExecution                      JobExecution[]
+  LlmBatchRequest                   LlmBatchRequest[]
   Evaluator                         Evaluator[]
   EvaluationRule                    EvaluationRule[]
   EvaluationRuleEvaluatorAssignment EvaluationRuleEvaluatorAssignment[]
@@ -1377,6 +1378,52 @@ model JobExecution {
   @@index([projectId, jobOutputScoreId])
   @@index([jobConfigurationId])
   @@map("job_executions")
+}
+
+enum LlmBatchRequestStatus {
+  PENDING // captured, waiting to be submitted
+  SUBMITTED // part of a provider batch job
+  SUCCEEDED // provider response stored, evaluation resumed
+  FAILED // provider error or too old, evaluation resumed to record the error
+}
+
+// One LLM call deferred to a provider batch job (e.g. Vertex AI batch
+// prediction). The evaluator's job execution waits in DELAYED until the row
+// has a response, then runs again and replays it.
+model LlmBatchRequest {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
+
+  projectId String  @map("project_id")
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  jobExecutionId String @map("job_execution_id") // no fk constraint - job executions are deleted in bulk with their configuration
+
+  llmApiKeyId String @map("llm_api_key_id") // no fk constraint - a deleted connection fails its open rows on the next tick
+  model       String
+
+  status LlmBatchRequestStatus @default(PENDING)
+
+  request  Json // provider request body as the AI SDK built it
+  response Json? // provider response body for this request
+  error    String?
+
+  providerJobId String?   @map("provider_job_id")
+  submittedAt   DateTime? @map("submitted_at")
+  completedAt   DateTime? @map("completed_at")
+
+  // Queue job that resumes the evaluation once the row is SUCCEEDED or FAILED
+  resumeQueueName String?   @map("resume_queue_name")
+  resumeJobName   String?   @map("resume_job_name")
+  resumeJobData   Json?     @map("resume_job_data")
+  resumeClaimedAt DateTime? @map("resume_claimed_at") // a worker is enqueueing the resume job
+  resumedAt       DateTime? @map("resumed_at") // the resume job was enqueued
+
+  @@unique([projectId, jobExecutionId])
+  @@index([status, llmApiKeyId, model, createdAt])
+  @@index([providerJobId])
+  @@map("llm_batch_requests")
 }
 
 model DefaultLlmModel {

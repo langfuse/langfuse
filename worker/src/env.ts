@@ -343,6 +343,29 @@ const EnvSchema = z.object({
     .int()
     .positive()
     .default(120 * 60),
+  // Batch inference for LLM-as-a-judge (LLM connections with a batch config)
+  LANGFUSE_LLM_BATCH_FLUSH_AFTER_SECONDS: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(120),
+  LANGFUSE_LLM_BATCH_MAX_REQUESTS_PER_JOB: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(1000),
+  LANGFUSE_LLM_BATCH_MAX_AGE_SECONDS: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(24 * 60 * 60),
+  // Deletes finished llm_batch_requests rows only; the batch input and output
+  // files in Cloud Storage need a bucket lifecycle rule.
+  LANGFUSE_LLM_BATCH_RETENTION_DAYS: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(7),
   LANGFUSE_CODE_EVAL_EXECUTION_WORKER_CONCURRENCY: z.coerce
     .number()
     .positive()
@@ -524,6 +547,9 @@ const EnvSchema = z.object({
   QUEUE_CONSUMER_DEAD_LETTER_RETRY_QUEUE_IS_ENABLED: z
     .enum(["true", "false"])
     .default("false"),
+  QUEUE_CONSUMER_LLM_BATCH_QUEUE_IS_ENABLED: z
+    .enum(["true", "false"])
+    .default("true"),
   QUEUE_CONSUMER_WEBHOOK_QUEUE_IS_ENABLED: z
     .enum(["true", "false"])
     .default("true"),

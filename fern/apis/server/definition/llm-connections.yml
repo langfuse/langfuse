@@ -128,7 +128,7 @@ types:
           Adapter-specific configuration. Validation rules:
           - **Bedrock**: Required. Must be `{"region": "<aws-region>"}` (e.g., `{"region":"us-east-1"}`)
           - **OpenAI**: Optional. If provided, must be `{"useResponsesApi": <boolean>}` to control whether Langfuse routes calls through OpenAI's Responses API.
-          - **VertexAI**: Optional. If provided, must be `{"location": "<gcp-location>"}` (e.g., `{"location":"us-central1"}`)
+          - **VertexAI**: Optional. If provided, may contain `location` (e.g., `{"location":"us-central1"}`) and `batchGcsUri` (e.g., `{"batchGcsUri":"gs://my-bucket/langfuse"}`). With `batchGcsUri`, LLM-as-a-judge evaluators on Gemini models run as Vertex AI batch prediction jobs with input and output files under that URI. Langfuse does not delete these files; use a bucket lifecycle rule.
           - **Other adapters**: Not supported. Omit this field or set to null.
 
   DeleteLlmConnectionResponse:

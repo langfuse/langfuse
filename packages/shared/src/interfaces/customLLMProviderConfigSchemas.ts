@@ -54,9 +54,26 @@ export const BedrockCredentialSchema = z.union([
 ]);
 export type BedrockCredential = z.infer<typeof BedrockCredentialSchema>;
 
+// gs://bucket or gs://bucket/prefix, without a trailing slash.
+const GCS_URI_PATTERN =
+  /^gs:\/\/[a-z0-9][a-z0-9._-]{1,220}[a-z0-9](\/[^\s]*[^\s/])?$/;
+
 export const VertexAIConfigSchema = z
   .object({
     location: z.string().optional(),
+    /**
+     * Batch inference for LLM-as-a-judge evaluators. When set, evaluator calls
+     * on this connection are collected and sent as Vertex AI batch prediction
+     * jobs (about half the online price), with input and output files under
+     * this Cloud Storage URI. Other calls (playground, test runs) stay online.
+     */
+    batchGcsUri: z
+      .string()
+      .regex(
+        GCS_URI_PATTERN,
+        "Must be a Cloud Storage URI like gs://bucket/prefix",
+      )
+      .optional(),
   })
   .strict();
 

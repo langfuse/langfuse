@@ -8,6 +8,7 @@ import {
   type BedrockConfig,
   type OpenAIConfig,
   type VertexAIConfig,
+  VertexAIConfigSchema,
   LLMAdapter,
   BEDROCK_USE_DEFAULT_CREDENTIALS,
   TYPESAFE_UPSTREAMS,
@@ -137,6 +138,9 @@ const createFormSchema = (params: {
       authMethod: BedrockAuthMethodSchema,
       awsRegion: z.string().optional(),
       vertexAILocation: z.string().optional(),
+      vertexAIBatchGcsUri: z
+        .union([z.literal(""), VertexAIConfigSchema.shape.batchGcsUri.unwrap()])
+        .optional(),
       openAIUseResponsesApi: z.boolean(),
       extraHeaders: z.array(
         z.object({
@@ -419,6 +423,10 @@ export function CreateLLMApiKeyForm({
               existingKey.adapter === LLMAdapter.VertexAI && existingKey.config
                 ? ((existingKey.config as VertexAIConfig).location ?? "")
                 : "",
+            vertexAIBatchGcsUri:
+              existingKey.adapter === LLMAdapter.VertexAI && existingKey.config
+                ? ((existingKey.config as VertexAIConfig).batchGcsUri ?? "")
+                : "",
             openAIUseResponsesApi:
               existingKey.adapter === LLMAdapter.OpenAI &&
               existingKey.config != null
@@ -446,6 +454,7 @@ export function CreateLLMApiKeyForm({
             customModels: [],
             extraHeaders: [],
             vertexAILocation: "global",
+            vertexAIBatchGcsUri: "",
             openAIUseResponsesApi: false,
             awsRegion: "",
             awsAccessKeyId: "",
@@ -696,6 +705,9 @@ export function CreateLLMApiKeyForm({
       const vertexAIConfig: VertexAIConfig = {};
       if (values.vertexAILocation?.trim()) {
         vertexAIConfig.location = values.vertexAILocation.trim();
+      }
+      if (values.vertexAIBatchGcsUri?.trim()) {
+        vertexAIConfig.batchGcsUri = values.vertexAIBatchGcsUri.trim();
       }
       // If config is empty, set to undefined
       config =
@@ -1502,6 +1514,40 @@ export function CreateLLMApiKeyForm({
                           </FormDescription>
                           <FormControl>
                             <Input {...field} placeholder="global" />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  )}
+
+                  {/* VertexAI batch inference */}
+                  {currentAdapter === LLMAdapter.VertexAI && (
+                    <FormField
+                      control={form.control}
+                      name="vertexAIBatchGcsUri"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>
+                            Batch inference for evaluators (Optional)
+                          </FormLabel>
+                          <FormDescription>
+                            Cloud Storage URI for batch input and output files,
+                            e.g. gs://my-bucket/langfuse. When set,
+                            LLM-as-a-judge evaluators on Gemini models run as
+                            Vertex AI batch jobs at batch prices; scores arrive
+                            minutes to hours later. The service account of this
+                            connection and Vertex AI need read and write access
+                            to the bucket. Playground and test runs stay online.
+                            Langfuse does not delete the batch files; set a
+                            lifecycle rule on the bucket to remove them (e.g.
+                            after 7 days).
+                          </FormDescription>
+                          <FormControl>
+                            <Input
+                              {...field}
+                              placeholder="gs://bucket/prefix"
+                            />
                           </FormControl>
                           <FormMessage />
                         </FormItem>

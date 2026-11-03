@@ -13,6 +13,7 @@ import {
   evalJobTraceCreatorQueueProcessor,
   llmAsJudgeExecutionQueueProcessorBuilder,
 } from "./queues/evalQueue";
+import { llmBatchProcessor } from "./features/llm-batch/llmBatchProcessor";
 import { codeEvalExecutionQueueProcessorBuilder } from "./queues/codeEvalQueue";
 import { batchExportQueueProcessor } from "./queues/batchExportQueue";
 import { drainAndClose, onShutdown } from "./utils/shutdown";
@@ -35,6 +36,7 @@ import {
   logger,
   BlobStorageIntegrationQueue,
   DeadLetterRetryQueue,
+  LlmBatchQueue,
   IngestionQueue,
   SecondaryIngestionQueue,
   OtelIngestionQueue,
@@ -725,6 +727,15 @@ if (env.QUEUE_CONSUMER_DEAD_LETTER_RETRY_QUEUE_IS_ENABLED === "true") {
       concurrency: 1,
     },
   );
+}
+
+if (env.QUEUE_CONSUMER_LLM_BATCH_QUEUE_IS_ENABLED === "true") {
+  // Instantiate the queue to trigger scheduled jobs
+  LlmBatchQueue.getInstance();
+
+  WorkerManager.register(QueueName.LlmBatchQueue, llmBatchProcessor, {
+    concurrency: 1,
+  });
 }
 
 if (env.QUEUE_CONSUMER_WEBHOOK_QUEUE_IS_ENABLED === "true") {
