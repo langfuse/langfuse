@@ -762,6 +762,7 @@ export const sessionRouter = createTRPCRouter({
           const structure = await getObservationsForTraceFromEventsTable({
             ...source,
             limit: 200,
+            selectMetadata: true,
           });
           return {
             id: trace.id,
@@ -774,6 +775,10 @@ export const sessionRouter = createTRPCRouter({
               type: observation.type,
               level: observation.level,
               isRootObservation: observation.isRootObservation,
+              userId: observation.userId,
+              environment: observation.environment,
+              traceTags: observation.traceTags,
+              metadata: observation.metadata,
             })),
           };
         }),

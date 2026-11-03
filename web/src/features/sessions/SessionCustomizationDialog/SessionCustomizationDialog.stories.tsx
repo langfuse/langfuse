@@ -20,9 +20,6 @@ const meta = preview.meta({
     projectId: "storybook-project",
     initialFilters: [],
     initialUnmatchedTraces: "show" as const,
-    observed: {
-      traceTags: [{ value: "billing" }, { value: "urgent" }],
-    },
     onApply: fn(),
     preview: { traces: [], pending: false, error: undefined },
   },
@@ -76,6 +73,10 @@ export const TestObservationFilters = meta.story({
           observations: [
             {
               id: "root",
+              userId: null,
+              environment: "default",
+              traceTags: [],
+              metadata: {},
               name: "agent",
               type: "SPAN",
               level: "DEFAULT",
@@ -84,6 +85,10 @@ export const TestObservationFilters = meta.story({
             },
             {
               id: "child",
+              userId: null,
+              environment: "default",
+              traceTags: [],
+              metadata: {},
               name: "completion",
               type: "GENERATION",
               level: "DEFAULT",
@@ -99,6 +104,10 @@ export const TestObservationFilters = meta.story({
           observations: [
             {
               id: "other-root",
+              userId: null,
+              environment: "default",
+              traceTags: [],
+              metadata: {},
               name: "other root",
               type: "SPAN",
               level: "DEFAULT",
@@ -113,6 +122,122 @@ export const TestObservationFilters = meta.story({
 });
 
 export const Default = meta.story({ args: TestObservationFilters.input.args });
+
+export const TestInvalidDraftKeepsPreview = Default.extend({
+  play: async ({ args }) => {
+    const body = within(document.body);
+    const input = body.getByRole("combobox", { name: "Search" });
+    await userEvent.click(input);
+    await userEvent.paste("name:=completion");
+    const completion = body.getByRole("group", {
+      name: "Observation completion",
+    });
+    const agent = body.getByRole("group", { name: "Observation agent" });
+    await expect(
+      within(completion).queryByText("Excluded by filters"),
+    ).not.toBeInTheDocument();
+    await expect(
+      within(agent).getByText("Excluded by filters"),
+    ).toBeInTheDocument();
+
+    await userEvent.type(input, " unknown:value");
+    await userEvent.type(input, " more");
+    await expect(
+      body.getByRole("button", { name: "Generations" }),
+    ).toBeDisabled();
+    await expect(
+      within(completion).queryByText("Excluded by filters"),
+    ).not.toBeInTheDocument();
+    await expect(
+      within(agent).getByText("Excluded by filters"),
+    ).toBeInTheDocument();
+    await userEvent.click(body.getByRole("button", { name: "Apply filters" }));
+    await expect(args.onApply).not.toHaveBeenCalled();
+
+    await userEvent.clear(input);
+    await userEvent.paste("name:=agent");
+    await expect(
+      within(completion).getByText("Excluded by filters"),
+    ).toBeInTheDocument();
+    await userEvent.click(body.getByRole("button", { name: "Apply filters" }));
+    await expect(args.onApply).toHaveBeenCalledWith(
+      [{ column: "name", type: "string", operator: "=", value: "agent" }],
+      "show",
+    );
+  },
+});
+
+export const TestPreserveSkippedFilters = Default.extend({
+  args: {
+    initialFilters: [
+      { column: "userId", type: "string", operator: "=", value: "user" },
+      {
+        column: "environment",
+        type: "string",
+        operator: "=",
+        value: "production",
+      },
+      {
+        column: "traceTags",
+        type: "arrayOptions",
+        operator: "any of",
+        value: ["important"],
+      },
+      {
+        column: "metadata",
+        type: "stringObject",
+        key: "region",
+        operator: "=",
+        value: "eu",
+      },
+    ],
+    preview: {
+      pending: false,
+      error: undefined,
+      traces: [
+        {
+          id: "trace",
+          name: "chat",
+          truncated: false,
+          observations: [
+            {
+              id: "root",
+              parentObservationId: null,
+              name: "agent",
+              type: "GENERATION",
+              level: "DEFAULT",
+              isRootObservation: true,
+              userId: "user",
+              environment: "production",
+              traceTags: ["important"],
+              metadata: { region: "eu" },
+            },
+          ],
+        },
+      ],
+    },
+  },
+  play: async ({ args }) => {
+    const body = within(document.body);
+    await expect(
+      body.queryByText("Excluded by filters"),
+    ).not.toBeInTheDocument();
+    await userEvent.click(body.getByRole("button", { name: "Apply filters" }));
+    await expect(args.onApply).toHaveBeenCalledWith(
+      args.initialFilters,
+      "show",
+    );
+    await userEvent.click(body.getByRole("button", { name: "Generations" }));
+    await userEvent.click(body.getByRole("button", { name: "Apply filters" }));
+    await expect(args.onApply).toHaveBeenLastCalledWith(
+      [
+        { column: "type", type: "string", operator: "=", value: "GENERATION" },
+        ...args.initialFilters,
+      ],
+      "show",
+    );
+  },
+});
 
 export const TestConfirmAllObservationsExcluded = Default.extend({
   args: {

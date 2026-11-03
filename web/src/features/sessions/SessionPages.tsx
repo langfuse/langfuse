@@ -42,7 +42,6 @@ import {
   CopyIcon,
   Download,
   ExternalLinkIcon,
-  Filter,
   LockIcon,
   MessageSquare,
   MessageSquareOff,
@@ -128,8 +127,6 @@ import {
   useIsFeatureEnabled,
 } from "@/src/features/feature-flags";
 import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
-import { SessionFiltersBanner } from "@/src/features/sessions/SessionFiltersBanner";
-import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { HeaderActionMenuRow } from "@/src/components/HeaderActionMenuRow";
 import { ModernSessionHeaderActionsController } from "@/src/features/sessions/ModernSessionHeaderActionsController";
 import { ConnectedSessionAddToDropdownMenuController } from "@/src/features/sessions/ConnectedSessionAddToDropdownMenuController";
@@ -2315,35 +2312,14 @@ const LoadedSessionEventsPage: React.FC<{
                     </div>
                   ) : (
                     <ModernSession
-                      searchActions={
-                        isSessionTimelineEnabled &&
-                        isInternalFeaturesEnabled ? (
-                          <Tooltip
-                            label={`Customize view${traceFilters.length > 0 ? ` (${traceFilters.length})` : ""}`}
-                          >
-                            {({ getTriggerProps }) => (
-                              <button
-                                {...getTriggerProps()}
-                                type="button"
-                                className="border-input bg-background hover:bg-accent hover:text-accent-foreground focus-visible:ring-ring inline-flex size-7 shrink-0 items-center justify-center rounded-sm border focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none"
-                                aria-label="Customize view"
-                                onClick={openDialog}
-                              >
-                                <Filter size="sm" aria-hidden="true" />
-                              </button>
-                            )}
-                          </Tooltip>
-                        ) : null
-                      }
-                      filterBanner={
-                        isSessionTimelineEnabled &&
-                        isInternalFeaturesEnabled &&
-                        traceFilters.length > 0 ? (
-                          <SessionFiltersBanner
-                            onEdit={openDialog}
-                            onClear={() => setTraceFilters([])}
-                          />
-                        ) : null
+                      customization={
+                        isSessionTimelineEnabled && isInternalFeaturesEnabled
+                          ? {
+                              activeFilterCount: traceFilters.length,
+                              onCustomizeView: openDialog,
+                              onClearFilters: () => setTraceFilters([]),
+                            }
+                          : undefined
                       }
                       headerDividerTone={
                         showRedesignBanner ? "orange" : "default"

@@ -8,7 +8,8 @@ import {
   type UIEvent,
 } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { ChevronDown, Search } from "@langfuse/icons";
+import { ChevronDown, Filter, Search } from "@langfuse/icons";
+import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { type Observation } from "@langfuse/shared";
 import { Input } from "@/src/components/ui/input";
 import { SessionToolTooltip } from "@/src/features/sessions/components/ConnectedModernSessionBodyTimeline/components/ConnectedSessionConversationTimeline/components/SessionConversationalView/components/SessionToolTooltip/SessionToolTooltip";
@@ -73,8 +74,15 @@ export function SessionConversationSidebar(
         isLoadingTranscripts: boolean;
         transcriptLoadError: boolean;
       }
-  ) & { searchVisibility?: "hidden"; searchActions?: ReactNode },
+  ) & {
+    searchVisibility?: "hidden";
+      customization?: {
+        activeFilterCount: number;
+        onCustomizeView: () => void;
+      };
+  },
 ) {
+  const { customization } = props;
   const traces = props.state === "loaded" ? props.traces : EMPTY_TRACES;
   const activeTraceId =
     props.state === "loaded" ? props.activeTraceId : undefined;
@@ -256,7 +264,23 @@ export function SessionConversationSidebar(
               className="h-7 rounded-sm bg-transparent pl-7 font-mono text-xs"
             />
           </div>
-          {props.searchActions}
+            {customization && (
+              <Tooltip
+                label={`Customize view${customization.activeFilterCount > 0 ? ` (${customization.activeFilterCount})` : ""}`}
+              >
+                {({ getTriggerProps }) => (
+                  <button
+                    {...getTriggerProps()}
+                    type="button"
+                    className="border-input bg-background hover:bg-accent hover:text-accent-foreground focus-visible:ring-ring inline-flex size-7 shrink-0 items-center justify-center rounded-sm border focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none"
+                    aria-label="Customize view"
+                    onClick={customization.onCustomizeView}
+                  >
+                    <Filter size="sm" aria-hidden="true" />
+                  </button>
+                )}
+              </Tooltip>
+          )}
         </div>
         <div className="flex min-h-0 flex-1 flex-col gap-2 px-4 pt-0.5 pb-4">
           {[0, 1, 2].map((index) => (
@@ -310,7 +334,23 @@ export function SessionConversationSidebar(
             className="h-7 rounded-sm bg-transparent pl-7 font-mono text-xs"
           />
         </div>
-        {props.searchActions}
+          {customization && (
+            <Tooltip
+              label={`Customize view${customization.activeFilterCount > 0 ? ` (${customization.activeFilterCount})` : ""}`}
+            >
+              {({ getTriggerProps }) => (
+                <button
+                  {...getTriggerProps()}
+                  type="button"
+                  className="border-input bg-background hover:bg-accent hover:text-accent-foreground focus-visible:ring-ring inline-flex size-7 shrink-0 items-center justify-center rounded-sm border focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none"
+                  aria-label="Customize view"
+                  onClick={customization.onCustomizeView}
+                >
+                  <Filter size="sm" aria-hidden="true" />
+                </button>
+              )}
+            </Tooltip>
+        )}
         {isListScrolled ? (
           <div
             aria-hidden="true"

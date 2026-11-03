@@ -1,5 +1,5 @@
 import { type EventSessionTrace } from "@/src/features/sessions/sessionDetailPageTypes";
-import { type ComponentProps, type ReactNode } from "react";
+import { type ComponentProps } from "react";
 import { SessionConversationalView } from "@/src/features/sessions/components/ConnectedModernSessionBodyTimeline/components/ConnectedSessionConversationTimeline/components/SessionConversationalView/SessionConversationalView";
 import {
   type SessionConversationTimelineController,
@@ -24,7 +24,9 @@ export function ConnectedSessionConversationTimeline(
         "traces" | "controller"
       >
   ) & {
-    searchActions?: ReactNode;
+    customization?: ComponentProps<
+      typeof SessionConversationalView
+    >["customization"];
     traces: readonly ConnectedSessionConversationTimelineItem[];
     projectId: string;
     openPeek: (

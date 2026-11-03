@@ -39,6 +39,26 @@ describe("getObservationsForTraceFromEventsTable root flag", () => {
     mockQueryClickhouse.mockResolvedValue([]);
   });
 
+  it.each([
+    { selectMetadata: true, selectIOAndMetadata: false },
+    { selectMetadata: false, selectIOAndMetadata: true },
+    { selectMetadata: true, selectIOAndMetadata: true },
+    { selectMetadata: false, selectIOAndMetadata: false },
+  ])("selects metadata independently of I/O: %j", async (selection) => {
+    await getObservationsForTraceFromEventsTable({
+      projectId: "proj-1",
+      traceId: "trace-1",
+      ...selection,
+    });
+
+    const query = captureQuery();
+    expect(query.includes("e.metadata")).toBe(
+      selection.selectMetadata || selection.selectIOAndMetadata,
+    );
+    expect(/\binput\b/.test(query)).toBe(selection.selectIOAndMetadata);
+    expect(/\boutput\b/.test(query)).toBe(selection.selectIOAndMetadata);
+  });
+
   it.each([false, true])(
     "selects natural and application roots with tool data=%s",
     async (selectToolData) => {

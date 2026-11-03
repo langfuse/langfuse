@@ -1,6 +1,5 @@
 import { type ComponentProps } from "react";
 import { api } from "@/src/utils/api";
-import { toObservedOptions } from "@/src/features/search-bar";
 import { SessionCustomizationDialog } from "./SessionCustomizationDialog";
 
 export function ConnectedSessionCustomizationDialog({
@@ -15,19 +14,10 @@ export function ConnectedSessionCustomizationDialog({
     { projectId: props.projectId, sessionId },
     { enabled: isOpen },
   );
-  const options = api.sessions.filterOptionsFromEvents.useQuery(
-    { projectId: props.projectId },
-    { enabled: isOpen },
-  );
-  const observed = toObservedOptions(
-    options.data ? { traceTags: options.data.tags } : undefined,
-    options.isPending,
-  );
 
   return (
     <SessionCustomizationDialog
       {...props}
-      observed={observed}
       preview={{
         traces: preview.data,
         pending: preview.isFetching,

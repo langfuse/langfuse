@@ -1,4 +1,4 @@
-import { type ReactNode, useRef, useState } from "react";
+import { type ComponentProps, useRef, useState } from "react";
 import { type FilterState } from "@langfuse/shared";
 
 import {
@@ -21,7 +21,9 @@ const EMPTY_TRACES: EventSessionTrace[] = [];
 type OpenPeek = (id: string, row: EventSessionTrace) => void;
 
 type ConnectedModernSessionBodyTimelineProps = {
-  searchActions?: ReactNode;
+  customization?: ComponentProps<
+    typeof ConnectedSessionConversationTimeline
+  >["customization"];
   tracesState:
     | { type: "loading" }
     | { type: "loaded"; traces: EventSessionTrace[] };
@@ -32,7 +34,7 @@ type ConnectedModernSessionBodyTimelineProps = {
 };
 
 export function ConnectedModernSessionBodyTimeline({
-  searchActions,
+  customization,
   tracesState,
   projectId,
   sessionId,
@@ -235,7 +237,7 @@ export function ConnectedModernSessionBodyTimeline({
 
   return (
     <ConnectedSessionConversationTimeline
-      searchActions={searchActions}
+      customization={customization}
       {...(tracesState.type === "loading"
         ? { state: "loading" }
         : {
