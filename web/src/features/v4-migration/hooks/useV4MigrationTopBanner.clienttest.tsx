@@ -15,7 +15,7 @@ const mocks = vi.hoisted(() => ({
   canManage: true,
   severity: "warning" as "off" | "warning" | "critical",
   message:
-    "{projects} still use legacy v3 ingestion, APIs and evals. They stop on Nov 16." as
+    "Legacy v3 is still in use in {projects}. Trace-level evals and exports stop on November 16. SDKs and APIs stop on November 19." as
       | string
       | null,
   statusByProjectId: new Map<string, ProjectMigrationStatus>(),
@@ -87,8 +87,8 @@ vi.mock("@/src/utils/api", () => ({
 }));
 
 const WARNING_MESSAGE =
-  "{projects} still use legacy v3 ingestion, APIs and evals. They stop on Nov 16.";
-const CRITICAL_MESSAGE = "Legacy v3 ingestion, APIs and evals are turned off.";
+  "Legacy v3 is still in use in {projects}. Trace-level evals and exports stop on November 16. SDKs and APIs stop on November 19.";
+const CRITICAL_MESSAGE = "Legacy v3 is turned off.";
 
 const status = (
   overrides?: Partial<ProjectMigrationStatus>,
@@ -125,7 +125,7 @@ describe("useV4MigrationTopBanner", () => {
     render(<ConnectedBanner />);
 
     expect(screen.getByRole("status")).toHaveTextContent(
-      "1 project still use legacy v3 ingestion, APIs and evals. They stop on Nov 16. Update",
+      "Legacy v3 is still in use in 1 project. Trace-level evals and exports stop on November 16. SDKs and APIs stop on November 19. Update",
     );
     expect(mocks.queryInput).toEqual({ orgId: "org-1" });
     expect(mocks.capture).toHaveBeenCalledWith(
@@ -158,7 +158,7 @@ describe("useV4MigrationTopBanner", () => {
       screen.queryByRole("button", { name: "Update" }),
     ).not.toBeInTheDocument();
     expect(screen.getByRole("status")).toHaveTextContent(
-      "1 project still use legacy v3 ingestion, APIs and evals. They stop on Nov 16. Ask an admin to update.",
+      "Legacy v3 is still in use in 1 project. Trace-level evals and exports stop on November 16. SDKs and APIs stop on November 19. Ask an admin to update.",
     );
     expect(mocks.capture).toHaveBeenCalledWith(
       "v4_migration:top_banner_shown",
@@ -187,7 +187,7 @@ describe("useV4MigrationTopBanner", () => {
     render(<ConnectedBanner />);
 
     expect(screen.getByRole("status")).toHaveTextContent(
-      "Legacy v3 ingestion, APIs and evals are turned off. Update",
+      "Legacy v3 is turned off. Update",
     );
     expect(screen.getByRole("status")).toHaveAttribute(
       "data-severity",

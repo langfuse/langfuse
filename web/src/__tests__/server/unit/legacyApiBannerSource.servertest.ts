@@ -23,8 +23,7 @@ describe("legacy API banner config", () => {
   it("returns the configured severity and message on cloud", async () => {
     const getLegacyApiBannerState = await loadState({
       LANGFUSE_V4_BANNER_SEVERITY: "warning",
-      LANGFUSE_V4_BANNER_MESSAGE:
-        "{projects} still use legacy v3 ingestion, APIs and evals.",
+      LANGFUSE_V4_BANNER_MESSAGE: "Legacy v3 is still in use in {projects}.",
       LANGFUSE_V4_BANNER_EXEMPT_ORG_IDS: undefined,
     });
 
@@ -32,7 +31,7 @@ describe("legacy API banner config", () => {
       getLegacyApiBannerState({ orgId: "org-a", isLangfuseCloud: true }),
     ).toEqual({
       severity: "warning",
-      message: "{projects} still use legacy v3 ingestion, APIs and evals.",
+      message: "Legacy v3 is still in use in {projects}.",
       exempt: false,
     });
   });

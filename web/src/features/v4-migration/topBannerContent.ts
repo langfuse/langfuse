@@ -35,8 +35,9 @@ const PROJECTS_PLACEHOLDER = "{projects}";
 
 /**
  * renderV4BannerMessage substitutes the optional `{projects}` token with the
- * org-wide count ("1 project" / "3 projects"). Anything else, including HTML,
- * stays literal text.
+ * org-wide count ("1 project" / "3 projects"). Put the token where a noun
+ * phrase fits ("in {projects}") so the sentence agrees for one project and
+ * for many. Anything else, including HTML, stays literal text.
  */
 export function renderV4BannerMessage(
   message: string,

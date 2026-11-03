@@ -4,9 +4,8 @@ import { renderV4BannerMessage } from "./topBannerContent";
 import { V4MigrationTopBannerView } from "./V4MigrationTopBannerView";
 
 const WARNING_MESSAGE =
-  "{projects} still use legacy v3 ingestion, APIs and evals. They stop on Nov 16.";
-const CRITICAL_MESSAGE =
-  "Legacy v3 ingestion, APIs and evals are paused today 16:00 to 17:00 CET.";
+  "Legacy v3 is still in use in {projects}. Trace-level evals and exports stop on November 16. SDKs and APIs stop on November 19.";
+const CRITICAL_MESSAGE = "Legacy v3 is paused today, 16:00 to 17:00 CET.";
 
 const messageFor = (template: string) => renderV4BannerMessage(template, 3);
 

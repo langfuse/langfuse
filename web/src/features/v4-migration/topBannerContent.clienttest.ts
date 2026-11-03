@@ -6,7 +6,8 @@ import {
 
 const visible = {
   severity: "warning",
-  message: "{projects} still use legacy v3 ingestion, APIs and evals.",
+  message:
+    "Legacy v3 is still in use in {projects}. Trace-level evals and exports stop on November 16.",
   v4UpgradeUiEnabled: true,
   isLangfuseCloud: true,
   actionNeededCount: 2,
@@ -42,18 +43,17 @@ describe("isV4MigrationTopBannerVisible", () => {
 describe("renderV4BannerMessage", () => {
   it("replaces {projects} with the org-wide count", () => {
     const template =
-      "{projects} still use legacy v3 ingestion, APIs and evals.";
+      "Legacy v3 is still in use in {projects}. Trace-level evals and exports stop on November 16.";
     expect(renderV4BannerMessage(template, 1)).toBe(
-      "1 project still use legacy v3 ingestion, APIs and evals.",
+      "Legacy v3 is still in use in 1 project. Trace-level evals and exports stop on November 16.",
     );
     expect(renderV4BannerMessage(template, 3)).toBe(
-      "3 projects still use legacy v3 ingestion, APIs and evals.",
+      "Legacy v3 is still in use in 3 projects. Trace-level evals and exports stop on November 16.",
     );
   });
 
   it("leaves a message without the placeholder unchanged, including markup", () => {
-    const message =
-      "Legacy v3 ingestion, APIs and evals are paused today 16:00 to 17:00 CET.";
+    const message = "Legacy v3 is paused today, 16:00 to 17:00 CET.";
     expect(renderV4BannerMessage(message, 3)).toBe(message);
     expect(renderV4BannerMessage("Use <b>v4</b> now.", 2)).toBe(
       "Use <b>v4</b> now.",
