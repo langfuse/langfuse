@@ -55,7 +55,13 @@ const actionGroupVariants = cva(
     variants: {
       placement: {
         header: null,
-        body: "pt-2 pr-2",
+        // Floats over the code so long lines keep the full width.
+        body: "absolute top-1.5 right-1.5 rounded-md",
+      },
+      surface: {
+        filled: "bg-surface-section",
+        outline: "bg-background",
+        plain: "bg-background",
       },
       // Copy feedback stays visible even when the pointer has already left.
       isPinned: {
@@ -63,6 +69,15 @@ const actionGroupVariants = cva(
         false: "opacity-0",
       },
     },
+    compoundVariants: [
+      {
+        // Invisible controls over the code must not swallow clicks on the text below.
+        placement: "body",
+        isPinned: false,
+        class:
+          "pointer-events-none group-hover/codesection:pointer-events-auto focus-within:pointer-events-auto pointer-coarse:pointer-events-auto",
+      },
+    ],
   },
 );
 
@@ -127,6 +142,7 @@ export function CodeSection({
     <div
       className={actionGroupVariants({
         placement: title ? "header" : "body",
+        surface: title ? undefined : variant,
         isPinned: isCopied,
       })}
     >
