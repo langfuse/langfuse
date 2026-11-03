@@ -1,7 +1,6 @@
-import Link from "next/link";
 import { AlertCircle } from "@langfuse/icons";
 
-import { Button } from "@/src/components/ui/button";
+import { Button } from "@/src/components/design-system/Button/Button";
 import { V4_MIGRATION_DEADLINE } from "@/src/features/v4-migration/V4MigrationContent";
 
 export type LegacyUiBannerViewProps = {
@@ -10,6 +9,7 @@ export type LegacyUiBannerViewProps = {
   /** True while the enable-v4 mutation / session refresh is in flight. */
   isSwitching: boolean;
   onSwitchToLatestUi: () => void;
+  /** Fires on the secondary link click (analytics); href stays a real Link. */
   onMigrationStatusClick?: () => void;
 };
 
@@ -44,17 +44,20 @@ export function LegacyUiBannerView({
         <Button
           size="sm"
           variant="secondary"
+          text="Switch to latest UI"
           loading={isSwitching}
           disabled={isSwitching}
           onClick={onSwitchToLatestUi}
-        >
-          Switch to latest UI
-        </Button>
-        <Button size="sm" variant="ghost" asChild>
-          <Link href="/v4-migration" onClick={onMigrationStatusClick}>
-            Migration status
-          </Link>
-        </Button>
+        />
+        {/* DS Button with href forbids onClick; capture on the wrapper bubble. */}
+        <span onClick={onMigrationStatusClick}>
+          <Button
+            size="sm"
+            variant="ghost"
+            text="Migration status"
+            href="/v4-migration"
+          />
+        </span>
       </div>
     </div>
   );
