@@ -1,10 +1,12 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  decodeOtelExportBody,
   flattenJsonToPathArrays,
   getOtelIdRejectionReason,
   validateOtelSpanIds,
 } from "./utils";
+import { $root } from "./otlp-proto/generated/root";
 
 const TRACE_ID = "bb14c33c23138873afcc5e6f3c2b5f61"; // 16 bytes
 const SPAN_ID = "cb00000daff4e5ae"; // 8 bytes
@@ -384,4 +386,37 @@ describe("flattenJsonToPathArrays", () => {
       });
     },
   );
+});
+
+describe("decodeOtelExportBody", () => {
+  it("decodes protobuf with string int64 fields and binary ids", () => {
+    const { ExportTraceServiceRequest } =
+      $root.opentelemetry.proto.collector.trace.v1;
+    const startTimeUnixNano = "1746026930686364157";
+    const body = ExportTraceServiceRequest.encode(
+      ExportTraceServiceRequest.fromObject({
+        resourceSpans: [
+          {
+            scopeSpans: [
+              {
+                spans: [
+                  {
+                    traceId: traceBytes,
+                    spanId: Buffer.from(SPAN_ID, "hex"),
+                    name: "span",
+                    startTimeUnixNano,
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      }),
+    ).finish();
+
+    const [resourceSpan] = decodeOtelExportBody(body).resourceSpans;
+    const span = resourceSpan.scopeSpans[0].spans[0];
+    expect(span.startTimeUnixNano).toBe(startTimeUnixNano);
+    expect(Buffer.from(span.traceId).equals(traceBytes)).toBe(true);
+  });
 });

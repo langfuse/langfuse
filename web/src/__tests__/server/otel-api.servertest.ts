@@ -5,6 +5,7 @@ import {
   createBasicAuthHeader,
   createEvent,
   createEventsCh,
+  decodeOtelExportBody,
   getObservationById,
   getObservationByIdFromEventsTable,
   getS3EventStorageClient,
@@ -14,7 +15,7 @@ import {
 import { env as sharedEnv } from "@langfuse/shared/src/env";
 import { randomBytes } from "crypto";
 import { env } from "@/src/env.mjs";
-import { $root } from "@/src/pages/api/public/otel/otlp-proto/generated/root";
+import { $root } from "@langfuse/shared/src/server/otel/otlp-proto/generated/root";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import { prisma } from "@langfuse/shared/src/db";
@@ -996,7 +997,7 @@ describe("/api/public/otel/v1/traces API Endpoint", () => {
       }),
     ).finish();
 
-    // The staging key is `<prefix>otel/<projectId>/yyyy/mm/dd/hh/mm/<uuid>.json`;
+    // The staging key is `<prefix>otel/<projectId>/yyyy/mm/dd/hh/mm/<uuid><suffix>`;
     // capture the minute prefix on both sides of the request so a minute
     // rollover during the call cannot hide the file.
     const minutePrefix = () => {
@@ -1024,10 +1025,11 @@ describe("/api/public/otel/v1/traces API Endpoint", () => {
     listPrefixes.add(minutePrefix());
     expect(response.status).toBe(200);
 
-    // The endpoint stages the decoded payload to S3 before responding, and
-    // that file is what the ingestion worker and the ingestion masking
-    // callback consume — so its int64 encoding is the contract under test.
-    // protobufjs >= 7.5 serializes int64 fields as Long internals
+    // The endpoint stages either the decoded resourceSpans or, with
+    // LANGFUSE_OTEL_STORE_REQUEST_BODY_ENABLED, the request body as received
+    // for the worker to decode. Either way the resourceSpans the worker and
+    // the ingestion masking callback consume carry the int64 encoding under
+    // test. protobufjs >= 7.5 serializes int64 fields as Long internals
     // ({ low, high, unsigned }) unless toObject receives a `longs` option.
     const storageClient = getS3EventStorageClient(
       sharedEnv.LANGFUSE_S3_EVENT_UPLOAD_BUCKET,
@@ -1040,7 +1042,16 @@ describe("/api/public/otel/v1/traces API Endpoint", () => {
 
     let stagedSpan: any;
     for (const { file } of files) {
-      const resourceSpans = JSON.parse(await storageClient.download(file));
+      let resourceSpans;
+      if (file.endsWith(".otlp.pb")) {
+        const body = await storageClient.downloadBytes(file);
+        resourceSpans = decodeOtelExportBody(body).resourceSpans;
+      } else if (file.endsWith(".otlp.json")) {
+        const body = await storageClient.download(file);
+        resourceSpans = JSON.parse(body).resourceSpans;
+      } else {
+        resourceSpans = JSON.parse(await storageClient.download(file));
+      }
       const span = resourceSpans
         .flatMap((rs: any) => rs.scopeSpans ?? [])
         .flatMap((ss: any) => ss.spans ?? [])

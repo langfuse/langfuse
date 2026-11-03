@@ -109,6 +109,21 @@ describe("StorageService", () => {
     expect(JSON.parse(file)).toEqual(data);
   });
 
+  test("uploadBytes stores bytes as given with a content type", async () => {
+    const fileName = `${s3Prefix}${randomUUID()}.otlp.json`;
+    const body = Buffer.from('{"resourceSpans":[]}');
+
+    await storageService.uploadBytes(fileName, body, "application/json");
+
+    expect(
+      Buffer.compare(await storageService.downloadBytes(fileName), body),
+    ).toBe(0);
+    const response = await fetch(
+      await storageService.getSignedUrl(fileName, 60),
+    );
+    expect(response.headers.get("content-type")).toBe("application/json");
+  });
+
   test("listFiles should list files in the bucket", async () => {
     // Setup
     const fileName1 = `${s3Prefix}${randomUUID()}.txt`;

@@ -318,6 +318,8 @@ export interface StorageService {
     body: Record<string, unknown>[] | Record<string, unknown>,
   ): Promise<void>;
 
+  uploadBytes(path: string, body: Buffer, contentType: string): Promise<void>;
+
   download(path: string): Promise<string>;
 
   downloadBytes(path: string): Promise<Uint8Array>;
@@ -585,6 +587,26 @@ class AzureBlobStorageService implements StorageService {
     } catch (err) {
       logger.error(`Failed to upload JSON to Azure Blob Storage ${path}`, err);
       handleStorageError(err, "upload JSON to Azure Blob Storage");
+    }
+  }
+
+  public async uploadBytes(
+    path: string,
+    body: Buffer,
+    contentType: string,
+  ): Promise<void> {
+    await this.createContainerIfNotExists();
+
+    const blockBlobClient = this.client.getBlockBlobClient(path);
+    try {
+      await blockBlobClient.upload(body, body.byteLength, {
+        blobHTTPHeaders: {
+          blobContentType: contentType,
+        },
+      });
+    } catch (err) {
+      logger.error(`Failed to upload bytes to Azure Blob Storage ${path}`, err);
+      handleStorageError(err, "upload bytes to Azure Blob Storage");
     }
   }
 
@@ -1023,6 +1045,24 @@ class S3StorageService implements StorageService {
     }
   }
 
+  public async uploadBytes(path: string, body: Buffer, contentType: string) {
+    const putCommand = new PutObjectCommand(
+      this.addSSEToParams({
+        Bucket: this.bucketName,
+        Key: path,
+        Body: body,
+        ContentType: contentType,
+      }),
+    );
+
+    try {
+      await this.client.send(putCommand);
+    } catch (err) {
+      this.logClientFailure(`Failed to upload bytes to S3 ${path}`, err);
+      handleStorageError(err, "upload bytes to S3");
+    }
+  }
+
   public async download(path: string): Promise<string> {
     const getCommand = new GetObjectCommand({
       Bucket: this.bucketName,
@@ -1306,6 +1346,25 @@ class GoogleCloudStorageService implements StorageService {
         err,
       );
       handleStorageError(err, "upload JSON to Google Cloud Storage");
+    }
+  }
+
+  public async uploadBytes(
+    path: string,
+    body: Buffer,
+    contentType: string,
+  ): Promise<void> {
+    try {
+      await this.bucket.file(path).save(body, {
+        contentType,
+        resumable: false,
+      });
+    } catch (err) {
+      logger.error(
+        `Failed to upload bytes to Google Cloud Storage ${path}`,
+        err,
+      );
+      handleStorageError(err, "upload bytes to Google Cloud Storage");
     }
   }
 
@@ -1802,6 +1861,24 @@ class OCIObjectStorageService implements StorageService {
     } catch (err) {
       logger.error(`Failed to upload JSON to OCI Object Storage ${path}`, err);
       handleStorageError(err, "upload JSON to OCI Object Storage ");
+    }
+  }
+
+  public async uploadBytes(path: string, body: Buffer, contentType: string) {
+    try {
+      const { client, namespaceName } = await this.getClientAndNamespace();
+      const req: objectstorage.requests.PutObjectRequest = {
+        namespaceName,
+        bucketName: this.bucketName,
+        objectName: path,
+        contentLength: body.byteLength,
+        putObjectBody: Readable.from([body]),
+        contentType,
+      };
+      await client.putObject(req);
+    } catch (err) {
+      logger.error(`Failed to upload bytes to OCI Object Storage ${path}`, err);
+      handleStorageError(err, "upload bytes to OCI Object Storage");
     }
   }
 

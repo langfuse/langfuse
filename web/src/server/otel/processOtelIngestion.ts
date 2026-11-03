@@ -1,6 +1,6 @@
-import { $root } from "@/src/pages/api/public/otel/otlp-proto/generated/root";
 import {
   createS3ThrottledIngestionError,
+  decodeOtelExportBody,
   getCurrentSpan,
   isS3SlowDownError,
   logger,
@@ -9,6 +9,7 @@ import {
   recordIncrement,
   validateOtelSpanIds,
 } from "@langfuse/shared/src/server";
+import { env } from "@/src/env.mjs";
 
 type OtelIngestionConfig = {
   projectId: string;
@@ -78,16 +79,7 @@ export async function processOtelIngestion(
 
   if (contentType.includes("application/x-protobuf")) {
     try {
-      const parsed =
-        $root.opentelemetry.proto.collector.trace.v1.ExportTraceServiceRequest.decode(
-          body,
-        );
-      resourceSpans =
-        $root.opentelemetry.proto.collector.trace.v1.ExportTraceServiceRequest.toObject(
-          parsed,
-          // OTLP JSON encodes int64 fields as decimal strings.
-          { longs: String },
-        ).resourceSpans;
+      resourceSpans = decodeOtelExportBody(body).resourceSpans;
     } catch (e) {
       logger.error(`Failed to parse OTel Protobuf`, e);
       return httpResult(400, { error: "Failed to parse OTel Protobuf Trace" });
@@ -274,7 +266,15 @@ export async function processOtelIngestion(
   // At this point, we have the raw OpenTelemetry Span body. We upload the full batch to S3
   // and the OtelIngestionProcessor logic will handle processing in the worker container.
   try {
-    const job = await processor.publishToOtelIngestionQueue(resourceSpans);
+    // Storing the request body lets the worker decode it again, so this
+    // request does not pay for re-serializing the decoded resourceSpans.
+    const job =
+      env.LANGFUSE_OTEL_STORE_REQUEST_BODY_ENABLED === "true"
+        ? await processor.publishExportBodyToOtelIngestionQueue(
+            body,
+            contentType,
+          )
+        : await processor.publishToOtelIngestionQueue(resourceSpans);
     return { kind: "ok", body: job };
   } catch (error) {
     markProjectIngestFailure(config.projectId, {

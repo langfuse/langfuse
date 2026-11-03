@@ -12,7 +12,7 @@ import waitForExpect from "wait-for-expect";
 import { z } from "zod/v4";
 
 import { env } from "@/src/env.mjs";
-import { $root } from "@/src/pages/api/public/otel/otlp-proto/generated/root";
+import { $root } from "@langfuse/shared/src/server/otel/otlp-proto/generated/root";
 import {
   type GatewayApiFormat,
   GatewayResolveResponseSchema,

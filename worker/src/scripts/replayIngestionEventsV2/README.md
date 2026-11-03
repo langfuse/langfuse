@@ -133,6 +133,7 @@ Download the result as CSV. The expected format:
 "operation","key"
 "REST.PUT.OBJECT","projectId/trace/eventBodyId/eventId.json"
 "REST.PUT.OBJECT","otel/projectId/2025/07/09/14/30/some-uuid.json"
+"REST.PUT.OBJECT","otel/projectId/2025/07/09/14/30/other-uuid.otlp.pb"
 ```
 
 Two S3 key formats are supported:
@@ -140,7 +141,12 @@ Two S3 key formats are supported:
 | Format | Pattern | Target queue |
 |--------|---------|-------------|
 | Standard | `{projectId}/{type}/{eventBodyId}/{eventId}.json` | `IngestionSecondaryQueue` |
-| OTEL | `otel/{projectId}/{yyyy}/{mm}/{dd}/{hh}/{mm}/{eventId}.json` | `OtelIngestionQueue` |
+| OTEL | `otel/{projectId}/{yyyy}/{mm}/{dd}/{hh}/{mm}/{eventId}{suffix}` | `OtelIngestionQueue` |
+
+The OTEL suffix is `.json` for a resourceSpans JSON array, or `.otlp.json` /
+`.otlp.pb` for an OTLP export request body stored uncompressed as JSON or
+protobuf. The worker picks the decoder from the suffix, so replayed keys must
+keep it.
 
 Keys that don't match either pattern are skipped and logged.
 
@@ -223,7 +229,7 @@ The endpoint parses each S3 key and constructs the queue payload:
 
 Enqueued to `IngestionSecondaryQueue`.
 
-**OTEL keys** (`otel/{projectId}/{yyyy}/{mm}/{dd}/{hh}/{mm}/{eventId}.json`):
+**OTEL keys** (`otel/{projectId}/{yyyy}/{mm}/{dd}/{hh}/{mm}/{eventId}{suffix}`):
 
 ```json
 {
@@ -232,7 +238,7 @@ Enqueued to `IngestionSecondaryQueue`.
     "scope": { "projectId": "<projectId>", "accessLevel": "project" }
   },
   "data": {
-    "fileKey": "otel/<projectId>/<yyyy>/<mm>/<dd>/<hh>/<mm>/<eventId>.json"
+    "fileKey": "otel/<projectId>/<yyyy>/<mm>/<dd>/<hh>/<mm>/<eventId><suffix>"
   }
 }
 ```

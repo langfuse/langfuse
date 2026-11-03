@@ -4,6 +4,7 @@ import { z } from "zod";
 import {
   clickhouseClient,
   createIngestionEventSchema,
+  decodeOtelExportBody,
   getClickhouseEntityType,
   getCurrentSpan,
   getS3EventStorageClient,
@@ -504,6 +505,8 @@ export const otelIngestionQueueProcessorBuilder = (
       // Easy change, but needs alignment.
 
       const earlyMediaEnabled =
+        !fileKey.endsWith(".otlp.pb") &&
+        !fileKey.endsWith(".otlp.json") &&
         env.LANGFUSE_OTEL_EARLY_MEDIA_EXTRACTION_ENABLED === "true" &&
         (env.LANGFUSE_OTEL_EARLY_MEDIA_EXTRACTION_PROJECT_IDS.includes("*") ||
           env.LANGFUSE_OTEL_EARLY_MEDIA_EXTRACTION_PROJECT_IDS.includes(
@@ -552,10 +555,25 @@ export const otelIngestionQueueProcessorBuilder = (
           await parsePreparedOtelBatch(prepared, bytes));
         inputPreparationDurationMs = performance.now() - preparationStartedAt;
       } else {
-        // Download file from blob storage
-        const resourceSpans = await eventStorage.download(fileKey);
-        const preparationStartedAt = performance.now();
-        inputByteLength = Buffer.byteLength(resourceSpans, "utf8");
+        let preparationStartedAt: number;
+        if (fileKey.endsWith(".otlp.pb")) {
+          const body = await eventStorage.downloadBytes(fileKey);
+          preparationStartedAt = performance.now();
+          inputByteLength = body.byteLength;
+          parsedSpans = decodeOtelExportBody(body).resourceSpans;
+        } else if (fileKey.endsWith(".otlp.json")) {
+          const body = await eventStorage.download(fileKey);
+          preparationStartedAt = performance.now();
+          inputByteLength = Buffer.byteLength(body, "utf8");
+          parsedSpans = JSON.parse(body).resourceSpans;
+        } else {
+          // Download file from blob storage
+          const resourceSpans = await eventStorage.download(fileKey);
+          preparationStartedAt = performance.now();
+          inputByteLength = Buffer.byteLength(resourceSpans, "utf8");
+          // Parse spans from S3 download
+          parsedSpans = JSON.parse(resourceSpans);
+        }
 
         recordHistogram(
           "langfuse.ingestion.s3_file_size_bytes",
@@ -565,9 +583,6 @@ export const otelIngestionQueueProcessorBuilder = (
             otel: "true",
           },
         );
-
-        // Parse spans from S3 download
-        parsedSpans = JSON.parse(resourceSpans);
 
         // Apply ingestion masking if enabled (EE feature)
         if (isIngestionMaskingEnabled()) {

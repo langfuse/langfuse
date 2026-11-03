@@ -232,10 +232,15 @@ describe("parseEventKey", () => {
     });
   });
 
-  it("parses an otel key and exposes the projectId only", () => {
-    const parsed = parseEventKey("otel/proj-1/2026/05/13/12/30/evt-9.json");
-    expect(parsed).toEqual({ kind: "otel", projectId: "proj-1" });
-  });
+  it.each([".json", ".otlp.json", ".otlp.pb"])(
+    "parses an otel %s key and exposes the projectId only",
+    (suffix) => {
+      const parsed = parseEventKey(
+        `otel/proj-1/2026/05/13/12/30/evt-9${suffix}`,
+      );
+      expect(parsed).toEqual({ kind: "otel", projectId: "proj-1" });
+    },
+  );
 
   it("returns null for unrecognized shapes", () => {
     expect(parseEventKey("not-a-key")).toBeNull();
