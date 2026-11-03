@@ -26,9 +26,14 @@ export const GATEWAY_RESOLVE_KEY_NON_EXISTENT = "gateway-key-non-existent";
 export const CachedResolveContext = z.object({
   organizationId: z.string(),
   apiKeyId: z.string(),
+  userId: z.string().nullable(),
+  // Defaulted so entries cached before these fields existed still parse.
+  apiKeyName: z.string().nullable().default(null),
+  userName: z.string().nullable().default(null),
+  userEmail: z.string().nullable().default(null),
   keyMetadata: GatewayMetadataSchema,
   ingestionProjectId: z.string().nullable(),
-  ingestionMode: z.enum(["USAGE", "FULL"]).nullable(),
+  ingestionMode: z.enum(["NONE", "USAGE", "FULL"]).nullable(),
   connections: z.array(
     z.object({
       id: z.string(),

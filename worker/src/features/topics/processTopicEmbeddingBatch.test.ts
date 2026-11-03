@@ -16,6 +16,7 @@ const mocks = vi.hoisted(() => ({
   embeddingModel: "eu.cohere.embed-v4:0",
 }));
 vi.mock("@langfuse/shared/topics/server", () => ({
+  getTopicTextResponseMetadata: () => undefined,
   pauseTopicsModels: mocks.pause,
   writeTopicSummaries: mocks.write,
   readStagedTopicSummary: mocks.staged,
@@ -39,6 +40,7 @@ vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
   const { isInternalEvalEnvironment } =
     await importOriginal<typeof import("@langfuse/shared/src/server")>();
   return {
+    ...(await importOriginal<typeof import("@langfuse/shared/src/server")>()),
     isInternalEvalEnvironment,
     logger: { error: vi.fn() },
     recordIncrement: vi.fn(),
@@ -146,6 +148,7 @@ describe("Topics embedding handoff", () => {
         expect.anything(),
         [allowed.summary],
         256,
+        "project",
       );
       expect(mocks.update).toHaveBeenCalledTimes(1);
       expect(mocks.write).toHaveBeenCalledExactlyOnceWith([

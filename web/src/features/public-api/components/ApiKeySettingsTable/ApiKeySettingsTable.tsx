@@ -1,14 +1,25 @@
 import { useCallback, useMemo } from "react";
-import { Pencil, Trash } from "lucide-react";
+import { Pencil, Trash } from "@langfuse/icons";
 
 import { type TableProps } from "@/src/components/design-system/table/Table";
 import { createDateTableColumn } from "@/src/components/design-system/table/columns/createDateTableColumn";
 import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
 import { createUserTableColumn } from "@/src/components/design-system/table/columns/createUserTableColumn";
-import { SettingsTable } from "@/src/components/SettingsTable/SettingsTable";
+import {
+  SettingsTable,
+  type SettingsTableProps,
+} from "@/src/components/SettingsTable/SettingsTable";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { isApiKeyExpired } from "@/src/features/apiKey";
 import { type RouterOutput } from "@/src/utils/types";
+
+const EXCLUDE_GATEWAY_KEYS = "exclude-gateway";
+const ALL_KEYS = "all";
+
+const GATEWAY_KEY_FILTER_OPTIONS = [
+  { value: EXCLUDE_GATEWAY_KEYS, label: "Exclude gateway keys" },
+  { value: ALL_KEYS, label: "All API keys" },
+];
 
 export type ApiKeySettingsTableRow =
   | RouterOutput["projectApiKeys"]["byProjectId"][number]
@@ -18,18 +29,10 @@ export function ApiKeySettingsTable({
   editNameAction,
   hasWriteAccess,
   onDelete,
+  search,
+  gatewayKeyFilter,
   ...tableProps
-}: Pick<
-  TableProps<ApiKeySettingsTableRow>,
-  "data" | "loadingRowCount" | "noResultsMessage"
-> & {
-  editNameAction: {
-    hasAccess: boolean;
-    onClick: (apiKey: ApiKeySettingsTableRow) => void;
-  };
-  hasWriteAccess: boolean;
-  onDelete: (apiKey: ApiKeySettingsTableRow) => void;
-}) {
+}: ApiKeySettingsTableProps) {
   const columns = useMemo<LangfuseColumnDef<ApiKeySettingsTableRow>[]>(
     () => [
       createTextTableColumn<ApiKeySettingsTableRow>({
@@ -126,7 +129,52 @@ export function ApiKeySettingsTable({
       columnOrderKey="apiKeysColumnOrder-v2"
       columns={columns}
       actions={actions}
+      search={{ ...search, placeholder: "Search by name" }}
+      filters={
+        gatewayKeyFilter
+          ? [toGatewayKeySettingsFilter(gatewayKeyFilter)]
+          : undefined
+      }
       {...tableProps}
     />
   );
 }
+
+function toGatewayKeySettingsFilter({
+  includeGatewayKeys,
+  onIncludeGatewayKeysChange,
+}: GatewayKeyFilter): SettingsTableFilter {
+  return {
+    type: "select",
+    id: "gatewayKeys",
+    label: "Gateway keys",
+    placeholder: "Exclude gateway keys",
+    options: GATEWAY_KEY_FILTER_OPTIONS,
+    value: includeGatewayKeys ? ALL_KEYS : EXCLUDE_GATEWAY_KEYS,
+    onChange: (value) => onIncludeGatewayKeysChange(value === ALL_KEYS),
+    muted: !includeGatewayKeys,
+  };
+}
+
+type ApiKeySettingsTableProps = Pick<
+  TableProps<ApiKeySettingsTableRow>,
+  "data" | "loadingRowCount" | "noResultsMessage"
+> & {
+  editNameAction: {
+    hasAccess: boolean;
+    onClick: (apiKey: ApiKeySettingsTableRow) => void;
+  };
+  hasWriteAccess: boolean;
+  onDelete: (apiKey: ApiKeySettingsTableRow) => void;
+  search: { value: string; onChange: (value: string) => void };
+  gatewayKeyFilter?: GatewayKeyFilter;
+};
+
+type GatewayKeyFilter = {
+  includeGatewayKeys: boolean;
+  onIncludeGatewayKeysChange: (includeGatewayKeys: boolean) => void;
+};
+
+type SettingsTableFilter = NonNullable<
+  SettingsTableProps<ApiKeySettingsTableRow>["filters"]
+>[number];

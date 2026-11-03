@@ -1,4 +1,4 @@
-import { ArrowUpRight, LockIcon, Copy, Check } from "lucide-react";
+import { ArrowUpRight, LockIcon, Copy, Check } from "@langfuse/icons";
 import { HoverCard } from "@/src/components/design-system/HoverCard/HoverCard";
 import { CodeMirrorEditor } from "@/src/components/editor";
 import type { Prisma } from "@langfuse/shared";
@@ -65,7 +65,7 @@ export const DatasetSchemaHoverCard: React.FC<DatasetSchemaHoverCardProps> = ({
               className="hover:text-foreground inline-flex items-center underline"
             >
               JSON Schema
-              <ArrowUpRight className="icon-sm ml-0.5" />
+              <ArrowUpRight size="sm" __rawClassName="ml-0.5" />
             </a>
           </p>
           <div className="mt-2">
@@ -90,9 +90,9 @@ export const DatasetSchemaHoverCard: React.FC<DatasetSchemaHoverCardProps> = ({
                   className="h-7 px-2"
                 >
                   {copied ? (
-                    <Check className="icon-base text-icon-foreground" />
+                    <Check size="base" color="default" />
                   ) : (
-                    <Copy className="icon-base text-icon-foreground" />
+                    <Copy size="base" color="default" />
                   )}
                 </Button>
               </div>
@@ -117,7 +117,7 @@ export const DatasetSchemaHoverCard: React.FC<DatasetSchemaHoverCardProps> = ({
           size="sm"
           {...getTriggerProps()}
         >
-          <LockIcon className="icon-base text-icon-foreground" />
+          <LockIcon size="base" color="default" />
           {showLabel && <span>Schema enforced</span>}
         </Button>
       )}

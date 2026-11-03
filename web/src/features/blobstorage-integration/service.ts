@@ -5,17 +5,19 @@ import {
   InvalidRequestError,
   type AnalyticsIntegrationExportSource,
   BlobStorageIntegrationFileType,
-  type ObservationFieldGroupFull,
+  type ExportFieldGroup,
   BLOB_STORAGE_REGION_INVALID_MESSAGE,
   normalizeBlobStorageRegion,
   GCPServiceAccountKeySchema,
   GCS_USE_DEFAULT_CREDENTIALS,
 } from "@langfuse/shared";
 import { assertPersistedExportSourceAllowed } from "@/src/features/analytics-integrations/server";
+import { isSameStorageDestination } from "@/src/features/automations/destinationUrl";
 import { encrypt } from "@langfuse/shared/encryption";
 import { env } from "@/src/env.mjs";
 import {
   assertGcsBlobStorageBucketAllowed,
+  validateBlobStorageBucketHost,
   validateBlobStorageEndpoint,
 } from "@langfuse/shared/src/server";
 
@@ -36,7 +38,7 @@ type UpsertBlobStorageIntegrationInput = {
   exportMode: BlobStorageExportMode;
   exportStartDate: Date | null;
   exportSource?: AnalyticsIntegrationExportSource;
-  exportFieldGroups?: ObservationFieldGroupFull[];
+  exportFieldGroups?: ExportFieldGroup[];
   compressed?: boolean;
 };
 
@@ -138,6 +140,12 @@ export async function upsertBlobStorageIntegration(params: {
   if (endpoint) {
     try {
       await validateBlobStorageEndpoint(endpoint);
+      await validateBlobStorageBucketHost({
+        type: data.type,
+        endpoint,
+        bucketName: data.bucketName,
+        forcePathStyle: data.forcePathStyle,
+      });
     } catch (error) {
       throw new InvalidRequestError(
         `Invalid blob storage endpoint: ${error instanceof Error ? error.message : "Endpoint validation failed"}`,
@@ -177,8 +185,9 @@ export async function upsertBlobStorageIntegration(params: {
   return prisma.$transaction(async (tx) => {
     const existing = await tx.blobStorageIntegration.findUnique({
       where: { projectId },
-      // createdAt/exportSource feed the post-upsert backstop below;
-      // type/secretAccessKey decide whether an update keeps a stored secret.
+      // createdAt/exportSource feed the post-upsert backstop below; the
+      // destination fields and secretAccessKey decide whether an update keeps
+      // a stored secret.
       select: {
         enabled: true,
         exportMode: true,
@@ -187,14 +196,40 @@ export async function upsertBlobStorageIntegration(params: {
         createdAt: true,
         exportSource: true,
         type: true,
+        bucketName: true,
+        endpoint: true,
+        accessKeyId: true,
         secretAccessKey: true,
       },
     });
 
-    // A stored secret is only reusable within the same credential family.
-    const canKeepStoredSecret =
+    // A stored secret is only reusable within the same credential family, and
+    // only for the destination it was entered for.
+    const hasStoredSecretOfFamily =
       !!existing?.secretAccessKey &&
       secretFamily(existing.type) === secretFamily(data.type);
+    const canKeepStoredSecret =
+      hasStoredSecretOfFamily &&
+      isSameStorageDestination(existing, {
+        type: data.type,
+        bucketName: data.bucketName,
+        endpoint,
+        accessKeyId,
+      });
+    // Switching a self-hosted S3 integration to host credentials drops the
+    // stored secret instead of asking for it again.
+    const isSwitchingToHostCredentials = canUseHostCredentials && !accessKeyId;
+    if (
+      hasStoredSecretOfFamily &&
+      !canKeepStoredSecret &&
+      !secretAccessKey &&
+      !isKeylessGcs &&
+      !isSwitchingToHostCredentials
+    ) {
+      throw new InvalidRequestError(
+        "Secret access key is required when changing the storage provider, bucket, endpoint, or access key ID",
+      );
+    }
     // A GCS integration that will run keyless: explicitly requested, or an
     // update that sends no secret and has no stored GCS key to keep. Keyless
     // runs as the deployment identity, so it is gated by the bucket allowlist.
@@ -232,16 +267,16 @@ export async function upsertBlobStorageIntegration(params: {
     const modeChanged = existing && existing.exportMode !== data.exportMode;
     const justEnabled = data.enabled && !existing?.enabled;
     const encryptedSecret = secretAccessKey ? encrypt(secretAccessKey) : null;
-    // Only overwrite secretAccessKey when a new value is provided, so partial
-    // updates don't wipe the existing encrypted secret. Keyless GCS, or a switch
-    // to another credential family, clears it, so a secret is never reused by
-    // the wrong provider.
-    let secretAccessKeyUpdate: { secretAccessKey: string | null } | object = {};
-    if (encryptedSecret) {
-      secretAccessKeyUpdate = { secretAccessKey: encryptedSecret };
-    } else if (willRunKeyless || !canKeepStoredSecret) {
-      secretAccessKeyUpdate = { secretAccessKey: null };
-    }
+    // An update without a new secret writes back the stored secret checked
+    // above, never omits the column: a concurrent save that changed the secret
+    // in between must not end up paired with this request's destination.
+    // Keyless GCS, or a destination the stored secret was not entered for,
+    // clears it.
+    const nextSecretAccessKey =
+      encryptedSecret ??
+      (canKeepStoredSecret && !willRunKeyless
+        ? existing.secretAccessKey
+        : null);
 
     // The CREATE payload always carries a concrete source, resolved by the
     // caller through resolveExportSource. Applying it unconditionally (rather
@@ -267,7 +302,7 @@ export async function upsertBlobStorageIntegration(params: {
       },
       update: {
         ...writeData,
-        ...secretAccessKeyUpdate,
+        secretAccessKey: nextSecretAccessKey,
         // Schedule an immediate retry when saving an errored integration
         // so the scheduler picks it up via the nextSyncAt clause.
         ...(existing?.lastError && data.enabled && !modeChanged

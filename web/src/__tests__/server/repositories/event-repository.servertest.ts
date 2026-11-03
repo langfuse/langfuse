@@ -7,11 +7,13 @@ import {
   getObservationsCountFromEventsTable,
   getObservationsCountsFromEventsTable,
   getObservationByIdFromEventsTable,
+  getObservationFullIOForSessionFromEventsTable,
   getAgentGraphDataFromEventsTable,
   getObservationsFromEventsTableForPublicApi,
   getObservationsCountFromEventsTableForPublicApi,
   updateEvents,
   getTraceByIdFromEventsTable,
+  getTracesFromEventsTableForPublicApi,
   getObservationsBatchIOFromEventsTable,
   getLatestSdkVersionInfoFromEvents,
   getTracesIdentifierForSessionFromEvents,
@@ -26,6 +28,7 @@ import {
   createTraceScore,
   getUsersFromEventsTable,
   getUsersCountFromEventsTable,
+  getTracingCountsByProjectInCreationIntervalFromEventsTable,
   type EventFilterOptionColumn,
 } from "@langfuse/shared/src/server";
 import {
@@ -38,6 +41,8 @@ import { prisma } from "@langfuse/shared/src/db";
 import { randomUUID } from "crypto";
 import { env } from "@/src/env.mjs";
 import {
+  AI_GATEWAY_SERVICE_NAME,
+  LangfuseNotFoundError,
   type EventsTableFilterState,
   type FilterCondition,
   type TimeFilter,
@@ -527,6 +532,51 @@ describe("Clickhouse Events Repository Test", () => {
       await expect(
         getEvaluatorExecutionSummaries(projectId, [randomUUID()]),
       ).resolves.toEqual([]);
+    });
+
+    it("only counts each evaluator's most recent execution traces so recovered evaluators turn healthy", async () => {
+      const evaluatorId = randomUUID();
+      const busyEvaluatorId = randomUUID();
+      const hourInMicros = 60 * 60 * 1000 * 1000;
+      const now = Date.now() * 1000;
+      await createEventsCh([
+        ...Array.from({ length: 80 }, () =>
+          createEvent({
+            project_id: projectId,
+            evaluator_id: busyEvaluatorId,
+            level: "ERROR",
+            start_time: now - 30 * 60 * 1000 * 1000,
+          }),
+        ),
+        ...Array.from({ length: 60 }, () =>
+          createEvent({
+            project_id: projectId,
+            evaluator_id: evaluatorId,
+            level: "ERROR",
+            start_time: now - 48 * hourInMicros,
+          }),
+        ),
+        ...Array.from({ length: 50 }, () =>
+          createEvent({
+            project_id: projectId,
+            evaluator_id: evaluatorId,
+            level: "DEFAULT",
+            start_time: now - hourInMicros,
+          }),
+        ),
+      ]);
+
+      const summaries = await getEvaluatorExecutionSummaries(projectId, [
+        evaluatorId,
+        busyEvaluatorId,
+      ]);
+      expect(summaries).toHaveLength(2);
+      expect(summaries).toEqual(
+        expect.arrayContaining([
+          { evaluatorId, total: 50, failed: 0 },
+          { evaluatorId: busyEvaluatorId, total: 50, failed: 50 },
+        ]),
+      );
     });
   });
 
@@ -1177,6 +1227,41 @@ describe("Clickhouse Events Repository Test", () => {
           startTimeLowerBound: new Date(observationStart + 3 * DAY_MS),
         }),
       ).rejects.toThrow();
+    });
+  });
+
+  maybe("latest-version reads of a soft-deleted observation", () => {
+    it("read it as missing even though an older live version exists", async () => {
+      const traceId = randomUUID();
+      const observationId = randomUUID();
+      const sessionId = randomUUID();
+      const start = Date.now() - 60_000;
+      const version = {
+        id: observationId,
+        span_id: observationId,
+        project_id: projectId,
+        trace_id: traceId,
+        session_id: sessionId,
+        start_time: start,
+      };
+
+      await createEventsCh([
+        createEvent({ ...version, event_ts: start }),
+        createEvent({ ...version, event_ts: start + 1000, is_deleted: 1 }),
+      ]);
+
+      await expect(
+        getObservationByIdFromEventsTable({ id: observationId, projectId }),
+      ).rejects.toThrow(LangfuseNotFoundError);
+      await expect(
+        getObservationFullIOForSessionFromEventsTable({
+          projectId,
+          sessionId,
+          traceId,
+          observationId,
+          startTime: new Date(start),
+        }),
+      ).resolves.toBeNull();
     });
   });
 
@@ -4619,6 +4704,80 @@ describe("Clickhouse Events Repository Test", () => {
         ]);
       });
     });
+
+    it("should skip traces whose session spans are all soft-deleted", async () => {
+      const uniqueProjectId = randomUUID();
+      const sessionId = randomUUID();
+      const deletedTraceId = randomUUID();
+      const liveTraceId = randomUUID();
+      const nowMicro = Date.now() * 1000;
+
+      await createEventsCh([
+        createEvent({
+          id: randomUUID(),
+          span_id: randomUUID(),
+          project_id: uniqueProjectId,
+          trace_id: deletedTraceId,
+          session_id: sessionId,
+          start_time: nowMicro,
+          event_ts: nowMicro,
+          is_deleted: 1,
+        }),
+        createEvent({
+          id: randomUUID(),
+          span_id: randomUUID(),
+          project_id: uniqueProjectId,
+          trace_id: liveTraceId,
+          session_id: sessionId,
+          start_time: nowMicro + 1_000,
+          event_ts: nowMicro + 1_000,
+        }),
+      ]);
+
+      await waitForExpect(async () => {
+        const traces = await getTracesIdentifierForSessionFromEvents(
+          uniqueProjectId,
+          sessionId,
+        );
+        expect(traces.map((trace) => trace.id)).toEqual([liveTraceId]);
+      });
+    });
+  });
+
+  maybe("Trace tags", () => {
+    it("should return the tags of all observations, not only the latest", async () => {
+      const traceId = randomUUID();
+      const sharedTag = `shared-${traceId}`;
+      const middleTag = `middle-${traceId}`;
+      const start = new Date("2026-01-01T00:00:00.000Z").getTime();
+
+      await createEventsCh(
+        [[sharedTag], [sharedTag, middleTag], [sharedTag]].map((tags, i) => {
+          const id = randomUUID();
+          const timestamp = new Date(start + i * 1000);
+          return createEvent({
+            id,
+            span_id: id,
+            project_id: projectId,
+            trace_id: traceId,
+            tags,
+            start_time: timestamp,
+            event_ts: timestamp,
+          });
+        }),
+      );
+
+      const trace = await getTraceByIdFromEventsTable({ projectId, traceId });
+      expect(trace?.tags).toEqual([middleTag, sharedTag]);
+
+      const traces = await getTracesFromEventsTableForPublicApi({
+        projectId,
+        page: 1,
+        limit: 10,
+        tags: middleTag,
+      });
+      expect(traces.map((t) => t.id)).toEqual([traceId]);
+    });
   });
 
   maybe("Update methods", () => {
@@ -5839,6 +5998,89 @@ describe("Clickhouse Events Repository Test", () => {
       expect(traceScoreCategoryLabels).toContain(traceCategoryName);
       expect(traceScoreCategoryLabels).not.toContain(observationCategoryName);
     });
+  });
+});
+
+describe("tracing counts by project on the events table", () => {
+  it("counts traces, observations and gateway requests created in the interval, excluding synthetic trace rows", async () => {
+    const projectA = randomUUID();
+    const projectB = randomUUID();
+    const legacyTraceId = randomUUID();
+    const otelTraceId = randomUUID();
+    const start = new Date("2026-01-10T00:00:00.000Z");
+    const end = new Date("2026-01-10T12:00:00.000Z");
+    const inWindow = new Date("2026-01-10T06:00:00.000Z");
+
+    const event = (
+      overrides: Partial<Parameters<typeof createEvent>[0]> & {
+        project_id: string;
+        trace_id: string;
+      },
+    ) => {
+      const spanId = overrides.span_id ?? randomUUID();
+      return createEvent({
+        created_at: inWindow,
+        ...overrides,
+        span_id: spanId,
+        id: spanId,
+      });
+    };
+
+    await createEventsCh([
+      // Ingestion-API trace: synthetic `t-` root row plus two observations.
+      event({
+        project_id: projectA,
+        trace_id: legacyTraceId,
+        span_id: `t-${legacyTraceId}`,
+        type: "SPAN",
+      }),
+      event({ project_id: projectA, trace_id: legacyTraceId }),
+      event({ project_id: projectA, trace_id: legacyTraceId }),
+      // OTel-native trace: real root span plus one child, no synthetic row.
+      event({ project_id: projectA, trace_id: otelTraceId }),
+      event({ project_id: projectA, trace_id: otelTraceId }),
+      // Created on the interval bounds: start is inclusive, end is exclusive.
+      event({
+        project_id: projectA,
+        trace_id: randomUUID(),
+        created_at: start,
+      }),
+      event({ project_id: projectA, trace_id: randomUUID(), created_at: end }),
+      event({ project_id: projectB, trace_id: randomUUID() }),
+      // AI gateway generations carry the gateway service; outside the window they don't count.
+      event({
+        project_id: projectB,
+        trace_id: randomUUID(),
+        service_name: AI_GATEWAY_SERVICE_NAME,
+      }),
+      event({
+        project_id: projectB,
+        trace_id: randomUUID(),
+        service_name: AI_GATEWAY_SERVICE_NAME,
+      }),
+      event({
+        project_id: projectB,
+        trace_id: randomUUID(),
+        service_name: AI_GATEWAY_SERVICE_NAME,
+        created_at: end,
+      }),
+    ]);
+
+    const counts =
+      await getTracingCountsByProjectInCreationIntervalFromEventsTable({
+        start,
+        end,
+        projectIds: [projectA, projectB],
+      });
+
+    expect(
+      counts.sort((a, b) => a.projectId.localeCompare(b.projectId)),
+    ).toEqual(
+      [
+        { projectId: projectA, traces: 3, observations: 5, gatewayRequests: 0 },
+        { projectId: projectB, traces: 3, observations: 3, gatewayRequests: 2 },
+      ].sort((a, b) => a.projectId.localeCompare(b.projectId)),
+    );
   });
 });
 

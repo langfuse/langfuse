@@ -1,5 +1,5 @@
 import { fn } from "storybook/test";
-import { Trash2 } from "lucide-react";
+import { Trash2 } from "@langfuse/icons";
 
 import preview from "../../../../.storybook/preview";
 import { Button } from "@/src/components/ui/button";
@@ -13,7 +13,7 @@ export const Default = meta.story({
     onClear: fn(),
     children: (
       <Button type="button" variant="outline" size="sm" className="h-8">
-        <Trash2 className="icon-base text-icon-foreground sm:mr-2" />
+        <Trash2 size="base" color="default" __rawClassName="sm:mr-2" />
         <span className="hidden sm:inline">Delete</span>
       </Button>
     ),

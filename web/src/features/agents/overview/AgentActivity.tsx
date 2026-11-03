@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ZoomIn, ZoomOut, CalendarDays } from "lucide-react";
+import { ZoomIn, ZoomOut, CalendarDays } from "@langfuse/icons";
 import {
   type AgentSessionProjection,
   type AgentProjectionSession,

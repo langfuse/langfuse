@@ -113,15 +113,21 @@ retains its 100-trace/20,000-row preview limits and unknown ancestry boundaries.
 Use the official seed CLI and its printed links:
 
 ```sh
-NEXTAUTH_URL=http://localhost:3017 pnpm run seed -- agents-rfc --environment production --id-prefix agents-rfc-session-20261015 --managed-skills
 NEXTAUTH_URL=http://localhost:3017 LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES=true pnpm --filter web run dev --port 3017
+
+# In another terminal, select an explicit UTC day and a fresh matching prefix.
+NEXTAUTH_URL=http://localhost:3017 pnpm run seed -- agents-rfc --environment production --date 2026-11-03 --id-prefix agents-rfc-session-20261103 --managed-skills --v4
 ```
 
 The RFC scenario includes real shared/multi-trace sessions, repeated invocations,
 sessionless activity, zero tools, both tool representations, native and legacy
 skills, managed definitions, Unicode names, stable history, recent deviations,
 ongoing/sparse activity, dormant agents and distinct causal/similarity evidence.
-Its default selected range is October 15, 2026, 11:00–15:00 UTC. Existing
+The command above selects November 3, 2026, 11:00–15:00 UTC. Start the app
+before using `--managed-skills`; existing latest-labelled definitions are reused.
+Use the printed absolute `dateRange` links when returning later, or choose a new
+`--date` and prefix to refresh the fixture. Omitting `--date` retains the scenario
+default of October 15, 2026, 11:00–15:00 UTC. Existing
 `agents-view` fixtures and their invocation/skills links remain valid. See the
 [seeder catalog](../../../../packages/shared/scripts/seeder/README.md) for options
 and the deterministic prefix/reseed contract.

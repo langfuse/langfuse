@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { FTS_MATCH_OPERATOR } from "../../../interfaces/filters";
 import { type EventsTableFilterState } from "../../../types";
 import { InvalidRequestError } from "../../../errors";

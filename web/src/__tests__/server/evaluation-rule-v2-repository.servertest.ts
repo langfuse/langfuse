@@ -200,6 +200,31 @@ describe("evaluation rule v2 repository", () => {
       });
     });
 
+    it("matches LIKE wildcards literally in rule search", async () => {
+      await Promise.all([
+        createRule({ name: "gpt_4-rule" }),
+        createRule({ name: "gpt-4-rule" }),
+        createRule({ name: "save 100% now" }),
+        createRule({ name: "save 1000 now" }),
+      ]);
+
+      const searchNames = async (search: string) => {
+        const res = await ruleRepository.listRules({
+          prisma,
+          input: {
+            projectId,
+            page: 1,
+            limit: 50,
+            search,
+          },
+        });
+        return res.rules.map((r) => r.name);
+      };
+
+      expect(await searchNames("gpt_4")).toEqual(["gpt_4-rule"]);
+      expect(await searchNames("100%")).toEqual(["save 100% now"]);
+    });
+
     it("uses stable creation order by default and supports explicit sorting", async () => {
       const [older, newer] = await Promise.all([
         createRule({ name: "Older" }),

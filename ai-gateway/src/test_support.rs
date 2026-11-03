@@ -165,6 +165,11 @@ pub(crate) async fn resolved_request_context_for(
             .unwrap();
             let mut body: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
             body["ingestion_mode"] = mode.into();
+            if mode == "none" {
+                // Web mints no grant and may have no ingestion project in this mode.
+                body["ingestion"] = serde_json::Value::Null;
+                body["attribution"]["project_id"] = serde_json::Value::Null;
+            }
             Response::builder()
                 .header("content-type", "application/json")
                 .body(Body::from(body.to_string()))

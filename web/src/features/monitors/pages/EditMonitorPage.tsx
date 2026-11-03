@@ -1,8 +1,9 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { useRouter } from "next/router";
 import { useState } from "react";
 
 import { ErrorPage } from "@/src/components/error-page";
-import Page from "@/src/components/layouts/page";
+import Page from "@/src/components/layouts/Page";
 import { DeleteMonitorButton } from "@/src/features/monitors/components/DeleteMonitorButton";
 import { MonitorForm } from "@/src/features/monitors/components/MonitorForm";
 import { MonitorPagePermissions } from "@/src/features/monitors/components/MonitorPagePermissions";
@@ -76,24 +77,27 @@ const EditMonitorFormPage = ({ monitor }: { monitor: Monitor }) => {
       withPadding
       headerProps={{
         ...getHeaderProps(monitor.projectId, liveName),
-        actionButtonsRight: canDelete ? (
-          <DeleteMonitorButton
-            monitorName={monitor.name}
-            deleting={deleteMonitor.isPending}
-            onDelete={async () => {
-              await deleteMonitor.mutateAsync({
-                projectId: monitor.projectId,
-                id: monitor.id,
-              });
-            }}
-          />
-        ) : undefined,
+        hideTitleRow: true,
       }}
     >
       <MonitorForm
         projectId={monitor.projectId}
         monitor={monitor}
         onNameChange={setLiveName}
+        secondaryAction={
+          canDelete && (
+            <DeleteMonitorButton
+              monitorName={monitor.name}
+              deleting={deleteMonitor.isPending}
+              onDelete={async () => {
+                await deleteMonitor.mutateAsync({
+                  projectId: monitor.projectId,
+                  id: monitor.id,
+                });
+              }}
+            />
+          )
+        }
       />
     </Page>
   );

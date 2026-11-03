@@ -1,4 +1,5 @@
 import { type Flag } from "@/src/features/feature-flags/types";
+import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { type ProjectScope } from "@langfuse/shared";
 import {
   BellRing,
@@ -6,7 +7,7 @@ import {
   LayoutDashboard,
   LifeBuoy,
   ListTree,
-  type LucideIcon,
+  type IconComponent,
   Settings,
   UsersIcon,
   TerminalIcon,
@@ -22,14 +23,17 @@ import {
   Clock,
   Beaker,
   Bot,
-} from "lucide-react";
+} from "@langfuse/icons";
 import { type ReactNode } from "react";
 import { type Entitlement } from "@/src/features/entitlements/constants/entitlements";
 import { type Session } from "next-auth";
-import { type OrganizationScope } from "@/src/features/rbac";
-import { SupportButton } from "@/src/components/nav/support-button";
+import {
+  hasOrganizationAccess,
+  type OrganizationScope,
+} from "@/src/features/rbac";
+import { SupportButton } from "@/src/components/nav/SupportButton";
 import { V4SidebarToggle } from "@/src/features/events";
-import { BookACallButton } from "@/src/components/nav/book-a-call-button";
+import { BookACallButton } from "@/src/components/nav/BookACallButton";
 import { SidebarMenuButton } from "@/src/components/ui/sidebar";
 import { KeyboardShortcut } from "@/src/components/design-system/KeyboardShortcut/KeyboardShortcut";
 import { useCommandMenu } from "@/src/features/command-k-menu/CommandMenuProvider";
@@ -37,6 +41,10 @@ import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { CloudStatusMenu } from "@/src/features/cloud-status-notification/components/CloudStatusMenu";
 import { type ProductModule } from "@/src/ee/features/ui-customization/productModuleSchema";
 import { matchesPathname } from "@/src/components/layouts/app-layout/utils/pathClassification";
+import {
+  InternalFeatureBadge,
+  useInternalFeaturesEnabled,
+} from "@/src/features/feature-flags";
 
 export enum RouteSection {
   Main = "main",
@@ -58,7 +66,7 @@ export type Route = {
   label?: string | ReactNode;
   projectRbacScopes?: ProjectScope[]; // array treated as OR
   organizationRbacScope?: OrganizationScope;
-  icon?: LucideIcon; // ignored for nested routes
+  icon?: IconComponent; // ignored for nested routes
   href: string;
   isActive?: (pathname: string) => boolean;
   legacyPathname?: string; // link used when the V4 preview is disabled
@@ -72,9 +80,11 @@ export type Route = {
       | NonNullable<Session["user"]>["organizations"][number]
       | undefined;
     projectId: string | undefined;
+    canViewTopics: boolean;
     isLangfuseCloud: boolean;
     hasActiveCloudIncident: boolean;
     canToggleV4: boolean;
+    canRecoverV4: boolean;
     forceV3Experience: boolean;
     v4WriteMode: undefined | "legacy" | "dual" | "events_only"; // undefined until the session has loaded
     v4UpgradeUiAvailable: boolean; // deployment shows the v4 migration UI (see isV4UpgradeUiAvailable)
@@ -101,6 +111,13 @@ export const ROUTES: Route[] = [
     title: "Projects",
     href: "/organization/[organizationId]",
     icon: Grid2X2,
+    show: ({ organization }) =>
+      !organization ||
+      hasOrganizationAccess({
+        role: organization.role,
+        scope: "organizationSettings:read",
+      }) ||
+      organization.projects.length > 0,
     section: RouteSection.Main,
   },
   {
@@ -161,8 +178,8 @@ export const ROUTES: Route[] = [
     title: "Topics",
     href: "/project/[projectId]/topics",
     icon: Grid2X2,
-    featureFlag: "langfuseTopics",
-    projectRbacScopes: ["topics:read"],
+    label: <TopicsInternalBadge />,
+    show: ({ canViewTopics }) => canViewTopics,
     group: RouteGroup.Observability,
     section: RouteSection.Main,
   },
@@ -177,7 +194,8 @@ export const ROUTES: Route[] = [
   },
   {
     title: "Skills",
-    featureFlag: "internalFeatures",
+    featureFlag: "skillManagement",
+    label: <Badge text="Beta" color="blue" size="sm" />,
     href: "/project/[projectId]/skills",
     icon: FolderCode,
     projectRbacScopes: ["skills:read"],
@@ -267,9 +285,15 @@ export const ROUTES: Route[] = [
     href: "",
     section: RouteSection.Secondary,
     featureFlag: "v4BetaToggleVisible",
-    // v4-upgrade users get this toggle inside the migration panel instead.
-    show: ({ canToggleV4, forceV3Experience, v4UpgradeUiAvailable }) =>
-      canToggleV4 && (!v4UpgradeUiAvailable || forceV3Experience),
+    // Recovery stays in the sidebar; ordinary opt-in lives in the migration panel.
+    show: ({
+      canToggleV4,
+      canRecoverV4,
+      forceV3Experience,
+      v4UpgradeUiAvailable,
+    }) =>
+      canRecoverV4 ||
+      (canToggleV4 && (!v4UpgradeUiAvailable || forceV3Experience)),
     menuNode: <V4SidebarToggle />,
   },
   {
@@ -317,6 +341,11 @@ export const ROUTES: Route[] = [
   },
 ];
 
+function TopicsInternalBadge() {
+  const internalFeaturesEnabled = useInternalFeaturesEnabled();
+  return internalFeaturesEnabled ? <InternalFeatureBadge /> : null;
+}
+
 function CommandMenuTrigger() {
   const { setOpen } = useCommandMenu();
   const capture = usePostHogClientCapture();
@@ -331,7 +360,7 @@ function CommandMenuTrigger() {
       }}
       className="whitespace-nowrap"
     >
-      <Search className="icon-base" />
+      <Search size="base" />
       Go to...
       <span className="-mr-px ml-auto hidden md:inline-flex">
         <KeyboardShortcut keys={["Mod", "K"]} />

@@ -1,5 +1,5 @@
 import { useId, useRef, type ReactNode } from "react";
-import { PanelRight, X } from "lucide-react";
+import { PanelRight, X } from "@langfuse/icons";
 import { Button } from "@/src/components/design-system/Button/Button";
 import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
 

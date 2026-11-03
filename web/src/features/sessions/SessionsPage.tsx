@@ -1,7 +1,7 @@
 import React from "react";
 import { useRouter } from "next/router";
 import SessionsTable from "@/src/features/sessions/SessionsTable";
-import Page from "@/src/components/layouts/page";
+import Page from "@/src/components/layouts/Page";
 import { SessionsOnboarding } from "@/src/components/onboarding/SessionsOnboarding";
 import { api } from "@/src/utils/api";
 import { useReadPath } from "@/src/features/events";

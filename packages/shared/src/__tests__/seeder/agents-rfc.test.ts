@@ -300,13 +300,19 @@ describe("agents RFC seed fixture", () => {
     expect(
       posts.every(([, init]) => String(init?.body).includes("SKILL.md")),
     ).toBe(true);
-    fetchMock
-      .mockClear()
-      .mockImplementation(async (url) =>
-        Response.json({ name: String(url).split("/").at(-1), version: 1 }),
-      );
+    fetchMock.mockClear().mockImplementation(async (url) =>
+      Response.json({
+        name: new URL(String(url)).pathname.split("/").at(-1),
+        version: 1,
+      }),
+    );
     expect(await seedRfcManagedSkills(context)).toBe(4);
     expect(fetchMock).toHaveBeenCalledTimes(4);
+    expect(
+      fetchMock.mock.calls.every(
+        ([url]) => new URL(String(url)).searchParams.get("label") === "latest",
+      ),
+    ).toBe(true);
     expect(
       fetchMock.mock.calls.every(([, init]) => init?.method !== "POST"),
     ).toBe(true);

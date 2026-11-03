@@ -11,10 +11,11 @@ import {
 } from "@/src/features/sessions";
 import { useState, useMemo, useCallback } from "react";
 import { Button } from "@/src/components/ui/button";
-import { ActionButtonCountBadge } from "@/src/components/ui/action-button-count-badge";
+import { Button as DsButton } from "@/src/components/design-system/Button/Button";
+import { ActionButtonCountBadge } from "@/src/components/ui/ActionButtonCountBadge";
 import { ItemBadge } from "@/src/components/ItemBadge";
 import { CopyIdsPopover } from "@/src/features/traces";
-import { Badge } from "@/src/components/ui/badge";
+import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { Separator } from "@/src/components/ui/separator";
 import Link from "next/link";
 import { Card } from "@/src/components/ui/card";
@@ -23,7 +24,7 @@ import { api, shouldRetryResourceQuery } from "@/src/utils/api";
 import { JsonSkeleton } from "@/src/components/ui/CodeJsonViewer";
 import { CommentDrawerController } from "@/src/features/comments";
 import { getNumberFromMap } from "@/src/utils/map-utils";
-import { MessageSquare, MessageSquareOff } from "lucide-react";
+import { MessageSquare, MessageSquareOff } from "@langfuse/icons";
 
 type SessionAnnotationQueueItem = AnnotationQueueItem & {
   parentTraceId?: string | null;
@@ -47,6 +48,9 @@ export const SessionAnnotationProcessor: React.FC<
   SessionAnnotationProcessorProps
 > = ({ item, data, configs, projectId }) => {
   const [visibleTraces, setVisibleTraces] = useState(PAGE_SIZE);
+  const handleLoadMoreTraces = () => {
+    setVisibleTraces((prev) => prev + PAGE_SIZE);
+  };
   const { isV4 } = useReadPath();
 
   // Fetch traces separately when v4 beta is enabled (events table path)
@@ -148,10 +152,10 @@ export const SessionAnnotationProcessor: React.FC<
                 className="gap-1"
               >
                 {disabled ? (
-                  <MessageSquareOff className="icon-base text-muted-foreground" />
+                  <MessageSquareOff size="base" color="muted" />
                 ) : (
                   <>
-                    <MessageSquare className="icon-base text-icon-foreground" />
+                    <MessageSquare size="base" color="default" />
                     <span>Add comment</span>
                     {getNumberFromMap(
                       sessionCommentCounts.data,
@@ -176,11 +180,12 @@ export const SessionAnnotationProcessor: React.FC<
           <div className="flex max-w-full min-w-0 shrink flex-col">
             <div className="flex max-w-full min-w-0 flex-wrap items-center gap-1">
               {data?.environment && (
-                <Badge variant="tertiary">Env: {data.environment}</Badge>
+                <Badge color="filled" text={`Env: ${data.environment}`} />
               )}
-              <Badge variant="outline">
-                Total traces: {totalTracesForBadge}
-              </Badge>
+              <Badge
+                color="primary"
+                text={`Total traces: ${totalTracesForBadge}`}
+              />
             </div>
           </div>
         </div>
@@ -262,12 +267,12 @@ export const SessionAnnotationProcessor: React.FC<
           {(!isV4 || tracesFromEventsQuery.isSuccess) &&
             traces.length > visibleTraces && (
               <div className="flex justify-center py-4">
-                <Button
-                  onClick={() => setVisibleTraces((prev) => prev + PAGE_SIZE)}
-                  variant="ghost"
-                >
-                  {`Load ${Math.min(traces.length - visibleTraces, PAGE_SIZE)} More`}
-                </Button>
+                <DsButton
+                  variant="text"
+                  size="sm"
+                  text={`Load ${Math.min(traces.length - visibleTraces, PAGE_SIZE)} More`}
+                  onClick={handleLoadMoreTraces}
+                />
               </div>
             )}
         </div>

@@ -16,7 +16,7 @@ import { Chart } from "@/src/features/widgets";
 import { scoreChartDataToDataPoints } from "@/src/features/dashboard/lib/chart-data-adapters";
 import { isEmptyChart } from "@/src/features/dashboard/lib/score-analytics-utils";
 import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
-import { useScheduledDashboardExecuteQuery } from "@/src/features/dashboard/hooks/useDashboardQueryScheduler";
+import { useScheduledDashboardExecuteQuery } from "@/src/features/dashboard/hooks/DashboardQuerySchedulerProvider";
 
 export function CategoricalScoreChart(props: {
   projectId: string;

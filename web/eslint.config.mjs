@@ -13,14 +13,9 @@ import nextConfig from "@repo/eslint-config/next";
 // no-restricted-imports must spread the full pattern list it wants.
 const restrictedImportPatterns = [
   {
-    regex: "^react-icons$",
+    regex: "^(lucide-react|react-icons)(/|$)",
     message:
-      "Only react-icons/si and react-icons/tb are allowed. Please use lucide-react for other icons.",
-  },
-  {
-    regex: "^react-icons/(?!si(?:/|$)|tb(?:/|$)).*",
-    message:
-      "Only react-icons/si and react-icons/tb are allowed. Please use lucide-react for other icons.",
+      "Import typed icons from @langfuse/icons, @langfuse/icons/si, or @langfuse/icons/tb instead.",
   },
   {
     // Relative paths escaping web/ bypass @langfuse/shared's exports
@@ -77,6 +72,39 @@ export default [
   globalIgnores(["**/storybook-static/"]),
 
   ...nextConfig,
+  {
+    name: "langfuse/web/test-and-story-typescript-project",
+    files: [
+      "**/__tests__/**/*.{ts,tsx,mts,cts}",
+      "**/__e2e__/**/*.{ts,tsx,mts,cts}",
+      "**/*.{test,spec,clienttest,servertest,story,stories}.{ts,tsx,mts,cts}",
+      ".storybook/**/*.{ts,tsx,mts,cts}",
+      "vitest.config.mts",
+      "playwright.config.ts",
+    ],
+    languageOptions: {
+      parserOptions: {
+        // Project service discovers tsconfig.json, not sibling named configs.
+        projectService: false,
+        project: "./tsconfig.tests.json",
+        tsconfigRootDir: import.meta.dirname,
+      },
+    },
+  },
+  {
+    name: "langfuse/web/non-react-tests",
+    files: [
+      "**/*.clienttest.ts",
+      "**/*.test.ts",
+      "**/*.spec.ts",
+      "**/__tests__/**/*.ts",
+    ],
+    rules: {
+      // Compiler analysis serializes the AST through Babel, including large
+      // JSON fixtures. These non-JSX tests do not define React components.
+      "react-hooks/static-components": "off",
+    },
+  },
   {
     name: "langfuse/web/client-test-story-cache-key",
     files: ["src/**/*.clienttest.{ts,tsx}"],
@@ -473,15 +501,6 @@ export default [
     files: ["src/**/*.{ts,tsx}"],
     rules: {
       "@repo/no-raw-font-weight": "error",
-      // Raw sizes of 40px and above are illustrations; the rule allows them by size.
-      // Spinner sizes follow their container, not the icon scale.
-      "@repo/no-raw-icon-size": [
-        "error",
-        {
-          exceptions: ["src/components/design-system/Spinner/Spinner.tsx"],
-          requireSize: true,
-        },
-      ],
       "@repo/no-arbitrary-colors": "error",
     },
   },

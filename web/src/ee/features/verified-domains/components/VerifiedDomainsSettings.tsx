@@ -1,4 +1,4 @@
-/* eslint-disable @repo/no-abstracted-overlay-trigger */
+/* eslint-disable @repo/no-abstracted-overlay-trigger, @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 import { showSuccessToast } from "@/src/features/notifications";
 import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { Button } from "@/src/components/ui/button";
@@ -26,7 +26,7 @@ import { useHasEntitlement } from "@/src/features/entitlements";
 import { useHasOrganizationAccess } from "@/src/features/rbac";
 import { api } from "@/src/utils/api";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { AlertCircle } from "lucide-react";
+import { AlertCircle } from "@langfuse/icons";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";

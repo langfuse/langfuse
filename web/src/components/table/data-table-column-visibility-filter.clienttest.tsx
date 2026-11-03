@@ -1,7 +1,7 @@
 import { StrictMode, useState } from "react";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { type VisibilityState } from "@tanstack/react-table";
-import { DataTableColumnVisibilityFilter } from "@/src/components/table/data-table-column-visibility-filter";
+import { DataTableColumnVisibilityFilter } from "@/src/components/table/DataTableColumnVisibilityFilter";
 import {
   useColumnOrder,
   useColumnVisibility,

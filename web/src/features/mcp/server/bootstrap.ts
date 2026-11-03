@@ -12,6 +12,7 @@
 
 import { toolRegistry, type McpFeatureModule } from "./registry";
 import { promptsFeature } from "./prompts";
+import { skillsFeature } from "./skills";
 import { observationsFeature } from "./observations";
 import { annotationQueuesFeature } from "./annotationQueues";
 import { commentsFeature } from "./comments";
@@ -20,8 +21,9 @@ import { healthFeature } from "./health";
 import { scoresFeature } from "./scores";
 import { metricsFeature } from "./metrics";
 import { modelsFeature } from "./models";
+import { llmConnectionsFeature } from "./llmConnections";
 import { mediaFeature } from "./media";
-import { evalsFeature } from "./evals";
+import { batchEvaluationsFeature, evalsFeature } from "./evals";
 import { dashboardWidgetsFeature } from "./dashboardWidgets";
 import { feedbackFeature } from "./feedback";
 import { experimentsFeature } from "./experiments";
@@ -31,6 +33,7 @@ import { v4MigrationFeature } from "./v4Migration";
 
 const MCP_FEATURES = [
   promptsFeature,
+  skillsFeature,
   observationsFeature,
   annotationQueuesFeature,
   commentsFeature,
@@ -39,8 +42,10 @@ const MCP_FEATURES = [
   scoresFeature,
   metricsFeature,
   modelsFeature,
+  llmConnectionsFeature,
   mediaFeature,
   evalsFeature,
+  batchEvaluationsFeature,
   dashboardWidgetsFeature,
   feedbackFeature,
   experimentsFeature,

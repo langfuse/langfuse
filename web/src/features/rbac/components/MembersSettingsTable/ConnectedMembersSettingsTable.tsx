@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { PlusIcon } from "lucide-react";
+import { PlusIcon } from "@langfuse/icons";
 import { useSession } from "next-auth/react";
 import {
   ArrayParam,
@@ -14,6 +14,7 @@ import { type AsyncTableData } from "@/src/components/design-system/table/Table"
 import useSessionStorage from "@/src/components/useSessionStorage";
 import { env } from "@/src/env.mjs";
 import { useHasEntitlement } from "@/src/features/entitlements";
+import { useIsFeatureEnabled } from "@/src/features/feature-flags";
 import { showSuccessToast } from "@/src/features/notifications";
 import { CreateProjectMemberDialogController } from "@/src/features/rbac/components/CreateProjectMemberDialogController";
 import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
@@ -58,6 +59,23 @@ export function ConnectedMembersSettingsTable({
     projectId: project?.id,
     scope: "projectMembers:CUD",
   });
+
+  const canManageOrgOwnership = useHasOrganizationAccess({
+    organizationId: orgId,
+    scope: "organizationMembers:manageOwnership",
+  });
+
+  const isAiGatewayEnabled = useIsFeatureEnabled("aiGateway", {
+    enableForAdmins: false,
+    organizationId: orgId,
+  });
+
+  // Org owners outrank any project role override they hold.
+  const canManageProjectOwnership =
+    useHasProjectAccess({
+      projectId: project?.id,
+      scope: "projectMembers:manageOwnership",
+    }) || canManageOrgOwnership;
 
   const projectRolesEntitlement = useHasEntitlement("rbac-project-roles");
   const [updatingOrgRoleMembershipIds, setUpdatingOrgRoleMembershipIds] =
@@ -217,6 +235,9 @@ export function ConnectedMembersSettingsTable({
           currentUserId={session.data?.user?.id}
           hasOrgCudAccess={hasOrgCudAccess}
           hasProjectCudAccess={hasProjectCudAccess}
+          canManageOrgOwnership={canManageOrgOwnership}
+          canManageProjectOwnership={canManageProjectOwnership}
+          isAiGatewayEnabled={isAiGatewayEnabled}
           projectRolesEntitlement={projectRolesEntitlement}
           showFeaturePreviews={
             !project && hasOrgCudAccess && orgId !== env.NEXT_PUBLIC_DEMO_ORG_ID
@@ -265,7 +286,7 @@ export function ConnectedMembersSettingsTable({
             );
           }}
           onUpdateProjectRole={(member, projectRole) => {
-            if (!project) return;
+            if (!project || projectRole === "AI_GATEWAY") return;
             if (
               member.meta.userId === session.data?.user?.id &&
               !confirm(
@@ -316,7 +337,7 @@ export function ConnectedMembersSettingsTable({
               loading: isSubmitting,
               hasAccess,
               usageLimit,
-              icon: <PlusIcon className="icon-base" aria-hidden="true" />,
+              icon: <PlusIcon size="base" aria-hidden="true" />,
               onClick: openDialog,
             },
           ]}

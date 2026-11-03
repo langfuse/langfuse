@@ -11,7 +11,7 @@ import {
 } from "@/src/components/ui/dropdown-menu";
 import useLocalStorage from "@/src/components/useLocalStorage";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
-import { Rows3, Rows2, Rows4 } from "lucide-react";
+import { Rows3, Rows2, Rows4 } from "@langfuse/icons";
 import {
   createContext,
   useCallback,
@@ -21,9 +21,9 @@ import {
 } from "react";
 
 const ROW_HEIGHT_OPTIONS = [
-  { id: "s", label: "Small", icon: <Rows4 className="icon-base" /> },
-  { id: "m", label: "Medium", icon: <Rows3 className="icon-base" /> },
-  { id: "l", label: "Large", icon: <Rows2 className="icon-base" /> },
+  { id: "s", label: "Small", icon: <Rows4 size="base" /> },
+  { id: "m", label: "Medium", icon: <Rows3 size="base" /> },
+  { id: "l", label: "Large", icon: <Rows2 size="base" /> },
 ] as const;
 
 const defaultHeights: Record<RowHeight, string> = {
@@ -485,7 +485,7 @@ export const DataTableRowHeightSwitch = ({
           size="icon"
           title={customActive ? "Row height: Custom" : "Row height"}
         >
-          <Rows3 className="icon-base text-icon-foreground" />
+          <Rows3 size="base" color="default" />
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuPortal>

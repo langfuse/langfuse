@@ -1,8 +1,10 @@
+/* eslint-disable @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 import { useCallback, useMemo, useRef, useState } from "react";
-import { Check, X } from "lucide-react";
+import { Check, X } from "@langfuse/icons";
 import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
-import { MultiSelectCombobox } from "@/src/components/ui/multi-select-combobox";
-import { Badge } from "@/src/components/ui/badge";
+import { MultiSelectCombobox } from "@/src/components/ui/MultiSelectCombobox";
+import { Badge } from "@/src/components/design-system/Badge/Badge";
+import { ExperimentRunBadge } from "./ExperimentRunBadge";
 import {
   Tooltip,
   TooltipContent,
@@ -356,7 +358,7 @@ export function ExperimentComparisonSelector({
                 className="text-muted-foreground hover:bg-muted/50 flex w-full items-center gap-3 px-3 py-2 text-left"
               >
                 <div className="border-input flex h-4 w-4 shrink-0 items-center justify-center rounded-sm border">
-                  {isAutoSelectEnabled && <Check className="icon-sm" />}
+                  {isAutoSelectEnabled && <Check size="sm" />}
                 </div>
                 <span className="text-xs">
                   Auto-select a comparison experiment by default
@@ -410,7 +412,9 @@ export function ExperimentComparisonSelector({
               className="hover:bg-muted/50 flex w-full items-center gap-3 px-3 py-2 text-left disabled:cursor-not-allowed disabled:opacity-50"
             >
               <div className="flex h-4 w-4 shrink-0 items-center justify-center">
-                {isSelected && <Check className="text-primary icon-base" />}
+                {isSelected && (
+                  <Check size="base" __rawClassName="text-primary " />
+                )}
               </div>
               <span
                 className="min-w-0 flex-1 truncate text-sm font-bold"
@@ -419,14 +423,10 @@ export function ExperimentComparisonSelector({
                 {option.experimentName}
               </span>
               {row.isBaseline && (
-                <Badge variant="outline" className="shrink-0 text-[10px]">
-                  BASELINE
-                </Badge>
+                <Badge color="primary" size="sm" text="BASELINE" />
               )}
               {row.isLatest && (
-                <Badge variant="outline" className="shrink-0 text-[10px]">
-                  LATEST
-                </Badge>
+                <Badge color="primary" size="sm" text="LATEST" />
               )}
               {option.startTime && (
                 <span
@@ -451,11 +451,9 @@ export function ExperimentComparisonSelector({
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Badge
-                    variant="secondary"
-                    className="shrink-0 px-2 py-0.5 text-xs"
-                  >
-                    +{hiddenSelectedOptions.length}
-                  </Badge>
+                    color="filled"
+                    text={`+${hiddenSelectedOptions.length}`}
+                  />
                 </TooltipTrigger>
                 <TooltipContent className="max-w-[280px]">
                   {hiddenSelectedOptions.map((hidden) => (
@@ -496,13 +494,7 @@ export function ExperimentComparisonSelector({
             : undefined;
 
           return (
-            <Badge
-              variant="secondary"
-              className={cn(
-                "flex shrink-0 items-center gap-1 px-2 py-0.5",
-                colorStyles?.badgeClass,
-              )}
-            >
+            <ExperimentRunBadge colorClass={colorStyles?.badgeClass}>
               {colorStyles && (
                 <span
                   className={cn(
@@ -531,9 +523,9 @@ export function ExperimentComparisonSelector({
                 className="hover:bg-muted ml-0.5 rounded-full"
                 aria-label={`Remove ${option.experimentName}`}
               >
-                <X className="icon-sm" />
+                <X size="sm" />
               </button>
-            </Badge>
+            </ExperimentRunBadge>
           );
         }}
       />

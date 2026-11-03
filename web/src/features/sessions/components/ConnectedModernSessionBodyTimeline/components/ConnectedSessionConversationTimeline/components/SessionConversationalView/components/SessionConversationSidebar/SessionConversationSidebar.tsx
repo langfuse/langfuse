@@ -8,7 +8,7 @@ import {
   type UIEvent,
 } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { ChevronDown, Search } from "lucide-react";
+import { ChevronDown, Search } from "@langfuse/icons";
 import { type Observation } from "@langfuse/shared";
 import { Input } from "@/src/components/ui/input";
 import { SessionToolTooltip } from "@/src/features/sessions/components/ConnectedModernSessionBodyTimeline/components/ConnectedSessionConversationTimeline/components/SessionConversationalView/components/SessionToolTooltip/SessionToolTooltip";
@@ -19,6 +19,7 @@ import {
   IDLE_GAP_THRESHOLD_SECONDS,
 } from "@/src/features/sessions/sessionIdleGap";
 import { cn } from "@/src/utils/tailwind";
+import { HighlightedText } from "@/src/components/HighlightedText/HighlightedText";
 import { groupConsecutiveTools } from "@/src/features/sessions/components/ConnectedModernSessionBodyTimeline/components/ConnectedSessionConversationTimeline/components/SessionConversationalView/fns/groupConsecutiveTools";
 
 export type SessionConversationSidebarTrace = {
@@ -48,7 +49,6 @@ export type SessionConversationSidebarTrace = {
 };
 
 const EMPTY_TRACES: SessionConversationSidebarTrace[] = [];
-const SIDEBAR_AUTO_FOLLOW_IDLE_MS = 750;
 const SIDEBAR_SCROLL_PADDING = 16;
 
 export function SessionConversationSidebar(
@@ -59,6 +59,7 @@ export function SessionConversationSidebar(
         traces: SessionConversationSidebarTrace[];
         activeTraceId: string | undefined;
         search: string;
+        searchQuery?: string;
         onSearchChange: (search: string) => void;
         expandedTraceIds: ReadonlySet<string>;
         onToggleTraceExpanded: (traceId: string) => void;
@@ -77,7 +78,8 @@ export function SessionConversationSidebar(
   const traces = props.state === "loaded" ? props.traces : EMPTY_TRACES;
   const activeTraceId =
     props.state === "loaded" ? props.activeTraceId : undefined;
-  const sidebarSearch = props.state === "loaded" ? props.search : "";
+  const appliedSearch =
+    props.state === "loaded" ? (props.searchQuery ?? props.search) : "";
   const listRef = useRef<HTMLDivElement>(null);
   const textContextRef = useRef<CanvasRenderingContext2D | null>(null);
   const [toolGroupMeasurement, setToolGroupMeasurement] = useState<{
@@ -140,10 +142,12 @@ export function SessionConversationSidebar(
       document.fonts?.removeEventListener("loadingdone", measureToolGroupLabel);
     };
   }, [measureToolGroupLabel, props.state]);
-  const isSidebarPointerDownRef = useRef(false);
-  const autoFollowPausedUntilRef = useRef(0);
-  const autoFollowTimerRef = useRef<number | undefined>(undefined);
-  const resumeAutoFollowRef = useRef<(() => void) | null>(null);
+  const followedSelectionRef = useRef<{
+    traceId: string;
+    index: number;
+    search: string;
+    awaitingMeasurement: boolean;
+  } | null>(null);
   const [isListScrolled, setIsListScrolled] = useState(false);
   const handleListScroll = (event: UIEvent<HTMLDivElement>) =>
     setIsListScrolled(event.currentTarget.scrollTop > 0);
@@ -180,48 +184,48 @@ export function SessionConversationSidebar(
     .getVirtualItems()
     .find((item) => item.index === activeTraceIndex)?.size;
   const sidebarHeight = virtualizer.scrollRect?.height;
-  const setListElement = useCallback(
-    (element: HTMLDivElement | null) => {
-      listRef.current = element;
-      if (
-        !element ||
-        activeTraceIndex === -1 ||
-        isSidebarPointerDownRef.current ||
-        Date.now() < autoFollowPausedUntilRef.current
-      )
-        return;
-      const availableHeight =
-        (sidebarHeight ?? element.clientHeight) - SIDEBAR_SCROLL_PADDING * 2;
-      virtualizer.scrollToIndex(activeTraceIndex, {
-        align:
-          activeTraceSize !== undefined && activeTraceSize > availableHeight
-            ? "start"
-            : "auto",
-      });
-    },
-    [activeTraceIndex, activeTraceSize, sidebarHeight, virtualizer],
-  );
   useLayoutEffect(() => {
-    resumeAutoFollowRef.current = () => {
-      setListElement(listRef.current);
+    const element = listRef.current;
+    const height = sidebarHeight ?? element?.clientHeight ?? 0;
+    if (!activeTraceId || activeTraceIndex === -1 || height === 0) {
+      followedSelectionRef.current = null;
+      return;
+    }
+    if (!element) return;
+    const previous = followedSelectionRef.current;
+    const isSameSelection =
+      previous?.traceId === activeTraceId &&
+      previous.index === activeTraceIndex &&
+      previous.search === appliedSearch;
+    if (isSameSelection && !previous.awaitingMeasurement) return;
+    if (isSameSelection && activeTraceSize === undefined) return;
+
+    // Measurements and rerenders must not pull the user back after manual scrolling.
+    followedSelectionRef.current = {
+      traceId: activeTraceId,
+      index: activeTraceIndex,
+      search: appliedSearch,
+      awaitingMeasurement: activeTraceSize === undefined,
     };
-    setListElement(listRef.current);
-  }, [setListElement, sidebarSearch]);
-  useLayoutEffect(
-    () => () => window.clearTimeout(autoFollowTimerRef.current),
-    [],
-  );
-  const pauseAutoFollow = () => {
-    autoFollowPausedUntilRef.current = Date.now() + SIDEBAR_AUTO_FOLLOW_IDLE_MS;
-    window.clearTimeout(autoFollowTimerRef.current);
-    autoFollowTimerRef.current = window.setTimeout(
-      () => resumeAutoFollowRef.current?.(),
-      SIDEBAR_AUTO_FOLLOW_IDLE_MS,
-    );
-  };
-  const handlePointerEnd = () => {
-    isSidebarPointerDownRef.current = false;
-    pauseAutoFollow();
+    const availableHeight = height - SIDEBAR_SCROLL_PADDING * 2;
+    virtualizer.scrollToIndex(activeTraceIndex, {
+      align:
+        activeTraceSize !== undefined && activeTraceSize > availableHeight
+          ? "start"
+          : "auto",
+    });
+  }, [
+    activeTraceId,
+    activeTraceIndex,
+    activeTraceSize,
+    appliedSearch,
+    sidebarHeight,
+    virtualizer,
+  ]);
+  const cancelPendingFollow = () => {
+    if (followedSelectionRef.current) {
+      followedSelectionRef.current.awaitingMeasurement = false;
+    }
   };
 
   if (props.state === "loading") {
@@ -239,7 +243,11 @@ export function SessionConversationSidebar(
           )}
         >
           <div className="relative min-w-0">
-            <Search className="icon-base text-foreground-tertiary absolute top-1/2 left-2 -translate-y-1/2" />
+            <Search
+              size="base"
+              color="tertiary"
+              __rawClassName="absolute top-1/2 left-2 -translate-y-1/2"
+            />
             <Input
               disabled
               value=""
@@ -285,7 +293,11 @@ export function SessionConversationSidebar(
         )}
       >
         <div className="relative min-w-0">
-          <Search className="icon-base text-foreground-tertiary absolute top-1/2 left-2 -translate-y-1/2" />
+          <Search
+            size="base"
+            color="tertiary"
+            __rawClassName="absolute top-1/2 left-2 -translate-y-1/2"
+          />
           <Input
             value={props.search}
             onChange={(event) => {
@@ -305,13 +317,14 @@ export function SessionConversationSidebar(
         ) : null}
       </div>
       <div
-        ref={setListElement}
+        ref={listRef}
         role="region"
         aria-label="Session turns"
         className="min-h-0 flex-1 overflow-y-auto [overflow-anchor:none]"
         onScroll={handleListScroll}
-        onWheel={pauseAutoFollow}
-        onTouchMove={pauseAutoFollow}
+        onWheel={cancelPendingFollow}
+        onTouchMove={cancelPendingFollow}
+        onPointerDown={cancelPendingFollow}
         onKeyDown={(event) => {
           if (
             [
@@ -324,15 +337,9 @@ export function SessionConversationSidebar(
               " ",
             ].includes(event.key)
           ) {
-            pauseAutoFollow();
+            cancelPendingFollow();
           }
         }}
-        onPointerDown={() => {
-          isSidebarPointerDownRef.current = true;
-        }}
-        onPointerUp={handlePointerEnd}
-        onPointerCancel={handlePointerEnd}
-        onPointerLeave={handlePointerEnd}
       >
         {traces.length === 0 ? (
           <div className="text-muted-foreground px-3 py-6 text-center text-xs">
@@ -421,7 +428,25 @@ export function SessionConversationSidebar(
                             className="min-w-0 flex-1 truncate text-[13px] font-bold"
                             title={trace.name ?? "Trace"}
                           >
-                            {trace.name ?? "Trace"}
+                            <HighlightedText
+                              text={trace.name ?? "Trace"}
+                              query={searchQuery}
+                            >
+                              {(parts) =>
+                                parts.map(({ text, isMatch }, index) =>
+                                  isMatch ? (
+                                    <mark
+                                      key={index}
+                                      className="bg-find-match-background text-foreground"
+                                    >
+                                      {text}
+                                    </mark>
+                                  ) : (
+                                    text
+                                  ),
+                                )
+                              }
+                            </HighlightedText>
                           </span>
                         </button>
                         <button
@@ -433,8 +458,9 @@ export function SessionConversationSidebar(
                           className="text-muted-foreground -my-2 -mr-2.5 -ml-2 flex h-8 w-8 shrink-0 items-center justify-center"
                         >
                           <ChevronDown
-                            className={cn(
-                              "icon-sm transition-transform duration-150",
+                            size="sm"
+                            __rawClassName={cn(
+                              "transition-transform duration-150",
                               isCollapsed ? "-rotate-90" : "rotate-0",
                             )}
                           />
@@ -624,34 +650,30 @@ export function SessionConversationSidebar(
                                               ),
                                           );
                                     const text = row.label.slice(start, end);
-                                    const normalizedText = text.toLowerCase();
                                     if (start > 0) excerpt.push("…");
-                                    let position = 0;
-                                    while (position < text.length) {
-                                      const nextMatch = normalizedText.indexOf(
-                                        normalizedQuery,
-                                        position,
-                                      );
-                                      if (nextMatch === -1) {
-                                        excerpt.push(text.slice(position));
-                                        break;
-                                      }
-                                      excerpt.push(
-                                        text.slice(position, nextMatch),
-                                      );
-                                      excerpt.push(
-                                        <mark
-                                          key={nextMatch}
-                                          className="bg-find-match-background text-foreground"
-                                        >
-                                          {text.slice(
-                                            nextMatch,
-                                            nextMatch + searchQuery.length,
-                                          )}
-                                        </mark>,
-                                      );
-                                      position = nextMatch + searchQuery.length;
-                                    }
+                                    excerpt.push(
+                                      <HighlightedText
+                                        key="text"
+                                        text={text}
+                                        query={searchQuery}
+                                      >
+                                        {(parts) =>
+                                          parts.map(
+                                            ({ text, isMatch }, index) =>
+                                              isMatch ? (
+                                                <mark
+                                                  key={index}
+                                                  className="bg-find-match-background text-foreground"
+                                                >
+                                                  {text}
+                                                </mark>
+                                              ) : (
+                                                text
+                                              ),
+                                          )
+                                        }
+                                      </HighlightedText>,
+                                    );
                                     if (end < row.label.length)
                                       excerpt.push("…");
                                   }

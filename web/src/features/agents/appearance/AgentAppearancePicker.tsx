@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Check, RotateCcw } from "lucide-react";
+import { Check, RotateCcw } from "@langfuse/icons";
 import { EmojiPicker } from "@ferrucc-io/emoji-picker";
 import { PopoverController } from "@/src/components/ui/popover";
 import { Button } from "@/src/components/design-system/Button/Button";
@@ -61,11 +61,9 @@ function AppearanceChoices({
               save(projectId, agentName, { ...appearance, color: color.value })
             }
             className="focus-visible:ring-ring flex size-6 shrink-0 items-center justify-center rounded-full border border-white/20 focus-visible:ring-2"
-            style={{ backgroundColor: color.value }}
+            style={{ backgroundColor: color.value, color: "#0f172a" }}
           >
-            {appearance.color === color.value && (
-              <Check className="icon-base" style={{ color: "#0f172a" }} />
-            )}
+            {appearance.color === color.value && <Check />}
           </button>
         ))}
         <label

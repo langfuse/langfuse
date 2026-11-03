@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import type { DecisionModelQuestionType } from "@langfuse/shared";
 
 export type DecisionModelQuestionDraft = {

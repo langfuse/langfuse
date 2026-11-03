@@ -1,4 +1,4 @@
-import { ArrowUpRight, X } from "lucide-react";
+import { ArrowUpRight, X } from "@langfuse/icons";
 import { Button } from "@/src/components/ui/button";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 
@@ -19,7 +19,7 @@ export function SessionRedesignBanner({
         className="inline-flex items-center hover:shadow-[0_1px_currentColor]"
       >
         Learn more
-        <ArrowUpRight className="icon-sm" aria-hidden="true" />
+        <ArrowUpRight size="sm" aria-hidden="true" />
       </a>
       <a
         href="https://github.com/orgs/langfuse/discussions/18687"
@@ -29,7 +29,7 @@ export function SessionRedesignBanner({
         className="inline-flex items-center hover:shadow-[0_1px_currentColor]"
       >
         Give feedback
-        <ArrowUpRight className="icon-sm" aria-hidden="true" />
+        <ArrowUpRight size="sm" aria-hidden="true" />
       </a>
       <div className="absolute right-2 flex items-center">
         <Button
@@ -41,7 +41,7 @@ export function SessionRedesignBanner({
             onDismiss();
           }}
         >
-          <X className="icon-base" />
+          <X size="base" />
         </Button>
       </div>
     </div>

@@ -4,7 +4,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/src/components/ui/card";
-import { AlertCircle } from "lucide-react";
+import { AlertCircle } from "@langfuse/icons";
 
 type NoMatchDisplayProps = {
   modelName: string;
@@ -17,7 +17,7 @@ export function NoMatchDisplay({ modelName }: NoMatchDisplayProps) {
     <Card className="border-destructive/50 bg-destructive/5">
       <CardHeader>
         <CardTitle className="text-destructive flex items-center gap-2 text-base">
-          <AlertCircle className="icon-lg" />
+          <AlertCircle size="lg" />
           No Match Found
         </CardTitle>
       </CardHeader>

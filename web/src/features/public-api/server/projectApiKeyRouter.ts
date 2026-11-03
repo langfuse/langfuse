@@ -9,7 +9,12 @@ import { ApiAuthService } from "@/src/features/public-api/server/apiAuth";
 import { redis } from "@langfuse/shared/src/server";
 import { createApiKey } from "@langfuse/shared/src/server/auth/apiKeys";
 import { LangfuseNotFoundError, StringNoHTML } from "@langfuse/shared";
-import { ProjectId, SystemRoleId, UserId } from "@langfuse/shared/rbac";
+import {
+  OrganizationId,
+  ProjectId,
+  SystemRoleId,
+  UserId,
+} from "@langfuse/shared/rbac";
 import { apiKeyCreationRoleSchema } from "@/src/features/public-api/server/apiKeyCreationRoleSchema";
 
 export const projectApiKeysRouter = createTRPCRouter({
@@ -82,7 +87,8 @@ export const projectApiKeysRouter = createTRPCRouter({
       });
 
       const apiKeyMeta = await createApiKey(ctx.prisma, {
-        owner: ProjectId(input.projectId),
+        tenant: OrganizationId(ctx.session.orgId),
+        scope: ProjectId(input.projectId),
         role: SystemRoleId(input.role),
         createdBy: UserId(ctx.session.user.id),
         name: input.name,

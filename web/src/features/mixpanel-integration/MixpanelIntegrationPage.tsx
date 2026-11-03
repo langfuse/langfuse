@@ -1,6 +1,7 @@
+/* eslint-disable @typescript-eslint/no-deprecated, @typescript-eslint/no-use-before-define -- Legacy UI usage retained during migration to design-system components. */
 import { MixpanelLogo } from "@/src/components/MixpanelLogo";
 import Header from "@/src/components/layouts/header";
-import ContainerPage from "@/src/components/layouts/container-page";
+import ContainerPage from "@/src/components/layouts/ContainerPage";
 import { StatusBadge } from "@/src/components/ui/StatusBadge/StatusBadge";
 import { Button } from "@/src/components/ui/button";
 import {
@@ -54,7 +55,7 @@ import { useRouter } from "next/router";
 import { useMemo } from "react";
 import { useForm } from "react-hook-form";
 import { type z } from "zod";
-import { Info, ExternalLink } from "lucide-react";
+import { Info, ExternalLink } from "@langfuse/icons";
 
 export default function MixpanelIntegrationPage() {
   const router = useRouter();
@@ -295,7 +296,7 @@ const MixpanelIntegrationSettingsForm = ({
                   Export Source
                   <Tooltip>
                     <TooltipTrigger>
-                      <Info className="text-muted-foreground icon-base" />
+                      <Info size="base" color="muted" />
                     </TooltipTrigger>
                     <TooltipContent
                       side="bottom"
@@ -317,7 +318,7 @@ const MixpanelIntegrationSettingsForm = ({
                           className="text-muted-foreground hover:text-primary inline-flex items-center gap-1 text-xs hover:underline"
                         >
                           For further information see
-                          <ExternalLink className="icon-sm" />
+                          <ExternalLink size="sm" />
                         </a>
                       </div>
                     </TooltipContent>

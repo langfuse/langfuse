@@ -1,4 +1,4 @@
-/* eslint-disable @repo/component-file-structure */
+/* eslint-disable @repo/component-file-structure, @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 import { Switch } from "@/src/components/design-system/Switch/Switch";
 import { Label } from "@/src/components/ui/label";
 import { SidebarMenuButton } from "@/src/components/ui/sidebar";
@@ -17,7 +17,7 @@ import {
   getV4PreviewEnabledRedirect,
 } from "@/src/features/events/lib/v4PreviewRedirect";
 import { api } from "@/src/utils/api";
-import { ZapIcon } from "lucide-react";
+import { ZapIcon } from "@langfuse/icons";
 import { useId, useState } from "react";
 import { useRouter } from "next/router";
 import { useSession } from "next-auth/react";
@@ -164,6 +164,12 @@ function useV4PreviewToggle(source: "sidebar" | "migration_panel") {
 }
 
 export function V4SidebarToggle() {
+  const { canToggleV4 } = useReadPath();
+  // A locked toggle is only shown in the sidebar for one-way recovery.
+  const label = canToggleV4 ? V4_PREVIEW_LABEL : "Enable V4";
+  const description = canToggleV4
+    ? V4_PREVIEW_DESCRIPTION
+    : "Your account is using the legacy experience due to a configuration issue. Enable V4 to return to the default experience. This is a personal setting across all your projects.";
   const {
     isChecked,
     isLoading,
@@ -173,6 +179,10 @@ export function V4SidebarToggle() {
     dismissIntroDialog,
   } = useV4PreviewToggle("sidebar");
 
+  const handleSidebarToggle = (enabled: boolean) => {
+    if (canToggleV4 || enabled) handleToggle(enabled);
+  };
+
   return (
     <>
       <SidebarMenuButton
@@ -181,13 +191,13 @@ export function V4SidebarToggle() {
       >
         <div>
           <div className="flex min-w-0 flex-1 items-center gap-2 group-data-[collapsible=icon]:hidden">
-            <ZapIcon className="icon-base shrink-0" />
+            <ZapIcon size="base" />
             <Label
               htmlFor="v4-beta-toggle"
               className="block min-w-0 flex-1 cursor-pointer truncate text-sm font-normal"
-              title={V4_PREVIEW_LABEL}
+              title={label}
             >
-              {V4_PREVIEW_LABEL}
+              {label}
             </Label>
           </div>
           <Tooltip>
@@ -197,19 +207,19 @@ export function V4SidebarToggle() {
                   id="v4-beta-toggle"
                   size="sm"
                   checked={isChecked}
-                  onCheckedChange={handleToggle}
+                  onCheckedChange={handleSidebarToggle}
                   disabled={isLoading}
-                  aria-label="Toggle V4 Preview"
+                  aria-label={canToggleV4 ? "Toggle V4 Preview" : "Enable V4"}
                   aria-describedby="v4-preview-sidebar-description"
                 />
               </div>
             </TooltipTrigger>
             <TooltipContent side="right" className="max-w-xs text-xs">
-              {V4_PREVIEW_DESCRIPTION}
+              {description}
             </TooltipContent>
           </Tooltip>
           <span id="v4-preview-sidebar-description" className="sr-only">
-            {V4_PREVIEW_DESCRIPTION}
+            {description}
           </span>
         </div>
       </SidebarMenuButton>

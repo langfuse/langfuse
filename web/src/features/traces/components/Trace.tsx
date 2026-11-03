@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { type ScoreDomain } from "@langfuse/shared";
 import { type buildTraceUiData } from "@/src/features/traces/fns/treeBuilding";
 import { type ObservationReturnTypeWithMetadata } from "@/src/server/api/routers/traces";
@@ -5,19 +6,19 @@ import { type WithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes"
 import {
   TraceDataProvider,
   useTraceData,
-} from "@/src/features/traces/contexts/TraceDataContext";
-import { ViewPreferencesProvider } from "@/src/features/traces/contexts/ViewPreferencesContext";
+} from "@/src/features/traces/contexts/TraceDataProvider";
+import { ViewPreferencesProvider } from "@/src/features/traces/contexts/ViewPreferencesProvider";
 import {
   SelectionProvider,
   useSelection,
-} from "@/src/features/traces/contexts/SelectionContext";
+} from "@/src/features/traces/contexts/SelectionProvider";
 import { useSelectedObservation } from "@/src/features/traces/hooks/useSelectedObservation";
-import { SearchProvider } from "@/src/features/traces/contexts/SearchContext";
-import { JsonExpansionProvider } from "@/src/features/traces/contexts/JsonExpansionContext";
+import { SearchProvider } from "@/src/features/traces/contexts/SearchProvider";
+import { JsonExpansionProvider } from "@/src/features/traces/contexts/JsonExpansionProvider";
 import {
   TraceGraphDataProvider,
   useTraceGraphData,
-} from "@/src/features/traces/contexts/TraceGraphDataContext";
+} from "@/src/features/traces/contexts/TraceGraphDataProvider";
 import { TraceLayoutMobile } from "@/src/features/traces/components/TraceLayoutMobile";
 import { TraceLayoutDesktop } from "@/src/features/traces/components/TraceLayoutDesktop";
 import { TraceHeader } from "@/src/features/traces/components/TraceHeader";
@@ -33,12 +34,17 @@ import { TraceGraphView } from "@/src/features/traces/components/TraceGraphView/
 import { useMemo, type ReactNode } from "react";
 import { useRouter } from "next/router";
 import { getCommentDrawerInitialStateFromUrl } from "@/src/features/comments/CommentDrawerController";
-import { TraceReviewPanelProvider } from "@/src/features/traces/contexts/TraceReviewPanelContext";
+import { TraceReviewPanelProvider } from "@/src/features/traces/contexts/TraceReviewPanelProvider";
 import { TraceReviewPanel } from "./TraceReviewPanel";
 import { useHasProjectAccess } from "@/src/features/rbac";
 import { staleProps } from "@/src/features/traces/fns/staleProps";
 import { cn } from "@/src/utils/tailwind";
 import { SkeletonGroup } from "@/src/components/ui/skeleton";
+import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
+import { useInternalFeaturesEnabled } from "@/src/features/feature-flags";
+import { useReadPath } from "@/src/features/events";
+import { StringParam, useQueryParam } from "use-query-params";
+import { TraceMessagesView } from "./TraceMessagesView/TraceMessagesView";
 
 export type TraceProps = {
   isLoading?: false;
@@ -227,6 +233,12 @@ function TraceContent({ desktopLayout }: { desktopLayout: DesktopLayout }) {
   const isMobile = useIsMobile();
   const { isGraphViewAvailable } = useTraceGraphData();
   const { isPlaceholderData } = useTraceData();
+  const [traceView, setTraceView] = useQueryParam("traceView", StringParam);
+  const internalFeaturesEnabled = useInternalFeaturesEnabled();
+  const { isV4 } = useReadPath();
+  const showMessagesTab = isV4 && internalFeaturesEnabled;
+  const activeView =
+    showMessagesTab && traceView === "messages" ? "messages" : "trace";
   const stale = staleProps(isPlaceholderData);
 
   const panels = isMobile ? (
@@ -241,7 +253,31 @@ function TraceContent({ desktopLayout }: { desktopLayout: DesktopLayout }) {
       className={cn(traceContentClassName, stale.className)}
     >
       <TraceHeader />
-      <div className="min-h-0 flex-1">{panels}</div>
+      {showMessagesTab ? (
+        <Tabs
+          value={activeView}
+          onValueChange={(value) => {
+            if (value === "messages") setTraceView("messages", "pushIn");
+            if (value === "trace") setTraceView(undefined, "pushIn");
+          }}
+          layout="fill"
+        >
+          <Tabs.List variant="underline">
+            <Tabs.Trigger value="trace" label="Trace" />
+            <Tabs.Trigger value="messages" label="Messages" internal />
+          </Tabs.List>
+          <Tabs.Content value="trace" layout="fill">
+            {panels}
+          </Tabs.Content>
+          <Tabs.Content value="messages" layout="fill">
+            <div className="min-h-0 flex-1 p-4">
+              <TraceMessagesView />
+            </div>
+          </Tabs.Content>
+        </Tabs>
+      ) : (
+        <div className="min-h-0 flex-1">{panels}</div>
+      )}
     </div>
   );
 }

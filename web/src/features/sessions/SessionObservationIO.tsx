@@ -1,5 +1,5 @@
 import React from "react";
-import { Download, ExternalLinkIcon, Loader2 } from "lucide-react";
+import { Download, ExternalLinkIcon, Loader2 } from "@langfuse/icons";
 import { Button } from "@/src/components/ui/button";
 import {
   IOPreview,
@@ -14,7 +14,7 @@ import { showErrorToast } from "@/src/features/notifications";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { compactNumberFormatter } from "@/src/utils/numbers";
 import { decodeUnicodeEscapesOnly } from "@/src/utils/unicode";
-import { parseJsonIfString } from "@langfuse/shared";
+import { parseJsonIfString, type ScoreDomain } from "@langfuse/shared";
 import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
 
 export type SessionTraceObservation =
@@ -97,6 +97,7 @@ export const SessionObservationIO = ({
   traceId,
   environment,
   showCorrections,
+  outputCorrection,
   onOpenInTraceView,
   contentMode = "all",
   showSystemPrompt,
@@ -112,6 +113,7 @@ export const SessionObservationIO = ({
   traceId: string;
   environment?: string;
   showCorrections: boolean;
+  outputCorrection?: ScoreDomain;
   onOpenInTraceView: (observationId: string) => void;
   contentMode?: IOPreviewContentMode;
   showSystemPrompt?: boolean;
@@ -192,9 +194,12 @@ export const SessionObservationIO = ({
       media={observationMedia.data}
       projectId={projectId}
       traceId={traceId}
-      observationId={observation.id}
+      observationId={
+        observation.id === `t-${traceId}` ? undefined : observation.id
+      }
       environment={environment}
       showCorrections={showCorrections}
+      outputCorrection={outputCorrection}
       contentMode={contentMode}
       showSystemPrompt={showSystemPrompt}
       currentView={currentView}
@@ -276,7 +281,7 @@ export const SessionObservationIO = ({
       )}
       <div className="flex flex-wrap gap-2">
         <Button variant="outline" size="sm" onClick={openInTraceView}>
-          <ExternalLinkIcon className="icon-base text-icon-foreground mr-1" />
+          <ExternalLinkIcon size="base" color="default" __rawClassName="mr-1" />
           Open in trace view
         </Button>
         <Button
@@ -286,9 +291,13 @@ export const SessionObservationIO = ({
           disabled={isDownloading}
         >
           {isDownloading ? (
-            <Loader2 className="icon-base text-icon-foreground mr-1 animate-spin" />
+            <Loader2
+              size="base"
+              color="default"
+              __rawClassName="mr-1 animate-spin"
+            />
           ) : (
-            <Download className="icon-base text-icon-foreground mr-1" />
+            <Download size="base" color="default" __rawClassName="mr-1" />
           )}
           Download I/O
         </Button>

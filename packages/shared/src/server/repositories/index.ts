@@ -30,3 +30,4 @@ export * from "./dataset-runs";
 export * from "./score-configs";
 export * from "./auditLogs";
 export * from "./billable-events";
+export * from "./topic-setup-events";

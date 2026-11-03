@@ -79,8 +79,20 @@ impl Provider {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum IngestionMode {
+    /// Route only; nothing is delivered to Langfuse.
+    None,
     Usage,
     Full,
+}
+
+impl IngestionMode {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::None => "none",
+            Self::Usage => "usage",
+            Self::Full => "full",
+        }
+    }
 }
 
 #[derive(Clone, Deserialize)]
@@ -155,7 +167,6 @@ impl Auth {
 }
 
 #[derive(Deserialize)]
-#[serde(deny_unknown_fields)]
 pub struct ProviderConnection {
     id: String,
     // Optional so the gateway keeps resolving against a Web that predates it.
@@ -176,7 +187,7 @@ impl ProviderConnection {
     }
     /// The user-chosen display name. Never send it to callers; it is for operators.
     pub fn name(&self) -> Option<&str> {
-        self.name.as_deref().filter(|name| !name.trim().is_empty())
+        non_blank(self.name.as_deref())
     }
     pub fn provider(&self) -> Provider {
         self.provider
@@ -226,11 +237,22 @@ impl From<&str> for ProjectId {
 }
 
 #[derive(Deserialize)]
-#[serde(deny_unknown_fields)]
 pub struct RequestAttribution {
     organization_id: OrganizationId,
-    project_id: ProjectId,
+    /// Absent only in [`IngestionMode::None`], which needs no ingestion project.
+    project_id: Option<ProjectId>,
     key_id: String,
+    /// The user the key is bound to, which is the key's owner. Absent for keys
+    /// created before keys were bound to users, and from Web versions that
+    /// predate the field.
+    #[serde(default)]
+    user_id: Option<String>,
+    #[serde(default)]
+    key_name: Option<String>,
+    #[serde(default)]
+    user_name: Option<String>,
+    #[serde(default)]
+    user_email: Option<String>,
     key_metadata: BTreeMap<String, MetadataValue>,
     provider_connection_id: String,
 }
@@ -239,11 +261,23 @@ impl RequestAttribution {
     pub fn organization_id(&self) -> &OrganizationId {
         &self.organization_id
     }
-    pub fn project_id(&self) -> &ProjectId {
-        &self.project_id
+    pub fn project_id(&self) -> Option<&ProjectId> {
+        self.project_id.as_ref()
     }
     pub fn key_id(&self) -> &str {
         &self.key_id
+    }
+    pub fn user_id(&self) -> Option<&str> {
+        self.user_id.as_deref()
+    }
+    pub fn key_name(&self) -> Option<&str> {
+        non_blank(self.key_name.as_deref())
+    }
+    pub fn user_name(&self) -> Option<&str> {
+        non_blank(self.user_name.as_deref())
+    }
+    pub fn user_email(&self) -> Option<&str> {
+        non_blank(self.user_email.as_deref())
     }
     pub fn key_metadata(&self) -> &BTreeMap<String, MetadataValue> {
         &self.key_metadata
@@ -254,7 +288,6 @@ impl RequestAttribution {
 }
 
 #[derive(Deserialize)]
-#[serde(deny_unknown_fields)]
 pub struct IngestionGrant {
     access_token: SecretString,
     #[serde(rename = "token_type", deserialize_with = "string_enum")]
@@ -272,18 +305,22 @@ impl IngestionGrant {
 }
 
 #[derive(Deserialize)]
-#[serde(deny_unknown_fields)]
 struct ResolutionResponse {
     version: u8,
     connection: ProviderConnection,
     attribution: RequestAttribution,
     #[serde(deserialize_with = "string_enum")]
     ingestion_mode: IngestionMode,
-    ingestion: IngestionGrant,
+    /// Absent only in [`IngestionMode::None`]; nothing is delivered without it.
+    ingestion: Option<IngestionGrant>,
 }
 
 /// A validated v1 execution. Construction is restricted to successful resolution.
 pub struct ResolvedRequestContext(ResolutionResponse);
+
+fn non_blank(value: Option<&str>) -> Option<&str> {
+    value.filter(|value| !value.trim().is_empty())
+}
 
 // Web enums are JSON strings. Serde's externally tagged enums also accept objects.
 fn string_enum<'de, D: Deserializer<'de>, T: DeserializeOwned>(
@@ -302,8 +339,19 @@ impl ResolvedRequestContext {
     pub fn ingestion_mode(&self) -> IngestionMode {
         self.0.ingestion_mode
     }
-    pub fn ingestion(&self) -> &IngestionGrant {
-        &self.0.ingestion
+    pub fn ingestion(&self) -> Option<&IngestionGrant> {
+        self.0.ingestion.as_ref()
+    }
+    /// The project and grant telemetry is delivered with. Resolution guarantees both
+    /// in every mode but [`IngestionMode::None`], which never delivers.
+    pub fn delivery_target(&self) -> Option<(&ProjectId, &IngestionGrant)> {
+        if self.0.ingestion_mode == IngestionMode::None {
+            return None;
+        }
+        Some((
+            self.0.attribution.project_id.as_ref()?,
+            self.0.ingestion.as_ref()?,
+        ))
     }
 }
 
@@ -336,8 +384,22 @@ fn ingestion_claims_match(token: &str, attribution: &RequestAttribution) -> bool
         .and_then(|bytes| serde_json::from_slice::<IngestionClaims>(&bytes).ok())
         .is_some_and(|claims| {
             claims.organization_id == attribution.organization_id
-                && claims.project_id == attribution.project_id
+                && Some(&claims.project_id) == attribution.project_id.as_ref()
         })
+}
+
+/// A grant must be valid and bound to the attributed tenant whenever it is sent;
+/// only [`IngestionMode::None`] may omit it.
+fn valid_ingestion(response: &ResolutionResponse, now: u64) -> bool {
+    match &response.ingestion {
+        None => response.ingestion_mode == IngestionMode::None,
+        Some(grant) => {
+            let token = grant.access_token.expose_secret();
+            valid_token(token)
+                && ingestion_claims_match(token, &response.attribution)
+                && grant.expires_at > now
+        }
+    }
 }
 
 pub(super) fn decode(
@@ -356,17 +418,16 @@ pub(super) fn decode(
         || connection.base_url != provider.official_origin()
         || !provider.accepts(connection.credential())
         || !valid_token(connection.credential().secret())
-        || !valid_token(response.ingestion.access_token.expose_secret())
-        || !ingestion_claims_match(response.ingestion.access_token.expose_secret(), attribution)
-        || response.ingestion.expires_at <= now
+        || !valid_ingestion(&response, now)
         || [
             connection.id.as_str(),
             attribution.organization_id.as_str(),
-            attribution.project_id.as_str(),
             attribution.key_id.as_str(),
             attribution.provider_connection_id.as_str(),
         ]
-        .iter()
+        .into_iter()
+        .chain(attribution.project_id.as_ref().map(ProjectId::as_str))
+        .chain(attribution.user_id.as_deref())
         .any(|value| value.trim().is_empty())
         || connection.provider_model.trim().is_empty()
     {

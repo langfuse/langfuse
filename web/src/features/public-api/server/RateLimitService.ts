@@ -1,14 +1,17 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { type Redis, type Cluster } from "ioredis";
 import { type z } from "zod";
 import { RateLimiterRedis, RateLimiterRes } from "rate-limiter-flexible";
 import { env } from "@/src/env.mjs";
 import {
+  InvalidRequestError,
   type RateLimitResult,
   type RateLimitResource,
   type RateLimitConfig,
   type Plan,
 } from "@langfuse/shared";
 import {
+  ClickHouseResourceError,
   recordIncrement,
   type ApiAccessScopeWithOptionalApiKeyId,
   logger,
@@ -164,7 +167,8 @@ export class RateLimitService {
       }
     }
 
-    if (res.remainingPoints < 1) {
+    // Library floors remainingPoints at 0; reject only when consumedPoints > points.
+    if (res.consumedPoints > res.points) {
       recordIncrement("langfuse.rate_limit.exceeded", 1, {
         orgId: scope.orgId,
         plan: scope.plan,
@@ -178,6 +182,47 @@ export class RateLimitService {
   rateLimitPrefix(resource: string) {
     return `${RATE_LIMIT_REDIS_KEY_PREFIX}:${resource}`;
   }
+
+  async withMcpQueryCooldown<T>(projectId: string, query: () => Promise<T>) {
+    const redis = RateLimitService.redis;
+    if (
+      !env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION ||
+      env.LANGFUSE_RATE_LIMITS_ENABLED === "false" ||
+      !redis
+    ) {
+      return query();
+    }
+
+    const key = `${this.rateLimitPrefix("mcp-query-cooldown")}:${projectId}`;
+    const cooldownError = (seconds: number) =>
+      new InvalidRequestError(
+        `MCP observation searches for this project are paused after a query exceeded resource limits. Retry in ${Math.max(1, seconds)}s with a shorter date range or more specific filters, and run searches sequentially.`,
+      );
+    const onRedisError = (error: unknown) => {
+      logger.warn("MCP query cooldown Redis operation failed", error);
+      return null;
+    };
+    if (redis.status === "wait") await redis.connect().catch(onRedisError);
+    if (redis.status !== "ready") return query();
+    const ttl = await redis.ttl(key).catch(onRedisError);
+    if (ttl !== null && ttl >= 0) throw cooldownError(ttl);
+
+    try {
+      return await query();
+    } catch (error) {
+      if (ClickHouseResourceError.is(error)) {
+        const blocked = await redis.set(key, "1", "EX", 30).catch(onRedisError);
+        if (blocked) {
+          logger.warn("MCP ClickHouse resource limit exceeded", {
+            errorType: error.errorType,
+            tags: error.tags,
+          });
+          throw cooldownError(30);
+        }
+      }
+      throw error;
+    }
+  }
 }
 
 class RateLimitHelper {
@@ -188,7 +233,7 @@ class RateLimitHelper {
   }
 
   isRateLimited() {
-    return this.res ? this.res.remainingPoints < 1 : false;
+    return this.res ? this.res.consumedPoints > this.res.points : false;
   }
 
   sendRestResponseIfLimited(
@@ -252,6 +297,7 @@ const getPlanBasedRateLimitConfig = (
     case "oss":
     case "self-hosted:pro":
     case "self-hosted:enterprise":
+    case "self-hosted:gov":
       return {
         resource,
         points: null,
@@ -292,8 +338,8 @@ const getPlanBasedRateLimitConfig = (
         case "public-api-legacy":
           return {
             resource: "public-api-legacy",
-            points: 5,
-            durationInSec: 60,
+            points: 2,
+            durationInSec: 60, // 2 requests per minute (nominal 120/hour)
           };
         case "datasets":
           return {
@@ -393,8 +439,8 @@ const getPlanBasedRateLimitConfig = (
         case "public-api-legacy":
           return {
             resource: "public-api-legacy",
-            points: 15,
-            durationInSec: 60,
+            points: 7,
+            durationInSec: 60, // 7 requests per minute (nominal 420/hour)
           };
         case "datasets":
           return {
@@ -494,8 +540,8 @@ const getPlanBasedRateLimitConfig = (
         case "public-api-legacy":
           return {
             resource: "public-api-legacy",
-            points: 40,
-            durationInSec: 60,
+            points: 20,
+            durationInSec: 60, // 20 requests per minute (nominal 1,200/hour)
           };
         case "datasets":
           return {

@@ -1,4 +1,4 @@
-/* eslint-disable @repo/no-abstracted-overlay-trigger */
+/* eslint-disable @repo/no-abstracted-overlay-trigger, @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 // Langfuse Cloud only
 import { useState } from "react";
 import Link from "next/link";
@@ -86,7 +86,7 @@ export const BillingSwitchPlanDialog = ({
               variant="secondary"
               href="https://langfuse.com/pricing"
             >
-              Comparison of plans ↗
+              Comparison of plans
             </ActionButton>
           </div>
         </DialogHeader>

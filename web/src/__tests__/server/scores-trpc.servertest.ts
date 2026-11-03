@@ -769,6 +769,55 @@ describe("scores trpc", () => {
 
       expect(result.scores.map(({ id }) => id)).toContain(score.id);
     });
+
+    it("returns every score of a trace, not one per trace", async () => {
+      const traceName = `multi-score-trace-${randomUUID()}`;
+      const traceIds = [randomUUID(), randomUUID()];
+      const scores = traceIds.flatMap((traceId) =>
+        ["a", "b", "c"].map((name) =>
+          createTraceScore({ project_id: projectId, trace_id: traceId, name }),
+        ),
+      );
+
+      await createEventsCh(
+        traceIds.map((traceId) =>
+          createEvent({
+            trace_id: traceId,
+            project_id: projectId,
+            parent_span_id: "",
+            name: traceName,
+            trace_name: traceName,
+          }),
+        ),
+      );
+      await createScoresCh(scores);
+
+      const payload = {
+        projectId,
+        filter: [
+          {
+            column: "traceName",
+            operator: "=" as const,
+            value: traceName,
+            type: "string" as const,
+          },
+        ],
+        page: 0,
+        limit: 50,
+      };
+      const [result, count] = await Promise.all([
+        caller.scores.allFromEvents({
+          ...payload,
+          orderBy: { column: "timestamp", order: "DESC" },
+        }),
+        caller.scores.countAllFromEvents({ ...payload, orderBy: null }),
+      ]);
+
+      expect(result.scores.map(({ id }) => id).sort()).toEqual(
+        scores.map(({ id }) => id).sort(),
+      );
+      expect(count.totalCount).toBe(scores.length);
+    });
   });
 
   describe("scores.createAnnotationScore", () => {
@@ -826,6 +875,55 @@ describe("scores trpc", () => {
       });
 
       expect(score.stringValue).toBe("True");
+    });
+  });
+
+  describe("scores.updateAnnotationScore", () => {
+    it("bumps updated_at and keeps created_at when editing an existing score", async () => {
+      const originalTime = new Date(Date.now() - 60 * 60 * 1000);
+      const configId = randomUUID();
+      const scoreName = `numeric-annotation-score-${configId.slice(0, 8)}`;
+      await prisma.scoreConfig.create({
+        data: {
+          id: configId,
+          projectId,
+          name: scoreName,
+          dataType: ScoreConfigDataType.NUMERIC,
+        },
+      });
+      const existing = createTraceScore({
+        project_id: projectId,
+        source: "ANNOTATION",
+        name: scoreName,
+        config_id: configId,
+        value: 1,
+        timestamp: originalTime.getTime(),
+        created_at: originalTime.getTime(),
+        updated_at: originalTime.getTime(),
+      });
+      await createScoresCh([existing]);
+
+      await caller.scores.updateAnnotationScore({
+        id: existing.id,
+        projectId,
+        name: scoreName,
+        value: 2,
+        stringValue: null,
+        dataType: "NUMERIC",
+        scoreTarget: { type: "trace", traceId: existing.trace_id! },
+        configId,
+        environment: "default",
+      });
+
+      const updated = await getScoreById({
+        projectId,
+        scoreId: existing.id,
+      });
+      expect(updated?.value).toBe(2);
+      expect(updated?.createdAt.getTime()).toBe(originalTime.getTime());
+      expect(updated?.updatedAt.getTime()).toBeGreaterThan(
+        originalTime.getTime(),
+      );
     });
   });
 

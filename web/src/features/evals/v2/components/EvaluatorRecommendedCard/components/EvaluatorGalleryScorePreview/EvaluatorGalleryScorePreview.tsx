@@ -1,4 +1,4 @@
-import { ChevronRight } from "lucide-react";
+import { ChevronRight } from "@langfuse/icons";
 import { EvalTemplateTypeEnum, type EvalTemplateType } from "@langfuse/shared";
 
 import { BadgeShell } from "@/src/components/design-system/Badge/Badge";
@@ -69,7 +69,7 @@ export function EvaluatorGalleryScorePreview({
         <span className="flex items-center gap-1 text-sm font-bold">
           Use template
           {/* Same optical nudge as DropdownIndicator for icons beside text. */}
-          <ChevronRight className="icon-base translate-y-px" />
+          <ChevronRight size="base" __rawClassName="translate-y-px" />
         </span>
       </div>
     </div>

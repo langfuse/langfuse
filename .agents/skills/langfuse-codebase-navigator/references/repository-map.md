@@ -82,7 +82,7 @@ Important areas:
 - `worker/src/queues/**`: queue definitions and processors.
 - `fern/apis/server/definition/**`: server/public API definitions.
 - `fern/apis/client/definition/**`: generated client API definitions.
-- `ee/src/**` and `web/src/ee/**`: enterprise-specific code.
+- `ee/src/**`, `web/src/ee/**`, `worker/src/ee/**`, and `packages/shared/src/server/ee/**`: enterprise-specific code under the Enterprise License (root `LICENSE`).
 
 Repo-local skills in `langfuse/.agents/skills`:
 

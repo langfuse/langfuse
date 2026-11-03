@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { CircleAlert, TrendingUp } from "lucide-react";
+import { CircleAlert, TrendingUp } from "@langfuse/icons";
 import { type AgentSessionProjection } from "@langfuse/shared";
 import { AgentIdentity } from "../appearance";
 import { agentPath, type OverviewScope } from "./prepareOverview";
@@ -24,7 +24,9 @@ export function AgentAttention({
     >
       <div className="bg-card rounded-lg border p-4">
         <h2 className="flex items-center gap-2 text-sm font-bold">
-          <CircleAlert className="icon-base text-amber-500" />
+          <span className="inline-flex text-amber-500">
+            <CircleAlert />
+          </span>
           Worth a closer look
         </h2>
         {signals.length ? (
@@ -71,7 +73,7 @@ export function AgentAttention({
       </div>
       <div className="bg-card rounded-lg border p-4">
         <h2 className="flex items-center gap-2 text-sm font-bold">
-          <TrendingUp className="icon-base text-muted-foreground" />
+          <TrendingUp color="muted" />
           Highest cost in loaded agents
         </h2>
         {costly.length ? (

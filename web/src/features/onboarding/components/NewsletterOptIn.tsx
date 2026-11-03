@@ -1,5 +1,6 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Info } from "lucide-react";
+import { Info } from "@langfuse/icons";
 import { type ReactNode, useState } from "react";
 import { z } from "zod";
 import { Button } from "@/src/components/design-system/Button/Button";

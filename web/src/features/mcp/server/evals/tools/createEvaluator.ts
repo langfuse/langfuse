@@ -13,6 +13,7 @@ export const [createEvaluatorTool, handleCreateEvaluator] = defineTool({
   description: [
     "Create a new evaluator with a stable id. Names do not act as identity and may be reused.",
     "For `LLM_AS_JUDGE`, provide prompt + outputDefinition and optionally modelConfig. For `CODE`, provide sourceCode + sourceCodeLanguage. For `DECISION_MODEL`, provide questions, a modelConfig with provider and model only, and variableMapping entries defining its state. Use an OpenAI connection with an allowlisted decision model (currently `gpt-6-luna`), or a TypeSafe connection.",
+    "Call listLlmConnections to find valid modelConfig provider names and models.",
     "Use updateEvaluator with the returned evaluatorId to update it or append a new immutable definition version.",
   ].join(" "),
   action: "evaluator:CUD",

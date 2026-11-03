@@ -20,6 +20,7 @@ const EMPTY_TRACES: EventSessionTrace[] = [];
 type OpenPeek = (id: string, row: EventSessionTrace) => void;
 
 type ConnectedModernSessionBodyTimelineProps = {
+  transcriptSource: "root" | "generations";
   tracesState:
     | { type: "loading" }
     | { type: "loaded"; traces: EventSessionTrace[] };
@@ -29,6 +30,7 @@ type ConnectedModernSessionBodyTimelineProps = {
 };
 
 export function ConnectedModernSessionBodyTimeline({
+  transcriptSource,
   tracesState,
   projectId,
   sessionId,
@@ -99,6 +101,7 @@ export function ConnectedModernSessionBodyTimeline({
     projectId,
     traces: traces.map((trace, index) => ({ trace, turnNumber: index + 1 })),
     activeTraceIds: activeTranscriptTraceIds,
+    transcriptSource,
   });
   const allTranscriptsLoaded =
     tracesState.type === "loaded" &&
@@ -109,6 +112,7 @@ export function ConnectedModernSessionBodyTimeline({
           traceId: trace.id,
           timestamp: trace.timestamp,
           fallbackToRootIO: true,
+          transcriptSource,
         }) !== undefined,
     );
   const searchQuery = allTranscriptsLoaded

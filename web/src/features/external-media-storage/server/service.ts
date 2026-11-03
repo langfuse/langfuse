@@ -10,6 +10,7 @@ import {
 import { decrypt, encrypt } from "@langfuse/shared/encryption";
 import { type PrismaClient } from "@langfuse/shared/src/db";
 import {
+  OutboundUrlValidationError,
   StorageServiceFactory,
   externalMediaStorageEndpointConnectionValidationOptions,
   validateExternalMediaStorageEndpoint,
@@ -17,6 +18,7 @@ import {
 
 import { getDisplayCredential } from "@/src/features/analytics-integrations/server";
 import { auditLog } from "@/src/features/audit-logs/server";
+import { isSameStorageDestination } from "@/src/features/automations/destinationUrl";
 import { type ExternalMediaStorageFormValues } from "@/src/features/external-media-storage/types";
 import {
   createExternalMediaStorageRepository,
@@ -57,6 +59,17 @@ async function auditConfigurationChange({
 function isKeyWithinPrefix(key: string, prefix: string | null) {
   const normalizedPrefix = prefix?.trim().replace(/\/+$/, "");
   return !normalizedPrefix || isS3KeyWithinPrefix(key, normalizedPrefix);
+}
+
+async function validateEndpoint(endpoint: string) {
+  try {
+    await validateExternalMediaStorageEndpoint(endpoint);
+  } catch (error) {
+    if (error instanceof OutboundUrlValidationError) {
+      throw new InvalidRequestError(error.message);
+    }
+    throw error;
+  }
 }
 
 function createStorageService(integration: ExternalMediaStorageRecord) {
@@ -138,7 +151,7 @@ export function createExternalMediaStorageService(prisma: PrismaClient) {
         );
       }
       if (endpoint) {
-        await validateExternalMediaStorageEndpoint(endpoint);
+        await validateEndpoint(endpoint);
       }
 
       let region: string;
@@ -149,8 +162,26 @@ export function createExternalMediaStorageService(prisma: PrismaClient) {
       }
 
       const existing = await repository.findByProjectId(projectId);
+      const bucketName = values.bucketName.trim();
       const accessKeyId = values.accessKeyId?.trim() || null;
       const secretAccessKey = values.secretAccessKey?.trim() || null;
+
+      // A stored secret is only used with the storage it was entered for.
+      if (
+        !secretAccessKey &&
+        existing?.secretAccessKey &&
+        !isSameStorageDestination(existing, {
+          type: values.type,
+          endpoint,
+          bucketName,
+          accessKeyId,
+        })
+      ) {
+        throw new InvalidRequestError(
+          "Secret Access Key is required when changing the storage provider, bucket, endpoint, or Access Key ID",
+        );
+      }
+
       const encryptedSecretAccessKey = secretAccessKey
         ? encrypt(secretAccessKey)
         : existing?.secretAccessKey;
@@ -165,7 +196,7 @@ export function createExternalMediaStorageService(prisma: PrismaClient) {
         projectId,
         data: {
           type: values.type,
-          bucketName: values.bucketName.trim(),
+          bucketName,
           prefix: values.prefix?.trim() || null,
           accessKeyId,
           secretAccessKey: encryptedSecretAccessKey ?? null,
@@ -217,7 +248,7 @@ export function createExternalMediaStorageService(prisma: PrismaClient) {
       }
 
       if (integration.endpoint) {
-        await validateExternalMediaStorageEndpoint(integration.endpoint);
+        await validateEndpoint(integration.endpoint);
       }
 
       const storageService = createStorageService(integration);
@@ -235,7 +266,7 @@ export function createExternalMediaStorageService(prisma: PrismaClient) {
       return {
         url,
         contentLength,
-        expiresAt: new Date(Date.now() + EXTERNAL_MEDIA_URL_TTL_SECONDS * 1000),
+        urlTtlSeconds: EXTERNAL_MEDIA_URL_TTL_SECONDS,
       };
     },
 
@@ -264,7 +295,7 @@ export function createExternalMediaStorageService(prisma: PrismaClient) {
       }
 
       if (integration.endpoint) {
-        await validateExternalMediaStorageEndpoint(integration.endpoint);
+        await validateEndpoint(integration.endpoint);
       }
 
       const storageService = createStorageService(integration);

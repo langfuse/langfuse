@@ -4,6 +4,9 @@ import { createObservation } from "../../test-utils";
 import { convertObservation } from "../../repositories/observations_converters";
 import { orderObservations } from "../ordering";
 import { assembleTranscript } from "../transcript";
+import { assembleTranscriptContext } from "../context";
+import { transcriptSchema } from "../schema";
+
 describe("transcript fixtures", () => {
   const traceId = "trace";
   const generation = (id: string, input: string[], output: string[]) => ({
@@ -32,6 +35,66 @@ describe("transcript fixtures", () => {
     expect(transcript?.threads[0].currentTurn.observations).toEqual([
       { id: "2", traceId },
     ]);
+  });
+
+  it("collects execution issues next to the transcript, also from observations without messages", () => {
+    const failed = (
+      id: string,
+      type: "GENERATION" | "TOOL" | "SPAN",
+      level: "ERROR" | "WARNING" | "DEFAULT",
+      statusMessage: string | null,
+    ) => ({
+      ...convertObservation(
+        createObservation({
+          id,
+          trace_id: traceId,
+          type,
+          name: `${type.toLowerCase()}-${id}`,
+          level,
+          status_message: statusMessage,
+          start_time: `2026-01-01T12:00:0${id}.000Z`,
+          input: null,
+          output: null,
+        }),
+      ),
+      nestingLevel: 1,
+    });
+    const observations = [
+      generation("1", ["A"], ["B"]),
+      failed("2", "TOOL", "ERROR", "Request timed out"),
+      failed("3", "SPAN", "WARNING", null),
+      failed("4", "SPAN", "DEFAULT", "ok"),
+      failed(
+        "5",
+        "GENERATION",
+        "ERROR",
+        "Bedrock is unable to process your request",
+      ),
+    ];
+
+    expect(assembleTranscriptContext(observations)).toEqual({
+      transcript: assembleTranscript(observations),
+      executionIssues: [
+        expect.objectContaining({
+          observationId: "2",
+          type: "TOOL",
+          name: "tool-2",
+          level: "ERROR",
+          statusMessage: "Request timed out",
+        }),
+        expect.objectContaining({
+          observationId: "5",
+          type: "GENERATION",
+          level: "ERROR",
+          statusMessage: "Bedrock is unable to process your request",
+        }),
+      ],
+    });
+    expect(assembleTranscriptContext(observations.slice(1))).toBeNull();
+    expect(assembleTranscriptContext([observations[0]])).toEqual({
+      transcript: assembleTranscript([observations[0]]),
+      executionIssues: [],
+    });
   });
 
   it("preserves an unfinished generation's null end time", () => {
@@ -473,9 +536,9 @@ describe("transcript fixtures", () => {
       convertObservation(createObservation(observation)),
     );
     const snapshot = structuredClone(observations);
-    expect(assembleTranscript(orderObservations(observations))).toEqual(
-      fixture.expected,
-    );
+    const transcript = assembleTranscript(orderObservations(observations));
+    expect(transcript).toEqual(fixture.expected);
+    expect(transcriptSchema.nullable().parse(transcript)).toEqual(transcript);
     expect(observations).toEqual(snapshot);
   });
 });

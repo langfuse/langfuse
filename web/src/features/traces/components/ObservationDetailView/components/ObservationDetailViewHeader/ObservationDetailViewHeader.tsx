@@ -1,5 +1,5 @@
 import { HeaderActionButton } from "@/src/components/HeaderActionButton";
-import { useTraceData } from "@/src/features/traces/contexts/TraceDataContext";
+import { useTraceData } from "@/src/features/traces/contexts/TraceDataProvider";
 import { headerActionClassName } from "@/src/features/traces/components/headerActionClassName";
 import { prepareTraceAnnotation } from "@/src/features/scores/lib/prepareTraceAnnotation";
 /**
@@ -27,10 +27,8 @@ import { AnnotateDrawerController } from "@/src/features/scores";
 import { ConnectedTraceObservationAddToDropdownMenuController } from "@/src/features/traces/components/ConnectedTraceObservationAddToDropdownMenuController";
 import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { PromptBadge } from "@/src/features/traces/components/PromptBadge";
-import {
-  LatencyBadge,
-  TimeToFirstTokenBadge,
-} from "@/src/features/traces/components/ObservationMetadataBadgesSimple/ObservationMetadataBadgesSimple";
+import { LatencyBadge } from "@/src/features/traces/components/LatencyBadge";
+import { TimeToFirstTokenBadge } from "@/src/features/traces/components/TimeToFirstTokenBadge";
 import { EvaluatorBadge } from "@/src/features/traces/components/ObservationDetailView/components/ObservationDetailViewHeader/components/EvaluatorBadge/EvaluatorBadge";
 import {
   CostBadge,
@@ -49,10 +47,10 @@ import {
 import { type AggregatedTraceMetrics } from "@/src/features/traces/fns/traceAggregation";
 import type Decimal from "decimal.js";
 import { ConnectedDetailHeaderActionsMenuController } from "@/src/features/traces/components/DetailHeaderActionsMenuController";
-import { useViewPreferences } from "@/src/features/traces/contexts/ViewPreferencesContext";
+import { useViewPreferences } from "@/src/features/traces/contexts/ViewPreferencesProvider";
 import { useReadPath } from "@/src/features/events";
 import { Button } from "@/src/components/ui/button";
-import { ActionButtonCountBadge } from "@/src/components/ui/action-button-count-badge";
+import { ActionButtonCountBadge } from "@/src/components/ui/ActionButtonCountBadge";
 import {
   EllipsisVertical,
   LockIcon,
@@ -60,7 +58,7 @@ import {
   MessageSquareOff,
   PlusIcon,
   SquarePen,
-} from "lucide-react";
+} from "@langfuse/icons";
 import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 import { DropdownMenu } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
 import { CollapsibleBadgeRow } from "@/src/features/traces/components/CollapsibleBadgeRow";
@@ -215,7 +213,7 @@ export const ObservationDetailViewHeader = memo(
         className={headerActionClassName}
         {...triggerProps}
       >
-        <PlusIcon className="icon-base text-icon-foreground" />
+        <PlusIcon size="base" color="default" />
         <span>Add to</span>
         <DropdownIndicator size="sm" nudge />
       </Button>
@@ -360,7 +358,7 @@ export const ObservationDetailViewHeader = memo(
                                   ref: mobileActionsTriggerRef,
                                 })}
                               >
-                                <EllipsisVertical className="icon-base text-icon-foreground" />
+                                <EllipsisVertical size="base" color="default" />
                               </Button>
                             )}
                           </DropdownMenu>
@@ -423,9 +421,9 @@ export const ObservationDetailViewHeader = memo(
                       }
                     >
                       {disabled ? (
-                        <LockIcon className="icon-base text-icon-foreground" />
+                        <LockIcon size="base" color="default" />
                       ) : (
-                        <SquarePen className="icon-base text-icon-foreground" />
+                        <SquarePen size="base" color="default" />
                       )}
                       <span>Annotate</span>
                     </Button>
@@ -441,10 +439,10 @@ export const ObservationDetailViewHeader = memo(
                 className={headerActionClassName}
               >
                 {commentDrawerControl.disabled ? (
-                  <MessageSquareOff className="icon-base text-muted-foreground" />
+                  <MessageSquareOff size="base" color="muted" />
                 ) : (
                   <>
-                    <MessageSquare className="icon-base text-icon-foreground" />
+                    <MessageSquare size="base" color="default" />
                     <span>{commentActionLabel}</span>
                     {!!commentCount ? (
                       <ActionButtonCountBadge count={commentCount} />
@@ -478,9 +476,7 @@ export const ObservationDetailViewHeader = memo(
                 {({ getTriggerProps }) => (
                   <HeaderActionButton
                     label="Options"
-                    icon={
-                      <EllipsisVertical className="icon-base text-icon-foreground" />
-                    }
+                    icon={<EllipsisVertical size="base" color="default" />}
                     {...getTriggerProps()}
                   />
                 )}

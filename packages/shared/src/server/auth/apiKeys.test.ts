@@ -95,7 +95,7 @@ describe("createApiKey assignment rows", () => {
   const ORG_ID = "org_1";
 
   // A transaction-client double that records the api-key create input and the
-  // assignment rows written and resolves a project's tenant, so the row-writing
+  // assignment rows written and confirms a project's tenant, so the row-writing
   // contract can be asserted without a live database. Lacking `$transaction`, it
   // is treated as a joined transaction client, so createApiKey runs directly
   // against it.
@@ -132,9 +132,6 @@ describe("createApiKey assignment rows", () => {
           },
         ),
       },
-      project: {
-        findFirstOrThrow: vi.fn(async () => ({ orgId: ORG_ID })),
-      },
     };
     return { tx, assignments, getApiKeyData: () => apiKeyData };
   }
@@ -146,7 +143,8 @@ describe("createApiKey assignment rows", () => {
     const { tx, assignments, getApiKeyData } = makeTx();
 
     await createApiKey(asTx(tx), {
-      owner: ProjectId("proj_1"),
+      tenant: OrganizationId(ORG_ID),
+      scope: ProjectId("proj_1"),
       role: SystemRoleId("VIEWER"),
       createdBy: UserId("user_1"),
       name: "project key",
@@ -175,7 +173,8 @@ describe("createApiKey assignment rows", () => {
     const { tx, assignments, getApiKeyData } = makeTx();
 
     await createApiKey(asTx(tx), {
-      owner: OrganizationId(ORG_ID),
+      tenant: OrganizationId(ORG_ID),
+      scope: OrganizationId(ORG_ID),
       role: SystemRoleId("LEGACY_ORGANIZATION_API_KEY"),
       createdBy: ApiKeyId("key_creator"),
       name: "org key",
@@ -197,15 +196,57 @@ describe("createApiKey assignment rows", () => {
     expect(data.projectId).toBeUndefined();
     expect(data.createdByApiKeyId).toBe("key_creator");
     expect(data.createdByUserId).toBeUndefined();
-    // An organization owner resolves to itself; no project lookup is needed.
-    expect(tx.project.findFirstOrThrow).not.toHaveBeenCalled();
+  });
+
+  it("binds a USER-scoped key to the user as an organization key in its tenant", async () => {
+    const { tx, assignments, getApiKeyData } = makeTx();
+
+    await createApiKey(asTx(tx), {
+      tenant: OrganizationId(ORG_ID),
+      scope: UserId("user_1"),
+      role: SystemRoleId("AI_GATEWAY"),
+      createdBy: UserId("user_1"),
+    });
+
+    expect(assignments).toEqual([
+      {
+        orgId: ORG_ID,
+        apiKeyId: KEY_ID,
+        principalId: ApiKeyId(KEY_ID),
+        ownerId: OrganizationId(ORG_ID),
+        roleId: SystemRoleId("AI_GATEWAY"),
+        projectId: null,
+        systemRole: "AI_GATEWAY",
+      },
+    ]);
+    const data = getApiKeyData();
+    expect(data).toMatchObject({
+      orgId: ORG_ID,
+      userId: "user_1",
+      scope: "ORGANIZATION",
+    });
+    expect(data.projectId).toBeUndefined();
+  });
+
+  it("leaves an ORGANIZATION-scoped key unbound even when a user creates it", async () => {
+    const { tx, getApiKeyData } = makeTx();
+
+    await createApiKey(asTx(tx), {
+      tenant: OrganizationId(ORG_ID),
+      scope: OrganizationId(ORG_ID),
+      role: SystemRoleId("AI_GATEWAY"),
+      createdBy: UserId("user_1"),
+    });
+
+    expect(getApiKeyData().userId).toBeUndefined();
   });
 
   it("stores the secret only as a fast hash, with a placeholder no bcrypt check accepts", async () => {
     const { tx, getApiKeyData } = makeTx();
 
     const result = await createApiKey(asTx(tx), {
-      owner: ProjectId("proj_1"),
+      tenant: OrganizationId(ORG_ID),
+      scope: ProjectId("proj_1"),
       role: SystemRoleId("VIEWER"),
       createdBy: UserId("user_1"),
     });
@@ -226,7 +267,8 @@ describe("createApiKey assignment rows", () => {
       const { tx, getApiKeyData } = makeTx();
 
       const result = await createApiKey(asTx(tx), {
-        owner: OrganizationId(ORG_ID),
+        tenant: OrganizationId(ORG_ID),
+        scope: OrganizationId(ORG_ID),
         role: SystemRoleId("LEGACY_ORGANIZATION_API_KEY"),
         createdBy: "system",
         note,
@@ -249,7 +291,8 @@ describe("createApiKey assignment rows", () => {
 
       await expect(
         createApiKey(asTx(tx), {
-          owner: OrganizationId(ORG_ID),
+          tenant: OrganizationId(ORG_ID),
+          scope: OrganizationId(ORG_ID),
           role: SystemRoleId("LEGACY_ORGANIZATION_API_KEY"),
           createdBy: "system",
           ...input,
@@ -259,35 +302,4 @@ describe("createApiKey assignment rows", () => {
       expect(tx.roleAssignment.create).not.toHaveBeenCalled();
     },
   );
-
-  // createApiKey always enforces that the role can back a key: a user-only
-  // role is rejected outright, and a project owner needs a project-capable
-  // role. Legacy api-key roles remain valid.
-  describe("role validation", () => {
-    it("rejects a user-only role that cannot back an api key", async () => {
-      const { tx, assignments } = makeTx();
-
-      await expect(
-        createApiKey(asTx(tx), {
-          owner: OrganizationId(ORG_ID),
-          role: SystemRoleId("OWNER"),
-          createdBy: UserId("user_1"),
-        }),
-      ).rejects.toThrow(/cannot back an organization API key/);
-      expect(assignments).toEqual([]);
-    });
-
-    it("rejects an org-only role on a project owner", async () => {
-      const { tx, assignments } = makeTx();
-
-      await expect(
-        createApiKey(asTx(tx), {
-          owner: ProjectId("proj_1"),
-          role: SystemRoleId("AI_GATEWAY"),
-          createdBy: UserId("user_1"),
-        }),
-      ).rejects.toThrow(/cannot back a project API key/);
-      expect(assignments).toEqual([]);
-    });
-  });
 });

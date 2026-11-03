@@ -26,7 +26,8 @@ async function embedWithSizeFallback(
       model: { adapter: params.model.adapter, id: params.model.model },
       connection: params.model.connection,
       values: params.summaries,
-      providerOptions: embeddingProviderOptions(params.model, dimensions),
+      dimensions,
+      providerOptions: embeddingProviderOptions(params.model),
       maxRetries: 2,
       // Single-text models (Bedrock Titan, Nova) split a batch into one request per text.
       maxParallelCalls: 10,
@@ -43,38 +44,27 @@ async function embedWithSizeFallback(
 }
 
 /** Keeps discovery and centroid assignment in the same clustering vector space. */
-function embeddingProviderOptions(
-  model: TopicsModel,
-  dimensions: number | undefined,
-): LLMProviderOptions {
+function embeddingProviderOptions(model: TopicsModel): LLMProviderOptions {
   if (model.adapter === LLMAdapter.Bedrock)
-    return { amazonBedrock: bedrockEmbeddingOptions(model.model, dimensions) };
+    return { amazonBedrock: bedrockEmbeddingOptions(model.model) };
   const google = {
     taskType: "CLUSTERING",
-    ...(dimensions && { outputDimensionality: dimensions }),
   };
   return {
-    openai: dimensions ? { dimensions } : {},
     google,
     vertex: google,
   };
 }
 
-/** The Bedrock SDK validates all options, so send only the model family's size field. */
-function bedrockEmbeddingOptions(
-  modelId: string,
-  dimensions: number | undefined,
-): Record<string, string | number> {
+function bedrockEmbeddingOptions(modelId: string): Record<string, string> {
   if (modelId.includes("nova"))
     return {
       embeddingPurpose: "CLUSTERING",
-      ...(dimensions && { embeddingDimension: dimensions }),
     };
   if (modelId.includes("cohere"))
     return {
       inputType: "clustering",
       truncate: "NONE",
-      ...(dimensions && { outputDimension: dimensions }),
     };
-  return dimensions ? { dimensions } : {};
+  return {};
 }

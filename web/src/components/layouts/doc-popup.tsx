@@ -4,7 +4,7 @@ import { HoverCard } from "@/src/components/design-system/HoverCard/HoverCard";
 import { ControlledHoverCard } from "@/src/components/design-system/ControlledHoverCard/ControlledHoverCard";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { cn } from "@/src/utils/tailwind";
-import { ExternalLink, Info } from "lucide-react";
+import { ExternalLink, Info } from "@langfuse/icons";
 
 export type DocPopupProps = {
   description: React.ReactNode;
@@ -65,7 +65,7 @@ export default function DocPopup({
               className="text-muted-foreground hover:text-primary mt-2 inline-flex items-center gap-1 text-xs underline underline-offset-2"
             >
               Read docs
-              <ExternalLink className="icon-sm" />
+              <ExternalLink size="sm" />
             </a>
           )}
         </div>
@@ -84,7 +84,7 @@ export default function DocPopup({
             },
           })}
         >
-          <Info className="icon-sm" />
+          <Info size="sm" />
         </button>
       )}
     </ControlledHoverCard>

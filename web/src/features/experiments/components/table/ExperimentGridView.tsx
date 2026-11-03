@@ -1,10 +1,11 @@
+/* eslint-disable react/no-unstable-nested-components */
 import { ExperimentInputCell } from "./ExperimentInputCell";
-import { ExperimentGridSummaryValues } from "./ExperimentGridSummary";
+import { ExperimentGridSummaryValues } from "./ExperimentGridSummaryValues";
 import { DataTable } from "@/src/components/table/data-table";
 import { shouldIgnoreRowClickTarget } from "@/src/components/table/shouldIgnoreRowClickTarget";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { createIOTableColumn } from "@/src/components/design-system/table/columns/createIOTableColumn";
-import { Badge } from "@/src/components/ui/badge";
+import { ExperimentRunBadge } from "../ExperimentRunBadge";
 import {
   ExperimentGridCell,
   ExperimentGridCellEmpty,
@@ -165,12 +166,9 @@ export const ExperimentGridView = ({
                 {expName}
               </span>
               {useExperimentColors && (
-                <Badge
-                  variant="outline"
-                  className={cn("shrink-0 font-bold", colorStyles?.badgeClass)}
-                >
+                <ExperimentRunBadge colorClass={colorStyles?.badgeClass} strong>
                   {isBaseline ? "Baseline" : "Comp"}
-                </Badge>
+                </ExperimentRunBadge>
               )}
             </div>
             <ExperimentGridSummaryValues

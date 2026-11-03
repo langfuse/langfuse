@@ -1,11 +1,17 @@
 import { cors, runMiddleware } from "@/src/features/public-api/server/cors";
 import { auditLog } from "@/src/features/audit-logs/server";
+import {
+  deleteUserBoundApiKeys,
+  deleteUserBoundApiKeysForRole,
+  evictRevokedApiKeys,
+} from "@/src/features/ai-gateway/server/apiKey/userBoundApiKeys";
 import { Prisma, prisma, type User, type Role } from "@langfuse/shared/src/db";
 import { logger } from "@langfuse/shared/src/server";
 import { isBaseError, LangfuseConflictError } from "@langfuse/shared";
 import { z } from "zod";
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { assertValidOwnershipChange } from "@/src/ee/features/admin-api/server/memberships";
+import { requireGatewayEnabledForRole } from "@/src/features/ai-gateway/server/availability";
 import { getSfdcService } from "@/src/ee/features/sfdc-sync/server";
 import { type AuthorizationContext } from "@/src/features/auth/policy/types";
 import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server";
@@ -19,7 +25,7 @@ function parseScimRole(roles: unknown): Role | undefined {
     return undefined;
   }
   const parsed = z
-    .array(z.enum(["OWNER", "ADMIN", "MEMBER", "VIEWER", "NONE"]))
+    .array(z.enum(["OWNER", "ADMIN", "MEMBER", "VIEWER", "NONE", "AI_GATEWAY"]))
     .safeParse(roles);
   return parsed.success ? parsed.data[0] : undefined;
 }
@@ -87,11 +93,22 @@ async function provisionMembership({
             from: current.role,
             to: targetRole,
           });
+          requireGatewayEnabledForRole(orgId, targetRole);
           const updated = await tx.organizationMembership.update({
             where: { orgId_userId: { orgId, userId } },
             data: { role: targetRole },
           });
-          return { t: "updated" as const, before: current, after: updated };
+          const revokedKeys = await deleteUserBoundApiKeysForRole(tx, {
+            userId,
+            orgId,
+            role: targetRole,
+          });
+          return {
+            t: "updated" as const,
+            before: current,
+            after: updated,
+            revokedKeys,
+          };
         },
         { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
       );
@@ -103,6 +120,7 @@ async function provisionMembership({
         return { kind: "unchanged", role: result.role };
       }
 
+      await evictRevokedApiKeys(result.revokedKeys, { apiKeyId });
       await auditLog({
         resourceType: "orgMembership",
         resourceId: result.after.id,
@@ -159,6 +177,7 @@ async function provisionMembership({
     from: undefined,
     to: roleToCreate,
   });
+  requireGatewayEnabledForRole(orgId, roleToCreate);
   try {
     const created = await prisma.organizationMembership.create({
       data: { userId, orgId, role: roleToCreate },
@@ -265,13 +284,15 @@ async function deprovisionOrReject(
         await tx.organizationMembership.delete({
           where: { orgId_userId: { orgId, userId } },
         });
-        return { result: "deleted" as const, membership };
+        const revokedKeys = await deleteUserBoundApiKeys(tx, { userId, orgId });
+        return { result: "deleted" as const, membership, revokedKeys };
       },
       { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
     );
 
     // Only audit and sync when a membership was actually removed.
     if (outcome.result === "deleted") {
+      await evictRevokedApiKeys(outcome.revokedKeys, { apiKeyId });
       await auditLog({
         resourceType: "orgMembership",
         resourceId: outcome.membership.id,
@@ -637,8 +658,15 @@ async function handlePut(
   // is omitted we create a default NONE membership if one is missing but leave
   // an existing membership untouched — so a periodic IdP full-sync that omits
   // roles cannot reset an existing member's role back to NONE.
-  if (typeof body.active === "boolean") {
-    if (body.active) {
+  //
+  // Okta profile pushes send `roles` without `active`. The membership check
+  // above guarantees the user is already a member, so a roles-only PUT is
+  // handled like `active: true`.
+  const isRolesOnlyUpdate =
+    body.active === undefined && body.roles !== undefined;
+  const effectiveActive = isRolesOnlyUpdate ? true : body.active;
+  if (typeof effectiveActive === "boolean") {
+    if (effectiveActive) {
       const outcome = await provisionMembership({
         userId: user.id,
         orgId,

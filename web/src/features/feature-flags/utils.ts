@@ -1,4 +1,5 @@
 /* eslint-disable no-nested-ternary */
+import type { Session } from "next-auth";
 import {
   availableFlags,
   defaultOnFeaturePreviewFlags,
@@ -10,6 +11,7 @@ import {
   isOrganizationOnlyFeaturePreviewFlag,
   isFeaturePreviewAvailable,
   isAdminOnlyFeaturePreviewFlag,
+  INTERNAL_FEATURE_FLAG,
   type FeaturePreviewAvailabilityContext,
   type UserFeatureFlag,
 } from "./available-flags";
@@ -29,6 +31,13 @@ export const hasInternalAccess = ({
   isAdmin: boolean;
   isExperimentalFeaturesEnabled: boolean;
 }) => isExperimentalFeaturesEnabled || isAdmin;
+
+export const isInternalViewEnabled = (session: Session | null | undefined) =>
+  hasInternalAccess({
+    isAdmin: session?.user?.admin === true,
+    isExperimentalFeaturesEnabled:
+      session?.environment?.enableExperimentalFeatures === true,
+  }) && session?.user?.featureFlags[INTERNAL_FEATURE_FLAG] !== false;
 
 const receivesFeaturePreviewsByDefault = (email: string | null | undefined) => {
   const normalizedEmail = email?.toLowerCase();

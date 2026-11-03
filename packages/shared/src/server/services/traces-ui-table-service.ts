@@ -28,7 +28,10 @@ import {
 import { TracingSearchType } from "../../interfaces/search";
 import { ObservationLevelType, TraceDomain } from "../../domain";
 import { ClickHouseClientConfigOptions } from "@clickhouse/client";
-import { shouldSkipObservationsFinal } from "../queries/clickhouse-sql/query-options";
+import {
+  shouldSkipObservationsFinal,
+  shouldSkipScoresDedup,
+} from "../queries/clickhouse-sql/query-options";
 import { convertDateToClickhouseDateTime } from "../clickhouse/client";
 import type { TraceDeleteBatchActionCursor } from "../../features/batchAction/types";
 import {
@@ -354,7 +357,7 @@ async function getTracesTableGeneric(props: FetchTracesTableProps) {
                     data_type,
                     string_value,
                     avg(value) as avg_value
-                  FROM scores s FINAL
+                  FROM scores s ${shouldSkipScoresDedup(projectId) ? "" : "FINAL"}
                   WHERE
                     project_id = {projectId: String}
                     ${timeStampFilter ? `AND s.timestamp >= {traceTimestamp: DateTime64(3)} - ${SCORE_TO_TRACE_OBSERVATIONS_INTERVAL}` : ""}

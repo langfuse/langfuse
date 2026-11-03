@@ -1,6 +1,10 @@
 import { type RowData, type ColumnDef } from "@tanstack/react-table";
 
-export type DataTableCellPadding = "compact" | "comfortable" | "none";
+export type DataTableCellPadding =
+  | "compact"
+  | "comfortable"
+  | "relaxed"
+  | "none";
 export type DataTableCellBackground = "gray" | "green";
 
 declare module "@tanstack/react-table" {

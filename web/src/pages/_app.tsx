@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 // Must stay the first import: installs a `crypto.randomUUID` fallback for
 // non-secure (plain-HTTP) origins before any other module can call it
 // (LFE-10858).
@@ -17,12 +18,12 @@ import { CommandMenuProvider } from "@/src/features/command-k-menu/CommandMenuPr
 
 import { api } from "@/src/utils/api";
 
-import { NextAdapterPagesWithReadyGuard } from "@/src/utils/nextAdapterPagesWithReadyGuard";
+import { NextAdapterPagesWithReadyGuard } from "@/src/utils/NextAdapterPagesWithReadyGuard";
 import { QueryParamProvider } from "use-query-params";
 
 import "@/src/styles/globals.css";
 import { plexMono } from "@/src/styles/fonts";
-import { AppLayout } from "@/src/components/layouts/app-layout";
+import { AppLayout } from "@/src/components/layouts/app-layout/AppLayout";
 import { DefaultHead } from "@/src/components/layouts/default-head/DefaultHead";
 import { useEffect, useRef } from "react";
 import { useRouter } from "next/router";
@@ -87,7 +88,7 @@ import { ResilientSessionProvider } from "@/src/features/auth/components/Resilie
 import { DetailPageListsProvider } from "@/src/features/navigate-detail-pages";
 import { env } from "@/src/env.mjs";
 import { ThemeProvider } from "@/src/features/theming/ThemeProvider";
-import { MarkdownRenderCharacterLimitProvider } from "@/src/hooks/useMarkdownRenderCharacterLimit";
+import { MarkdownRenderCharacterLimitProvider } from "@/src/components/MarkdownRenderCharacterLimitProvider/MarkdownRenderCharacterLimitProvider";
 import { SupportDrawerProvider } from "@/src/features/support-chat";
 import { V4MigrationPanelProvider } from "@/src/features/v4-migration/V4MigrationPanelProvider";
 import { installStaleChunkReloadListener } from "@/src/features/version-update/reloadOnStaleChunk";

@@ -47,11 +47,11 @@ import {
   Ghost,
   Octagon,
   Box,
-  type LucideIcon,
-} from "lucide-react";
+  type IconComponent,
+} from "@langfuse/icons";
 import { type AgentAppearance, type AgentIconId } from "./appearance";
 
-const icons: Record<AgentIconId, LucideIcon> = {
+const icons: Record<AgentIconId, IconComponent> = {
   bot: Bot,
   sparkles: Sparkles,
   brain: Brain,
@@ -101,7 +101,7 @@ const icons: Record<AgentIconId, LucideIcon> = {
   octagon: Octagon,
   cube: Box,
 };
-const sizes = { sm: "icon-base", md: "icon-lg", lg: "icon-xl" } as const;
+const sizes = { sm: "base", md: "lg", lg: "xl" } as const;
 
 export function AgentGlyph({
   appearance,
@@ -130,19 +130,22 @@ export function AgentGlyph({
         aria-hidden="true"
         className="inline-flex rounded-xl border p-1.5"
         style={{
+          color: appearance.color,
           borderColor: `${appearance.color}66`,
           backgroundColor: `${appearance.color}18`,
         }}
       >
-        <Icon className={sizes[size]} style={{ color: appearance.color }} />
+        <Icon size={sizes[size]} />
       </span>
     );
   }
   return (
-    <Icon
+    <span
       aria-hidden="true"
-      className={sizes[size]}
+      className="inline-flex"
       style={{ color: appearance.color }}
-    />
+    >
+      <Icon size={sizes[size]} />
+    </span>
   );
 }

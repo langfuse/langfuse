@@ -7,6 +7,7 @@ export type Flag = (typeof availableFlags)[number];
 export type Flags = {
   [key in Exclude<
     Flag,
+    | "skillManagement"
     | "externalMediaStorage"
     | "sessionViewV2"
     | "aiGateway"
@@ -15,6 +16,7 @@ export type Flags = {
   >]: boolean;
 } & {
   // Optional while older sessions and test fixtures roll across new flags.
+  skillManagement?: boolean;
   externalMediaStorage?: boolean;
   sessionViewV2?: boolean;
   aiGateway?: boolean;

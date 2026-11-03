@@ -9,6 +9,7 @@ export const clickHouseQuerySurfaces = [
   "publicapi",
   "mcp",
   "ssr",
+  "internalapi",
 ] as const;
 
 export type ClickHouseQuerySurface = (typeof clickHouseQuerySurfaces)[number];

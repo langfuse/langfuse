@@ -2,7 +2,7 @@ import { useRouter } from "next/router";
 import { AnnotationQueuesTable } from "@/src/features/annotation-queues/components/AnnotationQueuesTable";
 import { useHasProjectAccess } from "@/src/features/rbac";
 import { SupportOrUpgradePage } from "@/src/ee/features/billing";
-import Page from "@/src/components/layouts/page";
+import Page from "@/src/components/layouts/Page";
 import { AnnotationQueuesOnboarding } from "@/src/components/onboarding/AnnotationQueuesOnboarding";
 import { api } from "@/src/utils/api";
 import { CreateOrEditAnnotationQueueButton } from "@/src/features/annotation-queues/components/CreateOrEditAnnotationQueueButton";

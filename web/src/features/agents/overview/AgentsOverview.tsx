@@ -5,7 +5,7 @@ import {
   List,
   Network,
   RefreshCw,
-} from "lucide-react";
+} from "@langfuse/icons";
 import { Accordion } from "@/src/components/design-system/Accordion/Accordion";
 import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { Button } from "@/src/components/design-system/Button/Button";
@@ -17,7 +17,7 @@ import {
 } from "@/src/components/table/data-table-controls";
 import { FilterToggleButton } from "@/src/components/table/FilterToggleButton";
 import { ResizableFilterLayout } from "@/src/components/table/resizable-filter-layout";
-import { TableHeaderControls } from "@/src/components/table/table-header-controls";
+import { TableHeaderControls } from "@/src/components/table/TableHeaderControls";
 import { TableSearchBar, toObservedOptions } from "@/src/features/search-bar";
 import { AGENTS_FIELD_REGISTRY } from "../constants/agentsFilterConfig";
 import { AgentsTable } from "../AgentsTable";
@@ -320,7 +320,7 @@ function OverviewLoading() {
 function OverviewEmpty({ filtered }: { filtered: boolean }) {
   return (
     <div className="mx-auto flex max-w-xl flex-col items-center gap-3 py-16 text-center">
-      <Bot className="icon-xl text-muted-foreground" />
+      <Bot size="xl" color="muted" />
       <h2 className="text-lg font-bold">
         {filtered ? "No agents match this view" : "Discover your agents"}
       </h2>

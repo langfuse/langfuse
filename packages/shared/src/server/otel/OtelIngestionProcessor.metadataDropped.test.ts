@@ -45,10 +45,6 @@ import {
 } from "./OtelIngestionProcessor";
 import * as serverBarrel from "../index";
 import { flattenJsonToPathArrays } from "./utils";
-import {
-  metadataArraysToRecord,
-  parseMetadataCHRecordToDomain,
-} from "../utils/metadata_conversion";
 
 const METRIC = "langfuse.ingestion.metadata_dropped";
 const ARRAY_ATTRIBUTE_DROPPED_METRIC =
@@ -419,12 +415,12 @@ describe("gateway metadata", () => {
           "langfuse.observation.input": '[{"role":"user","content":"Hi"}]',
           "langfuse.observation.output": '[{"type":"message","content":[]}]',
           "langfuse.observation.metadata": JSON.stringify({
-            "langfuse.gateway.provider.request.id": "req-test",
+            "langfuse.gateway.upstream.response.id": "resp-test",
             "langfuse.gateway.request.id": gatewayRequestIds.request,
             "langfuse.gateway.client.request.id": gatewayRequestIds.client,
             "langfuse.gateway.upstream.request.id": gatewayRequestIds.upstream,
           }),
-          "langfuse.observation.metadata.langfuse.gateway.api-key.id":
+          "langfuse.observation.metadata.langfuse.gateway.api_key.id":
             "key-test",
           "custom.attribute": "keep-custom",
           "langfuse.observation.custom": "keep-unknown",
@@ -469,11 +465,11 @@ describe("gateway metadata", () => {
             }),
       });
       expect(observation?.metadata).toEqual({
-        "langfuse.gateway.provider.request.id": "req-test",
+        "langfuse.gateway.upstream.response.id": "resp-test",
         "langfuse.gateway.request.id": gatewayRequestIds.request,
         "langfuse.gateway.client.request.id": gatewayRequestIds.client,
         "langfuse.gateway.upstream.request.id": gatewayRequestIds.upstream,
-        "langfuse.gateway.api-key.id": "key-test",
+        "langfuse.gateway.api_key.id": "key-test",
         attributes: {
           ...(scope === "langfuse-ai-gateway" ? {} : canonicalAttributes),
           "custom.attribute": "keep-custom",
@@ -770,18 +766,15 @@ describe("per-key metadata values from structured-metadata SDK majors", () => {
       );
 
       expect(fromBlob).toMatchObject(metadata);
-      // Strings the metadata read path would parse as JSON keep their
-      // encoding, so they read back as strings. A blob cannot tell them apart.
-      const expected = { ...fromBlob, digits: '"42"', version: '"1.0"' };
-      expect(fromPerKey).toEqual(expected);
+      expect(fromPerKey).toEqual(fromBlob);
       expect(flattenJsonToPathArrays(fromPerKey)).toEqual(
-        flattenJsonToPathArrays(expected),
+        flattenJsonToPathArrays(fromBlob),
       );
     },
   );
 
   it.each(["v3", "v4"] as const)(
-    "reads per-key values back with the type they were sent with (%s)",
+    "stores per-key string values as sent, even when they look like JSON (%s)",
     async (path) => {
       const sent = {
         digits: "42",
@@ -792,9 +785,6 @@ describe("per-key metadata values from structured-metadata SDK majors", () => {
         nullish: "null",
         label: "",
         environment: "prod",
-        retries: 3,
-        enabled: true,
-        steps: [1, "two"],
       };
       const stored = await processMetadata(
         path,
@@ -804,14 +794,8 @@ describe("per-key metadata values from structured-metadata SDK majors", () => {
         })),
       );
 
-      const { names, values } = flattenJsonToPathArrays(stored);
-      const read = parseMetadataCHRecordToDomain(
-        metadataArraysToRecord(names, values as string[]) ?? {},
-      );
-
-      expect(read).toMatchObject(sent);
-      // Plain strings are stored raw, so string metadata filters match them.
-      expect(stored).toMatchObject({ environment: "prod", label: "" });
+      // String metadata filters compare against the stored value.
+      expect(stored).toMatchObject(sent);
     },
   );
 

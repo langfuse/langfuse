@@ -1,4 +1,4 @@
-import Page from "@/src/components/layouts/page";
+import Page from "@/src/components/layouts/Page";
 import { InternalFeatureBadge } from "@/src/features/feature-flags";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import { AgentsOverview } from "./overview/AgentsOverview";

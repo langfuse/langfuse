@@ -12,7 +12,7 @@ import { LayerProvider } from "@/src/context/LayerContext/LayerContext";
 import {
   TraceReviewPanelProvider,
   useTraceReviewPanel,
-} from "@/src/features/traces/contexts/TraceReviewPanelContext";
+} from "@/src/features/traces/contexts/TraceReviewPanelProvider";
 import {
   CommentDrawerController,
   type CommentDrawerControllerProps,

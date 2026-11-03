@@ -5,7 +5,7 @@ import {
   Pencil,
   SquarePercent,
   Trash2,
-} from "lucide-react";
+} from "@langfuse/icons";
 
 import { Button } from "@/src/components/ui/button";
 import { DropdownMenu } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
@@ -43,7 +43,7 @@ export function EvaluatorActionsCell({
         onClick={handlePrimaryAction}
       >
         View scores
-        <SquarePercent className="icon-base ml-1" />
+        <SquarePercent size="base" __rawClassName="ml-1" />
       </Button>
       <DropdownMenu
         placement="bottom-end"
@@ -92,7 +92,7 @@ export function EvaluatorActionsCell({
             {...getTriggerProps()}
           >
             <span className="sr-only">Open menu</span>
-            <MoreVertical className="icon-sm text-icon-foreground" />
+            <MoreVertical size="sm" color="default" />
           </Button>
         )}
       </DropdownMenu>

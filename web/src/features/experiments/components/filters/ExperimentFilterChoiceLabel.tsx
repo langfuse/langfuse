@@ -1,4 +1,4 @@
-import { ScoreTag } from "@/src/components/score-tag";
+import { ScoreTag } from "@/src/components/ScoreTag";
 import { type ExperimentFilterCreationChoice } from "./experimentFilterCreationChoices";
 
 export function ExperimentFilterChoiceLabel({

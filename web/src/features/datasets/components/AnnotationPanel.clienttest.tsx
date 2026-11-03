@@ -5,7 +5,7 @@ import { AnnotationPanel } from "./AnnotationPanel";
 import {
   ActiveCellProvider,
   useActiveCell,
-} from "../contexts/ActiveCellContext";
+} from "../contexts/ActiveCellProvider";
 
 vi.mock("sonner", () => ({ toast: { error: vi.fn() } }));
 vi.mock("@/src/components/useSessionStorage", () => ({

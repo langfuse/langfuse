@@ -5,7 +5,12 @@ import { createApiKey } from "@langfuse/shared/src/server/auth/apiKeys";
 import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server";
 import { getOrganizationPlanServerSide } from "@/src/features/entitlements/server/getPlan";
 import { CloudConfigSchema } from "@langfuse/shared";
-import { ProjectId, SystemRoleId, UserId } from "@langfuse/shared/rbac";
+import {
+  OrganizationId,
+  ProjectId,
+  SystemRoleId,
+  UserId,
+} from "@langfuse/shared/rbac";
 import {
   initializeClickhouseCompatibility,
   logger,
@@ -204,7 +209,8 @@ if (env.LANGFUSE_INIT_ORG_ID) {
       existingApiKey.projectId !== env.LANGFUSE_INIT_PROJECT_ID
     ) {
       await createApiKey(prisma, {
-        owner: ProjectId(env.LANGFUSE_INIT_PROJECT_ID),
+        tenant: OrganizationId(env.LANGFUSE_INIT_ORG_ID),
+        scope: ProjectId(env.LANGFUSE_INIT_PROJECT_ID),
         role: SystemRoleId("LEGACY_PROJECT_API_KEY"),
         createdBy: initUserId ? UserId(initUserId) : "system",
         name: "Provisioned API Key",

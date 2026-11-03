@@ -15,7 +15,7 @@ import {
 // Schema for request body validation
 const MembershipSchema = z.object({
   userId: z.string(),
-  role: z.enum(Role),
+  role: z.enum(Role).exclude([Role.AI_GATEWAY]),
 });
 
 // Schema for delete request body validation

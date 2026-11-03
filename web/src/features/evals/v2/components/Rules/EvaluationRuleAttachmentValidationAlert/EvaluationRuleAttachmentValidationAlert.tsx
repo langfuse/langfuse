@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { AlertTriangle, X } from "lucide-react";
+import { AlertTriangle, X } from "@langfuse/icons";
 
 import { Alert } from "@/src/components/design-system/Alert/Alert";
 
@@ -23,7 +23,7 @@ export function EvaluationRuleAttachmentValidationAlert({
         aria-label="Dismiss validation warning"
         onClick={onDismiss}
       >
-        <X className="icon-base stroke-current" aria-hidden="true" />
+        <X size="base" __rawClassName="stroke-current" aria-hidden="true" />
       </button>
       <Alert.Title>Review evaluator variable mapping</Alert.Title>
       <Alert.Description>

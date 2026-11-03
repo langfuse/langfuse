@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 
@@ -23,7 +24,7 @@ export type SessionConversationTimelineScrollTarget = {
 };
 
 export function useSessionConversationTimelineController(
-  traces: readonly { trace: EventSessionTrace; itemId?: string }[],
+  traces: readonly { trace: Pick<EventSessionTrace, "id">; itemId?: string }[],
   onVisibleTraceIdsChange?: (traceIds: string[]) => void,
 ) {
   const items = traces.map(({ trace, itemId }) => ({

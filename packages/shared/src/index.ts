@@ -102,6 +102,9 @@ export * from "./features/skills/types";
 export * from "./features/skills/trace";
 export * from "./features/skills/constants";
 
+// ai gateway
+export * from "./features/ai-gateway/constants";
+
 export {
   compileChatMessages,
   compileChatMessagesWithIds,

@@ -1,6 +1,7 @@
+/* eslint-disable @typescript-eslint/no-deprecated, @typescript-eslint/no-use-before-define -- Legacy UI usage retained during migration to design-system components. */
 import { showErrorToast, showSuccessToast } from "@/src/features/notifications";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Plus, X } from "lucide-react";
+import { Plus, X } from "@langfuse/icons";
 import { useState } from "react";
 import { useFieldArray, useForm } from "react-hook-form";
 import { z } from "zod";
@@ -32,6 +33,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/src/components/ui/tooltip";
+import { areDestinationUrlsEquivalent } from "@/src/features/automations/destinationUrl";
 import { useHasProjectAccess } from "@/src/features/rbac";
 import {
   WEB_CALLOUT_BLOCKED_HEADER_NAMES,
@@ -209,6 +211,11 @@ function WebCalloutEndpointDialog(props: {
     name: "headers",
   });
 
+  const currentUrl = form.watch("url");
+  const isUrlChanged =
+    props.endpoint !== null &&
+    !areDestinationUrlsEquivalent(currentUrl, props.endpoint.url);
+
   const onSubmit = (values: WebCalloutFormValues) => {
     upsertMutation.mutate({
       projectId: props.projectId,
@@ -328,14 +335,20 @@ function WebCalloutEndpointDialog(props: {
                 Optional headers added to the backend POST. Content-Type is set
                 automatically. Leave values empty for existing header names to
                 keep encrypted values.
+                {isUrlChanged
+                  ? " Re-enter all header values when changing the endpoint URL."
+                  : ""}
               </FormDescription>
               <div className="space-y-2">
                 {fields.map((field, index) => {
                   const currentHeaderName = form.watch(`headers.${index}.name`);
-                  const preservesExistingValue = hasExistingHeaderName(
-                    props.endpoint,
-                    currentHeaderName,
-                  );
+                  const valuePlaceholder = getHeaderValuePlaceholder({
+                    isExistingHeader: hasExistingHeaderName(
+                      props.endpoint,
+                      currentHeaderName,
+                    ),
+                    isUrlChanged,
+                  });
 
                   return (
                     <div
@@ -361,11 +374,7 @@ function WebCalloutEndpointDialog(props: {
                           <FormItem>
                             <FormControl>
                               <Input
-                                placeholder={
-                                  preservesExistingValue
-                                    ? "***"
-                                    : "Header value"
-                                }
+                                placeholder={valuePlaceholder}
                                 type="password"
                                 {...field}
                               />
@@ -382,7 +391,7 @@ function WebCalloutEndpointDialog(props: {
                             size="icon"
                             onClick={() => remove(index)}
                           >
-                            <X className="icon-base text-icon-foreground" />
+                            <X size="base" color="default" />
                           </Button>
                         </TooltipTrigger>
                         <TooltipContent>Remove header</TooltipContent>
@@ -402,7 +411,7 @@ function WebCalloutEndpointDialog(props: {
                   })
                 }
               >
-                <Plus className="icon-base text-icon-foreground mr-1" />
+                <Plus size="base" color="default" __rawClassName="mr-1" />
                 Add header
               </Button>
             </div>
@@ -444,6 +453,20 @@ const formValuesToRequestHeaders = (
       .filter((header) => header.name.trim())
       .map((header) => [header.name.trim(), header.value.trim()]),
   );
+
+const getHeaderValuePlaceholder = ({
+  isExistingHeader,
+  isUrlChanged,
+}: {
+  isExistingHeader: boolean;
+  isUrlChanged: boolean;
+}) => {
+  if (!isExistingHeader) {
+    return "Header value";
+  }
+
+  return isUrlChanged ? "Re-enter header value" : "***";
+};
 
 const hasExistingHeaderName = (
   endpoint: WebCalloutEndpoint | null,

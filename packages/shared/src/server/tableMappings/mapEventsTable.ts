@@ -392,6 +392,14 @@ export const eventsTableNativeUiColumnDefinitions: UiColumnMappings = [
     clickhouseSelect: eventsTableLoadedSkillVersionsSql,
   },
   {
+    uiTableName: "Loaded Skill Files",
+    uiTableId: "skillFilesLoaded",
+    clickhouseTableName: "events_proto",
+    // Pair each path with its immutable skill-version ID to keep matches within one loaded resource.
+    clickhouseSelect:
+      "arrayMap(skill -> concat(skill.langfuseSkillId, '/', skill.filePath), e.skills_resource_loaded)",
+  },
+  {
     uiTableName: "Available Skill Names",
     uiTableId: "skillNamesAvailable",
     clickhouseTableName: "events_proto",

@@ -1,4 +1,4 @@
-/* eslint-disable no-nested-ternary, @repo/component-file-structure */
+/* eslint-disable no-nested-ternary, @repo/component-file-structure, @typescript-eslint/no-deprecated, @typescript-eslint/no-use-before-define -- Legacy UI usage retained during migration to design-system components. */
 /* eslint-disable @repo/no-style-props */
 import { TextActionButton } from "@/src/components/TextActionButton/TextActionButton";
 import { Button } from "@/src/components/ui/button";
@@ -29,7 +29,7 @@ import {
   Plus,
   WandSparkles,
   X,
-} from "lucide-react";
+} from "@langfuse/icons";
 import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 import {
   Popover,
@@ -41,8 +41,8 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/src/components/ui/tooltip";
-import { MultiSelect } from "@/src/features/filters/components/multi-select";
-import { SingleSelect } from "@/src/features/filters/components/single-select";
+import { MultiSelect } from "@/src/features/filters/components/MultiSelect";
+import { SingleSelect } from "@/src/features/filters/components/SingleSelect";
 import { FilterToken } from "@/src/features/filters/components/FilterToken";
 import { getColumnOptionsForFilterRow } from "@/src/features/filters/lib/filter-transform";
 import {
@@ -59,6 +59,8 @@ import {
   getSessionPositionInTraceFilterMode,
 } from "@langfuse/shared";
 import { cn } from "@/src/utils/tailwind";
+import { CompactConnectorRow } from "@/src/features/filters/components/CompactConnectorRow";
+import { CompactPickerButton } from "@/src/features/filters/components/CompactPickerButton";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import {
   InputCommand,
@@ -303,7 +305,7 @@ export function PopoverFilterBuilder({
               variant="ghost"
               className="relative"
             >
-              <FilterIcon className="icon-base text-icon-foreground" />
+              <FilterIcon size="base" color="default" />
               {filterState.length > 0 && (
                 <span className="bg-input absolute top-0 -right-1 flex h-4 min-w-4 items-center justify-center rounded-sm px-1 text-xs shadow-xs">
                   {filterState.length}
@@ -337,7 +339,7 @@ export function PopoverFilterBuilder({
                 size="icon"
                 className="ml-0.5"
               >
-                <X className="icon-base text-icon-foreground" />
+                <X size="base" color="default" />
               </Button>
             </TooltipTrigger>
             <TooltipContent>Clear all filters</TooltipContent>
@@ -352,7 +354,7 @@ export function PopoverFilterBuilder({
                 size="icon-xs"
                 className="hover:bg-background ml-0.5"
               >
-                <X className="icon-sm text-icon-foreground" />
+                <X size="sm" color="default" />
               </Button>
             </TooltipTrigger>
             <TooltipContent>Clear all filters</TooltipContent>
@@ -700,21 +702,13 @@ function FilterBuilderForm({
         onOpenChange={(open) => setOpenColumnRow(open ? i : null)}
       >
         <PopoverTrigger asChild>
-          <Button
-            variant="outline"
-            role="combobox"
-            type="button"
+          <CompactPickerButton
             disabled={disabled}
-            className={cn(
-              "flex items-center justify-between gap-2",
-              compact ? "w-full min-w-0" : "w-full min-w-32",
-            )}
+            title={columnLabel}
+            minWidth={compact ? "none" : "default"}
           >
-            <span className="min-w-0 truncate" title={columnLabel}>
-              {columnLabel}
-            </span>
-            <DropdownIndicator />
-          </Button>
+            {columnLabel}
+          </CompactPickerButton>
         </PopoverTrigger>
         <PopoverContent align="start" className="ph-no-capture max-w-fit p-0">
           <InputCommand>
@@ -763,8 +757,9 @@ function FilterBuilderForm({
                       }}
                     >
                       <Check
-                        className={cn(
-                          "icon-base mr-2",
+                        size="base"
+                        __rawClassName={cn(
+                          "mr-2",
                           option.id === column?.id ? "visible" : "invisible",
                         )}
                       />
@@ -773,10 +768,8 @@ function FilterBuilderForm({
                         <Tooltip>
                           <TooltipTrigger asChild>
                             <Info
-                              className={cn(
-                                "icon-base ml-2",
-                                alertStyles.iconColor,
-                              )}
+                              size="base"
+                              __rawClassName={cn("ml-2", alertStyles.iconColor)}
                             />
                           </TooltipTrigger>
                           <TooltipContent
@@ -1120,7 +1113,7 @@ function FilterBuilderForm({
         disabled={disabled}
         size="xs"
       >
-        <X className="icon-sm text-icon-foreground" />
+        <X size="sm" color="default" />
       </Button>
     );
 
@@ -1140,17 +1133,13 @@ function FilterBuilderForm({
           ) : null}
           <div className="flex w-5 shrink-0 justify-end">{removeButton}</div>
         </div>
-        <div className="flex items-start">
-          <span className="w-16 shrink-0" aria-hidden="true" />
-          <div className="border-input h-6 w-3 shrink-0 rounded-bl-md border-b-2 border-l-2" />
-          <div className="flex min-w-0 flex-1 items-center gap-1.5 pt-2">
-            <div className="shrink-0">{operatorSelect}</div>
-            {valueControl ? (
-              <div className="min-w-0 flex-1">{valueControl}</div>
-            ) : null}
-            <span className="w-5 shrink-0" aria-hidden="true" />
-          </div>
-        </div>
+        <CompactConnectorRow indent="label" align="center">
+          <div className="shrink-0">{operatorSelect}</div>
+          {valueControl ? (
+            <div className="min-w-0 flex-1">{valueControl}</div>
+          ) : null}
+          <span className="w-5 shrink-0" aria-hidden="true" />
+        </CompactConnectorRow>
       </div>
     ) : (
       <tr key={i}>
@@ -1192,11 +1181,15 @@ function FilterBuilderForm({
             }
             className="text-muted-foreground w-full justify-start"
           >
-            <WandSparkles className="icon-base text-icon-foreground mr-2" />
+            <WandSparkles size="base" color="default" __rawClassName="mr-2" />
             {!aiFilter.aiFeaturesEnabled ? (
               <>
                 AI Filters: Enable in Organization Settings (Admin Only)
-                <ExternalLink className="icon-base text-icon-foreground ml-2" />
+                <ExternalLink
+                  size="base"
+                  color="default"
+                  __rawClassName="ml-2"
+                />
               </>
             ) : showAiFilter ? (
               "Cancel"
@@ -1233,7 +1226,7 @@ function FilterBuilderForm({
                 </Button>
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <Info className="text-muted-foreground icon-base" />
+                    <Info size="base" color="muted" />
                   </TooltipTrigger>
                   <TooltipContent>
                     <p className="text-xs">
@@ -1280,7 +1273,7 @@ function FilterBuilderForm({
                 variant="outline"
                 size="sm"
               >
-                <Plus className="icon-base text-icon-foreground mr-2 shrink-0" />
+                <Plus size="base" color="default" __rawClassName="mr-2" />
                 Add filter
               </Button>
             )

@@ -173,6 +173,7 @@ function AgentSessionContent({
         )}
       </SessionMetadataJsonPathControl>
       <ConnectedModernSessionBodyTimeline
+        transcriptSource="generations"
         projectId={projectId}
         sessionId={sessionId}
         tracesState={tracesState}

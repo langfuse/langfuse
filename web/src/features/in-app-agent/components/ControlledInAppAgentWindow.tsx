@@ -69,6 +69,7 @@ export function ControlledInAppAgentWindow(
     pendingToolApprovals,
     approveToolCall,
     alwaysAllowToolCall,
+    answerQuestionnaire,
     rejectToolCall,
     selectConversation,
     selectedConversationId,
@@ -222,6 +223,7 @@ export function ControlledInAppAgentWindow(
       executionUi={windowExecutionUi}
       onApproveToolCall={approveToolCall}
       onAlwaysAllowToolCall={alwaysAllowToolCall}
+      onAnswerQuestionnaire={answerQuestionnaire}
       onRejectToolCall={rejectToolCall}
       onSubmitFeedback={submitFeedback}
       {...closeButtonProps}

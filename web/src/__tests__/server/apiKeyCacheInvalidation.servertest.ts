@@ -2,11 +2,19 @@ import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import { LLMAdapter, type Plan, Role } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import {
+  createApiKey,
   createApiKeyCacheKey,
   AUTHZ_CONTEXT_CACHE_KEY_PREFIX,
   createAuthzContextCacheKey,
   createShaHash,
 } from "@langfuse/shared/src/server";
+import {
+  OrganizationId,
+  ProjectId,
+  SystemRoleId,
+  UserId,
+} from "@langfuse/shared/rbac";
+import { assignRole } from "@langfuse/shared/rbac/server";
 import type { Session } from "next-auth";
 import { v4 as uuidv4 } from "uuid";
 import {
@@ -99,19 +107,13 @@ function cacheKeysFor({
 }
 
 async function seedOrgScopedKey(orgId: string) {
-  const suffix = uuidv4().slice(0, 8);
-  const fastHash = `fh-${suffix}`;
-  const publicKey = `pk-lf-${suffix}`;
-  await prisma.apiKey.create({
-    data: {
-      orgId,
-      scope: "ORGANIZATION",
-      publicKey,
-      hashedSecretKey: `hsk-${suffix}`,
-      fastHashedSecretKey: fastHash,
-      displaySecretKey: `sk-...${suffix}`,
-    },
+  const { publicKey, secretKey } = await createApiKey(prisma, {
+    tenant: OrganizationId(orgId),
+    scope: OrganizationId(orgId),
+    role: SystemRoleId("LEGACY_ORGANIZATION_API_KEY"),
+    createdBy: "system",
   });
+  const fastHash = createShaHash(secretKey, env.SALT!);
   const keys = cacheKeysFor({ fastHash, publicKey });
   for (const key of keys) {
     await setRedisValue(redis, key, "1");
@@ -371,29 +373,19 @@ describe("API-key cache invalidation on project/org lifecycle", () => {
     expect(await survivingKeys(keys)).toEqual([]);
   });
 
-  it("admin project deletion keeps the ingestion project and its keys", async () => {
+  it("accessAuditLog.setEnabled evicts the org's cached keys", async () => {
     const orgId = await createOrg();
-    const projectId = await createProject(orgId);
+    const user = await createUserInOrgs([orgId]);
     const keys = await seedOrgScopedKey(orgId);
-    await prisma.gatewayConfig.create({
-      data: { organizationId: orgId, defaultIngestionProjectId: projectId },
-    });
 
-    const res = makeRes();
-    await handleDeleteProject({} as any, res, projectId, {
-      orgId,
-      apiKeyId: "ADMIN_KEY",
-    } as any);
-
-    expect(res.statusCode).toBe(409);
-    expect(res.body).toEqual({
-      message:
-        "This project is used as the AI Gateway ingestion project. Select another ingestion project before deleting it.",
+    const caller = makeCaller({
+      userId: user.id,
+      orgIds: [orgId],
+      plan: "cloud:enterprise",
     });
-    expect(await survivingKeys(keys)).toEqual(keys);
-    await expect(
-      prisma.project.findUnique({ where: { id: projectId } }),
-    ).resolves.toMatchObject({ deletedAt: null });
+    await caller.accessAuditLog.setEnabled({ orgId, enabled: true });
+
+    expect(await survivingKeys(keys)).toEqual([]);
   });
 
   it("admin project soft deletion preserves user permissions and evicts cached keys", async () => {
@@ -402,16 +394,12 @@ describe("API-key cache invalidation on project/org lifecycle", () => {
     const keys = await seedOrgScopedKey(orgId);
 
     const user = await createUserInOrgs([orgId]);
-    const assignment = await prisma.roleAssignment.create({
-      data: {
-        orgId,
-        userId: user.id,
-        principalId: `user/${user.id}`,
-        projectId,
-        ownerId: `project/${projectId}`,
-        systemRole: "VIEWER",
-        roleId: "system/VIEWER",
-      },
+    const assignment = await assignRole(prisma, {
+      tenantId: OrganizationId(orgId),
+      ownerId: ProjectId(projectId),
+      principalId: UserId(user.id),
+      roleId: SystemRoleId("VIEWER"),
+      tags: [],
     });
 
     const res = makeRes();

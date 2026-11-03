@@ -34,7 +34,7 @@ const innerWindow = {
 vi.mock("next/router", () => ({
   useRouter: () => ({ query: mocks.route, push: mocks.push }),
 }));
-vi.mock("@/src/components/layouts/page", () => ({
+vi.mock("@/src/components/layouts/Page", () => ({
   default: ({ children }: { children: ReactNode }) => <main>{children}</main>,
 }));
 vi.mock("./AgentsFeatureGate", () => ({
@@ -43,7 +43,7 @@ vi.mock("./AgentsFeatureGate", () => ({
 vi.mock("@/src/features/feature-flags", () => ({
   InternalFeatureBadge: () => <span>Internal</span>,
 }));
-vi.mock("@/src/components/table/table-header-controls", () => ({
+vi.mock("@/src/components/table/TableHeaderControls", () => ({
   TableHeaderControls: ({
     setTimeRange,
   }: {

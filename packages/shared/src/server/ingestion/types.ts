@@ -1,7 +1,7 @@
 import isEmpty from "lodash/isEmpty";
 import { z } from "zod";
 
-import { NonEmptyString, jsonSchema } from "../../utils/zod";
+import { isoDateTime, NonEmptyString, jsonSchema } from "../../utils/zod";
 import { ModelUsageUnit } from "../../constants";
 import { ScoreSourceType } from "../../domain";
 import { TEXT_SCORE_MAX_LENGTH } from "../../domain/scores";
@@ -40,7 +40,7 @@ const MixedUsage = z.object({
   totalCost: z.number().nullish(),
 });
 
-export const stringDateTime = z.iso.datetime({ offset: true }).nullish();
+export const stringDateTime = isoDateTime({ offset: true }).nullish();
 
 export const usage = MixedUsage.nullish()
   // transform mixed usage model input to new one
@@ -464,6 +464,25 @@ export const SdkLogEvent = z.object({
 // With this setup parsing should be more lightweight and doesn't block other requests.
 // As we allow plain values, arrays, and objects the JSON parse via bodyParser should suffice.
 
+// Values outside the supported shapes (e.g. a structured-output
+// `response_format`) are stored as JSON strings instead of rejecting the whole
+// generation. OTel ingestion applies the same rule before reaching this schema.
+const ModelParameters = z
+  .record(
+    z.string(),
+    z
+      .union([
+        z.string(),
+        z.number(),
+        z.boolean(),
+        z.array(z.string()),
+        z.record(z.string(), z.string()),
+        z.unknown().transform((value) => JSON.stringify(value)),
+      ])
+      .nullish(),
+  )
+  .nullish();
+
 // Complete schema factory - single source of truth for ALL schemas
 const createAllIngestionSchemas = ({
   isPublic = true,
@@ -526,20 +545,7 @@ const createAllIngestionSchemas = ({
   const CreateGenerationBody = CreateSpanBody.extend({
     completionStartTime: stringDateTime,
     model: z.string().nullish(),
-    modelParameters: z
-      .record(
-        z.string(),
-        z
-          .union([
-            z.string(),
-            z.number(),
-            z.boolean(),
-            z.array(z.string()),
-            z.record(z.string(), z.string()),
-          ])
-          .nullish(),
-      )
-      .nullish(),
+    modelParameters: ModelParameters,
     usage: usage,
     usageDetails: UsageDetails,
     costDetails: CostDetails,
@@ -555,20 +561,7 @@ const createAllIngestionSchemas = ({
   const UpdateGenerationBody = UpdateSpanBody.extend({
     completionStartTime: stringDateTime,
     model: z.string().nullish(),
-    modelParameters: z
-      .record(
-        z.string(),
-        z
-          .union([
-            z.string(),
-            z.number(),
-            z.boolean(),
-            z.array(z.string()),
-            z.record(z.string(), z.string()),
-          ])
-          .nullish(),
-      )
-      .nullish(),
+    modelParameters: ModelParameters,
     usage: usage,
     usageDetails: UsageDetails,
     costDetails: CostDetails,
@@ -641,7 +634,7 @@ const createAllIngestionSchemas = ({
       BaseScoreBody.extend(
         z.object({
           value: z.union([z.string(), z.number()]),
-          dataType: z.undefined(),
+          dataType: z.undefined().optional(),
           configId: z.string().nullish(),
         }).shape,
       ),
@@ -669,7 +662,7 @@ const createAllIngestionSchemas = ({
   // Event schemas
   const base = z.object({
     id: idSchema,
-    timestamp: z.iso.datetime({ offset: true }),
+    timestamp: isoDateTime({ offset: true }),
     metadata: jsonSchema.nullish(),
   });
 

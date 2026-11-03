@@ -165,14 +165,10 @@ export const DatasetItemField = ({
         />
       )}
       {!isFormField && showPrettyView && pretty.scalar === null && (
-        <PrettyJsonView
-          json={pretty.json}
-          currentView="pretty"
-          className="w-full"
-        />
+        <PrettyJsonView json={pretty.json} currentView="pretty" />
       )}
       {!isFormField && showPrettyView && pretty.scalar !== null && (
-        <div className="rounded-sm border py-1 pr-2 pl-4 font-mono text-xs/5 wrap-break-word whitespace-pre-wrap">
+        <div className="ph-no-capture rounded-sm border py-1 pr-2 pl-4 font-mono text-xs/5 wrap-break-word whitespace-pre-wrap">
           {pretty.scalar === "" ? (
             <span className="text-muted-foreground">empty</span>
           ) : (

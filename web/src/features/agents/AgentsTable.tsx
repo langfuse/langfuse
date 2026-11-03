@@ -10,7 +10,7 @@ import {
   StringParam,
   withDefault,
 } from "use-query-params";
-import { Bot, RefreshCw } from "lucide-react";
+import { Bot, RefreshCw } from "@langfuse/icons";
 import { DEFAULT_SIDEBAR_IMPLICIT_ENVIRONMENT_CONFIG } from "@langfuse/shared";
 import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { Button } from "@/src/components/design-system/Button/Button";
@@ -28,7 +28,7 @@ import {
 } from "@/src/components/table/data-table-controls";
 import { FilterToggleButton } from "@/src/components/table/FilterToggleButton";
 import { ResizableFilterLayout } from "@/src/components/table/resizable-filter-layout";
-import { TableHeaderControls } from "@/src/components/table/table-header-controls";
+import { TableHeaderControls } from "@/src/components/table/TableHeaderControls";
 import {
   useSidebarFilterState,
   buildSidebarFilterSessionContextId,
@@ -401,7 +401,7 @@ function AgentExplorerTable({ projectId }: { projectId: string }) {
 function EmptyAgents() {
   return (
     <div className="mx-auto flex max-w-xl flex-col items-center gap-3 px-4 py-10 text-center">
-      <Bot className="text-muted-foreground icon-xl" />
+      <Bot size="xl" color="muted" />
       <h2 className="text-foreground text-lg font-bold">
         No agents yet in this window
       </h2>

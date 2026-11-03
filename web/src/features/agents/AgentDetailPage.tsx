@@ -14,7 +14,7 @@ import {
   MessagesSquare,
   BookOpen,
   CircleAlert,
-} from "lucide-react";
+} from "@langfuse/icons";
 import {
   AGENT_NAME_METADATA_KEY,
   MAX_AGENT_NAME_LENGTH,
@@ -22,22 +22,20 @@ import {
   decodeFiltersGeneric,
   type FilterState,
 } from "@langfuse/shared";
-import Page from "@/src/components/layouts/page";
+import Page from "@/src/components/layouts/Page";
 import { Button } from "@/src/components/design-system/Button/Button";
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { Skeleton } from "@/src/components/ui/skeleton";
-import { TableHeaderControls } from "@/src/components/table/table-header-controls";
+import { TableHeaderControls } from "@/src/components/table/TableHeaderControls";
 import { ObservationsEventsTable } from "@/src/features/events/components";
 import { EventsOutlierStrip } from "@/src/features/events/components/outlier-strip/EventsOutlierStrip";
 import { InternalFeatureBadge } from "@/src/features/feature-flags";
 import { useTableDateRange } from "@/src/hooks/useTableDateRange";
 import { useLiveTableDateRange } from "@/src/hooks/useLiveTableDateRange";
-import {
-  RouteParamsPendingFallback,
-  useReadyRouteParams,
-} from "@/src/hooks/useReadyRouteParams";
+import { useReadyRouteParams } from "@/src/hooks/useReadyRouteParams";
+import { RouteParamsPendingFallback } from "@/src/components/RouteParamsPendingFallback/RouteParamsPendingFallback";
 import {
   rangeToString,
   type AbsoluteTimeRange,
@@ -496,8 +494,10 @@ function AgentProfile({
               agentName={agentName}
               externalDateRange={window}
               externalFilterState={[...filter, ...RUN_FILTER]}
-              hideControls
-              enablePeekView
+              showSearchBar={false}
+              showToolbar={false}
+              showFilterSidebar={false}
+              showPeekPanel
               isolateTableState
             />
           </Tabs.Content>
@@ -507,8 +507,10 @@ function AgentProfile({
               agentName={agentName}
               externalDateRange={window}
               externalFilterState={filter}
-              hideControls
-              enablePeekView
+              showSearchBar={false}
+              showToolbar={false}
+              showFilterSidebar={false}
+              showPeekPanel
               isolateTableState
             />
           </Tabs.Content>

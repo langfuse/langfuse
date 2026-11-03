@@ -1,13 +1,9 @@
 import { BLOB_STORAGE_REGION_REGEX } from "../../utils/stringChecks";
 import {
+  isDnsCompatibleBucketName,
   type OutboundUrlValidationWhitelist,
   parseOutboundUrl,
 } from "../outbound-url";
-
-/** Bucket names the AWS SDK virtual-hosts as `{bucket}.{endpoint host}`. */
-const DNS_COMPATIBLE_BUCKET_NAME = /^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$/;
-const IP_SHAPED_BUCKET_NAME = /(?:\d+\.){3}\d+/;
-const ADJACENT_DOTS = /\.\./;
 
 export type S3VirtualHostTarget = {
   endpoint?: string | null;
@@ -38,14 +34,6 @@ export function withS3VirtualHostedBucket(
     ...whitelist,
     allowedHosts: [...allowedHosts, ...virtualHosts],
   };
-}
-
-function isDnsCompatibleBucketName(bucketName: string): boolean {
-  return (
-    DNS_COMPATIBLE_BUCKET_NAME.test(bucketName) &&
-    !IP_SHAPED_BUCKET_NAME.test(bucketName) &&
-    !ADJACENT_DOTS.test(bucketName)
-  );
 }
 
 function virtualHostedNames(

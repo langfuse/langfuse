@@ -21,7 +21,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/src/components/ui/popover";
-import { CheckIcon, PlusIcon, EyeIcon, TriangleAlert } from "lucide-react";
+import { CheckIcon, PlusIcon, EyeIcon, TriangleAlert } from "@langfuse/icons";
 import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 import { CreateOrEditLLMSchemaDialog } from "@/src/features/playground";
 import {
@@ -177,8 +177,9 @@ export const PromptModelStep: React.FC<PromptModelStepProps> = ({
                               >
                                 {name}
                                 <CheckIcon
-                                  className={cn(
-                                    "icon-base ml-auto",
+                                  size="base"
+                                  __rawClassName={cn(
+                                    "ml-auto",
                                     name === selectedPromptName
                                       ? "opacity-100"
                                       : "opacity-0",
@@ -247,8 +248,9 @@ export const PromptModelStep: React.FC<PromptModelStepProps> = ({
                                 )}
                               </div>
                               <CheckIcon
-                                className={cn(
-                                  "icon-base ml-auto shrink-0",
+                                size="base"
+                                __rawClassName={cn(
+                                  "ml-auto",
                                   prompt.version === selectedPromptVersion
                                     ? "opacity-100"
                                     : "opacity-0",
@@ -269,7 +271,7 @@ export const PromptModelStep: React.FC<PromptModelStepProps> = ({
             </div>
             {selectedPromptToolConfig.status === "invalid" && (
               <p className="text-dark-yellow flex items-center gap-1.5 text-sm">
-                <TriangleAlert className="icon-base shrink-0" />
+                <TriangleAlert size="base" />
                 Invalid tool config detected on this prompt version. Its tools
                 will be ignored when running the experiment.
               </p>
@@ -372,8 +374,9 @@ export const PromptModelStep: React.FC<PromptModelStepProps> = ({
                                 >
                                   {schema.name}
                                   <CheckIcon
-                                    className={cn(
-                                      "icon-base ml-auto",
+                                    size="base"
+                                    __rawClassName={cn(
+                                      "ml-auto",
                                       selectedSchema?.id === schema.id
                                         ? "opacity-100"
                                         : "opacity-0",
@@ -394,7 +397,7 @@ export const PromptModelStep: React.FC<PromptModelStepProps> = ({
                         aria-label={`View schema ${selectedSchema.name}`}
                         onClick={() => openSchemaDialog(selectedSchema)}
                       >
-                        <EyeIcon className="icon-base text-icon-foreground" />
+                        <EyeIcon size="base" color="default" />
                       </Button>
                     )}
                   </div>
@@ -404,7 +407,11 @@ export const PromptModelStep: React.FC<PromptModelStepProps> = ({
                     className="w-full"
                     onClick={() => openSchemaDialog(null)}
                   >
-                    <PlusIcon className="icon-base text-icon-foreground mr-2" />
+                    <PlusIcon
+                      size="base"
+                      color="default"
+                      __rawClassName="mr-2"
+                    />
                     Add schema
                   </Button>
                 )}

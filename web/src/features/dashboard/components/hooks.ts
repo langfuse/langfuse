@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { type FilterState, getGenerationLikeTypes } from "@langfuse/shared";
 import type { MissingBucketValue } from "@/src/features/widgets";
 
@@ -8,7 +9,7 @@ export type TimeSeriesChartDataPoint = {
 import { type DatabaseRow } from "@/src/server/api/services/sqlInterface";
 import { type ViewVersion } from "@langfuse/shared/query";
 import { mapLegacyUiTableFilterToView } from "@/src/features/dashboard/lib/dashboardUiTableToViewMapping";
-import { useScheduledDashboardExecuteQuery } from "@/src/features/dashboard/hooks/useDashboardQueryScheduler";
+import { useScheduledDashboardExecuteQuery } from "@/src/features/dashboard/hooks/DashboardQuerySchedulerProvider";
 
 type UseAllModelsOptions = {
   enabled?: boolean;

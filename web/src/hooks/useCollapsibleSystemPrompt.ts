@@ -1,11 +1,11 @@
 import { useMemo, useSyncExternalStore } from "react";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 
+// A prompt counts as long when it exceeds the char threshold and would not
+// fit a short first-lines preview anyway.
 const COLLAPSE_CHAR_THRESHOLD = 250;
-const DEFAULT_PREVIEW_LINES = 4;
-// Matches JSONView's collapseStringsAfterLength default; generous enough that
-// the first N lines usually survive intact instead of being cut mid-line.
-const DEFAULT_PREVIEW_CHAR_LIMIT = 500;
+const PREVIEW_LINES = 4;
+const PREVIEW_CHAR_LIMIT = 500;
 
 const STORAGE_KEY = "collapseSystemPrompt";
 const LEGACY_STORAGE_KEY = "traceSystemPrompt:collapsed";
@@ -67,8 +67,8 @@ function writeCollapsePreference(value: boolean): void {
 
 /**
  * Persisted default for whether long system prompts render collapsed.
- * Shared by the inline expand/collapse toggle and the trace view preferences
- * (ViewPreferencesContext). Backed by useSyncExternalStore rather than
+ * Shared by the section caret on system prompt messages and the trace view
+ * preferences (ViewPreferencesContext). Backed by useSyncExternalStore rather than
  * per-instance state: many instances of this hook mount at once (one per
  * message), and a state-updater-based sync would setState across components
  * mid-render.
@@ -90,86 +90,67 @@ interface UseCollapsibleSystemPromptOptions {
       message that carries a `name` is titled by that name. */
   isSystemPrompt: boolean;
   content: string;
-  /** Number of lines shown while collapsed. */
-  previewLines?: number;
-  /** Character cap applied to the collapsed preview. */
-  previewCharLimit?: number;
 }
 
-type SystemPromptCollapseSource = "inline" | "header";
-
 interface UseCollapsibleSystemPromptReturn {
+  /** True for long system prompts: their section follows the persisted
+      preference instead of the default open state. */
   shouldBeCollapsible: boolean;
   isCollapsed: boolean;
-  toggleCollapsed: (source?: SystemPromptCollapseSource) => void;
-  truncatedContent: string;
+  toggleCollapsed: () => void;
 }
 
 /**
- * Collapses long system prompts to a first-N-lines preview by default.
- * Toggling flips the persisted preference, so an explicit "expanded" choice
- * sticks across messages and navigation instead of being force-collapsed.
+ * Long system prompts start collapsed by default. Toggling flips the
+ * persisted preference, so an explicit "expanded" choice sticks across
+ * messages and navigation instead of being force-collapsed.
  */
 export function useCollapsibleSystemPrompt({
   isSystemPrompt,
   content,
-  previewLines = DEFAULT_PREVIEW_LINES,
-  previewCharLimit = DEFAULT_PREVIEW_CHAR_LIMIT,
 }: UseCollapsibleSystemPromptOptions): UseCollapsibleSystemPromptReturn {
   const capture = usePostHogClientCapture();
   const [collapsePreference, setCollapsePreference] =
     useCollapseSystemPromptPreference();
 
-  // null = collapsing would hide nothing, so no toggle is offered. Deriving
-  // collapsibility from the actual truncation result (instead of a bare char
-  // threshold) avoids a dead toggle for content that clears the threshold but
-  // fits entirely within the preview.
-  const preview = useMemo(() => {
+  const shouldBeCollapsible = useMemo(() => {
     if (
       !isSystemPrompt ||
       typeof content !== "string" ||
       content.length <= COLLAPSE_CHAR_THRESHOLD
     ) {
-      return null;
+      return false;
     }
 
     // Split only a bounded prefix. A full split("\n") over a multi-MB string
     // is the main-thread cost PrettyJsonView's large-string gate exists to
-    // avoid; the preview never needs more than the first few lines anyway.
-    const scanLimit = Math.max(previewCharLimit, 8_192);
+    // avoid.
+    const scanLimit = Math.max(PREVIEW_CHAR_LIMIT, 8_192);
     const scanText =
       content.length > scanLimit ? content.slice(0, scanLimit) : content;
     const lines = scanText.split("\n");
-    const previewText = lines.slice(0, previewLines).join("\n");
+    const previewText = lines.slice(0, PREVIEW_LINES).join("\n");
 
-    if (previewText.length > previewCharLimit) {
-      return previewText.slice(0, previewCharLimit) + "...";
-    }
-    if (lines.length > previewLines || content.length > scanText.length) {
-      return previewText + "\n...";
-    }
-    return null;
-  }, [isSystemPrompt, content, previewLines, previewCharLimit]);
+    return (
+      previewText.length > PREVIEW_CHAR_LIMIT ||
+      lines.length > PREVIEW_LINES ||
+      content.length > scanText.length
+    );
+  }, [isSystemPrompt, content]);
 
-  const shouldBeCollapsible = preview !== null;
   const isCollapsed = shouldBeCollapsible && collapsePreference;
 
-  const toggleCollapsed = (source: SystemPromptCollapseSource = "inline") => {
+  const toggleCollapsed = () => {
     const next = !collapsePreference;
     // No trace analytics dimensions here on purpose: this fires from shared
     // components that also render outside trace contexts (e.g. session view),
     // and the event must keep one shape across sources.
     capture("trace_detail:system_prompt_collapse_toggle", {
       collapsed: next,
-      source,
+      source: "header",
     });
     setCollapsePreference(next);
   };
 
-  return {
-    shouldBeCollapsible,
-    isCollapsed,
-    toggleCollapsed,
-    truncatedContent: preview ?? content,
-  };
+  return { shouldBeCollapsible, isCollapsed, toggleCollapsed };
 }

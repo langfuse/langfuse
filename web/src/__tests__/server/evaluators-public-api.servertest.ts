@@ -716,4 +716,77 @@ describe("stable evaluators public API", () => {
     );
     expect(response.status).toBe(404);
   });
+
+  it("rejects patching and deleting a built-in evaluator", async () => {
+    const { auth } = await createOrgProjectAndApiKey();
+    const evaluator = await createCodeEvaluator("built-in evaluator", auth);
+    await prisma.evaluator.update({
+      where: { id: evaluator.body.id },
+      data: { isBuiltIn: true },
+    });
+
+    for (const [method, body] of [
+      [
+        "PATCH",
+        {
+          name: "renamed built-in evaluator",
+          ...codeDefinition("function evaluate() { return { scores: [1] }; }"),
+        },
+      ],
+      ["DELETE", undefined],
+    ] as const) {
+      const response = await makeAPICall(
+        method,
+        `/api/public/v2/evaluators/${evaluator.body.id}`,
+        body,
+        auth,
+      );
+      expect(response.status).toBe(400);
+      expect(PublicApiError.parse(response.body)).toMatchObject({
+        message: "Built-in evaluators cannot be edited",
+      });
+    }
+
+    await expect(
+      prisma.evaluator.findUnique({
+        where: { id: evaluator.body.id },
+        select: { name: true, _count: { select: { versions: true } } },
+      }),
+    ).resolves.toEqual({
+      name: "built-in evaluator",
+      _count: { versions: 1 },
+    });
+  });
+
+  it("returns 404 when patching or deleting a FACET evaluator", async () => {
+    const { auth, project } = await createOrgProjectAndApiKey();
+    const facet = await prisma.evaluator.create({
+      data: {
+        projectId: project.id,
+        name: "internal facet",
+        type: EvalTemplateType.FACET,
+        versions: { create: { version: 1 } },
+      },
+    });
+
+    for (const [method, body] of [
+      ["PATCH", { name: "renamed facet" }],
+      ["DELETE", undefined],
+    ] as const) {
+      const response = await makeAPICall(
+        method,
+        `/api/public/v2/evaluators/${facet.id}`,
+        body,
+        auth,
+      );
+      expect(response.status).toBe(404);
+    }
+
+    await expect(
+      prisma.evaluator.findUnique({
+        where: { id: facet.id },
+        select: { name: true },
+      }),
+    ).resolves.toEqual({ name: "internal facet" });
+  });
 });

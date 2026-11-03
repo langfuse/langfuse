@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { useMemo } from "react";
 import { type z } from "zod";
 
@@ -177,6 +178,7 @@ export const MonitorChartPreview = ({
             rowLimit={1000}
             thresholds={thresholds}
             metricFormatter={metricFormatter}
+            compactYAxis
             // Both queries feed `data`; while either is still pending it can
             // be spuriously `[]`, which would otherwise flash "No data"
             // before the real result (or the leading point) arrives.

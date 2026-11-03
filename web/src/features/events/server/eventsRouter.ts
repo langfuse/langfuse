@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { type z, z as zodSchema } from "zod";
 import { TRPCError } from "@trpc/server";
 import { env } from "@/src/env.mjs";
@@ -12,6 +13,7 @@ import {
   protectedGetSessionProcedure,
 } from "@/src/server/api/trpc";
 import {
+  isoDateTime,
   type OrderByState,
   type SkillsAvailable,
   type SkillsResourceLoaded,
@@ -19,6 +21,7 @@ import {
   paginationZod,
   singleFilterList,
   timeFilter,
+  toAuditLogResourceRef,
 } from "@langfuse/shared";
 import {
   toDomainArrayWithStringifiedMetadata,
@@ -36,8 +39,10 @@ import {
   EVENT_FILTER_OPTIONS_COLUMNS,
 } from "./eventsService";
 import { loadTraceTranscript } from "./loadTraceTranscript";
+import { recordTrpcAccess } from "@/src/ee/features/access-audit-log/server";
 import {
   instrumentAsync,
+  getCurrentSpan,
   getScoresAndCorrectionsForTraces,
   getAgentGraphDataFromEventsTable,
   getObservationsForTraceFromEventsTable,
@@ -141,6 +146,15 @@ export const eventsRouter = createTRPCRouter({
   all: protectedProjectProcedure
     .input(GetAllEventsInput)
     .query(async ({ input, ctx }) => {
+      const normalizedOrderBy = normalizeOrderByForTable({
+        orderBy: input.orderBy,
+        expectedTimeColumn: "startTime",
+      });
+      const span = getCurrentSpan();
+      if (span) {
+        addAttributesToSpan({ span, input, orderBy: normalizedOrderBy });
+      }
+
       const { filterState, hasNoMatches } = await applyCommentFilters({
         filterState: input.filter ?? [],
         prisma: ctx.prisma,
@@ -157,10 +171,6 @@ export const eventsRouter = createTRPCRouter({
           name: "get-event-list-trpc",
         },
         async (span) => {
-          const normalizedOrderBy = normalizeOrderByForTable({
-            orderBy: input.orderBy,
-            expectedTimeColumn: "startTime",
-          });
           addAttributesToSpan({ span, input, orderBy: normalizedOrderBy });
 
           return getEventList({
@@ -453,6 +463,7 @@ export const eventsRouter = createTRPCRouter({
         traceId: zodSchema.string(),
         timestamp: zodSchema.date().optional(),
         fallbackToRootIO: zodSchema.boolean().default(false),
+        transcriptSource: zodSchema.enum(["generations", "root"]).optional(),
       }),
     )
     .query(async ({ input, ctx }) => {
@@ -501,6 +512,7 @@ export const eventsRouter = createTRPCRouter({
             traceId: input.traceId,
             timestamp,
             fallbackToRootIO: input.fallbackToRootIO,
+            transcriptSource: input.transcriptSource,
           });
         },
       );
@@ -534,6 +546,26 @@ export const eventsRouter = createTRPCRouter({
               timestamp: ctx.trace?.timestamp ?? input.timestamp,
             });
 
+          await recordTrpcAccess(ctx, input.projectId, {
+            route: "events.byTraceId",
+            resourceType: "trace",
+            resourceId: input.traceId,
+            action: "read",
+            resourceRefs: [toAuditLogResourceRef("trace", input.traceId)]
+              .concat(
+                ctx.trace?.sessionId
+                  ? [toAuditLogResourceRef("session", ctx.trace.sessionId)]
+                  : [],
+              )
+              .concat(
+                observations.map((o) =>
+                  toAuditLogResourceRef("observation", o.id),
+                ),
+              ),
+            params: input,
+            resultCount: observations.length,
+          });
+
           return {
             observations: toDomainArrayWithStringifiedMetadata(observations),
             cutoffObservationsAfterMaxCount:
@@ -555,8 +587,8 @@ export const eventsRouter = createTRPCRouter({
       zodSchema.object({
         projectId: zodSchema.string(),
         traceId: zodSchema.string(),
-        minStartTime: zodSchema.iso.datetime({ offset: true }),
-        maxStartTime: zodSchema.iso.datetime({ offset: true }),
+        minStartTime: isoDateTime({ offset: true }),
+        maxStartTime: isoDateTime({ offset: true }),
       }),
     )
     .query(async ({ input }): Promise<Required<AgentGraphDataResponse>[]> => {

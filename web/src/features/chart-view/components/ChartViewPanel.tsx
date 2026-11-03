@@ -1,7 +1,12 @@
 /* eslint-disable no-nested-ternary */
 /* eslint-disable @repo/no-style-props */
 import React, { useCallback, useState } from "react";
-import { AlertCircle, ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
+import {
+  AlertCircle,
+  ChevronLeft,
+  ChevronRight,
+  Loader2,
+} from "@langfuse/icons";
 import { type DashboardWidgetChartType } from "@langfuse/shared/src/db";
 import type { DataPoint } from "@/src/features/widgets";
 import { Button } from "@/src/components/ui/button";
@@ -92,12 +97,12 @@ export const ChartViewPanel = React.memo(function ChartViewPanel({
         <div className="min-h-0 flex-1">
           {error ? (
             <div className="text-muted-foreground flex h-full flex-col items-center justify-center gap-2 p-8 text-center">
-              <AlertCircle className="h-10 w-10 opacity-40" />
+              <AlertCircle __rawClassName="h-10 w-10 opacity-40" />
               <p className="max-w-md text-sm">{error}</p>
             </div>
           ) : isLoading ? (
             <div className="text-muted-foreground flex h-full items-center justify-center">
-              <Loader2 className="icon-lg animate-spin" />
+              <Loader2 size="lg" __rawClassName="animate-spin" />
             </div>
           ) : (
             <ChartCanvas
@@ -126,7 +131,7 @@ export const ChartViewPanel = React.memo(function ChartViewPanel({
               aria-label="Collapse panel"
               onClick={() => setOpen(false)}
             >
-              <ChevronRight className="icon-sm text-icon-foreground" />
+              <ChevronRight size="sm" color="default" />
             </Button>
           </div>
           <PanelField label="Chart type">
@@ -161,7 +166,7 @@ export const ChartViewPanel = React.memo(function ChartViewPanel({
             aria-label="Expand panel"
             onClick={() => setOpen(true)}
           >
-            <ChevronLeft className="icon-sm text-icon-foreground" />
+            <ChevronLeft size="sm" color="default" />
           </Button>
         </div>
       )}

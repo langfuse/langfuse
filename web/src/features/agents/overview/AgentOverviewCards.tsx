@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowUpRight, CircleAlert, Moon } from "lucide-react";
+import { ArrowUpRight, CircleAlert, Moon } from "@langfuse/icons";
 import { HoverCard } from "@/src/components/design-system/HoverCard/HoverCard";
 import {
   AgentIdentity,
@@ -54,14 +54,16 @@ function AgentCard({
                   projectId={scope.projectId}
                   agentName={agent.agentName}
                 />
-                <ArrowUpRight className="icon-base text-muted-foreground shrink-0 opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100" />
+                <span className="inline-flex shrink-0 opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100">
+                  <ArrowUpRight color="muted" />
+                </span>
               </Link>
             )}
           </HoverCard>
           <div className="text-muted-foreground mt-2 flex items-center gap-1.5 text-xs">
             {agent.state === "dormant" ? (
               <>
-                <Moon className="icon-base" />
+                <Moon />
                 No activity in window
               </>
             ) : (
@@ -105,7 +107,7 @@ function AgentCard({
             })}
             className="flex items-center gap-1.5 text-amber-600 hover:underline dark:text-amber-400"
           >
-            <CircleAlert className="icon-base" />
+            <CircleAlert />
             {agent.signals.length} change{agent.signals.length === 1 ? "" : "s"}{" "}
             to inspect
           </Link>

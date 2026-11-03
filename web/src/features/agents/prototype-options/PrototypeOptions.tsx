@@ -1,4 +1,4 @@
-import { SlidersHorizontal, RotateCcw } from "lucide-react";
+import { SlidersHorizontal, RotateCcw } from "@langfuse/icons";
 import { PopoverController } from "@/src/components/ui/popover";
 import { Button } from "@/src/components/design-system/Button/Button";
 import { Checkbox } from "@/src/components/design-system/Checkbox/Checkbox";

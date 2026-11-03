@@ -6,6 +6,7 @@ import { z } from "zod";
 import {
   createApiKey,
   createBasicAuthHeader,
+  createOrgProjectAndApiKey,
   invalidateCachedOrgApiKeys,
 } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
@@ -215,7 +216,8 @@ describe("Projects API", () => {
       data: { email: `apikey-creator-${randomUUID()}@example.com` },
     });
     const orgKey = await createApiKey(prisma, {
-      owner: OrganizationId("seed-org-id"),
+      tenant: OrganizationId("seed-org-id"),
+      scope: OrganizationId("seed-org-id"),
       role: SystemRoleId("LEGACY_ORGANIZATION_API_KEY"),
       createdBy: UserId(keyCreator.id),
       predefinedKeys: {
@@ -830,6 +832,39 @@ describe("Projects API", () => {
       expect(project?.deletedAt).not.toBeNull();
     });
 
+    it("turns the gateway off when deleting its ingestion project", async () => {
+      const { orgId, projectId: ingestionProjectId } =
+        await createOrgProjectAndApiKey({ plan: "Enterprise" });
+      const orgKey = await createApiKey(prisma, {
+        tenant: OrganizationId(orgId),
+        scope: OrganizationId(orgId),
+        role: SystemRoleId("LEGACY_ORGANIZATION_API_KEY"),
+        createdBy: "system",
+      });
+      await prisma.gatewayConfig.create({
+        data: {
+          organizationId: orgId,
+          defaultIngestionProjectId: ingestionProjectId,
+          ingestionMode: "USAGE",
+        },
+      });
+
+      const result = await makeAPICall<{ success: boolean }>(
+        "DELETE",
+        `/api/public/projects/${ingestionProjectId}`,
+        undefined,
+        createBasicAuthHeader(orgKey.publicKey, orgKey.secretKey),
+      );
+
+      expect(result.status).toBe(202);
+      await expect(
+        prisma.gatewayConfig.findUnique({ where: { organizationId: orgId } }),
+      ).resolves.toMatchObject({ defaultIngestionProjectId: null });
+      await expect(
+        prisma.project.findUnique({ where: { id: ingestionProjectId } }),
+      ).resolves.toMatchObject({ deletedAt: expect.any(Date) });
+    });
+
     it("should return 403 when using project API key instead of organization API key", async () => {
       const result = await makeAPICall<{ message: string }>(
         "DELETE",
@@ -1063,10 +1098,6 @@ describe("Projects API", () => {
         label: "wrong-scope legacy role",
         body: { role: "LEGACY_ORGANIZATION_API_KEY" },
       },
-      { label: "admin role", body: { role: "ADMIN" } },
-      { label: "viewer role", body: { role: "VIEWER" } },
-      { label: "ingest role", body: { role: "INGEST" } },
-      { label: "scores ingest role", body: { role: "SCORES_INGEST" } },
       { label: "gateway role", body: { role: "AI_GATEWAY" } },
       { label: "role array", body: { role: [] } },
     ])("rejects $label without creating a key", async ({ body }) => {
@@ -1080,6 +1111,26 @@ describe("Projects API", () => {
       expect(result.status).toBe(400);
       expect(result.body.message).toEqual(expect.any(String));
       expect(await prisma.apiKey.count({ where: { projectId } })).toBe(before);
+    });
+
+    it("provisions a key with a selected role under the default env", async () => {
+      const response = await makeAPICall<
+        z.infer<typeof ApiKeyCreationResponseSchema>
+      >(
+        "POST",
+        `/api/public/projects/${projectId}/apiKeys`,
+        { role: "INGEST" },
+        createBasicAuthHeader(orgApiKey, orgSecretKey),
+      );
+      createdApiKeyId = response.body.id;
+      expect(response.status).toBe(201);
+      expect(response.body.role).toBe("INGEST");
+
+      const stored = await prisma.apiKey.findUniqueOrThrow({
+        where: { id: response.body.id },
+        include: { roleAssignments: true },
+      });
+      expect(stored.roleAssignments).toMatchObject([{ systemRole: "INGEST" }]);
     });
 
     it("should create a new API key with valid organization API key", async () => {
@@ -1331,7 +1382,8 @@ describe("Projects API", () => {
         data: { email: `apikey-creator-${randomUUID()}@example.com` },
       });
       const apiKeyMeta = await createApiKey(prisma, {
-        owner: ProjectId(projectId),
+        tenant: OrganizationId("seed-org-id"),
+        scope: ProjectId(projectId),
         role: SystemRoleId("LEGACY_PROJECT_API_KEY"),
         createdBy: UserId(keyCreator.id),
         name: `Delete Test API Key ${randomUUID().substring(0, 8)}`,

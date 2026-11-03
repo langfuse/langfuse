@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 import { type ComponentProps } from "react";
 import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
 import {

@@ -45,7 +45,7 @@ export class GatewayProviderService {
 
   async get(params: { organizationId: string; id: string }) {
     const connection = await this.repository.getSafeConnection(params);
-    if (!connection) throw new LangfuseNotFoundError("Gateway connection");
+    if (!connection) throw new LangfuseNotFoundError("Provider credential");
     return connection;
   }
 
@@ -125,7 +125,7 @@ export class GatewayProviderService {
       organizationId: params.organizationId,
       id: params.id,
     });
-    if (!existing) throw new LangfuseNotFoundError("Gateway connection");
+    if (!existing) throw new LangfuseNotFoundError("Provider credential");
     /** Unchanged names skip validation so pre-existing names stay editable. */
     const name =
       params.name === undefined || params.name.trim() === existing.name
@@ -144,7 +144,7 @@ export class GatewayProviderService {
       !params.credential
     ) {
       throw new InvalidRequestError(
-        "Errored gateway connections require a credential update or successful retry",
+        "Errored provider credentials need a credential update or a successful retry",
       );
     }
     if (params.credential) {

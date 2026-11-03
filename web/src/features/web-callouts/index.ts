@@ -3,5 +3,5 @@
 export {
   useWebCalloutAction,
   WebCalloutButton,
-} from "@/src/features/web-callouts/components/WebCalloutMenuItem";
+} from "@/src/features/web-callouts/components/WebCalloutButton";
 export { useWebCallouts } from "@/src/features/web-callouts/useWebCallouts";

@@ -1,6 +1,6 @@
 import { MAX_EXPERIMENT_CHARTS } from "../constants/charts";
 import { type ReactNode } from "react";
-import { Plus } from "lucide-react";
+import { Plus } from "@langfuse/icons";
 import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
 import { Button } from "@/src/components/design-system/Button/Button";
 import {

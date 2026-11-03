@@ -39,7 +39,9 @@ export const seedRfcManagedSkills = async (
   };
   for (const [name, description] of MANAGED_SKILLS) {
     const path = `/api/public/unstable/skills/${encodeURIComponent(name)}`;
-    const current = await fetch(`${ctx.baseUrl}${path}`, { headers });
+    const current = await fetch(`${ctx.baseUrl}${path}?label=latest`, {
+      headers,
+    });
     if (current.ok) {
       await verifySkillResponse(current, name);
       continue;

@@ -1,4 +1,5 @@
-import { Info, Pencil, Plus, X } from "lucide-react";
+/* eslint-disable @typescript-eslint/no-use-before-define */
+import { Info, Pencil, Plus, X } from "@langfuse/icons";
 import { arrayMove } from "@dnd-kit/sortable";
 import { type ScoreConfigDomain } from "@langfuse/shared";
 import { formatScoreRange } from "@/src/features/scores";
@@ -88,10 +89,7 @@ export function AnnotationQueueScoreConfigEditor({
                     disabled={disabled}
                     {...getTriggerProps()}
                   >
-                    <Plus
-                      className="icon-base text-icon-foreground"
-                      aria-hidden
-                    />
+                    <Plus size="base" color="default" aria-hidden />
                     Add score
                   </Button>
                 )}

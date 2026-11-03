@@ -277,7 +277,9 @@ export const buildAgentsRfcFixture = (
           projectId: ctx.projectId,
         });
         nativeSkillsByObservation.set(observation.id, {
-          skills_available: nativeSkills.skillsAvailable,
+          skills_available: nativeSkills.skillsAvailable?.map(
+            ({ name, version }) => ({ skillName: name, skillVersion: version }),
+          ),
           skills_resource_loaded: nativeSkills.skillsResourceLoaded,
         });
       }

@@ -1,4 +1,16 @@
-import { FileIcon, Wrench } from "lucide-react";
+import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
+import { JsonViewController } from "@/src/components/ui/JsonViewController";
+import {
+  FoldVertical,
+  UnfoldVertical,
+  FileIcon,
+  Wrench,
+  ChevronDown,
+  ChevronRight,
+  Copy,
+  Check,
+} from "@langfuse/icons";
+import { Button } from "@/src/components/ui/button";
 import { useState, type ComponentProps, type ReactNode } from "react";
 import { SessionTimelineCollapsibleRow } from "../SessionTimelineCollapsibleRow/SessionTimelineCollapsibleRow";
 import { assertUnreachable } from "@langfuse/shared";
@@ -10,8 +22,8 @@ import {
 import { SessionTimelineCollapsiblePart } from "@/src/features/sessions/components/ConnectedModernSessionBodyTimeline/components/ConnectedSessionConversationTimeline/components/SessionConversationalView/components/SessionConversationTimeline/components/SessionConversationTimelineTrace/components/SessionTranscriptContent/components/SessionTimelinePart/components/SessionTimelineCollapsiblePart/SessionTimelineCollapsiblePart";
 import { LangfuseMediaView } from "@/src/components/ui/LangfuseMediaView";
 import { ExternalMediaView } from "@/src/components/ui/media/ExternalMediaView";
-import { MarkdownView } from "@/src/components/ui/MarkdownViewer";
-import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
+import { MarkdownView } from "@/src/components/ui/MarkdownView";
+import { PrettyJsonViewContent } from "@/src/components/ui/PrettyJsonViewContent";
 import {
   classifyMediaValue,
   type MediaDescriptor,
@@ -29,6 +41,9 @@ export function SessionTimelinePart({
   trailingContent?: ReactNode;
   mediaVariant?: "tool-output";
 }) {
+  const [customCollapsed, setCustomCollapsed] = useState(false);
+  const [isCopied, setIsCopied] = useState(false);
+
   if (part.type === "text") {
     if (part.refusal) {
       return (
@@ -95,11 +110,87 @@ export function SessionTimelinePart({
 
   if (part.type === "custom") {
     return (
-      <PrettyJsonView
-        title={part.kind}
-        json={part.value}
-        currentView="pretty"
-      />
+      <JsonViewController json={part.value} currentView="pretty">
+        {(state) => {
+          const Caret = customCollapsed ? ChevronRight : ChevronDown;
+          const ExpansionIcon = state.allRowsExpanded
+            ? FoldVertical
+            : UnfoldVertical;
+          const expansionLabel = state.allRowsExpanded
+            ? "Collapse all rows"
+            : "Expand all rows";
+
+          return (
+            <div className="group/custom-part flex flex-col overflow-clip">
+              <div className="flex h-8 items-center justify-between gap-2">
+                <button
+                  type="button"
+                  className="ph-no-capture focus-visible:ring-ring flex h-full min-w-0 flex-1 items-center gap-2 rounded-sm text-left text-sm font-bold capitalize focus-visible:ring-2 focus-visible:outline-hidden"
+                  aria-expanded={!customCollapsed}
+                  aria-label={`${customCollapsed ? "Expand" : "Collapse"} ${part.kind}`}
+                  onClick={() => setCustomCollapsed((current) => !current)}
+                >
+                  <Caret size="base" color="default" aria-hidden />
+                  {part.kind}
+                </button>
+                {!customCollapsed && (
+                  <div className="mr-1 flex shrink-0 items-center gap-1 opacity-0 transition-opacity group-hover/custom-part:opacity-100 focus-within:opacity-100 pointer-coarse:opacity-100">
+                    {state.contentKind === "table" &&
+                      state.hasExpandableRows && (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon-xs"
+                          title={expansionLabel}
+                          aria-label={expansionLabel}
+                          onClick={state.toggleAllRows}
+                          className="text-muted-foreground hover:text-foreground hover:bg-transparent"
+                        >
+                          <ExpansionIcon size="base" color="default" />
+                        </Button>
+                      )}
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon-xs"
+                      title="Copy to clipboard"
+                      aria-label="Copy to clipboard"
+                      onClick={() => {
+                        state.copy();
+                        setIsCopied(true);
+                        setTimeout(() => setIsCopied(false), 1000);
+                      }}
+                      className="text-muted-foreground hover:text-foreground hover:bg-transparent"
+                    >
+                      {isCopied ? (
+                        <Check size="base" color="default" />
+                      ) : (
+                        <Copy size="base" color="default" />
+                      )}
+                    </Button>
+                  </div>
+                )}
+              </div>
+              {!customCollapsed && (
+                <div className="ph-no-capture pt-1">
+                  <div
+                    className={cn(
+                      "bg-surface-section overflow-hidden rounded-md px-3",
+                      state.contentKind === "table" ? "py-1" : "py-2",
+                    )}
+                  >
+                    <PrettyJsonViewContent
+                      state={state}
+                      title={part.kind}
+                      borderless
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
+          );
+        }}
+      </JsonViewController>
     );
   }
 
@@ -126,6 +217,15 @@ function SessionTimelineReasoning({
   }
 
   if (content.kind === "text") {
+    if (content.text.trim().length === 0) {
+      return (
+        <SessionTimelineCollapsibleRow
+          label="Reasoning"
+          trailingContent={trailingContent}
+        />
+      );
+    }
+
     return (
       <SessionTimelineCollapsibleRow
         label="Reasoning"
@@ -155,6 +255,15 @@ function SessionTimelineReasoning({
   }
 
   if (content.kind === "redacted") {
+    if (content.data.trim().length === 0) {
+      return (
+        <SessionTimelineCollapsibleRow
+          label="Redacted reasoning"
+          trailingContent={trailingContent}
+        />
+      );
+    }
+
     return (
       <SessionTimelineCollapsibleRow
         label="Redacted reasoning"
@@ -203,7 +312,7 @@ function SessionTimelineFile({
           variant === "tool-output" ? "border-b px-2 py-1" : "font-bold",
         )}
       >
-        <FileIcon className="icon-base" />
+        <FileIcon size="base" />
         {part.filename ?? part.mediaType ?? "File"}
       </div>
       {variant === "tool-output" ? (

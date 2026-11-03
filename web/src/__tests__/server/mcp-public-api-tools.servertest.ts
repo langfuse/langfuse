@@ -262,6 +262,7 @@ describe("MCP public API tools", () => {
         "createEvaluator",
         "createScore",
         "createScoreConfig",
+        "createSkillVersion",
         "createTextPrompt",
         "deleteAnnotationQueueAssignment",
         "deleteAnnotationQueueItem",
@@ -283,6 +284,8 @@ describe("MCP public API tools", () => {
         "updateEvaluator",
         "updatePromptLabels",
         "updateScoreConfig",
+        "updateSkillLabels",
+        "updateSkillTags",
         "upsertDataset",
         "upsertDatasetItem",
       ].sort(),
@@ -410,7 +413,7 @@ describe("MCP public API tools", () => {
           { queueId: queue.id, userId: user.id },
           context,
         ),
-      ).rejects.toThrow("An unexpected error occurred");
+      ).rejects.toThrow("audit failed");
     } finally {
       auditLogCreateSpy.mockRestore();
     }
@@ -610,7 +613,7 @@ describe("MCP public API tools", () => {
         },
         context,
       ),
-    ).rejects.toThrow("Validation failed");
+    ).rejects.toMatchObject({ name: "ZodError" });
 
     const conflictingDatasetName = `mcp-dataset-conflict-${uuidv4()}`;
     await handleUpsertDataset({ name: conflictingDatasetName }, context);
@@ -711,7 +714,7 @@ describe("MCP public API tools", () => {
         { datasetId: dataset.id, items: [] },
         context,
       ),
-    ).rejects.toThrow("Validation failed");
+    ).rejects.toMatchObject({ name: "ZodError" });
 
     await expect(
       handleBatchUpsertDatasetItems(
@@ -721,7 +724,7 @@ describe("MCP public API tools", () => {
         },
         context,
       ),
-    ).rejects.toThrow("Validation failed");
+    ).rejects.toMatchObject({ name: "ZodError" });
 
     const datasetItems = (await handleListDatasetItems(
       { datasetId: dataset.id, page: 1, limit: 10 },

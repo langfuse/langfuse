@@ -1,3 +1,4 @@
+/* eslint-disable react/no-unstable-nested-components */
 import React from "react";
 import { api } from "@/src/utils/api";
 import { DataTable } from "@/src/components/table/data-table";

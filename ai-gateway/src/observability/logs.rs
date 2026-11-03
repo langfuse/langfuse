@@ -15,8 +15,9 @@ use tracing_subscriber::{
 };
 
 /// Span field and its top-level log key. All are recorded on the server span.
-const CORRELATION_FIELDS: [(&str, &str); 7] = [
+const CORRELATION_FIELDS: [(&str, &str); 8] = [
     ("gateway.request.id", "request_id"),
+    ("gateway.connection.id", "connection_id"),
     ("langfuse.organization.id", "organization_id"),
     ("langfuse.project.id", "project_id"),
     ("gateway.provider", "provider"),

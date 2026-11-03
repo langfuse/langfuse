@@ -31,7 +31,7 @@ use crate::{
 };
 use batch::{BatchPolicy, Batches, Pending};
 use context::GenerationContext;
-pub(crate) use context::take_agent_client_metadata;
+pub(crate) use context::agent_client_metadata;
 use otlp::Uploader;
 use retry::RetryPolicy;
 use secrecy::{ExposeSecret, SecretString};
@@ -68,19 +68,21 @@ pub(crate) struct DeliveryContext {
 }
 
 impl DeliveryContext {
+    /// `None` when the request has nothing to deliver to, as in ingestion mode `none`.
     pub(crate) fn from_resolved(
         context: &ResolvedRequestContext,
         headers: &HeaderMap,
         client_metadata: Option<&Map<String, Value>>,
-    ) -> Self {
-        Self {
+    ) -> Option<Self> {
+        let (project_id, ingestion) = context.delivery_target()?;
+        Some(Self {
             grant: Grant {
-                project_id: context.attribution().project_id().clone(),
-                access_token: context.ingestion().access_token().clone(),
-                expires_at: context.ingestion().expires_at(),
+                project_id: project_id.clone(),
+                access_token: ingestion.access_token().clone(),
+                expires_at: ingestion.expires_at(),
             },
             generation: GenerationContext::from_request(headers, client_metadata),
-        }
+        })
     }
 
     pub(crate) fn generation_ids(&self) -> crate::correlation::GenerationIds {
@@ -231,8 +233,7 @@ impl Telemetry {
         }
     }
 
-    /// Stop accepting work, flush open batches, and finish uploads within the existing
-    /// process drain deadline.
+    /// Stop accepting work, flush open batches, and finish uploads before `deadline`.
     pub async fn shutdown(&self, deadline: Instant) {
         let worker = self
             .0

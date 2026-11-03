@@ -1,12 +1,12 @@
 import { useId } from "react";
 import { useForm } from "react-hook-form";
 import { filterOperators } from "@langfuse/shared";
-import { X } from "lucide-react";
+import { X } from "@langfuse/icons";
 import { Input } from "@/src/components/design-system/Input/Input";
 import { SelectInput } from "@/src/components/design-system/SelectInput/SelectInput";
 import { Button } from "@/src/components/design-system/Button/Button";
 import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
-import { ScoreTag } from "@/src/components/score-tag";
+import { ScoreTag } from "@/src/components/ScoreTag";
 import { cn } from "@/src/utils/tailwind";
 import {
   completeExperimentFilter,

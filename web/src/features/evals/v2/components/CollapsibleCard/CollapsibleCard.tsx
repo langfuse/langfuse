@@ -1,5 +1,5 @@
 import { type ReactNode } from "react";
-import { ChevronDown } from "lucide-react";
+import { ChevronDown } from "@langfuse/icons";
 
 import {
   Collapsible,
@@ -31,8 +31,10 @@ export function CollapsibleCard({
   const headerContent = (
     <>
       <ChevronDown
-        className={cn(
-          "text-foreground-tertiary icon-base shrink-0 transition-transform",
+        size="base"
+        color="tertiary"
+        __rawClassName={cn(
+          "transition-transform",
           open ? "rotate-0" : "-rotate-90",
         )}
       />

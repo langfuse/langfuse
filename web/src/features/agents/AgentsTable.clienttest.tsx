@@ -90,7 +90,7 @@ vi.mock("@/src/components/table/resizable-filter-layout", () => ({
 vi.mock("@/src/components/table/FilterToggleButton", () => ({
   FilterToggleButton: () => null,
 }));
-vi.mock("@/src/components/table/table-header-controls", () => ({
+vi.mock("@/src/components/table/TableHeaderControls", () => ({
   TableHeaderControls: () => null,
 }));
 vi.mock("@/src/features/search-bar", () => ({

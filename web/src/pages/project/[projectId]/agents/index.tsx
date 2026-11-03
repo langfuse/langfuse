@@ -2,7 +2,7 @@ import AgentsPage from "@/src/features/agents/AgentsPage";
 import { AgentsFeatureGate } from "@/src/features/agents/AgentsFeatureGate";
 import AgentDetailPage from "@/src/features/agents/AgentDetailPage";
 import { useRouter } from "next/router";
-import { RouteParamsPendingFallback } from "@/src/hooks/useReadyRouteParams";
+import { RouteParamsPendingFallback } from "@/src/components/RouteParamsPendingFallback/RouteParamsPendingFallback";
 
 export default function Agents() {
   const router = useRouter();

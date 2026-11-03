@@ -1,9 +1,10 @@
+/* eslint-disable @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 import * as React from "react";
 import {
   type ScoreSourceType,
   type AggregatedScoreData,
 } from "@langfuse/shared";
-import { MessageCircleMore } from "lucide-react";
+import { MessageCircleMore } from "@langfuse/icons";
 import { HoverCard } from "@/src/components/design-system/HoverCard/HoverCard";
 import {
   Tooltip,
@@ -66,7 +67,7 @@ const ScoreValueSection = ({
       )}
       {aggregate?.comment && (
         <div className="flex h-3 w-3 items-center justify-center">
-          <MessageCircleMore className="icon-sm text-muted-foreground" />
+          <MessageCircleMore size="sm" color="muted" />
         </div>
       )}
     </div>

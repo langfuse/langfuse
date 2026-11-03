@@ -2,8 +2,8 @@ import { useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { Group, Panel, Separator, useGroupRef } from "react-resizable-panels";
 import { useStore } from "zustand";
 import { SessionReviewPanel } from "@/src/features/traces/components/TraceReviewPanel";
-import { useTraceReviewPanel } from "@/src/features/traces/contexts/TraceReviewPanelContext";
-import { SessionReviewLeadingProvider } from "@/src/features/sessions/sessionReviewLeading";
+import { useTraceReviewPanel } from "@/src/features/traces/contexts/TraceReviewPanelProvider";
+import { SessionReviewLeadingProvider } from "@/src/features/sessions/SessionReviewLeadingProvider";
 import { useElementSize } from "@/src/hooks/useElementSize";
 import { cn } from "@/src/utils/tailwind";
 

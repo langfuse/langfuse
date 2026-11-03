@@ -7,9 +7,9 @@
  */
 
 import { useMemo } from "react";
-import { useTraceData } from "@/src/features/traces/contexts/TraceDataContext";
-import { useSearch } from "@/src/features/traces/contexts/SearchContext";
-import { useSelection } from "@/src/features/traces/contexts/SelectionContext";
+import { useTraceData } from "@/src/features/traces/contexts/TraceDataProvider";
+import { useSearch } from "@/src/features/traces/contexts/SearchProvider";
+import { useSelection } from "@/src/features/traces/contexts/SelectionProvider";
 import { useHandlePrefetchObservation } from "@/src/features/traces/hooks/useHandlePrefetchObservation";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { useTraceAnalyticsDimensions } from "@/src/features/traces/hooks/useTraceAnalyticsDimensions";
@@ -17,7 +17,7 @@ import { matchesSearchQuery } from "@/src/features/traces/fns/matchesSearchQuery
 import { VirtualizedList } from "./VirtualizedList";
 import { TraceSearchListItem } from "./TraceSearchListItem";
 import { Button } from "@/src/components/ui/button";
-import { XIcon } from "lucide-react";
+import { XIcon } from "@langfuse/icons";
 
 export function TraceSearchList() {
   const { searchItems } = useTraceData();
@@ -59,7 +59,7 @@ export function TraceSearchList() {
             size="sm"
             onClick={() => setSearchInputValue("")}
           >
-            <XIcon className="icon-base text-icon-foreground mr-2" />
+            <XIcon size="base" color="default" __rawClassName="mr-2" />
             Clear search
           </Button>
         </div>

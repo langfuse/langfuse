@@ -6,7 +6,7 @@ import {
   ChevronRight,
   PanelRightOpen,
   PanelRightClose,
-} from "lucide-react";
+} from "@langfuse/icons";
 import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
 import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { SubHeader } from "@/src/components/layouts/header";
@@ -145,9 +145,9 @@ const SidePanel = ({
                 }
               >
                 {variant === "sidebar" ? (
-                  <PanelRightOpen className="icon-base text-icon-foreground" />
+                  <PanelRightOpen size="base" color="default" />
                 ) : (
-                  <ChevronLeft className="icon-base text-icon-foreground" />
+                  <ChevronLeft size="base" color="default" />
                 )}
               </Button>
             </SheetTrigger>
@@ -248,7 +248,7 @@ const SidePanelHeader = ({ children }: { children: ReactNode }) => {
         onClick={() => setShowPanel(true)}
         title="Show details"
       >
-        <ChevronLeft className="icon-base text-icon-foreground" />
+        <ChevronLeft size="base" color="default" />
       </Button>
     );
   }
@@ -263,7 +263,7 @@ const SidePanelHeader = ({ children }: { children: ReactNode }) => {
           onClick={() => setShowPanel(false)}
           title="Hide details"
         >
-          <ChevronRight className="icon-base text-icon-foreground" />
+          <ChevronRight size="base" color="default" />
         </Button>
       </div>
       <Separator />

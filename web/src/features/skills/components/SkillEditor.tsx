@@ -12,18 +12,21 @@ import { MAX_SKILL_FILES } from "@langfuse/shared";
 import { useStore } from "zustand";
 import {
   Download,
+  ChevronDown,
+  ExternalLink,
   Loader2,
   Pencil,
   TriangleAlert,
   RotateCcw,
   Save,
   Terminal,
-} from "lucide-react";
+} from "@langfuse/icons";
 import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
 import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import { SkillLinkedTraces } from "@/src/features/skills/components/SkillLinkedTraces";
-import Page from "@/src/components/layouts/page";
+import { DropdownMenu } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
+import Page from "@/src/components/layouts/Page";
 import { Button } from "@/src/components/ui/button";
 import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
 import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
@@ -194,10 +197,8 @@ export function SkillEditor({
     withDefault(StringParam, "files"),
   );
   const activeTab =
-    !isDraft &&
-    (selectedTab === "linked-traces" ||
-      (selectedTab === "metrics" && canReadMetrics))
-      ? selectedTab
+    !isDraft && ["usage", "linked-traces", "metrics"].includes(selectedTab)
+      ? "usage"
       : "files";
   const canEditFiles = isDraft && canCreate && !isSaving;
   const isDesktop = useMediaQuery({ query: "(min-width: 768px)" });
@@ -373,6 +374,32 @@ export function SkillEditor({
     }
   };
 
+  const downloadTitle = isDownloading
+    ? "Downloading…"
+    : `Download v${baseVersion} as ZIP`;
+  const downloadDisabled = isDownloading
+    ? { reason: "Download in progress" }
+    : undefined;
+  const usageTab = view.kind === "version" && baseVersion !== null && (
+    <Tabs.Content value="usage" layout="fill">
+      {canReadMetrics ? (
+        <SkillAnalytics
+          projectId={projectId}
+          skillId={view.skillId}
+          name={name}
+          version={baseVersion}
+          paths={Object.keys(store.getState().files).toSorted()}
+        />
+      ) : (
+        <SkillLinkedTraces
+          projectId={projectId}
+          name={name}
+          version={baseVersion}
+        />
+      )}
+    </Tabs.Content>
+  );
+
   const renderHeaderActions = (
     openDialog: (
       state:
@@ -401,32 +428,47 @@ export function SkillEditor({
           <div className="bg-border hidden h-6 w-px sm:block" />
         </>
       ) : null}
-      {baseVersion !== null ? (
-        <Button
-          type="button"
-          variant="outline"
-          onClick={download}
-          disabled={isDownloading}
-          aria-label={`Download version ${baseVersion}`}
+      {baseVersion !== null && !isDraft ? (
+        <DropdownMenu
+          ariaLabel="Use skill"
+          items={[
+            {
+              type: "item",
+              id: "install",
+              title: "Install with CLI",
+              icon: Terminal,
+              onClick: () => {
+                closeMenu?.();
+                openDialog({ kind: "install" });
+              },
+            },
+            {
+              type: "item",
+              id: "download",
+              title: downloadTitle,
+              icon: Download,
+              disabled: downloadDisabled,
+              onClick: download,
+            },
+            {
+              type: "item",
+              id: "api",
+              title: "API",
+              icon: ExternalLink,
+              href: "https://api.reference.langfuse.com/#tag/skills",
+              linkTarget: "_blank",
+            },
+          ]}
         >
-          {isDownloading ? (
-            <Loader2 className="icon-base text-icon-foreground mr-1.5 animate-spin" />
-          ) : (
-            <Download className="icon-base text-icon-foreground mr-1.5" />
+          {({ getTriggerProps }) => (
+            <DesignSystemButton
+              text="Use skill"
+              variant="secondary"
+              icon={ChevronDown}
+              {...getTriggerProps()}
+            />
           )}
-          Download
-        </Button>
-      ) : null}
-      {!isDraft && baseVersion !== null ? (
-        <DesignSystemButton
-          text="Install with CLI"
-          variant="secondary"
-          icon={Terminal}
-          onClick={() => {
-            closeMenu?.();
-            openDialog({ kind: "install" });
-          }}
-        />
+        </DropdownMenu>
       ) : null}
       {nameWarning ? (
         <Tooltip label={nameWarning}>
@@ -437,7 +479,7 @@ export function SkillEditor({
               className="text-dark-yellow flex shrink-0 items-center"
               {...getTriggerProps()}
             >
-              <TriangleAlert className="icon-base" />
+              <TriangleAlert size="base" />
             </button>
           )}
         </Tooltip>
@@ -464,7 +506,7 @@ export function SkillEditor({
             if (view.kind === "version") await view.onEdit();
           }}
         >
-          <Pencil className="icon-base mr-1.5" />
+          <Pencil size="base" __rawClassName="mr-1.5" />
           {view.kind === "version" && view.hasDraft ? "Resume draft" : "Edit"}
         </Button>
       ) : (
@@ -496,7 +538,7 @@ export function SkillEditor({
             }
             title={createButtonTitle}
           >
-            <Save className="icon-base mr-1.5" />
+            <Save size="base" __rawClassName="mr-1.5" />
             Publish
           </Button>
         </>
@@ -517,7 +559,7 @@ export function SkillEditor({
             <InstallSkillDialog
               projectId={projectId}
               initialValues={{
-                by: "name",
+                by: "all",
                 name,
                 version: baseVersion,
                 label: labels.includes("production") ? "production" : "latest",
@@ -681,36 +723,12 @@ export function SkillEditor({
                     <Tabs.List variant="underline">
                       <Tabs.Trigger value="files" label="Files" />
                       <Tabs.Trigger
-                        value="metrics"
-                        label="Metrics"
-                        disabled={isDraft || !canReadMetrics}
-                      />
-                      <Tabs.Trigger
-                        value="linked-traces"
-                        label="Observations"
+                        value="usage"
+                        label="Usage"
                         disabled={isDraft}
                       />
                     </Tabs.List>
-                    {canReadMetrics &&
-                    view.kind === "version" &&
-                    baseVersion !== null ? (
-                      <Tabs.Content value="metrics" layout="fill">
-                        <SkillAnalytics
-                          projectId={projectId}
-                          skillId={view.skillId}
-                          paths={Object.keys(store.getState().files).toSorted()}
-                        />
-                      </Tabs.Content>
-                    ) : null}
-                    {!isDraft && baseVersion !== null ? (
-                      <Tabs.Content value="linked-traces" layout="fill">
-                        <SkillLinkedTraces
-                          projectId={projectId}
-                          name={name}
-                          version={baseVersion}
-                        />
-                      </Tabs.Content>
-                    ) : null}
+                    {usageTab}
                     <Tabs.Content value="files" layout="fill">
                       <ResizablePanelGroup
                         key={isDesktop ? "desktop" : "mobile"}
@@ -843,7 +861,7 @@ function SkillFileEditor({
     if (content === undefined) {
       return (
         <div role="status" className="flex items-center gap-2 text-sm">
-          <Loader2 className="icon-base animate-spin" /> Loading file…
+          <Loader2 size="base" __rawClassName="animate-spin" /> Loading file…
         </div>
       );
     }
