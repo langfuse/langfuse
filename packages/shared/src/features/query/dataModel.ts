@@ -1054,14 +1054,16 @@ function scoresNumericViewBase(version: "v1" | "v2"): ViewDeclarationType {
     },
     measures: {
       count: {
-        sql: "count(*)",
+        sql: "@@AGG1@@(1)",
+        aggs: { agg1: "count" },
         alias: "count",
         type: "integer",
         description: "Total number of scores.",
         unit: "scores",
       },
       value: {
-        sql: "any(value)",
+        sql: "@@AGG1@@(value)",
+        aggs: { agg1: "any" },
         alias: "value",
         type: "number",
         description: "Value of the score.",
@@ -1103,7 +1105,8 @@ function scoresCategoricalViewBase(version: "v1" | "v2"): ViewDeclarationType {
     },
     measures: {
       count: {
-        sql: "count(*)",
+        sql: "@@AGG1@@(1)",
+        aggs: { agg1: "count" },
         alias: "count",
         type: "integer",
         description: "Total number of scores.",
@@ -1143,14 +1146,16 @@ function scoresBooleanViewBase(version: "v1" | "v2"): ViewDeclarationType {
     },
     measures: {
       count: {
-        sql: "count(*)",
+        sql: "@@AGG1@@(1)",
+        aggs: { agg1: "count" },
         alias: "count",
         type: "integer",
         description: "Total number of scores.",
         unit: "scores",
       },
       value: {
-        sql: "any(value)",
+        sql: "@@AGG1@@(value)",
+        aggs: { agg1: "any" },
         alias: "value",
         type: "number",
         description:
@@ -1217,7 +1222,8 @@ function scoresListableCountViewBase(
     },
     measures: {
       count: {
-        sql: "count(*)",
+        sql: "@@AGG1@@(1)",
+        aggs: { agg1: "count" },
         alias: "count",
         type: "integer",
         description: "Total number of scores across every listable score type.",
