@@ -1,8 +1,6 @@
 import { prisma } from "@langfuse/shared/src/db";
 import { logger } from "@langfuse/shared/src/server";
 
-import { env } from "@/src/env.mjs";
-
 import {
   type GrantRequest,
   type RevokeRequest,
