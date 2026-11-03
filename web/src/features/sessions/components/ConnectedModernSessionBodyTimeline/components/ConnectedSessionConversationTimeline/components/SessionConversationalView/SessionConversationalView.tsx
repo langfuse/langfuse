@@ -359,22 +359,22 @@ export function SessionConversationalView(
               </DialogTrigger>
             )}
           </DialogController>
-            {customization && (
-              <Tooltip
-                label={`Customize view${customization.activeFilterCount > 0 ? ` (${customization.activeFilterCount})` : ""}`}
-              >
-                {({ getTriggerProps }) => (
-                  <button
-                    {...getTriggerProps()}
-                    type="button"
-                    className="border-input bg-background hover:bg-accent hover:text-accent-foreground focus-visible:ring-ring inline-flex size-7 shrink-0 items-center justify-center rounded-sm border focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none"
-                    aria-label="Customize view"
-                    onClick={customization.onCustomizeView}
-                  >
-                    <Filter size="sm" aria-hidden="true" />
-                  </button>
-                )}
-              </Tooltip>
+          {customization && (
+            <Tooltip
+              label={`Customize view${customization.activeFilterCount > 0 ? ` (${customization.activeFilterCount})` : ""}`}
+            >
+              {({ getTriggerProps }) => (
+                <button
+                  {...getTriggerProps()}
+                  type="button"
+                  className="border-input bg-background hover:bg-accent hover:text-accent-foreground focus-visible:ring-ring inline-flex size-7 shrink-0 items-center justify-center rounded-sm border focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none"
+                  aria-label="Customize view"
+                  onClick={customization.onCustomizeView}
+                >
+                  <Filter size="sm" aria-hidden="true" />
+                </button>
+              )}
+            </Tooltip>
           )}
         </div>
       )}

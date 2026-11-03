@@ -76,10 +76,10 @@ export function SessionConversationSidebar(
       }
   ) & {
     searchVisibility?: "hidden";
-      customization?: {
-        activeFilterCount: number;
-        onCustomizeView: () => void;
-      };
+    customization?: {
+      activeFilterCount: number;
+      onCustomizeView: () => void;
+    };
   },
 ) {
   const { customization } = props;
@@ -264,22 +264,22 @@ export function SessionConversationSidebar(
               className="h-7 rounded-sm bg-transparent pl-7 font-mono text-xs"
             />
           </div>
-            {customization && (
-              <Tooltip
-                label={`Customize view${customization.activeFilterCount > 0 ? ` (${customization.activeFilterCount})` : ""}`}
-              >
-                {({ getTriggerProps }) => (
-                  <button
-                    {...getTriggerProps()}
-                    type="button"
-                    className="border-input bg-background hover:bg-accent hover:text-accent-foreground focus-visible:ring-ring inline-flex size-7 shrink-0 items-center justify-center rounded-sm border focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none"
-                    aria-label="Customize view"
-                    onClick={customization.onCustomizeView}
-                  >
-                    <Filter size="sm" aria-hidden="true" />
-                  </button>
-                )}
-              </Tooltip>
+          {customization && (
+            <Tooltip
+              label={`Customize view${customization.activeFilterCount > 0 ? ` (${customization.activeFilterCount})` : ""}`}
+            >
+              {({ getTriggerProps }) => (
+                <button
+                  {...getTriggerProps()}
+                  type="button"
+                  className="border-input bg-background hover:bg-accent hover:text-accent-foreground focus-visible:ring-ring inline-flex size-7 shrink-0 items-center justify-center rounded-sm border focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none"
+                  aria-label="Customize view"
+                  onClick={customization.onCustomizeView}
+                >
+                  <Filter size="sm" aria-hidden="true" />
+                </button>
+              )}
+            </Tooltip>
           )}
         </div>
         <div className="flex min-h-0 flex-1 flex-col gap-2 px-4 pt-0.5 pb-4">
@@ -334,22 +334,22 @@ export function SessionConversationSidebar(
             className="h-7 rounded-sm bg-transparent pl-7 font-mono text-xs"
           />
         </div>
-          {customization && (
-            <Tooltip
-              label={`Customize view${customization.activeFilterCount > 0 ? ` (${customization.activeFilterCount})` : ""}`}
-            >
-              {({ getTriggerProps }) => (
-                <button
-                  {...getTriggerProps()}
-                  type="button"
-                  className="border-input bg-background hover:bg-accent hover:text-accent-foreground focus-visible:ring-ring inline-flex size-7 shrink-0 items-center justify-center rounded-sm border focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none"
-                  aria-label="Customize view"
-                  onClick={customization.onCustomizeView}
-                >
-                  <Filter size="sm" aria-hidden="true" />
-                </button>
-              )}
-            </Tooltip>
+        {customization && (
+          <Tooltip
+            label={`Customize view${customization.activeFilterCount > 0 ? ` (${customization.activeFilterCount})` : ""}`}
+          >
+            {({ getTriggerProps }) => (
+              <button
+                {...getTriggerProps()}
+                type="button"
+                className="border-input bg-background hover:bg-accent hover:text-accent-foreground focus-visible:ring-ring inline-flex size-7 shrink-0 items-center justify-center rounded-sm border focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none"
+                aria-label="Customize view"
+                onClick={customization.onCustomizeView}
+              >
+                <Filter size="sm" aria-hidden="true" />
+              </button>
+            )}
+          </Tooltip>
         )}
         {isListScrolled ? (
           <div
