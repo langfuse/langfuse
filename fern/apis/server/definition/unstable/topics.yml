@@ -200,21 +200,24 @@ service:
         rules. A trace that was re-summarized lists only its latest summary.
 
         The window applies to the trace start time. It defaults to the last
-        7 days and can span at most 93 days. Without `fromTimestamp` and
-        `toTimestamp`, a `traceId` `any of` filter reads the listed traces at
-        their own start time within the last 93 days. Rows are ordered by
-        trace start time.
+        7 days and can span at most 30 days, starting no earlier than the
+        plan's data access window. Without `fromTimestamp` and `toTimestamp`,
+        a `traceId` `any of` filter reads the listed traces at their own start
+        time within the last 93 days. Rows are ordered by trace start time.
+
+        Each request scans a bounded number of candidate rows. A page shorter
+        than `limit` (even an empty one) with a `meta.cursor` does not
+        indicate completion; continue with the cursor until it is null.
 
         Only active facets (attached to a Topics rule, or all facets if the
         project has no rule) are read. Traces Topics never processed are not
         listed.
 
-        `filter` is a JSON array of filter conditions combined with AND.
-        Columns: `traceId`, `facetId`, `facetName`, `ruleId`, `environment`
-        (stringOptions), `timestamp`, `processedAt` (datetime), `state`
-        (stringOptions), `summary` (string, case-insensitive), `topicId`,
-        `topicName` (stringOptions), `assignmentStatus` (stringOptions,
-        `any of` only). An unknown `topicName` matches nothing under `any of`
+        `filter` is a JSON array of filter conditions combined with AND, with
+        at most 100 `traceId` values. Columns: `traceId`, `facetId`, `facetName`, `ruleId`, `environment`
+        (stringOptions), `timestamp`, `processedAt` (datetime), `state`,
+        `topicId`, `topicName` (stringOptions), `assignmentStatus`
+        (stringOptions, `any of` only). An unknown `topicName` matches nothing under `any of`
         and is ignored under `none of`.
 
         `state` values: `complete` (summarized), `not_applicable` (the facet
@@ -248,7 +251,7 @@ service:
             docs: Defaults to `timestamp.desc`.
           limit:
             type: optional<integer>
-            docs: Maximum number of rows per page. Defaults to `50`, at most `500`.
+            docs: Maximum number of rows per page. Defaults to `50`, at most `100`.
           cursor:
             type: optional<string>
             docs: The `meta.cursor` of the previous page.
@@ -271,17 +274,21 @@ service:
         them through `GET /topic-summaries` with `assignmentStatus`.
 
         The window applies to the trace start time. It defaults to the last
-        7 days and can span at most 93 days. Without `fromTimestamp` and
-        `toTimestamp`, a `traceId` `any of` filter reads the listed traces at
-        their own start time within the last 93 days. Rows are ordered by
-        trace start time.
+        7 days and can span at most 30 days, starting no earlier than the
+        plan's data access window. Without `fromTimestamp` and `toTimestamp`,
+        a `traceId` `any of` filter reads the listed traces at their own start
+        time within the last 93 days. Rows are ordered by trace start time.
+
+        Each request scans a bounded number of candidate rows. A page shorter
+        than `limit` (even an empty one) with a `meta.cursor` does not
+        indicate completion; continue with the cursor until it is null.
 
         Only active facets (attached to a Topics rule, or all facets if the
         project has no rule) are read. Traces Topics never processed are not
         listed.
 
-        `filter` is a JSON array of filter conditions combined with AND.
-        Columns: `traceId`, `facetId`, `facetName`, `ruleId`, `environment`,
+        `filter` is a JSON array of filter conditions combined with AND, with
+        at most 100 `traceId` values. Columns: `traceId`, `facetId`, `facetName`, `ruleId`, `environment`,
         `topicId`, `topicName` (stringOptions), `status` (stringOptions,
         `any of` only: `assigned`, `outlier`), `timestamp` (datetime). An
         unknown `topicName` matches nothing under `any of` and is ignored
@@ -309,7 +316,7 @@ service:
             docs: Defaults to `timestamp.desc`.
           limit:
             type: optional<integer>
-            docs: Maximum number of rows per page. Defaults to `50`, at most `500`.
+            docs: Maximum number of rows per page. Defaults to `50`, at most `100`.
           cursor:
             type: optional<string>
             docs: The `meta.cursor` of the previous page.
@@ -335,6 +342,9 @@ types:
       cursor:
         type: optional<string>
         docs: Pass as `cursor` to fetch the next page. Null on the last page.
+      comment:
+        type: optional<string>
+        docs: Set when the page is shorter than `limit` but more rows may follow.
   TopicRule:
     properties:
       id: string

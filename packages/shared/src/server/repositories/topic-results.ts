@@ -32,10 +32,6 @@ export type TopicAssignmentStatus = (typeof TOPIC_ASSIGNMENT_STATUSES)[number];
 
 const TOPIC_SUMMARY_PREVIEW_LENGTH = 500;
 
-type StringMatch = {
-  operator: "=" | "contains" | "does not contain" | "starts with" | "ends with";
-  value: string;
-};
 type OptionsMatch = { operator: "any of" | "none of"; values: string[] };
 type DateMatch = { operator: ">" | "<" | ">=" | "<="; value: Date };
 
@@ -47,7 +43,6 @@ export type TopicResultCondition =
       column: "state";
       match: { operator: "any of" | "none of"; values: TopicSummaryState[] };
     }
-  | { column: "summary"; match: StringMatch }
   | { column: "topicId"; match: OptionsMatch }
   | {
       column: "assignmentStatus";
@@ -95,26 +90,6 @@ class SqlParams {
   }
 }
 
-function stringMatchSql(
-  expression: string,
-  match: StringMatch,
-  params: SqlParams,
-) {
-  const value = params.add("String", match.value);
-  switch (match.operator) {
-    case "=":
-      return `lowerUTF8(${expression}) = lowerUTF8(${value})`;
-    case "contains":
-      return `positionCaseInsensitiveUTF8(${expression}, ${value}) > 0`;
-    case "does not contain":
-      return `positionCaseInsensitiveUTF8(${expression}, ${value}) = 0`;
-    case "starts with":
-      return `startsWith(lowerUTF8(${expression}), lowerUTF8(${value}))`;
-    case "ends with":
-      return `endsWith(lowerUTF8(${expression}), lowerUTF8(${value}))`;
-  }
-}
-
 const inSql = (
   expression: string,
   match: { operator: "any of" | "none of"; values: string[] },
@@ -141,8 +116,6 @@ function summaryConditionSql(
       return dateSql("processed_at", condition.match, params);
     case "state":
       return inSql("toString(processing_state)", condition.match, params);
-    case "summary":
-      return stringMatchSql("summary", condition.match, params);
     default:
       return null;
   }
@@ -236,16 +209,129 @@ type ListInput = {
   orderBy: "timestamp.desc" | "timestamp.asc";
   limit: number;
   cursor?: TopicResultCursor;
+  /** Candidate rows per batch and batches per page; defaults bound the work of one page. */
+  scan?: { batchSize: number; maxBatches: number };
+};
+
+const MAX_CANDIDATE_BATCHES = 10;
+// Same guards as the observations v2 scan: replica reads, a request deadline,
+// read-in-order without buffering, and cancellation when the client goes away.
+const READ_OPTIONS = {
+  preferredClickhouseService: "ReadOnly",
+  clickhouseConfigs: { request_timeout: 10_000 },
+  clickhouseSettings: {
+    read_in_order_use_buffering: 0,
+    cancel_http_readonly_queries_on_client_close: 1,
+  },
+} as const;
+
+type CandidateRow = {
+  facet_id: string;
+  trace_id: string;
+  unit_start_time: string;
 };
 
 /**
- * Pages current results of one row per trace and facet, ordered by the trace's
- * source time. Assignment rows (and summary rows filtered by assignment) read
- * `current`; other summary rows skip the assignment join.
+ * Picks candidates from the table that can satisfy the filter: assignments
+ * when the filter needs an assignment (or rows are assignments), otherwise
+ * summaries. Ordering by the sort key's minute prefix lets ClickHouse read in
+ * order and stop after one batch, instead of scanning the whole window.
  */
-async function listCurrentRows<
-  T extends { trace_id: string; facet_id: string; unit_start_time: string },
->(
+function candidateQuery(
+  input: ListInput & { kind: "summaries" | "assignments" },
+  batchSize: number,
+  cursor: TopicResultCursor | undefined,
+  publishedRunIds: string[],
+) {
+  const params = new SqlParams();
+  const conditions: string[] = [];
+  const topicIdIn = input.conditions.find(
+    (
+      condition,
+    ): condition is Extract<TopicResultCondition, { column: "topicId" }> =>
+      condition.column === "topicId" && condition.match.operator === "any of",
+  );
+  const statuses = input.conditions.find(
+    (
+      condition,
+    ): condition is Extract<
+      TopicResultCondition,
+      { column: "assignmentStatus" }
+    > => condition.column === "assignmentStatus",
+  )?.match.values;
+  const fromAssignments =
+    input.kind === "assignments" ||
+    topicIdIn !== undefined ||
+    (statuses !== undefined &&
+      statuses.every((status) => status !== "awaiting_map"));
+  // Trace id lookups on summaries read only columns of the latest_source_versions
+  // projection, which ClickHouse serves by trace id; the resolve step applies the rest.
+  const byTraceIds =
+    !fromAssignments &&
+    input.conditions.some(
+      (condition) =>
+        condition.column === "traceId" && condition.match.operator === "any of",
+    );
+
+  for (const condition of input.conditions) {
+    if (condition.column === "traceId" || condition.column === "timestamp")
+      conditions.push(summaryConditionSql(condition, params) as string);
+    else if (byTraceIds) continue;
+    else if (condition.column === "environment" || !fromAssignments) {
+      const sql = summaryConditionSql(condition, params);
+      if (sql) conditions.push(sql);
+    }
+  }
+  if (fromAssignments) {
+    conditions.push(
+      `(clustering_run_id = '' OR clustering_run_id IN ${params.add("Array(String)", publishedRunIds)})`,
+    );
+    if (topicIdIn)
+      conditions.push(
+        `topic_id IN ${params.add("Array(String)", topicIdIn.match.values)}`,
+      );
+    else if (statuses?.length === 1)
+      conditions.push(
+        statuses[0] === "assigned" ? "topic_id != ''" : "topic_id = ''",
+      );
+  } else {
+    conditions.push("trace_id != ''");
+    // Every assignment status needs a complete summary.
+    if (statuses && !byTraceIds)
+      conditions.push("processing_state = 'complete'");
+  }
+  if (!byTraceIds)
+    conditions.push(
+      "NOT startsWith(environment, {internalEnvironmentPrefix:String})",
+      "environment != {publicLlmJudgeEnvironment:String}",
+    );
+  const descending = input.orderBy === "timestamp.desc";
+  if (cursor)
+    conditions.push(
+      `(unit_start_time, trace_id, facet_id) ${descending ? "<" : ">"} (${params.add("DateTime64(3)", convertDateToClickhouseDateTime(cursor.timestamp))}, ${params.add("String", cursor.traceId)}, ${params.add("String", cursor.facetId)})`,
+    );
+  const direction = descending ? "DESC" : "ASC";
+  return {
+    query: `SELECT facet_id, trace_id, unit_start_time
+      FROM ${fromAssignments ? "topic_assignments" : "topic_facet_summaries"}
+      WHERE project_id = {projectId:String} AND ${unitTimeFilterSql}
+        AND facet_id IN {facetIds:Array(String)}
+        AND ${conditions.join(" AND ")}
+      ORDER BY ${byTraceIds ? "" : `toStartOfMinute(unit_start_time) ${direction}, `}unit_start_time ${direction},
+        trace_id ${direction}, facet_id ${direction}
+      LIMIT {batchSize:UInt32}`,
+    params: { ...params.values, batchSize },
+  };
+}
+
+/**
+ * Pages current results of one row per trace and facet, ordered by the trace's
+ * source time. Each batch takes candidate rows in order, then resolves the
+ * current result of only those keys, so a page costs about its candidates
+ * rather than the window. When the batch budget runs out before the page is
+ * full, the page is returned short with a cursor to continue.
+ */
+async function listCurrentRows<T extends CandidateRow>(
   input: ListInput & {
     kind: "summaries" | "assignments";
     select: string;
@@ -253,76 +339,120 @@ async function listCurrentRows<
   },
 ): Promise<{ rows: T[]; next?: TopicResultCursor }> {
   if (input.facetIds.length === 0) return { rows: [] };
-  const params = new SqlParams();
-  const summaryConditions = input.conditions.flatMap(
-    (condition) => summaryConditionSql(condition, params) ?? [],
-  );
-  const traceIdConditions = input.conditions.flatMap((condition) =>
-    condition.column === "traceId"
-      ? [inSql("trace_id", condition.match, params)]
-      : [],
-  );
-  const assignmentConditions = input.conditions.flatMap(
-    (condition) => assignmentConditionSql(condition, params) ?? [],
-  );
-  if (input.kind === "assignments")
-    assignmentConditions.push("topic_status IN ('assigned', 'outlier')");
-  const source =
-    input.kind === "summaries" && assignmentConditions.length === 0
-      ? "summaries"
-      : "current";
-  const publishedRunIds =
-    source === "current"
-      ? (
-          await prisma.topicClusteringRun.findMany({
-            where: {
-              projectId: input.projectId,
-              facetId: { in: input.facetIds },
-              status: "completed",
-            },
-            select: { id: true },
-          })
-        ).map(({ id }) => id)
-      : [];
-  const direction = input.orderBy === "timestamp.asc" ? "ASC" : "DESC";
-  const where = [...(source === "current" ? assignmentConditions : [])];
-  if (input.cursor)
-    where.push(
-      `(unit_start_time, trace_id, facet_id) ${direction === "ASC" ? ">" : "<"} (${params.add("DateTime64(3)", convertDateToClickhouseDateTime(input.cursor.timestamp))}, ${params.add("String", input.cursor.traceId)}, ${params.add("String", input.cursor.facetId)})`,
-    );
-  const rows = await queryClickhouse<T>({
-    query: `WITH ${currentResultsSql(summaryConditions, traceIdConditions)}
-      SELECT ${input.select}
-      FROM ${source}
-      ${where.length ? `WHERE ${where.join(" AND ")}` : ""}
-      ORDER BY unit_start_time ${direction}, trace_id ${direction}, facet_id ${direction}
-      LIMIT {limit:UInt32}`,
-    params: {
-      ...params.values,
-      ...input.extraParams,
-      projectId: input.projectId,
-      ...timeRangeParams(input.window),
-      facetIds: input.facetIds,
-      publishedRunIds,
-      internalEnvironmentPrefix: INTERNAL_EVAL_ENVIRONMENT_PREFIX,
-      publicLlmJudgeEnvironment: PUBLIC_LLM_JUDGE_ENVIRONMENT,
-      limit: input.limit + 1,
-    },
-    tags: { route: `topics-${input.kind}`, projectId: input.projectId },
-  });
-  const page = rows.slice(0, input.limit);
-  const last = page.at(-1);
-  return {
-    rows: page,
-    next:
-      rows.length > input.limit && last
-        ? {
-            timestamp: parseClickhouseUTCDateTimeFormat(last.unit_start_time),
-            traceId: last.trace_id,
-            facetId: last.facet_id,
-          }
-        : undefined,
+  const batchSize =
+    input.scan?.batchSize ?? Math.min(1000, Math.max(200, input.limit * 4));
+  const maxBatches = input.scan?.maxBatches ?? MAX_CANDIDATE_BATCHES;
+  const publishedRunIds = (
+    await prisma.topicClusteringRun.findMany({
+      where: {
+        projectId: input.projectId,
+        facetId: { in: input.facetIds },
+        status: "completed",
+      },
+      select: { id: true },
+    })
+  ).map(({ id }) => id);
+  const baseParams = {
+    projectId: input.projectId,
+    facetIds: input.facetIds,
+    publishedRunIds,
+    internalEnvironmentPrefix: INTERNAL_EVAL_ENVIRONMENT_PREFIX,
+    publicLlmJudgeEnvironment: PUBLIC_LLM_JUDGE_ENVIRONMENT,
   };
+  const tags = { route: `topics-${input.kind}`, projectId: input.projectId };
+  const direction = input.orderBy === "timestamp.asc" ? "ASC" : "DESC";
+  const rows: T[] = [];
+  let cursor = input.cursor;
+
+  for (let batch = 0; batch < maxBatches; batch++) {
+    const candidates = candidateQuery(
+      input,
+      batchSize,
+      cursor,
+      publishedRunIds,
+    );
+    const found = await queryClickhouse<CandidateRow>({
+      ...READ_OPTIONS,
+      query: candidates.query,
+      params: {
+        ...baseParams,
+        ...candidates.params,
+        ...timeRangeParams(input.window),
+      },
+      tags: { ...tags, route: `${tags.route}-candidates` },
+    });
+    if (found.length === 0) return { rows };
+
+    const times = found.map((row) =>
+      parseClickhouseUTCDateTimeFormat(row.unit_start_time).getTime(),
+    );
+    const params = new SqlParams();
+    const summaryConditions = input.conditions.flatMap(
+      (condition) => summaryConditionSql(condition, params) ?? [],
+    );
+    const traceIds = params.add("Array(String)", [
+      ...new Set(found.map((row) => row.trace_id)),
+    ]);
+    const assignmentConditions = input.conditions.flatMap(
+      (condition) => assignmentConditionSql(condition, params) ?? [],
+    );
+    if (input.kind === "assignments")
+      assignmentConditions.push("topic_status IN ('assigned', 'outlier')");
+    const source =
+      input.kind === "summaries" && assignmentConditions.length === 0
+        ? "summaries"
+        : "current";
+    const candidateTuples = `arrayZip(${params.add(
+      "Array(String)",
+      found.map((row) => row.facet_id),
+    )}, ${params.add(
+      "Array(String)",
+      found.map((row) => row.trace_id),
+    )}, ${params.add(
+      "Array(DateTime64(3))",
+      found.map((row) => row.unit_start_time),
+    )})`;
+    const resolved = await queryClickhouse<T>({
+      ...READ_OPTIONS,
+      query: `WITH ${currentResultsSql(summaryConditions, [`trace_id IN ${traceIds}`])}
+        SELECT ${input.select}
+        FROM ${source}
+        WHERE has(${candidateTuples}, (facet_id, trace_id, unit_start_time))
+          ${assignmentConditions.map((sql) => `AND ${sql}`).join(" ")}
+        ORDER BY unit_start_time ${direction}, trace_id ${direction}, facet_id ${direction}`,
+      params: {
+        ...baseParams,
+        ...params.values,
+        ...input.extraParams,
+        // The candidates' own time span; their keys' history is read in full.
+        ...timeRangeParams({
+          from: new Date(Math.min(...times)),
+          to: new Date(Math.max(...times) + 1),
+        }),
+      },
+      tags,
+    });
+    for (const row of resolved) {
+      rows.push(row);
+      if (rows.length === input.limit)
+        return {
+          rows,
+          next: {
+            timestamp: parseClickhouseUTCDateTimeFormat(row.unit_start_time),
+            traceId: row.trace_id,
+            facetId: row.facet_id,
+          },
+        };
+    }
+    if (found.length < batchSize) return { rows };
+    const last = found[found.length - 1];
+    cursor = {
+      timestamp: parseClickhouseUTCDateTimeFormat(last.unit_start_time),
+      traceId: last.trace_id,
+      facetId: last.facet_id,
+    };
+  }
+  return { rows, next: cursor };
 }
 
 /** Lists each trace's current summary per facet. Older facet versions stay current until re-summarized. */

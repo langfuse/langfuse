@@ -33,7 +33,7 @@ const windowBaseFields = {
     .string()
     .optional()
     .describe(
-      "ISO 8601 end of the window (trace start time, exclusive). Defaults to now. The window spans at most 93 days.",
+      "ISO 8601 end of the window (trace start time, exclusive). Defaults to now.",
     ),
 };
 
@@ -87,7 +87,7 @@ export const [listTopicFacetsTool, handleListTopicFacets] = defineTool({
 export const [listTopicsTool, handleListTopics] = defineTool({
   name: "listTopics",
   description:
-    "List the topics of each active facet's current map with the number of traces assigned to each topic in the window, plus per-facet trace counts by topic status.",
+    "List the topics of each active facet's current map with the number of traces assigned to each topic in the window, plus per-facet trace counts by topic status. The window spans at most 93 days.",
   action: "topics:read",
   baseSchema: z.object({
     ...windowBaseFields,
@@ -178,7 +178,7 @@ export const [listTopicSummariesTool, handleListTopicSummaries] = defineTool({
     "List the current Topics summary of traces, one row per trace and facet: what the trace is about from that facet's perspective.",
     TRACE_ID_HINT,
     "Filter by topicId, topicName or assignmentStatus to read the summaries of a topic's traces, or of traces no topic fits (outlier) or not yet assigned (awaiting_map).",
-    "Use meta.cursor to fetch the next page.",
+    "The window spans at most 30 days. Use meta.cursor to fetch the next page; a short or empty page with a cursor is not the end. traceId accepts at most 100 ids.",
   ].join(" "),
   action: "topics:read",
   baseSchema: z.object({
@@ -187,7 +187,7 @@ export const [listTopicSummariesTool, handleListTopicSummaries] = defineTool({
       .array(McpAdvancedFilterBaseSchema)
       .optional()
       .describe(
-        'Filter conditions combined with AND. Columns: traceId, facetId, facetName, ruleId, environment (stringOptions), timestamp, processedAt (datetime), state (stringOptions: complete, not_applicable, insufficient_input), summary (string), topicId, topicName (stringOptions), assignmentStatus (stringOptions, any of: assigned, outlier, awaiting_map). Example: [{"type":"stringOptions","column":"traceId","operator":"any of","value":["<trace id>"]}].',
+        'Filter conditions combined with AND. Columns: traceId, facetId, facetName, ruleId, environment (stringOptions), timestamp, processedAt (datetime), state (stringOptions: complete, not_applicable, insufficient_input), topicId, topicName (stringOptions), assignmentStatus (stringOptions, any of: assigned, outlier, awaiting_map). Example: [{"type":"stringOptions","column":"traceId","operator":"any of","value":["<trace id>"]}].',
       ),
     truncateSummaries: z
       .boolean()
@@ -205,7 +205,11 @@ export const [listTopicSummariesTool, handleListTopicSummaries] = defineTool({
       attributes: { "mcp.pagination_limit": input.limit },
       fn: async (span) => {
         const result = await withAllowedValues(() =>
-          listPublicTopicSummaries({ projectId: context.projectId, ...input }),
+          listPublicTopicSummaries({
+            projectId: context.projectId,
+            plan: context.plan,
+            ...input,
+          }),
         );
         span.setAttribute("mcp.result_count", result.data.length);
         return result;
@@ -221,7 +225,7 @@ export const [listTopicAssignmentsTool, handleListTopicAssignments] =
       "List the current topic of traces on each rule's live map, one row per trace, facet and rule. status is assigned (with its topic) or outlier (no topic fits).",
       TRACE_ID_HINT,
       "Filter by topicId or topicName to list a topic's traces.",
-      "Use meta.cursor to fetch the next page.",
+      "The window spans at most 30 days. Use meta.cursor to fetch the next page; a short or empty page with a cursor is not the end. traceId accepts at most 100 ids.",
     ].join(" "),
     action: "topics:read",
     baseSchema: z.object({
@@ -243,6 +247,7 @@ export const [listTopicAssignmentsTool, handleListTopicAssignments] =
           const result = await withAllowedValues(() =>
             listPublicTopicAssignments({
               projectId: context.projectId,
+              plan: context.plan,
               ...input,
             }),
           );

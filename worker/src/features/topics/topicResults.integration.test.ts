@@ -10,6 +10,7 @@ import {
   listCurrentTopicAssignments,
   listCurrentTopicSummaries,
   type TopicResultCondition,
+  type TopicResultCursor,
 } from "@langfuse/shared/src/server";
 import { clickhouseClient } from "@langfuse/shared/src/server/clickhouse";
 import { prisma } from "@langfuse/shared/src/db";
@@ -238,13 +239,13 @@ describe("current Topics summaries and assignments", () => {
     ]);
   });
 
-  it("filters summary attributes case-insensitively", async () => {
+  it("filters summary attributes", async () => {
     expect(
       traceIds(
         await summaries([
           {
-            column: "summary",
-            match: { operator: "contains", value: "refund request" },
+            column: "state",
+            match: { operator: "any of", values: ["complete"] },
           },
           {
             column: "timestamp",
@@ -282,5 +283,28 @@ describe("current Topics summaries and assignments", () => {
     });
     expect(traceIds(last)).toEqual([traces.unpublished]);
     expect(await summaries([], { facetIds: [] })).toEqual({ rows: [] });
+  });
+
+  it("returns short pages with a cursor when the candidate budget runs out", async () => {
+    const awaiting: TopicResultCondition[] = [
+      {
+        column: "assignmentStatus",
+        match: { operator: "any of", values: ["awaiting_map"] },
+      },
+    ];
+    const pages: string[][][] = [];
+    let cursor: TopicResultCursor | undefined;
+    do {
+      const page = await summaries(awaiting, {
+        limit: 10,
+        cursor,
+        scan: { batchSize: 1, maxBatches: 1 },
+      });
+      pages.push(keys(page));
+      cursor = page.next;
+    } while (cursor && pages.length < 20);
+    // Budgeted pages can be empty, but together they list every row exactly once.
+    expect(pages.some((page) => page.length === 0)).toBe(true);
+    expect(pages.flat()).toEqual(keys(await summaries(awaiting)));
   });
 });

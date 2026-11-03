@@ -92,6 +92,7 @@ describe("Topics MCP tools", () => {
 
     expect(mocks.listPublicTopicSummaries).toHaveBeenCalledWith({
       projectId: "project-1",
+      plan: "oss",
       fromTimestamp: new Date("2026-10-13T00:00:00.000Z"),
       filter,
       truncateSummaries: true,

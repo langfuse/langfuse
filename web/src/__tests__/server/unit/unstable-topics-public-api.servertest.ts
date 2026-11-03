@@ -179,12 +179,14 @@ describe("unstable Topics public API", () => {
       listPublicTopicRules({ projectId, page: 1, limit: 50 }),
       listPublicTopicSummaries({
         projectId,
+        plan: null,
         truncateSummaries: false,
         orderBy: "timestamp.desc",
         limit: 50,
       }),
       listPublicTopicAssignments({
         projectId,
+        plan: null,
         orderBy: "timestamp.desc",
         limit: 50,
       }),
@@ -418,6 +420,7 @@ describe("unstable Topics public API", () => {
   describe("summaries and assignments", () => {
     const listQuery = {
       projectId,
+      plan: null,
       ...window,
       orderBy: "timestamp.desc" as const,
       limit: 2,
@@ -584,6 +587,35 @@ describe("unstable Topics public API", () => {
       }
     });
 
+    it("caps the window at 30 days and floors it at the plan's data access", async () => {
+      const now = new Date("2026-10-20T00:00:00Z");
+      vi.useFakeTimers({ now, toFake: ["Date"] });
+      try {
+        await expect(
+          listPublicTopicAssignments({
+            ...listQuery,
+            fromTimestamp: new Date("2026-09-19T00:00:00Z"),
+            toTimestamp: now,
+          }),
+        ).rejects.toMatchObject({ httpCode: 400, code: "invalid_query" });
+
+        const to = new Date("2026-10-01T00:00:00Z");
+        const result = await listPublicTopicAssignments({
+          ...listQuery,
+          plan: "cloud:hobby",
+          fromTimestamp: new Date("2026-09-10T00:00:00Z"),
+          toTimestamp: to,
+        });
+        const hobbyFloor = new Date(now.getTime() - 30 * 86_400_000);
+        expect(result.window).toEqual({ from: hobbyFloor, to });
+        expect(readers.listCurrentTopicAssignments).toHaveBeenCalledWith(
+          expect.objectContaining({ window: { from: hobbyFloor, to } }),
+        );
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
     it("returns nothing without reading when a topic name matches nothing", async () => {
       const result = await listPublicTopicAssignments({
         ...listQuery,
@@ -625,6 +657,27 @@ describe("unstable Topics public API", () => {
       [
         "an unsupported type for the column",
         [{ type: "string", column: "traceId", operator: "=", value: "t1" }],
+      ],
+      [
+        "the dropped summary text filter",
+        [
+          {
+            type: "string",
+            column: "summary",
+            operator: "contains",
+            value: "x",
+          },
+        ],
+      ],
+      [
+        "more than 100 trace ids",
+        [
+          condition(
+            "traceId",
+            "any of",
+            Array.from({ length: 101 }, (_, i) => `t${i}`),
+          ),
+        ],
       ],
       [
         "too many conditions",

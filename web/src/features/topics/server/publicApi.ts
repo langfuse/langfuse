@@ -1,4 +1,8 @@
-import { LangfuseNotFoundError, type FilterState } from "@langfuse/shared";
+import {
+  LangfuseNotFoundError,
+  type FilterState,
+  type Plan,
+} from "@langfuse/shared";
 import {
   InMemoryFilterService,
   listCurrentTopicAssignments,
@@ -26,6 +30,7 @@ import {
   listTopicFacets,
   listTopicRules,
 } from "@langfuse/shared/topics/server";
+import { clampToDataAccessDays } from "@/src/features/entitlements/server/hasEntitlementLimit";
 import { createStructuredPublicApiError } from "@/src/features/public-api/types/structuredPublicApiError";
 import { encodeTopicResultCursor } from "@/src/features/public-api/types/unstable-topics";
 import { currentTopicResults } from "./currentResults";
@@ -115,18 +120,18 @@ function paginate<T>(rows: T[], page: number, limit: number) {
   };
 }
 
-function resolveWindow(from?: Date, to?: Date): TopicTimeRange {
+function resolveWindow(
+  from?: Date,
+  to?: Date,
+  maxMs = TOPICS_MAX_TIME_RANGE_MS,
+): TopicTimeRange {
   const end = to ?? new Date();
   const start = from ?? new Date(end.getTime() - DEFAULT_WINDOW_MS);
-  if (
-    start >= end ||
-    end.getTime() - start.getTime() > TOPICS_MAX_TIME_RANGE_MS
-  )
+  if (start >= end || end.getTime() - start.getTime() > maxMs)
     throw createStructuredPublicApiError({
       httpCode: 400,
       code: "invalid_query",
-      message:
-        "fromTimestamp must be before toTimestamp, and the window can span at most 93 days.",
+      message: `fromTimestamp must be before toTimestamp, and the window can span at most ${maxMs / 86_400_000} days.`,
     });
   return { from: start, to: end };
 }
@@ -414,16 +419,12 @@ export async function listPublicTopics(params: {
 const TOPIC_RESULT_FILTER_LIMITS = {
   conditions: 20,
   values: 1000,
+  // Each trace id reads its own granules; 100 keeps a lookup near one page's cost.
+  traceIds: 100,
   stringLength: 1000,
 };
-
-const STRING_MATCH_OPERATORS = [
-  "=",
-  "contains",
-  "does not contain",
-  "starts with",
-  "ends with",
-] as const;
+// Result lists read per-trace rows; keep their window shorter than the Topics counts'.
+const RESULT_MAX_WINDOW_MS = 30 * 86_400_000;
 
 const SUMMARY_COLUMNS = {
   traceId: ["stringOptions"],
@@ -434,7 +435,6 @@ const SUMMARY_COLUMNS = {
   timestamp: ["datetime"],
   processedAt: ["datetime"],
   state: ["stringOptions"],
-  summary: ["string"],
   topicId: ["stringOptions"],
   topicName: ["stringOptions"],
   assignmentStatus: ["stringOptions"],
@@ -463,6 +463,16 @@ function checkFilterLimits(filter: FilterState) {
     const values = Array.isArray(condition.value)
       ? condition.value
       : [condition.value];
+    if (
+      condition.column === "traceId" &&
+      values.length > TOPIC_RESULT_FILTER_LIMITS.traceIds
+    )
+      throw createStructuredPublicApiError({
+        httpCode: 400,
+        code: "invalid_query",
+        message: `Filter "traceId" allows at most ${TOPIC_RESULT_FILTER_LIMITS.traceIds} trace ids.`,
+        details: { column: condition.column },
+      });
     if (
       values.length > TOPIC_RESULT_FILTER_LIMITS.values ||
       values.some(
@@ -569,22 +579,6 @@ async function topicResultQuery(params: {
       });
       continue;
     }
-    if (condition.type === "string") {
-      const operator = STRING_MATCH_OPERATORS.find(
-        (item) => item === condition.operator,
-      );
-      if (!operator)
-        throw invalidFilter(
-          `Filter column "${column}" does not support operator "${condition.operator}".`,
-          column,
-          [...STRING_MATCH_OPERATORS],
-        );
-      conditions.push({
-        column: "summary",
-        match: { operator, value: condition.value },
-      });
-      continue;
-    }
     if (condition.type !== "stringOptions") continue;
     const { operator, value: values } = condition;
 
@@ -678,13 +672,17 @@ async function topicResultQuery(params: {
  * Without an explicit window, a `traceId` `any of` lookup reads the traces'
  * own source time within the longest window, as the trace page does.
  */
-async function resultsWindow(params: {
-  projectId: string;
-  fromTimestamp?: Date;
-  toTimestamp?: Date;
-  filter?: FilterState;
-}) {
-  const window = resolveWindow(params.fromTimestamp, params.toTimestamp);
+async function resultsWindow(params: ResultListParams) {
+  const requested = resolveWindow(
+    params.fromTimestamp,
+    params.toTimestamp,
+    RESULT_MAX_WINDOW_MS,
+  );
+  // The plan's data-access window floors every read, like the other list endpoints.
+  const floor = (from: Date) =>
+    clampToDataAccessDays({ plan: params.plan, fromTimestamp: from })
+      .effectiveFromTimestamp ?? from;
+  const window = { from: floor(requested.from), to: requested.to };
   if (params.fromTimestamp || params.toTimestamp) return window;
   const traceIds = params.filter?.find(
     (condition) =>
@@ -697,7 +695,7 @@ async function resultsWindow(params: {
     params.projectId,
     traceIds.map(String),
     {
-      from: new Date(window.to.getTime() - TOPICS_MAX_TIME_RANGE_MS),
+      from: floor(new Date(window.to.getTime() - TOPICS_MAX_TIME_RANGE_MS)),
       to: window.to,
     },
   );
@@ -706,6 +704,7 @@ async function resultsWindow(params: {
 
 type ResultListParams = {
   projectId: string;
+  plan: Plan | null;
   fromTimestamp?: Date;
   toTimestamp?: Date;
   filter?: FilterState;
@@ -737,20 +736,27 @@ async function prepareResultList(
     facets: new Map(facets.map((facet) => [facet.id, facet])),
     scope,
     window,
-    readerInput: query && {
-      projectId: params.projectId,
-      window,
-      facetIds: query.facetIds,
-      conditions: query.conditions,
-      orderBy: params.orderBy,
-      limit: params.limit,
-      cursor: params.cursor,
-    },
+    readerInput: query &&
+      window.from < window.to && {
+        projectId: params.projectId,
+        window,
+        facetIds: query.facetIds,
+        conditions: query.conditions,
+        orderBy: params.orderBy,
+        limit: params.limit,
+        cursor: params.cursor,
+      },
   };
 }
 
-const resultMeta = (next?: TopicResultCursor) => ({
+const resultMeta = (next?: TopicResultCursor, rows = 0, limit = 0) => ({
   cursor: next ? encodeTopicResultCursor(next) : null,
+  ...(next && rows < limit
+    ? {
+        comment:
+          "This page is shorter than limit because the scan budget ran out; it does not indicate completion. Continue with meta.cursor.",
+      }
+    : {}),
 });
 
 /** Lists the current summary per trace and facet; filtering and pagination run in ClickHouse. */
@@ -781,7 +787,7 @@ export async function listPublicTopicSummaries(
       summaryTruncated: row.summaryTruncated,
       processedAt: row.processedAt,
     })),
-    meta: resultMeta(result.next),
+    meta: resultMeta(result.next, result.rows.length, params.limit),
   };
 }
 
@@ -842,7 +848,7 @@ export async function listPublicTopicAssignments(params: ResultListParams) {
       runId: row.runId,
       assignedAt: row.assignedAt,
     })),
-    meta: resultMeta(result.next),
+    meta: resultMeta(result.next, result.rows.length, params.limit),
   };
 }
 

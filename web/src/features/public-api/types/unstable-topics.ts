@@ -160,7 +160,7 @@ const resultListQuery = timeWindow.extend({
   orderBy: z
     .enum(["timestamp.desc", "timestamp.asc"])
     .default("timestamp.desc"),
-  limit: z.coerce.number().int().positive().max(500).default(50),
+  limit: z.coerce.number().int().positive().max(100).default(50),
   cursor: z
     .string()
     .optional()
@@ -177,7 +177,9 @@ const resultListQuery = timeWindow.extend({
     }),
 });
 
-const resultListMeta = z.object({ cursor: z.string().nullable() }).strict();
+const resultListMeta = z
+  .object({ cursor: z.string().nullable(), comment: z.string().optional() })
+  .strict();
 
 export const GetUnstableTopicSummariesQuery = resultListQuery.extend({
   truncateSummaries: z

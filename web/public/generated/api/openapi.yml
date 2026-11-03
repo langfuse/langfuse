@@ -8008,13 +8008,20 @@ paths:
 
         The window applies to the trace start time. It defaults to the last
 
-        7 days and can span at most 93 days. Without `fromTimestamp` and
+        7 days and can span at most 30 days, starting no earlier than the
 
-        `toTimestamp`, a `traceId` `any of` filter reads the listed traces at
+        plan's data access window. Without `fromTimestamp` and `toTimestamp`,
 
-        their own start time within the last 93 days. Rows are ordered by
+        a `traceId` `any of` filter reads the listed traces at their own start
 
-        trace start time.
+        time within the last 93 days. Rows are ordered by trace start time.
+
+
+        Each request scans a bounded number of candidate rows. A page shorter
+
+        than `limit` (even an empty one) with a `meta.cursor` does not
+
+        indicate completion; continue with the cursor until it is null.
 
 
         Only active facets (attached to a Topics rule, or all facets if the
@@ -8024,17 +8031,17 @@ paths:
         listed.
 
 
-        `filter` is a JSON array of filter conditions combined with AND.
+        `filter` is a JSON array of filter conditions combined with AND, with
 
-        Columns: `traceId`, `facetId`, `facetName`, `ruleId`, `environment`
+        at most 100 `traceId` values. Columns: `traceId`, `facetId`,
+        `facetName`, `ruleId`, `environment`
 
-        (stringOptions), `timestamp`, `processedAt` (datetime), `state`
+        (stringOptions), `timestamp`, `processedAt` (datetime), `state`,
 
-        (stringOptions), `summary` (string, case-insensitive), `topicId`,
+        `topicId`, `topicName` (stringOptions), `assignmentStatus`
 
-        `topicName` (stringOptions), `assignmentStatus` (stringOptions,
-
-        `any of` only). An unknown `topicName` matches nothing under `any of`
+        (stringOptions, `any of` only). An unknown `topicName` matches nothing
+        under `any of`
 
         and is ignored under `none of`.
 
@@ -8105,7 +8112,7 @@ paths:
             nullable: true
         - name: limit
           in: query
-          description: Maximum number of rows per page. Defaults to `50`, at most `500`.
+          description: Maximum number of rows per page. Defaults to `50`, at most `100`.
           required: false
           schema:
             type: integer
@@ -8164,33 +8171,62 @@ paths:
       security: *ref_0
   /api/public/unstable/topic-assignments:
     get:
-      description: |-
+      description: >-
         Unstable: Topics is in closed beta. The shape may change without notice.
 
+
         List the current topic per trace, facet and rule on each rule's live
+
         map: `assigned` with its topic, or `outlier` when no topic fits.
+
         Summarized traces that are not assigned yet are not listed; find
+
         them through `GET /topic-summaries` with `assignmentStatus`.
 
+
         The window applies to the trace start time. It defaults to the last
-        7 days and can span at most 93 days. Without `fromTimestamp` and
-        `toTimestamp`, a `traceId` `any of` filter reads the listed traces at
-        their own start time within the last 93 days. Rows are ordered by
-        trace start time.
+
+        7 days and can span at most 30 days, starting no earlier than the
+
+        plan's data access window. Without `fromTimestamp` and `toTimestamp`,
+
+        a `traceId` `any of` filter reads the listed traces at their own start
+
+        time within the last 93 days. Rows are ordered by trace start time.
+
+
+        Each request scans a bounded number of candidate rows. A page shorter
+
+        than `limit` (even an empty one) with a `meta.cursor` does not
+
+        indicate completion; continue with the cursor until it is null.
+
 
         Only active facets (attached to a Topics rule, or all facets if the
+
         project has no rule) are read. Traces Topics never processed are not
+
         listed.
 
-        `filter` is a JSON array of filter conditions combined with AND.
-        Columns: `traceId`, `facetId`, `facetName`, `ruleId`, `environment`,
+
+        `filter` is a JSON array of filter conditions combined with AND, with
+
+        at most 100 `traceId` values. Columns: `traceId`, `facetId`,
+        `facetName`, `ruleId`, `environment`,
+
         `topicId`, `topicName` (stringOptions), `status` (stringOptions,
+
         `any of` only: `assigned`, `outlier`), `timestamp` (datetime). An
+
         unknown `topicName` matches nothing under `any of` and is ignored
+
         under `none of`.
 
+
         Common questions:
+
         - Topics of specific traces: `traceId` `any of` the trace ids.
+
         - Traces in a topic: `topicId` or `topicName`.
       operationId: unstable_topics_listAssignments
       tags:
@@ -8233,7 +8269,7 @@ paths:
             nullable: true
         - name: limit
           in: query
-          description: Maximum number of rows per page. Defaults to `50`, at most `500`.
+          description: Maximum number of rows per page. Defaults to `50`, at most `100`.
           required: false
           schema:
             type: integer
@@ -15599,6 +15635,10 @@ components:
           type: string
           nullable: true
           description: Pass as `cursor` to fetch the next page. Null on the last page.
+        comment:
+          type: string
+          nullable: true
+          description: Set when the page is shorter than `limit` but more rows may follow.
     unstableTopicRule:
       title: unstableTopicRule
       type: object

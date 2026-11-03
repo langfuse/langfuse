@@ -15,6 +15,10 @@ export default withUnstablePublicApiMiddlewares({
     querySchema: GetUnstableTopicSummariesQuery,
     responseSchema: GetUnstableTopicSummariesResponse,
     fn: ({ query, auth }) =>
-      listPublicTopicSummaries({ projectId: auth.scope.projectId, ...query }),
+      listPublicTopicSummaries({
+        projectId: auth.scope.projectId,
+        plan: auth.scope.plan,
+        ...query,
+      }),
   }),
 });

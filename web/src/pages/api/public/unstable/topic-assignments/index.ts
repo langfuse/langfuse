@@ -15,6 +15,10 @@ export default withUnstablePublicApiMiddlewares({
     querySchema: GetUnstableTopicAssignmentsQuery,
     responseSchema: GetUnstableTopicAssignmentsResponse,
     fn: ({ query, auth }) =>
-      listPublicTopicAssignments({ projectId: auth.scope.projectId, ...query }),
+      listPublicTopicAssignments({
+        projectId: auth.scope.projectId,
+        plan: auth.scope.plan,
+        ...query,
+      }),
   }),
 });
