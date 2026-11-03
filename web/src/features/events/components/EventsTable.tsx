@@ -160,6 +160,10 @@ import {
   AddObservationsToDatasetDialog,
 } from "@/src/features/batch-actions";
 import { useHasEntitlement } from "@/src/features/entitlements";
+import {
+  markTracesPendingDeletion,
+  usePendingTraceDeletionIds,
+} from "@/src/features/traces/pendingTraceDeletions";
 import { MobileFullTextSearch } from "@/src/features/events/components/MobileFullTextSearch";
 import { CategoryPresetChips } from "@/src/features/events/components/CategoryPresetChips";
 import { TableViewPresetsDrawer } from "@/src/components/table/table-view-presets/components/data-table-view-presets-drawer";
@@ -1135,6 +1139,18 @@ export default function ObservationsEventsTable({
       },
       isBatchAction: selectAll,
     });
+    // Select-all deletes by query, so only the loaded page has ids to hide.
+    const pageTraceIds = [
+      ...new Set(
+        (observations.rows ?? []).flatMap((observation) =>
+          observation.traceId ? [observation.traceId] : [],
+        ),
+      ),
+    ];
+    markTracesPendingDeletion(
+      projectId,
+      selectAll ? pageTraceIds : selectedTraceIds,
+    );
     setSelectedRows({});
   };
 
@@ -1758,6 +1774,8 @@ export default function ObservationsEventsTable({
     };
   }, [peekNavigationProps, showPeekPanel]);
 
+  const pendingTraceIds = usePendingTraceDeletionIds(projectId);
+
   const rows: EventsTableRow[] = useMemo(() => {
     const result =
       observations.status === "success" && observations.rows
@@ -1828,6 +1846,12 @@ export default function ObservationsEventsTable({
 
     return result;
   }, [observations]);
+
+  const visibleRows = useMemo(
+    () =>
+      rows.filter((row) => !row.traceId || !pendingTraceIds.has(row.traceId)),
+    [rows, pendingTraceIds],
+  );
 
   const selectedObservationIds = useMemo(() => {
     const rowIds = new Set(observations.rows?.map((o) => o.id));
@@ -2324,7 +2348,7 @@ export default function ObservationsEventsTable({
                       : {
                           isLoading: false,
                           isError: false,
-                          data: rows,
+                          data: visibleRows,
                         }
                 }
                 noResultsMessage={

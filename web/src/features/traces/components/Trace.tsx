@@ -38,6 +38,8 @@ import { TraceReviewPanelProvider } from "@/src/features/traces/contexts/TraceRe
 import { TraceReviewPanel } from "./TraceReviewPanel";
 import { useHasProjectAccess } from "@/src/features/rbac";
 import { staleProps } from "@/src/features/traces/fns/staleProps";
+import { PendingTraceDeletionBanner } from "@/src/features/traces/components/PendingTraceDeletionBanner";
+import { usePendingTraceDeletionIds } from "@/src/features/traces/pendingTraceDeletions";
 import { cn } from "@/src/utils/tailwind";
 import { SkeletonGroup } from "@/src/components/ui/skeleton";
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
@@ -232,7 +234,9 @@ function TraceWithSelection({
 function TraceContent({ desktopLayout }: { desktopLayout: DesktopLayout }) {
   const isMobile = useIsMobile();
   const { isGraphViewAvailable } = useTraceGraphData();
-  const { isPlaceholderData } = useTraceData();
+  const { isPlaceholderData, trace } = useTraceData();
+  const pendingTraceIds = usePendingTraceDeletionIds(trace.projectId);
+  const scheduledForDeletion = pendingTraceIds.has(trace.id);
   const [traceView, setTraceView] = useQueryParam("traceView", StringParam);
   const internalFeaturesEnabled = useInternalFeaturesEnabled();
   const { isV4 } = useReadPath();
@@ -252,6 +256,11 @@ function TraceContent({ desktopLayout }: { desktopLayout: DesktopLayout }) {
       inert={stale.inert}
       className={cn(traceContentClassName, stale.className)}
     >
+      {scheduledForDeletion ? (
+        <div className="px-3 pt-3">
+          <PendingTraceDeletionBanner />
+        </div>
+      ) : null}
       <TraceHeader />
       {showMessagesTab ? (
         <Tabs

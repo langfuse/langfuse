@@ -5,6 +5,7 @@ import { ConfirmationDialogController } from "@/src/components/design-system/Con
 import { useHasEntitlement } from "@/src/features/entitlements";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
 import { useHasProjectAccess } from "@/src/features/rbac";
+import { markTracesPendingDeletion } from "@/src/features/traces/pendingTraceDeletions";
 import { api } from "@/src/utils/api";
 
 export function DeleteTraceDialogController({
@@ -54,6 +55,7 @@ export function DeleteTraceDialogController({
       error={deleteMutation.error?.message}
       onConfirm={async () => {
         await deleteMutation.mutateAsync({ traceIds: [traceId], projectId });
+        markTracesPendingDeletion(projectId, [traceId]);
         setIsDeleted(true);
         capture("trace:delete", { source: "trace" });
         if (redirectUrl) {
