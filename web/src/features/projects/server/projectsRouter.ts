@@ -20,6 +20,7 @@ import {
 import { randomUUID } from "crypto";
 import { StringNoHTMLNonEmpty } from "@langfuse/shared";
 import { buildAdminOrgContext } from "@/src/features/organizations/server/adminOrgContext";
+import { transferProject } from "@/src/features/projects/server/transferProject";
 
 export const projectsRouter = createTRPCRouter({
   create: protectedOrganizationProcedure
@@ -266,38 +267,13 @@ export const projectsRouter = createTRPCRouter({
         });
       }
 
-      await auditLog({
-        session: ctx.session,
-        resourceType: "project",
-        resourceId: input.projectId,
-        action: "transfer",
-        before: { orgId: ctx.session.orgId },
-        after: { orgId: input.targetOrgId },
+      await transferProject({
+        prisma: ctx.prisma,
+        organizationId: ctx.session.orgId,
+        targetOrganizationId: input.targetOrgId,
+        projectId: input.projectId,
+        actor: { session: ctx.session },
       });
-
-      await ctx.prisma.$transaction([
-        ctx.prisma.projectMembership.deleteMany({
-          where: {
-            projectId: input.projectId,
-          },
-        }),
-        ctx.prisma.project.update({
-          where: {
-            id: input.projectId,
-            orgId: ctx.session.orgId,
-          },
-          data: {
-            orgId: input.targetOrgId,
-          },
-        }),
-      ]);
-
-      // API keys need to be deleted from cache. Otherwise, they will still be valid.
-      // It has to be called after the db is done to prevent new API keys from being cached.
-      await new ApiAuthService(
-        ctx.prisma,
-        redis,
-      ).invalidateCachedProjectApiKeys(input.projectId);
     }),
 
   environmentFilterOptions: protectedProjectProcedure
