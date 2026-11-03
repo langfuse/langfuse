@@ -2663,7 +2663,7 @@ describe("AI gateway control plane", () => {
               id: "a-model",
               created: 10,
               owned_by: "openai",
-              shutdown_date: "2027-01-01",
+              shutdown_date: "9999-12-31",
             },
             { id: "shared-model", created: 15, owned_by: "openai" },
           ],
