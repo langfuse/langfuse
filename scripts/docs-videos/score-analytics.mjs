@@ -37,12 +37,9 @@ const chartsLoaded = async (second) => {
   }
   await page.waitForTimeout(1500);
 };
-const pick = async (combobox, name, isSecond) => {
+const pick = async (combobox, name, pattern, isSecond) => {
   await glideClick(combobox, 800, { x: 0.3, y: 0.5 });
-  const option = page
-    .getByRole("option")
-    .filter({ hasText: new RegExp(`^${name}`) })
-    .first();
+  const option = page.getByRole("option").filter({ hasText: pattern }).first();
   // The picker can swallow a click while the charts re-render; reopen it.
   try {
     await option.waitFor({ timeout: 10_000 });
@@ -86,13 +83,13 @@ await scene.placeCursor(1000, 600);
 await scene.record();
 await page.waitForTimeout(1000);
 wide();
-await pick(first, "helpfulness", false);
+await pick(first, "helpfulness", /^helpfulness/, false);
 await glideTo(1000, 520, 800);
 await page.waitForTimeout(1600);
 await smoothScroll(page, 500, { x: 1000, y: 520 }, 1800);
 await smoothScroll(page, -500, { x: 1000, y: 520 }, 900);
 
-await pick(second, "faithfulness", true);
+await pick(second, "faithfulness", /^faithfulness/, true);
 await glideTo(1000, 520, 800);
 await page.waitForTimeout(1600);
 await smoothScroll(page, 560, { x: 1000, y: 520 }, 2000);
