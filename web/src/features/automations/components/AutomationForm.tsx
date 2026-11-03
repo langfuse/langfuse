@@ -58,7 +58,6 @@ import { webhookSchema } from "./actions/WebhookActionForm";
 import { Alert } from "@/src/components/design-system/Alert/Alert";
 import Link from "next/link";
 import { Info } from "@langfuse/icons";
-import { useReadPath } from "@/src/features/events";
 import { useVersionFilterOptions } from "../hooks/useVersionFilterOptions";
 
 // Define Slack action schema
@@ -216,7 +215,6 @@ const EventSourceField = ({
   disabled: boolean;
 }) => {
   const { isLangfuseCloud } = useLangfuseCloudRegion();
-  const { isV4 } = useReadPath();
   return (
     <FormField
       control={control}
@@ -238,9 +236,7 @@ const EventSourceField = ({
             </FormControl>
             <SelectContent>
               <SelectItem value={TriggerEventSource.Prompt}>Prompt</SelectItem>
-              {(isV4 || field.value === TriggerEventSource.Skill) && (
-                <SelectItem value={TriggerEventSource.Skill}>Skill</SelectItem>
-              )}
+              <SelectItem value={TriggerEventSource.Skill}>Skill</SelectItem>
               {(isLangfuseCloud ||
                 field.value === TriggerEventSource.Monitor) && (
                 <SelectItem value={TriggerEventSource.Monitor}>

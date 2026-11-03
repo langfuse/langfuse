@@ -4,46 +4,6 @@ import { ROUTES, type Route } from "@/src/components/layouts/routes";
 import { applyNavigationFilters } from "./navigationFilters";
 import type { NavigationFilterContext } from "./navigationFilters.types";
 
-it.each([
-  { v4BetaEnabled: true, visible: true },
-  { v4BetaEnabled: false, visible: false },
-])(
-  "Skills visibility is $visible without a preview opt-in when v4 is $v4BetaEnabled",
-  ({ v4BetaEnabled, visible }) => {
-    const route = ROUTES.find((route) => route.title === "Skills")!;
-    const organization = {
-      id: "org-1",
-      role: "VIEWER",
-      projects: [{ id: "project-1", role: "VIEWER" }],
-    } as unknown as NonNullable<Session["user"]>["organizations"][number];
-    const context: NavigationFilterContext = {
-      routerProjectId: "project-1",
-      routerOrganizationId: undefined,
-      session: {
-        user: {
-          admin: false,
-          v4BetaEnabled,
-          featureFlags: testFeatureFlags({}),
-          organizations: [organization],
-        },
-      } as Session,
-      enableExperimentalFeatures: false,
-      internalFeaturesEnabled: false,
-      cloudAdmin: false,
-      entitlements: [],
-      uiCustomization: null,
-      isLangfuseCloud: true,
-      hasActiveCloudIncident: false,
-      forceV3Experience: false,
-      currentPath: "/project/project-1/skills",
-    };
-
-    expect(applyNavigationFilters([route], context, organization)).toEqual(
-      visible ? [route] : [],
-    );
-  },
-);
-
 it("keeps Topics hidden without explicit opt-in despite admin and experimental overrides", () => {
   const route: Route = {
     title: "Topics",

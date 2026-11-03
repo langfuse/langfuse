@@ -66,6 +66,7 @@ import { SkillVersionHistory } from "@/src/features/skills/components/SkillVersi
 import { SkillFileView } from "@/src/features/skills/components/SkillFileView";
 import { useSkillFileContents } from "@/src/features/skills/hooks/useSkillFileContents";
 import { useLangfuseV4WriteMode } from "@/src/features/organizations/hooks";
+import { useReadPath } from "@/src/features/events";
 import {
   parseSkillFrontmatterMetadata,
   SKILL_NAME_RULES,
@@ -190,6 +191,7 @@ export function SkillEditor({
   const [isSaving, setIsSaving] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
   const isDraft = view.kind === "draft";
+  const { isV4 } = useReadPath();
   const v4WriteMode = useLangfuseV4WriteMode();
   const canReadMetrics = v4WriteMode !== null && v4WriteMode !== "legacy";
   const [selectedTab, setSelectedTab] = useQueryParam(
@@ -197,7 +199,9 @@ export function SkillEditor({
     withDefault(StringParam, "files"),
   );
   const activeTab =
-    !isDraft && ["usage", "linked-traces", "metrics"].includes(selectedTab)
+    isV4 &&
+    !isDraft &&
+    ["usage", "linked-traces", "metrics"].includes(selectedTab)
       ? "usage"
       : "files";
   const canEditFiles = isDraft && canCreate && !isSaving;
@@ -380,7 +384,7 @@ export function SkillEditor({
   const downloadDisabled = isDownloading
     ? { reason: "Download in progress" }
     : undefined;
-  const usageTab = view.kind === "version" && baseVersion !== null && (
+  const usageTab = isV4 && view.kind === "version" && baseVersion !== null && (
     <Tabs.Content value="usage" layout="fill">
       {canReadMetrics ? (
         <SkillAnalytics
@@ -725,7 +729,12 @@ export function SkillEditor({
                       <Tabs.Trigger
                         value="usage"
                         label="Usage"
-                        disabled={isDraft}
+                        disabled={isDraft || !isV4}
+                        tooltip={
+                          !isV4
+                            ? "Skill tracing is only supported in Langfuse v4."
+                            : undefined
+                        }
                       />
                     </Tabs.List>
                     {usageTab}

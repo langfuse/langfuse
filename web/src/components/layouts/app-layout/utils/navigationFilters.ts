@@ -203,7 +203,6 @@ const filters = {
       isLangfuseCloud: ctx.isLangfuseCloud,
       hasActiveCloudIncident: ctx.hasActiveCloudIncident,
       canToggleV4: ctx.session?.user?.canToggleV4 === true,
-      v4BetaEnabled: ctx.session?.user?.v4BetaEnabled === true,
       canRecoverV4: canRecoverV4(ctx),
       forceV3Experience: ctx.forceV3Experience,
       v4WriteMode: ctx.session?.environment?.v4WriteMode,

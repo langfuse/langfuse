@@ -8,6 +8,7 @@ import {
   Download,
   FileCode2,
   GitBranch,
+  Info,
   Plus,
   Terminal,
   Trash,
@@ -20,6 +21,8 @@ import {
   withDefault,
 } from "use-query-params";
 import Page from "@/src/components/layouts/Page";
+import { Alert } from "@/src/components/design-system/Alert/Alert";
+import { useReadPath } from "@/src/features/events";
 import { Button } from "@/src/components/ui/button";
 import { Button as DesignSystemButton } from "@/src/components/design-system/Button/Button";
 import { DropdownMenu } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
@@ -69,6 +72,7 @@ import {
 type SkillRow = RouterOutput["skills"]["all"]["data"][number];
 
 export function SkillsPage() {
+  const { isV3Legacy } = useReadPath();
   const projectId = useProjectIdFromURL() ?? "";
   const canCreate = useHasProjectAccess({ projectId, scope: "skills:CUD" });
   const { query: filterOptions } = useSkillInstallOptions(projectId, "");
@@ -119,6 +123,16 @@ export function SkillsPage() {
             ),
           }}
         >
+          {isV3Legacy && (
+            <div className="shrink-0 p-3 pb-0">
+              <Alert variant="info" size="sm" icon={Info}>
+                <Alert.Description>
+                  You can create and use skills in the legacy view. Skill
+                  tracing is only supported in Langfuse v4.
+                </Alert.Description>
+              </Alert>
+            </div>
+          )}
           <SkillsList
             key={projectId}
             projectId={projectId}

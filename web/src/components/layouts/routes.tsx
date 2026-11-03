@@ -83,7 +83,6 @@ export type Route = {
     isLangfuseCloud: boolean;
     hasActiveCloudIncident: boolean;
     canToggleV4: boolean;
-    v4BetaEnabled: boolean;
     canRecoverV4: boolean;
     forceV3Experience: boolean;
     v4WriteMode: undefined | "legacy" | "dual" | "events_only"; // undefined until the session has loaded
@@ -185,7 +184,6 @@ export const ROUTES: Route[] = [
   },
   {
     title: "Skills",
-    show: ({ v4BetaEnabled }) => v4BetaEnabled,
     label: <Badge text="Beta" color="blue" size="sm" />,
     href: "/project/[projectId]/skills",
     icon: FolderCode,
