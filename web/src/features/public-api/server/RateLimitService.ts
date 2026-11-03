@@ -167,7 +167,8 @@ export class RateLimitService {
       }
     }
 
-    if (res.remainingPoints < 1) {
+    // Library floors remainingPoints at 0; reject only when consumedPoints > points.
+    if (res.consumedPoints > res.points) {
       recordIncrement("langfuse.rate_limit.exceeded", 1, {
         orgId: scope.orgId,
         plan: scope.plan,
@@ -232,7 +233,7 @@ class RateLimitHelper {
   }
 
   isRateLimited() {
-    return this.res ? this.res.remainingPoints < 1 : false;
+    return this.res ? this.res.consumedPoints > this.res.points : false;
   }
 
   sendRestResponseIfLimited(
@@ -296,6 +297,7 @@ const getPlanBasedRateLimitConfig = (
     case "oss":
     case "self-hosted:pro":
     case "self-hosted:enterprise":
+    case "self-hosted:gov":
       return {
         resource,
         points: null,
@@ -336,8 +338,8 @@ const getPlanBasedRateLimitConfig = (
         case "public-api-legacy":
           return {
             resource: "public-api-legacy",
-            points: 5,
-            durationInSec: 60,
+            points: 2,
+            durationInSec: 60, // 2 requests per minute (nominal 120/hour)
           };
         case "datasets":
           return {
@@ -437,8 +439,8 @@ const getPlanBasedRateLimitConfig = (
         case "public-api-legacy":
           return {
             resource: "public-api-legacy",
-            points: 15,
-            durationInSec: 60,
+            points: 7,
+            durationInSec: 60, // 7 requests per minute (nominal 420/hour)
           };
         case "datasets":
           return {
@@ -538,8 +540,8 @@ const getPlanBasedRateLimitConfig = (
         case "public-api-legacy":
           return {
             resource: "public-api-legacy",
-            points: 40,
-            durationInSec: 60,
+            points: 20,
+            durationInSec: 60, // 20 requests per minute (nominal 1,200/hour)
           };
         case "datasets":
           return {

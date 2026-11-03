@@ -114,6 +114,48 @@ export const CloseOnly = meta.story({
   ),
 });
 
+export const DividedBody = meta.story({
+  name: "(Test) Divided body",
+  render: () => (
+    <DialogController
+      renderDialog={() => (
+        <Dialog title="Divided dialog" closeLabel="Done">
+          <Dialog.Body separators="both">
+            {Array.from({ length: 30 }, (_, index) => (
+              <p key={index}>Review instruction {index + 1}.</p>
+            ))}
+          </Dialog.Body>
+        </Dialog>
+      )}
+    >
+      {({ openDialog }) => <Button text="Open dialog" onClick={openDialog} />}
+    </DialogController>
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const body = within(canvasElement.ownerDocument.body);
+    await userEvent.click(canvas.getByRole("button", { name: "Open dialog" }));
+    const scrollBody = body.getByText("Review instruction 1.").parentElement!;
+    const footer = body.getByRole("button", { name: "Done" }).parentElement!;
+    await expect(scrollBody).toHaveStyle({
+      borderTopWidth: "1px",
+      borderBottomWidth: "1px",
+    });
+    await expect(scrollBody.scrollHeight).toBeGreaterThan(
+      scrollBody.clientHeight,
+    );
+    await expect(scrollBody.getBoundingClientRect().bottom).toBeLessThanOrEqual(
+      footer.getBoundingClientRect().top + 1,
+    );
+    body.getByText("Review instruction 30.").scrollIntoView();
+    await waitFor(() => expect(scrollBody.scrollTop).toBeGreaterThan(0));
+    await userEvent.click(body.getByRole("button", { name: "Done" }));
+    await waitFor(() =>
+      expect(body.queryByRole("dialog")).not.toBeInTheDocument(),
+    );
+  },
+});
+
 export const DestructiveAutofocus = meta.story({
   name: "(Test) Destructive autofocus",
   render: () => (

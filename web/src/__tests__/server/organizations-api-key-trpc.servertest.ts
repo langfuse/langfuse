@@ -438,6 +438,81 @@ describe("organization API keys trpc", () => {
       expect(updatedKey?.note).toBe("Updated Note");
     });
 
+    it("evicts a renamed gateway key from the gateway cache", async () => {
+      Object.assign(env, { LANGFUSE_AI_GATEWAY_CACHE_RESOLVE_ENABLED: "true" });
+      const gatewayKey = await createApiKey(prisma, {
+        tenant: OrganizationId(organizationId),
+        scope: OrganizationId(organizationId),
+        role: SystemRoleId("AI_GATEWAY"),
+        createdBy: UserId("user-1"),
+        name: "Original gateway key",
+      });
+      const { fastHashedSecretKey } = await prisma.apiKey.findUniqueOrThrow({
+        where: { id: gatewayKey.id },
+        select: { fastHashedSecretKey: true },
+      });
+      const cache = new GatewayResolveCache();
+      const cacheEntry = {
+        fastHashedSecretKey: fastHashedSecretKey!,
+        apiFormat: gatewayApiFormats[0],
+      };
+      await cache.set({
+        ...cacheEntry,
+        context: {
+          organizationId,
+          apiKeyId: gatewayKey.id,
+          userId: null,
+          apiKeyName: "Original gateway key",
+          userName: null,
+          userEmail: null,
+          keyMetadata: {},
+          ingestionProjectId: null,
+          ingestionMode: null,
+          connections: [],
+        },
+      });
+      expect(await cache.get(cacheEntry)).not.toBeNull();
+
+      await ownerCaller.organizationApiKeys.updateName({
+        orgId: organizationId,
+        keyId: gatewayKey.id,
+        name: "Renamed gateway key",
+      });
+
+      expect(await cache.get(cacheEntry)).toBeNull();
+    });
+
+    it("rejects a blank name for a gateway key but not for other keys", async () => {
+      const gatewayKey = await createApiKey(prisma, {
+        tenant: OrganizationId(organizationId),
+        scope: OrganizationId(organizationId),
+        role: SystemRoleId("AI_GATEWAY"),
+        createdBy: UserId("user-1"),
+        name: "Named gateway key",
+      });
+
+      await expect(
+        ownerCaller.organizationApiKeys.updateName({
+          orgId: organizationId,
+          keyId: gatewayKey.id,
+          name: "  ",
+        }),
+      ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+      await expect(
+        prisma.apiKey.findUniqueOrThrow({ where: { id: gatewayKey.id } }),
+      ).resolves.toMatchObject({ note: "Named gateway key" });
+
+      const otherKey = await ownerCaller.organizationApiKeys.create({
+        orgId: organizationId,
+        name: "Named key",
+      });
+      await ownerCaller.organizationApiKeys.updateName({
+        orgId: organizationId,
+        keyId: otherKey.id,
+        name: "",
+      });
+    });
+
     it("returns NOT_FOUND for a missing API key", async () => {
       await expect(
         ownerCaller.organizationApiKeys.updateName({
@@ -554,6 +629,9 @@ describe("organization API keys trpc", () => {
           organizationId,
           apiKeyId: gatewayKey.id,
           userId: null,
+          apiKeyName: "Cached gateway key",
+          userName: null,
+          userEmail: null,
           keyMetadata: {},
           ingestionProjectId: null,
           ingestionMode: null,
@@ -725,6 +803,7 @@ describe("organization API keys trpc", () => {
         });
         const key = await ownerCallerForOrg(orgId).organizationApiKeys.create({
           orgId,
+          name: `${role} key`,
           role,
         });
         expect(
@@ -739,6 +818,23 @@ describe("organization API keys trpc", () => {
         });
       },
     );
+
+    it("rejects an AI_GATEWAY key without a name", async () => {
+      Object.assign(env, { API_KEY_ORG_ROLES_ENABLE: "true" });
+      const orgId = `org-${randomUUID()}`;
+      await prisma.organization.create({
+        data: { id: orgId, name: "Scoped" },
+      });
+
+      await expect(
+        ownerCallerForOrg(orgId).organizationApiKeys.create({
+          orgId,
+          name: "  ",
+          role: "AI_GATEWAY",
+        }),
+      ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+      await expect(prisma.apiKey.count({ where: { orgId } })).resolves.toBe(0);
+    });
 
     describe.each([
       { migration: "legacy", enabled: "false" },

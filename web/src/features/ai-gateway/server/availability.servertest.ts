@@ -115,6 +115,39 @@ describe("self-hosted deployments", () => {
   );
 });
 
+describe("v4 write mode", () => {
+  // Development otherwise enables every organization regardless of flags.
+  it.each([deployedSelfHosted, { nodeEnv: "development" }] as const)(
+    "turns the gateway off in legacy write mode for %o",
+    (environment) => {
+      const legacy = {
+        ...environment,
+        enabledForAllOrganizations: "true",
+        writeMode: "legacy",
+      } as const;
+
+      expect(isGatewayEnabledForOrganization("org-1", ["org-1"], legacy)).toBe(
+        false,
+      );
+      expect(() =>
+        requireGatewayEnabledForOrganization("org-1", ["org-1"], legacy),
+      ).toThrow(ForbiddenError);
+    },
+  );
+
+  it.each(["dual", "events_only"] as const)(
+    "keeps the gateway on in %s write mode",
+    (writeMode) => {
+      expect(
+        isGatewayEnabledForOrganization("org-1", [], {
+          ...deployedSelfHosted,
+          writeMode,
+        }),
+      ).toBe(true);
+    },
+  );
+});
+
 describe("Langfuse Cloud matches the previous availability rule", () => {
   // The rule before LANGFUSE_AI_GATEWAY_DEPLOYED existed, when
   // LANGFUSE_AI_GATEWAY_ENABLED defaulted to "false".

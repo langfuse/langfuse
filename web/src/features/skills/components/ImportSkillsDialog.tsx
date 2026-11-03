@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { useRef, useState, type ChangeEvent, type ReactNode } from "react";
 import {
   COMMIT_MESSAGE_MAX_LENGTH,

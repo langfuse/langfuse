@@ -33,6 +33,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/src/components/ui/tooltip";
+import { areDestinationUrlsEquivalent } from "@/src/features/automations/destinationUrl";
 import { useHasProjectAccess } from "@/src/features/rbac";
 import {
   WEB_CALLOUT_BLOCKED_HEADER_NAMES,
@@ -210,6 +211,11 @@ function WebCalloutEndpointDialog(props: {
     name: "headers",
   });
 
+  const currentUrl = form.watch("url");
+  const isUrlChanged =
+    props.endpoint !== null &&
+    !areDestinationUrlsEquivalent(currentUrl, props.endpoint.url);
+
   const onSubmit = (values: WebCalloutFormValues) => {
     upsertMutation.mutate({
       projectId: props.projectId,
@@ -329,14 +335,20 @@ function WebCalloutEndpointDialog(props: {
                 Optional headers added to the backend POST. Content-Type is set
                 automatically. Leave values empty for existing header names to
                 keep encrypted values.
+                {isUrlChanged
+                  ? " Re-enter all header values when changing the endpoint URL."
+                  : ""}
               </FormDescription>
               <div className="space-y-2">
                 {fields.map((field, index) => {
                   const currentHeaderName = form.watch(`headers.${index}.name`);
-                  const preservesExistingValue = hasExistingHeaderName(
-                    props.endpoint,
-                    currentHeaderName,
-                  );
+                  const valuePlaceholder = getHeaderValuePlaceholder({
+                    isExistingHeader: hasExistingHeaderName(
+                      props.endpoint,
+                      currentHeaderName,
+                    ),
+                    isUrlChanged,
+                  });
 
                   return (
                     <div
@@ -362,11 +374,7 @@ function WebCalloutEndpointDialog(props: {
                           <FormItem>
                             <FormControl>
                               <Input
-                                placeholder={
-                                  preservesExistingValue
-                                    ? "***"
-                                    : "Header value"
-                                }
+                                placeholder={valuePlaceholder}
                                 type="password"
                                 {...field}
                               />
@@ -445,6 +453,20 @@ const formValuesToRequestHeaders = (
       .filter((header) => header.name.trim())
       .map((header) => [header.name.trim(), header.value.trim()]),
   );
+
+const getHeaderValuePlaceholder = ({
+  isExistingHeader,
+  isUrlChanged,
+}: {
+  isExistingHeader: boolean;
+  isUrlChanged: boolean;
+}) => {
+  if (!isExistingHeader) {
+    return "Header value";
+  }
+
+  return isUrlChanged ? "Re-enter header value" : "***";
+};
 
 const hasExistingHeaderName = (
   endpoint: WebCalloutEndpoint | null,

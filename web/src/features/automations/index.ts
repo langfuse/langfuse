@@ -4,8 +4,6 @@
 //
 // automationsRouter and the automations page stay off this door.
 export { AutomationButton } from "@/src/features/automations/components/AutomationButton";
-export {
-  AutomationForm,
-  automationCreateHref,
-} from "@/src/features/automations/components/AutomationForm";
+export { AutomationForm } from "@/src/features/automations/components/AutomationForm";
+export { actionTypeLabel } from "@/src/features/automations/actionTypeLabels";
 export { WebhookSecretRender } from "@/src/features/automations/components/WebhookSecretRender";

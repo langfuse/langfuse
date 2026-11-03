@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { registeredProviders } from "../../conventions";
 import {
   asRecord,

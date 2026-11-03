@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { ServiceUnavailableError } from "../../errors";
 import { recordIncrement } from "../instrumentation";
 

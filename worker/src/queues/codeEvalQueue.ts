@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { Job, Processor } from "bullmq";
 import { EvalTemplateType, JobExecutionStatus } from "@prisma/client";
 import { prisma } from "@langfuse/shared/src/db";

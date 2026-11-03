@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import {
   prisma as _prisma,
   type Role,
@@ -66,6 +65,7 @@ type AuditableResource =
   | "gatewayConfig"
   | "gatewayAiConnection"
   | "topicConfig"
+  | "supportAccess"
   // legacy resources
   | "membership";
 
@@ -107,7 +107,11 @@ export type AuditLog = {
 // Writes made by Langfuse itself rather than by a user or an API key pass these
 // sentinel actor ids. The Postgres row keeps them, because its actor type
 // cannot be SYSTEM. The staged event records a SYSTEM actor instead.
-const SYSTEM_ACTOR_USER_IDS = new Set(["stripe-webhook", "clickhouse-webhook"]);
+const SYSTEM_ACTOR_USER_IDS = new Set([
+  "stripe-webhook",
+  "clickhouse-webhook",
+  "conductorone-webhook",
+]);
 const ADMIN_API_KEY_IDS = new Set(["ADMIN_KEY", "ADMIN_API_KEY"]);
 const ADMIN_API_ACTOR: StagedAuditLogActor = {
   type: "SYSTEM",
@@ -325,7 +329,7 @@ export async function auditLog(
   }
 }
 
-function toUserActor(
+export function toUserActor(
   user: { id: string; name?: string | null; email?: string | null },
   roles: { orgRole?: Role; projectRole?: Role },
 ): StagedAuditLogActor {
@@ -343,7 +347,7 @@ function toUserActor(
 }
 
 /** `creator` is the user an in-app agent key acts for. */
-function toApiKeyActor(
+export function toApiKeyActor(
   apiKeyId: string,
   userId: string | undefined,
   creator: { name?: string | null; email?: string | null } | null | undefined,

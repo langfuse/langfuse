@@ -16,12 +16,14 @@ export type {
   MissingBucketValue,
 } from "@/src/features/widgets/chart-library/chart-props";
 export { parseChartTimestamp } from "@/src/features/widgets/chart-library/prepareTimeAxis";
-export { formatMetric } from "@/src/features/widgets/chart-library/utils";
+export {
+  formatMetric,
+  isTimeSeriesChart,
+} from "@/src/features/widgets/chart-library/utils";
 export type { DashboardPlacement } from "@/src/features/widgets/components/DashboardGrid";
 export { useClipboardWidgetProbe } from "@/src/features/widgets/hooks/useClipboardWidgetProbe";
 export { pushDownForInsertion } from "@/src/features/widgets/utils/grid-placement";
 export { WidgetContent } from "@/src/features/widgets/components/InlineWidget";
-export { WidgetPropertySelectItem } from "@/src/features/widgets/components/WidgetPropertySelectItem";
 export type { WidgetDimensionConfig } from "@/src/features/widgets/hooks/useWidgetQuery";
 export {
   getWidgetMetricPresentation,

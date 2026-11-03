@@ -34,6 +34,7 @@ export const [submitFeedbackTool, handleSubmitFeedback] = defineTool({
             apiKeyId: context.apiKeyId,
             publicKey: context.publicKey,
             isIngestionSuspended: false,
+            accessAuditLogEnabled: context.accessAuditLogEnabled,
           },
         }),
     }),

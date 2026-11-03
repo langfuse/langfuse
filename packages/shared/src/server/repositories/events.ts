@@ -30,6 +30,7 @@ import {
 } from "../clickhouse/client";
 import { recordDistribution } from "../instrumentation";
 import { logger } from "../logger";
+import { AI_GATEWAY_SERVICE_NAME } from "../../features/ai-gateway/constants";
 import { compileClickhouseQuery } from "../query-ast/compile";
 import { getClickhouseKysely } from "../query-ast/dialect";
 import type { ClickHouseDatabase } from "../query-ast/schema";
@@ -1498,6 +1499,67 @@ export const getLastTraceTimestampsByProjects = async (
   }
   return getLastTraceTimestampsByProjectsFromEventsTable(params);
 };
+
+/**
+ * Trace and observation counts per project for events_core rows created in
+ * `[start, end)`. Ingestion-API traces carry a synthetic `t-<traceId>` root
+ * row, which counts towards the trace but not as an observation. A trace with
+ * rows created in several intervals counts once in each. The AI gateway writes
+ * one generation per request, so `gatewayRequests` counts its rows; ingestion
+ * keeps the gateway service name only on gateway-authenticated uploads.
+ */
+export const getTracingCountsByProjectInCreationIntervalFromEventsTable =
+  async ({
+    start,
+    end,
+    projectIds,
+  }: {
+    start: Date;
+    end: Date;
+    projectIds?: string[];
+  }) => {
+    // Spans several projects, so it cannot go through compileClickhouseQuery,
+    // whose tenancy scope is always a single project.
+    const query = `
+      SELECT
+        project_id,
+        uniq(trace_id) as traces,
+        countIf(span_id != concat('t-', trace_id)) as observations,
+        countIf(service_name = {gatewayServiceName: String}) as gateway_requests
+      FROM events_core
+      WHERE created_at >= {start: DateTime64(3)}
+      AND created_at < {end: DateTime64(3)}
+      AND is_deleted = 0
+      ${projectIds ? "AND project_id IN ({projectIds: Array(String)})" : ""}
+      GROUP BY project_id
+    `;
+
+    const rows = await queryClickhouse<{
+      project_id: string;
+      traces: string;
+      observations: string;
+      gateway_requests: string;
+    }>({
+      query,
+      params: {
+        start: convertDateToClickhouseDateTime(start),
+        end: convertDateToClickhouseDateTime(end),
+        gatewayServiceName: AI_GATEWAY_SERVICE_NAME,
+        ...(projectIds ? { projectIds } : {}),
+      },
+      clickhouseConfigs: {
+        request_timeout: 300000, // 5 minutes timeout
+      },
+      preferredClickhouseService: "EventsReadOnly",
+    });
+
+    return rows.map((row) => ({
+      projectId: row.project_id,
+      traces: Number(row.traces),
+      observations: Number(row.observations),
+      gatewayRequests: Number(row.gateway_requests),
+    }));
+  };
 
 type PublicApiObservationsQuery = {
   projectId: string;

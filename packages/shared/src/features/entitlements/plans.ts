@@ -16,6 +16,7 @@ export const planLabels = {
   "cloud:enterprise": "Enterprise",
   "self-hosted:pro": "Pro (self-hosted)",
   "self-hosted:enterprise": "Enterprise (self-hosted)",
+  "self-hosted:gov": "Government (self-hosted)",
 } as const;
 
 export type Plan = keyof typeof planLabels;

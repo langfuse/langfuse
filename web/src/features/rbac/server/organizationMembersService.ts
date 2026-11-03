@@ -3,11 +3,16 @@ import {
   type OrganizationScope,
 } from "@langfuse/shared/rbac";
 import { type PrismaClient, Role } from "@langfuse/shared/src/db";
+import { escapeSqlLikePattern } from "@langfuse/shared/src/server";
 
 type MembersWithScopeParams = {
   organizationId: string;
   scope: OrganizationScope;
   excludeUserId?: string;
+  /** Lowercase addresses to leave out. */
+  excludeEmails?: string[];
+  /** Case-insensitive match on name or email. */
+  search?: string;
 };
 
 /** Reads organization members by what their organization role allows them to do. */
@@ -35,7 +40,7 @@ export class OrganizationMembersService {
   ) {
     const memberships = await this.prisma.organizationMembership.findMany({
       where: this.membersWithScopeWhere(params),
-      orderBy: { createdAt: "asc" },
+      orderBy: [{ createdAt: "asc" }, { userId: "asc" }],
       take: params.limit,
       select: {
         user: { select: { id: true, name: true, email: true, image: true } },
@@ -86,13 +91,32 @@ export class OrganizationMembersService {
     const roles = Object.values(Role).filter((role) =>
       organizationRoleAccessRights[role].includes(params.scope),
     );
+    const search = params.search?.trim()
+      ? escapeSqlLikePattern(params.search.trim())
+      : undefined;
     return {
       orgId: params.organizationId,
       role: { in: roles },
       ...(params.excludeUserId
         ? { userId: { not: params.excludeUserId } }
         : {}),
-      user: { email: { not: null } },
+      user: {
+        email: {
+          not: null,
+          ...(params.excludeEmails !== undefined &&
+          params.excludeEmails.length > 0
+            ? { notIn: params.excludeEmails }
+            : {}),
+        },
+        ...(search
+          ? {
+              OR: [
+                { name: { contains: search, mode: "insensitive" as const } },
+                { email: { contains: search, mode: "insensitive" as const } },
+              ],
+            }
+          : {}),
+      },
     };
   }
 }

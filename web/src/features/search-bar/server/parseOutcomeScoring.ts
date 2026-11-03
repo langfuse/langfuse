@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 // Score the PARSE OUTCOME of an Ask AI filter completion onto the
 // generation's trace in the AI-features Langfuse project, so production
 // traffic becomes a queryable, self-harvesting quality signal instead of

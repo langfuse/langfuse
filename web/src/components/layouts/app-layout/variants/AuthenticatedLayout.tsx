@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 /**
  * Authenticated layout variant
  * Full application layout with sidebar, navigation, support drawer, and payment banner
@@ -442,7 +441,9 @@ function ConnectedAppSidebar({
   });
 
   const selfHostedPlan =
-    plan === "self-hosted:pro" || plan === "self-hosted:enterprise"
+    plan === "self-hosted:pro" ||
+    plan === "self-hosted:enterprise" ||
+    plan === "self-hosted:gov"
       ? plan
       : "oss";
 

@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import isEmpty from "lodash/isEmpty";
 import { z } from "zod";
 

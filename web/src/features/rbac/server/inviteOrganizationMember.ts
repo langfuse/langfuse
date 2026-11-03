@@ -2,7 +2,10 @@ import { TRPCError } from "@trpc/server";
 import { Prisma, type PrismaClient, Role } from "@langfuse/shared";
 
 import { auditLog } from "@/src/features/audit-logs/server";
-import { getSfdcService } from "@/src/ee/features/sfdc-sync/server";
+import {
+  getSfdcService,
+  type SetUserRoleInput,
+} from "@/src/ee/features/sfdc-sync/server";
 import {
   createWithinEntitlementLimit,
   hasEntitlement,
@@ -11,6 +14,7 @@ import { throwIfNoOrganizationAccess } from "@/src/features/rbac/utils/checkOrga
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { throwIfHigherProjectRole } from "@/src/features/rbac/server/throwIfHigherProjectRole";
 import { throwIfHigherRole } from "@/src/features/rbac/server/throwIfHigherRole";
+import { requireGatewayEnabledForRole } from "@/src/features/ai-gateway/server/availability";
 import type { OrgAuthedContext } from "@/src/server/api/trpc";
 
 async function createProjectMembershipOrThrowIfDuplicate({
@@ -83,6 +87,12 @@ type InviteOrganizationMemberParams = {
     orgName: string;
     userExists: boolean;
   }) => Promise<void>;
+  /**
+   * Links an existing user to the org in SFDC, one Mulesoft round trip that
+   * can take seconds. Defaults to syncing before returning; batch callers
+   * collect the syncs and run them outside their invite loop.
+   */
+  syncSfdcUserRole?: (input: SetUserRoleInput) => Promise<unknown>;
 };
 
 /**
@@ -93,16 +103,17 @@ export async function inviteOrganizationMember({
   ctx,
   input,
   sendInvitationEmail,
+  syncSfdcUserRole = syncSfdcUserRoleNow,
 }: InviteOrganizationMemberParams) {
   /**
    * Create a new organization membership
    * - Checks for:
+   *   - project is in org (throws if not)
    *   - scope: organizationMembers:CUD if not only project-role is set, then projectMembers:CUD
    *   - orgRole is not higher than own role
    *   - if project role
    *     - projectRole is not higher than own role
    *     - entitlement for project roles if projectRole is set
-   *     - project is in org
    *  - if user exists
    *    - if org membership exists
    *      - if only project role is set (orgRole === Role.NONE)
@@ -122,14 +133,29 @@ export async function inviteOrganizationMember({
    *  - send email
    */
 
+  // The project must belong to the target org before its project-level
+  // rights can stand in for organizationMembers:CUD below.
+  const project = input.projectId
+    ? await ctx.prisma.project.findFirst({
+        where: {
+          id: input.projectId,
+          orgId: input.orgId,
+          deletedAt: null,
+        },
+      })
+    : null;
+  if (input.projectId && !project) {
+    throw new TRPCError({ code: "NOT_FOUND", message: "Project not found" });
+  }
+
   if (
     // Require only project-level access rights if no orgRole is set but a projectId is
-    input.projectId &&
+    project &&
     input.orgRole === Role.NONE
   ) {
     throwIfNoProjectAccess({
       session: ctx.session,
-      projectId: input.projectId,
+      projectId: project.id,
       scope: "projectMembers:CUD",
     });
   } else {
@@ -145,6 +171,7 @@ export async function inviteOrganizationMember({
     ownRole: ctx.session.orgRole,
     role: input.orgRole,
   });
+  requireGatewayEnabledForRole(input.orgId, input.orgRole);
 
   // check for entilement (project role)
   if (input.projectId && input.projectRole) {
@@ -167,16 +194,6 @@ export async function inviteOrganizationMember({
     },
   });
 
-  // security check if project is in org
-  const project = input.projectId
-    ? await ctx.prisma.project.findFirst({
-        where: {
-          id: input.projectId,
-          orgId: input.orgId,
-          deletedAt: null,
-        },
-      })
-    : null;
   if (project && input.projectRole)
     await throwIfHigherProjectRole({
       orgCtx: ctx,
@@ -320,7 +337,7 @@ export async function inviteOrganizationMember({
       after: orgMembership,
     });
     // SFDC: link existing lead to org as a member.
-    await getSfdcService()?.setUserRole({
+    await syncSfdcUserRole({
       orgId: input.orgId,
       userId: user.id,
       email: user.email,
@@ -398,4 +415,8 @@ export async function inviteOrganizationMember({
       }
     }
   }
+}
+
+function syncSfdcUserRoleNow(input: SetUserRoleInput) {
+  return getSfdcService()?.setUserRole(input) ?? Promise.resolve(false);
 }

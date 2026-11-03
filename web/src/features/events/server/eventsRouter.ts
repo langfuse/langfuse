@@ -21,6 +21,7 @@ import {
   paginationZod,
   singleFilterList,
   timeFilter,
+  toAuditLogResourceRef,
 } from "@langfuse/shared";
 import {
   toDomainArrayWithStringifiedMetadata,
@@ -38,8 +39,10 @@ import {
   EVENT_FILTER_OPTIONS_COLUMNS,
 } from "./eventsService";
 import { loadTraceTranscript } from "./loadTraceTranscript";
+import { recordTrpcAccess } from "@/src/ee/features/access-audit-log/server";
 import {
   instrumentAsync,
+  getCurrentSpan,
   getScoresAndCorrectionsForTraces,
   getAgentGraphDataFromEventsTable,
   getObservationsForTraceFromEventsTable,
@@ -143,6 +146,15 @@ export const eventsRouter = createTRPCRouter({
   all: protectedProjectProcedure
     .input(GetAllEventsInput)
     .query(async ({ input, ctx }) => {
+      const normalizedOrderBy = normalizeOrderByForTable({
+        orderBy: input.orderBy,
+        expectedTimeColumn: "startTime",
+      });
+      const span = getCurrentSpan();
+      if (span) {
+        addAttributesToSpan({ span, input, orderBy: normalizedOrderBy });
+      }
+
       const { filterState, hasNoMatches } = await applyCommentFilters({
         filterState: input.filter ?? [],
         prisma: ctx.prisma,
@@ -159,10 +171,6 @@ export const eventsRouter = createTRPCRouter({
           name: "get-event-list-trpc",
         },
         async (span) => {
-          const normalizedOrderBy = normalizeOrderByForTable({
-            orderBy: input.orderBy,
-            expectedTimeColumn: "startTime",
-          });
           addAttributesToSpan({ span, input, orderBy: normalizedOrderBy });
 
           return getEventList({
@@ -537,6 +545,26 @@ export const eventsRouter = createTRPCRouter({
               // fallback to input in case trace unavailable - shouldn't happen
               timestamp: ctx.trace?.timestamp ?? input.timestamp,
             });
+
+          await recordTrpcAccess(ctx, input.projectId, {
+            route: "events.byTraceId",
+            resourceType: "trace",
+            resourceId: input.traceId,
+            action: "read",
+            resourceRefs: [toAuditLogResourceRef("trace", input.traceId)]
+              .concat(
+                ctx.trace?.sessionId
+                  ? [toAuditLogResourceRef("session", ctx.trace.sessionId)]
+                  : [],
+              )
+              .concat(
+                observations.map((o) =>
+                  toAuditLogResourceRef("observation", o.id),
+                ),
+              ),
+            params: input,
+            resultCount: observations.length,
+          });
 
           return {
             observations: toDomainArrayWithStringifiedMetadata(observations),

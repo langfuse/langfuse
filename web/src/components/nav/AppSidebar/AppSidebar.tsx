@@ -98,6 +98,10 @@ const selfHostedPlanLabels = {
     short: "EE",
     long: planLabels["self-hosted:enterprise"],
   },
+  "self-hosted:gov": {
+    short: "Gov",
+    long: planLabels["self-hosted:gov"],
+  },
 } satisfies Record<SelfHostedPlan, { short: string; long: string }>;
 
 type UserNavigationItemBase = {

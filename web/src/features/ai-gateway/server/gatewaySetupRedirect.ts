@@ -8,10 +8,11 @@ import { GatewayConfigService } from "@/src/features/ai-gateway/server/config/ga
 const SETUP_GATED_SETTINGS_SLUGS = new Set([
   "ai-gateway-models",
   "ai-gateway-api-keys",
+  "ai-gateway-analytics",
 ]);
 
 /**
- * Gateway managers cannot open model or API key settings before an ingestion
+ * Gateway managers cannot open model, API key or analytics settings before an ingestion
  * project is configured; they are sent to the setup page.
  * Other members are not redirected because their Models and API key pages
  * explain the state.

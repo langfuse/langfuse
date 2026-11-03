@@ -1,6 +1,7 @@
 import {
   useMemo,
   useState,
+  type CSSProperties,
   type MouseEvent,
   type PointerEvent,
   type ReactNode,
@@ -30,6 +31,8 @@ type TopicGridProps = {
   onSelectTopic: (topicId: string | null) => void;
   onSelectTrace: (traceId: string) => void;
   previewOnSelect?: boolean;
+  /** Matches the trace list header in the side-by-side layout so both dividers line up. */
+  barHeight?: number;
 };
 
 type GridHoverCardProps = {
@@ -276,6 +279,7 @@ export function TopicGrid({
   selectedIndex,
   onSelectTopic,
   onSelectTrace,
+  barHeight,
   previewOnSelect = false,
 }: TopicGridProps) {
   const [zoom, setZoom] = useState(0);
@@ -405,7 +409,17 @@ export function TopicGrid({
 
   return (
     <>
-      <div className="flex h-12 shrink-0 items-center justify-end gap-2 px-4">
+      <div
+        className={cn(
+          "flex h-12 shrink-0 items-center justify-end gap-2 px-4",
+          barHeight && "lg:h-(--bar-height)",
+        )}
+        style={
+          barHeight
+            ? ({ "--bar-height": `${barHeight}px` } as CSSProperties)
+            : undefined
+        }
+      >
         <div className="flex items-center gap-0.5">
           <IconButton
             icon={Minus}
