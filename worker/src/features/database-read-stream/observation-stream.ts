@@ -658,6 +658,7 @@ const getObservationStreamFromEvents = async (
       release: _release,
       bookmarked: _bookmarked,
       public: _public,
+      isRootObservation: _isRootObservation,
       skillsAvailable: _skillsAvailable,
       skillsResourceLoaded: _skillsResourceLoaded,
       userId,

@@ -1,7 +1,13 @@
 import { randomUUID } from "crypto";
 import { ForbiddenError, InternalServerError } from "@langfuse/shared";
 import type { PrismaClient } from "@langfuse/shared/src/db";
-import { ProjectDeleteQueue, QueueJobs } from "@langfuse/shared/src/server";
+import {
+  DefaultEvalModelService,
+  ProjectDeleteQueue,
+  QueueJobs,
+} from "@langfuse/shared/src/server";
+import { transferRoleAssignments } from "@langfuse/shared/rbac/server";
+import { reconcileTopicsConnectionsForProject } from "@langfuse/shared/topics/server";
 import { GatewayConfigService } from "@/src/features/ai-gateway/server/config/gatewayConfigService";
 import { invalidateGatewayResolveCacheForOrganization } from "@/src/features/ai-gateway/server/resolve/gatewayResolveCache";
 import {
@@ -17,6 +23,14 @@ type DeleteProjectParams = {
   actor: AuditLogActor;
   /** Whether the actor holds `gateway:manage`, required to delete the gateway's ingestion project. */
   canManageGateway: boolean;
+};
+
+type TransferProjectParams = {
+  /** The organization the project belongs to before the transfer. */
+  organizationId: string;
+  targetOrganizationId: string;
+  projectId: string;
+  actor: AuditLogActor;
 };
 
 export class ProjectService {
@@ -51,6 +65,67 @@ export class ProjectService {
       projectId: params.projectId,
     });
     await this.queueHardDelete(params);
+  }
+
+  /**
+   * transfer moves a project into another organization. The project keeps its
+   * data and API keys, loses its memberships and user role assignments, and
+   * rebinds its default eval model and topics connections to the destination
+   * organization. Callers must check `projects:transfer_org` in both
+   * organizations.
+   */
+  async transfer(params: TransferProjectParams) {
+    const { organizationId, targetOrganizationId, projectId } = params;
+
+    await auditLog({
+      ...params.actor,
+      resourceType: "project",
+      resourceId: projectId,
+      action: "transfer",
+      before: { orgId: organizationId },
+      after: { orgId: targetOrganizationId },
+    });
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.projectMembership.deleteMany({ where: { projectId } });
+      await tx.project.update({
+        where: { id: projectId, orgId: organizationId },
+        data: { orgId: targetOrganizationId },
+      });
+      // Move the project's api-key assignments to the destination org and
+      // drop its user assignments, matching the membership wipe above.
+      await transferRoleAssignments(tx, projectId, targetOrganizationId);
+    });
+
+    // API keys need to be deleted from cache. Otherwise, they will still be valid.
+    // It has to be called after the db is done to prevent new API keys from being cached.
+    await this.apiAuthService.invalidateCachedProjectApiKeys(projectId);
+
+    // Both orgs' org-scoped keys bake a projectId set that just changed.
+    await this.apiAuthService.invalidateCachedOrgApiKeys(organizationId);
+    await this.apiAuthService.invalidateCachedOrgApiKeys(targetOrganizationId);
+
+    // A transfer is a delete for the source org and a create for the
+    // destination one. CHB's registry is keyed by (organizationId,
+    // projectId), so emitting only one side leaves the source org billed for
+    // usage it no longer owns, or the destination org unmetered. Each emit
+    // no-ops unless that org is CHB-billed, so a Stripe-to-Stripe transfer
+    // sends nothing.
+    emitChbProjectEvent({
+      type: "LANGFUSE_PROJECT_DELETED",
+      orgId: organizationId,
+      projectId,
+    });
+    emitChbProjectEvent({
+      type: "LANGFUSE_PROJECT_CREATED",
+      orgId: targetOrganizationId,
+      projectId,
+    });
+
+    await Promise.all([
+      DefaultEvalModelService.reconcileConnectionForProject(projectId),
+      reconcileTopicsConnectionsForProject(projectId),
+    ]);
   }
 
   private async softDeleteAndUnlinkGateway(params: DeleteProjectParams) {
