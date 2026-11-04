@@ -60,7 +60,7 @@ function ComingSoonTraceFilter() {
       <Input
         disabled
         aria-label="Filter traces"
-        placeholder="level:ERROR -env:dev tags:billing"
+        placeholder="status:ERROR -env:dev tags:billing"
       />
     </section>
   );

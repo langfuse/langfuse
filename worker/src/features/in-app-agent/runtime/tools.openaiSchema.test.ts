@@ -81,6 +81,27 @@ function maxOptionalNesting(node: unknown): number {
 }
 
 describe("in-app agent local tool schemas on OpenAI", () => {
+  it("preserves status filters when proposing trace navigation", async () => {
+    const tool = createRedirectActionTool({
+      projectId: "project-id",
+      isV4Enabled: true,
+    });
+    const result = await tool.execute?.(
+      {
+        label: "Error traces",
+        destination: "traces",
+        params: { filters: { status: ["ERROR"] } },
+      },
+      {} as never,
+    );
+
+    expect(result).toEqual({
+      type: "redirectAction",
+      label: "Error traces",
+      href: "/project/project-id/traces?filter=level%3BstringOptions%3B%3Bany+of%3BERROR",
+    });
+  });
+
   // Nesting 3 (~23 KB) makes OpenAI Responses return `incomplete` /
   // `max_output_tokens` with zero usage; nesting 2 (~12 KB) is accepted.
   it.each([

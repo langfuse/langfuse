@@ -309,7 +309,7 @@ const InAppAgentTableTimeRangeSchema = z
 const InAppAgentTracingFiltersSchema = z.object({
   bookmarked: z.boolean().optional(),
   environment: z.array(z.string().min(1).max(100)).max(10).optional(),
-  level: z.array(ObservationLevelDomain).max(4).optional(),
+  status: z.array(ObservationLevelDomain).max(4).optional(),
   metadata: z
     .array(
       z.object({

@@ -109,7 +109,7 @@ type TracesPathTimeRange =
 type TracesPathFilters = {
   bookmarked?: boolean;
   environment?: string[];
-  level?: string[];
+  status?: string[];
   metadata?: Array<{ key: string; value: string }>;
   sessionId?: string[];
   tags?: string[];
@@ -355,7 +355,7 @@ function getTracesFilterState(
   };
 
   addStringOptionsFilter("environment", filters.environment);
-  addStringOptionsFilter("level", filters.level);
+  addStringOptionsFilter("level", filters.status);
   if (!isV4Enabled) {
     addStringOptionsFilter("sessionId", filters.sessionId);
   }

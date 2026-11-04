@@ -170,7 +170,7 @@ const PATTERN_OPTIONS: CompletionOption[] = [
     kind: "pattern",
     label: "field:(a OR b)",
     detail: "any of",
-    insert: "level:(ERROR OR WARNING)",
+    insert: "status:(ERROR OR WARNING)",
   },
   {
     id: "pat:negation",
