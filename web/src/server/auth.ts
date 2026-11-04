@@ -25,7 +25,10 @@ import {
 import { env } from "@/src/env.mjs";
 import { createProjectMembershipsOnSignup } from "@/src/features/auth/lib/createProjectMembershipsOnSignup";
 import { getSessionLoginAt } from "@/src/features/auth/lib/sessionExpiration";
-import { captureSignupStep } from "@/src/features/auth/lib/signupSteps";
+import {
+  captureSignupStep,
+  sendSignupWebhook,
+} from "@/src/features/auth/lib/signupSteps";
 import { type SignupAttribution } from "@/src/features/auth/lib/signupAttribution";
 import { PASSWORD_RESET_EMAIL_CODE_MAX_AGE_SECONDS } from "@/src/features/auth-credentials/lib/credentialsUtils";
 import {
@@ -687,6 +690,10 @@ const createExtendedPrismaAdapter = (
       userWasJustCreated: true,
       ...signupAttribution,
     });
+    // an OAuth or SSO provider verified the email
+    sendSignupWebhook(user).catch((error) => {
+      logger.warn("Sign-up webhook failed", { userId: user.id, error });
+    });
 
     return user;
   },
@@ -1253,30 +1260,6 @@ export async function getAuthOptions(
       pkceCodeVerifier: {
         name: getCookieName("next-auth.pkce.code_verifier"),
         options: getCookieOptions(),
-      },
-    },
-    events: {
-      createUser: async ({ user }) => {
-        if (
-          env.LANGFUSE_NEW_USER_SIGNUP_WEBHOOK &&
-          env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION &&
-          env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION !== "STAGING" &&
-          env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION !== "DEV"
-        ) {
-          await fetch(env.LANGFUSE_NEW_USER_SIGNUP_WEBHOOK, {
-            method: "POST",
-            body: JSON.stringify({
-              name: user.name,
-              email: user.email,
-              cloudRegion: env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
-              userId: user.id,
-              // referralSource: ...
-            }),
-            headers: {
-              "Content-Type": "application/json",
-            },
-          });
-        }
       },
     },
   };

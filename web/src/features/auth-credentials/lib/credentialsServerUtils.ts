@@ -9,8 +9,14 @@ import {
   SIGNUP_EMAIL_CODE_MAX_AGE_SECONDS,
 } from "@/src/features/auth-credentials/lib/credentialsUtils";
 import { prisma } from "@langfuse/shared/src/db";
-import { isSetupPasswordCallbackUrl } from "@langfuse/shared/src/server";
-import { captureSignupStep } from "@/src/features/auth/lib/signupSteps";
+import {
+  isSetupPasswordCallbackUrl,
+  logger,
+} from "@langfuse/shared/src/server";
+import {
+  captureSignupStep,
+  sendSignupWebhook,
+} from "@/src/features/auth/lib/signupSteps";
 
 function hashEmailOtpToken(token: string) {
   if (!env.NEXTAUTH_SECRET) {
@@ -164,9 +170,9 @@ async function findSetupPasswordAccount({
 export type EmailCodeCheck = "ok" | "expired" | "invalid";
 
 /**
- * Sets the password with an email code. On a pending sign-up's
- * setup-password step it also records sign_up:code_checked and, for a valid
- * code, sign_up:password_set.
+ * Sets the password with an email code. A valid code on a pending sign-up
+ * also sends the sign-up webhook in the background; its setup-password step
+ * records sign_up:code_checked and, for a valid code, sign_up:password_set.
  */
 export async function setPasswordWithEmailCode({
   email,
@@ -179,8 +185,7 @@ export async function setPasswordWithEmailCode({
   password: string;
   intent: "setup" | "reset" | undefined;
 }): Promise<EmailCodeCheck> {
-  const signup =
-    intent === "setup" ? await findSignupAwaitingVerification(email) : null;
+  const signup = await findSignupAwaitingVerification(email);
   const codeCheck = await consumeEmailOtpAndUpdatePassword({
     email,
     token,
@@ -188,9 +193,16 @@ export async function setPasswordWithEmailCode({
   });
   if (!signup) return codeCheck;
 
-  captureSignupStep(signup.id, "sign_up:code_checked", { result: codeCheck });
+  if (intent === "setup") {
+    captureSignupStep(signup.id, "sign_up:code_checked", { result: codeCheck });
+    if (codeCheck === "ok") {
+      captureSignupStep(signup.id, "sign_up:password_set", {});
+    }
+  }
   if (codeCheck === "ok") {
-    captureSignupStep(signup.id, "sign_up:password_set", {});
+    sendSignupWebhook(signup).catch((error) => {
+      logger.warn("Sign-up webhook failed", { userId: signup.id, error });
+    });
   }
   return codeCheck;
 }

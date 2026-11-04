@@ -76,8 +76,12 @@ import auth from "@/src/pages/api/auth/[...nextauth]";
 import signupVerify from "@/src/pages/api/auth/signup-verify";
 import { getCookieName } from "@/src/server/utils/cookies";
 import { prisma } from "@langfuse/shared/src/db";
-import { sendResetPasswordVerificationRequest } from "@langfuse/shared/src/server";
+import {
+  logger,
+  sendResetPasswordVerificationRequest,
+} from "@langfuse/shared/src/server";
 
+const SIGNUP_WEBHOOK_URL = "https://hooks.example.com/signup";
 const SETUP_PASSWORD_URL = "http://localhost:3000/auth/setup-password";
 const RESET_PASSWORD_URL = "http://localhost:3000/auth/reset-password";
 
@@ -106,20 +110,28 @@ describe("cloud_signup_complete", () => {
     "AUTH_EMAIL_VERIFICATION_REQUIRED",
     "SMTP_CONNECTION_URL",
     "EMAIL_FROM_ADDRESS",
+    "LANGFUSE_NEW_USER_SIGNUP_WEBHOOK",
   ] as const;
   const savedEnv: Record<string, unknown> = {};
+  const webhookMock = vi.fn();
 
   beforeEach(() => {
     for (const key of overriddenEnvKeys) savedEnv[key] = env[key];
     (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "EU";
+    (env as any).LANGFUSE_NEW_USER_SIGNUP_WEBHOOK = SIGNUP_WEBHOOK_URL;
     captureMock.mockReset();
     posthogShutdown.mockReset();
     posthogShutdown.mockResolvedValue(undefined);
+    webhookMock.mockReset();
+    webhookMock.mockResolvedValue(new Response(null, { status: 200 }));
+    vi.stubGlobal("fetch", webhookMock);
   });
 
   afterEach(() => {
     Object.assign(env, savedEnv);
     vi.useRealTimers();
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
   });
 
   it("records the OAuth provider and the first visit's source", async () => {
@@ -135,6 +147,7 @@ describe("cloud_signup_complete", () => {
 
     expect(res.statusCode).toBe(200);
     await expectOneSignupEvent({ email, provider: "google" });
+    await expectOneWebhook({ email });
   });
 
   it("records nothing when an existing account without memberships links a provider", async () => {
@@ -158,11 +171,13 @@ describe("cloud_signup_complete", () => {
       }),
     ).resolves.not.toBeNull();
     expect(signupEvents()).toHaveLength(0);
+    expect(webhookMock).not.toHaveBeenCalled();
   });
 
   it("records email for the email-code sign-up, then each step of its code", async () => {
     const email = await signUpByEmailCode();
     await expectOneSignupEvent({ email, provider: "email" });
+    expect(webhookMock).not.toHaveBeenCalled();
     const { id: userId } = await prisma.user.findUniqueOrThrow({
       where: { email },
     });
@@ -175,6 +190,7 @@ describe("cloud_signup_complete", () => {
     );
     const lastCode = await requestEmailCode(email, SETUP_PASSWORD_URL);
     await submitEmailCode(email, lastCode, "setup");
+    await webhookSettled();
 
     expect(stepEvents()).toEqual([
       {
@@ -203,8 +219,14 @@ describe("cloud_signup_complete", () => {
         properties: { result: "ok" },
       },
       { distinctId: userId, event: "sign_up:password_set", properties: {} },
+      {
+        distinctId: userId,
+        event: "sign_up:webhook_sent",
+        properties: { result: "ok" },
+      },
     ]);
     await expectOneSignupEvent({ email, provider: "email" });
+    await expectOneWebhook({ email });
   });
 
   it("records an expired sign-up code as expired", async () => {
@@ -223,6 +245,7 @@ describe("cloud_signup_complete", () => {
       event: "sign_up:code_checked",
       properties: { result: "expired" },
     });
+    expect(webhookMock).not.toHaveBeenCalled();
   });
 
   it.each([
@@ -237,6 +260,20 @@ describe("cloud_signup_complete", () => {
           throw new Error("PostHog is down");
         }),
     },
+    {
+      what: "the webhook never answers",
+      breaks: () => webhookMock.mockReturnValue(new Promise(() => {})),
+    },
+    {
+      // the webhook's own error log throws, so the call itself rejects
+      what: "the webhook call rejects",
+      breaks: () => {
+        webhookMock.mockRejectedValue(new TypeError("fetch failed"));
+        vi.spyOn(logger, "warn").mockImplementationOnce(() => {
+          throw new Error("logger broke");
+        });
+      },
+    },
   ])("finishes the setup step at once when $what", async ({ breaks }) => {
     const email = await signUpByEmailCode();
     const code = await requestEmailCode(email, SETUP_PASSWORD_URL);
@@ -247,7 +284,29 @@ describe("cloud_signup_complete", () => {
     ).toBe("returned");
   });
 
-  it("records no sign-up step when a provisioned account is claimed through the reset step", async () => {
+  it.each([
+    {
+      client: "the reset page",
+      callbackUrl: RESET_PASSWORD_URL,
+      intent: "reset",
+    },
+    {
+      client: "a client from before intent",
+      callbackUrl: SETUP_PASSWORD_URL,
+      intent: undefined,
+    },
+  ] as const)(
+    "sends one webhook for an email sign-up finished on $client",
+    async ({ callbackUrl, intent }) => {
+      const email = await signUpByEmailCode();
+      const code = await requestEmailCode(email, callbackUrl);
+      await submitEmailCode(email, code, intent);
+
+      await expectOneWebhook({ email });
+    },
+  );
+
+  it("sends the webhook but records no sign-up step when a provisioned account is claimed through the reset step", async () => {
     // as SCIM provisions it: no password, no linked provider account
     const email = uniqueEmail();
     await prisma.user.create({ data: { email, name: "Jane Doe" } });
@@ -255,7 +314,11 @@ describe("cloud_signup_complete", () => {
     const code = await requestEmailCode(email, RESET_PASSWORD_URL);
     await submitEmailCode(email, code, "reset");
 
-    expect(stepEvents()).toEqual([]);
+    await webhookSettled();
+    expect(stepEvents().map(({ event }) => event)).toEqual([
+      "sign_up:webhook_sent",
+    ]);
+    await expectOneWebhook({ email });
   });
 
   it("records credentials for the password sign-up", async () => {
@@ -270,7 +333,94 @@ describe("cloud_signup_complete", () => {
 
     expect(res.statusCode).toBe(200);
     await expectOneSignupEvent({ email, provider: "credentials" });
+    await expectOneWebhook({ email });
   });
+
+  it("keeps a sign-up whose webhook stalls, and records the timeout", async () => {
+    const realTimeout = AbortSignal.timeout.bind(AbortSignal);
+    const timeout = vi
+      .spyOn(AbortSignal, "timeout")
+      .mockImplementation(() => realTimeout(10));
+    webhookMock.mockImplementation(
+      (_url: string, init: RequestInit) =>
+        new Promise((_resolve, reject) => {
+          init.signal?.addEventListener("abort", () =>
+            reject(init.signal?.reason),
+          );
+        }),
+    );
+    const warn = vi.spyOn(logger, "warn");
+    const email = uniqueEmail();
+
+    const statusCode = await signUpWithPassword(email);
+
+    expect(statusCode).toBe(200);
+    await webhookSettled();
+    expect(timeout).toHaveBeenCalledWith(5000);
+    const user = await prisma.user.findUniqueOrThrow({ where: { email } });
+    expect(warn).toHaveBeenCalledWith("Sign-up webhook failed", {
+      userId: user.id,
+      error: expect.stringMatching(/timeout/i),
+    });
+    expect(stepEvents()).toEqual([
+      {
+        distinctId: user.id,
+        event: "sign_up:webhook_sent",
+        properties: { result: "timeout" },
+      },
+    ]);
+  });
+
+  it.each([
+    {
+      failure: "throws",
+      fails: () => webhookMock.mockRejectedValue(new TypeError("fetch failed")),
+      logged: { error: "fetch failed" },
+    },
+    {
+      failure: "answers 500",
+      fails: () =>
+        webhookMock.mockResolvedValue(new Response(null, { status: 500 })),
+      logged: { status: 500 },
+    },
+  ])(
+    "keeps a sign-up whose webhook $failure, and records the error",
+    async ({ fails, logged }) => {
+      fails();
+      const warn = vi.spyOn(logger, "warn");
+      const email = uniqueEmail();
+
+      const statusCode = await signUpWithPassword(email);
+
+      expect(statusCode).toBe(200);
+      await webhookSettled();
+      const user = await prisma.user.findUniqueOrThrow({ where: { email } });
+      expect(warn).toHaveBeenCalledWith("Sign-up webhook failed", {
+        userId: user.id,
+        ...logged,
+      });
+      expect(JSON.stringify(warn.mock.calls)).not.toContain(email);
+      expect(stepEvents()).toEqual([
+        {
+          distinctId: user.id,
+          event: "sign_up:webhook_sent",
+          properties: { result: "error" },
+        },
+      ]);
+    },
+  );
+
+  async function signUpWithPassword(email: string) {
+    const { req, res } = createMocks<NextApiRequest, NextApiResponse>({
+      method: "POST",
+      body: { email, password: "Password1!", name: "Jane Doe" },
+      cookies: docsFirstVisitCookie,
+    });
+
+    await signupApiHandler(req, res);
+
+    return res.statusCode;
+  }
 
   async function signUpByEmailCode() {
     (env as any).AUTH_EMAIL_VERIFICATION_REQUIRED = "true";
@@ -319,7 +469,7 @@ describe("cloud_signup_complete", () => {
   async function submitEmailCode(
     email: string,
     token: string,
-    intent: "setup" | "reset",
+    intent: "setup" | "reset" | undefined,
   ) {
     const ctx = createInnerTRPCContext({ session: null, headers: {} });
     const caller = appRouter.createCaller({ ...ctx, prisma });
@@ -354,6 +504,21 @@ async function expectOneSignupEvent({
   });
 }
 
+async function expectOneWebhook({ email }: { email: string }) {
+  const user = await prisma.user.findUniqueOrThrow({ where: { email } });
+  const webhookCalls = vi
+    .mocked(fetch)
+    .mock.calls.filter(([url]) => url === SIGNUP_WEBHOOK_URL);
+
+  expect(webhookCalls).toHaveLength(1);
+  expect(JSON.parse(webhookCalls[0][1]?.body as string)).toEqual({
+    name: "Jane Doe",
+    email,
+    cloudRegion: "EU",
+    userId: user.id,
+  });
+}
+
 function signupEvents() {
   return captureMock.mock.calls
     .map(([event]) => event)
@@ -380,4 +545,13 @@ async function outcomeWithin(call: Promise<unknown>, ms: number) {
   ]);
   clearTimeout(timer);
   return outcome;
+}
+
+// waits for the background webhook to record its result
+async function webhookSettled() {
+  await vi.waitFor(() =>
+    expect(stepEvents().map(({ event }) => event)).toContain(
+      "sign_up:webhook_sent",
+    ),
+  );
 }
