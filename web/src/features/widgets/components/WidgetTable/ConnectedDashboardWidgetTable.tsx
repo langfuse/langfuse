@@ -3,6 +3,7 @@ import { showSuccessToast } from "@/src/features/notifications/showSuccessToast"
 import { useCallback, useEffect, useMemo, useState } from "react";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
+import { resolveWidgetListOrderBy } from "@/src/features/dashboard/lib/resolveDashboardListOrderBy";
 import { NumberParam, useQueryParams, withDefault } from "use-query-params";
 import { api } from "@/src/utils/api";
 import { useDetailPageLists } from "@/src/features/navigate-detail-pages/DetailPageListsProvider";
@@ -222,6 +223,7 @@ function ConnectedDashboardWidgetTableContent({
     column: "updatedAt",
     order: "DESC",
   });
+  const resolvedOrderBy = resolveWidgetListOrderBy(orderByState);
   const [paginationState, setPaginationState] = useQueryParams({
     pageIndex: withDefault(NumberParam, 0),
     pageSize: withDefault(NumberParam, 50),
@@ -232,7 +234,7 @@ function ConnectedDashboardWidgetTableContent({
       page: paginationState.pageIndex,
       limit: paginationState.pageSize,
       projectId: projectId as string, // Typecast as query is enabled only when projectId is present
-      orderBy: orderByState,
+      orderBy: resolvedOrderBy,
     },
     {
       enabled: Boolean(projectId),
@@ -295,7 +297,7 @@ function ConnectedDashboardWidgetTableContent({
         onDownload={(widget) => handleDownloadJson(widget.id)}
         onDuplicate={(widget) => handleDuplicate(widget.id)}
         data={tableData}
-        orderBy={orderByState}
+        orderBy={resolvedOrderBy}
         setOrderBy={setOrderByState}
         onRowClick={(row) => {
           router.push(

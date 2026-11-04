@@ -5,6 +5,7 @@ import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAcces
 import { useEffect, useMemo, useState } from "react";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
+import { resolveDashboardListOrderBy } from "@/src/features/dashboard/lib/resolveDashboardListOrderBy";
 import { NumberParam, useQueryParams, withDefault } from "use-query-params";
 import { api } from "@/src/utils/api";
 import { safeExtract } from "@/src/utils/map-utils";
@@ -70,6 +71,7 @@ export function ConnectedDashboardTable() {
     column: "updatedAt",
     order: "DESC",
   });
+  const resolvedOrderBy = resolveDashboardListOrderBy(orderByState);
   const [paginationState, setPaginationState] = useQueryParams({
     pageIndex: withDefault(NumberParam, 0),
     pageSize: withDefault(NumberParam, 50),
@@ -80,7 +82,7 @@ export function ConnectedDashboardTable() {
       page: paginationState.pageIndex,
       limit: paginationState.pageSize,
       projectId: projectId as string, // Typecast as query is enabled only when projectId is present
-      orderBy: orderByState,
+      orderBy: resolvedOrderBy,
     },
     {
       enabled: Boolean(projectId),
@@ -216,7 +218,7 @@ export function ConnectedDashboardTable() {
                       openDeleteDialog();
                     }}
                     data={tableData}
-                    orderBy={orderByState}
+                    orderBy={resolvedOrderBy}
                     setOrderBy={setOrderByState}
                     onRowClick={(row) => {
                       router.push(

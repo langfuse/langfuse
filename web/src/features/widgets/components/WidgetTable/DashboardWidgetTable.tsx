@@ -152,7 +152,7 @@ export function DashboardWidgetTable({
           chartDisplayModes[row.chartType as DashboardWidgetChartType],
         id: "displayMode",
         header: "Display Mode",
-        enableSorting: true,
+        enableSorting: false,
         size: TYPE_COLUMN_SIZE,
         getBadge: (displayMode) => ({
           value: displayMode,
