@@ -65,12 +65,13 @@ export function ControlledFeaturePreviewModal({
       authSession.data?.environment.enableExperimentalFeatures === true);
 
   const state: Partial<Record<PreviewFlag, PreviewState>> = {
-    ...(authSession.data?.user?.admin
+    ...(internalViewEnabled ||
+    authSession.data?.user?.featureFlags.unifiedTraceSessionView === true
       ? {
           unifiedTraceSessionView: {
             enabled:
               isV4 &&
-              authSession.data.user.featureFlags.unifiedTraceSessionView ===
+              authSession.data?.user?.featureFlags.unifiedTraceSessionView ===
                 true,
             disabled: !isV4,
             warningReason: !isV4

@@ -154,14 +154,7 @@ export const userAccountRouter = createTRPCRouter({
     .mutation(async ({ input, ctx }) => {
       const userId = ctx.session.user.id;
 
-      if (input.flag === "unifiedTraceSessionView" && !ctx.session.user.admin) {
-        throw new ForbiddenError(
-          "This feature preview requires platform admin access.",
-        );
-      }
-
       if (
-        input.flag !== "unifiedTraceSessionView" &&
         isInternalFeaturePreviewFlag(input.flag) &&
         !isInternalViewEnabled(ctx.session) &&
         !ctx.session.user.featureFlags[input.flag]
