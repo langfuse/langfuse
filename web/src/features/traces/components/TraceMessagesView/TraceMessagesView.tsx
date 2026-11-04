@@ -20,6 +20,7 @@ export function TraceMessagesView() {
   const { messageTrace, navigation } = useTraceMessagesNavigation();
   const { data, state } = useTraceMessagesTranscript(
     {
+      context: "other",
       projectId: trace.projectId,
       traceId: messageTrace.id,
       timestamp: messageTrace.timestamp,

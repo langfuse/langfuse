@@ -1,6 +1,7 @@
 import { beforeEach, expect, it, vi } from "vitest";
 import { assembleTranscript } from "@langfuse/shared/src/server/transcript/transcript";
 import { loadTraceTranscript } from "@/src/features/events/server/loadTraceTranscript";
+import { groupTranscriptMessages } from "@/src/features/sessions/components/ConnectedModernSessionBodyTimeline/components/ConnectedSessionConversationTimeline/fns/groupTranscriptMessages";
 
 const mocks = vi.hoisted(() => ({
   assemble: vi.fn(),
@@ -20,11 +21,12 @@ vi.mock("@langfuse/shared/src/server", async () => {
       normalizeSpanIO(io),
   };
 });
-const trace = {
+const traceSource = {
   projectId: "project",
   traceId: "trace",
   timestamp: new Date(0),
 };
+const trace = { ...traceSource, context: "other" as const };
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.assemble.mockReset();
@@ -221,9 +223,9 @@ it.each([
 
     expect(mocks.assemble).toHaveBeenCalledWith([span, generationWithContent]);
     expect(result.cutoff).toBe(cutoff);
-    expect(mocks.observations).toHaveBeenNthCalledWith(1, trace);
+    expect(mocks.observations).toHaveBeenNthCalledWith(1, traceSource);
     expect(mocks.observations).toHaveBeenNthCalledWith(2, {
-      ...trace,
+      ...traceSource,
       selectIOAndMetadata: true,
       types: ["GENERATION", "TOOL"],
       limit: 1000,
@@ -348,17 +350,25 @@ it("falls back to seeded JSON chat messages with an empty-string root parent", a
   ]);
 });
 
-it("returns the shared transcript unchanged without fetching root I/O", async () => {
-  const original = { threads: [] };
-  mocks.assemble.mockReturnValue(original);
-  mocks.observations.mockResolvedValue({ observations: [], totalCount: 0 });
-  const result = await loadTraceTranscript({
-    ...trace,
-    fallbackToRootIO: true,
-  });
-  expect(result.transcript).toBe(original);
-  expect(mocks.root).not.toHaveBeenCalled();
-});
+it.each([
+  { context: "session" as const },
+  { context: "session" as const, filter: [] },
+  { context: "other" as const },
+])(
+  "returns the shared transcript unchanged without fetching root I/O: %j",
+  async (context) => {
+    const original = { threads: [] };
+    mocks.assemble.mockReturnValue(original);
+    mocks.observations.mockResolvedValue({ observations: [], totalCount: 0 });
+    const result = await loadTraceTranscript({
+      ...trace,
+      ...context,
+      fallbackToRootIO: true,
+    });
+    expect(result.transcript).toBe(original);
+    expect(mocks.root).not.toHaveBeenCalled();
+  },
+);
 
 it("leaves an empty transcript unchanged unless fallback is enabled", async () => {
   mocks.assemble.mockReturnValue(null);
@@ -427,9 +437,13 @@ it("loads and normalizes matching span I/O without assembly or ancestors", async
       value: "child",
     },
   ];
-  const result = await loadTraceTranscript({ ...trace, filter });
-  expect(mocks.observations).toHaveBeenCalledExactlyOnceWith({
+  const result = await loadTraceTranscript({
     ...trace,
+    context: "session",
+    filter,
+  });
+  expect(mocks.observations).toHaveBeenCalledExactlyOnceWith({
+    ...traceSource,
     filter,
     selectIOAndMetadata: true,
     limit: 1000,
@@ -447,12 +461,75 @@ it("loads and normalizes matching span I/O without assembly or ancestors", async
   ]);
 });
 
+it.each([
+  { orders: ["Order 123 is ready."] },
+  { role: "tool", tool_call_id: "call-1", content: "Order 123 is ready." },
+])(
+  "renders tools-only observations as one paired tool row: %j",
+  async (output) => {
+    const tool = {
+      id: "tool",
+      type: "TOOL",
+      name: "findUserOrders",
+      startTime: new Date(0),
+      endTime: new Date(1),
+      input: { customerId: "customer-1" },
+      output,
+      metadata: {},
+      level: "ERROR",
+      statusMessage: "Tool failed",
+    };
+    const snapshot = structuredClone(tool);
+    mocks.observations.mockResolvedValue({
+      observations: [tool],
+      totalCount: 1,
+    });
+
+    const result = await loadTraceTranscript({
+      ...trace,
+      context: "session",
+      filter: [
+        { column: "type", type: "string", operator: "=", value: "TOOL" },
+      ],
+    });
+
+    expect(mocks.assemble).not.toHaveBeenCalled();
+    const messages = result.transcript!.threads[0]!.currentTurn.messages;
+    expect(groupTranscriptMessages(messages)).toEqual([
+      expect.objectContaining({
+        type: "tool",
+        message: expect.objectContaining({
+          observationId: tool.id,
+          traceId: trace.traceId,
+          startTime: tool.startTime,
+          endTime: tool.endTime,
+          level: tool.level,
+          statusMessage: tool.statusMessage,
+        }),
+        call: expect.objectContaining({
+          toolCallId: tool.id,
+          toolName: tool.name,
+          input: tool.input,
+        }),
+        result: expect.objectContaining({
+          toolCallId: tool.id,
+          toolName: tool.name,
+          output: { type: "json", value: output },
+          isError: true,
+        }),
+      }),
+    ]);
+    expect(tool).toEqual(snapshot);
+  },
+);
+
 it("does not restore unmatched root I/O when no observations match", async () => {
   mocks.assemble.mockReturnValue(null);
   mocks.observations.mockResolvedValue({ observations: [], totalCount: 0 });
   const result = await loadTraceTranscript({
     ...trace,
     fallbackToRootIO: true,
+    context: "session",
     filter: [
       { column: "level", type: "string", operator: "=", value: "ERROR" },
     ],
@@ -475,12 +552,13 @@ it("bypasses assembly for trace-only filters and keeps each observation's full I
   const result = await loadTraceTranscript({
     ...trace,
     fallbackToRootIO: true,
+    context: "session",
     filter: [
       { column: "traceName", type: "string", operator: "=", value: "chat" },
     ],
   });
   expect(mocks.observations).toHaveBeenCalledExactlyOnceWith({
-    ...trace,
+    ...traceSource,
     fallbackToRootIO: true,
     filter: [],
     selectIOAndMetadata: true,

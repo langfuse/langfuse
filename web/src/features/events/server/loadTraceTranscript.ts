@@ -35,18 +35,23 @@ type SessionTranscript = Omit<Transcript, "threads"> & {
 };
 
 /** Load observations in trace tree order and assemble their transcript. */
-export async function loadTraceTranscript(trace: {
-  projectId: string;
-  traceId: string;
-  /** Trace timestamp; observations from one hour before it onwards are read. */
-  timestamp: Date;
-  /** Use root observation I/O when no generation/tool transcript exists. */
-  fallbackToRootIO?: boolean;
-  filter?: FilterState;
-}): Promise<{ transcript: SessionTranscript | null; cutoff: boolean }> {
-  const filters = sessionTraceFilterSchema.parse(trace.filter ?? []);
-  const { filter: _, ...source } = trace;
-  if (filters.length > 0) {
+export async function loadTraceTranscript(
+  trace: {
+    projectId: string;
+    traceId: string;
+    /** Trace timestamp; observations from one hour before it onwards are read. */
+    timestamp: Date;
+    /** Use root observation I/O when no generation/tool transcript exists. */
+    fallbackToRootIO?: boolean;
+  } & (
+    | { context: "session"; filter?: FilterState }
+    | { context: "other"; filter?: never }
+  ),
+): Promise<{ transcript: SessionTranscript | null; cutoff: boolean }> {
+  const { context, filter, ...source } = trace;
+  const filters =
+    context === "session" ? sessionTraceFilterSchema.parse(filter ?? []) : [];
+  if (context === "session" && filters.length > 0) {
     const observationFilters = filters.filter((filter) =>
       ["name", "type", "level", "metadata", "isRootObservation"].includes(
         filter.column,
@@ -72,8 +77,25 @@ export async function loadTraceTranscript(trace: {
           messages: normalizeIO({
             kind: "io",
             io: {
-              input: observation.input,
-              output: observation.output,
+              input:
+                observation.type === "TOOL"
+                  ? {
+                      type: "tool-call",
+                      toolCallId: observation.id,
+                      toolName: observation.name,
+                      input: observation.input,
+                    }
+                  : observation.input,
+              output:
+                observation.type === "TOOL"
+                  ? {
+                      type: "tool-result",
+                      toolCallId: observation.id,
+                      toolName: observation.name,
+                      output: observation.output,
+                      isError: observation.level === "ERROR",
+                    }
+                  : observation.output,
               metadata: observation.metadata,
             },
           }).messages.map((message) => ({

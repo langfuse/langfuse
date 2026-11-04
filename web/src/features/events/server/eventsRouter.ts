@@ -460,13 +460,25 @@ export const eventsRouter = createTRPCRouter({
    */
   transcriptByTraceId: protectedGetEventsTraceProcedure
     .input(
-      zodSchema.object({
-        projectId: zodSchema.string(),
-        traceId: zodSchema.string(),
-        timestamp: zodSchema.date().optional(),
-        fallbackToRootIO: zodSchema.boolean().default(false),
-        filter: sessionTraceFilterSchema.optional(),
-      }),
+      zodSchema
+        .object({
+          projectId: zodSchema.string(),
+          traceId: zodSchema.string(),
+          timestamp: zodSchema.date().optional(),
+          fallbackToRootIO: zodSchema.boolean().default(false),
+        })
+        .and(
+          zodSchema.discriminatedUnion("context", [
+            zodSchema.object({
+              context: zodSchema.literal("session"),
+              filter: sessionTraceFilterSchema.optional(),
+            }),
+            zodSchema.object({
+              context: zodSchema.literal("other"),
+              filter: zodSchema.never().optional(),
+            }),
+          ]),
+        ),
     )
     .query(async ({ input, ctx }) => {
       const isSessionTimelineEnabled =
@@ -510,11 +522,8 @@ export const eventsRouter = createTRPCRouter({
           span.setAttribute("trace_id", input.traceId);
 
           return loadTraceTranscript({
-            projectId: input.projectId,
-            traceId: input.traceId,
+            ...input,
             timestamp,
-            fallbackToRootIO: input.fallbackToRootIO,
-            filter: input.filter,
           });
         },
       );
