@@ -43,6 +43,15 @@ types:
       - AZURE_BLOB_STORAGE
       - GOOGLE_CLOUD_STORAGE
 
+  BlobStorageIntegrationAuthType:
+    docs: |
+      How Langfuse authenticates to the bucket.
+      - `ACCESS_KEYS`: stored access key ID and secret access key.
+      - `ROLE_ARN`: Langfuse assumes an IAM role in your AWS account (Amazon S3 only). Langfuse's access role (`accessRoleArn`) assumes your role with the integration's `externalId`, using a session limited to writing under the configured prefix. Only available when the deployment configures an access role (`accessRoleArn` is not null).
+    enum:
+      - ACCESS_KEYS
+      - ROLE_ARN
+
   BlobStorageIntegrationFileType:
     docs: |
       File format for exported data. `PARQUET` is a columnar binary format encoded and compressed by the storage engine; gzip compression does not apply to it. Note that the model-price columns (`input_price`, `output_price`, `total_price`) are not included in Parquet observation exports.
@@ -122,9 +131,18 @@ types:
       region:
         type: string
         docs: "Storage region used by S3-compatible clients (AWS, GCS, Cloudflare R2, MinIO, Azure location IDs such as eastus, OCI). Leading and trailing whitespace is removed. The remaining value must be 1-63 letters, numbers, or hyphens, and cannot start or end with a hyphen. Examples: us-east-1, europe-west1, eastus, auto. Not used by GOOGLE_CLOUD_STORAGE; pass auto."
+      authType:
+        type: optional<BlobStorageIntegrationAuthType>
+        docs: |
+          Authentication method. `ROLE_ARN` requires type `S3`, a concrete AWS region (not `auto`), and `roleArn`; `accessKeyId` and `secretAccessKey` must then be omitted, and `endpoint` and `forcePathStyle` are ignored. When omitted on create, defaults to `ACCESS_KEYS`. When omitted on update, an integration that uses `ROLE_ARN` keeps it unless the request sends `accessKeyId` or `secretAccessKey`.
+
+          The external ID is generated on the first save and stays the same afterwards. Create the integration, add the trust policy for `accessRoleArn` with the returned `externalId` to your role, then enable exports.
+      roleArn:
+        type: optional<string>
+        docs: ARN of the IAM role in your AWS account that Langfuse assumes when `authType` is `ROLE_ARN`, e.g. `arn:aws:iam::123456789012:role/langfuse-export`. When omitted on update, the stored role ARN is kept.
       accessKeyId:
         type: optional<string>
-        docs: Access key ID for authentication. Not used for GOOGLE_CLOUD_STORAGE.
+        docs: Access key ID for authentication. Not used for GOOGLE_CLOUD_STORAGE or when `authType` is `ROLE_ARN`.
       secretAccessKey:
         type: optional<string>
         docs: |
@@ -173,7 +191,17 @@ types:
       bucketName: string
       endpoint: nullable<string>
       region: string
+      authType: BlobStorageIntegrationAuthType
       accessKeyId: nullable<string>
+      roleArn:
+        type: nullable<string>
+        docs: IAM role Langfuse assumes. May be set while `authType` is `ACCESS_KEYS` if the integration used `ROLE_ARN` before.
+      externalId:
+        type: nullable<string>
+        docs: External ID Langfuse passes when assuming `roleArn`. Require it in the role's trust policy with an `sts:ExternalId` condition. Null until the integration first uses `ROLE_ARN`.
+      accessRoleArn:
+        type: nullable<string>
+        docs: Langfuse role that must be trusted by `roleArn`. Null when the deployment does not support IAM role auth.
       prefix: string
       exportFrequency: BlobStorageExportFrequency
       enabled: boolean

@@ -1,5 +1,5 @@
 import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
-import { prisma } from "@langfuse/shared/src/db";
+import { prisma, type BlobStorageIntegration } from "@langfuse/shared/src/db";
 import { type NextApiRequest, type NextApiResponse } from "next";
 import {
   CreateBlobStorageIntegrationRequest,
@@ -10,13 +10,52 @@ import {
 } from "@/src/features/public-api/types/blob-storage-integrations";
 import {
   LangfuseNotFoundError,
+  StorageIntegrationAuthType,
   TRACE_EXPORT_FIELD_GROUPS,
   type ExportFieldGroup,
 } from "@langfuse/shared";
+import { decrypt } from "@langfuse/shared/encryption";
+import { getStorageAccessRoleArn } from "@langfuse/shared/src/server";
 import { upsertBlobStorageIntegration } from "@/src/features/blobstorage-integration/service";
 import { resolveExportSource } from "@/src/features/analytics-integrations/server/exportSource";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { authorizeBlobStorageRequest } from "@/src/features/blobstorage-integration/authorizeBlobStorageRequest";
+
+// Never includes secretAccessKey. The external ID is not a secret: the customer
+// needs it for the role's trust policy.
+function toBlobStorageIntegrationResponse(
+  integration: BlobStorageIntegration,
+): BlobStorageIntegrationResponseType {
+  return {
+    id: integration.projectId, // Using projectId as ID since it's the primary key
+    projectId: integration.projectId,
+    type: integration.type,
+    bucketName: integration.bucketName,
+    endpoint: integration.endpoint,
+    region: integration.region,
+    authType: integration.authType,
+    accessKeyId: integration.accessKeyId,
+    roleArn: integration.roleArn,
+    externalId: integration.externalId ? decrypt(integration.externalId) : null,
+    accessRoleArn: getStorageAccessRoleArn(),
+    prefix: integration.prefix,
+    exportFrequency: integration.exportFrequency,
+    enabled: integration.enabled,
+    forcePathStyle: integration.forcePathStyle,
+    fileType: integration.fileType,
+    exportMode: integration.exportMode,
+    exportStartDate: integration.exportStartDate,
+    compressed: integration.compressed,
+    exportSource: toPublicExportSource(integration.exportSource),
+    exportFieldGroups: toPublicExportFieldGroups(integration.exportFieldGroups),
+    nextSyncAt: integration.nextSyncAt,
+    lastSyncAt: integration.lastSyncAt,
+    lastError: integration.lastError,
+    lastErrorAt: integration.lastErrorAt,
+    createdAt: integration.createdAt,
+    updatedAt: integration.updatedAt,
+  };
+}
 
 export default withMiddlewares({
   GET: handleGetBlobStorageIntegrations,
@@ -42,36 +81,7 @@ async function handleGetBlobStorageIntegrations(
     },
   });
 
-  // Transform to API response format, exclude secretAccessKey
-  const responseData: BlobStorageIntegrationResponseType[] = integrations.map(
-    (integration) => ({
-      id: integration.projectId, // Using projectId as ID since it's the primary key
-      projectId: integration.projectId,
-      type: integration.type,
-      bucketName: integration.bucketName,
-      endpoint: integration.endpoint,
-      region: integration.region,
-      accessKeyId: integration.accessKeyId,
-      prefix: integration.prefix,
-      exportFrequency: integration.exportFrequency,
-      enabled: integration.enabled,
-      forcePathStyle: integration.forcePathStyle,
-      fileType: integration.fileType,
-      exportMode: integration.exportMode,
-      exportStartDate: integration.exportStartDate,
-      compressed: integration.compressed,
-      exportSource: toPublicExportSource(integration.exportSource),
-      exportFieldGroups: toPublicExportFieldGroups(
-        integration.exportFieldGroups,
-      ),
-      nextSyncAt: integration.nextSyncAt,
-      lastSyncAt: integration.lastSyncAt,
-      lastError: integration.lastError,
-      lastErrorAt: integration.lastErrorAt,
-      createdAt: integration.createdAt,
-      updatedAt: integration.updatedAt,
-    }),
-  );
+  const responseData = integrations.map(toBlobStorageIntegrationResponse);
 
   return res.status(200).json({
     data: responseData,
@@ -107,8 +117,30 @@ async function handleUpsertBlobStorageIntegration(
   // enriched value is rejected.
   const existingIntegration = await prisma.blobStorageIntegration.findUnique({
     where: { projectId: validatedData.projectId },
-    select: { createdAt: true, exportSource: true, exportFieldGroups: true },
+    select: {
+      createdAt: true,
+      exportSource: true,
+      exportFieldGroups: true,
+      authType: true,
+      roleArn: true,
+    },
   });
+
+  // An omitted authType keeps a stored role unless the request sends access
+  // keys, so a GET-then-PUT round trip does not drop IAM role auth.
+  const sendsAccessKeys = !!(
+    validatedData.accessKeyId || validatedData.secretAccessKey
+  );
+  const authType =
+    validatedData.authType ??
+    (existingIntegration?.authType === StorageIntegrationAuthType.ROLE_ARN &&
+    !sendsAccessKeys
+      ? StorageIntegrationAuthType.ROLE_ARN
+      : StorageIntegrationAuthType.ACCESS_KEYS);
+  const roleArn =
+    authType === StorageIntegrationAuthType.ROLE_ARN
+      ? (validatedData.roleArn ?? existingIntegration?.roleArn ?? null)
+      : null;
 
   // Explicit sources must pass every check; an omitted source keeps the
   // persisted one, capability-checked only, and a create falls back to the
@@ -149,6 +181,8 @@ async function handleUpsertBlobStorageIntegration(
       bucketName: validatedData.bucketName,
       endpoint: validatedData.endpoint || null,
       region: validatedData.region,
+      authType,
+      roleArn,
       accessKeyId: validatedData.accessKeyId || null,
       secretAccessKey: validatedData.secretAccessKey ?? null,
       prefix: validatedData.prefix,
@@ -166,32 +200,7 @@ async function handleUpsertBlobStorageIntegration(
     },
   });
 
-  // Transform to API response format, exclude secretAccessKey
-  const responseData: BlobStorageIntegrationResponseType = {
-    id: integration.projectId, // Using projectId as ID since it's the primary key
-    projectId: integration.projectId,
-    type: integration.type,
-    bucketName: integration.bucketName,
-    endpoint: integration.endpoint,
-    region: integration.region,
-    accessKeyId: integration.accessKeyId,
-    prefix: integration.prefix,
-    exportFrequency: integration.exportFrequency,
-    enabled: integration.enabled,
-    forcePathStyle: integration.forcePathStyle,
-    fileType: integration.fileType,
-    exportMode: integration.exportMode,
-    exportStartDate: integration.exportStartDate,
-    compressed: integration.compressed,
-    exportSource: toPublicExportSource(integration.exportSource),
-    exportFieldGroups: toPublicExportFieldGroups(integration.exportFieldGroups),
-    nextSyncAt: integration.nextSyncAt,
-    lastSyncAt: integration.lastSyncAt,
-    lastError: integration.lastError,
-    lastErrorAt: integration.lastErrorAt,
-    createdAt: integration.createdAt,
-    updatedAt: integration.updatedAt,
-  };
+  const responseData = toBlobStorageIntegrationResponse(integration);
 
   return res.status(200).json(responseData);
 }
