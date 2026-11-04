@@ -123,6 +123,45 @@ describe("getOAuth2AccessToken", () => {
     );
   });
 
+  test("a caller whose signal aborts stops waiting while others keep the shared fetch", async () => {
+    let resolveRequest: (value: ReturnType<typeof token>) => void = () => {};
+    requestMock.mockReturnValueOnce(
+      new Promise((resolve) => {
+        resolveRequest = resolve;
+      }),
+    );
+    const controller = new AbortController();
+
+    const impatient = getOAuth2AccessToken({
+      profile,
+      credential,
+      signal: controller.signal,
+    });
+    const patient = getOAuth2AccessToken({ profile, credential });
+    controller.abort();
+
+    await expect(impatient).rejects.toMatchObject({
+      name: "OAuth2TokenError",
+      kind: "unavailable",
+    });
+    resolveRequest(token("shared-token"));
+    await expect(patient).resolves.toMatchObject({
+      accessToken: "shared-token",
+    });
+    expect(requestMock).toHaveBeenCalledTimes(1);
+  });
+
+  test("an already aborted signal makes no request", async () => {
+    await expect(
+      getOAuth2AccessToken({
+        profile,
+        credential,
+        signal: AbortSignal.abort(),
+      }),
+    ).rejects.toMatchObject({ kind: "unavailable" });
+    expect(requestMock).not.toHaveBeenCalled();
+  });
+
   test("does not cache a failed fetch", async () => {
     requestMock
       .mockRejectedValueOnce(
