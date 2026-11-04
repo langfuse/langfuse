@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { useSession } from "next-auth/react";
 import { Zap } from "@langfuse/icons";
 import { Callout } from "@/src/components/design-system/Callout/Callout";
@@ -63,6 +64,19 @@ export function V4MigrationBanner({
   totalProjects: number;
 }) {
   const capture = usePostHogClientCapture();
+  const upgradeMessage = useMemo((): string => {
+    if (
+      projectsNeedingMigration === totalProjects &&
+      projectsNeedingMigration === 1
+    ) {
+      return "Your project needs an upgrade.";
+    }
+    if (projectsNeedingMigration === totalProjects) {
+      return "All projects need an upgrade.";
+    }
+    const verb = projectsNeedingMigration === 1 ? "needs" : "need";
+    return `${projectsNeedingMigration} of your ${totalProjects} projects ${verb} an upgrade.`;
+  }, [projectsNeedingMigration, totalProjects]);
 
   return (
     <DismissController id={DISMISS_ID} family="callouts" ttlMs={DISMISS_TTL_MS}>
@@ -95,16 +109,7 @@ export function V4MigrationBanner({
                 <span className="font-bold">
                   Langfuse v4 is here: real-time and up to 165× faster.
                 </span>{" "}
-                {projectsNeedingMigration === totalProjects &&
-                  projectsNeedingMigration === 1 &&
-                  "Your project needs an upgrade."}
-                {projectsNeedingMigration === totalProjects &&
-                  projectsNeedingMigration !== 1 &&
-                  "All projects need an upgrade."}
-                {projectsNeedingMigration !== totalProjects &&
-                  `${projectsNeedingMigration} of your ${totalProjects} projects ${
-                    projectsNeedingMigration === 1 ? "needs" : "need"
-                  } an upgrade.`}
+                {upgradeMessage}
               </span>
             </div>
           </Callout>
