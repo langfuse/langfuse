@@ -86,7 +86,7 @@ jobs:
           pnpm install -g vercel@65.11.0
 
           set +e
-            deploy_output=$(vercel deploy web/storybook-static --archive=tgz --yes --debug --token="${VERCEL_TOKEN}" 2>&1)
+            deploy_output=$(vercel deploy web/storybook-static --archive=tgz --yes --token="${VERCEL_TOKEN}" 2>&1)
           deploy_status=$?
           set -e
 
