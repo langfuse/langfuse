@@ -1014,13 +1014,11 @@ export const SessionEventsPage: React.FC<{
   projectId: string;
 }> = ({ sessionId, projectId }) => {
   const isModernSessionEnabled = useIsFeatureEnabled("sessionViewV2", {
-    enableForAdmins: false,
     projectId,
   });
   const isSessionTimelineEnabled = useIsFeatureEnabled(
     "sessionViewV2Timeline",
     {
-      enableForAdmins: false,
       projectId,
     },
   );
@@ -1220,13 +1218,11 @@ const LoadedSessionEventsPage: React.FC<{
   const userSession = useSession();
   const capture = usePostHogClientCapture();
   const isModernSessionEnabled = useIsFeatureEnabled("sessionViewV2", {
-    enableForAdmins: false,
     projectId,
   });
   const isSessionTimelineEnabled = useIsFeatureEnabled(
     "sessionViewV2Timeline",
     {
-      enableForAdmins: false,
       projectId,
     },
   );

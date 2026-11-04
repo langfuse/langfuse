@@ -12,7 +12,7 @@ import type {
   Processor,
 } from "@mastra/core/processors";
 import { MCPClient } from "@mastra/mcp";
-import type { Langfuse } from "langfuse";
+import type { LangfuseClient } from "@langfuse/client";
 
 import {
   type AgUiEvent,
@@ -263,7 +263,7 @@ type CreateAgUiStreamOptions = {
     projectId: string;
     isV4Enabled: boolean;
   };
-  langfuseClient?: Langfuse;
+  langfuseClient?: LangfuseClient;
   useLocalPrompt: boolean;
   skills: InlineSkill[];
   langfuseTracing?: InAppAgentTracingConfig;
@@ -1559,7 +1559,7 @@ function getToolErrorMessage(chunk: MastraApprovalStreamChunk): string {
 }
 
 async function getSystemPromptInstructions(params: {
-  langfuseClient?: Langfuse;
+  langfuseClient?: LangfuseClient;
   useLocalPrompt: boolean;
   variables: {
     currentDate: string;
@@ -1587,9 +1587,8 @@ async function getSystemPromptInstructions(params: {
     throw new Error("Managed in-app agent prompt client is not configured");
   }
 
-  const prompt = await params.langfuseClient.getPrompt(
+  const prompt = await params.langfuseClient.prompt.get(
     IN_APP_AGENT_SYSTEM_PROMPT_NAME,
-    undefined,
     { type: "text" },
   );
 

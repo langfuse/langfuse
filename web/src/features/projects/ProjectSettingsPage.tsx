@@ -323,7 +323,7 @@ const getProjectSettingsPages = ({
     href: `/organization/${organization.id}/settings`,
   },
   {
-    title: "v4 Migration",
+    title: "V4 migration",
     slug: "v4-migration",
     href: "/v4-migration",
     show: showV4Migration,

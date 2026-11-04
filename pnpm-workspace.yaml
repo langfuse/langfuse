@@ -7,6 +7,9 @@ packages:
   - "ee"
 # Consolidate compatible versions during writable installs; frozen installs keep the lockfile.
 autoDedupe: true
+# Record resolution settings so frozen installs can be reused by pnpm run.
+lockfile:
+  includeResolutionSettings: true
 # These private product packages are versioned together by release-it.
 versioning:
   fixed:
@@ -191,37 +194,3 @@ patchedDependencies:
 publicHoistPattern:
   - "*prisma*"
   - "@aws-sdk/client-s3"
-minimumReleaseAgeExclude:
-  # Next.js security upgrade; eligible after 2026-10-20 20:58 UTC.
-  - next@16.4.2
-  - "@next/env@16.4.2"
-  - "@next/swc-darwin-arm64@16.4.2"
-  - "@next/swc-darwin-x64@16.4.2"
-  - "@next/swc-linux-arm64-gnu@16.4.2"
-  - "@next/swc-linux-arm64-musl@16.4.2"
-  - "@next/swc-linux-x64-gnu@16.4.2"
-  - "@next/swc-linux-x64-musl@16.4.2"
-  - "@next/swc-win32-arm64-msvc@16.4.2"
-  - "@next/swc-win32-x64-msvc@16.4.2"
-  # Companion toolchain upgrade; eligible after 2026-10-21 19:10 UTC.
-  - turbo@2.11.9
-  - eslint-plugin-turbo@2.11.9
-  - "@turbo/darwin-64@2.11.9"
-  - "@turbo/darwin-arm64@2.11.9"
-  - "@turbo/linux-64@2.11.9"
-  - "@turbo/linux-arm64@2.11.9"
-  - "@turbo/windows-64@2.11.9"
-  - "@turbo/windows-arm64@2.11.9"
-  # Undici security fixes; eligible after 2026-10-20 14:20 UTC.
-  - undici@6.29.1
-  - undici@7.30.1
-  # qs security fix; eligible after 2026-11-01 06:23 UTC.
-  - qs@6.17.0
-  # follow-redirects security fix; eligible after 2026-10-30 21:32 UTC.
-  - follow-redirects@1.16.2
-  # Handlebars security fixes; eligible after 2026-10-10 22:37 UTC.
-  - handlebars@4.7.10
-  # fast-uri security fixes; eligible after 2026-10-24 23:05 UTC.
-  - fast-uri@3.1.9
-  # body-parser security fix; eligible after 2026-10-27 11:39 UTC.
-  - body-parser@2.4.0
