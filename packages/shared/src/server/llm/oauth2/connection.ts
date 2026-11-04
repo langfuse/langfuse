@@ -27,10 +27,13 @@ export async function resolveOAuth2Connection({
   config,
   decryptedSecret,
   projectId,
+  signal,
 }: {
   config: { oauth2: OAuth2Config };
   decryptedSecret: string;
   projectId?: string;
+  /** Ends the wait for the initial token, e.g. at the caller's deadline. */
+  signal?: AbortSignal;
 }): Promise<{
   accessToken: string;
   wrapFetch: (fetchFn: typeof fetch) => typeof fetch;
@@ -42,6 +45,7 @@ export async function resolveOAuth2Connection({
     profile,
     credential,
     projectId,
+    signal,
   });
 
   const wrapFetch =
@@ -56,10 +60,12 @@ export async function resolveOAuth2Connection({
       // The provider was built with `accessToken`, so that is the token the
       // gateway rejected.
       invalidateOAuth2AccessToken(cacheKey, accessToken);
+      // The provider's request signal carries the call's timeout and abort.
       const refreshed = await getOAuth2AccessToken({
         profile,
         credential,
         projectId,
+        signal: init?.signal ?? undefined,
       });
       return fetchFn(input, {
         ...init,

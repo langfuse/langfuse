@@ -73,6 +73,33 @@ export function getOAuth2CacheKey(
     .digest("hex");
 }
 
+const callerAbortedError = () =>
+  new OAuth2TokenError(
+    "unavailable",
+    "OAuth2 token request did not finish within the call's time limit",
+  );
+
+function waitUnlessAborted<T>(
+  promise: Promise<T>,
+  signal: AbortSignal | undefined,
+): Promise<T> {
+  if (!signal) return promise;
+  return new Promise<T>((resolve, reject) => {
+    const onAbort = () => reject(callerAbortedError());
+    signal.addEventListener("abort", onAbort, { once: true });
+    promise.then(
+      (value) => {
+        signal.removeEventListener("abort", onAbort);
+        resolve(value);
+      },
+      (error: unknown) => {
+        signal.removeEventListener("abort", onAbort);
+        reject(error);
+      },
+    );
+  });
+}
+
 /**
  * Returns an access token for the profile and credential, from the
  * in-process cache while it is valid (until `expires_in` minus 60 s).
@@ -88,15 +115,25 @@ export async function getOAuth2AccessToken({
   profile,
   credential,
   projectId,
+  signal,
 }: {
   profile: ResolvedOAuth2Profile;
   credential: PreparedOAuth2Credential;
   projectId?: string;
+  /**
+   * Ends this caller's wait, e.g. when its call deadline passes. The shared
+   * fetch keeps running for other callers waiting on the same key.
+   */
+  signal?: AbortSignal;
 }): Promise<{ accessToken: string; cacheKey: string }> {
   const cacheKey = getOAuth2CacheKey(profile, credential);
-  const token = await tokenCache.forceFetch(cacheKey, {
-    context: { profile, credential, projectId },
-  });
+  if (signal?.aborted) throw callerAbortedError();
+  const token = await waitUnlessAborted(
+    tokenCache.forceFetch(cacheKey, {
+      context: { profile, credential, projectId },
+    }),
+    signal,
+  );
   // lru-cache treats a ttl of 0 as "never expires"; such a token is used once.
   if (token.ttlMs === 0 && tokenCache.peek(cacheKey) === token) {
     tokenCache.delete(cacheKey);

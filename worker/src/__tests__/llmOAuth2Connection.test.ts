@@ -453,6 +453,50 @@ describe("OAuth2 client credentials LLM connections", () => {
   );
 
   test(
+    "a slow token endpoint cannot outlast the caller's timeout",
+    { timeout: 30_000 },
+    async () => {
+      const slowTokenServer = await spinUp((_req, _body, res) => {
+        setTimeout(() => {
+          res.setHeader("content-type", "application/json");
+          res.end(
+            JSON.stringify({ access_token: "late-token", expires_in: 3600 }),
+          );
+        }, 3_000);
+      });
+      const slowTokenUrl = `${slowTokenServer.url}/oauth2/token`;
+      env.LANGFUSE_LLM_OAUTH2_ALLOWED_TOKEN_ENDPOINTS = [slowTokenUrl];
+      const gateway = await spinUp((_req, _body, res) => {
+        res.setHeader("content-type", "application/json");
+        res.end(OPENAI_CHAT_BODY);
+      });
+
+      const startedAt = Date.now();
+      const error = await generateLLMText({
+        messages: [{ role: "user", content: "What is 2+2?" }],
+        model: { adapter: LLMAdapter.OpenAI, id: "gpt-4o-mini" },
+        maxOutputTokens: 10,
+        timeout: 300,
+        connection: {
+          secretKey: encrypt(CLIENT_SECRET),
+          baseURL: `${gateway.url}/v1`,
+          config: {
+            oauth2: {
+              ...customOAuth2Config().oauth2,
+              tokenEndpoint: slowTokenUrl,
+            },
+          },
+        },
+      }).catch((e: unknown) => e);
+
+      expect(error).toBeInstanceOf(OAuth2TokenError);
+      expect((error as OAuth2TokenError).kind).toBe("unavailable");
+      expect(Date.now() - startedAt).toBeLessThan(2_000);
+      expect(gateway.requests).toHaveLength(0);
+    },
+  );
+
+  test(
     "fails with a disabled error when the allowlist is unset",
     { timeout: 30_000 },
     async () => {

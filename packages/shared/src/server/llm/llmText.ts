@@ -5,6 +5,7 @@ import {
   Output,
   embedMany,
   generateText,
+  getTotalTimeoutMs,
   jsonSchema,
   streamText,
   tool,
@@ -319,8 +320,17 @@ async function prepareLLMTextCall<
     trace: options.trace,
   });
 
+  const connectionStartedAt = Date.now();
   const { apiKey, bearerAuth, extraHeaders, createFetch } =
-    await openLLMConnection(options.connection);
+    await openLLMConnection(options.connection, {
+      abortSignal: options.abortSignal,
+      timeoutMs: getTotalTimeoutMs(timeout),
+    });
+  // Time spent obtaining an OAuth2 access token counts against the call's
+  // total timeout.
+  const callTimeout = bearerAuth
+    ? subtractFromTotalTimeout(timeout, Date.now() - connectionStartedAt)
+    : timeout;
 
   const languageModel = await buildAiSdkModel({
     model: options.model,
@@ -359,7 +369,7 @@ async function prepareLLMTextCall<
       reasoning: options.reasoning,
       providerOptions,
       maxRetries: options.maxRetries,
-      timeout,
+      timeout: callTimeout,
       abortSignal: options.abortSignal,
       // URL transport preserves provider-supported media URLs without downloading
       // them. Inline and disabled modes continue to block remote downloads.
@@ -369,7 +379,19 @@ async function prepareLLMTextCall<
   };
 }
 
-async function openLLMConnection(connection: LLMConnection) {
+function subtractFromTotalTimeout<TOOLS extends ToolSet>(
+  timeout: TimeoutConfiguration<TOOLS>,
+  elapsedMs: number,
+): TimeoutConfiguration<TOOLS> {
+  if (typeof timeout === "number") return Math.max(1, timeout - elapsedMs);
+  if (timeout.totalMs === undefined) return timeout;
+  return { ...timeout, totalMs: Math.max(1, timeout.totalMs - elapsedMs) };
+}
+
+async function openLLMConnection(
+  connection: LLMConnection,
+  limits: { abortSignal?: AbortSignal; timeoutMs?: number } = {},
+) {
   const decryptedSecret = decrypt(connection.secretKey);
   const extraHeaders = decryptAndParseExtraHeaders(connection.extraHeaders);
   const createSecureFetch = (
@@ -400,10 +422,17 @@ async function openLLMConnection(connection: LLMConnection) {
   if (!isOAuth2Config(connection.config)) {
     throw new OAuth2TokenError("config", "Invalid OAuth2 connection config");
   }
+  const waitSignals = [
+    limits.abortSignal,
+    limits.timeoutMs === undefined
+      ? undefined
+      : AbortSignal.timeout(limits.timeoutMs),
+  ].filter((signal): signal is AbortSignal => signal !== undefined);
   const { accessToken, wrapFetch } = await resolveOAuth2Connection({
     config: connection.config,
     decryptedSecret,
     projectId: connection.projectId,
+    signal: waitSignals.length > 0 ? AbortSignal.any(waitSignals) : undefined,
   });
   return {
     apiKey: accessToken,
@@ -433,6 +462,7 @@ export async function embedLLMText(options: {
   });
   const { apiKey, extraHeaders, createFetch } = await openLLMConnection(
     options.connection,
+    { abortSignal: options.abortSignal },
   );
   const embeddingModel = await buildAiSdkEmbeddingModel({
     model: options.model,
