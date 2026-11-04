@@ -1,7 +1,7 @@
 /* eslint-disable no-nested-ternary, @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 /* eslint-disable @repo/no-abstracted-overlay-trigger */
 import { Button } from "@/src/components/ui/button";
-import { useHasProjectAccess } from "@/src/features/rbac";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { api } from "@/src/utils/api";
 import { useState } from "react";
 import {

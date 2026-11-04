@@ -9,7 +9,7 @@ import { type ReactNode } from "react";
 import { type TableDataScope } from "@/src/components/table/utils/tablePlaceholder";
 import { useEventsTableData } from "./useEventsTableData";
 
-vi.mock("@/src/features/notifications", () => ({
+vi.mock("@/src/features/notifications/showSuccessToast", () => ({
   showSuccessToast: vi.fn(),
 }));
 

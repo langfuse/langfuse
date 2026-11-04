@@ -25,10 +25,8 @@ import { scoreTypeContextFromObserved } from "@/src/features/search-bar/lib/obse
 import { SearchComposer } from "@/src/features/search-bar/components/SearchComposer";
 import { ComposerTokens } from "@/src/features/search-bar/components/ComposerTokens";
 import { useSearchBarStore } from "@/src/features/search-bar/store/SearchBarStoreProvider";
-import {
-  ComposerSurface,
-  ComposerText,
-} from "@/src/features/search-bar/components/ComposerSurface";
+import { ComposerSurface } from "@/src/features/search-bar/components/ComposerSurface";
+import { ComposerText } from "@/src/features/search-bar/components/ComposerText";
 
 export function ComposerWithPreview(
   props: React.ComponentProps<typeof SearchComposer>,

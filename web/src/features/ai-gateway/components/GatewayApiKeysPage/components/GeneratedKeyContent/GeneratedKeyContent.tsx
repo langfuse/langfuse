@@ -1,40 +1,7 @@
-import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
-import { Skeleton } from "@/src/components/ui/skeleton";
-import { SetupInstructionsTabs } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/GeneratedKeyContent/components/SetupInstructionsTabs/SetupInstructionsTabs";
+import { SetupInstructions } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/SetupInstructions/SetupInstructions";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { MaskedGatewayKey } from "./components/MaskedGatewayKey";
-import { useAgentSetupInstructions } from "./hooks/useAgentSetupInstructions";
-
-type SetupInstructionsProps = {
-  organizationId: string;
-};
-
-function SetupInstructions({ organizationId }: SetupInstructionsProps) {
-  const { instructions, isPending, isError } =
-    useAgentSetupInstructions(organizationId);
-
-  if (isPending) {
-    return <Skeleton className="h-48 w-full" />;
-  }
-  if (isError || !instructions) {
-    return (
-      <Alert variant="destructive">
-        <Alert.Title>Setup instructions could not be loaded</Alert.Title>
-        <Alert.Description>
-          Your key works. Follow the docs to connect your tools.
-        </Alert.Description>
-      </Alert>
-    );
-  }
-
-  return (
-    <SetupInstructionsTabs
-      organizationId={organizationId}
-      instructions={instructions}
-    />
-  );
-}
 
 type GeneratedKeyContentProps = {
   organizationId: string;
@@ -47,6 +14,11 @@ export function GeneratedKeyContent({
 }: GeneratedKeyContentProps) {
   const capture = usePostHogClientCapture();
 
+  const handleAfterSecretCopy = () =>
+    capture("ai_gateway:api_key_secret_copied", { orgId: organizationId });
+  const handleAfterSecretReveal = () =>
+    capture("ai_gateway:api_key_secret_revealed", { orgId: organizationId });
+
   return (
     <Dialog.Body>
       <p className="text-muted-foreground">
@@ -54,17 +26,18 @@ export function GeneratedKeyContent({
       </p>
       <MaskedGatewayKey
         secretKey={secretKey}
-        onAfterCopy={() =>
-          capture("ai_gateway:api_key_secret_copied", { orgId: organizationId })
-        }
-        onAfterReveal={() =>
-          capture("ai_gateway:api_key_secret_revealed", {
-            orgId: organizationId,
-          })
-        }
+        onAfterCopy={handleAfterSecretCopy}
+        onAfterReveal={handleAfterSecretReveal}
       />
       <hr className="-mx-4" />
-      <SetupInstructions organizationId={organizationId} />
+      <SetupInstructions
+        organizationId={organizationId}
+        secretKey={{
+          value: secretKey,
+          onAfterCopy: handleAfterSecretCopy,
+          onAfterReveal: handleAfterSecretReveal,
+        }}
+      />
     </Dialog.Body>
   );
 }

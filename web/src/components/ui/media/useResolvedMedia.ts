@@ -1,6 +1,7 @@
 import { api } from "@/src/utils/api";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
-import { getSignedUrlState, mediaUrlQueryOptions } from "@/src/features/media";
+import { getSignedUrlState } from "@/src/features/media/fns/getSignedUrlState";
+import { mediaUrlQueryOptions } from "@/src/features/media/constants/mediaUrlQueryOptions";
 import { type MediaDescriptor } from "./mediaUtils";
 
 type LangfuseRefDescriptor = Extract<MediaDescriptor, { kind: "langfuseRef" }>;

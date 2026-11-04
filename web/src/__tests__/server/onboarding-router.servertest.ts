@@ -5,8 +5,8 @@ import { env } from "@/src/env.mjs";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import { createProjectMembershipsOnSignup } from "@/src/features/auth/lib/createProjectMembershipsOnSignup";
-import { V4_DEFAULT_ENABLED_FROM_AT } from "@/src/features/events/server";
-import { createProjectRoute } from "@/src/features/setup";
+import { V4_DEFAULT_ENABLED_FROM_AT } from "@/src/features/events/lib/v4Rollout";
+import { createProjectRoute } from "@/src/features/setup/setupRoutes";
 import { prisma, Role } from "@langfuse/shared/src/db";
 
 const makeSession = ({
@@ -441,6 +441,118 @@ describe("onboarding router", () => {
       redirectTo: `/project/${starterOrganizationMembership?.organization.projects[0]?.id}/traces`,
       surveyCreated: true,
     });
+  });
+
+  describe("AI Gateway invitations", () => {
+    const originalGatewayAvailability = {
+      NODE_ENV: env.NODE_ENV,
+      NEXT_PUBLIC_PREVIEW_PR_URL: env.NEXT_PUBLIC_PREVIEW_PR_URL,
+      LANGFUSE_AI_GATEWAY_DEPLOYED: env.LANGFUSE_AI_GATEWAY_DEPLOYED,
+      LANGFUSE_AI_GATEWAY_ENABLED: env.LANGFUSE_AI_GATEWAY_ENABLED,
+      LANGFUSE_AI_GATEWAY_ORGANIZATION_ID_ALLOWLIST:
+        env.LANGFUSE_AI_GATEWAY_ORGANIZATION_ID_ALLOWLIST,
+    };
+
+    afterEach(() => {
+      Object.assign(env, originalGatewayAvailability);
+    });
+
+    it("lands invitees on the overview instead of creating starter resources", async () => {
+      const { organization, memberships, complete } =
+        await signUpWithGatewayInvitation({ gatewayEnabled: true });
+
+      expect(memberships).toEqual([
+        { orgId: organization.id, role: Role.AI_GATEWAY },
+      ]);
+      expect(await complete()).toEqual({
+        redirectTo: "/",
+        surveyCreated: true,
+      });
+    });
+
+    it("creates starter resources when the gateway was turned off for the inviting org", async () => {
+      const { organization, memberships } = await signUpWithGatewayInvitation({
+        gatewayEnabled: false,
+      });
+
+      expect(memberships).toHaveLength(2);
+      expect(memberships).toContainEqual({
+        orgId: organization.id,
+        role: Role.AI_GATEWAY,
+      });
+      expect(memberships).toContainEqual(
+        expect.objectContaining({ role: Role.OWNER }),
+      );
+    });
+
+    /** signUpWithGatewayInvitation signs up a user holding an AI_GATEWAY invitation for a fresh org */
+    async function signUpWithGatewayInvitation({
+      gatewayEnabled,
+    }: {
+      gatewayEnabled: boolean;
+    }) {
+      const userId = randomUUID();
+      const email = `invited-gateway-${userId}@example.com`;
+      createdUserIds.push(userId);
+
+      const user = await prisma.user.create({
+        data: { id: userId, email, name: "Gale Test" },
+      });
+      const organization = await prisma.organization.create({
+        data: { name: `Gateway Org ${userId}` },
+      });
+      createdOrgIds.push(organization.id);
+      await prisma.project.create({
+        data: { name: `Gateway Org Project ${userId}`, orgId: organization.id },
+      });
+      await prisma.membershipInvitation.create({
+        data: { orgId: organization.id, email, orgRole: Role.AI_GATEWAY },
+      });
+
+      // Development and preview enable the gateway everywhere, so only the
+      // org allowlist decides here.
+      Object.assign(env, {
+        NODE_ENV: "test",
+        NEXT_PUBLIC_PREVIEW_PR_URL: undefined,
+        LANGFUSE_AI_GATEWAY_DEPLOYED: "true",
+        LANGFUSE_AI_GATEWAY_ENABLED: "false",
+        LANGFUSE_AI_GATEWAY_ORGANIZATION_ID_ALLOWLIST: gatewayEnabled
+          ? [organization.id]
+          : [],
+      });
+      await createProjectMembershipsOnSignup(user, {
+        userWasJustCreated: true,
+      });
+
+      const memberships = await prisma.organizationMembership.findMany({
+        where: {
+          userId,
+          ...(env.NEXT_PUBLIC_DEMO_ORG_ID
+            ? { orgId: { not: env.NEXT_PUBLIC_DEMO_ORG_ID } }
+            : {}),
+        },
+        select: { orgId: true, role: true },
+      });
+      createdOrgIds.push(
+        ...memberships
+          .map((membership) => membership.orgId)
+          .filter((orgId) => orgId !== organization.id),
+      );
+
+      const caller = appRouter.createCaller({
+        ...createInnerTRPCContext({
+          session: makeSession({ userId, email, name: "Gale Test" }),
+          headers: {},
+        }),
+        prisma,
+      });
+
+      return {
+        organization,
+        memberships,
+        complete: () => caller.onboarding.complete(),
+      };
+    }
   });
 
   it("falls back to manual project creation when a real org exists without a project", async () => {

@@ -27,21 +27,21 @@ import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import {
   CommentDrawerController,
   getCommentDrawerInitialStateFromUrl,
-  useCommentedPaths,
-} from "@/src/features/comments";
+} from "@/src/features/comments/CommentDrawerController";
+import { useCommentedPaths } from "@/src/features/comments/hooks/useCommentedPaths";
 import { useRouter } from "next/router";
 import { TraceDetailTabsBarList } from "../TraceDetailTabsBarList";
 import { getDetailTabs } from "../../fns/getDetailTabs";
 import { resolveDetailTab } from "../../fns/resolveDetailTab";
-import { ScoresTable } from "@/src/features/scores";
-import { getMostRecentCorrection } from "@/src/features/corrections";
+import { default as ScoresTable } from "@/src/features/scores/ScoresTable";
+import { getMostRecentCorrection } from "@/src/features/corrections/utils/getMostRecentCorrection";
 import { useJsonExpansion } from "@/src/features/traces/contexts/JsonExpansionProvider";
 import { useMedia } from "@/src/features/traces/hooks/useMedia";
 import {
   type DetailTab,
   useSelection,
 } from "@/src/features/traces/contexts/SelectionProvider";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useTraceAnalyticsDimensions } from "@/src/features/traces/hooks/useTraceAnalyticsDimensions";
 import { useViewPreferences } from "@/src/features/traces/contexts/ViewPreferencesProvider";
 import {
@@ -57,20 +57,17 @@ import { api } from "@/src/utils/api";
 // Extracted components
 import { ObservationDetailViewHeader } from "@/src/features/traces/components/ObservationDetailView/components/ObservationDetailViewHeader/ObservationDetailViewHeader";
 import { TraceLogView } from "../TraceLogView/TraceLogView";
-import { useReadPath } from "@/src/features/events";
+import { useReadPath } from "@/src/features/events/hooks/useReadPath";
 import { TRACE_VIEW_CONFIG } from "@/src/features/traces/constants/traceViewConfig";
 import {
   aggregateTraceMetrics,
   getDescendantIds,
 } from "@/src/features/traces/fns/traceAggregation";
-import { useHasProjectAccess } from "@/src/features/rbac";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { useSession } from "next-auth/react";
 import { ObservationPreview } from "./ObservationPreview";
-import type { SectionSkillsProps } from "../IOPreview/components/SectionSkills";
-import {
-  useInternalFeaturesEnabled,
-  useIsFeatureEnabled,
-} from "@/src/features/feature-flags";
+import type { IOPreviewPretty } from "../IOPreview/IOPreviewPretty";
+import { useInternalFeaturesEnabled } from "@/src/features/feature-flags/hooks/useInternalFeaturesEnabled";
 import { DetailAttributesTab } from "../DetailAttributesTab";
 import { buildModelParameters } from "@/src/features/traces/fns/buildModelParameters";
 import { buildObservationAttributes } from "@/src/features/traces/fns/buildObservationAttributes";
@@ -99,10 +96,6 @@ export function ConnectedObservationDetailView({
   // V4 beta mode and observations for log tab
   const { isV4: isV4Enabled } = useReadPath();
   const internalFeaturesEnabled = useInternalFeaturesEnabled();
-  const skillManagementEnabled = useIsFeatureEnabled("skillManagement", {
-    projectId,
-    enableForAdmins: false,
-  });
   const {
     observations,
     roots,
@@ -342,7 +335,7 @@ export function ConnectedObservationDetailView({
   }, [observation.latency, observation.startTime, observation.endTime]);
 
   const previewSkills = getPreviewSkills({
-    skillManagementEnabled: isV4Enabled && skillManagementEnabled,
+    skillManagementEnabled: isV4Enabled,
     observationType: observation.type,
     skillsAvailable: observationWithIO?.skillsAvailable,
     skillsResourceLoaded: observationWithIO?.skillsResourceLoaded,
@@ -616,7 +609,7 @@ function getPreviewSkills({
   observationType,
   skillsAvailable,
   skillsResourceLoaded,
-}: PreviewSkillsInput): SectionSkillsProps["skills"] | undefined {
+}: PreviewSkillsInput): React.ComponentProps<typeof IOPreviewPretty>["skills"] {
   if (!skillManagementEnabled) return undefined;
   if (observationType === "GENERATION") {
     return { kind: "available", items: skillsAvailable ?? [] };

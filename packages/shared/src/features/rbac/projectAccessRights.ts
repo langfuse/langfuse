@@ -340,6 +340,7 @@ export const projectRoleAccessRights: Record<Role, ProjectScope[]> = {
     "traces:read",
   ],
   NONE: [],
+  AI_GATEWAY: [],
 };
 
 export const projectNoneRoleComment =

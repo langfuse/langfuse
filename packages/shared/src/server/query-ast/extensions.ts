@@ -87,6 +87,7 @@ class ArrayJoinPlugin implements KyselyPlugin {
     const node = transformer.transformNode(
       args.node,
     ) as ClickHouseSelectQueryNode;
+    // `array join <expression> as <alias>, …`
     const arrayJoinNode = ArrayJoinNode.create(
       this.items.map((item) => ({
         expression: toNode(item.expression),
@@ -127,6 +128,7 @@ class LimitByPlugin implements KyselyPlugin {
     ) as ClickHouseSelectQueryNode;
     return {
       ...node,
+      // `limit <count> by <column>, …`
       limitBy: LimitByNode.create(
         ValueNode.createImmediate(this.count),
         this.columns.map(toNode),
@@ -247,6 +249,7 @@ export function sumMapValuesWhereKeyContains(
   map: Expression<Record<string, unknown>>,
   needle: Expression<string>,
 ): ChExpression<number> {
+  // `positionCaseInsensitive(x.1, needle) > 0`
   const keyMatches = BinaryOperationNode.create(
     FunctionNode.create("positionCaseInsensitive", [
       qualifiedColumn("x", "1"),
@@ -255,6 +258,7 @@ export function sumMapValuesWhereKeyContains(
     OperatorNode.create(">"),
     ValueNode.createImmediate(0),
   );
+  // `x -> <keyMatches>`
   const lambda = BinaryOperationNode.create(
     ColumnNode.create("x"),
     OperatorNode.create("->"),
@@ -826,6 +830,7 @@ class FinalPlugin implements KyselyPlugin {
     const froms = (node.from?.froms ?? []).map((from) =>
       wrapFinal(from, this.tables),
     );
+    // `join <table> final on <caller on>`, the ON kept as-is.
     const joins = (node.joins ?? []).map((join) => {
       const table = wrapFinal(join.table, this.tables);
       if (table === join.table) return join;

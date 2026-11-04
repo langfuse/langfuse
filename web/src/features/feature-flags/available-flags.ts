@@ -5,7 +5,6 @@ export const organizationOnlyFeaturePreviewFlags = [
 ] as const;
 
 export const userFeaturePreviewFlags = [
-  "skillManagement",
   "sessionViewV2",
   "sessionViewV2Timeline",
 ] as const;
@@ -31,20 +30,20 @@ export const isOrganizationOnlyFeaturePreviewFlag = (
     (organizationFlag) => organizationFlag === flag,
   );
 
-const adminOnlyFeaturePreviewFlags = ["langfuseTopics"] as const;
+const internalFeaturePreviewFlags = ["langfuseTopics"] as const;
 
 export const personalFeaturePreviewFlags = [
   ...userFeaturePreviewFlags,
-  ...adminOnlyFeaturePreviewFlags,
+  ...internalFeaturePreviewFlags,
 ] as const;
 
 export type PersonalFeaturePreviewFlag =
   (typeof personalFeaturePreviewFlags)[number];
 
-export const isAdminOnlyFeaturePreviewFlag = (
+export const isInternalFeaturePreviewFlag = (
   flag: string,
-): flag is (typeof adminOnlyFeaturePreviewFlags)[number] =>
-  adminOnlyFeaturePreviewFlags.some((adminFlag) => adminFlag === flag);
+): flag is (typeof internalFeaturePreviewFlags)[number] =>
+  internalFeaturePreviewFlags.some((internalFlag) => internalFlag === flag);
 
 const restrictedFlags = ["aiGateway"] as const;
 
@@ -77,7 +76,6 @@ export const filterFeaturePreviewFlags = (
 ): FeaturePreviewFlag[] => flags.filter(isFeaturePreviewFlag);
 
 export const featurePreviewLabels = {
-  skillManagement: "Skill Management",
   externalMediaStorage: "External Media Storage",
   sessionViewV2: "Redesigned Session View",
   sessionViewV2Timeline: "Session Timeline",
@@ -95,11 +93,7 @@ export const isFeaturePreviewAvailable = (
   if (flag === "externalMediaStorage") {
     return true;
   }
-  if (
-    flag === "sessionViewV2" ||
-    flag === "sessionViewV2Timeline" ||
-    flag === "skillManagement"
-  ) {
+  if (flag === "sessionViewV2" || flag === "sessionViewV2Timeline") {
     return context.v4BetaEnabled;
   }
 
@@ -108,7 +102,7 @@ export const isFeaturePreviewAvailable = (
 
 export const availableFlags = [
   ...featurePreviewFlags,
-  ...adminOnlyFeaturePreviewFlags,
+  ...internalFeaturePreviewFlags,
   ...restrictedFlags,
   INTERNAL_FEATURE_FLAG,
   "searchBar",

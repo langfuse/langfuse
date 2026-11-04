@@ -1,4 +1,5 @@
-import { Plus, Trash, UserPlus } from "@langfuse/icons";
+import { BookOpen, Plus, Trash, UserPlus } from "@langfuse/icons";
+import { formatDistanceToNowStrict } from "date-fns";
 
 import { SettingsTable } from "@/src/components/SettingsTable/SettingsTable";
 import type { PaginationBarProps } from "@/src/components/design-system/PaginationBar/PaginationBar";
@@ -6,9 +7,16 @@ import { createDateTableColumn } from "@/src/components/design-system/table/colu
 import { createBadgeListTableColumn } from "@/src/components/design-system/table/columns/createBadgeListTableColumn";
 import { createTextTableColumn } from "@/src/components/design-system/table/columns/createTextTableColumn";
 import { createUserTableColumn } from "@/src/components/design-system/table/columns/createUserTableColumn";
-import type { AsyncTableData } from "@/src/components/design-system/table/Table";
+import { createTableColumn } from "@/src/components/design-system/table/columns/utils/createTableColumn";
+import { Skeleton } from "@/src/components/ui/skeleton";
+import { buildLocalIsoDatePresentation } from "@/src/utils/dates";
+import type {
+  AsyncTableData,
+  TableProps,
+} from "@/src/components/design-system/table/Table";
 import type { LangfuseColumnDef } from "@/src/components/table/types";
-import { isApiKeyExpired } from "@/src/features/apiKey";
+import { isApiKeyExpired } from "@/src/features/apiKey/helpers/isApiKeyExpired";
+import { GATEWAY_API_KEY_LAST_USED_WINDOW_DAYS } from "@/src/features/ai-gateway/constants/gatewayApiKeyLastUsed";
 import { GatewayApiKeysEmptyState } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/GatewayApiKeysTable/components/GatewayApiKeysEmptyState/GatewayApiKeysEmptyState";
 
 type GatewayApiKey = {
@@ -26,20 +34,36 @@ type GatewayApiKey = {
       image: string | null;
     } | null;
   };
+  /** Absent until the last-used query resolves, and when the key had no gateway traffic in the window. */
+  lastUsedAt?: Date;
 };
+
+const lastUsedSkeleton = <Skeleton className="h-4 w-1/2" />;
+
+/** `isTracked` is false when gateway traffic is not recorded (ingestion mode `NONE` or no active ingestion project). */
+type GatewayApiKeysLastUsedState =
+  | { status: "loading" }
+  | { status: "error" }
+  | { status: "success"; isTracked: boolean };
 
 export function GatewayApiKeysTable({
   data,
+  lastUsed,
   createAction,
   inviteAction,
+  usageInstructionsAction,
   onRevoke,
   pagination,
   search,
-}: {
+  orderBy,
+  setOrderBy,
+}: Pick<TableProps<GatewayApiKey>, "orderBy" | "setOrderBy"> & {
   data: AsyncTableData<GatewayApiKey[]>;
+  lastUsed: GatewayApiKeysLastUsedState;
   createAction: () => void;
   /** Omit for callers who cannot invite people to the organization. */
   inviteAction?: () => void;
+  usageInstructionsAction: () => void;
   onRevoke: (apiKeyId: string) => void;
   pagination: PaginationBarProps;
   search: { value: string; onChange: (value: string) => void };
@@ -53,6 +77,7 @@ export function GatewayApiKeysTable({
       id: "createdAt",
       header: "Created",
       enableResizing: false,
+      enableSorting: true,
     }),
     createTextTableColumn<GatewayApiKey>({
       accessorFn: (row) => row.apiKey.displaySecretKey,
@@ -67,6 +92,7 @@ export function GatewayApiKeysTable({
       header: "Name",
       nullValue: "-",
       enableResizing: false,
+      enableSorting: true,
     }),
     createUserTableColumn<GatewayApiKey>({
       accessorFn: (row) => row.apiKey.user,
@@ -83,9 +109,38 @@ export function GatewayApiKeysTable({
       header: "Expiration",
       hideBelowMd: true,
       enableResizing: false,
+      enableSorting: true,
       emptyValue: "No expiration",
       getPrefix: (expiresAt) =>
         isApiKeyExpired(expiresAt) ? "Expired on " : null,
+    }),
+    createTableColumn<GatewayApiKey, Date>({
+      accessorFn: (row) => row.lastUsedAt,
+      id: "lastUsedAt",
+      header: "Last used",
+      hideBelowMd: true,
+      enableResizing: false,
+      loadingCell: lastUsedSkeleton,
+      renderCell: (lastUsedAt) => {
+        if (lastUsed.status === "loading") return lastUsedSkeleton;
+        if (!lastUsedAt) {
+          return (
+            <span className="text-muted-foreground">
+              {lastUsed.status === "success" && lastUsed.isTracked
+                ? `Not used (${GATEWAY_API_KEY_LAST_USED_WINDOW_DAYS}d)`
+                : "Unavailable"}
+            </span>
+          );
+        }
+        return (
+          <span
+            className="block w-full truncate"
+            title={buildLocalIsoDatePresentation({ date: lastUsedAt })?.title}
+          >
+            {formatDistanceToNowStrict(lastUsedAt, { addSuffix: true })}
+          </span>
+        );
+      },
     }),
     createBadgeListTableColumn<GatewayApiKey>({
       accessorFn: (row) => getMetadataEntries(row.metadata),
@@ -101,6 +156,8 @@ export function GatewayApiKeysTable({
       tableName="gatewayApiKeys"
       columns={columns}
       data={data}
+      orderBy={orderBy}
+      setOrderBy={setOrderBy}
       actions={(row) => [
         {
           id: "revoke",
@@ -126,6 +183,13 @@ export function GatewayApiKeysTable({
             ]
           : []),
         {
+          id: "usage-instructions",
+          label: "Usage instructions",
+          variant: "outline",
+          icon: <BookOpen size="base" aria-hidden="true" />,
+          onClick: usageInstructionsAction,
+        },
+        {
           id: "create-key",
           label: "Create key",
           icon: <Plus size="base" aria-hidden="true" />,
@@ -134,8 +198,8 @@ export function GatewayApiKeysTable({
       ]}
       noResultsMessage={
         hasSearch
-          ? "No gateway API keys match the current search."
-          : "No gateway API keys created."
+          ? "No gateway keys match the current search."
+          : "No gateway keys created."
       }
       emptyState={hasNoKeys ? <GatewayApiKeysEmptyState /> : undefined}
     />

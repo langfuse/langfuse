@@ -10,7 +10,10 @@ import {
 } from "@langfuse/shared/query";
 import { useScheduledDashboardExecuteQuery } from "@/src/features/dashboard/hooks/DashboardQuerySchedulerProvider";
 import { Chart } from "@/src/features/widgets/chart-library/Chart";
-import { type LegendPosition } from "@/src/features/widgets/chart-library/chart-props";
+import {
+  type FormatMetricOptions,
+  type LegendPosition,
+} from "@/src/features/widgets/chart-library/chart-props";
 import { ChartLoadingState } from "@/src/features/widgets/chart-library/ChartLoadingState";
 import {
   getChartLoadingProgress,
@@ -24,7 +27,7 @@ import {
   type WidgetChartConfig,
 } from "@/src/features/widgets/utils";
 import { isTimeSeriesChart } from "@/src/features/widgets/chart-library/utils";
-import { useReadPath } from "@/src/features/events";
+import { useReadPath } from "@/src/features/events/hooks/useReadPath";
 import { cn } from "@/src/utils/tailwind";
 
 // ============================================================================
@@ -40,8 +43,17 @@ interface WidgetDimensionConfig {
   field: string;
 }
 
-export interface WidgetContentProps {
-  projectId: string;
+/** A widget queries its project, or runs its query through `fetchQuery`. */
+type WidgetQuerySource =
+  | { projectId: string; fetchQuery?: never }
+  | {
+      projectId?: never;
+      fetchQuery: NonNullable<
+        Parameters<typeof useScheduledDashboardExecuteQuery>[1]["fetchQuery"]
+      >;
+    };
+
+export type WidgetContentProps = WidgetQuerySource & {
   query: QueryType;
   version: ViewVersion;
   chartType: DashboardWidgetChartType;
@@ -106,7 +118,8 @@ export interface WidgetContentProps {
    * short for it. Pass a stable node (see `Chart`).
    */
   emptyState?: ReactNode;
-}
+  usdPrecision?: FormatMetricOptions["usdPrecision"];
+};
 
 // ============================================================================
 // Components
@@ -136,6 +149,7 @@ const getXAxisValue = (
  */
 export function WidgetContent({
   projectId,
+  fetchQuery,
   query,
   version,
   chartType,
@@ -157,6 +171,7 @@ export function WidgetContent({
   legendPosition,
   zeroBaseline,
   emptyState,
+  usdPrecision,
 }: WidgetContentProps) {
   // Transport-only: `version` is a prop here, so an unresolved session can
   // never change WHAT is queried — only whether it streams (SSE) or not.
@@ -170,11 +185,12 @@ export function WidgetContent({
   // Execute the query
   const queryResult = useScheduledDashboardExecuteQuery(
     {
-      projectId,
+      projectId: projectId ?? "",
       version,
       query,
     },
     {
+      fetchQuery,
       trpc: {
         context: {
           skipBatch: true,
@@ -351,8 +367,9 @@ export function WidgetContent({
       metric,
       view,
       version,
+      usdPrecision,
     });
-  }, [chartType, metrics, view, version]);
+  }, [chartType, metrics, view, version, usdPrecision]);
 
   // Loading state
   const chartLoadingState = getChartLoadingStateProps({
@@ -361,10 +378,12 @@ export function WidgetContent({
     errorMessage: queryResult.error,
   });
 
-  const usesBackendProgress = shouldUseWidgetSSE({
-    isV4Enabled: isV4,
-    version,
-  });
+  const usesBackendProgress =
+    !fetchQuery &&
+    shouldUseWidgetSSE({
+      isV4Enabled: isV4,
+      version,
+    });
 
   const loadingProgress = getChartLoadingProgress({
     isPending: queryResult.isPending,

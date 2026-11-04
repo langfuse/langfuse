@@ -28,26 +28,26 @@ import {
 } from "@langfuse/icons";
 import { useTheme } from "next-themes";
 import { keepPreviousData } from "@tanstack/react-query";
-import { Fragment, useEffect, memo, useState } from "react";
+import { Fragment, useCallback, useEffect, memo, useState } from "react";
 import { useSession } from "next-auth/react";
 import { env } from "@/src/env.mjs";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useDebounce } from "@/src/hooks/useDebounce";
 import { useCommandMenu } from "@/src/features/command-k-menu/CommandMenuProvider";
 import { useOrganizationSettingsPages } from "@/src/features/organizations/OrganizationSettingsPage";
-import { useAccountSettingsPages } from "@/src/features/account";
-import { useQueryProjectOrOrganization } from "@/src/features/projects";
+import { useAccountSettingsPages } from "@/src/features/account/AccountSettingsPage";
+import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
 import { useProjectSettingsPages } from "@/src/features/projects/ProjectSettingsPage";
 import { api } from "@/src/utils/api";
 import { type NavigationItem } from "@/src/components/layouts/utilities/routes";
 import useLocalStorage from "@/src/components/useLocalStorage";
 import { hasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { type ProjectScope } from "@langfuse/shared";
-import { useReadPath } from "@/src/features/events";
+import { useReadPath } from "@/src/features/events/hooks/useReadPath";
 import {
   useInAppAiAgent,
   useIsInAppAgentLauncherVisible,
-} from "@/src/features/in-app-agent";
+} from "@/src/features/in-app-agent/components/InAppAiAgentProvider";
 
 type IdNavigationItem = {
   type: "trace_id" | "observation_id";
@@ -861,6 +861,13 @@ function CommandMenuComponent({
     false,
   );
 
+  // Closing drops the pending query so the next open does not search the previous text.
+  const clearSearch = useCallback(() => {
+    debouncedSearchChange.cancel();
+    setSearch("");
+    setDebouncedSearch("");
+  }, [debouncedSearchChange]);
+
   const navItems = mainNavigation
     .flatMap((item) => {
       if (item.items) {
@@ -893,12 +900,12 @@ function CommandMenuComponent({
         }
         const nextOpen = !open;
         setOpen(nextOpen);
-        if (!nextOpen) setSearch("");
+        if (!nextOpen) clearSearch();
       }
     };
     document.addEventListener("keydown", down);
     return () => document.removeEventListener("keydown", down);
-  }, [capture, setOpen, open]);
+  }, [capture, clearSearch, setOpen, open]);
 
   const shortcutItems = [
     ...[...pageShortcuts.byNavUrl.values()].flat(),
@@ -922,7 +929,7 @@ function CommandMenuComponent({
 
   const handleNavigate = (entry?: RecentEntry) => {
     if (entry) addRecent(entry);
-    setSearch("");
+    clearSearch();
     setOpen(false);
   };
 
@@ -931,7 +938,7 @@ function CommandMenuComponent({
       open={open}
       onOpenChange={(nextOpen) => {
         setOpen(nextOpen);
-        if (!nextOpen) setSearch("");
+        if (!nextOpen) clearSearch();
       }}
       filter={(value, search, keywords) =>
         matchesSearch(`${value} ${keywords?.join(" ")}`, search) ? 1 : 0

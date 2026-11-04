@@ -1,7 +1,7 @@
 import {
   createFieldRegistry,
   EVENTS_FIELD_REGISTRY,
-} from "@/src/features/search-bar";
+} from "@/src/features/search-bar/lib/fields";
 
 export function eventsSearchRegistry(
   omittedColumns: readonly string[],

@@ -1,9 +1,7 @@
 import { fetchEvalRules } from "../evaluation/fetchEvalRules";
-import {
-  scheduleObservationEvals,
-  createObservationEvalSchedulerDeps,
-  type ObservationForEval,
-} from "../evaluation/observationEval";
+import { scheduleObservationEvals } from "../evaluation/observationEval/scheduleObservationEvals";
+import { createObservationEvalSchedulerDeps } from "../evaluation/observationEval/createSchedulerDeps";
+import type { ObservationForEval } from "../evaluation/observationEval/types";
 import { logger, traceException } from "@langfuse/shared/src/server";
 
 interface ScheduleExperimentEvalsParams {

@@ -1,8 +1,11 @@
+import { CloudConfigSchema } from "@langfuse/shared";
 import type { GatewayProvider, PrismaClient } from "@langfuse/shared/src/db";
 import { ApiKeyId, OrganizationId } from "@langfuse/shared/rbac";
 
 import { authorize } from "@/src/features/rbac/authorize";
 import { getRolesForPrincipal } from "@/src/features/rbac/getRolesForPrincipal";
+import { hasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
+import { getOrganizationPlanServerSide } from "@/src/features/entitlements/server/getPlan";
 import { isGatewayEnabledForOrganization } from "@/src/features/ai-gateway/server/availability";
 import { GatewayControlPlaneError } from "@/src/features/ai-gateway/server/gatewayControlPlaneError";
 import {
@@ -145,6 +148,9 @@ export class GatewayApiKeyAuthenticator {
       Boolean(project) &&
       !project?.deletedAt &&
       project?.orgId === organizationId;
+    const cloudConfig = organization.cloudConfig
+      ? CloudConfigSchema.safeParse(organization.cloudConfig).data
+      : undefined;
     const context: CachedResolveContext = {
       organizationId,
       apiKeyId: row.id,
@@ -157,11 +163,31 @@ export class GatewayApiKeyAuthenticator {
         ? (gatewayConfig?.defaultIngestionProjectId ?? null)
         : null,
       ingestionMode: gatewayConfig?.ingestionMode ?? null,
+      plan: getOrganizationPlanServerSide(cloudConfig),
+      rateLimitOverrides: cloudConfig?.rateLimitOverrides ?? [],
       connections: organization.gatewayAiConnections.map((connection) => ({
         ...connection,
         allowedModels: parseGatewayAllowedModels(connection.allowedModels),
       })),
     };
+
+    // Runs on cache misses only, so a role change that does not revoke the key
+    // takes effect within LANGFUSE_AI_GATEWAY_CACHE_RESOLVE_TTL_SECONDS.
+    // Demotions through the app revoke user-bound keys and evict them at once.
+    if (row.userId) {
+      const ownerRole = row.user?.organizationMemberships.find(
+        (membership) => membership.orgId === organizationId,
+      )?.role;
+      if (
+        !ownerRole ||
+        !hasOrganizationAccess({ role: ownerRole, scope: "gateway:invoke" })
+      ) {
+        throw new GatewayControlPlaneError(
+          "API key owner is not allowed to invoke the gateway",
+          403,
+        );
+      }
+    }
 
     // Any organization key may call the gateway when its roles grant
     // gateway:invoke, so this check must not depend on API_AUTH_MIGRATION.

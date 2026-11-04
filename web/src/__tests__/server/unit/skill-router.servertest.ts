@@ -22,7 +22,7 @@ vi.mock("@/src/server/auth", () => ({ getServerAuthSession: vi.fn() }));
 vi.mock("@/src/features/posthog-analytics/server/backendActivity", () => ({
   recordBackendActivity: vi.fn().mockResolvedValue(undefined),
 }));
-vi.mock("@/src/features/skills/server/index", () => ({
+vi.mock("@/src/features/skills/server/skill-service", () => ({
   SkillService: class {
     get = mocks.get;
     getFileContents = mocks.getFileContents;

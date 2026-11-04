@@ -4,10 +4,8 @@ import {
   createPromptForApi,
   listPromptsForApi,
 } from "@/src/features/prompts/server/prompt-api-service";
-import {
-  withMiddlewares,
-  createAuthedProjectAPIRoute,
-} from "@/src/features/public-api/server";
+import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
+import { createAuthedProjectAPIRoute } from "@/src/features/public-api/server/createAuthedProjectAPIRoute";
 import { CreatePromptSchema, GetPromptsMetaSchema } from "@langfuse/shared";
 
 export const promptsHandler = withMiddlewares({

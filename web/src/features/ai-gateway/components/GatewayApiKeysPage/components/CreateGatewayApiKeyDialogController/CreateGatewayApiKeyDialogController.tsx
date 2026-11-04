@@ -18,14 +18,12 @@ import {
 import { InfoTooltip } from "@/src/components/ui/InfoTooltip/InfoTooltip";
 import { Input } from "@/src/components/ui/input";
 import { Label } from "@/src/components/ui/label";
-import {
-  ApiKeyExpirationInput,
-  type ApiKeyExpirationPreset,
-  resolveApiKeyExpiration,
-} from "@/src/features/apiKey";
+import { ApiKeyExpirationInput } from "@/src/features/apiKey/components/ApiKeyExpirationInput/ApiKeyExpirationInput";
+import type { ApiKeyExpirationPreset } from "@/src/features/apiKey/constants/apiKeyExpirationOptions";
+import { resolveApiKeyExpiration } from "@/src/features/apiKey/fns/resolveApiKeyExpiration";
 import { GeneratedKeyContent } from "@/src/features/ai-gateway/components/GatewayApiKeysPage/components/GeneratedKeyContent/GeneratedKeyContent";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import { useHasOrganizationAccess } from "@/src/features/rbac";
+import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import {
   api,
   reportNonTrpcError,
@@ -134,7 +132,12 @@ export function CreateGatewayApiKeyDialogController({
       onBeforeClose={() => !create.isPending}
       renderDialog={() =>
         generatedSecretKey ? (
-          <Dialog title="Gateway key created" size="md" closeLabel="Done">
+          <Dialog
+            title="Gateway key created"
+            size="md"
+            closeLabel="Done"
+            requireExplicitClose
+          >
             <GeneratedKeyContent
               organizationId={organizationId}
               secretKey={generatedSecretKey}
@@ -142,7 +145,7 @@ export function CreateGatewayApiKeyDialogController({
           </Dialog>
         ) : (
           <Dialog
-            title="Issue API key"
+            title="Create gateway key"
             size="md"
             actions={[
               {
@@ -202,7 +205,7 @@ export function CreateGatewayApiKeyDialogController({
                         aria-describedby={field.inputDescribedById}
                         maxLength={500}
                         required
-                        placeholder="e.g. Checkout agent, backend service"
+                        placeholder="e.g. claude-local, codex-local, or backend-service"
                         value={name}
                         onChange={(event) => setName(event.target.value)}
                       />

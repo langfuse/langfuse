@@ -9,10 +9,11 @@ import {
 } from "@langfuse/shared/query";
 import { formatMetric } from "@/src/features/widgets/chart-library/utils";
 import {
+  type FormatMetricOptions,
   type MetricFormatterFunction,
   type MissingBucketValue,
 } from "@/src/features/widgets/chart-library/chart-props";
-import { mapLegacyUiTableFilterToView } from "@/src/features/dashboard";
+import { mapLegacyUiTableFilterToView } from "@/src/features/dashboard/lib/dashboardUiTableToViewMapping";
 
 // Shared widget chart configuration types
 export type WidgetChartConfig = {
@@ -289,6 +290,7 @@ export function getWidgetMetricPresentation(params: {
   metric: { measure: string; agg: string };
   view: string;
   version: ViewVersion;
+  usdPrecision?: FormatMetricOptions["usdPrecision"];
 }): {
   label: string;
   metricFormatter?: MetricFormatterFunction;
@@ -311,7 +313,11 @@ export function getWidgetMetricPresentation(params: {
     return {
       label: widgetUnitLabels[measureDefinition.unit],
       metricFormatter: (value, options) =>
-        formatMetric(value, { ...options, unit: measureDefinition.unit }),
+        formatMetric(value, {
+          ...options,
+          unit: measureDefinition.unit,
+          usdPrecision: params.usdPrecision,
+        }),
     };
   }
 
