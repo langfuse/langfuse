@@ -3,12 +3,10 @@ import type { FilterState } from "@langfuse/shared";
 
 import { GATEWAY_ANALYTICS_WIDGET_SIZE_CLASSES } from "@/src/features/ai-gateway/components/GatewayAnalyticsPage/constants/gatewayAnalyticsWidgetSizeClasses";
 import { buildGatewayAnalyticsQuery } from "@/src/features/ai-gateway/components/GatewayAnalyticsPage/fns/buildGatewayAnalyticsQuery";
+import type { GatewayAnalyticsFetchQuery } from "@/src/features/ai-gateway/components/GatewayAnalyticsPage/hooks/useGatewayAnalyticsFetchQuery";
 import type { GatewayAnalyticsWidget } from "@/src/features/ai-gateway/components/GatewayAnalyticsPage/types/gatewayAnalyticsWidget";
 import { DashboardCard } from "@/src/features/dashboard/components/cards/DashboardCard";
-import {
-  WidgetContent,
-  type WidgetQuerySource,
-} from "@/src/features/widgets/components/InlineWidget";
+import { WidgetContent } from "@/src/features/widgets/components/InlineWidget";
 import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { cn } from "@/src/utils/tailwind";
@@ -24,14 +22,14 @@ const BAR_CHART_TYPES = new Set<GatewayAnalyticsWidget["chartType"]>([
 ]);
 
 export function GatewayAnalyticsWidgetCard({
-  source,
+  fetchQuery,
   widget,
   timeRange,
   filters,
   dimensionLabelMap,
   isWaitingForLabels = false,
 }: {
-  source: WidgetQuerySource;
+  fetchQuery: GatewayAnalyticsFetchQuery;
   widget: GatewayAnalyticsWidget;
   timeRange: { from: Date; to: Date };
   filters: FilterState;
@@ -62,7 +60,7 @@ export function GatewayAnalyticsWidgetCard({
           // The loading skeleton has a min height taller than the small tiles;
           // clip it to the content area like dashboard widgets do.
           className={cn("overflow-hidden", isWaitingForLabels && "invisible")}
-          {...source}
+          fetchQuery={fetchQuery}
           query={query}
           version="v2"
           chartType={widget.chartType}

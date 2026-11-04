@@ -44,7 +44,7 @@ interface WidgetDimensionConfig {
 }
 
 /** A widget queries its project, or runs its query through `fetchQuery`. */
-export type WidgetQuerySource =
+type WidgetQuerySource =
   | { projectId: string; fetchQuery?: never }
   | {
       projectId?: never;
