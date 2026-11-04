@@ -127,6 +127,12 @@ export type ExperimentsTableProps = {
    * of a `Page`.
    */
   showControlsInPageHeader?: boolean;
+  /**
+   * When true, expose multi-select Delete experiments (events TraceDelete
+   * batch via experimentId filter). Intended for the project /experiments
+   * page only — not dataset-scoped experiment tables.
+   */
+  enableMultiSelectDelete?: boolean;
 };
 
 /**

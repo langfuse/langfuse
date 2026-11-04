@@ -381,6 +381,7 @@ const events = {
     "diff_mode_changed",
     "score_column_scope_toggled",
     "item_regression_filter_applied",
+    "delete_submitted",
   ],
   // Version-update reload notification (LFE-10978). `banner_shown` fires once
   // per appearance; the two actions measure the reload-vs-dismiss split. No

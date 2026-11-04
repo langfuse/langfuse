@@ -72,6 +72,7 @@ export const applicationToastOperations = [
   "evaluator_saved_dialog.dismiss",
   "evaluator_saved_dialog.finish",
   "evaluator_variable.extract",
+  "experiment.bulk_delete",
   "experiment.create",
   "experiment.trigger",
   "export.queue",
