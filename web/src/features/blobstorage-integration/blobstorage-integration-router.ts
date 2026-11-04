@@ -29,7 +29,7 @@ import {
   assertGcsBlobStorageBucketAllowed,
   createBlobStorageRoleCredentials,
   getStorageAccessRoleArn,
-  verifyStorageRoleRequiresExternalId,
+  StorageAccessRoleError,
 } from "@langfuse/shared/src/server";
 import { randomUUID } from "crypto";
 import { decrypt } from "@langfuse/shared/encryption";
@@ -425,12 +425,6 @@ export const blobStorageIntegrationRouter = createTRPCRouter({
 
         const usesRole =
           integration.authType === StorageIntegrationAuthType.ROLE_ARN;
-        if (usesRole && integration.roleArn) {
-          await verifyStorageRoleRequiresExternalId({
-            roleArn: integration.roleArn,
-            projectId: input.projectId,
-          });
-        }
 
         // Create storage service with provided configuration
         const storageService = StorageServiceFactory.getInstance({
@@ -550,6 +544,12 @@ This file can be safely deleted.`;
 
         if (e instanceof TRPCError) {
           throw e;
+        }
+        if (e instanceof StorageAccessRoleError) {
+          throw new TRPCError({
+            code: "INTERNAL_SERVER_ERROR",
+            message: "Langfuse could not reach the storage. Try again later.",
+          });
         }
 
         throw new TRPCError({

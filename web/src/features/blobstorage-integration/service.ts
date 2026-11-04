@@ -21,6 +21,7 @@ import { env } from "@/src/env.mjs";
 import {
   STORAGE_SESSION_POLICY_MAX_LENGTH,
   assertGcsBlobStorageBucketAllowed,
+  assertStorageRolePartition,
   buildStorageWriteSessionPolicy,
   generateStorageExternalId,
   getStorageAccessRoleArn,
@@ -113,6 +114,7 @@ function validateRoleAuthInput(params: {
   if (!STORAGE_ROLE_ARN_REGEX.test(roleArn)) {
     throw new InvalidRequestError(STORAGE_ROLE_ARN_INVALID_MESSAGE);
   }
+  assertStorageRolePartition(roleArn);
   const sessionPolicy = buildStorageWriteSessionPolicy({
     roleArn,
     bucketName: params.bucketName,

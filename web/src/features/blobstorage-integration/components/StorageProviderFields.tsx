@@ -176,9 +176,7 @@ export const StorageProviderFields = ({
               </FormControl>
               <FormDescription>
                 {integrationType === "S3"
-                  ? usesRole
-                    ? "The bucket's AWS region (e.g., us-east-1)"
-                    : "AWS region (e.g., us-east-1)"
+                  ? "AWS region (e.g., us-east-1)"
                   : "S3 compatible storage region (e.g. europe-west1, auto)"}
               </FormDescription>
               <FormMessage />
