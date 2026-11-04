@@ -142,6 +142,7 @@ const run = async (
   }
 
   for (const skill of skills) {
+    const includeAssistantTag = skill.name !== "local-many-files";
     const path = `/skills/${skill.name}`;
     const response = await request(ctx, `${path}?label=latest`);
     let version = response.ok
@@ -171,10 +172,14 @@ const run = async (
       );
       summary.counts.created++;
     }
-    if (!version.tags.includes(tag)) {
+    if (version.tags.includes(tag) !== includeAssistantTag) {
       await request(ctx, path, {
         method: "PATCH",
-        body: JSON.stringify({ tags: [...version.tags, tag] }),
+        body: JSON.stringify({
+          tags: includeAssistantTag
+            ? [...version.tags, tag]
+            : version.tags.filter((existingTag) => existingTag !== tag),
+        }),
       });
     }
     if (!version.labels.includes("production")) {
@@ -196,7 +201,7 @@ const run = async (
     if (
       readback.projectId !== ctx.projectId ||
       readback.version !== version.version ||
-      !readback.tags.includes(tag) ||
+      readback.tags.includes(tag) !== includeAssistantTag ||
       readback.files.length !== skill.files.length ||
       skill.files.some(
         (file) =>
@@ -206,7 +211,9 @@ const run = async (
     ) {
       throw new SeedError(`Readback mismatch for skill ${skill.name}`);
     }
-    ctx.log(`${skill.name} v${version.version}: production, tag ${tag}`);
+    ctx.log(
+      `${skill.name} v${version.version}: production, ${includeAssistantTag ? `tag ${tag}` : "UI fixture without assistant tag"}`,
+    );
   }
 
   return {

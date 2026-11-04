@@ -1,7 +1,7 @@
 import { type ReactNode, useState } from "react";
 import { Callout } from "@/src/components/design-system/Callout/Callout";
 import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
-import { api } from "@/src/utils/api";
+import { useSkillHasRecentUsage } from "@/src/features/skills/hooks/useSkillHasRecentUsage";
 import { TraceSkillDialog } from "./TraceSkillDialog";
 
 export function SkillUsage({
@@ -16,27 +16,8 @@ export function SkillUsage({
   children: ReactNode;
 }) {
   const [dismissed, setDismissed] = useState(false);
-  const usage = api.events.all.useQuery({
-    projectId,
-    filter: [
-      {
-        column: "skillNames",
-        type: "arrayOptions",
-        operator: "any of",
-        value: [name],
-      },
-    ],
-    searchQuery: null,
-    searchType: ["id", "content"],
-    orderBy: null,
-    page: 1,
-    limit: 1,
-  });
-  const showSetup =
-    !dismissed &&
-    usage.isSuccess &&
-    !usage.isFetching &&
-    usage.data.observations.length === 0;
+  const hasRecentUsage = useSkillHasRecentUsage(projectId, name);
+  const showSetup = !dismissed && hasRecentUsage === false;
 
   return (
     <DialogController
@@ -65,7 +46,7 @@ export function SkillUsage({
               >
                 <div className="flex min-w-0 flex-col gap-1">
                   <p className="font-bold">
-                    No traces linked to this skill yet
+                    No traces linked to this skill in the last 14 days
                   </p>
                   <p>
                     Trace your agent&apos;s model and skill-loading tool calls

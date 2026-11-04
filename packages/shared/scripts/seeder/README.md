@@ -102,11 +102,7 @@ seeded project, open the assistant, start a new chat and send:
 "Hosted skills are connected." Open Skills → local-assistant-check to inspect
 its `SKILL.md` instructions.
 
-For file-list and usage-layout checks, run
-`pnpm run seed -- assistant-skills --demo-files 25`. This also creates
-`local-many-files` with 25 files: `SKILL.md` and 24 synthetic reference files.
-The count can be 1-100; the default of 0 leaves this fixture out. Open the
-skill's Usage tab to check scrolling with a long file list.
+For file-list and usage-layout checks, run `pnpm run seed -- assistant-skills --demo-files 25`. This also creates `local-many-files` with 25 files: `SKILL.md` and 24 synthetic reference files. The count can be 1-100; the default of 0 leaves this fixture out. The fixture does not receive the assistant catalog tag. Open the skill's Usage tab to check scrolling with a long file list.
 
 To use these skills in the local assistant, set the following worker environment
 and restart the worker:
