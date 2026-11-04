@@ -31,7 +31,7 @@ import {
   createTestEvalConfig,
   createMockSchedulerDeps,
 } from "../../features/evaluation/observationEval/__tests__/fixtures";
-import { trackTraceBatchActivity } from "../../features/traceBatching/traceBatching";
+import { trackLegacyTopicsBatchActivity } from "../../features/traceBatching/traceBatching";
 import {
   batchContainsLangfuseScope,
   checkHeaderBasedDirectWrite,
@@ -74,7 +74,7 @@ vi.mock(
   }),
 );
 vi.mock("../../features/traceBatching/traceBatching", () => ({
-  trackTraceBatchActivity: vi.fn(),
+  trackLegacyTopicsBatchActivity: vi.fn(),
 }));
 
 vi.mock("../../features/traceBatching/traceRuleRecording", () => ({
@@ -280,7 +280,7 @@ describe("trace-rule recording at the evaluation stage", () => {
         expect(writeEventRecord).toHaveBeenCalledTimes(
           shouldWriteToEventsTable ? 3 : 0,
         );
-        expect(trackTraceBatchActivity).not.toHaveBeenCalled();
+        expect(trackLegacyTopicsBatchActivity).not.toHaveBeenCalled();
         expect(fetchEvalRules).toHaveBeenCalledExactlyOnceWith(projectId, {
           includeTraceTranscriptRules,
         });
@@ -491,7 +491,7 @@ describe("direct-v4 trace batch tracking", () => {
       expect(fetchEvalRules).toHaveBeenCalledExactlyOnceWith("project", {
         includeTraceTranscriptRules: false,
       });
-      expect(trackTraceBatchActivity).toHaveBeenCalledExactlyOnceWith(
+      expect(trackLegacyTopicsBatchActivity).toHaveBeenCalledExactlyOnceWith(
         "project",
         inputs.slice(0, 2).map(({ traceId, startTimeISO }, index) => ({
           traceId,
@@ -500,20 +500,20 @@ describe("direct-v4 trace batch tracking", () => {
         })),
       );
 
-      vi.mocked(trackTraceBatchActivity).mockClear();
+      vi.mocked(trackLegacyTopicsBatchActivity).mockClear();
       env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = undefined;
       await processor(job, undefined);
-      expect(trackTraceBatchActivity).not.toHaveBeenCalled();
+      expect(trackLegacyTopicsBatchActivity).not.toHaveBeenCalled();
       env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "DEV";
       vi.mocked(isTopicsEnabled).mockReturnValue(false);
       await processor(job, undefined);
-      expect(trackTraceBatchActivity).not.toHaveBeenCalled();
+      expect(trackLegacyTopicsBatchActivity).not.toHaveBeenCalled();
 
       env.LANGFUSE_TRACE_DISPATCH_ENABLED = "false";
       vi.mocked(isTopicsEnabled).mockReturnValue(true);
       write.mockRejectedValue(new Error("all writes rejected"));
       await processor(job, undefined);
-      expect(trackTraceBatchActivity).not.toHaveBeenCalled();
+      expect(trackLegacyTopicsBatchActivity).not.toHaveBeenCalled();
 
       env.LANGFUSE_MIGRATION_V4_WRITE_MODE = "legacy";
       write.mockClear();
@@ -521,7 +521,7 @@ describe("direct-v4 trace batch tracking", () => {
       await processor(job, undefined);
       expect(restore.mock.calls.map(([, records]) => records)).toEqual([[]]);
       expect(write).not.toHaveBeenCalled();
-      expect(trackTraceBatchActivity).not.toHaveBeenCalled();
+      expect(trackLegacyTopicsBatchActivity).not.toHaveBeenCalled();
     } finally {
       Object.assign(env, original);
       vi.mocked(isTopicsEnabled).mockReturnValue(false);

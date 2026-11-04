@@ -18,7 +18,7 @@ import {
   getTraceBatchExperimentRuleIds,
   scheduleTraceTranscriptEvals,
 } from "../evaluation/traceTranscriptEval/scheduleTraceTranscriptEvals";
-import { trackTraceBatchActivity } from "../traceBatching/traceBatching";
+import { trackLegacyTopicsBatchActivity } from "../traceBatching/traceBatching";
 import {
   isTraceBatchSampled,
   isTraceDispatchEnabled,
@@ -130,7 +130,7 @@ export async function processOtelEvents({
     ? createEvalSchedulerDeps(projectId, rules)
     : null;
 
-  const traceBatchEvents: {
+  const legacyTopicsBatchEvents: {
     traceId: string;
     startTimeISO: string;
     serializedEventBytes: number;
@@ -225,7 +225,7 @@ export async function processOtelEvents({
           const serializedEventBytes =
             await ingestionService.writeEventRecord(eventRecord);
           if (isLegacyTopicsBatchingEnabled()) {
-            traceBatchEvents.push({
+            legacyTopicsBatchEvents.push({
               traceId: eventInput.traceId,
               startTimeISO: eventInput.startTimeISO,
               serializedEventBytes,
@@ -255,9 +255,9 @@ export async function processOtelEvents({
     await schedulerDeps.flushTraceActivity();
   }
 
-  if (traceBatchEvents.length > 0) {
+  if (legacyTopicsBatchEvents.length > 0) {
     // The writer has accepted these records; its flush completes separately.
-    await trackTraceBatchActivity(projectId, traceBatchEvents);
+    await trackLegacyTopicsBatchActivity(projectId, legacyTopicsBatchEvents);
   }
   return mediaPresence;
 }

@@ -37,7 +37,7 @@ import {
   getTraceBatchShard,
 } from "../features/traceBatching/traceBatchReadiness";
 import {
-  trackTraceBatchActivity,
+  trackLegacyTopicsBatchActivity,
   TraceBatchDispatcher,
 } from "../features/traceBatching/traceBatching";
 import {
@@ -1041,7 +1041,7 @@ describe("trace micro-batch scheduling with Redis", () => {
   });
 
   it("dispatches recording maps across shards with bounded reads and leaves legacy maps unchanged", async () => {
-    await trackTraceBatchActivity("project", [event("legacy")]);
+    await trackLegacyTopicsBatchActivity("project", [event("legacy")]);
     await makeDue("project", "legacy");
     const legacyState = await client().hgetall(stateKey);
     const legacyDue = await client().zrange(dueKey, 0, -1, "WITHSCORES");
@@ -1276,7 +1276,9 @@ describe("trace micro-batch scheduling with Redis", () => {
   it("re-dispatches late arrivals with the earliest start of the whole trace", async () => {
     env.LANGFUSE_TRACE_BATCH_FIRST_SEEN_TTL_MS = 600;
     const start = Date.now() - 20 * 60_000;
-    await trackTraceBatchActivity("project", [event("late-trace", start)]);
+    await trackLegacyTopicsBatchActivity("project", [
+      event("late-trace", start),
+    ]);
     const trackedAt = Date.now();
     await vi.waitFor(() =>
       expect(Date.now() - trackedAt).toBeGreaterThanOrEqual(400),
@@ -1292,7 +1294,9 @@ describe("trace micro-batch scheduling with Redis", () => {
     );
 
     const lateStart = start + 10 * 60_000;
-    await trackTraceBatchActivity("project", [event("late-trace", lateStart)]);
+    await trackLegacyTopicsBatchActivity("project", [
+      event("late-trace", lateStart),
+    ]);
     await makeDue("project", "late-trace");
     await runner().processBatch();
     const jobs = await queue.getJobs(["wait"]);
@@ -1306,7 +1310,7 @@ describe("trace micro-batch scheduling with Redis", () => {
       first.data.payload.traces[0].revision,
     );
     const backdatedStart = start + 3 * 60_000;
-    await trackTraceBatchActivity("project", [
+    await trackLegacyTopicsBatchActivity("project", [
       event("late-trace", backdatedStart),
     ]);
     await makeDue("project", "late-trace");
@@ -1322,7 +1326,7 @@ describe("trace micro-batch scheduling with Redis", () => {
 
   it("keeps abandoned pending keys through idle time and the recovery grace", async () => {
     env.LANGFUSE_TRACE_BATCH_PENDING_TTL_MS = 200;
-    await trackTraceBatchActivity("project", [event("long-idle")], 500);
+    await trackLegacyTopicsBatchActivity("project", [event("long-idle")], 500);
     const due = Number(
       await client().zscore(dueKey, member("project", "long-idle")),
     );
@@ -1342,7 +1346,7 @@ describe("trace micro-batch scheduling with Redis", () => {
   it("expires first-seen history natively while keeping pending state independently", async () => {
     env.LANGFUSE_TRACE_BATCH_FIRST_SEEN_TTL_MS = 150;
     const first = Date.now() - 600_000;
-    await trackTraceBatchActivity("project", [event("history", first)]);
+    await trackLegacyTopicsBatchActivity("project", [event("history", first)]);
     const firstKeys = getTraceBatchFirstKeys(0, Date.now()).keys;
     expect(
       (await Promise.all(firstKeys.map((key) => client().hlen(key)))).reduce(
@@ -1356,7 +1360,7 @@ describe("trace micro-batch scheduling with Redis", () => {
       expect(await client().exists(...firstKeys)).toBe(0);
     });
     const next = first + 300_000;
-    await trackTraceBatchActivity("project", [event("history", next)]);
+    await trackLegacyTopicsBatchActivity("project", [event("history", next)]);
     const state = JSON.parse(
       (await client().hget(stateKey, member("project", "history")))!,
     );
@@ -1394,7 +1398,7 @@ describe("trace micro-batch scheduling with Redis", () => {
     for (let project = 0; project < 11; project++) {
       topicsProjects.add(`project-${project}`);
       const size = project === 0 ? 600 : 140;
-      await trackTraceBatchActivity(
+      await trackLegacyTopicsBatchActivity(
         `project-${project}`,
         Array.from({ length: size }, (_, i) => event(`trace-${project}-${i}`)),
       );
@@ -1440,7 +1444,7 @@ describe("trace micro-batch scheduling with Redis", () => {
         { length: 60 },
         (_, index) => `cross-shard-${index}`,
       );
-      await trackTraceBatchActivity(
+      await trackLegacyTopicsBatchActivity(
         "project",
         traceIds.map((traceId) => event(traceId)),
       );
@@ -1471,7 +1475,7 @@ describe("trace micro-batch scheduling with Redis", () => {
       { length: 120 },
       (_, index) => `trace-${index}`,
     );
-    await trackTraceBatchActivity(
+    await trackLegacyTopicsBatchActivity(
       "project",
       traceIds.map((traceId) => event(traceId)),
     );
@@ -1611,13 +1615,13 @@ describe("trace micro-batch scheduling with Redis", () => {
   it("dispatches with locality selection and records bounded selector measurements", async () => {
     env.LANGFUSE_TRACE_BATCH_STRATEGY = "locality";
     const minute = 60_000;
-    await trackTraceBatchActivity("project-a", [
+    await trackLegacyTopicsBatchActivity("project-a", [
       event("short-1", 10 * minute),
       event("short-1", 12 * minute),
       event("wide", 0),
       event("wide", 8 * 60 * minute),
     ]);
-    await trackTraceBatchActivity("project-b", [
+    await trackLegacyTopicsBatchActivity("project-b", [
       event("short-2", 11 * minute),
       event("short-2", 13 * minute),
     ]);
@@ -1676,7 +1680,7 @@ describe("trace micro-batch scheduling with Redis", () => {
     env.LANGFUSE_TRACE_BATCH_MAX_TRACE_EVENT_UPDATES = 3;
     env.LANGFUSE_TRACE_BATCH_MAX_TRACE_SERIALIZED_BYTES = 1_000;
     const warn = vi.spyOn(shared.logger, "warn");
-    await trackTraceBatchActivity("project", [
+    await trackLegacyTopicsBatchActivity("project", [
       ...Array.from({ length: 4 }, (_, index) =>
         event("many-updates", 1_000_000 + index),
       ),
@@ -1707,7 +1711,7 @@ describe("trace micro-batch scheduling with Redis", () => {
         expect.objectContaining({ projectId: "project", traceId, reason }),
       );
     }
-    await trackTraceBatchActivity("project", [
+    await trackLegacyTopicsBatchActivity("project", [
       event("many-updates", 1_000_004),
       event("large-input", 1_000_001),
     ]);
@@ -1732,7 +1736,7 @@ describe("trace micro-batch scheduling with Redis", () => {
     env.LANGFUSE_TRACE_BATCH_MAX_BATCH_EVENT_UPDATES = 6;
     try {
       const ingest = async (start: number) => {
-        await trackTraceBatchActivity("project", [
+        await trackLegacyTopicsBatchActivity("project", [
           event("a", start),
           event("a", start),
           event("b", start),
@@ -1769,7 +1773,7 @@ describe("trace micro-batch scheduling with Redis", () => {
   it("does not report an oversized trace as excluded when new activity keeps it pending", async () => {
     env.LANGFUSE_TRACE_BATCH_MAX_TRACE_EVENT_UPDATES = 3;
     const warn = vi.spyOn(shared.logger, "warn");
-    await trackTraceBatchActivity(
+    await trackLegacyTopicsBatchActivity(
       "project",
       Array.from({ length: 4 }, (_, index) =>
         event("reactivated", 1_000_000 + index),
@@ -1840,8 +1844,8 @@ describe("trace micro-batch scheduling with Redis", () => {
       const dueOffset = async (traceId: string) =>
         Number(await client().zscore(dueKey, member(projectId, traceId))) - now;
 
-      await trackTraceBatchActivity(projectId, [event("custom")]);
-      await trackTraceBatchActivity("project", [event("default")]);
+      await trackLegacyTopicsBatchActivity(projectId, [event("custom")]);
+      await trackLegacyTopicsBatchActivity("project", [event("default")]);
       expect(await dueOffset("custom")).toBeGreaterThan(3_590_000);
       expect(await dueOffset("custom")).toBeLessThan(3_610_000);
       expect(
@@ -1850,7 +1854,7 @@ describe("trace micro-batch scheduling with Redis", () => {
       ).toBeLessThan(610_000);
 
       env.LANGFUSE_TRACE_BATCH_PENDING_TTL_MS = 1_800_000;
-      await trackTraceBatchActivity(projectId, [event("capped")]);
+      await trackLegacyTopicsBatchActivity(projectId, [event("capped")]);
       expect(await dueOffset("capped")).toBeLessThan(1_780_000);
       expect(await dueOffset("capped")).toBeGreaterThan(1_760_000);
     } finally {
@@ -1870,7 +1874,7 @@ describe("trace micro-batch scheduling with Redis", () => {
       data: { id: projectId, orgId, name: "Idle time cache project" },
     });
     try {
-      await trackTraceBatchActivity(projectId, [event("uncached")]);
+      await trackLegacyTopicsBatchActivity(projectId, [event("uncached")]);
       expect(JSON.parse((await connection.get(cacheKey))!)).toEqual({
         traceIdleMs: null,
       });
@@ -1883,7 +1887,7 @@ describe("trace micro-batch scheduling with Redis", () => {
       expect(JSON.parse((await connection.get(cacheKey))!)).toEqual({
         traceIdleMs: 300_000,
       });
-      await trackTraceBatchActivity(projectId, [event("saved")]);
+      await trackLegacyTopicsBatchActivity(projectId, [event("saved")]);
       const offset =
         Number(await client().zscore(dueKey, member(projectId, "saved"))) -
         Date.now();
@@ -1987,7 +1991,7 @@ describe("trace micro-batch scheduling with Redis", () => {
       new Error("Postgres unavailable"),
     );
 
-    await trackTraceBatchActivity(projectId, [event("failed")]);
+    await trackLegacyTopicsBatchActivity(projectId, [event("failed")]);
 
     expect(recordIncrement).toHaveBeenCalledWith(
       "langfuse.trace_batch.idle_time_read_failures",
@@ -2004,7 +2008,7 @@ describe("trace micro-batch scheduling with Redis", () => {
     env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = undefined;
     const evaluate = vi.spyOn(client(), "eval");
     const lock = vi.spyOn(client(), "set");
-    await trackTraceBatchActivity("project", [event("trace")]);
+    await trackLegacyTopicsBatchActivity("project", [event("trace")]);
     await runner()["execute"]();
     const metrics = new TraceBatchMetricsRunner();
     await metrics["execute"]();
@@ -2375,18 +2379,22 @@ describe("trace micro-batch scheduling with Redis", () => {
     topicsProjects.add("inactive-project");
     try {
       vi.mocked(recordIncrement).mockClear();
-      await trackTraceBatchActivity("other-project", [event("other-trace")]);
+      await trackLegacyTopicsBatchActivity("other-project", [
+        event("other-trace"),
+      ]);
       vi.mocked(isTopicsProcessingActive).mockResolvedValueOnce(false);
-      await trackTraceBatchActivity("inactive-project", [
+      await trackLegacyTopicsBatchActivity("inactive-project", [
         event("inactive-trace"),
       ]);
       expect(recordIncrement).not.toHaveBeenCalled();
-      await trackTraceBatchActivity("topics-project", [event("topics-trace")]);
+      await trackLegacyTopicsBatchActivity("topics-project", [
+        event("topics-trace"),
+      ]);
       // An unreadable gate falls back to the allowlist.
       vi.mocked(isTopicsProcessingActive).mockRejectedValueOnce(
         new Error("postgres down"),
       );
-      await trackTraceBatchActivity("topics-project", [
+      await trackLegacyTopicsBatchActivity("topics-project", [
         event("fallback-trace"),
       ]);
       expect(recordIncrement).toHaveBeenCalledWith(
@@ -2410,7 +2418,7 @@ describe("trace micro-batch scheduling with Redis", () => {
     topicsProjects.delete("project");
     vi.mocked(shared.getTracingReadinessSettings).mockClear();
 
-    await trackTraceBatchActivity("project", [event("sampled-out")]);
+    await trackLegacyTopicsBatchActivity("project", [event("sampled-out")]);
 
     expect(shared.getTracingReadinessSettings).not.toHaveBeenCalled();
     expect(await client().hlen(stateKey)).toBe(0);
@@ -2445,7 +2453,7 @@ describe("trace micro-batch scheduling with Redis", () => {
   });
 
   it("counts only acknowledged update volume when tracking fails after a chunk", async () => {
-    await trackTraceBatchActivity("warm-up", [event("trace")]);
+    await trackLegacyTopicsBatchActivity("warm-up", [event("trace")]);
     await clearReadiness();
     vi.mocked(recordIncrement).mockClear();
     const fallback = vi.spyOn(client(), "eval");
@@ -2469,7 +2477,7 @@ describe("trace micro-batch scheduling with Redis", () => {
     });
 
     await expect(
-      trackTraceBatchActivity("project", [
+      trackLegacyTopicsBatchActivity("project", [
         ...Array.from({ length: 1_001 }, (_, index) =>
           event(`trace-${index}`, 100, 7),
         ),
@@ -2524,7 +2532,7 @@ describe("trace micro-batch scheduling with Redis", () => {
   it("preserves min/max across concurrent out-of-order arrivals, resets readiness, and separates tenants", async () => {
     await Promise.all(
       [30, 0, 20, 10].map((start) =>
-        trackTraceBatchActivity("project", [
+        trackLegacyTopicsBatchActivity("project", [
           event("trace", start, 100 + start),
           event("trace", start, 200 + start),
         ]),
@@ -2540,7 +2548,7 @@ describe("trace micro-batch scheduling with Redis", () => {
       serializedEventBytes: 1_320,
     });
     await makeDue("project", "trace");
-    await trackTraceBatchActivity("project", [
+    await trackLegacyTopicsBatchActivity("project", [
       event("trace", 15, 25),
       event("trace", 15, 25),
     ]);
@@ -2550,7 +2558,7 @@ describe("trace micro-batch scheduling with Redis", () => {
     expect(
       Number(await client().zscore(dueKey, member("project", "trace"))),
     ).toBeGreaterThan(Date.now() + 590_000);
-    await trackTraceBatchActivity("other", [event("trace", 100, 7)]);
+    await trackLegacyTopicsBatchActivity("other", [event("trace", 100, 7)]);
     expect(
       JSON.parse((await client().hget(stateKey, member("other", "trace")))!),
     ).toMatchObject({
@@ -2592,14 +2600,14 @@ describe("trace micro-batch scheduling with Redis", () => {
         { length: 201 },
         (_, index) => `trace-${index}`,
       );
-      await trackTraceBatchActivity(
+      await trackLegacyTopicsBatchActivity(
         "project",
         traces.map((traceId, index) => event(traceId, 1_000_000, index + 1)),
       );
-      await trackTraceBatchActivity("project", [
+      await trackLegacyTopicsBatchActivity("project", [
         event("trace-0", 1_000_000, 5),
       ]);
-      await trackTraceBatchActivity("other", [
+      await trackLegacyTopicsBatchActivity("other", [
         event("trace-0", 1_000_000, 10_000),
       ]);
       await client().zadd(
@@ -2613,7 +2621,7 @@ describe("trace micro-batch scheduling with Redis", () => {
       const add = vi.spyOn(queue, "add");
       env.LANGFUSE_TRACE_BATCH_INGESTION_ENABLED = "false";
       env.LANGFUSE_TRACE_BATCH_DISPATCHER_ENABLED = "false";
-      await trackTraceBatchActivity("disabled", [event("ignored")]);
+      await trackLegacyTopicsBatchActivity("disabled", [event("ignored")]);
       await runner().processBatch();
       const jobs = await queue.getJobs(["wait"]);
       for (const job of jobs) TraceBatchEventSchema.parse(job.data);
@@ -2734,7 +2742,7 @@ describe("trace micro-batch scheduling with Redis", () => {
         member("project", legacyIds[index]),
       );
     }
-    await trackTraceBatchActivity("project", [
+    await trackLegacyTopicsBatchActivity("project", [
       ...legacyIds.map((traceId) => event(traceId, 1_000_001, 20)),
       event("known", 1_000_000, 30),
     ]);
@@ -2784,7 +2792,7 @@ describe("trace micro-batch scheduling with Redis", () => {
     expect(await client().hlen(stateKey)).toBe(0);
 
     vi.clearAllMocks();
-    await trackTraceBatchActivity(
+    await trackLegacyTopicsBatchActivity(
       "project",
       legacyIds.map((traceId) => event(traceId, 1_000_002, 20)),
     );
@@ -2822,7 +2830,7 @@ describe("trace micro-batch scheduling with Redis", () => {
         due: due + Math.floor(i / 2_000) * 1_000,
       }));
       for (const projectId of ["project-c", "project-a", "project-b"]) {
-        await trackTraceBatchActivity(
+        await trackLegacyTopicsBatchActivity(
           projectId,
           traces
             .filter((trace) => trace.projectId === projectId)
@@ -2890,7 +2898,7 @@ describe("trace micro-batch scheduling with Redis", () => {
       traceId: `trace-${String(index).padStart(4, "0")}`,
     }));
     for (const projectId of ["project-a", "project-b"]) {
-      await trackTraceBatchActivity(
+      await trackLegacyTopicsBatchActivity(
         projectId,
         traces
           .filter((trace) => trace.projectId === projectId)
@@ -2960,7 +2968,7 @@ describe("trace micro-batch scheduling with Redis", () => {
     const firstWindow = [...early.slice(0, 28), ...filler, ...late];
     const traces = [...firstWindow, ...early.slice(28)];
 
-    await trackTraceBatchActivity(
+    await trackLegacyTopicsBatchActivity(
       "project",
       traces.map(({ traceId, start }) => event(traceId, start)),
     );
@@ -2982,7 +2990,7 @@ describe("trace micro-batch scheduling with Redis", () => {
       const result = await evaluate(...args);
       if (!reactivated && Number(args[1]) === 2 && args.length > 6) {
         reactivated = true;
-        await trackTraceBatchActivity("project", [
+        await trackLegacyTopicsBatchActivity("project", [
           event(early[0].traceId, 11 * minute),
         ]);
       }
@@ -3043,7 +3051,7 @@ describe("trace micro-batch scheduling with Redis", () => {
       { length: 2_001 },
       (_, i) => `trace-${String(i).padStart(5, "0")}`,
     );
-    await trackTraceBatchActivity(
+    await trackLegacyTopicsBatchActivity(
       "project",
       traces.map((id) => event(id)),
     );
@@ -3063,7 +3071,7 @@ describe("trace micro-batch scheduling with Redis", () => {
         await client().hdel(stateKey, member("project", traces[0]));
         await client().hdel(stateKey, member("project", traces[1_000]));
         env.LANGFUSE_TRACE_BATCH_IDLE_MS = 1;
-        await trackTraceBatchActivity("project", [
+        await trackLegacyTopicsBatchActivity("project", [
           event(traces[999]),
           event("new-after-cutoff"),
         ]);
@@ -3092,7 +3100,7 @@ describe("trace micro-batch scheduling with Redis", () => {
   it("expires abandoned pending keys natively without another ingestion or dispatcher run", async () => {
     env.LANGFUSE_TRACE_BATCH_IDLE_MS = 100;
     env.LANGFUSE_TRACE_BATCH_PENDING_TTL_MS = 300;
-    await trackTraceBatchActivity("project", [event("abandoned")]);
+    await trackLegacyTopicsBatchActivity("project", [event("abandoned")]);
     for (const key of [dueKey, stateKey]) {
       expect(await client().pttl(key)).toBeGreaterThan(0);
       expect(await client().pttl(key)).toBeLessThanOrEqual(400);
@@ -3106,20 +3114,20 @@ describe("trace micro-batch scheduling with Redis", () => {
   it("extends native expiry for later activity and never shortens another pending trace's deadline", async () => {
     env.LANGFUSE_TRACE_BATCH_IDLE_MS = 10_000;
     env.LANGFUSE_TRACE_BATCH_PENDING_TTL_MS = 60_000;
-    await trackTraceBatchActivity("project", [event("long-idle")]);
+    await trackLegacyTopicsBatchActivity("project", [event("long-idle")]);
     const initialDeadline = Number(await client().pexpiretime(dueKey));
     await vi.waitFor(() =>
       expect(Date.now()).toBeGreaterThan(initialDeadline - 70_000 + 10),
     );
     env.LANGFUSE_TRACE_BATCH_IDLE_MS = 20_000;
-    await trackTraceBatchActivity("project", [event("later")]);
+    await trackLegacyTopicsBatchActivity("project", [event("later")]);
     const extendedDeadline = Number(await client().pexpiretime(dueKey));
     expect(extendedDeadline).toBeGreaterThan(initialDeadline);
     expect(Number(await client().pexpiretime(stateKey))).toBe(extendedDeadline);
 
     env.LANGFUSE_TRACE_BATCH_IDLE_MS = 1_000;
     env.LANGFUSE_TRACE_BATCH_PENDING_TTL_MS = 1_000;
-    await trackTraceBatchActivity("project", [event("short-idle")]);
+    await trackLegacyTopicsBatchActivity("project", [event("short-idle")]);
     expect(Number(await client().pexpiretime(dueKey))).toBeGreaterThanOrEqual(
       extendedDeadline,
     );
@@ -3134,7 +3142,7 @@ describe("trace micro-batch scheduling with Redis", () => {
     for (const key of [dueKey, stateKey])
       await client().pexpireat(key, roundedDeadline);
     vi.mocked(recordIncrement).mockClear();
-    await trackTraceBatchActivity("project", [event("rounded-expiry")]);
+    await trackLegacyTopicsBatchActivity("project", [event("rounded-expiry")]);
     expect(recordIncrement).not.toHaveBeenCalledWith(
       "langfuse.trace_batch.tracking_errors",
       expect.anything(),
@@ -3211,7 +3219,7 @@ describe("trace micro-batch scheduling with Redis", () => {
     const expired = Array.from({ length: 1_001 }, (_, i) =>
       event(`expired-${i}`),
     );
-    await trackTraceBatchActivity("project", [
+    await trackLegacyTopicsBatchActivity("project", [
       ...expired,
       event("refreshed"),
       event("recent"),
@@ -3224,7 +3232,9 @@ describe("trace micro-batch scheduling with Redis", () => {
       member("project", "refreshed"),
     );
     await makeDue("project", "recent");
-    await trackTraceBatchActivity("project", [event("refreshed", 2_000_000)]);
+    await trackLegacyTopicsBatchActivity("project", [
+      event("refreshed", 2_000_000),
+    ]);
     const pending = await client().zcard(dueKey);
     expect(pending).toBeGreaterThan(2);
     expect(pending).toBeLessThan(expired.length + 2);
@@ -3241,7 +3251,9 @@ describe("trace micro-batch scheduling with Redis", () => {
       { source: "ingestion" },
     );
     await vi.waitFor(async () => {
-      await trackTraceBatchActivity("project", [event("refreshed", 3_000_000)]);
+      await trackLegacyTopicsBatchActivity("project", [
+        event("refreshed", 3_000_000),
+      ]);
       expect(await client().zcard(dueKey)).toBe(2);
     });
     expect((await client().hkeys(stateKey)).sort()).toEqual([
@@ -3269,7 +3281,10 @@ describe("trace micro-batch scheduling with Redis", () => {
     const expired = Array.from({ length: 10_001 }, (_, i) =>
       event(`expired-${i}`),
     );
-    await trackTraceBatchActivity("project", [...expired, event("ready")]);
+    await trackLegacyTopicsBatchActivity("project", [
+      ...expired,
+      event("ready"),
+    ]);
     await client().zadd(
       dueKey,
       ...expired.flatMap(({ traceId }) => [
@@ -3316,7 +3331,7 @@ describe("trace micro-batch scheduling with Redis", () => {
     "keeps due state on enqueue failure and retries it with %s",
     async (strategy) => {
       env.LANGFUSE_TRACE_BATCH_STRATEGY = strategy;
-      await trackTraceBatchActivity("project", [event("trace")]);
+      await trackLegacyTopicsBatchActivity("project", [event("trace")]);
       await makeDue("project", "trace");
       vi.spyOn(queue, "add").mockRejectedValueOnce(
         new Error("enqueue unavailable"),
@@ -3333,7 +3348,10 @@ describe("trace micro-batch scheduling with Redis", () => {
 
   it("acknowledges successful jobs when a later enqueue fails", async () => {
     env.LANGFUSE_TRACE_BATCH_MAX_SIZE = 1;
-    await trackTraceBatchActivity("project", [event("first"), event("second")]);
+    await trackLegacyTopicsBatchActivity("project", [
+      event("first"),
+      event("second"),
+    ]);
     await makeDue("project", "first", "second");
     const add = queue.add.bind(queue);
     vi.spyOn(queue, "add")
@@ -3353,7 +3371,7 @@ describe("trace micro-batch scheduling with Redis", () => {
   it.each(["updated", "deleted", "expired"] as const)(
     "preserves arrivals during enqueue, including deleted/recreated state: %s",
     async (mode) => {
-      await trackTraceBatchActivity("project", [event("trace")]);
+      await trackLegacyTopicsBatchActivity("project", [event("trace")]);
       await makeDue("project", "trace");
       const add = queue.add.bind(queue);
       vi.spyOn(queue, "add").mockImplementationOnce(async (...args) => {
@@ -3362,14 +3380,16 @@ describe("trace micro-batch scheduling with Redis", () => {
           await client().hdel(stateKey, member("project", "trace"));
         if (mode === "expired") {
           await client().zadd(dueKey, 0, member("project", "trace"));
-          await trackTraceBatchActivity("other", [event("trigger")]);
+          await trackLegacyTopicsBatchActivity("other", [event("trigger")]);
           expect(
             await client().hget(stateKey, member("project", "trace")),
           ).toBeNull();
           await client().zrem(dueKey, member("other", "trigger"));
           await client().hdel(stateKey, member("other", "trigger"));
         }
-        await trackTraceBatchActivity("project", [event("trace", 2_000_000)]);
+        await trackLegacyTopicsBatchActivity("project", [
+          event("trace", 2_000_000),
+        ]);
         return job;
       });
       const dispatcher = runner();
@@ -3394,9 +3414,9 @@ describe("trace micro-batch scheduling with Redis", () => {
   );
 
   it("reuses a queued batch when its acknowledgement fails", async () => {
-    await trackTraceBatchActivity("project", [event("trace")]);
+    await trackLegacyTopicsBatchActivity("project", [event("trace")]);
     await makeDue("project", "trace");
-    await trackTraceBatchActivity("other", [event("trace")]);
+    await trackLegacyTopicsBatchActivity("other", [event("trace")]);
     await makeDue("other", "trace");
     const add = queue.add.bind(queue);
     vi.spyOn(queue, "add").mockImplementationOnce(async (...args) => {
@@ -3440,7 +3460,7 @@ describe("trace micro-batch scheduling with Redis", () => {
   });
 
   it("bounds shutdown when an in-flight enqueue stalls and remains stopped after recovery", async () => {
-    await trackTraceBatchActivity("project", [event("trace")]);
+    await trackLegacyTopicsBatchActivity("project", [event("trace")]);
     await makeDue("project", "trace");
     const entered = Promise.withResolvers<void>();
     const release = Promise.withResolvers<void>();
@@ -3468,7 +3488,7 @@ describe("trace micro-batch scheduling with Redis", () => {
       release.resolve();
       await Promise.all([active, drain]);
     }
-    await trackTraceBatchActivity("project", [event("next")]);
+    await trackLegacyTopicsBatchActivity("project", [event("next")]);
     await makeDue("project", "next");
     await dispatcher.processBatch();
     expect(queue.add).toHaveBeenCalledTimes(1);
@@ -3478,12 +3498,12 @@ describe("trace micro-batch scheduling with Redis", () => {
   it("allows only one dispatcher and waits for its in-flight enqueue before shutdown", async () => {
     env.LANGFUSE_TRACE_BATCH_MAX_SIZE = 1;
     const traces = ["trace"];
-    await trackTraceBatchActivity(
+    await trackLegacyTopicsBatchActivity(
       "project",
       traces.map((traceId) => event(traceId)),
     );
     await makeDue("project", ...traces);
-    await trackTraceBatchActivity("other", [event("trace")]);
+    await trackLegacyTopicsBatchActivity("other", [event("trace")]);
     await makeDue("other", "trace");
     const entered = Promise.withResolvers<void>();
     const release = Promise.withResolvers<void>();

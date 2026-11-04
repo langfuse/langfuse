@@ -81,7 +81,7 @@ function recordTrackingVolume(
   });
 }
 
-export async function trackTraceBatchActivity(
+export async function trackLegacyTopicsBatchActivity(
   projectId: string,
   events: {
     traceId: string;
