@@ -204,7 +204,7 @@ export async function traceFacetResults(
 ) {
   const slackMs = OBSERVATIONS_TO_TRACE_INTERVAL_DAYS * 86_400_000;
   // Narrow to the trace's exact source time so assignment reads prune to its minute.
-  const unitTimeRange = await getTopicTraceUnitTimeRange(projectId, traceId, {
+  const unitTimeRange = await getTopicTraceUnitTimeRange(projectId, [traceId], {
     from: new Date(timestamp.getTime() - slackMs),
     to: new Date(timestamp.getTime() + slackMs),
   });
