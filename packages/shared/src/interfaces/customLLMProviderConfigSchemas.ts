@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { OAuth2ConfigSchema, type OAuth2Config } from "./oauth2Providers";
 
 // Sentinel value for Bedrock default credential provider chain
 export const BEDROCK_USE_DEFAULT_CREDENTIALS =
@@ -20,18 +21,30 @@ export const LLMConnectionConfigValueSchema = z.union([
   z.string(),
   z.boolean(),
 ]);
-export const LLMConnectionConfigSchema = z.record(
-  z.string(),
-  LLMConnectionConfigValueSchema,
-);
-export type LLMConnectionConfig = z.infer<typeof LLMConnectionConfigSchema>;
+export const LLMConnectionConfigSchema = z
+  .object({ oauth2: OAuth2ConfigSchema.optional() })
+  .catchall(LLMConnectionConfigValueSchema);
+// Declared by hand: the inferred type cannot express a nested `oauth2`
+// object next to an index signature of flat values.
+export type LLMConnectionConfig = {
+  [key: string]: string | boolean | OAuth2Config | undefined;
+  oauth2?: OAuth2Config;
+};
 
 export const OpenAIConfigSchema = z
   .object({
     useResponsesApi: z.boolean().default(false),
+    oauth2: OAuth2ConfigSchema.optional(),
   })
   .strict();
 export type OpenAIConfig = z.infer<typeof OpenAIConfigSchema>;
+
+export const AnthropicConfigSchema = z
+  .object({
+    oauth2: OAuth2ConfigSchema.optional(),
+  })
+  .strict();
+export type AnthropicConfig = z.infer<typeof AnthropicConfigSchema>;
 
 export const BedrockAccessKeysSchema = z
   .object({

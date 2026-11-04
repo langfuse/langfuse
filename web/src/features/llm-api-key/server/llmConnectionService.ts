@@ -9,6 +9,7 @@ import {
 } from "@/src/features/llm-api-key/types";
 import { getConnectionAvailableModels } from "@/src/features/llm-api-key/availableModels";
 import {
+  AnthropicConfigSchema,
   BEDROCK_USE_DEFAULT_CREDENTIALS,
   BedrockConfigSchema,
   BedrockCredentialSchema,
@@ -18,12 +19,15 @@ import {
   InvalidRequestError,
   InternalServerError,
   isDecisionModelAdapter,
+  isOAuth2Config,
   LangfuseConflictError,
   LangfuseNotFoundError,
   type LLMConnectionConfig,
   LLMConnectionConfigSchema,
   LLMAdapter,
+  OAuth2ConfigSchema,
   OpenAIConfigSchema,
+  resolveOAuth2Profile,
   supportedModels,
   VERTEXAI_USE_DEFAULT_CREDENTIALS,
   VertexAIConfigSchema,
@@ -32,6 +36,7 @@ import {
 } from "@langfuse/shared";
 import { decrypt, encrypt } from "@langfuse/shared/encryption";
 import {
+  assertOAuth2TokenEndpointAllowed,
   blockEvaluatorsUsingProvider,
   ChatMessageType,
   createTypeSafeDecisionModelClient,
@@ -42,9 +47,12 @@ import {
   finalizeEvaluatorBlocks,
   generateLLMText,
   getClientInitiatedNonStreamingLlmTimeoutMs,
+  getOAuth2DisplaySecretKey,
   isPrismaRecordNotFoundError,
   logger,
   mapLegacyLLMCompletionParams,
+  OAuth2TokenError,
+  prepareOAuth2Credential,
   validateLlmConnectionBaseURL,
 } from "@langfuse/shared/src/server";
 import { prisma, Prisma, type LlmApiKeys } from "@langfuse/shared/src/db";
@@ -149,7 +157,13 @@ const toSafeConnection = (connection: LlmApiKeys): SafeLlmConnection => {
   throw new Error(`LLM connection "${connection.id}" has no owner`);
 };
 
-function getDisplaySecretKey(secretKey: string): string {
+function getDisplaySecretKey(
+  secretKey: string,
+  config: LLMConnectionConfig | null | undefined,
+): string {
+  if (isOAuth2Config(config)) {
+    return getOAuth2DisplaySecretKey(config.oauth2.authMethod, secretKey);
+  }
   if (secretKey === BEDROCK_USE_DEFAULT_CREDENTIALS) {
     return "Default AWS credentials";
   }
@@ -300,6 +314,133 @@ function validateSecret(params: {
   }
 }
 
+const OAUTH2_ADAPTERS: readonly LLMAdapter[] = [
+  LLMAdapter.OpenAI,
+  LLMAdapter.Anthropic,
+];
+
+const NEW_OAUTH2_SECRET_REQUIRED_MESSAGE =
+  "A new secret is required when changing the authentication type, identity provider, auth method, token endpoint, client ID, audience or resource";
+
+function validateAnthropicConfig(params: {
+  adapter: LLMAdapter;
+  config?: LLMConnectionConfig | null;
+}): void {
+  if (params.adapter !== LLMAdapter.Anthropic || !params.config) {
+    return;
+  }
+  const result = AnthropicConfigSchema.safeParse(params.config);
+  if (!result.success) {
+    throw new InvalidRequestError(
+      `Invalid Anthropic config: ${result.error.issues.map((e) => e.message).join(", ")}. Expected: { oauth2?: object }`,
+    );
+  }
+}
+
+// OAuth2TokenError messages never contain key material, so they are safe to
+// return to the caller.
+function toInvalidRequestError(error: unknown): unknown {
+  return error instanceof OAuth2TokenError
+    ? new InvalidRequestError(error.message)
+    : error;
+}
+
+/**
+ * Validates an OAuth2 client credentials connection before it is stored or
+ * tested: adapter, provider config, extra headers, token endpoint allowlist
+ * and SSRF host check, and that the secret fits the auth method. No-op for
+ * connections without `config.oauth2`.
+ */
+async function validateOAuth2Connection(params: {
+  adapter: LLMAdapter;
+  config?: unknown;
+  secretKey: string;
+  extraHeaders?: Record<string, string | null | undefined>;
+}): Promise<void> {
+  const oauth2 =
+    typeof params.config === "object" &&
+    params.config !== null &&
+    "oauth2" in params.config
+      ? params.config.oauth2
+      : undefined;
+  if (oauth2 === undefined) {
+    return;
+  }
+
+  if (!OAUTH2_ADAPTERS.includes(params.adapter)) {
+    throw new InvalidRequestError(
+      "OAuth2 is only supported for the openai and anthropic adapters",
+    );
+  }
+  const parsed = OAuth2ConfigSchema.safeParse(oauth2);
+  if (!parsed.success) {
+    throw new InvalidRequestError(
+      `Invalid OAuth2 config: ${parsed.error.issues.map((e) => e.message).join(", ")}`,
+    );
+  }
+  if (
+    Object.keys(params.extraHeaders ?? {}).some(
+      (key) => key.toLowerCase() === "authorization",
+    )
+  ) {
+    throw new InvalidRequestError(
+      "Authorization header is not allowed for OAuth2 connections",
+    );
+  }
+
+  const profile = resolveOAuth2Profile(parsed.data);
+  try {
+    assertOAuth2TokenEndpointAllowed(profile.tokenEndpoint);
+  } catch (error) {
+    throw toInvalidRequestError(error);
+  }
+  try {
+    await validateLlmConnectionBaseURL(profile.tokenEndpoint);
+  } catch (error) {
+    throw new InvalidRequestError(
+      `Invalid OAuth2 token endpoint: ${error instanceof Error ? error.message : "Unknown error"}`,
+    );
+  }
+  try {
+    await prepareOAuth2Credential(profile, params.secretKey, {
+      verifySigning: true,
+    });
+  } catch (error) {
+    throw toInvalidRequestError(error);
+  }
+}
+
+/**
+ * The stored secret must not be sent to a different identity provider,
+ * token endpoint or client than it was entered for, nor be used to get
+ * tokens for a different audience or resource, nor be reused across API key
+ * and OAuth2 authentication. Scope may change without a new secret.
+ * `next === undefined` keeps the stored config.
+ */
+function requiresNewSecret(
+  existing: LLMConnectionConfig | null,
+  next: LLMConnectionConfig | null | undefined,
+): boolean {
+  if (next === undefined) {
+    return false;
+  }
+  const before = isOAuth2Config(existing)
+    ? resolveOAuth2Profile(existing.oauth2)
+    : null;
+  const after = isOAuth2Config(next) ? resolveOAuth2Profile(next.oauth2) : null;
+  if (!before || !after) {
+    return before !== after;
+  }
+  return (
+    before.provider !== after.provider ||
+    before.authMethod !== after.authMethod ||
+    before.tokenEndpoint !== after.tokenEndpoint ||
+    before.clientId !== after.clientId ||
+    before.formParams.audience !== after.formParams.audience ||
+    before.formParams.resource !== after.formParams.resource
+  );
+}
+
 function resolveUpdatedExtraHeaders(params: {
   inputHeaders: Record<string, string | null | undefined> | undefined;
   storedHeaders: string | null;
@@ -339,6 +480,7 @@ async function testLlmConnection(
     if (params.validateSecretBeforeTest !== false) {
       validateSecret({ adapter: params.adapter, secretKey: params.secretKey });
     }
+    await validateOAuth2Connection(params);
 
     const model = params.customModels?.length
       ? params.customModels[0]
@@ -382,6 +524,11 @@ async function testLlmConnection(
       parsedConfig = { region: config.region };
     } else if (params.config && params.adapter === LLMAdapter.OpenAI) {
       parsedConfig = OpenAIConfigSchema.parse(params.config);
+    } else if (
+      params.adapter === LLMAdapter.Anthropic &&
+      isOAuth2Config(params.config)
+    ) {
+      parsedConfig = AnthropicConfigSchema.parse(params.config);
     } else if (params.config && params.adapter === LLMAdapter.VertexAI) {
       const config = VertexAIConfigSchema.parse(params.config);
       parsedConfig = config.location ? { location: config.location } : null;
@@ -530,6 +677,8 @@ export class LlmConnectionService {
   }): Promise<SafeLlmConnection> {
     await validateBaseUrlForWrite(params.input);
     validateSecret(params.input);
+    validateAnthropicConfig(params.input);
+    await validateOAuth2Connection(params.input);
 
     let key: LlmApiKeys;
     try {
@@ -547,7 +696,10 @@ export class LlmConnectionService {
             provider: params.input.provider,
             adapter: params.input.adapter,
             secretKey: encrypt(params.input.secretKey),
-            displaySecretKey: getDisplaySecretKey(params.input.secretKey),
+            displaySecretKey: getDisplaySecretKey(
+              params.input.secretKey,
+              params.input.config,
+            ),
             baseURL: params.input.baseURL,
             withDefaultModels: params.input.withDefaultModels,
             customModels: params.input.customModels,
@@ -599,9 +751,24 @@ export class LlmConnectionService {
       await validateBaseUrlForWrite(params.input);
     }
     validateSecret(params.input);
+    validateAnthropicConfig(params.input);
+    // An upsert without `config` keeps the stored one.
+    const effectiveConfig =
+      params.input.config !== undefined
+        ? params.input.config
+        : LLMConnectionConfigSchema.nullable().parse(
+            storedConnection?.config ?? null,
+          );
+    await validateOAuth2Connection({
+      ...params.input,
+      config: effectiveConfig,
+    });
 
     const encryptedSecretKey = encrypt(params.input.secretKey);
-    const displaySecretKey = getDisplaySecretKey(params.input.secretKey);
+    const displaySecretKey = getDisplaySecretKey(
+      params.input.secretKey,
+      effectiveConfig,
+    );
     const encryptedExtraHeaders = params.input.extraHeaders
       ? encrypt(JSON.stringify(params.input.extraHeaders))
       : undefined;
@@ -703,18 +870,38 @@ export class LlmConnectionService {
     if (isBaseURLChanged) {
       await validateBaseUrlForWrite(params.input);
     }
+    const existingConfig = LLMConnectionConfigSchema.nullable().parse(
+      existingKey.config,
+    );
+    if (
+      !params.input.secretKey &&
+      requiresNewSecret(existingConfig, params.input.config)
+    ) {
+      throw new InvalidRequestError(NEW_OAUTH2_SECRET_REQUIRED_MESSAGE);
+    }
     if (params.input.secretKey) {
       validateSecret({
         adapter: params.input.adapter,
         secretKey: params.input.secretKey,
       });
     }
+    validateAnthropicConfig(params.input);
 
     const extraHeaders = resolveUpdatedExtraHeaders({
       inputHeaders: params.input.extraHeaders,
       storedHeaders: existingKey.extraHeaders,
       isBaseURLChanged,
     });
+    const effectiveConfig =
+      params.input.config !== undefined ? params.input.config : existingConfig;
+    if (effectiveConfig?.oauth2 !== undefined) {
+      await validateOAuth2Connection({
+        adapter: params.input.adapter,
+        config: effectiveConfig,
+        secretKey: params.input.secretKey || decrypt(existingKey.secretKey),
+        extraHeaders,
+      });
+    }
     let encryptedExtraHeaders: string | null | undefined;
     let extraHeaderKeys: string[] | undefined;
     if (extraHeaders) {
@@ -732,7 +919,10 @@ export class LlmConnectionService {
         ...(params.input.secretKey
           ? {
               secretKey: encrypt(params.input.secretKey),
-              displaySecretKey: getDisplaySecretKey(params.input.secretKey),
+              displaySecretKey: getDisplaySecretKey(
+                params.input.secretKey,
+                effectiveConfig,
+              ),
             }
           : {}),
         extraHeaders: encryptedExtraHeaders,
@@ -787,6 +977,15 @@ export class LlmConnectionService {
           "Secret key is required when changing the base URL",
         );
       }
+      const existingConfig = LLMConnectionConfigSchema.nullable().parse(
+        existingKey.config,
+      );
+      if (
+        !hasNewSecretKey &&
+        requiresNewSecret(existingConfig, params.input.config)
+      ) {
+        throw new InvalidRequestError(NEW_OAUTH2_SECRET_REQUIRED_MESSAGE);
+      }
 
       const extraHeaders = resolveUpdatedExtraHeaders({
         inputHeaders: params.input.extraHeaders,
@@ -804,10 +1003,7 @@ export class LlmConnectionService {
         baseURL,
         customModels: params.input.customModels ?? existingKey.customModels,
         extraHeaders,
-        config:
-          params.input.config ??
-          LLMConnectionConfigSchema.nullable().parse(existingKey.config) ??
-          undefined,
+        config: params.input.config ?? existingConfig ?? undefined,
         validateBaseUrlBeforeTest: isBaseURLChanged,
         validateSecretBeforeTest: hasNewSecretKey,
       });

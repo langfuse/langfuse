@@ -27,6 +27,7 @@ import {
 import { decrypt } from "../../encryption";
 import { env } from "../../env";
 import type { LLMConnectionConfig } from "../../interfaces/customLLMProviderConfigSchemas";
+import { isOAuth2Config } from "../../interfaces/oauth2Providers";
 import { LLMValidationError } from "./errors";
 import { resolveEvaluatorMediaTransport } from "./mediaMessages";
 import { mapChatMessagesToModelMessages } from "./ai-sdk/messages";
@@ -52,6 +53,8 @@ import {
   createAiSdkTelemetryCapture,
   type AiSdkTelemetryCapture,
 } from "./ai-sdk/telemetry";
+import { resolveOAuth2Connection } from "./oauth2/connection";
+import { OAuth2TokenError } from "./oauth2/errors";
 import { createSecureLlmFetch } from "./secureLlmFetch";
 import type {
   ChatMessage,
@@ -316,15 +319,15 @@ async function prepareLLMTextCall<
     trace: options.trace,
   });
 
-  const { apiKey, extraHeaders, createFetch } = openLLMConnection(
-    options.connection,
-  );
+  const { apiKey, bearerAuth, extraHeaders, createFetch } =
+    await openLLMConnection(options.connection);
 
   const languageModel = await buildAiSdkModel({
     model: options.model,
     modelConfig,
     openAIChatProvider: options.openAIChatProvider,
     apiKey,
+    bearerAuth,
     baseURL: options.connection.baseURL,
     extraHeaders,
     config: options.connection.config,
@@ -366,10 +369,10 @@ async function prepareLLMTextCall<
   };
 }
 
-function openLLMConnection(connection: LLMConnection) {
-  const apiKey = decrypt(connection.secretKey);
+async function openLLMConnection(connection: LLMConnection) {
+  const decryptedSecret = decrypt(connection.secretKey);
   const extraHeaders = decryptAndParseExtraHeaders(connection.extraHeaders);
-  const createFetch = (
+  const createSecureFetch = (
     logContext: string,
     additionalSensitiveHeaders?: string[],
   ) =>
@@ -382,7 +385,33 @@ function openLLMConnection(connection: LLMConnection) {
         Object.keys(extraHeaders ?? {}),
       ),
     });
-  return { apiKey, extraHeaders, createFetch };
+
+  if (connection.config?.oauth2 === undefined) {
+    return {
+      apiKey: decryptedSecret,
+      bearerAuth: false,
+      extraHeaders,
+      createFetch: createSecureFetch,
+    };
+  }
+
+  // The stored secret is an OAuth2 client credential; only the access token
+  // obtained with it is sent to the gateway.
+  if (!isOAuth2Config(connection.config)) {
+    throw new OAuth2TokenError("config", "Invalid OAuth2 connection config");
+  }
+  const { accessToken, wrapFetch } = await resolveOAuth2Connection({
+    config: connection.config,
+    decryptedSecret,
+    projectId: connection.projectId,
+  });
+  return {
+    apiKey: accessToken,
+    bearerAuth: true,
+    extraHeaders,
+    createFetch: (logContext: string, additionalSensitiveHeaders?: string[]) =>
+      wrapFetch(createSecureFetch(logContext, additionalSensitiveHeaders)),
+  };
 }
 
 /** Embeds values with a persisted connection, batched per provider limit; calls are not traced. */
@@ -402,7 +431,7 @@ export async function embedLLMText(options: {
     baseURL: options.connection.baseURL,
     credentialSource: "user",
   });
-  const { apiKey, extraHeaders, createFetch } = openLLMConnection(
+  const { apiKey, extraHeaders, createFetch } = await openLLMConnection(
     options.connection,
   );
   const embeddingModel = await buildAiSdkEmbeddingModel({

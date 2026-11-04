@@ -21,4 +21,7 @@ readonly OUTPUT="${2:?usage: write-web-test-env.sh <env example> <output>}"
   # The started worker shares the test database, and its relay would delete
   # staged audit rows that server tests read back.
   echo "LANGFUSE_AUDIT_LOG_RELAY_ENABLED=false"
+  # Token endpoints used by the OAuth2 LLM connection API tests.
+  echo "LANGFUSE_LLM_OAUTH2_ALLOWED_TOKEN_ENDPOINTS=https://1.1.1.1/oauth2/token,https://1.1.1.1/realms/langfuse/protocol/openid-connect/token"
+  echo "LANGFUSE_LLM_OAUTH2_TOKEN_MAX_RETRIES=0"
 } > "$OUTPUT"

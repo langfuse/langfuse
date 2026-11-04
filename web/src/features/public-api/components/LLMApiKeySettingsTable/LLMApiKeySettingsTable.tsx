@@ -1,8 +1,13 @@
 /* eslint-disable react/no-unstable-nested-components */
 import { useCallback, useMemo, type ReactNode } from "react";
+import { flexRender } from "@tanstack/react-table";
 import { Pencil, PlusIcon, Route, Trash } from "@langfuse/icons";
 import { SiAnthropic, SiOpenai } from "@langfuse/icons/si";
-import { LLMAdapter } from "@langfuse/shared";
+import {
+  LLMAdapter,
+  OAUTH2_PROVIDER_PROFILES,
+  isOAuth2Config,
+} from "@langfuse/shared";
 
 import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { Tooltip } from "@/src/components/design-system/Tooltip/Tooltip";
@@ -18,6 +23,12 @@ import type { LlmApiKeyListItem } from "@/src/features/public-api/components/Cre
 export type LLMApiKeySettingsTableRow = LlmApiKeyListItem & {
   overriddenByProject?: boolean;
 };
+
+const secretKeyColumn = createTextTableColumn<LLMApiKeySettingsTableRow>({
+  accessorKey: "displaySecretKey",
+  header: "API Key",
+  enableResizing: false,
+});
 
 export function LLMApiKeySettingsTable({
   actionsDisabledReason,
@@ -81,11 +92,26 @@ export function LLMApiKeySettingsTable({
         nullValue: "default",
         enableResizing: false,
       }),
-      createTextTableColumn<LLMApiKeySettingsTableRow>({
-        accessorKey: "displaySecretKey",
-        header: "API Key",
-        enableResizing: false,
-      }),
+      {
+        ...secretKeyColumn,
+        cell: (context) => {
+          const text = flexRender(secretKeyColumn.cell, context);
+          const { config } = context.row.original;
+          if (!isOAuth2Config(config)) return text;
+          return (
+            <div className="flex w-full min-w-0 items-center gap-2">
+              <div className="min-w-0 flex-1">{text}</div>
+              <span className="shrink-0">
+                <Badge
+                  text={`OAuth 2.0 · ${OAUTH2_PROVIDER_PROFILES[config.oauth2.provider].label}`}
+                  size="sm"
+                  color="filled"
+                />
+              </span>
+            </div>
+          );
+        },
+      },
       ...(showExtraHeaderKeys
         ? [
             createTextTableColumn<LLMApiKeySettingsTableRow, string[]>({

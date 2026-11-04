@@ -1,5 +1,6 @@
 import z from "zod";
 import {
+  AnthropicConfigSchema,
   BedrockConfigSchema,
   OpenAIConfigSchema,
   VertexAIConfigSchema,
@@ -529,7 +530,14 @@ export const LLMApiKeySchema = z
     customModels: z.array(z.string()),
     withDefaultModels: z.boolean(),
     config: z
-      .union([BedrockConfigSchema, VertexAIConfigSchema, OpenAIConfigSchema])
+      .union([
+        BedrockConfigSchema,
+        VertexAIConfigSchema,
+        // Checked before OpenAI so an `{ oauth2 }`-only config is kept as is
+        // instead of gaining the OpenAI `useResponsesApi` default.
+        AnthropicConfigSchema,
+        OpenAIConfigSchema,
+      ])
       .nullish(),
   })
   // strict mode to prevent extra keys. Thorws error otherwise

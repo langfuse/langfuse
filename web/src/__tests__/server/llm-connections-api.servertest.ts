@@ -10,7 +10,8 @@ import {
 } from "@/src/features/public-api/types/llm-connections";
 import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
 import { LLMAdapter } from "@langfuse/shared";
-import { encrypt } from "@langfuse/shared/encryption";
+import { decrypt, encrypt } from "@langfuse/shared/encryption";
+import { generateKeyPairSync } from "node:crypto";
 
 // Generate truly unique provider names for tests to avoid conflicts
 const generateUniqueProvider = (baseName: string) =>
@@ -23,6 +24,14 @@ const TEST_PUBLIC_LLM_BASE_URL = "https://1.1.1.1/v1";
 const TEST_UPDATED_PUBLIC_LLM_BASE_URL = "https://1.1.1.1/v2";
 const TEST_CUSTOM_PUBLIC_LLM_BASE_URL = "https://1.1.1.1/custom/v1";
 const TEST_SCHEMA_PUBLIC_LLM_BASE_URL = "https://1.1.1.1/schema/v1";
+const TEST_OAUTH2_TOKEN_ENDPOINT = "https://1.1.1.1/oauth2/token";
+
+const generatePrivateJwk = () => ({
+  ...generateKeyPairSync("ec", { namedCurve: "P-256" }).privateKey.export({
+    format: "jwk",
+  }),
+  kid: "t1",
+});
 
 const BEDROCK_AWS_CREDENTIALS = {
   accessKeyId: "AKIAIOSFODNN7EXAMPLE",
@@ -1305,6 +1314,142 @@ describe("/api/public/llm-connections API Endpoints", () => {
         expect(response.status).toBe(400);
         expect(JSON.stringify(response.body)).toContain(
           "Invalid VertexAI config",
+        );
+      });
+    });
+
+    // The web server under test must list TEST_OAUTH2_TOKEN_ENDPOINT in
+    // LANGFUSE_LLM_OAUTH2_ALLOWED_TOKEN_ENDPOINTS (see .env.test.example).
+    describe("OAuth2 client credentials", () => {
+      const oauth2 = {
+        provider: "custom",
+        tokenEndpoint: TEST_OAUTH2_TOKEN_ENDPOINT,
+        clientId: "agent-x",
+        authMethod: "private_key_jwt",
+      };
+
+      it("should store a private JWK and return only the OAuth2 config and kid", async () => {
+        const provider = generateUniqueProvider("oauth2-gateway");
+        const jwk = generatePrivateJwk();
+
+        const response = await makeZodVerifiedAPICall(
+          PutLlmConnectionV1Response,
+          "PUT",
+          "/api/public/llm-connections",
+          {
+            provider,
+            adapter: LLMAdapter.OpenAI,
+            baseURL: TEST_PUBLIC_LLM_BASE_URL,
+            secretKey: JSON.stringify(jwk),
+            config: { oauth2 },
+          },
+          auth,
+          201,
+        );
+
+        expect(response.body).not.toHaveProperty("secretKey");
+        expect(response.body.displaySecretKey).toBe("kid:t1");
+        expect(response.body.config).toEqual({ oauth2 });
+        expect(JSON.stringify(response.body)).not.toContain(jwk.d!);
+
+        const stored = await prisma.llmApiKeys.findFirstOrThrow({
+          where: { projectId, provider },
+        });
+        expect(decrypt(stored.secretKey)).toBe(JSON.stringify(jwk));
+
+        const listResponse = await makeZodVerifiedAPICall(
+          GetLlmConnectionsV1Response,
+          "GET",
+          "/api/public/llm-connections?page=1&limit=10",
+          undefined,
+          auth,
+        );
+        const listed = listResponse.body.data.find(
+          (c) => c.provider === provider,
+        );
+        expect(listed?.config).toEqual({ oauth2 });
+        expect(JSON.stringify(listResponse.body)).not.toContain(jwk.d!);
+      });
+
+      it("should accept an OAuth2 config on an Anthropic connection", async () => {
+        const anthropicOAuth2 = {
+          ...oauth2,
+          authMethod: "client_secret_post",
+        };
+
+        const response = await makeZodVerifiedAPICall(
+          PutLlmConnectionV1Response,
+          "PUT",
+          "/api/public/llm-connections",
+          {
+            provider: generateUniqueProvider("oauth2-anthropic"),
+            adapter: LLMAdapter.Anthropic,
+            secretKey: "client-secret-1234",
+            config: { oauth2: anthropicOAuth2 },
+          },
+          auth,
+          201,
+        );
+
+        expect(response.body.config).toEqual({ oauth2: anthropicOAuth2 });
+        expect(response.body.displaySecretKey).toBe("...1234");
+      });
+
+      it("should reject other Anthropic config", async () => {
+        const response = await makeAPICall(
+          "PUT",
+          "/api/public/llm-connections",
+          {
+            provider: generateUniqueProvider("anthropic-config"),
+            adapter: LLMAdapter.Anthropic,
+            secretKey: "sk-ant-test",
+            config: { useResponsesApi: true },
+          },
+          auth,
+        );
+
+        expect(response.status).toBe(400);
+        expect(JSON.stringify(response.body)).toContain(
+          "Invalid Anthropic config",
+        );
+      });
+
+      it("should reject an Authorization extra header", async () => {
+        const response = await makeAPICall(
+          "PUT",
+          "/api/public/llm-connections",
+          {
+            provider: generateUniqueProvider("oauth2-authorization"),
+            adapter: LLMAdapter.OpenAI,
+            secretKey: JSON.stringify(generatePrivateJwk()),
+            config: { oauth2 },
+            extraHeaders: { AUTHORIZATION: "Bearer x" },
+          },
+          auth,
+        );
+
+        expect(response.status).toBe(400);
+        expect(JSON.stringify(response.body)).toContain(
+          "Authorization header is not allowed for OAuth2 connections",
+        );
+      });
+
+      it("should reject OAuth2 config on other adapters", async () => {
+        const response = await makeAPICall(
+          "PUT",
+          "/api/public/llm-connections",
+          {
+            provider: generateUniqueProvider("oauth2-bedrock"),
+            adapter: LLMAdapter.Bedrock,
+            secretKey: JSON.stringify(BEDROCK_AWS_CREDENTIALS),
+            config: { ...BEDROCK_REGION_CONFIG, oauth2 },
+          },
+          auth,
+        );
+
+        expect(response.status).toBe(400);
+        expect(JSON.stringify(response.body)).toContain(
+          "OAuth2 is only supported for the openai and anthropic adapters",
         );
       });
     });

@@ -272,6 +272,7 @@
     "google-auth-library": "^10.6.2",
     "ioredis": "^5.10.1",
     "ipaddr.js": "^2.2.0",
+    "jose": "6.2.3",
     "jsonpath-plus": "10.3.0",
     "kysely": "0.28.17",
     "lodash": "^4.18.1",

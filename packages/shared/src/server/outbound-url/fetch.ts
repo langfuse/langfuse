@@ -97,6 +97,13 @@ export class CircularRedirectError extends Error {
 }
 
 /**
+ * A redirect response whose Location header is missing or cannot be parsed.
+ * Keeps the plain `Error` name, so callers that only read the message or
+ * name see a generic error.
+ */
+export class InvalidRedirectResponseError extends Error {}
+
+/**
  * Result of following redirects with validation
  */
 export interface RedirectResult {
@@ -225,7 +232,7 @@ export async function fetchWithSecureRedirects(
     const location = response.headers.get("Location");
 
     if (!location) {
-      throw new Error(
+      throw new InvalidRedirectResponseError(
         `Redirect response (${response.status}) missing Location header at ${urlForLog(currentUrl)}`,
       );
     }
@@ -236,7 +243,7 @@ export async function fetchWithSecureRedirects(
       const resolvedUrl = new URL(location, currentUrl);
       redirectUrl = resolvedUrl.toString();
     } catch (error) {
-      throw new Error(
+      throw new InvalidRedirectResponseError(
         `Invalid redirect URL "${urlForLog(location)}" at ${urlForLog(currentUrl)}: ${error instanceof Error ? error.message : "Unknown error"}`,
       );
     }

@@ -547,6 +547,32 @@ const EnvSchema = z.object({
   // AWS_ENDPOINT_URL_BEDROCK_RUNTIME / AWS_ENDPOINT_URL when one of those is
   // set. Ignored on Langfuse Cloud, same as the LLM exemption list above.
   LANGFUSE_LLM_CONNECTION_ALLOWED_HOSTS: optionalCommaSeparatedLowercase,
+  // Comma-separated exact OAuth2 token endpoint URLs (compared as
+  // `new URL(x).href`, so host case and default ports do not matter, but
+  // the path does). An LLM connection using OAuth2 client credentials may
+  // only request a token from an endpoint on this list; unset/empty
+  // disables OAuth2 client credentials entirely, including for existing
+  // connections. Checked at write time and at call time.
+  LANGFUSE_LLM_OAUTH2_ALLOWED_TOKEN_ENDPOINTS: z
+    .string()
+    .optional()
+    .transform((s) =>
+      s
+        ? s
+            .split(",")
+            .map((part) => part.trim())
+            .filter((part) => part.length > 0)
+        : [],
+    ),
+  // Max attempts for a transient failure while requesting an OAuth2 client
+  // credentials token (connection refused, timeout, 5xx, 429), before the
+  // call fails with an `unavailable` error.
+  LANGFUSE_LLM_OAUTH2_TOKEN_MAX_RETRIES: z.coerce
+    .number()
+    .int()
+    .min(0)
+    .max(10)
+    .default(3),
   LANGFUSE_BLOB_STORAGE_ENDPOINT_WHITELISTED_IPS: z
     .string()
     .optional()

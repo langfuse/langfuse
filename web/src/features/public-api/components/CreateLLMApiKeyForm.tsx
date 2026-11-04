@@ -3,6 +3,7 @@ import { useFieldArray, useForm } from "react-hook-form";
 import { useRef, useState } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
+  type AnthropicConfig,
   type BedrockApiKey,
   type BedrockAccessKeys,
   type BedrockConfig,
@@ -12,6 +13,7 @@ import {
   BEDROCK_USE_DEFAULT_CREDENTIALS,
   TYPESAFE_UPSTREAMS,
   VERTEXAI_USE_DEFAULT_CREDENTIALS,
+  isOAuth2Config,
   resolveTypeSafeUpstream,
   type TypeSafeUpstream,
 } from "@langfuse/shared";
@@ -53,8 +55,27 @@ import {
   BedrockAuthMethodSchema,
   type BedrockAuthMethod,
 } from "@/src/features/llm-api-key/types";
+import {
+  OAuth2ConnectionFields,
+  OAuth2FormSchema,
+  toOAuth2Config,
+  toOAuth2FormValues,
+  validateOAuth2Form,
+} from "@/src/features/public-api/components/OAuth2ConnectionFields";
 
 const isLangfuseCloud = Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION);
+
+const ConnectionAuthType = {
+  ApiKey: "api-key",
+  OAuth2: "oauth2",
+} as const;
+type ConnectionAuthType =
+  (typeof ConnectionAuthType)[keyof typeof ConnectionAuthType];
+
+// OAuth2 client credentials are not offered on Langfuse Cloud.
+const supportsOAuth2 = (adapter: LLMAdapter) =>
+  !isLangfuseCloud &&
+  (adapter === LLMAdapter.OpenAI || adapter === LLMAdapter.Anthropic);
 
 /**
  * UI-only sentinel value for the adapter dropdown. Selecting it does not set a
@@ -139,6 +160,8 @@ const createFormSchema = (params: {
       awsRegion: z.string().optional(),
       vertexAILocation: z.string().optional(),
       openAIUseResponsesApi: z.boolean(),
+      authType: z.enum([ConnectionAuthType.ApiKey, ConnectionAuthType.OAuth2]),
+      oauth2: OAuth2FormSchema,
       extraHeaders: z.array(
         z.object({
           key: z.string().min(1),
@@ -208,6 +231,17 @@ const createFormSchema = (params: {
           path: ["bedrockApiKey"],
         });
       }
+    })
+    .superRefine((data, ctx) => {
+      if (
+        !supportsOAuth2(data.adapter) ||
+        data.authType !== ConnectionAuthType.OAuth2
+      ) {
+        return;
+      }
+      validateOAuth2Form(data.oauth2, (path, message) =>
+        ctx.addIssue({ code: "custom", message, path: ["oauth2", ...path] }),
+      );
     })
     .refine(
       (data) => {
@@ -395,6 +429,14 @@ export function CreateLLMApiKeyForm({
     existingAuthMethod: existingKey?.authMethod,
   });
 
+  const existingConfig = existingKey?.config;
+  const existingOAuth2 = isOAuth2Config(existingConfig)
+    ? existingConfig.oauth2
+    : undefined;
+  const existingAuthType: ConnectionAuthType = existingOAuth2
+    ? ConnectionAuthType.OAuth2
+    : ConnectionAuthType.ApiKey;
+
   const form = useForm({
     resolver: zodResolver(formSchema),
     defaultValues:
@@ -425,6 +467,8 @@ export function CreateLLMApiKeyForm({
               existingKey.config != null
                 ? Boolean((existingKey.config as OpenAIConfig).useResponsesApi)
                 : false,
+            authType: existingAuthType,
+            oauth2: toOAuth2FormValues(existingOAuth2),
             awsRegion:
               existingKey.adapter === LLMAdapter.Bedrock && existingKey.config
                 ? ((existingKey.config as BedrockConfig).region ?? "")
@@ -448,6 +492,8 @@ export function CreateLLMApiKeyForm({
             extraHeaders: [],
             vertexAILocation: "global",
             openAIUseResponsesApi: false,
+            authType: ConnectionAuthType.ApiKey,
+            oauth2: toOAuth2FormValues(undefined),
             awsRegion: "",
             awsAccessKeyId: "",
             awsSecretAccessKey: "",
@@ -460,6 +506,16 @@ export function CreateLLMApiKeyForm({
 
   const currentAdapter = form.watch("adapter");
   const currentAuthMethod = form.watch("authMethod");
+  const isUsingOAuth2 =
+    supportsOAuth2(currentAdapter) &&
+    form.watch("authType") === ConnectionAuthType.OAuth2;
+  // An empty secret keeps the stored one only while the auth type is unchanged.
+  const existingSecretPlaceholder =
+    mode === "update" &&
+    existingAuthType ===
+      (isUsingOAuth2 ? ConnectionAuthType.OAuth2 : ConnectionAuthType.ApiKey)
+      ? existingKey?.displaySecretKey
+      : undefined;
   const currentTypeSafeUpstreamId = form.watch("typeSafeUpstream");
   const currentTypeSafeUpstream =
     TYPESAFE_UPSTREAMS.find(
@@ -646,9 +702,27 @@ export function CreateLLMApiKeyForm({
     }
 
     let secretKey = values.secretKey;
-    let config: BedrockConfig | OpenAIConfig | VertexAIConfig | undefined;
+    let config:
+      | AnthropicConfig
+      | BedrockConfig
+      | OpenAIConfig
+      | VertexAIConfig
+      | undefined;
 
-    if (currentAdapter === LLMAdapter.Bedrock) {
+    if (isUsingOAuth2) {
+      const oauth2 = toOAuth2Config(values.oauth2);
+      config =
+        currentAdapter === LLMAdapter.OpenAI
+          ? { useResponsesApi: values.openAIUseResponsesApi, oauth2 }
+          : { oauth2 };
+    } else if (
+      currentAdapter === LLMAdapter.Anthropic &&
+      mode === "update" &&
+      existingOAuth2
+    ) {
+      // Replaces the stored OAuth2 config when switching to an API key.
+      config = {};
+    } else if (currentAdapter === LLMAdapter.Bedrock) {
       const shouldPreserveExistingBedrockCredentials =
         mode === "update" &&
         isMatchingBedrockAuthMethod(values.authMethod, existingKey?.authMethod);
@@ -811,7 +885,10 @@ export function CreateLLMApiKeyForm({
           form.handleSubmit(onSubmit)(e);
         }}
       >
-        <DialogBody>
+        {/* `relative` keeps the hidden native inputs that Radix renders for
+            selects and switches positioned inside this scroll area, so they
+            cannot stretch the dialog. */}
+        <DialogBody className="relative">
           {/* LLM adapter */}
           <FormField
             control={form.control}
@@ -1363,36 +1440,85 @@ export function CreateLLMApiKeyForm({
                     )}
                 </>
               ) : (
-                <FormField
-                  control={form.control}
-                  name="secretKey"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>
-                        {currentAdapter === LLMAdapter.TypeSafe
-                          ? currentTypeSafeUpstream.apiKeyLabel
-                          : "API Key"}
-                      </FormLabel>
-                      <FormDescription>
-                        {isLangfuseCloud
-                          ? "Your API keys are stored encrypted on our servers."
-                          : "Your API keys are stored encrypted in your database."}
-                      </FormDescription>
-                      <FormControl>
-                        <PasswordInput
-                          {...field}
-                          placeholder={
-                            mode === "update"
-                              ? existingKey?.displaySecretKey
-                              : undefined
-                          }
-                          autoComplete="off"
-                        />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
+                <>
+                  {supportsOAuth2(currentAdapter) && (
+                    <FormField
+                      control={form.control}
+                      name="authType"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Authentication</FormLabel>
+                          <FormDescription>
+                            Use an API key, or let Langfuse fetch short-lived
+                            access tokens from your identity provider.
+                          </FormDescription>
+                          <FormControl>
+                            <div className="w-full">
+                              <Tabs
+                                value={field.value}
+                                onValueChange={(value) => {
+                                  // A typed secret belongs to one auth type.
+                                  form.setValue("secretKey", "");
+                                  field.onChange(value as ConnectionAuthType);
+                                }}
+                              >
+                                <Tabs.List
+                                  variant="inset"
+                                  layout="full"
+                                  gap="sm"
+                                  size="md"
+                                >
+                                  <Tabs.Trigger
+                                    value={ConnectionAuthType.ApiKey}
+                                    label="API key"
+                                  />
+                                  <Tabs.Trigger
+                                    value={ConnectionAuthType.OAuth2}
+                                    label="OAuth 2.0"
+                                  />
+                                </Tabs.List>
+                              </Tabs>
+                            </div>
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
                   )}
-                />
+                  {isUsingOAuth2 ? (
+                    <OAuth2ConnectionFields
+                      secretPlaceholder={existingSecretPlaceholder}
+                      isLangfuseCloud={isLangfuseCloud}
+                    />
+                  ) : (
+                    <FormField
+                      control={form.control}
+                      name="secretKey"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>
+                            {currentAdapter === LLMAdapter.TypeSafe
+                              ? currentTypeSafeUpstream.apiKeyLabel
+                              : "API Key"}
+                          </FormLabel>
+                          <FormDescription>
+                            {isLangfuseCloud
+                              ? "Your API keys are stored encrypted on our servers."
+                              : "Your API keys are stored encrypted in your database."}
+                          </FormDescription>
+                          <FormControl>
+                            <PasswordInput
+                              {...field}
+                              placeholder={existingSecretPlaceholder}
+                              autoComplete="off"
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  )}
+                </>
               )}
 
               {/* Azure Base URL - Always required for Azure */}

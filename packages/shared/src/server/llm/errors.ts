@@ -163,7 +163,7 @@ function findErrorByName(error: unknown, name: string): Error | undefined {
   );
 }
 
-function findInCauseChain<T>(
+export function findInCauseChain<T>(
   error: unknown,
   predicate: (candidate: unknown) => candidate is T,
 ): T | undefined {

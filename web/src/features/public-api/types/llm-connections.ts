@@ -4,6 +4,7 @@ import {
   isDecisionModelAdapter,
   LLMAdapter,
   type JSONValue,
+  AnthropicConfigSchema,
   BedrockConfigSchema,
   BedrockCredentialSchema,
   BEDROCK_USE_DEFAULT_CREDENTIALS,
@@ -112,13 +113,25 @@ export const PutLlmConnectionV1Body = PutLlmConnectionV1BodyBase.superRefine(
         }
       }
     } else if (adapter === LLMAdapter.OpenAI) {
-      // OpenAI config is optional, but if provided only supports explicit Responses API routing
+      // OpenAI config is optional, but if provided only supports explicit Responses API routing and OAuth2
       if (config) {
         const result = OpenAIConfigSchema.safeParse(config);
         if (!result.success) {
           ctx.addIssue({
             code: "custom",
-            message: `Invalid OpenAI config: ${result.error.issues.map((e) => e.message).join(", ")}. Expected: { useResponsesApi: boolean }`,
+            message: `Invalid OpenAI config: ${result.error.issues.map((e) => e.message).join(", ")}. Expected: { useResponsesApi?: boolean, oauth2?: object }`,
+            path: ["config"],
+          });
+        }
+      }
+    } else if (adapter === LLMAdapter.Anthropic) {
+      // Anthropic config is optional, but if provided only supports OAuth2
+      if (config) {
+        const result = AnthropicConfigSchema.safeParse(config);
+        if (!result.success) {
+          ctx.addIssue({
+            code: "custom",
+            message: `Invalid Anthropic config: ${result.error.issues.map((e) => e.message).join(", ")}. Expected: { oauth2?: object }`,
             path: ["config"],
           });
         }

@@ -5,7 +5,11 @@ import {
 } from "@langfuse/shared/topics";
 import { EvaluatorBlockReason } from "@prisma/client";
 import { z } from "zod";
-import { getLLMErrorInfo, logger } from "@langfuse/shared/src/server";
+import {
+  findOAuth2TokenError,
+  getLLMErrorInfo,
+  logger,
+} from "@langfuse/shared/src/server";
 import {
   getTopicTextResponseMetadata,
   pauseTopicsModels,
@@ -44,40 +48,54 @@ export function topicProviderError(
   error: unknown,
   model: Pick<TopicsModel, "slot" | "provider" | "model">,
 ): TopicsProviderUnavailable {
-  let current = error;
-  let status: number | undefined;
+  // Checked first: an OAuth2TokenError can reach here thrown directly or
+  // wrapped by the AI SDK, and its own kind must decide the reason instead
+  // of a wrapper's unrelated status code.
+  const oauth2Error = findOAuth2TokenError(error);
+  let status: number | undefined = oauth2Error?.status;
   let reason: TopicsProviderErrorReason = "provider_error";
-  for (
-    let depth = 0;
-    depth < 4 && current && typeof current === "object";
-    depth++
-  ) {
-    const record = current as Record<string, unknown>;
-    const candidate = record.statusCode ?? record.status;
-    if (typeof candidate === "number" && candidate >= 400 && candidate <= 599) {
-      status = candidate;
-      if (status === 401 || status === 402 || status === 403)
-        reason = "authentication";
-      else if (status === 400 || status === 413 || status === 422)
-        reason = "invalid_input";
-      else if (status === 429) reason = "rate_limit";
-      else if (status === 408 || status === 504) reason = "timeout";
-      else reason = "provider_error";
-      break;
+
+  if (oauth2Error) {
+    if (oauth2Error.kind === "credential" || oauth2Error.kind === "config")
+      reason = "authentication";
+  } else {
+    let current = error;
+    for (
+      let depth = 0;
+      depth < 4 && current && typeof current === "object";
+      depth++
+    ) {
+      const record = current as Record<string, unknown>;
+      const candidate = record.statusCode ?? record.status;
+      if (
+        typeof candidate === "number" &&
+        candidate >= 400 &&
+        candidate <= 599
+      ) {
+        status = candidate;
+        if (status === 401 || status === 402 || status === 403)
+          reason = "authentication";
+        else if (status === 400 || status === 413 || status === 422)
+          reason = "invalid_input";
+        else if (status === 429) reason = "rate_limit";
+        else if (status === 408 || status === 504) reason = "timeout";
+        else reason = "provider_error";
+        break;
+      }
+      if (record.name === "AbortError" || record.name === "TimeoutError")
+        reason = "timeout";
+      if (record.name === "CredentialsProviderError") reason = "authentication";
+      if (
+        record.name === "AI_NoObjectGeneratedError" ||
+        record.name === "AI_NoOutputGeneratedError" ||
+        record.name === "AI_TypeValidationError" ||
+        record.name === "AI_JSONParseError" ||
+        record.name === "SyntaxError" ||
+        record.name === "ZodError"
+      )
+        reason = "invalid_output";
+      current = record.cause;
     }
-    if (record.name === "AbortError" || record.name === "TimeoutError")
-      reason = "timeout";
-    if (record.name === "CredentialsProviderError") reason = "authentication";
-    if (
-      record.name === "AI_NoObjectGeneratedError" ||
-      record.name === "AI_NoOutputGeneratedError" ||
-      record.name === "AI_TypeValidationError" ||
-      record.name === "AI_JSONParseError" ||
-      record.name === "SyntaxError" ||
-      record.name === "ZodError"
-    )
-      reason = "invalid_output";
-    current = record.cause;
   }
   const subject = `The ${TOPICS_MODEL_SLOT_DETAILS[model.slot].label.toLowerCase()} model ${model.model} on LLM connection "${model.provider}"`;
   if (

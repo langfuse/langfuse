@@ -414,6 +414,9 @@ importers:
       ipaddr.js:
         specifier: ^2.2.0
         version: 2.2.0
+      jose:
+        specifier: 6.2.3
+        version: 6.2.3
       jsonpath-plus:
         specifier: 10.3.0
         version: 10.3.0
