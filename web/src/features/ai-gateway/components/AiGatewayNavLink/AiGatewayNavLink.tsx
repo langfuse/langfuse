@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Building2 } from "@langfuse/icons";
+import { Waypoints } from "@langfuse/icons";
 
 import { SidebarMenuButton } from "@/src/components/ui/sidebar";
 import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
@@ -12,17 +12,13 @@ export function AiGatewayNavLink() {
   const { firstVisibleSlug } = useAiGatewayPageVisibility(organization?.id);
 
   return (
-    <SidebarMenuButton
-      asChild
-      tooltip="AI Gateway (organization)"
-      disabled={!organization}
-    >
+    <SidebarMenuButton asChild tooltip="AI Gateway" disabled={!organization}>
       <Link
         href={
           organization ? aiGatewayPath(organization.id, firstVisibleSlug) : "/"
         }
       >
-        <Building2 size="base" />
+        <Waypoints size="base" />
         <span>AI Gateway</span>
       </Link>
     </SidebarMenuButton>
