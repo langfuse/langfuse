@@ -1,12 +1,12 @@
 /* eslint-disable no-nested-ternary */
-import { showErrorToast, showSuccessToast } from "@/src/features/notifications";
+import { showErrorToast } from "@/src/features/notifications/showErrorToast";
+import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { useSession } from "next-auth/react";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
-import { useReadPath, V4_PREVIEW_LABEL } from "@/src/features/events";
-import {
-  featurePreviewLabels,
-  useInternalFeaturesEnabled,
-} from "@/src/features/feature-flags";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { useReadPath } from "@/src/features/events/hooks/useReadPath";
+import { V4_PREVIEW_LABEL } from "@/src/features/events/lib/v4PreviewLabel";
+import { featurePreviewLabels } from "@/src/features/feature-flags/available-flags";
+import { useInternalFeaturesEnabled } from "@/src/features/feature-flags/hooks/useInternalFeaturesEnabled";
 import { api } from "@/src/utils/api";
 import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
 
@@ -61,22 +61,6 @@ export function ControlledFeaturePreviewModal({
       authSession.data?.environment.enableExperimentalFeatures === true);
 
   const state: Partial<Record<PreviewFlag, PreviewState>> = {
-    skillManagement: {
-      enabled:
-        isV4 &&
-        (authSession.data?.user?.featureFlags.skillManagement === true ||
-          authSession.data?.environment.enableExperimentalFeatures === true),
-      disabled:
-        !isV4 ||
-        authSession.data?.environment.enableExperimentalFeatures === true,
-      warningReason: !isV4
-        ? `Skill Management requires ${V4_PREVIEW_LABEL}. Turn it on to enable this preview.`
-        : authSession.data?.environment.enableExperimentalFeatures === true
-          ? "This preview is enabled by LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES, so a per-user opt-out does not disable it."
-          : undefined,
-      onToggle: onToggle("skillManagement"),
-      isToggling: setFeaturePreviewEnabled.isPending,
-    },
     ...(authSession.data?.user?.admin === true
       ? {
           langfuseTopics: {

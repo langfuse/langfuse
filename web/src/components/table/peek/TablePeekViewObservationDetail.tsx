@@ -3,7 +3,8 @@ import {
   shouldClosePeekAfterDelete,
 } from "@/src/components/table/peek";
 import { usePeekData } from "@/src/components/table/peek/hooks/usePeekData";
-import { TraceDetailActions, TraceDetailBody } from "@/src/features/traces";
+import { TraceDetailActions } from "@/src/features/traces/components/TraceDetailActions";
+import { TraceDetailBody } from "@/src/features/traces/components/TraceDetailBody";
 import { resolvePeekTraceParams } from "@/src/components/table/peek/resolvePeekTraceParams";
 import { buildTracePath } from "@langfuse/shared";
 import { useRouter } from "next/router";

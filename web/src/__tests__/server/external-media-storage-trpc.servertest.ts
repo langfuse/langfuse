@@ -244,6 +244,38 @@ describe("externalMediaStorage tRPC", () => {
     });
   });
 
+  describe("stored secret reuse", () => {
+    it("rejects a bucket change without the secret as a bad request", async () => {
+      const { project, caller } = await prepare();
+      const integration = await createIntegration({ projectId: project.id });
+
+      await expect(
+        caller.externalMediaStorage.update({
+          projectId: project.id,
+          type: "S3",
+          bucketName: "other-bucket",
+          endpoint: null,
+          region: "us-east-1",
+          accessKeyId: "test-access-key",
+          secretAccessKey: "",
+          prefix: "",
+          forcePathStyle: false,
+        }),
+      ).rejects.toMatchObject({
+        code: "BAD_REQUEST",
+        message: expect.stringContaining(
+          "Secret Access Key is required when changing",
+        ),
+      });
+      await expect(
+        prisma.externalMediaStorageIntegration.findUniqueOrThrow({
+          where: { projectId: project.id },
+          select: { bucketName: true },
+        }),
+      ).resolves.toEqual({ bucketName: integration.bucketName });
+    });
+  });
+
   describe("access control", () => {
     it("forbids a VIEWER from reading, saving, deleting, or testing the configuration", async () => {
       const { project, caller } = await prepare({ projectRole: "VIEWER" });

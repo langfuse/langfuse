@@ -2,7 +2,7 @@ import { type ScoreConfigDomain } from "@langfuse/shared";
 import {
   CreateScoreConfigDialogController,
   EditScoreConfigDialogController,
-} from "@/src/features/score-configs";
+} from "@/src/features/score-configs/components/UpsertScoreConfigDialogController";
 import { AnnotationQueueScoreConfigEditor } from "./AnnotationQueueScoreConfigEditor";
 
 export function QueueScoreConfigFields({

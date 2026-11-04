@@ -414,6 +414,12 @@ describe("Topics filtered trace preview", () => {
           operator: "any of",
           value: ["billing"],
         },
+        {
+          column: "traceName",
+          type: "stringOptions",
+          operator: "any of",
+          value: ["Support agent"],
+        },
       ],
     });
     expect(response).toMatchObject({
@@ -442,11 +448,11 @@ describe("Topics filtered trace preview", () => {
     expect(request.query).toContain("e.start_time < {");
     expect(request.query).toContain("e.trace_id != ''");
     expect(request.query).not.toMatch(
-      /e\.(input|output)\b|\bFINAL\b|\bSAMPLE\b/,
+      /e\.(input|output|is_app_root|parent_span_id)\b|\bFINAL\b|\bSAMPLE\b/,
     );
     expect(request.params).toMatchObject({
       projectId,
-      limit: 100,
+      limit: 20,
       samplingSeed: "sample-seed",
     });
     expect(request.preferredClickhouseService).toBe("EventsReadOnly");
@@ -468,9 +474,9 @@ describe("Topics filtered trace preview", () => {
     });
     expect(response.matchedTraceCount).toBe(1001);
     expect(response.selectedTraceCount).toBe(1000);
-    expect(mocks.queryClickhouse.mock.calls[0][0].params.limit).toBe(100);
+    expect(mocks.queryClickhouse.mock.calls[0][0].params.limit).toBe(20);
     await caller().previewTraces({ ...selection, limit: 500 });
-    expect(mocks.queryClickhouse.mock.calls[1][0].params.limit).toBe(100);
+    expect(mocks.queryClickhouse.mock.calls[1][0].params.limit).toBe(20);
   });
 
   it("caps filtered triggers before excluding unchecked traces", async () => {
@@ -555,6 +561,13 @@ describe("Topics filtered trace preview", () => {
     await expect(
       caller().previewTraces({ ...selection, limit: 1001 }),
     ).rejects.toThrow("Select at most 1,000 traces");
+    // High-volume projects keep one-off selections to at most 30 days.
+    await expect(
+      caller().previewTraces({
+        ...selection,
+        from: new Date(selection.to.getTime() - 31 * 86_400_000),
+      }),
+    ).rejects.toThrow("Select at most 30 days of traces");
     expect(mocks.queryClickhouse).not.toHaveBeenCalled();
     expect(mocks.createTopicExecution).not.toHaveBeenCalled();
   });
@@ -680,6 +693,17 @@ describe("Topics filtered trace preview", () => {
       { ...selection, from: selection.to },
       { ...selection, from: new Date("2025-01-01") },
       { ...selection, projectId: "foreign-project" },
+      {
+        ...selection,
+        filter: [
+          {
+            column: "isRootObservation",
+            type: "boolean" as const,
+            operator: "=" as const,
+            value: true,
+          },
+        ],
+      },
       {
         ...selection,
         filter: [
@@ -1459,7 +1483,7 @@ describe("Topics model settings", () => {
   const settings = {
     projectId,
     summary: null,
-    embedding: { llmApiKeyId: "key", model: "text-embedding-3-small" },
+    embedding: { provider: "key", model: "text-embedding-3-small" },
     embeddingDimensions: 1024,
     clustering: null,
   };
@@ -1492,10 +1516,10 @@ describe("Topics model settings", () => {
 describe("Topics setup", () => {
   const setup = {
     projectId,
-    summary: { llmApiKeyId: "key", model: "gpt" },
-    embedding: { llmApiKeyId: "key", model: "embed" },
+    summary: { provider: "key", model: "gpt" },
+    embedding: { provider: "key", model: "embed" },
     embeddingDimensions: 1024,
-    clustering: { llmApiKeyId: "key", model: "cluster" },
+    clustering: { provider: "key", model: "cluster" },
     facets: DEFAULT_TOPIC_FACETS.map((facet) => ({
       name: facet.name,
       enabled: facet.name !== "Sentiment",
@@ -1621,7 +1645,7 @@ describe("Topics write access", () => {
     description: "",
     prompt: "Describe the original request.",
   };
-  const slot = { llmApiKeyId: "key", model: "gpt" };
+  const slot = { provider: "key", model: "gpt" };
   const settings = {
     summary: slot,
     embedding: slot,

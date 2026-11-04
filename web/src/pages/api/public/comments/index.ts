@@ -3,7 +3,7 @@ import { createAuthedProjectAPIRoute } from "@/src/features/public-api/server/cr
 import {
   createCommentForApi,
   listCommentsForApi,
-} from "@/src/features/comments/server";
+} from "@/src/features/comments/server/publicCommentService";
 import {
   GetCommentsV1Query,
   GetCommentsV1Response,

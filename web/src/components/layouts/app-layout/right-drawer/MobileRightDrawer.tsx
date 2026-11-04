@@ -5,7 +5,7 @@ import {
   DrawerHeader,
   DrawerTitle,
 } from "@/src/components/ui/drawer";
-import { useSupportDrawer } from "@/src/features/support-chat";
+import { useSupportDrawer } from "@/src/features/support-chat/SupportDrawerProvider";
 import { SupportDrawer } from "@/src/features/support-chat/SupportDrawer";
 import { useV4MigrationPanel } from "@/src/features/v4-migration/V4MigrationPanelProvider";
 import { V4MigrationPanel } from "@/src/features/v4-migration/V4MigrationPanel";

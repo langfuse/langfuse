@@ -2,7 +2,7 @@
 import { useState } from "react";
 import { HoverCard } from "@/src/components/design-system/HoverCard/HoverCard";
 import { ControlledHoverCard } from "@/src/components/design-system/ControlledHoverCard/ControlledHoverCard";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { cn } from "@/src/utils/tailwind";
 import { ExternalLink, Info } from "@langfuse/icons";
 

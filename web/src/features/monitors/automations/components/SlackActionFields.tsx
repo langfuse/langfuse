@@ -7,9 +7,9 @@ import { Form } from "@/src/components/design-system/Form/Form";
 import {
   ChannelSelectorView,
   type ChannelSelectorViewProps,
-  type SlackChannel,
-  type SlackTestMessageResult,
-} from "@/src/features/slack";
+} from "@/src/features/slack/components/ChannelSelectorView/ChannelSelectorView";
+import { type SlackTestMessageResult } from "@/src/features/slack/hooks/useSlackTestMessage";
+import { type SlackChannel } from "@/src/features/slack/components/ChannelSelector";
 import { type MonitorAutomationFormValues } from "../helpers/monitorAutomationFormSchema";
 import { FieldGroup } from "./FieldGroup";
 

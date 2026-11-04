@@ -19,9 +19,9 @@ import { PromptSelectionDialog } from "../PromptSelectionDialog";
 import {
   MessageSearchPageProvider,
   MessageSearchProvider,
-  MessageSearchToolbar,
   useSyncMessageSearchMessages,
-} from "@/src/components/ChatMessages/MessageSearch";
+} from "@/src/components/ChatMessages/messageSearch/context";
+import { MessageSearchToolbar } from "@/src/components/ChatMessages/messageSearch/toolbar";
 
 import type { ControllerRenderProps } from "react-hook-form";
 import type { MessagesContext } from "@/src/components/ChatMessages/types";
