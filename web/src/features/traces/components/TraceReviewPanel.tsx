@@ -72,26 +72,55 @@ function TraceCommentsPanel({ projectId }: { projectId: string }) {
     (urlTarget.objectId === trace.id ||
       urlTarget.objectId === selectedNodeId ||
       observations.some((item) => item.id === urlTarget.objectId));
-  const desired: CommentTarget = (!active ? session?.target : undefined) ??
-    (!openedOn.current.moved && urlOnThisTrace ? urlTarget : undefined) ?? {
-      type: "comments",
-      objectId: observation?.id ?? trace.id,
-      objectType: observation ? ("OBSERVATION" as const) : ("TRACE" as const),
-      objectStartTime: observation?.startTime ?? trace.timestamp,
-    };
+  const selectionTarget: CommentTarget = {
+    type: "comments",
+    objectId: observation?.id ?? trace.id,
+    objectType: observation ? "OBSERVATION" : "TRACE",
+    objectStartTime: observation?.startTime ?? trace.timestamp,
+  };
+  const urlPinned =
+    !openedOn.current.moved && urlOnThisTrace ? urlTarget : undefined;
+  // A click or inline comment names its object before the URL catches up.
+  const sessionLeads =
+    !!session &&
+    !!urlPinned &&
+    (session.target.objectId !== urlPinned.objectId ||
+      session.target.objectType !== urlPinned.objectType);
+  const desired: CommentTarget =
+    (!active ? session?.target : undefined) ??
+    (sessionLeads ? session.target : undefined) ??
+    urlPinned ??
+    selectionTarget;
   // An unsent draft belongs to the open thread. Leave that thread up until
   // the composer is empty, then follow the selection.
   const target = active && session?.hasDraft ? session.target : desired;
-  if (
-    active &&
-    session &&
-    !session.hasDraft &&
-    (session.target.objectId !== target.objectId ||
-      session.target.objectType !== target.objectType ||
-      session.target.type !== target.type)
-  ) {
-    store.getState().actions.setCommentsTarget(session.key, target);
-  }
+  const syncId = target.objectId;
+  const syncType = target.objectType;
+  const syncStart = target.objectStartTime;
+  useEffect(() => {
+    const current = store.getState().comments;
+    if (!active || !current || current.hasDraft) return;
+    if (
+      current.target.objectId === syncId &&
+      current.target.objectType === syncType
+    ) {
+      return;
+    }
+    store.getState().actions.setCommentsTarget(current.key, {
+      type: "comments",
+      objectId: syncId,
+      objectType: syncType,
+      objectStartTime: syncStart,
+    });
+  }, [
+    active,
+    session?.hasDraft,
+    session?.key,
+    store,
+    syncId,
+    syncStart,
+    syncType,
+  ]);
   return (
     <CommentsPanel projectId={projectId} target={target} active={active} />
   );

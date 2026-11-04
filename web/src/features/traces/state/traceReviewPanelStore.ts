@@ -131,8 +131,7 @@ export function createTraceReviewPanelStore({
         if (!current || current.key !== key || current.hasDraft) return;
         if (
           current.target.objectId === target.objectId &&
-          current.target.objectType === target.objectType &&
-          current.target.type === target.type
+          current.target.objectType === target.objectType
         )
           return;
         set({ comments: { ...current, target, mentionsOpen: false } });

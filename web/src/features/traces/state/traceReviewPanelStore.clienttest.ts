@@ -159,6 +159,53 @@ describe("trace review panel sessions", () => {
     expect(store.getState().comments?.target).not.toHaveProperty("selection");
   });
 
+  it("keeps a draft in place, then switches the target and clears mentions", () => {
+    const inline: CommentTarget = {
+      ...target,
+      type: "inline-comment",
+      selection,
+    };
+    const store = createTraceReviewPanelStore({
+      projectId: "project",
+      initialComments: inline,
+    });
+    const actions = store.getState().actions;
+    const key = store.getState().comments!.key;
+    actions.setCommentsDraft(key, true);
+    actions.setCommentsMentionsOpen(key, true);
+    actions.setCommentsTarget(key, {
+      ...target,
+      objectId: "span",
+      objectType: "OBSERVATION",
+    });
+    expect(store.getState().comments).toMatchObject({
+      key,
+      hasDraft: true,
+      mentionsOpen: true,
+      target: { type: "inline-comment", selection },
+    });
+
+    actions.setCommentsDraft(key, false);
+    actions.setCommentsTarget(key, { ...target, type: "comments" });
+    expect(store.getState().comments?.target).toMatchObject({
+      type: "inline-comment",
+      selection,
+    });
+    expect(store.getState().comments?.mentionsOpen).toBe(true);
+
+    const next: CommentTarget = {
+      ...target,
+      objectId: "span",
+      objectType: "OBSERVATION",
+    };
+    actions.setCommentsTarget(key, next);
+    expect(store.getState().comments).toMatchObject({
+      key,
+      target: next,
+      mentionsOpen: false,
+    });
+  });
+
   it("keeps an unsent inline selection on same-target reopen and accepts new selections once consumed", () => {
     const store = createTraceReviewPanelStore({
       projectId: "project",

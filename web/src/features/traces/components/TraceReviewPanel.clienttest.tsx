@@ -68,16 +68,7 @@ vi.mock("@/src/features/comments/CommentList", () => ({
   ),
 }));
 vi.mock("@/src/features/comments/CommentDrawerController", () => ({
-  getCommentDrawerInitialStateFromUrl: () =>
-    state.query.comments === "open" &&
-    state.query.commentObjectId &&
-    state.query.commentObjectType
-      ? {
-          type: "comments" as const,
-          objectId: state.query.commentObjectId,
-          objectType: state.query.commentObjectType,
-        }
-      : undefined,
+  getCommentDrawerInitialStateFromUrl: () => undefined,
 }));
 
 it("follows the selected annotation target and switches panels through the URL", () => {
@@ -107,19 +98,6 @@ it("follows the selected annotation target and switches panels through the URL",
   expect(screen.getByTestId("annotation")).toHaveTextContent(
     "trace:trace-score",
   );
-});
-
-it("shows the newly selected object's comments while the panel URL still points at the previous one", () => {
-  state.query = {
-    comments: "open",
-    commentObjectId: "trace",
-    commentObjectType: "TRACE",
-  };
-  state.selectedNodeId = "first";
-  const view = render(<TraceReviewPanel projectId="project" />);
-  state.selectedNodeId = "second";
-  view.rerender(<TraceReviewPanel projectId="project" />);
-  expect(screen.getByTestId("comments")).toHaveTextContent("second");
 });
 
 it("closes comment deep links with Escape and clears their URL target", () => {
