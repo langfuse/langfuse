@@ -215,6 +215,9 @@ async function posthogTelemetry({
       },
     });
 
+    // Count AI gateway keys
+    const totalGatewayKeys = await prisma.gatewayApiKeyAssociation.count();
+
     // Count traces, observations and AI gateway requests
     const { countTraces, countObservations, countGatewayRequests } =
       await countTracing({
@@ -303,6 +306,7 @@ async function posthogTelemetry({
         langfuseVersion: VERSION,
         userDomains: domains,
         totalProjects: totalProjects,
+        totalGatewayKeys: totalGatewayKeys,
         traces: countTraces,
         scores: countScores,
         observations: countObservations,
