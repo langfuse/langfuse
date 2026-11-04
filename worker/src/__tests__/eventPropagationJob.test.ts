@@ -20,10 +20,12 @@ import {
   queryClickhouse,
   redis,
   toClickhouseDateTime,
+  type ClickhouseClientType,
 } from "@langfuse/shared/src/server";
 import { handleEventPropagationJob } from "../features/eventPropagation/handleEventPropagationJob";
 import { runExperimentBackfill } from "../features/eventPropagation/handleExperimentBackfill";
 import { ClickhouseWriter, TableName } from "../services/ClickhouseWriter";
+import { initializeEventByteAccounting } from "../services/ClickhouseWriter/eventByteAccounting";
 import { skipUnlessClickhouseTablesExist } from "./helpers/clickhouseTables";
 
 const LAST_PROCESSED_PARTITION_KEY =
@@ -45,8 +47,23 @@ function formatClickHouseDateTime(date: Date): string {
   return date.toISOString().slice(0, 19).replace("T", " ");
 }
 
-describe("handleEventPropagationJob", () => {
+const initializeEventByteAccountingForTest = async (useDefault: boolean) => {
+  await initializeEventByteAccounting({
+    query: vi.fn().mockResolvedValue({
+      json: vi.fn().mockResolvedValue([
+        {
+          name: "event_bytes",
+          default_type: "DEFAULT",
+          default_expression: useDefault ? "byteSize(input)" : "0",
+        },
+      ]),
+    }),
+  } as unknown as ClickhouseClientType);
+};
+
+describe.each([true, false])("propagation DEFAULT=%s", (useDefault) => {
   beforeEach(async () => {
+    await initializeEventByteAccountingForTest(useDefault);
     if (!redis) throw new Error("Redis not initialized");
 
     previousLastProcessedPartition = await redis.get(
@@ -119,7 +136,11 @@ describe("handleEventPropagationJob", () => {
       });
       expect(rows).toHaveLength(1);
       expect(rows[0].experiment_id).not.toBe("");
-      expect(Number(rows[0].bytes)).toBeGreaterThan(0);
+      if (useDefault) {
+        expect(Number(rows[0].bytes)).toBeGreaterThan(0);
+      } else {
+        expect(rows[0].bytes).toBe("0");
+      }
     } finally {
       getSpy.mockRestore();
       setSpy.mockRestore();

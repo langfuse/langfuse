@@ -10,7 +10,10 @@ import {
 } from "@langfuse/shared/src/server";
 import { ClickhouseWriter, TableName } from "../services/ClickhouseWriter";
 import { prepareNativeEvent } from "../services/IngestionService/prepareNativeEvent";
-import { assertEventByteAccountingReady } from "../services/ClickhouseWriter/assertEventByteAccountingReady";
+import {
+  initializeEventByteAccounting,
+  clickhouseComputesEventBytes,
+} from "../services/ClickhouseWriter/eventByteAccounting";
 import { capturedPreparedRows } from "./helpers/nativeCodecFixtures";
 
 type Row = Record<string, unknown>;
@@ -104,21 +107,26 @@ describe.runIf(
         query: `ALTER TABLE ${table} MODIFY COLUMN event_bytes REMOVE DEFAULT`,
       });
       await insert("historical", 123);
-      await expect(
-        assertEventByteAccountingReady(metadataClient),
-      ).rejects.toThrow("Run ClickHouse migrations");
+      await initializeEventByteAccounting(metadataClient);
+      expect(clickhouseComputesEventBytes()).toBe(false);
       await migrate("up");
       await migrate("up");
+      await initializeEventByteAccounting(metadataClient);
+      expect(clickhouseComputesEventBytes()).toBe(true);
       await expect(
-        assertEventByteAccountingReady(metadataClient),
+        initializeEventByteAccounting({
+          query: () => Promise.reject(new Error("ClickHouse unavailable")),
+        } as unknown as ClickhouseClientType),
       ).resolves.toBeUndefined();
+      expect(clickhouseComputesEventBytes()).toBe(false);
+      await initializeEventByteAccounting(metadataClient);
+      expect(clickhouseComputesEventBytes()).toBe(true);
       await insert("legacy", 456);
       await insert("server");
       await migrate("down");
       await migrate("down");
-      await expect(
-        assertEventByteAccountingReady(metadataClient),
-      ).rejects.toThrow("Run ClickHouse migrations");
+      await initializeEventByteAccounting(metadataClient);
+      expect(clickhouseComputesEventBytes()).toBe(false);
       await insert("rollback");
       const result = await client.query({
         query: `SELECT span_id, toString(event_bytes) AS bytes FROM ${table} ORDER BY span_id`,

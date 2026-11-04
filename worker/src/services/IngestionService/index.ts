@@ -65,6 +65,7 @@ import {
 
 import { tokenCountAsync } from "../../features/tokenisation/async-usage";
 import { ClickhouseWriter, TableName } from "../ClickhouseWriter";
+import { clickhouseComputesEventBytes } from "../ClickhouseWriter/eventByteAccounting";
 import {
   convertJsonSchemaToRecord,
   convertPostgresJsonToMetadataRecord,
@@ -485,8 +486,9 @@ export class IngestionService {
    * not use field overflow.
    * Use createEventRecord() first to get the record, then call this to write.
    *
-   * ClickHouse computes event_bytes from the final stored row. The supplied
-   * record is not mutated, and its raw OTEL size is not sent to ClickHouse.
+   * Use ClickHouse's sizing DEFAULT when detected, otherwise retain the legacy
+   * JSON byte estimate. The supplied record is not mutated, and its raw OTEL
+   * size is not sent to ClickHouse.
    *
    * @param eventRecord - The event record to write
    * @returns The accepted post-overflow row, for trace-batch capacity estimates
@@ -497,7 +499,18 @@ export class IngestionService {
     const { event_bytes: _eventBytes, ...persistedRecord } =
       await applyObservationFieldOverflow(eventRecord);
 
-    this.clickHouseWriter.addToQueue(TableName.EventsFull, persistedRecord);
+    this.clickHouseWriter.addToQueue(
+      TableName.EventsFull,
+      clickhouseComputesEventBytes()
+        ? persistedRecord
+        : {
+            ...persistedRecord,
+            event_bytes: Buffer.byteLength(
+              JSON.stringify(persistedRecord),
+              "utf8",
+            ),
+          },
+    );
     return persistedRecord;
   }
 

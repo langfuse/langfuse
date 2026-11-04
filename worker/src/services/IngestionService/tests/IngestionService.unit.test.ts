@@ -32,10 +32,26 @@ import { IngestionService } from "../../IngestionService";
 import {
   convertDateToClickhouseDateTime,
   createTraceScore,
+  type ClickhouseClientType,
   type ObservationEvent,
   type ScoreEventType,
 } from "@langfuse/shared/src/server";
 import { TableName } from "../../ClickhouseWriter";
+import { initializeEventByteAccounting } from "../../ClickhouseWriter/eventByteAccounting";
+
+const initializeEventByteAccountingForTest = async (useDefault: boolean) => {
+  await initializeEventByteAccounting({
+    query: vi.fn().mockResolvedValue({
+      json: vi.fn().mockResolvedValue([
+        {
+          name: "event_bytes",
+          default_type: "DEFAULT",
+          default_expression: useDefault ? "byteSize(input)" : "0",
+        },
+      ]),
+    }),
+  } as unknown as ClickhouseClientType);
+};
 
 describe("IngestionService unit tests", () => {
   beforeEach(() => {
@@ -46,7 +62,8 @@ describe("IngestionService unit tests", () => {
     mocks.validateAndInflateScoreOverride = undefined;
   });
 
-  it("leaves final event accounting to ClickHouse without serializing the row", async () => {
+  it.each([true, false])("event bytes DEFAULT=%s", async (useDefault) => {
+    await initializeEventByteAccountingForTest(useDefault);
     const addToQueue = vi.fn();
     const ingestionService = new IngestionService(
       {} as any,
@@ -74,22 +91,33 @@ describe("IngestionService unit tests", () => {
       },
       "otel/project-id/raw-event.json",
     );
+    const originalEventRecord = structuredClone(eventRecord);
 
     expect(eventRecord.event_bytes).toBe(rawOtelSpanBytes);
 
     const stringify = vi.spyOn(JSON, "stringify");
-    try {
-      await ingestionService.writeEventRecord(eventRecord);
-      expect(stringify).not.toHaveBeenCalled();
-    } finally {
-      stringify.mockRestore();
-    }
+    const returnedRecord = await ingestionService
+      .writeEventRecord(eventRecord)
+      .then((record) => {
+        expect(stringify).toHaveBeenCalledTimes(useDefault ? 0 : 1);
+        return record;
+      })
+      .finally(() => stringify.mockRestore());
 
     expect(addToQueue).toHaveBeenCalledOnce();
-    const queuedRecord = addToQueue.mock.calls[0]?.[1];
+    const queuedRecord = addToQueue.mock.calls[0]![1];
     expect(queuedRecord).not.toBe(eventRecord);
-    expect(eventRecord.event_bytes).toBe(rawOtelSpanBytes);
-    expect(queuedRecord).not.toHaveProperty("event_bytes");
+    expect(eventRecord).toEqual(originalEventRecord);
+    expect(returnedRecord).not.toHaveProperty("event_bytes");
+    if (useDefault) {
+      expect(queuedRecord).not.toHaveProperty("event_bytes");
+    } else {
+      const { event_bytes: _eventBytes, ...rowWithoutAccounting } =
+        queuedRecord;
+      expect(queuedRecord.event_bytes).toBe(
+        Buffer.byteLength(JSON.stringify(rowWithoutAccounting), "utf8"),
+      );
+    }
   });
 
   describe("AI gateway attribution", () => {
@@ -164,7 +192,8 @@ describe("IngestionService unit tests", () => {
     });
   });
 
-  it("overflows only the direct events_full copy and preserves the enriched record", async () => {
+  it.each([true, false])("overflow bytes DEFAULT=%s", async (useDefault) => {
+    await initializeEventByteAccountingForTest(useDefault);
     const addToQueue = vi.fn();
     const ingestionService = new IngestionService(
       {} as any,
@@ -191,7 +220,7 @@ describe("IngestionService unit tests", () => {
       },
       "raw-event.json",
     );
-    mocks.applyObservationFieldOverflow.mockResolvedValueOnce({
+    const overflowedRecord = {
       ...eventRecord,
       input:
         "@@@langfuseMedia:type=text/plain|id=input-media|source=field_size_limit@@@",
@@ -199,23 +228,34 @@ describe("IngestionService unit tests", () => {
         "small",
         "@@@langfuseMedia:type=text/plain|id=metadata-media|source=field_size_limit@@@",
       ],
-    });
+    };
+    mocks.applyObservationFieldOverflow.mockResolvedValueOnce(overflowedRecord);
+    const originalEventRecord = structuredClone(eventRecord);
 
-    const persistedRecord =
-      await ingestionService.writeEventRecord(eventRecord);
+    const returnedRecord = await ingestionService.writeEventRecord(eventRecord);
 
     expect(mocks.applyObservationFieldOverflow).toHaveBeenCalledWith(
       eventRecord,
     );
-    expect(eventRecord.input).toBe("original input");
-    expect(eventRecord.metadata_names).toEqual(["keep", "large.nested"]);
+    expect(eventRecord).toEqual(originalEventRecord);
     expect(addToQueue).toHaveBeenCalledOnce();
-    expect(addToQueue.mock.calls[0]?.[1]).toMatchObject({
-      input: expect.stringContaining("input-media"),
-      metadata_names: ["keep", "large.nested"],
-      metadata_values: ["small", expect.stringContaining("metadata-media")],
-    });
-    expect(persistedRecord).toBe(addToQueue.mock.calls[0]![1]);
+    expect(returnedRecord).not.toHaveProperty("event_bytes");
+    const { event_bytes: _eventBytes, ...expectedReturnedRecord } =
+      overflowedRecord;
+    expect(returnedRecord).toEqual(expectedReturnedRecord);
+
+    const queuedRecord = addToQueue.mock.calls[0]![1];
+    if (useDefault) {
+      expect(queuedRecord).toEqual(expectedReturnedRecord);
+    } else {
+      expect(queuedRecord).toEqual({
+        ...expectedReturnedRecord,
+        event_bytes: Buffer.byteLength(
+          JSON.stringify(expectedReturnedRecord),
+          "utf8",
+        ),
+      });
+    }
   });
 
   it("promotes provided usage and cost for model-less direct events", async () => {

@@ -8,7 +8,7 @@ import {
   logger,
   recordIncrement,
 } from "@langfuse/shared/src/server";
-import { assertEventByteAccountingReady } from "./services/ClickhouseWriter/assertEventByteAccountingReady";
+import { initializeEventByteAccounting } from "./services/ClickhouseWriter/eventByteAccounting";
 import { env, v4WritesToEventsTable } from "./env";
 
 export const initializeWorker = async (): Promise<void> => {
@@ -16,7 +16,7 @@ export const initializeWorker = async (): Promise<void> => {
 
   await initializeClickhouseCompatibility();
   if (v4WritesToEventsTable(env)) {
-    await assertEventByteAccountingReady(clickhouseClient());
+    await initializeEventByteAccounting(clickhouseClient());
   }
 
   await Promise.all([upsertDefaultModelPrices(), upsertLangfuseDashboards()]);

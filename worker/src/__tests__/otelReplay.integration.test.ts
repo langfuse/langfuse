@@ -2,12 +2,21 @@ import "./helpers/otelReplaySetup";
 
 import { createHash, randomUUID } from "node:crypto";
 import { Decimal } from "decimal.js";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  afterEach,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest";
 import { env } from "../env";
 import { env as sharedEnv, type SharedEnv } from "@langfuse/shared/src/env";
 import { MediaAssociationOrigin } from "@langfuse/shared";
 import {
   createOrgProjectAndApiKey,
+  clickhouseClient,
   IngestionQueue,
   QueueJobs,
   TraceUpsertQueue,
@@ -18,6 +27,7 @@ import {
 import { prisma } from "@langfuse/shared/src/db";
 import * as masking from "@langfuse/shared/src/server/ee/ingestionMasking";
 import * as otelPreparation from "../features/otel-ingestion/prepareOtelBatch";
+import { initializeEventByteAccounting } from "../services/ClickhouseWriter/eventByteAccounting";
 import {
   comparableOtelReplayRows,
   expectRawOtelReplayParity,
@@ -48,6 +58,10 @@ const TRACE_ID = "11111111111111111111111111111111";
 const SECOND_TRACE_ID = "44444444444444444444444444444444";
 const FIRST_SPAN_ID = "2222222222222222";
 const SECOND_SPAN_ID = "3333333333333333";
+
+beforeAll(async () => {
+  await initializeEventByteAccounting(clickhouseClient());
+});
 
 async function getTraceUpsertJobsForProject(projectId: string) {
   const jobsByShard = await Promise.all(
