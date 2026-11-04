@@ -260,3 +260,16 @@ export const CreatesKey = meta.story({
     await expect(onCreate).toHaveBeenCalledOnce();
   },
 });
+
+export const SearchFocused = meta.story({
+  name: "(Test) Search field shows the focus ring",
+  args: {
+    data: { status: "success", data: apiKeys },
+    ...actions,
+  },
+  play: async ({ canvas }) => {
+    const searchInput = canvas.getByPlaceholderText("Search by name or user");
+    await userEvent.click(searchInput);
+    await expect(searchInput).toHaveFocus();
+  },
+});
