@@ -1162,7 +1162,7 @@ const MENU_QUERY_OPTIONS = {
   retry: false,
 };
 
-function getEvaluatorSearchQuery(search: string): string {
+export function getEvaluatorSearchQuery(search: string): string {
   const keywords = ENTITY_GROUPS.evaluator.keywords;
   const terms = search.toLowerCase().split(" ");
   const isNameTerm = (term: string) => term !== "" && !keywords.includes(term);
