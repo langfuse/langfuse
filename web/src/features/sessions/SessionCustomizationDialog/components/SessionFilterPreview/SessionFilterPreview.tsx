@@ -273,16 +273,19 @@ export function SessionFilterPreview({
   return (
     <section
       aria-label="Filter preview"
-      className="ph-no-capture bg-muted/30 min-w-0 border-t md:border-t-0 md:border-l"
+      className="ph-no-capture bg-muted/30 flex min-h-0 min-w-0 flex-col border-t md:overflow-hidden md:border-t-0 md:border-l"
     >
-      <header className="bg-modal sticky top-0 z-10 border-b p-4">
+      <header className="bg-modal sticky top-0 z-10 shrink-0 border-b p-4">
         <h3 className="font-bold">Filter preview</h3>
         <p className="text-muted-foreground text-xs">
           Previewing the first 5 traces, with up to 200 observations per trace.
           Observations that don’t match your filters are dimmed.
         </p>
       </header>
-      <div className="flex h-[45vh] min-h-40 flex-col" aria-busy={pending}>
+      <div
+        className="flex h-[45vh] min-h-40 flex-col md:h-auto md:min-h-0 md:flex-1"
+        aria-busy={pending}
+      >
         {pending || error || traces?.length === 0 ? (
           <div className="space-y-2 p-4">
             {pending ? <p role="status">Updating preview…</p> : null}

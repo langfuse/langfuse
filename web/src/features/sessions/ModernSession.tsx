@@ -1,4 +1,5 @@
 import { type ComponentProps } from "react";
+import { ConnectedSessionListBody } from "@/src/features/sessions/ConnectedSessionListBody";
 import { SessionFiltersBanner } from "@/src/features/sessions/SessionFiltersBanner";
 import { type FilterState } from "@langfuse/shared";
 
@@ -14,6 +15,7 @@ import {
 } from "@/src/features/sessions/sessionDetailPageTypes";
 
 type ModernSessionProps = {
+  viewMode: "conversational" | "list";
   customization?: NonNullable<
     ComponentProps<typeof ConnectedModernSessionBodyTimeline>["customization"]
   > & {
@@ -56,6 +58,7 @@ type ModernSessionProps = {
 };
 
 export function ModernSession({
+  viewMode,
   customization,
   headerDividerTone,
   isTimelineEnabled,
@@ -124,7 +127,23 @@ export function ModernSession({
           onClear={customization.onClearFilters}
         />
       )}
-      {isTimelineEnabled ? (
+      {isTimelineEnabled && viewMode === "list" && (
+        <ConnectedSessionListBody
+          {...sharedBodyProps}
+          traceCommentCounts={traceCommentCounts}
+          filterState={filterState.filter(
+            (filter) => filter.column !== "traceName",
+          )}
+          viewLabel={null}
+          showInlineToolCalls={true}
+          showSystemPrompt={true}
+          onCustomizeView={customization?.onCustomizeView}
+          activeFilterCount={
+            customization?.activeFilterCount ?? filterState.length
+          }
+        />
+      )}
+      {isTimelineEnabled && viewMode === "conversational" && (
         <ConnectedModernSessionBodyTimeline
           customization={customization}
           tracesState={tracesState}
@@ -133,7 +152,8 @@ export function ModernSession({
           openPeek={openPeek}
           filterState={filterState}
         />
-      ) : (
+      )}
+      {!isTimelineEnabled && (
         <ModernSessionFilterControls {...filterControlsProps}>
           {(sidebarFilterControls) => (
             <ConnectedModernSessionBodyLegacy
