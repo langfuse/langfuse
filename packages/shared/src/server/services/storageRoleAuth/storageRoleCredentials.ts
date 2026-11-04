@@ -13,6 +13,7 @@ type TemporaryCredentials = Awaited<
 const SESSION_DURATION_SECONDS = 3600;
 const REFRESH_MARGIN_MS = 10 * 60 * 1000;
 const MAX_CACHED_SESSIONS = 10_000;
+const FAILURE_BACKOFF_MS = 30 * 1000;
 
 export function getStorageAccessRoleArn() {
   return env.LANGFUSE_CUSTOMER_STORAGE_ACCESS_ROLE_ARN || null;
@@ -42,18 +43,28 @@ function needsRefresh(credentials: TemporaryCredentials) {
   );
 }
 
+function isExpired(credentials: TemporaryCredentials) {
+  return (
+    credentials.expiration !== undefined &&
+    credentials.expiration.getTime() <= Date.now()
+  );
+}
+
 type CacheEntry = {
   version: string;
   credentials?: TemporaryCredentials;
   inFlight?: Promise<TemporaryCredentials>;
+  failure?: { error: unknown; retryAfter: number };
 };
 
 /**
  * Caches one session per key. Concurrent callers share the in-flight request,
- * failures are not cached, and a new version (e.g. the integration's
- * updatedAt) discards the old session.
+ * and a new version (e.g. the integration's updatedAt) discards the old
+ * session. While a refresh is pending or after it fails, callers keep the
+ * still-valid session. Without one, a failure is returned to every caller for
+ * FAILURE_BACKOFF_MS so a broken role does not cause an STS call per request.
  */
-function createSessionCache() {
+export function createSessionCache() {
   const entries = new Map<string, CacheEntry>();
 
   return async (
@@ -63,11 +74,18 @@ function createSessionCache() {
   ) => {
     const entry = entries.get(key);
     const current = entry?.version === version ? entry : undefined;
-    if (current?.credentials && !needsRefresh(current.credentials)) {
-      return current.credentials;
+    const valid =
+      current?.credentials && !isExpired(current.credentials)
+        ? current.credentials
+        : undefined;
+    if (valid && !needsRefresh(valid)) {
+      return valid;
     }
     if (current?.inFlight) {
-      return current.inFlight;
+      return valid ?? current.inFlight;
+    }
+    if (!valid && current?.failure && Date.now() < current.failure.retryAfter) {
+      throw current.failure.error;
     }
 
     const inFlight = assume().then(
@@ -79,23 +97,25 @@ function createSessionCache() {
       },
       (error: unknown) => {
         if (entries.get(key)?.inFlight === inFlight) {
-          entries.delete(key);
+          entries.set(key, {
+            version,
+            credentials: valid,
+            failure: { error, retryAfter: Date.now() + FAILURE_BACKOFF_MS },
+          });
         }
         throw error;
       },
     );
+    // Callers served from the still-valid session do not await the refresh.
+    inFlight.catch(() => {});
 
     entries.delete(key);
     if (entries.size >= MAX_CACHED_SESSIONS) {
       const oldestKey = entries.keys().next().value;
       if (oldestKey !== undefined) entries.delete(oldestKey);
     }
-    entries.set(key, {
-      version,
-      credentials: current?.credentials,
-      inFlight,
-    });
-    return inFlight;
+    entries.set(key, { version, credentials: valid, inFlight });
+    return valid ?? inFlight;
   };
 }
 
@@ -169,23 +189,27 @@ export function getStorageRoleCredentialsProvider({
   orgId: string;
   sessionPolicy: string;
 }) {
+  const params = (externalId: string) => ({
+    RoleArn: roleArn,
+    ExternalId: externalId,
+    RoleSessionName: sessionName(projectId),
+    SourceIdentity: sessionName(projectId),
+    DurationSeconds: SESSION_DURATION_SECONDS,
+    Policy: sessionPolicy,
+    Tags: [
+      { Key: "langfuse-project-id", Value: sessionTagValue(projectId) },
+      { Key: "langfuse-org-id", Value: sessionTagValue(orgId) },
+    ],
+  });
+
   return () =>
     customerRoleSessions(cacheKey, version, async () => {
-      await verifyStorageRoleRequiresExternalId({ roleArn, projectId });
+      await verifyStorageRoleRequiresExternalId(
+        params(generateStorageExternalId()),
+      );
       return fromTemporaryCredentials({
         masterCredentials: getAccessRoleCredentials,
-        params: {
-          RoleArn: roleArn,
-          ExternalId: externalId,
-          RoleSessionName: sessionName(projectId),
-          SourceIdentity: sessionName(projectId),
-          DurationSeconds: SESSION_DURATION_SECONDS,
-          Policy: sessionPolicy,
-          Tags: [
-            { Key: "langfuse-project-id", Value: sessionTagValue(projectId) },
-            { Key: "langfuse-org-id", Value: sessionTagValue(orgId) },
-          ],
-        },
+        params: params(externalId),
       })();
     });
 }
@@ -197,29 +221,25 @@ function isAccessDeniedError(error: unknown) {
   );
 }
 
+type AssumeRoleParams = Parameters<
+  typeof fromTemporaryCredentials
+>[0]["params"];
+
 /**
- * Assumes the customer role with a random wrong external ID. The trust policy
- * must reject it; if AWS grants the session, the role is open to any caller
- * that can reach the Langfuse access role (confused deputy).
+ * Assumes the customer role with a random wrong external ID and otherwise the
+ * same parameters as the real session, so a trust policy that only rejects on
+ * other conditions (e.g. a missing session tag) is not mistaken for one that
+ * requires the external ID. The trust policy must reject it; if AWS grants the
+ * session, the role is open to any caller that can reach the Langfuse access
+ * role (confused deputy).
  */
-async function verifyStorageRoleRequiresExternalId({
-  roleArn,
-  projectId,
-}: {
-  roleArn: string;
-  projectId: string;
-}) {
+async function verifyStorageRoleRequiresExternalId(params: AssumeRoleParams) {
   const accessRoleCredentials = await getAccessRoleCredentials();
 
   try {
     await fromTemporaryCredentials({
       masterCredentials: accessRoleCredentials,
-      params: {
-        RoleArn: roleArn,
-        ExternalId: generateStorageExternalId(),
-        RoleSessionName: sessionName(projectId),
-        DurationSeconds: 900,
-      },
+      params,
     })();
   } catch (error) {
     if (isAccessDeniedError(error)) return;

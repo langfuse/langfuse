@@ -62,6 +62,7 @@ async function prepareIntegration({
 describe("external media storage service", () => {
   afterEach(() => {
     vi.clearAllMocks();
+    (getStorageAccessRoleArn as Mock).mockReturnValue(null);
   });
 
   afterAll(async () => {

@@ -12,6 +12,16 @@ export function escapeIamPolicyString(value: string) {
   return value.replace(/[*?$]/g, (char) => `\${${char}}`);
 }
 
+/**
+ * Media prefixes are directories: "" means the whole bucket, anything else
+ * ends in exactly one "/". Keeps the app's key check and the IAM resources in
+ * agreement for inputs like "/" or "media//".
+ */
+export function normalizeStorageReadPrefix(prefix: string | null | undefined) {
+  const trimmed = (prefix ?? "").trim().replace(/\/+$/, "");
+  return trimmed ? `${trimmed}/` : "";
+}
+
 export function getArnPartition(arn: string) {
   return arn.split(":")[1] || "aws";
 }
@@ -64,7 +74,7 @@ export function buildStorageRoleReadPermissionPolicy({
       {
         Effect: "Allow",
         Action: "s3:GetObject",
-        Resource: `arn:${partition}:s3:::${bucketName}/${escapeIamPolicyString(prefix ?? "")}*`,
+        Resource: `arn:${partition}:s3:::${bucketName}/${escapeIamPolicyString(normalizeStorageReadPrefix(prefix))}*`,
       },
     ],
   };

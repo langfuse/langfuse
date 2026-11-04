@@ -34,4 +34,21 @@ describe("buildStorageReadSessionPolicy", () => {
       },
     ]);
   });
+
+  it.each([
+    ["/", "arn:aws:s3:::media/*"],
+    ["team//", "arn:aws:s3:::media/team/*"],
+    ["team", "arn:aws:s3:::media/team/*"],
+  ])("normalizes the prefix %j to a single trailing slash", (prefix, arn) => {
+    const policy = JSON.parse(
+      buildStorageReadSessionPolicy({
+        roleArn: "arn:aws:iam::123456789012:role/media-reader",
+        bucketName: "media",
+        prefix,
+        region: "us-east-1",
+      }),
+    );
+
+    expect(policy.Statement[0].Resource).toBe(arn);
+  });
 });

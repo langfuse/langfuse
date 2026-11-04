@@ -5,6 +5,7 @@ import {
   InvalidRequestError,
   isS3KeyWithinPrefix,
   normalizeBlobStorageRegion,
+  normalizeStorageReadPrefix,
   parseS3Uri,
   STORAGE_ROLE_ARN_INVALID_MESSAGE,
   STORAGE_ROLE_ARN_REGEX,
@@ -67,7 +68,7 @@ async function auditConfigurationChange({
 }
 
 function isKeyWithinPrefix(key: string, prefix: string | null) {
-  const normalizedPrefix = prefix?.trim().replace(/\/+$/, "");
+  const normalizedPrefix = normalizeStorageReadPrefix(prefix);
   return !normalizedPrefix || isS3KeyWithinPrefix(key, normalizedPrefix);
 }
 
