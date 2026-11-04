@@ -6,7 +6,7 @@ SELECT gen_random_uuid()::text,
        om.user_id,
        'system/' || om.role::text,
        om.role::text::"SystemRole",
-       now(), now()
+       om.created_at, om.updated_at
 FROM organization_memberships om
 ON CONFLICT DO NOTHING;
 
@@ -19,7 +19,7 @@ SELECT gen_random_uuid()::text,
        pm.user_id,
        'system/' || pm.role::text,
        pm.role::text::"SystemRole",
-       now(), now()
+       pm.created_at, pm.updated_at
 FROM project_memberships pm
 JOIN projects p ON p.id = pm.project_id
 JOIN organization_memberships om ON om.id = pm.org_membership_id AND om.org_id = p.org_id
