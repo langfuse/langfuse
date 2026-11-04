@@ -210,6 +210,11 @@ export function createProductionEvalExecutionDeps(): EvalExecutionDeps {
             type: "score-create",
             eventBodyId: params.scoreId,
             fileKey: params.eventId,
+            // Each eval score file is a complete score-create whose key we
+            // just wrote, so listing the prefix finds nothing to merge. A
+            // retried eval writes a new file with a later timestamp, and the
+            // scores table keeps the latest event_ts either way.
+            skipS3List: true,
             bucketPrefix,
             ingestionApiKey: "",
             ingestionSdkName: UNKNOWN_INGESTION_SDK_VALUE,

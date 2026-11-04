@@ -3,12 +3,15 @@ import { z } from "zod";
 import { createProductionEvalExecutionDeps } from "../evalExecutionDeps";
 import { EXPORT_VOLUME_METRIC } from "../../../services/exportVolumeMetric";
 
-const { mockGenerateLlmEvaluatorOutput, mockRecordIncrement } = vi.hoisted(
-  () => ({
-    mockGenerateLlmEvaluatorOutput: vi.fn(),
-    mockRecordIncrement: vi.fn(),
-  }),
-);
+const {
+  mockGenerateLlmEvaluatorOutput,
+  mockRecordIncrement,
+  mockIngestionQueueAdd,
+} = vi.hoisted(() => ({
+  mockGenerateLlmEvaluatorOutput: vi.fn(),
+  mockRecordIncrement: vi.fn(),
+  mockIngestionQueueAdd: vi.fn(),
+}));
 
 vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
   const original =
@@ -17,6 +20,9 @@ vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
     ...original,
     generateLlmEvaluatorOutput: mockGenerateLlmEvaluatorOutput,
     recordIncrement: mockRecordIncrement,
+    IngestionQueue: {
+      getInstance: vi.fn(() => ({ add: mockIngestionQueueAdd })),
+    },
   };
 });
 
@@ -61,6 +67,30 @@ describe("createProductionEvalExecutionDeps", () => {
       providerMessages: [],
       modelFacingOutputSchema: structuredOutputSchema,
     });
+  });
+
+  it("enqueues eval scores to read their own file without listing the prefix", async () => {
+    const deps = createProductionEvalExecutionDeps();
+
+    await deps.enqueueScoreIngestion({
+      projectId: "project-123",
+      scoreId: "score-123",
+      eventId: "event-123",
+    });
+
+    expect(mockIngestionQueueAdd).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        payload: expect.objectContaining({
+          data: expect.objectContaining({
+            type: "score-create",
+            eventBodyId: "score-123",
+            fileKey: "event-123",
+            skipS3List: true,
+          }),
+        }),
+      }),
+    );
   });
 
   it("calls the shared evaluator model call with direct event writes", async () => {
