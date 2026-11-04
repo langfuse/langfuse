@@ -31,6 +31,21 @@ export const TestObservationFilters = meta.story({
   name: "(Test) Observation filters",
   play: async ({ args }) => {
     const body = within(document.body);
+    await expect(
+      body.getByRole("heading", { name: /Trace: chat/ }),
+    ).toBeInTheDocument();
+    await expect(
+      body.queryByRole("group", { name: "Trace chat" }),
+    ).not.toBeInTheDocument();
+    await userEvent.click(
+      body.getByRole("button", { name: "Collapse trace chat" }),
+    );
+    await expect(
+      body.queryByRole("group", { name: "Observation completion" }),
+    ).not.toBeInTheDocument();
+    await userEvent.click(
+      body.getByRole("button", { name: "Expand trace chat" }),
+    );
     const completion = await body.findByRole("group", {
       name: "Observation completion",
     });
