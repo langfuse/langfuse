@@ -89,7 +89,7 @@ type SidebarVersionState =
     };
 
 const selfHostedPlanLabels = {
-  oss: { short: "OSS", long: "Open Source" },
+  oss: { short: "OSS", long: "Open source" },
   "self-hosted:pro": {
     short: "Pro",
     long: planLabels["self-hosted:pro"],
@@ -537,13 +537,13 @@ function NavUser({
 const DemoBadge = () => {
   return (
     <SidebarGroup className="border-b">
-      <SidebarGroupLabel>Demo Project (view only)</SidebarGroupLabel>
+      <SidebarGroupLabel>Demo project (view only)</SidebarGroupLabel>
       <SidebarGroupContent>
         <SidebarMenu>
           <SidebarMenuItem>
             <SidebarMenuButton
               asChild
-              tooltip="Use Demo App to create traces"
+              tooltip="Use demo app to create traces"
               variant="cta"
             >
               <Link
@@ -552,15 +552,15 @@ const DemoBadge = () => {
                 rel="noopener noreferrer"
               >
                 <ExternalLink size="base" />
-                <span>Use Demo App</span>
+                <span>Use demo app</span>
               </Link>
             </SidebarMenuButton>
           </SidebarMenuItem>
           <SidebarMenuItem>
-            <SidebarMenuButton asChild tooltip="Your Langfuse Organizations">
+            <SidebarMenuButton asChild tooltip="Your Langfuse organizations">
               <Link href="/">
                 <Grid2X2 size="base" />
-                <span>Your Langfuse Orgs</span>
+                <span>Your Langfuse orgs</span>
               </Link>
             </SidebarMenuButton>
           </SidebarMenuItem>
@@ -690,7 +690,7 @@ const VersionLabel = ({ state }: { state: SidebarVersionState }) => {
           <DropdownMenuItem asChild>
             <Link href="/background-migrations">
               <ArrowUp10 size="base" color="default" __rawClassName="mr-2" />
-              Background Migrations
+              Background migrations
               {backgroundMigrationStatus && (
                 <StatusBadge
                   type={backgroundMigrationStatus}
@@ -717,7 +717,7 @@ const VersionLabel = ({ state }: { state: SidebarVersionState }) => {
           <DropdownMenuItem asChild>
             <Link href="https://langfuse.com/pricing-self-host" target="_blank">
               <Info size="base" color="default" __rawClassName="mr-2" />
-              Compare Versions
+              Compare versions
             </Link>
           </DropdownMenuItem>
         )}
