@@ -12,7 +12,7 @@ const traceUrl = links[0];
 const PHRASE = "600 requests per minute";
 
 const scene = await openScene("inline-comments");
-const { page, glideTo, glideClick, wide } = scene;
+const { page, glideTo, glideClick, focus, wide } = scene;
 
 const raw = page.getByRole("tab", { name: "Raw" });
 const traceLoaded = async () => {
@@ -61,17 +61,34 @@ await scene.record();
 await page.waitForTimeout(1000);
 wide();
 
-// Drag across the phrase to select it.
+// Drag across the phrase to select it, close enough to see the highlight.
 const r = await textRect(PHRASE);
 const y = r.y + r.h / 2;
-await glideTo(r.x + 1, y, 1000);
+await glideTo(r.x - 40, y + 30, 900);
+focus({ x: r.x - 330, y: r.y - 160, width: 860, height: 484 }, 1.8);
+await glideTo(r.x + 1, y, 700);
 await page.mouse.down();
-await glideTo(r.x + r.w - 1, y, 700);
+// glideTo lands the real pointer in one jump; step it so the drag selects.
+const x0 = r.x + 1;
+const x1 = r.x + r.w - 1;
+await Promise.all([
+  glideTo(x1, y, 1400),
+  (async () => {
+    for (let i = 1; i <= 20; i++) {
+      await page.waitForTimeout(65);
+      await page.mouse.move(x0 + ((x1 - x0) * i) / 20, y);
+    }
+  })(),
+]);
 await page.mouse.up();
-await page.waitForTimeout(700);
+if (!(await page.evaluate(() => String(getSelection())))) {
+  throw new Error("Phrase not selected");
+}
+await page.waitForTimeout(1600);
 
 const commentChip = page.getByRole("button", { name: "Comment" }).last();
 await glideClick(commentChip, 700);
+wide();
 const composer = page.getByRole("textbox").last();
 await composer.waitFor();
 await page.waitForTimeout(800);
