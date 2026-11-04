@@ -349,7 +349,8 @@ export default function ObservationsEventsTable({
       ? { ...config, facets: [...config.facets, topicsFilterFacet] }
       : config;
   }, [omittedFilter, showTopicFilter]);
-  const topicFilterOptions = useTopicFilterOptions(projectId, showTopicFilter);
+  // Also names the per-facet Topics columns, which session views show too.
+  const topicFilterOptions = useTopicFilterOptions(projectId, canViewTopics);
 
   const { setDetailPageList } = useDetailPageLists();
   const [selectedRows, setSelectedRows] = useState<RowSelectionState>({});
@@ -1715,15 +1716,28 @@ export default function ObservationsEventsTable({
           {
             accessorKey: "topics",
             header: "Topics",
-            size: 300,
+            id: "topics",
             enableHiding: true,
             defaultHidden: true,
-            cell: ({ row }) => (
-              <TraceTopicsCell
-                projectId={projectId}
-                rows={observations.rows ?? []}
-                traceId={row.original.traceId}
-              />
+            cell: () => null,
+            // One column per facet with a live map, like score columns.
+            columns: Object.keys(topicFilterOptions ?? {}).map(
+              (facet): LangfuseColumnDef<EventsTableRow> => ({
+                accessorKey: `topics-${facet}`,
+                id: `topics-${facet}`,
+                header: facet,
+                size: 200,
+                enableHiding: true,
+                defaultHidden: true,
+                cell: ({ row }) => (
+                  <TraceTopicsCell
+                    projectId={projectId}
+                    rows={observations.rows ?? []}
+                    traceId={row.original.traceId}
+                    facet={facet}
+                  />
+                ),
+              }),
             ),
           } satisfies LangfuseColumnDef<EventsTableRow>,
         ]
