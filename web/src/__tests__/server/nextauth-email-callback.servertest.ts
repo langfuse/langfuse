@@ -29,7 +29,6 @@ import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import { getAuthOptions } from "@/src/server/auth";
 import { getCookieName } from "@/src/server/utils/cookies";
 import { prisma } from "@langfuse/shared/src/db";
-import { logger } from "@langfuse/shared/src/server";
 
 vi.mock(
   "@/src/features/auth/server/verifyTurnstile",
@@ -188,139 +187,38 @@ describe("NextAuth signIn callback for the email provider", () => {
   });
 });
 
-describe("NextAuth OAuth staff email verification", () => {
+describe("NextAuth OAuth staff sign-in", () => {
   afterEach(() => {
     vi.restoreAllMocks();
   });
 
-  it.each([
-    { name: "verified Google email", verified: true, expected: true },
-    { name: "unverified Google email", verified: false, expected: false },
-    {
-      name: "different verified email",
-      verified: true,
-      mismatch: true,
-      expected: false,
-    },
-  ])("accepts only matching staff ownership proof: $name", async (testCase) => {
+  it("stamps the login time without additional provider requests or email verification writes", async () => {
     const { userId, email } = await createUser({
       password: null,
-      emailDomain: "langfuse.com",
+      emailDomain: "clickhouse.com",
     });
+    const fetchMock = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(Response.json([{ email, verified: true }]));
     const authOptions = await getAuthOptions();
-    await authOptions.callbacks!.jwt!({
+    const token = await authOptions.callbacks!.jwt!({
       token: { email },
       user: { id: userId, email },
       account: {
-        provider: "google",
+        provider: "github",
         type: "oauth",
         providerAccountId: userId,
+        access_token: "test-oauth-token",
       },
-      profile: {
-        email:
-          "mismatch" in testCase ? "someone@example.com" : email.toUpperCase(),
-        ...{ email_verified: testCase.verified },
-      },
+      profile: { email },
     });
+
+    expect(token).toMatchObject({ email, loginAt: expect.any(Number) });
+    expect(fetchMock).not.toHaveBeenCalled();
     const user = await prisma.user.findUniqueOrThrow({ where: { id: userId } });
-    expect(user.emailVerified !== null).toBe(testCase.expected);
+    expect(user.emailVerified).toBeNull();
     expect(user.admin).toBe(false);
   });
-
-  it.each(["github", "langfuse.com.github"])(
-    "verifies %s ownership and skips the lookup after verification",
-    async (provider) => {
-      const { userId, email } = await createUser({
-        password: null,
-        emailDomain: "langfuse.com",
-      });
-      const fetchMock = vi
-        .spyOn(globalThis, "fetch")
-        .mockResolvedValue(
-          Response.json([{ email: email.toUpperCase(), verified: true }]),
-        );
-      const authOptions = await getAuthOptions();
-      const args = {
-        token: { email },
-        user: { id: userId, email },
-        account: {
-          provider,
-          type: "oauth" as const,
-          providerAccountId: userId,
-          access_token: "test-oauth-token",
-        },
-        profile: { email },
-      };
-      await authOptions.callbacks!.jwt!(args);
-      const user = await prisma.user.findUniqueOrThrow({
-        where: { id: userId },
-      });
-      expect(user.emailVerified).toBeInstanceOf(Date);
-      expect(fetchMock).toHaveBeenCalledWith(
-        "https://api.github.com/user/emails",
-        expect.objectContaining({
-          headers: expect.objectContaining({
-            Authorization: "Bearer test-oauth-token",
-          }),
-          redirect: "error",
-          signal: expect.any(AbortSignal),
-        }),
-      );
-      fetchMock.mockClear();
-      await authOptions.callbacks!.jwt!({ ...args, user });
-      expect(fetchMock).not.toHaveBeenCalled();
-    },
-  );
-
-  it.each(["no-matching-proof", "failed-lookup"])(
-    "keeps login working without verifying GitHub ownership on %s",
-    async (scenario) => {
-      const { userId, email } = await createUser({
-        password: null,
-        emailDomain: "clickhouse.com",
-      });
-      const fetchMock = vi.spyOn(globalThis, "fetch");
-      const warnMock = vi.spyOn(logger, "warn");
-      if (scenario === "failed-lookup")
-        fetchMock.mockRejectedValue(
-          new Error("lookup failed: test-oauth-token"),
-        );
-      else
-        fetchMock.mockResolvedValue(
-          Response.json([
-            { email, verified: false },
-            { email: "someone@example.com", verified: true },
-          ]),
-        );
-      const authOptions = await getAuthOptions();
-      await expect(
-        authOptions.callbacks!.jwt!({
-          token: { email },
-          user: { id: userId, email },
-          account: {
-            provider: "github",
-            type: "oauth",
-            providerAccountId: userId,
-            access_token: "test-oauth-token",
-          },
-          profile: { email },
-        }),
-      ).resolves.toMatchObject({ email });
-      const user = await prisma.user.findUniqueOrThrow({
-        where: { id: userId },
-      });
-      expect(user.emailVerified).toBeNull();
-      if (scenario === "failed-lookup") {
-        expect(warnMock).toHaveBeenCalledWith(
-          "Could not verify staff email during OAuth sign-in",
-          { stage: "provider", errorName: "Error" },
-        );
-        expect(JSON.stringify(warnMock.mock.calls)).not.toContain(
-          "test-oauth-token",
-        );
-      }
-    },
-  );
 });
 
 describe("POST /api/auth/signin/email captcha", () => {

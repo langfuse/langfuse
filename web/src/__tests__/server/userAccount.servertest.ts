@@ -32,7 +32,6 @@ describe("userAccountRouter.setFeaturePreviewEnabled", () => {
     {
       admin: false,
       emailDomain: "langfuse.com",
-      emailVerified: new Date("2026-01-01T00:00:00.000Z"),
     },
   ])(
     "rejects a Topics toggle in external view without a grant ($emailDomain, admin=$admin)",
@@ -65,7 +64,6 @@ describe("userAccountRouter.setFeaturePreviewEnabled", () => {
     async (emailDomain) => {
       const { caller, userId } = await createCaller({
         emailDomain,
-        emailVerified: new Date("2026-01-01T00:00:00.000Z"),
       });
       (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = undefined;
       await caller.userAccount.setFeaturePreviewEnabled({
@@ -199,33 +197,33 @@ describe("userAccountRouter.setViewMode", () => {
     Object.assign(env, originalEnv);
   });
 
-  it("lets verified staff switch views without V4 while preserving other preferences", async () => {
-    const { caller, userId } = await createCaller({
-      emailDomain: "langfuse.com",
-      emailVerified: new Date("2026-01-01T00:00:00.000Z"),
-      featureFlags: ["sessionViewV2"],
-    });
-    await caller.userAccount.setViewMode({ mode: "EXTERNAL" });
-    await caller.userAccount.setViewMode({ mode: "EXTERNAL" });
-    expect(
-      (await prisma.user.findUniqueOrThrow({ where: { id: userId } }))
-        .featureFlags,
-    ).toEqual([
-      "sessionViewV2",
-      getFeaturePreviewOptOutFlag(INTERNAL_FEATURE_FLAG),
-    ]);
-    await caller.userAccount.setViewMode({ mode: "INTERNAL" });
-    const user = await prisma.user.findUniqueOrThrow({
-      where: { id: userId },
-    });
-    expect(user.featureFlags).toEqual(["sessionViewV2"]);
-    expect(user.admin).toBe(false);
-  });
+  it.each(["langfuse.com", "clickhouse.com"])(
+    "lets %s staff switch views without V4 while preserving other preferences",
+    async (emailDomain) => {
+      const { caller, userId } = await createCaller({
+        emailDomain,
+        featureFlags: ["sessionViewV2"],
+      });
+      await caller.userAccount.setViewMode({ mode: "EXTERNAL" });
+      await caller.userAccount.setViewMode({ mode: "EXTERNAL" });
+      expect(
+        (await prisma.user.findUniqueOrThrow({ where: { id: userId } }))
+          .featureFlags,
+      ).toEqual([
+        "sessionViewV2",
+        getFeaturePreviewOptOutFlag(INTERNAL_FEATURE_FLAG),
+      ]);
+      await caller.userAccount.setViewMode({ mode: "INTERNAL" });
+      const user = await prisma.user.findUniqueOrThrow({
+        where: { id: userId },
+      });
+      expect(user.featureFlags).toEqual(["sessionViewV2"]);
+      expect(user.admin).toBe(false);
+    },
+  );
 
-  it("lets unverified staff opt out but not enable internal view", async () => {
-    const { caller, userId } = await createCaller({
-      emailDomain: "langfuse.com",
-    });
+  it("lets external users opt out but not enable internal view", async () => {
+    const { caller, userId } = await createCaller();
     await expect(
       caller.userAccount.setViewMode({ mode: "INTERNAL" }),
     ).rejects.toMatchObject({ code: "PRECONDITION_FAILED" });
@@ -335,7 +333,6 @@ async function createCaller({
   featureFlags = ["templateFlag"],
   includeProjectInSession = true,
   emailDomain = "example.com",
-  emailVerified = null,
 }: {
   admin?: boolean;
   plan?: Plan;
@@ -345,7 +342,6 @@ async function createCaller({
   // Domain only — the local part is always unique so reruns against the same
   // database do not trip the users.email unique constraint.
   emailDomain?: string;
-  emailVerified?: Date | null;
 } = {}) {
   const id = randomUUID();
   const orgId = `org-${id}`;
@@ -370,7 +366,6 @@ async function createCaller({
     data: {
       id: userId,
       email: `${userId}@${emailDomain}`,
-      emailVerified,
       name: "User Account Test User",
       featureFlags,
       admin,
@@ -382,7 +377,6 @@ async function createCaller({
     user: {
       id: user.id,
       email: user.email,
-      emailVerified: user.emailVerified?.toISOString(),
       v4BetaEnabled: false,
       name: user.name,
       canCreateOrganizations: true,

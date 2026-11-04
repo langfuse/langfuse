@@ -48,7 +48,6 @@ describe("FeaturePreviewModal", () => {
         user: {
           admin: false,
           email,
-          emailVerified: "2026-01-01T00:00:00.000Z",
           featureFlags: testFeatureFlags({
             internalFeatures: true,
             langfuseTopics: false,

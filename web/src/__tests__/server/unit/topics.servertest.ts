@@ -318,7 +318,6 @@ describe("Topics visibility gate", () => {
         id: "user-a",
         admin,
         email,
-        emailVerified: email ? "2026-01-01T00:00:00.000Z" : undefined,
         featureFlags: testFeatureFlags({ langfuseTopics, internalFeatures }),
         organizations: role
           ? [{ id: "org-a", role, projects: [{ id: projectId, role }] }]
@@ -332,13 +331,13 @@ describe("Topics visibility gate", () => {
     ["a project outside the allowlist", {}, false, false],
     ["the feature preview turned off", { langfuseTopics: false }, true, false],
     [
-      "verified Langfuse staff in internal view",
+      "Langfuse staff in internal view",
       { email: "member@langfuse.com", langfuseTopics: false },
       true,
       true,
     ],
     [
-      "verified ClickHouse staff in internal view",
+      "ClickHouse staff in internal view",
       { email: "MEMBER@CLICKHOUSE.COM", langfuseTopics: false },
       true,
       true,

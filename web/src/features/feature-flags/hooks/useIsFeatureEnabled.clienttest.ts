@@ -86,7 +86,8 @@ describe("useIsFeatureEnabled", () => {
     ["member@sub.langfuse.com", true, false],
     ["member@clickhouse.com.example.org", true, false],
     ["member@notclickhouse.com", true, false],
-    ["member@langfuse.com", false, false],
+    ["member@langfuse.com", false, true],
+    ["member@clickhouse.com", false, true],
   ] as const)(
     "internal view for %s (verified=%s): %s",
     (email, verified, expected) => {
