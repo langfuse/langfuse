@@ -61,6 +61,7 @@ export class ClickHouseOperationNodeTransformer extends OperationNodeTransformer
       queryId,
     ) as ClickHouseSelectQueryNode;
     const extra = node as ClickHouseSelectQueryNode;
+    // Kysely's rebuilt select plus the ClickHouse fields it dropped.
     return {
       ...transformed,
       ...(extra.arrayJoins
