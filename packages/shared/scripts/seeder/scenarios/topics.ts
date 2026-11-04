@@ -5,6 +5,10 @@ import {
   createObservationsCh,
   createEventsCh,
 } from "../../../src/server";
+import {
+  ensureDefaultTopicFacets,
+  writeTopicSummaries,
+} from "../../../src/server/topics";
 import { observationToEvent, traceToEvent } from "./event-mirror";
 import { jitter, utcDayStartMs } from "./rng";
 import { topicEvaluationExamples } from "./topics-evaluation";
@@ -97,6 +101,13 @@ export const topicsScenario: ScenarioDefinition = {
       default: true,
       description: "also mirror traces/observations into v4 events tables",
     },
+    {
+      flag: "summaries",
+      type: "boolean",
+      default: false,
+      description:
+        "also write one complete Topics summary per trace (the request text) for the first facet, so Topics search works without model calls",
+    },
   ],
   run: async (ctx, params) => {
     const startedAt = Date.now();
@@ -107,6 +118,7 @@ export const topicsScenario: ScenarioDefinition = {
       );
     }
     const withV4 = params.v4 !== false;
+    const withSummaries = params.summaries === true;
     const evaluation = batch === "evaluation" ? topicEvaluationExamples() : [];
     const examples =
       batch === "evaluation"
@@ -135,6 +147,7 @@ export const topicsScenario: ScenarioDefinition = {
       traces: examples.length,
       observations: examples.length + evaluation.length,
       events: withV4 ? examples.length * 2 + evaluation.length : 0,
+      summaries: withSummaries ? examples.length : 0,
     };
     const summary = {
       scenario: "topics",
@@ -240,6 +253,40 @@ export const topicsScenario: ScenarioDefinition = {
     await createTracesCh(traces);
     await createObservationsCh(observations);
     if (events.length) await createEventsCh(events);
+    const [facet] = withSummaries
+      ? await ensureDefaultTopicFacets(ctx.projectId)
+      : [];
+    if (facet) {
+      await writeTopicSummaries(
+        traces.map((trace, index) => ({
+          projectId: ctx.projectId,
+          facetId: facet.id,
+          facetVersion: facet.versions[0]!.version,
+          traceId: trace.id,
+          sessionId: null,
+          triggerType: "manual_poc",
+          environment: ctx.environment,
+          traceName: trace.name ?? "",
+          unitStartTime: new Date(timestamps[index]!).toISOString(),
+          state: "complete",
+          summary: examples[index]!.io[0],
+          // A one-hot vector keeps the row valid without an embedding model.
+          embedding: Array.from({ length: 256 }, (_, dim) =>
+            dim === index % 256 ? 1 : 0,
+          ),
+          transcriptId: "seed",
+          transcriptVersion: "seed",
+          summaryModel: "seed",
+          embeddingModel: "eu.cohere.embed-v4:0",
+          providedUsageDetails: {},
+          usageDetails: {},
+          providedCostDetails: {},
+          costDetails: {},
+          processedAt: new Date(timestamps[index]! + 1800).toISOString(),
+          metadata: {},
+        })),
+      );
+    }
 
     const queryParams = { projectId: ctx.projectId, traceIds };
     const verified: Record<string, number> = {
@@ -261,6 +308,14 @@ export const topicsScenario: ScenarioDefinition = {
             "project_id = {projectId: String} AND trace_id IN {traceIds: Array(String)}",
             queryParams,
             "uniqExact(span_id)",
+          )
+        : 0,
+      summaries: withSummaries
+        ? await countRows(
+            "topic_facet_summaries",
+            "project_id = {projectId: String} AND trace_id IN {traceIds: Array(String)}",
+            queryParams,
+            "uniqExact(trace_id)",
           )
         : 0,
     };

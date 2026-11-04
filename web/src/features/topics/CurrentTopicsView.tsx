@@ -46,6 +46,7 @@ export function CurrentTopicsView({
   peekView,
   tracePanelRef,
   traceFilters,
+  summaryMatches,
   onGenerateTopics,
   canGenerateTopics,
 }: CurrentTopicsViewProps) {
@@ -75,7 +76,7 @@ export function CurrentTopicsView({
   const { visible, matchingTraceKey } = useMemo(() => {
     const isFiltered = filters.length > 0 || Boolean(searchQuery?.trim());
     const visible = isFiltered
-      ? filterTopicTraces(facet.rows, filters, searchQuery)
+      ? filterTopicTraces(facet.rows, filters, searchQuery, summaryMatches)
       : facet.rows;
     return {
       visible,
@@ -83,7 +84,7 @@ export function CurrentTopicsView({
         ? JSON.stringify([...new Set(visible.map((row) => row.traceId))].sort())
         : null,
     };
-  }, [facet.rows, filters, searchQuery]);
+  }, [facet.rows, filters, searchQuery, summaryMatches]);
   const selectedRowIndex = visible.findIndex(
     (row) => row.traceId === selectedTraceId,
   );
@@ -564,6 +565,7 @@ type CurrentTopicsViewProps = {
     searchQuery: string | null;
     setSearchQuery: (query: string | null) => void;
   };
+  summaryMatches?: ReadonlySet<string>;
   onOpenTrace: (traceId: string) => void;
   peekView: DataTablePeekViewProps;
 };

@@ -138,6 +138,20 @@ const ftsTextIndexedSubstringCondition = (
 ): string =>
   `(position(${normalizeFtsTextExpr(fieldExpr)}, ${normalizeFtsTextExpr(valueParam)}) > 0 AND ${ftsTextTokenPredicate(fieldExpr, valueParam)})`;
 
+// topic_facet_summaries carries a text index on lower(summary)
+// (idx_fts_summary_low). Like `matches`, every search token must appear as a
+// whole token: "refund" does not match "refunds". On ClickHouse 25.x the
+// query needs `enable_full_text_index = 1` (TOPIC_SUMMARY_SEARCH_SETTINGS).
+export const topicSummaryMatchCondition = (valueParam: string): string =>
+  ftsTextIndexedSubstringCondition("summary", valueParam);
+
+export const TOPIC_SUMMARY_SEARCH_SETTINGS = { enable_full_text_index: 1 };
+
+// Trace IDs with any stored summary (any facet or version) that matches.
+// Needs a `{projectId: String}` query parameter.
+export const topicSummaryTraceIdsSubquery = (valueParam: string): string =>
+  `SELECT trace_id FROM topic_facet_summaries WHERE project_id = {projectId: String} AND trace_id != '' AND ${topicSummaryMatchCondition(valueParam)}`;
+
 const ftsMetadataArrayTokenConjunct = (
   arrayExpr: string,
   valueParam: string,
