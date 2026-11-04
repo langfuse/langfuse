@@ -17,6 +17,8 @@ router.get<{}, { status: string }>("/health", async (req, res) => {
         req.query.failIfEventPropagationStuck === "true",
       failIfQueueConsumptionStuck:
         req.query.failIfQueueConsumptionStuck === "true",
+      skipPostgresCheck: req.query.skipPostgresCheck === "true",
+      skipRedisCheck: req.query.skipRedisCheck === "true",
     });
   } catch (e) {
     traceException(e);
