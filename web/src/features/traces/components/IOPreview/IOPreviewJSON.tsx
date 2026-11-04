@@ -80,6 +80,8 @@ export interface IOPreviewJSONProps {
   metadata?: Prisma.JsonValue;
   outputCorrection?: ScoreDomain;
   traceOutputCorrection?: ScoreDomain;
+  traceActualOutput?: unknown;
+  traceActualOutputTooLarge?: boolean;
   // Pre-parsed data (from useParsedObservation hook)
   parsedInput?: unknown;
   parsedOutput?: unknown;
@@ -131,6 +133,8 @@ function IOPreviewJSONInner({
   parsedMetadata,
   outputCorrection,
   traceOutputCorrection,
+  traceActualOutput,
+  traceActualOutputTooLarge,
   isParsing = false,
   hideIfNull = false,
   hideOutput = false,
@@ -547,6 +551,14 @@ function IOPreviewJSONInner({
         trigger: "inline",
       })
     ) {
+      const isTraceScopedView = !observationId;
+      const gatedOutput = outputTooLarge ? undefined : effectiveOutput;
+      const sectionTraceActualOutput = isTraceScopedView
+        ? gatedOutput
+        : traceActualOutput;
+      const sectionTraceActualOutputTooLarge = isTraceScopedView
+        ? outputTooLarge
+        : traceActualOutputTooLarge;
       result.push({
         key: "corrections",
         title: "Output correction",
@@ -564,10 +576,12 @@ function IOPreviewJSONInner({
             // case this viewer gates. `actualOutputTooLarge` drives the
             // "too large to diff" branch, so `undefined` here is sufficient
             // (and `effectiveOutput` stays decoded for the lazy viewer/probe).
-            actualOutput={outputTooLarge ? undefined : effectiveOutput}
+            actualOutput={gatedOutput}
             actualOutputTooLarge={outputTooLarge}
             outputCorrection={outputCorrection}
             traceOutputCorrection={traceOutputCorrection}
+            traceActualOutput={sectionTraceActualOutput}
+            traceActualOutputTooLarge={sectionTraceActualOutputTooLarge}
             observationId={observationId}
             projectId={projectId}
             traceId={traceId}
@@ -626,6 +640,8 @@ function IOPreviewJSONInner({
     observationId,
     outputCorrection,
     traceOutputCorrection,
+    traceActualOutput,
+    traceActualOutputTooLarge,
     projectId,
     traceId,
     environment,

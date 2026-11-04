@@ -26,6 +26,8 @@ export interface IOPreviewJSONSimpleProps {
   metadata?: Prisma.JsonValue;
   outputCorrection?: ScoreDomain;
   traceOutputCorrection?: ScoreDomain;
+  traceActualOutput?: unknown;
+  traceActualOutputTooLarge?: boolean;
   // Pre-parsed data (optional, from useParsedObservation hook for performance)
   parsedInput?: unknown;
   parsedOutput?: unknown;
@@ -73,6 +75,8 @@ export function IOPreviewJSONSimple({
   metadata,
   outputCorrection,
   traceOutputCorrection,
+  traceActualOutput,
+  traceActualOutputTooLarge,
   parsedInput,
   parsedOutput,
   parsedMetadata,
@@ -152,28 +156,38 @@ export function IOPreviewJSONSimple({
     projectId,
     onOpen: () => setCorrectionOpen(true),
   });
-  const { effectiveCorrection } = useCorrectionData(
+  const { effectiveCorrection: effectiveObsCorrection } = useCorrectionData(
     outputCorrection,
     observationId,
     traceId,
   );
+  const { effectiveCorrection: effectiveTraceCorrection } = useCorrectionData(
+    traceOutputCorrection,
+    undefined,
+    traceId,
+  );
+  const isTraceScopedView = !observationId;
+  const effectivePrimaryCorrection = isTraceScopedView
+    ? effectiveTraceCorrection
+    : effectiveObsCorrection;
   const correctionTrigger = showOutput ? "header" : "inline";
   const showCorrectionField =
     showCorrections &&
     shouldShowCorrectedOutputSection({
       observationId,
-      outputCorrection: effectiveCorrection ?? outputCorrection,
-      traceOutputCorrection,
-      obsEditorOpen: correctionOpen,
-      startEditing: correctionOpen && !effectiveCorrection,
+      outputCorrection: effectiveObsCorrection ?? outputCorrection,
+      traceOutputCorrection: effectiveTraceCorrection ?? traceOutputCorrection,
+      obsEditorOpen: correctionOpen && Boolean(observationId),
+      traceEditorOpen: correctionOpen && isTraceScopedView,
+      startEditing: correctionOpen && !effectivePrimaryCorrection,
       trigger: correctionTrigger,
     });
   const outputActions =
     showCorrections &&
-    observationId &&
+    (Boolean(observationId) || isTraceScopedView) &&
     showOutput &&
     !correctionOpen &&
-    !effectiveCorrection
+    !effectivePrimaryCorrection
       ? [correctOutputAction]
       : undefined;
 
@@ -300,14 +314,21 @@ export function IOPreviewJSONSimple({
           actualOutputTooLarge={outputTooLarge}
           outputCorrection={outputCorrection}
           traceOutputCorrection={traceOutputCorrection}
+          traceActualOutput={
+            isTraceScopedView ? effectiveOutput : traceActualOutput
+          }
+          traceActualOutputTooLarge={
+            isTraceScopedView ? outputTooLarge : traceActualOutputTooLarge
+          }
           observationId={observationId}
           projectId={projectId}
           traceId={traceId}
           environment={environment}
           trigger={correctionTrigger}
-          startEditing={correctionOpen && !effectiveCorrection}
+          startEditing={correctionOpen && !effectivePrimaryCorrection}
           onClosed={() => setCorrectionOpen(false)}
-          obsEditorOpen={correctionOpen}
+          obsEditorOpen={correctionOpen && Boolean(observationId)}
+          traceEditorOpen={correctionOpen && isTraceScopedView}
         />
       )}
       {showMetadata &&

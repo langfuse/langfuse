@@ -230,6 +230,8 @@ export interface IOPreviewPrettyProps extends ExpansionStateProps {
   metadata?: Prisma.JsonValue;
   outputCorrection?: ScoreDomain;
   traceOutputCorrection?: ScoreDomain;
+  traceActualOutput?: unknown;
+  traceActualOutputTooLarge?: boolean;
   // Pre-parsed data (optional, from useParsedObservation hook for performance)
   parsedInput?: unknown;
   parsedOutput?: unknown;
@@ -271,6 +273,8 @@ export function IOPreviewPretty({
   metadata,
   outputCorrection,
   traceOutputCorrection,
+  traceActualOutput,
+  traceActualOutputTooLarge,
   parsedInput: preParsedInput,
   parsedOutput: preParsedOutput,
   parsedMetadata: preParsedMetadata,
@@ -537,11 +541,22 @@ export function IOPreviewPretty({
     projectId,
     onOpen: () => setCorrectionOpen(true),
   });
-  const { effectiveCorrection } = useCorrectionData(
+  const { effectiveCorrection: effectiveObsCorrection } = useCorrectionData(
     outputCorrection,
     observationId,
     traceId,
   );
+  const { effectiveCorrection: effectiveTraceCorrection } = useCorrectionData(
+    traceOutputCorrection,
+    undefined,
+    traceId,
+  );
+  // TraceDetailView has no observationId — pen creates a trace-scoped CORRECTION.
+  // Observation views keep the pen obs-scoped.
+  const isTraceScopedView = !observationId;
+  const effectivePrimaryCorrection = isTraceScopedView
+    ? effectiveTraceCorrection
+    : effectiveObsCorrection;
   const hasOutputHeader = shouldRenderMessages
     ? allMessages.some(
         (message, index) =>
@@ -554,25 +569,23 @@ export function IOPreviewPretty({
       )
     : !hideOutput && !(hideIfNull && !parsedOutput);
   const correctionTrigger = hasOutputHeader ? "header" : "inline";
-  // Pen stays observation-scoped; only offer it when this view has an obs id.
   const outputActions =
     showCorrections &&
-    observationId &&
+    (Boolean(observationId) || isTraceScopedView) &&
     hasOutputHeader &&
     !correctionOpen &&
-    !effectiveCorrection
+    !effectivePrimaryCorrection
       ? [correctOutputAction]
       : undefined;
-  // Mount when an obs-scoped field is needed and/or a trace-level correction exists.
-  // Prefer effectiveCorrection so optimistic/cache hits still open the section.
   const showCorrectionField =
     showCorrections &&
     shouldShowCorrectedOutputSection({
       observationId,
-      outputCorrection: effectiveCorrection ?? outputCorrection,
-      traceOutputCorrection,
-      obsEditorOpen: correctionOpen,
-      startEditing: correctionOpen && !effectiveCorrection,
+      outputCorrection: effectiveObsCorrection ?? outputCorrection,
+      traceOutputCorrection: effectiveTraceCorrection ?? traceOutputCorrection,
+      obsEditorOpen: correctionOpen && Boolean(observationId),
+      traceEditorOpen: correctionOpen && isTraceScopedView,
+      startEditing: correctionOpen && !effectivePrimaryCorrection,
       trigger: correctionTrigger,
     });
   const correctedOutputField = showCorrectionField ? (
@@ -580,14 +593,19 @@ export function IOPreviewPretty({
       actualOutput={parsedOutput}
       outputCorrection={outputCorrection}
       traceOutputCorrection={traceOutputCorrection}
+      traceActualOutput={isTraceScopedView ? parsedOutput : traceActualOutput}
+      traceActualOutputTooLarge={
+        isTraceScopedView ? undefined : traceActualOutputTooLarge
+      }
       observationId={observationId}
       projectId={projectId}
       traceId={traceId}
       environment={environment}
       trigger={correctionTrigger}
-      startEditing={correctionOpen && !effectiveCorrection}
+      startEditing={correctionOpen && !effectivePrimaryCorrection}
       onClosed={() => setCorrectionOpen(false)}
-      obsEditorOpen={correctionOpen}
+      obsEditorOpen={correctionOpen && Boolean(observationId)}
+      traceEditorOpen={correctionOpen && isTraceScopedView}
     />
   ) : null;
   // Non-generation I/O that is not chat (plain strings, loose records) is

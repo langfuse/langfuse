@@ -70,6 +70,9 @@ export interface IOPreviewProps extends ExpansionStateProps {
   outputCorrection?: ScoreDomain;
   /** Trace-scoped CORRECTION (`observationId` null), shown nested under Corrected output when both scopes exist. */
   traceOutputCorrection?: ScoreDomain;
+  /** Trace-level original output for the Trace correction field's diff (root / TraceDetailView). */
+  traceActualOutput?: unknown;
+  traceActualOutputTooLarge?: boolean;
   // Pre-parsed data (optional, from useParsedObservation hook for performance)
   parsedInput?: unknown;
   parsedOutput?: unknown;
@@ -121,6 +124,8 @@ export function IOPreview({
   status,
   outputCorrection,
   traceOutputCorrection,
+  traceActualOutput,
+  traceActualOutputTooLarge,
   metadata,
   parsedInput,
   parsedOutput,
@@ -199,6 +204,8 @@ export function IOPreview({
     status,
     outputCorrection,
     traceOutputCorrection,
+    traceActualOutput,
+    traceActualOutputTooLarge,
     metadata,
     parsedInput,
     parsedOutput,
@@ -266,6 +273,8 @@ export function IOPreview({
           parsedOutput={parsedOutput}
           outputCorrection={outputCorrection}
           traceOutputCorrection={traceOutputCorrection}
+          traceActualOutput={traceActualOutput}
+          traceActualOutputTooLarge={traceActualOutputTooLarge}
           isParsing={isParsing}
           hideIfNull={hideIfNull}
           hideInput={hideInput}
@@ -291,6 +300,8 @@ export function IOPreview({
           status={status}
           outputCorrection={outputCorrection}
           traceOutputCorrection={traceOutputCorrection}
+          traceActualOutput={traceActualOutput}
+          traceActualOutputTooLarge={traceActualOutputTooLarge}
           parsedInput={parsedInput}
           parsedOutput={parsedOutput}
           isLoading={isLoading}
