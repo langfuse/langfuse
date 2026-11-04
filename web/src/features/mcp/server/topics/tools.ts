@@ -44,13 +44,13 @@ async function withAllowedValues<T>(fn: () => Promise<T>): Promise<T> {
   try {
     return await fn();
   } catch (error) {
-    if (
-      error instanceof StructuredPublicApiError &&
-      error.httpCode === 400 &&
-      error.details?.allowedValues?.length
-    )
+    const allowed =
+      error instanceof StructuredPublicApiError && error.httpCode === 400
+        ? (error.details?.allowedValues ?? [])
+        : [];
+    if (allowed.length > 0)
       throw new InvalidRequestError(
-        `${error.message} Allowed: ${error.details.allowedValues.join(", ")}.`,
+        `${(error as Error).message} Allowed: ${allowed.join(", ")}.`,
       );
     throw error;
   }

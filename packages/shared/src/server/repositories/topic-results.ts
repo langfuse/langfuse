@@ -129,7 +129,9 @@ function summaryConditionSql(
       return dateSql("processed_at", condition.match, params);
     case "state":
       return inSql("toString(processing_state)", condition.match, params);
-    default:
+    case "topicId":
+    case "assignmentStatus":
+    case "assigned":
       return null;
   }
 }
@@ -152,7 +154,11 @@ function assignmentConditionSql(
       return condition.match
         ? "topic_status = 'assigned'"
         : "topic_status != 'assigned'";
-    default:
+    case "traceId":
+    case "environment":
+    case "timestamp":
+    case "processedAt":
+    case "state":
       return null;
   }
 }

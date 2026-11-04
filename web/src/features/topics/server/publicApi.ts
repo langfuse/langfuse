@@ -658,7 +658,7 @@ async function topicResultQuery(params: {
         break;
     }
   }
-  return facetIds.length ? { conditions, facetIds } : null;
+  return facetIds.length > 0 ? { conditions, facetIds } : null;
 }
 
 /**
