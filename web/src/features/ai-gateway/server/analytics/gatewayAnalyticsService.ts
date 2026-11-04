@@ -1,15 +1,15 @@
+import { TRPCError } from "@trpc/server";
 import { InvalidRequestError, type FilterCondition } from "@langfuse/shared";
-import type { PrismaClient } from "@langfuse/shared/src/db";
 import { validateQuery, type QueryType } from "@langfuse/shared/query";
 import { executeQuery } from "@langfuse/shared/query/server";
 
 import { env } from "@/src/env.mjs";
 import { GATEWAY_TRAFFIC_FILTER } from "@/src/features/ai-gateway/constants/gatewayTrafficFilter";
-import { GatewayConfigService } from "@/src/features/ai-gateway/server/config/gatewayConfigService";
+import type { GatewayConfigService } from "@/src/features/ai-gateway/server/config/gatewayConfigService";
 
 /** Gateway analytics run on the observations the gateway records into its ingestion project. */
 export class GatewayAnalyticsService {
-  constructor(private readonly prisma: PrismaClient) {}
+  constructor(private readonly configService: GatewayConfigService) {}
 
   /**
    * The project comes from the gateway config, never from the caller. With
@@ -23,16 +23,25 @@ export class GatewayAnalyticsService {
   }) {
     // v2 reads the events tables, which a legacy deployment does not write.
     if (env.LANGFUSE_MIGRATION_V4_WRITE_MODE === "legacy") {
-      throw new InvalidRequestError(
-        "Gateway analytics are not available on this deployment",
-      );
+      throw new TRPCError({
+        code: "PRECONDITION_FAILED",
+        message: "Gateway analytics are not available on this deployment",
+      });
     }
     if (params.query.view !== "observations") {
       throw new InvalidRequestError(
         "Gateway analytics only query observations",
       );
     }
-    const projectId = await this.getIngestionProjectId(params.organizationId);
+    const projectId = await this.configService.getRecordingProjectId(
+      params.organizationId,
+    );
+    if (!projectId) {
+      throw new TRPCError({
+        code: "PRECONDITION_FAILED",
+        message: "Gateway requests are not recorded",
+      });
+    }
 
     const query: QueryType = {
       ...params.query,
@@ -48,23 +57,6 @@ export class GatewayAnalyticsService {
     if (!validation.valid) throw new InvalidRequestError(validation.reason);
 
     return executeQuery(projectId, query, "v2", true);
-  }
-
-  private async getIngestionProjectId(organizationId: string) {
-    const config = await new GatewayConfigService(this.prisma).getConfig(
-      organizationId,
-    );
-    const project = config?.defaultIngestionProject;
-    if (
-      !config ||
-      config.ingestionMode === "NONE" ||
-      !project ||
-      project.deletedAt ||
-      project.orgId !== organizationId
-    ) {
-      throw new InvalidRequestError("Gateway requests are not recorded");
-    }
-    return project.id;
   }
 }
 

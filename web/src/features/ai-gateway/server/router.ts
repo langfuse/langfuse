@@ -177,7 +177,9 @@ export const aiGatewayRouter = createTRPCRouter({
         session: ctx.session,
         orgId: input.orgId,
       });
-      return new GatewayAnalyticsService(ctx.prisma).executeQuery({
+      return new GatewayAnalyticsService(
+        new GatewayConfigService(ctx.prisma),
+      ).executeQuery({
         organizationId: input.orgId,
         query: input.query,
         ownerUserId,

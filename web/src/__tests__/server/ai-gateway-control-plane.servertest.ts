@@ -393,7 +393,7 @@ describe("AI gateway control plane", () => {
 
     await expect(
       viewer.aiGateway.getSetupStatus({ orgId: owner.org.id }),
-    ).resolves.toEqual({ isConfigured: false });
+    ).resolves.toEqual({ isConfigured: false, isRecording: false });
     await expect(
       noAccess.aiGateway.getSetupStatus({ orgId: owner.org.id }),
     ).rejects.toMatchObject({ code: "FORBIDDEN" });
@@ -405,7 +405,7 @@ describe("AI gateway control plane", () => {
     });
     await expect(
       viewer.aiGateway.getSetupStatus({ orgId: owner.org.id }),
-    ).resolves.toEqual({ isConfigured: true });
+    ).resolves.toEqual({ isConfigured: true, isRecording: true });
 
     await prisma.project.update({
       where: { id: owner.project.id },
@@ -413,7 +413,7 @@ describe("AI gateway control plane", () => {
     });
     await expect(
       viewer.aiGateway.getSetupStatus({ orgId: owner.org.id }),
-    ).resolves.toEqual({ isConfigured: false });
+    ).resolves.toEqual({ isConfigured: false, isRecording: false });
   });
 
   it("gives key owners the gateway URL and enabled providers without connection details", async () => {
@@ -790,7 +790,7 @@ describe("AI gateway control plane", () => {
       });
       await expect(
         caller.aiGateway.getSetupStatus({ orgId: org.id }),
-      ).resolves.toEqual({ isConfigured: true });
+      ).resolves.toEqual({ isConfigured: true, isRecording: false });
     } finally {
       Object.assign(env, {
         NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: originalCloudRegion,
@@ -823,7 +823,7 @@ describe("AI gateway control plane", () => {
       ).resolves.toMatchObject({ config: { ingestionMode: "USAGE" } });
       await expect(
         caller.aiGateway.getSetupStatus({ orgId: org.id }),
-      ).resolves.toEqual({ isConfigured: false });
+      ).resolves.toEqual({ isConfigured: false, isRecording: false });
 
       await prisma.gatewayConfig.update({
         where: { organizationId: org.id },
@@ -1294,8 +1294,8 @@ describe("AI gateway control plane", () => {
       const ownerOf = async (keyId: string) =>
         (await prisma.apiKey.findUniqueOrThrow({ where: { id: keyId } }))
           .userId!;
-      const userA = await ownerOf(keyA.id);
-      const userB = await ownerOf(keyB.id);
+      const ownerIdA = await ownerOf(keyA.id);
+      const ownerIdB = await ownerOf(keyB.id);
 
       const gatewayEvent = (keyId: string, ownerUserId: string) =>
         SharedServer.createEvent({
@@ -1308,9 +1308,9 @@ describe("AI gateway control plane", () => {
           metadata_values: [ownerUserId],
         });
       await SharedServer.createEventsCh([
-        gatewayEvent(keyA.id, userA),
-        gatewayEvent(keyB.id, userB),
-        gatewayEvent(keyB.id, userB),
+        gatewayEvent(keyA.id, ownerIdA),
+        gatewayEvent(keyB.id, ownerIdB),
+        gatewayEvent(keyB.id, ownerIdB),
       ]);
 
       const countByOwner = async (
@@ -1327,7 +1327,8 @@ describe("AI gateway control plane", () => {
             timeDimension: null,
             fromTimestamp: new Date(Date.now() - 86400000).toISOString(),
             toTimestamp: new Date(Date.now() + 86400000).toISOString(),
-            orderBy: null,
+            orderBy: [{ field: "count_count", direction: "desc" }],
+            chartConfig: { type: "HORIZONTAL_BAR", row_limit: 100 },
           },
         });
         return Object.fromEntries(
@@ -1339,16 +1340,16 @@ describe("AI gateway control plane", () => {
       };
 
       expect(await countByOwner(owner.caller)).toEqual({
-        [userA]: 1,
-        [userB]: 2,
+        [ownerIdA]: 1,
+        [ownerIdB]: 2,
       });
-      expect(await countByOwner(memberA)).toEqual({ [userA]: 1 });
+      expect(await countByOwner(memberA)).toEqual({ [ownerIdA]: 1 });
       expect(
         await countByOwner(memberA, [
           {
             column: "aiGatewayKeyOwnerUserId",
             operator: "any of",
-            value: [userB],
+            value: [ownerIdB],
             type: "stringOptions",
           },
         ]),
@@ -1378,7 +1379,10 @@ describe("AI gateway control plane", () => {
             orderBy: null,
           },
         }),
-      ).rejects.toThrow("Gateway analytics only query observations");
+      ).rejects.toMatchObject({
+        code: "BAD_REQUEST",
+        message: "Gateway analytics only query observations",
+      });
     },
   );
 
@@ -2675,7 +2679,7 @@ describe("AI gateway control plane", () => {
     ).resolves.toBe(true);
     await expect(
       caller.aiGateway.getSetupStatus({ orgId: org.id }),
-    ).resolves.toEqual({ isConfigured: false });
+    ).resolves.toEqual({ isConfigured: false, isRecording: false });
     await expect(
       prisma.gatewayConfig.findUnique({ where: { organizationId: org.id } }),
     ).resolves.toMatchObject({ defaultIngestionProjectId: null });

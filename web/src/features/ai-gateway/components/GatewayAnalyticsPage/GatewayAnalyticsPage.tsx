@@ -100,7 +100,7 @@ function AllUsageAnalytics({ organizationId }: { organizationId: string }) {
 }
 
 function OwnUsageAnalytics({ organizationId }: { organizationId: string }) {
-  const { isIngestionConfigured, isSetupStatusPending } =
+  const { isIngestionConfigured, isRecording, isSetupStatusPending } =
     useGatewaySettingsAccess(organizationId);
   const v4WriteMode = useLangfuseV4WriteMode();
   const [timeRange, setTimeRange] = useState<TimeRange>({
@@ -112,6 +112,9 @@ function OwnUsageAnalytics({ organizationId }: { organizationId: string }) {
   }
   if (isIngestionConfigured === false) {
     return <GatewayNotSetUpNotice title="Gateway analytics" />;
+  }
+  if (isRecording === false) {
+    return <OwnUsageNotRecorded />;
   }
   return (
     <>
@@ -151,6 +154,19 @@ function AnalyticsUnavailable({ organizationId }: { organizationId: string }) {
             href: `/organization/${organizationId}/settings/ai-gateway`,
           },
         ]}
+      />
+    </div>
+  );
+}
+
+function OwnUsageNotRecorded() {
+  return (
+    <div className="flex flex-col gap-4">
+      <Header title="Gateway analytics" />
+      <GatewaySetupEmptyState
+        icon={ChartColumn}
+        title="Gateway requests are not recorded"
+        description="Ask your organization admin to turn on usage or full ingestion for the AI Gateway to see your cost and usage here."
       />
     </div>
   );
