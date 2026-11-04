@@ -18,10 +18,6 @@ import { hasBlockingOverlay } from "@/src/features/scores/lib/keyboardShortcuts"
 import { useTraceReviewPanel } from "../contexts/TraceReviewPanelProvider";
 import { type TraceReviewPanelStore } from "../state/traceReviewPanelStore";
 import { traceNodeId } from "../fns/treeBuilding";
-import {
-  resolveTraceCommentsTarget,
-  type TraceCommentsPin,
-} from "./resolveTraceCommentsTarget";
 
 function closeReviewPanel(store: TraceReviewPanelStore, router: NextRouter) {
   store.getState().actions.close();
@@ -58,31 +54,32 @@ function TraceCommentsPanel({ projectId }: { projectId: string }) {
   const session = useStore(store, (state) => state.comments);
   const active =
     router.query.comments === "open" && router.query.annotation !== "open";
-  const pinRef = useRef<TraceCommentsPin | null>(null);
-  const selectionTarget: CommentTarget = {
-    type: "comments",
-    objectId: observation?.id ?? trace.id,
-    objectType: observation ? "OBSERVATION" : "TRACE",
-    objectStartTime: observation?.startTime ?? trace.timestamp,
-  };
-  const resolved = resolveTraceCommentsTarget({
-    active,
+  // A deep link keeps its URL object until the selected trace or observation changes.
+  const openedOn = useRef({
     traceId: trace.id,
-    traceNodeId: traceNodeId(trace.id),
-    observationIds: observations.map((item) => item.id),
-    selectedNodeId: selectedNodeId ?? null,
-    selectionTarget,
-    sessionTarget: session?.target,
-    urlTarget: getCommentDrawerInitialStateFromUrl(router.query),
-    pin: pinRef.current,
+    selectedNodeId,
+    moved: false,
   });
-  pinRef.current = resolved.pin;
+  if (
+    trace.id !== openedOn.current.traceId ||
+    selectedNodeId !== openedOn.current.selectedNodeId
+  ) {
+    openedOn.current.moved = true;
+  }
+  const urlTarget = getCommentDrawerInitialStateFromUrl(router.query);
+  const urlOnThisTrace =
+    !!urlTarget &&
+    (urlTarget.objectId === trace.id ||
+      observations.some((item) => item.id === urlTarget.objectId));
+  const target: CommentTarget = (!active ? session?.target : undefined) ??
+    (!openedOn.current.moved && urlOnThisTrace ? urlTarget : undefined) ?? {
+      type: "comments",
+      objectId: observation?.id ?? trace.id,
+      objectType: observation ? ("OBSERVATION" as const) : ("TRACE" as const),
+      objectStartTime: observation?.startTime ?? trace.timestamp,
+    };
   return (
-    <CommentsPanel
-      projectId={projectId}
-      target={resolved.target}
-      active={active}
-    />
+    <CommentsPanel projectId={projectId} target={target} active={active} />
   );
 }
 
