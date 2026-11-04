@@ -35,6 +35,7 @@ import { useMemo, type ReactNode } from "react";
 import { useRouter } from "next/router";
 import { getCommentDrawerInitialStateFromUrl } from "@/src/features/comments/CommentDrawerController";
 import { TraceReviewPanelProvider } from "@/src/features/traces/contexts/TraceReviewPanelProvider";
+import { getTraceCommentsDeepLink } from "@/src/features/traces/state/traceReviewPanelStore";
 import { TraceReviewPanel } from "./TraceReviewPanel";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { staleProps } from "@/src/features/traces/fns/staleProps";
@@ -321,7 +322,8 @@ function DesktopTraceContent({
 }: {
   desktopLayout: DesktopLayout;
 }) {
-  const { trace } = useTraceData();
+  const { trace, observations } = useTraceData();
+  const { selectedNodeId } = useSelection();
   const router = useRouter();
   if (desktopLayout.groupId === DESKTOP_LAYOUTS.annotation.groupId) {
     return <DesktopTraceWorkspace desktopLayout={desktopLayout} />;
@@ -330,7 +332,13 @@ function DesktopTraceContent({
     <TraceReviewPanelProvider
       key={`${trace.projectId}:${trace.id}`}
       projectId={trace.projectId}
-      initialComments={getCommentDrawerInitialStateFromUrl(router.query)}
+      initialComments={getTraceCommentsDeepLink({
+        target: getCommentDrawerInitialStateFromUrl(router.query),
+        trace,
+        observations,
+        selectedNodeId,
+      })}
+      deepLinkNodeId={selectedNodeId}
       onOpen={(panel, target) => {
         const {
           annotation,
