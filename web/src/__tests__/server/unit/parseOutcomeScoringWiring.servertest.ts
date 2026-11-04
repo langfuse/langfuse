@@ -2,26 +2,20 @@
 // (`recordParseOutcomeScores`), which `parseOutcomeScoring.servertest.ts`
 // deliberately does not cover (it only exercises the pure
 // `deriveParseOutcomeScores`). This asserts the wiring — a `LangfuseClient` client
-// gets constructed, `.api.scores.create()` submits the derived scores with
+// is retrieved, `.api.scores.create()` submits the derived scores with
 // the expected name/dataType in one batch — without a live
 // Langfuse client or network call.
 import { describe, expect, it, vi } from "vitest";
 
 const scoreMock = vi.fn().mockResolvedValue({ accepted: 5, rejected: 0 });
 
-// `parseOutcomeScoring.ts` constructs its own `LangfuseClient` client directly
-// (deliberately not via the shared `getLangfuseClient` helper — see its
-// comment on `scoreClient`), so the raw SDK constructor is what needs
-// mocking here, not a wrapper module.
-vi.mock("@langfuse/client", () => ({
-  // A plain `function` (not an arrow function) — `parseOutcomeScoring.ts`
-  // instantiates this via `new LangfuseClient(...)`, which arrow functions cannot
-  // be used as a constructor for.
-  LangfuseClient: vi.fn().mockImplementation(function MockLangfuseClient() {
-    return { api: { scores: { create: scoreMock } } };
-  }),
+vi.mock("@/src/features/natural-language-filters/server/utils", () => ({
+  getLangfuseClient: vi.fn(() => ({
+    api: { scores: { create: scoreMock } },
+  })),
 }));
 
+import { getLangfuseClient } from "@/src/features/natural-language-filters/server/utils";
 import {
   deriveParseOutcomeScores,
   recordParseOutcomeScores,
@@ -50,6 +44,11 @@ describe("recordParseOutcomeScores (mocked Langfuse client)", () => {
     // `recordParseOutcomeScores` runs its I/O synchronously up to the first
     // await (the request race), so the `.api.scores.create()` invocation
     // is already observable without awaiting anything here.
+    expect(getLangfuseClient).toHaveBeenCalledWith(
+      "pk-test",
+      "sk-test",
+      "https://example.com",
+    );
     expect(scoreMock).toHaveBeenCalledTimes(1);
     const [submittedScores, requestOptions] = scoreMock.mock.calls[0];
     expect(requestOptions).toEqual({ maxRetries: 0, timeoutInSeconds: 3 });

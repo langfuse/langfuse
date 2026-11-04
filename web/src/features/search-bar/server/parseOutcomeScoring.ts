@@ -10,9 +10,8 @@
 // the tRPC procedure: the branching logic should be testable without a live
 // model OR a live Langfuse client.
 
-import { LangfuseClient } from "@langfuse/client";
 import { logger } from "@langfuse/shared/src/server";
-import { getProductBaseUrl } from "@/src/utils/base-url";
+import { getLangfuseClient } from "@/src/features/natural-language-filters/server/utils";
 import type { GeneratedFilters } from "./parseFilterCompletion";
 
 type ParseOutcomeScoreName =
@@ -95,27 +94,6 @@ export function deriveParseOutcomeScores(
   ];
 }
 
-// A dedicated singleton, deliberately SEPARATE from
-// `../../natural-language-filters/server/utils.ts`'s `getLangfuseClient`.
-let scoreClient: LangfuseClient | null = null;
-
-function getParseOutcomeScoreClient(params: {
-  publicKey: string;
-  secretKey: string;
-  baseUrl: string | undefined;
-}): LangfuseClient {
-  if (!scoreClient) {
-    scoreClient = new LangfuseClient({
-      publicKey: params.publicKey,
-      secretKey: params.secretKey,
-      // Mirrors `getLangfuseClient`'s fallback: self-referential deployments
-      // (e.g. PR previews) must talk to themselves, not cloud.langfuse.com.
-      baseUrl: params.baseUrl ?? getProductBaseUrl().toString(),
-    });
-  }
-  return scoreClient;
-}
-
 // Bounds how long `recordParseOutcomeScores` waits on the background request
 // before giving up — the SDK's own request keeps running (or times out via
 // `timeoutInSeconds` below) regardless; this only bounds how long our
@@ -156,7 +134,7 @@ async function runParseOutcomeScoring(params: {
   baseUrl?: string;
 }): Promise<void> {
   const { traceId, scores, publicKey, secretKey, baseUrl } = params;
-  const client = getParseOutcomeScoreClient({ publicKey, secretKey, baseUrl });
+  const client = getLangfuseClient(publicKey, secretKey, baseUrl);
   const submitted = client.api.scores
     .create(
       scores.map((score) => ({
