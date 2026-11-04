@@ -5,6 +5,7 @@ import { TraceReviewPanel } from "./TraceReviewPanel";
 const state = vi.hoisted(() => ({
   query: { annotation: "open" } as Record<string, string>,
   selectedNodeId: "first",
+  traceId: "trace",
   replace: vi.fn(),
 }));
 const store = createTraceReviewPanelStore({
@@ -25,11 +26,18 @@ vi.mock("../contexts/SelectionProvider", () => ({
 }));
 vi.mock("../contexts/TraceDataProvider", () => ({
   useTraceData: () => ({
-    trace: { id: "trace", projectId: "project", environment: "default" },
-    observations: [
-      { id: "first", environment: "default" },
-      { id: "second", environment: "default" },
-    ],
+    trace: {
+      id: state.traceId,
+      projectId: "project",
+      environment: "default",
+    },
+    observations:
+      state.traceId === "trace"
+        ? [
+            { id: "first", environment: "default" },
+            { id: "second", environment: "default" },
+          ]
+        : [{ id: "third", environment: "default" }],
     serverScores: [
       { id: "trace-score", observationId: null },
       { id: "first-score", observationId: "first" },
@@ -68,7 +76,24 @@ vi.mock("@/src/features/comments/CommentList", () => ({
   ),
 }));
 vi.mock("@/src/features/comments/CommentDrawerController", () => ({
-  getCommentDrawerInitialStateFromUrl: () => undefined,
+  getCommentDrawerInitialStateFromUrl: (
+    query: Record<string, string | string[] | undefined>,
+  ) => {
+    const objectId = query.commentObjectId;
+    const objectType = query.commentObjectType;
+    if (
+      query.comments !== "open" ||
+      typeof objectId !== "string" ||
+      typeof objectType !== "string"
+    ) {
+      return;
+    }
+    return {
+      type: "comments" as const,
+      objectId,
+      objectType,
+    };
+  },
 }));
 
 it("follows the selected annotation target and switches panels through the URL", () => {
@@ -98,6 +123,32 @@ it("follows the selected annotation target and switches panels through the URL",
   expect(screen.getByTestId("annotation")).toHaveTextContent(
     "trace:trace-score",
   );
+});
+
+it("follows the selected object while an open comments panel keeps its URL target", () => {
+  state.query = {
+    comments: "open",
+    commentObjectId: "trace",
+    commentObjectType: "TRACE",
+  };
+  state.selectedNodeId = "first";
+  state.traceId = "trace";
+  const view = render(<TraceReviewPanel projectId="project" />);
+  // A deep link stays on its object until the selection actually changes.
+  expect(screen.getByTestId("comments")).toHaveTextContent("trace");
+
+  state.selectedNodeId = "second";
+  view.rerender(<TraceReviewPanel projectId="project" />);
+  expect(screen.getByTestId("comments")).toHaveTextContent("second");
+
+  state.selectedNodeId = "first";
+  view.rerender(<TraceReviewPanel projectId="project" />);
+  expect(screen.getByTestId("comments")).toHaveTextContent("first");
+
+  state.traceId = "other-trace";
+  state.selectedNodeId = "third";
+  view.rerender(<TraceReviewPanel projectId="project" />);
+  expect(screen.getByTestId("comments")).toHaveTextContent("third");
 });
 
 it("closes comment deep links with Escape and clears their URL target", () => {

@@ -18,6 +18,10 @@ import { hasBlockingOverlay } from "@/src/features/scores/lib/keyboardShortcuts"
 import { useTraceReviewPanel } from "../contexts/TraceReviewPanelProvider";
 import { type TraceReviewPanelStore } from "../state/traceReviewPanelStore";
 import { traceNodeId } from "../fns/treeBuilding";
+import {
+  resolveTraceCommentsTarget,
+  type TraceCommentsPin,
+} from "./resolveTraceCommentsTarget";
 
 function closeReviewPanel(store: TraceReviewPanelStore, router: NextRouter) {
   store.getState().actions.close();
@@ -54,15 +58,31 @@ function TraceCommentsPanel({ projectId }: { projectId: string }) {
   const session = useStore(store, (state) => state.comments);
   const active =
     router.query.comments === "open" && router.query.annotation !== "open";
-  const target: CommentTarget = (!active ? session?.target : undefined) ??
-    getCommentDrawerInitialStateFromUrl(router.query) ?? {
-      type: "comments" as const,
-      objectId: observation?.id ?? trace.id,
-      objectType: observation ? ("OBSERVATION" as const) : ("TRACE" as const),
-      objectStartTime: observation?.startTime ?? trace.timestamp,
-    };
+  const pinRef = useRef<TraceCommentsPin | null>(null);
+  const selectionTarget: CommentTarget = {
+    type: "comments",
+    objectId: observation?.id ?? trace.id,
+    objectType: observation ? "OBSERVATION" : "TRACE",
+    objectStartTime: observation?.startTime ?? trace.timestamp,
+  };
+  const resolved = resolveTraceCommentsTarget({
+    active,
+    traceId: trace.id,
+    traceNodeId: traceNodeId(trace.id),
+    observationIds: observations.map((item) => item.id),
+    selectedNodeId: selectedNodeId ?? null,
+    selectionTarget,
+    sessionTarget: session?.target,
+    urlTarget: getCommentDrawerInitialStateFromUrl(router.query),
+    pin: pinRef.current,
+  });
+  pinRef.current = resolved.pin;
   return (
-    <CommentsPanel projectId={projectId} target={target} active={active} />
+    <CommentsPanel
+      projectId={projectId}
+      target={resolved.target}
+      active={active}
+    />
   );
 }
 
