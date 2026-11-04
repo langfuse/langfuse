@@ -17,9 +17,14 @@ const context: CachedResolveContext = {
   organizationId: "org-1",
   apiKeyId: "key-1",
   userId: "user-1",
+  apiKeyName: "CI key",
+  userName: "Alice",
+  userEmail: "alice@example.com",
   keyMetadata: {},
   ingestionProjectId: null,
   ingestionMode: null,
+  plan: "cloud:hobby",
+  rateLimitOverrides: [],
   connections: [],
 };
 
@@ -103,6 +108,61 @@ describe("GatewayResolveCache", () => {
     expect(redis.set).not.toHaveBeenCalled();
     expect(redis.sadd).not.toHaveBeenCalled();
     expect(redis.expire).not.toHaveBeenCalled();
+  });
+
+  it("reads entries cached before the key snapshot fields existed", async () => {
+    const redis = createStatefulRedis();
+    const cache = new GatewayResolveCache(redis);
+    const legacy = {
+      organizationId: "org-1",
+      apiKeyId: "key-1",
+      userId: "user-1",
+      keyMetadata: {},
+      ingestionProjectId: null,
+      ingestionMode: null,
+      plan: "cloud:hobby",
+      rateLimitOverrides: [],
+      connections: [],
+    };
+    await cache.set({
+      fastHashedSecretKey: "hashed-key",
+      apiFormat: "openai.responses",
+      context: legacy as unknown as CachedResolveContext,
+    });
+
+    await expect(
+      cache.get({
+        fastHashedSecretKey: "hashed-key",
+        apiFormat: "openai.responses",
+      }),
+    ).resolves.toEqual({
+      ...legacy,
+      apiKeyName: null,
+      userName: null,
+      userEmail: null,
+    });
+  });
+
+  it("refetches entries cached before the plan was part of the context", async () => {
+    const redis = createStatefulRedis();
+    const cache = new GatewayResolveCache(redis);
+    const {
+      plan: _plan,
+      rateLimitOverrides: _overrides,
+      ...withoutPlan
+    } = context;
+    await cache.set({
+      fastHashedSecretKey: "hashed-key",
+      apiFormat: "openai.responses",
+      context: withoutPlan as unknown as CachedResolveContext,
+    });
+
+    await expect(
+      cache.get({
+        fastHashedSecretKey: "hashed-key",
+        apiFormat: "openai.responses",
+      }),
+    ).resolves.toBeNull();
   });
 
   it("invalidates cached contexts for an organization", async () => {

@@ -10,7 +10,7 @@ import {
   isFeaturePreviewFlag,
   isOrganizationOnlyFeaturePreviewFlag,
   isFeaturePreviewAvailable,
-  isAdminOnlyFeaturePreviewFlag,
+  isInternalFeaturePreviewFlag,
   INTERNAL_FEATURE_FLAG,
   type FeaturePreviewAvailabilityContext,
   type UserFeatureFlag,
@@ -19,6 +19,14 @@ import { type Flags } from "./types";
 
 export const getFeaturePreviewOptOutFlag = (flag: UserFeatureFlag) =>
   `feature-preview:${flag}:disabled`;
+
+export const hasInternalEmailDomain = (email: string | null | undefined) => {
+  const normalizedEmail = email?.toLowerCase();
+  return (
+    normalizedEmail?.endsWith("@langfuse.com") === true ||
+    normalizedEmail?.endsWith("@clickhouse.com") === true
+  );
+};
 
 /**
  * Platform admins, verified staff emails and experimental deployments can use
@@ -47,14 +55,6 @@ export const isInternalViewEnabled = (session: Session | null | undefined) =>
     isExperimentalFeaturesEnabled:
       session?.environment?.enableExperimentalFeatures === true,
   }) && session?.user?.featureFlags[INTERNAL_FEATURE_FLAG] !== false;
-
-export const hasInternalEmailDomain = (email: string | null | undefined) => {
-  const normalizedEmail = email?.toLowerCase();
-  return (
-    normalizedEmail?.endsWith("@langfuse.com") === true ||
-    normalizedEmail?.endsWith("@clickhouse.com") === true
-  );
-};
 
 export const parseFlags = (
   dbFlags: string[],
@@ -87,7 +87,7 @@ export const parseFlags = (
     }
 
     if (
-      (isFeaturePreviewFlag(flag) || isAdminOnlyFeaturePreviewFlag(flag)) &&
+      (isFeaturePreviewFlag(flag) || isInternalFeaturePreviewFlag(flag)) &&
       dbFlags.includes(getFeaturePreviewOptOutFlag(flag))
     ) {
       parsedFlags[flag] = false;

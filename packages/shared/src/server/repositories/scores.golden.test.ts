@@ -17,6 +17,7 @@ vi.mock("./clickhouse", () => ({
 // module initialization when the graph is entered from this repository file.
 vi.mock("../queries/clickhouse-sql/query-options", () => ({
   shouldSkipObservationsFinal: vi.fn().mockResolvedValue(false),
+  shouldSkipScoresDedup: vi.fn().mockReturnValue(false),
 }));
 
 import {

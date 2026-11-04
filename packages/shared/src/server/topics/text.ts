@@ -322,7 +322,9 @@ function hasOpenAIRefusal(body: unknown): boolean {
   );
 }
 
-function topicReasoning(model: TopicsModel): "none" | "minimal" | undefined {
+function topicReasoning(
+  model: TopicsModel,
+): "none" | "minimal" | "low" | undefined {
   if (isFirstPartyOpenAI(model)) return openAIReasoning(model.model);
   /** Compatible endpoints choose their own supported reasoning settings. */
   if (
@@ -350,7 +352,9 @@ function isFirstPartyOpenAI(model: TopicsModel): boolean {
 }
 
 /** Selects low-latency reasoning only for known models; others use their defaults. */
-function openAIReasoning(model: string): "none" | "minimal" | undefined {
+function openAIReasoning(
+  model: string,
+): "none" | "minimal" | "low" | undefined {
   const id = model.replace(/-\d{4}-\d{2}-\d{2}$/, "");
   if (/^gpt-5(?:-(?:mini|nano))?$/.test(id)) return "minimal";
   if (
@@ -359,6 +363,8 @@ function openAIReasoning(model: string): "none" | "minimal" | undefined {
     id === "gpt-6-sol"
   )
     return "none";
+  // The API accepts none, but @ai-sdk/openai drops it for other GPT-6 models.
+  if (/^gpt-6(?:\.\d+)?(?:-[a-z]+)?$/.test(id)) return "low";
   return undefined;
 }
 

@@ -110,7 +110,7 @@ describe("useIsFeatureEnabled", () => {
     },
   );
 
-  it("requires explicit opt-in for restricted and admin-only flags despite admin and experimental overrides", () => {
+  it("requires explicit opt-in for restricted and internal preview flags despite admin and experimental overrides", () => {
     mockSession({
       aiGateway: false,
       admin: true,

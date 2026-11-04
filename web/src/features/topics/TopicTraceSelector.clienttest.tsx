@@ -34,7 +34,17 @@ vi.mock("@/src/features/events/hooks/useEventsFilterOptions", () => ({
     isFilterOptionsPending: false,
   }),
 }));
-vi.mock("@/src/features/search-bar", () => ({
+vi.mock("@/src/features/search-bar/components/TableSearchBar", () => ({
+  TableSearchBar: () => <div>Query editor</div>,
+  toObservedOptions: () => ({}),
+  fieldRegistryFromColumns: () => ({ fields: [], columns: [] }),
+}));
+vi.mock("@/src/features/search-bar/lib/observed-options", () => ({
+  TableSearchBar: () => <div>Query editor</div>,
+  toObservedOptions: () => ({}),
+  fieldRegistryFromColumns: () => ({ fields: [], columns: [] }),
+}));
+vi.mock("@/src/features/search-bar/lib/fields", () => ({
   TableSearchBar: () => <div>Query editor</div>,
   toObservedOptions: () => ({}),
   fieldRegistryFromColumns: () => ({ fields: [], columns: [] }),

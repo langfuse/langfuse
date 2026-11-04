@@ -264,6 +264,7 @@ describe("Authenticate API calls", () => {
     it("should fail on wrong api key without new key", async () => {
       const legacySecretKey = ["legacy", "secret", "key"].join("-");
       const legacyPublicKey = `legacy-public-key-${v4()}`;
+      // eslint-disable-next-line @repo/no-restricted-prisma-writes -- needs a bcrypt-only legacy key, which createApiKey never produces.
       await prisma.apiKey.create({
         data: {
           id: v4(),
@@ -539,6 +540,7 @@ describe("Authenticate API calls", () => {
         legacyPublicKey,
         legacySecretKey,
       );
+      // eslint-disable-next-line @repo/no-restricted-prisma-writes -- needs a bcrypt-only legacy key, which createApiKey never produces.
       await prisma.apiKey.create({
         data: {
           id: v4(),
@@ -621,6 +623,7 @@ describe("Authenticate API calls", () => {
         createdAt: apiKey?.createdAt.toISOString(),
         organizationCreatedAt: organization.createdAt.toISOString(),
         isIngestionSuspended: expect.anything(),
+        accessAuditLogEnabled: false,
       });
 
       await prisma.organization.update({
@@ -738,6 +741,7 @@ describe("Authenticate API calls", () => {
         createdAt: apiKey?.createdAt.toISOString(),
         organizationCreatedAt: expect.any(String),
         isIngestionSuspended: expect.anything(),
+        accessAuditLogEnabled: false,
       });
 
       await prisma.organization.update({
@@ -860,6 +864,7 @@ describe("Authenticate API calls", () => {
         lastUsedAt: null,
         expiresAt: null,
         isIngestionSuspended: expect.anything(),
+        accessAuditLogEnabled: false,
         isInAppAgentKey: false,
         createdByUserId: null,
         createdByApiKeyId: null,
@@ -868,7 +873,45 @@ describe("Authenticate API calls", () => {
         orgId: testApiKey.orgId,
         plan: "cloud:hobby",
         scope: "PROJECT",
+        rateLimitOverrides: [
+          {
+            resource: "public-api-legacy",
+            points: null,
+            durationInSec: null,
+          },
+        ],
         organizationCreatedAt: expect.any(String),
+      });
+    });
+
+    it("carries the org's access-audit opt-in through the cached key", async () => {
+      await prisma.organization.update({
+        where: { id: testApiKey.orgId },
+        data: { accessAuditLogEnabled: true },
+      });
+      const mockPrisma = { apiKey: { findUnique: vi.fn() } };
+
+      // first auth generates the fast hashed api key, second caches it
+      await new ApiAuthService(prisma, redis).verifyAuthHeaderAndReturnScope(
+        getValidAuthHeader(),
+      );
+      const fromDb = await new ApiAuthService(
+        prisma,
+        redis,
+      ).verifyAuthHeaderAndReturnScope(getValidAuthHeader());
+      const fromCache = await new ApiAuthService(
+        mockPrisma as unknown as PrismaClient,
+        redis,
+      ).verifyAuthHeaderAndReturnScope(getValidAuthHeader());
+
+      expect(mockPrisma.apiKey.findUnique).not.toHaveBeenCalled();
+      expect(fromDb).toMatchObject({
+        validKey: true,
+        scope: { accessAuditLogEnabled: true },
+      });
+      expect(fromCache).toMatchObject({
+        validKey: true,
+        scope: { accessAuditLogEnabled: true },
       });
     });
 
@@ -998,7 +1041,15 @@ describe("Authenticate API calls", () => {
         createdAt: apiKey?.createdAt.toISOString(),
         organizationCreatedAt: expect.any(String),
         scope: "PROJECT",
+        rateLimitOverrides: [
+          {
+            resource: "public-api-legacy",
+            points: null,
+            durationInSec: null,
+          },
+        ],
         isIngestionSuspended: expect.anything(),
+        accessAuditLogEnabled: false,
       });
 
       await new ApiAuthService(prisma, redis).deleteApiKey(

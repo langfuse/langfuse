@@ -1,4 +1,4 @@
-/* eslint-disable no-nested-ternary, @repo/component-file-structure */
+/* eslint-disable no-nested-ternary, @repo/component-file-structure, @typescript-eslint/no-use-before-define */
 /* eslint-disable @repo/no-style-props */
 "use client";
 import { type OrderByState } from "@langfuse/shared";
@@ -44,7 +44,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/src/components/ui/table";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { cn } from "@/src/utils/tailwind";
 import {
   type ColumnOrderState,
@@ -524,7 +524,7 @@ export function DataTable<TData extends object, TValue>({
           // some cursor room. Partial mitigation for LFE-10460: a maximized browser
           // still clamps the cursor at the screen edge.
           className={cn(
-            "relative min-h-full w-full overflow-auto border-t [scrollbar-gutter:stable]",
+            "relative min-h-full w-full overflow-auto border-t",
             table.getVisibleLeafColumns().at(-1)?.getCanResize() && "pr-2",
             // Room for the last row's resize strip, which hangs 3px below the table.
             onCustomRowHeightChange != null && "pb-[3px]",

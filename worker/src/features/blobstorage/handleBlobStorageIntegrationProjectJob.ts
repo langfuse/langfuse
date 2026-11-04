@@ -29,6 +29,7 @@ import {
   createModelCache,
   blobStorageEndpointConnectionValidationOptions,
   assertGcsBlobStorageBucketAllowed,
+  validateBlobStorageBucketHost,
   validateBlobStorageEndpoint,
   dispatchProjectNotification,
 } from "@langfuse/shared/src/server";
@@ -65,6 +66,7 @@ import {
   type ExportFieldGroup,
   getObservationFieldGroups,
   getScoreFieldGroups,
+  getTraceFieldGroups,
   isLegacyExportSource,
   isLegacyExporter,
   resolveBlobExportTuning,
@@ -556,7 +558,8 @@ const processBlobStorageExport = async (config: {
         })();
 
         // Each table's query only receives its own groups. Score groups are
-        // opt-in, so the empty-selection fallback covers observation groups only.
+        // opt-in, so the empty-selection fallback covers observation groups only;
+        // traces export in full unless a trace group is stored.
         const selectedFieldGroups: ExportFieldGroup[] =
           config.exportFieldGroups && config.exportFieldGroups.length > 0
             ? config.exportFieldGroups
@@ -564,6 +567,7 @@ const processBlobStorageExport = async (config: {
         const observationFieldGroups =
           getObservationFieldGroups(selectedFieldGroups);
         const scoreFieldGroups = getScoreFieldGroups(selectedFieldGroups);
+        const traceFieldGroups = getTraceFieldGroups(selectedFieldGroups);
 
         // blob.path already encodes parquet (no per-table fallback), so no
         // separate blob.config.parquet attribute is needed.
@@ -622,6 +626,7 @@ const processBlobStorageExport = async (config: {
                   config.projectId,
                   config.minTimestamp,
                   config.maxTimestamp,
+                  traceFieldGroups,
                 )
               ).stream;
               break;
@@ -716,6 +721,7 @@ const processBlobStorageExport = async (config: {
                 config.projectId,
                 config.minTimestamp,
                 config.maxTimestamp,
+                traceFieldGroups,
               );
               break;
             case "observations":
@@ -1274,6 +1280,7 @@ export const handleBlobStorageIntegrationProjectJob = async (
     // DNS-rebinding defense for each SDK connection.
     if (blobStorageIntegration.endpoint) {
       await validateBlobStorageEndpoint(blobStorageIntegration.endpoint);
+      await validateBlobStorageBucketHost(blobStorageIntegration);
     }
 
     // Process the export based on the integration configuration

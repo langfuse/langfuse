@@ -22,7 +22,7 @@ import { Button } from "@/src/components/ui/button";
 import { api } from "@/src/utils/api";
 import { CommentList } from "../CommentList";
 import { CommentComposer } from "./CommentComposer";
-import { type SelectionData } from "../contexts/InlineCommentSelectionContext";
+import { type SelectionData } from "../contexts/InlineCommentSelectionProvider";
 import {
   type CommentOverlay,
   type CommentOverlayStore,

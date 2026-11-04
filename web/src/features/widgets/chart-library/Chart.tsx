@@ -66,6 +66,7 @@ const ChartComponent = ({
   thresholds,
   missingValue,
   hideXAxisLabels,
+  compactYAxis,
   colorBarsByCategory,
   zeroBaseline,
   emptyState,
@@ -106,6 +107,8 @@ const ChartComponent = ({
    * charts and forwarded to `prepareTimeAxis`. Used by dataset-compare charts.
    */
   hideXAxisLabels?: boolean;
+  /** See {@link ChartProps.compactYAxis}. Consumed by LINE_TIME_SERIES. */
+  compactYAxis?: boolean;
   /**
    * Colour each bar of a categorical axis and name it in a legend below the
    * plot; see {@link ChartProps.colorBarsByCategory}. Consumed by VERTICAL_BAR.
@@ -193,6 +196,7 @@ const ChartComponent = ({
             thresholds={thresholds}
             missingValue={missingValue}
             hideXAxisLabels={hideXAxisLabels}
+            compactYAxis={compactYAxis}
           />
         );
       case "AREA_TIME_SERIES":

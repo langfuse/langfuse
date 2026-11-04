@@ -3,6 +3,7 @@ import {
   recordIncrement,
   redis as defaultRedis,
 } from "@langfuse/shared/src/server";
+import { CloudConfigRateLimit, type Plan, plans } from "@langfuse/shared";
 import type { Cluster, Redis } from "ioredis";
 import { z } from "zod/v4";
 
@@ -27,9 +28,15 @@ export const CachedResolveContext = z.object({
   organizationId: z.string(),
   apiKeyId: z.string(),
   userId: z.string().nullable(),
+  // Defaulted so entries cached before these fields existed still parse.
+  apiKeyName: z.string().nullable().default(null),
+  userName: z.string().nullable().default(null),
+  userEmail: z.string().nullable().default(null),
   keyMetadata: GatewayMetadataSchema,
   ingestionProjectId: z.string().nullable(),
   ingestionMode: z.enum(["NONE", "USAGE", "FULL"]).nullable(),
+  plan: z.custom<Plan>((value) => plans.includes(value as Plan)),
+  rateLimitOverrides: CloudConfigRateLimit,
   connections: z.array(
     z.object({
       id: z.string(),

@@ -1,3 +1,4 @@
+/* eslint-disable react/no-unstable-nested-components */
 import { type ReactNode } from "react";
 import { type Prisma } from "@langfuse/shared/src/db";
 import { Copy, Pencil, Trash } from "@langfuse/icons";

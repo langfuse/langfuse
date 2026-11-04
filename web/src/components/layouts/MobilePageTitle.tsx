@@ -4,7 +4,7 @@ import BreadcrumbComponent from "@/src/components/layouts/breadcrumb";
 import { MobilePageActionsContent } from "@/src/components/layouts/MobilePageActionsContent";
 import DocPopup from "@/src/components/layouts/doc-popup";
 import { PageHeaderControlsSlotTarget } from "@/src/components/layouts/page-header-controls-slot";
-import { PageTabs } from "@/src/components/layouts/page-tabs";
+import { PageTabs } from "@/src/components/layouts/PageTabs";
 import { type PageHeaderProps } from "@/src/components/layouts/page-header";
 import { Button } from "@/src/components/ui/button";
 import { Popover, PopoverTrigger } from "@/src/components/ui/popover";

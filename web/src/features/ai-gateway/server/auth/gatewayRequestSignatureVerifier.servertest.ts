@@ -18,6 +18,8 @@ vi.mock("@/src/env.mjs", () => ({
   env: {
     LANGFUSE_AI_GATEWAY_SERVICE_KEY: "current-service-secret",
     LANGFUSE_AI_GATEWAY_SERVICE_KEY_PREVIOUS: "previous-service-secret",
+    LANGFUSE_AI_GATEWAY_DEPLOYED: "true",
+    LANGFUSE_AI_GATEWAY_ENABLED: "false",
     LANGFUSE_AI_GATEWAY_ORGANIZATION_ID_ALLOWLIST: ["org-1"],
     SALT: "test-salt",
   },
@@ -108,7 +110,8 @@ describe("withGatewayResolveSignatureVerification", () => {
     async (secret) => {
       vi.useFakeTimers();
       vi.setSystemTime(now);
-      const body = '{ "apiFormat": "openai.responses", "model": "gpt-5" }\n';
+      const body =
+        '{ "apiFormat": "openai.responses", "model": "gpt-5", "requestBytes": 512 }\n';
       const req = request({
         authorization: "  Bearer   sk-gateway  ",
         gatewayAuthorization: gatewayAuthorization({ secret }),
@@ -125,6 +128,7 @@ describe("withGatewayResolveSignatureVerification", () => {
         fastHashedSecretKey: createShaHash("sk-gateway", "test-salt"),
         apiFormat: "openai.responses",
         model: "gpt-5",
+        requestBytes: 512,
       });
     },
   );
@@ -141,6 +145,7 @@ describe("withGatewayResolveSignatureVerification", () => {
           body: JSON.stringify({
             apiFormat: "openai.responses",
             model,
+            requestBytes: 0,
           }),
         }),
         res,
@@ -203,7 +208,7 @@ describe("withGatewayResolveSignatureVerification", () => {
           secret: "current-service-secret",
           key: "sk-other-gateway",
         }),
-        body: '{"apiFormat":"openai.responses","model":"gpt-5"}',
+        body: '{"apiFormat":"openai.responses","model":"gpt-5","requestBytes":0}',
       }),
       res,
     );
@@ -219,7 +224,8 @@ describe("withGatewayResolveSignatureVerification", () => {
   it("rejects stale signatures and headers containing a key id", async () => {
     vi.useFakeTimers();
     vi.setSystemTime(now);
-    const body = '{"apiFormat":"openai.responses","model":"gpt-5"}';
+    const body =
+      '{"apiFormat":"openai.responses","model":"gpt-5","requestBytes":0}';
     const staleHeader = gatewayAuthorization({
       secret: "current-service-secret",
       timestamp: Math.floor(now.getTime() / 1000) - 301,

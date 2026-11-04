@@ -2,7 +2,7 @@
 import { Pause, Play, Trash2 } from "@langfuse/icons";
 import { OverviewSelectionBar } from "@/src/components/table/OverviewSelectionBar/OverviewSelectionBar";
 import { Button } from "@/src/components/ui/button";
-import { ConfirmDialog } from "@/src/components/ui/confirm-dialog";
+import { ConfirmDialog } from "@/src/components/ui/ConfirmDialog";
 
 export function RulesOverviewSelectionBarView({
   selectedCount,

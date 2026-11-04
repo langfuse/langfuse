@@ -53,6 +53,9 @@ const AuditLogActorSchema = z.discriminatedUnion("type", [
     email: z.string().optional(),
     orgRole: z.string().optional(),
     projectRole: z.string().optional(),
+    // Set when the user acts through a ConductorOne support access grant
+    // instead of an organization membership. Absent for members.
+    supportAccess: z.literal(true).optional(),
   }),
   z.object({
     type: z.literal("API_KEY"),

@@ -1,4 +1,4 @@
-/* eslint-disable @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
+/* eslint-disable @typescript-eslint/no-deprecated, @typescript-eslint/no-use-before-define -- Legacy UI usage retained during migration to design-system components. */
 import { useMemo } from "react";
 import {
   getCoreRowModel,
@@ -15,11 +15,11 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/src/components/ui/tooltip";
-import { DiffLabel } from "@/src/features/datasets";
+import { DiffLabel } from "@/src/features/datasets/components/DiffLabel";
 import {
   getScoreDataTypeExplanation,
   splitScoreDataTypeIcon,
-} from "@/src/features/scores";
+} from "@/src/features/scores/lib/scoreColumns";
 import {
   formatScoreColumnAggregate,
   formatScoreValue,

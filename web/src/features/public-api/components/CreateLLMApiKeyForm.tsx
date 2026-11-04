@@ -44,15 +44,16 @@ import {
   reportTrpcErrorWithoutToast,
   type RouterOutputs,
 } from "@/src/utils/api";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
-import { type useUiCustomization } from "@/src/ee/features/ui-customization";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import type { useUiCustomization } from "@/src/ee/features/ui-customization/useUiCustomization";
 import { DialogFooter, DialogBody } from "@/src/components/ui/dialog";
 import { env } from "@/src/env.mjs";
 import {
   AuthMethod,
   BedrockAuthMethodSchema,
   type BedrockAuthMethod,
-} from "@/src/features/llm-api-key";
+} from "@/src/features/llm-api-key/types";
+
 const isLangfuseCloud = Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION);
 
 /**

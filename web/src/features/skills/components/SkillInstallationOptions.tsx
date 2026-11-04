@@ -90,7 +90,7 @@ export function SkillInstallationOptions({
 
 Follow the CLI setup and authentication guidance:
 https://github.com/langfuse/langfuse-cli
-Use @langfuse/cli@beta for skill installation.
+Use @langfuse/cli for skill installation.
 
 Langfuse host: ${JSON.stringify(host)}
 
@@ -109,7 +109,7 @@ Verify the skills are installed in ${JSON.stringify(directory)} and retain langf
     setVersion(event.target.value);
 
   return (
-    <div className="ph-no-capture flex flex-col gap-4">
+    <div className="ph-no-capture flex min-w-0 flex-col gap-4">
       <div className="flex flex-col gap-3">
         <Accordion type="single" collapsible>
           <Accordion.Item value="configuration">

@@ -37,14 +37,14 @@ export const ScoreValue = ({
   const value = score.stringValue ?? score.value?.toFixed(2) ?? "";
 
   return (
-    <span className="inline-flex min-w-0 items-center gap-1">
+    <span className="ph-no-capture inline-flex min-w-0 items-center gap-1">
       <span className="text-foreground truncate py-0.5" title={value}>
         {value}
       </span>
       {score.comment && (
         <HoverCard
           content={
-            <div className="max-h-[50dvh] w-64 overflow-y-auto p-3 text-xs break-normal whitespace-normal">
+            <div className="ph-no-capture max-h-[50dvh] w-64 overflow-y-auto p-3 text-xs break-normal whitespace-normal">
               <p className="whitespace-pre-wrap">{score.comment}</p>
               {"executionTraceId" in score &&
                 score.executionTraceId &&
@@ -82,7 +82,7 @@ export const ScoreValue = ({
       {hasMetadata(score) && (
         <HoverCard
           content={
-            <div className="max-h-[50dvh] w-64 overflow-y-auto rounded-md p-0 text-xs break-normal whitespace-normal">
+            <div className="ph-no-capture max-h-[50dvh] w-64 overflow-y-auto rounded-md p-0 text-xs break-normal whitespace-normal">
               <JSONView codeClassName="rounded-md!" json={score.metadata} />
             </div>
           }

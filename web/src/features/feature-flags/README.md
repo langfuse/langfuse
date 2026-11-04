@@ -36,16 +36,19 @@ company mailbox does not automatically revoke Internal view eligibility.
 
 Topics is available through internal view or the `langfuseTopics` ("Langfuse
 Topics") personal flag. Internal view follows the shared internal eligibility
-and opt-out rules; its sidebar entry carries the Internal badge. Only platform
-administrators (`user.admin`) see or may change the personal preview toggle;
-organization administrator roles do not grant toggle access. The flag is
+and opt-out rules; its sidebar entry carries the Internal badge. The personal
+preview toggle is visible and may be changed only with active Internal view or
+an existing personal Topics grant. Admin status alone does not grant toggle
+access after opting out of Internal view. The flag is
 excluded from public previews, organization defaults, and member preview
 management. Both access paths still require the Topics project/deployment gate
 and `topics:read` permission.
 While Internal view is on, the Topics preview toggle shows as enabled and
-cannot be changed. Switch to External view to manage the personal flag.
+cannot be changed. Switching to External view hides Topics unless the personal
+flag is enabled. Users with an existing grant can disable it in External view;
+without Internal view, they cannot grant themselves access again.
 
-Admin-only personal previews are registered in `adminOnlyFeaturePreviewFlags`;
+Internal personal previews are registered in `internalFeaturePreviewFlags`;
 the personal modal and self-toggle mutation use `personalFeaturePreviewFlags`.
 Keep `featurePreviewFlags` limited to previews organizations may manage.
 

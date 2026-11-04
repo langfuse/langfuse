@@ -1,5 +1,5 @@
 import { Card, CardContent } from "@/src/components/ui/card";
-import { Badge } from "@/src/components/ui/badge";
+import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { Separator } from "@/src/components/ui/separator";
 import { EstimatedCostRow } from "./EstimatedCostRow";
 import type { BatchEvalSourceTable } from "@langfuse/shared";
@@ -39,9 +39,7 @@ export function ConfirmationStep(props: ConfirmationStepProps) {
               </span>
               <div className="flex flex-wrap gap-1">
                 {evaluators.map((e) => (
-                  <Badge key={e.id} variant="secondary" className="text-xs">
-                    {e.name}
-                  </Badge>
+                  <Badge key={e.id} color="filled" text={e.name} />
                 ))}
               </div>
             </div>

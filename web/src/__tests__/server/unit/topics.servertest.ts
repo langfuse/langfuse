@@ -186,6 +186,7 @@ const summary = {
 beforeEach(() => {
   vi.resetAllMocks();
   mocks.isTopicsProjectEnabled.mockReturnValue(true);
+  mocks.listTopicRules.mockResolvedValue([]);
   mocks.queryClickhouse.mockResolvedValue([]);
   mocks.getTopicsModels.mockResolvedValue({
     summary: { model: "us.openai.gpt-5.6-luna" },
@@ -301,10 +302,14 @@ describe("Topics visibility gate", () => {
   const session = ({
     admin = false,
     langfuseTopics = true,
+    email,
+    internalFeatures = true,
     role = "VIEWER",
   }: {
     admin?: boolean;
     langfuseTopics?: boolean;
+    email?: string;
+    internalFeatures?: boolean;
     role?: string | null;
   }) =>
     ({
@@ -312,7 +317,9 @@ describe("Topics visibility gate", () => {
       user: {
         id: "user-a",
         admin,
-        featureFlags: testFeatureFlags({ langfuseTopics }),
+        email,
+        emailVerified: email ? "2026-01-01T00:00:00.000Z" : undefined,
+        featureFlags: testFeatureFlags({ langfuseTopics, internalFeatures }),
         organizations: role
           ? [{ id: "org-a", role, projects: [{ id: projectId, role }] }]
           : [],
@@ -324,6 +331,34 @@ describe("Topics visibility gate", () => {
     ["a member on an allowlisted project", {}, true, true],
     ["a project outside the allowlist", {}, false, false],
     ["the feature preview turned off", { langfuseTopics: false }, true, false],
+    [
+      "verified Langfuse staff in internal view",
+      { email: "member@langfuse.com", langfuseTopics: false },
+      true,
+      true,
+    ],
+    [
+      "verified ClickHouse staff in internal view",
+      { email: "MEMBER@CLICKHOUSE.COM", langfuseTopics: false },
+      true,
+      true,
+    ],
+    [
+      "staff opting out of internal view",
+      {
+        email: "member@clickhouse.com",
+        internalFeatures: false,
+        langfuseTopics: false,
+      },
+      true,
+      false,
+    ],
+    [
+      "an explicit grant after opting out of internal view",
+      { email: "member@clickhouse.com", internalFeatures: false },
+      true,
+      true,
+    ],
     ["a role without topics:read", { role: "NONE" }, true, false],
     [
       "internal view without the Topics flag",
@@ -1097,6 +1132,29 @@ describe("Topics current results", () => {
     );
   });
 
+  it("lists only the facets enabled on the project's rule", async () => {
+    mocks.listTopicFacets.mockResolvedValue([
+      { id: facetId, name: "Intent", versions: [{ version: facetVersion }] },
+      {
+        id: "other-facet",
+        name: "Sentiment",
+        versions: [{ version: facetVersion }],
+      },
+    ]);
+    mocks.listTopicRules.mockResolvedValue([{ facetIds: [facetId] }] as Awaited<
+      ReturnType<typeof topicsServer.listTopicRules>
+    >);
+    mocks.getLatestFacetSummaries.mockResolvedValue([]);
+    mocks.readLatestTopicAssignments.mockResolvedValue([]);
+    mocks.getPublishedTopicRun.mockResolvedValue(null);
+
+    const result = await caller("VIEWER").currentResults({
+      projectId,
+      timeRange,
+    });
+    expect(result.facets.map((facet) => facet.facetId)).toEqual([facetId]);
+  });
+
   it("retains published map descriptions when reprocessed traces await assignment", async () => {
     mocks.listTopicFacets.mockResolvedValue([
       { id: facetId, name: "Intent", versions: [{ version: facetVersion }] },
@@ -1215,12 +1273,16 @@ describe("Topics current results", () => {
       expect.arrayContaining([
         {
           id: "retained",
+          versionId: "retained",
+          runId: "old-map-retained",
           name: "Specific refund issues",
           description: "Current description",
           count: 1,
         },
         {
           id: "retired",
+          versionId: "retired-new",
+          runId: "old-map-retired-new",
           name: "Old retired-new",
           description: "Historical retired-new",
           count: 2,
@@ -1242,11 +1304,13 @@ describe("Topics current results", () => {
       "intent",
       undefined,
       timeRange,
+      undefined,
     );
     expect(mocks.readLatestTopicAssignments).toHaveBeenCalledWith(
       projectId,
       "intent",
       timeRange,
+      undefined,
     );
     await expect(caller("VIEWER").trigger(input)).rejects.toMatchObject({
       code: "FORBIDDEN",
@@ -1346,6 +1410,7 @@ describe("Topics current results", () => {
         projectId,
         "intent",
         timeRange,
+        undefined,
       );
       expect(mocks.getTopicRuns).toHaveBeenCalledWith(projectId, []);
       expect(result[0]).toMatchObject({
@@ -1395,7 +1460,7 @@ describe("Topics model settings", () => {
   const settings = {
     projectId,
     summary: null,
-    embedding: { llmApiKeyId: "key", model: "text-embedding-3-small" },
+    embedding: { provider: "key", model: "text-embedding-3-small" },
     embeddingDimensions: 1024,
     clustering: null,
   };
@@ -1428,10 +1493,10 @@ describe("Topics model settings", () => {
 describe("Topics setup", () => {
   const setup = {
     projectId,
-    summary: { llmApiKeyId: "key", model: "gpt" },
-    embedding: { llmApiKeyId: "key", model: "embed" },
+    summary: { provider: "key", model: "gpt" },
+    embedding: { provider: "key", model: "embed" },
     embeddingDimensions: 1024,
-    clustering: { llmApiKeyId: "key", model: "cluster" },
+    clustering: { provider: "key", model: "cluster" },
     facets: DEFAULT_TOPIC_FACETS.map((facet) => ({
       name: facet.name,
       enabled: facet.name !== "Sentiment",
@@ -1557,7 +1622,7 @@ describe("Topics write access", () => {
     description: "",
     prompt: "Describe the original request.",
   };
-  const slot = { llmApiKeyId: "key", model: "gpt" };
+  const slot = { provider: "key", model: "gpt" };
   const settings = {
     summary: slot,
     embedding: slot,

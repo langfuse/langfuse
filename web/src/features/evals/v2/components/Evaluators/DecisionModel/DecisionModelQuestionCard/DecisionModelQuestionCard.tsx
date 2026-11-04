@@ -2,7 +2,7 @@ import { useId } from "react";
 import { DecisionModelQuestionType } from "@langfuse/shared";
 import { Trash2 } from "@langfuse/icons";
 
-import { Badge } from "@/src/components/ui/badge";
+import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { Button } from "@/src/components/ui/button";
 import { InfoTooltip } from "@/src/components/ui/InfoTooltip/InfoTooltip";
 import { Input } from "@/src/components/ui/input";
@@ -117,14 +117,10 @@ export function DecisionModelQuestionCard({
             aria-label={copy.label}
           />
           <Badge
-            variant="secondary"
-            className={cn(
-              "shrink-0 font-mono",
-              !question.scoreName.trim() && "text-dark-yellow",
-            )}
-          >
-            {question.scoreName.trim() || "score name missing"}
-          </Badge>
+            color={question.scoreName.trim() ? "filled" : "yellow"}
+            font="mono"
+            text={question.scoreName.trim() || "score name missing"}
+          />
           <span
             className={cn(
               "truncate pl-1 leading-none",
@@ -134,11 +130,7 @@ export function DecisionModelQuestionCard({
           >
             {summary}
           </span>
-          {hasErrors ? (
-            <Badge variant="destructive" className="shrink-0">
-              Needs attention
-            </Badge>
-          ) : null}
+          {hasErrors ? <Badge color="red" text="Needs attention" /> : null}
         </span>
       }
       actions={

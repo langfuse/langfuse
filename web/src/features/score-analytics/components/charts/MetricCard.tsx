@@ -1,5 +1,6 @@
 /* eslint-disable @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
-import { Badge } from "@/src/components/ui/badge";
+import { type ComponentProps } from "react";
+import { Badge } from "@/src/components/design-system/Badge/Badge";
 import {
   Tooltip,
   TooltipContent,
@@ -42,21 +43,21 @@ export function MetricCard({
   const displayValue = isPlaceholder ? "--" : value;
 
   // Map interpretation color to badge variant
-  const getBadgeVariant = (color: string) => {
+  const getBadgeColor = (
+    color: string,
+  ): ComponentProps<typeof Badge>["color"] => {
     switch (color) {
       case "green":
-        return "default"; // Green is default in most badge systems
+        return "inverted";
       case "blue":
-        return "secondary";
-      case "yellow":
-        return "outline-solid";
-      case "orange":
-        return "outline-solid";
+        return "filled";
       case "red":
-        return "destructive";
+        return "red";
+      case "yellow":
+      case "orange":
       case "gray":
       default:
-        return "outline-solid";
+        return "primary";
     }
   };
 
@@ -98,11 +99,10 @@ export function MetricCard({
               <Tooltip>
                 <TooltipTrigger asChild>
                   <Badge
-                    variant={getBadgeVariant(interpretation.color)}
-                    className="px-1.5 py-0 text-[10px] font-normal opacity-70"
-                  >
-                    {interpretation.strength}
-                  </Badge>
+                    color={getBadgeColor(interpretation.color)}
+                    size="sm"
+                    text={interpretation.strength}
+                  />
                 </TooltipTrigger>
                 <TooltipContent side="top" className="max-w-xs">
                   <p className="text-xs">{interpretation.description}</p>

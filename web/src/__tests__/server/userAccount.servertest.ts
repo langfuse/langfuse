@@ -10,10 +10,8 @@ import { OrganizationId, SystemRoleId, UserId } from "@langfuse/shared/rbac";
 import { env } from "@/src/env.mjs";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
-import {
-  getFeaturePreviewOptOutFlag,
-  INTERNAL_FEATURE_FLAG,
-} from "@/src/features/feature-flags/server";
+import { getFeaturePreviewOptOutFlag } from "@/src/features/feature-flags/utils";
+import { INTERNAL_FEATURE_FLAG } from "@/src/features/feature-flags/available-flags";
 import { getSessionLoginAt } from "@/src/features/auth/lib/sessionExpiration";
 import { getAuthOptions } from "@/src/server/auth";
 
@@ -28,34 +26,71 @@ describe("userAccountRouter.setFeaturePreviewEnabled", () => {
     (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = originalCloudRegion;
   });
 
-  it("rejects a staff user's admin-only Topics toggle", async () => {
-    const { caller, userId } = await createCaller({
+  it.each([
+    { admin: false, emailDomain: "example.com" },
+    { admin: true, emailDomain: "example.com" },
+    {
+      admin: false,
       emailDomain: "langfuse.com",
       emailVerified: new Date("2026-01-01T00:00:00.000Z"),
-    });
-    await expect(
-      caller.userAccount.setFeaturePreviewEnabled({
+    },
+  ])(
+    "rejects a Topics toggle in external view without a grant ($emailDomain, admin=$admin)",
+    async (options) => {
+      const { caller, userId } = await createCaller({
+        ...options,
+        featureFlags: [
+          "templateFlag",
+          getFeaturePreviewOptOutFlag(INTERNAL_FEATURE_FLAG),
+        ],
+      });
+      await expect(
+        caller.userAccount.setFeaturePreviewEnabled({
+          flag: "langfuseTopics",
+          enabled: true,
+        }),
+      ).rejects.toMatchObject({ code: "FORBIDDEN" });
+      const user = await prisma.user.findUniqueOrThrow({
+        where: { id: userId },
+      });
+      expect(user.featureFlags).toEqual([
+        "templateFlag",
+        getFeaturePreviewOptOutFlag(INTERNAL_FEATURE_FLAG),
+      ]);
+    },
+  );
+
+  it.each(["langfuse.com", "clickhouse.com"])(
+    "lets internal %s users manage Topics locally without changing other flags",
+    async (emailDomain) => {
+      const { caller, userId } = await createCaller({
+        emailDomain,
+        emailVerified: new Date("2026-01-01T00:00:00.000Z"),
+      });
+      (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = undefined;
+      await caller.userAccount.setFeaturePreviewEnabled({
         flag: "langfuseTopics",
         enabled: true,
-      }),
-    ).rejects.toMatchObject({ code: "FORBIDDEN" });
-    const user = await prisma.user.findUniqueOrThrow({
-      where: { id: userId },
-    });
-    expect(user.featureFlags).toEqual(["templateFlag"]);
-  });
+      });
+      expect(
+        (await prisma.user.findUniqueOrThrow({ where: { id: userId } }))
+          .featureFlags,
+      ).toEqual(["templateFlag", "langfuseTopics"]);
+      await caller.userAccount.setFeaturePreviewEnabled({
+        flag: "langfuseTopics",
+        enabled: false,
+      });
+      expect(
+        (await prisma.user.findUniqueOrThrow({ where: { id: userId } }))
+          .featureFlags,
+      ).not.toContain("langfuseTopics");
+    },
+  );
 
-  it("lets a platform admin opt into and out of Topics locally without changing other flags", async () => {
-    const { caller, userId } = await createCaller({ admin: true });
-    (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = undefined;
-    await caller.userAccount.setFeaturePreviewEnabled({
-      flag: "langfuseTopics",
-      enabled: true,
+  it("lets an external user turn off an existing Topics grant", async () => {
+    const { caller, userId } = await createCaller({
+      featureFlags: ["templateFlag", "langfuseTopics"],
     });
-    expect(
-      (await prisma.user.findUniqueOrThrow({ where: { id: userId } }))
-        .featureFlags,
-    ).toEqual(["templateFlag", "langfuseTopics"]);
     await caller.userAccount.setFeaturePreviewEnabled({
       flag: "langfuseTopics",
       enabled: false,
@@ -63,7 +98,7 @@ describe("userAccountRouter.setFeaturePreviewEnabled", () => {
     expect(
       (await prisma.user.findUniqueOrThrow({ where: { id: userId } }))
         .featureFlags,
-    ).not.toContain("langfuseTopics");
+    ).toEqual(["templateFlag", getFeaturePreviewOptOutFlag("langfuseTopics")]);
   });
 
   it("enables a preview, leaving other flags intact", async () => {
@@ -378,6 +413,9 @@ async function createCaller({
         },
       ],
       featureFlags: testFeatureFlags({
+        internalFeatures: !featureFlags.includes(
+          getFeaturePreviewOptOutFlag(INTERNAL_FEATURE_FLAG),
+        ),
         langfuseTopics: featureFlags.includes("langfuseTopics"),
         sessionViewV2: featureFlags.includes("sessionViewV2"),
         sessionViewV2Timeline: featureFlags.includes("sessionViewV2Timeline"),

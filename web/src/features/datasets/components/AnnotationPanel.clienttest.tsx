@@ -5,7 +5,7 @@ import { AnnotationPanel } from "./AnnotationPanel";
 import {
   ActiveCellProvider,
   useActiveCell,
-} from "../contexts/ActiveCellContext";
+} from "../contexts/ActiveCellProvider";
 
 vi.mock("sonner", () => ({ toast: { error: vi.fn() } }));
 vi.mock("@/src/components/useSessionStorage", () => ({
@@ -18,7 +18,12 @@ vi.mock("@/src/components/ui/resizable", () => ({
   ResizablePanel: ({ children }: { children: ReactNode }) => children,
   ResizableHandle: () => <hr />,
 }));
-vi.mock("@/src/features/scores", () => ({
+vi.mock("@/src/features/scores/components/AnnotationForm", () => ({
+  AnnotationForm: ({ actionButtons }: { actionButtons: ReactNode }) =>
+    actionButtons,
+  decomposeAggregateScoreKey: () => ({ source: "ANNOTATION" }),
+}));
+vi.mock("@/src/features/scores/lib/aggregateScores", () => ({
   AnnotationForm: ({ actionButtons }: { actionButtons: ReactNode }) =>
     actionButtons,
   decomposeAggregateScoreKey: () => ({ source: "ANNOTATION" }),

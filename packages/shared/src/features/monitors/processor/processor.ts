@@ -345,7 +345,7 @@ function processMonitor(args: {
   const automations = getAutomations({ monitor, completion, triggers });
   if (automations.length === 0) return [completion, []];
 
-  const alert = buildAlert({ prev: monitor, next: completion, runAt });
+  const alert = buildAlert({ prev: monitor, next: completion, runAt, value });
   return [completion, toMonitorWebhookInputs({ alert, automations, now })];
 }
 
@@ -380,8 +380,9 @@ function buildAlert(args: {
   prev: Monitor;
   next: MonitorCompletion;
   runAt: Date;
+  value: number | null;
 }): MonitorAlert {
-  const { prev, next, runAt } = args;
+  const { prev, next, runAt, value } = args;
   const { fromTimestamp, toTimestamp } = evaluationWindow(prev.window, runAt);
   return {
     monitorId: prev.id,
@@ -407,6 +408,13 @@ function buildAlert(args: {
     view: prev.view,
     filters: prev.filters,
     window: prev.window,
+    monitorName: prev.name,
+    metric: prev.metric,
+    metricValue: value,
+    thresholdOperator: prev.thresholdOperator,
+    alertThreshold: prev.alertThreshold,
+    warningThreshold: prev.warningThreshold,
+    alertedAt: next.alertedAt ?? undefined,
   };
 }
 

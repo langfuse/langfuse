@@ -171,7 +171,7 @@ export const TimelineNavigation = meta.story({
       "href",
       args.navigation?.previousTrace?.href,
     );
-    const firstHeader = canvas.getByRole("button", { name: "1 Turn 1" });
+    const firstHeader = canvas.getByRole("button", { name: "Turn 1" });
     expect(previous.compareDocumentPosition(firstHeader)).toBe(
       Node.DOCUMENT_POSITION_FOLLOWING,
     );
@@ -182,7 +182,7 @@ export const TimelineNavigation = meta.story({
     });
     await expect(next).toBeVisible();
     expect(next).toHaveAttribute("href", args.navigation?.nextTrace?.href);
-    const lastHeader = canvas.getByRole("button", { name: "3 Turn 3" });
+    const lastHeader = canvas.getByRole("button", { name: "Turn 3" });
     expect(lastHeader.compareDocumentPosition(next)).toBe(
       Node.DOCUMENT_POSITION_FOLLOWING,
     );

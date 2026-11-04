@@ -1,3 +1,4 @@
+/* eslint-disable react/no-unstable-nested-components */
 import { useId, useMemo } from "react";
 import { Star } from "@langfuse/icons";
 import type { FilterState } from "@langfuse/shared";

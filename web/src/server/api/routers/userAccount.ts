@@ -6,17 +6,20 @@ import {
 import { TRPCError } from "@trpc/server";
 import { ForbiddenError, StringNoHTML } from "@langfuse/shared";
 import { Role, Prisma, type PrismaClient } from "@langfuse/shared/src/db";
-import { canToggleV4 } from "@/src/features/events/server";
+import { canToggleV4 } from "@/src/features/events/lib/v4Rollout";
 import { V4_PREVIEW_LABEL } from "@/src/features/events/lib/v4PreviewLabel";
 import { env } from "@/src/env.mjs";
-import { getSfdcService } from "@/src/ee/features/sfdc-sync/server";
+import { getSfdcService } from "@/src/ee/features/sfdc-sync/server/sfdcService";
 import {
-  isAdminOnlyFeaturePreviewFlag,
+  isInternalFeaturePreviewFlag,
   personalFeaturePreviewFlags,
-  setUserFeaturePreview,
-  hasInternalAccess,
   INTERNAL_FEATURE_FLAG,
-} from "@/src/features/feature-flags/server";
+} from "@/src/features/feature-flags/available-flags";
+import { setUserFeaturePreview } from "@/src/features/feature-flags/server/organizationFeatureFlags";
+import {
+  hasInternalAccess,
+  isInternalViewEnabled,
+} from "@/src/features/feature-flags/utils";
 import { advanceSessionsExpiredAtForUser } from "@/src/features/auth/lib/sessionExpiration";
 import {
   deleteUserBoundApiKeys,
@@ -153,11 +156,12 @@ export const userAccountRouter = createTRPCRouter({
       const userId = ctx.session.user.id;
 
       if (
-        isAdminOnlyFeaturePreviewFlag(input.flag) &&
-        !ctx.session.user.admin
+        isInternalFeaturePreviewFlag(input.flag) &&
+        !isInternalViewEnabled(ctx.session) &&
+        !ctx.session.user.featureFlags[input.flag]
       ) {
         throw new ForbiddenError(
-          "Only administrators can change this feature preview.",
+          "This feature preview requires Internal view or an existing feature grant.",
         );
       }
 
@@ -167,7 +171,7 @@ export const userAccountRouter = createTRPCRouter({
 
       if (
         input.enabled &&
-        !isAdminOnlyFeaturePreviewFlag(input.flag) &&
+        !isInternalFeaturePreviewFlag(input.flag) &&
         !canEnableFeaturePreviews
       ) {
         throw new TRPCError({

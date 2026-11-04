@@ -1,59 +1,45 @@
-import { type ReactNode } from "react";
-import { History, Play, RefreshCw } from "@langfuse/icons";
 import { HeaderActionMenuRow } from "@/src/components/HeaderActionMenuRow";
+import { Badge } from "@/src/components/design-system/Badge/Badge";
+import { type TopicsActions } from "./prepare-topics-actions";
 
 export function TopicsActionsMenu({
-  children,
-  triggerAction,
+  actions,
   closeMenu,
-  onOpenHistory,
-  onRefresh,
-}: TopicsActionsMenuProps) {
-  function processTraces() {
-    closeMenu();
-    triggerAction?.onSelect();
-  }
-  function openHistory() {
-    closeMenu({ handoffFocus: true });
-    onOpenHistory();
-  }
-  function refreshResults() {
-    closeMenu();
-    onRefresh();
-  }
+}: {
+  actions: TopicsActions;
+  closeMenu: (options?: { handoffFocus?: boolean }) => void;
+}) {
+  const { display } = actions;
+  const DisplayIcon = display.icon;
   return (
     <>
-      {children}
-      {triggerAction && (
-        <HeaderActionMenuRow
-          label={triggerAction.label}
-          icon={<Play size="base" color="default" />}
-          disabled={triggerAction.disabled}
-          onClick={processTraces}
-        />
-      )}
+      {actions.menu.map((action) => {
+        const Icon = action.icon;
+        function select() {
+          closeMenu({ handoffFocus: action.id === "history" });
+          action.onSelect();
+        }
+        return (
+          <HeaderActionMenuRow
+            key={action.id}
+            label={action.label}
+            icon={<Icon size="base" color="default" />}
+            badge={
+              action.badge ? <Badge text={action.badge} size="sm" /> : undefined
+            }
+            disabled={Boolean(action.disabledReason)}
+            disabledReason={action.disabledReason}
+            onClick={select}
+          />
+        );
+      })}
       <HeaderActionMenuRow
-        label="History"
-        icon={<History size="base" color="default" />}
-        onClick={openHistory}
-      />
-      <HeaderActionMenuRow
-        label="Refresh results"
-        icon={<RefreshCw size="base" color="default" />}
-        onClick={refreshResults}
+        label={display.label}
+        icon={<DisplayIcon size="base" color="default" />}
+        badge={<Badge text={display.checked ? "On" : "Off"} size="sm" />}
+        aria-pressed={display.checked}
+        onClick={() => display.onCheckedChange(!display.checked)}
       />
     </>
   );
 }
-
-type TopicsActionsMenuProps = {
-  children?: ReactNode;
-  triggerAction: {
-    label: string;
-    disabled: boolean;
-    onSelect: () => void;
-  } | null;
-  closeMenu: (options?: { handoffFocus?: boolean }) => void;
-  onOpenHistory: () => void;
-  onRefresh: () => void;
-};

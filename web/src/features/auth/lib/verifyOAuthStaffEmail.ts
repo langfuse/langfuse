@@ -3,7 +3,7 @@ import type { AdapterUser } from "next-auth/adapters";
 import { z } from "zod";
 import { prisma } from "@langfuse/shared/src/db";
 import { logger } from "@langfuse/shared/src/server";
-import { hasInternalEmailDomain } from "@/src/features/feature-flags/server";
+import { hasInternalEmailDomain } from "@/src/features/feature-flags/utils";
 
 const verifiedProfileSchema = z.object({
   email: z.string(),

@@ -17,13 +17,13 @@ vi.mock("next/router", () => ({
     replace: state.replace,
   }),
 }));
-vi.mock("../contexts/TraceReviewPanelContext", () => ({
+vi.mock("../contexts/TraceReviewPanelProvider", () => ({
   useTraceReviewPanel: () => store,
 }));
-vi.mock("../contexts/SelectionContext", () => ({
+vi.mock("../contexts/SelectionProvider", () => ({
   useSelection: () => ({ selectedNodeId: state.selectedNodeId }),
 }));
-vi.mock("../contexts/TraceDataContext", () => ({
+vi.mock("../contexts/TraceDataProvider", () => ({
   useTraceData: () => ({
     trace: { id: "trace", projectId: "project", environment: "default" },
     observations: [
@@ -37,10 +37,12 @@ vi.mock("../contexts/TraceDataContext", () => ({
     ],
   }),
 }));
-vi.mock("@/src/features/events", () => ({
+vi.mock("@/src/features/events/hooks/useReadPath", () => ({
   useReadPath: () => ({ isV4: true }),
 }));
-vi.mock("@/src/features/rbac", () => ({ useHasProjectAccess: () => true }));
+vi.mock("@/src/features/rbac/utils/checkProjectAccess", () => ({
+  useHasProjectAccess: () => true,
+}));
 vi.mock("@/src/features/scores/components/AnnotationPanelContent", () => ({
   AnnotationPanelContent: ({
     data,
