@@ -7,7 +7,6 @@ import { prisma } from "@langfuse/shared/src/db";
 import {
   createApiKey,
   createBasicAuthHeader,
-  createOrgProjectAndApiKey,
 } from "@langfuse/shared/src/server";
 import {
   OrganizationId,
@@ -98,31 +97,35 @@ describe("unstable Topics public API access", () => {
   it("does not expose a project's rules, summaries or assignments to another project's key", async () => {
     const ownerAuth = createBasicAuthHeader(owner.publicKey, owner.secretKey);
     const otherAuth = createBasicAuthHeader(other.publicKey, other.secretKey);
-    const traceFilter = JSON.stringify([
-      {
-        type: "stringOptions",
-        column: "traceId",
-        operator: "any of",
-        value: [owner.traceId],
-      },
-    ]);
-    const topicFilter = JSON.stringify([
-      {
-        type: "stringOptions",
-        column: "topicId",
-        operator: "any of",
-        value: [owner.topicId],
-      },
-    ]);
+    const filterOn = (column: string, value: string) => ({
+      filter: JSON.stringify([
+        { type: "stringOptions", column, operator: "any of", value: [value] },
+      ]),
+    });
+    // Every filter that can name another project's ids or labels.
+    const ownerFilters = [
+      filterOn("traceId", owner.traceId),
+      filterOn("topicId", owner.topicId),
+      filterOn("facetId", owner.facetId),
+      filterOn("ruleId", owner.ruleId),
+      filterOn("topicName", "Private topic"),
+    ];
 
-    // Positive control: the owner sees its rule and trace through every route.
-    for (const handler of [summariesHandler, assignmentsHandler]) {
-      const owned = await get(handler, ownerAuth, { filter: topicFilter });
-      expect(owned.status).toBe(200);
-      expect(
-        owned.body.data.map((row: { traceId: string }) => row.traceId),
-      ).toEqual([owner.traceId]);
-    }
+    // Positive control: the owner sees its rule and trace through every filter.
+    for (const handler of [summariesHandler, assignmentsHandler])
+      for (const query of ownerFilters) {
+        const owned = await get(handler, ownerAuth, query);
+        expect(owned.status).toBe(200);
+        expect(
+          owned.body.data.map((row: { traceId: string }) => row.traceId),
+        ).toEqual([owner.traceId]);
+      }
+    expect(
+      JSON.stringify(
+        (await get(topicsHandler, ownerAuth, filterOn("ruleId", owner.ruleId)))
+          .body,
+      ),
+    ).toContain(owner.topicId);
     expect(JSON.stringify((await get(rulesHandler, ownerAuth)).body)).toContain(
       owner.ruleId,
     );
@@ -137,22 +140,45 @@ describe("unstable Topics public API access", () => {
       JSON.stringify((await get(rulesHandler, otherAuth)).body),
     ).not.toContain(owner.ruleId);
     for (const handler of [summariesHandler, assignmentsHandler])
-      for (const query of [
-        {},
-        { filter: traceFilter },
-        { filter: topicFilter },
-      ] as Record<string, string>[]) {
+      for (const query of [{}, ...ownerFilters]) {
         const result = await get(handler, otherAuth, query);
         expect(result.status).toBe(200);
         expect(JSON.stringify(result.body)).not.toContain(owner.traceId);
       }
+    const topics = await get(
+      topicsHandler,
+      otherAuth,
+      filterOn("ruleId", owner.ruleId),
+    );
+    expect(topics.status).toBe(200);
+    expect(JSON.stringify(topics.body)).not.toContain(owner.topicId);
   });
 
-  it("returns not found for a project without Topics", async () => {
-    const project = await createOrgProjectAndApiKey();
-    const auth = createBasicAuthHeader(project.publicKey, project.secretKey);
-    for (const handler of [rulesHandler, summariesHandler, assignmentsHandler])
-      expect((await get(handler, auth)).status).toBe(404);
+  it("returns not found once a project leaves the Topics allowlist", async () => {
+    const auth = createBasicAuthHeader(other.publicKey, other.secretKey);
+    const routes = [
+      [facetsHandler, {}],
+      [facetHandler, { facetId: other.facetId }],
+      [topicsHandler, {}],
+      [topicHandler, { topicId: other.topicId }],
+      [rulesHandler, {}],
+      [ruleHandler, { ruleId: other.ruleId }],
+      [summariesHandler, {}],
+      [assignmentsHandler, {}],
+    ] as const;
+    // Positive control: its own ids resolve while the project is allowed.
+    for (const [handler, query] of routes)
+      expect((await get(handler, auth, query)).status).toBe(200);
+    (sharedEnv as any).LANGFUSE_TOPICS_ENABLED_PROJECT_IDS = [owner.projectId];
+    try {
+      for (const [handler, query] of routes)
+        expect((await get(handler, auth, query)).status).toBe(404);
+    } finally {
+      (sharedEnv as any).LANGFUSE_TOPICS_ENABLED_PROJECT_IDS = [
+        owner.projectId,
+        other.projectId,
+      ];
+    }
   });
 
   it("denies a project key without topics:read", async () => {
