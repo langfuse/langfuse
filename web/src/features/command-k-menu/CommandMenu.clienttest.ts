@@ -3,7 +3,6 @@ import {
   buildCreateActions,
   buildPageShortcuts,
   getEntityBaseUrl,
-  getEvaluatorSearchQuery,
   getIdNavigationItem,
   getRecentPickAnalytics,
   getSearchAnalytics,
@@ -287,21 +286,5 @@ describe("toEntityGroup", () => {
       toEntityGroup("evaluator", null, [{ id: "e1", name: "Toxicity" }], "")
         .items,
     ).toEqual([]);
-  });
-});
-
-describe("getEvaluatorSearchQuery", () => {
-  it("strips category words only from the ends of the query", () => {
-    expect(getEvaluatorSearchQuery("eval Toxicity eval v2")).toBe(
-      "toxicity eval v2",
-    );
-    expect(getEvaluatorSearchQuery("toxicity eval v2")).toBe(
-      "toxicity eval v2",
-    );
-    expect(getEvaluatorSearchQuery("eval")).toBe("");
-  });
-
-  it("keeps a fragment of a category word", () => {
-    expect(getEvaluatorSearchQuery("val")).toBe("val");
   });
 });
