@@ -66,6 +66,8 @@
 
 Langfuse 是一个 **开源 AI 工程平台**，专注于 **AI 代理评估与可观测性**。它是一个开放平台，覆盖你公司发起的每一次 AI 调用和团队构建的每一个代理：追踪用量和成本，**追踪并评估** 代理，并利用生产数据打造更好的 AI。你可以使用 Langfuse Cloud，也可以在几分钟内 **自托管**；Langfuse 已在大规模场景中经过 **实战考验**。
 
+观看项目的快速演示：
+
 <a href="https://langfuse.com/watch-demo"><img width="37.5%" alt="Langfuse 概览视频" src=".github/watch-demo.png"></a>
 
 ## ✨ 核心特性
