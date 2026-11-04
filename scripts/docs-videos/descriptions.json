@@ -221,7 +221,7 @@
   },
   "inline-comments": {
     "title": "Comment on selected output text",
-    "description": "Trace view with the Raw, Optimized JSON view of the output. Select the text \"600 requests per minute\" and click \"Comment\". In the comment box, type @Ma and pick Maya Chen, finish the question and click \"Comment\". Then add a reaction to the comment."
+    "description": "Trace view with the Raw, Optimized JSON view of the output. Select the text \"600 requests per minute\" and click \"Comment\". In the comment box, @-tag your colleague, write the question and click \"Comment\". Then add a reaction to the comment."
   },
   "corrections": {
     "title": "Correct an output",
