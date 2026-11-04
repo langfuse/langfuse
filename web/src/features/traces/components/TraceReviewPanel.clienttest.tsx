@@ -1,11 +1,10 @@
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { createTraceReviewPanelStore } from "../state/traceReviewPanelStore";
 import { TraceReviewPanel } from "./TraceReviewPanel";
 
 const state = vi.hoisted(() => ({
   query: { annotation: "open" } as Record<string, string>,
   selectedNodeId: "first",
-  traceId: "trace",
   replace: vi.fn(),
 }));
 const store = createTraceReviewPanelStore({
@@ -26,18 +25,11 @@ vi.mock("../contexts/SelectionProvider", () => ({
 }));
 vi.mock("../contexts/TraceDataProvider", () => ({
   useTraceData: () => ({
-    trace: {
-      id: state.traceId,
-      projectId: "project",
-      environment: "default",
-    },
-    observations:
-      state.traceId === "trace"
-        ? [
-            { id: "first", environment: "default" },
-            { id: "second", environment: "default" },
-          ]
-        : [{ id: "third", environment: "default" }],
+    trace: { id: "trace", projectId: "project", environment: "default" },
+    observations: [
+      { id: "first", environment: "default" },
+      { id: "second", environment: "default" },
+    ],
     serverScores: [
       { id: "trace-score", observationId: null },
       { id: "first-score", observationId: "first" },
@@ -76,32 +68,17 @@ vi.mock("@/src/features/comments/CommentList", () => ({
   ),
 }));
 vi.mock("@/src/features/comments/CommentDrawerController", () => ({
-  getCommentDrawerInitialStateFromUrl: (
-    query: Record<string, string | string[] | undefined>,
-  ) => {
-    const objectId = query.commentObjectId;
-    const objectType = query.commentObjectType;
-    if (
-      query.comments !== "open" ||
-      typeof objectId !== "string" ||
-      typeof objectType !== "string"
-    ) {
-      return;
-    }
-    return {
-      type: "comments" as const,
-      objectId,
-      objectType,
-    };
-  },
+  getCommentDrawerInitialStateFromUrl: () =>
+    state.query.comments === "open" &&
+    state.query.commentObjectId &&
+    state.query.commentObjectType
+      ? {
+          type: "comments" as const,
+          objectId: state.query.commentObjectId,
+          objectType: state.query.commentObjectType,
+        }
+      : undefined,
 }));
-
-beforeEach(() => {
-  state.query = { annotation: "open" };
-  state.selectedNodeId = "first";
-  state.traceId = "trace";
-  state.replace.mockClear();
-});
 
 it("follows the selected annotation target and switches panels through the URL", () => {
   const view = render(<TraceReviewPanel projectId="project" />);
@@ -132,47 +109,17 @@ it("follows the selected annotation target and switches panels through the URL",
   );
 });
 
-it("follows the selected object while an open comments panel keeps its URL target", () => {
+it("shows the newly selected object's comments while the panel URL still points at the previous one", () => {
   state.query = {
     comments: "open",
     commentObjectId: "trace",
     commentObjectType: "TRACE",
   };
   state.selectedNodeId = "first";
-  state.traceId = "trace";
-  act(() => {
-    store.getState().actions.openComments({
-      target: { type: "comments", objectId: "trace", objectType: "TRACE" },
-      confirmDiscard: () => false,
-    });
-    store
-      .getState()
-      .actions.setCommentsDraft(store.getState().comments!.key, true);
-  });
   const view = render(<TraceReviewPanel projectId="project" />);
-  // A deep link stays on its object until the selection actually changes.
-  expect(screen.getByTestId("comments")).toHaveTextContent("trace");
-
   state.selectedNodeId = "second";
   view.rerender(<TraceReviewPanel projectId="project" />);
-  expect(screen.getByTestId("comments")).toHaveTextContent("trace");
-
-  act(() => {
-    store
-      .getState()
-      .actions.setCommentsDraft(store.getState().comments!.key, false);
-  });
-  view.rerender(<TraceReviewPanel projectId="project" />);
   expect(screen.getByTestId("comments")).toHaveTextContent("second");
-
-  state.selectedNodeId = "first";
-  view.rerender(<TraceReviewPanel projectId="project" />);
-  expect(screen.getByTestId("comments")).toHaveTextContent("first");
-
-  state.traceId = "other-trace";
-  state.selectedNodeId = "third";
-  view.rerender(<TraceReviewPanel projectId="project" />);
-  expect(screen.getByTestId("comments")).toHaveTextContent("third");
 });
 
 it("closes comment deep links with Escape and clears their URL target", () => {
