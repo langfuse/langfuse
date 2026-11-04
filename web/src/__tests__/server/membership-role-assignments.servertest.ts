@@ -29,7 +29,13 @@ import {
   Role,
   type Plan,
 } from "@langfuse/shared";
-import { OrganizationId, SystemRoleId, UserId } from "@langfuse/shared/rbac";
+import {
+  OrganizationId,
+  ProjectId,
+  SystemRoleId,
+  UserId,
+} from "@langfuse/shared/rbac";
+import { assignRole } from "@langfuse/shared/rbac/server";
 import { prisma } from "@langfuse/shared/src/db";
 import {
   createApiKey,
@@ -293,6 +299,61 @@ describe("membership role assignments", () => {
 
       expect(membership.role).toBe(Role.ADMIN);
       expect(await rolesOf(user.id)).toEqual([org(orgId, "ADMIN")]);
+    });
+
+    it("updateOrgMembership keeps the member's other roles", async () => {
+      const user = await createUser();
+      const input = { orgId, userId: user.id };
+      await saveOrgMembership(prisma, { ...input, role: Role.VIEWER });
+      await assignRole(prisma, {
+        tenantId: OrganizationId(orgId),
+        ownerId: OrganizationId(orgId),
+        principalId: UserId(user.id),
+        roleId: SystemRoleId("INGEST"),
+        tags: [],
+      });
+
+      await updateOrgMembership(prisma, { ...input, role: Role.ADMIN });
+
+      expect(await rolesOf(user.id)).toEqual(
+        sorted([
+          org(orgId, "ADMIN"),
+          assignment(orgId, `organization/${orgId}`, "system/INGEST"),
+        ]),
+      );
+    });
+
+    it("saveProjectMembership keeps the member's other project roles", async () => {
+      const user = await createUser();
+      const orgMembership = await saveOrgMembership(prisma, {
+        orgId,
+        userId: user.id,
+        role: Role.VIEWER,
+      });
+      const input = {
+        orgId,
+        orgMembershipId: orgMembership.id,
+        projectId,
+        userId: user.id,
+      };
+      await saveProjectMembership(prisma, { ...input, role: Role.VIEWER });
+      await assignRole(prisma, {
+        tenantId: OrganizationId(orgId),
+        ownerId: ProjectId(projectId),
+        principalId: UserId(user.id),
+        roleId: SystemRoleId("INGEST"),
+        tags: [],
+      });
+
+      await saveProjectMembership(prisma, { ...input, role: Role.ADMIN });
+
+      expect(await rolesOf(user.id)).toEqual(
+        sorted([
+          org(orgId, "VIEWER"),
+          proj(orgId, projectId, "ADMIN"),
+          assignment(orgId, `project/${projectId}`, "system/INGEST"),
+        ]),
+      );
     });
 
     it("updateOrgMembership rejects a missing membership", async () => {
