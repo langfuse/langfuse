@@ -3,7 +3,6 @@ import { InvalidRequestError, type FilterCondition } from "@langfuse/shared";
 import { validateQuery, type QueryType } from "@langfuse/shared/query";
 import { executeQuery } from "@langfuse/shared/query/server";
 
-import { env } from "@/src/env.mjs";
 import { GATEWAY_TRAFFIC_FILTER } from "@/src/features/ai-gateway/constants/gatewayTrafficFilter";
 import type { GatewayConfigService } from "@/src/features/ai-gateway/server/config/gatewayConfigService";
 
@@ -21,13 +20,6 @@ export class GatewayAnalyticsService {
     query: QueryType;
     ownerUserId?: string;
   }) {
-    // v2 reads the events tables, which a legacy deployment does not write.
-    if (env.LANGFUSE_MIGRATION_V4_WRITE_MODE === "legacy") {
-      throw new TRPCError({
-        code: "PRECONDITION_FAILED",
-        message: "Gateway analytics are not available on this deployment",
-      });
-    }
     if (params.query.view !== "observations") {
       throw new InvalidRequestError(
         "Gateway analytics only query observations",

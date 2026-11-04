@@ -12,7 +12,6 @@ import { GATEWAY_ANALYTICS_WIDGETS } from "@/src/features/ai-gateway/components/
 import { GatewayNotSetUpNotice } from "@/src/features/ai-gateway/components/GatewayNotSetUpNotice/GatewayNotSetUpNotice";
 import { GatewaySetupEmptyState } from "@/src/features/ai-gateway/components/GatewaySetupEmptyState/GatewaySetupEmptyState";
 import { useGatewaySettingsAccess } from "@/src/features/ai-gateway/hooks/useGatewaySettingsAccess";
-import { useLangfuseV4WriteMode } from "@/src/features/organizations/hooks";
 import type { TimeRange } from "@/src/utils/date-range-utils";
 import { cn } from "@/src/utils/tailwind";
 
@@ -40,15 +39,10 @@ export function GatewayAnalyticsPage({
     isRecording,
     isSetupStatusPending,
   } = useGatewaySettingsAccess(organizationId);
-  const v4WriteMode = useLangfuseV4WriteMode();
   const [timeRange, setTimeRange] = useState<TimeRange>({
     range: "last30Days",
   });
 
-  // Widgets run v2 queries, which legacy write mode does not serve.
-  if (v4WriteMode === "legacy") {
-    return <AnalyticsNeedEvents />;
-  }
   if (isIngestionConfigured === false) {
     return <GatewayNotSetUpNotice title="Gateway analytics" />;
   }
@@ -114,19 +108,6 @@ function AnalyticsNotRecorded({
               ]
             : undefined
         }
-      />
-    </div>
-  );
-}
-
-function AnalyticsNeedEvents() {
-  return (
-    <div className="flex flex-col gap-4">
-      <Header title="Gateway analytics" />
-      <GatewaySetupEmptyState
-        icon={ChartColumn}
-        title="Analytics are not available on this deployment"
-        description="Gateway analytics read from the events tables, which are not written while LANGFUSE_MIGRATION_V4_WRITE_MODE is legacy."
       />
     </div>
   );
