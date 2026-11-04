@@ -180,6 +180,16 @@ type ScheduledDashboardExecuteQueryOptions = Omit<
   queryId: string;
   refreshKey?: unknown;
   useSSE?: boolean;
+  /**
+   * Runs the query instead of dashboard.executeQuery, which then ignores
+   * `input.projectId`. `key` separates its cache entries. It never streams.
+   */
+  fetchQuery?: {
+    key: string;
+    fetch: (
+      query: DashboardExecuteQueryInput["query"],
+    ) => Promise<DashboardExecuteQueryOutput>;
+  };
 };
 
 const getDashboardExecuteQueryDurationMs = (
@@ -287,7 +297,8 @@ export const useScheduledDashboardExecuteQuery = (
     priority = 1000,
     queryId,
     refreshKey,
-    useSSE = false,
+    useSSE: requestedSSE = false,
+    fetchQuery,
     ...queryOptions
   }: ScheduledDashboardExecuteQueryOptions,
 ): {
@@ -300,6 +311,7 @@ export const useScheduledDashboardExecuteQuery = (
   progress: QueryProgress | null;
   error: string | null;
 } => {
+  const useSSE = requestedSSE && !fetchQuery;
   const context = useContext(DashboardQuerySchedulerContext);
   const utils = api.useUtils();
   const store = context?.store ?? unmanagedSchedulerStore;
@@ -320,9 +332,14 @@ export const useScheduledDashboardExecuteQuery = (
         : input,
     [cachePolicy.staleTime, input, shouldBucketQueriesByTimeRange],
   );
+  const fetchQueryKey = fetchQuery?.key;
   const queryCacheKey = useMemo(
-    () => ["dashboard.executeQuery", cacheKeyInput, refreshKey ?? null],
-    [cacheKeyInput, refreshKey],
+    () => [
+      fetchQueryKey ?? "dashboard.executeQuery",
+      cacheKeyInput,
+      refreshKey ?? null,
+    ],
+    [fetchQueryKey, cacheKeyInput, refreshKey],
   );
   const effectiveRunKey = useMemo(
     () => hashKey(queryCacheKey),
@@ -352,9 +369,11 @@ export const useScheduledDashboardExecuteQuery = (
     ...reactQueryOptions,
     queryKey: queryCacheKey,
     queryFn: async () =>
-      utils.dashboard.executeQuery.fetch(input, {
-        trpc,
-      }),
+      fetchQuery
+        ? fetchQuery.fetch(input.query)
+        : utils.dashboard.executeQuery.fetch(input, {
+            trpc,
+          }),
     staleTime: queryOptions.staleTime ?? cachePolicy.staleTime,
     gcTime: queryOptions.gcTime ?? cachePolicy.gcTime,
     refetchOnWindowFocus: queryOptions.refetchOnWindowFocus ?? false,
