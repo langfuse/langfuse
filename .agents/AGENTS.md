@@ -25,20 +25,10 @@ and a concrete next step when handed a link. Keep answers short. Handbook:
 - Delegate exploratory or noisy work — broad code search, multi-file
   investigation, log or test-output trawls — to a subagent so the
   intermediate tool output stays out of the main context.
-- Match verification to risk, not to the fact that you changed something. A test
-  earns its place when it pins behavior that could regress without anyone
-  noticing. When the only assertion available restates the diff — that a spacing
-  value is now that value, that a label reads what it reads — it costs a file and
-  proves nothing. Skip it, and say in one line that you did and why.
-- When a bug fix does warrant a test, write the smallest failing one first and
-  confirm it fails against the buggy behavior before changing production code.
-  Add another only when it exercises a distinct adapter, contract, or execution
-  path. Extend the closest existing test suite; do not create a standalone
-  constant test when an existing feature suite owns the behavior. If the bug depends on a data shape, pause and ask: can
-  `pnpm run seed` prefill that shape locally? If not, consider extending a
-  seeder scenario so the bug stays cheaply reproducible
-  (`packages/shared/scripts/seeder/AGENTS.md`), or note why a seed cannot
-  express it.
+- Match verification to risk, not to the fact that you changed something. A test earns its place only when it is fast, uses few or no mocks, and fails without the change it accompanies. When the only assertion available restates the diff — that a spacing value is now that value, that a label reads what it reads — it costs a file and proves nothing. Skip it. Shipping with no new test is fine when types, schemas, or existing tests already cover the change; say so in the PR description, in one line, and why.
+- Default to one focused test for a bug fix or behavior change, at the cheapest level that would catch the regression. Do not add several tests for one fix. Check for existing coverage first and extend the closest suite instead of duplicating; do not create a standalone constant test when an existing feature suite owns the behavior. Write that test first, run it without the fix, and confirm it fails before keeping it. Add another only when it exercises a distinct adapter, contract, or execution path.
+- Do not add tests that would pass without the fix: change-set checks that only assert a removed thing is gone, tautologies, and assertions on mocks only. Do not add brittle mock-heavy UI click-through tests, or a Playwright spec or Storybook story just to prove a fix. A focused Storybook test of the changed behavior is fine. Import constants rather than copying limits, timeouts, or plan values, unless the test intentionally pins that value — then keep an explicit expected value. Do not add skipped or commented-out tests, and do not bundle unrelated side fixes.
+- If the bug depends on a data shape, pause and ask: can `pnpm run seed` prefill that shape locally? If not, consider extending a seeder scenario so the bug stays cheaply reproducible (`packages/shared/scripts/seeder/AGENTS.md`), or note why a seed cannot express it.
 - Prefill local test data with the seed CLI (`pnpm run seed -- list` shows
   scenarios; runs print UI deep links) — never with ad-hoc scripts or raw
   ClickHouse inserts.
