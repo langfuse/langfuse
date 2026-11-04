@@ -23,11 +23,9 @@
       <a href="https://github.com/langfuse/langfuse/issues"><strong>报告问题</strong></a> ·
       <a href="https://github.com/orgs/langfuse/discussions/categories/ideas"><strong>功能请求</strong></a> ·
       <a href="https://langfuse.com/changelog"><strong>更新日志</strong></a> ·
-      <a href="https://langfuse.com/docs/roadmap"><strong>路线图</strong></a> ·
+      <a href="https://langfuse.com/docs/roadmap"><strong>路线图</strong></a>
    </div>
    <br/>
-   <div>
-   </div>
 </div>
 
 <p align="center">
@@ -64,7 +62,7 @@
   <a href="./README.kr.md"><img alt="README in Korean" src="https://img.shields.io/badge/한국어-d9d9d9"></a>
 </p>
 
-Langfuse 是一个 **开源 AI 工程平台**，专注于 **AI 代理评估与可观测性**。它是一个开放平台，覆盖你公司发起的每一次 AI 调用和团队构建的每一个代理：追踪用量和成本，**追踪并评估** 代理，并利用生产数据打造更好的 AI。你可以使用 Langfuse Cloud，也可以在几分钟内 **自托管**；Langfuse 已在大规模场景中经过 **实战考验**。
+Langfuse 是一个 **开源 AI 工程平台**，专注于 **AI 代理评估与可观测性**。它是一个开放平台，覆盖你公司发起的每一次 AI 调用和团队构建的每一个代理：跟踪用量和成本，**追踪并评估** 代理，并利用生产数据打造更好的 AI。你可以使用 Langfuse Cloud，也可以在几分钟内 **自托管**；Langfuse 已在大规模场景中经过 **实战考验**。
 
 观看项目的快速演示：
 
@@ -132,7 +130,7 @@ Langfuse 是一个 **开源 AI 工程平台**，专注于 **AI 代理评估与�
 
 Langfuse 基于 [OpenTelemetry](https://langfuse.com/integrations/native/opentelemetry) 构建，因此任何使用 OpenTelemetry 埋点的应用、框架或 Collector 都可以将追踪数据发送到 Langfuse。
 
-### 主要集成：
+### 主要集成
 
 | 集成                                                                            | 支持语言/平台                   | 描述                                                                                                                                 |
 | ------------------------------------------------------------------------------- | ------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
@@ -148,7 +146,7 @@ Langfuse 基于 [OpenTelemetry](https://langfuse.com/integrations/native/opentel
 | [Mastra](https://langfuse.com/integrations/frameworks/mastra)                   | JS/TS                           | 用于构建 AI 代理和多代理系统的开源框架。                                                                                             |
 | [API](https://langfuse.com/docs/api-and-data-platform/features/public-api)      |                                 | 直接调用公共 API。提供 OpenAPI 规范。                                                                                                |
 
-### 与 Langfuse 集成的软件包：
+### 与 Langfuse 集成的软件包
 
 | 名称                                                                               | 类型          | 描述                                                                                    |
 | ---------------------------------------------------------------------------------- | ------------- | --------------------------------------------------------------------------------------- |
@@ -174,8 +172,8 @@ Langfuse 基于 [OpenTelemetry](https://langfuse.com/integrations/native/opentel
 | [Gradio](https://langfuse.com/integrations/other/gradio)                           | 聊天/代理界面 | 开源 Python 库，可用于构建类似聊天 UI 的网页界面。                                      |
 | [Promptfoo](https://langfuse.com/integrations/other/promptfoo)                     | 工具          | 开源 LLM 测试平台。                                                                     |
 | [Vapi](https://langfuse.com/integrations/no-code/vapi)                             | 平台          | 开源语音 AI 平台。                                                                      |
-| [Inferable](https://langfuse.com/integrations/frameworks/inferable)                | 代理          | 构建分布式代理的开源 LLM 平台。                                                         |
-| [Goose](https://langfuse.com/integrations/no-code/goose)                           | 代理          | 构建分布式代理的开源 LLM 平台。                                                         |
+| [Inferable](https://langfuse.com/integrations/frameworks/inferable)                | 代理框架      | 构建分布式代理的开源 LLM 平台。                                                         |
+| [Goose](https://langfuse.com/integrations/no-code/goose)                           | 代理          | Block 推出的开源 AI 代理，用于自动化工程任务。                                          |
 
 完整的 100+ 集成列表请参阅 [集成概览](https://langfuse.com/integrations)。
 

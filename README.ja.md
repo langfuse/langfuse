@@ -23,11 +23,9 @@
       <a href="https://github.com/langfuse/langfuse/issues"><strong>バグ報告</strong></a> ·
       <a href="https://github.com/orgs/langfuse/discussions/categories/ideas"><strong>機能リクエスト</strong></a> ·
       <a href="https://langfuse.com/changelog"><strong>変更履歴</strong></a> ·
-      <a href="https://langfuse.com/docs/roadmap"><strong>ロードマップ</strong></a> ·
+      <a href="https://langfuse.com/docs/roadmap"><strong>ロードマップ</strong></a>
    </div>
    <br/>
-   <div>
-   </div>
 </div>
 
 <p align="center">
@@ -132,7 +130,7 @@ Langfuseチームによるマネージドデプロイメント。充実した無
 
 Langfuseは[OpenTelemetry](https://langfuse.com/integrations/native/opentelemetry)をベースに構築されているため、OpenTelemetryで計装されたあらゆるアプリケーション、フレームワーク、コレクターからLangfuseにトレースを送信できます。
 
-### 主なインテグレーション:
+### 主なインテグレーション
 
 | インテグレーション                                                              | 対応言語・環境                       | 説明                                                                                                                                                             |
 | ------------------------------------------------------------------------------- | ------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -148,7 +146,7 @@ Langfuseは[OpenTelemetry](https://langfuse.com/integrations/native/opentelemetr
 | [Mastra](https://langfuse.com/integrations/frameworks/mastra)                   | JS/TS                                | AIエージェントやマルチエージェントシステムを構築するためのオープンソースフレームワークです。                                                                     |
 | [API](https://langfuse.com/docs/api-and-data-platform/features/public-api)      |                                      | 公開APIを直接呼び出すことが可能です。OpenAPI仕様も利用できます。                                                                                                 |
 
-### Langfuseと統合されているパッケージ:
+### Langfuseと統合されているパッケージ
 
 | 名前                                                                               | タイプ                     | 説明                                                                                                       |
 | ---------------------------------------------------------------------------------- | -------------------------- | ---------------------------------------------------------------------------------------------------------- |
@@ -174,8 +172,8 @@ Langfuseは[OpenTelemetry](https://langfuse.com/integrations/native/opentelemetr
 | [Gradio](https://langfuse.com/integrations/other/gradio)                           | チャット/エージェント UI   | チャットUIなどのWebインターフェース構築のためのオープンソースPythonライブラリ                              |
 | [Promptfoo](https://langfuse.com/integrations/other/promptfoo)                     | ツール                     | オープンソースのLLMテストプラットフォーム                                                                  |
 | [Vapi](https://langfuse.com/integrations/no-code/vapi)                             | プラットフォーム           | オープンソースの音声AIプラットフォーム                                                                     |
-| [Inferable](https://langfuse.com/integrations/frameworks/inferable)                | エージェント               | 分散型エージェント構築のためのオープンソースLLMプラットフォーム                                            |
-| [Goose](https://langfuse.com/integrations/no-code/goose)                           | エージェント               | 分散型エージェント構築のためのオープンソースLLMプラットフォーム                                            |
+| [Inferable](https://langfuse.com/integrations/frameworks/inferable)                | エージェントフレームワーク | 分散型エージェント構築のためのオープンソースLLMプラットフォーム                                            |
+| [Goose](https://langfuse.com/integrations/no-code/goose)                           | エージェント               | Blockが開発した、エンジニアリングタスクを自動化するオープンソースAIエージェント                            |
 
 100以上のインテグレーションの一覧は[インテグレーション概要](https://langfuse.com/integrations)をご覧ください。
 

@@ -7,7 +7,7 @@
             <strong>Langfuse Cloud</strong>
          </a> · 
          <a href="https://langfuse.com/self-hosting">
-            <strong>Self Host</strong>
+            <strong>Self-Host</strong>
          </a> · 
          <a href="https://langfuse.com/docs/demo">
             <strong>Demo</strong>
@@ -20,11 +20,9 @@
       <a href="https://github.com/langfuse/langfuse/issues"><strong>Report Bug</strong></a> ·
       <a href="https://github.com/orgs/langfuse/discussions/categories/ideas"><strong>Feature Request</strong></a> ·
       <a href="https://langfuse.com/changelog"><strong>Changelog</strong></a> ·
-      <a href="https://langfuse.com/docs/roadmap"><strong>Roadmap</strong></a> ·
+      <a href="https://langfuse.com/docs/roadmap"><strong>Roadmap</strong></a>
    </div>
    <br/>
-   <div>
-   </div>
 </div>
 
 <p align="center">
@@ -82,7 +80,7 @@ Watch a quick demo of the project here:
 
 - [Skill Management](https://langfuse.com/docs/skill-management/overview) (beta) brings versioning and labels to agent skills: a `SKILL.md` with task instructions plus optional supporting files. Promote or roll back versions without changing application code, and link skill versions to the traces they produced.
 
-- [Evaluations](https://langfuse.com/docs/evaluation/overview) are key to the AI agent development workflow, and Langfuse adapts to your needs. It supports LLM-as-a-judge, Code evaluators, user feedback collection, manual labeling, and custom evaluation pipelines via APIs/SDKs. Use [Datasets and Experiments](https://langfuse.com/docs/evaluation/experiments/datasets) to build test sets and benchmarks for pre-deployment testing and continuous improvement.
+- [Evaluations](https://langfuse.com/docs/evaluation/overview) are key to the AI agent development workflow, and Langfuse adapts to your needs. It supports LLM-as-a-judge, code evaluators, user feedback collection, manual labeling, and custom evaluation pipelines via APIs/SDKs. Use [Datasets and Experiments](https://langfuse.com/docs/evaluation/experiments/datasets) to build test sets and benchmarks for pre-deployment testing and continuous improvement.
 
 - [AI Gateway](https://langfuse.com/docs/gateway/overview) (beta) gives your organization one endpoint for calls to your model providers. Keep provider credentials in one place, hand out per-user or service account gateway keys, approve models centrally, track AI spend per user, key, and model, and record every call as a Langfuse trace.
 
@@ -96,7 +94,7 @@ Watch a quick demo of the project here:
 
 ### Langfuse Cloud
 
-Managed deployment by the Langfuse team, generous free-tier, no credit card required.
+Managed deployment by the Langfuse team, generous free tier, no credit card required.
 
 <div align="center">
     <a href="https://cloud.langfuse.com" target="_blank">
@@ -134,7 +132,7 @@ See [self-hosting documentation](https://langfuse.com/self-hosting) to learn mor
 
 Langfuse is built on [OpenTelemetry](https://langfuse.com/integrations/native/opentelemetry), so any OpenTelemetry-instrumented application, framework, or collector can send traces to Langfuse.
 
-### Main Integrations:
+### Main Integrations
 
 | Integration                                                                     | Supports                       | Description                                                                                                                                      |
 | ------------------------------------------------------------------------------- | ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------ |
@@ -145,12 +143,12 @@ Langfuse is built on [OpenTelemetry](https://langfuse.com/integrations/native/op
 | [LangChain & LangGraph](https://langfuse.com/integrations/frameworks/langchain) | Python, JS/TS                  | Automated instrumentation by passing callback handler to LangChain or LangGraph application.                                                     |
 | [LlamaIndex](https://langfuse.com/integrations/frameworks/llamaindex)           | Python                         | Automated instrumentation via LlamaIndex callback system.                                                                                        |
 | [Haystack](https://langfuse.com/integrations/frameworks/haystack)               | Python                         | Automated instrumentation via Haystack content tracing system.                                                                                   |
-| [LiteLLM](https://langfuse.com/integrations/gateways/litellm)                   | Python, JS/TS (proxy only)     | Use any LLM as a drop in replacement for GPT. Use Azure, OpenAI, Cohere, Anthropic, Ollama, VLLM, Sagemaker, HuggingFace, Replicate (100+ LLMs). |
+| [LiteLLM](https://langfuse.com/integrations/gateways/litellm)                   | Python, JS/TS (proxy only)     | Use any LLM as a drop-in replacement for GPT. Use Azure, OpenAI, Cohere, Anthropic, Ollama, VLLM, Sagemaker, HuggingFace, Replicate (100+ LLMs). |
 | [Vercel AI SDK](https://langfuse.com/integrations/frameworks/vercel-ai-sdk)     | JS/TS                          | TypeScript toolkit designed to help developers build AI-powered applications with React, Next.js, Vue, Svelte, Node.js.                          |
 | [Mastra](https://langfuse.com/integrations/frameworks/mastra)                   | JS/TS                          | Open source framework for building AI agents and multi-agent systems.                                                                            |
 | [API](https://langfuse.com/docs/api-and-data-platform/features/public-api)      |                                | Directly call the public API. OpenAPI spec available.                                                                                            |
 
-### Packages integrated with Langfuse:
+### Packages integrated with Langfuse
 
 | Name                                                                               | Type               | Description                                                                                                             |
 | ---------------------------------------------------------------------------------- | ------------------ | ----------------------------------------------------------------------------------------------------------------------- |
@@ -163,8 +161,8 @@ Langfuse is built on [OpenTelemetry](https://langfuse.com/integrations/native/op
 | [CrewAI](https://langfuse.com/integrations/frameworks/crewai)                      | Agent Framework    | Multi agent framework for agent collaboration and tool use.                                                             |
 | [AutoGen](https://langfuse.com/integrations/frameworks/autogen)                    | Agent Framework    | Open source LLM platform for building distributed agents.                                                               |
 | [smolagents](https://langfuse.com/integrations/frameworks/smolagents)              | Agent Framework    | Open source AI agents framework.                                                                                        |
-| [Instructor](https://langfuse.com/integrations/frameworks/instructor)              | Library            | Library to get structured LLM outputs (JSON, Pydantic)                                                                  |
-| [DSPy](https://langfuse.com/integrations/frameworks/dspy)                          | Library            | Framework that systematically optimizes language model prompts and weights                                              |
+| [Instructor](https://langfuse.com/integrations/frameworks/instructor)              | Library            | Library to get structured LLM outputs (JSON, Pydantic).                                                                 |
+| [DSPy](https://langfuse.com/integrations/frameworks/dspy)                          | Library            | Framework that systematically optimizes language model prompts and weights.                                             |
 | [Mirascope](https://langfuse.com/integrations/frameworks/mirascope)                | Library            | Python toolkit for building LLM applications.                                                                           |
 | [Ollama](https://langfuse.com/integrations/model-providers/ollama)                 | Model (local)      | Easily run open source LLMs on your own machine.                                                                        |
 | [Amazon Bedrock](https://langfuse.com/integrations/model-providers/amazon-bedrock) | Model              | Run foundation and fine-tuned models on AWS.                                                                            |
@@ -176,8 +174,8 @@ Langfuse is built on [OpenTelemetry](https://langfuse.com/integrations/native/op
 | [Gradio](https://langfuse.com/integrations/other/gradio)                           | Chat/Agent&nbsp;UI | Open source Python library to build web interfaces like Chat UI.                                                        |
 | [Promptfoo](https://langfuse.com/integrations/other/promptfoo)                     | Tool               | Open source LLM testing platform.                                                                                       |
 | [Vapi](https://langfuse.com/integrations/no-code/vapi)                             | Platform           | Open source voice AI platform.                                                                                          |
-| [Inferable](https://langfuse.com/integrations/frameworks/inferable)                | Agents             | Open source LLM platform for building distributed agents.                                                               |
-| [Goose](https://langfuse.com/integrations/no-code/goose)                           | Agents             | Open source LLM platform for building distributed agents.                                                               |
+| [Inferable](https://langfuse.com/integrations/frameworks/inferable)                | Agent Framework    | Open source LLM platform for building distributed agents.                                                               |
+| [Goose](https://langfuse.com/integrations/no-code/goose)                           | Agent              | Open source AI agent by Block that automates engineering tasks.                                                         |
 
 See the [integrations overview](https://langfuse.com/integrations) for the full list of 100+ integrations.
 

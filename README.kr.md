@@ -23,11 +23,9 @@
       <a href="https://github.com/langfuse/langfuse/issues"><strong>버그 신고</strong></a> ·
       <a href="https://github.com/orgs/langfuse/discussions/categories/ideas"><strong>기능 요청</strong></a> ·
       <a href="https://langfuse.com/changelog"><strong>변경 로그</strong></a> ·
-      <a href="https://langfuse.com/docs/roadmap"><strong>로드맵</strong></a> ·
+      <a href="https://langfuse.com/docs/roadmap"><strong>로드맵</strong></a>
    </div>
    <br/>
-   <div>
-   </div>
 </div>
 
 <p align="center">
@@ -64,7 +62,7 @@
   <a href="./README.kr.md"><img alt="README in Korean" src="https://img.shields.io/badge/한국어-d9d9d9"></a>
 </p>
 
-Langfuse는 **에이전트 평가와 관측성**을 위한 **오픈 소스 AI 엔지니어링 플랫폼**입니다. 회사에서 발생하는 모든 AI 호출과 팀이 만드는 모든 에이전트를 하나의 개방형 플랫폼에서 다룹니다. 사용량과 비용을 추적하고, 에이전트를 **추적하고 평가**하며, 프로덕션 데이터를 활용해 더 나은 AI를 출시하세요. Langfuse Cloud를 사용하거나 **몇 분 안에 셀프 호스팅**할 수 있으며, 대규모 환경에서 **검증된(battle-tested)** 솔루션입니다.
+Langfuse는 **에이전트 평가와 관측성**을 위한 **오픈 소스 AI 엔지니어링 플랫폼**입니다. 회사에서 발생하는 모든 AI 호출과 팀이 만드는 모든 에이전트를 하나의 개방형 플랫폼에서 다룹니다. 사용량과 비용을 파악하고, 에이전트를 **추적하고 평가**하며, 프로덕션 데이터를 활용해 더 나은 AI를 출시하세요. Langfuse Cloud를 사용하거나 **몇 분 안에 셀프 호스팅**할 수 있으며, 대규모 환경에서 **검증된(battle-tested)** 솔루션입니다.
 
 프로젝트의 짧은 데모를 여기에서 확인하세요:
 
@@ -132,7 +130,7 @@ Langfuse 팀이 관리하는 배포 옵션으로, 넉넉한 무료 티어를 제
 
 Langfuse는 [OpenTelemetry](https://langfuse.com/integrations/native/opentelemetry)를 기반으로 하므로, OpenTelemetry로 계측된 모든 애플리케이션, 프레임워크 또는 컬렉터가 Langfuse로 trace를 보낼 수 있습니다.
 
-### 주요 통합:
+### 주요 통합
 
 | 통합                                                                            | 지원                                  | 설명                                                                                                                                                                   |
 | ------------------------------------------------------------------------------- | ------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -148,7 +146,7 @@ Langfuse는 [OpenTelemetry](https://langfuse.com/integrations/native/opentelemet
 | [Mastra](https://langfuse.com/integrations/frameworks/mastra)                   | JS/TS                                 | AI 에이전트와 멀티 에이전트 시스템을 구축하기 위한 오픈 소스 프레임워크입니다.                                                                                         |
 | [API](https://langfuse.com/docs/api-and-data-platform/features/public-api)      |                                       | 공개 API를 직접 호출합니다. OpenAPI 명세를 제공합니다.                                                                                                                 |
 
-### Langfuse와 통합된 패키지:
+### Langfuse와 통합된 패키지
 
 | 이름                                                                               | 유형                | 설명                                                                                           |
 | ---------------------------------------------------------------------------------- | ------------------- | ---------------------------------------------------------------------------------------------- |
@@ -174,8 +172,8 @@ Langfuse는 [OpenTelemetry](https://langfuse.com/integrations/native/opentelemet
 | [Gradio](https://langfuse.com/integrations/other/gradio)                           | 채팅/에이전트 UI    | 채팅 UI 같은 웹 인터페이스를 만들기 위한 오픈 소스 Python 라이브러리                           |
 | [Promptfoo](https://langfuse.com/integrations/other/promptfoo)                     | 도구                | 오픈 소스 LLM 테스트 플랫폼                                                                    |
 | [Vapi](https://langfuse.com/integrations/no-code/vapi)                             | 플랫폼              | 오픈 소스 음성 AI 플랫폼                                                                       |
-| [Inferable](https://langfuse.com/integrations/frameworks/inferable)                | 에이전트            | 분산 에이전트를 구축하기 위한 오픈 소스 LLM 플랫폼                                             |
-| [Goose](https://langfuse.com/integrations/no-code/goose)                           | 에이전트            | 분산 에이전트를 구축하기 위한 오픈 소스 LLM 플랫폼                                             |
+| [Inferable](https://langfuse.com/integrations/frameworks/inferable)                | 에이전트 프레임워크 | 분산 에이전트를 구축하기 위한 오픈 소스 LLM 플랫폼                                             |
+| [Goose](https://langfuse.com/integrations/no-code/goose)                           | 에이전트            | Block이 만든, 엔지니어링 작업을 자동화하는 오픈 소스 AI 에이전트                               |
 
 100개 이상의 전체 통합 목록은 [통합 개요](https://langfuse.com/integrations)에서 확인하세요.
 
