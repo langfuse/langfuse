@@ -13,6 +13,7 @@ import {
   type DecisionModelRequestQuestion,
 } from "../../evals/decisionModelEvaluatorExecution";
 import type { DecisionModelEntry } from "../../../features/evals/decisionModel";
+import { explainMissingDecisionEndpoint } from "../decisionModelEndpointError";
 import { createSecureLlmFetch } from "../secureLlmFetch";
 
 /** Same text conversion the OpenAI SDK applies before POST /v1/decisions. */
@@ -124,7 +125,11 @@ export function createOpenAIDecisionModelClient(params: {
             `OpenAI declined to answer: ${error.questionIds.join(", ")}.`,
           );
         }
-        throw error;
+        throw explainMissingDecisionEndpoint(error, {
+          provider: "OpenAI",
+          path: "/decisions",
+          defaultBaseURL: "https://api.openai.com/v1",
+        });
       }
 
       const confidenceById = readConfidence(result.providerMetadata);
