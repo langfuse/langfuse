@@ -38,12 +38,12 @@ export function DeleteMonitorButton({
       trigger={
         <Button
           type="button"
-          variant="outline"
-          size="icon"
+          variant="destructive"
           title="Delete alert"
           aria-label="Delete alert"
         >
-          <Trash2 size="base" color="destructive" />
+          <Trash2 size="base" __rawClassName="mr-2" />
+          Delete Alert
         </Button>
       }
     />

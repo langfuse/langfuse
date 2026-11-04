@@ -1,4 +1,4 @@
-/* eslint-disable @typescript-eslint/no-deprecated, @typescript-eslint/no-use-before-define -- Legacy UI usage retained during migration to design-system components. */
+/* eslint-disable @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 import Image from "next/image";
 import { useState } from "react";
 
@@ -16,7 +16,8 @@ import { cn } from "@/src/utils/tailwind";
 import {
   featurePreviewLabels,
   type PersonalFeaturePreviewFlag,
-} from "@/src/features/feature-flags";
+} from "@/src/features/feature-flags/available-flags";
+
 import modernSessionDarkIllustration from "../assets/modern-session-dark.svg";
 import modernSessionLightIllustration from "../assets/modern-session-light.svg";
 
@@ -53,14 +54,6 @@ export type PreviewState = {
 // Static registry — one entry per preview, in sidebar order.
 // Previews may include separate light/dark illustrations.
 const PREVIEW_REGISTRY: PreviewRegistryItem[] = [
-  {
-    flag: "skillManagement",
-    description:
-      "Create, version, and distribute reusable agent skills from one place.",
-    details:
-      "Import skills, manage their versions and labels, install them with the CLI, and inspect the skills available or loaded in your traces.",
-    feedbackUrl: "https://github.com/orgs/langfuse/discussions",
-  },
   {
     flag: "langfuseTopics",
     description:

@@ -11,7 +11,6 @@ import { z } from "zod";
 import { areDestinationUrlsEquivalent } from "@/src/features/automations/destinationUrl";
 
 // Define the form schema for GitHub dispatch actions
-// eslint-disable-next-line @typescript-eslint/no-unused-vars -- Used via z.infer
 const GitHubDispatchActionFormSchema = z.object({
   githubDispatch: z.object({
     url: z.url("Invalid URL"),

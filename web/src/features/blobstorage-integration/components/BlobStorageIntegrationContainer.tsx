@@ -1,11 +1,10 @@
-import { showSuccessToast, showErrorToast } from "@/src/features/notifications";
+import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
+import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { useMemo } from "react";
 import { Button } from "@/src/components/ui/button";
-import {
-  IntegrationSettingsSkeleton,
-  buildExportSourceContext,
-} from "@/src/features/analytics-integrations";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { IntegrationSettingsSkeleton } from "@/src/features/analytics-integrations/components/IntegrationSettingsSkeleton";
+import { buildExportSourceContext } from "@/src/features/analytics-integrations/exportSource";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { api } from "@/src/utils/api";
 import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
 import {
@@ -14,9 +13,12 @@ import {
   type ExportSourceContext,
 } from "@langfuse/shared";
 import { type BlobStorageIntegrationFormSchema } from "@/src/features/blobstorage-integration/types";
-import { useLangfuseCloudRegion } from "@/src/features/organizations";
-import { useQueryProject } from "@/src/features/projects";
-import { buildBlobStorageFormValues } from "@/src/features/blobstorage-integration/components/formValues";
+import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
+import { useQueryProject } from "@/src/features/projects/hooks";
+import {
+  buildBlobStorageFormValues,
+  toStoredFieldGroups,
+} from "@/src/features/blobstorage-integration/components/formValues";
 import { BlobStorageIntegrationForm } from "@/src/features/blobstorage-integration/components/BlobStorageIntegrationForm";
 
 // State layer. Owns everything async and entity-scoped: availability
@@ -112,7 +114,14 @@ export const BlobStorageIntegrationContainer = ({
     onSaved: () => void,
   ) => {
     capture("integrations:blob_storage_form_submitted");
-    mut.mutate({ projectId, ...values }, { onSuccess: onSaved });
+    mut.mutate(
+      {
+        projectId,
+        ...values,
+        exportFieldGroups: toStoredFieldGroups(values.exportFieldGroups),
+      },
+      { onSuccess: onSaved },
+    );
   };
 
   return (

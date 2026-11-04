@@ -2,6 +2,7 @@ import { useState, type MouseEvent } from "react";
 import { useElementSize } from "@/src/hooks/useElementSize";
 import { CustomTooltip } from "@/src/components/design-system/CustomTooltip/CustomTooltip";
 import { cn } from "@/src/utils/tailwind";
+import { compactNumberFormatter } from "@/src/utils/numbers";
 import {
   type TopicDisplay,
   UNASSIGNED_TOPIC_ID,
@@ -52,7 +53,7 @@ const TILE_PADDING: Record<TileTier, string> = {
 const PADDING_PX = { large: 24, medium: 24, small: 16, tiny: 0 };
 const NAME_LINE_PX = { large: 28, medium: 20, small: 16, tiny: 16 };
 const NAME_CHAR_PX = { large: 10, medium: 7.6, small: 6.8, tiny: 6.8 };
-const COUNT_PX = { large: 36, medium: 28, small: 0, tiny: 0 };
+const COUNT_PX = { large: 36, medium: 28, small: 20, tiny: 0 };
 /** Share caption: text-xs line height, approximate character width and the gap above it. */
 const SHARE_LINE_PX = 16;
 const SHARE_CHAR_PX = 6;
@@ -76,7 +77,7 @@ const NAME_SIZE: Record<TileTier, string> = {
 const COUNT_SIZE: Record<TileTier, string> = {
   large: "text-3xl",
   medium: "text-xl",
-  small: "",
+  small: "text-sm",
   tiny: "",
 };
 
@@ -111,8 +112,7 @@ function tileLabelLayout(
     COUNT_PX[tier] +
     (shareLines > 0 ? SHARE_GAP_PX + shareLines * SHARE_LINE_PX : 0);
   const withCount = lines(footer);
-  const countFits =
-    (tier === "large" || tier === "medium") && needed <= withCount;
+  const countFits = tier !== "tiny" && needed <= withCount;
   const available = countFits ? withCount : lines(0);
   return {
     showCount: countFits,
@@ -150,7 +150,8 @@ function TopicTileButton({
   function selectTopic() {
     onSelect(topic.id);
   }
-  const showShare = tier === "large" || topic.id === UNASSIGNED_TOPIC_ID;
+  const showShare =
+    tier === "large" || (tier === "medium" && topic.id === UNASSIGNED_TOPIC_ID);
   const { showCount, nameLines } = tileLabelLayout(
     topic.name,
     rect,
@@ -194,7 +195,10 @@ function TopicTileButton({
       {showCount && (
         <span className="flex flex-col gap-0.5">
           <span className={cn("font-bold tabular-nums", COUNT_SIZE[tier])}>
-            {topic.count.toLocaleString()}
+            {compactNumberFormatter(
+              topic.count,
+              topic.count >= 100_000 ? 0 : 1,
+            )}
           </span>
           {showShare && (
             <span className="text-xs opacity-80">{shareLabel}</span>
@@ -209,7 +213,8 @@ function TopicTile(props: TopicTileProps) {
   const { topic, share, tier, previewOnSelect, capped } = props;
   const percentLabel = `${Math.round(share * 100)}% of traces`;
   const shareLabel = capped ? `${percentLabel} · shown smaller` : percentLabel;
-  if ((previewOnSelect || tier === "large" || tier === "medium") && !capped) {
+  // Tap-to-preview tiles skip the tooltip; on desktop a capped tile keeps it to explain its size.
+  if (previewOnSelect || ((tier === "large" || tier === "medium") && !capped)) {
     return <TopicTileButton {...props} shareLabel={shareLabel} />;
   }
   return (

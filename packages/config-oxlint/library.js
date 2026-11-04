@@ -1,0 +1,217 @@
+export default {
+  categories: { correctness: "off" },
+  plugins: ["typescript", "react", "import", "jsx-a11y", "nextjs", "unicorn"],
+  options: { typeAware: true, reportUnusedDisableDirectives: "warn" },
+  ignorePatterns: [
+    "**/build/",
+    "**/.next/",
+    "**/.*",
+    "**/node_modules/",
+    "**/dist/",
+    "**/coverage/",
+    "**/generated/",
+    "oxlint.config.*",
+  ],
+  overrides: [
+    {
+      files: ["**/index.{js,jsx,mjs,cjs,ts,tsx,mts,cts}"],
+      excludeFiles: [
+        "**/*.{test,spec,clienttest,servertest,stories,story}.{js,jsx,mjs,cjs,ts,tsx,mts,cts}",
+        "**/{__tests__,__mocks__,tests,test,__stories__,stories}/**",
+      ],
+      jsPlugins: ["@repo/eslint-plugin"],
+      rules: {
+        "@repo/no-internal-barrel-files": "warn",
+      },
+    },
+    {
+      files: ["**/*"],
+      rules: {
+        "constructor-super": "warn",
+        "for-direction": "warn",
+        "getter-return": "warn",
+        "no-async-promise-executor": "warn",
+        "no-case-declarations": "warn",
+        "no-class-assign": "warn",
+        "no-compare-neg-zero": "warn",
+        "no-cond-assign": "warn",
+        "no-const-assign": "warn",
+        "no-constant-binary-expression": "warn",
+        "no-constant-condition": "warn",
+        "no-control-regex": "warn",
+        "no-debugger": "warn",
+        "no-delete-var": "warn",
+        "no-dupe-class-members": "warn",
+        "no-dupe-else-if": "warn",
+        "no-dupe-keys": "warn",
+        "no-duplicate-case": "warn",
+        "no-empty": "warn",
+        "no-empty-character-class": "warn",
+        "no-empty-pattern": "warn",
+        "no-empty-static-block": "warn",
+        "no-ex-assign": "warn",
+        "no-extra-boolean-cast": "warn",
+        "no-fallthrough": "warn",
+        "no-func-assign": "warn",
+        "no-global-assign": "warn",
+        "no-import-assign": "warn",
+        "no-invalid-regexp": "warn",
+        "no-irregular-whitespace": "warn",
+        "no-loss-of-precision": "warn",
+        "no-misleading-character-class": "warn",
+        "no-new-native-nonconstructor": "warn",
+        "no-nonoctal-decimal-escape": "warn",
+        "no-obj-calls": "warn",
+        "no-prototype-builtins": "warn",
+        "no-redeclare": "warn",
+        "no-regex-spaces": "warn",
+        "no-self-assign": "warn",
+        "no-setter-return": "warn",
+        "no-shadow-restricted-names": "warn",
+        "no-sparse-arrays": "warn",
+        "no-this-before-super": "warn",
+        "no-unassigned-vars": "warn",
+        "no-undef": "warn",
+        "no-unexpected-multiline": "warn",
+        "no-unreachable": "warn",
+        "no-unsafe-finally": "warn",
+        "no-unsafe-negation": "warn",
+        "no-unsafe-optional-chaining": "warn",
+        "no-unused-labels": "warn",
+        "no-unused-private-class-members": "warn",
+        "no-unused-vars": "warn",
+        "no-useless-assignment": "warn",
+        "no-useless-backreference": "warn",
+        "no-useless-catch": "warn",
+        "no-useless-escape": "warn",
+        "no-with": "warn",
+        "preserve-caught-error": "warn",
+        "require-yield": "warn",
+        "use-isnan": "warn",
+        "valid-typeof": "warn",
+      },
+    },
+    {
+      files: ["**/*"],
+      jsPlugins: ["eslint-plugin-turbo"],
+      rules: {
+        "turbo/no-undeclared-env-vars": "warn",
+      },
+    },
+    {
+      files: ["**/*"],
+      rules: {
+        curly: "off",
+        "no-unexpected-multiline": "off",
+        "unicorn/empty-brace-spaces": "off",
+        "unicorn/no-nested-ternary": "off",
+        "unicorn/number-literal-case": "off",
+      },
+    },
+    {
+      files: ["**/*"],
+      jsPlugins: ["@repo/eslint-plugin"],
+      rules: {
+        "no-unassigned-vars": "off",
+        "no-useless-assignment": "off",
+        "preserve-caught-error": "off",
+        "no-shadow-restricted-names": [
+          "warn",
+          {
+            reportGlobalThis: false,
+          },
+        ],
+        "no-void": "warn",
+        "no-else-return": "warn",
+        "no-unneeded-ternary": "warn",
+        "no-nested-ternary": "warn",
+        "no-use-before-define": [
+          "warn",
+          {
+            functions: false,
+            classes: false,
+          },
+        ],
+        "@repo/no-exotic-operators": "warn",
+        "@repo/no-restricted-prisma-writes": [
+          "warn",
+          {
+            models: {
+              apiKey: ["packages/shared/src/server/auth/apiKeys.ts"],
+              roleAssignment: [
+                "packages/shared/src/features/rbac/roleAssignmentService.ts",
+              ],
+            },
+          },
+        ],
+      },
+    },
+    {
+      files: ["**/*.ts", "**/*.tsx", "**/*.mts", "**/*.cts"],
+      rules: {
+        "no-use-before-define": [
+          "warn",
+          {
+            functions: false,
+            classes: false,
+          },
+        ],
+        "no-unused-vars": [
+          "warn",
+          {
+            argsIgnorePattern: "^_",
+            varsIgnorePattern: "^_",
+            caughtErrorsIgnorePattern: "^_",
+            destructuredArrayIgnorePattern: "^_",
+            ignoreRestSiblings: true,
+          },
+        ],
+        "typescript/no-inferrable-types": "warn",
+      },
+    },
+    {
+      files: ["**/*.ts", "**/*.tsx", "**/*.mts", "**/*.cts"],
+      excludeFiles: ["**/*.test.ts", "**/*.servertest.ts", "**/__tests__/**"],
+      jsPlugins: ["@repo/eslint-plugin"],
+      rules: {
+        "@repo/no-unescaped-prisma-like-pattern": "warn",
+      },
+    },
+    {
+      files: ["**/*"],
+      jsPlugins: ["@repo/eslint-plugin"],
+      rules: {
+        "@repo/no-in-source-vitest": "warn",
+      },
+    },
+    {
+      files: ["**/*"],
+      env: {
+        node: true,
+      },
+      globals: {
+        React: "readonly",
+        JSX: "readonly",
+      },
+      rules: {
+        "no-redeclare": "off",
+      },
+    },
+    {
+      files: ["**/*.ts", "**/*.tsx", "**/*.mts", "**/*.cts"],
+      rules: {
+        "no-undef": "off",
+        "no-dupe-class-members": "off",
+        "no-restricted-globals": [
+          "warn",
+          {
+            name: "redis",
+            message:
+              "Import redis explicitly from '@langfuse/shared/src/server'",
+          },
+        ],
+        "typescript/no-deprecated": "warn",
+      },
+    },
+  ],
+};

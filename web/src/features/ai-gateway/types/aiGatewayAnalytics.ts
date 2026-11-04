@@ -15,6 +15,9 @@ type OrganizationContext = { orgId: string };
 /** The setup guide shown to new organizations, or the settings overview afterwards. */
 export type GatewaySettingsSurface = "setup_guide" | "overview";
 
+/** Credentials can also be added from the models page's empty state. */
+export type GatewayCredentialSurface = GatewaySettingsSurface | "models_page";
+
 export type AiGatewayEventMap = {
   "ai_gateway:setup_guide_viewed": OrganizationContext;
   "ai_gateway:setup_step_completed": OrganizationContext &
@@ -32,7 +35,7 @@ export type AiGatewayEventMap = {
       surface: GatewaySettingsSurface;
     };
   "ai_gateway:provider_credential_added": OrganizationContext & {
-    surface: GatewaySettingsSurface;
+    surface: GatewayCredentialSurface;
     provider: GatewayProvider;
     isFirstCredential: boolean;
   };

@@ -34,7 +34,7 @@ export function ConnectedGatewaySetupGuide({
     organizationId,
     "setup_guide",
   );
-  const { notifiableMembers, inviteTeam, isInviting } =
+  const { recipients, inviteTeam, isInviting } =
     useGatewayTeamInvite(organizationId);
 
   // Funnel entry for the setup steps; the ref keeps it to one event per visit.
@@ -82,7 +82,7 @@ export function ConnectedGatewaySetupGuide({
             return isSaved;
           }}
           onAddCredential={openAddDialog}
-          notifiableMembers={notifiableMembers}
+          recipients={recipients}
           isInviting={isInviting}
           onInvite={inviteTeam}
           onFinish={({ isSkipped }) => {

@@ -74,3 +74,44 @@ export const TestClosesOnlyAfterSave = meta.story({
     await expect(args.onSaved).not.toHaveBeenCalled();
   },
 });
+
+export const TestUsageModeAccessWarning = meta.story({
+  name: "(Test) Warns that everyone with project access sees gateway traffic",
+  args: SavedConfig.input.args,
+  play: async () => {
+    const dialog = within(document.body).getByRole("dialog");
+    const alert = within(dialog).getByRole("alert");
+    await expect(alert).toHaveTextContent(
+      "Everyone with project access sees gateway traffic",
+    );
+    await expect(alert).toHaveTextContent("organization member and viewer");
+    await expect(alert).toHaveTextContent("costs, and gateway key owners");
+    await expect(alert).not.toHaveTextContent("prompts and responses");
+  },
+});
+
+export const TestFullModeAccessWarning = meta.story({
+  name: "(Test) Full mode warning includes prompts and responses",
+  args: {
+    ...SavedConfig.input.args,
+    config: {
+      ...SavedConfig.input.args.config,
+      ingestionMode: "FULL",
+    },
+  },
+  play: async () => {
+    const dialog = within(document.body).getByRole("dialog");
+    await expect(within(dialog).getByRole("alert")).toHaveTextContent(
+      "prompts and responses",
+    );
+  },
+});
+
+export const TestNoAccessWarningWithoutRecording = meta.story({
+  name: "(Test) No access warning when nothing is recorded",
+  args: NotRecording.input.args,
+  play: async () => {
+    const dialog = within(document.body).getByRole("dialog");
+    await expect(within(dialog).queryByRole("alert")).not.toBeInTheDocument();
+  },
+});

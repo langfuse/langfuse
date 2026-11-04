@@ -8,16 +8,15 @@ const defaultArgs: ComponentProps<typeof TopicsHeaderActions> = {
   actions: prepareTopicsActions({
     automaticProcessing: { state: { status: "off" }, saving: false },
     configureAvailable: true,
-    configureVariant: "secondary",
-    configured: true,
+    regenerateAvailable: true,
     canWrite: true,
-    manualAvailable: true,
     menuOnly: false,
-    onManualProcessing: fn(),
     onAutomaticProcessing: fn(),
     onConfigure: fn(),
+    onRegenerate: fn(),
     onHistory: fn(),
-    onRefresh: fn(),
+    showUnassigned: true,
+    onShowUnassignedChange: fn(),
   }),
 };
 
@@ -36,7 +35,7 @@ export const Wide = meta.story({
 });
 
 export const Compact = meta.story({
-  name: "(Test) Compact processing actions remain reachable",
+  name: "(Test) Compact Analyze stays reachable",
   render: (args) => (
     <div className="@container/topics-header w-80 p-3">
       <TopicsHeaderActions {...args} />
@@ -45,22 +44,17 @@ export const Compact = meta.story({
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     await expect(
-      canvas.queryByRole("button", { name: "Automatic processing" }),
-    ).not.toBeInTheDocument();
-    await expect(
-      canvas.queryByRole("button", { name: "Manual processing" }),
+      canvas.queryByRole("button", { name: "Analyze" }),
     ).not.toBeInTheDocument();
     await userEvent.click(
       canvas.getByRole("button", { name: "Topics actions" }),
     );
     const body = within(canvasElement.ownerDocument.body);
     await waitFor(() =>
-      expect(
-        body.getByRole("menuitem", { name: "Manual processing" }),
-      ).toBeVisible(),
+      expect(body.getByRole("menuitem", { name: /Analyze/ })).toBeVisible(),
     );
     await expect(
-      body.getByRole("menuitem", { name: /Automatic processing/ }),
+      body.getByRole("menuitem", { name: "Regenerate topics" }),
     ).toBeVisible();
   },
 });

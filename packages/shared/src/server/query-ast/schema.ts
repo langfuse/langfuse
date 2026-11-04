@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 /**
  * Single source of truth for the physical ClickHouse relations the Kysely
  * compiler targets. One table declaration drives the downstream views:

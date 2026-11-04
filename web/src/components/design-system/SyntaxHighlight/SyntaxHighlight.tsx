@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { type ComponentProps, type ReactNode } from "react";
 import {
   Highlight,

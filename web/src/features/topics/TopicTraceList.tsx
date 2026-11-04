@@ -1,5 +1,10 @@
 /* eslint-disable react/no-unstable-nested-components */
-import { type RefObject, type UIEvent, useState } from "react";
+import {
+  type PointerEvent,
+  type RefObject,
+  type UIEvent,
+  useState,
+} from "react";
 import { ExternalLink } from "@langfuse/icons";
 import { DataTable } from "@/src/components/table/data-table";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
@@ -15,6 +20,33 @@ const CELL = "block px-3";
 const ROW_CHUNK = 100;
 const LOAD_MORE_THRESHOLD_PX = 400;
 const FIRST_CELL = "block pr-3 pl-2";
+
+/**
+ * `truncate` compares unrounded widths: whole-pixel `scrollWidth` misses
+ * sub-pixel overflows that still get an ellipsis, and tight leading overflows
+ * the height of text that fits. Assumes no horizontal padding.
+ */
+function clipsText(element: HTMLElement, clip: "truncate" | "line-clamp") {
+  if (clip === "line-clamp") return element.scrollHeight > element.clientHeight;
+  const text = document.createRange();
+  text.selectNodeContents(element);
+  return (
+    text.getBoundingClientRect().width > element.getBoundingClientRect().width
+  );
+}
+
+/**
+ * Native tooltip with the full text, only while the element clips it. The list
+ * can stay mounted across topics, so a measurement only counts for its text.
+ */
+function useTruncatedTitle(text: string, clip: "truncate" | "line-clamp") {
+  const [clippedText, setClippedText] = useState<string | null>(null);
+  return {
+    title: clippedText === text ? text : undefined,
+    onPointerMove: (event: PointerEvent<HTMLElement>) =>
+      setClippedText(clipsText(event.currentTarget, clip) ? text : null),
+  };
+}
 
 export function TopicTraceList({
   projectId,
@@ -38,6 +70,8 @@ export function TopicTraceList({
     if (nearBottom && visibleCount < rows.length)
       setShown({ rows, count: visibleCount + ROW_CHUNK });
   };
+  const titleTooltip = useTruncatedTitle(title, "truncate");
+  const descriptionTooltip = useTruncatedTitle(description ?? "", "line-clamp");
   const { isV4 } = useReadPath();
   const tracingHref = topicTracesHref(projectId, rows, isV4);
   const columns: LangfuseColumnDef<FacetRow>[] = [
@@ -113,13 +147,18 @@ export function TopicTraceList({
             />
           )}
         </div>
-        <h3 className="truncate text-lg font-bold" title={title}>
+        <h3
+          className="truncate text-lg font-bold"
+          title={titleTooltip.title}
+          onPointerMove={titleTooltip.onPointerMove}
+        >
           {title}
         </h3>
         {description && (
           <p
             className="text-muted-foreground line-clamp-2 text-sm"
-            title={description}
+            title={descriptionTooltip.title}
+            onPointerMove={descriptionTooltip.onPointerMove}
           >
             {description}
           </p>

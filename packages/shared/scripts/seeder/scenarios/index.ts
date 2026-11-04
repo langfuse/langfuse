@@ -7,6 +7,7 @@ import { deepChainScenario } from "./deep-chain";
 import { evaluatorGalleryScenario } from "./evaluator-gallery";
 import { experimentFiltersScenario } from "./experiment-filters";
 import { experimentIoScenario } from "./experiment-io";
+import { gatewayTrafficScenario } from "./gateway-traffic";
 import { incidentSessionScenario } from "./incident-session";
 import { longSessionScenario } from "./long-session";
 import { manyTracesScenario } from "./many-traces";
@@ -34,6 +35,7 @@ export const scenarios: Record<string, ScenarioDefinition> = {
   "evaluator-gallery": evaluatorGalleryScenario,
   "experiment-io": experimentIoScenario,
   "experiment-filters": experimentFiltersScenario,
+  "gateway-traffic": gatewayTrafficScenario,
   "long-session": longSessionScenario,
   "many-traces": manyTracesScenario,
   "outlier-traffic": outlierTrafficScenario,

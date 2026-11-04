@@ -1,5 +1,5 @@
 import type { PrismaClient } from "../../db";
-import { InvalidRequestError } from "../../errors";
+import { InvalidRequestError } from "../../errors/InvalidRequestError";
 import { type singleFilter } from "../../interfaces/filters";
 import {
   type CommentObjectType,

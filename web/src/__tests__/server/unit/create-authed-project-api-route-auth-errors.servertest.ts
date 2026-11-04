@@ -54,7 +54,7 @@ const {
   },
 }));
 
-vi.mock("@/src/features/apiKey/server", () => ({
+vi.mock("@/src/features/apiKey/authenticator", () => ({
   authenticator: { authenticate: mockAuthenticate },
 }));
 

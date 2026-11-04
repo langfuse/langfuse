@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { timingSafeEqual } from "node:crypto";
 
 /** matchesAdminApiKey compares a token against the nonempty, trimmed admin secret. */
