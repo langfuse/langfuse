@@ -4,6 +4,7 @@ import {
   type AnnotationQueueItem,
   type ScoreConfigDomain,
 } from "@langfuse/shared";
+import type { AnnotationCommentFlush } from "@/src/features/scores/types";
 import { AnnotationDrawerSection } from "../shared/AnnotationDrawerSection";
 import { AnnotationProcessingLayout } from "../shared/AnnotationProcessingLayout";
 
@@ -15,11 +16,12 @@ interface TraceAnnotationProcessorProps {
   data: any; // Trace data with observations and scores
   configs: ScoreConfigDomain[];
   projectId: string;
+  commentFlushRef?: React.Ref<AnnotationCommentFlush>;
 }
 
 export const TraceAnnotationProcessor: React.FC<
   TraceAnnotationProcessorProps
-> = ({ item, data, configs, projectId }) => {
+> = ({ item, data, configs, projectId, commentFlushRef }) => {
   const { isV4 } = useReadPath();
   const traceId = item.parentTraceId ?? item.objectId;
 
@@ -49,6 +51,7 @@ export const TraceAnnotationProcessor: React.FC<
       scores={data?.scores ?? []}
       configs={configs}
       environment={data?.environment}
+      commentFlushRef={commentFlushRef}
     />
   );
 

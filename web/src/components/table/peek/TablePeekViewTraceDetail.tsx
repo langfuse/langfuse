@@ -30,7 +30,7 @@ export const TablePeekViewTraceDetail = (
   const router = useRouter();
   const unifiedTraceSessionViewEnabled = useIsFeatureEnabled(
     "unifiedTraceSessionView",
-    { enableForAdmins: false, projectId },
+    { projectId },
   );
   const { isV4 } = useReadPath();
   const { traceId, timestamp } = resolvePeekTraceParams({

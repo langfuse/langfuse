@@ -22,22 +22,16 @@ export function buildCodexInstructions(
       : "Codex needs an OpenAI provider credential, and none is enabled yet.",
     steps: [
       {
-        title: "Store the key in Codex's .env",
-        description: "Codex loads this file every time it starts.",
+        title: "Export the gateway key",
+        description:
+          "Codex reads the key from this variable on every start. Add the line to your shell profile, for example ~/.zshrc, so new terminals have it too.",
         language: "sh",
-        code: [
-          ' CODEX_DIR="${CODEX_HOME:-$HOME/.codex}"',
-          'mkdir -p -m 700 "$CODEX_DIR"',
-          'touch "$CODEX_DIR/.env" && chmod 600 "$CODEX_DIR/.env"',
-          ` cat >> "$CODEX_DIR/.env" <<'EOF'`,
-          `LANGFUSE_GATEWAY_KEY=${GATEWAY_KEY_PLACEHOLDER}`,
-          "EOF",
-        ].join("\n"),
+        code: ` export LANGFUSE_GATEWAY_KEY="${GATEWAY_KEY_PLACEHOLDER}"`,
       },
       {
         title: "Add the gateway provider",
         description:
-          "Add this to the top of config.toml in the same directory ($CODEX_HOME, or ~/.codex by default), before any [table] section, so model_provider stays a top-level key.",
+          "Add this to ~/.codex/config.toml ($CODEX_HOME/config.toml if you set CODEX_HOME). Put model_provider next to your other top-level keys, before any [table] section, and the [model_providers.langfuse] table after them.",
         language: "toml",
         code: [
           'model_provider = "langfuse"',

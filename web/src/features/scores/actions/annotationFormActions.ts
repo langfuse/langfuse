@@ -94,6 +94,10 @@ export function createAnnotationFormActions({
   );
   let savedStatusTimer: ReturnType<typeof setTimeout> | undefined;
   let isClosed = true;
+  // Text the reviewer typed in the comment popover and has not saved or
+  // discarded. The popover keeps this across close so it can be reopened;
+  // the form that completion uses writes it before the row unmounts.
+  const commentDrafts = new Map<string, string>();
   const scheduleSavedStatusClear = () => {
     if (savedStatusTimer) clearTimeout(savedStatusTimer);
     if (isClosed) return;
@@ -199,6 +203,7 @@ export function createAnnotationFormActions({
   };
 
   const clear = (key: string, target: PreparedAnnotationTarget) => {
+    commentDrafts.delete(key);
     const field = find(key);
     if (!field) return;
     const cleared = {
@@ -341,6 +346,58 @@ export function createAnnotationFormActions({
     if (currentError) form.clearErrors(name);
     return value;
   };
+
+  function saveComment(
+    key: string,
+    target: PreparedAnnotationTarget,
+    comment: string | null,
+  ) {
+    const field = find(key);
+    if (!field?.id || editsDisabled) return;
+    const next = { ...field, comment };
+    const tracked = beginSave(
+      comment ? "update_comment" : "delete_comment",
+      next,
+    );
+    replaceField(indexOf(key), next);
+    const { targetKey: _targetKey, ...score } = field;
+    trackSave(
+      updateScore({
+        ...score,
+        ...target.scoreMetadata,
+        scoreTarget: target.scoreTarget,
+        comment,
+      } as UpdateAnnotationScoreData),
+      tracked,
+      next,
+      () => {
+        const index = indexOf(key);
+        if (index < 0) return;
+        replaceField(index, field);
+        form.setError(`scoreData.${index}.comment`, {
+          type: "server",
+          message: "Failed to update comment",
+        });
+      },
+    );
+  }
+
+  // Match Save Changes: trim, drop a no-op, and delete the comment when the
+  // trimmed draft is empty. An optimistic field update makes a second flush
+  // a no-op; a failed save rolls the field back and leaves the draft to retry.
+  function flushPendingComments() {
+    for (const [key, draft] of commentDrafts) {
+      const field = find(key);
+      if (!field?.id || editsDisabled) continue;
+      const trimmed = draft.trim();
+      if (trimmed === (field.comment || "")) continue;
+      const target = initialTargets.find(
+        (item) => item.key === field.targetKey,
+      );
+      if (!target) continue;
+      saveComment(key, target, trimmed || null);
+    }
+  }
 
   return {
     saveStore,
@@ -491,6 +548,11 @@ export function createAnnotationFormActions({
         tracker.close(fields().filter((field) => field.targetKey === key)),
       );
     },
+    setCommentDraft(key: string, draft: string | null) {
+      if (draft === null) commentDrafts.delete(key);
+      else commentDrafts.set(key, draft);
+    },
+    flushPendingComments,
     saveNumeric(
       key: string,
       target: PreparedAnnotationTarget,
@@ -526,40 +588,7 @@ export function createAnnotationFormActions({
       });
       if (isPresent(value)) upsert(key, target, value, stringValue);
     },
-    saveComment(
-      key: string,
-      target: PreparedAnnotationTarget,
-      comment: string | null,
-    ) {
-      const field = find(key);
-      if (!field?.id || editsDisabled) return;
-      const next = { ...field, comment };
-      const tracked = beginSave(
-        comment ? "update_comment" : "delete_comment",
-        next,
-      );
-      replaceField(indexOf(key), next);
-      const { targetKey: _targetKey, ...score } = field;
-      trackSave(
-        updateScore({
-          ...score,
-          ...target.scoreMetadata,
-          scoreTarget: target.scoreTarget,
-          comment,
-        } as UpdateAnnotationScoreData),
-        tracked,
-        next,
-        () => {
-          const index = indexOf(key);
-          if (index < 0) return;
-          replaceField(index, field);
-          form.setError(`scoreData.${index}.comment`, {
-            type: "server",
-            message: "Failed to update comment",
-          });
-        },
-      );
-    },
+    saveComment,
   };
 }
 

@@ -79,10 +79,11 @@ describe("FeaturePreviewModal", () => {
     },
   );
 
-  it("locks Topics on in internal view and restores the personal toggle after opting out", () => {
+  it("locks Topics on for staff and hides it after opting out of internal view", () => {
     const session = {
       user: {
-        admin: true,
+        admin: false,
+        email: "member@clickhouse.com",
         featureFlags: testFeatureFlags({
           internalFeatures: true,
           langfuseTopics: false,
@@ -112,13 +113,12 @@ describe("FeaturePreviewModal", () => {
 
     session.user!.featureFlags.internalFeatures = false;
     rerender(<ControlledFeaturePreviewModal open onOpenChange={vi.fn()} />);
-    expect(toggle).not.toBeChecked();
-    expect(toggle).not.toBeDisabled();
-    fireEvent.click(toggle);
-    expect(mocks.mutate).toHaveBeenCalledWith({
-      flag: "langfuseTopics",
-      enabled: true,
-    });
+    expect(
+      screen.queryByRole("button", { name: /Langfuse Topics/ }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("switch", { name: "Toggle Langfuse Topics" }),
+    ).not.toBeInTheDocument();
   });
 
   it("keeps session previews unavailable on the legacy read path despite stored opt-ins", () => {

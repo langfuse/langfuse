@@ -63,8 +63,8 @@ import {
 import {
   ComposerSurface,
   type ComposerSize,
-  ComposerText,
 } from "@/src/features/search-bar/components/ComposerSurface";
+import { ComposerText } from "@/src/features/search-bar/components/ComposerText";
 
 const LISTBOX_ID = "search-bar-listbox";
 // Word joiners (shared with ComposerTokens) give the DOM caret boundaries

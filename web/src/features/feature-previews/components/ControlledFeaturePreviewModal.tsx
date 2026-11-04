@@ -55,13 +55,17 @@ export function ControlledFeaturePreviewModal({
   const onToggle = (flag: PreviewFlag) => (enabled: boolean) =>
     setFeaturePreviewEnabled.mutate({ flag, enabled });
 
+  const isTopicsEnabled =
+    internalViewEnabled ||
+    authSession.data?.user?.featureFlags.langfuseTopics === true;
+
   const isModernSessionEnabled =
     isV4 &&
     (authSession.data?.user?.featureFlags.sessionViewV2 === true ||
       authSession.data?.environment.enableExperimentalFeatures === true);
 
   const state: Partial<Record<PreviewFlag, PreviewState>> = {
-    ...(authSession.data?.user?.admin === true
+    ...(authSession.data?.user?.admin
       ? {
           unifiedTraceSessionView: {
             enabled:
@@ -75,13 +79,15 @@ export function ControlledFeaturePreviewModal({
             onToggle: onToggle("unifiedTraceSessionView"),
             isToggling: setFeaturePreviewEnabled.isPending,
           },
+        }
+      : {}),
+    ...(isTopicsEnabled
+      ? {
           langfuseTopics: {
-            enabled:
-              internalViewEnabled ||
-              authSession.data.user.featureFlags.langfuseTopics === true,
+            enabled: isTopicsEnabled,
             disabled: internalViewEnabled,
             warningReason: internalViewEnabled
-              ? "Topics is enabled by Internal view. Switch to External view to manage this preview separately."
+              ? "Topics is enabled by Internal view. Switching to External view hides it unless it has been enabled for you separately."
               : undefined,
             onToggle: onToggle("langfuseTopics"),
             isToggling: setFeaturePreviewEnabled.isPending,
@@ -107,7 +113,6 @@ export function ControlledFeaturePreviewModal({
         (authSession.data?.user?.featureFlags.sessionViewV2Timeline === true ||
           authSession.data?.environment.enableExperimentalFeatures === true),
       disabled:
-        !isV4 ||
         !isModernSessionEnabled ||
         authSession.data?.environment.enableExperimentalFeatures === true,
       warningReason: !isV4

@@ -30,7 +30,7 @@ export function TracePage({
   const routeProjectId = (router.query.projectId as string) ?? "";
   const unifiedTraceSessionViewEnabled = useIsFeatureEnabled(
     "unifiedTraceSessionView",
-    { enableForAdmins: false, projectId: routeProjectId },
+    { projectId: routeProjectId },
   );
 
   // Shared, beta-aware fetch (same hook the peek uses).

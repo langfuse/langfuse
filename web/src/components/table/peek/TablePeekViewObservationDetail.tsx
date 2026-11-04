@@ -28,7 +28,7 @@ export const TablePeekViewObservationDetail = (
   const { projectId } = props;
   const unifiedTraceSessionViewEnabled = useIsFeatureEnabled(
     "unifiedTraceSessionView",
-    { enableForAdmins: false, projectId },
+    { projectId },
   );
   const { isV4 } = useReadPath();
 

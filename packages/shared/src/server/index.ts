@@ -710,6 +710,18 @@ export { type BillableEventType } from "./repositories/billable-events";
 export { getBillableUnitCountsByProjectInWindow } from "./repositories/billable-events";
 export { getTopicSetupTraceCounts } from "./repositories/topic-setup-events";
 export { getTopicSetupTraceIds } from "./repositories/topic-setup-events";
+export {
+  listCurrentTopicAssignments,
+  listCurrentTopicSummaries,
+  TOPIC_ASSIGNMENT_STATUSES,
+  TOPIC_SUMMARY_STATES,
+  type TopicAssignmentRow,
+  type TopicAssignmentStatus,
+  type TopicResultCondition,
+  type TopicResultCursor,
+  type TopicSummaryRow,
+  type TopicSummaryState,
+} from "./repositories/topic-results";
 
 export * from "./repositories/observations";
 export * from "./repositories/traces";

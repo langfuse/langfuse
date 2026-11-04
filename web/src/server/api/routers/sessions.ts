@@ -1,4 +1,10 @@
 import { z } from "zod";
+import {
+  auditedQuery,
+  observationRefs,
+  scoreRefs,
+  ref,
+} from "@/src/features/audit-logs/server/auditedQuery";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import {
@@ -275,9 +281,10 @@ export const sessionRouter = createTRPCRouter({
         }),
       };
     }),
-  allFromEvents: protectedProjectProcedure
-    .input(SessionFilterOptions)
-    .query(async ({ input, ctx }) => {
+  allFromEvents: auditedQuery(
+    protectedProjectProcedure.input(SessionFilterOptions),
+    { resourceType: "session", action: "list" },
+    async ({ input, ctx, audit }) => {
       const { filterState, hasNoMatches } = await applyCommentFilters({
         filterState: input.filter ?? [],
         prisma: ctx.prisma,
@@ -326,6 +333,8 @@ export const sessionRouter = createTRPCRouter({
           public: true,
         },
       });
+      audit.refs(sessions.map((s) => ref("session", s.session_id)));
+      audit.count(sessions.length);
       return {
         sessions: sessions.map((s) => {
           return {
@@ -344,7 +353,8 @@ export const sessionRouter = createTRPCRouter({
           };
         }),
       };
-    }),
+    },
+  ),
   countAll: protectedProjectProcedure
     .input(SessionCountOptions)
     .query(async ({ input, ctx }) => {
@@ -486,15 +496,16 @@ export const sessionRouter = createTRPCRouter({
         ),
       }));
     }),
-  metricsFromEvents: protectedProjectProcedure
-    .input(
+  metricsFromEvents: auditedQuery(
+    protectedProjectProcedure.input(
       z.object({
         projectId: z.string(),
         sessionIds: z.array(z.string()),
         queryFromTimestamp: z.date().nullish(),
       }),
-    )
-    .query(async ({ input, ctx }) => {
+    ),
+    { resourceType: "session", action: "list" },
+    async ({ input, ctx, audit }) => {
       if (input.sessionIds.length === 0) return [];
       const sessions = await getSessionMetricsFromEvents({
         projectId: input.projectId,
@@ -543,6 +554,8 @@ export const sessionRouter = createTRPCRouter({
         onParseError: traceException,
       });
 
+      audit.refs(sessions.map((s) => ref("session", s.session_id)));
+      audit.count(sessions.length);
       return sessions.map((s) => ({
         id: s.session_id,
         userIds: s.user_ids,
@@ -568,7 +581,8 @@ export const sessionRouter = createTRPCRouter({
           validatedScores.filter((score) => score.sessionId === s.session_id),
         ),
       }));
-    }),
+    },
+  ),
   filterOptions: protectedProjectProcedure
     .input(
       z.object({
@@ -714,14 +728,15 @@ export const sessionRouter = createTRPCRouter({
         score_booleans: booleanScoreNames.map((s) => s.name),
       };
     }),
-  byIdWithScores: protectedGetSessionProcedure
-    .input(
+  byIdWithScores: auditedQuery(
+    protectedGetSessionProcedure.input(
       z.object({
         sessionId: z.string(), // used for security check
         projectId: z.string(), // used for security check
       }),
-    )
-    .query(async ({ input, ctx }) => {
+    ),
+    { resourceType: "session", action: "read", idKey: "sessionId" },
+    async ({ input, ctx, audit }) => {
       const [scores, session] = await Promise.all([
         getScoresForSessions({
           projectId: input.projectId,
@@ -740,26 +755,37 @@ export const sessionRouter = createTRPCRouter({
         onParseError: traceException,
       });
 
+      audit.refs([
+        ...session.traces.flatMap((trace) => [
+          ref("trace", trace.id),
+          ...scoreRefs(trace.scores),
+        ]),
+        ...scoreRefs(validatedScores),
+      ]);
+      audit.count(session.traces.length);
       return {
         ...session,
         scores: toDomainArrayWithStringifiedMetadata(validatedScores),
       };
-    }),
-  previewTree: protectedGetSessionProcedure
-    .input(
+    },
+  ),
+  previewTree: auditedQuery(
+    protectedGetSessionProcedure.input(
       z.object({
         projectId: z.string(),
         sessionId: z.string(),
       }),
-    )
-    .query(async ({ input }) => {
+    ),
+    { resourceType: "trace", action: "list" },
+    async ({ input, audit }) => {
+      audit.refs([ref("session", input.sessionId)]);
       const traces = await getSessionTracesFromEvents({
         ...input,
         filter: [],
         limit: 5,
       });
       if (traces.length === 0) return [];
-      return Promise.all(
+      const previews = await Promise.all(
         traces.map(async (trace) => {
           const source = {
             projectId: input.projectId,
@@ -790,15 +816,27 @@ export const sessionRouter = createTRPCRouter({
           };
         }),
       );
-    }),
-  byIdWithScoresFromEvents: protectedGetSessionProcedure
-    .input(
+      audit.refs(
+        previews.flatMap((trace) => [
+          ref("trace", trace.id),
+          ...trace.observations.map((observation) =>
+            ref("observation", observation.id),
+          ),
+        ]),
+      );
+      audit.count(previews.length);
+      return previews;
+    },
+  ),
+  byIdWithScoresFromEvents: auditedQuery(
+    protectedGetSessionProcedure.input(
       z.object({
         sessionId: z.string(), // used for security check
         projectId: z.string(), // used for security check
       }),
-    )
-    .query(async ({ input, ctx }) => {
+    ),
+    { resourceType: "session", action: "read", idKey: "sessionId" },
+    async ({ input, ctx, audit }) => {
       const [scores, sessionMetrics, postgresSession] = await Promise.all([
         getScoresForSessions({
           projectId: input.projectId,
@@ -846,6 +884,7 @@ export const sessionRouter = createTRPCRouter({
         onParseError: traceException,
       });
 
+      audit.refs(scoreRefs(validatedScores));
       return {
         id: input.sessionId,
         projectId: input.projectId,
@@ -871,16 +910,18 @@ export const sessionRouter = createTRPCRouter({
         environment: sessionMetrics?.environment,
         scores: toDomainArrayWithStringifiedMetadata(validatedScores),
       };
-    }),
-  tracesFromEvents: protectedGetSessionProcedure
-    .input(
+    },
+  ),
+  tracesFromEvents: auditedQuery(
+    protectedGetSessionProcedure.input(
       z.object({
         sessionId: z.string(), // used for security check
         projectId: z.string(), // used for security check
         filter: sessionTraceFilterSchema.optional(),
       }),
-    )
-    .query(async ({ input }) => {
+    ),
+    { resourceType: "trace", action: "list" },
+    async ({ input, audit }) => {
       const traces = await getSessionTracesFromEvents({
         projectId: input.projectId,
         sessionId: input.sessionId,
@@ -906,42 +947,56 @@ export const sessionRouter = createTRPCRouter({
         onParseError: traceException,
       });
 
+      audit.refs([
+        ref("session", input.sessionId),
+        ...traces.map((trace) => ref("trace", trace.id)),
+        ...scoreRefs(validatedScores),
+      ]);
+      audit.count(traces.length);
       return traces.map((trace) => ({
         ...trace,
         scores: toDomainArrayWithStringifiedMetadata(
           validatedScores.filter((s) => s.traceId === trace.id),
         ),
       }));
-    }),
-  agentGraphDataForSessionFromEvents: protectedGetSessionProcedure
-    .input(
+    },
+  ),
+  agentGraphDataForSessionFromEvents: auditedQuery(
+    protectedGetSessionProcedure.input(
       z.object({
         projectId: z.string(),
         sessionId: z.string().min(1),
         minStartTime: z.iso.datetime({ offset: true }),
         maxStartTime: z.iso.datetime({ offset: true }),
       }),
-    )
-    .query(
-      async ({
-        input,
-      }): Promise<(AgentGraphDataResponse & { traceId: string })[]> => {
-        const records = await getAgentGraphDataFromEventsTable({
-          projectId: input.projectId,
-          sessionId: input.sessionId,
-          minStartTime: new Date(input.minStartTime),
-          maxStartTime: new Date(input.maxStartTime),
-        });
-        return records.flatMap((record) => {
-          const mapped = mapAgentGraphRecord(record);
-          if (!mapped?.traceId) return [];
-          return [{ ...mapped, traceId: mapped.traceId }];
-        });
-      },
     ),
-  observationsForSessionFromEvents: protectedGetSessionProcedure
-    .input(z.object({ projectId: z.string(), sessionId: z.string().min(1) }))
-    .query(async ({ input }) => {
+    { resourceType: "session", action: "read", idKey: "sessionId" },
+    async ({
+      input,
+      audit,
+    }): Promise<(AgentGraphDataResponse & { traceId: string })[]> => {
+      const records = await getAgentGraphDataFromEventsTable({
+        projectId: input.projectId,
+        sessionId: input.sessionId,
+        minStartTime: new Date(input.minStartTime),
+        maxStartTime: new Date(input.maxStartTime),
+      });
+      const result = records.flatMap((record) => {
+        const mapped = mapAgentGraphRecord(record);
+        if (!mapped?.traceId) return [];
+        return [{ ...mapped, traceId: mapped.traceId }];
+      });
+      audit.refs(result.map((node) => ref("observation", node.id)));
+      audit.count(result.length);
+      return result;
+    },
+  ),
+  observationsForSessionFromEvents: auditedQuery(
+    protectedGetSessionProcedure.input(
+      z.object({ projectId: z.string(), sessionId: z.string().min(1) }),
+    ),
+    { resourceType: "session", action: "read", idKey: "sessionId" },
+    async ({ input, audit }) => {
       const { observations, totalCount } =
         await getObservationsForSessionFromEventsTable(input);
       const traceStartTimes = new Map<string, number>();
@@ -980,6 +1035,11 @@ export const sessionRouter = createTRPCRouter({
         dataTypes: ScoreDataTypeArray,
         onParseError: traceException,
       });
+      audit.refs([
+        ...observationRefs(observations),
+        ...scoreRefs(validatedScores),
+      ]);
+      audit.count(observations.length);
       return {
         observations: toDomainArrayWithStringifiedMetadata(observations),
         scores: toDomainArrayWithStringifiedMetadata(
@@ -990,10 +1050,12 @@ export const sessionRouter = createTRPCRouter({
           totalCount > MAX_OBSERVATIONS_PER_SESSION,
         maxObservationsPerSession: MAX_OBSERVATIONS_PER_SESSION,
       };
-    }),
-  observationsForTraceFromEvents: protectedGetSessionProcedure
-    .input(SessionTraceObservationsInput)
-    .query(async ({ input }) => {
+    },
+  ),
+  observationsForTraceFromEvents: auditedQuery(
+    protectedGetSessionProcedure.input(SessionTraceObservationsInput),
+    { resourceType: "trace", action: "read", idKey: "traceId" },
+    async ({ input, audit }) => {
       const positionFilter = (input.filter ?? []).find(
         (filter) => filter.type === "positionInTrace",
       );
@@ -1149,8 +1211,14 @@ export const sessionRouter = createTRPCRouter({
         };
       });
 
+      audit.refs([
+        ref("session", input.sessionId),
+        ...observationRefs(observations),
+      ]);
+      audit.count(observations.length);
       return toDomainArrayWithStringifiedMetadata(observations);
-    }),
+    },
+  ),
   /**
    * Full raw I/O for one observation, for the session card's download
    * fallback (LFE-10958). Session-authorized (public sessions included); the
@@ -1158,8 +1226,8 @@ export const sessionRouter = createTRPCRouter({
    * observations outside that session. Returns raw strings — the client
    * saves them to a file and never renders them.
    */
-  observationFullIOFromEvents: protectedGetSessionProcedure
-    .input(
+  observationFullIOFromEvents: auditedQuery(
+    protectedGetSessionProcedure.input(
       z.object({
         projectId: z.string(),
         sessionId: z.string(),
@@ -1167,8 +1235,9 @@ export const sessionRouter = createTRPCRouter({
         observationId: z.string(),
         startTime: z.date(),
       }),
-    )
-    .query(async ({ input }) => {
+    ),
+    { resourceType: "observation", action: "read", idKey: "observationId" },
+    async ({ input, audit }) => {
       const observation = await getObservationFullIOForSessionFromEventsTable({
         projectId: input.projectId,
         sessionId: input.sessionId,
@@ -1184,8 +1253,13 @@ export const sessionRouter = createTRPCRouter({
         });
       }
 
+      audit.refs([
+        ref("trace", input.traceId),
+        ref("session", input.sessionId),
+      ]);
       return toDomainWithStringifiedMetadata(observation);
-    }),
+    },
+  ),
   bookmark: protectedProjectProcedure
     .input(
       z.object({

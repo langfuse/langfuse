@@ -157,7 +157,13 @@ const openSessionViewMenu = () => {
  * card. It is purely informational: to see the trace's content the user
  * switches the view above — there is no per-card state.
  */
-const ViewMismatchNotice = ({ viewLabel }: { viewLabel: string | null }) => (
+const ViewMismatchNotice = ({
+  viewLabel,
+  onCustomizeView,
+}: {
+  viewLabel: string | null;
+  onCustomizeView: () => void;
+}) => (
   <div className="flex flex-col items-start gap-1.5 rounded-md border border-dashed border-amber-500/50 bg-amber-500/5 p-3">
     <div className="flex items-center gap-2 text-xs font-bold text-amber-700 dark:text-amber-500">
       <FilterX size="base" />
@@ -169,7 +175,7 @@ const ViewMismatchNotice = ({ viewLabel }: { viewLabel: string | null }) => (
       Its content is hidden by the current view, not missing.{" "}
       <button
         type="button"
-        onClick={openSessionViewMenu}
+        onClick={onCustomizeView}
         className="text-primary underline underline-offset-2 hover:no-underline"
       >
         Switch the view
@@ -238,6 +244,7 @@ export const TraceEventsRow = React.memo(
     surface = "card",
     contentMode = "all",
     showSystemPrompt,
+    onCustomizeView = openSessionViewMenu,
   }: {
     trace: RouterOutputs["sessions"]["tracesFromEvents"][number];
     projectId: string;
@@ -251,6 +258,7 @@ export const TraceEventsRow = React.memo(
     surface?: TraceEventsSurface;
     contentMode?: IOPreviewContentMode;
     showSystemPrompt?: boolean;
+    onCustomizeView?: () => void;
   }) => {
     const observationsQuery =
       api.sessions.observationsForTraceFromEvents.useQuery(
@@ -400,7 +408,11 @@ export const TraceEventsRow = React.memo(
                   }
 
                   return (
-                    <div key={observation.id} className="flex flex-col gap-2">
+                    <div
+                      key={observation.id}
+                      data-session-observation-id={observation.id}
+                      className="flex flex-col gap-2"
+                    >
                       <ObservationHeader observation={observation} />
                       <SessionObservationIO
                         observation={observation}
@@ -447,7 +459,10 @@ export const TraceEventsRow = React.memo(
             ) : (
               // The selected view/filter matched nothing (or hid the only
               // observations, e.g. "with I/O" on a trace with none) — say so.
-              <ViewMismatchNotice viewLabel={viewLabel} />
+              <ViewMismatchNotice
+                viewLabel={viewLabel}
+                onCustomizeView={onCustomizeView}
+              />
             )}
           </div>
           {showTracePanel && (

@@ -1,6 +1,6 @@
 {
   "name": "worker",
-  "version": "4.74.0",
+  "version": "4.75.0",
   "description": "",
   "license": "MIT",
   "private": true,
@@ -27,7 +27,6 @@
     "refill-billing-event": "dotenv -e ../.env -- tsx src/scripts/refill-billing-event.ts",
     "refill-queue-event": "dotenv -e ../.env -- tsx src/scripts/refillQueueEvent/index.ts",
     "retry-monitor-bad-query-errors": "dotenv -e ../.env -- tsx src/scripts/retryMonitorBadQueryErrors.ts",
-    "backfill-topic-traces": "dotenv -e ../.env -- tsx src/scripts/backfillTopicTraces.ts",
     "test:native-codec": "LANGFUSE_NATIVE_FAIL_IF_CLICKHOUSE_UNAVAILABLE=1 vitest run nativeCodec",
     "test:otel-replay": "vitest run otelReplay"
   },
@@ -39,6 +38,7 @@
     "@repo/langfuse-skills": "workspace:*",
     "@appsignal/opentelemetry-instrumentation-bullmq": "^0.8.0",
     "@langfuse/native": "workspace:*",
+    "@langfuse/client": "6.0.2",
     "@langfuse/shared": "workspace:*",
     "@node-rs/xxhash": "1.7.7",
     "@aws-sdk/client-lambda-microvms": "catalog:",
@@ -76,7 +76,6 @@
     "helmet": "^7.1.0",
     "ioredis": "^5.10.1",
     "lodash": "4.18.1",
-    "langfuse": "3.38.4",
     "p-limit": "^7.3.0",
     "posthog-node": "^5.49.1",
     "stripe": "^17.4.0",

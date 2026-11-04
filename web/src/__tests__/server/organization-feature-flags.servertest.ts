@@ -121,8 +121,14 @@ describe("organization feature preview defaults", () => {
     expect(members.memberships[0]?.featurePreviewManagement).toBeNull();
   });
 
-  it("rejects enabling a default until the administrator has the preview enabled personally", async () => {
-    const { caller, org } = await prepare();
+  it("rejects enabling a default when the administrator has opted out of the preview", async () => {
+    const { actor, caller, org } = await prepare();
+    await prisma.user.update({
+      where: { id: actor.id },
+      data: {
+        featureFlags: [getFeaturePreviewOptOutFlag("sessionViewV2")],
+      },
+    });
 
     await expect(
       caller.organizations.setFeatureFlagOrgDefault({

@@ -164,7 +164,7 @@ function TraceWithSelection({
   const isProjectMember = useIsAuthenticatedAndProjectMember(projectId);
   const unifiedTraceSessionViewEnabled = useIsFeatureEnabled(
     "unifiedTraceSessionView",
-    { enableForAdmins: false, projectId },
+    { projectId },
   );
   const [aggregation] = useQueryParam("aggregation", StringParam);
   const { isSessionScope: scopeToSession } = resolveTraceScope({
