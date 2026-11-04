@@ -42,9 +42,7 @@ function getOpenSessionItem({
     return unavailable("Could not load the telemetry project.");
   }
   if (!telemetryProjectId) {
-    return unavailable(
-      "Halo telemetry is not recorded for this organization or instance.",
-    );
+    return unavailable("The telemetry session is unavailable.");
   }
   return {
     ...item,

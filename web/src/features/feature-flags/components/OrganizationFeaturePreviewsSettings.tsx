@@ -52,9 +52,8 @@ export function OrganizationFeaturePreviewsSettings({
   const { isLangfuseCloud } = useLangfuseCloudRegion();
   const capture = usePostHogClientCapture();
   const canOpenPersonalPreviews = canOpenPersonalFeaturePreviews({
+    session: session.data,
     isLangfuseCloud,
-    v4BetaEnabled: session.data?.user?.v4BetaEnabled === true,
-    isAdmin: session.data?.user?.admin === true,
   });
   const openPersonalPreviews = (source: "description" | "preview_row") => {
     capture("organization_settings:personal_feature_previews_opened", {

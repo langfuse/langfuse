@@ -16,8 +16,9 @@ import {
   getCommentDrawerInitialStateFromUrl,
 } from "@/src/features/comments/CommentDrawerController";
 import { useCommentedPaths } from "@/src/features/comments/hooks/useCommentedPaths";
-import { api } from "@/src/utils/api";
 import { useRouter } from "next/router";
+import { useRefreshTraceScores } from "@/src/features/traces/hooks/useRefreshTraceScores";
+import { api } from "@/src/utils/api";
 import { HoverCard } from "@/src/components/design-system/HoverCard/HoverCard";
 
 // Preview tab components
@@ -117,7 +118,6 @@ function LoadedTraceDetailView({
   const { selectedTab: globalSelectedTab, setSelectedTab } = useSelection();
   const internalFeaturesEnabled = useInternalFeaturesEnabled();
   const { isV4 } = useReadPath();
-  const utils = api.useUtils();
   const capture = usePostHogClientCapture();
   const analyticsDimensions = useTraceAnalyticsDimensions();
   const [isPrettyViewAvailable, setIsPrettyViewAvailable] = useState(true);
@@ -250,16 +250,11 @@ function LoadedTraceDetailView({
   const isLogViewVirtualized =
     observations.length >= TRACE_VIEW_CONFIG.logView.virtualizationThreshold;
 
-  const refreshTraceScores = useCallback(() => {
-    utils.traces.byIdWithObservationsAndScores.invalidate({
-      projectId,
-      traceId: trace.id,
-    });
-    utils.events.scoresForTrace.invalidate({
-      projectId,
-      traceId: trace.id,
-    });
-  }, [projectId, trace.id, utils]);
+  const refreshTraceScores = useRefreshTraceScores({
+    projectId,
+    traceId: trace.id,
+    sessionId: trace.sessionId,
+  });
 
   // Handle tab change
   const handleTabChange = (value: string) => {

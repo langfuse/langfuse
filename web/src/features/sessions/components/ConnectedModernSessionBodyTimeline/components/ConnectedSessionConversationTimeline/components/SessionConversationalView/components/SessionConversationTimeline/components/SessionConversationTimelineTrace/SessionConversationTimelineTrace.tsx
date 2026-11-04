@@ -40,7 +40,7 @@ export function SessionConversationTimelineTrace({
   isCollapsed?: boolean;
   onToggleCollapsed?: () => void;
   includeNestedThreads?: boolean;
-  variant?: "session" | "single-trace";
+  variant?: "session" | "single-trace" | "embedded-session";
   itemId?: string;
   threadIndex?: number;
   threadNumber?: number;
@@ -69,16 +69,18 @@ export function SessionConversationTimelineTrace({
     (thread) => thread.threadIndex === threadIndex,
   );
   const showHeader =
-    variant === "session" ? visibleThreadIndex <= 0 : (threadCount ?? 0) > 1;
+    variant !== "single-trace"
+      ? visibleThreadIndex <= 0
+      : (threadCount ?? 0) > 1;
   const showThreadHeader =
-    variant === "session" &&
+    variant !== "single-trace" &&
     visibleThreads.length > 1 &&
     visibleThreadIndex >= 0;
   return (
     <div
       className={cn(
-        variant === "single-trace" ? "p-0" : "px-4 sm:px-6 lg:px-10",
-        variant === "session" && !isCollapsed && "pb-8",
+        variant !== "session" ? "p-0" : "px-4 sm:px-6 lg:px-10",
+        variant !== "single-trace" && !isCollapsed && "pb-8",
       )}
       data-session-trace-id={trace.id}
       data-session-item-id={itemId}
@@ -96,16 +98,16 @@ export function SessionConversationTimelineTrace({
               <span
                 className={cn(
                   "border-border bg-tertiary text-foreground flex h-4 min-w-4 items-center justify-center rounded-sm border px-0.5 font-mono text-[10px]",
-                  variant === "session" &&
+                  variant !== "single-trace" &&
                     onToggleCollapsed &&
                     "group-focus-within/trace-header:invisible group-hover/trace-header:invisible",
                 )}
               >
-                {variant === "session"
+                {variant !== "single-trace"
                   ? turnNumber
                   : (displayNumber ?? turnNumber)}
               </span>
-              {variant === "session" && onToggleCollapsed && (
+              {variant !== "single-trace" && onToggleCollapsed && (
                 <button
                   type="button"
                   onClick={onToggleCollapsed}
@@ -140,7 +142,7 @@ export function SessionConversationTimelineTrace({
           >
             Open trace
           </button>
-          {variant === "session" && hiddenThreadCount > 0 && (
+          {variant !== "single-trace" && hiddenThreadCount > 0 && (
             <Tooltip
               label={`${hiddenThreadCount} nested ${hiddenThreadCount === 1 ? "thread" : "threads"} hidden`}
             >
@@ -248,7 +250,9 @@ export function SessionConversationTimelineTrace({
           {state.type === "transcript" && (
             <SessionTranscriptContent
               includeNestedThreads={includeNestedThreads}
-              variant={variant}
+              variant={
+                variant === "embedded-session" ? "single-trace" : variant
+              }
               {...state}
               onOpenObservation={onOpenObservation}
               scrollTarget={scrollTarget}

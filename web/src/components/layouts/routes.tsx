@@ -49,7 +49,6 @@ export enum RouteSection {
 
 export enum RouteGroup {
   Observability = "Observability",
-  PromptManagement = "Prompt management",
   ContextManagement = "Context management",
   Evaluation = "Evaluation",
 }
@@ -186,7 +185,7 @@ export const ROUTES: Route[] = [
     icon: FolderCode,
     projectRbacScopes: ["skills:read"],
     productModule: "prompt-management",
-    group: RouteGroup.PromptManagement,
+    group: RouteGroup.ContextManagement,
     section: RouteSection.Main,
   },
   {
@@ -195,7 +194,7 @@ export const ROUTES: Route[] = [
     icon: FileJson,
     projectRbacScopes: ["prompts:read"],
     productModule: "prompt-management",
-    group: RouteGroup.PromptManagement,
+    group: RouteGroup.ContextManagement,
     section: RouteSection.Main,
   },
   {
@@ -203,7 +202,7 @@ export const ROUTES: Route[] = [
     href: "/project/[projectId]/playground",
     icon: TerminalIcon,
     productModule: "playground",
-    group: RouteGroup.PromptManagement,
+    group: RouteGroup.ContextManagement,
     section: RouteSection.Main,
   },
   {

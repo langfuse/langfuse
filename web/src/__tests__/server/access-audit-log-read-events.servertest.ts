@@ -34,7 +34,9 @@ import {
   createEvent,
   createEventsCh,
   createOrgProjectAndApiKey,
+  createScoresCh,
   createTrace,
+  createTraceScore,
   createTracesCh,
   getTraceByIdFromEventsTable,
 } from "@langfuse/shared/src/server";
@@ -64,7 +66,33 @@ function trpcCaller(params: {
   projectId: string;
   accessAuditLogEnabled: boolean;
   supportAccess?: boolean;
+  /** false signs in a user who belongs to no organization. */
+  member?: boolean;
 }) {
+  const membership: NonNullable<Session["user"]>["organizations"][number] = {
+    id: params.orgId,
+    name: "Access Audit Org",
+    role: params.supportAccess ? Role.VIEWER : Role.MEMBER,
+    supportAccess: params.supportAccess,
+    plan: "cloud:enterprise",
+    cloudConfig: undefined,
+    metadata: {},
+    aiFeaturesEnabled: false,
+    aiTelemetryEnabled: false,
+    accessAuditLogEnabled: params.accessAuditLogEnabled,
+    projects: [
+      {
+        id: params.projectId,
+        name: "Access Audit Project",
+        role: Role.VIEWER,
+        retentionDays: null,
+        deletedAt: null,
+        hasTraces: true,
+        metadata: {},
+        createdAt: new Date().toISOString(),
+      },
+    ],
+  };
   const session: Session = {
     expires: "1",
     user: {
@@ -72,32 +100,7 @@ function trpcCaller(params: {
       name: "Access Audit Reader",
       email: "reader@example.com",
       canCreateOrganizations: true,
-      organizations: [
-        {
-          id: params.orgId,
-          name: "Access Audit Org",
-          role: params.supportAccess ? Role.VIEWER : Role.MEMBER,
-          supportAccess: params.supportAccess,
-          plan: "cloud:enterprise",
-          cloudConfig: undefined,
-          metadata: {},
-          aiFeaturesEnabled: false,
-          aiTelemetryEnabled: false,
-          accessAuditLogEnabled: params.accessAuditLogEnabled,
-          projects: [
-            {
-              id: params.projectId,
-              name: "Access Audit Project",
-              role: Role.VIEWER,
-              retentionDays: null,
-              deletedAt: null,
-              hasTraces: true,
-              metadata: {},
-              createdAt: new Date().toISOString(),
-            },
-          ],
-        },
-      ],
+      organizations: params.member === false ? [] : [membership],
       featureFlags: testFeatureFlags(),
       admin: false,
     },
@@ -190,7 +193,242 @@ describe("access events on GET /api/public/traces/{traceId}", () => {
   });
 });
 
+describe("access events on tRPC scores.byId", () => {
+  it("records the read with the score and the trace it is attached to", async () => {
+    const { orgId, projectId } = await setupOrg(true);
+    const score = createTraceScore({ project_id: projectId });
+    await createScoresCh([score]);
+    const caller = trpcCaller({
+      userId: randomUUID(),
+      orgId,
+      projectId,
+      accessAuditLogEnabled: true,
+    });
+
+    await caller.scores.byId({ projectId, scoreId: score.id });
+
+    expect(await accessEvents(orgId)).toEqual([
+      expect.objectContaining({
+        surface: "trpc",
+        route: "scores.byId",
+        resourceType: "score",
+        resourceId: score.id,
+        action: "read",
+        outcome: "success",
+        resourceRefs: [`score:${score.id}`, `trace:${score.trace_id}`],
+      }),
+    ]);
+  });
+
+  it("stores the input as validated, without keys the procedure strips", async () => {
+    const { orgId, projectId } = await setupOrg(true);
+    const score = createTraceScore({ project_id: projectId });
+    await createScoresCh([score]);
+    const caller = trpcCaller({
+      userId: randomUUID(),
+      orgId,
+      projectId,
+      accessAuditLogEnabled: true,
+    });
+
+    await caller.scores.byId({
+      padding: "x".repeat(4096),
+      projectId,
+      scoreId: score.id,
+    } as Parameters<typeof caller.scores.byId>[0]);
+
+    const [event] = await accessEvents(orgId);
+    expect(JSON.parse(event?.params as string)).toEqual({
+      projectId,
+      scoreId: score.id,
+    });
+  });
+
+  it("records a read without an id no resource can have", async () => {
+    const { orgId, projectId } = await setupOrg(true);
+    const caller = trpcCaller({
+      userId: randomUUID(),
+      orgId,
+      projectId,
+      accessAuditLogEnabled: true,
+    });
+
+    await caller.scores.getScoreMetadataById({
+      projectId,
+      id: "s".repeat(801),
+    });
+
+    const events = await accessEvents(orgId);
+    expect(events).toEqual([
+      expect.objectContaining({
+        route: "scores.getScoreMetadataById",
+        outcome: "success",
+        resourceRefs: [],
+      }),
+    ]);
+    expect(events[0]).not.toHaveProperty("resourceId");
+  });
+});
+
+describe("access events on tRPC events.scoresForTrace", () => {
+  it("records a read with an empty trace id without failing it", async () => {
+    const { orgId, projectId } = await setupOrg(true);
+    const caller = trpcCaller({
+      userId: randomUUID(),
+      orgId,
+      projectId,
+      accessAuditLogEnabled: true,
+    });
+
+    await expect(
+      caller.events.scoresForTrace({ projectId, traceId: "" }),
+    ).resolves.toEqual([]);
+
+    expect(await accessEvents(orgId)).toEqual([
+      expect.objectContaining({
+        route: "events.scoresForTrace",
+        outcome: "success",
+        resourceRefs: [],
+      }),
+    ]);
+  });
+});
+
+describe("refused tRPC reads", () => {
+  it("records the id the route names, without params or ids no resource can have", async () => {
+    const { orgId, projectId } = await setupOrg(true);
+    const scoreId = randomUUID();
+    const caller = trpcCaller({
+      userId: randomUUID(),
+      orgId,
+      projectId,
+      accessAuditLogEnabled: true,
+      member: false,
+    });
+
+    await expect(
+      caller.scores.getScoreMetadataById({
+        projectId,
+        id: scoreId,
+        traceId: "t".repeat(801),
+      } as Parameters<typeof caller.scores.getScoreMetadataById>[0]),
+    ).rejects.toMatchObject({ code: "UNAUTHORIZED" });
+
+    const events = await accessEvents(orgId);
+    expect(events).toEqual([
+      expect.objectContaining({
+        route: "scores.getScoreMetadataById",
+        resourceId: scoreId,
+        outcome: "denied",
+        resourceRefs: [`score:${scoreId}`],
+      }),
+    ]);
+    expect(events[0]).not.toHaveProperty("params");
+  });
+
+  it("keeps the refusal when the event cannot be recorded", async () => {
+    const { orgId, projectId } = await setupOrg(true);
+    const caller = trpcCaller({
+      userId: randomUUID(),
+      orgId,
+      projectId,
+      accessAuditLogEnabled: true,
+      member: false,
+    });
+    staging.fail = true;
+
+    await expect(
+      caller.scores.getScoreMetadataById({ projectId, id: randomUUID() }),
+    ).rejects.toMatchObject({ code: "UNAUTHORIZED" });
+  });
+});
+
 const maybe = eventsTableAvailable ? describe : describe.skip;
+
+maybe("access events on tRPC events.all", () => {
+  it("records the list with every returned observation and its trace", async () => {
+    const { orgId, projectId } = await setupOrg(true);
+    const { traceId, observationIds } = await seedEventsTrace(projectId);
+    const caller = trpcCaller({
+      userId: randomUUID(),
+      orgId,
+      projectId,
+      accessAuditLogEnabled: true,
+    });
+
+    await caller.events.all({
+      projectId,
+      filter: [],
+      searchQuery: null,
+      searchType: [],
+      page: 0,
+      limit: 50,
+      orderBy: null,
+    });
+
+    const events = await accessEvents(orgId);
+    expect(events).toEqual([
+      expect.objectContaining({
+        route: "events.all",
+        resourceType: "observation",
+        action: "list",
+        resultCount: 2,
+      }),
+    ]);
+    expect(events[0]).not.toHaveProperty("resourceId");
+    expect(events[0]?.resourceRefs).toEqual(
+      expect.arrayContaining([
+        `trace:${traceId}`,
+        ...observationIds.map((id) => `observation:${id}`),
+      ]),
+    );
+  });
+});
+
+maybe("access events on tRPC experiments.batchIO", () => {
+  it("records the read with the run behind every returned output", async () => {
+    const { orgId, projectId } = await setupOrg(true);
+    const experimentId = randomUUID();
+    const itemId = randomUUID();
+    const traceId = randomUUID();
+    const rootId = randomUUID();
+    await createEventsCh([
+      createEvent({
+        id: rootId,
+        span_id: rootId,
+        trace_id: traceId,
+        project_id: projectId,
+        parent_span_id: "",
+        experiment_id: experimentId,
+        experiment_name: "experiment",
+        experiment_item_id: itemId,
+        experiment_item_root_span_id: rootId,
+        start_time: Date.now() * 1000,
+      }),
+    ]);
+    const caller = trpcCaller({
+      userId: randomUUID(),
+      orgId,
+      projectId,
+      accessAuditLogEnabled: true,
+    });
+
+    await caller.experiments.batchIO({
+      projectId,
+      itemIds: [itemId],
+      baseExperimentId: experimentId,
+      compExperimentIds: [],
+    });
+
+    expect(await accessEvents(orgId)).toEqual([
+      expect.objectContaining({
+        route: "experiments.batchIO",
+        resultCount: 1,
+        resourceRefs: [`observation:${rootId}`, `trace:${traceId}`],
+      }),
+    ]);
+  });
+});
 
 maybe("access events on tRPC events.byTraceId", () => {
   it("records the read with the user, the trace and its observations", async () => {
@@ -289,5 +527,40 @@ maybe("access events on tRPC events.byTraceId", () => {
     await expect(
       caller.events.byTraceId({ projectId, traceId }),
     ).rejects.toMatchObject({ code: "INTERNAL_SERVER_ERROR" });
+  });
+
+  it("records a refused read by a non-member as denied", async () => {
+    const { orgId, projectId } = await setupOrg(true);
+    const { traceId } = await seedEventsTrace(projectId);
+    const userId = randomUUID();
+    const caller = trpcCaller({
+      userId,
+      orgId,
+      projectId,
+      accessAuditLogEnabled: true,
+      member: false,
+    });
+
+    await expect(
+      caller.events.byTraceId({ projectId, traceId }),
+    ).rejects.toMatchObject({ code: "UNAUTHORIZED" });
+
+    expect(await accessEvents(orgId)).toEqual([
+      expect.objectContaining({
+        route: "events.byTraceId",
+        resourceType: "trace",
+        resourceId: traceId,
+        action: "read",
+        outcome: "denied",
+        outcomeReason: "UNAUTHORIZED",
+        resourceRefs: [`trace:${traceId}`],
+        actor: {
+          type: "USER",
+          userId,
+          name: expect.any(String),
+          email: expect.any(String),
+        },
+      }),
+    ]);
   });
 });
