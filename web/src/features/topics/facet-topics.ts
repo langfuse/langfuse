@@ -2,12 +2,28 @@ import {
   encodeFiltersGeneric,
   MAX_URL_FILTER_QUERY_LENGTH,
 } from "@langfuse/shared";
-import { type RouterOutputs } from "@/src/utils/api";
+import { type RouterInputs, type RouterOutputs } from "@/src/utils/api";
 import { rangeToString } from "@/src/utils/date-range-utils";
 
 export type Facet = RouterOutputs["topics"]["currentResults"]["facets"][number];
-export type FacetRow = Facet["rows"][number];
+export type FacetRow = RouterOutputs["topics"]["traces"]["rows"][number];
 export type FacetTopic = Facet["topics"][number];
+export type TopicTraceQuery = Omit<
+  RouterInputs["topics"]["traces"],
+  "projectId" | "facetId" | "cursor"
+>;
+/** A server-paged trace list; `hasMore` stays true while the scan can continue. */
+export type TopicTracesResult = {
+  rows: FacetRow[];
+  isLoading: boolean;
+  error: string | null;
+  hasMore: boolean;
+  loadMore: () => void;
+};
+/** Injected so views stay presentational; `useFacetTopicTraces` is the app implementation. */
+export type UseTopicTraces = (
+  query: TopicTraceQuery | null,
+) => TopicTracesResult;
 
 /** Map topics first, then topics only seen in assignments. Index order drives topic colors in every view. */
 export function orderedFacetTopics(facet: Facet) {

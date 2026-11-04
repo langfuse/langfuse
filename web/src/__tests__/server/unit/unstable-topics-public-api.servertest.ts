@@ -16,6 +16,7 @@ vi.mock("@langfuse/shared/topics/server", () => mocks);
 const readers = vi.hoisted(() => ({
   listCurrentTopicSummaries: vi.fn(),
   listCurrentTopicAssignments: vi.fn(),
+  getTopicResultCounts: vi.fn(),
 }));
 vi.mock("@langfuse/shared/src/server", async (importOriginal) => ({
   ...(await importOriginal<object>()),
@@ -162,6 +163,35 @@ describe("unstable Topics public API", () => {
       assignment("t4", null),
     ]);
     mocks.getTopicRuns.mockResolvedValue([oldRun]);
+    readers.getTopicResultCounts.mockImplementation(async ({ facets }) =>
+      facets.map(({ facetId }: { facetId: string }) => ({
+        facetId,
+        total: facetId === "issues" ? 7 : 0,
+        usable: 0,
+        awaiting: facetId === "issues" ? 1 : 0,
+        assigned: facetId === "issues" ? 3 : 0,
+        outliers: facetId === "issues" ? 1 : 0,
+        notApplicable: facetId === "issues" ? 1 : 0,
+        insufficientInput: facetId === "issues" ? 1 : 0,
+        topics:
+          facetId === "issues"
+            ? [
+                {
+                  topicId: "timeouts",
+                  topicVersionId: "timeouts-run-2",
+                  runId: "run-2",
+                  count: 2,
+                },
+                {
+                  topicId: "retired",
+                  topicVersionId: "retired-run-1",
+                  runId: "run-1",
+                  count: 1,
+                },
+              ]
+            : [],
+      })),
+    );
   });
 
   it("returns not found for projects without Topics before reading anything", async () => {
@@ -311,14 +341,11 @@ describe("unstable Topics public API", () => {
       page: 1,
       limit: 50,
     });
-    expect(mocks.getLatestFacetSummaries).toHaveBeenCalledTimes(1);
-    expect(mocks.getLatestFacetSummaries).toHaveBeenCalledWith(
+    expect(readers.getTopicResultCounts).toHaveBeenCalledExactlyOnceWith({
       projectId,
-      "issues",
-      undefined,
-      { from: window.fromTimestamp, to: window.toTimestamp },
-      undefined,
-    );
+      window: { from: window.fromTimestamp, to: window.toTimestamp },
+      facets: [{ facetId: "issues", version: 2 }],
+    });
     expect(result.window).toEqual({
       from: window.fromTimestamp,
       to: window.toTimestamp,
@@ -368,7 +395,7 @@ describe("unstable Topics public API", () => {
     });
     expect(filtered.data).toEqual([]);
     expect(filtered.facets).toEqual([]);
-    expect(mocks.getLatestFacetSummaries).toHaveBeenCalledTimes(1);
+    expect(readers.getTopicResultCounts).toHaveBeenCalledTimes(1);
   });
 
   it("rejects windows longer than 93 days", async () => {

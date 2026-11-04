@@ -5,13 +5,15 @@ Topics**. Only platform administrators see or change this personal flag. The
 sidebar, direct page, and Topics API also require deployment enablement and
 project permissions. Processing additionally requires the project allowlist.
 
-- On phones (including touch-screen landscape), `CurrentTopics.tsx` renders `MobileTopicsView`: full-height Topics, Traces, and Visualize panels instead of concurrent split panes. `TopicsMobileControls` keeps facet/view selection in the page; the mobile menu includes automatic processing. Selecting a topic opens its traces; changing visualization opens Visualize. All traces and Unassigned remain reachable without selecting tiny chart marks. Filters stay in `useTopicTraceFilters`, trace selection in project session storage, and panel navigation stays local to the mounted project. No mirrored query state or additional store is needed for these low-frequency interactions. `prepare-topic-display.ts` owns display topics, Unassigned counts, and colors shared with desktop Treemap. `prepare-mobile-topics.ts` adds selection and matching rows; `TopicMobileList` and `TopicMobileTraceList` render explicit props. Trace cards wrap full summaries and use design-system pagination, initially 20 per page. Facet/view controls use the compact design-system SelectInput. Their header and search scroll with the cards so short screens retain access to every row. `MobileTopicVisualization` composes the same `TopicTreemap`, `TopicGrid`, and `TopicEmbeddingMap` renderers as desktop. `prepare-topic-grid.ts` owns the shared grid preparation; parents own chart dimensions. Mobile renderers use `previewOnSelect`: first tap shows persistent hover details, a second tap on the same item selects it and opens Traces. Tapping a different item replaces the preview; tapping empty space dismisses it. Only a trace-list tap opens peek. Map pan/zoom invalidates the preview. Storybook composes the mobile explorer with its facet/view controls; desktop charts retain their stories. The mobile flow shares one page shell across visualizations; chart insets belong inside their visualization, never around the page controls or panel navigation. The flow uses existing view-selection analytics and the same replay-blocked content boundaries; it adds no events for local panel navigation.
+- On phones (including touch-screen landscape), `CurrentTopics.tsx` renders `MobileTopicsView`: full-height Topics, Traces, and Visualize panels instead of concurrent split panes. `TopicsMobileControls` keeps facet/view selection in the page; the mobile menu includes automatic processing. Selecting a topic opens its traces; changing visualization opens Visualize. All traces and Unassigned remain reachable without selecting tiny chart marks. Filters stay in `useTopicTraceFilters`, trace selection in project session storage, and panel navigation stays local to the mounted project. No mirrored query state or additional store is needed for these low-frequency interactions. `prepare-topic-display.ts` owns display topics, Unassigned counts, and colors shared with desktop Treemap. `prepare-mobile-topics.ts` adds selection and the server trace query; `TopicMobileList` and `TopicMobileTraceList` render explicit props. Trace cards wrap full summaries and use design-system pagination, initially 20 per page; reaching the last loaded page fetches the next server page. Facet/view controls use the compact design-system SelectInput. Their header and search scroll with the cards so short screens retain access to every row. `MobileTopicVisualization` composes the same `TopicTreemap`, `TopicGrid`, and `TopicEmbeddingMap` renderers as desktop. `prepare-topic-grid.ts` owns the shared grid preparation; parents own chart dimensions. Mobile renderers use `previewOnSelect`: first tap shows persistent hover details, a second tap on the same item selects it and opens Traces. Tapping a different item replaces the preview; tapping empty space dismisses it. Only a trace-list tap opens peek. Map pan/zoom invalidates the preview. Storybook composes the mobile explorer with its facet/view controls; desktop charts retain their stories. The mobile flow shares one page shell across visualizations; chart insets belong inside their visualization, never around the page controls or panel navigation. The flow uses existing view-selection analytics and the same replay-blocked content boundaries; it adds no events for local panel navigation.
 - `prepare-topics-actions.ts` defines labels, processing status, availability, and callbacks once for the inline header and both overflow menus. The view adapters own menu dismissal and presentation; the page owns dialog lifetimes.
 - `TopicsPage.tsx` owns facet configuration, the execution history drawer,
   the current-results query and facet selection. The header shows the facet
   tabs, then "Visualize as" (`TopicsResultsViewSelect.tsx`) with Treemap
-  (default), Grid and Map, remembered in localStorage; time range and processing
-  actions sit on the right, configuration and history in the overflow menu.
+  (default), Grid and Map, remembered in localStorage; processing actions sit
+  on the right, configuration and history in the overflow menu. The page has no
+  time filter: each facet shows its published map's window, from the map's
+  clustering cohort start to now (the last 7 days without a map).
   `CurrentTopics.tsx` owns the map query (Grid and Map) and trace navigation.
   Treemap sizes one tile per topic by trace count, plus a grey Unassigned tile
   for traces without a topic, traces below; Grid snaps the
@@ -149,14 +151,18 @@ project permissions. Processing additionally requires the project allowlist.
   reserving a footer row. This internal PoC adds no
   analytics events for camera/hover/fullscreen; the entire renderer is blocked
   from session replay. Browser fullscreen denial is expected UI state.
-- `server/currentResults.ts` joins latest per-trace/facet assignments to their
-  exact topic versions, including assignments from older maps. Summary states
-  identify terminal no-topic results. An assignment applies only when its stored
-  summary processing time matches the current summary; a newer usable summary
-  waits for classification and clears the previous displayed membership. Each trace
-  uses its latest processed facet version, even when a newer version has not been
-  processed. Readiness counts include only the current facet version. This view exports
-  no embedding vectors; the scatter remains the latest map's discovery snapshot.
+- `server/currentResults.ts` returns per-facet counts, never per-trace rows:
+  approximate distinct trace counts per topic and status, aggregated in
+  ClickHouse (`getTopicResultCounts`), so the page costs the same for any project
+  size. A trace counts once per topic it was assigned to by a completed run.
+  Traces load page by page through `listTopicTraces` (`topics.traces`), which
+  resolves each trace's exact current result: an assignment applies only when
+  its stored summary processing time matches the current summary, and each trace
+  uses its latest processed facet version. Views receive the list through an
+  injected `useTraces` hook (`useFacetTopicTraces` in the app, static rows in
+  stories). Search matches topic names or an exact trace ID; summary text is not
+  searched. The scatter is the published run's own discovery cohort and does not
+  follow the page window. This view exports no embedding vectors.
 - `server/topicsRouter.ts` owns project authorization and the public result
   contract. The map joins persisted assignment coordinates and summaries by ID
   in the persisted discovery cohort’s order. It returns only map points and counts for

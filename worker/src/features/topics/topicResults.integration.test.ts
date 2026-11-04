@@ -7,6 +7,7 @@ import {
   writeTopicSummaries,
 } from "@langfuse/shared/topics/server";
 import {
+  getTopicResultCounts,
   listCurrentTopicAssignments,
   listCurrentTopicSummaries,
   type TopicResultCondition,
@@ -295,6 +296,40 @@ describe("current Topics summaries and assignments", () => {
     });
     expect(traceIds(last)).toEqual([traces.unpublished]);
     expect(await summaries([], { facetIds: [] })).toEqual({ rows: [] });
+  });
+
+  it("lists unassigned summaries with their current assignment", async () => {
+    const result = await summaries([{ column: "assigned", match: false }], {
+      includeAssignment: true,
+    });
+    expect(
+      result.rows.map((row) => [row.traceId, row.assignment?.status]),
+    ).toEqual([
+      [traces.assigned, "not_applicable"],
+      [traces.stale, "awaiting_map"],
+      [traces.outlier, "outlier"],
+      [traces.insufficient, "insufficient_input"],
+      [traces.unpublished, "awaiting_map"],
+    ]);
+  });
+
+  it("counts traces per facet and topic in the window", async () => {
+    const [issuesCounts, intentCounts] = await getTopicResultCounts({
+      projectId,
+      window,
+      facets: [
+        { facetId: issues, version: 1 },
+        { facetId: intent, version: 1 },
+      ],
+    });
+    expect(issuesCounts).toMatchObject({
+      total: 5,
+      usable: 4,
+      insufficientInput: 1,
+      outliers: 1,
+      topics: [{ topicId: "topic-refunds", count: 2 }],
+    });
+    expect(intentCounts).toMatchObject({ total: 1, notApplicable: 1 });
   });
 
   it("returns short pages with a cursor when the candidate budget runs out", async () => {

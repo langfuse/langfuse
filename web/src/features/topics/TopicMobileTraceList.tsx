@@ -6,14 +6,14 @@ import {
 } from "@/src/components/design-system/PaginationBar/PaginationBar";
 import { formatCompactRelativeTime } from "@/src/utils/dates";
 import { cn } from "@/src/utils/tailwind";
-import { type FacetRow } from "./facet-topics";
+import { type TopicTracesResult } from "./facet-topics";
 
 const PAGE_SIZE = 20;
 
 type TopicMobileTraceListProps = {
   children: ReactNode;
   filterKey: string;
-  rows: FacetRow[];
+  traces: TopicTracesResult;
   selectedTraceId: string | null;
   onOpenTrace: (traceId: string) => void;
 };
@@ -21,10 +21,11 @@ type TopicMobileTraceListProps = {
 export function TopicMobileTraceList({
   children,
   filterKey,
-  rows,
+  traces,
   selectedTraceId,
   onOpenTrace,
 }: TopicMobileTraceListProps) {
+  const { rows } = traces;
   const scrollRef = useRef<HTMLDivElement>(null);
   const selectedRef = useRef<HTMLButtonElement>(null);
   const [pageRequest, setPageRequest] = useState(() => ({
@@ -49,6 +50,8 @@ export function TopicMobileTraceList({
   const pageIndex = Math.min(pageRequest.pageIndex, pageCount - 1);
   const pageRows = rows.slice(pageIndex * pageSize, (pageIndex + 1) * pageSize);
   function changePage(pagination: PaginationBarState) {
+    // Reaching the last loaded page fetches the next server page.
+    if (pagination.pageIndex >= pageCount - 1) traces.loadMore();
     setPageRequest({ filterKey, ...pagination });
     scrollRef.current?.scrollTo({ top: 0 });
   }
@@ -110,7 +113,7 @@ export function TopicMobileTraceList({
         <nav aria-label="Trace pagination" className="shrink-0">
           <PaginationBar
             mode="offset"
-            totalCount={rows.length}
+            totalCount={rows.length + (traces.hasMore ? pageSize : 0)}
             state={{ pageIndex, pageSize }}
             onChange={changePage}
           />

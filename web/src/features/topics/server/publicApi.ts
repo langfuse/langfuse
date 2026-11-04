@@ -345,20 +345,13 @@ async function loadPublicTopics(
         runId: topic.runId,
         traceCount: topic.count,
       }));
-    const count = (outcome: string) =>
-      facet.rows.filter((row) => row.outcome === outcome).length;
+    const { total: _total, ...counts } = facet.counts;
     return {
       summary: {
         facet: ref,
         ruleId,
         publishedRunId: facet.map?.runId ?? null,
-        counts: {
-          assigned: count("assigned"),
-          outlier: count("outlier"),
-          awaitingMap: count("awaiting_map"),
-          notApplicable: count("not_applicable"),
-          insufficientInput: count("insufficient_input"),
-        },
+        counts,
       },
       current,
       retired,

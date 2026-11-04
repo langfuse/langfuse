@@ -5,6 +5,7 @@ import { Button } from "@/src/components/design-system/Button/Button";
 import preview from "../../../.storybook/preview";
 import { MobileTopicsView } from "./MobileTopicsView";
 import { TopicsMobileControls } from "./TopicsMobileControls";
+import { staticTopicTraces, storyFacet } from "./topic-story-traces";
 
 const topics = [
   {
@@ -49,16 +50,16 @@ const rows = [
     unitStartTime: "2026-10-20T12:00:00.000Z",
   },
 ];
-const facet: ComponentProps<typeof MobileTopicsView>["facet"] = {
-  facetId: "intent",
-  name: "Intent",
-  facetVersion: 1,
-  topics,
+const facet = storyFacet(
+  {
+    facetId: "intent",
+    name: "Intent",
+    facetVersion: 1,
+    topics,
+    map: { runId: "run", topics },
+  },
   rows,
-  map: { runId: "run", topics },
-  awaitingCount: 1,
-  usableCount: rows.length,
-};
+);
 const mapResult = {
   error: null,
   data: {
@@ -137,6 +138,8 @@ const defaultArgs: ComponentProps<typeof MobileTopicsView> = {
   onOpenTrace: fn(),
   onGenerateTopics: fn(),
   canGenerateTopics: true,
+  useTraces: staticTopicTraces(rows),
+  showUnassigned: true,
 };
 
 const meta = preview.meta({
@@ -149,12 +152,11 @@ const meta = preview.meta({
 export const Default = meta.story({});
 export const AwaitingTopics = meta.story({
   args: {
-    facet: {
-      ...facet,
-      topics: [],
-      rows: rows.filter((row) => row.topicId === null),
-      map: null,
-    },
+    facet: storyFacet(
+      { ...facet, topics: [], map: null },
+      rows.filter((row) => row.topicId === null),
+    ),
+    useTraces: staticTopicTraces(rows.filter((row) => row.topicId === null)),
   },
 });
 export const BrowseAndOpenTrace = meta.story({
@@ -244,10 +246,7 @@ export const FitFilteredMap = meta.story({
     const [facet, setFacet] = useState(args.facet);
     return (
       <>
-        <Button
-          text="Refresh results"
-          onClick={() => setFacet({ ...facet, rows: [...facet.rows] })}
-        />
+        <Button text="Refresh results" onClick={() => setFacet({ ...facet })} />
         <MobileExample {...args} facet={facet} />
       </>
     );
