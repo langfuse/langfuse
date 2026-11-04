@@ -1,6 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { createSessionCache } from "./customerRoleCredentials";
+import {
+  createSessionCache,
+  FAILURE_BACKOFF_MS,
+  REFRESH_MARGIN_MS,
+} from "./customerRoleCredentials";
 
 const credentials = (expiresInMs: number) => ({
   accessKeyId: `key-${expiresInMs}`,
@@ -19,7 +23,7 @@ describe("createSessionCache", () => {
 
   it("keeps a still-valid session when its refresh fails", async () => {
     const cache = createSessionCache();
-    const expiring = credentials(5 * 60 * 1000);
+    const expiring = credentials(REFRESH_MARGIN_MS / 2);
     await cache("key", "v1", async () => expiring);
 
     const failingRefresh = vi.fn().mockRejectedValue(new Error("Throttling"));
@@ -36,11 +40,11 @@ describe("createSessionCache", () => {
     await expect(cache("key", "v1", assume)).rejects.toThrow("AccessDenied");
     expect(assume).toHaveBeenCalledTimes(1);
 
-    vi.advanceTimersByTime(31 * 1000);
+    vi.advanceTimersByTime(FAILURE_BACKOFF_MS + 1000);
     await expect(cache("key", "v1", assume)).rejects.toThrow("AccessDenied");
     expect(assume).toHaveBeenCalledTimes(2);
 
-    const fixed = credentials(60 * 60 * 1000);
+    const fixed = credentials(REFRESH_MARGIN_MS * 6);
     await expect(cache("key", "v2", async () => fixed)).resolves.toBe(fixed);
   });
 });

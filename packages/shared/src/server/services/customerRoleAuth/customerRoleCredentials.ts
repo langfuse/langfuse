@@ -9,9 +9,18 @@ type TemporaryCredentials = Awaited<
 
 // Role chaining caps sessions at one hour.
 const SESSION_DURATION_SECONDS = 3600;
-const REFRESH_MARGIN_MS = 10 * 60 * 1000;
+export const REFRESH_MARGIN_MS = 10 * 60 * 1000;
 const MAX_CACHED_SESSIONS = 10_000;
-const FAILURE_BACKOFF_MS = 30 * 1000;
+export const FAILURE_BACKOFF_MS = 30 * 1000;
+
+// A stalled STS call would otherwise hold the shared in-flight refresh forever.
+const STS_CLIENT_CONFIG = {
+  requestHandler: {
+    connectionTimeout: 3_000,
+    requestTimeout: 10_000,
+    throwOnRequestTimeout: true,
+  },
+};
 
 export function generateCustomerRoleExternalId() {
   return `lf-${randomBytes(16).toString("hex")}`;
@@ -48,27 +57,17 @@ type CacheEntry = {
 export function createSessionCache() {
   const entries = new Map<string, CacheEntry>();
 
-  return async (
-    key: string,
-    version: string,
-    assume: () => Promise<TemporaryCredentials>,
-  ) => {
-    const entry = entries.get(key);
-    const current = entry?.version === version ? entry : undefined;
-    const valid =
-      current?.credentials && !isExpired(current.credentials)
-        ? current.credentials
-        : undefined;
-    if (valid && !needsRefresh(valid)) {
-      return valid;
-    }
-    if (current?.inFlight) {
-      return valid ?? current.inFlight;
-    }
-    if (!valid && current?.failure && Date.now() < current.failure.retryAfter) {
-      throw current.failure.error;
-    }
-
+  const startRefresh = ({
+    key,
+    version,
+    valid,
+    assume,
+  }: {
+    key: string;
+    version: string;
+    valid: TemporaryCredentials | undefined;
+    assume: () => Promise<TemporaryCredentials>;
+  }) => {
     const inFlight = assume().then(
       (credentials) => {
         if (entries.get(key)?.inFlight === inFlight) {
@@ -89,15 +88,45 @@ export function createSessionCache() {
     );
     // Callers served from the still-valid session do not await the refresh.
     inFlight.catch(() => {});
+    return inFlight;
+  };
 
+  const store = (key: string, entry: CacheEntry) => {
     entries.delete(key);
     if (entries.size >= MAX_CACHED_SESSIONS) {
       const oldestKey = entries.keys().next().value;
       if (oldestKey !== undefined) entries.delete(oldestKey);
     }
-    entries.set(key, { version, credentials: valid, inFlight });
+    entries.set(key, entry);
+  };
+
+  return async (
+    key: string,
+    version: string,
+    assume: () => Promise<TemporaryCredentials>,
+  ) => {
+    const entry = entries.get(key);
+    const current = entry?.version === version ? entry : undefined;
+    const valid = getValidCredentials(current);
+
+    if (valid && !needsRefresh(valid)) return valid;
+    if (current?.inFlight) return valid ?? current.inFlight;
+    if (!valid && isBackingOff(current)) throw current?.failure?.error;
+
+    const inFlight = startRefresh({ key, version, valid, assume });
+    store(key, { version, credentials: valid, inFlight });
     return valid ?? inFlight;
   };
+}
+
+function getValidCredentials(entry: CacheEntry | undefined) {
+  return entry?.credentials && !isExpired(entry.credentials)
+    ? entry.credentials
+    : undefined;
+}
+
+function isBackingOff(entry: CacheEntry | undefined) {
+  return entry?.failure !== undefined && Date.now() < entry.failure.retryAfter;
 }
 
 const accessRoleSessions = createSessionCache();
@@ -123,6 +152,7 @@ function getAccessRoleCredentials(accessRoleArn: string) {
         RoleSessionName: "langfuse-customer-role",
         DurationSeconds: SESSION_DURATION_SECONDS,
       },
+      clientConfig: STS_CLIENT_CONFIG,
     })(),
   ).catch((error: unknown) => {
     const reason = error instanceof Error ? error.name : "UnknownError";
@@ -189,6 +219,7 @@ export function getCustomerRoleCredentialsProvider({
       return fromTemporaryCredentials({
         masterCredentials: () => getAccessRoleCredentials(accessRoleArn),
         params: params(externalId),
+        clientConfig: STS_CLIENT_CONFIG,
       })();
     });
 }
@@ -222,6 +253,7 @@ async function verifyRoleRequiresExternalId(
     await fromTemporaryCredentials({
       masterCredentials: accessRoleCredentials,
       params,
+      clientConfig: STS_CLIENT_CONFIG,
     })();
   } catch (error) {
     if (isAccessDeniedError(error)) return;
