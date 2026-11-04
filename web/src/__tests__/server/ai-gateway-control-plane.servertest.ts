@@ -1260,6 +1260,42 @@ describe("AI gateway control plane", () => {
     });
   });
 
+  it("rejects analytics queries from another organization and from members without gateway:invoke", async () => {
+    const owner = await prepare();
+    const other = await prepare();
+    await owner.caller.aiGateway.updateConfig({
+      orgId: owner.org.id,
+      defaultIngestionProjectId: owner.project.id,
+      ingestionMode: "USAGE",
+    });
+    const viewer = await createCallerForOrganizationRole(owner, Role.VIEWER);
+    const request = {
+      orgId: owner.org.id,
+      query: {
+        view: "observations",
+        dimensions: [],
+        metrics: [{ measure: "count", aggregation: "count" }],
+        filters: [],
+        timeDimension: null,
+        fromTimestamp: new Date(Date.now() - 86400000).toISOString(),
+        toTimestamp: new Date(Date.now() + 86400000).toISOString(),
+        orderBy: null,
+      },
+    } satisfies Parameters<
+      typeof owner.caller.aiGateway.executeAnalyticsQuery
+    >[0];
+
+    await expect(
+      other.caller.aiGateway.executeAnalyticsQuery(request),
+    ).rejects.toMatchObject({
+      code: "UNAUTHORIZED",
+      message: "User is not a member of this organization",
+    });
+    await expect(
+      viewer.aiGateway.executeAnalyticsQuery(request),
+    ).rejects.toMatchObject({ code: "FORBIDDEN" });
+  });
+
   // v2 reads events_core/events_full, which only exist on a v4 deployment.
   const itWithEventsTable =
     env.LANGFUSE_MIGRATION_V4_ALLOW_PREVIEW_OPT_IN === "true" ? it : it.skip;

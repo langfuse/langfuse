@@ -234,7 +234,10 @@ export default defineConfig({
           include: ["src/**/*.clienttest.{ts,tsx}"],
           exclude: sharedExclude,
           environment: "jsdom",
-          setupFiles: ["@testing-library/jest-dom/vitest"],
+          setupFiles: [
+            "@testing-library/jest-dom/vitest",
+            "./src/__tests__/flush-focus-scope-timers.ts",
+          ],
         },
       },
       serverProject("server", sharedContextServerTestFiles, {
