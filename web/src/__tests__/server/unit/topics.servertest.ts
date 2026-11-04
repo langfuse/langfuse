@@ -165,6 +165,7 @@ const run = {
       radius: 0.2,
       centroid: [0.1, 0.9],
       representativeSummaries: [],
+      metadata: {},
     },
   ],
 };
