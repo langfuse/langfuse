@@ -26,7 +26,7 @@ const PEEK_VIEW_EXPANDED = "expanded";
 
 type PeekViewItemType = Extract<
   LangfuseItemType,
-  "TRACE" | "DATASET_ITEM" | "RUNNING_EVALUATOR" | "EVALUATOR"
+  "TRACE" | "SESSION" | "DATASET_ITEM" | "RUNNING_EVALUATOR" | "EVALUATOR"
 >;
 
 /**
@@ -82,6 +82,8 @@ type TablePeekViewProps = Pick<
   | "isV4"
 > & {
   title?: string;
+  /** Replaces the entity icon immediately before the title. */
+  titleTabs?: React.ComponentProps<typeof PeekHeader>["titleTabs"];
   defaultWidthTarget?: HTMLElement | null;
   widthStorageKey?: string;
   /**
@@ -282,6 +284,7 @@ function TablePeekViewComponent(props: TablePeekViewProps) {
     <PeekHeader
       itemType={props.itemType}
       title={resolvedTitle}
+      titleTabs={props.titleTabs}
       itemId={itemId}
       detailNavigationKey={props.detailNavigationKey}
       resolveDetailNavigationPath={props.resolveDetailNavigationPath}
