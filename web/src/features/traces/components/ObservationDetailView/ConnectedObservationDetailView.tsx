@@ -273,8 +273,14 @@ export function ConnectedObservationDetailView({
       ),
     [corrections, traceId, observation.id],
   );
+  // Trace-level CORRECTIONs (null observationId) — do not merge into obs list.
+  const traceCorrections = useMemo(
+    () => corrections.filter((c) => !c.observationId),
+    [corrections],
+  );
 
   const outputCorrection = getMostRecentCorrection(observationCorrections);
+  const traceOutputCorrection = getMostRecentCorrection(traceCorrections);
 
   // Fetch and parse observation input/output in background (Web Worker)
   // This combines tRPC fetch + non-blocking JSON parsing
@@ -505,6 +511,7 @@ export function ConnectedObservationDetailView({
                       }
                     : undefined,
                   outputCorrection,
+                  traceOutputCorrection,
                   metadata: observationWithIOCompat.data?.metadata ?? undefined,
                   parsedInput,
                   parsedOutput,

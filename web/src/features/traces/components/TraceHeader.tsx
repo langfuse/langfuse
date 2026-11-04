@@ -16,6 +16,7 @@ import { treemapBadgeColor } from "@/src/features/topics/topic-map-colors";
 
 import { useMemo } from "react";
 
+import { CorrectedPresenceBadge } from "@/src/features/traces/components/CorrectedPresenceBadge";
 import { useTraceData } from "@/src/features/traces/contexts/TraceDataProvider";
 import { aggregateTraceMetrics } from "@/src/features/traces/fns/traceAggregation";
 import { useTraceTopicFacets } from "@/src/features/topics/trace/useTraceTopicFacets";
@@ -55,6 +56,7 @@ function LoadedTraceHeader({
     trace,
     observations,
     mergedScores,
+    corrections,
     sessionTraces,
     isPlaceholderData,
   } = useTraceData();
@@ -197,6 +199,13 @@ function LoadedTraceHeader({
             `score ${score.name} ${score.stringValue ?? score.value ?? "—"}`,
         )
         .join(" "),
+    });
+  // CORRECTIONs stay out of mergedScores; presence comes from corrections only.
+  if (corrections.some((correction) => !correction.observationId))
+    metrics.push({
+      id: "corrected",
+      type: "correction",
+      searchText: "corrected",
     });
   tags.forEach((tag, index) =>
     metrics.push({

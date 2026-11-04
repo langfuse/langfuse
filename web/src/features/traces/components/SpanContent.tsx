@@ -30,9 +30,13 @@ import {
   isEmphasizedShare,
   type MetricEmphasisContext,
 } from "@/src/features/traces/fns/metricEmphasis";
+import { CorrectedPresenceBadge } from "@/src/features/traces/components/CorrectedPresenceBadge";
 import { useViewPreferences } from "@/src/features/traces/contexts/ViewPreferencesProvider";
 import { useTraceData } from "@/src/features/traces/contexts/TraceDataProvider";
-import { selectNodeScores } from "@/src/features/traces/fns/nodeScores";
+import {
+  selectNodeCorrections,
+  selectNodeScores,
+} from "@/src/features/traces/fns/nodeScores";
 
 interface SpanContentProps {
   node: TreeNode;
@@ -75,7 +79,7 @@ function LoadedSpanContent({
   onHover,
   className,
 }: SpanContentProps) {
-  const { mergedScores } = useTraceData();
+  const { mergedScores, corrections } = useTraceData();
   const { showDuration, showCostTokens, showScores, showComments } =
     useViewPreferences();
 
@@ -115,6 +119,13 @@ function LoadedSpanContent({
     node.observationId ?? node.id,
   ).filter((score) => !node.traceId || score.traceId === node.traceId);
   const shouldRenderScores = showScores && nodeScores.length > 0;
+  // Obs-scoped CORRECTIONs only — never null-obs (those stay on TraceHeader).
+  // Session rows qualify `node.id`; the score's observationId is the real one.
+  const nodeHasCorrection =
+    showScores &&
+    selectNodeCorrections(corrections, node.observationId ?? node.id).some(
+      (correction) => !node.traceId || correction.traceId === node.traceId,
+    );
 
   const nodeDisplayName = node.name || `Unnamed ${node.type.toLowerCase()}`;
 
@@ -154,7 +165,9 @@ function LoadedSpanContent({
         </div>
 
         {/* Metrics and scores row */}
-        {(shouldRenderAnyMetrics || shouldRenderScores) && (
+        {(shouldRenderAnyMetrics ||
+          shouldRenderScores ||
+          nodeHasCorrection) && (
           <div className="flex min-w-0 flex-wrap items-center gap-x-3 font-mono">
             {/* Duration (own span) */}
             {shouldRenderDuration ? (
@@ -198,10 +211,13 @@ function LoadedSpanContent({
             ) : null}
 
             {/* Scores: one badge inline; the rest roll into a "+N" pill that
-                opens a table of all scores. */}
-            {shouldRenderScores && (
+                opens a table of all scores. Correction presence sits beside. */}
+            {(shouldRenderScores || nodeHasCorrection) && (
               <span className="flex min-w-0 items-center gap-1">
-                <GroupedScoreBadges maxVisible={1} scores={nodeScores} />
+                {shouldRenderScores && (
+                  <GroupedScoreBadges maxVisible={1} scores={nodeScores} />
+                )}
+                {nodeHasCorrection && <CorrectedPresenceBadge />}
               </span>
             )}
           </div>
