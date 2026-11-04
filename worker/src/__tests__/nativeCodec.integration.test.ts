@@ -1,4 +1,5 @@
 import { randomInt, randomUUID } from "node:crypto";
+import { readFileSync } from "node:fs";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import fc, { type Arbitrary } from "fast-check";
 import { PreparedEvent } from "@langfuse/native";
@@ -13,6 +14,7 @@ import { capturedPreparedRows } from "./helpers/nativeCodecFixtures";
 
 type Row = Record<string, unknown>;
 type Column = { name: string; type: string; default_kind: string };
+const eventSizeRelativeTolerance = 0.05;
 
 // The explicit CI/package command requires ClickHouse. Both branches use the production
 // writer; Native rows cross the real NAPI boundary as JS objects, without a JSON test driver.
@@ -20,6 +22,7 @@ describe.runIf(
   process.env.LANGFUSE_NATIVE_FAIL_IF_CLICKHOUSE_UNAVAILABLE === "1",
 )("TypeScript and Rust Native writer parity", () => {
   let columns: Column[];
+  let sizeColumns: string;
   const client = clickhouseClient();
 
   beforeAll(async () => {
@@ -31,11 +34,17 @@ describe.runIf(
     columns = await result.json<Column>();
     expect(columns.length).toBeGreaterThan(0);
     // Names and types come from the same Rust declaration as JS reads and column writes.
-    // Check the full insertable set, including columns that captured traffic omits.
+    // Check all application-owned columns, including those captured traffic omits.
     const liveColumns = columns.filter(
-      (column) => !["MATERIALIZED", "ALIAS"].includes(column.default_kind),
+      (column) =>
+        !["MATERIALIZED", "ALIAS"].includes(column.default_kind) &&
+        column.name !== "event_bytes",
     );
     const nativeColumns = PreparedEvent.columns();
+    sizeColumns = liveColumns.map((column) => column.name).join(", ");
+    expect(
+      columns.find((column) => column.name === "event_bytes")?.default_kind,
+    ).toBe("DEFAULT");
     expect(
       nativeColumns
         .map((column) => [column.name, normalizeType(column.columnType)])
@@ -55,6 +64,62 @@ describe.runIf(
 
   afterAll(async () => {
     await client.close();
+  });
+
+  it("migrates omitted sizes while preserving historical and explicit legacy values", async () => {
+    const table = `native_codec_migration_${randomUUID().replaceAll("-", "")}`;
+    const migrate = (direction: "up" | "down") =>
+      client.command({
+        query: readFileSync(
+          new URL(
+            `../../../packages/shared/clickhouse/migrations/canonical/0056_compute_event_bytes.${direction}.sql`,
+            import.meta.url,
+          ),
+          "utf8",
+        )
+          .replace("events_full {CLICKHOUSE_CLUSTER_CLAUSE}", table)
+          .replace("{CLICKHOUSE_CLUSTERED_ONLY:, alter_sync = 2}", ""),
+      });
+    const insert = (span_id: string, event_bytes?: number) =>
+      client.insert({
+        table,
+        format: "JSONEachRow",
+        values: [
+          { project_id: "migration", span_id, input: "café 🔥", event_bytes },
+        ],
+      });
+    try {
+      await client.command({
+        query: `CREATE TABLE ${table} AS events_full ENGINE=Memory`,
+      });
+      await client.command({
+        query: `ALTER TABLE ${table} MODIFY COLUMN event_bytes REMOVE DEFAULT`,
+      });
+      await insert("historical", 123);
+      await migrate("up");
+      await migrate("up");
+      await insert("legacy", 456);
+      await insert("server");
+      await migrate("down");
+      await migrate("down");
+      await insert("rollback");
+      const result = await client.query({
+        query: `SELECT span_id, toString(event_bytes) AS bytes FROM ${table} ORDER BY span_id`,
+        format: "JSONEachRow",
+      });
+      const rows = await result.json<{ span_id: string; bytes: string }>();
+      const sizes = Object.fromEntries(
+        rows.map((row) => [row.span_id, row.bytes]),
+      );
+      expect(sizes).toMatchObject({
+        historical: "123",
+        legacy: "456",
+        rollback: "0",
+      });
+      expect(Number(sizes.server)).toBeGreaterThan(0);
+    } finally {
+      await client.command({ query: `DROP TABLE IF EXISTS ${table}` });
+    }
   });
 
   const write = async (
@@ -115,6 +180,7 @@ describe.runIf(
   };
 
   const compare = async (rows: Row[], maxRows: number) => {
+    rows = rows.map(({ event_bytes: _eventBytes, ...row }) => row);
     const suffix = randomUUID().replaceAll("-", "");
     const jsonTable = `native_codec_json_${suffix}`;
     const nativeTable = `native_codec_native_${suffix}`;
@@ -140,6 +206,7 @@ describe.runIf(
           (SELECT count() FROM ${nativeTable}) AS native_count,
           (SELECT count() FROM (${select(jsonTable)} EXCEPT ALL ${select(nativeTable)})) AS json_only,
           (SELECT count() FROM (${select(nativeTable)} EXCEPT ALL ${select(jsonTable)})) AS native_only,
+          (SELECT max(abs(toFloat64(event_bytes) / byteSize(${sizeColumns}) - 1)) FROM ${nativeTable}) AS size_relative_error,
           (SELECT toString(sum(event_bytes)) FROM ${nativeTable}) AS native_bytes
           SETTINGS asterisk_include_materialized_columns=1, asterisk_include_alias_columns=1`,
         format: "JSONEachRow",
@@ -161,9 +228,10 @@ describe.runIf(
       }
       expect(Number(result.json_only)).toBe(0);
       expect(Number(result.native_only)).toBe(0);
-      expect(BigInt(result.native_bytes)).toBe(
-        rows.reduce((sum, row) => sum + BigInt(row.event_bytes as number), 0n),
+      expect(Number(result.size_relative_error)).toBeLessThanOrEqual(
+        eventSizeRelativeTolerance,
       );
+      expect(BigInt(result.native_bytes)).toBeGreaterThan(0n);
     } finally {
       for (const table of [jsonTable, nativeTable]) {
         await client.command({ query: `DROP TABLE IF EXISTS ${table}` });
@@ -187,7 +255,19 @@ describe.runIf(
       output: 0.0024,
       total: 0.00387,
     });
-    await compare(rows, 16);
+    const [base] = rows;
+    const large = "x".repeat(16 * 1024);
+    await compare(
+      [
+        ...rows,
+        { ...base, input: large },
+        { ...base, output: large },
+        { ...base, metadata_names: ["payload"], metadata_values: [large] },
+        { ...base, tool_definitions: { tool: large } },
+        { ...base, experiment_item_expected_output: large },
+      ],
+      16,
+    );
   }, 120_000);
 
   // Vitest retries must exercise the same generated cases after a failure.

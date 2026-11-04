@@ -46,7 +46,7 @@ describe("IngestionService unit tests", () => {
     mocks.validateAndInflateScoreOverride = undefined;
   });
 
-  it("writes the final serialized event size instead of the raw OTEL span size", async () => {
+  it("leaves final event accounting to ClickHouse without serializing the row", async () => {
     const addToQueue = vi.fn();
     const ingestionService = new IngestionService(
       {} as any,
@@ -77,19 +77,19 @@ describe("IngestionService unit tests", () => {
 
     expect(eventRecord.event_bytes).toBe(rawOtelSpanBytes);
 
-    const acceptedBytes = await ingestionService.writeEventRecord(eventRecord);
+    const stringify = vi.spyOn(JSON, "stringify");
+    try {
+      await ingestionService.writeEventRecord(eventRecord);
+      expect(stringify).not.toHaveBeenCalled();
+    } finally {
+      stringify.mockRestore();
+    }
 
     expect(addToQueue).toHaveBeenCalledOnce();
     const queuedRecord = addToQueue.mock.calls[0]?.[1];
-    const { event_bytes: eventBytes, ...eventWithoutSize } = queuedRecord;
-
     expect(queuedRecord).not.toBe(eventRecord);
     expect(eventRecord.event_bytes).toBe(rawOtelSpanBytes);
-    expect(eventBytes).toBe(
-      Buffer.byteLength(JSON.stringify(eventWithoutSize), "utf8"),
-    );
-    expect(eventBytes).toBeLessThan(rawOtelSpanBytes);
-    expect(acceptedBytes).toBe(eventBytes);
+    expect(queuedRecord).not.toHaveProperty("event_bytes");
   });
 
   describe("AI gateway attribution", () => {
@@ -201,7 +201,8 @@ describe("IngestionService unit tests", () => {
       ],
     });
 
-    const acceptedBytes = await ingestionService.writeEventRecord(eventRecord);
+    const persistedRecord =
+      await ingestionService.writeEventRecord(eventRecord);
 
     expect(mocks.applyObservationFieldOverflow).toHaveBeenCalledWith(
       eventRecord,
@@ -214,12 +215,7 @@ describe("IngestionService unit tests", () => {
       metadata_names: ["keep", "large.nested"],
       metadata_values: ["small", expect.stringContaining("metadata-media")],
     });
-    const { event_bytes: eventBytes, ...eventWithoutSize } =
-      addToQueue.mock.calls[0]![1];
-    expect(acceptedBytes).toBe(eventBytes);
-    expect(acceptedBytes).toBe(
-      Buffer.byteLength(JSON.stringify(eventWithoutSize), "utf8"),
-    );
+    expect(persistedRecord).toBe(addToQueue.mock.calls[0]![1]);
   });
 
   it("promotes provided usage and cost for model-less direct events", async () => {

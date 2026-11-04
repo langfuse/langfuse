@@ -455,8 +455,11 @@ function expectSdkMetadataExpansion(
     );
     row.event_bytes =
       Number(row.event_bytes) +
-      Buffer.byteLength(JSON.stringify(values)) -
-      Buffer.byteLength(JSON.stringify(row.metadata_values));
+      values.reduce((sum, value) => sum + Buffer.byteLength(value), 0) -
+      (row.metadata_values as string[]).reduce(
+        (sum, value) => sum + Buffer.byteLength(value),
+        0,
+      );
     row.metadata_values = values;
   }
   for (const row of Object.values(expected.legacyRows ?? {}).flat()) {

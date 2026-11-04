@@ -47,6 +47,9 @@
 - `ClickhouseWriter.getInstance()` queues JSON rows; `getNativeInstance()` queues
   opaque `PreparedEvent` handles for `events_full`. Use `shutdownAll()` to drain
   both singletons.
+  `IngestionService.writeEventRecord()` returns the accepted post-overflow row
+  without `event_bytes`; ClickHouse computes it. Trace-batch intake separately
+  measures JSON size only when enabled, to preserve its read-capacity guard.
 - Rust addon (`@langfuse/native`): telemetry init and the startup hello call live in `src/initialize.ts`, the health probe call in `src/api/index.ts`. Native code records its own metrics and logs; see `../packages/native/AGENTS.md`.
 - Tests: `src/__tests__/*`, `src/queues/__tests__/*`
 - Direct-event replay: `pnpm --filter worker run test:otel-replay` compares the

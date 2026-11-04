@@ -125,22 +125,6 @@ type PricingTierMatchAttributeValues = {
   metadata?: unknown;
 };
 
-/**
- * Returns a new event record whose `event_bytes` value is the UTF-8 size of
- * the final JSONEachRow payload, excluding the self-referential accounting
- * field. The supplied record is not mutated.
- */
-function withSerializedEventByteLength(
-  eventRecord: EventRecordInsertType,
-): EventRecordInsertType {
-  const { event_bytes: _eventBytes, ...eventWithoutSize } = eventRecord;
-
-  return {
-    ...eventWithoutSize,
-    event_bytes: Buffer.byteLength(JSON.stringify(eventWithoutSize), "utf8"),
-  };
-}
-
 const immutableEntityKeys: {
   [TableName.Traces]: (keyof TraceRecordInsertType)[];
   [TableName.Scores]: (keyof ScoreRecordInsertType)[];
@@ -501,22 +485,20 @@ export class IngestionService {
    * not use field overflow.
    * Use createEventRecord() first to get the record, then call this to write.
    *
-   * Enqueues a new record whose `event_bytes` describes the final normalized
-   * event rather than the raw OTEL span measured before media processing. The
-   * supplied record is not mutated.
+   * ClickHouse computes event_bytes from the final stored row. The supplied
+   * record is not mutated, and its raw OTEL size is not sent to ClickHouse.
    *
    * @param eventRecord - The event record to write
-   * @returns The serialized byte size of the accepted event record
+   * @returns The accepted post-overflow row, for trace-batch capacity estimates
    */
   public async writeEventRecord(
     eventRecord: EventRecordInsertType,
-  ): Promise<number> {
-    const persistedRecord = withSerializedEventByteLength(
-      await applyObservationFieldOverflow(eventRecord),
-    );
+  ): Promise<EventRecordInsertType> {
+    const { event_bytes: _eventBytes, ...persistedRecord } =
+      await applyObservationFieldOverflow(eventRecord);
 
     this.clickHouseWriter.addToQueue(TableName.EventsFull, persistedRecord);
-    return persistedRecord.event_bytes;
+    return persistedRecord;
   }
 
   private async processDatasetRunItemEventList(params: {

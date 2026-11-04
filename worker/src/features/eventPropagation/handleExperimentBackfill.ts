@@ -669,7 +669,8 @@ function writeEnrichedSpans(spans: EnrichedSpan[]): void {
 
   const clickhouseWriter = ClickhouseWriter.getInstance();
   for (const record of convertEnrichedSpansToEventRecords(spans)) {
-    clickhouseWriter.addToQueue(TableName.EventsFull, record);
+    const { event_bytes: _eventBytes, ...persistedRecord } = record;
+    clickhouseWriter.addToQueue(TableName.EventsFull, persistedRecord);
   }
 
   logger.info(

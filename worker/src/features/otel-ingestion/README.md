@@ -3,6 +3,7 @@
 Run the OTEL replay suites against an isolated ClickHouse table:
 
 ```sh
+pnpm --filter worker run build
 pnpm --filter worker run test:otel-replay
 ```
 
@@ -58,3 +59,32 @@ preserve the raw object bytes, then replay against local services with an
 explicit routing/configuration context. Running from a bastion is compatible
 with that model, but pointing this test command at production databases or
 queues is not.
+
+## Persisted event size
+
+`events_full.event_bytes` is ClickHouse's `byteSize(...)` estimate of the final
+typed row after media extraction and field overflow. Migration 0056 explicitly
+lists all application-owned columns, excluding `event_bytes` itself, aliases
+and other materialized derivatives. This is a stable estimate, not a requirement
+to track every column addition. Include fields expected to hold large payloads
+through a new migration if their omission materially affects the estimate.
+ClickHouse rejects `*` and `COLUMNS()` in column DEFAULT expressions. Native CI
+compares the estimate with the live row's typed size, allowing 5% drift, using
+captured, generated and payload-heavy rows. Strings count UTF-8 bytes plus ClickHouse's
+in-memory overhead; maps, arrays, tuples and numeric values use their typed
+sizes. This is indicative uncompressed volume, not JSON serialization length or
+compressed disk usage. The core and billing materialized views carry the full-row
+value, even when core truncates input/output/metadata.
+
+Deploy the migration before writers that omit `event_bytes`. The DEFAULT accepts
+explicit values from older workers during a rolling deployment; those rows
+retain the old metric until every writer is upgraded. No existing parts are
+materialized or backfilled. To roll back, restore older writers before resetting
+the default to zero. Staging propagation also omits the column so the calculation
+sees the joined v4 row rather than the staging/trace inputs. Live experiment
+propagation also uses this default; historical backfill writers keep their
+existing accounting behavior.
+
+Raw ingress limits and byte-length telemetry remain pre-media measurements.
+Trace-batch intake keeps its own JSON size estimate for read-capacity guards,
+computed only when intake is enabled.

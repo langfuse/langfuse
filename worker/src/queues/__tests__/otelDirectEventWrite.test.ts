@@ -465,7 +465,11 @@ describe("direct-v4 trace batch tracking", () => {
         .spyOn(IngestionService.prototype, "writeEventRecord")
         .mockImplementation(async (record) => {
           if (record.span_id === "third") throw new Error("write rejected");
-          return record.span_id === "first" ? 101 : 202;
+          return {
+            ...record,
+            event_bytes: undefined,
+            input: "post-overflow 🔥",
+          };
         });
       const processor = otelIngestionQueueProcessorBuilder(false);
       const job = {
@@ -502,7 +506,12 @@ describe("direct-v4 trace batch tracking", () => {
         inputs.slice(0, 2).map(({ traceId, startTimeISO }, index) => ({
           traceId,
           startTimeISO,
-          serializedEventBytes: index === 0 ? 101 : 202,
+          serializedEventBytes: Buffer.byteLength(
+            JSON.stringify({
+              span_id: inputs[index].spanId,
+              input: "post-overflow 🔥",
+            }),
+          ),
         })),
       );
 

@@ -283,7 +283,7 @@ clickhouse client \
                       experiment_metadata_names, experiment_metadata_values,
                       experiment_item_metadata_names, experiment_item_metadata_values,
                       experiment_item_root_span_id,
-                      source, blob_storage_file_path, event_bytes,
+                      source, blob_storage_file_path,
                       created_at, updated_at, event_ts, is_deleted,
                       ingestion_api_key, ingestion_sdk_name, ingestion_sdk_version)
   SELECT o.project_id,
@@ -341,7 +341,6 @@ clickhouse client \
          if(dri.dataset_run_id != '', o.id, '')                                          AS experiment_item_root_span_id,
          multiIf(dri.dataset_run_id != '', 'ingestion-api-dual-write-experiments', mapContains(o.metadata, 'resourceAttributes'), 'otel-dual-write', 'ingestion-api-dual-write') AS source,
          ''                                                                              AS blob_storage_file_path,
-         byteSize(*)                                                                     AS event_bytes,
          o.created_at,
          o.updated_at,
          o.event_ts,
@@ -369,7 +368,7 @@ clickhouse client \
                       experiment_metadata_names, experiment_metadata_values,
                       experiment_item_metadata_names, experiment_item_metadata_values,
                       experiment_item_root_span_id,
-                      source, blob_storage_file_path, event_bytes,
+                      source, blob_storage_file_path,
                       created_at, updated_at, event_ts, is_deleted,
                       ingestion_api_key, ingestion_sdk_name, ingestion_sdk_version)
   SELECT t.project_id,
@@ -416,7 +415,6 @@ clickhouse client \
          if(dri.dataset_run_id != '', concat('t-', t.id), '')                            AS experiment_item_root_span_id,
          multiIf(dri.dataset_run_id != '', 'ingestion-api-dual-write-experiments', mapContains(t.metadata, 'resourceAttributes'), 'otel-dual-write', 'ingestion-api-dual-write') AS source,
          ''                                                                              AS blob_storage_file_path,
-         byteSize(*)                                                                     AS event_bytes,
          t.created_at,
          t.updated_at,
          t.event_ts,

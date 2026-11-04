@@ -213,13 +213,17 @@ export async function processOtelEvents({
       // Step 3: Write to events table (independent of eval scheduling)
       if (shouldWriteToEventsTable) {
         try {
-          const serializedEventBytes =
+          const persistedRecord =
             await ingestionService.writeEventRecord(eventRecord);
           if (isLegacyTopicsBatchingEnabled()) {
             legacyTopicsBatchEvents.push({
               traceId: eventInput.traceId,
               startTimeISO: eventInput.startTimeISO,
-              serializedEventBytes,
+              // This guards trace-read capacity independently of billing size.
+              serializedEventBytes: Buffer.byteLength(
+                JSON.stringify(persistedRecord),
+                "utf8",
+              ),
             });
           }
           // Record activity only after the event writer accepts the span.

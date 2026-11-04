@@ -5,12 +5,15 @@ import {
   describe,
   expect,
   it,
+  vi,
   type TestContext,
 } from "vitest";
 import waitForExpect from "wait-for-expect";
 import {
   clickhouseClient,
   createObservation,
+  createDatasetRunItem,
+  createDatasetRunItemsCh,
   createOrgProjectAndApiKey,
   createTrace,
   createTracesCh,
@@ -19,7 +22,8 @@ import {
   toClickhouseDateTime,
 } from "@langfuse/shared/src/server";
 import { handleEventPropagationJob } from "../features/eventPropagation/handleEventPropagationJob";
-import { TableName } from "../services/ClickhouseWriter";
+import { runExperimentBackfill } from "../features/eventPropagation/handleExperimentBackfill";
+import { ClickhouseWriter, TableName } from "../services/ClickhouseWriter";
 import { skipUnlessClickhouseTablesExist } from "./helpers/clickhouseTables";
 
 const LAST_PROCESSED_PARTITION_KEY =
@@ -63,6 +67,65 @@ describe("handleEventPropagationJob", () => {
       );
     }
   });
+
+  it("computes event size for live experiment propagation", async (ctx) => {
+    await skipUnlessEventPropagationTablesExist(ctx);
+    const projectId = randomUUID();
+    const traceId = randomUUID();
+    const cursorKey = "langfuse:event-propagation:experiment-backfill:last-run";
+    const lockKey = "langfuse:experiment-backfill:lock";
+    const createdAt = Date.now() - 120_000;
+    const get = redis!.get.bind(redis!);
+    const set = redis!.set.bind(redis!);
+    const getSpy = vi
+      .spyOn(redis!, "get")
+      .mockImplementation((...args) =>
+        args[0] === cursorKey
+          ? Promise.resolve(new Date(createdAt - 600_000).toISOString())
+          : get(...args),
+      );
+    const setSpy = vi.spyOn(redis!, "set").mockImplementation((...args) => {
+      if (args[0] === cursorKey) {
+        return Promise.resolve(args.some((arg) => arg === "NX") ? null : "OK");
+      }
+      return args[0] === lockKey ? Promise.resolve("OK") : set(...args);
+    });
+    try {
+      await createTracesCh([
+        createTrace({
+          project_id: projectId,
+          id: traceId,
+          timestamp: createdAt,
+          input: "experiment input 🔥",
+          created_at: createdAt,
+        }),
+      ]);
+      await createDatasetRunItemsCh([
+        createDatasetRunItem({
+          project_id: projectId,
+          trace_id: traceId,
+          created_at: createdAt,
+        }),
+      ]);
+      await runExperimentBackfill();
+      await ClickhouseWriter.shutdownAll();
+      const rows = await queryClickhouse<{
+        bytes: string;
+        experiment_id: string;
+      }>({
+        query: `SELECT toString(event_bytes) AS bytes, experiment_id FROM events_full
+          WHERE project_id = {projectId: String} AND trace_id = {traceId: String}`,
+        params: { projectId, traceId },
+      });
+      expect(rows).toHaveLength(1);
+      expect(rows[0].experiment_id).not.toBe("");
+      expect(Number(rows[0].bytes)).toBeGreaterThan(0);
+    } finally {
+      getSpy.mockRestore();
+      setSpy.mockRestore();
+      await ClickhouseWriter.shutdownAll();
+    }
+  }, 15_000);
 
   it("propagates observation staging rows into events_full", async (ctx) => {
     await skipUnlessEventPropagationTablesExist(ctx);
@@ -160,6 +223,7 @@ describe("handleEventPropagationJob", () => {
         user_id: string;
         session_id: string;
         source: string;
+        event_bytes: string;
       }>({
         query: `
           SELECT
@@ -175,7 +239,8 @@ describe("handleEventPropagationJob", () => {
             trace_name,
             user_id,
             session_id,
-            source
+            source,
+            toString(event_bytes) AS event_bytes
           FROM events_full FINAL
           WHERE project_id = {projectId: String}
             AND trace_id = {traceId: String}
@@ -204,6 +269,7 @@ describe("handleEventPropagationJob", () => {
           user_id: "propagation-user",
           session_id: "propagation-session",
           source: "ingestion-api-dual-write",
+          event_bytes: expect.stringMatching(/^[1-9]\d*$/),
         },
       ]);
     }, 5_000);

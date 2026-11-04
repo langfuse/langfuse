@@ -71,6 +71,11 @@
 - Prisma migrations: `prisma/migrations/*`
 - Canonical ClickHouse migration templates (rendered for clustered and
   unclustered installs): `clickhouse/migrations/canonical/*`
+  `events_full.event_bytes` defaults to `byteSize` of the stored row's application-owned
+  columns (migration 0056). Keep this estimate stable across small schema additions;
+  include new large-payload fields via a new migration. Native CI checks size drift
+  with 5% tolerance. Core and billing projections preserve the full-row estimate.
+  Inserts may omit it; reads require it.
 - ClickHouse SQL identifier and string quoting:
   `src/server/clickhouse/clickhouseIdentifiers.ts`
 - Ingestion masking: `src/server/ee/ingestionMasking` keeps HTTP retries and failure

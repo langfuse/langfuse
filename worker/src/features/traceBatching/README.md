@@ -261,7 +261,8 @@ bounds expire or are lost, the prior window cannot be reconstructed from this ma
 ### Trace-window size estimates
 
 Accepted direct-v4 writes contribute their final serialized UTF-8 event size after
-field overflow handling, reusing the writer's existing `event_bytes` calculation.
+field overflow handling. This JSON size estimate is computed only when trace-batch
+intake is enabled and is independent of ClickHouse's persisted `event_bytes`.
 The accounting field itself is excluded. Acceptance means admission to the writer,
 not confirmation of a ClickHouse flush. `eventUpdateCount` counts accepted updates,
 including retries and repeated observation versions, rather than unique observations.
