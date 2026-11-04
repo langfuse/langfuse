@@ -110,7 +110,15 @@ jobs:
             preview_alias="pr-${PR_NUMBER}-storybook.langfuse.vercel.app"
           fi
 
-          vercel alias set "${preview_url}" "${preview_alias}" --token="${VERCEL_TOKEN}"
+          echo "Deployment succeeded: ${preview_url}"
+          echo "Assigning alias: ${preview_alias}"
+          # The CLI alias command requires user access, which project-scoped tokens lack.
+          curl --fail-with-body --silent --show-error \
+            --request POST \
+            --header "Authorization: Bearer ${VERCEL_TOKEN}" \
+            --header "Content-Type: application/json" \
+            --data "$(jq -cn --arg alias "${preview_alias}" '{alias: $alias}')" \
+            "https://api.vercel.com/v2/deployments/${preview_url#https://}/aliases?teamId=${VERCEL_ORG_ID}"
           preview_url="https://${preview_alias}"
 
           echo "url=${preview_url}" >> "$GITHUB_OUTPUT"
