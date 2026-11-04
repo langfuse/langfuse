@@ -1233,6 +1233,16 @@ const LoadedSessionEventsPage: React.FC<{
   const isInternalFeaturesEnabled = useInternalFeaturesEnabled();
   const [isRedesignBannerDismissed, setIsRedesignBannerDismissed] =
     useLocalStorage("sessionRedesignBannerDismissed", false);
+  const [viewModeQuery, setViewModeQuery] = useQueryParam(
+    "sessionView",
+    StringParam,
+  );
+  const viewMode =
+    isInternalFeaturesEnabled &&
+    isSessionTimelineEnabled &&
+    viewModeQuery === "list"
+      ? "list"
+      : "conversational";
   const showRedesignBanner =
     isModernSessionEnabled &&
     isSessionTimelineEnabled &&
@@ -1839,9 +1849,11 @@ const LoadedSessionEventsPage: React.FC<{
               sessionId={sessionId}
               initialFilters={traceFilters}
               initialUnmatchedTraces={unmatchedTraces}
-              onApply={(filters, nextUnmatchedTraces) => {
+              initialViewMode={viewMode}
+              onApply={(filters, nextUnmatchedTraces, nextViewMode) => {
                 setTraceFilters(filters);
                 setUnmatchedTraces(nextUnmatchedTraces);
+                setViewModeQuery(nextViewMode === "list" ? "list" : undefined);
                 closeDialog();
               }}
             />
@@ -2309,6 +2321,7 @@ const LoadedSessionEventsPage: React.FC<{
                     </div>
                   ) : (
                     <ModernSession
+                      viewMode={viewMode}
                       customization={
                         isSessionTimelineEnabled && isInternalFeaturesEnabled
                           ? {
@@ -2339,7 +2352,11 @@ const LoadedSessionEventsPage: React.FC<{
                           ? traceFilters
                           : visibleFilterState
                       }
-                      filterMeasurementKey={visibleFilterMeasurementKey}
+                      filterMeasurementKey={
+                        isSessionTimelineEnabled && viewMode === "list"
+                          ? `${showCorrections}:${JSON.stringify(traceFilters)}`
+                          : visibleFilterMeasurementKey
+                      }
                       viewLabel={viewLabel}
                       showInlineToolCalls={showInlineToolCalls}
                       showSystemPrompt={showSystemPrompt}
@@ -2358,7 +2375,20 @@ const LoadedSessionEventsPage: React.FC<{
                           searchQuery: "",
                         },
                       }}
-                      onFilterObservationByName={filterObservationsByName}
+                      onFilterObservationByName={
+                        isSessionTimelineEnabled && viewMode === "list"
+                          ? (name, operator) =>
+                              setTraceFilters([
+                                ...traceFilters,
+                                {
+                                  column: "name",
+                                  type: "stringOptions",
+                                  operator,
+                                  value: [name],
+                                },
+                              ])
+                          : filterObservationsByName
+                      }
                     />
                   )}
                 </div>
