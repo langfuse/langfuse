@@ -20,6 +20,7 @@ import {
   toStoredFieldGroups,
 } from "@/src/features/blobstorage-integration/components/formValues";
 import { BlobStorageIntegrationForm } from "@/src/features/blobstorage-integration/components/BlobStorageIntegrationForm";
+import { useBlobStorageExternalId } from "@/src/features/blobstorage-integration/useBlobStorageExternalId";
 import { RoleAuthPausedDialog } from "@/src/features/blobstorage-integration/components/RoleAuthPausedDialog";
 import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
 
@@ -37,7 +38,10 @@ export const BlobStorageIntegrationContainer = ({
   accessRoleArn,
 }: {
   config:
-    | (Partial<BlobStorageIntegration> & { hasSecretAccessKey?: boolean })
+    | (Partial<Omit<BlobStorageIntegration, "externalId">> & {
+        hasSecretAccessKey?: boolean;
+        hasExternalId?: boolean;
+      })
     | null;
   projectId: string;
   writeMode: V4WriteMode;
@@ -67,10 +71,15 @@ export const BlobStorageIntegrationContainer = ({
     [isLangfuseCloud, writeMode, projectCreatedAt, integrationCreatedAt],
   );
 
+  const externalId = useBlobStorageExternalId(
+    projectId,
+    Boolean(config?.hasExternalId),
+  );
+
   const utils = api.useUtils();
   const mut = api.blobStorageIntegration.update.useMutation({
     // Returned so per-call onSuccess runs after the refetch, when `config`
-    // carries the new external ID.
+    // knows the new external ID exists.
     onSuccess: () => utils.blobStorageIntegration.invalidate(),
     onError: (error) => {
       showErrorToast(
@@ -138,7 +147,7 @@ export const BlobStorageIntegrationContainer = ({
     accessRoleArn && config ? (
       <RoleAuthPausedDialog
         accessRoleArn={accessRoleArn}
-        externalId={config.externalId ?? null}
+        externalId={externalId}
         roleArn={config.roleArn ?? ""}
         bucketName={config.bucketName ?? ""}
         prefix={config.prefix}
@@ -162,7 +171,7 @@ export const BlobStorageIntegrationContainer = ({
           exportSourceCtx={exportSourceCtx}
           persistedExportSource={config?.exportSource}
           accessRoleArn={accessRoleArn}
-          externalId={config?.externalId ?? null}
+          externalId={externalId}
           isSaving={mut.isPending}
           onSubmit={createSubmitHandler(openDialog)}
         >

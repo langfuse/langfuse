@@ -213,6 +213,10 @@ describe("Blob Storage Integration tRPC Router", () => {
       });
 
       await expect(
+        caller.blobStorageIntegration.getExternalId({ projectId: project.id }),
+      ).rejects.toMatchObject({ code: "FORBIDDEN" });
+
+      await expect(
         caller.blobStorageIntegration.update({
           projectId: project.id,
           ...baseConfig,
@@ -764,6 +768,10 @@ describe("Blob Storage Integration tRPC Router", () => {
         const first = await caller.blobStorageIntegration.get({
           projectId: project.id,
         });
+        const firstExternalId =
+          await caller.blobStorageIntegration.getExternalId({
+            projectId: project.id,
+          });
         await caller.blobStorageIntegration.update(roleConfig);
         const second = await caller.blobStorageIntegration.get({
           projectId: project.id,
@@ -776,8 +784,13 @@ describe("Blob Storage Integration tRPC Router", () => {
           accessKeyId: null,
           hasSecretAccessKey: false,
         });
-        expect(first.config?.externalId).toMatch(/^lf-[0-9a-f]{32}$/);
-        expect(second.config?.externalId).toBe(first.config?.externalId);
+        expect(first.config).not.toHaveProperty("externalId");
+        expect(first.config?.hasExternalId).toBe(true);
+        const externalId = await caller.blobStorageIntegration.getExternalId({
+          projectId: project.id,
+        });
+        expect(externalId).toMatch(/^lf-[0-9a-f]{32}$/);
+        expect(externalId).toBe(firstExternalId);
         // The trust policy cannot reference a newly minted external ID yet.
         expect(first.config?.enabled).toBe(false);
         expect(second.config?.enabled).toBe(true);
@@ -786,7 +799,7 @@ describe("Blob Storage Integration tRPC Router", () => {
           where: { projectId: project.id },
           select: { externalId: true },
         });
-        expect(decrypt(stored!.externalId!)).toBe(first.config?.externalId);
+        expect(decrypt(stored!.externalId!)).toBe(externalId);
       } finally {
         (getStorageAccessRoleArn as Mock).mockReturnValue(null);
       }

@@ -27,6 +27,7 @@ import { StorageProviderFields } from "@/src/features/blobstorage-integration/co
 import { ExportScheduleFields } from "@/src/features/blobstorage-integration/components/ExportScheduleFields";
 import { ExportSourceField } from "@/src/features/blobstorage-integration/components/ExportSourceField";
 import { ExportFieldGroupsField } from "@/src/features/blobstorage-integration/components/ExportFieldGroupsField";
+import { type RevealableExternalId } from "@/src/ee/features/storage-role-auth/components/types";
 
 // Disposable draft layer. The container mounts one instance per entity
 // identity (project + config existence, via React key) after all async
@@ -48,7 +49,7 @@ export const BlobStorageIntegrationForm = ({
   exportSourceCtx: ExportSourceContext;
   persistedExportSource: AnalyticsIntegrationExportSource | null | undefined;
   accessRoleArn: string | null;
-  externalId: string | null;
+  externalId: RevealableExternalId;
   isSaving: boolean;
   // Call `onSaved` once the values are persisted; a failed save never calls
   // it, so the draft stays dirty.

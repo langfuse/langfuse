@@ -25,6 +25,7 @@ import {
   type BlobStorageFormControl,
   type BlobStorageFormValues,
 } from "@/src/features/blobstorage-integration/components/formValues";
+import { type RevealableExternalId } from "@/src/ee/features/storage-role-auth/components/types";
 
 // Provider selection plus the connection fields whose labels and visibility
 // depend on it: bucket/container, endpoint, region, path style, credentials,
@@ -38,7 +39,7 @@ export const StorageProviderFields = ({
   control: BlobStorageFormControl;
   setValue: UseFormSetValue<BlobStorageFormValues>;
   accessRoleArn: string | null;
-  externalId: string | null;
+  externalId: RevealableExternalId;
 }) => {
   const { isLangfuseCloud } = useLangfuseCloudRegion();
   // Check if this is a self-hosted instance (no cloud region set)

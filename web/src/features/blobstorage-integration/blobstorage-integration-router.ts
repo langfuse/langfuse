@@ -118,7 +118,8 @@ export const blobStorageIntegrationRouter = createTRPCRouter({
           config = {
             ...rest,
             hasSecretAccessKey: Boolean(secretAccessKey),
-            externalId: externalId ? decrypt(externalId) : null,
+            // The external ID itself is only returned by getExternalId, on demand.
+            hasExternalId: Boolean(externalId),
           };
         }
 
@@ -134,6 +135,20 @@ export const blobStorageIntegrationRouter = createTRPCRouter({
           message: "Failed to get blob storage integration",
         });
       }
+    }),
+
+  getExternalId: protectedProjectProcedure
+    .input(z.object({ projectId: z.string() }))
+    .query(async ({ input, ctx }) => {
+      assertBlobStorageIntegrationAccess({
+        session: ctx.session,
+        projectId: input.projectId,
+      });
+      const row = await ctx.prisma.blobStorageIntegration.findUnique({
+        where: { projectId: input.projectId },
+        select: { externalId: true },
+      });
+      return row?.externalId ? decrypt(row.externalId) : null;
     }),
 
   update: protectedProjectProcedure

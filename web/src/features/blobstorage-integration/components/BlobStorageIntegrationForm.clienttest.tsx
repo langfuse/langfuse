@@ -51,7 +51,12 @@ const ui = (
       exportSourceCtx={exportSourceCtx}
       persistedExportSource={null}
       accessRoleArn={null}
-      externalId={null}
+      externalId={{
+        isSet: false,
+        value: undefined,
+        isLoading: false,
+        reveal: () => {},
+      }}
       isSaving={false}
       onSubmit={onSubmit}
     >

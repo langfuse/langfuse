@@ -3,10 +3,11 @@ import { STORAGE_ROLE_WRITE_ACTIONS } from "@langfuse/shared";
 import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
 import { ROLE_AUTH_SETUP_DESCRIPTION } from "@/src/features/blobstorage-integration/constants/roleAuthSetupDescription";
 import { RoleAuthSetupInstructions } from "@/src/ee/features/storage-role-auth/components/RoleAuthSetupInstructions";
+import { type RevealableExternalId } from "@/src/ee/features/storage-role-auth/components/types";
 
 export type RoleAuthPausedDialogProps = {
   accessRoleArn: string;
-  externalId: string | null;
+  externalId: RevealableExternalId;
   roleArn: string;
   bucketName: string;
   prefix: string | null | undefined;
