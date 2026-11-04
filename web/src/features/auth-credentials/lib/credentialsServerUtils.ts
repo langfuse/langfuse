@@ -10,7 +10,7 @@ import {
 } from "@/src/features/auth-credentials/lib/credentialsUtils";
 import { prisma } from "@langfuse/shared/src/db";
 import { isSetupPasswordCallbackUrl } from "@langfuse/shared/src/server";
-import { TRPCError } from "@trpc/server";
+import { captureSignupStep } from "@/src/features/auth/lib/signupSteps";
 
 function hashEmailOtpToken(token: string) {
   if (!env.NEXTAUTH_SECRET) {
@@ -95,7 +95,8 @@ export type EmailCodeRequest = Awaited<
 
 /**
  * An email-code request's code lifetime: the sign-up's for a setup-password
- * request to an account without a password, else the password reset's.
+ * request to an account without a password, else the password reset's. A
+ * pending sign-up's request also says whether that account had a live code.
  */
 export async function describeEmailCodeRequest({
   email,
@@ -105,12 +106,29 @@ export async function describeEmailCodeRequest({
   callbackUrl: unknown;
 }) {
   const account = await findSetupPasswordAccount({ email, callbackUrl });
+  const isPendingSignup =
+    account?.password === null && account._count.accounts === 0;
   return {
     maxAge:
       account?.password === null
         ? SIGNUP_EMAIL_CODE_MAX_AGE_SECONDS
         : PASSWORD_RESET_EMAIL_CODE_MAX_AGE_SECONDS,
+    signupSend: isPendingSignup
+      ? {
+          userId: account.id,
+          isResend: await hasLiveCode(account.identifier),
+        }
+      : null,
   };
+}
+
+// read before the signIn callback clears the account's earlier codes
+async function hasLiveCode(identifier: string) {
+  const liveCode = await prisma.verificationToken.findFirst({
+    where: { identifier, expires: { gt: new Date() } },
+    select: { identifier: true },
+  });
+  return liveCode !== null;
 }
 
 async function findSetupPasswordAccount({
@@ -127,17 +145,61 @@ async function findSetupPasswordAccount({
   )
     return null;
   try {
-    return await prisma.user.findUnique({
-      where: { email: normalizeEmailIdentifier(email) },
-      select: { password: true },
+    const identifier = normalizeEmailIdentifier(email);
+    const account = await prisma.user.findUnique({
+      where: { email: identifier },
+      select: {
+        id: true,
+        password: true,
+        _count: { select: { accounts: true } },
+      },
     });
+    return account ? { identifier, ...account } : null;
   } catch {
     // malformed address: NextAuth refuses to send a code for it
     return null;
   }
 }
 
-export async function consumeEmailOtpAndUpdatePassword({
+export type EmailCodeCheck = "ok" | "expired" | "invalid";
+
+/**
+ * Sets the password with an email code. On a pending sign-up's
+ * setup-password step it also records sign_up:code_checked and, for a valid
+ * code, sign_up:password_set.
+ */
+export async function setPasswordWithEmailCode({
+  email,
+  token,
+  password,
+  intent,
+}: {
+  email: string;
+  token: string;
+  password: string;
+  intent: "setup" | "reset" | undefined;
+}): Promise<EmailCodeCheck> {
+  const signup =
+    intent === "setup" ? await findSignupAwaitingVerification(email) : null;
+  const codeCheck = await consumeEmailOtpAndUpdatePassword({
+    email,
+    token,
+    password,
+  });
+  if (!signup) return codeCheck;
+
+  captureSignupStep(signup.id, "sign_up:code_checked", { result: codeCheck });
+  if (codeCheck === "ok") {
+    captureSignupStep(signup.id, "sign_up:password_set", {});
+  }
+  return codeCheck;
+}
+
+/**
+ * A valid code also marks the email verified; any check clears the account's
+ * outstanding codes, as NextAuth's one-attempt callback does.
+ */
+async function consumeEmailOtpAndUpdatePassword({
   email,
   token,
   password,
@@ -145,7 +207,7 @@ export async function consumeEmailOtpAndUpdatePassword({
   email: string;
   token: string;
   password: string;
-}) {
+}): Promise<EmailCodeCheck> {
   if (!isValidPassword(password))
     throw new Error("Password needs to be at least 8 characters long.");
 
@@ -153,7 +215,7 @@ export async function consumeEmailOtpAndUpdatePassword({
   const hashedToken = hashEmailOtpToken(token);
   const now = new Date();
 
-  const passwordUpdated = await prisma.$transaction(async (tx) => {
+  return prisma.$transaction(async (tx) => {
     const consumed = await tx.verificationToken.deleteMany({
       where: {
         identifier,
@@ -163,9 +225,13 @@ export async function consumeEmailOtpAndUpdatePassword({
     });
 
     if (consumed.count !== 1) {
+      const expiredCode = await tx.verificationToken.findFirst({
+        where: { identifier, token: hashedToken },
+        select: { identifier: true },
+      });
       // Match the existing NextAuth callback's one-attempt semantics.
       await tx.verificationToken.deleteMany({ where: { identifier } });
-      return false;
+      return expiredCode ? "expired" : "invalid";
     }
 
     // Invalidate any other outstanding code for this account.
@@ -186,16 +252,17 @@ export async function consumeEmailOtpAndUpdatePassword({
       await advanceSessionsExpiredAtForEmail(identifier, tx);
     }
 
-    return updated.count === 1;
+    return updated.count === 1 ? "ok" : "invalid";
   });
+}
 
-  if (!passwordUpdated) {
-    throw new TRPCError({
-      code: "UNAUTHORIZED",
-      message:
-        'This code is wrong or has expired. Use "Send another code" to get a new one.',
-    });
-  }
+// a pending email sign-up: no password and no linked login yet, as an
+// unclaimed SCIM-provisioned account also looks
+async function findSignupAwaitingVerification(email: string) {
+  return prisma.user.findFirst({
+    where: { email, password: null, accounts: { none: {} } },
+    select: { id: true, email: true, name: true },
+  });
 }
 
 function isValidPassword(password: string) {

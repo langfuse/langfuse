@@ -25,6 +25,7 @@ import {
 import { env } from "@/src/env.mjs";
 import { createProjectMembershipsOnSignup } from "@/src/features/auth/lib/createProjectMembershipsOnSignup";
 import { getSessionLoginAt } from "@/src/features/auth/lib/sessionExpiration";
+import { captureSignupStep } from "@/src/features/auth/lib/signupSteps";
 import { type SignupAttribution } from "@/src/features/auth/lib/signupAttribution";
 import { PASSWORD_RESET_EMAIL_CODE_MAX_AGE_SECONDS } from "@/src/features/auth-credentials/lib/credentialsUtils";
 import {
@@ -194,8 +195,12 @@ const staticProviders: Provider[] = [
 ];
 
 // Sends the 6-digit codes of the sign-up and password-reset flows; built per
-// request, since NextAuth reads `maxAge` on each send.
-const getEmailCodeProviders = (maxAge: number): Provider[] =>
+// request, since NextAuth reads `maxAge` on each send. A pending sign-up's
+// code also records sign_up:code_sent.
+const getEmailCodeProviders = (
+  maxAge: number,
+  signupSend: EmailCodeRequest["signupSend"],
+): Provider[] =>
   env.SMTP_CONNECTION_URL && env.EMAIL_FROM_ADDRESS
     ? [
         EmailProvider({
@@ -208,7 +213,14 @@ const getEmailCodeProviders = (maxAge: number): Provider[] =>
           async generateVerificationToken() {
             return randomInt(100000, 1000000).toString();
           },
-          sendVerificationRequest: sendResetPasswordVerificationRequest,
+          async sendVerificationRequest(params) {
+            await sendResetPasswordVerificationRequest(params);
+            if (signupSend) {
+              captureSignupStep(signupSend.userId, "sign_up:code_sent", {
+                isResend: signupSend.isResend,
+              });
+            }
+          },
         }),
       ]
     : [];
@@ -762,6 +774,7 @@ export async function getAuthOptions(
     ...getEmailCodeProviders(
       requestContext?.emailCodeRequest?.maxAge ??
         PASSWORD_RESET_EMAIL_CODE_MAX_AGE_SECONDS,
+      requestContext?.emailCodeRequest?.signupSend ?? null,
     ),
     ...dynamicSsoProviders,
   ];
