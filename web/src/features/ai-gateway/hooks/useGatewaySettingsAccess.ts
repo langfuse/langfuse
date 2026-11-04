@@ -62,6 +62,7 @@ export function useGatewaySettingsAccess(organizationId: string | undefined) {
     showModels,
     showApiKeys,
     isIngestionConfigured: setupStatus.data?.isConfigured,
+    isRecording: setupStatus.data?.isRecording,
     isSetupStatusPending: setupStatus.isPending,
   };
 }

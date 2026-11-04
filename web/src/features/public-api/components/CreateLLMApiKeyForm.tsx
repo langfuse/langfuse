@@ -628,21 +628,6 @@ export function CreateLLMApiKeyForm({
         });
         return;
       }
-      if (owner.scope === "project") {
-        capture("project_settings:llm_api_key_create", {
-          provider: values.provider,
-        });
-      } else {
-        capture("organization_settings:llm_api_key_create");
-      }
-    } else {
-      if (owner.scope === "project") {
-        capture("project_settings:llm_api_key_update", {
-          provider: values.provider,
-        });
-      } else {
-        capture("organization_settings:llm_api_key_update");
-      }
     }
 
     let secretKey = values.secretKey;
@@ -787,6 +772,22 @@ export function CreateLLMApiKeyForm({
 
     return mutation
       .then(() => {
+        const eventProps = { adapter: values.adapter };
+        if (owner.scope === "project") {
+          capture(
+            mode === "create"
+              ? "project_settings:llm_api_key_create"
+              : "project_settings:llm_api_key_update",
+            eventProps,
+          );
+        } else {
+          capture(
+            mode === "create"
+              ? "organization_settings:llm_api_key_create"
+              : "organization_settings:llm_api_key_update",
+            eventProps,
+          );
+        }
         form.reset();
         onSuccess();
       })

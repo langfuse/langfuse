@@ -138,6 +138,7 @@ function injectSelect(
     ) {
       return join;
     }
+    // `on <caller on> and <alias>.project_id = {projectId}`
     const predicate = projectIdPredicate(relation, projectId);
     if (!join.on) {
       return JoinNode.createWithOn(join.joinType, join.table, predicate);
@@ -179,6 +180,7 @@ function tableNameOf(node: TableNode): string {
   return node.table.identifier.name;
 }
 
+/** `<alias>.project_id`, or bare `project_id` for an unaliased table. */
 function projectIdColumn(
   table: Extract<ScopedRelation, { kind: "table" }>,
 ): OperationNode {
@@ -188,6 +190,7 @@ function projectIdColumn(
     : column;
 }
 
+/** `<alias>.project_id = {projectId}`, the id bound. */
 function projectIdPredicate(
   table: Extract<ScopedRelation, { kind: "table" }>,
   projectId: string,
