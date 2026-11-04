@@ -18,6 +18,7 @@
  * - Preview cards (modal/panel)
  */
 
+import { type ReactNode } from "react";
 import { type TreeNode } from "../types/treeNode";
 import { GroupedScoreBadges } from "@/src/components/GroupedScoreBadges";
 import { ObservationLevelBadge } from "@/src/features/traces/components/ObservationLevelBadge";
@@ -38,6 +39,8 @@ interface SpanContentProps {
   node: TreeNode;
   emphasis?: MetricEmphasisContext;
   commentCount?: number;
+  /** Rendered right after the duration, inside the metrics row. */
+  durationAdornment?: ReactNode;
   onSelect?: () => void;
   onHover?: () => void;
   /** The row surface behind the content; chips flip their fill on `muted`. */
@@ -73,6 +76,7 @@ function LoadedSpanContent({
   node,
   emphasis,
   commentCount,
+  durationAdornment,
   onSelect,
   onHover,
   surface = "default",
@@ -177,6 +181,7 @@ function LoadedSpanContent({
                 {formatIntervalSeconds(durationMs / 1000)}
               </span>
             ) : null}
+            {shouldRenderDuration ? durationAdornment : null}
 
             {/* Tokens, only without a cost */}
             {shouldRenderCostTokens && tokenTotal ? (
