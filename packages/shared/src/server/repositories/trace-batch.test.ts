@@ -7,8 +7,8 @@ import { queryClickhouseStream } from "./clickhouse";
 vi.mock("./clickhouse", async () => ({
   TupleParam: (await import("@clickhouse/client")).TupleParam,
   queryClickhouseStream: vi.fn(),
+  clickhouseCompliantRandomCharacters: vi.fn(),
 }));
-vi.mock("./index", () => ({ clickhouseCompliantRandomCharacters: vi.fn() }));
 vi.mock("../clickhouse/client", () => ({
   convertDateToClickhouseDateTime: vi.fn(),
 }));

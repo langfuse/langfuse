@@ -2,10 +2,10 @@ import { useRouter } from "next/router";
 import { type ReactNode, useMemo, useState } from "react";
 
 import { ConfirmationDialogController } from "@/src/components/design-system/ConfirmationDialogController/ConfirmationDialogController";
-import { useHasEntitlement } from "@/src/features/entitlements";
-import { showSuccessToast } from "@/src/features/notifications";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
-import { useHasProjectAccess } from "@/src/features/rbac";
+import { useHasEntitlement } from "@/src/features/entitlements/hooks";
+import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { api } from "@/src/utils/api";
 
 export function DeleteTraceDialogController({

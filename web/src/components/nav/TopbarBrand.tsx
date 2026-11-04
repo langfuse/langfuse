@@ -3,7 +3,7 @@
 import { cn } from "@/src/utils/tailwind";
 import Link from "next/link";
 import { env } from "@/src/env.mjs";
-import { useUiCustomization } from "@/src/ee/features/ui-customization";
+import { useUiCustomization } from "@/src/ee/features/ui-customization/useUiCustomization";
 import { PlusIcon } from "@langfuse/icons";
 import { LangfuseIcon } from "@/src/components/design-system/LangfuseIcon/LangfuseIcon";
 
@@ -42,13 +42,11 @@ export const TopbarBrand = ({
         // Custom logo (max aspect ratio 1:3 per docs) + the Langfuse mark,
         // matching LangfuseLogo's customized layout.
         <>
-          {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={logoLight}
             alt="Logo"
             className="max-h-5 max-w-16 dark:hidden"
           />
-          {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={logoDark}
             alt="Logo"
@@ -59,13 +57,11 @@ export const TopbarBrand = ({
         </>
       ) : variant === "wordmark" ? (
         <>
-          {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             className="max-h-5 max-w-24 dark:hidden"
             src={`${env.NEXT_PUBLIC_BASE_PATH ?? ""}/wordart-black.svg`}
             alt="Langfuse Logo"
           />
-          {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             className="hidden max-h-5 max-w-24 dark:block"
             src={`${env.NEXT_PUBLIC_BASE_PATH ?? ""}/wordart-white.svg`}

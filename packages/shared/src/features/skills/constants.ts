@@ -6,13 +6,3 @@ export const MAX_SKILL_BYTES = 1_000_000;
 
 export const MAX_SKILL_CATALOG_JSON_BYTES = 64 * 1024;
 export const MAX_SKILL_TOOL_ARGS_JSON_BYTES = 16 * 1024;
-export const MAX_SKILL_ERROR_JSON_BYTES = 4 * 1024;
-
-export const SKILL_RESOURCE_TOOL_NAMES = new Set([
-  "skill",
-  "Skill",
-  "loadSkill",
-  "skill_read",
-  "readFile",
-  "Read",
-]);

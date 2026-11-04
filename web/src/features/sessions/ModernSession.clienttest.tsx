@@ -8,14 +8,14 @@ vi.mock("@/src/features/sessions/ConnectedModernSessionBodyLegacy", () => ({
   ConnectedModernSessionBodyLegacy: () => <div>Legacy body</div>,
 }));
 
+vi.mock("@/src/features/sessions/ConnectedSessionListBody", () => ({
+  ConnectedSessionListBody: () => <div>List body</div>,
+}));
+
 vi.mock(
   "@/src/features/sessions/components/ConnectedModernSessionBodyTimeline/ConnectedModernSessionBodyTimeline",
   () => ({
-    ConnectedModernSessionBodyTimeline: ({
-      transcriptSource,
-    }: Pick<ComponentProps<typeof ModernSession>, "transcriptSource">) => (
-      <div data-source={transcriptSource}>Timeline body</div>
-    ),
+    ConnectedModernSessionBodyTimeline: () => <div>Timeline body</div>,
   }),
 );
 
@@ -53,8 +53,8 @@ vi.mock("@/src/features/sessions/SessionMetadataJsonPathControl", () => ({
 }));
 
 const defaultProps = {
+  viewMode: "conversational",
   isTimelineEnabled: false,
-  transcriptSource: "generations",
   session: {
     countTraces: 0,
     inputUsage: 0,
@@ -103,23 +103,16 @@ const defaultProps = {
 } satisfies ComponentProps<typeof ModernSession>;
 
 describe("ModernSession", () => {
-  it.each(["root", "generations"] as const)(
-    "passes the resolved %s transcript source to the timeline",
-    (transcriptSource) => {
-      render(
-        <ModernSession
-          {...defaultProps}
-          isTimelineEnabled
-          transcriptSource={transcriptSource}
-        />,
-      );
+  it("renders the list body with the shared header when selected", () => {
+    render(
+      <ModernSession {...defaultProps} isTimelineEnabled viewMode="list" />,
+    );
 
-      expect(screen.getByText("Timeline body")).toHaveAttribute(
-        "data-source",
-        transcriptSource,
-      );
-    },
-  );
+    expect(screen.getByText("Modern session header")).toBeInTheDocument();
+    expect(screen.getByText("List body")).toBeInTheDocument();
+    expect(screen.queryByText("Timeline body")).not.toBeInTheDocument();
+    expect(screen.queryByText("Legacy body")).not.toBeInTheDocument();
+  });
 
   it("renders the shared header and legacy connected body by default", () => {
     render(<ModernSession {...defaultProps} />);

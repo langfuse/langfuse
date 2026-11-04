@@ -11,7 +11,7 @@ import {
 import {
   Evaluator,
   ListEvaluatorVersionsResponse,
-} from "@/src/features/public-api";
+} from "@/src/features/public-api/types/evaluation/evaluators";
 
 describe("stable evaluator history public API", () => {
   it("lists evaluator version history", async () => {

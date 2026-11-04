@@ -1,6 +1,6 @@
 import { useCallback, useRef, useState } from "react";
 
-import type { DashboardPlacement } from "@/src/features/widgets";
+import type { DashboardPlacement } from "@/src/features/widgets/components/DashboardGrid";
 
 export type DashboardDefinition = {
   widgets: DashboardPlacement[];

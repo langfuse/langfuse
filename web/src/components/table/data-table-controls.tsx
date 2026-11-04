@@ -66,7 +66,7 @@ import {
   InputCommandItem,
   InputCommandList,
 } from "@/src/components/ui/input-command";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { Checkbox } from "@/src/components/design-system/Checkbox/Checkbox";
 import { Button } from "@/src/components/ui/button";
@@ -98,7 +98,7 @@ import {
   PopoverTrigger,
 } from "@/src/components/ui/popover";
 import { DataTableAIFilters } from "@/src/components/table/DataTableAIFilters";
-import { useLangfuseCloudRegion } from "@/src/features/organizations";
+import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
 import { type FilterState } from "@langfuse/shared";
 
 interface ControlsContextType {

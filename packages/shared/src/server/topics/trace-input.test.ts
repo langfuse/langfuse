@@ -135,7 +135,7 @@ describe("Topics transcript input", () => {
   it.each([
     { parent_span_id: "", is_app_root: false },
     { parent_span_id: "external-parent", is_app_root: true },
-  ])("prefers explicit trace names over root fallback: %j", async (root) => {
+  ])("uses explicit trace names without a root fallback: %j", async (root) => {
     const latestRoot = {
       ...root,
       span_id: "root",
@@ -152,7 +152,7 @@ describe("Topics transcript input", () => {
     );
     expect(
       (await loadRows(latestRoot, { ...olderChild, trace_name: "" })).traceName,
-    ).toBe("Root fallback");
+    ).toBe("");
   });
 
   it("preserves empty source context", async () => {

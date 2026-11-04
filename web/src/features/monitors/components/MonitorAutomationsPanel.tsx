@@ -13,7 +13,7 @@ import { api } from "@/src/utils/api";
 import { Button } from "@/src/components/ui/button";
 import { Card, CardContent } from "@/src/components/ui/card";
 import { DropdownMenu } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
-import { actionTypeLabel } from "@/src/features/automations";
+import { actionTypeLabel } from "@/src/features/automations/actionTypeLabels";
 import { NewMonitorAutomationDialogController } from "@/src/features/monitors/automations/NewMonitorAutomationDialogController";
 import { cn } from "@/src/utils/tailwind";
 import {

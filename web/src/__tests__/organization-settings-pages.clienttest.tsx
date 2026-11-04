@@ -1,11 +1,11 @@
 import { renderHook } from "@testing-library/react";
 import { useSession } from "next-auth/react";
 
-import { useHasEntitlement, usePlan } from "@/src/features/entitlements";
-import { useIsFeatureEnabled } from "@/src/features/feature-flags";
-import { useQueryProjectOrOrganization } from "@/src/features/projects";
-import { useHasOrganizationAccess } from "@/src/features/rbac";
-import { useIsCloudBillingAvailable } from "@/src/ee/features/billing";
+import { useHasEntitlement, usePlan } from "@/src/features/entitlements/hooks";
+import { default as useIsFeatureEnabled } from "@/src/features/feature-flags/hooks/useIsFeatureEnabled";
+import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
+import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
+import { useIsCloudBillingAvailable } from "@/src/ee/features/billing/utils/isCloudBilling";
 import { useV4UpgradeUiFlag } from "@/src/features/v4-migration/useV4UpgradeUiEnabled";
 import { useOrganizationSettingsPages } from "@/src/features/organizations/OrganizationSettingsPage";
 import { env } from "@/src/env.mjs";
@@ -56,16 +56,19 @@ vi.mock("@/src/ee/features/billing/components/BillingSettings", () => ({
   BillingSettings: () => null,
 }));
 
-vi.mock("@/src/features/organization-usage", () => ({
-  OrganizationUsageBreakdown: () => null,
-}));
+vi.mock(
+  "@/src/features/organization-usage/components/OrganizationUsageBreakdown",
+  () => ({
+    OrganizationUsageBreakdown: () => null,
+  }),
+);
 
 vi.mock("@/src/features/entitlements/hooks", () => ({
   useHasEntitlement: vi.fn(),
   usePlan: vi.fn(),
 }));
 
-vi.mock("@/src/ee/features/sso-settings", () => ({
+vi.mock("@/src/ee/features/sso-settings/components/SSOSettings", () => ({
   SSOSettings: () => null,
 }));
 
@@ -90,7 +93,7 @@ vi.mock("@/src/ee/features/billing/utils/isCloudBilling", () => ({
   useIsCloudBillingAvailable: vi.fn(),
 }));
 
-vi.mock("@/src/ee/features/audit-log-viewer", () => ({
+vi.mock("@/src/ee/features/audit-log-viewer/OrgAuditLogsSettingsPage", () => ({
   OrgAuditLogsSettingsPage: () => null,
 }));
 
@@ -122,13 +125,36 @@ vi.mock("@/src/utils/api", () => ({
   },
 }));
 
-vi.mock("@/src/features/ai-gateway", () => ({
-  GatewayAnalyticsPage: () => null,
-  GatewayApiKeysPage: () => null,
-  GatewayModelsPage: () => null,
-  GatewayNotDeployedNotice: () => null,
-  GatewaySetupPage: () => null,
-}));
+vi.mock(
+  "@/src/features/ai-gateway/components/GatewayAnalyticsPage/GatewayAnalyticsPage",
+  () => ({
+    GatewayAnalyticsPage: () => null,
+  }),
+);
+vi.mock(
+  "@/src/features/ai-gateway/components/GatewayApiKeysPage/GatewayApiKeysPage",
+  () => ({
+    GatewayApiKeysPage: () => null,
+  }),
+);
+vi.mock(
+  "@/src/features/ai-gateway/components/GatewayModelsPage/GatewayModelsPage",
+  () => ({
+    GatewayModelsPage: () => null,
+  }),
+);
+vi.mock(
+  "@/src/features/ai-gateway/components/GatewayNotDeployedNotice/GatewayNotDeployedNotice",
+  () => ({
+    GatewayNotDeployedNotice: () => null,
+  }),
+);
+vi.mock(
+  "@/src/features/ai-gateway/components/GatewaySetupPage/GatewaySetupPage",
+  () => ({
+    GatewaySetupPage: () => null,
+  }),
+);
 
 const organization = {
   id: "org-1",
@@ -349,7 +375,7 @@ describe("useOrganizationSettingsPages", () => {
     expect(models?.disabledReason).toBeUndefined();
   });
 
-  it("shows members their AI Gateway keys alongside models, even before ingestion is set up", () => {
+  it("shows gateway-only members their keys, models and own analytics, even before ingestion is set up", () => {
     vi.mocked(useHasOrganizationAccess).mockImplementation(
       ({ scope }) => scope === "gateway:read" || scope === "gateway:invoke",
     );
@@ -368,6 +394,7 @@ describe("useOrganizationSettingsPages", () => {
     ).toEqual([
       ["ai-gateway-models", false],
       ["ai-gateway-api-keys", false],
+      ["ai-gateway-analytics", false],
     ]);
   });
 
@@ -428,13 +455,21 @@ describe("useOrganizationSettingsPages", () => {
       vi.mocked(isCloudPlan).mockReturnValue(false);
     });
 
-    it("shows AI_GATEWAY members only their gateway keys and models", () => {
+    it("shows AI_GATEWAY members only their gateway keys, models and own analytics", () => {
       grantScopesOf(Role.AI_GATEWAY);
 
       expect(visibleSlugs()).toEqual([
         "ai-gateway-models",
         "ai-gateway-api-keys",
+        "ai-gateway-analytics",
       ]);
+    });
+
+    it("keeps gateway analytics from MEMBER members, who read organization settings", () => {
+      grantScopesOf(Role.MEMBER);
+
+      expect(visibleSlugs()).not.toContain("ai-gateway-analytics");
+      expect(visibleSlugs()).toContain("ai-gateway-api-keys");
     });
 
     it("shows Projects to AI_GATEWAY members with a project", () => {
@@ -451,6 +486,7 @@ describe("useOrganizationSettingsPages", () => {
         "projects",
         "ai-gateway-models",
         "ai-gateway-api-keys",
+        "ai-gateway-analytics",
       ]);
     });
 

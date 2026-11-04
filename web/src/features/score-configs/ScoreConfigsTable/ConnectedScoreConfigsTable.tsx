@@ -10,7 +10,7 @@ import {
   ScoreConfigsTable,
   type ScoreConfigTableRow,
 } from "@/src/features/score-configs/ScoreConfigsTable/ScoreConfigsTable";
-import { useHasProjectAccess } from "@/src/features/rbac";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { usePaginationState } from "@/src/hooks/usePaginationState";
 import { api } from "@/src/utils/api";
 

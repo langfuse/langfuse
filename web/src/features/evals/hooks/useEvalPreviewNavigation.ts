@@ -1,11 +1,12 @@
 import {
   detailPageListKeys,
+  useFirstDetailPageListEntry,
   type EventDetailPageListEntry,
   type ListEntry,
   type ObservationDetailPageListEntry,
   type TraceDetailPageListEntry,
-  useFirstDetailPageListEntry,
-} from "@/src/features/navigate-detail-pages";
+} from "@/src/features/navigate-detail-pages/DetailPageListsProvider";
+
 import { type NextRouter } from "next/router";
 import {
   EvalTargetObject,

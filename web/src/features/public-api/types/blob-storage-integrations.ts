@@ -11,7 +11,7 @@ import {
   validateExportFieldGroups,
   exportStartDateNotInFuture,
   EXPORT_START_DATE_FUTURE_ERROR,
-} from "@/src/features/blobstorage-integration";
+} from "@/src/features/blobstorage-integration/validation";
 /**
  * Enums
  */
@@ -179,7 +179,6 @@ export const CreateBlobStorageIntegrationRequest = z
     }
   });
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars -- Used via z.infer
 const BlobStorageIntegrationResponse = z
   .object({
     id: z.string(),
@@ -221,7 +220,6 @@ const BlobStorageSyncStatus = z.enum([
   "error",
 ]);
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars -- Used via z.infer
 const BlobStorageIntegrationStatusResponse = z
   .object({
     id: z.string(),
