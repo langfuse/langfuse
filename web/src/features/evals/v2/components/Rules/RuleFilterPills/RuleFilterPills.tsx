@@ -11,10 +11,8 @@ import {
 } from "@/src/components/ui/tooltip";
 import { RULE_FIELD_REGISTRY } from "@/src/features/evals/v2/constants/ruleSearchRegistry";
 import { InlineFilterState } from "@/src/features/filters/components/filter-builder";
-import {
-  ComposerSurface,
-  ComposerText,
-} from "@/src/features/search-bar/components/ComposerSurface";
+import { ComposerSurface } from "@/src/features/search-bar/components/ComposerSurface";
+import { ComposerText } from "@/src/features/search-bar/components/ComposerText";
 import { ComposerTokens } from "@/src/features/search-bar/components/ComposerTokens";
 import { filterStateToQueryText } from "@/src/features/search-bar/lib/filter-state-to-query";
 
