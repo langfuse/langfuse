@@ -37,8 +37,47 @@ vi.mock("next/image", () => ({
 
 describe("FeaturePreviewModal", () => {
   beforeEach(() => {
+    mocks.mutate.mockClear();
     mocks.isV4 = true;
   });
+
+  it.each([false, true])(
+    "shows the unified view toggle only to platform admins (admin: %s)",
+    (admin) => {
+      vi.mocked(useSession).mockReturnValue({
+        data: {
+          user: {
+            admin,
+            featureFlags: testFeatureFlags({ internalFeatures: true }),
+          },
+          environment: { enableExperimentalFeatures: true },
+        } as Session,
+        status: "authenticated",
+        update: vi.fn(),
+      });
+      render(<ControlledFeaturePreviewModal open onOpenChange={vi.fn()} />);
+      const preview = screen.queryByRole("button", {
+        name: /Unified Trace and Session View/,
+      });
+      if (!admin) {
+        expect(preview).not.toBeInTheDocument();
+        return;
+      }
+      fireEvent.click(
+        screen.getByRole("button", { name: /Unified Trace and Session View/ }),
+      );
+      const toggle = screen.getByRole("switch", {
+        name: "Toggle Unified Trace and Session View",
+      });
+      expect(toggle).not.toBeChecked();
+      expect(toggle).not.toBeDisabled();
+      fireEvent.click(toggle);
+      expect(mocks.mutate).toHaveBeenCalledWith({
+        flag: "unifiedTraceSessionView",
+        enabled: true,
+      });
+    },
+  );
 
   it("locks Topics on in internal view and restores the personal toggle after opting out", () => {
     const session = {

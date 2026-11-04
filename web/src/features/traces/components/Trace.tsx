@@ -45,6 +45,7 @@ import { cn } from "@/src/utils/tailwind";
 import { SkeletonGroup } from "@/src/components/ui/skeleton";
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import { useInternalFeaturesEnabled } from "@/src/features/feature-flags/hooks/useInternalFeaturesEnabled";
+import useIsFeatureEnabled from "@/src/features/feature-flags/hooks/useIsFeatureEnabled";
 import { useReadPath } from "@/src/features/events/hooks/useReadPath";
 import { StringParam, useQueryParam } from "use-query-params";
 import { TraceMessagesView } from "./TraceMessagesView/TraceMessagesView";
@@ -161,10 +162,13 @@ function TraceWithSelection({
   const { selectedNodeId } = useSelection();
   const { isV4 } = useReadPath();
   const isProjectMember = useIsAuthenticatedAndProjectMember(projectId);
-  const internalFeaturesEnabled = useInternalFeaturesEnabled();
+  const unifiedTraceSessionViewEnabled = useIsFeatureEnabled(
+    "unifiedTraceSessionView",
+    { enableForAdmins: false, projectId },
+  );
   const [aggregation] = useQueryParam("aggregation", StringParam);
   const { isSessionScope: scopeToSession } = resolveTraceScope({
-    internalFeaturesEnabled,
+    unifiedTraceSessionViewEnabled,
     isV4,
     isProjectMember,
     sessionId: trace.sessionId,

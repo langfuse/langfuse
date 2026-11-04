@@ -12,7 +12,7 @@ import { useRef } from "react";
 import { useIsAuthenticatedAndProjectMember } from "@/src/features/auth/hooks";
 import { getTraceScopeTabs } from "@/src/features/traces/fns/getTraceScopeTabs";
 import { getTraceScopeQuery } from "@/src/features/traces/fns/getTraceScopeQuery";
-import { useInternalFeaturesEnabled } from "@/src/features/feature-flags/hooks/useInternalFeaturesEnabled";
+import useIsFeatureEnabled from "@/src/features/feature-flags/hooks/useIsFeatureEnabled";
 import { resolveTraceScope } from "@/src/features/traces/fns/resolveTraceScope";
 import { useReadPath } from "@/src/features/events/hooks/useReadPath";
 
@@ -25,10 +25,13 @@ export const TablePeekViewObservationDetail = (
   },
 ) => {
   const router = useRouter();
-  const internalFeaturesEnabled = useInternalFeaturesEnabled();
+  const { projectId } = props;
+  const unifiedTraceSessionViewEnabled = useIsFeatureEnabled(
+    "unifiedTraceSessionView",
+    { enableForAdmins: false, projectId },
+  );
   const { isV4 } = useReadPath();
 
-  const { projectId } = props;
   const peekObservationId = router.query.peek as string | undefined;
   const { traceId, timestamp } = resolvePeekTraceParams({
     reader: "observation",
@@ -52,7 +55,7 @@ export const TablePeekViewObservationDetail = (
   const sessionId = trace.data?.sessionId;
   const { canSelectSession, isSessionScope, showScopeToggle } =
     resolveTraceScope({
-      internalFeaturesEnabled,
+      unifiedTraceSessionViewEnabled,
       isV4,
       isProjectMember,
       sessionId,

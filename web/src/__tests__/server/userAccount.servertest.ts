@@ -27,6 +27,32 @@ describe("userAccountRouter.setFeaturePreviewEnabled", () => {
   });
 
   it.each([true, false])(
+    "rejects a non-platform-admin unified trace/session toggle to %s",
+    async (enabled) => {
+      const { caller } = await createCaller();
+      await expect(
+        caller.userAccount.setFeaturePreviewEnabled({
+          flag: "unifiedTraceSessionView",
+          enabled,
+        }),
+      ).rejects.toMatchObject({ code: "FORBIDDEN" });
+    },
+  );
+
+  it("lets a platform admin opt into the unified trace/session preview", async () => {
+    const { caller, userId } = await createCaller({ admin: true });
+    await caller.userAccount.setFeaturePreviewEnabled({
+      flag: "unifiedTraceSessionView",
+      enabled: true,
+    });
+    const user = await prisma.user.findUniqueOrThrow({ where: { id: userId } });
+    expect(user.featureFlags).toEqual([
+      "templateFlag",
+      "unifiedTraceSessionView",
+    ]);
+  });
+
+  it.each([true, false])(
     "rejects a non-platform-admin Topics toggle to %s",
     async (enabled) => {
       const { caller, userId } = await createCaller();

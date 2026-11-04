@@ -16,12 +16,14 @@ const mockSession = ({
   admin = false,
   enableExperimentalFeatures = false,
   internalFeatures,
+  unifiedTraceSessionView = false,
 }: {
   aiGateway: boolean;
   langfuseTopics?: boolean;
   admin?: boolean;
   enableExperimentalFeatures?: boolean;
   internalFeatures?: boolean;
+  unifiedTraceSessionView?: boolean;
 }) => {
   vi.mocked(useSession).mockReturnValue({
     data: {
@@ -31,6 +33,7 @@ const mockSession = ({
         featureFlags: testFeatureFlags({
           aiGateway: false,
           langfuseTopics,
+          unifiedTraceSessionView,
           [INTERNAL_FEATURE_FLAG]: internalFeatures,
         }),
         organizations: [
@@ -46,6 +49,30 @@ const mockSession = ({
 };
 
 describe("useIsFeatureEnabled", () => {
+  it.each([false, true])(
+    "requires explicit unified trace/session opt-in (%s), independent of internal access",
+    (unifiedTraceSessionView) => {
+      mockSession({
+        aiGateway: false,
+        admin: true,
+        enableExperimentalFeatures: true,
+        internalFeatures: true,
+        unifiedTraceSessionView,
+      });
+      const { result, rerender } = renderHook(() =>
+        useIsFeatureEnabled("unifiedTraceSessionView", {
+          enableForAdmins: false,
+          projectId: "project-1",
+        }),
+      );
+      expect(result.current).toBe(unifiedTraceSessionView);
+
+      mockSession({ aiGateway: false, unifiedTraceSessionView });
+      rerender();
+      expect(result.current).toBe(unifiedTraceSessionView);
+    },
+  );
+
   it.each([
     {
       admin: true,

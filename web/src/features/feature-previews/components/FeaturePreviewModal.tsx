@@ -55,6 +55,13 @@ export type PreviewState = {
 // Previews may include separate light/dark illustrations.
 const PREVIEW_REGISTRY: PreviewRegistryItem[] = [
   {
+    flag: "unifiedTraceSessionView",
+    description: "Explore traces and their full session in one unified view.",
+    details:
+      "Switch between Trace and Session scope without leaving the trace UI. Requires the events-backed read path and a trace belonging to a session.",
+    feedbackUrl: "https://github.com/orgs/langfuse/discussions",
+  },
+  {
     flag: "langfuseTopics",
     description:
       "Discover common topics across traces, with summaries and an interactive topic map.",

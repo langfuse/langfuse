@@ -1,21 +1,21 @@
 import { type TraceProps } from "../components/Trace";
 
 export function resolveTraceScope({
-  internalFeaturesEnabled,
+  unifiedTraceSessionViewEnabled,
   isV4,
   isProjectMember,
   sessionId,
   aggregation,
   context,
 }: {
-  internalFeaturesEnabled: boolean;
+  unifiedTraceSessionViewEnabled: boolean;
   isV4: boolean;
   isProjectMember: boolean;
   sessionId: string | null | undefined;
   aggregation: string | readonly string[] | null | undefined;
   context: TraceProps["context"];
 }) {
-  const showScopeToggle = internalFeaturesEnabled && isV4;
+  const showScopeToggle = unifiedTraceSessionViewEnabled && isV4;
   const canSelectSession =
     showScopeToggle &&
     isProjectMember &&

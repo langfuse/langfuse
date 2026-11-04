@@ -12,7 +12,7 @@ import Link from "next/link";
 import { stripBasePath } from "@/src/utils/redirect";
 import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { useReadPath } from "@/src/features/events/hooks/useReadPath";
-import { useInternalFeaturesEnabled } from "@/src/features/feature-flags/hooks/useInternalFeaturesEnabled";
+import useIsFeatureEnabled from "@/src/features/feature-flags/hooks/useIsFeatureEnabled";
 import { getTraceScopeTabs } from "./fns/getTraceScopeTabs";
 import { getTraceScopeQuery } from "./fns/getTraceScopeQuery";
 import { resolveTraceScope } from "./fns/resolveTraceScope";
@@ -27,8 +27,11 @@ export function TracePage({
   const router = useRouter();
   const session = useSession();
   const { isV4 } = useReadPath();
-  const internalFeaturesEnabled = useInternalFeaturesEnabled();
   const routeProjectId = (router.query.projectId as string) ?? "";
+  const unifiedTraceSessionViewEnabled = useIsFeatureEnabled(
+    "unifiedTraceSessionView",
+    { enableForAdmins: false, projectId: routeProjectId },
+  );
 
   // Shared, beta-aware fetch (same hook the peek uses).
   const trace = useTraceDetailData({
@@ -102,7 +105,7 @@ export function TracePage({
   const sessionId = trace.data.sessionId;
   const { canSelectSession, isSessionScope, showScopeToggle } =
     resolveTraceScope({
-      internalFeaturesEnabled,
+      unifiedTraceSessionViewEnabled,
       isV4,
       isProjectMember: hasProjectAccess,
       sessionId,
