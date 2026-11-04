@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { isRootObservation } from "../../eventsTable";
 import { EventsQueryBuilder } from "../queries/clickhouse-sql/event-query-builder";
 import {
@@ -6,11 +5,9 @@ import {
   queryClickhouseStream,
 } from "../repositories/clickhouse";
 import { convertDateToClickhouseDateTime } from "../clickhouse/client";
-import {
-  assembleTranscript,
-  orderObservations,
-  type TranscriptObservation,
-} from "../transcript";
+import { assembleTranscript } from "../transcript/transcript";
+import { orderObservations } from "../transcript/ordering";
+import type { TranscriptObservation } from "../transcript/types";
 
 /** Historical summaries are reusable only with the same transcript producer. */
 export const TOPICS_TRANSCRIPT_VERSION = "shared-transcript-v3";

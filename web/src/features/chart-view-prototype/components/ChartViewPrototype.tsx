@@ -1,4 +1,4 @@
-/* eslint-disable no-nested-ternary, @typescript-eslint/no-use-before-define */
+/* eslint-disable no-nested-ternary */
 import React, { useCallback, useMemo, useState } from "react";
 import { SlidersHorizontal } from "@langfuse/icons";
 import { type DashboardWidgetChartType } from "@langfuse/shared/src/db";
@@ -13,10 +13,10 @@ import {
   ChartTypePicker,
   GranularitySelect,
   MetricSelect,
-  ChartCanvas,
-  ChartViewPanel,
-  ViewModeToggle,
-} from "@/src/features/chart-view";
+} from "@/src/features/chart-view/components/ConfigControls";
+import { ChartCanvas } from "@/src/features/chart-view/components/ChartCanvas";
+import { ChartViewPanel } from "@/src/features/chart-view/components/ChartViewPanel";
+import { ViewModeToggle } from "@/src/features/chart-view/components/ViewModeToggle";
 import {
   coerceConfig,
   DEFAULT_CONFIG,

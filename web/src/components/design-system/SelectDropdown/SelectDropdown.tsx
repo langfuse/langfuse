@@ -9,6 +9,7 @@ import { CustomTooltip } from "@/src/components/design-system/CustomTooltip/Cust
 import { InputDropdown } from "@/src/components/design-system/internal/InputDropdown/InputDropdown";
 
 type SelectOption<V> = {
+  type?: "option";
   value: V;
   label: string;
   icon?: IconComponent;
@@ -37,7 +38,7 @@ type SelectNode<V> =
 function isSelectGroup<V>(
   node: SelectNode<V>,
 ): node is Extract<SelectNode<V>, { type: "group" }> {
-  return "type" in node && node.type === "group";
+  return node.type === "group";
 }
 
 type TriggerControls = {
@@ -95,7 +96,12 @@ export function SelectDropdown<V extends string>({
   ref?: React.Ref<HTMLButtonElement>;
 } & Pick<
   React.ComponentPropsWithoutRef<typeof SelectPrimitive.Trigger>,
-  "id" | "aria-describedby" | "aria-invalid" | "aria-label" | "disabled"
+  | "id"
+  | "aria-describedby"
+  | "aria-invalid"
+  | "aria-label"
+  | "disabled"
+  | "onBlur"
 >) {
   const container = useLayerContainer("popover");
   const selectedOption = options

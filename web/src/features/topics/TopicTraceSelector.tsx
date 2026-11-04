@@ -7,7 +7,7 @@ import {
   type TimeFilter,
 } from "@langfuse/shared";
 import { api, type RouterInputs } from "@/src/utils/api";
-import { toObservedOptions } from "@/src/features/search-bar";
+import { toObservedOptions } from "@/src/features/search-bar/lib/observed-options";
 import { useEventsFilterOptions } from "@/src/features/events/hooks/useEventsFilterOptions";
 import {
   TopicTraceSelectorView,

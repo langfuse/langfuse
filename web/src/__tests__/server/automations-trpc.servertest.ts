@@ -1,8 +1,10 @@
+import dns from "node:dns/promises";
 import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import type * as SharedServer from "@langfuse/shared/src/server";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import { type Prisma, prisma } from "@langfuse/shared/src/db";
+import { env as sharedEnv } from "@langfuse/shared/src/env";
 import {
   createOrgProjectAndApiKey,
   SLACK_CHANNEL_NOT_FOUND_MESSAGE,
@@ -23,6 +25,7 @@ import {
   generateWebhookSecret,
 } from "@langfuse/shared/encryption";
 import { TRPCError } from "@trpc/server";
+import { type MockInstance } from "vitest";
 
 // Fake Slack workspace: the bot is in private channels "G_PRIVATE" and archived
 // "G_ARCHIVED". Slack API calls are faked; the access logic is real.
@@ -1164,6 +1167,115 @@ describe("automations trpc", () => {
           },
         }),
       ).rejects.toThrow("Name is required");
+    });
+
+    describe("monitor webhook destination validation", () => {
+      const original = {
+        hosts: sharedEnv.LANGFUSE_WEBHOOK_WHITELISTED_HOST,
+        ips: sharedEnv.LANGFUSE_WEBHOOK_WHITELISTED_IPS,
+        ipSegments: sharedEnv.LANGFUSE_WEBHOOK_WHITELISTED_IP_SEGMENTS,
+        allowedHosts: sharedEnv.LANGFUSE_WEBHOOK_ALLOWED_HOSTS,
+      };
+
+      const monitorWebhookInput = (projectId: string, url: string) => ({
+        projectId,
+        name: "Monitor webhook",
+        eventSource: TriggerEventSource.Monitor,
+        eventAction: [],
+        filter: null,
+        status: JobConfigState.ACTIVE,
+        actionType: "WEBHOOK" as const,
+        actionConfig: {
+          type: "WEBHOOK" as const,
+          url,
+          requestHeaders: {},
+          apiVersion: { monitor: "v1" as const },
+        },
+      });
+
+      async function expectNothingPersisted(projectId: string) {
+        const [automations, triggers, actions] = await Promise.all([
+          prisma.automation.count({ where: { projectId } }),
+          prisma.trigger.count({ where: { projectId } }),
+          prisma.action.count({ where: { projectId } }),
+        ]);
+        expect({ automations, triggers, actions }).toEqual({
+          automations: 0,
+          triggers: 0,
+          actions: 0,
+        });
+      }
+
+      beforeEach(() => {
+        sharedEnv.LANGFUSE_WEBHOOK_WHITELISTED_HOST = [];
+        sharedEnv.LANGFUSE_WEBHOOK_WHITELISTED_IPS = [];
+        sharedEnv.LANGFUSE_WEBHOOK_WHITELISTED_IP_SEGMENTS = [];
+        sharedEnv.LANGFUSE_WEBHOOK_ALLOWED_HOSTS = [];
+      });
+
+      afterEach(() => {
+        vi.restoreAllMocks();
+        sharedEnv.LANGFUSE_WEBHOOK_WHITELISTED_HOST = original.hosts;
+        sharedEnv.LANGFUSE_WEBHOOK_WHITELISTED_IPS = original.ips;
+        sharedEnv.LANGFUSE_WEBHOOK_WHITELISTED_IP_SEGMENTS =
+          original.ipSegments;
+        sharedEnv.LANGFUSE_WEBHOOK_ALLOWED_HOSTS = original.allowedHosts;
+      });
+
+      it.each([
+        ["loopback IPv6", "http://[::1]/hook", "Blocked IP address"],
+        [
+          "cloud metadata",
+          "http://169.254.169.254/latest/meta-data",
+          "Blocked hostname",
+        ],
+        ["RFC1918", "http://10.0.0.1/hook", "Blocked IP address"],
+        [
+          "embedded credentials",
+          "https://user:pass@hooks.example.com/hook",
+          "URL credentials are not allowed",
+        ],
+      ])(
+        "rejects a %s destination without persisting it",
+        async (_case, url, message) => {
+          const { project, caller } = await prepare();
+
+          await expect(
+            caller.automations.createAutomation(
+              monitorWebhookInput(project.id, url),
+            ),
+          ).rejects.toMatchObject({
+            code: "BAD_REQUEST",
+            message: expect.stringContaining(`Invalid webhook URL: ${message}`),
+          });
+          await expectNothingPersisted(project.id);
+        },
+      );
+
+      it("rejects a hostname that resolves to a private address", async () => {
+        vi.spyOn(dns, "resolve4").mockResolvedValue(["10.0.0.5"]);
+        vi.spyOn(dns, "resolve6").mockRejectedValue(new Error("ENODATA"));
+        vi.spyOn(dns, "lookup").mockResolvedValue([
+          { address: "10.0.0.5", family: 4 },
+        ] as never);
+        const { project, caller } = await prepare();
+
+        await expect(
+          caller.automations.createAutomation(
+            monitorWebhookInput(
+              project.id,
+              "https://hooks.internal.example.com",
+            ),
+          ),
+        ).rejects.toMatchObject({
+          code: "BAD_REQUEST",
+          message: expect.stringContaining(
+            "Invalid webhook URL: Blocked IP address",
+          ),
+        });
+        expect(dns.resolve4).toHaveBeenCalledWith("hooks.internal.example.com");
+        await expectNothingPersisted(project.id);
+      });
     });
 
     it("should create a new Slack automation", async () => {
@@ -3385,6 +3497,299 @@ describe("automations trpc", () => {
       expect(config).not.toHaveProperty("githubToken");
       expect(config.type).toBe("GITHUB_DISPATCH");
       expect(config.eventType).toBe("langfuse-prompt-created");
+    });
+  });
+  describe("PagerDuty actions", () => {
+    const routingKey = "R0abcdefghijklmnopqrstuvwxyz9xYz";
+    const newRoutingKey = "N3wkeyabcdefghijklmnopqrstuv7uVw";
+    const createInput = (
+      projectId: string,
+      actionConfig: {
+        routingKey?: string;
+        region: "US" | "EU";
+      } = { routingKey, region: "US" },
+    ) => ({
+      projectId,
+      name: "Page on-call",
+      eventSource: TriggerEventSource.Monitor,
+      eventAction: [],
+      filter: [],
+      status: JobConfigState.ACTIVE,
+      actionType: "PAGERDUTY" as const,
+      actionConfig: { type: "PAGERDUTY" as const, ...actionConfig },
+    });
+
+    async function storedConfig(actionId: string) {
+      const action = await prisma.action.findUniqueOrThrow({
+        where: { id: actionId },
+      });
+      return action.config as Record<string, string>;
+    }
+
+    function viewerCaller(session: Session) {
+      const viewerSession: Session = {
+        ...session,
+        user: {
+          ...session.user!,
+          admin: false,
+          organizations: [
+            {
+              ...session.user!.organizations[0],
+              role: "MEMBER",
+              projects: [
+                {
+                  ...session.user!.organizations[0].projects[0],
+                  role: "VIEWER",
+                },
+              ],
+            },
+          ],
+        },
+      };
+      return appRouter.createCaller({
+        ...createInnerTRPCContext({ session: viewerSession, headers: {} }),
+        prisma,
+      });
+    }
+
+    it("encrypts the routing key and returns only the masked key", async () => {
+      const { project, caller } = await prepare();
+
+      const result = await caller.automations.createAutomation(
+        createInput(project.id, { routingKey, region: "EU" }),
+      );
+
+      const config = await storedConfig(result.action.id);
+      expect(config.routingKey).not.toBe(routingKey);
+      expect(decrypt(config.routingKey)).toBe(routingKey);
+      expect(config.displayRoutingKey).toBe("R0ab...9xYz");
+      expect(config.region).toBe("EU");
+      expect(result.action.config).toEqual({
+        type: "PAGERDUTY",
+        displayRoutingKey: "R0ab...9xYz",
+        region: "EU",
+      });
+    });
+
+    function callerWithUser(session: Session, user: Partial<Session["user"]>) {
+      return appRouter.createCaller({
+        ...createInnerTRPCContext({
+          session: { ...session, user: { ...session.user!, ...user } },
+          headers: {},
+        }),
+        prisma,
+      });
+    }
+
+    it("lets project owners who are not admins create PagerDuty automations", async () => {
+      const { project, session } = await prepare();
+      const owner = callerWithUser(session, { admin: false });
+
+      const result = await owner.automations.createAutomation(
+        createInput(project.id),
+      );
+
+      expect(result.action.type).toBe("PAGERDUTY");
+    });
+
+    it("rejects a create without a routing key", async () => {
+      const { project, caller } = await prepare();
+
+      await expect(
+        caller.automations.createAutomation(
+          createInput(project.id, { region: "US" }),
+        ),
+      ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    });
+
+    it("rejects a malformed routing key", async () => {
+      const { project, caller } = await prepare();
+
+      await expect(
+        caller.automations.createAutomation(
+          createInput(project.id, { routingKey: "too-short", region: "US" }),
+        ),
+      ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    });
+
+    it("keeps the stored key when an update omits it", async () => {
+      const { project, caller } = await prepare();
+      const created = await caller.automations.createAutomation(
+        createInput(project.id),
+      );
+
+      await caller.automations.updateAutomation({
+        ...createInput(project.id, { region: "EU" }),
+        automationId: created.automation.id,
+      });
+
+      const config = await storedConfig(created.action.id);
+      expect(decrypt(config.routingKey)).toBe(routingKey);
+      expect(config.displayRoutingKey).toBe("R0ab...9xYz");
+      expect(config.region).toBe("EU");
+    });
+
+    it("replaces the key when an update sends a new one", async () => {
+      const { project, caller } = await prepare();
+      const created = await caller.automations.createAutomation(
+        createInput(project.id),
+      );
+
+      await caller.automations.updateAutomation({
+        ...createInput(project.id, {
+          routingKey: newRoutingKey,
+          region: "US",
+        }),
+        automationId: created.automation.id,
+      });
+
+      const config = await storedConfig(created.action.id);
+      expect(decrypt(config.routingKey)).toBe(newRoutingKey);
+      expect(config.displayRoutingKey).toBe("N3wk...7uVw");
+    });
+
+    it("never returns the routing key on any read path to a project VIEWER", async () => {
+      const { project, session, caller } = await prepare();
+      const created = await caller.automations.createAutomation(
+        createInput(project.id),
+      );
+      const storedKey = (await storedConfig(created.action.id)).routingKey;
+      const viewer = viewerCaller(session);
+
+      const responses = [
+        await viewer.automations.getAutomations({ projectId: project.id }),
+        await viewer.automations.getAutomation({
+          projectId: project.id,
+          automationId: created.automation.id,
+        }),
+      ];
+
+      for (const response of responses) {
+        const serialized = JSON.stringify(response);
+        expect(serialized).not.toContain(routingKey);
+        expect(serialized).not.toContain(storedKey);
+        expect(serialized).not.toContain("routingKey");
+      }
+    });
+
+    describe("sendPagerDutyTestEvent", () => {
+      let fetchSpy: MockInstance<typeof fetch>;
+
+      beforeEach(() => {
+        fetchSpy = vi
+          .spyOn(global, "fetch")
+          .mockResolvedValue(new Response("{}", { status: 202 }));
+      });
+
+      afterEach(() => {
+        fetchSpy.mockRestore();
+      });
+
+      function sentEvents() {
+        return fetchSpy.mock.calls.map(([url, init]) => ({
+          url: String(url),
+          body: JSON.parse(String((init as RequestInit).body)),
+        }));
+      }
+
+      it.each([
+        ["trigger", "trigger", "critical"],
+        ["resolve", "resolve", undefined],
+      ] as const)(
+        "sends the %s step as one %s under the project's test key",
+        async (step, eventAction, severity) => {
+          const { project, caller } = await prepare();
+
+          await caller.automations.sendPagerDutyTestEvent({
+            projectId: project.id,
+            region: "EU",
+            routingKey,
+            step,
+          });
+
+          const [event, ...rest] = sentEvents();
+          expect(rest).toEqual([]);
+          expect(event.url).toBe("https://events.eu.pagerduty.com/v2/enqueue");
+          expect(event.body).toMatchObject({
+            routing_key: routingKey,
+            event_action: eventAction,
+            dedup_key: `langfuse-${project.id}-test`,
+          });
+          expect(event.body.payload?.severity).toBe(severity);
+        },
+      );
+
+      it("falls back to the stored key of the action", async () => {
+        const { project, caller } = await prepare();
+        const created = await caller.automations.createAutomation(
+          createInput(project.id),
+        );
+
+        await caller.automations.sendPagerDutyTestEvent({
+          projectId: project.id,
+          region: "US",
+          actionId: created.action.id,
+          step: "trigger",
+        });
+
+        expect(sentEvents()[0]).toMatchObject({
+          url: "https://events.pagerduty.com/v2/enqueue",
+          body: { routing_key: routingKey },
+        });
+      });
+
+      it("rejects a stored key of another project", async () => {
+        const { project: otherProject, caller: otherCaller } = await prepare();
+        const otherAction = await otherCaller.automations.createAutomation(
+          createInput(otherProject.id),
+        );
+        const { project, caller } = await prepare();
+
+        await expect(
+          caller.automations.sendPagerDutyTestEvent({
+            projectId: project.id,
+            region: "US",
+            actionId: otherAction.action.id,
+            step: "trigger",
+          }),
+        ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+        expect(fetchSpy).not.toHaveBeenCalled();
+      });
+
+      it("maps a PagerDuty rejection to BAD_REQUEST", async () => {
+        fetchSpy.mockResolvedValue(
+          new Response("invalid key", { status: 400 }),
+        );
+        const { project, caller } = await prepare();
+
+        await expect(
+          caller.automations.sendPagerDutyTestEvent({
+            projectId: project.id,
+            region: "US",
+            routingKey,
+            step: "trigger",
+          }),
+        ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+      });
+
+      it.each([
+        [429, "TOO_MANY_REQUESTS"],
+        [502, "BAD_GATEWAY"],
+        [503, "SERVICE_UNAVAILABLE"],
+      ])("returns a PagerDuty %i as %s after retries", async (status, code) => {
+        fetchSpy.mockResolvedValue(new Response("busy", { status }));
+        const { project, caller } = await prepare();
+
+        await expect(
+          caller.automations.sendPagerDutyTestEvent({
+            projectId: project.id,
+            region: "US",
+            routingKey,
+            step: "trigger",
+          }),
+        ).rejects.toMatchObject({ code });
+        expect(fetchSpy).toHaveBeenCalledTimes(4);
+      });
     });
   });
 });

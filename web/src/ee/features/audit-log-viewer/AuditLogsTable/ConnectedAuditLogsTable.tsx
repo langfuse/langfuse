@@ -9,8 +9,8 @@ import {
 
 import { type AsyncTableData } from "@/src/components/design-system/table/Table";
 import { useRowHeightLocalStorage } from "@/src/components/table/data-table-row-height-switch";
-import { showSuccessToast } from "@/src/features/notifications";
-import { useHasProjectAccess } from "@/src/features/rbac";
+import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { api } from "@/src/utils/api";
 import { safeExtract } from "@/src/utils/map-utils";
 import { AuditLogsTable, type AuditLogRow } from "./AuditLogsTable";

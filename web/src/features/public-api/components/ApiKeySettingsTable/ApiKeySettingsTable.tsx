@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { useCallback, useMemo } from "react";
 import { Pencil, Trash } from "@langfuse/icons";
 
@@ -11,7 +10,7 @@ import {
   type SettingsTableProps,
 } from "@/src/components/SettingsTable/SettingsTable";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
-import { isApiKeyExpired } from "@/src/features/apiKey";
+import { isApiKeyExpired } from "@/src/features/apiKey/helpers/isApiKeyExpired";
 import { type RouterOutput } from "@/src/utils/types";
 
 const EXCLUDE_GATEWAY_KEYS = "exclude-gateway";

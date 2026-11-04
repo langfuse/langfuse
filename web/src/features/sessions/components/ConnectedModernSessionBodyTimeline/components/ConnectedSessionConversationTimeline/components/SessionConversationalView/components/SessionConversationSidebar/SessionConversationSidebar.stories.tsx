@@ -1,6 +1,7 @@
 import preview from "@/.storybook/preview";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import { type ComponentProps, useState } from "react";
+import { Button } from "@/src/components/design-system/Button/Button";
 import { SessionConversationSidebar } from "@/src/features/sessions/components/ConnectedModernSessionBodyTimeline/components/ConnectedSessionConversationTimeline/components/SessionConversationalView/components/SessionConversationSidebar/SessionConversationSidebar";
 
 type Props = ComponentProps<typeof SessionConversationSidebar>;
@@ -124,6 +125,15 @@ export const DarkMode = meta.story({
   globals: { theme: "dark" },
 });
 export const Empty = meta.story({ args: { ...loadedArgs, traces: [] } });
+
+export const CustomizeView = meta.story({
+  args: {
+    ...loadedArgs,
+    searchActions: (
+      <Button variant="ghost" size="sm" text="Customize view" onClick={fn()} />
+    ),
+  },
+});
 
 export const GroupedToolStatuses = meta.story({
   name: "(Test) Grouped and Individual Tool Status Indicators",

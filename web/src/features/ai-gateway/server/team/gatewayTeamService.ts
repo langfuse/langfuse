@@ -13,12 +13,15 @@ import {
 
 import { env } from "@/src/env.mjs";
 import {
-  inviteOrganizationMember,
-  OrganizationMembersService,
-} from "@/src/features/rbac/server";
+  getSfdcService,
+  type SfdcService,
+  type SetUserRoleInput,
+} from "@/src/ee/features/sfdc-sync/server/sfdcService";
+import { inviteOrganizationMember } from "@/src/features/rbac/server/inviteOrganizationMember";
+import { OrganizationMembersService } from "@/src/features/rbac/server/organizationMembersService";
 import type { OrgAuthedContext } from "@/src/server/api/trpc";
 
-const MEMBER_PREVIEW_LIMIT = 4;
+const MEMBER_SUGGESTION_LIMIT = 4;
 const GATEWAY_USER_SCOPE = "gateway:invoke";
 
 type GatewayInvitationEmail = Extract<
@@ -45,17 +48,25 @@ function isEmailConfigured() {
   return Boolean(env.SMTP_CONNECTION_URL && env.EMAIL_FROM_ADDRESS);
 }
 
+/** Addresses are stored lowercase, so lookups and dedupe compare lowercase. */
+function normalizeEmails(emails: string[]) {
+  return [...new Set(emails.map((email) => email.trim().toLowerCase()))];
+}
+
 type GatewayTeamContext = Pick<OrgAuthedContext, "session" | "prisma">;
 
 /**
- * Owns every email the gateway setup sends: invitations for new people (as
- * organization members) and the announcement to existing members who can use
+ * Owns every email the gateway setup sends: invitations for new people (with
+ * the AI Gateway organization role) and the announcement to existing members who can use
  * the gateway. Emails are queued, one job per recipient, and sent by the worker.
  */
 export class GatewayTeamService {
   private readonly members: OrganizationMembersService;
 
-  constructor(prisma: PrismaClient) {
+  constructor(
+    prisma: PrismaClient,
+    private readonly sfdc: SfdcService | null = getSfdcService(),
+  ) {
     this.members = new OrganizationMembersService(prisma);
   }
 
@@ -63,19 +74,67 @@ export class GatewayTeamService {
     organizationId: string;
     currentUserId: string;
   }) {
-    const query = {
+    const count = await this.members.countMembersWithScope({
       organizationId: params.organizationId,
       scope: GATEWAY_USER_SCOPE,
       excludeUserId: params.currentUserId,
-    } as const;
-    const [count, preview] = await Promise.all([
-      this.members.countMembersWithScope(query),
-      this.members.findMembersWithScope({
-        ...query,
-        limit: MEMBER_PREVIEW_LIMIT,
-      }),
-    ]);
-    return { isEmailConfigured: isEmailConfigured(), count, preview };
+    });
+    return { isEmailConfigured: isEmailConfigured(), count };
+  }
+
+  /**
+   * Members to offer as quick picks: others who can use the gateway, not
+   * already picked, optionally narrowed by name or email.
+   */
+  getMemberSuggestions(params: {
+    organizationId: string;
+    currentUserId: string;
+    search: string;
+    excludeEmails: string[];
+  }) {
+    return this.members.findMembersWithScope({
+      organizationId: params.organizationId,
+      scope: GATEWAY_USER_SCOPE,
+      excludeUserId: params.currentUserId,
+      excludeEmails: normalizeEmails(params.excludeEmails),
+      search: params.search,
+      limit: MEMBER_SUGGESTION_LIMIT,
+    });
+  }
+
+  /**
+   * Pairs each address with its organization member, or null when it would be
+   * invited. Mirrors `inviteTeam`: the sender and members whose role can't use
+   * the gateway are not notified.
+   */
+  async getInviteeMembers(params: {
+    organizationId: string;
+    currentUserId: string;
+    emails: string[];
+  }) {
+    const emails = normalizeEmails(params.emails);
+    const members = new Map(
+      (
+        await this.members.findMembersByEmail({
+          organizationId: params.organizationId,
+          emails,
+          scope: GATEWAY_USER_SCOPE,
+        })
+      ).map((member) => [member.email.toLowerCase(), member]),
+    );
+    return emails.map((email) => {
+      const member = members.get(email);
+      return {
+        email,
+        member: member
+          ? {
+              name: member.name,
+              isSelf: member.id === params.currentUserId,
+              canUseGateway: member.hasScope,
+            }
+          : null,
+      };
+    });
   }
 
   async inviteTeam(params: {
@@ -104,10 +163,9 @@ export class GatewayTeamService {
       inviterEmail: ctx.session.user.email ?? "",
     } as const;
     const emailJobs: GatewayInvitationEmail[] = [];
+    const sfdcUserRoles: SetUserRoleInput[] = [];
 
-    const emails = [
-      ...new Set(params.emails.map((email) => email.trim().toLowerCase())),
-    ];
+    const emails = normalizeEmails(params.emails);
     const existingMembers = new Map(
       (
         await this.members.findMembersByEmail({
@@ -152,13 +210,16 @@ export class GatewayTeamService {
       try {
         await inviteOrganizationMember({
           ctx,
-          input: { orgId: organizationId, email, orgRole: Role.MEMBER },
+          input: { orgId: organizationId, email, orgRole: Role.AI_GATEWAY },
           sendInvitationEmail: async ({ to, userExists }) => {
             emailJobs.push({
               ...sender,
               to,
               audience: { kind: "invitee", hasAccount: userExists },
             });
+          },
+          syncSfdcUserRole: async (input) => {
+            sfdcUserRoles.push(input);
           },
         });
         invited.add(email);
@@ -176,6 +237,9 @@ export class GatewayTeamService {
         failed.push({ email, message: message ?? "Invitation failed" });
       }
     }
+    // Started before anything else can throw: the memberships are saved, and a
+    // retry would find these users as members and never sync them again.
+    this.syncSfdcUserRoles(sfdcUserRoles);
 
     if (params.notifyMembers && sendsEmail) {
       const members = await this.members.findMembersWithScope({
@@ -225,5 +289,20 @@ export class GatewayTeamService {
       failed,
       notifiedCount: notified.size,
     };
+  }
+
+  /**
+   * Each sync is a Mulesoft round trip of seconds, so a large team would hold
+   * the response for minutes. They run in the background instead; each sync
+   * logs its own delivery failures.
+   */
+  private syncSfdcUserRoles(inputs: SetUserRoleInput[]) {
+    const { sfdc } = this;
+    if (!sfdc) return;
+    Promise.all(inputs.map((input) => sfdc.setUserRole(input))).catch(
+      (error) => {
+        logger.error("Failed to sync AI Gateway invitees to SFDC", { error });
+      },
+    );
   }
 }

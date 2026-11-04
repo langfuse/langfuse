@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { Button } from "@/src/components/design-system/Button/Button";
 import { OverflowCountBadge } from "@/src/components/OverflowCountBadge";
 /** Trace totals, session/user links and tags, above the panels. */
@@ -8,7 +7,7 @@ import { useMemo, useState, type ReactNode } from "react";
 import { GroupedScoreBadges } from "@/src/components/GroupedScoreBadges";
 import { BadgeShell } from "@/src/components/design-system/Badge/Badge";
 import { Skeleton } from "@/src/components/ui/skeleton";
-import { TagList } from "@/src/features/tag";
+import { default as TagList } from "@/src/features/tag/components/TagList";
 import {
   SessionBadge,
   UserIdBadge,

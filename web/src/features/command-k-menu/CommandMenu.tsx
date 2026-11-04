@@ -30,23 +30,23 @@ import { useTheme } from "next-themes";
 import { Fragment, useEffect, memo, useState } from "react";
 import { useSession } from "next-auth/react";
 import { env } from "@/src/env.mjs";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { Spinner } from "@/src/components/design-system/Spinner/Spinner";
 import { useCommandMenu } from "@/src/features/command-k-menu/CommandMenuProvider";
 import { useOrganizationSettingsPages } from "@/src/features/organizations/OrganizationSettingsPage";
-import { useAccountSettingsPages } from "@/src/features/account";
-import { useQueryProjectOrOrganization } from "@/src/features/projects";
+import { useAccountSettingsPages } from "@/src/features/account/AccountSettingsPage";
+import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
 import { useProjectSettingsPages } from "@/src/features/projects/ProjectSettingsPage";
 import { api, type RouterOutputs } from "@/src/utils/api";
 import { type NavigationItem } from "@/src/components/layouts/utilities/routes";
 import useLocalStorage from "@/src/components/useLocalStorage";
 import { hasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { type ProjectScope } from "@langfuse/shared";
-import { useReadPath } from "@/src/features/events";
+import { useReadPath } from "@/src/features/events/hooks/useReadPath";
 import {
   useInAppAiAgent,
   useIsInAppAgentLauncherVisible,
-} from "@/src/features/in-app-agent";
+} from "@/src/features/in-app-agent/components/InAppAiAgentProvider";
 
 type IdNavigationItem = {
   type: "trace_id" | "observation_id";

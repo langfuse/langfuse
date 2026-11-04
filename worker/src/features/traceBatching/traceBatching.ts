@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { createHash, randomUUID } from "node:crypto";
 import {
   getTracingReadinessSettings,

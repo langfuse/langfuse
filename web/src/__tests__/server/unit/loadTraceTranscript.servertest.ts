@@ -360,65 +360,6 @@ it("returns the shared transcript unchanged without fetching root I/O", async ()
   expect(mocks.root).not.toHaveBeenCalled();
 });
 
-it("uses only root I/O in root mode even when generations exist", async () => {
-  const root = {
-    id: "root",
-    parentObservationId: null,
-    startTime: new Date(0),
-    endTime: new Date(1),
-    input: "Root question",
-    output: "Root answer",
-    metadata: {},
-  };
-  mocks.observations.mockResolvedValue({
-    observations: [root, { id: "generation", type: "GENERATION" }],
-    totalCount: 2,
-  });
-  mocks.root.mockResolvedValue(root);
-
-  const result = await loadTraceTranscript({
-    ...trace,
-    transcriptSource: "root",
-  });
-
-  expect(mocks.observations).toHaveBeenCalledTimes(1);
-  expect(mocks.assemble).not.toHaveBeenCalled();
-  expect(result.cutoff).toBe(false);
-  expect(result.transcript?.threads[0]?.currentTurn.messages).toMatchObject([
-    { observationId: "root", parts: [{ type: "text", text: "Root question" }] },
-    { observationId: "root", parts: [{ type: "text", text: "Root answer" }] },
-  ]);
-});
-
-it.each(["missing", "empty"])(
-  "does not use generations when root I/O is %s in root mode",
-  async (rootState) => {
-    mocks.observations.mockResolvedValue({
-      observations:
-        rootState === "missing"
-          ? [
-              {
-                id: "generation",
-                parentObservationId: "root",
-                type: "GENERATION",
-              },
-            ]
-          : [{ id: "root", parentObservationId: null, startTime: new Date(0) }],
-      totalCount: 1,
-    });
-    mocks.root.mockResolvedValue({ input: null, output: null, metadata: {} });
-
-    const result = await loadTraceTranscript({
-      ...trace,
-      transcriptSource: "root",
-    });
-
-    expect(result.transcript).toBeNull();
-    expect(mocks.observations).toHaveBeenCalledTimes(1);
-    expect(mocks.assemble).not.toHaveBeenCalled();
-  },
-);
-
 it("leaves an empty transcript unchanged unless fallback is enabled", async () => {
   mocks.assemble.mockReturnValue(null);
   mocks.observations.mockResolvedValue({
@@ -452,4 +393,116 @@ it("leaves the transcript empty when the root has no input/output", async () => 
     (await loadTraceTranscript({ ...trace, fallbackToRootIO: true }))
       .transcript,
   ).toBeNull();
+});
+
+it("loads and normalizes matching span I/O without assembly or ancestors", async () => {
+  const message = {
+    role: "assistant" as const,
+    source: "output" as const,
+    parts: [{ type: "text" as const, text: "Response" }],
+    observationId: "match",
+    traceId: "trace",
+    startTime: new Date(0),
+    endTime: new Date(1),
+  };
+  mocks.observations.mockResolvedValue({
+    observations: [
+      {
+        id: "match",
+        type: "SPAN",
+        startTime: new Date(0),
+        endTime: new Date(1),
+        input: null,
+        output: "Response",
+        metadata: {},
+      },
+    ],
+    totalCount: 1,
+  });
+  const filter = [
+    {
+      column: "name",
+      type: "string" as const,
+      operator: "=" as const,
+      value: "child",
+    },
+  ];
+  const result = await loadTraceTranscript({ ...trace, filter });
+  expect(mocks.observations).toHaveBeenCalledExactlyOnceWith({
+    ...trace,
+    filter,
+    selectIOAndMetadata: true,
+    limit: 1000,
+  });
+  expect(mocks.assemble).not.toHaveBeenCalled();
+  expect(result.transcript?.threads).toEqual([
+    {
+      conversationHistory: [],
+      currentTurn: {
+        nestingLevel: 0,
+        observations: [{ id: "match", traceId: "trace" }],
+        messages: [message],
+      },
+    },
+  ]);
+});
+
+it("does not restore unmatched root I/O when no observations match", async () => {
+  mocks.assemble.mockReturnValue(null);
+  mocks.observations.mockResolvedValue({ observations: [], totalCount: 0 });
+  const result = await loadTraceTranscript({
+    ...trace,
+    fallbackToRootIO: true,
+    filter: [
+      { column: "level", type: "string", operator: "=", value: "ERROR" },
+    ],
+  });
+  expect(result.transcript).toBeNull();
+  expect(mocks.root).not.toHaveBeenCalled();
+});
+
+it("bypasses assembly for trace-only filters and keeps each observation's full I/O in chronological order", async () => {
+  const observations = [2, 1].map((index) => ({
+    id: `span-${index}`,
+    type: "SPAN",
+    startTime: new Date(index),
+    endTime: new Date(index + 1),
+    input: [{ role: "user", content: "Repeated history" }],
+    output: `Answer ${index}`,
+    metadata: {},
+  }));
+  mocks.observations.mockResolvedValue({ observations, totalCount: 1001 });
+  const result = await loadTraceTranscript({
+    ...trace,
+    fallbackToRootIO: true,
+    filter: [
+      { column: "traceName", type: "string", operator: "=", value: "chat" },
+    ],
+  });
+  expect(mocks.observations).toHaveBeenCalledExactlyOnceWith({
+    ...trace,
+    fallbackToRootIO: true,
+    filter: [],
+    selectIOAndMetadata: true,
+    limit: 1000,
+  });
+  expect(mocks.assemble).not.toHaveBeenCalled();
+  expect(mocks.root).not.toHaveBeenCalled();
+  expect(result.cutoff).toBe(true);
+  expect(
+    result.transcript?.threads.map((thread) => ({
+      history: thread.conversationHistory,
+      id: thread.currentTurn.observations[0]?.id,
+      messages: thread.currentTurn.messages.map((message) => message.parts),
+    })),
+  ).toEqual(
+    [1, 2].map((index) => ({
+      history: [],
+      id: `span-${index}`,
+      messages: [
+        [{ type: "text", text: "Repeated history" }],
+        [{ type: "text", text: `Answer ${index}` }],
+      ],
+    })),
+  );
 });

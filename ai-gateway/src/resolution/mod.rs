@@ -8,7 +8,7 @@ pub use contracts::{
 };
 use reqwest::{
     Client, Method, Url,
-    header::{AUTHORIZATION, CONTENT_TYPE, HeaderValue},
+    header::{AUTHORIZATION, CONTENT_TYPE, HeaderValue, RETRY_AFTER},
 };
 use reqwest_middleware::{ClientWithMiddleware, RequestBuilder};
 use secrecy::{ExposeSecret, SecretString};
@@ -21,6 +21,12 @@ const RESOLVE_PATH: &str = "/api/internal/ai-gateway/v1/resolve";
 const MODELS_PATH: &str = "/api/internal/ai-gateway/v1/models";
 const REQUEST_ID_HEADER: &str = "langfuse-gateway-request-id";
 const ERROR_CODE_HEADER: &str = "langfuse-gateway-error-code";
+const RATE_LIMIT_ERROR_CODE: &str = "rate_limit_exceeded";
+/// Shown when Web's rate-limit body is missing or unreadable.
+const RATE_LIMIT_FALLBACK_MESSAGE: &str =
+    "Langfuse AI Gateway rate limit exceeded for your organization's plan.";
+/// Web's messages are a sentence; a longer one is not relayed to the caller.
+const MAX_RATE_LIMIT_MESSAGE_BYTES: usize = 1024;
 // Web sits behind load balancers that drop idle connections after 60s by default
 // (AWS ALB). Evicting pooled connections first keeps the resolver from sending on a
 // socket the balancer is closing, which would fail without a retry.
@@ -156,24 +162,34 @@ impl ControlPlaneClient {
     }
 
     /// Resolve a gateway credential and API format into a validated execution contract.
-    /// `request_id` is the gateway request ID, sent so Web logs carry it.
+    /// `request_bytes` is the client body size, counted against the organization's byte
+    /// rate limit. `request_id` is the gateway request ID, sent so Web logs carry it.
     ///
     /// # Errors
     /// Returns a sanitized [`ResolutionError`] for invalid credentials, authentication or
-    /// authorization failures, missing routes, unavailable Web or system time, request
-    /// construction or transport failures, timeouts, or oversized or invalid responses.
+    /// authorization failures, organization rate limits, missing routes, unavailable Web
+    /// or system time, request construction or transport failures, timeouts, or oversized
+    /// or invalid responses.
     pub async fn resolve(
         &self,
         gateway_key: &str,
         api_format: ApiFormat,
         model: &str,
+        request_bytes: usize,
         request_id: &str,
     ) -> Result<ResolvedRequestContext, ResolutionError> {
         let timestamp = SystemTime::now()
             .duration_since(UNIX_EPOCH)
             .map_err(|_| ResolutionError::Unavailable)?;
-        self.resolve_at(gateway_key, api_format, model, timestamp, request_id)
-            .await
+        self.resolve_at(
+            gateway_key,
+            api_format,
+            model,
+            request_bytes,
+            timestamp,
+            request_id,
+        )
+        .await
     }
 
     /// Fetch the caller-visible model catalog from trusted Web. `reserve` is called
@@ -212,6 +228,7 @@ impl ControlPlaneClient {
         gateway_key: &str,
         api_format: ApiFormat,
         model: &str,
+        request_bytes: usize,
         timestamp: Duration,
         request_id: &str,
     ) -> Result<ResolvedRequestContext, ResolutionError> {
@@ -219,6 +236,7 @@ impl ControlPlaneClient {
         let body = serde_json::to_vec(&serde_json::json!({
             "apiFormat": api_format,
             "model": model,
+            "requestBytes": request_bytes,
         }))
         .map_err(|_| ResolutionError::Configuration)?;
         let request = self
@@ -232,7 +250,7 @@ impl ControlPlaneClient {
             .header(CONTENT_TYPE, "application/json")
             .body(body);
         let body = self
-            .execute(request, self.config.resolve_limits, &mut |_| Ok(()))
+            .execute_retrying_once(request, self.config.resolve_limits)
             .await?;
         contracts::decode(
             &body,
@@ -286,10 +304,59 @@ impl ControlPlaneClient {
         .await
         .map_err(|_| ResolutionError::Timeout)?
     }
+
+    /// Like [`Self::execute`], but resends once, immediately, when no usable response
+    /// arrived. A duplicate only writes rate-limit counters on Web, so at worst it counts
+    /// one request twice. Both attempts share one deadline, so a timeout is never retried.
+    async fn execute_retrying_once(
+        &self,
+        request: RequestBuilder,
+        limits: ControlPlaneLimits,
+    ) -> Result<Vec<u8>, ResolutionError> {
+        tokio::time::timeout(limits.timeout, async {
+            let retry = request.try_clone();
+            let mut sent = request.send().await;
+            if let Some(retry) = retry
+                && let Some(reason) = retry_reason(&sent)
+            {
+                tracing::warn!(reason, "gateway resolution retrying once");
+                tracing::Span::current().record("gateway.resolution.retry", reason);
+                sent = retry.send().await;
+            }
+            let response = sent.map_err(|_| ResolutionError::Transport)?;
+            read_response(response, limits.max_response_bytes, &mut |_| Ok(())).await
+        })
+        .await
+        .map_err(|_| ResolutionError::Timeout)?
+    }
+}
+
+/// Retry only failures where Web never answered: connect and send errors (including a
+/// connection closed or reset under the request, or an HTTP/2 GOAWAY or refused stream),
+/// and 502, which Web never returns itself, so it comes from the load balancer. Web's
+/// 503 asks callers to back off, and 504 or a timeout has already spent the budget.
+fn retry_reason(
+    sent: &Result<reqwest::Response, reqwest_middleware::Error>,
+) -> Option<&'static str> {
+    match sent {
+        Ok(response) if response.status() == reqwest::StatusCode::BAD_GATEWAY => {
+            Some("bad_gateway")
+        }
+        Err(reqwest_middleware::Error::Reqwest(error)) if !error.is_timeout() => {
+            if error.is_connect() {
+                Some("connect")
+            } else if error.is_request() {
+                Some("send")
+            } else {
+                None
+            }
+        }
+        _ => None,
+    }
 }
 
 async fn read_response(
-    mut response: reqwest::Response,
+    response: reqwest::Response,
     limit: usize,
     reserve: &mut (dyn FnMut(usize) -> Result<(), ResolutionError> + Send),
 ) -> Result<Vec<u8>, ResolutionError> {
@@ -314,9 +381,26 @@ async fn read_response(
         }
         403 => return Err(ResolutionError::Forbidden),
         404 => return Err(ResolutionError::NoRoute),
+        429 if response
+            .headers()
+            .get(ERROR_CODE_HEADER)
+            .is_some_and(|value| value == RATE_LIMIT_ERROR_CODE) =>
+        {
+            return Err(ResolutionError::RateLimited(Box::new(
+                RateLimit::from_response(response, limit).await,
+            )));
+        }
         429 | 500..=599 => return Err(ResolutionError::Unavailable),
         _ => return Err(ResolutionError::InvalidResponse),
     }
+    read_body(response, limit, reserve).await
+}
+
+async fn read_body(
+    mut response: reqwest::Response,
+    limit: usize,
+    reserve: &mut (dyn FnMut(usize) -> Result<(), ResolutionError> + Send),
+) -> Result<Vec<u8>, ResolutionError> {
     let declared = response
         .content_length()
         .map(|size| usize::try_from(size).unwrap_or(usize::MAX));
@@ -347,12 +431,103 @@ async fn read_response(
     Ok(bytes)
 }
 
+/// Which of the organization's per-minute limits Web enforced.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum RateLimitKind {
+    Requests,
+    Bytes,
+}
+
+impl RateLimitKind {
+    #[must_use]
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Requests => "requests",
+            Self::Bytes => "bytes",
+        }
+    }
+}
+
+/// Web rejected the request because the organization exceeded a plan rate limit.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RateLimit {
+    kind: RateLimitKind,
+    retry_after_secs: u64,
+    message: Box<str>,
+    organization_id: Option<Box<str>>,
+}
+
+impl RateLimit {
+    /// Web writes the caller-facing message, so the gateway relays it unchanged.
+    async fn from_response(response: reqwest::Response, limit: usize) -> Self {
+        #[derive(serde::Deserialize)]
+        #[serde(rename_all = "camelCase")]
+        struct Body {
+            error: String,
+            limit: RateLimitKind,
+            organization_id: Option<String>,
+        }
+        let retry_after_secs = response
+            .headers()
+            .get(RETRY_AFTER)
+            .and_then(|value| value.to_str().ok()?.trim().parse::<u64>().ok())
+            .unwrap_or(1)
+            .clamp(1, 60 * 60);
+        let body = read_body(response, limit, &mut |_| Ok(()))
+            .await
+            .ok()
+            .and_then(|bytes| serde_json::from_slice::<Body>(&bytes).ok())
+            .filter(|body| {
+                !body.error.is_empty() && body.error.len() <= MAX_RATE_LIMIT_MESSAGE_BYTES
+            });
+        let Some(body) = body else {
+            return Self {
+                kind: RateLimitKind::Requests,
+                retry_after_secs,
+                message: RATE_LIMIT_FALLBACK_MESSAGE.into(),
+                organization_id: None,
+            };
+        };
+        Self {
+            kind: body.limit,
+            retry_after_secs,
+            message: body.error.into_boxed_str(),
+            organization_id: body
+                .organization_id
+                .filter(|id| valid_token(id) && id.len() <= 256)
+                .map(String::into_boxed_str),
+        }
+    }
+
+    #[must_use]
+    pub fn kind(&self) -> RateLimitKind {
+        self.kind
+    }
+
+    #[must_use]
+    pub fn retry_after_secs(&self) -> u64 {
+        self.retry_after_secs
+    }
+
+    #[must_use]
+    pub fn message(&self) -> &str {
+        &self.message
+    }
+
+    #[must_use]
+    pub fn organization_id(&self) -> Option<&str> {
+        self.organization_id.as_deref()
+    }
+}
+
 fn valid_token(value: &str) -> bool {
     !value.is_empty() && value.bytes().all(|byte| byte.is_ascii_graphic())
 }
 
-/// Sanitized failure categories. Upstream bodies and transport errors are never retained.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
+/// Sanitized failure categories. Upstream bodies and transport errors are never retained,
+/// except the caller-facing message of a Web rate-limit rejection.
+#[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum ResolutionError {
     #[error("invalid resolver configuration")]
     Configuration,
@@ -368,6 +543,8 @@ pub enum ResolutionError {
     ModelNotAllowed,
     #[error("no eligible connection")]
     NoRoute,
+    #[error("organization rate limit exceeded")]
+    RateLimited(Box<RateLimit>),
     /// The gateway's memory budget cannot cover another request.
     #[error("gateway at capacity")]
     Busy,

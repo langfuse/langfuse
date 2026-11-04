@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { type z } from "zod";
 import {
   type FilterCondition,
@@ -29,7 +28,7 @@ import {
   type EventFilterOptionColumn,
   type ClickhouseQueryOpts,
 } from "@langfuse/shared/src/server";
-import { aggregateScores } from "@/src/features/scores/server";
+import { aggregateScores } from "@/src/features/scores/lib/aggregateScores";
 type TimeFilter = z.infer<typeof timeFilter>;
 
 const TRACE_SCORE_SCOPE_FILTER: FilterCondition[] = [

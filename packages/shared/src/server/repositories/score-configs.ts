@@ -3,7 +3,8 @@ import {
   filterAndValidateDbScoreConfigList,
   validateDbScoreConfigSafe,
 } from "../../features/scoreConfigs/validation";
-import { LangfuseNotFoundError, InternalServerError } from "../../errors";
+import { LangfuseNotFoundError } from "../../errors/NotFoundError";
+import { InternalServerError } from "../../errors/InternalServerError";
 import { traceException } from "../instrumentation";
 
 export const listScoreConfigs = async ({

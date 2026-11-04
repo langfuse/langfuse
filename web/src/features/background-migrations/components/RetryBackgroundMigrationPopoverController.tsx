@@ -5,7 +5,8 @@ import type * as React from "react";
 import { PopoverController } from "@/src/components/ui/popover";
 import { Input } from "@/src/components/ui/input";
 import { Label } from "@/src/components/ui/label";
-import { showSuccessToast, showToast } from "@/src/features/notifications";
+import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
+import { showToast } from "@/src/features/notifications/showToast";
 import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
 
 type RetryBackgroundMigrationPopoverControllerProps = {

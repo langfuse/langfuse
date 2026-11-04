@@ -1,8 +1,9 @@
+import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
 import { type ReactNode } from "react";
 import { Clock, Coins } from "@langfuse/icons";
 
 import { Switch } from "@/src/components/design-system/Switch/Switch";
-import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
+
 import {
   DecisionModelResultView,
   type DecisionModelQuestionResult,
@@ -113,16 +114,15 @@ function RawOutputView({ rawOutput }: { rawOutput: unknown | null }) {
   }
 
   return (
-    <PrettyJsonView
-      json={rawOutput}
-      currentView="json"
-      isLoading={false}
-      showNullValues={true}
-      stickyTopLevelKey={false}
-      showObservationTypeBadge={false}
-      scrollable={true}
-      className="max-h-96"
-    />
+    <div className="max-h-96 overflow-y-auto">
+      <PrettyJsonView
+        json={rawOutput}
+        currentView="json"
+        showNullValues
+        stickyTopLevelKey={false}
+        showObservationTypeBadge={false}
+      />
+    </div>
   );
 }
 

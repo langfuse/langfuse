@@ -3,6 +3,7 @@ import { type NextApiRequest, type NextApiResponse } from "next";
 import { createMocks } from "node-mocks-http";
 
 import { OrganizationId, ProjectId, SystemRoleId } from "@langfuse/shared/rbac";
+import { ServiceUnavailableError } from "@langfuse/shared";
 import { processEventBatch } from "@langfuse/shared/src/server";
 import { type AuthorizationContext } from "@/src/features/auth/policy/types";
 import handler, {
@@ -48,10 +49,13 @@ vi.mock(import("@/src/env.mjs"), async (importOriginal) => {
   };
 });
 
-vi.mock(import("@/src/features/public-api/server"), async (importOriginal) => ({
-  ...(await importOriginal()),
-  shadowAuth,
-}));
+vi.mock(
+  import("@/src/features/public-api/server/shadowAuth"),
+  async (importOriginal) => ({
+    ...(await importOriginal()),
+    shadowAuth,
+  }),
+);
 
 vi.mock(import("@langfuse/shared/src/server"), async (importOriginal) => {
   const original = await importOriginal();
@@ -395,4 +399,48 @@ describe("ingestion per-event shadow comparison", () => {
       }
     },
   );
+});
+
+describe("ingestion error responses", () => {
+  beforeEach(() => {
+    migration.mode = "legacy";
+    legacyIngestionGate.writeMode = "dual";
+    legacyIngestionGate.scoreOnlyCutoff = undefined;
+    shadowAuth.mockReset();
+    shadowAuth.mockResolvedValue({
+      success: true,
+      scope: {
+        accessLevel: "project",
+        projectId: "project",
+        orgId: "org",
+        apiKeyId: "key",
+        publicKey: "pk-lf-test",
+        plan: "cloud:hobby",
+        rateLimitOverrides: [],
+      },
+    });
+    vi.mocked(processEventBatch).mockReset();
+  });
+
+  it("answers 503 with Retry-After when event processing is throttled", async () => {
+    vi.mocked(processEventBatch).mockRejectedValue(
+      new ServiceUnavailableError("S3 is throttling uploads", {
+        retryAfterSeconds: 7,
+      }),
+    );
+    const { req, res } = createMocks<NextApiRequest, NextApiResponse>({
+      method: "POST",
+      headers: { authorization: "Basic dGVzdDp0ZXN0" },
+      body: { batch: mixedBatch },
+    });
+
+    await handler(req, res);
+
+    expect(res._getStatusCode()).toBe(503);
+    expect(res.getHeader("Retry-After")).toBe("7");
+    expect(res._getJSONData()).toEqual({
+      error: "ServiceUnavailableError",
+      message: "S3 is throttling uploads",
+    });
+  });
 });

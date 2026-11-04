@@ -323,7 +323,6 @@ export function reconcileAuditOutput(
     baseTypes,
     currentTypes,
     hasRepositoryDiff,
-    memorySnapshotOnly,
     typesDiff,
   },
 ) {
@@ -340,11 +339,6 @@ export function reconcileAuditOutput(
   }
   if (!Array.isArray(output.unresolvedFindings)) {
     throw new Error("unresolvedFindings must be an array");
-  }
-
-  if (memorySnapshotOnly && output.pullRequestTitle.trim() === "") {
-    output.pullRequestTitle =
-      "chore(pricing): record model price audit snapshot";
   }
 
   const pricingChanges = collectPricingModelChanges(basePrices, currentPrices);
@@ -494,7 +488,45 @@ export function reconcileAuditOutput(
     (change) => `${change.modelName} (${change.expectedChange})`,
   );
 
+  if (
+    expectedModelChanges.length > 0 &&
+    output.pullRequestTitle.trim() === ""
+  ) {
+    output.pullRequestTitle = buildPullRequestTitle(expectedModelChanges);
+    warnings.push(
+      `pullRequestTitle was empty despite model changes; generated "${output.pullRequestTitle}".`,
+    );
+  }
+
   return { output, pricingChanges, typeModelChanges, warnings };
+}
+
+const maxPullRequestTitleLength = 100;
+
+export function buildPullRequestTitle(modelChanges) {
+  const phrases = [
+    ["added", "add", ""],
+    ["updated", "update", ""],
+    ["removed", "remove", " from model pickers"],
+  ]
+    .map(([expectedChange, verb, suffix]) => {
+      const models = modelChanges
+        .filter((change) => change.expectedChange === expectedChange)
+        .map((change) => change.modelName);
+      return { verb, suffix, models };
+    })
+    .filter(({ models }) => models.length > 0);
+
+  const title = (describe) =>
+    `chore(pricing): ${phrases.map(describe).join("; ")}`;
+  const named = title(
+    ({ verb, suffix, models }) => `${verb} ${models.join(", ")}${suffix}`,
+  );
+  if (named.length <= maxPullRequestTitleLength) return named;
+  return title(
+    ({ verb, suffix, models }) =>
+      `${verb} ${models.length} model${models.length === 1 ? "" : "s"}${suffix}`,
+  );
 }
 
 const escapeCell = (value) =>

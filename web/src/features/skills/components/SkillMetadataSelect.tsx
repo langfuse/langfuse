@@ -1,4 +1,4 @@
-/* eslint-disable @repo/component-file-structure, @typescript-eslint/no-use-before-define */
+/* eslint-disable @repo/component-file-structure */
 import { useId, useMemo, useState } from "react";
 import { CircleCheckIcon, CircleIcon, Plus, TagIcon, X } from "@langfuse/icons";
 import { PromptLabelSchema, SKILL_LATEST_LABEL } from "@langfuse/shared";
