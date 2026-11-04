@@ -40,6 +40,8 @@ import {
 } from "./traceBatchSelection";
 import {
   isTraceBatchSampled,
+  isLegacyTopicsBatchingEnabled,
+  isTraceBatchPipelineEnabled,
   resolveTraceBatchSamplingRate,
 } from "./traceBatchSampling";
 
@@ -77,6 +79,7 @@ export async function trackTraceBatchActivity(
   }[],
   idleMs?: number,
 ): Promise<void> {
+  if (!isLegacyTopicsBatchingEnabled()) return;
   const samplingRate = await resolveTraceBatchSamplingRate(projectId);
   if (samplingRate === 0) return;
 
@@ -273,12 +276,7 @@ export class TraceBatchDispatcher extends PeriodicExclusiveRunner {
   }
 
   protected async execute(): Promise<number | void> {
-    if (
-      !env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION ||
-      env.LANGFUSE_TRACE_BATCH_DISPATCHER_ENABLED !== "true" ||
-      this.stopping ||
-      this.activeDispatch
-    )
+    if (!isTraceBatchPipelineEnabled() || this.stopping || this.activeDispatch)
       return;
     const startedAt = Date.now();
     const dispatch = this.withLock(() => this.dispatchDue()).then(() => {});

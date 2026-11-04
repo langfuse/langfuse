@@ -21,6 +21,8 @@ import {
 import { trackTraceBatchActivity } from "../traceBatching/traceBatching";
 import {
   isTraceBatchSampled,
+  isTraceDispatchEnabled,
+  isLegacyTopicsBatchingEnabled,
   resolveTraceBatchSamplingRate,
 } from "../traceBatching/traceBatchSampling";
 import {
@@ -76,9 +78,10 @@ export async function processOtelEvents({
   }
 
   // Trace rules record only eligible direct event writes, like existing trace batching.
-  const traceBatchSamplingRate = shouldWriteToEventsTable
-    ? await resolveTraceBatchSamplingRate(projectId)
-    : 0;
+  const traceBatchSamplingRate =
+    shouldWriteToEventsTable && isTraceDispatchEnabled()
+      ? await resolveTraceBatchSamplingRate(projectId)
+      : 0;
   const includeTraceTranscriptRules = eventInputs.some(({ traceId }) =>
     isTraceBatchSampled(traceId, traceBatchSamplingRate),
   );
@@ -221,10 +224,7 @@ export async function processOtelEvents({
         try {
           const serializedEventBytes =
             await ingestionService.writeEventRecord(eventRecord);
-          if (
-            env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION &&
-            env.LANGFUSE_TRACE_BATCH_INGESTION_ENABLED === "true"
-          ) {
+          if (isLegacyTopicsBatchingEnabled()) {
             traceBatchEvents.push({
               traceId: eventInput.traceId,
               startTimeISO: eventInput.startTimeISO,

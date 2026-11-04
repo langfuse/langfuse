@@ -10,6 +10,10 @@ import { recordTraceBatchActiveReads } from "../../queues/traceBatchQueue";
 import { PeriodicRunner } from "../../utils/PeriodicRunner";
 import { MEMORY_SCRIPT } from "./traceBatchReadiness";
 import { getRecordingBoundsKeys, getRecordingKeys } from "./traceRuleRecording";
+import {
+  isTraceBatchPipelineEnabled,
+  isTraceDispatchEnabled,
+} from "./traceBatchSampling";
 
 const METRIC_PREFIX = "langfuse.trace_dispatch";
 const MEMORY_INTERVAL_MS = 60_000;
@@ -30,27 +34,18 @@ export class TraceBatchMetricsRunner extends PeriodicRunner {
   }
 
   protected async execute(): Promise<void> {
-    const collectQueue =
-      env.LANGFUSE_TRACE_BATCH_DISPATCHER_ENABLED === "true" ||
-      env.QUEUE_CONSUMER_TRACE_BATCH_QUEUE_IS_ENABLED === "true";
-    const collectRecording =
-      env.LANGFUSE_TRACE_BATCH_INGESTION_ENABLED === "true";
-    if (
-      !env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION ||
-      (!collectQueue && !collectRecording)
-    ) {
-      return;
-    }
+    if (!isTraceBatchPipelineEnabled()) return;
 
-    const collections: Promise<void>[] = [];
-    if (collectQueue) {
-      recordTraceBatchActiveReads();
-      collections.push(this.collectQueueDepth(), this.collectWaitingHeadAge());
-    }
+    recordTraceBatchActiveReads();
+    const collections = [
+      this.collectQueueDepth(),
+      this.collectWaitingHeadAge(),
+    ];
     const now = Date.now();
     if (
-      this.lastMemorySampleAt === null ||
-      now - this.lastMemorySampleAt >= MEMORY_INTERVAL_MS
+      isTraceDispatchEnabled() &&
+      (this.lastMemorySampleAt === null ||
+        now - this.lastMemorySampleAt >= MEMORY_INTERVAL_MS)
     ) {
       this.lastMemorySampleAt = now;
       collections.push(this.collectMemory());

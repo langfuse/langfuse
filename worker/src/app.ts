@@ -63,6 +63,7 @@ import { traceDeleteProcessor } from "./queues/traceDelete";
 import { traceBatchQueueProcessor } from "./queues/traceBatchQueue";
 import { TraceBatchDispatcher } from "./features/traceBatching/traceBatching";
 import { TraceBatchMetricsRunner } from "./features/traceBatching/TraceBatchMetricsRunner";
+import { isTraceBatchPipelineEnabled } from "./features/traceBatching/traceBatchSampling";
 import { projectDeleteProcessor } from "./queues/projectDelete";
 import {
   postHogIntegrationProcessingProcessor,
@@ -148,30 +149,19 @@ ClickhouseReadSkipCache.getInstance(prisma)
   });
 
 export let traceBatchDispatcher: TraceBatchDispatcher | null = null;
-if (
-  env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION &&
-  env.LANGFUSE_TRACE_BATCH_DISPATCHER_ENABLED === "true"
-) {
+if (isTraceBatchPipelineEnabled()) {
   traceBatchDispatcher = new TraceBatchDispatcher();
   traceBatchDispatcher.start();
 }
 
-if (
-  env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION &&
-  env.QUEUE_CONSUMER_TRACE_BATCH_QUEUE_IS_ENABLED === "true"
-) {
+if (isTraceBatchPipelineEnabled()) {
   WorkerManager.register(QueueName.TraceBatch, traceBatchQueueProcessor, {
     concurrency: env.LANGFUSE_TRACE_BATCH_CONCURRENCY,
   });
 }
 
 export let traceBatchMetricsRunner: TraceBatchMetricsRunner | null = null;
-if (
-  env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION &&
-  (env.LANGFUSE_TRACE_BATCH_DISPATCHER_ENABLED === "true" ||
-    env.QUEUE_CONSUMER_TRACE_BATCH_QUEUE_IS_ENABLED === "true" ||
-    env.LANGFUSE_TRACE_BATCH_INGESTION_ENABLED === "true")
-) {
+if (isTraceBatchPipelineEnabled()) {
   traceBatchMetricsRunner = new TraceBatchMetricsRunner();
   traceBatchMetricsRunner.start();
 }

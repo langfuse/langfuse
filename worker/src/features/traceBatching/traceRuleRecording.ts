@@ -20,7 +20,7 @@ export function getRecordingKeys(shard: number) {
 
 // Include the next hour in case Redis crosses a bucket boundary before EVAL.
 export function getRecordingBoundsKeys(shard: number, now: number) {
-  const ttl = env.LANGFUSE_TRACE_BATCH_FIRST_SEEN_TTL_MS;
+  const ttl = env.LANGFUSE_TRACE_DISPATCH_BOUNDS_TTL_MS;
   const width = Math.min(3_600_000, ttl);
   const firstBucket = Math.floor((now - ttl) / width);
   const lastBucket = Math.floor(now / width) + 1;
@@ -255,7 +255,7 @@ export async function recordTraceActivity(
       const chunk = entries.slice(offset, offset + REDIS_BATCH_SIZE);
       const args = [
         idleMs,
-        env.LANGFUSE_TRACE_BATCH_FIRST_SEEN_TTL_MS,
+        env.LANGFUSE_TRACE_DISPATCH_BOUNDS_TTL_MS,
         env.LANGFUSE_TRACE_BATCH_PENDING_TTL_MS,
         bounds.width,
         bounds.firstBucket,

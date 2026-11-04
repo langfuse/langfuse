@@ -10,7 +10,7 @@ import { env } from "../../../env";
 const EXPERIMENT_RULE_ID = "__trace_batch_experiment__";
 
 export function getTraceBatchExperimentRuleIds(traceId: string): string[] {
-  return isTraceBatchSampled(traceId, env.LANGFUSE_TRACE_BATCH_SAMPLING_RATE)
+  return isTraceBatchSampled(traceId, env.LANGFUSE_TRACE_DISPATCH_SAMPLING_RATE)
     ? [EXPERIMENT_RULE_ID]
     : [];
 }

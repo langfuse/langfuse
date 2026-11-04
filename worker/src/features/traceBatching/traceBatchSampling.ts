@@ -1,5 +1,6 @@
 import { logger, recordIncrement } from "@langfuse/shared/src/server";
 import {
+  isTopicsEnabled,
   isTopicsProcessingActive,
   isTopicsProjectEnabled,
 } from "@langfuse/shared/topics/server";
@@ -9,15 +10,32 @@ import {
   shouldSampleEvaluation,
 } from "../evaluation/deterministicSampling";
 
-/** Both trace writers admit active Topics projects or the same sampled trace IDs. */
+export function isTraceDispatchEnabled(): boolean {
+  return (
+    Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) &&
+    env.LANGFUSE_TRACE_DISPATCH_ENABLED === "true"
+  );
+}
+
+export function isLegacyTopicsBatchingEnabled(): boolean {
+  return (
+    Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) &&
+    !isTraceDispatchEnabled() &&
+    isTopicsEnabled()
+  );
+}
+
+export function isTraceBatchPipelineEnabled(): boolean {
+  return isTraceDispatchEnabled() || isLegacyTopicsBatchingEnabled();
+}
+
+/** Experiments use a trace-ID sample; legacy Topics admits only active projects. */
 export async function resolveTraceBatchSamplingRate(
   projectId: string,
 ): Promise<number> {
-  if (
-    !env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION ||
-    env.LANGFUSE_TRACE_BATCH_INGESTION_ENABLED !== "true"
-  )
-    return 0;
+  if (isTraceDispatchEnabled())
+    return env.LANGFUSE_TRACE_DISPATCH_SAMPLING_RATE;
+  if (!isLegacyTopicsBatchingEnabled()) return 0;
 
   let topicsProject: boolean;
   try {
@@ -31,7 +49,7 @@ export async function resolveTraceBatchSamplingRate(
     });
     topicsProject = isTopicsProjectEnabled(projectId);
   }
-  return topicsProject ? 1 : env.LANGFUSE_TRACE_BATCH_SAMPLING_RATE;
+  return topicsProject ? 1 : 0;
 }
 
 export function isTraceBatchSampled(

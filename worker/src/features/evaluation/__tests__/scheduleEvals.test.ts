@@ -15,7 +15,7 @@ import {
 } from "../observationEval/__tests__/fixtures";
 
 const mocks = vi.hoisted(() => ({
-  env: { LANGFUSE_TRACE_BATCH_SAMPLING_RATE: 0 },
+  env: { LANGFUSE_TRACE_DISPATCH_SAMPLING_RATE: 0 },
   topicsEnabled: vi.fn(),
   topicsActive: vi.fn(),
   createObservationDeps: vi.fn(),
@@ -71,7 +71,7 @@ const facetRule: EvalRules["traceTranscriptRules"][number] = {
 describe("scheduleEvals", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mocks.env.LANGFUSE_TRACE_BATCH_SAMPLING_RATE = 0;
+    mocks.env.LANGFUSE_TRACE_DISPATCH_SAMPLING_RATE = 0;
     mocks.topicsEnabled.mockReturnValue(true);
     mocks.topicsActive.mockResolvedValue(true);
     mocks.record.mockResolvedValue(undefined);
