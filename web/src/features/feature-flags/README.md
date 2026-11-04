@@ -13,11 +13,12 @@ When is a feature flag enabled?
 1. `LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES` is set
 2. the active project or organization's defaults turn the flag on
 3. the user's `feature_flags` contains the flag
-4. `user.admin` is true for consumers that keep the admin bypass enabled
+4. the preview is enabled by default and has not been opted out of
 
-User-controlled previews may pass `{ enableForAdmins: false }` so an
-administrator can opt in or out like any other user. The deployment-wide
-`LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES` override still forces flags on.
+Ordinary feature flags respect preferences regardless of admin status. The
+deployment-wide `LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES` override still forces
+ordinary flags on; restricted flags and internal previews require their
+explicit availability or grant.
 
 Internal view is available to platform admins, users with an account email ending
 exactly in `@langfuse.com` or `@clickhouse.com` (case-insensitive, no subdomains),
@@ -25,8 +26,7 @@ and deployments with experimental features enabled. Eligible users can switch
 view modes through their account menu, including on self-hosted deployments
 without Fast (Preview). Authenticated users can always opt out of Internal view.
 Email eligibility grants access to internal surfaces only; it does not change
-`user.admin`, project membership,
-RBAC permissions, or admin-only feature-flag overrides.
+`user.admin`, project membership, or RBAC permissions.
 
 Topics is available through internal view or the `langfuseTopics` ("Langfuse
 Topics") personal flag. Internal view follows the shared internal eligibility

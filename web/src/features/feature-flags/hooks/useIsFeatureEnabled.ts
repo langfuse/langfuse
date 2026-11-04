@@ -10,18 +10,14 @@ import { getContextualFeatureFlags, isInternalViewEnabled } from "../utils";
 export default function useIsFeatureEnabled(
   feature: Flag,
   {
-    enableForAdmins = true,
     projectId,
     organizationId,
   }: {
-    enableForAdmins?: boolean;
     projectId?: string;
     organizationId?: string;
   } = {},
 ): boolean {
   const session = useSession();
-
-  const isAdmin = session.data?.user?.admin ?? false;
 
   const isExperimentalFeaturesEnabled =
     session.data?.environment.enableExperimentalFeatures ?? false;
@@ -40,9 +36,5 @@ export default function useIsFeatureEnabled(
     return isFeatureEnabledOnUser;
   }
 
-  return (
-    isExperimentalFeaturesEnabled ||
-    (enableForAdmins && isAdmin) ||
-    isFeatureEnabledOnUser
-  );
+  return isExperimentalFeaturesEnabled || isFeatureEnabledOnUser;
 }

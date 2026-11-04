@@ -25,7 +25,6 @@ export function useGatewaySettingsAccess(organizationId: string | undefined) {
     scope: "gateway:invoke",
   });
   const isAiGatewayEnabled = useIsFeatureEnabled("aiGateway", {
-    enableForAdmins: false,
     organizationId,
   });
   const session = useSession();

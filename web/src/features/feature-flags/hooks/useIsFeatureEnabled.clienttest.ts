@@ -49,6 +49,22 @@ const mockSession = ({
 };
 
 describe("useIsFeatureEnabled", () => {
+  it("honors preview preferences for admins while preserving the deployment override", () => {
+    mockSession({ aiGateway: false, admin: true });
+    const { result, rerender } = renderHook(() =>
+      useIsFeatureEnabled("sessionViewV2"),
+    );
+    expect(result.current).toBe(false);
+
+    mockSession({
+      aiGateway: false,
+      admin: true,
+      enableExperimentalFeatures: true,
+    });
+    rerender();
+    expect(result.current).toBe(true);
+  });
+
   it.each([
     {
       admin: true,
@@ -102,7 +118,7 @@ describe("useIsFeatureEnabled", () => {
     });
   });
 
-  it("requires explicit opt-in for restricted and internal preview flags despite admin and experimental overrides", () => {
+  it("requires explicit opt-in for restricted and internal preview flags even for admins on experimental deployments", () => {
     mockSession({
       aiGateway: false,
       admin: true,

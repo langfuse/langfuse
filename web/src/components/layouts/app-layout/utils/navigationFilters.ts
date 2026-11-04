@@ -80,7 +80,6 @@ const filters = {
    * Shows route if:
    * - No flag requirement
    * - Experimental features enabled
-   * - User is cloud admin
    * - User has specific feature flag
    */
   featureFlags: (route: Route, ctx: NavigationFilterContext): Route | null => {
@@ -108,7 +107,6 @@ const filters = {
 
     const hasFlag =
       ctx.enableExperimentalFeatures ||
-      ctx.cloudAdmin ||
       getContextualFeatureFlags(ctx.session?.user, {
         projectId: ctx.routerProjectId,
         organizationId: ctx.routerOrganizationId,

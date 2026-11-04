@@ -53,12 +53,10 @@ export const isInternalViewEnabled = (session: Session | null | undefined) =>
 export const parseFlags = (
   dbFlags: string[],
   context: FeaturePreviewAvailabilityContext & {
-    email: string | null | undefined;
     aiGatewayEnabled?: boolean;
   },
 ): Flags => {
   const parsedFlags = {} as Flags;
-  const enableFeaturePreviewsByDefault = hasInternalEmailDomain(context.email);
 
   availableFlags.forEach((flag) => {
     if (isRestrictedFlag(flag)) {
@@ -99,15 +97,6 @@ export const parseFlags = (
       return;
     }
 
-    if (
-      enableFeaturePreviewsByDefault &&
-      isFeaturePreviewFlag(flag) &&
-      isFeaturePreviewAvailable(flag, context)
-    ) {
-      parsedFlags[flag] = true;
-      return;
-    }
-
     parsedFlags[flag] = dbFlags.includes(flag);
   });
 
@@ -122,7 +111,6 @@ export const parseFlagsWithOrganizationDefaults = (
   dbFlags: string[],
   organizationDefaults: string[],
   context: FeaturePreviewAvailabilityContext & {
-    email: string | null | undefined;
     aiGatewayEnabled?: boolean;
   },
 ): Flags => {

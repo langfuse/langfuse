@@ -99,7 +99,6 @@ describe("events.transcriptByTraceId preview access", () => {
             aiFeaturesEnabled: false,
             aiTelemetryEnabled: false,
             featureFlags: parseFlagsWithOrganizationDefaults(flags, defaults, {
-              email,
               v4BetaEnabled: true,
             }),
             projects: [
