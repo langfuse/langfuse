@@ -59,7 +59,7 @@ it("flushes a trimmed pending comment through the score update", () => {
   ]);
 });
 
-it("sends a flushed comment after the score's in-flight value save", async () => {
+it("sends a flushed comment after the score's in-flight value save, never with an older value", async () => {
   const field: AnnotationScoreFormData = {
     targetKey: "trace",
     id: "score-1",
@@ -79,10 +79,7 @@ it("sends a flushed comment after the score's in-flight value save", async () =>
     analyticsData: { type: "trace", source: "AnnotationQueue", isV4: true },
     configControl: { configs: [{ id: "quality", minValue: 1, maxValue: 5 }] },
   } as unknown as PreparedAnnotationTarget;
-  let settleValueSave!: () => void;
-  const valueSave = new Promise<void>((resolve) => {
-    settleValueSave = resolve;
-  });
+  const inFlight: (() => void)[] = [];
   const updates: { value?: number | null; comment?: string | null }[] = [];
   const actions = createAnnotationFormActions({
     form: {
@@ -103,29 +100,43 @@ it("sends a flushed comment after the score's in-flight value save", async () =>
     createScore: async () => undefined,
     updateScore: (data) => {
       updates.push(data);
-      return updates.length === 1 ? valueSave : Promise.resolve();
+      return new Promise<void>((resolve) => inFlight.push(resolve));
     },
     deleteScore: async () => undefined,
   });
   const key = annotationFieldKey(field);
+  const saveValue = (value: number) =>
+    actions.saveNumeric(key, target, {
+      value: String(value),
+      valueAsNumber: value,
+      validity: { badInput: false },
+    } as HTMLInputElement);
+  const settleWrites = async () => {
+    inFlight.splice(0).forEach((settle) => settle());
+    await new Promise((resolve) => setTimeout(resolve));
+  };
 
   // Mark Completed blurs the edited value, then flushes the comment draft.
   actions.setCommentDraft(key, "cites the wrong source");
-  actions.saveNumeric(key, target, {
-    value: "4",
-    valueAsNumber: 4,
-    validity: { badInput: false },
-  } as HTMLInputElement);
+  saveValue(4);
   actions.flushPendingComments();
 
   expect(updates).toEqual([
     expect.objectContaining({ value: 4, comment: null }),
   ]);
-  settleValueSave();
-  await vi.waitFor(() =>
-    expect(updates).toEqual([
-      expect.objectContaining({ value: 4, comment: null }),
-      expect.objectContaining({ value: 4, comment: "cites the wrong source" }),
-    ]),
-  );
+  await settleWrites();
+  expect(updates).toEqual([
+    expect.objectContaining({ value: 4, comment: null }),
+    expect.objectContaining({ value: 4, comment: "cites the wrong source" }),
+  ]);
+
+  // A value edit made while a comment waits already carries that comment.
+  saveValue(3);
+  actions.saveComment(key, target, "cites a retracted source");
+  saveValue(2);
+  await settleWrites();
+  expect(updates.slice(2)).toEqual([
+    expect.objectContaining({ value: 3, comment: "cites the wrong source" }),
+    expect.objectContaining({ value: 2, comment: "cites a retracted source" }),
+  ]);
 });

@@ -88,7 +88,8 @@ export function createAnnotationFormActions({
   let sequence = 0;
   const latestSaves = new Map<string, number>();
   const pendingFields = new Map<string, number>();
-  // Settles once every write started so far for a field has settled.
+  // Settles, holding no results, once every write started so far for a field
+  // has settled.
   const fieldWrites = new Map<string, Promise<unknown>>();
   const failedFields = new Set<string>();
   const serverFields = new Map(
@@ -154,7 +155,12 @@ export function createAnnotationFormActions({
       hasChangedAnnotationValue(field, confirmed);
     latestSaves.set(key, operationSequence);
     pendingFields.set(key, (pendingFields.get(key) ?? 0) + 1);
-    fieldWrites.set(key, Promise.allSettled([fieldWrites.get(key), operation]));
+    fieldWrites.set(
+      key,
+      Promise.allSettled([fieldWrites.get(key), operation]).then(
+        () => undefined,
+      ),
+    );
     failedFields.delete(key);
     saveStore.setState((state) => ({
       pending: state.pending + 1,
@@ -194,6 +200,7 @@ export function createAnnotationFormActions({
         }));
       },
     );
+    return operationSequence;
   };
 
   const reportFailure = (field: AnnotationScoreFormData, message: string) => {
@@ -372,9 +379,16 @@ export function createAnnotationFormActions({
         comment,
       } as UpdateAnnotationScoreData);
     // Each write replaces the whole score and the server keeps the last one to
-    // land, so a comment must not overtake a value write still in flight.
-    trackSave(
-      pendingFields.has(key) ? fieldWrites.get(key)!.then(send) : send(),
+    // land, so a comment must not overtake a write still in flight. A write
+    // started while the comment waits already carries it, so the comment is
+    // then dropped rather than sent with the older value.
+    const inFlight = pendingFields.has(key) ? fieldWrites.get(key) : undefined;
+    const commentSequence: number = trackSave(
+      inFlight
+        ? inFlight.then(() =>
+            latestSaves.get(key) === commentSequence ? send() : undefined,
+          )
+        : send(),
       tracked,
       next,
       () => {
