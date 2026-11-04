@@ -1,18 +1,17 @@
 # Internal cloud trace-batch experiment
 
-This experiment measures full-event reads and transcript assembly for idle
-traces, then summarizes allowlisted projects from that assembled transcript.
-It requires `NEXT_PUBLIC_LANGFUSE_CLOUD_REGION` and explicit opt-in. The enablement
-flags and transcript-metrics switch below default to `false`; an ordinary release
-needs no infrastructure changes. The four enablement flags stay commented in env
-templates. The local dev template sets the idle time below.
+Two cloud-only modes share the batch worker. `LANGFUSE_TOPICS_ENABLED` runs the
+legacy Topics pipeline for active allowlisted projects. Default-off
+`LANGFUSE_TRACE_DISPATCH_ENABLED` takes precedence and selects only the new maps:
+ingestion → Redis → dispatcher → batch reads → transcripts → S3. This experiment
+does not execute evaluators or Topics models. Deploy the same mode to every worker;
+drain the queue before switching, since its payload does not identify the mode.
 
 ## Recording trace-rule selections
 
-Default-off; requires cloud, `LANGFUSE_TRACE_BATCH_INGESTION_ENABLED=true` and
-direct events-table writes. Both writers admit active Topics projects or the same
-trace-ID sample (`LANGFUSE_TRACE_BATCH_SAMPLING_RATE`). Recording atomically updates
-`{trace-dispatch:<shard>}` without enqueueing or consuming:
+Requires cloud, `LANGFUSE_TRACE_DISPATCH_ENABLED=true` and direct events-table
+writes. `LANGFUSE_TRACE_DISPATCH_SAMPLING_RATE` selects the experiment cohort by
+trace ID. Recording atomically updates `{trace-dispatch:<shard>}`:
 
 | Map             | Contents                                                                                                                     | Retention                                                                  |
 | --------------- | ---------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
@@ -21,7 +20,8 @@ trace-ID sample (`LANGFUSE_TRACE_BATCH_SAMPLING_RATE`). Recording atomically upd
 | `due`           | Same JSON identity, scored by Redis arrival time plus project idle interval.                                                 | Eligible for cleanup two hours past due.                                   |
 
 Activity moves merged bounds to the current bucket. After bounds expire, arrivals
-start fresh and discard old selections; future consumers must handle missing bounds.
+start fresh and discard old selections. Dispatch removes pending entries whose
+bounds are missing.
 Calls clean up at most 100 expired pending entries, so sparse traffic can delay
 removal; key TTLs reclaim inactive maps.
 Env-sampled nonmatches use `__trace_batch_experiment__`, a storage-only sentinel
@@ -33,10 +33,27 @@ ClickHouse flush. `eventUpdateCount` is a TypeScript measurement only, not Redis
 
 ### Recording experiment
 
-Keep cohort, sampling, idle interval, shards and TTL fixed. Both writers share the
-ingestion switch and `LANGFUSE_TRACE_BATCH_FIRST_SEEN_TTL_MS`; shortening retention
-also shortens live Topics history. A same-build old-only comparison needs a separate
-writer switch.
+Example (10% of traces, four-hour retention, no legacy Topics pipeline):
+
+```env
+LANGFUSE_TOPICS_ENABLED=false
+LANGFUSE_TRACE_DISPATCH_ENABLED=true
+LANGFUSE_TRACE_DISPATCH_SAMPLING_RATE=0.1
+LANGFUSE_TRACE_DISPATCH_BOUNDS_TTL_MS=14400000
+```
+
+The new TTL is independent of legacy history retention. Sampling defaults to zero.
+Sampled traces carry matched rule IDs or the storage-only sentinel; neither is
+executed by this experiment.
+
+The dispatcher reads at most 10,000 oldest due candidates per shard per run,
+hydrates 50 at a time, and reuses the existing batch selection and byte limits.
+New bounds contain no event count, so count budgets apply only to legacy estimates.
+It enqueues before removing matching revisions, preserving newer ingestion and
+bounds. Excess candidates stay due for the next run. Cleanup uses bounded Lua
+calls but may repeat; there is no hard five-second deadline.
+The worker reports confirmed S3 PUTs separately from oversize/upload failures.
+Uploads use existing SDK retries; there is no Redis restoration/retry loop yet.
 
 Metrics use `langfuse.trace_dispatch`:
 
@@ -48,6 +65,12 @@ Metrics use `langfuse.trace_dispatch`:
   sampling versus acknowledged Redis chunks. Timeouts can leave applied writes
   unacknowledged, so the difference does not prove loss.
 - `tracked_traces` / `expired_traces`: acknowledged updates / cleaned pending entries.
+- `dispatcher_traces`: fetched, hydrated and successfully enqueued counts per run
+  (`stage`). Use `langfuse.periodic_runner.duration_ms` with
+  `runner:trace_batch_dispatcher` and `outcome:success|failed` for total runtime,
+  excluding skipped lease attempts; compare with ready backlog and oldest due age.
+- `input_storage` / `input_storage_duration_ms`: confirmed `stored`, `too_large`
+  and `upload_failed` outcomes; queue completion alone does not prove storage.
 - `filter_outcomes` / `filter_duration_ms`: per-span rule selection, excluding the sentinel.
 - `recording_batches` / `recording_duration_ms`: flush outcome and duration;
   `memory_samples`: collection outcome. Recording and memory failures warn
@@ -81,12 +104,11 @@ Redis CPU/memory. Queue metrics remain under `langfuse.trace_batch`.
 
 | Variable                                          | Default     | Role                                                                                                                                                                                                                                                                                                                                                                                                         |
 | ------------------------------------------------- | ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `LANGFUSE_TRACE_BATCH_INGESTION_ENABLED`          | `false`     | Track accepted direct-v4 event writes in Redis.                                                                                                                                                                                                                                                                                                                                                              |
-| `LANGFUSE_TRACE_BATCH_DISPATCHER_ENABLED`         | `false`     | Schedule idle traces into BullMQ jobs.                                                                                                                                                                                                                                                                                                                                                                       |
-| `QUEUE_CONSUMER_TRACE_BATCH_QUEUE_IS_ENABLED`     | `false`     | Register the batch worker.                                                                                                                                                                                                                                                                                                                                                                                   |
-| `LANGFUSE_TRACE_BATCH_READ_ENABLED`               | `false`     | Allow the worker to query ClickHouse; otherwise discard jobs.                                                                                                                                                                                                                                                                                                                                                |
+| `LANGFUSE_TRACE_DISPATCH_ENABLED` | `false` | Select new-map ingestion, dispatch, reads and S3 storage; bypass legacy Topics. |
+| `LANGFUSE_TRACE_DISPATCH_SAMPLING_RATE` | `0` | Trace-ID sample for the new experiment, from 0 to 1. |
+| `LANGFUSE_TRACE_DISPATCH_BOUNDS_TTL_MS` | `86400000` | New bounds retention after the activity bucket ends; maximum 48 hours. |
+| `LANGFUSE_TOPICS_ENABLED` | `false` | Run legacy Topics when trace dispatch is off; project allowlist and active configuration still apply. |
 | `LANGFUSE_TRACE_BATCH_TRANSCRIPT_METRICS_ENABLED` | `false`     | Emit transcript size distributions. Span attributes and failure counters stay on either way.                                                                                                                                                                                                                                                                                                                 |
-| `LANGFUSE_TRACE_BATCH_SAMPLING_RATE`              | `0`         | Fraction of other projects admitted by ingestion, from 0 to 1. Unset or `0` is off. Topics-active projects are always admitted.                                                                                                                                                                                                                                                                              |
 | `LANGFUSE_TRACE_BATCH_STRATEGY`                   | `project`   | Choose project-order packing or opt-in locality grouping.                                                                                                                                                                                                                                                                                                                                                    |
 | `LANGFUSE_TRACE_BATCH_MAX_SIZE`                   | `60`        | Maximum traces per job, up to 10,000.                                                                                                                                                                                                                                                                                                                                                                        |
 | `LANGFUSE_TRACE_BATCH_MAX_BATCH_EVENT_UPDATES`    | `1500`      | Estimated event updates per multi-trace job; `0` disables.                                                                                                                                                                                                                                                                                                                                                   |
@@ -106,13 +128,13 @@ Redis CPU/memory. Queue metrics remain under `langfuse.trace_batch`.
 | `LANGFUSE_TRACE_BATCH_SHARD_COUNT`                | `auto`      | 16 on Redis Cluster; 1 on standalone/Sentinel. Override with 1–256. Fixed across Redis resizing; drain before changing.                                                                                                                                                                                                                                                                                      |
 | `LANGFUSE_TRACE_BATCH_DISPATCH_INTERVAL_MS`       | `30000`     | Dispatcher cadence (30 seconds).                                                                                                                                                                                                                                                                                                                                                                             |
 
-Producer, dispatcher and consumer can run independently. Sampling reuses the
+The selected mode enables producer, dispatcher and consumer together. Sampling reuses the
 evaluator's deterministic trace-ID sampler; every observation of the same trace
 gets the same admission decision. Dispatch and consumption do not resample.
 Cloud guards cover ingestion, dispatcher execution, worker registration and
 processing, and the shared queue accessor, including admin queue inspection.
 
-## Redis state and expiry
+## Legacy Topics Redis state and expiry
 
 - `{trace-batch:<shard>}:due`: sorted set, with JSON `[projectId, traceId]` members and
   Redis server time plus idle delay as the score.
@@ -545,18 +567,10 @@ can add characters to the complete text without adding to a block metric. The
 history share uses content lines including role labels, tool exchanges, fallback
 root I/O, observation markers and inline errors, excluding section headings and
 tool definitions. Keep
-numerator and denominator on the same basis when calculating shares. Ingestion
-applies `LANGFUSE_TRACE_BATCH_SAMPLING_RATE` by trace ID before the dispatcher
-and worker; every admitted trace receives Topics measurements. Projects where
-`isTopicsProcessingActive` holds (in the Topics allowlist
-`LANGFUSE_TOPICS_ENABLED_PROJECT_IDS`, Topics enabled with all three models, and
-an active rule with an unblocked facet) bypass sampling so every trace is
-summarized; a rate of `0` limits the flow to those projects and skips all
-per-trace tracking work (no per-trace state or metrics) for the rest. Projects
-outside the allowlist make no Redis or Postgres calls; allowlisted ones read the
-cached gate answer (5 minutes), and a miss queries Postgres with a 2-second
-deadline. If that lookup fails or times out, ingestion falls back to the
-allowlist, caches that answer for 30 seconds and increments `topics_gate_failures`.
+numerator and denominator on the same basis when calculating shares. New ingestion
+applies `LANGFUSE_TRACE_DISPATCH_SAMPLING_RATE` by trace ID.
+Legacy ingestion admits only active Topics projects, using the existing cached
+project gate and allowlist fallback on lookup failures.
 
 Transcript token counts use the existing local worker-thread pool and bundled
 tiktoken WASM, without a network or model API call. The `gpt-4o` configuration

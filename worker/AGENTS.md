@@ -61,9 +61,11 @@
   recording preserves Topics' exclusion of internal environments, including prompt
   experiments. The direct internal writer retains its root-only ready callback.
 - Trace-rule recording: `src/features/traceBatching/traceBatchRules.ts` matches
-  at the OTel eval stage; `traceRuleRecording.ts` records without consuming.
-  Require the existing cloud/ingestion switches and use `traceBatchSampling.ts`
-  for both writers: active Topics projects bypass the env trace-ID sample.
+  at the OTel eval stage; `traceRuleRecording.ts` owns new-map recording, hydration
+  and revision-guarded acknowledgement. Cloud-only `LANGFUSE_TRACE_DISPATCH_ENABLED`
+  selects the new pipeline exclusively, with its own sampling rate and bounds TTL.
+  Otherwise Topics enablement, allowlist and active project configuration govern
+  legacy tracking. Keep observation evaluation and ingestion error boundaries intact.
   Only direct events-table batches record. Env-sampled nonmatches use
   `__trace_batch_experiment__`, a storage-only marker with no evaluator.
   Reuse shard and idle helpers.
@@ -80,12 +82,12 @@
 - Internal cloud trace batching: `src/features/traceBatching/traceBatching.ts` and
   `src/queues/traceBatchQueue.ts`; controls and Redis lifecycle are documented in
   `src/features/traceBatching/README.md`. Keep producer, dispatcher, consumer and reads
-  independently default-off and cloud-gated. Leave the enablement flags commented
-  in env templates. The local dev template may set the idle time. Reader query controls are independent of
+  cloud-gated and controlled by the selected pipeline mode. Leave experiment
+  enablement commented in env templates. The local dev template may set the idle time. Reader query controls are independent of
   locality selection; logs must preserve separate input/output/metadata metrics.
   `src/features/traceBatching/TraceBatchMetricsRunner.ts` collects bounded queue
   and Redis snapshots. Redis sampling covers only the new bounds/record/due maps,
-  including recording-only workers; metrics use `langfuse.trace_dispatch` and failures warn.
+  only in new mode; metrics use `langfuse.trace_dispatch` and failures warn.
   Global snapshot gauges must not be summed across worker reporters.
   Readiness uses project/trace-hashed shards with one dispatcher lease; all Lua
   keys share a shard hash tag. Defaults are 16 shards on Redis Cluster and 1 on
@@ -102,7 +104,10 @@
   acknowledged siblings after a pipeline error; retry
   only `NOSCRIPT` commands. Retained estimates guard the whole known read window,
   including late arrivals; unknown estimates remain unknown. Locality selection
-  still pools 1,000 candidates. Drain the old layout before upgrade
+  still pools 1,000 candidates. New-mode dispatch caps oldest-due candidates at
+  10,000 per shard/run, records fetched/hydrated/enqueued counts, and reuses runner
+  duration metrics; cleanup can repeat and there is no hard runtime deadline.
+  Drain the old layout before upgrade
   or shard-count/retention changes. The trace-batch consumer checks existing
   summaries against the job enqueue time so retries skip completed facets while
   later redispatches append updated summaries. Map and dispatcher gauges are
@@ -116,7 +121,11 @@
   metrics. Token estimates run sequentially;
   tool-response size uses comparable character counts over message parts.
   Allowlisted projects are then summarized from that assembled transcript.
-  Optional `src/features/traceBatching/storeInputs.ts` capture runs after Topics
+  New mode ends at `storeInputs.ts` S3 upload and records stored/oversize/failure
+  outcomes without Topics or evaluator execution. SDK retries apply; Redis retry
+  restoration is not implemented. Queue payloads carry no mode, so drain before
+  changing modes and use the same configuration across workers.
+  Legacy optional `src/features/traceBatching/storeInputs.ts` capture runs after Topics
   eligibility/sampling, within the same concurrency limit, using the queued
   revision. The queue creates `createTraceBatchInputStorage()` once and injects
   its `TraceBatchInputStorage` object into `storeInputs`. Store

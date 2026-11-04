@@ -14,15 +14,15 @@
  *     --trace-name=agent-turn --sampling=latest --limit=20 --apply
  *
  * The worker must have NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
- * QUEUE_CONSUMER_TRACE_BATCH_QUEUE_IS_ENABLED=true, and
- * LANGFUSE_TRACE_BATCH_READ_ENABLED=true. --sampling=latest keeps the newest
+ * LANGFUSE_TOPICS_ENABLED=true and LANGFUSE_TRACE_DISPATCH_ENABLED=false.
+ * --sampling=latest keeps the newest
  * matches when --limit is set. Repeat --trace-name and --tag to match any of
  * those values. --filter is a JSON array of Topics observation filters.
  */
 
 import { logger } from "@langfuse/shared/src/server";
 import { topicTraceSelectionCriteriaSchema } from "@langfuse/shared/topics";
-import { env } from "../env";
+import { isLegacyTopicsBatchingEnabled } from "../features/traceBatching/traceBatchSampling";
 import {
   backfillSelectionFilters,
   enqueueTopicTraceBackfill,
@@ -67,13 +67,9 @@ async function main() {
   const projectId = value(argv, "project-id");
   if (!projectId)
     throw new Error("--project-id, --from, and --to are required.");
-  if (env.LANGFUSE_TRACE_BATCH_READ_ENABLED !== "true")
+  if (!isLegacyTopicsBatchingEnabled())
     logger.warn(
-      "LANGFUSE_TRACE_BATCH_READ_ENABLED is not true in this process. The worker will discard enqueued jobs until it is.",
-    );
-  if (env.QUEUE_CONSUMER_TRACE_BATCH_QUEUE_IS_ENABLED !== "true")
-    logger.warn(
-      "QUEUE_CONSUMER_TRACE_BATCH_QUEUE_IS_ENABLED is not true in this process. The worker will not consume the queue until it is.",
+      "Legacy Topics batching is disabled in this process. The worker must enable Topics and disable trace dispatch to process backfilled traces for Topics.",
     );
   const result = await enqueueTopicTraceBackfill({
     projectId,

@@ -34,6 +34,7 @@ import { summarizeAssembledTrace } from "../../features/topics/summarizeAssemble
 import { enqueueTopicsAutomation } from "../../features/topics/topicsAutomation";
 import {
   getEnabledTopicsModels,
+  isTopicsEnabled,
   listTopicFacets,
   listTopicRules,
   isValidTopicSummary,
@@ -80,6 +81,7 @@ vi.mock("../../features/topics/topicsAutomation", () => ({
 }));
 
 vi.mock("@langfuse/shared/topics/server", () => ({
+  isTopicsEnabled: vi.fn(() => true),
   isTopicsProjectEnabled: vi.fn(() => true),
   getEnabledTopicsModels: vi.fn(
     async (projectIds: string[]) =>
@@ -98,6 +100,7 @@ vi.mock("../../features/tokenisation/async-usage", () => ({
 }));
 
 const originalReadEnabled = env.LANGFUSE_TRACE_BATCH_READ_ENABLED;
+const originalDispatchEnabled = env.LANGFUSE_TRACE_DISPATCH_ENABLED;
 const originalTranscriptMetricsEnabled =
   env.LANGFUSE_TRACE_BATCH_TRANSCRIPT_METRICS_ENABLED;
 const originalTranscriptStorageEnabled =
@@ -124,6 +127,8 @@ afterAll(async () => {
 beforeEach(() => {
   exporter.reset();
   env.LANGFUSE_TRACE_BATCH_READ_ENABLED = "true";
+  env.LANGFUSE_TRACE_DISPATCH_ENABLED = "false";
+  vi.mocked(isTopicsEnabled).mockReturnValue(true);
   env.LANGFUSE_TRACE_BATCH_TRANSCRIPT_STORAGE_ENABLED = "false";
   inputStorage.put.mockResolvedValue({
     outcome: "stored",
@@ -135,6 +140,7 @@ beforeEach(() => {
 });
 afterEach(() => {
   env.LANGFUSE_TRACE_BATCH_READ_ENABLED = originalReadEnabled;
+  env.LANGFUSE_TRACE_DISPATCH_ENABLED = originalDispatchEnabled;
   env.LANGFUSE_TRACE_BATCH_TRANSCRIPT_METRICS_ENABLED =
     originalTranscriptMetricsEnabled;
   env.LANGFUSE_TRACE_BATCH_TRANSCRIPT_STORAGE_ENABLED =
@@ -999,9 +1005,118 @@ describe("trace batch queue", () => {
     }));
   });
 
+  it.each(["stored", "too_large", "upload_failed"] as const)(
+    "ends experimental dispatch at S3 with outcome %s without loading Topics",
+    async (outcome) => {
+      env.LANGFUSE_TRACE_DISPATCH_ENABLED = "true";
+      env.LANGFUSE_TRACE_BATCH_READ_ENABLED = "false";
+      vi.mocked(isTopicsEnabled).mockReturnValue(outcome === "stored");
+      const warn = vi.spyOn(logger, "warn");
+      if (outcome === "upload_failed")
+        inputStorage.put.mockRejectedValueOnce(new Error("S3 unavailable"));
+      else inputStorage.put.mockResolvedValueOnce({ outcome, jsonLength: 100 });
+      vi.mocked(getTraceBatchEventStream).mockImplementation(
+        async function* () {
+          for (const [traceId, environment] of [
+            ["sampled", "default"],
+            ["internal", "langfuse-topics"],
+          ])
+            yield {
+              project_id: "non-topics-project",
+              trace_id: traceId,
+              environment,
+              span_id: "span",
+              parent_span_id: null,
+              start_time: "2026-09-11 00:00:00.000000",
+              event_ts: "2026-09-11 00:00:00.000000",
+              type: "GENERATION",
+              name: "generation",
+              input: JSON.stringify([{ role: "user", content: "question" }]),
+              output: JSON.stringify({ role: "assistant", content: "answer" }),
+              metadata: {},
+              level: "DEFAULT",
+              status_message: null,
+              tool_definitions: {},
+              tool_calls: [],
+              tool_call_names: [],
+            };
+        },
+      );
+      const job = {
+        opts: {},
+        data: {
+          id: "experimental-storage",
+          name: QueueJobs.TraceBatch,
+          timestamp: new Date(),
+          payload: {
+            traces: ["sampled", "internal"].map((traceId) => ({
+              projectId: "non-topics-project",
+              traceId,
+              minStart: 0,
+              maxStart: 1,
+              revision: "queued-revision",
+            })),
+          },
+        },
+      } as Job<TQueueJobTypes[QueueName.TraceBatch]>;
+
+      await expect(
+        traceBatchQueueProcessor(job, undefined),
+      ).resolves.toMatchObject({
+        traceCount: 2,
+      });
+
+      expect(inputStorage.put).toHaveBeenCalledExactlyOnceWith(
+        {
+          projectId: "non-topics-project",
+          traceId: "sampled",
+          revision: "queued-revision",
+        },
+        expect.objectContaining({
+          transcript: expect.objectContaining({ threads: expect.any(Array) }),
+        }),
+      );
+      expect(getEnabledTopicsModels).not.toHaveBeenCalled();
+      expect(listTopicFacets).not.toHaveBeenCalled();
+      expect(listTopicRules).not.toHaveBeenCalled();
+      expect(summarizeAssembledTrace).not.toHaveBeenCalled();
+      expect(writeTopicSummaries).not.toHaveBeenCalled();
+      expect(enqueueTopicsAutomation).not.toHaveBeenCalled();
+      expect(recordIncrement).toHaveBeenCalledWith(
+        "langfuse.trace_dispatch.input_storage",
+        1,
+        { outcome },
+      );
+      expect(recordDistribution).toHaveBeenCalledWith(
+        "langfuse.trace_dispatch.input_storage_duration_ms",
+        expect.any(Number),
+        { outcome },
+      );
+      if (outcome === "upload_failed") {
+        const storageSpan = exporter
+          .getFinishedSpans()
+          .find((span) => span.name === "trace-batch-store-inputs");
+        expect(storageSpan?.status.code).not.toBe(SpanStatusCode.ERROR);
+        expect(warn).toHaveBeenCalledWith(
+          "Trace batch input upload failed",
+          expect.objectContaining({
+            traceId: "sampled",
+            error: "S3 unavailable",
+          }),
+        );
+        expect(recordIncrement).not.toHaveBeenCalledWith(
+          "langfuse.trace_dispatch.input_storage",
+          expect.anything(),
+          { outcome: "stored" },
+        );
+      }
+    },
+  );
+
   it.each(["disabled", "stored", "too_large", "upload_failed"] as const)(
     "preserves Topics processing when optional input storage is %s",
     async (outcome) => {
+      env.LANGFUSE_TRACE_BATCH_READ_ENABLED = "false";
       env.LANGFUSE_TRACE_BATCH_TRANSCRIPT_STORAGE_ENABLED =
         outcome === "disabled" ? "false" : "true";
       const info = vi.spyOn(logger, "info");
@@ -1631,6 +1746,21 @@ describe("trace batch queue", () => {
       expect(JSON.stringify(span.attributes)).not.toContain("first question");
     }
   });
+  it("discards jobs before parsing when both pipelines are disabled", async () => {
+    vi.mocked(isTopicsEnabled).mockReturnValue(false);
+    const job = {
+      opts: {},
+      data: { incompatiblePayload: true },
+    } as unknown as Job<TQueueJobTypes[QueueName.TraceBatch]>;
+
+    await expect(traceBatchQueueProcessor(job, undefined)).resolves.toEqual({
+      discarded: "pipelines_disabled",
+    });
+    expect(getTraceBatchEventStream).not.toHaveBeenCalled();
+    expect(inputStorage.put).not.toHaveBeenCalled();
+    expect(job.opts.removeOnComplete).toBe(true);
+  });
+
   it("discards self-hosted jobs before parsing even when reads are enabled", async () => {
     env.LANGFUSE_TRACE_BATCH_EXPERIMENT_ID = "discarded-read";
     env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = undefined;

@@ -42,8 +42,13 @@ import {
 } from "../features/traceBatching/traceBatching";
 import {
   getRecordingBoundsKeys,
+  getRecordingKeys,
   recordTraceActivity,
 } from "../features/traceBatching/traceRuleRecording";
+import {
+  isTraceBatchSampled,
+  resolveTraceBatchSamplingRate,
+} from "../features/traceBatching/traceBatchSampling";
 import {
   prepareLocalityPartials,
   selectTraceBatches,
@@ -55,6 +60,7 @@ import { ClickhouseWriter } from "../services/ClickhouseWriter";
 import {
   ensureDefaultTopicFacets,
   isTopicsProcessingActive,
+  isTopicsEnabled,
   listTopicSummaries,
   type TopicsModels,
 } from "@langfuse/shared/topics/server";
@@ -82,6 +88,7 @@ vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
 const topicsProjects = vi.hoisted(() => new Set<string>());
 vi.mock("@langfuse/shared/topics/server", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@langfuse/shared/topics/server")>()),
+  isTopicsEnabled: vi.fn(() => true),
   isTopicsProjectEnabled: (projectId: string) => topicsProjects.has(projectId),
   isTopicsProcessingActive: vi.fn(async (projectId: string) =>
     topicsProjects.has(projectId),
@@ -594,6 +601,10 @@ describe("trace micro-batch scheduling with Redis", () => {
     due: "{trace-dispatch:0}:due",
   };
   const recordingBoundsKeys = () => getRecordingBoundsKeys(0, Date.now()).keys;
+  const originalDispatchEnabled = env.LANGFUSE_TRACE_DISPATCH_ENABLED;
+  const originalDispatchSamplingRate =
+    env.LANGFUSE_TRACE_DISPATCH_SAMPLING_RATE;
+  const originalBoundsTtl = env.LANGFUSE_TRACE_DISPATCH_BOUNDS_TTL_MS;
   const originalEnabled = env.LANGFUSE_TRACE_BATCH_INGESTION_ENABLED;
   const originalCloudRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
   const originalDispatcherEnabled = env.LANGFUSE_TRACE_BATCH_DISPATCHER_ENABLED;
@@ -603,6 +614,8 @@ describe("trace micro-batch scheduling with Redis", () => {
   const originalSamplingRate = env.LANGFUSE_TRACE_BATCH_SAMPLING_RATE;
   const originalStrategy = env.LANGFUSE_TRACE_BATCH_STRATEGY;
   const originalMaxSize = env.LANGFUSE_TRACE_BATCH_MAX_SIZE;
+  const originalMaxBatchBytes =
+    env.LANGFUSE_TRACE_BATCH_MAX_BATCH_SERIALIZED_BYTES;
   const originalPendingTtl = env.LANGFUSE_TRACE_BATCH_PENDING_TTL_MS;
   const originalIdle = env.LANGFUSE_TRACE_BATCH_IDLE_MS;
   const originalFirstTtl = env.LANGFUSE_TRACE_BATCH_FIRST_SEEN_TTL_MS;
@@ -675,16 +688,37 @@ describe("trace micro-batch scheduling with Redis", () => {
     );
     for (let shard = 0; shard < env.LANGFUSE_TRACE_BATCH_SHARD_COUNT; shard++) {
       const keys = getTraceBatchReadinessKeys(shard);
+      const recording = getRecordingKeys(shard);
       await client().del(
+        recording.due,
+        recording.record,
+        ...getRecordingBoundsKeys(shard, Date.now()).keys,
         keys.due,
         keys.state,
         ...getTraceBatchFirstKeys(shard, Date.now()).keys,
       );
     }
-    await client().del("{trace-batch}:dispatcher");
+    await client().del(
+      "{trace-batch}:dispatcher",
+      "{trace-dispatch}:dispatcher",
+    );
   }
 
   beforeEach(async () => {
+    topicsProjects.clear();
+    for (const projectId of [
+      "project",
+      "other",
+      "project-a",
+      "project-b",
+      "project-c",
+      "warm-up",
+    ])
+      topicsProjects.add(projectId);
+    vi.mocked(isTopicsEnabled).mockReturnValue(true);
+    env.LANGFUSE_TRACE_DISPATCH_ENABLED = "false";
+    env.LANGFUSE_TRACE_DISPATCH_SAMPLING_RATE = 0;
+    env.LANGFUSE_TRACE_DISPATCH_BOUNDS_TTL_MS = 86_400_000;
     env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "DEV";
     env.LANGFUSE_TRACE_BATCH_DISPATCHER_ENABLED = "true";
     env.QUEUE_CONSUMER_TRACE_BATCH_QUEUE_IS_ENABLED = "false";
@@ -716,6 +750,10 @@ describe("trace micro-batch scheduling with Redis", () => {
     vi.clearAllMocks();
     vi.mocked(shared.getTracingReadinessSettings).mockReset();
     await clearReadiness();
+    topicsProjects.clear();
+    env.LANGFUSE_TRACE_DISPATCH_ENABLED = originalDispatchEnabled;
+    env.LANGFUSE_TRACE_DISPATCH_SAMPLING_RATE = originalDispatchSamplingRate;
+    env.LANGFUSE_TRACE_DISPATCH_BOUNDS_TTL_MS = originalBoundsTtl;
     env.LANGFUSE_TRACE_BATCH_INGESTION_ENABLED = originalEnabled;
     env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = originalCloudRegion;
     env.LANGFUSE_TRACE_BATCH_DISPATCHER_ENABLED = originalDispatcherEnabled;
@@ -724,6 +762,7 @@ describe("trace micro-batch scheduling with Redis", () => {
     env.LANGFUSE_TRACE_BATCH_SAMPLING_RATE = originalSamplingRate;
     env.LANGFUSE_TRACE_BATCH_STRATEGY = originalStrategy;
     env.LANGFUSE_TRACE_BATCH_MAX_SIZE = originalMaxSize;
+    env.LANGFUSE_TRACE_BATCH_MAX_BATCH_SERIALIZED_BYTES = originalMaxBatchBytes;
     env.LANGFUSE_TRACE_BATCH_PENDING_TTL_MS = originalPendingTtl;
     env.LANGFUSE_TRACE_BATCH_IDLE_MS = originalIdle;
     env.LANGFUSE_TRACE_BATCH_FIRST_SEEN_TTL_MS = originalFirstTtl;
@@ -748,8 +787,7 @@ describe("trace micro-batch scheduling with Redis", () => {
     const hour = Math.floor(Number(seconds) / 3_600);
     const originalKey = `${recordingKeys.bounds}:${hour - 1}`;
     const currentKey = `${recordingKeys.bounds}:${hour}`;
-    const expiry =
-      hour * 3_600_000 + env.LANGFUSE_TRACE_BATCH_FIRST_SEEN_TTL_MS;
+    const expiry = hour * 3_600_000 + env.LANGFUSE_TRACE_DISPATCH_BOUNDS_TTL_MS;
     await client().eval(
       `return redis.call('HSET', KEYS[1], ARGV[1],
          cmsgpack.pack({tonumber(ARGV[2]), tonumber(ARGV[2]), tonumber(ARGV[3])}))`,
@@ -978,7 +1016,7 @@ describe("trace micro-batch scheduling with Redis", () => {
     });
     env.LANGFUSE_TRACE_BATCH_IDLE_MS = 200;
     env.LANGFUSE_TRACE_BATCH_PENDING_TTL_MS = 100;
-    env.LANGFUSE_TRACE_BATCH_FIRST_SEEN_TTL_MS = 100;
+    env.LANGFUSE_TRACE_DISPATCH_BOUNDS_TTL_MS = 100;
     await recordTraceActivity("project", [
       { ...spanActivity("first"), ruleIds: ["rule"] },
     ]);
@@ -1001,6 +1039,239 @@ describe("trace micro-batch scheduling with Redis", () => {
       expect(await client().exists(...keys)).toBe(0);
     });
   });
+
+  it("dispatches recording maps across shards with bounded reads and leaves legacy maps unchanged", async () => {
+    await trackTraceBatchActivity("project", [event("legacy")]);
+    await makeDue("project", "legacy");
+    const legacyState = await client().hgetall(stateKey);
+    const legacyDue = await client().zrange(dueKey, 0, -1, "WITHSCORES");
+    env.LANGFUSE_TRACE_DISPATCH_ENABLED = "true";
+    env.LANGFUSE_TRACE_BATCH_SHARD_COUNT = 2;
+    vi.mocked(isTopicsEnabled).mockReturnValue(false);
+    const traces = Array.from(
+      { length: 60 },
+      (_, index) => `recorded-${index}`,
+    );
+    await recordTraceActivity(
+      "project",
+      traces.map((traceId) => ({
+        ...spanActivity(traceId),
+        ruleIds: ["rule"],
+      })),
+    );
+    for (const traceId of traces) {
+      const identity = member("project", traceId);
+      await client().zadd(
+        getRecordingKeys(getTraceBatchShard(identity)).due,
+        Date.now() - 1_000,
+        identity,
+      );
+    }
+    const ranges = vi.spyOn(client(), "zrange");
+    await runner().processBatch();
+    const [job] = await queue.getJobs(["wait"]);
+    expect(
+      job.data.payload.traces.map(({ traceId }) => traceId).sort(),
+    ).toEqual(traces.sort());
+    expect(await queue.getWaitingCount()).toBe(1);
+    for (let shard = 0; shard < 2; shard++) {
+      const keys = getRecordingKeys(shard);
+      const reads = ranges.mock.calls.filter(
+        (args) => args[0] === keys.due && args.includes("BYSCORE"),
+      );
+      expect(reads).toHaveLength(1);
+      expect(
+        reads[0].slice(
+          reads[0].indexOf("LIMIT"),
+          reads[0].indexOf("LIMIT") + 3,
+        ),
+      ).toEqual(["LIMIT", 0, 10_000]);
+      expect(await client().hlen(keys.record)).toBe(0);
+      expect(await client().zcard(keys.due)).toBe(0);
+    }
+    expect(await client().hgetall(stateKey)).toEqual(legacyState);
+    expect(await client().zrange(dueKey, 0, -1, "WITHSCORES")).toEqual(
+      legacyDue,
+    );
+    const retained = await Promise.all(
+      [0, 1].flatMap((shard) =>
+        getRecordingBoundsKeys(shard, Date.now()).keys.map((key) =>
+          client().hlen(key),
+        ),
+      ),
+    );
+    expect(retained.reduce((total, count) => total + count, 0)).toBe(
+      traces.length,
+    );
+  });
+
+  it("preserves a newer recording revision during enqueue and retains bounds after acknowledgement", async () => {
+    env.LANGFUSE_TRACE_DISPATCH_ENABLED = "true";
+    const identity = member("project", "recorded");
+    await recordTraceActivity("project", [
+      { ...spanActivity("recorded", 1_000, 10), ruleIds: ["rule"] },
+    ]);
+    await client().zadd(recordingKeys.due, Date.now() - 1_000, identity);
+    const add = queue.add.bind(queue);
+    vi.spyOn(queue, "add").mockImplementationOnce(async (...args) => {
+      const job = await add(...args);
+      await recordTraceActivity("project", [
+        { ...spanActivity("recorded", 2_000, 20), ruleIds: [] },
+      ]);
+      return job;
+    });
+    const dispatcher = runner();
+    await dispatcher.processBatch();
+    const [first] = await queue.getJobs(["wait"]);
+    const current = JSON.parse(
+      (await client().hget(recordingKeys.record, identity))!,
+    );
+    expect(current.revision).not.toBe(first.data.payload.traces[0].revision);
+    expect(await client().zcard(recordingKeys.due)).toBe(1);
+    const bounds = await readRecordedBounds(identity);
+    expect(bounds.value).toEqual({
+      minStart: 1_000,
+      maxStart: 2_000,
+      serializedEventBytes: 30,
+    });
+    const expiresAt = await client().pexpiretime(bounds.key);
+    await client().zadd(recordingKeys.due, Date.now() - 1_000, identity);
+    await dispatcher.processBatch();
+    expect(await queue.getWaitingCount()).toBe(2);
+    expect(await client().hget(recordingKeys.record, identity)).toBeNull();
+    expect(await client().zscore(recordingKeys.due, identity)).toBeNull();
+    expect(await readRecordedBounds(identity)).toEqual(bounds);
+    expect(await client().pexpiretime(bounds.key)).toBe(expiresAt);
+  });
+
+  it("keeps recording state on enqueue failure and retries it", async () => {
+    env.LANGFUSE_TRACE_DISPATCH_ENABLED = "true";
+    const identity = member("project", "recorded");
+    await recordTraceActivity("project", [
+      { ...spanActivity("recorded"), ruleIds: ["rule"] },
+    ]);
+    await client().zadd(recordingKeys.due, Date.now() - 1_000, identity);
+    const record = await client().hget(recordingKeys.record, identity);
+    const bounds = await readRecordedBounds(identity);
+    vi.spyOn(queue, "add").mockRejectedValueOnce(
+      new Error("enqueue unavailable"),
+    );
+    const dispatcher = runner();
+    await dispatcher.processBatch();
+    expect(await client().hget(recordingKeys.record, identity)).toBe(record);
+    expect(await client().zcard(recordingKeys.due)).toBe(1);
+    expect(await readRecordedBounds(identity)).toEqual(bounds);
+    await dispatcher.processBatch();
+    expect(await queue.getWaitingCount()).toBe(1);
+    expect(await client().hget(recordingKeys.record, identity)).toBeNull();
+    expect(await client().zcard(recordingKeys.due)).toBe(0);
+  });
+
+  it("revalidates recording readiness and removes missing-record and missing-bounds orphans", async () => {
+    env.LANGFUSE_TRACE_DISPATCH_ENABLED = "true";
+    const traces = ["missing-record", "missing-bounds", "reactivated", "ready"];
+    await recordTraceActivity(
+      "project",
+      traces.map((traceId) => ({
+        ...spanActivity(traceId),
+        ruleIds: ["rule"],
+      })),
+    );
+    await client().zadd(
+      recordingKeys.due,
+      ...traces.flatMap((traceId) => [
+        Date.now() - 1_000,
+        member("project", traceId),
+      ]),
+    );
+    await client().eval(
+      `return redis.call('HSET', KEYS[1], ARGV[1], cmsgpack.pack({0, 0, 1}))`,
+      1,
+      recordingBoundsKeys()[0],
+      getTraceBatchFirstMember(member("project", "ready")),
+    );
+    const range = client().zrange.bind(client());
+    let changed = false;
+    vi.spyOn(client(), "zrange").mockImplementation(async (...args) => {
+      const result = await range(...args);
+      if (
+        !changed &&
+        args[0] === recordingKeys.due &&
+        args.includes("BYSCORE")
+      ) {
+        changed = true;
+        await client().hdel(
+          recordingKeys.record,
+          member("project", "missing-record"),
+        );
+        for (const key of recordingBoundsKeys())
+          await client().hdel(
+            key,
+            getTraceBatchFirstMember(member("project", "missing-bounds")),
+          );
+        await recordTraceActivity("project", [
+          { ...spanActivity("reactivated", 2_000_000), ruleIds: [] },
+        ]);
+      }
+      return result;
+    });
+    await runner().processBatch();
+    expect(changed).toBe(true);
+    const jobs = await queue.getJobs(["wait"]);
+    expect(
+      jobs.flatMap((job) =>
+        job.data.payload.traces.map(({ traceId }) => traceId),
+      ),
+    ).toEqual(["ready"]);
+    expect(jobs[0].data.payload.traces[0]).toMatchObject({
+      minStart: 1_000_000,
+      maxStart: 1_000_000,
+    });
+    expect(await client().hkeys(recordingKeys.record)).toEqual([
+      member("project", "reactivated"),
+    ]);
+    expect(await client().zrange(recordingKeys.due, 0, -1)).toEqual([
+      member("project", "reactivated"),
+    ]);
+  });
+
+  it.each(["project", "locality"] as const)(
+    "uses recorded bytes without event counts for %s batch and trace limits",
+    async (strategy) => {
+      env.LANGFUSE_TRACE_DISPATCH_ENABLED = "true";
+      env.LANGFUSE_TRACE_BATCH_STRATEGY = strategy;
+      env.LANGFUSE_TRACE_BATCH_MAX_BATCH_SERIALIZED_BYTES = 100;
+      env.LANGFUSE_TRACE_BATCH_MAX_TRACE_SERIALIZED_BYTES = 100;
+      await recordTraceActivity("project", [
+        { ...spanActivity("first", 1_000, 60), ruleIds: ["rule"] },
+        { ...spanActivity("second", 1_000, 60), ruleIds: ["rule"] },
+        { ...spanActivity("oversized", 1_000, 101), ruleIds: ["rule"] },
+      ]);
+      await client().zadd(
+        recordingKeys.due,
+        ...["first", "second", "oversized"].flatMap((traceId) => [
+          Date.now() - 1_000,
+          member("project", traceId),
+        ]),
+      );
+      await runner().processBatch();
+      const jobs = await queue.getJobs(["wait"]);
+      expect(jobs.map((job) => job.data.payload.traces.length)).toEqual([1, 1]);
+      expect(
+        jobs
+          .flatMap((job) =>
+            job.data.payload.traces.map(({ traceId }) => traceId),
+          )
+          .sort(),
+      ).toEqual(["first", "second"]);
+      expect(await client().hlen(recordingKeys.record)).toBe(0);
+      expect(await client().zcard(recordingKeys.due)).toBe(0);
+      expect(
+        (await readRecordedBounds(member("project", "oversized"))).value
+          .serializedEventBytes,
+      ).toBe(101);
+    },
+  );
 
   it("re-dispatches late arrivals with the earliest start of the whole trace", async () => {
     env.LANGFUSE_TRACE_BATCH_FIRST_SEEN_TTL_MS = 600;
@@ -1121,6 +1392,7 @@ describe("trace micro-batch scheduling with Redis", () => {
     }) as typeof evaluateCached);
     const count = 2_000;
     for (let project = 0; project < 11; project++) {
+      topicsProjects.add(`project-${project}`);
       const size = project === 0 ? 600 : 140;
       await trackTraceBatchActivity(
         `project-${project}`,
@@ -1229,6 +1501,7 @@ describe("trace micro-batch scheduling with Redis", () => {
   });
 
   it("samples recording map memory and paused/delayed queue work, then reports drained zeros", async () => {
+    env.LANGFUSE_TRACE_DISPATCH_ENABLED = "true";
     const now = Date.now();
     const clock = vi.spyOn(Date, "now").mockReturnValue(now);
     await recordTraceActivity("project", [
@@ -1303,6 +1576,7 @@ describe("trace micro-batch scheduling with Redis", () => {
   });
 
   it("awaits failed telemetry collections while preserving independent queue measurements", async () => {
+    env.LANGFUSE_TRACE_DISPATCH_ENABLED = "true";
     const metrics = new TraceBatchMetricsRunner();
     const pendingMemory = Promise.withResolvers<number[]>();
     vi.spyOn(client(), "eval").mockImplementationOnce(
@@ -1550,6 +1824,7 @@ describe("trace micro-batch scheduling with Redis", () => {
   it("sets the due time from the project's trace idle time, capped below the pending TTL", async () => {
     const orgId = `org-${randomUUID()}`;
     const projectId = `project-${randomUUID()}`;
+    topicsProjects.add(projectId);
     await prisma.organization.create({
       data: { id: orgId, name: "Idle time org" },
     });
@@ -1586,6 +1861,7 @@ describe("trace micro-batch scheduling with Redis", () => {
   it("caches the project's settings in Redis with an expiry and replaces them on save", async () => {
     const orgId = `org-${randomUUID()}`;
     const projectId = `project-${randomUUID()}`;
+    topicsProjects.add(projectId);
     const cacheKey = `langfuse:tracing-readiness-settings:${projectId}`;
     await prisma.organization.create({
       data: { id: orgId, name: "Idle time cache org" },
@@ -1706,6 +1982,7 @@ describe("trace micro-batch scheduling with Redis", () => {
 
   it("uses the default when the idle time read fails", async () => {
     const projectId = `project-${randomUUID()}`;
+    topicsProjects.add(projectId);
     vi.mocked(shared.getTracingReadinessSettings).mockRejectedValueOnce(
       new Error("Postgres unavailable"),
     );
@@ -1734,6 +2011,7 @@ describe("trace micro-batch scheduling with Redis", () => {
     env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "DEV";
     env.LANGFUSE_TRACE_BATCH_DISPATCHER_ENABLED = "false";
     env.LANGFUSE_TRACE_BATCH_INGESTION_ENABLED = "false";
+    vi.mocked(isTopicsEnabled).mockReturnValue(false);
     await metrics["execute"]();
     expect(evaluate).not.toHaveBeenCalled();
     expect(lock).not.toHaveBeenCalled();
@@ -1744,11 +2022,18 @@ describe("trace micro-batch scheduling with Redis", () => {
   it("ingests through BullMQ, postpones readiness on new activity, and consumes full ClickHouse payloads once due", async () => {
     const orgId = randomUUID();
     const projectId = randomUUID();
+    topicsProjects.add(projectId);
+    const excludedProjectId = randomUUID();
     await prisma.organization.create({
       data: {
         id: orgId,
         name: "Trace batch late arrivals",
-        projects: { create: { id: projectId, name: "Trace batch" } },
+        projects: {
+          create: [
+            { id: projectId, name: "Trace batch" },
+            { id: excludedProjectId, name: "Topics disabled" },
+          ],
+        },
       },
     });
     const usage = {
@@ -1824,7 +2109,6 @@ describe("trace micro-batch scheduling with Redis", () => {
         batchWorker.waitUntilReady(),
         batchEvents.waitUntilReady(),
       ]);
-      // The evaluator sampler assigns these scores 0.0593, 0.0291 and 0.7116.
       const traceId = "00000000000000000000000000000001";
       const otherTraceId = "00000000000000000000000000000003";
       const excludedTraceId = "00000000000000000000000000000002";
@@ -1837,7 +2121,11 @@ describe("trace micro-batch scheduling with Redis", () => {
       });
       const metadata = JSON.stringify({ context: "metadata".repeat(1_000) });
       const nano = BigInt(Date.now() - 20 * 60_000) * 1_000_000n;
-      async function ingest(traceIds: string[], start = nano) {
+      async function ingest(
+        traceIds: string[],
+        start = nano,
+        ingestionProjectId = projectId,
+      ) {
         const timestamp = {
           low: Number(start & 0xffffffffn),
           high: Number(start >> 32n),
@@ -1885,7 +2173,11 @@ describe("trace micro-batch scheduling with Redis", () => {
             data: { fileKey: "trace-batch-integration.json" },
             authCheck: {
               validKey: true,
-              scope: { projectId, orgId: randomUUID(), accessLevel: "project" },
+              scope: {
+                projectId: ingestionProjectId,
+                orgId,
+                accessLevel: "project",
+              },
             },
             ingestionVersion: "4",
           },
@@ -1907,7 +2199,8 @@ describe("trace micro-batch scheduling with Redis", () => {
           .toBeGreaterThanOrEqual(deadline);
       }
 
-      await ingest([traceId, excludedTraceId]);
+      await ingest([traceId]);
+      await ingest([excludedTraceId], nano, excludedProjectId);
       expect(await client().hlen(stateKey)).toBe(1);
       const firstDue = Number(
         await client().zscore(dueKey, member(projectId, traceId)),
@@ -1915,7 +2208,8 @@ describe("trace micro-batch scheduling with Redis", () => {
       await waitUntilRedisTime(firstDue - 2_000);
       // Leave ample time to check the old deadline even on a busy CI worker.
       env.LANGFUSE_TRACE_BATCH_IDLE_MS = 10_000;
-      await ingest([traceId, otherTraceId, excludedTraceId]);
+      await ingest([traceId, otherTraceId]);
+      await ingest([excludedTraceId], nano, excludedProjectId);
       const renewedDue = Number(
         await client().zscore(dueKey, member(projectId, traceId)),
       );
@@ -1932,12 +2226,12 @@ describe("trace micro-batch scheduling with Redis", () => {
       });
 
       await writer.flushAll(true);
-      // Sampling only gates readiness; excluded observations are still ingested.
+      // Inactive Topics projects still ingest observations without readiness state.
       let excludedObservations = 0;
       for await (const observation of getTraceBatchEventStream({
         traces: [
           {
-            projectId,
+            projectId: excludedProjectId,
             traceId: excludedTraceId,
             minStart: Number(nano / 1_000_000n),
             maxStart: Number(nano / 1_000_000n),
@@ -1952,9 +2246,10 @@ describe("trace micro-batch scheduling with Redis", () => {
         excludedObservations++;
       }
       expect(excludedObservations).toBe(2);
-      topicsProjects.add(projectId);
       const facets = await ensureDefaultTopicFacets(projectId);
       env.LANGFUSE_TRACE_BATCH_INGESTION_ENABLED = "false";
+      env.LANGFUSE_TRACE_BATCH_DISPATCHER_ENABLED = "false";
+      env.LANGFUSE_TRACE_BATCH_READ_ENABLED = "false";
       env.LANGFUSE_TRACE_BATCH_SAMPLING_RATE = 0;
       await waitUntilRedisTime(renewedDue);
       await dispatcher.processBatch();
@@ -2072,7 +2367,8 @@ describe("trace micro-batch scheduling with Redis", () => {
     }
   }, 30_000);
 
-  it("at rate 0 tracks only Topics-enabled projects and skips all work for others", async () => {
+  it("tracks only active Topics projects independently of obsolete intake and sampling flags", async () => {
+    env.LANGFUSE_TRACE_BATCH_INGESTION_ENABLED = "false";
     const samplingRate = env.LANGFUSE_TRACE_BATCH_SAMPLING_RATE;
     env.LANGFUSE_TRACE_BATCH_SAMPLING_RATE = 0;
     topicsProjects.add("topics-project");
@@ -2109,8 +2405,9 @@ describe("trace micro-batch scheduling with Redis", () => {
     }
   });
 
-  it("does not load idle settings when every trace is sampled out", async () => {
-    env.LANGFUSE_TRACE_BATCH_SAMPLING_RATE = Number.MIN_VALUE;
+  it("does not load idle settings for inactive Topics projects even at the old sampling rate 1", async () => {
+    env.LANGFUSE_TRACE_BATCH_SAMPLING_RATE = 1;
+    topicsProjects.delete("project");
     vi.mocked(shared.getTracingReadinessSettings).mockClear();
 
     await trackTraceBatchActivity("project", [event("sampled-out")]);
@@ -2119,71 +2416,32 @@ describe("trace micro-batch scheduling with Redis", () => {
     expect(await client().hlen(stateKey)).toBe(0);
   });
 
-  it("keeps stable nested trace samples across replay and counts decisions once per trace in each ingestion batch", async () => {
-    const traceIds = Array.from({ length: 1_000 }, (_, i) =>
-      i.toString(16).padStart(32, "0"),
+  it("uses only the new sampling rate for recording, including active Topics projects", async () => {
+    env.LANGFUSE_TRACE_DISPATCH_ENABLED = "true";
+    env.LANGFUSE_TRACE_BATCH_INGESTION_ENABLED = "false";
+    env.LANGFUSE_TRACE_BATCH_SAMPLING_RATE = 1;
+    const traceIds = Array.from({ length: 1_000 }, (_, index) =>
+      index.toString(16).padStart(32, "0"),
     );
     let previous: string[] = [];
-    // Fixed fixtures pin the evaluator's sampling cohort, including both endpoints.
+    vi.mocked(isTopicsProcessingActive).mockClear();
     for (const [rate, expectedCount] of [
-      [0.1, 78],
+      [0, 0],
       [0.1, 78],
       [0.5, 478],
       [1, 1_000],
     ]) {
-      await client().del(dueKey, stateKey);
-      vi.mocked(recordIncrement).mockClear();
-      env.LANGFUSE_TRACE_BATCH_SAMPLING_RATE = rate;
-      traceIds.reverse();
-      await trackTraceBatchActivity(
-        "project",
-        traceIds.flatMap((id) => [
-          event(id, 100),
-          event(id, 200, 200),
-          event(id, 150, 50),
-        ]),
+      env.LANGFUSE_TRACE_DISPATCH_SAMPLING_RATE = rate;
+      const samplingRate = await resolveTraceBatchSamplingRate("project");
+      expect(samplingRate).toBe(rate);
+      const selected = traceIds.filter((traceId) =>
+        isTraceBatchSampled(traceId, samplingRate),
       );
-      const selected = (await client().hkeys(stateKey)).sort();
       expect(selected).toHaveLength(expectedCount);
-      expect(await client().zcard(dueKey)).toBe(expectedCount);
       expect(selected).toEqual(expect.arrayContaining(previous));
-      if (previous.length === expectedCount) expect(selected).toEqual(previous);
-      expect(recordIncrement).toHaveBeenCalledWith(
-        "langfuse.trace_batch.sampling_decisions",
-        expectedCount,
-        { decision: "selected" },
-      );
-      expect(recordIncrement).toHaveBeenCalledWith(
-        "langfuse.trace_batch.sampling_decisions",
-        1_000 - expectedCount,
-        { decision: "excluded" },
-      );
-      expect(recordIncrement).not.toHaveBeenCalledWith(
-        "langfuse.trace_batch.event_updates",
-        expect.anything(),
-        { stage: "sampled" },
-      );
-      for (const [stage, count] of [
-        ["eligible", 1_000],
-        ...(expectedCount > 0 ? [["recorded", expectedCount] as const] : []),
-      ] as const) {
-        for (const [metric, total] of [
-          ["event_updates", count * 3],
-          ["serialized_event_bytes", count * 350],
-        ] as const)
-          expect(
-            vi
-              .mocked(recordIncrement)
-              .mock.calls.filter(
-                ([name, , tags]) =>
-                  name === `langfuse.trace_batch.${metric}` &&
-                  tags?.stage === stage,
-              )
-              .reduce((sum, [, value]) => sum + value, 0),
-          ).toBe(total);
-      }
       previous = selected;
     }
+    expect(isTopicsProcessingActive).not.toHaveBeenCalled();
   });
 
   it("counts only acknowledged update volume when tracking fails after a chunk", async () => {
@@ -2327,7 +2585,7 @@ describe("trace micro-batch scheduling with Redis", () => {
     { maxSize: 60, sizes: [22, 60, 60, 60], projectCounts: [1, 1, 1, 2] },
     { maxSize: 80, sizes: [42, 80, 80], projectCounts: [1, 1, 2] },
   ])(
-    "dispatches cross-project batches capped at $maxSize, records their distribution, and drains with intake off",
+    "dispatches cross-project batches capped at $maxSize independently of obsolete switches",
     async ({ maxSize, sizes, projectCounts }) => {
       env.LANGFUSE_TRACE_BATCH_MAX_SIZE = maxSize;
       const traces = Array.from(
@@ -2354,6 +2612,7 @@ describe("trace micro-batch scheduling with Redis", () => {
       await makeDue("other", "trace-0");
       const add = vi.spyOn(queue, "add");
       env.LANGFUSE_TRACE_BATCH_INGESTION_ENABLED = "false";
+      env.LANGFUSE_TRACE_BATCH_DISPATCHER_ENABLED = "false";
       await trackTraceBatchActivity("disabled", [event("ignored")]);
       await runner().processBatch();
       const jobs = await queue.getJobs(["wait"]);
@@ -2889,8 +3148,9 @@ describe("trace micro-batch scheduling with Redis", () => {
       expect(Number(await client().pexpiretime(key))).toBe(roundedDeadline);
   });
 
-  it("drains and removes queued jobs without queries when reads are disabled", async () => {
-    env.LANGFUSE_TRACE_BATCH_READ_ENABLED = "false";
+  it("drains and removes queued jobs without queries when both pipelines are disabled", async () => {
+    vi.mocked(isTopicsEnabled).mockReturnValue(false);
+    env.LANGFUSE_TRACE_BATCH_READ_ENABLED = "true";
     env.LANGFUSE_TRACE_BATCH_INGESTION_ENABLED = "false";
     const read = vi
       .spyOn(shared, "getTraceBatchEventStream")
