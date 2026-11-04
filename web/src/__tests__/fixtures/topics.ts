@@ -100,5 +100,14 @@ export async function topicsProject() {
       assignedAt: now,
     },
   ]);
-  return { ...project, facetId: facet.id, ruleId: rule.id, topicId, traceId };
+  return {
+    ...project,
+    facetId: facet.id,
+    facetName: facet.name,
+    ruleId: rule.id,
+    runId: run.id,
+    topicId,
+    topicVersionId,
+    traceId,
+  };
 }

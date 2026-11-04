@@ -7,7 +7,12 @@ import { prisma } from "@langfuse/shared/src/db";
 import {
   createApiKey,
   createBasicAuthHeader,
+  createEvent,
+  createEventsCh,
 } from "@langfuse/shared/src/server";
+import { writeTopicAssignments } from "@langfuse/shared/topics/server";
+import { env as webEnv } from "@/src/env.mjs";
+import observationsV2Handler from "@/src/pages/api/public/v2/observations/index";
 import {
   OrganizationId,
   ProjectId,
@@ -205,7 +210,173 @@ describe("unstable Topics public API access", () => {
       [ruleHandler, { ruleId: owner.ruleId }],
       [summariesHandler, {}],
       [assignmentsHandler, {}],
+      [observationsV2Handler, { filter: topicFilter(owner.facetName) }],
     ] as const)
       expect((await get(handler, auth, query)).status).toBe(403);
   });
+
+  describe("v2 observations topic filter", () => {
+    const DAY_MS = 86_400_000;
+    let assigned: string;
+    let unassigned: string;
+    let otherAssigned: string;
+
+    const observation = (projectId: string, traceId: string, at: Date) => {
+      const id = randomUUID();
+      return createEvent({
+        id,
+        span_id: id,
+        trace_id: traceId,
+        project_id: projectId,
+        start_time: at.getTime() * 1000,
+      });
+    };
+
+    const observationIds = async (
+      authorization: string,
+      query: Record<string, string>,
+    ) => {
+      const result = await get(observationsV2Handler, authorization, query);
+      return {
+        status: result.status,
+        ids: ((result.body.data ?? []) as { id: string }[])
+          .map((row) => row.id)
+          .sort(),
+      };
+    };
+
+    beforeAll(async () => {
+      const events = [
+        observation(owner.projectId, owner.traceId, new Date()),
+        observation(owner.projectId, randomUUID(), new Date()),
+        observation(other.projectId, other.traceId, new Date()),
+      ];
+      [assigned, unassigned, otherAssigned] = events.map((event) => event.id);
+      await createEventsCh(events);
+    });
+
+    it.each(["false", "true"])(
+      "returns every observation of traces in the topic (adaptive scan %s)",
+      async (adaptive) => {
+        const original = webEnv.LANGFUSE_OBSERVATIONS_V2_ADAPTIVE_SCAN_ENABLED;
+        (webEnv as any).LANGFUSE_OBSERVATIONS_V2_ADAPTIVE_SCAN_ENABLED =
+          adaptive;
+        try {
+          const auth = createBasicAuthHeader(owner.publicKey, owner.secretKey);
+          expect(
+            await observationIds(auth, {
+              filter: topicFilter(owner.facetName),
+            }),
+          ).toEqual({ status: 200, ids: [assigned] });
+          expect(
+            await observationIds(auth, {
+              filter: topicFilter(owner.facetName, "none of"),
+            }),
+          ).toEqual({ status: 200, ids: [unassigned] });
+        } finally {
+          (webEnv as any).LANGFUSE_OBSERVATIONS_V2_ADAPTIVE_SCAN_ENABLED =
+            original;
+        }
+      },
+    );
+
+    it("does not match another project's facet or traces", async () => {
+      const otherAuth = createBasicAuthHeader(other.publicKey, other.secretKey);
+      expect(
+        await observationIds(otherAuth, {
+          filter: topicFilter(owner.facetName),
+        }),
+      ).toEqual({ status: 200, ids: [] });
+      expect(
+        await observationIds(otherAuth, {
+          filter: topicFilter(other.facetName),
+        }),
+      ).toEqual({ status: 200, ids: [otherAssigned] });
+    });
+
+    it("matches topics inside the requested time range, not only the latest days", async () => {
+      const at = new Date(Date.now() - 40 * DAY_MS);
+      const traceId = randomUUID();
+      const old = observation(owner.projectId, traceId, at);
+      await createEventsCh([old]);
+      await writeTopicAssignments([
+        {
+          projectId: owner.projectId,
+          facetId: owner.facetId,
+          facetVersion: 1,
+          traceId,
+          sessionId: null,
+          environment: "production",
+          traceName: "assistant",
+          unitStartTime: at.toISOString(),
+          summaryProcessedAt: at.toISOString(),
+          runId: owner.runId,
+          topicId: owner.topicId,
+          topicVersionId: owner.topicVersionId,
+          distance: 0.1,
+          runnerUpDistance: 0.2,
+          origin: "initial",
+          coordinates: null,
+          assignedAt: new Date().toISOString(),
+        },
+      ]);
+
+      const auth = createBasicAuthHeader(owner.publicKey, owner.secretKey);
+      expect(
+        await observationIds(auth, {
+          filter: topicFilter(owner.facetName),
+          fromStartTime: new Date(at.getTime() - DAY_MS).toISOString(),
+          toStartTime: new Date(at.getTime() + DAY_MS).toISOString(),
+        }),
+      ).toEqual({ status: 200, ids: [old.id] });
+    });
+
+    it("rejects a topic filter once the project leaves the Topics allowlist", async () => {
+      const auth = createBasicAuthHeader(other.publicKey, other.secretKey);
+      (sharedEnv as any).LANGFUSE_TOPICS_ENABLED_PROJECT_IDS = [
+        owner.projectId,
+      ];
+      try {
+        expect(
+          (
+            await get(observationsV2Handler, auth, {
+              filter: topicFilter(other.facetName),
+            })
+          ).status,
+        ).toBe(400);
+        expect(
+          await observationIds(auth, {
+            filter: JSON.stringify([
+              {
+                type: "string",
+                column: "traceId",
+                operator: "=",
+                value: other.traceId,
+              },
+            ]),
+          }),
+        ).toEqual({ status: 200, ids: [otherAssigned] });
+      } finally {
+        (sharedEnv as any).LANGFUSE_TOPICS_ENABLED_PROJECT_IDS = [
+          owner.projectId,
+          other.projectId,
+        ];
+      }
+    });
+  });
 });
+
+function topicFilter(
+  facetName: string,
+  operator: "any of" | "none of" = "any of",
+) {
+  return JSON.stringify([
+    {
+      type: "categoryOptions",
+      column: "topics",
+      key: facetName,
+      operator,
+      value: ["Private topic"],
+    },
+  ]);
+}
