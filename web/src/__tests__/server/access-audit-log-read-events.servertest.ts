@@ -243,6 +243,31 @@ describe("access events on tRPC scores.byId", () => {
       scoreId: score.id,
     });
   });
+
+  it("records a read without an id no resource can have", async () => {
+    const { orgId, projectId } = await setupOrg(true);
+    const caller = trpcCaller({
+      userId: randomUUID(),
+      orgId,
+      projectId,
+      accessAuditLogEnabled: true,
+    });
+
+    await caller.scores.getScoreMetadataById({
+      projectId,
+      id: "s".repeat(801),
+    });
+
+    const events = await accessEvents(orgId);
+    expect(events).toEqual([
+      expect.objectContaining({
+        route: "scores.getScoreMetadataById",
+        outcome: "success",
+        resourceRefs: [],
+      }),
+    ]);
+    expect(events[0]).not.toHaveProperty("resourceId");
+  });
 });
 
 describe("refused tRPC reads", () => {
@@ -333,6 +358,51 @@ maybe("access events on tRPC events.all", () => {
         ...observationIds.map((id) => `observation:${id}`),
       ]),
     );
+  });
+});
+
+maybe("access events on tRPC experiments.batchIO", () => {
+  it("records the read with the run behind every returned output", async () => {
+    const { orgId, projectId } = await setupOrg(true);
+    const experimentId = randomUUID();
+    const itemId = randomUUID();
+    const traceId = randomUUID();
+    const rootId = randomUUID();
+    await createEventsCh([
+      createEvent({
+        id: rootId,
+        span_id: rootId,
+        trace_id: traceId,
+        project_id: projectId,
+        parent_span_id: "",
+        experiment_id: experimentId,
+        experiment_name: "experiment",
+        experiment_item_id: itemId,
+        experiment_item_root_span_id: rootId,
+        start_time: Date.now() * 1000,
+      }),
+    ]);
+    const caller = trpcCaller({
+      userId: randomUUID(),
+      orgId,
+      projectId,
+      accessAuditLogEnabled: true,
+    });
+
+    await caller.experiments.batchIO({
+      projectId,
+      itemIds: [itemId],
+      baseExperimentId: experimentId,
+      compExperimentIds: [],
+    });
+
+    expect(await accessEvents(orgId)).toEqual([
+      expect.objectContaining({
+        route: "experiments.batchIO",
+        resultCount: 1,
+        resourceRefs: [`observation:${rootId}`, `trace:${traceId}`],
+      }),
+    ]);
   });
 });
 

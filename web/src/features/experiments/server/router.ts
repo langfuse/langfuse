@@ -904,6 +904,14 @@ export const experimentsRouter = createTRPCRouter({
         ioCharLimit: input.ioCharLimit,
       });
 
+      audit.refs(
+        batchIO.flatMap((item) =>
+          item.outputs.flatMap((run) => [
+            ref("observation", run.observationId),
+            ref("trace", run.traceId),
+          ]),
+        ),
+      );
       audit.count(batchIO.length);
       return batchIO;
     },

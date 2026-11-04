@@ -115,6 +115,21 @@ const primaryRefs = (
 ): AuditLogResourceRef[] =>
   resourceType === "experiment" ? [] : refsIf(resourceType, resourceId);
 
+// Ingestion rejects longer ids, so only a request can carry one and it names
+// no resource. Such ids are left out of the event.
+const MAX_ID_LENGTH = 800;
+const ResourceIdSchema = z.string().min(1).max(MAX_ID_LENGTH);
+
+/** The id `idKey` names in the request, if a resource can have it. */
+const requestedId = (
+  meta: AccessAuditMeta,
+  input: Record<string, unknown>,
+): string | undefined =>
+  meta.idKey ? ResourceIdSchema.safeParse(input[meta.idKey]).data : undefined;
+
+const namesPossibleId = (ref: AuditLogResourceRef): boolean =>
+  ref.length - ref.indexOf(":") - 1 <= MAX_ID_LENGTH;
+
 /**
  * A query whose reads are recorded as audit access events (EE): the resource
  * `idKey` names, plus what the resolver passes to `audit.refs`. The event is
@@ -146,7 +161,7 @@ export function auditedQuery<TBuilder extends QueryBuilder, TOutput>(
     } as QueryOptions<TBuilder> & { audit: AccessAuditRecorder });
 
     const input = opts.input as { projectId: string } & Record<string, unknown>;
-    const resourceId = meta.idKey ? String(input[meta.idKey]) : undefined;
+    const resourceId = requestedId(meta, input);
     await recordTrpcAccess(opts.ctx, input.projectId, {
       route: opts.path,
       resourceType: meta.resourceType,
@@ -154,7 +169,7 @@ export function auditedQuery<TBuilder extends QueryBuilder, TOutput>(
       action: meta.action,
       resourceRefs: [
         ...primaryRefs(meta.resourceType, resourceId),
-        ...collected.flat(),
+        ...collected.flat().filter(namesPossibleId),
       ],
       params: input,
       resultCount,
@@ -169,9 +184,6 @@ const DENIED_CODES = new Set<TRPC_ERROR_CODE_KEY>([
 ]);
 
 const ProjectInputSchema = z.object({ projectId: z.string().min(1) });
-
-// Longer ids are rejected at ingestion, so they cannot name a resource.
-const RequestedIdSchema = z.string().min(1).max(800);
 
 /**
  * Records a refused call to an audited query with `outcome = denied`. Its
@@ -198,11 +210,7 @@ export async function recordRefusedRead({
   const input = await getRawInput();
   const project = ProjectInputSchema.safeParse(input);
   if (!project.success) return;
-  const resourceId = meta.idKey
-    ? RequestedIdSchema.safeParse(
-        (input as Record<string, unknown>)[meta.idKey],
-      ).data
-    : undefined;
+  const resourceId = requestedId(meta, input as Record<string, unknown>);
 
   // The caller was refused and receives no data, so a failed write keeps the
   // refusal instead of turning it into a server error.
