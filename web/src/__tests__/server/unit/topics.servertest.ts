@@ -561,6 +561,13 @@ describe("Topics filtered trace preview", () => {
     await expect(
       caller().previewTraces({ ...selection, limit: 1001 }),
     ).rejects.toThrow("Select at most 1,000 traces");
+    // High-volume projects keep one-off selections to at most 30 days.
+    await expect(
+      caller().previewTraces({
+        ...selection,
+        from: new Date(selection.to.getTime() - 31 * 86_400_000),
+      }),
+    ).rejects.toThrow("Select at most 30 days of traces");
     expect(mocks.queryClickhouse).not.toHaveBeenCalled();
     expect(mocks.createTopicExecution).not.toHaveBeenCalled();
   });

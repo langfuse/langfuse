@@ -15,6 +15,7 @@ import {
 } from "./TopicTraceSelectorView";
 import { parseTraceInput } from "./parse-trace-input";
 import { TOPICS_BACKFILL_TRACE_LIMIT } from "./backfill-limit";
+import { TOPICS_MAX_SELECTION_RANGE_MS } from "@langfuse/shared/topics";
 import {
   isValidTopicTimeRange,
   relativeTopicTimeRange,
@@ -65,7 +66,10 @@ export function useTopicTraceSelector({
     Number.isSafeInteger(Number(limit)) &&
     Number(limit) >= 1 &&
     Number(limit) <= TOPICS_BACKFILL_TRACE_LIMIT;
-  const validRange = isValidTopicTimeRange(range);
+  const validRange = isValidTopicTimeRange(
+    range,
+    TOPICS_MAX_SELECTION_RANGE_MS,
+  );
   const preview = api.topics.previewTraces.useQuery(
     request ?? {
       projectId,
