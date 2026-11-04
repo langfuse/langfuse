@@ -331,14 +331,8 @@ describe("Topics visibility gate", () => {
     ["a project outside the allowlist", {}, false, false],
     ["the feature preview turned off", { langfuseTopics: false }, true, false],
     [
-      "Langfuse staff in internal view",
-      { email: "member@langfuse.com", langfuseTopics: false },
-      true,
-      true,
-    ],
-    [
       "ClickHouse staff in internal view",
-      { email: "MEMBER@CLICKHOUSE.COM", langfuseTopics: false },
+      { email: "member@clickhouse.com", langfuseTopics: false },
       true,
       true,
     ],

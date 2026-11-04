@@ -128,6 +128,7 @@ export function AuthenticatedLayout({
   onSignOut,
 }: AuthenticatedLayoutProps) {
   const { isLangfuseCloud, region: currentRegion } = useLangfuseCloudRegion();
+  const { data: session } = useSession();
   const [featurePreviewOpen, setFeaturePreviewOpen] = useState(false);
   const [internalViewModeOpen, setInternalViewModeOpen] = useState(false);
   const internalViewMode = useInternalViewMode();
@@ -195,9 +196,8 @@ export function AuthenticatedLayout({
   }));
 
   const hasFeaturePreviews = canOpenPersonalFeaturePreviews({
+    session,
     isLangfuseCloud,
-    v4BetaEnabled: user.v4BetaEnabled === true,
-    isAdmin: user.admin === true,
   });
 
   // User navigation items for sidebar dropdown

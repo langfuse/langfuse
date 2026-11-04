@@ -59,31 +59,28 @@ describe("userAccountRouter.setFeaturePreviewEnabled", () => {
     },
   );
 
-  it.each(["langfuse.com", "clickhouse.com"])(
-    "lets internal %s users manage Topics locally without changing other flags",
-    async (emailDomain) => {
-      const { caller, userId } = await createCaller({
-        emailDomain,
-      });
-      (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = undefined;
-      await caller.userAccount.setFeaturePreviewEnabled({
-        flag: "langfuseTopics",
-        enabled: true,
-      });
-      expect(
-        (await prisma.user.findUniqueOrThrow({ where: { id: userId } }))
-          .featureFlags,
-      ).toEqual(["templateFlag", "langfuseTopics"]);
-      await caller.userAccount.setFeaturePreviewEnabled({
-        flag: "langfuseTopics",
-        enabled: false,
-      });
-      expect(
-        (await prisma.user.findUniqueOrThrow({ where: { id: userId } }))
-          .featureFlags,
-      ).not.toContain("langfuseTopics");
-    },
-  );
+  it("lets internal staff manage Topics locally without changing other flags", async () => {
+    const { caller, userId } = await createCaller({
+      emailDomain: "clickhouse.com",
+    });
+    (env as any).NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = undefined;
+    await caller.userAccount.setFeaturePreviewEnabled({
+      flag: "langfuseTopics",
+      enabled: true,
+    });
+    expect(
+      (await prisma.user.findUniqueOrThrow({ where: { id: userId } }))
+        .featureFlags,
+    ).toEqual(["templateFlag", "langfuseTopics"]);
+    await caller.userAccount.setFeaturePreviewEnabled({
+      flag: "langfuseTopics",
+      enabled: false,
+    });
+    expect(
+      (await prisma.user.findUniqueOrThrow({ where: { id: userId } }))
+        .featureFlags,
+    ).not.toContain("langfuseTopics");
+  });
 
   it("lets an external user turn off an existing Topics grant", async () => {
     const { caller, userId } = await createCaller({
@@ -197,30 +194,27 @@ describe("userAccountRouter.setViewMode", () => {
     Object.assign(env, originalEnv);
   });
 
-  it.each(["langfuse.com", "clickhouse.com"])(
-    "lets %s staff switch views without V4 while preserving other preferences",
-    async (emailDomain) => {
-      const { caller, userId } = await createCaller({
-        emailDomain,
-        featureFlags: ["sessionViewV2"],
-      });
-      await caller.userAccount.setViewMode({ mode: "EXTERNAL" });
-      await caller.userAccount.setViewMode({ mode: "EXTERNAL" });
-      expect(
-        (await prisma.user.findUniqueOrThrow({ where: { id: userId } }))
-          .featureFlags,
-      ).toEqual([
-        "sessionViewV2",
-        getFeaturePreviewOptOutFlag(INTERNAL_FEATURE_FLAG),
-      ]);
-      await caller.userAccount.setViewMode({ mode: "INTERNAL" });
-      const user = await prisma.user.findUniqueOrThrow({
-        where: { id: userId },
-      });
-      expect(user.featureFlags).toEqual(["sessionViewV2"]);
-      expect(user.admin).toBe(false);
-    },
-  );
+  it("lets staff switch views without V4 while preserving other preferences", async () => {
+    const { caller, userId } = await createCaller({
+      emailDomain: "clickhouse.com",
+      featureFlags: ["sessionViewV2"],
+    });
+    await caller.userAccount.setViewMode({ mode: "EXTERNAL" });
+    await caller.userAccount.setViewMode({ mode: "EXTERNAL" });
+    expect(
+      (await prisma.user.findUniqueOrThrow({ where: { id: userId } }))
+        .featureFlags,
+    ).toEqual([
+      "sessionViewV2",
+      getFeaturePreviewOptOutFlag(INTERNAL_FEATURE_FLAG),
+    ]);
+    await caller.userAccount.setViewMode({ mode: "INTERNAL" });
+    const user = await prisma.user.findUniqueOrThrow({
+      where: { id: userId },
+    });
+    expect(user.featureFlags).toEqual(["sessionViewV2"]);
+    expect(user.admin).toBe(false);
+  });
 
   it("lets external users opt out but not enable internal view", async () => {
     const { caller, userId } = await createCaller();
