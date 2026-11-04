@@ -63,6 +63,7 @@ import { searchBarRouter } from "@/src/features/search-bar/server/router";
 import { notificationPreferencesRouter } from "@/src/server/api/routers/notificationPreferences";
 import { onboardingRouter } from "@/src/features/onboarding/server/onboardingRouter";
 import { webCalloutsRouter } from "@/src/features/web-callouts/server/router";
+import { productionReviewsRouter } from "@/src/features/production-reviews/server/router";
 import { inAppAgentRouter } from "@/src/features/in-app-agent/server/router";
 import { v4TransitionRouter } from "@/src/features/v4/server/v4TransitionRouter";
 import { aiGatewayRouter } from "@/src/features/ai-gateway/server/router";
@@ -140,6 +141,7 @@ export const appRouter = createTRPCRouter({
   searchBar: searchBarRouter,
   notificationPreferences: notificationPreferencesRouter,
   webCallouts: webCalloutsRouter,
+  productionReviews: productionReviewsRouter,
   inAppAgent: inAppAgentRouter,
   v4Transition: v4TransitionRouter,
   aiGateway: aiGatewayRouter,
