@@ -14,12 +14,14 @@ const mockSession = ({
   aiGateway,
   langfuseTopics = false,
   admin = false,
+  email,
   enableExperimentalFeatures = false,
   internalFeatures,
 }: {
   aiGateway: boolean;
   langfuseTopics?: boolean;
   admin?: boolean;
+  email?: string;
   enableExperimentalFeatures?: boolean;
   internalFeatures?: boolean;
 }) => {
@@ -28,6 +30,7 @@ const mockSession = ({
       environment: { enableExperimentalFeatures },
       user: {
         admin,
+        email,
         featureFlags: testFeatureFlags({
           aiGateway: false,
           langfuseTopics,
@@ -46,6 +49,22 @@ const mockSession = ({
 };
 
 describe("useIsFeatureEnabled", () => {
+  it("honors preview preferences for admins while preserving the deployment override", () => {
+    mockSession({ aiGateway: false, admin: true });
+    const { result, rerender } = renderHook(() =>
+      useIsFeatureEnabled("sessionViewV2"),
+    );
+    expect(result.current).toBe(false);
+
+    mockSession({
+      aiGateway: false,
+      admin: true,
+      enableExperimentalFeatures: true,
+    });
+    rerender();
+    expect(result.current).toBe(true);
+  });
+
   it.each([
     {
       admin: true,
@@ -74,7 +93,32 @@ describe("useIsFeatureEnabled", () => {
     },
   );
 
-  it("requires explicit opt-in for restricted and admin-only flags despite admin and experimental overrides", () => {
+  it.each([
+    ["member@langfuse.com", true],
+    ["MEMBER@CLICKHOUSE.COM", true],
+    ["member@sub.langfuse.com", false],
+    ["member@clickhouse.com.example.org", false],
+    ["member@notclickhouse.com", false],
+  ] as const)("internal view for %s: %s", (email, expected) => {
+    mockSession({
+      aiGateway: false,
+      email,
+    });
+    const { result } = renderHook(() => ({
+      internal: useInternalFeaturesEnabled(),
+      searchBar: useIsFeatureEnabled("searchBar"),
+      aiGateway: useIsFeatureEnabled("aiGateway"),
+      langfuseTopics: useIsFeatureEnabled("langfuseTopics"),
+    }));
+    expect(result.current).toEqual({
+      internal: expected,
+      searchBar: false,
+      aiGateway: false,
+      langfuseTopics: false,
+    });
+  });
+
+  it("requires explicit opt-in for restricted and internal preview flags even for admins on experimental deployments", () => {
     mockSession({
       aiGateway: false,
       admin: true,
