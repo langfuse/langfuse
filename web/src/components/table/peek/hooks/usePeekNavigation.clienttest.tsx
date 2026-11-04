@@ -181,6 +181,69 @@ describe("usePeekNavigation analytics", () => {
 });
 
 describe("peek entry parameters", () => {
+  it.each(["closePeek", "openPeek"] as const)(
+    "%s clears session scope even without a reader",
+    (action) => {
+      mockPush.mockReset();
+      window.history.replaceState(
+        {},
+        "",
+        "/project/p1/observations?peek=obs&aggregation=session&display=timeline",
+      );
+      const { result } = renderHook(() =>
+        usePeekNavigation({
+          tableName: "events",
+          isV4: true,
+          expandConfig: {
+            basePath: "/project/p1/traces",
+            pathParam: "traceId",
+          },
+        }),
+      );
+      result.current[action]();
+      expect(mockPush.mock.lastCall?.[0].query).toEqual({
+        display: "timeline",
+      });
+    },
+  );
+
+  it.each([false, true])(
+    "forwards session scope without a reader (new tab: %s)",
+    (newTab) => {
+      mockPush.mockReset();
+      const open = vi.spyOn(window, "open").mockImplementation(() => null);
+      window.history.replaceState(
+        {},
+        "",
+        "/project/p1/observations?peek=obs&traceId=trace&aggregation=session",
+      );
+      const { result } = renderHook(() =>
+        usePeekNavigation({
+          tableName: "events",
+          isV4: true,
+          expandConfig: {
+            basePath: "/project/p1/traces",
+            pathParam: "traceId",
+          },
+        }),
+      );
+      result.current.expandPeek(newTab);
+      if (newTab) {
+        expect(open).toHaveBeenCalledWith(
+          expect.stringContaining(
+            "/project/p1/traces/trace?aggregation=session",
+          ),
+          "_blank",
+        );
+      } else {
+        expect(mockPush).toHaveBeenCalledWith(
+          "/project/p1/traces/trace?aggregation=session",
+        );
+      }
+      open.mockRestore();
+    },
+  );
+
   it("sets explicit entry parameters and clears them on ordinary entry and close", () => {
     mockPush.mockReset();
     window.history.replaceState(

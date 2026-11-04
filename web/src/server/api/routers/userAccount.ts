@@ -11,12 +11,15 @@ import { V4_PREVIEW_LABEL } from "@/src/features/events/lib/v4PreviewLabel";
 import { env } from "@/src/env.mjs";
 import { getSfdcService } from "@/src/ee/features/sfdc-sync/server/sfdcService";
 import {
-  isAdminOnlyFeaturePreviewFlag,
+  isInternalFeaturePreviewFlag,
   personalFeaturePreviewFlags,
   INTERNAL_FEATURE_FLAG,
 } from "@/src/features/feature-flags/available-flags";
 import { setUserFeaturePreview } from "@/src/features/feature-flags/server/organizationFeatureFlags";
-import { hasInternalAccess } from "@/src/features/feature-flags/utils";
+import {
+  hasInternalAccess,
+  isInternalViewEnabled,
+} from "@/src/features/feature-flags/utils";
 import { advanceSessionsExpiredAtForUser } from "@/src/features/auth/lib/sessionExpiration";
 import {
   deleteUserBoundApiKeys,
@@ -88,21 +91,18 @@ export const userAccountRouter = createTRPCRouter({
   setViewMode: authenticatedProcedure
     .input(z.object({ mode: z.enum(["INTERNAL", "EXTERNAL"]) }))
     .mutation(async ({ input, ctx }) => {
-      const canEnableFeaturePreviews =
-        Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION) ||
-        ctx.session.user.v4BetaEnabled === true;
-
       if (
+        input.mode === "INTERNAL" &&
         !hasInternalAccess({
+          email: ctx.session.user.email,
           isAdmin: ctx.session.user.admin === true,
           isExperimentalFeaturesEnabled:
             env.LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES === "true",
-        }) ||
-        !canEnableFeaturePreviews
+        })
       ) {
         throw new TRPCError({
           code: "PRECONDITION_FAILED",
-          message: `Internal view mode requires ${V4_PREVIEW_LABEL} on self-hosted deployments.`,
+          message: "Internal view is only available to eligible users.",
         });
       }
       await setUserFeaturePreview({
@@ -155,11 +155,12 @@ export const userAccountRouter = createTRPCRouter({
       const userId = ctx.session.user.id;
 
       if (
-        isAdminOnlyFeaturePreviewFlag(input.flag) &&
-        !ctx.session.user.admin
+        isInternalFeaturePreviewFlag(input.flag) &&
+        !isInternalViewEnabled(ctx.session) &&
+        !ctx.session.user.featureFlags[input.flag]
       ) {
         throw new ForbiddenError(
-          "Only administrators can change this feature preview.",
+          "This feature preview requires Internal view or an existing feature grant.",
         );
       }
 
@@ -169,7 +170,7 @@ export const userAccountRouter = createTRPCRouter({
 
       if (
         input.enabled &&
-        !isAdminOnlyFeaturePreviewFlag(input.flag) &&
+        !isInternalFeaturePreviewFlag(input.flag) &&
         !canEnableFeaturePreviews
       ) {
         throw new TRPCError({

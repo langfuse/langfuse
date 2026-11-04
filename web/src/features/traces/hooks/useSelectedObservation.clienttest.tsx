@@ -8,6 +8,11 @@ const { mockByIdQuery } = vi.hoisted(() => ({ mockByIdQuery: vi.fn() }));
 
 vi.mock("@/src/utils/api", () => ({
   api: {
+    sessions: {
+      tracesFromEvents: {
+        useQuery: () => ({ data: [{ id: "other-trace" }] }),
+      },
+    },
     observations: {
       byId: {
         useQuery: (input: unknown, options: unknown) =>
@@ -27,7 +32,11 @@ const observation = (id: string) =>
 
 const loaded = [observation("in-list")];
 
-const render = (selectedNodeId: string | null, enabled?: boolean) =>
+const render = (
+  selectedNodeId: string | null,
+  enabled?: boolean,
+  sessionId?: string,
+) =>
   renderHook(() =>
     useSelectedObservation({
       selectedNodeId,
@@ -35,6 +44,7 @@ const render = (selectedNodeId: string | null, enabled?: boolean) =>
       projectId: "p",
       observations: loaded,
       enabled,
+      sessionId,
     }),
   ).result.current;
 
@@ -80,6 +90,52 @@ describe("useSelectedObservation", () => {
       observationId: "next-trace-row",
     });
     expect(queryEnabled()).toBe(false);
+  });
+
+  it("fetches a capped session observation using its own trace and raw observation id", () => {
+    mockByIdQuery.mockImplementation(
+      (input: { traceId: string; observationId: string }) => ({
+        data:
+          input.traceId === "other-trace" && input.observationId === "past-cap"
+            ? { ...observation("past-cap"), traceId: null }
+            : undefined,
+        error: null,
+      }),
+    );
+
+    expect(render("other-trace:past-cap", true, "session")).toMatchObject({
+      kind: "observation",
+      observation: { id: "past-cap", traceId: "other-trace" },
+      isOutsideLoadedList: true,
+    });
+    expect(queryEnabled()).toBe(true);
+  });
+
+  it("preserves loaded observation ids containing a colon", () => {
+    const row = observation("custom:id");
+    const { result } = renderHook(() =>
+      useSelectedObservation({
+        selectedNodeId: row.id,
+        traceId: "t",
+        projectId: "p",
+        observations: [row],
+      }),
+    );
+
+    expect(result.current).toEqual({
+      kind: "observation",
+      observation: row,
+      isOutsideLoadedList: false,
+    });
+    expect(queryEnabled()).toBe(false);
+  });
+
+  it("preserves unloaded custom ids in trace scope", () => {
+    render("custom:id");
+    expect(mockByIdQuery).toHaveBeenCalledWith(
+      expect.objectContaining({ traceId: "t", observationId: "custom:id" }),
+      expect.objectContaining({ enabled: true }),
+    );
   });
 
   it("serves a loaded observation from the list without firing a request", () => {

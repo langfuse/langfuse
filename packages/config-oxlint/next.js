@@ -48,7 +48,7 @@ export default {
         "nextjs/no-css-tags": "warn",
         "nextjs/no-head-element": "warn",
         "nextjs/no-html-link-for-pages": "warn",
-        "nextjs/no-img-element": "warn",
+        "nextjs/no-img-element": "off",
         "nextjs/no-page-custom-font": "warn",
         "nextjs/no-styled-jsx-in-document": "warn",
         "nextjs/no-sync-scripts": "warn",

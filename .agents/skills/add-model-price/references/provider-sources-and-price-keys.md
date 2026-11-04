@@ -72,6 +72,14 @@ Model Availability" in `automated-audit.md` for the removal criteria.
   tier. Ask for both columns explicitly and cross-check
   `ai.google.dev/pricing` against `ai.google.dev/gemini-api/docs/pricing` when
   results disagree.
+- **`ai.google.dev` now 301-redirects to `aistudio.google.com`** — every
+  `ai.google.dev` pricing, models, and deprecations URL in this file redirects
+  to the equivalent `aistudio.google.com` path, which is outside the allowed
+  WebFetch domain list. Do not follow the redirect or add `aistudio.google.com`
+  to the workflow's allowed domains yourself; leave every Gemini pricing and
+  selectable-array entry unchanged and report the required domain change as
+  unresolved so the workflow's `--allowedTools` list and this table can be
+  updated together by a human.
 - **Deprecation dates** — Summaries misjudge whether a date is past or future.
   Compare the literal shutdown date with `date -u +%Y-%m-%dT00:00:00.000Z`
   yourself. Ask for the complete list of batch headings on the deprecations
@@ -132,22 +140,24 @@ Model Availability" in `automated-audit.md` for the removal criteria.
   newly added model.
 - **Service tiers** — Fast mode is `service_tier in ["fast","priority"]`, at 2x
   the applicable tier for the `gpt-6` and `gpt-5.6` families. Flex is
-  `["flex"]` at 0.5x. Ultrafast is `["ultrafast"]` at 6x and is priced only for
-  `gpt-6-astra`; `gpt-5.6-sol` has preview Ultrafast access with no published
-  price. Combined service-tier plus large-context tiers are evaluated before
-  single-condition tiers. When the page does not publish a Flex Large Context
-  row, apply 0.5x to the Large Context tier.
+  `["flex"]` at 0.5x. Ultrafast is `["ultrafast"]` at 6x and is priced for
+  `gpt-6-astra` and `gpt-6.1-sol`; `gpt-5.6-sol` has preview Ultrafast access
+  with no published price. Combined service-tier plus large-context tiers are
+  evaluated before single-condition tiers. When the page does not publish a
+  Flex Large Context row, apply 0.5x to the Large Context tier.
 - **GPT-6 family key set** — New `gpt-6*` and `gpt-6.1*` entries mirror the
   six-tier sibling shape: Standard, Fast mode · Large context, Flex · Large
-  context, Fast mode, Flex, and Large Context. `gpt-6-astra` also has the two
-  Ultrafast tiers.
+  context, Fast mode, Flex, and Large Context. `gpt-6-astra` and `gpt-6.1-sol`
+  additionally have the two Ultrafast tiers (eight tiers total); check each
+  new `gpt-6*`/`gpt-6.1*` model's own page for an "Ultrafast mode prices are
+  6x Standard" statement rather than assuming the six-tier shape.
 - **Batch** — Not represented; it is a separate asynchronous endpoint.
 - **Floating aliases** — Do not add entries for `-latest` style aliases such as
   `gpt-daybreak-*-latest`. `gpt-5-chat-latest` is an existing exception.
 - **Out of scope** — The restricted Daybreak cyber models (`gpt-5.6-cyber`,
-  `gpt-5.5-cyber`, `gpt-5.4-cyber`), GPT-Rosalind (`gpt-rosalind-research`),
-  and the open-weight `gpt-oss-*` models. Revisit only if OpenAI publishes a
-  public model page and price.
+  `gpt-5.5-cyber`, `gpt-5.4-cyber`), GPT-Rosalind (`gpt-rosalind-research`,
+  `gpt-rosalind-discovery`, `gpt-6-rosalind`), and the open-weight `gpt-oss-*`
+  models. Revisit only if OpenAI publishes a public model page and price.
 
 ### Google Gemini
 
