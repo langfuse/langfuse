@@ -1,4 +1,5 @@
 import { NextRequest } from "next/server";
+import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import type * as SharedServer from "@langfuse/shared/src/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -130,9 +131,17 @@ describe("chatCompletionHandler", () => {
     expect(mocks.stream).not.toHaveBeenCalled();
   });
 
-  it("allows internal admins to run demo completions", async () => {
+  it("allows staff members in Internal view to run demo completions", async () => {
     const projectId = "demo-project";
-    mocks.session.mockResolvedValue(createSession(projectId, true));
+    mocks.session.mockResolvedValue({
+      user: {
+        id: "user-1",
+        email: "member@clickhouse.com",
+        admin: false,
+        featureFlags: testFeatureFlags({ internalFeatures: true }),
+        organizations: [{ projects: [{ id: projectId, role: "MEMBER" }] }],
+      },
+    });
     mocks.generate.mockResolvedValue({ text: "Hello back", finalStep: {} });
 
     const response = await chatCompletionHandler(
