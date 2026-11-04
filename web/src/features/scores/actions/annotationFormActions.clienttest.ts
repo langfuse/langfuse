@@ -1,6 +1,7 @@
 // @vitest-environment node
 
 import type { UseFormReturn } from "react-hook-form";
+import { TRPCClientError } from "@trpc/client";
 import { createAnnotationFormActions } from "@/src/features/scores/actions/annotationFormActions";
 import { annotationFieldKey } from "@/src/features/scores/lib/annotationConfigSelection";
 import type {
@@ -139,4 +140,94 @@ it("sends a flushed comment after the score's in-flight value save, never with a
     expect.objectContaining({ value: 3, comment: "cites the wrong source" }),
     expect.objectContaining({ value: 2, comment: "cites a retracted source" }),
   ]);
+});
+
+it("leaves the item open when a flushed comment save fails and keeps the draft", async () => {
+  const draft = "  Latency < 2s but output > 500 tokens  ";
+  const field: AnnotationScoreFormData = {
+    targetKey: "trace",
+    id: "score-1",
+    configId: "quality",
+    name: "Quality",
+    dataType: "NUMERIC",
+    value: 1,
+    stringValue: null,
+    comment: null,
+  };
+  const scoreData = [field];
+  const pending: {
+    comment: string | null;
+    resolve: () => void;
+    reject: (error: unknown) => void;
+  }[] = [];
+  const actions = createAnnotationFormActions({
+    form: {
+      getValues: () => scoreData,
+      setError: () => undefined,
+    } as unknown as UseFormReturn<AnnotateFormSchemaType>,
+    replaceField: (_index, next) => {
+      scoreData[0] = { ...next, id: next.id ?? null };
+    },
+    insertField: () => undefined,
+    initialTargets: [
+      {
+        key: "trace",
+        initialFormData: [],
+        scoreMetadata: { projectId: "project" },
+        scoreTarget: { type: "trace", traceId: "trace-1" },
+        analyticsData: { type: "trace", source: "AnnotationQueue", isV4: true },
+      } as unknown as PreparedAnnotationTarget,
+    ],
+    capture: (() => undefined) as never,
+    createScore: async () => undefined,
+    updateScore: (data) =>
+      new Promise<void>((resolve, reject) => {
+        pending.push({ comment: data.comment ?? null, resolve, reject });
+      }),
+    deleteScore: async () => undefined,
+  });
+  const key = annotationFieldKey(field);
+  actions.setCommentDraft(key, draft);
+
+  let completed = false;
+  const finishing = (async () => {
+    const failed = await Promise.resolve(actions.flushPendingComments());
+    if (!Array.isArray(failed) || failed.length === 0) completed = true;
+    return failed;
+  })();
+  await Promise.resolve();
+  pending[0]?.reject(
+    TRPCClientError.from({
+      error: {
+        code: -32600,
+        message: JSON.stringify([
+          {
+            path: ["comment"],
+            message: "Text cannot contain HTML tags",
+          },
+        ]),
+        data: { code: "BAD_REQUEST", httpStatus: 400 },
+      },
+    }),
+  );
+  const failed = await finishing;
+
+  expect(completed).toBe(false);
+  expect(failed).toEqual([
+    {
+      name: "Quality",
+      message: "comment: Text cannot contain HTML tags",
+    },
+  ]);
+  expect(scoreData[0]?.comment).toBeNull();
+  expect(actions.getCommentDraft(key)).toBe(draft);
+
+  const retry = actions.flushPendingComments();
+  await Promise.resolve();
+  expect(pending.map((write) => write.comment)).toEqual([
+    "Latency < 2s but output > 500 tokens",
+    "Latency < 2s but output > 500 tokens",
+  ]);
+  pending[1]?.resolve();
+  await expect(retry).resolves.toEqual([]);
 });

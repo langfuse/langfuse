@@ -1,5 +1,23 @@
 import { createStore } from "zustand/vanilla";
+import { type FailedAnnotationScoreWrite } from "@/src/features/scores/types";
 import { type RouterOutput } from "@/src/utils/types";
+
+export class AnnotationScoreSaveError extends Error {
+  constructor(failures: FailedAnnotationScoreWrite[]) {
+    super(
+      failures
+        .map((failure) => `${failure.name}: ${failure.message}`)
+        .join(" "),
+    );
+    this.name = "AnnotationScoreSaveError";
+  }
+}
+
+function completeFailureMessage(error: AnnotationScoreSaveError): string {
+  const detail = error.message.trim();
+  const sentence = /[.!?]$/.test(detail) ? detail : `${detail}.`;
+  return `Could not complete this item. ${sentence} Try again.`;
+}
 
 type QueueItem = NonNullable<RouterOutput["annotationQueueItems"]["byId"]>;
 type Transition = "next" | "back" | "complete";
@@ -33,6 +51,7 @@ export function createAnnotationQueueRun({
 }) {
   let initialRequest: Promise<QueueItem | null> | undefined;
   let pendingNext: QueueItem | undefined;
+  let prepareComplete: (() => Promise<void>) | undefined;
   const store = createStore<{
     history: QueueItemLocation[];
     progressIndex: number;
@@ -92,14 +111,17 @@ export function createAnnotationQueueRun({
     store.setState({ isTransitioning: true, error: null });
     try {
       await action();
-    } catch {
+    } catch (error) {
       const { history, progressIndex, completedItemIds } = store.getState();
       const completed = completedItemIds.has(history[progressIndex]?.id);
       let message = "Could not open the queue item. Try again.";
-      if (name === "complete")
-        message = completed
-          ? "Item completed, but the queue could not refresh. Try again to continue."
-          : "Could not complete this item. Try again.";
+      if (name === "complete" && completed)
+        message =
+          "Item completed, but the queue could not refresh. Try again to continue.";
+      else if (name === "complete" && error instanceof AnnotationScoreSaveError)
+        message = completeFailureMessage(error);
+      else if (name === "complete")
+        message = "Could not complete this item. Try again.";
       store.setState({
         error: {
           action: name,
@@ -144,8 +166,13 @@ export function createAnnotationQueueRun({
           await enter(dependencies, history, progressIndex - 1);
       });
     },
-    complete(dependencies: QueueRunDependencies) {
+    complete(
+      dependencies: QueueRunDependencies,
+      prepare?: () => Promise<void>,
+    ) {
+      if (prepare) prepareComplete = prepare;
       return transition("complete", async () => {
+        await prepareComplete?.();
         const { history, progressIndex, completedItemIds } = store.getState();
         const item = history[progressIndex];
         if (!item) return;

@@ -13,8 +13,10 @@ import type { usePostHogClientCapture } from "@/src/features/posthog-analytics/u
 import type {
   AnnotateFormSchemaType,
   AnnotationScoreFormData,
+  FailedAnnotationScoreWrite,
   PreparedAnnotationTarget,
 } from "@/src/features/scores/types";
+import { formatTrpcZodValidationDescription } from "@/src/utils/trpcValidationError";
 import { shouldUseCombobox } from "@/src/features/scores/components/CategoricalScoreInput";
 import {
   createAnnotationAnalytics,
@@ -49,6 +51,14 @@ type Dependencies = {
 };
 
 const SAVED_STATUS_VISIBLE_MS = 3_000;
+
+function describeScoreWriteError(error: unknown): string {
+  const formatted = formatTrpcZodValidationDescription(error);
+  if (formatted) return formatted;
+  if (error instanceof Error && error.message.trim()) return error.message;
+  if (typeof error === "string" && error.trim()) return error;
+  return "Could not save this score";
+}
 
 // One owner per mounted form. Actions read drafts at invocation and resolve rows
 // by target + config again when asynchronous operations finish.
@@ -92,6 +102,7 @@ export function createAnnotationFormActions({
   // has settled.
   const fieldWrites = new Map<string, Promise<unknown>>();
   const failedFields = new Set<string>();
+  const failureDetails = new Map<string, FailedAnnotationScoreWrite>();
   const serverFields = new Map(
     fields().map((field) => [annotationFieldKey(field), { ...field }]),
   );
@@ -162,6 +173,7 @@ export function createAnnotationFormActions({
       ),
     );
     failedFields.delete(key);
+    failureDetails.delete(key);
     saveStore.setState((state) => ({
       pending: state.pending + 1,
       failed: failedFields.size > 0,
@@ -186,11 +198,15 @@ export function createAnnotationFormActions({
         if (changed) scheduleSavedStatusClear();
         tracked?.success();
       },
-      () => {
+      (error) => {
         finishPendingField(key);
         const isLatest = latestSaves.get(key) === operationSequence;
         if (isLatest) {
           failedFields.add(key);
+          failureDetails.set(key, {
+            name: field.name,
+            message: describeScoreWriteError(error),
+          });
           onFailure();
         }
         tracked?.failure();
@@ -397,7 +413,8 @@ export function createAnnotationFormActions({
         replaceField(index, field);
         form.setError(`scoreData.${index}.comment`, {
           type: "server",
-          message: "Failed to update comment",
+          message:
+            failureDetails.get(key)?.message ?? "Failed to update comment",
         });
       },
     );
@@ -406,7 +423,7 @@ export function createAnnotationFormActions({
   // Match Save Changes: trim, drop a no-op, and delete the comment when the
   // trimmed draft is empty. An optimistic field update makes a second flush
   // a no-op; a failed save rolls the field back and leaves the draft to retry.
-  function flushPendingComments() {
+  async function flushPendingComments(): Promise<FailedAnnotationScoreWrite[]> {
     for (const [key, draft] of commentDrafts) {
       const field = find(key);
       if (!field?.id || editsDisabled) continue;
@@ -418,6 +435,31 @@ export function createAnnotationFormActions({
       if (!target) continue;
       saveComment(key, target, trimmed || null);
     }
+    const watched = new Set<string>();
+    const seen = new Set<Promise<unknown>>();
+    for (;;) {
+      for (const key of pendingFields.keys()) watched.add(key);
+      const pending: Promise<unknown>[] = [];
+      for (const field of fields()) {
+        const write = fieldWrites.get(annotationFieldKey(field));
+        if (write && !seen.has(write)) pending.push(write);
+      }
+      if (pending.length === 0) break;
+      for (const write of pending) seen.add(write);
+      await Promise.all(pending);
+    }
+    const failed: FailedAnnotationScoreWrite[] = [];
+    for (const field of fields()) {
+      const key = annotationFieldKey(field);
+      if (!watched.has(key) || !failedFields.has(key)) continue;
+      failed.push(
+        failureDetails.get(key) ?? {
+          name: field.name,
+          message: "Could not save this score",
+        },
+      );
+    }
+    return failed;
   }
 
   return {
@@ -572,6 +614,9 @@ export function createAnnotationFormActions({
     setCommentDraft(key: string, draft: string | null) {
       if (draft === null) commentDrafts.delete(key);
       else commentDrafts.set(key, draft);
+    },
+    getCommentDraft(key: string) {
+      return commentDrafts.get(key) ?? null;
     },
     flushPendingComments,
     saveNumeric(

@@ -169,7 +169,11 @@ export function AnnotationScoreRow({
   onRemove: () => void;
 }) {
   const [commentOpen, setCommentOpen] = useState(false);
-  const [commentDraft, setCommentDraft] = useState<string | null>(null);
+  // A field update remounts this row. Read the unsaved comment back so a
+  // failed flush does not leave the box empty.
+  const [commentDraft, setCommentDraft] = useState<string | null>(() =>
+    actions.getCommentDraft(fieldKey),
+  );
   const score = useWatch({ control: form.control, name: `scoreData.${index}` });
   const fieldState = useFormState({
     control: form.control,
