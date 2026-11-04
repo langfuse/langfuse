@@ -14,7 +14,7 @@ import {
   hashSecretKey,
 } from "@langfuse/shared/src/server";
 
-import { Authenticator } from "@/src/features/apiKey/server";
+import { Authenticator } from "@/src/features/apiKey/authenticator";
 import { AuthenticatorCache } from "@/src/features/apiKey/authenticatorCache";
 import {
   OrganizationRepository,

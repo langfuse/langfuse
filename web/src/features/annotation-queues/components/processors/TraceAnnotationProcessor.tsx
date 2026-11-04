@@ -1,5 +1,5 @@
-import { useReadPath } from "@/src/features/events";
-import { Trace } from "@/src/features/traces";
+import { useReadPath } from "@/src/features/events/hooks/useReadPath";
+import { Trace } from "@/src/features/traces/components/Trace";
 import {
   type AnnotationQueueItem,
   type ScoreConfigDomain,

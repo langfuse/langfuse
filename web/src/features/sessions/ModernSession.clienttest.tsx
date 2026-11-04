@@ -11,11 +11,7 @@ vi.mock("@/src/features/sessions/ConnectedModernSessionBodyLegacy", () => ({
 vi.mock(
   "@/src/features/sessions/components/ConnectedModernSessionBodyTimeline/ConnectedModernSessionBodyTimeline",
   () => ({
-    ConnectedModernSessionBodyTimeline: ({
-      transcriptSource,
-    }: Pick<ComponentProps<typeof ModernSession>, "transcriptSource">) => (
-      <div data-source={transcriptSource}>Timeline body</div>
-    ),
+    ConnectedModernSessionBodyTimeline: () => <div>Timeline body</div>,
   }),
 );
 
@@ -54,7 +50,6 @@ vi.mock("@/src/features/sessions/SessionMetadataJsonPathControl", () => ({
 
 const defaultProps = {
   isTimelineEnabled: false,
-  transcriptSource: "generations",
   session: {
     countTraces: 0,
     inputUsage: 0,
@@ -103,24 +98,6 @@ const defaultProps = {
 } satisfies ComponentProps<typeof ModernSession>;
 
 describe("ModernSession", () => {
-  it.each(["root", "generations"] as const)(
-    "passes the resolved %s transcript source to the timeline",
-    (transcriptSource) => {
-      render(
-        <ModernSession
-          {...defaultProps}
-          isTimelineEnabled
-          transcriptSource={transcriptSource}
-        />,
-      );
-
-      expect(screen.getByText("Timeline body")).toHaveAttribute(
-        "data-source",
-        transcriptSource,
-      );
-    },
-  );
-
   it("renders the shared header and legacy connected body by default", () => {
     render(<ModernSession {...defaultProps} />);
 

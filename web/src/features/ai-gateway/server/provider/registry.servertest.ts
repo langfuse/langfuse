@@ -1,11 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
 
+import { GatewayModelCatalogService } from "@/src/features/ai-gateway/server/provider/models/gatewayModelCatalogService";
+import { GatewayProviderService } from "@/src/features/ai-gateway/server/provider/connection/gatewayProviderService";
 import {
-  GatewayModelCatalogService,
-  GatewayProviderService,
   getGatewayProviderDefinition,
   providerSupportsApiFormat,
-} from ".";
+} from "@/src/features/ai-gateway/server/provider/registry";
 import type { PrismaClient } from "@langfuse/shared/src/db";
 import { encrypt } from "@langfuse/shared/encryption";
 import type { Redis } from "ioredis";
@@ -72,6 +72,7 @@ describe("AI gateway provider registry", () => {
           },
         ]),
       ),
+      ttl: vi.fn().mockResolvedValue(300),
       setex: vi.fn(),
     } as unknown as Redis;
     const prisma = {
@@ -101,6 +102,123 @@ describe("AI gateway provider registry", () => {
       "ai-gateway:models:org-1:connection-1",
     );
     expect(fetcher).not.toHaveBeenCalled();
+    expect(prisma.gatewayAiConnection.findFirst).not.toHaveBeenCalled();
+  });
+
+  it("does not cache a background refresh that finished after its connection changed", async () => {
+    const fetcher = vi
+      .fn<typeof fetch>()
+      .mockResolvedValue(
+        Response.json({ data: [{ id: "old-credential-model", created: 10 }] }),
+      );
+    const redis = {
+      get: vi.fn().mockResolvedValue(
+        JSON.stringify([
+          {
+            id: "gpt-5-mini",
+            provider: "OPENAI",
+            canonicalSlug: "gpt-5-mini",
+            displayName: "gpt-5-mini",
+            createdAt: "2026-01-01T00:00:00.000Z",
+          },
+        ]),
+      ),
+      ttl: vi.fn().mockResolvedValue(10),
+      set: vi.fn().mockResolvedValue("OK"),
+      setex: vi.fn().mockResolvedValue("OK"),
+    } as unknown as Redis;
+    const findFirst = vi
+      .fn()
+      .mockResolvedValueOnce({
+        id: "connection-1",
+        organizationId: "org-1",
+        provider: "OPENAI",
+        encryptedCredential: encrypt("sk-old"),
+        status: "ENABLED",
+        allowedModels: null,
+        updatedAt: new Date(0),
+      })
+      .mockResolvedValueOnce(null);
+    const prisma = {
+      gatewayAiConnection: { findFirst },
+    } as unknown as PrismaClient;
+    const service = new GatewayModelCatalogService(prisma, fetcher, redis);
+
+    await service.refreshModels({
+      organizationId: "org-1",
+      connectionId: "connection-1",
+    });
+
+    await vi.waitFor(() => expect(findFirst).toHaveBeenCalledTimes(2));
+    expect(findFirst).toHaveBeenLastCalledWith({
+      where: {
+        organizationId: "org-1",
+        id: "connection-1",
+        updatedAt: new Date(0),
+      },
+      select: { id: true },
+    });
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(redis.setex).not.toHaveBeenCalled();
+  });
+
+  it("serves a nearly expired model list while refreshing it once in the background", async () => {
+    const fetcher = vi
+      .fn<typeof fetch>()
+      .mockResolvedValue(
+        Response.json({ data: [{ id: "gpt-5", created: 10 }] }),
+      );
+    const redis = {
+      get: vi.fn().mockResolvedValue(
+        JSON.stringify([
+          {
+            id: "gpt-5-mini",
+            provider: "OPENAI",
+            canonicalSlug: "gpt-5-mini",
+            displayName: "gpt-5-mini",
+            createdAt: "2026-01-01T00:00:00.000Z",
+          },
+        ]),
+      ),
+      ttl: vi.fn().mockResolvedValue(10),
+      set: vi.fn().mockResolvedValueOnce("OK").mockResolvedValue(null),
+      setex: vi.fn().mockResolvedValue("OK"),
+    } as unknown as Redis;
+    const prisma = {
+      gatewayAiConnection: {
+        findFirst: vi.fn().mockResolvedValue({
+          id: "connection-1",
+          organizationId: "org-1",
+          provider: "OPENAI",
+          encryptedCredential: encrypt("sk-test"),
+          status: "ENABLED",
+          allowedModels: null,
+        }),
+      },
+    } as unknown as PrismaClient;
+    const service = new GatewayModelCatalogService(prisma, fetcher, redis);
+    const request = {
+      organizationId: "org-1",
+      connectionId: "connection-1",
+    };
+
+    await expect(
+      Promise.all([
+        service.refreshModels(request),
+        service.refreshModels(request),
+      ]),
+    ).resolves.toEqual([
+      { connectionId: "connection-1", success: true, models: ["gpt-5-mini"] },
+      { connectionId: "connection-1", success: true, models: ["gpt-5-mini"] },
+    ]);
+    await vi.waitFor(() =>
+      expect(redis.setex).toHaveBeenCalledWith(
+        "ai-gateway:models:org-1:connection-1",
+        300,
+        expect.stringContaining('"id":"gpt-5"'),
+      ),
+    );
+    expect(fetcher).toHaveBeenCalledTimes(1);
   });
 
   it("collects every Anthropic model page as canonical metadata", async () => {

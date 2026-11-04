@@ -4,7 +4,10 @@ import type {
   Prisma,
   PrismaClient,
 } from "@langfuse/shared/src/db";
-import { auditLog, type AuditLogActor } from "@/src/features/audit-logs/server";
+import {
+  auditLog,
+  type AuditLogActor,
+} from "@/src/features/audit-logs/auditLog";
 import type { OrgAuthedContext } from "@/src/server/api/trpc";
 import { invalidateGatewayResolveCacheForOrganization } from "@/src/features/ai-gateway/server/resolve/gatewayResolveCache";
 import { isGatewayIngestionConfigured } from "@/src/features/ai-gateway/fns/isGatewayIngestionConfigured";
@@ -86,14 +89,34 @@ export class GatewayConfigService {
   }
 
   async getSetupStatus(organizationId: string) {
+    const { ingestionMode, activeProject } =
+      await this.getIngestionState(organizationId);
+    return {
+      isConfigured: isGatewayIngestionConfigured({
+        ingestionMode,
+        hasActiveIngestionProject: !!activeProject,
+      }),
+      /** Whether requests are recorded, which gateway analytics read. */
+      isRecording: ingestionMode !== "NONE" && !!activeProject,
+    };
+  }
+
+  /** The project gateway requests are recorded into, or null when they are not recorded. */
+  async getRecordingProjectId(organizationId: string) {
+    const { ingestionMode, activeProject } =
+      await this.getIngestionState(organizationId);
+    return ingestionMode === "NONE" ? null : (activeProject?.id ?? null);
+  }
+
+  private async getIngestionState(organizationId: string) {
     const config = await this.getConfig(organizationId);
     const project = config?.defaultIngestionProject;
     return {
-      isConfigured: isGatewayIngestionConfigured({
-        ingestionMode: config?.ingestionMode ?? "USAGE",
-        hasActiveIngestionProject:
-          !!project && !project.deletedAt && project.orgId === organizationId,
-      }),
+      ingestionMode: config?.ingestionMode ?? "USAGE",
+      activeProject:
+        project && !project.deletedAt && project.orgId === organizationId
+          ? project
+          : null,
     };
   }
 

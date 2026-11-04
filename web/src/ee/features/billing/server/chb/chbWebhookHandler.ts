@@ -4,7 +4,8 @@ import { type NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
 import { env } from "@/src/env.mjs";
-import { auditLog } from "@/src/features/audit-logs/server";
+import { auditLog } from "@/src/features/audit-logs/auditLog";
+import { invalidateGatewayResolveCacheForOrganization } from "@/src/features/ai-gateway/server/resolve/gatewayResolveCache";
 import {
   isoDateTime,
   type ChbPlanCode,
@@ -437,6 +438,7 @@ async function persistAndPropagate(params: {
   // TTL.
   try {
     await invalidateCachedOrgApiKeys(parsedOrg.id);
+    await invalidateGatewayResolveCacheForOrganization(parsedOrg.id);
   } catch (error) {
     logger.error(
       `[CHB Webhook] Failed to invalidate cached API keys for org ${parsedOrg.id} after applying ${event.type}`,

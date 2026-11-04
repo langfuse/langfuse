@@ -21,6 +21,7 @@ import {
   createOrgProjectAndApiKey,
   getObservationById,
   MAX_PROMPT_NESTING_DEPTH,
+  MAX_RESOLVED_PROMPT_LENGTH,
   ChatMessageType,
   PromptService,
   redis,
@@ -3321,6 +3322,46 @@ describe("PATCH api/public/v2/prompts/[promptName]/versions/[version]", () => {
         "Maximum nesting depth exceeded",
       );
     }, 10_000);
+
+    it("should reject a prompt whose resolved content exceeds MAX_RESOLVED_PROMPT_LENGTH", async () => {
+      const { auth: newAuth } = await createOrgProjectAndApiKey();
+
+      const childLength = 100_000;
+      const childResponse = await makeAPICall(
+        "POST",
+        baseURI,
+        { name: "large-child", prompt: "x".repeat(childLength), type: "text" },
+        newAuth,
+      );
+      expect(childResponse.status).toBe(201);
+
+      const tag = "@@@langfusePrompt:name=large-child|version=1@@@";
+      const repetitions =
+        Math.floor(MAX_RESOLVED_PROMPT_LENGTH / childLength) + 1;
+      const createResponse = await makeAPICall(
+        "POST",
+        baseURI,
+        { name: "amplifier", prompt: tag.repeat(repetitions), type: "text" },
+        newAuth,
+      );
+
+      expect(createResponse.status).toBe(400);
+      expect(JSON.stringify(createResponse.body)).toContain(
+        "Resolved prompt exceeds maximum size",
+      );
+
+      const withinLimitResponse = await makeAPICall(
+        "POST",
+        baseURI,
+        {
+          name: "within-limit",
+          prompt: tag.repeat(repetitions - 2),
+          type: "text",
+        },
+        newAuth,
+      );
+      expect(withinLimitResponse.status).toBe(201);
+    });
   });
 
   describe("DELETE /api/public/v2/prompts/:promptName", () => {

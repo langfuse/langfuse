@@ -1,5 +1,5 @@
 import { useQueryOrganization } from "@/src/features/organizations/hooks";
-import { useHasOrganizationAccess } from "@/src/features/rbac";
+import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import { api } from "@/src/utils/api";
 import { useSession } from "next-auth/react";
 

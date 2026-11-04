@@ -1,6 +1,6 @@
 import type { ColumnDefinition, FilterState } from "@langfuse/shared";
 
-import { InlineFilterBuilder } from "@/src/features/filters";
+import { InlineFilterBuilder } from "@/src/features/filters/components/filter-builder";
 import { useElementSize } from "@/src/hooks/useElementSize";
 import { cn } from "@/src/utils/tailwind";
 

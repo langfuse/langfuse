@@ -352,6 +352,7 @@ the same PR.
   cron pattern, append the old pattern to `previousPatterns` so the legacy
   md5-keyed schedule is cleaned up on boot.
 - Do not hand-edit generated artifacts under `prisma/generated/*` or `dist/*`.
+- `next-auth` is a devDependency: import it with `import type` only. `pnpm deploy --prod` leaves it out of the worker image, so a value import would crash the worker at startup; `oxlint.config.mts` rejects one via `no-restricted-imports`.
 - `src/server/ee/*` is under the Enterprise License (root `LICENSE`), not MIT.
   Put EE logic there when both `web` and `worker` must import it; keep OSS
   code paths out of it.

@@ -1,6 +1,6 @@
 import { CloudConfigSchema, type Plan } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
-import { getOrganizationPlanServerSide } from "@/src/features/entitlements/server";
+import { getOrganizationPlanServerSide } from "@/src/features/entitlements/server/getPlan";
 import type { ServerContext } from "../types";
 
 export type McpPublicApiAuth = {

@@ -18,7 +18,7 @@ import {
   PagerDutyRoutingKeySchema,
   PagerDutyTestEventStepSchema,
 } from "@langfuse/shared/pagerduty";
-import { throwIfNoProjectAccess } from "@/src/features/rbac";
+import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { v4 } from "uuid";
 import {
   convertActionToDomain,
@@ -35,11 +35,11 @@ import { processGitHubDispatchActionConfig } from "./githubDispatchHelpers";
 import {
   processPagerDutyActionConfig,
   sendPagerDutyTestEvent,
-} from "@/src/features/pagerduty/server";
+} from "@/src/features/pagerduty/server/pagerdutyHelpers";
 import { maskActionForViewer, processSlackActionConfig } from "./slackHelpers";
 import { updateTriggerEventActions } from "./automationService";
 import { TRPCError } from "@trpc/server";
-import { auditLog } from "@/src/features/audit-logs/server";
+import { auditLog } from "@/src/features/audit-logs/auditLog";
 
 const CreateAutomationInputSchema = z.object({
   projectId: z.string(),

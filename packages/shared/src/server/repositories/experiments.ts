@@ -1,8 +1,8 @@
 /* eslint-disable no-nested-ternary, @typescript-eslint/no-use-before-define */
 import { EXPERIMENT_IO_TRUNCATE_LENGTH } from "../../constants";
-import { matchesUiColumnMapping } from "../../tableDefinitions";
+import { matchesUiColumnMapping } from "../../tableDefinitions/types";
 import { env } from "../../env";
-import { type ScoreSourceType } from "../../domain";
+import type { ScoreSourceType } from "../../domain/scores";
 import { type OrderByState } from "../../interfaces/orderBy";
 import { type FilterState } from "../../types";
 import { convertDateToClickhouseDateTime } from "../clickhouse/client";
@@ -12,13 +12,15 @@ import { avgIf, dateDiff, literal } from "../query-ast/extensions";
 import {
   FilterList,
   StringOptionsFilter,
-  orderByToClickhouseSql,
+  StringFilter,
+} from "../queries/clickhouse-sql/clickhouse-filter";
+import { orderByToClickhouseSql } from "../queries/clickhouse-sql/orderby-factory";
+import {
   CTEQueryBuilder,
   CTEWithSchema,
   EventsAggQueryBuilder,
-  StringFilter,
-  extractTimeFilter,
-} from "../queries";
+} from "../queries/clickhouse-sql/event-query-builder";
+import { extractTimeFilter } from "../queries/clickhouse-sql/filter-utils";
 import { createFilterFromFilterState } from "../queries/clickhouse-sql/factory";
 import {
   buildScoreRowsCTE,

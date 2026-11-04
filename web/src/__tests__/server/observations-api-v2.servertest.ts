@@ -2,13 +2,17 @@ import {
   createEvent as createEventBase,
   createEventsCh,
   createOrgProjectAndApiKey,
+  EventsQueryBuilder,
   queryClickhouse,
 } from "@langfuse/shared/src/server";
 import {
   makeAPICall,
   makeZodVerifiedAPICall,
 } from "@/src/__tests__/test-utils";
-import { GetObservationsV2Response } from "@/src/features/public-api/types/observations";
+import {
+  GetObservationsV2Response,
+  encodeCursor,
+} from "@/src/features/public-api/types/observations";
 import { randomUUID } from "crypto";
 import { env } from "@/src/env.mjs";
 import waitForExpect from "wait-for-expect";
@@ -1745,6 +1749,112 @@ describe("/api/public/v2/observations API Endpoint", () => {
   });
 
   maybe("Cursor-based pagination", () => {
+    it("paginates across empty scan windows without repeating boundary rows", async () => {
+      const traceId = randomUUID();
+      const ids = [randomUUID(), randomUUID(), randomUUID()];
+      const upper = new Date();
+      upper.setUTCHours(0, 0, 0, 0);
+      const daysBefore = (days: number) =>
+        new Date(upper.getTime() - days * 24 * 60 * 60 * 1000);
+      const timestamps = [7, 15, 17].map(daysBefore);
+      await createEventsCh(
+        ids.map((id, index) =>
+          createEvent({
+            id,
+            span_id: id,
+            project_id: projectId,
+            trace_id: traceId,
+            type: "SPAN",
+            start_time: timestamps[index].getTime() * 1000,
+          }),
+        ),
+      );
+
+      const url = `/api/public/v2/observations?traceId=${traceId}&fields=core&limit=2&fromStartTime=${daysBefore(18).toISOString()}&toStartTime=${upper.toISOString()}`;
+      const first = await getObservations(url);
+      expect(first.status).toBe(200);
+      expect(first.body.data.map((row) => row.id)).toEqual(ids.slice(0, 2));
+      expect(first.body.meta.cursor).toBeDefined();
+      const second = await getObservations(
+        `${url}&cursor=${encodeURIComponent(first.body.meta.cursor!)}`,
+      );
+      expect(second.body.data.map((row) => row.id)).toEqual(ids.slice(2));
+      expect(second.body.meta.cursor).toBeUndefined();
+
+      const boundaryCursor = encodeCursor({
+        lastStartTimeTo: timestamps[0],
+        lastTraceId: "CUR00254FG5s",
+        lastId: "",
+      });
+      const afterEmptyWindow = await getObservations(
+        `${url}&cursor=${encodeURIComponent(boundaryCursor)}`,
+      );
+      expect(afterEmptyWindow.body.data.map((row) => row.id)).toEqual(
+        ids.slice(1),
+      );
+      expect(afterEmptyWindow.body.meta.cursor).toBeUndefined();
+
+      const [{ hash }] = await queryClickhouse<{ hash: number }>({
+        query: "SELECT xxHash32({traceId: String}) AS hash",
+        params: { traceId: "CUR00254FG5s" },
+      });
+      expect(hash).toBe(0);
+    });
+
+    it("scans sparse future windows without clamping customer timestamps", async () => {
+      const traceId = randomUUID();
+      const olderId = randomUUID();
+      const futureId = randomUUID();
+      const from = new Date("2026-10-01T00:00:00.000Z");
+      const to = new Date("2100-02-01T00:00:00.000Z");
+      const older = new Date("2026-10-15T00:00:00.000Z");
+      const future = new Date("2099-12-15T00:00:00.000Z");
+
+      await createEventsCh([
+        createEvent({
+          id: olderId,
+          span_id: olderId,
+          project_id: projectId,
+          trace_id: traceId,
+          type: "SPAN",
+          start_time: older.getTime() * 1000,
+        }),
+        createEvent({
+          id: futureId,
+          span_id: futureId,
+          project_id: projectId,
+          trace_id: traceId,
+          type: "SPAN",
+          start_time: future.getTime() * 1000,
+        }),
+      ]);
+
+      const countQuery = new EventsQueryBuilder({ projectId })
+        .selectRaw("count() AS count")
+        .whereRaw("e.trace_id = {traceId: String}", { traceId })
+        .buildWithParams();
+
+      await waitForExpect(
+        async () => {
+          const result = await queryClickhouse<{ count: string }>(countQuery);
+          expect(Number(result[0]?.count)).toBeGreaterThanOrEqual(2);
+        },
+        5000,
+        10,
+      );
+
+      const response = await getObservations(
+        `/api/public/v2/observations?traceId=${traceId}&fields=core&limit=10&fromStartTime=${from.toISOString()}&toStartTime=${to.toISOString()}`,
+      );
+
+      expect(response.status).toBe(200);
+      expect(response.body.data.map((row) => row.id)).toEqual([
+        futureId,
+        olderId,
+      ]);
+      expect(response.body.meta.cursor).toBeUndefined();
+    });
+
     it("should apply LIMIT to query even on first request (no cursor)", async () => {
       // This test verifies the bug fix - the v2 API should respect limit
       // even on the first request without a cursor
