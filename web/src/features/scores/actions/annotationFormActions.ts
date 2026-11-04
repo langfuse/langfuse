@@ -88,6 +88,8 @@ export function createAnnotationFormActions({
   let sequence = 0;
   const latestSaves = new Map<string, number>();
   const pendingFields = new Map<string, number>();
+  // Settles once every write started so far for a field has settled.
+  const fieldWrites = new Map<string, Promise<unknown>>();
   const failedFields = new Set<string>();
   const serverFields = new Map(
     fields().map((field) => [annotationFieldKey(field), { ...field }]),
@@ -152,6 +154,7 @@ export function createAnnotationFormActions({
       hasChangedAnnotationValue(field, confirmed);
     latestSaves.set(key, operationSequence);
     pendingFields.set(key, (pendingFields.get(key) ?? 0) + 1);
+    fieldWrites.set(key, Promise.allSettled([fieldWrites.get(key), operation]));
     failedFields.delete(key);
     saveStore.setState((state) => ({
       pending: state.pending + 1,
@@ -361,13 +364,17 @@ export function createAnnotationFormActions({
     );
     replaceField(indexOf(key), next);
     const { targetKey: _targetKey, ...score } = field;
-    trackSave(
+    const send = () =>
       updateScore({
         ...score,
         ...target.scoreMetadata,
         scoreTarget: target.scoreTarget,
         comment,
-      } as UpdateAnnotationScoreData),
+      } as UpdateAnnotationScoreData);
+    // Each write replaces the whole score and the server keeps the last one to
+    // land, so a comment must not overtake a value write still in flight.
+    trackSave(
+      pendingFields.has(key) ? fieldWrites.get(key)!.then(send) : send(),
       tracked,
       next,
       () => {
