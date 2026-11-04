@@ -49,7 +49,10 @@ export function createEvalSchedulerDeps(projectId: string, rules: EvalRules) {
         traceActivity.length = 0;
       } catch (error) {
         outcome = "error";
-        throw error;
+        logger.warn("Failed to record trace rule selections", {
+          projectId,
+          error,
+        });
       } finally {
         recordIncrement("langfuse.trace_dispatch.recording_batches", 1, {
           outcome,

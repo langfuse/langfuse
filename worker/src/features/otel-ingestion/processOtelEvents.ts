@@ -251,17 +251,8 @@ export async function processOtelEvents({
   );
 
   if (schedulerDeps) {
-    try {
-      // Flush this invocation's local buffer; Redis merges activity across workers.
-      await schedulerDeps.flushTraceActivity();
-    } catch (error) {
-      // traceException(error);
-      logger.warn("Failed to record trace rule selections", {
-        projectId,
-        error,
-        fileKey,
-      });
-    }
+    // Flush this invocation's local buffer; Redis merges activity across workers.
+    await schedulerDeps.flushTraceActivity();
   }
 
   if (traceBatchEvents.length > 0) {

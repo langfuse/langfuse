@@ -1228,10 +1228,9 @@ describe("trace micro-batch scheduling with Redis", () => {
     }
   });
 
-  it("samples prefixed map memory and paused/delayed queue work, then reports drained zeros", async () => {
+  it("samples recording map memory and paused/delayed queue work, then reports drained zeros", async () => {
     const now = Date.now();
     const clock = vi.spyOn(Date, "now").mockReturnValue(now);
-    await trackTraceBatchActivity("project", [event("trace")]);
     await recordTraceActivity("project", [
       { ...spanActivity("trace"), ruleIds: ["rule"] },
     ]);
@@ -1253,25 +1252,20 @@ describe("trace micro-batch scheduling with Redis", () => {
     const evaluate = vi.spyOn(client(), "eval");
     await metrics["execute"]();
 
-    for (const [layout, keys] of [
-      ["trace_batch", ["due", "state", "first"]],
-      ["trace_dispatch", ["due", "record", "bounds"]],
-    ] as const) {
-      for (const key of keys) {
-        expect(recordGauge).toHaveBeenCalledWith(
-          `langfuse.${layout}.redis_key_entries`,
-          1,
-          { key, shard: "total", unit: "records" },
+    for (const key of ["due", "record", "bounds"]) {
+      expect(recordGauge).toHaveBeenCalledWith(
+        "langfuse.trace_dispatch.redis_key_entries",
+        1,
+        { key, shard: "total", unit: "records" },
+      );
+      const sample = vi
+        .mocked(recordGauge)
+        .mock.calls.find(
+          ([name, , tags]) =>
+            name === "langfuse.trace_dispatch.redis_key_bytes" &&
+            tags?.key === key,
         );
-        const sample = vi
-          .mocked(recordGauge)
-          .mock.calls.find(
-            ([name, , tags]) =>
-              name === `langfuse.${layout}.redis_key_bytes` &&
-              tags?.key === key,
-          );
-        expect(Number(sample?.[1])).toBeGreaterThan(0);
-      }
+      expect(Number(sample?.[1])).toBeGreaterThan(0);
     }
     expect(recordGauge).toHaveBeenCalledWith(
       "langfuse.trace_batch.queue_depth",
@@ -1291,18 +1285,18 @@ describe("trace micro-batch scheduling with Redis", () => {
 
     clock.mockReturnValue(now + 30_000);
     await metrics["execute"]();
-    expect(evaluate).toHaveBeenCalledTimes(2);
+    expect(evaluate).toHaveBeenCalledTimes(1);
     await clearReadiness();
     await queue.drain(true);
     vi.mocked(recordGauge).mockClear();
     clock.mockReturnValue(now + 60_000);
     await metrics["execute"]();
-    expect(evaluate).toHaveBeenCalledTimes(4);
+    expect(evaluate).toHaveBeenCalledTimes(2);
     expect(recordGauge).toHaveBeenCalledWith(
       "langfuse.trace_batch.active_reads",
       0,
     );
-    expect(vi.mocked(recordGauge).mock.calls).toHaveLength(15);
+    expect(vi.mocked(recordGauge).mock.calls).toHaveLength(9);
     expect(
       vi.mocked(recordGauge).mock.calls.every(([, value]) => value === 0),
     ).toBe(true);
@@ -1331,8 +1325,13 @@ describe("trace micro-batch scheduling with Redis", () => {
     expect(completed).toBe(false);
     pendingMemory.reject(new Error("memory unavailable"));
     await collection;
-    // New-map measurements still succeed while legacy memory/queue depth fail.
-    expect(vi.mocked(recordGauge).mock.calls).toHaveLength(8);
+    // Only active reads and queue age succeed; failed memory samples emit no zeros.
+    expect(vi.mocked(recordGauge).mock.calls).toHaveLength(2);
+    expect(recordIncrement).toHaveBeenCalledWith(
+      "langfuse.trace_dispatch.memory_samples",
+      1,
+      { outcome: "error" },
+    );
   });
 
   it("dispatches with locality selection and records bounded selector measurements", async () => {
