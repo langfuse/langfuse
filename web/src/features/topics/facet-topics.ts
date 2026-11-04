@@ -26,6 +26,27 @@ export type UseTopicTraces = (
   query: TopicTraceQuery | null,
 ) => TopicTracesResult;
 
+/** A selected trace outside the loaded pages is fetched by id and pinned on top while it matches the query. */
+export function useTracesWithSelection(
+  useTraces: UseTopicTraces,
+  query: TopicTraceQuery | null,
+  selectedTraceId: string | null,
+): TopicTracesResult {
+  const traces = useTraces(query);
+  const selectedLoaded = traces.rows.some(
+    (row) => row.traceId === selectedTraceId,
+  );
+  // An exact trace ID search already decides which trace is listed.
+  const pinned = useTraces(
+    query && selectedTraceId && !selectedLoaded && !query.traceId
+      ? { ...query, traceId: selectedTraceId }
+      : null,
+  );
+  return pinned.rows.length > 0
+    ? { ...traces, rows: [...pinned.rows, ...traces.rows] }
+    : traces;
+}
+
 /** Map topics first, then topics only seen in assignments. Index order drives topic colors in every view. */
 export function orderedFacetTopics(facet: Facet) {
   if (!facet.map) return facet.topics;

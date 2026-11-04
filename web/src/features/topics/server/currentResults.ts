@@ -127,33 +127,16 @@ export async function currentTopicResults(
       .flat()
       .map((count) => [count.facetId, count]),
   );
-  const counts = enabled.map((facet) => countsByFacet.get(facet.id)!);
-  const retiredRunIds = new Set(
-    counts.flatMap((count, index) =>
-      count.topics.flatMap((topic) =>
-        topic.runId && topic.runId !== runs[index]?.id ? [topic.runId] : [],
-      ),
-    ),
-  );
-  const retiredRuns = await getTopicRuns(projectId, [...retiredRunIds]);
-  const byVersion = new Map(
-    [
-      ...runs.flatMap((run) => run?.topics ?? []),
-      ...retiredRuns.flatMap((run) => run.topics),
-    ].map((topic) => [topic.topicVersionId, topic]),
-  );
   return {
     hasStoredSummaries,
     facets: enabled.map((facet, index) => {
-      const count = counts[index];
+      const count = countsByFacet.get(facet.id)!;
       const run = runs[index];
-      // Current map names take precedence; retired IDs keep their latest referenced name.
       const current = new Map(
         run?.topics.map((topic) => [topic.topicId, topic]),
       );
       const topics = count.topics.map((topic) => {
-        const definition =
-          current.get(topic.topicId) ?? byVersion.get(topic.topicVersionId);
+        const definition = current.get(topic.topicId);
         return {
           id: topic.topicId,
           versionId: definition?.topicVersionId ?? topic.topicVersionId,

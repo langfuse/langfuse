@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useRef } from "react";
 import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { cn } from "@/src/utils/tailwind";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
@@ -238,6 +238,7 @@ export function useCurrentTopics({
   refreshAfter: number;
 }) {
   const utils = api.useUtils();
+  const tracesResetFor = useRef(refreshAfter);
   return useQuery({
     queryKey: [
       ...getQueryKey(api.topics.currentResults, { projectId }, "query"),
@@ -249,8 +250,11 @@ export function useCurrentTopics({
         { projectId },
         { signal },
       );
-      // Loaded trace pages follow the counts they are shown with.
-      utils.topics.traces.invalidate({ projectId });
+      // A completed run restarts trace lists at their first page; polls keep loaded pages.
+      if (!running && tracesResetFor.current !== refreshAfter) {
+        tracesResetFor.current = refreshAfter;
+        utils.topics.traces.reset();
+      }
       return results;
     },
     placeholderData: keepPreviousData,

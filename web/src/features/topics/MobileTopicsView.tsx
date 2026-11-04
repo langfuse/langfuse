@@ -7,6 +7,7 @@ import {
   type UseTopicTraces,
   orderedFacetTopics,
   topicTracesHref,
+  useTracesWithSelection,
 } from "./facet-topics";
 import {
   filterTopicTraces,
@@ -69,7 +70,7 @@ export function MobileTopicsView({
   }
   const { topics, selectedTopicId, selectedTopic, traceQuery } =
     prepareMobileTopics(facet, view, filters, searchQuery, showUnassigned);
-  const traces = useTraces(traceQuery);
+  const traces = useTracesWithSelection(useTraces, traceQuery, selectedTraceId);
   const visible = traces.rows;
   const mapPoints =
     mapResult.data?.status === "ready" ? mapResult.data.points : null;

@@ -332,19 +332,6 @@ async function loadPublicTopics(
       runId: topic.runId,
       traceCount: traceCounts.get(topic.id)?.count ?? 0,
     }));
-    const currentIds = new Set(current.map(({ id }) => id));
-    const retired = facet.topics
-      .filter((topic) => !currentIds.has(topic.id))
-      .map((topic) => ({
-        id: topic.id,
-        versionId: topic.versionId,
-        name: topic.name,
-        description: topic.description,
-        facet: ref,
-        ruleId,
-        runId: topic.runId,
-        traceCount: topic.count,
-      }));
     const { total: _total, ...counts } = facet.counts;
     return {
       summary: {
@@ -354,7 +341,6 @@ async function loadPublicTopics(
         counts,
       },
       current,
-      retired,
     };
   });
 }
@@ -846,10 +832,7 @@ export async function listPublicTopicAssignments(params: ResultListParams) {
   };
 }
 
-/**
- * Resolves a topic of an active facet's current map, or a retired topic that
- * still has current traces in the window.
- */
+/** Resolves a topic of an active facet's current map; retired topics are not found. */
 export async function getPublicTopic(params: {
   projectId: string;
   topicId: string;
@@ -861,8 +844,6 @@ export async function getPublicTopic(params: {
   for (const facet of await loadPublicTopics(params.projectId, window)) {
     const current = facet.current.find(({ id }) => id === params.topicId);
     if (current) return { ...current, inCurrentMap: true, window };
-    const retired = facet.retired.find(({ id }) => id === params.topicId);
-    if (retired) return { ...retired, inCurrentMap: false, window };
   }
   throw new LangfuseNotFoundError("Topic not found.");
 }

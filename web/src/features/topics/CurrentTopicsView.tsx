@@ -16,6 +16,7 @@ import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { type DataTablePeekViewProps } from "@/src/components/table/peek";
 import {
   orderedFacetTopics,
+  useTracesWithSelection,
   type Facet,
   type FacetRow,
   type TopicTracesResult,
@@ -82,19 +83,11 @@ export function CurrentTopicsView({
   const traceQuery = topicTraceQuery(filters, searchQuery, topics, {
     assignedOnly: !showUnassigned,
   });
-  const traces = useTraces(traceQuery);
-  // A map pick outside the loaded pages is fetched by id and pinned on top.
-  const selectedLoaded =
-    !selectedTraceId ||
-    traces.rows.some((row) => row.traceId === selectedTraceId);
-  const pinned = useTraces(
-    traceQuery && !selectedLoaded
-      ? { ...traceQuery, traceId: selectedTraceId! }
-      : null,
+  const tableTraces = useTracesWithSelection(
+    useTraces,
+    traceQuery,
+    selectedTraceId,
   );
-  const tableTraces = selectedLoaded
-    ? traces
-    : { ...traces, rows: [...pinned.rows, ...traces.rows] };
   const isFiltered = filters.length > 0 || Boolean(searchQuery?.trim());
   const mapPoints =
     mapResult.data?.status === "ready" ? mapResult.data.points : null;

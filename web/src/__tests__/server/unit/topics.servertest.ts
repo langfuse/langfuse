@@ -1124,12 +1124,6 @@ describe("Topics current results", () => {
           runId: "run-a",
           count: 5,
         },
-        {
-          topicId: "retired",
-          topicVersionId: "retired-v1",
-          runId: "old-map",
-          count: 1,
-        },
       ],
     }));
   beforeEach(() => {
@@ -1168,7 +1162,7 @@ describe("Topics current results", () => {
     expect(result.facets.map((facet) => facet.facetId)).toEqual([facetId]);
   });
 
-  it("counts over the published map's window and names current and retired topics", async () => {
+  it("counts over the published map's window and names its topics", async () => {
     mocks.listTopicFacets.mockResolvedValue([
       { id: facetId, name: "Intent", versions: [{ version: facetVersion }] },
     ]);
@@ -1176,21 +1170,6 @@ describe("Topics current results", () => {
       ...run,
       topics: [{ ...run.topics[0], topicVersionId: "topic-a-v1" }],
     });
-    mocks.getTopicRuns.mockResolvedValue([
-      {
-        ...run,
-        id: "old-map",
-        topics: [
-          {
-            ...run.topics[0],
-            topicId: "retired",
-            topicVersionId: "retired-v1",
-            name: "Old refunds",
-            description: "Historical",
-          },
-        ],
-      },
-    ]);
     const {
       facets: [result],
     } = await caller("VIEWER").currentResults({ projectId });
@@ -1199,13 +1178,9 @@ describe("Topics current results", () => {
       window: { from: timeRange.from, to: expect.any(Date) },
       facets: [{ facetId, version: facetVersion, runId: run.id }],
     });
-    expect(mocks.getTopicRuns).toHaveBeenCalledWith(projectId, ["old-map"]);
     expect(result).toMatchObject({
       counts: { total: 10, assigned: 6, outlier: 1, awaitingMap: 1 },
-      topics: [
-        { id: "topic-a", name: "Refunds", count: 5 },
-        { id: "retired", name: "Old refunds", count: 1 },
-      ],
+      topics: [{ id: "topic-a", name: "Refunds", count: 5 }],
       map: { runId: "run-a" },
     });
     expect(JSON.stringify(result)).not.toMatch(/embedding|centroid/);

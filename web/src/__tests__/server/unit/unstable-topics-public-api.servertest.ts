@@ -182,12 +182,6 @@ describe("unstable Topics public API", () => {
                   runId: "run-2",
                   count: 2,
                 },
-                {
-                  topicId: "retired",
-                  topicVersionId: "retired-run-1",
-                  runId: "run-1",
-                  count: 1,
-                },
               ]
             : [],
       })),
@@ -421,7 +415,7 @@ describe("unstable Topics public API", () => {
     expect(mocks.getLatestFacetSummaries).not.toHaveBeenCalled();
   });
 
-  it("gets current and retired topics by stable id", async () => {
+  it("gets topics of the current map by stable id", async () => {
     await expect(
       getPublicTopic({ projectId, topicId: "timeouts", ...window }),
     ).resolves.toMatchObject({
@@ -429,19 +423,10 @@ describe("unstable Topics public API", () => {
       inCurrentMap: true,
       traceCount: 2,
     });
-    await expect(
-      getPublicTopic({ projectId, topicId: "retired", ...window }),
-    ).resolves.toMatchObject({
-      id: "retired",
-      versionId: "retired-run-1",
-      runId: "run-1",
-      name: "Retired topic",
-      inCurrentMap: false,
-      traceCount: 1,
-    });
-    await expect(
-      getPublicTopic({ projectId, topicId: "unknown", ...window }),
-    ).rejects.toThrow(LangfuseNotFoundError);
+    for (const topicId of ["retired", "unknown"])
+      await expect(
+        getPublicTopic({ projectId, topicId, ...window }),
+      ).rejects.toThrow(LangfuseNotFoundError);
   });
 
   describe("summaries and assignments", () => {
