@@ -3,7 +3,7 @@ import {
   getStorageAccessRoleArn,
   logger,
   OutboundUrlValidationError,
-  StorageAccessRoleError,
+  CustomerAccessRoleError,
 } from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
@@ -142,7 +142,7 @@ export const externalMediaStorageRouter = createTRPCRouter({
         if (error instanceof InvalidRequestError) {
           throw new TRPCError({ code: "BAD_REQUEST", message: error.message });
         }
-        if (error instanceof StorageAccessRoleError) {
+        if (error instanceof CustomerAccessRoleError) {
           logger.error("External media storage access role failed", error);
           throw new TRPCError({
             code: "INTERNAL_SERVER_ERROR",

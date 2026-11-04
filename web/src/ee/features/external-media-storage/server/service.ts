@@ -20,7 +20,7 @@ import {
   assertStorageRolePartition,
   buildStorageReadSessionPolicy,
   externalMediaStorageEndpointConnectionValidationOptions,
-  generateStorageExternalId,
+  generateCustomerRoleExternalId,
   getStorageAccessRoleArn,
   getStorageRoleCredentialsProvider,
   validateExternalMediaStorageEndpoint,
@@ -184,7 +184,7 @@ function getRoleAuthData({
     authType: StorageIntegrationAuthType.ROLE_ARN,
     roleArn,
     // The external ID stays stable so the customer's trust policy keeps working.
-    externalId: existingExternalId ?? encrypt(generateStorageExternalId()),
+    externalId: existingExternalId ?? encrypt(generateCustomerRoleExternalId()),
     accessKeyId: null,
     secretAccessKey: null,
   };
