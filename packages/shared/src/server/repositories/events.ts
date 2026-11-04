@@ -3851,10 +3851,11 @@ export const hasAnyUserFromEventsTable = async (
 };
 
 /**
- * Query for the events blob export. Full I/O reads events_full; everything
- * else reads events_core. `convertLatencyToSecondsInSql` can be set by the paths
- * that skip the JS row enrichment (raw passthrough, Parquet), so they select
- * latency and time to first token in seconds instead of milliseconds.
+ * Query for the events blob export. Full I/O or metadata reads events_full
+ * (events_core truncates both); everything else reads events_core.
+ * `convertLatencyToSecondsInSql` can be set by the paths that skip the JS row
+ * enrichment (raw passthrough, Parquet), so they select latency and time to
+ * first token in seconds instead of milliseconds.
  */
 const buildEventsForBlobStorageExportQuery = (
   projectId: string,
@@ -3868,6 +3869,7 @@ const buildEventsForBlobStorageExportQuery = (
     ? fieldGroups
     : (["core", ...fieldGroups] as ObservationFieldGroupFull[]);
   const includeIO = effectiveGroups.includes("io");
+  const readFullTable = includeIO || effectiveGroups.includes("metadata");
   const metricsInSeconds =
     convertLatencyToSecondsInSql && effectiveGroups.includes("metrics");
   const fieldSets = effectiveGroups.flatMap((group) => {
@@ -3877,7 +3879,7 @@ const buildEventsForBlobStorageExportQuery = (
   });
 
   const builder = getClickhouseKysely()
-    .selectFrom(includeIO ? "events as e" : "events_truncated as e")
+    .selectFrom(readFullTable ? "events as e" : "events_truncated as e")
     .select(eventsRowFieldSelects(eventsFieldSetKeys(...fieldSets)))
     .$if(includeIO, (qb) => qb.select(["e.input", "e.output"]))
     .$if(metricsInSeconds, (qb) => qb.select(eventsMetricsSecondsSelects))

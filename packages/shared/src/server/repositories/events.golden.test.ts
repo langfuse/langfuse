@@ -622,6 +622,26 @@ describeWithClickhouse("golden: events export streams family", () => {
     },
   );
 
+  // events_core truncates metadata values; the export must ship them in full.
+  it.each([
+    ["metadata", ["metadata"]],
+    ["core+metadata", ["core", "metadata"]],
+  ] as const)(
+    "getEventsForBlobStorageExport fieldGroups=%s reads events_full",
+    async (_name, fieldGroups) => {
+      await drain(
+        getEventsForBlobStorageExport(
+          FIXED_PROJECT_ID,
+          FIXED_FROM_TIMESTAMP,
+          FIXED_TO_TIMESTAMP,
+          [...fieldGroups],
+        ),
+      );
+      const [captured] = normalizeCapturedQueries(capturedQueries);
+      expect(captured.sql).toContain("FROM events_full AS e");
+    },
+  );
+
   it("getEventsForBlobStorageExport fieldGroups=empty", async () => {
     await drain(
       getEventsForBlobStorageExport(
