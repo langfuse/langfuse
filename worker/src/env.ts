@@ -223,7 +223,7 @@ const EnvSchema = z.object({
     .int()
     .min(1)
     .max(1440)
-    .default(60),
+    .default(30),
   LANGFUSE_TRACE_BATCH_MAX_BLOCK_SIZE: z.coerce
     .number()
     .int()

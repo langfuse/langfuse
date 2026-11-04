@@ -71,7 +71,7 @@ vi.mock("./topicsAutomation", () => ({
   })),
 }));
 
-const settings = { hourUtc: 4, spreadMinutes: 60 };
+const settings = { hourUtc: 4, spreadMinutes: 30 };
 const now = new Date("2026-11-04T06:00:00.000Z");
 
 function enableProjects(...projectIds: string[]) {
@@ -95,7 +95,7 @@ describe("nightlyRefitSlot", () => {
         Date.parse("2026-11-04T04:00:00.000Z"),
       );
       expect(slot.getTime()).toBeLessThan(
-        Date.parse("2026-11-04T05:00:00.000Z"),
+        Date.parse("2026-11-04T04:30:00.000Z"),
       );
     }
     expect(new Set(slots.map(Number)).size).toBeGreaterThan(10);
