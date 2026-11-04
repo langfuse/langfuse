@@ -70,6 +70,7 @@ function TraceCommentsPanel({ projectId }: { projectId: string }) {
   const urlOnThisTrace =
     !!urlTarget &&
     (urlTarget.objectId === trace.id ||
+      urlTarget.objectId === selectedNodeId ||
       observations.some((item) => item.id === urlTarget.objectId));
   const desired: CommentTarget = (!active ? session?.target : undefined) ??
     (!openedOn.current.moved && urlOnThisTrace ? urlTarget : undefined) ?? {

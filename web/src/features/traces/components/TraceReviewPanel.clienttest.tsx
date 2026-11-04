@@ -96,6 +96,13 @@ vi.mock("@/src/features/comments/CommentDrawerController", () => ({
   },
 }));
 
+beforeEach(() => {
+  state.query = { annotation: "open" };
+  state.selectedNodeId = "first";
+  state.traceId = "trace";
+  state.replace.mockClear();
+});
+
 it("follows the selected annotation target and switches panels through the URL", () => {
   const view = render(<TraceReviewPanel projectId="project" />);
   expect(screen.getByTestId("annotation")).toHaveTextContent(
