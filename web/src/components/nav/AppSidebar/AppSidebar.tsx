@@ -536,8 +536,10 @@ function NavUser({
 
 const DemoBadge = () => {
   return (
-    <SidebarGroup className="border-b">
-      <SidebarGroupLabel>Demo Project (view only)</SidebarGroupLabel>
+    <SidebarGroup className="border-b pt-0">
+      <SidebarGroupLabel className="mt-0">
+        Demo Project (view only)
+      </SidebarGroupLabel>
       <SidebarGroupContent>
         <SidebarMenu>
           <SidebarMenuItem>
