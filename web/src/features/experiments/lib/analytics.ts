@@ -116,20 +116,6 @@ export function baselineChangedProps({
   };
 }
 
-/** Multi-select delete submitted — count only, never experiment ids. */
-export function deleteSubmittedProps({
-  tableName,
-  experimentCount,
-}: {
-  tableName: ExperimentTableName;
-  experimentCount: number;
-}) {
-  return {
-    ...experimentAnalyticsDimensions(tableName),
-    experimentCount,
-  };
-}
-
 /** Metric selection metadata: score names never leave the client. */
 export function chartMetricChangedProps({
   tableName,

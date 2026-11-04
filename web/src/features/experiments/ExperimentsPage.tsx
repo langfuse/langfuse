@@ -94,11 +94,7 @@ export default function ExperimentsPage() {
         ),
       }}
     >
-      <ExperimentsTable
-        projectId={projectId}
-        showControlsInPageHeader
-        enableMultiSelectDelete
-      />
+      <ExperimentsTable projectId={projectId} showControlsInPageHeader />
     </Page>
   );
 }

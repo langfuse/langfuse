@@ -34,7 +34,7 @@ import {
   BatchActionType,
   buildExperimentPath,
 } from "@langfuse/shared";
-import { numberFormatter } from "@/src/utils/numbers";
+import { compactNumberFormatter, numberFormatter } from "@/src/utils/numbers";
 import { useOrderByState } from "@/src/features/orderBy/hooks/useOrderByState";
 import {
   customRowHeightMenu,
@@ -89,7 +89,6 @@ import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePos
 import {
   baselineChangedProps,
   comparisonChangedProps,
-  deleteSubmittedProps,
   scoreColumnScopeToggledProps,
 } from "@/src/features/experiments/lib/analytics";
 import { type ColumnGroupTogglePayload } from "@/src/components/table/DataTableColumnVisibilityFilter";
@@ -131,12 +130,10 @@ function ExperimentsMultiSelectActionMenu({
   projectId,
   store,
   datasetIdByExperimentId,
-  enableMultiSelectDelete = false,
 }: {
   projectId: string;
   store: ExperimentsTableStore;
   datasetIdByExperimentId: Record<string, string>;
-  enableMultiSelectDelete?: boolean;
 }) {
   const router = useRouter();
   const capture = usePostHogClientCapture();
@@ -158,6 +155,10 @@ function ExperimentsMultiSelectActionMenu({
     scope: "evaluationRule:CUD",
   });
   const hasTraceDeletionEntitlement = useHasEntitlement("trace-deletion");
+  // Delete is only on the project /experiments index multi-select — not on
+  // dataset-scoped experiment tables that reuse this menu.
+  const isProjectExperimentsIndex =
+    router.pathname === "/project/[projectId]/experiments";
 
   // Build query with experiment context filter for batch actions
   const batchActionQuery = useMemo(
@@ -184,8 +185,8 @@ function ExperimentsMultiSelectActionMenu({
     [selectedExperimentIds],
   );
 
-  // Telemetry delete: events-table TraceDelete batch filtered by experimentId.
-  // Root-span is not required — any matching span resolves to whole traces.
+  // Same events-backed TraceDelete batch as EventsTable select-all delete:
+  // filter → traces.deleteMany({ isBatchAction: true, useEventsTable: true }).
   const deleteQuery = useMemo(
     () => ({
       filter:
@@ -205,21 +206,23 @@ function ExperimentsMultiSelectActionMenu({
     [selectedExperimentIds],
   );
 
-  const experimentDeleteMutation = api.traces.deleteMany.useMutation({
+  const traceDeleteMutation = api.traces.deleteMany.useMutation({
     onSuccess: () => {
       showSuccessToast({
-        operation: "experiment.bulk_delete",
-        title: "Experiments scheduled for deletion",
+        operation: "trace.bulk_delete",
+        title: "Traces deleted",
         description:
-          "Linked traces for the selected experiments will be deleted. They may continue to be visible for up to 15 minutes.",
+          "Selected traces will be deleted. Traces are removed asynchronously and may continue to be visible for up to 15 minutes.",
       });
     },
     onSettled: () => {
+      utils.events.all.invalidate();
+      utils.events.countAll.invalidate();
+      utils.events.filterOptions.invalidate();
+      utils.traces.all.invalidate();
       utils.experiments.all.invalidate();
       utils.experiments.countAll.invalidate();
       utils.experiments.mostRecent.invalidate();
-      utils.events.all.invalidate();
-      utils.events.countAll.invalidate();
     },
   });
 
@@ -230,17 +233,10 @@ function ExperimentsMultiSelectActionMenu({
   }) => {
     if (selectedExperimentIds.length === 0) return;
 
-    capture(
-      "experiment:delete_submitted",
-      deleteSubmittedProps({
-        tableName: "experiments",
-        experimentCount: selectedExperimentIds.length,
-      }),
-    );
-
-    await experimentDeleteMutation.mutateAsync({
+    await traceDeleteMutation.mutateAsync({
       projectId: deleteProjectId,
-      // Select-all / filter batch path: server deletes by query and ignores ids.
+      // Batch path deletes by query and ignores traceIds (same as Events
+      // select-all).
       traceIds: [],
       query: deleteQuery,
       isBatchAction: true,
@@ -287,9 +283,9 @@ function ExperimentsMultiSelectActionMenu({
 
   if (selectedExperimentIds.length === 0) return null;
 
-  const selectedCountDisplay = numberFormatter(selectedExperimentIds.length, 0);
-  const experimentNoun =
-    selectedExperimentIds.length === 1 ? "experiment" : "experiments";
+  const selectedCountDisplay = compactNumberFormatter(
+    selectedExperimentIds.length,
+  );
 
   // Build table actions - Compare is disabled (not hidden) when >MAX_SELECTED_EXPERIMENTS rows selected
   const tooManySelected =
@@ -325,17 +321,23 @@ function ExperimentsMultiSelectActionMenu({
           } as TableAction,
         ]
       : []),
-    ...(enableMultiSelectDelete && hasTraceDeletionEntitlement
+    ...(isProjectExperimentsIndex && hasTraceDeletionEntitlement
       ? [
           {
             id: ActionId.TraceDelete,
             type: BatchActionType.Delete,
+            // Only surface wording differs from Events "Delete Traces".
             label: "Delete experiments",
-            description: `${selectedCountDisplay} ${experimentNoun} ${
-              selectedExperimentIds.length === 1 ? "is" : "are"
-            } selected. Linked traces for these experiment ids will be deleted as a whole. This action cannot be undone. Deletion happens asynchronously and may take up to 24 hours.`,
-            // Same durable batch key as Events/Traces delete so only one
-            // TraceDelete batch runs per project; poll against traces.
+            // Confirm copy matches Events TraceDelete dialog: whole-trace
+            // delete, irreversible, async up to 24h.
+            description: `${selectedCountDisplay} ${
+              selectedExperimentIds.length === 1
+                ? "experiment is"
+                : "experiments are"
+            } selected. A trace is always deleted as a whole. This action cannot be undone. Trace deletion happens asynchronously and may take up to 24 hours.`,
+            // The server keys every trace-delete batch row under the traces
+            // table (row id `${projectId}-traces-trace-delete`), whichever
+            // view dispatched it — same as EventsTable.
             tableName: BatchExportTableName.Traces,
             accessCheck: {
               scope: "traces:delete",
@@ -420,7 +422,6 @@ export default function ExperimentsTable({
   fixedFilter = [],
   sessionFilterContextId,
   showControlsInPageHeader = false,
-  enableMultiSelectDelete = false,
 }: ExperimentsTableProps) {
   const router = useRouter();
 
@@ -1119,7 +1120,6 @@ export default function ExperimentsTable({
                   projectId={projectId}
                   store={experimentsTableStore}
                   datasetIdByExperimentId={datasetIdByExperimentId}
-                  enableMultiSelectDelete={enableMultiSelectDelete}
                 />,
               ]}
               hideMobileFilterControls
