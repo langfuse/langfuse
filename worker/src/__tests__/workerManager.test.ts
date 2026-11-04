@@ -129,7 +129,13 @@ describe("WorkerManager", () => {
     it("measures from readiness, timestamp plus opts.delay", () => {
       expect(
         computeOldestWaitingAgeMs(
-          [{ timestamp: "1000", opts: JSON.stringify({ delay: 500 }) }],
+          [
+            {
+              timestamp: "1000",
+              opts: JSON.stringify({ delay: 500 }),
+              processedOn: null,
+            },
+          ],
           4_000,
         ),
       ).toBe(2_500);
@@ -139,20 +145,29 @@ describe("WorkerManager", () => {
       expect(
         computeOldestWaitingAgeMs(
           [
-            { timestamp: "3000", opts: "{}" },
-            { timestamp: "1000", opts: null },
+            { timestamp: "3000", opts: "{}", processedOn: null },
+            { timestamp: "1000", opts: null, processedOn: null },
           ],
           4_000,
         ),
       ).toBe(3_000);
     });
 
+    it("measures retried and stalled heads from their last pickup", () => {
+      expect(
+        computeOldestWaitingAgeMs(
+          [{ timestamp: "1000", opts: "{}", processedOn: "3500" }],
+          4_000,
+        ),
+      ).toBe(500);
+    });
+
     it("skips heads whose hash vanished and tolerates invalid opts JSON", () => {
       expect(
         computeOldestWaitingAgeMs(
           [
-            { timestamp: null, opts: null },
-            { timestamp: "1000", opts: "not json" },
+            { timestamp: null, opts: null, processedOn: null },
+            { timestamp: "1000", opts: "not json", processedOn: null },
           ],
           4_000,
         ),

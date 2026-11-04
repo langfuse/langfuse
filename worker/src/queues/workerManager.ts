@@ -71,15 +71,21 @@ export class WorkerManager {
   }
 
   /**
-   * Age of the oldest job ready to run, given the raw `timestamp` and `opts`
-   * hash fields of each waiting state's head job. A job is ready at
-   * timestamp + opts.delay; BullMQ zeroes the hash `delay` field on promotion,
-   * so only opts keeps it. Retries keep their first timestamp, so a retry at
-   * the head reads older than its current wait. No heads emit 0 so the gauge
-   * resets once the backlog drains.
+   * Age of the oldest job ready to run, given the raw `timestamp`, `opts` and
+   * `processedOn` hash fields of each waiting state's head job. A first
+   * attempt is ready at timestamp + opts.delay; BullMQ zeroes the hash `delay`
+   * field on promotion, so only opts keeps it. Retries and stall re-runs keep
+   * their first timestamp, so they are measured from their last pickup
+   * (`processedOn`): an upper bound that overstates their wait by at most the
+   * processing time and backoff. No heads emit 0 so the gauge resets once the
+   * backlog drains.
    */
   public static computeOldestWaitingAgeMs(
-    heads: { timestamp: string | null; opts: string | null }[],
+    heads: {
+      timestamp: string | null;
+      opts: string | null;
+      processedOn: string | null;
+    }[],
     nowMs: number,
   ): number {
     let oldestAgeMs = 0;
@@ -96,7 +102,12 @@ export class WorkerManager {
       } catch {
         // Invalid opts JSON: measure from the enqueue timestamp.
       }
-      oldestAgeMs = Math.max(oldestAgeMs, nowMs - (timestamp + delayMs));
+      const processedOn = Number(head.processedOn);
+      const readyAt =
+        head.processedOn !== null && Number.isFinite(processedOn)
+          ? Math.max(timestamp + delayMs, processedOn)
+          : timestamp + delayMs;
+      oldestAgeMs = Math.max(oldestAgeMs, nowMs - readyAt);
     }
     return oldestAgeMs;
   }

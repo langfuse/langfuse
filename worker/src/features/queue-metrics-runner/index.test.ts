@@ -6,6 +6,11 @@ const mocks = vi.hoisted(() => ({
   getJobCounts: vi.fn(),
   getRanges: vi.fn(),
   hmget: vi.fn(),
+  shardedQueues: [] as {
+    baseQueueName: string;
+    getShardNames: () => string[];
+    getInstance: (shardName: string) => unknown;
+  }[],
   recordGauge: vi.fn(),
   recordIncrement: vi.fn(),
   redisSet: vi.fn(),
@@ -55,7 +60,7 @@ vi.mock("../../queues/workerManager", () => ({
 }));
 
 vi.mock("../../queues/shardedQueueRegistry", () => ({
-  SHARDED_QUEUES: [],
+  SHARDED_QUEUES: mocks.shardedQueues,
   SHARDED_QUEUE_BASE_NAMES: new Set(),
   resolveQueueInstance: vi.fn(() => ({
     getFailed: mocks.getFailed,
@@ -90,7 +95,12 @@ describe("QueueMetricsRunner", () => {
     mocks.redisSet.mockResolvedValue("OK");
     mocks.getFailed.mockResolvedValue([]);
     mocks.getRanges.mockResolvedValue(["job-1"]);
-    mocks.hmget.mockResolvedValue(["1000", "{}"]);
+    mocks.hmget.mockResolvedValue(["1000", "{}", null]);
+    mocks.shardedQueues.length = 0;
+    vi.mocked(WorkerManager.getRegisteredQueueNames).mockReturnValue([
+      "trace-delete",
+    ]);
+    vi.mocked(WorkerManager.computeOldestWaitingAgeMs).mockReturnValue(4_000);
     mocks.getJobCounts.mockResolvedValue({
       active: 2,
       failed: 3,
@@ -131,9 +141,10 @@ describe("QueueMetricsRunner", () => {
       "bull:trace-delete:job-1",
       "timestamp",
       "opts",
+      "processedOn",
     );
     expect(WorkerManager.computeOldestWaitingAgeMs).toHaveBeenCalledWith(
-      [{ timestamp: "1000", opts: "{}" }],
+      [{ timestamp: "1000", opts: "{}", processedOn: null }],
       expect.any(Number),
     );
     expect(mocks.recordGauge).toHaveBeenCalledWith(
@@ -180,6 +191,90 @@ describe("QueueMetricsRunner", () => {
       0,
       { unit: "milliseconds" },
     );
+  });
+
+  it("emits per-shard oldest waiting ages and their max as shard:all", async () => {
+    vi.mocked(WorkerManager.getRegisteredQueueNames).mockReturnValue([
+      "ingestion-queue",
+      "ingestion-queue-1",
+      "ingestion-queue-2",
+    ]);
+    const ageByShard: Record<string, number> = {
+      "ingestion-queue": 1_000,
+      "ingestion-queue-1": 7_000,
+    };
+    mocks.shardedQueues.push({
+      baseQueueName: "ingestion-queue",
+      getShardNames: () => Object.keys(ageByShard).concat("ingestion-queue-2"),
+      getInstance: (shardName) => ({
+        getFailed: mocks.getFailed,
+        getJobCounts: mocks.getJobCounts,
+        getRanges: async () => {
+          if (!(shardName in ageByShard)) throw new Error("shard down");
+          return [shardName];
+        },
+        client: Promise.resolve({
+          hmget: async (key: string) => [String(ageByShard[key]), "{}", null],
+        }),
+        toKey: (id: string) => id,
+      }),
+    });
+    vi.mocked(WorkerManager.computeOldestWaitingAgeMs).mockImplementation(
+      (heads) => Number(heads[0]?.timestamp ?? 0),
+    );
+
+    await new TestQueueMetricsRunner().executeOnce();
+
+    const waitingAgeCalls = mocks.recordGauge.mock.calls.filter(
+      ([metricName]) =>
+        metricName === "langfuse.queue.ingestion.oldest_waiting_age_ms",
+    );
+    expect(waitingAgeCalls).toEqual(
+      expect.arrayContaining([
+        [
+          "langfuse.queue.ingestion.oldest_waiting_age_ms",
+          1_000,
+          { shard: "ingestion-queue", unit: "milliseconds" },
+        ],
+        [
+          "langfuse.queue.ingestion.oldest_waiting_age_ms",
+          7_000,
+          { shard: "ingestion-queue-1", unit: "milliseconds" },
+        ],
+        [
+          "langfuse.queue.ingestion.oldest_waiting_age_ms",
+          7_000,
+          { shard: "all", unit: "milliseconds" },
+        ],
+      ]),
+    );
+    expect(waitingAgeCalls).toHaveLength(3);
+  });
+
+  it("skips shard:all oldest waiting age when every shard read fails", async () => {
+    vi.mocked(WorkerManager.getRegisteredQueueNames).mockReturnValue([
+      "ingestion-queue",
+    ]);
+    mocks.shardedQueues.push({
+      baseQueueName: "ingestion-queue",
+      getShardNames: () => ["ingestion-queue"],
+      getInstance: () => ({
+        getFailed: mocks.getFailed,
+        getJobCounts: mocks.getJobCounts,
+        getRanges: vi.fn().mockRejectedValue(new Error("shard down")),
+        client: Promise.resolve({ hmget: mocks.hmget }),
+        toKey: (id: string) => id,
+      }),
+    });
+
+    await new TestQueueMetricsRunner().executeOnce();
+
+    expect(
+      mocks.recordGauge.mock.calls.filter(
+        ([metricName]) =>
+          metricName === "langfuse.queue.ingestion.oldest_waiting_age_ms",
+      ),
+    ).toEqual([]);
   });
 
   it("polls nothing when another worker already claimed the interval", async () => {
