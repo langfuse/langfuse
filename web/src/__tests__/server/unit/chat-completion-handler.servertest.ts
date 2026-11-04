@@ -91,11 +91,11 @@ function createRequest(body: Record<string, unknown>) {
   });
 }
 
-function createSession(projectId = baseBody.projectId, admin = false) {
+function createSession(projectId = baseBody.projectId) {
   return {
     user: {
       id: "user-1",
-      admin,
+      admin: false,
       organizations: [{ projects: [{ id: projectId, role: "ADMIN" }] }],
     },
   };
@@ -119,7 +119,6 @@ describe("chatCompletionHandler", () => {
   it("blocks demo project admins before resolving credentials or calling a model", async () => {
     const projectId = "demo-project";
     mocks.session.mockResolvedValue(createSession(projectId));
-    mocks.generate.mockResolvedValue({ text: "Hello back", finalStep: {} });
 
     const response = await chatCompletionHandler(
       createRequest({ ...baseBody, projectId }),
