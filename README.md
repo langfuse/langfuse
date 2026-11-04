@@ -61,7 +61,7 @@
   <a href="./README.kr.md"><img alt="README in Korean" src="https://img.shields.io/badge/한국어-d9d9d9"></a>
 </p>
 
-Langfuse is an **open source AI engineering platform** for **agent evals and observability**. It is one open platform for every AI call your company makes and every agent your teams build: track usage and costs, **trace and evaluate** agents, and use production data to ship better AI. Use Langfuse Cloud or **self-host in minutes**; Langfuse is **battle-tested** at scale. Proudly made with [ClickHouse open source database](https://github.com/ClickHouse/ClickHouse).
+Langfuse is an **open source AI engineering platform** for **agent evals and observability**. It is one open platform for every AI call your company makes and every agent your teams build: track usage and costs, **trace and evaluate** agents, and use production data to ship better AI. Use Langfuse Cloud or **self-host in minutes**; Langfuse is **battle-tested** at scale.
 
 > ### 🧑‍💻 We're hiring
 >

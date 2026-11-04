@@ -64,7 +64,7 @@
   <a href="./README.kr.md"><img alt="README in Korean" src="https://img.shields.io/badge/한국어-d9d9d9"></a>
 </p>
 
-Langfuseは、**エージェントの評価とオブザーバビリティ**のための**オープンソースのAIエンジニアリングプラットフォーム**です。会社が行うすべてのAI呼び出しと、チームが構築するすべてのエージェントを1つのオープンなプラットフォームで扱えます。利用量とコストを追跡し、エージェントを**トレースして評価**し、本番データを活用してより良いAIを届けられます。Langfuse Cloudを利用することも、**数分でセルフホスト**することもでき、大規模な環境で**多くの実績**があります。[ClickHouseオープンソースデータベース](https://github.com/ClickHouse/ClickHouse)を基盤に構築されています。
+Langfuseは、**エージェントの評価とオブザーバビリティ**のための**オープンソースのAIエンジニアリングプラットフォーム**です。会社が行うすべてのAI呼び出しと、チームが構築するすべてのエージェントを1つのオープンなプラットフォームで扱えます。利用量とコストを追跡し、エージェントを**トレースして評価**し、本番データを活用してより良いAIを届けられます。Langfuse Cloudを利用することも、**数分でセルフホスト**することもでき、大規模な環境で**多くの実績**があります。
 
 <a href="https://langfuse.com/watch-demo"><img width="37.5%" alt="Langfuse Overview Video" src=".github/watch-demo.png"></a>
 
