@@ -9,6 +9,7 @@ type SignupStepProperties = {
   "sign_up:code_checked": { result: EmailCodeCheck };
   "sign_up:password_set": Record<string, never>;
   "sign_up:webhook_sent": { result: "ok" | "timeout" | "error" };
+  "sign_up:completed_via_link": { provider: string };
 };
 
 const WEBHOOK_TIMEOUT_MS = 5000;

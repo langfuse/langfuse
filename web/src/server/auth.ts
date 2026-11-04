@@ -29,7 +29,10 @@ import {
   captureSignupStep,
   sendSignupWebhook,
 } from "@/src/features/auth/lib/signupSteps";
-import { type SignupAttribution } from "@/src/features/auth/lib/signupAttribution";
+import {
+  getSignupProvider,
+  type SignupAttribution,
+} from "@/src/features/auth/lib/signupAttribution";
 import { PASSWORD_RESET_EMAIL_CODE_MAX_AGE_SECONDS } from "@/src/features/auth-credentials/lib/credentialsUtils";
 import {
   type AdapterUser,
@@ -664,92 +667,142 @@ if (env.AUTH_WORDPRESS_CLIENT_ID && env.AUTH_WORDPRESS_CLIENT_SECRET)
 // Extend Prisma Adapter
 const prismaAdapter = PrismaAdapter(prisma);
 const ignoredAccountFields = env.AUTH_IGNORE_ACCOUNT_FIELDS?.split(",") ?? [];
-const createExtendedPrismaAdapter = (
-  signupAttribution?: SignupAttribution,
-): Adapter => ({
-  ...prismaAdapter,
-  async createUser(profile: Omit<AdapterUser, "id">) {
-    if (!prismaAdapter.createUser)
-      throw new Error("createUser not implemented");
-    if (
-      env.NEXT_PUBLIC_SIGN_UP_DISABLED === "true" ||
-      env.AUTH_DISABLE_SIGNUP === "true"
-    ) {
-      throw new Error("Sign up is disabled.");
-    }
-    if (!profile.email) {
-      throw new Error(
-        "Cannot create db user as login profile does not contain an email: " +
-          JSON.stringify(profile),
-      );
-    }
-
-    const user = await prismaAdapter.createUser(profile);
-
-    await createProjectMembershipsOnSignup(user, {
-      userWasJustCreated: true,
-      ...signupAttribution,
-    });
-    // an OAuth or SSO provider verified the email
+// A passwordless user's first login completes a sign-up. An org's enterprise
+// SSO also links the users SCIM provisioned, so it completes only users
+// created in this request.
+async function completeSignupOnFirstLogin({
+  user,
+  provider,
+  createdHere,
+}: {
+  user: {
+    id: string;
+    email: string | null;
+    name: string | null;
+    password: string | null;
+    _count: { accounts: number };
+  };
+  provider: string;
+  createdHere: boolean;
+}) {
+  if (user.password !== null || user._count.accounts !== 1) return;
+  if (createdHere) {
     sendSignupWebhook(user).catch((error) => {
       logger.warn("Sign-up webhook failed", { userId: user.id, error });
     });
+    return;
+  }
+  const { isMultiTenantSsoProvider } = await findMultiTenantSsoConfig({
+    providerId: provider,
+  });
+  if (isMultiTenantSsoProvider) return;
+  captureSignupStep(user.id, "sign_up:completed_via_link", {
+    provider: getSignupProvider(provider),
+  });
+  sendSignupWebhook(user).catch((error) => {
+    logger.warn("Sign-up webhook failed", { userId: user.id, error });
+  });
+}
 
-    return user;
-  },
+const createExtendedPrismaAdapter = (
+  signupAttribution?: SignupAttribution,
+): Adapter => {
+  // the user createUser made in this request; NextAuth links its account next
+  let createdUserId: string | undefined;
 
-  async linkAccount(data: AdapterAccount) {
-    if (!prismaAdapter.linkAccount)
-      throw new Error("NextAuth: prismaAdapter.linkAccount not implemented");
-
-    // Keycloak returns incompatible data with the nextjs-auth schema
-    // (refresh_expires_in and not-before-policy in).
-    // So, we need to remove this data from the payload before linking an account.
-    // https://github.com/nextauthjs/next-auth/issues/7655
-    if (data.provider.endsWith("keycloak")) {
-      // endsWith required as the multi-tenant cloud SSO providers are in the "domain.provider" format
-      delete data["refresh_expires_in"];
-      delete data["not-before-policy"];
-    }
-
-    // WorkOS returns profile data that doesn't match the schema
-    if (data.provider.endsWith("workos")) {
-      // endsWith required as the multi-tenant cloud SSO providers are in the "domain.provider" format
-      delete data["profile"];
-    }
-
-    // Optionally, remove fields returned by the provider that cause issues with the adapter
-    // Configure via AUTH_IGNORE_ACCOUNT_FIELDS
-    for (const ignoredField of ignoredAccountFields) {
-      if (ignoredField in data) {
-        delete data[ignoredField];
+  return {
+    ...prismaAdapter,
+    async createUser(profile: Omit<AdapterUser, "id">) {
+      if (!prismaAdapter.createUser)
+        throw new Error("createUser not implemented");
+      if (
+        env.NEXT_PUBLIC_SIGN_UP_DISABLED === "true" ||
+        env.AUTH_DISABLE_SIGNUP === "true"
+      ) {
+        throw new Error("Sign up is disabled.");
       }
-    }
+      if (!profile.email) {
+        throw new Error(
+          "Cannot create db user as login profile does not contain an email: " +
+            JSON.stringify(profile),
+        );
+      }
 
-    await prismaAdapter.linkAccount(data);
+      const user = await prismaAdapter.createUser(profile);
 
-    // Assign default memberships for existing users logging in via SSO
-    // This is idempotent - won't duplicate or overwrite existing memberships
-    const user = await prisma.user.findUnique({
-      where: { id: data.userId },
-      select: { id: true, email: true, name: true },
-    });
-    if (user) {
-      await createProjectMembershipsOnSignup(user, signupAttribution);
-    }
-  },
+      await createProjectMembershipsOnSignup(user, {
+        userWasJustCreated: true,
+        ...signupAttribution,
+      });
+      createdUserId = user.id;
 
-  // Email one-time codes are consumed only by `credentials.resetPassword`
-  // (consumeEmailOtpAndUpdatePassword), which validates the code and writes
-  // the new password in one transaction. NextAuth calls this adapter method
-  // from GET /api/auth/callback/email before it consults `callbacks.signIn`,
-  // so returning null here is what keeps that route from logging a user in
-  // without a password. It also leaves the stored code untouched, so a
-  // prefetching mail scanner or a guessed request cannot burn a valid code.
-  async useVerificationToken() {
-    return null;
-  },
-});
+      return user;
+    },
+
+    async linkAccount(data: AdapterAccount) {
+      if (!prismaAdapter.linkAccount)
+        throw new Error("NextAuth: prismaAdapter.linkAccount not implemented");
+
+      // Keycloak returns incompatible data with the nextjs-auth schema
+      // (refresh_expires_in and not-before-policy in).
+      // So, we need to remove this data from the payload before linking an account.
+      // https://github.com/nextauthjs/next-auth/issues/7655
+      if (data.provider.endsWith("keycloak")) {
+        // endsWith required as the multi-tenant cloud SSO providers are in the "domain.provider" format
+        delete data["refresh_expires_in"];
+        delete data["not-before-policy"];
+      }
+
+      // WorkOS returns profile data that doesn't match the schema
+      if (data.provider.endsWith("workos")) {
+        // endsWith required as the multi-tenant cloud SSO providers are in the "domain.provider" format
+        delete data["profile"];
+      }
+
+      // Optionally, remove fields returned by the provider that cause issues with the adapter
+      // Configure via AUTH_IGNORE_ACCOUNT_FIELDS
+      for (const ignoredField of ignoredAccountFields) {
+        if (ignoredField in data) {
+          delete data[ignoredField];
+        }
+      }
+
+      await prismaAdapter.linkAccount(data);
+
+      // Assign default memberships for existing users logging in via SSO
+      // This is idempotent - won't duplicate or overwrite existing memberships
+      const user = await prisma.user.findUnique({
+        where: { id: data.userId },
+        select: {
+          id: true,
+          email: true,
+          name: true,
+          password: true,
+          _count: { select: { accounts: true } },
+        },
+      });
+      if (user) {
+        await createProjectMembershipsOnSignup(user, signupAttribution);
+        await completeSignupOnFirstLogin({
+          user,
+          provider: data.provider,
+          createdHere: user.id === createdUserId,
+        });
+      }
+    },
+
+    // Email one-time codes are consumed only by `credentials.resetPassword`
+    // (consumeEmailOtpAndUpdatePassword), which validates the code and writes
+    // the new password in one transaction. NextAuth calls this adapter method
+    // from GET /api/auth/callback/email before it consults `callbacks.signIn`,
+    // so returning null here is what keeps that route from logging a user in
+    // without a password. It also leaves the stored code untouched, so a
+    // prefetching mail scanner or a guessed request cannot burn a valid code.
+    async useVerificationToken() {
+      return null;
+    },
+  };
+};
 
 /**
  * Options for NextAuth.js used to configure adapters, providers, callbacks, etc.

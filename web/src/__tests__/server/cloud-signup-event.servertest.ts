@@ -3,14 +3,17 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import type * as NextAuthModule from "next-auth";
 import type { NextAuthOptions } from "next-auth";
 import type * as SharedServerModule from "@langfuse/shared/src/server";
+import type * as MultiTenantSsoUtils from "@/src/ee/features/multi-tenant-sso/utils";
 import { createMocks } from "node-mocks-http";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-const { captureMock, posthogShutdown, oauthProfile } = vi.hoisted(() => ({
-  captureMock: vi.fn(),
-  posthogShutdown: vi.fn(),
-  oauthProfile: { email: "" },
-}));
+const { captureMock, posthogShutdown, oauthProfile, enterpriseSsoProviderIds } =
+  vi.hoisted(() => ({
+    captureMock: vi.fn(),
+    posthogShutdown: vi.fn(),
+    oauthProfile: { email: "" },
+    enterpriseSsoProviderIds: new Set<string>(),
+  }));
 
 // cloud_signup_complete's own client and the shared one both record here
 vi.mock("@/src/features/posthog-analytics/ServerPosthog", () => ({
@@ -20,6 +23,17 @@ vi.mock("@/src/features/posthog-analytics/ServerPosthog", () => ({
   },
   getServerPosthog: () => ({ capture: captureMock }),
 }));
+
+vi.mock("@/src/ee/features/multi-tenant-sso/utils", async (importOriginal) => {
+  const actual = await importOriginal<typeof MultiTenantSsoUtils>();
+  return {
+    ...actual,
+    findMultiTenantSsoConfig: async ({ providerId }: { providerId: string }) =>
+      enterpriseSsoProviderIds.has(providerId)
+        ? { isMultiTenantSsoProvider: true, domain: "example.com" }
+        : { isMultiTenantSsoProvider: false, domain: null },
+  };
+});
 
 // Records each email code instead of sending it, so a test can read it.
 vi.mock("@langfuse/shared/src/server", async (importOriginal) => ({
@@ -75,7 +89,7 @@ import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import auth from "@/src/pages/api/auth/[...nextauth]";
 import signupVerify from "@/src/pages/api/auth/signup-verify";
 import { getCookieName } from "@/src/server/utils/cookies";
-import { prisma } from "@langfuse/shared/src/db";
+import { prisma, Role } from "@langfuse/shared/src/db";
 import {
   logger,
   sendResetPasswordVerificationRequest,
@@ -122,6 +136,7 @@ describe("cloud_signup_complete", () => {
     captureMock.mockReset();
     posthogShutdown.mockReset();
     posthogShutdown.mockResolvedValue(undefined);
+    enterpriseSsoProviderIds.clear();
     webhookMock.mockReset();
     webhookMock.mockResolvedValue(new Response(null, { status: 200 }));
     vi.stubGlobal("fetch", webhookMock);
@@ -136,42 +151,113 @@ describe("cloud_signup_complete", () => {
 
   it("records the OAuth provider and the first visit's source", async () => {
     const email = uniqueEmail();
-    oauthProfile.email = email;
-    const { req, res } = createMocks<NextApiRequest, NextApiResponse>({
-      method: "GET",
-      query: { nextauth: ["callback", "google"] },
-      cookies: docsFirstVisitCookie,
-    });
 
-    await auth(req, res);
+    await linkLogin(email, "google");
 
-    expect(res.statusCode).toBe(200);
     await expectOneSignupEvent({ email, provider: "google" });
     await expectOneWebhook({ email });
+    await webhookSettled();
+    expect(stepEvents().map(({ event }) => event)).toEqual([
+      "sign_up:webhook_sent",
+    ]);
   });
 
-  it("records nothing when an existing account without memberships links a provider", async () => {
+  it.each([
+    {
+      linkedProvider: "clickhouse-cloud",
+      recordedProvider: "clickhouse-cloud",
+    },
+    // an enterprise SSO id the lookup missed, as after a failed config refresh
+    { linkedProvider: "customer.example.okta", recordedProvider: "sso" },
+  ])(
+    "records a pending email sign-up finished through a linked $linkedProvider login as a step, not a second sign-up",
+    async ({ linkedProvider, recordedProvider }) => {
+      const email = await signUpByEmailCode();
+      const { id: userId } = await prisma.user.findUniqueOrThrow({
+        where: { email },
+      });
+
+      await linkLogin(email, linkedProvider);
+
+      await expectOneSignupEvent({ email, provider: "email" });
+      await webhookSettled();
+      expect(stepEvents()).toEqual([
+        {
+          distinctId: userId,
+          event: "sign_up:completed_via_link",
+          properties: { provider: recordedProvider },
+        },
+        {
+          distinctId: userId,
+          event: "sign_up:webhook_sent",
+          properties: { result: "ok" },
+        },
+      ]);
+      await expectOneWebhook({ email });
+    },
+  );
+
+  it("records nothing when an account with a password links a provider", async () => {
     const email = uniqueEmail();
-    const existingUser = await prisma.user.create({
+    await prisma.user.create({
+      data: { email, name: "Jane Doe", password: "password-hash" },
+    });
+
+    await linkLogin(email, "google");
+
+    expectNothingRecorded();
+  });
+
+  it("records nothing when an account that already has a login links another", async () => {
+    const email = uniqueEmail();
+    const user = await prisma.user.create({
       data: { email, name: "Jane Doe" },
     });
-    oauthProfile.email = email;
-    const { req, res } = createMocks<NextApiRequest, NextApiResponse>({
-      method: "GET",
-      query: { nextauth: ["callback", "google"] },
-      cookies: docsFirstVisitCookie,
+    await prisma.account.create({
+      data: {
+        userId: user.id,
+        type: "oauth",
+        provider: "github",
+        providerAccountId: `github-${randomUUID()}`,
+      },
     });
 
-    await auth(req, res);
+    await linkLogin(email, "google");
 
-    expect(res.statusCode).toBe(200);
-    await expect(
-      prisma.account.findFirst({
-        where: { userId: existingUser.id, provider: "google" },
-      }),
-    ).resolves.not.toBeNull();
-    expect(signupEvents()).toHaveLength(0);
-    expect(webhookMock).not.toHaveBeenCalled();
+    expectNothingRecorded();
+  });
+
+  it("records nothing on a SCIM user's first enterprise SSO sign-in", async () => {
+    enterpriseSsoProviderIds.add("example.com.okta");
+    // as SCIM provisions it: a member of the org, no password, no login
+    const email = uniqueEmail();
+    const user = await prisma.user.create({
+      data: { email, name: "Jane Doe" },
+    });
+    const organization = await prisma.organization.create({
+      data: { name: `SCIM Org ${randomUUID()}` },
+    });
+    await prisma.organizationMembership.create({
+      data: { orgId: organization.id, userId: user.id, role: Role.MEMBER },
+    });
+
+    await linkLogin(email, "example.com.okta");
+
+    expectNothingRecorded();
+  });
+
+  it("records a new user's first enterprise SSO sign-in once, as sso", async () => {
+    enterpriseSsoProviderIds.add("example.com.okta");
+    const email = uniqueEmail();
+
+    await linkLogin(email, "example.com.okta");
+
+    await expectOneSignupEvent({ email, provider: "sso" });
+    await expectOneWebhook({ email });
+    await webhookSettled();
+    expect(stepEvents().map(({ event }) => event)).toEqual([
+      "sign_up:webhook_sent",
+    ]);
   });
 
   it("records email for the email-code sign-up, then each step of its code", async () => {
@@ -420,6 +506,29 @@ describe("cloud_signup_complete", () => {
     await signupApiHandler(req, res);
 
     return res.statusCode;
+  }
+
+  function expectNothingRecorded() {
+    expect(signupEvents()).toHaveLength(0);
+    expect(stepEvents()).toHaveLength(0);
+    expect(webhookMock).not.toHaveBeenCalled();
+  }
+
+  async function linkLogin(email: string, provider: string) {
+    oauthProfile.email = email;
+    const { req, res } = createMocks<NextApiRequest, NextApiResponse>({
+      method: "GET",
+      query: { nextauth: ["callback", provider] },
+      cookies: docsFirstVisitCookie,
+    });
+
+    await auth(req, res);
+
+    expect(res.statusCode).toBe(200);
+    const user = await prisma.user.findUniqueOrThrow({ where: { email } });
+    await expect(
+      prisma.account.findFirst({ where: { userId: user.id, provider } }),
+    ).resolves.not.toBeNull();
   }
 
   async function signUpByEmailCode() {

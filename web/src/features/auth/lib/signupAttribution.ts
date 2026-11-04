@@ -249,15 +249,19 @@ export function getSignupSourceFromRequest(
 }
 
 /**
- * Multi-tenant SSO provider ids (`<domain>.<provider>`) become `sso`, so no
- * customer domain reaches the event.
+ * A sign-up's provider for events: multi-tenant SSO ids
+ * (`<domain>.<provider>`) become `sso`, so no customer domain reaches one.
  */
+export function getSignupProvider(providerId: string) {
+  return providerId.includes(".") ? "sso" : providerId;
+}
+
 export function getSignupAttributionFromRequest(
   req: RequestWithCookies,
   providerId: string | undefined,
 ): SignupAttribution {
   return {
-    provider: providerId?.includes(".") ? "sso" : providerId,
+    provider: providerId && getSignupProvider(providerId),
     adClickIds: getAdClickIdsFromRequest(req),
     signupSource: getSignupSourceFromRequest(req),
   };
