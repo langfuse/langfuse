@@ -41,8 +41,17 @@ jobs:
         run: |
           pnpm -r licenses list --prod --json > pnpm-licenses.json
           # Exempt only these package versions; upgrades receive a fresh license check.
+          # Optional production dependencies with a weak-copyleft license. The
+          # version pin means a later release is checked again.
           jq -er '
-            ["axe-core@4.13.0", "dompurify@3.4.17", "elkjs@0.11.1"] as $exceptions |
+            [
+              "axe-core@4.13.0",
+              "dompurify@3.4.17",
+              "elkjs@0.11.1",
+              "@img/sharp-libvips-linux-x64@1.3.4",
+              "lightningcss@1.32.0",
+              "lightningcss-linux-x64-gnu@1.32.0"
+            ] as $exceptions |
             if length == 0 then error("No production dependency licenses found")
             else ["package_name", "license_name"],
               (to_entries[] | .key as $license | .value[] | .name as $name |
