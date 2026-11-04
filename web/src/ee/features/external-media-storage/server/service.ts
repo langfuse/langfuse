@@ -187,6 +187,60 @@ function getRoleAuthData({
     externalId: existingExternalId ?? encrypt(generateCustomerRoleExternalId()),
     accessKeyId: null,
     secretAccessKey: null,
+    endpoint: null,
+    forcePathStyle: false,
+  };
+}
+
+function getAccessKeyAuthData({
+  values,
+  bucketName,
+  endpoint,
+  existing,
+}: {
+  values: ExternalMediaStorageFormValues;
+  bucketName: string;
+  endpoint: string | null;
+  existing: ExternalMediaStorageRecord | null;
+}) {
+  const accessKeyId = values.accessKeyId?.trim() || null;
+  const secretAccessKey = values.secretAccessKey?.trim() || null;
+
+  // A stored secret is only used with the storage it was entered for.
+  if (
+    !secretAccessKey &&
+    existing?.secretAccessKey &&
+    !isSameStorageDestination(existing, {
+      type: values.type,
+      endpoint,
+      bucketName,
+      accessKeyId,
+    })
+  ) {
+    throw new InvalidRequestError(
+      "Secret Access Key is required when changing the storage provider, bucket, endpoint, or Access Key ID",
+    );
+  }
+
+  const encryptedSecretAccessKey = secretAccessKey
+    ? encrypt(secretAccessKey)
+    : existing?.secretAccessKey;
+
+  if (!accessKeyId || !encryptedSecretAccessKey) {
+    throw new InvalidRequestError(
+      "Access Key ID and Secret Access Key are required",
+    );
+  }
+
+  return {
+    authType: StorageIntegrationAuthType.ACCESS_KEYS,
+    accessKeyId,
+    secretAccessKey: encryptedSecretAccessKey,
+    endpoint,
+    forcePathStyle:
+      values.type === BlobStorageIntegrationType.S3_COMPATIBLE
+        ? values.forcePathStyle
+        : false,
   };
 }
 
@@ -265,73 +319,19 @@ export function createExternalMediaStorageService(prisma: PrismaClient) {
       const bucketName = values.bucketName.trim();
       const prefix = values.prefix?.trim() || null;
 
-      if (values.authType === StorageIntegrationAuthType.ROLE_ARN) {
-        await repository.upsert({
-          projectId,
-          data: {
-            type: values.type,
-            bucketName,
-            prefix,
-            region,
-            endpoint: null,
-            forcePathStyle: false,
-            ...getRoleAuthData({
+      const authData =
+        values.authType === StorageIntegrationAuthType.ROLE_ARN
+          ? getRoleAuthData({
               values,
               bucketName,
               region,
               existingExternalId: existing?.externalId,
-            }),
-          },
-        });
-        await auditConfigurationChange({ action: "update", actor, projectId });
-        return;
-      }
-
-      const accessKeyId = values.accessKeyId?.trim() || null;
-      const secretAccessKey = values.secretAccessKey?.trim() || null;
-
-      // A stored secret is only used with the storage it was entered for.
-      if (
-        !secretAccessKey &&
-        existing?.secretAccessKey &&
-        !isSameStorageDestination(existing, {
-          type: values.type,
-          endpoint,
-          bucketName,
-          accessKeyId,
-        })
-      ) {
-        throw new InvalidRequestError(
-          "Secret Access Key is required when changing the storage provider, bucket, endpoint, or Access Key ID",
-        );
-      }
-
-      const encryptedSecretAccessKey = secretAccessKey
-        ? encrypt(secretAccessKey)
-        : existing?.secretAccessKey;
-
-      if (!accessKeyId || !encryptedSecretAccessKey) {
-        throw new InvalidRequestError(
-          "Access Key ID and Secret Access Key are required",
-        );
-      }
+            })
+          : getAccessKeyAuthData({ values, bucketName, endpoint, existing });
 
       await repository.upsert({
         projectId,
-        data: {
-          type: values.type,
-          authType: StorageIntegrationAuthType.ACCESS_KEYS,
-          bucketName,
-          prefix,
-          accessKeyId,
-          secretAccessKey: encryptedSecretAccessKey ?? null,
-          region,
-          endpoint,
-          forcePathStyle:
-            values.type === BlobStorageIntegrationType.S3_COMPATIBLE
-              ? values.forcePathStyle
-              : false,
-        },
+        data: { type: values.type, bucketName, prefix, region, ...authData },
       });
 
       await auditConfigurationChange({ action: "update", actor, projectId });
