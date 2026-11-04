@@ -15,10 +15,6 @@ import {
 
 type SelectionRows = {
   ids: { id: string };
-  backfill: {
-    id: string;
-    matchedTraceCount: string | number;
-  };
   preview: {
     id: string;
     timestampMs: string | number;
@@ -139,18 +135,14 @@ export async function selectTopicTraceRows<Mode extends keyof SelectionRows>(
     .from("matching_traces", "t")
     .select(
       "t.id AS id",
-      ...(mode === "ids"
-        ? []
-        : [
+      ...(preview
+        ? [
+            "toUnixTimestamp64Milli(t.timestamp) AS timestampMs",
             "count() OVER () AS matchedTraceCount",
-            ...(preview
-              ? [
-                  "toUnixTimestamp64Milli(t.timestamp) AS timestampMs",
-                  "t.name AS name",
-                  "t.environment AS environment",
-                ]
-              : []),
-          ]),
+            "t.name AS name",
+            "t.environment AS environment",
+          ]
+        : []),
     )
     .orderByColumns([
       input.sampling === "random"

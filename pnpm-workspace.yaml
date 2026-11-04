@@ -104,6 +104,14 @@ overrides:
   # The root Mastra adapter does not load CopilotKit. Only its unused
   # `@ag-ui/mastra/copilotkit` subpath requires this peer.
   "@ag-ui/mastra@1.1.1>@copilotkit/runtime": "-"
+  # The adapter only drives local agents and never requires the remote-agent
+  # client at runtime (its types import MastraClient). Auto-installing this peer
+  # added @mastra/client-js, which pins a second, older @mastra/core (~60MB).
+  "@ag-ui/mastra@1.1.1>@mastra/client-js": "-"
+  # The generated client loads its query engine from .prisma/client and never
+  # requires the CLI. Resolving this optional peer made `pnpm deploy --prod`
+  # ship the Prisma CLI and its engines in the worker image.
+  "@prisma/client>prisma": "-"
   browserslist: 4.28.7
   postcss: 8.5.25
   esbuild: "0.28.1"

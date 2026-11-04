@@ -1,36 +1,11 @@
-import {
-  beforeAll,
-  beforeEach,
-  afterEach,
-  describe,
-  expect,
-  it,
-  vi,
-} from "vitest";
+import { beforeAll, describe, expect, it } from "vitest";
 import { randomUUID } from "node:crypto";
-import {
-  QueueJobs,
-  TraceBatchQueue,
-  createEvent,
-  createEventsCh,
-} from "@langfuse/shared/src/server";
+import { createEvent, createEventsCh } from "@langfuse/shared/src/server";
 import { prisma } from "@langfuse/shared/src/db";
 import {
   loadTopicTranscript,
   selectTopicTraceRows,
 } from "@langfuse/shared/topics/server";
-
-const enabled = vi.hoisted(() => vi.fn(() => true));
-
-vi.mock("@langfuse/shared/topics/server", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("@langfuse/shared/topics/server")>()),
-  isTopicsProjectEnabled: enabled,
-}));
-
-import {
-  backfillSelectionFilters,
-  enqueueTopicTraceBackfill,
-} from "./backfillTopicTraces";
 
 const selection = {
   filter: [],
@@ -38,38 +13,11 @@ const selection = {
   to: new Date("2026-09-24T00:00:00.000Z"),
   limit: 20,
   sampling: "latest" as const,
-  seed: "backfill",
+  seed: "selection",
 };
 
-describe("backfillSelectionFilters", () => {
-  it("maps a trace name and tag onto the Topics observation filters", () => {
-    expect(
-      backfillSelectionFilters({
-        traceNames: ["agent-turn"],
-        tags: ["billing"],
-        extra: [],
-      }),
-    ).toEqual([
-      {
-        column: "traceName",
-        type: "stringOptions",
-        operator: "any of",
-        value: ["agent-turn"],
-      },
-      {
-        column: "tags",
-        type: "arrayOptions",
-        operator: "any of",
-        value: ["billing"],
-      },
-    ]);
-  });
-});
-
-describe("Topics trace selection and backfill", () => {
+describe("Topics trace selection", () => {
   const projectId = randomUUID();
-  const foreignProjectId = randomUUID();
-  const addJob = vi.fn();
   beforeAll(async () => {
     await createEventsCh(
       [
@@ -100,101 +48,43 @@ describe("Topics trace selection and backfill", () => {
         }),
       ),
     );
-    await createEventsCh([
-      createEvent({
-        project_id: projectId,
-        trace_id: "trace-new",
-        span_id: "missing-parent",
-        is_app_root: true,
-        name: "root",
-        start_time: new Date("2026-09-22T23:59:00Z"),
-      }),
-      createEvent({
-        project_id: projectId,
-        trace_id: "trace-new",
-        parent_span_id: "missing-parent",
-        name: "finish",
-        start_time: new Date("2026-09-24T01:00:00Z"),
-      }),
-      ...["2026-09-01T00:00:00Z", "2026-10-30T00:00:00Z"].map((timestamp) =>
-        createEvent({
-          project_id: foreignProjectId,
-          trace_id: "trace-new",
-          name: "fetch_context",
-          start_time: new Date(timestamp),
-        }),
-      ),
+  });
+  it("deduplicates, orders and scopes matches to the project, window and public environments", async () => {
+    const input = { ...selection, projectId };
+    const [preview, ids] = await Promise.all([
+      selectTopicTraceRows(input, prisma, "preview"),
+      selectTopicTraceRows(input, prisma, "ids"),
     ]);
-  });
-  beforeEach(() => {
-    enabled.mockReturnValue(true);
-    addJob.mockReset();
-    vi.spyOn(TraceBatchQueue, "getInstance").mockReturnValue({
-      add: addJob,
-    } as never);
-  });
-  afterEach(() => vi.restoreAllMocks());
-
-  it("deduplicates and orders bounded matches without enqueueing a dry run", async () => {
-    const result = await enqueueTopicTraceBackfill({
-      projectId,
-      selection: {
-        ...selection,
-        limit: 1,
-        filter: [
-          {
-            column: "traceName",
-            type: "stringOptions",
-            operator: "any of",
-            value: ["agent-turn"],
-          },
-          {
-            column: "name",
-            type: "stringOptions",
-            operator: "any of",
-            value: ["fetch_context"],
-          },
-        ],
-      },
-      apply: false,
-    });
-    expect(result).toEqual({
-      matched: 2,
-      traceIds: ["trace-new"],
-      enqueued: 0,
-    });
-    expect(addJob).not.toHaveBeenCalled();
+    expect(ids).toEqual([{ id: "trace-new" }, { id: "trace-old" }]);
+    expect(Number(preview[0].matchedTraceCount)).toBe(2);
   });
 
-  it("enqueues each selected trace with its full in-project observation time bounds", async () => {
-    const result = await enqueueTopicTraceBackfill({
+  it("selects traces without a root through a child span's name", async () => {
+    const input = {
+      ...selection,
       projectId,
-      selection: {
-        ...selection,
-        filter: [
-          {
-            column: "name",
-            type: "stringOptions",
-            operator: "any of",
-            value: ["fetch_context"],
-          },
-        ],
-      },
-      apply: true,
-    });
-    expect(result.enqueued).toBe(2);
-    expect(addJob).toHaveBeenCalledTimes(2);
-    const [name, data, options] = addJob.mock.calls[0];
-    expect(name).toBe(QueueJobs.TraceBatch);
-    expect(data.payload.traces).toEqual([
-      expect.objectContaining({
-        projectId,
-        traceId: "trace-new",
-        minStart: Date.parse("2026-09-22T23:59:00.000Z"),
-        maxStart: Date.parse("2026-09-24T01:00:00.000Z"),
-      }),
+      limit: 1,
+      filter: [
+        {
+          column: "traceName",
+          type: "stringOptions" as const,
+          operator: "any of" as const,
+          value: ["agent-turn"],
+        },
+        {
+          column: "name",
+          type: "stringOptions" as const,
+          operator: "any of" as const,
+          value: ["fetch_context"],
+        },
+      ],
+    };
+    const [preview, ids] = await Promise.all([
+      selectTopicTraceRows(input, prisma, "preview"),
+      selectTopicTraceRows(input, prisma, "ids"),
     ]);
-    expect(options.jobId).toMatch(/^[a-f0-9]{64}$/);
+    expect(ids).toEqual([{ id: "trace-new" }]);
+    expect(Number(preview[0].matchedTraceCount)).toBe(2);
   });
 
   it("filters latest matching environments before counting and limiting", async () => {
@@ -248,10 +138,9 @@ describe("Topics trace selection and backfill", () => {
         ),
     );
     const input = { ...selection, projectId: mixedProject, limit: 1 };
-    const [preview, ids, backfill] = await Promise.all([
+    const [preview, ids] = await Promise.all([
       selectTopicTraceRows(input, prisma, "preview"),
       selectTopicTraceRows(input, prisma, "ids"),
-      selectTopicTraceRows(input, prisma, "backfill"),
     ]);
     expect(preview).toEqual([
       expect.objectContaining({
@@ -261,8 +150,6 @@ describe("Topics trace selection and backfill", () => {
     ]);
     expect(Number(preview[0].matchedTraceCount)).toBe(2);
     expect(ids).toEqual([{ id: "equal-timestamp" }]);
-    expect(backfill.map(({ id }) => id)).toEqual(["equal-timestamp"]);
-    expect(Number(backfill[0].matchedTraceCount)).toBe(2);
     for (const [traceId, environment] of [
       ["public-root", "langfuse-topics"],
       ["internal-root", "production"],
@@ -275,22 +162,30 @@ describe("Topics trace selection and backfill", () => {
     }
   });
 
-  it("keeps preview, ID-only triggers and backfill sampling aligned", async () => {
+  it("keeps preview and ID-only trigger sampling aligned", async () => {
     const input = {
       ...selection,
       projectId,
       sampling: "random" as const,
       limit: 1,
-      filter: backfillSelectionFilters({
-        traceNames: ["agent-turn"],
-        tags: ["billing"],
-        extra: [],
-      }),
+      filter: [
+        {
+          column: "traceName",
+          type: "stringOptions" as const,
+          operator: "any of" as const,
+          value: ["agent-turn"],
+        },
+        {
+          column: "tags",
+          type: "arrayOptions" as const,
+          operator: "any of" as const,
+          value: ["billing"],
+        },
+      ],
     };
-    const [preview, ids, backfill] = await Promise.all([
+    const [preview, ids] = await Promise.all([
       selectTopicTraceRows(input, prisma, "preview"),
       selectTopicTraceRows(input, prisma, "ids"),
-      selectTopicTraceRows(input, prisma, "backfill"),
     ]);
     expect(preview).toHaveLength(1);
     expect(preview[0]).toMatchObject({
@@ -299,6 +194,5 @@ describe("Topics trace selection and backfill", () => {
     });
     expect(Number(preview[0].matchedTraceCount)).toBe(2);
     expect(ids).toEqual([{ id: preview[0].id }]);
-    expect(backfill.map(({ id }) => id)).toEqual(ids.map(({ id }) => id));
   });
 });
