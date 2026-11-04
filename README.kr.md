@@ -94,11 +94,7 @@ Langfuse는 **에이전트 평가와 관측성**을 위한 **오픈 소스 AI �
 
 Langfuse 팀이 관리하는 배포 옵션으로, 넉넉한 무료 티어를 제공하며 신용카드가 필요 없습니다.
 
-<div align="center">
-    <a href="https://cloud.langfuse.com" target="_blank">
-        <img alt="Static Badge" src="https://img.shields.io/badge/»%20Sign%20up%20for%20Langfuse%20Cloud-8A2BE2?&color=black">
-    </a>
-</div>
+**[Langfuse Cloud 가입하기 →](https://langfuse.com/cloud)**
 
 ### Langfuse 셀프 호스팅
 
@@ -197,7 +193,7 @@ following best practices.
 
 #### 1️⃣ 새 프로젝트 생성
 
-1.  [Langfuse 계정을 생성](https://cloud.langfuse.com/auth/sign-up)하거나 [셀프 호스팅](https://langfuse.com/self-hosting)하세요
+1.  [Langfuse 계정을 생성](https://langfuse.com/cloud)하거나 [셀프 호스팅](https://langfuse.com/self-hosting)하세요
 2.  새 프로젝트를 생성하세요
 3.  프로젝트 설정에서 새 API 자격 증명을 생성하세요
 

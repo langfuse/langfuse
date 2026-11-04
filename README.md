@@ -96,11 +96,7 @@ Watch a quick demo of the project here:
 
 Managed deployment by the Langfuse team, generous free tier, no credit card required.
 
-<div align="center">
-    <a href="https://cloud.langfuse.com" target="_blank">
-        <img alt="Static Badge" src="https://img.shields.io/badge/»%20Sign%20up%20for%20Langfuse%20Cloud-8A2BE2?&color=black">
-    </a>
-</div>
+**[Sign up for Langfuse Cloud →](https://langfuse.com/cloud)**
 
 ### Self-Host Langfuse
 
@@ -199,7 +195,7 @@ You can also install the skill with the [skills CLI](https://www.npmjs.com/packa
 
 #### 1️⃣ Create new project
 
-1.  [Create Langfuse account](https://cloud.langfuse.com/auth/sign-up) or [self-host](https://langfuse.com/self-hosting)
+1.  [Create Langfuse account](https://langfuse.com/cloud) or [self-host](https://langfuse.com/self-hosting)
 2.  Create a new project
 3.  Create new API credentials in the project settings
 

@@ -94,11 +94,7 @@ Langfuseは、**エージェントの評価とオブザーバビリティ**の�
 
 Langfuseチームによるマネージドデプロイメント。充実した無料枠があり、クレジットカードは不要です。
 
-<div align="center">
-    <a href="https://cloud.langfuse.com" target="_blank">
-        <img alt="Static Badge" src="https://img.shields.io/badge/»%20Sign%20up%20for%20Langfuse%20Cloud-8A2BE2?&color=black">
-    </a>
-</div>
+**[Langfuse Cloudに登録する →](https://langfuse.com/cloud)**
 
 ### Langfuseのセルフホスティング
 
@@ -197,7 +193,7 @@ following best practices.
 
 #### 1️⃣ 新規プロジェクトの作成
 
-1.  [Langfuseアカウントを作成](https://cloud.langfuse.com/auth/sign-up)するか、[セルフホスト](https://langfuse.com/self-hosting)します
+1.  [Langfuseアカウントを作成](https://langfuse.com/cloud)するか、[セルフホスト](https://langfuse.com/self-hosting)します
 2.  新規プロジェクトを作成します
 3.  プロジェクト設定で新しいAPIクレデンシャルを作成します
 

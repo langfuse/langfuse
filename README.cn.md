@@ -94,11 +94,7 @@ Langfuse 是一个 **开源 AI 工程平台**，专注于 **AI 代理评估与�
 
 由 Langfuse 团队管理的部署，提供慷慨的免费额度，无需信用卡。
 
-<div align="center">
-    <a href="https://cloud.langfuse.com" target="_blank">
-        <img alt="Static Badge" src="https://img.shields.io/badge/»%20Sign%20up%20for%20Langfuse%20Cloud-8A2BE2?&color=black">
-    </a>
-</div>
+**[注册 Langfuse Cloud →](https://langfuse.com/cloud)**
 
 ### 自托管 Langfuse
 
@@ -197,7 +193,7 @@ following best practices.
 
 #### 1️⃣ 创建新项目
 
-1.  [创建 Langfuse 账户](https://cloud.langfuse.com/auth/sign-up) 或 [自托管](https://langfuse.com/self-hosting)
+1.  [创建 Langfuse 账户](https://langfuse.com/cloud) 或 [自托管](https://langfuse.com/self-hosting)
 2.  创建一个新项目
 3.  在项目设置中创建新的 API 凭证
 
