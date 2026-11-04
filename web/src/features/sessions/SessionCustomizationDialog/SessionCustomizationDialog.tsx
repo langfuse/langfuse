@@ -15,17 +15,25 @@ import {
 import { SessionFilterPreview } from "./components/SessionFilterPreview/SessionFilterPreview";
 import { useSessionFilterPreview } from "./useSessionFilterPreview";
 
+type SessionViewMode = "conversational" | "list";
+
 export function SessionCustomizationDialog({
   projectId,
   initialFilters,
   initialUnmatchedTraces,
+  initialViewMode,
   onApply,
   preview,
 }: {
   projectId: string;
   initialFilters: FilterState;
   initialUnmatchedTraces: "show" | "hide";
-  onApply: (filters: FilterState, unmatchedTraces: "show" | "hide") => void;
+  initialViewMode: SessionViewMode;
+  onApply: (
+    filters: FilterState,
+    unmatchedTraces: "show" | "hide",
+    viewMode: SessionViewMode,
+  ) => void;
   preview: Pick<
     ComponentProps<typeof SessionFilterPreview>,
     "pending" | "error"
@@ -36,6 +44,7 @@ export function SessionCustomizationDialog({
     defaultValues: {
       filters: initialFilters,
       unmatchedTraces: initialUnmatchedTraces,
+      viewMode: initialViewMode,
     },
   });
   const draft = useWatch({ control: form.control, name: "filters" });
@@ -77,7 +86,10 @@ export function SessionCustomizationDialog({
     filterInput.applyFilters([...filters, filter]);
   };
   const handleSubmit = (
-    values: { unmatchedTraces: Parameters<typeof onApply>[1] },
+    values: {
+      unmatchedTraces: Parameters<typeof onApply>[1];
+      viewMode: Parameters<typeof onApply>[2];
+    },
     confirm: (args: Parameters<typeof onApply>) => void,
   ) => {
     const filters = filterInput.readFilters();
@@ -90,37 +102,37 @@ export function SessionCustomizationDialog({
         trace.observations.some((observation) => observation.matches),
       )
     ) {
-      confirm([filters, values.unmatchedTraces]);
+      confirm([filters, values.unmatchedTraces, values.viewMode]);
       return;
     }
-    onApply(filters, values.unmatchedTraces);
+    onApply(filters, values.unmatchedTraces, values.viewMode);
   };
 
   return (
     <Dialog
       size="lg"
       title="Customize session view"
-      actions={[{ label: "Apply filters", type: "submit", form: formId }]}
+      actions={[{ label: "Apply changes", type: "submit", form: formId }]}
     >
       <ConfirmationDialogController<Parameters<typeof onApply>>
         title="Apply filters with no matching observations?"
         text="These filters exclude every observation in the preview. Applying them may make it appear that session data is missing."
         confirmLabel="Apply filters anyway"
         variant="default"
-        onConfirm={([filters, nextUnmatchedTraces]) =>
-          onApply(filters, nextUnmatchedTraces)
+        onConfirm={([filters, nextUnmatchedTraces, nextViewMode]) =>
+          onApply(filters, nextUnmatchedTraces, nextViewMode)
         }
       >
         {({ openDialog }) => (
           <form
             id={formId}
-            className="min-h-0 overflow-y-auto border-y text-sm"
+            className="flex min-h-0 flex-1 flex-col overflow-hidden border-y text-sm sm:h-[65vh] sm:flex-initial"
             onSubmit={form.handleSubmit((values) =>
               handleSubmit(values, openDialog),
             )}
           >
-            <div className="grid min-w-0 md:grid-cols-2">
-              <div className="flex flex-col gap-2 p-4">
+            <div className="grid min-h-0 min-w-0 flex-1 overflow-y-auto md:grid-cols-2 md:grid-rows-[minmax(0,1fr)] md:overflow-hidden">
+              <div className="flex flex-col gap-2 p-4 md:overflow-y-auto">
                 <Form.Field label="Observation filters">
                   {({ id }) => (
                     <SessionFilterInput
@@ -181,6 +193,34 @@ export function SessionCustomizationDialog({
                   matching observations are shown exactly as recorded. Your
                   filters determine which data appears in the session view.
                 </p>
+                <div className="mt-2 border-t pt-4">
+                  <Form.Field
+                    label="View"
+                    description="Conversational groups messages into a conversation and hides repeated messages. List shows observations chronologically with their recorded input and output."
+                  >
+                    {({ id }) => (
+                      <Controller
+                        control={form.control}
+                        name="viewMode"
+                        render={({ field }) => (
+                          <RadioCardGroup<SessionViewMode>
+                            id={id}
+                            aria-label="View"
+                            value={field.value}
+                            onValueChange={field.onChange}
+                            options={[
+                              {
+                                value: "conversational",
+                                label: "Conversational",
+                              },
+                              { value: "list", label: "List" },
+                            ]}
+                          />
+                        )}
+                      />
+                    )}
+                  </Form.Field>
+                </div>
                 <div className="mt-2 border-t pt-4">
                   <Form.Field
                     label="Traces without matching observations"
