@@ -384,6 +384,14 @@ export function UsersTable({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [users.isSuccess, users.data]);
 
+  const userDetailPath = (userId: string) =>
+    `/project/${projectId}/users/${encodeURIComponent(userId)}`;
+
+  const handleRowClick = (row: RowData) => {
+    if (!row.userId) return;
+    router.push(userDetailPath(row.userId));
+  };
+
   const columns: LangfuseColumnDef<RowData>[] = [
     createLinkTableColumn<RowData>({
       accessorKey: "userId",
@@ -401,7 +409,7 @@ export function UsersTable({
         return {
           type: "link",
           props: {
-            path: `/project/${projectId}/users/${encodeURIComponent(value)}`,
+            path: userDetailPath(value),
             value,
           },
         };
@@ -638,6 +646,7 @@ export function UsersTable({
               columnOrder={columnOrder}
               onColumnOrderChange={handleColumnOrderChange}
               cellPadding="comfortable"
+              onRowClick={handleRowClick}
             />
           </div>
         </StickySearchableTableFilterLayout>
