@@ -19,6 +19,8 @@
  */
 
 import { type ObservationReturnTypeWithMetadata } from "@/src/server/api/routers/traces";
+import { useRefreshTraceScores } from "@/src/features/traces/hooks/useRefreshTraceScores";
+import { api } from "@/src/utils/api";
 import { cn } from "@/src/utils/tailwind";
 import { useCallback, useMemo, useState } from "react";
 import { Switch } from "@/src/components/design-system/Switch/Switch";
@@ -52,7 +54,6 @@ import {
 // Contexts and hooks
 import { useTraceData } from "@/src/features/traces/contexts/TraceDataProvider";
 import { useParsedObservation } from "@/src/features/traces/hooks/useParsedObservation";
-import { api } from "@/src/utils/api";
 
 // Extracted components
 import { ObservationDetailViewHeader } from "@/src/features/traces/components/ObservationDetailView/components/ObservationDetailViewHeader/ObservationDetailViewHeader";
@@ -89,7 +90,6 @@ export function ConnectedObservationDetailView({
     selectedTab: globalSelectedTab,
     setSelectedTab: setGlobalSelectedTab,
   } = useSelection();
-  const utils = api.useUtils();
   const capture = usePostHogClientCapture();
   const analyticsDimensions = useTraceAnalyticsDimensions();
 
@@ -185,17 +185,11 @@ export function ConnectedObservationDetailView({
 
   const selectedTab = resolveDetailTab(globalSelectedTab, tabs);
 
-  const refreshTraceScores = useCallback(() => {
-    utils.traces.byIdWithObservationsAndScores.invalidate({
-      projectId,
-      traceId,
-    });
-    utils.events.scoresForTrace.invalidate({
-      projectId,
-      traceId,
-    });
-    utils.sessions.observationsForSessionFromEvents.invalidate({ projectId });
-  }, [projectId, traceId, utils]);
+  const refreshTraceScores = useRefreshTraceScores({
+    projectId,
+    traceId,
+    sessionId: observation.sessionId,
+  });
 
   const setSelectedTab = (tab: DetailTab) => {
     if (tab === "scores") {

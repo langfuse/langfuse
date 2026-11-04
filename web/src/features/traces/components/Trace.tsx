@@ -278,41 +278,32 @@ function TraceWithSelection({
         </div>
       )}
       <div className="min-h-0 flex-1">
-        {scopeToSession && !sessionData && sessionQuery.isError && (
-          <div className="p-4 text-sm">Could not load this session.</div>
-        )}
-        {scopeToSession && !sessionData && !sessionQuery.isError && (
-          <TraceLoading desktopLayout={desktopLayout} />
-        )}
-        {(!scopeToSession || sessionData) && (
-          <TraceDataProvider
-            trace={trace}
-            sessionTraces={sessionData?.traces}
+        {/* Keep review drafts mounted while session data loads or retries. */}
+        <TraceDataProvider
+          trace={trace}
+          sessionTraces={sessionData?.traces}
+          observations={observations}
+          serverScores={sessionData?.scores ?? scores}
+          corrections={sessionData?.corrections ?? corrections}
+          comments={commentsMap}
+          detachedObservationId={detachedObservation?.id ?? null}
+          detachedObservationIsMisplaced={detachedIsMisplaced}
+          truncatedAtObservations={scopedTruncation}
+          isPlaceholderData={isPlaceholderData}
+        >
+          <TraceGraphDataProvider
+            projectId={trace.projectId}
+            traceId={trace.id}
+            sessionId={sessionData ? (trace.sessionId ?? undefined) : undefined}
             observations={observations}
-            serverScores={sessionData?.scores ?? scores}
-            corrections={sessionData?.corrections ?? corrections}
-            comments={commentsMap}
-            detachedObservationId={detachedObservation?.id ?? null}
-            detachedObservationIsMisplaced={detachedIsMisplaced}
-            truncatedAtObservations={scopedTruncation}
-            isPlaceholderData={isPlaceholderData}
           >
-            <TraceGraphDataProvider
-              projectId={trace.projectId}
-              traceId={trace.id}
-              sessionId={
-                sessionData ? (trace.sessionId ?? undefined) : undefined
-              }
-              observations={observations}
-            >
-              <SearchProvider>
-                <JsonExpansionProvider>
-                  <TraceContent desktopLayout={desktopLayout} />
-                </JsonExpansionProvider>
-              </SearchProvider>
-            </TraceGraphDataProvider>
-          </TraceDataProvider>
-        )}
+            <SearchProvider>
+              <JsonExpansionProvider>
+                <TraceContent desktopLayout={desktopLayout} />
+              </JsonExpansionProvider>
+            </SearchProvider>
+          </TraceGraphDataProvider>
+        </TraceDataProvider>
       </div>
     </div>
   );
