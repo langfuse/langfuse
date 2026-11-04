@@ -4,7 +4,7 @@ import {
   type TopicsModels,
 } from "@langfuse/shared/topics/server";
 import {
-  DEFAULT_TOPIC_FACETS,
+  BUILT_IN_TOPIC_FACETS,
   topicProcessingConfigSchema,
   type TopicFacet,
   type TopicProcessingConfig,
@@ -46,7 +46,7 @@ const NO_USAGE: TopicModelUsage = {
 };
 
 const BUILT_IN_FACETS = new Set(
-  DEFAULT_TOPIC_FACETS.map((facet) => facet.name),
+  BUILT_IN_TOPIC_FACETS.map((facet) => facet.name),
 );
 
 // Rows from this transcript producer are interchangeable between trace-batch and manual processing.

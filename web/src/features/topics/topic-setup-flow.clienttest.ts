@@ -67,6 +67,11 @@ it("starts from recommended models and a 5 minute wait when the project has no t
     enabledFacetIds: null,
     traceIdleMs: null,
   });
+  expect(draft.questions.map((question) => question.name)).toEqual([
+    "Intent",
+    "Outcome",
+    "Issues",
+  ]);
   expect(draft.questions.every((question) => question.enabled)).toBe(true);
   expect(
     draft.questions.find((question) => question.name === "Intent")?.description,
@@ -108,8 +113,33 @@ it("keeps a stored 10 minute idle time and a stored model", () => {
     draft.questions.find((question) => question.name === "Intent")?.description,
   ).toBe("Custom intent description.");
   expect(
-    draft.questions.find((question) => question.name === "Sentiment")?.enabled,
+    draft.questions.find((question) => question.name === "Outcome")?.enabled,
   ).toBe(false);
+  expect(
+    draft.questions.some((question) => question.name === "Sentiment"),
+  ).toBe(false);
+});
+
+it("keeps the Sentiment question for a project that already has the facet", () => {
+  const draft = initialTopicSetupDraft({
+    stored: { summary: null, embedding: null, clustering: null },
+    connections,
+    facets: ["Intent", "Sentiment", "Outcome", "Issues"].map((name) => ({
+      id: name.toLowerCase(),
+      name,
+      isBuiltIn: true,
+    })),
+    enabledFacetIds: new Set(["intent", "sentiment"]),
+    traceIdleMs: null,
+  });
+  expect(
+    draft.questions.map(({ name, enabled }) => ({ name, enabled })),
+  ).toEqual([
+    { name: "Intent", enabled: true },
+    { name: "Sentiment", enabled: true },
+    { name: "Outcome", enabled: false },
+    { name: "Issues", enabled: false },
+  ]);
 });
 
 it("requires one question and all three models before the first step can save", () => {

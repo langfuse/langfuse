@@ -50,6 +50,38 @@ describe("topicsSetupPayload", () => {
     });
   });
 
+  it("accepts a Sentiment facet the project already has", () => {
+    const sentiment = {
+      id: "sentiment",
+      name: "Sentiment",
+      question: "How did the user feel?",
+      builtIn: true,
+      enabled: true,
+    };
+    expect(
+      topicsSetupPayload(
+        { ...draft, facets: [...draft.facets, sentiment] },
+        slots,
+      ).facets,
+    ).toContainEqual({ name: "Sentiment", enabled: true });
+  });
+
+  it("rejects an unknown built-in facet", () => {
+    const unknown = {
+      id: "tone",
+      name: "Tone",
+      question: "What tone did the user use?",
+      builtIn: true,
+      enabled: true,
+    };
+    expect(() =>
+      topicsSetupPayload(
+        { ...draft, facets: [...draft.facets, unknown] },
+        slots,
+      ),
+    ).toThrow(/each built-in facet once/);
+  });
+
   it("saves without models", () => {
     expect(
       topicsSetupPayload(draft, {

@@ -123,6 +123,20 @@ describe("Topics setup", () => {
     );
   });
 
+  it("skips an enabled Sentiment facet the project does not have", async () => {
+    await saveTopicsSetup(projectId, {
+      ...setup,
+      facets: [...setup.facets, { name: "Sentiment", enabled: true }],
+    });
+
+    expect(mocks.saveRule).toHaveBeenCalledWith(
+      "tx",
+      expect.objectContaining({
+        facetIds: facets.flatMap((facet) => (facet.enabled ? [facet.id] : [])),
+      }),
+    );
+  });
+
   it("rejects a setup with every facet turned off", async () => {
     await expect(
       saveTopicsSetup(projectId, {

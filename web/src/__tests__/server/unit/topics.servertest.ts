@@ -1516,7 +1516,7 @@ describe("Topics setup", () => {
     clustering: { provider: "key", model: "cluster" },
     facets: DEFAULT_TOPIC_FACETS.map((facet) => ({
       name: facet.name,
-      enabled: facet.name !== "Sentiment",
+      enabled: facet.name !== "Outcome",
     })),
     filter: [
       {
