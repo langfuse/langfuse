@@ -60,13 +60,13 @@ Use their technical rules, not their implementation or handoff workflows.
 
 - A test earns its place only when it is fast, uses few or no mocks, and fails without the change it accompanies.
 - Flag tests that would pass without the fix: change-set checks that only assert a removed thing is gone, tautologies, and assertions on mocks only.
-- Flag brittle, mock-heavy UI click-through tests and new Storybook stories added only to prove a fix.
+- Flag brittle, mock-heavy UI click-through tests and Storybook stories that only render the fixed state, with no interaction or assertion, to prove a fix. Do not flag a focused Storybook test of the changed behavior.
 - Test components only through Storybook. Use `.clienttest.ts` for frontend unit tests, not in-source tests. Keep backend and worker conventions.
 - Flag duplicates of existing coverage, and multiple tests where one meaningful test is enough. Suggest which one to keep. One representative input per distinct contract or path, plus each boundary.
-- Flag tests that hardcode limits, timeouts, or plan values copied from code. Ask to import the constant instead.
+- Flag tests that hardcode limits, timeouts, or plan values copied from code when the test is not checking that value. Ask to import the constant instead. When the test pins a limit or boundary, keep an explicit expected value.
 - Flag skipped or commented-out tests being added.
 - Flag unrelated side fixes bundled into the PR.
-- Do not ask for additional tests unless a specific behavior change is untested. Then ask for one focused test.
+- Do not ask for additional tests unless a specific behavior change is untested. Then ask for one focused test of that behavior.
 - Remove regression tests when types, schemas, or deleted paths prevent the bug. Check that runtime inputs cannot bypass those protections.
 - No dependencies on other tests, execution order, or another test's seeding.
 
