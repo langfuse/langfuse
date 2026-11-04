@@ -6,8 +6,8 @@ export function GatewayApiKeysEmptyState() {
   return (
     <GatewaySetupEmptyState
       icon={KeyRound}
-      title="No gateway API keys yet"
-      description="Create a key to send requests through the AI Gateway from Claude Code, Codex, or your own code."
+      title="No gateway keys yet"
+      description="Create a gateway key to send requests through the AI Gateway from Claude Code, Codex, or your own code."
     />
   );
 }

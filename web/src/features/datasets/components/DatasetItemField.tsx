@@ -1,7 +1,7 @@
 import { useCallback, useMemo, useRef } from "react";
 import { type ReactCodeMirrorRef } from "@uiw/react-codemirror";
 
-import { CodeMirrorEditor } from "@/src/components/editor";
+import { CodeMirrorEditor } from "@/src/components/editor/CodeMirrorEditor";
 import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
 import { MarkdownJsonViewHeader } from "@/src/components/ui/MarkdownJsonView";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
@@ -165,11 +165,7 @@ export const DatasetItemField = ({
         />
       )}
       {!isFormField && showPrettyView && pretty.scalar === null && (
-        <PrettyJsonView
-          json={pretty.json}
-          currentView="pretty"
-          className="w-full"
-        />
+        <PrettyJsonView json={pretty.json} currentView="pretty" />
       )}
       {!isFormField && showPrettyView && pretty.scalar !== null && (
         <div className="ph-no-capture rounded-sm border py-1 pr-2 pl-4 font-mono text-xs/5 wrap-break-word whitespace-pre-wrap">

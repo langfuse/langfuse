@@ -8,9 +8,11 @@ import {
   Download,
   FileCode2,
   GitBranch,
+  TriangleAlert,
   Plus,
   Terminal,
   Trash,
+  Zap,
 } from "@langfuse/icons";
 import {
   NumberParam,
@@ -19,6 +21,7 @@ import {
   withDefault,
 } from "use-query-params";
 import Page from "@/src/components/layouts/Page";
+import { useReadPath } from "@/src/features/events/hooks/useReadPath";
 import { Button } from "@/src/components/ui/button";
 import { Button as DesignSystemButton } from "@/src/components/design-system/Button/Button";
 import { DropdownMenu } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
@@ -41,12 +44,10 @@ import {
 } from "@/src/components/table/data-table-controls";
 import { FilterToggleButton } from "@/src/components/table/FilterToggleButton";
 import { ResizableFilterLayout } from "@/src/components/table/resizable-filter-layout";
-import { useSidebarFilterState } from "@/src/features/filters";
-import {
-  TableSearchBar,
-  toObservedOptions,
-  useFullTextSearch,
-} from "@/src/features/search-bar";
+import { useSidebarFilterState } from "@/src/features/filters/hooks/useSidebarFilterState";
+import { TableSearchBar } from "@/src/features/search-bar/components/TableSearchBar";
+import { toObservedOptions } from "@/src/features/search-bar/lib/observed-options";
+import { useFullTextSearch } from "@/src/features/search-bar/hooks/useFullTextSearch";
 import useProjectIdFromURL from "@/src/hooks/useProjectIdFromURL";
 import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { Badge } from "@/src/components/design-system/Badge/Badge";
@@ -68,6 +69,7 @@ import {
 type SkillRow = RouterOutput["skills"]["all"]["data"][number];
 
 export function SkillsPage() {
+  const { isV3Legacy } = useReadPath();
   const projectId = useProjectIdFromURL() ?? "";
   const canCreate = useHasProjectAccess({ projectId, scope: "skills:CUD" });
   const { query: filterOptions } = useSkillInstallOptions(projectId, "");
@@ -93,11 +95,24 @@ export function SkillsPage() {
         <Page
           headerProps={{
             title: "Skills",
-            titleBadges: <Badge text="Beta" color="blue" size="sm" />,
+            titleBadges: (
+              <>
+                <Badge text="Beta" color="blue" size="sm" />
+                {isV3Legacy && (
+                  <Badge
+                    text="Skill tracing requires v4"
+                    title="You can still create and use skills in the legacy view."
+                    color="yellow"
+                    size="md"
+                    leadingIcon={TriangleAlert}
+                  />
+                )}
+              </>
+            ),
             help: {
               description:
                 "Create, version, and distribute reusable agent skills from one place.",
-              href: "https://langfuse.com/docs",
+              href: "https://langfuse.com/docs/skill-management/get-started",
             },
             actionButtonsRight: (
               <SkillsHeaderActions
@@ -145,6 +160,10 @@ function SkillsHeaderActions({
   closeMenu,
 }: SkillsHeaderActionsProps) {
   const capture = usePostHogClientCapture();
+  const canReadAutomations = useHasProjectAccess({
+    projectId,
+    scope: "automations:read",
+  });
 
   function handleInstall() {
     closeMenu?.();
@@ -153,6 +172,14 @@ function SkillsHeaderActions({
 
   return (
     <div className="flex max-w-full flex-wrap items-center gap-2">
+      {canReadAutomations && (
+        <DesignSystemButton
+          href={`/project/${projectId}/automations`}
+          text="Automations"
+          icon={Zap}
+          variant="secondary"
+        />
+      )}
       <DropdownMenu
         ariaLabel="Use skill"
         items={[

@@ -73,6 +73,13 @@ describe("ClickHouse query outcome metric", () => {
       expect(clickHouseQueryOutcomeRouteLabel(`${atLimit}c`)).toBe("other");
     });
 
+    it.each(["v4-sdk-usage-summary", "background-migration.fireQuery"])(
+      "keeps the hyphenated route %s",
+      (route) => {
+        expect(clickHouseQueryOutcomeRouteLabel(route)).toBe(route);
+      },
+    );
+
     it.each([undefined, "", "   ", "no-method-separator!", "1.leading.digit"])(
       "falls back to the catch-all label for %s",
       (route) => {

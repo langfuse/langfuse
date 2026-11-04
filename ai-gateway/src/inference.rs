@@ -14,7 +14,8 @@ use crate::{
     observability::ErrorOrigin,
     providers::{ProviderError, ProviderTransport, RequestBody, RequestPermit, Route},
     resolution::{
-        ApiFormat, ControlPlaneClient, ControlPlaneConfig, ResolutionError, ResolvedRequestContext,
+        ApiFormat, ControlPlaneClient, ControlPlaneConfig, RateLimitKind, ResolutionError,
+        ResolvedRequestContext,
     },
 };
 
@@ -27,7 +28,7 @@ pub struct InferenceService {
 }
 
 /// `error.origin` and `error.reason` for a failed resolution or catalog fetch.
-pub(crate) fn resolution_origin(error: ResolutionError) -> (ErrorOrigin, &'static str) {
+pub(crate) fn resolution_origin(error: &ResolutionError) -> (ErrorOrigin, &'static str) {
     use ResolutionError as R;
     match error {
         R::Configuration => (ErrorOrigin::Gateway, "configuration"),
@@ -37,11 +38,20 @@ pub(crate) fn resolution_origin(error: ResolutionError) -> (ErrorOrigin, &'stati
         R::Forbidden => (ErrorOrigin::Client, "forbidden"),
         R::ModelNotAllowed => (ErrorOrigin::Client, "model_not_allowed"),
         R::NoRoute => (ErrorOrigin::Client, "no_route"),
+        R::RateLimited(limit) => (ErrorOrigin::Client, rate_limited_reason(limit.kind())),
         R::Unavailable => (ErrorOrigin::ControlPlane, "unavailable"),
         R::Timeout => (ErrorOrigin::ControlPlane, "timeout"),
         R::Transport => (ErrorOrigin::ControlPlane, "transport"),
         R::InvalidResponse => (ErrorOrigin::ControlPlane, "invalid_response"),
         R::ResponseTooLarge => (ErrorOrigin::ControlPlane, "response_too_large"),
+    }
+}
+
+/// Distinct from `provider_rate_limited`, which is the provider's own 429.
+pub(crate) fn rate_limited_reason(kind: RateLimitKind) -> &'static str {
+    match kind {
+        RateLimitKind::Requests => "rate_limited_requests",
+        RateLimitKind::Bytes => "rate_limited_bytes",
     }
 }
 
@@ -205,18 +215,21 @@ impl InferenceService {
     }
 
     /// Authenticate, then start the execution. The API format comes from the public route,
-    /// so Web selects a compatible connection. Memory is already reserved by the caller.
+    /// so Web selects a compatible connection, and `request_bytes` counts toward the
+    /// organization's byte rate limit. Memory is already reserved by the caller.
     pub(crate) async fn resolve_and_admit(
         &self,
         gateway_key: &str,
         api_format: ApiFormat,
         model: &str,
+        request_bytes: usize,
         correlation: &mut RequestCorrelation,
     ) -> Result<(RequestPermit, ResolvedRequestContext), ResolutionError> {
         let span = tracing::info_span!(
             "resolution",
             otel.kind = "internal",
             gateway.outcome = tracing::field::Empty,
+            gateway.resolution.retry = tracing::field::Empty,
             otel.status_code = tracing::field::Empty,
             error.type = tracing::field::Empty
         );
@@ -224,21 +237,30 @@ impl InferenceService {
             let resolved = {
                 let _active = crate::observability::Active::new("resolution");
                 self.control_plane
-                    .resolve(gateway_key, api_format, model, correlation.id())
+                    .resolve(
+                        gateway_key,
+                        api_format,
+                        model,
+                        request_bytes,
+                        correlation.id(),
+                    )
                     .await
             };
             let span = tracing::Span::current();
             span.record(
                 "gateway.outcome",
-                if resolved.is_ok() {
-                    "admitted"
-                } else {
-                    "resolution_failed"
+                match &resolved {
+                    Ok(_) => "admitted",
+                    Err(ResolutionError::RateLimited(_)) => "rate_limited",
+                    Err(_) => "resolution_failed",
                 },
             );
-            // Caller-caused failures (bad key, forbidden model) stay unset so
-            // Datadog error rates track gateway and control-plane faults only.
-            if let Err(error) = resolved
+            // Caller-caused failures (bad key, forbidden model, rate limits) stay unset
+            // so Datadog error rates track gateway and control-plane faults only.
+            if let Err(ResolutionError::RateLimited(limit)) = &resolved {
+                correlation.record_rate_limit(limit);
+            }
+            if let Err(error) = &resolved
                 && let (origin, reason) = resolution_origin(error)
                 && origin.is_ours()
             {

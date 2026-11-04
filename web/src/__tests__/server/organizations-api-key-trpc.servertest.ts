@@ -468,6 +468,8 @@ describe("organization API keys trpc", () => {
           keyMetadata: {},
           ingestionProjectId: null,
           ingestionMode: null,
+          plan: "cloud:hobby",
+          rateLimitOverrides: [],
           connections: [],
         },
       });
@@ -635,6 +637,8 @@ describe("organization API keys trpc", () => {
           keyMetadata: {},
           ingestionProjectId: null,
           ingestionMode: null,
+          plan: "cloud:hobby",
+          rateLimitOverrides: [],
           connections: [],
         },
       });

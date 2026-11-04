@@ -25,8 +25,8 @@ import {
   evaluatorAlertsListUrl,
   evaluatorAlertUrl,
 } from "@/src/features/evals/v2/fns/evaluators/evaluatorAlertUrl";
-import { MonitorSeverityBadge } from "@/src/features/monitors";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { MonitorSeverityBadge } from "@/src/features/monitors/components/MonitorSeverityBadge";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { renderEvaluatorAlertLastFired } from "@/src/features/evals/v2/fns/evaluators/renderEvaluatorAlertLastFired";
 import { renderEvaluatorAlertTriggerCondition } from "@/src/features/evals/v2/fns/evaluators/renderEvaluatorAlertTriggerCondition";
 import type { RouterOutputs } from "@/src/utils/api";

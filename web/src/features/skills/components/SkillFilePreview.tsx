@@ -1,7 +1,7 @@
 import { isMap, parseDocument, stringify } from "yaml";
 import { Codeblock } from "@/src/components/design-system/Codeblock/Codeblock";
 import { normalizeCodeblockLanguage } from "@/src/utils/normalizeCodeblockLanguage";
-import { MarkdownView } from "@/src/components/ui/MarkdownViewer";
+import { MarkdownView } from "@/src/components/ui/MarkdownView";
 
 export function SkillFilePreview({
   path,

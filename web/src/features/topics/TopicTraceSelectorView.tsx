@@ -14,11 +14,12 @@ import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import { SelectInput } from "@/src/components/design-system/SelectInput/SelectInput";
 import { Table } from "@/src/components/design-system/table/Table";
 import { PaginationBar } from "@/src/components/design-system/PaginationBar/PaginationBar";
-import { TableSearchBar } from "@/src/features/search-bar";
+import { TableSearchBar } from "@/src/features/search-bar/components/TableSearchBar";
 import { RULE_FIELD_REGISTRY } from "@/src/features/evals/v2/constants/ruleSearchRegistry";
 import { FilterModeToggle } from "@/src/features/evals/v2/components/Evaluators/Testing/components/SampleObservationSelectorBase/components/FilterModeToggle";
 import { ObservationFilterBuilder } from "@/src/features/evals/v2/components/Evaluators/Testing/components/SampleObservationSelectorBase/components/ObservationFilterBuilder/ObservationFilterBuilder";
 import { TimeRangePicker } from "@/src/components/date-picker";
+import { TOPICS_MAX_SELECTION_RANGE_MS } from "@langfuse/shared/topics";
 import { TIME_RANGES, type TimeRange } from "@/src/utils/date-range-utils";
 import { TOPICS_BACKFILL_TRACE_LIMIT } from "./backfill-limit";
 import { isValidTopicTimeRange } from "./time-range";
@@ -38,7 +39,6 @@ const traceTimeRanges = {
   "1": "last1Day",
   "7": "last7Days",
   "30": "last30Days",
-  "90": "last90Days",
 } as const;
 
 export function TopicTraceSelectorView({
@@ -74,7 +74,10 @@ export function TopicTraceSelectorView({
     Number.isSafeInteger(Number(limit)) &&
     Number(limit) >= 1 &&
     Number(limit) <= TOPICS_BACKFILL_TRACE_LIMIT;
-  const validRange = isValidTopicTimeRange(range);
+  const validRange = isValidTopicTimeRange(
+    range,
+    TOPICS_MAX_SELECTION_RANGE_MS,
+  );
   const ready = preview.status === "ready" ? preview.data : undefined;
   const excludedIds = new Set(excluded);
   const selectedCount = ready
@@ -134,13 +137,8 @@ export function TopicTraceSelectorView({
               <TimeRangePicker
                 timeRange={timeRange}
                 onTimeRangeChange={handleTimeRangeChange}
-                timeRangePresets={[
-                  "last1Day",
-                  "last7Days",
-                  "last30Days",
-                  "last90Days",
-                ]}
-                maxRangeMs={90 * 86_400_000}
+                timeRangePresets={["last1Day", "last7Days", "last30Days"]}
+                maxRangeMs={TOPICS_MAX_SELECTION_RANGE_MS}
                 className="my-0"
               />
             </div>

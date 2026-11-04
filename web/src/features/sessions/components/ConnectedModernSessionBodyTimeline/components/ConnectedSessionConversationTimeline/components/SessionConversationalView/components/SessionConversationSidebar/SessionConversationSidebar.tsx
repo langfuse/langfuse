@@ -8,9 +8,9 @@ import {
   type UIEvent,
 } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { ChevronDown, Search } from "@langfuse/icons";
+import { SessionSidebar } from "@/src/features/sessions/components/SessionSidebar/SessionSidebar";
+import { SessionSidebarTraceCard } from "@/src/features/sessions/components/SessionSidebarTraceCard/SessionSidebarTraceCard";
 import { type Observation } from "@langfuse/shared";
-import { Input } from "@/src/components/ui/input";
 import { SessionToolTooltip } from "@/src/features/sessions/components/ConnectedModernSessionBodyTimeline/components/ConnectedSessionConversationTimeline/components/SessionConversationalView/components/SessionToolTooltip/SessionToolTooltip";
 import { SessionToolStatusCountBadge } from "@/src/features/sessions/components/ConnectedModernSessionBodyTimeline/components/ConnectedSessionConversationTimeline/components/SessionConversationalView/components/SessionToolStatusCountBadge/SessionToolStatusCountBadge";
 import { type EventSessionTrace } from "@/src/features/sessions/sessionDetailPageTypes";
@@ -73,8 +73,15 @@ export function SessionConversationSidebar(
         isLoadingTranscripts: boolean;
         transcriptLoadError: boolean;
       }
-  ) & { searchVisibility?: "hidden" },
+  ) & {
+    searchVisibility?: "hidden";
+    customization?: {
+      activeFilterCount: number;
+      onCustomizeView: () => void;
+    };
+  },
 ) {
+  const { customization } = props;
   const traces = props.state === "loaded" ? props.traces : EMPTY_TRACES;
   const activeTraceId =
     props.state === "loaded" ? props.activeTraceId : undefined;
@@ -230,45 +237,20 @@ export function SessionConversationSidebar(
 
   if (props.state === "loading") {
     return (
-      <div
-        role="complementary"
-        aria-label="Session messages and tools"
-        aria-busy="true"
-        className="bg-background session-review-stack:border-r-0 session-review-stack:border-b relative flex h-full min-h-0 flex-col border-r"
-      >
-        <div
-          className={cn(
-            "shrink-0 p-4",
-            props.searchVisibility === "hidden" && "hidden",
-          )}
-        >
-          <div className="relative min-w-0">
-            <Search
-              size="base"
-              color="tertiary"
-              __rawClassName="absolute top-1/2 left-2 -translate-y-1/2"
-            />
-            <Input
-              disabled
-              value=""
-              aria-label="Search session"
-              placeholder="Search session"
-              className="h-7 rounded-sm bg-transparent pl-7 font-mono text-xs"
-            />
-          </div>
-        </div>
-        <div className="flex min-h-0 flex-1 flex-col gap-2 px-4 pt-0.5 pb-4">
-          {[0, 1, 2].map((index) => (
-            <div
-              key={index}
-              className="flex flex-col gap-2 rounded-sm border border-transparent p-2"
-            >
-              <div className="bg-muted h-3 w-3/4 animate-pulse rounded-sm" />
-              <div className="bg-muted h-2.5 w-1/2 animate-pulse rounded-sm" />
-            </div>
-          ))}
-        </div>
-      </div>
+      <SessionSidebar
+        label="Session messages and tools"
+        isLoading
+        search={
+          props.searchVisibility !== "hidden"
+            ? {
+                search: "",
+                disabled: true,
+                onSearchChange: () => {},
+                customization,
+              }
+            : undefined
+        }
+      />
     );
   }
 
@@ -281,41 +263,22 @@ export function SessionConversationSidebar(
   })();
 
   return (
-    <div
-      role="complementary"
-      aria-label="Session messages and tools"
-      className="bg-background session-review-stack:border-r-0 session-review-stack:border-b relative flex h-full min-h-0 flex-col border-r"
+    <SessionSidebar
+      label="Session messages and tools"
+      isListScrolled={isListScrolled}
+      search={
+        props.searchVisibility !== "hidden"
+          ? {
+              search: props.search,
+              onSearchChange: (search) => {
+                virtualizer.scrollToOffset(0);
+                props.onSearchChange(search);
+              },
+              customization,
+            }
+          : undefined
+      }
     >
-      <div
-        className={cn(
-          "relative z-10 shrink-0 p-4",
-          props.searchVisibility === "hidden" && "hidden",
-        )}
-      >
-        <div className="relative min-w-0">
-          <Search
-            size="base"
-            color="tertiary"
-            __rawClassName="absolute top-1/2 left-2 -translate-y-1/2"
-          />
-          <Input
-            value={props.search}
-            onChange={(event) => {
-              virtualizer.scrollToOffset(0);
-              props.onSearchChange(event.target.value);
-            }}
-            aria-label="Search session"
-            placeholder="Search session"
-            className="h-7 rounded-sm bg-transparent pl-7 font-mono text-xs"
-          />
-        </div>
-        {isListScrolled ? (
-          <div
-            aria-hidden="true"
-            className="from-background pointer-events-none absolute inset-x-0 top-full h-6 bg-linear-to-b to-transparent"
-          />
-        ) : null}
-      </div>
       <div
         ref={listRef}
         role="region"
@@ -404,71 +367,25 @@ export function SessionConversationSidebar(
                       </div>
                     )}
                   <div className="px-4 pb-2">
-                    <div
-                      className={cn(
-                        "group border-border hover:bg-muted/60 rounded-md border p-2 transition-colors duration-150",
-                        !isCollapsed &&
-                          !!transcriptRows?.length &&
-                          "overflow-hidden pb-0",
-                        isActive &&
-                          "border-primary-accent/50 bg-background dark:bg-muted",
-                      )}
+                    <SessionSidebarTraceCard
+                      title={trace.name ?? "Trace"}
+                      isActive={isActive}
+                      number={sidebarTrace.displayNumber ?? turnNumber}
+                      onSelect={() => props.onSelect(targetIndex)}
+                      collapse={{
+                        isCollapsed,
+                        label: isCollapsed ? "Expand turn" : "Collapse turn",
+                        onToggle: () => props.onToggleTraceExpanded(itemId),
+                      }}
+                      highlightQuery={searchQuery}
                     >
-                      <div className="flex w-full items-center gap-2">
-                        <button
-                          type="button"
-                          onClick={() => props.onSelect(targetIndex)}
-                          className="flex min-w-0 flex-1 items-center gap-2 text-left"
-                          aria-current={isActive ? "true" : undefined}
-                        >
-                          <span className="border-border bg-tertiary text-foreground flex h-4 min-w-4 shrink-0 items-center justify-center rounded-sm border px-0.5 font-mono text-[10px]">
-                            {sidebarTrace.displayNumber ?? turnNumber}
-                          </span>
-                          <span
-                            className="min-w-0 flex-1 truncate text-[13px] font-bold"
-                            title={trace.name ?? "Trace"}
-                          >
-                            <HighlightedText
-                              text={trace.name ?? "Trace"}
-                              query={searchQuery}
-                            >
-                              {(parts) =>
-                                parts.map(({ text, isMatch }, index) =>
-                                  isMatch ? (
-                                    <mark
-                                      key={index}
-                                      className="bg-find-match-background text-foreground"
-                                    >
-                                      {text}
-                                    </mark>
-                                  ) : (
-                                    text
-                                  ),
-                                )
-                              }
-                            </HighlightedText>
-                          </span>
-                        </button>
-                        <button
-                          type="button"
-                          aria-label={
-                            isCollapsed ? "Expand turn" : "Collapse turn"
-                          }
-                          onClick={() => props.onToggleTraceExpanded(itemId)}
-                          className="text-muted-foreground -my-2 -mr-2.5 -ml-2 flex h-8 w-8 shrink-0 items-center justify-center"
-                        >
-                          <ChevronDown
-                            size="sm"
-                            __rawClassName={cn(
-                              "transition-transform duration-150",
-                              isCollapsed ? "-rotate-90" : "rotate-0",
-                            )}
-                          />
-                        </button>
-                      </div>
                       {!isCollapsed && (
                         <div
-                          className={transcriptRows?.length ? "mt-2" : "-mx-1"}
+                          className={
+                            transcriptRows?.length
+                              ? "mt-2 -mb-2 overflow-hidden"
+                              : "-mx-1"
+                          }
                         >
                           {transcriptRows === undefined && (
                             <div className="flex flex-col gap-1 px-1 py-2">
@@ -772,7 +689,7 @@ export function SessionConversationSidebar(
                           </div>
                         </div>
                       )}
-                    </div>
+                    </SessionSidebarTraceCard>
                   </div>
                 </div>
               );
@@ -780,6 +697,6 @@ export function SessionConversationSidebar(
           </div>
         )}
       </div>
-    </div>
+    </SessionSidebar>
   );
 }

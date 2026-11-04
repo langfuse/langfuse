@@ -32,6 +32,8 @@ Use their technical rules, not their implementation or handoff workflows.
 - Importing raw primitives (`@radix-ui/*`, cmdk, etc.) in feature code is an exception, only when the design system has no suitable option.
 - Compose triggers and overlay content separately. Overlay owners manage content and open/close state, but must allow callers to supply or replace the trigger. Trigger components must not own the overlay content. Connect triggers through trigger props or controller callbacks rather than hard-coding a button inside the content component. Use `DialogController` for dialogs and follow the render-prop trigger APIs of `Tooltip` and `HoverCard` in `web/src/components/design-system/`. Support triggers nested inside child components by passing trigger props or callbacks—not overlay content.
 - Export one component per file. Match the filename to the component. If a component has a named props type, name it `<ComponentName>Props`. Inline props types are allowed; do not require extracting a named type.
+- Name callback props that run before or after an internal action with explicit timing: `onBeforeExpand`, `onAfterCopy`, not ambiguous `onExpand` or `onCopy`. Reserve unqualified action callbacks for delegating the action to the caller, not notifying them around component-owned behavior.
+- A component must be either controlled or uncontrolled; never add conditional support for both modes. When both APIs are needed, implement an uncontrolled wrapper that owns state and passes it to the controlled component; do not combine controlled props and internal fallback state in one component.
 - Presentational components should generally own their markup and styling. Discourage arbitrary content-slot props typed as `React.ReactNode` or `React.ReactElement`; prefer structured, typed content props that let the component control presentation. Use ordinary `children` for natural composition, not as a workaround for component-owned content. Encourage headless components when their responsibility is reusable behavior, not presentation. For these non-presentational components, function-as-`children` and render-prop APIs (including `renderX` props) are valid ways to leave rendering to callers; do not require them to own presentation.
 - Use a store when components share state.
 - Allow short inline functions in JSX, including action handlers; prefer them when contextual type inference avoids restating complex parameter or return types. Discourage large inline functions that obscure the JSX structure; extract those into named functions.
@@ -42,6 +44,11 @@ Use their technical rules, not their implementation or handoff workflows.
 - Before flagging an effect as avoidable, show a viable alternative preserving the required timing, updates, and cleanup. Do not demand a lifecycle rewrite without establishing that it works for the integration.
 - Use the router for navigation. Preserve existing URL state and local/session storage settings.
 
+### API errors
+
+- All API routes, including tRPC procedures, must return HTTP status codes matching the failure. Invalid client input must return `400`, not `500`; use other appropriate `4xx` statuses for authentication, authorization, missing resources, and conflicts. Reserve `5xx` for unexpected server failures and infrastructure failures.
+- Check error propagation through validation, services, and route handlers. Preserve known client-error classifications instead of wrapping them as generic internal errors. Cover relevant error paths with assertions on the resulting HTTP status, not just the error message. Do not classify every failure on a route as a client error.
+
 ### Control flow and files
 
 - No nested ternaries, including JSX. Use guards or separate components. Replace conditionals deeper than two levels with early returns.
@@ -51,11 +58,16 @@ Use their technical rules, not their implementation or handoff workflows.
 
 ### Tests
 
-- Not every detail needs a test. Focus tests on critical user behavior and known regressions. Add preemptive regression coverage only for important functionality; do not require tests for incidental details or hypothetical low-impact failures.
-- One representative input per code path, plus each boundary. Remove redundant cases; retain distinct contracts and paths.
-- Tests must fail when the behavior breaks or its implementation is deleted. No mocks that just return the expected answer or always-true assertions.
-- Remove regression tests when types, schemas, or deleted paths prevent the bug. Check that runtime inputs cannot bypass those protections.
+- A test earns its place only when it is fast, uses few or no mocks, and fails without the change it accompanies.
+- Flag tests that would pass without the fix: change-set checks that only assert a removed thing is gone, tautologies, and assertions on mocks only.
+- Flag brittle, mock-heavy UI click-through tests and Storybook stories that only render the fixed state, with no interaction or assertion, to prove a fix. Do not flag a focused Storybook test of the changed behavior.
 - Test components only through Storybook. Use `.clienttest.ts` for frontend unit tests, not in-source tests. Keep backend and worker conventions.
+- Flag duplicates of existing coverage, and multiple tests where one meaningful test is enough. Suggest which one to keep. One representative input per distinct contract or path, plus each boundary.
+- Flag tests that hardcode limits, timeouts, or plan values copied from code when the test is not checking that value. Ask to import the constant instead. When the test pins a limit or boundary, keep an explicit expected value.
+- Flag skipped or commented-out tests being added.
+- Flag unrelated side fixes bundled into the PR.
+- Do not ask for additional tests unless a specific behavior change is untested. Then ask for one focused test of that behavior.
+- Remove regression tests when types, schemas, or deleted paths prevent the bug. Check that runtime inputs cannot bypass those protections.
 - No dependencies on other tests, execution order, or another test's seeding.
 
 ### Security and performance

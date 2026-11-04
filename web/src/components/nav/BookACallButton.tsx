@@ -1,7 +1,7 @@
 import { CalendarDays } from "@langfuse/icons";
 import { SidebarMenuButton } from "@/src/components/ui/sidebar";
 import Link from "next/link";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 
 export const BookACallButton = () => {
   const capture = usePostHogClientCapture();

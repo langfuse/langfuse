@@ -116,25 +116,25 @@ export function ConnectedGatewayModelsTable({
 
   return (
     <div className="flex h-full min-h-0 flex-col gap-4">
-      <Header
-        title="Gateway models"
-        actionButtons={
+      <div>
+        <Header title="Gateway models" />
+        <p className="text-muted-foreground text-sm">
+          These models are enabled and available to use through the AI Gateway.{" "}
           <Button
-            variant="secondary"
-            text="Docs"
+            variant="text"
+            text="How model management works"
             href={GATEWAY_MODELS_DOCS_URL}
           />
-        }
-      />
-      <p className="text-muted-foreground text-sm">
-        These models are enabled and available to use through the AI Gateway.
-      </p>
+        </p>
+      </div>
 
       {failedProviderCount > 0 ? (
         <Alert variant="warning">
-          <Alert.Title>Some providers could not be reached</Alert.Title>
+          <Alert.Title>
+            Some provider credentials could not be synced
+          </Alert.Title>
           <Alert.Description>
-            Showing models from successful providers. {failedProviderCount} of{" "}
+            Showing models from the other credentials. {failedProviderCount} of{" "}
             {providerCount} credentials failed to sync.
           </Alert.Description>
         </Alert>
@@ -217,6 +217,6 @@ function getEmptyMessage({
 }) {
   if (hasActiveFilters)
     return "No models match the current search and filters.";
-  if (hasSynced) return "No models were returned by the configured providers.";
-  return "Models will appear here after provider discovery completes.";
+  if (hasSynced) return "No models were returned by your provider credentials.";
+  return "Models will appear here after model discovery completes.";
 }

@@ -15,17 +15,19 @@ import {
   GetUnstableDashboardWidgetsQuery,
   DashboardWidgetIdQuery,
   PatchUnstableDashboardWidgetBody,
+} from "@/src/features/public-api/types/unstable-dashboard-widgets";
+import {
   DashboardIdQuery,
   GetUnstableDashboardsQuery,
   PatchUnstableDashboardBody,
   PostUnstableDashboardBody,
-} from "@/src/features/public-api/server";
+} from "@/src/features/public-api/types/unstable-dashboards";
 import {
   deletePublicDashboardWidget,
   getPublicDashboardWidget,
   listPublicDashboardWidgets,
   updatePublicDashboardWidget,
-} from "@/src/features/widgets/server";
+} from "@/src/features/widgets/server/public-dashboard-widget-service";
 import {
   addPublicDashboardPlacement,
   createPublicDashboard,
@@ -35,7 +37,7 @@ import {
   listPublicDashboards,
   updatePublicDashboard,
   updatePublicDashboardPlacement,
-} from "@/src/features/dashboard/server";
+} from "@/src/features/dashboard/server/public-dashboard-service";
 
 const auditScope = (context: { orgId: string; apiKeyId: string }) => ({
   orgId: context.orgId,
