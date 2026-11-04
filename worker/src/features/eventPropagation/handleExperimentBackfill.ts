@@ -11,7 +11,6 @@ import {
 } from "@langfuse/shared/src/server";
 import { env } from "../../env";
 import { ClickhouseWriter, TableName } from "../../services/ClickhouseWriter";
-import { clickhouseComputesEventBytes } from "../../services/ClickhouseWriter/eventByteAccounting";
 import { chunk } from "lodash";
 import { updateLastRunStartedAt } from "./handleEventPropagationJob";
 
@@ -670,11 +669,7 @@ function writeEnrichedSpans(spans: EnrichedSpan[]): void {
 
   const clickhouseWriter = ClickhouseWriter.getInstance();
   for (const record of convertEnrichedSpansToEventRecords(spans)) {
-    const { event_bytes: _eventBytes, ...persistedRecord } = record;
-    clickhouseWriter.addToQueue(
-      TableName.EventsFull,
-      clickhouseComputesEventBytes() ? persistedRecord : record,
-    );
+    clickhouseWriter.addToQueue(TableName.EventsFull, record);
   }
 
   logger.info(

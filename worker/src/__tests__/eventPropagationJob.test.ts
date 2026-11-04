@@ -5,26 +5,21 @@ import {
   describe,
   expect,
   it,
-  vi,
   type TestContext,
 } from "vitest";
 import waitForExpect from "wait-for-expect";
 import {
   clickhouseClient,
   createObservation,
-  createDatasetRunItem,
-  createDatasetRunItemsCh,
   createOrgProjectAndApiKey,
   createTrace,
   createTracesCh,
   queryClickhouse,
   redis,
   toClickhouseDateTime,
-  type ClickhouseClientType,
 } from "@langfuse/shared/src/server";
 import { handleEventPropagationJob } from "../features/eventPropagation/handleEventPropagationJob";
-import { runExperimentBackfill } from "../features/eventPropagation/handleExperimentBackfill";
-import { ClickhouseWriter, TableName } from "../services/ClickhouseWriter";
+import { TableName } from "../services/ClickhouseWriter";
 import { initializeEventByteAccounting } from "../services/ClickhouseWriter/eventByteAccounting";
 import { skipUnlessClickhouseTablesExist } from "./helpers/clickhouseTables";
 
@@ -47,23 +42,9 @@ function formatClickHouseDateTime(date: Date): string {
   return date.toISOString().slice(0, 19).replace("T", " ");
 }
 
-const initializeEventByteAccountingForTest = async (useDefault: boolean) => {
-  await initializeEventByteAccounting({
-    query: vi.fn().mockResolvedValue({
-      json: vi.fn().mockResolvedValue([
-        {
-          name: "event_bytes",
-          default_type: "DEFAULT",
-          default_expression: useDefault ? "byteSize(input)" : "0",
-        },
-      ]),
-    }),
-  } as unknown as ClickhouseClientType);
-};
-
-describe.each([true, false])("propagation DEFAULT=%s", (useDefault) => {
+describe("handleEventPropagationJob", () => {
   beforeEach(async () => {
-    await initializeEventByteAccountingForTest(useDefault);
+    await initializeEventByteAccounting();
     if (!redis) throw new Error("Redis not initialized");
 
     previousLastProcessedPartition = await redis.get(
@@ -84,69 +65,6 @@ describe.each([true, false])("propagation DEFAULT=%s", (useDefault) => {
       );
     }
   });
-
-  it("computes event size for live experiment propagation", async (ctx) => {
-    await skipUnlessEventPropagationTablesExist(ctx);
-    const projectId = randomUUID();
-    const traceId = randomUUID();
-    const cursorKey = "langfuse:event-propagation:experiment-backfill:last-run";
-    const lockKey = "langfuse:experiment-backfill:lock";
-    const createdAt = Date.now() - 120_000;
-    const get = redis!.get.bind(redis!);
-    const set = redis!.set.bind(redis!);
-    const getSpy = vi
-      .spyOn(redis!, "get")
-      .mockImplementation((...args) =>
-        args[0] === cursorKey
-          ? Promise.resolve(new Date(createdAt - 600_000).toISOString())
-          : get(...args),
-      );
-    const setSpy = vi.spyOn(redis!, "set").mockImplementation((...args) => {
-      if (args[0] === cursorKey) {
-        return Promise.resolve(args.some((arg) => arg === "NX") ? null : "OK");
-      }
-      return args[0] === lockKey ? Promise.resolve("OK") : set(...args);
-    });
-    try {
-      await createTracesCh([
-        createTrace({
-          project_id: projectId,
-          id: traceId,
-          timestamp: createdAt,
-          input: "experiment input 🔥",
-          created_at: createdAt,
-        }),
-      ]);
-      await createDatasetRunItemsCh([
-        createDatasetRunItem({
-          project_id: projectId,
-          trace_id: traceId,
-          created_at: createdAt,
-        }),
-      ]);
-      await runExperimentBackfill();
-      await ClickhouseWriter.shutdownAll();
-      const rows = await queryClickhouse<{
-        bytes: string;
-        experiment_id: string;
-      }>({
-        query: `SELECT toString(event_bytes) AS bytes, experiment_id FROM events_full
-          WHERE project_id = {projectId: String} AND trace_id = {traceId: String}`,
-        params: { projectId, traceId },
-      });
-      expect(rows).toHaveLength(1);
-      expect(rows[0].experiment_id).not.toBe("");
-      if (useDefault) {
-        expect(Number(rows[0].bytes)).toBeGreaterThan(0);
-      } else {
-        expect(rows[0].bytes).toBe("0");
-      }
-    } finally {
-      getSpy.mockRestore();
-      setSpy.mockRestore();
-      await ClickhouseWriter.shutdownAll();
-    }
-  }, 15_000);
 
   it("propagates observation staging rows into events_full", async (ctx) => {
     await skipUnlessEventPropagationTablesExist(ctx);

@@ -4,7 +4,6 @@ import { upsertLangfuseDashboards } from "./scripts/upsertLangfuseDashboards";
 import { hello, initTelemetry } from "@langfuse/native";
 import {
   initializeClickhouseCompatibility,
-  clickhouseClient,
   logger,
   recordIncrement,
 } from "@langfuse/shared/src/server";
@@ -16,7 +15,7 @@ export const initializeWorker = async (): Promise<void> => {
 
   await initializeClickhouseCompatibility();
   if (v4WritesToEventsTable(env)) {
-    await initializeEventByteAccounting(clickhouseClient());
+    await initializeEventByteAccounting();
   }
 
   await Promise.all([upsertDefaultModelPrices(), upsertLangfuseDashboards()]);

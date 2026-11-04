@@ -16,7 +16,6 @@ import { env as sharedEnv, type SharedEnv } from "@langfuse/shared/src/env";
 import { MediaAssociationOrigin } from "@langfuse/shared";
 import {
   createOrgProjectAndApiKey,
-  clickhouseClient,
   IngestionQueue,
   QueueJobs,
   TraceUpsertQueue,
@@ -60,7 +59,7 @@ const FIRST_SPAN_ID = "2222222222222222";
 const SECOND_SPAN_ID = "3333333333333333";
 
 beforeAll(async () => {
-  await initializeEventByteAccounting(clickhouseClient());
+  await initializeEventByteAccounting();
 });
 
 async function getTraceUpsertJobsForProject(projectId: string) {

@@ -1,17 +1,14 @@
-import { logger, type ClickhouseClientType } from "@langfuse/shared/src/server";
+import { clickhouseClient, logger } from "@langfuse/shared/src/server";
 
 let computesEventBytes = false;
 
 export const clickhouseComputesEventBytes = (): boolean => computesEventBytes;
 
-export async function initializeEventByteAccounting(
-  client: ClickhouseClientType,
-): Promise<void> {
+export async function initializeEventByteAccounting(): Promise<void> {
   computesEventBytes = false;
   try {
-    const result = await client.query({
-      query: "DESCRIBE TABLE {table: Identifier}",
-      query_params: { table: "events_full" },
+    const result = await clickhouseClient().query({
+      query: "DESCRIBE TABLE events_full",
       format: "JSONEachRow",
     });
     const columns = await result.json<{
@@ -23,11 +20,6 @@ export async function initializeEventByteAccounting(
     computesEventBytes =
       column?.default_type === "DEFAULT" &&
       column.default_expression.startsWith("byteSize(");
-    if (!computesEventBytes) {
-      logger.warn(
-        "ClickHouse event-size DEFAULT is unavailable; using legacy estimates for TypeScript writers",
-      );
-    }
   } catch (error) {
     logger.warn(
       "Failed to detect ClickHouse event-size DEFAULT; using legacy estimates for TypeScript writers",
