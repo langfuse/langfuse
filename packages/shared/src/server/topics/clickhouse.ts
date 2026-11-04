@@ -33,24 +33,23 @@ import {
 const sourceKeySql =
   "project_id, facet_id, facet_version, trace_id, if(trace_id = '', session_id, '')";
 
-const unitTimeFilterSql =
+export const unitTimeFilterSql =
   "unit_start_time >= {from:DateTime64(3)} AND unit_start_time < {to:DateTime64(3)}";
 
 const summaryVersionKeySql =
   "facet_id, facet_version, trace_id, if(trace_id = '', session_id, ''), unit_start_time, processed_at";
-const summarySourceKeySql =
+export const summarySourceKeySql =
   "facet_id, trace_id, if(trace_id = '', session_id, '')";
 
 // Payloads are time-bounded; source-index metadata must include versions that moved
 // outside that window. State, model and dimension filters apply after this check.
 // Candidate keys scope the metadata scan; a scalar facet_version predicate there
 // prevents ClickHouse from selecting the latest_source_versions projection.
-function latestSummaryFilterSql(
+export function latestSummaryFilterSql(
   scopeSql: string,
   latestKeySql = sourceKeySql,
-  versionKeySql = summaryVersionKeySql,
 ) {
-  return `(${versionKeySql}) IN (
+  return `(${summaryVersionKeySql}) IN (
     SELECT ${summaryVersionKeySql} FROM topic_facet_summaries
     WHERE project_id = {projectId:String}
       AND (${summarySourceKeySql}) IN (
@@ -63,7 +62,7 @@ function latestSummaryFilterSql(
   )`;
 }
 
-function timeRangeParams(timeRange: TopicTimeRange) {
+export function timeRangeParams(timeRange: TopicTimeRange) {
   const { from, to } = topicTimeRangeSchema.parse(timeRange);
   return {
     from: convertDateToClickhouseDateTime(from),
@@ -1091,26 +1090,20 @@ export function currentTopicTraceIdsCondition(
   };
 }
 
-// Same rule as readLatestTopicAssignments + currentTopicResults: the newest assignment
-// per trace and facet counts only while it still points at the trace's latest summary.
+// A trace's current topic: its newest assignment from the facet's serving map.
 function currentTraceAssignmentsSql(scopeSql: string) {
-  return `SELECT trace_id, facet_id, topic_id, topic_version_id, clustering_run_id FROM (
-      SELECT * FROM topic_assignments
-      WHERE project_id = {projectId:String} AND ${unitTimeFilterSql} AND ${scopeSql}
-        AND (clustering_run_id = '' OR clustering_run_id IN {publishedRunIds:Array(String)})
-      ORDER BY facet_version DESC, assigned_at DESC, clustering_run_id DESC, origin DESC
-      LIMIT 1 BY project_id, facet_id, trace_id
-    ) WHERE ${latestSummaryFilterSql(
-      scopeSql,
-      summarySourceKeySql,
-      "facet_id, facet_version, trace_id, if(trace_id = '', session_id, ''), unit_start_time, summary_processed_at",
-    )}`;
+  return `SELECT trace_id, facet_id, topic_id, topic_version_id, clustering_run_id
+    FROM topic_assignments
+    WHERE project_id = {projectId:String} AND ${unitTimeFilterSql} AND ${scopeSql}
+      AND clustering_run_id IN {publishedRunIds:Array(String)}
+    ORDER BY assigned_at DESC, origin DESC
+    LIMIT 1 BY facet_id, trace_id`;
 }
 
-/** Source time span of one trace's summaries, served by the latest_source_versions projection; null when never summarized. */
+/** Source time span of the traces' summaries, served by the latest_source_versions projection; null when none was summarized. */
 export async function getTopicTraceUnitTimeRange(
   projectId: string,
-  traceId: string,
+  traceIds: string[],
   timeRange: TopicTimeRange,
 ): Promise<TopicTimeRange | null> {
   const [row] = await queryClickhouse<{
@@ -1122,8 +1115,8 @@ export async function getTopicTraceUnitTimeRange(
       toUnixTimestamp64Milli(min(unit_start_time)) AS fromMs,
       toUnixTimestamp64Milli(max(unit_start_time)) AS toMs
       FROM topic_facet_summaries
-      WHERE project_id = {projectId:String} AND ${unitTimeFilterSql} AND trace_id = {traceId:String}`,
-    params: { projectId, ...timeRangeParams(timeRange), traceId },
+      WHERE project_id = {projectId:String} AND ${unitTimeFilterSql} AND trace_id IN {traceIds:Array(String)}`,
+    params: { projectId, ...timeRangeParams(timeRange), traceIds },
     tags: { route: "topics-trace-unit-time", projectId },
   });
   if (!row || Number(row.found) === 0) return null;

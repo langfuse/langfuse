@@ -49,12 +49,13 @@ it("bounds the assignment lookup to the Topics maximum range when the table wind
     ],
   });
   const { topicFilterConditions } = await import("./trace-filter.js");
-  const { TOPICS_MAX_TIME_RANGE_MS } = await import("../../topics/index.js");
+  const { TOPICS_MAX_SELECTION_RANGE_MS } =
+    await import("../../topics/index.js");
   const { convertDateToClickhouseDateTime } =
     await import("../clickhouse/client.js");
   const to = new Date("2026-06-01T00:00:00.000Z");
   const expectedFrom = convertDateToClickhouseDateTime(
-    new Date(to.getTime() + 1 - TOPICS_MAX_TIME_RANGE_MS),
+    new Date(to.getTime() + 1 - TOPICS_MAX_SELECTION_RANGE_MS),
   );
   const upper = {
     type: "datetime" as const,

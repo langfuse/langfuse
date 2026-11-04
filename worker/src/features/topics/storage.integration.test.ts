@@ -682,7 +682,7 @@ describe("Topics definition persistence", () => {
     expect(
       await Promise.all(
         [summary.traceId!, "other-trace"].map((traceId) =>
-          getTopicTraceUnitTimeRange(projectId, traceId, oldRange),
+          getTopicTraceUnitTimeRange(projectId, [traceId], oldRange),
         ),
       ),
     ).toEqual([
@@ -905,26 +905,19 @@ describe("Topics definition persistence", () => {
     ).toEqual([]);
   });
 
-  it("resolves current topics for the column and the tracing filter, skipping superseded, stale and unpublished assignments", async () => {
-    const [current, resummarized, reassigned, unpublished] = [
-      randomUUID(),
+  it("resolves current topics for the column and the tracing filter from the serving map only", async () => {
+    const [current, reassigned, retired] = [
       randomUUID(),
       randomUUID(),
       randomUUID(),
     ];
-    const at = (traceId: string, processedAt = summary.processedAt) => ({
-      ...summary,
-      projectId: otherProjectId,
-      traceId,
-      processedAt,
-    });
-    await writeTopicSummaries([
-      at(current),
-      at(resummarized),
-      at(resummarized, "2026-09-02T00:00:00.000Z"),
-      at(reassigned),
-      at(unpublished),
-    ]);
+    await writeTopicSummaries(
+      [current, reassigned, retired].map((traceId) => ({
+        ...summary,
+        projectId: otherProjectId,
+        traceId,
+      })),
+    );
     const assign = (
       traceId: string,
       topicId: string,
@@ -939,7 +932,7 @@ describe("Topics definition persistence", () => {
       traceName: "trace",
       unitStartTime: summary.unitStartTime,
       summaryProcessedAt: summary.processedAt,
-      runId: null,
+      runId: "serving",
       topicId,
       topicVersionId: `${topicId}-v1`,
       distance: null,
@@ -951,10 +944,10 @@ describe("Topics definition persistence", () => {
     });
     await writeTopicAssignments([
       assign(current, "match"),
-      assign(resummarized, "match"),
       assign(reassigned, "match"),
       assign(reassigned, "other", { assignedAt: "2026-09-03T00:00:00.000Z" }),
-      assign(unpublished, "match", { runId: "unpublished" }),
+      // An older map's or an analysis's assignment never serves.
+      assign(retired, "match", { runId: "retired" }),
     ]);
     const timeRange = {
       from: new Date("2026-08-31T00:00:00.000Z"),
@@ -967,11 +960,12 @@ describe("Topics definition persistence", () => {
 
     // Column: one read across facets for a page of traces.
     const topics = await readCurrentTraceTopics(otherProjectId, {
-      traces: [current, resummarized, reassigned, unpublished].map(
-        (traceId) => ({ traceId, timestamp: rowStart }),
-      ),
+      traces: [current, reassigned, retired].map((traceId) => ({
+        traceId,
+        timestamp: rowStart,
+      })),
       facetIds: [summary.facetId],
-      publishedRunIds: [],
+      publishedRunIds: ["serving"],
     });
     expect(
       topics.map(({ traceId, topicId }) => [traceId, topicId]).sort(),
@@ -987,7 +981,7 @@ describe("Topics definition persistence", () => {
       projectId: otherProjectId,
       facetId: summary.facetId,
       topicIds: ["match"],
-      publishedRunIds: [],
+      publishedRunIds: ["serving"],
       timeRange,
       negated: false,
     });

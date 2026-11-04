@@ -1,6 +1,5 @@
 import {
   getPublishedTopicMaps,
-  getTopicRuns,
   listTopicFacets,
   readCurrentTraceTopics,
 } from "@langfuse/shared/topics/server";
@@ -22,7 +21,7 @@ export async function topicFilterOptions(projectId: string) {
   ) as Record<string, string[]>;
 }
 
-/** Current topics for a page of traces: one ClickHouse read across facets, named by the published maps. */
+/** Current topics for a page of traces: one ClickHouse read across facets, named by each facet's serving map. */
 export async function tracesTopics(
   projectId: string,
   traces: { traceId: string; timestamp: Date }[],
@@ -37,23 +36,10 @@ export async function tracesTopics(
     facetIds: facets.map((facet) => facet.id),
     publishedRunIds: runIds,
   });
-  // Names come from each facet's serving map; topics assigned by an older published run
-  // (split or merged since) fall back to that run's definitions, like the Topics page.
-  const servingTopics = maps.flatMap((map) => map.topics);
-  const missingRunIds = rows.flatMap((row) =>
-    row.runId &&
-    !servingTopics.some((topic) => topic.topicVersionId === row.topicVersionId)
-      ? [row.runId]
-      : [],
-  );
-  const olderTopics = (
-    await getTopicRuns(projectId, [...new Set(missingRunIds)])
-  ).flatMap((run) => run.topics);
   const topicNames = new Map(
-    [...servingTopics, ...olderTopics].map((topic) => [
-      topic.topicVersionId,
-      topic.name,
-    ]),
+    maps
+      .flatMap((map) => map.topics)
+      .map((topic) => [topic.topicVersionId, topic.name]),
   );
   const result: Record<string, { facet: string; topic: string }[]> = {};
   for (const facet of facets)
