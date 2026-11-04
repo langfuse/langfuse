@@ -1,6 +1,7 @@
 import { EvaluatorBlockReason } from "@prisma/client";
 
 import { getLLMErrorInfo, type LLMErrorInfo } from "../llm/errors";
+import { findOAuth2TokenError } from "../llm/oauth2/errors";
 
 const BLOCK_REASON_PATTERNS = [
   {
@@ -60,6 +61,27 @@ export type EvaluatorLlmErrorClassification = (
 export function classifyEvaluatorLlmError(
   error: unknown,
 ): EvaluatorLlmErrorClassification | null {
+  // Checked before getLLMErrorInfo: the AI SDK can wrap an OAuth2TokenError
+  // (e.g. a failed refresh after a 401) in an APICallError/RetryError, and
+  // that wrapper's own status code or retryability must not override the
+  // token error's kind.
+  const oauth2Error = findOAuth2TokenError(error);
+  if (oauth2Error) {
+    const blockReason =
+      oauth2Error.kind === "credential" || oauth2Error.kind === "config"
+        ? EvaluatorBlockReason.LLM_CONNECTION_AUTH_INVALID
+        : null;
+
+    return {
+      kind: "evaluator-policy",
+      message: oauth2Error.message,
+      statusCode: oauth2Error.status,
+      isRetryable: false,
+      error,
+      blockReason,
+    };
+  }
+
   const info = getLLMErrorInfo(error);
   if (!info) {
     const matchedError = findBlockReasonInCauseChain(error);
