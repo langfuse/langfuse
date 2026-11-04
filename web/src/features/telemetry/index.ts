@@ -215,7 +215,7 @@ async function posthogTelemetry({
       },
     });
 
-    // Count AI gateway keys
+    // All existing AI gateway keys, including expired ones, not only those created in the timeframe
     const totalGatewayKeys = await prisma.gatewayApiKeyAssociation.count();
 
     // Count traces, observations and AI gateway requests
