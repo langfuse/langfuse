@@ -2227,6 +2227,11 @@ export default function ObservationsEventsTable({
                         searchType,
                       }}
                       tableName={BatchExportTableName.Events}
+                      disabledReason={
+                        hasTopicFilter
+                          ? TOPIC_FILTERS_IN_BATCH_JOBS_MESSAGE
+                          : undefined
+                      }
                       key="batchExport"
                     />
                   ) : null,
