@@ -23,6 +23,7 @@ beforeEach(() => {
 afterEach(() => {
   vi.unstubAllEnvs();
   vi.resetModules();
+  vi.clearAllMocks();
 });
 
 it("rejects topic filters outside the project allowlist before reading anything", async () => {
@@ -73,4 +74,33 @@ it("bounds the assignment lookup to the Topics maximum range when the table wind
     { ...upper, operator: ">=" as const, value: new Date("2025-01-01") },
   ]);
   expect(long?.params.topicFilter0_from).toBe(expectedFrom);
+});
+
+it("matches nothing without querying when the table's date filters cannot overlap", async () => {
+  const { topicFilterConditions } = await import("./trace-filter.js");
+  const bounds = [
+    {
+      type: "datetime" as const,
+      column: "startTime",
+      operator: ">=" as const,
+      value: new Date("2026-06-01"),
+    },
+    {
+      type: "datetime" as const,
+      column: "startTime",
+      operator: "<" as const,
+      value: new Date("2026-05-01"),
+    },
+  ];
+
+  await expect(
+    topicFilterConditions("project-b", [topicFilter, ...bounds]),
+  ).resolves.toEqual([{ query: "0 = 1", params: {} }]);
+  await expect(
+    topicFilterConditions("project-b", [
+      { ...topicFilter, operator: "none of" as const },
+      ...bounds,
+    ]),
+  ).resolves.toEqual([]);
+  expect(postgres.listTopicFacets).not.toHaveBeenCalled();
 });

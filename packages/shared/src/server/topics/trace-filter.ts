@@ -46,11 +46,19 @@ export async function topicFilterConditions(
   if (!isTopicsProjectEnabled(projectId))
     throw new InvalidRequestError("Topic filters are not available.");
 
+  const timeRange = topicTimeRange(filter);
+  // Non-overlapping date filters match no trace, so skip the lookup.
+  if (timeRange.from >= timeRange.to)
+    return topicFilters.flatMap((topicFilter) =>
+      topicFilter.operator === "none of"
+        ? []
+        : [{ query: "0 = 1", params: {} }],
+    );
+
   const [facets, { runIds, maps }] = await Promise.all([
     listTopicFacets(projectId),
     getPublishedTopicMaps(projectId),
   ]);
-  const timeRange = topicTimeRange(filter);
   return topicFilters.flatMap((topicFilter, index) => {
     const facet = facets.find((item) => item.name === topicFilter.key);
     const topicIds = (

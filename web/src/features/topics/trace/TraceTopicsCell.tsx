@@ -19,7 +19,7 @@ export function TraceTopicsCell({
     (item) => item.facet === facet,
   )?.topic;
   return (
-    <span className="block truncate" title={topic}>
+    <span className="ph-no-capture block truncate" title={topic}>
       {topic}
     </span>
   );
