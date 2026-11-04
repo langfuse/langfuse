@@ -1,13 +1,16 @@
 /* eslint-disable @typescript-eslint/no-use-before-define */
-import { auditLog } from "@/src/features/audit-logs/server";
+import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { env } from "@/src/env.mjs";
 import { parseBatchExportFileKeyFromUrl } from "@/src/features/batch-exports/server/batchExportFileKey";
 import { getBatchExportStorageServiceClient } from "@/src/features/batch-exports/server/getBatchExportStorageClient";
 import {
   hasEntitlement,
   throwIfNoEntitlement,
-} from "@/src/features/entitlements/server";
-import { hasProjectAccess, throwIfNoProjectAccess } from "@/src/features/rbac";
+} from "@/src/features/entitlements/server/hasEntitlement";
+import {
+  hasProjectAccess,
+  throwIfNoProjectAccess,
+} from "@/src/features/rbac/utils/checkProjectAccess";
 import {
   type AuthedSession,
   createTRPCRouter,
@@ -30,7 +33,7 @@ import {
 } from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
-import { assertLegacyTracingIoSearchCanCreateBatchJob } from "@/src/features/traces/server";
+import { assertLegacyTracingIoSearchCanCreateBatchJob } from "@/src/features/traces/server/legacyIoSearch";
 
 // Fallback for legacy rows that predate the worker stamping expiresAt;
 // matches the worker's BATCH_EXPORT_DOWNLOAD_LINK_EXPIRATION_HOURS default.

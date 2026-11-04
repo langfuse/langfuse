@@ -2,8 +2,8 @@ import { useSession } from "next-auth/react";
 
 import { env } from "@/src/env.mjs";
 import { canReadGatewayModels } from "@/src/features/ai-gateway/fns/canReadGatewayModels";
-import { useIsFeatureEnabled } from "@/src/features/feature-flags";
-import { useHasOrganizationAccess } from "@/src/features/rbac";
+import { default as useIsFeatureEnabled } from "@/src/features/feature-flags/hooks/useIsFeatureEnabled";
+import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import { api } from "@/src/utils/api";
 
 /**
@@ -25,7 +25,6 @@ export function useGatewaySettingsAccess(organizationId: string | undefined) {
     scope: "gateway:invoke",
   });
   const isAiGatewayEnabled = useIsFeatureEnabled("aiGateway", {
-    enableForAdmins: false,
     organizationId,
   });
   const session = useSession();
@@ -63,6 +62,7 @@ export function useGatewaySettingsAccess(organizationId: string | undefined) {
     showModels,
     showApiKeys,
     isIngestionConfigured: setupStatus.data?.isConfigured,
+    isRecording: setupStatus.data?.isRecording,
     isSetupStatusPending: setupStatus.isPending,
   };
 }

@@ -5,7 +5,7 @@ import {
   planEventFacetQueries,
   splitFacetFilter,
 } from "@/src/features/events/lib/facet-query-plan";
-import { sortOptionValues } from "@/src/features/filters";
+import { sortOptionValues } from "@/src/features/filters/lib/option-sort";
 import { tablePlaceholderOptions } from "@/src/components/table/utils/tablePlaceholder";
 
 type EventFilterOptionColumnsInput =

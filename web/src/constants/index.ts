@@ -1,1 +1,0 @@
-export { VERSION } from "./VERSION";

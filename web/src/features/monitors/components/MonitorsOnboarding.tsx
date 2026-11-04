@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { Github, Plus, Slack, Webhook } from "@langfuse/icons";
 import { SiPagerduty } from "@langfuse/icons/si";
 import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
@@ -6,10 +5,8 @@ import { DropdownIndicator } from "@/src/components/design-system/DropdownIndica
 import { ActionButton } from "@/src/components/ActionButton";
 import { Button } from "@/src/components/ui/button";
 import { SplashScreen } from "@/src/components/ui/SplashScreen";
-import {
-  automationCreateHref,
-  useAvailableActionTypes,
-} from "@/src/features/automations";
+import { NewMonitorAutomationDialogController } from "@/src/features/monitors/automations/NewMonitorAutomationDialogController";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { type ActionTypes } from "@langfuse/shared";
 
 /** OnboardingChannel describes one notification-channel CTA shown in step 1 of the splash. */
@@ -51,13 +48,6 @@ export function MonitorsOnboarding({
   projectId: string;
   hasCUDAccess: boolean;
 }) {
-  const actionTypes = useAvailableActionTypes(
-    channels.map((channel) => channel.actionType),
-  );
-  const visibleChannels = channels.filter((channel) =>
-    actionTypes.includes(channel.actionType),
-  );
-
   return (
     <div className="mx-auto w-full max-w-xl pt-12">
       <SplashScreen
@@ -66,33 +56,10 @@ export function MonitorsOnboarding({
         steps={[
           {
             title: "Choose where alerts should go",
-            description: channelsDescription(actionTypes),
+            description:
+              "Send alerts to Slack, Webhooks, GitHub Actions, or PagerDuty so your team and your workflows can respond automatically.",
             content: (
-              <div className="flex flex-col gap-2">
-                {visibleChannels.map((channel) => (
-                  <Button
-                    key={channel.actionType}
-                    asChild
-                    variant="outline"
-                    size="lg"
-                    className="w-full justify-between gap-2 px-6 py-5"
-                  >
-                    <Link
-                      href={automationCreateHref(
-                        projectId,
-                        channel.actionType,
-                        `/project/${projectId}/alerts`,
-                      )}
-                    >
-                      <span className="flex items-center gap-2">
-                        {channel.icon}
-                        {channel.label}
-                      </span>
-                      <DropdownIndicator direction="right" />
-                    </Link>
-                  </Button>
-                ))}
-              </div>
+              <ChannelButtons projectId={projectId} channels={channels} />
             ),
           },
           {
@@ -117,10 +84,41 @@ export function MonitorsOnboarding({
   );
 }
 
-/** channelsDescription names the channels the user can connect. */
-function channelsDescription(actionTypes: ActionTypes[]): string {
-  if (actionTypes.includes("PAGERDUTY")) {
-    return "Send alerts to Slack, Webhooks, GitHub Actions, or PagerDuty so your team and your workflows can respond automatically.";
-  }
-  return "Send alerts to Slack, Webhooks, or GitHub Actions so your team and your workflows can respond automatically.";
+/** ChannelButtons opens the new automation dialog locked to the chosen channel. */
+function ChannelButtons({
+  projectId,
+  channels,
+}: {
+  projectId: string;
+  channels: OnboardingChannel[];
+}) {
+  const hasAutomationAccess = useHasProjectAccess({
+    projectId,
+    scope: "automations:CUD",
+  });
+
+  return (
+    <NewMonitorAutomationDialogController projectId={projectId}>
+      {({ openDialog }) => (
+        <div className="flex flex-col gap-2">
+          {channels.map((channel) => (
+            <Button
+              key={channel.actionType}
+              variant="outline"
+              size="lg"
+              className="w-full justify-between gap-2 px-6 py-5"
+              disabled={!hasAutomationAccess}
+              onClick={() => openDialog({ actionType: channel.actionType })}
+            >
+              <span className="flex items-center gap-2">
+                {channel.icon}
+                {channel.label}
+              </span>
+              <DropdownIndicator direction="right" />
+            </Button>
+          ))}
+        </div>
+      )}
+    </NewMonitorAutomationDialogController>
+  );
 }

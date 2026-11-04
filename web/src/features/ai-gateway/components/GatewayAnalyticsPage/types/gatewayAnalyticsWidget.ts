@@ -1,4 +1,4 @@
-import type { WidgetExportSource } from "@/src/features/widgets";
+import type { WidgetExportSource } from "@/src/features/widgets/utils/import-export-utils";
 
 /** Which name lookup turns the first dimension's IDs into readable labels. */
 export type GatewayAnalyticsLabelSource = "apiKeys" | "users";

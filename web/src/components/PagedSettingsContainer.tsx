@@ -52,9 +52,7 @@ export const PagedSettingsContainer = ({
   sectionBadges = {},
 }: SettingsProps) => {
   const router = useRouter();
-  const availablePages = pages.filter((page) =>
-    typeof page.show === "function" ? page.show() : (page.show ?? true),
-  );
+  const availablePages = pages.filter(isSettingsPageShown);
 
   const contentPages = availablePages.filter((page) => "content" in page);
   const enabledContentPages = contentPages.filter(
@@ -172,7 +170,7 @@ export const PagedSettingsContainer = ({
                     key={pageKey(page)}
                     page={page}
                     isActive={page === currentPage}
-                    onSelect={onChange}
+                    contentHref={settingsPath(router.asPath, page.slug)}
                   />
                 ),
               )}
@@ -192,42 +190,40 @@ export const PagedSettingsContainer = ({
   );
 };
 
+const navEntryClassName =
+  "hover:bg-muted hover:text-foreground focus-visible:ring-ring flex h-8 items-center gap-2 rounded-sm px-2 focus-visible:ring-2 focus-visible:outline-hidden";
+
 function NavEntry({
   page,
   isActive,
-  onSelect,
+  contentHref,
 }: {
   page: SettingsPage;
   isActive: boolean;
-  onSelect: (slug: string) => void;
+  contentHref: string;
 }) {
   if ("href" in page) {
     return (
-      <Link
-        href={page.href}
-        className="hover:bg-muted hover:text-foreground flex h-8 flex-row items-center gap-2 rounded-sm px-2"
-      >
+      <Link href={page.href} className={navEntryClassName}>
         {page.title}
         {page.indicator && <NavIndicator />}
         {!page.internal && <ArrowUpRight size="base" __rawClassName="inline" />}
       </Link>
     );
   }
-  function handleSelect() {
-    onSelect(page.slug);
-  }
 
   return (
-    <span
-      onClick={handleSelect}
+    <Link
+      href={contentHref}
+      aria-current={isActive ? "page" : undefined}
       className={cn(
-        "hover:bg-muted hover:text-foreground flex h-8 cursor-pointer items-center gap-2 rounded-sm px-2",
+        navEntryClassName,
         isActive && "bg-muted text-primary font-bold",
       )}
     >
       {page.title}
       {page.indicator && <NavIndicator />}
-    </span>
+    </Link>
   );
 }
 
@@ -255,7 +251,7 @@ function DisabledNavEntry({
           role="link"
           aria-disabled="true"
           tabIndex={0}
-          className="text-muted-foreground/50 flex h-8 w-fit cursor-not-allowed items-center rounded-sm px-2"
+          className="text-muted-foreground/50 focus-visible:ring-ring flex h-8 w-fit cursor-not-allowed items-center rounded-sm px-2 focus-visible:ring-2 focus-visible:outline-hidden"
         >
           {title}
         </span>
@@ -284,4 +280,10 @@ function groupPagesBySection<T extends { section?: string }>(pages: T[]) {
     },
     [],
   );
+}
+
+/** isSettingsPageShown resolves a page's show flag, defaulting to shown */
+export function isSettingsPageShown(page: Pick<SettingsPage, "show">) {
+  if (typeof page.show === "function") return page.show();
+  return page.show ?? true;
 }

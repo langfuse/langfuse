@@ -1,9 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { logger } from "../../../packages/shared/src/server/logger";
-import {
-  fetchWithSecureRedirects,
-  type OutboundUrlValidationWhitelist,
-} from "../../../packages/shared/src/server/outbound-url";
+import { fetchWithSecureRedirects } from "../../../packages/shared/src/server/outbound-url/fetch";
+import type { OutboundUrlValidationWhitelist } from "../../../packages/shared/src/server/outbound-url/validation";
 
 const fetchMock = vi.fn<typeof fetch>();
 vi.stubGlobal("fetch", fetchMock);

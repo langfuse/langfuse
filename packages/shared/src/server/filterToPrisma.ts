@@ -1,11 +1,12 @@
 /* eslint-disable @typescript-eslint/no-use-before-define */
 import { Prisma } from "@prisma/client";
-import { ColumnDefinition, type TableNames } from "../tableDefinitions";
+import { ColumnDefinition, type TableNames } from "../tableDefinitions/types";
+
 import { FilterState } from "../types";
 import { filterOperators, timeFilter } from "../interfaces/filters";
 import { z } from "zod";
 import { logger } from "./index";
-import { InvalidRequestError } from "../errors";
+import { InvalidRequestError } from "../errors/InvalidRequestError";
 import { escapeSqlLikePattern } from "./utils/sqlLike";
 
 const operatorReplacements = {

@@ -5,10 +5,10 @@ import {
   type ScoreDomain,
   type Prisma,
 } from "@langfuse/shared";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import useLocalStorage from "@/src/components/useLocalStorage";
 import { usePreserveRelativeScroll } from "@/src/features/traces/hooks/usePreserveRelativeScroll";
-import { type MediaReturnType } from "@/src/features/media";
+import type { MediaReturnType } from "@/src/features/media/validation";
 import { type ExpansionState } from "@/src/features/traces/components/AdvancedJsonViewer/types";
 
 import { ViewModeToggle, type ViewMode } from "./components/ViewModeToggle";
@@ -20,7 +20,6 @@ import {
 import { IOPreviewJSON, type IOPreviewJSONProps } from "./IOPreviewJSON";
 import { IOPreviewJSONSimple } from "./IOPreviewJSONSimple";
 import { IOPreviewPretty } from "./IOPreviewPretty";
-import type { SectionSkillsProps } from "./components/SectionSkills";
 import { type ChatMLParserResult } from "../../hooks/useChatMLParser";
 import { Button } from "@/src/components/ui/button";
 import { ActionButton } from "@/src/components/ActionButton";
@@ -63,7 +62,7 @@ export interface ExpansionStateProps {
 }
 
 export interface IOPreviewProps extends ExpansionStateProps {
-  skills?: SectionSkillsProps["skills"];
+  skills?: React.ComponentProps<typeof IOPreviewPretty>["skills"];
   input?: Prisma.JsonValue;
   output?: Prisma.JsonValue;
   status?: ObservationStatusMessage;

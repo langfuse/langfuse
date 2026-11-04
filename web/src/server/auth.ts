@@ -17,7 +17,7 @@ import {
 import {
   parseFlags,
   parseFlagsWithOrganizationDefaults,
-} from "@/src/features/feature-flags/server";
+} from "@/src/features/feature-flags/server/parseFlags";
 import {
   isGatewayDeployedOnInstance,
   isGatewayEnabledForOrganization,
@@ -59,7 +59,7 @@ import {
   findMultiTenantSsoConfig,
   getSsoAuthProviderIdForDomain,
   loadSsoProviders,
-} from "@/src/ee/features/multi-tenant-sso/server";
+} from "@/src/ee/features/multi-tenant-sso/utils";
 import { getSupportAccessMemberships } from "@/src/ee/features/support-access/server/supportAccess";
 import {
   ENTERPRISE_SSO_REQUIRED_MESSAGE,
@@ -95,9 +95,9 @@ import { createSupportEmailHash } from "@/src/features/support-chat/createSuppor
 import {
   canToggleV4,
   isV4UpgradeUiAvailable,
-} from "@/src/features/events/server";
-import { canCreateOrganizations } from "@/src/features/organizations/server";
-import { isSignupOnboardingEnabled } from "@/src/features/onboarding/server";
+} from "@/src/features/events/lib/v4Rollout";
+import { canCreateOrganizations } from "@/src/features/organizations/server/canCreateOrganizations";
+import { isSignupOnboardingEnabled } from "@/src/features/onboarding/server/onboardingService";
 
 const staticProviders: Provider[] = [
   CredentialsProvider({
@@ -175,9 +175,8 @@ const staticProviders: Provider[] = [
         image: dbUser.image,
         emailVerified: dbUser.emailVerified?.toISOString(),
         featureFlags: parseFlags(dbUser.featureFlags, {
-          email: dbUser.email,
           // The full session callback resolves deployment and rollout
-          // availability before applying employee defaults.
+          // availability before applying preview defaults.
           v4BetaEnabled: false,
         }),
         canCreateOrganizations: canCreateOrganizations(dbUser.email),
@@ -916,6 +915,7 @@ export async function getAuthOptions(
               apiKeyOrgRoleSelectionEnabled:
                 env.API_AUTH_MIGRATION === "enforce" &&
                 env.API_KEY_ORG_ROLES_ENABLE === "true",
+              accessAuditLogMode: env.LANGFUSE_AUDIT_LOG_ACCESS_EVENTS,
             },
             user:
               dbUser !== null
@@ -976,11 +976,12 @@ export async function getAuthOptions(
                             orgMembership.organization.aiFeaturesEnabled,
                           aiTelemetryEnabled:
                             orgMembership.organization.aiTelemetryEnabled,
+                          accessAuditLogEnabled:
+                            orgMembership.organization.accessAuditLogEnabled,
                           featureFlags: parseFlagsWithOrganizationDefaults(
                             dbUser.featureFlags,
                             orgMembership.organization.featureFlagOrgDefaults,
                             {
-                              email: dbUser.email,
                               v4BetaEnabled,
                               aiGatewayEnabled: isGatewayEnabledForOrganization(
                                 orgMembership.organization.id,
@@ -1034,7 +1035,6 @@ export async function getAuthOptions(
                     ),
                     emailVerified: dbUser.emailVerified?.toISOString(),
                     featureFlags: parseFlags(dbUser.featureFlags, {
-                      email: dbUser.email,
                       v4BetaEnabled,
                     }),
                     hasPassword: Boolean(dbUser.password),

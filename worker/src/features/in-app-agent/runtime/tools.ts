@@ -3,8 +3,14 @@ import {
   toStandardSchema,
 } from "@mastra/core/schema";
 import { createTool, Tool } from "@mastra/core/tools";
-import type { InAppAgentSandbox } from "./sandbox";
-import { isoDateTime, assertUnreachable } from "@langfuse/shared";
+import type { InAppAgentSandbox } from "./sandbox/types";
+import {
+  isoDateTime,
+  assertUnreachable,
+  ObservationLevelDomain,
+  TABLE_AGGREGATION_OPTIONS,
+  TracingSearchType,
+} from "@langfuse/shared";
 import { getToolFailureMessage } from "@langfuse/shared/in-app-agent/server/toolErrors";
 import {
   buildDashboardsPath,
@@ -25,11 +31,7 @@ import {
   buildTracesPath,
 } from "@langfuse/shared/src/server";
 import z from "zod";
-import {
-  ObservationLevelDomain,
-  TABLE_AGGREGATION_OPTIONS,
-  TracingSearchType,
-} from "@langfuse/shared";
+
 import {
   InAppAgentSandboxBashArgsSchema,
   InAppAgentSandboxEditArgsSchema,
@@ -190,9 +192,8 @@ export function withOptionalSilentMcpOutput(params: {
 
           // Rethrow instead of returning a structured failure: the tool-error
           // chunk rewrite already feeds the error back as a tool result the
-          // loop continues from, executeApprovedToolCall classifies
-          // approved-tool failures from the throw, and an aborted run must
-          // unwind rather than look like one more failed tool call.
+          // loop continues from, and an aborted run must unwind rather than
+          // look like one more failed tool call.
           throw error;
         }
 

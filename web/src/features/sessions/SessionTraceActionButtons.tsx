@@ -3,8 +3,8 @@ import { api, type RouterOutputs } from "@/src/utils/api";
 import { getNumberFromMap } from "@/src/utils/map-utils";
 import { ActionButtonCountBadge } from "@/src/components/ui/ActionButtonCountBadge";
 import { Button } from "@/src/components/ui/button";
-import { AnnotateDrawerController } from "@/src/features/scores";
-import { CommentDrawerController } from "@/src/features/comments";
+import { AnnotateDrawerController } from "@/src/features/scores/components/AnnotateDrawerController";
+import { CommentDrawerController } from "@/src/features/comments/CommentDrawerController";
 import { ConnectedTraceObservationAddToDropdownMenuController } from "@/src/features/traces/components/ConnectedTraceObservationAddToDropdownMenuController";
 import { cn } from "@/src/utils/tailwind";
 import {

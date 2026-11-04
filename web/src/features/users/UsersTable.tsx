@@ -23,24 +23,26 @@ import { getUsersFilterConfig } from "@/src/features/filters/config/users-config
 import {
   USERS_FIELD_REGISTRY,
   LEGACY_USERS_FIELD_REGISTRY,
+} from "@/src/features/filters/config/usersSearchRegistry";
+import {
   useSidebarFilterPresentation,
   useSidebarFilterStateCore,
   type FacetOptions,
   type UseSidebarFilterStateOptions,
-  buildSidebarFilterSessionContextId,
-  sortOptionValues,
-} from "@/src/features/filters";
+} from "@/src/features/filters/hooks/useSidebarFilterState";
 
-import { useDetailPageLists } from "@/src/features/navigate-detail-pages";
-import { useEventsFilterOptions } from "@/src/features/events";
-import { TableSearchBar, toObservedOptions } from "@/src/features/search-bar";
+import { buildSidebarFilterSessionContextId } from "@/src/features/filters/lib/persistedSidebarFilterQuery";
+import { sortOptionValues } from "@/src/features/filters/lib/option-sort";
+
+import { useDetailPageLists } from "@/src/features/navigate-detail-pages/DetailPageListsProvider";
+import { useEventsFilterOptions } from "@/src/features/events/hooks/useEventsFilterOptions";
+import { TableSearchBar } from "@/src/features/search-bar/components/TableSearchBar";
+import { toObservedOptions } from "@/src/features/search-bar/lib/observed-options";
 
 import { useTableViewManager } from "@/src/components/table/table-view-presets/hooks/useTableViewManager";
 import { useTableViewFilterChange } from "@/src/components/table/table-view-presets/hooks/useTableViewFilterChange";
-import {
-  useColumnOrder,
-  useColumnVisibility,
-} from "@/src/features/column-visibility";
+import { default as useColumnOrder } from "@/src/features/column-visibility/hooks/useColumnOrder";
+import { default as useColumnVisibility } from "@/src/features/column-visibility/hooks/useColumnVisibility";
 import { api } from "@/src/utils/api";
 import { compactNumberFormatter, usdFormatter } from "@/src/utils/numbers";
 import { type RouterOutput } from "@/src/utils/types";
@@ -382,6 +384,14 @@ export function UsersTable({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [users.isSuccess, users.data]);
 
+  const userDetailPath = (userId: string) =>
+    `/project/${projectId}/users/${encodeURIComponent(userId)}`;
+
+  const handleRowClick = (row: RowData) => {
+    if (!row.userId) return;
+    router.push(userDetailPath(row.userId));
+  };
+
   const columns: LangfuseColumnDef<RowData>[] = [
     createLinkTableColumn<RowData>({
       accessorKey: "userId",
@@ -399,7 +409,7 @@ export function UsersTable({
         return {
           type: "link",
           props: {
-            path: `/project/${projectId}/users/${encodeURIComponent(value)}`,
+            path: userDetailPath(value),
             value,
           },
         };
@@ -636,6 +646,7 @@ export function UsersTable({
               columnOrder={columnOrder}
               onColumnOrderChange={handleColumnOrderChange}
               cellPadding="comfortable"
+              onRowClick={handleRowClick}
             />
           </div>
         </StickySearchableTableFilterLayout>

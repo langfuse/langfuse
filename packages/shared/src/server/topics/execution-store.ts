@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { prisma, type Prisma } from "../../db";
 import { getTopicProcessingMapIds } from "./postgres";
-import { InvalidRequestError } from "../../errors";
+import { InvalidRequestError } from "../../errors/InvalidRequestError";
 import { BatchActionStatus } from "../../features/batchAction/types";
 import {
   topicExecutionInputSchema,

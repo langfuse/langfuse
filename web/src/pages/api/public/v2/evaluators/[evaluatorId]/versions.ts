@@ -1,1 +1,1 @@
-export { evaluatorVersionsApiHandler as default } from "@/src/features/public-api/server";
+export { evaluatorVersionsApiHandler as default } from "@/src/features/public-api/server/evaluation/evaluatorVersionsApiHandler";
