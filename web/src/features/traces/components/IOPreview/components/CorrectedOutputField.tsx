@@ -41,8 +41,6 @@ interface CorrectedOutputFieldProps {
   startEditing?: boolean;
   /** Called when the section closes again (correction deleted). */
   onClosed?: () => void;
-  /** Skip the diff action when the matching original output is unavailable. */
-  hideDiff?: boolean;
 }
 
 /** The Output header's pencil: opens the correction editor. Disabled without
@@ -82,7 +80,6 @@ export function CorrectedOutputField({
   trigger = "inline",
   startEditing = false,
   onClosed,
-  hideDiff = false,
 }: CorrectedOutputFieldProps) {
   const hasAccess = useHasProjectAccess({ projectId, scope: "scores:save" });
   const canEdit = useCanEditCorrection(projectId);
@@ -243,15 +240,11 @@ export function CorrectedOutputField({
 
   const actions: IOSectionAction[] = hasContent
     ? [
-        ...(!hideDiff
-          ? [
-              {
-                icon: FileDiff,
-                label: "View diff between original and corrected output",
-                onClick: () => setIsDiffDialogOpen(true),
-              } satisfies IOSectionAction,
-            ]
-          : []),
+        {
+          icon: FileDiff,
+          label: "View diff between original and corrected output",
+          onClick: () => setIsDiffDialogOpen(true),
+        },
         ...(!isEditing
           ? [
               {
@@ -259,7 +252,7 @@ export function CorrectedOutputField({
                 label: "Edit corrected output",
                 onClick: handleEdit,
                 disabled: !canEdit,
-              } satisfies IOSectionAction,
+              },
             ]
           : []),
         {

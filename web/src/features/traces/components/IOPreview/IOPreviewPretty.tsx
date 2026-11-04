@@ -230,8 +230,6 @@ export interface IOPreviewPrettyProps extends ExpansionStateProps {
   metadata?: Prisma.JsonValue;
   outputCorrection?: ScoreDomain;
   traceOutputCorrection?: ScoreDomain;
-  traceActualOutput?: unknown;
-  traceActualOutputTooLarge?: boolean;
   // Pre-parsed data (optional, from useParsedObservation hook for performance)
   parsedInput?: unknown;
   parsedOutput?: unknown;
@@ -273,8 +271,6 @@ export function IOPreviewPretty({
   metadata,
   outputCorrection,
   traceOutputCorrection,
-  traceActualOutput,
-  traceActualOutputTooLarge,
   parsedInput: preParsedInput,
   parsedOutput: preParsedOutput,
   parsedMetadata: preParsedMetadata,
@@ -593,10 +589,6 @@ export function IOPreviewPretty({
       actualOutput={parsedOutput}
       outputCorrection={outputCorrection}
       traceOutputCorrection={traceOutputCorrection}
-      traceActualOutput={isTraceScopedView ? parsedOutput : traceActualOutput}
-      traceActualOutputTooLarge={
-        isTraceScopedView ? undefined : traceActualOutputTooLarge
-      }
       observationId={observationId}
       projectId={projectId}
       traceId={traceId}

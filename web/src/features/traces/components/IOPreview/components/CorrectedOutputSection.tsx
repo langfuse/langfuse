@@ -11,18 +11,16 @@ type CorrectedOutputSectionProps = {
   projectId: string;
   traceId: string;
   environment: string;
-  /** Observation (or TraceDetailView) output used as the obs / single-scope baseline. */
+  /**
+   * Baseline for diff/prefill. On the root observation this is that root’s
+   * output — used for both Trace- and Observation-scoped fields. Do not invent
+   * a separate “trace output” concept.
+   */
   actualOutput?: unknown;
   actualOutputTooLarge?: boolean;
-  /**
-   * Trace-level original output for the Trace correction field's diff.
-   * Required when nesting Trace + Observation — never reuse the obs output.
-   */
-  traceActualOutput?: unknown;
-  traceActualOutputTooLarge?: boolean;
   /** Observation-scoped CORRECTION (`observationId` set). */
   outputCorrection?: ScoreDomain | null;
-  /** Trace-scoped CORRECTION (`observationId` null). */
+  /** Trace-scoped CORRECTION (`observationId` null) — pass-through on root only. */
   traceOutputCorrection?: ScoreDomain | null;
   /** When set, obs-scoped pen / field writes use this id. Omitted on TraceDetailView. */
   observationId?: string;
@@ -92,7 +90,8 @@ export function shouldShowCorrectedOutputSection(
 
 /**
  * Mounts Corrected output above Additional Input. Nested Trace / Observation
- * subheaders only when both scopes are visible; otherwise a single field.
+ * subheaders only when both scopes are visible on this view (root); both
+ * fields share this view’s `actualOutput` as the diff/prefill baseline.
  * Parent must gate with {@link shouldShowCorrectedOutputSection}.
  */
 export function CorrectedOutputSection({
@@ -101,8 +100,6 @@ export function CorrectedOutputSection({
   environment,
   actualOutput,
   actualOutputTooLarge,
-  traceActualOutput,
-  traceActualOutputTooLarge,
   outputCorrection,
   traceOutputCorrection,
   observationId,
@@ -142,21 +139,17 @@ export function CorrectedOutputSection({
     projectId,
     traceId,
     environment,
+    actualOutput,
+    actualOutputTooLarge,
   };
 
-  // Both scopes on this view → level subheaders under one Corrected output.
+  // Both scopes on this view → level subheaders; same root-obs baseline for both.
   if (showTrace && showObs) {
-    // Trace field must not diff against the selected observation's output.
-    const traceHasBaseline =
-      traceActualOutput !== undefined || Boolean(traceActualOutputTooLarge);
     const nested = (
       <>
         <CorrectionLevelBlock level="trace">
           <CorrectedOutputField
             {...shared}
-            actualOutput={traceHasBaseline ? traceActualOutput : undefined}
-            actualOutputTooLarge={traceActualOutputTooLarge}
-            hideDiff={!traceHasBaseline}
             existingCorrection={effectiveTraceCorrection}
             compact
             trigger="header"
@@ -165,8 +158,6 @@ export function CorrectedOutputSection({
         <CorrectionLevelBlock level="observation">
           <CorrectedOutputField
             {...shared}
-            actualOutput={actualOutput}
-            actualOutputTooLarge={actualOutputTooLarge}
             existingCorrection={effectiveObsCorrection}
             observationId={observationId}
             compact
@@ -194,7 +185,6 @@ export function CorrectedOutputSection({
   }
 
   // Single scope → plain Corrected output (no Trace/Observation subheaders).
-  // TraceDetailView / session synthetic row: no observationId → trace writes.
   const isTraceOnly = showTrace && !showObs;
   return (
     <div
@@ -204,14 +194,6 @@ export function CorrectedOutputSection({
       {isTraceOnly ? (
         <CorrectedOutputField
           {...shared}
-          actualOutput={
-            traceActualOutput !== undefined ? traceActualOutput : actualOutput
-          }
-          actualOutputTooLarge={
-            traceActualOutput !== undefined
-              ? traceActualOutputTooLarge
-              : actualOutputTooLarge
-          }
           existingCorrection={effectiveTraceCorrection}
           compact={compact}
           trigger={trigger}
@@ -221,8 +203,6 @@ export function CorrectedOutputSection({
       ) : (
         <CorrectedOutputField
           {...shared}
-          actualOutput={actualOutput}
-          actualOutputTooLarge={actualOutputTooLarge}
           existingCorrection={effectiveObsCorrection}
           observationId={observationId}
           compact={compact}

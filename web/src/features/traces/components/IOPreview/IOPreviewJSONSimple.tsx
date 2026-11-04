@@ -26,8 +26,6 @@ export interface IOPreviewJSONSimpleProps {
   metadata?: Prisma.JsonValue;
   outputCorrection?: ScoreDomain;
   traceOutputCorrection?: ScoreDomain;
-  traceActualOutput?: unknown;
-  traceActualOutputTooLarge?: boolean;
   // Pre-parsed data (optional, from useParsedObservation hook for performance)
   parsedInput?: unknown;
   parsedOutput?: unknown;
@@ -75,8 +73,6 @@ export function IOPreviewJSONSimple({
   metadata,
   outputCorrection,
   traceOutputCorrection,
-  traceActualOutput,
-  traceActualOutputTooLarge,
   parsedInput,
   parsedOutput,
   parsedMetadata,
@@ -314,12 +310,6 @@ export function IOPreviewJSONSimple({
           actualOutputTooLarge={outputTooLarge}
           outputCorrection={outputCorrection}
           traceOutputCorrection={traceOutputCorrection}
-          traceActualOutput={
-            isTraceScopedView ? effectiveOutput : traceActualOutput
-          }
-          traceActualOutputTooLarge={
-            isTraceScopedView ? outputTooLarge : traceActualOutputTooLarge
-          }
           observationId={observationId}
           projectId={projectId}
           traceId={traceId}
