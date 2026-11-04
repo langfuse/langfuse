@@ -616,6 +616,26 @@ describe("unstable Topics public API", () => {
       }
     });
 
+    it("rejects too many trace ids before looking up their time range", async () => {
+      await expect(
+        listPublicTopicSummaries({
+          ...listQuery,
+          fromTimestamp: undefined,
+          toTimestamp: undefined,
+          truncateSummaries: false,
+          filter: [
+            {
+              type: "stringOptions",
+              column: "traceId",
+              operator: "any of",
+              value: Array.from({ length: 101 }, (_, i) => `t${i}`),
+            },
+          ],
+        }),
+      ).rejects.toMatchObject({ httpCode: 400, code: "invalid_query" });
+      expect(mocks.getTopicTraceUnitTimeRange).not.toHaveBeenCalled();
+    });
+
     it("returns nothing without reading when a topic name matches nothing", async () => {
       const result = await listPublicTopicAssignments({
         ...listQuery,
