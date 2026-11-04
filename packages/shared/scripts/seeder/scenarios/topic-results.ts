@@ -9,6 +9,8 @@ import { ScenarioDefinition, SeedError, SeedSummary } from "./types";
 import { countRows, escapeLike } from "./verify";
 
 const TOPICS_PER_FACET = 20;
+// Bounds each INSERT ... SELECT so 100M-trace seeds fit ClickHouse memory.
+const INSERT_CHUNK_TRACES = 2_000_000;
 const EMBEDDING_DIMENSIONS = 16;
 const TRACE_NAMES = [
   "checkout",
@@ -39,11 +41,13 @@ const rowSql = `
     if(number % 3 = 0, concat({sessionIdPrefix:String}, toString(number % 1000)), '') AS session_id,
     {environment:String} AS environment,
     {traceNames:Array(String)}[number % length({traceNames:Array(String)}) + 1] AS trace_name,
-    fromUnixTimestamp64Milli(toInt64({anchorMs:Int64} - intDiv(number * {spanMs:Int64}, {count:UInt64})), 'UTC') AS unit_start_time,
+    fromUnixTimestamp64Milli(if({randomTimes:Bool},
+      toInt64({anchorMs:Int64}) - toInt64(cityHash64({seed:UInt64}, number) % toUInt64({spanMs:Int64})),
+      toInt64({anchorMs:Int64} - intDiv(number * {spanMs:Int64}, {count:UInt64}))), 'UTC') AS unit_start_time,
     cityHash64({seed:UInt64}, number, facet_id) AS h,
     multiIf(h % 100 < 80, 'complete', h % 100 < 95, 'not_applicable', 'insufficient_input') AS state,
     unit_start_time + INTERVAL 1 HOUR AS processed_at
-  FROM numbers({count:UInt64})
+  FROM numbers({offset:UInt64}, {chunk:UInt64})
   ARRAY JOIN {facetIds:Array(String)} AS facet_id`;
 
 const summariesInsertSql = (reprocessed: boolean) => `
@@ -92,6 +96,13 @@ export const topicResultsScenario: ScenarioDefinition = {
       default: 7,
       description: "spread unit start times over the past N days",
     },
+    {
+      flag: "tenants",
+      type: "number",
+      default: 1,
+      description:
+        "split traces over N projects with a Zipf skew (the target project is the largest; the others are created in its org) and randomize start times",
+    },
   ],
   run: async (ctx, params): Promise<SeedSummary> => {
     const startedAt = Date.now();
@@ -130,92 +141,141 @@ export const topicResultsScenario: ScenarioDefinition = {
         durationMs: Date.now() - startedAt,
       };
 
-    const facets = (await ensureDefaultTopicFacets(ctx.projectId)).filter(
-      (facet) => facet.isBuiltIn,
-    );
-    const facetIds = facets.map((facet) => facet.id);
-    // Run ids are global in Postgres, so they carry the project id.
-    const runIds = facetIds.map(
-      (_, index) => `${ctx.projectId}-${ctx.idPrefix}-run-${index}`,
-    );
-    const definedAt = new Date(utcDayStartMs());
-    const topicVersionIds = (facetIndex: number) =>
-      Array.from(
-        { length: TOPICS_PER_FACET },
-        (_, topic) => `${topicIdPrefix}${facetIndex + 1}-${topic}-v1`,
+    const tenants = params["tenants"] as number;
+    if (!Number.isInteger(tenants) || tenants < 1)
+      throw new SeedError(
+        `--tenants must be a positive integer, got ${tenants}`,
+        "pass e.g. --tenants 50",
       );
-    for (const [index, facetId] of facetIds.entries()) {
-      const run = {
-        projectId: ctx.projectId,
-        facetId,
-        facetVersion: 1,
-        status: "completed",
-        finishedAt: definedAt,
-        // Published maps load their topic definitions within this range.
-        config: {
-          definitionTimeRange: {
-            from: definedAt.toISOString(),
-            to: new Date(definedAt.getTime() + 1).toISOString(),
-          },
-        },
-        topicVersionIds: topicVersionIds(index),
-      };
-      await prisma.topicClusteringRun.upsert({
-        where: { id: runIds[index] },
-        create: { id: runIds[index], ...run },
-        update: run,
+    const projectIds = [ctx.projectId];
+    if (tenants > 1) {
+      const { orgId } = await prisma.project.findUniqueOrThrow({
+        where: { id: ctx.projectId },
+        select: { orgId: true },
       });
+      for (let index = 1; index < tenants; index++) {
+        const id = `${ctx.idPrefix}-tenant-${index}`;
+        await prisma.project.upsert({
+          where: { id },
+          create: { id, orgId, name: `Topics tenant ${index}` },
+          update: {},
+        });
+        projectIds.push(id);
+      }
     }
-    await writeTopicDefinitions(
-      facets.flatMap((facet, index) =>
-        topicVersionIds(index).map((topicVersionId, topic) => ({
-          topicVersionId,
-          projectId: ctx.projectId,
-          topicId: topicVersionId.slice(0, -"-v1".length),
-          createdByRunId: runIds[index],
-          createdAt: new Date(utcDayStartMs()).toISOString(),
-          tags: [],
-          name: `${facet.name} topic ${topic + 1}`,
-          description: `Seeded ${facet.name} topic ${topic + 1}`,
-          centroid: Array<number>(EMBEDDING_DIMENSIONS).fill(0.1),
-          radius: 0.5,
-          representativeSummaries: [],
-          metadata: {},
-        })),
-      ),
+    // Zipf shares: tenant i gets traces proportional to 1 / (i + 1).
+    const weights = projectIds.map((_, index) => 1 / (index + 1));
+    const totalWeight = weights.reduce((sum, weight) => sum + weight, 0);
+    const traceCounts = weights.map((weight, index) =>
+      index === 0
+        ? traces -
+          weights
+            .slice(1)
+            .reduce(
+              (sum, w) =>
+                sum + Math.max(1, Math.floor((traces * w) / totalWeight)),
+              0,
+            )
+        : Math.max(1, Math.floor((traces * weight) / totalWeight)),
     );
 
-    const queryParams = {
-      projectId: ctx.projectId,
-      environment: ctx.environment,
-      facetIds,
-      runIds,
-      traceIdPrefix,
-      sessionIdPrefix: `${ctx.idPrefix}-topic-session-`,
-      topicIdPrefix,
-      traceNames: TRACE_NAMES,
-      phrases: SUMMARY_PHRASES,
-      anchorMs: utcDayStartMs(),
-      spanMs: Math.round(days * 86_400_000),
-      count: traces,
-      seed: ctx.seed,
-      dimensions: EMBEDDING_DIMENSIONS,
-      topicsPerFacet: TOPICS_PER_FACET,
-    };
-    ctx.log(
-      `bulk-inserting Topics results for ${traces} traces x ${facetIds.length} facets over ${days} day(s)`,
-    );
-    for (const query of [
-      summariesInsertSql(false),
-      summariesInsertSql(true),
-      assignmentsInsertSql,
-    ])
-      await clickhouseClient().command({
-        query,
-        query_params: queryParams,
-        clickhouse_settings: { wait_end_of_query: 1 },
-      });
+    let facetCount = 0;
+    for (const [tenant, projectId] of projectIds.entries()) {
+      const count = traceCounts[tenant];
+      const facets = (await ensureDefaultTopicFacets(projectId)).filter(
+        (facet) => facet.isBuiltIn,
+      );
+      facetCount = facets.length;
+      const facetIds = facets.map((facet) => facet.id);
+      // Run ids are global in Postgres, so they carry the project id.
+      const runIds = facetIds.map(
+        (_, index) => `${projectId}-${ctx.idPrefix}-run-${index}`,
+      );
+      const definedAt = new Date(utcDayStartMs());
+      const topicVersionIds = (facetIndex: number) =>
+        Array.from(
+          { length: TOPICS_PER_FACET },
+          (_, topic) => `${topicIdPrefix}${facetIndex + 1}-${topic}-v1`,
+        );
+      for (const [index, facetId] of facetIds.entries()) {
+        const run = {
+          projectId,
+          facetId,
+          facetVersion: 1,
+          status: "completed",
+          finishedAt: definedAt,
+          // Published maps load their topic definitions within this range.
+          config: {
+            definitionTimeRange: {
+              from: definedAt.toISOString(),
+              to: new Date(definedAt.getTime() + 1).toISOString(),
+            },
+          },
+          topicVersionIds: topicVersionIds(index),
+        };
+        await prisma.topicClusteringRun.upsert({
+          where: { id: runIds[index] },
+          create: { id: runIds[index], ...run },
+          update: run,
+        });
+      }
+      await writeTopicDefinitions(
+        facets.flatMap((facet, index) =>
+          topicVersionIds(index).map((topicVersionId, topic) => ({
+            topicVersionId,
+            projectId,
+            topicId: topicVersionId.slice(0, -"-v1".length),
+            createdByRunId: runIds[index],
+            createdAt: new Date(utcDayStartMs()).toISOString(),
+            tags: [],
+            name: `${facet.name} topic ${topic + 1}`,
+            description: `Seeded ${facet.name} topic ${topic + 1}`,
+            centroid: Array<number>(EMBEDDING_DIMENSIONS).fill(0.1),
+            radius: 0.5,
+            representativeSummaries: [],
+            metadata: {},
+          })),
+        ),
+      );
 
+      ctx.log(
+        `bulk-inserting Topics results for ${count} traces x ${facetIds.length} facets over ${days} day(s) into ${projectId}`,
+      );
+      for (let offset = 0; offset < count; offset += INSERT_CHUNK_TRACES) {
+        const queryParams = {
+          projectId,
+          environment: ctx.environment,
+          facetIds,
+          runIds,
+          traceIdPrefix,
+          sessionIdPrefix: `${ctx.idPrefix}-topic-session-`,
+          topicIdPrefix,
+          traceNames: TRACE_NAMES,
+          phrases: SUMMARY_PHRASES,
+          anchorMs: utcDayStartMs(),
+          spanMs: Math.round(days * 86_400_000),
+          count,
+          offset,
+          chunk: Math.min(INSERT_CHUNK_TRACES, count - offset),
+          randomTimes: tenants > 1,
+          seed: ctx.seed + tenant,
+          dimensions: EMBEDDING_DIMENSIONS,
+          topicsPerFacet: TOPICS_PER_FACET,
+        };
+        for (const query of [
+          summariesInsertSql(false),
+          summariesInsertSql(true),
+          assignmentsInsertSql,
+        ])
+          await clickhouseClient().command({
+            query,
+            query_params: queryParams,
+            clickhouse_settings: { wait_end_of_query: 1 },
+          });
+      }
+    }
+
+    // Read back the target project only; the other tenants are background volume.
     const where = `project_id = {projectId: String} AND trace_id LIKE {prefix: String}`;
     const readbackParams = {
       projectId: ctx.projectId,
@@ -241,23 +301,26 @@ export const topicResultsScenario: ScenarioDefinition = {
         "uniqExact(facet_id, trace_id)",
       ),
     };
-    const expectedSummaries = traces * facetIds.length;
+    const targetTraces = traceCounts[0];
+    const expectedSummaries = targetTraces * facetCount;
     if (
-      verified.traces !== traces ||
+      verified.traces !== targetTraces ||
       verified.summaries !== expectedSummaries ||
       verified.assignments === 0
     )
       throw new SeedError(
-        `Readback mismatch: expected ${traces} traces and ${expectedSummaries} trace/facet summaries, found ${verified.traces} / ${verified.summaries} (${verified.assignments} assignments)`,
+        `Readback mismatch: expected ${targetTraces} traces and ${expectedSummaries} trace/facet summaries, found ${verified.traces} / ${verified.summaries} (${verified.assignments} assignments)`,
       );
 
     return {
       ...base,
       counts: {
         traces,
-        facets: facetIds.length,
-        summaries: expectedSummaries,
-        topics: facetIds.length * TOPICS_PER_FACET,
+        tenants,
+        targetTraces,
+        facets: facetCount,
+        summaries: traces * facetCount,
+        topics: tenants * facetCount * TOPICS_PER_FACET,
       },
       verified,
       dryRun: false,
