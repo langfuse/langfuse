@@ -17,6 +17,7 @@ import {
 } from "@/src/components/ui/form";
 import { Input } from "@/src/components/ui/input";
 import { RoleAuthSetupInstructions } from "@/src/features/external-media-storage/components/RoleAuthSetupInstructions/RoleAuthSetupInstructions";
+import { type RevealableExternalId } from "@/src/features/external-media-storage/components/RoleAuthSetupInstructions/types";
 import {
   externalMediaStorageFormSchema,
   type ExternalMediaStorageFormValues,
@@ -36,7 +37,7 @@ export function ExternalMediaStorageForm({
   secretAccessKeyDisplay: string | null | undefined;
   /** Null when this deployment does not support IAM role auth. */
   accessRoleArn: string | null;
-  externalId: string | null;
+  externalId: RevealableExternalId;
   onSubmit: (values: ExternalMediaStorageFormValues) => void;
   renderActions?: (state: { isDirty: boolean }) => ReactNode;
 }) {

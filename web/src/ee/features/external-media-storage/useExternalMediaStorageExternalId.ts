@@ -1,0 +1,22 @@
+import { useState } from "react";
+
+import { type RevealableExternalId } from "@/src/features/external-media-storage/components/RoleAuthSetupInstructions/types";
+import { api } from "@/src/utils/api";
+
+export function useExternalMediaStorageExternalId(
+  projectId: string,
+  isSet: boolean,
+): RevealableExternalId {
+  const [isRevealed, setIsRevealed] = useState(false);
+  const query = api.externalMediaStorage.getExternalId.useQuery(
+    { projectId },
+    { enabled: isRevealed && isSet },
+  );
+
+  return {
+    isSet,
+    value: query.data ?? undefined,
+    isLoading: query.isFetching,
+    reveal: () => setIsRevealed(true),
+  };
+}

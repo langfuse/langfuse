@@ -4,6 +4,8 @@ import {
 } from "@langfuse/shared";
 
 import { CodeSection } from "@/src/components/design-system/CodeSection/CodeSection";
+import { MaskedExternalId } from "@/src/features/external-media-storage/components/RoleAuthSetupInstructions/MaskedExternalId";
+import { type RevealableExternalId } from "@/src/features/external-media-storage/components/RoleAuthSetupInstructions/types";
 
 export function RoleAuthSetupInstructions({
   accessRoleArn,
@@ -13,12 +15,12 @@ export function RoleAuthSetupInstructions({
   prefix,
 }: {
   accessRoleArn: string;
-  externalId: string | null;
+  externalId: RevealableExternalId;
   roleArn: string;
   bucketName: string;
   prefix: string | null | undefined;
 }) {
-  if (!externalId) {
+  if (!externalId.isSet) {
     return (
       <p className="text-muted-foreground text-sm">
         Save the integration to generate the external ID for your role&apos;s
@@ -35,16 +37,28 @@ export function RoleAuthSetupInstructions({
         SSE-KMS, also allow the role to use kms:Decrypt on the key.
       </p>
       <CodeSection title="Langfuse access role" content={accessRoleArn} />
-      <CodeSection title="External ID" content={externalId} />
-      <CodeSection
-        title="Trust policy"
-        language="json"
-        content={JSON.stringify(
-          buildStorageRoleTrustPolicy({ accessRoleArn, externalId }),
-          null,
-          2,
-        )}
-      />
+      {externalId.value ? (
+        <>
+          <CodeSection title="External ID" content={externalId.value} />
+          <CodeSection
+            title="Trust policy"
+            language="json"
+            content={JSON.stringify(
+              buildStorageRoleTrustPolicy({
+                accessRoleArn,
+                externalId: externalId.value,
+              }),
+              null,
+              2,
+            )}
+          />
+        </>
+      ) : (
+        <MaskedExternalId
+          isLoading={externalId.isLoading}
+          onReveal={externalId.reveal}
+        />
+      )}
       <CodeSection
         title="Permission policy"
         language="json"

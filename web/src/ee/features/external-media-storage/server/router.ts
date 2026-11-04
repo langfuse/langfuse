@@ -58,6 +58,19 @@ export const externalMediaStorageRouter = createTRPCRouter({
       };
     }),
 
+  getExternalId: protectedProjectProcedure
+    .input(z.object({ projectId: z.string() }))
+    .query(async ({ input, ctx }) => {
+      throwIfNoProjectAccess({
+        projectId: input.projectId,
+        session: ctx.session,
+        scope: "integrations:CRUD",
+      });
+      return createExternalMediaStorageService(ctx.prisma).getExternalId(
+        ctx.session.projectId,
+      );
+    }),
+
   update: protectedProjectProcedureWithoutTracing
     .input(
       externalMediaStorageFormSchema.extend({

@@ -275,11 +275,18 @@ export function createExternalMediaStorageService(prisma: PrismaClient) {
       } = integration;
       return {
         ...configuration,
-        externalId: externalId ? decrypt(externalId) : null,
+        // The external ID itself is only returned by getExternalId, on demand.
+        hasExternalId: Boolean(externalId),
         secretAccessKeyDisplay: secretAccessKey
           ? getDisplayCredential(decrypt(secretAccessKey))
           : null,
       };
+    },
+
+    async getExternalId(projectId: string) {
+      await assertFeatureEnabled(projectId);
+      const integration = await repository.findByProjectId(projectId);
+      return integration?.externalId ? decrypt(integration.externalId) : null;
     },
 
     async saveConfiguration({

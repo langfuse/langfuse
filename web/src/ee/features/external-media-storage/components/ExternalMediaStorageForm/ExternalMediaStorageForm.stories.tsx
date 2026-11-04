@@ -21,6 +21,13 @@ const defaultValues: ExternalMediaStorageFormValues = {
 
 const onSubmit = fn();
 
+const noExternalId = {
+  isSet: false,
+  value: undefined,
+  isLoading: false,
+  reveal: fn(),
+};
+
 const meta = preview.meta({
   component: ExternalMediaStorageForm,
   args: {
@@ -29,7 +36,7 @@ const meta = preview.meta({
     onSubmit,
     secretAccessKeyDisplay: null,
     accessRoleArn: null,
-    externalId: null,
+    externalId: noExternalId,
   },
   render: (args) => (
     <div className="max-w-xl p-6">
@@ -85,7 +92,18 @@ export const IamRole = meta.story({
     },
     accessRoleArn:
       "arn:aws:iam::210987654321:role/LangfuseCustomerStorageAccess",
-    externalId: "lf-0123456789abcdef0123456789abcdef",
+    externalId: { ...noExternalId, isSet: true },
+  },
+});
+
+export const IamRoleRevealedExternalId = meta.story({
+  args: {
+    ...IamRole.input.args,
+    externalId: {
+      ...noExternalId,
+      isSet: true,
+      value: "lf-0123456789abcdef0123456789abcdef",
+    },
   },
 });
 

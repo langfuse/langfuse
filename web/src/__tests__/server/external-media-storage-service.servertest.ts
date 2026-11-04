@@ -351,7 +351,9 @@ describe("external media storage service", () => {
 
     await save();
     const configuration = await service.getConfiguration(project.id);
-    expect(configuration?.externalId).toBe(externalId);
+    expect(configuration).not.toHaveProperty("externalId");
+    expect(configuration?.hasExternalId).toBe(true);
+    await expect(service.getExternalId(project.id)).resolves.toBe(externalId);
 
     (StorageServiceFactory.getInstance as Mock).mockReturnValue({
       getSignedUrl: vi.fn().mockResolvedValue("https://signed.example"),

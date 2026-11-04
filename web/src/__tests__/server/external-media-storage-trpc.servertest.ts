@@ -277,12 +277,15 @@ describe("externalMediaStorage tRPC", () => {
   });
 
   describe("access control", () => {
-    it("forbids a VIEWER from reading, saving, deleting, or testing the configuration", async () => {
+    it("forbids a VIEWER from reading, saving, deleting, or testing the configuration, or reading the external ID", async () => {
       const { project, caller } = await prepare({ projectRole: "VIEWER" });
       const integration = await createIntegration({ projectId: project.id });
 
       await expect(
         caller.externalMediaStorage.get({ projectId: project.id }),
+      ).rejects.toMatchObject({ code: "FORBIDDEN" });
+      await expect(
+        caller.externalMediaStorage.getExternalId({ projectId: project.id }),
       ).rejects.toMatchObject({ code: "FORBIDDEN" });
       await expect(
         caller.externalMediaStorage.update(
