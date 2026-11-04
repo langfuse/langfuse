@@ -26,7 +26,11 @@ import { ErrorPage } from "@/src/components/error-page";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { passwordSchema } from "@/src/features/auth/lib/signupSchema";
 import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
-import { PASSWORD_SETUP_EMAIL_STORAGE_KEY } from "@/src/features/auth-credentials/lib/credentialsUtils";
+import {
+  PASSWORD_RESET_EMAIL_CODE_MAX_AGE_SECONDS,
+  PASSWORD_SETUP_EMAIL_STORAGE_KEY,
+  SIGNUP_EMAIL_CODE_MAX_AGE_SECONDS,
+} from "@/src/features/auth-credentials/lib/credentialsUtils";
 import { getOnboardingTargetPath } from "@/src/features/onboarding/lib/demoCallbackRedirect";
 import { env } from "@/src/env.mjs";
 import { TURNSTILE_ACTIONS } from "@/src/features/auth/constants";
@@ -73,6 +77,10 @@ export function ResetPasswordPage({
 
   const isSetMode =
     intent === "setup" || session.data?.user?.hasPassword === false;
+  const codeMinutesValid =
+    (isSetMode
+      ? SIGNUP_EMAIL_CODE_MAX_AGE_SECONDS
+      : PASSWORD_RESET_EMAIL_CODE_MAX_AGE_SECONDS) / 60;
   const setupTargetPath =
     isSetMode && router.isReady
       ? getOnboardingTargetPath({
@@ -249,7 +257,8 @@ export function ResetPasswordPage({
                   <>
                     <p className="text-muted-foreground text-sm">
                       Enter the 6-digit code from your email together with your
-                      new password. The code is valid for 3 minutes.
+                      new password. The code is valid for {codeMinutesValid}{" "}
+                      minutes.
                     </p>
                     <FormField
                       control={form.control}

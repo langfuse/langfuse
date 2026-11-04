@@ -4,7 +4,12 @@ import { advanceSessionsExpiredAtForEmail } from "@/src/features/auth/lib/sessio
 import type { SignupAttribution } from "@/src/features/auth/lib/signupAttribution";
 import { env } from "@/src/env.mjs";
 import { hashPassword } from "@/src/features/auth-credentials/lib/passwordHash";
+import {
+  PASSWORD_RESET_EMAIL_CODE_MAX_AGE_SECONDS,
+  SIGNUP_EMAIL_CODE_MAX_AGE_SECONDS,
+} from "@/src/features/auth-credentials/lib/credentialsUtils";
 import { prisma } from "@langfuse/shared/src/db";
+import { isSetupPasswordCallbackUrl } from "@langfuse/shared/src/server";
 import { TRPCError } from "@trpc/server";
 
 function hashEmailOtpToken(token: string) {
@@ -64,6 +69,72 @@ export async function createUserEmailPassword(
   });
 
   return newUser.id;
+}
+
+/**
+ * The email provider's identifier for an address; matches NextAuth 4's
+ * default normalization, and throws on a malformed address as it does.
+ */
+export function normalizeEmailIdentifier(identifier: string): string {
+  const trimmedEmail = identifier.normalize("NFKC").trim();
+  if (
+    (trimmedEmail.match(/@/g) ?? []).length !== 1 ||
+    trimmedEmail.includes('"')
+  )
+    throw new Error("Invalid email address format.");
+  const [local, domainWithSuffix] = trimmedEmail.toLowerCase().split("@");
+  const domain = domainWithSuffix?.split(",")[0];
+  if (!local || !domain || !domain.includes("."))
+    throw new Error("Invalid email address format.");
+  return `${local}@${domain}`;
+}
+
+export type EmailCodeRequest = Awaited<
+  ReturnType<typeof describeEmailCodeRequest>
+>;
+
+/**
+ * An email-code request's code lifetime: the sign-up's for a setup-password
+ * request to an account without a password, else the password reset's.
+ */
+export async function describeEmailCodeRequest({
+  email,
+  callbackUrl,
+}: {
+  email: unknown;
+  callbackUrl: unknown;
+}) {
+  const account = await findSetupPasswordAccount({ email, callbackUrl });
+  return {
+    maxAge:
+      account?.password === null
+        ? SIGNUP_EMAIL_CODE_MAX_AGE_SECONDS
+        : PASSWORD_RESET_EMAIL_CODE_MAX_AGE_SECONDS,
+  };
+}
+
+async function findSetupPasswordAccount({
+  email,
+  callbackUrl,
+}: {
+  email: unknown;
+  callbackUrl: unknown;
+}) {
+  if (
+    typeof email !== "string" ||
+    typeof callbackUrl !== "string" ||
+    !isSetupPasswordCallbackUrl(callbackUrl)
+  )
+    return null;
+  try {
+    return await prisma.user.findUnique({
+      where: { email: normalizeEmailIdentifier(email) },
+      select: { password: true },
+    });
+  } catch {
+    // malformed address: NextAuth refuses to send a code for it
+    return null;
+  }
 }
 
 export async function consumeEmailOtpAndUpdatePassword({
