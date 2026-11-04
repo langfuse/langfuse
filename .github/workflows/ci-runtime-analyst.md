@@ -95,11 +95,9 @@ tools:
       "uniq",
       "head",
       "tail",
-      # A bare entry only allows the argument-less command; `ls -la <dir>` and
-      # `wc -l <file>` were denied, wasting turns.
-      "wc:*",
+      "wc",
       "cat",
-      "ls:*",
+      "ls",
       "cp",
       # Waiting on migrations/app startup when exercising DB-backed suites.
       "sleep",
@@ -144,10 +142,7 @@ This workflow only runs on `schedule` or `workflow_dispatch` — do everything
 in this prompt every run: full weekly analysis, memory update, and the one
 mandatory issue.
 
-The run has a hard turn cap, and hitting it ends the run with no issue and
-no memory saved. Finish investigating once the analysis is complete. Batch
-memory writes into a few scripted edits rather than one tool call per file
-or entry.
+The run has a hard turn cap, and hitting it ends the run with no issue and no memory saved. Finish investigating once the analysis is complete. Batch memory writes into a few scripted edits rather than one tool call per file or entry. Shell allowlist entries match the exact command only, so `ls -la <dir>` or `wc -l <file>` is denied and wastes a turn; list and inspect files with the `LS`, `Glob`, and `Read` tools instead.
 
 ## Run checklist
 
