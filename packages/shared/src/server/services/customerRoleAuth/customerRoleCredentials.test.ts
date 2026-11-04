@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { createSessionCache } from "./storageRoleCredentials";
+import { createSessionCache } from "./customerRoleCredentials";
 
 const credentials = (expiresInMs: number) => ({
   accessKeyId: `key-${expiresInMs}`,

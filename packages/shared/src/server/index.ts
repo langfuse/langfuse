@@ -5,7 +5,7 @@ import {
 } from "./repositories/events";
 
 export * from "./services/StorageService";
-export * from "./services/storageRoleAuth/storageRoleCredentials";
+export * from "./services/customerRoleAuth/customerRoleCredentials";
 export * from "./services/storageRoleAuth/storageSessionPolicy";
 export { type MediaPayloadKind } from "./media/MediaPayloadProcessor";
 export { type MediaInvalidReason } from "./media/MediaPayloadProcessor";
