@@ -404,7 +404,6 @@ function SidebarNotifications({
                   target="_blank"
                   onClick={() => state.onLinkClick(frontNotification.id)}
                 >
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
                     alt={frontNotification.linkImage.alt}
                     src={frontNotification.linkImage.src}
