@@ -458,24 +458,18 @@ describe("AI gateway control plane", () => {
         organizationId: owner.org.id,
         slug,
       });
-    const setupPath = `/organization/${owner.org.id}/settings/ai-gateway`;
+    const setupPath = `/organization/${owner.org.id}/ai-gateway`;
 
-    await expect(
-      redirectFor(owner.session, "ai-gateway-api-keys"),
-    ).resolves.toBe(setupPath);
-    await expect(redirectFor(owner.session, "ai-gateway")).resolves.toBeNull();
-    await expect(
-      redirectFor(memberSession, "ai-gateway-models"),
-    ).resolves.toBeNull();
+    await expect(redirectFor(owner.session, "keys")).resolves.toBe(setupPath);
+    await expect(redirectFor(owner.session, "setup")).resolves.toBeNull();
+    await expect(redirectFor(memberSession, "models")).resolves.toBeNull();
 
     await owner.caller.aiGateway.updateConfig({
       orgId: owner.org.id,
       defaultIngestionProjectId: owner.project.id,
       ingestionMode: "USAGE",
     });
-    await expect(
-      redirectFor(owner.session, "ai-gateway-api-keys"),
-    ).resolves.toBeNull();
+    await expect(redirectFor(owner.session, "keys")).resolves.toBeNull();
   });
 
   it("notifies only members who can use the gateway", async () => {

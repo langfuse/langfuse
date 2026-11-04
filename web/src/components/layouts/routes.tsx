@@ -22,6 +22,9 @@ import {
   ClipboardPen,
   Clock,
   Beaker,
+  Boxes,
+  KeyRound,
+  ChartLine,
 } from "@langfuse/icons";
 import { type ReactNode } from "react";
 import { type Entitlement } from "@/src/features/entitlements/constants/entitlements";
@@ -41,6 +44,7 @@ import { type ProductModule } from "@/src/ee/features/ui-customization/productMo
 import { matchesPathname } from "@/src/components/layouts/app-layout/utils/pathClassification";
 import { InternalFeatureBadge } from "@/src/features/feature-flags/components/InternalFeatureBadge";
 import { useInternalFeaturesEnabled } from "@/src/features/feature-flags/hooks/useInternalFeaturesEnabled";
+import { AiGatewayNavLink } from "@/src/features/ai-gateway/components/AiGatewayNavLink/AiGatewayNavLink";
 
 export enum RouteSection {
   Main = "main",
@@ -51,6 +55,8 @@ export enum RouteGroup {
   Observability = "Observability",
   ContextManagement = "Context management",
   Evaluation = "Evaluation",
+  AiGateway = "AI Gateway",
+  Organization = "Organization",
 }
 
 export type Route = {
@@ -245,6 +251,59 @@ export const ROUTES: Route[] = [
     icon: Beaker,
     featureFlag: "experimentsV4Enabled",
     group: RouteGroup.Evaluation,
+    section: RouteSection.Main,
+  },
+  {
+    title: "Setup",
+    href: "/organization/[organizationId]/ai-gateway",
+    isActive: (pathname) =>
+      pathname === "/organization/[organizationId]/ai-gateway",
+    icon: Settings,
+    featureFlag: "aiGateway",
+    organizationRbacScope: "gateway:manage",
+    group: RouteGroup.AiGateway,
+    section: RouteSection.Main,
+  },
+  {
+    title: "Models",
+    href: "/organization/[organizationId]/ai-gateway/models",
+    icon: Boxes,
+    featureFlag: "aiGateway",
+    organizationRbacScope: "gateway:read",
+    group: RouteGroup.AiGateway,
+    section: RouteSection.Main,
+  },
+  {
+    title: "Gateway keys",
+    href: "/organization/[organizationId]/ai-gateway/keys",
+    icon: KeyRound,
+    featureFlag: "aiGateway",
+    organizationRbacScope: "gateway:invoke",
+    group: RouteGroup.AiGateway,
+    section: RouteSection.Main,
+  },
+  {
+    title: "Analytics",
+    href: "/organization/[organizationId]/ai-gateway/analytics",
+    icon: ChartLine,
+    featureFlag: "aiGateway",
+    organizationRbacScope: "gateway:invoke",
+    group: RouteGroup.AiGateway,
+    section: RouteSection.Main,
+  },
+  {
+    // Org-level features reached from inside a project; the router has no
+    // organizationId there, so the entry resolves the org itself.
+    title: "AI Gateway",
+    href: "/project/[projectId]",
+    menuNode: <AiGatewayNavLink />,
+    featureFlag: "aiGateway",
+    show: ({ organization }) =>
+      organization !== undefined &&
+      (["gateway:manage", "gateway:read", "gateway:invoke"] as const).some(
+        (scope) => hasOrganizationAccess({ role: organization.role, scope }),
+      ),
+    group: RouteGroup.Organization,
     section: RouteSection.Main,
   },
   {

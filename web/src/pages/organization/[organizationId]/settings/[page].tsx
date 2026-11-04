@@ -1,9 +1,7 @@
 import { type GetServerSideProps } from "next";
-import { prisma } from "@langfuse/shared/src/db";
 
 import { SettingsPage } from "@/src/features/settings/SettingsPage";
-import { getGatewaySetupRedirect } from "@/src/features/ai-gateway/server/gatewaySetupRedirect";
-import { getServerAuthSession } from "@/src/server/auth";
+import { getLegacyGatewaySettingsRedirect } from "@/src/features/ai-gateway/server/gatewaySetupRedirect";
 
 export default function OrganizationSettingsRoute() {
   return <SettingsPage scope="organization" />;
@@ -16,13 +14,14 @@ export const getServerSideProps: GetServerSideProps = async (ctx) => {
     return { props: {} };
   }
 
-  const session = await getServerAuthSession({ req: ctx.req, res: ctx.res });
-  const destination = await getGatewaySetupRedirect({
-    prisma,
-    session,
+  const search = ctx.resolvedUrl.includes("?")
+    ? ctx.resolvedUrl.slice(ctx.resolvedUrl.indexOf("?"))
+    : "";
+  const destination = getLegacyGatewaySettingsRedirect(
     organizationId,
     slug,
-  });
+    search,
+  );
   return destination
     ? { redirect: { destination, permanent: false } }
     : { props: {} };

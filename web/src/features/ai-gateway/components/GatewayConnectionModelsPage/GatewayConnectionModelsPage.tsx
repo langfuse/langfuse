@@ -1,3 +1,4 @@
+import { aiGatewayPath } from "@/src/features/ai-gateway/fns/gatewayUrls/aiGatewayPath";
 import { ArrowLeft } from "@langfuse/icons";
 
 import { Alert } from "@/src/components/design-system/Alert/Alert";
@@ -76,7 +77,7 @@ function ProviderCredentialsLink({
 }) {
   return (
     <TextLink
-      path={`/organization/${encodeURIComponent(organizationId)}/settings/ai-gateway`}
+      path={aiGatewayPath(organizationId)}
       value="Gateway setup"
       icon={ArrowLeft}
     />

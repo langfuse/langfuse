@@ -1,3 +1,4 @@
+import { aiGatewayPath } from "@/src/features/ai-gateway/fns/gatewayUrls/aiGatewayPath";
 import { Boxes, Plug, Plus } from "@langfuse/icons";
 
 import { GatewaySetupEmptyState } from "@/src/features/ai-gateway/components/GatewaySetupEmptyState/GatewaySetupEmptyState";
@@ -64,7 +65,7 @@ export function GatewayModelsEmptyState({
         {
           type: "link",
           label: "Manage credentials",
-          href: `/organization/${encodeURIComponent(organizationId)}/settings/ai-gateway`,
+          href: aiGatewayPath(organizationId),
         },
       ]}
     />
