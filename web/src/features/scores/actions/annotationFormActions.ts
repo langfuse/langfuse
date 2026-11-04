@@ -34,7 +34,6 @@ import {
   createAnnotationSaveStore,
   hasChangedAnnotationValue,
 } from "@/src/features/scores/state/annotationSaveStore";
-import { registerPendingAnnotationCommentFlush } from "@/src/features/scores/state/pendingAnnotationComments";
 
 type Dependencies = {
   form: UseFormReturn<AnnotateFormSchemaType>;
@@ -95,10 +94,9 @@ export function createAnnotationFormActions({
   );
   let savedStatusTimer: ReturnType<typeof setTimeout> | undefined;
   let isClosed = true;
-  let unregisterCommentFlush: (() => void) | undefined;
   // Text the reviewer typed in the comment popover and has not saved or
   // discarded. The popover keeps this across close so it can be reopened;
-  // completion has to persist it because the row then unmounts.
+  // the form that completion uses writes it before the row unmounts.
   const commentDrafts = new Map<string, string>();
   const scheduleSavedStatusClear = () => {
     if (savedStatusTimer) clearTimeout(savedStatusTimer);
@@ -540,16 +538,10 @@ export function createAnnotationFormActions({
     },
     open() {
       isClosed = false;
-      if (!unregisterCommentFlush) {
-        unregisterCommentFlush =
-          registerPendingAnnotationCommentFlush(flushPendingComments);
-      }
       analytics.forEach((tracker) => tracker.open());
     },
     close() {
       isClosed = true;
-      unregisterCommentFlush?.();
-      unregisterCommentFlush = undefined;
       if (savedStatusTimer) clearTimeout(savedStatusTimer);
       savedStatusTimer = undefined;
       analytics.forEach((tracker, key) =>
@@ -560,6 +552,7 @@ export function createAnnotationFormActions({
       if (draft === null) commentDrafts.delete(key);
       else commentDrafts.set(key, draft);
     },
+    flushPendingComments,
     saveNumeric(
       key: string,
       target: PreparedAnnotationTarget,

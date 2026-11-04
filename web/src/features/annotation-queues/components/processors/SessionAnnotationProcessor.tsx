@@ -2,6 +2,7 @@ import {
   type AnnotationQueueItem,
   type ScoreConfigDomain,
 } from "@langfuse/shared";
+import type { AnnotationCommentFlush } from "@/src/features/scores/types";
 import { AnnotationDrawerSection } from "../shared/AnnotationDrawerSection";
 import { AnnotationProcessingLayout } from "../shared/AnnotationProcessingLayout";
 import { SessionIO } from "@/src/features/sessions/SessionPages";
@@ -34,6 +35,7 @@ interface SessionAnnotationProcessorProps {
   data: any; // // Session data with scores
   configs: ScoreConfigDomain[];
   projectId: string;
+  commentFlushRef?: React.Ref<AnnotationCommentFlush>;
 }
 
 // some projects have thousands of traces in a session, paginate to avoid rendering all at once
@@ -44,7 +46,7 @@ const EMPTY_FILTER_STATE: [] = [];
 
 export const SessionAnnotationProcessor: React.FC<
   SessionAnnotationProcessorProps
-> = ({ item, data, configs, projectId }) => {
+> = ({ item, data, configs, projectId, commentFlushRef }) => {
   const [visibleTraces, setVisibleTraces] = useState(PAGE_SIZE);
   const handleLoadMoreTraces = () => {
     setVisibleTraces((prev) => prev + PAGE_SIZE);
@@ -289,6 +291,7 @@ export const SessionAnnotationProcessor: React.FC<
       scores={data?.scores ?? []}
       configs={configs}
       environment={data?.environment}
+      commentFlushRef={commentFlushRef}
     />
   );
 
