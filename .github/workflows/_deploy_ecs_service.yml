@@ -161,9 +161,60 @@ jobs:
           image: ${{ steps.image.outputs.image }}
           task-definition-family: ${{ inputs.environment }}-${{ inputs.service }}
       - name: Update AWS ECS Service
+        id: deploy
+        # A failure is classified by the next step, which fails the job unless the deployment was superseded.
+        continue-on-error: true
         uses: aws-actions/amazon-ecs-deploy-task-definition@c465972ecbd160473f22e683363b422a5412a3de # v2.6.3
         with:
           task-definition: ${{ steps.render-task-definition.outputs.task-definition }}
+          service: ${{ inputs.environment }}-${{ inputs.service }}
+          cluster: ${{ inputs.environment }}-cluster
+          wait-for-service-stability: true
+      # A Terraform apply of the services stack registers a new task definition revision
+      # (with the image read at plan time) and starts its own deployment, replacing ours
+      # mid-wait. The action then reports "not found after stabilization" and the service
+      # runs the stale image. Redeploy once on top of that newer revision. A circuit-breaker
+      # rollback (older revision) or a newer deploy from this workflow still fails.
+      - name: Check whether another actor superseded the deployment
+        id: superseded
+        if: ${{ steps.deploy.outcome == 'failure' }}
+        env:
+          CLUSTER: ${{ inputs.environment }}-cluster
+          SERVICE: ${{ inputs.environment }}-${{ inputs.service }}
+          DEPLOYED_TASK_DEFINITION: ${{ steps.deploy.outputs.task-definition-arn }}
+          IMAGE: ${{ steps.image.outputs.image }}
+        run: |
+          set -euo pipefail
+          if [[ -z "$DEPLOYED_TASK_DEFINITION" ]]; then
+            echo "::error::Update AWS ECS Service failed before registering a task definition"
+            exit 1
+          fi
+          primary="$(aws ecs describe-services --cluster "$CLUSTER" --services "$SERVICE" \
+            --query "services[0].deployments[?status=='PRIMARY'].taskDefinition | [0]" --output text)"
+          if [[ "${primary##*:}" -le "${DEPLOYED_TASK_DEFINITION##*:}" ]]; then
+            echo "::error::$SERVICE runs $primary, not a newer revision than $DEPLOYED_TASK_DEFINITION; the deployment failed or was rolled back"
+            exit 1
+          fi
+          registered_by="$(aws ecs describe-task-definition --task-definition "$primary" \
+            --query taskDefinition.registeredBy --output text)"
+          if [[ "$registered_by" == "$(aws sts get-caller-identity --query Arn --output text)" ]]; then
+            echo "::error::$primary from another deploy run superseded $DEPLOYED_TASK_DEFINITION"
+            exit 1
+          fi
+          echo "::warning::$primary, registered by $registered_by, superseded $DEPLOYED_TASK_DEFINITION; redeploying $IMAGE on top of it"
+      - name: Render AWS ECS Task Definition from the superseding revision
+        id: render-task-definition-retry
+        if: ${{ steps.superseded.outcome == 'success' }}
+        uses: aws-actions/amazon-ecs-render-task-definition@138c24f321fdbdf7edee4a685519d253cae2cdea # v1.9.0
+        with:
+          container-name: ${{ inputs.service }}
+          image: ${{ steps.image.outputs.image }}
+          task-definition-family: ${{ inputs.environment }}-${{ inputs.service }}
+      - name: Update AWS ECS Service on top of the superseding revision
+        if: ${{ steps.superseded.outcome == 'success' }}
+        uses: aws-actions/amazon-ecs-deploy-task-definition@c465972ecbd160473f22e683363b422a5412a3de # v2.6.3
+        with:
+          task-definition: ${{ steps.render-task-definition-retry.outputs.task-definition }}
           service: ${{ inputs.environment }}-${{ inputs.service }}
           cluster: ${{ inputs.environment }}-cluster
           wait-for-service-stability: true
