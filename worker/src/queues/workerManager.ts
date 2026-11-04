@@ -94,7 +94,7 @@ export class WorkerManager {
           delayMs = Math.max(0, delay);
         }
       } catch {
-        // Unparseable opts: measure from the enqueue timestamp.
+        // Invalid opts JSON: measure from the enqueue timestamp.
       }
       oldestAgeMs = Math.max(oldestAgeMs, nowMs - (timestamp + delayMs));
     }

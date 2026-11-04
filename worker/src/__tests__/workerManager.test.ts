@@ -147,7 +147,7 @@ describe("WorkerManager", () => {
       ).toBe(3_000);
     });
 
-    it("skips heads whose hash vanished and tolerates unparseable opts", () => {
+    it("skips heads whose hash vanished and tolerates invalid opts JSON", () => {
       expect(
         computeOldestWaitingAgeMs(
           [
