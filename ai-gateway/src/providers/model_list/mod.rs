@@ -27,6 +27,9 @@ enum CatalogProvider {
     OpenAi,
     #[serde(rename = "ANTHROPIC")]
     Anthropic,
+    /// Web lists a Bedrock model only on the routes it serves.
+    #[serde(rename = "BEDROCK")]
+    Bedrock,
 }
 
 pub(crate) fn provider_response(
@@ -39,11 +42,17 @@ pub(crate) fn provider_response(
         ApiFormat::OpenAiResponses | ApiFormat::OpenAiChatCompletions => CatalogProvider::OpenAi,
         ApiFormat::AnthropicMessages => CatalogProvider::Anthropic,
     };
-    if catalog.data.iter().any(|entry| entry.provider != provider) {
+    if catalog
+        .data
+        .iter()
+        .any(|entry| entry.provider != provider && entry.provider != CatalogProvider::Bedrock)
+    {
         return Err(ResolutionError::InvalidResponse);
     }
-    match provider {
-        CatalogProvider::OpenAi => openai::response(&catalog.data),
-        CatalogProvider::Anthropic => anthropic::response(&catalog.data),
+    match api_format {
+        ApiFormat::OpenAiResponses | ApiFormat::OpenAiChatCompletions => {
+            openai::response(&catalog.data)
+        }
+        ApiFormat::AnthropicMessages => anthropic::response(&catalog.data),
     }
 }

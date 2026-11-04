@@ -18,7 +18,7 @@ use crate::{
     config::ExecutionLimits,
     correlation::{RequestCorrelation, UpstreamTarget},
     observability::{ErrorOrigin, RequestObservation, Wait, provider_status_reason},
-    resolution::{ApiFormat, IngestionMode, Provider, ProviderCredential, ResolvedRequestContext},
+    resolution::{ApiFormat, IngestionMode, ProviderCredential, ResolvedRequestContext},
     transport,
 };
 
@@ -32,22 +32,11 @@ pub(crate) enum Route {
 }
 
 impl Route {
-    pub(crate) fn provider(self) -> Provider {
-        match self {
-            Self::OpenAiResponses | Self::OpenAiResponsesCompact | Self::OpenAiChatCompletions => {
-                Provider::OpenAi
-            }
-            Self::AnthropicMessages | Self::AnthropicCountTokens => Provider::Anthropic,
-        }
-    }
-
     pub(crate) fn api_format(self) -> ApiFormat {
         match self {
+            Self::OpenAiResponses | Self::OpenAiResponsesCompact => ApiFormat::OpenAiResponses,
             Self::OpenAiChatCompletions => ApiFormat::OpenAiChatCompletions,
-            _ => match self.provider() {
-                Provider::OpenAi => ApiFormat::OpenAiResponses,
-                Provider::Anthropic => ApiFormat::AnthropicMessages,
-            },
+            Self::AnthropicMessages | Self::AnthropicCountTokens => ApiFormat::AnthropicMessages,
         }
     }
 
@@ -227,7 +216,7 @@ impl ProviderTransport {
         ));
         let mut upstream = self
             .client
-            .post(self.request_url(route))
+            .post(self.request_url(route, context.connection().base_url()))
             .with_extension(DisableOtelPropagation)
             .headers(transport::request_headers(headers, api_format))
             .header(header::ACCEPT_ENCODING, "identity")
@@ -300,11 +289,11 @@ impl ProviderTransport {
         )
     }
 
-    fn request_url(&self, route: Route) -> String {
+    fn request_url(&self, route: Route, base_url: &str) -> String {
         let base = self
             .origin_override
             .as_deref()
-            .unwrap_or_else(|| route.provider().official_origin())
+            .unwrap_or(base_url)
             .trim_end_matches('/');
         let mut url = String::with_capacity(base.len() + route.path().len());
         url.push_str(base);

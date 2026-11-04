@@ -18,6 +18,7 @@ const connections = [
     organizationId: "org-1",
     createdById: "user-1",
     allowedModels: null,
+    config: null,
     createdAt: new Date("2026-09-07T12:00:00.000Z"),
     updatedAt: new Date("2026-09-07T12:00:00.000Z"),
   },
@@ -30,6 +31,7 @@ const connections = [
     organizationId: "org-1",
     createdById: "user-1",
     allowedModels: null,
+    config: null,
     createdAt: new Date("2026-09-07T12:00:00.000Z"),
     updatedAt: new Date("2026-09-07T12:00:00.000Z"),
   },
@@ -46,6 +48,7 @@ const manyConnections = Array.from({ length: 30 }, (_, index) => ({
   organizationId: "org-1",
   createdById: "user-1",
   allowedModels: null,
+  config: null,
   createdAt: new Date(Date.UTC(2026, 8, 30 - index)),
   updatedAt: new Date("2026-09-30T12:00:00.000Z"),
 })) satisfies ComponentProps<typeof GatewayProvidersTable>["connections"];

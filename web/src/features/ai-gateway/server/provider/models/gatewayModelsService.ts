@@ -4,6 +4,7 @@ import type { Cluster, Redis } from "ioredis";
 
 import type { GatewayApiKeyAuthContext } from "@/src/features/ai-gateway/server/auth/gatewayApiKeyAuthenticator";
 import { formatGatewayModelSlug } from "@/src/features/ai-gateway/fns/formatGatewayModelSlug";
+import { isBedrockAnthropicModel } from "@/src/features/ai-gateway/fns/isBedrockAnthropicModel";
 import { isGatewayModelAllowed } from "@/src/features/ai-gateway/fns/isGatewayModelAllowed";
 import { toGatewayAllowedModelsSet } from "@/src/features/ai-gateway/fns/toGatewayAllowedModelsSet";
 import { GatewayControlPlaneError } from "@/src/features/ai-gateway/server/gatewayControlPlaneError";
@@ -82,7 +83,11 @@ export class GatewayModelsService {
             connection.allowedModels,
           );
           return catalog.models
-            .filter((model) => isGatewayModelAllowed(allowedModels, model.id))
+            .filter(
+              (model) =>
+                isGatewayModelAllowed(allowedModels, model.id) &&
+                modelMatchesApiFormat(model, params.apiFormat),
+            )
             .map((model) => ({
               ...model,
               id: formatGatewayModelSlug(connection.name, model.id),
@@ -91,6 +96,16 @@ export class GatewayModelsService {
         .sort(compareModels),
     };
   }
+}
+
+function modelMatchesApiFormat(
+  model: GatewayModelCatalogEntry,
+  apiFormat: GatewayApiFormat,
+) {
+  if (model.provider !== "BEDROCK") return true;
+  return (
+    isBedrockAnthropicModel(model.id) === (apiFormat === "anthropic.messages")
+  );
 }
 
 function compareModels(

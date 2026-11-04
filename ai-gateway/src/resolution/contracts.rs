@@ -39,6 +39,7 @@ impl ApiFormat {
 pub enum Provider {
     OpenAi,
     Anthropic,
+    Bedrock,
 }
 
 impl Provider {
@@ -47,33 +48,63 @@ impl Provider {
         match self {
             Self::OpenAi => "openai",
             Self::Anthropic => "anthropic",
+            Self::Bedrock => "bedrock",
         }
     }
 
-    pub fn official_origin(self) -> &'static str {
-        match self {
-            Self::OpenAi => "https://api.openai.com/v1",
-            Self::Anthropic => "https://api.anthropic.com/v1",
-        }
-    }
-
+    /// Bedrock serves every API format natively, each under its own path.
     fn supports(self, api_format: ApiFormat) -> bool {
-        matches!(
-            (self, api_format),
-            (
-                Self::OpenAi,
-                ApiFormat::OpenAiResponses | ApiFormat::OpenAiChatCompletions
-            ) | (Self::Anthropic, ApiFormat::AnthropicMessages)
-        )
+        match self {
+            Self::OpenAi | Self::Anthropic => api_format.provider() == self,
+            Self::Bedrock => true,
+        }
     }
 
-    fn accepts(self, credential: ProviderCredential<'_>) -> bool {
+    /// The credential scheme follows the API format, so Bedrock takes both.
+    fn accepts(api_format: ApiFormat, credential: ProviderCredential<'_>) -> bool {
         matches!(
-            (self, credential),
+            (api_format.provider(), credential),
             (Self::OpenAi, ProviderCredential::Bearer(_))
                 | (Self::Anthropic, ProviderCredential::XApiKey(_))
         )
     }
+
+    /// Credentials are only ever sent to these exact origins, so a compromised or
+    /// buggy control plane cannot redirect them.
+    fn allows_base_url(self, api_format: ApiFormat, base_url: &str) -> bool {
+        match self {
+            Self::OpenAi => base_url == "https://api.openai.com/v1",
+            Self::Anthropic => base_url == "https://api.anthropic.com/v1",
+            Self::Bedrock => {
+                let path = match api_format {
+                    ApiFormat::OpenAiResponses | ApiFormat::OpenAiChatCompletions => "/openai/v1",
+                    ApiFormat::AnthropicMessages => "/anthropic/v1",
+                };
+                base_url
+                    .strip_prefix("https://bedrock-runtime.")
+                    .and_then(|rest| rest.strip_suffix(path))
+                    .and_then(|host| host.strip_suffix(".amazonaws.com"))
+                    .is_some_and(is_aws_region)
+            }
+        }
+    }
+}
+
+/// Matches region names such as `us-east-1` or `us-gov-west-1`. Web validates
+/// the same shape, so the region stays a single DNS label.
+fn is_aws_region(region: &str) -> bool {
+    let parts: Vec<&str> = region.split('-').collect();
+    let [geography, middle @ .., number] = parts.as_slice() else {
+        return false;
+    };
+    geography.len() == 2
+        && geography.bytes().all(|byte| byte.is_ascii_lowercase())
+        && !middle.is_empty()
+        && middle
+            .iter()
+            .all(|part| !part.is_empty() && part.bytes().all(|byte| byte.is_ascii_lowercase()))
+        && !number.is_empty()
+        && number.bytes().all(|byte| byte.is_ascii_digit())
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
@@ -415,8 +446,8 @@ pub(super) fn decode(
     if response.version != 1
         || connection.api_format != expected_format
         || !provider.supports(connection.api_format)
-        || connection.base_url != provider.official_origin()
-        || !provider.accepts(connection.credential())
+        || !provider.allows_base_url(connection.api_format, &connection.base_url)
+        || !Provider::accepts(connection.api_format, connection.credential())
         || !valid_token(connection.credential().secret())
         || !valid_ingestion(&response, now)
         || [

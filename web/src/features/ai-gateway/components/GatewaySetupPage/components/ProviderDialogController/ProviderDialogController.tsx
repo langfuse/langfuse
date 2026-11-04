@@ -13,6 +13,7 @@ import {
 } from "@/src/components/ui/dialog";
 import { Input } from "@/src/components/ui/input";
 import { Label } from "@/src/components/ui/label";
+import { BedrockRegionField } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/ProviderDialogController/components/BedrockRegionField";
 import { CredentialFields } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/ProviderDialogController/components/CredentialFields/CredentialFields";
 import { ProviderSelect } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/ProviderDialogController/components/ProviderSelect";
 import { providerLabels } from "@/src/features/ai-gateway/constants/providerLabels";
@@ -58,6 +59,7 @@ export function ProviderDialogController({
     connection?.name ?? null,
   );
   const [credential, setCredential] = useState("");
+  const [awsRegion, setAwsRegion] = useState("");
   const utils = api.useUtils();
   const capture = usePostHogClientCapture();
   const existingNames = useExistingConnectionNames(organizationId);
@@ -100,6 +102,14 @@ export function ProviderDialogController({
           existingNames,
         }) ?? serverNameError);
 
+  /** Bedrock's region is fixed once saved, so edits reuse the stored one. */
+  const getConfig = (selectedConnection: GatewayConnection | null) => {
+    if ((selectedConnection?.provider ?? provider) !== "BEDROCK") {
+      return undefined;
+    }
+    return selectedConnection?.config ?? { region: awsRegion.trim() };
+  };
+
   const resetMutations = () => {
     test.reset();
     create.reset();
@@ -110,6 +120,7 @@ export function ProviderDialogController({
     setProvider("OPENAI");
     setNameDraft(null);
     setCredential("");
+    setAwsRegion("");
     resetMutations();
   };
 
@@ -137,6 +148,7 @@ export function ProviderDialogController({
         orgId: organizationId,
         provider: selectedConnection?.provider ?? provider,
         credential,
+        config: getConfig(selectedConnection),
       });
     } catch (error) {
       reportNonTrpcError(error, "ai-gateway-providers");
@@ -167,6 +179,7 @@ export function ProviderDialogController({
           provider,
           name,
           credential,
+          config: getConfig(null),
         });
         capture("ai_gateway:provider_credential_added", {
           orgId: organizationId,
@@ -201,6 +214,7 @@ export function ProviderDialogController({
       onBeforeClose={() => !isPending}
       renderContent={({ state: selectedConnection, closeDialog }) => {
         const nameError = getNameError(selectedConnection);
+        const isMissingRegion = getConfig(selectedConnection)?.region === "";
         return (
           <>
             <DialogHeader>
@@ -233,6 +247,13 @@ export function ProviderDialogController({
               ) : (
                 <ProviderSelect value={provider} onChange={updateProvider} />
               )}
+              {(selectedConnection?.provider ?? provider) === "BEDROCK" ? (
+                <BedrockRegionField
+                  value={selectedConnection?.config?.region ?? awsRegion}
+                  disabled={Boolean(selectedConnection)}
+                  onChange={setAwsRegion}
+                />
+              ) : null}
               <CredentialFields
                 name={name}
                 nameError={nameError}
@@ -274,7 +295,7 @@ export function ProviderDialogController({
             <DialogFooter>
               <Button
                 variant="secondary"
-                disabled={!credential || isPending}
+                disabled={!credential || isMissingRegion || isPending}
                 loading={test.isPending}
                 onClick={() => testCredential(selectedConnection)}
               >
@@ -285,6 +306,7 @@ export function ProviderDialogController({
                   !name.trim() ||
                   Boolean(nameError) ||
                   (!selectedConnection && !credential) ||
+                  isMissingRegion ||
                   isPending ||
                   isSaved
                 }
@@ -304,6 +326,7 @@ export function ProviderDialogController({
             setProvider(connection?.provider ?? "OPENAI");
             setNameDraft(connection?.name ?? null);
             setCredential("");
+            setAwsRegion("");
             resetMutations();
             openDialog(connection ?? null);
           },
@@ -311,6 +334,7 @@ export function ProviderDialogController({
             setProvider(selectedConnection.provider);
             setNameDraft(selectedConnection.name);
             setCredential("");
+            setAwsRegion("");
             resetMutations();
             openDialog(selectedConnection);
           },

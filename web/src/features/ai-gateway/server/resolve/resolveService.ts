@@ -17,8 +17,9 @@ import {
   type GatewayApiFormat,
   type GatewayProviderId,
   type GatewayResolveResponse,
-  getGatewayProviderDefinition,
+  getGatewayUpstream,
 } from "@/src/features/ai-gateway/server/provider/registry";
+import { decodeBedrockApiKey } from "@/src/features/ai-gateway/server/provider/bedrock";
 
 export { GatewayControlPlaneError as GatewayResolveError } from "@/src/features/ai-gateway/server/gatewayControlPlaneError";
 
@@ -94,10 +95,18 @@ export class GatewayResolveService {
           404,
         );
       }
-      const provider = getGatewayProviderDefinition(
-        context.connection.provider,
+      const upstream = getGatewayUpstream({
+        provider: context.connection.provider,
+        apiFormat: params.apiFormat,
+        config: context.connection.config,
+      });
+      const decryptedCredential = decrypt(
+        context.connection.encryptedCredential,
       );
-      const credential = decrypt(context.connection.encryptedCredential);
+      const credential =
+        context.connection.provider === "BEDROCK"
+          ? decodeBedrockApiKey(decryptedCredential)
+          : decryptedCredential;
       return {
         version: 1 as const,
         connection: {
@@ -107,9 +116,9 @@ export class GatewayResolveService {
             context.connection.provider.toLowerCase() as GatewayProviderId,
           provider_model: context.providerModel,
           api_format: params.apiFormat,
-          base_url: provider.baseUrl,
+          base_url: upstream.baseUrl,
           auth:
-            provider.authType === "bearer"
+            upstream.authType === "bearer"
               ? ({ type: "Bearer", token: credential } as const)
               : ({
                   type: "x-api-key",

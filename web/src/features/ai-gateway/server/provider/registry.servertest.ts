@@ -4,6 +4,7 @@ import { GatewayModelCatalogService } from "@/src/features/ai-gateway/server/pro
 import { GatewayProviderService } from "@/src/features/ai-gateway/server/provider/connection/gatewayProviderService";
 import {
   getGatewayProviderDefinition,
+  getGatewayUpstream,
   providerSupportsApiFormat,
 } from "@/src/features/ai-gateway/server/provider/registry";
 import type { PrismaClient } from "@langfuse/shared/src/db";
@@ -34,6 +35,38 @@ describe("AI gateway provider registry", () => {
     );
   });
 
+  it("routes Bedrock to the regional runtime path matching the API format", () => {
+    const config = { region: "eu-central-1" };
+    expect(
+      getGatewayUpstream({
+        provider: "BEDROCK",
+        apiFormat: "anthropic.messages",
+        config,
+      }),
+    ).toEqual({
+      baseUrl:
+        "https://bedrock-runtime.eu-central-1.amazonaws.com/anthropic/v1",
+      authType: "x-api-key",
+    });
+    expect(
+      getGatewayUpstream({
+        provider: "BEDROCK",
+        apiFormat: "openai.chat-completions",
+        config,
+      }),
+    ).toEqual({
+      baseUrl: "https://bedrock-runtime.eu-central-1.amazonaws.com/openai/v1",
+      authType: "bearer",
+    });
+    expect(() =>
+      getGatewayUpstream({
+        provider: "BEDROCK",
+        apiFormat: "openai.responses",
+        config: { region: "evil.example/x" },
+      }),
+    ).toThrow();
+  });
+
   it("validates credentials before persisting a connection", async () => {
     const validator = vi
       .fn()
@@ -55,6 +88,7 @@ describe("AI gateway provider registry", () => {
     expect(validator).toHaveBeenCalledWith({
       provider: "OPENAI",
       credential: "invalid",
+      config: null,
     });
   });
 

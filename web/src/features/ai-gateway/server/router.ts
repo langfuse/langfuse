@@ -42,6 +42,8 @@ import { GatewayConfigService } from "./config/gatewayConfigService";
 import { getKeyOwnerFilter, type GatewayUsageScope } from "./gatewayUsageScope";
 import { GatewayTeamService } from "./team/gatewayTeamService";
 import { GatewayMetadataSchema } from "@/src/features/ai-gateway/server/provider/registry";
+import { GatewayBedrockConfigSchema } from "@/src/features/ai-gateway/server/provider/bedrock";
+import type { GatewayApiFamily } from "@/src/features/ai-gateway/types/gatewayProvider";
 import { GatewayModelCatalogService } from "@/src/features/ai-gateway/server/provider/models/gatewayModelCatalogService";
 import { GatewayProviderService } from "@/src/features/ai-gateway/server/provider/connection/gatewayProviderService";
 
@@ -210,7 +212,13 @@ export const aiGatewayRouter = createTRPCRouter({
           env.LANGFUSE_AI_GATEWAY_PUBLIC_URL,
         ),
         providers: [
-          ...new Set(connections.map((connection) => connection.provider)),
+          ...new Set(
+            connections.flatMap((connection): GatewayApiFamily[] =>
+              connection.provider === "BEDROCK"
+                ? ["OPENAI", "ANTHROPIC"]
+                : [connection.provider],
+            ),
+          ),
         ],
       };
     }),
@@ -318,6 +326,7 @@ export const aiGatewayRouter = createTRPCRouter({
       organizationInput.extend({
         provider: z.enum(GatewayProvider),
         credential: z.string().min(1),
+        config: GatewayBedrockConfigSchema.optional(),
       }),
     )
     .mutation(async ({ input, ctx }) => {
@@ -325,6 +334,7 @@ export const aiGatewayRouter = createTRPCRouter({
       await new GatewayProviderService(ctx.prisma).testCredential({
         provider: input.provider,
         credential: input.credential,
+        config: input.config,
       });
       return { success: true };
     }),
@@ -335,6 +345,7 @@ export const aiGatewayRouter = createTRPCRouter({
         name: connectionNameSchema,
         provider: z.enum(GatewayProvider),
         credential: z.string().min(1),
+        config: GatewayBedrockConfigSchema.optional(),
       }),
     )
     .mutation(async ({ input, ctx }) => {
@@ -344,6 +355,7 @@ export const aiGatewayRouter = createTRPCRouter({
         name: input.name,
         provider: input.provider,
         credential: input.credential,
+        config: input.config,
         session: ctx.session,
       });
       return connection;

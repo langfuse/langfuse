@@ -296,6 +296,7 @@ export class GatewayModelCatalogService {
     const credential = decrypt(connection.encryptedCredential);
     const models = await getModelDiscoveryAdapter(provider).fetchCatalog({
       credential,
+      config: connection.config,
       fetcher: this.fetcher,
     });
     if (!models.success) {

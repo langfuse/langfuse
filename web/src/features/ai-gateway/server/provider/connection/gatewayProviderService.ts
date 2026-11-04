@@ -20,10 +20,15 @@ import {
   type GatewayProviderName,
   getGatewayProviderDefinition,
 } from "@/src/features/ai-gateway/server/provider/registry";
+import {
+  encodeBedrockCredential,
+  type GatewayBedrockConfig,
+} from "@/src/features/ai-gateway/server/provider/bedrock";
 import { invalidateGatewayResolveCacheForOrganization } from "@/src/features/ai-gateway/server/resolve/gatewayResolveCache";
 import { parseGatewayConnectionName } from "./parseGatewayConnectionName";
 import { GatewayProviderRepository } from "./gatewayProviderRepository";
 import { GatewayModelCatalogService } from "../models/gatewayModelCatalogService";
+import { getModelDiscoveryAdapter } from "../models/modelDiscoveryRegistry";
 
 export class GatewayProviderService {
   private readonly repository: GatewayProviderRepository;
@@ -65,8 +70,16 @@ export class GatewayProviderService {
     return connections;
   }
 
-  testCredential(params: { provider: GatewayProvider; credential: string }) {
-    return this.validateCredential(params);
+  testCredential(params: {
+    provider: GatewayProvider;
+    credential: string;
+    config?: GatewayBedrockConfig;
+  }) {
+    return this.validateCredential({
+      provider: params.provider,
+      credential: params.credential,
+      config: parseConnectionConfig(params.provider, params.config),
+    });
   }
 
   async create(params: {
@@ -74,16 +87,19 @@ export class GatewayProviderService {
     name: string;
     provider: GatewayProvider;
     credential: string;
+    config?: GatewayBedrockConfig;
     session: OrgAuthedContext["session"];
   }) {
     const name = parseGatewayConnectionName(params.name);
+    const config = parseConnectionConfig(params.provider, params.config);
     await this.assertNameAvailable({
       organizationId: params.organizationId,
       name,
     });
-    await this.testCredential({
+    await this.validateCredential({
       provider: params.provider,
       credential: params.credential,
+      config,
     });
     let connection;
     try {
@@ -91,8 +107,11 @@ export class GatewayProviderService {
         organizationId: params.organizationId,
         name,
         provider: params.provider,
-        encryptedCredential: encrypt(params.credential),
+        encryptedCredential: encrypt(
+          toStoredCredential(params.provider, params.credential),
+        ),
         displaySecret: getDisplaySecretKey(params.credential),
+        config,
         createdById: params.session.user.id,
         status: "ENABLED",
       });
@@ -148,9 +167,10 @@ export class GatewayProviderService {
       );
     }
     if (params.credential) {
-      await this.testCredential({
+      await this.validateCredential({
         provider: existing.provider,
         credential: params.credential,
+        config: existing.config,
       });
     }
 
@@ -162,7 +182,7 @@ export class GatewayProviderService {
         name,
         status: params.credential ? "ENABLED" : params.status,
         encryptedCredential: params.credential
-          ? encrypt(params.credential)
+          ? encrypt(toStoredCredential(existing.provider, params.credential))
           : undefined,
         displaySecret: params.credential
           ? getDisplaySecretKey(params.credential)
@@ -281,10 +301,45 @@ function rethrowConnectionMutationError(error: unknown): never {
   throw error;
 }
 
+// Bedrock keeps its region in `config`; other providers have no config.
+function parseConnectionConfig(
+  provider: GatewayProvider,
+  config: GatewayBedrockConfig | undefined,
+) {
+  if (provider !== "BEDROCK") return null;
+  if (!config) {
+    throw new InvalidRequestError(
+      "Amazon Bedrock connections need an AWS region",
+    );
+  }
+  return config;
+}
+
+function toStoredCredential(provider: GatewayProvider, credential: string) {
+  return provider === "BEDROCK"
+    ? encodeBedrockCredential(credential)
+    : credential;
+}
+
 async function validateGatewayCredential(params: {
   provider: GatewayProviderName;
   credential: string;
+  config: GatewayBedrockConfig | null;
 }): Promise<void> {
+  // Listing models proves the key and region without depending on which
+  // models the AWS account has been granted.
+  if (params.provider === "BEDROCK") {
+    const result = await getModelDiscoveryAdapter("BEDROCK").fetchCatalog({
+      credential: encodeBedrockCredential(params.credential),
+      config: params.config,
+      fetcher: fetch,
+    });
+    if (!result.success) {
+      throw new InvalidRequestError("Provider credential validation failed");
+    }
+    return;
+  }
+
   const definition = getGatewayProviderDefinition(params.provider);
   const adapter =
     params.provider === "ANTHROPIC" ? LLMAdapter.Anthropic : LLMAdapter.OpenAI;
@@ -320,4 +375,5 @@ async function validateGatewayCredential(params: {
 type CredentialValidator = (params: {
   provider: GatewayProviderName;
   credential: string;
+  config: GatewayBedrockConfig | null;
 }) => Promise<void>;

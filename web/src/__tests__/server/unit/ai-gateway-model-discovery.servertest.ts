@@ -5,6 +5,7 @@ import type { Redis } from "ioredis";
 
 import { GatewayModelCatalogService } from "@/src/features/ai-gateway/server/provider/models/gatewayModelCatalogService";
 import { anthropicModelDiscoveryAdapter } from "@/src/features/ai-gateway/server/provider/models/adapters/anthropic";
+import { bedrockModelDiscoveryAdapter } from "@/src/features/ai-gateway/server/provider/models/adapters/bedrock";
 import { openAiModelDiscoveryAdapter } from "@/src/features/ai-gateway/server/provider/models/adapters/openAi";
 
 const openAiModels = [
@@ -21,6 +22,7 @@ const respondWith = (body: unknown) => async () => Response.json(body);
 const fetchOpenAiModelIds = async () => {
   const result = await openAiModelDiscoveryAdapter.fetchCatalog({
     credential: "sk-test",
+    config: null,
     fetcher: respondWith({ data: openAiModels }),
   });
   return result.success ? result.models.map(({ id }) => id) : result.error;
@@ -93,6 +95,7 @@ describe("AI Gateway model discovery", () => {
   it("drops retired Anthropic models and keeps deprecated ones", async () => {
     const result = await anthropicModelDiscoveryAdapter.fetchCatalog({
       credential: "sk-ant-test",
+      config: null,
       fetcher: respondWith({
         data: [
           {
@@ -127,6 +130,37 @@ describe("AI Gateway model discovery", () => {
       "claude-active",
       "claude-deprecated",
       "claude-no-lifecycle",
+    ]);
+  });
+
+  it("lists Bedrock foundation models and active inference profiles in the connection's region", async () => {
+    const requestedUrls: string[] = [];
+    const result = await bedrockModelDiscoveryAdapter.fetchCatalog({
+      credential: JSON.stringify({ apiKey: "bedrock-test" }),
+      config: { region: "eu-central-1" },
+      fetcher: async (input) => {
+        const url = new URL(String(input));
+        requestedUrls.push(url.origin + url.pathname);
+        return Response.json(
+          url.pathname === "/foundation-models"
+            ? { modelSummaries: [{ modelId: "anthropic.claude-v1:0" }] }
+            : {
+                inferenceProfileSummaries: [
+                  { inferenceProfileId: "eu.openai.gpt-5", status: "ACTIVE" },
+                  { inferenceProfileId: "eu.legacy", status: "INACTIVE" },
+                ],
+              },
+        );
+      },
+    });
+
+    expect(result.success && result.models.map(({ id }) => id)).toEqual([
+      "anthropic.claude-v1:0",
+      "eu.openai.gpt-5",
+    ]);
+    expect(requestedUrls).toEqual([
+      "https://bedrock.eu-central-1.amazonaws.com/foundation-models",
+      "https://bedrock.eu-central-1.amazonaws.com/inference-profiles",
     ]);
   });
 });

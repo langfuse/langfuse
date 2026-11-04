@@ -6,6 +6,10 @@ import {
 } from "@langfuse/shared/src/db";
 
 import { parseGatewayAllowedModels } from "@/src/features/ai-gateway/fns/parseGatewayAllowedModels";
+import {
+  type GatewayBedrockConfig,
+  GatewayBedrockConfigSchema,
+} from "@/src/features/ai-gateway/server/provider/bedrock";
 
 const safeConnectionSelect = {
   id: true,
@@ -16,6 +20,7 @@ const safeConnectionSelect = {
   createdById: true,
   status: true,
   allowedModels: true,
+  config: true,
   createdAt: true,
   updatedAt: true,
 } satisfies Prisma.GatewayAiConnectionSelect;
@@ -28,6 +33,8 @@ function toSafeConnection<T extends SafeConnectionRow>(connection: T) {
   return {
     ...connection,
     allowedModels: parseGatewayAllowedModels(connection.allowedModels),
+    config:
+      GatewayBedrockConfigSchema.safeParse(connection.config).data ?? null,
   };
 }
 
@@ -109,11 +116,12 @@ export class GatewayProviderRepository {
     provider: GatewayProvider;
     encryptedCredential: string;
     displaySecret: string;
+    config: GatewayBedrockConfig | null;
     createdById: string | null;
     status: GatewayConnectionStatus;
   }) {
     const connection = await this.prisma.gatewayAiConnection.create({
-      data: params,
+      data: { ...params, config: params.config ?? Prisma.DbNull },
       select: safeConnectionSelect,
     });
     return toSafeConnection(connection);

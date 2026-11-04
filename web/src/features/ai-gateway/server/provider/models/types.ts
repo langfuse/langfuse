@@ -26,6 +26,7 @@ type ModelDiscoveryResult =
 export interface ModelDiscoveryAdapter {
   fetchCatalog(params: {
     credential: string;
+    config: unknown;
     fetcher: typeof fetch;
   }): Promise<ModelDiscoveryResult>;
 }
