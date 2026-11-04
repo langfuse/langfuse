@@ -58,11 +58,15 @@ Use their technical rules, not their implementation or handoff workflows.
 
 ### Tests
 
-- Not every detail needs a test. Focus tests on critical user behavior and known regressions. Add preemptive regression coverage only for important functionality; do not require tests for incidental details or hypothetical low-impact failures.
-- One representative input per code path, plus each boundary. Remove redundant cases; retain distinct contracts and paths.
-- Tests must fail when the behavior breaks or its implementation is deleted. No mocks that just return the expected answer or always-true assertions.
+- A test earns its place only when it is fast, uses few or no mocks, and fails without the change it accompanies.
+- Flag tests that would pass without the fix: change-set checks that only assert a removed thing is gone, tautologies, and assertions on mocks only.
+- Flag brittle, mock-heavy UI click-through tests and Storybook stories added only to prove a fix. Test components only through Storybook. Use `.clienttest.ts` for frontend unit tests, not in-source tests. Keep backend and worker conventions.
+- Flag duplicates of existing coverage, and multiple tests where one meaningful test is enough. Suggest which one to keep. One representative input per distinct contract or path, plus each boundary.
+- Flag tests that hardcode limits, timeouts, or plan values copied from code. Ask to import the constant instead.
+- Flag skipped or commented-out tests being added.
+- Flag unrelated side fixes bundled into the PR.
+- Do not ask for additional tests unless a specific behavior change is untested. Then ask for one focused test.
 - Remove regression tests when types, schemas, or deleted paths prevent the bug. Check that runtime inputs cannot bypass those protections.
-- Test components only through Storybook. Use `.clienttest.ts` for frontend unit tests, not in-source tests. Keep backend and worker conventions.
 - No dependencies on other tests, execution order, or another test's seeding.
 
 ### Security and performance
