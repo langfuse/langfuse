@@ -207,6 +207,23 @@ const EnvSchema = z.object({
     .int()
     .positive()
     .default(256 * 1024 * 1024),
+  LANGFUSE_TOPICS_NIGHTLY_REFIT_ENABLED: z
+    .enum(["true", "false"])
+    .default("true"),
+  // 04:00 UTC is early morning in Europe and late evening in the Americas.
+  LANGFUSE_TOPICS_NIGHTLY_REFIT_HOUR_UTC: z.coerce
+    .number()
+    .int()
+    .min(0)
+    .max(23)
+    .default(4),
+  // Projects refit at a stable offset within this many minutes after the hour.
+  LANGFUSE_TOPICS_NIGHTLY_REFIT_SPREAD_MINUTES: z.coerce
+    .number()
+    .int()
+    .min(1)
+    .max(1440)
+    .default(60),
   LANGFUSE_TRACE_BATCH_MAX_BLOCK_SIZE: z.coerce
     .number()
     .int()

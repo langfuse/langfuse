@@ -276,8 +276,7 @@ matching the selected facet version and embedding configuration. The attempt use
 that in-memory population for fitting; a failed update selects it again on retry. Non-applicable or incompatible newer summaries never
 revive older eligible results. A change to embedding dimensions must first be
 processed explicitly; topic updates do not silently re-embed historical data.
-The explicit update always attempts a fit subject to its minimum count. There
-is no conditional-refit heuristic or periodic scheduler in this PoC.
+The explicit update always attempts a fit subject to its minimum count.
 
 Continuity uses at least 80% reciprocal overlap of trace identities, 10
 anchors (3 exploratory), and 50% old-topic coverage. Compatible centroids must be
@@ -527,9 +526,18 @@ the completed attempt without fitting again. Skipped attempts also resume
 without recomputation, using the previously saved cohort count to distinguish
 no applicable summaries from insufficient data.
 
-Automatic processing starts only a facet version's first discovery; there is no
-refit schedule yet. The planned six-hour scheduler should invoke the same update
-path as the manual button.
+Automatic processing starts a facet version's first discovery. After that,
+`nightlyRefit.ts` refits each published map of the Topics rule's current facet
+versions once a day through the same update path as the manual button. A
+five-minute runner, holding a Redis lease, starts a project's refit once its slot
+has passed. The slot is `LANGFUSE_TOPICS_NIGHTLY_REFIT_HOUR_UTC` plus a stable,
+hash-derived offset within `LANGFUSE_TOPICS_NIGHTLY_REFIT_SPREAD_MINUTES`.
+The request ID is derived from the slot, so replicas, retries and later ticks
+cannot start it twice. A slot is skipped when no summaries arrived after the
+published map's window, or while a fit of that facet is pending or running (then
+rechecked next tick). After downtime only the latest slot runs, at most five
+refits per tick. The refit window uses the same capacity-aware selection as
+discovery.
 Large per-project fitting and distributed stream processing remain follow-up
 work; this is not a 100-million-traces/day throughput validation. The incoming
 trace path uses bounded batches; naming and discovery limits apply to individual

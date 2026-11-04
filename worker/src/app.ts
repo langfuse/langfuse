@@ -116,6 +116,7 @@ import { isTopicsEnabled } from "@langfuse/shared/topics/server";
 import { topicsQueueProcessor } from "./queues/topicsQueue";
 import { topicsEmbeddingQueueProcessor } from "./queues/topicsEmbeddingQueue";
 import { topicsAutomationQueueProcessor } from "./queues/topicsAutomationQueue";
+import { TopicsNightlyRefitRunner } from "./features/topics/nightlyRefit";
 
 const app = express();
 
@@ -493,6 +494,12 @@ if (isTopicsEnabled()) {
       topicsAutomationQueueProcessor,
       { concurrency: 2 },
     );
+}
+
+export let topicsNightlyRefitRunner: TopicsNightlyRefitRunner | null = null;
+if (isTopicsEnabled() && env.LANGFUSE_TOPICS_NIGHTLY_REFIT_ENABLED === "true") {
+  topicsNightlyRefitRunner = new TopicsNightlyRefitRunner();
+  topicsNightlyRefitRunner.start();
 }
 
 if (

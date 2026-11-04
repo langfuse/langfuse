@@ -391,7 +391,7 @@ async function deferDiscovery(batch: AutomationBatch, facet: TopicFacetRef) {
 }
 
 /** Keep a complete recent cohort; only aggregate counts and byte estimates are loaded. */
-async function selectDiscoveryWindow(
+export async function selectDiscoveryWindow(
   projectId: string,
   facet: TopicFacetRef,
   embeddingConfig: TopicEmbeddingConfig,
