@@ -4,7 +4,7 @@ import {
   observationRefs,
   scoreRefs,
   ref,
-} from "@/src/ee/features/access-audit-log/server/auditedQuery";
+} from "@/src/features/audit-logs/server/auditedQuery";
 import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import {

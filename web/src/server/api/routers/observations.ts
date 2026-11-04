@@ -5,7 +5,7 @@ import {
 import {
   auditedQuery,
   ref,
-} from "@/src/ee/features/access-audit-log/server/auditedQuery";
+} from "@/src/features/audit-logs/server/auditedQuery";
 import { LangfuseNotFoundError, parseIO } from "@langfuse/shared";
 import { getObservationById } from "@langfuse/shared/src/server";
 import { z } from "zod";

@@ -109,7 +109,7 @@ import {
 import {
   recordRefusedRead,
   type TrpcMeta,
-} from "@/src/ee/features/access-audit-log/server/auditedQuery";
+} from "@/src/features/audit-logs/server/auditedQuery";
 import { AdminApiAuthService } from "@/src/ee/features/admin-api/server/adminApiAuth";
 import { env } from "@/src/env.mjs";
 import { isBaseError, parseIO } from "@langfuse/shared";
@@ -247,7 +247,7 @@ const withErrorHandling = t.middleware(async ({ ctx, next }) => {
   return res;
 });
 
-// Records refused calls to audited queries (`auditedQuery`, EE) as access
+// Records refused calls to audited queries (`auditedQuery`) as access
 // events. Runs outside the access checks so it sees their refusals; reads that
 // pass are recorded by the query itself.
 const withAccessAuditLog = t.middleware(async (opts) => {

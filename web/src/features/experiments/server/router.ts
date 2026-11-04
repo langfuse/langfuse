@@ -2,7 +2,7 @@ import { z } from "zod/v4";
 import {
   auditedQuery,
   ref,
-} from "@/src/ee/features/access-audit-log/server/auditedQuery";
+} from "@/src/features/audit-logs/server/auditedQuery";
 import { randomUUID } from "crypto";
 import { addDays } from "date-fns";
 import {

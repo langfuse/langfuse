@@ -15,7 +15,7 @@ import {
 } from "@langfuse/shared";
 import { logger } from "@langfuse/shared/src/server";
 
-import { recordTrpcAccess } from "@/src/ee/features/access-audit-log/server/recordAccessEvent";
+import { recordTrpcAccess } from "@/src/features/audit-logs/server/recordAccessEvent";
 
 /** The read a tRPC query performs, recorded as an audit access event. */
 export type AccessAuditMeta = {
@@ -131,7 +131,7 @@ const namesPossibleId = (ref: AuditLogResourceRef): boolean =>
   ref.length - ref.indexOf(":") - 1 <= MAX_ID_LENGTH;
 
 /**
- * A query whose reads are recorded as audit access events (EE): the resource
+ * A query whose reads are recorded as audit access events: the resource
  * `idKey` names, plus what the resolver passes to `audit.refs`. The event is
  * recorded before the data is returned, so a failed write fails the read.
  * Refused calls are recorded by the access-check middleware, from the meta

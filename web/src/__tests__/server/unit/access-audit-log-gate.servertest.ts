@@ -27,7 +27,7 @@ vi.mock("@/src/env.mjs", async (importOriginal) => {
   };
 });
 
-import { isAccessAuditLogEnabled } from "@/src/ee/features/access-audit-log/server/isAccessAuditLogEnabled";
+import { isAccessAuditLogEnabled } from "@/src/features/audit-logs/isAccessAuditLogEnabled";
 
 describe("isAccessAuditLogEnabled", () => {
   beforeEach(() => {
