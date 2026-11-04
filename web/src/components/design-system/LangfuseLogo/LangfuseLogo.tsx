@@ -1,5 +1,5 @@
 import { LangfuseIcon } from "@/src/components/design-system/LangfuseIcon/LangfuseIcon";
-import { env } from "@/src/env.mjs";
+import { LangfuseWordmark } from "@/src/components/design-system/LangfuseWordmark/LangfuseWordmark";
 import { cn } from "@/src/utils/tailwind";
 import { PlusIcon } from "@langfuse/icons";
 
@@ -41,16 +41,9 @@ export const LangfuseLogo = ({
 
   return (
     <div className="flex items-center">
-      <img
-        className="-ml-1 h-6 max-w-24 group-data-[collapsible=icon]:hidden dark:hidden"
-        src={`${env.NEXT_PUBLIC_BASE_PATH ?? ""}/langfuse-by-clickhouse.svg`}
-        alt="Langfuse by ClickHouse"
-      />
-      <img
-        className="-ml-1 hidden h-6 max-w-24 group-data-[collapsible=icon]:hidden dark:block"
-        src={`${env.NEXT_PUBLIC_BASE_PATH ?? ""}/langfuse-by-clickhouse-white.svg`}
-        alt="Langfuse by ClickHouse"
-      />
+      <div className="-ml-1 group-data-[collapsible=icon]:hidden">
+        <LangfuseWordmark size="sm" />
+      </div>
       <div className="hidden scale-120 group-data-[collapsible=icon]:block">
         <LangfuseIcon size={28} />
       </div>

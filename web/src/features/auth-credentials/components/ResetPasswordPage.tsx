@@ -14,7 +14,7 @@ import {
 } from "@/src/components/ui/form";
 import { Input } from "@/src/components/ui/input";
 import { PasswordInput } from "@/src/components/design-system/PasswordInput/PasswordInput";
-import { LangfuseIcon } from "@/src/components/design-system/LangfuseIcon/LangfuseIcon";
+import { LangfuseWordmark } from "@/src/components/design-system/LangfuseWordmark/LangfuseWordmark";
 import { signIn, useSession } from "next-auth/react";
 import { ArrowLeft } from "@langfuse/icons";
 import { api } from "@/src/utils/api";
@@ -203,7 +203,7 @@ export function ResetPasswordPage({
         <div className="sm:mx-auto sm:w-full sm:max-w-md">
           <Link href="/">
             <div className="mx-auto w-fit">
-              <LangfuseIcon />
+              <LangfuseWordmark />
             </div>
           </Link>
           <h2 className="text-primary mt-4 text-center text-2xl leading-9 font-bold tracking-tight">

@@ -2,10 +2,10 @@
 /* eslint-disable @repo/no-style-props */
 import { cn } from "@/src/utils/tailwind";
 import Link from "next/link";
-import { env } from "@/src/env.mjs";
 import { useUiCustomization } from "@/src/ee/features/ui-customization/useUiCustomization";
 import { PlusIcon } from "@langfuse/icons";
 import { LangfuseIcon } from "@/src/components/design-system/LangfuseIcon/LangfuseIcon";
+import { LangfuseWordmark } from "@/src/components/design-system/LangfuseWordmark/LangfuseWordmark";
 
 /**
  * Compact Langfuse brand mark for the top bar.
@@ -56,18 +56,7 @@ export const TopbarBrand = ({
           <LangfuseIcon size={16} />
         </>
       ) : variant === "wordmark" ? (
-        <>
-          <img
-            className="max-h-7 max-w-28 dark:hidden"
-            src={`${env.NEXT_PUBLIC_BASE_PATH ?? ""}/langfuse-by-clickhouse.svg`}
-            alt="Langfuse by ClickHouse"
-          />
-          <img
-            className="hidden max-h-7 max-w-28 dark:block"
-            src={`${env.NEXT_PUBLIC_BASE_PATH ?? ""}/langfuse-by-clickhouse-white.svg`}
-            alt="Langfuse by ClickHouse"
-          />
-        </>
+        <LangfuseWordmark size="md" />
       ) : (
         <LangfuseIcon size={28} />
       )}
