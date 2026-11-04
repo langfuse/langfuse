@@ -61,7 +61,6 @@ function groupNavigationItems(items: NavigationItem[]): GroupedNavigation {
   const groupedItems = groupedResult
     ? [
         ...(grouped[RouteGroup.Observability] || []),
-        ...(grouped[RouteGroup.PromptManagement] || []),
         ...(grouped[RouteGroup.ContextManagement] || []),
         ...(grouped[RouteGroup.Evaluation] || []),
       ]
