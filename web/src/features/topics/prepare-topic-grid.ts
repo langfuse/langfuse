@@ -51,5 +51,5 @@ export function prepareTopicGrid(
         )
       : { points: [], perDot: 1 };
 
-  return { topics, points, perDot, rowsById };
+  return { topics, points, perDot, rowsById, total: facet.counts.total };
 }

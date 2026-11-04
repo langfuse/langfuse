@@ -392,20 +392,21 @@ export async function getLatestFacetSummaries(
   const scopeSql = `facet_id = {facetId:String}
     ${facetVersion ? "AND facet_version = {facetVersion:UInt32}" : ""}
     ${traceIds ? "AND trace_id IN {traceIds:Array(String)}" : ""}`;
-  const rows = await queryClickhouse<
-    Pick<
-      TopicSummary,
-      | "projectId"
-      | "facetId"
-      | "facetVersion"
-      | "traceId"
-      | "sessionId"
-      | "state"
-      | "summary"
-      | "environment"
-    > & { unitStartTimeMs: string; processedAtMs: string }
-  >({
-    query: `SELECT project_id AS projectId, facet_id AS facetId,
+  const read = (batch?: string[]) =>
+    queryClickhouse<
+      Pick<
+        TopicSummary,
+        | "projectId"
+        | "facetId"
+        | "facetVersion"
+        | "traceId"
+        | "sessionId"
+        | "state"
+        | "summary"
+        | "environment"
+      > & { unitStartTimeMs: string; processedAtMs: string }
+    >({
+      query: `SELECT project_id AS projectId, facet_id AS facetId,
       facet_version AS facetVersion, trace_id AS traceId, session_id AS sessionId,
       processing_state AS state, summary, environment,
       toUnixTimestamp64Milli(unit_start_time) AS unitStartTimeMs,
@@ -415,15 +416,21 @@ export async function getLatestFacetSummaries(
         AND ${latestSummaryFilterSql(scopeSql, facetVersion ? sourceKeySql : summarySourceKeySql)}
       ORDER BY ${facetVersion ? "" : "facet_version DESC, "}processed_at DESC
       LIMIT 1 BY ${facetVersion ? sourceKeySql : "project_id, trace_id, if(trace_id = '', session_id, '')"}`,
-    params: {
-      projectId,
-      ...timeRangeParams(timeRange),
-      facetId,
-      ...(facetVersion ? { facetVersion } : {}),
-      ...(traceIds ? { traceIds } : {}),
-    },
-    tags: { route: "topics-latest-summaries", projectId },
-  });
+      params: {
+        projectId,
+        ...timeRangeParams(timeRange),
+        facetId,
+        ...(facetVersion ? { facetVersion } : {}),
+        ...(batch ? { traceIds: batch } : {}),
+      },
+      tags: { route: "topics-latest-summaries", projectId },
+    });
+  // Id lists go in the request URL, so large ones are read in batches.
+  const rows = [];
+  for (const batch of traceIds
+    ? chunk(traceIds, LOOKUP_BATCH_SIZE)
+    : [undefined])
+    rows.push(...(await read(batch)));
   return rows
     .filter((row) => !isInternalEvalEnvironment(row.environment))
     .map((row) => ({

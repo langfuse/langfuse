@@ -621,32 +621,22 @@ export type TopicResultCounts = {
 
 /**
  * Distinct trace counts per facet and topic in the window, approximated with
- * uniqCombined so memory stays flat for any project size. A trace counts once
- * per topic it was assigned to by a completed run; unlike the per-trace reader,
- * a reassigned or re-summarized trace is not resolved to its current result.
+ * uniqCombined so memory stays flat for any project size. Assignments count
+ * only from each facet's published run (initial and online); unlike the
+ * per-trace reader, a re-summarized trace is not resolved to its current result.
  */
 export async function getTopicResultCounts(input: {
   projectId: string;
   window: TopicTimeRange;
-  facets: { facetId: string; version: number | null }[];
+  facets: { facetId: string; version: number | null; runId: string | null }[];
 }): Promise<TopicResultCounts[]> {
   if (input.facets.length === 0) return [];
   const facetIds = input.facets.map(({ facetId }) => facetId);
-  const publishedRunIds = (
-    await prisma.topicClusteringRun.findMany({
-      where: {
-        projectId: input.projectId,
-        facetId: { in: facetIds },
-        status: "completed",
-      },
-      select: { id: true },
-    })
-  ).map(({ id }) => id);
   const params = {
     projectId: input.projectId,
     facetIds,
     versions: input.facets.map(({ version }) => version ?? 0),
-    publishedRunIds,
+    runIds: input.facets.map(({ runId }) => runId ?? ""),
     internalEnvironmentPrefix: INTERNAL_EVAL_ENVIRONMENT_PREFIX,
     publicLlmJudgeEnvironment: PUBLIC_LLM_JUDGE_ENVIRONMENT,
     ...timeRangeParams(input.window),
@@ -682,17 +672,19 @@ export async function getTopicResultCounts(input: {
       topic_id: string;
       is_facet_total: number;
       count: string;
+      assigned: string;
       topic_version_id: string;
       run_id: string;
     }>({
       ...READ_OPTIONS,
       query: `SELECT facet_id, topic_id, grouping(topic_id) AS is_facet_total,
           uniqCombined(trace_id) AS count,
+          uniqCombinedIf(trace_id, topic_id != '') AS assigned,
           argMax(topic_version_id, assigned_at) AS topic_version_id,
           argMax(clustering_run_id, assigned_at) AS run_id
         FROM topic_assignments
-        WHERE ${scope}
-          AND (clustering_run_id = '' OR clustering_run_id IN {publishedRunIds:Array(String)})
+        WHERE ${scope} AND clustering_run_id != ''
+          AND clustering_run_id = {runIds:Array(String)}[indexOf({facetIds:Array(String)}, facet_id)]
         GROUP BY GROUPING SETS ((facet_id, topic_id), (facet_id))`,
       params,
       tags,
@@ -701,9 +693,8 @@ export async function getTopicResultCounts(input: {
   return input.facets.map(({ facetId }) => {
     const summary = summaries.find((row) => row.facet_id === facetId);
     const rows = assignments.filter((row) => row.facet_id === facetId);
-    const assignedAny = Number(
-      rows.find((row) => Number(row.is_facet_total) === 1)?.count ?? 0,
-    );
+    const facetTotal = rows.find((row) => Number(row.is_facet_total) === 1);
+    const assignedAny = Number(facetTotal?.count ?? 0);
     const topicRows = rows.filter((row) => Number(row.is_facet_total) === 0);
     const outliers = Number(
       topicRows.find((row) => row.topic_id === "")?.count ?? 0,
@@ -713,7 +704,7 @@ export async function getTopicResultCounts(input: {
       total: Number(summary?.total ?? 0),
       usable: Number(summary?.usable ?? 0),
       awaiting: Math.max(0, Number(summary?.complete ?? 0) - assignedAny),
-      assigned: Math.max(0, assignedAny - outliers),
+      assigned: Number(facetTotal?.assigned ?? 0),
       outliers,
       notApplicable: Number(summary?.not_applicable ?? 0),
       insufficientInput: Number(summary?.insufficient_input ?? 0),

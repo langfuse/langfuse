@@ -118,6 +118,7 @@ export async function currentTopicResults(
             facets: indices.map((index) => ({
               facetId: enabled[index].id,
               version: enabled[index].versions[0]?.version ?? null,
+              runId: runs[index]?.id ?? null,
             })),
           }),
         ),

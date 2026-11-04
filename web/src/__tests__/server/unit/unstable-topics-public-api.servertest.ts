@@ -344,7 +344,7 @@ describe("unstable Topics public API", () => {
     expect(readers.getTopicResultCounts).toHaveBeenCalledExactlyOnceWith({
       projectId,
       window: { from: window.fromTimestamp, to: window.toTimestamp },
-      facets: [{ facetId: "issues", version: 2 }],
+      facets: [{ facetId: "issues", version: 2, runId: issuesRun.id }],
     });
     expect(result.window).toEqual({
       from: window.fromTimestamp,

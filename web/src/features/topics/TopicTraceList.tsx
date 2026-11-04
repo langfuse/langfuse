@@ -7,6 +7,7 @@ import {
 } from "react";
 import { ExternalLink } from "@langfuse/icons";
 import { DataTable } from "@/src/components/table/data-table";
+import { TopicTraceLoadMore } from "./TopicTraceLoadMore";
 import { type LangfuseColumnDef } from "@/src/components/table/types";
 import { type DataTablePeekViewProps } from "@/src/components/table/peek";
 import { Button } from "@/src/components/design-system/Button/Button";
@@ -180,6 +181,7 @@ export function TopicTraceList({
         noResultsMessage="No trace summaries."
         peekView={peekView}
       />
+      {traces.hasMore && <TopicTraceLoadMore traces={traces} />}
     </section>
   );
 }

@@ -24,9 +24,20 @@ export function useFacetTopicTraces(
       meta: { toastOperation: "topics.load" },
     },
   );
+  // Disabled queries keep their cached pages, so `null` must not read them.
+  if (query === null)
+    return {
+      rows: [],
+      isLoading: false,
+      isLoadingMore: false,
+      error: null,
+      hasMore: false,
+      loadMore: () => undefined,
+    };
   return {
     rows: result.data?.pages.flatMap((page) => page.rows) ?? [],
-    isLoading: query !== null && result.isLoading,
+    isLoading: result.isLoading,
+    isLoadingMore: result.isFetchingNextPage,
     error: result.error?.message ?? null,
     hasMore: Boolean(result.hasNextPage),
     loadMore: () => {

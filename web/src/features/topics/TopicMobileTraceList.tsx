@@ -7,6 +7,7 @@ import {
 import { formatCompactRelativeTime } from "@/src/utils/dates";
 import { cn } from "@/src/utils/tailwind";
 import { type TopicTracesResult } from "./facet-topics";
+import { TopicTraceLoadMore } from "./TopicTraceLoadMore";
 
 const PAGE_SIZE = 20;
 
@@ -104,9 +105,12 @@ export function TopicMobileTraceList({
           ))}
         </ul>
         {rows.length === 0 && (
-          <p className="text-muted-foreground p-4 text-sm">
-            No matches. Adjust or clear your filters.
-          </p>
+          <>
+            <p className="text-muted-foreground p-4 text-sm">
+              No matches. Adjust or clear your filters.
+            </p>
+            {traces.hasMore && <TopicTraceLoadMore traces={traces} />}
+          </>
         )}
       </div>
       {rows.length > 0 && (

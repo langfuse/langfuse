@@ -237,15 +237,22 @@ export function useCurrentTopics({
   pollForSummaries?: boolean;
   refreshAfter: number;
 }) {
-  const { client } = api.useUtils();
+  const utils = api.useUtils();
   return useQuery({
     queryKey: [
       ...getQueryKey(api.topics.currentResults, { projectId }, "query"),
       // A completed status needs a new request, even if an older poll is in flight.
       running ? 0 : refreshAfter,
     ],
-    queryFn: ({ signal }) =>
-      client.topics.currentResults.query({ projectId }, { signal }),
+    queryFn: async ({ signal }) => {
+      const results = await utils.client.topics.currentResults.query(
+        { projectId },
+        { signal },
+      );
+      // Loaded trace pages follow the counts they are shown with.
+      utils.topics.traces.invalidate({ projectId });
+      return results;
+    },
     placeholderData: keepPreviousData,
     refetchInterval: (query) => {
       if (running) return 3000;

@@ -12,6 +12,7 @@ vi.mock("@/src/utils/api", () => ({
     },
     useUtils: () => ({
       client: { topics: { currentResults: { query: fetchResults } } },
+      topics: { traces: { invalidate: vi.fn() } },
     }),
   },
 }));

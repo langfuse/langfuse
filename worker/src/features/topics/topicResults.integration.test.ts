@@ -123,7 +123,7 @@ describe("current Topics summaries and assignments", () => {
     const facets = await ensureDefaultTopicFacets(projectId);
     [issues, intent] = facets.map((facet) => facet.id);
     const runs = await Promise.all(
-      ["completed", "running"].map((status) =>
+      ["completed", "running", "completed"].map((status) =>
         prisma.topicClusteringRun.create({
           data: { projectId, facetId: issues, facetVersion: 1, status },
         }),
@@ -163,6 +163,13 @@ describe("current Topics summaries and assignments", () => {
       assignment(staleOld),
       assignment(outlier, { topicId: null, topicVersionId: null }),
       assignment(unpublished, { runId: runs[1].id }),
+      // A retired completed run's assignment is not part of the published counts.
+      assignment(outlier, {
+        runId: runs[2].id,
+        topicId: "topic-retired",
+        topicVersionId: "topic-retired-v1",
+        assignedAt: "2026-10-06T00:00:00.000Z",
+      }),
     ]);
   });
 
@@ -318,14 +325,15 @@ describe("current Topics summaries and assignments", () => {
       projectId,
       window,
       facets: [
-        { facetId: issues, version: 1 },
-        { facetId: intent, version: 1 },
+        { facetId: issues, version: 1, runId: publishedRunId },
+        { facetId: intent, version: 1, runId: null },
       ],
     });
     expect(issuesCounts).toMatchObject({
       total: 5,
       usable: 4,
       insufficientInput: 1,
+      assigned: 2,
       outliers: 1,
       topics: [{ topicId: "topic-refunds", count: 2 }],
     });

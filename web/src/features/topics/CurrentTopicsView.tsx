@@ -22,6 +22,7 @@ import {
   type UseTopicTraces,
 } from "./facet-topics";
 import { Button } from "@/src/components/design-system/Button/Button";
+import { TopicTraceLoadMore } from "./TopicTraceLoadMore";
 import { TextLink } from "@/src/components/design-system/TextLink/TextLink";
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import {
@@ -78,11 +79,22 @@ export function CurrentTopicsView({
   }
   const topicFilters = filters.filter((filter) => filter.column === "topicId");
   const topics = useMemo(() => orderedFacetTopics(facet), [facet]);
-  const traces = useTraces(
-    topicTraceQuery(filters, searchQuery, topics, {
-      assignedOnly: !showUnassigned,
-    }),
+  const traceQuery = topicTraceQuery(filters, searchQuery, topics, {
+    assignedOnly: !showUnassigned,
+  });
+  const traces = useTraces(traceQuery);
+  // A map pick outside the loaded pages is fetched by id and pinned on top.
+  const selectedLoaded =
+    !selectedTraceId ||
+    traces.rows.some((row) => row.traceId === selectedTraceId);
+  const pinned = useTraces(
+    traceQuery && !selectedLoaded
+      ? { ...traceQuery, traceId: selectedTraceId! }
+      : null,
   );
+  const tableTraces = selectedLoaded
+    ? traces
+    : { ...traces, rows: [...pinned.rows, ...traces.rows] };
   const isFiltered = filters.length > 0 || Boolean(searchQuery?.trim());
   const mapPoints =
     mapResult.data?.status === "ready" ? mapResult.data.points : null;
@@ -212,7 +224,7 @@ export function CurrentTopicsView({
         selectedTraceId={selectedTraceId}
         onSelectTrace={selectTrace}
         peekView={peekView}
-        traces={traces}
+        traces={tableTraces}
         totalCount={facet.counts.total}
         topics={topics}
       />
@@ -371,12 +383,13 @@ function CurrentTraceTable({
 }: CurrentTraceTableProps) {
   const tableRef = useRef<HTMLDivElement>(null);
   const { rows } = traces;
+  const selectedRowLoaded = rows.some((row) => row.traceId === selectedTraceId);
   // A trace picked on the map scrolls into view once its row is loaded.
   useEffect(() => {
     tableRef.current
       ?.querySelector('[aria-selected="true"]')
       ?.scrollIntoView({ block: "nearest" });
-  }, [selectedTraceId]);
+  }, [selectedTraceId, selectedRowLoaded]);
   const onScrollCapture = (event: UIEvent<HTMLElement>) => {
     const target = event.target as HTMLElement;
     if (
@@ -487,6 +500,7 @@ function CurrentTraceTable({
         onRowClick={selectRow}
         peekView={peekView}
       />
+      {traces.hasMore && <TopicTraceLoadMore traces={traces} />}
     </div>
   );
 }

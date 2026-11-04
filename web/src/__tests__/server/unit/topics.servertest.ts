@@ -1197,7 +1197,7 @@ describe("Topics current results", () => {
     expect(mocks.getTopicResultCounts).toHaveBeenCalledWith({
       projectId,
       window: { from: timeRange.from, to: expect.any(Date) },
-      facets: [{ facetId, version: facetVersion }],
+      facets: [{ facetId, version: facetVersion, runId: run.id }],
     });
     expect(mocks.getTopicRuns).toHaveBeenCalledWith(projectId, ["old-map"]);
     expect(result).toMatchObject({

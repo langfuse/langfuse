@@ -52,6 +52,7 @@ export function staticTopicTraces(rows: readonly StoryRow[]): UseTopicTraces {
       ? rows.filter((row) => matches(row, query))
       : []) as FacetRow[],
     isLoading: false,
+    isLoadingMore: false,
     error: null,
     hasMore: false,
     loadMore: () => undefined,
