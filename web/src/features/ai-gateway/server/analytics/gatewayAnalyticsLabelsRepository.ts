@@ -12,11 +12,16 @@ export class GatewayAnalyticsLabelsRepository {
   /**
    * Gateway keys are always included. Plain organization keys can also call
    * the gateway, but only callers who may list organization API keys get them.
+   * With `ownerUserId`, only that user and the keys bound to them are named.
    */
   async getLabels(params: {
     organizationId: string;
     includePlainOrganizationKeys: boolean;
+    ownerUserId?: string;
   }) {
+    const ownedBy = params.ownerUserId !== undefined && {
+      userId: params.ownerUserId,
+    };
     const [keys, memberships] = await Promise.all([
       this.prisma.apiKey.findMany({
         where: {
@@ -26,6 +31,7 @@ export class GatewayAnalyticsLabelsRepository {
           ...(!params.includePlainOrganizationKeys && {
             gatewayAssociation: { isNot: null },
           }),
+          ...ownedBy,
         },
         select: {
           id: true,
@@ -35,7 +41,7 @@ export class GatewayAnalyticsLabelsRepository {
         },
       }),
       this.prisma.organizationMembership.findMany({
-        where: { orgId: params.organizationId },
+        where: { orgId: params.organizationId, ...ownedBy },
         select: { user: { select: { id: true, name: true, email: true } } },
       }),
     ]);

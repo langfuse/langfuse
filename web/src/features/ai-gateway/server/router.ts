@@ -1,4 +1,6 @@
 import { z } from "zod/v4";
+// The shared query schema is zod v3, which a zod v4 object cannot nest.
+import { z as zodV3 } from "zod";
 import type { Session } from "next-auth";
 
 import {
@@ -22,6 +24,7 @@ import {
 } from "@langfuse/shared/src/db";
 import { redis } from "@langfuse/shared/src/server";
 import { orderBy } from "@langfuse/shared";
+import { query as analyticsQuery } from "@langfuse/shared/query";
 
 import {
   GatewayApiKeyService,
@@ -34,6 +37,7 @@ import {
   MAX_TEAM_INVITES,
 } from "@/src/features/ai-gateway/constants/gatewayTeamInvites";
 import { GatewayAnalyticsLabelsRepository } from "./analytics/gatewayAnalyticsLabelsRepository";
+import { GatewayAnalyticsService } from "./analytics/gatewayAnalyticsService";
 import { GatewayConfigService } from "./config/gatewayConfigService";
 import { GatewayTeamService } from "./team/gatewayTeamService";
 import { GatewayMetadataSchema } from "@/src/features/ai-gateway/server/provider/registry";
@@ -150,14 +154,33 @@ export const aiGatewayRouter = createTRPCRouter({
   getAnalyticsLabels: protectedOrganizationProcedure
     .input(organizationInput)
     .query(async ({ input, ctx }) => {
-      requireGatewayAdmin({ session: ctx.session, orgId: input.orgId });
+      const { ownerUserId } = requireGatewayInvoke({
+        session: ctx.session,
+        orgId: input.orgId,
+      });
       return new GatewayAnalyticsLabelsRepository(ctx.prisma).getLabels({
         organizationId: input.orgId,
+        ownerUserId,
         includePlainOrganizationKeys: hasOrganizationAccess({
           session: ctx.session,
           organizationId: input.orgId,
           scope: "organization:CRUD_apiKeys",
         }),
+      });
+    }),
+
+  /** Gateway managers see all gateway usage; everyone else only their own. */
+  executeAnalyticsQuery: protectedOrganizationProcedure
+    .input(zodV3.object({ orgId: zodV3.string(), query: analyticsQuery }))
+    .query(async ({ input, ctx }) => {
+      const { ownerUserId } = requireGatewayInvoke({
+        session: ctx.session,
+        orgId: input.orgId,
+      });
+      return new GatewayAnalyticsService(ctx.prisma).executeQuery({
+        organizationId: input.orgId,
+        query: input.query,
+        ownerUserId,
       });
     }),
 

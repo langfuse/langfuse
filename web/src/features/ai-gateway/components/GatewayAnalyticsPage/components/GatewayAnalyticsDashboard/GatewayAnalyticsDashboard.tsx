@@ -94,7 +94,7 @@ function GatewayAnalyticsWidgets({
         {GATEWAY_ANALYTICS_WIDGETS.map((widget) => (
           <GatewayAnalyticsWidgetCard
             key={widget.id}
-            projectId={projectId}
+            source={{ projectId }}
             widget={widget}
             timeRange={timeRange}
             filters={filters}

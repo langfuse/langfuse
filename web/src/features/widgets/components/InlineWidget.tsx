@@ -43,8 +43,17 @@ interface WidgetDimensionConfig {
   field: string;
 }
 
-export interface WidgetContentProps {
-  projectId: string;
+/** A widget queries its project, or runs its query through `fetchQuery`. */
+export type WidgetQuerySource =
+  | { projectId: string; fetchQuery?: never }
+  | {
+      projectId?: never;
+      fetchQuery: NonNullable<
+        Parameters<typeof useScheduledDashboardExecuteQuery>[1]["fetchQuery"]
+      >;
+    };
+
+export type WidgetContentProps = WidgetQuerySource & {
   query: QueryType;
   version: ViewVersion;
   chartType: DashboardWidgetChartType;
@@ -110,7 +119,7 @@ export interface WidgetContentProps {
    */
   emptyState?: ReactNode;
   usdPrecision?: FormatMetricOptions["usdPrecision"];
-}
+};
 
 // ============================================================================
 // Components
@@ -140,6 +149,7 @@ const getXAxisValue = (
  */
 export function WidgetContent({
   projectId,
+  fetchQuery,
   query,
   version,
   chartType,
@@ -175,11 +185,12 @@ export function WidgetContent({
   // Execute the query
   const queryResult = useScheduledDashboardExecuteQuery(
     {
-      projectId,
+      projectId: projectId ?? "",
       version,
       query,
     },
     {
+      fetchQuery,
       trpc: {
         context: {
           skipBatch: true,
@@ -367,10 +378,12 @@ export function WidgetContent({
     errorMessage: queryResult.error,
   });
 
-  const usesBackendProgress = shouldUseWidgetSSE({
-    isV4Enabled: isV4,
-    version,
-  });
+  const usesBackendProgress =
+    !fetchQuery &&
+    shouldUseWidgetSSE({
+      isV4Enabled: isV4,
+      version,
+    });
 
   const loadingProgress = getChartLoadingProgress({
     isPending: queryResult.isPending,

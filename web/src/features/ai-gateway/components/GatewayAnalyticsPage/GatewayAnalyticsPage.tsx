@@ -9,11 +9,15 @@ import { Button } from "@/src/components/design-system/Button/Button";
 import { Skeleton } from "@/src/components/ui/skeleton";
 import { GatewayAnalyticsDashboard } from "@/src/features/ai-gateway/components/GatewayAnalyticsPage/components/GatewayAnalyticsDashboard/GatewayAnalyticsDashboard";
 import { GatewayAnalyticsHeader } from "@/src/features/ai-gateway/components/GatewayAnalyticsPage/components/GatewayAnalyticsHeader/GatewayAnalyticsHeader";
+import { GatewayOwnUsageDashboard } from "@/src/features/ai-gateway/components/GatewayAnalyticsPage/components/GatewayOwnUsageDashboard/GatewayOwnUsageDashboard";
 import { GATEWAY_ANALYTICS_WIDGET_SIZE_CLASSES } from "@/src/features/ai-gateway/components/GatewayAnalyticsPage/constants/gatewayAnalyticsWidgetSizeClasses";
 import { GATEWAY_ANALYTICS_WIDGETS } from "@/src/features/ai-gateway/components/GatewayAnalyticsPage/constants/gatewayAnalyticsWidgets";
+import { GatewayNotSetUpNotice } from "@/src/features/ai-gateway/components/GatewayNotSetUpNotice/GatewayNotSetUpNotice";
 import { GatewaySetupEmptyState } from "@/src/features/ai-gateway/components/GatewaySetupEmptyState/GatewaySetupEmptyState";
 import { useGatewayConfig } from "@/src/features/ai-gateway/components/GatewaySetupPage/hooks/useGatewayConfig";
+import { useGatewaySettingsAccess } from "@/src/features/ai-gateway/hooks/useGatewaySettingsAccess";
 import { useLangfuseV4WriteMode } from "@/src/features/organizations/hooks";
+import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import type { TimeRange } from "@/src/utils/date-range-utils";
 import { cn } from "@/src/utils/tailwind";
 
@@ -25,12 +29,25 @@ const TIME_RANGE_PRESETS = [
   "last1Year",
 ] as const;
 
-/** Managers only; the settings route sends them to Setup until ingestion is configured. */
+/** Managers see all gateway usage; members only their own. */
 export function GatewayAnalyticsPage({
   organizationId,
 }: {
   organizationId: string;
 }) {
+  const canManageGateway = useHasOrganizationAccess({
+    organizationId,
+    scope: "gateway:manage",
+  });
+  return canManageGateway ? (
+    <AllUsageAnalytics organizationId={organizationId} />
+  ) : (
+    <OwnUsageAnalytics organizationId={organizationId} />
+  );
+}
+
+/** The settings route sends managers to Setup until ingestion is configured. */
+function AllUsageAnalytics({ organizationId }: { organizationId: string }) {
   const configState = useGatewayConfig(organizationId);
   const v4WriteMode = useLangfuseV4WriteMode();
   const [timeRange, setTimeRange] = useState<TimeRange>({
@@ -77,6 +94,43 @@ export function GatewayAnalyticsPage({
         />
       ) : (
         <AnalyticsSkeleton />
+      )}
+    </>
+  );
+}
+
+function OwnUsageAnalytics({ organizationId }: { organizationId: string }) {
+  const { isIngestionConfigured, isSetupStatusPending } =
+    useGatewaySettingsAccess(organizationId);
+  const v4WriteMode = useLangfuseV4WriteMode();
+  const [timeRange, setTimeRange] = useState<TimeRange>({
+    range: "last30Days",
+  });
+
+  if (v4WriteMode === "legacy") {
+    return <AnalyticsNeedEvents />;
+  }
+  if (isIngestionConfigured === false) {
+    return <GatewayNotSetUpNotice title="Gateway analytics" />;
+  }
+  return (
+    <>
+      <PageHeaderControlsPortal>
+        <TimeRangePicker
+          timeRange={timeRange}
+          onTimeRangeChange={setTimeRange}
+          timeRangePresets={TIME_RANGE_PRESETS}
+          className="my-0 max-w-full overflow-x-auto"
+          triggerClassName="px-2"
+        />
+      </PageHeaderControlsPortal>
+      {isSetupStatusPending ? (
+        <AnalyticsSkeleton />
+      ) : (
+        <GatewayOwnUsageDashboard
+          organizationId={organizationId}
+          timeRange={timeRange}
+        />
       )}
     </>
   );
