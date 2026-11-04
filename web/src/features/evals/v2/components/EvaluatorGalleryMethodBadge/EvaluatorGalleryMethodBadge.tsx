@@ -14,7 +14,7 @@ export function EvaluatorGalleryMethodBadge({
 
   return (
     <span className="text-muted-foreground inline-flex shrink-0 items-center gap-1.5 text-xs whitespace-nowrap">
-      <Icon className="icon-sm" aria-hidden="true" />
+      <Icon size="sm" aria-hidden="true" />
       {label}
     </span>
   );

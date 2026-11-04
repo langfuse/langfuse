@@ -1,9 +1,9 @@
-import type { ScoreLevel as ScoreTagLevel } from "@/src/components/score-tag";
+import type { ScoreLevel as ScoreTagLevel } from "@/src/components/ScoreTag";
 import type {
   ScoreLevel,
   ScoreMetricSpec,
 } from "@/src/features/experiments/types/charts";
-import type { WidgetDimensionConfig } from "@/src/features/widgets";
+import type { WidgetDimensionConfig } from "@/src/features/widgets/hooks/useWidgetQuery";
 import type { FilterCondition } from "@langfuse/shared";
 
 export const MAX_EXPERIMENT_CHARTS = 4;

@@ -1,4 +1,4 @@
-import { Play } from "lucide-react";
+import { Play } from "@langfuse/icons";
 
 import { Button } from "@/src/components/ui/button";
 
@@ -21,7 +21,7 @@ export function TestRerunButton({
       title={disabledReason ?? "Run the test again"}
       onClick={onRerun}
     >
-      <Play className="icon-base text-icon-foreground mr-1.5" />
+      <Play size="base" color="default" __rawClassName="mr-1.5" />
       Run again
     </Button>
   );

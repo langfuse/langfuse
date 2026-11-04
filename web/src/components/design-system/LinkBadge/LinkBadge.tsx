@@ -1,4 +1,4 @@
-import { ArrowUpRight } from "lucide-react";
+import { ArrowUpRight } from "@langfuse/icons";
 import Link, { type LinkProps } from "next/link";
 
 import { Badge } from "@/src/components/design-system/Badge/Badge";
@@ -12,6 +12,8 @@ type LinkBadgeProps = {
   title?: string;
   /** Opens in a new tab. */
   newTab?: boolean;
+  /** Wraps a long value onto more lines instead of truncating it. */
+  shouldWrap?: boolean;
   /** Keeps the value out of session recordings (ids, user names). */
   noCapture?: boolean;
 } & { [key: `data-${string}`]: string };
@@ -24,6 +26,7 @@ export function LinkBadge({
   title,
   newTab,
   noCapture,
+  shouldWrap,
   ...dataProps
 }: LinkBadgeProps) {
   return (
@@ -44,6 +47,7 @@ export function LinkBadge({
         title={title}
         trailingIcon={ArrowUpRight}
         trailingIconTone="link"
+        shouldWrap={shouldWrap}
         {...dataProps}
       />
     </Link>

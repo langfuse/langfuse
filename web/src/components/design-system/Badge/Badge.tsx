@@ -1,12 +1,13 @@
+/* eslint-disable @repo/component-file-structure */
 import { Slot } from "@radix-ui/react-slot";
 import { cva, type VariantProps } from "class-variance-authority";
-import { type LucideIcon } from "lucide-react";
-import { type ComponentPropsWithoutRef } from "react";
+import { type IconComponent } from "@langfuse/icons";
+import { type ComponentPropsWithoutRef, type ElementType } from "react";
 
 import { cn } from "@/src/utils/tailwind";
 
 const badgeVariants = cva(
-  "inline-flex w-fit max-w-full min-w-0 shrink-0 items-center rounded-sm border pb-px text-xs leading-none font-normal",
+  "inline-flex w-fit max-w-full min-w-0 shrink-0 items-center rounded-sm border text-xs leading-none font-normal",
   {
     variants: {
       size: {
@@ -26,10 +27,20 @@ const badgeVariants = cva(
         teal: "border-transparent bg-light-teal text-dark-teal",
         green: "border-transparent bg-light-green text-dark-green",
         ghost: "border-0 bg-transparent px-0 text-foreground-secondary",
+        /** `ghost` with the leading icon in the warning colour; the text stays muted. */
+        "ghost-warning":
+          "border-0 bg-transparent px-0 text-foreground-secondary",
         filled: "border-transparent bg-muted text-foreground-secondary",
         /** `filled` for a chip on a muted or accent surface, e.g. a selected or hovered row, where `bg-muted` vanishes. */
         filledOnMuted:
           "border-transparent bg-background text-foreground-secondary",
+        /** Category highlight tints, as used by treemap tiles. */
+        violetHighlight:
+          "border-transparent bg-category-violet-highlight/35 text-foreground-secondary",
+        blueHighlight:
+          "border-transparent bg-category-blue-highlight/35 text-foreground-secondary",
+        amberHighlight:
+          "border-transparent bg-category-amber-highlight/35 text-foreground-secondary",
         violetTint:
           "border-category-violet/40 bg-category-violet/10 text-foreground-secondary",
         skyTint:
@@ -56,6 +67,10 @@ const badgeVariants = cva(
         true: "underline-dotted",
         false: "",
       },
+      dismissible: {
+        true: "cursor-pointer transition-opacity hover:opacity-80 ring-offset-background focus-visible:ring-ring focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-hidden",
+        false: "",
+      },
       /** Metric values (latency, cost, timestamps) read in mono. */
       font: {
         sans: "font-sans",
@@ -79,8 +94,10 @@ type BadgeShellProps = Omit<
   ComponentPropsWithoutRef<"span">,
   "className" | "style"
 > &
-  VariantProps<typeof badgeVariants> & {
+  Omit<VariantProps<typeof badgeVariants>, "dismissible"> & {
     asChild?: boolean;
+    /** When set, the shell renders as a `<button type="button">` and calls this on click. */
+    onDismiss?: () => void;
   };
 
 /**
@@ -96,17 +113,30 @@ export function BadgeShell({
   interactive,
   font,
   shouldWrap,
+  onDismiss,
   ...props
 }: BadgeShellProps) {
-  const Component = asChild ? Slot : "span";
+  const Component = ((): ElementType => {
+    if (asChild) return Slot;
+    if (onDismiss != null) return "button";
+    return "span";
+  })();
 
   return (
     <Component
+      {...props}
+      {...(onDismiss != null && { type: "button", onClick: onDismiss })}
       className={cn(
         "group/badge",
-        badgeVariants({ color, size, interactive, font, shouldWrap }),
+        badgeVariants({
+          color,
+          size,
+          interactive,
+          font,
+          shouldWrap,
+          dismissible: onDismiss != null,
+        }),
       )}
-      {...props}
     />
   );
 }
@@ -115,8 +145,8 @@ type BadgeProps = Omit<BadgeShellProps, "asChild" | "children"> & {
   text: string;
   /** Key shown muted before the value, e.g. `latency` before `0.71s`. */
   label?: string;
-  leadingIcon?: LucideIcon;
-  trailingIcon?: LucideIcon;
+  leadingIcon?: IconComponent;
+  trailingIcon?: IconComponent;
   /** Link badges tint the arrow and underline the text on hover. */
   trailingIconTone?: "default" | "link";
 };
@@ -133,12 +163,15 @@ export function Badge({
   trailingIconTone = "default",
   ...props
 }: BadgeProps) {
+  const warningIcon = color === "ghost-warning";
   return (
     <BadgeShell color={color} shouldWrap={shouldWrap} {...props}>
       {LeadingIcon && (
         <LeadingIcon
           aria-hidden
-          className="icon-sm text-foreground-tertiary shrink-0"
+          size="sm"
+          color={warningIcon ? "inherit" : "tertiary"}
+          __rawClassName={warningIcon ? "text-dark-yellow" : undefined}
         />
       )}
       {label && <span className="shrink-0 py-0.5">{label}:</span>}
@@ -161,12 +194,9 @@ export function Badge({
       {TrailingIcon && (
         <TrailingIcon
           aria-hidden
-          className={cn(
-            "icon-sm shrink-0",
-            trailingIconTone === "link"
-              ? "text-foreground-tertiary -ml-0.5"
-              : "text-foreground-tertiary",
-          )}
+          size="sm"
+          color="tertiary"
+          __rawClassName={trailingIconTone === "link" ? "-ml-0.5" : undefined}
         />
       )}
     </BadgeShell>

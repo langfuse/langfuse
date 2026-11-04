@@ -65,7 +65,12 @@ pub(super) struct Uploads {
 }
 
 impl Uploads {
-    pub fn new(uploader: Uploader, slots: usize, retry: RetryPolicy, stats: Arc<Stats>) -> Self {
+    pub(super) fn new(
+        uploader: Uploader,
+        slots: usize,
+        retry: RetryPolicy,
+        stats: Arc<Stats>,
+    ) -> Self {
         Self {
             uploader: Arc::new(uploader),
             slots: Arc::new(Semaphore::new(slots)),
@@ -89,7 +94,9 @@ impl Uploads {
             "telemetry.batch",
             otel.kind = "internal",
             gateway.telemetry.records = i64::try_from(flush.items.len()).unwrap_or(i64::MAX),
-            gateway.telemetry.attempts = tracing::field::Empty
+            gateway.telemetry.attempts = tracing::field::Empty,
+            otel.status_code = tracing::field::Empty,
+            error.type = tracing::field::Empty
         );
         for item in &flush.items {
             if item.link.is_valid() {
@@ -183,6 +190,9 @@ impl Receipt {
 
     fn settle_failed(mut self, reason: &'static str) {
         self.settled = true;
+        let current = tracing::Span::current();
+        current.record("otel.status_code", "ERROR");
+        current.record("error.type", reason);
         if self.stats.record_failed(self.records, reason) {
             let context = tracing::Span::current().context();
             let span = context.span();

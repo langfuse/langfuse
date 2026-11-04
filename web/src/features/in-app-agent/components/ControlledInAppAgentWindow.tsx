@@ -9,7 +9,7 @@ import {
 } from "./InAppAgentWindow";
 import { useInAppAiAgent } from "./InAppAiAgentProvider";
 import { InAppAgentInternalSessionMenu } from "./InAppAgentInternalSessionMenu";
-import { useInternalFeaturesEnabled } from "@/src/features/feature-flags";
+import { useInternalFeaturesEnabled } from "@/src/features/feature-flags/hooks/useInternalFeaturesEnabled";
 import { useSmoothStreamingMessages } from "./useSmoothStreamingMessages";
 import { getDrawerMessages } from "./utils/utils";
 import { getInAppAgentScreenContextDescription } from "@/src/features/in-app-agent/context";
@@ -69,6 +69,7 @@ export function ControlledInAppAgentWindow(
     pendingToolApprovals,
     approveToolCall,
     alwaysAllowToolCall,
+    answerQuestionnaire,
     rejectToolCall,
     selectConversation,
     selectedConversationId,
@@ -222,6 +223,7 @@ export function ControlledInAppAgentWindow(
       executionUi={windowExecutionUi}
       onApproveToolCall={approveToolCall}
       onAlwaysAllowToolCall={alwaysAllowToolCall}
+      onAnswerQuestionnaire={answerQuestionnaire}
       onRejectToolCall={rejectToolCall}
       onSubmitFeedback={submitFeedback}
       {...closeButtonProps}

@@ -6,7 +6,7 @@ import {
   type views,
   SCORES_LISTABLE_COUNT_VIEW,
 } from "./types";
-import { InvalidRequestError } from "../../errors";
+import { InvalidRequestError } from "../../errors/InvalidRequestError";
 import {
   eventsTableIsRootObservationSqlForAlias,
   eventsTableTraceNameAggregationSqlForAlias,
@@ -14,6 +14,10 @@ import {
 } from "../../eventsTable";
 import { LISTABLE_SCORE_TYPES } from "../../domain/scores";
 import { EvalExecutionMetadataKey } from "../evals/evalExecutionMetadata";
+import {
+  AI_GATEWAY_KEY_OWNER_USER_ID_METADATA_KEY,
+  AI_GATEWAY_SERVICE_NAME,
+} from "../ai-gateway/constants";
 
 // The data model defines all available dimensions, measures, and the timeDimension for a given view.
 // Make sure to update web/src/features/dashboard/lib/dashboardUiTableToViewMapping.ts if you make changes
@@ -1057,14 +1061,16 @@ function scoresNumericViewBase(version: "v1" | "v2"): ViewDeclarationType {
     },
     measures: {
       count: {
-        sql: "count(*)",
+        sql: "@@AGG1@@(1)",
+        aggs: { agg1: "count" },
         alias: "count",
         type: "integer",
         description: "Total number of scores.",
         unit: "scores",
       },
       value: {
-        sql: "any(value)",
+        sql: "@@AGG1@@(value)",
+        aggs: { agg1: "any" },
         alias: "value",
         type: "number",
         description: "Value of the score.",
@@ -1106,7 +1112,8 @@ function scoresCategoricalViewBase(version: "v1" | "v2"): ViewDeclarationType {
     },
     measures: {
       count: {
-        sql: "count(*)",
+        sql: "@@AGG1@@(1)",
+        aggs: { agg1: "count" },
         alias: "count",
         type: "integer",
         description: "Total number of scores.",
@@ -1146,14 +1153,16 @@ function scoresBooleanViewBase(version: "v1" | "v2"): ViewDeclarationType {
     },
     measures: {
       count: {
-        sql: "count(*)",
+        sql: "@@AGG1@@(1)",
+        aggs: { agg1: "count" },
         alias: "count",
         type: "integer",
         description: "Total number of scores.",
         unit: "scores",
       },
       value: {
-        sql: "any(value)",
+        sql: "@@AGG1@@(value)",
+        aggs: { agg1: "any" },
         alias: "value",
         type: "number",
         description:
@@ -1220,7 +1229,8 @@ function scoresListableCountViewBase(
     },
     measures: {
       count: {
-        sql: "count(*)",
+        sql: "@@AGG1@@(1)",
+        aggs: { agg1: "count" },
         alias: "count",
         type: "integer",
         description: "Total number of scores across every listable score type.",
@@ -1339,6 +1349,29 @@ export const eventsObservationsView: ViewDeclarationType = {
       description: "Identifier of the session triggering the observation.",
       highCardinality: true,
     },
+    aiGatewayKeyId: {
+      // Ingestion only writes the gateway service name on uploads the gateway
+      // authenticated, and then sets ingestion_api_key to the gateway key id.
+      sql: `if(events_observations.service_name = '${AI_GATEWAY_SERVICE_NAME}', nullIf(events_observations.ingestion_api_key, ''), NULL)`,
+      alias: "aiGatewayKeyId",
+      type: "string",
+      description:
+        "Identifier of the AI Gateway API key that produced the observation. Empty for traffic that did not pass through the gateway.",
+      highCardinality: true,
+      uiHidden: true,
+    },
+    aiGatewayKeyOwnerUserId: {
+      // The span's user_id is not used: a key without an owner lets its caller
+      // set any user ID. The owner ID comes from metadata the gateway writes,
+      // so it outlives the key's deletion.
+      sql: `if(events_observations.service_name = '${AI_GATEWAY_SERVICE_NAME}', nullIf(events_observations.metadata_values[indexOf(events_observations.metadata_names, '${AI_GATEWAY_KEY_OWNER_USER_ID_METADATA_KEY}')], ''), NULL)`,
+      alias: "aiGatewayKeyOwnerUserId",
+      type: "string",
+      description:
+        "Identifier of the user an AI Gateway key is bound to. Empty for service keys and for traffic that did not pass through the gateway.",
+      highCardinality: true,
+      uiHidden: true,
+    },
     tags: {
       sql: "events_observations.tags",
       alias: "tags",
@@ -1409,6 +1442,30 @@ export const eventsObservationsView: ViewDeclarationType = {
       type: "arrayString",
       explodeArray: true,
       description: "Names of skills made available.",
+    },
+    skillIdsAvailable: {
+      sql: "arrayDistinct(events_observations.skills_available.langfuseSkillId)",
+      alias: "skillIdsAvailable",
+      type: "arrayString",
+      explodeArray: true,
+      uiHidden: true,
+      description: "Langfuse IDs of skill versions made available.",
+    },
+    skillIdsLoaded: {
+      sql: "arrayDistinct(events_observations.skills_resource_loaded.langfuseSkillId)",
+      alias: "skillIdsLoaded",
+      type: "arrayString",
+      explodeArray: true,
+      uiHidden: true,
+      description: "Langfuse IDs of skill versions with loaded files.",
+    },
+    loadedFilePaths: {
+      sql: "arrayDistinct(events_observations.skills_resource_loaded.filePath)",
+      alias: "loadedFilePaths",
+      type: "arrayString",
+      explodeArray: true,
+      uiHidden: true,
+      description: "Paths of loaded skill files.",
     },
     toolNames: {
       sql: "mapKeys(events_observations.tool_definitions)",

@@ -59,6 +59,7 @@ model User {
   image                     String?
   admin                     Boolean                     @default(false)
   v4BetaEnabled             Boolean                     @default(false) @map("v4_beta_enabled")
+  supportAccess             Json?                       @map("support_access")
   accounts                  Account[]
   sessions                  Session[]
   organizationMemberships   OrganizationMembership[]
@@ -89,6 +90,7 @@ model User {
   inAppAgentConversations   InAppAgentConversation[]    @relation("InAppAgentConversationCreatedByUser")
   inAppAgentRuns            InAppAgentRun[]             @relation("InAppAgentRunTriggeredByUser")
   apiKeysCreated            ApiKey[]                    @relation("ApiKeyCreatedByUser")
+  apiKeys                   ApiKey[]                    @relation("ApiKeyUser")
   roleAssignments           RoleAssignment[]
   evaluatorsCreated         Evaluator[]                 @relation("EvaluatorCreatedByUser")
   evaluatorVersionsCreated  EvaluatorVersion[]          @relation("EvaluatorVersionCreatedByUser")
@@ -121,6 +123,10 @@ model Organization {
   cloudFreeTierUsageThresholdState String?                  @map("cloud_free_tier_usage_threshold_state")
   aiFeaturesEnabled                Boolean                  @default(false) @map("ai_features_enabled")
   aiTelemetryEnabled               Boolean                  @default(true) @map("ai_telemetry_enabled")
+  // Opt-in for read-access audit events (EE). Takes effect only when
+  // LANGFUSE_AUDIT_LOG_ACCESS_EVENTS is "org" and the org has the audit-logs
+  // entitlement.
+  accessAuditLogEnabled            Boolean                  @default(false) @map("access_audit_log_enabled")
   featureFlagOrgDefaults           String[]                 @default([]) @map("feature_flag_org_defaults")
   // SFDC Account / Organization ID returned by the Mulesoft org endpoint on
   // Langfuse Cloud. NULL for self-hosted or pre-integration orgs. A mismatch
@@ -248,6 +254,9 @@ model ApiKey {
   scope               ApiKeyScope               @default(PROJECT) @map("scope")
   createdByUserId     String?                   @map("created_by_user_id")
   createdByUser       User?                     @relation("ApiKeyCreatedByUser", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  // user the key is bound to; the key is revoked when that user leaves the org
+  userId              String?                   @map("user_id")
+  user                User?                     @relation("ApiKeyUser", fields: [userId], references: [id], onDelete: Cascade)
   createdByApiKeyId   String?                   @map("created_by_api_key_id")
   createdByApiKey     ApiKey?                   @relation("ApiKeyCreatedByApiKey", fields: [createdByApiKeyId], references: [id], onDelete: SetNull)
   apiKeysCreated      ApiKey[]                  @relation("ApiKeyCreatedByApiKey")
@@ -259,6 +268,7 @@ model ApiKey {
   @@index(orgId)
   @@index(projectId)
   @@index(createdByApiKeyId)
+  @@index([userId, orgId])
   @@index(publicKey)
   @@index(hashedSecretKey)
   @@index(fastHashedSecretKey)
@@ -320,6 +330,7 @@ model RoleAssignment {
 }
 
 enum GatewayIngestionMode {
+  NONE  @map("none")
   USAGE @map("usage")
   FULL  @map("full")
 }
@@ -356,13 +367,14 @@ model GatewayAiConnection {
   encryptedCredential String                  @map("encrypted_credentials")
   displaySecret       String                  @map("display_secret_key")
   createdById         String?                 @map("created_by_id")
-  routingPriority     Int                     @map("routing_priority")
   status              GatewayConnectionStatus @default(ENABLED)
+  allowedModels       Json?                   @map("allowed_models") @db.JsonB
   createdAt           DateTime                @default(now()) @map("created_at")
   updatedAt           DateTime                @default(now()) @updatedAt @map("updated_at")
 
-  @@unique([organizationId, routingPriority])
-  @@index([organizationId, status, routingPriority])
+  @@unique([organizationId, name])
+  @@index([organizationId, createdAt, id], map: "gateway_ai_conn_org_created_at_id_idx")
+  @@index([organizationId, status, createdAt, id], map: "gateway_ai_conn_org_status_created_at_id_idx")
   @@map("gateway_ai_connections")
 }
 
@@ -583,6 +595,7 @@ enum Role {
   MEMBER
   VIEWER
   NONE
+  AI_GATEWAY
 }
 
 model TraceSession {
@@ -2025,6 +2038,7 @@ enum ActionType {
   WEBHOOK
   SLACK
   GITHUB_DISPATCH
+  PAGERDUTY
   // More action types can be added as needed
 }
 
@@ -2162,6 +2176,10 @@ model SlackIntegration {
   botToken  String @map("bot_token") // Encrypted bot token for API calls
   botUserId String @map("bot_user_id") // Bot user ID for workspace
 
+  // Only the installer may list and use private channels, since the bot token sees every private channel it was invited to
+  installerUserId      String? @map("installer_user_id") // Langfuse user who connected Slack
+  installerSlackUserId String? @map("installer_slack_user_id") // Slack user who authorized the install
+
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
 
@@ -2239,7 +2257,12 @@ model TopicClusteringRun {
   startedAt       DateTime?        @map("started_at") @db.Timestamptz(3)
   finishedAt      DateTime?        @map("finished_at") @db.Timestamptz(3)
   topicVersionIds String[]         @default([]) @map("topic_version_ids")
+  // Topics rule of a continuous map, or the batch action of a one-off analysis; null on runs written before either existed.
+  ruleId          String?          @map("rule_id")
+  batchActionId   String?          @map("batch_action_id")
 
   @@index([projectId, facetId, status, facetVersion(sort: Desc), createdAt(sort: Desc), id(sort: Desc)], map: "topic_clustering_runs_serving_map_idx")
+  @@index([projectId, ruleId, facetId, status], map: "topic_clustering_runs_rule_serving_map_idx")
+  @@index([projectId, batchActionId])
   @@map("topic_clustering_runs")
 }

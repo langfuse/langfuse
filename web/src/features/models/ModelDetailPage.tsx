@@ -1,6 +1,6 @@
 import { useRouter } from "next/router";
 import { api } from "@/src/utils/api";
-import { useHasProjectAccess } from "@/src/features/rbac";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import {
   Card,
   CardContent,
@@ -19,9 +19,9 @@ import Decimal from "decimal.js";
 import { PriceUnitSelector } from "@/src/features/models/components/PriceUnitSelector";
 import { useMemo, useState } from "react";
 import { usePriceUnitMultiplier } from "@/src/features/models/hooks/usePriceUnitMultiplier";
-import { ObservationsTable as Generations } from "@/src/features/tracing-tables";
-import Page from "@/src/components/layouts/page";
-import { SquareArrowOutUpRight, Info as InfoIcon } from "lucide-react";
+import { default as Generations } from "@/src/features/tracing-tables/observations/ObservationsTable";
+import Page from "@/src/components/layouts/Page";
+import { SquareArrowOutUpRight, Info as InfoIcon } from "@langfuse/icons";
 import {
   Select,
   SelectContent,
@@ -30,7 +30,7 @@ import {
   SelectValue,
 } from "@/src/components/ui/select";
 import { HoverCard } from "@/src/components/design-system/HoverCard/HoverCard";
-import { CodeMirrorEditor } from "@/src/components/editor";
+import { CodeMirrorEditor } from "@/src/components/editor/CodeMirrorEditor";
 
 const resolvePricingTier = <T extends { id: string }>(
   tiers: T[],
@@ -256,7 +256,7 @@ export default function ModelDetailPage() {
                           size="sm"
                           {...getTriggerProps()}
                         >
-                          <InfoIcon className="icon-base text-icon-foreground" />
+                          <InfoIcon size="base" color="default" />
                           <span>Conditions</span>
                         </Button>
                       )}
@@ -307,7 +307,7 @@ export default function ModelDetailPage() {
                   className="flex items-center gap-1"
                 >
                   <span className="text-sm">View all</span>
-                  <SquareArrowOutUpRight className="icon-base text-icon-foreground" />
+                  <SquareArrowOutUpRight size="base" color="default" />
                 </Link>
               </Button>
             </CardTitle>

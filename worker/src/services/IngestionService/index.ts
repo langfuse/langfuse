@@ -13,6 +13,7 @@ import {
   safeJsonParse,
   type JsonNested,
   type SkillsAvailable,
+  type SkillsAvailableInput,
   type SkillsResourceLoaded,
 } from "@langfuse/shared";
 import {
@@ -74,8 +75,10 @@ import {
   convertPostgresJsonToMetadataRecord,
   convertRecordValuesToString,
   hasAiGatewayScope,
+  isAiGatewayGenerationEvent,
   overwriteObject,
 } from "./utils";
+import { resolveAiGatewayAttribution } from "./aiGatewayAttribution";
 import { randomUUID } from "crypto";
 import { SpanKind } from "@opentelemetry/api";
 import { ClickhouseReadSkipCache } from "../../utils/clickhouseReadSkipCache";
@@ -327,6 +330,13 @@ export class IngestionService {
       eventData.modelParameters,
     );
     const metadata = eventData.metadata ?? {};
+    const spanAttribution = resolveAiGatewayAttribution({
+      ingestionApiKey: eventData.ingestionApiKey,
+      metadata,
+      serviceName: eventData.serviceName,
+      serviceVersion: eventData.serviceVersion,
+      scopeVersion: eventData.scopeVersion,
+    });
 
     // Runs outside the modelName gate below so model-less events with provided
     // usage are still checked.
@@ -363,8 +373,11 @@ export class IngestionService {
               modelParameters,
               metadata,
             },
-            isAiGatewayGeneration:
-              eventData.scopeName === AI_GATEWAY_INSTRUMENTATION_SCOPE_NAME,
+            isAiGatewayGeneration: isAiGatewayGenerationEvent({
+              ingestionApiKey: eventData.ingestionApiKey,
+              hasGatewayScope: () =>
+                eventData.scopeName === AI_GATEWAY_INSTRUMENTATION_SCOPE_NAME,
+            }),
             observationRecord: {
               id: eventData.spanId,
               project_id: eventData.projectId,
@@ -478,11 +491,11 @@ export class IngestionService {
 
       // Source/instrumentation metadata
       source: eventData.source,
-      ingestion_api_key: eventData.ingestionApiKey ?? "",
+      ingestion_api_key: spanAttribution.ingestionApiKey,
       ingestion_sdk_name: eventData.ingestionSdkName ?? "",
       ingestion_sdk_version: eventData.ingestionSdkVersion ?? "",
-      service_name: eventData.serviceName,
-      service_version: eventData.serviceVersion,
+      service_name: spanAttribution.serviceName,
+      service_version: spanAttribution.serviceVersion,
       scope_name: eventData.scopeName,
       scope_version: eventData.scopeVersion,
       telemetry_sdk_language: eventData.telemetrySdkLanguage,
@@ -1105,9 +1118,13 @@ export class IngestionService {
     const generationUsage = await this.getGenerationUsage({
       projectId,
       pricingMatchAttributeValues,
-      isAiGatewayGeneration: timeSortedEvents.some((event) =>
-        hasAiGatewayScope(event.body?.metadata),
-      ),
+      isAiGatewayGeneration: isAiGatewayGenerationEvent({
+        ingestionApiKey: attribution.ingestionApiKey,
+        hasGatewayScope: () =>
+          timeSortedEvents.some((event) =>
+            hasAiGatewayScope(event.body?.metadata),
+          ),
+      }),
       observationRecord: mergedObservationRecord,
     });
     const finalObservationRecord = {
@@ -1257,7 +1274,7 @@ export class IngestionService {
   }: {
     projectId: string;
     type: EventRecordInsertType["type"];
-    available?: SkillsAvailable;
+    available?: SkillsAvailableInput;
     loaded?: SkillsResourceLoaded;
   }): Promise<{
     skills_available: SkillsAvailable;
@@ -1277,21 +1294,21 @@ export class IngestionService {
     }
     available = available.slice(0, MAX_SKILLS_PER_OBSERVATION);
     loaded = loaded.slice(0, MAX_SKILLS_PER_OBSERVATION);
-    const versions = available.flatMap(({ skillName, skillVersion }) =>
-      skillVersion == null ? [] : [{ name: skillName, version: skillVersion }],
+    const versions = available.flatMap(({ name, version }) =>
+      version == null ? [] : [{ name, version }],
     );
     const skills = await this.skillCacheService.getReferences({
       projectId,
       versions,
     });
 
-    const availableSkills = available.map(({ skillName, skillVersion }) => {
+    const availableSkills = available.map(({ name, version }) => {
       const skill = skills.find(
-        (skill) => skill.name === skillName && skill.version === skillVersion,
+        (skill) => skill.name === name && skill.version === version,
       );
       return {
-        skillName,
-        skillVersion: skill?.version ?? skillVersion,
+        name,
+        version: skill?.version ?? version,
         langfuseSkillId: skill?.id,
       };
     });
@@ -1299,7 +1316,7 @@ export class IngestionService {
     const loadedResources = loaded.map(
       ({ skillName, filePath, skillVersion }) => {
         const candidates = availableSkills.filter(
-          (skill) => skill.skillName === skillName,
+          (skill) => skill.name === skillName,
         );
         if (candidates.length !== 1)
           return { skillName, filePath, skillVersion };
@@ -1309,13 +1326,20 @@ export class IngestionService {
           skillName,
           filePath,
           langfuseSkillId: skill?.langfuseSkillId,
-          skillVersion: skill.skillVersion ?? skillVersion,
+          skillVersion: skill.version ?? skillVersion,
         };
       },
     );
 
     return {
-      skills_available: type === "GENERATION" ? availableSkills : [],
+      skills_available:
+        type === "GENERATION"
+          ? availableSkills.map(({ name, version, langfuseSkillId }) => ({
+              skillName: name,
+              skillVersion: version,
+              langfuseSkillId,
+            }))
+          : [],
       skills_resource_loaded: loadedResources,
     };
   }

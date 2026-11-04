@@ -17,13 +17,13 @@ import {
   PopoverAnchor,
   PopoverContent,
 } from "@/src/components/ui/popover";
-import { useHasProjectAccess } from "@/src/features/rbac";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { api } from "@/src/utils/api";
 import { CommentEditor, type CommentEditorHandle } from "./CommentEditor";
 import { MentionAutocomplete } from "./MentionAutocomplete";
 import { useMentionAutocomplete } from "../hooks/useMentionAutocomplete";
 import { MENTION_USER_PREFIX } from "../lib/mentionParser";
-import { type SelectionData } from "../contexts/InlineCommentSelectionContext";
+import { type SelectionData } from "../contexts/InlineCommentSelectionProvider";
 
 export function CommentComposer({
   projectId,

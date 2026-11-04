@@ -1,12 +1,21 @@
 import { z } from "zod/v4";
+// The shared query schema is zod v3, which a zod v4 object cannot nest.
+import { z as zodV3 } from "zod";
 import type { Session } from "next-auth";
 
-import { throwIfNoOrganizationAccess } from "@/src/features/rbac";
+import {
+  hasOrganizationAccess,
+  throwIfNoOrganizationAccess,
+} from "@/src/features/rbac/utils/checkOrganizationAccess";
 import {
   createTRPCRouter,
   protectedOrganizationProcedure,
   protectedOrganizationProcedureWithoutTracing,
+  type AuthedSession,
 } from "@/src/server/api/trpc";
+import { env } from "@/src/env.mjs";
+import { canReadGatewayModels } from "@/src/features/ai-gateway/fns/canReadGatewayModels";
+import { isGatewayModelAllowed } from "@/src/features/ai-gateway/fns/isGatewayModelAllowed";
 import { getProductBaseUrl } from "@/src/utils/base-url";
 import {
   GatewayConnectionStatus,
@@ -14,22 +23,45 @@ import {
   GatewayProvider,
 } from "@langfuse/shared/src/db";
 import { redis } from "@langfuse/shared/src/server";
+import { orderBy } from "@langfuse/shared";
+import { query as analyticsQuery } from "@langfuse/shared/query";
 
-import { GatewayApiKeyService } from "./apiKey/gatewayApiKeyService";
+import {
+  GatewayApiKeyService,
+  gatewayApiKeyCreatorScopes,
+} from "./apiKey/gatewayApiKeyService";
 import { requireGatewayEnabledForOrganization } from "./availability";
 import { getGatewayBaseUrl } from "@/src/features/ai-gateway/fns/gatewayUrls/getGatewayBaseUrl";
-import { GatewayConfigService } from "./config/gatewayConfigService";
 import {
-  GatewayMetadataSchema,
-  GatewayModelCatalogService,
-  GatewayProviderService,
-} from "./provider";
+  MAX_MEMBER_SEARCH_LENGTH,
+  MAX_TEAM_INVITES,
+} from "@/src/features/ai-gateway/constants/gatewayTeamInvites";
+import { GatewayAnalyticsLabelsRepository } from "./analytics/gatewayAnalyticsLabelsRepository";
+import { GatewayAnalyticsService } from "./analytics/gatewayAnalyticsService";
+import { GatewayConfigService } from "./config/gatewayConfigService";
+import { getKeyOwnerFilter, type GatewayUsageScope } from "./gatewayUsageScope";
+import { GatewayTeamService } from "./team/gatewayTeamService";
+import { GatewayMetadataSchema } from "@/src/features/ai-gateway/server/provider/registry";
+import { GatewayModelCatalogService } from "@/src/features/ai-gateway/server/provider/models/gatewayModelCatalogService";
+import { GatewayProviderService } from "@/src/features/ai-gateway/server/provider/connection/gatewayProviderService";
 
 const organizationInput = z.object({ orgId: z.string() });
+/** Naming rules live in `parseGatewayConnectionName` so the dialog can show them on the field. */
+const connectionNameSchema = z.string().max(1_000);
+const pageLimitSchema = z.number().int().min(1).max(100).default(50);
 const paginatedOrganizationInput = organizationInput.extend({
   cursor: z.string().optional(),
-  limit: z.number().int().min(1).max(100).default(50),
+  limit: pageLimitSchema,
 });
+const offsetPaginatedOrganizationInput = organizationInput.extend({
+  page: z.number().int().min(0).default(0),
+  limit: pageLimitSchema,
+});
+const connectionInput = organizationInput.extend({ id: z.string() });
+const allowedModelsSchema = z
+  .array(z.string().trim().min(1).max(500))
+  .max(10_000)
+  .nullable();
 
 function requireGatewayAdmin(params: { session: Session; orgId: string }) {
   requireGatewayEnabledForOrganization(params.orgId);
@@ -37,6 +69,64 @@ function requireGatewayAdmin(params: { session: Session; orgId: string }) {
     session: params.session,
     organizationId: params.orgId,
     scope: "gateway:manage",
+  });
+}
+
+/** Admits gateway key owners. */
+function requireGatewayInvoke(params: { session: Session; orgId: string }) {
+  requireGatewayEnabledForOrganization(params.orgId);
+  throwIfNoOrganizationAccess({
+    session: params.session,
+    organizationId: params.orgId,
+    scope: "gateway:invoke",
+  });
+}
+
+/** Gateway managers see the whole organization; every other key owner only their own keys and usage. */
+function getGatewayUsageScope(params: {
+  session: AuthedSession;
+  orgId: string;
+}): GatewayUsageScope {
+  const canManageGateway = hasOrganizationAccess({
+    session: params.session,
+    organizationId: params.orgId,
+    scope: "gateway:manage",
+  });
+  return canManageGateway
+    ? { scope: "organization" }
+    : { scope: "ownUsage", userId: params.session.user.id };
+}
+
+function requireGatewayRead(params: { session: Session; orgId: string }) {
+  requireGatewayEnabledForOrganization(params.orgId);
+  const canManageGateway = hasOrganizationAccess({
+    session: params.session,
+    organizationId: params.orgId,
+    scope: "gateway:manage",
+  });
+  const canReadGateway = hasOrganizationAccess({
+    session: params.session,
+    organizationId: params.orgId,
+    scope: "gateway:read",
+  });
+  if (
+    !canReadGatewayModels({
+      organizationId: params.orgId,
+      demoOrganizationId: env.NEXT_PUBLIC_DEMO_ORG_ID,
+      canReadGateway,
+      canManageGateway,
+    })
+  ) {
+    throwIfNoOrganizationAccess({
+      session: params.session,
+      organizationId: params.orgId,
+      scope: "gateway:manage",
+    });
+  }
+  throwIfNoOrganizationAccess({
+    session: params.session,
+    organizationId: params.orgId,
+    scope: "gateway:read",
   });
 }
 
@@ -49,7 +139,79 @@ export const aiGatewayRouter = createTRPCRouter({
         config: await new GatewayConfigService(ctx.prisma).getConfig(
           input.orgId,
         ),
-        gatewayBaseUrl: getGatewayBaseUrl(getProductBaseUrl()),
+      };
+    }),
+
+  /** Readable by every gateway reader and key owner; exposes only whether setup is done, not the config itself. */
+  getSetupStatus: protectedOrganizationProcedure
+    .input(organizationInput)
+    .query(async ({ input, ctx }) => {
+      const canInvokeGateway = hasOrganizationAccess({
+        session: ctx.session,
+        organizationId: input.orgId,
+        scope: "gateway:invoke",
+      });
+      if (canInvokeGateway)
+        requireGatewayInvoke({ session: ctx.session, orgId: input.orgId });
+      else requireGatewayRead({ session: ctx.session, orgId: input.orgId });
+      return new GatewayConfigService(ctx.prisma).getSetupStatus(input.orgId);
+    }),
+
+  /** Names for the API key and user IDs that gateway analytics break down by. */
+  getAnalyticsLabels: protectedOrganizationProcedure
+    .input(organizationInput)
+    .query(async ({ input, ctx }) => {
+      requireGatewayInvoke({ session: ctx.session, orgId: input.orgId });
+      const usageScope = getGatewayUsageScope({
+        session: ctx.session,
+        orgId: input.orgId,
+      });
+      return new GatewayAnalyticsLabelsRepository(ctx.prisma).getLabels({
+        organizationId: input.orgId,
+        usageScope,
+        includePlainOrganizationKeys: hasOrganizationAccess({
+          session: ctx.session,
+          organizationId: input.orgId,
+          scope: "organization:CRUD_apiKeys",
+        }),
+      });
+    }),
+
+  /** Gateway managers see all gateway usage; everyone else only their own. */
+  executeAnalyticsQuery: protectedOrganizationProcedure
+    .input(zodV3.object({ orgId: zodV3.string(), query: analyticsQuery }))
+    .query(async ({ input, ctx }) => {
+      requireGatewayInvoke({ session: ctx.session, orgId: input.orgId });
+      const usageScope = getGatewayUsageScope({
+        session: ctx.session,
+        orgId: input.orgId,
+      });
+      return new GatewayAnalyticsService(
+        new GatewayConfigService(ctx.prisma),
+      ).executeQuery({
+        organizationId: input.orgId,
+        query: input.query,
+        usageScope,
+      });
+    }),
+
+  /** What a key owner needs to point a client at the gateway; no connection details. */
+  getClientSetup: protectedOrganizationProcedure
+    .input(organizationInput)
+    .query(async ({ input, ctx }) => {
+      requireGatewayInvoke({ session: ctx.session, orgId: input.orgId });
+      const connections = await new GatewayProviderService(ctx.prisma).listAll(
+        input.orgId,
+        GatewayConnectionStatus.ENABLED,
+      );
+      return {
+        gatewayBaseUrl: getGatewayBaseUrl(
+          getProductBaseUrl(),
+          env.LANGFUSE_AI_GATEWAY_PUBLIC_URL,
+        ),
+        providers: [
+          ...new Set(connections.map((connection) => connection.provider)),
+        ],
       };
     }),
 
@@ -70,6 +232,66 @@ export const aiGatewayRouter = createTRPCRouter({
       });
     }),
 
+  getNotifiableMembers: protectedOrganizationProcedure
+    .input(organizationInput)
+    .query(async ({ input, ctx }) => {
+      requireGatewayAdmin({ session: ctx.session, orgId: input.orgId });
+      return new GatewayTeamService(ctx.prisma).getNotifiableMembers({
+        organizationId: input.orgId,
+        currentUserId: ctx.session.user.id,
+      });
+    }),
+
+  getMemberSuggestions: protectedOrganizationProcedure
+    .input(
+      organizationInput.extend({
+        search: z.string().max(MAX_MEMBER_SEARCH_LENGTH),
+        excludeEmails: z.array(z.string()).max(MAX_TEAM_INVITES),
+      }),
+    )
+    .query(async ({ input, ctx }) => {
+      requireGatewayAdmin({ session: ctx.session, orgId: input.orgId });
+      return new GatewayTeamService(ctx.prisma).getMemberSuggestions({
+        organizationId: input.orgId,
+        currentUserId: ctx.session.user.id,
+        search: input.search,
+        excludeEmails: input.excludeEmails,
+      });
+    }),
+
+  getInviteeMembers: protectedOrganizationProcedure
+    .input(
+      organizationInput.extend({
+        emails: z.array(z.email()).max(MAX_TEAM_INVITES),
+      }),
+    )
+    .query(async ({ input, ctx }) => {
+      requireGatewayAdmin({ session: ctx.session, orgId: input.orgId });
+      return new GatewayTeamService(ctx.prisma).getInviteeMembers({
+        organizationId: input.orgId,
+        currentUserId: ctx.session.user.id,
+        emails: input.emails,
+      });
+    }),
+
+  /** Invites new people with the AI Gateway role and optionally tells existing members. */
+  inviteTeam: protectedOrganizationProcedure
+    .input(
+      organizationInput.extend({
+        emails: z.array(z.email()).max(MAX_TEAM_INVITES),
+        notifyMembers: z.boolean(),
+      }),
+    )
+    .mutation(async ({ input, ctx }) => {
+      requireGatewayAdmin({ session: ctx.session, orgId: input.orgId });
+      return new GatewayTeamService(ctx.prisma).inviteTeam({
+        ctx,
+        organizationId: input.orgId,
+        emails: input.emails,
+        notifyMembers: input.notifyMembers,
+      });
+    }),
+
   listConnections: protectedOrganizationProcedure
     .input(paginatedOrganizationInput)
     .query(async ({ input, ctx }) => {
@@ -78,6 +300,16 @@ export const aiGatewayRouter = createTRPCRouter({
         organizationId: input.orgId,
         cursor: input.cursor,
         limit: input.limit,
+      });
+    }),
+
+  getConnection: protectedOrganizationProcedure
+    .input(connectionInput)
+    .query(async ({ input, ctx }) => {
+      requireGatewayAdmin({ session: ctx.session, orgId: input.orgId });
+      return new GatewayProviderService(ctx.prisma).get({
+        organizationId: input.orgId,
+        id: input.id,
       });
     }),
 
@@ -100,7 +332,7 @@ export const aiGatewayRouter = createTRPCRouter({
   createConnection: protectedOrganizationProcedureWithoutTracing
     .input(
       organizationInput.extend({
-        name: z.string().trim().min(1).max(200),
+        name: connectionNameSchema,
         provider: z.enum(GatewayProvider),
         credential: z.string().min(1),
       }),
@@ -121,7 +353,7 @@ export const aiGatewayRouter = createTRPCRouter({
     .input(
       organizationInput.extend({
         id: z.string(),
-        name: z.string().trim().min(1).max(200).optional(),
+        name: connectionNameSchema.optional(),
         credential: z.string().min(1).optional(),
         status: z
           .enum([
@@ -144,7 +376,7 @@ export const aiGatewayRouter = createTRPCRouter({
     }),
 
   deleteConnection: protectedOrganizationProcedure
-    .input(organizationInput.extend({ id: z.string() }))
+    .input(connectionInput)
     .mutation(async ({ input, ctx }) => {
       requireGatewayAdmin({ session: ctx.session, orgId: input.orgId });
       await new GatewayProviderService(ctx.prisma).delete({
@@ -155,28 +387,86 @@ export const aiGatewayRouter = createTRPCRouter({
       return { success: true };
     }),
 
-  reorderConnections: protectedOrganizationProcedure
+  updateConnectionModels: protectedOrganizationProcedure
     .input(
-      organizationInput.extend({
-        connectionIds: z.array(z.string()),
+      connectionInput.extend({
+        allowedModels: allowedModelsSchema,
+        expectedUpdatedAt: z.date(),
       }),
     )
     .mutation(async ({ input, ctx }) => {
       requireGatewayAdmin({ session: ctx.session, orgId: input.orgId });
-      return new GatewayProviderService(ctx.prisma).reorder({
+      return new GatewayProviderService(ctx.prisma).updateAllowedModels({
         organizationId: input.orgId,
-        connectionIds: input.connectionIds,
+        id: input.id,
+        allowedModels: input.allowedModels,
+        expectedUpdatedAt: input.expectedUpdatedAt,
         session: ctx.session,
       });
+    }),
+
+  listModelConnections: protectedOrganizationProcedure
+    .input(organizationInput)
+    .query(async ({ input, ctx }) => {
+      requireGatewayRead({ session: ctx.session, orgId: input.orgId });
+      return new GatewayModelCatalogService(ctx.prisma).listModelConnections(
+        input.orgId,
+      );
     }),
 
   refreshModels: protectedOrganizationProcedure
     .input(organizationInput)
     .query(async ({ input, ctx }) => {
-      requireGatewayAdmin({ session: ctx.session, orgId: input.orgId });
-      return new GatewayModelCatalogService(ctx.prisma).refreshAllModels(
+      requireGatewayRead({
+        session: ctx.session,
+        orgId: input.orgId,
+      });
+      const canManageGateway = hasOrganizationAccess({
+        session: ctx.session,
+        organizationId: input.orgId,
+        scope: "gateway:manage",
+      });
+      const catalogService = new GatewayModelCatalogService(ctx.prisma);
+      const results = canManageGateway
+        ? await catalogService.refreshAllModels(input.orgId)
+        : await catalogService.listAllModels(input.orgId);
+      if (canManageGateway) return results;
+
+      const readableConnections = await catalogService.listModelConnections(
         input.orgId,
       );
+      const allowedModelsByConnectionId = new Map(
+        readableConnections.map((connection) => [
+          connection.id,
+          connection.allowedModels,
+        ]),
+      );
+      return results.map((result) =>
+        result.success
+          ? {
+              ...result,
+              models: result.models.filter((model) => {
+                const allowedModels = allowedModelsByConnectionId.get(
+                  result.connectionId,
+                );
+                return isGatewayModelAllowed(
+                  allowedModels === undefined ? [] : allowedModels,
+                  model,
+                );
+              }),
+            }
+          : result,
+      );
+    }),
+
+  getConnectionModels: protectedOrganizationProcedure
+    .input(connectionInput)
+    .query(async ({ input, ctx }) => {
+      requireGatewayAdmin({ session: ctx.session, orgId: input.orgId });
+      return new GatewayModelCatalogService(ctx.prisma).refreshModels({
+        organizationId: input.orgId,
+        connectionId: input.id,
+      });
     }),
 
   syncModels: protectedOrganizationProcedure
@@ -190,7 +480,7 @@ export const aiGatewayRouter = createTRPCRouter({
     }),
 
   retryConnection: protectedOrganizationProcedure
-    .input(organizationInput.extend({ id: z.string() }))
+    .input(connectionInput)
     .mutation(async ({ input, ctx }) => {
       requireGatewayAdmin({ session: ctx.session, orgId: input.orgId });
       return new GatewayModelCatalogService(ctx.prisma).retryConnection({
@@ -201,13 +491,45 @@ export const aiGatewayRouter = createTRPCRouter({
     }),
 
   listApiKeys: protectedOrganizationProcedure
-    .input(paginatedOrganizationInput)
+    .input(
+      offsetPaginatedOrganizationInput.extend({
+        searchQuery: z.string().trim().optional(),
+        orderBy: orderBy.optional(),
+      }),
+    )
     .query(async ({ input, ctx }) => {
-      requireGatewayAdmin({ session: ctx.session, orgId: input.orgId });
+      requireGatewayInvoke({ session: ctx.session, orgId: input.orgId });
+      const usageScope = getGatewayUsageScope({
+        session: ctx.session,
+        orgId: input.orgId,
+      });
       return new GatewayApiKeyService(ctx.prisma, redis).list({
         organizationId: input.orgId,
-        cursor: input.cursor,
+        ownerUserId: getKeyOwnerFilter(usageScope),
+        searchQuery: input.searchQuery,
+        orderBy: input.orderBy,
+        page: input.page,
         limit: input.limit,
+      });
+    }),
+
+  /** Loaded after listApiKeys for the visible page, so ClickHouse never delays the key list. */
+  getApiKeysLastUsed: protectedOrganizationProcedure
+    .input(
+      organizationInput.extend({
+        apiKeyIds: z.array(z.string()).max(100),
+      }),
+    )
+    .query(async ({ input, ctx }) => {
+      requireGatewayInvoke({ session: ctx.session, orgId: input.orgId });
+      const usageScope = getGatewayUsageScope({
+        session: ctx.session,
+        orgId: input.orgId,
+      });
+      return new GatewayApiKeyService(ctx.prisma, redis).getLastUsed({
+        organizationId: input.orgId,
+        ownerUserId: getKeyOwnerFilter(usageScope),
+        apiKeyIds: input.apiKeyIds,
       });
     }),
 
@@ -215,7 +537,7 @@ export const aiGatewayRouter = createTRPCRouter({
   createApiKey: protectedOrganizationProcedureWithoutTracing
     .input(
       organizationInput.extend({
-        name: z.string().max(500).optional(),
+        name: z.string().trim().min(1, "Gateway keys need a name").max(500),
         metadata: GatewayMetadataSchema.default({}),
         expiresAt: z
           .date()
@@ -223,26 +545,46 @@ export const aiGatewayRouter = createTRPCRouter({
           .refine((date) => date == null || date.getTime() > Date.now(), {
             message: "Expiration date must be in the future",
           }),
+        issuedAs: z.enum(["user", "serviceAccount"]).default("user"),
       }),
     )
     .mutation(async ({ input, ctx }) => {
-      requireGatewayAdmin({ session: ctx.session, orgId: input.orgId });
+      // Legacy public API auth ignores key roles, so a gateway key passes as an
+      // organization admin key there; only managers may mint one outside enforce.
+      if (env.API_AUTH_MIGRATION === "enforce" && input.issuedAs === "user") {
+        requireGatewayInvoke({ session: ctx.session, orgId: input.orgId });
+      } else {
+        requireGatewayAdmin({ session: ctx.session, orgId: input.orgId });
+      }
+      for (const scope of gatewayApiKeyCreatorScopes(input.issuedAs)) {
+        throwIfNoOrganizationAccess({
+          session: ctx.session,
+          organizationId: input.orgId,
+          scope,
+        });
+      }
       const key = await new GatewayApiKeyService(ctx.prisma, redis).create({
         organizationId: input.orgId,
         name: input.name,
         metadata: input.metadata,
         expiresAt: input.expiresAt,
+        issuedAs: input.issuedAs,
         session: ctx.session,
       });
       return key;
     }),
 
   revokeApiKey: protectedOrganizationProcedure
-    .input(organizationInput.extend({ id: z.string() }))
+    .input(connectionInput)
     .mutation(async ({ input, ctx }) => {
-      requireGatewayAdmin({ session: ctx.session, orgId: input.orgId });
+      requireGatewayInvoke({ session: ctx.session, orgId: input.orgId });
+      const usageScope = getGatewayUsageScope({
+        session: ctx.session,
+        orgId: input.orgId,
+      });
       await new GatewayApiKeyService(ctx.prisma, redis).revoke({
         organizationId: input.orgId,
+        ownerUserId: getKeyOwnerFilter(usageScope),
         apiKeyId: input.id,
         session: ctx.session,
       });

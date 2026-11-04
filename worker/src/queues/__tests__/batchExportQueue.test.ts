@@ -1,4 +1,4 @@
-import { Job } from "bullmq";
+import { DelayedError, Job } from "bullmq";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { BatchExportStatus } from "@langfuse/shared";
 import {
@@ -10,6 +10,7 @@ import {
 const mocks = vi.hoisted(() => ({
   handleBatchExportJob: vi.fn(),
   updateBatchExport: vi.fn().mockResolvedValue(undefined),
+  BatchExportUserBusyError: class extends Error {},
 }));
 
 vi.mock("@langfuse/shared/src/db", () => ({
@@ -18,6 +19,7 @@ vi.mock("@langfuse/shared/src/db", () => ({
 
 vi.mock("../../features/batchExport/handleBatchExportJob", () => ({
   handleBatchExportJob: mocks.handleBatchExportJob,
+  BatchExportUserBusyError: mocks.BatchExportUserBusyError,
 }));
 
 import { batchExportQueueProcessor } from "../batchExportQueue";
@@ -78,6 +80,28 @@ describe("batchExportQueueProcessor", () => {
         data: expect.objectContaining({ log: "An internal error occurred" }),
       }),
     );
+  });
+
+  it("defers the job without failing it while the user's other export runs", async () => {
+    vi.useFakeTimers({ now: new Date("2026-01-01T00:00:00Z") });
+    mocks.handleBatchExportJob.mockRejectedValue(
+      new mocks.BatchExportUserBusyError(),
+    );
+    const moveToDelayed = vi.fn().mockResolvedValue(undefined);
+
+    const thrown = await batchExportQueueProcessor({
+      ...job,
+      token: "token-1",
+      moveToDelayed,
+    } as unknown as typeof job).catch((e) => e);
+    vi.useRealTimers();
+
+    expect(thrown).toBeInstanceOf(DelayedError);
+    expect(moveToDelayed).toHaveBeenCalledWith(
+      new Date("2026-01-01T00:00:30Z").getTime(),
+      "token-1",
+    );
+    expect(mocks.updateBatchExport).not.toHaveBeenCalled();
   });
 
   it("rethrows other errors so BullMQ retries them", async () => {

@@ -113,6 +113,7 @@ export const tracesTableCols: ColumnDefinition[] = [
     name: "Input Tokens",
     id: "inputTokens",
     type: "number",
+    step: 1,
     internal: 'generation_metrics."promptTokens"',
     nullable: true,
   },
@@ -120,6 +121,7 @@ export const tracesTableCols: ColumnDefinition[] = [
     name: "Output Tokens",
     id: "outputTokens",
     type: "number",
+    step: 1,
     internal: 'generation_metrics."completionTokens"',
     nullable: true,
   },
@@ -128,6 +130,7 @@ export const tracesTableCols: ColumnDefinition[] = [
     aliases: ["Error Level Count"],
     id: "errorCount",
     type: "number",
+    step: 1,
     internal: 'generation_metrics."errorCount"',
   },
   {
@@ -135,6 +138,7 @@ export const tracesTableCols: ColumnDefinition[] = [
     aliases: ["Warning Level Count"],
     id: "warningCount",
     type: "number",
+    step: 1,
     internal: 'generation_metrics."warningCount"',
   },
   {
@@ -142,6 +146,7 @@ export const tracesTableCols: ColumnDefinition[] = [
     aliases: ["Default Level Count"],
     id: "defaultCount",
     type: "number",
+    step: 1,
     internal: 'generation_metrics."defaultCount"',
   },
   {
@@ -149,12 +154,14 @@ export const tracesTableCols: ColumnDefinition[] = [
     aliases: ["Debug Level Count"],
     id: "debugCount",
     type: "number",
+    step: 1,
     internal: 'generation_metrics."debugCount"',
   },
   {
     name: "Total Tokens",
     id: "totalTokens",
     type: "number",
+    step: 1,
     internal: 'generation_metrics."totalTokens"',
     nullable: true,
   },
@@ -162,6 +169,7 @@ export const tracesTableCols: ColumnDefinition[] = [
     name: "Tokens",
     id: "tokens",
     type: "number",
+    step: 1,
     internal: 'generation_metrics."totalTokens"',
     nullable: true,
   },
@@ -217,6 +225,7 @@ export const tracesTableCols: ColumnDefinition[] = [
     name: "Comment Count",
     id: "commentCount",
     type: "number",
+    step: 1,
     internal: "", // handled by comment filter helpers
   },
   {

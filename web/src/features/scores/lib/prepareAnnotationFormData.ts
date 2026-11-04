@@ -42,6 +42,7 @@ export function prepareAnnotationFormData(
   scores: AnnotationScore[],
   configs: ScoreConfigDomain[],
   selectedConfigIds: string[],
+  order: "name" | "selected" = "name",
 ): AnnotationScoreFormData[] {
   const fields = scores.map(
     ({
@@ -79,6 +80,16 @@ export function prepareAnnotationFormData(
       comment: null,
       timestamp: null,
     });
+  }
+  if (order === "selected") {
+    const configOrder = new Map(
+      selectedConfigIds.map((configId, index) => [configId, index]),
+    );
+    return fields.sort(
+      (left, right) =>
+        (configOrder.get(left.configId) ?? selectedConfigIds.length) -
+        (configOrder.get(right.configId) ?? selectedConfigIds.length),
+    );
   }
   return fields.sort((left, right) => left.name.localeCompare(right.name));
 }

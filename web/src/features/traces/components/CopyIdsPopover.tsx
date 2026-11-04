@@ -1,6 +1,6 @@
 /* eslint-disable @repo/no-style-props, @repo/no-abstracted-overlay-trigger */
 import { Button } from "@/src/components/ui/button";
-import { CopyIcon, CheckIcon } from "lucide-react";
+import { CopyIcon, CheckIcon } from "@langfuse/icons";
 import { useState } from "react";
 import {
   Popover,
@@ -40,9 +40,9 @@ export const CopyIdsPopover = ({
         onClick={() => handleCopy(idItems[0].id)}
       >
         {copiedId === idItems[0].id ? (
-          <CheckIcon className="icon-base text-muted-green" />
+          <CheckIcon size="base" __rawClassName="text-muted-green" />
         ) : (
-          <CopyIcon className="icon-base text-icon-foreground" />
+          <CopyIcon size="base" color="default" />
         )}
         <span className="ml-1 text-xs">ID</span>
       </Button>
@@ -57,7 +57,7 @@ export const CopyIdsPopover = ({
           title="Copy ID"
           className={cn("h-fit px-1", className)}
         >
-          <CopyIcon className="icon-base text-icon-foreground" />
+          <CopyIcon size="base" color="default" />
           <span className="ml-1 text-xs">ID</span>
         </Button>
       </PopoverTrigger>
@@ -89,9 +89,9 @@ export const CopyIdsPopover = ({
                 onClick={() => handleCopy(item.id)}
               >
                 {copiedId === item.id ? (
-                  <CheckIcon className="icon-base text-muted-green" />
+                  <CheckIcon size="base" __rawClassName="text-muted-green" />
                 ) : (
-                  <CopyIcon className="icon-base text-icon-foreground" />
+                  <CopyIcon size="base" color="default" />
                 )}
               </Button>
             </div>

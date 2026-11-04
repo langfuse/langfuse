@@ -1,14 +1,15 @@
 import { useMemo } from "react";
 import type { z } from "zod";
-import { type Prisma, deepParseJson } from "@langfuse/shared";
 import {
+  type Prisma,
+  deepParseJson,
   normalizeInput,
   normalizeOutput,
   combineInputOutputMessages,
   cleanLegacyOutput,
   extractAdditionalInput,
-} from "@/src/utils/chatml";
-import type { ChatMlMessageSchema } from "@/src/components/schemas/ChatMlSchema";
+  type ChatMlMessageSchema,
+} from "@langfuse/shared";
 
 // ChatML message type from schema
 export type ChatMlMessage = z.infer<typeof ChatMlMessageSchema>;
@@ -33,7 +34,6 @@ export interface ToolCallBookkeeping {
   toolCallCounts: Map<string, number>;
   toolCallsByName: Map<string, ToolCallInvocation[]>;
   messageToToolCallNumbers: Map<number, number[]>;
-  toolNameToDefinitionNumber: Map<string, number>;
 }
 
 // Result from ChatML parsing hook
@@ -45,7 +45,6 @@ export interface ChatMLParserResult {
   toolCallCounts: Map<string, number>;
   toolCallsByName: Map<string, ToolCallInvocation[]>;
   messageToToolCallNumbers: Map<number, number[]>;
-  toolNameToDefinitionNumber: Map<string, number>;
   inputMessageCount: number;
 }
 
@@ -169,17 +168,11 @@ export function computeToolCallBookkeeping(
     return callCountB - callCountA;
   });
 
-  const toolNameToDefinitionNumber = new Map<string, number>();
-  sortedTools.forEach((tool, index) => {
-    toolNameToDefinitionNumber.set(tool.name, index + 1);
-  });
-
   return {
     allTools: sortedTools,
     toolCallCounts,
     toolCallsByName,
     messageToToolCallNumbers,
-    toolNameToDefinitionNumber,
   };
 }
 
@@ -198,7 +191,6 @@ function emptyChatMLParserResult(): ChatMLParserResult {
     toolCallCounts: new Map(),
     toolCallsByName: new Map(),
     messageToToolCallNumbers: new Map(),
-    toolNameToDefinitionNumber: new Map(),
     inputMessageCount: 0,
   };
 }

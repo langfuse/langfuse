@@ -13,6 +13,8 @@
     "rust:lint": "cargo fmt --all -- --check && cargo clippy --locked --all-targets -- -D warnings",
     "test": "pnpm run rust:test",
     "rust:test": "cargo test --locked",
+    "rust:deny": "cargo deny --locked check",
+    "rust:unused-deps": "cargo machete",
     "format": "cargo fmt --all"
   },
   "devDependencies": {

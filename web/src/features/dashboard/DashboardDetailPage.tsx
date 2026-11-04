@@ -1,12 +1,17 @@
-/* eslint-disable no-nested-ternary */
+/* eslint-disable no-nested-ternary, @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 import { useRouter } from "next/router";
 import { api } from "@/src/utils/api";
-import { useReadPath, type ResolvedReadPath } from "@/src/features/events";
+import {
+  useReadPath,
+  type ResolvedReadPath,
+} from "@/src/features/events/hooks/useReadPath";
+
 import { useDashboardFilterOptions } from "@/src/hooks/useDashboardFilterOptions";
-import Page from "@/src/components/layouts/page";
+import Page from "@/src/components/layouts/Page";
 import { NoDataOrLoading } from "@/src/components/NoDataOrLoading";
 import { TimeRangePicker } from "@/src/components/date-picker";
-import { PopoverFilterBuilder, MultiSelect } from "@/src/features/filters";
+import { PopoverFilterBuilder } from "@/src/features/filters/components/filter-builder";
+import { MultiSelect } from "@/src/features/filters/components/MultiSelect";
 
 import { useEffect, useState, useMemo, useCallback, useRef } from "react";
 import {
@@ -24,27 +29,31 @@ import {
   Loader2,
   MoreVertical,
   PencilIcon,
-} from "lucide-react";
-import { showErrorToast, showSuccessToast } from "@/src/features/notifications";
+} from "@langfuse/icons";
+import { showErrorToast } from "@/src/features/notifications/showErrorToast";
+import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import {
   SelectWidgetDialog,
   type WidgetItem,
 } from "@/src/features/widgets/components/SelectWidgetDialog";
-import { useHasProjectAccess } from "@/src/features/rbac";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { v4 as uuidv4 } from "uuid";
 import { useDebounce } from "@/src/hooks/useDebounce";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import {
   type DashboardPlacement,
+  DashboardGrid,
+} from "@/src/features/widgets/components/DashboardGrid";
+import {
   parsePastedWidget,
   toWidgetCreateFields,
   type PastedWidgetParseResult,
   type WidgetExportSource,
-  pushDownForInsertion,
-  useClipboardWidgetProbe,
-} from "@/src/features/widgets";
-import { DashboardGrid } from "@/src/features/widgets/components/DashboardGrid";
-import { CloneFirstDialogController } from "@/src/features/dashboard/components/CloneFirstDialogController";
+} from "@/src/features/widgets/utils/import-export-utils";
+import { pushDownForInsertion } from "@/src/features/widgets/utils/grid-placement";
+import { useClipboardWidgetProbe } from "@/src/features/widgets/hooks/useClipboardWidgetProbe";
+
+import { ConnectedCloneDashboardDialogController } from "@/src/features/dashboard/components/ConnectedCloneDashboardDialogController";
 import { PageHeaderControlsPortal } from "@/src/components/layouts/page-header-controls-slot";
 import {
   DropdownMenu,
@@ -59,7 +68,7 @@ import {
   DASHBOARD_AGGREGATION_OPTIONS,
   toAbsoluteTimeRange,
 } from "@/src/utils/date-range-utils";
-import { useEntitlementLimit } from "@/src/features/entitlements";
+import { useEntitlementLimit } from "@/src/features/entitlements/hooks";
 import { useEnvironmentFilterOptionsCache } from "@/src/hooks/use-environment-filter-options-cache";
 
 import {
@@ -71,7 +80,7 @@ import {
   getDashboardQuerySchedulerMaxConcurrent,
   getDashboardSchedulerResetKey,
   useDashboardQueryScheduler,
-} from "@/src/features/dashboard/hooks/useDashboardQueryScheduler";
+} from "@/src/features/dashboard/hooks/DashboardQuerySchedulerProvider";
 import {
   isPasteablePlacementPayload,
   parseDashboardImport,
@@ -83,10 +92,8 @@ import { readTextFromClipboard } from "@/src/utils/clipboard";
 import { extractTransferFiles } from "@/src/components/editor/fileDropPaste";
 import { Layer } from "@/src/components/design-system/Layer/Layer";
 import { useDashboardDefinitionDraft } from "@/src/features/dashboard/hooks/useDashboardDefinitionDraft";
-import {
-  RouteParamsPendingFallback,
-  useReadyRouteParams,
-} from "@/src/hooks/useReadyRouteParams";
+import { RouteParamsPendingFallback } from "@/src/components/RouteParamsPendingFallback/RouteParamsPendingFallback";
+import { useReadyRouteParams } from "@/src/hooks/useReadyRouteParams";
 import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
 
 // Position for a tile inserted "next to" an anchor tile: same size,
@@ -180,8 +187,6 @@ function DashboardDetailView({ readPath }: { readPath: ResolvedReadPath }) {
 
   // gridResetKey remounts the grid to revert an attempted drag/resize when the
   // user cancels the clone-first flow.
-  const [cloneFirstPendingDefinition, setCloneFirstPendingDefinition] =
-    useState<{ widgets: DashboardPlacement[] } | null>(null);
   const [gridResetKey, setGridResetKey] = useState(0);
 
   // Filter state - use persistent filters from dashboard
@@ -1201,16 +1206,7 @@ function DashboardDetailView({ readPath }: { readPath: ResolvedReadPath }) {
   });
 
   return (
-    <CloneFirstDialogController
-      projectId={projectId}
-      dashboardId={dashboardId}
-      dashboardName={dashboard.data?.name ?? "Dashboard"}
-      pendingDefinition={cloneFirstPendingDefinition}
-      onCancel={() => {
-        setCloneFirstPendingDefinition(null);
-        setGridResetKey((key) => key + 1);
-      }}
-    >
+    <ConnectedCloneDashboardDialogController>
       {({ openDialog: openCloneFirstDialog }) => {
         const openCloneFirst = (
           attempt:
@@ -1225,8 +1221,15 @@ function DashboardDetailView({ readPath }: { readPath: ResolvedReadPath }) {
             attempt,
             surface: "detail",
           });
-          setCloneFirstPendingDefinition(pendingDefinition ?? null);
-          openCloneFirstDialog();
+          openCloneFirstDialog({
+            projectId,
+            dashboardId,
+            dashboardName: dashboard.data?.name ?? "Dashboard",
+            pendingDefinition,
+            onCancel: () => {
+              setGridResetKey((key) => key + 1);
+            },
+          });
         };
 
         const handleDeleteWidget = (tileId: string) => {
@@ -1329,7 +1332,11 @@ function DashboardDetailView({ readPath }: { readPath: ResolvedReadPath }) {
                             role="status"
                             aria-label="Saving"
                           >
-                            <Loader2 className="text-muted-foreground icon-base animate-spin" />
+                            <Loader2
+                              size="base"
+                              color="muted"
+                              __rawClassName="animate-spin"
+                            />
                           </span>
                         )}
                         {hasCUDAccess && hasUnsavedFilterChanges && (
@@ -1345,7 +1352,11 @@ function DashboardDetailView({ readPath }: { readPath: ResolvedReadPath }) {
                         )}
                         {hasRbacCUDAccess && (
                           <Button onClick={handleAddWidget}>
-                            <PlusIcon className="icon-base text-icon-foreground mr-1" />
+                            <PlusIcon
+                              size="base"
+                              color="default"
+                              __rawClassName="mr-1"
+                            />
                             Add Widget
                           </Button>
                         )}
@@ -1355,7 +1366,11 @@ function DashboardDetailView({ readPath }: { readPath: ResolvedReadPath }) {
                             onClick={handleCloneDashboard}
                             disabled={mutateCloneDashboard.isPending}
                           >
-                            <Copy className="icon-base text-icon-foreground mr-1" />
+                            <Copy
+                              size="base"
+                              color="default"
+                              __rawClassName="mr-1"
+                            />
                             Clone
                           </Button>
                         )}
@@ -1367,7 +1382,7 @@ function DashboardDetailView({ readPath }: { readPath: ResolvedReadPath }) {
                                 size="icon"
                                 aria-label="More actions"
                               >
-                                <MoreVertical className="icon-base text-icon-foreground" />
+                                <MoreVertical size="base" color="default" />
                               </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
@@ -1378,7 +1393,11 @@ function DashboardDetailView({ readPath }: { readPath: ResolvedReadPath }) {
                                     pasteWidgetFromClipboard("dashboard_menu")
                                   }
                                 >
-                                  <ClipboardPasteIcon className="icon-base text-icon-foreground mr-2" />
+                                  <ClipboardPasteIcon
+                                    size="base"
+                                    color="default"
+                                    __rawClassName="mr-2"
+                                  />
                                   Paste widget
                                 </DropdownMenuItem>
                               )}
@@ -1403,14 +1422,22 @@ function DashboardDetailView({ readPath }: { readPath: ResolvedReadPath }) {
                                   });
                                 }}
                               >
-                                <HomeIcon className="icon-base text-icon-foreground mr-2" />
+                                <HomeIcon
+                                  size="base"
+                                  color="default"
+                                  __rawClassName="mr-2"
+                                />
                                 {isCurrentHome
                                   ? "Shown on Home"
                                   : "Use as Home"}
                               </DropdownMenuItem>
                               {hasCUDAccess && (
                                 <DropdownMenuItem onSelect={openEditDialog}>
-                                  <PencilIcon className="icon-base text-icon-foreground mr-2" />
+                                  <PencilIcon
+                                    size="base"
+                                    color="default"
+                                    __rawClassName="mr-2"
+                                  />
                                   Edit name & description
                                 </DropdownMenuItem>
                               )}
@@ -1516,6 +1543,6 @@ function DashboardDetailView({ readPath }: { readPath: ResolvedReadPath }) {
           </DialogController>
         );
       }}
-    </CloneFirstDialogController>
+    </ConnectedCloneDashboardDialogController>
   );
 }

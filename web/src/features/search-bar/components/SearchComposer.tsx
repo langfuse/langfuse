@@ -17,7 +17,7 @@
 
 import * as React from "react";
 import { useShallow } from "zustand/react/shallow";
-import { AlertCircle, WandSparkles, X } from "lucide-react";
+import { AlertCircle, WandSparkles, X } from "@langfuse/icons";
 
 import { Layer } from "@/src/components/design-system/Layer/Layer";
 import { cn } from "@/src/utils/tailwind";
@@ -63,8 +63,8 @@ import {
 import {
   ComposerSurface,
   type ComposerSize,
-  ComposerText,
 } from "@/src/features/search-bar/components/ComposerSurface";
+import { ComposerText } from "@/src/features/search-bar/components/ComposerText";
 
 const LISTBOX_ID = "search-bar-listbox";
 // Word joiners (shared with ComposerTokens) give the DOM caret boundaries
@@ -318,6 +318,7 @@ function useLatest<T>(value: T) {
 }
 
 export function SearchComposer({
+  inputId,
   projectId,
   observed,
   erroredColumns,
@@ -330,6 +331,7 @@ export function SearchComposer({
   registry = EVENTS_FIELD_REGISTRY,
   size = "default",
 }: {
+  inputId?: string;
   projectId?: string;
   /** `large` on full-page lists; embedded toolbars keep the default. */
   size?: ComposerSize;
@@ -1443,6 +1445,7 @@ export function SearchComposer({
           <ComposerText>
             <div
               ref={rootRef}
+              id={inputId}
               role="combobox"
               aria-label="Search"
               aria-expanded={plan !== null}
@@ -1531,7 +1534,7 @@ export function SearchComposer({
                 "ring-offset-background focus-visible:ring-ring focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-hidden",
               )}
             >
-              <WandSparkles className="icon-base" aria-hidden="true" />
+              <WandSparkles size="base" aria-hidden="true" />
               <span>Ask AI</span>
             </button>
           )}
@@ -1556,7 +1559,7 @@ export function SearchComposer({
             title={visibleDiagnostics.map((d) => d.message).join("; ")}
             aria-label="invalid query"
           >
-            <AlertCircle className="icon-base" />
+            <AlertCircle size="base" />
           </span>
         </div>
       )}
@@ -1675,7 +1678,7 @@ function RemoveTokenButton({
         onRemove(segment);
       }}
     >
-      <X className="icon-sm" aria-hidden="true" />
+      <X size="sm" aria-hidden="true" />
     </button>
   );
 }

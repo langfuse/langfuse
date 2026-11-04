@@ -1,4 +1,4 @@
-/* eslint-disable no-nested-ternary */
+/* eslint-disable no-nested-ternary, @repo/component-file-structure */
 import {
   Check,
   ExternalLink,
@@ -6,12 +6,12 @@ import {
   Settings2,
   Sparkles,
   TriangleAlert,
-} from "lucide-react";
+} from "@langfuse/icons";
 import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 import { forwardRef, type ReactNode } from "react";
 
 import { Spinner } from "@/src/components/design-system/Spinner/Spinner";
-import { Badge } from "@/src/components/ui/badge";
+import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { Button, type ButtonProps } from "@/src/components/ui/button";
 import {
   Command,
@@ -120,7 +120,8 @@ export const JudgeModelPickerTrigger = forwardRef<
       <>
         <TriangleAlert
           aria-hidden="true"
-          className="text-dark-yellow icon-base shrink-0"
+          size="base"
+          __rawClassName="text-dark-yellow"
         />
         <span className="sr-only">Model connection missing.</span>
       </>
@@ -153,13 +154,11 @@ export const JudgeModelPickerTrigger = forwardRef<
               >
                 {defaultModel.provider} / {defaultModel.model}
               </span>
-              <Badge variant="secondary" className="shrink-0">
-                Project default
-              </Badge>
+              <Badge color="filled" text="Project default" />
             </span>
           ) : (
             <span className="flex items-center gap-1.5">
-              <TriangleAlert className="icon-base text-dark-yellow shrink-0" />
+              <TriangleAlert size="base" __rawClassName="text-dark-yellow" />
               <span className="text-muted-foreground">
                 {missingDefaultLabel ?? "Select a model"}
               </span>
@@ -172,9 +171,7 @@ export const JudgeModelPickerTrigger = forwardRef<
               {customSelectionLabel}
             </span>
             {customSelectionIsDefault ? (
-              <Badge variant="secondary" className="shrink-0">
-                Project default
-              </Badge>
+              <Badge color="filled" text="Project default" />
             ) : null}
           </span>
         )}
@@ -247,21 +244,22 @@ export function JudgeModelPicker(props: JudgeModelPickerProps) {
                     }
                   >
                     <Check
-                      className={cn(
-                        "icon-base mr-2 shrink-0",
+                      size="base"
+                      __rawClassName={cn(
+                        "mr-2",
                         props.mode === "default" ? "opacity-100" : "opacity-0",
                       )}
                     />
-                    <Sparkles className="text-muted-foreground icon-base mr-2 shrink-0" />
+                    <Sparkles size="base" color="muted" __rawClassName="mr-2" />
                     <span
                       className="truncate"
                       title={`${props.defaultModel.provider} / ${props.defaultModel.model}`}
                     >
                       {props.defaultModel.provider} / {props.defaultModel.model}
                     </span>
-                    <Badge variant="secondary" className="ml-auto shrink-0">
-                      Project default
-                    </Badge>
+                    <span className="ml-auto flex shrink-0">
+                      <Badge color="filled" text="Project default" />
+                    </span>
                   </CommandItem>
                 </CommandGroup>
                 <CommandSeparator />
@@ -295,8 +293,9 @@ export function JudgeModelPicker(props: JudgeModelPickerProps) {
                       }
                     >
                       <Check
-                        className={cn(
-                          "icon-base mr-2 shrink-0",
+                        size="base"
+                        __rawClassName={cn(
+                          "mr-2",
                           isSelected ? "opacity-100" : "opacity-0",
                         )}
                       />
@@ -304,12 +303,9 @@ export function JudgeModelPicker(props: JudgeModelPickerProps) {
                         {model}
                       </span>
                       {isProjectDefault ? (
-                        <Badge
-                          variant="outline"
-                          className="text-muted-foreground font-regular ml-auto shrink-0"
-                        >
-                          default
-                        </Badge>
+                        <span className="ml-auto flex shrink-0">
+                          <Badge color="primary" text="default" />
+                        </span>
                       ) : null}
                     </CommandItem>
                   );
@@ -324,9 +320,13 @@ export function JudgeModelPicker(props: JudgeModelPickerProps) {
               className="font-regular justify-start"
               onClick={() => selectAndClose(onConfigureProviders)}
             >
-              <Plug className="icon-base text-muted-foreground mr-2" />
+              <Plug size="base" color="muted" __rawClassName="mr-2" />
               Configure AI providers
-              <ExternalLink className="icon-base text-muted-foreground ml-auto" />
+              <ExternalLink
+                size="base"
+                color="muted"
+                __rawClassName="ml-auto"
+              />
             </Button>
             {props.purpose === "decision" ? null : (
               <Button
@@ -340,7 +340,7 @@ export function JudgeModelPicker(props: JudgeModelPickerProps) {
                 }
                 onClick={() => selectAndClose(props.onConfigureModel)}
               >
-                <Settings2 className="icon-base text-muted-foreground mr-2" />
+                <Settings2 size="base" color="muted" __rawClassName="mr-2" />
                 Model configuration
                 {hasModelConfiguration ? (
                   <>
@@ -370,7 +370,7 @@ export function JudgeModelPicker(props: JudgeModelPickerProps) {
                 }
                 onClick={() => selectAndClose(props.onSetProjectDefault)}
               >
-                <Sparkles className="icon-base text-muted-foreground mr-2" />
+                <Sparkles size="base" color="muted" __rawClassName="mr-2" />
                 Set selected model as project default
               </Button>
             ) : null}

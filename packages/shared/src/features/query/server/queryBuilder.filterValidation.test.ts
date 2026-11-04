@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { InvalidRequestError } from "../../../errors";
+import { InvalidRequestError } from "../../../errors/InvalidRequestError";
 import type { FilterCondition } from "../../../types";
 import { getViewDeclaration } from "../dataModel";
 import type { QueryType, ViewVersion } from "../types";
@@ -11,6 +11,7 @@ import { QueryBuilder } from "./queryBuilder";
 // Mock it so these validation tests stay unit-level and do not need ClickHouse.
 vi.mock("../../../server/queries/clickhouse-sql/query-options", () => ({
   shouldSkipObservationsFinal: vi.fn().mockResolvedValue(false),
+  shouldSkipScoresDedup: vi.fn().mockReturnValue(false),
 }));
 
 const baseQuery = {

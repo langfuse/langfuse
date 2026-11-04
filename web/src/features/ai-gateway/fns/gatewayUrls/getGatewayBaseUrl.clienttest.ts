@@ -6,8 +6,8 @@ import { getGatewayBaseUrl } from "@/src/features/ai-gateway/fns/gatewayUrls/get
 
 describe("getGatewayBaseUrl", () => {
   it("prefixes gateway. onto a product host", () => {
-    expect(getGatewayBaseUrl(new URL("https://staging.langfuse.com/"))).toBe(
-      "https://gateway.staging.langfuse.com/v1",
+    expect(getGatewayBaseUrl(new URL("https://cloud.langfuse.com/"))).toBe(
+      "https://gateway.cloud.langfuse.com/v1",
     );
   });
 

@@ -1,11 +1,13 @@
 import { type ComponentProps } from "react";
+import { ConnectedSessionListBody } from "@/src/features/sessions/ConnectedSessionListBody";
+import { SessionFiltersBanner } from "@/src/features/sessions/SessionFiltersBanner";
 import { type FilterState } from "@langfuse/shared";
 
 import { ConnectedModernSessionBodyLegacy } from "@/src/features/sessions/ConnectedModernSessionBodyLegacy";
 import { ConnectedModernSessionBodyTimeline } from "@/src/features/sessions/components/ConnectedModernSessionBodyTimeline/ConnectedModernSessionBodyTimeline";
 import { ModernSessionFilterControls } from "@/src/features/sessions/ModernSessionFilterControls";
 import { ModernSessionHeader } from "@/src/features/sessions/ModernSessionHeader";
-import { SessionReviewLeading } from "@/src/features/sessions/sessionReviewLeading";
+import { SessionReviewLeading } from "@/src/features/sessions/SessionReviewLeadingProvider";
 import { SessionMetadataJsonPathControl } from "@/src/features/sessions/SessionMetadataJsonPathControl";
 import {
   type EventSession,
@@ -13,6 +15,12 @@ import {
 } from "@/src/features/sessions/sessionDetailPageTypes";
 
 type ModernSessionProps = {
+  viewMode: "conversational" | "list";
+  customization?: NonNullable<
+    ComponentProps<typeof ConnectedModernSessionBodyTimeline>["customization"]
+  > & {
+    onClearFilters: () => void;
+  };
   headerDividerTone?: ComponentProps<typeof ModernSessionHeader>["dividerTone"];
   isTimelineEnabled: boolean;
   session: Pick<
@@ -50,6 +58,8 @@ type ModernSessionProps = {
 };
 
 export function ModernSession({
+  viewMode,
+  customization,
   headerDividerTone,
   isTimelineEnabled,
   session,
@@ -111,14 +121,39 @@ export function ModernSession({
           </SessionReviewLeading>
         )}
       </SessionMetadataJsonPathControl>
-      {isTimelineEnabled ? (
+      {customization && customization.activeFilterCount > 0 && (
+        <SessionFiltersBanner
+          onEdit={customization.onCustomizeView}
+          onClear={customization.onClearFilters}
+        />
+      )}
+      {isTimelineEnabled && viewMode === "list" && (
+        <ConnectedSessionListBody
+          {...sharedBodyProps}
+          traceCommentCounts={traceCommentCounts}
+          filterState={filterState.filter(
+            (filter) => filter.column !== "traceName",
+          )}
+          viewLabel={null}
+          showInlineToolCalls={true}
+          showSystemPrompt={true}
+          onCustomizeView={customization?.onCustomizeView}
+          activeFilterCount={
+            customization?.activeFilterCount ?? filterState.length
+          }
+        />
+      )}
+      {isTimelineEnabled && viewMode === "conversational" && (
         <ConnectedModernSessionBodyTimeline
+          customization={customization}
           tracesState={tracesState}
           projectId={projectId}
           sessionId={sessionId}
           openPeek={openPeek}
+          filterState={filterState}
         />
-      ) : (
+      )}
+      {!isTimelineEnabled && (
         <ModernSessionFilterControls {...filterControlsProps}>
           {(sidebarFilterControls) => (
             <ConnectedModernSessionBodyLegacy

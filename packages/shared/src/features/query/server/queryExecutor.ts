@@ -94,6 +94,7 @@ export async function executeQuery(
   query: QueryType,
   version: ViewVersion = "v1",
   enableSingleLevelOptimization = false,
+  options?: Pick<ClickhouseQueryOpts, "clickhouseSettings">,
 ): Promise<Array<Record<string, unknown>>> {
   const prepared = await prepareExecuteQuery({
     projectId,
@@ -103,6 +104,10 @@ export async function executeQuery(
   });
 
   const chOpts = toClickhouseQueryOpts(prepared);
+  chOpts.clickhouseSettings = {
+    ...chOpts.clickhouseSettings,
+    ...options?.clickhouseSettings,
+  };
 
   if (!prepared.usesTraceTable) {
     return queryClickhouse<Record<string, unknown>>(chOpts);

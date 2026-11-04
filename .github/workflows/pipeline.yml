@@ -168,6 +168,7 @@ jobs:
         with:
           filters: |
             ai_gateway:
+              - 'ai-gateway/**'
               - 'packages/shared/prisma/migrations/**/*gateway*/**'
               - 'web/src/__e2e__/**/*.gatewaye2e.{ts,tsx}'
               - 'web/src/features/ai-gateway/**'
@@ -198,10 +199,27 @@ jobs:
         run: cargo fmt --all -- --check
       - name: Lint Rust targets
         run: cargo clippy --locked --all-targets -- -D warnings
+      - uses: taiki-e/install-action@1168f6810a3cb30a3514bf5756a3b7f0422c6df8 # v2.87.28
+        with:
+          tool: cargo-machete@0.9.2,cargo-deny@0.20.2
+      - name: Check for unused Rust dependencies
+        run: cargo machete
+      # Licenses also run in licencecheck.yml next to the pnpm license check,
+      # but only all-ci-passed gates merges, so they are enforced here too.
+      # Advisories come from Dependabot alerts, so a new advisory never blocks
+      # merges.
+      - name: Check Rust dependency bans, licenses, and sources
+        run: cargo deny --locked check bans licenses sources
       - name: Run Rust tests
         run: bash "$GITHUB_WORKSPACE/scripts/ci/retry-on-merge-queue.sh" cargo test --locked
+      # Persistent layer cache, so the toolchain and compiled-dependency layers
+      # are reused until the Dockerfile, Cargo.toml or Cargo.lock change.
+      - name: Setup Blacksmith Builder
+        uses: useblacksmith/setup-docker-builder@1e75355f81cbb3f93cba1eb5dd5e5b05110ca8f9 # v2.0.1
+        with:
+          cache-key: langfuse/test-ai-gateway
       - name: Build runtime image
-        run: docker build --pull --target runtime -t langfuse-ai-gateway:test .
+        run: docker buildx build --load --pull --target runtime -t langfuse-ai-gateway:test .
       - name: Smoke test runtime image
         run: bash scripts/smoke-image.sh langfuse-ai-gateway:test
 
@@ -270,16 +288,24 @@ jobs:
         run: node --test scripts/github/label-cursor-prs.test.mjs
       - name: merge-queue retry helper tests
         run: bash scripts/ci/retry-on-merge-queue.test.sh
+      - name: vitest CI reporter tests
+        run: node --test scripts/vitest/ci-reporter.test.mjs
       - name: Load default env
         run: |
           cp .env.dev.example .env
       - name: lint web
-        # Three packages with four ESLint workers leave headroom on 16 vCPUs.
-        run: pnpm turbo run lint --filter=!ai-gateway --filter=!@langfuse/native --concurrency=3 -- --concurrency=4
-      # Rust packages lint with cargo, which rejects the trailing ESLint flag
-      # above, so they run outside that invocation (ai-gateway in its own job).
+        run: pnpm turbo run lint --filter=!ai-gateway --filter=!@langfuse/native --concurrency=3 -- --threads=4
+      # Rust packages lint separately (ai-gateway in its own job).
       - name: lint native addon (rustfmt, clippy)
         run: pnpm --filter @langfuse/native run lint
+      - name: Install Rust dependency checkers
+        uses: taiki-e/install-action@1168f6810a3cb30a3514bf5756a3b7f0422c6df8 # v2.87.28
+        with:
+          tool: cargo-machete@0.9.2,cargo-deny@0.20.2
+      - name: check native addon for unused Rust dependencies
+        run: pnpm --filter @langfuse/native run rust:unused-deps
+      - name: check native addon Rust dependency bans, licenses, and sources
+        run: pnpm --filter @langfuse/native run rust:deny bans licenses sources
       - name: typecheck
         run: pnpm run typecheck --filter=!ai-gateway
 
@@ -518,6 +544,48 @@ jobs:
         run: bash scripts/ci/install-playwright.sh
       - name: run Storybook tests
         run: pnpm --filter web run test-storybook
+
+  build-storybook:
+    # Kept apart from tests-storybook so the static build and the Vitest
+    # browser run, which do not depend on each other, run in parallel.
+    runs-on: blacksmith-8vcpu-ubuntu-2404
+    needs:
+      - pre-job
+    if: ${{ !cancelled() && (github.event_name != 'push' || needs.pre-job.outputs.should_skip != 'true') }}
+    timeout-minutes: 10
+    env:
+      NODE_ENV: test
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: pnpm/setup@703c52620218391530e48b9e8870d5c0082e1b9b # v2.1.0
+        with:
+          install: false
+          cache: false
+      - name: Use Node.js ${{ env.NODE_VERSION }} without cache
+        if: env.CI_CACHE_ALLOWED != 'true'
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          package-manager-cache: false
+      - name: Use Node.js ${{ env.NODE_VERSION }} with pnpm cache
+        if: env.CI_CACHE_ALLOWED == 'true'
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # zizmor: ignore[cache-poisoning] Storybook build dependency cache only; the static build is not uploaded or published
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "pnpm"
+          cache-dependency-path: "pnpm-lock.yaml"
+      - name: install dependencies
+        run: |
+          pnpm install
+      - name: Load default env
+        run: |
+          cp .env.dev.example .env
+      - name: generate prisma client
+        # Same reason as in tests-storybook: stories import `@langfuse/shared`
+        # modules that read Prisma enums at import time.
+        run: pnpm --filter=shared run db:generate
       - name: build Storybook
         run: pnpm --filter web run build-storybook
 
@@ -582,14 +650,14 @@ jobs:
         # `clickhouse format` (from clickhouse-common-static) normalizes SQL for
         # the equivalence snapshots. Its output is version-specific, so pin the
         # exact version and regenerate snapshots on any bump; keep in sync with
-        # scripts/codex/cloud_services.sh. 26.4 is the v4-recommended version.
+        # scripts/codex/cloud_services.sh and docker-compose.dev.yml.
         # continue-on-error + timeout-minutes: a missing binary OR a stalled apt
         # mirror just skips the tests, never blocks (timeout-minutes bounds a
         # hang, which continue-on-error alone would not).
         continue-on-error: true
         timeout-minutes: 5
         env:
-          CLICKHOUSE_VERSION: 26.4.5.143
+          CLICKHOUSE_VERSION: 26.8.36.3
         run: |
           set -euo pipefail
           sudo mkdir -p /etc/apt/keyrings
@@ -764,6 +832,7 @@ jobs:
       VITEST_MAX_WORKERS: "12"
       NODE_ENV: test
     strategy:
+      fail-fast: false
       matrix:
         node-version: [24]
         postgres-version: [15]
@@ -986,6 +1055,7 @@ jobs:
       VITEST_MAX_WORKERS: ${{ matrix.deploy-mode == '-redis-cluster' && '8' || '4' }}
       NODE_ENV: test
     strategy:
+      fail-fast: false
       matrix:
         node-version: [24]
         postgres-version: [15]
@@ -1648,6 +1718,7 @@ jobs:
         tests-eslint-plugin,
         tests-in-app-agent-sandbox-runtime,
         tests-storybook,
+        build-storybook,
         tests-shared,
         tests-web,
         tests-web-client,
@@ -1662,7 +1733,6 @@ jobs:
     if: always()
     permissions:
       contents: read
-      actions: read
     outputs:
       success: ${{ steps.set-success-output.outputs.success }}
     steps:
@@ -1682,21 +1752,33 @@ jobs:
         if: ${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') }}
         run: exit 1
         working-directory: .
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        if: failure() && github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/v3' || startsWith(github.ref, 'refs/tags/'))
-        with:
-          persist-credentials: false
-      - name: Notify Slack
-        if: failure() && github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/v3' || startsWith(github.ref, 'refs/tags/'))
-        uses: ./.github/actions/notify-slack-failure
-        with:
-          message: "❌ CI failed on ${{ github.ref_name }}"
-          webhook-url: ${{ secrets.SLACK_CI_FAILURE_WORKFLOW_WEBHOOK_URL }}
       - name: Output job results
         run: |
           echo "Job results: ${STEPS_SET_SUCCESS_OUTPUT_OUTPUTS_SUCCESS}"
         env:
           STEPS_SET_SUCCESS_OUTPUT_OUTPUTS_SUCCESS: ${{ steps.set-success-output.outputs.success }}
+
+  # The alert lives in its own job because only a job-level `cancelled()` tells
+  # whether the run was cancelled. Inside a step of the always() gate it reads
+  # the gate's own status, which never becomes cancelled. A job that exceeds
+  # timeout-minutes is cancelled without cancelling the run, so it still alerts.
+  notify-ci-failure:
+    needs: all-ci-passed
+    if: ${{ !cancelled() && needs.all-ci-passed.result == 'failure' && github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/v3' || startsWith(github.ref, 'refs/tags/')) }}
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Notify Slack
+        uses: ./.github/actions/notify-slack-failure
+        with:
+          message: "❌ CI failed on ${{ github.ref_name }}"
+          webhook-url: ${{ secrets.SLACK_CI_FAILURE_WORKFLOW_WEBHOOK_URL }}
+          ignore-job: all-ci-passed
 
   # A merge-queue run that only went green because a step was retried still hides
   # a real flake, and the retry means nobody is forced to look at it. Collect the
@@ -1823,29 +1905,53 @@ jobs:
         include:
           - component: web
             image_name: langfuse
+            context: .
             dockerfile: ./web/Dockerfile
             platform: linux/amd64
             platform_tag: amd64
             runner: blacksmith-4vcpu-ubuntu-2404
           - component: web
             image_name: langfuse
+            context: .
             dockerfile: ./web/Dockerfile
             platform: linux/arm64
             platform_tag: arm64
             runner: blacksmith-4vcpu-ubuntu-2404-arm
           - component: worker
             image_name: langfuse-worker
+            context: .
             dockerfile: ./worker/Dockerfile
             platform: linux/amd64
             platform_tag: amd64
             runner: blacksmith-4vcpu-ubuntu-2404
           - component: worker
             image_name: langfuse-worker
+            context: .
             dockerfile: ./worker/Dockerfile
             platform: linux/arm64
             platform_tag: arm64
             runner: blacksmith-4vcpu-ubuntu-2404-arm
+          # The gateway crate is its own build context (ai-gateway/.dockerignore).
+          - component: ai-gateway
+            image_name: ai-gateway
+            context: ./ai-gateway
+            dockerfile: ./ai-gateway/Dockerfile
+            platform: linux/amd64
+            platform_tag: amd64
+            runner: blacksmith-4vcpu-ubuntu-2404
+          - component: ai-gateway
+            image_name: ai-gateway
+            context: ./ai-gateway
+            dockerfile: ./ai-gateway/Dockerfile
+            platform: linux/arm64
+            platform_tag: arm64
+            runner: blacksmith-4vcpu-ubuntu-2404-arm
     runs-on: ${{ matrix.runner }}
+    # publish-docker-image-release is gated on this whole matrix succeeding, so
+    # a failed gateway leg must not fail the job and block web and worker. The
+    # gateway publish leg then finds fewer than two digests and fails, which
+    # still raises the release Slack alert.
+    continue-on-error: ${{ matrix.component == 'ai-gateway' }}
     permissions:
       packages: write
       contents: read
@@ -1905,6 +2011,18 @@ jobs:
         with:
           cache-key: langfuse/${{ matrix.image_name }}-${{ matrix.platform_tag }}
           nofallback: "true"
+      - name: Load image labels
+        id: image-labels
+        env:
+          COMPONENT: ${{ matrix.component }}
+          MICRO_BASE_IMAGE: ${{ steps.bases.outputs.micro }}
+        run: |
+          {
+            echo "labels<<IMAGE_LABELS_EOF"
+            cat .github/image-labels/common.txt ".github/image-labels/${COMPONENT}.txt"
+            echo "org.opencontainers.image.base.name=${MICRO_BASE_IMAGE}"
+            echo "IMAGE_LABELS_EOF"
+          } >> "$GITHUB_OUTPUT"
       - name: Extract metadata (labels) for Docker
         id: meta
         uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
@@ -1922,11 +2040,14 @@ jobs:
             type=semver,pattern={{major}}.{{minor}},enable=${{ !contains(github.ref, '-rc') }}
             type=semver,pattern={{major}},enable=${{ !contains(github.ref, '-rc') }}
             type=raw,value=latest,enable=${{ startsWith(github.ref, 'refs/tags/v4') && !contains(github.ref, '-rc') }}
+          # Custom labels replace the action's repository-derived ones, which
+          # would title every image "langfuse" with license "NOASSERTION".
+          labels: ${{ steps.image-labels.outputs.labels }}
       - name: Build and push image by digest to GitHub Container Registry (${{ matrix.component }}, ${{ matrix.platform_tag }})
         id: build-ghcr
         uses: useblacksmith/build-push-action@fb9e3e6a9299c78462bfadd0d93352c316adc9b8 # v2.2.0
         with:
-          context: .
+          context: ${{ matrix.context }}
           file: ${{ matrix.dockerfile }}
           outputs: type=image,name=ghcr.io/langfuse/${{ matrix.image_name }},push-by-digest=true,name-canonical=true,push=true
           labels: ${{ steps.meta.outputs.labels }}
@@ -1934,13 +2055,14 @@ jobs:
           build-args: |
             BASE_IMAGE=${{ steps.bases.outputs.base }}
             MICRO_BASE_IMAGE=${{ steps.bases.outputs.micro }}
+            BUILD_ID=${{ github.sha }}
           provenance: false
           sbom: false
       - name: Build and push image by digest to Docker Hub (${{ matrix.component }}, ${{ matrix.platform_tag }})
         id: build-dockerhub
         uses: useblacksmith/build-push-action@fb9e3e6a9299c78462bfadd0d93352c316adc9b8 # v2.2.0
         with:
-          context: .
+          context: ${{ matrix.context }}
           file: ${{ matrix.dockerfile }}
           outputs: type=image,name=langfuse/${{ matrix.image_name }},push-by-digest=true,name-canonical=true,push=true
           labels: ${{ steps.meta.outputs.labels }}
@@ -1948,6 +2070,7 @@ jobs:
           build-args: |
             BASE_IMAGE=${{ steps.bases.outputs.base }}
             MICRO_BASE_IMAGE=${{ steps.bases.outputs.micro }}
+            BUILD_ID=${{ github.sha }}
           provenance: false
           sbom: false
       - name: Record pushed digests
@@ -1986,6 +2109,8 @@ jobs:
             image_name: langfuse
           - component: worker
             image_name: langfuse-worker
+          - component: ai-gateway
+            image_name: ai-gateway
     runs-on: blacksmith-4vcpu-ubuntu-2404
     permissions:
       packages: write
@@ -2134,21 +2259,17 @@ jobs:
     needs:
       - build-docker-image-release
       - publish-docker-image-release
-    if: always() && github.event_name == 'push' && startsWith(github.ref, 'refs/tags/')
+    # Job-level `!cancelled()` skips whole-run cancels; see notify-ci-failure.
+    if: ${{ !cancelled() && github.event_name == 'push' && startsWith(github.ref, 'refs/tags/') && (contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')) }}
     runs-on: blacksmith-4vcpu-ubuntu-2404
     permissions:
       contents: read
       actions: read
     steps:
-      - name: Fail when a release image job failed
-        if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')
-        run: exit 1
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        if: failure()
         with:
           persist-credentials: false
       - name: Notify Slack
-        if: failure()
         uses: ./.github/actions/notify-slack-failure
         with:
           message: "❌ Docker release failed on ${{ github.ref_name }}"

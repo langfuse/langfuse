@@ -1,4 +1,4 @@
-/* eslint-disable no-nested-ternary */
+/* eslint-disable no-nested-ternary, @repo/component-file-structure, @typescript-eslint/no-use-before-define */
 /* eslint-disable @repo/no-style-props */
 "use client";
 import { type OrderByState } from "@langfuse/shared";
@@ -13,7 +13,7 @@ import React, {
   type UIEventHandler,
 } from "react";
 import DocPopup from "@/src/components/layouts/doc-popup";
-import { DataTablePagination } from "@/src/components/table/data-table-pagination";
+import { DataTablePagination } from "@/src/components/table/DataTablePagination";
 import { shouldIgnoreRowClickTarget } from "@/src/components/table/shouldIgnoreRowClickTarget";
 import { getPlainTextFromReactNode } from "@/src/utils/react-node-plain-text";
 import {
@@ -44,7 +44,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/src/components/ui/table";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { cn } from "@/src/utils/tailwind";
 import {
   type ColumnOrderState,
@@ -240,6 +240,8 @@ const getCellPaddingClassName = (padding: DataTableCellPadding) => {
   switch (padding) {
     case "comfortable":
       return "p-1";
+    case "relaxed":
+      return "px-1 py-2";
     case "none":
       return "p-0 first:pl-0";
     case "compact":
@@ -249,7 +251,7 @@ const getCellPaddingClassName = (padding: DataTableCellPadding) => {
 
 const cellBackgroundClassNames = {
   gray: "bg-muted/50 [&_[data-slot=skeleton]]:bg-muted-foreground/20",
-  green: "bg-surface-output [&_[data-slot=skeleton]]:bg-muted-foreground/20",
+  green: "bg-surface-section [&_[data-slot=skeleton]]:bg-muted-foreground/20",
 } satisfies Record<DataTableCellBackground, string>;
 
 const getCellBackgroundClassName = (background?: DataTableCellBackground) =>
@@ -522,7 +524,7 @@ export function DataTable<TData extends object, TValue>({
           // some cursor room. Partial mitigation for LFE-10460: a maximized browser
           // still clamps the cursor at the screen edge.
           className={cn(
-            "relative min-h-full w-full overflow-auto border-t [scrollbar-gutter:stable]",
+            "relative min-h-full w-full overflow-auto border-t",
             table.getVisibleLeafColumns().at(-1)?.getCanResize() && "pr-2",
             // Room for the last row's resize strip, which hangs 3px below the table.
             onCustomRowHeightChange != null && "pb-[3px]",
@@ -935,7 +937,12 @@ function TableRowComponent<TData>({
   return (
     <TableRow
       data-row-index={row.index}
+      aria-selected={rowIsSelected || shouldHighlightAllRows || undefined}
       onClick={(e) => {
+        // A cell's overlay (hover card, popover) renders through a portal, so
+        // its clicks bubble up the React tree to this row while living outside
+        // the row in the DOM. They belong to the overlay, not to the row.
+        if (!e.currentTarget.contains(e.target as Node)) return;
         if (shouldIgnoreRowClickTarget(e.target)) return;
         onRowClick?.(row.original, e);
       }}

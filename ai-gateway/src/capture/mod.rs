@@ -5,10 +5,13 @@ mod openai_responses;
 mod response;
 mod sse;
 
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::{
+    collections::BTreeMap,
+    time::{SystemTime, UNIX_EPOCH},
+};
 
 use axum::http::{HeaderMap, header};
-use serde_json::{Map, Value, json};
+use serde_json::{Map, Value, json, value::RawValue};
 use tokio::time::Instant;
 
 use crate::{
@@ -26,6 +29,7 @@ pub(crate) const MAX_INPUT_CAPTURE_BYTES: usize = 5 * 1024 * 1024;
 pub(crate) const MAX_OUTPUT_CAPTURE_BYTES: usize = 1024 * 1024;
 const MAX_ITEMS: usize = 256;
 const MAX_FACT_STRING: usize = 512;
+const MAX_PROJECTED_BYTES: usize = 64 * 1024;
 
 enum ProtocolCapture {
     OpenAiResponses(OpenAiResponsesCapture),
@@ -82,14 +86,6 @@ impl ProtocolCapture {
         }
     }
 
-    fn requested_model(&self) -> Option<&str> {
-        match self {
-            Self::OpenAiResponses(capture) => capture.requested_model(),
-            Self::OpenAiChatCompletions(capture) => capture.requested_model(),
-            Self::AnthropicMessages(capture) => capture.requested_model(),
-        }
-    }
-
     fn client_metadata(&self) -> Option<&Map<String, Value>> {
         match self {
             Self::OpenAiResponses(capture) => capture.client_metadata(),
@@ -108,12 +104,16 @@ pub(crate) struct ExecutionCapture {
     first_byte_ms: Option<u128>,
     completion_start_ms: Option<u128>,
     http_status: Option<u16>,
+    retry_after_ms: Option<u64>,
+    request_body_bytes: usize,
+    response_body_bytes: u64,
     metadata: Value,
+    provider_model: Option<String>,
     delivery: Option<(telemetry::Telemetry, telemetry::DeliveryContext)>,
 }
 
 impl ExecutionCapture {
-    pub fn unobserved() -> Self {
+    pub(crate) fn unobserved() -> Self {
         Self {
             span: tracing::Span::current(),
             protocol: None,
@@ -125,12 +125,16 @@ impl ExecutionCapture {
             first_byte_ms: None,
             completion_start_ms: None,
             http_status: None,
+            retry_after_ms: None,
+            request_body_bytes: 0,
+            response_body_bytes: 0,
             metadata: json!({}),
+            provider_model: None,
             delivery: None,
         }
     }
 
-    pub fn for_request(
+    pub(crate) fn for_request(
         api_format: ApiFormat,
         context: &ResolvedRequestContext,
         headers: &HeaderMap,
@@ -156,7 +160,6 @@ impl ExecutionCapture {
                 (key.clone(), value)
             })
             .collect();
-        let full = context.ingestion_mode() == IngestionMode::Full;
         let span = tracing::Span::current();
         // Parsing the whole request is CPU-bound and scales with the body.
         let protocol = tracing::info_span!(
@@ -173,19 +176,28 @@ impl ExecutionCapture {
             first_byte_ms: None,
             completion_start_ms: None,
             http_status: None,
+            retry_after_ms: None,
+            request_body_bytes: body.len(),
+            response_body_bytes: 0,
             metadata: json!({
-                "organization_id": attribution.organization_id(),
-                "project_id": attribution.project_id(),
+                "organization_id": attribution.organization_id().as_str(),
                 "key_id": attribution.key_id(),
+                "key_name": attribution.key_name().map(truncated_string),
+                "key_owner_user_id": attribution.user_id(),
+                "key_owner_name": attribution.user_name().and_then(bounded_string),
+                "key_owner_email": attribution.user_email().and_then(bounded_string),
                 "provider_connection_id": attribution.provider_connection_id(),
+                "connection_name": context.connection().name().and_then(bounded_string),
+                "provider": context.connection().provider().as_str(),
                 "key_metadata": key_metadata,
-                "ingestion_mode": if full { "full" } else { "usage" },
+                "ingestion_mode": context.ingestion_mode().as_str(),
             }),
+            provider_model: None,
             delivery: None,
         }
     }
 
-    pub fn deliver_to(
+    pub(crate) fn deliver_to(
         &mut self,
         telemetry: telemetry::Telemetry,
         context: &ResolvedRequestContext,
@@ -196,7 +208,11 @@ impl ExecutionCapture {
             .protocol
             .as_ref()
             .and_then(ProtocolCapture::client_metadata);
-        let delivery = telemetry::DeliveryContext::from_resolved(context, headers, client_metadata);
+        let Some(delivery) =
+            telemetry::DeliveryContext::from_resolved(context, headers, client_metadata)
+        else {
+            return;
+        };
         correlation.record_generation(delivery.generation_ids());
         self.metadata["request_id"] = json!(correlation.id());
         if let Some(client_id) = correlation.client_id() {
@@ -205,22 +221,23 @@ impl ExecutionCapture {
         self.delivery = Some((telemetry, delivery));
     }
 
-    /// The request's `model`, if the capture could parse it.
-    pub fn requested_model(&self) -> Option<&str> {
-        self.protocol
-            .as_ref()
-            .and_then(ProtocolCapture::requested_model)
+    pub(crate) fn set_provider_model(&mut self, model: &str) {
+        self.provider_model = bounded_string(model);
     }
 
-    pub fn record_response(&mut self, status: u16, headers: &HeaderMap) {
+    pub(crate) fn record_response(&mut self, status: u16, headers: &HeaderMap) {
         if let Some(protocol) = &mut self.protocol {
             self.http_status = Some(status);
+            self.retry_after_ms = retry_after_ms(headers);
             protocol.record_response(headers);
         }
     }
 
-    pub fn push_bytes(&mut self, bytes: &[u8]) {
+    pub(crate) fn push_bytes(&mut self, bytes: &[u8]) {
         if let Some(protocol) = &mut self.protocol {
+            self.response_body_bytes = self
+                .response_body_bytes
+                .saturating_add(u64::try_from(bytes.len()).unwrap_or(u64::MAX));
             if !bytes.is_empty() {
                 self.first_byte_ms
                     .get_or_insert_with(|| self.started.elapsed().as_millis());
@@ -232,15 +249,16 @@ impl ExecutionCapture {
         }
     }
 
-    pub fn end_body(&mut self) {
+    pub(crate) fn end_body(&mut self) {
         if let Some(protocol) = &mut self.protocol {
             protocol.end_body();
         }
     }
 
-    pub fn finish(&mut self, outcome: RelayOutcome) {
+    pub(crate) fn finish(&mut self, outcome: RelayOutcome) {
         let span = self.span.clone();
         let _entered = span.enter();
+        crate::observability::execution_failed(outcome);
         let Some(protocol) = self.protocol.take() else {
             return;
         };
@@ -252,6 +270,10 @@ impl ExecutionCapture {
             first_byte_ms: self.first_byte_ms,
             completion_start_ms: self.completion_start_ms,
             http_status: self.http_status,
+            retry_after_ms: self.retry_after_ms,
+            upstream_model: self.provider_model.take(),
+            request_body_bytes: self.request_body_bytes,
+            response_body_bytes: self.response_body_bytes,
             metadata: std::mem::take(&mut self.metadata),
             outcome,
             inference,
@@ -270,13 +292,51 @@ impl Drop for ExecutionCapture {
     }
 }
 
-fn parse_request(headers: &HeaderMap, body: &[u8]) -> Result<Map<String, Value>, InputOmission> {
+/// The request's top-level members, each kept as its original bytes. A parsed
+/// `Value` tree can take about 100x the bytes of adversarial JSON such as
+/// `[{"":0},...]`, so the members projected out of the input share one small
+/// parse budget.
+struct RawRequest {
+    members: BTreeMap<String, Box<RawValue>>,
+    parse_budget: usize,
+}
+
+impl RawRequest {
+    /// Remove and parse a member that fits the remaining parse budget. Members
+    /// that do not fit stay in the request and so in the recorded input.
+    fn take(&mut self, key: &str) -> Option<Value> {
+        self.take_where(key, |raw| serde_json::from_str(raw.get()).ok())
+    }
+
+    /// Remove a member that fits the remaining parse budget and that `parse` accepts.
+    fn take_where<T>(
+        &mut self,
+        key: &str,
+        parse: impl FnOnce(&RawValue) -> Option<T>,
+    ) -> Option<T> {
+        let raw = self.members.get(key)?;
+        let remaining = self.parse_budget.checked_sub(raw.get().len())?;
+        let value = parse(raw)?;
+        self.parse_budget = remaining;
+        self.members.remove(key);
+        Some(value)
+    }
+
+    fn into_input(self) -> Option<Box<RawValue>> {
+        serde_json::value::to_raw_value(&self.members).ok()
+    }
+}
+
+fn parse_request(headers: &HeaderMap, body: &[u8]) -> Result<RawRequest, InputOmission> {
     let reason = if !identity_encoding(headers) {
         InputOmissionReason::ContentEncoding
     } else if body.len() > MAX_INPUT_CAPTURE_BYTES {
         InputOmissionReason::SizeLimit
-    } else if let Ok(Value::Object(request)) = serde_json::from_slice(body) {
-        return Ok(request);
+    } else if let Ok(members) = serde_json::from_slice(body) {
+        return Ok(RawRequest {
+            members,
+            parse_budget: MAX_PROJECTED_BYTES,
+        });
     } else {
         InputOmissionReason::InvalidJson
     };
@@ -286,8 +346,27 @@ fn parse_request(headers: &HeaderMap, body: &[u8]) -> Result<Map<String, Value>,
     })
 }
 
+/// Only the delay-seconds form; an HTTP-date would make the value depend on clock skew.
+fn retry_after_ms(headers: &HeaderMap) -> Option<u64> {
+    headers
+        .get(header::RETRY_AFTER)?
+        .to_str()
+        .ok()?
+        .trim()
+        .parse::<u64>()
+        .ok()
+        .map(|seconds| seconds.saturating_mul(1000))
+}
+
 fn bounded_string(value: &str) -> Option<String> {
     (value.len() <= MAX_FACT_STRING).then(|| value.to_owned())
+}
+
+/// Key names are the user ID fallback, so an over-long name is cut at a char
+/// boundary instead of dropped. Web caps names at 500 UTF-16 code units, which
+/// can exceed `MAX_FACT_STRING` bytes for non-Latin scripts.
+fn truncated_string(value: &str) -> String {
+    value[..value.floor_char_boundary(MAX_FACT_STRING)].to_owned()
 }
 
 fn identity_encoding(headers: &HeaderMap) -> bool {
@@ -295,4 +374,37 @@ fn identity_encoding(headers: &HeaderMap) -> bool {
         .get_all(header::CONTENT_ENCODING)
         .iter()
         .all(|v| v.to_str().is_ok_and(|v| v.eq_ignore_ascii_case("identity")))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn retry_after_accepts_only_delay_seconds() {
+        for (value, expected) in [
+            (Some("30"), Some(30_000)),
+            (Some(" 0 "), Some(0)),
+            (Some("Wed, 21 Oct 2026 07:28:00 GMT"), None),
+            (Some("-1"), None),
+            (Some("1.5"), None),
+            (None, None),
+        ] {
+            let mut headers = HeaderMap::new();
+            if let Some(value) = value {
+                headers.insert(header::RETRY_AFTER, value.parse().unwrap());
+            }
+            assert_eq!(retry_after_ms(&headers), expected, "{value:?}");
+        }
+    }
+
+    #[test]
+    fn long_multibyte_key_names_are_truncated_not_dropped() {
+        let name = "名".repeat(171);
+        let truncated = truncated_string(&name);
+        assert!(truncated.len() <= MAX_FACT_STRING);
+        assert!(name.starts_with(&truncated));
+        assert_eq!(truncated.chars().count(), MAX_FACT_STRING / 3);
+        assert_eq!(truncated_string("checkout-agent"), "checkout-agent");
+    }
 }

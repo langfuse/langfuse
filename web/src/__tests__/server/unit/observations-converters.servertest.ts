@@ -25,6 +25,7 @@ import {
   ObservationFieldsSchema,
   projectObservation,
 } from "@/src/features/mcp/server/observations/schema";
+import { ObservationMcpFilterSchema } from "@/src/features/mcp/server/observations/filter-schema";
 
 const TRACE_CONTEXT_FIELDS = [
   "userId",
@@ -205,6 +206,24 @@ describe("convertEventsObservation", () => {
 });
 
 describe("public observation status compatibility", () => {
+  it("normalizes advanced MCP status filters with inferred or explicit types", () => {
+    for (const type of [undefined, "stringOptions"]) {
+      expect(
+        ObservationMcpFilterSchema.parse({
+          column: "status",
+          operator: "any of",
+          value: ["ERROR"],
+          ...(type ? { type } : {}),
+        }),
+      ).toEqual({
+        column: "level",
+        type: "stringOptions",
+        operator: "any of",
+        value: ["ERROR"],
+      });
+    }
+  });
+
   it("supports status in MCP defaults and explicit field projections", () => {
     expect(getProjectionFields(undefined)).toEqual(
       expect.arrayContaining(["level", "status"]),

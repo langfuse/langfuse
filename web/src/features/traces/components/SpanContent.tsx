@@ -19,7 +19,7 @@
  */
 
 import { type TreeNode } from "../types/treeNode";
-import { GroupedScoreBadges } from "@/src/components/grouped-score-badge";
+import { GroupedScoreBadges } from "@/src/components/GroupedScoreBadges";
 import { ObservationLevelBadge } from "@/src/features/traces/components/ObservationLevelBadge";
 import { CommentCountIcon } from "@/src/features/comments/CommentCountIcon";
 import { Skeleton } from "@/src/components/ui/skeleton";
@@ -30,8 +30,8 @@ import {
   isEmphasizedShare,
   type MetricEmphasisContext,
 } from "@/src/features/traces/fns/metricEmphasis";
-import { useViewPreferences } from "@/src/features/traces/contexts/ViewPreferencesContext";
-import { useTraceData } from "@/src/features/traces/contexts/TraceDataContext";
+import { useViewPreferences } from "@/src/features/traces/contexts/ViewPreferencesProvider";
+import { useTraceData } from "@/src/features/traces/contexts/TraceDataProvider";
 import { selectNodeScores } from "@/src/features/traces/fns/nodeScores";
 
 interface SpanContentProps {
@@ -114,7 +114,10 @@ function LoadedSpanContent({
 
   const shouldRenderAnyMetrics = shouldRenderDuration || shouldRenderCostTokens;
 
-  const nodeScores = selectNodeScores(mergedScores, node.id);
+  const nodeScores = selectNodeScores(
+    mergedScores,
+    node.observationId ?? node.id,
+  ).filter((score) => !node.traceId || score.traceId === node.traceId);
   const shouldRenderScores = showScores && nodeScores.length > 0;
 
   const nodeDisplayName = node.name || `Unnamed ${node.type.toLowerCase()}`;

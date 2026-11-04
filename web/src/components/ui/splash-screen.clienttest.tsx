@@ -1,7 +1,7 @@
 import { fireEvent, render, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { SplashScreen } from "./splash-screen";
+import { SplashScreen } from "./SplashScreen";
 
 describe("SplashScreen video autoplay", () => {
   afterEach(() => {

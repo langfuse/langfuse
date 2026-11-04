@@ -3,7 +3,7 @@ import {
   omitFilterFacets,
   type FilterConfig,
 } from "@/src/features/filters/lib/filter-config";
-import { renderLevelIcon } from "@/src/components/level-colors";
+import { renderLevelIcon } from "@/src/components/ObservationLevelTag";
 
 export type TraceOmittableFilterColumn = "userId" | "sessionId";
 

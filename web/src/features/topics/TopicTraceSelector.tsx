@@ -7,7 +7,7 @@ import {
   type TimeFilter,
 } from "@langfuse/shared";
 import { api, type RouterInputs } from "@/src/utils/api";
-import { toObservedOptions } from "@/src/features/search-bar";
+import { toObservedOptions } from "@/src/features/search-bar/lib/observed-options";
 import { useEventsFilterOptions } from "@/src/features/events/hooks/useEventsFilterOptions";
 import {
   TopicTraceSelectorView,
@@ -15,6 +15,7 @@ import {
 } from "./TopicTraceSelectorView";
 import { parseTraceInput } from "./parse-trace-input";
 import { TOPICS_BACKFILL_TRACE_LIMIT } from "./backfill-limit";
+import { TOPICS_MAX_SELECTION_RANGE_MS } from "@langfuse/shared/topics";
 import {
   isValidTopicTimeRange,
   relativeTopicTimeRange,
@@ -65,7 +66,10 @@ export function useTopicTraceSelector({
     Number.isSafeInteger(Number(limit)) &&
     Number(limit) >= 1 &&
     Number(limit) <= TOPICS_BACKFILL_TRACE_LIMIT;
-  const validRange = isValidTopicTimeRange(range);
+  const validRange = isValidTopicTimeRange(
+    range,
+    TOPICS_MAX_SELECTION_RANGE_MS,
+  );
   const preview = api.topics.previewTraces.useQuery(
     request ?? {
       projectId,
@@ -132,15 +136,16 @@ export function useTopicTraceSelector({
   const options = useEventsFilterOptions({
     projectId,
     startTimeFilter,
-    refiningFilter: filter.map((item) =>
-      item.column === "tags" ? { ...item, column: "traceTags" } : item,
-    ),
+    refiningFilter: filter
+      .filter((item) => item.column !== "traceName")
+      .map((item) =>
+        item.column === "tags" ? { ...item, column: "traceTags" } : item,
+      ),
     lazy: filterMode === "query",
     columns: [
       "environment",
       "name",
       "traceTags",
-      "traceName",
       "calledToolNames",
       "experimentDatasetId",
       "experimentId",
@@ -148,14 +153,16 @@ export function useTopicTraceSelector({
     enabled:
       enabled && filterOptionsEnabled && mode === "filters" && validRange,
   });
+  // Topics uses stored trace names; event suggestions include root-name fallbacks.
+  const filterOptions = { ...options.filterOptions, traceName: [] };
   const observed = toObservedOptions(
-    options.filterOptions,
+    filterOptions,
     options.isFilterOptionsPending,
   );
   const builderColumns = experimentEvalFilterColsWithOptions(
-    options.filterOptions,
+    filterOptions,
     observationEvalFilterColsWithOptions(
-      { ...options.filterOptions, tags: options.filterOptions?.traceTags },
+      { ...filterOptions, tags: filterOptions.traceTags },
       [...eventsEvalFilterColumns],
     ),
   ).flatMap((column) => {
@@ -243,7 +250,11 @@ export function useTopicTraceSelector({
       onExcludedChange={setExcluded}
       builderColumns={builderColumns}
       observed={observed}
-      onRequestColumns={options.requestColumns}
+      onRequestColumns={(columns) =>
+        options.requestColumns(
+          columns.filter((column) => column !== "traceName"),
+        )
+      }
       erroredColumns={options.erroredColumns}
     />
   );

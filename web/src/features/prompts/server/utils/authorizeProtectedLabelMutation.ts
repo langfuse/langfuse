@@ -7,7 +7,7 @@ import {
   type AuthorizationContext,
   type Decision,
 } from "@/src/features/auth/policy/types";
-import { shadowAuthorize } from "@/src/features/public-api/server";
+import { shadowAuthorize } from "@/src/features/public-api/server/shadowAuth";
 import { checkHasProtectedLabels } from "./checkHasProtectedLabels";
 
 export type ApiKeyProjectContext = {
@@ -63,7 +63,7 @@ async function resolveApiKeyCreatorProjectAccess(params: {
 
   const projectRole = projectMembership?.role ?? orgMembership.role;
 
-  if (projectRole === Role.NONE) {
+  if (!hasProjectAccessByRole({ role: projectRole, scope: "project:read" })) {
     return null;
   }
 

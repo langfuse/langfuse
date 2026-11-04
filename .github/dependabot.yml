@@ -33,3 +33,16 @@ updates:
       rust-dependencies:
         patterns:
           - "*"
+
+  - package-ecosystem: cargo
+    directory: "/packages/native"
+    assignees:
+      - "sumerman"
+    schedule:
+      interval: "weekly"
+    cooldown:
+      default-days: 7
+    groups:
+      rust-dependencies:
+        patterns:
+          - "*"

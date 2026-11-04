@@ -83,13 +83,3 @@ export function ComposerSurface({
     />
   );
 }
-
-/** Query text metrics; leading-6 matches the pill height so the caret aligns. */
-export function ComposerText(props: SlotProps) {
-  return (
-    <Slot
-      className="min-h-6 font-mono text-xs leading-6 break-words whitespace-pre-wrap"
-      {...props}
-    />
-  );
-}

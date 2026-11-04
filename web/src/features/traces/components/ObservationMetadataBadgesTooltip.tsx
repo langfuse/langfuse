@@ -1,6 +1,7 @@
+/* eslint-disable @repo/component-file-structure, @typescript-eslint/no-use-before-define */
 /** Cost and token metrics for the trace, observation and session headers; breakdowns open on hover. */
 
-import { TriangleAlert } from "lucide-react";
+import { TriangleAlert } from "@langfuse/icons";
 
 import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { CustomTooltip } from "@/src/components/design-system/CustomTooltip/CustomTooltip";
@@ -71,10 +72,18 @@ function MissingCostBadge({ projectId }: { projectId: string }) {
             No model price matched this generation. Add a model price, or send
             the cost from your SDK.
           </p>
-          <TextLink
-            path={`/project/${encodeURIComponent(projectId)}/settings/models`}
-            value="Model settings"
-          />
+          <div className="flex items-center gap-1.5">
+            <TextLink
+              path={`/project/${encodeURIComponent(projectId)}/settings/models`}
+              value="Model settings"
+            />
+            <span className="text-muted-foreground text-xs">·</span>
+            <TextLink
+              path="https://langfuse.com/docs/model-usage-and-cost"
+              value="Docs"
+              external
+            />
+          </div>
         </div>
       }
     >
@@ -82,7 +91,7 @@ function MissingCostBadge({ projectId }: { projectId: string }) {
         <span {...getTriggerProps()} className="inline-flex" tabIndex={0}>
           <Badge
             font="mono"
-            color="ghost"
+            color="ghost-warning"
             interactive
             leadingIcon={TriangleAlert}
             text="no cost"

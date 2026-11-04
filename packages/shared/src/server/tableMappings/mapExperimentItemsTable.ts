@@ -1,4 +1,4 @@
-import { UiColumnMappings } from "../../tableDefinitions";
+import { UiColumnMappings } from "../../tableDefinitions/types";
 
 export const experimentItemsTableNativeUiColumnDefinitions: UiColumnMappings = [
   {

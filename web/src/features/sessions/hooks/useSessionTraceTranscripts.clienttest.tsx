@@ -39,15 +39,19 @@ function setup(client = new QueryClient()) {
   return {
     client,
     ...renderHook(
-      () =>
+      ({
+        filter,
+      }: Pick<Parameters<typeof useSessionTraceTranscripts>[0], "filter">) =>
         useSessionTraceTranscripts({
           projectId: "project",
+          filter,
           traces,
           activeTraceIds: new Set(
             traces.slice(0, 6).map(({ trace }) => trace.id),
           ),
         }),
       {
+        initialProps: {},
         wrapper: ({ children }: { children: ReactNode }) => (
           <QueryClientProvider client={client}>{children}</QueryClientProvider>
         ),
@@ -58,6 +62,41 @@ function setup(client = new QueryClient()) {
 
 beforeEach(() => {
   query.mockReset();
+});
+
+it("keys transcripts by observation filters and restores the unfiltered cache when cleared", async () => {
+  query.mockResolvedValue(output);
+  const { rerender, result, unmount, client } = setup();
+  await waitFor(() =>
+    expect(result.current.get("trace-5")?.state).toBe("loaded"),
+  );
+  const filter = [
+    {
+      column: "level",
+      type: "string" as const,
+      operator: "=" as const,
+      value: "ERROR",
+    },
+  ];
+  rerender({ filter });
+  await waitFor(() => expect(query).toHaveBeenCalledTimes(12));
+  await waitFor(() =>
+    expect(result.current.get("trace-5")?.state).toBe("loaded"),
+  );
+  expect(
+    query.mock.calls
+      .slice(6)
+      .every(
+        ([input]) => JSON.stringify(input.filter) === JSON.stringify(filter),
+      ),
+  ).toBe(true);
+  rerender({});
+  await waitFor(() =>
+    expect(result.current.get("trace-5")?.state).toBe("loaded"),
+  );
+  expect(query).toHaveBeenCalledTimes(12);
+  unmount();
+  client.clear();
 });
 
 it("bounds concurrent requests and releases slots after success and failure", async () => {

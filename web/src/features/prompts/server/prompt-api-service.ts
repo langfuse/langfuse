@@ -10,7 +10,7 @@ import {
 } from "@langfuse/shared";
 import type { z } from "zod";
 
-import { auditLog } from "@/src/features/audit-logs/server";
+import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { type AuthorizationContext } from "@/src/features/auth/policy/types";
 import { createPrompt } from "./actions/createPrompt";
 import { deletePrompt } from "./actions/deletePrompt";

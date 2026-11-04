@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 import { useLayoutEffect, useRef, useState } from "react";
 import { HeaderActionButton } from "@/src/components/HeaderActionButton";
 import { Button } from "@/src/components/ui/button";
@@ -15,16 +16,18 @@ import {
 import { type LangfuseItemType } from "@/src/components/ItemBadge";
 import { EntityTitle } from "@/src/components/EntityTitle";
 import {
-  DetailPageNav,
-  type ListEntry,
-} from "@/src/features/navigate-detail-pages";
+  EntityTitleTabs,
+  type EntityTitleTabsProps,
+} from "@/src/components/EntityTitleTabs";
+import { DetailPageNav } from "@/src/features/navigate-detail-pages/DetailPageNav";
+import type { ListEntry } from "@/src/features/navigate-detail-pages/DetailPageListsProvider";
 import {
   ExternalLink,
   Maximize2,
   Minimize2,
   MoreHorizontal,
   X,
-} from "lucide-react";
+} from "@langfuse/icons";
 import { useElementSize } from "@/src/hooks/useElementSize";
 import {
   planPeekHeaderLayout,
@@ -34,6 +37,7 @@ import {
 type PeekHeaderProps = {
   itemType: LangfuseItemType;
   title: string;
+  titleTabs?: EntityTitleTabsProps;
   itemId: string;
   detailNavigationKey?: string;
   resolveDetailNavigationPath?: (entry: ListEntry) => string;
@@ -49,7 +53,8 @@ type PeekHeaderProps = {
 };
 
 // The title keeps at least this much width before anything else collapses; the
-// type tile is fixed-width; the "…" trigger is an icon button. Tuned by eye —
+// type tile is fixed-width (a replacement control is measured); the "…" trigger
+// is an icon button. Tuned by eye —
 // planner `safety` covers inter-control gaps.
 const MIN_TITLE_PX = 240;
 const TILE_PX = 32;
@@ -83,6 +88,7 @@ const FULL: PeekHeaderPlan = {
 export function PeekHeader({
   itemType,
   title,
+  titleTabs,
   itemId,
   detailNavigationKey,
   resolveDetailNavigationPath,
@@ -97,6 +103,8 @@ export function PeekHeader({
   // controls settle (or data loads) after the first measurement — observe the
   // control cluster too, whose width does change, to re-trigger the plan.
   const [clusterRef, clusterSize] = useElementSize<HTMLDivElement>();
+  const [titleTabsRef, titleTabsSize] = useElementSize<HTMLDivElement>();
+  const hasTitleTabs = Boolean(titleTabs);
   const actionsRef = useRef<HTMLDivElement>(null);
   const openInTabRef = useRef<HTMLDivElement>(null);
   const navRef = useRef<HTMLDivElement>(null);
@@ -146,7 +154,11 @@ export function PeekHeader({
     const next = planPeekHeaderLayout({
       headerWidth: width,
       minTitle: MIN_TITLE_PX,
-      tileWidth: TILE_PX,
+      tileWidth: hasTitleTabs
+        ? (titleTabsRef.current?.getBoundingClientRect().width ??
+          titleTabsSize?.width ??
+          TILE_PX * 2)
+        : TILE_PX,
       navFullWidth: hasNav ? (widthsRef.current.navFull ?? NAV_FALLBACK_PX) : 0,
       navCompactWidth: hasNav
         ? (widthsRef.current.navCompact ?? NAV_FALLBACK_PX)
@@ -167,6 +179,9 @@ export function PeekHeader({
     hasOpenInTab,
     hasNav,
     plan,
+    hasTitleTabs,
+    titleTabsRef,
+    titleTabsSize?.width,
   ]);
 
   const anyFolded = plan.foldActions || plan.foldOpenInTab;
@@ -177,7 +192,19 @@ export function PeekHeader({
         ref={headerRef}
         className="flex min-h-10 shrink-0 flex-row flex-nowrap items-center justify-between gap-2 overflow-hidden pt-3 pr-4 pb-1.5 pl-4"
       >
-        <EntityTitle as="span" type={itemType} title={title} isFocusable />
+        <div className="flex min-w-0 items-center gap-2">
+          {titleTabs && (
+            <div ref={titleTabsRef} className="shrink-0">
+              <EntityTitleTabs {...titleTabs} />
+            </div>
+          )}
+          <EntityTitle
+            as="span"
+            type={titleTabs ? undefined : itemType}
+            title={title}
+            isFocusable
+          />
+        </div>
         <div
           ref={clusterRef}
           className="flex shrink-0 flex-row items-center gap-1"
@@ -186,7 +213,7 @@ export function PeekHeader({
             <div ref={openInTabRef}>
               <HeaderActionButton
                 label="Open in new tab"
-                icon={<ExternalLink className="icon-base" />}
+                icon={<ExternalLink size="base" />}
                 onClick={openInNewTab}
               />
             </div>
@@ -202,9 +229,9 @@ export function PeekHeader({
                 label={expand.isExpanded ? "Collapse" : "Expand"}
                 icon={
                   expand.isExpanded ? (
-                    <Minimize2 className="icon-base" />
+                    <Minimize2 size="base" />
                   ) : (
-                    <Maximize2 className="icon-base" />
+                    <Maximize2 size="base" />
                   )
                 }
                 onClick={expand.onToggle}
@@ -240,7 +267,7 @@ export function PeekHeader({
                       aria-label="More actions"
                       className="text-foreground-secondary hover:text-foreground-secondary"
                     >
-                      <MoreHorizontal className="icon-base text-icon-foreground" />
+                      <MoreHorizontal size="base" color="default" />
                     </Button>
                   </PopoverTrigger>
                 </TooltipTrigger>
@@ -257,7 +284,7 @@ export function PeekHeader({
                     onClick={openInNewTab}
                     className="hover:bg-accent flex w-full items-center gap-2 rounded-sm py-1.5 pr-2 pl-1.5 text-sm"
                   >
-                    <ExternalLink className="icon-base" />
+                    <ExternalLink size="base" />
                     Open in new tab
                   </button>
                 ) : null}
@@ -268,7 +295,7 @@ export function PeekHeader({
           <div ref={closeRef}>
             <HeaderActionButton
               label="Close"
-              icon={<X className="icon-base" />}
+              icon={<X size="base" />}
               onClick={onClose}
             />
           </div>

@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { type ZodType } from "zod";
 
 import {
@@ -8,6 +9,7 @@ import {
   streamText,
   tool,
   type GenerateTextAbortEvent,
+  type GenerateTextInclude,
   type GenerateTextOnAbortCallback,
   type GenerateTextOnEndCallback,
   type GenerateTextResult,
@@ -104,6 +106,8 @@ export type StreamLLMTextOnAbortCallback<TOOLS extends ToolSet = ToolSet> =
 type BaseLLMTextOptions<TOOLS extends ToolSet, OUTPUT extends Output.Output> = {
   model: LLMModelRef;
   connection: LLMConnection;
+  /** Per-call OpenAI Chat provider selection; omitted preserves connection routing. */
+  openAIChatProvider?: "native";
   messages: ModelMessage[];
   /**
    * Tool definitions only. Supplying an `execute` function is rejected so a
@@ -134,7 +138,9 @@ type BaseLLMTextOptions<TOOLS extends ToolSet, OUTPUT extends Output.Output> = {
 export type GenerateLLMTextOptions<
   TOOLS extends ToolSet = {},
   OUTPUT extends Output.Output = Output.Output<string, string, never>,
-> = BaseLLMTextOptions<TOOLS, OUTPUT>;
+> = BaseLLMTextOptions<TOOLS, OUTPUT> & {
+  include?: GenerateTextInclude;
+};
 
 export type StreamLLMTextOptions<
   TOOLS extends ToolSet = {},
@@ -191,6 +197,7 @@ export async function generateLLMText<
         model: prepared.languageModel,
         ...prepared.callOptions,
         output: options.output,
+        include: options.include,
         onEnd: options.onEnd,
       }),
     );
@@ -316,6 +323,7 @@ async function prepareLLMTextCall<
   const languageModel = await buildAiSdkModel({
     model: options.model,
     modelConfig,
+    openAIChatProvider: options.openAIChatProvider,
     apiKey,
     baseURL: options.connection.baseURL,
     extraHeaders,
@@ -382,6 +390,7 @@ export async function embedLLMText(options: {
   model: LLMModelRef;
   connection: LLMConnection;
   values: string[];
+  dimensions?: number;
   providerOptions?: ProviderOptions;
   maxRetries?: number;
   maxParallelCalls?: number;
@@ -409,6 +418,7 @@ export async function embedLLMText(options: {
   return embedMany({
     model: embeddingModel,
     values: options.values,
+    dimensions: options.dimensions,
     providerOptions: options.providerOptions,
     maxRetries: options.maxRetries,
     maxParallelCalls: options.maxParallelCalls,
@@ -654,6 +664,8 @@ export function mapLegacyLLMCompletionParams(params: {
     topP: modelParams.top_p,
     reasoning:
       modelParams.adapter === LLMAdapter.OpenAI &&
+      (params.connection.config?.useResponsesApi === true ||
+        !isOpenAICompatibleEndpoint(params.connection.baseURL)) &&
       isOpenAIDefaultNonReasoningModel(modelParams.model)
         ? "none"
         : undefined,

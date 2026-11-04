@@ -23,7 +23,7 @@ import {
 } from "@/src/features/search-bar/lib/composer-segments";
 import { indexOfOutsideQuotes } from "@/src/features/search-bar/lib/langQ";
 import { deactivationReason } from "@/src/features/search-bar/components/presentation";
-import { FilterToken } from "@/src/features/filters";
+import { FilterToken } from "@/src/features/filters/components/FilterToken";
 
 // Word joiner around pills: gives the DOM caret boundaries between tokens
 // without changing the query text. Stripped before the text reaches the model
@@ -74,8 +74,17 @@ function renderPlainText(text: string, keyPrefix: string): React.ReactNode[] {
 }
 
 function FilterTokenBody({ segment }: { segment: FilterSegment }) {
-  const raw = segment.raw;
+  const raw = segment.target
+    ? segment.raw.slice(0, segment.target.from) +
+      segment.raw.slice(segment.target.to)
+    : segment.raw;
   const dash = segment.negated ? "-" : "";
+  const prefixTarget = segment.target && segment.target.from <= dash.length;
+  const targetText = segment.target ? (
+    <span data-part="target" className={segment.target.textClassName}>
+      {segment.raw.slice(segment.target.from, segment.target.to)}
+    </span>
+  ) : null;
   const body = segment.negated ? raw.slice(1) : raw;
   // Quote-aware split: a dot-path key may carry a quoted segment with an inner
   // colon (`metadata."foo:bar":*x*`), so the field/value separator is the first
@@ -96,6 +105,7 @@ function FilterTokenBody({ segment }: { segment: FilterSegment }) {
           The value stays outside so long grouped values can still wrap. */}
       <span className="whitespace-nowrap">
         {dash && <span className="text-muted-foreground">-</span>}
+        {prefixTarget && targetText}
         <span data-part="field" className="text-qlang-field">
           {segment.displayField}
         </span>
@@ -109,6 +119,7 @@ function FilterTokenBody({ segment }: { segment: FilterSegment }) {
       >
         {value}
       </span>
+      {!prefixTarget && targetText}
     </>
   );
 }

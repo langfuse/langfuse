@@ -61,10 +61,10 @@ describe("EventsAggregationQueryBuilder", () => {
       .buildWithParams();
 
     expect(query).toContain(
-      "length(groupUniqArrayIf(span_id, span_id <> '' AND span_id <> concat('t-', trace_id))) AS observation_count",
+      "length(groupUniqArrayIf(e.span_id, (e.span_id <> '' and e.span_id <> concat('t-', e.trace_id)))) as observation_count",
     );
     expect(query).toContain(
-      "(e.parent_span_id = '' OR e.is_app_root = true) AND e.name <> ''",
+      "(e.parent_span_id = '' or e.is_app_root = true) and e.name <> ''",
     );
   });
 
@@ -76,10 +76,10 @@ describe("EventsAggregationQueryBuilder", () => {
       .buildWithParams();
 
     expect(query).toContain(
-      "argMaxIf(evaluator_id, event_ts, evaluator_id <> '') AS evaluator_id",
+      "argMaxIf(e.evaluator_id, e.event_ts, e.evaluator_id != '') as evaluator_id",
     );
     expect(query).toContain(
-      "argMaxIf(evaluation_rule_id, event_ts, evaluation_rule_id <> '') AS evaluation_rule_id",
+      "argMaxIf(e.evaluation_rule_id, e.event_ts, e.evaluation_rule_id != '') as evaluation_rule_id",
     );
   });
 });
@@ -93,10 +93,10 @@ describe("EventsSessionAggregationQueryBuilder", () => {
       .buildWithParams();
 
     expect(query).toContain(
-      "argMax(metadata_names, tuple(start_time, event_ts, span_id)) AS metadata_names",
+      "argMax(e.metadata_names, tuple(e.start_time, e.event_ts, e.span_id)) as metadata_names",
     );
     expect(query).toContain(
-      "argMax(metadata_values, tuple(start_time, event_ts, span_id)) AS metadata_values",
+      "argMax(e.metadata_values, tuple(e.start_time, e.event_ts, e.span_id)) as metadata_values",
     );
     expect(query).toContain("e.project_id = {projectId: String}");
   });
@@ -121,7 +121,7 @@ describe("EventsSessionAggregationQueryBuilder", () => {
       .selectSessionFields(["session_id", "trace_count"])
       .buildWithParams();
 
-    expect(query).toContain("uniq(trace_id) AS trace_count");
+    expect(query).toContain("uniq(e.trace_id) as trace_count");
     expect(query).not.toContain("trace_ids");
     expect(query).not.toContain("sumMap");
   });
@@ -134,12 +134,12 @@ describe("EventsSessionAggregationQueryBuilder", () => {
       .buildWithParams();
 
     expect(query).toContain(
-      "groupUniqArrayArray(mapKeys(tool_definitions)) AS tool_names",
+      "groupUniqArrayArray(mapKeys(e.tool_definitions)) as tool_names",
     );
     expect(query).toContain(
-      "groupUniqArrayArray(tool_call_names) AS called_tool_names",
+      "groupUniqArrayArray(e.tool_call_names) as called_tool_names",
     );
-    expect(query).toContain("sum(length(tool_calls)) AS tool_calls_count");
+    expect(query).toContain("sum(length(e.tool_calls)) as tool_calls_count");
   });
 });
 
@@ -262,7 +262,7 @@ describe("ExperimentsAggregationQueryBuilder", () => {
       .buildWithParams();
 
     expect(query).toContain(
-      "anyIf(e.experiment_description, e.span_id = e.experiment_item_root_span_id) AS experiment_description",
+      "anyIf(e.experiment_description, e.span_id = e.experiment_item_root_span_id) as experiment_description",
     );
   });
 });

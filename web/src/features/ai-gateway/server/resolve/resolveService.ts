@@ -8,14 +8,17 @@ import {
   type Es256JwtSigner,
 } from "@/src/server/utils/jwt";
 
+import { getEffectiveGatewayIngestionMode } from "@/src/features/ai-gateway/fns/gatewayIngestionModePolicy";
 import type { GatewayApiKeyAuthContext } from "@/src/features/ai-gateway/server/auth/gatewayApiKeyAuthenticator";
+import { resolveGatewayJwtKeys } from "@/src/features/ai-gateway/server/auth/gatewayJwtKeys";
 import { GATEWAY_INGESTION_TOKEN_TTL_SECONDS } from "@/src/features/ai-gateway/server/auth/ingestionTokenVerifier";
 import { GatewayControlPlaneError as GatewayResolveError } from "@/src/features/ai-gateway/server/gatewayControlPlaneError";
 import {
   type GatewayApiFormat,
   type GatewayProviderId,
+  type GatewayResolveResponse,
   getGatewayProviderDefinition,
-} from "@/src/features/ai-gateway/server/provider";
+} from "@/src/features/ai-gateway/server/provider/registry";
 
 export { GatewayControlPlaneError as GatewayResolveError } from "@/src/features/ai-gateway/server/gatewayControlPlaneError";
 
@@ -30,16 +33,12 @@ let cachedGatewayIngestionTokenSigner:
   | undefined;
 
 function getGatewayIngestionTokenSigner() {
-  const privateKey = env.LANGFUSE_AI_GATEWAY_JWT_PRIVATE_KEY;
-  if (!privateKey) return undefined;
-
-  const publicKey = env.LANGFUSE_AI_GATEWAY_JWT_PUBLIC_KEY;
-  const keyId = env.LANGFUSE_AI_GATEWAY_JWT_KEY_ID;
-  if (!publicKey || !keyId) {
-    throw new Error(
-      "LANGFUSE_AI_GATEWAY_JWT_PRIVATE_KEY, LANGFUSE_AI_GATEWAY_JWT_PUBLIC_KEY, and LANGFUSE_AI_GATEWAY_JWT_KEY_ID must be set together",
-    );
-  }
+  const { privateKey, keyId } = resolveGatewayJwtKeys({
+    privateKey: env.LANGFUSE_AI_GATEWAY_JWT_PRIVATE_KEY,
+    publicKey: env.LANGFUSE_AI_GATEWAY_JWT_PUBLIC_KEY,
+    keyId: env.LANGFUSE_AI_GATEWAY_JWT_KEY_ID,
+  });
+  if (!privateKey || !keyId) return undefined;
 
   const config = {
     privateKey,
@@ -66,27 +65,35 @@ export class GatewayResolveService {
   async resolve(params: {
     context: GatewayApiKeyAuthContext;
     apiFormat: GatewayApiFormat;
-  }) {
+  }): Promise<GatewayResolveResponse> {
     return instrumentAsync({ name: "gateway-resolve" }, async (span) => {
       span.setAttribute(
         "langfuse.organization.id",
         params.context.organizationId,
       );
       const { context } = params;
+      const { ingestionProjectId } = context;
+      // Applied after the resolve cache, so an entry cached as NONE still
+      // captures on Cloud.
+      const ingestionMode =
+        context.ingestionMode &&
+        getEffectiveGatewayIngestionMode(context.ingestionMode);
+      // NONE mode delivers nothing to Langfuse, so it needs neither an
+      // ingestion project nor ingestion signing keys.
+      const deliversToLangfuse = ingestionMode !== "NONE";
 
-      if (!context.ingestionProjectId || !context.ingestionMode) {
+      if (!ingestionMode || (deliversToLangfuse && !ingestionProjectId)) {
         throw new GatewayResolveError(
           "Gateway ingestion project is unavailable",
           403,
         );
       }
-      if (!context.connection) {
+      if (!context.connection || !context.providerModel) {
         throw new GatewayResolveError(
           "No enabled gateway connection supports this API format",
           404,
         );
       }
-
       const provider = getGatewayProviderDefinition(
         context.connection.provider,
       );
@@ -98,6 +105,7 @@ export class GatewayResolveService {
           name: context.connection.name,
           provider:
             context.connection.provider.toLowerCase() as GatewayProviderId,
+          provider_model: context.providerModel,
           api_format: params.apiFormat,
           base_url: provider.baseUrl,
           auth:
@@ -111,17 +119,25 @@ export class GatewayResolveService {
         },
         attribution: {
           organization_id: context.organizationId,
-          project_id: context.ingestionProjectId,
+          project_id: ingestionProjectId,
           key_id: context.apiKeyId,
+          user_id: context.userId,
+          key_name: context.apiKeyName,
+          user_name: context.userName,
+          user_email: context.userEmail,
           key_metadata: context.keyMetadata,
           provider_connection_id: context.connection.id,
         },
-        ingestion_mode: context.ingestionMode.toLowerCase() as "usage" | "full",
-        ingestion: this.createIngestionResponse({
-          mode: context.ingestionMode,
-          organizationId: context.organizationId,
-          projectId: context.ingestionProjectId,
-        }),
+        ingestion_mode:
+          ingestionMode.toLowerCase() as GatewayResolveResponse["ingestion_mode"],
+        ingestion:
+          deliversToLangfuse && ingestionProjectId
+            ? this.createIngestionResponse({
+                mode: ingestionMode,
+                organizationId: context.organizationId,
+                projectId: ingestionProjectId,
+              })
+            : null,
       };
     });
   }
@@ -145,7 +161,8 @@ export class GatewayResolveService {
           version: 1,
           organization_id: params.organizationId,
           project_id: params.projectId,
-          ingestion_mode: params.mode.toLowerCase() as "usage" | "full",
+          ingestion_mode:
+            params.mode.toLowerCase() as GatewayResolveResponse["ingestion_mode"],
           scope: "gateway-ingest",
         },
       }),

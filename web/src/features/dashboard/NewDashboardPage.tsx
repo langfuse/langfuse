@@ -1,13 +1,14 @@
 import { useState } from "react";
 import { useRouter } from "next/router";
 import { api } from "@/src/utils/api";
-import Page from "@/src/components/layouts/page";
+import Page from "@/src/components/layouts/Page";
 import { Button } from "@/src/components/ui/button";
 import { Input } from "@/src/components/ui/input";
 import { Textarea } from "@/src/components/ui/textarea";
 import { Label } from "@/src/components/ui/label";
-import { showSuccessToast, showErrorToast } from "@/src/features/notifications";
-import { useHasProjectAccess } from "@/src/features/rbac";
+import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
+import { showErrorToast } from "@/src/features/notifications/showErrorToast";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
 
 export default function NewDashboardPage() {

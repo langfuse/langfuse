@@ -2,11 +2,9 @@ import pLimit from "p-limit";
 import { prisma } from "@langfuse/shared/src/db";
 import { BatchActionStatus, observationForEvalSchema } from "@langfuse/shared";
 import { logger, traceException } from "@langfuse/shared/src/server";
-import {
-  createObservationEvalSchedulerDeps,
-  scheduleObservationEvals,
-  type ObservationEvalRule,
-} from "../evaluation/observationEval";
+import { createObservationEvalSchedulerDeps } from "../evaluation/observationEval/createSchedulerDeps";
+import { scheduleObservationEvals } from "../evaluation/observationEval/scheduleObservationEvals";
+import type { ObservationEvalRule } from "../evaluation/observationEval/types";
 
 const BATCH_SIZE = 500;
 const CONCURRENCY_LIMIT = 50;
@@ -64,6 +62,7 @@ export async function processBatchedObservationEval(params: {
             schedulerDeps,
             executionMode: "MANUAL",
             executionScopeId: batchActionId,
+            batchActionId,
           });
         }),
       ),

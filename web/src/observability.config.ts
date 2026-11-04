@@ -104,6 +104,7 @@ class ScopeFilteringTracerProvider implements TracerProvider {
 
 dd.init({
   runtimeMetrics: true,
+  // eslint-disable-next-line @typescript-eslint/no-deprecated
   plugins: false,
 });
 
@@ -164,7 +165,12 @@ const sdk = new NodeSDK({
     new WinstonInstrumentation({ disableLogSending: true }),
     new BullMQInstrumentation({ useProducerSpanAsConsumerParent: true }),
   ],
-  resourceDetectors: [envDetector, awsEcsDetector, containerDetector],
+  resourceDetectors: [
+    envDetector,
+    ...(env.OTEL_CONTAINER_RESOURCE_DETECTORS_ENABLED === "true"
+      ? [awsEcsDetector, containerDetector]
+      : []),
+  ],
   sampler: new TraceIdRatioBasedSampler(env.OTEL_TRACE_SAMPLING_RATIO),
 });
 

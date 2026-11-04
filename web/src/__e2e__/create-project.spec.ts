@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { test, expect, type Page } from "@playwright/test";
 import { prisma } from "@langfuse/shared/src/db";
 import { signIn } from "./utils/auth";

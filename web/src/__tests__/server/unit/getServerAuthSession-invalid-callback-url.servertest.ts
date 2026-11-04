@@ -4,6 +4,7 @@ import type * as NextAuth from "next-auth";
 import { createMocks } from "node-mocks-http";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { env } from "@/src/env.mjs";
 import { getCookieName } from "@/src/server/utils/cookies";
 
 const { mockAuthSpan, mockGetServerSession, mockInstrumentAsync } = vi.hoisted(
@@ -48,6 +49,8 @@ import {
 
 const callbackUrlCookieName = getCookieName("next-auth.callback-url");
 const originalNextAuthSecret = process.env.NEXTAUTH_SECRET;
+const originalDisableSignupOnboarding = env.LANGFUSE_DISABLE_SIGNUP_ONBOARDING;
+const originalCloudRegion = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
 
 const assertSanitizedRequest = (request: {
   cookies?: Partial<Record<string, string>>;
@@ -66,6 +69,10 @@ describe("getServerAuthSession invalid callback URL handling", () => {
   });
 
   afterEach(() => {
+    Object.assign(env, {
+      NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: originalCloudRegion,
+      LANGFUSE_DISABLE_SIGNUP_ONBOARDING: originalDisableSignupOnboarding,
+    });
     if (originalNextAuthSecret === undefined) {
       delete process.env.NEXTAUTH_SECRET;
     } else {
@@ -131,6 +138,33 @@ describe("getServerAuthSession invalid callback URL handling", () => {
       }),
     ).toBe("http://localhost:3000");
   });
+
+  it.each([
+    {
+      region: "EU",
+      disableSignupOnboarding: undefined,
+      newUser: "/onboarding",
+    },
+    { region: "EU", disableSignupOnboarding: "true", newUser: "/onboarding" },
+    {
+      region: undefined,
+      disableSignupOnboarding: undefined,
+      newUser: "/onboarding",
+    },
+    { region: undefined, disableSignupOnboarding: "true", newUser: undefined },
+  ])(
+    "sets pages.newUser to $newUser in region $region when LANGFUSE_DISABLE_SIGNUP_ONBOARDING is $disableSignupOnboarding",
+    async ({ region, disableSignupOnboarding, newUser }) => {
+      Object.assign(env, {
+        NEXT_PUBLIC_LANGFUSE_CLOUD_REGION: region,
+        LANGFUSE_DISABLE_SIGNUP_ONBOARDING: disableSignupOnboarding,
+      });
+
+      const authOptions = await getAuthOptions();
+
+      expect(authOptions.pages?.newUser).toBe(newUser);
+    },
+  );
 
   it("does not attach the user email to the sign-in span", async () => {
     const authOptions = await getAuthOptions();

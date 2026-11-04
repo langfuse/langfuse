@@ -468,6 +468,18 @@ describe("Filter Query Encoding & Decoding (Legacy Format)", () => {
   });
 
   describe("Round-trip consistency", () => {
+    it.each([
+      { value: [""] },
+      { value: ["\\e"] },
+      { value: ["\\\\e"] },
+      { value: ["", "\\e", "a|b"] },
+    ])("preserves empty strings and escaped values ($value)", ({ value }) => {
+      const filters: FilterState = [
+        { column: "name", type: "stringOptions", operator: "any of", value },
+      ];
+      expect(decodeFilters(encodeFilters(filters))).toEqual(filters);
+    });
+
     it("should maintain consistency through encode -> decode", () => {
       const originalFilters: FilterState = [
         {
@@ -643,6 +655,39 @@ describe("Filter Query Encoding & Decoding (Legacy Format)", () => {
       const deserialized = decodeFilters(serialized);
 
       expect(deserialized).toEqual(mixedFilters);
+    });
+
+    it("round-trips an optional target as a sixth field without changing untargeted URLs", () => {
+      const untargeted: FilterState = [
+        {
+          column: "level",
+          type: "stringOptions",
+          operator: "any of",
+          value: ["ERROR"],
+        },
+      ];
+      expect(encodeFilters(untargeted)).toBe(
+        "level;stringOptions;;any of;ERROR",
+      );
+      expect(decodeFilters("level;stringOptions;;any of;ERROR")).toEqual(
+        untargeted,
+      );
+
+      const targeted: FilterState = [
+        {
+          column: "level",
+          type: "stringOptions",
+          operator: "any of",
+          value: ["ERROR"],
+          target: "run-b",
+        },
+      ];
+      expect(encodeFilters(targeted)).toBe(
+        "level;stringOptions;;any of;ERROR;run-b",
+      );
+      expect(decodeFilters("level;stringOptions;;any of;ERROR;run-b")).toEqual(
+        targeted,
+      );
     });
   });
 });

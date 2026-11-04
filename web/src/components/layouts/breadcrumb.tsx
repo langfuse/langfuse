@@ -1,4 +1,4 @@
-/* eslint-disable @repo/no-style-props */
+/* eslint-disable @repo/no-style-props, @repo/component-file-structure */
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -13,9 +13,9 @@ import { env } from "@/src/env.mjs";
 import {
   useOrgProjectSwitchPaths,
   useQueryProjectOrOrganization,
-} from "@/src/features/projects";
+} from "@/src/features/projects/hooks";
 import { useSession } from "next-auth/react";
-import { useHasOrganizationAccess } from "@/src/features/rbac";
+import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import { isCloudPlan, planLabels } from "@langfuse/shared";
 import Link from "next/link";
 import { Badge } from "@/src/components/design-system/Badge/Badge";

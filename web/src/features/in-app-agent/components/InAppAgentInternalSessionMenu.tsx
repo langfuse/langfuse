@@ -1,13 +1,13 @@
 "use client";
 
-import { Copy, ExternalLink, MoreHorizontal } from "lucide-react";
+import { Copy, ExternalLink, MoreHorizontal } from "@langfuse/icons";
 
 import {
   DropdownMenu,
   type DropdownMenuItemDefinition,
 } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
 import { Button } from "@/src/components/ui/button";
-import { showSuccessToast } from "@/src/features/notifications";
+import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { api } from "@/src/utils/api";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
 
@@ -42,9 +42,7 @@ function getOpenSessionItem({
     return unavailable("Could not load the telemetry project.");
   }
   if (!telemetryProjectId) {
-    return unavailable(
-      "Assistant telemetry is not recorded for this organization or instance.",
-    );
+    return unavailable("The telemetry session is unavailable.");
   }
   return {
     ...item,
@@ -112,7 +110,7 @@ export function InAppAgentInternalSessionMenu({
           aria-label="Internal session actions"
           {...getTriggerProps()}
         >
-          <MoreHorizontal className="icon-base text-icon-foreground" />
+          <MoreHorizontal size="base" color="default" />
         </Button>
       )}
     </DropdownMenu>

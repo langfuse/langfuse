@@ -280,6 +280,18 @@ const EnvSchema = z.object({
     .number()
     .nonnegative()
     .default(5_000),
+  LANGFUSE_LARGE_PROJECT_IDS: z
+    .string()
+    .default("")
+    .transform(
+      (value) =>
+        new Set(
+          value
+            .split(",")
+            .map((id) => id.trim())
+            .filter(Boolean),
+        ),
+    ),
   LANGFUSE_DELETE_SKIP_PROJECT_IDS: z
     .string()
     .optional()
@@ -319,6 +331,11 @@ const EnvSchema = z.object({
     .default(3),
   LANGFUSE_S3_EVENT_UPLOAD_BUCKET: z.string(), // Langfuse requires a bucket name for S3 Event Uploads.
   LANGFUSE_S3_EVENT_UPLOAD_PREFIX: z.string().default(""),
+  LANGFUSE_TRACE_BATCH_TRANSCRIPT_STORAGE_REQUEST_TIMEOUT_MS: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(10_000), // 10 seconds
   LANGFUSE_S3_EVENT_UPLOAD_REGION: z.string().optional(),
   LANGFUSE_S3_EVENT_UPLOAD_ENDPOINT: z.string().optional(),
   LANGFUSE_S3_EVENT_UPLOAD_ACCESS_KEY_ID: z.string().optional(),
@@ -548,6 +565,19 @@ const EnvSchema = z.object({
     .transform((s) =>
       s ? s.split(",").map((s) => s.toLowerCase().trim()) : [],
     ),
+  // When non-empty, blob storage export endpoints must use one of these hosts,
+  // and blob endpoint validation is on. Listed hosts may resolve to private
+  // addresses. Bucket names under a listed host ({bucket}.{host}) are allowed
+  // too, but still may not resolve to a private address unless it is in
+  // LANGFUSE_BLOB_STORAGE_ENDPOINT_WHITELISTED_IPS / _IP_SEGMENTS; private
+  // S3-compatible stores can use path-style instead. S3 exports without a
+  // custom endpoint connect to s3.<region>.amazonaws.com, which must then be
+  // listed; region "auto" first connects to s3.us-east-1.amazonaws.com. S3
+  // exports using host credentials (web identity or an assumed role) also
+  // call sts.<region>.amazonaws.com through the same check, so list it too.
+  // GCS exports always connect to Google and are not checked. Ignored on
+  // Langfuse Cloud.
+  LANGFUSE_BLOB_STORAGE_ENDPOINT_ALLOWED_HOSTS: optionalCommaSeparatedLowercase,
   LANGFUSE_EXTERNAL_MEDIA_STORAGE_ENDPOINT_WHITELISTED_IPS: z
     .string()
     .optional()
@@ -604,13 +634,10 @@ const EnvSchema = z.object({
     .transform((s) =>
       s ? s.split(",").map((s) => s.toLowerCase().trim()) : [],
     ),
-  // When non-empty, OIDC discovery URLs and the endpoints in the discovery
-  // document must use one of these hosts. Checked when an SSO configuration
-  // is saved, same as the exemption list above.
-  LANGFUSE_SSO_DISCOVERY_ALLOWED_HOSTS: optionalCommaSeparatedLowercase,
   // Extra CIDR ranges merged into the private-address block for outbound URL
   // checks that already run. Blob storage stays opt-in: these ranges apply
-  // there only when blob endpoint validation is already enabled. Exemptions
+  // there only when a blob endpoint exemption or allowed-hosts list turns
+  // blob endpoint validation on. Exemptions
   // in the per-surface *_WHITELISTED_* lists still win.
   LANGFUSE_OUTBOUND_BLOCKED_IP_SEGMENTS: optionalCommaSeparatedLowercase.refine(
     (segments) => segments.every(isCidr),
@@ -732,6 +759,20 @@ const EnvSchema = z.object({
   LANGFUSE_SKIP_FINAL_FOR_OTEL_PROJECTS: z
     .enum(["true", "false"])
     .default("false"),
+  // Comma-separated project ids whose scores are never updated after ingestion.
+  // Reads of the scores table skip deduplication (FINAL / LIMIT 1 BY) for them.
+  LANGFUSE_SKIP_SCORES_DEDUP_PROJECT_IDS: z
+    .string()
+    .default("")
+    .transform(
+      (value) =>
+        new Set(
+          value
+            .split(",")
+            .map((id) => id.trim())
+            .filter(Boolean),
+        ),
+    ),
 
   // Langfuse AI Features
   LANGFUSE_AI_FEATURES_PUBLIC_KEY: z.string().optional(),

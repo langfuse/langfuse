@@ -1,3 +1,4 @@
+/* eslint-disable @repo/storybook-play-no-implementation-detail-assertions */
 import { expect, userEvent, waitFor, within } from "storybook/test";
 
 import preview from "../../../../.storybook/preview";
@@ -277,6 +278,58 @@ export const TestShareOfTotal = meta.story({
     // Other section: subtotal and its only row.
     await expect(content.getAllByText("<1%")).toHaveLength(2);
     await expect(content.getByText("$0.04")).toBeInTheDocument();
+  },
+});
+
+export const TestWaterfallBars = meta.story({
+  name: "(Test) Cost bars start where the previous row's bar ends",
+  args: {
+    details: cacheCostDetails,
+    children: <span>$0.03782809</span>,
+    isCost: true,
+  },
+  play: async ({ canvasElement }) => {
+    const { tooltip } = await openBreakdownTooltip(
+      canvasElement,
+      "$0.03782809",
+    );
+    const bars = Array.from(
+      tooltip.querySelectorAll<HTMLElement>('[aria-hidden="true"] > span'),
+    );
+
+    await expect(bars).toHaveLength(5);
+    let end = 0;
+    for (const bar of bars) {
+      await expect(parseFloat(bar.style.left)).toBeCloseTo(end, 2);
+      end += parseFloat(bar.style.width);
+    }
+    await expect(end).toBeCloseTo(100, 2);
+  },
+});
+
+export const TestUsageWithoutShares = meta.story({
+  name: "(Test) Usage breakdown shows no share column or bars",
+  args: {
+    details: {
+      input: 120,
+      output: 35,
+      output_reasoning_tokens: 10,
+      total: 165,
+    },
+    children: <span>165 tokens</span>,
+  },
+  play: async ({ canvasElement }) => {
+    const { content, tooltip } = await openBreakdownTooltip(
+      canvasElement,
+      "165 tokens",
+    );
+
+    await expect(content.getByText("Usage breakdown")).toBeInTheDocument();
+    await expect(content.getByText("165")).toBeInTheDocument();
+    await expect(tooltip.textContent ?? "").not.toContain("%");
+    await expect(
+      tooltip.querySelector('[aria-hidden="true"].bg-border'),
+    ).toBeNull();
   },
 });
 

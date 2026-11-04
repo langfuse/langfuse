@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 import { type ReactNode, useState } from "react";
 
 import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
@@ -6,15 +7,13 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/src/components/ui/dialog";
-import { useUiCustomization } from "@/src/ee/features/ui-customization";
+import { useUiCustomization } from "@/src/ee/features/ui-customization/useUiCustomization";
 import {
   CreateLLMApiKeyForm,
   type LlmConnectionFormOwner,
 } from "@/src/features/public-api/components/CreateLLMApiKeyForm";
-import {
-  useHasOrganizationAccess,
-  useHasProjectAccess,
-} from "@/src/features/rbac";
+import { useHasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 
 export function CreateLLMApiKeyDialogController({
   owner,

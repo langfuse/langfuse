@@ -4,10 +4,10 @@ import type {
 } from "@langfuse/shared/src/db";
 import { LangfuseNotFoundError } from "@langfuse/shared";
 import { decrypt } from "@langfuse/shared/encryption";
-import { redis as defaultRedis } from "@langfuse/shared/src/server";
+import { logger, redis as defaultRedis } from "@langfuse/shared/src/server";
 import type { Cluster, Redis } from "ioredis";
 
-import { auditLog } from "@/src/features/audit-logs/server";
+import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { invalidateGatewayResolveCacheForOrganization } from "@/src/features/ai-gateway/server/resolve/gatewayResolveCache";
 import type { OrgAuthedContext } from "@/src/server/api/trpc";
 import {
@@ -42,7 +42,20 @@ export type ModelCatalogRefreshResult =
   | ModelRefreshError;
 
 const MODEL_CACHE_PREFIX = "ai-gateway:models";
+const MODEL_CACHE_REFRESH_LOCK_PREFIX = "ai-gateway:models-refresh";
 const MODEL_CACHE_TTL_SECONDS = 5 * 60;
+/**
+ * A cached catalog this close to expiry is still served but refreshed in the background.
+ * The refresh lock lives exactly as long, so each connection gets at most one refresh per window.
+ */
+const MODEL_CACHE_REFRESH_WINDOW_SECONDS = 30;
+/**
+ * Codex sends its auto-review requests as `codex-auto-review`, which OpenAI serves but does not list in `/v1/models`.
+ * Listing it here keeps it allowed by default on every OpenAI connection while admins can still disable it.
+ */
+const CUSTOM_MODELS: Partial<Record<GatewayProviderName, string[]>> = {
+  OPENAI: ["codex-auto-review"],
+};
 
 export class GatewayModelCatalogService {
   private readonly repository: GatewayProviderRepository;
@@ -70,9 +83,42 @@ export class GatewayModelCatalogService {
           connectionId: connection.id,
           forceRefresh,
           explicitRetry: false,
+          readOnly: false,
         }),
       ),
     );
+  }
+
+  /** Discovers models without changing connection status and with bounded provider calls, so read-only roles may call it. */
+  async listAllModels(organizationId: string): Promise<ModelRefreshResult[]> {
+    const connections = await this.listAllConnections(
+      organizationId,
+      "ENABLED",
+    );
+    return Promise.all(
+      connections.map((connection) =>
+        this.refreshConnectionModels({
+          organizationId,
+          connectionId: connection.id,
+          forceRefresh: false,
+          explicitRetry: false,
+          readOnly: true,
+        }),
+      ),
+    );
+  }
+
+  async listModelConnections(organizationId: string) {
+    const connections = await this.listAllConnections(
+      organizationId,
+      "ENABLED",
+    );
+    return connections.map(({ id, name, provider, allowedModels }) => ({
+      id,
+      name,
+      provider,
+      allowedModels,
+    }));
   }
 
   async refreshModels(params: {
@@ -84,6 +130,7 @@ export class GatewayModelCatalogService {
       ...params,
       forceRefresh: params.forceRefresh ?? false,
       explicitRetry: false,
+      readOnly: false,
     });
   }
 
@@ -97,6 +144,7 @@ export class GatewayModelCatalogService {
       connectionId: params.connectionId,
       forceRefresh: true,
       explicitRetry: true,
+      readOnly: false,
     });
     if (result.success) {
       await auditLog(
@@ -120,6 +168,7 @@ export class GatewayModelCatalogService {
       ...params,
       forceRefresh: false,
       explicitRetry: false,
+      readOnly: false,
     });
   }
 
@@ -151,12 +200,9 @@ export class GatewayModelCatalogService {
     return connections;
   }
 
-  private async refreshConnectionModels(params: {
-    organizationId: string;
-    connectionId: string;
-    forceRefresh: boolean;
-    explicitRetry: boolean;
-  }): Promise<ModelRefreshResult> {
+  private async refreshConnectionModels(
+    params: CatalogRefreshParams,
+  ): Promise<ModelRefreshResult> {
     const result = await this.refreshConnectionModelCatalog(params);
     return result.success
       ? {
@@ -167,34 +213,85 @@ export class GatewayModelCatalogService {
       : result;
   }
 
-  private async refreshConnectionModelCatalog(params: {
-    organizationId: string;
-    connectionId: string;
-    forceRefresh: boolean;
-    explicitRetry: boolean;
-  }): Promise<ModelCatalogRefreshResult> {
-    const connection = await this.repository.getConnectionWithCredential({
-      organizationId: params.organizationId,
-      id: params.connectionId,
-    });
-    if (!connection) throw new LangfuseNotFoundError("Gateway connection");
-
+  private async refreshConnectionModelCatalog(
+    params: CatalogRefreshParams,
+  ): Promise<ModelCatalogRefreshResult> {
     if (params.forceRefresh) {
       await this.clearModelCache(params.organizationId, params.connectionId);
     } else {
-      const cachedModels = await this.getCachedModels(
+      const cached = await this.getCachedModels(
         params.organizationId,
         params.connectionId,
       );
-      if (cachedModels) {
+      if (cached) {
+        if (cached.expiresInSeconds <= MODEL_CACHE_REFRESH_WINDOW_SECONDS) {
+          this.refreshInBackground(params);
+        }
         return {
-          connectionId: connection.id,
+          connectionId: params.connectionId,
           success: true,
-          models: cachedModels,
+          models: cached.models,
         };
       }
     }
 
+    const connection = await this.repository.getConnectionWithCredential({
+      organizationId: params.organizationId,
+      id: params.connectionId,
+    });
+    if (!connection) throw new LangfuseNotFoundError("Provider credential");
+    return params.readOnly
+      ? this.discoverModelsReadOnly(connection, params)
+      : this.discoverModels(connection, params);
+  }
+
+  /**
+   * Read-only roles reach the provider at most once per refresh window, even when discovery fails,
+   * because a failure keeps the connection ENABLED and is not cached. Otherwise they see the allowlist.
+   */
+  private async discoverModelsReadOnly(
+    connection: ConnectionWithCredential,
+    params: CatalogRefreshParams,
+  ): Promise<ModelCatalogRefreshResult> {
+    const allowedModels = {
+      connectionId: connection.id,
+      success: true as const,
+      models: (connection.allowedModels ?? []).map((id) =>
+        toCatalogEntry(connection.provider as GatewayProviderName, id),
+      ),
+    };
+    if (!(await this.claimRefresh(params.organizationId, connection.id))) {
+      return allowedModels;
+    }
+    const result = await this.discoverModels(connection, params);
+    if (result.success) return result;
+    logDiscoveryFailure(params, result.error);
+    return allowedModels;
+  }
+
+  private async refreshInBackground(params: CatalogRefreshParams) {
+    try {
+      if (
+        !(await this.claimRefresh(params.organizationId, params.connectionId))
+      ) {
+        return;
+      }
+      const connection = await this.repository.getConnectionWithCredential({
+        organizationId: params.organizationId,
+        id: params.connectionId,
+      });
+      if (!connection) return;
+      const result = await this.discoverModels(connection, params);
+      if (!result.success) logDiscoveryFailure(params, result.error);
+    } catch (error) {
+      logDiscoveryFailure(params, error);
+    }
+  }
+
+  private async discoverModels(
+    connection: ConnectionWithCredential,
+    params: CatalogRefreshParams,
+  ): Promise<ModelCatalogRefreshResult> {
     const provider = connection.provider as GatewayProviderName;
     const credential = decrypt(connection.encryptedCredential);
     const models = await getModelDiscoveryAdapter(provider).fetchCatalog({
@@ -202,17 +299,24 @@ export class GatewayModelCatalogService {
       fetcher: this.fetcher,
     });
     if (!models.success) {
-      if (models.error === "unauthorized") {
-        await this.repository.updateConnectionStatus({
+      if (
+        !params.readOnly &&
+        models.error === "unauthorized" &&
+        connection.status === "ENABLED"
+      ) {
+        const marked = await this.repository.updateConnectionStatus({
           organizationId: params.organizationId,
           id: connection.id,
           status: "ERROR",
+          expectedUpdatedAt: connection.updatedAt,
         });
         // A connection that just failed authorization must stop being handed
         // to the data plane.
-        await invalidateGatewayResolveCacheForOrganization(
-          params.organizationId,
-        );
+        if (marked) {
+          await invalidateGatewayResolveCacheForOrganization(
+            params.organizationId,
+          );
+        }
       }
       return {
         connectionId: connection.id,
@@ -220,23 +324,38 @@ export class GatewayModelCatalogService {
         error: models.error,
       };
     }
-    await this.cacheModels(
-      params.organizationId,
-      params.connectionId,
-      models.models,
-    );
-    if (params.explicitRetry && connection.status === "ERROR") {
-      await this.repository.updateConnectionStatus({
+    const catalog = addCustomModels(provider, models.models);
+    // Discovery can outlast a credential update, whose catalog must not be overwritten by the old one.
+    const unchanged = await this.repository.isConnectionUnchanged({
+      organizationId: params.organizationId,
+      id: connection.id,
+      updatedAt: connection.updatedAt,
+    });
+    if (unchanged) {
+      await this.cacheModels(
+        params.organizationId,
+        params.connectionId,
+        catalog,
+        models.expiresAt,
+      );
+    }
+    if (unchanged && params.explicitRetry && connection.status === "ERROR") {
+      const enabled = await this.repository.updateConnectionStatus({
         organizationId: params.organizationId,
         id: connection.id,
         status: "ENABLED",
+        expectedUpdatedAt: connection.updatedAt,
       });
-      await invalidateGatewayResolveCacheForOrganization(params.organizationId);
+      if (enabled) {
+        await invalidateGatewayResolveCacheForOrganization(
+          params.organizationId,
+        );
+      }
     }
     return {
       connectionId: connection.id,
       success: true,
-      models: models.models,
+      models: catalog,
     };
   }
 
@@ -244,20 +363,39 @@ export class GatewayModelCatalogService {
     return `${MODEL_CACHE_PREFIX}:${organizationId}:${connectionId}`;
   }
 
-  private async getCachedModels(
-    organizationId: string,
-    connectionId: string,
-  ): Promise<GatewayModelCatalogEntry[] | null> {
+  private async getCachedModels(organizationId: string, connectionId: string) {
     if (!this.redis) return null;
     try {
-      const cached = await this.redis.get(
-        this.modelCacheKey(organizationId, connectionId),
-      );
+      const key = this.modelCacheKey(organizationId, connectionId);
+      const [cached, expiresInSeconds] = await Promise.all([
+        this.redis.get(key),
+        this.redis.ttl(key),
+      ]);
       if (!cached) return null;
       const parsed: unknown = JSON.parse(cached);
-      return isGatewayModelCatalog(parsed) ? parsed : null;
+      return isGatewayModelCatalog(parsed)
+        ? { models: parsed, expiresInSeconds }
+        : null;
     } catch {
       return null;
+    }
+  }
+
+  /** Cross-instance guard so concurrent requests trigger a single provider call per refresh window. */
+  private async claimRefresh(organizationId: string, connectionId: string) {
+    if (!this.redis) return true;
+    try {
+      const claimed = await this.redis.set(
+        `${MODEL_CACHE_REFRESH_LOCK_PREFIX}:${organizationId}:${connectionId}`,
+        "1",
+        "EX",
+        MODEL_CACHE_REFRESH_WINDOW_SECONDS,
+        "NX",
+      );
+      return claimed === "OK";
+    } catch {
+      // Redis is optional. Without it discovery proceeds without deduplication.
+      return true;
     }
   }
 
@@ -265,18 +403,59 @@ export class GatewayModelCatalogService {
     organizationId: string,
     connectionId: string,
     models: GatewayModelCatalogEntry[],
+    expiresAt: number | undefined,
   ) {
     if (!this.redis) return;
+    // A model must leave the cached catalog at its shutdown, not up to a full TTL later.
+    const ttlSeconds =
+      expiresAt === undefined
+        ? MODEL_CACHE_TTL_SECONDS
+        : Math.min(
+            MODEL_CACHE_TTL_SECONDS,
+            Math.max(1, Math.ceil((expiresAt - Date.now()) / 1000)),
+          );
     try {
       await this.redis.setex(
         this.modelCacheKey(organizationId, connectionId),
-        MODEL_CACHE_TTL_SECONDS,
+        ttlSeconds,
         JSON.stringify(models),
       );
     } catch {
       // Redis is optional. Provider discovery still succeeds when it is unavailable.
     }
   }
+}
+
+function addCustomModels(
+  provider: GatewayProviderName,
+  models: GatewayModelCatalogEntry[],
+): GatewayModelCatalogEntry[] {
+  const discoveredIds = new Set(models.map(({ id }) => id));
+  const customModels = (CUSTOM_MODELS[provider] ?? [])
+    .filter((id) => !discoveredIds.has(id))
+    .map((id) => toCatalogEntry(provider, id));
+  return models.concat(customModels);
+}
+
+function logDiscoveryFailure(params: CatalogRefreshParams, error: unknown) {
+  logger.warn("Failed to refresh AI Gateway model catalog", {
+    organizationId: params.organizationId,
+    connectionId: params.connectionId,
+    error,
+  });
+}
+
+function toCatalogEntry(
+  provider: GatewayProviderName,
+  id: string,
+): GatewayModelCatalogEntry {
+  return {
+    id,
+    provider,
+    canonicalSlug: id,
+    displayName: id,
+    createdAt: new Date(0).toISOString(),
+  };
 }
 
 function isGatewayModelCatalog(
@@ -301,3 +480,15 @@ function isGatewayModelCatalog(
     )
   );
 }
+
+type CatalogRefreshParams = {
+  organizationId: string;
+  connectionId: string;
+  forceRefresh: boolean;
+  explicitRetry: boolean;
+  readOnly: boolean;
+};
+
+type ConnectionWithCredential = NonNullable<
+  Awaited<ReturnType<GatewayProviderRepository["getConnectionWithCredential"]>>
+>;

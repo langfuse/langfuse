@@ -53,6 +53,9 @@ const AuditLogActorSchema = z.discriminatedUnion("type", [
     email: z.string().optional(),
     orgRole: z.string().optional(),
     projectRole: z.string().optional(),
+    // Set when the user acts through a ConductorOne support access grant
+    // instead of an organization membership. Absent for members.
+    supportAccess: z.literal(true).optional(),
   }),
   z.object({
     type: z.literal("API_KEY"),
@@ -170,7 +173,10 @@ const serializedJson = z
 // `before`, `after` and `params` are already escaped by JSON.stringify.
 const toJsonbSafeStrings = (value: unknown): unknown => {
   if (typeof value === "string") {
-    return value.replaceAll("\u0000", "\uFFFD").toWellFormed();
+    // not a "\uFFFD" literal: utf8 bundlers inline it as a raw replacement char
+    return value
+      .replaceAll("\u0000", String.fromCharCode(0xfffd))
+      .toWellFormed();
   }
   if (Array.isArray(value)) return value.map(toJsonbSafeStrings);
   if (typeof value === "object" && value !== null) {

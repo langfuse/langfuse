@@ -1,7 +1,8 @@
+/* eslint-disable @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 import { Button } from "@/src/components/ui/button";
 import { DatasetCompareRunsTable } from "@/src/features/datasets/components/DatasetCompareRunsTable";
-import { MultiSelectKeyValues } from "@/src/features/scores";
-import { FlaskConical, List } from "lucide-react";
+import { MultiSelectKeyValues } from "@/src/features/scores/components/MultiSelectKeyValues";
+import { FlaskConical, List } from "@langfuse/icons";
 import { useRouter } from "next/router";
 import { useEffect, useState } from "react";
 import {
@@ -9,23 +10,21 @@ import {
   DialogContent,
   DialogTrigger,
 } from "@/src/components/ui/dialog";
-import {
-  CreateExperimentsForm,
-  useExperimentAccess,
-  toExperimentsResultsUrl,
-} from "@/src/features/experiments";
-import { useHasProjectAccess } from "@/src/features/rbac";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
-import Page from "@/src/components/layouts/page";
+import { CreateExperimentsForm } from "@/src/features/experiments/components/CreateExperimentsForm";
+import { useExperimentAccess } from "@/src/features/experiments/hooks/useExperimentAccess";
+import { toExperimentsResultsUrl } from "@/src/features/experiments/utils/experimentUrlTranslation";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import Page from "@/src/components/layouts/Page";
 import {
   DATASET_RUN_COMPARE_TABS,
   getDatasetRunCompareTabs,
-} from "@/src/features/navigation";
+} from "@/src/features/navigation/utils/dataset-run-compare-tabs";
 import { useDatasetRunsCompare } from "@/src/features/datasets/hooks/useDatasetRunsCompare";
 import {
   ActiveCellProvider,
   useActiveCell,
-} from "@/src/features/datasets/contexts/ActiveCellContext";
+} from "@/src/features/datasets/contexts/ActiveCellProvider";
 import { SidePanel, SidePanelContent } from "@/src/components/ui/side-panel";
 import { AnnotationPanel } from "@/src/features/datasets/components/AnnotationPanel";
 import { Spinner } from "@/src/components/design-system/Spinner/Spinner";
@@ -110,7 +109,7 @@ function DatasetCompareLegacy() {
                   disabled={!hasExperimentWriteAccess}
                   onClick={() => capture("dataset_run:new_form_open")}
                 >
-                  <FlaskConical className="icon-base text-icon-foreground" />
+                  <FlaskConical size="base" color="default" />
                   <span className="ml-2 hidden md:block">New experiment</span>
                 </Button>
               </DialogTrigger>
@@ -136,7 +135,7 @@ function DatasetCompareLegacy() {
               variant="outline"
               hideClearButton
               iconLeft={
-                <List className="icon-base text-icon-foreground mr-2" />
+                <List size="base" color="default" __rawClassName="mr-2" />
               }
               options={runs.map((run) => ({
                 key: run.key,

@@ -1,4 +1,7 @@
-import { getObservationsV2FromEventsTableForPublicApi } from "@langfuse/shared/src/server";
+import {
+  getObservationsV2FromEventsTableForPublicApi,
+  getObservationsV2PageFromEventsTableForPublicApi,
+} from "@langfuse/shared/src/server";
 import { LangfuseNotFoundError } from "@langfuse/shared";
 
 import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
@@ -11,7 +14,7 @@ import {
   encodeCursor,
   transformDbToApiObservationV2,
 } from "@/src/features/public-api/types/observations";
-import { clampToDataAccessDays } from "@/src/features/entitlements/server";
+import { clampToDataAccessDays } from "@/src/features/entitlements/server/hasEntitlementLimit";
 export default withMiddlewares({
   GET: createAuthedProjectAPIRoute({
     name: "Get Observations V2",
@@ -77,36 +80,46 @@ export default withMiddlewares({
         expandMetadataKeys,
       };
 
-      // Fetch observations from events table with field groups applied at query time
-      const items =
-        await getObservationsV2FromEventsTableForPublicApi(filterProps);
-
-      // Determine if there are more results (we fetched limit+1)
-      const hasMore = items.length > query.limit;
-      const dataToReturn = hasMore ? items.slice(0, query.limit) : items;
+      const { items, cursor } = await getObservationsPage(filterProps);
 
       // Normalize for the wire format:
       // - empty parent_observation_id -> null (v1 parity)
       // - Decimal price fields -> string (preserves original v2 wire format; v1 emits numbers via .toNumber())
-      const transformedItems = dataToReturn.map(transformDbToApiObservationV2);
-
-      // Generate cursor if there are more results
-      const lastItemIdx = dataToReturn.length - 1;
-      const meta =
-        hasMore && dataToReturn.length > 0
-          ? {
-              cursor: encodeCursor({
-                lastStartTimeTo: dataToReturn[lastItemIdx].startTime,
-                lastTraceId: dataToReturn[lastItemIdx].traceId ?? "",
-                lastId: dataToReturn[lastItemIdx].id,
-              }),
-            }
-          : {};
+      const transformedItems = items.map(transformDbToApiObservationV2);
 
       return {
         data: transformedItems,
-        meta,
+        meta: cursor
+          ? {
+              cursor: encodeCursor(cursor),
+              ...(transformedItems.length === 0 && {
+                comment:
+                  "This empty page does not indicate completion. Continue requesting pages using meta.cursor.",
+              }),
+            }
+          : {},
       };
     },
   }),
 });
+
+async function getObservationsPage(
+  opts: Parameters<typeof getObservationsV2PageFromEventsTableForPublicApi>[0],
+): ReturnType<typeof getObservationsV2PageFromEventsTableForPublicApi> {
+  if (env.LANGFUSE_OBSERVATIONS_V2_ADAPTIVE_SCAN_ENABLED === "true") {
+    return getObservationsV2PageFromEventsTableForPublicApi(opts);
+  }
+
+  const records = await getObservationsV2FromEventsTableForPublicApi(opts);
+  const items = records.slice(0, opts.limit);
+  const last = items.at(-1);
+  const cursor =
+    records.length > opts.limit && last
+      ? {
+          lastStartTimeTo: last.startTime,
+          lastTraceId: last.traceId ?? "",
+          lastId: last.id,
+        }
+      : undefined;
+  return { items, cursor };
+}

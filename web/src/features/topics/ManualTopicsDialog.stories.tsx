@@ -585,3 +585,29 @@ export const PastedBatch = meta.story({
     await expect(args.onSubmit).toHaveBeenCalledTimes(1);
   },
 });
+
+export const MultiMonthSummaryRange = meta.story({
+  name: "(Test) Selects trace summaries across multiple months",
+  args: {
+    operation: "update",
+    generationTimeRange: {
+      from: new Date(2025, 7, 1),
+      to: new Date(2025, 7, 7),
+    },
+  },
+  play: async ({ canvasElement, args }) => {
+    const body = within(canvasElement.ownerDocument.body);
+    const dialog = within(
+      body.getByRole("dialog", { name: "Manual processing" }),
+    );
+    await userEvent.click(dialog.getByRole("button", { name: /Aug/ }));
+    await userEvent.click(body.getByText("Select from calendar"));
+    await userEvent.click(await body.findByLabelText(/August 1st, 2025/));
+    await userEvent.click(body.getByLabelText(/next month/i));
+    await userEvent.click(body.getByLabelText(/September 15th, 2025/));
+    await expect(args.onGenerationTimeRangeChange).toHaveBeenLastCalledWith({
+      from: new Date(2025, 7, 1),
+      to: new Date(2025, 8, 15, 23, 59, 59, 999),
+    });
+  },
+});

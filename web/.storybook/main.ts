@@ -39,6 +39,10 @@ const STORY_TITLE_GROUPS: StoryTitleGroup[] = [
     titlePrefix: "Features/In-App Agent",
   },
   {
+    directory: "src/features/monitors/automations",
+    titlePrefix: "Features/Monitors",
+  },
+  {
     directory: "src/features/traces/components",
     titlePrefix: "Features/Traces",
   },
@@ -137,9 +141,66 @@ const config: StorybookConfig = {
   // pulled in transitively by the table stories). Pointing at the source makes
   // Storybook resolve named exports exactly like the app does.
   viteFinal: async (viteConfig) => {
+    viteConfig.build = {
+      ...viteConfig.build,
+      sourcemap: false,
+    };
+
+    // Linked workspace packages are not prebundled by default. Bundle the icon
+    // barrels so each browser worker does not request thousands of modules.
+    viteConfig.optimizeDeps = {
+      ...viteConfig.optimizeDeps,
+      include: [
+        ...(viteConfig.optimizeDeps?.include ?? []),
+        "@langfuse/icons",
+        "@langfuse/icons/si",
+        "@langfuse/icons/tb",
+      ],
+    };
     viteConfig.plugins = [
       flatStoryTitlesPlugin(STORY_TITLE_GROUPS),
+      {
+        // The Next.js framework aliases `react-dom` by prefix, which turns this
+        // subpath (imported by @react-email/render in email template stories)
+        // into `react-dom/index.js/server.browser`. Its aliases are merged
+        // after viteFinal, so this rule has to be prepended once resolved.
+        name: "react-dom-server-browser-alias",
+        configResolved({ resolve }) {
+          resolve.alias.unshift({
+            find: /^react-dom\/server\.browser$/,
+            replacement: fileURLToPath(
+              import.meta
+                .resolve("next/dist/compiled/react-dom/server.browser.js"),
+            ),
+          });
+        },
+      },
       ...(viteConfig.plugins ?? []),
+      {
+        name: "exclude-generated-icons-from-docgen",
+        configResolved({ plugins }) {
+          const docgen = plugins.find(
+            (plugin) => plugin.name === "storybook:react-docgen-plugin",
+          );
+          if (!docgen?.transform) return;
+
+          const transform =
+            typeof docgen.transform === "function"
+              ? docgen.transform
+              : docgen.transform.handler;
+          docgen.transform = {
+            ...(typeof docgen.transform === "object" ? docgen.transform : {}),
+            handler(code, id, options) {
+              // Linked generated dependencies bypass docgen's node_modules
+              // exclusion; resolving their icon catalogs dominates build time.
+              if (id.replaceAll("\\", "/").includes("/packages/icons/dist/")) {
+                return null;
+              }
+              return transform.call(this, code, id, options);
+            },
+          };
+        },
+      },
     ];
 
     const sharedSrc = resolve(
@@ -167,6 +228,11 @@ const config: StorybookConfig = {
           replacement: replacement as string,
         }));
     viteConfig.resolve.alias = [
+      // Story importers are excluded from the production tsconfig.
+      {
+        find: /^@\//,
+        replacement: fileURLToPath(new URL("../", import.meta.url)),
+      },
       // The package also exposes a few named subpath exports (e.g.
       // `@langfuse/shared/query`, imported transitively via the chart-library's
       // PivotTable → widgets/utils). Those aren't under `src/`, so the two rules

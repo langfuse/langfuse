@@ -19,6 +19,8 @@
  */
 
 import { type ObservationReturnTypeWithMetadata } from "@/src/server/api/routers/traces";
+import { useRefreshTraceScores } from "@/src/features/traces/hooks/useRefreshTraceScores";
+import { api } from "@/src/utils/api";
 import { cn } from "@/src/utils/tailwind";
 import { useCallback, useMemo, useState } from "react";
 import { Switch } from "@/src/components/design-system/Switch/Switch";
@@ -27,49 +29,47 @@ import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import {
   CommentDrawerController,
   getCommentDrawerInitialStateFromUrl,
-  useCommentedPaths,
-} from "@/src/features/comments";
+} from "@/src/features/comments/CommentDrawerController";
+import { useCommentedPaths } from "@/src/features/comments/hooks/useCommentedPaths";
 import { useRouter } from "next/router";
 import { TraceDetailTabsBarList } from "../TraceDetailTabsBarList";
 import { getDetailTabs } from "../../fns/getDetailTabs";
 import { resolveDetailTab } from "../../fns/resolveDetailTab";
-import { ScoresTable } from "@/src/features/scores";
-import { getMostRecentCorrection } from "@/src/features/corrections";
-import { useJsonExpansion } from "@/src/features/traces/contexts/JsonExpansionContext";
+import { default as ScoresTable } from "@/src/features/scores/ScoresTable";
+import { getMostRecentCorrection } from "@/src/features/corrections/utils/getMostRecentCorrection";
+import { useJsonExpansion } from "@/src/features/traces/contexts/JsonExpansionProvider";
 import { useMedia } from "@/src/features/traces/hooks/useMedia";
 import {
   type DetailTab,
   useSelection,
-} from "@/src/features/traces/contexts/SelectionContext";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+} from "@/src/features/traces/contexts/SelectionProvider";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useTraceAnalyticsDimensions } from "@/src/features/traces/hooks/useTraceAnalyticsDimensions";
-import { useViewPreferences } from "@/src/features/traces/contexts/ViewPreferencesContext";
+import { useViewPreferences } from "@/src/features/traces/contexts/ViewPreferencesProvider";
 import {
   jsonViewToggleTab,
   normalizeJsonViewPreference,
 } from "@/src/components/ui/jsonViewPreference";
 
 // Contexts and hooks
-import { useTraceData } from "@/src/features/traces/contexts/TraceDataContext";
+import { useTraceData } from "@/src/features/traces/contexts/TraceDataProvider";
 import { useParsedObservation } from "@/src/features/traces/hooks/useParsedObservation";
-import { api } from "@/src/utils/api";
 
 // Extracted components
 import { ObservationDetailViewHeader } from "@/src/features/traces/components/ObservationDetailView/components/ObservationDetailViewHeader/ObservationDetailViewHeader";
 import { TraceLogView } from "../TraceLogView/TraceLogView";
-import { useReadPath } from "@/src/features/events";
+import { useReadPath } from "@/src/features/events/hooks/useReadPath";
 import { TRACE_VIEW_CONFIG } from "@/src/features/traces/constants/traceViewConfig";
 import {
   aggregateTraceMetrics,
   getDescendantIds,
 } from "@/src/features/traces/fns/traceAggregation";
-import { useHasProjectAccess } from "@/src/features/rbac";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { useSession } from "next-auth/react";
 import { ObservationPreview } from "./ObservationPreview";
-import { useInternalFeaturesEnabled } from "@/src/features/feature-flags";
-import { TraceMessagesView } from "../TraceMessagesView/TraceMessagesView";
+import type { IOPreviewPretty } from "../IOPreview/IOPreviewPretty";
+import { useInternalFeaturesEnabled } from "@/src/features/feature-flags/hooks/useInternalFeaturesEnabled";
 import { DetailAttributesTab } from "../DetailAttributesTab";
-import { DetailSkillsTab } from "../DetailSkillsTab";
 import { buildModelParameters } from "@/src/features/traces/fns/buildModelParameters";
 import { buildObservationAttributes } from "@/src/features/traces/fns/buildObservationAttributes";
 
@@ -90,7 +90,6 @@ export function ConnectedObservationDetailView({
     selectedTab: globalSelectedTab,
     setSelectedTab: setGlobalSelectedTab,
   } = useSelection();
-  const utils = api.useUtils();
   const capture = usePostHogClientCapture();
   const analyticsDimensions = useTraceAnalyticsDimensions();
 
@@ -125,7 +124,6 @@ export function ConnectedObservationDetailView({
     isAnnotationMode,
     hasObservations: observations.length > 0,
     canViewScores: true,
-    hasSkills: observation.type === "GENERATION" || observation.type === "TOOL",
   });
   const showLogViewTab = tabs.includes("log");
   const showScoresTab = tabs.includes("scores");
@@ -147,9 +145,17 @@ export function ConnectedObservationDetailView({
   // so they are omitted rather than guessed. A merged-in row whose parent is also
   // past the cap sits AMONG the roots without being one — root chrome there would
   // assert a position we don't know.
-  const treeNode = nodeMap.get(observation.id);
+  const treeNode =
+    nodeMap.get(`${traceId}:${observation.id}`) ?? nodeMap.get(observation.id);
   const isRoot =
-    roots.some((root) => root.id === observation.id) &&
+    !!treeNode &&
+    roots.some(
+      (root) =>
+        root.id === treeNode.id ||
+        (root.type === "TRACE" &&
+          root.traceId === traceId &&
+          root.children.some((child) => child.id === treeNode.id)),
+    ) &&
     !(
       detachedObservationIsMisplaced && observation.id === detachedObservationId
     );
@@ -166,27 +172,24 @@ export function ConnectedObservationDetailView({
   const subtreeMetrics = useMemo(() => {
     if (!isRoot || !treeNode) return null;
     const descendantIds = getDescendantIds(treeNode);
-    const descendantIdSet = new Set(descendantIds);
+    const descendantIdSet = new Set(
+      descendantIds.map((id) => nodeMap.get(id)?.observationId ?? id),
+    );
 
-    const descendants = observations.filter((obs) =>
-      descendantIdSet.has(obs.id),
+    const descendants = observations.filter(
+      (obs) => obs.traceId === traceId && descendantIdSet.has(obs.id),
     );
     const allObservations = [observation, ...descendants];
     return aggregateTraceMetrics(allObservations);
-  }, [isRoot, treeNode, observations, observation]);
+  }, [isRoot, treeNode, observations, observation, nodeMap, traceId]);
 
   const selectedTab = resolveDetailTab(globalSelectedTab, tabs);
 
-  const refreshTraceScores = useCallback(() => {
-    utils.traces.byIdWithObservationsAndScores.invalidate({
-      projectId,
-      traceId,
-    });
-    utils.events.scoresForTrace.invalidate({
-      projectId,
-      traceId,
-    });
-  }, [projectId, traceId, utils]);
+  const refreshTraceScores = useRefreshTraceScores({
+    projectId,
+    traceId,
+    sessionId: observation.sessionId,
+  });
 
   const setSelectedTab = (tab: DetailTab) => {
     if (tab === "scores") {
@@ -257,12 +260,18 @@ export function ConnectedObservationDetailView({
     setAdvancedJsonExpansion,
   } = useJsonExpansion();
   const observationScores = useMemo(
-    () => scores.filter((s) => s.observationId === observation.id),
-    [scores, observation.id],
+    () =>
+      scores.filter(
+        (s) => s.traceId === traceId && s.observationId === observation.id,
+      ),
+    [scores, traceId, observation.id],
   );
   const observationCorrections = useMemo(
-    () => corrections.filter((c) => c.observationId === observation.id),
-    [corrections, observation.id],
+    () =>
+      corrections.filter(
+        (c) => c.traceId === traceId && c.observationId === observation.id,
+      ),
+    [corrections, traceId, observation.id],
   );
 
   const outputCorrection = getMostRecentCorrection(observationCorrections);
@@ -336,6 +345,13 @@ export function ConnectedObservationDetailView({
     return null;
   }, [observation.latency, observation.startTime, observation.endTime]);
 
+  const previewSkills = getPreviewSkills({
+    skillManagementEnabled: isV4Enabled,
+    observationType: observation.type,
+    skillsAvailable: observationWithIO?.skillsAvailable,
+    skillsResourceLoaded: observationWithIO?.skillsResourceLoaded,
+  });
+
   return (
     <CommentDrawerController
       projectId={projectId}
@@ -406,7 +422,7 @@ export function ConnectedObservationDetailView({
                         onCheckedChange={handleBetaToggle}
                       />
                       <span className="text-muted-foreground text-xs">
-                        Beta
+                        Optimized
                       </span>
                     </div>
                   )}
@@ -471,13 +487,6 @@ export function ConnectedObservationDetailView({
               }
             />
 
-            {selectedTab === "messages" && (
-              <Tabs.Content value="messages" layout="fill">
-                <div className="min-h-0 flex-1 overflow-auto px-4">
-                  <TraceMessagesView />
-                </div>
-              </Tabs.Content>
-            )}
             <Tabs.Content value="preview" layout="fill">
               <ObservationPreview
                 currentView={currentView}
@@ -486,6 +495,7 @@ export function ConnectedObservationDetailView({
                 previewProps={{
                   observationName: observation.name ?? undefined,
                   observationType: observation.type,
+                  skills: previewSkills,
                   input: observationWithIOCompat.data?.input ?? undefined,
                   output: observationWithIOCompat.data?.output ?? undefined,
                   status: observation.statusMessage
@@ -564,26 +574,6 @@ export function ConnectedObservationDetailView({
               />
             </Tabs.Content>
 
-            {tabs.includes("skills") ? (
-              <Tabs.Content value="skills" layout="fill">
-                <DetailSkillsTab
-                  projectId={projectId}
-                  isLoading={isLoadingObservation}
-                  skills={
-                    observation.type === "GENERATION"
-                      ? {
-                          kind: "available",
-                          items: observationWithIO?.skillsAvailable ?? [],
-                        }
-                      : {
-                          kind: "loaded",
-                          items: observationWithIO?.skillsResourceLoaded ?? [],
-                        }
-                  }
-                />
-              </Tabs.Content>
-            ) : null}
-
             {showScoresTab ? (
               <Tabs.Content value="scores" layout="fill">
                 <div className="flex h-full min-h-0 w-full flex-1 flex-col overflow-hidden">
@@ -624,3 +614,30 @@ export function ConnectedObservationDetailView({
     </CommentDrawerController>
   );
 }
+
+function getPreviewSkills({
+  skillManagementEnabled,
+  observationType,
+  skillsAvailable,
+  skillsResourceLoaded,
+}: PreviewSkillsInput): React.ComponentProps<typeof IOPreviewPretty>["skills"] {
+  if (!skillManagementEnabled) return undefined;
+  if (observationType === "GENERATION") {
+    return { kind: "available", items: skillsAvailable ?? [] };
+  }
+  if (observationType === "TOOL") {
+    return { kind: "loaded", items: skillsResourceLoaded ?? [] };
+  }
+  return undefined;
+}
+
+type PreviewSkillsInput = {
+  skillManagementEnabled: boolean;
+  observationType: ObservationReturnTypeWithMetadata["type"];
+  skillsAvailable:
+    | ObservationReturnTypeWithMetadata["skillsAvailable"]
+    | undefined;
+  skillsResourceLoaded:
+    | ObservationReturnTypeWithMetadata["skillsResourceLoaded"]
+    | undefined;
+};

@@ -1,21 +1,20 @@
+/* eslint-disable @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 import type { FilterState } from "@langfuse/shared";
 import type { ReactNode } from "react";
 
 import { SingleLineOverflowList } from "@/src/components/SingleLineOverflowList";
-import { Badge } from "@/src/components/ui/badge";
+import { Badge } from "@/src/components/design-system/Badge/Badge";
 import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
 } from "@/src/components/ui/tooltip";
 import { RULE_FIELD_REGISTRY } from "@/src/features/evals/v2/constants/ruleSearchRegistry";
-import { InlineFilterState } from "@/src/features/filters";
-import {
-  ComposerSurface,
-  ComposerText,
-  ComposerTokens,
-  filterStateToQueryText,
-} from "@/src/features/search-bar";
+import { InlineFilterState } from "@/src/features/filters/components/filter-builder";
+import { ComposerSurface } from "@/src/features/search-bar/components/ComposerSurface";
+import { ComposerText } from "@/src/features/search-bar/components/ComposerText";
+import { ComposerTokens } from "@/src/features/search-bar/components/ComposerTokens";
+import { filterStateToQueryText } from "@/src/features/search-bar/lib/filter-state-to-query";
 
 export function RuleFilterPills({
   filter,
@@ -153,9 +152,7 @@ export function RuleFilterPills({
       renderOverflow={({ overflowItemCount }) => (
         <Tooltip>
           <TooltipTrigger asChild>
-            <Badge variant="secondary" className="font-normal">
-              +{overflowItemCount}
-            </Badge>
+            <Badge color="filled" text={`+${overflowItemCount}`} />
           </TooltipTrigger>
           <TooltipContent className="max-w-96">
             <div className="flex flex-wrap gap-1">

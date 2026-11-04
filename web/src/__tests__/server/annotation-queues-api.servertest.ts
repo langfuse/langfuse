@@ -18,6 +18,7 @@ import {
   AnnotationQueueStatus,
 } from "@langfuse/shared";
 import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
+import { createAnnotationQueueForApi } from "@/src/features/annotation-queues/server/publicAnnotationQueueService";
 import { v4 as uuidv4 } from "uuid";
 
 const TOTAL_TEST_QUEUES = 10; // Create enough queues to test pagination
@@ -26,6 +27,7 @@ const TOTAL_TEST_QUEUE_ITEMS = 6; // Create enough queue items to test filtering
 describe("Annotation Queues API Endpoints", () => {
   let auth: string;
   let projectId: string;
+  let organizationId: string;
 
   const createQueue = (overrides: Partial<{ name: string }> = {}) =>
     prisma.annotationQueue.create({
@@ -92,10 +94,14 @@ describe("Annotation Queues API Endpoints", () => {
 
   beforeEach(async () => {
     // Create organization, project, and API key for testing
-    const { auth: newAuth, projectId: newProjectId } =
-      await createOrgProjectAndApiKey();
+    const {
+      auth: newAuth,
+      projectId: newProjectId,
+      org,
+    } = await createOrgProjectAndApiKey();
     auth = newAuth;
     projectId = newProjectId;
+    organizationId = org.id;
   });
 
   describe("GET /annotation-queues", () => {
@@ -182,6 +188,27 @@ describe("Annotation Queues API Endpoints", () => {
   });
 
   describe("POST /annotation-queues", () => {
+    it("rejects duplicated IDs before API queue creation", async () => {
+      const config = await createScoreConfig();
+
+      try {
+        await expect(
+          createAnnotationQueueForApi({
+            projectId,
+            input: {
+              name: "Duplicate configs queue",
+              scoreConfigIds: [config.id, config.id],
+            },
+          }),
+        ).rejects.toThrow("Score config IDs must be unique");
+        expect(
+          await prisma.annotationQueue.count({ where: { projectId } }),
+        ).toBe(0);
+      } finally {
+        await prisma.organization.delete({ where: { id: organizationId } });
+      }
+    });
+
     it("should create a new annotation queue", async () => {
       const scoreConfig = await createScoreConfig();
 

@@ -2,60 +2,65 @@
 //! gateway opts in on the caller's behalf. The resulting usage chunk is relayed.
 use std::fmt;
 
-use axum::{body::Bytes, http::HeaderMap};
+use axum::body::Bytes;
 use serde::{
     Deserialize, Deserializer,
     de::{MapAccess, Visitor},
 };
-use serde_json::{Value, value::RawValue};
-
-use crate::transport::identity_encoding;
+use serde_json::value::RawValue;
 
 /// The rewritten body for a streamed request that did not ask for usage, or
 /// `None` when the original bytes must be forwarded unchanged. Every other
 /// top-level member keeps its original bytes and position.
-pub(super) fn request_stream_usage(headers: &HeaderMap, body: &[u8]) -> Option<Bytes> {
-    if !identity_encoding(headers) {
-        return None;
-    }
+pub(super) fn request_stream_usage(body: &[u8], provider_model: &str) -> Option<Bytes> {
     let Members(mut members) = serde_json::from_slice(body).ok()?;
     // Duplicate members are resolved differently by different parsers.
-    if count(&members, "stream") != 1 || count(&members, "stream_options") > 1 {
+    if count(&members, "model") != 1
+        || count(&members, "stream") != 1
+        || count(&members, "stream_options") > 1
+    {
         return None;
     }
     if member(&members, "stream")? != "true" {
         return None;
     }
-    let options = match member(&members, "stream_options") {
-        None => serde_json::Map::new(),
-        Some(raw) => match serde_json::from_str::<Value>(raw).ok()? {
-            Value::Object(options) => options,
-            Value::Null => serde_json::Map::new(),
-            _ => return None,
-        },
+    // Parsed as raw members too: a full `Value` tree can take ~100x the bytes.
+    let mut options = match member(&members, "stream_options") {
+        None | Some("null") => Vec::new(),
+        Some(raw) => serde_json::from_str::<Members>(raw).ok()?.0,
     };
-    if options.get("include_usage") == Some(&Value::Bool(true)) {
+    if count(&options, "include_usage") > 1 || member(&options, "include_usage") == Some("true") {
         return None;
     }
-    let mut options = options;
-    options.insert("include_usage".to_owned(), Value::Bool(true));
-    let options = RawValue::from_string(Value::Object(options).to_string()).ok()?;
+    let include_usage = RawValue::from_string("true".to_owned()).ok()?;
+    match options.iter_mut().find(|(key, _)| key == "include_usage") {
+        Some((_, raw)) => *raw = include_usage,
+        None => options.push(("include_usage".to_owned(), include_usage)),
+    }
+    let options =
+        RawValue::from_string(String::from_utf8(object_bytes(&options, 32)?).ok()?).ok()?;
+    let model = RawValue::from_string(serde_json::to_string(provider_model).ok()?).ok()?;
+    members.iter_mut().find(|(key, _)| key == "model")?.1 = model;
     match members.iter_mut().find(|(key, _)| key == "stream_options") {
         Some((_, raw)) => *raw = options,
         None => members.push(("stream_options".to_owned(), options)),
     }
-    let mut rewritten = Vec::with_capacity(body.len() + 32);
-    rewritten.push(b'{');
+    object_bytes(&members, body.len() + 32).map(Bytes::from)
+}
+
+fn object_bytes(members: &[(String, Box<RawValue>)], capacity: usize) -> Option<Vec<u8>> {
+    let mut bytes = Vec::with_capacity(capacity);
+    bytes.push(b'{');
     for (index, (key, raw)) in members.iter().enumerate() {
         if index > 0 {
-            rewritten.push(b',');
+            bytes.push(b',');
         }
-        serde_json::to_writer(&mut rewritten, key).ok()?;
-        rewritten.push(b':');
-        rewritten.extend_from_slice(raw.get().as_bytes());
+        serde_json::to_writer(&mut bytes, key).ok()?;
+        bytes.push(b':');
+        bytes.extend_from_slice(raw.get().as_bytes());
     }
-    rewritten.push(b'}');
-    Some(Bytes::from(rewritten))
+    bytes.push(b'}');
+    Some(bytes)
 }
 
 fn count(members: &[(String, Box<RawValue>)], name: &str) -> usize {
@@ -77,7 +82,7 @@ impl<'de> Deserialize<'de> for Members {
         struct MembersVisitor;
         impl<'de> Visitor<'de> for MembersVisitor {
             type Value = Members;
-            fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+            fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
                 formatter.write_str("a JSON object")
             }
             fn visit_map<A: MapAccess<'de>>(self, mut map: A) -> Result<Members, A::Error> {
@@ -95,10 +100,9 @@ impl<'de> Deserialize<'de> for Members {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use axum::http::{HeaderValue, header};
 
     fn rewrite(body: &str) -> Option<String> {
-        request_stream_usage(&HeaderMap::new(), body.as_bytes())
+        request_stream_usage(body.as_bytes(), "provider-model")
             .map(|bytes| String::from_utf8(bytes.to_vec()).unwrap())
     }
 
@@ -108,19 +112,21 @@ mod tests {
             rewrite(r#"{"model":"gpt-4.1", "messages":[{"role":"user","content":"1.0e2 \u00e9"}],"stream":true}"#)
                 .as_deref(),
             Some(
-                r#"{"model":"gpt-4.1","messages":[{"role":"user","content":"1.0e2 \u00e9"}],"stream":true,"stream_options":{"include_usage":true}}"#
+                r#"{"model":"provider-model","messages":[{"role":"user","content":"1.0e2 \u00e9"}],"stream":true,"stream_options":{"include_usage":true}}"#
             )
         );
         assert_eq!(
             rewrite(r#"{"stream_options":{"include_obfuscation":false,"include_usage":false},"stream":true,"model":"m"}"#)
                 .as_deref(),
             Some(
-                r#"{"stream_options":{"include_obfuscation":false,"include_usage":true},"stream":true,"model":"m"}"#
+                r#"{"stream_options":{"include_obfuscation":false,"include_usage":true},"stream":true,"model":"provider-model"}"#
             )
         );
         assert_eq!(
-            rewrite(r#"{"stream":true,"stream_options":null}"#).as_deref(),
-            Some(r#"{"stream":true,"stream_options":{"include_usage":true}}"#)
+            rewrite(r#"{"model":"m","stream":true,"stream_options":null}"#).as_deref(),
+            Some(
+                r#"{"model":"provider-model","stream":true,"stream_options":{"include_usage":true}}"#
+            )
         );
     }
 
@@ -140,8 +146,5 @@ mod tests {
         ] {
             assert_eq!(rewrite(body), None, "{body}");
         }
-        let mut encoded = HeaderMap::new();
-        encoded.insert(header::CONTENT_ENCODING, HeaderValue::from_static("gzip"));
-        assert!(request_stream_usage(&encoded, br#"{"stream":true}"#).is_none());
     }
 }

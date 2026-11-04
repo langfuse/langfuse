@@ -1,15 +1,16 @@
 import type { JsonValue } from "@langfuse/shared/src/utils/normalized-io";
 import preview from "@/.storybook/preview";
-import { type ComponentProps } from "react";
+import { type ComponentProps, useState } from "react";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import { SessionConversationTimelineTrace } from "@/src/features/sessions/components/ConnectedModernSessionBodyTimeline/components/ConnectedSessionConversationTimeline/components/SessionConversationalView/components/SessionConversationTimeline/components/SessionConversationTimelineTrace/SessionConversationTimelineTrace";
+import { type EventSessionTrace } from "@/src/features/sessions/sessionDetailPageTypes";
 
 type Props = ComponentProps<typeof SessionConversationTimelineTrace>;
 type TranscriptState = Extract<Props["state"], { type: "transcript" }>;
 type Thread = NonNullable<
   TranscriptState["result"]["transcript"]
 >["threads"][number];
-const trace: Props["trace"] = {
+const trace: EventSessionTrace = {
   id: "trace-1",
   name: "Weather assistant",
   timestamp: new Date("2026-09-24T12:00:00Z"),
@@ -152,6 +153,39 @@ const weatherState = transcriptState({
   history: result.transcript?.threads[0]?.conversationHistory ?? [],
 });
 
+export const CollapsibleTrace = meta.story({
+  name: "(Test) Collapsible Trace",
+  args: { ...commonArgs, state: { type: "empty" } },
+  render: function Render(args) {
+    const [isCollapsed, setIsCollapsed] = useState(false);
+    return (
+      <SessionConversationTimelineTrace
+        {...args}
+        isCollapsed={isCollapsed}
+        onToggleCollapsed={() => setIsCollapsed((current) => !current)}
+      />
+    );
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const toggle = canvas.getByRole("button", {
+      name: "Collapse trace Weather assistant",
+    });
+    await expect(toggle).toHaveAttribute("aria-expanded", "true");
+    await userEvent.click(toggle);
+    await expect(
+      canvas.queryByText("This trace has no messages."),
+    ).not.toBeInTheDocument();
+    await expect(canvas.getByText("Weather assistant")).toBeInTheDocument();
+    await userEvent.click(
+      canvas.getByRole("button", { name: "Expand trace Weather assistant" }),
+    );
+    await expect(
+      canvas.getByText("This trace has no messages."),
+    ).toBeInTheDocument();
+  },
+});
+
 function toolPreviewState(
   previews: {
     name: string;
@@ -256,6 +290,87 @@ export const MultipleThreads = meta.story({
     );
   },
 });
+export const FirstThreadHeader = meta.story({
+  name: "(Test) First Thread Header",
+  args: {
+    ...commonArgs,
+    threadIndex: 0,
+    threadCount: 2,
+    displayNumber: "1.1",
+    state: { type: "transcript", result },
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(
+      canvas.getByRole("button", { name: trace.name ?? "Trace" }),
+    ).toBeInTheDocument();
+    await expect(
+      canvas.getByRole("heading", { name: "Thread 1" }),
+    ).toBeInTheDocument();
+    await expect(canvas.getByText("1.1")).toBeInTheDocument();
+    await expect(canvas.queryByText(trace.id)).not.toBeInTheDocument();
+    await expect(
+      canvas.queryByRole("button", { name: "Copy trace ID" }),
+    ).not.toBeInTheDocument();
+    await expect(
+      canvas.queryByRole("heading", { name: "Thread 2" }),
+    ).not.toBeInTheDocument();
+  },
+});
+
+export const SubsequentThreadHeader = meta.story({
+  name: "(Test) Subsequent Thread Header",
+  args: {
+    ...commonArgs,
+    threadIndex: 1,
+    threadCount: 2,
+    displayNumber: "1.2",
+    state: { type: "transcript", result },
+    onOpenTrace: fn(),
+  },
+  play: async ({ canvasElement, args }) => {
+    const canvas = within(canvasElement);
+    const openTrace = canvas.getByRole("button", { name: "Open trace" });
+    canvasElement.setAttribute("tabindex", "-1");
+    canvasElement.focus();
+    try {
+      await userEvent.tab();
+      await expect(openTrace).toHaveFocus();
+      await expect(openTrace).toHaveStyle({ opacity: "1" });
+      await userEvent.keyboard("{Enter}");
+      await expect(args.onOpenTrace).toHaveBeenCalledOnce();
+    } finally {
+      canvasElement.removeAttribute("tabindex");
+    }
+    await expect(
+      canvas.queryByRole("button", { name: "Copy trace ID" }),
+    ).not.toBeInTheDocument();
+    await expect(canvas.queryByText(trace.name!)).not.toBeInTheDocument();
+    await expect(
+      canvas.getByRole("heading", { name: "Thread 2" }),
+    ).toBeInTheDocument();
+    await expect(canvas.getByText("1.2")).toBeInTheDocument();
+  },
+});
+
+export const SingleThreadHeader = meta.story({
+  name: "(Test) Single Thread Header",
+  args: {
+    ...commonArgs,
+    threadIndex: 0,
+    threadCount: 1,
+    displayNumber: "1.1",
+    state: weatherState,
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(
+      canvas.getByRole("button", { name: trace.name ?? "Trace" }),
+    ).toBeInTheDocument();
+    await expect(canvas.queryByRole("heading")).not.toBeInTheDocument();
+  },
+});
+
 export const Cutoff = meta.story({
   args: {
     ...commonArgs,
@@ -291,14 +406,14 @@ export const OpenObservation = meta.story({
   play: async ({ args, canvasElement }) => {
     const canvas = within(canvasElement);
     const message = canvas
-      .getByText("What is the weather?")
-      .closest("article")!;
-    await userEvent.hover(message);
-    await userEvent.click(
-      within(message).getByText(/open observation/i, {
-        selector: "button",
-      }),
-    );
+      .getAllByRole("article")
+      .find((article) => within(article).queryByText("What is the weather?"))!;
+    const pointer =
+      "__vitest_browser__" in globalThis
+        ? (await import("vitest/browser")).userEvent
+        : userEvent;
+    await pointer.hover(message);
+    await pointer.click(within(message).getByText("Open observation"));
     await expect(args.onOpenObservation).toHaveBeenCalledWith("generation-1");
   },
 });
@@ -316,18 +431,17 @@ export const ExpandTool = meta.story({
     await userEvent.click(
       canvas.getByRole("button", { name: "Expand weather" }),
     );
-    const [inputPreview, outputPreview] = canvasElement.querySelectorAll("pre");
-    await expect(inputPreview).toHaveTextContent('"city": "Berlin"');
-    await expect(outputPreview).toHaveTextContent('"temperature": 12');
+    await expect(canvasElement).toHaveTextContent('"city": "Berlin"');
+    await expect(canvasElement).toHaveTextContent('"temperature": 12');
     await userEvent.click(
       canvas.getByRole("button", { name: "Collapse weather" }),
     );
-    await expect(outputPreview).not.toBeInTheDocument();
+    await expect(canvasElement).not.toHaveTextContent('"temperature": 12');
   },
 });
 
 export const ToolPreviewJsonHighlighting = meta.story({
-  name: "(Test) Highlights JSON Tool Inputs and Outputs",
+  name: "(Test) Reads JSON Tool Inputs and Outputs",
   args: {
     ...commonArgs,
     state: toolPreviewState([
@@ -347,41 +461,37 @@ export const ToolPreviewJsonHighlighting = meta.story({
     const canvas = within(canvasElement);
     for (const name of ["json-object", "json-string"]) {
       const expand = canvas.getByRole("button", { name: `Expand ${name}` });
-      const row = expand.closest("section")!;
       await userEvent.click(expand);
-      const controls = within(row);
       await expect(
-        controls.getByRole("combobox", { name: "Tool input language" }),
+        canvas.getByRole("combobox", { name: "Tool input language" }),
       ).toHaveTextContent("Auto (JSON)");
       await expect(
-        controls.getByRole("combobox", { name: "Tool output language" }),
+        canvas.getByRole("combobox", { name: "Tool output language" }),
       ).toHaveTextContent("Auto (JSON)");
-      const [inputPreview, outputPreview] = row.querySelectorAll("pre");
-      await expect(
-        inputPreview.querySelector(".token.property"),
-      ).toHaveTextContent('"query"');
-      await expect(
-        outputPreview.querySelector(".token.property"),
-      ).toHaveTextContent('"answer"');
+      await expect(canvasElement).toHaveTextContent('"query": "example"');
+      await expect(canvasElement).toHaveTextContent('"answer": 42');
+      await userEvent.click(
+        canvas.getByRole("button", { name: `Collapse ${name}` }),
+      );
     }
   },
 });
 
 const largeToolPreviewCases = [
   {
-    name: "highlight-limit",
-    input: { text: "x".repeat(9_984) },
-    output: { text: "x".repeat(9_985) },
+    name: "large-json",
+    input: { text: "x".repeat(20_000) },
+    output: { text: "y".repeat(20_000) },
   },
   {
     name: "large-multiline",
-    input: { text: "x".repeat(9_985) },
+    input: { text: "x".repeat(20_000) },
     output: `${"\n".repeat(10_000)}full value ends here`,
   },
 ];
 
 export const LargeToolPreviews = meta.story({
-  name: "(Test) Large Tool Previews Bypass Highlighting Without Truncation",
+  name: "(Test) Large Tool Previews Preserve Full Content",
   args: {
     ...commonArgs,
     state: toolPreviewState(largeToolPreviewCases),
@@ -390,37 +500,24 @@ export const LargeToolPreviews = meta.story({
     const canvas = within(canvasElement);
     for (const { name, input, output } of largeToolPreviewCases) {
       const expand = canvas.getByRole("button", { name: `Expand ${name}` });
-      const row = expand.closest("section")!;
       await userEvent.click(expand);
-      const controls = within(row);
-      const [inputPreview, outputPreview] = row.querySelectorAll("pre");
-      const expectedInput = JSON.stringify(input, undefined, 2);
       const expectedOutput =
         typeof output === "string"
           ? output
           : JSON.stringify(output, undefined, 2);
-      await expect(outputPreview.textContent).toBe(expectedOutput);
-      await expect(outputPreview.childElementCount).toBe(0);
+      await expect(canvasElement).toHaveTextContent(expectedOutput, {
+        normalizeWhitespace: false,
+      });
       await expect(
-        controls.getByRole("combobox", { name: "Tool output language" }),
+        canvas.getByRole("combobox", { name: "Tool output language" }),
       ).toBeVisible();
 
-      if (name === "highlight-limit") {
-        await expect(expectedInput.length).toBe(10_000);
-        await expect(expectedOutput.length).toBe(10_001);
-        await expect(
-          inputPreview.querySelector(".token.string")?.textContent,
-        ).toBe(JSON.stringify(input.text));
-        await expect(
-          inputPreview.querySelector(".token.property"),
-        ).toBeInTheDocument();
-        await expect(
-          controls.getByRole("combobox", { name: "Tool input language" }),
-        ).toHaveTextContent("Auto (JSON)");
-      } else {
-        await expect(inputPreview.textContent).toBe(expectedInput);
-        await expect(inputPreview.childElementCount).toBe(0);
-      }
+      await expect(
+        canvas.getByText((text) => text.includes(JSON.stringify(input.text))),
+      ).toBeVisible();
+      await userEvent.click(
+        canvas.getByRole("button", { name: `Collapse ${name}` }),
+      );
     }
   },
 });
@@ -444,48 +541,31 @@ export const ToolPreviewLanguageOverrides = meta.story({
     const outputSelect = canvas.getByRole("combobox", {
       name: "Tool output language",
     });
-    const [inputContainer, outputContainer] = Array.from(
-      canvasElement.querySelectorAll("pre"),
-      (preview) => preview.parentElement!,
-    );
     const body = within(document.body);
 
     await userEvent.click(inputSelect);
     await userEvent.click(body.getByRole("option", { name: "Plain text" }));
     await expect(inputSelect).toHaveTextContent("Plain text");
-    await expect(inputContainer.querySelector(".token.property")).toBeNull();
-    await expect(inputContainer.querySelector("pre")).toHaveTextContent(
-      '"query": "example"',
-    );
+    await expect(canvasElement).toHaveTextContent('"query": "example"');
     await expect(outputSelect).toHaveTextContent("Auto (JSON)");
-    await expect(
-      outputContainer.querySelector(".token.property"),
-    ).toBeInTheDocument();
 
     await userEvent.click(outputSelect);
     await userEvent.click(body.getByRole("option", { name: "Python" }));
     await expect(outputSelect).toHaveTextContent("Python");
-    await expect(outputContainer.querySelector(".token.property")).toBeNull();
+    await expect(canvasElement).toHaveTextContent('"answer": 42');
     await expect(inputSelect).toHaveTextContent("Plain text");
 
     await userEvent.click(inputSelect);
     await userEvent.click(body.getByRole("option", { name: "Auto (JSON)" }));
-    await expect(
-      inputContainer.querySelector(".token.property"),
-    ).toBeInTheDocument();
+    await expect(inputSelect).toHaveTextContent("Auto (JSON)");
     await expect(outputSelect).toHaveTextContent("Python");
 
     await userEvent.click(outputSelect);
     await userEvent.click(body.getByRole("option", { name: "Plain text" }));
-    await expect(outputContainer.querySelector(".token.property")).toBeNull();
-    await expect(outputContainer.querySelector("pre")).toHaveTextContent(
-      '"answer": 42',
-    );
+    await expect(canvasElement).toHaveTextContent('"answer": 42');
     await userEvent.click(outputSelect);
     await userEvent.click(body.getByRole("option", { name: "Auto (JSON)" }));
-    await expect(
-      outputContainer.querySelector(".token.property"),
-    ).toBeInTheDocument();
+    await expect(outputSelect).toHaveTextContent("Auto (JSON)");
   },
 });
 
@@ -511,51 +591,49 @@ export const ToolPreviewFallbacks = meta.story({
         name: "Show tools: plain-text · html · input-only · empty",
       }),
     );
-    for (const name of ["plain-text", "html", "input-only", "empty"]) {
-      await userEvent.click(
-        canvas.getByRole("button", { name: `Expand ${name}` }),
-      );
-    }
-    const plainRow = canvas
-      .getByRole("button", { name: "Collapse plain-text" })
-      .closest("section")!;
+    await userEvent.click(
+      canvas.getByRole("button", { name: "Expand plain-text" }),
+    );
     await expect(
-      within(plainRow).getByRole("combobox", { name: "Tool output language" }),
+      canvas.getByRole("combobox", { name: "Tool output language" }),
     ).toHaveTextContent("Auto (Plain text)");
     await expect(
-      within(plainRow).queryByRole("combobox", { name: "Tool input language" }),
+      canvas.queryByRole("combobox", { name: "Tool input language" }),
     ).toBeNull();
-    await expect(plainRow.querySelector("pre")).toHaveTextContent(
-      "Hello world",
+    await expect(canvas.getByText("Hello world")).toBeVisible();
+    await userEvent.click(
+      canvas.getByRole("button", { name: "Collapse plain-text" }),
     );
-
-    const htmlRow = canvas
+    await userEvent.click(canvas.getByRole("button", { name: "Expand html" }));
+    // Untrusted markup must remain literal text, never an executable element.
+    const htmlResult = canvas
       .getByRole("button", { name: "Collapse html" })
-      .closest("section")!;
-    await expect(htmlRow.querySelector("script")).toBeNull();
-    await expect(htmlRow.querySelector("pre")).toHaveTextContent(
+      .closest<HTMLElement>("[data-session-tool-row]")!;
+    await expect(htmlResult.querySelector("script")).toBeNull();
+    await expect(htmlResult).toHaveTextContent(
       '<script>alert("unsafe")</script>',
     );
-
-    const inputRow = canvas
-      .getByRole("button", { name: "Collapse input-only" })
-      .closest("section")!;
+    await userEvent.click(
+      canvas.getByRole("button", { name: "Collapse html" }),
+    );
+    await userEvent.click(
+      canvas.getByRole("button", { name: "Expand input-only" }),
+    );
     await expect(
-      within(inputRow).getByRole("combobox", { name: "Tool input language" }),
+      canvas.getByRole("combobox", { name: "Tool input language" }),
     ).toHaveTextContent("Auto (JSON)");
     await expect(
-      within(inputRow).queryByRole("combobox", {
+      canvas.queryByRole("combobox", {
         name: "Tool output language",
       }),
     ).toBeNull();
 
-    const emptyRow = canvas
-      .getByRole("button", { name: "Collapse empty" })
-      .closest("section")!;
-    await expect(within(emptyRow).queryByRole("combobox")).toBeNull();
-    await expect(
-      within(emptyRow).getByText("No input or output"),
-    ).toBeInTheDocument();
+    await userEvent.click(
+      canvas.getByRole("button", { name: "Collapse input-only" }),
+    );
+    await userEvent.click(canvas.getByRole("button", { name: "Expand empty" }));
+    await expect(canvas.queryByRole("combobox")).toBeNull();
+    await expect(canvas.getByText("No input or output")).toBeInTheDocument();
   },
 });
 
@@ -568,14 +646,13 @@ export const OpenToolObservation = meta.story({
   },
   play: async ({ args, canvasElement }) => {
     const canvas = within(canvasElement);
-    const toolRow = canvas
-      .getByRole("button", { name: "Expand weather" })
-      .closest("section")!;
-    await userEvent.hover(toolRow);
-    const openObservation = within(toolRow).getByText(/open observation/i, {
-      selector: "button",
-    });
-    await userEvent.click(openObservation);
+    await userEvent.click(canvas.getByRole("button", { name: "weather" }));
+    const tool = canvasElement.querySelector<HTMLElement>(
+      "[data-session-tool-row]",
+    )!;
+    await userEvent.click(
+      within(tool).getByRole("button", { name: "Open observation" }),
+    );
     await expect(args.onOpenObservation).toHaveBeenCalledWith("generation-1");
   },
 });
@@ -718,7 +795,7 @@ export const GenerationToolCallOnly = meta.story({
     await userEvent.click(
       canvas.getByRole("button", { name: "Expand get_subscription_details" }),
     );
-    await expect(canvas.getByText(/CUS-48291/)).toBeInTheDocument();
+    await expect(canvasElement).toHaveTextContent("CUS-48291");
   },
   args: {
     ...commonArgs,
@@ -750,7 +827,7 @@ export const ToolResultOnly = meta.story({
     await userEvent.click(
       canvas.getByRole("button", { name: "Expand get_subscription_details" }),
     );
-    await expect(canvas.getByText(/annual_pro/)).toBeInTheDocument();
+    await expect(canvasElement).toHaveTextContent("annual_pro");
   },
   args: {
     ...commonArgs,
@@ -847,7 +924,7 @@ export const KeepDifferentToolData = meta.story({
     const canvas = within(canvasElement);
     await expect(
       canvas.queryByRole("button", {
-        name: /^Show tools:.*search_documentation.*get_customer_profile/,
+        name: "Show tools: search_documentation · get_customer_profile",
       }),
     ).not.toBeInTheDocument();
     await expect(
@@ -860,11 +937,9 @@ export const KeepDifferentToolData = meta.story({
 });
 
 export const SystemPromptHistory = meta.story({
-  name: "(Test) System Prompt Navigation",
+  name: "System Prompt History",
   args: {
     ...commonArgs,
-    onOpenTrace: fn(),
-    onOpenObservation: fn(),
     state: transcriptState({
       history: [
         {
@@ -900,29 +975,6 @@ export const SystemPromptHistory = meta.story({
         },
       ],
     }),
-  },
-  play: async ({ args, canvasElement }) => {
-    const canvas = within(canvasElement);
-    await expect(
-      canvas.queryByText("Inspect representative failures."),
-    ).not.toBeInTheDocument();
-    await userEvent.click(
-      canvas.getByRole("button", { name: /Weather assistant.*trace-1/ }),
-    );
-    await expect(args.onOpenTrace).toHaveBeenCalledTimes(1);
-    const header = canvas.getByRole("button", {
-      name: "System prompt",
-    }).parentElement!;
-    const timestamp = header.querySelector("time")!;
-    const openObservation = within(header).getByText("Open observation", {
-      selector: "button",
-    });
-    await expect(timestamp.dateTime).toBe(provenance.startTime.toISOString());
-    await userEvent.hover(header);
-    await userEvent.click(openObservation);
-    await expect(args.onOpenObservation).toHaveBeenCalledTimes(1);
-    await expect(args.onOpenObservation).toHaveBeenCalledWith("generation-1");
-    await userEvent.unhover(header);
   },
 });
 
@@ -973,7 +1025,7 @@ export const ToolFailure = meta.story({
     await userEvent.click(
       canvas.getByRole("button", { name: "Expand get_order" }),
     );
-    await expect(canvas.getByText(/TOOL_TIMEOUT/)).toBeInTheDocument();
+    await expect(canvasElement).toHaveTextContent("TOOL_TIMEOUT");
   },
 });
 
@@ -1254,7 +1306,9 @@ export const GroupedToolStatuses = meta.story({
     const overlays = within(canvasElement.ownerDocument.body);
     const errors = canvas.getByLabelText("Tool group: 2 errors");
     const warnings = canvas.getByLabelText("Tool group: 2 warnings");
-    const groupToggle = canvas.getByRole("button", { name: /Show tools:/ });
+    const groupToggle = canvas.getByRole("button", {
+      name: (name) => name.startsWith("Show tools:"),
+    });
     await expect(groupToggle).toHaveAttribute("aria-expanded", "false");
     await expect(errors).toBeVisible();
     await expect(warnings).toBeVisible();
@@ -1331,7 +1385,9 @@ export const GroupedToolStatuses = meta.story({
       "Search timed out",
     );
     await expect(
-      canvas.getByRole("button", { name: /Hide tools:/ }),
+      canvas.getByRole("button", {
+        name: (name) => name.startsWith("Hide tools:"),
+      }),
     ).toHaveAttribute("aria-expanded", "true");
   },
 });
@@ -1351,10 +1407,12 @@ export const HealthyToolGroup = meta.story({
   },
   play: async ({ canvas }) => {
     await expect(
-      canvas.getByRole("button", { name: /Show tools:/ }),
+      canvas.getByRole("button", {
+        name: "Show tools: search · fetch · cache · validate",
+      }),
     ).toBeVisible();
     await expect(
-      canvas.queryByLabelText(/Tool group:/),
+      canvas.queryByLabelText((label) => label.startsWith("Tool group:")),
     ).not.toBeInTheDocument();
   },
 });

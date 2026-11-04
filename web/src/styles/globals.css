@@ -68,6 +68,11 @@
   --color-preview-banner-border: hsl(var(--preview-banner-border));
   --color-preview-banner-link: hsl(var(--preview-banner-link));
   --color-preview-banner-link-hover: hsl(var(--preview-banner-link-hover));
+  --color-customer-data-banner: hsl(var(--customer-data-banner));
+  --color-customer-data-banner-foreground: hsl(
+    var(--customer-data-banner-foreground)
+  );
+  --color-customer-data-banner-border: hsl(var(--customer-data-banner-border));
   --color-control-fill: hsl(var(--control-fill));
   --color-control-track: hsl(var(--control-track));
   --color-control-border: hsl(var(--control-border));
@@ -77,7 +82,7 @@
   --color-surface-code: hsl(var(--surface-code));
   --color-surface-code-header: hsl(var(--surface-code-header));
   --color-surface-sunken: hsl(var(--surface-sunken));
-  --color-surface-output: hsl(var(--surface-output));
+  --color-surface-section: hsl(var(--surface-section));
   /* Sticky table chrome; hosts on another surface set --surface-context. */
   --color-surface: var(--surface-context, hsl(var(--background)));
   --color-muted-magenta: hsl(var(--muted-magenta));
@@ -148,6 +153,12 @@
   --color-category-orange: #c2410c;
   --color-category-lime: #65a30d;
   --color-category-fuchsia: #a21caf;
+  /* Category fills at one OKLCH lightness and chroma per state. */
+  --color-category-violet-highlight: var(--category-violet-highlight);
+  --color-category-blue-highlight: var(--category-blue-highlight);
+  --color-category-amber-highlight: var(--category-amber-highlight);
+  --color-category-neutral-tint: var(--category-neutral-tint);
+  --color-category-neutral-highlight: var(--category-neutral-highlight);
 
   /* Search-bar query syntax highlighting (key:value token parts). Operators
      (`:` `-` `(` `)`) reuse muted-foreground, so no token for them here. */
@@ -335,6 +346,11 @@
 
 @layer base {
   :root {
+    --category-violet-highlight: oklch(0.82 0.11 293);
+    --category-blue-highlight: oklch(0.82 0.11 252);
+    --category-amber-highlight: oklch(0.82 0.11 70);
+    --category-neutral-tint: oklch(0.92 0 0);
+    --category-neutral-highlight: oklch(0.82 0 0);
     --background: 0 0% 100%;
     --foreground: 240 3.7% 15.9%; /* zinc-800 */
 
@@ -353,7 +369,7 @@
     --surface-code: 0 0% 92%;
     --surface-code-header: 0 0% 86%;
     --surface-sunken: 0 0% 99%; /* between white and zinc-50 */
-    --surface-output: 240 4.8% 95.9%; /* zinc-100 */
+    --surface-section: 240 4.8% 96.5%; /* a hair lighter than zinc-100 */
 
     --popover: 0 0% 100%;
     --popover-foreground: var(--foreground);
@@ -409,6 +425,11 @@
     --preview-banner-border: 213 97% 87%;
     --preview-banner-link: 224 76% 48%;
     --preview-banner-link-hover: 226 71% 40%;
+    /* Staff customer-data strip (Cloud only): amber-100 / amber-950 / amber-200,
+       so it cannot be read as the blue preview-deployment strip. */
+    --customer-data-banner: 48 96% 89%;
+    --customer-data-banner-foreground: 21 92% 14%;
+    --customer-data-banner-border: 48 97% 77%;
     /* Checked selection controls (checkbox/switch): monochrome in BOTH
        modes — dark fill + light glyph in light, muted-white fill + dark
        glyph in dark. Deliberately dimmer than --primary in dark so checked
@@ -561,6 +582,11 @@
   }
 
   .dark {
+    --category-violet-highlight: oklch(0.45 0.11 293);
+    --category-blue-highlight: oklch(0.45 0.11 252);
+    --category-amber-highlight: oklch(0.45 0.11 70);
+    --category-neutral-tint: oklch(0.3 0 0);
+    --category-neutral-highlight: oklch(0.45 0 0);
     /* Surface ladder — "layers become one step lighter with each added
        layer" (Carbon's dark-theme layering model; Hex and Cloudflare Kumo
        follow the same structure). The GLOBAL FRAME (header/sidebar chrome)
@@ -591,7 +617,7 @@
     --surface-code: 0 0% 2.3%;
     --surface-code-header: 0 0% 8.2%;
     --surface-sunken: 0 0% 8%; /* one step below the modal */
-    --surface-output: var(--popover);
+    --surface-section: 0 0% 11%; /* a hair quieter than the popover */
 
     --popover: 0 0% 12%;
     --popover-foreground: var(--foreground);
@@ -643,6 +669,11 @@
     --preview-banner-border: 215 37% 31%;
     --preview-banner-link: 213 94% 68%;
     --preview-banner-link-hover: 212 96% 78%;
+    /* Staff customer-data strip: amber fill over the dark canvas, warm light
+       text, a step-lighter border. Distinct from the blue preview strip. */
+    --customer-data-banner: 32 40% 16%;
+    --customer-data-banner-foreground: 48 96% 89%;
+    --customer-data-banner-border: 36 35% 28%;
     --control-fill: 0 0% 78%;
     --control-track: 0 0% 24%;
     /* Matches --border-contrast: unchecked checkboxes/radios read by their
@@ -984,6 +1015,37 @@
     black calc(100% - var(--spacing) * 3),
     transparent
   );
+}
+
+/* Fades a scrollport's bottom edge while more content is below, and clears
+   it as the end is reached. Browsers without scroll-driven animations show
+   no fade. */
+@property --scroll-fade-b {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 0px;
+}
+
+@keyframes scroll-fade-b {
+  from {
+    --scroll-fade-b: calc(var(--spacing) * 8);
+  }
+  to {
+    --scroll-fade-b: 0px;
+  }
+}
+
+@utility scroll-fade-b {
+  @supports (animation-timeline: scroll()) {
+    mask-image: linear-gradient(
+      to bottom,
+      black calc(100% - var(--scroll-fade-b)),
+      transparent
+    );
+    animation: scroll-fade-b linear both;
+    animation-timeline: scroll(self);
+    animation-range: calc(100% - var(--spacing) * 8) 100%;
+  }
 }
 
 @utility scrollbar-visible {

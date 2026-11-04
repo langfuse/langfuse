@@ -1,20 +1,19 @@
 import * as React from "react";
 import { cva, type VariantProps } from "class-variance-authority";
-import { type LucideIcon } from "lucide-react";
+import { type IconComponent } from "@langfuse/icons";
 
 type AlertContent = Exclude<React.ReactNode, null | undefined | boolean>;
 
 const alertVariants = cva(
-  "relative w-full border [&>[data-slot=alert-icon]]:text-foreground [&>[data-slot=alert-title]]:mb-1",
+  "relative w-full border [&>[data-slot=alert-title]]:mb-1",
   {
     variants: {
       variant: {
         default: "bg-background text-foreground",
         destructive:
-          "border-destructive/50 text-destructive dark:border-destructive [&>[data-slot=alert-icon]]:text-destructive",
+          "border-destructive/50 text-destructive dark:border-destructive",
         info: "bg-light-blue border-dark-blue",
-        warning:
-          "border-dark-yellow bg-light-yellow text-dark-yellow [&>[data-slot=alert-icon]]:text-dark-yellow",
+        warning: "border-dark-yellow bg-light-yellow text-dark-yellow",
       },
       size: {
         default:
@@ -40,7 +39,7 @@ type AlertProps = Pick<
   "actionPosition" | "size" | "variant"
 > & {
   children: AlertContent;
-  icon?: LucideIcon;
+  icon?: IconComponent;
 };
 type AlertTitleProps = {
   children: React.ReactNode;
@@ -66,7 +65,13 @@ function AlertRoot({
       {Icon ? (
         <Icon
           data-slot="alert-icon"
-          className="icon-base absolute"
+          size="base"
+          color={
+            variant === "destructive" || variant === "warning"
+              ? "inherit"
+              : "foreground"
+          }
+          __rawClassName="absolute"
           aria-hidden="true"
         />
       ) : null}

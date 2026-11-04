@@ -1,22 +1,24 @@
+/* eslint-disable @repo/component-file-structure */
 import { type AnnotationPanelData } from "@/src/features/scores/types";
 import { type CommentTarget } from "@/src/features/comments/state/commentOverlayStore";
 import { getCommentDrawerInitialStateFromUrl } from "@/src/features/comments/CommentDrawerController";
-import { useHasProjectAccess } from "@/src/features/rbac";
-import { useTraceData } from "../contexts/TraceDataContext";
-import { useSelection } from "../contexts/SelectionContext";
-import { useReadPath } from "@/src/features/events";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { useTraceData } from "../contexts/TraceDataProvider";
+import { useSelection } from "../contexts/SelectionProvider";
+import { useReadPath } from "@/src/features/events/hooks/useReadPath";
 import { prepareTraceAnnotation } from "@/src/features/scores/lib/prepareTraceAnnotation";
 import { useStore } from "zustand";
 import { useEffect, useRef, type ReactNode } from "react";
 import { useRouter, type NextRouter } from "next/router";
-import { X } from "lucide-react";
+import { X } from "@langfuse/icons";
 import { Button } from "@/src/components/ui/button";
 import { CommentList } from "@/src/features/comments/CommentList";
 import { AnnotationPanelContent } from "@/src/features/scores/components/AnnotationPanelContent";
 import { hasBlockingOverlay } from "@/src/features/scores/lib/keyboardShortcuts";
-import { useTraceReviewPanel } from "../contexts/TraceReviewPanelContext";
+import { useTraceReviewPanel } from "../contexts/TraceReviewPanelProvider";
 import { type TraceReviewPanelStore } from "../state/traceReviewPanelStore";
 import { traceNodeId } from "../fns/treeBuilding";
+import { getSelectedObservation } from "../fns/getSelectedObservation";
 
 function closeReviewPanel(store: TraceReviewPanelStore, router: NextRouter) {
   store.getState().actions.close();
@@ -39,7 +41,7 @@ function CloseReviewPanelButton() {
       aria-label="Close side panel"
       onClick={() => closeReviewPanel(store, router)}
     >
-      <X className="icon-sm text-icon-foreground" />
+      <X size="sm" color="default" />
     </Button>
   );
 }
@@ -47,9 +49,16 @@ function CloseReviewPanelButton() {
 function TraceCommentsPanel({ projectId }: { projectId: string }) {
   const store = useTraceReviewPanel();
   const router = useRouter();
-  const { trace, observations } = useTraceData();
+  const { trace: anchorTrace, observations, sessionTraces } = useTraceData();
   const { selectedNodeId } = useSelection();
-  const observation = observations.find((item) => item.id === selectedNodeId);
+  const trace =
+    sessionTraces?.find((entry) => traceNodeId(entry.id) === selectedNodeId) ??
+    anchorTrace;
+  const observation = getSelectedObservation(
+    observations,
+    selectedNodeId,
+    trace.id,
+  );
   const session = useStore(store, (state) => state.comments);
   const active =
     router.query.comments === "open" && router.query.annotation !== "open";
@@ -125,10 +134,22 @@ function CommentsPanel({
 }
 
 function TraceAnnotationPanel() {
-  const { trace, observations, serverScores } = useTraceData();
+  const {
+    trace: anchorTrace,
+    observations,
+    serverScores,
+    sessionTraces,
+  } = useTraceData();
   const { selectedNodeId } = useSelection();
+  const trace =
+    sessionTraces?.find((entry) => traceNodeId(entry.id) === selectedNodeId) ??
+    anchorTrace;
   const { isV4 } = useReadPath();
-  const observation = observations.find((item) => item.id === selectedNodeId);
+  const observation = getSelectedObservation(
+    observations,
+    selectedNodeId,
+    trace.id,
+  );
   const active = useRouter().query.annotation === "open";
   if (
     selectedNodeId &&
@@ -143,11 +164,13 @@ function TraceAnnotationPanel() {
     );
   }
   const data = prepareTraceAnnotation({
-    traceId: trace.id,
+    traceId: observation?.traceId ?? trace.id,
     projectId: trace.projectId,
     environment: observation?.environment ?? trace.environment,
     observationId: observation?.id,
-    scores: serverScores,
+    scores: serverScores.filter(
+      (score) => score.traceId === (observation?.traceId ?? trace.id),
+    ),
     isV4,
   });
   return (
@@ -158,8 +181,12 @@ function TraceAnnotationPanel() {
         companionTrace:
           observation && isV4
             ? {
-                environment: trace.environment,
-                scores: serverScores.filter((score) => !score.observationId),
+                environment: observation.environment,
+                scores: serverScores.filter(
+                  (score) =>
+                    !score.observationId &&
+                    score.traceId === observation.traceId,
+                ),
               }
             : undefined,
       }}

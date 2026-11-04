@@ -19,7 +19,7 @@ import {
   seriesColor,
   seriesFillColor,
   SeriesOverflowNote,
-} from "@/src/features/widgets/chart-library/TimeSeriesLegend";
+} from "@/src/features/widgets/chart-library/SeriesOverflowNote";
 import { getPlainTextFromReactNode } from "@/src/utils/react-node-plain-text";
 
 export function AreaChartTimeSeries({

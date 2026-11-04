@@ -1,8 +1,8 @@
-import ContainerPage from "@/src/components/layouts/container-page";
+import ContainerPage from "@/src/components/layouts/ContainerPage";
 import { StatusBadge } from "@/src/components/ui/StatusBadge/StatusBadge";
 import { useWebCallouts } from "@/src/features/web-callouts/useWebCallouts";
 import { WebCalloutSettingsPage } from "@/src/features/web-callouts/components/WebCalloutSettingsPage";
-import { RouteParamsPendingFallback } from "@/src/hooks/useReadyRouteParams";
+import { RouteParamsPendingFallback } from "@/src/components/RouteParamsPendingFallback/RouteParamsPendingFallback";
 import { useRouter } from "next/router";
 
 export default function WebCalloutsPage() {

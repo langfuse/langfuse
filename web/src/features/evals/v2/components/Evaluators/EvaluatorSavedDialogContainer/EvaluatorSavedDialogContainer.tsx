@@ -20,7 +20,7 @@ import { CreateRuleDialog } from "@/src/features/evals/v2/components/Rules/Creat
 import { EvaluationRulePicker } from "@/src/features/evals/v2/components/Rules/EvaluationRulePicker/EvaluationRulePicker";
 import { RuleFilterPills } from "@/src/features/evals/v2/components/Rules/RuleFilterPills/RuleFilterPills";
 import { useActivationConfirmation } from "@/src/features/evals/v2/hooks/useActivationConfirmation";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { api, type RouterOutputs } from "@/src/utils/api";
 import { trpcErrorToast } from "@/src/utils/trpcErrorToast";
 import { cn } from "@/src/utils/tailwind";
@@ -537,6 +537,7 @@ export function EvaluatorSavedDialogContainer({
       maxItems={backfill.effectiveMaxItems}
       maxAllowedItems={backfill.allowedItems}
       matchingObservations={backfill.matchingObservations}
+      sampling={currentBackfillScope?.sampling ?? 1}
       isEstimating={backfill.isEstimating}
       onEnabledChange={(enabled) => {
         onboardingAnalytics?.track("eval:onboarding_historic_eval_toggled", {

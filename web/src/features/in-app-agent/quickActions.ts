@@ -23,8 +23,8 @@ import {
   SquarePercent,
   TrendingDown,
   WandSparkles,
-  type LucideIcon,
-} from "lucide-react";
+  type IconComponent,
+} from "@langfuse/icons";
 
 export const IN_APP_AGENT_QUICK_ACTION_CONTEXTS = [
   "observability",
@@ -51,12 +51,12 @@ export type InAppAgentQuickAction = {
   label: string;
   description: string;
   prompt: string;
-  icon: LucideIcon;
+  icon: IconComponent;
 };
 
 export const IN_APP_AGENT_QUICK_ACTION_CONTEXT_ICONS: Record<
   InAppAgentQuickActionContext,
-  LucideIcon
+  IconComponent
 > = {
   observability: ListTree,
   dashboards: LayoutDashboard,

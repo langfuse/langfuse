@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { Model, parseJsonPrioritised } from "@langfuse/shared";
 import { isChatModel, isTiktokenModel } from "./types";
 import { countTokens } from "@anthropic-ai/tokenizer";

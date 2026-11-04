@@ -1,5 +1,5 @@
 import React from "react";
-import { Combine, Route, type LucideIcon } from "lucide-react";
+import { Combine, Route, type IconComponent } from "@langfuse/icons";
 
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import { type GraphViewMode } from "../types";
@@ -9,7 +9,7 @@ import { type GraphViewMode } from "../types";
  */
 const MODES: {
   mode: GraphViewMode;
-  icon: LucideIcon;
+  icon: IconComponent;
   label: string;
   title: string;
 }[] = [
@@ -43,7 +43,7 @@ export function GraphViewModeSwitch({
         <Tabs.List variant="inset" size="md" aria-label="Graph mode">
           {MODES.map(({ mode, icon: Icon, label, title }) => (
             <Tabs.Trigger key={mode} value={mode} title={title}>
-              <Icon aria-hidden="true" className="icon-base shrink-0" />
+              <Icon aria-hidden="true" size="base" />
               {/* Icons only on narrow canvases so the switch never collides
                   with the zoom stack. */}
               <span className="@max-[340px]/graphcanvas:sr-only">{label}</span>
