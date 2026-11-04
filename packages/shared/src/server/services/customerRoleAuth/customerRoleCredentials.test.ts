@@ -30,6 +30,7 @@ describe("createSessionCache", () => {
     await expect(cache("key", "v1", failingRefresh)).resolves.toBe(expiring);
     await vi.waitFor(() => expect(failingRefresh).toHaveBeenCalledTimes(1));
     await expect(cache("key", "v1", failingRefresh)).resolves.toBe(expiring);
+    expect(failingRefresh).toHaveBeenCalledTimes(1);
   });
 
   it("backs off after a failure when no valid session exists", async () => {

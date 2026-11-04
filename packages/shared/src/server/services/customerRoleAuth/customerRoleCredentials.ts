@@ -51,8 +51,9 @@ type CacheEntry = {
  * Caches one session per key. Concurrent callers share the in-flight request,
  * and a new version (e.g. the integration's updatedAt) discards the old
  * session. While a refresh is pending or after it fails, callers keep the
- * still-valid session. Without one, a failure is returned to every caller for
- * FAILURE_BACKOFF_MS so a broken role does not cause an STS call per request.
+ * still-valid session. After a failure, no new refresh starts for
+ * FAILURE_BACKOFF_MS: callers keep the still-valid session or, without one, get
+ * the failure, so a broken role does not cause an STS call per request.
  */
 export function createSessionCache() {
   const entries = new Map<string, CacheEntry>();
@@ -111,7 +112,10 @@ export function createSessionCache() {
 
     if (valid && !needsRefresh(valid)) return valid;
     if (current?.inFlight) return valid ?? current.inFlight;
-    if (!valid && isBackingOff(current)) throw current?.failure?.error;
+    if (isBackingOff(current)) {
+      if (valid) return valid;
+      throw current?.failure?.error;
+    }
 
     const inFlight = startRefresh({ key, version, valid, assume });
     store(key, { version, credentials: valid, inFlight });
