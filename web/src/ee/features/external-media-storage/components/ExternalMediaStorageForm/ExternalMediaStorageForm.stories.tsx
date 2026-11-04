@@ -8,11 +8,13 @@ import { ExternalMediaStorageForm } from "./ExternalMediaStorageForm";
 
 const defaultValues: ExternalMediaStorageFormValues = {
   type: "S3",
+  authType: "ACCESS_KEYS",
   bucketName: "",
   endpoint: null,
   region: "us-east-1",
   accessKeyId: "",
   secretAccessKey: "",
+  roleArn: "",
   prefix: "",
   forcePathStyle: false,
 };
@@ -26,6 +28,8 @@ const meta = preview.meta({
     initialValues: defaultValues,
     onSubmit,
     secretAccessKeyDisplay: null,
+    accessRoleArn: null,
+    externalId: null,
   },
   render: (args) => (
     <div className="max-w-xl p-6">
@@ -67,6 +71,21 @@ export const SavedCredentials = meta.story({
       prefix: "langfuse-media/",
     },
     secretAccessKeyDisplay: "••••••••••••••••",
+  },
+});
+
+export const IamRole = meta.story({
+  args: {
+    initialValues: {
+      ...defaultValues,
+      authType: "ROLE_ARN",
+      bucketName: "production-media",
+      roleArn: "arn:aws:iam::123456789012:role/langfuse-media",
+      prefix: "langfuse-media/",
+    },
+    accessRoleArn:
+      "arn:aws:iam::210987654321:role/LangfuseCustomerStorageAccess",
+    externalId: "lf-0123456789abcdef0123456789abcdef",
   },
 });
 

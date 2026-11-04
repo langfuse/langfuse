@@ -1,5 +1,6 @@
 import { ForbiddenError, InvalidRequestError } from "@langfuse/shared";
 import {
+  getStorageAccessRoleArn,
   logger,
   OutboundUrlValidationError,
 } from "@langfuse/shared/src/server";
@@ -51,6 +52,8 @@ export const externalMediaStorageRouter = createTRPCRouter({
         config: await createExternalMediaStorageService(
           ctx.prisma,
         ).getConfiguration(ctx.session.projectId),
+        // Null when this deployment does not support IAM role auth.
+        accessRoleArn: getStorageAccessRoleArn(),
       };
     }),
 

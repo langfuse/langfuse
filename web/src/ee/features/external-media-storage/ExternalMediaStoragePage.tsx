@@ -25,11 +25,13 @@ const EXTERNAL_MEDIA_STORAGE_FORM_ID = "external-media-storage-form";
 
 const defaultValues: ExternalMediaStorageFormValues = {
   type: "S3",
+  authType: "ACCESS_KEYS",
   bucketName: "",
   endpoint: null,
   region: "us-east-1",
   accessKeyId: "",
   secretAccessKey: "",
+  roleArn: "",
   prefix: "",
   forcePathStyle: false,
 };
@@ -84,11 +86,13 @@ export default function ExternalMediaStoragePage() {
   const initialValues: ExternalMediaStorageFormValues = config
     ? {
         type: config.type,
+        authType: config.authType,
         bucketName: config.bucketName,
         endpoint: config.endpoint,
         region: config.region,
         accessKeyId: config.accessKeyId ?? "",
         secretAccessKey: "",
+        roleArn: config.roleArn ?? "",
         prefix: config.prefix ?? "",
         forcePathStyle: config.forcePathStyle,
       }
@@ -220,6 +224,8 @@ export default function ExternalMediaStoragePage() {
                 formId={EXTERNAL_MEDIA_STORAGE_FORM_ID}
                 initialValues={initialValues}
                 secretAccessKeyDisplay={config?.secretAccessKeyDisplay}
+                accessRoleArn={configuration.data.accessRoleArn}
+                externalId={config?.externalId ?? null}
                 onSubmit={(values) =>
                   updateMutation.mutate({ projectId, ...values })
                 }

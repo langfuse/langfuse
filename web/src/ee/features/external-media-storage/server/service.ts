@@ -6,14 +6,23 @@ import {
   isS3KeyWithinPrefix,
   normalizeBlobStorageRegion,
   parseS3Uri,
+  STORAGE_ROLE_ARN_INVALID_MESSAGE,
+  STORAGE_ROLE_ARN_REGEX,
+  StorageIntegrationAuthType,
 } from "@langfuse/shared";
 import { decrypt, encrypt } from "@langfuse/shared/encryption";
 import { type PrismaClient } from "@langfuse/shared/src/db";
 import {
   OutboundUrlValidationError,
+  STORAGE_SESSION_POLICY_MAX_LENGTH,
   StorageServiceFactory,
+  buildStorageReadSessionPolicy,
   externalMediaStorageEndpointConnectionValidationOptions,
+  generateStorageExternalId,
+  getStorageAccessRoleArn,
+  getStorageRoleCredentialsProvider,
   validateExternalMediaStorageEndpoint,
+  verifyStorageRoleRequiresExternalId,
 } from "@langfuse/shared/src/server";
 
 import { getDisplayCredential } from "@/src/features/analytics-integrations/server/displayCredential";
@@ -73,12 +82,44 @@ async function validateEndpoint(endpoint: string) {
   }
 }
 
+function assertRoleAuthAvailable() {
+  if (!getStorageAccessRoleArn()) {
+    throw new InvalidRequestError(
+      "IAM role auth is not available on this Langfuse deployment",
+    );
+  }
+}
+
+function getRoleCredentials(integration: ExternalMediaStorageRecord) {
+  assertRoleAuthAvailable();
+  if (!integration.roleArn || !integration.externalId) {
+    throw new InvalidRequestError("The IAM role is not configured");
+  }
+  return getStorageRoleCredentialsProvider({
+    cacheKey: `external-media-storage:${integration.projectId}`,
+    version: integration.updatedAt.toISOString(),
+    roleArn: integration.roleArn,
+    externalId: decrypt(integration.externalId),
+    projectId: integration.projectId,
+    orgId: integration.project.orgId,
+    sessionPolicy: buildStorageReadSessionPolicy({
+      roleArn: integration.roleArn,
+      bucketName: integration.bucketName,
+      prefix: integration.prefix,
+      region: integration.region,
+    }),
+  });
+}
+
 function createStorageService(integration: ExternalMediaStorageRecord) {
+  const usesRole = integration.authType === StorageIntegrationAuthType.ROLE_ARN;
   return StorageServiceFactory.getInstance({
-    accessKeyId: integration.accessKeyId ?? undefined,
-    secretAccessKey: integration.secretAccessKey
-      ? decrypt(integration.secretAccessKey)
-      : undefined,
+    accessKeyId: usesRole ? undefined : (integration.accessKeyId ?? undefined),
+    secretAccessKey:
+      !usesRole && integration.secretAccessKey
+        ? decrypt(integration.secretAccessKey)
+        : undefined,
+    credentials: usesRole ? getRoleCredentials(integration) : undefined,
     bucketName: integration.bucketName,
     endpoint: integration.endpoint ?? undefined,
     region: integration.region,
@@ -98,6 +139,53 @@ function createStorageService(integration: ExternalMediaStorageRecord) {
         region: integration.region,
       }),
   });
+}
+
+function getRoleAuthData({
+  values,
+  bucketName,
+  region,
+  existingExternalId,
+}: {
+  values: ExternalMediaStorageFormValues;
+  bucketName: string;
+  region: string;
+  existingExternalId: string | null | undefined;
+}) {
+  assertRoleAuthAvailable();
+  if (values.type !== BlobStorageIntegrationType.S3) {
+    throw new InvalidRequestError(
+      "IAM role auth is only available for Amazon S3",
+    );
+  }
+  if (region.toLowerCase() === "auto") {
+    throw new InvalidRequestError(
+      "IAM role auth requires the bucket's AWS region",
+    );
+  }
+  const roleArn = values.roleArn?.trim() ?? "";
+  if (!STORAGE_ROLE_ARN_REGEX.test(roleArn)) {
+    throw new InvalidRequestError(STORAGE_ROLE_ARN_INVALID_MESSAGE);
+  }
+  const prefix = values.prefix?.trim() || null;
+  const sessionPolicy = buildStorageReadSessionPolicy({
+    roleArn,
+    bucketName,
+    prefix,
+    region,
+  });
+  if (sessionPolicy.length > STORAGE_SESSION_POLICY_MAX_LENGTH) {
+    throw new InvalidRequestError("The media prefix is too long");
+  }
+
+  return {
+    authType: StorageIntegrationAuthType.ROLE_ARN,
+    roleArn,
+    // The external ID stays stable so the customer's trust policy keeps working.
+    externalId: existingExternalId ?? encrypt(generateStorageExternalId()),
+    accessKeyId: null,
+    secretAccessKey: null,
+  };
 }
 
 export function createExternalMediaStorageService(prisma: PrismaClient) {
@@ -123,9 +211,15 @@ export function createExternalMediaStorageService(prisma: PrismaClient) {
       const integration = await repository.findByProjectId(projectId);
       if (!integration) return null;
 
-      const { secretAccessKey, ...configuration } = integration;
+      const {
+        secretAccessKey,
+        externalId,
+        project: _project,
+        ...configuration
+      } = integration;
       return {
         ...configuration,
+        externalId: externalId ? decrypt(externalId) : null,
         secretAccessKeyDisplay: secretAccessKey
           ? getDisplayCredential(decrypt(secretAccessKey))
           : null,
@@ -167,6 +261,30 @@ export function createExternalMediaStorageService(prisma: PrismaClient) {
 
       const existing = await repository.findByProjectId(projectId);
       const bucketName = values.bucketName.trim();
+      const prefix = values.prefix?.trim() || null;
+
+      if (values.authType === StorageIntegrationAuthType.ROLE_ARN) {
+        await repository.upsert({
+          projectId,
+          data: {
+            type: values.type,
+            bucketName,
+            prefix,
+            region,
+            endpoint: null,
+            forcePathStyle: false,
+            ...getRoleAuthData({
+              values,
+              bucketName,
+              region,
+              existingExternalId: existing?.externalId,
+            }),
+          },
+        });
+        await auditConfigurationChange({ action: "update", actor, projectId });
+        return;
+      }
+
       const accessKeyId = values.accessKeyId?.trim() || null;
       const secretAccessKey = values.secretAccessKey?.trim() || null;
 
@@ -200,8 +318,9 @@ export function createExternalMediaStorageService(prisma: PrismaClient) {
         projectId,
         data: {
           type: values.type,
+          authType: StorageIntegrationAuthType.ACCESS_KEYS,
           bucketName,
-          prefix: values.prefix?.trim() || null,
+          prefix,
           accessKeyId,
           secretAccessKey: encryptedSecretAccessKey ?? null,
           region,
@@ -300,6 +419,16 @@ export function createExternalMediaStorageService(prisma: PrismaClient) {
 
       if (integration.endpoint) {
         await validateEndpoint(integration.endpoint);
+      }
+
+      if (integration.authType === StorageIntegrationAuthType.ROLE_ARN) {
+        assertRoleAuthAvailable();
+        if (integration.roleArn) {
+          await verifyStorageRoleRequiresExternalId({
+            roleArn: integration.roleArn,
+            projectId,
+          });
+        }
       }
 
       const storageService = createStorageService(integration);

@@ -7,6 +7,7 @@ import { decrypt, encrypt } from "@langfuse/shared/encryption";
 import { prisma } from "@langfuse/shared/src/db";
 import {
   createOrgProjectAndApiKey,
+  getStorageAccessRoleArn,
   StorageServiceFactory,
 } from "@langfuse/shared/src/server";
 
@@ -19,6 +20,7 @@ vi.mock("@langfuse/shared/src/server", async () => {
     StorageServiceFactory: {
       getInstance: vi.fn(),
     },
+    getStorageAccessRoleArn: vi.fn().mockReturnValue(null),
   };
 });
 
@@ -304,5 +306,66 @@ describe("external media storage service", () => {
     ).rejects.toThrow("External media is not available");
     expect(configuredProject.id).not.toBe(otherProject.id);
     expect(StorageServiceFactory.getInstance).not.toHaveBeenCalled();
+  });
+
+  it("switches to IAM role auth with a stable, encrypted external ID", async () => {
+    const project = await prepareIntegration({ prefix: "media/" });
+    const service = createExternalMediaStorageService(prisma);
+    const values = {
+      type: "S3" as const,
+      authType: "ROLE_ARN" as const,
+      bucketName: "media-bucket",
+      region: "eu-west-1",
+      roleArn: "arn:aws:iam::123456789012:role/langfuse-media",
+      prefix: "media/",
+      forcePathStyle: false,
+    };
+    const save = () =>
+      service.saveConfiguration({
+        actor: { apiKeyId: "test-api-key", orgId: project.orgId },
+        projectId: project.id,
+        values,
+      });
+
+    await expect(save()).rejects.toThrow(
+      "IAM role auth is not available on this Langfuse deployment",
+    );
+
+    (getStorageAccessRoleArn as Mock).mockReturnValue(
+      "arn:aws:iam::210987654321:role/LangfuseCustomerStorageAccess",
+    );
+    await save();
+    const stored =
+      await prisma.externalMediaStorageIntegration.findUniqueOrThrow({
+        where: { projectId: project.id },
+      });
+    expect(stored).toMatchObject({
+      authType: "ROLE_ARN",
+      roleArn: values.roleArn,
+      accessKeyId: null,
+      secretAccessKey: null,
+    });
+    const externalId = decrypt(stored.externalId!);
+    expect(externalId).toMatch(/^lf-[0-9a-f]{32}$/);
+
+    await save();
+    const configuration = await service.getConfiguration(project.id);
+    expect(configuration?.externalId).toBe(externalId);
+
+    (StorageServiceFactory.getInstance as Mock).mockReturnValue({
+      getSignedUrl: vi.fn().mockResolvedValue("https://signed.example"),
+      getObjectContentLength: vi.fn().mockResolvedValue(42),
+    });
+    await service.resolveUrl({
+      projectId: project.id,
+      uri: "s3://media-bucket/media/image.png",
+    });
+    expect(StorageServiceFactory.getInstance).toHaveBeenCalledWith(
+      expect.objectContaining({
+        accessKeyId: undefined,
+        secretAccessKey: undefined,
+        credentials: expect.any(Function),
+      }),
+    );
   });
 });

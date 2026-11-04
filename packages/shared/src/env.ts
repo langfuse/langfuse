@@ -374,6 +374,9 @@ const EnvSchema = z.object({
     .int()
     .positive()
     .default(30_000),
+  // Intermediate role that customer storage roles trust. Integrations can use
+  // IAM role auth only when this is set.
+  LANGFUSE_CUSTOMER_STORAGE_ACCESS_ROLE_ARN: z.string().optional(),
   LANGFUSE_USE_AZURE_BLOB: z.enum(["true", "false"]).default("false"),
   LANGFUSE_AZURE_SKIP_CONTAINER_CHECK: z
     .enum(["true", "false"])
