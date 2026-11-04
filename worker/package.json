@@ -2,7 +2,7 @@
   "name": "worker",
   "version": "4.75.0",
   "description": "",
-  "license": "MIT",
+  "license": "MIT AND LicenseRef-Langfuse-Enterprise",
   "private": true,
   "files": [
     "dist/**",

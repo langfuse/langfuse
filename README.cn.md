@@ -272,7 +272,7 @@ _[Langfuse 中的公共示例追踪](https://cloud.langfuse.com/project/cloramnk
 
 ## 🥇 许可证
 
-除 `ee` 文件夹外，本仓库采用 MIT 许可证。详情请参见 [LICENSE](LICENSE) 以及 [文档](https://langfuse.com/docs/open-source)。
+除 `ee` 文件夹外，本仓库采用 MIT 许可证。详情请参见 [LICENSING.md](LICENSING.md) 以及 [文档](https://langfuse.com/docs/open-source)。
 
 ## ⭐️ 星标历史
 

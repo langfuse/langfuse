@@ -2,7 +2,7 @@
   "name": "langfuse",
   "version": "4.75.0",
   "author": "engineering@langfuse.com",
-  "license": "MIT",
+  "license": "MIT AND LicenseRef-Langfuse-Enterprise",
   "private": true,
   "engines": {
     "node": "24",
