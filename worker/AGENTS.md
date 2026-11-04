@@ -44,12 +44,7 @@
   after 10 minutes.
 - Evaluation terminal-outcome classification: `src/features/evaluation/evalExecutionMetrics.ts`. Keep it aligned with shared code evaluator dispatcher error codes and user-visible error mapping.
 - Service layer: `src/services/*`
-- `ClickhouseWriter.getInstance()` queues JSON rows; `getNativeInstance()` queues
-  opaque `PreparedEvent` handles for `events_full`. Use `shutdownAll()` to drain
-  both singletons.
-  `IngestionService.writeEventRecord()` returns the accepted post-overflow row
-  without `event_bytes`; ClickHouse computes it. Trace-batch intake separately
-  measures JSON size only when enabled, to preserve its read-capacity guard.
+- `ClickhouseWriter.getInstance()` queues JSON rows; `getNativeInstance()` queues opaque `PreparedEvent` handles for `events_full`. Use `shutdownAll()` to drain both singletons. `IngestionService.writeEventRecord()` returns the accepted post-overflow row without `event_bytes`; ClickHouse computes it. Trace-batch intake separately measures JSON size only when enabled, to preserve its read-capacity guard. When v4 event writes are enabled, startup checks the `events_full` `byteSize` DEFAULT with `DESCRIBE TABLE` before queue consumers load and fails if ClickHouse migrations are missing.
 - Rust addon (`@langfuse/native`): telemetry init and the startup hello call live in `src/initialize.ts`, the health probe call in `src/api/index.ts`. Native code records its own metrics and logs; see `../packages/native/AGENTS.md`.
 - Tests: `src/__tests__/*`, `src/queues/__tests__/*`
 - Direct-event replay: `pnpm --filter worker run test:otel-replay` compares the

@@ -4,14 +4,20 @@ import { upsertLangfuseDashboards } from "./scripts/upsertLangfuseDashboards";
 import { hello, initTelemetry } from "@langfuse/native";
 import {
   initializeClickhouseCompatibility,
+  clickhouseClient,
   logger,
   recordIncrement,
 } from "@langfuse/shared/src/server";
+import { assertEventByteAccountingReady } from "./services/ClickhouseWriter/assertEventByteAccountingReady";
+import { env, v4WritesToEventsTable } from "./env";
 
 export const initializeWorker = async (): Promise<void> => {
   initializeNativeAddon();
 
   await initializeClickhouseCompatibility();
+  if (v4WritesToEventsTable(env)) {
+    await assertEventByteAccountingReady(clickhouseClient());
+  }
 
   await Promise.all([upsertDefaultModelPrices(), upsertLangfuseDashboards()]);
 };

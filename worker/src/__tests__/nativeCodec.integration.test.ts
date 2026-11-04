@@ -10,6 +10,7 @@ import {
 } from "@langfuse/shared/src/server";
 import { ClickhouseWriter, TableName } from "../services/ClickhouseWriter";
 import { prepareNativeEvent } from "../services/IngestionService/prepareNativeEvent";
+import { assertEventByteAccountingReady } from "../services/ClickhouseWriter/assertEventByteAccountingReady";
 import { capturedPreparedRows } from "./helpers/nativeCodecFixtures";
 
 type Row = Record<string, unknown>;
@@ -88,6 +89,13 @@ describe.runIf(
           { project_id: "migration", span_id, input: "café 🔥", event_bytes },
         ],
       });
+    const metadataClient = {
+      query: (params: Parameters<ClickhouseClientType["query"]>[0]) =>
+        client.query({
+          ...params,
+          query_params: { ...params.query_params, table },
+        }),
+    } as ClickhouseClientType;
     try {
       await client.command({
         query: `CREATE TABLE ${table} AS events_full ENGINE=Memory`,
@@ -96,12 +104,21 @@ describe.runIf(
         query: `ALTER TABLE ${table} MODIFY COLUMN event_bytes REMOVE DEFAULT`,
       });
       await insert("historical", 123);
+      await expect(
+        assertEventByteAccountingReady(metadataClient),
+      ).rejects.toThrow("Run ClickHouse migrations");
       await migrate("up");
       await migrate("up");
+      await expect(
+        assertEventByteAccountingReady(metadataClient),
+      ).resolves.toBeUndefined();
       await insert("legacy", 456);
       await insert("server");
       await migrate("down");
       await migrate("down");
+      await expect(
+        assertEventByteAccountingReady(metadataClient),
+      ).rejects.toThrow("Run ClickHouse migrations");
       await insert("rollback");
       const result = await client.query({
         query: `SELECT span_id, toString(event_bytes) AS bytes FROM ${table} ORDER BY span_id`,
