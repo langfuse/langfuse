@@ -38,6 +38,36 @@ describe("SlackMessageBuilder", () => {
     },
   };
 
+  it("renders skill version notifications with a version-specific skill link", () => {
+    const payload: WebhookInput["payload"] = {
+      type: "skill-version",
+      action: "created",
+      skill: {
+        id: "skill-id",
+        projectId: "project-456",
+        name: "test-skill",
+        version: 2,
+        description: "Test skill",
+        frontmatter: {},
+        tags: [],
+        labels: ["latest"],
+        createdAt: new Date(),
+        updatedAt: new Date(),
+        createdBy: "test-user",
+        commitMessage: null,
+        files: [],
+      },
+    };
+    const message = SlackMessageBuilder.buildMessage(payload);
+    expect(message.blocks[2]).toMatchObject({
+      text: {
+        text: expect.stringContaining(
+          "/project/project-456/skills/test-skill?version=2",
+        ),
+      },
+    });
+  });
+
   describe("buildPromptVersionMessage", () => {
     it("should build complete prompt-version message with all fields", () => {
       const blocks =

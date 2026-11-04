@@ -1,6 +1,6 @@
 import { ArrowUpRight, LockIcon, Copy, Check } from "@langfuse/icons";
 import { HoverCard } from "@/src/components/design-system/HoverCard/HoverCard";
-import { CodeMirrorEditor } from "@/src/components/editor";
+import { CodeMirrorEditor } from "@/src/components/editor/CodeMirrorEditor";
 import type { Prisma } from "@langfuse/shared";
 import { Button } from "@/src/components/ui/button";
 import { Separator } from "@/src/components/ui/separator";

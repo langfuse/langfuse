@@ -5,14 +5,14 @@ import { SplashScreen } from "@/src/components/ui/SplashScreen";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
 import { ApiKeyDetailContent } from "@/src/features/public-api/components/ApiKeyDetailContent";
 import { useLangfuseBaseUrl } from "@/src/features/public-api/hooks/useLangfuseEnvCode";
-import { useHasProjectAccess } from "@/src/features/rbac";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { api, reportNonTrpcError } from "@/src/utils/api";
 import { type RouterOutput } from "@/src/utils/types";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { Check, Copy, LockIcon, Sparkles } from "@langfuse/icons";
 import Link from "next/link";
 import { useState } from "react";
-import { showToast } from "@/src/features/notifications";
+import { showToast } from "@/src/features/notifications/showToast";
 import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
 
 const SKILLS_INSTALL_COMMAND =

@@ -7,7 +7,7 @@ import { useMemo, useState, type ReactNode } from "react";
 import { GroupedScoreBadges } from "@/src/components/GroupedScoreBadges";
 import { Metric } from "@/src/components/design-system/Metric/Metric";
 import { Skeleton } from "@/src/components/ui/skeleton";
-import { TagList } from "@/src/features/tag";
+import { default as TagList } from "@/src/features/tag/components/TagList";
 import {
   SessionBadge,
   UserIdBadge,

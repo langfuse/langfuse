@@ -1,4 +1,5 @@
-import { showSuccessToast, showToast } from "@/src/features/notifications";
+import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
+import { showToast } from "@/src/features/notifications/showToast";
 import type { RouterOutputs } from "@/src/utils/api";
 
 /** The server silently skips the caller's own address, and members it cannot email. */

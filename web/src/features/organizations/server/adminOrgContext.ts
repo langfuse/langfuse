@@ -1,7 +1,7 @@
 import { CloudConfigSchema } from "@langfuse/shared";
 import { isTopicsProjectEnabled } from "@langfuse/shared/topics/server";
 import { Role, type PrismaClient } from "@langfuse/shared/src/db";
-import { getOrganizationPlanServerSide } from "@/src/features/entitlements/server";
+import { getOrganizationPlanServerSide } from "@/src/features/entitlements/server/getPlan";
 import { type Session } from "next-auth";
 import { TRPCError } from "@trpc/server";
 
@@ -70,6 +70,7 @@ export async function buildAdminOrgContext(ctx: {
     metadata: (organization.metadata as Record<string, unknown>) ?? {},
     aiFeaturesEnabled: organization.aiFeaturesEnabled,
     aiTelemetryEnabled: organization.aiTelemetryEnabled,
+    accessAuditLogEnabled: organization.accessAuditLogEnabled,
     cloudConfig: parsedCloudConfig.data,
     projects: organization.projects.map((project) => ({
       id: project.id,

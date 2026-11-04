@@ -1,12 +1,12 @@
 import { z } from "zod";
 
-import { throwIfNoProjectAccess } from "@/src/features/rbac";
-import { auditLog } from "@/src/features/audit-logs/server";
+import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { auditLog } from "@/src/features/audit-logs/auditLog";
+import { composeAggregateScoreKey } from "@/src/features/scores/lib/aggregateScores";
 import {
-  composeAggregateScoreKey,
   isNumericDataType,
   isTraceScore,
-} from "@/src/features/scores/server";
+} from "@/src/features/scores/lib/helpers";
 import {
   getDateFromOption,
   SelectedTimeOptionSchema,
@@ -67,8 +67,8 @@ import {
   shouldSkipScoresDedup,
 } from "@langfuse/shared/src/server";
 import { v4 } from "uuid";
-import { throwIfNoEntitlement } from "@/src/features/entitlements/server";
-import { createBatchActionJob } from "@/src/features/table/server";
+import { throwIfNoEntitlement } from "@/src/features/entitlements/server/hasEntitlement";
+import { createBatchActionJob } from "@/src/features/table/server/createBatchActionJob";
 import { TRPCError } from "@trpc/server";
 import { randomUUID } from "crypto";
 import { toDomainWithStringifiedMetadata } from "@/src/utils/clientSideDomainTypes";

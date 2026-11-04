@@ -1,6 +1,6 @@
 import ContainerPage from "@/src/components/layouts/ContainerPage";
 import { StatusBadge } from "@/src/components/ui/StatusBadge/StatusBadge";
-import { AutomationButton } from "@/src/features/automations";
+import { AutomationButton } from "@/src/features/automations/components/AutomationButton";
 import { SlackConnectionCard } from "@/src/features/slack/components/SlackConnectionCard";
 import {
   ChannelSelector,
@@ -8,11 +8,11 @@ import {
 } from "@/src/features/slack/components/ChannelSelector";
 import { SlackTestMessageButton } from "@/src/features/slack/components/SlackTestMessageButton";
 import { PrivateChannelsInfoTooltip } from "@/src/features/slack/components/PrivateChannelsInfoTooltip";
-import { useSlackIntegration } from "@/src/features/slack/useSlackIntegration";
+import { useSlackIntegration } from "@/src/features/slack/hooks/useSlackIntegration";
 import { useRouter } from "next/router";
 import { useState, useEffect } from "react";
 import { Badge } from "@/src/components/design-system/Badge/Badge";
-import { useHasProjectAccess } from "@/src/features/rbac";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import {
   Card,
   CardContent,

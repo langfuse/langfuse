@@ -17,7 +17,6 @@ const requiredEnvironment = [
   "CURRENT_PRICING_FILE",
   "CURRENT_TYPES_FILE",
   "HAS_REPOSITORY_DIFF",
-  "MEMORY_SNAPSHOT_ONLY",
   "STRUCTURED_OUTPUT",
   "STRUCTURED_OUTPUT_PATH",
   "TYPES_DIFF_FILE",
@@ -44,7 +43,6 @@ const { output, warnings } = reconcileAuditOutput(rawOutput, {
   baseTypes,
   currentTypes,
   hasRepositoryDiff: process.env.HAS_REPOSITORY_DIFF === "true",
-  memorySnapshotOnly: process.env.MEMORY_SNAPSHOT_ONLY === "true",
   typesDiff,
 });
 

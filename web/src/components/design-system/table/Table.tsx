@@ -158,7 +158,7 @@ export function Table<TData extends object>({
     <div className="flex w-full max-w-full flex-1 flex-col overflow-auto">
       <div
         className={cn(
-          "relative min-h-full w-full overflow-auto [scrollbar-gutter:stable]",
+          "relative min-h-full w-full overflow-auto",
           topBorder && "border-t",
         )}
       >

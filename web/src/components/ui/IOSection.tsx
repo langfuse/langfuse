@@ -104,10 +104,12 @@ const TONE_TEXT_CLASSES: Record<IOSectionTone, string> = {
   neutral: "bg-surface-section text-foreground-secondary",
 };
 
-/** Toned table boxes: the plain table box with the tone as its fill only. */
+/** Toned table boxes retain their text colours while sharing the status frame. */
 const TONE_FILL_CLASSES: Record<IOSectionTone, string> = {
-  danger: "bg-red-50 dark:bg-light-red/35",
-  warning: "bg-yellow-50 dark:bg-light-yellow/35",
+  danger:
+    "border border-red-100 bg-red-50 dark:border-dark-red/20 dark:bg-light-red/35",
+  warning:
+    "border border-yellow-100 bg-yellow-50 dark:border-dark-yellow/20 dark:bg-light-yellow/35",
   muted: "bg-surface-section",
   neutral: "bg-surface-section",
 };
@@ -306,8 +308,10 @@ function IOSectionControls({
           size="icon-xs"
           type="button"
           onClick={(event) => {
+            event.preventDefault();
             setIsCopied(true);
             onCopy(event);
+            event.currentTarget.focus();
             setTimeout(() => setIsCopied(false), 1000);
           }}
           className={HEADER_CONTROL_CLASSES}

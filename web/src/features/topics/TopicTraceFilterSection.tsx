@@ -4,11 +4,9 @@ import { Input } from "@/src/components/design-system/Input/Input";
 import { ObservationFilterBuilder } from "@/src/features/evals/v2/components/Evaluators/Testing/components/SampleObservationSelectorBase/components/ObservationFilterBuilder/ObservationFilterBuilder";
 import { FilterModeToggle } from "@/src/features/evals/v2/components/Evaluators/Testing/components/SampleObservationSelectorBase/components/FilterModeToggle";
 import { RULE_FIELD_REGISTRY } from "@/src/features/evals/v2/constants/ruleSearchRegistry";
-import {
-  EventsSearchBarRow,
-  type toObservedOptions,
-  useEventsSearchBar,
-} from "@/src/features/search-bar";
+import { EventsSearchBarRow } from "@/src/features/search-bar/components/EventsSearchBarRow";
+import { type toObservedOptions } from "@/src/features/search-bar/lib/observed-options";
+import { useEventsSearchBar } from "@/src/features/search-bar/hooks/useEventsSearchBar";
 import type { EvaluatorFilterExperience } from "@/src/features/evals/v2/types/evaluatorFilterExperience";
 import {
   type experimentEvalFilterColsWithOptions,

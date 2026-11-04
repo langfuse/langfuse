@@ -208,12 +208,14 @@ describe("model-usage selection", () => {
     };
   };
 
+  /* eslint-disable no-unsafe-optional-chaining */
   const claimedIds = (evaluatorFindMany: ReturnType<typeof vi.fn>) =>
     (
       evaluatorFindMany.mock.calls.at(-1)?.[0] as {
         where: { id?: { in: string[] } };
       }
     ).where.id?.in;
+  /* eslint-enable no-unsafe-optional-chaining */
 
   it("selects evaluators whose current version pins the deleted provider", async () => {
     const { tx, evaluatorFindMany } = txFor();

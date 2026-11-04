@@ -191,7 +191,8 @@ export function ExternalMediaStorageForm({
                     />
                   </FormControl>
                   <FormDescription>
-                    Leave empty to keep the saved secret.
+                    Leave empty to keep the saved secret, unless you change the
+                    storage provider, bucket, endpoint, or Access Key ID.
                   </FormDescription>
                   <FormMessage />
                 </FormItem>

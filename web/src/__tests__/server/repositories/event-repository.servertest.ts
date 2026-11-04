@@ -41,6 +41,7 @@ import { prisma } from "@langfuse/shared/src/db";
 import { randomUUID } from "crypto";
 import { env } from "@/src/env.mjs";
 import {
+  AI_GATEWAY_SERVICE_NAME,
   LangfuseNotFoundError,
   type EventsTableFilterState,
   type FilterCondition,
@@ -6001,7 +6002,7 @@ describe("Clickhouse Events Repository Test", () => {
 });
 
 describe("tracing counts by project on the events table", () => {
-  it("counts traces and observations created in the interval, excluding synthetic trace rows", async () => {
+  it("counts traces, observations and gateway requests created in the interval, excluding synthetic trace rows", async () => {
     const projectA = randomUUID();
     const projectB = randomUUID();
     const legacyTraceId = randomUUID();
@@ -6046,6 +6047,23 @@ describe("tracing counts by project on the events table", () => {
       }),
       event({ project_id: projectA, trace_id: randomUUID(), created_at: end }),
       event({ project_id: projectB, trace_id: randomUUID() }),
+      // AI gateway generations carry the gateway service; outside the window they don't count.
+      event({
+        project_id: projectB,
+        trace_id: randomUUID(),
+        service_name: AI_GATEWAY_SERVICE_NAME,
+      }),
+      event({
+        project_id: projectB,
+        trace_id: randomUUID(),
+        service_name: AI_GATEWAY_SERVICE_NAME,
+      }),
+      event({
+        project_id: projectB,
+        trace_id: randomUUID(),
+        service_name: AI_GATEWAY_SERVICE_NAME,
+        created_at: end,
+      }),
     ]);
 
     const counts =
@@ -6059,8 +6077,8 @@ describe("tracing counts by project on the events table", () => {
       counts.sort((a, b) => a.projectId.localeCompare(b.projectId)),
     ).toEqual(
       [
-        { projectId: projectA, traces: 3, observations: 5 },
-        { projectId: projectB, traces: 1, observations: 1 },
+        { projectId: projectA, traces: 3, observations: 5, gatewayRequests: 0 },
+        { projectId: projectB, traces: 3, observations: 3, gatewayRequests: 2 },
       ].sort((a, b) => a.projectId.localeCompare(b.projectId)),
     );
   });

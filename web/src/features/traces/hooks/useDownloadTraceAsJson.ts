@@ -1,9 +1,9 @@
 import { useMemo } from "react";
 import { StringParam, useQueryParam } from "use-query-params";
 
-import { useReadPath } from "@/src/features/events";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
-import { showToast } from "@/src/features/notifications";
+import { useReadPath } from "@/src/features/events/hooks/useReadPath";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
+import { showToast } from "@/src/features/notifications/showToast";
 import { TRACE_DOWNLOAD_OMIT_LARGE_FIELDS_THRESHOLD } from "@/src/features/traces/constants/traceDownloadConfig";
 import {
   downloadLegacyTraceAsJson,

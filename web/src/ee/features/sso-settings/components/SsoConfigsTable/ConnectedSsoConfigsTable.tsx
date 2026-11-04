@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import { api } from "@/src/utils/api";
-import { showErrorToast, showSuccessToast } from "@/src/features/notifications";
+import { showErrorToast } from "@/src/features/notifications/showErrorToast";
+import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
 import { Card } from "@/src/components/ui/card";
 import { DeleteSsoConfigDialogController } from "../DeleteSsoConfigDialogController";

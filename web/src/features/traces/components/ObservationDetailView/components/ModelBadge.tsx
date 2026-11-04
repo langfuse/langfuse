@@ -4,7 +4,7 @@
  */
 
 import { Metric } from "@/src/components/design-system/Metric/Metric";
-import { UpsertModelFormDialogController } from "@/src/features/models";
+import { UpsertModelFormDialogController } from "@/src/features/models/components/UpsertModelFormDialog/UpsertModelFormDialogController";
 
 export function ModelBadge({
   model,
