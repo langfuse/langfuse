@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { type IconComponent } from "@langfuse/icons";
 
+import { cn } from "@/src/utils/tailwind";
+
 export function TextLink({
   path,
   value,
@@ -8,6 +10,8 @@ export function TextLink({
   onClick,
   title,
   external = false,
+  weight = "bold",
+  size = "xs",
 }: {
   path: string;
   value: string;
@@ -16,6 +20,9 @@ export function TextLink({
   title?: string;
   /** Opens in a new tab. */
   external?: boolean;
+  /** `normal` for a link that sits in running text or a table row. */
+  weight?: "bold" | "normal";
+  size?: "xs" | "sm";
 }) {
   const Icon = icon;
   const handleClick = (event: React.MouseEvent) => {
@@ -30,7 +37,11 @@ export function TextLink({
 
   return (
     <Link
-      className="text-link hover:text-link-hover inline-block max-w-full text-xs leading-normal font-bold"
+      className={cn(
+        "text-link hover:text-link-hover inline-block max-w-full leading-normal",
+        size === "xs" ? "text-xs" : "text-sm",
+        weight === "bold" ? "font-bold" : "font-normal",
+      )}
       href={path}
       title={title ?? value}
       prefetch={false}

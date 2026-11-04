@@ -132,11 +132,18 @@ export function VirtualizedTree<T extends { id: string; children: T[] }>({
     const isInitial = prevSelectedIdRef.current === undefined;
     prevSelectedIdRef.current = selectedNodeId;
 
-    // Initial load: center it instantly (no post-paint animation). Later
-    // selection changes: minimal, smooth scroll only if it's off-screen.
+    // Initial load: center it instantly (no post-paint animation). A later
+    // selection of a rendered row scrolls the minimum, smoothly. A row far
+    // outside the window sits behind estimated heights, and a smooth scroll
+    // re-targeted on every measurement crawls for seconds, so it is centered
+    // instantly and the virtualizer corrects within a frame.
+    const isRendered = rowVirtualizer
+      .getVirtualItems()
+      .some((item) => item.index === index);
+    const jump = isInitial || !isRendered;
     rowVirtualizer.scrollToIndex(index, {
-      align: isInitial ? "center" : "auto",
-      behavior: isInitial ? "auto" : "smooth",
+      align: jump ? "center" : "auto",
+      behavior: jump ? "auto" : "smooth",
     });
   }, [selectedNodeId, flattenedItems, rowVirtualizer]);
 

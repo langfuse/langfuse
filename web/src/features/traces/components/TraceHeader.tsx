@@ -13,6 +13,7 @@ import {
   UserIdBadge,
 } from "@/src/features/traces/components/TraceMetadataBadges";
 import { LatencyBadge } from "@/src/features/traces/components/LatencyBadge";
+import { LongestObservationsTooltip } from "@/src/features/traces/components/LongestObservationsTooltip";
 import {
   CostBadge,
   UsageBadge,
@@ -21,6 +22,7 @@ import {
 import { CollapsibleBadgeRow } from "@/src/features/traces/components/CollapsibleBadgeRow";
 import { useTraceData } from "@/src/features/traces/contexts/TraceDataProvider";
 import { useViewPreferences } from "@/src/features/traces/contexts/ViewPreferencesProvider";
+import { useSelectTraceNode } from "@/src/features/traces/hooks/useSelectTraceNode";
 import { aggregateTraceMetrics } from "@/src/features/traces/fns/traceAggregation";
 import { cn } from "@/src/utils/tailwind";
 import {
@@ -95,7 +97,7 @@ function LoadedTraceHeader() {
     <TraceHeaderFrame>
       <CollapsibleBadgeRow>
         {trace.latency != null && (
-          <LatencyBadge latencySeconds={trace.latency} />
+          <TraceDurationBadge latencySeconds={trace.latency} />
         )}
         {aggregatedMetrics.totalCost != null &&
           aggregatedMetrics.costDetails && (
@@ -160,5 +162,24 @@ function LoadedTraceHeader() {
         )}
       </CollapsibleBadgeRow>
     </TraceHeaderFrame>
+  );
+}
+
+/** The duration, with the longest observations behind it when there are any. */
+function TraceDurationBadge({ latencySeconds }: { latencySeconds: number }) {
+  const { longestObservations } = useTraceData();
+  const selectNode = useSelectTraceNode("header");
+
+  if (longestObservations.length === 0 || latencySeconds <= 0) {
+    return <LatencyBadge latencySeconds={latencySeconds} />;
+  }
+  return (
+    <LongestObservationsTooltip
+      observations={longestObservations}
+      traceDurationMs={latencySeconds * 1000}
+      onSelect={selectNode}
+    >
+      <LatencyBadge latencySeconds={latencySeconds} interactive />
+    </LongestObservationsTooltip>
   );
 }
