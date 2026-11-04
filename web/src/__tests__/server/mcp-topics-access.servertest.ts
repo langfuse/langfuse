@@ -127,6 +127,11 @@ describe("Topics MCP tools access", () => {
       const plainTools = await names(plainClient);
       expect(plainTools.length).toBeGreaterThan(0);
       for (const tool of TOPICS_TOOLS) expect(plainTools).not.toContain(tool);
+      // A direct call fails like an unknown tool, not just a hidden listing.
+      for (const tool of TOPICS_TOOLS)
+        await expect(
+          plainClient.callTool({ name: tool, arguments: {} }),
+        ).rejects.toThrow(`Unknown tool: ${tool}`);
     } finally {
       await plainClient.close();
     }
