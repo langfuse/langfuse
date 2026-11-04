@@ -1,20 +1,27 @@
 /* eslint-disable no-nested-ternary */
 import { useSession } from "next-auth/react";
-import { Zap } from "lucide-react";
+import { Zap } from "@langfuse/icons";
 import { Callout } from "@/src/components/design-system/Callout/Callout";
 import { DismissController } from "@/src/components/DismissController";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { useDismissState } from "@/src/hooks/useDismissState";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { useAccountV4MigrationData } from "@/src/features/v4-migration/hooks/useV4MigrationData";
 import { getProjectMigrationReadiness } from "@/src/features/v4-migration/migrationData";
 import { env } from "@/src/env.mjs";
 
 const V4_DOCS_URL = "https://langfuse.com/docs/v4";
+const DISMISS_ID = "v4-migration-banner:v1";
 // Shorter than the Callout default (30d) so the banner resurfaces while the
 // migration deadline approaches.
 const DISMISS_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
 export function useV4MigrationBannerState(enabled: boolean) {
   const session = useSession();
+  const { isDismissed } = useDismissState({
+    id: DISMISS_ID,
+    family: "callouts",
+    ttlMs: DISMISS_TTL_MS,
+  });
 
   // The demo org is not the user's to migrate, so it never triggers the banner.
   const organizations = (session.data?.user?.organizations ?? [])
@@ -30,13 +37,18 @@ export function useV4MigrationBannerState(enabled: boolean) {
     organizations,
     enabled: enabled && organizations.length > 0,
   });
-  const statuses = Array.from(migrationStatusByProjectId.values());
+  const readiness = Array.from(
+    migrationStatusByProjectId.values(),
+    getProjectMigrationReadiness,
+  );
 
   return {
-    projectsNeedingMigration: statuses.filter(
-      (status) => getProjectMigrationReadiness(status) === "action-needed",
+    projectsNeedingMigration: readiness.filter(
+      (value) => value === "action-needed",
     ).length,
-    totalProjects: statuses.length,
+    totalProjects: readiness.length,
+    isChecking: enabled && readiness.includes("checking"),
+    isDismissed,
   };
 }
 
@@ -54,11 +66,7 @@ export function V4MigrationBanner({
   const capture = usePostHogClientCapture();
 
   return (
-    <DismissController
-      id="v4-migration-banner:v1"
-      family="callouts"
-      ttlMs={DISMISS_TTL_MS}
-    >
+    <DismissController id={DISMISS_ID} family="callouts" ttlMs={DISMISS_TTL_MS}>
       {({ onDismiss }) => (
         <div className="mb-4">
           <Callout
@@ -83,7 +91,7 @@ export function V4MigrationBanner({
             onDismiss={onDismiss}
           >
             <div className="flex items-start gap-2 sm:items-center">
-              <Zap className="icon-base mt-0.5 shrink-0 sm:mt-0" />
+              <Zap size="base" __rawClassName="mt-0.5 sm:mt-0" />
               <span>
                 <span className="font-bold">
                   Langfuse v4 is here: real-time and up to 165× faster.

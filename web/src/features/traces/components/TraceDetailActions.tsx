@@ -4,19 +4,17 @@ import {
   Loader2,
   MoreVertical,
   TrashIcon,
-} from "lucide-react";
+} from "@langfuse/icons";
 
 import { HeaderActionButton } from "@/src/components/HeaderActionButton";
-import {
-  HeaderActionMenuRow,
-  HeaderActionMenuRows,
-} from "@/src/components/HeaderActionMenuRow";
+import { HeaderActionMenuRow } from "@/src/components/HeaderActionMenuRow";
+import { HeaderActionMenuRows } from "@/src/components/HeaderActionMenuRows";
 import {
   DropdownMenu,
   type DropdownMenuItemDefinition,
 } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
 import { useShareMenuItems } from "@/src/components/useShareMenuItems";
-import { InternalFeatureBadge } from "@/src/features/feature-flags";
+import { InternalFeatureBadge } from "@/src/features/feature-flags/components/InternalFeatureBadge";
 import { ConnectedDetailHeaderActionsMenuController } from "@/src/features/traces/components/DetailHeaderActionsMenuController";
 import { DeleteTraceDialogController } from "@/src/features/traces/components/DeleteTraceDialogController";
 import { TraceTranscriptDialogController } from "@/src/features/traces/components/TraceTranscriptDialogController";
@@ -94,7 +92,7 @@ function DisabledTraceDetailActions({
 }: {
   layout: TraceDetailActionsLayout;
 }) {
-  const downloadIcon = <Download className="icon-base" />;
+  const downloadIcon = <Download size="base" />;
 
   if (layout === "menu") {
     return (
@@ -113,7 +111,7 @@ function DisabledTraceDetailActions({
       <HeaderActionButton label="Download JSON" icon={downloadIcon} disabled />
       <HeaderActionButton
         label="More actions"
-        icon={<MoreVertical className="icon-base" />}
+        icon={<MoreVertical size="base" />}
         disabled
       />
     </div>
@@ -156,9 +154,9 @@ function LoadedTraceDetailActions({
   ];
 
   const downloadIcon = isDownloading ? (
-    <Loader2 className="icon-base animate-spin" />
+    <Loader2 size="base" __rawClassName="animate-spin" />
   ) : (
-    <Download className="icon-base" />
+    <Download size="base" />
   );
 
   return (
@@ -239,7 +237,7 @@ function LoadedTraceDetailActions({
                   {({ getTriggerProps }) => (
                     <HeaderActionButton
                       label="More actions"
-                      icon={<MoreVertical className="icon-base" />}
+                      icon={<MoreVertical size="base" />}
                       {...getTriggerProps()}
                     />
                   )}

@@ -1,14 +1,15 @@
 import { useMemo } from "react";
 import type { z } from "zod";
-import { type Prisma, deepParseJson } from "@langfuse/shared";
 import {
+  type Prisma,
+  deepParseJson,
   normalizeInput,
   normalizeOutput,
   combineInputOutputMessages,
   cleanLegacyOutput,
   extractAdditionalInput,
-} from "@/src/utils/chatml";
-import type { ChatMlMessageSchema } from "@/src/components/schemas/ChatMlSchema";
+  type ChatMlMessageSchema,
+} from "@langfuse/shared";
 
 // ChatML message type from schema
 export type ChatMlMessage = z.infer<typeof ChatMlMessageSchema>;

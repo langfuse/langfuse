@@ -13,10 +13,10 @@ import {
   createTRPCRouter,
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
-import { throwIfNoProjectAccess } from "@/src/features/rbac";
-import { SkillService } from "./index";
+import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { SkillService } from "@/src/features/skills/server/skill-service";
 
-import { GetSkillFileContentsInputSchema } from "@/src/features/public-api/types/unstable-skills";
+import { GetSkillFileContentsInputSchema } from "@/src/features/public-api/types/skills";
 import { SkillListOrderBySchema } from "../constants/skillsSorting";
 
 const projectInput = z.object({ projectId: z.string() });

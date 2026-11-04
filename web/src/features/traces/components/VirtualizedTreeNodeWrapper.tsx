@@ -21,7 +21,7 @@ import {
   type LangfuseItemType,
 } from "@/src/components/ItemBadge";
 import { Skeleton } from "@/src/components/ui/skeleton";
-import { ChevronRight } from "lucide-react";
+import { ChevronRight } from "@langfuse/icons";
 import { cn } from "@/src/utils/tailwind";
 
 export interface TreeNodeMetadata {
@@ -169,6 +169,7 @@ export function VirtualizedTreeNodeWrapper(
         <div className="flex w-7 shrink-0 items-start justify-end py-0.5 pr-1">
           {loaded && hasChildren && (
             <Button
+              aria-label={isCollapsed ? "Expand branch" : "Collapse branch"}
               aria-expanded={!isCollapsed}
               data-expand-button
               size="icon"
@@ -185,7 +186,7 @@ export function VirtualizedTreeNodeWrapper(
                   isCollapsed ? "rotate-0" : "rotate-90",
                 )}
               >
-                <ChevronRight className="icon-base text-icon-foreground" />
+                <ChevronRight size="base" color="default" />
               </span>
             </Button>
           )}

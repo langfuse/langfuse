@@ -1,5 +1,6 @@
+/* eslint-disable @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 import React, { useState } from "react";
-import { ArrowUpRight } from "lucide-react";
+import { ArrowUpRight } from "@langfuse/icons";
 import { useSession } from "next-auth/react";
 
 import { type SystemRole } from "@langfuse/shared/src/db";
@@ -24,11 +25,9 @@ import {
   SelectTrigger,
 } from "@/src/components/ui/select";
 import { withoutGatewayRole } from "@/src/features/ai-gateway/fns/separateGatewayApiKeys";
-import {
-  ApiKeyExpirationInput,
-  type ApiKeyExpirationPreset,
-  resolveApiKeyExpiration,
-} from "@/src/features/apiKey";
+import { ApiKeyExpirationInput } from "@/src/features/apiKey/components/ApiKeyExpirationInput/ApiKeyExpirationInput";
+import type { ApiKeyExpirationPreset } from "@/src/features/apiKey/constants/apiKeyExpirationOptions";
+import { resolveApiKeyExpiration } from "@/src/features/apiKey/fns/resolveApiKeyExpiration";
 import { ApiKeyDetailContent } from "@/src/features/public-api/components/ApiKeyDetailContent";
 import { rolePermissionCountLabel } from "@/src/features/rbac/components/RolePermissionList";
 import { RolePermissionPopup } from "@/src/features/rbac/components/RolePermissionPopup";
@@ -38,6 +37,11 @@ import { roleIcons } from "@/src/features/rbac/components/roleIcons";
 type ApiKeyScope = "project" | "organization";
 
 const DEFAULT_ROLE: SystemRole = "ADMIN";
+
+/** apiKeyRoleNames renames user roles to be more api-key friendly. */
+const apiKeyRoleNames: Record<string, string> = {
+  Admin: "Full access",
+};
 
 /** ApiKeyCreateValues is the resolved create-form payload the button forwards to the create mutation. */
 export type ApiKeyCreateValues = {
@@ -172,9 +176,11 @@ function ApiKeyCreateForm({
               >
                 <SelectTrigger className="h-auto" disableValueLineClamp>
                   <div className="flex items-start gap-2 text-left">
-                    <SelectedRoleIcon className="icon-base mt-0.5 shrink-0" />
+                    <SelectedRoleIcon size="base" __rawClassName="mt-0.5" />
                     <div className="flex flex-col">
-                      <span className="font-bold">{selectedRoleDef.name}</span>
+                      <span className="font-bold">
+                        {transformApiKeyRoleName(selectedRoleDef.name)}
+                      </span>
                       <span className="text-muted-foreground text-xs">
                         {selectedRoleDef.description}
                       </span>
@@ -186,6 +192,7 @@ function ApiKeyCreateForm({
                     <RoleSelectItem
                       key={r}
                       role={r}
+                      transformName={transformApiKeyRoleName}
                       onViewPermissions={openPermissions}
                     />
                   ))}
@@ -202,7 +209,7 @@ function ApiKeyCreateForm({
                 View{" "}
                 <span className="inline-flex items-center gap-0.5 underline">
                   {rolePermissionCountLabel(role)}
-                  <ArrowUpRight className="icon-sm" />
+                  <ArrowUpRight size="sm" />
                 </span>
               </button>
             </div>
@@ -214,6 +221,7 @@ function ApiKeyCreateForm({
             open={permissionsOpen}
             onOpenChange={setPermissionsOpen}
             role={permissionsRole}
+            transformName={transformApiKeyRoleName}
           />
         )}
       </DialogBody>
@@ -224,4 +232,9 @@ function ApiKeyCreateForm({
       </DialogFooter>
     </DialogContent>
   );
+}
+
+/** transformApiKeyRoleName maps a role name to its api key display name. */
+function transformApiKeyRoleName(name: string): string {
+  return apiKeyRoleNames[name] ?? name;
 }

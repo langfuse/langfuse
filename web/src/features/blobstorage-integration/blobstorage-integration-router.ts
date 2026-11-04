@@ -1,8 +1,8 @@
 import { z } from "zod";
 
-import { auditLog } from "@/src/features/audit-logs/server";
-import { throwIfNoEntitlement } from "@/src/features/entitlements/server";
-import { throwIfNoProjectAccess } from "@/src/features/rbac";
+import { auditLog } from "@/src/features/audit-logs/auditLog";
+import { throwIfNoEntitlement } from "@/src/features/entitlements/server/hasEntitlement";
+import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import {
   createTRPCRouter,
   protectedProjectProcedure,
@@ -13,7 +13,7 @@ import {
   validateExportFieldGroups,
 } from "@/src/features/blobstorage-integration/validation";
 import { upsertBlobStorageIntegration } from "@/src/features/blobstorage-integration/service";
-import { resolveExportSource } from "@/src/features/analytics-integrations/server";
+import { resolveExportSource } from "@/src/features/analytics-integrations/server/exportSource";
 import { TRPCError } from "@trpc/server";
 import { type Session } from "next-auth";
 import { env } from "@/src/env.mjs";
@@ -23,6 +23,7 @@ import {
   QueueJobs,
   StorageServiceFactory,
   blobStorageEndpointConnectionValidationOptions,
+  validateBlobStorageBucketHost,
   validateBlobStorageEndpoint,
   assertGcsBlobStorageBucketAllowed,
 } from "@langfuse/shared/src/server";
@@ -393,6 +394,12 @@ export const blobStorageIntegrationRouter = createTRPCRouter({
 
         if (endpoint) {
           await validateBlobStorageEndpoint(endpoint);
+          await validateBlobStorageBucketHost({
+            type,
+            endpoint,
+            bucketName,
+            forcePathStyle,
+          });
         }
         const isGcs = type === BlobStorageIntegrationType.GOOGLE_CLOUD_STORAGE;
         // GCS: stored secret = customer service account JSON key; none = the

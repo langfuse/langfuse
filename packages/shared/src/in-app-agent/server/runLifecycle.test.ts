@@ -8,6 +8,7 @@ import {
 import { Prisma, type PrismaClient } from "../../db";
 import { logger } from "../../server";
 import {
+  cleanupRunMcpApiKey,
   cleanupTerminalRunMcpApiKeys,
   createQueuedRun,
   reconcileConversationRuns,
@@ -336,7 +337,7 @@ describe("in-app agent run lifecycle races", () => {
           runId: "run-1",
         },
       }),
-    ).rejects.toThrow("Assistant is already responding in this conversation");
+    ).rejects.toThrow("Halo is already responding in this conversation");
     expect(metricMocks.recordRunTerminalOutcome).not.toHaveBeenCalled();
   });
 });
@@ -375,9 +376,55 @@ describe("cleanupTerminalRunMcpApiKeys", () => {
     }
 
     expect(updateMany).toHaveBeenCalledWith({
-      where: { id: "run-1", projectId: "project-1" },
+      where: { id: "run-1", projectId: "project-1", mcpApiKeyId: "key-1" },
       data: { mcpApiKeyId: null },
     });
     expect(errorSpy).not.toHaveBeenCalled();
+  });
+
+  it("leaves the pointer intact when revocation fails", async () => {
+    const updateMany = vi.fn();
+    const prisma = {
+      inAppAgentRun: { updateMany },
+    } as unknown as PrismaClient;
+    const error = new Error("Revocation failed");
+
+    await expect(
+      cleanupRunMcpApiKey({
+        prisma,
+        projectId: "project-1",
+        runId: "run-1",
+        apiKeyId: "key-1",
+        deleteApiKey: async () => {
+          throw error;
+        },
+      }),
+    ).rejects.toBe(error);
+    expect(updateMany).not.toHaveBeenCalled();
+  });
+
+  it("does not clear a replacement key installed during revocation", async () => {
+    let keyId: string | null = "key-1";
+    const updateMany = vi.fn(
+      async ({ where }: { where: { mcpApiKeyId: string } }) => {
+        if (keyId !== where.mcpApiKeyId) return { count: 0 };
+        keyId = null;
+        return { count: 1 };
+      },
+    );
+    const prisma = {
+      inAppAgentRun: { updateMany },
+    } as unknown as PrismaClient;
+
+    await cleanupRunMcpApiKey({
+      prisma,
+      projectId: "project-1",
+      runId: "run-1",
+      apiKeyId: "key-1",
+      deleteApiKey: async () => {
+        keyId = "key-2";
+      },
+    });
+    expect(keyId).toBe("key-2");
   });
 });

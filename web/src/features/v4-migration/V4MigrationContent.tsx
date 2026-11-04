@@ -1,6 +1,7 @@
-/* eslint-disable no-nested-ternary, @repo/component-file-structure */
+/* eslint-disable no-nested-ternary, @repo/component-file-structure, react/no-unstable-nested-components */
 /* eslint-disable @repo/no-style-props, @repo/no-null-render */
-import { showSuccessToast, showErrorToast } from "@/src/features/notifications";
+import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
+import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { type ReactNode, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/router";
 import Link from "next/link";
@@ -10,21 +11,21 @@ import {
   ChevronRight,
   Copy,
   Info,
-} from "lucide-react";
+} from "@langfuse/icons";
 import { env } from "@/src/env.mjs";
-import { useIsInAppAgentLauncherVisible } from "@/src/features/in-app-agent";
-import { useLangfuseCloudRegion } from "@/src/features/organizations";
-import { useSupportDrawer } from "@/src/features/support-chat";
+import { useIsInAppAgentLauncherVisible } from "@/src/features/in-app-agent/components/InAppAiAgentProvider";
+import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
+import { useSupportDrawer } from "@/src/features/support-chat/SupportDrawerProvider";
 import { Button } from "@/src/components/ui/button";
 import { HoverCard } from "@/src/components/design-system/HoverCard/HoverCard";
-import { RainbowButton } from "@/src/components/magicui/rainbow-button";
+import { RainbowButton } from "@/src/components/magicui/RainbowButton";
 import { Separator } from "@/src/components/ui/separator";
 import {
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/src/components/ui/collapsible";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { cn } from "@/src/utils/tailwind";
 import { copyTextToClipboard } from "@/src/utils/clipboard";
 import {
@@ -48,15 +49,16 @@ import {
   type MigrationCountState,
   type ProjectMigrationReadiness,
 } from "@/src/features/v4-migration/migrationData";
-import { useReadPath, V4PreviewToggleRow } from "@/src/features/events";
+import { useReadPath } from "@/src/features/events/hooks/useReadPath";
+import { V4PreviewToggleRow } from "@/src/features/events/components/V4SidebarToggle";
 import { numberFormatter } from "@/src/utils/numbers";
 import { formatCompactRelativeTime } from "@/src/utils/dates";
-import { useQueryProjectOrOrganization } from "@/src/features/projects";
+import { useQueryProjectOrOrganization } from "@/src/features/projects/hooks";
 import {
   useEvalUpgradeAssistantPlan,
   V4_CODING_AGENT_PROMPT,
 } from "@/src/features/v4-migration/useV4UpgradeAssistantSupport";
-import { useHasProjectAccess } from "@/src/features/rbac";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { api } from "@/src/utils/api";
 import { classifyTrpcToastError } from "@/src/utils/trpcErrorClassification";
 import { encodeFiltersGeneric, type FilterState } from "@langfuse/shared";
@@ -188,7 +190,11 @@ function Section({
         </span>
         <span className="flex-1" />
         {meta && <span className="text-muted-foreground text-xs">{meta}</span>}
-        <ChevronRight className="text-foreground-tertiary icon-base shrink-0 transition-transform group-data-[state=open]:rotate-90" />
+        <ChevronRight
+          size="base"
+          color="tertiary"
+          __rawClassName="transition-transform group-data-[state=open]:rotate-90"
+        />
       </CollapsibleTrigger>
       <CollapsibleContent>
         <div className="pt-0.5 pb-4 pl-4.25">{children}</div>
@@ -330,9 +336,9 @@ function CodeBlockWithCopy({
         className="text-muted-foreground absolute top-1 right-1 h-6 w-6"
       >
         {copied ? (
-          <Check className="icon-base text-icon-foreground" />
+          <Check size="base" color="default" />
         ) : (
-          <Copy className="icon-base text-icon-foreground" />
+          <Copy size="base" color="default" />
         )}
       </Button>
     </div>
@@ -784,8 +790,12 @@ export function V4MigrationEvalsSection({
             <Button variant="outline" size="sm" onClick={assistant.onMigrate}>
               {assistant.aiFeaturesEnabled !== false ? (
                 <>
-                  <BotMessageSquare className="icon-base text-icon-foreground mr-1.5" />
-                  Use Assistant
+                  <BotMessageSquare
+                    size="base"
+                    color="default"
+                    __rawClassName="mr-1.5"
+                  />
+                  Use Halo
                 </>
               ) : (
                 "Update evals"
@@ -1369,7 +1379,7 @@ export function V4MigrationHeaderContent({
             href={LANGFUSE_ASSISTANT_URL}
             analytics={{ section: "header", link: "langfuse_assistant_docs" }}
           >
-            Langfuse Assistant
+            Langfuse Halo
           </ExternalLink>
           .
           {actionNeeded
@@ -1480,7 +1490,7 @@ export function V4MigrationAgentUpgradeSection({
       </div>
       <div className="flex flex-col gap-2">
         <RainbowButton className="w-full" onClick={handleCopyPrompt}>
-          <Copy className="icon-base mr-1.5 shrink-0" />
+          <Copy size="base" __rawClassName="mr-1.5" />
           <span className="min-w-0 truncate" title="Copy prompt">
             Copy prompt
           </span>
@@ -1790,7 +1800,7 @@ export function V4MigrationDetailsContent({
                       className="shrink-0"
                       {...getTriggerProps()}
                     >
-                      <Info className="icon-base" />
+                      <Info size="base" />
                     </button>
                   )}
                 </HoverCard>

@@ -118,3 +118,18 @@ web/test-results/*
 
 # Superset config
 .superset/
+
+# design-sync (claude.ai/design) - build artifacts and machine-local state
+.design-sync/sb-reference/
+.design-sync/learnings/
+.design-sync/.cache/
+.design-sync/node_modules
+.design-sync/*.log
+.ds-sync/
+ds-bundle/
+.design-sync/ds-package/storybook-compiled.css
+.design-sync/ds-package/index.ts
+.design-sync/ds-package/process-shim.js
+.design-sync/ds-package/public-assets.js
+.design-sync/upload-*.txt
+.design-sync/chunk-*.json

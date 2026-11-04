@@ -1,4 +1,5 @@
 import {
+  isoDateTime,
   InvalidRequestError,
   SCORE_FIELD_GROUPS_V3,
   ScoreDataTypeDomain,
@@ -8,12 +9,12 @@ import { z } from "zod";
 import { defineTool } from "../../../core/define-tool";
 import { runMcpTool } from "../../../core/run-mcp-tool";
 import { MCP_CLICKHOUSE_SETTINGS } from "../../../core/clickhouse-settings";
-import { clampToDataAccessDays } from "@/src/features/entitlements/server";
+import { clampToDataAccessDays } from "@/src/features/entitlements/server/hasEntitlementLimit";
 import {
   listScoresV3ForPublicApi,
   EncodedScoresCursorV3,
-} from "@/src/features/public-api/server";
-import { buildScoreSubjectUrl } from "@langfuse/shared/src/server";
+  buildScoreSubjectUrl,
+} from "@langfuse/shared/src/server";
 
 const ListScoresBaseSchema = z
   .object({
@@ -48,14 +49,12 @@ const ListScoresBaseSchema = z
       .array(z.string())
       .optional()
       .describe("same ID as datasetRunId in createScore"),
-    fromTimestamp: z.iso
-      .datetime({ offset: true })
+    fromTimestamp: isoDateTime({ offset: true })
       .optional()
       .describe(
         "Optional inclusive lower bound on the score timestamp, as an ISO 8601 timestamp with timezone (Z or an explicit offset). Filters scores by their own timestamp, not the associated observation's startTime.",
       ),
-    toTimestamp: z.iso
-      .datetime({ offset: true })
+    toTimestamp: isoDateTime({ offset: true })
       .optional()
       .describe(
         "Optional exclusive upper bound on the score timestamp, as an ISO 8601 timestamp with timezone. For a full calendar day, use midnight at the start of the next day, not 23:59:59.",

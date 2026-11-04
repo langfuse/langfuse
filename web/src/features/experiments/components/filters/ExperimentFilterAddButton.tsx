@@ -1,6 +1,6 @@
 import { type ComponentProps } from "react";
 import { type FilterState } from "@langfuse/shared";
-import { Plus } from "lucide-react";
+import { Plus } from "@langfuse/icons";
 import { Button } from "@/src/components/design-system/Button/Button";
 import { PopoverController } from "@/src/components/ui/popover";
 import { ExperimentFilterCreationPopup } from "./ExperimentFilterCreationPopup";

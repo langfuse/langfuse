@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { z } from "zod";
 import { type Provider } from "next-auth/providers/index";
 import GoogleProvider from "next-auth/providers/google";
@@ -14,6 +15,7 @@ import { multiTenantSsoAvailable } from "@/src/ee/features/multi-tenant-sso/mult
 import { type SsoConfig, prisma } from "@langfuse/shared/src/db";
 import { decrypt } from "@langfuse/shared/encryption";
 import { SsoProviderSchema } from "./types";
+import { getDiscoveryUrl, resolveOneLoginIssuer } from "./oidcDiscovery";
 import {
   CustomSSOProvider,
   GitHubEnterpriseProvider,
@@ -245,6 +247,10 @@ const dbToNextAuthProvider = (provider: SsoProviderSchema): Provider | null => {
       id: getAuthProviderIdForSsoConfig(provider), // use the domain as the provider id as we use domain-specific credentials
       ...provider.authConfig,
       clientSecret: decrypt(provider.authConfig.clientSecret),
+      /** Same discovery URL as save-time validation; NextAuth's default appends /oidc/2 to any issuer. */
+      wellKnown: getDiscoveryUrl(
+        resolveOneLoginIssuer(provider.authConfig.issuer),
+      ),
       ...getClientConfig(provider.authConfig),
     });
   else if (provider.authProvider === "azure-ad") {

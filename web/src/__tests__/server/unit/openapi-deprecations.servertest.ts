@@ -294,10 +294,10 @@ service:
       "GET /api/public/v2/metrics",
     );
     expect(INGESTION_DEPRECATION.message).toContain(
-      "https://langfuse.com/docs/api-and-data-platform/features/scores-api",
+      "https://langfuse.com/docs/api-and-data-platform/features/public-api#v3",
     );
     expect(INGESTION_DEPRECATION.message).toContain(
-      "https://langfuse.com/docs/api-and-data-platform/features/observations-api",
+      "https://langfuse.com/docs/api-and-data-platform/features/public-api#v2",
     );
   });
 

@@ -31,11 +31,7 @@ export const ExperimentMetadataSection = ({
           </button>
         </CollapsibleTrigger>
         <CollapsibleContent className="mt-2">
-          <PrettyJsonView
-            json={metadata}
-            currentView="pretty"
-            className="w-full"
-          />
+          <PrettyJsonView json={metadata} currentView="pretty" />
         </CollapsibleContent>
       </div>
     </Collapsible>

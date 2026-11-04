@@ -1,10 +1,10 @@
 import { useMemo } from "react";
-import { LayoutDashboard } from "lucide-react";
+import { LayoutDashboard } from "@langfuse/icons";
 import { api } from "@/src/utils/api";
-import { Combobox } from "@/src/components/ui/combobox";
+import { Combobox } from "@/src/components/ui/Combobox";
 import { LangfuseIcon } from "@/src/components/design-system/LangfuseIcon/LangfuseIcon";
 import { Button } from "@/src/components/ui/button";
-import { useHasProjectAccess } from "@/src/features/rbac";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 
 /**
  * Home's dashboard picker: selecting immediately shows ("peeks") the chosen
@@ -76,7 +76,7 @@ export function HomeDashboardSelect({
         title="The dashboard shown on this project's home page"
         className="text-muted-foreground my-0"
       >
-        <LayoutDashboard className="icon-base text-icon-foreground mr-1" />
+        <LayoutDashboard size="base" color="default" __rawClassName="mr-1" />
         {currentDashboardName}
       </Button>
     );

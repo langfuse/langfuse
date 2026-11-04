@@ -1,4 +1,4 @@
-import { Braces, ListFilter } from "lucide-react";
+import { Braces, ListFilter } from "@langfuse/icons";
 
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import type { EvaluatorFilterExperience } from "@/src/features/evals/v2/types/evaluatorFilterExperience";

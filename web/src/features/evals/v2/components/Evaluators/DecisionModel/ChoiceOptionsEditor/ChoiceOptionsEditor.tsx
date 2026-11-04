@@ -1,5 +1,5 @@
 import { DECISION_MODEL_LIMITS } from "@langfuse/shared";
-import { Trash2 } from "lucide-react";
+import { Trash2 } from "@langfuse/icons";
 
 import { TextActionButton } from "@/src/components/TextActionButton/TextActionButton";
 import { Button } from "@/src/components/ui/button";
@@ -87,7 +87,7 @@ export function ChoiceOptionsEditor({
                   : `Keep at least ${DECISION_MODEL_LIMITS.minChoiceOptions} options`
               }
             >
-              <Trash2 className="text-icon-foreground icon-sm" />
+              <Trash2 size="sm" color="default" />
             </Button>
           </div>
         )}

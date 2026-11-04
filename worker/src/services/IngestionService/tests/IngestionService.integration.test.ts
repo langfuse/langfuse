@@ -798,12 +798,14 @@ describe("Ingestion end-to-end tests", () => {
           traceEventList,
         }),
         ingestionService.processObservationEventList({
+          attribution: testIngestionAttribution,
           projectId,
           entityId: spanId,
           createdAtTimestamp: new Date(),
           observationEventList: spanEventList,
         }),
         ingestionService.processObservationEventList({
+          attribution: testIngestionAttribution,
           projectId,
           entityId: generationId,
           createdAtTimestamp: new Date(),
@@ -1218,6 +1220,7 @@ describe("Ingestion end-to-end tests", () => {
           traceEventList,
         }),
         ingestionService.processObservationEventList({
+          attribution: testIngestionAttribution,
           projectId,
           entityId: generationId,
           createdAtTimestamp: new Date(),
@@ -1382,18 +1385,21 @@ describe("Ingestion end-to-end tests", () => {
         traceEventList,
       }),
       ingestionService.processObservationEventList({
+        attribution: testIngestionAttribution,
         projectId,
         entityId: spanId,
         createdAtTimestamp: new Date(),
         observationEventList: spanEventList,
       }),
       ingestionService.processObservationEventList({
+        attribution: testIngestionAttribution,
         projectId,
         entityId: generationId,
         createdAtTimestamp: new Date(),
         observationEventList: generationEventList,
       }),
       ingestionService.processObservationEventList({
+        attribution: testIngestionAttribution,
         projectId,
         entityId: eventId,
         createdAtTimestamp: new Date(),
@@ -1853,6 +1859,7 @@ describe("Ingestion end-to-end tests", () => {
     ];
 
     await ingestionService.processObservationEventList({
+      attribution: testIngestionAttribution,
       projectId,
       entityId: observationId,
       createdAtTimestamp: new Date(),
@@ -1991,6 +1998,7 @@ describe("Ingestion end-to-end tests", () => {
     ];
 
     await ingestionService.processObservationEventList({
+      attribution: testIngestionAttribution,
       projectId,
       entityId: observationId,
       createdAtTimestamp: new Date(),
@@ -2046,6 +2054,7 @@ describe("Ingestion end-to-end tests", () => {
       },
     ];
     await ingestionService.processObservationEventList({
+      attribution: testIngestionAttribution,
       projectId,
       entityId: observationId,
       createdAtTimestamp: new Date(),
@@ -2069,6 +2078,7 @@ describe("Ingestion end-to-end tests", () => {
       },
     ];
     await ingestionService.processObservationEventList({
+      attribution: testIngestionAttribution,
       projectId,
       entityId: observationId,
       createdAtTimestamp: new Date(),
@@ -2121,6 +2131,7 @@ describe("Ingestion end-to-end tests", () => {
     ];
 
     await ingestionService.processObservationEventList({
+      attribution: testIngestionAttribution,
       projectId,
       entityId: generationId,
       createdAtTimestamp: new Date(),
@@ -2191,6 +2202,7 @@ describe("Ingestion end-to-end tests", () => {
         traceEventList,
       }),
       ingestionService.processObservationEventList({
+        attribution: testIngestionAttribution,
         projectId,
         entityId: generationId,
         createdAtTimestamp: new Date(),
@@ -2233,6 +2245,7 @@ describe("Ingestion end-to-end tests", () => {
     ];
 
     await ingestionService.processObservationEventList({
+      attribution: testIngestionAttribution,
       projectId,
       entityId: generationId,
       createdAtTimestamp: new Date(),
@@ -2335,6 +2348,7 @@ describe("Ingestion end-to-end tests", () => {
         traceEventList,
       }),
       ingestionService.processObservationEventList({
+        attribution: testIngestionAttribution,
         projectId,
         entityId: generationId,
         createdAtTimestamp: new Date(),
@@ -2441,6 +2455,7 @@ describe("Ingestion end-to-end tests", () => {
         traceEventList,
       }),
       ingestionService.processObservationEventList({
+        attribution: testIngestionAttribution,
         projectId,
         entityId: generationId,
         createdAtTimestamp: new Date(),
@@ -2469,58 +2484,6 @@ describe("Ingestion end-to-end tests", () => {
     expect(observation?.usage_details.input).toEqual(5);
     expect(observation?.usage_details.output).toEqual(11);
   });
-
-  // it("null does override set values, undefined doesn't", async () => {
-  //   const traceId = randomUUID();
-  //   const timestamp = Date.now();
-  //
-  //   const traceEventList: TraceEventType[] = [
-  //     {
-  //       id: randomUUID(),
-  //       type: "trace-create",
-  //       timestamp: new Date(timestamp).toISOString(),
-  //       body: {
-  //         id: traceId,
-  //         name: "trace-name",
-  //         timestamp: new Date(timestamp).toISOString(),
-  //         userId: "user-1",
-  //         metadata: { key: "value" },
-  //         release: "1.0.0",
-  //         version: "2.0.0",
-  //         environment,
-  //       },
-  //     },
-  //     {
-  //       id: randomUUID(),
-  //       type: "trace-create",
-  //       timestamp: new Date(timestamp + 1).toISOString(),
-  //       body: {
-  //         id: traceId,
-  //         name: "trace-name",
-  //         metadata: { key: "value" },
-  //         // Do not set user_id here to validate behaviour for missing fields
-  //         release: null,
-  //         version: undefined,
-  //         environment,
-  //       },
-  //     },
-  //   ];
-  //
-  //   await ingestionService.processTraceEventList({
-  //     projectId,
-  //     entityId: traceId,
-  //     createdAtTimestamp: new Date(),
-  //     traceEventList,
-  //   });
-  //
-  //   await clickhouseWriter.flushAll(true);
-  //
-  //   const trace = await getClickhouseRecord(TableName.Traces, traceId);
-  //
-  //   expect(trace.release).toBe(null);
-  //   expect(trace.version).toBe("2.0.0");
-  //   expect(trace.user_id).toBe("user-1");
-  // });
 
   [
     {
@@ -2632,6 +2595,7 @@ describe("Ingestion end-to-end tests", () => {
           traceEventList,
         }),
         ingestionService.processObservationEventList({
+          attribution: testIngestionAttribution,
           projectId,
           entityId: generationId,
           createdAtTimestamp: new Date(),
@@ -2821,6 +2785,7 @@ describe("Ingestion end-to-end tests", () => {
       ];
 
       await ingestionService.processObservationEventList({
+        attribution: testIngestionAttribution,
         projectId,
         entityId: generationId,
         createdAtTimestamp: new Date(),
@@ -2948,6 +2913,7 @@ describe("Ingestion end-to-end tests", () => {
           ],
         }),
         ingestionService.processObservationEventList({
+          attribution: testIngestionAttribution,
           projectId,
           entityId: generationId,
           createdAtTimestamp: new Date(),
@@ -3088,6 +3054,7 @@ describe("Ingestion end-to-end tests", () => {
           ],
         }),
         ingestionService.processObservationEventList({
+          attribution: testIngestionAttribution,
           projectId,
           entityId: generationId,
           createdAtTimestamp: new Date(),
@@ -3217,6 +3184,7 @@ describe("Ingestion end-to-end tests", () => {
           ],
         }),
         ingestionService.processObservationEventList({
+          attribution: testIngestionAttribution,
           projectId,
           entityId: generationId,
           createdAtTimestamp: new Date(),
@@ -3338,6 +3306,7 @@ describe("Ingestion end-to-end tests", () => {
           ],
         }),
         ingestionService.processObservationEventList({
+          attribution: testIngestionAttribution,
           projectId,
           entityId: generationId,
           createdAtTimestamp: new Date(),

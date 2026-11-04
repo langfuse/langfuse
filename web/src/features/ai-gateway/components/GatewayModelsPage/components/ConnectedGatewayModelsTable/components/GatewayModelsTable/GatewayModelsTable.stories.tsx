@@ -6,7 +6,7 @@ import { GatewayModelsTable } from "./GatewayModelsTable";
 const meta = preview.meta({ component: GatewayModelsTable });
 
 const actions = {
-  noResultsMessage: "No models were returned by the configured providers.",
+  noResultsMessage: "No models were returned by your provider credentials.",
   organizationId: "org-story",
   canManageGateway: true,
   pagination: {

@@ -18,3 +18,8 @@ scripts/code-eval-runners/
 # explicit-unescape XSS rule does not apply.
 ai-gateway/about.hbs
 packages/native/about.hbs
+
+# claude.ai/design sync build tooling, run locally by /design-sync and never
+# deployed. story-imports.mjs builds its package-matching regex from
+# escaped config values, which trips detect-non-literal-regexp.
+.design-sync/

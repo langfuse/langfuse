@@ -43,3 +43,36 @@ describe("WebhookActionHandler.buildActionConfig apiVersion", () => {
     expect(apiVersionFor(undefined)).toEqual({ prompt: "v1" });
   });
 });
+
+describe("WebhookActionHandler.validateFormData URL changes", () => {
+  const storedSecretHeader = {
+    name: "x-api-key",
+    value: "",
+    displayValue: "secr...-123",
+    isSecret: true,
+    wasSecret: true,
+  };
+
+  const validate = (url: string, value = "") =>
+    handler.validateFormData({
+      webhook: {
+        url,
+        headers: [{ ...storedSecretHeader, value }],
+        originalUrl: "https://example.com/hook",
+      },
+    });
+
+  it("requires stored secret headers to be re-entered when the URL changes", () => {
+    expect(validate("https://example.org/hook").errors).toEqual([
+      "Header 1: Re-enter the secret value when changing the webhook URL",
+    ]);
+  });
+
+  it("accepts a URL change with the secret re-entered", () => {
+    expect(validate("https://example.org/hook", "new-key").isValid).toBe(true);
+  });
+
+  it("keeps stored secrets when the URL is unchanged", () => {
+    expect(validate("https://EXAMPLE.com/hook").isValid).toBe(true);
+  });
+});

@@ -2,7 +2,7 @@
 /* eslint-disable @repo/no-style-props */
 import { useCallback, useMemo, useRef, useState } from "react";
 import { cn } from "@/src/utils/tailwind";
-import { X } from "lucide-react";
+import { X } from "@langfuse/icons";
 import { Button } from "@/src/components/ui/button";
 import { Layer } from "@/src/components/design-system/Layer/Layer";
 import {
@@ -662,7 +662,7 @@ export function OutlierBarStrip({
                   onSelectionChange?.(null);
                 }}
               >
-                <X className="icon-sm" />
+                <X size="sm" />
               </button>
             </div>
             {previewHasData && (

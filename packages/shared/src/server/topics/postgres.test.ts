@@ -426,6 +426,39 @@ describe("Topics immutable definitions and run membership", () => {
     expect(mocks.runUpdate).not.toHaveBeenCalled();
   });
 
+  it("names the fields a definition readback lost, never their values", async () => {
+    const row = runRow({ id: "run-b" });
+    const created = {
+      ...topic,
+      createdByRunId: row.id,
+      name: "Secret topic name",
+      metadata: { count: 1, namingSampled: undefined },
+    };
+    mocks.runFind.mockResolvedValue(row);
+    let definitionInserted = false;
+    mocks.topicWrite.mockImplementation(async () => {
+      definitionInserted = true;
+    });
+    mocks.topicFind.mockImplementation(async () =>
+      definitionInserted
+        ? [{ ...created, name: "Other", metadata: { count: 2 } }]
+        : [],
+    );
+    const run = (await getTopicRun("project-a", row.id))!;
+    const failure = await saveTopicRun({
+      ...run,
+      topics: [created],
+      status: "completed",
+    }).catch((error: unknown) => error);
+    expect(failure).toMatchObject({
+      name: "TopicDefinitionReadbackError",
+      message:
+        "Topic definition readback did not match for 1 of 1 new definitions (name, metadata.count, metadata.namingSampled).",
+    });
+    expect((failure as Error).message).not.toMatch(/Secret|Other/);
+    expect(mocks.runUpdate).not.toHaveBeenCalled();
+  });
+
   it("fails hydration instead of exposing only the definitions that remain", async () => {
     mocks.runFind.mockResolvedValue(
       runRow({

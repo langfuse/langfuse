@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-use-before-define */
 import { type NextApiRequest } from "next";
 import { type Span } from "@opentelemetry/api";
 
@@ -24,7 +25,7 @@ import {
 } from "@langfuse/shared/rbac";
 
 import { authorize } from "@/src/features/rbac/authorize";
-import { authenticator } from "@/src/features/apiKey/server";
+import { authenticator } from "@/src/features/apiKey/authenticator";
 import { toApiAccessScope } from "@/src/features/public-api/server/toApiAccessScope";
 import {
   forbiddenError,

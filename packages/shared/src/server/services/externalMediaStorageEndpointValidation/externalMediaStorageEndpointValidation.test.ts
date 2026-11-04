@@ -1,5 +1,5 @@
-import { describe, expect, it, vi } from "vitest";
-import { OutboundUrlValidationError } from "../../outbound-url";
+import dns from "node:dns/promises";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { validateExternalMediaStorageEndpoint } from "./externalMediaStorageEndpointValidation";
 
 vi.mock("../../../env", () => ({
@@ -14,14 +14,39 @@ vi.mock("../../../env", () => ({
 const strictWhitelist = { hosts: [], ips: [], ip_ranges: [] };
 
 describe("validateExternalMediaStorageEndpoint", () => {
-  it.each(["http://127.0.0.1", "http://169.254.169.254", "http://10.0.0.1"])(
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it.each([
+    ["http://127.0.0.1", "blocked-ip"],
+    ["http://[::1]", "blocked-ip"],
+    ["http://169.254.169.254", "blocked-hostname"],
+    ["http://10.0.0.1", "blocked-ip"],
+  ])(
     "rejects private endpoint %s without an allowlist",
-    async (endpoint) => {
+    async (endpoint, code) => {
       await expect(
         validateExternalMediaStorageEndpoint(endpoint, strictWhitelist),
-      ).rejects.toBeInstanceOf(OutboundUrlValidationError);
+      ).rejects.toMatchObject({ code });
     },
   );
+
+  it("rejects a hostname that resolves to a private address", async () => {
+    vi.spyOn(dns, "resolve4").mockResolvedValue(["10.0.0.5"]);
+    vi.spyOn(dns, "resolve6").mockRejectedValue(new Error("ENODATA"));
+    vi.spyOn(dns, "lookup").mockResolvedValue([
+      { address: "10.0.0.5", family: 4 },
+    ] as never);
+
+    await expect(
+      validateExternalMediaStorageEndpoint(
+        "https://storage.internal.example.com",
+        strictWhitelist,
+      ),
+    ).rejects.toMatchObject({ code: "blocked-ip" });
+    expect(dns.resolve4).toHaveBeenCalledWith("storage.internal.example.com");
+  });
 
   it("rejects endpoints with embedded credentials", async () => {
     await expect(

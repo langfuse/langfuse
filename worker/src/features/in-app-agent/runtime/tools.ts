@@ -3,8 +3,14 @@ import {
   toStandardSchema,
 } from "@mastra/core/schema";
 import { createTool, Tool } from "@mastra/core/tools";
-import type { InAppAgentSandbox } from "./sandbox";
-import { assertUnreachable } from "@langfuse/shared";
+import type { InAppAgentSandbox } from "./sandbox/types";
+import {
+  isoDateTime,
+  assertUnreachable,
+  ObservationLevelDomain,
+  TABLE_AGGREGATION_OPTIONS,
+  TracingSearchType,
+} from "@langfuse/shared";
 import { getToolFailureMessage } from "@langfuse/shared/in-app-agent/server/toolErrors";
 import {
   buildDashboardsPath,
@@ -25,11 +31,7 @@ import {
   buildTracesPath,
 } from "@langfuse/shared/src/server";
 import z from "zod";
-import {
-  ObservationLevelDomain,
-  TABLE_AGGREGATION_OPTIONS,
-  TracingSearchType,
-} from "@langfuse/shared";
+
 import {
   InAppAgentSandboxBashArgsSchema,
   InAppAgentSandboxEditArgsSchema,
@@ -190,9 +192,8 @@ export function withOptionalSilentMcpOutput(params: {
 
           // Rethrow instead of returning a structured failure: the tool-error
           // chunk rewrite already feeds the error back as a tool result the
-          // loop continues from, executeApprovedToolCall classifies
-          // approved-tool failures from the throw, and an aborted run must
-          // unwind rather than look like one more failed tool call.
+          // loop continues from, and an aborted run must unwind rather than
+          // look like one more failed tool call.
           throw error;
         }
 
@@ -285,16 +286,16 @@ const InAppAgentTableTimeRangeStrictSchema = z.union([
     preset: InAppAgentTableTimeRangePresetSchema,
   }),
   z.object({
-    from: z.iso.datetime(),
-    to: z.iso.datetime(),
+    from: isoDateTime(),
+    to: isoDateTime(),
   }),
 ]);
 
 const InAppAgentTableTimeRangeSchema = z
   .object({
     preset: InAppAgentTableTimeRangePresetSchema.optional(),
-    from: z.iso.datetime().optional(),
-    to: z.iso.datetime().optional(),
+    from: isoDateTime().optional(),
+    to: isoDateTime().optional(),
   })
   .superRefine((value, ctx) => {
     if (!InAppAgentTableTimeRangeStrictSchema.safeParse(value).success) {
@@ -407,7 +408,7 @@ const InAppAgentRedirectToolInputStrictSchema = z.discriminatedUnion(
     InAppAgentRedirectBaseSchema.extend({
       destination: z.literal("trace"),
       params: z.object({
-        timestamp: z.iso.datetime().optional(),
+        timestamp: isoDateTime().optional(),
         traceId: z.string().min(1).max(200),
       }),
     }),
@@ -422,7 +423,7 @@ const InAppAgentRedirectParamsSchema = z.object({
   folder: z.string().min(1).max(200).optional(),
   page: InAppAgentProjectSettingsPageSchema.optional(),
   sessionId: z.string().min(1).max(200).optional(),
-  timestamp: z.iso.datetime().optional(),
+  timestamp: isoDateTime().optional(),
   traceId: z.string().min(1).max(200).optional(),
   widgetId: z.string().min(1).max(200).optional(),
   filters: InAppAgentTracingFiltersSchema.optional(),

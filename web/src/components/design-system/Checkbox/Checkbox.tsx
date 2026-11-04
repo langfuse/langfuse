@@ -3,7 +3,7 @@
 import * as React from "react";
 import * as CheckboxPrimitive from "@radix-ui/react-checkbox";
 import { cva, type VariantProps } from "class-variance-authority";
-import { Check } from "lucide-react";
+import { Check } from "@langfuse/icons";
 
 import { cn } from "@/src/utils/tailwind";
 
@@ -53,7 +53,7 @@ const Checkbox = React.forwardRef<
     {...props}
   >
     <CheckboxPrimitive.Indicator className="flex items-center justify-center text-current">
-      <Check className={size === "sm" ? "icon-sm" : "icon-base"} />
+      <Check size={size === "sm" ? "sm" : "base"} />
     </CheckboxPrimitive.Indicator>
   </CheckboxPrimitive.Root>
 ));

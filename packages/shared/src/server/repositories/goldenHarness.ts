@@ -428,6 +428,167 @@ export function normalizeCapturedQueries(
 ): GoldenQuery[] {
   return captured.map((c) => {
     const { sql, params } = normalizeParams(formatSql(c.query), c.params);
-    return { fn: c.fn, route: routeOf(c.tags), sql: wrapLongSql(sql), params };
+    return {
+      fn: c.fn,
+      route: routeOf(c.tags),
+      sql: layoutSql(sql),
+      params,
+    };
   });
 }
+
+/** Line layout every golden snapshot shares, applied to formatted SQL. */
+export function layoutSql(sql: string): string {
+  return wrapLongSql(splitConditions(sql));
+}
+
+const CONDITION_CLAUSE = /^(\s*)(PREWHERE|WHERE|HAVING) (.*)$/;
+const AND = " AND ";
+
+/**
+ * Put each top-level `AND` condition of a `WHERE`/`PREWHERE`/`HAVING` clause on
+ * its own line, so a filter added or removed shows as a one-line diff:
+ *
+ *   WHERE (a = 1) AND (if(b AND c, 1, 0) = 1)
+ *   →
+ *   WHERE (a = 1)
+ *       AND (if(b AND c, 1, 0) = 1)
+ *
+ * Splits only at the clause's own bracket depth, outside quotes. A conjunct
+ * spanning lines (`AND (x IN (` … `))`) has its body indented under its `AND`,
+ * and the conjuncts after its closing bracket are split too. `clickhouse
+ * format` parenthesizes every operand of a mixed `AND`/`OR` and rewrites
+ * `BETWEEN` and `CASE`, so a top-level `AND` is always a conjunct of the
+ * clause's root.
+ */
+export function splitConditions(sql: string): string {
+  const out: string[] = [];
+  const open: OpenClause[] = [];
+  let depth = 0;
+  for (const line of sql.split("\n")) {
+    while (open.length > 0 && depth <= open[open.length - 1].depth) open.pop();
+    const shift = open.map((c) => c.shift).join("");
+    const lineDepth = depth;
+    depth = depthAfter(line, depth);
+
+    const clause = splitClauseLine(line, lineDepth, shift);
+    if (clause) {
+      out.push(...clause.lines);
+      if (depth > lineDepth) open.push(clause.open);
+      continue;
+    }
+
+    const top = open.at(-1);
+    const closing = top && splitClosingLine(line, lineDepth, shift, top);
+    if (closing) {
+      out.push(...closing);
+      top.shift = WRAP_INDENT;
+      continue;
+    }
+
+    out.push(shift + line);
+  }
+  return out.join("\n");
+}
+
+/** Split a `WHERE`/`PREWHERE`/`HAVING` line; null for any other line. */
+function splitClauseLine(
+  line: string,
+  depth: number,
+  shift: string,
+): { lines: string[]; open: OpenClause } | null {
+  const match = CONDITION_CLAUSE.exec(line);
+  if (!match) return null;
+  const [, indent, keyword, body] = match;
+  const [first, ...rest] = splitTopLevelAnd(body);
+  const open = {
+    depth,
+    indent: shift + indent,
+    shift: rest.length > 0 ? WRAP_INDENT : "",
+  };
+  return {
+    lines: [`${open.indent}${keyword} ${first}`, ...andLines(open, rest)],
+    open,
+  };
+}
+
+/**
+ * Split the line that closes `clause`'s open conjunct and continues with more
+ * conjuncts (`)) AND (b) AND (c`); null for any other line.
+ */
+function splitClosingLine(
+  line: string,
+  depth: number,
+  shift: string,
+  clause: OpenClause,
+): string[] | null {
+  const close = closeIndex(line, depth, clause.depth);
+  if (close === -1 || !line.startsWith(AND, close)) return null;
+  const conditions = splitTopLevelAnd(line.slice(close + AND.length));
+  return [shift + line.slice(0, close), ...andLines(clause, conditions)];
+}
+
+function andLines(clause: OpenClause, conditions: string[]): string[] {
+  return conditions.map((c) => `${clause.indent}${WRAP_INDENT}AND ${c}`);
+}
+
+/** `[index, char]` for every character of `text` outside quotes. */
+function* unquoted(text: string): Generator<[number, string]> {
+  let quote: string | null = null;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (quote) {
+      if (c === "\\") i++;
+      else if (c === quote) quote = null;
+    } else if (c === "'" || c === '"' || c === "`") quote = c;
+    else yield [i, c];
+  }
+}
+
+function bracketDelta(c: string): number {
+  if (c === "(" || c === "[") return 1;
+  if (c === ")" || c === "]") return -1;
+  return 0;
+}
+
+function depthAfter(line: string, depth: number): number {
+  for (const [, c] of unquoted(line)) depth += bracketDelta(c);
+  return depth;
+}
+
+/** Index just past the bracket that first brings `line` back to `target`. */
+function closeIndex(line: string, depth: number, target: number): number {
+  for (const [i, c] of unquoted(line)) {
+    depth += bracketDelta(c);
+    if (depth === target) return i + 1;
+  }
+  return -1;
+}
+
+function splitTopLevelAnd(expr: string): string[] {
+  const parts: string[] = [];
+  let depth = 0;
+  let start = 0;
+  for (const [i, c] of unquoted(expr)) {
+    depth += bracketDelta(c);
+    if (depth === 0 && expr.startsWith(AND, i)) {
+      parts.push(expr.slice(start, i));
+      start = i + AND.length;
+    }
+  }
+  parts.push(expr.slice(start));
+  return parts;
+}
+
+/**
+ * A condition clause whose last conjunct is still open at the end of a line (a
+ * multi-line subquery). Lives until a line starts back at `depth`.
+ */
+type OpenClause = {
+  /** Bracket depth at the start of the clause line. */
+  depth: number;
+  /** Emitted indent of the clause line; continuation `AND`s go one level in. */
+  indent: string;
+  /** Extra indent for the subquery lines, so they sit inside their `AND`. */
+  shift: string;
+};

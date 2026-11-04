@@ -4,7 +4,7 @@ import {
   type DecisionModelQuestion,
 } from "@langfuse/shared";
 
-import { Badge } from "@/src/components/ui/badge";
+import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { QUESTION_TYPE_COPY } from "@/src/features/evals/v2/components/Evaluators/DecisionModel/QuestionTypeSelector/QuestionTypeSelector";
 
 function entryText(entry: DecisionModelEntry | null | undefined) {
@@ -81,10 +81,8 @@ export function DecisionModelQuestionSummary({
         <span className="text-muted-foreground shrink-0 font-mono text-xs">
           {index + 1}
         </span>
-        <copy.icon className="icon-base shrink-0" aria-label={copy.label} />
-        <Badge variant="secondary" className="shrink-0 font-mono">
-          {question.scoreName}
-        </Badge>
+        <copy.icon size="base" aria-label={copy.label} />
+        <Badge color="filled" font="mono" text={question.scoreName} />
         <span className="truncate" title={entryText(question.instructions)}>
           {entryText(question.instructions)}
         </span>

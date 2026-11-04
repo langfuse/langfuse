@@ -5,8 +5,9 @@
  * The header row is handled by JSONTableView.
  */
 
-import { memo, useMemo } from "react";
 import { PrettyJsonView } from "@/src/components/ui/PrettyJsonView";
+import { memo, useMemo } from "react";
+
 import { type TreeNode } from "@/src/features/traces/types/treeNode";
 import { useLogViewObservationIO } from "./useLogViewObservationIO";
 import { Spinner } from "@/src/components/design-system/Spinner/Spinner";
@@ -70,7 +71,7 @@ export const LogViewExpandedContent = memo(function LogViewExpandedContent({
   }, [data]);
 
   return (
-    <div className="w-full">
+    <div className="w-full [&_.border]:border-0 [&_.io-message-content]:p-0 [&_.rounded-sm]:rounded-none [&_td:first-child]:pl-6 [&_th]:h-6 [&_th]:text-xs [&_th:first-child]:pl-6">
       {isLoading && (
         <div className="flex items-center justify-center py-4">
           <Spinner size="sm" variant="muted" />
@@ -90,12 +91,11 @@ export const LogViewExpandedContent = memo(function LogViewExpandedContent({
           currentView={toPrettyOrJsonView(currentView)}
           isLoading={false}
           showNullValues={false}
-          stickyTopLevelKey={false}
-          showObservationTypeBadge={true}
-          scrollable={true}
           externalExpansionState={externalExpansionState}
           onExternalExpansionChange={onExternalExpansionChange}
-          className="w-full [&_.border]:border-0 [&_.io-message-content]:p-0 [&_.rounded-sm]:rounded-none [&_td:first-child]:pl-6 [&_th]:h-6 [&_th]:text-xs [&_th:first-child]:pl-6"
+          stickyTopLevelKey={false}
+          showObservationTypeBadge
+          scrollable
         />
       )}
 

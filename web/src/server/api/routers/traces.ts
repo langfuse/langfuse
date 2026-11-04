@@ -1,7 +1,7 @@
 import { z } from "zod";
-import { auditLog } from "@/src/features/audit-logs/server";
-import { throwIfNoProjectAccess } from "@/src/features/rbac";
-import { aggregateScores } from "@/src/features/scores/server";
+import { auditLog } from "@/src/features/audit-logs/auditLog";
+import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { aggregateScores } from "@/src/features/scores/lib/aggregateScores";
 import {
   applyCommentFilters,
   traceException,
@@ -35,6 +35,7 @@ import {
   protectedProjectProcedure,
 } from "@/src/server/api/trpc";
 import {
+  isoDateTime,
   BatchActionQuerySchema,
   BatchTableNames,
   BatchExportTableName,
@@ -57,13 +58,14 @@ import {
   LangfuseNotFoundError,
 } from "@langfuse/shared";
 import { TRPCError } from "@trpc/server";
-import { createBatchActionJob } from "@/src/features/table/server";
-import { throwIfNoEntitlement } from "@/src/features/entitlements/server";
-import { sanitizeLegacyTracingSearch } from "@/src/features/traces/server";
+import { createBatchActionJob } from "@/src/features/table/server/createBatchActionJob";
+import { throwIfNoEntitlement } from "@/src/features/entitlements/server/hasEntitlement";
+import { sanitizeLegacyTracingSearch } from "@/src/features/traces/server/legacyIoSearch";
 import {
   type AgentGraphDataResponse,
   AgentGraphDataSchema,
-} from "@/src/features/trace-graph-view/server";
+} from "@/src/features/trace-graph-view/types";
+
 import { env } from "@/src/env.mjs";
 import {
   toDomainWithStringifiedMetadata,
@@ -676,8 +678,8 @@ export const traceRouter = createTRPCRouter({
       z.object({
         projectId: z.string(),
         traceId: z.string(),
-        minStartTime: z.iso.datetime({ offset: true }),
-        maxStartTime: z.iso.datetime({ offset: true }),
+        minStartTime: isoDateTime({ offset: true }),
+        maxStartTime: isoDateTime({ offset: true }),
         // Optional fields for enforceTraceAccess middleware (supports public traces)
         timestamp: z.date().nullish(),
         fromTimestamp: z.date().nullish(),

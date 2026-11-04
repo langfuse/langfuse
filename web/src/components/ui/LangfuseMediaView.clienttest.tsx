@@ -18,7 +18,11 @@ vi.mock("@/src/utils/api", () => ({
 }));
 
 vi.mock("./media/useResolvedMedia", () => ({
-  useResolvedMedia: () => ({ status: "idle", url: undefined }),
+  useResolvedMedia: () => ({
+    status: "idle",
+    url: undefined,
+    refreshIfNeeded: async () => undefined,
+  }),
 }));
 
 describe("LangfuseMediaView", () => {

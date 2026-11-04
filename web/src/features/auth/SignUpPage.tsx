@@ -17,8 +17,8 @@ import * as z from "zod";
 import { env } from "@/src/env.mjs";
 import { useRef, useState } from "react";
 import { LangfuseIcon } from "@/src/components/design-system/LangfuseIcon/LangfuseIcon";
-import { CloudPrivacyNotice } from "@/src/features/auth/components/AuthCloudPrivacyNotice";
-import { CloudRegionSwitch } from "@/src/features/auth/components/AuthCloudRegionSwitch";
+import { CloudPrivacyNotice } from "@/src/features/auth/components/CloudPrivacyNotice";
+import { CloudRegionSwitch } from "@/src/features/auth/components/CloudRegionSwitch";
 import {
   FALLBACK_AUTH_PROVIDERS,
   SSOButtons,
@@ -26,15 +26,15 @@ import {
   type PageProps,
 } from "@/src/features/auth/SignInPage";
 import { PasswordInput } from "@/src/components/design-system/PasswordInput/PasswordInput";
-import { useLangfuseCloudRegion } from "@/src/features/organizations";
+import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
 import { useRouter } from "next/router";
 import { getSafeRedirectPath } from "@/src/utils/redirect";
 import { reportError } from "@/src/utils/reportError";
 import { isJsonParseSyntaxError } from "@/src/features/auth/lib/expectedAuthErrors";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import useLocalStorage from "@/src/components/useLocalStorage";
 import { noUrlCheck, StringNoHTMLNonEmpty } from "@langfuse/shared";
-import { PASSWORD_SETUP_EMAIL_STORAGE_KEY } from "@/src/features/auth-credentials";
+import { PASSWORD_SETUP_EMAIL_STORAGE_KEY } from "@/src/features/auth-credentials/lib/credentialsUtils";
 import {
   getOnboardingTargetPath,
   getSignupCallbackUrl,

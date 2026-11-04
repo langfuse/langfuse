@@ -11,7 +11,9 @@ use axum::{
 
 use crate::{
     observability::RequestObservation,
-    resolution::{OrganizationId, ProjectId, ProviderConnection, ResolvedRequestContext},
+    resolution::{
+        OrganizationId, ProjectId, ProviderConnection, RateLimit, ResolvedRequestContext,
+    },
 };
 
 pub(crate) const REQUEST_ID_HEADER: HeaderName = HeaderName::from_static("langfuse-request-id");
@@ -36,7 +38,7 @@ pub(crate) struct GenerationIds {
 #[derive(Clone, Debug)]
 struct Tenant {
     organization_id: OrganizationId,
-    project_id: ProjectId,
+    project_id: Option<ProjectId>,
 }
 
 /// The provider connection and model of an upstream attempt. With several
@@ -135,12 +137,22 @@ impl RequestCorrelation {
             "langfuse.organization.id",
             attribution.organization_id().as_str(),
         );
-        self.server_span
-            .record("langfuse.project.id", attribution.project_id().as_str());
+        if let Some(project_id) = attribution.project_id() {
+            self.server_span
+                .record("langfuse.project.id", project_id.as_str());
+        }
         self.tenant = Some(Tenant {
             organization_id: attribution.organization_id().clone(),
-            project_id: attribution.project_id().clone(),
+            project_id: attribution.project_id().cloned(),
         });
+    }
+
+    /// Web names the organization it rate limited, since no context was resolved.
+    pub(crate) fn record_rate_limit(&self, limit: &RateLimit) {
+        if let Some(organization_id) = limit.organization_id() {
+            self.server_span
+                .record("langfuse.organization.id", organization_id);
+        }
     }
 
     pub(crate) fn record_upstream(&mut self, target: UpstreamTarget) {
@@ -165,10 +177,10 @@ impl RequestCorrelation {
         let Some(tenant) = &self.tenant else {
             return;
         };
-        let mut values = vec![
-            (ORGANIZATION_ID_HEADER, tenant.organization_id.as_str()),
-            (PROJECT_ID_HEADER, tenant.project_id.as_str()),
-        ];
+        let mut values = vec![(ORGANIZATION_ID_HEADER, tenant.organization_id.as_str())];
+        if let Some(project_id) = &tenant.project_id {
+            values.push((PROJECT_ID_HEADER, project_id.as_str()));
+        }
         if let Some(upstream) = &self.upstream {
             values.push((PROVIDER_HEADER, upstream.provider));
             values.push((PROVIDER_CONNECTION_ID_HEADER, &upstream.connection_id));

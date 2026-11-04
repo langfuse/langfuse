@@ -571,6 +571,7 @@ describe("AI SDK request shapes", () => {
     expect(request.body.max_tokens).toBe(64);
     expect(request.body.temperature).toBe(0.2);
     expect(request.body.top_p).toBe(0.9);
+    expect(request.body.reasoning_effort).toBeUndefined();
     expect(request.body.forceReasoning).toBeUndefined();
   });
 

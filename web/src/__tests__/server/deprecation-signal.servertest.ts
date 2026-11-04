@@ -22,7 +22,6 @@ import {
   TRACES_DEPRECATION,
   V3_SUNSET_DATE,
 } from "@/src/features/public-api/server/deprecations";
-import { OBSERVATIONS_API_V2_DOCS_URL } from "@/src/features/public-api/server/rateLimitUpgradePaths";
 import { randomUUID } from "crypto";
 
 // Legacy (v3-data-model) endpoints attach a top-level `_deprecation`
@@ -54,6 +53,41 @@ describe("public API deprecation signal", () => {
     );
   });
 
+  it("puts the sunset and replacement into `meta.deprecation` on list responses", async () => {
+    const response = await makeZodVerifiedAPICall(
+      GetObservationsV1Response,
+      "GET",
+      "/api/public/observations",
+      undefined,
+      auth,
+    );
+
+    expect(Object.keys(response.body)[0]).toBe("_deprecation");
+    expect(Object.keys(response.body.meta)[0]).toBe("deprecation");
+    expect(response.body.meta.deprecation).toEqual({
+      sunsetAt: V3_SUNSET_DATE,
+      replacement: OBSERVATIONS_V1_DEPRECATION.replacement,
+    });
+  });
+
+  // The 404 is written by withMiddlewares, not by the route.
+  it("attaches `_deprecation` to a 404 from the legacy single GET /observations/{id}", async () => {
+    const response = await makeAPICall(
+      "GET",
+      `/api/public/observations/${randomUUID()}`,
+      undefined,
+      auth,
+    );
+
+    expect(response.status).toBe(404);
+    expect((response.body as Record<string, unknown>)._deprecation).toEqual(
+      OBSERVATIONS_V1_DEPRECATION,
+    );
+    expect((response.body as Record<string, unknown>).message).toMatch(
+      / Use GET \/api\/public\/v2\/observations\?.* instead\.$/,
+    );
+  });
+
   it("carries the docs URL and the committed sunset date", async () => {
     const response = await makeZodVerifiedAPICall(
       GetObservationsV1Response,
@@ -65,7 +99,7 @@ describe("public API deprecation signal", () => {
 
     // docsUrl points at the migration guidance for the endpoint family.
     expect(response.body._deprecation?.docsUrl).toBe(
-      OBSERVATIONS_API_V2_DOCS_URL,
+      "https://langfuse.com/docs/api-and-data-platform/features/public-api#v2",
     );
     // sunsetAt is committed → present.
     expect(response.body._deprecation?.sunsetAt).toBe(V3_SUNSET_DATE);

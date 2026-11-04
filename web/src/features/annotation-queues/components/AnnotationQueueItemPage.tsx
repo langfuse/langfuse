@@ -1,12 +1,13 @@
+/* eslint-disable @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 import { Card } from "@/src/components/ui/card";
 import { Skeleton } from "@/src/components/ui/skeleton";
-import { useHasProjectAccess } from "@/src/features/rbac";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { api } from "@/src/utils/api";
 import {
   AnnotationQueueStatus,
   AnnotationQueueObjectType,
 } from "@langfuse/shared";
-import { ArrowLeft, ArrowRight, Keyboard, SearchXIcon } from "lucide-react";
+import { ArrowLeft, ArrowRight, Keyboard, SearchXIcon } from "@langfuse/icons";
 import { useRouter } from "next/router";
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -33,14 +34,14 @@ import {
   isInteractiveTarget,
   isOpenDialogPresent,
   isTypingTarget,
-} from "@/src/features/scores";
+} from "@/src/features/scores/lib/keyboardShortcuts";
 import { useAnnotationQueueData } from "./shared/hooks/useAnnotationQueueData";
 import { useAnnotationObjectData } from "./shared/hooks/useAnnotationObjectData";
 import { TraceAnnotationProcessor } from "./processors/TraceAnnotationProcessor";
 import { SessionAnnotationProcessor } from "./processors/SessionAnnotationProcessor";
-import { ObjectNotFoundCard } from "@/src/features/annotation-queues/components/object-not-found-card";
+import { ObjectNotFoundCard } from "@/src/features/annotation-queues/components/ObjectNotFoundCard";
 import { useSession } from "next-auth/react";
-import { SplashScreen } from "@/src/components/ui/splash-screen";
+import { SplashScreen } from "@/src/components/ui/SplashScreen";
 
 // A single row in the keyboard-shortcuts cheatsheet: label on the left, one or
 // more <KeyboardShortcut> glyphs on the right.
@@ -402,7 +403,7 @@ function AnnotationQueueRunContent({
     if (!relevantItem) {
       return (
         <Card className="flex h-full w-full flex-col items-center justify-center overflow-hidden border-none">
-          <SearchXIcon className="text-muted-foreground icon-xl mb-2" />
+          <SearchXIcon size="xl" color="muted" __rawClassName="mb-2" />
           <span className="text-muted-foreground max-w-96 text-sm text-wrap">
             Item has been <strong>deleted from annotation queue</strong>.
             Previously added scores and underlying reference trace are
@@ -481,7 +482,7 @@ function AnnotationQueueRunContent({
                   )}
                   aria-label="Previous item"
                 >
-                  <ArrowLeft className="icon-base text-icon-foreground" />
+                  <ArrowLeft size="base" color="default" />
                 </Button>
               )}
             </Tooltip>
@@ -526,7 +527,7 @@ function AnnotationQueueRunContent({
                   variant="outline"
                   aria-label="Skip to next item"
                 >
-                  <ArrowRight className="icon-base text-icon-foreground" />
+                  <ArrowRight size="base" color="default" />
                 </Button>
               )}
             </Tooltip>
@@ -577,7 +578,7 @@ function AnnotationQueueRunContent({
         <DialogContent className="max-w-sm">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-base">
-              <Keyboard className="icon-base" />
+              <Keyboard size="base" />
               Keyboard shortcuts
             </DialogTitle>
           </DialogHeader>

@@ -1,5 +1,5 @@
 import { z } from "zod/v4";
-import { jsonSchema } from "../../utils/zod";
+import { isoDateTime, jsonSchema } from "../../utils/zod";
 import { PromptLabelSchema } from "../prompts/types";
 import { COMMIT_MESSAGE_MAX_LENGTH } from "../prompts/constants";
 import {
@@ -223,8 +223,8 @@ export const ListSkillsQuerySchema = z.object({
   tag: z.string().optional(),
   page: z.coerce.number().int().min(1).default(1),
   limit: z.coerce.number().int().min(1).max(100).default(10),
-  fromUpdatedAt: z.iso.datetime({ offset: true }).optional(),
-  toUpdatedAt: z.iso.datetime({ offset: true }).optional(),
+  fromUpdatedAt: isoDateTime({ offset: true }).optional(),
+  toUpdatedAt: isoDateTime({ offset: true }).optional(),
 });
 
 export const UpdateSkillLabelsBodySchema = z.object({

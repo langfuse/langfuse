@@ -35,6 +35,8 @@ pnpm run seed -- experiment-io  # one v4 experiment with three chat/nested JSON 
 pnpm run seed -- experiment-filters  # three v4 runs over 60 items, shifted numeric/categorical/boolean scores, status, metadata and missing results
 pnpm run seed -- experiment-io --compare  # same dataset plus a second run with a long chat output, for the comparison table
 NEXTAUTH_URL=https://pr-<N>.preview.langfuse.com pnpm run seed -- evaluator-gallery --count 200  # project-owned evaluators via the seeded public API key
+pnpm run seed -- assistant-skills  # bundled assistant skills as production versions tagged in-app-agent; unchanged versions are reused
+pnpm run seed -- assistant-skills --demo  # adds an instructions-only local-assistant-check skill with a fixed response
 ```
 
 The last stdout line of a run is a JSON summary with `traceIds`,

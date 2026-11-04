@@ -1,5 +1,5 @@
 /* eslint-disable @repo/no-style-props */
-import { RotateCw, Sparkles, X } from "lucide-react";
+import { RotateCw, Sparkles, X } from "@langfuse/icons";
 import { Button } from "@/src/components/ui/button";
 import { cn } from "@/src/utils/tailwind";
 
@@ -54,12 +54,12 @@ export function VersionUpdateBannerView({
         className,
       )}
     >
-      <Sparkles className="text-primary icon-base shrink-0" />
+      <Sparkles size="base" __rawClassName="text-primary" />
       <span className="text-foreground text-sm whitespace-nowrap">
         Langfuse just got an update
       </span>
       <Button size="sm" className="rounded-full" onClick={onReload}>
-        <RotateCw className="icon-base mr-1.5" />
+        <RotateCw size="base" __rawClassName="mr-1.5" />
         Reload
       </Button>
       <Button
@@ -70,7 +70,7 @@ export function VersionUpdateBannerView({
         aria-label="Dismiss"
         title="Dismiss"
       >
-        <X className="icon-base text-icon-foreground" />
+        <X size="base" color="default" />
       </Button>
     </div>
   );
