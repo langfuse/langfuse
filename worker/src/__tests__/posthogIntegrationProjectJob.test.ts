@@ -35,6 +35,8 @@ const h = vi.hoisted(() => {
       generations: 2,
       events: 2,
     } satisfies Record<StreamKind, number>,
+    // Extra columns merged into every row a stream yields.
+    rowExtras: {} as Partial<Record<StreamKind, Record<string, unknown>>>,
   };
 
   function fakeStream(label: StreamKind) {
@@ -43,7 +45,10 @@ const h = vi.hoisted(() => {
       try {
         for (let index = 0; index < state.rowCounts[label]; index++) {
           await Promise.resolve();
-          yield { langfuse_id: `${label}-${index + 1}` };
+          yield {
+            langfuse_id: `${label}-${index + 1}`,
+            ...state.rowExtras[label],
+          };
         }
       } finally {
         timeline.push(`${label}:end`);
@@ -251,6 +256,7 @@ vi.mock("../env", () => ({
 // Import after mocks are registered.
 import { handlePostHogIntegrationProjectJob } from "../features/posthog/handlePostHogIntegrationProjectJob";
 import { env } from "../env";
+import { transformScoreForPostHog } from "../features/posthog/transformers";
 
 function makeJob() {
   return {
@@ -271,6 +277,7 @@ function resetSharedState() {
   h.state.rowCounts.traces = 2;
   h.state.rowCounts.generations = 2;
   h.state.rowCounts.events = 2;
+  h.state.rowExtras = {};
   h.posthogIntegrationUpdate.mockClear();
   h.persist.failWith = undefined;
   // mockClear, not mockReset: the implementations above are claim/notification
@@ -526,6 +533,42 @@ describe("handlePostHogIntegrationProjectJob delivery controls (issue #12786)", 
 // lastError/lastErrorAt are persisted, and the customer is notified once with
 // disabled=true. Transient/infra faults still throw, retry, and trip the
 // monitor unchanged.
+// PostHog drops a single event over 1MB with a 413. The SDK then reports a
+// delivery error, which fails the run and stops lastSyncAt from advancing.
+describe("handlePostHogIntegrationProjectJob oversized events", () => {
+  beforeEach(resetSharedState);
+
+  it("truncates an oversized score so the run still advances", async () => {
+    h.state.rowCounts.scores = 1;
+    h.state.rowExtras.scores = {
+      langfuse_score_name: "quality",
+      langfuse_score_comment: "x".repeat(2 * 1024 * 1024),
+    };
+    vi.mocked(transformScoreForPostHog).mockImplementationOnce((row) => ({
+      distinctId: "user-1",
+      event: "langfuse score",
+      properties: { ...row, $process_person_profile: false },
+      timestamp: new Date("2024-01-01"),
+      uuid: "score-uuid",
+    }));
+
+    await handlePostHogIntegrationProjectJob(makeJob());
+
+    const captured = h.constructed[0].capture.mock.calls[0][0] as {
+      properties: Record<string, unknown>;
+    };
+    expect(Buffer.byteLength(JSON.stringify(captured.properties))).toBeLessThan(
+      1_000_000,
+    );
+    expect(captured.properties).toMatchObject({
+      langfuse_score_name: "quality",
+      $process_person_profile: false,
+      langfuse_truncated_properties: ["langfuse_score_comment"],
+    });
+    expect(h.posthogIntegrationUpdate).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe("handlePostHogIntegrationProjectJob customer-fault auto-disable", () => {
   beforeEach(() => {
     resetSharedState();

@@ -5,6 +5,7 @@ import {
   transformScoreForPostHog,
   transformEventForPostHog,
 } from "../features/posthog/transformers";
+import { fitPostHogEventSize } from "../features/posthog/fitPostHogEventSize";
 import type {
   AnalyticsTraceEvent,
   AnalyticsGenerationEvent,
@@ -234,5 +235,71 @@ describe("PostHog transformers", () => {
       expect(result.properties.langfuse_score_name).toBe("quality");
       expect(result.properties.langfuse_score_value).toBe(0.95);
     });
+  });
+});
+
+describe("fitPostHogEventSize", () => {
+  const maxBytes = 4_000;
+  const sizeOf = (properties: Record<string, unknown> | undefined) =>
+    Buffer.byteLength(JSON.stringify(properties));
+  const makeEvent = (properties: Record<string, unknown>) => ({
+    distinctId: "user-1",
+    event: "langfuse score",
+    properties,
+  });
+
+  it("returns an event within the budget unchanged", () => {
+    const event = makeEvent({ langfuse_score_comment: "fine" });
+
+    const result = fitPostHogEventSize(event, maxBytes);
+
+    expect(result.event).toBe(event);
+    expect(result.truncatedProperties).toEqual([]);
+  });
+
+  it("cuts the largest property first and keeps PostHog control properties", () => {
+    const result = fitPostHogEventSize(
+      makeEvent({
+        langfuse_score_comment: "c".repeat(10_000),
+        langfuse_score_string_value: "s".repeat(1_500),
+        langfuse_score_name: "quality",
+        $session_id: "session-1",
+      }),
+      maxBytes,
+    );
+
+    expect(sizeOf(result.event.properties)).toBeLessThanOrEqual(maxBytes);
+    expect(result.truncatedProperties).toEqual(["langfuse_score_comment"]);
+    expect(result.event.properties).toMatchObject({
+      langfuse_score_string_value: "s".repeat(1_500),
+      langfuse_score_name: "quality",
+      $session_id: "session-1",
+      langfuse_truncated_properties: ["langfuse_score_comment"],
+    });
+    expect(result.event.properties.langfuse_score_comment).toMatch(/^c+$/);
+  });
+
+  it("turns an oversized object property into a JSON preview string", () => {
+    const result = fitPostHogEventSize(
+      makeEvent({ langfuse_score_metadata: { note: '"q"'.repeat(5_000) } }),
+      maxBytes,
+    );
+
+    expect(sizeOf(result.event.properties)).toBeLessThanOrEqual(maxBytes);
+    const preview = result.event.properties.langfuse_score_metadata;
+    expect(typeof preview).toBe("string");
+    expect(preview).toMatch(/^\{"note":/);
+  });
+
+  it("never leaves half of a surrogate pair at the cut", () => {
+    const result = fitPostHogEventSize(
+      makeEvent({ langfuse_score_comment: "🙂".repeat(5_000) }),
+      maxBytes,
+    );
+
+    const comment = result.event.properties.langfuse_score_comment as string;
+    expect(sizeOf(result.event.properties)).toBeLessThanOrEqual(maxBytes);
+    expect(comment.length).toBeGreaterThan(0);
+    expect(comment).toMatch(/^(🙂)+$/u);
   });
 });

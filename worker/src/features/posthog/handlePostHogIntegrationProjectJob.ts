@@ -27,6 +27,7 @@ import {
 } from "./transformers";
 import { decrypt } from "@langfuse/shared/encryption";
 import { PostHog } from "posthog-node";
+import { fitPostHogEventSize } from "./fitPostHogEventSize";
 import { recordExportVolume } from "../../services/exportVolumeMetric";
 import { isExportCaughtUp } from "../../services/exportStalenessMetric";
 import { assertExportSourceWritable } from "../exportWriteModeGuard";
@@ -137,10 +138,15 @@ const processPostHogStream = async <T>(
   );
 
   let count = 0;
+  let truncatedCount = 0;
   for await (const value of stream) {
     throwIfPostHogSendError(config);
     count++;
-    posthog.capture(transform(value, config.projectId));
+    const { event, truncatedProperties } = fitPostHogEventSize(
+      transform(value, config.projectId),
+    );
+    if (truncatedProperties.length > 0) truncatedCount++;
+    posthog.capture(event);
     if (count % postHogSettings.flushAt === 0) {
       await flushPostHog(posthog, config);
       logger.info(
@@ -150,6 +156,11 @@ const processPostHogStream = async <T>(
   }
   if (count % postHogSettings.flushAt !== 0) {
     await flushPostHog(posthog, config);
+  }
+  if (truncatedCount > 0) {
+    logger.warn(
+      `[POSTHOG] Truncated ${truncatedCount} oversized ${streamName} for project ${config.projectId} to fit PostHog's event size limit`,
+    );
   }
   logger.info(
     `[POSTHOG] Sent ${count} ${streamName} to PostHog for project ${config.projectId}`,
