@@ -129,6 +129,8 @@ export type FieldRegistry = {
   metadata: boolean;
   /** Additional metadata roots mapped to their backend FilterState columns. */
   metadataNamespaces?: Readonly<Record<string, string>>;
+  /** Keyed option roots (`topics.<facet>:<value>`) mapped to categoryOptions columns. */
+  keyedOptionNamespaces?: Readonly<Record<string, string>>;
   scores: boolean;
   /** Trace-level `traceScores.<name>` paths. Views whose backend has no
    *  trace-score columns (sessions) keep observation scores without them. */
@@ -305,6 +307,7 @@ export function extendFieldRegistryWithColumns(
     columns: [...registry.columns, ...columns],
     metadata: registry.metadata,
     metadataNamespaces: registry.metadataNamespaces,
+    keyedOptionNamespaces: registry.keyedOptionNamespaces,
     scores: registry.scores,
     traceScores: registry.traceScores,
     allowFreeText: registry.allowFreeText,
@@ -353,6 +356,7 @@ export function withFieldOptions(
     columns: registry.columns,
     metadata: registry.metadata,
     metadataNamespaces: registry.metadataNamespaces,
+    keyedOptionNamespaces: registry.keyedOptionNamespaces,
     scores: registry.scores,
     traceScores: registry.traceScores,
     allowFreeText: registry.allowFreeText,
@@ -465,6 +469,7 @@ export type FieldRef =
   | { type: "searchScope"; id: string; scope: SearchScope }
   | { type: "metadata"; key: string; namespace?: string; column?: string }
   | { type: "scores"; key: string; level: "observation" | "trace" }
+  | { type: "keyedOptions"; key: string; namespace: string; column: string }
   | { type: "pseudo"; id: typeof HAS_KEY | "in" };
 
 /**
@@ -481,6 +486,7 @@ export function createFieldRegistry({
   columns,
   metadata,
   metadataNamespaces,
+  keyedOptionNamespaces,
   scores,
   traceScores,
   allowFreeText,
@@ -502,6 +508,7 @@ export function createFieldRegistry({
   columns: readonly ColumnDefinition[];
   metadata: boolean;
   metadataNamespaces?: Readonly<Record<string, string>>;
+  keyedOptionNamespaces?: Readonly<Record<string, string>>;
   scores: boolean;
   traceScores: boolean;
   allowFreeText: boolean;
@@ -550,6 +557,7 @@ export function createFieldRegistry({
     targeting,
     metadata,
     metadataNamespaces,
+    keyedOptionNamespaces,
     scores,
     traceScores,
     defaultTextField,
@@ -567,7 +575,7 @@ export function createFieldRegistry({
       const lower = value.toLowerCase();
       return (
         (metadata && lower === METADATA_PREFIX) ||
-        Object.keys(metadataNamespaces ?? {}).some(
+        Object.keys({ ...metadataNamespaces, ...keyedOptionNamespaces }).some(
           (name) => lower === `${name.toLowerCase()}.`,
         ) ||
         (scores && SCORE_PREFIXES.includes(lower)) ||
@@ -663,6 +671,17 @@ function resolveFromRegistry(
       const key = unquote(name.slice(prefix.length)).value;
       return key.length > 0
         ? { type: "metadata", key, namespace, column }
+        : null;
+    }
+  }
+  for (const [namespace, column] of Object.entries(
+    registry.keyedOptionNamespaces ?? {},
+  )) {
+    const prefix = `${namespace}.`;
+    if (lower.startsWith(prefix.toLowerCase())) {
+      const key = unquote(name.slice(prefix.length)).value;
+      return key.length > 0
+        ? { type: "keyedOptions", key, namespace, column }
         : null;
     }
   }
@@ -789,6 +808,11 @@ export function operatorIssue(
         return `metadata filters match text — ${op} comparisons are not supported`;
       }
       return null;
+    case "keyedOptions":
+      if (op !== "=" && op !== "exact") {
+        return `${refName(ref)} matches listed values (${refName(ref)}:a or ${refName(ref)}:(a OR b)) — ${label(op)} is not supported`;
+      }
+      return null;
     case "scores":
       if (STRING_OPS.has(op) && op !== "exact") {
         return `score filters compare numbers (${refName(ref)}:>0.8) or match categories (${refName(ref)}:positive) — ${label(op)} is not supported`;
@@ -893,6 +917,8 @@ function refName(ref: FieldRef): string {
       return ref.field.id;
     case "metadata":
       return `${ref.namespace ?? "metadata"}.${quoteIfNeeded(ref.key)}`;
+    case "keyedOptions":
+      return `${ref.namespace}.${quoteIfNeeded(ref.key)}`;
     case "scores":
       return ref.level === "trace"
         ? `traceScores.${quoteIfNeeded(ref.key)}`

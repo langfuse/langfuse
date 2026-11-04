@@ -389,6 +389,21 @@ export async function getPublishedTopicRun(
   return row ? (await hydrateRuns(projectId, [row]))[0] : null;
 }
 
+/** Each facet's serving map; one-off analyses never serve in the tracing table. */
+export async function getPublishedTopicMaps(projectId: string) {
+  const rows = await prisma.topicClusteringRun.findMany({
+    where: { projectId, status: "completed", batchActionId: null },
+    orderBy: servingMapOrder,
+  });
+  const serving = new Map<string, RunRow>();
+  for (const row of rows)
+    if (!serving.has(row.facetId)) serving.set(row.facetId, row);
+  return {
+    runIds: [...serving.values()].map((row) => row.id),
+    maps: await hydrateRuns(projectId, [...serving.values()]),
+  };
+}
+
 /** Capture compatible serving-map IDs without reading their ClickHouse cohorts. */
 export async function getTopicProcessingMapIds(
   projectId: string,

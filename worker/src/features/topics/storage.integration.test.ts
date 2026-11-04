@@ -33,6 +33,8 @@ import {
   createTopicRun,
   getTopicRun,
   saveTopicRun,
+  readCurrentTraceTopics,
+  currentTopicTraceIdsCondition,
 } from "@langfuse/shared/topics/server";
 import { clickhouseClient } from "@langfuse/shared/src/server/clickhouse";
 import { prisma } from "@langfuse/shared/src/db";
@@ -901,5 +903,94 @@ describe("Topics definition persistence", () => {
         to: new Date("2026-10-01T00:00:00.000Z"),
       }),
     ).toEqual([]);
+  });
+
+  it("resolves current topics for the column and the tracing filter from the serving map only", async () => {
+    const [current, reassigned, retired] = [
+      randomUUID(),
+      randomUUID(),
+      randomUUID(),
+    ];
+    await writeTopicSummaries(
+      [current, reassigned, retired].map((traceId) => ({
+        ...summary,
+        projectId: otherProjectId,
+        traceId,
+      })),
+    );
+    const assign = (
+      traceId: string,
+      topicId: string,
+      overrides: Partial<TopicAssignment> = {},
+    ): TopicAssignment => ({
+      projectId: otherProjectId,
+      facetId: summary.facetId,
+      facetVersion: 1,
+      traceId,
+      sessionId: null,
+      environment: "default",
+      traceName: "trace",
+      unitStartTime: summary.unitStartTime,
+      summaryProcessedAt: summary.processedAt,
+      runId: "serving",
+      topicId,
+      topicVersionId: `${topicId}-v1`,
+      distance: null,
+      runnerUpDistance: null,
+      origin: "online",
+      coordinates: null,
+      assignedAt: "2026-09-01T00:00:00.000Z",
+      ...overrides,
+    });
+    await writeTopicAssignments([
+      assign(current, "match"),
+      assign(reassigned, "match"),
+      assign(reassigned, "other", { assignedAt: "2026-09-03T00:00:00.000Z" }),
+      // An older map's or an analysis's assignment never serves.
+      assign(retired, "match", { runId: "retired" }),
+    ]);
+    const timeRange = {
+      from: new Date("2026-08-31T00:00:00.000Z"),
+      to: new Date("2026-09-01T00:00:00.000Z"),
+    };
+    // Rows can start well after the trace's first observation (here 30 hours).
+    const rowStart = new Date(
+      Date.parse(summary.unitStartTime) + 30 * 3_600_000,
+    );
+
+    // Column: one read across facets for a page of traces.
+    const topics = await readCurrentTraceTopics(otherProjectId, {
+      traces: [current, reassigned, retired].map((traceId) => ({
+        traceId,
+        timestamp: rowStart,
+      })),
+      facetIds: [summary.facetId],
+      publishedRunIds: ["serving"],
+    });
+    expect(
+      topics.map(({ traceId, topicId }) => [traceId, topicId]).sort(),
+    ).toEqual(
+      [
+        [current, "match"],
+        [reassigned, "other"],
+      ].sort(),
+    );
+
+    // Filter: the same membership as a prefixed subquery inside another query.
+    const condition = currentTopicTraceIdsCondition("topicFilter0", {
+      projectId: otherProjectId,
+      facetId: summary.facetId,
+      topicIds: ["match"],
+      publishedRunIds: ["serving"],
+      timeRange,
+      negated: false,
+    });
+    const matched = await clickhouseClient().query({
+      query: `SELECT DISTINCT e.trace_id AS traceId FROM topic_facet_summaries AS e
+        WHERE e.project_id = {projectId:String} AND ${condition.query}`,
+      query_params: { projectId: otherProjectId, ...condition.params },
+      format: "JSONEachRow",
+    });
+    expect(await matched.json()).toEqual([{ traceId: current }]);
   });
 });
