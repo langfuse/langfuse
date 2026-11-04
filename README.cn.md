@@ -64,7 +64,7 @@
   <a href="./README.kr.md"><img alt="README in Korean" src="https://img.shields.io/badge/한국어-d9d9d9"></a>
 </p>
 
-Langfuse 是一个 **开源 LLM 工程** 平台。它帮助团队协作 **开发、监控、评估** 以及 **调试** AI 应用。Langfuse 可在几分钟内 **自托管**，并且经过 **实战考验**。基于 [ClickHouse 开源数据库](https://github.com/ClickHouse/ClickHouse) 构建。
+Langfuse 是一个 **开源 AI 工程平台**，专注于 **AI 代理评估与可观测性**。它是一个开放平台，覆盖你公司发起的每一次 AI 调用和团队构建的每一个代理：追踪用量和成本，**追踪并评估** 代理，并利用生产数据打造更好的 AI。你可以使用 Langfuse Cloud，也可以在几分钟内 **自托管**；Langfuse 已在大规模场景中经过 **实战考验**。基于 [ClickHouse 开源数据库](https://github.com/ClickHouse/ClickHouse) 构建。
 
 <a href="https://langfuse.com/watch-demo"><img width="37.5%" alt="Langfuse 概览视频" src=".github/watch-demo.png"></a>
 
@@ -72,19 +72,19 @@ Langfuse 是一个 **开源 LLM 工程** 平台。它帮助团队协作 **开发
 
 <img width="2400" alt="features" src="https://github.com/user-attachments/assets/0fad3dee-f3ad-423c-9f0d-7ccd0f26cc2d" />
 
-- [LLM 应用可观测性](https://langfuse.com/docs/observability/overview)：为你的应用添加埋点，并开始将追踪数据发送到 Langfuse，从而追踪 LLM 调用及应用中的其他相关逻辑（如检索、嵌入或代理操作）。检查并调试复杂日志及用户会话。基于 OpenTelemetry 构建。试试互动 [演示](https://langfuse.com/docs/demo) 看看效果。
+- [AI 可观测性](https://langfuse.com/docs/observability/overview)：为你的应用添加埋点，并开始将追踪数据发送到 Langfuse，从而追踪 LLM 调用及应用中的其他相关逻辑（如检索、嵌入或代理操作）。检查并调试复杂日志及用户会话。基于 OpenTelemetry 构建。试试互动 [演示](https://langfuse.com/docs/demo) 看看效果。
 
 - [提示管理](https://langfuse.com/docs/prompt-management/overview) 帮助你集中管理、版本控制并协作迭代提示。得益于服务器和客户端的高效缓存，你可以在不增加应用延迟的情况下迭代提示。[LLM 试玩平台](https://langfuse.com/docs/prompt-management/features/playground) 可用于测试提示和模型配置；当你在追踪中发现不理想的结果时，可以直接跳转到试玩平台进行迭代。
 
 - [技能管理](https://langfuse.com/docs/skill-management/overview)（beta）为代理技能提供版本控制和标签：每个技能包含一个带有任务指令的 `SKILL.md` 以及可选的辅助文件。无需修改应用代码即可推广或回滚版本，并将技能版本与其产生的追踪关联起来。
 
-- [评估](https://langfuse.com/docs/evaluation/overview) 是 LLM 应用开发流程的关键环节，Langfuse 能够满足你的多样需求。它支持 LLM-as-a-judge、代码评估器、用户反馈收集、手动标注，以及通过 API/SDK 实现的自定义评估流程。使用 [数据集与实验](https://langfuse.com/docs/evaluation/experiments/datasets) 构建测试集和基准，用于部署前测试和持续改进。
+- [评估](https://langfuse.com/docs/evaluation/overview) 是 AI 代理开发流程的关键环节，Langfuse 能够满足你的多样需求。它支持 LLM-as-a-judge、代码评估器、用户反馈收集、手动标注，以及通过 API/SDK 实现的自定义评估流程。使用 [数据集与实验](https://langfuse.com/docs/evaluation/experiments/datasets) 构建测试集和基准，用于部署前测试和持续改进。
 
 - [AI 网关](https://langfuse.com/docs/gateway/overview)（beta）为你的组织提供一个统一的端点来调用各模型提供商。集中保管提供商凭证，为每个用户或服务账号发放网关密钥，集中审批模型，按用户、密钥和模型追踪 AI 支出，并将每次调用记录为 Langfuse 追踪。
 
 - [指标与仪表板](https://langfuse.com/docs/metrics/overview)：通过 [自定义仪表板](https://langfuse.com/docs/metrics/features/custom-dashboards)、指标 API 和告警，从任意维度追踪延迟、成本和质量。
 
-- [综合 API](https://langfuse.com/docs/api-and-data-platform/overview)：Langfuse 常被用来驱动定制化的 LLMOps 工作流，并通过 API 使用 Langfuse 提供的构建模块。我们提供 OpenAPI 规范、Python 和 JS/TS 的类型化 SDK、[Langfuse CLI](https://langfuse.com/docs/api-and-data-platform/features/cli)，以及面向编码代理的 [Langfuse Agent Skill](https://langfuse.com/docs/api-and-data-platform/features/agent-skill)。
+- [综合 API](https://langfuse.com/docs/api-and-data-platform/overview)：Langfuse 常被用来驱动定制化的 AI 工程工作流，并通过 API 使用 Langfuse 提供的构建模块。我们提供 OpenAPI 规范、Python 和 JS/TS 的类型化 SDK、[Langfuse CLI](https://langfuse.com/docs/api-and-data-platform/features/cli)，以及面向编码代理的 [Langfuse Agent Skill](https://langfuse.com/docs/api-and-data-platform/features/agent-skill)。
 
 ## 📦 部署 Langfuse
 

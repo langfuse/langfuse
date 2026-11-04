@@ -64,7 +64,7 @@
   <a href="./README.kr.md"><img alt="README in Korean" src="https://img.shields.io/badge/한국어-d9d9d9"></a>
 </p>
 
-Langfuse는 **오픈 소스 LLM 엔지니어링** 플랫폼입니다. 팀이 협업하여 AI 애플리케이션을 **개발, 모니터링, 평가** 및 **디버그**할 수 있도록 도와줍니다. Langfuse는 **몇 분 안에 셀프 호스팅**할 수 있으며, **검증된(battle-tested)** 솔루션입니다. [ClickHouse 오픈 소스 데이터베이스](https://github.com/ClickHouse/ClickHouse)를 기반으로 만들어졌습니다.
+Langfuse는 **에이전트 평가와 관측성**을 위한 **오픈 소스 AI 엔지니어링 플랫폼**입니다. 회사에서 발생하는 모든 AI 호출과 팀이 만드는 모든 에이전트를 하나의 개방형 플랫폼에서 다룹니다. 사용량과 비용을 추적하고, 에이전트를 **추적하고 평가**하며, 프로덕션 데이터를 활용해 더 나은 AI를 출시하세요. Langfuse Cloud를 사용하거나 **몇 분 안에 셀프 호스팅**할 수 있으며, 대규모 환경에서 **검증된(battle-tested)** 솔루션입니다. [ClickHouse 오픈 소스 데이터베이스](https://github.com/ClickHouse/ClickHouse)를 기반으로 만들어졌습니다.
 
 <a href="https://langfuse.com/watch-demo"><img width="37.5%" alt="Langfuse Overview Video" src=".github/watch-demo.png"></a>
 
@@ -72,19 +72,19 @@ Langfuse는 **오픈 소스 LLM 엔지니어링** 플랫폼입니다. 팀이 협
 
 <img width="2400" alt="features" src="https://github.com/user-attachments/assets/0fad3dee-f3ad-423c-9f0d-7ccd0f26cc2d" />
 
-- [LLM 애플리케이션 관측성](https://langfuse.com/docs/observability/overview): 앱에 계측(instrumentation)을 추가하고 Langfuse로 trace를 수집하여 LLM 호출과 검색, 임베딩, 에이전트 동작 등 앱의 기타 관련 로직을 추적하세요. 복잡한 로그와 사용자 세션을 확인하고 디버깅할 수 있습니다. OpenTelemetry를 기반으로 합니다. 인터랙티브 [데모](https://langfuse.com/docs/demo)에서 실제 동작을 확인해 보세요.
+- [AI 관측성](https://langfuse.com/docs/observability/overview): 앱에 계측(instrumentation)을 추가하고 Langfuse로 trace를 수집하여 LLM 호출과 검색, 임베딩, 에이전트 동작 등 앱의 기타 관련 로직을 추적하세요. 복잡한 로그와 사용자 세션을 확인하고 디버깅할 수 있습니다. OpenTelemetry를 기반으로 합니다. 인터랙티브 [데모](https://langfuse.com/docs/demo)에서 실제 동작을 확인해 보세요.
 
 - [프롬프트 관리](https://langfuse.com/docs/prompt-management/overview): 프롬프트를 중앙에서 관리하고 버전 관리하며 협업으로 개선할 수 있도록 도와줍니다. 서버와 클라이언트 측의 강력한 캐싱 덕분에 애플리케이션에 지연(latency)을 추가하지 않고도 프롬프트를 반복 개선할 수 있습니다. [LLM 플레이그라운드](https://langfuse.com/docs/prompt-management/features/playground)에서 프롬프트와 모델 설정을 테스트할 수 있으며, trace에서 좋지 않은 결과를 발견하면 바로 플레이그라운드로 이동해 개선할 수 있습니다.
 
 - [스킬 관리](https://langfuse.com/docs/skill-management/overview)(베타): 에이전트 스킬에 버전 관리와 라벨을 제공합니다. 스킬은 작업 지침이 담긴 `SKILL.md`와 선택적인 보조 파일로 구성됩니다. 애플리케이션 코드를 변경하지 않고 버전을 승격하거나 롤백할 수 있으며, 스킬 버전을 해당 스킬이 생성한 trace와 연결할 수 있습니다.
 
-- [평가](https://langfuse.com/docs/evaluation/overview): 평가는 LLM 애플리케이션 개발 워크플로우의 핵심이며, Langfuse는 여러분의 필요에 맞게 유연하게 대응합니다. LLM-as-a-judge, 코드 평가기, 사용자 피드백 수집, 수동 라벨링 및 API/SDK를 통한 맞춤 평가 파이프라인을 지원합니다. [데이터셋과 실험](https://langfuse.com/docs/evaluation/experiments/datasets)을 사용해 배포 전 테스트와 지속적인 개선을 위한 테스트 세트와 벤치마크를 구축하세요.
+- [평가](https://langfuse.com/docs/evaluation/overview): 평가는 AI 에이전트 개발 워크플로우의 핵심이며, Langfuse는 여러분의 필요에 맞게 유연하게 대응합니다. LLM-as-a-judge, 코드 평가기, 사용자 피드백 수집, 수동 라벨링 및 API/SDK를 통한 맞춤 평가 파이프라인을 지원합니다. [데이터셋과 실험](https://langfuse.com/docs/evaluation/experiments/datasets)을 사용해 배포 전 테스트와 지속적인 개선을 위한 테스트 세트와 벤치마크를 구축하세요.
 
 - [AI 게이트웨이](https://langfuse.com/docs/gateway/overview)(베타): 조직 전체의 모델 제공자 호출을 하나의 엔드포인트로 모읍니다. 제공자 자격 증명을 한곳에서 관리하고, 사용자별 또는 서비스 계정별 게이트웨이 키를 발급하며, 모델을 중앙에서 승인하고, 사용자·키·모델별 AI 지출을 추적하고, 모든 호출을 Langfuse trace로 기록합니다.
 
 - [메트릭과 대시보드](https://langfuse.com/docs/metrics/overview): [커스텀 대시보드](https://langfuse.com/docs/metrics/features/custom-dashboards), 메트릭 API, 알림을 통해 지연 시간, 비용, 품질을 모든 차원에서 추적하세요.
 
-- [포괄적인 API](https://langfuse.com/docs/api-and-data-platform/overview): Langfuse는 API를 통해 제공되는 빌딩 블록을 활용해 맞춤형 LLMOps 워크플로우를 구동하는 데 자주 사용됩니다. OpenAPI 명세, Python 및 JS/TS용 타입 SDK, [Langfuse CLI](https://langfuse.com/docs/api-and-data-platform/features/cli), 코딩 에이전트를 위한 [Langfuse Agent Skill](https://langfuse.com/docs/api-and-data-platform/features/agent-skill)을 제공합니다.
+- [포괄적인 API](https://langfuse.com/docs/api-and-data-platform/overview): Langfuse는 API를 통해 제공되는 빌딩 블록을 활용해 맞춤형 AI 엔지니어링 워크플로우를 구동하는 데 자주 사용됩니다. OpenAPI 명세, Python 및 JS/TS용 타입 SDK, [Langfuse CLI](https://langfuse.com/docs/api-and-data-platform/features/cli), 코딩 에이전트를 위한 [Langfuse Agent Skill](https://langfuse.com/docs/api-and-data-platform/features/agent-skill)을 제공합니다.
 
 ## 📦 Langfuse 배포
 

@@ -64,7 +64,7 @@
   <a href="./README.kr.md"><img alt="README in Korean" src="https://img.shields.io/badge/한국어-d9d9d9"></a>
 </p>
 
-Langfuseは**オープンソースのLLMエンジニアリング**プラットフォームです。チームが共同でAIアプリケーションを**開発、監視、評価**、および**デバッグ**するのを支援します。Langfuseは**数分でセルフホスト可能**で、**多くの実績を持つ**システムです。[ClickHouseオープンソースデータベース](https://github.com/ClickHouse/ClickHouse)を基盤に構築されています。
+Langfuseは、**エージェントの評価とオブザーバビリティ**のための**オープンソースのAIエンジニアリングプラットフォーム**です。会社が行うすべてのAI呼び出しと、チームが構築するすべてのエージェントを1つのオープンなプラットフォームで扱えます。利用量とコストを追跡し、エージェントを**トレースして評価**し、本番データを活用してより良いAIを届けられます。Langfuse Cloudを利用することも、**数分でセルフホスト**することもでき、大規模な環境で**多くの実績**があります。[ClickHouseオープンソースデータベース](https://github.com/ClickHouse/ClickHouse)を基盤に構築されています。
 
 <a href="https://langfuse.com/watch-demo"><img width="37.5%" alt="Langfuse Overview Video" src=".github/watch-demo.png"></a>
 
@@ -72,19 +72,19 @@ Langfuseは**オープンソースのLLMエンジニアリング**プラット�
 
 <img width="2400" alt="features" src="https://github.com/user-attachments/assets/0fad3dee-f3ad-423c-9f0d-7ccd0f26cc2d" />
 
-- [LLMアプリケーションの可観測性](https://langfuse.com/docs/observability/overview): アプリケーションにインストゥルメンテーションを導入してLangfuseへトレースを取り込み、LLM呼び出しやリトリーバル、埋め込み、エージェントアクションなどの関連ロジックを追跡できます。複雑なログやユーザーセッションを調査・デバッグできます。OpenTelemetryをベースに構築されています。インタラクティブな[デモ](https://langfuse.com/docs/demo)で動作を確認してください。
+- [AIオブザーバビリティ](https://langfuse.com/docs/observability/overview): アプリケーションにインストゥルメンテーションを導入してLangfuseへトレースを取り込み、LLM呼び出しやリトリーバル、埋め込み、エージェントアクションなどの関連ロジックを追跡できます。複雑なログやユーザーセッションを調査・デバッグできます。OpenTelemetryをベースに構築されています。インタラクティブな[デモ](https://langfuse.com/docs/demo)で動作を確認してください。
 
 - [プロンプト管理](https://langfuse.com/docs/prompt-management/overview): プロンプトを一元管理し、バージョン管理しながら共同で改善できます。サーバー側とクライアント側の強力なキャッシングにより、アプリケーションのレイテンシを増やすことなくプロンプトを改良できます。[LLMプレイグラウンド](https://langfuse.com/docs/prompt-management/features/playground)ではプロンプトやモデル設定をテストでき、トレースで望ましくない結果を見つけたら、そのままプレイグラウンドに移動して改善できます。
 
 - [スキル管理](https://langfuse.com/docs/skill-management/overview)（ベータ）: エージェントスキルにバージョン管理とラベルを提供します。スキルはタスク指示を記述した`SKILL.md`と任意の補助ファイルで構成されます。アプリケーションのコードを変更せずにバージョンの昇格やロールバックができ、スキルのバージョンをそれが生成したトレースと紐付けられます。
 
-- [評価](https://langfuse.com/docs/evaluation/overview): 評価はLLMアプリケーション開発ワークフローの要であり、Langfuseは多様なニーズに対応します。LLM-as-a-judge、コード評価器、ユーザーフィードバックの収集、手動ラベリング、API/SDKを通じたカスタム評価パイプラインをサポートします。[データセットと実験](https://langfuse.com/docs/evaluation/experiments/datasets)を使って、デプロイ前のテストや継続的な改善のためのテストセットやベンチマークを構築できます。
+- [評価](https://langfuse.com/docs/evaluation/overview): 評価はAIエージェント開発ワークフローの要であり、Langfuseは多様なニーズに対応します。LLM-as-a-judge、コード評価器、ユーザーフィードバックの収集、手動ラベリング、API/SDKを通じたカスタム評価パイプラインをサポートします。[データセットと実験](https://langfuse.com/docs/evaluation/experiments/datasets)を使って、デプロイ前のテストや継続的な改善のためのテストセットやベンチマークを構築できます。
 
 - [AIゲートウェイ](https://langfuse.com/docs/gateway/overview)（ベータ）: 組織全体でモデルプロバイダーへの呼び出しを1つのエンドポイントに集約します。プロバイダーの認証情報を一か所で管理し、ユーザーごとやサービスアカウントごとにゲートウェイキーを発行し、モデルを一元的に承認し、ユーザー・キー・モデルごとのAI支出を追跡し、すべての呼び出しをLangfuseのトレースとして記録します。
 
 - [メトリクスとダッシュボード](https://langfuse.com/docs/metrics/overview): [カスタムダッシュボード](https://langfuse.com/docs/metrics/features/custom-dashboards)、メトリクスAPI、アラートを使って、レイテンシ、コスト、品質をあらゆる軸で追跡できます。
 
-- [包括的なAPI](https://langfuse.com/docs/api-and-data-platform/overview): LangfuseはAPIを通じて提供されるビルディングブロックを用い、カスタムLLMOpsワークフローの基盤として頻繁に利用されています。OpenAPI仕様、PythonおよびJS/TS向けの型付きSDK、[Langfuse CLI](https://langfuse.com/docs/api-and-data-platform/features/cli)、コーディングエージェント向けの[Langfuse Agent Skill](https://langfuse.com/docs/api-and-data-platform/features/agent-skill)が利用可能です。
+- [包括的なAPI](https://langfuse.com/docs/api-and-data-platform/overview): LangfuseはAPIを通じて提供されるビルディングブロックを用い、カスタムAIエンジニアリングワークフローの基盤として頻繁に利用されています。OpenAPI仕様、PythonおよびJS/TS向けの型付きSDK、[Langfuse CLI](https://langfuse.com/docs/api-and-data-platform/features/cli)、コーディングエージェント向けの[Langfuse Agent Skill](https://langfuse.com/docs/api-and-data-platform/features/agent-skill)が利用可能です。
 
 ## 📦 Langfuseのデプロイ
 
