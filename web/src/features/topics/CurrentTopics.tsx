@@ -190,10 +190,9 @@ function MobileTopics({
   onOpenTrace: (traceId: string) => void;
 }) {
   const { isV4 } = useReadPath();
-  const [selectedTraceId, setSelectedTraceId] = useMobileTraceSelection(
-    projectId,
-    facet.facetId,
-  );
+  const [selectedTraceId, setSelectedTraceId] = useSessionStorage<
+    string | null
+  >(`topics-selected-trace:${projectId}`, null);
   return (
     <MobileTopicsView
       projectId={projectId}
@@ -212,20 +211,6 @@ function MobileTopics({
       isV4={isV4}
     />
   );
-}
-
-function useMobileTraceSelection(projectId: string, facetId: string) {
-  const [selection, setSelection] = useSessionStorage<{
-    facetId: string;
-    traceId: string | null;
-  }>(`topics-mobile-selected-trace:${projectId}`, { facetId, traceId: null });
-  if (selection.facetId !== facetId) {
-    setSelection({ facetId, traceId: null });
-  }
-  return [
-    selection.traceId,
-    (traceId: string | null) => setSelection({ facetId, traceId }),
-  ] as const;
 }
 
 export function useCurrentTopics({
@@ -315,4 +300,4 @@ type CurrentFacetProps = {
 
 type Facet = RouterOutputs["topics"]["currentResults"]["facets"][number];
 
-export const __test = { useCurrentTopics, useMobileTraceSelection };
+export const __test = { useCurrentTopics };
