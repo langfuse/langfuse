@@ -90,7 +90,7 @@ jobs:
         run: |
           set -euo pipefail
 
-          pnpm install -g vercel@54.7.0
+          pnpm install -g vercel@65.11.0
 
           set +e
           deploy_output=$(vercel deploy api-reference --yes --scope langfuse 2>&1)
