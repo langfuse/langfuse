@@ -18,8 +18,10 @@ export function escapeIamPolicyString(value: string) {
  * agreement for inputs like "/" or "media//".
  */
 export function normalizeStorageReadPrefix(prefix: string | null | undefined) {
-  const trimmed = (prefix ?? "").trim().replace(/\/+$/, "");
-  return trimmed ? `${trimmed}/` : "";
+  const trimmed = (prefix ?? "").trim();
+  let end = trimmed.length;
+  while (end > 0 && trimmed[end - 1] === "/") end--;
+  return end > 0 ? `${trimmed.slice(0, end)}/` : "";
 }
 
 export function getArnPartition(arn: string) {
