@@ -55,19 +55,20 @@ export function ControlledFeaturePreviewModal({
   const onToggle = (flag: PreviewFlag) => (enabled: boolean) =>
     setFeaturePreviewEnabled.mutate({ flag, enabled });
 
+  const isTopicsEnabled =
+    internalViewEnabled ||
+    authSession.data?.user?.featureFlags.langfuseTopics === true;
+
   const isModernSessionEnabled =
     isV4 &&
     (authSession.data?.user?.featureFlags.sessionViewV2 === true ||
       authSession.data?.environment.enableExperimentalFeatures === true);
 
   const state: Partial<Record<PreviewFlag, PreviewState>> = {
-    ...(internalViewEnabled ||
-    authSession.data?.user?.featureFlags.langfuseTopics === true
+    ...(isTopicsEnabled
       ? {
           langfuseTopics: {
-            enabled:
-              internalViewEnabled ||
-              authSession.data?.user?.featureFlags.langfuseTopics === true,
+            enabled: isTopicsEnabled,
             disabled: internalViewEnabled,
             warningReason: internalViewEnabled
               ? "Topics is enabled by Internal view. Switching to External view hides it unless it has been enabled for you separately."

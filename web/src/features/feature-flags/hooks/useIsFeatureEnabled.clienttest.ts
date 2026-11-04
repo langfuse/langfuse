@@ -15,7 +15,6 @@ const mockSession = ({
   langfuseTopics = false,
   admin = false,
   email,
-  emailVerified,
   enableExperimentalFeatures = false,
   internalFeatures,
 }: {
@@ -23,7 +22,6 @@ const mockSession = ({
   langfuseTopics?: boolean;
   admin?: boolean;
   email?: string;
-  emailVerified?: string | null;
   enableExperimentalFeatures?: boolean;
   internalFeatures?: boolean;
 }) => {
@@ -33,7 +31,6 @@ const mockSession = ({
       user: {
         admin,
         email,
-        emailVerified,
         featureFlags: testFeatureFlags({
           aiGateway: false,
           langfuseTopics,
@@ -81,35 +78,29 @@ describe("useIsFeatureEnabled", () => {
   );
 
   it.each([
-    ["member@langfuse.com", true, true],
-    ["MEMBER@CLICKHOUSE.COM", true, true],
-    ["member@sub.langfuse.com", true, false],
-    ["member@clickhouse.com.example.org", true, false],
-    ["member@notclickhouse.com", true, false],
-    ["member@langfuse.com", false, true],
-    ["member@clickhouse.com", false, true],
-  ] as const)(
-    "internal view for %s (verified=%s): %s",
-    (email, verified, expected) => {
-      mockSession({
-        aiGateway: false,
-        email,
-        emailVerified: verified ? "2026-01-01T00:00:00.000Z" : null,
-      });
-      const { result } = renderHook(() => ({
-        internal: useInternalFeaturesEnabled(),
-        searchBar: useIsFeatureEnabled("searchBar"),
-        aiGateway: useIsFeatureEnabled("aiGateway"),
-        langfuseTopics: useIsFeatureEnabled("langfuseTopics"),
-      }));
-      expect(result.current).toEqual({
-        internal: expected,
-        searchBar: false,
-        aiGateway: false,
-        langfuseTopics: false,
-      });
-    },
-  );
+    ["member@langfuse.com", true],
+    ["MEMBER@CLICKHOUSE.COM", true],
+    ["member@sub.langfuse.com", false],
+    ["member@clickhouse.com.example.org", false],
+    ["member@notclickhouse.com", false],
+  ] as const)("internal view for %s: %s", (email, expected) => {
+    mockSession({
+      aiGateway: false,
+      email,
+    });
+    const { result } = renderHook(() => ({
+      internal: useInternalFeaturesEnabled(),
+      searchBar: useIsFeatureEnabled("searchBar"),
+      aiGateway: useIsFeatureEnabled("aiGateway"),
+      langfuseTopics: useIsFeatureEnabled("langfuseTopics"),
+    }));
+    expect(result.current).toEqual({
+      internal: expected,
+      searchBar: false,
+      aiGateway: false,
+      langfuseTopics: false,
+    });
+  });
 
   it("requires explicit opt-in for restricted and internal preview flags despite admin and experimental overrides", () => {
     mockSession({
