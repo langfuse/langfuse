@@ -27,10 +27,14 @@ checkout:
 # for effort, so Claude Code uses its default effort for this model.
 model: claude-opus-5
 
+# max-turns caps model round trips (one per assistant API message, however
+# many tool calls it batches). Full weekly runs measured 103-120 round trips,
+# so 120 left no headroom: a heavier week ran out mid memory update, before
+# the report was filed. max-ai-credits and timeout-minutes still bound cost.
 engine:
   id: claude
   version: "2.1.277"
-  max-turns: 120
+  max-turns: 200
   env:
     ANTHROPIC_API_KEY: ${{ secrets.CLAUDE_API_KEY }}
 
@@ -91,9 +95,11 @@ tools:
       "uniq",
       "head",
       "tail",
-      "wc",
+      # A bare entry only allows the argument-less command; `ls -la <dir>` and
+      # `wc -l <file>` were denied, wasting turns.
+      "wc:*",
       "cat",
-      "ls",
+      "ls:*",
       "cp",
       # Waiting on migrations/app startup when exercising DB-backed suites.
       "sleep",
@@ -137,6 +143,11 @@ verify themselves.
 This workflow only runs on `schedule` or `workflow_dispatch` — do everything
 in this prompt every run: full weekly analysis, memory update, and the one
 mandatory issue.
+
+The run has a hard turn cap, and hitting it ends the run with no issue and
+no memory saved. Finish investigating once the analysis is complete. Batch
+memory writes into a few scripted edits rather than one tool call per file
+or entry.
 
 ## Run checklist
 
