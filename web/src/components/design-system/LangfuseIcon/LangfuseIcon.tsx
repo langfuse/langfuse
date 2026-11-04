@@ -10,7 +10,6 @@ export const LangfuseIcon = ({
   size = 32,
   alt = "Langfuse",
 }: LangfuseIconProps) => (
-  // eslint-disable-next-line @next/next/no-img-element
   <img
     src={`${env.NEXT_PUBLIC_BASE_PATH ?? ""}/icon.svg`}
     width={size}
