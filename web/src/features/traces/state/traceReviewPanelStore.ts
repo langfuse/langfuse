@@ -32,6 +32,7 @@ type TraceReviewPanelState = {
     rememberTrigger: (element: HTMLElement | null) => void;
     close: () => void;
     setCommentsDraft: (key: number, hasDraft: boolean) => void;
+    setCommentsTarget: (key: number, target: CommentTarget) => void;
     setCommentsMentionsOpen: (key: number, open: boolean) => void;
     consumeCommentsSelection: (key: number) => void;
   };
@@ -124,6 +125,17 @@ export function createTraceReviewPanelStore({
         const current = get().comments;
         if (current?.key !== key || current.hasDraft === hasDraft) return;
         set({ comments: { ...current, hasDraft } });
+      },
+      setCommentsTarget(key, target) {
+        const current = get().comments;
+        if (!current || current.key !== key || current.hasDraft) return;
+        if (
+          current.target.objectId === target.objectId &&
+          current.target.objectType === target.objectType &&
+          current.target.type === target.type
+        )
+          return;
+        set({ comments: { ...current, target, mentionsOpen: false } });
       },
       setCommentsMentionsOpen(key, mentionsOpen) {
         const current = get().comments;

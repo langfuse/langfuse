@@ -71,13 +71,26 @@ function TraceCommentsPanel({ projectId }: { projectId: string }) {
     !!urlTarget &&
     (urlTarget.objectId === trace.id ||
       observations.some((item) => item.id === urlTarget.objectId));
-  const target: CommentTarget = (!active ? session?.target : undefined) ??
+  const desired: CommentTarget = (!active ? session?.target : undefined) ??
     (!openedOn.current.moved && urlOnThisTrace ? urlTarget : undefined) ?? {
       type: "comments",
       objectId: observation?.id ?? trace.id,
       objectType: observation ? ("OBSERVATION" as const) : ("TRACE" as const),
       objectStartTime: observation?.startTime ?? trace.timestamp,
     };
+  // An unsent draft belongs to the open thread. Leave that thread up until
+  // the composer is empty, then follow the selection.
+  const target = active && session?.hasDraft ? session.target : desired;
+  if (
+    active &&
+    session &&
+    !session.hasDraft &&
+    (session.target.objectId !== target.objectId ||
+      session.target.objectType !== target.objectType ||
+      session.target.type !== target.type)
+  ) {
+    store.getState().actions.setCommentsTarget(session.key, target);
+  }
   return (
     <CommentsPanel projectId={projectId} target={target} active={active} />
   );

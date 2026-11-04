@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import { createTraceReviewPanelStore } from "../state/traceReviewPanelStore";
 import { TraceReviewPanel } from "./TraceReviewPanel";
 
@@ -133,11 +133,28 @@ it("follows the selected object while an open comments panel keeps its URL targe
   };
   state.selectedNodeId = "first";
   state.traceId = "trace";
+  act(() => {
+    store.getState().actions.openComments({
+      target: { type: "comments", objectId: "trace", objectType: "TRACE" },
+      confirmDiscard: () => false,
+    });
+    store
+      .getState()
+      .actions.setCommentsDraft(store.getState().comments!.key, true);
+  });
   const view = render(<TraceReviewPanel projectId="project" />);
   // A deep link stays on its object until the selection actually changes.
   expect(screen.getByTestId("comments")).toHaveTextContent("trace");
 
   state.selectedNodeId = "second";
+  view.rerender(<TraceReviewPanel projectId="project" />);
+  expect(screen.getByTestId("comments")).toHaveTextContent("trace");
+
+  act(() => {
+    store
+      .getState()
+      .actions.setCommentsDraft(store.getState().comments!.key, false);
+  });
   view.rerender(<TraceReviewPanel projectId="project" />);
   expect(screen.getByTestId("comments")).toHaveTextContent("second");
 
