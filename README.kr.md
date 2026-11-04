@@ -276,7 +276,7 @@ _[Langfuse의 공개 예제 trace](https://cloud.langfuse.com/project/cloramnkj0
 
 ## 의존성
 
-이 코드베이스는 Linux Alpine 이미지([소스](https://github.com/nodejs/docker-node)) 기반의 Docker 컨테이너로 배포됩니다. Dockerfile은 [web/Dockerfile](web/Dockerfile)과 [worker/Dockerfile](worker/Dockerfile)에서 확인할 수 있습니다.
+이 코드베이스는 Docker 컨테이너로 배포됩니다. 사용하는 베이스 이미지를 포함한 이미지 빌드 방식은 [web/Dockerfile](web/Dockerfile)과 [worker/Dockerfile](worker/Dockerfile)을 참고하세요.
 
 ## ⭐️ 별(Star) 히스토리
 

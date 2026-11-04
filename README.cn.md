@@ -276,7 +276,7 @@ _[Langfuse 中的公开示例追踪](https://cloud.langfuse.com/project/cloramnk
 
 ## 依赖
 
-我们使用基于 Linux Alpine 镜像的 Docker 容器部署此代码库（[来源](https://github.com/nodejs/docker-node)）。Dockerfile 位于 [web/Dockerfile](web/Dockerfile) 和 [worker/Dockerfile](worker/Dockerfile)。
+我们使用 Docker 容器部署此代码库。镜像的构建方式（包括所用的基础镜像）请参阅 [web/Dockerfile](web/Dockerfile) 和 [worker/Dockerfile](worker/Dockerfile)。
 
 ## ⭐️ 星标历史
 

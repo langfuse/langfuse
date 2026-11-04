@@ -276,7 +276,7 @@ _[Langfuseの公開トレース例](https://cloud.langfuse.com/project/cloramnkj
 
 ## 依存関係
 
-このコードベースは、Linux Alpineイメージ（[ソース](https://github.com/nodejs/docker-node)）をベースにしたDockerコンテナでデプロイしています。Dockerfileは[web/Dockerfile](web/Dockerfile)と[worker/Dockerfile](worker/Dockerfile)にあります。
+このコードベースはDockerコンテナでデプロイしています。使用しているベースイメージを含むイメージのビルド方法は、[web/Dockerfile](web/Dockerfile)と[worker/Dockerfile](worker/Dockerfile)を参照してください。
 
 ## ⭐️ スター履歴
 

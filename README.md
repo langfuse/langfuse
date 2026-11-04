@@ -278,7 +278,7 @@ This repository is MIT licensed, except for the `ee` folders. See [LICENSE](LICE
 
 ## Dependencies
 
-We deploy this code base in Docker containers based on the Linux Alpine Image ([source](https://github.com/nodejs/docker-node)). You may find the Dockerfiles in [web/Dockerfile](web/Dockerfile) and [worker/Dockerfile](worker/Dockerfile).
+We deploy this code base in Docker containers. See [web/Dockerfile](web/Dockerfile) and [worker/Dockerfile](worker/Dockerfile) for how the images are built, including the base images they use.
 
 ## ⭐️ Star History
 
