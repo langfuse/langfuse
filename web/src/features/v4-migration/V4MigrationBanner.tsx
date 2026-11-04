@@ -1,4 +1,3 @@
-/* eslint-disable no-nested-ternary */
 import { useSession } from "next-auth/react";
 import { Zap } from "@langfuse/icons";
 import { Callout } from "@/src/components/design-system/Callout/Callout";
@@ -96,11 +95,16 @@ export function V4MigrationBanner({
                 <span className="font-bold">
                   Langfuse v4 is here: real-time and up to 165× faster.
                 </span>{" "}
-                {projectsNeedingMigration === totalProjects
-                  ? projectsNeedingMigration === 1
-                    ? "Your project needs an upgrade."
-                    : "All projects need an upgrade."
-                  : `${projectsNeedingMigration} of your ${totalProjects} projects ${projectsNeedingMigration === 1 ? "needs" : "need"} an upgrade.`}
+                {projectsNeedingMigration === totalProjects &&
+                  projectsNeedingMigration === 1 &&
+                  "Your project needs an upgrade."}
+                {projectsNeedingMigration === totalProjects &&
+                  projectsNeedingMigration !== 1 &&
+                  "All projects need an upgrade."}
+                {projectsNeedingMigration !== totalProjects &&
+                  `${projectsNeedingMigration} of your ${totalProjects} projects ${
+                    projectsNeedingMigration === 1 ? "needs" : "need"
+                  } an upgrade.`}
               </span>
             </div>
           </Callout>
