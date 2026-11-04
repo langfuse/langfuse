@@ -337,8 +337,8 @@ importers:
         specifier: ^12.26.0
         version: 12.26.0(supports-color@8.1.1)
       '@clickhouse/client':
-        specifier: 1.23.1
-        version: 1.23.1
+        specifier: head
+        version: 1.25.0-head.bfd729c.1
       '@google-cloud/storage':
         specifier: ^7.19.0
         version: 7.19.0(supports-color@8.1.1)
@@ -1882,8 +1882,8 @@ packages:
   '@cfworker/json-schema@4.1.1':
     resolution: {integrity: sha512-gAmrUZSGtKc3AiBL71iNWxDsyUC5uMaKKGdvzYsBoTW/xi42JQHl7eKV2OYzCUqvc+D2RCcf7EXY2iCyFIk6og==}
 
-  '@clickhouse/client@1.23.1':
-    resolution: {integrity: sha512-vs3/Zc1dHvT171btW5nMoPsPCJ6QVJ5pp7obxzO5sjqwFx/jjz9wwCAqcFOdc2DhprugDBaVn+4dVY8hG3A9nw==}
+  '@clickhouse/client@1.25.0-head.bfd729c.1':
+    resolution: {integrity: sha512-c2rv/nqarjRu3w7jqZxnmP+xiGRvODnqVW9pHhDRusw8wwXFFcnDpw4iYLPvwHRnFnmkGBA62Jiei6PMgn5ibw==}
     engines: {node: '>=20'}
 
   '@codemirror/autocomplete@6.20.3':
@@ -13367,7 +13367,7 @@ snapshots:
   '@cfworker/json-schema@4.1.1':
     optional: true
 
-  '@clickhouse/client@1.23.1': {}
+  '@clickhouse/client@1.25.0-head.bfd729c.1': {}
 
   '@codemirror/autocomplete@6.20.3':
     dependencies:

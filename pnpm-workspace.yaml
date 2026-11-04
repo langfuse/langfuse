@@ -225,3 +225,4 @@ minimumReleaseAgeExclude:
   - fast-uri@3.1.9
   # body-parser security fix; eligible after 2026-10-27 11:39 UTC.
   - body-parser@2.4.0
+  - "@clickhouse/client"
