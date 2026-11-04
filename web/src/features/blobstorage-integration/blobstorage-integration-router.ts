@@ -11,6 +11,7 @@ import { blobStorageIntegrationFormSchemaBase } from "@/src/features/blobstorage
 import {
   validateAzureContainerName,
   validateExportFieldGroups,
+  validateRoleAuth,
 } from "@/src/features/blobstorage-integration/validation";
 import { upsertBlobStorageIntegration } from "@/src/features/blobstorage-integration/service";
 import { resolveExportSource } from "@/src/features/analytics-integrations/server/exportSource";
@@ -26,6 +27,9 @@ import {
   validateBlobStorageBucketHost,
   validateBlobStorageEndpoint,
   assertGcsBlobStorageBucketAllowed,
+  createBlobStorageRoleCredentials,
+  getStorageAccessRoleArn,
+  verifyStorageRoleRequiresExternalId,
 } from "@langfuse/shared/src/server";
 import { randomUUID } from "crypto";
 import { decrypt } from "@langfuse/shared/encryption";
@@ -34,6 +38,7 @@ import {
   BlobStorageIntegrationType,
   BlobStorageIntegrationFileType,
   InvalidRequestError,
+  StorageIntegrationAuthType,
 } from "@langfuse/shared";
 
 const getAuditLogErrorType = (error: unknown) => {
@@ -109,13 +114,18 @@ export const blobStorageIntegrationRouter = createTRPCRouter({
         // form can tell a keyless GCS integration from one with a key.
         let config = null;
         if (row) {
-          const { secretAccessKey, ...rest } = row;
-          config = { ...rest, hasSecretAccessKey: Boolean(secretAccessKey) };
+          const { secretAccessKey, externalId, ...rest } = row;
+          config = {
+            ...rest,
+            hasSecretAccessKey: Boolean(secretAccessKey),
+            externalId: externalId ? decrypt(externalId) : null,
+          };
         }
 
         return {
           config,
           writeMode: env.LANGFUSE_MIGRATION_V4_WRITE_MODE,
+          accessRoleArn: getStorageAccessRoleArn(),
         };
       } catch (e) {
         logger.error(`Failed to get blob storage integration`, e);
@@ -139,7 +149,8 @@ export const blobStorageIntegrationRouter = createTRPCRouter({
           fileType: z.enum(BlobStorageIntegrationFileType).optional(),
         })
         .superRefine(validateAzureContainerName)
-        .superRefine(validateExportFieldGroups),
+        .superRefine(validateExportFieldGroups)
+        .superRefine(validateRoleAuth),
     )
     .mutation(async ({ input, ctx }) => {
       try {
@@ -182,8 +193,10 @@ export const blobStorageIntegrationRouter = createTRPCRouter({
             bucketName: rest.bucketName,
             endpoint: rest.endpoint || null,
             region: rest.region,
+            authType: rest.authType,
             accessKeyId: rest.accessKeyId ?? null,
             secretAccessKey: rest.secretAccessKey ?? null,
+            roleArn: rest.roleArn ?? null,
             prefix: rest.prefix ?? "",
             exportFrequency: rest.exportFrequency,
             enabled: rest.enabled,
@@ -366,6 +379,7 @@ export const blobStorageIntegrationRouter = createTRPCRouter({
           where: {
             projectId: input.projectId,
           },
+          include: { project: { select: { orgId: true } } },
         });
 
         if (!integration) {
@@ -409,10 +423,25 @@ export const blobStorageIntegrationRouter = createTRPCRouter({
           assertGcsBlobStorageBucketAllowed(bucketName);
         }
 
+        const usesRole =
+          integration.authType === StorageIntegrationAuthType.ROLE_ARN;
+        if (usesRole && integration.roleArn) {
+          await verifyStorageRoleRequiresExternalId({
+            roleArn: integration.roleArn,
+            projectId: input.projectId,
+          });
+        }
+
         // Create storage service with provided configuration
         const storageService = StorageServiceFactory.getInstance({
-          accessKeyId: isGcs ? undefined : accessKeyId || undefined,
-          secretAccessKey: isGcs ? undefined : secretAccessKey,
+          accessKeyId: isGcs || usesRole ? undefined : accessKeyId || undefined,
+          secretAccessKey: isGcs || usesRole ? undefined : secretAccessKey,
+          credentials: usesRole
+            ? createBlobStorageRoleCredentials({
+                ...integration,
+                orgId: integration.project.orgId,
+              })
+            : undefined,
           bucketName,
           endpoint: endpoint || undefined,
           region: region || undefined,
@@ -439,14 +468,15 @@ This file can be safely deleted.`;
 
         // Upload the test file. Keyless GCS skips the signed URL: V4 signing
         // needs a private key, which ADC identities (e.g. GKE metadata) don't
-        // have, and the export itself never signs. A GCS key can sign.
+        // have, and the export itself never signs. A GCS key can sign. IAM
+        // role sessions cannot read objects, so a signed URL would not open.
         const testFile = {
           fileName: testFileName,
           fileType: "text/plain",
           data: testContent,
         };
         let signedUrl: string | undefined;
-        if (isGcs && !gcsServiceAccountKey) {
+        if ((isGcs && !gcsServiceAccountKey) || usesRole) {
           await storageService.uploadFile(testFile);
         } else {
           ({ signedUrl } = await storageService.uploadWithSignedUrl({

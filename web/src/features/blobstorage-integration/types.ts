@@ -8,10 +8,12 @@ import {
   EXPORT_FIELD_GROUPS,
   BLOB_STORAGE_REGION_INVALID_MESSAGE,
   BLOB_STORAGE_REGION_REGEX,
+  StorageIntegrationAuthType,
 } from "@langfuse/shared";
 import {
   validateAzureContainerName,
   validateExportFieldGroups,
+  validateRoleAuth,
   exportStartDateNotInFuture,
   EXPORT_START_DATE_FUTURE_ERROR,
 } from "@/src/features/blobstorage-integration/validation";
@@ -28,8 +30,11 @@ export const blobStorageIntegrationFormSchemaBase = z.object({
       message: BLOB_STORAGE_REGION_INVALID_MESSAGE,
     })
     .default("auto"),
+  // Omitted means access keys, so existing API and form callers keep working.
+  authType: z.enum(StorageIntegrationAuthType).optional(),
   accessKeyId: z.string().optional(),
   secretAccessKey: z.string().nullable().optional(),
+  roleArn: z.string().nullable().optional(),
   prefix: z
     .string()
     .refine((value) => !value || value === "" || value.endsWith("/"), {
@@ -65,7 +70,8 @@ export const blobStorageIntegrationFormSchemaBase = z.object({
 export const blobStorageIntegrationFormSchema =
   blobStorageIntegrationFormSchemaBase
     .superRefine(validateAzureContainerName)
-    .superRefine(validateExportFieldGroups);
+    .superRefine(validateExportFieldGroups)
+    .superRefine(validateRoleAuth);
 
 export type BlobStorageIntegrationFormSchema = z.infer<
   typeof blobStorageIntegrationFormSchema

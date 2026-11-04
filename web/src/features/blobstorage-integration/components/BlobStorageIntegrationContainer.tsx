@@ -32,12 +32,15 @@ export const BlobStorageIntegrationContainer = ({
   config,
   projectId,
   writeMode,
+  accessRoleArn,
 }: {
   config:
     | (Partial<BlobStorageIntegration> & { hasSecretAccessKey?: boolean })
     | null;
   projectId: string;
   writeMode: V4WriteMode;
+  // Set when this deployment supports IAM role auth.
+  accessRoleArn: string | null;
 }) => {
   const capture = usePostHogClientCapture();
   const { isLangfuseCloud } = useLangfuseCloudRegion();
@@ -138,6 +141,8 @@ export const BlobStorageIntegrationContainer = ({
       )}
       exportSourceCtx={exportSourceCtx}
       persistedExportSource={config?.exportSource}
+      accessRoleArn={accessRoleArn}
+      externalId={config?.externalId ?? null}
       isSaving={mut.isPending}
       onSubmit={handleSubmit}
     >

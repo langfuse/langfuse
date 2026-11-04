@@ -50,6 +50,8 @@ const ui = (
       initialValues={initialValues}
       exportSourceCtx={exportSourceCtx}
       persistedExportSource={null}
+      accessRoleArn={null}
+      externalId={null}
       isSaving={false}
       onSubmit={onSubmit}
     >

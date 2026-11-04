@@ -8,6 +8,7 @@ import {
   logger,
   StorageService,
   StorageServiceFactory,
+  createBlobStorageRoleCredentials,
   streamTransformations,
   getObservationsForBlobStorageExport,
   getObservationsForBlobStorageExportRaw,
@@ -58,6 +59,7 @@ import { ByteCounter, TimedByteCounter } from "./byteCounters";
 import { WORKER_HOST_ID } from "../../utils/hostId";
 import {
   BlobStorageIntegrationType,
+  StorageIntegrationAuthType,
   BlobStorageIntegrationFileType,
   BatchExportFileFormat,
   BlobStorageExportMode,
@@ -358,6 +360,8 @@ type BlobStorageConnectionConfig = {
   region: string;
   accessKeyId: string | undefined;
   secretAccessKey: string | undefined;
+  // IAM role auth; replaces the access keys when set.
+  credentials?: ReturnType<typeof createBlobStorageRoleCredentials>;
   forcePathStyle?: boolean;
   type: BlobStorageIntegrationType;
 };
@@ -389,6 +393,7 @@ const createBlobStorageService = (
   return StorageServiceFactory.getInstance({
     accessKeyId: useGoogleCloudStorage ? undefined : config.accessKeyId,
     secretAccessKey: useGoogleCloudStorage ? undefined : config.secretAccessKey,
+    credentials: config.credentials,
     bucketName: config.bucketName,
     endpoint: config.endpoint ?? undefined,
     region: config.region,
@@ -1175,6 +1180,7 @@ export const handleBlobStorageIntegrationProjectJob = async (
       where: {
         projectId,
       },
+      include: { project: { select: { orgId: true } } },
     },
   );
 
@@ -1303,14 +1309,26 @@ export const handleBlobStorageIntegrationProjectJob = async (
       );
     }
 
+    const usesRole =
+      blobStorageIntegration.authType === StorageIntegrationAuthType.ROLE_ARN;
+
     // One client per run, shared by all table uploads and the manifest write.
     const storageService = createBlobStorageService({
       bucketName: blobStorageIntegration.bucketName,
       endpoint: blobStorageIntegration.endpoint,
       region: blobStorageIntegration.region || "auto",
-      accessKeyId: blobStorageIntegration.accessKeyId || undefined,
-      secretAccessKey: blobStorageIntegration.secretAccessKey
-        ? decrypt(blobStorageIntegration.secretAccessKey)
+      accessKeyId: usesRole
+        ? undefined
+        : blobStorageIntegration.accessKeyId || undefined,
+      secretAccessKey:
+        !usesRole && blobStorageIntegration.secretAccessKey
+          ? decrypt(blobStorageIntegration.secretAccessKey)
+          : undefined,
+      credentials: usesRole
+        ? createBlobStorageRoleCredentials({
+            ...blobStorageIntegration,
+            orgId: blobStorageIntegration.project.orgId,
+          })
         : undefined,
       forcePathStyle: blobStorageIntegration.forcePathStyle || undefined,
       type: blobStorageIntegration.type,

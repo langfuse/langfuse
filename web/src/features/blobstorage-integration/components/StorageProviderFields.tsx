@@ -15,7 +15,10 @@ import { Switch } from "@/src/components/design-system/Switch/Switch";
 import {
   BlobStorageIntegrationType,
   GCS_USE_DEFAULT_CREDENTIALS,
+  STORAGE_ROLE_WRITE_ACTIONS,
+  StorageIntegrationAuthType,
 } from "@langfuse/shared";
+import { RoleAuthSetupInstructions } from "@/src/ee/features/storage-role-auth/components/RoleAuthSetupInstructions";
 import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
 import {
   type BlobStorageFormControl,
@@ -28,9 +31,13 @@ import {
 export const StorageProviderFields = ({
   control,
   setValue,
+  accessRoleArn,
+  externalId,
 }: {
   control: BlobStorageFormControl;
   setValue: UseFormSetValue<BlobStorageFormValues>;
+  accessRoleArn: string | null;
+  externalId: string | null;
 }) => {
   const { isLangfuseCloud } = useLangfuseCloudRegion();
   // Check if this is a self-hosted instance (no cloud region set)
@@ -41,6 +48,17 @@ export const StorageProviderFields = ({
   const secretAccessKey = useWatch({ control, name: "secretAccessKey" });
   const isGcsDefaultCredentials =
     isGcs && secretAccessKey === GCS_USE_DEFAULT_CREDENTIALS;
+  const authType = useWatch({ control, name: "authType" });
+  const usesRole = authType === StorageIntegrationAuthType.ROLE_ARN;
+  // An integration that already uses a role keeps the option visible even if
+  // the deployment no longer offers it, so it can be switched to access keys.
+  const showAuthTypeSelect =
+    integrationType === BlobStorageIntegrationType.S3 &&
+    (Boolean(accessRoleArn) || usesRole);
+  const [roleArn, bucketName, prefix] = useWatch({
+    control,
+    name: ["roleArn", "bucketName", "prefix"],
+  });
 
   return (
     <>
@@ -58,6 +76,15 @@ export const StorageProviderFields = ({
                   // and vice versa.
                   if ((value === "GOOGLE_CLOUD_STORAGE") !== isGcs) {
                     setValue("secretAccessKey", "", { shouldDirty: true });
+                  }
+                  if (value !== BlobStorageIntegrationType.S3) {
+                    setValue(
+                      "authType",
+                      StorageIntegrationAuthType.ACCESS_KEYS,
+                      {
+                        shouldDirty: true,
+                      },
+                    );
                   }
                   field.onChange(value);
                 }}
@@ -149,7 +176,9 @@ export const StorageProviderFields = ({
               </FormControl>
               <FormDescription>
                 {integrationType === "S3"
-                  ? "AWS region (e.g., us-east-1)"
+                  ? usesRole
+                    ? "The bucket's AWS region (e.g., us-east-1)"
+                    : "AWS region (e.g., us-east-1)"
                   : "S3 compatible storage region (e.g. europe-west1, auto)"}
               </FormDescription>
               <FormMessage />
@@ -239,8 +268,75 @@ export const StorageProviderFields = ({
         />
       )}
 
+      {showAuthTypeSelect && (
+        <FormField
+          control={control}
+          name="authType"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Authentication</FormLabel>
+              <FormControl>
+                <SelectInput
+                  value={field.value ?? StorageIntegrationAuthType.ACCESS_KEYS}
+                  onValueChange={field.onChange}
+                  placeholder="Select authentication"
+                  options={[
+                    {
+                      value: StorageIntegrationAuthType.ACCESS_KEYS,
+                      label: "Access keys",
+                    },
+                    {
+                      value: StorageIntegrationAuthType.ROLE_ARN,
+                      label: "IAM role",
+                    },
+                  ]}
+                />
+              </FormControl>
+              <FormDescription>
+                An IAM role in your AWS account avoids long-lived access keys
+              </FormDescription>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+      )}
+
+      {usesRole && (
+        <FormField
+          control={control}
+          name="roleArn"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Role ARN</FormLabel>
+              <FormControl>
+                <Input
+                  placeholder="arn:aws:iam::123456789012:role/langfuse-export"
+                  {...field}
+                  value={field.value ?? ""}
+                />
+              </FormControl>
+              <FormDescription>
+                The role Langfuse assumes to write exports to your bucket
+              </FormDescription>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+      )}
+      {usesRole && accessRoleArn && (
+        <RoleAuthSetupInstructions
+          accessRoleArn={accessRoleArn}
+          externalId={externalId}
+          roleArn={roleArn ?? ""}
+          bucketName={bucketName}
+          prefix={prefix}
+          actions={STORAGE_ROLE_WRITE_ACTIONS}
+          description="Let the Langfuse access role assume your role with this external ID, then grant the role write access to the export prefix. If the bucket uses SSE-KMS, also allow the role to use kms:GenerateDataKey and kms:Decrypt on the key."
+        />
+      )}
+
       {/* S3/Azure credentials */}
-      {!isGcs && (
+      {!isGcs && !usesRole && (
         <FormField
           control={control}
           name="accessKeyId"
@@ -275,7 +371,7 @@ export const StorageProviderFields = ({
         />
       )}
 
-      {!isGcs && (
+      {!isGcs && !usesRole && (
         <FormField
           control={control}
           name="secretAccessKey"

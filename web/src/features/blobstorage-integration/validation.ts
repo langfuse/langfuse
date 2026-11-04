@@ -1,4 +1,10 @@
 import type { z } from "zod";
+import {
+  BlobStorageIntegrationType,
+  STORAGE_ROLE_ARN_INVALID_MESSAGE,
+  STORAGE_ROLE_ARN_REGEX,
+  StorageIntegrationAuthType,
+} from "@langfuse/shared";
 
 // 27h covers all real-world TZ offsets (UTC-12 to UTC+14 = 26h span + 1h margin).
 // The HTML date picker sends YYYY-MM-DD parsed as UTC midnight; on a UTC server,
@@ -23,6 +29,39 @@ export function validateExportFieldGroups(
       code: "custom",
       message: "The Core field group is required",
       path: ["exportFieldGroups"],
+    });
+  }
+}
+
+export function validateRoleAuth(
+  data: {
+    type: string;
+    region: string;
+    authType?: string;
+    roleArn?: string | null;
+  },
+  ctx: z.RefinementCtx,
+) {
+  if (data.authType !== StorageIntegrationAuthType.ROLE_ARN) return;
+  if (data.type !== BlobStorageIntegrationType.S3) {
+    ctx.addIssue({
+      code: "custom",
+      message: "IAM role auth is only available for Amazon S3",
+      path: ["authType"],
+    });
+  }
+  if (data.region.trim().toLowerCase() === "auto") {
+    ctx.addIssue({
+      code: "custom",
+      message: "IAM role auth requires the bucket's AWS region",
+      path: ["region"],
+    });
+  }
+  if (!STORAGE_ROLE_ARN_REGEX.test(data.roleArn?.trim() ?? "")) {
+    ctx.addIssue({
+      code: "custom",
+      message: STORAGE_ROLE_ARN_INVALID_MESSAGE,
+      path: ["roleArn"],
     });
   }
 }

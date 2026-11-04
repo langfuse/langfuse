@@ -12,6 +12,7 @@ import {
   logger,
   QueueJobs,
   StorageServiceFactory,
+  getStorageAccessRoleArn,
 } from "@langfuse/shared/src/server";
 import {
   OBSERVATION_FIELD_GROUPS_FULL,
@@ -48,6 +49,7 @@ vi.mock("@langfuse/shared/src/server", async () => {
     StorageServiceFactory: {
       getInstance: vi.fn(),
     },
+    getStorageAccessRoleArn: vi.fn().mockReturnValue(null),
   };
 });
 
@@ -737,6 +739,54 @@ describe("Blob Storage Integration tRPC Router", () => {
         where: { projectId: project.id },
       });
       expect(decrypt(integration!.secretAccessKey!)).toBe("test-secret-key");
+    });
+  });
+
+  describe("IAM role auth", () => {
+    it("drops the access keys and keeps the external ID stable across saves", async () => {
+      const { caller, project } = await prepare();
+      const roleConfig = {
+        projectId: project.id,
+        ...baseConfig,
+        authType: "ROLE_ARN" as const,
+        roleArn: "arn:aws:iam::123456789012:role/langfuse-export",
+      };
+
+      await expect(
+        caller.blobStorageIntegration.update(roleConfig),
+      ).rejects.toThrow("IAM role auth is not available");
+
+      const accessRoleArn =
+        "arn:aws:iam::210987654321:role/langfuse-customer-storage-access";
+      (getStorageAccessRoleArn as Mock).mockReturnValue(accessRoleArn);
+      try {
+        await caller.blobStorageIntegration.update(roleConfig);
+        const first = await caller.blobStorageIntegration.get({
+          projectId: project.id,
+        });
+        await caller.blobStorageIntegration.update(roleConfig);
+        const second = await caller.blobStorageIntegration.get({
+          projectId: project.id,
+        });
+
+        expect(second.accessRoleArn).toBe(accessRoleArn);
+        expect(second.config).toMatchObject({
+          authType: "ROLE_ARN",
+          roleArn: roleConfig.roleArn,
+          accessKeyId: null,
+          hasSecretAccessKey: false,
+        });
+        expect(first.config?.externalId).toMatch(/^lf-[0-9a-f]{32}$/);
+        expect(second.config?.externalId).toBe(first.config?.externalId);
+
+        const stored = await prisma.blobStorageIntegration.findUnique({
+          where: { projectId: project.id },
+          select: { externalId: true },
+        });
+        expect(decrypt(stored!.externalId!)).toBe(first.config?.externalId);
+      } finally {
+        (getStorageAccessRoleArn as Mock).mockReturnValue(null);
+      }
     });
   });
 

@@ -38,6 +38,8 @@ export const BlobStorageIntegrationForm = ({
   initialValues,
   exportSourceCtx,
   persistedExportSource,
+  accessRoleArn,
+  externalId,
   isSaving,
   onSubmit,
   children,
@@ -45,6 +47,8 @@ export const BlobStorageIntegrationForm = ({
   initialValues: BlobStorageFormValues;
   exportSourceCtx: ExportSourceContext;
   persistedExportSource: AnalyticsIntegrationExportSource | null | undefined;
+  accessRoleArn: string | null;
+  externalId: string | null;
   isSaving: boolean;
   // Call `onSaved` once the values are persisted; a failed save never calls
   // it, so the draft stays dirty.
@@ -102,6 +106,8 @@ export const BlobStorageIntegrationForm = ({
         <StorageProviderFields
           control={control}
           setValue={blobStorageForm.setValue}
+          accessRoleArn={accessRoleArn}
+          externalId={externalId}
         />
         <ExportScheduleFields control={control} />
         <ExportSourceField
