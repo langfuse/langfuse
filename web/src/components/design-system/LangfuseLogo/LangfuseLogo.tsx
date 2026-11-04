@@ -42,14 +42,14 @@ export const LangfuseLogo = ({
   return (
     <div className="flex items-center">
       <img
-        className="-ml-1 h-5 max-w-22 translate-y-px group-data-[collapsible=icon]:hidden dark:hidden"
-        src={`${env.NEXT_PUBLIC_BASE_PATH ?? ""}/wordart-black.svg`}
-        alt="Langfuse Logo"
+        className="-ml-1 h-7 max-w-28 group-data-[collapsible=icon]:hidden dark:hidden"
+        src={`${env.NEXT_PUBLIC_BASE_PATH ?? ""}/langfuse-by-clickhouse.svg`}
+        alt="Langfuse by ClickHouse"
       />
       <img
-        className="-ml-1 hidden h-5 max-w-22 translate-y-px group-data-[collapsible=icon]:hidden dark:block"
-        src={`${env.NEXT_PUBLIC_BASE_PATH ?? ""}/wordart-white.svg`}
-        alt="Langfuse Logo"
+        className="-ml-1 hidden h-7 max-w-28 group-data-[collapsible=icon]:hidden dark:block"
+        src={`${env.NEXT_PUBLIC_BASE_PATH ?? ""}/langfuse-by-clickhouse-white.svg`}
+        alt="Langfuse by ClickHouse"
       />
       <div className="hidden scale-120 group-data-[collapsible=icon]:block">
         <LangfuseIcon size={28} />

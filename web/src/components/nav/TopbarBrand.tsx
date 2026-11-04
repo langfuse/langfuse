@@ -58,14 +58,14 @@ export const TopbarBrand = ({
       ) : variant === "wordmark" ? (
         <>
           <img
-            className="max-h-5 max-w-24 dark:hidden"
-            src={`${env.NEXT_PUBLIC_BASE_PATH ?? ""}/wordart-black.svg`}
-            alt="Langfuse Logo"
+            className="max-h-7 max-w-28 dark:hidden"
+            src={`${env.NEXT_PUBLIC_BASE_PATH ?? ""}/langfuse-by-clickhouse.svg`}
+            alt="Langfuse by ClickHouse"
           />
           <img
-            className="hidden max-h-5 max-w-24 dark:block"
-            src={`${env.NEXT_PUBLIC_BASE_PATH ?? ""}/wordart-white.svg`}
-            alt="Langfuse Logo"
+            className="hidden max-h-7 max-w-28 dark:block"
+            src={`${env.NEXT_PUBLIC_BASE_PATH ?? ""}/langfuse-by-clickhouse-white.svg`}
+            alt="Langfuse by ClickHouse"
           />
         </>
       ) : (
