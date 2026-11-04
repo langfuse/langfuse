@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from "node:crypto";
-import { redis } from "@langfuse/shared/src/server";
+import { recordIncrement, redis } from "@langfuse/shared/src/server";
 import { env } from "../../env";
 import {
   getTraceBatchFirstMember,
@@ -10,7 +10,7 @@ import {
 const REDIS_BATCH_SIZE = 50;
 const CLEANUP_SIZE = 100;
 
-function getRecordingKeys(shard: number) {
+export function getRecordingKeys(shard: number) {
   const tag = `{trace-dispatch:${shard}}`;
   return {
     record: `${tag}:record`,
@@ -124,11 +124,12 @@ const RECORD_SCRIPT = `
     end
   end
   -- Bound pending storage even when the dispatcher is paused during recording.
-  expirePending(recordKey, dueKey, now, pendingTtl)
+  local expired = expirePending(recordKey, dueKey, now, pendingTtl)
   if wroteRecord then
     extendExpiry(recordKey, due + pendingTtl)
     extendExpiry(dueKey, due + pendingTtl)
   end
+  return expired
 `;
 
 const RECORD_SCRIPT_HASH = createHash("sha1")
@@ -165,6 +166,22 @@ export type TraceSpanActivity = {
   serializedEventBytes: number;
 };
 
+function recordTrackingVolume(
+  stage: "admitted" | "recorded",
+  updates: Iterable<{ eventUpdateCount: number; serializedEventBytes: number }>,
+): void {
+  let events = 0;
+  let bytes = 0;
+  for (const update of updates) {
+    events += update.eventUpdateCount;
+    bytes += update.serializedEventBytes;
+  }
+  recordIncrement("langfuse.trace_dispatch.event_updates", events, { stage });
+  recordIncrement("langfuse.trace_dispatch.serialized_event_bytes", bytes, {
+    stage,
+  });
+}
+
 /** Merge bounds, byte sizes, selected rules, and readiness for one batch; this writer does not sample. */
 export async function recordTraceActivity(
   projectId: string,
@@ -176,6 +193,7 @@ export async function recordTraceActivity(
     {
       minStart: number;
       maxStart: number;
+      eventUpdateCount: number;
       serializedEventBytes: number;
       rules: Set<string>;
     }
@@ -187,18 +205,21 @@ export async function recordTraceActivity(
     if (previous) {
       previous.minStart = Math.min(previous.minStart, start);
       previous.maxStart = Math.max(previous.maxStart, start);
+      previous.eventUpdateCount++;
       previous.serializedEventBytes += span.serializedEventBytes;
       for (const ruleId of span.ruleIds) previous.rules.add(ruleId);
     } else {
       updatesByTrace.set(span.traceId, {
         minStart: start,
         maxStart: start,
+        eventUpdateCount: 1,
         serializedEventBytes: span.serializedEventBytes,
         rules: new Set(span.ruleIds),
       });
     }
   }
   if (updatesByTrace.size === 0) return;
+  recordTrackingVolume("admitted", updatesByTrace.values());
   if (!redis) throw new Error("Trace rule recording requires Redis");
 
   const idleMs = await resolveTraceIdleMs(projectId);
@@ -211,6 +232,7 @@ export async function recordTraceActivity(
       member: string;
       minStart: number;
       maxStart: number;
+      eventUpdateCount: number;
       serializedEventBytes: number;
       rules: Set<string>;
     }[]
@@ -230,27 +252,32 @@ export async function recordTraceActivity(
     const bounds = getRecordingBoundsKeys(shard, now);
     const keys = [record, due, ...bounds.keys];
     for (let offset = 0; offset < entries.length; offset += REDIS_BATCH_SIZE) {
+      const chunk = entries.slice(offset, offset + REDIS_BATCH_SIZE);
       const args = [
         idleMs,
         env.LANGFUSE_TRACE_BATCH_FIRST_SEEN_TTL_MS,
         env.LANGFUSE_TRACE_BATCH_PENDING_TTL_MS,
         bounds.width,
         bounds.firstBucket,
-        ...entries
-          .slice(offset, offset + REDIS_BATCH_SIZE)
-          .flatMap(
-            ({ member, minStart, maxStart, rules, serializedEventBytes }) => [
-              member,
-              minStart,
-              maxStart,
-              randomUUID(),
-              JSON.stringify([...rules]),
-              serializedEventBytes,
-              getTraceBatchFirstMember(member),
-            ],
-          ),
+        ...chunk.flatMap(
+          ({ member, minStart, maxStart, rules, serializedEventBytes }) => [
+            member,
+            minStart,
+            maxStart,
+            randomUUID(),
+            JSON.stringify([...rules]),
+            serializedEventBytes,
+            getTraceBatchFirstMember(member),
+          ],
+        ),
       ];
-      await evalRecording(keys, args);
+      const expired = Number(await evalRecording(keys, args));
+      // Count each acknowledged chunk, even if a later chunk fails.
+      recordTrackingVolume("recorded", chunk);
+      recordIncrement("langfuse.trace_dispatch.tracked_traces", chunk.length);
+      recordIncrement("langfuse.trace_dispatch.expired_traces", expired, {
+        source: "ingestion",
+      });
     }
   }
 }

@@ -8,7 +8,12 @@ import {
   type FilterState,
   type ObservationForEval,
 } from "@langfuse/shared";
-import { InMemoryFilterService, logger } from "@langfuse/shared/src/server";
+import {
+  InMemoryFilterService,
+  logger,
+  recordDistribution,
+  recordIncrement,
+} from "@langfuse/shared/src/server";
 import { isTopicsProcessingActive } from "@langfuse/shared/topics/server";
 import {
   getDeterministicSamplingValue,
@@ -87,17 +92,33 @@ export function getMatchingTraceBatchRuleIds(
   observation: ObservationForEval,
   rules: TraceBatchRule[],
 ): string[] {
-  const samplingValue = getDeterministicSamplingValue(observation.trace_id);
-  return rules
-    .filter(
-      (rule) =>
-        rule.projectId === observation.project_id &&
-        InMemoryFilterService.evaluateFilter(
-          observation,
-          rule.filter,
-          mapEventEvalFilterColumnIdToField,
-        ) &&
-        shouldSampleEvaluation({ samplingValue, samplingRate: rule.sampling }),
-    )
-    .map((rule) => rule.id);
+  const startedAt = performance.now();
+  let outcome = "error";
+  try {
+    const samplingValue = getDeterministicSamplingValue(observation.trace_id);
+    const ruleIds = rules
+      .filter(
+        (rule) =>
+          rule.projectId === observation.project_id &&
+          InMemoryFilterService.evaluateFilter(
+            observation,
+            rule.filter,
+            mapEventEvalFilterColumnIdToField,
+          ) &&
+          shouldSampleEvaluation({
+            samplingValue,
+            samplingRate: rule.sampling,
+          }),
+      )
+      .map((rule) => rule.id);
+    outcome = ruleIds.length > 0 ? "selected" : "not_selected";
+    return ruleIds;
+  } finally {
+    recordIncrement("langfuse.trace_dispatch.filter_outcomes", 1, { outcome });
+    recordDistribution(
+      "langfuse.trace_dispatch.filter_duration_ms",
+      performance.now() - startedAt,
+      { outcome, unit: "milliseconds" },
+    );
+  }
 }

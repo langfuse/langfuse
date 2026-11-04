@@ -1,6 +1,7 @@
 import {
   logger,
   recordGauge,
+  recordIncrement,
   redis,
   TraceBatchQueue,
 } from "@langfuse/shared/src/server";
@@ -12,6 +13,7 @@ import {
   getTraceBatchReadinessKeys,
   MEMORY_SCRIPT,
 } from "./traceBatchReadiness";
+import { getRecordingBoundsKeys, getRecordingKeys } from "./traceRuleRecording";
 
 const METRIC_PREFIX = "langfuse.trace_batch";
 const MEMORY_INTERVAL_MS = 60_000;
@@ -32,26 +34,57 @@ export class TraceBatchMetricsRunner extends PeriodicRunner {
   }
 
   protected async execute(): Promise<void> {
+    const collectQueue =
+      env.LANGFUSE_TRACE_BATCH_DISPATCHER_ENABLED === "true" ||
+      env.QUEUE_CONSUMER_TRACE_BATCH_QUEUE_IS_ENABLED === "true";
+    const collectRecording =
+      env.LANGFUSE_TRACE_BATCH_INGESTION_ENABLED === "true";
     if (
       !env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION ||
-      (env.LANGFUSE_TRACE_BATCH_DISPATCHER_ENABLED !== "true" &&
-        env.QUEUE_CONSUMER_TRACE_BATCH_QUEUE_IS_ENABLED !== "true")
+      (!collectQueue && !collectRecording)
     ) {
       return;
     }
 
-    recordTraceBatchActiveReads();
-    const collections = [
-      this.collectQueueDepth(),
-      this.collectWaitingHeadAge(),
-    ];
+    const collections: Promise<void>[] = [];
+    if (collectQueue) {
+      recordTraceBatchActiveReads();
+      collections.push(this.collectQueueDepth(), this.collectWaitingHeadAge());
+    }
     const now = Date.now();
     if (
       this.lastMemorySampleAt === null ||
       now - this.lastMemorySampleAt >= MEMORY_INTERVAL_MS
     ) {
       this.lastMemorySampleAt = now;
-      collections.push(this.collectMemory());
+      for (const layout of ["trace_batch", "trace_dispatch"] as const) {
+        if (layout === "trace_dispatch" && !collectRecording) continue;
+        const collection = this.collectMemory(layout);
+        if (layout === "trace_batch" && collectQueue) {
+          collections.push(collection);
+          continue;
+        }
+        collections.push(
+          collection
+            .then(() => {
+              recordIncrement("langfuse.trace_dispatch.memory_samples", 1, {
+                outcome: "success",
+                layout,
+              });
+            })
+            .catch((error) => {
+              // Experiment telemetry must not mark the worker run as errored.
+              recordIncrement("langfuse.trace_dispatch.memory_samples", 1, {
+                outcome: "error",
+                layout,
+              });
+              logger.warn("Trace rule memory collection failed", {
+                layout,
+                error,
+              });
+            }),
+        );
+      }
     }
 
     // Each collection remains useful if another fails. Never replace a failed
@@ -102,29 +135,40 @@ export class TraceBatchMetricsRunner extends PeriodicRunner {
     );
   }
 
-  private async collectMemory(): Promise<void> {
+  private async collectMemory(
+    layout: "trace_batch" | "trace_dispatch",
+  ): Promise<void> {
     if (!redis) throw new Error("Trace batch metrics require Redis");
     const clock = await redis.time();
     const now = Number(clock[0]) * 1_000 + Math.floor(Number(clock[1]) / 1_000);
     const totals = [0, 0, 0, 0, 0, 0];
     for (let shard = 0; shard < env.LANGFUSE_TRACE_BATCH_SHARD_COUNT; shard++) {
-      const { due, state } = getTraceBatchReadinessKeys(shard);
-      const first = getTraceBatchFirstKeys(shard, now);
+      const keys =
+        layout === "trace_batch"
+          ? getTraceBatchReadinessKeys(shard)
+          : getRecordingKeys(shard);
+      const history =
+        layout === "trace_batch"
+          ? getTraceBatchFirstKeys(shard, now)
+          : getRecordingBoundsKeys(shard, now);
       const values = (await redis.eval(
         MEMORY_SCRIPT,
-        2 + first.keys.length,
-        due,
-        state,
-        ...first.keys,
+        2 + history.keys.length,
+        keys.due,
+        "state" in keys ? keys.state : keys.record,
+        ...history.keys,
       )) as number[];
       values.forEach((value, index) => (totals[index] += Number(value)));
     }
     // Per-shard series would multiply custom metrics by the shard count on
     // every reporting worker; only the summed totals are emitted.
-    this.recordMapMemory(totals);
+    this.recordMapMemory(layout, totals);
   }
 
-  private recordMapMemory(values: number[]): void {
+  private recordMapMemory(
+    layout: "trace_batch" | "trace_dispatch",
+    values: number[],
+  ): void {
     const [
       dueBytes,
       dueEntries,
@@ -137,15 +181,23 @@ export class TraceBatchMetricsRunner extends PeriodicRunner {
     // duplicate reporters with max/latest, never sum their identical gauges.
     for (const { key, bytes, entries } of [
       { key: "due", bytes: dueBytes, entries: dueEntries },
-      { key: "state", bytes: stateBytes, entries: stateEntries },
-      { key: "first", bytes: firstBytes, entries: firstEntries },
+      {
+        key: layout === "trace_batch" ? "state" : "record",
+        bytes: stateBytes,
+        entries: stateEntries,
+      },
+      {
+        key: layout === "trace_batch" ? "first" : "bounds",
+        bytes: firstBytes,
+        entries: firstEntries,
+      },
     ]) {
-      recordGauge(`${METRIC_PREFIX}.redis_key_bytes`, bytes, {
+      recordGauge(`langfuse.${layout}.redis_key_bytes`, bytes, {
         key,
         shard: "total",
         unit: "bytes",
       });
-      recordGauge(`${METRIC_PREFIX}.redis_key_entries`, entries, {
+      recordGauge(`langfuse.${layout}.redis_key_entries`, entries, {
         key,
         shard: "total",
         unit: "records",

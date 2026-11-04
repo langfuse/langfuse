@@ -169,7 +169,8 @@ export let traceBatchMetricsRunner: TraceBatchMetricsRunner | null = null;
 if (
   env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION &&
   (env.LANGFUSE_TRACE_BATCH_DISPATCHER_ENABLED === "true" ||
-    env.QUEUE_CONSUMER_TRACE_BATCH_QUEUE_IS_ENABLED === "true")
+    env.QUEUE_CONSUMER_TRACE_BATCH_QUEUE_IS_ENABLED === "true" ||
+    env.LANGFUSE_TRACE_BATCH_INGESTION_ENABLED === "true")
 ) {
   traceBatchMetricsRunner = new TraceBatchMetricsRunner();
   traceBatchMetricsRunner.start();

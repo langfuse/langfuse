@@ -19,7 +19,7 @@ import { fetchEvalRules } from "../../features/evaluation/fetchEvalRules";
 import { scheduleObservationEvals } from "../../features/evaluation/observationEval/scheduleObservationEvals";
 import { createObservationEvalSchedulerDeps } from "../../features/evaluation/observationEval/createSchedulerDeps";
 import { Prisma } from "@langfuse/shared/src/db";
-import { TopicsTargetObject } from "@langfuse/shared";
+import { observationForEvalSchema, TopicsTargetObject } from "@langfuse/shared";
 import {
   isTopicsProcessingActive,
   isTopicsProjectEnabled,
@@ -311,15 +311,19 @@ describe("trace-rule recording at the evaluation stage", () => {
     async ({ rate, ingestionEnabled, cloud }) => {
       const original = { ...env };
       const projectId = "sampled-recording-test";
+      const normalize = vi.spyOn(observationForEvalSchema, "parse");
       // Existing trace-batch sampler fixtures: 0.0593 is selected at 10%; 0.7116 is not.
       const selected = "00000000000000000000000000000001";
       const excluded = "00000000000000000000000000000002";
-      const inputs = [selected, excluded, selected].map((traceId, index) => ({
-        projectId,
-        traceId,
-        spanId: `span-${index}`,
-        startTimeISO: "2026-10-29T10:00:00.000Z",
-      }));
+      const inputs = [selected, excluded, selected, selected].map(
+        (traceId, index) => ({
+          projectId,
+          traceId,
+          spanId: `span-${index}`,
+          startTimeISO: "2026-10-29T10:00:00.000Z",
+          environment: index === 3 ? "langfuse-llm-as-a-judge" : "production",
+        }),
+      );
       let recordedActivity: unknown;
       try {
         env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = cloud ? "DEV" : undefined;
@@ -351,7 +355,7 @@ describe("trace-rule recording at the evaluation stage", () => {
                 project_id: projectId,
                 trace_id: input.traceId,
                 span_id: input.spanId,
-                environment: "production",
+                environment: input.environment,
               }),
             writeEventRecord: vi.fn().mockResolvedValue(123),
           } as unknown as IngestionService,
@@ -361,6 +365,7 @@ describe("trace-rule recording at the evaluation stage", () => {
           shouldWriteToEventsTable: true,
         });
 
+        expect(normalize).not.toHaveBeenCalled();
         if (rate > 0 && ingestionEnabled && cloud) {
           expect(recordTraceActivity).toHaveBeenCalledExactlyOnceWith(
             projectId,
@@ -378,6 +383,7 @@ describe("trace-rule recording at the evaluation stage", () => {
           expect(recordTraceActivity).not.toHaveBeenCalled();
         }
       } finally {
+        normalize.mockRestore();
         Object.assign(env, original);
         vi.clearAllMocks();
       }

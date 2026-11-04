@@ -84,8 +84,9 @@
   in env templates. The local dev template may set the idle time. Reader query controls are independent of
   locality selection; logs must preserve separate input/output/metadata metrics.
   `src/features/traceBatching/TraceBatchMetricsRunner.ts` collects bounded queue
-  and Redis snapshots independently of dispatch/consumption when either role is
-  enabled. Global snapshot gauges must not be summed across worker reporters.
+  and Redis snapshots. Recording-only workers also sample both map layouts;
+  new-map metrics use `langfuse.trace_dispatch` and collection failures warn.
+  Global snapshot gauges must not be summed across worker reporters.
   Readiness uses project/trace-hashed shards with one dispatcher lease; all Lua
   keys share a shard hash tag. Defaults are 16 shards on Redis Cluster and 1 on
   standalone/Sentinel, with an explicit count override. Redis resizing does not

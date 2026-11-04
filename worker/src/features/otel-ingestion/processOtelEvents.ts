@@ -2,6 +2,7 @@ import { restoreInlineMedia } from "../otel-media/resolveExtractedMedia";
 import type { EarlyOtelBatch } from "@langfuse/native";
 import { convertEventRecordToObservationForEval } from "@langfuse/shared";
 import {
+  isInternalEvalEnvironment,
   logger,
   OtelIngestionProcessor,
   traceException,
@@ -13,7 +14,10 @@ import {
   isObservationAllowedForQueuedObservationEvals,
   scheduleObservationEvals,
 } from "../evaluation/observationEval/scheduleObservationEvals";
-import { scheduleTraceTranscriptEvals } from "../evaluation/traceTranscriptEval/scheduleTraceTranscriptEvals";
+import {
+  getTraceBatchExperimentRuleIds,
+  scheduleTraceTranscriptEvals,
+} from "../evaluation/traceTranscriptEval/scheduleTraceTranscriptEvals";
 import { trackTraceBatchActivity } from "../traceBatching/traceBatching";
 import {
   isTraceBatchSampled,
@@ -85,11 +89,11 @@ export async function processOtelEvents({
     logger.warn(`Failed to fetch eval rules for project ${projectId}`, error);
     return { observationRules: [], traceTranscriptRules: [] };
   });
-  const needsEvalScheduling =
+  const needsScheduler =
     rules.observationRules.length > 0 || includeTraceTranscriptRules;
 
   // Early exit if no processing needed
-  if (!needsEvalScheduling && !shouldWriteToEventsTable) {
+  if (!needsScheduler && !shouldWriteToEventsTable) {
     return;
   }
 
@@ -119,7 +123,7 @@ export async function processOtelEvents({
     });
   }
 
-  const schedulerDeps = needsEvalScheduling
+  const schedulerDeps = needsScheduler
     ? createEvalSchedulerDeps(projectId, rules)
     : null;
 
@@ -152,32 +156,38 @@ export async function processOtelEvents({
       // Step 2: Match transcript rules, then schedule observation evals.
       // The selection stays in this local when observation scheduling throws.
       // Nothing is buffered until the events write below returns.
-      const traceActivity = isTraceBatchSampled(
-        eventInput.traceId,
-        traceBatchSamplingRate,
-      )
-        ? {
-            traceId: eventInput.traceId,
-            spanStartTimeISO: eventInput.startTimeISO,
-          }
-        : undefined;
-      let matchedRuleIds: readonly string[] | undefined;
+      const traceActivity =
+        isTraceBatchSampled(eventInput.traceId, traceBatchSamplingRate) &&
+        !isInternalEvalEnvironment(eventRecord.environment)
+          ? {
+              traceId: eventInput.traceId,
+              spanStartTimeISO: eventInput.startTimeISO,
+            }
+          : undefined;
+      // Recording without rules needs no evaluation observation or filter pass.
+      let matchedRuleIds: readonly string[] | undefined =
+        traceActivity && rules.traceTranscriptRules.length === 0
+          ? getTraceBatchExperimentRuleIds(traceActivity.traceId)
+          : undefined;
       if (
         schedulerDeps &&
-        (rules.observationRules.length > 0 || traceActivity)
+        (rules.observationRules.length > 0 ||
+          (traceActivity && rules.traceTranscriptRules.length > 0))
       ) {
         try {
           const observation =
             convertEventRecordToObservationForEval(eventRecord);
           try {
-            matchedRuleIds = await scheduleTraceTranscriptEvals({
-              observation,
-              traceActivity,
-              schedulerDeps,
-            });
+            if (traceActivity && rules.traceTranscriptRules.length > 0) {
+              matchedRuleIds = await scheduleTraceTranscriptEvals({
+                observation,
+                traceActivity,
+                schedulerDeps,
+              });
+            }
           } catch (error) {
-            traceException(error);
-            logger.error(
+            // traceException(error);
+            logger.warn(
               `Failed to match trace transcript rules for project ${eventInput.projectId} and observation ${eventInput.spanId}`,
               { error, fileKey },
             );
@@ -190,11 +200,19 @@ export async function processOtelEvents({
             });
           }
         } catch (error) {
-          traceException(error);
-          logger.error(
-            `Failed to schedule observation evals for project ${eventInput.projectId} and observation ${eventInput.spanId}`,
-            { error, fileKey },
-          );
+          if (rules.observationRules.length > 0) {
+            traceException(error);
+            logger.error(
+              `Failed to schedule observation evals for project ${eventInput.projectId} and observation ${eventInput.spanId}`,
+              { error, fileKey },
+            );
+          } else {
+            // traceException(error);
+            logger.warn(
+              `Failed to normalize observation for trace transcript rules for project ${eventInput.projectId} and observation ${eventInput.spanId}`,
+              { error, fileKey },
+            );
+          }
         }
       }
 
@@ -237,8 +255,8 @@ export async function processOtelEvents({
       // Flush this invocation's local buffer; Redis merges activity across workers.
       await schedulerDeps.flushTraceActivity();
     } catch (error) {
-      traceException(error);
-      logger.error("Failed to record trace rule selections", {
+      // traceException(error);
+      logger.warn("Failed to record trace rule selections", {
         projectId,
         error,
         fileKey,

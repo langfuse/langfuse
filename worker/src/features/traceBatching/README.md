@@ -41,6 +41,41 @@ Acceptance is the writer queue, not a confirmed ClickHouse flush. Each ingestion
 invocation awaits its own buffer flush; Lua merges across workers using the
 shared shard and idle helpers.
 
+### Recording experiment
+
+Reuse the existing traffic cohort, sampling, idle interval, shard count and TTL.
+Leave live Topics dispatcher/consumer settings unchanged; the new maps do not
+enqueue or execute anything. A separate writer switch is still needed for a
+same-build old-only versus old-plus-new comparison.
+
+`TraceBatchMetricsRunner` samples both layouts every 60 seconds while recording
+is enabled, even without a dispatcher or consumer. It reuses the same bounded
+`MEMORY USAGE SAMPLES 5` script: one extra call per shard, no keyspace scan.
+Existing series remain under `langfuse.trace_batch`; new series use
+`langfuse.trace_dispatch`:
+
+- `redis_key_bytes` / `redis_key_entries`: `key:bounds|record|due`, summed across
+  shards. Use max/latest across worker reporters, never sum duplicate gauges.
+- `event_updates` / `serialized_event_bytes`: `stage:admitted|recorded`, after
+  sampling but before Redis, and after each acknowledged chunk. The old writer's
+  `eligible` stage counts activity before sampling, so these stages differ.
+- `tracked_traces` / `expired_traces`: acknowledged trace updates and pending
+  entries removed by ingestion cleanup. Repeated traces count again.
+- `filter_outcomes` / `filter_duration_ms`: per-span rule selection including
+  sampling, before the event write; excludes the experiment sentinel. With no
+  rules, experiment recording skips evaluation normalization and filtering.
+- `recording_batches` / `recording_duration_ms`: flush success/error and elapsed
+  time. `memory_samples` reports success/error for experiment map collection.
+
+Compare actual admitted volume alongside ingestion latency, worker CPU/RSS,
+Postgres load and Redis CPU/memory. Timeouts can leave applied but unacknowledged
+writes; the admitted/recorded difference is not proof of loss. Experiment-only
+failures warn; shared infrastructure alerts remain active.
+
+Both writers still share the ingestion switch and
+`LANGFUSE_TRACE_BATCH_FIRST_SEEN_TTL_MS`: setting `14400000` also shortens live
+Topics history to 4–5 hours. Do not change retention mid-comparison.
+
 ## Readiness requirements
 
 - Every admitted event refreshes the trace's idle deadline. Tracking uses the
