@@ -63,8 +63,9 @@
 - Trace-rule recording: `src/features/traceBatching/traceBatchRules.ts` matches
   at the OTel eval stage; `traceRuleRecording.ts` owns new-map recording, hydration
   and revision-guarded acknowledgement. Cloud-only `LANGFUSE_TRACE_DISPATCH_ENABLED`
-  selects the new pipeline exclusively, with its own sampling rate and bounds TTL.
-  Otherwise Topics enablement, allowlist and active project configuration govern
+  moves tracking and dispatch to the new maps; active Topics projects stay fully
+  admitted and the consumer reads ClickHouse only for them. Otherwise Topics
+  enablement, allowlist and active project configuration govern
   legacy tracking. Keep observation evaluation and ingestion error boundaries intact.
   Only direct events-table batches record. Env-sampled nonmatches use
   `__trace_batch_experiment__`, a storage-only marker with no evaluator.
@@ -86,8 +87,8 @@
   enablement commented in env templates. The local dev template may set the idle time. Reader query controls are independent of
   locality selection; logs must preserve separate input/output/metadata metrics.
   `src/features/traceBatching/TraceBatchMetricsRunner.ts` collects bounded queue
-  and Redis snapshots. Redis sampling covers only the new bounds/record/due maps,
-  only in new mode; metrics use `langfuse.trace_dispatch` and failures warn.
+  and Redis snapshots of the active pipeline's maps under `langfuse.trace_batch`;
+  collection failures fail the runner.
   Global snapshot gauges must not be summed across worker reporters.
   Readiness uses project/trace-hashed shards with one dispatcher lease; all Lua
   keys share a shard hash tag. Defaults are 16 shards on Redis Cluster and 1 on
@@ -121,11 +122,10 @@
   metrics. Token estimates run sequentially;
   tool-response size uses comparable character counts over message parts.
   Allowlisted projects are then summarized from that assembled transcript.
-  New mode ends at `storeInputs.ts` S3 upload and records stored/oversize/failure
-  outcomes without Topics or evaluator execution. SDK retries apply; Redis retry
-  restoration is not implemented. Queue payloads carry no mode, so drain before
-  changing modes and use the same configuration across workers.
-  Legacy optional `src/features/traceBatching/storeInputs.ts` capture runs after Topics
+  In new mode the consumer skips traces of non-Topics projects before the
+  ClickHouse query and counts them as `skipped_traces`. Queued jobs are
+  processed the same way in both modes, so switching needs no drain.
+  Optional `src/features/traceBatching/storeInputs.ts` capture runs after Topics
   eligibility/sampling, within the same concurrency limit, using the queued
   revision. The queue creates `createTraceBatchInputStorage()` once and injects
   its `TraceBatchInputStorage` object into `storeInputs`. Store

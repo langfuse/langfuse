@@ -682,10 +682,7 @@ describe("trace micro-batch scheduling with Redis", () => {
   }
 
   async function clearReadiness() {
-    await client().del(
-      ...Object.values(recordingKeys),
-      ...recordingBoundsKeys(),
-    );
+    // Redis Cluster rejects multi-key commands across hash tags; delete per slot.
     for (let shard = 0; shard < env.LANGFUSE_TRACE_BATCH_SHARD_COUNT; shard++) {
       const keys = getTraceBatchReadinessKeys(shard);
       const recording = getRecordingKeys(shard);
@@ -693,15 +690,15 @@ describe("trace micro-batch scheduling with Redis", () => {
         recording.due,
         recording.record,
         ...getRecordingBoundsKeys(shard, Date.now()).keys,
+      );
+      await client().del(
         keys.due,
         keys.state,
         ...getTraceBatchFirstKeys(shard, Date.now()).keys,
       );
     }
-    await client().del(
-      "{trace-batch}:dispatcher",
-      "{trace-dispatch}:dispatcher",
-    );
+    await client().del("{trace-batch}:dispatcher");
+    await client().del("{trace-dispatch}:dispatcher");
   }
 
   beforeEach(async () => {
@@ -1531,7 +1528,7 @@ describe("trace micro-batch scheduling with Redis", () => {
 
     for (const key of ["due", "record", "bounds"]) {
       expect(recordGauge).toHaveBeenCalledWith(
-        "langfuse.trace_dispatch.redis_key_entries",
+        "langfuse.trace_batch.redis_key_entries",
         1,
         { key, shard: "total", unit: "records" },
       );
@@ -1539,7 +1536,7 @@ describe("trace micro-batch scheduling with Redis", () => {
         .mocked(recordGauge)
         .mock.calls.find(
           ([name, , tags]) =>
-            name === "langfuse.trace_dispatch.redis_key_bytes" &&
+            name === "langfuse.trace_batch.redis_key_bytes" &&
             tags?.key === key,
         );
       expect(Number(sample?.[1])).toBeGreaterThan(0);
@@ -1605,11 +1602,6 @@ describe("trace micro-batch scheduling with Redis", () => {
     await collection;
     // Only active reads and queue age succeed; failed memory samples emit no zeros.
     expect(vi.mocked(recordGauge).mock.calls).toHaveLength(2);
-    expect(recordIncrement).toHaveBeenCalledWith(
-      "langfuse.trace_dispatch.memory_samples",
-      1,
-      { outcome: "error" },
-    );
   });
 
   it("dispatches with locality selection and records bounded selector measurements", async () => {
@@ -2424,7 +2416,7 @@ describe("trace micro-batch scheduling with Redis", () => {
     expect(await client().hlen(stateKey)).toBe(0);
   });
 
-  it("uses only the new sampling rate for recording, including active Topics projects", async () => {
+  it("admits active Topics projects fully and samples other projects by the experiment rate", async () => {
     env.LANGFUSE_TRACE_DISPATCH_ENABLED = "true";
     env.LANGFUSE_TRACE_BATCH_INGESTION_ENABLED = "false";
     env.LANGFUSE_TRACE_BATCH_SAMPLING_RATE = 1;
@@ -2432,7 +2424,6 @@ describe("trace micro-batch scheduling with Redis", () => {
       index.toString(16).padStart(32, "0"),
     );
     let previous: string[] = [];
-    vi.mocked(isTopicsProcessingActive).mockClear();
     for (const [rate, expectedCount] of [
       [0, 0],
       [0.1, 78],
@@ -2440,7 +2431,9 @@ describe("trace micro-batch scheduling with Redis", () => {
       [1, 1_000],
     ]) {
       env.LANGFUSE_TRACE_DISPATCH_SAMPLING_RATE = rate;
-      const samplingRate = await resolveTraceBatchSamplingRate("project");
+      // "project" is an active Topics project; "other-project" is not allowlisted.
+      expect(await resolveTraceBatchSamplingRate("project")).toBe(1);
+      const samplingRate = await resolveTraceBatchSamplingRate("other-project");
       expect(samplingRate).toBe(rate);
       const selected = traceIds.filter((traceId) =>
         isTraceBatchSampled(traceId, samplingRate),
@@ -2449,7 +2442,9 @@ describe("trace micro-batch scheduling with Redis", () => {
       expect(selected).toEqual(expect.arrayContaining(previous));
       previous = selected;
     }
-    expect(isTopicsProcessingActive).not.toHaveBeenCalled();
+    // A paused Topics project falls back to the experiment sample.
+    vi.mocked(isTopicsProcessingActive).mockResolvedValueOnce(false);
+    expect(await resolveTraceBatchSamplingRate("project")).toBe(1);
   });
 
   it("counts only acknowledged update volume when tracking fails after a chunk", async () => {

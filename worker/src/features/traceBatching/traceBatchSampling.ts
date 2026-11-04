@@ -29,13 +29,11 @@ export function isTraceBatchPipelineEnabled(): boolean {
   return isTraceDispatchEnabled() || isLegacyTopicsBatchingEnabled();
 }
 
-/** Experiments use a trace-ID sample; legacy Topics admits only active projects. */
+/** Active Topics projects are always admitted; the experiment samples every other project by trace ID. */
 export async function resolveTraceBatchSamplingRate(
   projectId: string,
 ): Promise<number> {
-  if (isTraceDispatchEnabled())
-    return env.LANGFUSE_TRACE_DISPATCH_SAMPLING_RATE;
-  if (!isLegacyTopicsBatchingEnabled()) return 0;
+  if (!isTraceBatchPipelineEnabled()) return 0;
 
   let topicsProject: boolean;
   try {
@@ -49,7 +47,10 @@ export async function resolveTraceBatchSamplingRate(
     });
     topicsProject = isTopicsProjectEnabled(projectId);
   }
-  return topicsProject ? 1 : 0;
+  if (topicsProject) return 1;
+  return isTraceDispatchEnabled()
+    ? env.LANGFUSE_TRACE_DISPATCH_SAMPLING_RATE
+    : 0;
 }
 
 export function isTraceBatchSampled(

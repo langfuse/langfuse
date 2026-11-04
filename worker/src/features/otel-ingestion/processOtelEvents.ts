@@ -189,7 +189,6 @@ export async function processOtelEvents({
               });
             }
           } catch (error) {
-            // traceException(error);
             logger.warn(
               `Failed to match trace transcript rules for project ${eventInput.projectId} and observation ${eventInput.spanId}`,
               { error, fileKey },
@@ -210,7 +209,6 @@ export async function processOtelEvents({
               { error, fileKey },
             );
           } else {
-            // traceException(error);
             logger.warn(
               `Failed to normalize observation for trace transcript rules for project ${eventInput.projectId} and observation ${eventInput.spanId}`,
               { error, fileKey },

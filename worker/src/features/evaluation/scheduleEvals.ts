@@ -26,7 +26,6 @@ export function createEvalSchedulerDeps(projectId: string, rules: EvalRules) {
     rules.traceTranscriptRules,
   ).catch((error) => {
     // Recording-only failures must not mark ingestion as failed.
-    // traceException(error);
     logger.warn("Failed to prepare trace transcript rules", {
       projectId,
       error,
