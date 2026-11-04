@@ -3,12 +3,12 @@
  * Each filter is a pure function that can be tested in isolation
  */
 
-import { RouteGroup, type Route } from "@/src/components/layouts/routes";
+import type { Route } from "@/src/components/layouts/routes";
 import type { NavigationFilterContext } from "./navigationFilters.types";
 import { hasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { hasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
 import type { Session } from "next-auth";
-import { isAdminOnlyFeaturePreviewFlag } from "@/src/features/feature-flags/available-flags";
+import { isInternalFeaturePreviewFlag } from "@/src/features/feature-flags/available-flags";
 import { getContextualFeatureFlags } from "@/src/features/feature-flags/utils";
 import { canViewTopics } from "@/src/features/topics/topicsAccess";
 
@@ -80,13 +80,12 @@ const filters = {
    * Shows route if:
    * - No flag requirement
    * - Experimental features enabled
-   * - User is cloud admin
    * - User has specific feature flag
    */
   featureFlags: (route: Route, ctx: NavigationFilterContext): Route | null => {
     if (route.featureFlag === undefined) return route;
 
-    if (isAdminOnlyFeaturePreviewFlag(route.featureFlag)) {
+    if (isInternalFeaturePreviewFlag(route.featureFlag)) {
       return ctx.session?.user?.featureFlags?.[route.featureFlag] === true
         ? route
         : null;
@@ -108,7 +107,6 @@ const filters = {
 
     const hasFlag =
       ctx.enableExperimentalFeatures ||
-      ctx.cloudAdmin ||
       getContextualFeatureFlags(ctx.session?.user, {
         projectId: ctx.routerProjectId,
         organizationId: ctx.routerOrganizationId,
@@ -275,10 +273,5 @@ export function applyNavigationFilters(
 ): Route[] {
   return routes
     .map((route) => applyFiltersToRoute(route, ctx, organization))
-    .filter((route): route is Route => route !== null)
-    .map((route) =>
-      ctx.internalFeaturesEnabled && route.group === RouteGroup.PromptManagement
-        ? { ...route, group: RouteGroup.ContextManagement }
-        : route,
-    );
+    .filter((route): route is Route => route !== null);
 }

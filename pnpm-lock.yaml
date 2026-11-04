@@ -571,6 +571,9 @@ importers:
       '@hookform/resolvers':
         specifier: ^5.2.2
         version: 5.2.2(react-hook-form@7.72.0(react@19.2.4))
+      '@langfuse/client':
+        specifier: 6.0.2
+        version: 6.0.2(@opentelemetry/api@1.9.1)
       '@langfuse/icons':
         specifier: workspace:*
         version: link:../packages/icons
@@ -811,9 +814,6 @@ importers:
       json-schema-faker:
         specifier: 0.6.1
         version: 0.6.1
-      langfuse:
-        specifier: 3.38.4
-        version: 3.38.4
       lodash:
         specifier: ^4.18.1
         version: 4.18.1
@@ -941,6 +941,9 @@ importers:
       '@jedmao/location':
         specifier: ^3.0.0
         version: 3.0.0
+      '@langfuse/core':
+        specifier: 6.0.2
+        version: 6.0.2(@opentelemetry/api@1.9.1)
       '@playwright/test':
         specifier: ^1.57.0
         version: 1.57.0
@@ -1058,9 +1061,6 @@ importers:
       jsdom:
         specifier: ^26.1.0
         version: 26.1.0(supports-color@8.1.1)
-      langfuse-core:
-        specifier: ^3.38.4
-        version: 3.38.20
       node-mocks-http:
         specifier: ^1.17.2
         version: 1.17.2(@types/express@5.0.6)(@types/node@24.3.0)
@@ -1115,6 +1115,9 @@ importers:
       '@aws-sdk/client-lambda-microvms':
         specifier: 'catalog:'
         version: 3.1074.0
+      '@langfuse/client':
+        specifier: 6.0.2
+        version: 6.0.2(@opentelemetry/api@1.9.1)
       '@langfuse/native':
         specifier: workspace:*
         version: link:../packages/native
@@ -1226,9 +1229,6 @@ importers:
       ioredis:
         specifier: ^5.10.1
         version: 5.10.1(supports-color@8.1.1)
-      langfuse:
-        specifier: 3.38.4
-        version: 3.38.4
       lodash:
         specifier: 4.18.1
         version: 4.18.1
@@ -2781,6 +2781,24 @@ packages:
     engines: {node: '>= 10.16.0'}
     peerDependencies:
       jsep: ^0.4.0||^1.0.0
+
+  '@langfuse/client@6.0.2':
+    resolution: {integrity: sha512-lOkMfuHX2AW2MUbbSW/Rr13xLBnjx0xQvia4ect5hE4QnwfPhg0mOYzS2vXbVB4bVpnxezAkBeI9XzaJaqW3WA==}
+    engines: {node: '>=22'}
+    peerDependencies:
+      '@opentelemetry/api': ^1.9.0
+
+  '@langfuse/core@6.0.2':
+    resolution: {integrity: sha512-S4Aa7IJ27c9pGe8209T2DW3aK5QBM+yjeST1uyIOPg49BNnO778PsBYGPMZHlghhJGLbzwSWvq7v/BvfZdn5xg==}
+    engines: {node: '>=22'}
+    peerDependencies:
+      '@opentelemetry/api': ^1.9.0
+
+  '@langfuse/tracing@6.0.2':
+    resolution: {integrity: sha512-8/e8YTcKPfWwsacPaTHk4d45jLV+ER++a3kSpBL4DreQzTVG+nkRwj6a7UpZURE47f/sgNwX+UwI3vlFOQ6ZBQ==}
+    engines: {node: '>=22'}
+    peerDependencies:
+      '@opentelemetry/api': ^1.9.0
 
   '@lezer/common@1.5.1':
     resolution: {integrity: sha512-6YRVG9vBkaY7p1IVxL4s44n5nUnaNnGM2/AckNgYOnxTG2kWh1vR8BMxPseWPjRNpb5VtXnMpeYAEAADoRV1Iw==}
@@ -9571,14 +9589,6 @@ packages:
     resolution: {integrity: sha512-nbD8lB9EB3wNdMhOCdx5Li8DxnLbvKByylRLcJ1h+4SkrowVeECAyZlyiKMThF7xFdRz0jSQ2MoJr+wXux2y0Q==}
     engines: {node: '>=20.0.0'}
 
-  langfuse-core@3.38.20:
-    resolution: {integrity: sha512-zBKVmQN/1oT5VWZUBYlWzvokIlkC/6mnpgr/2atMyTeAm+jR3ia7w2iJMjlrF5/oG8ukO1s8+LDRCzJpF1QeEA==}
-    engines: {node: '>=18'}
-
-  langfuse@3.38.4:
-    resolution: {integrity: sha512-2UqMeHLl3DGNX1Nh/cO4jGhk7TzDJ6gjQLlyS9rwFCKVO81xot6b58yeTsTB5YrWupWsOxQtMNoQYIQGOUlH9Q==}
-    engines: {node: '>=18'}
-
   leac@0.7.0:
     resolution: {integrity: sha512-qMrZeyEekgdRQ9o6a4NAB2EQZrv827GJdn1vnapwSJ90hWRB4TzUSunvacPkxQ2TnNqHNI1/zSt0hlo0crG8Jw==}
 
@@ -14246,6 +14256,22 @@ snapshots:
   '@jsep-plugin/regex@1.0.4(jsep@1.4.0)':
     dependencies:
       jsep: 1.4.0
+
+  '@langfuse/client@6.0.2(@opentelemetry/api@1.9.1)':
+    dependencies:
+      '@langfuse/core': 6.0.2(@opentelemetry/api@1.9.1)
+      '@langfuse/tracing': 6.0.2(@opentelemetry/api@1.9.1)
+      '@opentelemetry/api': 1.9.1
+      mustache: 4.2.0
+
+  '@langfuse/core@6.0.2(@opentelemetry/api@1.9.1)':
+    dependencies:
+      '@opentelemetry/api': 1.9.1
+
+  '@langfuse/tracing@6.0.2(@opentelemetry/api@1.9.1)':
+    dependencies:
+      '@langfuse/core': 6.0.2(@opentelemetry/api@1.9.1)
+      '@opentelemetry/api': 1.9.1
 
   '@lezer/common@1.5.1': {}
 
@@ -21220,14 +21246,6 @@ snapshots:
   kuler@2.0.0: {}
 
   kysely@0.28.17: {}
-
-  langfuse-core@3.38.20:
-    dependencies:
-      mustache: 4.2.0
-
-  langfuse@3.38.4:
-    dependencies:
-      langfuse-core: 3.38.20
 
   leac@0.7.0: {}
 

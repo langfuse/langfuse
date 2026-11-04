@@ -41,7 +41,7 @@ export function GatewayApiKeysPage({
           />
         </p>
       </div>
-      <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+      <div className="flex min-h-0 flex-1 flex-col">
         <ConnectedGatewayApiKeysTable
           key={organizationId}
           organizationId={organizationId}

@@ -375,7 +375,7 @@ describe("useOrganizationSettingsPages", () => {
     expect(models?.disabledReason).toBeUndefined();
   });
 
-  it("shows members their AI Gateway keys alongside models, even before ingestion is set up", () => {
+  it("shows gateway-only members their keys, models and own analytics, even before ingestion is set up", () => {
     vi.mocked(useHasOrganizationAccess).mockImplementation(
       ({ scope }) => scope === "gateway:read" || scope === "gateway:invoke",
     );
@@ -394,6 +394,7 @@ describe("useOrganizationSettingsPages", () => {
     ).toEqual([
       ["ai-gateway-models", false],
       ["ai-gateway-api-keys", false],
+      ["ai-gateway-analytics", false],
     ]);
   });
 
@@ -454,13 +455,21 @@ describe("useOrganizationSettingsPages", () => {
       vi.mocked(isCloudPlan).mockReturnValue(false);
     });
 
-    it("shows AI_GATEWAY members only their gateway keys and models", () => {
+    it("shows AI_GATEWAY members only their gateway keys, models and own analytics", () => {
       grantScopesOf(Role.AI_GATEWAY);
 
       expect(visibleSlugs()).toEqual([
         "ai-gateway-models",
         "ai-gateway-api-keys",
+        "ai-gateway-analytics",
       ]);
+    });
+
+    it("keeps gateway analytics from MEMBER members, who read organization settings", () => {
+      grantScopesOf(Role.MEMBER);
+
+      expect(visibleSlugs()).not.toContain("ai-gateway-analytics");
+      expect(visibleSlugs()).toContain("ai-gateway-api-keys");
     });
 
     it("shows Projects to AI_GATEWAY members with a project", () => {
@@ -477,6 +486,7 @@ describe("useOrganizationSettingsPages", () => {
         "projects",
         "ai-gateway-models",
         "ai-gateway-api-keys",
+        "ai-gateway-analytics",
       ]);
     });
 

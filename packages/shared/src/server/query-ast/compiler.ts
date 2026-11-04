@@ -703,6 +703,7 @@ export class ClickHouseQueryCompiler extends DefaultQueryCompiler {
    * offers no hook to inject a clause between JOIN and WHERE.
    */
   private visitSelectQueryBody(node: SelectQueryNode): void {
+    // `(select …)` when nested, unless the parent already brackets or owns it.
     const wrapInParens =
       this.parentNode !== undefined &&
       !ParensNode.is(this.parentNode) &&
