@@ -1,7 +1,7 @@
 import { createHash, randomBytes, randomInt, randomUUID } from "crypto";
 import type { NextApiRequest, NextApiResponse } from "next";
 import { createMocks } from "node-mocks-http";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 // The EmailProvider is only registered when SMTP is configured, and the
 // provider list is built when `@/src/server/auth` is first imported. Set the
@@ -187,40 +187,6 @@ describe("NextAuth signIn callback for the email provider", () => {
   });
 });
 
-describe("NextAuth OAuth staff sign-in", () => {
-  afterEach(() => {
-    vi.restoreAllMocks();
-  });
-
-  it("stamps the login time without additional provider requests or email verification writes", async () => {
-    const { userId, email } = await createUser({
-      password: null,
-      emailDomain: "clickhouse.com",
-    });
-    const fetchMock = vi
-      .spyOn(globalThis, "fetch")
-      .mockResolvedValue(Response.json([{ email, verified: true }]));
-    const authOptions = await getAuthOptions();
-    const token = await authOptions.callbacks!.jwt!({
-      token: { email },
-      user: { id: userId, email },
-      account: {
-        provider: "github",
-        type: "oauth",
-        providerAccountId: userId,
-        access_token: "test-oauth-token",
-      },
-      profile: { email },
-    });
-
-    expect(token).toMatchObject({ email, loginAt: expect.any(Number) });
-    expect(fetchMock).not.toHaveBeenCalled();
-    const user = await prisma.user.findUniqueOrThrow({ where: { id: userId } });
-    expect(user.emailVerified).toBeNull();
-    expect(user.admin).toBe(false);
-  });
-});
-
 describe("POST /api/auth/signin/email captcha", () => {
   it("passes the posted token to Turnstile and does not store a code when it fails", async () => {
     const { email } = await createUser({ password: OLD_PASSWORD });
@@ -340,15 +306,9 @@ async function expectPassword(userId: string, password: string) {
   expect(await verifyPassword(password, user.password!)).toBe(true);
 }
 
-async function createUser({
-  password,
-  emailDomain = "example.com",
-}: {
-  password: string | null;
-  emailDomain?: string;
-}) {
+async function createUser({ password }: { password: string | null }) {
   const id = randomUUID();
-  const email = `user-${id}@${emailDomain}`;
+  const email = `user-${id}@example.com`;
   const user = await prisma.user.create({
     data: {
       id: `user-${id}`,

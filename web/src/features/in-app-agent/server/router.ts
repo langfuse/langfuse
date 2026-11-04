@@ -41,6 +41,7 @@ import {
 } from "@/src/features/in-app-agent/server/rateLimit";
 import { assertInAppAgentRunCapacity } from "@/src/features/in-app-agent/server/runCapacity";
 import { hasInternalAccess } from "@/src/features/feature-flags/utils";
+import { hasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import {
   cancelBackgroundRun,
   decideBackgroundApproval,
@@ -464,7 +465,8 @@ export const inAppAgentRouter = createTRPCRouter({
   /**
    * The project this instance traces assistant turns into, where each
    * conversation is a session. Internal surface only: null when the
-   * organization opted out of AI telemetry or tracing is not configured.
+   * organization opted out of AI telemetry, tracing is not configured,
+   * or the user cannot read the telemetry project's sessions.
    */
   telemetryProject: protectedProjectProcedure
     .input(z.object({ projectId: z.string() }))
@@ -487,11 +489,19 @@ export const inAppAgentRouter = createTRPCRouter({
         projectId: input.projectId,
         user: ctx.session.user,
       });
+      const telemetryProjectId = env.LANGFUSE_AI_FEATURES_PROJECT_ID;
 
       return {
-        projectId: projectAvailability.aiTelemetryEnabled
-          ? (env.LANGFUSE_AI_FEATURES_PROJECT_ID ?? null)
-          : null,
+        projectId:
+          projectAvailability.aiTelemetryEnabled &&
+          telemetryProjectId &&
+          hasProjectAccess({
+            session: ctx.session,
+            projectId: telemetryProjectId,
+            scope: "sessions:read",
+          })
+            ? telemetryProjectId
+            : null,
       };
     }),
 });
