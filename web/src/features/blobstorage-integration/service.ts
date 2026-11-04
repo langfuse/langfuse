@@ -23,7 +23,7 @@ import {
   assertGcsBlobStorageBucketAllowed,
   assertStorageRolePartition,
   buildStorageWriteSessionPolicy,
-  generateStorageExternalId,
+  generateCustomerRoleExternalId,
   getStorageAccessRoleArn,
   validateBlobStorageBucketHost,
   validateBlobStorageEndpoint,
@@ -356,7 +356,7 @@ export async function upsertBlobStorageIntegration(params: {
         : null);
     // Minted once and kept stable so the customer's trust policy keeps working.
     const externalId = usesRole
-      ? (existing?.externalId ?? encrypt(generateStorageExternalId()))
+      ? (existing?.externalId ?? encrypt(generateCustomerRoleExternalId()))
       : undefined;
 
     // The CREATE payload always carries a concrete source, resolved by the

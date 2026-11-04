@@ -29,7 +29,7 @@ import {
   assertGcsBlobStorageBucketAllowed,
   createBlobStorageRoleCredentials,
   getStorageAccessRoleArn,
-  StorageAccessRoleError,
+  CustomerAccessRoleError,
 } from "@langfuse/shared/src/server";
 import { randomUUID } from "crypto";
 import { decrypt } from "@langfuse/shared/encryption";
@@ -545,7 +545,7 @@ This file can be safely deleted.`;
         if (e instanceof TRPCError) {
           throw e;
         }
-        if (e instanceof StorageAccessRoleError) {
+        if (e instanceof CustomerAccessRoleError) {
           throw new TRPCError({
             code: "INTERNAL_SERVER_ERROR",
             message: "Langfuse could not reach the storage. Try again later.",
