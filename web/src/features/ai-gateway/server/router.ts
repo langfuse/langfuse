@@ -211,12 +211,12 @@ export const aiGatewayRouter = createTRPCRouter({
           getProductBaseUrl(),
           env.LANGFUSE_AI_GATEWAY_PUBLIC_URL,
         ),
+        // Client setups rely on implicit `claude-*`/`gpt-*` routing, which never
+        // picks Bedrock; Bedrock models need an explicit `<connection>:<model>` slug.
         providers: [
           ...new Set(
             connections.flatMap((connection): GatewayApiFamily[] =>
-              connection.provider === "BEDROCK"
-                ? ["OPENAI", "ANTHROPIC"]
-                : [connection.provider],
+              connection.provider === "BEDROCK" ? [] : [connection.provider],
             ),
           ),
         ],
