@@ -7,10 +7,10 @@ Snippets shown after a gateway API key is created, one builder per tab.
 The Langfuse docs own this content. These builders are a condensed copy:
 
 - API: https://langfuse.com/docs/ai-gateway/get-started/first-request
-- Claude Code: https://langfuse.com/docs/ai-gateway/integrations/claude-code
-- Codex: https://langfuse.com/docs/ai-gateway/integrations/codex
-- OpenCode: https://langfuse.com/docs/ai-gateway/integrations/opencode
-- GitHub Copilot CLI and app: https://langfuse.com/docs/ai-gateway/integrations/github-copilot
+- Claude Code: https://langfuse.com/integrations/developer-tools/claude-code-gateway
+- Codex: https://langfuse.com/integrations/developer-tools/codex-gateway
+- OpenCode: https://langfuse.com/integrations/developer-tools/opencode-gateway
+- GitHub Copilot CLI and app: https://langfuse.com/integrations/developer-tools/github-copilot-gateway
 
 Change the docs first (`langfuse/langfuse-docs`), then mirror the change here.
 Do not add steps, paths or env vars that the docs do not describe.

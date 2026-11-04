@@ -519,7 +519,6 @@ async function topicResultQuery(params: {
   facets: TopicFacet[];
   scope: RuleScope;
 }): Promise<{ conditions: TopicResultCondition[]; facetIds: string[] } | null> {
-  checkFilterLimits(params.filter);
   let facetIds = params.facets
     .filter(({ id }) => params.scope.isActive(id))
     .map(({ id }) => id);
@@ -711,6 +710,8 @@ async function prepareResultList(
   columns: Record<string, FilterType[]>,
 ) {
   assertTopicsApiAvailable(params.projectId);
+  // Before any read, so rejected filters never reach ClickHouse.
+  checkFilterLimits(params.filter ?? []);
   const [facets, scope] = await Promise.all([
     listTopicFacets(params.projectId),
     loadRuleScope(params.projectId),
