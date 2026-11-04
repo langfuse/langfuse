@@ -3808,6 +3808,13 @@ paths:
 
             - `tags` (arrayOptions) - Alias for traceTags
 
+            - `topics` (categoryOptions) - Current topics of the parent trace.
+            Set `key` to the facet name and `value` to topic names; every
+            observation of a matching trace is returned. Only topic assignments
+            from the 30 days before the end of the requested range
+            (`toStartTime`, or now) are considered. Projects without Topics
+            enabled receive a 400 error.
+
 
             ### Performance Metrics
 

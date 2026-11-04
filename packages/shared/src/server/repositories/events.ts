@@ -1637,6 +1637,8 @@ type PublicApiObservationsQuery = {
 type BuildObservationsQueryComponentsOptions = {
   allowUnindexedIoFilters?: boolean;
   clickhouseSettings?: ClickHouseSettings;
+  /** Conditions on `e`, e.g. resolved topic filters. */
+  whereRaw?: { query: string; params: Record<string, unknown> }[];
 };
 
 const EVENTS_IO_FILTER_TYPE_ERROR =
@@ -1752,6 +1754,8 @@ function buildObservationsQueryComponents(
       ),
     )
     .where(appliedFilter);
+  for (const condition of options.whereRaw ?? [])
+    queryBuilder.whereRaw(condition.query, condition.params);
 
   return {
     queryBuilder,
@@ -1926,10 +1930,12 @@ export const getObservationsFromEventsTableForPublicApi = async (
 };
 
 export const getObservationsV2FromEventsTableForPublicApi = async (
-  opts: PublicApiObservationsQuery,
+  requestOpts: PublicApiObservationsQuery,
   options: BuildObservationsQueryComponentsOptions = {},
 ): Promise<Array<EventsObservationPublic>> => {
-  const builder = buildObservationsV2Query(opts, options);
+  const { opts, whereRaw } =
+    await resolveObservationsV2TopicFilters(requestOpts);
+  const builder = buildObservationsV2Query(opts, { ...options, whereRaw });
 
   const records =
     await getObservationsRowsFromBuilder<EventsObservationQueryResult>(
@@ -1947,15 +1953,66 @@ export const getObservationsV2FromEventsTableForPublicApi = async (
   );
 };
 
+/**
+ * Topic membership lives in the topics tables, so topic filters leave the structured
+ * filters and join every scan query as trace_id subqueries resolved once per request.
+ * Their time range follows the request bounds, not the cursor, so it is the same on every page.
+ */
+async function resolveObservationsV2TopicFilters(
+  opts: PublicApiObservationsQuery,
+) {
+  const topicFilters = opts.advancedFilters?.filter(isTopicFilter) ?? [];
+  if (topicFilters.length === 0) return { opts, whereRaw: [] };
+  const rest = {
+    ...opts,
+    advancedFilters: opts.advancedFilters?.filter((f) => !isTopicFilter(f)),
+  };
+  const { from, to } = extractObservationsStartTimeBounds({
+    ...rest,
+    cursor: undefined,
+  });
+  const bounds: FilterState = [
+    ...(from === undefined
+      ? []
+      : [
+          {
+            type: "datetime" as const,
+            column: "startTime",
+            operator: ">=" as const,
+            value: new Date(from),
+          },
+        ]),
+    ...(to === undefined
+      ? []
+      : [
+          {
+            type: "datetime" as const,
+            column: "startTime",
+            operator: "<=" as const,
+            value: new Date(to),
+          },
+        ]),
+  ];
+  return {
+    opts: rest,
+    whereRaw: await topicFilterConditions(opts.projectId, [
+      ...topicFilters,
+      ...bounds,
+    ]),
+  };
+}
+
 /** Assemble a page from completed windows, including empty continuations. */
 export const getObservationsV2PageFromEventsTableForPublicApi = async (
-  opts: PublicApiObservationsQuery,
+  requestOpts: PublicApiObservationsQuery,
 ): Promise<{
   items: EventsObservationPublic[];
   cursor: PublicApiObservationsQuery["cursor"];
 }> =>
   instrumentAsync({ name: "observations-v2-scan" }, async (span) => {
-    if (opts.limit === 0) return { items: [], cursor: undefined };
+    if (requestOpts.limit === 0) return { items: [], cursor: undefined };
+    const { opts, whereRaw } =
+      await resolveObservationsV2TopicFilters(requestOpts);
     const scan = createObservationsScan(opts.projectId);
     try {
       const bounds = extractObservationsStartTimeBounds(opts);
@@ -1963,7 +2020,13 @@ export const getObservationsV2PageFromEventsTableForPublicApi = async (
       if (bounds.to !== undefined && from > bounds.to) {
         return { items: [], cursor: undefined };
       }
-      const page = await scanObservationWindows(opts, from, bounds.to, scan);
+      const page = await scanObservationWindows(
+        opts,
+        from,
+        bounds.to,
+        scan,
+        whereRaw,
+      );
       span.setAttribute("observations.scan.windows", page.windows);
       return {
         items: await enrichObservationsWithModelData(
@@ -2000,6 +2063,7 @@ async function scanObservationWindows(
   from: number,
   to: number | undefined,
   scan: ObservationsScan,
+  whereRaw: BuildObservationsQueryComponentsOptions["whereRaw"],
 ) {
   let records: EventsObservationQueryResult[] = [];
   let cursor: PublicApiObservationsQuery["cursor"];
@@ -2023,6 +2087,7 @@ async function scanObservationWindows(
       },
       scan,
       windows,
+      whereRaw,
     );
     if (result === undefined) break;
     windows++;
@@ -2060,6 +2125,7 @@ async function queryObservationWindow(
   },
   scan: ObservationsScan,
   completedWindows: number,
+  whereRaw: BuildObservationsQueryComponentsOptions["whereRaw"],
 ) {
   return instrumentAsync(
     { name: "observations-v2-scan-window" },
@@ -2072,7 +2138,7 @@ async function queryObservationWindow(
         const result = await scan.query<EventsObservationQueryResult>(
           buildObservationsV2Query(
             { ...opts, limit: opts.limit - collected },
-            {},
+            { whereRaw },
             window,
           ),
         );
