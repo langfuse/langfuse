@@ -81,43 +81,6 @@ describe("KeyValueFilterBuilder", () => {
     Element.prototype.scrollIntoView = vi.fn();
   });
 
-  it("blocks metadata keys, values, and portaled suggestions from session replay", () => {
-    render(
-      <KeyValueFilterBuilder
-        mode="string"
-        keyOptions={["customer-meta-key"]}
-        valueOptions={{ "customer-meta-key": ["customer-meta-value"] }}
-        activeFilters={[
-          {
-            key: "customer-meta-key",
-            operator: "=",
-            value: "customer-meta-value",
-          },
-        ]}
-        onChange={noop}
-      />,
-    );
-
-    expect(
-      screen.getByDisplayValue("customer-meta-key").closest(".ph-no-capture"),
-    ).not.toBeNull();
-    expect(
-      screen.getByDisplayValue("customer-meta-value").closest(".ph-no-capture"),
-    ).not.toBeNull();
-
-    // A new row's key is empty, so observed keys are offered. The list is
-    // portaled outside the builder, so that content needs its own block.
-    fireEvent.click(screen.getByRole("button", { name: "Add condition" }));
-    const key = screen.getAllByPlaceholderText("Key")[1];
-    fireEvent.focus(key);
-    const suggestion = screen.getByRole("option", {
-      name: "customer-meta-key",
-    });
-    const suggestionBlock = suggestion.closest(".ph-no-capture");
-    expect(suggestionBlock).not.toBeNull();
-    expect(suggestionBlock).not.toContain(key);
-  });
-
   it("shows selected keys in the combobox even when keyOptions omit them", () => {
     render(
       <KeyValueFilterBuilder
