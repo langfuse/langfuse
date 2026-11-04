@@ -6,6 +6,7 @@ import { createHash } from "node:crypto";
 import { parseDocument } from "yaml";
 import process from "node:process";
 import { format as formatWithPrettier } from "prettier";
+import { applyExtraFiles, readExtraFiles } from "./merge-extra-skills.mjs";
 
 const packageRoot = resolve(new URL("..", import.meta.url).pathname);
 const generatedPath = resolve(packageRoot, "src/generated/skills.js");
@@ -25,7 +26,9 @@ const fetchResponse = async (url) => {
   const response = await fetch(url, { headers: getGitHubHeaders() });
 
   if (!response.ok) {
-    throw new Error(`Failed to fetch ${url}: ${response.status} ${response.statusText}`);
+    throw new Error(
+      `Failed to fetch ${url}: ${response.status} ${response.statusText}`,
+    );
   }
 
   return response;
@@ -50,10 +53,7 @@ const parseSkill = (fileName, markdown) => {
   }
 
   for (const key of ["name", "description"]) {
-    if (
-      metadata[key]?.startsWith("'") &&
-      metadata[key]?.endsWith("'")
-    ) {
+    if (metadata[key]?.startsWith("'") && metadata[key]?.endsWith("'")) {
       metadata[key] = metadata[key].slice(1, -1).replaceAll("''", "'");
     }
   }
@@ -125,7 +125,10 @@ const getExpectedSkills = async () => {
   const bundles = await Promise.all(
     roots.map((root) => downloadBundle(tree, root)),
   );
-  return { source: `langfuse/skills@${tree.sha}`, bundles };
+  return {
+    source: `langfuse/skills@${tree.sha}`,
+    bundles: applyExtraFiles(bundles, readExtraFiles(packageRoot)),
+  };
 };
 
 const renderGeneratedModule = async ({ bundles }) => {
@@ -141,12 +144,7 @@ const renderGeneratedModule = async ({ bundles }) => {
 // Do not edit it manually.
 
 exports.LANGFUSE_SKILLS = [
-${skills
-  .map(
-    (skill) =>
-      `  ${JSON.stringify(skill)},`,
-  )
-  .join("\n")}
+${skills.map((skill) => `  ${JSON.stringify(skill)},`).join("\n")}
 ];
 `,
     { parser: "babel" },
