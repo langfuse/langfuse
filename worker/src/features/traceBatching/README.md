@@ -715,14 +715,14 @@ The following metrics use the `langfuse.trace_batch` prefix. All additions are
 inside the existing cloud experiment paths; normal ingestion with tracking
 disabled performs no new aggregation or Redis calls.
 
-| Metric                                                     | Kind / tags                          | Meaning                                                                                                                                                                                                                                                                                                                               |
-| ---------------------------------------------------------- | ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `event_updates`, `serialized_event_bytes`                  | Counters; `stage:eligible\|recorded` | Accepted, valid-start-time updates before sampling, and in Redis-acknowledged chunks. Repeated updates count again. Selected volume is `sampling_decisions`.                                                                                                                                                                          |
-| `active_reads`                                             | Per-process gauge                    | Streams currently being consumed; failures decrement the count too.                                                                                                                                                                                                                                                                   |
-| `failed_read_observation_count`, `failed_read_input_bytes` | Distributions                        | Partial logical rows and input bytes consumed before a stream failure. Separate from successful throughput. Output and metadata bytes stay on the completion log.                                                                                                                                                                     |
-| `queue_depth`                                              | Gauge; `type:delayed`                | Delayed BullMQ jobs. Waiting, active, and failed depth stay on `langfuse.queue.trace_batch.depth`. Request rate, wait time, and processing time use the generic `langfuse.queue.trace_batch` series, the same as every other queue. Processing time is recorded when the processor returns. Discard reasons stay on `discarded_jobs`. |
-| `queue_waiting_head_age_ms`                                | Gauge                                | Maximum creation age of the next FIFO jobs in waiting/paused lists. Zero when empty.                                                                                                                                                                                                                                                  |
-| `pending_traces`, `ready_traces`, `oldest_due_age_ms`      | Gauges, untagged                     | Dispatcher snapshot summed (age: maximum) across shards, emitted by the current dispatcher lease holder.                                                                                                                                                                                                                              |
+| Metric                                                     | Kind / tags                                   | Meaning                                                                                                                                                                                                                                                                                                                               |
+| ---------------------------------------------------------- | --------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `event_updates`, `serialized_event_bytes`                  | Counters; `stage:eligible\|recorded`          | Accepted, valid-start-time updates before sampling, and in Redis-acknowledged chunks. Repeated updates count again. Selected volume is `sampling_decisions`.                                                                                                                                                                          |
+| `active_reads`                                             | Per-process gauge                             | Streams currently being consumed; failures decrement the count too.                                                                                                                                                                                                                                                                   |
+| `failed_read_observation_count`, `failed_read_input_bytes` | Distributions                                 | Partial logical rows and input bytes consumed before a stream failure. Separate from successful throughput. Output and metadata bytes stay on the completion log.                                                                                                                                                                     |
+| `queue_depth`                                              | Gauge; `type:delayed`                         | Delayed BullMQ jobs. Waiting, active, and failed depth stay on `langfuse.queue.trace_batch.depth`. Request rate, wait time, and processing time use the generic `langfuse.queue.trace_batch` series, the same as every other queue. Processing time is recorded when the processor returns. Discard reasons stay on `discarded_jobs`. |
+| `queue_waiting_head_age_ms`                                | Gauge                                         | Maximum creation age of the next FIFO jobs in waiting/paused lists. Zero when empty.                                                                                                                                                                                                                                                  |
+| `pending_traces`, `ready_traces`, `oldest_due_age_ms`      | Gauges, untagged                              | Dispatcher snapshot summed (age: maximum) across shards, emitted by the current dispatcher lease holder.                                                                                                                                                                                                                              |
 
 The eligible and recorded counters reuse the already-computed serialized size and
 per-trace aggregates. Recorded volume is emitted after each acknowledged Lua
@@ -731,19 +731,30 @@ Redis applied an update without acknowledgement, so the stage difference include
 uncertain outcomes; it does not prove data loss. Writer acceptance still precedes
 the ClickHouse flush. No additional serialization is performed.
 
-`TraceBatchMetricsRunner` starts when ingestion, dispatcher or consumer is enabled
-in a cloud worker, independently of the generic queue-metrics flag. It polls the
-queue every 30 seconds when dispatcher or consumer is enabled; recording-map
-sampling runs every 60 seconds when ingestion is enabled (see Recording experiment).
+`TraceBatchMetricsRunner` starts when ingestion, dispatcher or consumer is
+enabled in a cloud worker, independently of the generic queue-metrics flag.
+It samples the new recording maps every 60 seconds per process and polls the queue
+every 30 seconds when dispatcher or consumer is enabled, plus collection time.
 No completed jobs or progressing dispatcher are required.
 Queue-age collection reads only the next waiting/paused job IDs and their
 timestamp fields; it never fetches or parses batch payloads.
 One failed collection does not suppress the others; failed samples are not
-reported as zero. Check `langfuse.periodic_runner.completed` and
-`last_healthy_timestamp_seconds` with `runner:trace_batch_metrics` for freshness.
+reported as zero. Check `langfuse.trace_dispatch.memory_samples` for memory
+collection outcomes. Periodic-runner timestamps indicate runner activity, not
+successful memory collection.
 
-Queue snapshots are global: use max/latest across reporters, never sum duplicates.
-Dispatcher snapshot gauges are emitted without per-shard series.
+Memory collection uses bounded per-shard Lua calls with `MEMORY USAGE ...
+SAMPLES 5`, preserving the shared key prefix and Redis Cluster slot routing.
+Missing keys report zero; there is no keyspace scan or exact full-hash traversal.
+Memory sampling estimates storage, not process RSS or event payload size.
+
+Map gauges are summed across readiness shards before they are emitted. Each
+worker emits them, so a shard tag would multiply custom metrics by the shard
+count on every reporting worker. The dispatcher snapshot gauges are untagged for
+the same reason. Inspect a single shard's keys in Redis when diagnosing skew.
+
+Queue/map snapshots are global and can be emitted by several workers: use
+max/latest across reporters, never sum duplicates. In contrast,
 `active_reads` is local to a worker; distinct live worker series may be summed.
 It is emitted on stream start/finish and on each metrics-runner cycle, including
 zero when idle, so unchanged long-running reads remain visible.
