@@ -115,8 +115,10 @@ const primaryRefs = (
 ): AuditLogResourceRef[] =>
   resourceType === "experiment" ? [] : refsIf(resourceType, resourceId);
 
-// Ingestion rejects longer ids, so only a request can carry one and it names
-// no resource. Such ids are left out of the event.
+// Ingestion rejects longer trace, observation and score ids, so only a request
+// can carry one. Ids past this length are left out of the event, as are empty
+// ones. Session ids have no ingestion cap: a longer one is left out too and is
+// kept only in `params`.
 const MAX_ID_LENGTH = 800;
 const ResourceIdSchema = z.string().min(1).max(MAX_ID_LENGTH);
 
@@ -128,7 +130,7 @@ const requestedId = (
   meta.idKey ? ResourceIdSchema.safeParse(input[meta.idKey]).data : undefined;
 
 const namesPossibleId = (ref: AuditLogResourceRef): boolean =>
-  ref.length - ref.indexOf(":") - 1 <= MAX_ID_LENGTH;
+  ResourceIdSchema.safeParse(ref.slice(ref.indexOf(":") + 1)).success;
 
 /**
  * A query whose reads are recorded as audit access events: the resource

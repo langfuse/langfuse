@@ -8,6 +8,7 @@ import { type ApiAccessScope } from "@langfuse/shared/src/server";
 
 import { stageAccessEvent } from "@/src/ee/features/access-audit-log/server/stageAccessEvent";
 import {
+  canRecordAccessEvents,
   isAccessAuditLogEnabled,
   type AccessAuditOrg,
 } from "@/src/features/audit-logs/isAccessAuditLogEnabled";
@@ -68,6 +69,7 @@ export async function recordTrpcAccess(
   );
   const project = org?.projects.find((p) => p.id === projectId);
   const supportAccess = org?.supportAccess === true;
+  if (!canRecordAccessEvents({ supportAccess })) return;
   // Admins and viewers of public resources read projects outside their session.
   const auditOrg = org
     ? {
@@ -102,6 +104,7 @@ export async function recordPublicApiAccess(
   { scope, req }: { scope: ApiAccessScope; req: NextApiRequest },
   read: AccessRead,
 ): Promise<void> {
+  if (!canRecordAccessEvents()) return;
   // Credentials without an org, such as the admin key, carry no opt-in.
   const auditOrg =
     scope.accessAuditLogEnabled === null

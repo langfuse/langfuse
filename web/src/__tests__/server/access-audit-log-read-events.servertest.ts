@@ -270,6 +270,30 @@ describe("access events on tRPC scores.byId", () => {
   });
 });
 
+describe("access events on tRPC events.scoresForTrace", () => {
+  it("records a read with an empty trace id without failing it", async () => {
+    const { orgId, projectId } = await setupOrg(true);
+    const caller = trpcCaller({
+      userId: randomUUID(),
+      orgId,
+      projectId,
+      accessAuditLogEnabled: true,
+    });
+
+    await expect(
+      caller.events.scoresForTrace({ projectId, traceId: "" }),
+    ).resolves.toEqual([]);
+
+    expect(await accessEvents(orgId)).toEqual([
+      expect.objectContaining({
+        route: "events.scoresForTrace",
+        outcome: "success",
+        resourceRefs: [],
+      }),
+    ]);
+  });
+});
+
 describe("refused tRPC reads", () => {
   it("records the id the route names, without params or ids no resource can have", async () => {
     const { orgId, projectId } = await setupOrg(true);

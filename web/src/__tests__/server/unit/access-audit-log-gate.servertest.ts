@@ -1,3 +1,4 @@
+import type { Session } from "next-auth";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
@@ -5,6 +6,11 @@ const mocks = vi.hoisted(() => ({
   stagingEnabled: "true",
   cloudRegion: undefined as string | undefined,
   licenseKey: undefined as string | undefined,
+  findOrganization: vi.fn(),
+}));
+
+vi.mock("@langfuse/shared/src/db", () => ({
+  prisma: { organization: { findFirst: mocks.findOrganization } },
 }));
 
 // Override only the values the gate reads, so the real
@@ -28,15 +34,17 @@ vi.mock("@/src/env.mjs", async (importOriginal) => {
 });
 
 import { isAccessAuditLogEnabled } from "@/src/features/audit-logs/isAccessAuditLogEnabled";
+import { recordTrpcAccess } from "@/src/features/audit-logs/server/recordAccessEvent";
+
+beforeEach(() => {
+  mocks.mode = "org";
+  mocks.stagingEnabled = "true";
+  mocks.cloudRegion = undefined;
+  mocks.licenseKey = undefined;
+  mocks.findOrganization.mockReset().mockResolvedValue(null);
+});
 
 describe("isAccessAuditLogEnabled", () => {
-  beforeEach(() => {
-    mocks.mode = "org";
-    mocks.stagingEnabled = "true";
-    mocks.cloudRegion = undefined;
-    mocks.licenseKey = undefined;
-  });
-
   it("records nothing when disabled", () => {
     mocks.mode = "disabled";
     mocks.cloudRegion = "EU";
@@ -126,5 +134,40 @@ describe("isAccessAuditLogEnabled", () => {
         { supportAccess: true },
       ),
     ).toBe(false);
+  });
+});
+
+describe("recordTrpcAccess", () => {
+  // Admins and viewers of public resources read projects their session does
+  // not list, so the gate has to load the org.
+  const nonMember = {
+    session: {
+      user: { id: "user", organizations: [] } as unknown as Session["user"],
+    },
+    headers: {},
+  };
+  const read = {
+    route: "events.byTraceId",
+    resourceType: "trace",
+    action: "read",
+    resourceRefs: [],
+  };
+
+  it.each([
+    ["the staging kill switch is off", () => (mocks.stagingEnabled = "false")],
+    ["access events are disabled", () => (mocks.mode = "disabled")],
+    [
+      "access events are enforced without a license",
+      () => (mocks.mode = "enforced"),
+    ],
+  ])("loads no org for a non-member's read when %s", async (_, setUp) => {
+    setUp();
+    await recordTrpcAccess(nonMember, "project", read);
+    expect(mocks.findOrganization).not.toHaveBeenCalled();
+  });
+
+  it("loads the org for a non-member's read in org mode", async () => {
+    await recordTrpcAccess(nonMember, "project", read);
+    expect(mocks.findOrganization).toHaveBeenCalledOnce();
   });
 });
