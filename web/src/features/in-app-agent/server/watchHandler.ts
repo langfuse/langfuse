@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { BaseError, ForbiddenError, UnauthorizedError } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import { addUserToSpan, logger } from "@langfuse/shared/src/server";

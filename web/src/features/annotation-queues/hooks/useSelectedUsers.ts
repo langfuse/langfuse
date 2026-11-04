@@ -1,5 +1,5 @@
 import { api } from "@/src/utils/api";
-import { useHasProjectAccess } from "@/src/features/rbac";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 
 interface UseSelectedUsersProps {
   projectId: string;

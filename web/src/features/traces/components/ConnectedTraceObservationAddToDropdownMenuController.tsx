@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { AnnotationQueueObjectType, type Prisma } from "@langfuse/shared";
 import { Database, PlusIcon, Terminal } from "@langfuse/icons";
 import { type ComponentProps, type ReactNode, useMemo } from "react";
@@ -7,15 +6,15 @@ import {
   DropdownMenu,
   type DropdownMenuItemDefinition,
 } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
-import { AnnotationQueueSubmenuItemController } from "@/src/features/annotation-queues";
+import { AnnotationQueueSubmenuItemController } from "@/src/features/annotation-queues/components/AnnotationQueueSubmenuItemController";
 import { CreateDatasetDialogController } from "@/src/features/datasets/components/CreateDatasetDialogController";
-import { NewDatasetItemFromExistingObjectDialogController } from "@/src/features/datasets";
+import { NewDatasetItemFromExistingObjectDialogController } from "@/src/features/datasets/components/NewDatasetItemFromExistingObjectDialogController";
 import {
   type JumpToPlaygroundSourceProps,
   useJumpToPlayground,
 } from "@/src/features/playground/page/components/JumpToPlaygroundDropdownMenuController";
-import { useHasProjectAccess } from "@/src/features/rbac";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { type AnalyticsData } from "@/src/features/scores/types";
 import { api } from "@/src/utils/api";
 import type { MetadataDomainClient } from "@/src/utils/clientSideDomainTypes";

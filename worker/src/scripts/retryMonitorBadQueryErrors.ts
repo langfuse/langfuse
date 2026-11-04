@@ -1,5 +1,4 @@
 #!/usr/bin/env -S tsx
-/* eslint-disable @typescript-eslint/no-use-before-define */
 /**
  * One-off remediation that reactivates monitors paused at ERROR_BAD_QUERY,
  * for use after a fix stops a transient failure from flipping them there.

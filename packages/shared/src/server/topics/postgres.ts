@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { prisma, Prisma } from "../../db";
 import {
   DEFAULT_TOPIC_FACETS,
@@ -15,7 +14,7 @@ import {
 } from "../../topics";
 import { isEqual } from "lodash";
 import { getTopicDefinitions, writeTopicDefinitions } from "./clickhouse";
-import { InvalidRequestError } from "../../errors";
+import { InvalidRequestError } from "../../errors/InvalidRequestError";
 import { TopicsTargetObject } from "../../features/evals/types";
 import {
   invalidateTopicsProcessingActive,

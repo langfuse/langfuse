@@ -366,6 +366,11 @@ export const env = createEnv({
         "ENCRYPTION_KEY must be 256 bits, 64 string characters in hex format, generate via: openssl rand -hex 32",
       )
       .optional(),
+    // ConductorOne support access webhook (Langfuse Cloud only), disabled
+    // unless both are set. ISSUER is the C1 tenant domain, e.g.
+    // "clickhouse.conductor.one"; ENTITLEMENT_ID is this region's entitlement.
+    LANGFUSE_CONDUCTORONE_ISSUER: z.string().min(1).optional(),
+    LANGFUSE_CONDUCTORONE_ENTITLEMENT_ID: z.string().min(1).optional(),
     LANGFUSE_AI_GATEWAY_SERVICE_KEY: z.string().min(1).optional(),
     LANGFUSE_AI_GATEWAY_SERVICE_KEY_PREVIOUS: z.string().min(1).optional(),
     // Whether an AI gateway is deployed next to Web. When false, every gateway
@@ -732,9 +737,23 @@ export const env = createEnv({
 
     // Kill switch for staging audit events for the ClickHouse audit_logs table
     // on Langfuse Cloud. The Postgres audit_logs row is written either way.
+    // Read-access events have no Postgres row, so turning it off stops
+    // recording them; reads still succeed.
     LANGFUSE_AUDIT_LOG_STAGING_ENABLED: z
       .enum(["true", "false"])
       .default("true"),
+
+    // Read-access audit events (EE).
+    // "org": recorded for organizations whose plan includes audit logs and
+    // that enable access logging in their settings.
+    // "enforced": recorded for every organization. On Langfuse Cloud this
+    // covers every plan; self-hosted instances need an enterprise license,
+    // without one nothing is recorded.
+    // "disabled": never recorded.
+    // LANGFUSE_AUDIT_LOG_STAGING_ENABLED=false also stops recording.
+    LANGFUSE_AUDIT_LOG_ACCESS_EVENTS: z
+      .enum(["org", "enforced", "disabled"])
+      .default("org"),
 
     // Background-migration env gates. Mirror worker/src/env.ts (names, defaults)
     // so the background-migrations status endpoint can tell dormant, env-gated
@@ -747,6 +766,11 @@ export const env = createEnv({
     LANGFUSE_BACKGROUND_MIGRATION_V4_DROP_PID_TID_SORTING_TABLES: z
       .enum(["true", "false"])
       .default("false"),
+
+    // Use adaptive scan windows when filling observations v2 pages.
+    LANGFUSE_OBSERVATIONS_V2_ADAPTIVE_SCAN_ENABLED: z
+      .enum(["true", "false"])
+      .default("true"),
 
     // Temporary kill-switch for the observations v2 subquery-IN rewrite.
     LANGFUSE_OBSERVATIONS_V2_SUBQUERY_REWRITE: z
@@ -1183,6 +1207,9 @@ export const env = createEnv({
     LANGFUSE_EE_LICENSE_KEY: process.env.LANGFUSE_EE_LICENSE_KEY,
     ADMIN_API_KEY: process.env.ADMIN_API_KEY,
     ENCRYPTION_KEY: process.env.ENCRYPTION_KEY,
+    LANGFUSE_CONDUCTORONE_ISSUER: process.env.LANGFUSE_CONDUCTORONE_ISSUER,
+    LANGFUSE_CONDUCTORONE_ENTITLEMENT_ID:
+      process.env.LANGFUSE_CONDUCTORONE_ENTITLEMENT_ID,
     LANGFUSE_AI_GATEWAY_SERVICE_KEY:
       process.env.LANGFUSE_AI_GATEWAY_SERVICE_KEY,
     LANGFUSE_AI_GATEWAY_SERVICE_KEY_PREVIOUS:
@@ -1323,6 +1350,8 @@ export const env = createEnv({
     LANGFUSE_TRUSTED_PROXY_COUNT: process.env.LANGFUSE_TRUSTED_PROXY_COUNT,
     LANGFUSE_AUDIT_LOG_STAGING_ENABLED:
       process.env.LANGFUSE_AUDIT_LOG_STAGING_ENABLED,
+    LANGFUSE_AUDIT_LOG_ACCESS_EVENTS:
+      process.env.LANGFUSE_AUDIT_LOG_ACCESS_EVENTS,
     LANGFUSE_BACKGROUND_MIGRATION_V4_ENABLE_HISTORIC_BACKFILL:
       process.env.LANGFUSE_BACKGROUND_MIGRATION_V4_ENABLE_HISTORIC_BACKFILL,
     LANGFUSE_BACKGROUND_MIGRATION_V4_DROP_PID_TID_SORTING_TABLES:
@@ -1330,6 +1359,8 @@ export const env = createEnv({
     // Legacy tracing search controls
     LANGFUSE_DISABLE_LEGACY_TRACING_IO_SEARCH:
       process.env.LANGFUSE_DISABLE_LEGACY_TRACING_IO_SEARCH,
+    LANGFUSE_OBSERVATIONS_V2_ADAPTIVE_SCAN_ENABLED:
+      process.env.LANGFUSE_OBSERVATIONS_V2_ADAPTIVE_SCAN_ENABLED,
     LANGFUSE_OBSERVATIONS_V2_SUBQUERY_REWRITE:
       process.env.LANGFUSE_OBSERVATIONS_V2_SUBQUERY_REWRITE,
     LANGFUSE_OBSERVATIONS_V2_SHADOW_QUERY:

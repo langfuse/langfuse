@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { type Flag } from "@/src/features/feature-flags/types";
 import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { type ProjectScope } from "@langfuse/shared";
@@ -27,21 +26,20 @@ import {
 import { type ReactNode } from "react";
 import { type Entitlement } from "@/src/features/entitlements/constants/entitlements";
 import { type Session } from "next-auth";
-import { type OrganizationScope } from "@/src/features/rbac";
+import { hasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
+import { type OrganizationScope } from "@langfuse/shared/rbac";
 import { SupportButton } from "@/src/components/nav/SupportButton";
-import { V4SidebarToggle } from "@/src/features/events";
+import { V4SidebarToggle } from "@/src/features/events/components/V4SidebarToggle";
 import { BookACallButton } from "@/src/components/nav/BookACallButton";
 import { SidebarMenuButton } from "@/src/components/ui/sidebar";
 import { KeyboardShortcut } from "@/src/components/design-system/KeyboardShortcut/KeyboardShortcut";
 import { useCommandMenu } from "@/src/features/command-k-menu/CommandMenuProvider";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { CloudStatusMenu } from "@/src/features/cloud-status-notification/components/CloudStatusMenu";
 import { type ProductModule } from "@/src/ee/features/ui-customization/productModuleSchema";
 import { matchesPathname } from "@/src/components/layouts/app-layout/utils/pathClassification";
-import {
-  InternalFeatureBadge,
-  useInternalFeaturesEnabled,
-} from "@/src/features/feature-flags";
+import { InternalFeatureBadge } from "@/src/features/feature-flags/components/InternalFeatureBadge";
+import { useInternalFeaturesEnabled } from "@/src/features/feature-flags/hooks/useInternalFeaturesEnabled";
 
 export enum RouteSection {
   Main = "main",
@@ -50,7 +48,6 @@ export enum RouteSection {
 
 export enum RouteGroup {
   Observability = "Observability",
-  PromptManagement = "Prompt Management",
   ContextManagement = "Context Management",
   Evaluation = "Evaluation",
 }
@@ -108,6 +105,13 @@ export const ROUTES: Route[] = [
     title: "Projects",
     href: "/organization/[organizationId]",
     icon: Grid2X2,
+    show: ({ organization }) =>
+      !organization ||
+      hasOrganizationAccess({
+        role: organization.role,
+        scope: "organizationSettings:read",
+      }) ||
+      organization.projects.length > 0,
     section: RouteSection.Main,
   },
   {
@@ -175,13 +179,12 @@ export const ROUTES: Route[] = [
   },
   {
     title: "Skills",
-    featureFlag: "skillManagement",
     label: <Badge text="Beta" color="blue" size="sm" />,
     href: "/project/[projectId]/skills",
     icon: FolderCode,
     projectRbacScopes: ["skills:read"],
     productModule: "prompt-management",
-    group: RouteGroup.PromptManagement,
+    group: RouteGroup.ContextManagement,
     section: RouteSection.Main,
   },
   {
@@ -190,7 +193,7 @@ export const ROUTES: Route[] = [
     icon: FileJson,
     projectRbacScopes: ["prompts:read"],
     productModule: "prompt-management",
-    group: RouteGroup.PromptManagement,
+    group: RouteGroup.ContextManagement,
     section: RouteSection.Main,
   },
   {
@@ -198,7 +201,7 @@ export const ROUTES: Route[] = [
     href: "/project/[projectId]/playground",
     icon: TerminalIcon,
     productModule: "playground",
-    group: RouteGroup.PromptManagement,
+    group: RouteGroup.ContextManagement,
     section: RouteSection.Main,
   },
   {

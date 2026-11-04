@@ -1,7 +1,13 @@
 import { z } from "zod";
-import { auditLog } from "@/src/features/audit-logs/server";
-import { throwIfNoProjectAccess } from "@/src/features/rbac";
-import { aggregateScores } from "@/src/features/scores/server";
+import {
+  auditedQuery,
+  observationRefs,
+  scoreRefs,
+  refsIf,
+} from "@/src/features/audit-logs/server/auditedQuery";
+import { auditLog } from "@/src/features/audit-logs/auditLog";
+import { throwIfNoProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
+import { aggregateScores } from "@/src/features/scores/lib/aggregateScores";
 import {
   applyCommentFilters,
   traceException,
@@ -58,13 +64,14 @@ import {
   LangfuseNotFoundError,
 } from "@langfuse/shared";
 import { TRPCError } from "@trpc/server";
-import { createBatchActionJob } from "@/src/features/table/server";
-import { throwIfNoEntitlement } from "@/src/features/entitlements/server";
-import { sanitizeLegacyTracingSearch } from "@/src/features/traces/server";
+import { createBatchActionJob } from "@/src/features/table/server/createBatchActionJob";
+import { throwIfNoEntitlement } from "@/src/features/entitlements/server/hasEntitlement";
+import { sanitizeLegacyTracingSearch } from "@/src/features/traces/server/legacyIoSearch";
 import {
   type AgentGraphDataResponse,
   AgentGraphDataSchema,
-} from "@/src/features/trace-graph-view/server";
+} from "@/src/features/trace-graph-view/types";
+
 import { env } from "@/src/env.mjs";
 import {
   toDomainWithStringifiedMetadata,
@@ -357,8 +364,8 @@ export const traceRouter = createTRPCRouter({
         })),
       };
     }),
-  byId: protectedGetTraceProcedure
-    .input(
+  byId: auditedQuery(
+    protectedGetTraceProcedure.input(
       z.object({
         traceId: z.string(), // used for security check
         projectId: z.string(), // used for security check
@@ -366,14 +373,16 @@ export const traceRouter = createTRPCRouter({
         fromTimestamp: z.date().nullish(), // min timestamp of the trace. Used to query CH more efficiently
         verbosity: z.enum(["compact", "truncated", "full"]).default("full"),
       }),
-    )
-    .query(async ({ ctx }) => {
+    ),
+    { resourceType: "trace", action: "read", idKey: "traceId" },
+    async ({ ctx, audit }) => {
       if (!ctx.trace) {
         throw new TRPCError({
           code: "NOT_FOUND",
           message: "Trace not found",
         });
       }
+      audit.refs(refsIf("session", ctx.trace.sessionId));
       return {
         ...ctx.trace,
         input: ctx.trace.input as string,
@@ -382,17 +391,19 @@ export const traceRouter = createTRPCRouter({
           ? JSON.stringify(ctx.trace.metadata)
           : undefined,
       };
-    }),
-  byIdWithObservationsAndScores: protectedGetTraceProcedure
-    .input(
+    },
+  ),
+  byIdWithObservationsAndScores: auditedQuery(
+    protectedGetTraceProcedure.input(
       z.object({
         traceId: z.string(), // used for security check
         timestamp: z.date().nullish(), // timestamp of the trace. Used to query CH more efficiently
         fromTimestamp: z.date().nullish(), // min timestamp of the trace. Used to query CH more efficiently
         projectId: z.string(), // used for security check
       }),
-    )
-    .query(async ({ input, ctx }) => {
+    ),
+    { resourceType: "trace", action: "read", idKey: "traceId" },
+    async ({ input, ctx, audit }) => {
       if (!ctx.trace) {
         throw new TRPCError({
           code: "NOT_FOUND",
@@ -454,6 +465,12 @@ export const traceRouter = createTRPCRouter({
       const scoresDomain =
         toDomainArrayWithStringifiedMetadata<ScoreDomain>(scores);
 
+      audit.refs([
+        ...refsIf("session", ctx.trace.sessionId),
+        ...observationRefs(observations),
+        ...scoreRefs(validatedScores),
+      ]);
+      audit.count(observations.length);
       return {
         ...toDomainWithStringifiedMetadata(ctx.trace),
         input: ctx.trace.input ? JSON.stringify(ctx.trace.input) : null,
@@ -467,7 +484,8 @@ export const traceRouter = createTRPCRouter({
           input: undefined, // this is not queried above.
         })) as ObservationReturnTypeWithMetadata[],
       };
-    }),
+    },
+  ),
   deleteMany: protectedProjectProcedure
     .input(
       z

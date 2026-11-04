@@ -34,7 +34,7 @@ import {
   type CustomRowHeightControl,
   type RowHeight,
 } from "@/src/components/table/data-table-row-height-switch";
-import { usePostHogClientCapture } from "@/src/features/posthog-analytics";
+import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { TimeRangePicker } from "@/src/components/date-picker";
 import {
   type TimeRange,

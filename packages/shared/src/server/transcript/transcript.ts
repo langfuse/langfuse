@@ -1,6 +1,6 @@
 import { partition } from "lodash";
 import type { OrderedObservation } from "./ordering";
-import { normalizeIO } from "../normalized-io";
+import { normalizeIO } from "../normalized-io/parser";
 import type { Transcript, TranscriptOptions } from "./types";
 import { limitTranscript } from "./limit";
 import {

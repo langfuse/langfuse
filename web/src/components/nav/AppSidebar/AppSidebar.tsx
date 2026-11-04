@@ -34,7 +34,7 @@ import {
 } from "@langfuse/icons";
 import { DropdownIndicator } from "@/src/components/design-system/DropdownIndicator/DropdownIndicator";
 import { SiGithub } from "@langfuse/icons/si";
-import { VERSION } from "@/src/constants";
+import { VERSION } from "@/src/constants/VERSION";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -62,7 +62,7 @@ import { OrganizationDropdownMenu } from "@/src/components/OrganizationDropdownM
 import { ProjectDropdownMenu } from "@/src/components/ProjectDropdownMenu/ProjectDropdownMenu";
 import { assertUnreachable } from "@/src/utils/types";
 import { SIDEBAR_NOTIFICATIONS, type SidebarNotification } from "./utils";
-import { useOrgProjectSwitchPaths } from "@/src/features/projects";
+import { useOrgProjectSwitchPaths } from "@/src/features/projects/hooks";
 import {
   APP_SHELL_CHROME_ROW_CLASS,
   APP_SHELL_CHROME_ROW_TEST_ID,
@@ -97,6 +97,10 @@ const selfHostedPlanLabels = {
   "self-hosted:enterprise": {
     short: "EE",
     long: planLabels["self-hosted:enterprise"],
+  },
+  "self-hosted:gov": {
+    short: "Gov",
+    long: planLabels["self-hosted:gov"],
   },
 } satisfies Record<SelfHostedPlan, { short: string; long: string }>;
 
@@ -400,7 +404,6 @@ function SidebarNotifications({
                   target="_blank"
                   onClick={() => state.onLinkClick(frontNotification.id)}
                 >
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
                     alt={frontNotification.linkImage.alt}
                     src={frontNotification.linkImage.src}

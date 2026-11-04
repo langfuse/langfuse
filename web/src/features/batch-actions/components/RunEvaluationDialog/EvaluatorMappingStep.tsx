@@ -1,19 +1,20 @@
-/* eslint-disable no-nested-ternary, @typescript-eslint/no-use-before-define */
+/* eslint-disable no-nested-ternary */
 import { useStore } from "zustand";
 import type { ReactNode } from "react";
 
 import { Card, CardContent } from "@/src/components/ui/card";
 import { InfoTooltip } from "@/src/components/ui/InfoTooltip/InfoTooltip";
 import { Skeleton } from "@/src/components/ui/skeleton";
-import {
-  EvaluatorAssignmentsEditor,
-  type RuleEvaluatorOption,
-} from "@/src/features/evals";
+import { EvaluatorAssignmentsEditor } from "@/src/features/evals/v2/components/Rules/EvaluatorAssignmentsEditor/EvaluatorAssignmentsEditor";
+import type {
+  RuleEvaluatorOption,
+  RuleSetupStore,
+} from "@/src/features/evals/v2/types/rules";
 import {
   useRuleCostEstimate,
   type RuleCostEstimate,
 } from "@/src/features/evals/v2/hooks/useRuleCostEstimate";
-import type { RuleSetupStore } from "@/src/features/evals/v2/types/rules";
+
 import { usdFormatter } from "@/src/utils/numbers";
 
 export function EvaluatorMappingStep({

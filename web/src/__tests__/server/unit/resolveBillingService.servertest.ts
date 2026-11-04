@@ -20,7 +20,7 @@ vi.mock("@/src/ee/features/billing/server/stripe/stripeBillingService", () => ({
   createBillingServiceFromContext: mocks.createBillingServiceFromContext,
 }));
 
-import { resolveBillingService } from "@/src/ee/features/billing/server";
+import { resolveBillingService } from "@/src/ee/features/billing/server/resolveBillingService";
 import { ChbBillingService } from "@/src/ee/features/billing/server/chb/chbBillingService";
 import { logger } from "@langfuse/shared/src/server";
 

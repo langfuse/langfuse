@@ -15,6 +15,7 @@ concurrency:
 env:
   BOT_BRANCH: langfuse-skills-sync-bot
   GENERATED_FILE: packages/langfuse-skills/src/generated/skills.js
+  MCP_GENERATED_FILE: packages/langfuse-skills/src/generated/mcp-skills.js
 
 jobs:
   sync:
@@ -74,14 +75,17 @@ jobs:
             exit 0
           fi
 
-          if [ "${#changed_files[@]}" -ne 1 ] || [ "${changed_files[0]}" != "$GENERATED_FILE" ]; then
-            printf "::error::Skill sync changed unexpected files: %s\n" "${changed_files[*]}"
-            exit 1
-          fi
+          for file in "${changed_files[@]}"; do
+            if [ "$file" != "$GENERATED_FILE" ] && [ "$file" != "$MCP_GENERATED_FILE" ]; then
+              printf "::error::Skill sync changed unexpected file: %s\n" "$file"
+              exit 1
+            fi
+          done
 
           pnpm --filter @repo/langfuse-skills run sync:check
           node --check "$GENERATED_FILE"
-          git diff --check -- "$GENERATED_FILE"
+          node --check "$MCP_GENERATED_FILE"
+          git diff --check -- "$GENERATED_FILE" "$MCP_GENERATED_FILE"
           echo "has_changes=true" >> "$GITHUB_OUTPUT"
 
       - name: Create or update pull request
@@ -93,7 +97,9 @@ jobs:
           token: ${{ secrets.GH_ACCESS_TOKEN }}
           branch: ${{ env.BOT_BRANCH }}
           base: main
-          add-paths: ${{ env.GENERATED_FILE }}
+          add-paths: |
+            ${{ env.GENERATED_FILE }}
+            ${{ env.MCP_GENERATED_FILE }}
           commit-message: "chore(assistant): refresh embedded Langfuse skills"
           title: "chore(assistant): refresh embedded Langfuse skills"
           body: |
@@ -105,4 +111,5 @@ jobs:
 
             - `pnpm --filter @repo/langfuse-skills run sync:check`
             - `node --check packages/langfuse-skills/src/generated/skills.js`
+            - `node --check packages/langfuse-skills/src/generated/mcp-skills.js`
             - `git diff --check`

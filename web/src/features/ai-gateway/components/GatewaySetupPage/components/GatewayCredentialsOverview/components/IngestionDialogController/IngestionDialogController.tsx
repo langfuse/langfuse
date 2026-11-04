@@ -8,7 +8,7 @@ import type {
   GatewayIngestionSettings,
   GatewayProject,
 } from "@/src/features/ai-gateway/components/GatewaySetupPage/types/gatewaySetup";
-import { showSuccessToast } from "@/src/features/notifications";
+import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 
 export type IngestionDialogControllerProps = {
   organizationId: string;
@@ -23,7 +23,10 @@ export function IngestionDialogController({
   projects,
   children,
 }: IngestionDialogControllerProps) {
-  const { saveIngestion, isSaving } = useSaveGatewayIngestion(organizationId);
+  const { saveIngestion, isSaving } = useSaveGatewayIngestion(
+    organizationId,
+    "overview",
+  );
 
   async function handleSave(settings: GatewayIngestionSettings) {
     const isSaved = await saveIngestion(settings);

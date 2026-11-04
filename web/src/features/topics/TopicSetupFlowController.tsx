@@ -1,11 +1,10 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { useEffect, useState, type ReactNode } from "react";
 import { type FilterState } from "@langfuse/shared";
 import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
 import { env } from "@/src/env.mjs";
 import { type JudgeModel } from "@/src/features/evals/v2/judgeModel";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
-import { useHasProjectAccess } from "@/src/features/rbac";
+import { useHasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { api } from "@/src/utils/api";
 import { type ConfigureTopicsSettingsInput } from "./TopicModelSettings";
 import {
@@ -158,23 +157,16 @@ function TopicSetupSession({
   );
 
   async function saveQuestions() {
-    const summary = resolveTopicModelSlot(
-      draft.summary,
-      connections,
-      settings.stored.summary?.llmApiKeyId,
-      "chat",
-    );
+    const summary = resolveTopicModelSlot(draft.summary, connections, "chat");
     const embedding = resolveTopicModelSlot(
       draft.embedding,
       connections,
-      settings.stored.embedding?.llmApiKeyId,
       "embedding",
-      settings.stored.embedding?.model,
+      settings.stored.embedding,
     );
     const clustering = resolveTopicModelSlot(
       draft.clustering,
       connections,
-      settings.stored.clustering?.llmApiKeyId,
       "chat",
     );
     if (!summary || !embedding || !clustering)

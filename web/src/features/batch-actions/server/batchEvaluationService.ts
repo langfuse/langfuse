@@ -18,7 +18,7 @@ import {
   logger,
 } from "@langfuse/shared/src/server";
 import { env } from "@/src/env.mjs";
-import { clampToDataAccessDays } from "@/src/features/entitlements/server";
+import { clampToDataAccessDays } from "@/src/features/entitlements/server/hasEntitlementLimit";
 import { batchEligibleEvaluatorWhere } from "@/src/features/evals/v2/server/evaluators/evaluatorRepository";
 import type { CreateObservationBatchEvaluationActionSchema } from "../validation";
 import { prepareBatchEvalEvaluatorMappings } from "./prepareBatchEvalEvaluatorMappings";

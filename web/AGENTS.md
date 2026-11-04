@@ -218,6 +218,9 @@ Sentry instrumentation skill first and decide whether it should capture at all
   `src/features/public-api/server/withMiddlewares.ts`, define strict request and
   response types in `src/features/public-api/types/*`, add server tests, and
   update Fern sources when the contract changes.
+- Observations v2 pages can be short or empty while `meta.cursor` exists because
+  the endpoint bounds scan work. End pagination only when the cursor is absent;
+  never derive completion from the number of returned rows.
 - Public eval endpoints should keep the split between reusable `evaluators`
   and ingestion-scoped `evaluation-rules`; do not leak `EvalTemplate` or
   `JobConfiguration` naming into the public contract.
@@ -340,7 +343,7 @@ Sentry instrumentation skill first and decide whether it should capture at all
 
 ## Package-Specific Rules
 
-- Internal-only UI features use `useInternalFeaturesEnabled()` and the shared orange `InternalFeatureBadge`; do not add per-feature internal flags.
+- Internal-only UI features use `useInternalFeaturesEnabled()` and the shared orange `InternalFeatureBadge`; do not add per-feature internal flags. Eligibility and opt-out rules are documented in `src/features/feature-flags/README.md`; internal access does not grant admin permissions.
 
 - Router style is Pages Router-centric; follow existing routing patterns.
 - In `src/pages`, do not keep both `foo.ts(x)` and a `foo/` folder. If the

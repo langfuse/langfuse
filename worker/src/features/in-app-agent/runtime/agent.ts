@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { EventType } from "@ag-ui/core";
 import { MastraAgent } from "@ag-ui/mastra";
 import { IN_APP_AGENT_SYSTEM_PROMPT_TEMPLATE } from "@langfuse/shared/in-app-agent/server/systemPrompt";
@@ -13,11 +12,14 @@ import type {
   Processor,
 } from "@mastra/core/processors";
 import { MCPClient } from "@mastra/mcp";
-import type { Langfuse } from "langfuse";
+import type { LangfuseClient } from "@langfuse/client";
 
 import {
   type AgUiEvent,
   type InAppAgentToolApprovalRequest,
+  IN_APP_AGENT_MCP_TOOL_OVERRIDE_HEADER,
+  IN_APP_AGENT_QUESTIONNAIRE_TOOL_NAME,
+  IN_APP_AGENT_REDIRECT_TOOL_NAME,
 } from "@langfuse/shared/in-app-agent";
 import { getToolFailureMessage } from "@langfuse/shared/in-app-agent/server/toolErrors";
 import { IN_APP_AGENT_MAX_STEPS } from "@langfuse/shared/in-app-agent/server/tunables";
@@ -26,11 +28,12 @@ import {
   createManualToolApprovalRunInput,
   type ManualToolApprovalResumeData,
 } from "./human-in-the-loop";
-import type {
-  InAppAgentPromptMetadata,
-  InAppAgentTracingConfig,
+import {
+  type InAppAgentPromptMetadata,
+  type InAppAgentTracingConfig,
+  createInAppAgentInstrumentation,
 } from "./instrumentation";
-import { createInAppAgentInstrumentation } from "./instrumentation";
+
 import {
   parseMcpRateLimitError,
   withMcpRateLimitWait,
@@ -56,14 +59,10 @@ import {
   withInAppAgentToolApproval,
   withInAppAgentToolApprovalSidecars,
 } from "@langfuse/shared/in-app-agent/server/mcpPolicy";
-import type { InAppAgentSandbox } from "./sandbox";
+import type { InAppAgentSandbox } from "./sandbox/types";
 import { DEFAULT_SIDEBAR_HIDDEN_ENVIRONMENTS } from "@langfuse/shared";
 import { logger } from "@langfuse/shared/src/server";
-import {
-  IN_APP_AGENT_MCP_TOOL_OVERRIDE_HEADER,
-  IN_APP_AGENT_QUESTIONNAIRE_TOOL_NAME,
-  IN_APP_AGENT_REDIRECT_TOOL_NAME,
-} from "@langfuse/shared/in-app-agent";
+
 import type { InAppAgentModelConfig } from "@langfuse/shared/in-app-agent/server/modelProvider";
 import { applyPromptCacheToCall } from "./promptCache";
 import {
@@ -264,7 +263,7 @@ type CreateAgUiStreamOptions = {
     projectId: string;
     isV4Enabled: boolean;
   };
-  langfuseClient?: Langfuse;
+  langfuseClient?: LangfuseClient;
   useLocalPrompt: boolean;
   skills: InlineSkill[];
   langfuseTracing?: InAppAgentTracingConfig;
@@ -1560,7 +1559,7 @@ function getToolErrorMessage(chunk: MastraApprovalStreamChunk): string {
 }
 
 async function getSystemPromptInstructions(params: {
-  langfuseClient?: Langfuse;
+  langfuseClient?: LangfuseClient;
   useLocalPrompt: boolean;
   variables: {
     currentDate: string;
@@ -1588,9 +1587,8 @@ async function getSystemPromptInstructions(params: {
     throw new Error("Managed in-app agent prompt client is not configured");
   }
 
-  const prompt = await params.langfuseClient.getPrompt(
+  const prompt = await params.langfuseClient.prompt.get(
     IN_APP_AGENT_SYSTEM_PROMPT_NAME,
-    undefined,
     { type: "text" },
   );
 

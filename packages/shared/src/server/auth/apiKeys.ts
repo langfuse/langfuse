@@ -1,11 +1,10 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import { PrismaClient, ApiKeyScope, type Prisma } from "@prisma/client";
 import { compare, hash } from "bcryptjs";
 import { randomUUID } from "crypto";
 import * as crypto from "crypto";
 import type { Cluster, Redis } from "ioredis";
 import { env } from "../../env";
-import { InvalidRequestError } from "../../errors";
+import { InvalidRequestError } from "../../errors/InvalidRequestError";
 import {
   ApiKeyId,
   hasApiKeyKind,

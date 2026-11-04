@@ -99,6 +99,7 @@ export const RemoteExperimentDatasetStep = ({
               <PopoverTrigger asChild>
                 <Button
                   variant="outline"
+                  // eslint-disable-next-line jsx-a11y/role-has-required-aria-props
                   role="combobox"
                   aria-expanded={datasetPopoverOpen}
                   className="w-full justify-between gap-2 px-2 font-normal"

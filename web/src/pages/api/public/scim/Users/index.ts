@@ -5,11 +5,13 @@ import { env } from "@/src/env.mjs";
 import { type NextApiRequest, type NextApiResponse } from "next";
 import { z } from "zod";
 import { isBaseError, type Role } from "@langfuse/shared";
-import { auditLog } from "@/src/features/audit-logs/server";
+import { auditLog } from "@/src/features/audit-logs/auditLog";
 import { assertValidOwnershipChange } from "@/src/ee/features/admin-api/server/memberships";
-import { getSfdcService } from "@/src/ee/features/sfdc-sync/server";
-import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server";
-import { shadowAuth, writeScimError } from "@/src/features/public-api/server";
+import { requireGatewayEnabledForRole } from "@/src/features/ai-gateway/server/availability";
+import { getSfdcService } from "@/src/ee/features/sfdc-sync/server/sfdcService";
+import { hasEntitlementBasedOnPlan } from "@/src/features/entitlements/server/hasEntitlement";
+import { shadowAuth } from "@/src/features/public-api/server/shadowAuth";
+import { writeScimError } from "@/src/features/public-api/server/writeError";
 export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse,
@@ -183,14 +185,14 @@ export default async function handler(
       let role: Role = "NONE";
       if (roles && Array.isArray(roles) && roles.length > 0) {
         const roleSchema = z.array(
-          z.enum(["OWNER", "ADMIN", "MEMBER", "VIEWER", "NONE"]),
+          z.enum(["OWNER", "ADMIN", "MEMBER", "VIEWER", "NONE", "AI_GATEWAY"]),
         );
         const parsedRoles = roleSchema.safeParse(roles);
         if (!parsedRoles.success) {
           logger.warn("[SCIM] Invalid roles provided for user creation");
           return res.status(400).json({
             schemas: ["urn:ietf:params:scim:api:messages:2.0:Error"],
-            detail: `Invalid roles provided: ${JSON.stringify(roles)}, must be one of OWNER, ADMIN, MEMBER, VIEWER, NONE`,
+            detail: `Invalid roles provided: ${JSON.stringify(roles)}, must be one of OWNER, ADMIN, MEMBER, VIEWER, NONE, AI_GATEWAY`,
             status: 400,
           });
         }
@@ -205,6 +207,7 @@ export default async function handler(
         from: undefined,
         to: role,
       });
+      requireGatewayEnabledForRole(authCheck.scope.orgId, role);
 
       // Check if user already exists. Normalize the email to lowercase to
       // stay consistent with the upsert below; otherwise a case-variant

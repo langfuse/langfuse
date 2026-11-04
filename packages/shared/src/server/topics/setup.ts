@@ -1,6 +1,5 @@
-/* eslint-disable @typescript-eslint/no-use-before-define */
 import type { z } from "zod";
-import { InvalidRequestError } from "../../errors";
+import { InvalidRequestError } from "../../errors/InvalidRequestError";
 import {
   topicsAutomaticProcessingSchema,
   topicsSetupSchema,

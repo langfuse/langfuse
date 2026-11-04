@@ -8,9 +8,6 @@ export type GatewayConfig = NonNullable<
 
 export type GatewayProject = { id: string; name: string };
 
-export type GatewayNotifiableMembers =
-  RouterOutputs["aiGateway"]["getNotifiableMembers"];
-
 export type GatewayTeamInviteResult = RouterOutputs["aiGateway"]["inviteTeam"];
 
 export type GatewayIngestionSettings = {

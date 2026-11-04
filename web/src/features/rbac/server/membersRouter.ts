@@ -1,4 +1,4 @@
-import { auditLog } from "@/src/features/audit-logs/server";
+import { auditLog } from "@/src/features/audit-logs/auditLog";
 import {
   createTRPCRouter,
   protectedOrganizationProcedure,
@@ -23,14 +23,15 @@ import {
   escapeSqlLikePattern,
 } from "@langfuse/shared/src/server";
 import { env } from "@/src/env.mjs";
-import { getSfdcService } from "@/src/ee/features/sfdc-sync/server";
-import { hasEntitlement } from "@/src/features/entitlements/server";
+import { getSfdcService } from "@/src/ee/features/sfdc-sync/server/sfdcService";
+import { hasEntitlement } from "@/src/features/entitlements/server/hasEntitlement";
 import {
   hasProjectAccess,
   throwIfNoProjectAccess,
 } from "@/src/features/rbac/utils/checkProjectAccess";
 import { allMembersRoutes } from "@/src/features/rbac/server/allMembersRoutes";
 import { allInvitesRoutes } from "@/src/features/rbac/server/allInvitesRoutes";
+import { requireGatewayEnabledForRole } from "@/src/features/ai-gateway/server/availability";
 import {
   deleteUserBoundApiKeys,
   deleteUserBoundApiKeysForRole,
@@ -39,10 +40,8 @@ import {
 import { inviteOrganizationMember } from "@/src/features/rbac/server/inviteOrganizationMember";
 import { throwIfHigherProjectRole } from "@/src/features/rbac/server/throwIfHigherProjectRole";
 import { throwIfHigherRole } from "@/src/features/rbac/server/throwIfHigherRole";
-import {
-  userFeaturePreviewFlags,
-  setUserFeaturePreviewWithAuthorization,
-} from "@/src/features/feature-flags/server";
+import { userFeaturePreviewFlags } from "@/src/features/feature-flags/available-flags";
+import { setUserFeaturePreviewWithAuthorization } from "@/src/features/feature-flags/server/organizationFeatureFlags";
 
 function buildUserSearchFilter(searchQuery: string | undefined | null) {
   if (searchQuery === undefined || searchQuery === null || searchQuery === "") {
@@ -71,7 +70,7 @@ export const membersRouter = createTRPCRouter({
         orgRole: z.enum(Role),
         // in case a projectRole should be set for a specific project
         projectId: z.string().optional(),
-        projectRole: z.enum(Role).optional(),
+        projectRole: z.enum(Role).exclude([Role.AI_GATEWAY]).optional(),
       }),
     )
     .mutation(async ({ input, ctx }) => {
@@ -275,6 +274,7 @@ export const membersRouter = createTRPCRouter({
         ownRole: ctx.session.orgRole,
         role: input.role, // new
       });
+      requireGatewayEnabledForRole(input.orgId, input.role);
       throwIfHigherRole({
         ownRole: ctx.session.orgRole,
         role: membership.role, // old
@@ -411,7 +411,7 @@ export const membersRouter = createTRPCRouter({
         orgMembershipId: z.string(),
         userId: z.string(),
         projectId: z.string(),
-        projectRole: z.enum(Role).nullable(),
+        projectRole: z.enum(Role).exclude([Role.AI_GATEWAY]).nullable(),
       }),
     )
     .mutation(async ({ input, ctx }) => {

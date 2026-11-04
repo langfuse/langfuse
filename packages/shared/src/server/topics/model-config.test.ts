@@ -9,6 +9,7 @@ import {
 
 const mocks = vi.hoisted(() => ({
   keys: vi.fn(),
+  candidates: vi.fn(),
   projects: vi.fn(),
   configs: vi.fn(),
   current: vi.fn(),
@@ -29,7 +30,7 @@ vi.mock("./processing-gate", () => ({
 vi.mock("../../db", () => {
   const tx = {
     llmApiKeys: { findMany: mocks.keys },
-    project: { findMany: mocks.projects },
+    project: { findMany: mocks.projects, findUnique: mocks.candidates },
     topicConfig: {
       findMany: mocks.configs,
       findUnique: mocks.current,
@@ -51,13 +52,13 @@ vi.mock("../../db", () => {
 const connection = (id: string, adapter: LLMAdapter) => ({
   id,
   adapter,
-  provider: `${adapter}-connection`,
+  provider: id,
   secretKey: "encrypted",
   extraHeaders: null,
   baseURL: null,
   config: null,
 });
-const slot = (llmApiKeyId: string, model: string) => ({ llmApiKeyId, model });
+const slot = (provider: string, model: string) => ({ provider, model });
 const settings = {
   summary: slot("openai", "gpt-6-luna"),
   embedding: slot("openai", "text-embedding-3-small"),
@@ -76,10 +77,13 @@ const saveTopicsModelSettings = async (
 
 beforeEach(() => {
   vi.resetAllMocks();
-  mocks.keys.mockResolvedValue([
-    connection("openai", LLMAdapter.OpenAI),
-    connection("anthropic", LLMAdapter.Anthropic),
-  ]);
+  mocks.candidates.mockResolvedValue({
+    LlmApiKeys: [
+      connection("openai", LLMAdapter.OpenAI),
+      connection("anthropic", LLMAdapter.Anthropic),
+    ],
+    organization: { organizationLlmApiKeys: [] },
+  });
   mocks.current.mockResolvedValue(null);
   mocks.projects.mockResolvedValue([{ id: "project", orgId: "target-org" }]);
   mocks.hasEmbeddings.mockResolvedValue(false);
@@ -97,35 +101,6 @@ beforeEach(() => {
 });
 
 describe("prepareTopicsModelSettings", () => {
-  it("accepts an organization connection inherited by the project", async () => {
-    mocks.keys.mockResolvedValue([
-      {
-        ...connection("openai", LLMAdapter.OpenAI),
-        projectId: null,
-        organizationId: "organization",
-      },
-    ]);
-
-    await saveTopicsModelSettings("project", settings);
-
-    expect(mocks.keys).toHaveBeenCalledWith({
-      where: {
-        id: { in: ["openai", "openai", "openai"] },
-        OR: [
-          { projectId: "project" },
-          {
-            organization: {
-              projects: {
-                some: { id: "project", deletedAt: null },
-              },
-            },
-          },
-        ],
-      },
-    });
-    expect(mocks.upsert).toHaveBeenCalledOnce();
-  });
-
   it("validates text slots through the Topics transport before saving", async () => {
     await saveTopicsModelSettings("project", {
       ...settings,
@@ -319,14 +294,15 @@ describe("getEnabledTopicsModels", () => {
       projectId: "complete",
       project: { orgId: "organization" },
       enabled: true,
-      summaryLlmApiKey: openai,
+      summaryLlmApiKey: { provider: "openai" },
       summaryModel: "gpt-6-luna",
-      embeddingLlmApiKey: openai,
+      embeddingLlmApiKey: { provider: "openai" },
       embeddingModel: "text-embedding-3-small",
       embeddingDimensions: 512,
-      clusteringLlmApiKey: openai,
+      clusteringLlmApiKey: { provider: "openai" },
       clusteringModel: "gpt-5.6-terra",
     };
+    mocks.keys.mockResolvedValue([openai]);
     mocks.configs.mockResolvedValue([
       row,
       // A deleted connection leaves its slot empty.
