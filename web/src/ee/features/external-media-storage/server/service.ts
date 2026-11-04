@@ -16,13 +16,13 @@ import {
   OutboundUrlValidationError,
   STORAGE_SESSION_POLICY_MAX_LENGTH,
   StorageServiceFactory,
+  assertStorageRolePartition,
   buildStorageReadSessionPolicy,
   externalMediaStorageEndpointConnectionValidationOptions,
   generateStorageExternalId,
   getStorageAccessRoleArn,
   getStorageRoleCredentialsProvider,
   validateExternalMediaStorageEndpoint,
-  verifyStorageRoleRequiresExternalId,
 } from "@langfuse/shared/src/server";
 
 import { getDisplayCredential } from "@/src/features/analytics-integrations/server/displayCredential";
@@ -167,6 +167,7 @@ function getRoleAuthData({
   if (!STORAGE_ROLE_ARN_REGEX.test(roleArn)) {
     throw new InvalidRequestError(STORAGE_ROLE_ARN_INVALID_MESSAGE);
   }
+  assertStorageRolePartition(roleArn);
   const prefix = values.prefix?.trim() || null;
   const sessionPolicy = buildStorageReadSessionPolicy({
     roleArn,
@@ -423,12 +424,6 @@ export function createExternalMediaStorageService(prisma: PrismaClient) {
 
       if (integration.authType === StorageIntegrationAuthType.ROLE_ARN) {
         assertRoleAuthAvailable();
-        if (integration.roleArn) {
-          await verifyStorageRoleRequiresExternalId({
-            roleArn: integration.roleArn,
-            projectId,
-          });
-        }
       }
 
       const storageService = createStorageService(integration);

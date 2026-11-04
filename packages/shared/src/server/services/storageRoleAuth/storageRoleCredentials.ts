@@ -1,6 +1,7 @@
 import { randomBytes } from "crypto";
 import { fromTemporaryCredentials } from "@aws-sdk/credential-providers";
 
+import { getArnPartition } from "../../../domain/storage-role-auth";
 import { env } from "../../../env";
 import { InvalidRequestError } from "../../../errors/InvalidRequestError";
 
@@ -15,6 +16,19 @@ const MAX_CACHED_SESSIONS = 10_000;
 
 export function getStorageAccessRoleArn() {
   return env.LANGFUSE_CUSTOMER_STORAGE_ACCESS_ROLE_ARN || null;
+}
+
+// AWS does not allow AssumeRole across partitions (e.g. aws and aws-cn).
+export function assertStorageRolePartition(roleArn: string) {
+  const accessRoleArn = getStorageAccessRoleArn();
+  if (
+    accessRoleArn &&
+    getArnPartition(roleArn) !== getArnPartition(accessRoleArn)
+  ) {
+    throw new InvalidRequestError(
+      `The role must be in the ${getArnPartition(accessRoleArn)} AWS partition`,
+    );
+  }
 }
 
 export function generateStorageExternalId() {
@@ -88,10 +102,22 @@ function createSessionCache() {
 const accessRoleSessions = createSessionCache();
 const customerRoleSessions = createSessionCache();
 
+/**
+ * Failure to assume Langfuse's own access role. This is a Langfuse
+ * infrastructure fault, not a problem with the customer's role or bucket, so
+ * the AWS error (which names Langfuse's roles) is not attached.
+ */
+export class StorageAccessRoleError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "StorageAccessRoleError";
+  }
+}
+
 function getAccessRoleCredentials() {
   const accessRoleArn = getStorageAccessRoleArn();
   if (!accessRoleArn) {
-    throw new Error(
+    throw new StorageAccessRoleError(
       "IAM role auth is not available: LANGFUSE_CUSTOMER_STORAGE_ACCESS_ROLE_ARN is not set",
     );
   }
@@ -103,17 +129,28 @@ function getAccessRoleCredentials() {
         DurationSeconds: SESSION_DURATION_SECONDS,
       },
     })(),
-  );
+  ).catch((error: unknown) => {
+    const reason = error instanceof Error ? error.name : "UnknownError";
+    throw new StorageAccessRoleError(
+      `Langfuse could not assume its storage access role (${reason})`,
+    );
+  });
 }
 
+// STS only accepts these characters in session names and source identities.
 function sessionName(projectId: string) {
-  return `langfuse-${projectId}`.slice(0, 64);
+  return `langfuse-${projectId}`.replace(/[^\w+=,.@-]/g, "-").slice(0, 64);
+}
+
+function sessionTagValue(value: string) {
+  return value.replace(/[^\w+=,.@:/-]/g, "-").slice(0, 256);
 }
 
 /**
  * Credentials provider for a customer role, assumed through the Langfuse
  * access role with the integration's external ID, session tags and an inline
- * session policy. Never falls back to the default credential chain.
+ * session policy. Every new session first checks that the role's trust policy
+ * requires the external ID. Never falls back to the default credential chain.
  */
 export function getStorageRoleCredentialsProvider({
   cacheKey,
@@ -133,8 +170,9 @@ export function getStorageRoleCredentialsProvider({
   sessionPolicy: string;
 }) {
   return () =>
-    customerRoleSessions(cacheKey, version, () =>
-      fromTemporaryCredentials({
+    customerRoleSessions(cacheKey, version, async () => {
+      await verifyStorageRoleRequiresExternalId({ roleArn, projectId });
+      return fromTemporaryCredentials({
         masterCredentials: getAccessRoleCredentials,
         params: {
           RoleArn: roleArn,
@@ -144,12 +182,12 @@ export function getStorageRoleCredentialsProvider({
           DurationSeconds: SESSION_DURATION_SECONDS,
           Policy: sessionPolicy,
           Tags: [
-            { Key: "langfuse-project-id", Value: projectId },
-            { Key: "langfuse-org-id", Value: orgId },
+            { Key: "langfuse-project-id", Value: sessionTagValue(projectId) },
+            { Key: "langfuse-org-id", Value: sessionTagValue(orgId) },
           ],
         },
-      })(),
-    );
+      })();
+    });
 }
 
 function isAccessDeniedError(error: unknown) {
@@ -164,7 +202,7 @@ function isAccessDeniedError(error: unknown) {
  * must reject it; if AWS grants the session, the role is open to any caller
  * that can reach the Langfuse access role (confused deputy).
  */
-export async function verifyStorageRoleRequiresExternalId({
+async function verifyStorageRoleRequiresExternalId({
   roleArn,
   projectId,
 }: {
