@@ -308,14 +308,16 @@ export function ModernSessionFilterControls({
         ) : null}
       </Dialog>
 
-      <Dialog open={saveViewDialogOpen} onOpenChange={setSaveViewDialogOpen}>
+      <Dialog
+        open={saveViewDialogOpen}
+        onOpenChange={(open) => {
+          setSaveViewDialogOpen(open);
+          if (!open) setFilterDialogOpen(true);
+        }}
+      >
         {saveViewDialogOpen ? (
           <ModernSessionSaveViewDialogContent
             isSaving={createMutation.isPending}
-            onCancel={() => {
-              setSaveViewDialogOpen(false);
-              setFilterDialogOpen(true);
-            }}
             onSave={saveView}
           />
         ) : null}

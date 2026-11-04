@@ -349,7 +349,6 @@ export function ModernSessionSidebar(
         ) => void;
       }
   ) & {
-    onCustomizeView?: () => void;
     activeFilterCount?: number;
     observationLayout?: "flat" | "grouped";
   },
@@ -513,12 +512,9 @@ export function ModernSessionSidebar(
   );
   const activeFilterCount =
     props.activeFilterCount ?? filterControls?.activeFilterCount ?? 0;
-  const customization = props.onCustomizeView
-    ? { activeFilterCount, onCustomizeView: props.onCustomizeView }
-    : undefined;
   const sidebarSearch =
     props.observationLayout === "flat"
-      ? { search, onSearchChange: handleSearchChange, customization }
+      ? { search, onSearchChange: handleSearchChange }
       : undefined;
   const emptyListMessage = (() => {
     if (props.isLoadingMoreObservations) return "Loading observations...";

@@ -7,6 +7,7 @@ const mocks = vi.hoisted(() => ({
   assemble: vi.fn(),
   observations: vi.fn(),
   root: vi.fn(),
+  comments: vi.fn(),
 }));
 vi.mock("@langfuse/shared/src/server", async () => {
   const { normalizeSpanIO } =
@@ -17,6 +18,7 @@ vi.mock("@langfuse/shared/src/server", async () => {
     assembleTranscript: mocks.assemble,
     getObservationsForTraceFromEventsTable: mocks.observations,
     getObservationByIdFromEventsTable: mocks.root,
+    applyCommentFilters: mocks.comments,
     normalizeIO: ({ io }: { io: Parameters<typeof normalizeSpanIO>[0] }) =>
       normalizeSpanIO(io),
   };
@@ -37,6 +39,51 @@ beforeEach(() => {
   mocks.assemble.mockReset();
   mocks.observations.mockReset();
   mocks.root.mockReset();
+  mocks.comments.mockImplementation(
+    ({ filterState }: { filterState: unknown[] }) => ({
+      filterState,
+      hasNoMatches: false,
+    }),
+  );
+});
+
+it("passes position filters to repository ranking", async () => {
+  const filter = [
+    {
+      column: "positionInTrace",
+      type: "positionInTrace" as const,
+      operator: "=" as const,
+      key: "nthFromStart" as const,
+      value: 2,
+    },
+  ];
+  mocks.observations.mockResolvedValue({
+    observations: [
+      {
+        id: "ranked",
+        startTime: new Date(0),
+        endTime: new Date(1),
+        output: "Selected observation",
+        metadata: {},
+      },
+    ],
+    totalCount: 1,
+  });
+  const result = await loadTraceTranscript({
+    ...traceSource,
+    context: "session",
+    filter,
+  });
+    expect(mocks.observations).toHaveBeenCalledExactlyOnceWith({
+      ...traceSource,
+    filter,
+    selectIOAndMetadata: true,
+    limit: 1000,
+  });
+  expect(result.transcript?.threads).toHaveLength(1);
+  expect(result.transcript?.threads[0]?.currentTurn.observations).toEqual([
+    { id: "ranked", traceId: trace.traceId },
+  ]);
 });
 
 it.each(
@@ -265,9 +312,9 @@ it.each([
     });
     mocks.root.mockResolvedValue(root);
 
-    const result = await loadTraceTranscript({
-      ...trace,
-      fallbackToRootIO: true,
+      const result = await loadTraceTranscript({
+        ...trace,
+        fallbackToRootIO: true,
     });
 
     expect(mocks.root).toHaveBeenCalledWith({

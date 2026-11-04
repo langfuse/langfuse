@@ -7,6 +7,7 @@ import { Button } from "@/src/components/ui/button";
 import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
 import { ConfirmationDialogController } from "@/src/components/design-system/ConfirmationDialogController/ConfirmationDialogController";
 import { Form } from "@/src/components/design-system/Form/Form";
+import { Input } from "@/src/components/design-system/Input/Input";
 import { RadioCardGroup } from "@/src/components/design-system/RadioCardGroup/RadioCardGroup";
 import {
   SessionFilterInput,
@@ -24,8 +25,16 @@ export function SessionCustomizationDialog({
   initialViewMode,
   onApply,
   preview,
+  editing,
 }: {
   projectId: string;
+  editing?: {
+    name: string;
+    onNameChange: (name: string) => void;
+    pending: boolean;
+    disabled: boolean;
+    error?: string;
+  };
   initialFilters: FilterState;
   initialUnmatchedTraces: "show" | "hide";
   initialViewMode: SessionViewMode;
@@ -111,8 +120,18 @@ export function SessionCustomizationDialog({
   return (
     <Dialog
       size="lg"
-      title="Customize session view"
-      actions={[{ label: "Apply changes", type: "submit", form: formId }]}
+      title={editing ? "Edit view" : "Customize session view"}
+      actions={[
+        {
+          label: editing ? "Save changes" : "Apply changes",
+          type: "submit",
+          form: formId,
+          loading: editing?.pending,
+          disabled:
+            filterInput.invalid ||
+            (editing ? editing.disabled || !editing.name.trim() : false),
+        },
+      ]}
     >
       <ConfirmationDialogController<Parameters<typeof onApply>>
         title="Apply filters with no matching observations?"
@@ -133,6 +152,27 @@ export function SessionCustomizationDialog({
           >
             <div className="grid min-h-0 min-w-0 flex-1 overflow-y-auto md:grid-cols-2 md:grid-rows-[minmax(0,1fr)] md:overflow-hidden">
               <div className="flex flex-col gap-2 p-4 md:overflow-y-auto">
+                {editing && (
+                  <div className="mb-2 border-b pb-4">
+                    <Form.Field label="View name">
+                      {({ id }) => (
+                        <Input
+                          id={id}
+                          value={editing.name}
+                          onChange={(event) =>
+                            editing.onNameChange(event.target.value)
+                          }
+                          autoFocus
+                        />
+                      )}
+                    </Form.Field>
+                  </div>
+                )}
+                {editing?.error && (
+                  <p role="alert" className="text-destructive text-sm">
+                    {editing.error}
+                  </p>
+                )}
                 <Form.Field label="Observation filters">
                   {({ id }) => (
                     <SessionFilterInput

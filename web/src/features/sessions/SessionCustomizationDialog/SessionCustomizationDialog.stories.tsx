@@ -1,4 +1,5 @@
 import { expect, fn, userEvent, within } from "storybook/test";
+import { useState } from "react";
 import preview from "../../../../.storybook/preview";
 import { DialogController } from "@/src/components/design-system/DialogController/DialogController";
 import { SessionCustomizationDialog } from "./SessionCustomizationDialog";
@@ -141,6 +142,42 @@ export const TestObservationFilters = meta.story({
 export const Default = meta.story({
   tags: ["!test"],
   args: TestObservationFilters.input.args,
+});
+
+export const EditSavedView = Default.extend({
+  name: "(Test) Edit saved view",
+  render: function Render(args) {
+    const [name, setName] = useState("Saved generations");
+    return (
+      <SessionCustomizationDialog
+        {...args}
+        editing={{
+          name,
+          onNameChange: setName,
+          pending: false,
+          disabled: false,
+          error: undefined,
+        }}
+      />
+    );
+  },
+  play: async ({ args }) => {
+    const body = within(document.body);
+    const input = body.getByRole("textbox", { name: "View name" });
+    await expect(input).toHaveValue("Saved generations");
+    await userEvent.clear(input);
+    await expect(
+      body.getByRole("button", { name: "Save changes" }),
+    ).toBeDisabled();
+    await userEvent.type(input, "Renamed generations");
+    await userEvent.click(body.getByRole("button", { name: "Generations" }));
+    await userEvent.click(body.getByRole("button", { name: "Save changes" }));
+    await expect(args.onApply).toHaveBeenCalledWith(
+      [{ column: "type", type: "string", operator: "=", value: "GENERATION" }],
+      "show",
+      "conversational",
+    );
+  },
 });
 
 export const TestInvalidDraftKeepsPreview = TestObservationFilters.extend({

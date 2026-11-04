@@ -1,12 +1,6 @@
-import { z } from "zod";
-import {
-  singleFilterList,
-  stringFilter,
-  stringOptionsFilter,
-  arrayOptionsFilter,
-  stringObjectFilter,
-  booleanFilter,
-} from "../../interfaces/filters";
+import { singleFilterList } from "../../interfaces/filters";
+import { eventsTableCols } from "../../eventsTable";
+import { normalizeLegacySessionPositionInTraceFilters } from "./sessionPositionInTrace";
 import { type ColumnDefinition } from "../../tableDefinitions/types";
 
 export const sessionTraceFilterColumns: ColumnDefinition[] = [
@@ -59,6 +53,7 @@ export const sessionTraceFilterColumns: ColumnDefinition[] = [
 
 // Saved views and shared URLs created before observation filtering used root fields.
 const legacyObservationColumns: Record<string, string> = {
+  "Position in Trace": "positionInTrace",
   rootName: "name",
   rootType: "type",
   rootLevel: "level",
@@ -67,28 +62,42 @@ const legacyObservationColumns: Record<string, string> = {
 
 export const sessionTraceFilterSchema = singleFilterList
   .transform((filters) =>
-    filters.map((filter) => ({
-      ...filter,
-      column: legacyObservationColumns[filter.column] ?? filter.column,
-    })),
-  )
-  .pipe(
-    z.array(
-      z.discriminatedUnion("type", [
-        booleanFilter.extend({ column: z.literal("isRootObservation") }),
-        stringOptionsFilter.extend({ column: z.enum(["name", "traceName"]) }),
-        stringFilter.extend({
-          column: z.enum([
-            "traceName",
-            "userId",
-            "environment",
-            "name",
-            "type",
-            "level",
-          ]),
-        }),
-        arrayOptionsFilter.safeExtend({ column: z.literal("traceTags") }),
-        stringObjectFilter.extend({ column: z.literal("metadata") }),
-      ]),
+    normalizeLegacySessionPositionInTraceFilters(
+      filters.map((filter) => ({
+        ...filter,
+        column:
+          legacyObservationColumns[filter.column] ??
+          eventsTableCols.find(
+            (column: ColumnDefinition) =>
+              column.name === filter.column ||
+              column.aliases?.includes(filter.column),
+          )?.id ??
+          filter.column,
+      })),
     ),
-  );
+  )
+  .superRefine((filters, ctx) => {
+    filters.forEach((filter, index) => {
+      if (
+        filter.type === "positionInTrace" &&
+        filter.column === "positionInTrace"
+      )
+        return;
+      const column: ColumnDefinition | undefined = eventsTableCols.find(
+        (column) => column.id === filter.column,
+      );
+      if (
+        column &&
+        (filter.type === column.type ||
+          (filter.type === "string" && column.type === "stringOptions") ||
+          (filter.type === "stringOptions" && column.type === "string") ||
+          (filter.type === "null" && column.nullable))
+      )
+        return;
+      ctx.addIssue({
+        code: "custom",
+        path: [index],
+        message: `Unsupported session filter: ${filter.column} (${filter.type})`,
+      });
+    });
+  });
