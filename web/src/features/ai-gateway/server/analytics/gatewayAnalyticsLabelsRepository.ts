@@ -1,5 +1,10 @@
 import type { PrismaClient } from "@langfuse/shared/src/db";
 
+import {
+  getKeyOwnerFilter,
+  type GatewayUsageScope,
+} from "@/src/features/ai-gateway/server/gatewayUsageScope";
+
 type LabelUser = { id: string; name: string | null; email: string | null };
 
 /**
@@ -12,16 +17,15 @@ export class GatewayAnalyticsLabelsRepository {
   /**
    * Gateway keys are always included. Plain organization keys can also call
    * the gateway, but only callers who may list organization API keys get them.
-   * With `ownerUserId`, only that user and the keys bound to them are named.
+   * With an `ownUsage` scope, only that user and the keys bound to them are named.
    */
   async getLabels(params: {
     organizationId: string;
     includePlainOrganizationKeys: boolean;
-    ownerUserId?: string;
+    usageScope: GatewayUsageScope;
   }) {
-    const ownedBy = params.ownerUserId !== undefined && {
-      userId: params.ownerUserId,
-    };
+    const ownerUserId = getKeyOwnerFilter(params.usageScope);
+    const ownedBy = ownerUserId !== undefined && { userId: ownerUserId };
     const [keys, memberships] = await Promise.all([
       this.prisma.apiKey.findMany({
         where: {
