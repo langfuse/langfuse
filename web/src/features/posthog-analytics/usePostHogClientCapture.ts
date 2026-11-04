@@ -534,6 +534,9 @@ const events = {
   // never carry a raw filter value, search text, or AI prompt (PII). Only
   // type/column/operator/key(field-name)/counts/lengths/booleans/enums.
   // `isV4` on every event reflects fast-mode (v4 events table) at action time.
+  // "Do people run a production review, and does it finish?"
+  // outcome is ready or failed. The report markdown stays out of analytics.
+  production_review: ["created"],
   filters: [
     "applied",
     "cleared",
