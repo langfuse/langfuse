@@ -52,7 +52,7 @@ export async function topicFilterConditions(
     return topicFilters.flatMap((topicFilter) =>
       topicFilter.operator === "none of"
         ? []
-        : [{ query: "0 = 1", params: {} }],
+        : [{ query: "0 = 1", params: {} as Record<string, unknown> }],
     );
 
   const [facets, { runIds, maps }] = await Promise.all([
