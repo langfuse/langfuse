@@ -778,6 +778,9 @@ describe("Blob Storage Integration tRPC Router", () => {
         });
         expect(first.config?.externalId).toMatch(/^lf-[0-9a-f]{32}$/);
         expect(second.config?.externalId).toBe(first.config?.externalId);
+        // The trust policy cannot reference a newly minted external ID yet.
+        expect(first.config?.enabled).toBe(false);
+        expect(second.config?.enabled).toBe(true);
 
         const stored = await prisma.blobStorageIntegration.findUnique({
           where: { projectId: project.id },

@@ -336,8 +336,13 @@ export async function upsertBlobStorageIntegration(params: {
       throw new InvalidRequestError("Secret access key is required");
     }
 
+    // A new external ID cannot be in the customer's trust policy yet, so the
+    // first export would fail with AccessDenied and auto-disable the
+    // integration. Save it disabled until the customer finishes setup.
+    const mintsExternalId = usesRole && !existing?.externalId;
+    const enabled = data.enabled && !mintsExternalId;
     const modeChanged = existing && existing.exportMode !== data.exportMode;
-    const justEnabled = data.enabled && !existing?.enabled;
+    const justEnabled = enabled && !existing?.enabled;
     const encryptedSecret = secretAccessKey ? encrypt(secretAccessKey) : null;
     // An update without a new secret writes back the stored secret checked
     // above, never omits the column: a concurrent save that changed the secret
@@ -368,6 +373,7 @@ export async function upsertBlobStorageIntegration(params: {
       where: { projectId },
       create: {
         ...writeData,
+        enabled,
         exportSource: params.createExportSource,
         // Parquet is the default export format; apply it when the caller omits
         // fileType on CREATE. This app-level fallback (not the Prisma column
@@ -379,11 +385,12 @@ export async function upsertBlobStorageIntegration(params: {
       },
       update: {
         ...writeData,
+        enabled,
         secretAccessKey: nextSecretAccessKey,
         externalId,
         // Schedule an immediate retry when saving an errored integration
         // so the scheduler picks it up via the nextSyncAt clause.
-        ...(existing?.lastError && data.enabled && !modeChanged
+        ...(existing?.lastError && enabled && !modeChanged
           ? { nextSyncAt: new Date() }
           : {}),
         // Reset sync state when export mode changes so the new mode's
@@ -395,7 +402,7 @@ export async function upsertBlobStorageIntegration(params: {
         ...(modeChanged || justEnabled ? { backfill: true } : {}),
         // Saving enabled resets the failure-notification cooldown: the
         // customer just acted, so a fresh failure should email promptly.
-        ...(data.enabled ? { lastFailureNotificationSentAt: null } : {}),
+        ...(enabled ? { lastFailureNotificationSentAt: null } : {}),
         runStartedAt: null,
       },
     });

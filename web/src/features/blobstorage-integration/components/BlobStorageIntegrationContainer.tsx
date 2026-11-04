@@ -67,8 +67,17 @@ export const BlobStorageIntegrationContainer = ({
 
   const utils = api.useUtils();
   const mut = api.blobStorageIntegration.update.useMutation({
-    onSuccess: () => {
+    onSuccess: (data, variables) => {
       utils.blobStorageIntegration.invalidate();
+      if (variables.enabled && !data.enabled) {
+        showSuccessToast({
+          operation: "blob_storage.save",
+          title: "Saved, exports are paused",
+          description:
+            "Add the trust policy with the new external ID to your role, click Validate, then enable exports.",
+          duration: 10000,
+        });
+      }
     },
     onError: (error) => {
       showErrorToast(

@@ -8681,10 +8681,12 @@ components:
             `secretAccessKey`.
 
 
-            The external ID is generated on the first save and stays the same
-            afterwards. Create the integration, add the trust policy for
-            `accessRoleArn` with the returned `externalId` to your role, then
-            enable exports.
+            The external ID is generated on the first save that uses `ROLE_ARN`
+            and stays the same afterwards. That save stores the integration with
+            `enabled: false`, because the trust policy cannot reference the new
+            ID yet. Add the trust policy for `accessRoleArn` with the returned
+            `externalId` to your role, then update the integration with
+            `enabled: true`.
         roleArn:
           type: string
           nullable: true
