@@ -62,6 +62,31 @@ async function emitPendingHeadAge(
   });
 }
 
+async function collectOldestWaitingAgeMs(queue: Queue): Promise<number> {
+  // One ID from the processing end of each ready state, then two small hash
+  // fields per ID; never the job payload. "prioritized" orders by priority,
+  // so its head is the next job to run rather than necessarily the oldest.
+  const ids = await queue.getRanges(
+    ["wait", "paused", "prioritized"],
+    0,
+    0,
+    true,
+  );
+  if (ids.length === 0) return 0;
+  const client = await queue.client;
+  const heads = await Promise.all(
+    ids.map(async (id) => {
+      const [timestamp, opts] = await client.hmget(
+        queue.toKey(id),
+        "timestamp",
+        "opts",
+      );
+      return { timestamp, opts };
+    }),
+  );
+  return WorkerManager.computeOldestWaitingAgeMs(heads, Date.now());
+}
+
 async function collectDepth(
   queue: Queue,
 ): Promise<Record<DepthType, number> | null> {
@@ -207,6 +232,22 @@ export class QueueMetricsRunner extends PeriodicRunner {
       );
 
       promises.push(
+        collectOldestWaitingAgeMs(queue)
+          .then((age) => {
+            recordGauge(metricBase + ".oldest_waiting_age_ms", age, {
+              unit: "milliseconds",
+            });
+          })
+          .catch((err) => {
+            this.markRunFailed(err);
+            logger.error(
+              `Queue metrics: failed to collect oldest waiting age for ${queueName}`,
+              err,
+            );
+          }),
+      );
+
+      promises.push(
         collectDepth(queue)
           .then((depths) => {
             if (depths) {
@@ -272,6 +313,46 @@ export class QueueMetricsRunner extends PeriodicRunner {
             shard: "all",
             unit: "milliseconds",
           });
+        }),
+      );
+
+      const waitingAgePromises = shardNames.map((shardName) => {
+        const queue = config.getInstance(shardName);
+        if (!queue) return Promise.resolve(null);
+
+        return collectOldestWaitingAgeMs(queue)
+          .then((age) => {
+            recordGauge(metricBase + ".oldest_waiting_age_ms", age, {
+              shard: shardName,
+              unit: "milliseconds",
+            });
+            return age;
+          })
+          .catch((err) => {
+            this.markRunFailed(err);
+            logger.error(
+              `Queue metrics: failed to collect oldest waiting age for ${shardName}`,
+              err,
+            );
+            return null;
+          });
+      });
+
+      promises.push(
+        Promise.allSettled(waitingAgePromises).then((results) => {
+          const ages: number[] = [];
+          for (const result of results) {
+            if (result.status === "fulfilled" && result.value !== null) {
+              ages.push(result.value);
+            }
+          }
+          if (ages.length === 0) return;
+
+          recordGauge(
+            metricBase + ".oldest_waiting_age_ms",
+            Math.max(...ages),
+            { shard: "all", unit: "milliseconds" },
+          );
         }),
       );
 

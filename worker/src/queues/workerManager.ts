@@ -71,6 +71,37 @@ export class WorkerManager {
   }
 
   /**
+   * Age of the oldest job ready to run, given the raw `timestamp` and `opts`
+   * hash fields of each waiting state's head job. A job is ready at
+   * timestamp + opts.delay; BullMQ zeroes the hash `delay` field on promotion,
+   * so only opts keeps it. Retries keep their first timestamp, so a retry at
+   * the head reads older than its current wait. No heads emit 0 so the gauge
+   * resets once the backlog drains.
+   */
+  public static computeOldestWaitingAgeMs(
+    heads: { timestamp: string | null; opts: string | null }[],
+    nowMs: number,
+  ): number {
+    let oldestAgeMs = 0;
+    for (const head of heads) {
+      const timestamp = Number(head.timestamp);
+      if (head.timestamp === null || !Number.isFinite(timestamp)) continue;
+      let delayMs = 0;
+      try {
+        const delay = (JSON.parse(head.opts ?? "{}") as { delay?: unknown })
+          .delay;
+        if (typeof delay === "number" && Number.isFinite(delay)) {
+          delayMs = Math.max(0, delay);
+        }
+      } catch {
+        // Unparseable opts: measure from the enqueue timestamp.
+      }
+      oldestAgeMs = Math.max(oldestAgeMs, nowMs - (timestamp + delayMs));
+    }
+    return oldestAgeMs;
+  }
+
+  /**
    * Queue wait before the current pickup: first attempts measure from
    * timestamp + opts.delay; retries and stall re-runs return undefined because
    * BullMQ keeps no record of when they became ready again.

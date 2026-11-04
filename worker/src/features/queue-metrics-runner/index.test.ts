@@ -4,6 +4,8 @@ const mocks = vi.hoisted(() => ({
   flushMetricsToCloudWatch: vi.fn(),
   getFailed: vi.fn(),
   getJobCounts: vi.fn(),
+  getRanges: vi.fn(),
+  hmget: vi.fn(),
   recordGauge: vi.fn(),
   recordIncrement: vi.fn(),
   redisSet: vi.fn(),
@@ -47,6 +49,7 @@ vi.mock("../../env", () => ({
 vi.mock("../../queues/workerManager", () => ({
   WorkerManager: {
     computeDlqOldestAgeMs: vi.fn(() => 0),
+    computeOldestWaitingAgeMs: vi.fn(() => 4_000),
     getRegisteredQueueNames: vi.fn(() => ["trace-delete"]),
   },
 }));
@@ -57,6 +60,9 @@ vi.mock("../../queues/shardedQueueRegistry", () => ({
   resolveQueueInstance: vi.fn(() => ({
     getFailed: mocks.getFailed,
     getJobCounts: mocks.getJobCounts,
+    getRanges: mocks.getRanges,
+    client: Promise.resolve({ hmget: mocks.hmget }),
+    toKey: (id: string) => `bull:trace-delete:${id}`,
   })),
 }));
 
@@ -83,6 +89,8 @@ describe("QueueMetricsRunner", () => {
     vi.clearAllMocks();
     mocks.redisSet.mockResolvedValue("OK");
     mocks.getFailed.mockResolvedValue([]);
+    mocks.getRanges.mockResolvedValue(["job-1"]);
+    mocks.hmget.mockResolvedValue(["1000", "{}"]);
     mocks.getJobCounts.mockResolvedValue({
       active: 2,
       failed: 3,
@@ -107,10 +115,30 @@ describe("QueueMetricsRunner", () => {
       "active",
       "delayed",
     );
-    expect(mocks.recordGauge).toHaveBeenCalledTimes(5);
+    expect(mocks.recordGauge).toHaveBeenCalledTimes(6);
     expect(mocks.recordGauge).toHaveBeenCalledWith(
       "langfuse.queue.trace_delete.dlq_oldest_age",
       0,
+      { unit: "milliseconds" },
+    );
+    expect(mocks.getRanges).toHaveBeenCalledWith(
+      ["wait", "paused", "prioritized"],
+      0,
+      0,
+      true,
+    );
+    expect(mocks.hmget).toHaveBeenCalledWith(
+      "bull:trace-delete:job-1",
+      "timestamp",
+      "opts",
+    );
+    expect(WorkerManager.computeOldestWaitingAgeMs).toHaveBeenCalledWith(
+      [{ timestamp: "1000", opts: "{}" }],
+      expect.any(Number),
+    );
+    expect(mocks.recordGauge).toHaveBeenCalledWith(
+      "langfuse.queue.trace_delete.oldest_waiting_age_ms",
+      4_000,
       { unit: "milliseconds" },
     );
     expect(mocks.recordGauge).toHaveBeenCalledWith(
@@ -141,6 +169,19 @@ describe("QueueMetricsRunner", () => {
     expect(mocks.flushMetricsToCloudWatch).toHaveBeenCalledTimes(1);
   });
 
+  it("emits 0 oldest waiting age without reading job hashes when nothing waits", async () => {
+    mocks.getRanges.mockResolvedValue([]);
+
+    await new TestQueueMetricsRunner().executeOnce();
+
+    expect(mocks.hmget).not.toHaveBeenCalled();
+    expect(mocks.recordGauge).toHaveBeenCalledWith(
+      "langfuse.queue.trace_delete.oldest_waiting_age_ms",
+      0,
+      { unit: "milliseconds" },
+    );
+  });
+
   it("polls nothing when another worker already claimed the interval", async () => {
     mocks.redisSet.mockResolvedValue(null);
 
@@ -155,6 +196,7 @@ describe("QueueMetricsRunner", () => {
     );
     expect(mocks.getJobCounts).not.toHaveBeenCalled();
     expect(mocks.getFailed).not.toHaveBeenCalled();
+    expect(mocks.getRanges).not.toHaveBeenCalled();
     expect(
       mocks.updateActiveIngestFailureProjectsMetric,
     ).not.toHaveBeenCalled();

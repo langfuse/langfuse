@@ -318,7 +318,12 @@ export const flushMetricsToCloudWatch = () => {
 // Metrics ending with these suffixes have their tags flattened into the
 // CloudWatch metric name (excluding CW_UNFLATTENED_TAGS). Other metrics are
 // unaffected.
-const CW_TAG_FLATTENED_SUFFIXES = [".depth", ".rate", ".dlq_oldest_age"];
+const CW_TAG_FLATTENED_SUFFIXES = [
+  ".depth",
+  ".rate",
+  ".dlq_oldest_age",
+  ".oldest_waiting_age_ms",
+];
 // "reason" and "attempt" are Datadog-only breakdowns; flattening them would
 // rename existing CloudWatch series.
 const CW_UNFLATTENED_TAGS = new Set(["unit", "reason", "attempt"]);

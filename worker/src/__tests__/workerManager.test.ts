@@ -117,6 +117,49 @@ describe("WorkerManager", () => {
     });
   });
 
+  describe("computeOldestWaitingAgeMs", () => {
+    const computeOldestWaitingAgeMs = (
+      ...args: Parameters<typeof WorkerManager.computeOldestWaitingAgeMs>
+    ) => WorkerManager.computeOldestWaitingAgeMs(...args);
+
+    it("returns 0 when no state has a head job", () => {
+      expect(computeOldestWaitingAgeMs([], 5_000)).toBe(0);
+    });
+
+    it("measures from readiness, timestamp plus opts.delay", () => {
+      expect(
+        computeOldestWaitingAgeMs(
+          [{ timestamp: "1000", opts: JSON.stringify({ delay: 500 }) }],
+          4_000,
+        ),
+      ).toBe(2_500);
+    });
+
+    it("takes the oldest head across states", () => {
+      expect(
+        computeOldestWaitingAgeMs(
+          [
+            { timestamp: "3000", opts: "{}" },
+            { timestamp: "1000", opts: null },
+          ],
+          4_000,
+        ),
+      ).toBe(3_000);
+    });
+
+    it("skips heads whose hash vanished and tolerates unparseable opts", () => {
+      expect(
+        computeOldestWaitingAgeMs(
+          [
+            { timestamp: null, opts: null },
+            { timestamp: "1000", opts: "not json" },
+          ],
+          4_000,
+        ),
+      ).toBe(3_000);
+    });
+  });
+
   describe("computeWaitTimeMs", () => {
     // BullMQ increments attemptsStarted when it moves the job to active, so
     // the processor sees 1 on the first pickup.
