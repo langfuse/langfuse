@@ -109,7 +109,7 @@ const QA_CONTEXT = [
     id: "kb-python-sdk",
     title: "Python quickstart",
     score: 0.79,
-    text: "Authenticate with an API key in the Authorization header: `Bearer <ACME_API_KEY>`. Base URL: https://api.acme-robotics.io/v2.",
+    text: "Authenticate with an API key in the Authorization header: `Bearer <ACME_API_KEY>`. Base URL: https://api.acme-robotics.example/v2.",
   },
 ];
 
@@ -187,7 +187,7 @@ const QA_ANSWER =
   "exponential backoff:\n\n" +
   "```python\n" +
   "import os\nimport time\n\nimport requests\n\n" +
-  'BASE_URL = "https://api.acme-robotics.io/v2"\n' +
+  'BASE_URL = "https://api.acme-robotics.example/v2"\n' +
   'HEADERS = {"Authorization": f"Bearer {os.environ[\'ACME_API_KEY\']}"}\n\n\n' +
   "def get_with_retry(path, max_retries=5):\n" +
   "    for attempt in range(max_retries):\n" +
@@ -712,7 +712,7 @@ const TRAFFIC: TraceSpec[] = [
     74,
     "dev-omar.haddad",
     "Is there a sandbox environment for the Fleet API?",
-    "Yes, use https://sandbox.acme-robotics.io/v2 with a sandbox key from the developer console.",
+    "Yes, use https://sandbox.acme-robotics.example/v2 with a sandbox key from the developer console.",
     ["rag"],
   ),
 ];

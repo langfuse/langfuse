@@ -548,7 +548,7 @@ export const docsDemoDatasetsScenario: ScenarioDefinition = {
       environment: ctx.environment,
       name: "support-chat",
       timestamp: chatTs,
-      user_id: "jordan.lee@northwind.io",
+      user_id: "jordan.lee@northwind.example",
       session_id: null,
       release: "2026.10.18",
       version: "support-bot-v2",

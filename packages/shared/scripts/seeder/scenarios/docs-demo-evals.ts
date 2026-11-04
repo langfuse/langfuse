@@ -135,9 +135,9 @@ const CONVERSATIONS: {
       "Open Settings → Billing → Invoices and click Download next to any invoice. To export several at once, select them and choose Export as PDF.",
     article: {
       title: "Download invoices",
-      url: "https://help.acme.dev/billing/invoices",
+      url: "https://help.acme.example/billing/invoices",
     },
-    user: "lena.fischer@northwind.io",
+    user: "lena.fischer@northwind.example",
     tags: ["billing"],
   },
   {
@@ -146,9 +146,9 @@ const CONVERSATIONS: {
       "A 401 means the API key was rejected. Keys created before the March rotation expired today; create a new key under Settings → API Keys and update your integration.",
     article: {
       title: "Rotate API keys",
-      url: "https://help.acme.dev/api/keys",
+      url: "https://help.acme.example/api/keys",
     },
-    user: "dev-team@brightlane.com",
+    user: "dev-team@brightlane.example",
     tags: ["technical"],
   },
   {
@@ -157,9 +157,9 @@ const CONVERSATIONS: {
       "Yes. Upgrades apply immediately and we prorate the rest of your current cycle, so you only pay the difference.",
     article: {
       title: "Change your plan",
-      url: "https://help.acme.dev/billing/plans",
+      url: "https://help.acme.example/billing/plans",
     },
-    user: "marco.rossi@kitewave.co",
+    user: "marco.rossi@kitewave.example",
     tags: ["billing"],
   },
   {
@@ -168,20 +168,20 @@ const CONVERSATIONS: {
       "Thanks for the suggestion! Dark mode is on our roadmap for the mobile app. I've added your vote to the request.",
     article: {
       title: "Product roadmap",
-      url: "https://help.acme.dev/roadmap",
+      url: "https://help.acme.example/roadmap",
     },
-    user: "sam.okafor@gmail.com",
+    user: "sam.okafor@mail.example",
     tags: ["feedback"],
   },
   {
     message: "I forgot my password and the reset email never arrives.",
     answer:
-      "Reset emails come from no-reply@acme.dev and can take a few minutes. Check your spam folder; if it is not there, I can trigger a new reset link for you.",
+      "Reset emails come from no-reply@acme.example and can take a few minutes. Check your spam folder; if it is not there, I can trigger a new reset link for you.",
     article: {
       title: "Reset your password",
-      url: "https://help.acme.dev/account/password",
+      url: "https://help.acme.example/account/password",
     },
-    user: "priya.nair@outlook.com",
+    user: "priya.nair@mail.example",
     tags: ["account"],
   },
   {
@@ -190,9 +190,9 @@ const CONVERSATIONS: {
       "We do: registered nonprofits get 50% off the Team plan. Apply with proof of status via the nonprofit form and we'll update your subscription.",
     article: {
       title: "Nonprofit program",
-      url: "https://help.acme.dev/billing/nonprofit",
+      url: "https://help.acme.example/billing/nonprofit",
     },
-    user: "hello@greenroots.org",
+    user: "hello@greenroots.example",
     tags: ["sales"],
   },
   {
@@ -201,9 +201,9 @@ const CONVERSATIONS: {
       "Sorry about that! Plan changes can take up to an hour to reach invoices. I've regenerated your latest invoice with the Team plan; it's available under Settings → Billing now.",
     article: {
       title: "Invoice corrections",
-      url: "https://help.acme.dev/billing/corrections",
+      url: "https://help.acme.example/billing/corrections",
     },
-    user: "ops@quantumleaf.io",
+    user: "ops@quantumleaf.example",
     tags: ["billing"],
   },
 ];
