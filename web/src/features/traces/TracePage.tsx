@@ -16,6 +16,7 @@ import useIsFeatureEnabled from "@/src/features/feature-flags/hooks/useIsFeature
 import { getTraceScopeTabs } from "./fns/getTraceScopeTabs";
 import { getTraceScopeQuery } from "./fns/getTraceScopeQuery";
 import { resolveTraceScope } from "./fns/resolveTraceScope";
+import { api } from "@/src/utils/api";
 
 export function TracePage({
   traceId,
@@ -25,6 +26,7 @@ export function TracePage({
   timestamp?: Date;
 }) {
   const router = useRouter();
+  const utils = api.useUtils();
   const session = useSession();
   const { isV4 } = useReadPath();
   const routeProjectId = (router.query.projectId as string) ?? "";
@@ -123,7 +125,21 @@ export function TracePage({
             const query = getTraceScopeQuery(
               router.query,
               next,
-              trace.data?.observations,
+              [
+                ...(trace.data?.observations ?? []),
+                ...(sessionId
+                  ? (utils.sessions.observationsForSessionFromEvents.getData({
+                      projectId: routeProjectId,
+                      sessionId,
+                    })?.observations ?? [])
+                  : []),
+              ],
+              sessionId
+                ? utils.sessions.tracesFromEvents.getData({
+                    projectId: routeProjectId,
+                    sessionId,
+                  })
+                : undefined,
             );
             return router.replace(
               { pathname: router.pathname, query },
