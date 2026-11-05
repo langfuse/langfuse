@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { writeFileSync } from "node:fs";
 import { parseArgs } from "node:util";
 import { env } from "../../src/env";
+import { prisma } from "../../src/db";
 import {
   listAgents,
   getAgentDetail,
@@ -12,6 +13,10 @@ import {
   getAgentEnvironments,
 } from "../../src/server/repositories/agents";
 import { buildAgentsMvpFixture } from "./scenarios/agents-mvp";
+import {
+  AGENTS_MVP_UNRESOLVED_SKILL,
+  agentsMvpManagedSkillName,
+} from "./scenarios/agents-mvp-skills";
 
 async function main() {
   const { values } = parseArgs({
@@ -27,6 +32,9 @@ async function main() {
   });
   const endpoint = new URL(env.CLICKHOUSE_URL);
   assert(["localhost", "127.0.0.1"].includes(endpoint.hostname));
+  const postgresUrl = process.env.DATABASE_URL;
+  assert(postgresUrl, "DATABASE_URL must point to the local fixture database");
+  assert(["localhost", "127.0.0.1"].includes(new URL(postgresUrl).hostname));
   const projectId = values.project;
   const prefix = values.prefix;
   const fixture = buildAgentsMvpFixture(
@@ -127,9 +135,71 @@ async function main() {
   assert(
     skills.items.every(
       (s) =>
-        s.name === "citation-style" &&
+        s.name === agentsMvpManagedSkillName(prefix) &&
+        s.skillId &&
         s.skillVersion &&
         s.sampleTraceIds.length,
+    ),
+  );
+  assertions++;
+  const observedManaged = [];
+  let unresolved = 0;
+  for (const agent of list.items) {
+    const resources = await timed(`skills-${agent.identity.value}`, () =>
+      getAgentSkills({
+        ...scope,
+        identity: agent.identity,
+        page: 0,
+        pageSize: 100,
+      }),
+    );
+    const managed = resources.items.filter(
+      (skill) => skill.name === agentsMvpManagedSkillName(prefix),
+    );
+    assert(managed.length > 0);
+    assertions++;
+    assert(
+      managed.every(
+        (skill) =>
+          skill.skillId && skill.skillVersion && skill.sampleTraceIds.length,
+      ),
+    );
+    assertions++;
+    observedManaged.push(...managed);
+    unresolved += resources.items.filter(
+      (skill) =>
+        skill.name === AGENTS_MVP_UNRESOLVED_SKILL &&
+        !skill.skillId &&
+        !skill.skillVersion,
+    ).length;
+  }
+  assert.equal(unresolved, 1);
+  assertions++;
+  assert.deepEqual(
+    new Set(observedManaged.map((skill) => skill.skillVersion)),
+    new Set([1, 2]),
+  );
+  assertions++;
+  const catalog = await prisma.skill.findMany({
+    where: {
+      projectId,
+      OR: observedManaged.map((skill) => ({
+        id: skill.skillId!,
+        version: skill.skillVersion!,
+      })),
+    },
+    select: { id: true, version: true, name: true },
+  });
+  assert.equal(catalog.length, 2);
+  assertions++;
+  assert(
+    observedManaged.every((skill) =>
+      catalog.some(
+        (version) =>
+          version.id === skill.skillId &&
+          version.version === skill.skillVersion &&
+          version.name === skill.name,
+      ),
     ),
   );
   assertions++;

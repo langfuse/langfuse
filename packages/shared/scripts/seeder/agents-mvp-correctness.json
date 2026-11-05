@@ -1,82 +1,114 @@
 {
   "status": "passed",
-  "assertions": 50,
+  "assertions": 70,
   "measurements": [
     {
       "name": "gallery",
-      "durationMs": 40.76
+      "durationMs": 39.93
     },
     {
       "name": "environments",
-      "durationMs": 7.01
+      "durationMs": 10.49
     },
     {
       "name": "accounting-0",
-      "durationMs": 12.33
+      "durationMs": 16.5
     },
     {
       "name": "runs-0",
-      "durationMs": 16.55
+      "durationMs": 21.94
     },
     {
       "name": "traces-0",
-      "durationMs": 10.7
+      "durationMs": 14.71
     },
     {
       "name": "accounting-2",
-      "durationMs": 11.51
+      "durationMs": 15.67
     },
     {
       "name": "runs-2",
-      "durationMs": 14.1
+      "durationMs": 21.54
     },
     {
       "name": "traces-2",
-      "durationMs": 9.18
+      "durationMs": 14.23
     },
     {
       "name": "accounting-3",
-      "durationMs": 29.6
+      "durationMs": 15.71
     },
     {
       "name": "runs-3",
-      "durationMs": 12.77
+      "durationMs": 24.04
     },
     {
       "name": "traces-3",
-      "durationMs": 8.62
+      "durationMs": 15.05
     },
     {
       "name": "skills",
-      "durationMs": 6.46
+      "durationMs": 11.8
+    },
+    {
+      "name": "skills-agentique:0",
+      "durationMs": 11.62
+    },
+    {
+      "name": "skills-agentique:5",
+      "durationMs": 11.3
+    },
+    {
+      "name": "skills-agentique:1",
+      "durationMs": 11.35
+    },
+    {
+      "name": "skills-agentique:2",
+      "durationMs": 11.39
+    },
+    {
+      "name": "skills-agentique:3",
+      "durationMs": 10.41
+    },
+    {
+      "name": "skills-agentique:4",
+      "durationMs": 11
+    },
+    {
+      "name": "skills-agentique:6",
+      "durationMs": 11.59
+    },
+    {
+      "name": "skills-native-name-only",
+      "durationMs": 10.56
     },
     {
       "name": "info",
-      "durationMs": 16.9
+      "durationMs": 27.75
     },
     {
       "name": "name-fallback",
-      "durationMs": 10.15
+      "durationMs": 16.13
     },
     {
       "name": "project-isolation",
-      "durationMs": 8.82
+      "durationMs": 16.45
     },
     {
       "name": "crossing-period-detail",
-      "durationMs": 9.31
+      "durationMs": 15.32
     },
     {
       "name": "crossing-period-traces",
-      "durationMs": 24.34
+      "durationMs": 13.96
     },
     {
       "name": "crossing-period-gallery",
-      "durationMs": 10.22
+      "durationMs": 14.86
     },
     {
       "name": "explicit-identity-without-owner",
-      "durationMs": 9.73
+      "durationMs": 15.1
     }
   ],
   "list": {

@@ -46,14 +46,24 @@ default, up to 100000, plus one invocation crossing the selected period).
 The parent aggregate deliberately repeats the three model leaves' 17,107 input
 and 491 output tokens; Agents must count the leaves once. Start with
 `pnpm run seed -- agents-mvp --environment production`; add `--runs 10000`
-for a larger local cohort. This scenario writes v4 events only. Run table
+for a larger local cohort. Start the seeded web app first and set
+`NEXTAUTH_URL` to its local or disposable PR preview URL (for example,
+`NEXTAUTH_URL=http://localhost:3017`). The scenario uses only the synthetic
+seed API key and verifies its project before creating two managed skill
+versions in a prefix-scoped namespace through the public Skills API. Repeating
+the same prefix reuses matching versions; conflicting content fails without
+overwriting it. Native references contain exact catalog IDs and versions, and
+one unregistered resource remains as an unresolved example. Add `--legacy-api`
+to exercise queued public JSON ingestion in a separate trace namespace.
+The main fixture writes v4 events only. Run table
 bootstrap before seeding: `ch:dev-tables` rebuilds event tables and removes
 v4-only fixture data.
 
 Run `pnpm --filter @langfuse/shared run agents:verify --date 2026-11-05
 --prefix agents-mvp-proof-20261105` after seeding that 80-invocation fixture.
 This read-only verifier checks accounting, updates, tombstones, environment
-changes, skills, source evidence and activity crossing the selected period.
+changes, exact managed-skill catalog references for all eight agents, the
+unresolved resource, source evidence and activity crossing the selected period.
 Use `pnpm --filter @langfuse/shared run agents:benchmark --from
 2026-11-04T11:00:00Z --to 2026-11-04T15:00:00Z --environment production
 --output scripts/seeder/agents-mvp-performance.json` for the larger fixture.

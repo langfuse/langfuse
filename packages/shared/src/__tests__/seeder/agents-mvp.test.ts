@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 vi.mock("../../server/test-utils/clickhouse-helpers", () => ({
   createEventsCh: vi.fn(),
 }));
@@ -8,11 +8,30 @@ vi.mock("../../../scripts/seeder/scenarios/verify", async (original) => ({
   >()),
   countRows: vi.fn(),
 }));
+vi.mock(
+  "../../../scripts/seeder/scenarios/agents-mvp-skills",
+  async (original) => ({
+    ...(await original<
+      typeof import("../../../scripts/seeder/scenarios/agents-mvp-skills")
+    >()),
+    seedAgentsMvpSkills: vi.fn(),
+  }),
+);
+vi.mock("../../../scripts/seeder/scenarios/agents-mvp-legacy-api", () => ({
+  seedAgentsMvpLegacyApi: vi.fn(),
+}));
 import {
   agentsMvpScenario,
   buildAgentsMvpFixture,
 } from "../../../scripts/seeder/scenarios/agents-mvp";
 import { countRows } from "../../../scripts/seeder/scenarios/verify";
+import { createEventsCh } from "../../server/test-utils/clickhouse-helpers";
+import {
+  agentsMvpManagedSkillName,
+  AGENTS_MVP_UNRESOLVED_SKILL,
+  seedAgentsMvpSkills,
+} from "../../../scripts/seeder/scenarios/agents-mvp-skills";
+import { seedAgentsMvpLegacyApi } from "../../../scripts/seeder/scenarios/agents-mvp-legacy-api";
 
 const context = {
   projectId: "fixture-project",
@@ -26,6 +45,52 @@ const context = {
 const params = { runs: 80, date: "2026-11-05" };
 
 describe("Agents MVP deterministic telemetry fixture", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(seedAgentsMvpSkills).mockResolvedValue(
+      [1, 2].map((version) => ({
+        id: `managed-v${version}`,
+        name: agentsMvpManagedSkillName(context.idPrefix),
+        version,
+      })),
+    );
+  });
+  it("writes exact managed skill version references and retains an unresolved resource", async () => {
+    vi.mocked(countRows).mockResolvedValueOnce(81);
+    await agentsMvpScenario.run({ ...context, dryRun: false }, params);
+    const written = vi
+      .mocked(createEventsCh)
+      .mock.calls.flatMap(([rows]) => rows);
+    const loaded = written.flatMap((row) => row.skills_resource_loaded ?? []);
+    const managed = loaded.filter(
+      (skill) =>
+        skill.skillName === agentsMvpManagedSkillName(context.idPrefix),
+    );
+    expect(managed.length).toBeGreaterThan(0);
+    expect(
+      managed.every(
+        (skill) => skill.langfuseSkillId === `managed-v${skill.skillVersion}`,
+      ),
+    ).toBe(true);
+    expect(new Set(managed.map((skill) => skill.skillVersion))).toEqual(
+      new Set([1, 2]),
+    );
+    expect(
+      loaded.some(
+        (skill) =>
+          skill.skillName === AGENTS_MVP_UNRESOLVED_SKILL &&
+          !skill.langfuseSkillId &&
+          !skill.skillVersion,
+      ),
+    ).toBe(true);
+    const available = written.flatMap((row) => row.skills_available ?? []);
+    expect(available.length).toBeGreaterThan(0);
+    expect(
+      available.every(
+        (skill) => skill.langfuseSkillId === `managed-v${skill.skillVersion}`,
+      ),
+    ).toBe(true);
+  });
   it("includes every generated trace namespace in the post-write readback", async () => {
     const fixture = buildAgentsMvpFixture(context, params);
     vi.mocked(countRows).mockResolvedValueOnce(fixture.runs);
@@ -34,6 +99,10 @@ describe("Agents MVP deterministic telemetry fixture", () => {
       params,
     );
     const queryParams = vi.mocked(countRows).mock.calls.at(-1)![2];
+    expect(vi.mocked(countRows).mock.calls.at(-1)![1]).not.toContain(
+      "legacyTrace",
+    );
+    expect(queryParams).not.toHaveProperty("legacyTrace");
     const prefix = String(queryParams.prefix).slice(0, -1);
     expect(
       fixture.events.every((event) => event.trace_id.startsWith(prefix)),
@@ -125,9 +194,9 @@ describe("Agents MVP deterministic telemetry fixture", () => {
       ),
     ).toBe(true);
     const loaded = events.flatMap((row) => row.skills_resource_loaded ?? []);
-    expect(new Set(loaded.map((skill) => skill.skillVersion))).toEqual(
-      new Set([1, 2]),
-    );
+    expect(
+      new Set(loaded.flatMap((skill) => skill.skillVersion ?? [])),
+    ).toEqual(new Set([1, 2]));
     expect(new Set(loaded.map((skill) => skill.filePath))).toEqual(
       new Set(["SKILL.md", "references/cases.md"]),
     );
@@ -172,5 +241,41 @@ describe("Agents MVP deterministic telemetry fixture", () => {
     expect(() =>
       buildAgentsMvpFixture(context, { ...params, v4: false }),
     ).toThrow();
+  });
+  it("does not contact the Skills API or write telemetry during a dry run", async () => {
+    const summary = await agentsMvpScenario.run(context, {
+      ...params,
+      "legacy-api": true,
+    });
+    expect(summary.counts).toEqual({ agents: 8, runs: 81, events: 491 });
+    expect(seedAgentsMvpSkills).not.toHaveBeenCalled();
+    expect(createEventsCh).not.toHaveBeenCalled();
+    expect(seedAgentsMvpLegacyApi).not.toHaveBeenCalled();
+  });
+  it("excludes already propagated legacy invocations from primary fixture readback on rerun", async () => {
+    vi.mocked(countRows).mockImplementationOnce(
+      async (_table, where, queryParams) =>
+        where.includes("trace_id != {legacyTrace:String}") &&
+        queryParams.legacyTrace === `${context.idPrefix}-legacy-api-trace`
+          ? 81
+          : 83,
+    );
+    vi.mocked(seedAgentsMvpLegacyApi).mockResolvedValueOnce({
+      traceIds: ["legacy-trace"],
+      links: ["legacy-link"],
+      verified: { Runs: 2 },
+    });
+    const summary = await agentsMvpScenario.run(
+      { ...context, dryRun: false },
+      { ...params, "legacy-api": true },
+    );
+    expect(seedAgentsMvpLegacyApi).toHaveBeenCalledWith(
+      { ...context, dryRun: false },
+      params.date,
+    );
+    expect(summary.counts).toEqual({ agents: 8, runs: 81, events: 491 });
+    expect(summary.verified.legacyApiRuns).toBe(2);
+    expect(summary.traceIds).toContain("legacy-trace");
+    expect(summary.links).toContain("legacy-link");
   });
 });

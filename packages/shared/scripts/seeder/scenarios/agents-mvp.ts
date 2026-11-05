@@ -9,6 +9,12 @@ import {
 } from "./types";
 import { countRows, escapeLike } from "./verify";
 import { utcDayStartMs } from "./rng";
+import {
+  AGENTS_MVP_UNRESOLVED_SKILL,
+  agentsMvpManagedSkillName,
+  seedAgentsMvpSkills,
+} from "./agents-mvp-skills";
+import { seedAgentsMvpLegacyApi } from "./agents-mvp-legacy-api";
 
 const NAMES = [
   "agentique",
@@ -45,6 +51,7 @@ export function buildAgentsMvpFixture(
   const end = start + 4 * 3_600_000;
   const version = Date.now();
   const events: EventRecordInsertType[] = [];
+  const skillName = agentsMvpManagedSkillName(ctx.idPrefix);
   for (let i = 0; i < runs; i++) {
     const agent = i % NAMES.length;
     const historic = i >= 8 && i % 5 === 0;
@@ -56,6 +63,7 @@ export function buildAgentsMvpFixture(
     const runId = `${ctx.idPrefix}-run-${i}`;
     const agentId = agent === 7 ? "" : `agentique:${agent}`;
     const environment = i >= 8 && i % 11 === 0 ? "staging" : ctx.environment;
+    const skillVersion = (Math.floor(i / NAMES.length) % 2) + 1;
     const common = {
       project_id: ctx.projectId,
       trace_id: traceId,
@@ -126,6 +134,7 @@ export function buildAgentsMvpFixture(
               total: INPUT[request]! + OUTPUT[request]!,
             },
         cost_details: missing ? {} : { total: COST[request]! },
+        skills_available: [{ skillName, skillVersion }],
       });
       if (i === 2 && request === 0)
         events.push({
@@ -150,8 +159,8 @@ export function buildAgentsMvpFixture(
         end_time: at + 300,
         skills_resource_loaded: [
           {
-            skillName: "citation-style",
-            skillVersion: (i % 2) + 1,
+            skillName: i === 7 ? AGENTS_MVP_UNRESOLVED_SKILL : skillName,
+            ...(i === 7 ? {} : { skillVersion }),
             filePath: i % 3 ? "SKILL.md" : "references/cases.md",
           },
         ],
@@ -267,9 +276,17 @@ export const agentsMvpScenario: ScenarioDefinition = {
       default: "",
       description: "UTC date (today by default), fixed 11:00–15:00 window",
     },
+    {
+      flag: "legacy-api",
+      type: "boolean",
+      default: false,
+      description:
+        "Also verify legacy public JSON ingestion in a separate trace namespace",
+    },
   ],
   async run(ctx, params) {
     const startedAt = Date.now();
+    const includeLegacyApi = params["legacy-api"] === true;
     const fixture = buildAgentsMvpFixture(ctx, params);
     const traceIds = Array.from(
       new Set(fixture.events.map((event) => event.trace_id)),
@@ -291,14 +308,37 @@ export const agentsMvpScenario: ScenarioDefinition = {
       durationMs: 0,
     };
     if (!ctx.dryRun) {
+      const skills = await seedAgentsMvpSkills(ctx);
+      for (const event of fixture.events) {
+        for (const field of [
+          "skills_available",
+          "skills_resource_loaded",
+        ] as const) {
+          for (const reference of event[field] ?? []) {
+            const skill = skills.find(
+              (candidate) =>
+                candidate.name === reference.skillName &&
+                candidate.version === reference.skillVersion,
+            );
+            if (skill) reference.langfuseSkillId = skill.id;
+          }
+        }
+      }
+      summary.verified.managedSkillVersions = skills.length;
+      summary.links.push(
+        `${ctx.baseUrl}/project/${ctx.projectId}/skills/${agentsMvpManagedSkillName(ctx.idPrefix)}`,
+      );
       for (const batch of chunk(fixture.events, 10_000))
         await createEventsCh(batch);
       summary.verified.runs = await countRows(
         "events_core",
-        "project_id = {projectId:String} AND start_time >= {from:DateTime64(3)} AND start_time < {to:DateTime64(3)} AND trace_id LIKE {prefix:String} AND type = 'AGENT'",
+        `project_id = {projectId:String} AND start_time >= {from:DateTime64(3)} AND start_time < {to:DateTime64(3)} AND trace_id LIKE {prefix:String} AND type = 'AGENT'${includeLegacyApi ? " AND trace_id != {legacyTrace:String}" : ""}`,
         {
           projectId: ctx.projectId,
           prefix: `${escapeLike(ctx.idPrefix)}-%`,
+          ...(includeLegacyApi
+            ? { legacyTrace: `${ctx.idPrefix}-legacy-api-trace` }
+            : {}),
           from: new Date(fixture.start - 41 * 86_400_000)
             .toISOString()
             .replace("T", " ")
@@ -312,6 +352,16 @@ export const agentsMvpScenario: ScenarioDefinition = {
       );
       if (summary.verified.runs !== fixture.runs)
         throw new SeedError("Agents fixture readback mismatch");
+      if (includeLegacyApi) {
+        const legacy = await seedAgentsMvpLegacyApi(
+          ctx,
+          String(params.date ?? ""),
+        );
+        summary.traceIds.push(...legacy.traceIds);
+        summary.links.push(...legacy.links);
+        for (const [key, value] of Object.entries(legacy.verified))
+          summary.verified[`legacyApi${key}`] = value;
+      }
     }
     summary.durationMs = Date.now() - startedAt;
     return summary;
