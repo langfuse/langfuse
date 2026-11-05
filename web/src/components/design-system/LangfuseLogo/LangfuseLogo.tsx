@@ -41,7 +41,8 @@ export const LangfuseLogo = ({
 
   return (
     <div className="flex items-center">
-      <div className="-ml-1 group-data-[collapsible=icon]:hidden">
+      {/* Nudged down: the "by ClickHouse" line makes the mark read high. */}
+      <div className="-ml-1 translate-y-0.5 group-data-[collapsible=icon]:hidden">
         <LangfuseWordmark size="sm" />
       </div>
       <div className="hidden scale-120 group-data-[collapsible=icon]:block">
