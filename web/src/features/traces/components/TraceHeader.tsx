@@ -24,9 +24,7 @@ import { AnnotationQueueObjectType } from "@langfuse/shared";
 import { type DropdownMenuItemDefinition } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
 import { AnnotateDrawerController } from "@/src/features/scores/components/AnnotateDrawerController";
 import { CommentDrawerController } from "@/src/features/comments/CommentDrawerController";
-import { ConnectedTraceObservationAddToDropdownMenuController } from "./ConnectedTraceObservationAddToDropdownMenuController";
 import { AnnotationQueueSubmenuItemController } from "@/src/features/annotation-queues/components/AnnotationQueueSubmenuItemController";
-import { prepareTraceAnnotation } from "@/src/features/scores/lib/prepareTraceAnnotation";
 import { useViewPreferences } from "../contexts/ViewPreferencesProvider";
 import { useReadPath } from "@/src/features/events/hooks/useReadPath";
 import { useIsAuthenticatedAndProjectMember } from "@/src/features/auth/hooks";
@@ -228,13 +226,13 @@ function ConnectedTraceHeaderWorkflowActions({
   header: EntityDetailHeaderConfiguration;
   children: (props: EntityDetailHeaderConfiguration) => React.ReactNode;
 }) {
-  const { trace, serverScores, isPlaceholderData } = useTraceData();
+  const { trace, isPlaceholderData } = useTraceData();
   const { isAnnotationMode } = useViewPreferences();
   const { isV4 } = useReadPath();
   const isMember = useIsAuthenticatedAndProjectMember(trace.projectId);
   const sessionId =
     header.headerProps.itemType === "SESSION" ? trace.sessionId : null;
-  const session = api.sessions.byIdWithScores.useQuery(
+  const session = api.sessions.byIdWithScoresFromEvents.useQuery(
     { projectId: trace.projectId, sessionId: sessionId ?? "" },
     { enabled: !!sessionId && isMember },
   );
@@ -245,6 +243,8 @@ function ConnectedTraceHeaderWorkflowActions({
     { enabled: isMember, refetchOnMount: false },
   );
   const count = Number(counts.data?.get(objectId) ?? 0);
+  // Trace actions already live in the selected trace's detail pane.
+  if (!sessionId) return children(header);
   const renderHeader = (items: DropdownMenuItemDefinition[]) => (
     <AnnotateDrawerController projectId={trace.projectId}>
       {({ disabled: annotationDisabled, openDrawer: annotate }) => (
@@ -255,34 +255,20 @@ function ConnectedTraceHeaderWorkflowActions({
         >
           {({ disabled: commentDisabled, openDrawer: comment }) => {
             const openAnnotation = () => {
-              if (sessionId) {
-                if (!session.data) return;
-                annotate({
-                  scoreTarget: { type: "session", sessionId },
-                  scores: session.data.scores,
-                  scoreMetadata: {
-                    projectId: trace.projectId,
-                    environment: session.data.environment,
-                  },
-                  analyticsData: {
-                    type: "session",
-                    source: "SessionDetail",
-                    isV4,
-                  },
-                });
-                return;
-              }
-              annotate(
-                prepareTraceAnnotation({
-                  traceId: trace.id,
+              if (!session.data) return;
+              annotate({
+                scoreTarget: { type: "session", sessionId },
+                scores: session.data.scores,
+                scoreMetadata: {
                   projectId: trace.projectId,
-                  environment: trace.environment,
-                  scores: serverScores.filter(
-                    (score) => score.traceId === trace.id,
-                  ),
+                  environment: session.data.environment,
+                },
+                analyticsData: {
+                  type: "session",
+                  source: "SessionDetail",
                   isV4,
-                }),
-              );
+                },
+              });
             };
             const openComments = () =>
               comment({
@@ -298,7 +284,12 @@ function ConnectedTraceHeaderWorkflowActions({
               (!!sessionId && !session.data);
             const workflowActions: EntityDetailHeaderAction[] = [
               {
-                id: "add-to",
+                id: JSON.stringify([
+                  "add-to",
+                  trace.id,
+                  sessionId,
+                  isPlaceholderData,
+                ]),
                 type: "dropdown",
                 label: "Add to",
                 icon: PlusIcon,
@@ -349,27 +340,14 @@ function ConnectedTraceHeaderWorkflowActions({
       )}
     </AnnotateDrawerController>
   );
-  if (sessionId)
-    return (
-      <AnnotationQueueSubmenuItemController
-        projectId={trace.projectId}
-        objectId={sessionId}
-        objectType={AnnotationQueueObjectType.SESSION}
-        analyticsData={{ source: "SessionDetail", isV4 }}
-      >
-        {({ item }) => renderHeader([item])}
-      </AnnotationQueueSubmenuItemController>
-    );
   return (
-    <ConnectedTraceObservationAddToDropdownMenuController
+    <AnnotationQueueSubmenuItemController
       projectId={trace.projectId}
-      traceId={trace.id}
-      variant="trace"
-      input={trace.input}
-      output={trace.output}
-      metadata={trace.metadata}
-      analyticsData={{ source: "TraceDetail", isV4 }}
-      renderMenu={renderHeader}
-    />
+      objectId={sessionId}
+      objectType={AnnotationQueueObjectType.SESSION}
+      analyticsData={{ source: "SessionDetail", isV4 }}
+    >
+      {({ item }) => renderHeader([item])}
+    </AnnotationQueueSubmenuItemController>
   );
 }

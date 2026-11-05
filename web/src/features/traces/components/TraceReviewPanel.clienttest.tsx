@@ -79,7 +79,7 @@ vi.mock("@/src/features/scores/components/AnnotationPanelContent", () => ({
         {data.scoreTarget.type === "trace"
           ? (data.scoreTarget.observationId ?? "trace")
           : "session"}
-        :{data.scores.map((score) => score.id).join(",")}
+        :{data.scores?.map((score) => score.id).join(",")}
         <span data-testid="trace-scope">
           {data.companionTrace?.scores.map((score) => score.id).join(",")}
         </span>
@@ -229,6 +229,18 @@ describe("TraceReviewPanel header targets", () => {
           screen.getByTestId("annotation-target").textContent ?? "null",
         ),
       ).toEqual({ type: "trace", traceId: "trace" });
+      state.selectedNodeId = "first";
+      rerender(
+        <>
+          <HeaderAction session={session} />
+          <TraceReviewPanel projectId="project" />
+        </>,
+      );
+      expect(
+        JSON.parse(
+          screen.getByTestId("annotation-target").textContent ?? "null",
+        ),
+      ).toEqual({ type: "trace", traceId: "trace", observationId: "first" });
     },
   );
 });

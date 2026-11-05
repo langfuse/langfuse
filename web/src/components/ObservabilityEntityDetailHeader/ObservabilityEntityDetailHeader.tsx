@@ -112,6 +112,7 @@ export type EntityDetailHeaderAction = {
       icon: IconComponent;
       iconOnly?: boolean;
       disabled?: boolean;
+      count?: number;
       onClick: () => void;
     }
   | {
@@ -238,7 +239,22 @@ function EntityDetailHeaderChrome({
   const trailingRef = useRef<HTMLDivElement>(null);
   // Folded controls cannot be measured, so retain their last visible widths.
   const widthsRef = useRef<{ labels?: number; icons?: number }>({});
-  const measuredActions = useRef(actions);
+  const actionLayoutKey = JSON.stringify(
+    actions.map((action) => {
+      if (action.type === "custom")
+        return [action.id, action.type, action.pinned];
+      return [
+        action.id,
+        action.type,
+        action.pinned,
+        action.label,
+        action.iconOnly,
+        action.type === "button" ? action.count : undefined,
+        action.type === "dropdown" ? action.placement : undefined,
+      ];
+    }),
+  );
+  const measuredActions = useRef(actionLayoutKey);
   const [actionPresentation, setActionPresentation] = useState<
     "labels" | "icons" | "menu"
   >("labels");
@@ -253,13 +269,21 @@ function EntityDetailHeaderChrome({
   const hasActions = overflowActions.length > 0;
 
   useLayoutEffect(() => {
-    if (measuredActions.current !== actions) {
-      measuredActions.current = actions;
+    if (measuredActions.current !== actionLayoutKey) {
+      measuredActions.current = actionLayoutKey;
       widthsRef.current = {};
-      if (actionPresentation !== "labels") {
+      if (actionPresentation !== "labels" && !isMenuOpen) {
         setActionPresentation("labels");
         return;
       }
+    }
+    if (isMenuOpen) return;
+    if (
+      actionPresentation !== "labels" &&
+      widthsRef.current.labels === undefined
+    ) {
+      setActionPresentation("labels");
+      return;
     }
     const width =
       headerRef.current?.getBoundingClientRect().width ?? headerSize?.width;
@@ -304,7 +328,8 @@ function EntityDetailHeaderChrome({
     clusterSize?.width,
     hasActions,
     actionPresentation,
-    actions,
+    actionLayoutKey,
+    isMenuOpen,
     hasTitleTabs,
     titleTabsRef,
     titleTabsSize?.width,
@@ -376,6 +401,9 @@ function EntityDetailHeaderChrome({
         <HeaderActionMenuRow
           label={action.label}
           icon={<Icon size="base" />}
+          badge={
+            action.count ? <Badge text={String(action.count)} /> : undefined
+          }
           disabled={action.disabled}
           onClick={() => {
             closeMenu({ handoffFocus: true });
@@ -387,6 +415,7 @@ function EntityDetailHeaderChrome({
       <HeaderActionButton
         label={action.label}
         icon={<Icon size="base" />}
+        count={action.count}
         showLabel={!action.iconOnly && !iconOnly}
         disabled={action.disabled}
         onClick={action.onClick}
@@ -498,7 +527,12 @@ function EntityDetailHeaderChrome({
 }
 
 function MetricChip({ metric }: { metric: HeaderMetric }) {
-  if (!metric.remove) return <MetricContent metric={metric} />;
+  if (!metric.remove)
+    return (
+      <span className="ph-no-capture inline-flex max-w-full min-w-0">
+        <MetricContent metric={metric} />
+      </span>
+    );
   return (
     <span className="ph-no-capture group inline-flex max-w-full min-w-0 items-center">
       <MetricContent metric={metric} />

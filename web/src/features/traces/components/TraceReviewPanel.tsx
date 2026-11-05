@@ -133,12 +133,6 @@ function TraceAnnotationPanel() {
     sessionTraces,
   } = useTraceData();
   const { selectedNodeId } = useSelection();
-  // An explicit header action can target a different entity than the tree
-  // selection. Subsequent tree navigation resumes selection-based annotation.
-  const openedSelection = useRef({ annotation, selectedNodeId });
-  if (openedSelection.current.annotation !== annotation) {
-    openedSelection.current = { annotation, selectedNodeId };
-  }
   const trace =
     sessionTraces?.find((entry) => traceNodeId(entry.id) === selectedNodeId) ??
     anchorTrace;
@@ -149,7 +143,18 @@ function TraceAnnotationPanel() {
     trace.id,
   );
   const active = useRouter().query.annotation === "open";
-  if (annotation && openedSelection.current.selectedNodeId === selectedNodeId) {
+  const explicitTarget = useRef({
+    annotation,
+    selectedNodeId,
+    invalidated: false,
+  });
+  if (explicitTarget.current.annotation !== annotation) {
+    explicitTarget.current = { annotation, selectedNodeId, invalidated: false };
+  }
+  if (explicitTarget.current.selectedNodeId !== selectedNodeId) {
+    explicitTarget.current.invalidated = true;
+  }
+  if (annotation && !explicitTarget.current.invalidated) {
     return (
       <AnnotationPanel
         key={annotation.key}

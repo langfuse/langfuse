@@ -159,7 +159,11 @@ function LoadedTraceDetailActions({
                 },
               },
               {
-                id: "trace-options",
+                id: JSON.stringify([
+                  "trace-options",
+                  trace.id,
+                  isPlaceholderData,
+                ]),
                 type: "dropdown",
                 label: "More actions",
                 icon: MoreVertical,

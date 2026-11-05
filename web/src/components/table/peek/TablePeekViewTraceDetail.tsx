@@ -85,49 +85,49 @@ export const TablePeekViewTraceDetail = (
   };
 
   return (
-    <TraceDetailActions
-      isPlaceholderData={trace.isPlaceholderData}
-      {...actionProps}
-    >
-      {(traceActions) => (
-        <TablePeekView
-          {...tablePeekViewProps}
-          itemType={isSessionScope ? "SESSION" : tablePeekViewProps.itemType}
-          title={isSessionScope && sessionId ? sessionId : traceId}
-          titleTabs={
-            showScopeToggle
-              ? getTraceScopeTabs({
-                  value: isSessionScope ? "session" : "trace",
-                  canSelectSession,
-                  onValueChange: (next) => {
-                    const query = getTraceScopeQuery(
-                      router.query,
-                      next,
-                      trace.data?.observations,
-                    );
-                    return router.replace(
-                      { pathname: router.pathname, query },
-                      undefined,
-                      {
-                        shallow: true,
-                      },
-                    );
+    <TablePeekView
+      {...tablePeekViewProps}
+      itemType={isSessionScope ? "SESSION" : tablePeekViewProps.itemType}
+      title={isSessionScope && sessionId ? sessionId : traceId}
+      titleTabs={
+        showScopeToggle
+          ? getTraceScopeTabs({
+              value: isSessionScope ? "session" : "trace",
+              canSelectSession,
+              onValueChange: (next) => {
+                const query = getTraceScopeQuery(
+                  router.query,
+                  next,
+                  trace.data?.observations,
+                );
+                return router.replace(
+                  { pathname: router.pathname, query },
+                  undefined,
+                  {
+                    shallow: true,
                   },
-                })
-              : undefined
-          }
-          hideExpandToggle
-          preserveContentAcrossItems
+                );
+              },
+            })
+          : undefined
+      }
+      hideExpandToggle
+      preserveContentAcrossItems
+    >
+      {({
+        itemType,
+        title,
+        titleTabs,
+        itemId,
+        detailNavigationKey,
+        resolveDetailNavigationPath,
+        ...peekControls
+      }) => (
+        <TraceDetailActions
+          isPlaceholderData={trace.isPlaceholderData}
+          {...actionProps}
         >
-          {({
-            itemType,
-            title,
-            titleTabs,
-            itemId,
-            detailNavigationKey,
-            resolveDetailNavigationPath,
-            ...peekControls
-          }) => (
+          {(traceActions) => (
             <TraceDetailBody
               trace={trace.data}
               context="peek"
@@ -158,8 +158,8 @@ export const TablePeekViewTraceDetail = (
               }}
             />
           )}
-        </TablePeekView>
+        </TraceDetailActions>
       )}
-    </TraceDetailActions>
+    </TablePeekView>
   );
 };
