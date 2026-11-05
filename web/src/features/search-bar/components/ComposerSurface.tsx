@@ -1,4 +1,3 @@
-/* eslint-disable @repo/component-file-structure */
 import { Slot } from "@radix-ui/react-slot";
 import { cva } from "class-variance-authority";
 import { type ComponentPropsWithoutRef } from "react";
@@ -80,16 +79,6 @@ export function ComposerSurface({
         interactive,
         trailing,
       })}
-      {...props}
-    />
-  );
-}
-
-/** Query text metrics; leading-6 matches the pill height so the caret aligns. */
-export function ComposerText(props: SlotProps) {
-  return (
-    <Slot
-      className="min-h-6 font-mono text-xs leading-6 break-words whitespace-pre-wrap"
       {...props}
     />
   );

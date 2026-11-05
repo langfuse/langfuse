@@ -13,7 +13,7 @@ export type TraceBatchStrategy = "project" | "locality";
 export type PendingTrace = {
   member: string;
   due: number;
-  estimates?: { eventUpdateCount: number; serializedEventBytes: number };
+  estimates?: { eventUpdateCount?: number; serializedEventBytes: number };
   trace: TQueueJobTypes[QueueName.TraceBatch]["payload"]["traces"][number];
 };
 
@@ -72,7 +72,10 @@ export const getTraceExclusionReason = (
   limits: TraceBatchWeightLimits,
 ): TraceExclusionReason | undefined => {
   if (!estimates) return undefined;
-  if (estimates.eventUpdateCount > limits.maxEventUpdates)
+  if (
+    estimates.eventUpdateCount !== undefined &&
+    estimates.eventUpdateCount > limits.maxEventUpdates
+  )
     return "event_updates";
   if (estimates.serializedEventBytes > limits.maxSerializedEventBytes)
     return "serialized_bytes";

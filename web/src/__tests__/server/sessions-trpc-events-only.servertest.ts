@@ -131,6 +131,47 @@ maybe("sessions trpc (events_only write mode)", () => {
     expect(env.LANGFUSE_MIGRATION_V4_WRITE_MODE).toBe("events_only");
   });
 
+  it("loads observations across session traces without including another session", async () => {
+    const sessionId = randomUUID();
+    const first = await seedSessionEvent(sessionId);
+    const second = await seedSessionEvent(sessionId);
+    const outside = await seedSessionEvent(randomUUID());
+    await waitForExpect(async () => {
+      const result = await caller.sessions.observationsForSessionFromEvents({
+        projectId,
+        sessionId,
+      });
+      const traceIds = result.observations.map((o) => o.traceId);
+      expect(traceIds).toContain(first.traceId);
+      expect(traceIds).toContain(second.traceId);
+      expect(traceIds).not.toContain(outside.traceId);
+      expect(result.cutoffObservationsAfterMaxCount).toBe(false);
+      expect(result.maxObservationsPerSession).toBeGreaterThan(0);
+    });
+  });
+
+  it("does not grant session scope to unauthenticated callers", async () => {
+    const sessionId = randomUUID();
+    await seedSessionEvent(sessionId);
+    const anonymous = appRouter.createCaller(
+      createInnerTRPCContext({ session: null, headers: {} }),
+    );
+    await expect(
+      anonymous.sessions.observationsForSessionFromEvents({
+        projectId,
+        sessionId,
+      }),
+    ).rejects.toMatchObject({ code: "UNAUTHORIZED" });
+    await expect(
+      anonymous.sessions.agentGraphDataForSessionFromEvents({
+        projectId,
+        sessionId,
+        minStartTime: new Date(0).toISOString(),
+        maxStartTime: new Date().toISOString(),
+      }),
+    ).rejects.toMatchObject({ code: "UNAUTHORIZED" });
+  });
+
   it("returns a session that has no trace_sessions row", async () => {
     const sessionId = randomUUID();
 

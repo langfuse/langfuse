@@ -5,56 +5,9 @@ Topics**. Only platform administrators see or change this personal flag. The
 sidebar, direct page, and Topics API also require deployment enablement and
 project permissions. Processing additionally requires the project allowlist.
 
-- On phones (including touch-screen landscape), `CurrentTopics.tsx` renders `MobileTopicsView`: full-height Topics, Traces, and Visualize panels instead of concurrent split panes. `TopicsMobileControls` keeps facet/view selection in the page; the mobile menu includes automatic processing. Selecting a topic opens its traces; changing visualization opens Visualize. All traces and Unassigned remain reachable without selecting tiny chart marks. Filters stay in `useTopicTraceFilters`, trace selection in project session storage, and panel navigation stays local to the mounted project. No mirrored query state or additional store is needed for these low-frequency interactions. `prepare-topic-display.ts` owns display topics, Unassigned counts, and colors shared with desktop Treemap. `prepare-mobile-topics.ts` adds selection and matching rows; `TopicMobileList` and `TopicMobileTraceList` render explicit props. Trace cards wrap full summaries and use design-system pagination, initially 20 per page. Facet/view controls use the compact design-system SelectInput. Their header and search scroll with the cards so short screens retain access to every row. `MobileTopicVisualization` composes the same `TopicTreemap`, `TopicGrid`, and `TopicEmbeddingMap` renderers as desktop. `prepare-topic-grid.ts` owns the shared grid preparation; parents own chart dimensions. Mobile renderers use `previewOnSelect`: first tap shows persistent hover details, a second tap on the same item selects it and opens Traces. Tapping a different item replaces the preview; tapping empty space dismisses it. Only a trace-list tap opens peek. Map pan/zoom invalidates the preview. Storybook composes the mobile explorer with its facet/view controls; desktop charts retain their stories. The mobile flow shares one page shell across visualizations; chart insets belong inside their visualization, never around the page controls or panel navigation. The flow uses existing view-selection analytics and the same replay-blocked content boundaries; it adds no events for local panel navigation.
+- On phones (including touch-screen landscape), `CurrentTopics.tsx` renders `MobileTopicsView`: full-height Topics, Traces, and Visualize panels instead of concurrent split panes. `TopicsMobileControls` keeps facet/view selection in the page; the mobile menu includes automatic processing. Selecting a topic opens its traces; changing visualization opens Visualize. All traces and Unassigned remain reachable without selecting tiny chart marks. Filters stay in `useTopicTraceFilters`, trace selection in project session storage, and panel navigation stays local to the mounted project. No mirrored query state or additional store is needed for these low-frequency interactions. `prepare-topic-display.ts` owns display topics, Unassigned counts, and colors shared with desktop Treemap. `prepare-mobile-topics.ts` adds selection and the server trace query; `TopicMobileList` and `TopicMobileTraceList` render explicit props. Trace cards wrap full summaries and use design-system pagination, initially 20 per page; reaching the last loaded page fetches the next server page. Facet/view controls use the compact design-system SelectInput. Their header and search scroll with the cards so short screens retain access to every row. `MobileTopicVisualization` composes the same `TopicTreemap`, `TopicGrid`, and `TopicEmbeddingMap` renderers as desktop. `prepare-topic-grid.ts` owns the shared grid preparation; parents own chart dimensions. Mobile renderers use `previewOnSelect`: first tap shows persistent hover details, a second tap on the same item selects it and opens Traces. Tapping a different item replaces the preview; tapping empty space dismisses it. Only a trace-list tap opens peek. Map pan/zoom invalidates the preview. Storybook composes the mobile explorer with its facet/view controls; desktop charts retain their stories. The mobile flow shares one page shell across visualizations; chart insets belong inside their visualization, never around the page controls or panel navigation. The flow uses existing view-selection analytics and the same replay-blocked content boundaries; it adds no events for local panel navigation.
 - `prepare-topics-actions.ts` defines labels, processing status, availability, and callbacks once for the inline header and both overflow menus. The view adapters own menu dismissal and presentation; the page owns dialog lifetimes.
-- `TopicsPage.tsx` owns facet configuration, the execution history drawer,
-  the current-results query and facet selection. The header shows the facet
-  tabs, then "Visualize as" (`TopicsResultsViewSelect.tsx`) with Treemap
-  (default), Grid and Map, remembered in localStorage; time range and processing
-  actions sit on the right, configuration and history in the overflow menu.
-  `CurrentTopics.tsx` owns the map query (Grid and Map) and trace navigation.
-  Treemap sizes one tile per topic by trace count, plus a grey Unassigned tile
-  for traces without a topic, traces below; Grid snaps the
-  saved map projection onto one square per trace (sampled above 1,000), legend
-  under it and traces on the right. Both list the selected topic's traces in
-  `TopicTraceList`, with an Open in Tracing link limited to those trace IDs.
-  Map is the original cluster map (`CurrentTopicsView.tsx`) with its trace table.
-  Map clicks select a trace without opening peek. `CurrentTopicsView` keeps
-  that trace ID in project-scoped sessionStorage, shared across facets, and
-  highlights its map point and table row. Selection changes reveal the trace's
-  table page and follow it through result refreshes until the user paginates.
-  Clearing selection preserves the current page. Filtered-out map points cannot
-  replace selection; filters can hide a selection without discarding it. Table row
-  and trace-link clicks select the trace and open peek.
-  `useTopicTraceFilters.ts` owns URL-backed facet selection.
-  Peek defaults to the trace panel width and has its own resize preference.
-  The results workspace stays mounted, including
-  while a run's status is open. Execution URL parameters open progress, errors
-  and retry controls in the drawer; returning to the run list or closing the
-  drawer removes only that parameter. Historical map comparison is not exposed.
-  Current results poll while work runs, including a selected run outside recent
-  history. Once idle, a status response selects a fresh results query so an older
-  in-flight poll cannot satisfy completion. The query retains the tRPC prefix
-  for mutation and manual invalidation.
-  The polling/completion race is covered directly by a frontend hook test.
-  Configure Topics opens a dialog for models, facets, and which traces to run.
-  Saving it stores the models, creates the four built-in facets as evaluators
-  with a first version, and saves one rule for the filter, idle time, and
-  sampling rate. A project can have only one Topics rule.
-  The header shows the auto-analyze status (`AnalyzeControl`); clicking it opens the Analyze traces dialog with the auto-analyze toggle and sample rate. The overflow menu holds Regenerate topics, History and Settings, plus a Show unassigned toggle (on by default, kept in project-scoped sessionStorage); turning it off makes `CurrentTopics` drop traces and map points without a topic, removing the Unassigned tile and the Outliers and awaiting-assignment map zones in every view. Regenerate topics opens the shared manual dialog on its Generate topics tab; the Summarize traces & embed tab stays reachable there. `DialogController` owns the overlay above the page and the mobile actions menu. `ManualTopicsDialog` is the presentational layout shared by the app and its isolated `ManualTopicsDialog.stories.tsx` stories.
-  `TopicTraceSelectorView` renders the same filters, batch controls and preview
-  table in both places; stories supply fixture results without private API calls.
-  `ManualTopicsFormContent` owns the draft and uses the real trace selector.
-  `manualTopicsSelection` owns selection readiness for both operations, shared
-  by the application and Storybook interaction tests. `useTopicPipelineForm` owns process writes;
-  `useRegenerateTopics` owns active/latest facet counts and generate writes.
-  Mutation errors and request IDs outlive dialog dismissal, so retrying an
-  unchanged request does not create a second run. Submission closes the dialog
-  and opens the existing execution progress drawer. Permission, setup, pause,
-  availability and running-state gates disable submissions; generation also
-  requires compatible stored summaries. Facet versions contain only prompts;
-  processing settings and embedding dimensions are frozen on executions.
-  Built-in facets are read-only; custom facets are added on their own page.
+- `TopicsPage.tsx` owns facet configuration, the execution history drawer, the current-results query and facet selection. The header shows the facet tabs, then "Visualize as" (`TopicsResultsViewSelect.tsx`) with Treemap (default), Grid and Map, remembered in localStorage; processing actions sit on the right, configuration and history in the overflow menu. The page has no time filter: each facet shows its published map's window, from the map's clustering cohort start to now (the last 7 days without a map). `CurrentTopics.tsx` owns the map query (Grid and Map) and trace navigation. Treemap sizes one tile per topic by trace count, plus a grey Unassigned tile for traces without a topic, traces below; Grid snaps the saved map projection onto one square per trace (sampled above 1,000), legend under it and traces on the right. Both list the selected topic's traces in `TopicTraceList`, with an Open in Tracing link limited to those trace IDs. Map is the original cluster map (`CurrentTopicsView.tsx`) with its trace table. Map clicks select a trace without opening peek. `CurrentTopicsView` keeps that trace ID in project-scoped sessionStorage, shared across facets, and highlights its map point and table row. Selection changes reveal the trace's table page and follow it through result refreshes until the user paginates. Clearing selection preserves the current page. Filtered-out map points cannot replace selection; filters can hide a selection without discarding it. Table row and trace-link clicks select the trace and open peek. `useTopicTraceFilters.ts` owns URL-backed facet selection. Peek defaults to the trace panel width and has its own resize preference. The results workspace stays mounted, including while a run's status is open. Execution URL parameters open progress, errors and retry controls in the drawer; returning to the run list or closing the drawer removes only that parameter. Historical map comparison is not exposed. Current results poll while work runs, including a selected run outside recent history. Once idle, a status response selects a fresh results query so an older in-flight poll cannot satisfy completion. The query retains the tRPC prefix for mutation and manual invalidation. The polling/completion race is covered directly by a frontend hook test. Configure Topics opens a dialog for models, facets, and which traces to run. Saving it stores the models, creates the four built-in facets as evaluators with a first version, and saves one rule for the filter, idle time, and sampling rate. A project can have only one Topics rule. The header shows the auto-analyze status (`AnalyzeControl`); clicking it opens the Analyze traces dialog with the auto-analyze toggle and sample rate. The overflow menu holds Regenerate topics, History and Settings, plus a Show unassigned toggle (on by default, kept in project-scoped sessionStorage); turning it off makes `CurrentTopics` drop traces and map points without a topic, removing the Unassigned tile and the Outliers and awaiting-assignment map zones in every view. Regenerate topics opens the shared manual dialog on its Generate topics tab; the Summarize traces & embed tab stays reachable there. `DialogController` owns the overlay above the page and the mobile actions menu. `ManualTopicsDialog` is the presentational layout shared by the app and its isolated `ManualTopicsDialog.stories.tsx` stories. `TopicTraceSelectorView` renders the same filters, batch controls and preview table in both places; stories supply fixture results without private API calls. `ManualTopicsFormContent` owns the draft and uses the real trace selector. `manualTopicsSelection` owns selection readiness for both operations, shared by the application and Storybook interaction tests. `useTopicPipelineForm` owns process writes; `useRegenerateTopics` owns active/latest facet counts and generate writes. Mutation errors and request IDs outlive dialog dismissal, so retrying an unchanged request does not create a second run. Submission closes the dialog and opens the existing execution progress drawer. Permission, setup, pause, availability and running-state gates disable submissions; generation also requires compatible stored summaries. Facet versions contain only prompts; processing settings and embedding dimensions are frozen on executions. Built-in facets are read-only; custom facets are added on their own page.
 - Manual processing defaults to all active built-in and custom facets in the
   Topics rule at their latest version. Summarize traces & embed is the default
   tab: it summarizes, embeds, and assigns only the previewed batch to current
@@ -89,12 +42,16 @@ project permissions. Processing additionally requires the project allowlist.
   to each execution.
   The hook supplies selection, criteria and controls so the dialog can unmount
   without losing the reviewed cohort. Explicit preview counts the cohort;
-  changing criteria invalidates it. Rows can be excluded across preview pages.
+  changing criteria invalidates it. Previewed rows can be excluded.
   The form submits reviewed criteria and exclusions. Paste IDs remains available.
   `server/traceSelection.ts` applies canonical observation filters within a
   maximum 93-day window, then deduplicates traces before counting and optional
-  sampling. Manual processing is capped at 1,000 traces per run. Preview rows and current results render
-  in pages of 20; selected IDs are frozen by the server at submission. All predicates match
+  sampling. Manual processing is capped at 1,000 traces per run. Previews show
+  at most 20 trace IDs with a stored trace name and matching time; automatic
+  previews use the same selection over the last 7 days. Trace names are optional
+  and do not fall back to root observations. Trace-name filters accept typed
+  values without root-derived suggestions or facet counts. Current results render in pages
+  of 20; selected IDs are frozen by the server at submission. All predicates match
   the same observation; the worker reads the
   whole containing trace, including observations outside the selection window.
   Preview only reads identifiers and display metadata and never calls a model.
@@ -149,14 +106,7 @@ project permissions. Processing additionally requires the project allowlist.
   reserving a footer row. This internal PoC adds no
   analytics events for camera/hover/fullscreen; the entire renderer is blocked
   from session replay. Browser fullscreen denial is expected UI state.
-- `server/currentResults.ts` joins latest per-trace/facet assignments to their
-  exact topic versions, including assignments from older maps. Summary states
-  identify terminal no-topic results. An assignment applies only when its stored
-  summary processing time matches the current summary; a newer usable summary
-  waits for classification and clears the previous displayed membership. Each trace
-  uses its latest processed facet version, even when a newer version has not been
-  processed. Readiness counts include only the current facet version. This view exports
-  no embedding vectors; the scatter remains the latest map's discovery snapshot.
+- `server/currentResults.ts` returns per-facet counts, never per-trace rows: approximate distinct trace counts per topic and status from the published run's assignments (`getTopicResultCounts`), so the page costs the same for any project size. Traces load page by page through `listTopicTraces` (`topics.traces`), which resolves each trace's current result: an assignment applies only when it comes from the published run and its stored summary processing time matches the current summary, and each trace uses its latest processed facet version. Views receive the list through an injected `useTraces` hook (`useFacetTopicTraces` in the app, static rows in stories); a selected trace outside the loaded pages is fetched by ID and pinned on top. Counts, lists, the trace header and the public API all use only the published run, so traces assigned only by an older map show as awaiting map and retired topics never appear. Search matches topic names or an exact trace ID, not summary text. The scatter is the published run's own discovery cohort and does not follow the page window. This view exports no embedding vectors.
 - `server/topicsRouter.ts` owns project authorization and the public result
   contract. The map joins persisted assignment coordinates and summaries by ID
   in the persisted discovery cohort’s order. It returns only map points and counts for

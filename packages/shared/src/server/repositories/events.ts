@@ -530,6 +530,44 @@ const TRACES_ORDER_BY_COLUMNS = TRACES_FROM_EVENTS_UI_COLUMN_DEFINITIONS.filter(
 export const MAX_OBSERVATIONS_PER_TRACE =
   env.LANGFUSE_MAX_OBSERVATIONS_PER_TRACE;
 
+export const MAX_OBSERVATIONS_PER_SESSION =
+  env.LANGFUSE_MAX_OBSERVATIONS_PER_TRACE;
+
+export const getObservationsForSessionFromEventsTable = async (params: {
+  projectId: string;
+  sessionId: string;
+}): Promise<{ observations: FullEventsObservations; totalCount: number }> => {
+  const records =
+    await getObservationsFromEventsTableInternal<EventsObservationQueryResult>({
+      projectId: params.projectId,
+      filter: [
+        {
+          column: "sessionId",
+          type: "string",
+          operator: "=",
+          value: params.sessionId,
+        },
+      ],
+      orderBy: { column: "startTime", order: "ASC" },
+      limit: MAX_OBSERVATIONS_PER_SESSION + 1,
+      offset: 0,
+      selectIOAndMetadata: false,
+      selectToolData: false,
+      select: "rows",
+      dedupeBySpanId: true,
+    });
+  const withModelData = await enrichObservationsWithModelData(
+    records.slice(0, MAX_OBSERVATIONS_PER_SESSION),
+    params.projectId,
+    false,
+    null,
+  );
+  return {
+    observations: await enrichObservationsWithTraceFields(withModelData),
+    totalCount: records.length,
+  };
+};
+
 export const getObservationsForTraceFromEventsTable = async (params: {
   projectId: string;
   traceId: string;
@@ -1021,7 +1059,11 @@ async function getObservationsFromEventsTableInternal<T>(
         return cursorOrderedBuilder.limitBy("e.trace_id", "e.project_id");
       }
       if (opts.dedupeBySpanId) {
-        return cursorOrderedBuilder.limitBy("e.span_id", "e.project_id");
+        return cursorOrderedBuilder.limitBy(
+          "e.span_id",
+          "e.trace_id",
+          "e.project_id",
+        );
       }
       return cursorOrderedBuilder;
     })
@@ -1041,7 +1083,7 @@ async function getObservationsFromEventsTableInternal<T>(
         ),
     )
     .when(!isCursorPagination && Boolean(opts.dedupeBySpanId), (b) =>
-      b.limitBy("e.span_id", "e.project_id"),
+      b.limitBy("e.span_id", "e.trace_id", "e.project_id"),
     )
     .limit(limit, isCursorPagination ? undefined : offset);
 
@@ -1937,7 +1979,7 @@ export const getObservationsV2FromEventsTableForPublicApi = async (
   );
 };
 
-/** Assemble a page from completed windows, including empty continuations. */
+/** Assemble a page from completed windows. */
 export const getObservationsV2PageFromEventsTableForPublicApi = async (
   opts: PublicApiObservationsQuery,
 ): Promise<{
@@ -1955,6 +1997,12 @@ export const getObservationsV2PageFromEventsTableForPublicApi = async (
       }
       const page = await scanObservationWindows(opts, from, bounds.to, scan);
       span.setAttribute("observations.scan.windows", page.windows);
+      if (page.records.length === 0 && page.cursor) {
+        throw new ClickHouseResourceError(
+          "TIMEOUT",
+          new Error("Query timed out before returning observations"),
+        );
+      }
       return {
         items: await enrichObservationsWithModelData(
           page.records.slice(0, opts.limit),
@@ -3078,17 +3126,21 @@ export const deleteEventsByProjectId = async (
   return true;
 };
 
-export async function getAgentGraphDataFromEventsTable(params: {
-  projectId: string;
-  traceId: string;
-  minStartTime: Date;
-  maxStartTime: Date;
-}) {
-  const { projectId, traceId, minStartTime, maxStartTime } = params;
+export async function getAgentGraphDataFromEventsTable(
+  params: {
+    projectId: string;
+    minStartTime: Date;
+    maxStartTime: Date;
+  } & (
+    | { traceId: string; sessionId?: never }
+    | { sessionId: string; traceId?: never }
+  ),
+) {
+  const { projectId, minStartTime, maxStartTime } = params;
 
   const db = getClickhouseKysely();
 
-  const builder = db
+  const baseBuilder = db
     .selectFrom("events_truncated as e")
     .select((eb) => {
       const metadata = metadataMap(
@@ -3097,6 +3149,7 @@ export async function getAgentGraphDataFromEventsTable(params: {
       );
       return [
         "e.span_id as id",
+        "e.trace_id as trace_id",
         "e.parent_span_id as parent_observation_id",
         "e.type as type",
         "e.name as name",
@@ -3106,9 +3159,27 @@ export async function getAgentGraphDataFromEventsTable(params: {
         mapValue<string>(metadata, literal("langgraph_step")).as("step"),
       ];
     })
-    .where("e.trace_id", "=", traceId)
     .where("e.start_time", ">=", minStartTime)
     .where("e.start_time", "<=", maxStartTime);
+
+  const builder =
+    params.sessionId !== undefined
+      ? baseBuilder
+          .where("e.session_id", "=", params.sessionId)
+          .orderBy("e.start_time", "asc")
+          .orderBy("e.event_ts", "desc")
+          .$call(
+            limitBy({
+              count: 1,
+              columns: (eb) => [
+                eb.ref("e.span_id"),
+                eb.ref("e.trace_id"),
+                eb.ref("e.project_id"),
+              ],
+            }),
+          )
+          .limit(MAX_OBSERVATIONS_PER_SESSION)
+      : baseBuilder.where("e.trace_id", "=", params.traceId);
 
   const { sql: query, params: queryParams } = compileClickhouseQuery(
     builder,
@@ -3847,10 +3918,11 @@ export const hasAnyUserFromEventsTable = async (
 };
 
 /**
- * Query for the events blob export. Full I/O reads events_full; everything
- * else reads events_core. `convertLatencyToSecondsInSql` can be set by the paths
- * that skip the JS row enrichment (raw passthrough, Parquet), so they select
- * latency and time to first token in seconds instead of milliseconds.
+ * Query for the events blob export. Full I/O or metadata reads events_full
+ * (events_core truncates both); everything else reads events_core.
+ * `convertLatencyToSecondsInSql` can be set by the paths that skip the JS row
+ * enrichment (raw passthrough, Parquet), so they select latency and time to
+ * first token in seconds instead of milliseconds.
  */
 const buildEventsForBlobStorageExportQuery = (
   projectId: string,
@@ -3864,6 +3936,7 @@ const buildEventsForBlobStorageExportQuery = (
     ? fieldGroups
     : (["core", ...fieldGroups] as ObservationFieldGroupFull[]);
   const includeIO = effectiveGroups.includes("io");
+  const readFullTable = includeIO || effectiveGroups.includes("metadata");
   const metricsInSeconds =
     convertLatencyToSecondsInSql && effectiveGroups.includes("metrics");
   const fieldSets = effectiveGroups.flatMap((group) => {
@@ -3873,7 +3946,7 @@ const buildEventsForBlobStorageExportQuery = (
   });
 
   const builder = getClickhouseKysely()
-    .selectFrom(includeIO ? "events as e" : "events_truncated as e")
+    .selectFrom(readFullTable ? "events as e" : "events_truncated as e")
     .select(eventsRowFieldSelects(eventsFieldSetKeys(...fieldSets)))
     .$if(includeIO, (qb) => qb.select(["e.input", "e.output"]))
     .$if(metricsInSeconds, (qb) => qb.select(eventsMetricsSecondsSelects))

@@ -349,6 +349,7 @@ export async function executeInAppAgentRun(params: {
     const userAccess: InAppAgentUserAccess = {
       projectRole: access.projectRole,
       isAdmin: access.isAdmin,
+      topicsAvailable: request.topicsAvailable === true,
     };
 
     // Rebuild each run so grants invalidated by role changes drop out.
