@@ -498,7 +498,10 @@ describe(
         ],
       });
       otelReplayMocks.getPrompt.mockResolvedValue({ id: "replay-prompt-id" });
-      otelReplayMocks.fetchObservationEvalRules.mockResolvedValue([{}]);
+      otelReplayMocks.fetchEvalRules.mockResolvedValue({
+        observationRules: [{}],
+        traceTranscriptRules: [],
+      });
       otelReplayMocks.createObservationEvalSchedulerDeps.mockReturnValue({});
       otelReplayMocks.scheduleObservationEvals.mockResolvedValue(undefined);
       otelReplayMocks.uploadMediaForTrace.mockImplementation(

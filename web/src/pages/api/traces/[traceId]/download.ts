@@ -1,5 +1,10 @@
-import { InvalidRequestError, UnauthorizedError } from "@langfuse/shared";
+import {
+  InvalidRequestError,
+  toAuditLogResourceRef,
+  UnauthorizedError,
+} from "@langfuse/shared";
 import { stringify } from "@langfuse/shared/src/server";
+import { recordInternalApiAccess } from "@/src/features/audit-logs/server/recordAccessEvent";
 import { withMiddlewares } from "@/src/features/public-api/server/withMiddlewares";
 import {
   buildTraceExport,
@@ -43,9 +48,8 @@ const buildDownloadFilename = (traceId: string) => `trace-${traceId}.json`;
 
 export default withMiddlewares({
   GET: async (req, res) => {
-    const session = getTraceExportSession(
-      await getServerAuthSession({ req, res }),
-    );
+    const authSession = await getServerAuthSession({ req, res });
+    const session = getTraceExportSession(authSession);
 
     const result = querySchema.safeParse({
       traceId: req.query.traceId,
@@ -60,6 +64,20 @@ export default withMiddlewares({
       ...result.data,
       session,
     });
+
+    await recordInternalApiAccess(
+      { session: authSession, req },
+      result.data.projectId,
+      {
+        route: "GET /api/traces/{traceId}/download",
+        resourceType: "trace",
+        resourceId: result.data.traceId,
+        action: "download",
+        resourceRefs: [toAuditLogResourceRef("trace", result.data.traceId)],
+        params: { ...result.data, destination: "download" },
+        resultCount: payload.observations.length + payload.scores.length,
+      },
+    );
 
     res.setHeader("Content-Type", "application/json; charset=utf-8");
     const downloadFilename = buildDownloadFilename(result.data.traceId);

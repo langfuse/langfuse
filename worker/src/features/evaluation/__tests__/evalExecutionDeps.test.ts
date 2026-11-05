@@ -3,12 +3,15 @@ import { z } from "zod";
 import { createProductionEvalExecutionDeps } from "../evalExecutionDeps";
 import { EXPORT_VOLUME_METRIC } from "../../../services/exportVolumeMetric";
 
-const { mockGenerateLlmEvaluatorOutput, mockRecordIncrement } = vi.hoisted(
-  () => ({
-    mockGenerateLlmEvaluatorOutput: vi.fn(),
-    mockRecordIncrement: vi.fn(),
-  }),
-);
+const {
+  mockGenerateLlmEvaluatorOutput,
+  mockRecordIncrement,
+  mockIngestionQueueAdd,
+} = vi.hoisted(() => ({
+  mockGenerateLlmEvaluatorOutput: vi.fn(),
+  mockRecordIncrement: vi.fn(),
+  mockIngestionQueueAdd: vi.fn(),
+}));
 
 vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
   const original =
@@ -17,6 +20,9 @@ vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
     ...original,
     generateLlmEvaluatorOutput: mockGenerateLlmEvaluatorOutput,
     recordIncrement: mockRecordIncrement,
+    IngestionQueue: {
+      getInstance: () => ({ add: mockIngestionQueueAdd }),
+    },
   };
 });
 
@@ -166,5 +172,26 @@ describe("createProductionEvalExecutionDeps", () => {
       } as any),
     ).rejects.toThrow("boom");
     expect(mockRecordIncrement).not.toHaveBeenCalled();
+  });
+
+  it("enqueues eval scores to read only their own S3 file", async () => {
+    const deps = createProductionEvalExecutionDeps();
+
+    await deps.enqueueScoreIngestion({
+      projectId: "project-123",
+      scoreId: "score-123",
+      eventId: "event-123",
+    });
+
+    expect(mockIngestionQueueAdd).toHaveBeenCalledTimes(1);
+    const [, job] = mockIngestionQueueAdd.mock.calls[0];
+    expect(job.payload.data).toEqual(
+      expect.objectContaining({
+        type: "score-create",
+        eventBodyId: "score-123",
+        fileKey: "event-123",
+        skipS3List: true,
+      }),
+    );
   });
 });
