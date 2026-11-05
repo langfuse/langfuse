@@ -13,9 +13,12 @@ each project and queue; changing the current item keeps the same run history.
   commit navigation and history together. They can run independently of React.
   The current editor stays mounted while transitions are pending or fail;
   navigation controls stay disabled until the action finishes. Failed transitions
-  expose a retry action. Confirmed completion IDs survive a failed refresh or
-  advance, and an acquired next-item lock survives failed navigation, so retries
-  neither complete twice nor acquire a different item.
+  expose a retry action. Cancelled Next.js navigation (`router.push` /
+  `replace` resolving `false`) is ignored: history is not committed, the
+  bootstrap query does not error, and an acquired next-item lock stays so the
+  same item can be opened again. Confirmed completion IDs survive a failed
+  refresh or advance, and an acquired next-item lock also survives failed
+  navigation, so retries neither complete twice nor acquire a different item.
 - `AnnotationQueueItemPage.tsx` adapts tRPC and routing to those actions. A query
   gates initial loading, shares the initial lock during Strict Mode replay, and
   owns cancellation. Actions check that this query still has an active observer
