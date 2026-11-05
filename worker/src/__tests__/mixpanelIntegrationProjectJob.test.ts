@@ -334,7 +334,7 @@ describe("handleMixpanelIntegrationProjectJob customer-fault auto-disable", () =
     expect(h.mixpanelIntegrationUpdate).not.toHaveBeenCalled();
   });
 
-  it("rethrows the fault when persisting the disable fails, so BullMQ retries", async () => {
+  it("rethrows the disable-write error when persisting the disable fails, so BullMQ retries", async () => {
     const unauthorized = new Error("Mixpanel API error: 401 Unauthorized");
     Object.assign(unauthorized, { statusCode: 401 });
     h.flushError.value = unauthorized;
