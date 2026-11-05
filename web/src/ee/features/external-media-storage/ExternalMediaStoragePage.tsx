@@ -192,7 +192,8 @@ export default function ExternalMediaStoragePage() {
         if (!isFeatureEnabled) {
           return (
             <p className="text-sm">
-              This feature is not enabled for this project.
+              External media storage is an Enterprise feature. Upgrade your plan
+              to resolve s3:// media references from your own bucket.
             </p>
           );
         }

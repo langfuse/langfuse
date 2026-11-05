@@ -2417,7 +2417,7 @@ describe("MCP Write Tools", () => {
       ).resolves.toBe(false);
       await prisma.organization.update({
         where: { id: setup.context.orgId },
-        data: { featureFlagOrgDefaults: ["externalMediaStorage"] },
+        data: { cloudConfig: { plan: "Enterprise" } },
       });
       await expect(
         externalMediaStorageFeature.isEnabled(setup.context),
@@ -2476,7 +2476,7 @@ describe("MCP Write Tools", () => {
       const setup = await createMcpTestSetup();
       await prisma.organization.update({
         where: { id: setup.context.orgId },
-        data: { featureFlagOrgDefaults: ["externalMediaStorage"] },
+        data: { cloudConfig: { plan: "Enterprise" } },
       });
       // HTTPS passes Cloud's protocol check, so this pins the loopback block
       // in both deployment modes.

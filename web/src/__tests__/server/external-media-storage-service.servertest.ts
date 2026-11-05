@@ -27,7 +27,7 @@ const orgIds: string[] = [];
 async function enableExternalMediaStorage(orgId: string) {
   await prisma.organization.update({
     where: { id: orgId },
-    data: { featureFlagOrgDefaults: ["externalMediaStorage"] },
+    data: { cloudConfig: { plan: "Enterprise" } },
   });
 }
 
