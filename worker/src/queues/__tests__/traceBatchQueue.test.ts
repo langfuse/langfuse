@@ -34,6 +34,8 @@ import { summarizeAssembledTrace } from "../../features/topics/summarizeAssemble
 import { enqueueTopicsAutomation } from "../../features/topics/topicsAutomation";
 import {
   getEnabledTopicsModels,
+  isTopicsEnabled,
+  isTopicsProjectEnabled,
   listTopicFacets,
   listTopicRules,
   isValidTopicSummary,
@@ -80,6 +82,7 @@ vi.mock("../../features/topics/topicsAutomation", () => ({
 }));
 
 vi.mock("@langfuse/shared/topics/server", () => ({
+  isTopicsEnabled: vi.fn(() => true),
   isTopicsProjectEnabled: vi.fn(() => true),
   getEnabledTopicsModels: vi.fn(
     async (projectIds: string[]) =>
@@ -98,6 +101,7 @@ vi.mock("../../features/tokenisation/async-usage", () => ({
 }));
 
 const originalReadEnabled = env.LANGFUSE_TRACE_BATCH_READ_ENABLED;
+const originalDispatchEnabled = env.LANGFUSE_TRACE_DISPATCH_ENABLED;
 const originalTranscriptMetricsEnabled =
   env.LANGFUSE_TRACE_BATCH_TRANSCRIPT_METRICS_ENABLED;
 const originalTranscriptStorageEnabled =
@@ -124,6 +128,9 @@ afterAll(async () => {
 beforeEach(() => {
   exporter.reset();
   env.LANGFUSE_TRACE_BATCH_READ_ENABLED = "true";
+  env.LANGFUSE_TRACE_DISPATCH_ENABLED = "false";
+  vi.mocked(isTopicsEnabled).mockReturnValue(true);
+  vi.mocked(isTopicsProjectEnabled).mockReturnValue(true);
   env.LANGFUSE_TRACE_BATCH_TRANSCRIPT_STORAGE_ENABLED = "false";
   inputStorage.put.mockResolvedValue({
     outcome: "stored",
@@ -135,6 +142,7 @@ beforeEach(() => {
 });
 afterEach(() => {
   env.LANGFUSE_TRACE_BATCH_READ_ENABLED = originalReadEnabled;
+  env.LANGFUSE_TRACE_DISPATCH_ENABLED = originalDispatchEnabled;
   env.LANGFUSE_TRACE_BATCH_TRANSCRIPT_METRICS_ENABLED =
     originalTranscriptMetricsEnabled;
   env.LANGFUSE_TRACE_BATCH_TRANSCRIPT_STORAGE_ENABLED =
@@ -999,9 +1007,108 @@ describe("trace batch queue", () => {
     }));
   });
 
+  it("skips the ClickHouse read when a dispatched batch has no Topics project", async () => {
+    env.LANGFUSE_TRACE_DISPATCH_ENABLED = "true";
+    vi.mocked(isTopicsProjectEnabled).mockReturnValue(false);
+    const job = {
+      opts: {},
+      data: {
+        id: "experiment-only",
+        name: QueueJobs.TraceBatch,
+        timestamp: new Date(),
+        payload: {
+          traces: ["first", "second"].map((traceId) => ({
+            projectId: "sampled-project",
+            traceId,
+            minStart: 0,
+            maxStart: 1,
+            revision: "queued-revision",
+          })),
+        },
+      },
+    } as Job<TQueueJobTypes[QueueName.TraceBatch]>;
+
+    await expect(traceBatchQueueProcessor(job, undefined)).resolves.toEqual({
+      observationCount: 0,
+      traceCount: 0,
+      projectCount: 0,
+      inputBytes: 0,
+      outputBytes: 0,
+      metadataBytes: 0,
+      ioMetadataBytes: 0,
+    });
+    expect(getTraceBatchEventStream).not.toHaveBeenCalled();
+    expect(inputStorage.put).not.toHaveBeenCalled();
+    expect(summarizeAssembledTrace).not.toHaveBeenCalled();
+    expect(recordIncrement).toHaveBeenCalledWith(
+      "langfuse.trace_batch.skipped_traces",
+      2,
+      { reason: "no_topics_project" },
+    );
+    expect(recordDistribution).not.toHaveBeenCalledWith(
+      "langfuse.trace_batch.missing_trace_count",
+      expect.anything(),
+    );
+  });
+
+  it("reads only Topics projects from a mixed dispatched batch", async () => {
+    env.LANGFUSE_TRACE_DISPATCH_ENABLED = "true";
+    vi.mocked(isTopicsProjectEnabled).mockImplementation(
+      (projectId) => projectId === "topics-project",
+    );
+    vi.mocked(getTraceBatchEventStream).mockImplementation(
+      async function* () {},
+    );
+    const job = {
+      opts: {},
+      data: {
+        id: "mixed",
+        name: QueueJobs.TraceBatch,
+        timestamp: new Date(),
+        payload: {
+          traces: [
+            ["topics-project", "kept"],
+            ["sampled-project", "skipped"],
+          ].map(([projectId, traceId]) => ({
+            projectId,
+            traceId,
+            minStart: 0,
+            maxStart: 1,
+            revision: "queued-revision",
+          })),
+        },
+      },
+    } as Job<TQueueJobTypes[QueueName.TraceBatch]>;
+
+    await expect(
+      traceBatchQueueProcessor(job, undefined),
+    ).resolves.toMatchObject({ traceCount: 0 });
+    expect(getTraceBatchEventStream).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({
+        traces: [
+          expect.objectContaining({
+            projectId: "topics-project",
+            traceId: "kept",
+          }),
+        ],
+      }),
+      expect.anything(),
+    );
+    expect(recordIncrement).toHaveBeenCalledWith(
+      "langfuse.trace_batch.skipped_traces",
+      1,
+      { reason: "no_topics_project" },
+    );
+    expect(recordDistribution).toHaveBeenCalledWith(
+      "langfuse.trace_batch.missing_trace_count",
+      1,
+    );
+  });
+
   it.each(["disabled", "stored", "too_large", "upload_failed"] as const)(
     "preserves Topics processing when optional input storage is %s",
     async (outcome) => {
+      env.LANGFUSE_TRACE_BATCH_READ_ENABLED = "false";
       env.LANGFUSE_TRACE_BATCH_TRANSCRIPT_STORAGE_ENABLED =
         outcome === "disabled" ? "false" : "true";
       const info = vi.spyOn(logger, "info");
@@ -1310,6 +1417,18 @@ describe("trace batch queue", () => {
           input.facets.map(({ id }) => id),
         ]),
     ).toEqual([["picked", ["issues"]]]);
+    // The sampled-out trace never reaches ClickHouse.
+    expect(getTraceBatchEventStream).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({
+        traces: [expect.objectContaining({ projectId: "picked" })],
+      }),
+      expect.anything(),
+    );
+    expect(recordIncrement).toHaveBeenCalledWith(
+      "langfuse.trace_batch.skipped_traces",
+      1,
+      { reason: "rule_sampling" },
+    );
     expect(inputStorage.put).toHaveBeenCalledTimes(1);
     expect(inputStorage.put).toHaveBeenCalledWith(
       { projectId: "picked", traceId: "trace", revision: "revision-picked" },
@@ -1499,6 +1618,11 @@ describe("trace batch queue", () => {
       2,
       { outcome: "disabled" },
     );
+    expect(recordIncrement).toHaveBeenCalledWith(
+      "langfuse.trace_batch.skipped_traces",
+      1,
+      { reason: "no_topics_project" },
+    );
     vi.mocked(summarizeAssembledTrace).mockImplementation(async () => ({
       outcome: "unchanged",
       rows: [],
@@ -1631,6 +1755,21 @@ describe("trace batch queue", () => {
       expect(JSON.stringify(span.attributes)).not.toContain("first question");
     }
   });
+  it("discards jobs before parsing when both pipelines are disabled", async () => {
+    vi.mocked(isTopicsEnabled).mockReturnValue(false);
+    const job = {
+      opts: {},
+      data: { incompatiblePayload: true },
+    } as unknown as Job<TQueueJobTypes[QueueName.TraceBatch]>;
+
+    await expect(traceBatchQueueProcessor(job, undefined)).resolves.toEqual({
+      discarded: "pipelines_disabled",
+    });
+    expect(getTraceBatchEventStream).not.toHaveBeenCalled();
+    expect(inputStorage.put).not.toHaveBeenCalled();
+    expect(job.opts.removeOnComplete).toBe(true);
+  });
+
   it("discards self-hosted jobs before parsing even when reads are enabled", async () => {
     env.LANGFUSE_TRACE_BATCH_EXPERIMENT_ID = "discarded-read";
     env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = undefined;
@@ -1965,9 +2104,12 @@ describe("trace batch queue", () => {
 
     const successfulRead = traceBatchQueueProcessor(job, undefined);
     const failedRead = traceBatchQueueProcessor(job, undefined);
-    expect(recordGauge).toHaveBeenLastCalledWith(
-      "langfuse.trace_batch.active_reads",
-      2,
+    // Both reads pass the Topics settings lookup before they start streaming.
+    await vi.waitFor(() =>
+      expect(recordGauge).toHaveBeenLastCalledWith(
+        "langfuse.trace_batch.active_reads",
+        2,
+      ),
     );
     // Periodic samples keep unchanged, long-running reads visible.
     recordTraceBatchActiveReads();

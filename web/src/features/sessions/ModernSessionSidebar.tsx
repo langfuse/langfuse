@@ -149,7 +149,7 @@ function ObservationListRows({
       {state.rows.map((observation) => (
         <div
           key={observation.id}
-          className="hover:bg-foreground/10 -mr-2 -ml-1 flex items-center rounded-sm transition-colors duration-150"
+          className="ph-no-capture hover:bg-foreground/10 -mr-2 -ml-1 flex items-center rounded-sm transition-colors duration-150"
         >
           <button
             type="button"
@@ -255,7 +255,7 @@ const TurnCard = React.memo(
           onSelect(selectIndex);
         }}
         className={cn(
-          "group hover:bg-muted/60 rounded-sm border border-transparent p-2 transition-colors duration-150",
+          "ph-no-capture group hover:bg-muted/60 rounded-sm border border-transparent p-2 transition-colors duration-150",
           isActive && "border-primary-accent/50 bg-background dark:bg-muted",
           isTraceLevelIOOnly && "cursor-pointer",
         )}
@@ -571,13 +571,16 @@ export function ModernSessionSidebar(
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <span
-                      className="text-muted-foreground min-w-0 overflow-hidden font-mono text-[10px] text-ellipsis whitespace-nowrap"
+                      className="ph-no-capture text-muted-foreground min-w-0 overflow-hidden font-mono text-[10px] text-ellipsis whitespace-nowrap"
                       tabIndex={0}
                     >
                       {filterSummaryLabel}
                     </span>
                   </TooltipTrigger>
-                  <TooltipContent side="bottom" className="max-w-80 p-2">
+                  <TooltipContent
+                    side="bottom"
+                    className="ph-no-capture max-w-80 p-2"
+                  >
                     {hasFilterRepresentation ? (
                       <div className="flex flex-wrap gap-1">
                         {activeFilterQuery.text ? (
