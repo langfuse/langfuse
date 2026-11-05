@@ -427,7 +427,12 @@ export function createAnnotationFormActions({
         field.value !== attempted.value ||
         (field.stringValue ?? null) !== (attempted.stringValue ?? null);
       if (!valueUnsaved) continue;
-      upsert(key, target, attempted.value, attempted.stringValue);
+      upsert(
+        key,
+        target,
+        attempted.value ?? null,
+        attempted.stringValue ?? null,
+      );
     }
     for (const [key, draft] of commentDrafts) {
       const field = find(key);
