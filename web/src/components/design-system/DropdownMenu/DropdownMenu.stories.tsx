@@ -543,3 +543,41 @@ export const TestClearsTheSearch = meta.story({
     await expect(search).toHaveFocus();
   },
 });
+
+export const TestReplayPrivacy = meta.story({
+  name: "(Test) Blocks session replay in submenus",
+  args: {
+    noCapture: true,
+    items: [
+      {
+        type: "submenu",
+        id: "private-options",
+        title: "Private options",
+        items: [
+          {
+            type: "item",
+            id: "private-item",
+            title: "Private item",
+            onClick: fn(),
+          },
+        ],
+      },
+    ],
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const body = within(canvasElement.ownerDocument.body);
+    const trigger = canvas.getByRole("button", { name: "Open menu" });
+    await userEvent.click(trigger);
+    const menu = await body.findByRole("menu", { name: "Actions" });
+    await userEvent.click(
+      body.getByRole("menuitem", { name: "Private options" }),
+    );
+    const submenu = await body.findByRole("menu", { name: "Private options" });
+
+    await expect(menu).toHaveClass("ph-no-capture");
+    await expect(submenu).toHaveClass("ph-no-capture");
+    await expect(menu).not.toContainElement(submenu);
+    await expect(submenu).toContainElement(body.getByText("Private item"));
+  },
+});

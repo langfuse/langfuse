@@ -33,6 +33,7 @@ import * as React from "react";
 import { useLayerContainer } from "@/src/context/LayerContext/LayerContext";
 import { useScrollGradients } from "@/src/hooks/useScrollGradients";
 import { Badge } from "@/src/components/design-system/Badge/Badge";
+import { cn } from "@/src/utils/tailwind";
 import { Checkbox } from "@/src/components/design-system/Checkbox/Checkbox";
 
 const menuVariants = cva(
@@ -186,7 +187,7 @@ type DropdownMenuProps = {
   /** Shown when no results remain, excluding always-visible actions. */
   emptyText?: string;
   maxHeight?: React.CSSProperties["maxHeight"];
-  /** Keeps menu content, including portaled submenus, out of session recordings. */
+  /** Keeps the trigger and menu content, including submenus, out of session recordings. */
   noCapture?: boolean;
   /** Sizes the menu to the trigger's width, e.g. for a full-width button. */
   matchTriggerWidth?: boolean;
@@ -373,6 +374,9 @@ function DropdownMenuNode({
           const { ref, ...triggerProps } = props;
           return getReferenceProps({
             ...triggerProps,
+            ...(noCapture
+              ? { className: cn(triggerProps.className, "ph-no-capture") }
+              : {}),
             "aria-expanded": isOpen,
             ref: mergeRefs(ref, refs.setReference),
           });

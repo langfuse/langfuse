@@ -139,6 +139,7 @@ export const TestReplayPrivacy = meta.story({
     const settings = within(menu).getByRole("link", {
       name: "Go to settings for Private project",
     });
+    await expect(trigger).toHaveClass("ph-no-capture");
     const replayBlock = name.closest(".ph-no-capture");
     await expect(replayBlock).not.toBeNull();
     await expect(replayBlock).toContainElement(settings);

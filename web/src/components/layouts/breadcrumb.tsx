@@ -55,8 +55,10 @@ const BreadcrumbComponent = ({
             {({ getTriggerProps }) => (
               <button
                 type="button"
-                className="text-primary flex h-5 items-center gap-1.5 p-0 text-sm leading-none"
-                {...getTriggerProps()}
+                {...getTriggerProps({
+                  className:
+                    "text-primary flex h-5 items-center gap-1.5 p-0 text-sm leading-none",
+                })}
               >
                 {organization?.name ?? "Organization"}
                 {isCloudPlan(organization?.plan) &&
@@ -94,8 +96,10 @@ const BreadcrumbComponent = ({
               {({ getTriggerProps }) => (
                 <button
                   type="button"
-                  className="text-primary flex h-5 items-center gap-1.5 p-0 leading-none"
-                  {...getTriggerProps()}
+                  {...getTriggerProps({
+                    className:
+                      "text-primary flex h-5 items-center gap-1.5 p-0 leading-none",
+                  })}
                 >
                   {project.name}
                   <DropdownIndicator size="sm" nudge />
