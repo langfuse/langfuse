@@ -217,7 +217,7 @@ export function AppSidebar({
           data-testid={APP_SHELL_CHROME_ROW_TEST_ID}
           className={cn(
             APP_SHELL_CHROME_ROW_CLASS,
-            "min-w-0 gap-1.5 pr-3 pl-4 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0",
+            "min-w-0 gap-1.5 pr-2 pl-4 group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0",
           )}
         >
           <Link href="/" className="flex items-center">
@@ -226,7 +226,7 @@ export function AppSidebar({
               logoDarkModeHref={logo.darkModeHref}
             />
           </Link>
-          <div className="ml-auto flex min-w-0 items-center overflow-hidden group-data-[collapsible=icon]:hidden">
+          <div className="ml-auto flex shrink-0 items-center group-data-[collapsible=icon]:hidden">
             <VersionLabel state={versionState} version={version} />
           </div>
         </div>
@@ -623,15 +623,13 @@ const VersionLabel = ({
         <Button
           variant="ghost"
           size="xs"
-          className="text-muted-foreground h-5 max-w-full min-w-0 translate-y-px py-0 text-[0.625rem] leading-none"
+          className="text-muted-foreground h-5 translate-y-px gap-1 py-0 text-[0.625rem] leading-none"
           onPointerDown={() => {
             pointerOnly.current = true;
           }}
           onKeyDown={noteKeyboardUse}
         >
-          <span className="truncate" title={versionText}>
-            {versionText}
-          </span>
+          <span className="whitespace-nowrap">{versionText}</span>
           {attention && (
             <span
               role="img"
