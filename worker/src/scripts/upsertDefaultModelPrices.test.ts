@@ -298,3 +298,79 @@ describe("default Gemini Pro pricing tiers", () => {
     },
   );
 });
+
+describe("default DeepSeek prices", () => {
+  const findModelByPostgresLookup = (modelName: string) => {
+    return defaultModelPrices.find((model) => {
+      const inlineFlags = model.matchPattern.match(/^\(\?([a-z]+)\)(.*)$/i);
+      const regex = inlineFlags
+        ? new RegExp(inlineFlags[2], inlineFlags[1])
+        : new RegExp(model.matchPattern);
+      return regex.test(modelName);
+    });
+  };
+
+  it.each([
+    { alias: "deepseek-chat", expectedModel: "deepseek-chat" },
+    { alias: "deepseek-v3", expectedModel: "deepseek-chat" },
+    { alias: "deepseek/deepseek-chat", expectedModel: "deepseek-chat" },
+    { alias: "deepseek-ai/deepseek-chat", expectedModel: "deepseek-chat" },
+    { alias: "deepseek/deepseek-v3", expectedModel: "deepseek-chat" },
+    { alias: "deepseek-ai/deepseek-v3", expectedModel: "deepseek-chat" },
+    { alias: "DeepSeek-Chat", expectedModel: "deepseek-chat" },
+    { alias: "DEEPSEEK-V3", expectedModel: "deepseek-chat" },
+    { alias: "DeepSeek-AI/deepseek-chat", expectedModel: "deepseek-chat" },
+    { alias: "DEEPSEEK/deepseek-v3", expectedModel: "deepseek-chat" },
+    { alias: "deepseek-reasoner", expectedModel: "deepseek-reasoner" },
+    { alias: "deepseek-r1", expectedModel: "deepseek-reasoner" },
+    { alias: "deepseek/deepseek-reasoner", expectedModel: "deepseek-reasoner" },
+    {
+      alias: "deepseek-ai/deepseek-reasoner",
+      expectedModel: "deepseek-reasoner",
+    },
+    { alias: "deepseek/deepseek-r1", expectedModel: "deepseek-reasoner" },
+    { alias: "deepseek-ai/deepseek-r1", expectedModel: "deepseek-reasoner" },
+    { alias: "DeepSeek-Reasoner", expectedModel: "deepseek-reasoner" },
+    { alias: "DEEPSEEK-R1", expectedModel: "deepseek-reasoner" },
+    {
+      alias: "DeepSeek-AI/deepseek-reasoner",
+      expectedModel: "deepseek-reasoner",
+    },
+    { alias: "DEEPSEEK/deepseek-r1", expectedModel: "deepseek-reasoner" },
+  ])(
+    "resolves $alias to $expectedModel via matchPattern lookup",
+    ({ alias, expectedModel }) => {
+      const model = findModelByPostgresLookup(alias);
+      expect(model?.modelName).toBe(expectedModel);
+    },
+  );
+
+  it("prices deepseek-chat input, output and cached tokens", () => {
+    const model = findModelByPostgresLookup("deepseek-chat");
+    expect(model).toBeDefined();
+    if (!model) return;
+
+    const standardTier = model.pricingTiers.find((tier) => tier.isDefault);
+    expect(standardTier?.prices.input).toBe(0.27e-6);
+    expect(standardTier?.prices.output).toBe(1.1e-6);
+    expect(standardTier?.prices.input_cached_tokens).toBe(0.07e-6);
+    expect(standardTier?.prices.input_cache_read).toBe(0.07e-6);
+    expect(standardTier?.prices.cache_read_input_tokens).toBe(0.07e-6);
+  });
+
+  it("prices deepseek-reasoner input, output, cached tokens and reasoning aliases", () => {
+    const model = findModelByPostgresLookup("deepseek-reasoner");
+    expect(model).toBeDefined();
+    if (!model) return;
+
+    const standardTier = model.pricingTiers.find((tier) => tier.isDefault);
+    expect(standardTier?.prices.input).toBe(0.55e-6);
+    expect(standardTier?.prices.output).toBe(2.19e-6);
+    expect(standardTier?.prices.input_cached_tokens).toBe(0.14e-6);
+    expect(standardTier?.prices.input_cache_read).toBe(0.14e-6);
+    expect(standardTier?.prices.cache_read_input_tokens).toBe(0.14e-6);
+    expect(standardTier?.prices.output_reasoning_tokens).toBe(2.19e-6);
+    expect(standardTier?.prices.output_reasoning).toBe(2.19e-6);
+    expect(standardTier?.prices.reasoning_tokens).toBe(2.19e-6);
+  });
+});
