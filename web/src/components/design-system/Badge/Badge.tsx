@@ -135,8 +135,8 @@ type BadgeProps = Omit<BadgeShellProps, "asChild" | "children"> & {
 
 /**
  * Pick the colour by the badge's job:
- * - `outline` (default): light, reads as a label. On its own or beside text.
- * - `filled`: reads as one block, so a column of them scans easily.
+ * - `filled`: tables and lists; scans down a column.
+ * - `outline` (default): headers, titles, menus.
  * - `inverted`: one strong marker per surface, e.g. a version number next to a title.
  * - `error`, `warning`, `success`, `info`: a state, never decoration.
  * - Category hues (`violet`, `blue`, `teal`, `green`, `amber`, `pink`): tell
