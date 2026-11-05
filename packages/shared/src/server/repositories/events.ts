@@ -529,6 +529,44 @@ const TRACES_ORDER_BY_COLUMNS = TRACES_FROM_EVENTS_UI_COLUMN_DEFINITIONS.filter(
 export const MAX_OBSERVATIONS_PER_TRACE =
   env.LANGFUSE_MAX_OBSERVATIONS_PER_TRACE;
 
+export const MAX_OBSERVATIONS_PER_SESSION =
+  env.LANGFUSE_MAX_OBSERVATIONS_PER_TRACE;
+
+export const getObservationsForSessionFromEventsTable = async (params: {
+  projectId: string;
+  sessionId: string;
+}): Promise<{ observations: FullEventsObservations; totalCount: number }> => {
+  const records =
+    await getObservationsFromEventsTableInternal<EventsObservationQueryResult>({
+      projectId: params.projectId,
+      filter: [
+        {
+          column: "sessionId",
+          type: "string",
+          operator: "=",
+          value: params.sessionId,
+        },
+      ],
+      orderBy: { column: "startTime", order: "ASC" },
+      limit: MAX_OBSERVATIONS_PER_SESSION + 1,
+      offset: 0,
+      selectIOAndMetadata: false,
+      selectToolData: false,
+      select: "rows",
+      dedupeBySpanId: true,
+    });
+  const withModelData = await enrichObservationsWithModelData(
+    records.slice(0, MAX_OBSERVATIONS_PER_SESSION),
+    params.projectId,
+    false,
+    null,
+  );
+  return {
+    observations: await enrichObservationsWithTraceFields(withModelData),
+    totalCount: records.length,
+  };
+};
+
 export const getObservationsForTraceFromEventsTable = async (params: {
   projectId: string;
   traceId: string;
@@ -1025,7 +1063,11 @@ async function getObservationsFromEventsTableInternal<T>(
         return cursorOrderedBuilder.limitBy("e.trace_id", "e.project_id");
       }
       if (opts.dedupeBySpanId) {
-        return cursorOrderedBuilder.limitBy("e.span_id", "e.project_id");
+        return cursorOrderedBuilder.limitBy(
+          "e.span_id",
+          "e.trace_id",
+          "e.project_id",
+        );
       }
       return cursorOrderedBuilder;
     })
@@ -1045,7 +1087,7 @@ async function getObservationsFromEventsTableInternal<T>(
         ),
     )
     .when(!isCursorPagination && Boolean(opts.dedupeBySpanId), (b) =>
-      b.limitBy("e.span_id", "e.project_id"),
+      b.limitBy("e.span_id", "e.trace_id", "e.project_id"),
     )
     .limit(limit, isCursorPagination ? undefined : offset);
 
@@ -1941,7 +1983,7 @@ export const getObservationsV2FromEventsTableForPublicApi = async (
   );
 };
 
-/** Assemble a page from completed windows, including empty continuations. */
+/** Assemble a page from completed windows. */
 export const getObservationsV2PageFromEventsTableForPublicApi = async (
   opts: PublicApiObservationsQuery,
 ): Promise<{
@@ -1959,6 +2001,12 @@ export const getObservationsV2PageFromEventsTableForPublicApi = async (
       }
       const page = await scanObservationWindows(opts, from, bounds.to, scan);
       span.setAttribute("observations.scan.windows", page.windows);
+      if (page.records.length === 0 && page.cursor) {
+        throw new ClickHouseResourceError(
+          "TIMEOUT",
+          new Error("Query timed out before returning observations"),
+        );
+      }
       return {
         items: await enrichObservationsWithModelData(
           page.records.slice(0, opts.limit),
@@ -3082,17 +3130,21 @@ export const deleteEventsByProjectId = async (
   return true;
 };
 
-export async function getAgentGraphDataFromEventsTable(params: {
-  projectId: string;
-  traceId: string;
-  minStartTime: Date;
-  maxStartTime: Date;
-}) {
-  const { projectId, traceId, minStartTime, maxStartTime } = params;
+export async function getAgentGraphDataFromEventsTable(
+  params: {
+    projectId: string;
+    minStartTime: Date;
+    maxStartTime: Date;
+  } & (
+    | { traceId: string; sessionId?: never }
+    | { sessionId: string; traceId?: never }
+  ),
+) {
+  const { projectId, minStartTime, maxStartTime } = params;
 
   const db = getClickhouseKysely();
 
-  const builder = db
+  const baseBuilder = db
     .selectFrom("events_truncated as e")
     .select((eb) => {
       const metadata = metadataMap(
@@ -3101,6 +3153,7 @@ export async function getAgentGraphDataFromEventsTable(params: {
       );
       return [
         "e.span_id as id",
+        "e.trace_id as trace_id",
         "e.parent_span_id as parent_observation_id",
         "e.type as type",
         "e.name as name",
@@ -3110,9 +3163,27 @@ export async function getAgentGraphDataFromEventsTable(params: {
         mapValue<string>(metadata, literal("langgraph_step")).as("step"),
       ];
     })
-    .where("e.trace_id", "=", traceId)
     .where("e.start_time", ">=", minStartTime)
     .where("e.start_time", "<=", maxStartTime);
+
+  const builder =
+    params.sessionId !== undefined
+      ? baseBuilder
+          .where("e.session_id", "=", params.sessionId)
+          .orderBy("e.start_time", "asc")
+          .orderBy("e.event_ts", "desc")
+          .$call(
+            limitBy({
+              count: 1,
+              columns: (eb) => [
+                eb.ref("e.span_id"),
+                eb.ref("e.trace_id"),
+                eb.ref("e.project_id"),
+              ],
+            }),
+          )
+          .limit(MAX_OBSERVATIONS_PER_SESSION)
+      : baseBuilder.where("e.trace_id", "=", params.traceId);
 
   const { sql: query, params: queryParams } = compileClickhouseQuery(
     builder,
@@ -4134,17 +4205,12 @@ const evalExecutionIdentifierColumn = (identifier: "evaluator" | "rule") =>
 const evaluatorTestEventCondition =
   "e.evaluator_execution_is_test OR startsWith(e.trace_name, 'Test evaluator')";
 
-// The cost query and its trace prefilter must cover the same window.
-const evalCostWindowCondition = "e.start_time > now() - INTERVAL 7 DAY";
-
 const traceCostsByIdentifier = (params: {
   projectId: string;
   identifiers: Array<{
     identifier: "evaluator" | "rule";
     alias: string;
   }>;
-  /** The ids the caller's HAVING keeps. */
-  identifierIds: string[];
   additionalSelect?: string[];
 }) =>
   new EventsAggQueryBuilder({
@@ -4160,27 +4226,8 @@ const traceCostsByIdentifier = (params: {
       ...(params.additionalSelect ?? []),
     ].join(", "),
   })
-    .whereRaw(evalCostWindowCondition)
-    .whereRaw("e.is_deleted = 0")
-    // Only a trace with an event carrying one of the ids can pass the
-    // caller's HAVING, so group just those traces instead of the project's
-    // whole week. The identifier bloom filter prunes the subquery.
-    .whereRaw(
-      `e.trace_id IN (
-        SELECT e.trace_id
-        FROM events_core e
-        WHERE e.project_id = {projectId: String}
-          AND ${evalCostWindowCondition}
-          AND e.is_deleted = 0
-          AND (${params.identifiers
-            .map(
-              ({ identifier }) =>
-                `${evalExecutionIdentifierColumn(identifier)} IN ({identifierIds: Array(String)})`,
-            )
-            .join(" OR ")})
-      )`,
-      { identifierIds: params.identifierIds },
-    );
+    .whereRaw("e.start_time > now() - INTERVAL 7 DAY")
+    .whereRaw("e.is_deleted = 0");
 
 const costMetricFields = {
   avgCost: {
@@ -4210,7 +4257,6 @@ const getCostMetricsByIdentifierIds = async <
   const traceCostsBuilder = traceCostsByIdentifier({
     projectId: params.projectId,
     identifiers: [{ identifier: params.identifier, alias: "identifier_id" }],
-    identifierIds: params.identifierIds,
     additionalSelect: [
       `countIf(${evaluatorTestEventCondition}) as test_event_count`,
     ],
@@ -4314,7 +4360,6 @@ export const getLatestEvaluatorRunCost = async (
         alias: "evaluator_id",
       },
     ],
-    identifierIds: [evaluatorId],
     additionalSelect: [
       "max(e.start_time) as timestamp",
       "countIf(e.type = 'GENERATION') as generation_count",

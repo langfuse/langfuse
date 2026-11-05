@@ -3,7 +3,7 @@
  * Each filter is a pure function that can be tested in isolation
  */
 
-import { RouteGroup, type Route } from "@/src/components/layouts/routes";
+import type { Route } from "@/src/components/layouts/routes";
 import type { NavigationFilterContext } from "./navigationFilters.types";
 import { hasProjectAccess } from "@/src/features/rbac/utils/checkProjectAccess";
 import { hasOrganizationAccess } from "@/src/features/rbac/utils/checkOrganizationAccess";
@@ -273,10 +273,5 @@ export function applyNavigationFilters(
 ): Route[] {
   return routes
     .map((route) => applyFiltersToRoute(route, ctx, organization))
-    .filter((route): route is Route => route !== null)
-    .map((route) =>
-      ctx.internalFeaturesEnabled && route.group === RouteGroup.PromptManagement
-        ? { ...route, group: RouteGroup.ContextManagement }
-        : route,
-    );
+    .filter((route): route is Route => route !== null);
 }

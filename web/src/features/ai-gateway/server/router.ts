@@ -169,11 +169,6 @@ export const aiGatewayRouter = createTRPCRouter({
       return new GatewayAnalyticsLabelsRepository(ctx.prisma).getLabels({
         organizationId: input.orgId,
         usageScope,
-        includePlainOrganizationKeys: hasOrganizationAccess({
-          session: ctx.session,
-          organizationId: input.orgId,
-          scope: "organization:CRUD_apiKeys",
-        }),
       });
     }),
 

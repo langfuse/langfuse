@@ -9,6 +9,12 @@ import {
 } from "@/src/components/table/peek";
 import { resolvePeekTraceParams } from "@/src/components/table/peek/resolvePeekTraceParams";
 import { buildTracePath } from "@langfuse/shared";
+import { useIsAuthenticatedAndProjectMember } from "@/src/features/auth/hooks";
+import { getTraceScopeTabs } from "@/src/features/traces/fns/getTraceScopeTabs";
+import { getTraceScopeQuery } from "@/src/features/traces/fns/getTraceScopeQuery";
+import useIsFeatureEnabled from "@/src/features/feature-flags/hooks/useIsFeatureEnabled";
+import { resolveTraceScope } from "@/src/features/traces/fns/resolveTraceScope";
+import { useReadPath } from "@/src/features/events/hooks/useReadPath";
 
 export const TablePeekViewTraceDetail = (
   props: Omit<
@@ -22,6 +28,11 @@ export const TablePeekViewTraceDetail = (
   const { projectId, layout, ...tablePeekViewProps } = props;
 
   const router = useRouter();
+  const unifiedTraceSessionViewEnabled = useIsFeatureEnabled(
+    "unifiedTraceSessionView",
+    { projectId },
+  );
+  const { isV4 } = useReadPath();
   const { traceId, timestamp } = resolvePeekTraceParams({
     reader: "trace",
     peek: router.query.peek as string | undefined,
@@ -40,12 +51,29 @@ export const TablePeekViewTraceDetail = (
     traceId,
     timestamp,
   });
+  const isProjectMember = useIsAuthenticatedAndProjectMember(projectId);
+  const sessionId = trace.data?.sessionId;
+  const { canSelectSession, isSessionScope, showScopeToggle } =
+    resolveTraceScope({
+      unifiedTraceSessionViewEnabled,
+      isV4,
+      isProjectMember,
+      sessionId,
+      aggregation: router.query.aggregation,
+      context: "peek",
+    });
 
   const actionProps = {
     trace: trace.data,
     traceContext: "peek" as const,
     shareUrl: traceId
-      ? buildTracePath({ projectId, traceId, timestamp })
+      ? buildTracePath({
+          projectId,
+          traceId,
+          timestamp,
+          aggregation:
+            router.query.aggregation === "session" ? "session" : "trace",
+        })
       : undefined,
     timestamp,
     onAfterDelete: (deletedTraceId: string) => {
@@ -58,7 +86,30 @@ export const TablePeekViewTraceDetail = (
   return (
     <TablePeekView
       {...tablePeekViewProps}
-      title={traceId}
+      itemType={isSessionScope ? "SESSION" : tablePeekViewProps.itemType}
+      title={isSessionScope && sessionId ? sessionId : traceId}
+      titleTabs={
+        showScopeToggle
+          ? getTraceScopeTabs({
+              value: isSessionScope ? "session" : "trace",
+              canSelectSession,
+              onValueChange: (next) => {
+                const query = getTraceScopeQuery(
+                  router.query,
+                  next,
+                  trace.data?.observations,
+                );
+                return router.replace(
+                  { pathname: router.pathname, query },
+                  undefined,
+                  {
+                    shallow: true,
+                  },
+                );
+              },
+            })
+          : undefined
+      }
       hideExpandToggle
       preserveContentAcrossItems
       actions={
