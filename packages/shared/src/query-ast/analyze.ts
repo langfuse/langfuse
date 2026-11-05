@@ -49,8 +49,11 @@ const allowedValues = (
  * match rows. A conjunction fails when equality or `any of` conditions on the
  * same single-valued field have no value in common, or when one of its `or`
  * operands fails in every branch. A dead branch inside a satisfiable `or` is
- * not reported. Callers decide the consequence: reject when authoring, warn
- * when loading a stored filter; the predicate itself is never rewritten.
+ * not reported. Conditions are compared only when they share a `target`
+ * (none counts as its own value); targets are host-owned and their overlaps
+ * unknown here, so contradictions across targets are missed, never invented.
+ * Callers decide the consequence: reject when authoring, warn when loading a
+ * stored filter; the predicate itself is never rewritten.
  */
 export const analyzePredicate = (
   predicate: Predicate,
