@@ -74,9 +74,7 @@ export class GatewayModelCatalogService {
 
   constructor(
     private readonly prisma: PrismaClient,
-    private readonly fetcher: typeof fetch = createSecureLlmFetch({
-      logContext: "AI Gateway model discovery",
-    }),
+    private readonly fetcher?: typeof fetch,
     private readonly redis: Redis | Cluster | null = defaultRedis,
   ) {
     this.repository = new GatewayProviderRepository(prisma);
@@ -310,12 +308,21 @@ export class GatewayModelCatalogService {
   ): Promise<ModelCatalogRefreshResult> {
     const provider = connection.provider as GatewayProviderName;
     const credential = decrypt(connection.encryptedCredential);
+    const extraHeaders =
+      decryptAndParseExtraHeaders(connection.extraHeaders) ?? {};
     const models = await getModelDiscoveryAdapter(provider).fetchCatalog({
       credential,
       config: connection.config,
       baseURL: connection.baseURL,
-      extraHeaders: decryptAndParseExtraHeaders(connection.extraHeaders) ?? {},
-      fetcher: this.fetcher,
+      extraHeaders,
+      // Extra headers can carry proxy credentials, so a cross-origin redirect
+      // strips them like the provider auth headers.
+      fetcher:
+        this.fetcher ??
+        createSecureLlmFetch({
+          logContext: "AI Gateway model discovery",
+          additionalSensitiveHeaders: Object.keys(extraHeaders),
+        }),
     });
     if (!models.success) {
       if (

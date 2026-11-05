@@ -11,6 +11,7 @@ import {
 } from "@langfuse/shared";
 import { decrypt, encrypt } from "@langfuse/shared/encryption";
 import {
+  createSecureLlmFetch,
   decryptAndParseExtraHeaders,
   LLMAdapter,
   resolveUpdatedExtraHeaders,
@@ -550,7 +551,9 @@ async function validateGatewayCredential(
       config: params.config,
       baseURL: null,
       extraHeaders: {},
-      fetcher: fetch,
+      fetcher: createSecureLlmFetch({
+        logContext: "AI Gateway credential validation",
+      }),
     });
     if (!result.success) {
       throw new InvalidRequestError("Provider credential validation failed");

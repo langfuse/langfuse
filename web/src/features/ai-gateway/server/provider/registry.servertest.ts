@@ -153,6 +153,50 @@ describe("AI gateway provider registry", () => {
     ).toEqual([{ id: "bedrock:openai.gpt-5.5", provider: "OPENAI" }]);
   });
 
+  it("lists models through the secure LLM fetch by default", async () => {
+    const globalFetch = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(Response.json({ data: [{ id: "gpt-5-mini" }] }));
+    const redis = {
+      get: vi.fn().mockResolvedValue(null),
+      ttl: vi.fn().mockResolvedValue(-2),
+      setex: vi.fn(),
+    } as unknown as Redis;
+    const prisma = {
+      gatewayAiConnection: {
+        findMany: vi
+          .fn()
+          .mockResolvedValue([
+            { id: "connection-1", name: "proxy", allowedModels: null },
+          ]),
+        findFirst: vi.fn().mockResolvedValue({
+          id: "connection-1",
+          organizationId: "org-1",
+          provider: "OPENAI",
+          encryptedCredential: encrypt("sk-test"),
+          baseURL: "http://169.254.169.254/v1",
+          extraHeaders: null,
+          status: "ENABLED",
+          allowedModels: null,
+          customModels: [],
+          updatedAt: new Date(0),
+        }),
+      },
+    } as unknown as PrismaClient;
+
+    try {
+      await expect(
+        new GatewayModelsService(prisma, undefined, redis).list({
+          context: { organizationId: "org-1" } as GatewayApiKeyAuthContext,
+          apiFormat: "openai.responses",
+        }),
+      ).rejects.toThrow("Gateway model discovery is temporarily unavailable");
+      expect(globalFetch).not.toHaveBeenCalled();
+    } finally {
+      globalFetch.mockRestore();
+    }
+  });
+
   it("reads model lists from an organization and connection scoped cache", async () => {
     const fetcher = vi.fn<typeof fetch>();
     const redis = {

@@ -25,7 +25,7 @@ export class GatewayModelsService {
 
   constructor(
     prisma: PrismaClient,
-    fetcher: typeof fetch = fetch,
+    fetcher?: typeof fetch,
     redis: Redis | Cluster | null = defaultRedis,
   ) {
     this.repository = new GatewayModelsRepository(prisma);
