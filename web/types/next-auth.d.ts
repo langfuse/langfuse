@@ -75,8 +75,9 @@ declare module "next-auth" {
       // opt out of product traces. Optional so existing session mocks need
       // not set it.
       aiFeaturesTracingConfigured?: boolean;
-      // False only on self-hosted instances without LANGFUSE_AI_GATEWAY_DEPLOYED;
-      // Cloud, development and preview always run a gateway. Optional so
+      // False only on self-hosted instances without both gateway keys or with
+      // LANGFUSE_AI_GATEWAY_DEPLOYED=false; Cloud, development and preview
+      // always run a gateway. Optional so
       // existing session mocks need not set it.
       aiGatewayDeployed?: boolean;
       // Enables features that are only available under an enterprise/commercial license when self-hosting Langfuse

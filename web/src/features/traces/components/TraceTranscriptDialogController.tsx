@@ -42,7 +42,10 @@ export function TraceTranscriptDialogController({
 }
 
 function TraceTranscriptInspector(source: TraceTranscriptSource) {
-  const query = api.events.transcriptByTraceId.useQuery(source);
+  const query = api.events.transcriptByTraceId.useQuery({
+    ...source,
+    context: "other",
+  });
 
   if (query.error) {
     return (
