@@ -603,9 +603,12 @@ if (env.QUEUE_CONSUMER_POSTHOG_INTEGRATION_QUEUE_IS_ENABLED === "true") {
       stalledInterval: 120000, // 120 seconds
       maxStalledCount: 3,
       limiter: {
-        // Process at most one PostHog job globally per 10s.
+        // Start at most one PostHog job globally per 5s (720 per hour). The
+        // scheduler enqueues every enabled integration each hour, so this has
+        // to stay above the integration count or the overflow slips to an
+        // every-other-hour cadence.
         max: 1,
-        duration: 10_000,
+        duration: 5_000,
       },
     },
   );
