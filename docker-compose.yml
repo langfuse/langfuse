@@ -171,7 +171,7 @@ services:
       # LANGFUSE_AI_GATEWAY_PORT is the bare host port number (default 3031, next to web on 3000 and worker on 3030);
       # it also builds the default public URL. LANGFUSE_AI_GATEWAY_HOST_IP restricts the binding, e.g. to 127.0.0.1.
       # The container listens on 8080.
-      - ${LANGFUSE_AI_GATEWAY_HOST_IP:-0.0.0.0}:${LANGFUSE_AI_GATEWAY_PORT:-3031}:8080
+      - ${LANGFUSE_AI_GATEWAY_HOST_IP:+${LANGFUSE_AI_GATEWAY_HOST_IP}:}${LANGFUSE_AI_GATEWAY_PORT:-3031}:8080
     environment:
       # Fixed to the internal service: plain HTTP is allowed only because this address stays
       # on the private Docker network, and Web's responses carry provider API keys.
