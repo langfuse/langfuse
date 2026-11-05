@@ -16,15 +16,15 @@ base64 = { version = "0.23.1", features = ["simd-unsafe"] }
 chrono = { version = "0.4", default-features = false, features = ["alloc", "std"] }
 ch-core-rs = { git = "https://github.com/ClickHouse/ch-core-rs.git", rev = "afb8f67cb71a810b83fac9c7b5a43173589e56c1" }
 hdbscan-rs = { version = "=0.6.1", default-features = false }
-getrandom = "0.3"
+getrandom = "0.4"
 memchr = "2"
 holomap = { version = "=0.3.0", default-features = false }
 metrics = "0.24"
 metrics-exporter-dogstatsd = "0.9"
 napi = { version = "3", default-features = false, features = ["napi9"] }
 napi-derive = "3"
-ndarray = "0.16"
-jiter = { version = "=0.17.0", default-features = false }
+ndarray = "0.17"
+jiter = { version = "=0.18.0", default-features = false }
 rust_decimal = { version = "1.37.2", default-features = false, features = ["std"] }
 serde = "1"
 serde_json = { version = "1", features = ["float_roundtrip", "raw_value"] }
