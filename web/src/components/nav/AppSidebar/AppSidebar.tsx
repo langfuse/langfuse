@@ -647,13 +647,13 @@ const VersionLabel = ({
           onKeyDown={noteKeyboardUse}
         >
           <span className="whitespace-nowrap">{versionText}</span>
-          {update && (
+          {update && !backgroundMigrationStatus && (
             <AttentionDot
               label={`New ${update.updateType} version available`}
               tone={update.updateType}
             />
           )}
-          {!update && backgroundMigrationStatus && (
+          {backgroundMigrationStatus && (
             <AttentionDot
               label="Background migration running"
               tone="migration"
@@ -755,12 +755,14 @@ const VersionLabel = ({
                   __rawClassName="mr-2"
                 />
                 Update
-                <span className="ml-2 inline-flex">
-                  <AttentionDot
-                    label="Update available"
-                    tone={update.updateType}
-                  />
-                </span>
+                {!backgroundMigrationStatus && (
+                  <span className="ml-2 inline-flex">
+                    <AttentionDot
+                      label="Update available"
+                      tone={update.updateType}
+                    />
+                  </span>
+                )}
               </Link>
             </DropdownMenuItem>
           </>
