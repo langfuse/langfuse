@@ -3339,7 +3339,8 @@ describe("PATCH api/public/v2/prompts/[promptName]/versions/[version]", () => {
             prompt: [
               name,
               ...children.map(
-                (child) => `@@@langfusePrompt:name=${child}|label=production@@@`,
+                (child) =>
+                  `@@@langfusePrompt:name=${child}|label=production@@@`,
               ),
             ].join(" "),
           },
