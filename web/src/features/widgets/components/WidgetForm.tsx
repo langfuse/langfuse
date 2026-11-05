@@ -25,7 +25,7 @@ import {
   mapWidgetUiTableFilterToView,
   partitionWidgetUiTableFiltersToView,
 } from "@/src/features/dashboard/lib/dashboardUiTableToViewMapping";
-import React, { useId, useMemo, useRef } from "react";
+import React, { useMemo, useRef } from "react";
 import {
   useController,
   useForm,
@@ -1578,32 +1578,42 @@ function NumberColorThresholdsField({
 }: {
   control: Control<WidgetFormValues>;
 }) {
-  const { field, fieldState } = useController({
+  const thresholds = useWatch({
     control,
     name: "chart.colorThresholds",
   });
-  const thresholds = field.value;
   const higherIsBetter = thresholds?.direction === "higher-is-better";
-  const errorId = useId();
 
   return (
     <div className="flex flex-col gap-3">
-      <FormField label="Tile colour">
-        {(input) => (
+      <FormField
+        control={control}
+        name="chart.colorThresholds"
+        label="Tile colour"
+        description={
+          thresholds
+            ? "Use raw metric values before display formatting. Values at a threshold stay in the less severe band."
+            : undefined
+        }
+      >
+        {(field) => (
           <SelectInput
-            id={input.id}
+            id={field.id}
             placeholder="Select a colour mode"
-            value={thresholds?.direction ?? "none"}
+            value={field.value?.direction ?? "none"}
             onValueChange={(direction) => {
               if (direction === "none") field.onChange(null);
               else {
                 field.onChange({
                   direction,
-                  warning: Number.NaN,
-                  critical: Number.NaN,
+                  warning: field.value?.warning ?? Number.NaN,
+                  critical: field.value?.critical ?? Number.NaN,
                 });
               }
             }}
+            error={Boolean(field.error)}
+            aria-invalid={Boolean(field.error)}
+            aria-describedby={field.inputDescribedById}
             options={[
               { value: "none", label: "No colour thresholds" },
               { value: "higher-is-better", label: "Higher values are better" },
@@ -1612,45 +1622,28 @@ function NumberColorThresholdsField({
           />
         )}
       </FormField>
-      {thresholds && (
-        <>
-          <p className="text-muted-foreground text-xs">
-            Use raw metric values before display formatting. Values at a
-            threshold stay in the less severe band.
-          </p>
-          {(["warning", "critical"] as const).map((level) => (
-            <FormField
-              key={level}
-              label={`${level === "warning" ? "Warning" : "Critical"} ${higherIsBetter ? "below" : "above"}`}
-            >
-              {(input) => (
-                <Input
-                  id={input.id}
-                  type="number"
-                  step="any"
-                  value={
-                    Number.isFinite(thresholds[level]) ? thresholds[level] : ""
-                  }
-                  onChange={(event) =>
-                    field.onChange({
-                      ...thresholds,
-                      [level]: event.target.valueAsNumber,
-                    })
-                  }
-                  aria-invalid={Boolean(fieldState.error)}
-                  aria-describedby={fieldState.error ? errorId : undefined}
-                />
-              )}
-            </FormField>
-          ))}
-          {fieldState.error && (
-            <p id={errorId} role="alert" className="text-destructive text-xs">
-              Enter two numeric thresholds, with critical{" "}
-              {higherIsBetter ? "below" : "above"} warning.
-            </p>
-          )}
-        </>
-      )}
+      {thresholds &&
+        (["warning", "critical"] as const).map((level) => (
+          <FormField
+            key={level}
+            control={control}
+            name={`chart.colorThresholds.${level}`}
+            label={`${level === "warning" ? "Warning" : "Critical"} ${higherIsBetter ? "below" : "above"}`}
+          >
+            {(field) => (
+              <Input
+                id={field.id}
+                type="number"
+                step="any"
+                value={Number.isFinite(field.value) ? field.value : ""}
+                onChange={(event) => field.onChange(event.target.valueAsNumber)}
+                error={Boolean(field.error)}
+                aria-invalid={Boolean(field.error)}
+                aria-describedby={field.inputDescribedById}
+              />
+            )}
+          </FormField>
+        ))}
     </div>
   );
 }
