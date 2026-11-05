@@ -733,6 +733,9 @@ const VersionLabel = ({
                   __rawClassName="mr-2"
                 />
                 Update
+                <span className="ml-2 inline-flex">
+                  <AttentionDot label="Update available" />
+                </span>
               </Link>
             </DropdownMenuItem>
           </>
