@@ -16,17 +16,17 @@ record activity. These maps have no consumer yet.
 
 | Map | Contents |
 | --- | --- |
-| `bounds:<hour>` | MessagePack `[minStart, maxStart, serializedEventBytes]`, including nonmatching spans. |
+| `bounds:<trace-hash>` | One string key per trace: MessagePack `[minStart, maxStart, serializedEventBytes]`, including nonmatching spans. |
 | `record` | `{ revision, rules, failed_cnt }`, with deduplicated rule IDs. |
 | `due` | Pending traces ordered by Redis arrival time + project idle interval. |
 
 Keys share `{trace-dispatch:v2:<shard>:<hash>}`: a stable SHA-256 suffix places
-each shard in one Redis Cluster slot. Bounds use a 16-byte hashed trace identity;
+each shard in one Redis Cluster slot. Bounds use a 16-byte trace hash encoded as hex;
 record/due use JSON `[projectId, traceId]`. Drain pending work and switch
 writers/readers together when changing key layout or shard count.
 
-Activity merges bounds and moves them to the current bucket. Buckets expire after
-`LANGFUSE_TRACE_BATCH_FIRST_SEEN_TTL_MS` (24–25h after activity by default).
+Activity merges bounds and resets their native key TTL to
+`LANGFUSE_TRACE_BATCH_FIRST_SEEN_TTL_MS` (24h after the latest activity by default).
 Arrivals after expiry start fresh and discard old selections. Each Lua call
 removes up to 100 entries past due + `LANGFUSE_TRACE_BATCH_PENDING_TTL_MS`
 (default 2h); key TTLs reclaim inactive maps.
