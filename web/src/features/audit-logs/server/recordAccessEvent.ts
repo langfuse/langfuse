@@ -48,20 +48,21 @@ async function loadAccessAuditOrg(
 }
 
 /**
- * Records a tRPC read when its org records access events. Call it before
- * returning the data: a failed write fails the read. Anonymous viewers of
- * public resources have no actor and are not recorded. The event is staged by
- * the EE recorder, which runs only for orgs that pass the gate.
+ * Records a read by a signed-in user when the org that owns the project
+ * records access events. Anonymous viewers of public resources have no actor
+ * and are not recorded. The event is staged by the EE recorder, which runs
+ * only for orgs that pass the gate.
  */
-export async function recordTrpcAccess(
-  ctx: {
-    session: { user?: Session["user"] } | null;
-    headers: IncomingHttpHeaders;
-  },
+async function recordUserAccess(
+  user: Session["user"] | undefined,
   projectId: string,
   read: AccessRead,
+  via: {
+    surface: "trpc" | "internal-api";
+    headers: IncomingHttpHeaders;
+    remoteAddress?: string;
+  },
 ): Promise<void> {
-  const user = ctx.session?.user;
   if (!user) return;
 
   const org = user.organizations.find((o) =>
@@ -91,8 +92,43 @@ export async function recordTrpcAccess(
       projectRole: project?.role,
       supportAccess,
     }),
+    surface: via.surface,
+    request: getAuditRequestContext(via.headers, via.remoteAddress),
+  });
+}
+
+/**
+ * Records a tRPC read when its org records access events. Call it before
+ * returning the data: a failed write fails the read.
+ */
+export async function recordTrpcAccess(
+  ctx: {
+    session: { user?: Session["user"] } | null;
+    headers: IncomingHttpHeaders;
+  },
+  projectId: string,
+  read: AccessRead,
+): Promise<void> {
+  await recordUserAccess(ctx.session?.user, projectId, read, {
     surface: "trpc",
-    request: getAuditRequestContext(ctx.headers),
+    headers: ctx.headers,
+  });
+}
+
+/**
+ * Records a read through a session-authenticated web route outside tRPC, such
+ * as a download, when its org records access events. Call it before sending
+ * any data: a failed write fails the read.
+ */
+export async function recordInternalApiAccess(
+  { session, req }: { session: Session | null; req: NextApiRequest },
+  projectId: string,
+  read: AccessRead,
+): Promise<void> {
+  await recordUserAccess(session?.user, projectId, read, {
+    surface: "internal-api",
+    headers: req.headers,
+    remoteAddress: req.socket.remoteAddress,
   });
 }
 
