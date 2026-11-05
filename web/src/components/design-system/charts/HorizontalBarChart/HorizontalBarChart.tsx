@@ -90,7 +90,7 @@ export function HorizontalBarChart({
           <ChartTooltip placementStrategy="horizontal">
             {({ activeIndex, hideTooltip, getReferenceProps }) => (
               <div
-                className="scroll-fade-b size-full overflow-x-hidden overflow-y-auto"
+                className="scroll-fade-b size-full scroll-pb-8 overflow-x-hidden overflow-y-auto"
                 data-testid="top-list-chart"
               >
                 <svg
