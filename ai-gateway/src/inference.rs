@@ -59,6 +59,7 @@ pub(crate) fn rate_limited_reason(kind: RateLimitKind) -> &'static str {
 pub(crate) fn provider_origin(error: ProviderError) -> (ErrorOrigin, &'static str) {
     match error {
         ProviderError::Configuration => (ErrorOrigin::Gateway, "configuration"),
+        ProviderError::Blocked => (ErrorOrigin::Gateway, "egress_blocked"),
         ProviderError::Timeout => (ErrorOrigin::ProviderTransport, "timeout"),
         ProviderError::Transport => (ErrorOrigin::ProviderTransport, "transport"),
     }
@@ -134,11 +135,21 @@ impl InferenceService {
         let telemetry =
             crate::telemetry::Telemetry::new(&control_plane, config.telemetry_buffer_bytes)?;
         crate::observability::record_memory_budget(config.request_limits.memory_budget_bytes);
+        let egress_policy = crate::egress::EgressPolicy::new(
+            config.egress_exemptions.clone(),
+            // Private addresses are reachable only when the operator exempts them.
+            true,
+        );
         Ok(Self {
             control_plane: ControlPlaneClient::new(control_plane)?,
-            provider: ProviderTransport::new(config.execution_limits)
-                .map_err(|_| ResolutionError::Configuration)?
-                .with_telemetry(telemetry.clone()),
+            provider: ProviderTransport::with_egress(
+                egress_policy,
+                crate::providers::ProviderLimits {
+                    execution: config.execution_limits,
+                },
+            )
+            .map_err(|_| ResolutionError::Configuration)?
+            .with_telemetry(telemetry.clone()),
             request_limits: config.request_limits,
             memory_budget: Arc::new(Semaphore::new(config.request_limits.memory_budget_bytes)),
             telemetry: Some(telemetry),
@@ -298,6 +309,18 @@ impl InferenceService {
             memory_budget: Arc::new(Semaphore::new(RequestLimits::default().memory_budget_bytes)),
             telemetry: None,
         }
+    }
+
+    /// Like [`Self::for_test`], with the egress policy enforced.
+    #[cfg(test)]
+    pub(crate) fn for_test_with_egress(
+        control_plane: ControlPlaneClient,
+        egress: crate::egress::EgressPolicy,
+    ) -> Self {
+        let provider =
+            ProviderTransport::with_egress(egress, crate::providers::ProviderLimits::default())
+                .unwrap();
+        Self::for_test(control_plane, provider)
     }
 
     #[cfg(test)]

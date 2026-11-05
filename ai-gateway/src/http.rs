@@ -495,6 +495,7 @@ impl InferenceHttpError {
                     ProviderError::Timeout => "timeout",
                     ProviderError::Transport => "transport",
                     ProviderError::Configuration => "configuration",
+                    ProviderError::Blocked => "egress_blocked",
                 },
             ),
         }
@@ -585,7 +586,7 @@ impl InferenceHttpError {
                 "upstream_timeout",
             ),
             Self::Resolution(R::Transport | R::InvalidResponse | R::ResponseTooLarge)
-            | Self::Provider(ProviderError::Transport) => (
+            | Self::Provider(ProviderError::Transport | ProviderError::Blocked) => (
                 StatusCode::BAD_GATEWAY,
                 "Upstream request failed",
                 "server_error",

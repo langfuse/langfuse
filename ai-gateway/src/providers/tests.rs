@@ -1250,3 +1250,34 @@ fn assert_chat_upload(payload: &serde_json::Value, request: &str) {
         assert!(!payload.to_string().contains(secret));
     }
 }
+
+#[test]
+fn egress_blocks_every_spelling_of_a_private_ip_literal() {
+    let transport = ProviderTransport::with_egress(
+        crate::egress::EgressPolicy::new(crate::egress::EgressExemptions::default(), true),
+        ProviderLimits::default(),
+    )
+    .unwrap();
+    for base_url in [
+        "http://127.0.0.1/v1",
+        "http://[::1]/v1",
+        "http://[::1]:8000/v1",
+        "http://[::1]:8080/v1",
+        "http://[fd00::1]/v1",
+        "http://[::ffff:127.0.0.1]/v1",
+        "http://2130706433/v1",
+        "http://0x7f.1/v1",
+        "http://10.1/v1",
+        "http://169.254.169.254./latest",
+        "http://0.0.0.0:8000/v1",
+    ] {
+        assert!(
+            matches!(
+                transport.enforce_egress(base_url),
+                Err(ProviderError::Blocked)
+            ),
+            "{base_url} must be blocked"
+        );
+    }
+    assert!(transport.enforce_egress("http://93.184.216.34/v1").is_ok());
+}

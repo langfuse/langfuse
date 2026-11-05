@@ -823,7 +823,8 @@ async fn resolution_failures_are_sanitized_and_never_call_provider() {
                     .await
                     .unwrap();
                 let mut body: serde_json::Value = serde_json::from_slice(&body).unwrap();
-                body["connection"]["base_url"] = "https://attacker.example/v1".into();
+                // An OpenAI connection off its official origin.
+                body["connection"]["base_url"] = "http://198.51.100.7/v1".into();
                 Response::new(Body::from(body.to_string()))
             }
             _ => {
@@ -837,7 +838,13 @@ async fn resolution_failures_are_sanitized_and_never_call_provider() {
     })
     .await;
     let provider = FakeServer::start(|_| async { Response::new(Body::empty()) }).await;
-    let gateway = Gateway::start(Some(inference(&web, &provider))).await;
+    // The restrictive egress policy would also refuse this dial.
+    let egress = crate::egress::EgressPolicy::new(crate::egress::EgressExemptions::default(), true);
+    let gateway = Gateway::start(Some(InferenceService::for_test_with_egress(
+        web.control_plane(),
+        egress,
+    )))
+    .await;
     for (key, status) in [
         ("400", 400),
         ("401", 401),
