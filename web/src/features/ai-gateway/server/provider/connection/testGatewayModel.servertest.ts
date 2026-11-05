@@ -56,4 +56,28 @@ describe("testGatewayModel", () => {
       "https://bedrock-runtime.eu-central-1.amazonaws.com/openai/v1/chat/completions",
     ]);
   });
+
+  it("accepts an OpenAI model that only serves Chat Completions", async () => {
+    const fetcher = vi.fn<typeof fetch>(async (input) =>
+      String(input).endsWith("/responses")
+        ? new Response(JSON.stringify({ message: "Unsupported" }), {
+            status: 400,
+          })
+        : new Response("{}", { status: 200 }),
+    );
+
+    const result = await testGatewayModel({
+      provider: "OPENAI",
+      config: {},
+      credential: "openai-key",
+      model: "ft:gpt-4o-mini:acme::abc123",
+      fetcher,
+    });
+
+    expect(result).toEqual({ success: true, durationMs: expect.any(Number) });
+    expect(fetcher.mock.calls.map(([url]) => String(url))).toEqual([
+      "https://api.openai.com/v1/responses",
+      "https://api.openai.com/v1/chat/completions",
+    ]);
+  });
 });
