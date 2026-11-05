@@ -65,30 +65,34 @@ const TRUNCATION_SUFFIX = "…[truncated]";
 // Leaves room for the `langfuse_score_truncated_fields` marker.
 const TRUNCATION_TARGET_BYTES = MAX_ENCODED_SCORE_BYTES - 10_000;
 
-type TextSlot = { label: string; value: string; set: (value: string) => void };
+/** A truncatable string: the comment, the string value or a metadata value. */
+type TextSlot = {
+  label: string;
+  field: FreeTextField;
+  metadataKey?: string;
+  value: string;
+};
 
-/** Truncatable strings: comment, string value and each metadata value. */
-const collectTextSlots = (copy: AnalyticsScoreEvent): TextSlot[] => {
+type Cut = { slot: TextSlot; value: string };
+
+const collectTextSlots = (score: AnalyticsScoreEvent): TextSlot[] => {
   const slots: TextSlot[] = [];
   for (const field of [
     "langfuse_score_comment",
     "langfuse_score_string_value",
   ] as const) {
-    const value = copy[field];
-    if (typeof value === "string") {
-      slots.push({ label: field, value, set: (v) => (copy[field] = v) });
-    }
+    const value = score[field];
+    if (typeof value === "string") slots.push({ label: field, field, value });
   }
-  const metadata = copy.langfuse_score_metadata;
+  const metadata = score.langfuse_score_metadata;
   if (metadata && typeof metadata === "object" && !Array.isArray(metadata)) {
-    const metadataCopy: Record<string, unknown> = { ...metadata };
-    copy.langfuse_score_metadata = metadataCopy;
-    for (const [key, value] of Object.entries(metadataCopy)) {
+    for (const [metadataKey, value] of Object.entries(metadata)) {
       if (typeof value === "string") {
         slots.push({
-          label: `langfuse_score_metadata.${key}`,
+          label: `langfuse_score_metadata.${metadataKey}`,
+          field: "langfuse_score_metadata",
+          metadataKey,
           value,
-          set: (v) => (metadataCopy[key] = v),
         });
       }
     }
@@ -104,58 +108,105 @@ const cutAt = (value: string, keepChars: number): string => {
 };
 
 /**
- * Shortens the largest strings until the score fits, re-measuring after each
- * cut because escaping makes bytes per character uneven.
+ * Shortens one string until `total` reaches the target, re-measuring after
+ * each cut because escaping makes bytes per character uneven.
  */
+const cutSlot = (
+  slot: TextSlot,
+  total: number,
+  encoding: ScoreEncoding,
+): { value: string; total: number } => {
+  let bytes = encodedBytes(slot.value, encoding);
+  let kept = slot.value.length;
+  let value = slot.value;
+  while (total > TRUNCATION_TARGET_BYTES && kept > 0) {
+    const keepRatio = Math.max(
+      0,
+      1 - (total - TRUNCATION_TARGET_BYTES) / bytes,
+    );
+    kept = Math.max(0, Math.floor(kept * keepRatio) - TRUNCATION_SUFFIX.length);
+    value = cutAt(slot.value, kept);
+    const cutBytes = encodedBytes(value, encoding);
+    total += cutBytes - bytes;
+    bytes = cutBytes;
+  }
+  return { value, total };
+};
+
+const pickCuts = (
+  score: AnalyticsScoreEvent,
+  total: number,
+  encoding: ScoreEncoding,
+): Cut[] => {
+  const largestFirst = collectTextSlots(score)
+    .filter((slot) => slot.value.length > TRUNCATION_SUFFIX.length)
+    .map((slot) => ({ slot, bytes: encodedBytes(slot.value, encoding) }))
+    .sort((a, b) => b.bytes - a.bytes);
+
+  const cuts: Cut[] = [];
+  for (const { slot } of largestFirst) {
+    if (total <= TRUNCATION_TARGET_BYTES) break;
+    const result = cutSlot(slot, total, encoding);
+    cuts.push({ slot, value: result.value });
+    total = result.total;
+  }
+  return cuts;
+};
+
+const withCuts = <T extends AnalyticsScoreEvent>(score: T, cuts: Cut[]): T => {
+  const fieldCuts = cuts.filter((c) => c.slot.metadataKey === undefined);
+  const metadataCuts = cuts.filter((c) => c.slot.metadataKey !== undefined);
+  return {
+    ...score,
+    ...Object.fromEntries(fieldCuts.map((c) => [c.slot.field, c.value])),
+    ...(metadataCuts.length > 0 && {
+      langfuse_score_metadata: {
+        ...(score.langfuse_score_metadata as Record<string, unknown>),
+        ...Object.fromEntries(
+          metadataCuts.map((c) => [c.slot.metadataKey, c.value]),
+        ),
+      },
+    }),
+    langfuse_score_truncated_fields: cuts.map((c) => c.slot.label),
+  };
+};
+
 const truncateLargestValues = <T extends AnalyticsScoreEvent>(
   score: T,
   encoding: ScoreEncoding,
 ): T => {
-  let total = encodedBytes(score, encoding);
+  const total = encodedBytes(score, encoding);
   if (total <= MAX_ENCODED_SCORE_BYTES) return score;
-
-  const copy: T = { ...score };
-  const largestFirst = collectTextSlots(copy)
-    .filter((slot) => slot.value.length > TRUNCATION_SUFFIX.length)
-    .map((slot) => ({ ...slot, bytes: encodedBytes(slot.value, encoding) }))
-    .sort((a, b) => b.bytes - a.bytes);
-
-  const truncated: string[] = [];
-  for (const slot of largestFirst) {
-    if (total <= TRUNCATION_TARGET_BYTES) break;
-    let { bytes } = slot;
-    let kept = slot.value.length;
-    let cut = slot.value;
-    while (total > TRUNCATION_TARGET_BYTES && kept > 0) {
-      const keepRatio = Math.max(
-        0,
-        1 - (total - TRUNCATION_TARGET_BYTES) / bytes,
-      );
-      kept = Math.max(
-        0,
-        Math.floor(kept * keepRatio) - TRUNCATION_SUFFIX.length,
-      );
-      cut = cutAt(slot.value, kept);
-      const cutBytes = encodedBytes(cut, encoding);
-      total += cutBytes - bytes;
-      bytes = cutBytes;
-    }
-    slot.set(cut);
-    truncated.push(slot.label);
-  }
-  if (truncated.length === 0) return score;
-  copy.langfuse_score_truncated_fields = truncated;
-  return copy;
+  const cuts = pickCuts(score, total, encoding);
+  return cuts.length === 0 ? score : withCuts(score, cuts);
 };
 
+const truncationLabels = (score: AnalyticsScoreEvent): string[] =>
+  Array.isArray(score.langfuse_score_truncated_fields)
+    ? (score.langfuse_score_truncated_fields as string[])
+    : [];
+
+const labelBelongsTo = (label: string, field: FreeTextField): boolean =>
+  label === field || label.startsWith(`${field}.`);
+
+/**
+ * Picks fields to null, largest first. A field's size includes its truncation
+ * labels, which are dropped with it.
+ */
 const pickFieldsToOmit = (
   score: AnalyticsScoreEvent,
   encoding: ScoreEncoding,
 ): FreeTextField[] => {
   let total = encodedBytes(score, encoding);
+  const labels = truncationLabels(score);
   const largestFirst = FREE_TEXT_FIELDS.map((field) => ({
     field,
-    bytes: encodedBytes(score[field] ?? null, encoding),
+    bytes:
+      encodedBytes(score[field] ?? null, encoding) +
+      encodedBytes(
+        labels.filter((label) => labelBelongsTo(label, field)),
+        encoding,
+      ),
   })).sort((a, b) => b.bytes - a.bytes);
 
   const omitted: FreeTextField[] = [];
@@ -167,13 +218,21 @@ const pickFieldsToOmit = (
   return omitted;
 };
 
+/** Nulls the fields and drops their truncation labels, which no longer apply. */
 const withOmittedFields = <T extends AnalyticsScoreEvent>(
   score: T,
   omitted: FreeTextField[],
 ): T => {
-  const capped: T = { ...score, langfuse_score_omitted_fields: omitted };
-  for (const field of omitted) capped[field] = null as T[FreeTextField];
-  return capped;
+  const remainingLabels = truncationLabels(score).filter(
+    (label) => !omitted.some((field) => labelBelongsTo(label, field)),
+  );
+  return {
+    ...score,
+    ...Object.fromEntries(omitted.map((field) => [field, null])),
+    langfuse_score_truncated_fields:
+      remainingLabels.length > 0 ? remainingLabels : undefined,
+    langfuse_score_omitted_fields: omitted,
+  };
 };
 
 /**
