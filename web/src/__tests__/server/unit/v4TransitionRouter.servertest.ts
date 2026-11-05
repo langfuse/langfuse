@@ -575,6 +575,12 @@ describe("v4TransitionRouter", () => {
     vi.clearAllMocks();
   });
 
+  it("rejects migration banner scopes outside the session", async () => {
+    await expect(
+      createCaller().legacyApiBannerState({ orgId: "org-outside-session" }),
+    ).rejects.toMatchObject({ code: "FORBIDDEN" });
+  });
+
   it("serves legacy public API usage from Redis without querying ClickHouse", async () => {
     await seedRedisCache({
       [legacyApiUsageCacheKey]: legacyApiBlob([

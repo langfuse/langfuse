@@ -20,10 +20,9 @@ describe("legacy API banner config", () => {
     return getLegacyApiBannerState;
   }
 
-  it("hides exempt orgs, self-hosted, and a blank or off banner", async () => {
+  it("uses fixed copy and hides exempt orgs, self-hosted, and off banners", async () => {
     const configured = await loadState({
       LANGFUSE_V4_BANNER_SEVERITY: "critical",
-      LANGFUSE_V4_BANNER_MESSAGE: "Legacy v3 is paused.",
       LANGFUSE_V4_BANNER_EXEMPT_ORG_IDS: " org-yelp , ,org-b",
     });
 
@@ -38,7 +37,8 @@ describe("legacy API banner config", () => {
     expect(configured({ orgId: "org-c", isLangfuseCloud: true })).toMatchObject(
       {
         severity: "critical",
-        message: "Legacy v3 is paused.",
+        message:
+          "Action required: After November 16, 2026, some features may stop working for at least one of your projects.",
         exempt: false,
       },
     );
@@ -50,14 +50,7 @@ describe("legacy API banner config", () => {
 
     const off = await loadState({
       LANGFUSE_V4_BANNER_SEVERITY: "off",
-      LANGFUSE_V4_BANNER_MESSAGE: "Legacy v3 is paused.",
     });
     expect(off({ orgId: "org-a", isLangfuseCloud: true }).severity).toBe("off");
-
-    const blank = await loadState({
-      LANGFUSE_V4_BANNER_SEVERITY: "warning",
-      LANGFUSE_V4_BANNER_MESSAGE: "   ",
-    });
-    expect(blank({ orgId: "org-a", isLangfuseCloud: true }).message).toBeNull();
   });
 });

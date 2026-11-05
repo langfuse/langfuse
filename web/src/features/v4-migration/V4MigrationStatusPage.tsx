@@ -16,7 +16,6 @@ import {
   useV4MigrationTitle,
   V4MigrationDeadlineNote,
   V4MigrationDocsLink,
-  V4_LEGACY_API_CUT_DATE,
   V4_MIGRATION_DEADLINE,
 } from "@/src/features/v4-migration/V4MigrationContent";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
@@ -530,25 +529,14 @@ function V4MigrationStatusPageContent() {
         <>
           Yes, eventually. The{" "}
           <FaqLink href={SDK_UPGRADE_URL}>old SDKs</FaqLink>, trace-level evals,
-          and APIs are frozen.{" "}
-          {hasDeadline ? (
-            <>
-              Trace-level evals and exports stop{" "}
-              <span className="underline">on {V4_MIGRATION_DEADLINE}</span>; the
-              old SDKs and APIs stop working{" "}
-              <span className="underline">on {V4_LEGACY_API_CUT_DATE}</span>.
-            </>
-          ) : (
-            <>
-              They stop working{" "}
-              <span className="underline">
-                once your administrator disables the legacy mode
-              </span>
-              .
-            </>
-          )}{" "}
-          They keep running until then, but we&apos;re no longer fixing bugs in
-          them.
+          and APIs are frozen and stop working{" "}
+          <span className="underline">
+            {hasDeadline
+              ? `on ${V4_MIGRATION_DEADLINE}`
+              : "once your administrator disables the legacy mode"}
+          </span>
+          . They keep running until then, but we&apos;re no longer fixing bugs
+          in them.
         </>
       ),
     },
@@ -573,17 +561,11 @@ function V4MigrationStatusPageContent() {
       q: "What if I do nothing?",
       a: (
         <>
-          {hasDeadline ? (
-            <>
-              <span className="underline">On {V4_MIGRATION_DEADLINE}</span>,
-              trace-level evals and exports stop.{" "}
-              <span className="underline">On {V4_LEGACY_API_CUT_DATE}</span>
-            </>
-          ) : (
-            <span className="underline">
-              Once your administrator disables the legacy mode
-            </span>
-          )}
+          <span className="underline">
+            {hasDeadline
+              ? `On ${V4_MIGRATION_DEADLINE}`
+              : "Once your administrator disables the legacy mode"}
+          </span>
           , old SDKs stop sending data, and the{" "}
           <FaqLink href={API_REFERENCE_URL}>
             deprecated evals and endpoints

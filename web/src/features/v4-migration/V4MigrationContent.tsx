@@ -77,8 +77,6 @@ const V4_DOCS_URL = "https://langfuse.com/docs/v4";
 const V4_TIMELINE_URL = `${V4_DOCS_URL}#timeline`;
 // Consumed by the status page deadline copy.
 export const V4_MIGRATION_DEADLINE = "November 16, 2026";
-// Later date the status page quotes for legacy ingestion and APIs.
-export const V4_LEGACY_API_CUT_DATE = "November 19, 2026";
 // Headline form of the deadline; the year is noise in a title.
 const V4_MIGRATION_DEADLINE_SHORT = "November 16";
 const SDK_UPGRADE_URL =

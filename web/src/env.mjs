@@ -728,14 +728,12 @@ export const env = createEnv({
     LANGFUSE_MIGRATION_V4_WRITE_MODE: z
       .enum(["legacy", "dual", "events_only"])
       .default("events_only"),
-    // Langfuse Cloud only, temporary. The legacy v3 top banner. "off" (or an
-    // empty message) hides it. Read only by
+    // Langfuse Cloud only, temporary. The legacy v3 top banner. "off" hides it.
+    // Read only by
     // features/v4-migration/server/legacyApiBannerSource.ts.
     LANGFUSE_V4_BANNER_SEVERITY: z
       .enum(["off", "warning", "critical"])
       .default("off"),
-    // One line of plain text shown before the migration status link.
-    LANGFUSE_V4_BANNER_MESSAGE: z.string().optional(),
     // Comma-separated organization ids that never see the banner.
     LANGFUSE_V4_BANNER_EXEMPT_ORG_IDS: z
       .string()
@@ -1381,7 +1379,6 @@ export const env = createEnv({
     LANGFUSE_MIGRATION_V4_WRITE_MODE:
       process.env.LANGFUSE_MIGRATION_V4_WRITE_MODE,
     LANGFUSE_V4_BANNER_SEVERITY: process.env.LANGFUSE_V4_BANNER_SEVERITY,
-    LANGFUSE_V4_BANNER_MESSAGE: process.env.LANGFUSE_V4_BANNER_MESSAGE,
     LANGFUSE_V4_BANNER_EXEMPT_ORG_IDS:
       process.env.LANGFUSE_V4_BANNER_EXEMPT_ORG_IDS,
     LANGFUSE_MARKDOWN_RENDER_CHARACTER_LIMIT:

@@ -1,4 +1,5 @@
 import { z } from "zod/v4";
+import { TRPCError } from "@trpc/server";
 import {
   authenticatedProcedure,
   createTRPCRouter,
@@ -165,13 +166,25 @@ export const v4TransitionRouter = createTRPCRouter({
    */
   legacyApiBannerState: authenticatedProcedure
     .input(z.object({ orgId: z.string().optional() }))
-    .query(({ input, ctx }) =>
-      getV4MigrationTopBannerState({
+    .query(({ input, ctx }) => {
+      if (
+        input.orgId &&
+        !ctx.session.user.organizations.some(
+          (organization) => organization.id === input.orgId,
+        )
+      ) {
+        throw new TRPCError({
+          code: "FORBIDDEN",
+          message: "No access to this organization",
+        });
+      }
+
+      return getV4MigrationTopBannerState({
         prisma: ctx.prisma,
         session: ctx.session,
         orgId: input.orgId,
         demoOrgId: env.NEXT_PUBLIC_DEMO_ORG_ID,
         isLangfuseCloud: Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION),
-      }),
-    ),
+      });
+    }),
 });

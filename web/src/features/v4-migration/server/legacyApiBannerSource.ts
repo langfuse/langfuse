@@ -2,6 +2,9 @@ import { env } from "@/src/env.mjs";
 
 type V4BannerSeverity = "off" | "warning" | "critical";
 
+const V4_MIGRATION_TOP_BANNER_MESSAGE =
+  "Action required: After November 16, 2026, some features may stop working for at least one of your projects.";
+
 export type LegacyApiBannerState = {
   severity: V4BannerSeverity;
   /** Plain text shown in the strip. Null when the banner is off. */
@@ -10,9 +13,9 @@ export type LegacyApiBannerState = {
 };
 
 /**
- * getLegacyApiBannerState reads the banner from env. Self-hosted deployments,
- * exempt orgs, severity "off", and an empty message all hide it. The org-wide
- * legacy-usage check stays on the client.
+ * Self-hosted deployments, exempt orgs, and severity "off" hide the banner.
+ * The temporary migration sentence is fixed in code; operators only choose
+ * when to show it and whether its severity is warning or critical.
  */
 export function getLegacyApiBannerState(params: {
   orgId: string;
@@ -20,14 +23,12 @@ export function getLegacyApiBannerState(params: {
 }): LegacyApiBannerState {
   const { orgId, isLangfuseCloud } = params;
   const exempt = env.LANGFUSE_V4_BANNER_EXEMPT_ORG_IDS.includes(orgId);
-  const message = env.LANGFUSE_V4_BANNER_MESSAGE?.trim() || null;
   const severity = env.LANGFUSE_V4_BANNER_SEVERITY;
-  const hidden =
-    !isLangfuseCloud || exempt || severity === "off" || message === null;
+  const hidden = !isLangfuseCloud || exempt || severity === "off";
 
   return {
     severity: hidden ? "off" : severity,
-    message: hidden ? null : message,
+    message: hidden ? null : V4_MIGRATION_TOP_BANNER_MESSAGE,
     exempt,
   };
 }
