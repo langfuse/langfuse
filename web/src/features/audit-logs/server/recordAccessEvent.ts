@@ -50,7 +50,7 @@ async function loadAccessAuditOrg(
 /**
  * Records a read by a signed-in user when the org that owns the project
  * records access events. Anonymous viewers of public resources have no actor
- * and are not recorded. The event is staged by the EE recorder, which runs
+ * and are not recorded. The event is staged by the recorder, which runs
  * only for orgs that pass the gate.
  */
 async function recordUserAccess(
@@ -98,8 +98,7 @@ async function recordUserAccess(
 }
 
 /**
- * Records a tRPC read when its org records access events. Call it before
- * returning the data: a failed write fails the read.
+ * Records a tRPC read when its org records access events.
  */
 export async function recordTrpcAccess(
   ctx: {
@@ -117,8 +116,7 @@ export async function recordTrpcAccess(
 
 /**
  * Records a read through a session-authenticated web route outside tRPC, such
- * as a download, when its org records access events. Call it before sending
- * any data: a failed write fails the read.
+ * as a download, when its org records access events.
  */
 export async function recordInternalApiAccess(
   { session, req }: { session: Session | null; req: NextApiRequest },

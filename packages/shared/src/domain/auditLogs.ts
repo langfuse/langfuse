@@ -97,8 +97,6 @@ const StagedEventBaseSchema = z.object({
   action: z.string().min(1),
   outcome: AuditLogOutcomeSchema,
   outcomeReason: z.string().optional(),
-  // `internal-api`: session-authenticated web routes outside tRPC, such as the
-  // trace download.
   surface: z.enum(["trpc", "public-api", "mcp", "internal-api"]).optional(),
   route: z.string().optional(),
   request: AuditRequestContextSchema.optional(),
