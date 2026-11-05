@@ -235,3 +235,103 @@ it("leaves the item open when a flushed comment save fails and keeps the draft",
   pending[1]?.resolve();
   await expect(retry).resolves.toEqual([]);
 });
+
+it("retries a failed value save on the next flush and stays open until it succeeds", async () => {
+  const field: AnnotationScoreFormData = {
+    targetKey: "trace",
+    id: "score-1",
+    configId: "quality",
+    name: "Quality",
+    dataType: "NUMERIC",
+    value: 1,
+    stringValue: null,
+    comment: null,
+  };
+  const scoreData = [field];
+  const pending: {
+    value: number | null;
+    resolve: () => void;
+    reject: (error: unknown) => void;
+  }[] = [];
+  const actions = createAnnotationFormActions({
+    form: {
+      getValues: () => scoreData,
+      setValue: (name: string, value: unknown) => {
+        const property = name.split(".")[2]!;
+        scoreData[0] = { ...scoreData[0]!, [property]: value };
+      },
+      setError: () => undefined,
+      clearErrors: () => undefined,
+      getFieldState: () => ({}),
+    } as unknown as UseFormReturn<AnnotateFormSchemaType>,
+    replaceField: (_index, next) => {
+      scoreData[0] = { ...next, id: next.id ?? null };
+    },
+    insertField: () => undefined,
+    initialTargets: [
+      {
+        key: "trace",
+        initialFormData: [],
+        scoreMetadata: { projectId: "project" },
+        scoreTarget: { type: "trace", traceId: "trace-1" },
+        analyticsData: { type: "trace", source: "AnnotationQueue", isV4: true },
+        configControl: {
+          configs: [{ id: "quality", minValue: 1, maxValue: 5 }],
+        },
+      } as unknown as PreparedAnnotationTarget,
+    ],
+    capture: (() => undefined) as never,
+    createScore: async () => undefined,
+    updateScore: (data) =>
+      new Promise<void>((resolve, reject) => {
+        pending.push({ value: data.value, resolve, reject });
+      }),
+    deleteScore: async () => undefined,
+  });
+  const key = annotationFieldKey(field);
+  actions.saveNumeric(
+    key,
+    {
+      key: "trace",
+      initialFormData: [],
+      scoreMetadata: { projectId: "project" },
+      scoreTarget: { type: "trace", traceId: "trace-1" },
+      analyticsData: { type: "trace", source: "AnnotationQueue", isV4: true },
+      configControl: { configs: [{ id: "quality", minValue: 1, maxValue: 5 }] },
+    } as unknown as PreparedAnnotationTarget,
+    {
+      value: "4",
+      valueAsNumber: 4,
+      validity: { badInput: false },
+    } as HTMLInputElement,
+  );
+
+  let completed = false;
+  const finishing = (async () => {
+    const failed = await actions.flushPendingComments();
+    if (failed.length === 0) completed = true;
+    return failed;
+  })();
+  await Promise.resolve();
+  pending[0]?.reject(new Error("database unavailable"));
+  const failed = await finishing;
+
+  expect(completed).toBe(false);
+  expect(failed).toEqual([
+    { name: "Quality", message: "database unavailable" },
+  ]);
+  expect(scoreData[0]?.value).toBe(1);
+
+  const retry = actions.flushPendingComments();
+  await Promise.resolve();
+  expect(pending.map((write) => write.value)).toEqual([4, 4]);
+  pending[1]?.reject(new Error("database unavailable"));
+  await expect(retry).resolves.toEqual([
+    { name: "Quality", message: "database unavailable" },
+  ]);
+
+  const saved = actions.flushPendingComments();
+  await Promise.resolve();
+  pending.at(-1)?.resolve();
+  await expect(saved).resolves.toEqual([]);
+});

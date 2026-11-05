@@ -16,7 +16,7 @@ import type {
   FailedAnnotationScoreWrite,
   PreparedAnnotationTarget,
 } from "@/src/features/scores/types";
-import { formatTrpcZodValidationDescription } from "@/src/utils/trpcValidationError";
+import { scoreWriteErrorDescription } from "@/src/utils/trpcValidationError";
 import { shouldUseCombobox } from "@/src/features/scores/components/CategoricalScoreInput";
 import {
   createAnnotationAnalytics,
@@ -51,14 +51,6 @@ type Dependencies = {
 };
 
 const SAVED_STATUS_VISIBLE_MS = 3_000;
-
-function describeScoreWriteError(error: unknown): string {
-  const formatted = formatTrpcZodValidationDescription(error);
-  if (formatted) return formatted;
-  if (error instanceof Error && error.message.trim()) return error.message;
-  if (typeof error === "string" && error.trim()) return error;
-  return "Could not save this score";
-}
 
 // One owner per mounted form. Actions read drafts at invocation and resolve rows
 // by target + config again when asynchronous operations finish.
@@ -102,6 +94,9 @@ export function createAnnotationFormActions({
   const fieldWrites = new Map<string, Promise<void>>();
   const failedFields = new Set<string>();
   const failureDetails = new Map<string, FailedAnnotationScoreWrite>();
+  // The field a failed write tried to save. Completion rolls the form back,
+  // so the next flush sends this again instead of completing without it.
+  const failedAttempts = new Map<string, AnnotationScoreFormData>();
   const serverFields = new Map(
     fields().map((field) => [annotationFieldKey(field), { ...field }]),
   );
@@ -176,6 +171,7 @@ export function createAnnotationFormActions({
     });
     failedFields.delete(key);
     failureDetails.delete(key);
+    failedAttempts.delete(key);
     saveStore.setState((state) => ({
       pending: state.pending + 1,
       failed: failedFields.size > 0,
@@ -207,8 +203,9 @@ export function createAnnotationFormActions({
           failedFields.add(key);
           failureDetails.set(key, {
             name: field.name,
-            message: describeScoreWriteError(error),
+            message: scoreWriteErrorDescription(error),
           });
+          failedAttempts.set(key, { ...field });
           onFailure();
         }
         tracked?.failure();
@@ -419,6 +416,19 @@ export function createAnnotationFormActions({
   // trimmed draft is empty. An optimistic field update makes a second flush
   // a no-op; a failed save rolls the field back and leaves the draft to retry.
   async function flushPendingComments(): Promise<FailedAnnotationScoreWrite[]> {
+    for (const [key, attempted] of [...failedAttempts]) {
+      if (pendingFields.has(key)) continue;
+      const field = find(key);
+      const target = field
+        ? initialTargets.find((item) => item.key === field.targetKey)
+        : undefined;
+      if (!field || !target || (editsDisabled && field.id)) continue;
+      const valueUnsaved =
+        field.value !== attempted.value ||
+        (field.stringValue ?? null) !== (attempted.stringValue ?? null);
+      if (!valueUnsaved) continue;
+      upsert(key, target, attempted.value, attempted.stringValue);
+    }
     for (const [key, draft] of commentDrafts) {
       const field = find(key);
       if (!field?.id || editsDisabled) continue;
