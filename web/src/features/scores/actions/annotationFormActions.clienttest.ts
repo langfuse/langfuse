@@ -113,8 +113,10 @@ it("sends a flushed comment after the score's in-flight value save, never with a
       validity: { badInput: false },
     } as HTMLInputElement);
   const settleWrites = async () => {
-    inFlight.splice(0).forEach((settle) => settle());
-    await new Promise((resolve) => setTimeout(resolve));
+    while (inFlight.length > 0) {
+      inFlight.splice(0).forEach((settle) => settle());
+      await new Promise((resolve) => setTimeout(resolve));
+    }
   };
 
   // Mark Completed blurs the edited value, then flushes the comment draft.
@@ -131,13 +133,15 @@ it("sends a flushed comment after the score's in-flight value save, never with a
     expect.objectContaining({ value: 4, comment: "cites the wrong source" }),
   ]);
 
-  // A value edit made while a comment waits already carries that comment.
+  // A value edit made while the comment waits is sent immediately. The
+  // deferred comment is sent after the earlier save, with that newer value.
   saveValue(3);
   actions.saveComment(key, target, "cites a retracted source");
   saveValue(2);
   await settleWrites();
   expect(updates.slice(2)).toEqual([
     expect.objectContaining({ value: 3, comment: "cites the wrong source" }),
+    expect.objectContaining({ value: 2, comment: "cites a retracted source" }),
     expect.objectContaining({ value: 2, comment: "cites a retracted source" }),
   ]);
 });
