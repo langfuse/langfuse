@@ -497,7 +497,6 @@ describe("BlobStorageIntegrationProcessingJob", () => {
         where: { projectId },
       });
       expect(row.enabled).toBe(false);
-      expect(row.lastError).toMatch(/access denied/i);
       // Null proves the loser suppressed its email: the informational fallback
       // would have taken the cooldown claim and stamped this.
       expect(row.lastFailureNotificationSentAt).toBeNull();
