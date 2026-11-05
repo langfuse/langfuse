@@ -91,7 +91,9 @@ function getTestApiFormats(
   model: string,
 ): GatewayApiFormat[] {
   if (provider === "ANTHROPIC") return ["anthropic.messages"];
-  if (provider === "OPENAI") return ["openai.responses"];
+  if (provider === "OPENAI") {
+    return ["openai.responses", "openai.chat-completions"];
+  }
   const formats = getBedrockModelApiFormats(model);
   return BEDROCK_TEST_ORDER.filter((format) => formats.includes(format));
 }
