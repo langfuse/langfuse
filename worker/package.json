@@ -85,6 +85,8 @@
     "zod": "^4.6.6"
   },
   "devDependencies": {
+    "@aws-sdk/client-iam": "catalog:",
+    "@aws-sdk/client-s3": "catalog:",
     "@repo/oxlint-config": "workspace:*",
     "@repo/typescript-config": "workspace:*",
     "@types/cors": "^2.8.17",

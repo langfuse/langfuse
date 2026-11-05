@@ -1150,6 +1150,7 @@ jobs:
         run: pnpm --filter=worker run test:exclude-llm-connections
         env:
           LANGFUSE_CODE_EVAL_AWS_LAMBDA_ENDPOINT: ${{ matrix.deploy-mode == '' && 'http://localhost:4566' || '' }}
+          LANGFUSE_TEST_FLOCI_ENDPOINT: ${{ matrix.deploy-mode == '' && 'http://localhost:4567' || '' }}
 
   tests-fips:
     # Runs the web and worker suites the way a FIPS host would: on the UBI
@@ -1263,11 +1264,12 @@ jobs:
       - name: Run ${{ matrix.suite }} tests under forced FIPS
         env:
           LANGFUSE_CODE_EVAL_AWS_LAMBDA_ENDPOINT: ${{ matrix.suite == 'worker' && 'http://localhost:4566' || '' }}
+          LANGFUSE_TEST_FLOCI_ENDPOINT: ${{ matrix.suite == 'worker' && 'http://localhost:4567' || '' }}
           SUITE: ${{ matrix.suite }}
         run: |
           docker run --rm --network host \
             -e OPENSSL_FORCE_FIPS_MODE=1 \
-            -e CI -e VITEST_MAX_WORKERS -e LANGFUSE_CODE_EVAL_AWS_LAMBDA_ENDPOINT \
+            -e CI -e VITEST_MAX_WORKERS -e LANGFUSE_CODE_EVAL_AWS_LAMBDA_ENDPOINT -e LANGFUSE_TEST_FLOCI_ENDPOINT \
             -e PNPM_STORE_DIR=/pnpm-store \
             -v "$(pnpm store path --silent):/pnpm-store" \
             -v "$PWD:/src:ro" \

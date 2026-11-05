@@ -72,6 +72,20 @@ services:
     networks:
       - default
 
+  # Evaluates IAM trust and session policies, for the customer role auth tests.
+  floci-iam:
+    profiles:
+      - worker-tests
+    image: docker.io/floci/floci:2.4.0-compat
+    container_name: ${FLOCI_IAM_CONTAINER_NAME:-langfuse-floci-iam}
+    environment:
+      FLOCI_HOSTNAME: floci-iam
+      FLOCI_SERVICES_IAM_ENFORCEMENT_ENABLED: "true"
+    ports:
+      - ${HOST_IP:-127.0.0.1}:${FLOCI_IAM_PORT:-4567}:4566
+    networks:
+      - default
+
   redis:
     image: docker.io/redis:7.2.4
     container_name: ${REDIS_CONTAINER_NAME:-langfuse-redis}
