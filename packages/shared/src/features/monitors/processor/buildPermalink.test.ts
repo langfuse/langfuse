@@ -229,26 +229,27 @@ describe("buildDataWindowPermalink", () => {
     },
   );
 
-  it.each(["observationName", "traceName", "userId", "tags", "configId"])(
-    "omits the data link when %s cannot be reproduced by the scores table",
-    (column) => {
-      envMock.env.NEXTAUTH_URL = "https://cloud.langfuse.com";
-      expect(
-        link("scores-numeric", [
-          { column, type: "string", operator: "=", value: "example" },
-        ]),
-      ).toBeUndefined();
-    },
-  );
-
   it.each([
+    { column: "traceName", type: "string", operator: "=", value: "example" },
+    { column: "userId", type: "string", operator: "=", value: "example" },
+    { column: "tags", type: "arrayOptions", operator: "any of", value: ["a"] },
+    {
+      column: "observationName",
+      type: "string",
+      operator: "=",
+      value: "example",
+    },
+    { column: "traceRelease", type: "string", operator: "=", value: "r1" },
+    { column: "traceVersion", type: "string", operator: "=", value: "v1" },
     { column: "observationId", type: "string", operator: "=", value: "" },
-    { column: "booleanValue", type: "null", operator: "is null", value: "" },
   ] satisfies FilterState)(
-    "omits a link when $column has different empty-value semantics",
+    "passes the $column filter through to the scores table",
     (filter) => {
       envMock.env.NEXTAUTH_URL = "https://cloud.langfuse.com";
-      expect(link("scores-numeric", [filter])).toBeUndefined();
+      const url = new URL(link("scores-numeric", [filter])!);
+      expect(decodeFiltersGeneric(url.searchParams.get("filter")!)).toEqual(
+        expect.arrayContaining([filter]),
+      );
     },
   );
 

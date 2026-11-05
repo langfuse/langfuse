@@ -16,9 +16,6 @@ import {
 import { executeQuery as defaultExecuteQuery } from "../../query/server/queryExecutor";
 import { getViewDeclaration } from "../../query/dataModel";
 import { encodeFiltersGeneric } from "../../filters/filterQueryEncoding";
-import { scoresTableCols } from "../../../tableDefinitions/scoresTable";
-import { scoresTableUiColumnDefinitions } from "../../../server/tableMappings/mapScoresTable";
-import { COMPATIBLE_FILTER_TYPES } from "../../../server/queries/clickhouse-sql/filterTypeCompatibility";
 import type { FilterCondition, FilterState } from "../../../types";
 import type { QueryType } from "../../query/types";
 import { isValidQuery } from "../isValidQuery";
@@ -467,19 +464,16 @@ function linkToObservationsTable(params: TableLinkParams): string {
   );
 }
 
-/** linkToScoresTable links to the scores table, or undefined when it cannot apply every filter */
+/** linkToScoresTable links to the scores table with every monitor filter and the view's data-type segment */
 function linkToScoresTable(
   params: TableLinkParams & { view: ScoresMonitorView },
-): string | undefined {
-  const tableFilters = toScoresTableFilters([
-    ...params.filters,
-    ...scoresViewSegments(params.view),
-  ]);
-  if (!tableFilters) return undefined;
+): string {
   return tableLink(
     `${params.projectUrl}/scores`,
     params.dateRange,
-    tableFilters,
+    [...params.filters, ...scoresViewSegments(params.view)].map(
+      toScoresTableFilter,
+    ),
   );
 }
 
@@ -520,29 +514,11 @@ function scoresTableColumn(column: string): string {
   return column;
 }
 
-/** toScoresTableFilters maps filters to scores table filters, or undefined when one cannot be applied */
-function toScoresTableFilters(filters: FilterState): FilterState | undefined {
-  const tableFilters: FilterState = [];
-  for (const filter of filters) {
-    const tableFilter = toScoresTableFilter(filter);
-    if (!tableFilter) return undefined;
-    tableFilters.push(tableFilter);
-  }
-  return tableFilters;
-}
-
-/** toScoresTableFilter maps one filter to its scores table form, or undefined when the table cannot apply it */
-function toScoresTableFilter(
-  filter: FilterCondition,
-): FilterCondition | undefined {
-  if (filter.column === "booleanValue" && filter.type === "boolean") {
-    return toBooleanValueFilter(filter);
-  }
-  if (!isPortableScoresFilter(filter)) return undefined;
-  if (filter.type === "boolean") {
-    return { ...filter, operator: "=", value: matchedBoolean(filter) };
-  }
-  return filter;
+/** toScoresTableFilter rewrites boolean filters into the form the scores table applies */
+function toScoresTableFilter(filter: FilterCondition): FilterCondition {
+  if (filter.type !== "boolean") return filter;
+  if (filter.column === "booleanValue") return toBooleanValueFilter(filter);
+  return { ...filter, operator: "=", value: matchedBoolean(filter) };
 }
 
 /** toBooleanValueFilter matches a boolean score by its numeric 0/1 value */
@@ -554,24 +530,6 @@ function toBooleanValueFilter(filter: BooleanFilter): FilterCondition {
     operator: "=",
     value: Number(matchedBoolean(filter)),
   };
-}
-
-/** isPortableScoresFilter reports whether the scores table applies filter the way the monitor does */
-function isPortableScoresFilter(filter: FilterCondition): boolean {
-  // Trace-derived dimensions use different joins in the monitor and the scores readers.
-  const mapping = scoresTableUiColumnDefinitions.find(
-    (column) =>
-      column.uiTableId === filter.column &&
-      column.clickhouseTableName === "scores",
-  );
-  const definition = scoresTableCols.find(
-    (column) => column.id === filter.column,
-  );
-  if (!mapping || mapping.emptyEqualsNull || !definition) return false;
-  if (filter.type === "null") return true;
-  return (
-    COMPATIBLE_FILTER_TYPES[definition.type]?.includes(filter.type) ?? false
-  );
 }
 
 /** matchedBoolean returns the value a boolean filter selects */
