@@ -27,11 +27,6 @@ const notificationSeverities: Record<
   INFO: "info",
 };
 
-const modelFilterColumns = new Set([
-  "providedModelName",
-  "observationModelName",
-]);
-
 /** buildPagerDutyEvent maps a validated webhook envelope to its PagerDuty event, or undefined when the alert has nothing to send. */
 export function buildPagerDutyEvent(args: {
   envelope: PagerDutyEnvelope;
@@ -87,7 +82,7 @@ function monitorDedupKey(context: EventContext, monitorId: string): string {
   return `langfuse-${context.projectId}-${monitorId}`;
 }
 
-/** buildMonitorTriggerEvent triggers the monitor's alert for the alert's severity. */
+/** buildMonitorTriggerEvent triggers the monitor's alert for the alert's severity, carrying the alert as its custom details. */
 function buildMonitorTriggerEvent(
   alert: MonitorAlert,
   severity: PagerDutySeverity,
@@ -99,10 +94,14 @@ function buildMonitorTriggerEvent(
       routing_key: context.routingKey,
       event_action: "trigger",
       dedup_key: monitorDedupKey(context, alert.monitorId),
-      ...clientFields(context.projectId),
+      ...clientFields(context.projectId, alert.permalink),
       links: compactLinks([
-        { href: alert.permalink, text: "View monitor in Langfuse" },
-        { href: alert.dataPermalink, text: "View data in the alert window" },
+        { href: alert.permalink, text: "View in Langfuse" },
+        {
+          href: alert.dataPermalink,
+          text:
+            alert.view === "observations" ? "View observations" : "View scores",
+        },
       ]),
       payload: {
         summary: truncatePagerDutySummary(alert.message.title),
@@ -111,29 +110,24 @@ function buildMonitorTriggerEvent(
         timestamp: alert.timestamp.toISOString(),
         class: "monitor-alert",
         component: alert.view,
-        custom_details: {
-          llmops: buildLlmOpsDetails(alert, context.projectName),
-          langfuse: {
-            severity: alert.severity,
-            message: alert.message.body,
-            filters: alert.filters,
-            window: alert.window,
-          },
-        },
+        custom_details: { ...alert },
       },
     },
   };
 }
 
-/** clientFields names Langfuse as the sending client and links the project. */
+/** clientFields names Langfuse as the sending client and links `href`, falling back to the project. */
 function clientFields(
   projectId: string,
+  href?: string,
 ): Pick<PagerDutyAlertEvent, "client" | "client_url"> {
   return {
     client,
-    client_url: safeUrl(() =>
-      new URL(`project/${projectId}`, getProductBaseUrl()).toString(),
-    ),
+    client_url:
+      href ??
+      safeUrl(() =>
+        new URL(`project/${projectId}`, getProductBaseUrl()).toString(),
+      ),
   };
 }
 
@@ -159,68 +153,6 @@ function compactLinks(
 /** source identifies the Langfuse project as the affected system. */
 function source(projectName: string): string {
   return `langfuse/${projectName}`;
-}
-
-/** buildLlmOpsDetails fills PagerDuty's LLMOps fields from the alert. */
-function buildLlmOpsDetails(
-  alert: MonitorAlert,
-  projectName: string,
-): Record<string, unknown> {
-  const metricDescription = describeMetric(alert.metric);
-  return {
-    model_name: filteredModelName(alert.filters),
-    project_name: projectName,
-    monitor_name: alert.monitorName,
-    monitor_id: alert.monitorId,
-    monitor_alert_start: alert.fromTimestamp.toISOString(),
-    monitor_alert_end: alert.toTimestamp.toISOString(),
-    metric_description: metricDescription,
-    metric_definition: metricDefinition(metricDescription, alert),
-    metric_value: alert.metricValue ?? undefined,
-    threshold_value: breachedThreshold(alert),
-  };
-}
-
-/** describeMetric renders a metric as `aggregation(measure)`. */
-function describeMetric(metric: MonitorAlert["metric"]): string | undefined {
-  if (!metric) return undefined;
-  return `${metric.aggregation}(${metric.measure})`;
-}
-
-/** filteredModelName returns the model a monitor filters on, when it filters on exactly one. */
-function filteredModelName(
-  filters: MonitorAlert["filters"],
-): string | undefined {
-  for (const filter of filters) {
-    if (!modelFilterColumns.has(filter.column)) continue;
-    if (filter.type === "string" && filter.operator === "=")
-      return filter.value;
-    if (
-      filter.type === "stringOptions" &&
-      filter.operator === "any of" &&
-      filter.value.length === 1
-    ) {
-      return filter.value[0];
-    }
-  }
-  return undefined;
-}
-
-/** metricDefinition states the metric, its view and the threshold rule. */
-function metricDefinition(
-  metricDescription: string | undefined,
-  alert: MonitorAlert,
-): string | undefined {
-  if (!metricDescription) return undefined;
-  const definition = `${metricDescription} over ${alert.view} per ${alert.window}`;
-  if (!alert.thresholdOperator) return definition;
-  return `${definition} ${alert.thresholdOperator} ${alert.alertThreshold}`;
-}
-
-/** breachedThreshold is the warning threshold for a warning and the alert threshold otherwise. */
-function breachedThreshold(alert: MonitorAlert): number | undefined {
-  if (alert.severity === "WARNING") return alert.warningThreshold ?? undefined;
-  return alert.alertThreshold;
 }
 
 /** buildProjectNotificationEvent always triggers, keyed by event type and resource; these are never resolved automatically. */
