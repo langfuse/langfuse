@@ -16,10 +16,10 @@ const meta = preview.meta({
   },
 });
 
-/** Orange strip. The message is the warning env value. */
+/** Calm amber strip matching the existing customer-data warning treatment. */
 export const Warning = meta.story({});
 
-/** Red strip. The message is the critical env value. */
+/** Red strip reserved for critical migration warnings. */
 export const Critical = meta.story({
   args: {
     severity: "critical" as const,

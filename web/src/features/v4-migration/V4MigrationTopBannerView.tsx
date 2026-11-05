@@ -4,21 +4,22 @@ import { cn } from "@/src/utils/tailwind";
 import type { V4MigrationTopBannerSeverity } from "@/src/features/v4-migration/topBannerContent";
 
 const STRIP_CLASS: Record<V4MigrationTopBannerSeverity, string> = {
-  warning: "bg-orange-500 text-orange-950",
-  critical: "bg-red-700 text-white",
+  warning:
+    "border-customer-data-banner-border bg-customer-data-banner text-customer-data-banner-foreground",
+  critical: "border-current/15 bg-red-700 text-white",
 };
 
 export type V4MigrationTopBannerViewProps = {
   severity: V4MigrationTopBannerSeverity;
-  /** Plain text configured by the operator. */
+  /** Plain text shown before the migration-status link. */
   message: string;
   /** Records clicks on the migration status link. */
   onStatusClick: () => void;
 };
 
 /**
- * One-line legacy v3 strip for the top-banner stack. The message comes from
- * env; the status link is available to every role. There is no dismiss.
+ * One-line legacy v3 strip for the top-banner stack. The status link is
+ * available to every role. There is no dismiss.
  */
 export function V4MigrationTopBannerView({
   severity,
@@ -33,7 +34,7 @@ export function V4MigrationTopBannerView({
       data-severity={severity}
       title={fullText}
       className={cn(
-        "flex w-full items-center justify-center gap-1.5 border-b border-current/15 px-4 py-1",
+        "flex w-full items-center justify-center gap-1.5 border-b px-4 py-1",
         STRIP_CLASS[severity],
       )}
     >
