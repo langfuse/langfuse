@@ -82,9 +82,6 @@ export const useEvaluatorTableData = ({
     {
       enabled: evaluators.isSuccess && evaluatorIds.length > 0,
       meta: {
-        // 422 is the ClickHouse resource guardrail ("Request Timed Out"). The
-        // column already renders blank without a value, so a 7-day total that
-        // can't finish on a busy project should not toast.
         silentHttpCodes: [422, 503],
       },
     },
