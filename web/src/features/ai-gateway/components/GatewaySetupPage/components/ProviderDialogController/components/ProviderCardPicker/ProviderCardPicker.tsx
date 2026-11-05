@@ -2,7 +2,7 @@
 
 import * as RadioGroupPrimitive from "@radix-ui/react-radio-group";
 
-import { Label } from "@/src/components/ui/label";
+import { FieldHeader } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/ProviderDialogController/components/FieldHeader";
 import { providerIcons } from "@/src/features/ai-gateway/constants/providerIcons";
 import { providerLabels } from "@/src/features/ai-gateway/constants/providerLabels";
 import type { GatewayProvider } from "@/src/features/ai-gateway/types/gatewayProvider";
@@ -29,12 +29,16 @@ export function ProviderCardPicker({
 
   return (
     <div>
-      <Label id="gateway-provider-label">Provider</Label>
+      <FieldHeader
+        id="gateway-provider-label"
+        label="Provider"
+        description="Where gateway requests for this credential are sent."
+      />
       <RadioGroupPrimitive.Root
         aria-labelledby="gateway-provider-label"
         value={value}
         onValueChange={handleValueChange}
-        className="mt-1.5 grid grid-cols-3 gap-2"
+        className="grid grid-cols-3 gap-2"
       >
         {providers.map((provider) => {
           const ProviderIcon = providerIcons[provider];

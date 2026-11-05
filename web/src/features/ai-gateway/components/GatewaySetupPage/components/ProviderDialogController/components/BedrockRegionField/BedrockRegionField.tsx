@@ -11,12 +11,12 @@ import {
   CommandItem,
   CommandList,
 } from "@/src/components/ui/command";
-import { Label } from "@/src/components/ui/label";
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from "@/src/components/ui/popover";
+import { FieldHeader } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/ProviderDialogController/components/FieldHeader";
 import { bedrockRegionGroups } from "@/src/features/ai-gateway/constants/bedrockRegions";
 import { cn } from "@/src/utils/tailwind";
 
@@ -42,7 +42,11 @@ export function BedrockRegionField({
 
   return (
     <div>
-      <Label htmlFor="gateway-bedrock-region">AWS region</Label>
+      <FieldHeader
+        htmlFor="gateway-bedrock-region"
+        label="AWS region"
+        description="Requests go to Bedrock in this region. It can't be changed after saving."
+      />
       <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger asChild>
           <button
@@ -51,7 +55,7 @@ export function BedrockRegionField({
             role="combobox"
             aria-expanded={open}
             aria-controls={listId}
-            className="border-input bg-background focus-visible:ring-ring mt-1.5 flex h-8 w-full items-center gap-2 rounded-md border px-3 text-left text-sm focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-hidden"
+            className="border-input bg-background focus-visible:ring-ring flex h-8 w-full items-center gap-2 rounded-md border px-3 text-left text-sm focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-hidden"
           >
             <Globe aria-hidden size="base" />
             <span

@@ -12,10 +12,11 @@ import {
   DialogTitle,
 } from "@/src/components/ui/dialog";
 import { Input } from "@/src/components/ui/input";
-import { Label } from "@/src/components/ui/label";
 import { BedrockRegionField } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/ProviderDialogController/components/BedrockRegionField/BedrockRegionField";
-import { CredentialFields } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/ProviderDialogController/components/CredentialFields/CredentialFields";
+import { ConnectionNameField } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/ProviderDialogController/components/ConnectionNameField/ConnectionNameField";
+import { FieldHeader } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/ProviderDialogController/components/FieldHeader";
 import { ProviderCardPicker } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/ProviderDialogController/components/ProviderCardPicker/ProviderCardPicker";
+import { SecretKeyField } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/ProviderDialogController/components/SecretKeyField/SecretKeyField";
 import { providerLabels } from "@/src/features/ai-gateway/constants/providerLabels";
 import { isGatewayConnectionNameError } from "@/src/features/ai-gateway/fns/isGatewayConnectionNameError";
 import { isGatewayHipaaNoticeVisible } from "@/src/features/ai-gateway/fns/isGatewayHipaaNoticeVisible";
@@ -215,9 +216,6 @@ export function ProviderDialogController({
       renderContent={({ state: selectedConnection, closeDialog }) => {
         const nameError = getNameError(selectedConnection);
         const isMissingRegion = getConfig(selectedConnection)?.region === "";
-        const credentialCopy = getCredentialCopy(
-          selectedConnection?.provider ?? provider,
-        );
         return (
           <>
             <DialogHeader>
@@ -240,9 +238,13 @@ export function ProviderDialogController({
               ) : null}
               {selectedConnection ? (
                 <div>
-                  <Label>Provider</Label>
+                  <FieldHeader
+                    htmlFor="gateway-provider"
+                    label="Provider"
+                    description="Fixed once the credential is saved."
+                  />
                   <Input
-                    className="mt-1.5"
+                    id="gateway-provider"
                     value={providerLabels[selectedConnection.provider]}
                     disabled
                   />
@@ -253,11 +255,20 @@ export function ProviderDialogController({
                   onChange={updateProvider}
                 />
               )}
+              <ConnectionNameField
+                name={name}
+                nameError={nameError}
+                onNameChange={updateName}
+              />
               {selectedConnection?.config ? (
                 <div>
-                  <Label>AWS region</Label>
+                  <FieldHeader
+                    htmlFor="gateway-bedrock-region"
+                    label="AWS region"
+                    description="Fixed once the credential is saved."
+                  />
                   <Input
-                    className="mt-1.5"
+                    id="gateway-bedrock-region"
                     value={selectedConnection.config.region}
                     disabled
                   />
@@ -266,18 +277,10 @@ export function ProviderDialogController({
               {!selectedConnection && provider === "BEDROCK" ? (
                 <BedrockRegionField value={awsRegion} onChange={setAwsRegion} />
               ) : null}
-              <CredentialFields
-                name={name}
-                nameError={nameError}
+              <SecretKeyField
+                provider={selectedConnection?.provider ?? provider}
                 credential={credential}
-                credentialLabel={credentialCopy.label}
-                credentialDescription={credentialCopy.description}
-                credentialPlaceholder={
-                  selectedConnection
-                    ? "Leave blank to keep current key"
-                    : credentialCopy.placeholder
-                }
-                onNameChange={updateName}
+                hasSavedKey={Boolean(selectedConnection)}
                 onCredentialChange={setCredential}
               />
               {selectedConnection && name.trim() !== selectedConnection.name ? (
@@ -356,33 +359,4 @@ export function ProviderDialogController({
       }
     </DialogController>
   );
-}
-
-const bedrockCredentialCopy = {
-  label: "Bedrock API key",
-  description: (
-    <>
-      Use{" "}
-      <a
-        href="https://docs.aws.amazon.com/bedrock/latest/userguide/api-keys.html"
-        target="_blank"
-        rel="noopener noreferrer"
-        className="text-link hover:text-link-hover underline"
-      >
-        Amazon Bedrock API keys
-      </a>
-      . The key needs access to the selected region.
-    </>
-  ),
-  placeholder: "Enter Bedrock API key",
-};
-
-const defaultCredentialCopy = {
-  label: "Secret key",
-  description: undefined,
-  placeholder: "Enter secret key",
-};
-
-function getCredentialCopy(provider: GatewayProvider) {
-  return provider === "BEDROCK" ? bedrockCredentialCopy : defaultCredentialCopy;
 }
