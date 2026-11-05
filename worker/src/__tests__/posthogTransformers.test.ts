@@ -235,7 +235,7 @@ describe("PostHog transformers", () => {
       expect(result.properties.langfuse_score_value).toBe(0.95);
     });
 
-    it("drops oversized metadata so PostHog capture accepts the event", () => {
+    it("truncates oversized metadata so PostHog capture accepts the event", () => {
       const nested = JSON.stringify(
         Array.from({ length: 6_000 }, (_, i) => ({
           rule: `rule-${i}`,
@@ -257,9 +257,15 @@ describe("PostHog transformers", () => {
       // PostHog capture re-encodes the event into a 1,000,000-byte Kafka message.
       const kafkaData = JSON.stringify(JSON.stringify(result));
       expect(Buffer.byteLength(kafkaData)).toBeLessThan(1_000_000);
-      expect(result.properties.langfuse_score_metadata).toBeNull();
-      expect(result.properties.langfuse_score_omitted_fields).toEqual([
-        "langfuse_score_metadata",
+      const metadata = result.properties.langfuse_score_metadata as Record<
+        string,
+        string
+      >;
+      expect(metadata.report.endsWith("…[truncated]")).toBe(true);
+      expect(nested.startsWith(metadata.report.slice(0, -12))).toBe(true);
+      expect(metadata.again).toBe(nested);
+      expect(result.properties.langfuse_score_truncated_fields).toEqual([
+        "langfuse_score_metadata.report",
       ]);
       expect(result.properties.langfuse_score_comment).toBe("kept");
     });
@@ -276,9 +282,12 @@ describe("PostHog transformers", () => {
 
       const kafkaData = JSON.stringify(JSON.stringify(result));
       expect(Buffer.byteLength(kafkaData)).toBeLessThan(1_000_000);
-      expect(result.properties.langfuse_score_omitted_fields).toEqual([
+      expect(result.properties.langfuse_score_truncated_fields).toEqual([
         "langfuse_score_comment",
       ]);
+      expect(result.properties.langfuse_score_comment).toMatch(
+        /^c+…\[truncated]$/,
+      );
     });
   });
 });

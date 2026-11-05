@@ -406,7 +406,7 @@ describe("Mixpanel transformers", () => {
       expect(result.properties.langfuse_score_value).toBe(0.95);
     });
 
-    it("drops oversized metadata so Mixpanel's 1 MB event limit holds", () => {
+    it("truncates oversized metadata so Mixpanel's 1 MB event limit holds", () => {
       const nested = JSON.stringify(
         Array.from({ length: 20_000 }, (_, i) => ({
           rule: `rule-${i}`,
@@ -423,9 +423,14 @@ describe("Mixpanel transformers", () => {
       const result = transformScoreForMixpanel(score, projectId);
 
       expect(Buffer.byteLength(JSON.stringify(result))).toBeLessThan(1_000_000);
-      expect(result.properties.langfuse_score_metadata).toBeNull();
-      expect(result.properties.langfuse_score_omitted_fields).toEqual([
-        "langfuse_score_metadata",
+      const metadata = result.properties.langfuse_score_metadata as Record<
+        string,
+        string
+      >;
+      expect(metadata.report.endsWith("…[truncated]")).toBe(true);
+      expect(metadata.again).toBe(nested);
+      expect(result.properties.langfuse_score_truncated_fields).toEqual([
+        "langfuse_score_metadata.report",
       ]);
       expect(result.properties.langfuse_score_comment).toBe("kept");
     });
