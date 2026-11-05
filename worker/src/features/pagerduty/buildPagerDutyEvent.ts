@@ -77,12 +77,12 @@ function buildMonitorResolveEvent(
   };
 }
 
-/** toDedupeKey keys a monitor's alert so later triggers update its severity and OK resolves it. */
+/** toDedupeKey keys a monitor's PagerDuty alert across its triggers and resolve. */
 function toDedupeKey(context: EventContext, monitorId: string): string {
   return `langfuse-${context.projectId}-${monitorId}`;
 }
 
-/** buildMonitorTriggerEvent triggers the monitor's alert for the alert's severity, carrying the alert as its custom details. */
+/** buildMonitorTriggerEvent triggers the monitor's alert at the given severity. */
 function buildMonitorTriggerEvent(
   alert: MonitorAlert,
   severity: PagerDutySeverity,
@@ -101,18 +101,21 @@ function buildMonitorTriggerEvent(
   };
 }
 
-/** toLinks links the alert and, when present, its breaching data window, labeled like the Slack message. */
+/** toLinks links the alert and its breaching data window. */
 function toLinks(alert: MonitorAlert): PagerDutyLink[] {
   return compactLinks([
     { href: alert.permalink, text: "View in Langfuse" },
-    {
-      href: alert.dataPermalink,
-      text: alert.view === "observations" ? "View observations" : "View scores",
-    },
+    { href: alert.dataPermalink, text: dataLinkText(alert.view) },
   ]);
 }
 
-/** toPayload describes the alert for PagerDuty, carrying the alert itself as the custom details. */
+/** dataLinkText labels the data link by the table it opens. */
+function dataLinkText(view: MonitorAlert["view"]): string {
+  if (view === "observations") return "View observations";
+  return "View scores";
+}
+
+/** toPayload maps the alert to its PagerDuty payload, with the alert as custom details. */
 function toPayload(
   alert: MonitorAlert,
   severity: PagerDutySeverity,
@@ -129,7 +132,7 @@ function toPayload(
   };
 }
 
-/** clientFields names Langfuse as the sending client and links `href`, falling back to the project. */
+/** clientFields names Langfuse as the sender and links `href`, or else the project. */
 function clientFields(
   projectId: string,
   href?: string,
