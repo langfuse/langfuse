@@ -315,7 +315,7 @@ export async function createProjectMembershipsOnSignup(
  * keep test sign-ups out of conversion metrics; self-hosted has no region.
  * HIPAA's ServerPosthog is opted out via disable(), so its captures are no-ops.
  */
-function isProductionCloudRegion() {
+export function isProductionCloudRegion() {
   const region = env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION;
   return region !== undefined && !["STAGING", "DEV"].includes(region);
 }

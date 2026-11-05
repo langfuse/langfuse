@@ -139,6 +139,7 @@ export function ResetPasswordPage({
         email: effectiveEmail,
         token: values.token,
         password: values.password,
+        intent,
       });
 
       if (isSetMode) {

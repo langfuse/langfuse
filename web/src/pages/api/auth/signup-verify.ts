@@ -1,4 +1,3 @@
-import { env } from "@/src/env.mjs";
 import { isEmailVerificationRequired } from "@/src/features/auth-credentials/lib/credentialsUtils";
 import { validateSignupEligibility } from "@/src/features/auth-credentials/server/signupApiHandler";
 import { createProjectMembershipsOnSignup } from "@/src/features/auth/lib/createProjectMembershipsOnSignup";
@@ -101,31 +100,12 @@ export default async function handler(
       },
     });
 
+    // cloud_signup_complete goes out here; the sign-up webhook once the email
+    // code verifies the address (credentials.resetPassword)
     await createProjectMembershipsOnSignup(newUser, {
       userWasJustCreated: true,
       ...getSignupAttributionFromRequest(req, "email"),
     });
-
-    // Trigger new user signup event
-    if (
-      env.LANGFUSE_NEW_USER_SIGNUP_WEBHOOK &&
-      env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION &&
-      env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION !== "STAGING" &&
-      env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION !== "DEV"
-    ) {
-      await fetch(env.LANGFUSE_NEW_USER_SIGNUP_WEBHOOK, {
-        method: "POST",
-        body: JSON.stringify({
-          name,
-          email: normalizedEmail,
-          cloudRegion: env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
-          userId: newUser.id,
-        }),
-        headers: {
-          "Content-Type": "application/json",
-        },
-      });
-    }
   } catch (error) {
     // Handle unique constraint race condition
     if (error instanceof Error && error.message.includes("Unique constraint")) {
