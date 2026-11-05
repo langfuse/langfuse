@@ -58,7 +58,7 @@ export const TestObservationFilters = meta.story({
     const completion = await body.findByRole("group", {
       name: "Observation completion",
     });
-    const input = body.getByRole("combobox", { name: "Search" });
+    const input = body.getByRole("combobox", { name: "Observation filters" });
     await userEvent.click(input);
     await userEvent.paste("traceName:=other name:=completion");
     await expect(
@@ -215,7 +215,7 @@ export const TestSessionNavigation = TestObservationFilters.extend({
     await expect(
       body.getByRole("button", { name: "Previous session" }),
     ).toBeDisabled();
-    const input = body.getByRole("combobox", { name: "Search" });
+    const input = body.getByRole("combobox", { name: "Observation filters" });
     await userEvent.click(input);
     await userEvent.paste("name:=completion");
     await userEvent.click(body.getByRole("button", { name: "Next session" }));
@@ -248,7 +248,7 @@ export const TestSessionNavigation = TestObservationFilters.extend({
 export const TestInvalidDraftKeepsPreview = TestObservationFilters.extend({
   play: async ({ args }) => {
     const body = within(document.body);
-    const input = body.getByRole("combobox", { name: "Search" });
+    const input = body.getByRole("combobox", { name: "Observation filters" });
     await userEvent.click(input);
     await userEvent.paste("name:=completion");
     const completion = body.getByRole("group", {
