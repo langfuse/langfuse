@@ -107,8 +107,8 @@ describe("AI gateway provider registry", () => {
         .fn()
         .mockResolvedValue(
           JSON.stringify([
-            bedrockModel("us.anthropic.claude-sonnet-4-5-v1:0"),
-            bedrockModel("openai.gpt-oss-120b-1:0"),
+            bedrockModel("us.anthropic.claude-opus-4-8"),
+            bedrockModel("openai.gpt-5.5"),
           ]),
         ),
       ttl: vi.fn().mockResolvedValue(300),
@@ -138,14 +138,14 @@ describe("AI gateway provider registry", () => {
     expect(messages.data.map(({ id, provider }) => ({ id, provider }))).toEqual(
       [
         {
-          id: "bedrock:us.anthropic.claude-sonnet-4-5-v1:0",
+          id: "bedrock:us.anthropic.claude-opus-4-8",
           provider: "ANTHROPIC",
         },
       ],
     );
     expect(
       responses.data.map(({ id, provider }) => ({ id, provider })),
-    ).toEqual([{ id: "bedrock:openai.gpt-oss-120b-1:0", provider: "OPENAI" }]);
+    ).toEqual([{ id: "bedrock:openai.gpt-5.5", provider: "OPENAI" }]);
   });
 
   it("reads model lists from an organization and connection scoped cache", async () => {

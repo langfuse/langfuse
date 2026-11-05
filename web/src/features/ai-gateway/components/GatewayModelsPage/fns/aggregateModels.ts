@@ -2,10 +2,11 @@ import type {
   GatewayApiFamily,
   GatewayProvider,
 } from "@/src/features/ai-gateway/types/gatewayProvider";
-import { isBedrockAnthropicModel } from "@/src/features/ai-gateway/fns/isBedrockAnthropicModel";
+import { getBedrockModelApiFormats } from "@/src/features/ai-gateway/fns/getBedrockModelApiFormats";
 import { isGatewayModelAllowed } from "@/src/features/ai-gateway/fns/isGatewayModelAllowed";
 import { toGatewayAllowedModelsSet } from "@/src/features/ai-gateway/fns/toGatewayAllowedModelsSet";
 import { formatGatewayModelSlug } from "@/src/features/ai-gateway/fns/formatGatewayModelSlug";
+import type { GatewayApiFormat } from "@/src/features/ai-gateway/server/provider/registry";
 import type { RouterOutputs } from "@/src/utils/api";
 
 type Connection = RouterOutputs["aiGateway"]["listModelConnections"][number];
@@ -17,6 +18,12 @@ const providerFormats = {
 } as const satisfies Record<GatewayApiFamily, readonly string[]>;
 
 export type ApiFormat = (typeof providerFormats)[GatewayApiFamily][number];
+
+const apiFormatLabels = {
+  "openai.responses": "OpenAI Responses",
+  "openai.chat-completions": "OpenAI Chat Completions",
+  "anthropic.messages": "Anthropic Messages",
+} as const satisfies Record<GatewayApiFormat, ApiFormat>;
 
 type ModelRow = {
   id: string;
@@ -46,14 +53,14 @@ export function aggregateModels(
       left.localeCompare(right),
     )) {
       if (!isGatewayModelAllowed(allowedModels, modelId)) continue;
+      const apiFormats = toApiFormats(connection.provider, modelId);
+      if (apiFormats.length === 0) continue;
       models.push({
         id: formatGatewayModelSlug(connection.name, modelId),
         connectionId: connection.id,
         connectionName: connection.name,
         provider: connection.provider,
-        apiFormats: [
-          ...providerFormats[toApiFamily(connection.provider, modelId)],
-        ],
+        apiFormats,
       });
     }
   }
@@ -61,7 +68,9 @@ export function aggregateModels(
   return models;
 }
 
-function toApiFamily(provider: GatewayProvider, modelId: string) {
-  if (provider !== "BEDROCK") return provider;
-  return isBedrockAnthropicModel(modelId) ? "ANTHROPIC" : "OPENAI";
+function toApiFormats(provider: GatewayProvider, modelId: string) {
+  if (provider !== "BEDROCK") return [...providerFormats[provider]];
+  return getBedrockModelApiFormats(modelId).map(
+    (apiFormat) => apiFormatLabels[apiFormat],
+  );
 }

@@ -4,7 +4,7 @@ import type { Cluster, Redis } from "ioredis";
 
 import type { GatewayApiKeyAuthContext } from "@/src/features/ai-gateway/server/auth/gatewayApiKeyAuthenticator";
 import { formatGatewayModelSlug } from "@/src/features/ai-gateway/fns/formatGatewayModelSlug";
-import { isBedrockAnthropicModel } from "@/src/features/ai-gateway/fns/isBedrockAnthropicModel";
+import { getBedrockModelApiFormats } from "@/src/features/ai-gateway/fns/getBedrockModelApiFormats";
 import { isGatewayModelAllowed } from "@/src/features/ai-gateway/fns/isGatewayModelAllowed";
 import { toGatewayAllowedModelsSet } from "@/src/features/ai-gateway/fns/toGatewayAllowedModelsSet";
 import { GatewayControlPlaneError } from "@/src/features/ai-gateway/server/gatewayControlPlaneError";
@@ -104,9 +104,7 @@ function modelMatchesApiFormat(
   apiFormat: GatewayApiFormat,
 ) {
   if (model.provider !== "BEDROCK") return true;
-  return (
-    isBedrockAnthropicModel(model.id) === (apiFormat === "anthropic.messages")
-  );
+  return getBedrockModelApiFormats(model.id).includes(apiFormat);
 }
 
 // The gateway renders and validates entries by API family, so Bedrock models
