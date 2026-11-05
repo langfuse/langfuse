@@ -234,5 +234,34 @@ describe("PostHog transformers", () => {
       expect(result.properties.langfuse_score_name).toBe("quality");
       expect(result.properties.langfuse_score_value).toBe(0.95);
     });
+
+    it("drops oversized metadata so PostHog capture accepts the event", () => {
+      const nested = JSON.stringify(
+        Array.from({ length: 6_000 }, (_, i) => ({
+          rule: `rule-${i}`,
+          findings: [{ path: "a/b/c.ts", line: i, ok: false }],
+        })),
+      );
+      expect(nested.length).toBeGreaterThan(400_000);
+      const score: AnalyticsScoreEvent = {
+        langfuse_id: "score-big",
+        timestamp: new Date("2026-10-24T17:57:18Z"),
+        langfuse_score_name: "origin_tag_lint",
+        langfuse_score_comment: "kept",
+        langfuse_score_metadata: { report: nested, again: nested },
+        langfuse_score_string_value: null,
+      };
+
+      const result = transformScoreForPostHog(score, projectId);
+
+      // PostHog capture re-encodes the event into a 1,000,000-byte Kafka message.
+      const kafkaData = JSON.stringify(JSON.stringify(result));
+      expect(Buffer.byteLength(kafkaData)).toBeLessThan(1_000_000);
+      expect(result.properties.langfuse_score_metadata).toBeNull();
+      expect(result.properties.langfuse_score_omitted_fields).toEqual([
+        "langfuse_score_metadata",
+      ]);
+      expect(result.properties.langfuse_score_comment).toBe("kept");
+    });
   });
 });

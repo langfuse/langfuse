@@ -5,6 +5,7 @@ import type {
   AnalyticsScoreEvent,
   AnalyticsObservationEvent,
 } from "@langfuse/shared/src/server";
+import { capOversizedScoreFields } from "../integrations/capOversizedScoreFields";
 
 // UUID v5 namespace for Mixpanel (different from PostHog)
 const MIXPANEL_UUID_NAMESPACE = "8f7c3e42-9a1b-4d5f-8e2a-1c6b9d3f4e7a";
@@ -129,7 +130,8 @@ export const transformScoreForMixpanel = (
 
   // Extract session IDs and exclude from properties
 
-  const { posthog_session_id, mixpanel_session_id, ...otherProps } = score;
+  const { posthog_session_id, mixpanel_session_id, ...otherProps } =
+    capOversizedScoreFields(score);
 
   const hasValidUserId = !isBadDistinctId(score.langfuse_user_id);
 

@@ -405,5 +405,29 @@ describe("Mixpanel transformers", () => {
       expect(result.properties.langfuse_score_name).toBe("quality");
       expect(result.properties.langfuse_score_value).toBe(0.95);
     });
+
+    it("drops oversized metadata so Mixpanel's 1 MB event limit holds", () => {
+      const nested = JSON.stringify(
+        Array.from({ length: 20_000 }, (_, i) => ({
+          rule: `rule-${i}`,
+          ok: i,
+        })),
+      );
+      const score: AnalyticsScoreEvent = {
+        langfuse_id: "score-big",
+        timestamp: new Date("2026-10-24T17:57:18Z"),
+        langfuse_score_comment: "kept",
+        langfuse_score_metadata: { report: nested, again: nested },
+      };
+
+      const result = transformScoreForMixpanel(score, projectId);
+
+      expect(Buffer.byteLength(JSON.stringify(result))).toBeLessThan(1_000_000);
+      expect(result.properties.langfuse_score_metadata).toBeNull();
+      expect(result.properties.langfuse_score_omitted_fields).toEqual([
+        "langfuse_score_metadata",
+      ]);
+      expect(result.properties.langfuse_score_comment).toBe("kept");
+    });
   });
 });
