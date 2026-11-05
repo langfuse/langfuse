@@ -18,7 +18,6 @@ import { getNumberFromMap } from "@/src/utils/map-utils";
 import { useRouter } from "next/router";
 import React, {
   useEffect,
-  useLayoutEffect,
   useState,
   useCallback,
   useRef,
@@ -2185,9 +2184,6 @@ const LoadedSessionEventsPage: React.FC<{
                                           ),
                                       }
                                     : undefined
-                                }
-                                headerDividerTone={
-                                  showRedesignBanner ? "orange" : "default"
                                 }
                                 isTimelineEnabled={isSessionTimelineEnabled}
                                 session={session}
