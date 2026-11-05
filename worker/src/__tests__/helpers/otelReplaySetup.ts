@@ -7,7 +7,7 @@ const otelReplayMocks = vi.hoisted(() => ({
   linkMediaToTraceOrObservation: vi.fn(),
   uploadMediaForTrace: vi.fn(),
   getPrompt: vi.fn(),
-  fetchObservationEvalRules: vi.fn(),
+  fetchEvalRules: vi.fn(),
   hasNoEvalConfigsCache: vi.fn(),
   createObservationEvalSchedulerDeps: vi.fn(),
   scheduleObservationEvals: vi.fn(),
@@ -48,39 +48,24 @@ vi.mock("@langfuse/shared/src/server", async (importOriginal) => ({
   uploadMediaForTrace: otelReplayMocks.uploadMediaForTrace,
 }));
 
-vi.mock(
-  "../../features/evaluation/observationEval/fetchObservationEvalRules",
-  async (importOriginal) => ({
-    ...(await importOriginal<
-      typeof import("../../features/evaluation/observationEval/fetchObservationEvalRules")
-    >()),
-    fetchObservationEvalRules: otelReplayMocks.fetchObservationEvalRules,
-    createObservationEvalSchedulerDeps:
-      otelReplayMocks.createObservationEvalSchedulerDeps,
-    scheduleObservationEvals: otelReplayMocks.scheduleObservationEvals,
-  }),
-);
+vi.mock("../../features/evaluation/fetchEvalRules", () => ({
+  fetchEvalRules: otelReplayMocks.fetchEvalRules,
+}));
+
 vi.mock(
   "../../features/evaluation/observationEval/createSchedulerDeps",
-  async (importOriginal) => ({
-    ...(await importOriginal<
-      typeof import("../../features/evaluation/observationEval/createSchedulerDeps")
-    >()),
-    fetchObservationEvalRules: otelReplayMocks.fetchObservationEvalRules,
+  () => ({
     createObservationEvalSchedulerDeps:
       otelReplayMocks.createObservationEvalSchedulerDeps,
-    scheduleObservationEvals: otelReplayMocks.scheduleObservationEvals,
   }),
 );
+
 vi.mock(
   "../../features/evaluation/observationEval/scheduleObservationEvals",
   async (importOriginal) => ({
     ...(await importOriginal<
       typeof import("../../features/evaluation/observationEval/scheduleObservationEvals")
     >()),
-    fetchObservationEvalRules: otelReplayMocks.fetchObservationEvalRules,
-    createObservationEvalSchedulerDeps:
-      otelReplayMocks.createObservationEvalSchedulerDeps,
     scheduleObservationEvals: otelReplayMocks.scheduleObservationEvals,
   }),
 );
@@ -100,7 +85,10 @@ export function configureDefaultOtelReplayMocks(): void {
     outcome: "uploaded",
   });
   otelReplayMocks.getPrompt.mockResolvedValue(null);
-  otelReplayMocks.fetchObservationEvalRules.mockResolvedValue([]);
+  otelReplayMocks.fetchEvalRules.mockResolvedValue({
+    observationRules: [],
+    traceTranscriptRules: [],
+  });
   otelReplayMocks.hasNoEvalConfigsCache.mockResolvedValue(true);
   otelReplayMocks.createObservationEvalSchedulerDeps.mockReturnValue({});
   otelReplayMocks.scheduleObservationEvals.mockResolvedValue(undefined);

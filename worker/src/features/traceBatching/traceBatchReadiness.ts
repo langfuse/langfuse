@@ -1,5 +1,11 @@
 import { createHash } from "node:crypto";
-import { getShardIndex, redis } from "@langfuse/shared/src/server";
+import {
+  getShardIndex,
+  getTracingReadinessSettings,
+  logger,
+  recordIncrement,
+  redis,
+} from "@langfuse/shared/src/server";
 import { env } from "../../env";
 
 export function getTraceBatchReadinessKeys(shard: number) {
@@ -9,6 +15,26 @@ export function getTraceBatchReadinessKeys(shard: number) {
 
 export function getTraceBatchShard(member: string): number {
   return getShardIndex(member, env.LANGFUSE_TRACE_BATCH_SHARD_COUNT);
+}
+
+/** Resolve the project's idle interval consistently for both trace writers. */
+export async function resolveTraceIdleMs(projectId: string): Promise<number> {
+  let traceIdleMs: number | null = null;
+  try {
+    ({ traceIdleMs } = await getTracingReadinessSettings(projectId));
+  } catch (error) {
+    recordIncrement("langfuse.trace_batch.idle_time_read_failures", 1);
+    logger.warn("Failed to read trace idle time, using the default", {
+      projectId,
+      error,
+    });
+  }
+  if (traceIdleMs === null) return env.LANGFUSE_TRACE_BATCH_IDLE_MS;
+  // Limit configured project idle time to the pending window minus one dispatch interval.
+  const cap =
+    env.LANGFUSE_TRACE_BATCH_PENDING_TTL_MS -
+    env.LANGFUSE_TRACE_BATCH_DISPATCH_INTERVAL_MS;
+  return cap > 0 ? Math.min(traceIdleMs, cap) : traceIdleMs;
 }
 
 // Redis owns the clock. Include the next bucket so a boundary crossed between
