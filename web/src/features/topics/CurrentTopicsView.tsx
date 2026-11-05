@@ -89,6 +89,17 @@ export function CurrentTopicsView({
     selectedTraceId,
   );
   const isFiltered = filters.length > 0 || Boolean(searchQuery?.trim());
+  // The count footer knows the total only for the whole facet or a single topic.
+  const singleTopicId =
+    traceQuery?.topicIds?.operator === "any of" &&
+    traceQuery.topicIds.values.length === 1 &&
+    !traceQuery.statuses &&
+    !traceQuery.traceId
+      ? traceQuery.topicIds.values[0]
+      : null;
+  const listTotal = !isFiltered
+    ? facet.counts.total
+    : (facet.topics.find((topic) => topic.id === singleTopicId)?.count ?? null);
   const mapPoints =
     mapResult.data?.status === "ready" ? mapResult.data.points : null;
   /** The map highlights its own points that match the filters; frame identity follows the matching IDs. */
@@ -187,8 +198,8 @@ export function CurrentTopicsView({
         {facet.topics.length === 0 &&
           (facet.map?.topics.length ? (
             <p className="text-muted-foreground p-6 text-center text-sm">
-              No topic assignments in this time range. Choose a different time
-              range to explore existing topics.
+              No traces are assigned to this map yet. Traces are assigned as
+              they are processed.
             </p>
           ) : (
             emptyTopics
@@ -218,7 +229,7 @@ export function CurrentTopicsView({
         onSelectTrace={selectTrace}
         peekView={peekView}
         traces={tableTraces}
-        totalCount={facet.counts.total}
+        totalCount={listTotal}
         topics={topics}
       />
     </section>
@@ -473,7 +484,7 @@ function CurrentTraceTable({
       className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden"
     >
       <p className="text-muted-foreground shrink-0 px-3 py-1 text-xs tabular-nums">
-        {`${rows.length.toLocaleString()}${traces.hasMore ? "+" : ""} of ~${totalCount.toLocaleString()} traces loaded`}
+        {`${rows.length.toLocaleString()}${traces.hasMore ? "+" : ""}${totalCount === null ? "" : ` of ~${totalCount.toLocaleString()}`} traces loaded`}
       </p>
       <DataTable
         tableName="topics-current-traces"
@@ -526,7 +537,8 @@ type CurrentTraceTableProps = {
   onSelectTrace: (traceId: string) => void;
   peekView: DataTablePeekViewProps;
   traces: TopicTracesResult;
-  totalCount: number;
+  /** Approximate total of the listed traces, when the filter has one. */
+  totalCount: number | null;
   topics: { id: string }[];
 };
 

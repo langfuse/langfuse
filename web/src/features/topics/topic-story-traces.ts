@@ -1,3 +1,4 @@
+import { useState } from "react";
 import {
   type Facet,
   type FacetRow,
@@ -45,16 +46,21 @@ function matches(row: StoryRow, query: TopicTraceQuery) {
   return true;
 }
 
-/** Filters story rows the way the server does, without paging. */
-export function staticTopicTraces(rows: readonly StoryRow[]): UseTopicTraces {
-  return (query) => ({
-    rows: (query
-      ? rows.filter((row) => matches(row, query))
-      : []) as FacetRow[],
-    isLoading: false,
-    isLoadingMore: false,
-    error: null,
-    hasMore: false,
-    loadMore: () => undefined,
-  });
+/** Filters story rows the way the server does; `pageSize` pages them so lists start short. */
+export function staticTopicTraces(
+  rows: readonly StoryRow[],
+  pageSize = Infinity,
+): UseTopicTraces {
+  return function useStaticTopicTraces(query) {
+    const [loaded, setLoaded] = useState(pageSize);
+    const matching = query ? rows.filter((row) => matches(row, query)) : [];
+    return {
+      rows: matching.slice(0, loaded) as FacetRow[],
+      isLoading: false,
+      isLoadingMore: false,
+      error: null,
+      hasMore: matching.length > loaded,
+      loadMore: () => setLoaded((count) => count + pageSize),
+    };
+  };
 }

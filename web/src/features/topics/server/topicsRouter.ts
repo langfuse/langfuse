@@ -88,7 +88,7 @@ const tracesInput = projectInput.extend({
   topicIds: z
     .object({
       operator: z.enum(["any of", "none of"]),
-      values: z.array(z.string()).max(200),
+      values: z.array(z.string()).max(1000),
     })
     .optional(),
   statuses: z

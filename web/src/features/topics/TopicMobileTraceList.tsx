@@ -8,6 +8,7 @@ import { formatCompactRelativeTime } from "@/src/utils/dates";
 import { cn } from "@/src/utils/tailwind";
 import { type TopicTracesResult } from "./facet-topics";
 import { TopicTraceLoadMore } from "./TopicTraceLoadMore";
+import { TopicsErrorMessage } from "./TopicsErrorMessage";
 
 const PAGE_SIZE = 20;
 
@@ -104,11 +105,20 @@ export function TopicMobileTraceList({
             </li>
           ))}
         </ul>
-        {rows.length === 0 && (
+        {rows.length === 0 && traces.isLoading && (
+          <p className="text-muted-foreground p-4 text-sm">Loading traces…</p>
+        )}
+        {rows.length === 0 && !traces.isLoading && (
           <>
-            <p className="text-muted-foreground p-4 text-sm">
-              No matches. Adjust or clear your filters.
-            </p>
+            {traces.error ? (
+              <div className="p-4">
+                <TopicsErrorMessage message={traces.error} />
+              </div>
+            ) : (
+              <p className="text-muted-foreground p-4 text-sm">
+                No matches. Adjust or clear your filters.
+              </p>
+            )}
             {traces.hasMore && <TopicTraceLoadMore traces={traces} />}
           </>
         )}

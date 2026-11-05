@@ -128,7 +128,12 @@ export function MobileTopicsView({
     showPanel("traces");
   }
   function selectTrace(traceId: string | null) {
-    if (traceId !== null && !visible.some((row) => row.traceId === traceId)) {
+    // A point outside the filters clears them; one inside is pinned once loaded.
+    if (
+      traceId !== null &&
+      matchingTraceIds &&
+      !matchingTraceIds.has(traceId)
+    ) {
       onFiltersChange([]);
       onSearchQueryChange(null);
     }

@@ -409,6 +409,38 @@ export const PreviewGrid = meta.story({
   },
 });
 
+export const PickFilteredPointBeyondPage = meta.story({
+  name: "(Test) Picking a filtered point beyond the loaded page keeps the filter",
+  args: {
+    view: "grid",
+    filters: [
+      {
+        column: "topicId",
+        type: "stringOptions",
+        operator: "any of",
+        value: ["billing"],
+      },
+    ],
+    useTraces: staticTopicTraces(rows, 1),
+  },
+  play: async ({ canvasElement, args }) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(canvas.getByRole("tab", { name: "Visualize" }));
+    const grid = await canvas.findByRole("img", { name: /^Topic grid/ });
+    const dot = grid.querySelector('[data-trace-id="billing-5"]')!;
+    await userEvent.click(dot);
+    await userEvent.click(dot);
+    const trace = await canvas.findByRole("button", {
+      name: "Open trace billing-5",
+    });
+    await expect(trace).toHaveAttribute("aria-current", "true");
+    await expect(
+      canvas.getByRole("heading", { name: topics[0].name }),
+    ).toBeVisible();
+    await expect(args.onOpenTrace).not.toHaveBeenCalled();
+  },
+});
+
 export const SwitchPublishedMap = meta.story({
   name: "(Test) Switching facet maps resets the camera and keeps Visualize open",
   args: { view: "map" },
