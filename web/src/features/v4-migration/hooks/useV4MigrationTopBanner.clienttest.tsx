@@ -1,6 +1,5 @@
 import { fireEvent, render, renderHook, screen } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { type ProjectMigrationStatus } from "@/src/features/v4-migration/migrationData";
 import { V4MigrationTopBannerView } from "@/src/features/v4-migration/V4MigrationTopBannerView";
 import { useV4MigrationTopBanner } from "./useV4MigrationTopBanner";
 
@@ -16,31 +15,18 @@ const mocks = vi.hoisted(() => ({
     "Action required: After November 16, 2026, some features may stop working for at least one of your projects." as
       | string
       | null,
-  statusByProjectId: new Map<string, ProjectMigrationStatus>(),
+  actionNeededCount: 1,
+  organization: { id: "org-1", name: "Org 1" } as {
+    id: string;
+    name: string;
+  } | null,
+  project: null as { id: string } | null,
+  forceV3Settled: true,
+  v4UpgradeUiEnabled: true,
   queryInput: undefined as unknown,
+  queryOptions: undefined as unknown,
 }));
 
-vi.mock("next-auth/react", () => ({
-  useSession: () => ({
-    data: {
-      user: {
-        organizations: [
-          {
-            id: "org-1",
-            name: "Org 1",
-            projects: [
-              { id: "project-ok", name: "Ready", deletedAt: null },
-              { id: "project-legacy", name: "Legacy", deletedAt: null },
-              { id: "project-deleted", name: "Gone", deletedAt: new Date() },
-            ],
-          },
-        ],
-      },
-    },
-  }),
-}));
-
-vi.mock("@/src/env.mjs", () => ({ env: {} }));
 vi.mock("@/src/features/posthog-analytics/usePostHogClientCapture", () => ({
   usePostHogClientCapture: () => mocks.capture,
 }));
@@ -49,27 +35,29 @@ vi.mock("@/src/features/organizations/hooks", () => ({
 }));
 vi.mock("@/src/features/projects/hooks", () => ({
   useQueryProjectOrOrganization: () => ({
-    organization: { id: "org-1", name: "Org 1" },
-    project: null,
+    organization: mocks.organization,
+    project: mocks.project,
   }),
 }));
 vi.mock("@/src/features/v4-migration/useV4UpgradeUiEnabled", () => ({
-  useV4UpgradeUiEnabled: () => true,
+  useV4UpgradeUiEnabled: () => mocks.v4UpgradeUiEnabled,
 }));
-vi.mock("@/src/features/v4-migration/hooks/useV4MigrationData", () => ({
-  useAccountV4MigrationData: () => mocks.statusByProjectId,
+vi.mock("@/src/features/v4-migration/useForceV3Experience", () => ({
+  useIsForceV3ExperienceSettled: () => mocks.forceV3Settled,
 }));
 vi.mock("@/src/utils/api", () => ({
   api: {
     v4Transition: {
       legacyApiBannerState: {
-        useQuery: (input: unknown) => {
+        useQuery: (input: unknown, options: unknown) => {
           mocks.queryInput = input;
+          mocks.queryOptions = options;
           return {
             data: {
               severity: mocks.severity,
               message: mocks.message,
               exempt: false,
+              actionNeededCount: mocks.actionNeededCount,
             },
           };
         },
@@ -81,31 +69,17 @@ vi.mock("@/src/utils/api", () => ({
 const WARNING_MESSAGE =
   "Action required: After November 16, 2026, some features may stop working for at least one of your projects.";
 
-const status = (
-  overrides?: Partial<ProjectMigrationStatus>,
-): ProjectMigrationStatus => ({
-  sdk: {
-    status: "latest",
-    sdkUsageSeries: [],
-    upgradeRequiredCount: 0,
-    delayedOtelIngestionCount: 0,
-  },
-  evals: { status: "loaded", count: 0 },
-  experiments: { status: "loaded", result: "not_required" },
-  apis: { status: "loaded", count: 0 },
-  exports: { status: "loaded", count: 0 },
-  forceV3Experience: false,
-  ...overrides,
-});
-
 beforeEach(() => {
   mocks.capture.mockReset();
   mocks.severity = "warning";
   mocks.message = WARNING_MESSAGE;
-  mocks.statusByProjectId = new Map([
-    ["project-ok", status()],
-    ["project-legacy", status({ apis: { status: "loaded", count: 2 } })],
-  ]);
+  mocks.actionNeededCount = 1;
+  mocks.organization = { id: "org-1", name: "Org 1" };
+  mocks.project = null;
+  mocks.forceV3Settled = true;
+  mocks.v4UpgradeUiEnabled = true;
+  mocks.queryInput = undefined;
+  mocks.queryOptions = undefined;
 });
 
 describe("useV4MigrationTopBanner", () => {
@@ -141,12 +115,28 @@ describe("useV4MigrationTopBanner", () => {
 
     mocks.severity = "critical";
     mocks.message = "Legacy v3 is turned off.";
-    mocks.statusByProjectId = new Map([
-      ["project-ok", status()],
-      ["project-legacy", status()],
-    ]);
+    mocks.actionNeededCount = 0;
     rerender();
     expect(result.current).toBeNull();
     expect(mocks.capture).not.toHaveBeenCalled();
+  });
+
+  it("checks all session organizations on account-wide routes", () => {
+    mocks.organization = null;
+
+    render(<ConnectedBanner />);
+
+    expect(screen.getByText(WARNING_MESSAGE)).toBeInTheDocument();
+    expect(mocks.queryInput).toEqual({});
+  });
+
+  it("waits for the force-v3 gate before checking project routes", () => {
+    mocks.project = { id: "project-legacy" };
+    mocks.forceV3Settled = false;
+
+    const { result } = renderHook(() => useV4MigrationTopBanner());
+
+    expect(result.current).toBeNull();
+    expect(mocks.queryOptions).toMatchObject({ enabled: false });
   });
 });

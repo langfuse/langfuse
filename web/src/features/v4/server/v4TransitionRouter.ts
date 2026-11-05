@@ -1,5 +1,6 @@
 import { z } from "zod/v4";
 import {
+  authenticatedProcedure,
   createTRPCRouter,
   protectedOrganizationProcedure,
   protectedProjectProcedure,
@@ -14,7 +15,7 @@ import {
   getSdkUsageSummaries,
   getTraceLevelEvalSummaries,
 } from "@/src/features/v4/server/v4TransitionService";
-import { getLegacyApiBannerState } from "@/src/features/v4-migration/server/legacyApiBannerSource";
+import { getV4MigrationTopBannerState } from "@/src/features/v4-migration/server/v4MigrationTopBannerService";
 import { env } from "@/src/env.mjs";
 
 export const v4TransitionRouter = createTRPCRouter({
@@ -158,14 +159,18 @@ export const v4TransitionRouter = createTRPCRouter({
     ),
 
   /**
-   * Env-configured legacy v3 top banner. Reads no ClickHouse data; the
-   * per-project counts come from the existing per-org migration queries.
+   * Env-configured legacy v3 top banner. Account-wide routes check every
+   * eligible session organization; org/project routes check their current org.
+   * Migration signals are shared in Redis across users with the same scope.
    */
-  legacyApiBannerState: protectedOrganizationProcedure
-    .input(z.object({ orgId: z.string() }))
-    .query(({ input }) =>
-      getLegacyApiBannerState({
+  legacyApiBannerState: authenticatedProcedure
+    .input(z.object({ orgId: z.string().optional() }))
+    .query(({ input, ctx }) =>
+      getV4MigrationTopBannerState({
+        prisma: ctx.prisma,
+        session: ctx.session,
         orgId: input.orgId,
+        demoOrgId: env.NEXT_PUBLIC_DEMO_ORG_ID,
         isLangfuseCloud: Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION),
       }),
     ),
