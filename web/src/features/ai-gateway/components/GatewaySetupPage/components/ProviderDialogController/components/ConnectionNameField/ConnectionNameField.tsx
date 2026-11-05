@@ -25,7 +25,7 @@ export function ConnectionNameField({
         label="Name"
         description={
           <>
-            Model slugs start with it, e.g.{" "}
+            Used as the prefix when calling models, e.g.{" "}
             <code className="bg-muted rounded-md px-1 py-px font-mono text-xs">
               {name.trim() || "production"}:gpt-5
             </code>
