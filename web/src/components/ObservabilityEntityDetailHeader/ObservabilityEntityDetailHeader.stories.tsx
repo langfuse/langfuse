@@ -3,6 +3,7 @@ import preview from "@/.storybook/preview";
 import type { ComponentProps } from "react";
 import { ObservabilityEntityDetailHeader } from "./ObservabilityEntityDetailHeader";
 import { createPeekHeaderActions } from "./fns/createPeekHeaderActions";
+import { SessionHeaderMetricsControl } from "@/src/features/sessions/SessionHeaderMetricsControl/SessionHeaderMetricsControl";
 import {
   SquarePen,
   Plus,
@@ -77,6 +78,135 @@ const meta = preview.meta({
       },
     ],
   } satisfies ComponentProps<typeof ObservabilityEntityDetailHeader>,
+});
+
+export const TestDropdownCountAndLoading = meta.story({
+  name: "(Test) Dropdown Count And Loading",
+  decorators: [
+    (Story) => (
+      <div className="w-[1200px]">
+        <Story />
+      </div>
+    ),
+  ],
+  args: {
+    headerProps: {
+      title: "Session ID",
+      itemType: "SESSION",
+      actions: [
+        {
+          id: "add-to",
+          type: "dropdown",
+          label: "Add to",
+          icon: Plus,
+          count: 3,
+          items: [],
+        },
+        {
+          id: "download",
+          type: "button",
+          label: "Download JSON",
+          icon: Download,
+          isLoading: true,
+          disabled: true,
+          onClick: fn(),
+        },
+      ],
+    },
+  },
+  play: async ({ canvas }) => {
+    await expect(
+      within(canvas.getByRole("button", { name: "Add to" })).getByText("3"),
+    ).toBeVisible();
+    const download = canvas.getByRole("button", { name: "Download JSON" });
+    await expect(download).toBeDisabled();
+    await expect(download.querySelector(".animate-spin")).toBeInTheDocument();
+  },
+});
+
+export const TestOverflowDropdownCountAndLoading = meta.story({
+  name: "(Test) Overflow Dropdown Count And Loading",
+  decorators: [
+    (Story) => (
+      <div className="w-64">
+        <Story />
+      </div>
+    ),
+  ],
+  args: TestDropdownCountAndLoading.input.args,
+  play: async ({ canvas, canvasElement }) => {
+    await userEvent.click(canvas.getByRole("button", { name: "More actions" }));
+    const body = within(canvasElement.ownerDocument.body);
+    await expect(
+      within(await body.findByRole("button", { name: /^Add to/ })).getByText(
+        "3",
+      ),
+    ).toBeVisible();
+    await expect(
+      body
+        .getByRole("button", { name: "Download JSON" })
+        .querySelector(".animate-spin"),
+    ).toBeInTheDocument();
+  },
+});
+
+export const TestMetadataEditorAnchor = meta.story({
+  name: "(Test) Metadata Editor Anchor",
+  render: (args) => (
+    <SessionHeaderMetricsControl
+      projectId="project"
+      countTraces={1}
+      minTimestamp={new Date("2026-01-01")}
+      maxTimestamp={new Date("2026-01-01")}
+      tokensIn={0}
+      tokensOut={0}
+      totalTokens={0}
+      totalCost={0}
+      users={[]}
+      scores={[]}
+      metadataJsonPaths={{
+        paths: [],
+        source: { state: "empty" },
+        onEditorOpenChange: fn(),
+        onSave: fn(),
+        onRemove: fn(),
+      }}
+    >
+      {(metrics) => (
+        <ObservabilityEntityDetailHeader {...args} metrics={metrics} />
+      )}
+    </SessionHeaderMetricsControl>
+  ),
+  play: async ({ canvas, canvasElement }) => {
+    const body = within(canvasElement.ownerDocument.body);
+    const trigger = canvas.getByRole("button", { name: "Edit Metadata" });
+    await userEvent.click(trigger);
+    const editor = await body.findByRole("dialog", {
+      name: "Add metadata JSONPath",
+    });
+    await waitFor(() => {
+      expect(editor.getBoundingClientRect().left).toBeLessThanOrEqual(
+        trigger.getBoundingClientRect().right,
+      );
+      expect(editor.getBoundingClientRect().right).toBeGreaterThanOrEqual(
+        trigger.getBoundingClientRect().left,
+      );
+    });
+    await userEvent.click(canvas.getByRole("button", { name: "Annotate" }));
+    await waitFor(() =>
+      expect(
+        body.queryByRole("dialog", { name: "Add metadata JSONPath" }),
+      ).not.toBeInTheDocument(),
+    );
+    await userEvent.click(trigger);
+    await body.findByRole("dialog", { name: "Add metadata JSONPath" });
+    await userEvent.click(trigger);
+    await waitFor(() =>
+      expect(
+        body.queryByRole("dialog", { name: "Add metadata JSONPath" }),
+      ).not.toBeInTheDocument(),
+    );
+  },
 });
 
 export const Page = meta.story({

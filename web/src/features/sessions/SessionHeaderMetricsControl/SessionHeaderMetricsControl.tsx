@@ -195,13 +195,6 @@ export function SessionHeaderMetricsControl({
       },
     });
   }
-  metrics.push({
-    id: "edit-metadata",
-    type: "action",
-    label: "Edit Metadata",
-    icon: Plus,
-    onClick: () => handleEditorOpenChange(true),
-  });
   return (
     <FloatingController
       interaction="click"
@@ -223,14 +216,20 @@ export function SessionHeaderMetricsControl({
         </div>
       )}
     >
-      {({ getTriggerProps }) => (
-        <div
-          ref={getTriggerProps().ref as React.Ref<HTMLDivElement>}
-          className="w-full min-w-0 shrink-0"
-        >
-          {children(metrics)}
-        </div>
-      )}
+      {({ getTriggerProps }) =>
+        children([
+          ...metrics,
+          {
+            id: "edit-metadata",
+            type: "action",
+            label: "Edit Metadata",
+            icon: Plus,
+            onClick: () => handleEditorOpenChange(!isEditorOpen),
+            // FloatingController supplies an HTMLElement ref; useInteractions types it as unknown.
+            triggerRef: getTriggerProps().ref as React.Ref<HTMLElement>,
+          },
+        ])
+      }
     </FloatingController>
   );
 }

@@ -1,10 +1,4 @@
-import {
-  Download,
-  FileText,
-  Loader2,
-  MoreVertical,
-  TrashIcon,
-} from "@langfuse/icons";
+import { Download, FileText, MoreVertical, TrashIcon } from "@langfuse/icons";
 import type { EntityDetailHeaderAction } from "@/src/components/ObservabilityEntityDetailHeader/ObservabilityEntityDetailHeader";
 import type { DropdownMenuItemDefinition } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
 import { useShareMenuItems } from "@/src/components/useShareMenuItems";
@@ -151,7 +145,8 @@ function LoadedTraceDetailActions({
                 id: "download-json",
                 type: "button",
                 label: "Download JSON",
-                icon: isDownloading ? Loader2 : Download,
+                icon: Download,
+                isLoading: isDownloading,
                 iconOnly: true,
                 disabled: isDownloading || isPlaceholderData,
                 onClick: () => {

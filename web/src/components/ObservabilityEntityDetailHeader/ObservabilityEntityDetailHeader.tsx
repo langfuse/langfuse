@@ -12,7 +12,13 @@ import { EntityTitleTabs } from "@/src/components/EntityTitleTabs";
 import { useElementSize } from "@/src/hooks/useElementSize";
 import { staleProps } from "@/src/features/traces/fns/staleProps";
 import { cn } from "@/src/utils/tailwind";
-import { type IconComponent, Search, MoreVertical, X } from "@langfuse/icons";
+import {
+  type IconComponent,
+  Search,
+  MoreVertical,
+  X,
+  Loader2,
+} from "@langfuse/icons";
 import { assertUnreachable } from "@/src/utils/types";
 import { Badge, BadgeShell } from "@/src/components/design-system/Badge/Badge";
 import { LinkBadge } from "@/src/components/design-system/LinkBadge/LinkBadge";
@@ -33,7 +39,13 @@ export type HeaderMetric = {
   id: string;
   remove?: { label: string; onClick: () => void };
 } & (
-  | { type: "action"; label: string; icon: IconComponent; onClick: () => void }
+  | {
+      type: "action";
+      label: string;
+      icon: IconComponent;
+      onClick: () => void;
+      triggerRef?: React.Ref<HTMLElement>;
+    }
   | ({ searchText: string; overflowOnly?: boolean } & (
       | ({ type: "value" } & Pick<
           React.ComponentProps<typeof Badge>,
@@ -113,6 +125,7 @@ export type EntityDetailHeaderAction = {
       iconOnly?: boolean;
       disabled?: boolean;
       count?: number;
+      isLoading?: boolean;
       onClick: () => void;
     }
   | {
@@ -123,6 +136,7 @@ export type EntityDetailHeaderAction = {
       iconOnly?: boolean;
       disabled?: boolean;
       items: DropdownMenuItemDefinition[];
+      count?: number;
     }
   | {
       type: "custom";
@@ -343,6 +357,12 @@ function EntityDetailHeaderChrome({
     if (action.type === "custom")
       return action.render({ layout, iconOnly, closeMenu });
     const Icon = action.icon;
+    const icon =
+      action.type === "button" && action.isLoading ? (
+        <Loader2 size="base" __rawClassName="animate-spin" />
+      ) : (
+        <Icon size="base" />
+      );
     if (
       action.type === "dropdown" &&
       layout === "menu" &&
@@ -379,7 +399,12 @@ function EntityDetailHeaderChrome({
                 <HeaderActionMenuRow
                   {...getTriggerProps()}
                   label={action.label}
-                  icon={<Icon size="base" />}
+                  icon={icon}
+                  badge={
+                    action.count ? (
+                      <Badge text={String(action.count)} />
+                    ) : undefined
+                  }
                   disabled={action.disabled}
                 />
               );
@@ -387,7 +412,8 @@ function EntityDetailHeaderChrome({
               <HeaderActionButton
                 {...getTriggerProps()}
                 label={action.label}
-                icon={<Icon size="base" />}
+                icon={icon}
+                count={action.count}
                 showLabel={!action.iconOnly && !iconOnly}
                 disabled={action.disabled}
               />
@@ -400,7 +426,7 @@ function EntityDetailHeaderChrome({
       return (
         <HeaderActionMenuRow
           label={action.label}
-          icon={<Icon size="base" />}
+          icon={icon}
           badge={
             action.count ? <Badge text={String(action.count)} /> : undefined
           }
@@ -414,7 +440,7 @@ function EntityDetailHeaderChrome({
     return (
       <HeaderActionButton
         label={action.label}
-        icon={<Icon size="base" />}
+        icon={icon}
         count={action.count}
         showLabel={!action.iconOnly && !iconOnly}
         disabled={action.disabled}
@@ -609,7 +635,7 @@ function MetricContent({ metric }: { metric: HeaderMetric }) {
       <Tooltip label={metric.label}>
         {({ getTriggerProps }) => (
           <IconButton
-            {...getTriggerProps()}
+            {...getTriggerProps({ ref: metric.triggerRef })}
             label={metric.label}
             icon={metric.icon}
             size="sm"

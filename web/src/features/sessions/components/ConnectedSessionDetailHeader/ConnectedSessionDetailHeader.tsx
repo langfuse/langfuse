@@ -40,7 +40,7 @@ export function ConnectedSessionDetailHeader({
       objectType={AnnotationQueueObjectType.SESSION}
       analyticsData={{ source: "SessionDetail", isV4 }}
     >
-      {({ item }) => (
+      {({ item, totalCount }) => (
         <AnnotateDrawerController projectId={projectId}>
           {({ disabled: annotationDisabled, openDrawer: annotate }) => (
             <CommentDrawerController projectId={projectId} count={commentCount}>
@@ -58,6 +58,7 @@ export function ConnectedSessionDetailHeader({
                         label: "Add to",
                         icon: Plus,
                         items: [item],
+                        count: totalCount,
                         disabled: isLoading,
                       },
                       {

@@ -1,4 +1,5 @@
-import { CopyIcon, MoreVertical } from "@langfuse/icons";
+import { Check, CopyIcon, MoreVertical } from "@langfuse/icons";
+import { HeaderActionMenuRow } from "@/src/components/HeaderActionMenuRow";
 import { useSession } from "next-auth/react";
 
 import { HeaderActionButton } from "@/src/components/HeaderActionButton";
@@ -60,7 +61,7 @@ function buildDisplayItems({
   onShowCorrectionsChange,
   onShowInlineToolCallsChange,
   onShowSystemPromptChange,
-}: DisplaySettingProps): DropdownMenuItemDefinition[] {
+}: DisplaySettingProps) {
   const settings = [
     {
       id: "show-corrections",
@@ -173,7 +174,21 @@ export function ModernSessionHeaderActionsController({
         ];
 
         if (layout === "menu") {
-          return <HeaderActionMenuRows items={items} />;
+          return (
+            <>
+              <HeaderActionMenuRows items={items} />
+              {displayItems.map((item) => (
+                <HeaderActionMenuRow
+                  key={item.id}
+                  label={item.title}
+                  role="menuitemcheckbox"
+                  aria-checked={item.checked}
+                  badge={item.checked ? <Check size="base" /> : undefined}
+                  onClick={() => item.onCheckedChange(!item.checked)}
+                />
+              ))}
+            </>
+          );
         }
 
         return (

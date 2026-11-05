@@ -245,7 +245,10 @@ function ConnectedTraceHeaderWorkflowActions({
   const count = Number(counts.data?.get(objectId) ?? 0);
   // Trace actions already live in the selected trace's detail pane.
   if (!sessionId) return children(header);
-  const renderHeader = (items: DropdownMenuItemDefinition[]) => (
+  const renderHeader = (
+    items: DropdownMenuItemDefinition[],
+    totalCount: number,
+  ) => (
     <AnnotateDrawerController projectId={trace.projectId}>
       {({ disabled: annotationDisabled, openDrawer: annotate }) => (
         <CommentDrawerController
@@ -294,6 +297,7 @@ function ConnectedTraceHeaderWorkflowActions({
                 label: "Add to",
                 icon: PlusIcon,
                 items,
+                count: totalCount,
                 disabled: isPlaceholderData || !isMember,
               },
               ...(!isAnnotationMode
@@ -347,7 +351,7 @@ function ConnectedTraceHeaderWorkflowActions({
       objectType={AnnotationQueueObjectType.SESSION}
       analyticsData={{ source: "SessionDetail", isV4 }}
     >
-      {({ item }) => renderHeader([item])}
+      {({ item, totalCount }) => renderHeader([item], totalCount)}
     </AnnotationQueueSubmenuItemController>
   );
 }
