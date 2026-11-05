@@ -209,19 +209,16 @@ export function DashboardGrid({
   // query-backed widget.
   const renderPlacement = (widget: DashboardPlacement) => {
     if (widget.type === "text") {
+      let editTextTile: (() => void) | undefined;
+      if (!readOnly && canEdit) {
+        if (onLockedEditAttempt) editTextTile = onLockedEditAttempt;
+        else if (onEditText) editTextTile = () => onEditText(widget);
+      }
       return (
         <DashboardTextWidget
           placement={widget}
-          onEdit={
-            !readOnly && canEdit && onEditText
-              ? () => onEditText(widget)
-              : undefined
-          }
-          onDelete={
-            !readOnly && canEdit && onEditText
-              ? () => onDeleteWidget(widget.id)
-              : undefined
-          }
+          onEdit={editTextTile}
+          onDelete={editTextTile ? () => onDeleteWidget(widget.id) : undefined}
         />
       );
     }
