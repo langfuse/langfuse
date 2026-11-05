@@ -18,12 +18,7 @@ export function BedrockRegionField({
 }: BedrockRegionFieldProps) {
   return (
     <div>
-      <div className="flex items-baseline justify-between gap-2">
-        <Label htmlFor="gateway-bedrock-region">AWS region</Label>
-        <span className="text-muted-foreground text-xs">
-          {bedrockRegions.length} regions with Bedrock
-        </span>
-      </div>
+      <Label htmlFor="gateway-bedrock-region">AWS region</Label>
       <div className="mt-1.5">
         <SelectInput
           id="gateway-bedrock-region"

@@ -10,12 +10,6 @@ import type { GatewayProvider } from "@/src/features/ai-gateway/types/gatewayPro
 
 const providers = Object.keys(providerLabels) as GatewayProvider[];
 
-const credentialSummaries = {
-  OPENAI: "API key",
-  ANTHROPIC: "API key",
-  BEDROCK: "Region + API key",
-} satisfies Record<GatewayProvider, string>;
-
 export type ProviderCardPickerProps = {
   value: GatewayProvider;
   onChange: (provider: GatewayProvider) => void;
@@ -54,13 +48,8 @@ export function ProviderCardPicker({
               <span className="bg-muted flex size-10 shrink-0 items-center justify-center rounded-md border">
                 <ProviderIcon aria-hidden size="lg" />
               </span>
-              <span className="flex min-w-0 flex-col gap-0.5">
-                <span className="text-sm font-bold">
-                  {providerLabels[provider]}
-                </span>
-                <span className="text-muted-foreground text-xs">
-                  {credentialSummaries[provider]}
-                </span>
+              <span className="text-sm font-bold">
+                {providerLabels[provider]}
               </span>
               <RadioGroupPrimitive.Indicator className="bg-foreground text-background absolute top-2 right-2 flex size-4 items-center justify-center rounded-full">
                 <Check size="sm" aria-hidden />
