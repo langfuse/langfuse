@@ -102,7 +102,8 @@ pub(crate) fn resolution_response_for(
             "id": "connection-1", "name": "Production key", "provider": "openai", "api_format": "openai.responses",
             "provider_model": "provider-model",
             "base_url": "https://api.openai.com/v1",
-            "auth": {"type": "Bearer", "token": provider_secret}
+            "auth": {"type": "Bearer", "token": provider_secret},
+            "extra_headers": {"x-team": "research"}
         }),
         ApiFormat::OpenAiChatCompletions => json!({
             "id": "connection-1", "name": "Production key", "provider": "openai", "api_format": "openai.chat-completions",

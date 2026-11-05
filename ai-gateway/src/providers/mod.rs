@@ -188,8 +188,6 @@ impl ProviderTransport {
             reservation,
         } = request;
         let api_format = route.api_format();
-        let (credential_name, mut credential) = provider_credential(&context)?;
-        credential.set_sensitive(true);
         let provider_model = context.connection().provider_model();
         let mut capture = if route.captures_generation() {
             let mut capture = ExecutionCapture::for_request(api_format, &context, headers, &body);
@@ -227,7 +225,7 @@ impl ProviderTransport {
             .with_extension(DisableOtelPropagation)
             .headers(transport::request_headers(headers, api_format))
             .header(header::ACCEPT_ENCODING, "identity")
-            .header(credential_name, credential);
+            .headers(connection_headers(&context)?);
         upstream = upstream.body(body);
         let started = Instant::now();
         // A stream, or a call that does not generate, that goes quiet before its
@@ -397,6 +395,23 @@ pub(crate) fn model_range(body: &[u8]) -> Result<Range<usize>, ProviderError> {
         .filter(|end| *end <= body.len())
         .ok_or(ProviderError::Configuration)?;
     Ok(start..end)
+}
+
+/// The connection's extra headers plus its credential. Resolution already rejected
+/// malformed and reserved extra headers, so none can replace the credential.
+fn connection_headers(context: &ResolvedRequestContext) -> Result<HeaderMap, ProviderError> {
+    let (credential_name, mut credential) = provider_credential(context)?;
+    credential.set_sensitive(true);
+    let mut headers = HeaderMap::new();
+    for (name, value) in context.connection().extra_headers() {
+        let name =
+            HeaderName::from_bytes(name.as_bytes()).map_err(|_| ProviderError::Configuration)?;
+        let mut value = HeaderValue::from_str(value).map_err(|_| ProviderError::Configuration)?;
+        value.set_sensitive(true);
+        headers.insert(name, value);
+    }
+    headers.insert(credential_name, credential);
+    Ok(headers)
 }
 
 fn provider_credential(
