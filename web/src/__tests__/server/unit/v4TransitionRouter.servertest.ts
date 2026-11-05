@@ -10,6 +10,14 @@ vi.mock("@/src/server/auth", () => ({
   getServerAuthSession: vi.fn(),
 }));
 
+const v4MigrationTopBannerStateMock = vi.hoisted(() => vi.fn());
+vi.mock(
+  "@/src/features/v4-migration/server/v4MigrationTopBannerService",
+  () => ({
+    getV4MigrationTopBannerState: v4MigrationTopBannerStateMock,
+  }),
+);
+
 /**
  * In-memory Redis stand-in for cache tests. Avoids a real localhost:6379
  * dependency so the redis-cluster CI matrix (no standalone Redis) stays green.
@@ -575,10 +583,26 @@ describe("v4TransitionRouter", () => {
     vi.clearAllMocks();
   });
 
-  it("rejects migration banner scopes outside the session", async () => {
+  it("uses an authenticated account-wide migration banner procedure", async () => {
+    v4MigrationTopBannerStateMock.mockResolvedValue({
+      severity: "off",
+      message: null,
+      actionNeededCount: 0,
+    });
+
+    await createCaller().legacyApiBannerState();
+
+    expect(v4MigrationTopBannerStateMock).toHaveBeenCalledWith(
+      expect.objectContaining({ orgId: undefined }),
+    );
+  });
+
+  it("protects organization-scoped migration banner access", async () => {
     await expect(
-      createCaller().legacyApiBannerState({ orgId: "org-outside-session" }),
-    ).rejects.toMatchObject({ code: "FORBIDDEN" });
+      createCaller().legacyApiBannerStateByOrg({
+        orgId: "org-outside-session",
+      }),
+    ).rejects.toMatchObject({ code: "UNAUTHORIZED" });
   });
 
   it("serves legacy public API usage from Redis without querying ClickHouse", async () => {

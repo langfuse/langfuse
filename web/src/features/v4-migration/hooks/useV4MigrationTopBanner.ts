@@ -15,8 +15,8 @@ const QUERY_STALE_TIME_MS = 5 * 60 * 1000;
 
 /**
  * Org-wide legacy v3 banner for Langfuse Cloud. Returns null when it is
- * hidden. Copy and color come from env; the strip stays up while the org
- * still has legacy usage. There is no dismiss.
+ * hidden. The strip stays up while the current scope has legacy usage. There
+ * is no dismiss.
  */
 export function useV4MigrationTopBanner(): V4MigrationTopBannerViewProps | null {
   const capture = usePostHogClientCapture();
@@ -26,16 +26,28 @@ export function useV4MigrationTopBanner(): V4MigrationTopBannerViewProps | null 
   const forceV3Settled = useIsForceV3ExperienceSettled(project?.id);
   const enabled = isLangfuseCloud && v4UpgradeUiEnabled && forceV3Settled;
 
-  const stateQuery = api.v4Transition.legacyApiBannerState.useQuery(
-    organization ? { orgId: organization.id } : {},
+  const accountStateQuery = api.v4Transition.legacyApiBannerState.useQuery(
+    undefined,
     {
-      enabled,
+      enabled: enabled && !organization,
       refetchOnWindowFocus: false,
       staleTime: QUERY_STALE_TIME_MS,
       throwOnError: false,
       meta: { silentHttpCodes: [401, 403, 404] },
     },
   );
+  const organizationStateQuery =
+    api.v4Transition.legacyApiBannerStateByOrg.useQuery(
+      { orgId: organization?.id ?? "" },
+      {
+        enabled: enabled && Boolean(organization),
+        refetchOnWindowFocus: false,
+        staleTime: QUERY_STALE_TIME_MS,
+        throwOnError: false,
+        meta: { silentHttpCodes: [401, 403, 404] },
+      },
+    );
+  const stateQuery = organization ? organizationStateQuery : accountStateQuery;
   const state = stateQuery.data;
   const actionNeededCount = state?.actionNeededCount ?? 0;
   const severity = state?.severity;

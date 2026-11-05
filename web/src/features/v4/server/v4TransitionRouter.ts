@@ -1,5 +1,4 @@
 import { z } from "zod/v4";
-import { TRPCError } from "@trpc/server";
 import {
   authenticatedProcedure,
   createTRPCRouter,
@@ -160,31 +159,32 @@ export const v4TransitionRouter = createTRPCRouter({
     ),
 
   /**
-   * Env-configured legacy v3 top banner. Account-wide routes check every
-   * eligible session organization; org/project routes check their current org.
-   * Migration signals are shared in Redis across users with the same scope.
+   * Account-wide legacy v3 top banner for routes without an organization
+   * context. Checks every eligible organization in the authenticated session.
    */
-  legacyApiBannerState: authenticatedProcedure
-    .input(z.object({ orgId: z.string().optional() }))
-    .query(({ input, ctx }) => {
-      if (
-        input.orgId &&
-        !ctx.session.user.organizations.some(
-          (organization) => organization.id === input.orgId,
-        )
-      ) {
-        throw new TRPCError({
-          code: "FORBIDDEN",
-          message: "No access to this organization",
-        });
-      }
+  legacyApiBannerState: authenticatedProcedure.query(({ ctx }) =>
+    getV4MigrationTopBannerState({
+      prisma: ctx.prisma,
+      session: ctx.session,
+      orgId: undefined,
+      demoOrgId: env.NEXT_PUBLIC_DEMO_ORG_ID,
+      isLangfuseCloud: Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION),
+    }),
+  ),
 
-      return getV4MigrationTopBannerState({
+  /**
+   * Organization-scoped legacy v3 top banner. The shared organization
+   * procedure enforces membership and audits global-admin access.
+   */
+  legacyApiBannerStateByOrg: protectedOrganizationProcedure
+    .input(z.object({ orgId: z.string() }))
+    .query(({ input, ctx }) =>
+      getV4MigrationTopBannerState({
         prisma: ctx.prisma,
         session: ctx.session,
         orgId: input.orgId,
         demoOrgId: env.NEXT_PUBLIC_DEMO_ORG_ID,
         isLangfuseCloud: Boolean(env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION),
-      });
-    }),
+      }),
+    ),
 });

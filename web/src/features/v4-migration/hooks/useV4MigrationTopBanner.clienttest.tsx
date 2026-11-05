@@ -23,8 +23,9 @@ const mocks = vi.hoisted(() => ({
   project: null as { id: string } | null,
   forceV3Settled: true,
   v4UpgradeUiEnabled: true,
-  queryInput: undefined as unknown,
-  queryOptions: undefined as unknown,
+  accountQueryOptions: undefined as unknown,
+  orgQueryInput: undefined as unknown,
+  orgQueryOptions: undefined as unknown,
 }));
 
 vi.mock("@/src/features/posthog-analytics/usePostHogClientCapture", () => ({
@@ -49,9 +50,22 @@ vi.mock("@/src/utils/api", () => ({
   api: {
     v4Transition: {
       legacyApiBannerState: {
+        useQuery: (_input: undefined, options: unknown) => {
+          mocks.accountQueryOptions = options;
+          return {
+            data: {
+              severity: mocks.severity,
+              message: mocks.message,
+              exempt: false,
+              actionNeededCount: mocks.actionNeededCount,
+            },
+          };
+        },
+      },
+      legacyApiBannerStateByOrg: {
         useQuery: (input: unknown, options: unknown) => {
-          mocks.queryInput = input;
-          mocks.queryOptions = options;
+          mocks.orgQueryInput = input;
+          mocks.orgQueryOptions = options;
           return {
             data: {
               severity: mocks.severity,
@@ -78,8 +92,9 @@ beforeEach(() => {
   mocks.project = null;
   mocks.forceV3Settled = true;
   mocks.v4UpgradeUiEnabled = true;
-  mocks.queryInput = undefined;
-  mocks.queryOptions = undefined;
+  mocks.accountQueryOptions = undefined;
+  mocks.orgQueryInput = undefined;
+  mocks.orgQueryOptions = undefined;
 });
 
 describe("useV4MigrationTopBanner", () => {
@@ -87,7 +102,9 @@ describe("useV4MigrationTopBanner", () => {
     render(<ConnectedBanner />);
 
     expect(screen.getByText(WARNING_MESSAGE)).toBeInTheDocument();
-    expect(mocks.queryInput).toEqual({ orgId: "org-1" });
+    expect(mocks.orgQueryInput).toEqual({ orgId: "org-1" });
+    expect(mocks.orgQueryOptions).toMatchObject({ enabled: true });
+    expect(mocks.accountQueryOptions).toMatchObject({ enabled: false });
     expect(mocks.capture).toHaveBeenCalledWith(
       "v4_migration:top_banner_shown",
       { severity: "warning", actionNeededCount: 1 },
@@ -127,7 +144,8 @@ describe("useV4MigrationTopBanner", () => {
     render(<ConnectedBanner />);
 
     expect(screen.getByText(WARNING_MESSAGE)).toBeInTheDocument();
-    expect(mocks.queryInput).toEqual({});
+    expect(mocks.accountQueryOptions).toMatchObject({ enabled: true });
+    expect(mocks.orgQueryOptions).toMatchObject({ enabled: false });
   });
 
   it("waits for the force-v3 gate before checking project routes", () => {
@@ -137,6 +155,6 @@ describe("useV4MigrationTopBanner", () => {
     const { result } = renderHook(() => useV4MigrationTopBanner());
 
     expect(result.current).toBeNull();
-    expect(mocks.queryOptions).toMatchObject({ enabled: false });
+    expect(mocks.orgQueryOptions).toMatchObject({ enabled: false });
   });
 });

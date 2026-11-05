@@ -149,6 +149,46 @@ describe("getV4MigrationTopBannerState", () => {
     expect(mocks.writeCache).not.toHaveBeenCalled();
   });
 
+  it("supports global-admin organization scopes authorized by the router", async () => {
+    mocks.bannerStateByOrgId.set("org-customer", warningState);
+    mocks.getMigrationActionsByProject.mockResolvedValue(
+      new Map([["project-customer", actionNeeded]]),
+    );
+    const findMany = vi.fn().mockResolvedValue([{ id: "project-customer" }]);
+    const adminSession = {
+      ...session,
+      user: {
+        ...session.user!,
+        admin: true,
+        organizations: [],
+      },
+    } as Session;
+
+    await expect(
+      getV4MigrationTopBannerState({
+        prisma: {
+          project: { findMany },
+        } as unknown as PrismaClient,
+        session: adminSession,
+        orgId: "org-customer",
+        demoOrgId: undefined,
+        isLangfuseCloud: true,
+      }),
+    ).resolves.toMatchObject({
+      severity: "warning",
+      actionNeededCount: 1,
+    });
+
+    expect(findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          orgId: { in: ["org-customer"] },
+          deletedAt: null,
+        },
+      }),
+    );
+  });
+
   it("ignores organizations outside the session", async () => {
     const findMany = vi.fn();
 

@@ -56,35 +56,41 @@ export async function getV4MigrationTopBannerState({
   }
 
   const sessionOrganizations = user.organizations ?? [];
-  const scopedOrganizations = (
-    orgId
-      ? sessionOrganizations.filter((organization) => organization.id === orgId)
-      : sessionOrganizations
-  ).filter((organization) => organization.id !== demoOrgId);
-  const eligibleOrganizations = scopedOrganizations.filter(
-    (organization) =>
+  let scopedOrgIds = sessionOrganizations.map(
+    (organization) => organization.id,
+  );
+  if (orgId) {
+    const canAccessOrg =
+      user.admin ||
+      sessionOrganizations.some((organization) => organization.id === orgId);
+    scopedOrgIds = canAccessOrg ? [orgId] : [];
+  }
+  scopedOrgIds = scopedOrgIds.filter(
+    (organizationId) => organizationId !== demoOrgId,
+  );
+  const eligibleOrgIds = scopedOrgIds.filter(
+    (organizationId) =>
       getLegacyApiBannerState({
-        orgId: organization.id,
+        orgId: organizationId,
         isLangfuseCloud,
       }).severity !== "off",
   );
 
-  if (eligibleOrganizations.length === 0) {
+  if (eligibleOrgIds.length === 0) {
     return hiddenState;
   }
 
   const bannerState = getLegacyApiBannerState({
-    orgId: eligibleOrganizations[0]!.id,
+    orgId: eligibleOrgIds[0]!,
     isLangfuseCloud,
   });
-  const eligibleOrgIds = eligibleOrganizations.map(
-    (organization) => organization.id,
-  );
-  const accessibleProjectIds = eligibleOrganizations.flatMap((organization) =>
-    organization.projects
-      .filter((project) => !project.deletedAt)
-      .map((project) => project.id),
-  );
+  const accessibleProjectIds = sessionOrganizations
+    .filter((organization) => eligibleOrgIds.includes(organization.id))
+    .flatMap((organization) =>
+      organization.projects
+        .filter((project) => !project.deletedAt)
+        .map((project) => project.id),
+    );
 
   if (!user.admin && accessibleProjectIds.length === 0) {
     return {
