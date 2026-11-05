@@ -575,8 +575,8 @@ export const TestReplayPrivacy = meta.story({
     );
     const submenu = await body.findByRole("menu", { name: "Private options" });
 
-    await expect(menu).toHaveClass("ph-no-capture");
-    await expect(submenu).toHaveClass("ph-no-capture");
+    await expect(menu.closest(".ph-no-capture")).toBe(menu);
+    await expect(submenu.closest(".ph-no-capture")).toBe(submenu);
     await expect(menu).not.toContainElement(submenu);
     await expect(submenu).toContainElement(body.getByText("Private item"));
   },
