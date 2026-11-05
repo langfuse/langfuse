@@ -50,7 +50,22 @@ function ensureLayerContainers(): Map<LayerName, HTMLElement> {
   return layerContainers;
 }
 
+let overlayRootRetainCount = 0;
+
+function retainOverlayRoot() {
+  overlayRootRetainCount += 1;
+}
+
+function releaseOverlayRoot() {
+  overlayRootRetainCount = Math.max(0, overlayRootRetainCount - 1);
+  if (overlayRootRetainCount > 0) {
+    return;
+  }
+  document.querySelector("[data-overlay-root]")?.remove();
+}
+
 export function LayerProvider({ children }: { children: React.ReactNode }) {
+  const retained = React.useRef(false);
   // Resolve on the first client render. Creating the nodes in an effect leaves
   // `useLayerContainer` as null for one paint, so Radix/Vaul portals hop
   // through `document.body` and `hideOthers` logs `aria-hidden … not contained
@@ -68,9 +83,27 @@ export function LayerProvider({ children }: { children: React.ReactNode }) {
   // After SSR hydration the initializer does not re-run, so `layers` stays the
   // server snapshot (`null`). Adjust during render so the next pass already
   // has live nodes — an effect would be one paint too late for an open overlay.
-  if (typeof document !== "undefined" && layers == null) {
-    setLayers(ensureLayerContainers());
+  // Retain during render so a replacement provider keeps the root attached
+  // before the previous provider's layout cleanup runs.
+  if (typeof document !== "undefined") {
+    if (!retained.current) {
+      retained.current = true;
+      retainOverlayRoot();
+    }
+    if (layers == null) {
+      setLayers(ensureLayerContainers());
+    }
   }
+
+  React.useLayoutEffect(() => {
+    return () => {
+      if (!retained.current) {
+        return;
+      }
+      retained.current = false;
+      releaseOverlayRoot();
+    };
+  }, []);
 
   return (
     <LayerContext.Provider value={layers}>{children}</LayerContext.Provider>
@@ -81,9 +114,14 @@ function connectedLayer(
   name: LayerName,
   layers: Map<LayerName, HTMLElement | null> | null,
 ): HTMLElement | null {
-  const fromContext = layers?.get(name) ?? null;
+  const fromContext = layers?.get(name);
   if (fromContext?.isConnected) {
     return fromContext;
+  }
+  // A nested provider may set this layer to `null` until its local container
+  // mounts. Do not hop to the document-level node in that case.
+  if (layers?.has(name) && fromContext == null) {
+    return null;
   }
   if (typeof document === "undefined") {
     return null;

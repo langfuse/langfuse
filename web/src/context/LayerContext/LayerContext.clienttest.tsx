@@ -59,4 +59,33 @@ describe("LayerProvider", () => {
     expect(document.body.contains(layer)).toBe(true);
     expect(screen.getByText("modal")).toBeInTheDocument();
   });
+
+  it("keeps the overlay root while another provider is mounted", () => {
+    const first = document.createElement("div");
+    const second = document.createElement("div");
+    document.body.append(first, second);
+
+    const { unmount: unmountFirst } = render(
+      <LayerProvider>
+        <LayerContainerProbe />
+      </LayerProvider>,
+      { container: first },
+    );
+    const overlay = document.querySelector("[data-overlay-root]");
+    const { unmount: unmountSecond } = render(
+      <LayerProvider>
+        <LayerContainerProbe />
+      </LayerProvider>,
+      { container: second },
+    );
+
+    unmountFirst();
+    expect(document.body.contains(overlay)).toBe(true);
+    expect(overlay?.querySelector("[data-layer='modal']")?.isConnected).toBe(
+      true,
+    );
+
+    unmountSecond();
+    expect(document.querySelector("[data-overlay-root]")).toBeNull();
+  });
 });
