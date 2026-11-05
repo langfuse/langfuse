@@ -42,6 +42,7 @@ export function useTraceMessagesNavigation() {
       if (!neighbor) continue;
       utils.events.transcriptByTraceId.prefetch(
         {
+          context: "other",
           projectId: trace.projectId,
           traceId: neighbor.id,
           timestamp: neighbor.timestamp,

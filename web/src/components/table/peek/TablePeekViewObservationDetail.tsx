@@ -3,6 +3,7 @@ import {
   shouldClosePeekAfterDelete,
 } from "@/src/components/table/peek";
 import { usePeekData } from "@/src/components/table/peek/hooks/usePeekData";
+import { createPeekHeaderActions } from "@/src/components/ObservabilityEntityDetailHeader/fns/createPeekHeaderActions";
 import { TraceDetailActions } from "@/src/features/traces/components/TraceDetailActions";
 import { TraceDetailBody } from "@/src/features/traces/components/TraceDetailBody";
 import { resolvePeekTraceParams } from "@/src/components/table/peek/resolvePeekTraceParams";
@@ -117,27 +118,53 @@ export const TablePeekViewObservationDetail = (
       }
       hideExpandToggle
       preserveContentAcrossItems
-      actions={
-        <TraceDetailActions
-          isPlaceholderData={trace.isPlaceholderData}
-          {...actionProps}
-        />
-      }
-      actionsMenu={
-        <TraceDetailActions
-          isPlaceholderData={trace.isPlaceholderData}
-          {...actionProps}
-          layout="menu"
-        />
-      }
     >
-      <TraceDetailBody
-        trace={trace.data}
-        context="peek"
-        keySuffix={peekObservationId}
-        truncatedAtObservations={trace.truncatedAtObservations}
-        isPlaceholderData={trace.isPlaceholderData}
-      />
+      {({
+        itemType,
+        title,
+        titleTabs,
+        itemId,
+        detailNavigationKey,
+        resolveDetailNavigationPath,
+        ...peekControls
+      }) => (
+        <TraceDetailActions
+          isPlaceholderData={trace.isPlaceholderData}
+          {...actionProps}
+        >
+          {(traceActions) => (
+            <TraceDetailBody
+              trace={trace.data}
+              context="peek"
+              keySuffix={peekObservationId}
+              truncatedAtObservations={trace.truncatedAtObservations}
+              isPlaceholderData={trace.isPlaceholderData}
+              header={{
+                variant: "peek",
+                headerProps: {
+                  itemType,
+                  title,
+                  titleTabs,
+                  actions: [
+                    ...traceActions,
+                    ...createPeekHeaderActions({
+                      ...peekControls,
+                      navigation:
+                        detailNavigationKey && resolveDetailNavigationPath
+                          ? {
+                              itemId,
+                              listKey: detailNavigationKey,
+                              resolvePath: resolveDetailNavigationPath,
+                            }
+                          : undefined,
+                    }),
+                  ],
+                },
+              }}
+            />
+          )}
+        </TraceDetailActions>
+      )}
     </TablePeekView>
   );
 };

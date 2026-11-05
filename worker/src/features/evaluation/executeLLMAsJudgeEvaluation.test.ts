@@ -1425,7 +1425,11 @@ describe("executeLLMAsJudgeEvaluation", () => {
       ).rejects.toThrow("Database connection lost");
     });
 
-    it("should have persisted score before job update fails", async () => {
+    it("keeps the score timestamp when retrying after a job update failure across UTC dates", async () => {
+      const job = {
+        ...mockJobExecution,
+        createdAt: new Date("2026-01-01T23:59:00.000Z"),
+      };
       const uploadScore = vi.fn();
       const enqueueScoreIngestion = vi.fn();
 
@@ -1436,18 +1440,32 @@ describe("executeLLMAsJudgeEvaluation", () => {
         enqueueScoreIngestion,
         updateJobExecution: vi
           .fn()
-          .mockRejectedValue(new Error("Database connection lost")),
+          .mockRejectedValueOnce(new Error("Database connection lost"))
+          .mockResolvedValue(undefined),
       });
 
+      vi.useFakeTimers({ toFake: ["Date"] });
       try {
-        await executeLLMAsJudgeEvaluation(createExecutionParams({ deps }));
-      } catch {
-        // Expected to throw
+        vi.setSystemTime(new Date("2026-01-01T23:59:30.000Z"));
+        await expect(
+          executeLLMAsJudgeEvaluation(createExecutionParams({ deps, job })),
+        ).rejects.toThrow("Database connection lost");
+
+        vi.setSystemTime(new Date("2026-01-02T00:00:30.000Z"));
+        await executeLLMAsJudgeEvaluation(createExecutionParams({ deps, job }));
+      } finally {
+        vi.useRealTimers();
       }
 
-      // Score should have been persisted before the job update error
-      expect(uploadScore).toHaveBeenCalledTimes(1);
-      expect(enqueueScoreIngestion).toHaveBeenCalledTimes(1);
+      expect(uploadScore).toHaveBeenCalledTimes(2);
+      expect(enqueueScoreIngestion).toHaveBeenCalledTimes(2);
+      const [firstAttempt, retry] = uploadScore.mock.calls.map(
+        ([score]) => score,
+      );
+      expect(firstAttempt.scoreId).toBe(retry.scoreId);
+      expect(firstAttempt.eventId).not.toBe(retry.eventId);
+      expect(firstAttempt.event.timestamp).toBe(job.createdAt.toISOString());
+      expect(retry.event.timestamp).toBe(firstAttempt.event.timestamp);
     });
   });
 });
