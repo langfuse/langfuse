@@ -5,7 +5,7 @@ import { cn } from "@/src/utils/tailwind";
 const wordmarkVariants = cva("w-auto max-w-none", {
   variants: {
     size: {
-      sm: "h-6.5",
+      sm: "h-6",
       md: "h-7",
       lg: "h-10",
     },
