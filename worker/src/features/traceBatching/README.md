@@ -1,6 +1,6 @@
 # Internal cloud trace-batch experiment
 
-Two cloud-only modes share the batch worker. `LANGFUSE_TOPICS_ENABLED` runs the legacy Topics pipeline for active allowlisted projects. Default-off `LANGFUSE_TRACE_DISPATCH_ENABLED` moves ingestion tracking and dispatch to the new maps: ingestion → Redis → dispatcher → batch jobs. Active Topics projects stay fully admitted and keep their ClickHouse reads, summaries and optional input storage. Every other project is sampled by trace ID and ends at the dispatcher: the consumer completes those traces without a ClickHouse query. Deploy the same mode to every worker. Jobs queued before a switch are processed the same way, so no drain is needed. `LANGFUSE_TRACE_BATCH_DISPATCHER_ENABLED` and `QUEUE_CONSUMER_TRACE_BATCH_QUEUE_IS_ENABLED` still choose which service runs each role.
+Two cloud-only modes share the batch worker. `LANGFUSE_TOPICS_ENABLED` runs the legacy Topics pipeline for active allowlisted projects. Default-off `LANGFUSE_TRACE_DISPATCH_ENABLED` moves ingestion tracking and dispatch to the new maps: ingestion → Redis → dispatcher → batch jobs. A trace is admitted when it passes its project's Topics rule sampling or the experiment sampling (`LANGFUSE_TRACE_DISPATCH_SAMPLING_RATE`); both use the same deterministic trace-ID value. The consumer reads ClickHouse only for traces of active Topics projects within their rule's sample, and those keep their summaries and optional input storage. Every other admitted trace ends at the dispatcher without a ClickHouse query. Deploy the same mode to every worker. Jobs queued before a switch are processed the same way, so no drain is needed. `LANGFUSE_TRACE_BATCH_DISPATCHER_ENABLED` and `QUEUE_CONSUMER_TRACE_BATCH_QUEUE_IS_ENABLED` still choose which service runs each role.
 
 ## Recording trace-rule selections
 
@@ -28,7 +28,7 @@ ClickHouse flush. `eventUpdateCount` is a TypeScript measurement only, not Redis
 
 ### Recording experiment
 
-Example (10% of non-Topics traces, four-hour retention; active Topics projects stay at 100%):
+Example (10% of traces, four-hour retention; Topics projects additionally admit their rule's sample):
 
 ```env
 LANGFUSE_TRACE_DISPATCH_ENABLED=true
@@ -46,7 +46,7 @@ New bounds contain no event count, so count budgets apply only to legacy estimat
 It enqueues before removing matching revisions, preserving newer ingestion and
 bounds. Excess candidates stay due for the next run. Cleanup uses bounded Lua
 calls but may repeat; there is no hard five-second deadline.
-The consumer reads ClickHouse only for traces of active Topics projects. Other traces of a batch are counted as `langfuse.trace_batch.skipped_traces{reason:no_topics_project}` and the job completes without a query when none remain. Input storage keeps its legacy flag.
+The consumer reads ClickHouse only for traces of active Topics projects within their rule's sample. Other traces of a batch are counted as `langfuse.trace_batch.skipped_traces{reason:no_topics_project|rule_sampling}` and the job completes without a query when none remain. Input storage keeps its legacy flag.
 
 `langfuse.trace_batch.redis_key_bytes` / `redis_key_entries` sample the active pipeline's maps: `key:bounds|record|due` in new mode, `key:due|state|first` in legacy mode, summed across shards. One bounded `MEMORY USAGE SAMPLES 5` Lua call per shard every 60 seconds per reporting worker; no keyspace scan. Use max/latest across reporters, never sum these global gauges.
 
@@ -91,7 +91,7 @@ Redis CPU/memory. Queue metrics remain under `langfuse.trace_batch`.
 
 | Variable                                          | Default     | Role                                                                                                                                                                                                                                                                                                                                                                                                         |
 | ------------------------------------------------- | ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `LANGFUSE_TRACE_DISPATCH_ENABLED`                 | `false`     | Track and dispatch through the new maps. Active Topics projects stay fully admitted and are the only traces read from ClickHouse.                                                                                                                                                                                                                                                                            |
+| `LANGFUSE_TRACE_DISPATCH_ENABLED`                 | `false`     | Track and dispatch through the new maps. Only Topics traces within their rule's sample are read from ClickHouse.                                                                                                                                                                                                                                                                                             |
 | `LANGFUSE_TRACE_BATCH_DISPATCHER_ENABLED`         | `false`     | Run the dispatcher on this service.                                                                                                                                                                                                                                                                                                                                                                          |
 | `QUEUE_CONSUMER_TRACE_BATCH_QUEUE_IS_ENABLED`     | `false`     | Consume batch jobs on this service.                                                                                                                                                                                                                                                                                                                                                                          |
 | `LANGFUSE_TRACE_DISPATCH_SAMPLING_RATE`           | `0`         | Trace-ID sample for the new experiment, from 0 to 1.                                                                                                                                                                                                                                                                                                                                                         |

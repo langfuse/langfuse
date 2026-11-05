@@ -22,6 +22,7 @@ import { Prisma } from "@langfuse/shared/src/db";
 import { observationForEvalSchema, TopicsTargetObject } from "@langfuse/shared";
 import {
   isTopicsEnabled,
+  getTopicsProcessingSampling,
   isTopicsProcessingActive,
   isTopicsProjectEnabled,
 } from "@langfuse/shared/topics/server";
@@ -86,6 +87,7 @@ vi.mock("@langfuse/shared/topics/server", async (importOriginal) => ({
   isTopicsEnabled: vi.fn().mockReturnValue(false),
   isTopicsProjectEnabled: vi.fn().mockReturnValue(false),
   isTopicsProcessingActive: vi.fn().mockResolvedValue(false),
+  getTopicsProcessingSampling: vi.fn().mockResolvedValue(0),
 }));
 
 describe("trace-rule recording at the evaluation stage", () => {
@@ -138,6 +140,9 @@ describe("trace-rule recording at the evaluation stage", () => {
       env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "DEV";
       vi.mocked(isTopicsProjectEnabled).mockReturnValue(topicsEnabled);
       vi.mocked(isTopicsProcessingActive).mockResolvedValue(topicsEnabled);
+      vi.mocked(getTopicsProcessingSampling).mockResolvedValue(
+        topicsEnabled ? 1 : 0,
+      );
       env.LANGFUSE_TRACE_DISPATCH_SAMPLING_RATE = 1;
       env.LANGFUSE_TRACE_DISPATCH_ENABLED = ingestionEnabled ? "true" : "false";
       const includeTraceTranscriptRules =
@@ -288,6 +293,7 @@ describe("trace-rule recording at the evaluation stage", () => {
         Object.assign(env, original);
         vi.mocked(isTopicsProjectEnabled).mockReturnValue(false);
         vi.mocked(isTopicsProcessingActive).mockResolvedValue(false);
+        vi.mocked(getTopicsProcessingSampling).mockResolvedValue(0);
         vi.clearAllMocks();
       }
     },

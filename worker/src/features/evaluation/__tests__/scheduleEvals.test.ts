@@ -30,6 +30,8 @@ vi.mock("@langfuse/shared/src/server", async (importOriginal) => ({
 vi.mock("@langfuse/shared/topics/server", () => ({
   isTopicsProjectEnabled: mocks.topicsEnabled,
   isTopicsProcessingActive: mocks.topicsActive,
+  getTopicsProcessingSampling: async (projectId: string) =>
+    (await mocks.topicsActive(projectId)) ? 1 : 0,
 }));
 vi.mock("../observationEval/createSchedulerDeps", () => ({
   createObservationEvalSchedulerDeps: mocks.createObservationDeps,

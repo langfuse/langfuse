@@ -47,6 +47,7 @@ import { recordTraceBatchTranscript } from "../features/traceBatching/traceBatch
 import { storeInputs } from "../features/traceBatching/storeInputs";
 import {
   isTraceBatchPipelineEnabled,
+  isTraceBatchSampled,
   isTraceDispatchEnabled,
 } from "../features/traceBatching/traceBatchSampling";
 
@@ -377,17 +378,23 @@ export const traceBatchQueueProcessor: Processor<
     const topics = new TopicsBatchProjects(
       batch.traces.map((trace) => trace.projectId),
     );
-    // The experiment admits every sampled trace, but only Topics projects need
-    // ClickHouse reads; the other traces end at the dispatcher.
-    const readable = isTraceDispatchEnabled()
-      ? batch.traces.filter((trace) => isTopicsProjectEnabled(trace.projectId))
-      : batch.traces;
-    if (readable.length < batch.traces.length)
-      recordIncrement(
-        "langfuse.trace_batch.skipped_traces",
-        batch.traces.length - readable.length,
-        { reason: "no_topics_project" },
-      );
+    // Read ClickHouse only for traces Topics will summarize: an active project
+    // and within its rule's sample. Every other trace ends at the dispatcher.
+    const readable: typeof batch.traces = [];
+    const skipped = { no_topics_project: 0, rule_sampling: 0 };
+    for (const trace of batch.traces) {
+      // A failed settings load is reported per trace during summarization.
+      const project = await topics.get(trace.projectId).catch(() => undefined);
+      if (project === null) skipped.no_topics_project++;
+      else if (project && !isTraceBatchSampled(trace.traceId, project.sampling))
+        skipped.rule_sampling++;
+      else readable.push(trace);
+    }
+    for (const [reason, count] of Object.entries(skipped))
+      if (count > 0)
+        recordIncrement("langfuse.trace_batch.skipped_traces", count, {
+          reason,
+        });
     if (readable.length === 0) {
       outcome = "success";
       return {

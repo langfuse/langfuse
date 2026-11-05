@@ -59,6 +59,7 @@ import { traceBatchQueueProcessor } from "../queues/traceBatchQueue";
 import { ClickhouseWriter } from "../services/ClickhouseWriter";
 import {
   ensureDefaultTopicFacets,
+  getTopicsProcessingSampling,
   isTopicsProcessingActive,
   isTopicsEnabled,
   listTopicSummaries,
@@ -92,6 +93,9 @@ vi.mock("@langfuse/shared/topics/server", async (importOriginal) => ({
   isTopicsProjectEnabled: (projectId: string) => topicsProjects.has(projectId),
   isTopicsProcessingActive: vi.fn(async (projectId: string) =>
     topicsProjects.has(projectId),
+  ),
+  getTopicsProcessingSampling: vi.fn(async (projectId: string) =>
+    topicsProjects.has(projectId) ? 1 : 0,
   ),
   getEnabledTopicsModels: async (projectIds: string[]) =>
     new Map(
@@ -2374,7 +2378,7 @@ describe("trace micro-batch scheduling with Redis", () => {
       await trackLegacyTopicsBatchActivity("other-project", [
         event("other-trace"),
       ]);
-      vi.mocked(isTopicsProcessingActive).mockResolvedValueOnce(false);
+      vi.mocked(getTopicsProcessingSampling).mockResolvedValueOnce(0);
       await trackLegacyTopicsBatchActivity("inactive-project", [
         event("inactive-trace"),
       ]);
@@ -2383,7 +2387,7 @@ describe("trace micro-batch scheduling with Redis", () => {
         event("topics-trace"),
       ]);
       // An unreadable gate falls back to the allowlist.
-      vi.mocked(isTopicsProcessingActive).mockRejectedValueOnce(
+      vi.mocked(getTopicsProcessingSampling).mockRejectedValueOnce(
         new Error("postgres down"),
       );
       await trackLegacyTopicsBatchActivity("topics-project", [
@@ -2416,7 +2420,7 @@ describe("trace micro-batch scheduling with Redis", () => {
     expect(await client().hlen(stateKey)).toBe(0);
   });
 
-  it("admits active Topics projects fully and samples other projects by the experiment rate", async () => {
+  it("admits the larger of the Topics rule's rate and the experiment rate", async () => {
     env.LANGFUSE_TRACE_DISPATCH_ENABLED = "true";
     env.LANGFUSE_TRACE_BATCH_INGESTION_ENABLED = "false";
     env.LANGFUSE_TRACE_BATCH_SAMPLING_RATE = 1;
@@ -2431,7 +2435,7 @@ describe("trace micro-batch scheduling with Redis", () => {
       [1, 1_000],
     ]) {
       env.LANGFUSE_TRACE_DISPATCH_SAMPLING_RATE = rate;
-      // "project" is an active Topics project; "other-project" is not allowlisted.
+      // "project" is an active Topics project whose rule samples everything.
       expect(await resolveTraceBatchSamplingRate("project")).toBe(1);
       const samplingRate = await resolveTraceBatchSamplingRate("other-project");
       expect(samplingRate).toBe(rate);
@@ -2442,9 +2446,19 @@ describe("trace micro-batch scheduling with Redis", () => {
       expect(selected).toEqual(expect.arrayContaining(previous));
       previous = selected;
     }
-    // A paused Topics project falls back to the experiment sample.
-    vi.mocked(isTopicsProcessingActive).mockResolvedValueOnce(false);
-    expect(await resolveTraceBatchSamplingRate("project")).toBe(1);
+    // A rule sampling below the experiment rate admits the experiment share.
+    env.LANGFUSE_TRACE_DISPATCH_SAMPLING_RATE = 0.5;
+    vi.mocked(getTopicsProcessingSampling).mockResolvedValueOnce(0.25);
+    expect(await resolveTraceBatchSamplingRate("project")).toBe(0.5);
+    // A rule sampling above it admits the rule's share.
+    env.LANGFUSE_TRACE_DISPATCH_SAMPLING_RATE = 0.1;
+    vi.mocked(getTopicsProcessingSampling).mockResolvedValueOnce(0.25);
+    expect(await resolveTraceBatchSamplingRate("project")).toBe(0.25);
+    // Legacy mode admits Topics projects at the rule's rate only.
+    env.LANGFUSE_TRACE_DISPATCH_ENABLED = "false";
+    vi.mocked(getTopicsProcessingSampling).mockResolvedValueOnce(0.25);
+    expect(await resolveTraceBatchSamplingRate("project")).toBe(0.25);
+    expect(await resolveTraceBatchSamplingRate("other-project")).toBe(0);
   });
 
   it("counts only acknowledged update volume when tracking fails after a chunk", async () => {

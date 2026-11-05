@@ -1417,6 +1417,18 @@ describe("trace batch queue", () => {
           input.facets.map(({ id }) => id),
         ]),
     ).toEqual([["picked", ["issues"]]]);
+    // The sampled-out trace never reaches ClickHouse.
+    expect(getTraceBatchEventStream).toHaveBeenCalledExactlyOnceWith(
+      expect.objectContaining({
+        traces: [expect.objectContaining({ projectId: "picked" })],
+      }),
+      expect.anything(),
+    );
+    expect(recordIncrement).toHaveBeenCalledWith(
+      "langfuse.trace_batch.skipped_traces",
+      1,
+      { reason: "rule_sampling" },
+    );
     expect(inputStorage.put).toHaveBeenCalledTimes(1);
     expect(inputStorage.put).toHaveBeenCalledWith(
       { projectId: "picked", traceId: "trace", revision: "revision-picked" },
@@ -1605,6 +1617,11 @@ describe("trace batch queue", () => {
       "langfuse.topics.trace_outcomes",
       2,
       { outcome: "disabled" },
+    );
+    expect(recordIncrement).toHaveBeenCalledWith(
+      "langfuse.trace_batch.skipped_traces",
+      1,
+      { reason: "no_topics_project" },
     );
     vi.mocked(summarizeAssembledTrace).mockImplementation(async () => ({
       outcome: "unchanged",
@@ -2087,9 +2104,12 @@ describe("trace batch queue", () => {
 
     const successfulRead = traceBatchQueueProcessor(job, undefined);
     const failedRead = traceBatchQueueProcessor(job, undefined);
-    expect(recordGauge).toHaveBeenLastCalledWith(
-      "langfuse.trace_batch.active_reads",
-      2,
+    // Both reads pass the Topics settings lookup before they start streaming.
+    await vi.waitFor(() =>
+      expect(recordGauge).toHaveBeenLastCalledWith(
+        "langfuse.trace_batch.active_reads",
+        2,
+      ),
     );
     // Periodic samples keep unchanged, long-running reads visible.
     recordTraceBatchActiveReads();

@@ -63,8 +63,9 @@
 - Trace-rule recording: `src/features/traceBatching/traceBatchRules.ts` matches
   at the OTel eval stage; `traceRuleRecording.ts` owns new-map recording, hydration
   and revision-guarded acknowledgement. Cloud-only `LANGFUSE_TRACE_DISPATCH_ENABLED`
-  moves tracking and dispatch to the new maps; active Topics projects stay fully
-  admitted and the consumer reads ClickHouse only for them. Otherwise Topics
+  moves tracking and dispatch to the new maps; a trace is admitted by its Topics
+  rule's sampling or the experiment sampling, and the consumer reads ClickHouse
+  only for Topics traces within their rule's sample. Otherwise Topics
   enablement, allowlist and active project configuration govern
   legacy tracking. Keep observation evaluation and ingestion error boundaries intact.
   Only direct events-table batches record. Env-sampled nonmatches use
@@ -122,8 +123,8 @@
   metrics. Token estimates run sequentially;
   tool-response size uses comparable character counts over message parts.
   Allowlisted projects are then summarized from that assembled transcript.
-  In new mode the consumer skips traces of non-Topics projects before the
-  ClickHouse query and counts them as `skipped_traces`. Queued jobs are
+  The consumer skips traces outside active Topics projects or their rule's
+  sample before the ClickHouse query and counts them as `skipped_traces`. Queued jobs are
   processed the same way in both modes, so switching needs no drain.
   Optional `src/features/traceBatching/storeInputs.ts` capture runs after Topics
   eligibility/sampling, within the same concurrency limit, using the queued
