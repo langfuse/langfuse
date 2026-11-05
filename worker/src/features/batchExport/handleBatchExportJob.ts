@@ -8,6 +8,7 @@ import {
   BatchExportStatus,
   BatchExportTableName,
   exportOptions,
+  InvalidRequestError,
   LangfuseNotFoundError,
 } from "@langfuse/shared";
 import { type BatchExport, prisma } from "@langfuse/shared/src/db";
@@ -61,7 +62,7 @@ export const handleBatchExportJob = async (
   batchExportJob: BatchExportJobType,
 ) => {
   if (env.LANGFUSE_S3_BATCH_EXPORT_ENABLED !== "true") {
-    throw new Error(
+    throw new InvalidRequestError(
       "Batch export is not enabled. Configure environment variables to use this feature. See https://langfuse.com/self-hosting/infrastructure/blobstorage#batch-exports for more details.",
     );
   }
@@ -299,7 +300,7 @@ const runExport = async ({
   // Stream upload results to blob storage
   const bucketName = env.LANGFUSE_S3_BATCH_EXPORT_BUCKET;
   if (!bucketName) {
-    throw new Error("No S3 bucket configured for exports.");
+    throw new InvalidRequestError("No S3 bucket configured for exports.");
   }
 
   const storageParams = {
