@@ -26,6 +26,7 @@ import { env } from "@/src/env.mjs";
 import { createProjectMembershipsOnSignup } from "@/src/features/auth/lib/createProjectMembershipsOnSignup";
 import { getSessionLoginAt } from "@/src/features/auth/lib/sessionExpiration";
 import { type SignupAttribution } from "@/src/features/auth/lib/signupAttribution";
+import { PASSWORD_RESET_EMAIL_CODE_MAX_AGE_SECONDS } from "@/src/features/auth-credentials/lib/credentialsUtils";
 import {
   type AdapterUser,
   type Adapter,
@@ -91,6 +92,10 @@ import {
   getSelfHostedInstancePlanServerSide,
 } from "@/src/features/entitlements/server/getPlan";
 import { getSSOBlockedDomains } from "@/src/features/auth-credentials/server/signupApiHandler";
+import {
+  type EmailCodeRequest,
+  normalizeEmailIdentifier,
+} from "@/src/features/auth-credentials/lib/credentialsServerUtils";
 import { createSupportEmailHash } from "@/src/features/support-chat/createSupportEmailHash";
 import {
   canToggleV4,
@@ -188,22 +193,25 @@ const staticProviders: Provider[] = [
   }),
 ];
 
-// Password-reset for password reset of credentials provider
-if (env.SMTP_CONNECTION_URL && env.EMAIL_FROM_ADDRESS) {
-  staticProviders.push(
-    EmailProvider({
-      // SMTP vs SES dispatch happens inside sendVerificationRequest via
-      // createMailTransport; NextAuth itself only forwards this string.
-      server: env.SMTP_CONNECTION_URL,
-      from: env.EMAIL_FROM_ADDRESS,
-      maxAge: 3 * 60, // 3 minutes
-      async generateVerificationToken() {
-        return randomInt(100000, 1000000).toString();
-      },
-      sendVerificationRequest: sendResetPasswordVerificationRequest,
-    }),
-  );
-}
+// Sends the 6-digit codes of the sign-up and password-reset flows; built per
+// request, since NextAuth reads `maxAge` on each send.
+const getEmailCodeProviders = (maxAge: number): Provider[] =>
+  env.SMTP_CONNECTION_URL && env.EMAIL_FROM_ADDRESS
+    ? [
+        EmailProvider({
+          // SMTP vs SES dispatch happens inside sendVerificationRequest via
+          // createMailTransport; NextAuth itself only forwards this string.
+          server: env.SMTP_CONNECTION_URL,
+          from: env.EMAIL_FROM_ADDRESS,
+          maxAge,
+          normalizeIdentifier: normalizeEmailIdentifier,
+          async generateVerificationToken() {
+            return randomInt(100000, 1000000).toString();
+          },
+          sendVerificationRequest: sendResetPasswordVerificationRequest,
+        }),
+      ]
+    : [];
 
 if (
   env.AUTH_CUSTOM_CLIENT_ID &&
@@ -729,8 +737,8 @@ const createExtendedPrismaAdapter = (
  *
  * @param signupAttribution - the request's sign-up attribution, for the event
  * of a user it creates. Only the NextAuth API route passes it.
- * @param requestContext - captcha material for this request. The email
- * sign-in route passes the password-reset token; other callers omit it.
+ * @param requestContext - the email-code request's captcha material and code
+ * lifetime; without it, a code gets the password reset's lifetime.
  *
  * @see https://next-auth.js.org/configuration/options
  */
@@ -739,6 +747,7 @@ export async function getAuthOptions(
   requestContext?: {
     turnstileToken?: unknown;
     turnstileRemoteIp?: string;
+    emailCodeRequest?: EmailCodeRequest;
   },
 ): Promise<NextAuthOptions> {
   let dynamicSsoProviders: Provider[] = [];
@@ -748,7 +757,14 @@ export async function getAuthOptions(
     logger.error("Error loading dynamic SSO providers", e);
     traceException(e);
   }
-  const providers = [...staticProviders, ...dynamicSsoProviders];
+  const providers = [
+    ...staticProviders,
+    ...getEmailCodeProviders(
+      requestContext?.emailCodeRequest?.maxAge ??
+        PASSWORD_RESET_EMAIL_CODE_MAX_AGE_SECONDS,
+    ),
+    ...dynamicSsoProviders,
+  ];
 
   const data: NextAuthOptions = {
     logger: nextAuthLogger,

@@ -915,6 +915,7 @@ export default function SignInPage({
                           <FormControl>
                             <PasswordInput
                               allowPasswordManager
+                              autoComplete="current-password"
                               autoFocus={authProviders.sso}
                               {...field}
                             />
