@@ -18,11 +18,11 @@ export function FieldHeader({
   id,
 }: FieldHeaderProps) {
   return (
-    <div className="mb-1.5">
+    <div className="mb-2 space-y-2">
       <Label htmlFor={htmlFor} id={id}>
         {label}
       </Label>
-      <p className="text-muted-foreground mt-1 text-sm">{description}</p>
+      <p className="text-muted-foreground text-sm">{description}</p>
     </div>
   );
 }
