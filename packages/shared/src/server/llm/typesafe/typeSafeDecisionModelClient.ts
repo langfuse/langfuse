@@ -10,7 +10,6 @@ import type {
   DecisionModelEvaluation,
   DecisionModelRequestQuestion,
 } from "../../evals/decisionModelEvaluatorExecution";
-import { explainMissingDecisionEndpoint } from "../decisionModelEndpointError";
 import { createSecureLlmFetch } from "../secureLlmFetch";
 
 /** TypeSafe reads a description per level, in order. */
@@ -81,12 +80,6 @@ export function createTypeSafeDecisionModelClient(params: {
           ]),
         ) as Record<string, Experimental_DecisionQuestion>,
         maxRetries: 1,
-      }).catch((error: unknown) => {
-        throw explainMissingDecisionEndpoint(error, {
-          provider: "TypeSafe",
-          path: "/systemone",
-          defaultBaseURL: "https://api.typesafe.ai/v1",
-        });
       });
 
       const confidenceById = readConfidence(result.providerMetadata);

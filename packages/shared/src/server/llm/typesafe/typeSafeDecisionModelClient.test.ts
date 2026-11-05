@@ -263,28 +263,4 @@ describe("createTypeSafeDecisionModelClient", () => {
       isRetryable: false,
     });
   });
-
-  it("explains a bare 404 as a base URL without the decisions endpoint", async () => {
-    const fetchImpl = vi.fn().mockImplementation(
-      () =>
-        new Response("Not Found", {
-          status: 404,
-          statusText: "Not Found",
-          headers: { "Content-Type": "text/plain" },
-        }),
-    );
-    const client = createTypeSafeDecisionModelClient({
-      apiKey: "sk-test",
-      model: "jev-latest",
-      baseURL: "https://llm-proxy.example.com/typesafe/v1",
-      fetchImpl,
-    });
-
-    await expect(client.evaluate(request)).rejects.toMatchObject({
-      name: "AI_APICallError",
-      statusCode: 404,
-      message:
-        "The decision-model endpoint was not found (POST https://llm-proxy.example.com/typesafe/v1/systemone returned 404). Check that the connection's base URL supports TypeSafe's /systemone endpoint, for example the default https://api.typesafe.ai/v1.",
-    });
-  });
 });

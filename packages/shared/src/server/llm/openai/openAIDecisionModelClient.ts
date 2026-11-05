@@ -1,5 +1,6 @@
 import { createOpenAI } from "@ai-sdk/openai";
 import {
+  APICallError,
   experimental_decide as decide,
   Experimental_DecisionRefusalError,
   type Experimental_DecisionQuestion,
@@ -13,8 +14,37 @@ import {
   type DecisionModelRequestQuestion,
 } from "../../evals/decisionModelEvaluatorExecution";
 import type { DecisionModelEntry } from "../../../features/evals/decisionModel";
-import { explainMissingDecisionEndpoint } from "../decisionModelEndpointError";
 import { createSecureLlmFetch } from "../secureLlmFetch";
+
+/**
+ * Proxies and gateways without POST /decisions answer 404 with a body the
+ * OpenAI SDK cannot parse, which leaves only the status text "Not Found".
+ * OpenAI's own 404s (for example `model_not_found`) carry parsed `data` and
+ * keep their message. The result stays a 404 APICallError so evaluator error
+ * classification is unchanged.
+ */
+function explainMissingDecisionsEndpoint(error: unknown): unknown {
+  if (
+    !APICallError.isInstance(error) ||
+    error.statusCode !== 404 ||
+    error.data !== undefined
+  ) {
+    return error;
+  }
+  return new APICallError({
+    message:
+      `The decision-model endpoint was not found (POST ${error.url.split("?")[0]} returned 404). ` +
+      "Check that the connection's base URL supports OpenAI's /decisions endpoint, " +
+      "for example the default https://api.openai.com/v1.",
+    url: error.url,
+    requestBodyValues: error.requestBodyValues,
+    statusCode: error.statusCode,
+    responseHeaders: error.responseHeaders,
+    responseBody: error.responseBody,
+    isRetryable: error.isRetryable,
+    cause: error,
+  });
+}
 
 /** Same text conversion the OpenAI SDK applies before POST /v1/decisions. */
 function toDecisionText(entry: DecisionModelEntry): string {
@@ -125,11 +155,7 @@ export function createOpenAIDecisionModelClient(params: {
             `OpenAI declined to answer: ${error.questionIds.join(", ")}.`,
           );
         }
-        throw explainMissingDecisionEndpoint(error, {
-          provider: "OpenAI",
-          path: "/decisions",
-          defaultBaseURL: "https://api.openai.com/v1",
-        });
+        throw explainMissingDecisionsEndpoint(error);
       }
 
       const confidenceById = readConfidence(result.providerMetadata);

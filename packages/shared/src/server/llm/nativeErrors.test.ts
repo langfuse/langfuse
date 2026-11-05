@@ -3,7 +3,6 @@ import { APICallError, NoOutputGeneratedError, RetryError } from "ai";
 import { describe, expect, it } from "vitest";
 
 import { classifyEvaluatorLlmError } from "../evals/classifyEvaluatorLlmError";
-import { explainMissingDecisionEndpoint } from "./decisionModelEndpointError";
 import {
   getLLMErrorInfo,
   LLMValidationError,
@@ -168,22 +167,6 @@ describe("classifyEvaluatorLlmError", () => {
       expect(classifyEvaluatorLlmError(error)?.blockReason).toBe(reason);
     },
   );
-
-  it("still treats an explained missing decision endpoint as an unavailable model", () => {
-    const error = explainMissingDecisionEndpoint(
-      apiCallError({ message: "Not Found", statusCode: 404 }),
-      {
-        provider: "OpenAI",
-        path: "/decisions",
-        defaultBaseURL: "https://api.openai.com/v1",
-      },
-    );
-
-    expect(classifyEvaluatorLlmError(error)).toMatchObject({
-      blockReason: EvaluatorBlockReason.EVAL_MODEL_UNAVAILABLE,
-      message: expect.stringContaining("/decisions endpoint"),
-    });
-  });
 
   it("keeps narrow provider-specific message fallbacks isolated to evaluator policy", () => {
     const error = apiCallError({

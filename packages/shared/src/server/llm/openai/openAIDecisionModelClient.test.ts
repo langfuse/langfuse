@@ -1,4 +1,6 @@
+import { EvaluatorBlockReason } from "@prisma/client";
 import { describe, expect, it, vi } from "vitest";
+import { classifyEvaluatorLlmError } from "../../evals/classifyEvaluatorLlmError";
 import type { DecisionModelRequest } from "../../evals/decisionModelEvaluatorExecution";
 import { createOpenAIDecisionModelClient } from "./openAIDecisionModelClient";
 
@@ -189,7 +191,11 @@ describe("createOpenAIDecisionModelClient", () => {
         fetchImpl,
       });
 
-      await expect(client.evaluate(request)).rejects.toMatchObject({
+      const error = await client.evaluate(request).catch((e: unknown) => e);
+      expect(classifyEvaluatorLlmError(error)?.blockReason).toBe(
+        EvaluatorBlockReason.EVAL_MODEL_UNAVAILABLE,
+      );
+      expect(error).toMatchObject({
         name: "AI_APICallError",
         statusCode: 404,
         isRetryable: false,
