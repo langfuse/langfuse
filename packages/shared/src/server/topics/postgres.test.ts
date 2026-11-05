@@ -132,6 +132,7 @@ describe("Topics serving maps", () => {
         projectId: "project-a",
         facetId: { in: ["intent", "outcome"] },
         status: "completed",
+        batchActionId: null,
       },
       orderBy: [
         { facetVersion: "desc" },

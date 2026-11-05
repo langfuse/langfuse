@@ -194,27 +194,9 @@ times. Each Topics queue has its own `QUEUE_CONSUMER_<QUEUE>_QUEUE_IS_ENABLED`
 switch (`TOPICS`, `TOPICS_UPDATE`, `TOPICS_EMBEDDING`, `TOPICS_AUTOMATION`); set
 them to `false` on fleets that only run trace batches.
 
-A facet version without any map starts one automatic **Update topics** execution
-once a recent window contains at least 100 compatible summaries, targeting 80%
-of the worker's row and byte limits to leave room for late summaries. The row
-target stays at least 100 when the hard limit permits it. Automatic processing
-must be on with the embedding model those summaries used. It first checks seven
-days, then searches for a smaller recent window using database counts and byte estimates. Metadata-only
-counts narrow row-oversized windows before estimating text payloads; byte
-estimates are projected before sorting. Searches are throttled per facet and
-embedding configuration for 60 seconds. Redis deduplicates deferred checks to
-one pending check per facet/model, including a successor to a running check. The entire
-selected window uses the same clustering and naming pipeline as a manual update.
-It appears in History under the `system:topics` actor. Active discoveries schedule
-a follow-up before dispatch, so a lost queue job or capacity failure is checked
-even without another incoming batch. Each capacity failure can create one new
-request after the cooldown, starting the search at half the failed window's
-duration. Requests keep their selected windows unchanged. If no admissible
-window exists, discovery waits for another summary batch; other failures are
-resumed from History. An existing map or fit in progress for the version, even an
-incompatible one, blocks discovery; replace it with **Update topics**. Summaries
-stored while the first map is being fitted stay unassigned until the next
-**Update topics**.
+Automatic processing assigns new summaries only to a facet's continuous map.
+A facet without one waits for the nightly refit, which fits the rule's first
+map (see below). Summaries stored before then stay unassigned until that fit.
 
 Required for a local run, in addition to Postgres, ClickHouse, and Redis:
 
@@ -238,9 +220,10 @@ Required for a local run, in addition to Postgres, ClickHouse, and Redis:
    summaries and embeddings, then assigns only this batch to the current
    compatible map. With no compatible map, completed summaries are **Awaiting
    topics**, not outliers. Processing never clusters or renames topics.
-3. Choose **Update topics** to fit a map from the latest completed compatible
-   summaries whose source started in the last seven days. Initial discovery and later updates use this same
-   operation. It does not load traces, summarize, or generate embeddings.
+3. Choose **Update topics** to fit a snapshot map from the latest completed
+   compatible summaries in the selected window. It does not load traces,
+   summarize, or generate embeddings. The nightly refit fits the rule's
+   continuous map with the same pipeline.
 4. Inspect the resulting summaries, names, representative examples, and outliers.
    Non-applicable and insufficient-input results remain separate from outliers.
 5. Process subsequent trace batches as they arrive. Update topics manually when
@@ -401,7 +384,7 @@ controlled by `LANGFUSE_TOPICS_MAX_CLUSTERING_ROWS` and
 `LANGFUSE_TOPICS_MAX_CLUSTERING_BYTES`. A metadata count rejects excessive rows
 or embedding payload before loading vectors; the streamed read also enforces
 rows and bytes to cover large texts and changes after the count. Exceeding a
-limit fails the update with a smaller-window message. Automatic discovery selects
+limit fails the update with a smaller-window message. The nightly refit selects
 a fitting window before queuing; manual updates retain their requested window.
 Neither samples the clustering cohort. These are initial capacity limits, not a guarantee about
 container RSS: parent/child serialization, native fitting, and concurrent queue
@@ -526,18 +509,30 @@ the completed attempt without fitting again. Skipped attempts also resume
 without recomputation, using the previously saved cohort count to distinguish
 no applicable summaries from insufficient data.
 
-Automatic processing starts a facet version's first discovery. After that,
-`nightlyRefit.ts` refits each published map of the Topics rule's current facet
-versions once a day through the same update path as the manual button. A
-five-minute runner, holding a Redis lease, starts a project's refit once its slot
-has passed. The slot is `LANGFUSE_TOPICS_NIGHTLY_REFIT_HOUR_UTC` plus a stable,
-hash-derived offset of under 30 minutes.
-The request ID is derived from the slot, so replicas, retries and later ticks
-cannot start it twice. A slot is skipped when no summaries arrived after the
-published map's window, or while a fit of that facet is pending or running (then
-rechecked next tick). After downtime only the latest slot runs, at most five
-refits per tick. The refit window uses the same capacity-aware selection as
-discovery.
+Clustering runs come in two kinds, told apart by their owner columns. A
+**continuous map** belongs to a Topics rule (`rule_id`): the system fits it,
+online assignment uses it, and each refit continues it. A **one-off snapshot**
+belongs to the manual execution that requested it (`batch_action_id`): the user
+who started it owns it, and it never receives online assignments. Every manual
+**Update topics**, including the setup's first clustering after its backfill, is
+a snapshot. Runs written before these columns carry neither and count as the
+continuous map of the project's oldest rule.
+
+`nightlyRefit.ts` fits every rule's continuous map once a day, one run per rule
+and facet at its latest version. A five-minute runner, holding a Redis lease,
+handles a project once its slot has passed. The slot is
+`LANGFUSE_TOPICS_NIGHTLY_REFIT_HOUR_UTC` plus a stable, hash-derived offset of
+under 30 minutes. The run ID derives from the rule, facet, embedding
+configuration and slot, so replicas, retries and later ticks find the same run.
+The first night fits whenever at least 100 summaries exist; later nights fit
+only when summaries arrived after the published map's window, and otherwise
+leave a skipped run. The window is the longest recent one, up to 93 days, whose
+cohort fits 80% of the worker's row and byte limits; after a capacity failure
+the search starts from half the failed window. A run still open from an earlier
+slot is failed when the next slot starts. After downtime only the latest slot
+runs, at most five fits per tick. The fit itself runs as a `topics-rule-refit`
+job on the `topics-update` queue, with the same clustering, continuity and
+naming pipeline as a manual update.
 Large per-project fitting and distributed stream processing remain follow-up
 work; this is not a 100-million-traces/day throughput validation. The incoming
 trace path uses bounded batches; naming and discovery limits apply to individual

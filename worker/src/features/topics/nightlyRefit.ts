@@ -1,33 +1,34 @@
 import { createHash } from "node:crypto";
 import { prisma } from "@langfuse/shared/src/db";
 import { env as sharedEnv } from "@langfuse/shared/src/env";
-import { logger, recordIncrement, redis } from "@langfuse/shared/src/server";
+import { logger, recordIncrement } from "@langfuse/shared/src/server";
 import {
-  createTopicExecution,
-  enqueueTopicExecution,
+  createTopicRun,
+  enqueueTopicRuleRefit,
   getEnabledTopicsModels,
   getTopicClusteringSummaryStats,
-  getTopicProcessingMapIds,
+  getTopicRuleMap,
   listTopicFacets,
   listTopicRules,
-  readTopicExecutionForRequest,
-  TOPICS_SYSTEM_USER_ID,
+  TOPIC_CLUSTERING_CAPACITY_ERROR,
 } from "@langfuse/shared/topics/server";
 import {
+  TOPICS_MAX_TIME_RANGE_MS,
   topicTimeRangeSchema,
   type TopicEmbeddingConfig,
   type TopicFacetRef,
+  type TopicRun,
+  type TopicTimeRange,
 } from "@langfuse/shared/topics";
 import { env } from "../../env";
 import { PeriodicExclusiveRunner } from "../../utils/PeriodicExclusiveRunner";
-import { selectDiscoveryWindow } from "./topicsAutomation";
+import { topicClusterSettings } from "./numeric";
 
 const DAY_MS = 86_400_000;
-const NEW_SUMMARY_LOOKBACK_MS = 7 * DAY_MS;
-// Projects refit at a stable offset within this many minutes after the hour.
-const REFIT_SPREAD_MINUTES = 30;
 // Bounds the burst after a deploy or outage, when every project's slot is due at once.
 const MAX_REFITS_PER_TICK = 5;
+// Projects refit at a stable offset within this many minutes after the hour.
+const REFIT_SPREAD_MINUTES = 30;
 
 /**
  * The latest daily refit time at or before `now`: the configured UTC hour plus
@@ -51,10 +52,10 @@ export function nightlyRefitSlot(
 }
 
 /**
- * Starts one update per published map whose project's slot has not been
- * handled yet, through the same update path as the manual button. A slot runs
- * at most once: its request ID is derived from the slot, and a skipped slot is
- * remembered until the next one. After downtime, only the latest slot runs.
+ * Fits every rule's map of each of its facets once per slot. Each fit is one
+ * run row with the rule's ID, whose ID derives from the slot, so a slot is
+ * handled at most once; a slot with nothing to fit leaves a skipped run.
+ * After downtime, only the latest slot runs.
  */
 export async function scheduleNightlyTopicRefits(
   now: Date,
@@ -82,126 +83,136 @@ export async function scheduleNightlyTopicRefits(
     .sort((a, b) => a.slot.getTime() - b.slot.getTime());
   let started = 0;
   for (const project of projects) {
-    for (const map of await servingMaps(
-      project.projectId,
-      project.embeddingConfig,
-    )) {
-      if (started >= MAX_REFITS_PER_TICK) return started;
-      await onProgress();
-      if (await refitMap({ ...project, ...map, now })) started++;
+    const facets = await listTopicFacets(project.projectId);
+    for (const rule of await listTopicRules(project.projectId)) {
+      for (const facet of facets) {
+        const version = facet.versions[0]?.version;
+        if (!version || !rule.facetIds.includes(facet.id)) continue;
+        if (started >= MAX_REFITS_PER_TICK) return started;
+        await onProgress();
+        if (
+          await refitRuleFacet({
+            ...project,
+            ruleId: rule.id,
+            facet: { facetId: facet.id, version },
+            now,
+          })
+        )
+          started++;
+      }
     }
   }
   return started;
 }
 
-/** Published maps of the Topics rule's current facet versions and embedding model. */
-async function servingMaps(
-  projectId: string,
-  embeddingConfig: TopicEmbeddingConfig,
-) {
-  const [rule] = await listTopicRules(projectId);
-  if (!rule) return [];
-  const facets = (await listTopicFacets(projectId)).flatMap((facet) => {
-    const version = facet.versions[0];
-    return version && rule.facetIds.includes(facet.id)
-      ? [{ facetId: facet.id, version: version.version }]
-      : [];
-  });
-  return (
-    await getTopicProcessingMapIds(projectId, facets, embeddingConfig)
-  ).flatMap(({ facetId, facetVersion, runId }) =>
-    runId ? [{ facet: { facetId, version: facetVersion }, runId }] : [],
-  );
-}
-
-async function refitMap({
+async function refitRuleFacet({
   projectId,
   embeddingConfig,
   slot,
+  ruleId,
   facet,
-  runId,
   now,
 }: {
   projectId: string;
   embeddingConfig: TopicEmbeddingConfig;
   slot: Date;
+  ruleId: string;
   facet: TopicFacetRef;
-  runId: string;
   now: Date;
 }): Promise<boolean> {
-  const requestHash = createHash("sha256")
+  const runId = createHash("sha256")
     .update(
-      JSON.stringify(["nightly-refit", facet, embeddingConfig, slot.getTime()]),
+      JSON.stringify([
+        "rule-refit",
+        ruleId,
+        facet,
+        embeddingConfig,
+        slot.getTime(),
+      ]),
     )
-    .digest("hex");
-  const requestId = `nightly-refit-${requestHash.slice(0, 48)}`;
-  const existing = await readTopicExecutionForRequest(
-    projectId,
-    requestId,
-    requestHash,
-  );
+    .digest("hex")
+    .slice(0, 48);
+  const existing = await prisma.topicClusteringRun.findFirst({
+    where: { projectId, id: runId },
+    select: { status: true },
+  });
   if (existing) {
-    // Recovers an execution whose queue job was lost before it started.
-    if (existing.status === "queued")
-      await enqueueTopicExecution(projectId, existing.id);
+    // Recovers a run whose queue job was lost before it started.
+    if (existing.status === "pending")
+      await enqueueTopicRuleRefit(projectId, runId);
     return false;
   }
-  const skipKey = `langfuse:topics:nightly-refit:skipped:${projectId}:${requestId}`;
-  if (redis && (await redis.exists(skipKey))) return false;
-  // Rechecked on the next tick, so a refit follows a fit that is still running.
-  if (await fitInProgress(projectId, facet)) return false;
-  const timeRange = (await hasNewSummaries(
+  // A fit still open from an earlier slot was interrupted; this slot replaces it.
+  await prisma.topicClusteringRun.updateMany({
+    where: {
+      projectId,
+      ruleId,
+      facetId: facet.facetId,
+      status: { in: ["pending", "running"] },
+    },
+    data: {
+      status: "failed",
+      error: "Replaced by the next nightly refit.",
+      finishedAt: now,
+    },
+  });
+  const run = {
+    id: runId,
     projectId,
-    facet,
-    embeddingConfig,
-    runId,
-    now,
-  ))
-    ? await selectDiscoveryWindow(projectId, facet, embeddingConfig)
-    : null;
+    facetId: facet.facetId,
+    facetVersion: facet.version,
+    ruleId,
+  };
+  const embedding = {
+    embeddingModel: embeddingConfig.embeddingModel,
+    dimensions: embeddingConfig.embeddingDimensions,
+  };
+  const current = await getTopicRuleMap(projectId, ruleId, facet.facetId);
+  const previous =
+    current?.facetVersion === facet.version &&
+    current.config.embeddingModel === embedding.embeddingModel &&
+    current.config.dimensions === embedding.dimensions
+      ? current
+      : null;
+  const timeRange =
+    previous &&
+    !(await hasNewSummaries(projectId, facet, embeddingConfig, previous, now))
+      ? null
+      : await selectFitWindow(
+          projectId,
+          facet,
+          embeddingConfig,
+          now,
+          await capacityFailedWindow(projectId, ruleId, facet),
+        );
   if (!timeRange) {
-    await redis?.set(skipKey, "1", "EX", DAY_MS / 1000);
+    await createTopicRun({ ...run, status: "skipped", config: embedding });
     recordIncrement("langfuse.topics.nightly_refits", 1, {
       outcome: "skipped",
     });
     return false;
   }
-  const execution = await createTopicExecution(
-    {
-      projectId,
-      requestId,
-      operation: "update",
-      facets: [facet],
-      embeddingConfig,
-      timeRange,
-      exploratory: false,
+  await createTopicRun({
+    ...run,
+    config: {
+      ...embedding,
+      timeRange: {
+        from: timeRange.from.toISOString(),
+        to: timeRange.to.toISOString(),
+      },
     },
-    requestHash,
-    TOPICS_SYSTEM_USER_ID,
-  );
-  if (execution.status === "queued")
-    await enqueueTopicExecution(projectId, execution.id);
+  });
+  await enqueueTopicRuleRefit(projectId, runId);
   recordIncrement("langfuse.topics.nightly_refits", 1, { outcome: "started" });
   logger.info("Started nightly Topics refit", {
     projectId,
+    ruleId,
+    runId,
     facetId: facet.facetId,
     facetVersion: facet.version,
-    slot: slot.toISOString(),
+    firstMap: previous === null,
   });
   return true;
-}
-
-async function fitInProgress(projectId: string, facet: TopicFacetRef) {
-  const run = await prisma.topicClusteringRun.findFirst({
-    where: {
-      projectId,
-      facetId: facet.facetId,
-      facetVersion: { gte: facet.version },
-      status: { in: ["pending", "running"] },
-    },
-    select: { id: true },
-  });
-  return run !== null;
 }
 
 /** Whether summaries of traces newer than the published map's window exist. */
@@ -209,19 +220,13 @@ async function hasNewSummaries(
   projectId: string,
   facet: TopicFacetRef,
   embeddingConfig: TopicEmbeddingConfig,
-  runId: string,
+  previous: TopicRun,
   now: Date,
 ) {
-  const run = await prisma.topicClusteringRun.findFirst({
-    where: { projectId, id: runId },
-    select: { config: true },
-  });
-  const previous = topicTimeRangeSchema.safeParse(
-    (run?.config as Record<string, unknown> | null)?.timeRange,
-  );
+  const window = topicTimeRangeSchema.safeParse(previous.config.timeRange);
   const from = Math.max(
-    previous.success ? previous.data.to.getTime() : 0,
-    now.getTime() - NEW_SUMMARY_LOOKBACK_MS,
+    window.success ? window.data.to.getTime() : 0,
+    now.getTime() - TOPICS_MAX_TIME_RANGE_MS,
   );
   if (from >= now.getTime()) return false;
   const { count } = await getTopicClusteringSummaryStats(
@@ -236,6 +241,97 @@ async function hasNewSummaries(
     },
   );
   return count > 0;
+}
+
+/** The window of the rule's last fit of this facet, if it exceeded capacity. */
+async function capacityFailedWindow(
+  projectId: string,
+  ruleId: string,
+  facet: TopicFacetRef,
+) {
+  const last = await prisma.topicClusteringRun.findFirst({
+    where: {
+      projectId,
+      ruleId,
+      facetId: facet.facetId,
+      facetVersion: facet.version,
+      status: { in: ["completed", "failed"] },
+    },
+    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+    select: { status: true, error: true, config: true },
+  });
+  if (
+    last?.status !== "failed" ||
+    last.error !== TOPIC_CLUSTERING_CAPACITY_ERROR
+  )
+    return undefined;
+  return topicTimeRangeSchema.safeParse(
+    (last.config as Record<string, unknown>).timeRange,
+  ).data;
+}
+
+/**
+ * The longest recent window, up to the Topics maximum, whose cohort fits the
+ * worker's capacity; only aggregate counts and byte estimates are loaded.
+ * After a capacity failure, the search starts from half that window.
+ */
+async function selectFitWindow(
+  projectId: string,
+  facet: TopicFacetRef,
+  embeddingConfig: TopicEmbeddingConfig,
+  to: Date,
+  failedWindow?: TopicTimeRange,
+): Promise<TopicTimeRange | null> {
+  let earliest = to.getTime() - TOPICS_MAX_TIME_RANGE_MS;
+  let latest = to.getTime();
+  const minimumCount = topicClusterSettings(false).minimumCount;
+  if (env.LANGFUSE_TOPICS_MAX_CLUSTERING_ROWS < minimumCount) return null;
+  const limits = {
+    maxRows: Math.max(
+      minimumCount,
+      Math.floor(env.LANGFUSE_TOPICS_MAX_CLUSTERING_ROWS * 0.8),
+    ),
+    maxBytes: Math.max(
+      1,
+      Math.floor(env.LANGFUSE_TOPICS_MAX_CLUSTERING_BYTES * 0.8),
+    ),
+  };
+  const firstDuration = failedWindow
+    ? Math.min(
+        TOPICS_MAX_TIME_RANGE_MS,
+        Math.max(
+          1,
+          Math.floor(
+            (failedWindow.to.getTime() - failedWindow.from.getTime()) / 2,
+          ),
+        ),
+      )
+    : TOPICS_MAX_TIME_RANGE_MS;
+  // A 93-day range has fewer than 2^33 millisecond boundaries.
+  for (let check = 0; check < 34 && earliest < latest; check++) {
+    const from =
+      check === 0
+        ? to.getTime() - firstDuration
+        : Math.floor((earliest + latest) / 2);
+    const timeRange = { from: new Date(from), to };
+    const { count, bytes } = await getTopicClusteringSummaryStats(
+      projectId,
+      facet.facetId,
+      facet.version,
+      embeddingConfig,
+      timeRange,
+      limits,
+    );
+    if (count < minimumCount) {
+      if (from === to.getTime() - TOPICS_MAX_TIME_RANGE_MS) return null;
+      latest = from;
+    } else if (count > limits.maxRows || bytes > limits.maxBytes) {
+      earliest = from + 1;
+    } else {
+      return timeRange;
+    }
+  }
+  return null;
 }
 
 export class TopicsNightlyRefitRunner extends PeriodicExclusiveRunner {

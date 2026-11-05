@@ -113,7 +113,10 @@ import { TraceDeleteBatchActionRunner } from "./features/trace-delete-batch-acti
 import { InAppAgentIntegrityRunner } from "./features/in-app-agent-integrity-runner";
 import { InAppAgentDlqRetryRunner } from "./features/in-app-agent-dlq-retry-runner";
 import { isTopicsEnabled } from "@langfuse/shared/topics/server";
-import { topicsQueueProcessor } from "./queues/topicsQueue";
+import {
+  topicsQueueProcessor,
+  topicsUpdateQueueProcessor,
+} from "./queues/topicsQueue";
 import { topicsEmbeddingQueueProcessor } from "./queues/topicsEmbeddingQueue";
 import { topicsAutomationQueueProcessor } from "./queues/topicsAutomationQueue";
 import { TopicsNightlyRefitRunner } from "./features/topics/nightlyRefit";
@@ -478,7 +481,7 @@ if (isTopicsEnabled()) {
       concurrency: 1,
     });
   if (env.QUEUE_CONSUMER_TOPICS_UPDATE_QUEUE_IS_ENABLED === "true")
-    WorkerManager.register(QueueName.TopicsUpdate, topicsQueueProcessor, {
+    WorkerManager.register(QueueName.TopicsUpdate, topicsUpdateQueueProcessor, {
       concurrency: 1,
     });
   if (env.QUEUE_CONSUMER_TOPICS_EMBEDDING_QUEUE_IS_ENABLED === "true")
