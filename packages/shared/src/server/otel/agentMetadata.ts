@@ -20,7 +20,7 @@ const firstString = (
 };
 
 const within = (value: string, limit: number) =>
-  Array.from(value).length <= limit;
+  value.length <= limit * 2 && Array.from(value).length <= limit;
 
 /** Exact observation-level identity; run references are scoped to its trace. */
 export const extractAgentMetadata = ({
@@ -61,7 +61,7 @@ export const extractAgentMetadata = ({
     typeof explicitRun === "string" &&
     explicitRun !== spanId &&
     explicitRun.trim().length > 0 &&
-    explicitRun.length <= AGENT_LIMITS.runIdLength
+    within(explicitRun, AGENT_LIMITS.runIdLength)
   )
     runId = explicitRun;
   return {
@@ -167,4 +167,80 @@ export const resolveAgentBatchMetadata = (spans: AgentSpan[]) => {
     }
   }
   return metadata;
+};
+
+/** Validate observation identity while preserving already normalized attribution frames. */
+export const normalizeAgentObservationMetadata = ({
+  metadata: originalMetadata,
+  attributes: incomingAttributes,
+  isAgent,
+  name,
+  spanId,
+}: Parameters<typeof extractAgentMetadata>[0] & {
+  metadata: Record<string, unknown>;
+}): Record<string, unknown> => {
+  const metadata = { ...originalMetadata };
+  const attributes: Record<string, unknown> = {
+    "gen_ai.operation.name": metadata["gen_ai.operation.name"],
+    ...incomingAttributes,
+  };
+  const operation = incomingAttributes["gen_ai.operation.name"];
+  const hasIncomingOperation =
+    typeof operation === "string" && operation.trim().length > 0;
+  for (const [reserved, native, standard] of [
+    [AGENT_METADATA_KEYS.id, "langfuse.agent.id", "gen_ai.agent.id"],
+    [AGENT_METADATA_KEYS.name, "langfuse.agent.name", "gen_ai.agent.name"],
+    [
+      AGENT_METADATA_KEYS.runId,
+      "langfuse.agent.run_id",
+      "langfuse.agent.run_id",
+    ],
+  ]) {
+    // A span-name identity follows a renamed observation rather than becoming explicit.
+    if (
+      reserved === AGENT_METADATA_KEYS.name &&
+      isAgent &&
+      metadata[AGENT_METADATA_KEYS.source] === "span-name"
+    )
+      continue;
+    if (attributes[native] === undefined && attributes[standard] === undefined)
+      attributes[native] = metadata[reserved];
+  }
+  const agentMetadata = extractAgentMetadata({
+    attributes,
+    isAgent,
+    name,
+    spanId,
+  });
+  const source = metadata[AGENT_METADATA_KEYS.source];
+  const isNormalizedSource =
+    source === "native" || source === "gen-ai" || source === "span-name";
+  const hasNormalizedIdentity = [
+    AGENT_METADATA_KEYS.id,
+    AGENT_METADATA_KEYS.name,
+  ].some(
+    (key) =>
+      typeof metadata[key] === "string" && metadata[key].trim().length > 0,
+  );
+  // Canonical frames without an owner describe configuration rather than an invocation.
+  if (
+    isAgent &&
+    isNormalizedSource &&
+    hasNormalizedIdentity &&
+    (metadata[AGENT_METADATA_KEYS.runId] === undefined ||
+      metadata[AGENT_METADATA_KEYS.runId] === "") &&
+    !hasIncomingOperation
+  )
+    delete agentMetadata[AGENT_METADATA_KEYS.runId];
+  const identityKey = agentMetadata[AGENT_METADATA_KEYS.id]
+    ? AGENT_METADATA_KEYS.id
+    : AGENT_METADATA_KEYS.name;
+  if (
+    agentMetadata[identityKey] &&
+    agentMetadata[identityKey] === metadata[identityKey] &&
+    isNormalizedSource
+  )
+    agentMetadata[AGENT_METADATA_KEYS.source] = source;
+  for (const key of Object.values(AGENT_METADATA_KEYS)) delete metadata[key];
+  return { ...metadata, ...agentMetadata };
 };

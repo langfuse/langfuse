@@ -121,6 +121,20 @@ const rawEmptyAttributes = (prefix: string) => [
 
 describe("agent identity normalization", () => {
   it.each(["v3", "v4"] as const)(
+    "%s decodes and classifies each span once",
+    async (path) => {
+      const processor = createProcessor();
+      const decode = vi.spyOn(processor as any, "extractSpanAttributes");
+      const batch = buildBatch([
+        { key: "gen_ai.agent.name", value: { stringValue: "Research" } },
+      ]);
+      if (path === "v4") processor.processToEvent(batch);
+      else await processor.processToIngestionEvents(batch);
+      expect(decode).toHaveBeenCalledTimes(1);
+    },
+  );
+
+  it.each(["v3", "v4"] as const)(
     "%s accepts the normalized string IDs restored from the ingestion queue",
     async (path) => {
       const batch = buildBatch([

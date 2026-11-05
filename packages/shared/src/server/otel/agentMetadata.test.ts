@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { idSchema } from "../ingestion/types";
 import { AGENT_METADATA_KEYS as K } from "../../features/agents/api";
 import {
   agentSpanKey,
@@ -110,6 +111,8 @@ describe("agent metadata boundaries", () => {
 
   it("keeps supported legacy parent IDs independent from the shorter logical identity limit", () => {
     const owner = "r".repeat(800);
+    expect(idSchema.safeParse("🦉".repeat(800)).success).toBe(true);
+    expect(idSchema.safeParse("🦉".repeat(801)).success).toBe(false);
     const root = span({
       spanId: owner,
       attributes: { "gen_ai.agent.id": "stable" },
@@ -146,18 +149,18 @@ describe("agent metadata boundaries", () => {
           ...leaf,
           attributes: {
             "gen_ai.agent.id": "stable",
-            "langfuse.agent.run_id": "🦉".repeat(400),
+            "langfuse.agent.run_id": "🦉".repeat(800),
           },
         }),
       )[K.runId],
-    ).toBe("🦉".repeat(400));
+    ).toBe("🦉".repeat(800));
     expect(
       extractAgentMetadata(
         span({
           ...leaf,
           attributes: {
             "gen_ai.agent.id": "stable",
-            "langfuse.agent.run_id": "🦉".repeat(401),
+            "langfuse.agent.run_id": "🦉".repeat(801),
           },
         }),
       ),

@@ -1,4 +1,5 @@
 import { randomUUID } from "crypto";
+import { AGENT_METADATA_KEYS } from "@langfuse/shared/agents";
 import { makeAPICall } from "@/src/__tests__/test-utils";
 import waitForExpect from "wait-for-expect";
 import {
@@ -448,6 +449,15 @@ describe("/api/public/ingestion API Endpoint", () => {
 
       expect(response.status).toBe(207);
 
+      const expectedMetadata =
+        type === "AGENT"
+          ? {
+              ...(entity.body?.metadata ?? {}),
+              [AGENT_METADATA_KEYS.name]: entity.body.name,
+              [AGENT_METADATA_KEYS.runId]: entity.body.id,
+              [AGENT_METADATA_KEYS.source]: "span-name",
+            }
+          : (entity.body?.metadata ?? {});
       await waitForExpect(async () => {
         const observation = await getObservationById({
           id: entity.body.id,
@@ -457,7 +467,7 @@ describe("/api/public/ingestion API Endpoint", () => {
         expect(observation).toBeDefined();
         expect(observation!.id).toBe(entity.body.id);
         expect(observation!.projectId).toBe(projectId);
-        expect(observation!.metadata).toEqual(entity.body?.metadata ?? {});
+        expect(observation!.metadata).toEqual(expectedMetadata);
         expect(observation!.input).toEqual(entity.body?.input ?? null);
         expect(observation!.output).toEqual(entity.body?.output ?? null);
         expect(observation!.type).toBe(type);

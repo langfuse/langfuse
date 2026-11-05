@@ -17,8 +17,6 @@ vi.mock(
 vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
   const actual =
     await importOriginal<typeof import("@langfuse/shared/src/server")>();
-  const { extractAgentMetadata } =
-    await import("../../../../../packages/shared/src/server/otel/agentMetadata");
   return {
     ...actual,
     validateAndInflateScore: (...args: unknown[]) =>
@@ -34,6 +32,7 @@ import { IngestionService } from "../../IngestionService";
 import {
   convertDateToClickhouseDateTime,
   createTraceScore,
+  createTrace,
   type ObservationEvent,
   type ScoreEventType,
 } from "@langfuse/shared/src/server";
@@ -360,6 +359,110 @@ describe("IngestionService unit tests", () => {
         });
       }
     });
+  });
+
+  it("validates canonical identity types and Unicode bounds at the direct event write boundary", async () => {
+    const service = new IngestionService(
+      {} as any,
+      {} as any,
+      { addToQueue: vi.fn() } as any,
+      {} as any,
+    );
+    for (const [metadata, expected, type = "SPAN"] of [
+      [
+        {
+          langfuse_agent_id: "x".repeat(257),
+          langfuse_agent_name: "must-not-fallback",
+        },
+        { agent_id: "", agent_name: "", agent_run_id: "" },
+      ],
+      [
+        { langfuse_agent_id: 42, langfuse_agent_name: ["invalid"] },
+        { agent_id: "", agent_name: "", agent_run_id: "" },
+      ],
+      [
+        {
+          langfuse_agent_id: "🦉".repeat(256),
+          langfuse_agent_name: "🦉".repeat(200),
+          langfuse_agent_run_id: "r".repeat(800),
+          langfuse_agent_identity_source: "gen-ai",
+        },
+        {
+          agent_id: "🦉".repeat(256),
+          agent_name: "🦉".repeat(200),
+          agent_run_id: "r".repeat(800),
+          agent_identity_source: "gen-ai",
+        },
+      ],
+      [
+        {
+          langfuse_agent_id: "configured",
+          langfuse_agent_name: "Research",
+          langfuse_agent_identity_source: "gen-ai",
+          langfuse_agent_run_id: "",
+        },
+        {
+          agent_id: "configured",
+          agent_name: "Research",
+          agent_run_id: "",
+          agent_identity_source: "gen-ai",
+        },
+        "AGENT",
+      ],
+      [
+        {
+          langfuse_agent_id: "configured",
+          langfuse_agent_name: "Research",
+          langfuse_agent_identity_source: "gen-ai",
+        },
+        {
+          agent_id: "configured",
+          agent_name: "Research",
+          agent_run_id: "",
+          agent_identity_source: "gen-ai",
+        },
+        "AGENT",
+      ],
+    ] as const) {
+      const record = await service.createEventRecord(
+        {
+          projectId: "project",
+          traceId: "trace",
+          spanId: "model",
+          type,
+          name: "ordinary",
+          startTimeISO: "2026-11-05T11:00:00Z",
+          metadata: { ...metadata },
+        },
+        "synthetic.json",
+      );
+      expect(record).toMatchObject(expected);
+    }
+  });
+
+  it("strips reserved identity keys from merged traces before staging can override observation identity", async () => {
+    const service = new IngestionService(
+      {} as any,
+      {} as any,
+      { addToQueue: vi.fn() } as any,
+      {} as any,
+    );
+    const record = await (service as any).mergeTraceRecords({
+      traceRecords: [
+        createTrace({
+          id: "trace",
+          project_id: "project",
+          metadata: {
+            langfuse_agent_id: "x".repeat(257),
+            langfuse_agent_name: "forged-trace-agent",
+            langfuse_agent_run_id: "foreign-owner",
+            langfuse_agent_identity_source: "native",
+            keep: "visible",
+          },
+        }),
+      ],
+    });
+    expect(record.metadata).toEqual({ keep: "visible" });
   });
 
   it("persists full normalized agent columns before metadata overflow can shorten identity values", async () => {
