@@ -10,6 +10,7 @@ import dynamic from "next/dynamic";
 import { StringParam, useQueryParam, withDefault } from "use-query-params";
 import { MAX_SKILL_FILES } from "@langfuse/shared";
 import { useStore } from "zustand";
+import { useShallow } from "zustand/react/shallow";
 import {
   Download,
   ChevronDown,
@@ -776,6 +777,20 @@ export function SkillEditor({
                             store={store}
                             isDraft={isDraft}
                             editable={canEditFiles}
+                            onSelectFile={(path) => {
+                              store.getState().actions.selectFile(path);
+                              setTreeState((current) => ({
+                                ...current,
+                                selectedFolder: path
+                                  .split("/")
+                                  .slice(0, -1)
+                                  .join("/"),
+                                expandedFolders: new Set([
+                                  ...current.expandedFolders,
+                                  ...getParentFolderPaths([path]),
+                                ]),
+                              }));
+                            }}
                           />
                         </ResizablePanel>
                       </ResizablePanelGroup>
@@ -843,12 +858,18 @@ function SkillFileEditor({
   store,
   isDraft,
   editable,
+  onSelectFile,
 }: {
   projectId: string;
   store: SkillEditorStore;
   isDraft: boolean;
   editable: boolean;
+  onSelectFile: (path: string) => void;
 }) {
+  const filePaths = useStore(
+    store,
+    useShallow((state) => Object.keys(state.files)),
+  );
   const activePath = useStore(store, (state) => state.activePath);
   const activeFile = useStore(store, (state) => state.files[state.activePath]!);
   const updateActiveFile = useStore(
@@ -891,6 +912,7 @@ function SkillFileEditor({
       key={isDraft ? "draft" : "version"}
       path={activePath}
       content={content}
+      fileNavigation={{ paths: filePaths, onSelect: onSelectFile }}
       mode={
         isDraft
           ? { kind: "draft", editable, onChange: updateActiveFile }

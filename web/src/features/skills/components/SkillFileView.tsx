@@ -1,15 +1,17 @@
-import { type ReactNode, useState } from "react";
+import { type ComponentProps, type ReactNode, useMemo, useState } from "react";
 import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { Tabs } from "@/src/components/design-system/Tabs/Tabs";
 import { CodeMirrorEditor } from "@/src/components/editor/CodeMirrorEditor";
 import { SkillFilePreview } from "./SkillFilePreview";
 import { getSkillFileLanguageExtensions } from "../utils/getSkillFileLanguageExtensions";
+import { skillFileCompletions } from "../utils/skillFileCompletions";
 
 export function SkillFileView({
   path,
   content,
   mode,
   children,
+  fileNavigation,
 }: {
   path: string;
   content: string | undefined;
@@ -21,9 +23,21 @@ export function SkillFileView({
         onChange: (content: string) => void;
       };
   children?: ReactNode;
+  fileNavigation?: ComponentProps<typeof SkillFilePreview>["fileNavigation"];
 }) {
   const [formatted, setFormatted] = useState(mode.kind === "view");
   const isMarkdown = /\.(md|markdown)$/i.test(path);
+  const filePaths = fileNavigation?.paths;
+  // CodeMirror reconfigures when this array changes; keep it stable while typing.
+  const extensions = useMemo(
+    () => [
+      ...getSkillFileLanguageExtensions(path),
+      ...(isMarkdown && filePaths
+        ? [skillFileCompletions(path, filePaths)]
+        : []),
+    ],
+    [path, isMarkdown, filePaths],
+  );
   const showFormatted = isMarkdown && formatted;
   const display = showFormatted ? "formatted" : "raw";
   function renderFileContent() {
@@ -36,14 +50,21 @@ export function SkillFileView({
           onChange={mode.editable ? mode.onChange : undefined}
           editable={mode.editable}
           mode="text"
-          extensions={getSkillFileLanguageExtensions(path)}
+          extensions={extensions}
           minHeight="500px"
           lineNumbers
           className="h-full"
         />
       );
     }
-    return <SkillFilePreview path={path} content={content} format={display} />;
+    return (
+      <SkillFilePreview
+        path={path}
+        content={content}
+        format={display}
+        fileNavigation={fileNavigation}
+      />
+    );
   }
   const fileBody = (
     <div className="min-h-0 flex-1 overflow-auto p-3">
