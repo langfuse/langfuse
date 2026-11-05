@@ -1983,7 +1983,7 @@ export const getObservationsV2FromEventsTableForPublicApi = async (
   );
 };
 
-/** Assemble a page from completed windows, including empty continuations. */
+/** Assemble a page from completed windows. */
 export const getObservationsV2PageFromEventsTableForPublicApi = async (
   opts: PublicApiObservationsQuery,
 ): Promise<{
@@ -2001,6 +2001,12 @@ export const getObservationsV2PageFromEventsTableForPublicApi = async (
       }
       const page = await scanObservationWindows(opts, from, bounds.to, scan);
       span.setAttribute("observations.scan.windows", page.windows);
+      if (page.records.length === 0 && page.cursor) {
+        throw new ClickHouseResourceError(
+          "TIMEOUT",
+          new Error("Query timed out before returning observations"),
+        );
+      }
       return {
         items: await enrichObservationsWithModelData(
           page.records.slice(0, opts.limit),

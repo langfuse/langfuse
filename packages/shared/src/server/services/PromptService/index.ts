@@ -2,6 +2,7 @@ import { Redis, Cluster } from "ioredis";
 import { createHash, randomBytes } from "crypto";
 import { env } from "../../../env";
 import { logger } from "../../logger";
+import { recordDistribution } from "../../instrumentation";
 import { escapeRegex } from "./utils";
 import { LangfuseConflictError } from "../../../errors/ConflictError";
 import { type Prisma, type PrismaClient, type Prompt } from "../../../db";
@@ -17,9 +18,6 @@ import {
 import { ParsedPromptDependencyTag } from "../../../features/prompts/parsePromptDependencyTags";
 
 export const MAX_PROMPT_NESTING_DEPTH = 5;
-// Measured on the JSON-serialized prompt. A dependency tag repeated N times
-// expands to N copies of the child, so this bounds the resolved output.
-export const MAX_RESOLVED_PROMPT_LENGTH = 5_000_000;
 type PrismaClientOrTransaction = PrismaClient | Prisma.TransactionClient;
 
 export class PromptService {
@@ -304,6 +302,7 @@ export class PromptService {
         dependencies: {},
       };
       const seen = new Set<string>();
+      let resolvedDependencyCount = 0;
 
       const resolve = async (
         currentPrompt: PartialPrompt,
@@ -374,6 +373,7 @@ export class PromptService {
           let resolvedPrompt = JSON.stringify(currentPrompt.prompt);
 
           for (const dep of promptDependencies) {
+            resolvedDependencyCount++;
             const depPrompt = await this.prisma.prompt.findFirst({
               where: {
                 projectId,
@@ -426,20 +426,21 @@ export class PromptService {
               .slice(1, -1) // this is necessary to avoid parsing errors as resolved value is unstringified
               .replace(/\$/g, "$$$$"); // Escape dollar signs in replacement string. $ has special meaning in replace(), so we need to escape it with $$. Since we're in a string that will be used as a replacement, we need to double escape it (hence $$$$)
 
-            const occurrences = resolvedPrompt.match(regex)?.length ?? 0;
-            if (
-              resolvedPrompt.length + occurrences * replaceValue.length >
-              MAX_RESOLVED_PROMPT_LENGTH
-            ) {
-              throw new LangfuseConflictError(
-                `Resolved prompt exceeds maximum size (${MAX_RESOLVED_PROMPT_LENGTH} characters)`,
-              );
-            }
-
             resolvedPrompt = resolvedPrompt.replace(regex, replaceValue);
           }
 
           seen.delete(currentPrompt.id);
+
+          if (level === 0) {
+            recordDistribution(
+              "langfuse.prompts.resolved_length",
+              resolvedPrompt.length,
+            );
+            recordDistribution(
+              "langfuse.prompts.resolved_dependency_count",
+              resolvedDependencyCount,
+            );
+          }
 
           return JSON.parse(resolvedPrompt);
         }

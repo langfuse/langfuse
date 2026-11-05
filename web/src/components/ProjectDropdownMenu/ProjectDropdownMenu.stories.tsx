@@ -1,4 +1,5 @@
 import type { ComponentProps } from "react";
+import { expect, userEvent, waitFor, within } from "storybook/test";
 import preview from "../../../.storybook/preview";
 import { ProjectDropdownMenu } from "./ProjectDropdownMenu";
 
@@ -74,5 +75,49 @@ export const WithoutCreation = meta.story({
 export const Loading = meta.story({
   args: {
     state: "loading",
+  },
+});
+
+export const TestSearch = meta.story({
+  name: "(Test) Search projects",
+  args: {
+    state: "loaded",
+    projects,
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const body = within(canvasElement.ownerDocument.body);
+    const trigger = canvas.getByRole("button", { name: "Trigger" });
+    await userEvent.click(trigger);
+
+    const menu = within(body.getByRole("menu", { name: "Projects" }));
+    const search = menu.getByRole("searchbox", { name: "Search projects..." });
+    await expect(search).toHaveFocus();
+    await userEvent.type(search, "PROD");
+
+    await expect(menu.getAllByRole("menuitem")).toHaveLength(2);
+    await expect(
+      menu.getByRole("link", { name: "Production" }),
+    ).toHaveAttribute("href", "/project/project-production");
+    await expect(
+      menu.getByRole("link", { name: "Go to settings for Production" }),
+    ).toHaveAttribute("href", "/project/project-production/settings");
+    await expect(menu.getByRole("link", { name: "New Project" })).toBeVisible();
+
+    await userEvent.clear(search);
+    await userEvent.type(search, "project-production");
+    await expect(menu.getByText("No project found.")).toBeVisible();
+    await expect(menu.getAllByRole("menuitem")).toHaveLength(1);
+    await expect(menu.getByRole("link", { name: "New Project" })).toBeVisible();
+
+    await userEvent.keyboard("{Escape}");
+    await expect(body.queryByRole("menu", { name: "Projects" })).toBeNull();
+    await userEvent.click(trigger);
+    await expect(
+      body.getByRole("searchbox", { name: "Search projects..." }),
+    ).toHaveValue("");
+    await waitFor(() =>
+      expect(body.getByRole("link", { name: "Analytics" })).toBeVisible(),
+    );
   },
 });
