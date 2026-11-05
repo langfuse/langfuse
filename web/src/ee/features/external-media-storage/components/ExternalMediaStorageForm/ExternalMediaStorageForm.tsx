@@ -19,7 +19,7 @@ import { Input } from "@/src/components/ui/input";
 import {
   externalMediaStorageFormSchema,
   type ExternalMediaStorageFormValues,
-} from "@/src/features/external-media-storage/types";
+} from "@/src/ee/features/external-media-storage/types";
 
 export function ExternalMediaStorageForm({
   formId,
