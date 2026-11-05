@@ -15,16 +15,28 @@ const meta = preview.meta({
 });
 
 export const OpenAiSelected = meta.story({
-  args: { value: "OPENAI", onChange: fn() },
+  args: {
+    providers: ["OPENAI", "ANTHROPIC", "BEDROCK"],
+    value: "OPENAI",
+    onChange: fn(),
+  },
 });
 
 export const BedrockSelected = meta.story({
-  args: { value: "BEDROCK", onChange: fn() },
+  args: {
+    providers: ["OPENAI", "ANTHROPIC", "BEDROCK"],
+    value: "BEDROCK",
+    onChange: fn(),
+  },
 });
 
 export const PickProvider = meta.story({
   name: "(Test) Picks a provider by clicking its card",
-  args: { value: "OPENAI", onChange: fn() },
+  args: {
+    providers: ["OPENAI", "ANTHROPIC", "BEDROCK"],
+    value: "OPENAI",
+    onChange: fn(),
+  },
   play: async ({ args, canvas, userEvent }) => {
     await userEvent.click(
       canvas.getByRole("radio", { name: /Amazon Bedrock/ }),

@@ -7,9 +7,8 @@ import { providerIcons } from "@/src/features/ai-gateway/constants/providerIcons
 import { providerLabels } from "@/src/features/ai-gateway/constants/providerLabels";
 import type { GatewayProvider } from "@/src/features/ai-gateway/types/gatewayProvider";
 
-const providers = Object.keys(providerLabels) as GatewayProvider[];
-
 export type ProviderCardPickerProps = {
+  providers: GatewayProvider[];
   value: GatewayProvider;
   onChange: (provider: GatewayProvider) => void;
 };
@@ -19,6 +18,7 @@ export type ProviderCardPickerProps = {
  * keys move the selection and the group reads as one field.
  */
 export function ProviderCardPicker({
+  providers,
   value,
   onChange,
 }: ProviderCardPickerProps) {
@@ -38,7 +38,7 @@ export function ProviderCardPicker({
         aria-labelledby="gateway-provider-label"
         value={value}
         onValueChange={handleValueChange}
-        className="grid grid-cols-3 gap-2"
+        className="grid auto-cols-fr grid-flow-col gap-2"
       >
         {providers.map((provider) => {
           const ProviderIcon = providerIcons[provider];

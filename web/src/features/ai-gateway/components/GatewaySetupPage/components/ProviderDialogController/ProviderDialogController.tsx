@@ -18,6 +18,7 @@ import { FieldHeader } from "@/src/features/ai-gateway/components/GatewaySetupPa
 import { ProviderCardPicker } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/ProviderDialogController/components/ProviderCardPicker/ProviderCardPicker";
 import { SecretKeyField } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/ProviderDialogController/components/SecretKeyField/SecretKeyField";
 import { providerLabels } from "@/src/features/ai-gateway/constants/providerLabels";
+import { getAvailableGatewayProviders } from "@/src/features/ai-gateway/fns/getAvailableGatewayProviders";
 import { isGatewayConnectionNameError } from "@/src/features/ai-gateway/fns/isGatewayConnectionNameError";
 import { isGatewayHipaaNoticeVisible } from "@/src/features/ai-gateway/fns/isGatewayHipaaNoticeVisible";
 import { useLangfuseCloudRegion } from "@/src/features/organizations/hooks";
@@ -251,6 +252,7 @@ export function ProviderDialogController({
                 </div>
               ) : (
                 <ProviderCardPicker
+                  providers={getAvailableGatewayProviders()}
                   value={provider}
                   onChange={updateProvider}
                 />
