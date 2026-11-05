@@ -17,7 +17,6 @@ import {
   getTopicSummaryCounts,
   getTopicExecutionCosts,
   getTopicClusteringSummaries,
-  getTopicClusteringSummaryStats,
   writeTopicSummaries,
   getTopicDefinitions,
   writeTopicDefinitions,
@@ -199,27 +198,6 @@ describe("Topics clustering capacity", () => {
       { facetId: "facet-a", facetVersion: 1, count: "2" },
     ]);
   });
-
-  it.each([
-    { reason: "rows", maxRows: 1, maxBytes: 10_000 },
-    { reason: "embedding bytes", maxRows: 2, maxBytes: 1 },
-  ])(
-    "rejects excessive $reason before inspecting payloads",
-    async (capacity) => {
-      await expect(
-        getTopicClusteringSummaryStats(...args, capacity),
-      ).resolves.toEqual({
-        count: 2,
-        bytes: 2 * embedding.embeddingDimensions * 8,
-      });
-      expect(mocks.query).toHaveBeenCalledOnce();
-      await expect(
-        getTopicClusteringSummaries(...args, capacity),
-      ).rejects.toThrow("smaller time window");
-      expect(mocks.query).toHaveBeenCalledTimes(2);
-      expect(mocks.queryStream).not.toHaveBeenCalled();
-    },
-  );
 
   it("selects a cohort inside ClickHouse and samples its summarized traces with the cohort seed", async () => {
     const traces = {

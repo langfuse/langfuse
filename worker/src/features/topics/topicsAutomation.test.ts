@@ -5,7 +5,7 @@ import {
   enqueueTopicExecution,
   getTopicProcessingMapIds,
   getTopicRun,
-  getTopicClusteringSummaryStats,
+  getTopicClusteringSummaryTimeline,
   getTopicExecutionQueueState,
   getEnabledTopicsModels,
   listTopicRules,
@@ -64,7 +64,7 @@ vi.mock("@langfuse/shared/topics/server", () => ({
   topicRuleRunWhere: vi.fn(async (_projectId: string, ruleId: string) => ({
     ruleId,
   })),
-  getTopicClusteringSummaryStats: vi.fn(),
+  getTopicClusteringSummaryTimeline: vi.fn(),
   resolveTopicClusteringCohort: vi.fn(async () => ({ ruleId: "rule-a" })),
   getTopicExecutionQueueState: vi.fn(async () => "active"),
   TOPIC_CLUSTERING_CAPACITY_ERROR:
@@ -132,16 +132,21 @@ const run: TopicRun = {
   ],
 };
 
+/** One minute of eligible summaries at the start of the probed window. */
+const summariesAtWindowStart = (count: number, bytes = 1000) =>
+  vi
+    .mocked(getTopicClusteringSummaryTimeline)
+    .mockImplementation(async (...args) => [
+      { minuteMs: args[4].from.getTime(), count, bytes },
+    ]);
+
 describe("automatic Topics assignment", () => {
   afterEach(() => vi.useRealTimers());
   beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(listTopicSummaries).mockReset();
     vi.mocked(getTopicProcessingMapIds).mockResolvedValue([]);
-    vi.mocked(getTopicClusteringSummaryStats).mockResolvedValue({
-      count: 100,
-      bytes: 1000,
-    });
+    summariesAtWindowStart(100);
     discoveryGate.mockResolvedValue("OK");
     vi.mocked(readTopicExecutionSummary).mockReset();
     vi.mocked(prisma.batchAction.findFirst).mockResolvedValue(null);
@@ -270,16 +275,15 @@ describe("automatic Topics assignment", () => {
 
   it("waits for enough summaries and rechecks a deferred batch after the cooldown", async () => {
     vi.mocked(listTopicSummaries).mockResolvedValue([]);
-    vi.mocked(getTopicClusteringSummaryStats).mockResolvedValueOnce({
-      count: 99,
-      bytes: 1000,
-    });
+    vi.mocked(getTopicClusteringSummaryTimeline).mockResolvedValueOnce([
+      { minuteMs: Date.now() - 60_000, count: 99, bytes: 1000 },
+    ]);
     await processTopicsAutomation(batch);
     expect(createTopicExecution).not.toHaveBeenCalled();
 
     discoveryGate.mockResolvedValueOnce(null);
     await processTopicsAutomation(batch);
-    expect(getTopicClusteringSummaryStats).toHaveBeenCalledTimes(1);
+    expect(getTopicClusteringSummaryTimeline).toHaveBeenCalledTimes(1);
     expect(createTopicExecution).not.toHaveBeenCalled();
 
     // Discovery uses the current facet cohort even if this batch no longer has summaries.
@@ -298,64 +302,42 @@ describe("automatic Topics assignment", () => {
     expect(enqueueTopicExecution).toHaveBeenCalledWith("project", "execution");
   });
 
-  it.each([
-    { count: 19_990, bytes: 1000, midpointTooSmall: true },
-    { count: 100, bytes: 250 * 1024 * 1024, midpointTooSmall: false },
-  ])(
-    "narrows automatic discovery before queuing the shared update pipeline: %j",
-    async ({ midpointTooSmall, ...oversized }) => {
-      vi.mocked(getTopicClusteringSummaryStats)
-        .mockResolvedValueOnce(oversized)
-        .mockResolvedValue({ count: 100, bytes: 1000 });
-      if (midpointTooSmall)
-        vi.mocked(getTopicClusteringSummaryStats).mockResolvedValueOnce({
-          count: 50,
-          bytes: 500,
-        });
-
-      await processTopicsAutomation(batch);
-
-      const windows = vi
-        .mocked(getTopicClusteringSummaryStats)
-        .mock.calls.map((args) => args[4]);
-      expect(windows).toHaveLength(midpointTooSmall ? 3 : 2);
-      expect(windows[0].to.getTime() - windows[0].from.getTime()).toBe(
-        7 * 24 * 60 * 60_000,
-      );
-      expect(windows[1].to).toEqual(windows[0].to);
-      expect(windows[1].from.getTime()).toBeGreaterThan(
-        windows[0].from.getTime(),
-      );
-      if (midpointTooSmall)
-        expect(windows[2].from.getTime()).toBeLessThan(
-          windows[1].from.getTime(),
-        );
-      expect(createTopicExecution).toHaveBeenCalledWith(
-        expect.objectContaining({
-          operation: "update",
-          timeRange: windows.at(-1),
-          exploratory: false,
-        }),
-        expect.any(String),
-        "system:topics",
-      );
-      expect(enqueueTopicExecution).toHaveBeenCalledWith(
-        "project",
-        "execution",
-      );
-    },
-  );
-
-  it("bounds probes for an inseparable oversized cohort and observes the cooldown", async () => {
-    vi.mocked(getTopicClusteringSummaryStats).mockResolvedValue({
-      count: 100_000,
-      bytes: 1000,
-    });
+  it("picks the longest window ending now whose summaries fit, from one timeline read", async () => {
+    const now = Date.now();
+    const day = 24 * 60 * 60_000;
+    vi.mocked(getTopicClusteringSummaryTimeline).mockResolvedValue([
+      { minuteMs: now - 60_000, count: 10_000, bytes: 1000 },
+      { minuteMs: now - 2 * day, count: 5_000, bytes: 1000 },
+      // Would exceed 80% of the 20,000-row capacity.
+      { minuteMs: now - 5 * day, count: 10_000, bytes: 1000 },
+    ]);
 
     await processTopicsAutomation(batch);
-    const checks = vi.mocked(getTopicClusteringSummaryStats).mock.calls.length;
-    expect(checks).toBeGreaterThan(1);
-    expect(checks).toBeLessThanOrEqual(32);
+
+    expect(getTopicClusteringSummaryTimeline).toHaveBeenCalledOnce();
+    const probed = vi.mocked(getTopicClusteringSummaryTimeline).mock
+      .calls[0][4];
+    expect(probed.to.getTime() - probed.from.getTime()).toBe(7 * day);
+    expect(createTopicExecution).toHaveBeenCalledWith(
+      expect.objectContaining({
+        operation: "update",
+        timeRange: { from: new Date(now - 2 * day), to: probed.to },
+        exploratory: false,
+      }),
+      expect.any(String),
+      "system:topics",
+    );
+  });
+
+  it("skips an inseparable oversized cohort after one read and observes the cooldown", async () => {
+    vi.mocked(getTopicClusteringSummaryTimeline).mockResolvedValue([
+      { minuteMs: Date.now() - 60_000, count: 100_000, bytes: 1000 },
+    ]);
+
+    await processTopicsAutomation(batch);
+    const checks = vi.mocked(getTopicClusteringSummaryTimeline).mock.calls
+      .length;
+    expect(checks).toBe(1);
     expect(createTopicExecution).not.toHaveBeenCalled();
     expect(discoveryGate).toHaveBeenCalledWith(
       expect.stringContaining("project"),
@@ -366,11 +348,11 @@ describe("automatic Topics assignment", () => {
     );
     discoveryGate.mockResolvedValueOnce(null);
     await processTopicsAutomation(batch);
-    expect(getTopicClusteringSummaryStats).toHaveBeenCalledTimes(checks);
+    expect(getTopicClusteringSummaryTimeline).toHaveBeenCalledTimes(checks);
   });
 
   it("releases the discovery cooldown after a failed probe so queue retries can run", async () => {
-    vi.mocked(getTopicClusteringSummaryStats).mockRejectedValueOnce(
+    vi.mocked(getTopicClusteringSummaryTimeline).mockRejectedValueOnce(
       new Error("temporary failure"),
     );
     await expect(processTopicsAutomation(batch)).rejects.toThrow(
@@ -390,13 +372,10 @@ describe("automatic Topics assignment", () => {
       cohort,
     });
     vi.mocked(listTopicSummaries).mockResolvedValue([]);
-    vi.mocked(getTopicClusteringSummaryStats).mockResolvedValue({
-      count: 100,
-      bytes: 1000,
-    });
+    summariesAtWindowStart(100);
     await processTopicsAutomation({ ...batch, ruleIds: ["rule-a"] });
-    const [, , , , timeRange, , probed] = vi.mocked(
-      getTopicClusteringSummaryStats,
+    const [, , , , timeRange, probed] = vi.mocked(
+      getTopicClusteringSummaryTimeline,
     ).mock.calls[0];
     expect(probed).toBe(cohort);
     expect(resolveTopicClusteringCohort).toHaveBeenCalledWith({
@@ -413,10 +392,7 @@ describe("automatic Topics assignment", () => {
 
   it("retries discovery on a full window after a fit had too little data", async () => {
     vi.mocked(listTopicSummaries).mockResolvedValue([]);
-    vi.mocked(getTopicClusteringSummaryStats).mockResolvedValue({
-      count: 100,
-      bytes: 1000,
-    });
+    summariesAtWindowStart(100);
     const previous = {
       id: "too-small",
       status: "completed",
@@ -453,10 +429,7 @@ describe("automatic Topics assignment", () => {
 
   it("recovers late-arrival capacity failures until a smaller frozen request succeeds", async () => {
     vi.useFakeTimers({ toFake: ["Date"] });
-    vi.mocked(getTopicClusteringSummaryStats).mockResolvedValue({
-      count: 12_000,
-      bytes: 1000,
-    });
+    summariesAtWindowStart(12_000);
     let latest: TopicExecutionSummary | null = null;
     let cooldown = 0;
     discoveryGate.mockImplementation(async () => {
@@ -522,7 +495,7 @@ describe("automatic Topics assignment", () => {
           : 0,
       ),
     ).toEqual([7, 3.5, 1.75].map((days) => days * 24 * 60 * 60_000));
-    expect(getTopicClusteringSummaryStats).toHaveBeenCalledTimes(3);
+    expect(getTopicClusteringSummaryTimeline).toHaveBeenCalledTimes(3);
     expect(new Set(discoveryGate.mock.calls.map(([key]) => key)).size).toBe(1);
     expect(prisma.topicClusteringRun.updateMany).toHaveBeenCalledWith({
       where: {

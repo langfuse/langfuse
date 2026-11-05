@@ -527,42 +527,34 @@ function clusteringSummariesSql(
     )`;
 }
 
-/** Returns aggregate admission estimates; summary payloads stay in ClickHouse. */
-export async function getTopicClusteringSummaryStats(
+/**
+ * Eligible clustering summaries per source minute, newest first, with the
+ * same eligibility as the full read and a decoded-size estimate. Discovery
+ * picks its window from one read, so a rule cohort's events scan runs once.
+ * The estimate reads string sizes only; the full read enforces exact limits.
+ */
+export async function getTopicClusteringSummaryTimeline(
   projectId: string,
   facetId: string,
   facetVersion: number,
   embeddingConfig: TopicEmbeddingConfig,
   timeRange: TopicTimeRange,
-  limits: { maxRows: number; maxBytes: number },
   cohort?: TopicClusteringCohort,
-): Promise<{ count: number; bytes: number }> {
-  const [{ count }] = await getTopicSummaryCounts(
-    projectId,
-    [{ facetId, version: facetVersion }],
-    embeddingConfig,
-    timeRange,
-    cohort,
-  );
-  const vectorBytes = count * embeddingConfig.embeddingDimensions * 8;
-  // Narrow oversized windows using metadata before inspecting their text payloads.
-  if (!count || count > limits.maxRows || vectorBytes > limits.maxBytes)
-    return { count, bytes: vectorBytes };
-  // UTF-8 JSON bytes bound UTF-16 code units, including escaping and map keys.
-  // Allow for field names and row overhead; this is not a total RSS estimate.
-  const estimatedBytesSql = `length(embedding) * 8 + 2 * length(toJSONString(tuple(
-    project_id, facet_id, facet_version, trace_id, session_id, trigger_type,
-    environment, trace_name, toUnixTimestamp64Milli(unit_start_time),
-    processing_state, summary, transcript_id, transcript_version, summary_model,
-    embedding_model, provided_usage_details, usage_details,
-    provided_cost_details, cost_details, toUnixTimestamp64Milli(processed_at), metadata
-  ))) + 2048`;
-  const [row] = await queryClickhouse<{ count: string; bytes: string }>({
-    query: clusteringSummariesSql(
-      "count() AS count, sum(estimated_bytes) AS bytes",
-      `trace_id, processing_state, embedding_model, environment, ${estimatedBytesSql} AS estimated_bytes`,
+): Promise<{ minuteMs: number; count: number; bytes: number }[]> {
+  // Decoded doubles plus UTF-16 text and row overhead, as the streamed read budgets them.
+  const estimatedBytesSql = `length(embedding) * 8 + 2 * (length(summary) + length(metadata)
+    + length(trace_name) + length(trace_id) + length(session_id)) + 2048`;
+  const rows = await queryClickhouse<{
+    minuteMs: string;
+    count: string;
+    bytes: string;
+  }>({
+    query: `${clusteringSummariesSql(
+      "toUnixTimestamp(toStartOfMinute(unit_start_time)) * 1000 AS minuteMs, count() AS count, sum(estimated_bytes) AS bytes",
+      `trace_id, unit_start_time, processing_state, embedding_model, environment, ${estimatedBytesSql} AS estimated_bytes`,
       cohort,
-    ),
+    )}
+      GROUP BY minuteMs ORDER BY minuteMs DESC`,
     params: {
       ...cohortParams(cohort),
       projectId,
@@ -573,9 +565,14 @@ export async function getTopicClusteringSummaryStats(
       internalEnvironmentPrefix: INTERNAL_EVAL_ENVIRONMENT_PREFIX,
       publicLlmJudgeEnvironment: PUBLIC_LLM_JUDGE_ENVIRONMENT,
     },
-    tags: { route: "topics-clustering-summary-stats", projectId },
+    tags: { route: "topics-clustering-summary-timeline", projectId },
+    clickhouseSettings: { optimize_functions_to_subcolumns: 1 },
   });
-  return { count: Number(row?.count ?? 0), bytes: Number(row?.bytes ?? 0) };
+  return rows.map((row) => ({
+    minuteMs: Number(row.minuteMs),
+    count: Number(row.count),
+    bytes: Number(row.bytes),
+  }));
 }
 
 export const TOPIC_CLUSTERING_CAPACITY_ERROR =
@@ -599,18 +596,6 @@ export async function getTopicClusteringSummaries(
     limits.maxBytes < 1
   )
     throw new Error("Topics clustering limits must be positive safe integers.");
-  const [{ count }] = await getTopicSummaryCounts(
-    projectId,
-    [{ facetId, version: facetVersion }],
-    embeddingConfig,
-    timeRange,
-    cohort,
-  );
-  if (
-    count > limits.maxRows ||
-    count * embeddingConfig.embeddingDimensions * 8 > limits.maxBytes
-  )
-    throw capacityError();
 
   const summaries: TopicSummary[] = [];
   let bytes = 0;

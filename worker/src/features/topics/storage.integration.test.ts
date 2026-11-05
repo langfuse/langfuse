@@ -14,7 +14,7 @@ import {
   listTopicSummaries,
   getLatestFacetSummaries,
   getTopicClusteringSummaries,
-  getTopicClusteringSummaryStats,
+  getTopicClusteringSummaryTimeline,
   getTopicSummaryCounts,
   getTopicExecutionCosts,
   getTopicTraceUnitTimeRange,
@@ -631,15 +631,14 @@ describe("Topics definition persistence", () => {
       ]),
     ).toEqual([[], [], [], [{ facetId: "facet", facetVersion: 1, count: 0 }]]);
     expect(
-      await getTopicClusteringSummaryStats(
+      await getTopicClusteringSummaryTimeline(
         projectId,
         "facet",
         1,
         embedding,
         oldRange,
-        limits,
       ),
-    ).toEqual({ count: 0, bytes: 0 });
+    ).toEqual([]);
 
     const newerVersion = {
       ...summary,
@@ -732,7 +731,7 @@ describe("Topics definition persistence", () => {
         metadata: { large: "x".repeat(10_000) },
       })),
     ]);
-    const [eligible, counts, listed, latestDisplayed, stats] =
+    const [eligible, counts, listed, latestDisplayed, timeline] =
       await Promise.all([
         getTopicClusteringSummaries(
           projectId,
@@ -760,16 +759,19 @@ describe("Topics definition persistence", () => {
           oldRange,
         ),
         getLatestFacetSummaries(projectId, internalFacet, undefined, oldRange),
-        getTopicClusteringSummaryStats(
+        getTopicClusteringSummaryTimeline(
           projectId,
           internalFacet,
           1,
           embedding,
           oldRange,
-          limits,
         ),
       ]);
     expect(eligible.map(({ traceId }) => traceId)).toEqual(allowedTraceIds);
+    const stats = {
+      count: timeline.reduce((sum, minute) => sum + minute.count, 0),
+      bytes: timeline.reduce((sum, minute) => sum + minute.bytes, 0),
+    };
     expect(stats.count).toBe(eligible.length);
     expect(stats.bytes).toBeGreaterThanOrEqual(
       eligible.reduce(

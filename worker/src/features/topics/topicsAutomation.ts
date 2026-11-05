@@ -16,7 +16,7 @@ import {
   getTopicRun,
   listTopicRules,
   topicRuleRunWhere,
-  getTopicClusteringSummaryStats,
+  getTopicClusteringSummaryTimeline,
   getTopicExecutionQueueState,
   getEnabledTopicsModels,
   listTopicSummaries,
@@ -481,8 +481,6 @@ async function selectDiscoveryWindow(
   failedWindow?: TopicTimeRange,
 ): Promise<TopicTimeRange | null> {
   const to = new Date();
-  let earliest = to.getTime() - DISCOVERY_WINDOW_MS;
-  let latest = to.getTime();
   const minimumCount = topicClusterSettings(false).minimumCount;
   if (env.LANGFUSE_TOPICS_MAX_CLUSTERING_ROWS < minimumCount) return null;
   const limits = {
@@ -495,7 +493,8 @@ async function selectDiscoveryWindow(
       Math.floor(env.LANGFUSE_TOPICS_MAX_CLUSTERING_BYTES * 0.8),
     ),
   };
-  const firstDuration = failedWindow
+  // A capacity failure retries with at most half its window.
+  const duration = failedWindow
     ? Math.min(
         DISCOVERY_WINDOW_MS,
         Math.max(
@@ -506,37 +505,32 @@ async function selectDiscoveryWindow(
         ),
       )
     : DISCOVERY_WINDOW_MS;
-  // A seven-day range has fewer than 2^30 millisecond boundaries.
-  for (let check = 0; check < 32 && earliest < latest; check++) {
-    const from =
-      check === 0
-        ? to.getTime() - firstDuration
-        : Math.floor((earliest + latest) / 2);
-    const timeRange = { from: new Date(from), to };
-    const { cohort } = await resolveTopicClusteringCohort({
-      projectId,
-      timeRange,
-      ruleId,
-    });
-    const { count, bytes } = await getTopicClusteringSummaryStats(
-      projectId,
-      facet.facetId,
-      facet.version,
-      embeddingConfig,
-      timeRange,
-      limits,
-      cohort,
-    );
-    if (count < minimumCount) {
-      if (from === to.getTime() - DISCOVERY_WINDOW_MS) return null;
-      latest = from;
-    } else if (count > limits.maxRows || bytes > limits.maxBytes) {
-      earliest = from + 1;
-    } else {
-      return timeRange;
-    }
+  const window = { from: new Date(to.getTime() - duration), to };
+  const { cohort } = await resolveTopicClusteringCohort({
+    projectId,
+    timeRange: window,
+    ruleId,
+  });
+  const timeline = await getTopicClusteringSummaryTimeline(
+    projectId,
+    facet.facetId,
+    facet.version,
+    embeddingConfig,
+    window,
+    cohort,
+  );
+  // The longest window ending now whose summaries fit, if it has enough of them.
+  let count = 0;
+  let bytes = 0;
+  let from: number | null = null;
+  for (const minute of timeline) {
+    count += minute.count;
+    bytes += minute.bytes;
+    if (count > limits.maxRows || bytes > limits.maxBytes) break;
+    if (count >= minimumCount)
+      from = Math.max(minute.minuteMs, window.from.getTime());
   }
-  return null;
+  return from === null ? null : { from: new Date(from), to };
 }
 
 /** Automatic processing is on with the embedding model these summaries used. */
