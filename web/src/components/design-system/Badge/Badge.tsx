@@ -13,7 +13,7 @@ const badgeVariants = cva(
       size: {
         /** Odd heights, so 9px mono caps and digits centre on whole pixels. */
         lg: "h-5.75 gap-1.5 px-2",
-        default: "h-5.25 gap-1.5 pr-1.5 pl-2",
+        default: "h-5.25 gap-1.5 px-2",
         md: "h-4.75 gap-1 px-1.5",
         sm: "h-4.25 gap-1 px-1.5",
       },
@@ -50,6 +50,11 @@ const badgeVariants = cva(
         true: "uppercase",
         false: "",
       },
+      /** A trailing icon carries its own side bearing, so less padding after it. */
+      hasTrailingIcon: {
+        true: "",
+        false: "",
+      },
       interactive: {
         true: "underline-dotted",
         false: "",
@@ -63,6 +68,9 @@ const badgeVariants = cva(
         false: "",
       },
     },
+    compoundVariants: [
+      { size: "default", hasTrailingIcon: true, className: "pr-1.5" },
+    ],
     defaultVariants: {
       color: "outline",
       size: "default",
@@ -94,6 +102,7 @@ export function BadgeShell({
   interactive,
   shouldWrap,
   uppercase,
+  hasTrailingIcon,
   onDismiss,
   ...props
 }: BadgeShellProps) {
@@ -115,6 +124,7 @@ export function BadgeShell({
           interactive,
           shouldWrap,
           uppercase,
+          hasTrailingIcon,
           dismissible: onDismiss != null,
         }),
       )}
@@ -158,7 +168,12 @@ export function Badge({
   ...props
 }: BadgeProps) {
   return (
-    <BadgeShell color={color} shouldWrap={shouldWrap} {...props}>
+    <BadgeShell
+      color={color}
+      shouldWrap={shouldWrap}
+      hasTrailingIcon={TrailingIcon != null}
+      {...props}
+    >
       {LeadingIcon && <LeadingIcon aria-hidden size="sm" color="tertiary" />}
       {label && <span className="shrink-0 py-0.5">{label}:</span>}
       <span
