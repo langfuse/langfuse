@@ -1,0 +1,218 @@
+import { randomUUID } from "node:crypto";
+import { type Job } from "bullmq";
+import { afterAll, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  getTraceBatchEventStream,
+  QueueJobs,
+  redis,
+  type QueueName,
+  type TQueueJobTypes,
+  type TraceBatchInputStorage,
+} from "@langfuse/shared/src/server";
+import { env } from "../../env";
+import { getTraceBatchShard } from "../../features/traceBatching/traceBatchReadiness";
+import {
+  getRecordingKeys,
+  recordTraceActivity,
+} from "../../features/traceBatching/traceRuleRecording";
+import { eventsDispatchQueueProcessor } from "../eventsDispatchQueue";
+
+const inputStorage = vi.hoisted(() => ({
+  put: vi.fn<TraceBatchInputStorage["put"]>(),
+  get: vi.fn<TraceBatchInputStorage["get"]>(),
+}));
+const topicsTraceAdd = vi.hoisted(() => vi.fn());
+
+vi.mock("@langfuse/shared/src/server", async (importOriginal) => {
+  const original =
+    await importOriginal<typeof import("@langfuse/shared/src/server")>();
+  return {
+    ...original,
+    redis: original.createNewRedisInstance({
+      keyPrefix: `events-dispatch-test-${randomUUID()}:`,
+    }),
+    getTraceBatchEventStream: vi.fn(),
+    recordIncrement: vi.fn(),
+    recordDistribution: vi.fn(),
+    createTraceBatchInputStorage: () => inputStorage,
+    TopicsTraceQueue: { getInstance: () => ({ add: topicsTraceAdd }) },
+  };
+});
+
+vi.mock("@langfuse/shared/topics/server", () => ({
+  getTopicsProcessingSampling: vi.fn(async () => 1),
+  listTopicFacets: vi.fn(async () => [
+    { id: "facet", versions: [{ version: 2 }] },
+  ]),
+  listTopicRules: vi.fn(async () => [{ id: "rule", facetIds: ["facet"] }]),
+}));
+
+const originals = {
+  region: env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
+  traceDispatch: env.LANGFUSE_TRACE_DISPATCH_ENABLED,
+  eventsDispatch: env.LANGFUSE_EVENTS_DISPATCH_ENABLED,
+};
+const MINUTE_MS = 60_000;
+// Keys share the local Redis, so each run uses its own project.
+const projectId = `project-${randomUUID()}`;
+const member = (traceId: string) => JSON.stringify([projectId, traceId]);
+const keysOf = (traceId: string) =>
+  getRecordingKeys(getTraceBatchShard(member(traceId)));
+const readPending = async (traceId: string) => {
+  const value = await redis!.hget(keysOf(traceId).pending, member(traceId));
+  return value === null ? null : JSON.parse(value);
+};
+
+/** Record ingestion activity, then remove pending state as the dispatcher's acknowledgement does. */
+async function recordAndAcknowledge(traceIds: string[]) {
+  await recordTraceActivity(
+    projectId,
+    traceIds.map((traceId) => ({
+      traceId,
+      spanStartTimeISO: new Date(1_000_000).toISOString(),
+      ruleIds: ["rule"],
+      serializedEventBytes: 100,
+    })),
+  );
+  const revisions = new Map<string, string>();
+  for (const traceId of traceIds) {
+    revisions.set(traceId, (await readPending(traceId)).revision);
+    await redis!.hdel(keysOf(traceId).pending, member(traceId));
+    await redis!.zrem(keysOf(traceId).due, member(traceId));
+  }
+  return revisions;
+}
+
+function streamRows(traceIds: string[]) {
+  vi.mocked(getTraceBatchEventStream).mockImplementation(async function* () {
+    for (const traceId of traceIds)
+      yield {
+        project_id: projectId,
+        trace_id: traceId,
+        session_id: "",
+        environment: "default",
+        span_id: `span-${traceId}`,
+        parent_span_id: null,
+        start_time: "2026-11-05 00:00:00.000000",
+        event_ts: "2026-11-05 00:00:00.000000",
+        type: "GENERATION",
+        name: "generation",
+        input: JSON.stringify([{ role: "user", content: "hello" }]),
+        output: "",
+        metadata: {},
+        level: "DEFAULT",
+        status_message: null,
+        tool_definitions: {},
+        tool_calls: [],
+        tool_call_names: [],
+      };
+  });
+}
+
+const job = (
+  traces: { traceId: string; revision: string; failedCount?: number }[],
+) =>
+  ({
+    data: {
+      id: randomUUID(),
+      name: QueueJobs.EventsDispatchJob,
+      timestamp: new Date(),
+      payload: {
+        traces: traces.map((trace) => ({
+          projectId,
+          minStart: 1_000_000,
+          maxStart: 1_000_000,
+          ruleIds: ["rule"],
+          ...trace,
+        })),
+      },
+    },
+    opts: {},
+  }) as unknown as Job<TQueueJobTypes[QueueName.EventsDispatch]>;
+
+describe("events dispatch consumer", () => {
+  beforeEach(async () => {
+    env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = "STAGING";
+    env.LANGFUSE_TRACE_DISPATCH_ENABLED = "true";
+    env.LANGFUSE_EVENTS_DISPATCH_ENABLED = "true";
+    vi.clearAllMocks();
+    inputStorage.put.mockResolvedValue({ outcome: "stored", jsonLength: 10 });
+  });
+
+  afterAll(async () => {
+    env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION = originals.region;
+    env.LANGFUSE_TRACE_DISPATCH_ENABLED = originals.traceDispatch;
+    env.LANGFUSE_EVENTS_DISPATCH_ENABLED = originals.eventsDispatch;
+    redis?.disconnect();
+  });
+
+  it("enqueues stored traces with their recorded rules and returns a failed upload to Redis with backoff", async () => {
+    const revisions = await recordAndAcknowledge(["stored", "failed"]);
+    streamRows(["failed", "stored"]);
+    inputStorage.put.mockImplementation(async ({ traceId }) => {
+      if (traceId === "failed") throw new Error("SlowDown");
+      return { outcome: "stored", jsonLength: 10 };
+    });
+    const startedAt = Date.now();
+
+    await eventsDispatchQueueProcessor(
+      job([...revisions].map(([traceId, revision]) => ({ traceId, revision }))),
+    );
+
+    expect(topicsTraceAdd).toHaveBeenCalledTimes(1);
+    expect(topicsTraceAdd.mock.calls[0][1].payload).toEqual({
+      projectId,
+      traceId: "stored",
+      revision: revisions.get("stored"),
+      rules: [{ ruleId: "rule", facets: [{ facetId: "facet", version: 2 }] }],
+    });
+    expect(await readPending("stored")).toBeNull();
+    const restored = await readPending("failed");
+    expect(restored).toMatchObject({ rules: ["rule"], failed_cnt: 1 });
+    // A fresh revision keeps the retry's transcript separate from the failed attempt.
+    expect(restored.revision).not.toBe(revisions.get("failed"));
+    const due = Number(
+      await redis!.zscore(keysOf("failed").due, member("failed")),
+    );
+    expect(due).toBeGreaterThanOrEqual(startedAt + 5 * MINUTE_MS - 1_000);
+    expect(due).toBeLessThanOrEqual(Date.now() + 5 * MINUTE_MS + 1_000);
+  });
+
+  it("keeps newer activity's revision and drops a trace after its last retry", async () => {
+    const revisions = await recordAndAcknowledge(["newer", "exhausted"]);
+    // New spans arrive for one trace while its job runs.
+    await recordTraceActivity(projectId, [
+      {
+        traceId: "newer",
+        spanStartTimeISO: new Date(2_000_000).toISOString(),
+        ruleIds: ["other"],
+        serializedEventBytes: 100,
+      },
+    ]);
+    const newer = await readPending("newer");
+    const newerDue = await redis!.zscore(keysOf("newer").due, member("newer"));
+    streamRows(["exhausted", "newer"]);
+    inputStorage.put.mockRejectedValue(new Error("SlowDown"));
+
+    await eventsDispatchQueueProcessor(
+      job([
+        { traceId: "newer", revision: revisions.get("newer")! },
+        {
+          traceId: "exhausted",
+          revision: revisions.get("exhausted")!,
+          failedCount: 3,
+        },
+      ]),
+    );
+
+    expect(topicsTraceAdd).not.toHaveBeenCalled();
+    expect(await readPending("newer")).toEqual({
+      ...newer,
+      rules: ["other", "rule"],
+    });
+    expect(await redis!.zscore(keysOf("newer").due, member("newer"))).toBe(
+      newerDue,
+    );
+    expect(await readPending("exhausted")).toBeNull();
+  });
+});

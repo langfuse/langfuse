@@ -83,6 +83,14 @@
   expired pending entries per call; key TTLs reclaim inactive maps. Map schemas,
   retention, and missing-bounds behavior:
   `src/features/traceBatching/README.md` → Recording trace-rule selections.
+- Events dispatch: `src/features/eventsDispatch/eventsDispatch.ts`, consumed only on
+  worker-cpu. With `LANGFUSE_EVENTS_DISPATCH_ENABLED` (requires trace dispatch) the
+  dispatcher enqueues `events-dispatch-queue` jobs instead of trace-batch jobs. Each
+  trace's transcript is stored in S3, then one `topics-trace-queue` job carries the
+  rules recorded at ingestion; no model calls and no resampling. Failed uploads or
+  enqueues return to the `{trace-dispatch:N}` maps with backoff (`RESTORE_RECORDING_SCRIPT`);
+  a failed read retries the whole job once. New names use events-dispatch; the Redis
+  maps keep trace-dispatch.
 - Internal cloud trace batching: `src/features/traceBatching/traceBatching.ts` and
   `src/queues/traceBatchQueue.ts`; controls and Redis lifecycle are documented in
   `src/features/traceBatching/README.md`. Keep producer, dispatcher, consumer and reads

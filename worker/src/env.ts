@@ -161,6 +161,16 @@ const EnvSchema = z.object({
     .positive()
     .max(2 * 24 * 60 * 60 * 1_000)
     .default(24 * 60 * 60 * 1_000),
+  // Requires trace dispatch; the dispatcher then enqueues events-dispatch jobs instead of trace-batch jobs.
+  LANGFUSE_EVENTS_DISPATCH_ENABLED: z.enum(["true", "false"]).default("false"),
+  QUEUE_CONSUMER_EVENTS_DISPATCH_QUEUE_IS_ENABLED: z
+    .enum(["true", "false"])
+    .default("false"),
+  LANGFUSE_EVENTS_DISPATCH_CONCURRENCY: z.coerce
+    .number()
+    .int()
+    .positive()
+    .default(2),
   LANGFUSE_TRACE_BATCH_INGESTION_ENABLED: z
     .enum(["true", "false"])
     .default("false"),

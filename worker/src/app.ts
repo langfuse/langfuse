@@ -61,6 +61,8 @@ import { ClickhouseReadSkipCache } from "./utils/clickhouseReadSkipCache";
 import { experimentCreateQueueProcessor } from "./queues/experimentQueue";
 import { traceDeleteProcessor } from "./queues/traceDelete";
 import { traceBatchQueueProcessor } from "./queues/traceBatchQueue";
+import { eventsDispatchQueueProcessor } from "./queues/eventsDispatchQueue";
+import { isEventsDispatchEnabled } from "./features/eventsDispatch/eventsDispatch";
 import { TraceBatchDispatcher } from "./features/traceBatching/traceBatching";
 import { TraceBatchMetricsRunner } from "./features/traceBatching/TraceBatchMetricsRunner";
 import { isTraceBatchPipelineEnabled } from "./features/traceBatching/traceBatchSampling";
@@ -166,6 +168,18 @@ if (traceBatchConsumerEnabled) {
   WorkerManager.register(QueueName.TraceBatch, traceBatchQueueProcessor, {
     concurrency: env.LANGFUSE_TRACE_BATCH_CONCURRENCY,
   });
+}
+
+// Consumed only on worker-cpu, like trace-batch; Topics jobs it enqueues run on the main worker.
+if (
+  isEventsDispatchEnabled() &&
+  env.QUEUE_CONSUMER_EVENTS_DISPATCH_QUEUE_IS_ENABLED === "true"
+) {
+  WorkerManager.register(
+    QueueName.EventsDispatch,
+    eventsDispatchQueueProcessor,
+    { concurrency: env.LANGFUSE_EVENTS_DISPATCH_CONCURRENCY },
+  );
 }
 
 export let traceBatchMetricsRunner: TraceBatchMetricsRunner | null = null;
