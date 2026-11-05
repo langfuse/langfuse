@@ -155,6 +155,8 @@ const nextConfig = {
     browserToTerminal: true,
   },
   experimental: {
+    turbopackLazyDynamicImports: true,
+    turbopackGc: true,
     // Ephemeral CI builds can skip writing compiler state they never restore.
     ...(process.env.NEXT_DISABLE_BUILD_CACHE === "true"
       ? { turbopackFileSystemCacheForBuild: false }
