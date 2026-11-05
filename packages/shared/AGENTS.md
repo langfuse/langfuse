@@ -239,7 +239,11 @@
   loads only env and the license check, so it can run before anything
   connects),
   `@langfuse/shared/src/server/llm/llmText`, and
-  `@langfuse/shared/src/utils/chatml`. The
+  `@langfuse/shared/src/utils/chatml`. OAuth2 client credentials for LLM
+  connections live in `src/server/llm/oauth2/`; the server barrel exports
+  `assertNotOAuth2Connection`, `assertOAuth2TokenEndpointAllowed`,
+  `prepareOAuth2Credential` (pass `verifySigning` when validating on save),
+  `getOAuth2DisplaySecretKey`, `OAuth2TokenError` and `findOAuth2TokenError`. The
   `@langfuse/shared/src/utils/normalized-io` parser is client-safe and is the
   only parser behind the web Formatted trace/observation view; the legacy
   ChatML helpers remain for the session feed and the playground (for now). Its result

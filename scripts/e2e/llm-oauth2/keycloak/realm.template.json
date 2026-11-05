@@ -1,0 +1,71 @@
+{
+  "realm": "lf-e2e",
+  "enabled": true,
+  "accessTokenLifespan": 120,
+  "clients": [
+    {
+      "clientId": "cs-basic",
+      "name": "client_secret_basic",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "bearerOnly": false,
+      "standardFlowEnabled": false,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": true,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "__CS_BASIC_SECRET__"
+    },
+    {
+      "clientId": "cs-post",
+      "name": "client_secret_post",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "bearerOnly": false,
+      "standardFlowEnabled": false,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": true,
+      "clientAuthenticatorType": "client-secret",
+      "secret": "__CS_POST_SECRET__"
+    },
+    {
+      "clientId": "cs-jwt",
+      "name": "client_secret_jwt (Signed JWT with client secret)",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "bearerOnly": false,
+      "standardFlowEnabled": false,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": true,
+      "clientAuthenticatorType": "client-secret-jwt",
+      "secret": "__CS_JWT_SECRET__",
+      "attributes": {
+        "token.endpoint.auth.signing.alg": "HS256"
+      }
+    },
+    {
+      "clientId": "pk-jwt",
+      "name": "private_key_jwt (Signed JWT)",
+      "enabled": true,
+      "protocol": "openid-connect",
+      "publicClient": false,
+      "bearerOnly": false,
+      "standardFlowEnabled": false,
+      "implicitFlowEnabled": false,
+      "directAccessGrantsEnabled": false,
+      "serviceAccountsEnabled": true,
+      "clientAuthenticatorType": "client-jwt",
+      "attributes": {
+        "token.endpoint.auth.signing.alg": "RS256",
+        "use.jwks.url": "false",
+        "use.jwks.string": "true",
+        "jwks.string": "__PK_JWT_JWKS__"
+      }
+    }
+  ]
+}

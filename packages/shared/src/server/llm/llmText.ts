@@ -5,6 +5,7 @@ import {
   Output,
   embedMany,
   generateText,
+  getTotalTimeoutMs,
   jsonSchema,
   streamText,
   tool,
@@ -27,6 +28,7 @@ import {
 import { decrypt } from "../../encryption";
 import { env } from "../../env";
 import type { LLMConnectionConfig } from "../../interfaces/customLLMProviderConfigSchemas";
+import { isOAuth2Config } from "../../interfaces/oauth2Providers";
 import { LLMValidationError } from "./errors";
 import { resolveEvaluatorMediaTransport } from "./mediaMessages";
 import { mapChatMessagesToModelMessages } from "./ai-sdk/messages";
@@ -52,6 +54,8 @@ import {
   createAiSdkTelemetryCapture,
   type AiSdkTelemetryCapture,
 } from "./ai-sdk/telemetry";
+import { resolveOAuth2Connection } from "./oauth2/connection";
+import { OAuth2TokenError } from "./oauth2/errors";
 import { createSecureLlmFetch } from "./secureLlmFetch";
 import type {
   ChatMessage,
@@ -316,15 +320,24 @@ async function prepareLLMTextCall<
     trace: options.trace,
   });
 
-  const { apiKey, extraHeaders, createFetch } = openLLMConnection(
-    options.connection,
-  );
+  const connectionStartedAt = Date.now();
+  const { apiKey, bearerAuth, extraHeaders, createFetch } =
+    await openLLMConnection(options.connection, {
+      abortSignal: options.abortSignal,
+      timeoutMs: getTotalTimeoutMs(timeout),
+    });
+  // Time spent obtaining an OAuth2 access token counts against the call's
+  // total timeout.
+  const callTimeout = bearerAuth
+    ? subtractFromTotalTimeout(timeout, Date.now() - connectionStartedAt)
+    : timeout;
 
   const languageModel = await buildAiSdkModel({
     model: options.model,
     modelConfig,
     openAIChatProvider: options.openAIChatProvider,
     apiKey,
+    bearerAuth,
     baseURL: options.connection.baseURL,
     extraHeaders,
     config: options.connection.config,
@@ -356,7 +369,7 @@ async function prepareLLMTextCall<
       reasoning: options.reasoning,
       providerOptions,
       maxRetries: options.maxRetries,
-      timeout,
+      timeout: callTimeout,
       abortSignal: options.abortSignal,
       // URL transport preserves provider-supported media URLs without downloading
       // them. Inline and disabled modes continue to block remote downloads.
@@ -366,10 +379,22 @@ async function prepareLLMTextCall<
   };
 }
 
-function openLLMConnection(connection: LLMConnection) {
-  const apiKey = decrypt(connection.secretKey);
+function subtractFromTotalTimeout<TOOLS extends ToolSet>(
+  timeout: TimeoutConfiguration<TOOLS>,
+  elapsedMs: number,
+): TimeoutConfiguration<TOOLS> {
+  if (typeof timeout === "number") return Math.max(1, timeout - elapsedMs);
+  if (timeout.totalMs === undefined) return timeout;
+  return { ...timeout, totalMs: Math.max(1, timeout.totalMs - elapsedMs) };
+}
+
+async function openLLMConnection(
+  connection: LLMConnection,
+  limits: { abortSignal?: AbortSignal; timeoutMs?: number } = {},
+) {
+  const decryptedSecret = decrypt(connection.secretKey);
   const extraHeaders = decryptAndParseExtraHeaders(connection.extraHeaders);
-  const createFetch = (
+  const createSecureFetch = (
     logContext: string,
     additionalSensitiveHeaders?: string[],
   ) =>
@@ -382,7 +407,40 @@ function openLLMConnection(connection: LLMConnection) {
         Object.keys(extraHeaders ?? {}),
       ),
     });
-  return { apiKey, extraHeaders, createFetch };
+
+  if (connection.config?.oauth2 === undefined) {
+    return {
+      apiKey: decryptedSecret,
+      bearerAuth: false,
+      extraHeaders,
+      createFetch: createSecureFetch,
+    };
+  }
+
+  // The stored secret is an OAuth2 client credential; only the access token
+  // obtained with it is sent to the gateway.
+  if (!isOAuth2Config(connection.config)) {
+    throw new OAuth2TokenError("config", "Invalid OAuth2 connection config");
+  }
+  const waitSignals = [
+    limits.abortSignal,
+    limits.timeoutMs === undefined
+      ? undefined
+      : AbortSignal.timeout(limits.timeoutMs),
+  ].filter((signal): signal is AbortSignal => signal !== undefined);
+  const { accessToken, wrapFetch } = await resolveOAuth2Connection({
+    config: connection.config,
+    decryptedSecret,
+    projectId: connection.projectId,
+    signal: waitSignals.length > 0 ? AbortSignal.any(waitSignals) : undefined,
+  });
+  return {
+    apiKey: accessToken,
+    bearerAuth: true,
+    extraHeaders,
+    createFetch: (logContext: string, additionalSensitiveHeaders?: string[]) =>
+      wrapFetch(createSecureFetch(logContext, additionalSensitiveHeaders)),
+  };
 }
 
 /** Embeds values with a persisted connection, batched per provider limit; calls are not traced. */
@@ -402,8 +460,9 @@ export async function embedLLMText(options: {
     baseURL: options.connection.baseURL,
     credentialSource: "user",
   });
-  const { apiKey, extraHeaders, createFetch } = openLLMConnection(
+  const { apiKey, extraHeaders, createFetch } = await openLLMConnection(
     options.connection,
+    { abortSignal: options.abortSignal },
   );
   const embeddingModel = await buildAiSdkEmbeddingModel({
     model: options.model,

@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { generateKeyPairSync, randomUUID } from "node:crypto";
 
 import { LLMAdapter } from "@langfuse/shared";
 import { encrypt } from "@langfuse/shared/encryption";
@@ -89,6 +89,56 @@ describe("/api/public/organizations/llm-connections", () => {
     });
     expect(JSON.stringify(listResponse.body)).not.toContain(secretKey);
     expect(JSON.stringify(listResponse.body)).not.toContain(extraHeaderValue);
+  });
+
+  // The web server under test must list the token endpoint in
+  // LANGFUSE_LLM_OAUTH2_ALLOWED_TOKEN_ENDPOINTS (see .env.test.example).
+  it("creates an OAuth2 connection with a private JWK without exposing it", async () => {
+    const fixture = await createOrgProjectAndApiKey({ plan: "Team" });
+    const auth = await createOrganizationApiKey(fixture.orgId);
+    const provider = `organization-oauth2-${randomUUID()}`;
+    const jwk = {
+      ...generateKeyPairSync("ec", { namedCurve: "P-256" }).privateKey.export({
+        format: "jwk",
+      }),
+      kid: "t1",
+    };
+    const oauth2 = {
+      provider: "custom",
+      tokenEndpoint: "https://1.1.1.1/oauth2/token",
+      clientId: "agent-x",
+      authMethod: "private_key_jwt",
+    };
+
+    const createResponse = await makeZodVerifiedAPICall(
+      PutLlmConnectionV1Response,
+      "PUT",
+      "/api/public/organizations/llm-connections",
+      {
+        provider,
+        adapter: LLMAdapter.OpenAI,
+        secretKey: JSON.stringify(jwk),
+        config: { oauth2 },
+      },
+      auth,
+      201,
+    );
+
+    expect(createResponse.body).not.toHaveProperty("secretKey");
+    expect(createResponse.body.displaySecretKey).toBe("kid:t1");
+    expect(createResponse.body.config).toEqual({ oauth2 });
+    expect(JSON.stringify(createResponse.body)).not.toContain(jwk.d!);
+
+    const listResponse = await makeZodVerifiedAPICall(
+      GetLlmConnectionsV1Response,
+      "GET",
+      "/api/public/organizations/llm-connections",
+      undefined,
+      auth,
+    );
+    expect(listResponse.body.data).toHaveLength(1);
+    expect(listResponse.body.data[0].config).toEqual({ oauth2 });
+    expect(JSON.stringify(listResponse.body)).not.toContain(jwk.d!);
   });
 
   it("rejects project API keys on organization routes", async () => {

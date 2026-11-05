@@ -5,6 +5,7 @@ import type { EvalExecutionContext } from "@langfuse/shared";
 import { prisma } from "@langfuse/shared/src/db";
 import { decrypt } from "@langfuse/shared/encryption";
 import {
+  assertNotOAuth2Connection,
   buildEventBucketPrefix,
   createDecisionModelClient,
   decryptAndParseExtraHeaders,
@@ -289,6 +290,7 @@ export function createProductionEvalExecutionDeps(): EvalExecutionDeps {
 
     callDecisionModel: async (params) => {
       const { apiKey } = params.modelConfig;
+      assertNotOAuth2Connection(apiKey.config, "decision-model evaluators");
       const secretKey = apiKey.secretKey;
       if (typeof secretKey !== "string") {
         throw new UnrecoverableError(

@@ -1,11 +1,13 @@
-import { randomUUID } from "crypto";
+import { generateKeyPairSync, randomUUID } from "crypto";
 import type { Session } from "next-auth";
 
 import { testFeatureFlags } from "@/src/__tests__/fixtures/feature-flags";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 import { LLMAdapter } from "@langfuse/shared";
+import { decrypt } from "@langfuse/shared/encryption";
 import { prisma } from "@langfuse/shared/src/db";
+import { env as sharedEnv } from "@langfuse/shared/src/env";
 import { createOrgProjectAndApiKey } from "@langfuse/shared/src/server";
 
 const createSession = (params: {
@@ -233,5 +235,76 @@ describe("organization LLM connections", () => {
     await expect(
       caller.organizationLlmApiKey.all({ orgId: otherSetup.orgId }),
     ).rejects.toThrow("not a member of this organization");
+  });
+
+  it("stores an OAuth2 connection with a private JWK and keeps it on scope changes", async () => {
+    const tokenEndpoint = "https://1.1.1.1/oauth2/token";
+    const originalAllowedTokenEndpoints =
+      sharedEnv.LANGFUSE_LLM_OAUTH2_ALLOWED_TOKEN_ENDPOINTS;
+    sharedEnv.LANGFUSE_LLM_OAUTH2_ALLOWED_TOKEN_ENDPOINTS = [tokenEndpoint];
+    try {
+      const setup = await createOrgProjectAndApiKey();
+      const caller = createCaller(
+        createSession({
+          orgId: setup.orgId,
+          projectId: setup.projectId,
+          orgRole: "OWNER",
+          projectRole: "ADMIN",
+        }),
+      );
+      const jwk = {
+        ...generateKeyPairSync("ec", {
+          namedCurve: "P-256",
+        }).privateKey.export({ format: "jwk" }),
+        kid: "t1",
+      };
+      const oauth2 = {
+        provider: "custom" as const,
+        tokenEndpoint,
+        clientId: "agent-x",
+        authMethod: "private_key_jwt" as const,
+      };
+
+      const created = await caller.organizationLlmApiKey.create({
+        orgId: setup.orgId,
+        provider: "gateway",
+        adapter: LLMAdapter.OpenAI,
+        secretKey: JSON.stringify(jwk),
+        config: { oauth2 },
+      });
+      expect(created).toMatchObject({
+        displaySecretKey: "kid:t1",
+        config: { oauth2 },
+      });
+      expect(JSON.stringify(created)).not.toContain(jwk.d!);
+
+      await caller.organizationLlmApiKey.update({
+        id: created.id,
+        orgId: setup.orgId,
+        provider: "gateway",
+        adapter: LLMAdapter.OpenAI,
+        config: { oauth2: { ...oauth2, scope: "llm.read" } },
+      });
+      await expect(
+        caller.organizationLlmApiKey.update({
+          id: created.id,
+          orgId: setup.orgId,
+          provider: "gateway",
+          adapter: LLMAdapter.OpenAI,
+          config: { oauth2: { ...oauth2, clientId: "other" } },
+        }),
+      ).rejects.toThrow("A new secret is required when");
+
+      const stored = await prisma.llmApiKeys.findUniqueOrThrow({
+        where: { id: created.id },
+      });
+      expect(decrypt(stored.secretKey)).toBe(JSON.stringify(jwk));
+      expect(stored.config).toEqual({
+        oauth2: { ...oauth2, scope: "llm.read" },
+      });
+    } finally {
+      sharedEnv.LANGFUSE_LLM_OAUTH2_ALLOWED_TOKEN_ENDPOINTS =
+        originalAllowedTokenEndpoints;
+    }
   });
 });

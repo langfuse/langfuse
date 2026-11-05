@@ -1,6 +1,7 @@
 import { z } from "zod";
 import {
   LLMAdapter,
+  AnthropicConfigSchema,
   BedrockConfigSchema,
   OpenAIConfigSchema,
   VertexAIConfigSchema,
@@ -17,7 +18,14 @@ const LlmApiKeyInputSchema = z.object({
   withDefaultModels: z.boolean().optional(),
   customModels: z.array(z.string().min(1)).optional(),
   config: z
-    .union([VertexAIConfigSchema, BedrockConfigSchema, OpenAIConfigSchema])
+    .union([
+      VertexAIConfigSchema,
+      BedrockConfigSchema,
+      // Checked before OpenAI so an `{ oauth2 }`-only config is kept as is
+      // instead of gaining the OpenAI `useResponsesApi` default.
+      AnthropicConfigSchema,
+      OpenAIConfigSchema,
+    ])
     .optional(),
   extraHeaders: z.record(z.string(), z.string()).optional(),
 });

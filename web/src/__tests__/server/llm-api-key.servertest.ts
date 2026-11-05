@@ -14,7 +14,8 @@ import * as auditLogs from "@/src/features/audit-logs/auditLog";
 import type { Session } from "next-auth";
 import { BEDROCK_USE_DEFAULT_CREDENTIALS, LLMAdapter } from "@langfuse/shared";
 import { env } from "@/src/env.mjs";
-import { randomUUID } from "crypto";
+import { env as sharedEnv } from "@langfuse/shared/src/env";
+import { generateKeyPairSync, randomUUID } from "crypto";
 import {
   EvalTemplateType,
   EvaluatorBlockReason,
@@ -2375,6 +2376,443 @@ describe("llmApiKey.all RPC", () => {
         embeddingLlmApiKeyId: null,
         clusteringLlmApiKeyId: null,
       });
+    });
+  });
+
+  describe("OAuth2 client credentials", () => {
+    const TOKEN_ENDPOINT = "https://1.1.1.1/oauth2/token";
+    const KEYCLOAK_TOKEN_ENDPOINT =
+      "https://1.1.1.1/realms/langfuse/protocol/openid-connect/token";
+    const GATEWAY_BASE_URL = "https://1.1.1.1/v1";
+    const NEW_SECRET_REQUIRED = "A new secret is required when";
+    let originalAllowedTokenEndpoints: string[];
+
+    const generatePrivateJwk = () => ({
+      ...generateKeyPairSync("ec", { namedCurve: "P-256" }).privateKey.export({
+        format: "jwk",
+      }),
+      kid: "t1",
+    });
+
+    const customOAuth2Config = (
+      authMethod: "client_secret_basic" | "private_key_jwt",
+      overrides: {
+        clientId?: string;
+        scope?: string;
+        audience?: string;
+        resource?: string;
+        tokenEndpoint?: string;
+      } = {},
+    ) => ({
+      oauth2: {
+        provider: "custom" as const,
+        tokenEndpoint: TOKEN_ENDPOINT,
+        clientId: "agent-x",
+        authMethod,
+        ...overrides,
+      },
+    });
+
+    beforeEach(() => {
+      originalAllowedTokenEndpoints =
+        sharedEnv.LANGFUSE_LLM_OAUTH2_ALLOWED_TOKEN_ENDPOINTS;
+      sharedEnv.LANGFUSE_LLM_OAUTH2_ALLOWED_TOKEN_ENDPOINTS = [
+        TOKEN_ENDPOINT,
+        KEYCLOAK_TOKEN_ENDPOINT,
+      ];
+    });
+
+    afterEach(() => {
+      sharedEnv.LANGFUSE_LLM_OAUTH2_ALLOWED_TOKEN_ENDPOINTS =
+        originalAllowedTokenEndpoints;
+    });
+
+    it("stores a private_key_jwt connection with the JWK encrypted and only its kid displayed", async () => {
+      const jwk = generatePrivateJwk();
+      const secretKey = JSON.stringify(jwk);
+      const config = customOAuth2Config("private_key_jwt");
+
+      await caller.llmApiKey.create({
+        projectId,
+        provider: "gateway",
+        adapter: LLMAdapter.OpenAI,
+        secretKey,
+        baseURL: GATEWAY_BASE_URL,
+        config,
+      });
+
+      const stored = await prisma.llmApiKeys.findFirstOrThrow({
+        where: { projectId, provider: "gateway" },
+      });
+      expect(decrypt(stored.secretKey)).toBe(secretKey);
+      expect(stored.displaySecretKey).toBe("kid:t1");
+      expect(stored.config).toEqual(config);
+
+      const { data } = await caller.llmApiKey.all({ projectId });
+      expect(data).toHaveLength(1);
+      expect(data[0].config).toEqual(config);
+      expect(data[0].secretKey).toBeUndefined();
+      expect(JSON.stringify(data)).not.toContain(jwk.d!);
+    });
+
+    it("accepts an OAuth2 config on an Anthropic connection and rejects other Anthropic config", async () => {
+      const config = {
+        oauth2: {
+          provider: "keycloak" as const,
+          baseUrl: "https://1.1.1.1",
+          realm: "langfuse",
+          clientId: "langfuse-llm",
+          authMethod: "client_secret_post" as const,
+        },
+      };
+
+      await caller.llmApiKey.create({
+        projectId,
+        provider: "anthropic-gateway",
+        adapter: LLMAdapter.Anthropic,
+        secretKey: "keycloak-client-secret-1234",
+        config,
+      });
+
+      const stored = await prisma.llmApiKeys.findFirstOrThrow({
+        where: { projectId, provider: "anthropic-gateway" },
+      });
+      expect(stored.config).toEqual(config);
+      expect(stored.displaySecretKey).toBe("...1234");
+
+      await expect(
+        caller.llmApiKey.create({
+          projectId,
+          provider: "anthropic-responses",
+          adapter: LLMAdapter.Anthropic,
+          secretKey: "sk-ant-test",
+          config: { useResponsesApi: true },
+        }),
+      ).rejects.toThrow("Invalid Anthropic config");
+    });
+
+    it("rejects an OAuth2 config on adapters other than openai and anthropic", async () => {
+      await expect(
+        caller.llmApiKey.create({
+          projectId,
+          provider: "google-gateway",
+          adapter: LLMAdapter.GoogleAIStudio,
+          secretKey: "client-secret",
+          config: customOAuth2Config("client_secret_basic"),
+        }),
+      ).rejects.toThrow(
+        "OAuth2 is only supported for the openai and anthropic adapters",
+      );
+    });
+
+    it("keeps the stored secret on an update that only changes the scope", async () => {
+      await caller.llmApiKey.create({
+        projectId,
+        provider: "gateway",
+        adapter: LLMAdapter.OpenAI,
+        secretKey: "client-secret-1",
+        config: customOAuth2Config("client_secret_basic"),
+      });
+      const existing = await prisma.llmApiKeys.findFirstOrThrow({
+        where: { projectId, provider: "gateway" },
+      });
+
+      await caller.llmApiKey.update({
+        id: existing.id,
+        projectId,
+        provider: "gateway",
+        adapter: LLMAdapter.OpenAI,
+        config: customOAuth2Config("client_secret_basic", {
+          scope: "llm.read",
+        }),
+      });
+
+      const updated = await prisma.llmApiKeys.findUniqueOrThrow({
+        where: { id: existing.id },
+      });
+      expect(decrypt(updated.secretKey)).toBe("client-secret-1");
+      expect(updated.displaySecretKey).toBe(existing.displaySecretKey);
+      expect(updated.config).toEqual(
+        customOAuth2Config("client_secret_basic", { scope: "llm.read" }),
+      );
+    });
+
+    it("requires a new secret when the secret would reach another client or endpoint", async () => {
+      await caller.llmApiKey.create({
+        projectId,
+        provider: "gateway",
+        adapter: LLMAdapter.OpenAI,
+        secretKey: "client-secret-1",
+        config: customOAuth2Config("client_secret_basic"),
+      });
+      const existing = await prisma.llmApiKeys.findFirstOrThrow({
+        where: { projectId, provider: "gateway" },
+      });
+      const update = (
+        config: Parameters<typeof caller.llmApiKey.update>[0]["config"],
+        secretKey?: string,
+      ) =>
+        caller.llmApiKey.update({
+          id: existing.id,
+          projectId,
+          provider: "gateway",
+          adapter: LLMAdapter.OpenAI,
+          secretKey,
+          config,
+        });
+
+      await expect(
+        update(
+          customOAuth2Config("client_secret_basic", { clientId: "other" }),
+        ),
+      ).rejects.toThrow(NEW_SECRET_REQUIRED);
+      await expect(
+        update(
+          customOAuth2Config("client_secret_basic", {
+            tokenEndpoint: KEYCLOAK_TOKEN_ENDPOINT,
+          }),
+        ),
+      ).rejects.toThrow(NEW_SECRET_REQUIRED);
+      await expect(
+        update({
+          oauth2: {
+            provider: "keycloak",
+            baseUrl: "https://1.1.1.1",
+            realm: "langfuse",
+            clientId: "agent-x",
+            authMethod: "client_secret_basic",
+          },
+        }),
+      ).rejects.toThrow(NEW_SECRET_REQUIRED);
+      await expect(
+        update({
+          oauth2: {
+            ...customOAuth2Config("client_secret_basic").oauth2,
+            authMethod: "client_secret_post",
+          },
+        }),
+      ).rejects.toThrow(NEW_SECRET_REQUIRED);
+      await expect(update({ useResponsesApi: false })).rejects.toThrow(
+        NEW_SECRET_REQUIRED,
+      );
+      await expect(
+        update(
+          customOAuth2Config("client_secret_basic", {
+            audience: "https://other-gateway.example.com",
+          }),
+        ),
+      ).rejects.toThrow(NEW_SECRET_REQUIRED);
+      await expect(
+        update(
+          customOAuth2Config("client_secret_basic", {
+            resource: "https://other-gateway.example.com",
+          }),
+        ),
+      ).rejects.toThrow(NEW_SECRET_REQUIRED);
+
+      await update(
+        customOAuth2Config("client_secret_basic", { clientId: "other" }),
+        "client-secret-2",
+      );
+      const updated = await prisma.llmApiKeys.findUniqueOrThrow({
+        where: { id: existing.id },
+      });
+      expect(decrypt(updated.secretKey)).toBe("client-secret-2");
+    });
+
+    it("requires a new secret when switching an API key connection to OAuth2", async () => {
+      await caller.llmApiKey.create({
+        projectId,
+        provider: "openai",
+        adapter: LLMAdapter.OpenAI,
+        secretKey: "sk-api-key",
+      });
+      const existing = await prisma.llmApiKeys.findFirstOrThrow({
+        where: { projectId, provider: "openai" },
+      });
+
+      await expect(
+        caller.llmApiKey.update({
+          id: existing.id,
+          projectId,
+          provider: "openai",
+          adapter: LLMAdapter.OpenAI,
+          config: customOAuth2Config("client_secret_basic"),
+        }),
+      ).rejects.toThrow(NEW_SECRET_REQUIRED);
+    });
+
+    it("rejects an Authorization extra header on OAuth2 connections only", async () => {
+      await expect(
+        caller.llmApiKey.create({
+          projectId,
+          provider: "gateway",
+          adapter: LLMAdapter.OpenAI,
+          secretKey: "client-secret-1",
+          config: customOAuth2Config("client_secret_basic"),
+          extraHeaders: { authorization: "x" },
+        }),
+      ).rejects.toThrow(
+        "Authorization header is not allowed for OAuth2 connections",
+      );
+
+      await caller.llmApiKey.create({
+        projectId,
+        provider: "openai",
+        adapter: LLMAdapter.OpenAI,
+        secretKey: "sk-api-key",
+        extraHeaders: { authorization: "x" },
+      });
+      expect(await prisma.llmApiKeys.count({ where: { projectId } })).toBe(1);
+    });
+
+    it("rejects OAuth2 connections whose token endpoint is not allowed", async () => {
+      sharedEnv.LANGFUSE_LLM_OAUTH2_ALLOWED_TOKEN_ENDPOINTS = [];
+      await expect(
+        caller.llmApiKey.create({
+          projectId,
+          provider: "gateway",
+          adapter: LLMAdapter.OpenAI,
+          secretKey: "client-secret-1",
+          config: customOAuth2Config("client_secret_basic"),
+        }),
+      ).rejects.toThrow(
+        "OAuth2 client credentials are disabled: set LANGFUSE_LLM_OAUTH2_ALLOWED_TOKEN_ENDPOINTS",
+      );
+
+      sharedEnv.LANGFUSE_LLM_OAUTH2_ALLOWED_TOKEN_ENDPOINTS = [
+        KEYCLOAK_TOKEN_ENDPOINT,
+      ];
+      const notListed = `OAuth2 token endpoint is not in LANGFUSE_LLM_OAUTH2_ALLOWED_TOKEN_ENDPOINTS: ${TOKEN_ENDPOINT}`;
+      await expect(
+        caller.llmApiKey.create({
+          projectId,
+          provider: "gateway",
+          adapter: LLMAdapter.OpenAI,
+          secretKey: "client-secret-1",
+          config: customOAuth2Config("client_secret_basic"),
+        }),
+      ).rejects.toThrow(notListed);
+
+      const testResult = await caller.llmApiKey.test({
+        projectId,
+        provider: "gateway",
+        adapter: LLMAdapter.OpenAI,
+        secretKey: "client-secret-1",
+        config: customOAuth2Config("client_secret_basic"),
+      });
+      expect(testResult).toEqual({ success: false, error: notListed });
+      expect(mockGenerateLLMText).not.toHaveBeenCalled();
+      expect(await prisma.llmApiKeys.count({ where: { projectId } })).toBe(0);
+    });
+
+    it.each([
+      ["https://169.254.169.254/token", "Blocked hostname detected"],
+      ["https://127.0.0.1/token", "Blocked IP address detected"],
+      ["https://10.0.0.1/token", "Blocked IP address detected"],
+    ])(
+      "rejects an allowed token endpoint that is a private address (%s)",
+      async (tokenEndpoint, validatorMessage) => {
+        sharedEnv.LANGFUSE_LLM_OAUTH2_ALLOWED_TOKEN_ENDPOINTS = [tokenEndpoint];
+
+        await expect(
+          caller.llmApiKey.create({
+            projectId,
+            provider: "gateway",
+            adapter: LLMAdapter.OpenAI,
+            secretKey: "client-secret-1",
+            config: customOAuth2Config("client_secret_basic", {
+              tokenEndpoint,
+            }),
+          }),
+        ).rejects.toMatchObject({
+          code: "BAD_REQUEST",
+          message: `Invalid OAuth2 token endpoint: ${validatorMessage}`,
+        });
+        expect(await prisma.llmApiKeys.count({ where: { projectId } })).toBe(0);
+      },
+    );
+
+    it("rejects a public JWK without echoing key material", async () => {
+      const { d: _d, ...publicJwk } = generatePrivateJwk();
+
+      const error: unknown = await caller.llmApiKey
+        .create({
+          projectId,
+          provider: "gateway",
+          adapter: LLMAdapter.OpenAI,
+          secretKey: JSON.stringify(publicJwk),
+          config: customOAuth2Config("private_key_jwt"),
+        })
+        .catch((e: unknown) => e);
+
+      expect(error).toBeInstanceOf(Error);
+      const message = (error as Error).message;
+      expect(message).toContain("Private JWK required");
+      expect(message).not.toContain(publicJwk.x!);
+      expect(message).not.toContain(publicJwk.y!);
+    });
+
+    it("rejects a private JWK that cannot sign (1024-bit RSA) at save time", async () => {
+      const weakJwk = generateKeyPairSync("rsa", {
+        modulusLength: 1024,
+      }).privateKey.export({ format: "jwk" });
+
+      await expect(
+        caller.llmApiKey.create({
+          projectId,
+          provider: "gateway",
+          adapter: LLMAdapter.OpenAI,
+          secretKey: JSON.stringify(weakJwk),
+          config: customOAuth2Config("private_key_jwt"),
+        }),
+      ).rejects.toMatchObject({
+        code: "BAD_REQUEST",
+        message: "Could not sign the client assertion with the configured key",
+      });
+      expect(await prisma.llmApiKeys.count({ where: { projectId } })).toBe(0);
+    });
+
+    it("tests an update without a new secret against the stored JWK", async () => {
+      const secretKey = JSON.stringify(generatePrivateJwk());
+      await caller.llmApiKey.create({
+        projectId,
+        provider: "gateway",
+        adapter: LLMAdapter.OpenAI,
+        secretKey,
+        baseURL: GATEWAY_BASE_URL,
+        config: customOAuth2Config("private_key_jwt"),
+      });
+      const existing = await prisma.llmApiKeys.findFirstOrThrow({
+        where: { projectId, provider: "gateway" },
+      });
+
+      const result = await caller.llmApiKey.testUpdate({
+        id: existing.id,
+        projectId,
+        provider: "gateway",
+        adapter: LLMAdapter.OpenAI,
+        config: customOAuth2Config("private_key_jwt", { scope: "llm.read" }),
+      });
+
+      expect(result).toEqual({ success: true });
+      expect(mockGenerateLLMText).toHaveBeenCalledTimes(1);
+      const connection = mockGenerateLLMText.mock.calls[0][0].connection;
+      expect(decrypt(connection.secretKey)).toBe(secretKey);
+      expect(connection.config).toMatchObject(
+        customOAuth2Config("private_key_jwt", { scope: "llm.read" }),
+      );
+
+      const changedClient = await caller.llmApiKey.testUpdate({
+        id: existing.id,
+        projectId,
+        provider: "gateway",
+        adapter: LLMAdapter.OpenAI,
+        config: customOAuth2Config("private_key_jwt", { clientId: "other" }),
+      });
+      expect(changedClient.success).toBe(false);
+      expect(changedClient.error).toContain(NEW_SECRET_REQUIRED);
+      expect(mockGenerateLLMText).toHaveBeenCalledTimes(1);
     });
   });
 });

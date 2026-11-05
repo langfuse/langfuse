@@ -4,6 +4,7 @@ import {
 } from "@langfuse/shared";
 import { decrypt } from "@langfuse/shared/encryption";
 import {
+  assertNotOAuth2Connection,
   buildEvalExecutionData,
   createDecisionModelClient,
   createW3CTraceId,
@@ -153,6 +154,10 @@ async function testDecisionModelEvaluator(params: {
   const executionTraceId = createW3CTraceId();
   let request: DecisionModelRequest | undefined;
   try {
+    assertNotOAuth2Connection(
+      modelConfig.config.apiKey.config,
+      "decision-model evaluators",
+    );
     const client = createDecisionModelClient({
       adapter: modelConfig.config.apiKey.adapter,
       apiKey: decrypt(modelConfig.config.apiKey.secretKey),

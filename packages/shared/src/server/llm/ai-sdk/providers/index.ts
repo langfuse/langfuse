@@ -56,6 +56,8 @@ export async function buildAiSdkModel(params: {
    */
   openAIChatProvider?: "native";
   apiKey: string;
+  /** `apiKey` is an OAuth2 access token sent as `Authorization: Bearer`. */
+  bearerAuth?: boolean;
   baseURL?: string | null;
   extraHeaders?: Record<string, string>;
   config?: LLMConnectionConfig | null;
@@ -100,6 +102,7 @@ export async function buildAiSdkModel(params: {
       return buildAnthropicModel({
         modelId: model.id,
         apiKey,
+        bearerAuth: params.bearerAuth,
         baseURL,
         extraHeaders,
         fetch: createFetch("Anthropic LLM base URL", [
