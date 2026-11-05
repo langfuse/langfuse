@@ -1176,14 +1176,23 @@ describe("AI gateway control plane", () => {
     );
   });
 
-  it("names organization keys and members for managers, plain organization keys only for key admins, and only their own for members", async () => {
+  it("names only gateway keys: all of them for managers, only their own for every other role", async () => {
     const owner = await prepare();
     const other = await prepare();
     const member = await createCallerForOrganizationRole(owner, Role.MEMBER);
     const admin = await createCallerForOrganizationRole(owner, Role.ADMIN);
+    const gatewayUser = await createCallerForOrganizationRole(
+      owner,
+      Role.AI_GATEWAY,
+    );
     const memberKey = await member.aiGateway.createApiKey({
       orgId: owner.org.id,
       name: "Member key",
+      metadata: {},
+    });
+    const gatewayUserKey = await gatewayUser.aiGateway.createApiKey({
+      orgId: owner.org.id,
+      name: "Gateway user key",
       metadata: {},
     });
     const serviceKey = await owner.caller.aiGateway.createApiKey({
@@ -1192,7 +1201,8 @@ describe("AI gateway control plane", () => {
       metadata: {},
       issuedAs: "serviceAccount",
     });
-    const plainOrgKey = await createApiKey(prisma, {
+    // Plain organization keys can call the gateway but are not gateway keys.
+    await createApiKey(prisma, {
       tenant: OrganizationId(owner.org.id),
       scope: OrganizationId(owner.org.id),
       role: SystemRoleId("ADMIN"),
@@ -1210,28 +1220,33 @@ describe("AI gateway control plane", () => {
       name: "Other org key",
       metadata: {},
     });
+    const allGatewayKeyIds = [
+      memberKey.id,
+      gatewayUserKey.id,
+      serviceKey.id,
+    ].sort();
 
     const ownerLabels = await owner.caller.aiGateway.getAnalyticsLabels({
       orgId: owner.org.id,
     });
     expect(ownerLabels.apiKeys.map((key) => key.id).sort()).toEqual(
-      [memberKey.id, serviceKey.id, plainOrgKey.id].sort(),
+      allGatewayKeyIds,
     );
     const byId = new Map(ownerLabels.apiKeys.map((key) => [key.id, key]));
     expect(byId.get(memberKey.id)).toMatchObject({ name: "Member key" });
     expect(byId.get(serviceKey.id)).toMatchObject({ name: "Service key" });
     expect(ownerLabels.users.map((user) => user.name).sort()).toEqual([
       "Gateway admin",
+      "Gateway ai_gateway",
       "Gateway member",
       "Gateway tester",
     ]);
 
-    // An admin manages the gateway but cannot list organization API keys.
     const adminLabels = await admin.aiGateway.getAnalyticsLabels({
       orgId: owner.org.id,
     });
     expect(adminLabels.apiKeys.map((key) => key.id).sort()).toEqual(
-      [memberKey.id, serviceKey.id].sort(),
+      allGatewayKeyIds,
     );
 
     const memberLabels = await member.aiGateway.getAnalyticsLabels({
@@ -1240,6 +1255,16 @@ describe("AI gateway control plane", () => {
     expect(memberLabels.apiKeys.map((key) => key.id)).toEqual([memberKey.id]);
     expect(memberLabels.users.map((user) => user.name)).toEqual([
       "Gateway member",
+    ]);
+
+    const gatewayUserLabels = await gatewayUser.aiGateway.getAnalyticsLabels({
+      orgId: owner.org.id,
+    });
+    expect(gatewayUserLabels.apiKeys.map((key) => key.id)).toEqual([
+      gatewayUserKey.id,
+    ]);
+    expect(gatewayUserLabels.users.map((user) => user.name)).toEqual([
+      "Gateway ai_gateway",
     ]);
   });
 
@@ -1313,10 +1338,8 @@ describe("AI gateway control plane", () => {
         owner,
         Role.AI_GATEWAY,
       );
-      const memberB = await createCallerForOrganizationRole(
-        owner,
-        Role.AI_GATEWAY,
-      );
+      const memberB = await createCallerForOrganizationRole(owner, Role.MEMBER);
+      const admin = await createCallerForOrganizationRole(owner, Role.ADMIN);
       const keyA = await memberA.aiGateway.createApiKey({
         orgId: owner.org.id,
         name: "Key A",
@@ -1379,7 +1402,12 @@ describe("AI gateway control plane", () => {
         [ownerIdA]: 1,
         [ownerIdB]: 2,
       });
+      expect(await countByOwner(admin)).toEqual({
+        [ownerIdA]: 1,
+        [ownerIdB]: 2,
+      });
       expect(await countByOwner(memberA)).toEqual({ [ownerIdA]: 1 });
+      expect(await countByOwner(memberB)).toEqual({ [ownerIdB]: 2 });
       expect(
         await countByOwner(memberA, [
           {
