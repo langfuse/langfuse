@@ -33,6 +33,11 @@ async fn run() -> Result<(), Box<dyn Error>> {
             "LANGFUSE_AI_GATEWAY_SHUTDOWN_TIMEOUT_SECONDS is deprecated; set LANGFUSE_AI_GATEWAY_CONNECTION_DRAIN_TIMEOUT_SECONDS instead"
         );
     }
+    if config.has_web_url_without_service_key {
+        tracing::warn!(
+            "LANGFUSE_AI_GATEWAY_WEB_URL is set but LANGFUSE_AI_GATEWAY_SERVICE_KEY is not; inference is disabled until the service key is set"
+        );
+    }
     if config
         .control_plane
         .as_ref()
