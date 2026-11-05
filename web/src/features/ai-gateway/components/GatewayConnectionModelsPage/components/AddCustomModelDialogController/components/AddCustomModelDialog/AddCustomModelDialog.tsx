@@ -1,6 +1,6 @@
 import { type ChangeEvent, useState } from "react";
+import { CircleCheck, CircleX } from "@langfuse/icons";
 
-import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { Button } from "@/src/components/design-system/Button/Button";
 import { Dialog } from "@/src/components/design-system/Dialog/Dialog";
 import { FormField } from "@/src/components/design-system/FormField/FormField";
@@ -26,9 +26,14 @@ export function AddCustomModelDialog({
   onTest,
 }: AddCustomModelDialogProps) {
   const [modelId, setModelId] = useState("");
-  const [testResult, setTestResult] = useState<CustomModelTestResult>();
+  const [test, setTest] = useState<{
+    model: string;
+    result: CustomModelTestResult;
+  }>();
   const model = modelId.trim();
   const isDuplicate = existingModels.includes(model);
+  // A result only applies to the model ID it was sent for.
+  const testResult = test?.model === model ? test.result : undefined;
 
   async function handleAdd() {
     if (await onAdd(model)) onAdded();
@@ -36,11 +41,11 @@ export function AddCustomModelDialog({
 
   function handleModelIdChange(event: ChangeEvent<HTMLInputElement>) {
     setModelId(event.target.value);
-    setTestResult(undefined);
   }
 
   async function handleTest() {
-    setTestResult(await onTest(model));
+    const result = await onTest(model);
+    if (result) setTest({ model, result });
   }
 
   return (
@@ -52,7 +57,7 @@ export function AddCustomModelDialog({
           label: "Add model",
           onClick: handleAdd,
           loading: isAdding,
-          disabled: model.length === 0 || isDuplicate,
+          disabled: isDuplicate || testResult?.success !== true,
         },
       ]}
     >
@@ -79,34 +84,75 @@ export function AddCustomModelDialog({
             />
           )}
         </FormField>
-        <div>
-          <Button
-            variant="outline"
-            text="Send test request"
-            loading={isTesting}
-            disabled={model.length === 0}
-            onClick={handleTest}
-          />
+        <div className="flex flex-col gap-3 rounded-lg border p-3">
+          <div className="flex items-center justify-between gap-3">
+            <p
+              className={
+                testResult ? "text-foreground" : "text-muted-foreground"
+              }
+            >
+              {testResult
+                ? "Test this model with your current credential"
+                : "This model hasn't been tested with your credential yet."}
+            </p>
+            <Button
+              variant="outline"
+              size="sm"
+              text={testResult ? "Test again" : "Send test request"}
+              loading={isTesting}
+              disabled={model.length === 0}
+              onClick={handleTest}
+            />
+          </div>
+          {testResult ? <CustomModelTestOutcome result={testResult} /> : null}
         </div>
-        {testResult ? <CustomModelTestAlert result={testResult} /> : null}
       </Dialog.Body>
     </Dialog>
   );
 }
 
-function CustomModelTestAlert({ result }: { result: CustomModelTestResult }) {
+function CustomModelTestOutcome({ result }: { result: CustomModelTestResult }) {
   if (result.success) {
     return (
-      <Alert variant="info">
-        <Alert.Title>The provider accepted the request</Alert.Title>
-      </Alert>
+      <div
+        role="status"
+        className="border-dark-green/20 bg-light-green flex gap-2 rounded-md border p-3"
+      >
+        <CircleCheck
+          size="base"
+          color="inherit"
+          __rawClassName="text-dark-green mt-0.5"
+          aria-hidden="true"
+        />
+        <div>
+          <p className="text-dark-green font-bold">Request accepted</p>
+          <p className="text-dark-green text-sm">
+            The provider responded in {result.durationMs}ms. This model is ready
+            to add.
+          </p>
+        </div>
+      </div>
     );
   }
+  const title = result.status
+    ? `Request failed — ${result.status}`
+    : "Request failed";
   return (
-    <Alert variant="destructive">
-      <Alert.Title>The test request failed</Alert.Title>
-      <Alert.Description>{result.error}</Alert.Description>
-    </Alert>
+    <div
+      role="alert"
+      className="border-dark-red/20 bg-light-red flex gap-2 rounded-md border p-3"
+    >
+      <CircleX
+        size="base"
+        color="inherit"
+        __rawClassName="text-dark-red mt-0.5"
+        aria-hidden="true"
+      />
+      <div className="min-w-0">
+        <p className="text-dark-red font-bold">{title}</p>
+        <p className="text-dark-red text-sm break-words">{result.error}</p>
+      </div>
+    </div>
   );
 }
 

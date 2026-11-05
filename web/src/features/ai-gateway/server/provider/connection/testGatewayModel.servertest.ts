@@ -22,7 +22,8 @@ describe("testGatewayModel", () => {
 
     expect(result).toEqual({
       success: false,
-      error: "400: Model is not available",
+      status: "400 Bad Request",
+      error: "Model is not available",
     });
     const [url, init] = fetcher.mock.calls[0] ?? [];
     expect(url).toBe(
@@ -49,7 +50,7 @@ describe("testGatewayModel", () => {
       fetcher,
     });
 
-    expect(result).toEqual({ success: true });
+    expect(result).toEqual({ success: true, durationMs: expect.any(Number) });
     expect(fetcher.mock.calls.map(([url]) => String(url))).toEqual([
       "https://bedrock-runtime.eu-central-1.amazonaws.com/anthropic/v1/messages",
       "https://bedrock-runtime.eu-central-1.amazonaws.com/openai/v1/chat/completions",

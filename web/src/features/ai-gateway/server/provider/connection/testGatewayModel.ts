@@ -1,3 +1,5 @@
+import { STATUS_CODES } from "node:http";
+
 import { getBedrockModelApiFormats } from "@/src/features/ai-gateway/fns/getBedrockModelApiFormats";
 import { decodeBedrockApiKey } from "@/src/features/ai-gateway/server/provider/bedrock";
 import {
@@ -15,8 +17,8 @@ const BEDROCK_TEST_ORDER: GatewayApiFormat[] = [
 ];
 
 export type GatewayModelTestResult =
-  | { success: true }
-  | { success: false; error: string };
+  | { success: true; durationMs: number }
+  | { success: false; status?: string; error: string };
 
 /**
  * Sends a minimal request on each route the gateway would use for the model,
@@ -61,6 +63,7 @@ async function sendTestRequest(
     headers["anthropic-version"] = "2023-06-01";
   }
 
+  const startedAt = Date.now();
   let response: Response;
   try {
     response = await (params.fetcher ?? fetch)(`${baseUrl}${path}`, {
@@ -72,10 +75,12 @@ async function sendTestRequest(
   } catch {
     return { success: false, error: "The provider could not be reached." };
   }
-  if (response.ok) return { success: true };
+  if (response.ok) return { success: true, durationMs: Date.now() - startedAt };
   return {
     success: false,
-    error: `${response.status}: ${await readErrorMessage(response)}`,
+    status:
+      `${response.status} ${STATUS_CODES[response.status] ?? response.statusText}`.trim(),
+    error: await readErrorMessage(response),
   };
 }
 
