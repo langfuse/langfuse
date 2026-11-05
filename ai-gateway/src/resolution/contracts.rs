@@ -229,7 +229,7 @@ const RESERVED_EXTRA_HEADERS: &[&str] = &[
     "keep-alive",
     "proxy-authorization",
     "proxy-connection",
-    "te",
+    "te", // codespell:ignore
     "trailer",
     "transfer-encoding",
     "upgrade",

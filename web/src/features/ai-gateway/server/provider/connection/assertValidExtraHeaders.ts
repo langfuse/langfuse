@@ -9,7 +9,7 @@ const RESERVED_HEADER_NAMES = new Set([
   "content-length",
   "host",
   "keep-alive",
-  "te",
+  "te", // codespell:ignore
   "trailer",
   "transfer-encoding",
   "upgrade",

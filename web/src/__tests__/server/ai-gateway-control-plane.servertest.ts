@@ -1907,6 +1907,7 @@ describe("AI gateway control plane", () => {
       api_format: apiFormat,
       base_url: "https://api.openai.com/v1",
       auth: { type: "Bearer", token: "sk-test-openai-secondary" },
+      extra_headers: {},
     });
     const ingestionToken = result.ingestion!.access_token;
     const ingestionClaims = jwtVerifier.verify({ token: ingestionToken });
