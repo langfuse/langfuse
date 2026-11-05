@@ -3,6 +3,7 @@
 import {
   EvalTemplateType,
   EvalTargetObject,
+  TopicsTargetObject,
   type FilterState,
   type ObservationVariableMapping,
 } from "@langfuse/shared";
@@ -50,12 +51,14 @@ export function EvaluatorSavedDialogContainer({
   onboardingAnalytics,
   onDismiss,
   onFinish,
+  ruleTarget = "event",
 }: {
   projectId: string;
   evaluator: EvaluatorSavedDialogEvaluator;
   onboardingAnalytics: ReturnType<typeof createEvalOnboardingAnalytics> | null;
   onDismiss: () => Promise<void>;
   onFinish: () => Promise<void>;
+  ruleTarget?: "event" | typeof TopicsTargetObject;
 }) {
   const capture = usePostHogClientCapture();
   const utils = api.useUtils();
@@ -94,7 +97,10 @@ export function EvaluatorSavedDialogContainer({
       page: 1,
       limit: 100,
       enabled: true,
-      targetObjects: [EvalTargetObject.EVENT, EvalTargetObject.EXPERIMENT],
+      targetObjects:
+        ruleTarget === TopicsTargetObject
+          ? [TopicsTargetObject]
+          : [EvalTargetObject.EVENT, EvalTargetObject.EXPERIMENT],
     },
     { enabled: dialogPhase === "saved" },
   );
@@ -104,7 +110,10 @@ export function EvaluatorSavedDialogContainer({
       page: 1,
       limit: 100,
       enabled: false,
-      targetObjects: [EvalTargetObject.EVENT, EvalTargetObject.EXPERIMENT],
+      targetObjects:
+        ruleTarget === TopicsTargetObject
+          ? [TopicsTargetObject]
+          : [EvalTargetObject.EVENT, EvalTargetObject.EXPERIMENT],
     },
     { enabled: dialogPhase === "saved" },
   );
@@ -134,8 +143,14 @@ export function EvaluatorSavedDialogContainer({
     supportedFilters: supportedRuleFilters,
     unsupportedReasons: unsupportedRuleFilterReasons,
   } = useMemo(
-    () => classifySampleFiltersForRule(evaluator.sampleFilter),
-    [evaluator.sampleFilter],
+    () =>
+      classifySampleFiltersForRule(
+        evaluator.sampleFilter,
+        ruleTarget === TopicsTargetObject
+          ? TopicsTargetObject
+          : EvalTargetObject.EVENT,
+      ),
+    [evaluator.sampleFilter, ruleTarget],
   );
   const selectedRule = availableRules.find(
     (rule) => rule.id === selectedRuleId,
@@ -210,6 +225,9 @@ export function EvaluatorSavedDialogContainer({
       evaluatorId: evaluator.id,
       filter: supportedRuleFilters,
       sampling,
+      ...(ruleTarget === TopicsTargetObject
+        ? { targetObject: TopicsTargetObject }
+        : {}),
     });
     if (result.action === "created") {
       capture("evaluation_rules:create", {
@@ -678,6 +696,9 @@ export function EvaluatorSavedDialogContainer({
           });
         }}
         initialEvaluator={{ ...evaluator, initialVariableMapping: null }}
+        targetObject={
+          ruleTarget === TopicsTargetObject ? TopicsTargetObject : undefined
+        }
         successNotification="none"
       />
     );

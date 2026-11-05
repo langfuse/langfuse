@@ -158,6 +158,8 @@ export type SampleObservationSelectorBaseProps = {
   matchingTooltip: string;
   formatCount: (count: number) => string;
   mapObservedOptions: MapSampleObservedOptions;
+  sampleScope?: "trace" | "observation";
+  onSampleScopeChange?: (sampleScope: "trace" | "observation") => void;
 };
 
 export function SampleObservationSelectorBase(
@@ -184,6 +186,8 @@ export function SampleObservationSelectorBase(
     matchingTooltip,
     formatCount,
     mapObservedOptions,
+    sampleScope: controlledSampleScope,
+    onSampleScopeChange,
   } = props;
   const activeRegistry = registry ?? EVENTS_FIELD_REGISTRY;
   const [filterMode, setFilterMode] =
@@ -191,9 +195,14 @@ export function SampleObservationSelectorBase(
       EVALUATOR_FILTER_EXPERIENCE_STORAGE_KEY,
       "query",
     );
-  const [sampleScope, setSampleScope] = useState<"trace" | "observation">(
-    "trace",
-  );
+  const [uncontrolledSampleScope, setUncontrolledSampleScope] = useState<
+    "trace" | "observation"
+  >("trace");
+  const sampleScope = controlledSampleScope ?? uncontrolledSampleScope;
+  const setSampleScope = (next: "trace" | "observation") => {
+    onSampleScopeChange?.(next);
+    if (controlledSampleScope === undefined) setUncontrolledSampleScope(next);
+  };
   const scopeGroupName = useId();
   const matchTraces = sampleLayout === "evaluator" && sampleScope === "trace";
   const loadSelectedIoOnly = sampleLayout === "evaluator";

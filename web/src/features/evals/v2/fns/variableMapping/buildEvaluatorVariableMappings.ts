@@ -9,9 +9,11 @@ import type { VariableFieldState } from "@/src/features/evals/v2/types/variableM
 export function buildEvaluatorVariableMappings({
   promptMessages,
   variableFields,
+  defaultColumnId,
 }: {
   promptMessages: EvaluatorPromptMessage[];
   variableFields: Record<string, VariableFieldState>;
+  defaultColumnId?: string;
 }) {
   const variables = [
     ...new Set(
@@ -21,7 +23,10 @@ export function buildEvaluatorVariableMappings({
   return variables.map((variable) => ({
     variable,
     fieldState: variableFields[variable] ?? {
-      selectedColumnId: inferDefaultMapping(variable).selectedColumnId ?? null,
+      selectedColumnId:
+        defaultColumnId ??
+        inferDefaultMapping(variable).selectedColumnId ??
+        null,
       jsonSelector: null,
     },
   }));

@@ -123,6 +123,7 @@ type EvaluatorSetupStoreActions = {
   setSelectedObservation: (
     selectedObservation: SampleObservation | null,
   ) => void;
+  setSampleScope: (sampleScope: "trace" | "observation") => void;
   setSampleFilter: (sampleFilter: FilterState) => void;
   setPromptPreviewEnabled: (promptPreviewEnabled: boolean) => void;
   setTestPanelOpen: (testPanelOpen: boolean) => void;
@@ -154,6 +155,7 @@ export type EvaluatorSetupStoreState = {
   modelParams: ModelConfig | null;
   hasChangedModelSelection: boolean;
   selectedObservation: SampleObservation | null;
+  sampleScope: "trace" | "observation";
   sampleFilter: FilterState;
   promptPreviewEnabled: boolean;
   testPanelOpen: boolean;
@@ -250,6 +252,7 @@ export function createEvaluatorSetupStore({
         : null,
     hasChangedModelSelection: false,
     selectedObservation: null,
+    sampleScope: "trace",
     sampleFilter: initialSampleFilter ?? [
       ...DEFAULT_OBSERVATION_FILTER_WHEN_REMAPPING,
     ],
@@ -486,6 +489,7 @@ export function createEvaluatorSetupStore({
         }),
       setSelectedObservation: (selectedObservation) =>
         set({ selectedObservation }),
+      setSampleScope: (sampleScope) => set({ sampleScope }),
       setSampleFilter: (sampleFilter) => set({ sampleFilter }),
       setPromptPreviewEnabled: (promptPreviewEnabled) =>
         set({ promptPreviewEnabled }),

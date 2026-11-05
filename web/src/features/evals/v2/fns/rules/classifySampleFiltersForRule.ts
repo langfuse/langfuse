@@ -1,6 +1,7 @@
 import {
   EvalTargetObject,
   eventsTableCols,
+  TopicsTargetObject,
   validateEvaluatorFiltersForTarget,
   type FilterState,
 } from "@langfuse/shared";
@@ -39,9 +40,14 @@ function unsupportedFilterReason(filter: FilterState[number]) {
   return `Evaluation rules can't filter by ${label} at the moment. ${suffix}`;
 }
 
-export function classifySampleFiltersForRule(filter: FilterState) {
+export function classifySampleFiltersForRule(
+  filter: FilterState,
+  targetObject:
+    | EvalTargetObject
+    | typeof TopicsTargetObject = EvalTargetObject.EVENT,
+) {
   const validation = validateEvaluatorFiltersForTarget({
-    targetObject: EvalTargetObject.EVENT,
+    targetObject,
     filter,
   });
   const unsupportedIndexes = new Set(

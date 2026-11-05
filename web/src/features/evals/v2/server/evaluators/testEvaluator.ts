@@ -1,4 +1,5 @@
 import {
+  extractValueFromObject,
   getCodeEvalVariableMapping,
   observationVariableMappingList,
 } from "@langfuse/shared";
@@ -25,6 +26,8 @@ import {
   type ExtractedVariable,
 } from "@langfuse/shared/src/server";
 import { getObservationForEvalById } from "@/src/features/evals/server/getObservationForEvalById";
+import { loadTraceTranscript } from "@/src/features/events/server/loadTraceTranscript";
+import { OBSERVATION_DATA_BINDING_ERROR } from "@/src/features/evals/v2/fns/variableMapping/traceVariableMapping";
 import type { NormalizedEvaluatorDefinition } from "./evaluatorTypes";
 import {
   assertCompleteEvaluatorVariableMapping,
@@ -37,19 +40,19 @@ export async function testEvaluator(params: {
   evaluatorId: string;
   includeEvaluatorLink?: boolean;
   definition: NormalizedEvaluatorDefinition;
-  observationId: string;
+  observationId?: string;
   traceId: string;
   startTime: Date;
   shouldReadFromObservationsTable?: boolean;
 }) {
   const startedAt = Date.now();
-  const observation = await getObservationForEvalById({
-    projectId: params.projectId,
-    id: params.observationId,
-    traceId: params.traceId,
-    startTime: params.startTime,
-    shouldReadFromObservationsTable: params.shouldReadFromObservationsTable,
-  });
+  if (params.observationId == null && params.definition.type === "CODE") {
+    return {
+      success: false as const,
+      error: "Code evaluators test one observation.",
+      durationMs: Date.now() - startedAt,
+    };
+  }
   let variableMapping;
   if (params.definition.type === "CODE") {
     variableMapping = getCodeEvalVariableMapping();
@@ -71,22 +74,68 @@ export async function testEvaluator(params: {
     });
     variableMapping = observationVariableMappingList.parse(llmVariableMapping);
   }
-  const variables = extractObservationVariables({
-    observation,
-    variableMapping,
-  });
+  let variables;
+  let hasExperimentContext = false;
+  let targetObservationId: string | null = params.observationId ?? null;
+  if (params.observationId == null) {
+    if (
+      variableMapping.some((mapping) => mapping.selectedColumnId !== "threads")
+    ) {
+      return {
+        success: false as const,
+        error: OBSERVATION_DATA_BINDING_ERROR,
+        durationMs: Date.now() - startedAt,
+      };
+    }
+    const loaded = await loadTraceTranscript({
+      projectId: params.projectId,
+      traceId: params.traceId,
+      timestamp: params.startTime,
+      context: "other",
+    });
+    if (!loaded.transcript) {
+      return {
+        success: false as const,
+        error: "This trace has no transcript.",
+        durationMs: Date.now() - startedAt,
+      };
+    }
+    const threads = loaded.transcript.threads;
+    variables = variableMapping.map((mapping) => ({
+      var: mapping.templateVariable,
+      value: extractValueFromObject(
+        { threads },
+        "threads",
+        mapping.jsonSelector ?? undefined,
+      ).value,
+    }));
+    targetObservationId = null;
+  } else {
+    const observation = await getObservationForEvalById({
+      projectId: params.projectId,
+      id: params.observationId,
+      traceId: params.traceId,
+      startTime: params.startTime,
+      shouldReadFromObservationsTable: params.shouldReadFromObservationsTable,
+    });
+    variables = extractObservationVariables({
+      observation,
+      variableMapping,
+    });
+    hasExperimentContext = Boolean(observation.experiment_id);
+  }
   const executionData = buildEvalExecutionData({
     type: "TEST",
     evaluatorId:
       params.includeEvaluatorLink === false ? null : params.evaluatorId,
     targetTraceId: params.traceId,
-    targetObservationId: params.observationId,
+    targetObservationId,
   });
 
   const result = await runEvaluatorTest({
     ...params,
     variables,
-    hasExperimentContext: Boolean(observation.experiment_id),
+    hasExperimentContext,
     ...executionData,
   });
 

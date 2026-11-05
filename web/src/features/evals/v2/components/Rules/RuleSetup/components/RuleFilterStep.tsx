@@ -12,9 +12,11 @@ const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
 export function RuleFilterStep({
   projectId,
   store,
+  traceTranscript = false,
 }: {
   projectId: string;
   store: RuleSetupStore;
+  traceTranscript?: boolean;
 }) {
   const filter = useStore(store, (state) => state.filter);
   const selectedObservationId = useStore(
@@ -30,7 +32,11 @@ export function RuleFilterStep({
     <Stepper
       number={1}
       title="Configure rule scope"
-      description="Set filters and a sampling rate to control which incoming observations are evaluated."
+      description={
+        traceTranscript
+          ? "Set filters and a sampling rate to control which traces are evaluated."
+          : "Set filters and a sampling rate to control which incoming observations are evaluated."
+      }
     >
       <RuleSampleObservationSelector
         projectId={projectId}

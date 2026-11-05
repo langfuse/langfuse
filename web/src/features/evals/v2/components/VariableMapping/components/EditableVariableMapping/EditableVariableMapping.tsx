@@ -25,6 +25,10 @@ import { buildJsonPathSuggestions } from "@/src/features/evals/v2/fns/variableMa
 import { evalVariableColumnLabel } from "@/src/features/evals/v2/fns/variableMapping/evalVariableColumnLabel";
 import { extractVariableMappingValue } from "@/src/features/evals/v2/fns/variableMapping/extractVariableMappingValue";
 import {
+  isObservationDataColumn,
+  OBSERVATION_DATA_BINDING_ERROR,
+} from "@/src/features/evals/v2/fns/variableMapping/traceVariableMapping";
+import {
   jsonPathToSegments,
   segmentsToJsonPath,
   type PathSegment,
@@ -164,6 +168,7 @@ function TreeSelectorBody({
   sourceObject,
   hasMatchingObservations,
   sourceUnavailableMessage,
+  threadsOnly,
   onSelect,
   onApplyJsonPath,
 }: {
@@ -174,6 +179,7 @@ function TreeSelectorBody({
   sourceObject: Record<string, unknown> | null;
   hasMatchingObservations: boolean;
   sourceUnavailableMessage?: string;
+  threadsOnly?: boolean;
   onSelect: (columnId: string, segments: PathSegment[]) => void;
   onApplyJsonPath: (jsonSelector: string | null) => void;
 }) {
@@ -185,18 +191,19 @@ function TreeSelectorBody({
   // object the parent rebuilds on every render.
   const roots = useMemo(
     () =>
-      [...experimentTargetEvalVariableColumns, THREADS_COLUMN].map(
-        (column) => ({
-          id: column.id,
-          label: column.name,
-          // Keep the top-level columns selectable without a sample so mappings
-          // can still be configured before the first matching event exists.
-          value: sourceObject
-            ? sampleColumnValue(sourceObject, column.id)
-            : undefined,
-        }),
-      ),
-    [sourceObject],
+      (threadsOnly
+        ? [THREADS_COLUMN]
+        : experimentTargetEvalVariableColumns
+      ).map((column) => ({
+        id: column.id,
+        label: column.name,
+        // Keep the top-level columns selectable without a sample so mappings
+        // can still be configured before the first matching event exists.
+        value: sourceObject
+          ? sampleColumnValue(sourceObject, column.id)
+          : undefined,
+      })),
+    [sourceObject, threadsOnly],
   );
   const suggestions = useMemo(
     () =>
@@ -285,6 +292,7 @@ function VariableMappingRow({
   hasMatchingObservations,
   unvalidatedSourceColumnIds,
   sourceUnavailableMessage,
+  threadsOnly,
   onChange,
   onDelete,
 }: {
@@ -301,6 +309,7 @@ function VariableMappingRow({
   hasMatchingObservations: boolean;
   unvalidatedSourceColumnIds: string[];
   sourceUnavailableMessage?: string;
+  threadsOnly?: boolean;
   onChange: (next: VariableFieldState) => void;
   onDelete?: () => void;
 }) {
@@ -332,7 +341,12 @@ function VariableMappingRow({
       ? { value: null, error: error.message }
       : { value, error: null };
   }, [unmapped, fieldState, sourceObject, validationUnavailable]);
+  const observationBindingError =
+    threadsOnly && isObservationDataColumn(fieldState.selectedColumnId)
+      ? OBSERVATION_DATA_BINDING_ERROR
+      : null;
   const warningMessage =
+    observationBindingError ??
     extracted?.error ??
     (sourceObject && extracted && !extracted.value
       ? "This mapping is empty in the selected sample."
@@ -347,6 +361,7 @@ function VariableMappingRow({
       sourceObject={sourceObject}
       hasMatchingObservations={hasMatchingObservations}
       sourceUnavailableMessage={sourceUnavailableMessage}
+      threadsOnly={threadsOnly}
       onSelect={(columnId, treeSegments) => {
         const jsonSelector = segmentsToJsonPath(treeSegments);
         if (
@@ -467,6 +482,8 @@ export type EditableVariableMappingProps = {
   /** Selected source columns that have no value in this sample and cannot be validated. */
   unvalidatedSourceColumnIds?: string[];
   sourceUnavailableMessage?: string;
+  /** Trace scope offers only the threads list. */
+  threadsOnly?: boolean;
   /** Renders names as prompt templates (default) or as state keys. */
   variableDisplay?: VariableDisplay;
   /** Enables renaming in the card header; the name must pass `validateVariableName`. */
@@ -484,6 +501,7 @@ export function EditableVariableMapping({
   hasMatchingObservations,
   unvalidatedSourceColumnIds = [],
   sourceUnavailableMessage,
+  threadsOnly,
   variableDisplay,
   onRenameVariable,
   validateVariableName,
@@ -538,6 +556,7 @@ export function EditableVariableMapping({
           hasMatchingObservations={hasMatchingObservations}
           unvalidatedSourceColumnIds={unvalidatedSourceColumnIds}
           sourceUnavailableMessage={sourceUnavailableMessage}
+          threadsOnly={threadsOnly}
           onChange={(next) => onChangeField(item.variable, next)}
           onDelete={
             onDeleteVariable ? () => onDeleteVariable(item.variable) : undefined

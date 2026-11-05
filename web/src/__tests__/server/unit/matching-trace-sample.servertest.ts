@@ -1,11 +1,12 @@
+import { extractValueFromObject } from "@langfuse/shared";
 import { describe, expect, it } from "vitest";
 
 import { inferDefaultMapping } from "@/src/features/evals/utils/evaluator-form-utils";
+import { isObservationDataColumn } from "@/src/features/evals/v2/fns/variableMapping/traceVariableMapping";
 import {
   matchingTraceRootLowerBound,
   orderRootsByMatchedTraceIds,
 } from "@/src/features/events/server/matchingTraceRoots";
-import { threadsFromObservationIo } from "@/src/features/events/server/threadsFromObservationIo";
 
 describe("matching trace sample", () => {
   it("keeps roots in matched-trace order and drops traces with no root", () => {
@@ -30,36 +31,24 @@ describe("matching trace sample", () => {
     ).toBe("2026-01-08T00:00:00.000Z");
   });
 
-  it("assembles threads from the selected observation I/O", () => {
-    const observation = {
-      id: "gen-1",
-      traceId: "trace-1",
-      parentObservationId: null,
-      name: "chat",
-      startTime: new Date("2026-01-01T12:00:00.000Z"),
-      endTime: new Date("2026-01-01T12:00:01.000Z"),
-      input: JSON.stringify([{ role: "user", content: "Where is my order?" }]),
-      output: JSON.stringify([
-        { role: "assistant", content: "It arrives tomorrow." },
-      ]),
-      metadata: {},
-    };
+  it("reads threads and a path inside them, and rejects observation columns", () => {
+    const threads = [
+      { currentTurn: { messages: [{ role: "user", content: "hello" }] } },
+    ];
 
-    const threads = threadsFromObservationIo({
-      ...observation,
-      type: "GENERATION",
-    });
-
-    expect(threads).toEqual([
-      expect.objectContaining({
-        currentTurn: expect.objectContaining({
-          observations: [{ id: "gen-1", traceId: "trace-1" }],
-        }),
-      }),
-    ]);
+    expect(extractValueFromObject({ threads }, "threads").value).toBe(threads);
     expect(
-      threadsFromObservationIo({ ...observation, type: "SPAN" }),
-    ).toBeNull();
+      extractValueFromObject(
+        { threads },
+        "threads",
+        "$[0].currentTurn.messages[0].role",
+      ).value,
+    ).toBe("user");
+    expect(isObservationDataColumn("output")).toBe(true);
+    expect(isObservationDataColumn("toolCalls")).toBe(true);
+    expect(isObservationDataColumn("experimentItemMetadata")).toBe(true);
+    expect(isObservationDataColumn("threads")).toBe(false);
+    expect(isObservationDataColumn(null)).toBe(false);
   });
 
   it("binds conversation to threads", () => {

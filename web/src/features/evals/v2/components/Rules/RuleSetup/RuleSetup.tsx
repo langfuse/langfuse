@@ -1,4 +1,5 @@
 import type { ComponentProps } from "react";
+import { TopicsTargetObject } from "@langfuse/shared";
 import type {
   RuleEvaluatorOption,
   RuleSetupStore,
@@ -17,6 +18,7 @@ export function RuleSetup({
   store,
   nameAIAssistance,
   onNameStepOpenChange,
+  targetObject,
 }: {
   projectId: string;
   evaluatorOptions: RuleEvaluatorOption[];
@@ -25,10 +27,15 @@ export function RuleSetup({
   store: RuleSetupStore;
   nameAIAssistance: ComponentProps<typeof AIAssistedInput>["aiAssistance"];
   onNameStepOpenChange: (open: boolean) => void;
+  targetObject?: "event" | "experiment" | typeof TopicsTargetObject;
 }) {
   return (
     <div className="flex flex-col gap-3">
-      <RuleFilterStep projectId={projectId} store={store} />
+      <RuleFilterStep
+        projectId={projectId}
+        store={store}
+        traceTranscript={targetObject === TopicsTargetObject}
+      />
       <RuleEvaluatorsStep
         projectId={projectId}
         evaluatorOptions={evaluatorOptions}

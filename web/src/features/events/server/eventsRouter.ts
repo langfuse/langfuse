@@ -47,7 +47,6 @@ import {
   EVENT_FILTER_OPTIONS_COLUMNS,
 } from "./eventsService";
 import { loadTraceTranscript } from "./loadTraceTranscript";
-import { threadsFromObservationIo } from "./threadsFromObservationIo";
 import {
   instrumentAsync,
   getCurrentSpan,
@@ -145,21 +144,6 @@ const BatchIOInput = zodSchema.object({
   ioCharLimit: zodSchema.number().int().positive().max(10_000).optional(),
   includeToolCalls: zodSchema.boolean().optional(), // Defaults to false; tool-call arrays can be large
   includeSkills: zodSchema.boolean().optional(),
-  includeTranscriptThreads: zodSchema.boolean().optional(),
-  transcriptHints: zodSchema
-    .array(
-      zodSchema.object({
-        id: zodSchema.string(),
-        traceId: zodSchema.string(),
-        type: zodSchema.string(),
-        name: zodSchema.string().nullable(),
-        startTime: zodSchema.date(),
-        endTime: zodSchema.date().nullable(),
-        parentObservationId: zodSchema.string().nullable(),
-      }),
-    )
-    .max(500)
-    .optional(),
   // Opts into trace-level auth (public traces) in protectedGetEventsTraceProcedure
   traceId: zodSchema.string().optional(),
 });
@@ -519,34 +503,9 @@ export const eventsRouter = createTRPCRouter({
             includeToolCallFields: input.includeToolCalls,
             includeSkillFields: input.includeSkills,
           });
-          const hints = input.transcriptHints ?? [];
-          const rows = input.includeTranscriptThreads
-            ? batchIO.map((row) => {
-                const hint = hints.find((candidate) => candidate.id === row.id);
-                return {
-                  ...row,
-                  threads:
-                    hint === undefined
-                      ? null
-                      : threadsFromObservationIo({
-                          id: hint.id,
-                          traceId: hint.traceId,
-                          parentObservationId: hint.parentObservationId,
-                          type: hint.type,
-                          name: hint.name,
-                          startTime: hint.startTime,
-                          endTime: hint.endTime,
-                          input: row.input,
-                          output: row.output,
-                          metadata: row.metadata,
-                        }),
-                };
-              })
-            : batchIO;
-
-          audit.refs(observationRefs(rows));
-          audit.count(rows.length);
-          return rows.map(toDomainWithStringifiedMetadata);
+          audit.refs(observationRefs(batchIO));
+          audit.count(batchIO.length);
+          return batchIO.map(toDomainWithStringifiedMetadata);
         },
       );
     },

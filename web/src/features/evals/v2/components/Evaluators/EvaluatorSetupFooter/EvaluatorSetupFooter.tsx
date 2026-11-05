@@ -6,6 +6,10 @@ import type { JudgeModel } from "@/src/features/evals/v2/judgeModel";
 import { getPromptMessagesValidationError } from "@/src/features/evals/v2/fns/promptMessages/hasInvalidSystemPromptMessage";
 import { getScoreOutputValidation } from "@/src/features/evals/v2/fns/scoreOutput/getScoreOutputValidation";
 import {
+  isObservationDataColumn,
+  OBSERVATION_DATA_BINDING_ERROR,
+} from "@/src/features/evals/v2/fns/variableMapping/traceVariableMapping";
+import {
   selectHasValidModel,
   type EvaluatorSetupStore,
 } from "@/src/features/evals/v2/store/evaluatorSetupStore/evaluatorSetupStore";
@@ -40,6 +44,7 @@ export function EvaluatorSetupFooter({
     scoreOutputReason,
     nameMissing,
     hasValidModel,
+    traceBindingBlocked,
   } = useStore(
     store,
     useShallow((state) => {
@@ -50,6 +55,12 @@ export function EvaluatorSetupFooter({
         mappings.every(({ fieldState }) =>
           Boolean(fieldState.selectedColumnId),
         );
+      const traceBindingBlocked =
+        state.sampleScope === "trace" &&
+        state.type !== "CODE" &&
+        mappings.some(({ fieldState }) =>
+          isObservationDataColumn(fieldState.selectedColumnId),
+        );
 
       return {
         currentSnapshot: JSON.stringify({
@@ -57,7 +68,9 @@ export function EvaluatorSetupFooter({
           description: state.description.trim() || null,
           definition: prepareEvaluatorDraft(state).definition,
         }),
-        canSubmit: Boolean(definition) && hasCompleteMappings,
+        canSubmit:
+          Boolean(definition) && hasCompleteMappings && !traceBindingBlocked,
+        traceBindingBlocked,
         promptMessagesReason:
           state.type === "LLM_AS_JUDGE"
             ? getPromptMessagesValidationError(state.promptMessages)
@@ -76,6 +89,9 @@ export function EvaluatorSetupFooter({
   );
   const hasUnsavedChanges = currentSnapshot !== initialSnapshot;
   const disabledReason = (() => {
+    if (traceBindingBlocked) {
+      return OBSERVATION_DATA_BINDING_ERROR;
+    }
     if (nameMissing && !nameAIAssistanceAvailable) {
       return "Add an evaluator name before saving.";
     }

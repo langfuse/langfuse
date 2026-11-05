@@ -37,6 +37,8 @@ export function EvaluatorSampleObservationSelector({
   onFilterStateChange,
   onSelect,
   onOpenTrace,
+  sampleScope,
+  onSampleScopeChange,
 }: {
   projectId: string;
   timeRange: AbsoluteTimeRange | null;
@@ -45,6 +47,8 @@ export function EvaluatorSampleObservationSelector({
   onFilterStateChange: (filters: FilterState) => void;
   onSelect: (observation: SampleObservation | null) => void;
   onOpenTrace: (observation: SampleObservation) => void;
+  sampleScope?: "trace" | "observation";
+  onSampleScopeChange?: (sampleScope: "trace" | "observation") => void;
 }) {
   const selectionGroupName = useId();
   const leadingColumns = useMemo<LangfuseColumnDef<SampleObservation>[]>(
@@ -111,6 +115,8 @@ export function EvaluatorSampleObservationSelector({
         `(${compactNumberFormatter(count)} ${count === 1 ? "match" : "matches"})`
       }
       mapObservedOptions={preserveObservedOptions}
+      sampleScope={sampleScope}
+      onSampleScopeChange={onSampleScopeChange}
     />
   );
 }

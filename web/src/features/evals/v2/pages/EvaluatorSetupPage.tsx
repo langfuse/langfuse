@@ -237,6 +237,10 @@ export function EvaluatorSetupPage(
       mode: props.mode,
     }),
   );
+  const sampleScope = useStore(
+    evaluatorSetupStore,
+    (state) => state.sampleScope,
+  );
   const [onboardingAnalytics] = useState(() =>
     props.mode === "create"
       ? createEvalOnboardingAnalytics({
@@ -764,6 +768,7 @@ export function EvaluatorSetupPage(
     );
     const selectedObservation = state.selectedObservation;
     if (!definition || !selectedObservation?.traceId) return;
+    const traceScope = state.sampleScope === "trace" && state.type !== "CODE";
     capture("evaluators:test", {
       evaluatorType: state.type,
       isEditing: Boolean(initialEvaluator),
@@ -772,7 +777,7 @@ export function EvaluatorSetupPage(
       projectId,
       evaluatorId,
       definition,
-      observationId: selectedObservation.id,
+      ...(traceScope ? {} : { observationId: selectedObservation.id }),
       traceId: selectedObservation.traceId,
       startTime: selectedObservation.startTime,
     });
@@ -1073,6 +1078,7 @@ export function EvaluatorSetupPage(
         <EvaluatorSavedDialogContainer
           projectId={projectId}
           evaluator={savedEvaluator}
+          ruleTarget={sampleScope === "trace" ? "trace_transcript" : "event"}
           onboardingAnalytics={onboardingAnalytics}
           onDismiss={async () => {
             await router.push(

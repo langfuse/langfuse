@@ -1,6 +1,10 @@
 /* eslint-disable no-nested-ternary, @typescript-eslint/no-deprecated -- Legacy UI usage retained during migration to design-system components. */
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
-import type { EvalTargetObject, FilterState } from "@langfuse/shared";
+import {
+  TopicsTargetObject,
+  type EvalTargetObject,
+  type FilterState,
+} from "@langfuse/shared";
 import { useRef, useState } from "react";
 import {
   Dialog,
@@ -25,6 +29,7 @@ import { useProject } from "@/src/features/projects/hooks";
 import { prepareNameForSave } from "@/src/features/evals/v2/fns/prepareNameForSave";
 import { getFilterAnalyticsProperties } from "@/src/features/evals/v2/fns/getFilterAnalyticsProperties";
 import { resolveInitialRuleFilters } from "./resolveInitialRuleFilters";
+import { TraceRuleIdleTime } from "@/src/features/evals/v2/components/Rules/CreateRuleDialog/components/TraceRuleIdleTime/TraceRuleIdleTime";
 
 export function CreateRuleDialogContent({
   projectId,
@@ -47,7 +52,9 @@ export function CreateRuleDialogContent({
   initialEvaluator: RuleEvaluatorOption | undefined;
   initialDraft: RuleDraft | undefined;
   initialFilter: FilterState | undefined;
-  targetObject?: Extract<EvalTargetObject, "event" | "experiment">;
+  targetObject?:
+    | Extract<EvalTargetObject, "event" | "experiment">
+    | typeof TopicsTargetObject;
   evaluatorSearch: string;
   successNotification: "toast" | "none";
   onCreated?: () => void;
@@ -160,16 +167,22 @@ export function CreateRuleDialogContent({
         <DialogHeader>
           <DialogTitle>New rule</DialogTitle>
           <DialogDescription>
-            Select which incoming observations should trigger evaluators.
+            {targetObject === TopicsTargetObject
+              ? "Select which traces should trigger this evaluator."
+              : "Select which incoming observations should trigger evaluators."}
           </DialogDescription>
         </DialogHeader>
         <DialogBody>
+          {targetObject === TopicsTargetObject ? (
+            <TraceRuleIdleTime projectId={projectId} />
+          ) : null}
           <RuleSetup
             projectId={projectId}
             evaluatorOptions={evaluatorOptions}
             evaluatorSearch={evaluatorSearch}
             onEvaluatorSearchChange={onEvaluatorSearchChange}
             store={ruleSetupStore}
+            targetObject={targetObject}
             nameAIAssistance={
               !nameAIAssistanceAvailable
                 ? { state: "unavailable" }
