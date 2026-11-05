@@ -72,7 +72,7 @@ When Claude (Claude Code, `claude[bot]`, or the security-review action),
 Greptile (`greptile-apps[bot]`), or Codex (`chatgpt-codex-connector[bot]`)
 leaves review comments on a PR you own:
 
-1. Keep each thread open. Do not reply in the thread.
+1. After the fix is pushed, resolve each bot thread you fixed, or skipped only when you are sure, even when the prompt only says to fix, address, or reply (see `git-workflow`). If the task asked for a reply, post it and then resolve.
 2. If the finding is right: apply the fix, then resolve the thread.
 3. If you are sure it should be skipped: tell the human in plain language
    what you skipped and why, invite them to doubt that call, then resolve
