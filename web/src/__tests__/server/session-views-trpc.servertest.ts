@@ -83,6 +83,96 @@ const prepare = async () => {
 };
 
 describe("session views", () => {
+  it("rejects score filters when creating or updating views", async () => {
+    const { owner, callerFor, input } = await prepare();
+    const caller = callerFor(owner.id, "ADMIN");
+    const { view } = await caller.sessionViews.create(input);
+    const filters = [
+      {
+        column: "scores_avg",
+        type: "numberObject" as const,
+        key: "quality",
+        operator: ">" as const,
+        value: 0.5,
+      },
+    ];
+    await expect(
+      caller.sessionViews.create({ ...input, name: "Scores", filters }),
+    ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    await expect(
+      caller.sessionViews.update({ ...input, id: view.id, filters }),
+    ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+  });
+
+  it("loads valid views even when a legacy row has unsupported filters", async () => {
+    const { project, owner, callerFor, input } = await prepare();
+    const caller = callerFor(owner.id, "ADMIN");
+    const { view } = await caller.sessionViews.create(input);
+    const invalid = await prisma.sessionView.create({
+      data: {
+        ...input,
+        name: "Unsupported legacy preset",
+        filters: [
+          {
+            column: "scores_avg",
+            type: "numberObject",
+            key: "quality",
+            operator: ">",
+            value: 0.5,
+          },
+        ],
+      },
+    });
+    await expect(
+      caller.sessionViews.list({ projectId: project.id }),
+    ).resolves.toEqual([
+      expect.objectContaining({ id: view.id, filters: input.filters }),
+      expect.objectContaining({
+        id: invalid.id,
+        name: invalid.name,
+        isSupported: false,
+      }),
+    ]);
+    await expect(
+      prisma.sessionView.findUnique({ where: { id: invalid.id } }),
+    ).resolves.not.toBeNull();
+  });
+
+  it.each([
+    {
+      column: "commentContent",
+      type: "string" as const,
+      operator: "starts with" as const,
+      value: "secret",
+    },
+    {
+      column: "commentCount",
+      type: "number" as const,
+      operator: ">" as const,
+      value: 0,
+    },
+  ])(
+    "rejects anonymous public-session filtering on $column",
+    async (filter) => {
+      const { project } = await prepare();
+      const sessionId = randomUUID();
+      await prisma.traceSession.create({
+        data: { id: sessionId, projectId: project.id, public: true },
+      });
+      const caller = appRouter.createCaller({
+        ...createInnerTRPCContext({ session: null, headers: {} }),
+        prisma,
+      });
+      await expect(
+        caller.sessions.tracesFromEvents({
+          projectId: project.id,
+          sessionId,
+          filter: [filter],
+        }),
+      ).rejects.toMatchObject({ code: "BAD_REQUEST" });
+    },
+  );
+
   it("lets administrators manage orphaned views and reports missing IDs", async () => {
     const { project, owner, other, callerFor, input } = await prepare();
     const admin = callerFor(owner.id, "ADMIN");

@@ -36,21 +36,27 @@ export const sessionViewsRouter = createTRPCRouter({
         projectId: input.projectId,
         scope: "projectMembers:read",
       });
-      return views.map((view) => ({
-        ...view,
-        canEdit: canManageSessionView({
-          session: ctx.session,
-          projectId: input.projectId,
-          createdBy: view.createdBy,
-        }),
-        filters: SessionViewInputSchema.shape.filters.parse(view.filters),
-        createdByUser: view.createdByUser
-          ? {
-              ...view.createdByUser,
-              email: canReadMembers ? view.createdByUser.email : null,
-            }
-          : null,
-      }));
+      return views.map((view) => {
+        const filters = SessionViewInputSchema.shape.filters.safeParse(
+          view.filters,
+        );
+        return {
+          ...view,
+          isSupported: filters.success,
+          canEdit: canManageSessionView({
+            session: ctx.session,
+            projectId: input.projectId,
+            createdBy: view.createdBy,
+          }),
+          filters: filters.success ? filters.data : [],
+          createdByUser: view.createdByUser
+            ? {
+                ...view.createdByUser,
+                email: canReadMembers ? view.createdByUser.email : null,
+              }
+            : null,
+        };
+      });
     }),
   create: protectedProjectProcedure
     .input(SessionViewInputSchema)

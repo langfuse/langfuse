@@ -11,19 +11,11 @@ export const sessionTraceFilterColumns: ColumnDefinition[] = [
     internal: "is_root_observation",
   },
   { id: "traceName", name: "Trace name", type: "string", internal: "name" },
-  { id: "userId", name: "User ID", type: "string", internal: "user_id" },
   {
     id: "environment",
     name: "Environment",
     type: "string",
     internal: "environment",
-  },
-  {
-    id: "traceTags",
-    name: "Trace tags",
-    type: "arrayOptions",
-    internal: "tags",
-    options: [],
   },
   {
     id: "name",
@@ -42,12 +34,6 @@ export const sessionTraceFilterColumns: ColumnDefinition[] = [
     name: "Observation level",
     type: "string",
     internal: "level",
-  },
-  {
-    id: "metadata",
-    name: "Observation metadata",
-    type: "stringObject",
-    internal: "metadata",
   },
 ];
 
@@ -78,22 +64,19 @@ export const sessionTraceFilterSchema = singleFilterList
   )
   .superRefine((filters, ctx) => {
     filters.forEach((filter, index) => {
-      if (
-        filter.type === "positionInTrace" &&
-        filter.column === "positionInTrace"
-      )
-        return;
-      const column: ColumnDefinition | undefined = eventsTableCols.find(
-        (column) => column.id === filter.column,
-      );
-      if (
-        column &&
-        (filter.type === column.type ||
-          (filter.type === "string" && column.type === "stringOptions") ||
-          (filter.type === "stringOptions" && column.type === "string") ||
-          (filter.type === "null" && column.nullable))
-      )
-        return;
+      if (filter.column === "isRootObservation") {
+        if (filter.type === "boolean" && filter.operator === "=") return;
+      } else if (["name", "traceName"].includes(filter.column)) {
+        if (filter.type === "stringOptions" && filter.operator === "none of")
+          return;
+        if (
+          filter.type === "string" &&
+          ["=", "contains", "does not contain"].includes(filter.operator)
+        )
+          return;
+      } else if (["type", "level", "environment"].includes(filter.column)) {
+        if (filter.type === "string" && filter.operator === "=") return;
+      }
       ctx.addIssue({
         code: "custom",
         path: [index],

@@ -834,7 +834,7 @@ const LoadedSessionEventsPage: React.FC<{
   );
   const isMessagesPinned = !unpinnedSessionViewIds.includes("messages");
   const selectedSavedView = sessionSavedViews?.find(
-    (view) => view.id === requestedSessionViewId,
+    (view) => view.isSupported && view.id === requestedSessionViewId,
   );
   const selectionMatchesFilters =
     selectedSavedView &&
@@ -851,6 +851,7 @@ const LoadedSessionEventsPage: React.FC<{
     unsavedSessionView.viewMode === viewMode;
   const matchingSavedView = sessionSavedViews?.find(
     (view) =>
+      view.isSupported &&
       JSON.stringify(view.filters) === JSON.stringify(traceFilters) &&
       view.unmatchedTraces === unmatchedTraces &&
       view.viewMode === viewMode,
@@ -858,7 +859,11 @@ const LoadedSessionEventsPage: React.FC<{
   const restoredSessionViewId = (() => {
     if (selectionMatchesFilters || unsavedSelectionMatches)
       return requestedSessionViewId;
-    if (initialSessionViewId !== "messages" && matchingSavedView)
+    if (
+      initialSessionViewId !== "messages" &&
+      matchingSavedView &&
+      !unpinnedSessionViewIds.includes(matchingSavedView.id)
+    )
       return matchingSavedView.id;
     return initialSessionViewId;
   })();
@@ -904,7 +909,7 @@ const LoadedSessionEventsPage: React.FC<{
       );
     } else {
       const view = sessionSavedViews?.find((view) => view.id === id);
-      if (!view) return;
+      if (!view?.isSupported) return;
       setTraceFilters(view.filters);
       setUnmatchedTraces(view.unmatchedTraces);
       setViewModeQuery(view.viewMode === "list" ? "list" : undefined);
@@ -919,7 +924,9 @@ const LoadedSessionEventsPage: React.FC<{
     if (sessionViewId === id) {
       const nextViewId = [
         ...(isMessagesPinned ? ["messages"] : []),
-        ...customSessionViews.map((view) => view.id),
+        ...customSessionViews
+          .filter((view) => view.isSupported)
+          .map((view) => view.id),
         ...(unsavedSessionView?.sessionId === sessionId ? ["unsaved"] : []),
       ].find(
         (viewId) => viewId !== id && !unpinnedSessionViewIds.includes(viewId),
@@ -1557,6 +1564,7 @@ const LoadedSessionEventsPage: React.FC<{
                       ? "messages"
                       : customSessionViews.find(
                           (view) =>
+                            view.isSupported &&
                             view.id !== id &&
                             !unpinnedSessionViewIds.includes(view.id),
                         )?.id;
@@ -1631,7 +1639,7 @@ const LoadedSessionEventsPage: React.FC<{
                       const view = customSessionViews.find(
                         (view) => view.id === id,
                       );
-                      if (view?.canEdit)
+                      if (view?.isSupported && view.canEdit)
                         openViewAction({ view, action: "edit" });
                     }}
                     onDeleteView={(id) => {
@@ -2003,7 +2011,7 @@ const LoadedSessionEventsPage: React.FC<{
                                     const view = customSessionViews.find(
                                       (view) => view.id === id,
                                     );
-                                    if (!view) return;
+                                    if (!view?.isSupported) return;
                                     if (action !== "duplicate" && !view.canEdit)
                                       return;
                                     openViewAction({ action, view });
@@ -2023,6 +2031,7 @@ const LoadedSessionEventsPage: React.FC<{
                                           ? "messages"
                                           : (customSessionViews.find(
                                               (view) =>
+                                                view.isSupported &&
                                                 !unpinnedSessionViewIds.includes(
                                                   view.id,
                                                 ),
@@ -2035,6 +2044,7 @@ const LoadedSessionEventsPage: React.FC<{
                                     unsavedSessionView?.sessionId === sessionId,
                                   savedViews: customSessionViews.filter(
                                     (view) =>
+                                      view.isSupported &&
                                       !unpinnedSessionViewIds.includes(view.id),
                                   ),
                                   onUnpin: unpinSessionView,

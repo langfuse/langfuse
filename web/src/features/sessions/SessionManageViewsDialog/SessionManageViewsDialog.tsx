@@ -47,6 +47,7 @@ const columns: ColumnDef<SessionViewRow>[] = [
             <IconButton
               icon={isPinned ? PinOff : Pin}
               label={pinLabel}
+              disabled={view.isSupported === false}
               {...getTriggerProps({
                 onClick: view.onTogglePin,
               })}
@@ -63,6 +64,7 @@ const columns: ColumnDef<SessionViewRow>[] = [
     cell: ({ row }) => (
       <span className="block truncate" title={row.original.name}>
         {row.original.name}
+        {row.original.isSupported === false && " (unsupported)"}
       </span>
     ),
   },
@@ -107,7 +109,7 @@ const columns: ColumnDef<SessionViewRow>[] = [
               <IconButton
                 icon={Pencil}
                 label={`Edit ${view.name}`}
-                disabled={!view.canEdit}
+                disabled={!view.canEdit || view.isSupported === false}
                 onClick={view.onEdit}
               />
               <IconButton
@@ -144,7 +146,7 @@ function SessionManageViewsList({
     Partial<
       Pick<
         RouterOutputs["sessionViews"]["list"][number],
-        "createdBy" | "createdByUser"
+        "createdBy" | "createdByUser" | "isSupported"
       >
     >)[];
   currentUserId: string | undefined;
@@ -160,7 +162,10 @@ function SessionManageViewsList({
 }) {
   const [tab, setTab] = useState("all");
   const reorderableViews = views.filter(
-    (view) => view.id !== "messages" && !unpinnedViewIds.includes(view.id),
+    (view) =>
+      view.isSupported !== false &&
+      view.id !== "messages" &&
+      !unpinnedViewIds.includes(view.id),
   );
 
   const filteredViews = views
@@ -181,7 +186,8 @@ function SessionManageViewsList({
     return {
       status: "success",
       data: filteredViews.map((view) => {
-        const isPinned = !unpinnedViewIds.includes(view.id);
+        const isPinned =
+          view.isSupported !== false && !unpinnedViewIds.includes(view.id);
         const index = reorderableViews.findIndex(
           (candidate) => candidate.id === view.id,
         );
@@ -296,7 +302,13 @@ export function SessionManageViewsDialog({
           }}
           onEdit={(id) => {
             const view = customViews.find((view) => view.id === id);
-            if (!view || !canEdit || !view.canEdit) return;
+            if (
+              !view ||
+              view.isSupported === false ||
+              !canEdit ||
+              !view.canEdit
+            )
+              return;
             onEditView(id);
           }}
           onDelete={(id) => {

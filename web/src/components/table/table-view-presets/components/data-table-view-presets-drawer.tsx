@@ -349,10 +349,12 @@ function TableViewPresetsDrawerContentBody({
     },
   });
 
-  const hasWriteAccess = useHasProjectAccess({
+  const hasPresetWriteAccess = useHasProjectAccess({
     projectId,
     scope: "TableViewPresets:CUD",
   });
+  // Session presets were migrated; new writes belong to saved session views.
+  const hasWriteAccess = hasPresetWriteAccess && tableName !== "session-detail";
 
   const { setViewAsDefault, clearViewDefault, isSettingDefault } =
     useDefaultViewMutations({ tableName, projectId });
@@ -918,35 +920,39 @@ function TableViewPresetsDrawerContentBody({
                                 />
                               )}
                             </DropdownMenuItem>
-                            {!isSystemView && (
-                              <>
-                                <DropdownMenuSeparator />
-                                <DropdownMenuItem asChild>
-                                  <DeleteButton
-                                    itemId={view.id}
-                                    projectId={projectId}
-                                    scope="TableViewPresets:CUD"
-                                    entityToDeleteName="view"
-                                    executeDeleteMutation={async () => {
-                                      await handleDeleteView(view.id);
-                                    }}
-                                    isDeleteMutationLoading={
-                                      deleteMutation.isPending
-                                    }
-                                    invalidateFunc={() => {
-                                      utils.TableViewPresets.invalidate();
-                                    }}
-                                    captureDeleteOpen={() =>
-                                      capture("saved_views:delete_form_open", {
-                                        tableName,
-                                        viewId: view.id,
-                                      })
-                                    }
-                                    captureDeleteSuccess={() => {}}
-                                  />
-                                </DropdownMenuItem>
-                              </>
-                            )}
+                            {!isSystemView &&
+                              tableName !== "session-detail" && (
+                                <>
+                                  <DropdownMenuSeparator />
+                                  <DropdownMenuItem asChild>
+                                    <DeleteButton
+                                      itemId={view.id}
+                                      projectId={projectId}
+                                      scope="TableViewPresets:CUD"
+                                      entityToDeleteName="view"
+                                      executeDeleteMutation={async () => {
+                                        await handleDeleteView(view.id);
+                                      }}
+                                      isDeleteMutationLoading={
+                                        deleteMutation.isPending
+                                      }
+                                      invalidateFunc={() => {
+                                        utils.TableViewPresets.invalidate();
+                                      }}
+                                      captureDeleteOpen={() =>
+                                        capture(
+                                          "saved_views:delete_form_open",
+                                          {
+                                            tableName,
+                                            viewId: view.id,
+                                          },
+                                        )
+                                      }
+                                      captureDeleteSuccess={() => {}}
+                                    />
+                                  </DropdownMenuItem>
+                                </>
+                              )}
                           </DropdownMenuContent>
                         </DropdownMenu>
                         {!isSystemView && (
