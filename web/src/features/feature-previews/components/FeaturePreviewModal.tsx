@@ -18,10 +18,10 @@ import {
   isInternalFeaturePreviewFlag,
   type PersonalFeaturePreviewFlag,
 } from "@/src/features/feature-flags/available-flags";
-import { InternalFeatureBadge } from "@/src/features/feature-flags/components/InternalFeatureBadge";
 
 import modernSessionDarkIllustration from "../assets/modern-session-dark.svg";
 import modernSessionLightIllustration from "../assets/modern-session-light.svg";
+import { FeatureReleaseStatus } from "@/src/components/design-system/FeatureReleaseStatus/FeatureReleaseStatus";
 
 /** Flags the Feature Preview modal can toggle. Keep in sync with the
  *  userAccount.setFeaturePreviewEnabled allowlist and available-flags.ts. */
@@ -180,7 +180,10 @@ export function FeaturePreviewModal({
                         {featurePreviewLabels[selected.flag]}
                       </span>
                       {isInternalFeaturePreviewFlag(selected.flag) && (
-                        <InternalFeatureBadge />
+                        <FeatureReleaseStatus
+                          status="internal"
+                          size="default"
+                        />
                       )}
                     </h2>
                     <p className="text-muted-foreground mt-2 max-w-2xl text-sm">

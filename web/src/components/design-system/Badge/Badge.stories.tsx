@@ -3,6 +3,7 @@ import { ExternalLinkIcon, TriangleAlert } from "@langfuse/icons";
 import { expect } from "storybook/test";
 
 import preview from "../../../../.storybook/preview";
+import { FeatureReleaseStatus } from "../FeatureReleaseStatus/FeatureReleaseStatus";
 import { Metric } from "../Metric/Metric";
 import { Badge } from "./Badge";
 
@@ -148,13 +149,24 @@ export const InContext = meta.story({
         ),
       },
       {
-        title: "Status: error, warning, success, info",
+        title: "Status: error, warning, success",
         badges: (
           <>
             <Badge color="error" text="Failing" uppercase />
             <Badge color="warning" text="Degraded" uppercase />
             <Badge color="success" text="Healthy" uppercase />
-            <Badge color="info" size="sm" text="Beta" uppercase />
+          </>
+        ),
+      },
+      {
+        title: "Release status: FeatureReleaseStatus (not a Badge)",
+        badges: (
+          <>
+            <FeatureReleaseStatus status="beta" />
+            <FeatureReleaseStatus status="new" />
+            <FeatureReleaseStatus status="internal" />
+            <FeatureReleaseStatus status="coming-soon" />
+            <FeatureReleaseStatus status="legacy" />
           </>
         ),
       },

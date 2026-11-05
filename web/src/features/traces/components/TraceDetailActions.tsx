@@ -14,7 +14,6 @@ import {
   type DropdownMenuItemDefinition,
 } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
 import { useShareMenuItems } from "@/src/components/useShareMenuItems";
-import { InternalFeatureBadge } from "@/src/features/feature-flags/components/InternalFeatureBadge";
 import { ConnectedDetailHeaderActionsMenuController } from "@/src/features/traces/components/DetailHeaderActionsMenuController";
 import { DeleteTraceDialogController } from "@/src/features/traces/components/DeleteTraceDialogController";
 import { TraceTranscriptDialogController } from "@/src/features/traces/components/TraceTranscriptDialogController";
@@ -22,6 +21,7 @@ import { staleProps } from "@/src/features/traces/fns/staleProps";
 import { useDownloadTraceAsJson } from "@/src/features/traces/hooks/useDownloadTraceAsJson";
 import { type useTraceDetailData } from "@/src/features/traces/hooks/useTraceDetailData";
 import { cn } from "@/src/utils/tailwind";
+import { FeatureReleaseStatus } from "@/src/components/design-system/FeatureReleaseStatus/FeatureReleaseStatus";
 
 type TraceDetailData = NonNullable<
   ReturnType<typeof useTraceDetailData>["data"]
@@ -182,7 +182,12 @@ function LoadedTraceDetailActions({
                       id: "show-trace-transcript",
                       title: "Show trace transcript",
                       icon: FileText,
-                      badge: <InternalFeatureBadge />,
+                      badge: (
+                        <FeatureReleaseStatus
+                          status="internal"
+                          size="default"
+                        />
+                      ),
                       onClick: onShowTranscript,
                     },
                   ]

@@ -65,6 +65,7 @@ import {
   DEFAULT_SKILL_LIST_ORDER_BY,
   SkillListOrderBySchema,
 } from "../constants/skillsSorting";
+import { FeatureReleaseStatus } from "@/src/components/design-system/FeatureReleaseStatus/FeatureReleaseStatus";
 
 type SkillRow = RouterOutput["skills"]["all"]["data"][number];
 
@@ -97,7 +98,7 @@ export function SkillsPage() {
             title: "Skills",
             titleBadges: (
               <>
-                <Badge text="Beta" uppercase color="info" size="sm" />
+                <FeatureReleaseStatus status="beta" />
                 {isV3Legacy && (
                   <Badge
                     text="Skill tracing requires v4"

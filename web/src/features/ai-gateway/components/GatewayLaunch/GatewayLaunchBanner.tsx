@@ -2,7 +2,6 @@ import { ArrowRight, X } from "@langfuse/icons";
 import { useState } from "react";
 
 import { DismissController } from "@/src/components/DismissController";
-import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { IconButton } from "@/src/components/design-system/IconButton/IconButton";
 import { Button } from "@/src/components/ui/button";
 import styles from "@/src/features/ai-gateway/components/GatewayLaunch/gatewayLaunch.module.css";
@@ -14,6 +13,7 @@ import {
 } from "@/src/features/ai-gateway/hooks/useGatewayLaunchEligibility";
 import { usePostHogClientCapture } from "@/src/features/posthog-analytics/usePostHogClientCapture";
 import { cn } from "@/src/utils/tailwind";
+import { FeatureReleaseStatus } from "@/src/components/design-system/FeatureReleaseStatus/FeatureReleaseStatus";
 
 function ctaLabel(state: GatewayLaunchState) {
   if (state === "get-key") return "Get gateway key";
@@ -59,7 +59,7 @@ export function GatewayLaunchBanner({
             <div className="flex min-w-0 flex-1 flex-col gap-1">
               <div className="flex items-center gap-2">
                 <span className="text-base font-bold">AI Gateway</span>
-                <Badge text="Beta" uppercase color="info" size="sm" />
+                <FeatureReleaseStatus status="beta" />
               </div>
               <p
                 className="text-muted-foreground truncate text-base"

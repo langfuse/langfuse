@@ -45,7 +45,7 @@ const badgeVariants = cva(
           "border-category-amber-highlight/25 bg-category-amber-highlight/30 text-category-amber-foreground dark:border-category-amber-highlight/20 dark:bg-category-amber-highlight/45",
         pink: "border-category-pink-highlight/25 bg-category-pink-highlight/30 text-category-pink-foreground dark:border-category-pink-highlight/20 dark:bg-category-pink-highlight/45",
       },
-      /** Status, release-stage and flag labels: Failing, Beta, Internal. */
+      /** Status and flag labels: Failing, Healthy, Default, Public. */
       uppercase: {
         true: "uppercase",
         false: "",
@@ -139,9 +139,9 @@ type BadgeProps = Omit<BadgeShellProps, "asChild" | "children"> & {
  * - Category hues (`violet`, `blue`, `teal`, `green`, `amber`, `pink`): tell
  *   categories apart, e.g. score levels and topics.
  *
- * Set `uppercase` on status, release-stage and flag labels (Failing, Beta,
- * Internal, Default); write the text in normal case. Everything else keeps
- * its case.
+ * Set `uppercase` on status and flag labels (Failing, Healthy, Default,
+ * Public); write the text in normal case. Everything else keeps its case.
+ * Release statuses (Beta, New, Internal) use `FeatureReleaseStatus`.
  *
  * Header metrics and links use `Metric`, not `Badge`. Full guidance with
  * examples: `Badge.mdx` (Storybook "Guidance").

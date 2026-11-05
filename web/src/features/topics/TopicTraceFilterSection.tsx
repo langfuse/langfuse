@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { Input } from "@/src/components/design-system/Input/Input";
 import { ObservationFilterBuilder } from "@/src/features/evals/v2/components/Evaluators/Testing/components/SampleObservationSelectorBase/components/ObservationFilterBuilder/ObservationFilterBuilder";
 import { FilterModeToggle } from "@/src/features/evals/v2/components/Evaluators/Testing/components/SampleObservationSelectorBase/components/FilterModeToggle";
@@ -13,6 +12,7 @@ import {
   type FilterState,
   type TracingSearchType,
 } from "@langfuse/shared";
+import { FeatureReleaseStatus } from "@/src/components/design-system/FeatureReleaseStatus/FeatureReleaseStatus";
 
 const topicsFilterRegistry = {
   ...RULE_FIELD_REGISTRY,
@@ -55,7 +55,7 @@ function ComingSoonTraceFilter() {
         <h3 className="text-muted-foreground text-sm font-bold">
           Filter traces
         </h3>
-        <Badge text="Coming soon" uppercase color="filled" size="sm" />
+        <FeatureReleaseStatus status="coming-soon" />
       </div>
       <Input
         disabled
@@ -115,7 +115,7 @@ function LiveTraceFilter({
       <div className="flex items-center justify-between gap-2">
         <div className="flex min-w-0 items-center gap-1.5">
           <h3 className="text-sm font-bold whitespace-nowrap">Filter traces</h3>
-          <Badge text="Coming soon" uppercase color="info" size="sm" />
+          <FeatureReleaseStatus status="coming-soon" />
         </div>
         <div inert className="opacity-50">
           <FilterModeToggle

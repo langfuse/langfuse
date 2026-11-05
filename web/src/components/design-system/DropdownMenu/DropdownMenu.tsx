@@ -32,8 +32,8 @@ import * as React from "react";
 
 import { useLayerContainer } from "@/src/context/LayerContext/LayerContext";
 import { useScrollGradients } from "@/src/hooks/useScrollGradients";
-import { Badge } from "@/src/components/design-system/Badge/Badge";
 import { Checkbox } from "@/src/components/design-system/Checkbox/Checkbox";
+import { FeatureReleaseStatus } from "@/src/components/design-system/FeatureReleaseStatus/FeatureReleaseStatus";
 
 const menuVariants = cva(
   "bg-popover text-popover-foreground animate-in fade-in-0 zoom-in-95 min-w-32 max-w-[calc(100vw-1rem)] overflow-y-auto rounded-md border shadow-md outline-hidden",
@@ -362,12 +362,7 @@ function DropdownMenuNode({
                   {internal ? (
                     <div className="flex items-center gap-2">
                       {title}
-                      <Badge
-                        text="Internal"
-                        uppercase
-                        color="warning"
-                        size="sm"
-                      />
+                      <FeatureReleaseStatus status="internal" />
                     </div>
                   ) : (
                     title
@@ -521,12 +516,7 @@ function DropdownMenuNode({
                                 {item.title}
                               </span>
                               {item.internal ? (
-                                <Badge
-                                  text="Internal"
-                                  uppercase
-                                  color="warning"
-                                  size="sm"
-                                />
+                                <FeatureReleaseStatus status="internal" />
                               ) : null}
                               <span className="ml-2 flex">
                                 <DropdownIndicator direction="right" />
