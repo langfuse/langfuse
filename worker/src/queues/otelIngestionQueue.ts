@@ -839,7 +839,6 @@ export const otelIngestionQueueProcessorBuilder = (
         await Promise.all([
           observationWritePromise,
           processEventBatch(traces, auth, {
-            delay: 0,
             source: "otel",
             forwardToEventsTable: shouldForwardToEventsTable,
             attribution,
