@@ -64,7 +64,7 @@ export function AdvancedSettings({
   };
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
       <ExpandToggle
         expanded={isExpanded}
         onExpandedChange={setIsExpanded}
@@ -76,7 +76,7 @@ export function AdvancedSettings({
         controls="gateway-advanced-settings"
       />
       {isExpanded ? (
-        <div id="gateway-advanced-settings" className="space-y-4 border-t pt-4">
+        <div id="gateway-advanced-settings" className="space-y-6 border-t pt-6">
           <div>
             <FieldHeader
               label="API Base URL"
@@ -99,7 +99,7 @@ export function AdvancedSettings({
           <div
             role="group"
             aria-labelledby="gateway-extra-headers"
-            className="ph-no-capture space-y-1.5"
+            className="ph-no-capture space-y-2"
           >
             <FieldHeader
               label="Extra Headers"
@@ -115,12 +115,15 @@ export function AdvancedSettings({
                 onRemove={handleRemoveHeader}
               />
             ))}
-            <Button
-              variant="ghost"
-              icon={PlusIcon}
-              text="Add Header"
-              onClick={handleAddHeader}
-            />
+            {/* Offsets the ghost padding so the icon lines up with the inputs. */}
+            <div className="-ml-3">
+              <Button
+                variant="ghost"
+                icon={PlusIcon}
+                text="Add Header"
+                onClick={handleAddHeader}
+              />
+            </div>
           </div>
         </div>
       ) : null}
@@ -161,6 +164,8 @@ function ExtraHeaderField({
       />
       <Input
         aria-label="Header value"
+        type="password"
+        autoComplete="new-password"
         placeholder={isStored ? "***" : "Header value"}
         value={header.value}
         onChange={handleValueChange}
