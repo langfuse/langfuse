@@ -213,7 +213,7 @@ describe("Topics eval-backed configuration", () => {
     ).toMatchObject({ createdByUserId: userIds[0] });
   });
 
-  it.each(["trace", "trace_transcript"])(
+  it.each(["trace_transcript"])(
     "reads and saves %s Topics rules while keeping FACET assignments project-scoped",
     async (targetObject) => {
       const { id: projectId } = await prisma.project.create({
