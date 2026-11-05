@@ -202,9 +202,11 @@ envs]`, derived into _effective_ state by
 
 - `lib/` — pure logic, no React/DOM. `langQ.ts` (tolerant lexer/parser +
   canonical serializer), `ast.ts`, `fields.ts` (field registry +
-  operator-validity table mirroring `eventsTableCols`), `validate.ts` (commit
+  operator-validity table; events field ids and kinds come from the shared
+  `eventsPredicateSource`), `validate.ts` (commit
   gate; parity with the adapter by construction), `adapter.ts`
-  (AST → flat `FilterState` + searchQuery/searchType), `commit.ts`
+  (AST → flat `FilterState` + searchQuery/searchType, and the same result as a
+  shared `Predicate` on registries with a predicate source), `commit.ts`
   (`planCommit`: the pure validate+lower gate that turns draft text into
   applied filter state), `filter-state-to-query.ts` (reverse: applied state →
   committed text — the derive direction), `completions.ts` (pure completion
@@ -554,6 +556,7 @@ real consumer and validate it against that view's backend filter contract.
     itself and stays valid. (Catches the `serializeValue`/`reservedTokenIssue`
     mirror-invariant drift — a bare reserved token like `or`/`!important` that
     the parser rejects. Verified to fail when that fix is reverted.)
+  - **INV-5 predicate mirrors FilterState** — on a registry with a predicate source, the lowering's `predicate` exists and `toFilterState` writes it back to the same filters (after the legacy metadata `contains ""` → `is set` coercion) and search phrase; on any other registry it is null.
 
   The harness is **pure and registry-shaped**: it generates the matrix from the
   passed `view.registry`, so it auto-covers added/changed fields. Each

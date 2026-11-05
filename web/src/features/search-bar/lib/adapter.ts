@@ -1,6 +1,13 @@
 // Editor AST → flat Langfuse filter contract.
 //
-//   astToFilterState(ast) -> { filters, searchQuery, searchType, errors }
+//   astToFilterState(ast) -> { filters, searchQuery, searchType, errors, predicate }
+//
+// `predicate` is the same result as a shared `Predicate`: one flat `and` of
+// the lowered filters over `registry.predicateSource`, plus the search
+// phrase. Every filter column must be a source field id as written, so
+// `toFilterState` on it gives back `filters` (after the legacy metadata
+// `contains ""` → `is set` coercion) and the search lane (INV-5 in
+// searchBarInvariants.ts).
 //
 // Today's events table contract is a flat array of single filters joined
 // with AND (`eventsTableFilterState`), plus a global full-text
@@ -22,10 +29,16 @@
 //   comparisons / inverted booleans); gaps error via fields.negationIssue.
 
 import { resolveAttachedTarget } from "./targeting";
-import { type FilterState, type TracingSearchType } from "@langfuse/shared";
+import {
+  fromFilterState,
+  type FilterState,
+  type PredicateWithSearch,
+  type TracingSearchType,
+} from "@langfuse/shared";
 
 import type { ASTNode, FilterNode } from "./ast";
 import {
+  effectiveSearchType,
   EVENTS_FIELD_REGISTRY,
   isDanglingDotPrefix,
   negationIssue,
@@ -56,6 +69,12 @@ export type AstToFilterStateResult = {
    */
   searchType: TracingSearchType[] | null;
   errors: string[];
+  /**
+   * `filters` and the search phrase as a predicate over the registry's
+   * predicate source, built whether or not `errors` is empty. Null on a
+   * registry with no source, or when a filter names a field outside it.
+   */
+  predicate: PredicateWithSearch | null;
 };
 
 /**
@@ -180,18 +199,44 @@ export function astToFilterState(
   }
   ctx.errors.push(...(registry.filterStateErrors?.(ctx.filters) ?? []));
 
+  const searchQuery =
+    ctx.scopedSearch?.query ??
+    (defaultTextFilter || ctx.searchTerms.length === 0
+      ? null
+      : ctx.searchTerms.join(" "));
+  const searchType = ctx.scopedSearch
+    ? [...ctx.scopedSearch.searchType]
+    : (ctx.compatibilitySearchType ?? null);
   return {
     filters: ctx.filters,
-    searchQuery:
-      ctx.scopedSearch?.query ??
-      (defaultTextFilter || ctx.searchTerms.length === 0
-        ? null
-        : ctx.searchTerms.join(" ")),
-    searchType: ctx.scopedSearch
-      ? [...ctx.scopedSearch.searchType]
-      : (ctx.compatibilitySearchType ?? null),
+    searchQuery,
+    searchType,
     errors: ctx.errors,
+    predicate: predicateOf(ctx.filters, searchQuery, searchType, registry),
   };
+}
+
+/**
+ * `and(...filters)` plus the search phrase over the selected scopes, or the
+ * registry's default ones when none is selected; null when a column is not a
+ * source field id. Read through `fromFilterState`, so it applies the same
+ * legacy coercions as the server (metadata `contains ""` becomes `is set`).
+ */
+function predicateOf(
+  filters: FilterState,
+  searchQuery: string | null,
+  searchType: TracingSearchType[] | null,
+  registry: FieldRegistry,
+): PredicateWithSearch | null {
+  const source = registry.predicateSource;
+  if (source === null) return null;
+  const ids = new Set(source.fields.map((field) => field.id));
+  if (filters.some((filter) => !ids.has(filter.column))) return null;
+  return fromFilterState({
+    filter: filters,
+    searchQuery,
+    searchType: effectiveSearchType(searchType, registry),
+  });
 }
 
 /**
