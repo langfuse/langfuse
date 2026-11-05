@@ -98,11 +98,12 @@ export async function recordTrpcAccess(
 
 /**
  * Records a public API read when its org records access events. Call it
- * before returning the data: a failed write fails the read.
+ * before returning the data: a failed write fails the read. Pass the read as a
+ * function to collect its refs only for orgs that record access events.
  */
 export async function recordPublicApiAccess(
   { scope, req }: { scope: ApiAccessScope; req: NextApiRequest },
-  read: AccessRead,
+  read: AccessRead | (() => AccessRead),
 ): Promise<void> {
   if (!canRecordAccessEvents()) return;
   // Credentials without an org, such as the admin key, carry no opt-in.
@@ -117,7 +118,7 @@ export async function recordPublicApiAccess(
   if (!auditOrg || !isAccessAuditLogEnabled(auditOrg)) return;
 
   await stageAccessEvent({
-    ...read,
+    ...(typeof read === "function" ? read() : read),
     orgId: auditOrg.orgId,
     projectId: scope.projectId ?? undefined,
     actor: toApiKeyActor(scope.apiKeyId, undefined, undefined),

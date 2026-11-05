@@ -41,6 +41,7 @@ import {
   getTraceByIdFromEventsTable,
 } from "@langfuse/shared/src/server";
 import getTraceHandler from "@/src/pages/api/public/traces/[traceId]";
+import getScoresV3Handler from "@/src/pages/api/public/v3/scores";
 import { appRouter } from "@/src/server/api/root";
 import { createInnerTRPCContext } from "@/src/server/api/trpc";
 
@@ -189,6 +190,56 @@ describe("access events on GET /api/public/traces/{traceId}", () => {
     const res = await getTraceViaPublicApi(auth, trace.id);
 
     expect(res._getStatusCode()).toBe(500);
+    expect(await accessEvents(orgId)).toEqual([]);
+  });
+});
+
+describe("access events on GET /api/public/v3/scores", () => {
+  async function listScoresViaPublicApi(auth: string) {
+    const { req, res } = createMocks<NextApiRequest, NextApiResponse>({
+      method: "GET",
+      headers: { authorization: auth },
+      query: { fields: "core,subject" },
+    });
+    await getScoresV3Handler(req, res);
+    return res;
+  }
+
+  it("records the list with every returned score and the trace it is attached to", async () => {
+    const { orgId, projectId, auth } = await setupOrg(true);
+    const score = createTraceScore({ project_id: projectId });
+    await createScoresCh([score]);
+
+    const res = await listScoresViaPublicApi(auth);
+
+    expect(res._getStatusCode()).toBe(200);
+    const events = await accessEvents(orgId);
+    expect(events).toEqual([
+      expect.objectContaining({
+        kind: "access",
+        projectId,
+        surface: "public-api",
+        route: "GET /api/public/v3/scores",
+        resourceType: "score",
+        action: "list",
+        outcome: "success",
+        resultCount: 1,
+        actor: { type: "API_KEY", apiKeyId: expect.any(String) },
+        resourceRefs: [`score:${score.id}`, `trace:${score.trace_id}`],
+      }),
+    ]);
+    expect(events[0]).not.toHaveProperty("resourceId");
+  });
+
+  it("fails the list when the event cannot be recorded", async () => {
+    const { orgId, projectId, auth } = await setupOrg(true);
+    await createScoresCh([createTraceScore({ project_id: projectId })]);
+    staging.fail = true;
+
+    const res = await listScoresViaPublicApi(auth);
+
+    expect(res._getStatusCode()).toBe(500);
+    expect(res._getJSONData()).not.toHaveProperty("data");
     expect(await accessEvents(orgId)).toEqual([]);
   });
 });
