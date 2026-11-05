@@ -97,7 +97,7 @@ export function SkillsPage() {
             title: "Skills",
             titleBadges: (
               <>
-                <Badge text="BETA" color="info" size="sm" />
+                <Badge text="Beta" uppercase color="info" size="sm" />
                 {isV3Legacy && (
                   <Badge
                     text="Skill tracing requires v4"

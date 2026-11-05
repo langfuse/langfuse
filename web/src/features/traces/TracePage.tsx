@@ -100,7 +100,7 @@ export function TracePage({
   })();
   const traceContext = router.query.peek !== undefined ? "peek" : "fullscreen";
   const sharedBadge = showPublicIndicators ? (
-    <Badge color="outline" text="PUBLIC" />
+    <Badge color="outline" text="Public" uppercase />
   ) : undefined;
   const sessionId = trace.data.sessionId;
   const { canSelectSession, isSessionScope, showScopeToggle } =

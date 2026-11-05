@@ -226,7 +226,7 @@ export const TemplateSelector = ({
                           {template.name}
                           {isLegacy && (
                             <span className="ml-2">
-                              <Badge color="outline" text="LEGACY" />
+                              <Badge color="outline" text="legacy" uppercase />
                             </span>
                           )}
                           {isInvalid && (
@@ -322,7 +322,7 @@ export const TemplateSelector = ({
                         />
                         {isLegacy && (
                           <span className="ml-2">
-                            <Badge color="outline" text="LEGACY" />
+                            <Badge color="outline" text="legacy" uppercase />
                           </span>
                         )}
                         {isInvalid && (

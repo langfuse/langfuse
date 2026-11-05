@@ -10,8 +10,8 @@ const metricVariants = cva(
   {
     variants: {
       size: {
-        default: "h-5.5 gap-1.5",
-        sm: "h-4.5 gap-1",
+        default: "h-5.25 gap-1.5",
+        sm: "h-4.25 gap-1",
       },
       shouldWrap: {
         true: "h-auto leading-snug",

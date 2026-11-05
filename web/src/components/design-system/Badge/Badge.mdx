@@ -21,6 +21,7 @@ colour for decoration.
 ## Rules
 
 - Every badge renders in mono; there is no font option.
+- Status, release-stage and flag labels (Failing, Degraded, Healthy, Beta, Coming soon, New, Legacy, Internal, Public, Recommended, Default) set `uppercase`. Write `text` in normal case; the prop does the caps. Everything else keeps its case.
 - Score levels always use `ScoreTag`, which maps each level to a category tint.
 - Header metrics and links (latency, cost, tokens, session, user, model) use `Metric`, not `Badge`. `href` makes it a link: arrow, underline on hover.
 - Need custom content inside the box? Use `BadgeShell` with the same `color` and `size`.

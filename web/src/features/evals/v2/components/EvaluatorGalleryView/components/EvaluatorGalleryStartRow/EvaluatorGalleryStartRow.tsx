@@ -89,5 +89,5 @@ function StartOptionCard({
 }
 
 function EvaluatorNewBadge() {
-  return <Badge text="NEW" color="success" size="sm" />;
+  return <Badge text="NEW" uppercase color="success" size="sm" />;
 }

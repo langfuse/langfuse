@@ -179,7 +179,7 @@ export const ROUTES: Route[] = [
   },
   {
     title: "Skills",
-    label: <Badge text="BETA" color="info" size="sm" />,
+    label: <Badge text="Beta" uppercase color="info" size="sm" />,
     href: "/project/[projectId]/skills",
     icon: FolderCode,
     projectRbacScopes: ["skills:read"],

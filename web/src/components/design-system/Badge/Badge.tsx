@@ -11,11 +11,11 @@ const badgeVariants = cva(
   {
     variants: {
       size: {
-        /** Matches the 24px entity tile next to page titles. */
-        lg: "h-6 gap-1.5 px-2",
-        default: "h-5.5 gap-1.5 pr-1.5 pl-2",
-        md: "h-5 gap-1 px-1.5",
-        sm: "h-4.5 gap-1 px-1.5",
+        /** Odd heights, so 9px mono caps and digits centre on whole pixels. */
+        lg: "h-5.75 gap-1.5 px-2",
+        default: "h-5.25 gap-1.5 pr-1.5 pl-2",
+        md: "h-4.75 gap-1 px-1.5",
+        sm: "h-4.25 gap-1 px-1.5",
       },
       /**
        * Neutrals are named by appearance, status colours by state, category
@@ -44,6 +44,11 @@ const badgeVariants = cva(
         amber:
           "border-category-amber-highlight/25 bg-category-amber-highlight/30 text-category-amber-foreground dark:border-category-amber-highlight/20 dark:bg-category-amber-highlight/45",
         pink: "border-category-pink-highlight/25 bg-category-pink-highlight/30 text-category-pink-foreground dark:border-category-pink-highlight/20 dark:bg-category-pink-highlight/45",
+      },
+      /** Status, release-stage and flag labels: Failing, Beta, Internal. */
+      uppercase: {
+        true: "uppercase",
+        false: "",
       },
       interactive: {
         true: "underline-dotted",
@@ -88,6 +93,7 @@ export function BadgeShell({
   size,
   interactive,
   shouldWrap,
+  uppercase,
   onDismiss,
   ...props
 }: BadgeShellProps) {
@@ -108,6 +114,7 @@ export function BadgeShell({
           size,
           interactive,
           shouldWrap,
+          uppercase,
           dismissible: onDismiss != null,
         }),
       )}
@@ -131,6 +138,10 @@ type BadgeProps = Omit<BadgeShellProps, "asChild" | "children"> & {
  * - `error`, `warning`, `success`, `info`: a state, never decoration.
  * - Category hues (`violet`, `blue`, `teal`, `green`, `amber`, `pink`): tell
  *   categories apart, e.g. score levels and topics.
+ *
+ * Set `uppercase` on status, release-stage and flag labels (Failing, Beta,
+ * Internal, Default); write the text in normal case. Everything else keeps
+ * its case.
  *
  * Header metrics and links use `Metric`, not `Badge`. Full guidance with
  * examples: `Badge.mdx` (Storybook "Guidance").

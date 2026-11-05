@@ -80,8 +80,9 @@ export function EvaluatorStatusBadge({
 
   const badge = (
     <Badge
-      text={status === "Unknown" ? "—" : status.toUpperCase()}
+      text={status === "Unknown" ? "—" : status}
       color={colors[status]}
+      uppercase
     />
   );
 

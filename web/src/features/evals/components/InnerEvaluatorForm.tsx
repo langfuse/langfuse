@@ -922,7 +922,7 @@ export const InnerEvaluatorForm = (props: {
                                 icon={ListTree}
                               >
                                 Traces
-                                <Badge color="filled" text="LEGACY" />
+                                <Badge color="filled" text="Legacy" uppercase />
                               </Tabs.Trigger>
                             </span>
                           )}
@@ -1002,7 +1002,7 @@ export const InnerEvaluatorForm = (props: {
                           icon={BetweenHorizonalStart}
                         >
                           Low-level SDK methods
-                          <Badge color="filled" text="LEGACY" />
+                          <Badge color="filled" text="Legacy" uppercase />
                         </Tabs.Trigger>
                       </span>
                     </Tabs.List>

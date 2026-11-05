@@ -55,7 +55,7 @@ function ComingSoonTraceFilter() {
         <h3 className="text-muted-foreground text-sm font-bold">
           Filter traces
         </h3>
-        <Badge text="COMING SOON" color="filled" size="sm" />
+        <Badge text="Coming soon" uppercase color="filled" size="sm" />
       </div>
       <Input
         disabled
@@ -115,7 +115,7 @@ function LiveTraceFilter({
       <div className="flex items-center justify-between gap-2">
         <div className="flex min-w-0 items-center gap-1.5">
           <h3 className="text-sm font-bold whitespace-nowrap">Filter traces</h3>
-          <Badge text="COMING SOON" color="info" size="sm" />
+          <Badge text="Coming soon" uppercase color="info" size="sm" />
         </div>
         <div inert className="opacity-50">
           <FilterModeToggle

@@ -67,7 +67,7 @@ export function SettingsPage({ scope }: SettingsPageProps) {
         fullHeight={fullHeight}
         sectionHeaders={organizationSectionHeaders(organization?.id, pages)}
         sectionBadges={{
-          "AI Gateway": <Badge text="BETA" color="info" size="sm" />,
+          "AI Gateway": <Badge text="Beta" uppercase color="info" size="sm" />,
         }}
       />
     </ContainerPage>

@@ -151,10 +151,10 @@ export const InContext = meta.story({
         title: "Status: error, warning, success, info",
         badges: (
           <>
-            <Badge color="error" text="FAILING" />
-            <Badge color="warning" text="DEGRADED" />
-            <Badge color="success" text="HEALTHY" />
-            <Badge color="info" size="sm" text="BETA" />
+            <Badge color="error" text="Failing" uppercase />
+            <Badge color="warning" text="Degraded" uppercase />
+            <Badge color="success" text="Healthy" uppercase />
+            <Badge color="info" size="sm" text="Beta" uppercase />
           </>
         ),
       },
