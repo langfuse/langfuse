@@ -14,19 +14,14 @@ import {
   countTopicCohortTraces,
   createTopicExecution,
   enqueueTopicExecution,
-  getLatestFacetSummaries,
   getTopicRuleRefits,
-  getTopicRun,
   getTopicSummaryCounts,
   getTopicsModels,
   listTopicAnalysisExecutions,
-  listTopicFacets,
   listTopicRules,
   readTopicExecutionSummary,
-  readTopicMapAssignments,
   topicAnalysisCohort,
 } from "@langfuse/shared/topics/server";
-import { facetTopicResult } from "./currentResults";
 
 type Filter = TopicRule["filter"];
 type AnalysisExecution = TopicExecutionSummary & {
@@ -68,80 +63,11 @@ export async function topicMapsOverview(projectId: string) {
   };
 }
 
-async function requireAnalysis(projectId: string, executionId: string) {
+export async function requireAnalysis(projectId: string, executionId: string) {
   const execution = await readTopicExecutionSummary(projectId, executionId);
   if (!execution || !isAnalysis(execution))
     throw new LangfuseNotFoundError("Analysis not found.");
   return execution;
-}
-
-/** One analysis run's maps: its own snapshot, never current topics. */
-export async function analysisTopicResults(
-  projectId: string,
-  executionId: string,
-) {
-  const execution = await requireAnalysis(projectId, executionId);
-  const { timeRange } = execution.input;
-  const facets = await listTopicFacets(projectId);
-  const results = await Promise.all(
-    execution.facets.map(async (progress) => {
-      const facet = facets.find((item) => item.id === progress.facetId);
-      if (!facet) return null;
-      const run = progress.runId
-        ? await getTopicRun(projectId, progress.runId)
-        : null;
-      if (!run || run.status !== "completed")
-        return {
-          ...(await facetTopicResult({
-            projectId,
-            facet,
-            storedAssignments: [],
-            storedSummaries: [],
-            run: null,
-            membership: "snapshot",
-          })),
-          outcome: progress.outcome,
-        };
-      const storedAssignments = await readTopicMapAssignments(
-        projectId,
-        { facetId: facet.id, version: run.facetVersion },
-        run.id,
-        timeRange,
-      );
-      const storedSummaries = storedAssignments.length
-        ? await getLatestFacetSummaries(
-            projectId,
-            facet.id,
-            run.facetVersion,
-            timeRange,
-            storedAssignments.flatMap((row) =>
-              row.traceId ? [row.traceId] : [],
-            ),
-          )
-        : [];
-      return {
-        ...(await facetTopicResult({
-          projectId,
-          facet,
-          storedAssignments,
-          storedSummaries,
-          run,
-          membership: "snapshot",
-        })),
-        outcome: progress.outcome,
-      };
-    }),
-  );
-  return {
-    execution: {
-      id: execution.id,
-      status: execution.status,
-      createdAt: execution.createdAt,
-      timeRange,
-      ...execution.input.analysis,
-    },
-    facets: results.flatMap((facet) => (facet ? [facet] : [])),
-  };
 }
 
 async function embeddingConfig(projectId: string) {

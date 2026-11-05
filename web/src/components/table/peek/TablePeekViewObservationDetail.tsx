@@ -9,6 +9,12 @@ import { resolvePeekTraceParams } from "@/src/components/table/peek/resolvePeekT
 import { buildTracePath } from "@langfuse/shared";
 import { useRouter } from "next/router";
 import { useRef } from "react";
+import { useIsAuthenticatedAndProjectMember } from "@/src/features/auth/hooks";
+import { getTraceScopeTabs } from "@/src/features/traces/fns/getTraceScopeTabs";
+import { getTraceScopeQuery } from "@/src/features/traces/fns/getTraceScopeQuery";
+import useIsFeatureEnabled from "@/src/features/feature-flags/hooks/useIsFeatureEnabled";
+import { resolveTraceScope } from "@/src/features/traces/fns/resolveTraceScope";
+import { useReadPath } from "@/src/features/events/hooks/useReadPath";
 
 export const TablePeekViewObservationDetail = (
   props: Omit<
@@ -19,8 +25,13 @@ export const TablePeekViewObservationDetail = (
   },
 ) => {
   const router = useRouter();
-
   const { projectId } = props;
+  const unifiedTraceSessionViewEnabled = useIsFeatureEnabled(
+    "unifiedTraceSessionView",
+    { projectId },
+  );
+  const { isV4 } = useReadPath();
+
   const peekObservationId = router.query.peek as string | undefined;
   const { traceId, timestamp } = resolvePeekTraceParams({
     reader: "observation",
@@ -40,6 +51,17 @@ export const TablePeekViewObservationDetail = (
     traceId,
     timestamp,
   });
+  const isProjectMember = useIsAuthenticatedAndProjectMember(projectId);
+  const sessionId = trace.data?.sessionId;
+  const { canSelectSession, isSessionScope, showScopeToggle } =
+    resolveTraceScope({
+      unifiedTraceSessionViewEnabled,
+      isV4,
+      isProjectMember,
+      sessionId,
+      aggregation: router.query.aggregation,
+      context: "peek",
+    });
 
   const actionProps = {
     trace: trace.data,
@@ -48,6 +70,8 @@ export const TablePeekViewObservationDetail = (
       ? buildTracePath({
           projectId,
           traceId,
+          aggregation:
+            router.query.aggregation === "session" ? "session" : "trace",
           observationId:
             typeof router.query.traceId === "string"
               ? peekObservationId
@@ -67,7 +91,30 @@ export const TablePeekViewObservationDetail = (
   return (
     <TablePeekView
       {...props}
-      title={traceId}
+      itemType={isSessionScope ? "SESSION" : props.itemType}
+      title={isSessionScope && sessionId ? sessionId : traceId}
+      titleTabs={
+        showScopeToggle
+          ? getTraceScopeTabs({
+              value: isSessionScope ? "session" : "trace",
+              canSelectSession,
+              onValueChange: (next) => {
+                const query = getTraceScopeQuery(
+                  router.query,
+                  next,
+                  trace.data?.observations,
+                );
+                return router.replace(
+                  { pathname: router.pathname, query },
+                  undefined,
+                  {
+                    shallow: true,
+                  },
+                );
+              },
+            })
+          : undefined
+      }
       hideExpandToggle
       preserveContentAcrossItems
       actions={

@@ -11,6 +11,9 @@ pub struct GatewayConfig {
     pub connection_drain_timeout: Duration,
     /// The connection drain timeout was read from its deprecated name.
     pub uses_deprecated_connection_drain_timeout_name: bool,
+    /// A Web URL is configured but the service key is unset or blank, and
+    /// `LANGFUSE_AI_GATEWAY_ALLOW_MISSING_SERVICE_KEY` lets the gateway start unconfigured.
+    pub has_web_url_without_service_key: bool,
     /// Budget for flushing telemetry, starting once connection draining ends. The
     /// orchestrator grace period must cover both timeouts (ECS `stopTimeout` is at most 120 s).
     pub telemetry_shutdown_timeout: Duration,
@@ -86,7 +89,8 @@ impl GatewayConfig {
     /// # Errors
     /// Returns an error if a configured value is not Unicode or fails validation
     /// in [`Self::from_values`], or if a Web URL is configured with an invalid URL
-    /// or missing/blank service key, or a non-boolean HTTP Web URL opt-in. Error
+    /// or service key, a missing service key unless explicitly allowed, or a
+    /// non-boolean HTTP Web URL or missing-key opt-in. Error
     /// messages never include supplied values.
     pub fn from_env() -> Result<Self, GatewayConfigError> {
         let (connection_drain_timeout, uses_deprecated_connection_drain_timeout_name) =
@@ -118,11 +122,16 @@ impl GatewayConfig {
             read_env("LANGFUSE_AI_GATEWAY_MAX_EXECUTION_SECONDS")?.as_deref(),
             read_env("LANGFUSE_AI_GATEWAY_STALL_TIMEOUT_SECONDS")?.as_deref(),
         )?;
+        let web_url = read_env("LANGFUSE_AI_GATEWAY_WEB_URL")?;
+        let service_key = read_env("LANGFUSE_AI_GATEWAY_SERVICE_KEY")?;
         config.control_plane = control_plane(
-            read_env("LANGFUSE_AI_GATEWAY_WEB_URL")?.as_deref(),
-            read_env("LANGFUSE_AI_GATEWAY_SERVICE_KEY")?.as_deref(),
+            web_url.as_deref(),
+            service_key.as_deref(),
             read_env("LANGFUSE_AI_GATEWAY_ALLOW_HTTP_WEB_URL")?.as_deref(),
+            read_env("LANGFUSE_AI_GATEWAY_ALLOW_MISSING_SERVICE_KEY")?.as_deref(),
         )?;
+        config.has_web_url_without_service_key =
+            config.control_plane.is_none() && web_url.as_deref().is_some_and(|url| !url.is_empty());
         Ok(config)
     }
 
@@ -186,6 +195,7 @@ impl GatewayConfig {
             auto_increment_listen_port,
             connection_drain_timeout: Duration::from_secs(seconds),
             uses_deprecated_connection_drain_timeout_name: false,
+            has_web_url_without_service_key: false,
             telemetry_shutdown_timeout: Duration::from_secs(DEFAULT_SHUTDOWN_TIMEOUT_SECONDS),
             log_level,
             log_format,
@@ -200,16 +210,27 @@ fn control_plane(
     web_url: Option<&str>,
     service_key: Option<&str>,
     allow_http_web_url: Option<&str>,
+    allow_missing_service_key: Option<&str>,
 ) -> Result<Option<ControlPlaneConfig>, GatewayConfigError> {
     let allow_http_web_url = parse_boolean(allow_http_web_url.unwrap_or("false")).ok_or(
         GatewayConfigError("LANGFUSE_AI_GATEWAY_ALLOW_HTTP_WEB_URL must be true or false"),
     )?;
+    let allow_missing_service_key = parse_boolean(allow_missing_service_key.unwrap_or("false"))
+        .ok_or(GatewayConfigError(
+            "LANGFUSE_AI_GATEWAY_ALLOW_MISSING_SERVICE_KEY must be true or false",
+        ))?;
     let Some(web_url) = web_url.filter(|url| !url.is_empty()) else {
         return Ok(None);
     };
-    let service_key = service_key.ok_or(GatewayConfigError(
-        "LANGFUSE_AI_GATEWAY_SERVICE_KEY is required when LANGFUSE_AI_GATEWAY_WEB_URL is set",
-    ))?;
+    let Some(service_key) = service_key.filter(|key| is_set(key)) else {
+        return if allow_missing_service_key {
+            Ok(None)
+        } else {
+            Err(GatewayConfigError(
+                "LANGFUSE_AI_GATEWAY_SERVICE_KEY is required when LANGFUSE_AI_GATEWAY_WEB_URL is set",
+            ))
+        };
+    };
     let control_plane = if allow_http_web_url {
         ControlPlaneConfig::with_plain_http(web_url, service_key)
     } else {
@@ -322,6 +343,10 @@ fn integer_setting<T: std::str::FromStr + PartialOrd>(
         .map_or(Some(default), |value| value.parse().ok())
         .filter(|value| range.contains(value))
         .ok_or(GatewayConfigError(message))
+}
+
+fn is_set(value: &str) -> bool {
+    !value.trim().is_empty()
 }
 
 fn read_env(name: &'static str) -> Result<Option<String>, GatewayConfigError> {
@@ -473,13 +498,13 @@ mod tests {
         let in_cluster = Some("http://langfuse-web.langfuse.svc.cluster.local:3000");
         let key = Some("service-key");
         for opt_in in [None, Some("false")] {
-            let error = control_plane(in_cluster, key, opt_in).err().unwrap();
+            let error = control_plane(in_cluster, key, opt_in, None).err().unwrap();
             assert_eq!(
                 error.to_string(),
                 "invalid LANGFUSE_AI_GATEWAY_WEB_URL or LANGFUSE_AI_GATEWAY_SERVICE_KEY"
             );
         }
-        let allowed = control_plane(in_cluster, key, Some("true"))
+        let allowed = control_plane(in_cluster, key, Some("true"), None)
             .unwrap()
             .unwrap();
         assert!(allowed.is_plain_http());
@@ -493,12 +518,34 @@ mod tests {
             ("https://cloud.langfuse.com", Some("true")),
             ("http://localhost:3000", None),
         ] {
-            let config = control_plane(Some(url), key, opt_in).unwrap().unwrap();
+            let config = control_plane(Some(url), key, opt_in, None)
+                .unwrap()
+                .unwrap();
             assert!(!config.is_plain_http(), "{url}");
         }
-        assert!(control_plane(None, None, Some("true")).unwrap().is_none());
+        assert!(
+            control_plane(None, None, Some("true"), None)
+                .unwrap()
+                .is_none()
+        );
+        for missing_key in [None, Some(""), Some("  ")] {
+            assert_eq!(
+                control_plane(in_cluster, missing_key, Some("true"), None)
+                    .err()
+                    .unwrap()
+                    .to_string(),
+                "LANGFUSE_AI_GATEWAY_SERVICE_KEY is required when LANGFUSE_AI_GATEWAY_WEB_URL is set"
+            );
+            assert!(
+                control_plane(in_cluster, missing_key, Some("true"), Some("true"))
+                    .unwrap()
+                    .is_none()
+            );
+        }
         for value in ["", "TRUE", "1", "secret-that-must-not-appear"] {
-            let error = control_plane(in_cluster, key, Some(value)).err().unwrap();
+            let error = control_plane(in_cluster, key, Some(value), None)
+                .err()
+                .unwrap();
             assert_eq!(
                 error.to_string(),
                 "LANGFUSE_AI_GATEWAY_ALLOW_HTTP_WEB_URL must be true or false"

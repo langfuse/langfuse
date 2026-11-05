@@ -16,8 +16,6 @@ import type {
   TopicTimeRange,
 } from "../../topics";
 import { topicSourceSchema, topicTimeRangeSchema } from "../../topics";
-import { prisma } from "../../db";
-import { topicRuleWhere } from "./processing-gate";
 import { logger } from "../logger";
 import { traceException } from "../instrumentation";
 import { redis } from "../redis/redis";
@@ -33,19 +31,22 @@ import {
 const sourceKeySql =
   "project_id, facet_id, facet_version, trace_id, if(trace_id = '', session_id, '')";
 
-const unitTimeFilterSql =
+export const unitTimeFilterSql =
   "unit_start_time >= {from:DateTime64(3)} AND unit_start_time < {to:DateTime64(3)}";
 
 const summaryVersionKeySql =
   "facet_id, facet_version, trace_id, if(trace_id = '', session_id, ''), unit_start_time, processed_at";
-const summarySourceKeySql =
+export const summarySourceKeySql =
   "facet_id, trace_id, if(trace_id = '', session_id, '')";
 
 // Payloads are time-bounded; source-index metadata must include versions that moved
 // outside that window. State, model and dimension filters apply after this check.
 // Candidate keys scope the metadata scan; a scalar facet_version predicate there
 // prevents ClickHouse from selecting the latest_source_versions projection.
-function latestSummaryFilterSql(scopeSql: string, latestKeySql = sourceKeySql) {
+export function latestSummaryFilterSql(
+  scopeSql: string,
+  latestKeySql = sourceKeySql,
+) {
   return `(${summaryVersionKeySql}) IN (
     SELECT ${summaryVersionKeySql} FROM topic_facet_summaries
     WHERE project_id = {projectId:String}
@@ -59,7 +60,7 @@ function latestSummaryFilterSql(scopeSql: string, latestKeySql = sourceKeySql) {
   )`;
 }
 
-function timeRangeParams(timeRange: TopicTimeRange) {
+export function timeRangeParams(timeRange: TopicTimeRange) {
   const { from, to } = topicTimeRangeSchema.parse(timeRange);
   return {
     from: convertDateToClickhouseDateTime(from),
@@ -390,20 +391,21 @@ export async function getLatestFacetSummaries(
   const scopeSql = `facet_id = {facetId:String}
     ${facetVersion ? "AND facet_version = {facetVersion:UInt32}" : ""}
     ${traceIds ? "AND trace_id IN {traceIds:Array(String)}" : ""}`;
-  const rows = await queryClickhouse<
-    Pick<
-      TopicSummary,
-      | "projectId"
-      | "facetId"
-      | "facetVersion"
-      | "traceId"
-      | "sessionId"
-      | "state"
-      | "summary"
-      | "environment"
-    > & { unitStartTimeMs: string; processedAtMs: string }
-  >({
-    query: `SELECT project_id AS projectId, facet_id AS facetId,
+  const read = (batch?: string[]) =>
+    queryClickhouse<
+      Pick<
+        TopicSummary,
+        | "projectId"
+        | "facetId"
+        | "facetVersion"
+        | "traceId"
+        | "sessionId"
+        | "state"
+        | "summary"
+        | "environment"
+      > & { unitStartTimeMs: string; processedAtMs: string }
+    >({
+      query: `SELECT project_id AS projectId, facet_id AS facetId,
       facet_version AS facetVersion, trace_id AS traceId, session_id AS sessionId,
       processing_state AS state, summary, environment,
       toUnixTimestamp64Milli(unit_start_time) AS unitStartTimeMs,
@@ -413,15 +415,21 @@ export async function getLatestFacetSummaries(
         AND ${latestSummaryFilterSql(scopeSql, facetVersion ? sourceKeySql : summarySourceKeySql)}
       ORDER BY ${facetVersion ? "" : "facet_version DESC, "}processed_at DESC
       LIMIT 1 BY ${facetVersion ? sourceKeySql : "project_id, trace_id, if(trace_id = '', session_id, '')"}`,
-    params: {
-      projectId,
-      ...timeRangeParams(timeRange),
-      facetId,
-      ...(facetVersion ? { facetVersion } : {}),
-      ...(traceIds ? { traceIds } : {}),
-    },
-    tags: { route: "topics-latest-summaries", projectId },
-  });
+      params: {
+        projectId,
+        ...timeRangeParams(timeRange),
+        facetId,
+        ...(facetVersion ? { facetVersion } : {}),
+        ...(batch ? { traceIds: batch } : {}),
+      },
+      tags: { route: "topics-latest-summaries", projectId },
+    });
+  // Id lists go in the request URL, so large ones are read in batches.
+  const rows = [];
+  for (const batch of traceIds
+    ? chunk(traceIds, LOOKUP_BATCH_SIZE)
+    : [undefined])
+    rows.push(...(await read(batch)));
   return rows
     .filter((row) => !isInternalEvalEnvironment(row.environment))
     .map((row) => ({
@@ -1020,41 +1028,18 @@ export async function readTopicAssignments(
   return rows.map(assignmentResult);
 }
 
-/**
- * Current membership prefers the newest facet version of rule assignments.
- * Analysis rows carry no rule and never count; rows written before rules
- * count for the oldest rule. A ruleId narrows membership to one rule's map.
- */
+/** Current membership on the facet's published map, preferring the newest facet version. */
 export async function readLatestTopicAssignments(
   projectId: string,
   facetId: string,
+  publishedRunId: string,
   timeRange: TopicTimeRange,
   traceIds?: string[],
-  ruleId?: string,
 ): Promise<TopicAssignment[]> {
-  const [runs, oldestRule] = await Promise.all([
-    prisma.topicClusteringRun.findMany({
-      where: { projectId, facetId, status: "completed", batchActionId: null },
-      select: { id: true, ruleId: true },
-    }),
-    ruleId
-      ? prisma.evaluationRule.findFirst({
-          where: topicRuleWhere(projectId),
-          orderBy: [{ createdAt: "asc" }, { id: "asc" }],
-          select: { id: true },
-        })
-      : null,
-  ]);
-  const includeLegacy = !ruleId || oldestRule?.id === ruleId;
-  const runIds = runs
-    .filter((run) =>
-      run.ruleId ? !ruleId || run.ruleId === ruleId : includeLegacy,
-    )
-    .map(({ id }) => id);
   const rows = await queryClickhouse<AssignmentRow>({
     query: `SELECT ${assignmentColumns} FROM topic_assignments
       WHERE project_id = {projectId:String} AND ${unitTimeFilterSql} AND facet_id = {facetId:String}
-        AND (clustering_run_id IN {runIds:Array(String)}${includeLegacy ? " OR clustering_run_id = ''" : ""})
+        AND clustering_run_id = {publishedRunId:String}
         ${traceIds ? "AND trace_id IN {traceIds:Array(String)}" : ""}
       ORDER BY facet_version DESC, assigned_at DESC, clustering_run_id DESC, origin DESC
       LIMIT 1 BY project_id, facet_id, trace_id, if(trace_id = '', session_id, '')`,
@@ -1062,7 +1047,7 @@ export async function readLatestTopicAssignments(
       projectId,
       ...timeRangeParams(timeRange),
       facetId,
-      runIds,
+      publishedRunId,
       ...(traceIds ? { traceIds } : {}),
     },
     tags: { route: "topics-current-assignments", projectId },
@@ -1070,10 +1055,10 @@ export async function readLatestTopicAssignments(
   return rows.map(assignmentResult);
 }
 
-/** Source time span of one trace's summaries, served by the latest_source_versions projection; null when never summarized. */
+/** Source time span of the traces' summaries, served by the latest_source_versions projection; null when none was summarized. */
 export async function getTopicTraceUnitTimeRange(
   projectId: string,
-  traceId: string,
+  traceIds: string[],
   timeRange: TopicTimeRange,
 ): Promise<TopicTimeRange | null> {
   const [row] = await queryClickhouse<{
@@ -1085,8 +1070,8 @@ export async function getTopicTraceUnitTimeRange(
       toUnixTimestamp64Milli(min(unit_start_time)) AS fromMs,
       toUnixTimestamp64Milli(max(unit_start_time)) AS toMs
       FROM topic_facet_summaries
-      WHERE project_id = {projectId:String} AND ${unitTimeFilterSql} AND trace_id = {traceId:String}`,
-    params: { projectId, ...timeRangeParams(timeRange), traceId },
+      WHERE project_id = {projectId:String} AND ${unitTimeFilterSql} AND trace_id IN {traceIds:Array(String)}`,
+    params: { projectId, ...timeRangeParams(timeRange), traceIds },
     tags: { route: "topics-trace-unit-time", projectId },
   });
   if (!row || Number(row.found) === 0) return null;

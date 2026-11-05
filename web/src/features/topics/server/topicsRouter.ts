@@ -68,9 +68,13 @@ import {
   topicTriggerInputSchema,
 } from "./traceSelection";
 
-import { currentTopicResults, traceFacetResults } from "./currentResults";
 import {
   analysisTopicResults,
+  currentTopicResults,
+  listTopicTraces,
+  traceFacetResults,
+} from "./currentResults";
+import {
   previewTopicAnalysis,
   startTopicAnalysis,
   topicMapsOverview,
@@ -87,11 +91,42 @@ const resultInput = projectInput.extend({
     "Select a time range of at most 93 days.",
   ),
 });
-const mapInput = resultInput.extend({ runId: topicIdSchema });
+const mapInput = projectInput.extend({ runId: topicIdSchema });
 const analysisFilterInput = projectInput.extend({
   filter: topicRuleConfigSchema.shape.filter,
   timeRange: resultInput.shape.timeRange,
   facets: z.array(topicFacetRefSchema).min(1),
+});
+const tracesInput = projectInput.extend({
+  facetId: topicIdSchema,
+  /** A rule's live map or an analysis snapshot; omitted means every rule. */
+  ruleId: topicIdSchema.optional(),
+  analysisId: topicIdSchema.optional(),
+  topicIds: z
+    .object({
+      operator: z.enum(["any of", "none of"]),
+      values: z.array(z.string()).max(1000),
+    })
+    .optional(),
+  statuses: z
+    .object({
+      operator: z.enum(["any of", "none of"]),
+      values: z.array(
+        z.enum([
+          "assigned",
+          "outlier",
+          "awaiting_map",
+          "not_applicable",
+          "insufficient_input",
+        ]),
+      ),
+    })
+    .optional(),
+  assigned: z.boolean().optional(),
+  traceId: z.string().min(1).optional(),
+  cursor: z
+    .object({ timestamp: z.date(), traceId: z.string(), facetId: z.string() })
+    .optional(),
 });
 const topicsProcedure = protectedProjectProcedureWithoutTracing
   .input(projectInput)
@@ -222,6 +257,7 @@ type TopicMap = {
   points: {
     traceId: string;
     summary: string;
+    unitStartTime: string;
     topicId: string | null;
     outcome: "assigned" | "outlier" | "unassigned";
     x: number;
@@ -229,10 +265,10 @@ type TopicMap = {
   }[];
   unpositionedCount: number;
 };
+/** The run's own discovery cohort, independent of the page's time range. */
 async function publishedTopicMap(input: {
   projectId: string;
   runId: string;
-  timeRange: TopicTimeRange;
 }): Promise<TopicMap> {
   const run = await getTopicRun(input.projectId, input.runId);
   if (!run || run.projectId !== input.projectId)
@@ -245,12 +281,15 @@ async function publishedTopicMap(input: {
     unpositionedCount: 0,
   };
   if (run.status !== "completed") return unavailable;
+  const cohortRange = topicTimeRangeSchema.safeParse(run.config.timeRange);
+  if (!cohortRange.success)
+    return { ...unavailable, reason: "This map has no saved cohort window." };
   const discoveryAssignments = (
     await readTopicMapAssignments(
       input.projectId,
       { facetId: run.facetId, version: run.facetVersion },
       run.id,
-      input.timeRange,
+      cohortRange.data,
     )
   ).sort((a, b) => (a.traceId ?? "").localeCompare(b.traceId ?? ""));
   if (!discoveryAssignments.length)
@@ -281,7 +320,8 @@ async function publishedTopicMap(input: {
     input.projectId,
     run.facetId,
     run.facetVersion,
-    input.timeRange,
+    cohortRange.data,
+    discoveryAssignments.map((row) => row.traceId!),
   );
   const byTraceId = new Map(
     summaries
@@ -310,6 +350,7 @@ async function publishedTopicMap(input: {
         {
           traceId: row.traceId,
           summary: row.summary,
+          unitStartTime: row.unitStartTime,
           topicId: assignment?.topicId ?? null,
           outcome,
           x,
@@ -328,13 +369,18 @@ async function publishedTopicMap(input: {
 }
 
 export const topicsRouter = createTRPCRouter({
+  /** Counts per facet over its published map's window; the page has no time filter. */
   currentResults: topicsProcedure
-    .input(resultInput.extend({ ruleId: topicIdSchema.optional() }))
+    .input(projectInput.extend({ ruleId: topicIdSchema.optional() }))
     .query(({ input }) =>
-      currentTopicResults(input.projectId, input.timeRange, {
+      currentTopicResults(input.projectId, undefined, {
         ruleId: input.ruleId,
       }),
     ),
+  /** One page of a facet's traces; filters and paging run in ClickHouse. */
+  traces: topicsProcedure
+    .input(tracesInput)
+    .query(({ input }) => listTopicTraces(input)),
   /** Rule maps and one-off analyses for the map picker and the Rules page. */
   maps: topicsProcedure.query(({ input }) =>
     topicMapsOverview(input.projectId),
@@ -649,6 +695,14 @@ export const topicsRouter = createTRPCRouter({
         throw new InvalidRequestError(
           "Process past traces with a trace filter instead of a rule.",
         );
+      if (input.operation === "update" && input.analysis)
+        throw new InvalidRequestError("Start analyses with New analysis.");
+      if (
+        input.operation === "update" &&
+        input.ruleId &&
+        !(await getTopicRule(input.projectId, input.ruleId))
+      )
+        throw new InvalidRequestError("Topic rule not found in this project.");
       await requireFacetVersions(input.projectId, input.facets);
       const resolvedInput = await resolveTopicTraceSelection(input, ctx.prisma);
       const configuredInput = topicExecutionInputSchema.parse({

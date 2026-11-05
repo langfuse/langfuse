@@ -22,6 +22,9 @@
   call `flushMetricsToCloudWatch` from the server barrel after recording to
   submit them before the next gauge replaces the cached value.
 - Server cache utilities: `src/server/cache/*`
+- Eval-rule caches: `src/server/evalJobConfigCache.ts` keeps observation/experiment
+  absence (`eventBased`) separate from transcript absence (`traceTranscriptBased`).
+  Invalidate through `invalidateProjectEvalConfigCaches` after rule or assignment changes.
 - Transcript assembly: pass the enriched result of `orderObservations` into
   `assembleTranscript`. `currentTurn.nestingLevel` uses the first contributing
   generation after history is split off; it is not the depth of the first
@@ -63,6 +66,7 @@
   `src/server/repositories/events.golden.test.ts`,
   `src/server/repositories/scores.golden.test.ts`,
   `src/server/queries/clickhouse-sql/event-filter-options.golden.test.ts`).
+- Query-builder predicate (client-safe half, WIP): `src/query-ast/*`, exported from the main barrel — the `Predicate` tree (`and | or | not | condition`) with its zod schema, `PredicateWithSearch` (the tree plus at most one free-text search), the `FilterState` + `searchQuery`/`searchType` codec (`fromFilterState` / `toFilterState`), `analyzePredicate` contradiction diagnostics, and the semantic source registry (`eventsPredicateSource`, kept in parity with `eventsTableCols` and the events search columns by `sources.test.ts`). No server imports here.
 - Postgres schema: `prisma/schema.prisma`
 - Prisma migrations: `prisma/migrations/*`
 - Canonical ClickHouse migration templates (rendered for clustered and
@@ -352,6 +356,7 @@ the same PR.
   cron pattern, append the old pattern to `previousPatterns` so the legacy
   md5-keyed schedule is cleaned up on boot.
 - Do not hand-edit generated artifacts under `prisma/generated/*` or `dist/*`.
+- `next-auth` is a devDependency: import it with `import type` only. `pnpm deploy --prod` leaves it out of the worker image, so a value import would crash the worker at startup; `oxlint.config.mts` rejects one via `no-restricted-imports`.
 - `src/server/ee/*` is under the Enterprise License (root `LICENSE`), not MIT.
   Put EE logic there when both `web` and `worker` must import it; keep OSS
   code paths out of it.

@@ -29,16 +29,8 @@ const mocks = vi.hoisted(() => ({
   exec: vi.fn(),
   query: vi.fn(),
   queryStream: vi.fn(),
-  publishedRuns: vi.fn(),
-  oldestRule: vi.fn(),
   cacheGet: vi.fn(),
   cacheSet: vi.fn(),
-}));
-vi.mock("../../db", () => ({
-  prisma: {
-    topicClusteringRun: { findMany: mocks.publishedRuns },
-    evaluationRule: { findFirst: mocks.oldestRule },
-  },
 }));
 vi.mock("../redis/redis", () => ({
   redis: { get: mocks.cacheGet, set: mocks.cacheSet },
@@ -62,7 +54,6 @@ beforeEach(() => {
   mocks.query.mockResolvedValue([]);
   mocks.queryStream.mockImplementation(async function* () {});
   mocks.exec.mockImplementation(async () => ({ stream: Readable.from([]) }));
-  mocks.publishedRuns.mockResolvedValue([{ id: "published-run" }]);
   mocks.cacheGet.mockResolvedValue(null);
 });
 
@@ -386,7 +377,13 @@ it("bounds Topics payload reads by their storage timestamp", async () => {
         "run-a",
         timeRange,
       ),
-    () => readLatestTopicAssignments("project-a", "facet-a", timeRange),
+    () =>
+      readLatestTopicAssignments(
+        "project-a",
+        "facet-a",
+        "published-run",
+        timeRange,
+      ),
   ];
   for (const [index, read] of reads.entries()) {
     mocks.query.mockClear();
@@ -861,28 +858,24 @@ describe("Topics classifications", () => {
         },
       ]);
       expect(
-        await readLatestTopicAssignments("project-a", "facet-a", timeRange),
+        await readLatestTopicAssignments(
+          "project-a",
+          "facet-a",
+          "published-run",
+          timeRange,
+        ),
       ).toEqual([{ ...row, traceName: inserted.trace_name }]);
-      expect(mocks.publishedRuns).toHaveBeenCalledWith({
-        where: {
-          projectId: "project-a",
-          facetId: "facet-a",
-          status: "completed",
-          batchActionId: null,
-        },
-        select: { id: true, ruleId: true },
-      });
       const { query, params } = mocks.query.mock.calls[0][0];
       expect(params).toEqual({
         from: timeRange.from.toISOString(),
         to: timeRange.to.toISOString(),
         projectId: "project-a",
         facetId: "facet-a",
-        runIds: ["published-run"],
+        publishedRunId: "published-run",
       });
       expect(query).toContain("facet_id = {facetId:String}");
       expect(query).toContain(
-        "AND (clustering_run_id IN {runIds:Array(String)} OR clustering_run_id = '')",
+        "AND clustering_run_id = {publishedRunId:String}",
       );
       expect(query).toContain(
         "ORDER BY facet_version DESC, assigned_at DESC, clustering_run_id DESC, origin DESC",
@@ -892,50 +885,6 @@ describe("Topics classifications", () => {
       );
     },
   );
-
-  it("counts only rule assignments as current topics and scopes them to one rule", async () => {
-    mocks.query.mockResolvedValue([]);
-    mocks.publishedRuns.mockResolvedValue([
-      { id: "rule-a-run", ruleId: "rule-a" },
-      { id: "rule-b-run", ruleId: "rule-b" },
-      { id: "legacy-run", ruleId: null },
-    ]);
-    await readLatestTopicAssignments("project-a", "facet-a", timeRange);
-    let { query, params } = mocks.query.mock.calls[0][0];
-    // Analysis runs carry a batch action and are never loaded as serving runs.
-    expect(mocks.publishedRuns.mock.calls[0][0].where).toMatchObject({
-      batchActionId: null,
-    });
-    expect(query).not.toContain("rule_id");
-    expect(params).toMatchObject({
-      runIds: ["rule-a-run", "rule-b-run", "legacy-run"],
-    });
-
-    mocks.oldestRule.mockResolvedValue({ id: "rule-a" });
-    await readLatestTopicAssignments(
-      "project-a",
-      "facet-a",
-      timeRange,
-      undefined,
-      "rule-b",
-    );
-    ({ query, params } = mocks.query.mock.calls[1][0]);
-    // Another rule's runs and rows written before runs never count for this rule.
-    expect(query).not.toContain("clustering_run_id = ''");
-    expect(params.runIds).toEqual(["rule-b-run"]);
-
-    await readLatestTopicAssignments(
-      "project-a",
-      "facet-a",
-      timeRange,
-      undefined,
-      "rule-a",
-    );
-    ({ query, params } = mocks.query.mock.calls[2][0]);
-    // The oldest rule also owns runs written before rules.
-    expect(query).toContain("OR clustering_run_id = ''");
-    expect(params.runIds).toEqual(["rule-a-run", "legacy-run"]);
-  });
 
   it("reads latest initial membership including rows with missing coordinates", async () => {
     await readTopicMapAssignments(

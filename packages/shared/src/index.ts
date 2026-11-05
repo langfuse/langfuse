@@ -2,6 +2,10 @@ export * from "./constants";
 export { decodeUnicodeEscapesOnly } from "./utils/unicode";
 export { stringify, stringifyForCsv } from "./utils/stringify";
 export * from "./interfaces/filters";
+export * from "./query-ast/predicate";
+export * from "./query-ast/filterStateCodec";
+export * from "./query-ast/analyze";
+export * from "./query-ast/sources";
 export * from "./interfaces/orderBy";
 export * from "./interfaces/cloudConfigSchema";
 export * from "./interfaces/parseDbOrg";
@@ -78,6 +82,7 @@ export {
   extractValueFromObjectAsString,
 } from "./features/evals/utilities";
 export * from "./features/evals/observationForEval";
+export { traceTranscriptFilterDefinition } from "./features/evals/traceTranscriptFilters";
 export * from "./features/evals/evalConfigBlocking";
 export * from "./features/evals/validateEvaluatorFilters";
 export * from "./features/evals/experimentRuleNormalization";
@@ -188,6 +193,7 @@ export * from "./features/prompts/constants";
 export * from "./features/skills/types";
 export * from "./features/skills/trace";
 export * from "./features/skills/constants";
+export * from "./features/skills/toolArguments";
 
 // ai gateway
 export * from "./features/ai-gateway/constants";

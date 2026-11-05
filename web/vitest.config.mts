@@ -134,7 +134,7 @@ const sharedSourceResolve = {
   ],
   // Runtime source resolves these through shared's node_modules symlinks.
   // Dedupe keeps one module identity so mocks registered from web intercept.
-  dedupe: ["@ag-ui/core", "@ag-ui/client", "langfuse"],
+  dedupe: ["@ag-ui/core", "@ag-ui/client"],
 };
 
 function serverProject(
@@ -234,7 +234,10 @@ export default defineConfig({
           include: ["src/**/*.clienttest.{ts,tsx}"],
           exclude: sharedExclude,
           environment: "jsdom",
-          setupFiles: ["@testing-library/jest-dom/vitest"],
+          setupFiles: [
+            "@testing-library/jest-dom/vitest",
+            "./src/__tests__/flush-focus-scope-timers.ts",
+          ],
         },
       },
       serverProject("server", sharedContextServerTestFiles, {

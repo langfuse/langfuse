@@ -104,6 +104,11 @@ export function useOrganizationSettingsPages(): OrganizationSettingsPage[] {
     showAiGatewayNotDeployedNotice: gatewayAccess.showNotDeployedNotice,
     showAiGatewayModels: gatewayAccess.showModels,
     showAiGatewayApiKeys: gatewayAccess.showApiKeys,
+    /** Gateway-only members; members with settings access keep today's pages. */
+    showAiGatewayOwnUsageAnalytics:
+      gatewayAccess.showApiKeys &&
+      !gatewayAccess.showManagement &&
+      !canReadSettings,
     gatewayKeyReminder,
     /** Only managers get disabled entries; others see a notice on the page. */
     gatewaySetupDisabledReason:
@@ -132,6 +137,7 @@ const getOrganizationSettingsPages = ({
   showAiGatewayNotDeployedNotice,
   showAiGatewayModels,
   showAiGatewayApiKeys,
+  showAiGatewayOwnUsageAnalytics,
   gatewayKeyReminder,
   gatewaySetupDisabledReason,
   showOrganizationLlmConnections,
@@ -161,6 +167,7 @@ const getOrganizationSettingsPages = ({
   showAiGatewayNotDeployedNotice: boolean;
   showAiGatewayModels: boolean;
   showAiGatewayApiKeys: boolean;
+  showAiGatewayOwnUsageAnalytics: boolean;
   gatewayKeyReminder: boolean;
   gatewaySetupDisabledReason: string | undefined;
   showOrganizationLlmConnections: boolean;
@@ -338,7 +345,7 @@ const getOrganizationSettingsPages = ({
     show: showProjects,
   },
   {
-    title: "v4 Migration",
+    title: "V4 migration",
     slug: "v4-migration",
     section: "Organization",
     href: "/v4-migration",
@@ -394,7 +401,7 @@ const getOrganizationSettingsPages = ({
     section: "AI Gateway",
     cmdKKeywords: ["gateway", "analytics", "cost", "usage", "consumption"],
     content: <GatewayAnalyticsPage organizationId={organization.id} />,
-    show: showAiGatewayManagement,
+    show: showAiGatewayManagement || showAiGatewayOwnUsageAnalytics,
     disabledReason: gatewaySetupDisabledReason,
   },
 ];

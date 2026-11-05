@@ -15,6 +15,8 @@ export const topicIdSchema = z
 export const topicTraceIdSchema = z.string().min(1).max(1000);
 /** The longest time range any Topics read or update accepts. */
 export const TOPICS_MAX_TIME_RANGE_MS = 93 * 86_400_000;
+/** One-off runs select traces from at most 30 days; larger windows get slow on high-volume projects. */
+export const TOPICS_MAX_SELECTION_RANGE_MS = 30 * 86_400_000;
 export const topicTimeRangeSchema = z
   .object({ from: z.coerce.date(), to: z.coerce.date() })
   .refine(({ from, to }) => from < to, {
@@ -59,8 +61,9 @@ export const TOPICS_MODEL_SLOT_DETAILS: Record<
       "Names and describes each topic when topics are updated. Use a stronger model such as GPT-5.6 Terra, or Claude Sonnet through Amazon Bedrock.",
   },
 };
+// Like evals: the provider name picks the project's connection, else its organization's.
 const topicsModelSlotSchema = z.object({
-  llmApiKeyId: z.string().min(1),
+  provider: z.string().min(1),
   model: z.string().trim().min(1).max(256),
 });
 export const topicsModelSettingsSchema = z.object({
@@ -83,8 +86,13 @@ export const topicRuleConfigSchema = z.object({
   filter: singleFilterList
     .refine((filters) => filters.length <= 100, "Select at most 100 filters.")
     .refine(
-      (filters) => !filters.some((item) => item.type === "positionInTrace"),
-      "Position-in-trace filters are not supported for Topics selection.",
+      (filters) =>
+        !filters.some(
+          (item) =>
+            item.type === "positionInTrace" ||
+            item.column === "isRootObservation",
+        ),
+      "Root and position-in-trace filters are not supported for Topics selection.",
     ),
 });
 export const topicTraceSelectionCriteriaSchema = topicRuleConfigSchema
@@ -100,9 +108,10 @@ export const topicTraceSelectionCriteriaSchema = topicRuleConfigSchema
     path: ["to"],
   })
   .refine(
-    ({ from, to }) => to.getTime() - from.getTime() <= TOPICS_MAX_TIME_RANGE_MS,
+    ({ from, to }) =>
+      to.getTime() - from.getTime() <= TOPICS_MAX_SELECTION_RANGE_MS,
     {
-      message: "Select at most 93 days of traces.",
+      message: "Select at most 30 days of traces.",
       path: ["from"],
     },
   );

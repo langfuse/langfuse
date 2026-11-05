@@ -98,12 +98,10 @@ export const naturalLanguageFilterRouter = createTRPCRouter({
           env.LANGFUSE_AI_FEATURES_PUBLIC_KEY,
           env.LANGFUSE_AI_FEATURES_SECRET_KEY,
           env.LANGFUSE_AI_FEATURES_HOST,
-          false,
         );
 
-        const promptResponse = await client.getPrompt(
+        const promptResponse = await client.prompt.get(
           "get-filter-conditions-from-query",
-          undefined,
           { type: "chat" },
         );
 

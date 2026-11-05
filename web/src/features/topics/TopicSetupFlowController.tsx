@@ -160,23 +160,16 @@ function TopicSetupSession({
   );
 
   async function saveQuestions() {
-    const summary = resolveTopicModelSlot(
-      draft.summary,
-      connections,
-      settings.stored.summary?.llmApiKeyId,
-      "chat",
-    );
+    const summary = resolveTopicModelSlot(draft.summary, connections, "chat");
     const embedding = resolveTopicModelSlot(
       draft.embedding,
       connections,
-      settings.stored.embedding?.llmApiKeyId,
       "embedding",
-      settings.stored.embedding?.model,
+      settings.stored.embedding,
     );
     const clustering = resolveTopicModelSlot(
       draft.clustering,
       connections,
-      settings.stored.clustering?.llmApiKeyId,
       "chat",
     );
     if (!summary || !embedding || !clustering)

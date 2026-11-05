@@ -1,5 +1,6 @@
 import type { z } from "zod";
 import { InvalidRequestError } from "../../errors/InvalidRequestError";
+import { invalidateProjectEvalConfigCaches } from "../evalJobConfigCache";
 import {
   topicRuleFilterError,
   topicsAutomaticProcessingSchema,
@@ -135,7 +136,7 @@ async function writeModelsAndReadiness<T>(
     return saved;
   });
   await cacheTracingReadinessSettings(projectId, { traceIdleMs });
-  await invalidateTopicsProcessingActive(projectId);
+  await invalidateProjectEvalConfigCaches(projectId);
   return saved;
 }
 

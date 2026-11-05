@@ -25,8 +25,9 @@ export const CLICKHOUSE_QUERY_ELAPSED_MS_METRIC =
   "langfuse.clickhouse.query.elapsed_ms";
 
 /**
- * `client_closed` is not a ClickHouse failure: the caller aborted or stopped
- * reading a streamed result, e.g. a browser closing a dashboard stream.
+ * `client_closed` is not a ClickHouse failure: the caller aborted its signal for
+ * a reason other than a deadline, e.g. a browser closing a dashboard stream. A
+ * deadline abort is an `error` with `error_code:client_timeout`.
  */
 export type ClickHouseQueryOutcome =
   | "success"
@@ -52,15 +53,16 @@ export const CLICKHOUSE_RESOURCE_ERROR_OUTCOMES = {
  * Metric tags must be bounded, so a route only gets its own label when its
  * value set is fixed by code:
  *
- * - Bare routes (`events.all`, `listObservations`, `langfuse.queue.trace_delete`)
- *   are tRPC procedure paths, MCP tool names and worker routes. Each is set only
- *   after the procedure, tool or queue resolved, so they pass through.
+ * - Bare routes (`events.all`, `listObservations`, `langfuse.queue.trace_delete`,
+ *   `topics-map`) are tRPC procedure paths, MCP tool names, worker routes and
+ *   route literals passed as query tags. Each is set only after the procedure,
+ *   tool or queue resolved, or fixed in code, so they pass through.
  * - REST routes carry their page template (`GET /api/public/traces/[traceId]`),
  *   taken from a list of the dynamic API routes in web. As a guard against a
  *   route missing from that list, a segment that is neither a word, a version
  *   (`v2`) nor a `[param]` placeholder drops the route to `other`.
  */
-const BARE_ROUTE_PATTERN = /^[A-Za-z][\w.]{0,99}$/;
+const BARE_ROUTE_PATTERN = /^[A-Za-z][\w.-]{0,99}$/;
 const REST_PATH_PREFIX = "/api/";
 const REST_STATIC_SEGMENT_PATTERN = /^(?:[A-Za-z][A-Za-z_-]*|v\d+|\[\w+\])$/;
 const MAX_REST_SEGMENTS = 10;

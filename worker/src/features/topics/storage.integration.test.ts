@@ -680,7 +680,7 @@ describe("Topics definition persistence", () => {
     expect(
       await Promise.all(
         [summary.traceId!, "other-trace"].map((traceId) =>
-          getTopicTraceUnitTimeRange(projectId, traceId, oldRange),
+          getTopicTraceUnitTimeRange(projectId, [traceId], oldRange),
         ),
       ),
     ).toEqual([

@@ -6,6 +6,11 @@ const mocks = vi.hoisted(() => ({
   findRules: vi.fn(),
   create: vi.fn(),
   update: vi.fn(),
+  invalidate: vi.fn(),
+}));
+
+vi.mock("../evalJobConfigCache", () => ({
+  invalidateProjectEvalConfigCaches: mocks.invalidate,
 }));
 
 vi.mock("./clickhouse", () => ({
@@ -69,6 +74,7 @@ describe("saveTopicRule", () => {
         }),
       }),
     );
+    expect(mocks.invalidate).toHaveBeenCalledExactlyOnceWith(projectId);
     expect(rule).toMatchObject({
       sampling: 0.25,
       facetIds: ["intent"],
