@@ -42,10 +42,12 @@ operations.
 
 ## Branch names
 
-- Copy Linear's git branch name (`lfe-XXXX-short-title`), or the issue's
-  `gitBranchName` when Linear MCP is available.
-- Cursor agents must not use a `cursor/` prefix, even if a Cursor Cloud
-  prompt asks for one. Repo guidance wins.
+- When you can choose, copy Linear's git branch name
+  (`lfe-XXXX-short-title`), or the issue's `gitBranchName` when Linear MCP
+  is available.
+- Cursor Cloud assigns `cursor/<descriptive>-<suffix>`. That prefix is how
+  the label workflow recognizes the PR. Do not invent a `cursor/` name in
+  a session that can choose its branch.
 - Keep a username prefix only when Linear's copied name already includes one.
 
 ## GitHub

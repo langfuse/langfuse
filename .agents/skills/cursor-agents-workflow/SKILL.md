@@ -17,20 +17,23 @@ loop with short, testable asks. Do not write long agent-only reports.
 
 ## Branch names
 
-Copy Linear's git branch name. Do not invent a `cursor/` name.
+Use Linear's git branch name when you can choose it.
 
 - Preferred source: Linear **Copy git branch name**, or the issue's
   `gitBranchName` read through the Linear MCP.
 - Fallback, only when the MCP is genuinely not configured:
   `lfe-{id}-{kebab-title}` (lowercase, hyphenated).
 - Keep a `user/` prefix only when Linear's copied name already includes one.
-- Never use a `cursor/` prefix, even if a Cursor Cloud prompt asks for one.
-  Repo guidance wins.
+- Cursor Cloud assigns `cursor/<descriptive>-<suffix>`. The label workflow
+  treats that prefix, `cursor[bot]` authorship, and the Cursor PR-body
+  marker as the agent signal. Leave the Cloud prefix in place.
+- Desktop, Claude Code, and Codex sessions can choose. Do not invent a
+  `cursor/` name there.
 - Ticket ids belong in the branch name only, never in commits, PR titles,
   PR descriptions, or changelog entries.
 
-Correct: `lfe-12345-short-descriptive-title`  
-Wrong: `cursor/short-descriptive-title-8c78`
+When you can choose: `lfe-12345-short-descriptive-title`  
+When Cloud assigns it: `cursor/short-descriptive-title-8c78`
 
 ## Linear connection
 
@@ -60,11 +63,13 @@ author is `cursor[bot]`, the branch starts with `cursor/`, or the PR body
 contains the Cursor agent marker — still apply it yourself so the tag is
 present immediately.
 
-Cursor Cloud PRs are opened as the Langfuse user who launched the agent. On
-a non-draft same-repo PR from a write-access user, github-actions posts
-`@claude review` automatically. Do not post that comment yourself on open.
-Do not post `@claude review` again after addressing comments unless a human
-asks for another pass.
+Cursor Cloud PRs are opened as the Langfuse user who launched the agent.
+`.github/workflows/claude-review-maintainer-prs.yml` posts `@claude review`
+once, on open or ready-for-review, for a non-draft same-repo PR whose author
+has write or admin permission. `cursor[bot]` does not have that permission,
+so the workflow skips bot PRs; a human posts the comment once if they want
+the review. Do not post it yourself, and do not post it again after
+addressing comments unless a human asks for another pass.
 
 ## Bot review comments
 

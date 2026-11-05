@@ -1,0 +1,4 @@
+interface:
+  display_name: "Retro"
+  short_description: "Retrospective over the agent work log"
+  default_prompt: "Use $retro to review recent agent pull requests and sessions, then update AGENTS.md and skills where the same failure keeps happening."
