@@ -12,7 +12,11 @@ import { api } from "@/src/utils/api";
 import { getResultUnit } from "@langfuse/shared/query";
 import { Chart } from "@/src/features/widgets/chart-library/Chart";
 import { type DataPoint } from "@/src/features/widgets/chart-library/chart-props";
-import { isTimeSeriesChart } from "@/src/features/widgets/chart-library/utils";
+import {
+  formatMetric,
+  isTimeSeriesChart,
+} from "@/src/features/widgets/chart-library/utils";
+import { prepareFormulaChart } from "@/src/features/widgets/lib/widgetFormula";
 import { ChartLoadingState } from "@/src/features/widgets/chart-library/ChartLoadingState";
 import {
   getChartLoadingProgress,
@@ -29,6 +33,7 @@ type ConnectedWidgetPreviewProps = Pick<
   WidgetFormState,
   | "projectId"
   | "query"
+  | "formulaQuery"
   | "viewVersion"
   | "queryValidation"
   | "chartType"
@@ -61,10 +66,12 @@ export function ConnectedWidgetPreview(props: ConnectedWidgetPreviewProps) {
   } = props;
   const {
     queryResult,
+    isPending,
     chartLoadingState,
     loadingProgress,
-    transformedData,
+    chartData,
     chartPresentation,
+    formulaChart,
   } = useWidgetPreviewData(props);
 
   const chartConfig: ComponentProps<typeof Chart>["chartConfig"] = (() => {
@@ -142,7 +149,7 @@ export function ConnectedWidgetPreview(props: ConnectedWidgetPreviewProps) {
               <div className="relative min-h-0 flex-1">
                 <Chart
                   chartType={chartType}
-                  data={transformedData}
+                  data={chartData}
                   config={
                     chartPresentation
                       ? { metric: { label: chartPresentation.label } }
@@ -154,11 +161,16 @@ export function ConnectedWidgetPreview(props: ConnectedWidgetPreviewProps) {
                     chartType === "PIVOT_TABLE" ? previewSortState : undefined
                   }
                   onSortChange={undefined}
-                  isLoading={queryResult.isPending}
-                  metricFormatter={chartPresentation?.metricFormatter}
-                  missingValue={getWidgetMissingBucketValue(
-                    selectedAggregation,
-                  )}
+                  isLoading={isPending}
+                  metricFormatter={
+                    props.formulaQuery
+                      ? formulaChart?.metricFormatter
+                      : chartPresentation?.metricFormatter
+                  }
+                  missingValue={
+                    formulaChart?.missingValue ??
+                    getWidgetMissingBucketValue(selectedAggregation)
+                  }
                 />
                 {chartLoadingState.isLoading && (
                   <ChartLoadingState
@@ -191,6 +203,7 @@ export function ConnectedWidgetPreview(props: ConnectedWidgetPreviewProps) {
 function useWidgetPreviewData({
   projectId,
   query,
+  formulaQuery,
   viewVersion,
   queryValidation,
   chartType,
@@ -199,6 +212,7 @@ function useWidgetPreviewData({
   selectedDimension,
   selectedMeasure,
   selectedView,
+  displayName,
 }: ConnectedWidgetPreviewProps) {
   const queryResult = api.dashboard.executeQuery.useQuery(
     {
@@ -212,13 +226,29 @@ function useWidgetPreviewData({
       enabled: queryValidation.valid,
     },
   );
+  const formulaResult = api.dashboard.executeQuery.useQuery(
+    {
+      projectId,
+      query: formulaQuery ?? query,
+      version: viewVersion,
+    },
+    {
+      trpc: { context: { skipBatch: true } },
+      meta: { silentHttpCodes: [412, 422] },
+      enabled: queryValidation.valid && formulaQuery !== null,
+    },
+  );
+  const formulaRows = formulaQuery ? formulaResult.data : undefined;
+  const isPending =
+    queryResult.isPending || (formulaQuery !== null && formulaResult.isPending);
 
   const chartLoadingState = getChartLoadingStateProps({
-    isPending: queryResult.isPending,
-    isError: queryResult.isError,
+    isPending,
+    isError:
+      queryResult.isError || (formulaQuery !== null && formulaResult.isError),
   });
   const loadingProgress = getChartLoadingProgress({
-    isPending: queryResult.isPending,
+    isPending,
     progress: null,
     useBackendProgress: false,
   });
@@ -313,11 +343,45 @@ function useWidgetPreviewData({
     viewVersion,
   ]);
 
+  const formulaChart = useMemo(() => {
+    const formula = values.formula;
+    const bMetric = formulaQuery?.metrics[0];
+    if (!formula || !bMetric || !queryResult.data || !formulaRows) {
+      return undefined;
+    }
+    return prepareFormulaChart({
+      chartType,
+      operator: formula.operator,
+      aMetric: { measure: selectedMeasure, agg: selectedAggregation },
+      bMetric: { measure: bMetric.measure, agg: bMetric.aggregation },
+      aRows: queryResult.data,
+      bRows: formulaRows,
+      dimensionField:
+        selectedDimension !== "none" ? selectedDimension : undefined,
+      seriesLabel: displayName,
+      operandFormatter: chartPresentation?.metricFormatter ?? formatMetric,
+    });
+  }, [
+    values.formula,
+    formulaQuery,
+    queryResult.data,
+    formulaRows,
+    chartType,
+    selectedMeasure,
+    selectedAggregation,
+    selectedDimension,
+    displayName,
+    chartPresentation,
+  ]);
+  const chartData = formulaQuery ? (formulaChart?.data ?? []) : transformedData;
+
   return {
     queryResult,
+    isPending,
     chartLoadingState,
     loadingProgress,
-    transformedData,
+    chartData,
     chartPresentation,
+    formulaChart,
   };
 }

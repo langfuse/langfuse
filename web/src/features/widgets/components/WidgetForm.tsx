@@ -79,6 +79,11 @@ import {
 } from "@/src/components/ui/popover";
 import { formatMetricName } from "@/src/features/widgets/utils";
 import {
+  buildFormulaQuery,
+  WIDGET_FORMULA_OPERATORS,
+  widgetChartTypeSupportsFormula,
+} from "@/src/features/widgets/lib/widgetFormula";
+import {
   MAX_PIVOT_TABLE_DIMENSIONS,
   MAX_PIVOT_TABLE_METRICS,
 } from "@/src/features/widgets/utils/pivot-table-utils";
@@ -98,6 +103,7 @@ import {
   toDefaultValues,
   toSavePayload,
   widgetChartTypeSupportsBreakdown,
+  type FormulaField,
   type SortField,
   type WidgetFormValues,
   type WidgetInitialValues,
@@ -200,10 +206,12 @@ type WidgetFormProps = Pick<
   | "selectedOption"
 > & {
   filterData: ReturnType<typeof useMetricsFilterBuilderData>;
+  formulaFilterData: ReturnType<typeof useMetricsFilterBuilderData>;
 };
 
 export function WidgetForm({
   filterData,
+  formulaFilterData,
   form,
   values,
   queryValidation,
@@ -340,6 +348,37 @@ export function WidgetForm({
       );
   }, [selectedView, viewVersion]);
 
+  const formula = values.formula ?? null;
+  const formulaView = formula?.b.view;
+  const formulaMeasures = useMemo(() => {
+    if (!formulaView) return [];
+    return Object.keys(viewDeclarations[viewVersion][formulaView].measures)
+      .map((key) => ({ value: key, label: startCase(key) }))
+      .sort((a, b) =>
+        a.label.localeCompare(b.label, "en", { sensitivity: "base" }),
+      );
+  }, [formulaView, viewVersion]);
+  const getValidFormulaAggregations = (
+    view: z.infer<typeof views>,
+    measure: string,
+  ): z.infer<typeof metricAggregations>[] =>
+    getValidAggregationsForMeasureType(
+      viewDeclarations[viewVersion][view]?.measures?.[measure]?.type,
+    ).filter((agg) => agg !== "histogram");
+  // Both results are joined on the breakdown value, so a formula widget can
+  // only be broken down by a dimension metric B's view declares too.
+  const breakdownDimensions = formulaView
+    ? availableDimensions.filter(
+        (dimension) =>
+          dimension.value in
+          viewDeclarations[viewVersion][formulaView].dimensions,
+      )
+    : availableDimensions;
+  const formulaError: string | undefined =
+    formErrors.formula?.message ??
+    formErrors.formula?.b?.measure?.message ??
+    formErrors.formula?.b?.aggregation?.message;
+
   // ---------------------------------------------------------------------------
   // Cross-slice cascades — the ONLY writers of sibling fields. Each builds the
   // candidate next state, HEALS it through the shared normalizeWidgetFormValues
@@ -433,6 +472,82 @@ export function WidgetForm({
       viewVersion,
     );
     commitHealed(candidate);
+  };
+
+  // The only writer of `formula`. A breakdown metric B's view cannot carry is
+  // cleared in the same action.
+  const commitFormula = (next: FormulaField | null) => {
+    const dimension = values.dimensions[0]?.field;
+    if (
+      next &&
+      dimension &&
+      !(dimension in viewDeclarations[viewVersion][next.b.view].dimensions)
+    ) {
+      form.setValue("dimensions", []);
+    }
+    form.setValue("formula", next, { shouldValidate: true });
+  };
+
+  // Metric B starts as a count on the widget's own view.
+  const onFormulaOperatorChange = (
+    operator: FormulaField["operator"] | "none",
+  ) => {
+    if (operator === "none") {
+      commitFormula(null);
+      return;
+    }
+    commitFormula(
+      formula
+        ? { ...formula, operator }
+        : {
+            operator,
+            b: {
+              view: selectedView,
+              measure: "count",
+              aggregation: "count",
+              filters: [],
+            },
+          },
+    );
+  };
+
+  // A new view resets metric B (its measures and filter columns are
+  // view-specific); a new measure heals the aggregation like metric A's.
+  const onFormulaMetricBChange = (patch: Partial<FormulaField["b"]>) => {
+    if (!formula) return;
+    const current = formula.b;
+    if (patch.view && patch.view !== current.view) {
+      commitFormula({
+        ...formula,
+        b: {
+          view: patch.view,
+          measure: "count",
+          aggregation: "count",
+          filters: [],
+        },
+      });
+      return;
+    }
+    const next = { ...current, ...patch };
+    if (patch.measure && patch.measure !== current.measure) {
+      const validAggregations = getValidFormulaAggregations(
+        next.view,
+        next.measure,
+      );
+      const preferred = resolveMeasureChangeAggregation({
+        currentAggregation: current.aggregation,
+        newMeasure: next.measure,
+        view: next.view,
+        viewVersion,
+      });
+      next.aggregation =
+        next.measure === "count"
+          ? "count"
+          : validAggregations.includes(preferred)
+            ? preferred
+            : (validAggregations[0] ?? "count");
+    }
+    commitFormula({ ...formula, b: next });
   };
 
   const applyPreset = (
@@ -609,7 +724,11 @@ export function WidgetForm({
             {/* Metrics Selection */}
             <div className="space-y-2">
               <Label htmlFor="metrics-select">
-                {chartType === "PIVOT_TABLE" ? "Metrics" : "Metric"}
+                {chartType === "PIVOT_TABLE"
+                  ? "Metrics"
+                  : formula
+                    ? "Metric A"
+                    : "Metric"}
               </Label>
               {chartType === "PIVOT_TABLE" ? (
                 <PivotMetricsField
@@ -636,7 +755,31 @@ export function WidgetForm({
               filterData={filterData}
               control={form.control}
               selectedView={selectedView}
+              label={formula ? "Metric A filters" : "Filters"}
             />
+
+            {widgetChartTypeSupportsFormula(chartType) && (
+              <FormulaSelect
+                operator={formula?.operator}
+                error={formulaError}
+                onOperatorChange={onFormulaOperatorChange}
+              />
+            )}
+
+            {formula && (
+              <FormulaMetricBFields
+                metricB={formula.b}
+                viewVersion={viewVersion}
+                viewOptions={viewVersion === "v2" ? viewsV2 : views}
+                measures={formulaMeasures}
+                validAggregations={getValidFormulaAggregations(
+                  formula.b.view,
+                  formula.b.measure,
+                )}
+                filterData={formulaFilterData}
+                onChange={onFormulaMetricBChange}
+              />
+            )}
 
             {/* Dimension Selection - Regular charts (Breakdown) */}
             {widgetChartTypeSupportsBreakdown(chartType) &&
@@ -645,7 +788,7 @@ export function WidgetForm({
                   control={form.control}
                   ctx={ctx}
                   error={dimensionsError}
-                  availableDimensions={availableDimensions}
+                  availableDimensions={breakdownDimensions}
                 />
               )}
 
@@ -684,6 +827,7 @@ export function WidgetForm({
               value={chartType}
               onChartTypeChange={onChartTypeChange}
               measureSupportsHistogram={measureSupportsHistogram}
+              hasFormula={formula !== null}
               error={chartTypeError}
             />
 
@@ -1128,21 +1272,162 @@ function FiltersField({
   filterData,
   control,
   selectedView,
+  label,
 }: {
   filterData: ReturnType<typeof useMetricsFilterBuilderData>;
   control: Control<WidgetFormValues>;
   selectedView: z.infer<typeof views>;
+  label: string;
 }) {
   const { field } = useController({ control, name: "filters" });
   return (
     <div className="space-y-2">
-      <Label>Filters</Label>
+      <Label>{label}</Label>
       <MetricsFilterBuilder
         {...filterData}
         view={selectedView}
         filters={field.value}
         onChange={(next: FilterState) => field.onChange(next)}
       />
+    </div>
+  );
+}
+
+const FORMULA_DESCRIPTIONS: Record<FormulaField["operator"], string> = {
+  divide:
+    "Shows A ÷ B as a percentage. Where B is 0, the value is left empty instead of 0%.",
+  subtract: "Shows A − B in metric A's unit.",
+  add: "Shows A + B in metric A's unit.",
+};
+
+function FormulaSelect({
+  operator,
+  error,
+  onOperatorChange,
+}: {
+  operator: FormulaField["operator"] | undefined;
+  error?: string;
+  onOperatorChange: (operator: FormulaField["operator"] | "none") => void;
+}) {
+  return (
+    <FormField
+      label="Formula (optional)"
+      description={
+        operator
+          ? FORMULA_DESCRIPTIONS[operator]
+          : "Combine this metric with a second metric B, e.g. for a rate."
+      }
+    >
+      {(field) => (
+        <div className="space-y-2">
+          <SelectInput
+            value={operator ?? "none"}
+            onValueChange={(next) =>
+              onOperatorChange(next as FormulaField["operator"] | "none")
+            }
+            id={field.id}
+            placeholder="Select a formula"
+            error={Boolean(error)}
+            aria-invalid={error ? true : undefined}
+            aria-describedby={field.inputDescribedById}
+            options={[
+              { value: "none", label: "None" },
+              ...WIDGET_FORMULA_OPERATORS,
+            ]}
+          />
+          {error && <p className="text-destructive text-xs">{error}</p>}
+        </div>
+      )}
+    </FormField>
+  );
+}
+
+function FormulaMetricBFields({
+  metricB,
+  viewVersion,
+  viewOptions,
+  measures,
+  validAggregations,
+  filterData,
+  onChange,
+}: {
+  metricB: FormulaField["b"];
+  viewVersion: ViewVersion;
+  viewOptions: typeof views | typeof viewsV2;
+  measures: { value: string; label: string }[];
+  validAggregations: z.infer<typeof metricAggregations>[];
+  filterData: ReturnType<typeof useMetricsFilterBuilderData>;
+  onChange: (patch: Partial<FormulaField["b"]>) => void;
+}) {
+  return (
+    <div className="space-y-4 rounded-md border p-3">
+      <h4 className="text-sm font-bold">Metric B</h4>
+      <FormField label="View">
+        {(field) => (
+          <SelectInput
+            value={metricB.view}
+            onValueChange={(view) =>
+              onChange({ view: view as z.infer<typeof views> })
+            }
+            id={field.id}
+            aria-describedby={field.inputDescribedById}
+            placeholder="Select a view"
+            options={viewOptions.options.map((view) => ({
+              value: view,
+              label: startCase(view),
+              explanation: {
+                title: startCase(view),
+                description: viewDeclarations[viewVersion][view].description,
+              },
+            }))}
+          />
+        )}
+      </FormField>
+      <FormField label="Metric">
+        {(field) => (
+          <div className="flex items-center gap-2">
+            <div className="flex-1">
+              <SelectInput
+                value={metricB.measure}
+                onValueChange={(measure) => onChange({ measure })}
+                id={field.id}
+                aria-describedby={field.inputDescribedById}
+                placeholder="Select a measure"
+                options={measures}
+              />
+            </div>
+            {metricB.measure !== "count" && (
+              <div className="flex-1">
+                <SelectInput
+                  value={metricB.aggregation}
+                  onValueChange={(aggregation) =>
+                    onChange({
+                      aggregation: aggregation as z.infer<
+                        typeof metricAggregations
+                      >,
+                    })
+                  }
+                  aria-label="Metric B aggregation"
+                  placeholder="Select an aggregation"
+                  options={validAggregations.map((aggregation) => ({
+                    value: aggregation,
+                    label: startCase(aggregation),
+                  }))}
+                />
+              </div>
+            )}
+          </div>
+        )}
+      </FormField>
+      <div className="space-y-2">
+        <Label>Metric B filters</Label>
+        <MetricsFilterBuilder
+          {...filterData}
+          view={metricB.view}
+          filters={metricB.filters}
+          onChange={(filters: FilterState) => onChange({ filters })}
+        />
+      </div>
     </div>
   );
 }
@@ -1439,14 +1724,37 @@ function ChartTypeSelect({
   value,
   onChartTypeChange,
   measureSupportsHistogram,
+  hasFormula,
   error,
 }: {
   control: Control<WidgetFormValues>;
   value: DashboardWidgetChartType;
   onChartTypeChange: (type: DashboardWidgetChartType) => void;
   measureSupportsHistogram: boolean;
+  hasFormula: boolean;
   error?: string;
 }) {
+  const getDisabledReason = (chart: ChartType): string | undefined => {
+    if (hasFormula && !widgetChartTypeSupportsFormula(chart.value)) {
+      return "Not available for widgets with a formula";
+    }
+    if (chart.value === "HISTOGRAM" && !measureSupportsHistogram) {
+      return "Histogram is not supported for this metric";
+    }
+    return undefined;
+  };
+  const toOption = (chart: ChartType) => {
+    const disabledReason = getDisabledReason(chart);
+    return disabledReason
+      ? {
+          value: chart.value,
+          label: chart.name,
+          icon: chart.icon,
+          disabled: true as const,
+          disabledReason,
+        }
+      : { value: chart.value, label: chart.name, icon: chart.icon };
+  };
   return (
     <FormField control={control} name="chart.type" label="Chart Type">
       {(field) => (
@@ -1467,11 +1775,7 @@ function ChartTypeSelect({
               label: "Time Series",
               options: chartTypes
                 .filter((chart) => chart.group === "time-series")
-                .map((chart) => ({
-                  value: chart.value,
-                  label: chart.name,
-                  icon: chart.icon,
-                })),
+                .map(toOption),
             },
             {
               type: "group",
@@ -1479,22 +1783,7 @@ function ChartTypeSelect({
               label: "Total Value",
               options: chartTypes
                 .filter((chart) => chart.group === "total-value")
-                .map((chart) =>
-                  chart.value === "HISTOGRAM" && !measureSupportsHistogram
-                    ? {
-                        value: chart.value,
-                        label: chart.name,
-                        icon: chart.icon,
-                        disabled: true as const,
-                        disabledReason:
-                          "Histogram is not supported for this metric",
-                      }
-                    : {
-                        value: chart.value,
-                        label: chart.name,
-                        icon: chart.icon,
-                      },
-                ),
+                .map(toOption),
             },
           ]}
         />
@@ -1794,6 +2083,17 @@ export function useWidgetFormState({
     normalizedUserFilters,
   ]);
 
+  const formulaQuery = useMemo(() => {
+    const formula = values.formula;
+    if (!formula || !widgetChartTypeSupportsFormula(chartType)) return null;
+    return buildFormulaQuery(query, {
+      view: formula.b.view,
+      measure: formula.b.measure,
+      agg: formula.b.aggregation,
+      filters: mapWidgetUiTableFilterToView(formula.b.view, formula.b.filters),
+    });
+  }, [query, values.formula, chartType]);
+
   const queryValidation = useMemo(() => {
     if (unsupportedFilters.length > 0) {
       return {
@@ -1803,8 +2103,22 @@ export function useWidgetFormState({
           "Remove them or switch to a compatible view before saving this widget.",
       };
     }
-    return validateQuery(query, viewVersion);
-  }, [query, unsupportedFilterColumns, unsupportedFilters.length, viewVersion]);
+    const validation = validateQuery(query, viewVersion);
+    if (!validation.valid || !formulaQuery) return validation;
+    const formulaValidation = validateQuery(formulaQuery, viewVersion);
+    return formulaValidation.valid
+      ? validation
+      : {
+          valid: false as const,
+          reason: `Metric B: ${formulaValidation.reason}`,
+        };
+  }, [
+    query,
+    formulaQuery,
+    unsupportedFilterColumns,
+    unsupportedFilters.length,
+    viewVersion,
+  ]);
 
   useCaptureWidgetHighCardinalityError({
     validation: queryValidation,
@@ -1830,6 +2144,7 @@ export function useWidgetFormState({
     activeVersion,
     projectId,
     query,
+    formulaQuery,
     selectedDimension,
     widgetId,
     isV4,

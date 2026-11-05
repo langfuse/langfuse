@@ -2,7 +2,11 @@
 import { z } from "zod";
 import startCase from "lodash/startCase";
 
-import { singleFilterList, type FilterState } from "@langfuse/shared";
+import {
+  singleFilterList,
+  WidgetFormulaSchema,
+  type FilterState,
+} from "@langfuse/shared";
 import {
   getValidAggregationsForMeasureType,
   getWidgetRequiredVersion,
@@ -19,6 +23,10 @@ import {
 } from "@/src/features/dashboard/lib/dashboardUiTableToViewMapping";
 import { isTimeSeriesChart } from "@/src/features/widgets/chart-library/utils";
 import { dashboardWidgetChartTypeSchema } from "@/src/features/widgets/lib/dashboardWidgetChartTypes";
+import {
+  getWidgetFormula,
+  widgetChartTypeSupportsFormula,
+} from "@/src/features/widgets/lib/widgetFormula";
 import {
   buildWidgetDescription,
   buildWidgetName,
@@ -157,6 +165,21 @@ const MetricFieldSchema = z.object({
 });
 type MetricField = z.infer<typeof MetricFieldSchema>;
 
+/**
+ * Metric B of a formula widget. Filters are editor-space like the widget's
+ * own; `toSavePayload` maps them into B's view space.
+ */
+const FormulaFieldSchema = z.object({
+  operator: WidgetFormulaSchema.shape.operator,
+  b: z.object({
+    view: views,
+    measure: z.string(),
+    aggregation: metricAggregations,
+    filters: singleFilterList,
+  }),
+});
+export type FormulaField = z.infer<typeof FormulaFieldSchema>;
+
 /** A pivot-table default sort column + direction. `null` on the form means "no default sort". */
 const SortFieldSchema = z.object({
   column: z.string().min(1),
@@ -195,6 +218,7 @@ export function makeWidgetFormSchema(viewVersion: ViewVersion) {
         rowLimit: z.coerce.number().int().min(0).max(1000),
         sort: SortFieldSchema.nullable(),
       }),
+      formula: FormulaFieldSchema.nullish(),
     })
     .superRefine((values, ctx) => {
       const isPivot = values.chart.type === "PIVOT_TABLE";
@@ -306,6 +330,47 @@ export function makeWidgetFormSchema(viewVersion: ViewVersion) {
           message:
             "The histogram aggregation is only valid for histogram charts.",
         });
+      }
+
+      if (values.formula) {
+        const { b } = values.formula;
+        if (!widgetChartTypeSupportsFormula(values.chart.type)) {
+          ctx.addIssue({
+            code: "custom",
+            path: ["formula"],
+            message:
+              "Formulas work on line, bar and area time series and Big Number charts.",
+          });
+        }
+        const bView = viewDeclarations[viewVersion][b.view];
+        const bMeasure = bView?.measures?.[b.measure];
+        if (!bMeasure) {
+          ctx.addIssue({
+            code: "custom",
+            path: ["formula", "b", "measure"],
+            message: "Select a measure for metric B.",
+          });
+        } else if (
+          b.aggregation === "histogram" ||
+          (b.measure === "count" && b.aggregation !== "count") ||
+          !getValidAggregationsForMeasureType(bMeasure.type).includes(
+            b.aggregation,
+          )
+        ) {
+          ctx.addIssue({
+            code: "custom",
+            path: ["formula", "b", "aggregation"],
+            message: "Select a valid aggregation for metric B.",
+          });
+        }
+        const dimension = values.dimensions[0]?.field;
+        if (dimension && !bView?.dimensions?.[dimension]) {
+          ctx.addIssue({
+            code: "custom",
+            path: ["dimensions"],
+            message: `Metric B cannot be broken down by ${startCase(dimension)}.`,
+          });
+        }
       }
     });
 }
@@ -612,6 +677,8 @@ export function toDefaultValues(
       }) ?? null)
     : null;
 
+  const storedFormula = getWidgetFormula(initialValues.chartConfig);
+
   return normalizeWidgetFormValues(
     {
       // A blank initial name/description is "auto" (null → show the live
@@ -642,6 +709,20 @@ export function toDefaultValues(
         rowLimit: initialValues.chartConfig?.row_limit ?? 100,
         sort,
       },
+      formula: storedFormula
+        ? {
+            operator: storedFormula.operator,
+            b: {
+              view: storedFormula.b.view,
+              measure: storedFormula.b.measure,
+              aggregation: storedFormula.b.agg,
+              filters: normalizeStoredWidgetFiltersForEditor(
+                storedFormula.b.view,
+                storedFormula.b.filters,
+              ).editorFilters,
+            },
+          }
+        : null,
     },
     viewVersion,
   );
@@ -691,7 +772,7 @@ export function toSavePayload(
   );
 
   const chartType = values.chart.type;
-  const chartConfig: WidgetChartConfig = isTimeSeriesChart(chartType)
+  const baseChartConfig: WidgetChartConfig = isTimeSeriesChart(chartType)
     ? { type: chartType }
     : chartType === "HISTOGRAM"
       ? { type: chartType, bins: values.chart.bins }
@@ -702,6 +783,24 @@ export function toSavePayload(
             defaultSort: params.effectiveSort ?? undefined,
           }
         : { type: chartType, row_limit: values.chart.rowLimit };
+  const chartConfig: WidgetChartConfig =
+    values.formula && widgetChartTypeSupportsFormula(chartType)
+      ? {
+          ...baseChartConfig,
+          formula: {
+            operator: values.formula.operator,
+            b: {
+              view: values.formula.b.view,
+              measure: values.formula.b.measure,
+              agg: values.formula.b.aggregation,
+              filters: mapWidgetUiTableFilterToView(
+                values.formula.b.view,
+                values.formula.b.filters,
+              ),
+            },
+          },
+        }
+      : baseChartConfig;
 
   return {
     name: effectiveWidgetName(values.name, params.suggestedName),
