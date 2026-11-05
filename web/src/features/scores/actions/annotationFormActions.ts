@@ -88,9 +88,7 @@ export function createAnnotationFormActions({
   let sequence = 0;
   const latestSaves = new Map<string, number>();
   const pendingFields = new Map<string, number>();
-  // Resolves to undefined once every write started so far for a field has
-  // settled. The promise keeps no save result, and a settled entry is removed
-  // while it is still the latest so finished saves are not retained.
+  // Settles once every write started so far for a field has settled.
   const fieldWrites = new Map<string, Promise<void>>();
   const failedFields = new Set<string>();
   const serverFields = new Map(
@@ -143,7 +141,7 @@ export function createAnnotationFormActions({
     );
 
   const trackSave = (
-    send: (operationSequence: number) => Promise<unknown>,
+    operation: Promise<unknown>,
     tracked: ReturnType<typeof beginSave>,
     field: AnnotationScoreFormData,
     onFailure: () => void,
@@ -156,19 +154,9 @@ export function createAnnotationFormActions({
       hasChangedAnnotationValue(field, confirmed);
     latestSaves.set(key, operationSequence);
     pendingFields.set(key, (pendingFields.get(key) ?? 0) + 1);
-    const previous = fieldWrites.get(key);
-    const start = () => {
-      try {
-        return Promise.resolve(send(operationSequence));
-      } catch (error) {
-        return Promise.reject(error);
-      }
-    };
-    // Later writes wait until earlier ones for this score have settled, so an
-    // older request cannot land last and replace a newer value or comment.
-    const operation = previous ? previous.then(start) : start();
-    const settled = operation.then(
-      () => undefined,
+    // Resolves to undefined, so a chain of saves does not retain each
+    // response. Drop the entry once it has settled and is still the latest.
+    const settled = Promise.allSettled([fieldWrites.get(key), operation]).then(
       () => undefined,
     );
     fieldWrites.set(key, settled);
@@ -245,11 +233,10 @@ export function createAnnotationFormActions({
     const scoreId = field.id;
     if (scoreId)
       trackSave(
-        () =>
-          deleteScore({
-            id: scoreId,
-            projectId: target.scoreMetadata.projectId,
-          }),
+        deleteScore({
+          id: scoreId,
+          projectId: target.scoreMetadata.projectId,
+        }),
         tracked,
         cleared,
         () => {
@@ -311,18 +298,17 @@ export function createAnnotationFormActions({
       form.setValue(`scoreData.${index}.timestamp`, next.timestamp);
     }
     trackSave(
-      () =>
-        id
-          ? updateScore({
-              ...data,
-              id,
-              timestamp: timestamp ?? undefined,
-            } as UpdateAnnotationScoreData)
-          : createScore({
-              ...data,
-              id: next.id,
-              timestamp: next.timestamp,
-            } as CreateAnnotationScoreData),
+      id
+        ? updateScore({
+            ...data,
+            id,
+            timestamp: timestamp ?? undefined,
+          } as UpdateAnnotationScoreData)
+        : createScore({
+            ...data,
+            id: next.id,
+            timestamp: next.timestamp,
+          } as CreateAnnotationScoreData),
       tracked,
       next,
       () => {
@@ -387,35 +373,30 @@ export function createAnnotationFormActions({
       next,
     );
     replaceField(indexOf(key), next);
-    // The payload is read when the comment is sent, after earlier writes for
-    // this score. A newer write already carries this comment, so it is not
-    // sent again with the value from this call.
-    trackSave(
-      (operationSequence) => {
-        if (latestSaves.get(key) !== operationSequence)
-          return Promise.resolve();
-        const current = find(key);
-        if (!current?.id) return Promise.resolve();
-        const { targetKey: _targetKey, ...score } = current;
-        return updateScore({
-          ...score,
-          ...target.scoreMetadata,
-          scoreTarget: target.scoreTarget,
-          comment,
-        } as UpdateAnnotationScoreData);
-      },
-      tracked,
-      next,
-      () => {
-        const index = indexOf(key);
-        if (index < 0) return;
-        replaceField(index, field);
-        form.setError(`scoreData.${index}.comment`, {
-          type: "server",
-          message: "Failed to update comment",
-        });
-      },
-    );
+    const send = () => {
+      const current = find(key);
+      if (!current?.id) return Promise.resolve();
+      const { targetKey: _targetKey, ...score } = current;
+      return updateScore({
+        ...score,
+        ...target.scoreMetadata,
+        scoreTarget: target.scoreTarget,
+        comment,
+      } as UpdateAnnotationScoreData);
+    };
+    // Wait for writes already in flight, then read the field. A value edit
+    // made while this waits is sent immediately and must not be overwritten
+    // by the value from this call.
+    const inFlight = pendingFields.has(key) ? fieldWrites.get(key) : undefined;
+    trackSave(inFlight ? inFlight.then(send) : send(), tracked, next, () => {
+      const index = indexOf(key);
+      if (index < 0) return;
+      replaceField(index, field);
+      form.setError(`scoreData.${index}.comment`, {
+        type: "server",
+        message: "Failed to update comment",
+      });
+    });
   }
 
   // Match Save Changes: trim, drop a no-op, and delete the comment when the
