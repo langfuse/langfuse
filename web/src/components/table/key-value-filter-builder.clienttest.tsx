@@ -142,6 +142,17 @@ describe("KeyValueFilterBuilder", () => {
     expect(onChange).toHaveBeenCalledWith([
       { key: "kind", operator: "=", value: "ToolCall" },
     ]);
+
+    // Picking a suggestion closes the list without blurring the field. A later
+    // click, not a fresh focus, has to open the other values again.
+    expect(screen.queryByRole("option")).not.toBeInTheDocument();
+    fireEvent.click(value);
+    expect(
+      screen.getByRole("option", { name: "ToolCall" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("option", { name: "AgentProfile" }),
+    ).not.toBeInTheDocument();
   });
 
   it("preserves incomplete local filters across equivalent parent rerenders", () => {

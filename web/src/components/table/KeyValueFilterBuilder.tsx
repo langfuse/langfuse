@@ -224,6 +224,16 @@ function SuggestingInput({
               e.currentTarget.select();
             }
           }}
+          // A picked suggestion dismisses the list without blurring, so a
+          // later click on the same field must open it again. Focus alone
+          // does not: the input never lost focus.
+          onClick={(e) => {
+            setDismissed(false);
+            setReplacing(true);
+            if (value.length > 0 && suggestions.includes(value)) {
+              e.currentTarget.select();
+            }
+          }}
           // Blur resets the whole interaction, not just focus: a stale
           // `activeIndex` would let the next Enter accept a highlight the user
           // never made, and a stale `dismissed` would survive into whichever row
