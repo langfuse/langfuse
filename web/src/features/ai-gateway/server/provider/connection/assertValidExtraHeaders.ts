@@ -24,7 +24,10 @@ export function assertValidExtraHeaders(headers: Record<string, string>) {
     if (!HEADER_NAME.test(name)) {
       throw new InvalidRequestError(`Invalid header name: ${name}`);
     }
-    if (RESERVED_HEADER_NAMES.has(lowerName) || lowerName.startsWith("proxy-")) {
+    if (
+      RESERVED_HEADER_NAMES.has(lowerName) ||
+      lowerName.startsWith("proxy-")
+    ) {
       throw new InvalidRequestError(`The ${name} header cannot be overridden`);
     }
     if (!HEADER_VALUE.test(value)) {
