@@ -2088,7 +2088,7 @@ export default function ExperimentItemsTable({
                   comparisonExperimentIds={
                     baselineId ? comparisonIds : allExperimentIds
                   }
-                  useExperimentColors={hasBaseline}
+                  useExperimentColors={hasBaseline && comparisonIds.length > 0}
                   showDiff={showComparisonDiff}
                   singleLine={ioSingleLine}
                   rows={rows}
