@@ -757,7 +757,7 @@ describe("Blob Storage Integration tRPC Router", () => {
 
   describe("IAM role auth", () => {
     it("drops the access keys and keeps the external ID stable across saves", async () => {
-      const { caller, project } = await prepare();
+      const { caller, project } = await prepare({ plan: "cloud:enterprise" });
       const roleConfig = {
         projectId: project.id,
         ...baseConfig,
@@ -814,9 +814,9 @@ describe("Blob Storage Integration tRPC Router", () => {
       }
     });
 
-    it("requires the Enterprise plan", async () => {
+    it("requires the Enterprise plan, even for Langfuse admins", async () => {
       const { caller, project } = await prepare({
-        admin: false,
+        admin: true,
         plan: "cloud:team",
       });
       (getStorageAccessRoleArn as Mock).mockReturnValue(
