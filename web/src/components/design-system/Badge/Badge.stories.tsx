@@ -161,7 +161,7 @@ export const InContext = meta.story({
         ),
       },
       {
-        title: "One strong marker: inverted",
+        title: "inverted: rarely, at most one per surface",
         badges: <Badge color="inverted" size="lg" text="# 16" />,
       },
     ];
