@@ -26,21 +26,12 @@ export function buildDataWindowPermalink(
     dateRange: `${alert.fromTimestamp.getTime()}-${alert.toTimestamp.getTime()}`,
     filters: alert.filters,
   };
-  // A filter value encodeURIComponent rejects must not fail the monitor batch.
-  try {
-    if (alert.view === "observations") return linkToObservationsTable(params);
-    return linkToScoresTable({ ...params, view: alert.view });
-  } catch (error) {
-    logger.warn("Omitting monitor data link with unencodable filters", {
-      projectId: alert.projectId,
-      error,
-    });
-    return undefined;
-  }
+  if (alert.view === "observations") return linkToObservationsTable(params);
+  return linkToScoresTable({ ...params, view: alert.view });
 }
 
 /** linkToObservationsTable links to the observations table with every monitor filter */
-function linkToObservationsTable(params: TableLinkParams): string {
+function linkToObservationsTable(params: TableLinkParams): string | undefined {
   return tableLink(
     `${params.projectUrl}/observations`,
     params.dateRange,
@@ -51,7 +42,7 @@ function linkToObservationsTable(params: TableLinkParams): string {
 /** linkToScoresTable links to the scores table with every monitor filter and the view's data-type segment */
 function linkToScoresTable(
   params: TableLinkParams & { view: ScoresMonitorView },
-): string {
+): string | undefined {
   return tableLink(
     `${params.projectUrl}/scores`,
     params.dateRange,
@@ -61,15 +52,26 @@ function linkToScoresTable(
   );
 }
 
-/** tableLink builds a table URL for the window; an empty filter clears stored and default table filters */
+/** tableLink builds a table URL for the window, or undefined when a filter cannot be encoded; an empty filter clears stored and default table filters */
 function tableLink(
   tableUrl: string,
   dateRange: string,
   filters: FilterState,
-): string {
+): string | undefined {
+  let encodedFilters: string;
+  try {
+    encodedFilters = encodeFiltersGeneric(filters);
+  } catch (error) {
+    // A filter value encodeURIComponent rejects must not fail the monitor batch.
+    logger.warn("Omitting monitor data link with unencodable filters", {
+      tableUrl,
+      error,
+    });
+    return undefined;
+  }
   const query = new URLSearchParams({
     dateRange,
-    filter: encodeFiltersGeneric(filters),
+    filter: encodedFilters,
     // Alert filters own the environment scope, including an unrestricted one.
     showAllEnvironments: "true",
   });
