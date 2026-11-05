@@ -366,16 +366,43 @@ export const handleMixpanelIntegrationProjectJob = async (
         attempt: job.attemptsMade,
       });
     }
-    logger.error(
-      `[MIXPANEL] Error processing Mixpanel integration for project ${projectId}`,
-      {
-        error,
-        errorMessage: error instanceof Error ? error.message : String(error),
-        errorStack: error instanceof Error ? error.stack : undefined,
-        mixpanelFaultReason,
-        attempt: job.attemptsMade,
+    if (mixpanelFaultReason === undefined) {
+      logger.error(
+        `[MIXPANEL] Error processing Mixpanel integration for project ${projectId}`,
+        {
+          error,
+          errorMessage: error instanceof Error ? error.message : String(error),
+          errorStack: error instanceof Error ? error.stack : undefined,
+          attempt: job.attemptsMade,
+        },
+      );
+      throw error;
+    }
+
+    // A customer fault (e.g. a rejected project token) cannot clear on retry,
+    // so disable the integration and resolve instead of failing every run.
+    // The token/region predicate keeps a run with stale config from disabling
+    // credentials the customer corrected mid-run; a failed write rethrows so
+    // BullMQ retries and reclassifies.
+    const { count } = await prisma.mixpanelIntegration.updateMany({
+      where: {
+        projectId,
+        enabled: true,
+        encryptedMixpanelProjectToken:
+          mixpanelIntegration.encryptedMixpanelProjectToken,
+        mixpanelRegion: mixpanelIntegration.mixpanelRegion,
       },
+      data: { enabled: false },
+    });
+    if (count === 0) {
+      logger.info(
+        `[MIXPANEL] Skipped disabling Mixpanel integration for project ${projectId}: already disabled or config changed mid-run`,
+      );
+      return;
+    }
+    logger.warn(
+      `[MIXPANEL] Disabled Mixpanel integration for project ${projectId} after a customer fault (reason=${mixpanelFaultReason}): ${error instanceof Error ? error.message : String(error)}`,
+      { mixpanelFaultReason, projectId },
     );
-    throw error;
   }
 };
