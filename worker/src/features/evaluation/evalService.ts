@@ -1313,6 +1313,7 @@ export async function executeLLMAsJudgeEvaluation(
   await completeEvalExecution({
     projectId: params.projectId,
     jobExecutionId: params.jobExecutionId,
+    scoreTimestamp: params.job.createdAt,
     traceId: params.job.jobInputTraceId,
     observationId: params.job.jobInputObservationId,
     environment: params.environment,

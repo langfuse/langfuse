@@ -309,6 +309,7 @@ export async function processObservationEval(
   await completeEvalExecution({
     projectId: executionParams.projectId,
     jobExecutionId: executionParams.jobExecutionId,
+    scoreTimestamp: executionParams.job.createdAt,
     traceId: executionParams.job.jobInputTraceId,
     observationId: executionParams.job.jobInputObservationId,
     environment: executionParams.environment,
