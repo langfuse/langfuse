@@ -169,6 +169,8 @@ type AppSidebarProps = {
     darkModeHref?: string;
   };
   versionState: SidebarVersionState;
+  /** Defaults to the build's VERSION. */
+  version?: string;
   showDemoBadge: boolean;
   v4UpgradeUiEnabled: boolean;
   notificationState: SidebarNotificationState;
@@ -187,6 +189,7 @@ export function AppSidebar({
   isMobile,
   logo,
   versionState,
+  version = VERSION,
   showDemoBadge,
   v4UpgradeUiEnabled,
   notificationState,
@@ -225,7 +228,7 @@ export function AppSidebar({
             />
           </Link>
           <div className="ml-auto flex min-w-0 items-center overflow-hidden group-data-[collapsible=icon]:hidden">
-            <VersionLabel state={versionState} />
+            <VersionLabel state={versionState} version={version} />
           </div>
         </div>
         {showDemoBadge && <DemoBadge />}
@@ -570,7 +573,13 @@ const DemoBadge = () => {
   );
 };
 
-const VersionLabel = ({ state }: { state: SidebarVersionState }) => {
+const VersionLabel = ({
+  state,
+  version,
+}: {
+  state: SidebarVersionState;
+  version: string;
+}) => {
   const selfHostedPlanLabel =
     state.deployment === "self-hosted"
       ? selfHostedPlanLabels[state.plan]
@@ -585,7 +594,7 @@ const VersionLabel = ({ state }: { state: SidebarVersionState }) => {
     state.release.status === "update-available"
       ? state.release
       : null;
-  const versionText = `${VERSION}${
+  const versionText = `${version}${
     selfHostedPlanLabel ? ` ${selfHostedPlanLabel.short}` : ""
   }`;
   const color = React.useMemo(() => {
