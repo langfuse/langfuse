@@ -29,7 +29,7 @@ export const Default = meta.story({
       "ft:gpt-4o-mini:acme::abc123",
       "gpt-4o",
     ],
-    customModels: ["ft:gpt-4o-mini:acme::abc123"],
+    customModels: [{ id: "ft:gpt-4o-mini:acme::abc123" }],
   },
 });
 

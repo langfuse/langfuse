@@ -505,7 +505,7 @@ describe("AI gateway provider registry", () => {
           encryptedCredential: encrypt("sk-test"),
           status: "ENABLED",
           allowedModels: null,
-          customModels: ["gpt-5", "ft:gpt-4o:acme::abc"],
+          customModels: [{ id: "gpt-5" }, { id: "ft:gpt-4o:acme::abc" }],
         }),
       },
     } as unknown as PrismaClient;

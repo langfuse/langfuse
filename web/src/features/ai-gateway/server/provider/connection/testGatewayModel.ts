@@ -102,7 +102,10 @@ function getTestRequest(apiFormat: GatewayApiFormat, model: string) {
     return { path: "/messages", body: { model, max_tokens: 1, messages } };
   }
   if (apiFormat === "openai.chat-completions") {
-    return { path: "/chat/completions", body: { model, messages } };
+    return {
+      path: "/chat/completions",
+      body: { model, messages, max_tokens: 16 },
+    };
   }
   return {
     path: "/responses",

@@ -7,6 +7,10 @@ import {
 
 import { parseGatewayAllowedModels } from "@/src/features/ai-gateway/fns/parseGatewayAllowedModels";
 import {
+  type GatewayCustomModel,
+  parseGatewayCustomModels,
+} from "@/src/features/ai-gateway/fns/parseGatewayCustomModels";
+import {
   type GatewayBedrockConfig,
   GatewayBedrockConfigSchema,
 } from "@/src/features/ai-gateway/server/provider/bedrock";
@@ -34,6 +38,7 @@ function toSafeConnection<T extends SafeConnectionRow>(connection: T) {
   return {
     ...connection,
     allowedModels: parseGatewayAllowedModels(connection.allowedModels),
+    customModels: parseGatewayCustomModels(connection.customModels),
     config:
       GatewayBedrockConfigSchema.safeParse(connection.config).data ?? null,
   };
@@ -149,7 +154,7 @@ export class GatewayProviderRepository {
     organizationId: string;
     id: string;
     allowedModels: string[] | null;
-    customModels?: string[];
+    customModels?: GatewayCustomModel[];
     expectedUpdatedAt: Date;
   }) {
     const result = await this.prisma.gatewayAiConnection.updateMany({

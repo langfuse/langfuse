@@ -10,6 +10,7 @@ import type { CustomHeights } from "@/src/components/table/data-table-row-height
 import { createTableSelectionStore } from "@/src/components/table/table-selection-store";
 import type { LangfuseColumnDef } from "@/src/components/table/types";
 import { TableSelectionManager } from "@/src/features/table/components/TableSelectionManager";
+import type { GatewayCustomModel } from "@/src/features/ai-gateway/fns/parseGatewayCustomModels";
 import { isGatewayModelAllowed } from "@/src/features/ai-gateway/fns/isGatewayModelAllowed";
 import { toGatewayAllowedModelsSet } from "@/src/features/ai-gateway/fns/toGatewayAllowedModelsSet";
 import {
@@ -43,7 +44,7 @@ function GatewayConnectionModelNameCell({
   }
 
   return (
-    <div className="flex min-w-0 items-center gap-2">
+    <div className="ph-no-capture flex min-w-0 items-center gap-2">
       <span className="truncate" title={modelId}>
         {modelId}
       </span>
@@ -146,7 +147,7 @@ function createGatewayConnectionModelsColumns({
 export type GatewayConnectionModelsTableProps = {
   models: string[];
   allowedModels: string[] | null;
-  customModels: string[];
+  customModels: GatewayCustomModel[];
   isSaving: boolean;
   /** Extra toolbar actions, e.g. the trigger for adding a custom model. */
   toolbarActions?: ReactNode;
@@ -205,12 +206,13 @@ export function GatewayConnectionModelsTable({
     () => toGatewayAllowedModelsSet(allowedModels),
     [allowedModels],
   );
+  const customModelIds = new Set(customModels.map(({ id }) => id));
   const filteredModels = models
     .filter((model) => model.toLowerCase().includes(normalizedSearch))
     .map((id) => ({
       id,
       enabled: isGatewayModelAllowed(allowedModelsSet, id),
-      custom: customModels.includes(id),
+      custom: customModelIds.has(id),
     }));
   const sortedModels = filteredModels.toSorted((left, right) => {
     const comparison =

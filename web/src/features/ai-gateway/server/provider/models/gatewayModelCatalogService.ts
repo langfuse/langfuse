@@ -328,7 +328,7 @@ export class GatewayModelCatalogService {
     const catalog = addCustomModels(
       provider,
       models.models,
-      connection.customModels,
+      connection.customModels.map(({ id }) => id),
     );
     // Discovery can outlast a credential update, whose catalog must not be overwritten by the old one.
     const unchanged = await this.repository.isConnectionUnchanged({

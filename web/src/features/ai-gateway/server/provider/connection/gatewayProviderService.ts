@@ -25,6 +25,7 @@ import {
   type GatewayBedrockConfig,
 } from "@/src/features/ai-gateway/server/provider/bedrock";
 import { invalidateGatewayResolveCacheForOrganization } from "@/src/features/ai-gateway/server/resolve/gatewayResolveCache";
+import type { GatewayCustomModel } from "@/src/features/ai-gateway/fns/parseGatewayCustomModels";
 import { parseGatewayConnectionName } from "./parseGatewayConnectionName";
 import { GatewayProviderRepository } from "./gatewayProviderRepository";
 import { testGatewayModel } from "./testGatewayModel";
@@ -314,7 +315,9 @@ export class GatewayProviderService {
       organizationId: params.organizationId,
       id: params.id,
     });
-    if (existing.customModels.includes(params.model)) return existing;
+    if (existing.customModels.some(({ id }) => id === params.model)) {
+      return existing;
+    }
     // A connection restricted to some models would otherwise list the new model disabled.
     const allowedModels =
       existing.allowedModels === null
@@ -324,7 +327,7 @@ export class GatewayProviderService {
       ...params,
       existing,
       allowedModels,
-      customModels: [...existing.customModels, params.model],
+      customModels: [...existing.customModels, { id: params.model }],
     });
   }
 
@@ -342,7 +345,7 @@ export class GatewayProviderService {
       existing,
       allowedModels,
       customModels: existing.customModels.filter(
-        (model) => model !== params.model,
+        ({ id }) => id !== params.model,
       ),
     });
   }
@@ -351,7 +354,7 @@ export class GatewayProviderService {
     params: CustomModelChange & {
       existing: Awaited<ReturnType<GatewayProviderService["get"]>>;
       allowedModels: string[] | null;
-      customModels: string[];
+      customModels: GatewayCustomModel[];
     },
   ) {
     const updated = await this.repository.updateAllowedModels({
