@@ -26,6 +26,7 @@ import {
   metadataMap,
   metadataValue,
   startsWith,
+  typedValue,
   useFinal,
 } from "./extensions";
 import { finalTable } from "./nodes";
@@ -690,6 +691,42 @@ describe("logical events routing agrees with filtersRequireEventsFull", () => {
           .selectFrom("events as e")
           .select("e.span_id")
           .where(astPredicate(operator, value)),
+      ),
+    );
+
+    expect(routed).toBe(legacyNeedsFull ? "events_full" : "events_core");
+  });
+
+  // A `typedValue` bind carries its string inside a `TypedParam`; routing
+  // length-checks it like a plain bind.
+  it.each(
+    lengthSensitive.flatMap((operator) =>
+      values.map(({ label, value }) => ({ operator, label, value })),
+    ),
+  )("metadata $operator, $label, typed bind", ({ operator, value }) => {
+    const legacyNeedsFull = filtersRequireEventsFull(
+      new FilterList([
+        new StringObjectFilter({
+          clickhouseTable: "events_core",
+          field: "metadata",
+          key: "k",
+          operator,
+          value,
+          tablePrefix: "e",
+        }),
+      ]),
+    );
+    const bound = typedValue<string>(value, "String");
+    const [routed] = routedTables(
+      compile(
+        db
+          .selectFrom("events as e")
+          .select("e.span_id")
+          .where((eb) =>
+            operator === "="
+              ? eb(eventsMetadata(eb, "k"), "=", bound)
+              : startsWith(eventsMetadata(eb, "k"), bound),
+          ),
       ),
     );
 

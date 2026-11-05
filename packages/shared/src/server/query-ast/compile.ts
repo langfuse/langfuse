@@ -4,6 +4,7 @@ import {
   IdentifierNode,
   ReferenceNode,
   ColumnNode,
+  SelectQueryNode,
   type Expression,
   type KyselyPlugin,
   type OperationNode,
@@ -12,7 +13,7 @@ import {
   type SelectQueryBuilder,
 } from "kysely";
 
-import { ClickHouseQueryCompiler } from "./compiler";
+import { ClickHouseQueryCompiler, type CompiledCondition } from "./compiler";
 import { CteNamePlugin } from "./ctes";
 import { DedupLoweringPlugin } from "./dedup";
 import { QueryCompileError } from "./errors";
@@ -72,6 +73,41 @@ export function compileClickhouseQuery(
     sql: compiled.sql,
     params: { ...compiler.namedParameters },
   };
+}
+
+/**
+ * SQL text and binds of the WHERE of `query`, for raw-SQL builders that
+ * splice an AST condition into their own query:
+ * `selectFrom("events as e").where((eb) => eb("e.name", "=", "x"))` with
+ * prefix `f1_` → `{ sql: "e.name = {f1_1:String}", params: { f1_1: "x" } }`.
+ * Values bind with the types of the FROM relations, as in
+ * {@link compileClickhouseQuery}. The CTE and events routing passes validate
+ * the condition; which physical events table the caller reads stays its
+ * choice. Nothing else of `query` is emitted. Throws on a subquery or raw
+ * relation in the condition (the caller scopes only its own relations).
+ * Placeholder names start with `paramPrefix`; give each condition of one
+ * query its own.
+ */
+export function compileClickhouseCondition(
+  query: ClickhouseCompilable,
+  paramPrefix: string,
+): CompiledCondition {
+  if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(paramPrefix)) {
+    throw new QueryCompileError(
+      `Parameter prefix "${paramPrefix}" is not a plain identifier.`,
+    );
+  }
+  const node = query
+    .withPlugin(new CteNamePlugin())
+    .withPlugin(new EventsTableRoutingPlugin())
+    .toOperationNode();
+  if (!SelectQueryNode.is(node) || !node.where) {
+    throw new QueryCompileError(
+      "compileClickhouseCondition compiles the WHERE of a select.",
+    );
+  }
+  assertRelationFree(node.where);
+  return new ClickHouseQueryCompiler(paramPrefix).compileCondition(node);
 }
 
 /**

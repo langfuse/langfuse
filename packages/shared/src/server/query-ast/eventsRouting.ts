@@ -59,7 +59,7 @@ import {
 
 import { metadataFilterIsEventsCoreSafe } from "../queries/clickhouse-sql/events-core-truncation";
 import { QueryCompileError } from "./errors";
-import { ArrayIndexNode, FinalTableNode, walkNodes } from "./nodes";
+import { ArrayIndexNode, FinalTableNode, TypedParam, walkNodes } from "./nodes";
 import { describeRelation, selectRelations, type Relation } from "./relations";
 import {
   EVENTS_CORE_TRUNCATED_COLUMNS,
@@ -423,9 +423,24 @@ function coreSafe(
   return ArrayIndexNode.is(lookup) &&
     lookup.metadataLookup &&
     ValueNode.is(value) &&
-    metadataFilterIsEventsCoreSafe(operator, value.value)
+    isCoreSafeMetadataValue(operator, value.value)
     ? lookup
     : undefined;
+}
+
+/**
+ * A bound string (a {@link TypedParam} unwrapped) that
+ * `metadataFilterIsEventsCoreSafe` accepts. A non-string is unsafe: the
+ * classifier length-checks strings only.
+ */
+function isCoreSafeMetadataValue(
+  operator: "=" | "starts with",
+  bound: unknown,
+): boolean {
+  const value = bound instanceof TypedParam ? bound.value : bound;
+  return (
+    typeof value === "string" && metadataFilterIsEventsCoreSafe(operator, value)
+  );
 }
 
 /** A FROM/JOIN source of one select. */

@@ -35,6 +35,7 @@ import {
   ArrayJoinNode,
   ArrayIndexNode,
   FinalTableNode,
+  TypedParam,
   type ClickHouseSelectQueryNode,
   type LimitByNode,
 } from "./nodes";
@@ -69,6 +70,9 @@ const DATE_WRAPPER_FNS = new Set([
 // branch, because `String(value)` renders every plain object as
 // `[object Object]`.
 function canonicalParamValue(value: unknown): string {
+  if (value instanceof TypedParam) {
+    return `typed:${canonicalParamValue(value.value)}`;
+  }
   if (value instanceof Date) return `d:${value.toISOString()}`;
   if (value instanceof TupleParam) {
     return `t:${JSON.stringify(value.values)}`;
@@ -84,6 +88,7 @@ function canonicalParamValue(value: unknown): string {
 // server timezone, so binds line up with stored rows on any server timezone.
 // The string form also covers instants before 1970.
 function serializeParamValue(value: unknown): unknown {
+  if (value instanceof TypedParam) return value.value;
   if (value instanceof Date) {
     return value.toISOString().replace("T", " ").replace("Z", "");
   }
@@ -206,6 +211,12 @@ type SelectScope = {
   compilingAlias?: string;
 };
 
+/** A WHERE condition's SQL text and the binds its placeholders name. */
+export type CompiledCondition = {
+  sql: string;
+  params: Record<string, unknown>;
+};
+
 /**
  * ClickHouse SQL compiler. Identifier quoting is omitted so `clickhouse format`
  * matches the golden snapshots (unquoted identifiers). Parameters are named
@@ -244,7 +255,8 @@ export class ClickHouseQueryCompiler extends DefaultQueryCompiler {
    */
   private lambdaParams: string[] = [];
 
-  constructor() {
+  /** Placeholders are named `<paramPrefix>1`, `<paramPrefix>2`, … */
+  constructor(private readonly paramPrefix = "p") {
     super();
     // ArrayIndexNode is a custom node kind Kysely's dispatch cannot reach and
     // Kysely has no public hook to register one, so we patch its private
@@ -297,6 +309,25 @@ export class ClickHouseQueryCompiler extends DefaultQueryCompiler {
       );
     }
     return this.getSql();
+  }
+
+  /**
+   * SQL text and binds of the WHERE of `node`, on a fresh compiler: values
+   * take bind types from `node`'s FROM relations, as in a full compile. The
+   * caller checks the condition is relation-free; the text is spliced into a
+   * query that scopes those relations itself.
+   */
+  compileCondition(node: SelectQueryNode): CompiledCondition {
+    if (!node.where) {
+      throw new QueryCompileError("compileCondition needs a WHERE clause.");
+    }
+    this.selectScopes.push(this.selectScopeOf(node, []));
+    try {
+      this.visitNode(node.where.where);
+    } finally {
+      this.selectScopes.pop();
+    }
+    return { sql: this.getSql(), params: { ...this.namedParameters } };
   }
 
   // Emit identifiers unquoted. `clickhouse format` normalizes to unquoted
@@ -884,7 +915,7 @@ export class ClickHouseQueryCompiler extends DefaultQueryCompiler {
       return `{${existing}:${inferred}}`;
     }
     this.addParameter(value);
-    const name = `p${this.intern.size + 1}`;
+    const name = `${this.paramPrefix}${this.intern.size + 1}`;
     this.intern.set(key, name);
     this.namedParameters[name] = serializeParamValue(value);
     return `{${name}:${inferred}}`;
@@ -1008,13 +1039,15 @@ function unqualifiedBindType(
 
 /**
  * The ClickHouse type `value` binds as against an operand of bind type
- * `type`: inferred from the value where `type` names none, per element for
- * a tuple. Throws where an unknown type would decide it.
+ * `type`: a {@link TypedParam}'s own type, else inferred from the value where
+ * `type` names none, per element for a tuple. Throws where an unknown type
+ * would decide it.
  */
 function resolveBindType(
   value: unknown,
   type: OperandBindType | undefined,
 ): string {
+  if (value instanceof TypedParam) return value.type;
   if (type === undefined) return inferClickHouseType(value);
   if (typeof type === "string") return type;
   if (!isTupleBindType(type)) throw new QueryCompileError(type.reason);
