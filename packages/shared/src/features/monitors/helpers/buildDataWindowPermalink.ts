@@ -50,10 +50,11 @@ function linkToObservationsTable(params: TableLinkParams): string | undefined {
 function linkToScoresTable(
   params: TableLinkParams & { view: ScoresMonitorView },
 ): string | undefined {
-  return tableLink(`${params.projectUrl}/scores`, params.dateRange, [
-    ...params.filters.map(toScoresTableFilter),
-    dataTypeFilter(params.view),
-  ]);
+  return tableLink(
+    `${params.projectUrl}/scores`,
+    params.dateRange,
+    toScoresTableFilters(params.filters, params.view),
+  );
 }
 
 /** tableLink builds a table URL for the window, or undefined when a filter cannot be encoded; an empty filter clears stored and default table filters */
@@ -88,6 +89,14 @@ function toObservationsTableFilters(filters: FilterState): FilterState {
     ...filter,
     column: observationsTableColumnByViewField[filter.column] ?? filter.column,
   }));
+}
+
+/** toScoresTableFilters converts monitor filters to scores table filters, restricted to the view's data types */
+function toScoresTableFilters(
+  filters: FilterState,
+  view: ScoresMonitorView,
+): FilterState {
+  return [...filters.map(toScoresTableFilter), dataTypeFilter(view)];
 }
 
 /** dataTypeFilter restricts the scores table to the data types the view counts */
