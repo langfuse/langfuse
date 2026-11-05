@@ -6,6 +6,7 @@ import { type LangfuseItemType } from "@/src/components/ItemBadge";
 import { VirtualizedTree } from "@/src/features/traces/components/VirtualizedTree";
 import { VirtualizedTreeNodeWrapper } from "@/src/features/traces/components/VirtualizedTreeNodeWrapper";
 import { DropdownMenu } from "@/src/components/design-system/DropdownMenu/DropdownMenu";
+import { Button } from "@/src/components/ui/button";
 
 type PreviewNode = Pick<
   RouterOutputs["sessions"]["previewTree"][number],
@@ -180,11 +181,20 @@ function ObservationPreviewRow({
 
 export function SessionFilterPreview({
   traces,
+  navigation,
   pending,
   error,
   invalid,
   onFilter,
 }: {
+  navigation?: {
+    sessionId: string;
+    isCurrentSession: boolean;
+    position: number;
+    total: number;
+    onPrevious: (() => void) | undefined;
+    onNext: (() => void) | undefined;
+  };
   traces:
     | Array<
         Pick<
@@ -275,8 +285,55 @@ export function SessionFilterPreview({
       aria-label="Filter preview"
       className="ph-no-capture bg-muted/30 flex min-h-0 min-w-0 flex-col border-t md:overflow-hidden md:border-t-0 md:border-l"
     >
-      <header className="bg-modal sticky top-0 z-10 shrink-0 border-b p-4">
-        <h3 className="font-bold">Filter preview</h3>
+      <header className="bg-modal sticky top-0 z-10 flex shrink-0 flex-col gap-2 border-b p-4">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="flex min-w-0 items-baseline gap-2">
+            <h3 className="shrink-0 font-bold">Filter preview</h3>
+            {navigation ? (
+              <span
+                className="text-muted-foreground truncate text-xs"
+                title={navigation.sessionId}
+              >
+                {navigation.isCurrentSession
+                  ? "(Current session)"
+                  : `(Session: ${navigation.sessionId})`}
+              </span>
+            ) : null}
+          </div>
+          {navigation ? (
+            <div
+              className="flex items-center gap-2"
+              aria-label="Preview session navigation"
+            >
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                aria-label="Previous session"
+                disabled={!navigation.onPrevious}
+                onClick={navigation.onPrevious}
+              >
+                Previous
+              </Button>
+              <span
+                className="text-muted-foreground text-xs"
+                aria-live="polite"
+              >
+                {navigation.position} / {navigation.total}
+              </span>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                aria-label="Next session"
+                disabled={!navigation.onNext}
+                onClick={navigation.onNext}
+              >
+                Next
+              </Button>
+            </div>
+          ) : null}
+        </div>
         <p className="text-muted-foreground text-xs">
           Previewing the first 5 traces, with up to 200 observations per trace.
           Observations that don’t match your filters are dimmed.
