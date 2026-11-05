@@ -33,7 +33,6 @@ import { recordExportVolume } from "../../services/exportVolumeMetric";
 import { isExportCaughtUp } from "../../services/exportStalenessMetric";
 import { assertExportSourceWritable } from "../exportWriteModeGuard";
 import { classifyCustomerFault } from "../integrations/customerFaultClassification";
-import { isRecordNotFoundError } from "../integrations/prismaErrors";
 import { env, v4WritesToLegacyTables } from "../../env";
 
 // Counter for PostHog integrations auto-disabled after a deterministic
@@ -480,47 +479,28 @@ export const handlePostHogIntegrationProjectJob = async (
       throw error;
     }
 
-    try {
-      await prisma.posthogIntegration.update({
-        where: { projectId },
-        data: { lastError: message, lastErrorAt: new Date() },
-      });
-    } catch (persistError) {
-      if (isRecordNotFoundError(persistError)) {
-        // Integration deleted mid-run: nothing to persist, nobody to notify.
-        // Drop the obsolete job instead of retrying it.
-        logger.info(
-          `[POSTHOG] PostHog integration for project ${projectId} was deleted mid-run; dropping obsolete job after error: ${message}`,
-        );
-        return;
-      }
-      // Persisting failed for an infra reason (e.g. DB unavailable). Don't claim
-      // the customer fault as handled — rethrow so BullMQ retries and reclassifies.
-      logger.error(
-        `[POSTHOG] Failed to persist PostHog integration error for project ${projectId}`,
-        persistError,
-      );
-      throw persistError;
-    }
-
     // Atomic disable: count === 1 means THIS worker flipped enabled true→false,
     // so the terminal notification fires exactly once even if a concurrent run
-    // (distinct jobId, not queue-deduped) races the same fault. The host is
-    // part of the predicate so a run carrying stale config cannot disable a
-    // hostname the customer corrected mid-run — the fault we caught refers to a
-    // config that no longer exists, and the next scheduled run re-evaluates.
+    // (distinct jobId, not queue-deduped) races the same fault. The host and
+    // API key are part of the predicate so a run carrying stale config cannot
+    // disable, or leave an error on, a host or key the customer corrected
+    // mid-run — the fault we caught refers to a config that no longer exists,
+    // and the next run re-evaluates. A failed write (e.g. DB unavailable)
+    // throws, so BullMQ retries and reclassifies.
     const { count } = await prisma.posthogIntegration.updateMany({
       where: {
         projectId,
         enabled: true,
         posthogHostName: postHogIntegration.posthogHostName,
+        encryptedPosthogApiKey: postHogIntegration.encryptedPosthogApiKey,
       },
-      data: { enabled: false },
+      data: { enabled: false, lastError: message, lastErrorAt: new Date() },
     });
     if (count === 0) {
-      // Already disabled by a concurrent run, or the host changed under us.
+      // Already disabled by a concurrent run, the host or API key changed
+      // under us, or the integration was deleted mid-run.
       logger.info(
-        `[POSTHOG] Skipped disabling PostHog integration for project ${projectId}: already disabled or host changed mid-run`,
+        `[POSTHOG] Skipped disabling PostHog integration for project ${projectId}: already disabled, deleted, or host/API key changed mid-run`,
       );
       return;
     }
