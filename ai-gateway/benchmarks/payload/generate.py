@@ -6,7 +6,7 @@ long system prompt, a tool catalog with JSON schemas, the user task, and a
 history of assistant tool calls with tool results (file reads, searches,
 command output). All content is synthetic and deterministic.
 
-Usage: generate.py [--bytes 102400] [--out payload.json] [--model gpt-4.1-mini]
+Usage: generate.py [--bytes 512000] [--out payload.json] [--model gpt-4.1-mini]
 """
 
 import argparse
@@ -141,7 +141,7 @@ def build(target: int, model: str, seed: int) -> dict:
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--bytes", type=int, default=100 * 1024)
+    parser.add_argument("--bytes", type=int, default=500 * 1024)
     parser.add_argument("--out", default="payload.json")
     parser.add_argument("--model", default="gpt-4.1-mini")
     parser.add_argument("--seed", type=int, default=7)

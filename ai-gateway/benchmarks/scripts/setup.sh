@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Generates benchmark-only secrets and the request payload:
 #   .generated/ca.crt, upstream.{crt,key}  TLS for the mock api.openai.com
-#   .generated/payload.json                 request body (BENCH_PAYLOAD_BYTES, default 100 KiB)
+#   .generated/payload.json                 request body (BENCH_PAYLOAD_BYTES, default 500 KiB)
 #   .env                                    service key, encryption key, ES256 JWT key
 # Re-running keeps existing secrets and regenerates the payload.
 set -euo pipefail
@@ -31,4 +31,4 @@ if [ ! -f .env ]; then
   } > .env
 fi
 
-python3 payload/generate.py --bytes "${BENCH_PAYLOAD_BYTES:-102400}" --out .generated/payload.json
+python3 payload/generate.py --bytes "${BENCH_PAYLOAD_BYTES:-512000}" --out .generated/payload.json
