@@ -1,0 +1,10 @@
+{
+  "errors": [],
+  "zeroAndFiniteValuesRetained": true,
+  "canonicalFieldError": {
+    "ariaInvalid": true,
+    "descriptionLinked": true,
+    "borderDistinct": true
+  },
+  "correctedSaveReloadPreserved": true
+}
