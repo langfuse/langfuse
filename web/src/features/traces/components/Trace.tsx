@@ -280,6 +280,9 @@ function TraceWithSelection({
           detachedObservationIsMisplaced={detachedIsMisplaced}
           truncatedAtObservations={scopedTruncation}
           isPlaceholderData={isPlaceholderData}
+          isNavigationReady={
+            !isPlaceholderData && (!scopeToSession || !!sessionData)
+          }
         >
           <TraceGraphDataProvider
             projectId={trace.projectId}
@@ -377,9 +380,9 @@ function TraceContent({
               />
               <Tabs.Trigger value="messages" label="Messages" internal />
             </Tabs.List>
-              <Tabs.Content value="trace" layout="fill">
-                {sessionError}
-                {panels}
+            <Tabs.Content value="trace" layout="fill">
+              {sessionError}
+              {panels}
             </Tabs.Content>
             <Tabs.Content value="messages" layout="fill">
               <div className="min-h-0 flex-1 p-4">
@@ -388,10 +391,10 @@ function TraceContent({
             </Tabs.Content>
           </Tabs>
         ) : (
-            <div className="flex min-h-0 flex-1 flex-col">
-              {sessionError}
-              {panels}
-            </div>
+          <div className="flex min-h-0 flex-1 flex-col">
+            {sessionError}
+            {panels}
+          </div>
         )}
       </div>
     </div>

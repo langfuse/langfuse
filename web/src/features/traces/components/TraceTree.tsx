@@ -61,8 +61,15 @@ function TraceTreeLoading() {
 }
 
 function LoadedTraceTree() {
-  const { roots, comments, metricEmphasis, sessionTraces, nodeMap, trace } =
-    useTraceData();
+  const {
+    roots,
+    comments,
+    metricEmphasis,
+    sessionTraces,
+    nodeMap,
+    trace,
+    isNavigationReady,
+  } = useTraceData();
   const { selectedNodeId, collapsedNodes, toggleCollapsed, collapseAll } =
     useSelection();
   const { handleHover } = useHandlePrefetchObservation();
@@ -110,6 +117,7 @@ function LoadedTraceTree() {
       roots={roots}
       collapsedNodes={collapsedNodes}
       selectedNodeId={selectedTreeNodeId}
+      isScrollReady={isNavigationReady}
       onToggleCollapse={toggleCollapsed}
       onSelectNode={handleSelectNode}
       renderNode={({ node, ...row }) => {
