@@ -87,16 +87,7 @@ With the seeded local web app running, import the checked-in assistant catalog:
 pnpm run seed -- assistant-skills
 ```
 
-This imports every skill and its complete text-file tree from the checked-in
-skill catalog through `/api/public/skills` using the synthetic seed API key.
-The catalog includes `langfuse` and `migrate-to-langfuse`; resource contents and
-paths relative to each skill's `SKILL.md` are preserved. The scenario adds the
-`in-app-agent` tag and labels each imported version `production`. Re-running
-reuses unchanged versions. Names match each skill's frontmatter, so `--seed`
-and `--id-prefix` do not create independent copies. The scenario verifies all
-production file contents through the API and prints UI links.
-Use `--dry-run` to inspect the catalog without writing, or `--tag <tag>` to
-select a different catalog tag.
+This imports every skill and its complete text-file tree from the checked-in skill catalog through `/api/public/skills` using the synthetic seed API key. The catalog includes `langfuse` and `migrate-to-langfuse`; resource contents and paths relative to each skill's `SKILL.md` are preserved. The scenario adds the `in-app-agent` tag and labels each imported version `production`. Re-running reuses unchanged versions. Names match each skill's frontmatter, so `--seed` and `--id-prefix` do not create independent copies. The scenario verifies all production file contents through the API and prints UI links. Use `--dry-run` to inspect the catalog without writing, or `--tag <tag>` to select a different catalog tag.
 
 For a distinct end-to-end check, run `pnpm run seed -- assistant-skills --demo`.
 It also creates an instructions-only `local-assistant-check` skill. Open the
@@ -117,19 +108,9 @@ LANGFUSE_AI_FEATURES_SECRET_KEY=sk-lf-1234567890
 LANGFUSE_IN_APP_AGENT_SKILLS_TAG=in-app-agent
 ```
 
-The keys above are the public synthetic development fixtures. The assistant
-exposes repository skills and tagged hosted production skills through a read-only
-Mastra `SkillSource`. Mastra discovers the skills and loads their instructions and
-references. Hosted manifests take precedence by name; missing, unselected, or
-failed hosted lookups fall back to repository skills. A failed hosted catalogue
-request retains the repository catalogue. Leaving the tag unset uses only
-repository skills and makes no skill API requests.
+The keys above are the public synthetic development fixtures. The assistant exposes repository skills and tagged hosted production skills through a read-only Mastra `SkillSource`. Mastra discovers the skills and loads their instructions and references. Hosted manifests take precedence by name; missing, unselected, or failed hosted lookups fall back to repository skills. A failed hosted catalogue request retains the repository catalogue. Leaving the tag unset uses only repository skills and makes no skill API requests.
 
-Selected manifests and file content are cached for each run. Failed content
-requests can be retried; caller cancellation propagates. Edit an imported skill
-in Skills, create a version and assign `production`; the next assistant run
-discovers the updated version. The checked-in catalogue supplies both the seed
-input and the runtime repository skills.
+Selected manifests and file content are cached for each run. Failed content requests can be retried; caller cancellation propagates. Edit an imported skill in Skills, create a version and assign `production`; the next assistant run discovers the updated version. The checked-in catalogue supplies both the seed input and the runtime repository skills.
 
 ### Experiment filter fixture
 

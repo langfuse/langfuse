@@ -79,7 +79,7 @@ export class InAppAgentSkillSource implements SkillSource {
     if (relativePath !== "SKILL.md" || !skill.projectId) return content;
 
     const frontmatter = z
-      .looseObject({ metadata: z.record(z.string(), z.unknown()).optional() })
+      .looseObject({ metadata: z.record(z.string(), z.unknown()).catch({}) })
       .parse(skill.frontmatter);
     // Pass hosted version metadata through Mastra to the trace linker.
     return content.replace(
@@ -267,12 +267,9 @@ export class InAppAgentSkillSource implements SkillSource {
   private requestOptions() {
     this.config.signal?.throwIfAborted();
     return {
-      timeoutInSeconds: 5,
+      timeoutInSeconds: 1,
       maxRetries: 0,
-      abortSignal: AbortSignal.any([
-        AbortSignal.timeout(5_000),
-        ...(this.config.signal ? [this.config.signal] : []),
-      ]),
+      abortSignal: this.config.signal,
     };
   }
 }
