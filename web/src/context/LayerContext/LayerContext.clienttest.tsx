@@ -51,11 +51,35 @@ describe("LayerProvider", () => {
       </LayerProvider>,
     );
     unmount();
+    expect(document.querySelector("[data-overlay-root]")).toBeNull();
 
     render(<LayerContainerProbe />);
 
     const layer = document.querySelector("[data-layer='modal']");
     expect(layer).not.toBeNull();
+    expect(document.body.contains(layer)).toBe(true);
+    expect(screen.getByText("modal")).toBeInTheDocument();
+  });
+
+  it("recreates a body-contained layer when the provider snapshot is detached", () => {
+    const { rerender } = render(
+      <LayerProvider>
+        <LayerContainerProbe />
+      </LayerProvider>,
+    );
+    const detached = document.querySelector("[data-overlay-root]");
+    expect(detached).not.toBeNull();
+    detached?.remove();
+
+    rerender(
+      <LayerProvider>
+        <LayerContainerProbe />
+      </LayerProvider>,
+    );
+
+    const layer = document.querySelector("[data-layer='modal']");
+    expect(layer).not.toBeNull();
+    expect(layer).not.toBe(detached?.querySelector("[data-layer='modal']"));
     expect(document.body.contains(layer)).toBe(true);
     expect(screen.getByText("modal")).toBeInTheDocument();
   });
