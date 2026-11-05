@@ -621,6 +621,9 @@ describe("trace-dispatch shard tags", () => {
 
 describe("trace micro-batch scheduling with Redis", () => {
   const { due: dueKey, state: stateKey } = getTraceBatchReadinessKeys(0);
+  // Recording tags depend on the shard count; these tests run with one shard.
+  const originalShards = env.LANGFUSE_TRACE_BATCH_SHARD_COUNT;
+  env.LANGFUSE_TRACE_BATCH_SHARD_COUNT = 1;
   const recordingKeys = getRecordingKeys(0);
   const recordingBoundsKeys = new Map<number, Buffer[]>();
   const originalDispatchEnabled = env.LANGFUSE_TRACE_DISPATCH_ENABLED;
@@ -641,7 +644,6 @@ describe("trace micro-batch scheduling with Redis", () => {
   const originalPendingTtl = env.LANGFUSE_TRACE_BATCH_PENDING_TTL_MS;
   const originalIdle = env.LANGFUSE_TRACE_BATCH_IDLE_MS;
   const originalFirstTtl = env.LANGFUSE_TRACE_BATCH_FIRST_SEEN_TTL_MS;
-  const originalShards = env.LANGFUSE_TRACE_BATCH_SHARD_COUNT;
   const originalMaxTraceEventUpdates =
     env.LANGFUSE_TRACE_BATCH_MAX_TRACE_EVENT_UPDATES;
   const originalMaxTraceBytes =
@@ -871,13 +873,18 @@ describe("trace micro-batch scheduling with Redis", () => {
       env.LANGFUSE_TRACE_BATCH_PENDING_TTL_MS -
       env.LANGFUSE_TRACE_BATCH_DISPATCH_INTERVAL_MS;
     const identity = member("project", "recorded");
-    const before = Date.now();
+    // Due times come from the Redis clock, which can differ from Date.now().
+    const redisNow = async () => {
+      const [seconds, microseconds] = await client().time();
+      return Number(seconds) * 1_000 + Math.floor(Number(microseconds) / 1_000);
+    };
+    const before = await redisNow();
     await recordActivity("project", [
       { ...spanActivity("recorded"), ruleIds: ["rule"] },
     ]);
     const due = Number(await client().zscore(recordingKeys.due, identity));
     expect(due).toBeGreaterThanOrEqual(before + idleMs);
-    expect(due).toBeLessThanOrEqual(Date.now() + idleMs);
+    expect(due).toBeLessThanOrEqual((await redisNow()) + idleMs);
     const record = JSON.parse(
       (await client().hget(recordingKeys.pending, identity))!,
     );
