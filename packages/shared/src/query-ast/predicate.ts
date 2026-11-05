@@ -3,8 +3,9 @@ import { filterOperators, FTS_MATCH_OPERATOR } from "../interfaces/filters";
 import { TracingSearchType } from "../interfaces/search";
 
 /**
- * Client-safe filter predicate: a boolean tree over conditions and free-text
- * search, resolved against a registered source (see `sources.ts`). Conditions
+ * Client-safe filter predicate: a boolean tree over conditions, resolved
+ * against a registered source (see `sources.ts`), plus an optional free-text
+ * search kept beside the tree (`PredicateWithSearch`). Conditions
  * keep the `FilterState` value variant (`type`), so every `FilterState`
  * condition maps onto exactly one leaf and back.
  */
@@ -147,13 +148,6 @@ export const predicateConditionSchema = z.discriminatedUnion(
 );
 export type PredicateCondition = z.infer<typeof predicateConditionSchema>;
 
-export const predicateSearchSchema = z.object({
-  kind: z.literal("search"),
-  text: z.string().min(1),
-  scopes: z.array(TracingSearchType).min(1),
-});
-export type PredicateSearch = z.infer<typeof predicateSearchSchema>;
-
 export type PredicateAnd = { kind: "and"; children: Predicate[] };
 export type PredicateOr = { kind: "or"; children: Predicate[] };
 export type PredicateNot = { kind: "not"; child: Predicate };
@@ -162,8 +156,7 @@ export type Predicate =
   | PredicateAnd
   | PredicateOr
   | PredicateNot
-  | PredicateCondition
-  | PredicateSearch;
+  | PredicateCondition;
 
 /**
  * The operands of a conjunction, with nested `and` nodes flattened:
@@ -182,6 +175,23 @@ export const predicateSchema: z.ZodType<Predicate> = z.lazy(() =>
     z.object({ kind: z.literal("or"), children: z.array(predicateSchema) }),
     z.object({ kind: z.literal("not"), child: predicateSchema }),
     predicateConditionSchema,
-    predicateSearchSchema,
   ]),
 );
+
+/** Free-text search over the source's search columns for each scope. */
+export const predicateSearchSchema = z.object({
+  text: z.string().min(1),
+  scopes: z.array(TracingSearchType).min(1),
+});
+export type PredicateSearch = z.infer<typeof predicateSearchSchema>;
+
+/**
+ * A complete filter: the predicate tree, AND-ed with at most one free-text
+ * search. Search stays outside the tree because it is a costly shorthand,
+ * never negated or OR-ed with conditions.
+ */
+export const predicateWithSearchSchema = z.object({
+  predicate: predicateSchema,
+  search: predicateSearchSchema.optional(),
+});
+export type PredicateWithSearch = z.infer<typeof predicateWithSearchSchema>;

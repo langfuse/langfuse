@@ -45,18 +45,19 @@ const allowedValues = (
 };
 
 /**
- * Flags conjunctions that no row can satisfy. v1 detects equality and
- * `any of` conditions on the same single-valued field whose value sets are
- * disjoint. Callers decide the consequence: reject when authoring, warn when
- * loading a stored filter; the predicate itself is never rewritten.
+ * Reports why no row can satisfy the predicate; an empty result means it may
+ * match rows. A conjunction fails when equality or `any of` conditions on the
+ * same single-valued field have no value in common, or when one of its `or`
+ * operands fails in every branch. A dead branch inside a satisfiable `or` is
+ * not reported. Callers decide the consequence: reject when authoring, warn
+ * when loading a stored filter; the predicate itself is never rewritten.
  */
 export const analyzePredicate = (
   predicate: Predicate,
   source: PredicateSource,
 ): PredicateDiagnostic[] => {
-  const diagnostics: PredicateDiagnostic[] = [];
-
-  const analyzeConjunction = (operands: Predicate[]) => {
+  const contradictions = (operands: Predicate[]): PredicateDiagnostic[] => {
+    const diagnostics: PredicateDiagnostic[] = [];
     const groups = new Map<
       string,
       {
@@ -111,30 +112,33 @@ export const analyzePredicate = (
         });
       }
     }
+    return diagnostics;
   };
 
-  // Stops at `not`: a contradiction under negation matches every row, so
-  // reporting it would block a valid filter.
-  const walk = (node: Predicate) => {
+  // Non-empty when `node` matches no row. Stops at `not`: v1 cannot tell
+  // when a negation matches nothing.
+  const unsatisfiable = (node: Predicate): PredicateDiagnostic[] => {
     switch (node.kind) {
       case "and": {
         const operands = conjuncts(node);
-        analyzeConjunction(operands);
-        operands.forEach((operand) => {
-          if (operand.kind === "or") walk(operand);
-        });
-        return;
+        return [
+          ...contradictions(operands),
+          ...operands.flatMap((operand) =>
+            operand.kind === "or" ? unsatisfiable(operand) : [],
+          ),
+        ];
       }
-      case "or":
-        node.children.forEach(walk);
-        return;
+      case "or": {
+        const branches = node.children.map(unsatisfiable);
+        return branches.length > 0 && branches.every((b) => b.length > 0)
+          ? branches.flat()
+          : [];
+      }
       case "not":
       case "condition":
-      case "search":
-        return;
+        return [];
     }
   };
-  walk(predicate);
 
-  return diagnostics;
+  return unsatisfiable(predicate);
 };

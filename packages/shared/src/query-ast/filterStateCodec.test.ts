@@ -15,6 +15,8 @@ import {
 import {
   PREDICATE_OPERATORS,
   predicateSchema,
+  predicateSearchSchema,
+  predicateWithSearchSchema,
   type ConditionType,
   type Predicate,
 } from "./predicate";
@@ -131,9 +133,9 @@ describe("FilterState codec", () => {
   it.each(variantOperatorCases)("round-trips $type $operator", ({ filter }) => {
     expect(isValidFilterStateCondition(filter)).toBe(true);
 
-    const predicate = fromFilterState({ filter: [filter] });
-    expect(predicateSchema.safeParse(predicate).success).toBe(true);
-    expect(toFilterState(predicate)).toEqual({ filter: [filter] });
+    const read = fromFilterState({ filter: [filter] });
+    expect(predicateWithSearchSchema.safeParse(read).success).toBe(true);
+    expect(toFilterState(read)).toEqual({ filter: [filter] });
   });
 
   it.each(variantOperatorCases)(
@@ -142,7 +144,7 @@ describe("FilterState codec", () => {
       const wire = JSON.parse(
         JSON.stringify(fromFilterState({ filter: [filter] })),
       );
-      expect(toFilterState(predicateSchema.parse(wire))).toEqual({
+      expect(toFilterState(predicateWithSearchSchema.parse(wire))).toEqual({
         filter: [filter],
       });
     },
@@ -189,7 +191,7 @@ describe("FilterState codec", () => {
           },
         ],
       });
-      expect(predicate.children).toEqual([
+      expect(predicate.predicate.children).toEqual([
         expect.objectContaining({
           op: "is set",
           field: { id: "metadata", key: "env" },
@@ -201,17 +203,18 @@ describe("FilterState codec", () => {
   describe("free-text lane", () => {
     const filter = sampleFilter.boolean("=") as FilterStateCondition;
 
-    it("adds no search leaf without a query", () => {
+    it("adds no search without a query", () => {
       expect(
         fromFilterState({
           filter: [filter],
           searchQuery: "",
           searchType: ["content"],
         }),
-      ).toEqual({ kind: "and", children: [expect.anything()] });
+      ).toEqual({
+        predicate: { kind: "and", children: [expect.anything()] },
+      });
       expect(fromFilterState({ filter: [], searchQuery: null })).toEqual({
-        kind: "and",
-        children: [],
+        predicate: { kind: "and", children: [] },
       });
     });
 
@@ -261,14 +264,16 @@ describe("FilterState codec", () => {
   describe("write-back of non-flat predicates", () => {
     const condition = fromFilterState({
       filter: [sampleFilter.boolean("=") as FilterStateCondition],
-    }).children[0]!;
-    const search: Predicate = { kind: "search", text: "x", scopes: ["id"] };
+    }).predicate.children[0]!;
 
     it("flattens nested conjunctions", () => {
       expect(
         toFilterState({
-          kind: "and",
-          children: [condition, { kind: "and", children: [search, condition] }],
+          predicate: {
+            kind: "and",
+            children: [condition, { kind: "and", children: [condition] }],
+          },
+          search: { text: "x", scopes: ["id"] },
         }),
       ).toEqual({
         filter: [sampleFilter.boolean("="), sampleFilter.boolean("=")],
@@ -280,9 +285,8 @@ describe("FilterState codec", () => {
     it.each<[string, Predicate]>([
       ["or", { kind: "or", children: [condition] }],
       ["not", { kind: "not", child: condition }],
-      ["two searches", { kind: "and", children: [search, search] }],
     ])("rejects %s", (_, predicate) => {
-      expect(() => toFilterState(predicate)).toThrow(
+      expect(() => toFilterState({ predicate })).toThrow(
         PredicateNotRepresentableError,
       );
     });
@@ -316,15 +320,15 @@ describe("FilterState codec", () => {
       expect(singleFilter.safeParse(filter).success).toBe(false);
       const [condition] = fromFilterState({
         filter: [filter as FilterStateCondition],
-      }).children;
+      }).predicate.children;
       expect(predicateSchema.safeParse(condition).success).toBe(false);
     });
 
-    it.each<[string, Predicate]>([
-      ["empty search text", { kind: "search", text: "", scopes: ["id"] }],
-      ["empty search scopes", { kind: "search", text: "x", scopes: [] }],
-    ])("rejects %s", (_, predicate) => {
-      expect(predicateSchema.safeParse(predicate).success).toBe(false);
+    it.each([
+      ["empty search text", { text: "", scopes: ["id"] }],
+      ["empty search scopes", { text: "x", scopes: [] }],
+    ])("rejects %s", (_, search) => {
+      expect(predicateSearchSchema.safeParse(search).success).toBe(false);
     });
   });
 });

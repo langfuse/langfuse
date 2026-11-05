@@ -6,10 +6,10 @@ import {
 import type { EventsTableFilterCondition, FilterCondition } from "../types";
 import {
   conjuncts,
-  type Predicate,
   type PredicateAnd,
   type PredicateCondition,
   type PredicateSearch,
+  type PredicateWithSearch,
 } from "./predicate";
 
 /** A `FilterState` condition, including the events-table `matches` variant. */
@@ -136,54 +136,53 @@ const filterFromCondition = (
 };
 
 /**
- * Reads a flat `FilterState` plus the free-text lane into a predicate:
- * `and(...conditions, search?)`. Applies the legacy read coercions
- * (`contains ""` on metadata reads as `is set`; a missing `searchType` reads
- * as the `id` scope, which is what the search SQL does with it).
+ * Reads a flat `FilterState` plus the free-text lane into
+ * `{ predicate: and(...conditions), search? }`. Applies the legacy read
+ * coercions (`contains ""` on metadata reads as `is set`; a missing
+ * `searchType` reads as the `id` scope, which is what the search SQL does
+ * with it).
  */
 export const fromFilterState = ({
   filter,
   searchQuery,
   searchType,
-}: FilterStateWithSearch): PredicateAnd => {
+}: FilterStateWithSearch): {
+  predicate: PredicateAnd;
+  search?: PredicateSearch;
+} => {
   const coerced = coerceLegacyEmptyMetadataFilters(
     filter,
   ) as FilterStateCondition[];
-  const children: Predicate[] = coerced.map(conditionFromFilter);
+  const predicate: PredicateAnd = {
+    kind: "and",
+    children: coerced.map(conditionFromFilter),
+  };
 
-  if (searchQuery) {
-    if (searchType?.length === 0) {
-      throw new Error(TRACING_SEARCH_TYPE_REQUIRED_MESSAGE);
-    }
-    children.push({
-      kind: "search",
-      text: searchQuery,
-      scopes: searchType ?? ["id"],
-    });
+  if (!searchQuery) return { predicate };
+  if (searchType?.length === 0) {
+    throw new Error(TRACING_SEARCH_TYPE_REQUIRED_MESSAGE);
   }
-
-  return { kind: "and", children };
+  return {
+    predicate,
+    search: { text: searchQuery, scopes: searchType ?? ["id"] },
+  };
 };
 
 /**
  * Writes a predicate back to `FilterState` plus the free-text lane. Only
- * conjunctions of conditions with at most one search leaf are representable;
- * anything else throws `PredicateNotRepresentableError`.
+ * conjunctions of conditions are representable; an `or` or `not` throws
+ * `PredicateNotRepresentableError`.
  */
-export const toFilterState = (predicate: Predicate): FilterStateWithSearch => {
+export const toFilterState = ({
+  predicate,
+  search,
+}: PredicateWithSearch): FilterStateWithSearch => {
   const filter: FilterStateCondition[] = [];
-  let search: PredicateSearch | undefined;
 
   for (const node of conjuncts(predicate)) {
     switch (node.kind) {
       case "condition":
         filter.push(filterFromCondition(node));
-        break;
-      case "search":
-        if (search) {
-          throw new PredicateNotRepresentableError("more than one search");
-        }
-        search = node;
         break;
       case "or":
       case "not":

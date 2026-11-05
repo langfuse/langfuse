@@ -16,14 +16,14 @@ const anyOf = (column: string, value: string[]): FilterStateCondition => ({
   operator: "any of",
   value,
 });
+const where = (filter: FilterStateCondition[]) =>
+  fromFilterState({ filter }).predicate;
 const analyze = (predicate: Predicate) =>
   analyzePredicate(predicate, eventsPredicateSource);
 
 describe("analyzePredicate", () => {
   it("flags disjoint equalities on the same field", () => {
-    const predicate = fromFilterState({
-      filter: [eq("userId", "a"), eq("userId", "b")],
-    });
+    const predicate = where([eq("userId", "a"), eq("userId", "b")]);
     expect(analyze(predicate)).toEqual([
       {
         kind: "contradiction",
@@ -35,36 +35,24 @@ describe("analyzePredicate", () => {
 
   it("unifies column aliases and labels with the field id", () => {
     expect(
-      analyze(
-        fromFilterState({
-          filter: [anyOf("level", ["ERROR"]), eq("Level", "DEBUG")],
-        }),
-      ),
+      analyze(where([anyOf("level", ["ERROR"]), eq("Level", "DEBUG")])),
     ).toEqual([expect.objectContaining({ fieldId: "level" })]);
     expect(
-      analyze(
-        fromFilterState({ filter: [eq("User ID", "a"), eq("userId", "b")] }),
-      ),
+      analyze(where([eq("User ID", "a"), eq("userId", "b")])),
     ).toHaveLength(1);
   });
 
   it("intersects `any of` sets across conjuncts", () => {
     expect(
-      analyze(
-        fromFilterState({
-          filter: [anyOf("name", ["a", "b"]), anyOf("name", ["b", "c"])],
-        }),
-      ),
+      analyze(where([anyOf("name", ["a", "b"]), anyOf("name", ["b", "c"])])),
     ).toEqual([]);
     expect(
       analyze(
-        fromFilterState({
-          filter: [
-            anyOf("name", ["a", "b"]),
-            anyOf("name", ["b", "c"]),
-            eq("name", "c"),
-          ],
-        }),
+        where([
+          anyOf("name", ["a", "b"]),
+          anyOf("name", ["b", "c"]),
+          eq("name", "c"),
+        ]),
       ),
     ).toEqual([expect.objectContaining({ fieldId: "name" })]);
   });
@@ -72,34 +60,32 @@ describe("analyzePredicate", () => {
   it("flags number and boolean equalities", () => {
     expect(
       analyze(
-        fromFilterState({
-          filter: [
-            {
-              type: "number",
-              column: "promptVersion",
-              operator: "=",
-              value: 1,
-            },
-            {
-              type: "number",
-              column: "promptVersion",
-              operator: "=",
-              value: 2,
-            },
-            {
-              type: "boolean",
-              column: "hasInput",
-              operator: "=",
-              value: true,
-            },
-            {
-              type: "boolean",
-              column: "hasInput",
-              operator: "=",
-              value: false,
-            },
-          ],
-        }),
+        where([
+          {
+            type: "number",
+            column: "promptVersion",
+            operator: "=",
+            value: 1,
+          },
+          {
+            type: "number",
+            column: "promptVersion",
+            operator: "=",
+            value: 2,
+          },
+          {
+            type: "boolean",
+            column: "hasInput",
+            operator: "=",
+            value: true,
+          },
+          {
+            type: "boolean",
+            column: "hasInput",
+            operator: "=",
+            value: false,
+          },
+        ]),
       ).map((d) => d.fieldId),
     ).toEqual(["promptVersion", "hasInput"]);
   });
@@ -163,44 +149,58 @@ describe("analyzePredicate", () => {
     // The filter compiler rejects these; they are not contradictions.
     ["ill-typed conditions", [eq("hasInput", "a"), eq("hasInput", "b")]],
   ])("does not flag %s", (_, filters) => {
-    expect(analyze(fromFilterState({ filter: filters }))).toEqual([]);
+    expect(analyze(where(filters))).toEqual([]);
   });
 
   it("flags disjoint equalities on the same target", () => {
     expect(
       analyze(
-        fromFilterState({
-          filter: [
-            { ...eq("userId", "a"), target: "run-a" },
-            { ...eq("userId", "b"), target: "run-a" },
-          ],
-        }),
+        where([
+          { ...eq("userId", "a"), target: "run-a" },
+          { ...eq("userId", "b"), target: "run-a" },
+        ]),
       ),
     ).toHaveLength(1);
   });
 
-  it("analyzes each conjunction once, including nested ones", () => {
-    const [a, b] = fromFilterState({
-      filter: [eq("userId", "a"), eq("userId", "b")],
-    }).children;
-    expect(
-      analyze({ kind: "and", children: [a!, { kind: "and", children: [b!] }] }),
-    ).toHaveLength(1);
-    expect(analyze({ kind: "or", children: [a!, b!] })).toEqual([]);
-  });
+  describe("reports only when the whole predicate matches no row", () => {
+    const [a, b, c] = where([
+      eq("userId", "a"),
+      eq("userId", "b"),
+      eq("sessionId", "c"),
+    ]).children;
+    const dead: Predicate = { kind: "and", children: [a!, b!] };
 
-  it("does not look under `not`, where a contradiction matches every row", () => {
-    const [a, b] = fromFilterState({
-      filter: [eq("userId", "a"), eq("userId", "b")],
-    }).children;
-    expect(
-      analyze({
-        kind: "or",
-        children: [
-          a!,
-          { kind: "not", child: { kind: "and", children: [a!, b!] } },
-        ],
-      }),
-    ).toEqual([]);
+    it("flattens nested conjunctions", () => {
+      expect(
+        analyze({
+          kind: "and",
+          children: [a!, { kind: "and", children: [b!] }],
+        }),
+      ).toHaveLength(1);
+    });
+
+    it("ignores a dead branch of a satisfiable `or`", () => {
+      expect(
+        analyze({
+          kind: "and",
+          children: [c!, { kind: "or", children: [dead, c!] }],
+        }),
+      ).toEqual([]);
+      expect(analyze({ kind: "or", children: [a!, b!] })).toEqual([]);
+    });
+
+    it("reports an `or` whose every branch is dead", () => {
+      expect(
+        analyze({
+          kind: "and",
+          children: [c!, { kind: "or", children: [dead, dead] }],
+        }),
+      ).toHaveLength(2);
+    });
+
+    it("does not look under `not`, where a contradiction matches every row", () => {
+      expect(analyze({ kind: "not", child: dead })).toEqual([]);
+    });
   });
 });
