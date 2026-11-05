@@ -231,7 +231,10 @@ export async function processOtelEvents({
             schedulerDeps.collectTraceActivity({
               ...traceActivity,
               ruleIds: matchedRuleIds,
-              serializedEventBytes,
+              serializedEventBytes: Buffer.byteLength(
+                JSON.stringify(persistedRecord),
+                "utf8",
+              ),
             });
           }
         } catch (error) {
