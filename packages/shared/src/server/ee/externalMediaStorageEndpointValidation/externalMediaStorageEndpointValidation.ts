@@ -10,7 +10,7 @@ import {
 import {
   type S3VirtualHostTarget,
   withS3VirtualHostedBucket,
-} from "../s3VirtualHostedAllowlist";
+} from "../../services/s3VirtualHostedAllowlist";
 
 const EXTERNAL_MEDIA_STORAGE_ENDPOINT_VALIDATION_LOG_CONTEXT =
   "External media storage endpoint";

@@ -1,5 +1,6 @@
 import { useMemo, useRef } from "react";
 import { Alert } from "@/src/components/design-system/Alert/Alert";
+import { Spinner } from "@/src/components/layouts/Spinner";
 import { cn } from "@/src/utils/tailwind";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { getQueryKey } from "@trpc/react-query";
@@ -50,7 +51,7 @@ export function CurrentTopics({
           </Alert.Description>
         </Alert>
       )}
-      {result.isLoading && <p className="text-sm">Loading topics…</p>}
+      {result.isLoading && <Spinner message="Loading topics" />}
       {selectedFacet && (
         <CurrentFacet
           key={projectId}
