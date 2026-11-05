@@ -12,6 +12,7 @@ import {
 import {
   resolvePredicateSourceField,
   type PredicateSource,
+  type PredicateSourceField,
   type PredicateSourceFieldType,
 } from "./sources";
 
@@ -45,6 +46,108 @@ const allowedValues = (
 };
 
 /**
+ * The resolved field when `condition` can take part in a contradiction: the
+ * field exists, holds one value per row, and accepts the condition's operator.
+ */
+const comparableField = (
+  source: PredicateSource,
+  condition: PredicateCondition,
+): PredicateSourceField | undefined => {
+  const field = resolvePredicateSourceField(source, condition.field.id);
+  if (
+    !field ||
+    // Skip fields where one row can hold several values (comments, tags,
+    // scores): `= a AND = b` can both match the same row there.
+    field.multiValued ||
+    !SINGLE_VALUED_FIELD_TYPES.has(field.type) ||
+    // An ill-typed condition is rejected when the filter compiles, so it
+    // is not reported as a contradiction here.
+    !field.operators[condition.type]?.includes(condition.op)
+  ) {
+    return undefined;
+  }
+  return field;
+};
+
+/** Groups of sibling conditions on one field whose allowed values are disjoint. */
+const contradictions = (
+  operands: Predicate[],
+  source: PredicateSource,
+): PredicateDiagnostic[] => {
+  const groups = new Map<
+    string,
+    {
+      fieldId: string;
+      allowed: Set<string | number | boolean>;
+      conditions: PredicateCondition[];
+    }
+  >();
+
+  for (const node of operands) {
+    if (node.kind !== "condition") continue;
+    const field = comparableField(source, node);
+    const values = field && allowedValues(node);
+    if (!field || !values) continue;
+
+    // Keyed by field and target only, not condition type: `=` and `any of`
+    // values compare as one set. Sound while no single-valued field accepts
+    // both `stringOptions` and a number or boolean condition type.
+    // A target scopes a condition to other rows (e.g. another experiment run).
+    const groupKey = [field.id, node.target ?? ""].join("\u0000");
+    const group = groups.get(groupKey);
+    if (!group) {
+      groups.set(groupKey, {
+        fieldId: field.id,
+        allowed: new Set(values),
+        conditions: [node],
+      });
+      continue;
+    }
+    group.conditions.push(node);
+    // Keep only the values every condition in the group allows so far.
+    for (const value of group.allowed) {
+      if (!values.has(value)) group.allowed.delete(value);
+    }
+  }
+
+  return [...groups.values()]
+    .filter((group) => group.allowed.size === 0)
+    .map((group) => ({
+      kind: "contradiction",
+      fieldId: group.fieldId,
+      conditions: group.conditions,
+    }));
+};
+
+// Non-empty when `node` matches no row. Stops at `not`: v1 cannot tell when a
+// negation matches nothing.
+const unsatisfiable = (
+  node: Predicate,
+  source: PredicateSource,
+): PredicateDiagnostic[] => {
+  switch (node.kind) {
+    case "and": {
+      const operands = conjuncts(node);
+      return [
+        ...contradictions(operands, source),
+        ...operands.flatMap((operand) =>
+          operand.kind === "or" ? unsatisfiable(operand, source) : [],
+        ),
+      ];
+    }
+    case "or": {
+      const branches = node.children.map((child) =>
+        unsatisfiable(child, source),
+      );
+      return branches.every((b) => b.length > 0) ? branches.flat() : [];
+    }
+    case "not":
+    case "condition":
+      return [];
+  }
+};
+
+/**
  * Reports why no row can satisfy the predicate; an empty result means it may
  * match rows. A conjunction fails when equality or `any of` conditions on the
  * same single-valued field have no value in common, or when one of its `or`
@@ -58,90 +161,4 @@ const allowedValues = (
 export const analyzePredicate = (
   predicate: Predicate,
   source: PredicateSource,
-): PredicateDiagnostic[] => {
-  const contradictions = (operands: Predicate[]): PredicateDiagnostic[] => {
-    const diagnostics: PredicateDiagnostic[] = [];
-    const groups = new Map<
-      string,
-      {
-        fieldId: string;
-        allowed: Set<string | number | boolean>;
-        conditions: PredicateCondition[];
-      }
-    >();
-
-    for (const node of operands) {
-      if (node.kind !== "condition") continue;
-      const field = resolvePredicateSourceField(source, node.field.id);
-      if (
-        !field ||
-        // Skip fields where one row can hold several values (comments, tags,
-        // scores): `= a AND = b` can both match the same row there.
-        field.multiValued ||
-        !SINGLE_VALUED_FIELD_TYPES.has(field.type) ||
-        // An ill-typed condition is rejected when the filter compiles, so it
-        // is not reported as a contradiction here.
-        !field.operators[node.type]?.includes(node.op)
-      ) {
-        continue;
-      }
-      const values = allowedValues(node);
-      if (!values) continue;
-
-      // A target scopes a condition to other rows (e.g. another experiment run).
-      const groupKey = [field.id, node.target ?? ""].join("\u0000");
-      const group = groups.get(groupKey);
-      if (!group) {
-        groups.set(groupKey, {
-          fieldId: field.id,
-          allowed: new Set(values),
-          conditions: [node],
-        });
-        continue;
-      }
-      group.conditions.push(node);
-      // Keep only the values every condition in the group allows so far.
-      for (const value of group.allowed) {
-        if (!values.has(value)) group.allowed.delete(value);
-      }
-    }
-
-    for (const group of groups.values()) {
-      if (group.allowed.size === 0) {
-        diagnostics.push({
-          kind: "contradiction",
-          fieldId: group.fieldId,
-          conditions: group.conditions,
-        });
-      }
-    }
-    return diagnostics;
-  };
-
-  // Non-empty when `node` matches no row. Stops at `not`: v1 cannot tell
-  // when a negation matches nothing.
-  const unsatisfiable = (node: Predicate): PredicateDiagnostic[] => {
-    switch (node.kind) {
-      case "and": {
-        const operands = conjuncts(node);
-        return [
-          ...contradictions(operands),
-          ...operands.flatMap((operand) =>
-            operand.kind === "or" ? unsatisfiable(operand) : [],
-          ),
-        ];
-      }
-      case "or": {
-        const branches = node.children.map(unsatisfiable);
-        return branches.length > 0 && branches.every((b) => b.length > 0)
-          ? branches.flat()
-          : [];
-      }
-      case "not":
-      case "condition":
-        return [];
-    }
-  };
-
-  return unsatisfiable(predicate);
-};
+): PredicateDiagnostic[] => unsatisfiable(predicate, source);

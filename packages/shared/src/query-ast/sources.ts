@@ -32,9 +32,9 @@ export type PredicateSourceField = {
  * is validated and analyzed against one source.
  */
 export type PredicateSource = {
-  /** Stable source name, e.g. `events`. */
+  /** e.g. `events`. */
   id: string;
-  /** Every field a condition over this source may reference. */
+  /** A condition naming a field outside this list is not analyzed. */
   fields: readonly PredicateSourceField[];
   /** Physical columns matched by free-text search, per scope. */
   searchScopes: Record<TracingSearchType, readonly string[]>;

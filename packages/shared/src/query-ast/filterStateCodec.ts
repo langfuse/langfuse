@@ -135,6 +135,19 @@ const filterFromCondition = (
   }
 };
 
+// A missing `searchType` reads as the `id` scope, which is what the search
+// SQL does with it; an empty one cannot be searched.
+const searchFromFilterState = (
+  searchQuery: FilterStateWithSearch["searchQuery"],
+  searchType: FilterStateWithSearch["searchType"],
+): PredicateSearch | undefined => {
+  if (!searchQuery) return undefined;
+  if (searchType?.length === 0) {
+    throw new Error(TRACING_SEARCH_TYPE_REQUIRED_MESSAGE);
+  }
+  return { text: searchQuery, scopes: searchType ?? ["id"] };
+};
+
 /**
  * Reads a flat `FilterState` plus the free-text lane into
  * `{ predicate: and(...conditions), search? }`. Applies the legacy read
@@ -158,14 +171,8 @@ export const fromFilterState = ({
     children: coerced.map(conditionFromFilter),
   };
 
-  if (!searchQuery) return { predicate };
-  if (searchType?.length === 0) {
-    throw new Error(TRACING_SEARCH_TYPE_REQUIRED_MESSAGE);
-  }
-  return {
-    predicate,
-    search: { text: searchQuery, scopes: searchType ?? ["id"] },
-  };
+  const search = searchFromFilterState(searchQuery, searchType);
+  return search ? { predicate, search } : { predicate };
 };
 
 /**
