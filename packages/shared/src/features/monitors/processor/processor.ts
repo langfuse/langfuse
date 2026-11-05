@@ -15,14 +15,11 @@ import {
 } from "../../../server/repositories/automation-repository";
 import { executeQuery as defaultExecuteQuery } from "../../query/server/queryExecutor";
 import { getViewDeclaration } from "../../query/dataModel";
-import {
-  decodeFiltersGeneric,
-  encodeFiltersGeneric,
-} from "../../filters/filterQueryEncoding";
+import { encodeFiltersGeneric } from "../../filters/filterQueryEncoding";
 import { scoresTableCols } from "../../../tableDefinitions/scoresTable";
 import { scoresTableUiColumnDefinitions } from "../../../server/tableMappings/mapScoresTable";
 import { COMPATIBLE_FILTER_TYPES } from "../../../server/queries/clickhouse-sql/filterTypeCompatibility";
-import type { FilterState } from "../../../types";
+import type { FilterCondition, FilterState } from "../../../types";
 import type { QueryType } from "../../query/types";
 import { isValidQuery } from "../isValidQuery";
 import {
@@ -396,13 +393,13 @@ function buildAlert(args: {
     // recovery (OK) and lifecycle states (NO_DATA/UNKNOWN/PAUSED) would point at
     // a recovered/empty window, so they carry no data link.
     dataPermalink: isBreaching(next.severity)
-      ? buildDataWindowPermalink(
-          prev.projectId,
-          prev.view,
+      ? buildDataWindowPermalink({
+          projectId: prev.projectId,
+          view: prev.view,
           fromTimestamp,
           toTimestamp,
-          prev.filters,
-        )
+          filters: prev.filters,
+        })
       : undefined,
     message: renderAlertMessage({ monitor: prev, completion: next }),
     view: prev.view,
@@ -436,9 +433,6 @@ export function isBreaching(severity: MonitorSeverity): boolean {
   );
 }
 
-/** maxDataPermalinkLength is the Slack section text limit a data link must fit in */
-const maxDataPermalinkLength = 3000;
-
 /** observationsTableColumnByViewField maps monitor view fields to differing observations table column ids */
 const observationsTableColumnByViewField: Partial<Record<string, string>> = {
   tags: "traceTags",
@@ -447,116 +441,61 @@ const observationsTableColumnByViewField: Partial<Record<string, string>> = {
   observationName: "name",
 };
 
-/**
- * buildDataWindowPermalink composes the absolute Langfuse data-table URL scoped
- * to the breaching evaluation window, or undefined when NEXTAUTH_URL is unset.
- *
- * The window is encoded as the table's custom `?dateRange=<fromMs>-<toMs>`
- * param (absolute epoch-ms range; the client date-range parser accepts custom
- * ranges directly, bypassing the preset gating). Observation views carry
- * their filters across all environments. Score views carry their
- * input predicates and implicit data-type restrictions to the scores table.
- * A score link is omitted when the destination cannot preserve every filter;
- * an observations link that cannot carry its filters drops them instead.
- */
+/** buildDataWindowPermalink links an alert to the data table scoped to its evaluation window, or undefined when NEXTAUTH_URL is unset */
 export function buildDataWindowPermalink(
-  projectId: string,
-  view: MonitorView,
-  fromTimestamp: Date,
-  toTimestamp: Date,
-  filters: FilterState = [],
+  alert: Pick<
+    MonitorAlert,
+    "projectId" | "view" | "fromTimestamp" | "toTimestamp" | "filters"
+  >,
 ): string | undefined {
   if (!env.NEXTAUTH_URL) return undefined;
-  const base = env.NEXTAUTH_URL.replace(/\/$/, "");
-  const dateRange = `${fromTimestamp.getTime()}-${toTimestamp.getTime()}`;
-  if (view === "observations") {
-    const encodedFilters =
-      encodeTableFilters(toObservationsTableFilters(filters)) ?? "";
-    // A link that cannot carry its filters falls back to the unfiltered window.
-    return (
-      withinPermalinkLimit(
-        observationsPermalink(base, projectId, dateRange, encodedFilters),
-      ) ?? observationsPermalink(base, projectId, dateRange, "")
-    );
-  }
+  const params = {
+    projectUrl: `${env.NEXTAUTH_URL.replace(/\/$/, "")}/project/${alert.projectId}`,
+    dateRange: `${alert.fromTimestamp.getTime()}-${alert.toTimestamp.getTime()}`,
+    filters: alert.filters,
+  };
+  if (alert.view === "observations") return linkToObservationsTable(params);
+  return linkToScoresTable({ ...params, view: alert.view });
+}
 
-  const tableFilters: FilterState = [];
-  const segments = getViewDeclaration(view, "v2").segments.map((filter) => ({
-    ...filter,
-    column: filter.column === "data_type" ? "dataType" : filter.column,
-  }));
-  for (const filter of [...filters, ...segments]) {
-    // Monitor booleans use the numeric 0/1 value. The table's Boolean Value
-    // facet uses string_value, which may be absent on existing boolean scores.
-    if (filter.column === "booleanValue" && filter.type === "boolean") {
-      const value = filter.operator === "=" ? filter.value : !filter.value;
-      tableFilters.push({
-        column: "value",
-        type: "number",
-        operator: "=",
-        value: Number(value),
-      });
-      continue;
-    }
-
-    // Trace-derived dimensions use different joins in the monitor and the
-    // legacy/events-backed scores readers. Only score-owned fields are portable.
-    const mapping = scoresTableUiColumnDefinitions.find(
-      (column) =>
-        column.uiTableId === filter.column &&
-        column.clickhouseTableName === "scores",
-    );
-    const definition = scoresTableCols.find(
-      (column) => column.id === filter.column,
-    );
-    if (
-      !mapping ||
-      mapping.emptyEqualsNull ||
-      !definition ||
-      (filter.type !== "null" &&
-        !COMPATIBLE_FILTER_TYPES[definition.type]?.includes(filter.type))
-    ) {
-      return undefined;
-    }
-
-    if (filter.type === "boolean") {
-      tableFilters.push({
-        ...filter,
-        operator: "=",
-        value: filter.operator === "=" ? filter.value : !filter.value,
-      });
-    } else {
-      tableFilters.push(filter);
-    }
-  }
-
-  const encodedFilters = encodeTableFilters(tableFilters);
-  if (encodedFilters === undefined) return undefined;
-
-  const query = new URLSearchParams({
-    dateRange,
-    filter: encodedFilters,
-    // Alert filters own the environment scope, including an unrestricted one.
-    showAllEnvironments: "true",
-  });
-  return withinPermalinkLimit(
-    `${base}/project/${projectId}/scores?${query.toString()}`,
+/** linkToObservationsTable links to the observations table with every monitor filter */
+function linkToObservationsTable(params: TableLinkParams): string {
+  return tableLink(
+    `${params.projectUrl}/observations`,
+    params.dateRange,
+    toObservationsTableFilters(params.filters),
   );
 }
 
-/** observationsPermalink builds the observations table URL across all environments; an empty filter clears stored and default table filters */
-function observationsPermalink(
-  base: string,
-  projectId: string,
+/** linkToScoresTable links to the scores table, or undefined when it cannot apply every filter */
+function linkToScoresTable(
+  params: TableLinkParams & { view: ScoresMonitorView },
+): string | undefined {
+  const tableFilters = toScoresTableFilters([
+    ...params.filters,
+    ...scoresViewSegments(params.view),
+  ]);
+  if (!tableFilters) return undefined;
+  return tableLink(
+    `${params.projectUrl}/scores`,
+    params.dateRange,
+    tableFilters,
+  );
+}
+
+/** tableLink builds a table URL for the window; an empty filter clears stored and default table filters */
+function tableLink(
+  tableUrl: string,
   dateRange: string,
-  encodedFilters: string,
+  filters: FilterState,
 ): string {
   const query = new URLSearchParams({
     dateRange,
-    filter: encodedFilters,
+    filter: encodeFiltersGeneric(filters),
+    // Alert filters own the environment scope, including an unrestricted one.
     showAllEnvironments: "true",
   });
-  return `${base}/project/${projectId}/observations?${query.toString()}`;
+  return `${tableUrl}?${query.toString()}`;
 }
 
 /** toObservationsTableFilters renames monitor view fields to observations table column ids */
@@ -567,25 +506,78 @@ function toObservationsTableFilters(filters: FilterState): FilterState {
   }));
 }
 
-/** encodeTableFilters encodes filters for a table URL, or undefined when they would not survive its decoding */
-function encodeTableFilters(filters: FilterState): string | undefined {
-  try {
-    const encoded = encodeFiltersGeneric(filters);
-    // Keys with legacy delimiters or percent escapes change when the table re-encodes them.
-    if (encodeFiltersGeneric(decodeFiltersGeneric(encoded)) !== encoded) {
-      return undefined;
-    }
-    return encoded;
-  } catch {
-    return undefined;
-  }
+/** scoresViewSegments returns a scores view's implicit data-type filters as scores table filters */
+function scoresViewSegments(view: ScoresMonitorView): FilterState {
+  return getViewDeclaration(view, "v2").segments.map((filter) => ({
+    ...filter,
+    column: scoresTableColumn(filter.column),
+  }));
 }
 
-/** withinPermalinkLimit returns href, or undefined when it exceeds maxDataPermalinkLength */
-function withinPermalinkLimit(href: string): string | undefined {
-  // Dropping predicates to shorten a link would show data outside the evaluated query.
-  if (href.length > maxDataPermalinkLength) return undefined;
-  return href;
+/** scoresTableColumn maps a view segment column to its scores table column id */
+function scoresTableColumn(column: string): string {
+  if (column === "data_type") return "dataType";
+  return column;
+}
+
+/** toScoresTableFilters maps filters to scores table filters, or undefined when one cannot be applied */
+function toScoresTableFilters(filters: FilterState): FilterState | undefined {
+  const tableFilters: FilterState = [];
+  for (const filter of filters) {
+    const tableFilter = toScoresTableFilter(filter);
+    if (!tableFilter) return undefined;
+    tableFilters.push(tableFilter);
+  }
+  return tableFilters;
+}
+
+/** toScoresTableFilter maps one filter to its scores table form, or undefined when the table cannot apply it */
+function toScoresTableFilter(
+  filter: FilterCondition,
+): FilterCondition | undefined {
+  if (filter.column === "booleanValue" && filter.type === "boolean") {
+    return toBooleanValueFilter(filter);
+  }
+  if (!isPortableScoresFilter(filter)) return undefined;
+  if (filter.type === "boolean") {
+    return { ...filter, operator: "=", value: matchedBoolean(filter) };
+  }
+  return filter;
+}
+
+/** toBooleanValueFilter matches a boolean score by its numeric 0/1 value */
+function toBooleanValueFilter(filter: BooleanFilter): FilterCondition {
+  // The table's Boolean Value facet uses string_value, which existing boolean scores may lack.
+  return {
+    column: "value",
+    type: "number",
+    operator: "=",
+    value: Number(matchedBoolean(filter)),
+  };
+}
+
+/** isPortableScoresFilter reports whether the scores table applies filter the way the monitor does */
+function isPortableScoresFilter(filter: FilterCondition): boolean {
+  // Trace-derived dimensions use different joins in the monitor and the scores readers.
+  const mapping = scoresTableUiColumnDefinitions.find(
+    (column) =>
+      column.uiTableId === filter.column &&
+      column.clickhouseTableName === "scores",
+  );
+  const definition = scoresTableCols.find(
+    (column) => column.id === filter.column,
+  );
+  if (!mapping || mapping.emptyEqualsNull || !definition) return false;
+  if (filter.type === "null") return true;
+  return (
+    COMPATIBLE_FILTER_TYPES[definition.type]?.includes(filter.type) ?? false
+  );
+}
+
+/** matchedBoolean returns the value a boolean filter selects */
+function matchedBoolean(filter: BooleanFilter): boolean {
+  if (filter.operator === "=") return filter.value;
+  return !filter.value;
 }
 
 /** toMonitorWebhookInputs fans an alert out to one webhook input per matched automation. */
@@ -663,3 +655,16 @@ export type QueryExecutor = typeof defaultExecuteQuery;
 
 /** GetTriggerConfigurations loads the trigger configurations matching a filter. */
 export type GetTriggerConfigurations = typeof defaultGetTriggerConfigurations;
+
+/** TableLinkParams are the inputs shared by every data table link */
+type TableLinkParams = {
+  projectUrl: string;
+  dateRange: string;
+  filters: FilterState;
+};
+
+/** ScoresMonitorView is a monitor view backed by the scores table */
+type ScoresMonitorView = Exclude<MonitorView, "observations">;
+
+/** BooleanFilter is a filter on a boolean column */
+type BooleanFilter = Extract<FilterCondition, { type: "boolean" }>;
