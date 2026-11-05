@@ -538,7 +538,10 @@ const Integrations = (props: { projectId: string }) => {
         <ExternalMediaStorageIntegrationCard
           projectId={props.projectId}
           hasAccess={hasAccess}
-          hasEntitlement={externalMediaStorage.isFeatureEnabled}
+          hasEntitlement={
+            externalMediaStorage.isFeatureEnabled ||
+            externalMediaStorage.featureAvailability.isPending
+          }
           isLoading={
             externalMediaStorage.featureAvailability.isPending ||
             externalMediaStorage.query.isLoading

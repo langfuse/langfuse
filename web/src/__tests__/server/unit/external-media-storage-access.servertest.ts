@@ -52,15 +52,14 @@ describe("hasExternalMediaStorageAccess", () => {
 
   it("grants Cloud access to enterprise plans and allowlisted organizations only", () => {
     setCloudRegion("EU");
-
-    expect(
-      hasExternalMediaStorageAccess(organization({ plan: "Enterprise" })),
-    ).toBe(true);
     expect(hasExternalMediaStorageAccess(organization({ plan: "Pro" }))).toBe(
       true,
     );
 
     mocks.allowlist = [];
+    expect(
+      hasExternalMediaStorageAccess(organization({ plan: "Enterprise" })),
+    ).toBe(true);
     expect(hasExternalMediaStorageAccess(organization({ plan: "Pro" }))).toBe(
       false,
     );
