@@ -530,14 +530,13 @@ function toScoresTableFilter(filter: FilterCondition): FilterCondition {
   return { ...filter, operator: "=", value: matchedBoolean(filter) };
 }
 
-/** toBooleanValueFilter matches a boolean score by its numeric 0/1 value */
+/** toBooleanValueFilter selects a boolean score on the table's Boolean Value facet */
 function toBooleanValueFilter(filter: BooleanFilter): FilterCondition {
-  // The table's Boolean Value facet uses string_value, which existing boolean scores may lack.
   return {
-    column: "value",
-    type: "number",
-    operator: "=",
-    value: Number(matchedBoolean(filter)),
+    column: "booleanValue",
+    type: "stringOptions",
+    operator: "any of",
+    value: [String(matchedBoolean(filter))],
   };
 }
 

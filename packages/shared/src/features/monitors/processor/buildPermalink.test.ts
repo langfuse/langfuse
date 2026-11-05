@@ -191,12 +191,12 @@ describe("buildDataWindowPermalink", () => {
   );
 
   it.each([
-    ["=", false, 0],
-    ["=", true, 1],
-    ["<>", false, 1],
-    ["<>", true, 0],
+    ["=", false, "false"],
+    ["=", true, "true"],
+    ["<>", false, "true"],
+    ["<>", true, "false"],
   ] as const)(
-    "preserves boolean score %s %s through its numeric value",
+    "carries boolean score %s %s to the Boolean Value facet",
     (operator, value, expectedValue) => {
       envMock.env.NEXTAUTH_URL = "https://cloud.langfuse.com";
       const url = new URL(
@@ -213,10 +213,10 @@ describe("buildDataWindowPermalink", () => {
       expect(decodeFiltersGeneric(url.searchParams.get("filter")!)).toEqual(
         expect.arrayContaining([
           {
-            column: "value",
-            type: "number",
-            operator: "=",
-            value: expectedValue,
+            column: "booleanValue",
+            type: "stringOptions",
+            operator: "any of",
+            value: [expectedValue],
           },
           {
             column: "isEvaluatorTest",
