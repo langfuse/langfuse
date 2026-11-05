@@ -394,6 +394,7 @@ describe("Observation Eval E2E Pipeline", () => {
         jobInputObservationId: observation.span_id,
         jobInputDatasetItemId: null,
         jobTemplateId: null,
+        createdAt: new Date(),
       });
       mockMigratedAssignment(mockConfig);
 

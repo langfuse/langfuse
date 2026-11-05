@@ -14,7 +14,7 @@ import {
 import { copyTextToClipboard } from "@/src/utils/clipboard";
 import { type ObservationType } from "@langfuse/shared";
 import { InternalFeatureBadge } from "@/src/features/feature-flags/components/InternalFeatureBadge";
-import { useWebCalloutAction } from "@/src/features/web-callouts/components/WebCalloutButton";
+import { useWebCalloutAction } from "@/src/features/web-callouts/components/useWebCalloutAction";
 
 type IdItem = {
   name: string;

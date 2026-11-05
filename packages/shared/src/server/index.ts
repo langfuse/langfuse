@@ -711,6 +711,8 @@ export { getBillableUnitCountsByProjectInWindow } from "./repositories/billable-
 export { getTopicSetupTraceCounts } from "./repositories/topic-setup-events";
 export { getTopicSetupTraceIds } from "./repositories/topic-setup-events";
 export {
+  getTopicResultCounts,
+  type TopicResultCounts,
   listCurrentTopicAssignments,
   listCurrentTopicSummaries,
   TOPIC_ASSIGNMENT_STATUSES,

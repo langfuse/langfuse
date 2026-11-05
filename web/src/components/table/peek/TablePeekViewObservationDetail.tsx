@@ -3,6 +3,7 @@ import {
   shouldClosePeekAfterDelete,
 } from "@/src/components/table/peek";
 import { usePeekData } from "@/src/components/table/peek/hooks/usePeekData";
+import { createPeekHeaderActions } from "@/src/components/ObservabilityEntityDetailHeader/fns/createPeekHeaderActions";
 import { TraceDetailActions } from "@/src/features/traces/components/TraceDetailActions";
 import { TraceDetailBody } from "@/src/features/traces/components/TraceDetailBody";
 import { resolvePeekTraceParams } from "@/src/components/table/peek/resolvePeekTraceParams";
@@ -15,6 +16,7 @@ import { getTraceScopeQuery } from "@/src/features/traces/fns/getTraceScopeQuery
 import useIsFeatureEnabled from "@/src/features/feature-flags/hooks/useIsFeatureEnabled";
 import { resolveTraceScope } from "@/src/features/traces/fns/resolveTraceScope";
 import { useReadPath } from "@/src/features/events/hooks/useReadPath";
+import { api } from "@/src/utils/api";
 
 export const TablePeekViewObservationDetail = (
   props: Omit<
@@ -25,6 +27,7 @@ export const TablePeekViewObservationDetail = (
   },
 ) => {
   const router = useRouter();
+  const utils = api.useUtils();
   const { projectId } = props;
   const unifiedTraceSessionViewEnabled = useIsFeatureEnabled(
     "unifiedTraceSessionView",
@@ -102,7 +105,23 @@ export const TablePeekViewObservationDetail = (
                 const query = getTraceScopeQuery(
                   router.query,
                   next,
-                  trace.data?.observations,
+                  [
+                    ...(trace.data?.observations ?? []),
+                    ...(sessionId
+                      ? (utils.sessions.observationsForSessionFromEvents.getData(
+                          {
+                            projectId,
+                            sessionId,
+                          },
+                        )?.observations ?? [])
+                      : []),
+                  ],
+                  sessionId
+                    ? utils.sessions.tracesFromEvents.getData({
+                        projectId,
+                        sessionId,
+                      })
+                    : undefined,
                 );
                 return router.replace(
                   { pathname: router.pathname, query },
@@ -117,27 +136,53 @@ export const TablePeekViewObservationDetail = (
       }
       hideExpandToggle
       preserveContentAcrossItems
-      actions={
-        <TraceDetailActions
-          isPlaceholderData={trace.isPlaceholderData}
-          {...actionProps}
-        />
-      }
-      actionsMenu={
-        <TraceDetailActions
-          isPlaceholderData={trace.isPlaceholderData}
-          {...actionProps}
-          layout="menu"
-        />
-      }
     >
-      <TraceDetailBody
-        trace={trace.data}
-        context="peek"
-        keySuffix={peekObservationId}
-        truncatedAtObservations={trace.truncatedAtObservations}
-        isPlaceholderData={trace.isPlaceholderData}
-      />
+      {({
+        itemType,
+        title,
+        titleTabs,
+        itemId,
+        detailNavigationKey,
+        resolveDetailNavigationPath,
+        ...peekControls
+      }) => (
+        <TraceDetailActions
+          isPlaceholderData={trace.isPlaceholderData}
+          {...actionProps}
+        >
+          {(traceActions) => (
+            <TraceDetailBody
+              trace={trace.data}
+              context="peek"
+              keySuffix={peekObservationId}
+              truncatedAtObservations={trace.truncatedAtObservations}
+              isPlaceholderData={trace.isPlaceholderData}
+              header={{
+                variant: "peek",
+                headerProps: {
+                  itemType,
+                  title,
+                  titleTabs,
+                  actions: [
+                    ...traceActions,
+                    ...createPeekHeaderActions({
+                      ...peekControls,
+                      navigation:
+                        detailNavigationKey && resolveDetailNavigationPath
+                          ? {
+                              itemId,
+                              listKey: detailNavigationKey,
+                              resolvePath: resolveDetailNavigationPath,
+                            }
+                          : undefined,
+                    }),
+                  ],
+                },
+              }}
+            />
+          )}
+        </TraceDetailActions>
+      )}
     </TablePeekView>
   );
 };

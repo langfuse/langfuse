@@ -1,5 +1,5 @@
 export function getSelectedObservation<
-  T extends { id: string; traceId: string },
+  T extends { id: string; traceId?: string },
 >(observations: T[], selectedNodeId: string | null, traceId: string) {
   if (!selectedNodeId) return undefined;
   return (

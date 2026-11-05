@@ -148,6 +148,25 @@ describe("isCustomerFaultError", () => {
       Object.assign(err, { statusCode: 401 });
       expect(isCustomerFaultError(wrapped(err))).toBe(true);
     });
+
+    it("classifies a PostHog 401 (status via getter on response) as credentials, but not a 413", () => {
+      // Mirrors posthog-node's PostHogFetchHttpError: status lives only behind a getter.
+      class PostHogFetchHttpError extends Error {
+        constructor(private response: { status: number }) {
+          super(`HTTP error while fetching PostHog: status=${response.status}`);
+          this.name = "PostHogFetchHttpError";
+        }
+        get status() {
+          return this.response.status;
+        }
+      }
+      expect(
+        classifyCustomerFault(new PostHogFetchHttpError({ status: 401 })),
+      ).toBe("credentials");
+      expect(
+        classifyCustomerFault(new PostHogFetchHttpError({ status: 413 })),
+      ).toBeUndefined();
+    });
   });
 
   describe("other — transient / infra / unknown (bias toward investigation)", () => {

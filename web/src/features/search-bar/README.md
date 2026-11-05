@@ -253,11 +253,8 @@ envs]`, derived into _effective_ state by
     text — there is no special structured-vs-raw paste branch. Editing a
     value works by placing the caret in it (click/arrow): the value-stage
     popover then offers that field's values with the current one active.
-  - `ComposerTokens.tsx` — **presentational** (pure, prop-driven): draft text →
-    styled token spans. `cva` token variants. Story: `ComposerTokens.stories`.
-  - `AutocompleteListbox.tsx` — **presentational** ARIA listbox over a
-    `CompletionPlan`. Story: `AutocompleteListbox.stories`. `AutocompletePopover`
-    only positions it.
+    - `lib/fns/deriveQueryTokens.ts` maps parsed segments into structured token data. `QueryTokens` owns token markup, syntax styling, and caret boundaries. `QueryInput` composes it with `InputControl` for surface chrome. Read-only callers use `QueryTokens` inline or `QueryInput mode="preview"` for a bordered preview with the same data.
+    - `QueryInput` owns suggestion rendering, positioning, and listbox interaction. `SearchComposer` maps `CompletionPlan` into structured options and edits; suggestion presentation stories live alongside `QueryInput`.
   - `EventsSearchBarRow.tsx` (full-width composer; `EventsTable` owns the
     sticky stack around the composer + toolbar). The time-range + refresh
     controls live in the toolbar row below the composer (next to the filter
