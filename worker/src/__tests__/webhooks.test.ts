@@ -2573,6 +2573,7 @@ describe("Webhook Integration Tests", () => {
           projectId,
           severity,
           permalink: `https://cloud.langfuse.com/project/${projectId}/alerts/${monitorId}`,
+          dataPermalink: `https://cloud.langfuse.com/project/${projectId}/observations?dateRange=1780063200000-1780065000000`,
           timestamp: new Date("2026-05-27T14:32:00.000Z"),
           fromTimestamp: new Date("2026-05-27T14:00:00.000Z"),
           toTimestamp: new Date("2026-05-27T14:30:00.000Z"),
@@ -2626,7 +2627,13 @@ describe("Webhook Integration Tests", () => {
         dedup_key: `langfuse-${projectId}-${monitorId}`,
         client: "Langfuse",
         client_url: permalink,
-        links: [{ href: permalink, text: "View in Langfuse" }],
+        links: [
+          { href: permalink, text: "View in Langfuse" },
+          {
+            href: input.payload.payload.dataPermalink,
+            text: "View observations",
+          },
+        ],
         payload: {
           summary: "Hallucination rate breached",
           source: `langfuse/${project.name}`,
