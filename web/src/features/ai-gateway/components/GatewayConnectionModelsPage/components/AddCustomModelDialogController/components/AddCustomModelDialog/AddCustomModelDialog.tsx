@@ -150,7 +150,9 @@ function CustomModelTestOutcome({ result }: { result: CustomModelTestResult }) {
       />
       <div className="min-w-0">
         <p className="text-dark-red font-bold">{title}</p>
-        <p className="text-dark-red text-sm break-words">{result.error}</p>
+        <p className="ph-no-capture text-dark-red text-sm break-words">
+          {result.error}
+        </p>
       </div>
     </div>
   );

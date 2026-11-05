@@ -14,7 +14,8 @@ const PRE_RELEASE_CLOUD_REGIONS = ["STAGING", "DEV"];
  */
 export function isGatewayPreReleaseEnvironment(
   environment: GatewayPreReleaseEnvironment = {
-    nodeEnv: env.NODE_ENV,
+    // `env.NODE_ENV` is server-only and throws in the browser; Next inlines this on both sides.
+    nodeEnv: process.env.NODE_ENV,
     cloudRegion: env.NEXT_PUBLIC_LANGFUSE_CLOUD_REGION,
     previewPrUrl: env.NEXT_PUBLIC_PREVIEW_PR_URL,
   },
