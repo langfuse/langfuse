@@ -483,9 +483,8 @@ it.each([
   {
     input: { customerId: "customer-1" },
     output: {
-      role: "tool",
-      tool_call_id: "call-1",
-      content: "Order 123 is ready.",
+      type: "tool-result",
+      output: "Order 123 is ready.",
     },
     expectedOutput: { type: "text", value: "Order 123 is ready." },
   },
@@ -549,6 +548,64 @@ it.each([
     expect(tool).toEqual(snapshot);
   },
 );
+
+it("preserves provider IDs and pairs nested tool results", async () => {
+  const ids = ["call-1", "call-2"];
+  const output = [
+    {
+      role: "assistant",
+      tool_calls: ids.map((id) => ({
+        id,
+        type: "function",
+        function: { name: "search", arguments: "{}" },
+      })),
+    },
+    ...ids.map((id) => ({
+      role: "tool",
+      tool_call_id: id,
+      content: `Result ${id}`,
+    })),
+  ];
+  mocks.observations.mockResolvedValue({
+    observations: [
+      {
+        id: "outer",
+        type: "TOOL",
+        name: "agent",
+        input: {},
+        output,
+        level: "ERROR",
+        startTime: new Date(0),
+        endTime: new Date(1),
+        metadata: {},
+      },
+    ],
+    totalCount: 1,
+  });
+
+  const result = await loadTraceTranscript(filteredToolSession);
+  const messages = result.transcript!.threads[0]!.currentTurn.messages;
+  expect(groupTranscriptMessages(messages)).toEqual([
+    expect.objectContaining({
+      type: "tool",
+      call: expect.objectContaining({
+        toolCallId: "outer",
+        toolName: "agent",
+      }),
+      result: null,
+    }),
+    ...ids.map((id) =>
+      expect.objectContaining({
+        type: "tool",
+        call: expect.objectContaining({ toolCallId: id, toolName: "search" }),
+        result: expect.objectContaining({
+          toolCallId: id,
+          output: { type: "text", value: `Result ${id}` },
+        }),
+      }),
+    ),
+  ]);
+});
 
 it.each([null, ""])(
   "preserves input for an unnamed filtered tool: %j",

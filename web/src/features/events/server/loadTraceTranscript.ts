@@ -228,34 +228,41 @@ function normalizeFilteredSessionObservation(
     (message) => message.source === "output",
   );
   const parts = outputMessages.flatMap((message) => message.parts);
-  const hasToolResult = parts.some((part) => part.type === "tool-result");
-  // Pair by observation ID in this isolated view, not the provider's call ID.
-  const resultParts = hasToolResult
-    ? parts.map((part) => {
-        if (part.type !== "tool-result") return part;
-        return {
-          ...part,
-          toolCallId: observation.id,
-          toolName: observation.name || part.toolName,
-          isError: observation.level === "ERROR" || part.isError,
-        };
-      })
-    : [
-        {
-          type: "tool-result" as const,
-          toolCallId: observation.id,
-          toolName: observation.name || undefined,
-          output: toolResultOutput(parts, observation.output),
-          isError: observation.level === "ERROR",
-        },
-      ];
+  // Provider IDs belong to their own calls, not necessarily this outer tool.
+  if (parts.some((part) => part.type === "tool-result" && part.toolCallId)) {
+    return [...inputMessages, ...outputMessages];
+  }
+  const standaloneResult =
+    parts.length === 1 && parts[0]!.type === "tool-result" ? parts[0]! : null;
+  if (
+    !standaloneResult &&
+    parts.some(
+      (part) => part.type === "tool-call" || part.type === "tool-result",
+    )
+  ) {
+    return [...inputMessages, ...outputMessages];
+  }
+  const resultPart = standaloneResult
+    ? {
+        ...standaloneResult,
+        toolCallId: observation.id,
+        toolName: observation.name || standaloneResult.toolName,
+        isError: observation.level === "ERROR" || standaloneResult.isError,
+      }
+    : {
+        type: "tool-result" as const,
+        toolCallId: observation.id,
+        toolName: observation.name || undefined,
+        output: toolResultOutput(parts, observation.output),
+        isError: observation.level === "ERROR",
+      };
   return [
     ...inputMessages,
     {
       ...outputMessages[0],
       role: "tool",
       source: "output",
-      parts: resultParts,
+      parts: [resultPart],
     },
   ];
 }
