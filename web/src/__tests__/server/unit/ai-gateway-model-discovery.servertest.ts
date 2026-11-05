@@ -203,6 +203,8 @@ describe("AI Gateway model discovery", () => {
       bedrockModelDiscoveryAdapter.fetchCatalog({
         credential: JSON.stringify({ apiKey: "bedrock-test" }),
         config: { region: "eu-central-1" },
+        baseURL: null,
+        extraHeaders: {},
         fetcher: async (input) =>
           new URL(String(input)).pathname === "/foundation-models"
             ? Response.json({
