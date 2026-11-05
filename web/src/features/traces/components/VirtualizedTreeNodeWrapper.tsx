@@ -144,7 +144,7 @@ export function VirtualizedTreeNodeWrapper(
         <div className="relative flex w-6 shrink-0 flex-col py-1.5">
           <div className="relative z-10 flex h-4 items-center justify-center">
             {loaded ? (
-              <ItemTypeIcon type={loaded.nodeType} className="icon-base" />
+              <ItemTypeIcon type={loaded.nodeType} size="base" />
             ) : (
               <Skeleton className="size-4 rounded-sm" />
             )}

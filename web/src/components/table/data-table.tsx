@@ -863,7 +863,7 @@ function renderOrderingIndicator(orderBy?: OrderByState) {
     <span className="ml-1 inline-flex shrink-0 items-center">
       <svg
         viewBox="0 0 24 24"
-        className="icon-base text-icon-foreground fill-current"
+        className="text-icon-foreground size-3.5 fill-current"
         aria-hidden="true"
       >
         <path d={ascending ? "M7 14h10l-5-6z" : "M7 10h10l-5 6z"} />

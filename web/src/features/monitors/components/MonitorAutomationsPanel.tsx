@@ -212,7 +212,7 @@ function MonitorAutomationsListRow({
       )}
     >
       <RowCheckbox checked={isSelected} />
-      <span className="icon-base shrink-0">
+      <span className="size-3.5 shrink-0">
         <ActionIcon type={automation.action.type as ActionTypes} />
       </span>
       <span className="truncate" title={automation.name}>
