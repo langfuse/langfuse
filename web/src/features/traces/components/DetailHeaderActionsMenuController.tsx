@@ -241,7 +241,7 @@ export function DetailHeaderActionsMenuController({
             type: "item" as const,
             id: "copy-clickhouse-query",
             title: "Copy ClickHouse query",
-            badge: <FeatureReleaseStatus status="internal" size="default" />,
+            badge: <FeatureReleaseStatus status="internal" />,
             icon: copiedId === clickHouseQuery ? CheckIcon : CopyIcon,
             onClick: () => handleCopy(clickHouseQuery),
           },

@@ -19,16 +19,12 @@ export const AllStatuses = meta.story({
     },
   },
   render: () => (
-    <div className="flex flex-col gap-3">
-      {(["sm", "default"] as const).map((size) => (
-        <div key={size} className="flex flex-wrap items-center gap-2">
-          <FeatureReleaseStatus status="beta" size={size} />
-          <FeatureReleaseStatus status="new" size={size} />
-          <FeatureReleaseStatus status="internal" size={size} />
-          <FeatureReleaseStatus status="coming-soon" size={size} />
-          <FeatureReleaseStatus status="legacy" size={size} />
-        </div>
-      ))}
+    <div className="flex flex-wrap items-center gap-2">
+      <FeatureReleaseStatus status="beta" />
+      <FeatureReleaseStatus status="new" />
+      <FeatureReleaseStatus status="internal" />
+      <FeatureReleaseStatus status="coming-soon" />
+      <FeatureReleaseStatus status="legacy" />
     </div>
   ),
 });

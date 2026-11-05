@@ -327,7 +327,7 @@ export const ROUTES: Route[] = [
 function TopicsInternalBadge() {
   const internalFeaturesEnabled = useInternalFeaturesEnabled();
   return internalFeaturesEnabled ? (
-    <FeatureReleaseStatus status="internal" size="default" />
+    <FeatureReleaseStatus status="internal" />
   ) : null;
 }
 

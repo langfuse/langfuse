@@ -922,10 +922,7 @@ export const InnerEvaluatorForm = (props: {
                                 icon={ListTree}
                               >
                                 Traces
-                                <FeatureReleaseStatus
-                                  status="legacy"
-                                  size="default"
-                                />
+                                <FeatureReleaseStatus status="legacy" />
                               </Tabs.Trigger>
                             </span>
                           )}
@@ -1005,10 +1002,7 @@ export const InnerEvaluatorForm = (props: {
                           icon={BetweenHorizonalStart}
                         >
                           Low-level SDK methods
-                          <FeatureReleaseStatus
-                            status="legacy"
-                            size="default"
-                          />
+                          <FeatureReleaseStatus status="legacy" />
                         </Tabs.Trigger>
                       </span>
                     </Tabs.List>

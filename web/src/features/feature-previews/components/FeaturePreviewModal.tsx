@@ -180,10 +180,7 @@ export function FeaturePreviewModal({
                         {featurePreviewLabels[selected.flag]}
                       </span>
                       {isInternalFeaturePreviewFlag(selected.flag) && (
-                        <FeatureReleaseStatus
-                          status="internal"
-                          size="default"
-                        />
+                        <FeatureReleaseStatus status="internal" />
                       )}
                     </h2>
                     <p className="text-muted-foreground mt-2 max-w-2xl text-sm">

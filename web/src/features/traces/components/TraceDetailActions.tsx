@@ -182,12 +182,7 @@ function LoadedTraceDetailActions({
                       id: "show-trace-transcript",
                       title: "Show trace transcript",
                       icon: FileText,
-                      badge: (
-                        <FeatureReleaseStatus
-                          status="internal"
-                          size="default"
-                        />
-                      ),
+                      badge: <FeatureReleaseStatus status="internal" />,
                       onClick: onShowTranscript,
                     },
                   ]

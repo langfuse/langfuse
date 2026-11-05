@@ -10,21 +10,17 @@ const RELEASE_STATUSES = {
 
 type FeatureReleaseStatusProps = {
   status: keyof typeof RELEASE_STATUSES;
-  size?: "default" | "sm";
 };
 
 /**
  * Where a feature is in its release: Beta, New, Internal (staff only),
- * Coming soon, Legacy. Fixed colour and caps per status. Not for the state
+ * Coming soon, Legacy. One size; fixed colour and caps per status. Not for the state
  * of a running thing (Failing, Healthy): that is a status `Badge`.
  */
-export function FeatureReleaseStatus({
-  status,
-  size = "sm",
-}: FeatureReleaseStatusProps) {
+export function FeatureReleaseStatus({ status }: FeatureReleaseStatusProps) {
   const { text, color } = RELEASE_STATUSES[status];
   return (
-    <BadgeShell color={color} size={size}>
+    <BadgeShell color={color} size="sm">
       <span className="uppercase">{text}</span>
     </BadgeShell>
   );

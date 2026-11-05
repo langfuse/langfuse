@@ -87,9 +87,7 @@ function BaseHeader({ ...props }: HeaderProps & { level: "h3" | "h4" | "h5" }) {
             ) : null}
           </div>
           {props.status && <StatusBadge type={props.status} />}
-          {props.internal && (
-            <FeatureReleaseStatus status="internal" size="default" />
-          )}
+          {props.internal && <FeatureReleaseStatus status="internal" />}
           {props.labelBadge && (
             <Badge color="filled" size="sm" text={props.labelBadge} />
           )}

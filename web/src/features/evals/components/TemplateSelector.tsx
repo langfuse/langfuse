@@ -226,10 +226,7 @@ export const TemplateSelector = ({
                           {template.name}
                           {isLegacy && (
                             <span className="ml-2">
-                              <FeatureReleaseStatus
-                                status="legacy"
-                                size="default"
-                              />
+                              <FeatureReleaseStatus status="legacy" />
                             </span>
                           )}
                           {isInvalid && (
@@ -325,10 +322,7 @@ export const TemplateSelector = ({
                         />
                         {isLegacy && (
                           <span className="ml-2">
-                            <FeatureReleaseStatus
-                              status="legacy"
-                              size="default"
-                            />
+                            <FeatureReleaseStatus status="legacy" />
                           </span>
                         )}
                         {isInvalid && (

@@ -27,7 +27,7 @@ export function RuleNameCell({
             />
           </span>
         ) : (
-          <FeatureReleaseStatus status="legacy" size="default" />
+          <FeatureReleaseStatus status="legacy" />
         )
       ) : null}
     </div>
