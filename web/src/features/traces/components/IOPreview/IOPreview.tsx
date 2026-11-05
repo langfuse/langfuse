@@ -68,7 +68,6 @@ export interface IOPreviewProps extends ExpansionStateProps {
   status?: ObservationStatusMessage;
   metadata?: Prisma.JsonValue;
   outputCorrection?: ScoreDomain;
-  /** Trace-scoped CORRECTION (`observationId` null), shown nested under Corrected output when both scopes exist on root. */
   traceOutputCorrection?: ScoreDomain;
   // Pre-parsed data (optional, from useParsedObservation hook for performance)
   parsedInput?: unknown;
