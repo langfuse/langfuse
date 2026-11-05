@@ -10,6 +10,7 @@ export const SESSION_TRACE_FIELD_REGISTRY = fieldRegistryFromColumns(
   {
     id: "sessionTraces",
     allowFreeText: false,
+    allowPresence: false,
     defaultSearchType: [],
     metadata: false,
     searchPlaceholder: "Filter observations… e.g. level:=ERROR",
@@ -21,7 +22,23 @@ export const SESSION_TRACE_FIELD_REGISTRY = fieldRegistryFromColumns(
       "isRootObservation:true",
     ],
     fields: {
-      name: { aliases: ["observationName"] },
+      name: {
+        aliases: ["observationName"],
+        operators: ["=", "exact", "~"],
+        negatedOperators: ["=", "exact", "~"],
+      },
+      traceName: {
+        operators: ["=", "exact", "~"],
+        negatedOperators: ["=", "exact", "~"],
+      },
+      type: {
+        operators: ["exact"],
+        negatedOperators: [],
+        suggestObservedValues: true,
+        exactSuggestions: true,
+      },
+      level: { operators: ["=", "exact"], negatedOperators: [] },
+      isRootObservation: { operators: ["=", "exact"], negatedOperators: [] },
     },
     filterStateErrors: (filters) =>
       filters.every((filter) => {
