@@ -11,11 +11,11 @@ import { Button } from "@/src/components/ui/button";
 import { StatusBadge } from "@/src/components/ui/StatusBadge/StatusBadge";
 import { Card } from "@/src/components/ui/card";
 import { IntegrationSettingsSkeleton } from "@/src/features/analytics-integrations/components/IntegrationSettingsSkeleton";
-import { ExternalMediaStorageForm } from "@/src/features/external-media-storage/components/ExternalMediaStorageForm/ExternalMediaStorageForm";
-import { TestMediaObjectDialog } from "@/src/features/external-media-storage/components/TestMediaObjectDialog/TestMediaObjectDialog";
-import { testSignedMediaUrlCors } from "@/src/features/external-media-storage/fns/testSignedMediaUrlCors";
-import { type ExternalMediaStorageFormValues } from "@/src/features/external-media-storage/types";
-import { useExternalMediaStorage } from "@/src/features/external-media-storage/useExternalMediaStorage";
+import { ExternalMediaStorageForm } from "@/src/ee/features/external-media-storage/components/ExternalMediaStorageForm/ExternalMediaStorageForm";
+import { TestMediaObjectDialog } from "@/src/ee/features/external-media-storage/components/TestMediaObjectDialog/TestMediaObjectDialog";
+import { testSignedMediaUrlCors } from "@/src/ee/features/external-media-storage/fns/testSignedMediaUrlCors";
+import { type ExternalMediaStorageFormValues } from "@/src/ee/features/external-media-storage/types";
+import { useExternalMediaStorage } from "@/src/ee/features/external-media-storage/useExternalMediaStorage";
 import { showErrorToast } from "@/src/features/notifications/showErrorToast";
 import { showSuccessToast } from "@/src/features/notifications/showSuccessToast";
 import { api } from "@/src/utils/api";
@@ -192,7 +192,8 @@ export default function ExternalMediaStoragePage() {
         if (!isFeatureEnabled) {
           return (
             <p className="text-sm">
-              This feature is not enabled for this project.
+              External media storage is an Enterprise feature. Upgrade your plan
+              to resolve s3:// media references from your own bucket.
             </p>
           );
         }

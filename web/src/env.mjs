@@ -490,6 +490,17 @@ export const env = createEnv({
       .enum(["true", "false"])
       .default("false"),
 
+    // Comma-separated organization ids that get external media storage without
+    // the enterprise entitlement. Only applies on Langfuse Cloud.
+    LANGFUSE_EXTERNAL_MEDIA_STORAGE_ORGANIZATION_ID_ALLOWLIST: z
+      .string()
+      .default("")
+      .transform((value) =>
+        value
+          .split(",")
+          .map((organizationId) => organizationId.trim())
+          .filter(Boolean),
+      ),
     LANGFUSE_ALLOWED_ORGANIZATION_CREATORS: z
       .string()
       .optional()
@@ -1244,6 +1255,8 @@ export const env = createEnv({
     API_AUTH_MIGRATION: process.env.API_AUTH_MIGRATION,
     API_KEY_PROJECT_ROLES_ENABLE: process.env.API_KEY_PROJECT_ROLES_ENABLE,
     API_KEY_ORG_ROLES_ENABLE: process.env.API_KEY_ORG_ROLES_ENABLE,
+    LANGFUSE_EXTERNAL_MEDIA_STORAGE_ORGANIZATION_ID_ALLOWLIST:
+      process.env.LANGFUSE_EXTERNAL_MEDIA_STORAGE_ORGANIZATION_ID_ALLOWLIST,
     LANGFUSE_ALLOWED_ORGANIZATION_CREATORS:
       process.env.LANGFUSE_ALLOWED_ORGANIZATION_CREATORS,
     STRIPE_SECRET_KEY: process.env.STRIPE_SECRET_KEY,
