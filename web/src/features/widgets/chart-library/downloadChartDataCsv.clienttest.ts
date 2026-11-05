@@ -6,13 +6,15 @@ describe("buildChartDataCsv", () => {
     expect(buildChartDataCsv([])).toBe("");
   });
 
-  it("escapes header names that contain commas, quotes, or newlines", () => {
+  it("escapes header names that contain commas, quotes, or CR/LF", () => {
     // Breakdown/dimension column names are user data and can contain
     // separators. Unescaped headers would shift every column in the export.
-    const data = [{ "model, v2": 1, 'quote"d': 2, "line\nbreak": 3 }];
+    const data = [
+      { "model, v2": 1, 'quote"d': 2, "line\nbreak": 3, "carriage\rreturn": 4 },
+    ];
 
     expect(buildChartDataCsv(data)).toBe(
-      '"model, v2","quote""d","line\nbreak"\n1,2,3',
+      '"model, v2","quote""d","line\nbreak","carriage\rreturn"\n1,2,3,4',
     );
   });
 
