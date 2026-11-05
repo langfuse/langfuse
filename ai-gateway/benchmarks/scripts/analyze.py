@@ -42,8 +42,24 @@ def load_resources(path):
                     float(row["cpu_cores"]) if row["cpu_cores"] else None,
                 )
             )
+    # The sampler runs until the load generator exits, which can be long after the
+    # load stopped (a client waiting out its timeout); idle trailing samples would
+    # skew the per-case medians and stretch the resource chart.
+    # Idle Web replicas together still use more than the threshold, so only the
+    # request path decides when the load stopped.
+    busy = [
+        r[0]
+        for service in ("ai-gateway", "mock-upstream")
+        for r in series.get(service, [])
+        if r[3] is not None and r[3] >= 0.05
+    ]
+    if busy:
+        cutoff = max(busy) + 1.0
+        series = {service: [r for r in rows if r[0] <= cutoff] for service, rows in series.items()}
     out = {}
     for service, rows in series.items():
+        if not rows:
+            continue
         cpu = sorted(r[3] for r in rows if r[3] is not None)
         out[service] = {
             "rows": rows,
