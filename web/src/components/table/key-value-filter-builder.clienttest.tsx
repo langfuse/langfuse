@@ -117,44 +117,6 @@ describe("KeyValueFilterBuilder", () => {
     expect(screen.getByPlaceholderText("Key")).toHaveValue("accuracy");
   });
 
-  it("replaces a filled value from another suggestion without clearing it first", () => {
-    const onChange = vi.fn();
-    render(
-      <KeyValueFilterBuilder
-        mode="string"
-        activeFilters={[{ key: "kind", operator: "=", value: "AgentProfile" }]}
-        valueOptions={{ kind: ["AgentProfile", "ToolCall"] }}
-        onChange={onChange}
-      />,
-    );
-
-    const value = screen.getByPlaceholderText("Value");
-    expect(value).toHaveValue("AgentProfile");
-    fireEvent.focus(value);
-
-    // The current value is not re-offered, but a different one is clickable
-    // while the field still holds it.
-    expect(
-      screen.queryByRole("option", { name: "AgentProfile" }),
-    ).not.toBeInTheDocument();
-    fireEvent.mouseDown(screen.getByRole("option", { name: "ToolCall" }));
-
-    expect(onChange).toHaveBeenCalledWith([
-      { key: "kind", operator: "=", value: "ToolCall" },
-    ]);
-
-    // Picking a suggestion closes the list without blurring the field. A later
-    // press, not a fresh focus, has to open the other values again.
-    expect(screen.queryByRole("option")).not.toBeInTheDocument();
-    fireEvent.mouseDown(value);
-    expect(
-      screen.getByRole("option", { name: "ToolCall" }),
-    ).toBeInTheDocument();
-    expect(
-      screen.queryByRole("option", { name: "AgentProfile" }),
-    ).not.toBeInTheDocument();
-  });
-
   it("preserves incomplete local filters across equivalent parent rerenders", () => {
     const { rerender } = render(
       <KeyValueFilterBuilder

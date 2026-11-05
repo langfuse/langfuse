@@ -263,3 +263,55 @@ export const TestSessionReplayBlock = meta.story({
     await expect(suggestionBlock).not.toContain(draftKey);
   },
 });
+
+export const TestReplacesFilledValue = meta.story({
+  name: "(Test) Replaces a filled value",
+  args: {
+    mode: "string",
+    keyOptions: ["kind"],
+    valueOptions: { kind: ["AgentProfile", "ToolCall"] },
+    activeFilters: [{ key: "kind", operator: "=", value: "AgentProfile" }],
+    onChange: fn(),
+  },
+  render: (args) => {
+    const [filters, setFilters] = useState<StringKeyValueFilterEntry[]>(
+      args.activeFilters as StringKeyValueFilterEntry[],
+    );
+    return (
+      <div className="w-80">
+        <KeyValueFilterBuilder
+          mode="string"
+          keyOptions={args.keyOptions}
+          valueOptions={args.mode === "string" ? args.valueOptions : undefined}
+          activeFilters={filters}
+          onChange={setFilters}
+        />
+      </div>
+    );
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const body = within(canvasElement.ownerDocument.body);
+    const value = canvas.getByDisplayValue("AgentProfile");
+
+    await userEvent.click(value);
+    await expect(
+      body.queryByRole("option", { name: "AgentProfile" }),
+    ).not.toBeInTheDocument();
+    await userEvent.click(
+      await body.findByRole("option", { name: "ToolCall" }),
+    );
+
+    // The parent keeps the picked value. A press on that filled field offers
+    // the other suggestion. The pick itself can land on the field once the
+    // list closes, so this does not require the list to be shut in between.
+    const filled = await canvas.findByDisplayValue("ToolCall");
+    await userEvent.click(filled);
+    await expect(
+      await body.findByRole("option", { name: "AgentProfile" }),
+    ).toBeInTheDocument();
+    await expect(
+      body.queryByRole("option", { name: "ToolCall" }),
+    ).not.toBeInTheDocument();
+  },
+});

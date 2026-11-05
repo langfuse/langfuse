@@ -1,5 +1,5 @@
 /* eslint-disable no-nested-ternary */
-import { useId, useMemo, useState } from "react";
+import { useId, useMemo, useRef, useState } from "react";
 import { Button } from "@/src/components/ui/button";
 import { Input } from "@/src/components/design-system/Input/Input";
 import { SelectInput } from "@/src/components/design-system/SelectInput/SelectInput";
@@ -151,6 +151,9 @@ function SuggestingInput({
   // suggestion is a committed value being replaced, not a search prefix, so
   // the other suggestions stay available until the user types.
   const [replacing, setReplacing] = useState(false);
+  // The press that opens a committed value selects its text. A later press,
+  // while that list is already open, leaves the caret where the click landed.
+  const selectOnRelease = useRef(false);
 
   const ranked = useMemo(() => {
     // Drop an exact match: re-offering what is already in the field covers it
@@ -211,18 +214,29 @@ function SuggestingInput({
         <span
           className="block w-full"
           onMouseDown={() => {
+            selectOnRelease.current = !focused || dismissed;
             setDismissed(false);
             setReplacing(true);
+            // Ranking changes when this press starts a replace. A highlight
+            // from the previous query would otherwise point at a different row.
+            setActiveIndex(-1);
           }}
           onMouseUp={(e) => {
             // Select a committed suggestion so the next character replaces it
             // instead of appending. A partial query is left unselected so
             // typing continues the search. mouseup, not mousedown: the click
-            // would otherwise put the caret back.
+            // would otherwise put the caret back. A press into an already
+            // open list does not select, so the caret stays put.
             const input = e.currentTarget.querySelector("input");
-            if (input && value.length > 0 && suggestions.includes(value)) {
+            if (
+              selectOnRelease.current &&
+              input &&
+              value.length > 0 &&
+              suggestions.includes(value)
+            ) {
               input.select();
             }
+            selectOnRelease.current = false;
           }}
         >
           <Input
