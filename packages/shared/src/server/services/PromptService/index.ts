@@ -2,6 +2,7 @@ import { Redis, Cluster } from "ioredis";
 import { createHash, randomBytes } from "crypto";
 import { env } from "../../../env";
 import { logger } from "../../logger";
+import { recordDistribution } from "../../instrumentation";
 import { escapeRegex } from "./utils";
 import { LangfuseConflictError } from "../../../errors/ConflictError";
 import { type Prisma, type PrismaClient, type Prompt } from "../../../db";
@@ -301,6 +302,7 @@ export class PromptService {
         dependencies: {},
       };
       const seen = new Set<string>();
+      let resolvedDependencyCount = 0;
 
       const resolve = async (
         currentPrompt: PartialPrompt,
@@ -371,6 +373,7 @@ export class PromptService {
           let resolvedPrompt = JSON.stringify(currentPrompt.prompt);
 
           for (const dep of promptDependencies) {
+            resolvedDependencyCount++;
             const depPrompt = await this.prisma.prompt.findFirst({
               where: {
                 projectId,
@@ -427,6 +430,17 @@ export class PromptService {
           }
 
           seen.delete(currentPrompt.id);
+
+          if (level === 0) {
+            recordDistribution(
+              "langfuse.prompts.resolved_length",
+              resolvedPrompt.length,
+            );
+            recordDistribution(
+              "langfuse.prompts.resolved_dependency_count",
+              resolvedDependencyCount,
+            );
+          }
 
           return JSON.parse(resolvedPrompt);
         }
