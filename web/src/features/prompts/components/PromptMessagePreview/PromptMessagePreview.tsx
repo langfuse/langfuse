@@ -80,6 +80,7 @@ export function PromptMessagePreview({
                   {({
                     collapsed: sectionCollapsed,
                     setCollapsed: setSectionCollapsed,
+                    renderCollapseEnds,
                   }) => (
                     <IOSection
                       key={forcedTheme ?? resolvedTheme}
@@ -89,22 +90,23 @@ export function PromptMessagePreview({
                       collapsed={sectionCollapsed}
                       onCollapsedChange={setSectionCollapsed}
                     >
-                      {!sectionCollapsed && (
-                        <ChatMessageContent
-                          body={body}
-                          renderToolResponse={(response) => (
-                            <ChatMessageController
-                              message={response}
-                              title={getMessageTitle(response)}
-                              contentMode="all"
-                            >
-                              {renderPromptMessage}
-                            </ChatMessageController>
-                          )}
-                        >
-                          <MarkdownViewContent state={state} />
-                        </ChatMessageContent>
-                      )}
+                      {!sectionCollapsed &&
+                        renderCollapseEnds(
+                          <ChatMessageContent
+                            body={body}
+                            renderToolResponse={(response) => (
+                              <ChatMessageController
+                                message={response}
+                                title={getMessageTitle(response)}
+                                contentMode="all"
+                              >
+                                {renderPromptMessage}
+                              </ChatMessageController>
+                            )}
+                          >
+                            <MarkdownViewContent state={state} />
+                          </ChatMessageContent>,
+                        )}
                     </IOSection>
                   )}
                 </SystemPromptCollapseController>
@@ -151,6 +153,7 @@ export function PromptMessagePreview({
                     {({
                       collapsed: sectionCollapsed,
                       setCollapsed: setSectionCollapsed,
+                      renderCollapseEnds,
                     }) => (
                       <IOSection
                         title={title}
@@ -162,26 +165,27 @@ export function PromptMessagePreview({
                         onCollapsedChange={setSectionCollapsed}
                         variant={kind === "table" ? "table" : "text"}
                       >
-                        {!sectionCollapsed && (
-                          <ChatMessageContent
-                            body={body}
-                            renderToolResponse={(response) => (
-                              <ChatMessageController
-                                message={response}
-                                title={getMessageTitle(response)}
-                                contentMode="all"
-                              >
-                                {renderPromptMessage}
-                              </ChatMessageController>
-                            )}
-                          >
-                            <PrettyJsonViewContent
-                              state={state}
-                              title={title}
-                              borderless
-                            />
-                          </ChatMessageContent>
-                        )}
+                        {!sectionCollapsed &&
+                          renderCollapseEnds(
+                            <ChatMessageContent
+                              body={body}
+                              renderToolResponse={(response) => (
+                                <ChatMessageController
+                                  message={response}
+                                  title={getMessageTitle(response)}
+                                  contentMode="all"
+                                >
+                                  {renderPromptMessage}
+                                </ChatMessageController>
+                              )}
+                            >
+                              <PrettyJsonViewContent
+                                state={state}
+                                title={title}
+                                borderless
+                              />
+                            </ChatMessageContent>,
+                          )}
                       </IOSection>
                     )}
                   </SystemPromptCollapseController>

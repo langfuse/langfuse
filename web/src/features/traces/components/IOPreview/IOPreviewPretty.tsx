@@ -1021,6 +1021,7 @@ export function IOPreviewPretty({
                                         {({
                                           collapsed: sectionCollapsed,
                                           setCollapsed: setSectionCollapsed,
+                                          renderCollapseEnds,
                                         }) => (
                                           <div
                                             className="transition-colors"
@@ -1041,28 +1042,31 @@ export function IOPreviewPretty({
                                               }
                                               variant="text"
                                             >
-                                              {!sectionCollapsed && (
-                                                <ChatMessageContent
-                                                  body={body}
-                                                  renderToolResponse={(
-                                                    response,
-                                                  ) => (
-                                                    <ChatMessageController
-                                                      message={response}
-                                                      title={getMessageTitle(
-                                                        response,
-                                                      )}
-                                                      contentMode={contentMode}
-                                                    >
-                                                      {renderMessage}
-                                                    </ChatMessageController>
-                                                  )}
-                                                >
-                                                  <MarkdownViewContent
-                                                    state={state}
-                                                  />
-                                                </ChatMessageContent>
-                                              )}
+                                              {!sectionCollapsed &&
+                                                renderCollapseEnds(
+                                                  <ChatMessageContent
+                                                    body={body}
+                                                    renderToolResponse={(
+                                                      response,
+                                                    ) => (
+                                                      <ChatMessageController
+                                                        message={response}
+                                                        title={getMessageTitle(
+                                                          response,
+                                                        )}
+                                                        contentMode={
+                                                          contentMode
+                                                        }
+                                                      >
+                                                        {renderMessage}
+                                                      </ChatMessageController>
+                                                    )}
+                                                  >
+                                                    <MarkdownViewContent
+                                                      state={state}
+                                                    />
+                                                  </ChatMessageContent>,
+                                                )}
                                             </IOSection>
                                           </div>
                                         )}
@@ -1115,6 +1119,7 @@ export function IOPreviewPretty({
                                           {({
                                             collapsed: sectionCollapsed,
                                             setCollapsed: setSectionCollapsed,
+                                            renderCollapseEnds,
                                           }) => (
                                             <div
                                               className="transition-colors"
@@ -1138,32 +1143,33 @@ export function IOPreviewPretty({
                                                     : "text"
                                                 }
                                               >
-                                                {!sectionCollapsed && (
-                                                  <ChatMessageContent
-                                                    body={body}
-                                                    renderToolResponse={(
-                                                      response,
-                                                    ) => (
-                                                      <ChatMessageController
-                                                        message={response}
-                                                        title={getMessageTitle(
-                                                          response,
-                                                        )}
-                                                        contentMode={
-                                                          contentMode
-                                                        }
-                                                      >
-                                                        {renderMessage}
-                                                      </ChatMessageController>
-                                                    )}
-                                                  >
-                                                    <PrettyJsonViewContent
-                                                      state={state}
-                                                      title={title}
-                                                      borderless
-                                                    />
-                                                  </ChatMessageContent>
-                                                )}
+                                                {!sectionCollapsed &&
+                                                  renderCollapseEnds(
+                                                    <ChatMessageContent
+                                                      body={body}
+                                                      renderToolResponse={(
+                                                        response,
+                                                      ) => (
+                                                        <ChatMessageController
+                                                          message={response}
+                                                          title={getMessageTitle(
+                                                            response,
+                                                          )}
+                                                          contentMode={
+                                                            contentMode
+                                                          }
+                                                        >
+                                                          {renderMessage}
+                                                        </ChatMessageController>
+                                                      )}
+                                                    >
+                                                      <PrettyJsonViewContent
+                                                        state={state}
+                                                        title={title}
+                                                        borderless
+                                                      />
+                                                    </ChatMessageContent>,
+                                                  )}
                                               </IOSection>
                                             </div>
                                           )}
@@ -1210,6 +1216,7 @@ export function IOPreviewPretty({
                                         {({
                                           collapsed: sectionCollapsed,
                                           setCollapsed: setSectionCollapsed,
+                                          renderCollapseEnds,
                                         }) => (
                                           <div
                                             className="transition-colors"
@@ -1233,30 +1240,33 @@ export function IOPreviewPretty({
                                                   : "text"
                                               }
                                             >
-                                              {!sectionCollapsed && (
-                                                <ChatMessageContent
-                                                  body={body}
-                                                  renderToolResponse={(
-                                                    response,
-                                                  ) => (
-                                                    <ChatMessageController
-                                                      message={response}
-                                                      title={getMessageTitle(
-                                                        response,
-                                                      )}
-                                                      contentMode={contentMode}
-                                                    >
-                                                      {renderMessage}
-                                                    </ChatMessageController>
-                                                  )}
-                                                >
-                                                  <PrettyJsonViewContent
-                                                    state={state}
-                                                    title={title}
-                                                    borderless
-                                                  />
-                                                </ChatMessageContent>
-                                              )}
+                                              {!sectionCollapsed &&
+                                                renderCollapseEnds(
+                                                  <ChatMessageContent
+                                                    body={body}
+                                                    renderToolResponse={(
+                                                      response,
+                                                    ) => (
+                                                      <ChatMessageController
+                                                        message={response}
+                                                        title={getMessageTitle(
+                                                          response,
+                                                        )}
+                                                        contentMode={
+                                                          contentMode
+                                                        }
+                                                      >
+                                                        {renderMessage}
+                                                      </ChatMessageController>
+                                                    )}
+                                                  >
+                                                    <PrettyJsonViewContent
+                                                      state={state}
+                                                      title={title}
+                                                      borderless
+                                                    />
+                                                  </ChatMessageContent>,
+                                                )}
                                             </IOSection>
                                           </div>
                                         )}

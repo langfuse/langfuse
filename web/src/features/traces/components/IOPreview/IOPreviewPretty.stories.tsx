@@ -174,21 +174,54 @@ export const LongSystemPrompt = meta.story({
       canvas.getAllByRole("button", { name: "Expand system" }),
     ).toHaveLength(1);
     await expect(
+      canvas.queryByRole("button", { name: "Collapse system prompt" }),
+    ).not.toBeInTheDocument();
+    await expect(
       canvas.queryByText(/system-prompt-line-1 /),
     ).not.toBeInTheDocument();
     await userEvent.click(
       canvas.getByRole("button", { name: "Expand system" }),
     );
+    const collapseButtons = canvas.getAllByRole("button", {
+      name: "Collapse system prompt",
+    });
+    const visiblePrompt = canvas
+      .getAllByText(/system-prompt-line-1 /)
+      .find((element) => element.checkVisibility());
+    if (!visiblePrompt) {
+      throw new Error("Expected the expanded system prompt to be visible");
+    }
+    await expect(collapseButtons).toHaveLength(2);
     await expect(
-      canvas.getByRole("button", { name: "Collapse system" }),
-    ).toBeVisible();
+      collapseButtons[0]?.compareDocumentPosition(visiblePrompt),
+    ).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+    await expect(
+      collapseButtons[1]?.compareDocumentPosition(visiblePrompt),
+    ).toBe(Node.DOCUMENT_POSITION_PRECEDING);
     await expect(localStorage.getItem("collapseSystemPrompt")).toBe("false");
-    await userEvent.click(
-      canvas.getByRole("button", { name: "Collapse system" }),
-    );
+    await userEvent.click(collapseButtons[0]!);
+    await expect(
+      canvas
+        .queryAllByText(/system-prompt-line-1 /)
+        .some((element) => element.checkVisibility()),
+    ).toBe(false);
     await expect(
       canvas.getByRole("button", { name: "Expand system" }),
     ).toBeVisible();
+    await expect(localStorage.getItem("collapseSystemPrompt")).toBe("true");
+    await userEvent.click(
+      canvas.getByRole("button", { name: "Expand system" }),
+    );
+    const collapseButtonsAgain = canvas.getAllByRole("button", {
+      name: "Collapse system prompt",
+    });
+    await expect(collapseButtonsAgain).toHaveLength(2);
+    await userEvent.click(collapseButtonsAgain[1]!);
+    await expect(
+      canvas
+        .queryAllByText(/system-prompt-line-12 /)
+        .some((element) => element.checkVisibility()),
+    ).toBe(false);
     await expect(localStorage.getItem("collapseSystemPrompt")).toBe("true");
   },
 });
