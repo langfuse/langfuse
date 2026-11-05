@@ -15,7 +15,7 @@ import { Input } from "@/src/components/ui/input";
 import { Label } from "@/src/components/ui/label";
 import { BedrockRegionField } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/ProviderDialogController/components/BedrockRegionField/BedrockRegionField";
 import { CredentialFields } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/ProviderDialogController/components/CredentialFields/CredentialFields";
-import { ProviderSelect } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/ProviderDialogController/components/ProviderSelect";
+import { ProviderCardPicker } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/ProviderDialogController/components/ProviderCardPicker/ProviderCardPicker";
 import { providerLabels } from "@/src/features/ai-gateway/constants/providerLabels";
 import { isGatewayConnectionNameError } from "@/src/features/ai-gateway/fns/isGatewayConnectionNameError";
 import { isGatewayHipaaNoticeVisible } from "@/src/features/ai-gateway/fns/isGatewayHipaaNoticeVisible";
@@ -248,7 +248,10 @@ export function ProviderDialogController({
                   />
                 </div>
               ) : (
-                <ProviderSelect value={provider} onChange={updateProvider} />
+                <ProviderCardPicker
+                  value={provider}
+                  onChange={updateProvider}
+                />
               )}
               {selectedConnection?.config ? (
                 <div>
