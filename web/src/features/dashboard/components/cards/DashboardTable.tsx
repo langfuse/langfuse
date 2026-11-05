@@ -63,7 +63,7 @@ export const DashboardTable = ({
         <div className="mt-4 flex min-h-0 flex-1 flex-col">
           <div
             ref={containerRef}
-            className="min-h-0 flex-1 overflow-x-auto overflow-y-auto"
+            className="scroll-fade-b min-h-0 flex-1 overflow-x-auto overflow-y-auto"
           >
             <div className="inline-block min-w-full align-middle">
               <table className="divide-border animate-in animate-out min-w-full divide-y">
