@@ -113,6 +113,12 @@ const BOOLEAN_VALUE_OPTIONS = [
 // scroll surface.
 const MAX_SUGGESTIONS = 10;
 
+const blankStringRow = (): StringKeyValueFilterEntry => ({
+  key: "",
+  operator: "=",
+  value: "",
+});
+
 /**
  * Free-text input that offers observed values underneath — the sidebar half of
  * the unified metadata suggestions (LFE-11030). Suggestions, not an
@@ -141,17 +147,23 @@ function SuggestingInput({
   const [focused, setFocused] = useState(false);
   const [dismissed, setDismissed] = useState(false);
   const [activeIndex, setActiveIndex] = useState(-1);
+  // True from focus until the next edit. A value that already equals a
+  // suggestion is a committed value being replaced, not a search prefix, so
+  // the other suggestions stay available until the user types.
+  const [replacing, setReplacing] = useState(false);
 
-  const ranked = useMemo(
-    // Drop an exact match: re-offering what is already typed covers the field
-    // with a row that changes nothing when picked.
-    () =>
-      rankFacetOptions(
-        suggestions.filter((s) => s !== value),
-        value,
-      ).slice(0, MAX_SUGGESTIONS),
-    [suggestions, value],
-  );
+  const ranked = useMemo(() => {
+    // Drop an exact match: re-offering what is already in the field covers it
+    // with a row that changes nothing when picked. While replacing, rank
+    // against an empty query so a different value is reachable without
+    // deleting the current text first. Once the user types, rank by that text
+    // again — a fully typed suggestion stays hidden.
+    const query = replacing && suggestions.includes(value) ? "" : value;
+    return rankFacetOptions(
+      suggestions.filter((s) => s !== value),
+      query,
+    ).slice(0, MAX_SUGGESTIONS);
+  }, [suggestions, value, replacing]);
   const open = focused && !dismissed && ranked.length > 0;
   const active = open && activeIndex >= 0 ? ranked[activeIndex] : undefined;
 
@@ -198,10 +210,20 @@ function SuggestingInput({
           value={value}
           onChange={(e) => {
             onChange(e.target.value);
+            setReplacing(false);
             setDismissed(false);
             setActiveIndex(-1);
           }}
-          onFocus={() => setFocused(true)}
+          onFocus={(e) => {
+            setFocused(true);
+            setReplacing(true);
+            // Select a committed suggestion so the next character replaces it
+            // instead of appending. A partial query is left unselected so
+            // typing continues the search.
+            if (value.length > 0 && suggestions.includes(value)) {
+              e.currentTarget.select();
+            }
+          }}
           // Blur resets the whole interaction, not just focus: a stale
           // `activeIndex` would let the next Enter accept a highlight the user
           // never made, and a stale `dismissed` would survive into whichever row
@@ -210,6 +232,7 @@ function SuggestingInput({
             setFocused(false);
             setDismissed(false);
             setActiveIndex(-1);
+            setReplacing(false);
           }}
           onKeyDown={handleKeyDown}
           disabled={disabled}
@@ -281,8 +304,18 @@ export function KeyValueFilterBuilder(props: KeyValueFilterBuilderProps) {
   const [draftFilters, setDraftFilters] = useState<
     { index: number; filter: KeyedFilterEntry }[]
   >([]);
+  // String metadata is edited in place. An empty facet starts on one blank
+  // row so the first condition does not require a click. Numeric, boolean,
+  // and categorical facets stay click-to-add.
+  const implicitBlankRow =
+    mode === "string" &&
+    activeFilters.length === 0 &&
+    draftFilters.length === 0;
+  const drafts = implicitBlankRow
+    ? [{ index: 0, filter: blankStringRow() }]
+    : draftFilters;
   const localFilters: KeyedFilterEntry[] = [...activeFilters];
-  for (const draft of draftFilters) {
+  for (const draft of drafts) {
     localFilters.splice(draft.index, 0, draft.filter);
   }
 
@@ -329,14 +362,19 @@ export function KeyValueFilterBuilder(props: KeyValueFilterBuilderProps) {
   };
 
   const handleAddFilter = () => {
+    // Persist the implicit blank row before appending, or the click replaces
+    // it with a single new draft.
+    const base = implicitBlankRow
+      ? [{ index: 0, filter: blankStringRow() }]
+      : draftFilters;
     setDraftFilters([
-      ...draftFilters,
+      ...base,
       {
         index: localFilters.length,
         filter:
           mode === "categorical"
             ? { key: "", operator: "any of", value: [] }
-            : { key: "", operator: "=", value: "" },
+            : blankStringRow(),
       },
     ]);
   };
@@ -414,15 +452,18 @@ export function KeyValueFilterBuilder(props: KeyValueFilterBuilderProps) {
                 </div>
               )}
 
-              {/* Delete button */}
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => handleRemoveFilter(index)}
-                className="h-8 w-8 p-0"
-              >
-                <X size="base" color="default" />
-              </Button>
+              {/* The sole blank row is the empty state. Removing it would
+                  just bring the same row back. */}
+              {implicitBlankRow ? null : (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => handleRemoveFilter(index)}
+                  className="h-8 w-8 p-0"
+                >
+                  <X size="base" color="default" />
+                </Button>
+              )}
             </div>
 
             {mode === "categorical" ? (

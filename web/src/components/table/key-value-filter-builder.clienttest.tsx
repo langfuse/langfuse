@@ -117,6 +117,33 @@ describe("KeyValueFilterBuilder", () => {
     expect(screen.getByPlaceholderText("Key")).toHaveValue("accuracy");
   });
 
+  it("replaces a filled value from another suggestion without clearing it first", () => {
+    const onChange = vi.fn();
+    render(
+      <KeyValueFilterBuilder
+        mode="string"
+        activeFilters={[{ key: "kind", operator: "=", value: "AgentProfile" }]}
+        valueOptions={{ kind: ["AgentProfile", "ToolCall"] }}
+        onChange={onChange}
+      />,
+    );
+
+    const value = screen.getByPlaceholderText("Value");
+    expect(value).toHaveValue("AgentProfile");
+    fireEvent.focus(value);
+
+    // The current value is not re-offered, but a different one is clickable
+    // while the field still holds it.
+    expect(
+      screen.queryByRole("option", { name: "AgentProfile" }),
+    ).not.toBeInTheDocument();
+    fireEvent.mouseDown(screen.getByRole("option", { name: "ToolCall" }));
+
+    expect(onChange).toHaveBeenCalledWith([
+      { key: "kind", operator: "=", value: "ToolCall" },
+    ]);
+  });
+
   it("preserves incomplete local filters across equivalent parent rerenders", () => {
     const { rerender } = render(
       <KeyValueFilterBuilder
@@ -126,7 +153,9 @@ describe("KeyValueFilterBuilder", () => {
       />,
     );
 
-    fireEvent.click(screen.getByRole("button", { name: "Add condition" }));
+    // String mode starts on a blank row. The first key does not wait on
+    // Add condition.
+    expect(screen.getByPlaceholderText("Key")).toHaveValue("");
     fireEvent.change(screen.getByPlaceholderText("Key"), {
       target: { value: "draft-key" },
     });
