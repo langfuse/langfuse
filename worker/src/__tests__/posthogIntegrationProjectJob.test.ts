@@ -701,11 +701,11 @@ describe("handlePostHogIntegrationProjectJob customer-fault auto-disable", () =>
     );
   });
 
-  // Load-bearing: the disable predicate must pin the hostname this run actually
-  // validated. Without it, a run carrying stale config would disable a hostname
-  // the customer already corrected mid-run. Asserted on the real argument, so a
-  // predicate that silently drops the host guard goes red.
-  it("scopes the atomic disable to the hostname this run validated", async () => {
+  // Load-bearing: the disable predicate must pin the hostname and API key this
+  // run used. Without them, a run carrying stale config would disable a host or
+  // key the customer already corrected mid-run. Asserted on the real argument,
+  // so a predicate that silently drops either guard goes red.
+  it("scopes the atomic disable to the hostname and API key this run used", async () => {
     h.validateWebhookURL.mockRejectedValueOnce(badHostnameFault());
 
     await handlePostHogIntegrationProjectJob(makeJob());
@@ -715,6 +715,7 @@ describe("handlePostHogIntegrationProjectJob customer-fault auto-disable", () =>
       projectId: "project-1",
       enabled: true,
       posthogHostName: "https://us.posthog.com",
+      encryptedPosthogApiKey: "enc",
     });
   });
 

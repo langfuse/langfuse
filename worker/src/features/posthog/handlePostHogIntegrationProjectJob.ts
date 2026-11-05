@@ -505,22 +505,23 @@ export const handlePostHogIntegrationProjectJob = async (
 
     // Atomic disable: count === 1 means THIS worker flipped enabled true→false,
     // so the terminal notification fires exactly once even if a concurrent run
-    // (distinct jobId, not queue-deduped) races the same fault. The host is
-    // part of the predicate so a run carrying stale config cannot disable a
-    // hostname the customer corrected mid-run — the fault we caught refers to a
-    // config that no longer exists, and the next scheduled run re-evaluates.
+    // (distinct jobId, not queue-deduped) races the same fault. The host and
+    // API key are part of the predicate so a run carrying stale config cannot
+    // disable a host or key the customer corrected mid-run — the fault we caught
+    // refers to a config that no longer exists, and the next run re-evaluates.
     const { count } = await prisma.posthogIntegration.updateMany({
       where: {
         projectId,
         enabled: true,
         posthogHostName: postHogIntegration.posthogHostName,
+        encryptedPosthogApiKey: postHogIntegration.encryptedPosthogApiKey,
       },
       data: { enabled: false },
     });
     if (count === 0) {
-      // Already disabled by a concurrent run, or the host changed under us.
+      // Already disabled by a concurrent run, or the host or API key changed under us.
       logger.info(
-        `[POSTHOG] Skipped disabling PostHog integration for project ${projectId}: already disabled or host changed mid-run`,
+        `[POSTHOG] Skipped disabling PostHog integration for project ${projectId}: already disabled or host/API key changed mid-run`,
       );
       return;
     }
