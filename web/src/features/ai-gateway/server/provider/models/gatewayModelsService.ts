@@ -104,7 +104,11 @@ function modelMatchesApiFormat(
   apiFormat: GatewayApiFormat,
 ) {
   if (model.provider !== "BEDROCK") return true;
-  return getBedrockModelApiFormats(model.id).includes(apiFormat);
+  const formats = getBedrockModelApiFormats(model.id);
+  if (apiFormat === "anthropic.messages") return formats.includes(apiFormat);
+  // The gateway asks for OpenAI models with `openai.responses` on every OpenAI
+  // route, so a model serving only Chat Completions must still be listed.
+  return formats.some((format) => format !== "anthropic.messages");
 }
 
 // The gateway renders and validates entries by API family, so Bedrock models
@@ -129,3 +133,5 @@ function compareModels(
   }
   return 0;
 }
+
+export const __test = { modelMatchesApiFormat };

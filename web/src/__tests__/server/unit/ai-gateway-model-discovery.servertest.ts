@@ -4,6 +4,7 @@ import { encrypt } from "@langfuse/shared/encryption";
 import type { Redis } from "ioredis";
 
 import { GatewayModelCatalogService } from "@/src/features/ai-gateway/server/provider/models/gatewayModelCatalogService";
+import { __test as gatewayModelsService } from "@/src/features/ai-gateway/server/provider/models/gatewayModelsService";
 import { anthropicModelDiscoveryAdapter } from "@/src/features/ai-gateway/server/provider/models/adapters/anthropic";
 import { bedrockModelDiscoveryAdapter } from "@/src/features/ai-gateway/server/provider/models/adapters/bedrock";
 import { openAiModelDiscoveryAdapter } from "@/src/features/ai-gateway/server/provider/models/adapters/openAi";
@@ -171,6 +172,34 @@ describe("AI Gateway model discovery", () => {
     expect(requestedUrls).toEqual([
       "https://bedrock.eu-central-1.amazonaws.com/foundation-models",
       "https://bedrock.eu-central-1.amazonaws.com/inference-profiles",
+    ]);
+  });
+
+  it("lists Bedrock models under every OpenAI route they serve and Claude only under Messages", () => {
+    const listedIds = (apiFormat: "openai.responses" | "anthropic.messages") =>
+      [
+        "openai.gpt-oss-120b-1:0",
+        "eu.openai.gpt-5.5",
+        "eu.anthropic.claude-haiku-4-5-20251001-v1:0",
+      ].filter((id) =>
+        gatewayModelsService.modelMatchesApiFormat(
+          {
+            id,
+            provider: "BEDROCK",
+            canonicalSlug: id,
+            displayName: id,
+            createdAt: new Date(0).toISOString(),
+          },
+          apiFormat,
+        ),
+      );
+
+    expect(listedIds("openai.responses")).toEqual([
+      "openai.gpt-oss-120b-1:0",
+      "eu.openai.gpt-5.5",
+    ]);
+    expect(listedIds("anthropic.messages")).toEqual([
+      "eu.anthropic.claude-haiku-4-5-20251001-v1:0",
     ]);
   });
 });
