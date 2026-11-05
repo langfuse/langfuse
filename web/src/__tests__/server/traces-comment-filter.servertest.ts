@@ -195,6 +195,7 @@ describe("Traces Comment Filtering", () => {
 
     it("should filter traces by exact comment content (=)", async () => {
       const content = `exact-${randomUUID()}`;
+      const createdAfter = new Date(Date.now() - 1000).toISOString();
       const exactTrace = createTrace({
         project_id: projectId,
         id: randomUUID(),
@@ -230,7 +231,7 @@ describe("Traces Comment Filtering", () => {
             type: "datetime",
             column: "timestamp",
             operator: ">=",
-            value: new Date(Date.now() - 5000).toISOString(),
+            value: createdAfter,
           },
           {
             type: "string",
