@@ -70,7 +70,10 @@ export default async function handler(
           enabled: false,
           lastError: result.lastError,
           lastErrorAt: result.lastErrorAt,
-          notificationSent: result.notificationSent,
+          // Channel webhooks are queued here and delivered by the worker.
+          notificationChannelsQueued:
+            result.notification?.channelsEnqueued ?? 0,
+          adminEmailSent: result.notification?.adminEmailSent ?? false,
         });
         return;
       default: {

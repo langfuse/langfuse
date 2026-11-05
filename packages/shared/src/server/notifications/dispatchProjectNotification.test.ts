@@ -133,11 +133,13 @@ describe("dispatchProjectNotification", () => {
       ]),
     ]);
 
-    await dispatchProjectNotification({
+    const outcome = await dispatchProjectNotification({
       projectId: "proj_1",
       event: blobEvent,
     });
 
+    // No email env is set, so no admin email goes out.
+    expect(outcome).toEqual({ channelsEnqueued: 2, adminEmailSent: false });
     // a1 and a4 have the event enabled; a2 has it toggled off, a3 is inactive.
     const enqueuedAutomationIds = add.mock.calls.map(
       (call) => call[1].payload.automationId,
@@ -219,10 +221,11 @@ describe("dispatchProjectNotification", () => {
     // A Postgres/Redis/queue error in the channel path must not suppress email.
     vi.mocked(getAutomations).mockRejectedValue(new Error("db down"));
     vi.mocked(getProjectAdminEmails).mockResolvedValue(["admin@example.com"]);
+    vi.mocked(sendBlobStorageExportFailedEmail).mockResolvedValue(true);
 
     await expect(
       dispatchProjectNotification({ projectId: "proj_1", event: blobEvent }),
-    ).resolves.toBeUndefined();
+    ).resolves.toEqual({ channelsEnqueued: 0, adminEmailSent: true });
 
     expect(add).not.toHaveBeenCalled();
     expect(sendBlobStorageExportFailedEmail).toHaveBeenCalledTimes(1);

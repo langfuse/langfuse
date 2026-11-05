@@ -2,6 +2,7 @@ import { prisma } from "@langfuse/shared/src/db";
 import {
   dispatchProjectNotification,
   logger,
+  type ProjectNotificationOutcome,
 } from "@langfuse/shared/src/server";
 import { env } from "@/src/env.mjs";
 
@@ -12,7 +13,8 @@ export type AdminDisableBlobStorageResult =
       kind: "disabled";
       lastError: string;
       lastErrorAt: Date;
-      notificationSent: boolean;
+      // null when the dispatch itself threw.
+      notification: ProjectNotificationOutcome | null;
     };
 
 /**
@@ -47,8 +49,8 @@ export async function disableBlobStorageIntegrationByAdmin({
     { projectId },
   );
 
-  const notificationSent = await notifyAdminDisable({ projectId, reason });
-  return { kind: "disabled", lastError: reason, lastErrorAt, notificationSent };
+  const notification = await notifyAdminDisable({ projectId, reason });
+  return { kind: "disabled", lastError: reason, lastErrorAt, notification };
 }
 
 // The disable is already committed, so a notification failure is reported to
@@ -59,7 +61,7 @@ async function notifyAdminDisable({
 }: {
   projectId: string;
   reason: string;
-}): Promise<boolean> {
+}): Promise<ProjectNotificationOutcome | null> {
   try {
     const [project, integration] = await Promise.all([
       prisma.project.findUnique({
@@ -73,7 +75,7 @@ async function notifyAdminDisable({
     ]);
     const projectName = project?.name ?? projectId;
 
-    await dispatchProjectNotification({
+    return await dispatchProjectNotification({
       projectId,
       event: {
         eventType: "blob-export-failed",
@@ -90,12 +92,11 @@ async function notifyAdminDisable({
         reason,
       },
     });
-    return true;
   } catch (error) {
     logger.error(
       `[BLOB INTEGRATION] Failed to notify project ${projectId} about an administrator disable`,
       error,
     );
-    return false;
+    return null;
   }
 }

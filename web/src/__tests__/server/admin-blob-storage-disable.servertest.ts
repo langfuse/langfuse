@@ -78,6 +78,10 @@ describe("POST /api/admin/projects/[projectId]/blob-storage-integration/disable"
   it("disables the export, stores the reason, and notifies the project", async () => {
     const { projectId, project } = await createOrgProjectAndApiKey();
     await createIntegration(projectId);
+    vi.mocked(dispatchProjectNotification).mockResolvedValueOnce({
+      channelsEnqueued: 1,
+      adminEmailSent: false,
+    });
 
     const { status, body } = await callDisable({
       projectId,
@@ -89,7 +93,8 @@ describe("POST /api/admin/projects/[projectId]/blob-storage-integration/disable"
       projectId,
       enabled: false,
       lastError: REASON,
-      notificationSent: true,
+      notificationChannelsQueued: 1,
+      adminEmailSent: false,
     });
     const row = await prisma.blobStorageIntegration.findUniqueOrThrow({
       where: { projectId },
@@ -136,7 +141,10 @@ describe("POST /api/admin/projects/[projectId]/blob-storage-integration/disable"
     });
 
     expect(status).toBe(200);
-    expect(body.notificationSent).toBe(false);
+    expect(body).toMatchObject({
+      notificationChannelsQueued: 0,
+      adminEmailSent: false,
+    });
     const row = await prisma.blobStorageIntegration.findUniqueOrThrow({
       where: { projectId },
     });

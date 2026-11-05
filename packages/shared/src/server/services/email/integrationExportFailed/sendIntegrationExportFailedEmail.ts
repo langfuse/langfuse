@@ -38,16 +38,16 @@ export const sendIntegrationExportFailedEmail = async (
     disabled = false,
     reason,
   }: SendIntegrationExportFailedEmailParams,
-) => {
+): Promise<boolean> => {
   if (!env.EMAIL_FROM_ADDRESS || !env.SMTP_CONNECTION_URL) {
     logger.error(
       `Missing environment variables for sending ${copy.inlineLabel} export failed email.`,
     );
-    return;
+    return false;
   }
 
   if (receiverEmails.length === 0) {
-    return;
+    return false;
   }
 
   try {
@@ -91,10 +91,12 @@ export const sendIntegrationExportFailedEmail = async (
     }
 
     await mailer.sendMail(mailOptions);
+    return true;
   } catch (error) {
     logger.error(
       `Failed to send ${copy.inlineLabel} export failed email`,
       error,
     );
+    return false;
   }
 };

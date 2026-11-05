@@ -32,12 +32,12 @@ export const sendEvaluatorBlockedEmail = async ({
   blockMessage,
   resolutionUrl,
   receiverEmail,
-}: SendEvaluatorBlockedEmailParams) => {
+}: SendEvaluatorBlockedEmailParams): Promise<boolean> => {
   if (!env.EMAIL_FROM_ADDRESS || !env.SMTP_CONNECTION_URL) {
     logger.error(
       "Missing environment variables for sending evaluator blocked email.",
     );
-    return;
+    return false;
   }
 
   try {
@@ -81,7 +81,9 @@ export const sendEvaluatorBlockedEmail = async ({
     }
 
     await mailer.sendMail(mailOptions);
+    return true;
   } catch (error) {
     logger.error("Failed to send evaluator blocked email", error);
+    return false;
   }
 };
