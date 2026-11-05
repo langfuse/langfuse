@@ -316,6 +316,15 @@ const EnvSchema = z.object({
     .enum(["true", "false"])
     .default("false"),
   LANGFUSE_S3_CONCURRENT_WRITES: z.coerce.number().positive().default(50),
+  // Idle time after which pooled keep-alive sockets to the S3 endpoint are
+  // closed. Must stay below the endpoint's own idle-close window, otherwise a
+  // request can be written to a socket the server already closed (ECONNRESET).
+  // 0 keeps idle sockets open indefinitely.
+  LANGFUSE_S3_SOCKET_IDLE_TIMEOUT_MS: z.coerce
+    .number()
+    .int()
+    .nonnegative()
+    .default(2000),
   LANGFUSE_S3_UPLOAD_ENABLE_BUFFERED: z
     .enum(["true", "false"])
     .default("false"),

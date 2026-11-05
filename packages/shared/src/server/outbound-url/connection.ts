@@ -136,11 +136,12 @@ export function createSecureOutboundLookup(
 
 export function getSecureOutboundHttpAgents(
   validationOptions: OutboundUrlConnectionValidationOptions,
-  options: { maxSockets?: number } = {},
+  options: { maxSockets?: number; idleSocketTimeoutMs?: number } = {},
 ) {
   const policyKey = JSON.stringify({
     validation: getConnectionValidationPolicyKey(validationOptions),
     maxSockets: options.maxSockets,
+    idleSocketTimeoutMs: options.idleSocketTimeoutMs,
   });
   return getOrCreatePolicyResource(
     secureOutboundHttpAgentsByPolicy,
@@ -153,11 +154,13 @@ export function getSecureOutboundHttpAgents(
           keepAlive: true,
           lookup,
           maxSockets: options.maxSockets,
+          timeout: options.idleSocketTimeoutMs,
         }),
         httpsAgent: new HttpsAgent({
           keepAlive: true,
           lookup,
           maxSockets: options.maxSockets,
+          timeout: options.idleSocketTimeoutMs,
         }),
       };
     },
