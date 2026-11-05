@@ -154,28 +154,20 @@ row counts and the expected quality matches (4,000 / 4,000 / 2,000).
 
 ## Topics
 
-After applying the normal Postgres and ClickHouse migrations, seed either fixture:
-
 ```bash
 pnpm run seed -- topics
 pnpm run seed -- topics --batch evaluation --id-prefix topics-eval-s42
 ```
 
-The default batch creates 12 discovery traces across three themes and three
-assignment traces (two familiar themes and one new theme), with v4 events enabled
-by default. `--batch discovery` seeds IDs `-t00` through `-t11`;
-`--batch assignment` seeds `-t12` through `-t14`. Process the `discovery` tag,
-choose **Update topics** with **Small sample mode**, then process the
-held-out `assignment` tag after publishing a map.
+The default seeds discovery and held-out assignment traces; `evaluation` adds
+varied requests and tool outcomes. Both include v4 events and make no model calls.
+Theme/outcome labels stay out of trace metadata and I/O.
 
-The evaluation batch creates 100 traces (`-e00` through `-e99`) with five intent
-themes and cross-cutting tool outcomes: 20 each of timeout, denied access,
-invalid JSON, empty results, and success. Each trace has a generation and a
-child tool. Intent has 100 applicable traces; Issues has 80 and needs **Small
-sample mode** with the default minimum-count settings.
-
-Seeding makes no model calls. Theme/outcome labels remain outside trace metadata
-and I/O.
+Use `--batch discovery`, summarize those traces, then update topics with **Small
+sample mode**. Process `--batch assignment` after the map is published to check
+assignment to existing topics. These processing steps require configured models.
+The evaluation batch also needs small sample mode for facets with fewer than the
+normal minimum of applicable summaries. Use `pnpm run seed -- list` for flags.
 
 ## The contract (additive-only)
 

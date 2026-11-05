@@ -38,8 +38,8 @@
   `pnpm --filter worker run test nativeHello`. The test loads the compiled
   addon; `pnpm turbo run test --filter=worker` builds it first, a direct
   vitest run does not.
-- For Topics numerical changes, run `cargo test --features napi/dyn-symbols topics`
-  here and `pnpm --filter worker run test features/topics` from the repository root.
+- For Topics numerical changes, run `pnpm --filter @langfuse/native run test topics`
+  and `pnpm --filter worker run test features/topics` from the repository root.
   Compare grouping and final classifier assignments, not raw 2D coordinates,
   when changing the numerical backend.
 - When touching the build pipeline, build the worker image:
