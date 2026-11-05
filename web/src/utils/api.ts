@@ -164,12 +164,17 @@ export const EXPECTED_TRPC_ERROR_CODES = [
  * only as an optimistic-concurrency / stale-UI race the product already
  * toasts — expected user-facing state, not a regression.
  *
- * `inAppAgent.decideToolApproval` is the only current member: every CONFLICT
- * it throws means the parent run is no longer AWAITING_APPROVAL (already
- * decided, expired, or cancelled). The UI already tells the user to reload.
+ * Current members:
+ * - `inAppAgent.decideToolApproval`: every CONFLICT it throws means the
+ *   parent run is no longer AWAITING_APPROVAL (already decided, expired, or
+ *   cancelled). The UI already tells the user to reload.
+ * - `batchExport.create`: the only CONFLICT it throws is "one active export
+ *   per user and project" (`assertNoActiveExport`). The mutation toast already
+ *   shows the wait-or-cancel message.
  */
 export const EXPECTED_TRPC_CONFLICT_PATHS = [
   "inAppAgent.decideToolApproval",
+  "batchExport.create",
 ] as const;
 
 const getTrpcErrorData = (
