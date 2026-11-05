@@ -436,14 +436,15 @@ describe("retryLLMRateLimitError", () => {
     );
   });
 
-  it("starts the retry window at the first job's timestamp when there is no database row", async () => {
+  it("starts the retry window at the first failure when there is no database row, even after queue backlog", async () => {
     const add = vi.fn().mockResolvedValue(undefined);
+    // The system time; the job waited 40 minutes in the queue before failing.
     const timestamp = new Date("2026-01-01T02:00:00.000Z");
 
     const result = await retryLLMRateLimitError(
       {
         data: {
-          timestamp,
+          timestamp: new Date("2026-01-01T01:20:00.000Z"),
           payload: { projectId: "project-id", traceId: "trace-id" },
         },
       },

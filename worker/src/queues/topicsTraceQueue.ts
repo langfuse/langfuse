@@ -47,6 +47,11 @@ export const topicsTraceQueueProcessorBuilder =
             schedule: TOPICS_TRACE_RETRY_SCHEDULE,
           },
         );
+        // BullMQ's attempts then rerun only the failed facets, not the stored ones.
+        if (retry.outcome === "queue_unavailable")
+          await job
+            .updateData({ ...job.data, payload: { ...event, rules } })
+            .catch(() => {});
         return retry.outcome;
       },
     });

@@ -168,11 +168,12 @@ export async function pauseForRejectedConnection(
   projectId: string,
   error: TopicsProviderUnavailable & { blockReason: EvaluatorBlockReason },
 ): Promise<void> {
-  recordIncrement("langfuse.topics.paused", 1, {
-    reason: error.blockReason,
-  });
   try {
-    await pauseTopicsModels(projectId, rejectedConnectionBlock(error));
+    // Concurrent failing jobs reach here too; count only the one that paused.
+    if (await pauseTopicsModels(projectId, rejectedConnectionBlock(error)))
+      recordIncrement("langfuse.topics.paused", 1, {
+        reason: error.blockReason,
+      });
   } catch (pauseError) {
     logger.error("Failed to pause Topics after a rejected connection", {
       projectId,

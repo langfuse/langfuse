@@ -83,7 +83,7 @@ type RetryConfig = (
       idField: "runId" | "jobExecutionId";
     }
   | {
-      /** No database row: the retry window starts at the first job's timestamp. */
+      /** No database row: the retry window starts at the first failure. */
       table: null;
       /** Payload field that identifies the job in logs */
       idField: string;
@@ -118,10 +118,11 @@ async function getRetryWindowStartTimeMs(
   config: RetryConfig,
   jobId: string,
 ): Promise<number> {
+  // Without a row, the window starts at the first failure, not at enqueue, so queue backlog does not consume it.
   if (config.table === null)
-    return new Date(
-      job.data.retryBaggage?.originalJobTimestamp ?? job.data.timestamp,
-    ).getTime();
+    return job.data.retryBaggage?.originalJobTimestamp
+      ? new Date(job.data.retryBaggage.originalJobTimestamp).getTime()
+      : Date.now();
 
   const record =
     config.table === "dataset_runs"
