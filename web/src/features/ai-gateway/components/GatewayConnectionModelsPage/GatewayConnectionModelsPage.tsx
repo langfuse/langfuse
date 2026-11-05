@@ -3,6 +3,7 @@ import { ArrowLeft } from "@langfuse/icons";
 import { Alert } from "@/src/components/design-system/Alert/Alert";
 import { Button } from "@/src/components/ui/button";
 import { TextLink } from "@/src/components/design-system/TextLink/TextLink";
+import { isGatewayPreReleaseEnvironment } from "@/src/features/ai-gateway/fns/isGatewayPreReleaseEnvironment";
 import { AddCustomModelDialogController } from "@/src/features/ai-gateway/components/GatewayConnectionModelsPage/components/AddCustomModelDialogController/AddCustomModelDialogController";
 import { ConnectionModelsLoadError } from "@/src/features/ai-gateway/components/GatewayConnectionModelsPage/components/ConnectionModelsLoadError";
 import { ConnectionModelsSkeleton } from "@/src/features/ai-gateway/components/GatewayConnectionModelsPage/components/ConnectionModelsSkeleton/ConnectionModelsSkeleton";
@@ -164,24 +165,26 @@ function ConnectionModelsBody({
       customModels={connection.customModels}
       isSaving={isSaving}
       toolbarActions={
-        <AddCustomModelDialogController
-          existingModels={models}
-          isAdding={connectionModels.isAddingCustomModel}
-          isTesting={connectionModels.isTestingModel}
-          onAdd={connectionModels.addCustomModel}
-          onTest={connectionModels.testModel}
-        >
-          {({ openDialog }) => (
-            <Button
-              type="button"
-              variant="secondary"
-              disabled={isSaving}
-              onClick={openDialog}
-            >
-              Add custom model
-            </Button>
-          )}
-        </AddCustomModelDialogController>
+        isGatewayPreReleaseEnvironment() ? (
+          <AddCustomModelDialogController
+            existingModels={models}
+            isAdding={connectionModels.isAddingCustomModel}
+            isTesting={connectionModels.isTestingModel}
+            onAdd={connectionModels.addCustomModel}
+            onTest={connectionModels.testModel}
+          >
+            {({ openDialog }) => (
+              <Button
+                type="button"
+                variant="secondary"
+                disabled={isSaving}
+                onClick={openDialog}
+              >
+                Add custom model
+              </Button>
+            )}
+          </AddCustomModelDialogController>
+        ) : undefined
       }
       onRemoveCustomModel={connectionModels.removeCustomModel}
       onEnableAll={() =>
