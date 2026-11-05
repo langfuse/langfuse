@@ -12,6 +12,10 @@ import {
   DialogTitle,
 } from "@/src/components/ui/dialog";
 import { Input } from "@/src/components/ui/input";
+import {
+  AdvancedSettings,
+  type ExtraHeaderRow,
+} from "@/src/features/ai-gateway/components/GatewaySetupPage/components/ProviderDialogController/components/AdvancedSettings/AdvancedSettings";
 import { BedrockRegionField } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/ProviderDialogController/components/BedrockRegionField/BedrockRegionField";
 import { ConnectionNameField } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/ProviderDialogController/components/ConnectionNameField/ConnectionNameField";
 import { FieldHeader } from "@/src/features/ai-gateway/components/GatewaySetupPage/components/ProviderDialogController/components/FieldHeader";
@@ -64,6 +68,8 @@ export function ProviderDialogController({
   );
   const [credential, setCredential] = useState("");
   const [awsRegion, setAwsRegion] = useState("");
+  const [baseURL, setBaseURL] = useState("");
+  const [extraHeaders, setExtraHeaders] = useState<ExtraHeaderRow[]>([]);
   const utils = api.useUtils();
   const capture = usePostHogClientCapture();
   const existingNames = useExistingConnectionNames(organizationId);
@@ -114,6 +120,38 @@ export function ProviderDialogController({
     return selectedConnection?.config ?? { region: awsRegion.trim() };
   };
 
+  /**
+   * Bedrock has no custom endpoint. A blank header value keeps the stored value
+   * on save, but a test cannot read stored values, so tests drop those rows.
+   */
+  const getEndpoint = (
+    selectedConnection: GatewayConnection | null,
+    options: { keepBlankValues: boolean },
+  ) => {
+    if ((selectedConnection?.provider ?? provider) === "BEDROCK") return {};
+    const headers = extraHeaders.filter(
+      (header) =>
+        header.key.trim() && (options.keepBlankValues || header.value),
+    );
+    return {
+      baseURL: baseURL.trim() || null,
+      extraHeaders: Object.fromEntries(
+        headers.map((header) => [header.key.trim(), header.value]),
+      ),
+    };
+  };
+
+  const loadEndpoint = (selectedConnection: GatewayConnection | null) => {
+    setBaseURL(selectedConnection?.baseURL ?? "");
+    setExtraHeaders(
+      (selectedConnection?.extraHeaderKeys ?? []).map((key) => ({
+        id: crypto.randomUUID(),
+        key,
+        value: "",
+      })),
+    );
+  };
+
   const resetMutations = () => {
     test.reset();
     create.reset();
@@ -125,6 +163,7 @@ export function ProviderDialogController({
     setNameDraft(null);
     setCredential("");
     setAwsRegion("");
+    loadEndpoint(null);
     resetMutations();
   };
 
@@ -153,6 +192,7 @@ export function ProviderDialogController({
         provider: selectedConnection?.provider ?? provider,
         credential,
         config: getConfig(selectedConnection),
+        ...getEndpoint(selectedConnection, { keepBlankValues: false }),
       });
     } catch (error) {
       reportNonTrpcError(error, "ai-gateway-providers");
@@ -171,6 +211,7 @@ export function ProviderDialogController({
           id: selectedConnection.id,
           name,
           ...(credential ? { credential } : {}),
+          ...getEndpoint(selectedConnection, { keepBlankValues: true }),
         });
         capture("ai_gateway:provider_credential_updated", {
           orgId: organizationId,
@@ -185,6 +226,7 @@ export function ProviderDialogController({
           name,
           credential,
           config: getConfig(null),
+          ...getEndpoint(null, { keepBlankValues: false }),
         });
         capture("ai_gateway:provider_credential_added", {
           orgId: organizationId,
@@ -233,6 +275,7 @@ export function ProviderDialogController({
       renderContent={({ state: selectedConnection, closeDialog }) => {
         const nameError = getNameError(selectedConnection);
         const isMissingRegion = getConfig(selectedConnection)?.region === "";
+        const dialogProvider = selectedConnection?.provider ?? provider;
         return (
           <>
             <DialogHeader>
@@ -301,6 +344,17 @@ export function ProviderDialogController({
                 hasSavedKey={Boolean(selectedConnection)}
                 onCredentialChange={setCredential}
               />
+              {dialogProvider !== "BEDROCK" ? (
+                <AdvancedSettings
+                  provider={dialogProvider}
+                  baseURL={baseURL}
+                  headers={extraHeaders}
+                  storedHeaderKeys={selectedConnection?.extraHeaderKeys ?? []}
+                  isEditing={Boolean(selectedConnection)}
+                  onBaseURLChange={setBaseURL}
+                  onHeadersChange={setExtraHeaders}
+                />
+              ) : null}
               {selectedConnection && name.trim() !== selectedConnection.name ? (
                 <Alert variant="warning" icon={TriangleAlert}>
                   <Alert.Title>Renaming changes model slugs</Alert.Title>
@@ -362,6 +416,7 @@ export function ProviderDialogController({
             setNameDraft(connection?.name ?? null);
             setCredential("");
             setAwsRegion("");
+            loadEndpoint(connection ?? null);
             resetMutations();
             openDialog(connection ?? null);
           },
@@ -370,6 +425,7 @@ export function ProviderDialogController({
             setNameDraft(selectedConnection.name);
             setCredential("");
             setAwsRegion("");
+            loadEndpoint(selectedConnection);
             resetMutations();
             openDialog(selectedConnection);
           },
