@@ -2,13 +2,11 @@
 export function urlSearchParamsToQuery(
   params: URLSearchParams,
 ): Record<string, string | string[]> {
-  const query: Record<string, string | string[]> = {};
-  const keys = Array.from(new Set(params.keys())); // Get unique keys
-
-  for (const key of keys) {
-    const allValues = params.getAll(key);
-    query[key] = allValues.length === 1 ? allValues[0] : allValues;
-  }
-
-  return query;
+  // Object.fromEntries preserves keys like "__proto__" as own properties.
+  return Object.fromEntries(
+    Array.from(new Set(params.keys()), (key) => {
+      const allValues = params.getAll(key);
+      return [key, allValues.length === 1 ? allValues[0] : allValues];
+    }),
+  );
 }
