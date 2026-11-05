@@ -244,7 +244,17 @@ async function generateWithConnection<T>(
             },
           },
         }
-      : {}),
+      : isBedrockClaudeHaiku55(params.model)
+        ? {
+            providerOptions: {
+              bedrock: {
+                additionalModelRequestFields: {
+                  thinking: { type: "disabled" },
+                },
+              },
+            },
+          }
+        : {}),
     // The AI SDK retries 429 and 5xx responses with exponential backoff.
     maxRetries: 2,
     timeout: params.timeoutMs ?? TIMEOUT_MS,
@@ -366,6 +376,14 @@ function openAIReasoning(
   // The API accepts none, but @ai-sdk/openai drops it for other GPT-6 models.
   if (/^gpt-6(?:\.\d+)?(?:-[a-z]+)?$/.test(id)) return "low";
   return undefined;
+}
+
+/** Claude Haiku 5.5 thinks by default; Bedrock ignores portable reasoning for it. */
+function isBedrockClaudeHaiku55(model: TopicsModel): boolean {
+  return (
+    model.adapter === LLMAdapter.Bedrock &&
+    /(?:^|[/.])anthropic\.claude-haiku-5-5(?:[-:@]|$)/.test(model.model)
+  );
 }
 
 function isBedrockGPT(model: TopicsModel): boolean {
