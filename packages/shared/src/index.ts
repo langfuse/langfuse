@@ -426,6 +426,8 @@ export * from "./utils/s3Uri";
 export * from "./features/analytics-integrations";
 export {
   ChartConfigSchema,
+  DashboardSupportedPlacementTypesSchema,
+  DASHBOARD_SUPPORTED_PLACEMENT_TYPES,
   DimensionSchema,
   MetricSchema,
 } from "./server/services/DashboardService/types";

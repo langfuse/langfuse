@@ -274,7 +274,12 @@ types:
     properties:
       name: optional<string>
       description: optional<string>
-      definition: optional<DashboardDefinition>
+      definition:
+        type: optional<DashboardDefinition>
+        docs: Replaces placements represented by supportedPlacementTypes. Other stored placement types are retained, and older servers omit unsupported types from reads.
+      supportedPlacementTypes:
+        type: optional<list<string>>
+        docs: Placement types the client can represent when replacing a definition. Defaults to widget and preset for legacy clients. Include every placement type the client can intentionally remove.
       filters: optional<list<dashboardWidgets.DashboardWidgetFilter>>
   DeleteDashboardResponse:
     properties:

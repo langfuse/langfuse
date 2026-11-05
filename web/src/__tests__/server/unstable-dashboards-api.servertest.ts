@@ -35,6 +35,110 @@ const widget = {
 };
 
 describe("unstable dashboard API", () => {
+  it("omits future placements on reads and preserves unrepresented types on full replacements", async () => {
+    const { auth, projectId } = await createOrgProjectAndApiKey();
+    const preset = {
+      type: "preset",
+      id: "known",
+      presetId: "home-traces",
+      x: 0,
+      y: 0,
+      x_size: 6,
+      y_size: 6,
+    };
+    const future = {
+      type: "future-placement",
+      id: "future",
+      payload: { nested: [null, "synthetic"] },
+    };
+    const dashboard = await prisma.dashboard.create({
+      data: {
+        projectId,
+        name: "Compatibility API fixture",
+        description: "",
+        definition: { widgets: [preset, future] },
+      },
+    });
+    const path = `/api/public/unstable/dashboards/${dashboard.id}`;
+    const read = await makeZodVerifiedAPICall(
+      GetUnstableDashboardResponse,
+      "GET",
+      path,
+      undefined,
+      auth,
+    );
+    expect(read.status).toBe(200);
+    expect(read.body.definition.widgets.map(({ id }) => id)).toEqual([
+      preset.id,
+    ]);
+    const list = await makeZodVerifiedAPICall(
+      GetUnstableDashboardsResponse,
+      "GET",
+      "/api/public/unstable/dashboards",
+      undefined,
+      auth,
+    );
+    expect(list.body.data.some(({ id }) => id === dashboard.id)).toBe(true);
+
+    const update = await makeZodVerifiedAPICall(
+      PatchUnstableDashboardResponse,
+      "PATCH",
+      path,
+      {
+        definition: { widgets: [] },
+        supportedPlacementTypes: ["widget"],
+      },
+      auth,
+    );
+    expect(update.status).toBe(200);
+    expect(
+      (
+        await prisma.dashboard.findUniqueOrThrow({
+          where: { id: dashboard.id, projectId },
+        })
+      ).definition,
+    ).toEqual({ widgets: [preset, future] });
+
+    const unknownWrite = await makeAPICall(
+      "PATCH",
+      path,
+      { definition: { widgets: [future] } },
+      auth,
+    );
+    expect(unknownWrite.status).toBe(400);
+    const metadataOnly = await makeAPICall(
+      "PATCH",
+      path,
+      { supportedPlacementTypes: ["widget"] },
+      auth,
+    );
+    expect(metadataOnly.status).toBe(400);
+    const malformedKnown = await makeAPICall(
+      "PATCH",
+      path,
+      { definition: { widgets: [{ type: "preset", id: "broken" }] } },
+      auth,
+    );
+    expect(malformedKnown.status).toBe(400);
+
+    // Single-placement endpoints carry server-owned intent and can remove known types.
+    const deletion = await makeZodVerifiedAPICall(
+      DeleteDashboardPlacementResponse,
+      "DELETE",
+      `${path}/placements/${preset.id}`,
+      undefined,
+      auth,
+    );
+    expect(deletion.status).toBe(200);
+    expect(
+      (
+        await prisma.dashboard.findUniqueOrThrow({
+          where: { id: dashboard.id, projectId },
+        })
+      ).definition,
+    ).toEqual({ widgets: [future] });
+  });
+
   it("manages dashboards, widgets, and placements without leaving broken references", async () => {
     const { auth, projectId, publicKey } = await createOrgProjectAndApiKey();
     const createdWidget = await makeZodVerifiedAPICall(

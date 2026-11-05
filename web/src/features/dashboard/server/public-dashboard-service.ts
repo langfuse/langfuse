@@ -1,5 +1,6 @@
 import {
   DashboardService,
+  DASHBOARD_SUPPORTED_PLACEMENT_TYPES,
   type ApiAccessScope,
   type DashboardDomain,
 } from "@langfuse/shared/src/server";
@@ -233,6 +234,8 @@ export async function updatePublicDashboard(params: {
       dashboard.id,
       params.projectId,
       definition,
+      undefined,
+      params.input.supportedPlacementTypes,
     );
   if (params.input.filters !== undefined)
     dashboard = await DashboardService.updateDashboardFilters(
@@ -287,6 +290,8 @@ async function writeDashboardDefinition(params: {
     params.current.id,
     params.projectId,
     { widgets: params.widgets },
+    undefined,
+    DASHBOARD_SUPPORTED_PLACEMENT_TYPES,
   );
   await auditLog({
     action: "update",
