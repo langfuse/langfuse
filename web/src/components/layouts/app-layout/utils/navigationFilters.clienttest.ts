@@ -8,7 +8,7 @@ it.each([
   { flag: "langfuseTopics", enableExperimentalFeatures: true },
   { flag: "sessionViewV2", enableExperimentalFeatures: false },
 ] as const)(
-  "keeps $flag hidden for admins without opt-in",
+  "keeps $flag hidden without opt-in",
   ({ flag, enableExperimentalFeatures }) => {
     const route: Route = {
       title: "Preview",
@@ -23,7 +23,6 @@ it.each([
       } as Session,
       enableExperimentalFeatures,
       internalFeaturesEnabled: false,
-      cloudAdmin: true,
       entitlements: [],
       uiCustomization: null,
       isLangfuseCloud: true,
@@ -62,7 +61,6 @@ it.each([
       } as Session,
       enableExperimentalFeatures: false,
       internalFeaturesEnabled: false,
-      cloudAdmin: false,
       entitlements: [],
       uiCustomization: null,
       isLangfuseCloud: true,
@@ -98,14 +96,12 @@ it.each([
       routerOrganizationId: undefined,
       session: {
         user: {
-          admin: false,
           featureFlags: testFeatureFlags({ langfuseTopics: true }),
           organizations: [organization],
         },
       } as Session,
       enableExperimentalFeatures: false,
       internalFeaturesEnabled: false,
-      cloudAdmin: false,
       entitlements: [],
       uiCustomization: null,
       isLangfuseCloud: true,
@@ -138,14 +134,12 @@ it.each([
       routerOrganizationId: "org-1",
       session: {
         user: {
-          admin: false,
           featureFlags: testFeatureFlags({}),
           organizations: [organization],
         },
       } as Session,
       enableExperimentalFeatures: false,
       internalFeaturesEnabled: false,
-      cloudAdmin: false,
       entitlements: [],
       uiCustomization: null,
       isLangfuseCloud: false,

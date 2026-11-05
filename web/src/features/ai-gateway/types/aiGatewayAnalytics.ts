@@ -61,7 +61,7 @@ export type AiGatewayEventMap = {
     isNotifyMembersEnabled: boolean;
   };
   "ai_gateway:api_key_created": OrganizationContext & {
-    /** Organization role of the creator; null when they are not a member (instance admins). */
+    /** Organization role of the creator; null when they are not a member. */
     creatorRole: Role | null;
     isServiceAccount: boolean;
     hasMetadata: boolean;

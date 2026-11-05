@@ -85,7 +85,6 @@ describe("events.transcriptByTraceId preview access", () => {
         id: "user-id",
         name: "Test User",
         email,
-        admin: false,
         canCreateOrganizations: true,
         featureFlags: testFeatureFlags(),
         organizations: [
