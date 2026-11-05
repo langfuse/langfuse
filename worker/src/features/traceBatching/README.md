@@ -231,7 +231,7 @@ score. `TIME` before tracking selects the bounded bucket keys; Lua reads Redis
 time again and rejects a stale bucket selection before mutating anything.
 New-mode scripts read and write a chunk with batched commands (`MGET`, `HMGET`,
 `ZMSCORE`, one `HSET`/`ZADD`/`HDEL`/`ZREM` each) plus one `SET … PX` per bounds
-key, and ingestion runs the shards of one batch concurrently.
+key; ingestion still walks the shards of one batch in order.
 Scripts serialize within a Redis primary; different primaries can execute
 different shards concurrently. Tracking, hydration and acknowledgement calls
 contain at most 50 traces; cleanup handles at most 100. Ingestion sends at most

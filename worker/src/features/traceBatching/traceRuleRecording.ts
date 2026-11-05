@@ -332,50 +332,37 @@ export async function recordTraceActivity(
     shards.set(shard, entries);
   }
 
-  // Shards live in different slots, so their calls run concurrently; chunks
-  // within a shard stay sequential. Every settled chunk is counted before the
-  // first failure propagates.
-  const outcomes = await Promise.allSettled(
-    [...shards].map(async ([shard, entries]) => {
-      const { pending, due } = getRecordingKeys(shard);
-      for (
-        let offset = 0;
-        offset < entries.length;
-        offset += REDIS_BATCH_SIZE
-      ) {
-        const chunk = entries.slice(offset, offset + REDIS_BATCH_SIZE);
-        const keys = [
-          pending,
-          due,
-          ...chunk.map(({ member }) => getRecordingBoundsKey(shard, member)),
-        ];
-        const args = [
-          idleMs,
-          env.LANGFUSE_TRACE_DISPATCH_BOUNDS_TTL_MS,
-          env.LANGFUSE_TRACE_BATCH_PENDING_TTL_MS,
-          ...chunk.flatMap(
-            ({ member, minStart, maxStart, rules, serializedEventBytes }) => [
-              member,
-              minStart,
-              maxStart,
-              randomUUID(),
-              JSON.stringify([...rules]),
-              serializedEventBytes,
-            ],
-          ),
-        ];
-        const expired = Number(await evalRecording(RECORD_SCRIPT, keys, args));
-        recordTrackingVolume("recorded", chunk);
-        recordIncrement("langfuse.trace_dispatch.tracked_traces", chunk.length);
-        recordIncrement("langfuse.trace_dispatch.expired_traces", expired, {
-          source: "ingestion",
-        });
-      }
-    }),
-  );
-  const failure = outcomes.find(
-    (outcome): outcome is PromiseRejectedResult =>
-      outcome.status === "rejected",
-  );
-  if (failure) throw failure.reason;
+  for (const [shard, entries] of shards) {
+    const { pending, due } = getRecordingKeys(shard);
+    for (let offset = 0; offset < entries.length; offset += REDIS_BATCH_SIZE) {
+      const chunk = entries.slice(offset, offset + REDIS_BATCH_SIZE);
+      const keys = [
+        pending,
+        due,
+        ...chunk.map(({ member }) => getRecordingBoundsKey(shard, member)),
+      ];
+      const args = [
+        idleMs,
+        env.LANGFUSE_TRACE_DISPATCH_BOUNDS_TTL_MS,
+        env.LANGFUSE_TRACE_BATCH_PENDING_TTL_MS,
+        ...chunk.flatMap(
+          ({ member, minStart, maxStart, rules, serializedEventBytes }) => [
+            member,
+            minStart,
+            maxStart,
+            randomUUID(),
+            JSON.stringify([...rules]),
+            serializedEventBytes,
+          ],
+        ),
+      ];
+      const expired = Number(await evalRecording(RECORD_SCRIPT, keys, args));
+      // Count each acknowledged chunk, even if a later chunk fails.
+      recordTrackingVolume("recorded", chunk);
+      recordIncrement("langfuse.trace_dispatch.tracked_traces", chunk.length);
+      recordIncrement("langfuse.trace_dispatch.expired_traces", expired, {
+        source: "ingestion",
+      });
+    }
+  }
 }
