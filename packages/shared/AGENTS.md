@@ -22,6 +22,9 @@
   call `flushMetricsToCloudWatch` from the server barrel after recording to
   submit them before the next gauge replaces the cached value.
 - Server cache utilities: `src/server/cache/*`
+- Eval-rule caches: `src/server/evalJobConfigCache.ts` keeps observation/experiment
+  absence (`eventBased`) separate from transcript absence (`traceTranscriptBased`).
+  Invalidate through `invalidateProjectEvalConfigCaches` after rule or assignment changes.
 - Transcript assembly: pass the enriched result of `orderObservations` into
   `assembleTranscript`. `currentTurn.nestingLevel` uses the first contributing
   generation after history is split off; it is not the depth of the first
