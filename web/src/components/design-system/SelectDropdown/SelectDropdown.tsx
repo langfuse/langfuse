@@ -82,6 +82,7 @@ export function SelectDropdown<V extends string>({
   options,
   onValueChange,
   emptyMessage = "No options available.",
+  noCapture,
   children,
   ref,
   ...triggerProps
@@ -90,6 +91,8 @@ export function SelectDropdown<V extends string>({
   options: readonly SelectNode<V>[];
   onValueChange: (value: V) => void;
   emptyMessage?: string;
+  /** Block customer-controlled option text and attributes in session replay. */
+  noCapture?: boolean;
   children: (
     controls: TriggerControls & { selectedLabel: string | undefined },
   ) => React.ReactNode;
@@ -200,6 +203,7 @@ export function SelectDropdown<V extends string>({
   return (
     <SelectPrimitive.Root value={value} onValueChange={onValueChange}>
       <SelectPrimitive.Trigger
+        className={noCapture ? "ph-no-capture" : undefined}
         asChild
         ref={ref}
         title={selectedOption?.label}
@@ -213,7 +217,11 @@ export function SelectDropdown<V extends string>({
       </SelectPrimitive.Trigger>
       <SelectPrimitive.Portal container={container}>
         <InputDropdown.Content width="select-trigger">
-          <SelectPrimitive.Content position="popper" sideOffset={4}>
+          <SelectPrimitive.Content
+            className={noCapture ? "ph-no-capture" : undefined}
+            position="popper"
+            sideOffset={4}
+          >
             <SelectPrimitive.ScrollUpButton
               aria-label="Scroll up"
               className="animate-in fade-in-0 fill-mode-both absolute inset-x-0 top-0 z-3 flex h-6 cursor-pointer items-center justify-center duration-300 [animation-delay:.5s]"

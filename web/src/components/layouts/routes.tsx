@@ -22,6 +22,7 @@ import {
   ClipboardPen,
   Clock,
   Beaker,
+  Bot,
 } from "@langfuse/icons";
 import { type ReactNode } from "react";
 import { type Entitlement } from "@/src/features/entitlements/constants/entitlements";
@@ -159,6 +160,17 @@ export const ROUTES: Route[] = [
     productModule: "tracing",
     group: RouteGroup.Observability,
     section: RouteSection.Main,
+  },
+  {
+    title: "Agents",
+    href: "/project/[projectId]/agents",
+    icon: Bot,
+    featureFlag: "agentsView",
+    projectRbacScopes: ["project:read"],
+    productModule: "tracing",
+    group: RouteGroup.Observability,
+    section: RouteSection.Main,
+    show: ({ v4WriteMode }) => Boolean(v4WriteMode) && v4WriteMode !== "legacy",
   },
   {
     title: "Topics",

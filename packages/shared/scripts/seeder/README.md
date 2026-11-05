@@ -37,6 +37,30 @@ programmatic calls from the dx seed chain.
 
 ## Scenarios
 
+`agents-mvp` creates eight observed agent identities with invocation spans,
+model requests, native skill versions/resource paths, unknown telemetry,
+rewrites and tombstones. It selects 11:00–15:00 UTC on `--date` (today by
+default) and also writes older rows for index-pruning checks. Use a fresh
+`--id-prefix` when changing the date or `--runs` (80 ordinary invocations by
+default, up to 100000, plus one invocation crossing the selected period).
+The parent aggregate deliberately repeats the three model leaves' 17,107 input
+and 491 output tokens; Agents must count the leaves once. Start with
+`pnpm run seed -- agents-mvp --environment production`; add `--runs 10000`
+for a larger local cohort. This scenario writes v4 events only. Run table
+bootstrap before seeding: `ch:dev-tables` rebuilds event tables and removes
+v4-only fixture data.
+
+Run `pnpm --filter @langfuse/shared run agents:verify --date 2026-11-05
+--prefix agents-mvp-proof-20261105` after seeding that 80-invocation fixture.
+This read-only verifier checks accounting, updates, tombstones, environment
+changes, skills, source evidence and activity crossing the selected period.
+Use `pnpm --filter @langfuse/shared run agents:benchmark --from
+2026-11-04T11:00:00Z --to 2026-11-04T15:00:00Z --environment production
+--output scripts/seeder/agents-mvp-performance.json` for the larger fixture.
+The benchmark records client timings, query-log reads/memory and index pruning;
+it only accepts local ClickHouse. These synthetic measurements are not a
+production latency guarantee.
+
 | Scenario            | Covers                                                                                                                                                                                                                                                                                                                                                                   | Key flags                                                                                                                                                                                         |
 | ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `trace-tree`        | one trace with a large, branching observation tree: all ten observation kinds always present, guaranteed depth backbone, hub node with many children, errors/retries/missing end times                                                                                                                                                                                   | `--observations`, `--depth`, `--breadth`, `--payload-bytes`, `--payload-style json\|text\|malformed\|unicode`, `--v4`                                                                             |

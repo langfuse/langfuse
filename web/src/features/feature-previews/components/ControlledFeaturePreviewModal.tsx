@@ -66,6 +66,16 @@ export function ControlledFeaturePreviewModal({
 
   const state: Partial<Record<PreviewFlag, PreviewState>> = {
     ...(internalViewEnabled ||
+    authSession.data?.user?.featureFlags.agentsView === true
+      ? {
+          agentsView: {
+            enabled: authSession.data?.user?.featureFlags.agentsView === true,
+            onToggle: onToggle("agentsView"),
+            isToggling: setFeaturePreviewEnabled.isPending,
+          },
+        }
+      : {}),
+    ...(internalViewEnabled ||
     authSession.data?.user?.featureFlags.unifiedTraceSessionView === true
       ? {
           unifiedTraceSessionView: {

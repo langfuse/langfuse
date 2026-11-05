@@ -25,6 +25,8 @@ Internal personal previews are registered in `internalFeaturePreviewFlags`; the 
 
 Unified Trace and Session View uses the same Internal view or existing personal grant access for its preview toggle. It remains an explicit opt-in, including in Internal view and experimental deployments, and requires the events-backed read path.
 
+Agents uses the `agentsView` internal personal preview. It requires an explicit opt-in, including on experimental deployments, and events-backed ingestion. The sidebar, page, and every Agents query enforce the preview; queries also require project read access. The Skills tab additionally requires `skills:read`. This preview does not enable a persistent agent registry or change ingestion permissions.
+
 Organization defaults are evaluated only for the active project or
 organization. They are never copied into users and never unioned across all of
 a user's memberships. A `feature-preview:<flag>:disabled` entry in

@@ -1,0 +1,352 @@
+{
+  "repositorySha256": "c95568d402873b22fe22b6bf18482353e927fe71404a0d0683c3d57b8c607fa3",
+  "kind": "synthetic-local-measurement",
+  "measuredAt": "2026-11-05T21:42:58.994Z",
+  "scope": {
+    "projectId": "7a88fb47-b4e2-43b8-a06c-a5ce950dc53a",
+    "from": "2026-11-04T11:00:00.000Z",
+    "to": "2026-11-04T15:00:00.000Z",
+    "environment": "production"
+  },
+  "iterations": 3,
+  "agentCount": 8,
+  "measurements": [
+    {
+      "name": "gallery",
+      "durationMs": 83.91
+    },
+    {
+      "name": "detail",
+      "durationMs": 47.03
+    },
+    {
+      "name": "runs",
+      "durationMs": 66.12
+    },
+    {
+      "name": "traces",
+      "durationMs": 38.9
+    },
+    {
+      "name": "skills",
+      "durationMs": 31.87
+    },
+    {
+      "name": "info",
+      "durationMs": 65.13
+    },
+    {
+      "name": "environments",
+      "durationMs": 21.74
+    },
+    {
+      "name": "gallery",
+      "durationMs": 45.21
+    },
+    {
+      "name": "detail",
+      "durationMs": 39.86
+    },
+    {
+      "name": "runs",
+      "durationMs": 62.76
+    },
+    {
+      "name": "traces",
+      "durationMs": 38.05
+    },
+    {
+      "name": "skills",
+      "durationMs": 29.27
+    },
+    {
+      "name": "info",
+      "durationMs": 61.86
+    },
+    {
+      "name": "environments",
+      "durationMs": 20.35
+    },
+    {
+      "name": "gallery",
+      "durationMs": 44.87
+    },
+    {
+      "name": "detail",
+      "durationMs": 37.9
+    },
+    {
+      "name": "runs",
+      "durationMs": 63.71
+    },
+    {
+      "name": "traces",
+      "durationMs": 39.52
+    },
+    {
+      "name": "skills",
+      "durationMs": 28.72
+    },
+    {
+      "name": "info",
+      "durationMs": 61.88
+    },
+    {
+      "name": "environments",
+      "durationMs": 18.13
+    }
+  ],
+  "queryLog": [
+    {
+      "query_id": "a565b77f-49d6-40a1-9b66-f15d95c5f864",
+      "query_duration_ms": 64,
+      "read_rows": 74255,
+      "read_bytes": 17835993,
+      "memory_usage": 70798229,
+      "selected_marks": 11
+    },
+    {
+      "query_id": "a7769d6d-ae39-4c72-8a5d-f1109c5be744",
+      "query_duration_ms": 44,
+      "read_rows": 74255,
+      "read_bytes": 17835993,
+      "memory_usage": 68580925,
+      "selected_marks": 11
+    },
+    {
+      "query_id": "eea628c9-ed13-4223-93aa-cf17a75622bb",
+      "query_duration_ms": 63,
+      "read_rows": 148510,
+      "read_bytes": 33243696,
+      "memory_usage": 104263027,
+      "selected_marks": 22
+    },
+    {
+      "query_id": "44ab20df-3dca-42f9-ac22-b9f908d48889",
+      "query_duration_ms": 35,
+      "read_rows": 74255,
+      "read_bytes": 19172342,
+      "memory_usage": 80350512,
+      "selected_marks": 11
+    },
+    {
+      "query_id": "eb598f2f-e75e-4f76-907f-c74403a6f179",
+      "query_duration_ms": 27,
+      "read_rows": 74255,
+      "read_bytes": 13243628,
+      "memory_usage": 54682585,
+      "selected_marks": 11
+    },
+    {
+      "query_id": "c0cbf793-5b7d-4429-9e9b-32e2119d92a8",
+      "query_duration_ms": 47,
+      "read_rows": 74255,
+      "read_bytes": 25591511,
+      "memory_usage": 106206637,
+      "selected_marks": 11
+    },
+    {
+      "query_id": "0712312d-5c2d-4d61-836f-cd1e4f7b59f6",
+      "query_duration_ms": 8,
+      "read_rows": 9094,
+      "read_bytes": 1825764,
+      "memory_usage": 5223504,
+      "selected_marks": 2
+    },
+    {
+      "query_id": "9b520f60-a5dc-4afc-8c44-3f943cc27a71",
+      "query_duration_ms": 17,
+      "read_rows": 74255,
+      "read_bytes": 11974710,
+      "memory_usage": 49004143,
+      "selected_marks": 11
+    },
+    {
+      "query_id": "166968a5-4604-41eb-b9aa-2682533f76ea",
+      "query_duration_ms": 39,
+      "read_rows": 74255,
+      "read_bytes": 17835993,
+      "memory_usage": 70797309,
+      "selected_marks": 11
+    },
+    {
+      "query_id": "101766fb-9100-46fc-b784-269ab94cd2f7",
+      "query_duration_ms": 34,
+      "read_rows": 74255,
+      "read_bytes": 17835993,
+      "memory_usage": 68580005,
+      "selected_marks": 11
+    },
+    {
+      "query_id": "f3cedc34-544e-44c3-836d-e63c70b73b32",
+      "query_duration_ms": 58,
+      "read_rows": 148510,
+      "read_bytes": 33243696,
+      "memory_usage": 104261187,
+      "selected_marks": 22
+    },
+    {
+      "query_id": "eaf7f0de-6fdc-4633-94fa-780803629b34",
+      "query_duration_ms": 34,
+      "read_rows": 74255,
+      "read_bytes": 19172342,
+      "memory_usage": 80350512,
+      "selected_marks": 11
+    },
+    {
+      "query_id": "81746550-23f8-4b98-ad2b-584c34b567b0",
+      "query_duration_ms": 24,
+      "read_rows": 74255,
+      "read_bytes": 13243628,
+      "memory_usage": 54682585,
+      "selected_marks": 11
+    },
+    {
+      "query_id": "4f2a7a3c-8157-43ee-bf41-1d1d85c2e289",
+      "query_duration_ms": 44,
+      "read_rows": 74255,
+      "read_bytes": 25591511,
+      "memory_usage": 106088213,
+      "selected_marks": 11
+    },
+    {
+      "query_id": "d1d0321a-7564-4237-9b91-621cd44665c1",
+      "query_duration_ms": 8,
+      "read_rows": 9094,
+      "read_bytes": 1825764,
+      "memory_usage": 5223504,
+      "selected_marks": 2
+    },
+    {
+      "query_id": "d67d4bb4-f969-41bd-bbcd-5ad2b1360ff8",
+      "query_duration_ms": 16,
+      "read_rows": 74255,
+      "read_bytes": 11974710,
+      "memory_usage": 49004143,
+      "selected_marks": 11
+    },
+    {
+      "query_id": "c993555a-10e4-4373-84c4-83b1c68671a0",
+      "query_duration_ms": 41,
+      "read_rows": 74255,
+      "read_bytes": 17835993,
+      "memory_usage": 70797309,
+      "selected_marks": 11
+    },
+    {
+      "query_id": "b601d4aa-bb76-49c7-8efb-2e42396c1256",
+      "query_duration_ms": 34,
+      "read_rows": 74255,
+      "read_bytes": 17835993,
+      "memory_usage": 70677157,
+      "selected_marks": 11
+    },
+    {
+      "query_id": "620f7fb1-c45b-4745-9ec6-e7d206c0cb64",
+      "query_duration_ms": 59,
+      "read_rows": 148510,
+      "read_bytes": 33243696,
+      "memory_usage": 104261187,
+      "selected_marks": 22
+    },
+    {
+      "query_id": "b2522fc8-d12c-4212-9d26-ac5fa9c7fffb",
+      "query_duration_ms": 35,
+      "read_rows": 74255,
+      "read_bytes": 19172342,
+      "memory_usage": 80350512,
+      "selected_marks": 11
+    },
+    {
+      "query_id": "1a829acb-c21f-4b68-9129-9a510983736b",
+      "query_duration_ms": 24,
+      "read_rows": 74255,
+      "read_bytes": 13243628,
+      "memory_usage": 54682585,
+      "selected_marks": 11
+    },
+    {
+      "query_id": "91be1780-9de5-4d2e-9f50-0ff1de09c196",
+      "query_duration_ms": 45,
+      "read_rows": 74255,
+      "read_bytes": 25591511,
+      "memory_usage": 103965174,
+      "selected_marks": 11
+    },
+    {
+      "query_id": "81803b4f-57dd-4071-a323-b4197df7ea38",
+      "query_duration_ms": 8,
+      "read_rows": 9094,
+      "read_bytes": 1825764,
+      "memory_usage": 5223504,
+      "selected_marks": 2
+    },
+    {
+      "query_id": "ff11e162-9db0-4641-8873-39a364841bb0",
+      "query_duration_ms": 15,
+      "read_rows": 74255,
+      "read_bytes": 11974710,
+      "memory_usage": 49004143,
+      "selected_marks": 11
+    }
+  ],
+  "indexEvidence": [
+    "Output: if(notEmpty(agent_id), 'id', 'name'), if(notEmpty(agent_id), agent_id, agent_name), coalesce(nullIf(argMaxIf(agent_name, tuple(start_time, event_ts, trace_id, span_id), notEmpty(agent_name) AND type = 'AGENT' AND agent_run_id = span_id AND notEmpty(agent_run_id)), ''), argMaxIf(agent_name, tuple(start_time, event_ts, trace_id, span_id), notEmpty(agent_name))), min(start_time), max(start_time), arraySort(groupUniqArray(environment)), countIf(type = 'AGENT' AND agent_run_id = span_id AND notEmpty(agent_run_id)), uniqExact(trace_id), countIf(type = 'AGENT' AND agent_run_id = span_id AND notEmpty(agent_run_id) AND level = 'ERROR'), if(countIf(type = 'AGENT' AND agent_run_id = span_id AND notEmpty(agent_run_id) AND end_time IS NOT NULL AND end_time >= start_time) > 0, avgIf(dateDiff('microsecond', start_time, end_time) / 1000, type = 'AGENT' AND agent_run_id = span_id AND notEmpty(agent_run_id) AND end_time IS NOT NULL AND end_time >= start_time), NULL), countIf(type = 'GENERATION'), countIf(type = 'GENERATION' AND (mapContainsKey(usage_details, 'total') OR mapContainsKey(usage_details, 'input') AND mapContainsKey(usage_details, 'output'))), countIf(type = 'GENERATION' AND mapContainsKey(cost_details, 'total')), countIf(type = 'GENERATION' AND empty(agent_run_id)), if(countIf(type = 'GENERATION' AND mapContainsKey(usage_details, 'input')) > 0, sumIf(usage_details['input'], type = 'GENERATION' AND mapContainsKey(usage_details, 'input')), NULL), if(countIf(type = 'GENERATION' AND mapContainsKey(usage_details, 'output')) > 0, sumIf(usage_details['output'], type = 'GENERATION' AND mapContainsKey(usage_details, 'output')), NULL), if(countIf(type = 'GENERATION' AND (mapContainsKey(usage_details, 'total') OR mapContainsKey(usage_details, 'input') AND mapContainsKey(usage_details, 'output'))) > 0, sumIf(if(mapContainsKey(usage_details, 'total'), usage_details['total'], usage_details['input'] + usage_details['output']), type = 'GENERATION' AND (mapContainsKey(usage_details, 'total') OR mapContainsKey(usage_details, 'input') AND mapContainsKey(usage_details, 'output'))), NULL), if(countIf(type = 'GENERATION' AND mapContainsKey(cost_details, 'total')) > 0, sumIf(cost_details['total'], type = 'GENERATION' AND mapContainsKey(cost_details, 'total')), NULL), count() OVER ()",
+    "",
+    "Limit (preliminary LIMIT)",
+    "│  Limit 24",
+    "│  Offset 0",
+    "└──Sorting (Sorting for ORDER BY)",
+    "   │  Sort description: countIf(type = 'AGENT' AND agent_run_id = span_id AND notEmpty(agent_run_id)) DESC, if(notEmpty(agent_id), 'id', 'name') ASC, if(notEmpty(agent_id), agent_id, agent_name) ASC",
+    "   │  Limit 24",
+    "   └──Window (Window step for window '')",
+    "      │  Window: ()",
+    "      │  Functions: count() OVER ()",
+    "      └──Aggregating",
+    "         │  Keys: if(notEmpty(agent_id), 'id', 'name'), if(notEmpty(agent_id), agent_id, agent_name)",
+    "         │  Aggregates: argMaxIf(agent_name, tuple(start_time, event_ts, trace_id, span_id), notEmpty(agent_name) AND type = 'AGENT' AND agent_run_id = span_id AND notEmpty(agent_run_id)), argMaxIf(agent_name, tuple(start_time, event_ts, trace_id, span_id), notEmpty(agent_name)), min(start_time), max(start_time), groupUniqArray(environment), countIf(type = 'AGENT' AND agent_run_id = span_id AND notEmpty(agent_run_id)), uniqExact(trace_id), countIf(type = 'AGENT' AND agent_run_id = span_id AND notEmpty(agent_run_id) AND level = 'ERROR'), countIf(type = 'AGENT' AND agent_run_id = span_id AND notEmpty(agent_run_id) AND end_time IS NOT NULL AND end_time >= start_time), avgIf(dateDiff('microsecond', start_time, end_time) / 1000, type = 'AGENT' AND agent_run_id = span_id AND notEmpty(agent_run_id) AND end_time IS NOT NULL AND end_time >= start_time), countIf(type = 'GENERATION'), countIf(type = 'GENERATION' AND (mapContainsKey(usage_details, 'total') OR mapContainsKey(usage_details, 'input') AND mapContainsKey(usage_details, 'output'))), countIf(type = 'GENERATION' AND mapContainsKey(cost_details, 'total')), countIf(type = 'GENERATION' AND empty(agent_run_id)), countIf(type = 'GENERATION' AND mapContainsKey(usage_details, 'input')), sumIf(usage_details['input'], type = 'GENERATION' AND mapContainsKey(usage_details, 'input')), countIf(type = 'GENERATION' AND mapContainsKey(usage_details, 'output')), sumIf(usage_details['output'], type = 'GENERATION' AND mapContainsKey(usage_details, 'output')), sumIf(if(mapContainsKey(usage_details, 'total'), usage_details['total'], usage_details['input'] + usage_details['output']), type = 'GENERATION' AND (mapContainsKey(usage_details, 'total') OR mapContainsKey(usage_details, 'input') AND mapContainsKey(usage_details, 'output'))), sumIf(cost_details['total'], type = 'GENERATION' AND mapContainsKey(cost_details, 'total'))",
+    "         │  Skip merging: 0",
+    "         └──Filter ((WHERE + (Change column names to column identifiers + Project names)))",
+    "            │  Filter column: is_deleted = 0 AND (notEmpty(agent_id) OR notEmpty(agent_name)) AND environment = 'production'",
+    "            └──LimitBy",
+    "               │  Columns: trace_id, span_id",
+    "               │  Length 1",
+    "               │  Offset 0",
+    "               └──Sorting (Sorting for ORDER BY)",
+    "                  │  Sort description: event_ts DESC, trace_id ASC, span_id ASC",
+    "                  └──ReadFromMergeTree (default.events_core)",
+    "                        Read type: Default",
+    "                        Parts: 5 | Granules: 11",
+    "                        Output: start_time, trace_id, span_id, agent_id, agent_name, agent_run_id, environment, type, level, end_time, event_ts, is_deleted, usage_details, cost_details",
+    "                        Prewhere filter",
+    "                        Prewhere filter column:  project_id = '7a88fb47-b4e2-43b8-a06c-a5ce950dc53a' AND start_time < '2026-11-04 15:00:00.000' AND start_time >= '2026-11-04 11:00:00.000'",
+    "                        Indexes:",
+    "                          Min-Max",
+    "                            Keys:",
+    "                              start_time",
+    "                            Condition: and((start_time in (-Inf, '1793804400')), (start_time in ['1793790000', +Inf)))",
+    "                            Parts: 5/31",
+    "                            Granules: 11/110",
+    "                          Partition",
+    "                            Keys:",
+    "                              toYYYYMM(start_time)",
+    "                            Condition: and((toYYYYMM(start_time) in (-Inf, 202611]), (toYYYYMM(start_time) in [202611, +Inf)))",
+    "                            Parts: 5/5",
+    "                            Granules: 11/11",
+    "                          PrimaryKey",
+    "                            Keys:",
+    "                              project_id",
+    "                              toStartOfMinute(start_time)",
+    "                            Condition: and((toStartOfMinute(start_time) in (-Inf, 1793804400]), and((toStartOfMinute(start_time) in [1793790000, +Inf)), (project_id in ['7a88fb47-b4e2-43b8-a06c-a5ce950dc53a', '7a88fb47-b4e2-43b8-a06c-a5ce950dc53a'])))",
+    "                            Parts: 5/5",
+    "                            Granules: 11/11",
+    "                            Search Algorithm: binary search",
+    "                          Ranges: 5"
+  ],
+  "limits": {
+    "maxExecutionSeconds": 10,
+    "maxMemoryBytes": 268435456,
+    "maxReadBytes": 536870912
+  },
+  "caveat": "Local synthetic data; not a production latency guarantee. Timings include client overhead. Every result covers the full selected cohort without sampling."
+}

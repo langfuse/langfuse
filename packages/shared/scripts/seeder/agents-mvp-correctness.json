@@ -1,0 +1,235 @@
+{
+  "status": "passed",
+  "assertions": 50,
+  "measurements": [
+    {
+      "name": "gallery",
+      "durationMs": 40.76
+    },
+    {
+      "name": "environments",
+      "durationMs": 7.01
+    },
+    {
+      "name": "accounting-0",
+      "durationMs": 12.33
+    },
+    {
+      "name": "runs-0",
+      "durationMs": 16.55
+    },
+    {
+      "name": "traces-0",
+      "durationMs": 10.7
+    },
+    {
+      "name": "accounting-2",
+      "durationMs": 11.51
+    },
+    {
+      "name": "runs-2",
+      "durationMs": 14.1
+    },
+    {
+      "name": "traces-2",
+      "durationMs": 9.18
+    },
+    {
+      "name": "accounting-3",
+      "durationMs": 29.6
+    },
+    {
+      "name": "runs-3",
+      "durationMs": 12.77
+    },
+    {
+      "name": "traces-3",
+      "durationMs": 8.62
+    },
+    {
+      "name": "skills",
+      "durationMs": 6.46
+    },
+    {
+      "name": "info",
+      "durationMs": 16.9
+    },
+    {
+      "name": "name-fallback",
+      "durationMs": 10.15
+    },
+    {
+      "name": "project-isolation",
+      "durationMs": 8.82
+    },
+    {
+      "name": "crossing-period-detail",
+      "durationMs": 9.31
+    },
+    {
+      "name": "crossing-period-traces",
+      "durationMs": 24.34
+    },
+    {
+      "name": "crossing-period-gallery",
+      "durationMs": 10.22
+    },
+    {
+      "name": "explicit-identity-without-owner",
+      "durationMs": 9.73
+    }
+  ],
+  "list": {
+    "agents": 8,
+    "environments": [
+      "production",
+      "staging"
+    ],
+    "stats": [
+      {
+        "identity": {
+          "kind": "id",
+          "value": "agentique:0"
+        },
+        "modelCalls": 28,
+        "inputTokens": 142245,
+        "outputTokens": 3999,
+        "totalTokens": 146244,
+        "cost": 0.261,
+        "usageKnownCalls": 27,
+        "pricedModelCalls": 27,
+        "unattributedModelCalls": 0,
+        "runs": 9,
+        "traces": 10,
+        "errorRuns": 1,
+        "averageRunDurationMs": 5000
+      },
+      {
+        "identity": {
+          "kind": "id",
+          "value": "agentique:5"
+        },
+        "modelCalls": 27,
+        "inputTokens": 130509,
+        "outputTokens": 3577,
+        "totalTokens": 134086,
+        "cost": 0.239,
+        "usageKnownCalls": 25,
+        "pricedModelCalls": 25,
+        "unattributedModelCalls": 3,
+        "runs": 9,
+        "traces": 9,
+        "errorRuns": 0,
+        "averageRunDurationMs": 5000
+      },
+      {
+        "identity": {
+          "kind": "id",
+          "value": "agentique:1"
+        },
+        "modelCalls": 24,
+        "inputTokens": 125129,
+        "outputTokens": 3507,
+        "totalTokens": 128636,
+        "cost": 0.228,
+        "usageKnownCalls": 23,
+        "pricedModelCalls": 23,
+        "unattributedModelCalls": 0,
+        "runs": 8,
+        "traces": 8,
+        "errorRuns": 1,
+        "averageRunDurationMs": 5000
+      },
+      {
+        "identity": {
+          "kind": "id",
+          "value": "agentique:2"
+        },
+        "modelCalls": 24,
+        "inputTokens": 125129,
+        "outputTokens": 3507,
+        "totalTokens": 128636,
+        "cost": 0.228,
+        "usageKnownCalls": 23,
+        "pricedModelCalls": 23,
+        "unattributedModelCalls": 3,
+        "runs": 8,
+        "traces": 8,
+        "errorRuns": 1,
+        "averageRunDurationMs": 5000
+      },
+      {
+        "identity": {
+          "kind": "id",
+          "value": "agentique:3"
+        },
+        "modelCalls": 24,
+        "inputTokens": 136856,
+        "outputTokens": 3928,
+        "totalTokens": 140784,
+        "cost": 0.248,
+        "usageKnownCalls": 24,
+        "pricedModelCalls": 24,
+        "unattributedModelCalls": 0,
+        "runs": 8,
+        "traces": 8,
+        "errorRuns": 1,
+        "averageRunDurationMs": 5000
+      },
+      {
+        "identity": {
+          "kind": "id",
+          "value": "agentique:4"
+        },
+        "modelCalls": 24,
+        "inputTokens": 125129,
+        "outputTokens": 3507,
+        "totalTokens": 128636,
+        "cost": 0.228,
+        "usageKnownCalls": 23,
+        "pricedModelCalls": 23,
+        "unattributedModelCalls": 3,
+        "runs": 8,
+        "traces": 8,
+        "errorRuns": 1,
+        "averageRunDurationMs": 5000
+      },
+      {
+        "identity": {
+          "kind": "id",
+          "value": "agentique:6"
+        },
+        "modelCalls": 24,
+        "inputTokens": 125129,
+        "outputTokens": 3507,
+        "totalTokens": 128636,
+        "cost": 0.228,
+        "usageKnownCalls": 23,
+        "pricedModelCalls": 23,
+        "unattributedModelCalls": 3,
+        "runs": 8,
+        "traces": 8,
+        "errorRuns": 0,
+        "averageRunDurationMs": 5000
+      },
+      {
+        "identity": {
+          "kind": "name",
+          "value": "native-name-only"
+        },
+        "modelCalls": 24,
+        "inputTokens": 125129,
+        "outputTokens": 3507,
+        "totalTokens": 128636,
+        "cost": 0.228,
+        "usageKnownCalls": 23,
+        "pricedModelCalls": 23,
+        "unattributedModelCalls": 3,
+        "runs": 8,
+        "traces": 8,
+        "errorRuns": 0,
+        "averageRunDurationMs": 5000
+      }
+    ]
+  }
+}

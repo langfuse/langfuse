@@ -46,6 +46,55 @@ describe("IngestionService unit tests", () => {
     mocks.validateAndInflateScoreOverride = undefined;
   });
 
+  it("persists full normalized agent columns before metadata overflow can shorten identity values", async () => {
+    const addToQueue = vi.fn();
+    const service = new IngestionService(
+      {} as any,
+      {} as any,
+      { addToQueue } as any,
+      {} as any,
+    );
+    const id = "🐙".repeat(256);
+    const record = await service.createEventRecord(
+      {
+        projectId: "project-id",
+        traceId: "trace-id",
+        spanId: "model-id",
+        parentSpanId: "run-id",
+        name: "model",
+        type: "GENERATION",
+        environment: "production",
+        source: "otel",
+        startTimeISO: "2026-11-05T11:00:00Z",
+        endTimeISO: "2026-11-05T11:00:01Z",
+        metadata: {
+          langfuse_agent_id: id,
+          langfuse_agent_name: "Research",
+          langfuse_agent_run_id: "run-id",
+          langfuse_agent_identity_source: "gen-ai",
+        },
+      },
+      "raw-agent-event.json",
+    );
+    expect(record).toMatchObject({
+      agent_id: id,
+      agent_name: "Research",
+      agent_run_id: "run-id",
+      agent_identity_source: "gen-ai",
+    });
+    mocks.applyObservationFieldOverflow.mockResolvedValueOnce({
+      ...record,
+      metadata_values: record.metadata_values.map((value) =>
+        Array.from(value).slice(0, 200).join(""),
+      ),
+    });
+    await service.writeEventRecord(record);
+    expect(addToQueue.mock.calls[0]?.[1]).toMatchObject({
+      agent_id: id,
+      agent_run_id: "run-id",
+    });
+  });
+
   it("writes the final serialized event size instead of the raw OTEL span size", async () => {
     const addToQueue = vi.fn();
     const ingestionService = new IngestionService(

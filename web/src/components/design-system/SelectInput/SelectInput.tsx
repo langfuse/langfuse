@@ -21,6 +21,7 @@ type SelectInputProps<V extends string> = Pick<
   | "aria-label"
   | "disabled"
   | "onBlur"
+  | "noCapture"
 > & {
   placeholder: string;
   search?: { placeholder: string };
@@ -38,6 +39,7 @@ function SelectInputInner<V extends string>(
     search,
     error,
     muted,
+    noCapture,
     ...triggerProps
   }: SelectInputProps<V>,
   ref: React.ForwardedRef<HTMLButtonElement>,
@@ -92,6 +94,7 @@ function SelectInputInner<V extends string>(
         }}
         error={error}
         muted={muted}
+        noCapture={noCapture}
       />
     );
   }
@@ -102,6 +105,7 @@ function SelectInputInner<V extends string>(
       options={options}
       onValueChange={onValueChange}
       emptyMessage={emptyMessage}
+      noCapture={noCapture}
       ref={ref}
       {...triggerProps}
     >

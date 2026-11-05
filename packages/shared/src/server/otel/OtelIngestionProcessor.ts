@@ -44,6 +44,12 @@ import { isValidDateString, flattenJsonToPathArrays } from "./utils";
 import { convertDateToClickhouseDateTime } from "../clickhouse/client";
 import { isNullOrUndefined } from "../../utils/isNullOrUndefined";
 import { defineOwnValue } from "../../utils/objects";
+import { AGENT_METADATA_KEYS } from "../../features/agents/api";
+import {
+  agentSpanKey,
+  resolveAgentBatchMetadata,
+  type AgentSpan,
+} from "./agentMetadata";
 
 export const AI_GATEWAY_INSTRUMENTATION_SCOPE_NAME = "langfuse-ai-gateway";
 
@@ -232,6 +238,7 @@ interface CreateObservationEventParams {
   isLangfuseSDKSpans: boolean;
   startTimeISO: string;
   endTimeISO: string;
+  agentMetadata: Record<string, string>;
 }
 
 type NanoTimestamp =
@@ -423,6 +430,7 @@ export class OtelIngestionProcessor {
           return [];
         }
 
+        const agentMetadata = this.resolveBatchAgents(resourceSpans);
         const events = resourceSpans
           .filter((r) => Boolean(r))
           .flatMap((resourceSpan) => {
@@ -718,7 +726,13 @@ export class OtelIngestionProcessor {
                   output: normalizedTools.output,
 
                   // Metadata
-                  metadata: normalizedTools.metadata,
+                  metadata: {
+                    ...(normalizedTools.metadata &&
+                    typeof normalizedTools.metadata === "object"
+                      ? normalizedTools.metadata
+                      : {}),
+                    ...agentMetadata.get(agentSpanKey(traceId, spanId)),
+                  },
 
                   // Instrumentation metadata
                   source: "otel",
@@ -802,9 +816,10 @@ export class OtelIngestionProcessor {
           }
 
           // Process all events normally first
+          const agentMetadata = this.resolveBatchAgents(resourceSpans);
           const allEvents = resourceSpans.flatMap((resourceSpan) => {
             if (!resourceSpan) return [];
-            return this.processResourceSpan(resourceSpan);
+            return this.processResourceSpan(resourceSpan, agentMetadata);
           });
 
           // Filter out redundant shallow trace events
@@ -964,8 +979,44 @@ export class OtelIngestionProcessor {
     return true;
   }
 
+  private resolveBatchAgents(resourceSpans: ResourceSpan[]) {
+    const spans: AgentSpan[] = [];
+    for (const resourceSpan of resourceSpans) {
+      if (!resourceSpan) continue;
+      const resourceAttributes = this.extractResourceAttributes(resourceSpan);
+      for (const scopeSpan of resourceSpan.scopeSpans ?? []) {
+        for (const span of scopeSpan.spans ?? []) {
+          const attributes = this.extractSpanAttributes(span);
+          const type = observationTypeMapper.mapToObservationType(
+            attributes,
+            resourceAttributes,
+            scopeSpan.scope,
+            span.name,
+          );
+          spans.push({
+            traceId: this.parseId(span.traceId),
+            spanId: this.parseId(span.spanId),
+            parentSpanId: span.parentSpanId
+              ? this.parseId(span.parentSpanId)
+              : null,
+            isAgent: type === ObservationType.AGENT,
+            name: this.extractName(
+              span.name,
+              attributes,
+              type,
+              scopeSpan.scope?.name,
+            ),
+            attributes,
+          });
+        }
+      }
+    }
+    return resolveAgentBatchMetadata(spans);
+  }
+
   private processResourceSpan(
     resourceSpan: ResourceSpan,
+    agentMetadata: Map<string, Record<string, string>>,
   ): IngestionEventType[] {
     const resourceAttributes = this.extractResourceAttributes(resourceSpan);
     const events: IngestionEventType[] = [];
@@ -986,6 +1037,7 @@ export class OtelIngestionProcessor {
           resourceAttributes,
           scopeAttributes,
           isLangfuseSDKSpans,
+          agentMetadata,
         );
         events.push(...spanEvents);
       }
@@ -1000,6 +1052,7 @@ export class OtelIngestionProcessor {
     resourceAttributes: Record<string, unknown>,
     scopeAttributes: Record<string, unknown>,
     isLangfuseSDKSpans: boolean,
+    agentMetadata: Map<string, Record<string, string>>,
   ): IngestionEventType[] {
     const events: IngestionEventType[] = [];
     const attributes = this.extractSpanAttributes(span);
@@ -1074,6 +1127,10 @@ export class OtelIngestionProcessor {
       isLangfuseSDKSpans,
       startTimeISO,
       endTimeISO,
+      agentMetadata:
+        agentMetadata.get(
+          agentSpanKey(traceId, this.parseId(span.spanId?.data ?? span.spanId)),
+        ) ?? {},
     });
     events.push(observationEvent);
 
@@ -1258,6 +1315,7 @@ export class OtelIngestionProcessor {
       isLangfuseSDKSpans,
       startTimeISO,
       endTimeISO,
+      agentMetadata,
     } = params;
 
     const instrumentationScopeName = scopeSpan?.scope?.name;
@@ -1332,7 +1390,13 @@ export class OtelIngestionProcessor {
         attributes,
         startTimeISO,
       ),
-      metadata: normalizedToolMetadata.metadata,
+      metadata: {
+        ...(normalizedToolMetadata.metadata &&
+        typeof normalizedToolMetadata.metadata === "object"
+          ? normalizedToolMetadata.metadata
+          : {}),
+        ...agentMetadata,
+      },
       level,
       statusMessage:
         attributes[LangfuseOtelSpanAttributes.OBSERVATION_STATUS_MESSAGE] ??
@@ -2730,10 +2794,12 @@ export class OtelIngestionProcessor {
       decodedPrefix: decodeValues ? metadataKeyPrefix : undefined,
     });
 
-    return {
+    const metadata = {
       ...topLevelMetadata,
       ...langfuseMetadata,
     };
+    for (const key of Object.values(AGENT_METADATA_KEYS)) delete metadata[key];
+    return metadata;
   }
 
   private extractUserId(
@@ -4054,7 +4120,9 @@ export class OtelIngestionProcessor {
   private parseId(data: any): string {
     // JS SDK sends IDs already in hex strings
     // Python SDK sends Int array
-    return typeof data === "string" ? data : Buffer.from(data).toString("hex");
+    return typeof data === "string"
+      ? data
+      : Buffer.from(data?.data ?? data).toString("hex");
   }
 
   /**

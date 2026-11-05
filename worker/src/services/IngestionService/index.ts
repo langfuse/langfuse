@@ -1,6 +1,7 @@
 /* eslint-disable no-nested-ternary */
 import { Cluster, Redis } from "ioredis";
 import { v4 } from "uuid";
+import { AGENT_METADATA_KEYS } from "@langfuse/shared/agents";
 import {
   InvalidRequestError,
   LangfuseNotFoundError,
@@ -292,6 +293,10 @@ export class IngestionService {
       eventData.modelParameters,
     );
     const metadata = eventData.metadata ?? {};
+    const agentId = metadata[AGENT_METADATA_KEYS.id];
+    const agentName = metadata[AGENT_METADATA_KEYS.name];
+    const agentRunId = metadata[AGENT_METADATA_KEYS.runId];
+    const agentIdentitySource = metadata[AGENT_METADATA_KEYS.source];
     const spanAttribution = resolveAiGatewayAttribution({
       ingestionApiKey: eventData.ingestionApiKey,
       metadata,
@@ -375,6 +380,12 @@ export class IngestionService {
       project_id: eventData.projectId,
       trace_id: eventData.traceId,
       span_id: eventData.spanId,
+
+      agent_id: typeof agentId === "string" ? agentId : "",
+      agent_name: typeof agentName === "string" ? agentName : "",
+      agent_run_id: typeof agentRunId === "string" ? agentRunId : "",
+      agent_identity_source:
+        typeof agentIdentitySource === "string" ? agentIdentitySource : "",
 
       // Optional identifiers
       parent_span_id: eventData.parentSpanId,
