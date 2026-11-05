@@ -14,7 +14,7 @@ vi.mock("next/router", () => ({
   useRouter: () => ({ asPath: "/", push: vi.fn() }),
 }));
 
-vi.mock("@/src/components/PublishSessionSwitch", () => ({
+vi.mock("@/src/components/usePublishObject", () => ({
   getShareUrl: () => "https://example.com",
   usePublishObject: () => ({
     hasAccess: true,

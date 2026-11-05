@@ -35,7 +35,7 @@ import {
   decodeFiltersGeneric,
   encodeFiltersGeneric,
 } from "@langfuse/shared";
-import { useWebCalloutAction } from "@/src/features/web-callouts/components/WebCalloutButton";
+import { useWebCalloutAction } from "@/src/features/web-callouts/components/useWebCalloutAction";
 import { TablePeekViewTraceDetail } from "@/src/components/table/peek/TablePeekViewTraceDetail";
 import { usePeekNavigation } from "@/src/components/table/peek/hooks/usePeekNavigation";
 import { LazyTraceRow } from "@/src/features/sessions/LazyTraceRow";

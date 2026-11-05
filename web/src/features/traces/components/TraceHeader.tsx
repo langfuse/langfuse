@@ -18,7 +18,7 @@ import { useMemo } from "react";
 
 import { useTraceData } from "@/src/features/traces/contexts/TraceDataProvider";
 import { aggregateTraceMetrics } from "@/src/features/traces/fns/traceAggregation";
-import { useTraceTopicFacets } from "@/src/features/topics/trace/TraceTopicsHoverCard";
+import { useTraceTopicFacets } from "@/src/features/topics/trace/useTraceTopicFacets";
 import { PlusIcon, SquarePen, MessageSquare } from "@langfuse/icons";
 import { AnnotationQueueObjectType } from "@langfuse/shared";
 import { type DropdownMenuItemDefinition } from "@/src/components/design-system/DropdownMenu/DropdownMenu";

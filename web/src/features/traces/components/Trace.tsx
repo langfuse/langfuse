@@ -350,7 +350,7 @@ function TraceContent({
     <DesktopTraceContent desktopLayout={desktopLayout} />
   );
 
-  return (
+  const content = (
     <div className={traceContentClassName}>
       <TraceHeader header={header} />
       <div
@@ -388,6 +388,15 @@ function TraceContent({
       </div>
     </div>
   );
+
+  if (
+    isMobile ||
+    desktopLayout.groupId === DESKTOP_LAYOUTS.annotation.groupId
+  ) {
+    return content;
+  }
+
+  return <DesktopTraceReviewProvider>{content}</DesktopTraceReviewProvider>;
 }
 
 const traceContentClassName =
@@ -432,12 +441,22 @@ function DesktopTraceContent({
 }: {
   desktopLayout: DesktopLayout;
 }) {
-  const { trace, observations } = useTraceData();
-  const { selectedNodeId } = useSelection();
-  const router = useRouter();
+  const { trace } = useTraceData();
   if (desktopLayout.groupId === DESKTOP_LAYOUTS.annotation.groupId) {
     return <DesktopTraceWorkspace desktopLayout={desktopLayout} />;
   }
+  return (
+    <DesktopTraceReviewWorkspace
+      desktopLayout={desktopLayout}
+      projectId={trace.projectId}
+    />
+  );
+}
+
+function DesktopTraceReviewProvider({ children }: { children: ReactNode }) {
+  const { trace, observations } = useTraceData();
+  const { selectedNodeId } = useSelection();
+  const router = useRouter();
   return (
     <TraceReviewPanelProvider
       key={`${trace.projectId}:${trace.id}`}
@@ -474,10 +493,7 @@ function DesktopTraceContent({
         );
       }}
     >
-      <DesktopTraceReviewWorkspace
-        desktopLayout={desktopLayout}
-        projectId={trace.projectId}
-      />
+      {children}
     </TraceReviewPanelProvider>
   );
 }
