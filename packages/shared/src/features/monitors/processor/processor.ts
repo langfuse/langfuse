@@ -436,8 +436,11 @@ export function isBreaching(severity: MonitorSeverity): boolean {
   );
 }
 
-/** Monitor observations-view fields whose observations table column id differs. */
-const OBSERVATIONS_TABLE_COLUMN_BY_VIEW_FIELD: Record<string, string> = {
+/** maxDataPermalinkLength is the Slack section text limit a data link must fit in */
+const maxDataPermalinkLength = 3000;
+
+/** observationsTableColumnByViewField maps monitor view fields to differing observations table column ids */
+const observationsTableColumnByViewField: Partial<Record<string, string>> = {
   tags: "traceTags",
   traceVersion: "version",
   traceRelease: "release",
@@ -468,21 +471,13 @@ export function buildDataWindowPermalink(
   if (view === "observations") {
     const query = new URLSearchParams({
       dateRange,
-      // Every predicate is passed through; the table ignores columns it does
-      // not know. An empty value replaces stored and default table filters.
-      filter: encodeFiltersGeneric(
-        filters.map((filter) => ({
-          ...filter,
-          column:
-            OBSERVATIONS_TABLE_COLUMN_BY_VIEW_FIELD[filter.column] ??
-            filter.column,
-        })),
-      ),
-      // Alert filters own the environment scope, including an unrestricted one.
+      // An empty filter clears stored and default table filters.
+      filter: encodeFiltersGeneric(toObservationsTableFilters(filters)),
       showAllEnvironments: "true",
     });
-    const href = `${base}/project/${projectId}/observations?${query.toString()}`;
-    return href.length <= 3000 ? href : undefined;
+    return withinPermalinkLimit(
+      `${base}/project/${projectId}/observations?${query.toString()}`,
+    );
   }
 
   const tableFilters: FilterState = [];
@@ -556,10 +551,24 @@ export function buildDataWindowPermalink(
     // Alert filters own the environment scope, including an unrestricted one.
     showAllEnvironments: "true",
   });
-  const href = `${base}/project/${projectId}/scores?${query.toString()}`;
-  // Slack section text is limited to 3000 characters. Dropping predicates to
-  // shorten a link would show scores outside the evaluated query.
-  return href.length <= 3000 ? href : undefined;
+  return withinPermalinkLimit(
+    `${base}/project/${projectId}/scores?${query.toString()}`,
+  );
+}
+
+/** toObservationsTableFilters renames monitor view fields to observations table column ids */
+function toObservationsTableFilters(filters: FilterState): FilterState {
+  return filters.map((filter) => ({
+    ...filter,
+    column: observationsTableColumnByViewField[filter.column] ?? filter.column,
+  }));
+}
+
+/** withinPermalinkLimit returns href, or undefined when it exceeds maxDataPermalinkLength */
+function withinPermalinkLimit(href: string): string | undefined {
+  // Dropping predicates to shorten a link would show data outside the evaluated query.
+  if (href.length > maxDataPermalinkLength) return undefined;
+  return href;
 }
 
 /** toMonitorWebhookInputs fans an alert out to one webhook input per matched automation. */
