@@ -1,0 +1,21 @@
+{
+  "privacy": {
+    "blocked": {
+      "eventCount": 2,
+      "publicPresent": true,
+      "privateValuePresent": false,
+      "privateTitlePresent": false,
+      "privateStatusPresent": false,
+      "privateColorPresent": false
+    },
+    "unblocked": {
+      "eventCount": 2,
+      "publicPresent": true,
+      "privateValuePresent": true,
+      "privateTitlePresent": true,
+      "privateStatusPresent": true,
+      "privateColorPresent": true
+    }
+  },
+  "emptyStateNeutral": true
+}
