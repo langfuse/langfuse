@@ -1,6 +1,23 @@
 # Internal cloud trace-batch experiment
 
-Two cloud-only modes share the batch worker. `LANGFUSE_TOPICS_ENABLED` runs the legacy Topics pipeline for active allowlisted projects. Default-off `LANGFUSE_TRACE_DISPATCH_ENABLED` moves ingestion tracking and dispatch to the new maps: ingestion → Redis → dispatcher → batch jobs. A trace is admitted when it passes its project's Topics rule sampling or the experiment sampling (`LANGFUSE_TRACE_DISPATCH_SAMPLING_RATE`); both use the same deterministic trace-ID value. The consumer reads ClickHouse only for traces of active Topics projects within their rule's sample, and those keep their summaries and optional input storage. Every other admitted trace ends at the dispatcher without a ClickHouse query. Deploy the same mode to every worker. Jobs queued before a switch are processed the same way, so no drain is needed. `LANGFUSE_TRACE_BATCH_DISPATCHER_ENABLED` and `QUEUE_CONSUMER_TRACE_BATCH_QUEUE_IS_ENABLED` still choose which service runs each role.
+Two cloud-only modes share the batch worker. Deploy the same mode to every
+worker; jobs queued before a switch are processed the same way, so no drain is
+needed. `LANGFUSE_TRACE_BATCH_DISPATCHER_ENABLED` and
+`QUEUE_CONSUMER_TRACE_BATCH_QUEUE_IS_ENABLED` still choose which service runs
+each role.
+
+- **Legacy Topics** (`LANGFUSE_TOPICS_ENABLED`, dispatch off): tracks and
+  dispatches traces of active allowlisted Topics projects through the
+  `{trace-batch:<shard>}` maps.
+- **Trace dispatch** (`LANGFUSE_TRACE_DISPATCH_ENABLED`, default off): moves
+  tracking and dispatch to the new maps: ingestion → Redis → dispatcher → batch
+  jobs. A trace is admitted when it passes its project's Topics rule sampling or
+  the experiment sampling (`LANGFUSE_TRACE_DISPATCH_SAMPLING_RATE`); both use
+  the same deterministic trace-ID value.
+- **Consumer, both modes**: reads ClickHouse only for traces of active Topics
+  projects within their rule's sample; those keep their summaries and optional
+  input storage. Every other admitted trace ends at the dispatcher without a
+  ClickHouse query.
 
 ## Recording trace-rule selections
 
