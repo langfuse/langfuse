@@ -73,39 +73,9 @@ connections need explicit credentials, except operator-provisioned Bedrock
 connections in the runtime-credential allowlist; self-hosted deployments can use
 the default credential chain.
 
-Saving the settings makes one real call per configured slot (structured output
-for summaries and clustering, one embedding whose length must equal the
-configured dimensions) and rejects the save if any call fails. Saves record the
-user in `created_by` / `updated_by` and write `topicConfig` (and, for the rule,
-`job`) audit log entries.
-The embedding model and dimensions cannot change once the project has embedded
-summaries, so existing vectors stay comparable. Summary and clustering model changes apply
-to new work only; an execution frozen on another summary or embedding model
-fails and must be started again. Deleting a connection that a slot uses turns
-automatic processing off and records why. Usage is retained for any model, but
-cost estimates are only available for the model IDs priced in
-[models.ts](models.ts).
+Saving the settings makes one real call per configured slot (structured output for summaries and clustering, one embedding whose length must equal the configured dimensions) and rejects the save if any call fails. Saves record the user in `created_by` / `updated_by` and write `topicConfig` (and, for the rule, `job`) audit log entries. The embedding model and dimensions cannot change once the project has embedded summaries, so existing vectors stay comparable. Summary and clustering model changes apply to new work only; an execution frozen on another summary or embedding model fails and must be started again. Deleting a connection that a slot uses turns automatic processing off and records why. Usage is retained for any model. Cost estimates use the source project's custom model pricing or the default Langfuse catalog, including model matching and pricing tiers.
 
-Summary and naming calls emit one generation each to the configured internal
-AI-features project (`LANGFUSE_AI_FEATURES_PROJECT_ID`) only when the source
-project is listed in `LANGFUSE_TOPICS_TRACING_ENABLED_PROJECT_IDS` and its
-organization enables AI features and AI analytics. The tracing allowlist is
-comma-separated, trims whitespace, and defaults to empty (tracing off). It is
-independent of the processing allowlist; projects can run Topics without tracing.
-Multi-facet summaries share one generation. Both connection-based SDK calls and
-cached Bedrock InvokeModel calls record inputs, outputs, models, usage, and errors;
-embeddings are untraced.
-Trace costs use the destination project's model catalog. Unmatched connection
-model IDs retain their usage but have no trace cost, independently of Topics'
-own estimates in `models.ts`.
-Traces use `langfuse-topics`. Topics excludes all `langfuse`-prefixed environments
-and `llm-as-a-judge` through the shared eval exclusion predicate, preventing loops
-from these internal traces. Manual selection groups matching observations by
-trace ID within the requested time range; workers also check the source environment
-they load. If an OpenRouter connection broadcasts requests back
-to a Topics-enabled project, use a dedicated Topics API key excluded from that
-Broadcast destination. OpenRouter's separate public traces do not retain the
-reserved internal environment and can otherwise trigger more Topics calls.
+Summary and naming calls emit one generation each to the configured internal AI-features project (`LANGFUSE_AI_FEATURES_PROJECT_ID`) only when the source project is listed in `LANGFUSE_TOPICS_TRACING_ENABLED_PROJECT_IDS` and its organization enables AI features and AI analytics. The tracing allowlist is comma-separated, trims whitespace, and defaults to empty (tracing off). It is independent of the processing allowlist; projects can run Topics without tracing. Multi-facet summaries share one generation. Both connection-based SDK calls and cached Bedrock InvokeModel calls record inputs, outputs, models, usage, and errors; embeddings are untraced. Trace costs use the destination project's model catalog. Unmatched connection model IDs retain their usage but have no trace cost. Topics processing estimates use the source project's catalog, independently of optional tracing. Traces use `langfuse-topics`. Topics excludes all `langfuse`-prefixed environments and `llm-as-a-judge` through the shared eval exclusion predicate, preventing loops from these internal traces. Manual selection groups matching observations by trace ID within the requested time range; workers also check the source environment they load. If an OpenRouter connection broadcasts requests back to a Topics-enabled project, use a dedicated Topics API key excluded from that Broadcast destination. OpenRouter's separate public traces do not retain the reserved internal environment and can otherwise trigger more Topics calls.
 
 Numerical fitting uses the worker's existing Node runtime and compiled
 `@langfuse/native` addon, with no extra runtime or service.
@@ -121,37 +91,7 @@ Summaries snapshot source environment and trace name; assignments copy that
 snapshot, including empty environment strings. Reprocessing refreshes metadata
 even when text is reused; session results have no trace name.
 
-For Bedrock summary models, use `us.openai.gpt-6-luna` for US routing or
-`global.openai.gpt-6-luna` for global routing; GPT-6 Luna has no EU geographic
-profile. Both support Bedrock Converse tool-based structured output; OpenAI
-models on Bedrock are called with reasoning effort `none`.
-Summary cost estimates include both GPT-6 Luna profiles and the existing
-`us.openai.gpt-5.6-luna` profile. See the
-[GPT-6 Luna model card](https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-openai-gpt-6-luna.html)
-for supported source regions and pricing. The
-recommended Bedrock clustering model is `us.openai.gpt-5.6-terra`. The AWS model cards for [GPT-5.6 Luna](https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-openai-gpt-56-luna.html)
-and [GPT-5.6 Terra](https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-openai-gpt-56-terra.html)
-currently list `us.` geographic inference profiles in commercial Regions, but
-no `eu.` profiles; these profiles route within the US geography, including when
-invoked from `eu-west-1`.
-On Bedrock, Cohere Embed v4 uses `eu.cohere.embed-v4:0` for EU routing or
-`us.cohere.embed-v4:0` for US routing. Avoid the global profile when geographic
-residency matters. Every provider is asked for clustering vectors of the
-configured size (Cohere `clustering` input type with truncation disabled, Google
-`CLUSTERING` task type, OpenAI `dimensions`). Fixed-size models such as `text-embedding-ada-002` reject
-the size option; a request rejected with HTTP 400 is retried once without it, and
-the vector must still have the configured length. Default: 1,024
-dimensions; any whole number from 64 to 4,096 is accepted, and a provider that
-returns a vector of another length fails the call. Embeddings are batched per trace: each trace's
-applicable facets are embedded in one call, in trace-batch and in embedding jobs
-(which run up to `LANGFUSE_TOPICS_TRACE_CONCURRENCY` traces at once). The call's
-usage is recorded on the trace's first row; one failure fails that trace's call,
-and a retry embeds the traces that are left. Saving the models requires the
-embedding model to embed two texts in one call.
-Embedding settings are independent of immutable facet versions; changing them
-with stored-summary reuse enabled regenerates vectors without summarization inference. This PoC does
-not use `aiEmbed` or change ingestion. It accepts traces already stored in v4
-events; legacy-only traces are unsupported.
+For Bedrock summary models, use `us.openai.gpt-6-luna` for US routing or `global.openai.gpt-6-luna` for global routing; GPT-6 Luna has no EU geographic profile. Both support Bedrock Converse tool-based structured output; OpenAI models on Bedrock are called with reasoning effort `none`. The central pricing catalog includes both GPT-6 Luna profiles and the existing `us.openai.gpt-5.6-luna` profile. See the [GPT-6 Luna model card](https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-openai-gpt-6-luna.html) for supported source regions and pricing. The recommended Bedrock clustering model is `us.openai.gpt-5.6-terra`. The AWS model cards for [GPT-5.6 Luna](https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-openai-gpt-56-luna.html) and [GPT-5.6 Terra](https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-openai-gpt-56-terra.html) currently list `us.` geographic inference profiles in commercial Regions, but no `eu.` profiles; these profiles route within the US geography, including when invoked from `eu-west-1`. On Bedrock, Cohere Embed v4 uses `eu.cohere.embed-v4:0` for EU routing or `us.cohere.embed-v4:0` for US routing. Avoid the global profile when geographic residency matters. Every provider is asked for clustering vectors of the configured size (Cohere `clustering` input type with truncation disabled, Google `CLUSTERING` task type, OpenAI `dimensions`). Fixed-size models such as `text-embedding-ada-002` reject the size option; a request rejected with HTTP 400 is retried once without it, and the vector must still have the configured length. Default: 1,024 dimensions; any whole number from 64 to 4,096 is accepted, and a provider that returns a vector of another length fails the call. Embeddings are batched per trace: each trace's applicable facets are embedded in one call, in trace-batch and in embedding jobs (which run up to `LANGFUSE_TOPICS_TRACE_CONCURRENCY` traces at once). The call's usage is recorded on the trace's first row; one failure fails that trace's call, and a retry embeds the traces that are left. Saving the models requires the embedding model to embed two texts in one call. Embedding settings are independent of immutable facet versions; changing them with stored-summary reuse enabled regenerates vectors without summarization inference. This PoC does not use `aiEmbed` or change ingestion. It accepts traces already stored in v4 events; legacy-only traces are unsupported.
 
 Drain existing work before deploying model changes; old-model staged jobs cannot
 resume. Old execution history remains readable.
@@ -489,34 +429,15 @@ an old definition may still be in use by the current map. There is no age-based
 expiry. Transcripts stay in memory.
 There are no Topics object-storage manifests, numerical checkpoints or shared-disk files.
 
-Provider usage and calculated model costs use the events-style
-`provided_usage_details`, `usage_details`, `provided_cost_details` and `cost_details`
-maps. Summary and embedding keys are prefixed by stage; effective maps include
-combined totals.
-Manual processing summaries carry their execution ID in metadata. Run estimates
-sum retained summary and embedding costs with available pricing. They exclude
-topic naming and failed provider calls, and can change after reprocessing or deletion.
-Priced model IDs: global Bedrock text rates per million input/output tokens are $0.20/$1.20 for
-[Luna](https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-openai-gpt-56-luna.html)
-and $2/$12 for
-[Terra](https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-openai-gpt-56-terra.html).
-Naming requests above 272,000 input tokens use $4/$18 for the whole request.
-Embedding costs use Bedrock-reported input tokens at $0.12/million. Missing usage
-is logged and omitted from usage/cost maps, never estimated with an OpenAI tokenizer.
-Model prices and token budgets live in [models.ts](models.ts) and the shared
-Topics contracts. Summary input defaults to 120,000 tokens. Oversized naming
-input is limited to 900,000 estimated tokens and 16 MiB of serialized input.
-The token cap is an application ceiling, not a guarantee that every configured
-model supports that context. Selection reserves bounded space for a conflict
-retry; contrast and conflicting examples are omitted whole when they exceed
-their ancillary budgets. Member text is never truncated, and a group with no
-fitting member fails before inference. Definition metadata records the full
-population and the selected count separately.
-Provider calls retry 429 and 5xx responses twice. Embedding queue jobs retry transient failures
-up to three attempts with exponential backoff; authentication and invalid
-input/output failures stop immediately. A manual resume can retry a failed batch
-while its Redis payload still exists; each manual resume resets the three-attempt
-retry budget.
+Successful summary and embedding results retain the events-style `provided_usage_details`, `usage_details`, `provided_cost_details` and `cost_details` maps on `topic_facet_summaries`. [models.ts](models.ts) resolves prices with `findModel` for the source project and uses `calculateModelUsageCosts`, shared with ingestion, to price canonical usage buckets before adding stage prefixes. Explicit provider USD costs take precedence; OpenRouter can supply a total, while current Bedrock transports supply token usage. Missing usage is never estimated from token limits. Pricing failures are logged without retrying inference.
+
+The existing result pipeline splits summary costs across produced facet rows and adds each embedding batch's costs once. Reused summaries carry no new model cost. Cost maps are written with the completed summaries; no separate cost write or cost table is needed.
+
+Manual processing summaries carry their execution ID in metadata. History sums stored `cost_details['total']` by project and execution without query-time deduplication. Retry and replacement rows can temporarily overcount until background merges. This includes total-only provider prices, shows zero for a stored zero total, and shows no estimate when no stored total exists.
+
+These are approximate processing costs for retained results. They exclude topic naming, failed calls, and results that were not saved. Partial pricing can undercount the total, and replacing or deleting summaries can change historical estimates. This tradeoff keeps costs in the existing result lifecycle.
+
+Token budgets live in [models.ts](models.ts) and the shared Topics contracts. Summary input defaults to 120,000 tokens. Oversized naming input is limited to 900,000 estimated tokens and 16 MiB of serialized input. The token cap is an application ceiling, not a guarantee that every configured model supports that context. Selection reserves bounded space for a conflict retry; contrast and conflicting examples are omitted whole when they exceed their ancillary budgets. Member text is never truncated, and a group with no fitting member fails before inference. Definition metadata records the full population and the selected count separately. Provider calls retry 429 and 5xx responses twice. Embedding queue jobs retry transient failures up to three attempts with exponential backoff; authentication and invalid input/output failures stop immediately. A manual resume can retry a failed batch while its Redis payload still exists; each manual resume resets the three-attempt retry budget.
 
 An interrupted update starts a new attempt from compatible summaries in its frozen time window,
 then fits again and names only new or changed definitions. Partially named failed attempts cannot overwrite
